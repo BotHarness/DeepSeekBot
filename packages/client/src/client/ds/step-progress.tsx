@@ -26,6 +26,7 @@ const styles = stylex.create({
     textAlign: 'start',
   },
   active: { color: color.fg, fontWeight: text.strong },
+  title: { whiteSpace: 'nowrap' },
   dot: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -54,10 +55,12 @@ export function StepProgress({
   label,
   steps,
   step,
+  titles = 'all',
 }: {
   readonly label: string;
   readonly steps: readonly string[];
   readonly step: number;
+  readonly titles?: 'all' | 'current';
 }): ReactElement {
   return (
     <ol aria-label={label} {...stylex.props(styles.list)}>
@@ -70,7 +73,11 @@ export function StepProgress({
           <span aria-hidden="true" {...stylex.props(styles.dot, index <= step && styles.reached)}>
             {index < step ? <ChannelSidebarIcon name="check" size={14} /> : index + 1}
           </span>
-          <span>{title}</span>
+          {titles === 'all' || index === step ? (
+            <span {...stylex.props(styles.title)}>{title}</span>
+          ) : (
+            <span hidden>{title}</span>
+          )}
           {index < steps.length - 1 ? (
             <span aria-hidden="true" {...stylex.props(styles.line)} />
           ) : null}

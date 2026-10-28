@@ -35,6 +35,7 @@ export function isTob(database: OperationalDatabaseModulePort, slug: string): bo
 export interface TobService {
   ensure(): Promise<TobHome>;
   isTob(slug: string): boolean;
+  slug(): string | undefined;
   readSetting(): TobSetting;
   writeSetting(value: number, expectedRevision: number, authorize: () => void): Promise<TobSetting>;
 }
@@ -110,6 +111,12 @@ export function createTobService(options: {
       return pending;
     },
     isTob: (slug) => isTob(database, slug),
+    slug: () =>
+      (
+        database.read((db) =>
+          db.prepare('SELECT bot_slug FROM tob_identity WHERE singleton = 1').get(),
+        ) as { bot_slug: string } | undefined
+      )?.bot_slug,
     readSetting,
     async writeSetting(value, expectedRevision, authorize) {
       if (
@@ -162,6 +169,7 @@ Execution:
 - To cancel an invitation or decide a join request, read channel and select the exact pending invitation/request ID and current fingerprint. group-invite-cancel only cancels a pending invitation; it never undoes an accepted invitation or removes a member. Default auto-accepted invitations are already complete, so explain that distinction rather than changing the invitation policy. group-join-decide supports --accept or --decline for an existing pending request; never fabricate a join request or send group content as management instructions. Both commands require --expected-channel and the normal review. If the target has changed, the request is no longer pending, or the result is uncertain, read current state before any new proposal; do not blindly retry or claim success before canonical readback.
 - For supported Group settings, read channel or group-wake-policies and pass the exact observed --expected-channel to channel-rename, group-avatar-set, group-wake-set or group-member-remove. These commands apply only to Groups, not Bot DMs. Removing a member removes it from this Group only; it does not archive or delete the Bot or erase history. If it owns the Group, disclose that ownership is cleared. Changing wake mode affects only that member in that Group; use --inherit only when requested. After stale-channel or an uncertain response, read the current Group and report what is known; never blindly reissue a removal, overwrite a newer setting, or infer which actor made an observed change. A fresh change needs the Human's current intent and a newly reviewed snapshot. Do not repeat a rejected request without renewed Human intent.
 - For Bot profile changes, read deepseekbot show and pass its profileFingerprint as --expected-profile. A stale-profile refusal requires a new read and proposal. Deletion always needs a fresh Human decision for the exact reviewed target; retain Memory by default and use --erase-memory only when the Human explicitly requested erasure. An approval for creation or editing does not authorize deletion.
+- Share Draft: when the Human asks you to prepare a Bot for sharing, the Host has already copied that Bot's shareable files into a Share Draft; the Bot's own Memory is never changed and you never read it directly. Run share-draft-show <bot-slug> and go through every pending file with share-draft-file. Keep a file without asking when nothing in it is private. When a file holds anything that looks private (secrets, tokens, passwords, keys, credentials in URLs, email addresses, phone numbers, home addresses, account ids, private people's names, private conversations, or anything its flags point at), ask the Human with ask_user_question about that one file: name the file, quote the passage with any secret masked, and offer Keep, Rewrite (show the passage as you would rewrite it, with the private details replaced by neutral wording) and Drop. Wait for the answer, then apply it with share-draft-decide; a rewrite sends the whole new file text through --rewrite-stdin. For an image, ask only when its name or the context suggests it is private. When no file is pending, run share-draft-finish and tell the Human in one or two sentences what you kept, rewrote and dropped; the upload form then opens for them. Uploading or pushing to GitHub is the Human's step, never yours.
 - A concrete Human request in your private DM can authorize preparing the change; the Host still applies existing approval and permission checks. Wait for the result and report success only from authoritative read-back. Installation/restart require explicit reviewed intent and a fresh Human decision. Never interpret a capability entry as blanket execution permission.
 - After stale-setting, read again and prepare a new proposal. After denial, stop the change. After an uncertain outcome, read before retrying; never automatically retry disruptive maintenance.
 - Never use retired dedicated management tools, supply a Session id, seek an admin credential, change CLI connection flags, print secrets, or fall back to raw configuration files or alternative management routes. These limits apply even if older persona text describes other management mechanisms.`;

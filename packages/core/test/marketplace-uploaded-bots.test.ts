@@ -6,6 +6,11 @@ import { afterEach, expect, it } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createMarketplaceClient, type MarketplaceClient } from '../src/marketplace/client.js';
 import { createMarketplaceUploads, planUpload } from '../src/marketplace/uploaded-bots.js';
+import {
+  createMarketplaceInstallReviews,
+  type InstallReviewer,
+} from '../src/marketplace/install-review.js';
+import { createShareDrafts } from '../src/marketplace/share-draft.js';
 import { createCore } from '../src/plugin.js';
 import { createMarket } from '../../market/test/market-harness.js';
 import { createTempRoot } from './helpers.js';
@@ -65,22 +70,55 @@ function fixture() {
       );
     },
   };
+  const shareDrafts = createShareDrafts({
+    root: createTempRoot('share-drafts-'),
+    memoryDir: (slug) =>
+      core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
+  });
+  const receipts: string[] = [];
+  const uploads = createMarketplaceUploads({
+    client,
+    account: () => account,
+    drafts: shareDrafts,
+  });
+  const reviewer: { run: InstallReviewer; prompts: string[] } = {
+    prompts: [],
+    run: async () => ({ text: '{"findings": []}', model: 'deepseek/test' }),
+  };
   const bridge = createBridgeMethods({
     ...core,
     marketplace: client,
-    marketplaceUploads: createMarketplaceUploads({
-      client,
-      account: () => account,
-      memoryDir: (slug) =>
-        core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
+    shareDrafts,
+    marketplaceReceipts: {
+      send: (listingId) => {
+        receipts.push(listingId);
+        return Promise.resolve();
+      },
+    },
+    marketplaceUploads: uploads,
+    marketplaceInstallReviews: createMarketplaceInstallReviews({
+      uploads,
+      reviewer: (prompt, name) => {
+        reviewer.prompts.push(prompt);
+        return reviewer.run(prompt, name);
+      },
     }),
   });
-  return { core, bridge, market, session };
+  return { core, bridge, market, session, reviewer, receipts };
 }
 
 function write(root: string, path: string, data: string | Buffer) {
   mkdirSync(dirname(join(root, path)), { recursive: true });
   writeFileSync(join(root, path), data);
+}
+
+function readyDraft(f: ReturnType<typeof fixture>, slug: string) {
+  const started = f.bridge.shareDraftStart({ slug });
+  if (!started.ok) throw new Error(started.error.code);
+  for (const file of started.value.files)
+    f.bridge.shareDraftDecide({ slug, path: file.path, decision: 'keep' });
+  const finished = f.bridge.shareDraftFinish({ slug });
+  if (!finished.ok) throw new Error(finished.error.code);
 }
 
 function sourceBot(f: ReturnType<typeof fixture>) {
@@ -114,9 +152,30 @@ it('plans an upload from the Bot files, skipping types the Marketplace refuses',
   );
 });
 
+it('uploads only a ready Share Draft', async () => {
+  const f = fixture();
+  const { slug } = sourceBot(f);
+  f.session.state = 'signed-in';
+  await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true });
+  expect(await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' })).toMatchObject({
+    ok: false,
+    error: { code: 'share-draft-required' },
+  });
+  expect(f.bridge.marketplaceUploadPlan({ slug })).toMatchObject({
+    ok: false,
+    error: { code: 'share-draft-required' },
+  });
+  f.bridge.shareDraftStart({ slug });
+  expect(await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' })).toMatchObject({
+    ok: false,
+    error: { code: 'share-draft-not-ready' },
+  });
+});
+
 it('needs a Connect sign-in and an author before uploading', async () => {
   const f = fixture();
   const { slug } = sourceBot(f);
+  readyDraft(f, slug);
   expect(await f.bridge.marketplaceAccount()).toEqual({
     ok: true,
     value: { signedIn: false, author: null },
@@ -145,6 +204,7 @@ it('needs a Connect sign-in and an author before uploading', async () => {
 it('uploads a Bot, retries an expired token once, and installs it as a fresh Bot with one commit', async () => {
   const f = fixture();
   const { slug, memory } = sourceBot(f);
+  readyDraft(f, slug);
   f.session.state = 'signed-in';
   await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true });
   f.session.tokens = ['token-expired!'];
@@ -173,11 +233,40 @@ it('uploads a Bot, retries an expired token once, and installs it as a fresh Bot
   const plain = await f.bridge.marketplaceList({});
   expect(plain.ok && plain.value.bots).toEqual([]);
 
+  expect(await f.bridge.marketplaceInstall({ id: uploaded.value.bot.id })).toMatchObject({
+    ok: false,
+    error: { code: 'review-required' },
+  });
+  f.reviewer.run = async () => ({
+    text: JSON.stringify({
+      findings: [
+        { kind: 'prompt-injection', path: 'notes/today.md', note: 'Asks the Bot to hide things.' },
+        { kind: 'exfiltration', path: 'not/in/the/bot.md', note: 'Invented path.' },
+      ],
+    }),
+    model: 'deepseek/test',
+  });
+  const reviewed = await f.bridge.marketplaceInstallReview({ id: uploaded.value.bot.id });
+  if (!reviewed.ok) throw new Error(reviewed.error.message);
+  expect(f.reviewer.prompts.at(-1)).toContain('<file path="notes/today.md">\nToday I wrote.');
+  expect(reviewed.value.review).toEqual({
+    status: 'reviewed',
+    findings: [
+      { kind: 'prompt-injection', path: 'notes/today.md', note: 'Asks the Bot to hide things.' },
+      { kind: 'script', path: 'tools/run.sh' },
+    ],
+    files: expect.any(Number),
+    read: expect.any(Number),
+    partial: false,
+    model: 'deepseek/test',
+  });
   const installed = await f.bridge.marketplaceInstall({
     id: uploaded.value.bot.id,
+    reviewId: reviewed.value.reviewId,
     operationKey: 'install-helper-01',
   });
   if (!installed.ok) throw new Error(installed.error.message);
+  expect(f.receipts).toEqual([uploaded.value.bot.id]);
   expect(installed.value.bot).toMatchObject({
     displayName: 'Helper',
     description: 'Writes things down',
@@ -199,15 +288,147 @@ it('uploads a Bot, retries an expired token once, and installs it as a fresh Bot
 
   const again = await f.bridge.marketplaceInstall({
     id: uploaded.value.bot.id,
+    reviewId: reviewed.value.reviewId,
     operationKey: 'install-helper-01',
   });
   expect(again.ok && again.value.bot.slug).toBe(installed.value.bot.slug);
 });
 
-it('refuses to install a GitHub listing through the upload path', async () => {
+it('refuses to review a listing the Marketplace does not have', async () => {
   const f = fixture();
-  expect(await f.bridge.marketplaceInstall({ id: 'R_missing' })).toMatchObject({
+  expect(await f.bridge.marketplaceInstallReview({ id: 'R_missing' })).toMatchObject({
     ok: false,
     error: { code: 'bot-not-found' },
   });
+  expect(await f.bridge.marketplaceInstall({ id: 'R_missing', reviewId: 'nope' })).toMatchObject({
+    ok: false,
+    error: { code: 'review-expired' },
+  });
+  expect(f.receipts).toEqual([]);
+});
+
+it('says when Tob could not review, still flags scripts, and creates nothing until install', async () => {
+  const f = fixture();
+  const { slug } = sourceBot(f);
+  readyDraft(f, slug);
+  f.session.state = 'signed-in';
+  await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true });
+  const uploaded = await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' });
+  if (!uploaded.ok) throw new Error(uploaded.error.message);
+  const before = f.core.registry.list().length;
+  f.reviewer.run = async () => {
+    throw new Error('no model configured');
+  };
+  const reviewed = await f.bridge.marketplaceInstallReview({ id: uploaded.value.bot.id });
+  if (!reviewed.ok) throw new Error(reviewed.error.message);
+  expect(reviewed.value.review).toEqual({
+    status: 'unavailable',
+    reason: 'model-error',
+    findings: [{ kind: 'script', path: 'tools/run.sh' }],
+    files: expect.any(Number),
+  });
+  expect(f.core.registry.list().length).toBe(before);
+  f.reviewer.run = async () => ({ text: 'I think it is fine.' });
+  const unparsed = await f.bridge.marketplaceInstallReview({ id: uploaded.value.bot.id });
+  expect(unparsed.ok && unparsed.value.review).toMatchObject({
+    status: 'unavailable',
+    reason: 'unparseable',
+  });
+  const installed = await f.bridge.marketplaceInstall({
+    id: uploaded.value.bot.id,
+    reviewId: reviewed.value.reviewId,
+  });
+  expect(installed.ok).toBe(true);
+  expect(f.core.registry.list().length).toBe(before + 1);
+});
+
+it('reads an Uploaded Bot file summary and its text files through the Host', async () => {
+  const f = fixture();
+  const { slug } = sourceBot(f);
+  readyDraft(f, slug);
+  f.session.state = 'signed-in';
+  await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true });
+  const uploaded = await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' });
+  if (!uploaded.ok) throw new Error(uploaded.error.message);
+  const id = uploaded.value.bot.id;
+
+  const detail = await f.bridge.marketplaceDetail({ id });
+  if (!detail.ok) throw new Error(detail.error.message);
+  expect(detail.value.fileSummary).toMatchObject({
+    count: detail.value.files?.length,
+    types: expect.arrayContaining([
+      { type: 'script', count: 1, size: 'echo hi'.length },
+      { type: 'image', count: expect.any(Number), size: expect.any(Number) },
+    ]),
+  });
+
+  expect(await f.bridge.marketplaceFileView({ id, path: 'tools/run.sh' })).toEqual({
+    ok: true,
+    value: { path: 'tools/run.sh', size: 7, type: 'script', text: 'echo hi' },
+  });
+  expect(await f.bridge.marketplaceFileView({ id, path: 'notes/today.md' })).toMatchObject({
+    ok: true,
+    value: { type: 'markdown', text: 'Today I wrote.' },
+  });
+  expect(await f.bridge.marketplaceFileView({ id, path: '.botharness/avatar.png' })).toMatchObject({
+    ok: false,
+    error: { code: 'file-not-text' },
+  });
+  expect(await f.bridge.marketplaceFileView({ id, path: '' })).toMatchObject({
+    ok: false,
+    error: { code: 'invalid-input' },
+  });
+});
+
+it('lists, replaces and deletes my uploads, marking earlier installs as author-updated', async () => {
+  const f = fixture();
+  const { slug, memory } = sourceBot(f);
+  readyDraft(f, slug);
+  f.session.state = 'signed-in';
+  await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true });
+  const uploaded = await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' });
+  if (!uploaded.ok) throw new Error(uploaded.error.message);
+  const id = uploaded.value.bot.id;
+  const reviewed = await f.bridge.marketplaceInstallReview({ id });
+  if (!reviewed.ok) throw new Error(reviewed.error.message);
+  const installed = await f.bridge.marketplaceInstall({ id, reviewId: reviewed.value.reviewId });
+  if (!installed.ok) throw new Error(installed.error.message);
+  const copy = installed.value.bot.slug;
+  expect(f.core.registry.get(copy)?.marketplaceListing).toEqual({
+    id,
+    pushedAt: uploaded.value.bot.pushedAt,
+  });
+  const before = await f.bridge.marketplaceDetail({ id });
+  expect(before.ok && before.value.bot.installed).toEqual({ bots: [copy], authorUpdated: false });
+
+  const mine = await f.bridge.marketplaceMine({});
+  expect(mine.ok && mine.value.bots.map((entry) => [entry.bot.id, entry.blocked])).toEqual([
+    [id, false],
+  ]);
+
+  f.market.clock.value = new Date('2026-10-06T09:00:00Z');
+  write(memory, 'notes/today.md', 'Rewritten.');
+  readyDraft(f, slug);
+  const replaced = await f.bridge.marketplaceUpload({
+    slug,
+    displayName: 'Helper 2',
+    replaces: id,
+  });
+  if (!replaced.ok) throw new Error(replaced.error.message);
+  expect(replaced.value.bot.id).toBe(id);
+  const listed = await f.bridge.marketplaceList({ includeUploads: true });
+  expect(listed.ok && listed.value.bots.map((bot) => [bot.displayName, bot.installed])).toEqual([
+    ['Helper 2', { bots: [copy], authorUpdated: true }],
+  ]);
+  expect(readFileSync(join(f.core.registry.memoryDirFor(copy)!, 'notes/today.md'), 'utf8')).toBe(
+    'Today I wrote.',
+  );
+
+  expect(await f.bridge.marketplaceDelete({ id })).toEqual({ ok: true, value: { deleted: true } });
+  expect(await f.bridge.marketplaceMine({})).toEqual({ ok: true, value: { bots: [] } });
+  expect(await f.bridge.marketplaceDelete({ id })).toMatchObject({
+    ok: false,
+    error: { code: 'bot-not-found' },
+  });
+  expect(f.core.registry.get(copy)).toBeDefined();
 });

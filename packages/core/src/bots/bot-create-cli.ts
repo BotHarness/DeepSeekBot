@@ -205,13 +205,24 @@ Usage:
   tobs marketplace-list [--query <words>] [--topic <topic>] [--sort updated|created|stars] [--cursor <c>] [--include-uploads]
   tobs marketplace-topics
   tobs marketplace-detail <owner/repo>
+  tobs marketplace-file <listing-id> <path>
   tobs marketplace-submit <github-repo-url>
   tobs marketplace-report <owner/repo> [--reason <text>]
   tobs marketplace-account
   tobs marketplace-author --name <display name> [--accept-terms]
   tobs marketplace-upload-plan <bot-id>
-  tobs marketplace-upload <bot-id> --name <name> [--description <bio>] [--role <tag> ...] --confirm
-  tobs marketplace-install <listing-id> [--operation-key <key>]
+  tobs marketplace-upload <bot-id> --name <name> [--description <bio>] [--role <tag> ...] [--replaces <listing-id>] --confirm
+  tobs marketplace-mine [--lang zh|en]
+  tobs marketplace-delete <listing-id> --confirm
+  tobs marketplace-install <listing-id> [--lang zh|en]
+  tobs marketplace-install <listing-id> --review <review-id> --confirm [--operation-key <key>]
+  tobs share-draft-start <bot-id>
+  tobs share-draft-show <bot-id>
+  tobs share-draft-file <bot-id> --path <file>
+  tobs share-draft-decide <bot-id> --path <file> (--keep | --drop | --rewrite-stdin)
+  tobs share-draft-finish <bot-id>
+  tobs share-draft-export <bot-id>
+  tobs share-draft-discard <bot-id>
   tobs data-reset-preview
   tobs data-reset-confirm --confirmation-stdin --confirm
   tobs telemetry-status

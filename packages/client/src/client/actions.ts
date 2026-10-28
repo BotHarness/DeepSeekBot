@@ -38,9 +38,11 @@ import type { GroupMemberWakePolicy } from '../../../core/src/channels/channel.j
 import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import { parsePrivateAccountList, type PrivateAccountList } from './private-accounts.js';
 import type {
+  MarketplaceAuthoredBot,
   MarketplaceAuthorAccount,
   MarketplaceDetail,
   MarketplaceEntry,
+  MarketplaceFileView,
   MarketplacePage,
   MarketplaceQuery,
   MarketplaceTopic,
@@ -50,7 +52,9 @@ import type {
   MarketplaceAccount,
   UploadPlan,
 } from '../../../core/src/marketplace/uploaded-bots.js';
+import type { ShareDraftView } from '../../../core/src/marketplace/share-draft.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
+import type { InstallReviewResult } from '../../../core/src/marketplace/install-review.js';
 import { loadAllBotPreview } from './bridge.js';
 import { loadComposerIdentity, validateComposerDraft } from './bridge.js';
 import type { AllBotPreview, AllBotMention } from '../../../core/src/channels/all-bot-mention.js';
@@ -210,12 +214,15 @@ import {
   loadOverviewMemory,
   loadOverviewUsage,
   loadMarketplaceDetail,
+  loadMarketplaceFile,
   loadMarketplacePage,
   loadMarketplaceTopics,
   submitMarketplaceRepository,
   loadMarketplaceChallenge,
   reportMarketplaceBot,
   installMarketplaceBot,
+  reviewMarketplaceInstall,
+  loadMyMarketplaceUploads,
   uploadMarketplaceBot,
   type UsageFilter,
   type UsageQueryResult,
@@ -883,6 +890,7 @@ export interface BridgeActions {
   marketplaceReport(id: string, altcha: string, reason?: string): Promise<void>;
   marketplaceTopics(): Promise<MarketplaceTopic[]>;
   marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail>;
+  marketplaceFile(id: string, path: string): Promise<MarketplaceFileView>;
   marketplaceAccount(): Promise<MarketplaceAccount>;
   marketplaceAuthorSave(
     displayName: string,
@@ -891,9 +899,16 @@ export interface BridgeActions {
   marketplaceUploadPlan(slug: string): Promise<UploadPlan>;
   marketplaceUpload(
     slug: string,
-    presentation: { displayName: string; bio?: string; tags?: string[] },
+    presentation: { displayName: string; bio?: string; tags?: string[]; replaces?: string },
   ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }>;
-  marketplaceInstall(id: string, sectionId?: string): Promise<BotSummary>;
+  marketplaceMine(lang?: MarketplaceLanguage): Promise<MarketplaceAuthoredBot[]>;
+  marketplaceDelete(id: string): Promise<void>;
+  shareDraftStart(slug: string): Promise<ShareDraftView>;
+  shareDraftGet(slug: string): Promise<ShareDraftView | undefined>;
+  shareDraftDiscard(slug: string): Promise<void>;
+  shareDraftExport(slug: string): Promise<{ path: string; files: number }>;
+  marketplaceInstallReview(id: string, lang?: MarketplaceLanguage): Promise<InstallReviewResult>;
+  marketplaceInstall(id: string, reviewId: string, sectionId?: string): Promise<BotSummary>;
   createGroup(name: string, sectionId?: string): Promise<ChannelSummary | undefined>;
   renameChannel(channelId: string, name: string): Promise<boolean>;
   setHumanNickname(channelId: string, nickname: string | null): Promise<boolean>;
@@ -2734,13 +2749,30 @@ export function createActions(
     marketplaceReport: (id, altcha, reason) => reportMarketplaceBot(call, id, altcha, reason),
     marketplaceTopics: () => loadMarketplaceTopics(call),
     marketplaceDetail: (id, lang) => loadMarketplaceDetail(call, id, lang),
+    marketplaceFile: (id, path) => loadMarketplaceFile(call, id, path),
     marketplaceAccount: () => invoke('marketplaceAccount', {}),
     marketplaceAuthorSave: (displayName, acceptTerms) =>
       invoke('marketplaceAuthorSave', { displayName, acceptTerms }),
     marketplaceUploadPlan: (slug) => invoke('marketplaceUploadPlan', { slug }),
     marketplaceUpload: (slug, presentation) => uploadMarketplaceBot(call, slug, presentation),
-    async marketplaceInstall(id, sectionId) {
-      return openCreatedBot(await installMarketplaceBot(call, id), sectionId);
+    marketplaceMine: (lang) => loadMyMarketplaceUploads(call, lang),
+    async marketplaceDelete(id) {
+      await invoke('marketplaceDelete', { id });
+    },
+    shareDraftStart: (slug) => invoke('shareDraftStart', { slug }),
+    async shareDraftGet(slug) {
+      const result = await call('shareDraftGet', { slug });
+      if (result.ok) return result.value as ShareDraftView;
+      if (result.error.code === 'share-draft-not-found') return undefined;
+      throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
+    },
+    async shareDraftDiscard(slug) {
+      await invoke('shareDraftDiscard', { slug });
+    },
+    shareDraftExport: (slug) => invoke('shareDraftExport', { slug }),
+    marketplaceInstallReview: (id, lang) => reviewMarketplaceInstall(call, id, lang),
+    async marketplaceInstall(id, reviewId, sectionId) {
+      return openCreatedBot(await installMarketplaceBot(call, id, reviewId), sectionId);
     },
     profileUsage: (channelId, filter) => loadProfileUsage(call, channelId, filter),
     channelActivityToday: () => loadChannelActivityToday(call),

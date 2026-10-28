@@ -7,6 +7,7 @@
 - When the Panel is 380px wide or narrower, the sort tabs give way to a Sort menu with the same three choices, so no choice is clipped.
 - Topic selection uses a filled surface without a border.
 - A fresh browser defaults to most stars; changing sort persists on this browser origin, shared by the Panel and Marketplace modal. Invalid or blocked storage falls back to stars without blocking browsing.
+- Sharing a Bot goes through a Share Draft (ADR-0267): Bot profile **⋯ → Share to Marketplace** (or Upload Bot → Share a Bot) shows the Check step; **Check with Tob** starts the draft, sends Tob a DM and closes the dialog. When Tob runs `share-draft-finish`, the upload form reopens on the draft at Check with the kept/rewritten/dropped counts, then Where (Tobs Marketplace or My GitHub).
 - Most stars orders by stars, last push, creation time and stable ID, all descending. The Worker owns the order and cursor; the Client never reorders a page.
 
 ## How to get to it (user POV)
@@ -21,10 +22,15 @@ Launch a task-owned instance with `node scripts/verify-app.mjs launch --name <n>
 2. Compare light/dark cards to `banner` in that response. Measure all three toolbar children at 32px and cards/topic/import borders at 0px. Open a card to prove its banner and identity share the detail target.
 3. Select Latest created, close/reopen the Panel, then reload. The selected tab and request remain `created`. Repeat with Recently updated and Most stars. Search on Enter and clear the query; the selected sort remains unchanged. The same choice appears in the fallback modal.
 4. Select a topic and verify the visible filtered cards match the Host list call. Open Import and inspect the confirmation; cancel without cloning. Open Upload Bot and inspect the existing dialog.
+7. Share Draft: on a Bot profile choose **⋯ → Share to Marketplace → Check with Tob**. Prove with `deepseekbot share-draft-show <bot>` that a `reviewing` draft exists and that `git -C <memory> status --porcelain` stays empty. Drive the decisions through Tob's DM (or `share-draft-decide`), run `share-draft-finish`, and observe the dialog reopen on Check with the counts; continue to Where.
 5. Resize the dock narrow enough to wrap controls. Verify each control remains 32px high and cards do not overflow horizontally.
 6. Open five full-height columns at 1440px (Bot Marketplace, Messages, Activity Center, Home, Channels). The Market column shows a Sort menu instead of tabs; open it, pick Recently updated, and confirm the list request and the tabs (after widening) both read `updated`.
 
 For Worker tie/paging proof run `pnpm exec vitest run packages/market/test/market-search.test.ts`; it walks 1/2/3/50-item pages through the production Worker and D1 adapter with independent ties at every level. A live Host can point at a task-local Worker using the existing `marketplaceUrl` Plugin configuration, then exercise `deepseekbot marketplace-list --sort stars`.
+
+## Tob install review
+
+Install opens a review step: Tob reads the staged files and the step shows **Tob found nothing risky**, the findings (prompt injection, sends data out, script) with **Install anyway**, or **Tob couldn't review this Bot** with **Install without review**. Back creates nothing. The real-model journey is `node scripts/e2e-install-review.mjs`: it serves a local Marketplace with a planted-injection Bot and a clean Bot, launches an isolated Host pointed at it, and asserts the planted file is flagged, the clean Bot is not, a review creates no Bot, and `marketplace-install <id> --review <review-id> --confirm` installs. Use the AX model selection on the newest DeepSeek model.
 
 ## Gotchas
 

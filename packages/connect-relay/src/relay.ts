@@ -16,6 +16,7 @@ export interface RelayOptions {
   reclaimAfterMs: number;
   limit?: (account: string) => Promise<boolean>;
   deleteUser?: (account: string) => Promise<void>;
+  deleteMarketplaceAuthor?: (accessToken: string) => Promise<void>;
   hostKey?: (hostId: string) => Promise<string>;
   fetchHost?: typeof fetch;
   now?: () => Date;
@@ -186,7 +187,7 @@ export function createRelay(options: RelayOptions) {
     await db.prepare('DELETE FROM hosts WHERE id = ?').bind(row.id).run();
   };
 
-  const deleteAccount = async (account: string) => {
+  const deleteAccount = async (account: string, accessToken: string) => {
     if (options.deleteUser === undefined) return failure(503, 'account-deletion-unavailable');
     await db
       .prepare('INSERT OR IGNORE INTO deleted_accounts (account, deleted_at) VALUES (?, ?)')
@@ -198,6 +199,7 @@ export function createRelay(options: RelayOptions) {
       .all<HostRow>();
     try {
       for (const row of results) await unlink(row);
+      await options.deleteMarketplaceAuthor?.(accessToken);
       await options.deleteUser(account);
     } catch {
       return failure(502, 'upstream-unavailable');
@@ -256,8 +258,11 @@ export function createRelay(options: RelayOptions) {
     });
   };
 
+  const bearerToken = (request: Request) =>
+    /^Bearer (\S+)$/u.exec(request.headers.get('authorization') ?? '')?.[1];
+
   const authorized = async (request: Request): Promise<string | Response> => {
-    const token = /^Bearer (\S+)$/u.exec(request.headers.get('authorization') ?? '')?.[1];
+    const token = bearerToken(request);
     const account = token === undefined ? undefined : await options.verifier.verify(token);
     if (account === undefined) return failure(401, 'unauthorized');
     if (!allowAll && !options.allowedUsers.includes(account))
@@ -296,7 +301,7 @@ export function createRelay(options: RelayOptions) {
 
     if (url.pathname === '/v1/account') {
       if (request.method !== 'DELETE') return failure(405, 'method-not-allowed');
-      return deleteAccount(account);
+      return deleteAccount(account, bearerToken(request)!);
     }
 
     if (url.pathname === '/v1/hosts') {
