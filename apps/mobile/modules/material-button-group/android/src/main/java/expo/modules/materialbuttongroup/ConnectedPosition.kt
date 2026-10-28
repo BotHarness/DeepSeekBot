@@ -10,6 +10,5 @@ fun connectedPosition(index: Int, count: Int): ConnectedPosition = when {
   else -> ConnectedPosition.Middle
 }
 
-/** The next selection, or null when the press keeps the current one (a checked button stays checked). */
 fun nextSelection(current: String, pressed: String, checked: Boolean): String? =
-  if (checked && pressed != current) pressed else null
+  if (checked || pressed == current) pressed else null

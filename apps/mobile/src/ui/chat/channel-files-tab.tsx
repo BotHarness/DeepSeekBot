@@ -35,14 +35,14 @@ export function ChannelFilesTab({
       channelId,
       ...(botSlug === undefined ? {} : { botSlug }),
     },
-    active,
+    { active, retain: true },
   );
   const media = segment === 'media';
   const shown = list.files.filter((file) => isMedia(file) === media);
   const empty =
-    list.status === 'opening' ? (
+    list.status === 'opening' && !list.loaded ? (
       <LoadingIndicator />
-    ) : list.status === 'ready' ? (
+    ) : list.status === 'ready' || list.loaded ? (
       <Text testID={`channel-${segment}-empty`} tone="muted">
         {media
           ? list.hasOlder
@@ -53,47 +53,51 @@ export function ChannelFilesTab({
             : t.channelFiles.empty}
       </Text>
     ) : null;
-  return children({
-    rows: [
-      {
-        key: 'segments',
-        render: () => (
-          <View testID="channel-files-segments" style={{ paddingBottom: space.x5 }}>
-            <Segmented<ChannelFilesSegment>
-              label={t.channelFiles.segments}
-              options={[
-                { value: 'media', label: t.channelFiles.media },
-                { value: 'files', label: t.channelFiles.files },
-              ]}
-              value={segment}
-              onChange={setSegment}
-            />
-          </View>
-        ),
-      },
-      ...(list.header === undefined ? [] : [{ key: 'notice', render: () => list.header }]),
-      ...(shown.length === 0
-        ? empty === null
-          ? []
-          : [{ key: `${segment}:empty`, render: () => empty }]
-        : media
-          ? mediaRows(shown).map((row) => ({
-              key: `media:${row[0]?.key ?? ''}`,
-              render: () => (
-                <MediaRow
-                  files={row}
-                  available={list.available}
-                  onOpen={list.openImage}
-                  onActions={list.openActions}
+  return (
+    <View ref={list.mount} style={{ flex: 1 }}>
+      {children({
+        rows: [
+          {
+            key: 'segments',
+            render: () => (
+              <View testID="channel-files-segments" style={{ paddingBottom: space.x5 }}>
+                <Segmented<ChannelFilesSegment>
+                  label={t.channelFiles.segments}
+                  options={[
+                    { value: 'media', label: t.channelFiles.media },
+                    { value: 'files', label: t.channelFiles.files },
+                  ]}
+                  value={segment}
+                  onChange={setSegment}
                 />
-              ),
-            }))
-          : shown.map((file) => ({
-              key: `files:${file.key}`,
-              render: () => list.renderFile(file),
-            }))),
-    ],
-    footer: list.footer,
-    overlay: list.viewer,
-  });
+              </View>
+            ),
+          },
+          ...(list.header === undefined ? [] : [{ key: 'notice', render: () => list.header }]),
+          ...(shown.length === 0
+            ? empty === null
+              ? []
+              : [{ key: `${segment}:empty`, render: () => empty }]
+            : media
+              ? mediaRows(shown).map((row) => ({
+                  key: `media:${row[0]?.key ?? ''}`,
+                  render: () => (
+                    <MediaRow
+                      files={row}
+                      available={list.available}
+                      onOpen={list.openImage}
+                      onActions={list.openActions}
+                    />
+                  ),
+                }))
+              : shown.map((file) => ({
+                  key: `files:${file.key}`,
+                  render: () => list.renderFile(file),
+                }))),
+        ],
+        footer: list.footer,
+        overlay: list.viewer,
+      })}
+    </View>
+  );
 }

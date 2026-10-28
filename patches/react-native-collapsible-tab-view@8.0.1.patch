@@ -1,0 +1,15 @@
+diff --git a/src/Lazy.tsx b/src/Lazy.tsx
+index ebfd09f..ba38d00 100644
+--- a/src/Lazy.tsx
++++ b/src/Lazy.tsx
+@@ -49,7 +49,9 @@ export const Lazy: React.FC<{
+   /**
+    * This is used to control when children are mounted
+    */
+-  const [canMount, setCanMount] = React.useState(false)
++  const [canMount, setCanMount] = React.useState(
++    () => _startMounted ?? focusedTab.value === name
++  )
+   /**
+    * Ensure we don't mount after the component has been unmounted
+    */
