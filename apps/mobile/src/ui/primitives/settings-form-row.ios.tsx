@@ -189,16 +189,12 @@ export function FormRow({
   const label =
     symbol !== undefined ? (
       <Label
-        icon={
-          <Image
-            systemName={rowSymbol(symbol.name).ios}
-            modifiers={[
-              foregroundStyle(
-                symbol.color === undefined ? PRIMARY : { type: 'color', color: symbol.color },
-              ),
-            ]}
-          />
-        }
+        systemImage={rowSymbol(symbol.name).ios}
+        modifiers={[
+          foregroundStyle(
+            symbol.color === undefined ? PRIMARY : { type: 'color', color: symbol.color },
+          ),
+        ]}
       >
         {text}
       </Label>
