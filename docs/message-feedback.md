@@ -10,7 +10,7 @@ Defaults include 20 visible messages on each side and related execution records.
 
 ## Submission and retries
 
-Host submission posts a small `message_feedback` event using the existing project capture token. A random report ID is reused as the event UUID and distinct ID, with person processing and GeoIP disabled. A successful ingestion acknowledgement returns `{ reportId }`; it does not promise durable private evidence storage. Failed submissions retain the form for manual retry; changing the frozen rating requires an explicit refresh. No background upload queue is created.
+Host submission posts a small `chat:message_feedback_submit` event using the existing project capture token. A random report ID is reused as the event UUID and distinct ID, with person processing and GeoIP disabled. A successful ingestion acknowledgement returns `{ reportId }`; it does not promise durable private evidence storage. Failed submissions retain the form for manual retry; changing the frozen rating requires an explicit refresh. No background upload queue is created.
 
 No private bucket, dedicated feedback domain, admin token or new Worker deployment is required. `BOTHARNESS_FEEDBACK_ENDPOINT` is no longer used. The retired archive receiver, maintainer view and 30-day deletion service are removed. Local files are controlled by their owner; feedback fields follow the existing PostHog project retention policy.
 

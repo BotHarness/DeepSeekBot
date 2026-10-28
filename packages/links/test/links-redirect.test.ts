@@ -41,7 +41,7 @@ async function seeded(overrides: Parameters<typeof createHarness>[0] = {}) {
 }
 
 describe('campaign link redirect', () => {
-  it('redirects with the campaign UTMs, counts the click and sends link_clicked without a person', async () => {
+  it('redirects with the campaign UTMs, counts the click and sends campaign:short_link_click without a person', async () => {
     stubPostHog();
     const { request, token } = await seeded();
 
@@ -58,7 +58,7 @@ describe('campaign link redirect', () => {
       properties: Record<string, unknown>;
     };
     expect(body.api_key).toBe('phc_test');
-    expect(body.event).toBe('link_clicked');
+    expect(body.event).toBe('campaign:short_link_click');
     expect(body.distinct_id).toMatch(/^[0-9a-f-]{36}$/);
     expect(body.properties).toEqual({
       source: 'links',

@@ -513,6 +513,7 @@ export function OnboardingOverlay({
     let active = true;
     let key = '';
     markBotModeEntered();
+    actions.telemetryEvent('app:bot_mode_enter');
     const returned = takeSessionsTourReturn();
     void enter().then(() => {
       if (active && returned && !controller.getSnapshot().receipt?.journey)

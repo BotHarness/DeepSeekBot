@@ -220,7 +220,7 @@ describe('plugin entry', () => {
     expect(stubs.skills.register).not.toHaveBeenCalled();
   });
 
-  it('sends plugin_started and daily_usage from the Host only while telemetry is on', async () => {
+  it('sends app:host_start and app:usage_report from the Host only while telemetry is on', async () => {
     const fetchImpl = vi.fn<typeof fetch>(async () => new Response('{}', { status: 200 }));
     vi.stubGlobal('fetch', fetchImpl);
     try {
@@ -262,34 +262,37 @@ describe('plugin entry', () => {
           installId: string;
         }
       ).installId;
-      expect(body.batch.map((event) => event.event)).toEqual(['plugin_started', 'daily_usage']);
+      expect(body.batch.map((event) => event.event)).toEqual([
+        'app:host_start',
+        'app:usage_report',
+      ]);
       expect(body.batch[0]!.distinct_id).toBe(installId);
       expect(Object.keys(body.batch[0]!.properties).sort()).toEqual([
         '$geoip_disable',
         '$process_person_profile',
+        'app_version',
         'arch',
         'cpu_count_bucket',
         'dsh_version',
         'node_version',
         'os',
         'os_release_major',
-        'plugin_version',
         'source',
         'total_mem_gb_bucket',
       ]);
       expect(Object.keys(body.batch[1]!.properties).sort()).toEqual([
         '$geoip_disable',
         '$process_person_profile',
+        'app_version',
         'arch',
         'cpu_count_bucket',
         'dsh_version',
-        'messages',
+        'message_count',
         'node_version',
         'os',
         'os_release_major',
-        'persona_bots',
-        'plugin_version',
-        'sessions',
+        'persona_bot_count',
+        'session_count',
         'source',
         'total_mem_gb_bucket',
         'window_hours',
@@ -594,7 +597,7 @@ describe('plugin entry', () => {
       'tobHome',
       'onboarding',
       'onboardingModel',
-      'introEvent',
+      'telemetryEvent',
       'modelPlanInherit',
       'channelRetry',
       'botNewSession',

@@ -47,7 +47,7 @@ export interface PostHogConfig {
 export function linkClickedEvent(link: TargetLink, key: string, timestamp: string) {
   return {
     api_key: key,
-    event: 'link_clicked',
+    event: 'campaign:short_link_click',
     distinct_id: crypto.randomUUID(),
     timestamp,
     properties: {
