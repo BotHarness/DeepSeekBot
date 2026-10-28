@@ -9,10 +9,12 @@ import type { MarketplaceAccount } from '../../../core/src/marketplace/uploaded-
 import { Note } from './ds/note.js';
 import { SettingsRow, SettingsSection, SettingsValue } from './ds/settings-row.js';
 import { color, radius, size, space, text } from './ds/tokens.stylex.js';
+import type { ConnectSignInCode } from './connect-sign-in.js';
 import { GroupAvatarCropModal } from './group-avatar-crop.js';
 import { useMountedResource } from './mounted-resource.js';
 
 export const ACCOUNT_NAME_MAX = 40;
+const SIGN_IN_POLL_MS = 3000;
 
 const styles = stylex.create({
   avatarControls: { display: 'flex', alignItems: 'center', gap: space.x3 },
@@ -32,6 +34,14 @@ const styles = stylex.create({
   image: { width: '100%', height: '100%', objectFit: 'cover' },
   file: { display: 'none' },
   field: { boxSizing: 'border-box', width: '200px', maxWidth: '100%', minWidth: 0 },
+  code: {
+    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+    fontSize: text.titleSize,
+    lineHeight: text.titleLine,
+    fontWeight: text.strong,
+    letterSpacing: '0.12em',
+    userSelect: 'all',
+  },
 });
 
 export function validAccountName(name: string): boolean {
@@ -54,12 +64,12 @@ export type AccountProfileSettingsProps = PropsLocale<'botharness'> &
       BridgeActions,
       'marketplaceAccount' | 'marketplaceAuthorSave' | 'marketplaceAuthorAvatarSet'
     >;
-    openSignIn(): void;
+    startSignIn(): Promise<ConnectSignInCode>;
   }>;
 
 export function AccountProfileSettings({
   actions,
-  openSignIn,
+  startSignIn,
   t,
 }: AccountProfileSettingsProps): ReactElement {
   const [state, setState] = useState<State>({ status: 'loading' });
@@ -67,6 +77,8 @@ export function AccountProfileSettings({
   const [cropFile, setCropFile] = useState<File>();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [signIn, setSignIn] = useState<ConnectSignInCode>();
+  const [signInFailed, setSignInFailed] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const composing = useRef(false);
   const pending = useRef(false);
@@ -88,6 +100,24 @@ export function AccountProfileSettings({
       mounted.current = false;
     };
   }, [actions]);
+
+  const poll = useMountedResource<HTMLSpanElement>(() => {
+    const timer = setInterval(() => void load(), SIGN_IN_POLL_MS);
+    return () => clearInterval(timer);
+  }, [signIn]);
+
+  const beginSignIn = async (): Promise<void> => {
+    setBusy(true);
+    setSignInFailed(false);
+    try {
+      const code = await startSignIn();
+      if (mounted.current) setSignIn(code);
+    } catch {
+      if (mounted.current) setSignInFailed(true);
+    } finally {
+      if (mounted.current) setBusy(false);
+    }
+  };
 
   const account = state.status === 'ready' ? state.account : undefined;
   const author = account?.author ?? null;
@@ -165,13 +195,34 @@ export function AccountProfileSettings({
     return frame(
       <SettingsRow
         title={t('accountProfile.signInHint')}
-        data={{ 'data-account-profile': 'signed-out' }}
+        data={{ 'data-account-profile': signIn === undefined ? 'signed-out' : 'signing-in' }}
         control={
-          <Button variant="outline" size="sm" onClick={openSignIn}>
-            {t('accountProfile.signIn')}
-          </Button>
+          signIn === undefined ? (
+            <Button variant="outline" size="sm" disabled={busy} onClick={() => void beginSignIn()}>
+              {t('accountProfile.signIn')}
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => window.open(signIn.verificationUri, '_blank', 'noopener')}
+            >
+              {t('devices.connect.openPage')}
+            </Button>
+          )
         }
-      />,
+      >
+        {signIn === undefined ? null : (
+          <>
+            <Note>{t('devices.connect.confirm')}</Note>
+            <span {...stylex.props(styles.code)} data-account-sign-in-code="">
+              {signIn.userCode}
+            </span>
+            <span ref={poll} hidden />
+          </>
+        )}
+        {signInFailed ? <Note tone="danger">{t('accountProfile.signInFailed')}</Note> : null}
+      </SettingsRow>,
     );
 
   const invalid = name.length > 0 && !validAccountName(name);
