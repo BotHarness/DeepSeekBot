@@ -1859,6 +1859,14 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
   padding: ${space.x1};
 }
 /* The Market dock panel: browse controls on top, then a flat grid that follows the panel width. */
+.bh-market-stack { position: relative; height: 100%; min-width: 0; }
+.bh-market-page {
+  height: 100%;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.bh-market-page[hidden] { display: none; }
 .bh-market-panel {
   display: flex;
   flex-direction: column;
