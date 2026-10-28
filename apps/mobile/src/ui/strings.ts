@@ -1335,7 +1335,6 @@ const en = {
   chats: 'Chats',
   activity: 'Activity',
   settings: 'Settings',
-  connections: 'Connections',
   interface: 'Interface',
   hapticFeedback: {
     title: 'Haptic feedback',
@@ -1477,7 +1476,6 @@ const en = {
     manage: 'Manage cloud services',
   },
   computers: 'Computers',
-  computersHint: 'Each computer has its own chats. You get notifications from all of them.',
   showing: 'Showing',
   pairAnother: 'Pair a new computer',
   switchComputer: (host: string) => `${host}, switch computer`,
@@ -3296,7 +3294,6 @@ const zh: typeof en = {
   chats: '聊天',
   activity: '活动',
   settings: '设置',
-  connections: '连接',
   interface: '界面',
   hapticFeedback: {
     title: '触感反馈',
@@ -3433,7 +3430,6 @@ const zh: typeof en = {
     manage: '管理云服务',
   },
   computers: '电脑',
-  computersHint: '每台电脑有各自的聊天，通知都会发到这台手机。',
   showing: '当前显示',
   pairAnother: '配对新电脑',
   switchComputer: (host: string) => `${host}，切换电脑`,

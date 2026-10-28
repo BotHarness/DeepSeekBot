@@ -1,21 +1,21 @@
-import type { ReactNode, RefCallback } from "react";
-import { useRouter } from "expo-router";
-import { Platform, Pressable, View, type ViewInstance } from "react-native";
+import type { ReactNode, RefCallback } from 'react';
+import { useRouter } from 'expo-router';
+import { Platform, Pressable, View, type ViewInstance } from 'react-native';
 
-import type { DesignTheme } from "../design/theme";
-import { useDesignTheme } from "../design/theme";
-import { radius, space } from "../design/tokens";
-import { useStrings } from "../strings";
-import { SheetGrabber } from "./sheet-grabber";
+import type { DesignTheme } from '../design/theme';
+import { useDesignTheme } from '../design/theme';
+import { radius, space } from '../design/tokens';
+import { useStrings } from '../strings';
+import { SheetGrabber } from './sheet-grabber';
 
 export function sheetScreenOptions(theme: DesignTheme, full = false) {
   return {
     headerShown: false,
-    presentation: "formSheet" as const,
+    presentation: 'formSheet' as const,
     sheetAllowedDetents: full ? [1] : [0.75, 1],
     sheetGrabberVisible: true,
     contentStyle: { backgroundColor: theme.overlay.fill },
-    ...(Platform.OS === "android" ? { sheetCornerRadius: radius.xl } : {}),
+    ...(Platform.OS === 'android' ? { sheetCornerRadius: radius.xl } : {}),
   };
 }
 
@@ -38,15 +38,15 @@ export function SheetScreen({
       onAccessibilityEscape={close}
       style={{ flex: 1, backgroundColor: theme.overlay.fill }}
     >
-      {Platform.OS === "android" ? (
+      {Platform.OS === 'android' ? (
         <Pressable
           testID="sheet-screen-handle"
           accessibilityRole="button"
           accessibilityLabel={t.close}
           onPress={close}
           style={{
-            alignItems: "center",
-            justifyContent: "center",
+            alignItems: 'center',
+            justifyContent: 'center',
             minHeight: theme.touch,
             paddingVertical: space.x3,
           }}

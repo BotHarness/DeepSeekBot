@@ -1,30 +1,22 @@
-import { useMemo, type ReactNode } from "react";
-import {
-  SafeAreaInsetsContext,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
-import { Stack, useNavigation } from "expo-router";
-import type { NativeStackHeaderProps } from "expo-router/native-stack";
-import { Platform, View } from "react-native";
-import { useStrings } from "../strings";
-import { SheetHeader } from "./sheet-header";
+import { useMemo, type ReactNode } from 'react';
+import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Stack, useNavigation } from 'expo-router';
+import type { NativeStackHeaderProps } from 'expo-router/native-stack';
+import { Platform, View } from 'react-native';
+import { useStrings } from '../strings';
+import { SheetHeader } from './sheet-header';
 
-import { useDesignTheme } from "../design/theme";
-import { SheetScreen } from "./sheet-screen";
+import { useDesignTheme } from '../design/theme';
+import { SheetScreen } from './sheet-screen';
 
 function sheetStackHeader(close: () => void) {
-  return function SheetStackHeader({
-    back,
-    navigation,
-    options,
-    route,
-  }: NativeStackHeaderProps) {
+  return function SheetStackHeader({ back, navigation, options, route }: NativeStackHeaderProps) {
     return (
       <SheetHeader
-        title={typeof options.title === "string" ? options.title : route.name}
+        title={typeof options.title === 'string' ? options.title : route.name}
         {...(back !== undefined
           ? { onBack: () => navigation.goBack() }
-          : Platform.OS === "ios"
+          : Platform.OS === 'ios'
             ? { onClose: close }
             : {})}
       />
@@ -41,13 +33,10 @@ export function SheetStack({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const navigation = useNavigation("/");
+  const navigation = useNavigation('/');
   const insets = useSafeAreaInsets();
   const contentInsets = useMemo(() => ({ ...insets, top: 0 }), [insets]);
-  const header = useMemo(
-    () => sheetStackHeader(() => navigation.goBack()),
-    [navigation],
-  );
+  const header = useMemo(() => sheetStackHeader(() => navigation.goBack()), [navigation]);
   if (fullScreen)
     return (
       <View
@@ -59,7 +48,7 @@ export function SheetStack({
             headerStyle: { backgroundColor: theme.overlay.fill },
             headerTintColor: theme.color.fg,
             headerShadowVisible: false,
-            headerBackButtonDisplayMode: "minimal",
+            headerBackButtonDisplayMode: 'minimal',
             headerBackTitle: t.back,
             contentStyle: { backgroundColor: theme.overlay.fill },
           }}
@@ -77,7 +66,7 @@ export function SheetStack({
             headerStyle: { backgroundColor: theme.overlay.fill },
             headerTintColor: theme.color.fg,
             headerShadowVisible: false,
-            headerBackButtonDisplayMode: "minimal",
+            headerBackButtonDisplayMode: 'minimal',
             headerBackTitle: t.back,
             contentStyle: { backgroundColor: theme.overlay.fill },
           }}

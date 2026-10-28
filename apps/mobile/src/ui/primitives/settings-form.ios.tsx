@@ -1,19 +1,16 @@
-import { Form, Host, RNHostView, Section, VStack } from "@expo/ui/swift-ui";
+import { Form, Host, RNHostView, Section, VStack } from '@expo/ui/swift-ui';
 import {
   listRowBackground,
   listRowInsets,
   scrollContentBackground,
   tint,
-} from "@expo/ui/swift-ui/modifiers";
-import type { ReactElement } from "react";
-import { View } from "react-native";
+} from '@expo/ui/swift-ui/modifiers';
+import type { ReactElement } from 'react';
+import { View } from 'react-native';
 
-import { useDesignTheme } from "../design/theme";
-import {
-  SettingsFormContext,
-  useSettingsFormPlace,
-} from "./settings-form-context";
-import type { SettingsFormProps } from "./settings-form";
+import { useDesignTheme } from '../design/theme';
+import { SettingsFormContext, useSettingsFormPlace } from './settings-form-context';
+import type { SettingsFormProps } from './settings-form';
 
 export function SettingsForm({ header, testID, children }: SettingsFormProps) {
   const theme = useDesignTheme();
@@ -23,14 +20,9 @@ export function SettingsForm({ header, testID, children }: SettingsFormProps) {
       <Host style={{ flex: 1 }} colorScheme={theme.scheme}>
         <Form
           {...(testID === undefined ? {} : { testID })}
-          modifiers={[
-            scrollContentBackground("hidden"),
-            tint(theme.color.accent),
-          ]}
+          modifiers={[scrollContentBackground('hidden'), tint(theme.color.accent)]}
         >
-          <SettingsFormContext.Provider value="form">
-            {children}
-          </SettingsFormContext.Provider>
+          <SettingsFormContext.Provider value="form">{children}</SettingsFormContext.Provider>
         </Form>
       </Host>
     </View>
@@ -41,7 +33,7 @@ export function SettingsFormItem({ children }: { children: ReactElement }) {
   const place = useSettingsFormPlace();
   if (place === false) return children;
   const row = <HostedRow>{children}</HostedRow>;
-  return place === "section" ? row : <Section>{row}</Section>;
+  return place === 'section' ? row : <Section>{row}</Section>;
 }
 
 function HostedRow({ children }: { children: ReactElement }) {
@@ -49,7 +41,7 @@ function HostedRow({ children }: { children: ReactElement }) {
     <VStack
       modifiers={[
         listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 }),
-        listRowBackground("clear"),
+        listRowBackground('clear'),
       ]}
     >
       <RNHostView matchContents={{ vertical: true }}>

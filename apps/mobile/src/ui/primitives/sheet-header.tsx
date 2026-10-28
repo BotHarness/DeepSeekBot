@@ -1,8 +1,8 @@
-import { Platform, View } from "react-native";
+import { Platform, View } from 'react-native';
 
-import { useDesignTheme } from "../design/theme";
-import { space } from "../design/tokens";
-import { DrawerHeader, type DrawerHeaderProps } from "./drawer-header";
+import { useDesignTheme } from '../design/theme';
+import { space } from '../design/tokens';
+import { DrawerHeader, type DrawerHeaderProps } from './drawer-header';
 
 export function SheetHeader(props: DrawerHeaderProps) {
   const theme = useDesignTheme();
@@ -12,7 +12,7 @@ export function SheetHeader(props: DrawerHeaderProps) {
       style={{
         zIndex: 1,
         paddingHorizontal: space.x5,
-        paddingTop: Platform.OS === "ios" ? space.x4 : space.x3,
+        paddingTop: Platform.OS === 'ios' ? space.x4 : space.x3,
         paddingBottom: space.x3,
         backgroundColor: theme.overlay.fill,
       }}

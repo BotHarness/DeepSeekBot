@@ -1,41 +1,30 @@
-import { useIncomingShare } from "expo-sharing";
-import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import {
-  AppState,
-  FlatList,
-  Image,
-  Keyboard,
-  ScrollView,
-  View,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useIncomingShare } from 'expo-sharing';
+import { useRouter } from 'expo-router';
+import { useMemo, useState } from 'react';
+import { AppState, FlatList, Image, Keyboard, ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import {
-  useHostSession,
-  useHostSnapshot,
-  useQuietChannels,
-} from "../../host/host-session";
-import { useHostLook } from "../../host/native-host-look";
-import { hostDraftKey } from "../../host/source-drafts";
-import { ConversationRow } from "../chat/conversation-row";
-import { conversations, type Conversation } from "../chat/conversations";
-import { useDesignTheme } from "../design/theme";
-import { radius, space } from "../design/tokens";
-import { Button } from "../primitives/button";
-import { SheetHeader } from "../primitives/sheet-header";
-import { Text } from "../primitives/text";
-import { useMounted } from "../mounted";
-import { FileIcon } from "../shell/icons";
-import { conversationHref } from "../shell/open-conversation";
-import { useStrings } from "../strings";
-import { deliverShare, incomingShare } from "./incoming-share";
-import { LoadingIndicator } from "../primitives/loading-indicator";
+import { useHostSession, useHostSnapshot, useQuietChannels } from '../../host/host-session';
+import { useHostLook } from '../../host/native-host-look';
+import { hostDraftKey } from '../../host/source-drafts';
+import { ConversationRow } from '../chat/conversation-row';
+import { conversations, type Conversation } from '../chat/conversations';
+import { useDesignTheme } from '../design/theme';
+import { radius, space } from '../design/tokens';
+import { Button } from '../primitives/button';
+import { SheetHeader } from '../primitives/sheet-header';
+import { Text } from '../primitives/text';
+import { useMounted } from '../mounted';
+import { FileIcon } from '../shell/icons';
+import { conversationHref } from '../shell/open-conversation';
+import { useStrings } from '../strings';
+import { deliverShare, incomingShare } from './incoming-share';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 function draftKey(hostId: string, row: Conversation): string {
-  return row.kind === "bot"
-    ? hostDraftKey(hostId, "dm", row.bot.slug)
-    : hostDraftKey(hostId, "channel", row.channel.id);
+  return row.kind === 'bot'
+    ? hostDraftKey(hostId, 'dm', row.bot.slug)
+    : hostDraftKey(hostId, 'channel', row.channel.id);
 }
 
 export default function ShareScreen() {
@@ -59,11 +48,9 @@ export default function ShareScreen() {
   const [sending, setSending] = useState(false);
   const mount = useMounted<FlatList<Conversation>>(() => {
     Keyboard.dismiss();
-    const shown = Keyboard.addListener("keyboardDidShow", () =>
-      Keyboard.dismiss(),
-    );
-    const active = AppState.addEventListener("change", (next) => {
-      if (next === "active") Keyboard.dismiss();
+    const shown = Keyboard.addListener('keyboardDidShow', () => Keyboard.dismiss());
+    const active = AppState.addEventListener('change', (next) => {
+      if (next === 'active') Keyboard.dismiss();
     });
     return () => {
       shown.remove();
@@ -71,8 +58,7 @@ export default function ShareScreen() {
     };
   }, []);
   const thumb = theme.touch + space.x5;
-  const empty =
-    !incoming.isResolving && share.text === "" && share.files.length === 0;
+  const empty = !incoming.isResolving && share.text === '' && share.files.length === 0;
   const send = async (row: Conversation) => {
     if (saved === undefined || saved === null || sending || empty) return;
     setSending(true);
@@ -83,7 +69,7 @@ export default function ShareScreen() {
   const close = () => {
     incoming.clearSharedPayloads();
     if (router.canGoBack()) router.back();
-    else router.replace("/");
+    else router.replace('/');
   };
   return (
     <View style={{ flex: 1, backgroundColor: theme.overlay.fill }}>
@@ -114,9 +100,7 @@ export default function ShareScreen() {
                 <Text tone="muted">{t.share.nothing}</Text>
               ) : (
                 <>
-                  {share.text !== "" && (
-                    <Text numberOfLines={4}>{share.text}</Text>
-                  )}
+                  {share.text !== '' && <Text numberOfLines={4}>{share.text}</Text>}
                   {share.files.length > 0 && (
                     <ScrollView
                       horizontal
@@ -124,7 +108,7 @@ export default function ShareScreen() {
                       contentContainerStyle={{ gap: space.x2 }}
                     >
                       {share.files.map((file) =>
-                        file.kind === "image" ? (
+                        file.kind === 'image' ? (
                           <Image
                             key={file.id}
                             source={{ uri: file.uri }}
@@ -142,23 +126,16 @@ export default function ShareScreen() {
                             style={{
                               minHeight: thumb,
                               maxWidth: thumb * 3,
-                              flexDirection: "row",
-                              alignItems: "center",
+                              flexDirection: 'row',
+                              alignItems: 'center',
                               gap: space.x2,
                               paddingHorizontal: space.x3,
                               borderRadius: radius.md,
                               backgroundColor: theme.layer.raised.inset,
                             }}
                           >
-                            <FileIcon
-                              color={theme.color.muted}
-                              size={theme.type.title.line}
-                            />
-                            <Text
-                              variant="meta"
-                              numberOfLines={2}
-                              style={{ flexShrink: 1 }}
-                            >
+                            <FileIcon color={theme.color.muted} size={theme.type.title.line} />
+                            <Text variant="meta" numberOfLines={2} style={{ flexShrink: 1 }}>
                               {file.name}
                             </Text>
                           </View>
@@ -184,7 +161,7 @@ export default function ShareScreen() {
                 label={t.pairTitle}
                 tone="primary"
                 testID="share-pair"
-                onPress={() => router.replace("/pair")}
+                onPress={() => router.replace('/pair')}
               />
             </View>
           ) : !empty && snapshot.roster === undefined ? (

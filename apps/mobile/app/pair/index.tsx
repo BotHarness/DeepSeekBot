@@ -1,20 +1,17 @@
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useRef } from "react";
-import { ScrollView } from "react-native";
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useRef } from 'react';
+import { ScrollView } from 'react-native';
 
-import { cloudAvailable } from "../../src/cloud/available";
-import { useHostSession } from "../../src/host/host-session";
-import { SHEET_GROUP } from "../../src/ui/chat/sheet";
-import { useDesignTheme } from "../../src/ui/design/theme";
-import { space } from "../../src/ui/design/tokens";
-import { Button } from "../../src/ui/primitives/button";
-import {
-  SettingsRow,
-  SettingsSection,
-} from "../../src/ui/primitives/settings-row";
-import { Text } from "../../src/ui/primitives/text";
-import { PairingGuide } from "../../src/ui/shell/pairing-guide";
-import { useStrings } from "../../src/ui/strings";
+import { cloudAvailable } from '../../src/cloud/available';
+import { useHostSession } from '../../src/host/host-session';
+import { SHEET_GROUP } from '../../src/ui/chat/sheet';
+import { useDesignTheme } from '../../src/ui/design/theme';
+import { space } from '../../src/ui/design/tokens';
+import { Button } from '../../src/ui/primitives/button';
+import { SettingsRow, SettingsSection } from '../../src/ui/primitives/settings-row';
+import { Text } from '../../src/ui/primitives/text';
+import { PairingGuide } from '../../src/ui/shell/pairing-guide';
+import { useStrings } from '../../src/ui/strings';
 
 export default function PairChoiceScreen() {
   const t = useStrings();
@@ -27,13 +24,13 @@ export default function PairChoiceScreen() {
   useFocusEffect(
     useCallback(() => {
       if (forwarded.current) return;
-      if (typeof params.p === "string") {
+      if (typeof params.p === 'string') {
         forwarded.current = true;
-        router.push({ pathname: "/pair/tailscale", params: { p: params.p } });
-      } else if (typeof params.account === "string") {
+        router.push({ pathname: '/pair/tailscale', params: { p: params.p } });
+      } else if (typeof params.account === 'string') {
         forwarded.current = true;
         router.push({
-          pathname: "/pair/account",
+          pathname: '/pair/account',
           params: { account: params.account },
         });
       }
@@ -56,8 +53,8 @@ export default function PairChoiceScreen() {
           disclosure
           onPress={() =>
             router.push({
-              pathname: "/pair/tailscale",
-              params: { mode: "lan" },
+              pathname: '/pair/tailscale',
+              params: { mode: 'lan' },
             })
           }
         />
@@ -68,7 +65,7 @@ export default function PairChoiceScreen() {
           detail={t.pairChoice.accountDetail}
           icon="account"
           disclosure
-          onPress={() => router.push("/pair/account")}
+          onPress={() => router.push('/pair/account')}
         />
         <SettingsRow
           testID="pair-choice-tailscale"
@@ -77,7 +74,7 @@ export default function PairChoiceScreen() {
           detail={t.pairChoice.tailscaleDetail}
           icon="qr"
           disclosure
-          onPress={() => router.push("/pair/tailscale")}
+          onPress={() => router.push('/pair/tailscale')}
         />
       </SettingsSection>
       <PairingGuide initiallyOpen={firstPairing} />
@@ -85,7 +82,7 @@ export default function PairChoiceScreen() {
         <Button
           label={t.cloud.title}
           variant="text"
-          onPress={() => router.dismissTo("/cloud-services")}
+          onPress={() => router.dismissTo('/cloud-services')}
         />
       )}
     </ScrollView>

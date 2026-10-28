@@ -1,7 +1,7 @@
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useState, type ReactNode } from "react";
-import { ScrollView, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useState, type ReactNode } from 'react';
+import { ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   groupTimeline,
@@ -11,24 +11,19 @@ import {
   type AssignmentTimelineEntry,
   type AssignmentTimelineLane,
   type AssignmentTimelineRound,
-} from "../../host/assignment-timeline";
-import { errorText } from "../../host/bot-settings";
-import type { HostClient } from "../../host/client";
-import { MethodRefused } from "../../host/client";
-import { useHostSession } from "../../host/host-session";
-import { useDesignTheme } from "../design/theme";
-import { edge, radius, rowGlyph, space } from "../design/tokens";
-import { SheetHeader } from "../primitives/sheet-header";
-import { SheetScreen } from "../primitives/sheet-screen";
-import { Text } from "../primitives/text";
-import { useStrings } from "../strings";
-import {
-  AssignmentActivityIcon,
-  assignmentTone,
-  StepMark,
-  STEP_MARK,
-} from "./assignment-marks";
-import { SheetFailed, SheetLoading, SheetNote } from "./sheet";
+} from '../../host/assignment-timeline';
+import { errorText } from '../../host/bot-settings';
+import type { HostClient } from '../../host/client';
+import { MethodRefused } from '../../host/client';
+import { useHostSession } from '../../host/host-session';
+import { useDesignTheme } from '../design/theme';
+import { edge, radius, rowGlyph, space } from '../design/tokens';
+import { SheetHeader } from '../primitives/sheet-header';
+import { SheetScreen } from '../primitives/sheet-screen';
+import { Text } from '../primitives/text';
+import { useStrings } from '../strings';
+import { AssignmentActivityIcon, assignmentTone, StepMark, STEP_MARK } from './assignment-marks';
+import { SheetFailed, SheetLoading, SheetNote } from './sheet';
 
 function sameDay(a: Date, b: Date): boolean {
   return a.toDateString() === b.toDateString();
@@ -36,14 +31,14 @@ function sameDay(a: Date, b: Date): boolean {
 
 export function stepTime(iso: string, now = new Date()): string {
   const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return "";
+  if (Number.isNaN(at.getTime())) return '';
   const time = at.toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
+    hour: 'numeric',
+    minute: '2-digit',
   });
   return sameDay(at, now)
     ? time
-    : `${at.toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${time}`;
+    : `${at.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${time}`;
 }
 
 function Heading({ children }: { children: string }) {
@@ -67,7 +62,7 @@ function Group({ children }: { children: ReactNode }) {
       style={{
         backgroundColor: theme.layer.raised.fill,
         borderRadius: radius.md,
-        overflow: "hidden",
+        overflow: 'hidden',
       }}
     >
       {children}
@@ -75,13 +70,7 @@ function Group({ children }: { children: ReactNode }) {
   );
 }
 
-function Step({
-  entry,
-  last,
-}: {
-  entry: AssignmentTimelineEntry;
-  last: boolean;
-}) {
+function Step({ entry, last }: { entry: AssignmentTimelineEntry; last: boolean }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const summary = t.assignmentDetail.stepKind[entry.kind];
@@ -91,17 +80,12 @@ function Step({
     <View
       testID="assignment-step"
       accessible
-      accessibilityLabel={[
-        t.assignmentDetail.stepState[entry.status],
-        summary,
-        detail,
-        time,
-      ]
-        .filter((part) => part !== "")
-        .join(", ")}
+      accessibilityLabel={[t.assignmentDetail.stepState[entry.status], summary, detail, time]
+        .filter((part) => part !== '')
+        .join(', ')}
       style={{
-        flexDirection: "row",
-        alignItems: "flex-start",
+        flexDirection: 'row',
+        alignItems: 'flex-start',
         gap: space.x3,
         paddingHorizontal: space.x5,
         paddingVertical: space.x3,
@@ -115,8 +99,8 @@ function Step({
       <View style={{ flex: 1, gap: space.x1 }}>
         <View
           style={{
-            flexDirection: "row",
-            alignItems: "baseline",
+            flexDirection: 'row',
+            alignItems: 'baseline',
             gap: space.x3,
           }}
         >
@@ -129,10 +113,10 @@ function Step({
         </View>
         <Text
           variant="meta"
-          tone={entry.status === "failed" ? "danger" : "muted"}
+          tone={entry.status === 'failed' ? 'danger' : 'muted'}
           numberOfLines={2}
         >
-          {entry.status === "running" || entry.status === "done"
+          {entry.status === 'running' || entry.status === 'done'
             ? detail
             : `${t.assignmentDetail.stepState[entry.status]} · ${detail}`}
         </Text>
@@ -147,8 +131,8 @@ function Lane({ lane }: { lane: AssignmentTimelineLane }) {
     <View testID={`assignment-lane-${lane.role}-${lane.index}`}>
       <View
         style={{
-          flexDirection: "row",
-          alignItems: "baseline",
+          flexDirection: 'row',
+          alignItems: 'baseline',
           gap: space.x2,
           paddingTop: space.x4,
           paddingBottom: space.x2,
@@ -157,13 +141,8 @@ function Lane({ lane }: { lane: AssignmentTimelineLane }) {
         <Text accessibilityRole="header" variant="meta" strong>
           {laneLabel(lane)}
         </Text>
-        {lane.role === "main" || lane.title === undefined ? null : (
-          <Text
-            variant="meta"
-            tone="muted"
-            numberOfLines={1}
-            style={{ flex: 1 }}
-          >
+        {lane.role === 'main' || lane.title === undefined ? null : (
+          <Text variant="meta" tone="muted" numberOfLines={1} style={{ flex: 1 }}>
             {lane.title}
           </Text>
         )}
@@ -179,10 +158,7 @@ function Lane({ lane }: { lane: AssignmentTimelineLane }) {
           </Text>
         )}
         {lane.entries.length === 0 ? (
-          <Text
-            tone="muted"
-            style={{ paddingHorizontal: space.x5, paddingVertical: space.x4 }}
-          >
+          <Text tone="muted" style={{ paddingHorizontal: space.x5, paddingVertical: space.x4 }}>
             {t.assignmentDetail.noSteps}
           </Text>
         ) : (
@@ -199,32 +175,26 @@ function Lane({ lane }: { lane: AssignmentTimelineLane }) {
   );
 }
 
-function RoundHeading({
-  round,
-}: {
-  round: AssignmentTimelineRound | undefined;
-}) {
+function RoundHeading({ round }: { round: AssignmentTimelineRound | undefined }) {
   const t = useStrings();
   return (
     <View
       style={{
-        flexDirection: "row",
-        alignItems: "baseline",
-        flexWrap: "wrap",
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        flexWrap: 'wrap',
         gap: space.x2,
         paddingTop: space.x5,
       }}
     >
       <Text accessibilityRole="header" strong>
-        {round === undefined
-          ? t.assignmentDetail.earlier
-          : t.assignmentDetail.round(round.index)}
+        {round === undefined ? t.assignmentDetail.earlier : t.assignmentDetail.round(round.index)}
       </Text>
       {round === undefined ? null : (
         <Text variant="meta" tone="muted">
           {[t.assignmentDetail.roundKind[round.kind], stepTime(round.at)]
-            .filter((part) => part !== "")
-            .join(" · ")}
+            .filter((part) => part !== '')
+            .join(' · ')}
         </Text>
       )}
     </View>
@@ -254,24 +224,20 @@ function Instruction({ text }: { text: string }) {
   );
 }
 
-export function AssignmentDetail({
-  timeline,
-}: {
-  timeline: AssignmentTimeline;
-}) {
+export function AssignmentDetail({ timeline }: { timeline: AssignmentTimeline }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const { assignment } = timeline;
   const report = assignment.latestReport;
-  const main = timeline.lanes.find((lane) => lane.role === "main");
+  const main = timeline.lanes.find((lane) => lane.role === 'main');
   return (
     <View style={{ paddingHorizontal: space.x5 }}>
       <View
         testID="assignment-status"
         style={{
-          flexDirection: "row",
-          alignItems: "center",
-          alignSelf: "flex-start",
+          flexDirection: 'row',
+          alignItems: 'center',
+          alignSelf: 'flex-start',
           gap: space.x2,
           paddingHorizontal: space.x3,
           paddingVertical: space.x1,
@@ -279,24 +245,15 @@ export function AssignmentDetail({
           backgroundColor: theme.layer.raised.fill,
         }}
       >
-        <AssignmentActivityIcon
-          activity={assignment.activity}
-          size={rowGlyph.size}
-        />
+        <AssignmentActivityIcon activity={assignment.activity} size={rowGlyph.size} />
         <Text variant="meta" tone={assignmentTone(assignment.activity)} strong>
           {t.profileAssignmentState[assignment.activity]}
         </Text>
       </View>
-      <Text
-        accessibilityRole="header"
-        variant="title"
-        selectable
-        style={{ paddingTop: space.x3 }}
-      >
+      <Text accessibilityRole="header" variant="title" selectable style={{ paddingTop: space.x3 }}>
         {assignment.title}
       </Text>
-      {assignment.description === undefined ||
-      assignment.description.trim() === "" ? null : (
+      {assignment.description === undefined || assignment.description.trim() === '' ? null : (
         <Text tone="muted" selectable style={{ paddingTop: space.x2 }}>
           {assignment.description}
         </Text>
@@ -315,8 +272,8 @@ export function AssignmentDetail({
             >
               <View
                 style={{
-                  flexDirection: "row",
-                  alignItems: "baseline",
+                  flexDirection: 'row',
+                  alignItems: 'baseline',
                   gap: space.x3,
                 }}
               >
@@ -324,12 +281,11 @@ export function AssignmentDetail({
                   variant="meta"
                   strong
                   tone={
-                    report.state === "failed"
-                      ? "danger"
-                      : report.state === "blocked" ||
-                          report.state === "waiting-human"
-                        ? "warning"
-                        : "muted"
+                    report.state === 'failed'
+                      ? 'danger'
+                      : report.state === 'blocked' || report.state === 'waiting-human'
+                        ? 'warning'
+                        : 'muted'
                   }
                   style={{ flex: 1 }}
                 >
@@ -352,8 +308,8 @@ export function AssignmentDetail({
       )}
       {groupTimeline(timeline).map((group, index) => (
         <View
-          key={group.round?.index ?? "earlier"}
-          testID={`assignment-round-${group.round?.index ?? "earlier"}`}
+          key={group.round?.index ?? 'earlier'}
+          testID={`assignment-round-${group.round?.index ?? 'earlier'}`}
         >
           {group.round === undefined && timeline.rounds.length === 0 ? null : (
             <RoundHeading round={group.round} />
@@ -419,7 +375,7 @@ export function AssignmentScreenBody({
         (cause: unknown) => {
           if (!live) return;
           setError(
-            cause instanceof MethodRefused && cause.code === "not-found"
+            cause instanceof MethodRefused && cause.code === 'not-found'
               ? t.assignmentDetail.notFound
               : errorText(cause),
           );
@@ -440,10 +396,7 @@ export function AssignmentScreenBody({
         error === undefined ? (
           <SheetLoading />
         ) : (
-          <SheetFailed
-            message={error}
-            onRetry={() => setAttempt((value) => value + 1)}
-          />
+          <SheetFailed message={error} onRetry={() => setAttempt((value) => value + 1)} />
         )
       ) : (
         <ScrollView
@@ -475,11 +428,7 @@ export function AssignmentScreen() {
       {client === undefined || slug === undefined || sessionId === undefined ? (
         <SheetNote>{t.noBot}</SheetNote>
       ) : (
-        <AssignmentScreenBody
-          client={client}
-          slug={slug}
-          sessionId={sessionId}
-        />
+        <AssignmentScreenBody client={client} slug={slug} sessionId={sessionId} />
       )}
     </SheetScreen>
   );
