@@ -237,6 +237,18 @@ describe('telemetry service', () => {
     expect(batches[0]!.batch[0]!.distinct_id).toBe('00000000-0000-4000-8000-000000000001');
   });
 
+  it('keeps a Marketplace from property next to the plugin source', async () => {
+    const { send, batches } = recordingSender();
+    const telemetry = createTelemetryService({
+      decision: { enabled: true },
+      dataDir: dataDir(),
+      send,
+    });
+    telemetry.capture('marketplace_bot_installed', { from: 'digest' });
+    await telemetry.close();
+    expect(batches[0]!.batch[0]!.properties).toMatchObject({ from: 'digest', source: 'plugin' });
+  });
+
   it('swallows a sender rejection and retries those events once with the next batch', async () => {
     const dir = dataDir();
     const send = vi.fn<TelemetrySender>().mockRejectedValue(new Error('offline'));

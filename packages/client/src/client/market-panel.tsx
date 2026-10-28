@@ -2,7 +2,11 @@ import { useState, useSyncExternalStore, type ReactElement } from 'react';
 
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
-import type { MarketplaceEntry, MarketplaceSection } from '../../../core/src/marketplace/client.js';
+import type {
+  MarketplaceEntry,
+  MarketplaceInstallSource,
+  MarketplaceSection,
+} from '../../../core/src/marketplace/client.js';
 import type { BridgeActions } from './actions.js';
 import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
 import type { DockPanel, DockPanelRegistry } from './dock-panels.js';
@@ -92,8 +96,8 @@ function MarketplaceSections({
   actions: BridgeActions;
   lang: ReturnType<typeof marketplaceLanguage>;
   t: BotHarnessTranslate;
-  onOpen: (bot: MarketplaceEntry) => void;
-  onImport: (bot: MarketplaceEntry) => void;
+  onOpen: (bot: MarketplaceEntry, source: MarketplaceInstallSource) => void;
+  onImport: (bot: MarketplaceEntry, source: MarketplaceInstallSource) => void;
 }): ReactElement {
   const [sections, setSections] = useState<MarketplaceSection[]>([]);
   const mount = useMountedResource<HTMLDivElement>(() => {
@@ -101,7 +105,10 @@ function MarketplaceSections({
     setSections([]);
     void actions.marketplaceSections(lang).then(
       (loaded) => {
-        if (live) setSections(loaded);
+        if (!live) return;
+        setSections(loaded);
+        if (loaded.some((section) => section.entries.length > 0))
+          actions.introEvent('marketplace_sections_shown');
       },
       () => undefined,
     );
@@ -127,8 +134,8 @@ function MarketplaceSections({
                 bot={bot}
                 created={false}
                 t={t}
-                onOpen={() => onOpen(bot)}
-                onImport={() => onImport(bot)}
+                onOpen={() => onOpen(bot, section.section)}
+                onImport={() => onImport(bot, section.section)}
               />
             ))}
           </div>
@@ -152,6 +159,14 @@ export function MarketPanelView({
   const [uploading, setUploading] = useState(false);
   const [mine, setMine] = useState(false);
   const { list, filters } = browse;
+  const start = (
+    bot: MarketplaceEntry,
+    step: MarketplaceFlowStart['step'],
+    source: MarketplaceInstallSource,
+  ): void => {
+    actions.introEvent('marketplace_bot_opened', { from: source, step });
+    setFlow({ bot, step, source });
+  };
   return (
     <div className="bh-market-panel" ref={browse.mount} data-market-panel>
       <MarketplaceBrowseControls
@@ -180,11 +195,11 @@ export function MarketPanelView({
               t={t}
               onOpen={() => {
                 close();
-                setFlow({ bot, step: 'detail' });
+                start(bot, 'detail', 'digest');
               }}
               onImport={() => {
                 close();
-                setFlow({ bot, step: 'install' });
+                start(bot, 'install', 'digest');
               }}
             />
           )}
@@ -195,8 +210,8 @@ export function MarketPanelView({
           actions={actions}
           lang={marketplaceLanguage(t)}
           t={t}
-          onOpen={(bot) => setFlow({ bot, step: 'detail' })}
-          onImport={(bot) => setFlow({ bot, step: 'install' })}
+          onOpen={(bot, source) => start(bot, 'detail', source)}
+          onImport={(bot, source) => start(bot, 'install', source)}
         />
       ) : null}
       <MarketplaceListStatus browse={browse} t={t} />
@@ -208,8 +223,8 @@ export function MarketPanelView({
               bot={bot}
               created={filters.sort === 'created' && filters.query.length === 0}
               t={t}
-              onOpen={() => setFlow({ bot, step: 'detail' })}
-              onImport={() => setFlow({ bot, step: 'install' })}
+              onOpen={() => start(bot, 'detail', 'list')}
+              onImport={() => start(bot, 'install', 'list')}
             />
           ))}
         </div>

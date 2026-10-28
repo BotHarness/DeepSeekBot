@@ -55,6 +55,7 @@ import {
   type MarketplaceDigest,
   type MarketplaceDigestSummary,
   type MarketplaceTopic,
+  type MarketplaceInstallSource,
 } from '../../../core/src/marketplace/client.js';
 import type { UploadPlan } from '../../../core/src/marketplace/uploaded-bots.js';
 import type {
@@ -2239,8 +2240,13 @@ export async function installMarketplaceBot(
   call: BridgeCall,
   id: string,
   reviewId: string,
+  source?: MarketplaceInstallSource,
 ): Promise<BotSummary> {
-  const value = await unwrap(call, 'marketplaceInstall', { id, reviewId });
+  const value = await unwrap(call, 'marketplaceInstall', {
+    id,
+    reviewId,
+    ...(source === undefined ? {} : { source }),
+  });
   const bot = parseBotSummary(asRecord(value)?.['bot']);
   if (bot === undefined) throw new Error('invalid marketplaceInstall response');
   return bot;
