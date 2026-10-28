@@ -34,12 +34,12 @@ _避免使用_：全局 Orchestrator、Home 面板、Dashboard
 为 Human 提供的内置本地总管 Bot，拥有独立于普通 DeepSeek Bot 的持久身份；名称是 Bot 的倒写，也寓意 Thousands of Bot。Tob 不可删除或归档，但其 Soul 与 Memory 可以编辑和迁移，且不携带本地管理权限。管理操作通过原生 Shell 调用 DeepSeekBot CLI；Host 只为当前已准入的 Human DM 执行授予明确支持的操作，保留身份、审批和 revision 校验。总管身份不等于无限制 CLI 或管理员权限。
 _避免使用_：Home 面板、全局 Orchestrator
 
-**Tob 模式（Tob Mode）**：
-当前环境 Tob DM 的一种呈现方式：Human 只与 Tob 对话，Channel 导航和其他面板全部隐藏，消息面板自身的子面板保留。它就是同一个 Tob DM 与同一份历史，不是第二个对话；退出后恢复之前的视图且不做改动。它取代了原来的 Home 面板。
+**Tob Mode**：
+Tob 模式。当前环境 Tob DM 的一种呈现方式：Human 只与 Tob 对话，Channel 导航和其他面板全部隐藏，消息面板自身的子面板保留。它就是同一个 Tob DM 与同一份历史，不是第二个对话；退出后恢复之前的视图且不做改动。它取代了原来的 Home 面板。
 _避免使用_：Home、Home 面板、拖布模式、personal agent 模式
 
-**Tob 委派（Tob Delegation）**：
-Tob 把 Human 的请求交给它判断最合适的同事 PersonaBot：在双方的 Bot-to-Bot DM 中发一条普通消息，再把对方的结果回报到 Human DM。Tob 不先征求 Human 同意，Human 通过每次发送产生的活动提示看到它。委派不带审批权限：同事自己的审批仍交给 Human。
+**Tob Delegation**：
+Tob 委派。Tob 把 Human 的请求交给它判断最合适的同事 PersonaBot：在双方的 Bot-to-Bot DM 中发一条普通消息，再把对方的结果回报到 Human DM。Tob 不先征求 Human 同意，Human 通过每次发送产生的活动提示看到它。委派不带审批权限：同事自己的审批仍交给 Human。
 _避免使用_：分发、路由、Assignment（Assignment 是 Bot 自己的 Session，不是另一个 Bot）
 
 **PersonaBot**：
