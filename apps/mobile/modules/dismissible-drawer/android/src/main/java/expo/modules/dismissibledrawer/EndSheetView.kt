@@ -37,6 +37,7 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
   private val coordinator = CoordinatorLayout(materialContext)
   private val content = FrameLayout(context)
   private val panel = FrameLayout(materialContext)
+  private val scrim = View(context)
   private val slots = mutableListOf<View>()
   private val onOpenChange by EventDispatcher()
   private val onOpening by EventDispatcher()
@@ -49,6 +50,7 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
   var fullWidth = false
   var panelWidth = 0f
   var sheetColor = Color.TRANSPARENT
+  var scrimColor = Color.TRANSPARENT
 
   private val behavior = object : SideSheetBehavior<FrameLayout>(materialContext, null) {
     private var down: MotionEvent? = null
@@ -97,6 +99,10 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
     }
     addView(coordinator, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     coordinator.addView(content, CoordinatorLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+    scrim.visibility = GONE
+    scrim.importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
+    scrim.setOnClickListener { setOpen(false) }
+    coordinator.addView(scrim, CoordinatorLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     coordinator.addView(panel, CoordinatorLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT).apply {
       gravity = Gravity.RIGHT
       behavior = this@EndSheetView.behavior
@@ -104,15 +110,17 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
     behavior.addCallback(object : SideSheetCallback() {
       override fun onSlide(sheet: View, slideOffset: Float) {
         if (slideOffset > 0) reportOpening()
+        updateScrim(slideOffset)
         content.translationX = if (fullWidth) -panel.width * slideOffset else 0f
       }
       override fun onStateChanged(sheet: View, state: Int) {
         if (state != SideSheetBehavior.STATE_EXPANDED && state != SideSheetBehavior.STATE_HIDDEN) return
         val open = state == SideSheetBehavior.STATE_EXPANDED
         content.translationX = if (fullWidth && open) -panel.width.toFloat() else 0f
+        updateScrim(if (open) 1f else 0f)
         requestedOpen = open
         if (!open) openingReported = false
-        content.importantForAccessibility = if (open && fullWidth) IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS else IMPORTANT_FOR_ACCESSIBILITY_AUTO
+        content.importantForAccessibility = if (open) IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS else IMPORTANT_FOR_ACCESSIBILITY_AUTO
         panel.importantForAccessibility = if (open) IMPORTANT_FOR_ACCESSIBILITY_AUTO else IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
         // Once a profile is open its pager owns horizontal dragging.
         behavior.isDraggable = !fullWidth || !open
@@ -120,6 +128,11 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
         onOpenChange(mapOf("open" to open))
       }
     })
+  }
+
+  private fun updateScrim(offset: Float) {
+    scrim.visibility = if (!fullWidth && offset > 0) VISIBLE else GONE
+    scrim.alpha = offset.coerceIn(0f, 1f)
   }
 
   private fun reportOpening() {
@@ -156,6 +169,7 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
     coordinator.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY))
     coordinator.layout(0, 0, w, h)
     panel.backgroundTintList = ColorStateList.valueOf(sheetColor)
+    scrim.setBackgroundColor(scrimColor)
   }
 
   override fun onAttachedToWindow() { super.onAttachedToWindow(); post { syncBack() } }

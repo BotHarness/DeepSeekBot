@@ -15,6 +15,7 @@ class EndSheetModule : Module() {
       Prop("fullWidth") { view: EndSheetView, value: Boolean -> view.fullWidth = value }
       Prop("panelWidth") { view: EndSheetView, value: Double -> view.panelWidth = value.toFloat() }
       Prop("sheetColor") { view: EndSheetView, value: Int -> view.sheetColor = value }
+      Prop("scrimColor") { view: EndSheetView, value: Int -> view.scrimColor = value }
       GroupView<EndSheetView> {
         AddChildView { parent: EndSheetView, child: View, index: Int -> parent.addSlot(child, index) }
         GetChildCount { parent -> parent.slotCount }

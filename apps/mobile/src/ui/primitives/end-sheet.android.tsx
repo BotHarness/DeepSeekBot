@@ -15,6 +15,7 @@ const NativeEndSheet = requireNativeView<
     fullWidth: boolean;
     panelWidth: number;
     sheetColor: number;
+    scrimColor: number;
     onOpening(): void;
     onOpenChange(event: { nativeEvent: { open: boolean } }): void;
   }
@@ -33,7 +34,8 @@ export function EndSheet({
   const theme = useDesignTheme();
   const { width } = useWindowDimensions();
   const sheetColor = processColor(theme.overlay.fill);
-  if (typeof sheetColor !== 'number')
+  const scrimColor = processColor(theme.scrim);
+  if (typeof sheetColor !== 'number' || typeof scrimColor !== 'number')
     throw new Error('EndSheet requires a resolved surface colour');
   const panelWidth = fullWidth
     ? width
@@ -56,6 +58,7 @@ export function EndSheet({
       fullWidth={fullWidth}
       panelWidth={panelWidth}
       sheetColor={sheetColor}
+      scrimColor={scrimColor}
       onOpening={() => onOpening?.()}
       onOpenChange={({ nativeEvent }) => onOpenChange(nativeEvent.open)}
     >

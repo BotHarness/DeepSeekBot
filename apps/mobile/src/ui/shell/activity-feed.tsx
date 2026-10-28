@@ -1,6 +1,6 @@
 import { HostGlyph } from './host-tile';
 import { useIsFocused } from 'expo-router';
-import { EndSheet } from '../primitives/end-sheet';
+import { ActivitySheetRegistration } from './activity-sheet-root';
 import { DEFAULT_HOST_LOOK, hostColorInk } from '../design/host-look';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
@@ -649,25 +649,26 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
     </KeyboardAvoidingView>
   );
   return Platform.OS === 'android' ? (
-    <EndSheet
-      open={filtering}
-      active={focused}
-      enabled={!searchFocused && search === ''}
-      onOpenChange={setFiltering}
-      panel={
-        <View
-          style={{
-            flex: 1,
-            paddingTop: insets.top,
-            paddingBottom: Math.max(insets.bottom, tabInset),
-          }}
-        >
-          <ActivityFilterContent {...filterOptions} onClose={() => setFiltering(false)} />
-        </View>
-      }
-    >
+    <>
+      <ActivitySheetRegistration
+        open={filtering}
+        active={focused}
+        enabled={!searchFocused && search === ''}
+        onOpenChange={setFiltering}
+        panel={
+          <View
+            style={{
+              flex: 1,
+              paddingTop: insets.top,
+              paddingBottom: insets.bottom,
+            }}
+          >
+            <ActivityFilterContent {...filterOptions} onClose={() => setFiltering(false)} />
+          </View>
+        }
+      />
       {content}
-    </EndSheet>
+    </>
   ) : (
     content
   );

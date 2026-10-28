@@ -14,7 +14,7 @@ Android conversations own a retained real Bot, group or pair profile inside a na
 
 Route entry points share their profile controllers with this panel. The conversation's Host/Channel key bounds its lifetime. Profile visibility combines with route focus: reopening refreshes cached data, hiding pauses subscriptions, and nested routes retain editor guards. A file's “view message” action reveals the conversation after successful navigation.
 
-Activity uses a standard, nonmodal side sheet with a fixed title and Close, no scrim, and operable background and bottom navigation. Its list clears the navigation bar. Back ownership exists only while the screen is active, and yields to the IME.
+Activity uses a modal side sheet owned above the tab navigator, covering its bottom navigation. A native scrim blocks background interaction and dismisses on tap. Its fixed title and Close remain visible; the list uses only the system bottom inset and scrolls to its last action. Back ownership exists only while the screen is active, and yields to the IME.
 
 The existing Android identity header is a custom-content exception: the native-stack header is outside the draggable scene and cannot travel atomically with it. Reuse the accessible identity Chip and Back control inside the native content slot, without separate frame updates. iOS keeps native-stack presentation.
 
@@ -22,7 +22,7 @@ The existing Android identity header is a custom-content exception: the native-s
 
 - Preview followed by route push: fails continuous real-content dragging.
 - Global navigator inside a drawer: couples unrelated routes to a conversation gesture.
-- A scrim inside the Activity feed: cannot isolate the external bottom bar; standard side-sheet semantics avoid partial modality.
+- A scrim inside the Activity feed: cannot isolate the external bottom bar. The modal container must wrap the entire tab navigator.
 
 ## Consequences
 
