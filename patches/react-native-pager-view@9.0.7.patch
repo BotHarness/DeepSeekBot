@@ -13,42 +13,44 @@ index d41052a7ecf8976860c8ed9251582bddcde7ffc5..6e4e1cc55a647990fc38977c3666308d
      override fun setLayoutDirection(view: ComposePagerView?, value: String?) {
          if (view != null && value != null) {
 diff --git a/ios/Extensions.swift b/ios/Extensions.swift
-index ad9987aa8546e8b191adb4e924650ea5edc425a8..819c425c645a6e497974349fb8aceb26484a2a20 100644
+index ad9987aa8546e8b191adb4e924650ea5edc425a8..e79c84f2d943bdfc492bcd82a0965713e90540d3 100644
 --- a/ios/Extensions.swift
 +++ b/ios/Extensions.swift
-@@ -26,8 +26,32 @@ class PageChildViewController: UIViewController {
+@@ -20,13 +20,32 @@ struct RepresentableView: UIViewControllerRepresentable {
+ }
+ 
+ class PageChildViewController: UIViewController {
++  private static let pageOwners = NSMapTable<UIView, PageChildViewController>.weakToWeakObjects()
+   var wrappedView: UIView?
+ 
+   override func viewDidLoad() {
      super.viewDidLoad()
      view.backgroundColor = .clear
-     if let wrappedView {
-+      let transfers = hostedControllers(in: wrappedView).compactMap { controller -> (UIViewController, UIView, Int)? in
-+        guard controller.parent is PageChildViewController,
-+              controller.parent !== self,
-+              let container = controller.view.superview,
-+              let index = container.subviews.firstIndex(of: controller.view) else { return nil }
-+        return (controller, container, index)
-+      }
-+      for (controller, _, _) in transfers {
-+        controller.willMove(toParent: nil)
-+        controller.view.removeFromSuperview()
-+        controller.removeFromParent()
-+        addChild(controller)
-+      }
-       view.addSubview(wrappedView)
-+      for (controller, container, index) in transfers {
-+        container.insertSubview(controller.view, at: min(index, container.subviews.count))
-+        controller.didMove(toParent: self)
-+      }
+-    if let wrappedView {
+-      view.addSubview(wrappedView)
++    guard let wrappedView else { return }
++    let previous = Self.pageOwners.object(forKey: wrappedView)
++    let transfers = (previous?.children ?? []).map { controller in
++      let container = controller.viewIfLoaded?.superview
++      let index = container?.subviews.firstIndex(of: controller.view) ?? 0
++      return (controller, container, index)
 +    }
-+  }
-+
-+  private func hostedControllers(in root: UIView) -> [UIViewController] {
-+    if let controller = root.next as? UIViewController, controller.viewIfLoaded === root {
-+      return [controller]
++    for (controller, _, _) in transfers {
++      controller.willMove(toParent: nil)
++      controller.viewIfLoaded?.removeFromSuperview()
++      controller.removeFromParent()
++      addChild(controller)
++    }
++    Self.pageOwners.setObject(self, forKey: wrappedView)
++    view.addSubview(wrappedView)
++    for (controller, container, index) in transfers {
++      if let container {
++        container.insertSubview(controller.view, at: min(index, container.subviews.count))
++      }
++      controller.didMove(toParent: self)
      }
-+    return root.subviews.flatMap { hostedControllers(in: $0) }
    }
  
-   override func viewDidLayoutSubviews() {
 diff --git a/ios/PagerView.swift b/ios/PagerView.swift
 index a4a850af33bb517422a7f7e7dc5a14482ce76ae8..b4f48778c6475bff99a634ab70c5db21876b83ca 100644
 --- a/ios/PagerView.swift
