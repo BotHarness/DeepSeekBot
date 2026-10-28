@@ -45,7 +45,7 @@ Project **648269**, timezone **Asia/Shanghai**. Base cohort: `properties.source 
 - Activation: ordered `host_ready → message_accepted → bot_message_observed` by distinct installation. The final step requires a successful mobile send in the foreground conversation. It is not proof of a causal reply, model success or completed task. Use a separately labelled returning-install view; enabling statistics on an existing install does not make it a new product installation.
 - Deduplication: compare unique event UUID and attempt ID counts. The owner emits once per activation and preserves retry UUID; server acceptance/readback must still be measured.
 
-Feature events (`activity:*`, `model:plan_update`, `notification:push_open`, `search:result_open`, `share:bot_share_send`, `tob:mode_open`, `viewer:subpanel_open`) are sent only while the app is in the foreground; approvals, answers and model changes are sent only after the Host accepts them. Count distinct installations per app version for penetration; the full list is in the [tracking plan](telemetry-events.md).
+Feature events (`activity:*`, `marketplace:*`, `model:plan_update`, `notification:push_open`, `search:result_open`, `share:bot_share_send`, `tob:mode_open`, `viewer:subpanel_open`) are sent only while the app is in the foreground; approvals, answers and model changes are sent only after the Host accepts them. Count distinct installations per app version for penetration; the full list is in the [tracking plan](telemetry-events.md).
 
 Do not add Host and mobile message totals together or estimate non-consenting usage.
 
