@@ -1,0 +1,41 @@
+diff --git a/ios/RNCPagerViewComponentView.mm b/ios/RNCPagerViewComponentView.mm
+index eeeecde6365bf4d6bf2aa54b3b93efad74eaa7a6..77c0d4f3bfeb514d97640393e894a82958870eb9 100644
+--- a/ios/RNCPagerViewComponentView.mm
++++ b/ios/RNCPagerViewComponentView.mm
+@@ -7,6 +7,7 @@
+ 
+ #import "RCTFabricComponentsPlugins.h"
+ #import "React/RCTConversions.h"
++#import <React/RCTSurfaceTouchHandler.h>
+ 
+ #import "RCTOnPageScrollEvent.h"
+ 
+@@ -122,6 +123,7 @@ using namespace facebook::react;
+       break;
+ 
+     case PageScrollStateDragging:
++      [self cancelAncestorReactTouches];
+       scrollState = RNCViewPagerEventEmitter::OnPageScrollStateChangedPageScrollState::Dragging;
+       break;
+ 
+@@ -137,6 +139,20 @@ using namespace facebook::react;
+ 
+ #pragma mark - Internal methods
+ 
++- (void)cancelAncestorReactTouches {
++  for (UIView *view = self; view != nil; view = view.superview) {
++    for (UIGestureRecognizer *recognizer in view.gestureRecognizers) {
++      if ([recognizer isKindOfClass:RCTSurfaceTouchHandler.class]) {
++        // A native page drag must cancel a child's pending React press before release.
++        recognizer.enabled = NO;
++        recognizer.enabled = YES;
++        [recognizer reset];
++        return;
++      }
++    }
++  }
++}
++
+ - (void)goTo:(NSInteger)index animated:(BOOL)animated {
+   [_pagerViewProvider goToIndex:index animated:animated];
+ }

@@ -22,4 +22,5 @@ The component holds presentation state only. Existing Host sessions, conversatio
 - The tab bar belongs to the moving Chats page and is absent from Workspaces throughout the gesture.
 - Both trees stay mounted; lists remain virtualized and existing live Host subscriptions retain their owners. Validate memory and native performance rather than inferring them from the simpler React structure.
 - Offscreen content is hidden from accessibility. Native escape and button paths remain available. Button navigation follows the live Reduce Motion preference.
+- The pinned pager has an iOS native patch: at native drag start it cancels the ancestor React surface touch handler, as native stack navigation already does. Otherwise a fast drag can leave a row press active until release. This changes native inputs and requires a new iOS build; a JavaScript reload cannot qualify it. Android native code is unchanged.
 - Native correctness, physical Release measurements and Human feel remain separate acceptance gates; source tests and Simulator recordings cannot qualify device FPS.
