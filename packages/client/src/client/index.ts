@@ -10,7 +10,7 @@ import { refreshBotPrimaryColors } from './bot-primary-color.js';
 import { Appearance } from './appearance.js';
 import { mountAppearance } from './appearance-scope.js';
 import { mountAppearanceControl } from './appearance-control.js';
-import { remoteHosts } from './remote-hosts.js';
+import { recordRemoteHosts, remoteHosts } from './remote-hosts.js';
 import { bindBotAppearance } from './bot-color-scheme.js';
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client';
 import { AppearanceSection } from './appearance-settings.js';
@@ -286,6 +286,7 @@ export function apply(ctx: ClientContext): void {
   });
   const setupRpc = connectionRpc(ctx);
   if (setupRpc) actions.appSetup = new ProviderAppSetup(setupRpc);
+  recordRemoteHosts((event, properties) => actions.telemetryEvent(event, properties));
   let companionSource: ((url: string) => CompanionSource) | undefined;
   const companion = new WindowCompanions({
     storage,

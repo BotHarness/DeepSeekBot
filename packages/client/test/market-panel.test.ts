@@ -205,7 +205,7 @@ async function withPanel(
     createBot: vi.fn(async () => undefined),
     openBot: vi.fn(async () => undefined),
     marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
-    introEvent: vi.fn(),
+    telemetryEvent: vi.fn(),
     ...extra,
   };
   const registry = { open: vi.fn() };
@@ -282,11 +282,11 @@ describe('Market panel', () => {
         await act(async () => (days[1] as HTMLButtonElement).click());
         expect(digest).toHaveBeenLastCalledWith('2026-10-27', 'zh');
         expect(document.querySelector('[data-market-digest="2026-10-27"]')).not.toBeNull();
-        expect(actions['introEvent']!.mock.calls).toEqual([
-          ['marketplace_digest_shown'],
-          ['marketplace_digest_opened', { from: 'hero' }],
-          ['marketplace_digest_archive_opened'],
-          ['marketplace_digest_opened', { from: 'archive' }],
+        expect(actions['telemetryEvent']!.mock.calls).toEqual([
+          ['marketplace:digest_view'],
+          ['marketplace:digest_open', { entry: 'hero' }],
+          ['marketplace:digest_archive_open'],
+          ['marketplace:digest_open', { entry: 'archive' }],
         ]);
       },
       { marketplaceDigest: digest, marketplaceDigests: digests },
@@ -316,7 +316,7 @@ describe('Market panel', () => {
           'alice/popular',
         );
         expect([...rows[0]!.querySelectorAll('button')].at(-1)?.textContent).toBe('导入');
-        expect(actions['introEvent']!.mock.calls).toEqual([['marketplace_sections_shown']]);
+        expect(actions['telemetryEvent']!.mock.calls).toEqual([['marketplace:section_view']]);
       },
       { marketplaceSections: sections },
     );
@@ -581,8 +581,8 @@ describe('Market panel', () => {
         await click(host, '仍然安装');
 
         expect(install).toHaveBeenCalledWith('R_helper', 'review-1', undefined, 'list');
-        expect(actions['introEvent']).toHaveBeenCalledWith('marketplace_bot_opened', {
-          from: 'list',
+        expect(actions['telemetryEvent']).toHaveBeenCalledWith('marketplace:bot_open', {
+          entry: 'list',
           step: 'install',
         });
         expect(actions['createBot']).not.toHaveBeenCalled();

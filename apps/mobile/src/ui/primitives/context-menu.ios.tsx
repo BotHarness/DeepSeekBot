@@ -1,4 +1,5 @@
 import { Button, ContextMenu, Host, RNHostView } from '@expo/ui/swift-ui';
+import { foregroundStyle, tint } from '@expo/ui/swift-ui/modifiers';
 import type { ComponentProps, ReactNode } from 'react';
 
 import { useDesignTheme } from '../design/theme';
@@ -25,7 +26,7 @@ export function ContextMenuArea({
       colorScheme={theme.scheme}
       style={fill ? { flex: 1 } : { alignSelf: 'stretch' }}
     >
-      <ContextMenu>
+      <ContextMenu modifiers={[tint(theme.color.fg)]}>
         <ContextMenu.Trigger>
           <RNHostView matchContents={{ vertical: true }} boundedByHost>
             <>{children}</>
@@ -36,6 +37,9 @@ export function ContextMenuArea({
             const props: ComponentProps<typeof Button> = {
               label: controlCase(action.label),
               onPress: action.run,
+              modifiers: [
+                foregroundStyle(action.destructive === true ? theme.color.danger : theme.color.fg),
+              ],
             };
             if (icons && action.systemImage !== undefined)
               props.systemImage = action.systemImage as NonNullable<typeof props.systemImage>;

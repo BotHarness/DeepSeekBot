@@ -151,6 +151,11 @@ import {
   type TelemetryCapture,
 } from './telemetry/service.js';
 import { readDailyUsageCounts, startDailyUsage } from './telemetry/daily-usage.js';
+import {
+  createActiveDay,
+  readHumanMessageCounts,
+  startActiveDayWatch,
+} from './telemetry/active-day.js';
 import { deliverPendingExceptions, installExceptionCapture } from './telemetry/exceptions.js';
 import { createPersonaBotRegistry, type PersonaBotRegistry } from './bots/registry.js';
 import { createPersonaBotDeletions, type PersonaBotDeletions } from './bots/deletion.js';
@@ -994,6 +999,7 @@ export function createCore(
     ownership,
   });
   runtime = createBotRuntime({
+    onTobDelegation: () => options.capture?.('tob:delegation_send', { surface: 'bot_tool' }),
     promptText: (slug) => {
       const sessionId = runtime?.currentOrchestratorSessionId?.(slug);
       return sessionId === undefined
@@ -1184,7 +1190,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       : `telemetry phase=disabled reason=${telemetryState.lockedBy ?? 'preference'}`,
   );
   ctx.effect(() => () => void telemetry.close(), 'botharness: telemetry');
-  telemetry.capture('plugin_started');
+  telemetry.capture('app:host_start');
+  const activeDay = createActiveDay({ telemetry, dataDir: telemetryDir });
   deliverPendingExceptions(telemetry, telemetryDir);
   if (telemetryState.lockedBy === undefined)
     ctx.effect(
@@ -1497,6 +1504,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   let connectAccount: ConnectAccount | undefined;
   mountDevicePairing(ctx, {
+    telemetry,
     onAccount: (account) => {
       connectAccount = account;
     },
@@ -1536,6 +1544,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           log: (message) => ctx.logger.info(message),
         }),
       'botharness: telemetry daily usage',
+    );
+    ctx.effect(
+      () =>
+        startActiveDayWatch({
+          activeDay,
+          counts: (since) => readHumanMessageCounts(usageDatabase, since),
+          log: (message) => ctx.logger.info(message),
+        }),
+      'botharness: telemetry active day',
     );
   }
   ctx.effect(() => () => core.roster.detach(), 'botharness: roster');
@@ -2702,6 +2719,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     release: releaseService,
     plugins: pluginUpdates,
     telemetry,
+    activeDay,
     git,
     developerMode: {
       set: (enabled: boolean) => developerModeTarget.gate?.set(enabled),

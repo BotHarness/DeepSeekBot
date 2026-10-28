@@ -33,25 +33,25 @@ it('times out observation without stopping the Host and records later recovery o
   connection.update('connected');
   await telemetry.flush();
   expect(
-    events.filter((e) => e.event === 'mobile_connection_result').map((e) => e.properties),
+    events.filter((e) => e.event === 'connection:attempt_complete').map((e) => e.properties),
   ).toMatchObject([
     { trigger: 'open', outcome: 'timeout', retry_count_bucket: '4plus' },
     { trigger: 'recovery', outcome: 'ready' },
   ]);
-  expect(events.filter((e) => e.event === 'mobile_activation_step')).toHaveLength(1);
+  expect(events.filter((e) => e.event === 'onboarding:activation_step_complete')).toHaveLength(1);
   connection.begin('switch');
   telemetry.foreground(false, 1);
   connection.update('connected');
   await telemetry.flush();
   expect(
-    events.filter((e) => e.event === 'mobile_connection_result').at(-1)?.properties,
+    events.filter((e) => e.event === 'connection:attempt_complete').at(-1)?.properties,
   ).toMatchObject({ trigger: 'switch', outcome: 'cancelled' });
   telemetry.foreground(true, 1);
   connection.begin('manual_retry');
   connection.update('refused', 0, 'device-revoked');
   await telemetry.flush();
   expect(
-    events.filter((e) => e.event === 'mobile_connection_result').at(-1)?.properties,
+    events.filter((e) => e.event === 'connection:attempt_complete').at(-1)?.properties,
   ).toMatchObject({ outcome: 'refused', reason: 'device-revoked' });
   connection.dispose();
   telemetry.dispose();

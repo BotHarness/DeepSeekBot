@@ -1049,8 +1049,12 @@ Expo 手机应用内默认开启、可在设置底部关闭的粗粒度统计，
 启用统计时保存在手机上的随机统计 UUID，与 Host Install ID、配对设备身份、Human 账号及网站访客均独立。关闭统计会清除标识和待发队列，再开启生成新标识；系统恢复应用数据可能恢复已保存的选择与标识。
 
 **Telemetry**：
-Host 发送到项目分析服务的匿名产品使用事件，默认开启，可用插件配置 `telemetry: false`、`DO_NOT_TRACK=1` 或 `BOTHARNESS_TELEMETRY=0` 关闭。从不包含名称、Memory、对话内容、路径或 IP 地址（ADR-0132）。
+Host 发送到项目分析服务的匿名产品使用事件，默认开启，可用插件配置 `telemetry: false`、`DO_NOT_TRACK=1` 或 `BOTHARNESS_TELEMETRY=0` 关闭。从不包含名称、Memory、对话内容、路径或 IP 地址（ADR-0132）。每个事件都登记在 tracking plan 中，命名为 `category:object_action`，`source` 为 `host`（ADR-0270）。
 _避免使用_：追踪、分析 SDK、崩溃上报器
+
+**Active Day**：
+一次安装被使用的 Host 本地日：当天第一次进入 Bot 模式、Human 发消息或 IM 消息时发送一次 `app:active_day_start`（ADR-0270）。DAU、WAU、MAU 按有 Active Day 的安装计数；只是 Host 在线不算。
+_避免使用_：在线日、daily usage
 
 **Install ID**：
 插件安装首次启动时随机生成、附在其 Telemetry 上的标识。它标识一次安装而不是某个 Human，也从不与官网访客关联。

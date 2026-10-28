@@ -33,7 +33,8 @@
     "slides:build": "node scripts/sync-slides.mjs",
     "docs:dev": "pnpm --filter docs dev",
     "docs:build": "pnpm slides:build && pnpm --filter docs build",
-    "docs:deploy": "pnpm --filter docs run deploy"
+    "docs:deploy": "pnpm --filter docs run deploy",
+    "telemetry:plan": "BOTHARNESS_WRITE_TELEMETRY_PLAN=1 vitest run packages/core/test/telemetry-plan.test.ts"
   },
   "devDependencies": {
     "@astrojs/compiler": "2.13.1",

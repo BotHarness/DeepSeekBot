@@ -64,6 +64,7 @@ function fakeServices(
     allowed?: boolean;
     deleted?: { workos: boolean };
     activity?: boolean;
+    deviceError?: string;
   } = {},
 ) {
   let pending = options.pending ?? 1;
@@ -97,6 +98,8 @@ function fakeServices(
       if (form?.['grant_type'] === 'urn:ietf:params:oauth:grant-type:device_code') {
         if (pending-- > 0)
           return Response.json({ error: 'authorization_pending' }, { status: 400 });
+        if (options.deviceError)
+          return Response.json({ error: options.deviceError }, { status: 400 });
         return Response.json({
           access_token: 'access-0',
           refresh_token: 'refresh-0',
@@ -216,6 +219,34 @@ describe('Connect account sign-in', () => {
       originPort: 41001,
     });
     await account.close();
+  });
+
+  it('reports an expired device code as an expired sign-in, not a denied one', async () => {
+    for (const [deviceError, issue, phase] of [
+      ['expired_token', 'sign-in-expired', 'sign-in-expired'],
+      ['access_denied', 'sign-in-denied', 'sign-in-failed'],
+    ] as const) {
+      const phases: string[] = [];
+      const services = fakeServices({ pending: 0, deviceError });
+      const account = createConnectAccount({
+        credentials: () => memoryCredentials().provider,
+        connect: fakeConnect(41001).connect,
+        relay: RELAY,
+        fetch: services.fetcher as typeof fetch,
+        hostName: () => 'Studio',
+        freePort: async () => 41001,
+        sleep: async () => {},
+        record: (next) => void phases.push(next),
+      });
+      await account.signIn();
+      await settle(account);
+      expect(account.status()).toMatchObject({ state: 'error', issue });
+      expect(phases).toContain(phase);
+      expect(phases).not.toContain(
+        phase === 'sign-in-expired' ? 'sign-in-failed' : 'sign-in-expired',
+      );
+      await account.close();
+    }
   });
 
   it('accepts only fresh offers the relay signed for this Host and account', async () => {

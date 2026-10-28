@@ -7,7 +7,7 @@
 1. 按 [共享设备队列](device-qa.md) 和 [Android 流程](android-device-qa.md) 接受 owner-cut 批次。使用专用 QA Host，保留 Human 已有数据、配对与设置。iOS 使用自己的队列，不将 Android 结果冒充 iOS 验收。
 2. 将指定候选构建配置为 `EXPO_PUBLIC_MOBILE_TELEMETRY=qa`、该项目的公开 `EXPO_PUBLIC_MOBILE_POSTHOG_TOKEN` 和新生成的 UUID v4 `EXPO_PUBLIC_MOBILE_TELEMETRY_QA_RUN`。项目为 **648269 / DeepSeekBot / Asia/Shanghai**。不用 personal API token，不设置 `EXPO_PUBLIC_MOBILE_TELEMETRY_QUALIFIED=true`，不修改生产开关。QA tag 必须在打包时进入 JS；仅给已运行的 Release 进程加环境变量无效。
 3. 开启该手机统计，记录平台、真实 app version/build、测试时间和 QA UUID。已有安装不清数据；若需重置首激活标记，显式关闭再开启统计会换随机统计身份并清队列，应记录这个行为。先用无效粘贴链接验证一次拒绝，再用新测试 offer 配对；成功需 saved-Host 与实时 Roster，非 socket 连上或缓存列表。
-4. 在前台 DM 发送一条无私密内容的测试消息，等待 Host 接受并观察到新的 Bot 消息。这个步骤需要可用模型。期望：`mobile_app_opened`、`mobile_pairing_started/result`、`mobile_connection_result`、`mobile_activation_step` 的 host_ready/message_accepted/bot_message_observed。结果入库顺序可能交错，不强求同毫秒事件的先后。
+4. 在前台 DM 发送一条无私密内容的测试消息，等待 Host 接受并观察到新的 Bot 消息。这个步骤需要可用模型。期望：`app:app_open`、`pairing:attempt_start/complete`、`connection:attempt_complete`、`onboarding:activation_step_complete` 的 host_ready/message_accepted/bot_message_observed。结果入库顺序可能交错，不强求同毫秒事件的先后。
 5. 使用 PostHog MCP 按本次 QA UUID 回读，比较本地已脱敏出站 UUID 与字段；记录缺失、重复、实际等待时间。HTTP 200、Node SDK 测试或合成事件均不能代替此步。没有模型、连接失败或没收到事件时保留失败证据，不改成通过。
 
 ```sql
