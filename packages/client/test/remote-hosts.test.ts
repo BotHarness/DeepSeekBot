@@ -122,6 +122,12 @@ describe('remote hosts', () => {
       code: 'already-paired',
     });
     expect(calls.filter((call) => call.url.endsWith('/pair'))).toHaveLength(1);
+    expect(record.mock.calls.map(([, properties]) => properties)).toEqual([
+      { outcome: 'refused' },
+      { outcome: 'refused' },
+      { outcome: 'success' },
+      { outcome: 'refused' },
+    ]);
   });
 
   it('records an unreachable remote as a failed pairing', async () => {
@@ -526,6 +532,46 @@ describe('Host Feed lifecycle', () => {
     await refresh([received]);
     expect(show).toHaveBeenCalledTimes(2);
   });
+  it('records a conversation opened from a remote notification', async () => {
+    const shown: { onclick: ((event: { preventDefault(): void }) => void) | null }[] = [];
+    vi.stubGlobal('window', {
+      focus() {},
+      Notification: class {
+        static permission = 'granted';
+        onclick = null;
+        close() {}
+        constructor() {
+          shown.push(this);
+        }
+      },
+    });
+    const { host, storage } = liveHost();
+    let items: HostAttentionItem[] = [];
+    host.methods.set('humanAttention', (args) =>
+      args.notifications ? { notificationVersion: 1, items } : { queryVersion: 1, items: [] },
+    );
+    const record = vi.fn();
+    const sources = createRemoteHosts({ carrier: host.carrier, storage, record });
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    await sources.notifications.set(host.hostId, { enabled: true });
+    items = [
+      {
+        id: 'received',
+        kind: 'user-question',
+        category: 'action',
+        botSlug: 'ada',
+        createdAt: '2026-01-01',
+        summary: 'Question',
+      },
+    ];
+    host.push('botharness/followActivity', { type: 'changed', snapshot: { bots: [] } });
+    await vi.waitFor(() => expect(shown).toHaveLength(1));
+    shown[0]!.onclick?.({ preventDefault() {} });
+    expect(sources.getSnapshot().open?.hostId).toBe(host.hostId);
+    expect(record).toHaveBeenCalledWith('remote_host:conversation_open');
+  });
+
   it('marks the remote DM channel read through its own credential and refreshes its Inbox', async () => {
     const { host, storage } = liveHost();
     host.methods.set('channels', () => ({

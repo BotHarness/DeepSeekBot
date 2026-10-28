@@ -214,6 +214,7 @@ export function createRemoteHosts(options: {
     open(target) {
       globalThis.window?.focus();
       open = target;
+      record('remote_host:conversation_open');
       publish();
     },
   });
@@ -380,12 +381,18 @@ export function createRemoteHosts(options: {
     async pair(link, deviceName, localHostId, trust) {
       if (trust?.signal?.aborted) return { ok: false, code: 'cancelled' };
       const parsed = parsePairingLink(link);
-      if (!parsed.ok) {
+      const refused = (code: 'this-host' | 'already-paired') => {
         record('remote_host:host_pair_complete', { outcome: 'refused' });
+        return { ok: false, code } as const;
+      };
+      if (!parsed.ok) {
+        record('remote_host:host_pair_complete', {
+          outcome: PAIR_FAILURES.has(parsed.code) ? 'failed' : 'refused',
+        });
         return parsed;
       }
-      if (parsed.payload.host.id === localHostId) return { ok: false, code: 'this-host' };
-      if (clients.has(parsed.payload.host.id)) return { ok: false, code: 'already-paired' };
+      if (parsed.payload.host.id === localHostId) return refused('this-host');
+      if (clients.has(parsed.payload.host.id)) return refused('already-paired');
       if (pairing.has(parsed.payload.host.id)) return { ok: false, code: 'pairing-in-progress' };
       pairing.add(parsed.payload.host.id);
       try {
@@ -396,6 +403,7 @@ export function createRemoteHosts(options: {
           ...trust,
         });
         if (!redeemed.ok) {
+          if (trust?.signal?.aborted) return redeemed;
           record('remote_host:host_pair_complete', {
             outcome: PAIR_FAILURES.has(redeemed.code) ? 'failed' : 'refused',
           });
