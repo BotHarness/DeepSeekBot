@@ -243,10 +243,10 @@ index eeeecde6365bf4d6bf2aa54b3b93efad74eaa7a6..f1dac264ee627360927e1cf789d08e50
  }
 diff --git a/ios/StablePagerController.swift b/ios/StablePagerController.swift
 new file mode 100644
-index 0000000000000000000000000000000000000000..28d1d9a6cf89cee14d3c9d446088df18f0e8ba3d
+index 0000000000000000000000000000000000000000..b68abd16f1a9d63eef1e4c9945f877a1fb900f90
 --- /dev/null
 +++ b/ios/StablePagerController.swift
-@@ -0,0 +1,151 @@
+@@ -0,0 +1,150 @@
 +import UIKit
 +
 +final class StablePagerController: UIPageViewController, UIPageViewControllerDataSource, UIPageViewControllerDelegate {
@@ -290,7 +290,6 @@ index 0000000000000000000000000000000000000000..28d1d9a6cf89cee14d3c9d446088df18
 +  func refresh() {
 +    guard isViewLoaded, !moving else { return }
 +    scroll?.isScrollEnabled = props.scrollEnabled
-+    scroll?.bounces = props.overdrag
 +    scroll?.keyboardDismissMode = props.keyboardDismissMode
 +    let live = Set(props.children.map { ObjectIdentifier($0.view) })
 +    retained = retained.filter { live.contains($0.key) }
