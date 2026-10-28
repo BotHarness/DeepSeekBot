@@ -46,6 +46,12 @@
       "width": 1125,
       "height": 2436,
       "sha256": "b81e100435e9938487c007fa09de856f831e9f18f3d5d8dc037da621a86d2bf0"
+    },
+    {
+      "file": "p2.png",
+      "width": 1125,
+      "height": 2436,
+      "sha256": "7c095295e7856ada2da50724ab8566ca0aa7e384077ccecf074fc28d33e00af2"
     }
   ]
 }

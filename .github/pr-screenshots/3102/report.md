@@ -8,6 +8,8 @@ The original compressed DSH Session was retained. Its text-only instructions ask
 
 The complete captured second instruction was replayed through a real Orchestrator-created Assignment using native DSH0.2.1-rc.3 / opencode-go deepseek-v4.1-flash. Before: `activity:error`, no report, native completed turn/no tool calls. After: `activity:idle`, actual report tool success and a persisted `completed` report. The old failed Assignment remains separate; no error was relabelled and no report was fabricated from prose.
 
+The same completed report was also opened in light appearance (`p2.png`); the phone appearance was restored to its original System choice afterwards.
+
 XS Max iOS18.1.1 signed Release (build identity in provenance.json) opened both retained failure and new success through Bot profile → Work → Assignment. `p0.png` and `p1.png` are actual phone PNGs, same final renderer, different immutable before/after runtime results. They prove rendering of canonical Host state, not a renderer change.
 
 Two earlier, less constrained model tasks already succeeded before the fix; those were controls, not reproductions. One extra exact first-case/subagent replay was blocked before Assignment creation by provider AUTH401 (upstream token workspace unavailable). That additional case is UNTESTED after the fix; it is not counted as product failure or silently retried.
