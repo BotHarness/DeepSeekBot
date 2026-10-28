@@ -2,7 +2,7 @@
 
 - Status: Accepted (design)
 - Date: 2026-10-27
-- Related: ADR-0065, ADR-0223, ADR-0233, ADR-0259; supersedes the Home panel parts of ADR-0223 and ADR-0259 and the step 5 wording of ADR-0233
+- Related: ADR-0065, ADR-0223, ADR-0233, ADR-0259, ADR-0269; supersedes the Home panel parts of ADR-0223 and ADR-0259 and the step 5 wording of ADR-0233
 
 ## Context
 
@@ -10,9 +10,9 @@ Home (ADR-0223) is a global Dock panel with a cross-Bot overview, Bot creation e
 
 ## Decision
 
-**Tob Mode** is a presentation of the active Environment's Tob DM, not a new conversation, Channel or store. It hides Channel navigation and every Dock panel except Messages, which keeps its own Channel subpanels. Entering and leaving it never rewrites the saved Simple or Advanced layout (ADR-0259); leaving restores the previous view.
+**Tob Mode** is a mobile presentation of the active Environment's Tob DM, not a new conversation, Channel or store.
 
-The Home panel is removed. Its rail switch and stable shortcut command become the Tob Mode toggle. Cross-Bot attention stays in Activity Center, Bot creation is asked of Tob in conversation, and onboarding step 5 (ADR-0233) completes by entering Tob Mode in both layout modes.
+On desktop the Home panel is removed and there is no separate Tob Mode switch. In Simple layout mode the Messages panel is always shown and the Human can hide the Side column, leaving only the Workspace Control Rail and Messages (ADR-0269); that is the desktop's focused conversation. Home's stable shortcut command and default binding now open the Tob DM in Messages without changing the layout. Cross-Bot attention stays in Activity Center, Bot creation is asked of Tob in conversation, and onboarding step 5 (ADR-0233) completes when the Human reaches the Tob DM, in both layout modes.
 
 On mobile, the Chats list keeps pull-to-refresh. Holding past the refresh threshold for about 0.6 s fills a ring and plays a haptic; releasing then opens Tob Mode instead of refreshing. Tob Mode covers Chats from the top, hides the tab bar, and closes by pushing up or with system Back. Inside it, the last-chat swipe and the -1 screen do not respond. The Tob row stays in the Chats list. The target is the filtered Environment's Tob, or the most recently used computer Environment under "All environments". A cloud-only filter has no Tob, so pulling only refreshes.
 
@@ -20,6 +20,7 @@ On mobile, the Chats list keeps pull-to-refresh. Holding past the refresh thresh
 
 ## Considered options
 
+- **A desktop Tob Mode switch.** A first version hid every panel except Messages behind a rail switch. With Messages always shown in Simple and a hideable Side column (ADR-0269), the switch duplicated hiding the Side column and added a second, Tob-only way to focus.
 - **Keep Home and fix it.** Home would still be a second entry point to the same conversation, with an overview that Activity Center already owns.
 - **A separate Tob Mode conversation.** Splitting history breaks ADR-0223's single Tob DM and the existing approval path.
 - **Delegation through a Group with the Human.** This is heavier, and Tob is never a Group participant (its Group prompt forbids it).
@@ -27,4 +28,4 @@ On mobile, the Chats list keeps pull-to-refresh. Holding past the refresh thresh
 
 ## Consequences
 
-The layout document needs a migration that drops the Home panel and keeps the rest of each saved arrangement. Pull-and-hold needs pull-distance tracking that the native refresh controls (`RefreshControl`, `PullToRefreshBox`) do not expose, so each platform needs its own gesture work, coordinated with #3040, #3041 and #3055.
+The Advanced layout document needs a migration that drops the Home panel and keeps the rest of each saved arrangement. Pull-and-hold needs pull-distance tracking that the native refresh controls (`RefreshControl`, `PullToRefreshBox`) do not expose, so each platform needs its own gesture work, coordinated with #3040, #3041 and #3055.

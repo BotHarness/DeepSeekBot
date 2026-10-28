@@ -2,7 +2,7 @@
 
 Status: Accepted for the first Desktop slice of #2192; mobile Web remains separate.
 
-> Step 5 is partly superseded by [ADR-0268](0268-tob-mode-replaces-home.md) (2026-10-27): it now completes when the Human enters Tob Mode, in either layout mode.
+> Step 5 is partly superseded by [ADR-0268](0268-tob-mode-replaces-home.md) (2026-10-27): it now completes when the Human reaches the Tob DM, in either layout mode.
 
 ## Context
 

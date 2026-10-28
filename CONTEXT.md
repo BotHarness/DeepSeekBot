@@ -35,7 +35,7 @@ The built-in local Steward Bot, with a persistent identity distinct from any ord
 _Avoid_: Home panel, global Orchestrator
 
 **Tob Mode**:
-A presentation of the active Environment's Tob DM in which the Human talks only to Tob: Channel navigation and every other panel are hidden, while the Messages panel keeps its own subpanels. It is the same Tob DM and history, never a second conversation, and leaving it restores the previous view unchanged. It replaces the former Home panel.
+On mobile, a full-screen presentation of the active Environment's Tob DM in which the Human talks only to Tob, opened by pulling and holding on Chats. It is the same Tob DM and history, never a second conversation. Desktop has no Tob Mode: the former Home panel is removed, and hiding the Side column in Simple layout mode gives a focused conversation with any Channel.
 _Avoid_: Home, Home panel, Tob chat, 拖布模式, personal agent mode
 
 **Tob Delegation**:
@@ -872,8 +872,12 @@ The desktop Bot mode arrangement of a Global workspace and the active Channel's 
 _Avoid_: workbench, panel layout, dock
 
 **Layout mode**:
-The Human's device-local choice of how the desktop Bot mode layout behaves: **Simple** or **Advanced**. Simple shows one Global panel at a time, chosen from the Workspace Control Rail, with Channel subpanels stacked in the Subpanel column; Advanced is the freely arranged two-level workspace. Each mode keeps its own arrangement, so switching never rewrites the other; Simple is the default for new Humans.
+The Human's device-local choice of how the desktop Bot mode layout behaves: **Simple** or **Advanced**. Simple always shows the Messages panel, with Channel subpanels stacked in its Subpanel column, and the Workspace Control Rail chooses what the Side column shows; Advanced is the freely arranged two-level workspace. Each mode keeps its own arrangement, so switching never rewrites the other; Simple is the default for new Humans.
 _Avoid_: Bot mode, DSB mode, simple view, expert mode
+
+**Side column**:
+In Simple layout mode, the optional column between the Workspace Control Rail and the Messages panel that shows one Global panel, such as Channel list, Activity Center or Marketplace. Selecting a rail switch shows that panel there; selecting the switch that is already shown hides the column, leaving only the rail and Messages. Its width is shared by every panel it shows.
+_Avoid_: sidebar, left panel, App Sidebar, primary side bar
 
 **Subpanel column**:
 In Simple layout mode, the collapsible right-hand column inside the Messages panel that lists the active Channel's available subpanels in a fixed vertical order. Each subpanel can be collapsed, and the column scrolls; collapsing only removes presentation, never stopping a running Browser, Computer or Session.

@@ -4,7 +4,7 @@
 - Date: 2026-10-18
 - Related: [#2081](https://github.com/BotHarness/DeepSeekBot/issues/2081), [#2082](https://github.com/BotHarness/DeepSeekBot/issues/2082), ADR-0221, ADR-0222
 
-> Partly superseded by [ADR-0268](0268-tob-mode-replaces-home.md) (2026-10-27): the Home panel is removed and replaced by Tob Mode. The protected Tob identity and its single Human DM are unchanged.
+> Partly superseded by [ADR-0268](0268-tob-mode-replaces-home.md) (2026-10-27): the Home panel is removed; Tob is reached through its DM (Tob Mode on mobile). The protected Tob identity and its single Human DM are unchanged.
 
 ## Context
 

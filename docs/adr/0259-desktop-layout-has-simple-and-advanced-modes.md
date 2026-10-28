@@ -4,7 +4,9 @@
 - Date: 2026-10-26
 - Related: ADR-0221, ADR-0222, ADR-0233, ADR-0234
 
-> Partly superseded by [ADR-0268](0268-tob-mode-replaces-home.md) (2026-10-27): Home is no longer a Global panel; its rail switch toggles Tob Mode, and onboarding step 5 enters Tob Mode in both layout modes.
+> Partly superseded by [ADR-0268](0268-tob-mode-replaces-home.md) (2026-10-27): Home is no longer a Global panel, its shortcut opens the Tob DM, and onboarding step 5 completes on reaching the Tob DM in both layout modes.
+>
+> Partly superseded by [ADR-0269](0269-simple-layout-keeps-messages-and-switches-a-side-column.md) (2026-10-28): in Simple, Messages is always shown and the rail chooses what the Side column shows, or hides it.
 
 ## Context
 

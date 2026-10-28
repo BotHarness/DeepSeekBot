@@ -35,7 +35,7 @@ _避免使用_：全局 Orchestrator、Home 面板、Dashboard
 _避免使用_：Home 面板、全局 Orchestrator
 
 **Tob Mode**：
-Tob 模式。当前环境 Tob DM 的一种呈现方式：Human 只与 Tob 对话，Channel 导航和其他面板全部隐藏，消息面板自身的子面板保留。它就是同一个 Tob DM 与同一份历史，不是第二个对话；退出后恢复之前的视图且不做改动。它取代了原来的 Home 面板。
+Tob 模式。手机端当前环境 Tob DM 的全屏呈现方式：Human 只与 Tob 对话，在聊天列表下拉并按住即可进入。它就是同一个 Tob DM 与同一份历史，不是第二个对话。桌面端没有 Tob 模式：原来的 Home 面板已移除，在 Simple 布局模式下隐藏 Side column 即可专注于任意频道的对话。
 _避免使用_：Home、Home 面板、拖布模式、personal agent 模式
 
 **Tob Delegation**：
@@ -869,8 +869,12 @@ _避免使用_：sidebar roster、dashboard、bot list
 _避免使用_：workbench、panel layout、dock
 
 **Layout mode**：
-布局模式。Human 在本设备上为桌面端 Bot mode 布局选择的行为：**Simple**（简单模式）或 **Advanced**（高级模式）。Simple 下 Workspace Control Rail 每次只显示一个全局面板，频道子面板纵向排列在 Subpanel column 中；Advanced 是可自由排布的两层工作区。两种模式各自保存布局，切换不会改写另一方；新用户默认 Simple。
+布局模式。Human 在本设备上为桌面端 Bot mode 布局选择的行为：**Simple**（简单模式）或 **Advanced**（高级模式）。Simple 下消息面板始终显示，频道子面板纵向排列在其 Subpanel column 中，Workspace Control Rail 决定 Side column 显示什么；Advanced 是可自由排布的两层工作区。两种模式各自保存布局，切换不会改写另一方；新用户默认 Simple。
 _避免使用_：Bot mode、DSB mode、简单视图、专家模式
+
+**Side column**：
+侧列。Simple 布局模式下，位于 Workspace Control Rail 与消息面板之间的可选一列，显示一个全局面板，例如频道列表、Activity Center 或 Marketplace。点选控制列开关会在这里显示对应面板；再点一次当前已显示的开关则隐藏这一列，只留下控制列和消息面板。显示的各个面板共用同一宽度。
+_避免使用_：sidebar、左侧面板、App Sidebar、primary side bar
 
 **Subpanel column**：
 子面板列。Simple 布局模式下，消息面板内可展开收起的右侧一列，按固定顺序纵向列出当前频道可用的子面板。每个子面板可折叠，整列可滚动；折叠只卸载呈现，不会停止正在运行的浏览器、电脑或会话。
