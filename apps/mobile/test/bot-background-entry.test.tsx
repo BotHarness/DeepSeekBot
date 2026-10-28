@@ -5,7 +5,11 @@ import { afterEach, expect, it, vi } from 'vitest';
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 
 const push = vi.hoisted(() => vi.fn());
-vi.mock('expo-router', () => ({ useRouter: () => ({ push }), useFocusEffect: () => {} }));
+vi.mock('expo-router', () => ({
+  useRouter: () => ({ push }),
+  useFocusEffect: () => {},
+  useIsFocused: () => true,
+}));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('../src/ui/shell/icons', async () => ({
   ...(await import('./shell-icons-shim')),
@@ -20,6 +24,7 @@ vi.mock('../src/ui/chat/composer-context', () => ({
   useComposerContext: () => ({
     model: { status: 'loading' },
     grants: { status: 'loading' },
+    reloadModel: () => {},
   }),
 }));
 vi.mock('../src/ui/chat/dm-activity-settings', () => ({ DmActivitySettings: () => null }));
