@@ -1658,6 +1658,20 @@ window.__ModuleLoader__.load({
 			}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, { ...props });
 		}
 		//#endregion
+		//#region packages/client/src/client/telemetry-surface.ts
+		function telemetrySurface() {
+			return typeof globalThis === "object" && "dshDesktop" in globalThis ? "desktop_app" : "browser";
+		}
+		function recordViewerOpen(rpc, panel) {
+			rpc?.call("/api", "botharness/telemetryEvent", { args: {
+				event: "viewer:subpanel_open",
+				properties: {
+					panel,
+					surface: telemetrySurface()
+				}
+			} }).catch(() => {});
+		}
+		//#endregion
 		//#region packages/client/src/client/sidebar-card.tsx
 		function SidebarCardList({ label, className, listRef, flush = false, children }) {
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
@@ -4063,6 +4077,7 @@ window.__ModuleLoader__.load({
 		}
 		function createBrowserBody(t) {
 			return function BrowserBodyView(props) {
+				(0, react.useState)(() => recordViewerOpen(connectionRpc, "browser"));
 				const store = botInfoStore(props.botSlug);
 				if ((0, react.useSyncExternalStore)(store.subscribe, store.getSnapshot).browserAccess === false) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PanelEmptyState, {
 					icon: "globe",

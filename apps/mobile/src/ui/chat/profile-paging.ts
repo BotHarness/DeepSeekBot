@@ -1,4 +1,4 @@
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useIsFocused } from 'expo-router';
 import { createContext, useCallback, useContext } from 'react';
 
 export type ProfilePaging = {
@@ -19,4 +19,10 @@ export function useProfileFocusEffect(effect: () => void | (() => void)) {
   const paging = useProfilePaging();
   const active = paging === undefined || (paging.visible && paging.focused);
   useFocusEffect(useCallback(() => (active ? effect() : undefined), [active, effect]));
+}
+
+export function useProfileIsFocused() {
+  const focused = useIsFocused();
+  const paging = useProfilePaging();
+  return focused && (paging === undefined || (paging.visible && paging.focused));
 }

@@ -1,4 +1,4 @@
-import { useProfileFocusEffect } from './profile-paging';
+import { useProfileFocusEffect, useProfileIsFocused } from './profile-paging';
 import { ReadFailure } from '../primitives/read-failure';
 import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { FlatList, Pressable, View, type ViewInstance } from 'react-native';
@@ -335,16 +335,19 @@ function BotIdentity({
         </EditableAvatar>
       }
     >
-      <Text variant="meta" tone={botStateTone(bot)}>
+      <Text pointerEvents="none" variant="meta" tone={botStateTone(bot)}>
         {[bot.paused ? t.paused : t.state[bot.state], ...bot.roles].join(' · ')}
       </Text>
       {bot.description === undefined || bot.description.trim() === '' ? null : (
-        <Text tone="muted" numberOfLines={3} style={{ textAlign: 'center' }}>
+        <Text pointerEvents="none" tone="muted" numberOfLines={3} style={{ textAlign: 'center' }}>
           {bot.description}
         </Text>
       )}
       {actions.onBrowser === undefined && actions.onComputer === undefined ? null : (
-        <View style={{ flexDirection: 'row', gap: space.x4, paddingTop: space.x1 }}>
+        <View
+          pointerEvents="box-none"
+          style={{ flexDirection: 'row', gap: space.x4, paddingTop: space.x1 }}
+        >
           {actions.onBrowser === undefined ? null : (
             <RoundAction
               label={t.profileBrowser}
@@ -630,6 +633,7 @@ export function BotProfilePage({
   tabMemory: ProfileTabMemory;
 }) {
   const t = useStrings();
+  const pageFocused = useProfileIsFocused();
   const theme = useDesignTheme();
   const avatarEditor = useAvatarEditor(avatar);
   const [profile, setProfile] = useState(initialProfile);
@@ -783,7 +787,7 @@ export function BotProfilePage({
       options={profileTabOptions(tabs)}
       tab={tab}
       onTab={setTab}
-      body={tab === 'files' || tab === 'members' ? filesBody : bodies[tab]}
+      body={(page) => (page === 'files' || page === 'members' ? filesBody : bodies[page])}
       onClose={actions.onClose}
     />
   );
@@ -799,7 +803,7 @@ export function BotProfilePage({
               )),
             ],
           })
-        : files(tab === 'files', shell)}
+        : files(tab === 'files' && pageFocused, shell)}
     </View>
   );
 }

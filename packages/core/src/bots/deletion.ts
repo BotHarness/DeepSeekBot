@@ -357,7 +357,7 @@ export function createPersonaBotDeletions(options: {
       } catch {}
       write(state, retainedRecord);
       try {
-        options.capture?.('bot_deleted');
+        options.capture?.('bot_library:bot_delete');
       } catch {}
       return run(state);
     },

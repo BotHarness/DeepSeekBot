@@ -1,4 +1,4 @@
-import { useProfileFocusEffect } from './profile-paging';
+import { useProfileFocusEffect, useProfileIsFocused } from './profile-paging';
 import { TextField } from '../primitives/text-field';
 import { useCallback, useState, type ReactNode } from 'react';
 import { View } from 'react-native';
@@ -218,6 +218,7 @@ export function GroupProfilePage({
   files,
 }: GroupProfileProps) {
   const t = useStrings();
+  const pageFocused = useProfileIsFocused();
   const [busy, setBusy] = useState<string | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [sheet, setSheet] = useState<'invite' | 'rename' | undefined>();
@@ -457,7 +458,9 @@ export function GroupProfilePage({
       options={profileTabOptions(tabs)}
       tab={tab}
       onTab={setTab}
-      body={tab === 'members' || tab === 'work' || tab === 'settings' ? bodies[tab] : filesBody}
+      body={(page) =>
+        page === 'members' || page === 'work' || page === 'settings' ? bodies[page] : filesBody
+      }
       onClose={onClose}
     />
   );
@@ -475,7 +478,7 @@ export function GroupProfilePage({
                 )),
               ],
             })
-          : files(tab === 'files', shell)}
+          : files(tab === 'files' && pageFocused, shell)}
       </View>
       {sheet === 'invite' ? (
         <InviteSheet
@@ -520,11 +523,12 @@ function GroupIdentity({
         </EditableAvatar>
       }
     >
-      <Text variant="meta" tone="muted">
+      <Text pointerEvents="none" variant="meta" tone="muted">
         {t.members(channel.memberCount)}
       </Text>
       {error === undefined ? null : (
         <Text
+          pointerEvents="none"
           accessibilityRole="alert"
           accessibilityLiveRegion="polite"
           tone="danger"

@@ -1052,8 +1052,12 @@ Application-defined, default-on optional statistics from the Expo app, separate 
 A random statistics-only UUID saved on the phone while statistics are enabled. It is independent of Host Install ID, paired-device identity, Human accounts and site visitors. Opt-out clears it and the unsent queue; re-enabling creates a new one. OS app-data restoration may restore the saved preference and identifier.
 
 **Telemetry**:
-Anonymous product usage events the Host sends to the project's analytics service, on by default and turned off by plugin config `telemetry: false`, `DO_NOT_TRACK=1` or `BOTHARNESS_TELEMETRY=0`. It never carries names, Memory, conversation content, paths or IP addresses (ADR-0132).
+Anonymous product usage events the Host sends to the project's analytics service, on by default and turned off by plugin config `telemetry: false`, `DO_NOT_TRACK=1` or `BOTHARNESS_TELEMETRY=0`. It never carries names, Memory, conversation content, paths or IP addresses (ADR-0132). Every event is registered in the tracking plan and named `category:object_action`, with `source` `host` (ADR-0270).
 _Avoid_: tracking, analytics SDK, crash reporter
+
+**Active Day**:
+A Host-local day on which an installation was used: the first Bot mode entry, Human message or IM message sends `app:active_day_start` once (ADR-0270). DAU, WAU and MAU count installations with an Active Day; a Host that is only online does not count.
+_Avoid_: online day, daily usage
 
 **Install ID**:
 A random identifier generated on a plugin installation's first start and attached to its Telemetry. It identifies the installation, never a Human, and is never linked to a site visitor.

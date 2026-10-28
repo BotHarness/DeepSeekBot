@@ -16,6 +16,7 @@ import { Text } from '../../src/ui/primitives/text';
 import { KeyboardIcon } from '../../src/ui/shell/icons';
 import { viewerHeaderOptions } from '../../src/ui/shell/viewer-header';
 import { useMounted } from '../../src/ui/mounted';
+import { recordFeature } from '../../src/telemetry/features';
 import { useStrings } from '../../src/ui/strings';
 import { LoadingIndicator } from '../../src/ui/primitives/loading-indicator';
 
@@ -48,6 +49,7 @@ export default function BrowserScreen() {
 
   const mount = useMounted<ViewInstance>(() => {
     viewer?.start();
+    recordFeature('viewer:subpanel_open', { panel: 'browser' });
     const shown = Keyboard.addListener('keyboardDidShow', () => setTyping(true));
     const hidden = Keyboard.addListener('keyboardDidHide', () => setTyping(false));
     return () => {

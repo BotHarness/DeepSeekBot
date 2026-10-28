@@ -88,3 +88,4 @@ apps/docs/src/content/docs-zh/docs/mobile-pairing.mdx
 .agents/skills/eas-workflows/scripts/.cache/
 
 packages/deepseekbot/desktop-theme/
+apps/mobile/modules/**/android/build/

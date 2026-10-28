@@ -7,6 +7,8 @@ import {
   type WorkspaceGrant,
 } from './bot-settings';
 import { MethodRefused, type HostClient } from './client';
+import { recordFeature } from '../telemetry/features';
+import type { FeatureEntry } from '../telemetry/schema';
 import type {
   HumanAttentionItem,
   QuestionAnswer,
@@ -129,10 +131,21 @@ function markHandled(ref: RequestRef): void {
   handled.add(handledKey(ref));
 }
 
+const APPROVAL_DECISIONS: Readonly<
+  Record<ApprovalChoice, 'allow_once' | 'allow_always' | 'reject'>
+> = {
+  'allowed-once': 'allow_once',
+  'allowed-always-tool': 'allow_always',
+  'allowed-always-exact': 'allow_always',
+  'allowed-always-all': 'allow_always',
+  rejected: 'reject',
+};
+
 export async function decideApproval(
   client: HostClient,
   ref: RequestRef,
   outcome: ApprovalChoice,
+  entry: FeatureEntry = 'app',
 ): Promise<DecisionResult> {
   try {
     await client.call('toolApprovalDecide', {
@@ -141,6 +154,7 @@ export async function decideApproval(
       outcome,
     });
     markHandled(ref);
+    recordFeature('activity:approval_submit', { decision: APPROVAL_DECISIONS[outcome], entry });
     return 'accepted';
   } catch (error) {
     if (!(error instanceof MethodRefused)) throw error;
@@ -183,6 +197,7 @@ export async function decideGrantRequest(
       workspaceId,
     );
     markHandled(ref);
+    recordFeature('activity:grant_request_submit', {});
     return { result: 'accepted', grant };
   } catch (error) {
     if (!(error instanceof MethodRefused)) throw error;
@@ -238,6 +253,7 @@ export async function answerQuestion(
   client: HostClient,
   ref: RequestRef,
   answer: QuestionAnswer,
+  entry: 'app' | 'chat' = 'app',
 ): Promise<DecisionResult> {
   try {
     await client.call('userQuestionAnswer', {
@@ -246,6 +262,7 @@ export async function answerQuestion(
       answer,
     });
     markHandled(ref);
+    recordFeature('activity:question_submit', { entry });
     return 'accepted';
   } catch (error) {
     if (!(error instanceof MethodRefused)) throw error;
@@ -264,7 +281,7 @@ export async function answerInChat(
   const only = request.questions.length === 1 ? request.questions[0] : undefined;
   if (request.status !== 'pending' || only === undefined) return false;
   const answer = { answers: [{ id: only.id, selected: [], custom: text }] };
-  return (await answerQuestion(client, ref, answer)) === 'accepted';
+  return (await answerQuestion(client, ref, answer, 'chat')) === 'accepted';
 }
 
 export interface QuestionDraft {

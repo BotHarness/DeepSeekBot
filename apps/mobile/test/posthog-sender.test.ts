@@ -8,7 +8,7 @@ import type { TelemetryEvent } from '../src/telemetry/schema';
 import { createMobileTelemetry } from '../src/telemetry/mobile-telemetry';
 
 const event: TelemetryEvent = {
-  event: 'mobile_app_opened',
+  event: 'app:app_open',
   uuid: '00000000-0000-4000-8000-000000000001',
   distinct_id: '00000000-0000-4000-8000-000000000002',
   timestamp: '2026-10-16T00:00:00.000Z',
@@ -113,13 +113,13 @@ it('preserves common context on every owner-produced event through the actual SD
   expect(batches).toHaveLength(1);
   expect(new Set(batches[0]!.map((item) => item.event))).toEqual(
     new Set([
-      'mobile_app_opened',
-      'mobile_pairing_started',
-      'mobile_pairing_result',
-      'mobile_connection_result',
-      'mobile_activation_step',
-      'mobile_bot_operation_started',
-      'mobile_bot_operation_result',
+      'app:app_open',
+      'pairing:attempt_start',
+      'pairing:attempt_complete',
+      'connection:attempt_complete',
+      'onboarding:activation_step_complete',
+      'bot_library:create_attempt_start',
+      'bot_library:create_attempt_complete',
     ]),
   );
   for (const item of batches[0]!) {

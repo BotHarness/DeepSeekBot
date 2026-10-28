@@ -35,7 +35,7 @@ it.each([1, 'Ok'])('sends only the explicit rating with a stable ID (ack %s)', a
   const init = request.mock.calls[0]?.[1];
   const body = JSON.parse(String(init?.body));
   expect(body.batch[0]).toEqual({
-    event: 'message_feedback',
+    event: 'chat:message_feedback_submit',
     uuid: report.reportId,
     distinct_id: report.reportId,
     properties: {

@@ -9,6 +9,7 @@ export type MenuAction = {
   icon:
     | 'settings'
     | 'computer'
+    | 'connection'
     | 'close'
     | 'person'
     | 'remove'

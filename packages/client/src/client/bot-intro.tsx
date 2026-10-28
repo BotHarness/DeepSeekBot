@@ -378,7 +378,7 @@ export function BotIntro({
             layoutMode={state.layoutMode}
             onLayoutMode={(mode) => controller.chooseLayout(mode)}
             t={t}
-            track={(setting) => controller.introEvent('intro_theme_changed', { setting })}
+            track={(setting) => controller.introEvent('onboarding:theme_update', { setting })}
           />
         ) : null}
         {step === 'model' ? (
@@ -392,7 +392,7 @@ export function BotIntro({
         {step === 'community' ? (
           <CommunityStep
             t={t}
-            track={(target) => controller.introEvent('intro_community_clicked', { target })}
+            track={(target) => controller.introEvent('onboarding:community_link_click', { target })}
           />
         ) : null}
         {step === 'start' ? (
@@ -663,7 +663,8 @@ function ModelStep({
         } else await actions.inheritModel(tob, revision);
         setPlanned(plan);
       }
-      if (changed) onboardingFor(actions).introEvent('intro_model_saved', { advanced: split });
+      if (changed)
+        onboardingFor(actions).introEvent('onboarding:model_save', { is_advanced: split });
       return true;
     } catch (cause) {
       setError(errorMessage(cause));
