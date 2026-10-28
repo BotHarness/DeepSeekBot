@@ -47,18 +47,54 @@ export function digestShortDate(day: string, lang: MarketplaceLanguage): string 
   }).format(at);
 }
 
+function digestMonth(day: string, lang: MarketplaceLanguage): string {
+  const at = Date.parse(`${day}T00:00:00Z`);
+  if (Number.isNaN(at)) return '';
+  return new Intl.DateTimeFormat(lang === 'zh' ? 'zh-CN' : 'en', {
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(at);
+}
+
 const styles = stylex.create({
-  cover: {
+  frame: {
     position: 'relative',
-    display: 'grid',
-    gap: space.x1,
+    display: 'flex',
+    flexDirection: 'column',
     width: '100%',
     height: '100%',
     overflow: 'hidden',
     borderRadius: radius.lg,
-    backgroundColor: color.hover,
+    backgroundColor: color.surface,
     isolation: 'isolate',
   },
+  cover: {
+    display: 'grid',
+    gap: space.x1,
+    flexGrow: 1,
+    minHeight: 0,
+  },
+  dateMark: {
+    position: 'absolute',
+    insetInlineStart: space.x3,
+    insetBlockStart: space.x3,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    minWidth: '48px',
+    paddingBlock: space.x2,
+    paddingInline: space.x3,
+    borderRadius: radius.md,
+    backgroundColor: color.surface,
+    color: color.fg,
+  },
+  dateMonth: {
+    color: color.accentText,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+    fontWeight: text.strong,
+  },
+  dateDay: { fontSize: text.titleSize, lineHeight: text.titleLine, fontWeight: text.strong },
   date: { gridTemplate: '1fr / 1fr' },
   one: { gridTemplate: '1fr / 1fr' },
   two: { gridTemplate: '1fr / 1fr 1fr' },
@@ -89,18 +125,18 @@ const styles = stylex.create({
     backgroundColor: color.surface,
     lineHeight: 0,
   },
-  avatarRaised: { insetBlockEnd: '64px' },
+  avatarRaised: { insetBlockEnd: `calc(${space.x6} + ${space.x2})` },
   shade: {
-    position: 'absolute',
-    insetInline: 0,
-    insetBlockEnd: 0,
+    position: 'relative',
     display: 'flex',
     flexDirection: 'column',
     gap: space.x1,
+    flexShrink: 0,
+    marginTop: `calc(-1 * ${space.x6})`,
     paddingTop: space.x6,
     paddingInline: space.x4,
     paddingBottom: space.x4,
-    backgroundImage: `linear-gradient(to top, ${color.surface} 30%, color-mix(in srgb, ${color.surface} 80%, transparent) 65%, transparent)`,
+    backgroundImage: `linear-gradient(to bottom, transparent, ${color.surface} ${space.x6})`,
     color: color.fg,
     textAlign: 'start',
     pointerEvents: 'none',
@@ -183,31 +219,35 @@ export function DigestCover({
   const layout = digestCoverLayout(picks.length);
   const shown = picks.slice(0, 4);
   return (
-    <span {...stylex.props(styles.cover, styles[layout])} data-digest-cover={layout}>
-      {layout === 'date' ? (
-        <span {...stylex.props(styles.tile)}>
-          <BotBannerArt
-            banner={{ recipe: seededBannerRecipe(`digest:${day}`) }}
-            className={stylex.props(styles.art).className ?? ''}
-          />
-        </span>
-      ) : (
-        shown.map((pick, index) => (
-          <CoverTile
-            key={pick.id}
-            pick={pick}
-            lead={layout === 'three' && index === 0}
-            avatarSize={avatarSize}
-            raised={caption && BOTTOM_ROW[layout].includes(index)}
-            t={t}
-          />
-        ))
-      )}
+    <span {...stylex.props(styles.frame)}>
+      <span {...stylex.props(styles.cover, styles[layout])} data-digest-cover={layout}>
+        {layout === 'date' ? (
+          <span {...stylex.props(styles.tile)}>
+            <BotBannerArt
+              banner={{ recipe: seededBannerRecipe(`digest:${day}`) }}
+              className={stylex.props(styles.art).className ?? ''}
+            />
+            <span {...stylex.props(styles.dateMark)} aria-hidden="true">
+              <span {...stylex.props(styles.dateMonth)}>{digestMonth(day, lang)}</span>
+              <span {...stylex.props(styles.dateDay)}>{day.slice(8).replace(/^0/u, '')}</span>
+            </span>
+          </span>
+        ) : (
+          shown.map((pick, index) => (
+            <CoverTile
+              key={pick.id}
+              pick={pick}
+              lead={layout === 'three' && index === 0}
+              avatarSize={avatarSize}
+              raised={caption && BOTTOM_ROW[layout].includes(index)}
+              t={t}
+            />
+          ))
+        )}
+      </span>
       {caption ? (
         <span {...stylex.props(styles.shade)}>
-          <span {...stylex.props(styles.eyebrow)}>
-            {t('market.digest.label')} · {digestShortDate(day, lang)}
-          </span>
+          <span {...stylex.props(styles.eyebrow)}>{digestShortDate(day, lang)}</span>
           <span {...stylex.props(styles.title)}>{title}</span>
         </span>
       ) : null}

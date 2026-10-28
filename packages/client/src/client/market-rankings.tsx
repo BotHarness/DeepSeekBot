@@ -72,7 +72,7 @@ const styles = stylex.create({
     scrollSnapType: 'x proximity',
     scrollbarWidth: 'none',
   },
-  posterRow: { gridAutoColumns: 'min(168px, 45%)' },
+  posterRow: { gridAutoColumns: 'min(168px, 62%)' },
   compactRow: { gridAutoColumns: 'min(300px, 85%)' },
   poster: {
     position: 'relative',
@@ -142,7 +142,10 @@ const styles = stylex.create({
     fontVariantNumeric: 'tabular-nums',
   },
   posterFoot: {
-    paddingInline: space.x4,
+    flexWrap: 'wrap',
+    gap: space.x2,
+    whiteSpace: 'nowrap',
+    paddingInline: space.x3,
     paddingBottom: space.x4,
     flexShrink: 0,
   },

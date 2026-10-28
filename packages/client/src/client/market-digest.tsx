@@ -47,7 +47,7 @@ const styles = stylex.create({
   card: {
     display: 'block',
     flexShrink: 0,
-    width: '184px',
+    width: 'min(184px, 64%)',
     height: '208px',
     padding: 0,
     borderWidth: 0,
@@ -59,7 +59,7 @@ const styles = stylex.create({
     scrollSnapAlign: 'start',
     opacity: { default: 1, ':hover': 0.92 },
   },
-  hero: { width: 'min(400px, 80%)' },
+  hero: { width: 'min(400px, 88%)' },
   more: {
     display: 'flex',
     flexDirection: 'column',
@@ -99,13 +99,14 @@ const styles = stylex.create({
   header: { display: 'block', height: '200px', flexShrink: 0 },
   article: { display: 'flex', flexDirection: 'column', gap: space.x5, minWidth: 0 },
   date: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
-  lede: {
+  articleTitle: {
     margin: 0,
     color: color.fg,
     fontSize: text.titleSize,
     lineHeight: text.titleLine,
     fontWeight: text.strong,
   },
+  lede: { margin: 0, color: color.muted, fontSize: text.bodySize, lineHeight: text.bodyLine },
   section: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
   heading: {
     margin: 0,
@@ -119,11 +120,11 @@ const styles = stylex.create({
   end: { display: 'flex', justifyContent: 'flex-start' },
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(184px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
     gap: space.x3,
     minWidth: 0,
   },
-  gridCard: { width: '100%' },
+  gridCard: { width: '100%', height: 'auto', aspectRatio: '4 / 5' },
 });
 
 export function digestDate(day: string, lang: MarketplaceLanguage): string {
@@ -251,28 +252,30 @@ export function MarketDailyPicks({
       <div {...stylex.props(styles.rowHead)}>
         <h3 {...stylex.props(styles.rowTitle)}>{t('market.digest.label')}</h3>
       </div>
-      <div {...stylex.props(styles.carousel)} role="list">
-        {digests.map((digest, index) => (
-          <DigestCard
-            key={digest.day}
-            digest={digest}
-            lang={lang}
-            t={t}
-            wide={index === 0}
-            grid={false}
-            onOpen={() => onOpen(digest.day)}
-          />
-        ))}
-        <button
-          type="button"
-          {...stylex.props(styles.more)}
-          data-market-past-picks
-          onClick={onArchive}
-        >
-          {t('market.digest.seePast')}
-          <IconChevronRightOutlineRegular size={16} />
-        </button>
-      </div>
+      {digests.length === 0 ? null : (
+        <div {...stylex.props(styles.carousel)} role="list">
+          {digests.map((digest, index) => (
+            <DigestCard
+              key={digest.day}
+              digest={digest}
+              lang={lang}
+              t={t}
+              wide={index === 0}
+              grid={false}
+              onOpen={() => onOpen(digest.day)}
+            />
+          ))}
+          <button
+            type="button"
+            {...stylex.props(styles.more)}
+            data-market-past-picks
+            onClick={onArchive}
+          >
+            {t('market.digest.seePast')}
+            <IconChevronRightOutlineRegular size={16} />
+          </button>
+        </div>
+      )}
     </section>
   );
 }
@@ -340,6 +343,7 @@ export function MarketDigestPage({
               />
             </span>
             <span {...stylex.props(styles.date)}>{digestDate(digest.day, lang)}</span>
+            <h2 {...stylex.props(styles.articleTitle)}>{digest.title}</h2>
             <p {...stylex.props(styles.lede)}>{digest.lede}</p>
             {digest.sections.map((section) => (
               <section key={section.heading} {...stylex.props(styles.section)}>
