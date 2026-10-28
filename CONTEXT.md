@@ -437,6 +437,18 @@ _Avoid_: download, clone count, Telemetry event
 The Bot Marketplace's dated daily article about recent Bots, with embedded Bot cards that install in one tap; past digests stay readable.
 _Avoid_: newsletter, push notification, blog post
 
+**Digest Pick**:
+A Bot that a Marketplace Digest names in one of its sections. A pick that later leaves the Bot Marketplace keeps its text in the digest but loses its card.
+_Avoid_: featured Bot, editor's pick, sponsored Bot
+
+**Digest Cover**:
+The picture that stands for one Marketplace Digest, assembled from its listed Digest Picks' banners and avatars in a layout chosen by how many there are; with no listed pick it falls back to a pixel banner derived from the date.
+_Avoid_: thumbnail, hero image, generated image
+
+**Marketplace Ranking**:
+One of the Bot Marketplace's three daily lists of listed Bots: Hot (most installs in the last seven days), New (first seen in the last seven days) and Rising (the largest growth in installs over the week before). All three are recomputed once a day and read from that day's snapshot.
+_Avoid_: section, shelf, chart, leaderboard
+
 **Bot Zip**:
 A `.zip` of one PersonaBot's Memory files, with its `.botharness/bot.json` descriptor and avatar, that a Human exports and hands to someone else; importing it creates a fresh PersonaBot. It holds files only unless the whole Bot is exported with Git history. It never holds identity, Sessions, bindings or credentials (ADR-0135).
 _Avoid_: PersonaBot Export, SoulSnapshot, backup

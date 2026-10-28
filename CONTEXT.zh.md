@@ -434,6 +434,18 @@ _避免使用_：download、clone count、Telemetry event
 Bot Marketplace 每天一篇、按日期保存的文章，介绍近期的 Bot，内嵌可一键安装的 Bot 卡片；往期仍可查看。
 _避免使用_：newsletter、push notification、blog post
 
+**Digest Pick**：
+精选 Bot：Marketplace Digest 在某一段里点名介绍的 Bot。之后从 Bot Marketplace 下架的精选 Bot，文章里的文字保留，但卡片不再显示。
+_避免使用_：featured Bot、编辑推荐、推广 Bot
+
+**Digest Cover**：
+日报封面：代表一期 Marketplace Digest 的图，用这一期仍在架的 Digest Pick 的 banner 和头像拼成，版式按数量选择；一个都不在架时，用按日期生成的像素 banner 兜底。
+_避免使用_：缩略图、hero 图、生成图片
+
+**Marketplace Ranking**：
+榜单：Bot Marketplace 每天生成的三个在架 Bot 列表：热门（最近 7 天安装最多）、新上架（最近 7 天首次收录）和上升最快（比前一周安装增长最多）。三个榜单每天重算一次，读取当天的快照。
+_避免使用_：section、货架、排行榜
+
 **Bot Zip**：
 单个 PersonaBot 的 Memory 文件打成的 `.zip`，附带 `.botharness/bot.json` 描述和头像，由 Human 导出后交给别人；导入时创建新的 PersonaBot。默认只含文件，只有整个 Bot 导出并勾选时才带 Git 历史。不含身份、Session、绑定或凭据（ADR-0135）。
 _避免使用_：PersonaBot Export、SoulSnapshot、backup
