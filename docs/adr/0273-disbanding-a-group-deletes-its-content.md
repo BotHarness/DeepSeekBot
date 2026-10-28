@@ -16,7 +16,7 @@ ADR-0130 made Channel Deletion end membership and routing while keeping history,
 - **Who.** Only the Human disbands a group. A Bot, including the group's creator Bot, can leave but cannot disband.
 - **Content.** The group's messages and their exclusively referenced files are removed through the Content Purge owner (ADR-0146) in the same operation. A Source Event or file that also appears in another Channel keeps its other placements; only this group's placement goes.
 - **Outside the group, nothing changes.** Bot Memory, Workspace files, DSH Session Persistence and messages already mirrored to an external IM stay as they are.
-- **Identity.** Only the group ID and a deleted marker remain. Name, avatar, members, wake policies, invitations and join requests are removed. Places that still reference the group show "Deleted group".
+- **Identity.** Only the group ID and a deleted marker remain. Avatar, members, wake policies, invitations and join requests are removed with the membership. The name is removed once the content is deleted. If content deletion fails, or a message cannot be read for deletion, the group keeps its name and stays in Ended Channel history so the Human can finish by hand.
 - **Running work.**
   - Bot turns started by the group are stopped.
   - Pending tool approvals and user questions in the group settle at once as cancelled because the group was disbanded.
@@ -35,6 +35,6 @@ ADR-0130 made Channel Deletion end membership and routing while keeping history,
 
 ## Consequences
 
-- Bridged Channels (Lark, Slack and others) keep ADR-0130's behaviour: deletion closes local routes and keeps history.
-- The Ended Channel history now only matters for those Channels and for groups disbanded before this change.
+- A group with external connectors is still a local group. Disbanding it closes its routes and deletes the local copies of bridged messages; the provider conversation and anything already mirrored there stay.
+- Ended Channel history now only lists groups disbanded before this change and groups whose content deletion did not finish.
 - The disband confirmation states that messages and files in the group are deleted and that this cannot be undone.

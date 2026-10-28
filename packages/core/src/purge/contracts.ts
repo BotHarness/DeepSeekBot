@@ -114,6 +114,7 @@ export interface TextCleanupResult {
 export interface GroupDisbandResult {
   messages: number;
   cleanupPending?: number;
+  retained?: number;
 }
 
 export interface ContentPurge {

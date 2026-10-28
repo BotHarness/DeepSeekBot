@@ -5498,13 +5498,13 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       try {
         deps.channels.deleteGroup(channelId);
         deps.externalMessaging?.inbound.endChannel(channelId);
-        deps.toolApproval?.cancelChannel(channelId);
-        deps.userQuestions?.cancelChannel(channelId);
         void deps.runtime
           ?.endGroup?.(channelId)
           .catch((error: unknown) =>
             deps.warn?.(`botharness.group_disband.stop_turns_failed error=${String(error)}`),
           );
+        deps.toolApproval?.cancelChannel(channelId);
+        deps.userQuestions?.cancelChannel(channelId);
         void deps.roster
           .channelForget(channelId)
           .catch((error: unknown) =>

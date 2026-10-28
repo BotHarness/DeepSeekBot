@@ -426,6 +426,10 @@ export function isChannelMessageAuthor(value: unknown): value is ChannelMessageA
   }
 }
 
+export function isDisbandedGroup(record: ChannelRecord | undefined): boolean {
+  return record?.type === 'group' && record.deletedAt !== undefined && record.name === '';
+}
+
 export function isChannelRecord(value: unknown, id: string): value is ChannelRecord {
   if (typeof value !== 'object' || value === null) return false;
   const record = value as Record<string, unknown>;

@@ -45,9 +45,17 @@ export function clearHostConversationCache(hostId: string): void {
     if (entry instanceof File && cachedForHost(entry.name, hostId)) entry.delete();
 }
 
-export function forgetConversationCache(hostId: string, key: string): void {
+export function pruneHostConversationCache(hostId: string, stale: (key: string) => boolean): void {
   try {
-    const file = fileFor(JSON.stringify(['computer', hostId, key]));
-    if (file.exists) file.delete();
+    const directory = root();
+    if (!directory.exists) return;
+    for (const entry of directory.list()) {
+      if (!(entry instanceof File) || !cachedForHost(entry.name, hostId)) continue;
+      try {
+        const name = decodeURIComponent(entry.name.replace(/\.json$/u, ''));
+        const key: unknown = JSON.parse(name)[2];
+        if (typeof key === 'string' && stale(key)) entry.delete();
+      } catch {}
+    }
   } catch {}
 }

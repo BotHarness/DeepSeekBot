@@ -2250,7 +2250,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       const deleted: ChannelRecord = {
         id: channel.id,
         type: channel.type,
-        name: '',
+        name: channel.name,
         members: [],
         deletedAt: timestamp,
         createdAt: channel.createdAt,

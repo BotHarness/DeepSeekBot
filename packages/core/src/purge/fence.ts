@@ -31,7 +31,8 @@ export function requireAssignmentSource(db: DatabaseSync, id: string, botSlug: s
       json_extract(e.payload_json, '$.botCausation.parentSourceEventId'))
     JOIN channel_records c ON c.channel_id = p.channel_id
     WHERE e.source_event_id = ? AND json_extract(c.record_json, '$.type') = 'group'
-      AND json_extract(c.record_json, '$.deletedAt') IS NOT NULL LIMIT 1`)
+      AND json_extract(c.record_json, '$.deletedAt') IS NOT NULL
+      AND json_extract(c.record_json, '$.name') = '' LIMIT 1`)
     .get(id);
   if (disbanded === undefined) requireSourceEffects(db, id, botSlug);
 }

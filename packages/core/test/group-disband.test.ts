@@ -11,6 +11,7 @@ import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { mountContentPurge } from '../src/purge/owner.js';
 import { createAttachmentStore } from '../src/attachments/store.js';
 import { requireAssignmentSource, requireSourceEffects } from '../src/purge/fence.js';
+import { createStorageCleanup } from '../src/storage/media-cleanup.js';
 
 const owners: OperationalDatabaseOwner[] = [];
 afterEach(() => {
@@ -23,11 +24,20 @@ async function seeded() {
   owners.push(database);
   const purge = mountContentPurge({ dshHome: home, database });
   const port = attachOperationalModule(database, 'messaging');
+  const attachments = createAttachmentStore({ rootDir: join(home, 'botharness', 'attachments') });
   const channels = createSqliteChannelStore({
     database: port,
     rootDir: join(home, 'botharness', 'channels'),
     databaseOwnerReady: true,
-    attachments: createAttachmentStore({ rootDir: join(home, 'botharness', 'attachments') }),
+    attachments,
+  });
+  const storage = createStorageCleanup({
+    dshHome: home,
+    database,
+    attachments,
+    channels,
+    memoryDirs: () => [],
+    memoryReferences: () => [],
   });
   const dm = channels.getOrCreateDm('ada', 'Ada')!;
   const group = channels.createGroup({ name: 'Trip', members: [] });
@@ -59,7 +69,7 @@ async function seeded() {
       )
       .run(dm.id, source('shared'), 'shared-in-dm'),
   );
-  return { purge, port, channels, dm, group, source };
+  return { purge, port, channels, storage, dm, group, source };
 }
 
 const body = (core: Awaited<ReturnType<typeof seeded>>, messageId: string) =>
@@ -96,7 +106,36 @@ describe('Group Disband (ADR-0273)', () => {
       updatedAt: expect.any(String),
     });
     expect(core.purge.history()).toEqual([]);
+    expect(core.storage.usage().chats.map((chat) => chat.channelId)).toEqual([core.dm.id]);
     expect(core.purge.disband(core.group.id)).toEqual({ messages: 0 });
+  });
+
+  it('treats a shared message as only the DM message once the group is disbanded', async () => {
+    const core = await seeded();
+    core.channels.deleteGroup(core.group.id);
+    core.purge.disband(core.group.id);
+    core.port.transaction((db) =>
+      db.prepare("UPDATE inbox_admissions SET attempt_state = 'handled'").run(),
+    );
+
+    const preview = core.purge.textPreview({
+      before: '2026-10-02T00:00:00.000Z',
+      channelIds: [core.dm.id],
+    });
+
+    expect(preview).toMatchObject({
+      messages: 2,
+      kept: [],
+      chats: [{ channelId: core.dm.id, messages: 2 }],
+    });
+  });
+
+  it('keeps a group in Ended Channel history until its content is deleted', async () => {
+    const core = await seeded();
+    core.channels.deleteGroup(core.group.id);
+    expect(core.purge.history()).toMatchObject([{ id: core.group.id, name: 'Trip' }]);
+    core.purge.disband(core.group.id);
+    expect(core.purge.history()).toEqual([]);
   });
 
   it('refuses a group that is still active', async () => {

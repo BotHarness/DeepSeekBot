@@ -15,7 +15,7 @@ import { hostAvailabilitySource } from './host-availability';
 import { currentHost, selectHost, withHost, withoutHost, type SavedHosts } from './hosts';
 import {
   clearHostConversationCache,
-  forgetConversationCache,
+  pruneHostConversationCache,
   nativeConversationCache,
 } from './native-cache';
 import { watchDisbandedGroups } from './disbanded-groups';
@@ -136,13 +136,15 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   const disbanded = watchDisbandedGroups();
   const offConnection = client.subscribe(() => {
     const snapshot = client.getSnapshot();
-    if (snapshot.roster !== undefined)
-      for (const id of disbanded(snapshot.roster.channels)) {
-        const key = `channel:${id}`;
-        conversations.get(client)?.get(key)?.stop();
-        conversations.get(client)?.delete(key);
-        if (saved !== null) forgetConversationCache(saved.hostId, key);
+    if (snapshot.roster !== undefined) {
+      const change = disbanded(snapshot.roster);
+      for (const id of change.gone) {
+        conversations.get(client)?.get(`channel:${id}`)?.stop();
+        conversations.get(client)?.delete(`channel:${id}`);
       }
+      if (saved !== null && change.stale !== undefined)
+        pruneHostConversationCache(saved.hostId, change.stale);
+    }
     const now = snapshot.connection.status === 'connected';
     if (now && !connected) {
       void pushSession.retryFailed();
