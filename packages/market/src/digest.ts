@@ -468,7 +468,7 @@ export const DIGEST_PICK_LIMIT = 4;
 function pickOf(entry: MarketplaceEntry): DigestPick {
   return {
     id: entry.id,
-    displayName: entry.displayName,
+    displayName: entry.displayName ?? entry.name,
     banner: entry.banner,
     avatar: entry.avatar,
     filesBase: entry.source === 'upload' ? `${entry.htmlUrl}/files/` : null,

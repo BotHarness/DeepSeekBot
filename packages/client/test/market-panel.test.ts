@@ -291,9 +291,9 @@ describe('Market panel', () => {
         expect(
           cards.map((card) => card.querySelectorAll('[data-digest-cover-pick]').length),
         ).toEqual([1, 2, 3, 4, 4, 0, 1]);
-        expect(row.lastElementChild!.lastElementChild!.hasAttribute('data-market-past-picks')).toBe(
-          true,
-        );
+        expect(
+          row.lastElementChild!.lastElementChild!.querySelector('[data-market-past-picks]'),
+        ).not.toBeNull();
         const order = [...host.querySelectorAll('[data-market-daily-picks], .bh-market-sections')];
         expect(order[0]).toBe(row);
         expect(actions['telemetryEvent']).toHaveBeenCalledWith('marketplace:digest_view');

@@ -193,8 +193,8 @@ describe('Marketplace Digest', () => {
         title: '今天值得一试的 Bot',
         lede: '一位热门的写作伙伴和一位新来的研究助手。',
         picks: [
-          { id: hot, displayName: null, banner: null, avatar: null, filesBase: null },
-          { id: fresh, displayName: null, banner: null, avatar: null, filesBase: null },
+          { id: hot, displayName: 'writer', banner: null, avatar: null, filesBase: null },
+          { id: fresh, displayName: 'researcher', banner: null, avatar: null, filesBase: null },
         ],
       },
     ]);
@@ -339,11 +339,17 @@ describe('Marketplace Digest', () => {
     expect(picks.map((pick) => pick['id'])).toEqual([uploaded, scene, photo, third]);
     for (const pick of picks) {
       const detail = (await (await market.request(`/v1/bots/${String(pick['id'])}`)).json()) as {
-        bot: { displayName: string | null; banner: unknown; avatar: unknown; htmlUrl: string };
+        bot: {
+          name: string;
+          displayName: string | null;
+          banner: unknown;
+          avatar: unknown;
+          htmlUrl: string;
+        };
       };
       expect(pick).toEqual({
         id: pick['id'],
-        displayName: detail.bot.displayName,
+        displayName: detail.bot.displayName ?? detail.bot.name,
         banner: detail.bot.banner,
         avatar: detail.bot.avatar,
         filesBase: pick['id'] === uploaded ? `${detail.bot.htmlUrl}/files/` : null,

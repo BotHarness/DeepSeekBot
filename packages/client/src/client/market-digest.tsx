@@ -51,6 +51,12 @@ const styles = stylex.create({
     flexShrink: 0,
     width: 'min(184px, 64%)',
     height: '208px',
+    scrollSnapAlign: 'start',
+  },
+  open: {
+    display: 'block',
+    width: '100%',
+    height: '100%',
     padding: 0,
     borderWidth: 0,
     borderStyle: 'none',
@@ -58,24 +64,30 @@ const styles = stylex.create({
     backgroundColor: 'transparent',
     color: color.fg,
     cursor: 'pointer',
-    scrollSnapAlign: 'start',
     opacity: { default: 1, ':hover': 0.92 },
   },
+  hiddenRow: { display: 'none' },
   hero: {
     width: { default: 'min(400px, 88%)', [NARROW]: '100%' },
     height: { default: '208px', [NARROW]: '232px' },
   },
   past: { display: { default: null, [NARROW]: 'none' } },
   narrowOnly: { display: { default: 'none', [NARROW]: 'inline-flex' } },
+  moreItem: {
+    display: { default: 'block', [NARROW]: 'none' },
+    flexShrink: 0,
+    width: '120px',
+    height: '208px',
+    scrollSnapAlign: 'start',
+  },
   more: {
-    display: { default: 'flex', [NARROW]: 'none' },
+    display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     gap: space.x2,
-    flexShrink: 0,
-    width: '120px',
-    height: '208px',
+    width: '100%',
+    height: '100%',
     padding: space.x4,
     borderWidth: 0,
     borderStyle: 'none',
@@ -86,7 +98,6 @@ const styles = stylex.create({
     lineHeight: text.bodyLine,
     fontWeight: text.strong,
     cursor: 'pointer',
-    scrollSnapAlign: 'start',
   },
   link: {
     display: 'inline-flex',
@@ -209,8 +220,7 @@ function DigestCard({
   onOpen: () => void;
 }): ReactElement {
   return (
-    <button
-      type="button"
+    <div
       role="listitem"
       {...stylex.props(
         styles.card,
@@ -218,19 +228,24 @@ function DigestCard({
         grid && styles.gridCard,
         past && styles.past,
       )}
-      aria-label={t('market.digest.read', { title: digest.title })}
-      data-market-digest-day={digest.day}
-      onClick={onOpen}
     >
-      <DigestCover
-        day={digest.day}
-        title={digest.title}
-        picks={digest.picks}
-        lang={lang}
-        t={t}
-        avatarSize={wide ? 32 : 24}
-      />
-    </button>
+      <button
+        type="button"
+        {...stylex.props(styles.open)}
+        aria-label={t('market.digest.read', { title: digest.title })}
+        data-market-digest-day={digest.day}
+        onClick={onOpen}
+      >
+        <DigestCover
+          day={digest.day}
+          title={digest.title}
+          picks={digest.picks}
+          lang={lang}
+          t={t}
+          avatarSize={wide ? 32 : 24}
+        />
+      </button>
+    </div>
   );
 }
 
@@ -257,7 +272,7 @@ export function MarketDailyPicks({
   const digests = state.status === 'ready' ? state.value.slice(0, DAILY_PICKS_SHOWN) : [];
   return (
     <section
-      {...stylex.props(styles.row)}
+      {...stylex.props(styles.row, digests.length === 0 && styles.hiddenRow)}
       ref={mount}
       hidden={digests.length === 0}
       aria-label={t('market.digest.label')}
@@ -279,18 +294,21 @@ export function MarketDailyPicks({
               t={t}
               wide={index === 0}
               grid={false}
+              past={index > 0}
               onOpen={() => onOpen(digest.day)}
             />
           ))}
-          <button
-            type="button"
-            {...stylex.props(styles.more)}
-            data-market-past-picks
-            onClick={onArchive}
-          >
-            {t('market.digest.seePast')}
-            <IconChevronRightOutlineRegular size={16} />
-          </button>
+          <div role="listitem" {...stylex.props(styles.moreItem)}>
+            <button
+              type="button"
+              {...stylex.props(styles.more)}
+              data-market-past-picks
+              onClick={onArchive}
+            >
+              {t('market.digest.seePast')}
+              <IconChevronRightOutlineRegular size={16} />
+            </button>
+          </div>
         </div>
       )}
     </section>
