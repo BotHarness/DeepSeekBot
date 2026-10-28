@@ -26,7 +26,13 @@ export function useConversationPagePair(
     target === undefined ? (
       <LoadingIndicator />
     ) : target.kind === 'bot' ? (
-      <BotProfileContent slug={target.slug} hostId={target.hostId} onClose={paging.close} />
+      <BotProfileContent
+        slug={target.slug}
+        hostId={target.hostId}
+        channelId={paging.activity?.channelId}
+        activityMessageId={paging.activity?.messageId}
+        onClose={paging.close}
+      />
     ) : target.kind === 'pair' ? (
       <ChannelDetailsScreen
         hostId={target.hostId}

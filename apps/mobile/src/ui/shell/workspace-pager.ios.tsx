@@ -1,3 +1,4 @@
+import type { ProfileActivitySource } from '../chat/profile-paging';
 import { useSegments } from 'expo-router';
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Keyboard, View } from 'react-native';
@@ -22,6 +23,7 @@ export function WorkspacePager({ children }: { children: ReactNode }) {
   const [page, setPage] = useState(1);
   const [forward, setForward] = useState(false);
   const [profileEnabled, setProfileEnabled] = useState(false);
+  const [activity, setActivity] = useState<ProfileActivitySource>();
   const home = segments.some((segment) => segment === '(home)');
   const next = lastChat(
     recent,
@@ -59,13 +61,15 @@ export function WorkspacePager({ children }: { children: ReactNode }) {
   const paging = useMemo(
     () => ({
       visible: page === 3,
+      activity,
+      setActivity,
       focused: home && page >= 2,
       open,
       close,
       leaveChat,
       setEnabled: setProfileEnabled,
     }),
-    [page, home, open, close, leaveChat],
+    [page, home, open, close, leaveChat, activity],
   );
   const pair = useConversationPagePair(source, paging);
   const limit = Math.max(

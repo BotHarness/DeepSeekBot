@@ -1160,6 +1160,21 @@ function ChatConversation({
       <WorkingStatus bots={working} />
     </Pressable>
   );
+  const profileActivity = useMemo(
+    () => ({
+      channelId: activeChannel,
+      messageId:
+        initiatedRequest !== undefined &&
+        initiatedRequest.hostId === saved?.hostId &&
+        initiatedRequest.botSlug === slug
+          ? initiatedRequest.messageId
+          : undefined,
+    }),
+    [activeChannel, initiatedRequest, saved?.hostId, slug],
+  );
+  useLayoutEffect(() => {
+    paging?.setActivity(profileActivity);
+  }, [paging?.setActivity, profileActivity]);
   const canSwipeProfile = saved !== undefined && !hostRefused && !missing && selected === undefined;
   useLayoutEffect(() => {
     paging?.setEnabled(canSwipeProfile);
@@ -1249,66 +1264,68 @@ function ChatConversation({
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          headerShown: paging === undefined,
-          headerTransparent: ios || floatingHeader,
-          headerStyle: ios || floatingHeader ? {} : { backgroundColor: theme.color.base },
-          headerShadowVisible: false,
-          headerBackButtonDisplayMode: 'minimal',
-          ...(glassHeader
-            ? {
-                scrollEdgeEffects: {
-                  top: 'automatic' as const,
-                  bottom: 'hidden' as const,
-                },
-              }
-            : {}),
-          ...(ios
-            ? {
-                title: '',
-                headerTitle: '',
-                headerBackVisible: canGoBack && !headerIslands,
-                unstable_headerRightItems: () => [],
-                unstable_headerLeftItems: () => [
-                  ...(headerIslands
-                    ? [{ type: 'custom' as const, element: back }]
-                    : canGoBack
-                      ? []
-                      : [
-                          {
-                            type: 'button' as const,
-                            label: t.back,
-                            icon: {
-                              type: 'sfSymbol' as const,
-                              name: 'chevron.left' as const,
+      {paging === undefined ? (
+        <Stack.Screen
+          options={{
+            headerShown: paging === undefined,
+            headerTransparent: ios || floatingHeader,
+            headerStyle: ios || floatingHeader ? {} : { backgroundColor: theme.color.base },
+            headerShadowVisible: false,
+            headerBackButtonDisplayMode: 'minimal',
+            ...(glassHeader
+              ? {
+                  scrollEdgeEffects: {
+                    top: 'automatic' as const,
+                    bottom: 'hidden' as const,
+                  },
+                }
+              : {}),
+            ...(ios
+              ? {
+                  title: '',
+                  headerTitle: '',
+                  headerBackVisible: canGoBack && !headerIslands,
+                  unstable_headerRightItems: () => [],
+                  unstable_headerLeftItems: () => [
+                    ...(headerIslands
+                      ? [{ type: 'custom' as const, element: back }]
+                      : canGoBack
+                        ? []
+                        : [
+                            {
+                              type: 'button' as const,
+                              label: t.back,
+                              icon: {
+                                type: 'sfSymbol' as const,
+                                name: 'chevron.left' as const,
+                              },
+                              onPress: leave,
                             },
-                            onPress: leave,
-                          },
-                        ]),
-                  { type: 'spacing' as const, spacing: glassPress.gap },
-                  { type: 'custom' as const, element: titleItem },
-                ],
-              }
-            : {
-                headerTitleAlign: 'left' as const,
-                headerRight: () => null,
-                headerTitle: () => (
-                  <View
-                    key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
-                    style={{
-                      width: dm || botDm ? undefined : windowWidth - (theme.touch + space.x5) * 2,
-                      maxWidth: windowWidth - (theme.touch + space.x5) * 2,
-                      marginHorizontal: space.x3,
-                    }}
-                  >
-                    {title}
-                  </View>
-                ),
-                ...(canGoBack && !floatingHeader ? {} : { headerLeft: () => back }),
-              }),
-        }}
-      />
+                          ]),
+                    { type: 'spacing' as const, spacing: glassPress.gap },
+                    { type: 'custom' as const, element: titleItem },
+                  ],
+                }
+              : {
+                  headerTitleAlign: 'left' as const,
+                  headerRight: () => null,
+                  headerTitle: () => (
+                    <View
+                      key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
+                      style={{
+                        width: dm || botDm ? undefined : windowWidth - (theme.touch + space.x5) * 2,
+                        maxWidth: windowWidth - (theme.touch + space.x5) * 2,
+                        marginHorizontal: space.x3,
+                      }}
+                    >
+                      {title}
+                    </View>
+                  ),
+                  ...(canGoBack && !floatingHeader ? {} : { headerLeft: () => back }),
+                }),
+          }}
+        />
+      ) : null}
       <KeyboardChatFrame
         onMount={screenRef}
         backgroundColor={background.kind === 'color' ? background.color : theme.color.base}

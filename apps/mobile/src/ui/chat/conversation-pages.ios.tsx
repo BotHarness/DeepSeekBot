@@ -1,3 +1,4 @@
+import type { ProfileActivitySource } from './profile-paging';
 import { Stack, useIsFocused, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { Keyboard, View } from 'react-native';
@@ -21,6 +22,7 @@ export function ConversationPages(props: ComponentProps<typeof ConversationScree
   const pager = useRef<PagerView>(null);
   const [visible, setVisible] = useState(false);
   const [enabled, setEnabled] = useState(false);
+  const [activity, setActivity] = useState<ProfileActivitySource>();
   const move = useCallback(
     (page: number) => {
       Keyboard.dismiss();
@@ -33,8 +35,8 @@ export function ConversationPages(props: ComponentProps<typeof ConversationScree
   const close = useCallback(() => move(0), [move]);
   const leaveChat = useCallback(() => leaveScreen(router), [router]);
   const paging = useMemo(
-    () => ({ visible, focused, open, close, leaveChat, setEnabled }),
-    [visible, focused, open, close, leaveChat],
+    () => ({ visible, focused, open, close, leaveChat, setEnabled, activity, setActivity }),
+    [visible, focused, open, close, leaveChat, activity],
   );
   const pages = useConversationPagePair({ ...props, expectedHostId: hostId }, paging);
   return (

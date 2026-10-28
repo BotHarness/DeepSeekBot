@@ -1,9 +1,16 @@
 import { useFocusEffect, useIsFocused } from 'expo-router';
 import { createContext, useCallback, useContext } from 'react';
 
+export type ProfileActivitySource = {
+  channelId: string | undefined;
+  messageId: string | undefined;
+};
+
 export type ProfilePaging = {
   visible: boolean;
   focused: boolean;
+  activity: ProfileActivitySource | undefined;
+  setActivity(source: ProfileActivitySource): void;
   open(): void;
   close(): void;
   leaveChat(): void;
