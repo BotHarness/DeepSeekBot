@@ -2,7 +2,7 @@
 
 - Status: Accepted (design)
 - Date: 2026-10-27
-- Related: ADR-0065, ADR-0223, ADR-0233, ADR-0259; supersedes the Home panel parts of ADR-0223 and ADR-0259
+- Related: ADR-0065, ADR-0223, ADR-0233, ADR-0259; supersedes the Home panel parts of ADR-0223 and ADR-0259 and the step 5 wording of ADR-0233
 
 ## Context
 
