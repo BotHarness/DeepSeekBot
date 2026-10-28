@@ -4,11 +4,25 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type ScrollEvent = { contentOffset: { y: number }; contentInset: { top: number } };
+type TouchEvent = {
+  allTouches: { absoluteX: number; absoluteY: number }[];
+  numberOfTouches: number;
+};
+type Manager = { fail(): void; activate(): void };
+type PanEvent = { translationY: number };
+type PanHandlers = {
+  down(event: TouchEvent, manager: Manager): void;
+  move(event: TouchEvent, manager: Manager): void;
+  update(event: PanEvent): void;
+  end(event: PanEvent): void;
+};
 type Handlers = Partial<
   Record<'onBeginDrag' | 'onScroll' | 'onEndDrag', (event: ScrollEvent) => void>
 >;
 const state = vi.hoisted(() => ({
   handlers: [] as Handlers[],
+  os: 'ios',
+  pan: undefined as PanHandlers | undefined,
   chrome: vi.fn(),
   open: vi.fn(),
   refresh: vi.fn(),
@@ -17,18 +31,53 @@ const state = vi.hoisted(() => ({
   enabled: true,
   hostId: 'a' as string | undefined,
   href: true,
+  deferred: false,
+  queued: [] as Array<() => unknown>,
 }));
-vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('react-native-gesture-handler', async () => {
+  const shim = await import('./gesture-handler-shim');
+  return {
+    ...shim,
+    Gesture: {
+      Native: () => ({}),
+      Pan: () => {
+        const handlers: PanHandlers = { down() {}, move() {}, update() {}, end() {} };
+        state.pan = handlers;
+        const builder = {
+          enabled: () => builder,
+          manualActivation: () => builder,
+          simultaneousWithExternalGesture: () => builder,
+          onTouchesDown: (run: PanHandlers['down']) => ((handlers.down = run), builder),
+          onTouchesMove: (run: PanHandlers['move']) => ((handlers.move = run), builder),
+          onUpdate: (run: PanHandlers['update']) => ((handlers.update = run), builder),
+          onEnd: (run: PanHandlers['end']) => ((handlers.end = run), builder),
+          onFinalize: () => builder,
+        };
+        return builder;
+      },
+    },
+  };
+});
 vi.mock('react-native-svg', () => ({ default: () => null, Circle: () => null, Path: () => null }));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
-  Platform: { OS: 'ios' },
+  Platform: {
+    get OS() {
+      return state.os;
+    },
+  },
 }));
 vi.mock('react-native-reanimated', async () => {
   const { useRef } = await import('react');
   return {
     ...(await import('./reanimated-shim')),
     useSharedValue: <T,>(value: T) => useRef({ value }).current,
+    runOnJS:
+      <A extends unknown[]>(callback: (...args: A) => unknown) =>
+      (...args: A) => {
+        if (state.deferred) state.queued.push(() => callback(...args));
+        else callback(...args);
+      },
     useAnimatedScrollHandler: (handlers: Handlers) => {
       state.handlers.push(handlers);
       return handlers;
@@ -57,7 +106,7 @@ function Harness() {
     <DesignThemeProvider appearance={{}}>
       <PullToTob
         enabled={state.enabled}
-        scope="all:a:tob-a"
+        scope={`all:${state.hostId ?? ''}:tob-a`}
         hostId={state.hostId}
         href={state.href ? tobModeHref('a', [{ hostId: 'a', tob: 'tob-a' }]) : undefined}
         refreshing={false}
@@ -85,10 +134,13 @@ function send(phase: keyof Handlers, y: number, inset = 0) {
 }
 beforeEach(() => {
   state.handlers = [];
+  state.os = 'ios';
   state.drawer = false;
   state.enabled = true;
   state.hostId = 'a';
   state.href = true;
+  state.deferred = false;
+  state.queued = [];
   setHapticsEnabled(true);
   vi.clearAllMocks();
 });
@@ -180,6 +232,46 @@ describe('iOS pull events through the real Chats pull component', () => {
     send('onEndDrag', -tobPull.commit);
     expect(state.open).not.toHaveBeenCalled();
     expect(state.refresh).not.toHaveBeenCalled();
+  });
+  it('refuses a queued release after the environment changes on the JS thread', async () => {
+    await mount();
+    send('onBeginDrag', 0);
+    send('onScroll', -tobPull.commit);
+    state.deferred = true;
+    send('onEndDrag', -tobPull.commit);
+    state.hostId = 'b';
+    await act(async () => root?.render(<Harness />));
+    act(() => state.queued.forEach((run) => run()));
+    expect(state.open).not.toHaveBeenCalled();
+    expect(state.refresh).not.toHaveBeenCalled();
+  });
+  it('drops queued navigation after the list is unmounted', async () => {
+    await mount();
+    send('onBeginDrag', 0);
+    send('onScroll', -tobPull.commit);
+    state.deferred = true;
+    send('onEndDrag', -tobPull.commit);
+    act(() => root?.unmount());
+    root = undefined;
+    act(() => state.queued.forEach((run) => run()));
+    expect(state.open).not.toHaveBeenCalled();
+    expect(state.refresh).not.toHaveBeenCalled();
+  });
+  it('Android rejects a top-looking touch after the native begin event reveals a restored mid-list offset', async () => {
+    state.os = 'android';
+    await mount();
+    const touch = { allTouches: [{ absoluteX: 100, absoluteY: 100 }], numberOfTouches: 1 };
+    const manager = { fail: vi.fn(), activate: vi.fn() };
+    act(() => state.pan?.down(touch, manager));
+    send('onBeginDrag', 150);
+    act(() =>
+      state.pan?.move({ ...touch, allTouches: [{ absoluteX: 100, absoluteY: 300 }] }, manager),
+    );
+    act(() => state.pan?.update({ translationY: tobPull.commit * 3 }));
+    act(() => state.pan?.end({ translationY: tobPull.commit * 3 }));
+    expect(manager.fail).toHaveBeenCalledOnce();
+    expect(state.open).not.toHaveBeenCalled();
+    expect(state.haptic).not.toHaveBeenCalled();
   });
   it('composes the chrome handler rather than replacing it', async () => {
     await mount();

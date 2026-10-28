@@ -1,5 +1,5 @@
-import type { ReactElement } from 'react';
-import { Platform, View, type ScrollViewProps } from 'react-native';
+import { useRef, type ReactElement } from 'react';
+import { Platform, View, type ScrollViewProps, type ViewInstance } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -13,6 +13,7 @@ import Animated, {
 import { spring } from '../design/motion';
 import { tobPull } from '../design/tokens';
 import { haptic } from '../haptics';
+import { useMounted } from '../mounted';
 import { useSystemReducedMotion } from '../primitives/use-system-reduced-motion';
 import { PullToRefresh, type PullToRefreshScrollProps } from '../primitives/pull-to-refresh';
 import { useHostDrawerOpen } from './host-drawer';
@@ -47,6 +48,15 @@ export function PullToTob({
   const reduced = useSystemReducedMotion();
   const drawer = useHostDrawerOpen();
   const active = enabled && !drawer && !refreshing;
+  const current = useRef({ active, scope, hostId, href, onOpen, onRefresh });
+  current.current = { active, scope, hostId, href, onOpen, onRefresh };
+  const mounted = useRef(false);
+  const mount = useMounted<ViewInstance>(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const android = Platform.OS === 'android';
   const distance = useSharedValue(0);
   const offset = useSharedValue(0);
@@ -80,15 +90,21 @@ export function PullToTob({
       runOnJS(haptic)('pull');
     }
   };
-  const release = (travel: number) => {
-    const outcome = tobPullOutcome({ distance: travel, href, hostId, enabled: active });
-    if (outcome === 'tob' && href !== undefined) onOpen(href);
-    else if (outcome === 'refresh') onRefresh();
+  const release = (travel: number, dragScope: string) => {
+    const target = current.current;
+    if (!mounted.current || !target.active || target.scope !== dragScope) return;
+    const outcome = tobPullOutcome({ distance: travel, href: target.href, hostId: target.hostId });
+    if (outcome === 'tob' && target.href !== undefined) target.onOpen(target.href);
+    else if (outcome === 'refresh') target.onRefresh();
   };
   const pullScroll = useAnimatedScrollHandler({
     onBeginDrag(event) {
-      if (android) return;
       const y = event.contentOffset.y + event.contentInset.top;
+      offset.value = y;
+      if (android) {
+        if (!tobPullCanStart(y, active)) eligible.value = false;
+        return;
+      }
       tracking.value = true;
       eligible.value = tobPullCanStart(y, active);
       notified.value = false;
@@ -102,7 +118,10 @@ export function PullToTob({
     onEndDrag(event) {
       if (android) return;
       if (tracking.value && eligible.value && active && startedScope.value === scope)
-        runOnJS(release)(Math.max(0, -(event.contentOffset.y + event.contentInset.top)));
+        runOnJS(release)(
+          Math.max(0, -(event.contentOffset.y + event.contentInset.top)),
+          startedScope.value,
+        );
       reset();
     },
   });
@@ -122,6 +141,8 @@ export function PullToTob({
         manager.fail();
         return;
       }
+      eligible.value = true;
+      tracking.value = true;
       startX.value = touch.absoluteX;
       startY.value = touch.absoluteY;
       notified.value = false;
@@ -129,7 +150,13 @@ export function PullToTob({
     })
     .onTouchesMove((event, manager) => {
       const touch = event.allTouches[0];
-      if (touch === undefined || event.numberOfTouches !== 1) {
+      if (
+        touch === undefined ||
+        event.numberOfTouches !== 1 ||
+        !eligible.value ||
+        !active ||
+        startedScope.value !== scope
+      ) {
         manager.fail();
         return;
       }
@@ -139,11 +166,12 @@ export function PullToTob({
       else if (y >= tobPull.start) manager.activate();
     })
     .onUpdate((event) => {
-      if (active && startedScope.value === scope) update(event.translationY * tobPull.resistance);
+      if (eligible.value && active && startedScope.value === scope)
+        update(event.translationY * tobPull.resistance);
     })
     .onEnd((event) => {
-      if (active && startedScope.value === scope)
-        runOnJS(release)(Math.max(0, event.translationY * tobPull.resistance));
+      if (eligible.value && active && startedScope.value === scope)
+        runOnJS(release)(Math.max(0, event.translationY * tobPull.resistance), startedScope.value);
     })
     .onFinalize(reset);
   const travel = useAnimatedStyle(() => ({
@@ -160,14 +188,14 @@ export function PullToTob({
     );
   if (!android)
     return (
-      <View style={{ flex: 1 }} testID="pull-to-tob">
+      <View ref={mount} style={{ flex: 1 }} testID="pull-to-tob">
         <TobPullIndicator distance={distance} />
         {children({ onScroll: scroll, alwaysBounceVertical: true })}
       </View>
     );
   return (
     <GestureDetector gesture={pan}>
-      <View style={{ flex: 1 }} testID="pull-to-tob">
+      <View ref={mount} style={{ flex: 1 }} testID="pull-to-tob">
         <TobPullIndicator distance={distance} />
         <Animated.View style={travel}>
           <GestureDetector gesture={native}>{children({ onScroll: scroll })}</GestureDetector>
