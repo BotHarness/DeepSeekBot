@@ -911,6 +911,7 @@ export interface BridgeActions {
     displayName: string,
     acceptTerms: boolean,
   ): Promise<MarketplaceAuthorAccount>;
+  marketplaceAuthorAvatarSet(avatar: string | null): Promise<MarketplaceAuthorAccount>;
   marketplaceUploadPlan(slug: string): Promise<UploadPlan>;
   marketplaceUpload(
     slug: string,
@@ -2774,6 +2775,7 @@ export function createActions(
     marketplaceAccount: () => invoke('marketplaceAccount', {}),
     marketplaceAuthorSave: (displayName, acceptTerms) =>
       invoke('marketplaceAuthorSave', { displayName, acceptTerms }),
+    marketplaceAuthorAvatarSet: (avatar) => invoke('marketplaceAuthorAvatarSet', { avatar }),
     marketplaceUploadPlan: (slug) => invoke('marketplaceUploadPlan', { slug }),
     marketplaceUpload: (slug, presentation) => uploadMarketplaceBot(call, slug, presentation),
     marketplaceMine: (lang) => loadMyMarketplaceUploads(call, lang),

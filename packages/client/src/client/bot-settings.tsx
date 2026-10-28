@@ -10,6 +10,7 @@ import { SettingsDialog } from './ds/settings-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 export const BOT_SETTINGS_SECTIONS = {
+  account: 'account',
   general: 'general',
   appearance: 'appearance',
   notifications: 'notifications',
@@ -30,6 +31,7 @@ export const BOT_SETTINGS_SECTIONS = {
 export const BOT_SETTINGS_DEFAULT_SECTION = BOT_SETTINGS_SECTIONS.general;
 
 const SECTION_ICONS: Readonly<Record<string, string>> = {
+  [BOT_SETTINGS_SECTIONS.account]: 'user',
   [BOT_SETTINGS_SECTIONS.general]: 'settings',
   [BOT_SETTINGS_SECTIONS.appearance]: 'palette',
   [BOT_SETTINGS_SECTIONS.models]: 'cpu',

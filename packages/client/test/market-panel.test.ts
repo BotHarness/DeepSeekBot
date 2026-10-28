@@ -686,7 +686,11 @@ describe('Uploaded Bots in the Market panel', () => {
     cloneUrl: '',
     stars: 0,
     source: 'upload',
-    author: { name: 'Alice', id: 'k3x9q2', avatar: null },
+    author: {
+      name: 'Alice',
+      id: 'k3x9q2',
+      avatar: 'https://market.botharness.ai/v1/authors/k3x9q2/avatar/a.webp',
+    },
   });
 
   it('uploads a checked draft after the author signs up', async () => {
@@ -957,6 +961,9 @@ describe('Uploaded Bots in the Market panel', () => {
       async ({ host, actions, registry }) => {
         const tile = host.querySelector('[data-market-bot="Alice/Helper"]')!;
         expect(tile.textContent).toContain('Alice #k3x9q2');
+        expect(tile.querySelector('[data-market-author-avatar]')?.getAttribute('src')).toBe(
+          'https://market.botharness.ai/v1/authors/k3x9q2/avatar/a.webp',
+        );
         expect(tile.textContent).not.toContain('★');
         await click(host, '查看 Alice/Helper 详情');
         const files = host.querySelector('[data-market-files]')!;
@@ -968,6 +975,7 @@ describe('Uploaded Bots in the Market panel', () => {
         expect(host.querySelector('.bh-market-github')).toBeNull();
         await click(host, '安装');
         expect(host.querySelector('[data-market-author]')?.textContent).toBe('Alice #k3x9q2');
+        expect(host.querySelector('[data-market-author] img')).not.toBeNull();
         expect(host.textContent).toContain('Tob 没发现风险');
         await click(host, '确认安装');
         expect(install).toHaveBeenCalledWith('U_helper', 'review-2');

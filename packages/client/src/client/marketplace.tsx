@@ -122,11 +122,25 @@ export function marketplaceOwner(bot: MarketplaceEntry): string {
   return bot.displayName === null ? bot.owner : bot.fullName;
 }
 
+export function MarketplaceOwner({ bot }: { bot: MarketplaceEntry }): ReactElement {
+  const avatar = bot.source === 'upload' ? bot.author?.avatar : null;
+  return (
+    <>
+      {avatar == null ? null : (
+        <img className="bh-market-author-avatar" src={avatar} alt="" data-market-author-avatar="" />
+      )}
+      {marketplaceOwner(bot)}
+    </>
+  );
+}
+
 function MarketplaceName({ bot }: { bot: MarketplaceEntry }): ReactElement {
   return (
     <span className="bh-market-name">
       <span>{marketplaceName(bot)}</span>
-      <span className="bh-market-owner">{marketplaceOwner(bot)}</span>
+      <span className="bh-market-owner">
+        <MarketplaceOwner bot={bot} />
+      </span>
       {bot.roles.map((role) => (
         <Tag key={role} tone="outline">
           {role}
@@ -625,7 +639,9 @@ function InstallConfirmation({
         <dl className="bh-market-facts">
           <div>
             <dt>{t('market.confirm.author')}</dt>
-            <dd data-market-author>{marketplaceOwner(bot)}</dd>
+            <dd data-market-author>
+              <MarketplaceOwner bot={bot} />
+            </dd>
           </div>
           <div>
             <dt>{t('market.confirm.uploaded')}</dt>
