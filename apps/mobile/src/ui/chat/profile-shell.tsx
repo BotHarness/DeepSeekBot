@@ -78,6 +78,7 @@ export function ProfileShell({
         </View>
       )}
       <Tabs.Container
+        containerStyle={{ overflow: 'hidden' }}
         initialTabName={tab}
         lazy={false}
         cancelLazyFadeIn
