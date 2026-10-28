@@ -51,6 +51,7 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
   var panelWidth = 0f
   var sheetColor = Color.TRANSPARENT
   var scrimColor = Color.TRANSPARENT
+    set(value) { field = value; scrim.setBackgroundColor(value) }
 
   private val behavior = object : SideSheetBehavior<FrameLayout>(materialContext, null) {
     private var down: MotionEvent? = null
@@ -99,7 +100,7 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
     }
     addView(coordinator, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     coordinator.addView(content, CoordinatorLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-    scrim.visibility = GONE
+    scrim.visibility = INVISIBLE
     scrim.importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
     scrim.setOnClickListener { setOpen(false) }
     coordinator.addView(scrim, CoordinatorLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
@@ -131,7 +132,7 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
   }
 
   private fun updateScrim(offset: Float) {
-    scrim.visibility = if (!fullWidth && offset > 0) VISIBLE else GONE
+    scrim.visibility = if (!fullWidth && offset > 0) VISIBLE else INVISIBLE
     scrim.alpha = offset.coerceIn(0f, 1f)
   }
 
@@ -170,6 +171,10 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
     coordinator.layout(0, 0, w, h)
     panel.backgroundTintList = ColorStateList.valueOf(sheetColor)
     scrim.setBackgroundColor(scrimColor)
+    if (behavior.state == SideSheetBehavior.STATE_EXPANDED) {
+      updateScrim(1f)
+      content.importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+    }
   }
 
   override fun onAttachedToWindow() { super.onAttachedToWindow(); post { syncBack() } }
