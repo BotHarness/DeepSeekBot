@@ -1,5 +1,5 @@
+import { HeaderTitleButton } from './header-title-button';
 import { ConnectionProgress } from '../primitives/connection-progress';
-import { Pressable } from 'react-native';
 
 import type { RosterBot, RosterChannel } from '../../host/client';
 import { useDesignTheme } from '../design/theme';
@@ -31,7 +31,7 @@ export function ChannelTitle({
   const name = channel?.name ?? fallback;
   const members = channel === undefined ? undefined : t.members(channel.memberCount);
   const chip = (press: () => void) => (
-    <Pressable
+    <HeaderTitleButton
       testID="channel-details-chip"
       accessibilityRole="button"
       accessibilityLabel={[
@@ -67,7 +67,7 @@ export function ChannelTitle({
       </Text>
       <ConnectionProgress active={connectionLabel !== undefined} />
       <WorkingStatus bots={working} />
-    </Pressable>
+    </HeaderTitleButton>
   );
   return chip(onPress);
 }

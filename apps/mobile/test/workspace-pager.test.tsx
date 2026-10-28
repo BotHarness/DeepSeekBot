@@ -12,7 +12,7 @@ const native = vi.hoisted(() => ({
   setPageWithoutAnimation: vi.fn(),
 }));
 
-vi.mock('expo-router', () => ({ useSegments: () => native.segments }));
+vi.mock('expo-router', () => ({ useSegments: () => native.segments, useIsFocused: () => true }));
 vi.mock('../src/host/host-session', () => ({ useHostSession: () => ({ hosts: [] }) }));
 vi.mock('../src/ui/shell/recent-chats', () => ({
   useRecentChats: () => [],

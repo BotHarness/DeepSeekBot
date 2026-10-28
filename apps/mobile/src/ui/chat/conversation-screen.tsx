@@ -1,3 +1,4 @@
+import { HeaderTitleButton } from './header-title-button';
 import { useProfilePaging } from './profile-paging';
 import { NativePageHeader } from '../primitives/native-page-navigation';
 import type { InitiatedActivityRequest } from '../../host/live-activity-routing';
@@ -391,7 +392,7 @@ function ChatConversation({
   const receiptPreference = useDeliveryReceiptPreferences();
   const receipts = receiptPreference.loaded && receiptPreference.enabled;
   const playback = useStreamPlayback(conversation, display.loaded && display.mode === 'streaming');
-  const snapshot = useConversationTimelineSnapshot(conversation, playback);
+  const snapshot = useConversationTimelineSnapshot(conversation, playback, focused);
   const shownDrafts = display.loaded && display.mode === 'streaming' ? snapshot.drafts : NO_DRAFTS;
   const draftKey = hostDraftKey(
     saved?.hostId ?? '',
@@ -1133,7 +1134,7 @@ function ChatConversation({
     },
   };
   const pairChip = (press: (() => void) | undefined) => (
-    <Pressable
+    <HeaderTitleButton
       testID="channel-details-chip"
       accessibilityRole="button"
       accessibilityLabel={[botDmName, connectionLabel].filter(Boolean).join(', ')}
@@ -1158,7 +1159,7 @@ function ChatConversation({
       </Text>
       <ConnectionProgress active={connectionLabel !== undefined} />
       <WorkingStatus bots={working} />
-    </Pressable>
+    </HeaderTitleButton>
   );
   const profileActivity = useMemo(
     () => ({

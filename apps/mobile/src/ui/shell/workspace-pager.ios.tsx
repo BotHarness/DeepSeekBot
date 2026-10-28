@@ -1,5 +1,5 @@
 import type { ProfileActivitySource } from '../chat/profile-paging';
-import { useSegments } from 'expo-router';
+import { useIsFocused, useSegments } from 'expo-router';
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Keyboard, View } from 'react-native';
 import PagerView from 'react-native-pager-view';
@@ -17,6 +17,7 @@ import { bindWorkspacePaging, closeWorkspacePage, openWorkspacePage } from './wo
 export function WorkspacePager({ children }: { children: ReactNode }) {
   const theme = useDesignTheme();
   const segments = useSegments();
+  const shellFocused = useIsFocused();
   const reduced = useSystemReducedMotion();
   const { hosts } = useHostSession();
   const recent = useRecentChats();
@@ -24,7 +25,7 @@ export function WorkspacePager({ children }: { children: ReactNode }) {
   const [forward, setForward] = useState(false);
   const [profileEnabled, setProfileEnabled] = useState(false);
   const [activity, setActivity] = useState<ProfileActivitySource>();
-  const home = segments.some((segment) => segment === '(home)');
+  const home = shellFocused && segments.some((segment) => segment === '(home)');
   const next = lastChat(
     recent,
     hosts.map((host) => host.hostId),
