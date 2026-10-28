@@ -35,7 +35,7 @@ _避免使用_：全局 Orchestrator、Home 面板、Dashboard
 _避免使用_：Home 面板、全局 Orchestrator
 
 **Tob Mode**：
-Tob 模式。手机端当前环境 Tob DM 的全屏呈现方式：Human 只与 Tob 对话，在聊天列表下拉并按住即可进入。它就是同一个 Tob DM 与同一份历史，不是第二个对话。桌面端没有 Tob 模式：原来的 Home 面板已移除，在 Simple 布局模式下隐藏 Side column 即可专注于任意频道的对话。
+Tob 模式。手机端在聊天列表下拉并按住后，从顶部滑入的 Tob DM 普通聊天详情页。与点击 Tob 行相比只是入口和入场动画不同；它就是同一个 Tob DM 与同一份历史，不是第二个对话或页面。下拉的目标总是 Tob，必要时使用最近使用的电脑环境的 Tob。桌面端没有 Tob 模式：原来的 Home 面板已移除，在 Simple 布局模式下隐藏 Side column 即可专注于任意频道的对话。
 _避免使用_：Home、Home 面板、拖布模式、personal agent 模式
 
 **Tob Delegation**：

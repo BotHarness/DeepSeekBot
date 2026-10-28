@@ -35,7 +35,7 @@ The built-in local Steward Bot, with a persistent identity distinct from any ord
 _Avoid_: Home panel, global Orchestrator
 
 **Tob Mode**:
-On mobile, a full-screen presentation of the active Environment's Tob DM in which the Human talks only to Tob, opened by pulling and holding on Chats. It is the same Tob DM and history, never a second conversation. Desktop has no Tob Mode: the former Home panel is removed, and hiding the Side column in Simple layout mode gives a focused conversation with any Channel.
+On mobile, the Tob DM's normal chat detail screen opened by pulling and holding on Chats, sliding in from the top. Only the entry and animation differ from tapping the Tob row; it is the same Tob DM and history, never a second conversation or screen. The pull always targets a Tob, falling back to the most recently used computer Environment's Tob. Desktop has no Tob Mode: the former Home panel is removed, and hiding the Side column in Simple layout mode gives a focused conversation with any Channel.
 _Avoid_: Home, Home panel, Tob chat, 拖布模式, personal agent mode
 
 **Tob Delegation**:
