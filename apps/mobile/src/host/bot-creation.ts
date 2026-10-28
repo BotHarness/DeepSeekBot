@@ -1,17 +1,17 @@
 import { zipFile, type ZipImportFile } from './zip-import-file';
 import { initialBotAvatar, type BotAvatarChoice } from './bot-avatar-choice';
 import { isAvatarRecipe } from '../../../../packages/core/src/bots/avatar-appearance';
+import { creationTags, type CreationTagDraft } from './bot-creation-tags';
 export type { BotAvatarChoice } from './bot-avatar-choice';
 import type { ZipImportPreview, ZipImportSource } from './zip-import-upload';
 import type { MobileTelemetry } from '../telemetry/mobile-telemetry';
 import type { BotOperationPhase, BotOperationReason } from '../telemetry/schema';
 
-export interface BotCreationDraft {
+export interface BotCreationDraft extends CreationTagDraft {
   hostId: string;
   displayName: string;
   persona: string;
   description: string;
-  tags: string;
   source?: GitImportDraft | ZipImportDraft;
   avatar?: BotAvatarChoice;
 }
@@ -145,14 +145,7 @@ function independentAvatar(draft: BotCreationDraft): BotCreationDraft {
 export function normalizedBlankInput(draft: BotCreationDraft): BlankBotInput {
   const persona = draft.persona.trim();
   const description = draft.description.trim();
-  const roles = [
-    ...new Set(
-      draft.tags
-        .split(/[,，]/u)
-        .map((tag) => tag.trim())
-        .filter(Boolean),
-    ),
-  ];
+  const roles = creationTags(`${draft.tags},${draft.tagInput ?? ''}`);
   return {
     displayName: draft.displayName.trim(),
     ...(persona && !draft.source ? { persona } : {}),
@@ -310,7 +303,8 @@ export function parseCreationRecord(value: unknown): CreationRecord {
       typeof d.displayName === 'string' &&
       typeof d.persona === 'string' &&
       typeof d.description === 'string' &&
-      typeof d.tags === 'string'
+      typeof d.tags === 'string' &&
+      (d.tagInput === undefined || typeof d.tagInput === 'string')
     )
       return {
         kind: 'draft',
@@ -321,6 +315,7 @@ export function parseCreationRecord(value: unknown): CreationRecord {
           persona: d.persona,
           description: d.description,
           tags: d.tags,
+          ...(typeof d.tagInput === 'string' ? { tagInput: d.tagInput } : {}),
           ...(d.source === undefined ? {} : { source: draftSource(d.source) }),
           ...avatarChoice(d.avatar),
         },
@@ -603,10 +598,11 @@ export function createBotCreationController(options: {
         publish({ record });
       });
     },
-    async edit(draft: BotCreationDraft) {
+    async edit(update: BotCreationDraft | ((current: BotCreationDraft) => BotCreationDraft)) {
       await ready;
       if (storageFailed || snapshot.busy || snapshot.record.kind !== 'draft') return;
       const previous = snapshot.record.draft;
+      const draft = typeof update === 'function' ? update(previous) : update;
       const changed =
         draft.hostId !== previous.hostId ||
         draft.source?.kind !== previous.source?.kind ||

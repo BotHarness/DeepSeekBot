@@ -1,0 +1,12 @@
+{
+  "createdExactlyOne": true,
+  "releaseColdStartRetainsDraft": true,
+  "personaMatchesCanonicalSoul": true,
+  "bioMatchesMetadata": true,
+  "tagsMatchMetadata": true,
+  "pendingTagIncludedOnSubmit": true,
+  "profileMarkersAbsentFromPersona": true,
+  "noMessagesSent": true,
+  "source": "16a2d66a016b366c5e9bc363abd4d4cc08a9839d",
+  "apkSha256": "8953cfe0d52f66e67fdf2aa24da1c8960cdc27377686c59a7ea5abe45ca4bddb"
+}
