@@ -18,9 +18,7 @@ export function IconTabs<T extends string>({ label, options, value, onChange }: 
     >
       <Picker<T>
         selection={value}
-        onSelectionChange={(next) => {
-          if (next !== value) onChange(next);
-        }}
+        onSelectionChange={onChange}
         modifiers={[pickerStyle('segmented'), accessibilityLabel(label)]}
       >
         {options.map((option) => (

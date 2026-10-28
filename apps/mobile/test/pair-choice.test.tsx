@@ -84,3 +84,15 @@ it('forwards a pairing link to Tailscale and an account computer to sign-in', as
     params: { account: 'hstudio' },
   });
 });
+
+it('states what the computer needs and opens the setup guide', async () => {
+  const { Linking } = await import('react-native');
+  const openURL = vi.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+  const view = await render();
+  expect(view.textContent).toContain(t.pairChoice.needs);
+  await act(async () =>
+    view.querySelector<HTMLElement>('[data-testid="pair-guide-open"]')!.click(),
+  );
+  expect(openURL).toHaveBeenCalledWith(t.pairGuide.url);
+  expect(view.querySelector('[role="alert"]')).toBeNull();
+});

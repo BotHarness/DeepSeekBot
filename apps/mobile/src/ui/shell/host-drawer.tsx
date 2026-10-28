@@ -294,7 +294,7 @@ function hostMenuActions(row: HostDrawerRow, name: string): MenuAction[] {
   return [
     {
       label: t.connectionRoutes.title,
-      icon: 'computer',
+      icon: 'connection',
       run: () =>
         closeThen(() =>
           router.push({ pathname: '/host-connection', params: { hostId: row.hostId } }),

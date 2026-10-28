@@ -457,7 +457,9 @@ export function GroupProfilePage({
       options={profileTabOptions(tabs)}
       tab={tab}
       onTab={setTab}
-      body={tab === 'members' || tab === 'work' || tab === 'settings' ? bodies[tab] : filesBody}
+      body={(page) =>
+        page === 'members' || page === 'work' || page === 'settings' ? bodies[page] : filesBody
+      }
       onClose={onClose}
     />
   );
@@ -520,11 +522,12 @@ function GroupIdentity({
         </EditableAvatar>
       }
     >
-      <Text variant="meta" tone="muted">
+      <Text pointerEvents="none" variant="meta" tone="muted">
         {t.members(channel.memberCount)}
       </Text>
       {error === undefined ? null : (
         <Text
+          pointerEvents="none"
           accessibilityRole="alert"
           accessibilityLiveRegion="polite"
           tone="danger"
