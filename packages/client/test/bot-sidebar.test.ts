@@ -185,6 +185,14 @@ function stubActions(): BridgeActions {
     }),
     marketplaceMine: vi.fn(async () => []),
     marketplaceDelete: vi.fn(async () => {}),
+    shareDraftStart: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    shareDraftGet: vi.fn(async () => undefined),
+    shareDraftDiscard: vi.fn(async () => undefined),
+    shareDraftExport: vi.fn(async () => {
+      throw new Error('unused');
+    }),
     marketplaceInstall: vi.fn(async () => {
       throw new Error('unused');
     }),

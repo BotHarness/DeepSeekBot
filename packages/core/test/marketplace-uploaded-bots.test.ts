@@ -10,6 +10,7 @@ import {
   createMarketplaceInstallReviews,
   type InstallReviewer,
 } from '../src/marketplace/install-review.js';
+import { createShareDrafts } from '../src/marketplace/share-draft.js';
 import { createCore } from '../src/plugin.js';
 import { createMarket } from '../../market/test/market-harness.js';
 import { createTempRoot } from './helpers.js';
@@ -69,11 +70,16 @@ function fixture() {
       );
     },
   };
+  const shareDrafts = createShareDrafts({
+    root: createTempRoot('share-drafts-'),
+    memoryDir: (slug) =>
+      core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
+  });
+  const receipts: string[] = [];
   const uploads = createMarketplaceUploads({
     client,
     account: () => account,
-    memoryDir: (slug) =>
-      core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
+    drafts: shareDrafts,
   });
   const reviewer: { run: InstallReviewer; prompts: string[] } = {
     prompts: [],
@@ -82,9 +88,15 @@ function fixture() {
   const bridge = createBridgeMethods({
     ...core,
     marketplace: client,
+    shareDrafts,
+    marketplaceReceipts: {
+      send: (listingId) => {
+        receipts.push(listingId);
+        return Promise.resolve();
+      },
+    },
     marketplaceUploads: uploads,
     marketplaceInstallReviews: createMarketplaceInstallReviews({
-      client,
       uploads,
       reviewer: (prompt, name) => {
         reviewer.prompts.push(prompt);
@@ -92,12 +104,21 @@ function fixture() {
       },
     }),
   });
-  return { core, bridge, market, session, reviewer };
+  return { core, bridge, market, session, reviewer, receipts };
 }
 
 function write(root: string, path: string, data: string | Buffer) {
   mkdirSync(dirname(join(root, path)), { recursive: true });
   writeFileSync(join(root, path), data);
+}
+
+function readyDraft(f: ReturnType<typeof fixture>, slug: string) {
+  const started = f.bridge.shareDraftStart({ slug });
+  if (!started.ok) throw new Error(started.error.code);
+  for (const file of started.value.files)
+    f.bridge.shareDraftDecide({ slug, path: file.path, decision: 'keep' });
+  const finished = f.bridge.shareDraftFinish({ slug });
+  if (!finished.ok) throw new Error(finished.error.code);
 }
 
 function sourceBot(f: ReturnType<typeof fixture>) {
@@ -131,9 +152,30 @@ it('plans an upload from the Bot files, skipping types the Marketplace refuses',
   );
 });
 
+it('uploads only a ready Share Draft', async () => {
+  const f = fixture();
+  const { slug } = sourceBot(f);
+  f.session.state = 'signed-in';
+  await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true });
+  expect(await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' })).toMatchObject({
+    ok: false,
+    error: { code: 'share-draft-required' },
+  });
+  expect(f.bridge.marketplaceUploadPlan({ slug })).toMatchObject({
+    ok: false,
+    error: { code: 'share-draft-required' },
+  });
+  f.bridge.shareDraftStart({ slug });
+  expect(await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' })).toMatchObject({
+    ok: false,
+    error: { code: 'share-draft-not-ready' },
+  });
+});
+
 it('needs a Connect sign-in and an author before uploading', async () => {
   const f = fixture();
   const { slug } = sourceBot(f);
+  readyDraft(f, slug);
   expect(await f.bridge.marketplaceAccount()).toEqual({
     ok: true,
     value: { signedIn: false, author: null },
@@ -162,6 +204,7 @@ it('needs a Connect sign-in and an author before uploading', async () => {
 it('uploads a Bot, retries an expired token once, and installs it as a fresh Bot with one commit', async () => {
   const f = fixture();
   const { slug, memory } = sourceBot(f);
+  readyDraft(f, slug);
   f.session.state = 'signed-in';
   await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true });
   f.session.tokens = ['token-expired!'];
@@ -223,6 +266,7 @@ it('uploads a Bot, retries an expired token once, and installs it as a fresh Bot
     operationKey: 'install-helper-01',
   });
   if (!installed.ok) throw new Error(installed.error.message);
+  expect(f.receipts).toEqual([uploaded.value.bot.id]);
   expect(installed.value.bot).toMatchObject({
     displayName: 'Helper',
     description: 'Writes things down',
@@ -260,11 +304,13 @@ it('refuses to review a listing the Marketplace does not have', async () => {
     ok: false,
     error: { code: 'review-expired' },
   });
+  expect(f.receipts).toEqual([]);
 });
 
 it('says when Tob could not review, still flags scripts, and creates nothing until install', async () => {
   const f = fixture();
   const { slug } = sourceBot(f);
+  readyDraft(f, slug);
   f.session.state = 'signed-in';
   await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true });
   const uploaded = await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' });
@@ -299,6 +345,7 @@ it('says when Tob could not review, still flags scripts, and creates nothing unt
 it('reads an Uploaded Bot file summary and its text files through the Host', async () => {
   const f = fixture();
   const { slug } = sourceBot(f);
+  readyDraft(f, slug);
   f.session.state = 'signed-in';
   await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true });
   const uploaded = await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' });
@@ -336,6 +383,7 @@ it('reads an Uploaded Bot file summary and its text files through the Host', asy
 it('lists, replaces and deletes my uploads, marking earlier installs as author-updated', async () => {
   const f = fixture();
   const { slug, memory } = sourceBot(f);
+  readyDraft(f, slug);
   f.session.state = 'signed-in';
   await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true });
   const uploaded = await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' });
@@ -360,6 +408,7 @@ it('lists, replaces and deletes my uploads, marking earlier installs as author-u
 
   f.market.clock.value = new Date('2026-10-06T09:00:00Z');
   write(memory, 'notes/today.md', 'Rewritten.');
+  readyDraft(f, slug);
   const replaced = await f.bridge.marketplaceUpload({
     slug,
     displayName: 'Helper 2',

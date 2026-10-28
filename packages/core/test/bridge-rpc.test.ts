@@ -852,6 +852,13 @@ describe('bridge typert service', () => {
       'marketplaceInstallReview',
       'marketplaceMine',
       'marketplaceDelete',
+      'shareDraftStart',
+      'shareDraftGet',
+      'shareDraftFile',
+      'shareDraftDecide',
+      'shareDraftFinish',
+      'shareDraftDiscard',
+      'shareDraftExport',
       'marketplaceInstall',
       'releaseInfo',
       'releaseUpdate',
@@ -955,6 +962,7 @@ describe('bridge typert service', () => {
       'origin',
       'operationKey',
       'expectedCommit',
+      'listingId',
     ]);
     expect(parameterNames(service.botImportPreview)).toEqual(['gitUrl']);
     expect(parameterNames(service.botImportLookup)).toEqual([

@@ -145,6 +145,12 @@ import {
   isConnectCommand,
   runConnectCommand,
 } from './cli-connect.js';
+import {
+  isShareDraftCommand,
+  runShareDraftCommand,
+  SHARE_DRAFT_COMMANDS,
+  SHARE_DRAFT_OPTIONS,
+} from './cli-share-draft.js';
 export { CliLiveError } from './cli-live-error.js';
 
 export const LIVE_OPTIONS = {
@@ -165,6 +171,7 @@ export const LIVE_OPTIONS = {
   ...MODELS_USAGE_OPTIONS,
   ...CHANNEL_OPTIONS,
   ...HOST_ADMIN_OPTIONS,
+  ...SHARE_DRAFT_OPTIONS,
   ...INBOX_OPTIONS,
   ...SCHEDULE_OPTIONS,
   ...BROWSER_COMPUTER_OPTIONS,
@@ -286,6 +293,7 @@ export const LIVE_COMMANDS = [
   ...MODELS_USAGE_COMMANDS,
   ...CHANNEL_COMMANDS,
   ...HOST_ADMIN_COMMANDS,
+  ...SHARE_DRAFT_COMMANDS,
   ...APPEARANCE_COMMANDS,
   ...INBOX_COMMANDS,
   ...BROWSER_COMPUTER_COMMANDS,
@@ -533,6 +541,9 @@ interface LiveValues
   'expected-head'?: string;
   'edit-id'?: string;
   target?: string;
+  keep?: boolean;
+  drop?: boolean;
+  'rewrite-stdin'?: boolean;
 }
 
 function usage(message: string): never {
@@ -978,6 +989,11 @@ export async function runLiveCli(
   }
   if (isChannelCommand(command))
     return runChannelCommand(command, rest, values, io, connectLiveHost);
+  if (isShareDraftCommand(command))
+    return runShareDraftCommand(command, rest, values, io, async () => {
+      const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+      return (await connectLiveHost(values, io, signal)).rpc;
+    });
   if (isHostAdminCommand(command)) {
     const signal = AbortSignal.timeout(timeoutMs(values.timeout));
     return runHostAdminCommand(command, rest, values, io, {

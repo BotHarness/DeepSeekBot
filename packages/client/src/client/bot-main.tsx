@@ -146,6 +146,7 @@ import { MemoryFileView, MemoryWorkingView } from './memory-current-view.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { groupChannelMessages, type MessageGroup } from './message-groups.js';
 import { ProfileView } from './personabot-profile.js';
+import { ShareFlowHost } from './share-flow.js';
 import { GroupProfileView } from './group-profile.js';
 import { personaBotActivity } from './persona-activity.js';
 import { BotDmActionLabel } from './bot-dm-action-line.js';
@@ -3449,6 +3450,7 @@ function ConversationView({
       <span ref={searchShortcutMount} hidden />
       <span ref={replyPerfMount} hidden />
       <span ref={dockInboxMount} hidden />
+      <ShareFlowHost actions={actions} registry={dockPanels} t={t} />
       <div className="bh-chat-layout" data-sidebar={docked ? 'dock' : sidebar.mode}>
         <GeneratedFilesContext.Provider
           value={{

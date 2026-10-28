@@ -66,6 +66,7 @@ import type {
 import type { AltchaChallenge } from '../marketplace/altcha.js';
 import type { MarketplaceAccount, UploadPlan } from '../marketplace/uploaded-bots.js';
 import type { InstallReviewResult } from '../marketplace/install-review.js';
+import type { ShareDraftView } from '../marketplace/share-draft.js';
 import type { MarketplaceLanguage } from '../marketplace/language.js';
 import type {
   ReleaseInfo,
@@ -978,6 +979,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     origin?: 'marketplace',
     operationKey?: string,
     expectedCommit?: string,
+    listingId?: string,
   ): Promise<{
     bot: PersonaBotDetail;
     httpsFallback?: HttpsFallback;
@@ -993,6 +995,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         origin,
         operationKey,
         expectedCommit,
+        listingId,
       }),
     );
   }
@@ -2205,6 +2208,39 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
+  shareDraftStart(slug: string): ShareDraftView {
+    return unwrap(this.methods.shareDraftStart({ slug }));
+  }
+
+  shareDraftGet(slug: string): ShareDraftView {
+    return unwrap(this.methods.shareDraftGet({ slug }));
+  }
+
+  shareDraftFile(slug: string, path: string): { path: string; kind: string; text?: string } {
+    return unwrap(this.methods.shareDraftFile({ slug, path }));
+  }
+
+  shareDraftDecide(
+    slug: string,
+    path: string,
+    decision: 'keep' | 'drop' | 'rewrite',
+    text?: string,
+  ): ShareDraftView {
+    return unwrap(this.methods.shareDraftDecide({ slug, path, decision, text }));
+  }
+
+  shareDraftFinish(slug: string): ShareDraftView {
+    return unwrap(this.methods.shareDraftFinish({ slug }));
+  }
+
+  shareDraftDiscard(slug: string): { discarded: boolean } {
+    return unwrap(this.methods.shareDraftDiscard({ slug }));
+  }
+
+  async shareDraftExport(slug: string): Promise<{ path: string; files: number }> {
+    return unwrapAsync(this.methods.shareDraftExport({ slug }));
+  }
+
   async marketplaceInstall(
     id: string,
     reviewId: string,
@@ -2543,6 +2579,13 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'marketplaceInstallReview',
   'marketplaceMine',
   'marketplaceDelete',
+  'shareDraftStart',
+  'shareDraftGet',
+  'shareDraftFile',
+  'shareDraftDecide',
+  'shareDraftFinish',
+  'shareDraftDiscard',
+  'shareDraftExport',
   'marketplaceInstall',
   'releaseInfo',
   'releaseUpdate',

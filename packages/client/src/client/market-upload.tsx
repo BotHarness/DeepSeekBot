@@ -2,6 +2,7 @@ import { useRef, useState, useSyncExternalStore, type ReactElement, type ReactNo
 import * as stylex from '@stylexjs/stylex';
 import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 
+import type { ShareDraftView } from '../../../core/src/marketplace/share-draft.js';
 import type { MarketplaceEntry } from '../../../core/src/marketplace/client.js';
 import type {
   MarketplaceAccount,
@@ -11,9 +12,7 @@ import type { BridgeActions } from './actions.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { errorMessage } from './bridge.js';
 import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
-import { appendConversationDraft, conversationDraftKey } from './conversation-draft.js';
 import type { DockPanelRegistry } from './dock-panels.js';
-import { Callout } from './ds/callout.js';
 import { ChoiceButton } from './ds/choice-button.js';
 import { FieldStack, TextAreaField, TextField } from './ds/field.js';
 import { Note } from './ds/note.js';
@@ -22,13 +21,8 @@ import { StepProgress } from './ds/step-progress.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { fileSize } from './market-files.js';
-import { MARKET_SHARE_PROMPT } from './market-share-prompt.js';
-import {
-  MarketplaceSubmitField,
-  marketplaceError,
-  marketplaceLanguage,
-  useMarketplaceSubmit,
-} from './marketplace.js';
+import { watchShareDraft } from './share-flow.js';
+import { MarketplaceSubmitField, marketplaceError, useMarketplaceSubmit } from './marketplace.js';
 import { useMountedResource } from './mounted-resource.js';
 import { store, type BotSummary } from './store.js';
 
@@ -37,17 +31,25 @@ const ACCOUNT_POLL_MS = 3000;
 const MAX_AUTHOR_NAME_LENGTH = 40;
 const MAX_TAGS = 8;
 
-type Route = 'choose' | 'direct' | 'github' | 'repo';
-type DirectStep = 'account' | 'bot' | 'details' | 'review';
+type Route = 'choose' | 'direct' | 'repo';
+type DirectStep = 'bot' | 'draft' | 'where' | 'account' | 'details' | 'review' | 'github';
+type Destination = 'market' | 'github';
 
-const DIRECT_STEPS: readonly DirectStep[] = ['account', 'bot', 'details', 'review'];
+const STEPS: Record<Destination, readonly DirectStep[]> = {
+  market: ['bot', 'draft', 'where', 'account', 'details', 'review'],
+  github: ['bot', 'draft', 'where', 'github'],
+};
 
 const TITLES: Record<Route, BotHarnessKey> = {
   choose: 'market.upload.title',
   direct: 'market.direct.title',
-  github: 'market.upload.byBot',
   repo: 'market.upload.byUrl',
 };
+
+type DraftState =
+  | { status: 'loading' }
+  | { status: 'error'; cause: unknown }
+  | { status: 'ready'; draft: ShareDraftView | undefined };
 
 type AccountState =
   | { status: 'loading' }
@@ -179,6 +181,28 @@ function BotChoices({
   );
 }
 
+function DraftSummary({
+  bot,
+  meta,
+  t,
+}: {
+  bot: BotSummary;
+  meta: string;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  return (
+    <div {...stylex.props(styles.summary)}>
+      <BotAvatar bot={bot} size={40} t={t} />
+      <span {...stylex.props(styles.summaryCopy)}>
+        <span {...stylex.props(styles.summaryName)}>{bot.displayName}</span>
+        <span {...stylex.props(styles.summaryMeta)} data-market-draft-meta="">
+          {meta}
+        </span>
+      </span>
+    </div>
+  );
+}
+
 export function MarketUploadDialog({
   actions,
   registry,
@@ -189,7 +213,7 @@ export function MarketUploadDialog({
   replacing,
 }: {
   actions: BridgeActions;
-  registry: DockPanelRegistry;
+  registry?: Pick<DockPanelRegistry, 'open'> | undefined;
   t: BotHarnessTranslate;
   onListed: (bot: MarketplaceEntry) => void;
   onClose: () => void;
@@ -206,8 +230,10 @@ export function MarketUploadDialog({
   const [route, setRoute] = useState<Route>(
     preselected === undefined && replacing === undefined ? 'choose' : 'direct',
   );
-  const [rawStep, setStep] = useState<DirectStep>('account');
+  const [rawStep, setStep] = useState<DirectStep>(preselected === undefined ? 'bot' : 'draft');
+  const [destination, setDestination] = useState<Destination>('market');
   const [chosen, setChosen] = useState<BotSummary | undefined>(preselected);
+  const [draft, setDraft] = useState<DraftState>({ status: 'loading' });
   const [account, setAccount] = useState<AccountState>({ status: 'loading' });
   const [signIn, setSignIn] = useState<{ userCode: string; verificationUri: string }>();
   const [authorName, setAuthorName] = useState('');
@@ -222,7 +248,6 @@ export function MarketUploadDialog({
   );
   const [tags, setTags] = useState((replacing?.roles ?? preselected?.roles ?? []).join(', '));
   const [plan, setPlan] = useState<{ value?: UploadPlan; cause?: unknown }>({});
-  const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [cause, setCause] = useState<unknown>();
   const mounted = useRef(true);
@@ -236,6 +261,18 @@ export function MarketUploadDialog({
       if (mounted.current) setAccount({ status: 'error', cause: failure });
       return undefined;
     }
+  };
+
+  const loadDraft = (bot: BotSummary): void => {
+    setDraft({ status: 'loading' });
+    void actions.shareDraftGet(bot.slug).then(
+      (value) => {
+        if (mounted.current) setDraft({ status: 'ready', draft: value });
+      },
+      (failure: unknown) => {
+        if (mounted.current) setDraft({ status: 'error', cause: failure });
+      },
+    );
   };
 
   const loadPlan = (bot: BotSummary): void => {
@@ -253,7 +290,7 @@ export function MarketUploadDialog({
   const mount = useMountedResource<HTMLDivElement>(() => {
     mounted.current = true;
     void loadAccount();
-    if (preselected !== undefined) loadPlan(preselected);
+    if (preselected !== undefined) loadDraft(preselected);
     return () => {
       mounted.current = false;
     };
@@ -271,8 +308,8 @@ export function MarketUploadDialog({
   const ready = account.status === 'ready' ? account.account : undefined;
   const author = ready?.author ?? null;
   const accountDone = ready?.signedIn === true && author !== null;
-  const step: DirectStep =
-    rawStep === 'account' && accountDone ? (chosen === undefined ? 'bot' : 'details') : rawStep;
+  const step: DirectStep = rawStep === 'account' && accountDone ? 'details' : rawStep;
+  const shareDraft = draft.status === 'ready' ? draft.draft : undefined;
 
   const run = async (work: () => Promise<void>): Promise<void> => {
     setBusy(true);
@@ -298,37 +335,49 @@ export function MarketUploadDialog({
       setBio(bot.description ?? '');
       setTags(bot.roles.join(', '));
     }
-    setChecked(false);
-    loadPlan(bot);
-    go('details');
+    loadDraft(bot);
+    go('draft');
   };
 
-  const publishByBot = (bot: BotSummary): Promise<void> =>
+  const askTob = async (message: string): Promise<void> => {
+    const home = await actions.tobHome();
+    await actions.sendHome(home.channelId, message, 'human-' + crypto.randomUUID());
+    registry?.open(CHANNEL_BODY_PANEL);
+    onClose();
+  };
+
+  const check = (bot: BotSummary): Promise<void> =>
     run(async () => {
-      await actions.openBot(bot.slug);
-      const scope = conversationDraftKey(store.getSnapshot());
-      if (scope !== undefined)
-        appendConversationDraft(scope, MARKET_SHARE_PROMPT[marketplaceLanguage(t)]);
-      registry.open(CHANNEL_BODY_PANEL);
-      onClose();
+      if (shareDraft === undefined) await actions.shareDraftStart(bot.slug);
+      watchShareDraft(bot.slug, replacing);
+      await askTob(t('market.draft.message', { name: bot.displayName, slug: bot.slug }));
     });
 
+  const pushToGithub = (bot: BotSummary): Promise<void> =>
+    run(async () => {
+      const exported = await actions.shareDraftExport(bot.slug);
+      await askTob(
+        t('market.github.message', { name: bot.displayName, path: exported.path, slug: bot.slug }),
+      );
+    });
+
+  const beforeAccount: DirectStep = replacing === undefined ? 'where' : 'draft';
   const back = (): void => {
     setCause(undefined);
     if (route !== 'direct') setRoute('choose');
     else if (step === 'review') go('details');
-    else if (step === 'details' && preselected === undefined) go('bot');
+    else if (step === 'details') go(accountDone ? beforeAccount : 'account');
+    else if (step === 'account' || step === 'github') go(beforeAccount);
+    else if (step === 'where') go('draft');
+    else if (step === 'draft' && preselected === undefined) go('bot');
     else if (replacing !== undefined) onClose();
-    else {
-      setStep('account');
-      setRoute('choose');
-    }
+    else setRoute('choose');
   };
 
   const failure =
     cause === undefined ? null : (
       <Note tone="danger">
-        {route === 'github'
+        {step === 'draft' || step === 'github'
           ? t('market.upload.failed', { error: errorMessage(cause) })
           : marketplaceError(cause, t)}
       </Note>
@@ -350,15 +399,6 @@ export function MarketUploadDialog({
           }}
         />
         <ChoiceButton
-          title={t('market.upload.byBot')}
-          description={t('market.upload.route.githubHint')}
-          data={{ 'data-market-route': 'github' }}
-          onClick={() => {
-            setCause(undefined);
-            setRoute('github');
-          }}
-        />
-        <ChoiceButton
           title={t('market.upload.byUrl')}
           description={t('market.upload.route.repoHint')}
           data={{ 'data-market-route': 'repo' }}
@@ -366,19 +406,90 @@ export function MarketUploadDialog({
         />
       </div>
     );
-  } else if (route === 'github') {
-    body = (
-      <>
-        <Note>{t('market.upload.byBotHint')}</Note>
-        <BotChoices bots={bots} t={t} disabled={busy} onChoose={(bot) => void publishByBot(bot)} />
-        {failure}
-      </>
-    );
   } else if (route === 'repo') {
     body = <MarketplaceSubmitField submit={submit} t={t} />;
   } else {
     let content: ReactNode;
-    if (step === 'account') {
+    if (step === 'bot') {
+      content = <BotChoices bots={bots} t={t} onChoose={choose} />;
+    } else if (step === 'draft' && chosen !== undefined) {
+      if (draft.status === 'loading') content = <Note>{t('market.direct.planLoading')}</Note>;
+      else if (draft.status === 'error')
+        content = <Note tone="danger">{marketplaceError(draft.cause, t)}</Note>;
+      else {
+        const summary = draft.draft?.summary;
+        const done = summary === undefined ? 0 : summary.total - summary.pending;
+        content = (
+          <DraftSummary
+            bot={chosen}
+            t={t}
+            meta={
+              summary === undefined
+                ? t('market.draft.hint')
+                : draft.draft?.state === 'ready'
+                  ? t('market.draft.result', {
+                      kept: String(summary.kept),
+                      rewritten: String(summary.rewritten),
+                      dropped: String(summary.dropped),
+                    })
+                  : t('market.draft.progress', {
+                      done: String(done),
+                      total: String(summary.total),
+                    })
+            }
+          />
+        );
+        primary =
+          draft.draft?.state === 'ready' ? (
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (replacing === undefined) go('where');
+                else {
+                  loadPlan(chosen);
+                  go('account');
+                }
+              }}
+            >
+              {t('market.direct.next')}
+            </Button>
+          ) : (
+            <Button variant="primary" disabled={busy} onClick={() => void check(chosen)}>
+              {draft.draft === undefined ? t('market.draft.check') : t('market.draft.continue')}
+            </Button>
+          );
+      }
+    } else if (step === 'where') {
+      content = (
+        <div {...stylex.props(styles.choices)}>
+          <ChoiceButton
+            title={t('market.where.market')}
+            data={{ 'data-market-destination': 'market' }}
+            onClick={() => {
+              setDestination('market');
+              if (chosen !== undefined) loadPlan(chosen);
+              go('account');
+            }}
+          />
+          <ChoiceButton
+            title={t('market.where.github')}
+            description={t('market.where.githubHint')}
+            data={{ 'data-market-destination': 'github' }}
+            onClick={() => {
+              setDestination('github');
+              go('github');
+            }}
+          />
+        </div>
+      );
+    } else if (step === 'github' && chosen !== undefined) {
+      content = <DraftSummary bot={chosen} t={t} meta={t('market.github.hint')} />;
+      primary = (
+        <Button variant="primary" disabled={busy} onClick={() => void pushToGithub(chosen)}>
+          {t('market.github.push')}
+        </Button>
+      );
+    } else if (step === 'account') {
       if (account.status === 'loading') content = <Note>{t('market.direct.loading')}</Note>;
       else if (account.status === 'error')
         content = (
@@ -454,8 +565,6 @@ export function MarketUploadDialog({
           </Button>
         );
       }
-    } else if (step === 'bot') {
-      content = <BotChoices bots={bots} t={t} onChoose={choose} />;
     } else if (step === 'details') {
       content = (
         <FieldStack>
@@ -523,15 +632,12 @@ export function MarketUploadDialog({
               })}
             </Note>
           )}
-          <Callout tone="warning" title={t('market.direct.secretsTitle')}>
-            <Checkbox checked={checked} onChange={setChecked} label={t('market.direct.secrets')} />
-          </Callout>
         </>
       );
       primary = (
         <Button
           variant="primary"
-          disabled={busy || !checked || files === undefined || files.files.length === 0}
+          disabled={busy || files === undefined || files.files.length === 0}
           onClick={() =>
             void run(async () => {
               if (chosen === undefined) return;
@@ -554,12 +660,15 @@ export function MarketUploadDialog({
         </Button>
       );
     }
+    const steps =
+      replacing === undefined ? STEPS[destination] : STEPS.market.filter((id) => id !== 'where');
     body = (
       <>
         <StepProgress
           label={t('market.direct.progress')}
-          steps={DIRECT_STEPS.map((id) => t(`market.direct.step.${id}`))}
-          step={DIRECT_STEPS.indexOf(step)}
+          steps={steps.map((id) => t(`market.direct.step.${id}`))}
+          step={steps.indexOf(step)}
+          titles="current"
         />
         <div {...stylex.props(styles.body)} data-market-direct={step}>
           {content}

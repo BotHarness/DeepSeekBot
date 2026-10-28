@@ -80,7 +80,7 @@ export const HOST_ADMIN_COMMANDS = [
   },
   {
     command: 'marketplace-upload',
-    description: "publish a Bot's Memory files to the Bot Marketplace; needs --confirm",
+    description: "publish a Bot's ready Share Draft to the Bot Marketplace; needs --confirm",
   },
   {
     command: 'marketplace-mine',
@@ -247,7 +247,7 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
       usage('marketplace-upload needs --name <listing name>.');
     if (values.confirm !== true)
       usage(
-        'marketplace-upload makes this Bot’s Memory files public. Check them for secrets, then pass --confirm.',
+        'marketplace-upload makes this Bot’s ready Share Draft public. Pass --confirm to upload.',
       );
   }
   if ((command === 'release-install' || command === 'release-restart') && values.confirm !== true)

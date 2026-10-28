@@ -52,6 +52,7 @@ import type {
   MarketplaceAccount,
   UploadPlan,
 } from '../../../core/src/marketplace/uploaded-bots.js';
+import type { ShareDraftView } from '../../../core/src/marketplace/share-draft.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
 import type { InstallReviewResult } from '../../../core/src/marketplace/install-review.js';
 import { loadAllBotPreview } from './bridge.js';
@@ -902,6 +903,10 @@ export interface BridgeActions {
   ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }>;
   marketplaceMine(lang?: MarketplaceLanguage): Promise<MarketplaceAuthoredBot[]>;
   marketplaceDelete(id: string): Promise<void>;
+  shareDraftStart(slug: string): Promise<ShareDraftView>;
+  shareDraftGet(slug: string): Promise<ShareDraftView | undefined>;
+  shareDraftDiscard(slug: string): Promise<void>;
+  shareDraftExport(slug: string): Promise<{ path: string; files: number }>;
   marketplaceInstallReview(id: string, lang?: MarketplaceLanguage): Promise<InstallReviewResult>;
   marketplaceInstall(id: string, reviewId: string, sectionId?: string): Promise<BotSummary>;
   createGroup(name: string, sectionId?: string): Promise<ChannelSummary | undefined>;
@@ -2754,6 +2759,17 @@ export function createActions(
     async marketplaceDelete(id) {
       await invoke('marketplaceDelete', { id });
     },
+    shareDraftStart: (slug) => invoke('shareDraftStart', { slug }),
+    async shareDraftGet(slug) {
+      const result = await call('shareDraftGet', { slug });
+      if (result.ok) return result.value as ShareDraftView;
+      if (result.error.code === 'share-draft-not-found') return undefined;
+      throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
+    },
+    async shareDraftDiscard(slug) {
+      await invoke('shareDraftDiscard', { slug });
+    },
+    shareDraftExport: (slug) => invoke('shareDraftExport', { slug }),
     marketplaceInstallReview: (id, lang) => reviewMarketplaceInstall(call, id, lang),
     async marketplaceInstall(id, reviewId, sectionId) {
       return openCreatedBot(await installMarketplaceBot(call, id, reviewId), sectionId);

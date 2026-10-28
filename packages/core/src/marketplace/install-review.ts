@@ -8,10 +8,9 @@ import { promisify } from 'node:util';
 import { uploadFileKind } from '../../../market/src/upload-files.js';
 import { listBotFiles } from '../bots/bot-zip.js';
 import type { BotImportInput } from '../bots/creation.js';
-import type { ZipEntry } from '../bots/zip-archive.js';
 import { cloneMemoryRepository } from '../memory/clone.js';
 import { ApprovalReviewError } from '../workspaces/approval-reviewer.js';
-import type { MarketplaceClient, MarketplaceEntry } from './client.js';
+import type { MarketplaceEntry } from './client.js';
 import type { MarketplaceUploads } from './uploaded-bots.js';
 
 const execFileAsync = promisify(execFile);
@@ -233,11 +232,9 @@ export async function reviewStagedFiles(
 
 export async function stageGitRepository(input: {
   gitUrl: string;
+  commit: string;
   clone?: typeof cloneMemoryRepository;
-}): Promise<
-  | { ok: true; gitUrl: string; commit: string; committedAt: string; files: StagedFile[] }
-  | { ok: false; code: string }
-> {
+}): Promise<{ ok: true; gitUrl: string; files: StagedFile[] } | { ok: false; code: string }> {
   const root = mkdtempSync(join(tmpdir(), 'tobs-install-review-'));
   const destination = join(root, 'repo');
   try {
@@ -246,10 +243,10 @@ export async function stageGitRepository(input: {
       destination,
     });
     if (!cloned.ok) return { ok: false, code: cloned.code };
-    const { stdout } = await execFileAsync('git', ['log', '-1', '--format=%H%n%cI', 'HEAD'], {
+    await execFileAsync('git', ['checkout', '--quiet', '--detach', input.commit], {
       cwd: destination,
-      timeout: 10_000,
-      maxBuffer: 4096,
+      timeout: 30_000,
+      maxBuffer: 64 * 1024,
       windowsHide: true,
     });
     const files: StagedFile[] = [];
@@ -260,14 +257,7 @@ export async function stageGitRepository(input: {
           ? readPrefix(join(destination, path), MAX_FILE_CHARS * 4 + 4)
           : Buffer.alloc(0),
       });
-    const [commit = '', committedAt = ''] = stdout.trim().split('\n');
-    return {
-      ok: true,
-      gitUrl: cloned.httpsFallback?.to ?? input.gitUrl,
-      commit,
-      committedAt,
-      files,
-    };
+    return { ok: true, gitUrl: cloned.httpsFallback?.to ?? input.gitUrl, files };
   } catch {
     return { ok: false, code: 'git-clone-failed' };
   } finally {
@@ -295,7 +285,6 @@ interface Staged {
 type Result<T> = { ok: true; value: T } | { ok: false; code: string; path?: string };
 
 export function createMarketplaceInstallReviews(deps: {
-  client: MarketplaceClient;
   uploads: Pick<MarketplaceUploads, 'installInput'>;
   reviewer: InstallReviewer;
   stageGit?: typeof stageGitRepository;
@@ -325,32 +314,20 @@ export function createMarketplaceInstallReviews(deps: {
   ): Promise<
     Result<{ listing: MarketplaceEntry; input: BotImportInput; files: readonly StagedFile[] }>
   > => {
-    const detail = await deps.client.detail(id);
-    if (!detail.ok) return detail;
-    const listing = detail.value.bot;
-    if (listing.source === 'upload') {
-      const prepared = await deps.uploads.installInput(id);
-      if (!prepared.ok) return prepared;
-      const source = prepared.value.input.source;
-      const files: readonly ZipEntry[] = source.kind === 'archive' ? source.files : [];
-      return {
-        ok: true,
-        value: { listing: prepared.value.entry, input: prepared.value.input, files },
-      };
-    }
-    const repo = await (deps.stageGit ?? stageGitRepository)({ gitUrl: listing.cloneUrl });
+    const prepared = await deps.uploads.installInput(id);
+    if (!prepared.ok) return prepared;
+    const { entry, input } = prepared.value;
+    const source = input.source;
+    if (source.kind === 'archive')
+      return { ok: true, value: { listing: entry, input, files: source.files } };
+    const repo = await (deps.stageGit ?? stageGitRepository)(source);
     if (!repo.ok) return repo;
     return {
       ok: true,
       value: {
-        listing: { ...listing, headCommit: { sha: repo.commit, committedAt: repo.committedAt } },
+        listing: entry,
         files: repo.files,
-        input: {
-          displayName: listing.displayName ?? listing.name,
-          ...(listing.description === null ? {} : { description: listing.description }),
-          ...(listing.roles.length === 0 ? {} : { roles: listing.roles }),
-          source: { kind: 'git', gitUrl: repo.gitUrl, commit: repo.commit },
-        },
+        input: { ...input, source: { ...source, gitUrl: repo.gitUrl } },
       },
     };
   };

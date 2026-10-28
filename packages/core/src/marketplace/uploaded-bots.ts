@@ -10,6 +10,8 @@ import {
   uploadFileKind,
 } from '../../../market/src/upload-files.js';
 import { listBotFiles } from '../bots/bot-zip.js';
+import type { ShareDrafts } from './share-draft.js';
+import { parseMemoryGitUrl } from '../memory/clone.js';
 import type { BotImportInput } from '../bots/creation.js';
 import type { ZipEntry } from '../bots/zip-archive.js';
 import type { MarketplaceLanguage } from './language.js';
@@ -97,7 +99,7 @@ export function createMarketplaceUploads(deps: {
         accessToken(options?: { fresh?: boolean }): Promise<string | undefined>;
       }
     | undefined;
-  memoryDir: (slug: string) => string | undefined;
+  drafts: ShareDrafts;
   log?: (event: Record<string, string | number>) => void;
 }) {
   const { client } = deps;
@@ -174,13 +176,8 @@ export function createMarketplaceUploads(deps: {
     },
 
     plan(slug: string): Result<UploadPlan> {
-      const memoryDir = deps.memoryDir(slug);
-      if (memoryDir === undefined) return { ok: false, code: 'not-found' };
-      try {
-        return { ok: true, value: planUpload(memoryDir) };
-      } catch {
-        return { ok: false, code: 'memory-unavailable' };
-      }
+      const source = deps.drafts.source(slug);
+      return source.ok ? { ok: true, value: source.value.plan } : source;
     },
 
     async upload(
@@ -188,20 +185,18 @@ export function createMarketplaceUploads(deps: {
       presentation: UploadPresentation,
     ): Promise<Result<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }>> {
       const started = performance.now();
-      const memoryDir = deps.memoryDir(slug);
-      if (memoryDir === undefined) return { ok: false, code: 'not-found' };
-      let plan: UploadPlan;
-      try {
-        plan = planUpload(memoryDir);
-      } catch {
-        return { ok: false, code: 'memory-unavailable' };
-      }
+      const source = deps.drafts.source(slug);
+      if (!source.ok) return source;
+      const { dir, plan } = source.value;
       if (plan.files.length === 0) return { ok: false, code: 'nothing-to-upload' };
       if (plan.files.length > MAX_UPLOAD_FILES) return { ok: false, code: 'too-many-files' };
       if (plan.totalBytes > MAX_UPLOAD_BYTES) return { ok: false, code: 'too-large' };
       const contents = new Map<string, Buffer>();
-      for (const file of plan.files)
-        contents.set(file.path, readFileSync(join(memoryDir, file.path)));
+      try {
+        for (const file of plan.files) contents.set(file.path, readFileSync(join(dir, file.path)));
+      } catch {
+        return { ok: false, code: 'share-draft-unreadable' };
+      }
       const begun = await signed((token) =>
         client.beginUpload(token, {
           ...presentation,
@@ -244,8 +239,24 @@ export function createMarketplaceUploads(deps: {
       const detail = await client.detail(id);
       if (!detail.ok) return detail;
       const { bot } = detail.value;
-      if (bot.source !== 'upload' || detail.value.files === undefined)
-        return { ok: false, code: 'not-an-uploaded-bot' };
+      const presentation = {
+        displayName: bot.displayName ?? bot.name,
+        ...(bot.description === null ? {} : { description: bot.description }),
+        ...(bot.roles.length === 0 ? {} : { roles: bot.roles }),
+      };
+      if (bot.source === 'github') {
+        const gitUrl = parseMemoryGitUrl(bot.cloneUrl);
+        if (gitUrl === undefined || bot.headCommit === null)
+          return { ok: false, code: 'listing-not-installable' };
+        return {
+          ok: true,
+          value: {
+            entry: bot,
+            input: { ...presentation, source: { kind: 'git', gitUrl, commit: bot.headCommit.sha } },
+          },
+        };
+      }
+      if (detail.value.files === undefined) return { ok: false, code: 'listing-not-installable' };
       const listed = detail.value.files;
       if (listed.length === 0) return { ok: false, code: 'nothing-to-install' };
       const files: ZipEntry[] = [];
@@ -281,9 +292,7 @@ export function createMarketplaceUploads(deps: {
         value: {
           entry: bot,
           input: {
-            displayName: bot.displayName ?? bot.name,
-            ...(bot.description === null ? {} : { description: bot.description }),
-            ...(bot.roles.length === 0 ? {} : { roles: bot.roles }),
+            ...presentation,
             source: { kind: 'archive', sha256: uploadedFilesDigest(files), files },
           },
         },

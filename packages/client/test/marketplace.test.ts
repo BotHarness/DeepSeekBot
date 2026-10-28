@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 beforeEach(() => localStorage.clear());
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  relativeTime: (at: number, now: number) => ({
+    unit: 'days',
+    n: Math.floor((now - at) / 86_400_000),
+  }),
   IconRefreshOutlineRegular: () => null,
   Button: (props: { children?: ReactNode; disabled?: boolean; onClick?: () => void }) =>
     createElement('button', { disabled: props.disabled, onClick: props.onClick }, props.children),
@@ -85,6 +89,7 @@ function entry(name: string, overrides: Partial<MarketplaceEntry> = {}): Marketp
     descriptionGenerated: false,
     topics: ['writing'],
     stars: 7,
+    installs: 0,
     pushedAt: '2026-10-01T08:00:00Z',
     htmlUrl: `https://github.com/alice/${name}`,
     cloneUrl: `https://github.com/alice/${name}.git`,
@@ -239,8 +244,13 @@ async function typeUrl(host: HTMLElement, value: string) {
   });
 }
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe('Bot Marketplace modal', () => {
   it('lists indexed repositories and loads the next page with the cursor', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-04T08:00:00Z'));
     await withMarketplace(
       async (query) =>
         query?.cursor === undefined
@@ -251,7 +261,7 @@ describe('Bot Marketplace modal', () => {
         expect(host.textContent).toContain('first description');
         expect(host.querySelector('.bh-market-generated')).toBeNull();
         expect(host.textContent).toContain('★ 7');
-        expect(host.textContent).toContain('更新于 2026-10-01');
+        expect(host.textContent).toContain('更新于 3 天前');
         expect(host.textContent).not.toContain('writing');
         expect(host.querySelector('.bh-market-row .bh-market-avatar [data-avatar]')).not.toBeNull();
 
