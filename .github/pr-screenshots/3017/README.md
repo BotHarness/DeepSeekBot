@@ -16,3 +16,7 @@ QA-only data. No UI redraw, aspect-ratio change or post-capture scaling in PNGs.
 Runtime source9dc2f6c3b82480d37cbb06382e15ce486f61ff63 integrates frozen main61bcc1c91cb8af2cef71034347d8bf44fe1c53ac. Dev bundle version0.0.1(1),Release configuration,embedded production JS. Simulator: iPhone18ProMax,iOS27.0; phone: XSMax,iOS18.1.1. Final default light/dark native interaction results are recorded in[the acceptance report](../../../docs/qa/3017-ios-workspace-panel.md). Earlier images remain explicitly bound to their source; they do not replace final interaction receipts.
 
 Physical FPS/hitches/latency UNMEASURED. Human comfort, Android, VoiceOver and the broader final-source matrices remain untested. Original screenshots and receipts are retained privately; no account data,pairing payloads or raw private logs are published.
+
+## Post-integration evidence at a5b39e61fe4b
+
+`final-s.png` and `final-p.png` are reviewed, unaltered native captures of the actual QA SOUL.md child at production JavaScript a5b39e61fe4b (base main a01264b2afea), using the unchanged matching native9dc2f6c3b824. Simulator27 light/default440x956 and XS Max18.1.1 dark/default1125x2436 respectively; original capture dimensions retained. Existing phone AssistiveTouch is a system overlay. These do not requalify earlier broad font/gesture matrices or physical performance.

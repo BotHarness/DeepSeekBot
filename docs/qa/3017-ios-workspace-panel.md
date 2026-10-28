@@ -42,3 +42,19 @@ Frozen main: `61bcc1c91cb8af2cef71034347d8bf44fe1c53ac`; runtime code: `9dc2f6c3
 The first local full suite hit one unchanged desktop daylight test under JST; that test and the complete suite pass under UTC. Permission-denied local-listener attempts were also retained and excluded from acceptance. No failure evidence was overwritten to obtain the final result.
 
 Public image/build mapping is in[the evidence index](../../.github/pr-screenshots/3017/README.md). All original captures, first failures, AX snapshots, canonical CLI receipts, binary hashes and resource ownership remain in the private task index. Only reviewed synthetic QA captures and redacted derivatives are published. The HTML explainer is local-only; browser policy blocks file URLs, so no browser visual acceptance is claimed. No merge,deployment or release is part of this run.
+
+## Latest-main integration verification
+
+Behavioral code frozen at `a5b39e61fe4be7ec774a9218c2f9b3d77368c941`, incorporating main `a01264b2afeac8c9aaa9f643a168d5aa55e7fd6a`. This includes the canonical shared Profile screens/visibility from #3157, upstream #3161 fixes, and the real Settings Tab from #3156. Existing Android EndSheet behavior is retained in source; no Android native acceptance is implied.
+
+Both devices were installed with signed native9dc + embedded production JavaScript a5. The intervening iOS native dependency, configuration and pager inputs are unchanged; the new dismissible-drawer module is Android-only. Native app and JavaScript hashes are retained privately. This source does not inherit every earlier native matrix result.
+
+| Latest-source gate                                                           | iOS27 Simulator, light/default  | XS Max18.1.1, dark/default      |
+| ---------------------------------------------------------------------------- | ------------------------------- | ------------------------------- |
+| Profile Chip → native Back, three fixed idle-body repetitions                | PASS, three body differences0.0 | PASS, three body differences0.0 |
+| Memory → actual QA SOUL.md → Back                                            | PASS                            | PASS                            |
+| Settings → actual QA Bot model → native Back to retained Profile             | PASS, no model changed          | PASS, no model changed          |
+| Profile → Chat → Chats → Workspaces                                          | PASS                            | PASS                            |
+| Workspaces account action → actual Settings Tab, native tabs visible → Chats | PASS                            | PASS                            |
+
+Local mobile suite2475passed/11skipped; focused integration19passed; lint and root/mobile typechecks pass. Full CI40766155806 is tracked separately in PR#3162. The previous maximum-title layout FAIL#3158, physical performance UNMEASURED and wider UNTESTED matrices remain unchanged.
