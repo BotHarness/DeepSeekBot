@@ -76,6 +76,7 @@ import {
   CompanionsSection,
   DataPrivacySection,
   DevicesSection,
+  AccountSection,
   GeneralSection,
   MessagingSection,
   ModelsSection,
@@ -826,6 +827,22 @@ export function apply(ctx: ClientContext): void {
         };
       },
     });
+    settingsCtx.slots.inject('botharness.settings.section', () =>
+      settingsCtx.slots.register(
+        {
+          name: 'botharness.settings.section',
+          id: BOT_SETTINGS_SECTIONS.account,
+          order: -5,
+          label: () => t('botSettings.section.account'),
+          locale: LOCALE_NS,
+          inject: () => ({
+            actions,
+            openSignIn: () => botSettings.select(BOT_SETTINGS_SECTIONS.devices),
+          }),
+        },
+        AccountSection,
+      ),
+    );
     settingsCtx.slots.inject('botharness.settings.section', () =>
       settingsCtx.slots.register(
         {

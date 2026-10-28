@@ -13,10 +13,12 @@ import { HeaderCircleButton } from '../chat/header-chrome';
 function HeaderButton({
   label,
   onPress,
+  testID,
   children,
 }: {
   label: string;
   onPress: () => void;
+  testID?: string;
   children: ReactNode;
 }) {
   const theme = useDesignTheme();
@@ -24,6 +26,7 @@ function HeaderButton({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      testID={testID}
       onPress={onPress}
       style={({ pressed }) => ({
         width: theme.touch,
@@ -92,7 +95,7 @@ export function DrawerHeader({
               <CloseIcon color={theme.color.fg} size={theme.type.title.line} />
             </HeaderCircleButton>
           ) : onClose !== undefined ? (
-            <HeaderButton label={closeLabel} onPress={onClose}>
+            <HeaderButton label={closeLabel} testID="sheet-close" onPress={onClose}>
               <CloseIcon color={theme.color.fg} size={theme.type.title.line} />
             </HeaderButton>
           ) : null}

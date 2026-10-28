@@ -189,6 +189,9 @@ function stubActions(): BridgeActions {
     marketplaceAuthorSave: vi.fn(async () => {
       throw new Error('unused');
     }),
+    marketplaceAuthorAvatarSet: vi.fn(async () => {
+      throw new Error('unused');
+    }),
     marketplaceUploadPlan: vi.fn(async () => {
       throw new Error('unused');
     }),
