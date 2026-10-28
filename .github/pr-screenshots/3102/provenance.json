@@ -53,5 +53,10 @@
       "height": 2436,
       "sha256": "7c095295e7856ada2da50724ab8566ca0aa7e384077ccecf074fc28d33e00af2"
     }
-  ]
+  ],
+  "laterIntegration": {
+    "main": "78163ab8e6121907aa5019641746591f2d82be19",
+    "application": "aae3e3e20c02df544b66a4efd1db94aed3274779",
+    "native": "UNTESTED: simulator transferred to #3112; prior captures qualify f16aadec1546 only"
+  }
 }
