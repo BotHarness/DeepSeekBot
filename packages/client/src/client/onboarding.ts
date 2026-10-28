@@ -368,35 +368,40 @@ export class OnboardingController {
     }
     this.update({ guideOpen: false, checklistOpen: this.state.receipt?.tutorial === 'active' });
   }
-  async finishFromTobMode(): Promise<void> {
+  private landing: string | undefined;
+  async finishInTobConversation(): Promise<void> {
     const receipt = this.state.receipt;
+    const { selection, conversation } = store.getSnapshot();
+    const here =
+      selection?.kind === 'channel' &&
+      selection.channelId === receipt?.channelId &&
+      conversation.status === 'ready' &&
+      !conversation.error
+        ? selection.channelId
+        : undefined;
+    if (here === undefined) this.landing = undefined;
     if (
+      here === undefined ||
+      this.landing === here ||
       !this.state.layoutComplete ||
       receipt?.tutorial !== 'active' ||
       receipt.journey?.done ||
       !receipt.journey?.botSlug ||
-      !receipt.journey.groupChannelId ||
-      !receipt.channelId
+      !receipt.journey.groupChannelId
     )
       return;
-    try {
-      await this.actions.openChannel(receipt.channelId);
-      const { selection, conversation } = store.getSnapshot();
-      if (
-        selection?.kind !== 'channel' ||
-        selection.channelId !== receipt.channelId ||
-        conversation.status !== 'ready' ||
-        conversation.error
-      ) {
-        this.revealTob?.();
-        this.update({ error: conversation.error ?? 'Unable to open the Tob conversation' });
-        return;
-      }
-      await this.refresh(undefined, 'finish');
-    } catch (error) {
-      this.revealTob?.();
-      this.update({ error: errorMessage(error) });
-    }
+    this.landing = here;
+    await this.refresh(undefined, 'finish');
+  }
+  watchTobLanding(): () => void {
+    const check = (): void => void this.finishInTobConversation();
+    const stopStore = store.subscribe(check);
+    const stopSelf = this.subscribe(check);
+    check();
+    return () => {
+      stopStore();
+      stopSelf();
+    };
   }
   pauseGuide(): void {
     const wasOpen = this.state.guideOpen;

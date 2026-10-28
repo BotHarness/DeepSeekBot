@@ -4,8 +4,6 @@ import { activityIndicator } from './activity-indicator.js';
 import { useActivityIndicatorMenu } from './activity-indicator-menu.js';
 import { onboardingFor } from './onboarding.js';
 import { receiveTobMessages } from './tob-requests.js';
-import type { TobModeControl } from './tob-mode.js';
-import { TOB_MODE_SLOT } from './workspace-context.js';
 import { BOT_ONLY_CHANNEL_PANELS } from './dock-panels.js';
 import { resolveChannelSidebarContext } from './channel-sidebar.js';
 import { usePanelMenu, PanelVisibilityLabel } from './panel-menu.js';
@@ -14,7 +12,7 @@ import { workspaceShortcutId } from './workspace-shortcuts.js';
 import { createPortal } from 'react-dom';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 
-import { workspaceColumns, moveWorkspaceRail } from './workspace-layout.js';
+import { workspaceColumns, moveWorkspaceRail, railModeControls } from './workspace-layout.js';
 import { useRef, useState, useSyncExternalStore, type ReactNode, type ReactElement } from 'react';
 import { SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { LayoutMode } from './layout-mode.js';
@@ -49,13 +47,10 @@ export type WorkspaceOptions = Omit<
   layout: WorkspaceLayoutCommand;
   prefs: BotModePrefs;
   shortcuts: Shortcuts;
-  tobMode?: TobModeControl | undefined;
   registerLayoutSettings(setTarget: (node: HTMLDivElement | null) => void): () => void;
 };
 
 const railInputs = sameFields(['humanInbox', 'selection']);
-const tobDisplayName = (state: { bots: readonly { tob?: unknown; displayName: string }[] }) =>
-  state.bots.find((bot) => bot.tob)?.displayName;
 export function Workspace({
   options,
   t,
@@ -131,7 +126,7 @@ export function Workspace({
         return tob;
       };
       const detachGuide = onboarding.attachTobConversation(() => void openTob().catch(() => {}));
-      const stopEnter = options.tobMode?.onEnter(() => void onboarding.finishFromTobMode());
+      const stopLanding = onboarding.watchTobLanding();
       const stopRequests = receiveTobMessages(
         (body) =>
           void openTob()
@@ -144,7 +139,7 @@ export function Workspace({
       setEnabled(true);
       return () => {
         stopRequests();
-        stopEnter?.();
+        stopLanding();
         detachGuide();
         unregisterMessages();
         unregister();
@@ -161,11 +156,6 @@ export function Workspace({
           enabled && options
             ? {
                 shortcuts: options.shortcuts,
-                tob: {
-                  channel: async () => (await options.actions.tobHome()).channelId,
-                  openChannel: (channelId) => options.actions.openChannel(channelId),
-                  control: options.tobMode,
-                },
                 rail: (
                   api,
                   gap,
@@ -176,7 +166,6 @@ export function Workspace({
                   hiddenControls,
                   setControlVisible,
                   layoutMode,
-                  tobMode,
                 ) => (
                   <WorkspaceRail
                     options={options}
@@ -189,7 +178,6 @@ export function Workspace({
                     hiddenControls={hiddenControls}
                     setControlVisible={setControlVisible}
                     layoutMode={layoutMode}
-                    tobMode={tobMode}
                     t={t}
                   />
                 ),
@@ -214,7 +202,6 @@ function WorkspaceRail({
   hiddenControls,
   setControlVisible,
   layoutMode,
-  tobMode,
   t,
 }: {
   options: WorkspaceOptions;
@@ -227,7 +214,6 @@ function WorkspaceRail({
   hiddenControls: readonly string[];
   setControlVisible(id: string, visible: boolean): void;
   layoutMode: { mode: LayoutMode; setMode(mode: LayoutMode): void };
-  tobMode?: { active: boolean; setActive(active: boolean): void } | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
   const simple = layoutMode.mode === 'simple';
@@ -245,7 +231,6 @@ function WorkspaceRail({
     () => options.prefs.source.getSnapshot().botIcon,
   );
   const state = useClientStore(keepClientState, railInputs);
-  const tobName = useClientStore(tobDisplayName) ?? t('tob.defaultName');
   const indicatorMenu = useActivityIndicatorMenu(t);
   const indicator = activityIndicator(indicatorMenu.scope, state.humanInbox);
   const attentionLabel = [
@@ -328,7 +313,7 @@ function WorkspaceRail({
           {options.dockPanels && (
             <PinnedPanelCards
               registry={options.dockPanels}
-              order={order}
+              order={railModeControls(layoutMode.mode, order).order}
               onOrderChange={setOrder}
               hiddenIds={[
                 'members',
@@ -337,26 +322,11 @@ function WorkspaceRail({
                 ...panels.filter((p) => p.binding === 'current-bot').map((p) => p.id),
                 ...botOnlyHidden,
                 ...hiddenControls,
-                ...(simple ? [WORKSPACE_CHANNELS] : []),
+                ...railModeControls(layoutMode.mode, order).hidden,
               ]}
               shortcut={(id) => shortcuts.find((row) => row.id === workspaceShortcutId(id))?.keys}
               collapsed
               t={t}
-              extra={
-                tobMode && {
-                  id: 'bh:tob-mode',
-                  slot: TOB_MODE_SLOT,
-                  icon: 'bot',
-                  label: t('workspace.tobMode', { name: tobName }),
-                  keys: shortcuts.find((row) => row.id === workspaceShortcutId(TOB_MODE_SLOT))
-                    ?.keys,
-                  pressed: tobMode.active,
-                  onClick: () =>
-                    options.tobMode?.available()
-                      ? options.tobMode.toggle()
-                      : tobMode.setActive(!tobMode.active),
-                }
-              }
               menuTrigger={(id) =>
                 id === 'activity-center' ? indicatorMenu.triggerProps : undefined
               }

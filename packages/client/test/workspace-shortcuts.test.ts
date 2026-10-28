@@ -14,7 +14,6 @@ import {
   workspaceShortcutId,
 } from '../src/client/workspace-shortcuts.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { createTobModeControl } from '../src/client/tob-mode.js';
 
 describe('workspace shortcut ownership', () => {
   it('uses valid native command identities/defaults and routes only while its workspace owns the layout', () => {
@@ -51,7 +50,7 @@ describe('workspace shortcut ownership', () => {
       registry,
       () => active,
       zhTranslate,
-      createTobModeControl(),
+      () => {},
     );
     expect(
       commands.get(workspaceShortcutId('botharness-browser'))?.defaults['desktop:macos']?.code,
@@ -100,7 +99,7 @@ describe('workspace shortcut ownership', () => {
   });
 });
 
-describe('Tob Mode (former Home) native shortcut preferences', () => {
+describe('Open Tob (former Home) native shortcut preferences', () => {
   it('preserves custom bindings, explicit unbinding and conflicts without renumbering panels', () => {
     const commands: ShortcutCommand[] = [];
     const registry = createDockPanelRegistry();
@@ -114,7 +113,7 @@ describe('Tob Mode (former Home) native shortcut preferences', () => {
       registry,
       () => true,
       zhTranslate,
-      createTobModeControl(),
+      () => {},
     );
     expect(commands.filter((x) => x.id === workspaceShortcutId('bh:home'))).toHaveLength(1);
     const homeId = workspaceShortcutId('bh:home');

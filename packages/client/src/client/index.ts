@@ -1,4 +1,4 @@
-import { readChannelDock, writeChannelDock } from './channel-dock-layout.js';
+import { CHANNEL_BODY_PANEL, readChannelDock, writeChannelDock } from './channel-dock-layout.js';
 import { createBotPresentation } from './bot-presentation.js';
 import { mountWindowZoomControl } from './window-zoom-control.js';
 import { mountWindowZoom, type ZoomCompatibility } from './window-zoom-mount.js';
@@ -20,7 +20,6 @@ import { createElement } from 'react';
 import { bindTobPresentation } from './tob-presentation.js';
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store';
 import { registerWorkspaceShortcuts, migrateWorkShortcut } from './workspace-shortcuts.js';
-import { createTobModeControl } from './tob-mode.js';
 import type {} from '@deepseek-ai/dsh-client-shortcuts/client';
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-client-locale/client';
@@ -476,10 +475,8 @@ export function apply(ctx: ClientContext): void {
     ]),
   );
   const channelSidebar = createChannelSidebarRegistry(dockPanels);
-  const tobMode = createTobModeControl();
   const workspace = {
     actions,
-    tobMode,
     companion,
     channelSidebar,
     dockPanels,
@@ -511,7 +508,13 @@ export function apply(ctx: ClientContext): void {
       dockPanels,
       () => document.querySelector('[data-workspace-enabled]') !== null,
       t,
-      tobMode,
+      () => {
+        dockPanels.open(CHANNEL_BODY_PANEL);
+        void actions
+          .tobHome()
+          .then((tob) => actions.openChannel(tob.channelId))
+          .catch(() => {});
+      },
     ),
   );
   ctx.effect(() =>

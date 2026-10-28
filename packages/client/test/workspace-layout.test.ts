@@ -79,7 +79,7 @@ describe('workspace layout', () => {
     expect(migrated).toMatchObject({
       version: 9,
       gap: 4,
-      order: ['bh:channels', CHANNEL_BODY_PANEL, 'activity-center', 'generated-files', 'bh:home'],
+      order: ['bh:channels', CHANNEL_BODY_PANEL, 'activity-center', 'generated-files'],
       hiddenControls: [],
       members: { open: false, ratio: 0.3 },
       sessionSeed: { open: true, hiddenControl: false },

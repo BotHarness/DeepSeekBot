@@ -1,5 +1,4 @@
 import {
-  Fragment,
   useState,
   useSyncExternalStore,
   type DragEvent,
@@ -22,18 +21,7 @@ export interface PinnedPanelBadge {
   readonly label?: string | undefined;
 }
 
-export interface PinnedPanelSwitch {
-  readonly id: string;
-  readonly slot: string;
-  readonly icon: string;
-  readonly label: string;
-  readonly keys?: readonly string[] | undefined;
-  readonly pressed: boolean;
-  onClick(): void;
-}
-
 export interface PinnedPanelCardsProps {
-  extra?: PinnedPanelSwitch | undefined;
   menuTrigger?:
     | ((
         id: string,
@@ -71,7 +59,6 @@ export function PinnedPanelCards({
   tourOf,
   menuTrigger,
   onActivate,
-  extra,
   t,
 }: PinnedPanelCardsProps): ReactElement | null {
   const [dragging, setDragging] = useState<string | null>(null);
@@ -123,44 +110,7 @@ export function PinnedPanelCards({
         : event.clientX > rect.x + rect.width / 2,
     };
   };
-  if (sorted.length === 0 && extra === undefined) return null;
-  const slot = extra === undefined ? -1 : ids.indexOf(extra.slot);
-  const extraAt =
-    extra === undefined
-      ? undefined
-      : slot < 0
-        ? 0
-        : sorted.findIndex((panel) => ids.indexOf(panel.id) > slot);
-  const extraCard = extra && (
-    <Tooltip
-      key={extra.id}
-      label={extra.label}
-      shortcutKeys={extra.keys}
-      portal
-      side={collapsed ? 'right' : 'bottom'}
-      delayMs={400}
-    >
-      <button
-        type="button"
-        {...hooked(
-          'bh-pinned-panel',
-          styles.card,
-          collapsed && styles.railCard,
-          extra.pressed && styles.open,
-          collapsed && extra.pressed && styles.railOpen,
-        )}
-        data-pinned-switch={extra.id}
-        data-open={extra.pressed ? 'true' : undefined}
-        aria-label={[extra.label, ...(extra.keys?.length ? [extra.keys.join(' ')] : [])].join(
-          ' · ',
-        )}
-        aria-pressed={extra.pressed}
-        onClick={extra.onClick}
-      >
-        <ChannelSidebarIcon name={extra.icon} size={collapsed ? 18 : 16} />
-      </button>
-    </Tooltip>
-  );
+  if (sorted.length === 0) return null;
   return (
     <div
       {...hooked('bh-pinned-panels', styles.grid, collapsed && styles.rail)}
@@ -307,16 +257,8 @@ export function PinnedPanelCards({
             </button>
           </Tooltip>
         );
-        return extraAt === index ? (
-          <Fragment key={panel.id}>
-            {extraCard}
-            {card}
-          </Fragment>
-        ) : (
-          card
-        );
+        return card;
       })}
-      {(extraAt === -1 || extraAt === sorted.length) && extraCard}
     </div>
   );
 }

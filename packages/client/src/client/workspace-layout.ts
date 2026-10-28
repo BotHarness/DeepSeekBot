@@ -1,5 +1,18 @@
 import type { DockviewApi, SerializedDockview, SerializedGridObject } from 'dockview-react';
-import { WORKSPACE_RAIL } from './workspace-context.js';
+import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
+import { WORKSPACE_CHANNELS, WORKSPACE_RAIL } from './workspace-context.js';
+
+export function railModeControls(
+  mode: 'simple' | 'advanced',
+  order: readonly string[],
+): { order: readonly string[]; hidden: readonly string[] } {
+  return mode === 'simple'
+    ? {
+        order: [WORKSPACE_CHANNELS, ...order.filter((id) => id !== WORKSPACE_CHANNELS)],
+        hidden: [CHANNEL_BODY_PANEL],
+      }
+    : { order, hidden: [] };
+}
 
 type Node = SerializedGridObject<{ id: string; views: string[]; activeView?: string }>;
 

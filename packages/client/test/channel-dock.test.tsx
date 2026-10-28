@@ -1424,7 +1424,7 @@ it('refuses a newly registered Bot-bound Panel in a Group before the registry re
   expect(host.querySelector('[data-new-character]')).not.toBeNull();
 });
 
-it('switches Simple views without adding panels and restores the Advanced arrangement', async () => {
+it('switches the Simple Side column without adding panels and restores the Advanced arrangement', async () => {
   const { WorkspaceContext, WORKSPACE_CHANNELS, WORKSPACE_RAIL } =
     await import('../src/client/workspace-context.js');
   values = new Map();
@@ -1473,9 +1473,10 @@ it('switches Simple views without adding panels and restores the Advanced arrang
     dock!.groups
       .filter((group) => group.api.isVisible)
       .flatMap((group) => group.panels.map((panel) => panel.id))
-      .filter((id) => id !== WORKSPACE_RAIL);
+      .filter((id) => id !== WORKSPACE_RAIL)
+      .sort();
   expect(layoutMode!.mode).toBe('simple');
-  expect(shown()).toEqual([WORKSPACE_CHANNELS, CHANNEL_BODY_PANEL]);
+  expect(shown()).toEqual([CHANNEL_BODY_PANEL, WORKSPACE_CHANNELS].sort());
   expect(registry.isOpen(CHANNEL_BODY_PANEL)).toBe(true);
   expect(registry.isOpen(GLOBAL_PANEL)).toBe(false);
 
@@ -1483,17 +1484,21 @@ it('switches Simple views without adding panels and restores the Advanced arrang
   draft.value = 'unsent message';
   act(() => registry.toggle(GLOBAL_PANEL));
   await settle();
-  expect(shown()).toEqual([GLOBAL_PANEL]);
-  expect(registry.isOpen(CHANNEL_BODY_PANEL)).toBe(false);
+  expect(shown()).toEqual([CHANNEL_BODY_PANEL, GLOBAL_PANEL].sort());
+  expect(registry.isOpen(CHANNEL_BODY_PANEL)).toBe(true);
+  expect(registry.isOpen(WORKSPACE_CHANNELS)).toBe(false);
   act(() => registry.toggle(GLOBAL_PANEL));
   await settle();
-  expect(shown()).toEqual([GLOBAL_PANEL]);
+  expect(shown()).toEqual([CHANNEL_BODY_PANEL]);
   act(() => registry.open('activity-center'));
   await settle();
-  expect(shown()).toEqual(['activity-center']);
+  expect(shown()).toEqual([CHANNEL_BODY_PANEL, 'activity-center'].sort());
   act(() => registry.open(CHANNEL_BODY_PANEL));
   await settle();
-  expect(shown()).toEqual([WORKSPACE_CHANNELS, CHANNEL_BODY_PANEL]);
+  expect(shown()).toEqual([CHANNEL_BODY_PANEL, 'activity-center'].sort());
+  act(() => registry.open(WORKSPACE_CHANNELS));
+  await settle();
+  expect(shown()).toEqual([CHANNEL_BODY_PANEL, WORKSPACE_CHANNELS].sort());
   expect(host.querySelector('[data-message-draft]')).toBe(draft);
   expect(draft.value).toBe('unsent message');
   expect(readChannelDock(storage)?.layout.panels).toEqual({});
@@ -1519,7 +1524,7 @@ it('switches Simple views without adding panels and restores the Advanced arrang
   await settle();
   act(() => dock!.layout(1500, 900));
   await settle();
-  expect(shown()).toEqual([GLOBAL_PANEL]);
+  expect(shown()).toEqual([CHANNEL_BODY_PANEL, GLOBAL_PANEL].sort());
   expect(readChannelDock(storage)!.layout).toEqual(advanced);
   act(() => layoutMode!.setMode('advanced'));
   await settle();

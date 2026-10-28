@@ -110,7 +110,7 @@ export const zh = {
   'feedback.tag.other': '其他',
   'workspace.storageFailed': '布局未能保存，已保留原来的布局。你仍可继续使用当前界面。',
   'tob.defaultName': '托布',
-  'workspace.tobMode': '{name}模式',
+  'workspace.openTob': '打开{name}',
   'home.starters': '快捷提问',
   'home.greeting': '你好，我是托布',
   'home.description': '你的本地总管。了解 Bot 的状态，或告诉我你想调整什么。',
@@ -433,17 +433,17 @@ export const zh = {
   'onboarding.short.groupHint': '{name} 已就绪。先和它打个招呼，再请总管把它加入新群聊。',
   'onboarding.short.groupPrompt': '帮我创建一个叫「学习小组」的群聊，把刚刚创建的 {name} 加进去。',
   'onboarding.short.chat': '进入对话',
-  'onboarding.short.chatHint': '现在试一下：打开左侧栏的托布模式开关，进入总管对话。草稿会保留。',
+  'onboarding.short.chatHint': '现在试一下：在频道列表里打开总管对话。草稿会保留。',
   'onboarding.short.configure': '配置模型',
   'onboarding.short.layout': '调整页面布局',
   'onboarding.short.layoutHint': '了解移动、缩放、关闭与重新打开面板。',
   'onboarding.short.layoutChoose': '先选一种布局模式，之后可以随时在 Bot 设置 › 界面设置里切换。',
   'onboarding.short.layoutSimpleHint':
-    '简单：左侧栏切换整块视图，消息里频道列表和对话并排显示。适合大多数人。',
+    '简单：消息始终显示，左侧栏决定旁边的侧列显示频道列表、活动中心等。适合大多数人。',
   'onboarding.short.layoutAdvancedHint': '高级：面板可以自由拖拽、停靠和缩放，适合同时看很多内容。',
   'onboarding.short.views': '切换视图',
   'onboarding.short.viewsHint':
-    '左侧栏的每个按钮会把右侧整块区域切换到对应视图，例如消息和活动中心。',
+    '左侧栏的按钮在侧列里显示频道列表、活动中心等；再点一次当前按钮即可收起侧列。',
   'onboarding.short.messages': '消息',
   'onboarding.short.messagesHint':
     '消息视图里，频道列表和对话并排显示。拖动中间的分隔线可以调整宽度。',
@@ -4810,7 +4810,7 @@ export const en = {
   'workspace.storageFailed':
     'Layout could not be saved. Your previous layout is retained; this session remains usable.',
   'tob.defaultName': 'Tob',
-  'workspace.tobMode': '{name} mode',
+  'workspace.openTob': 'Open {name}',
   'home.starters': 'Suggested questions',
   'home.greeting': 'Hello, I’m Tob',
   'home.description':
@@ -5115,19 +5115,19 @@ export const en = {
     'Create a group called “Study group” with the {name} Bot you just created.',
   'onboarding.short.chat': 'Start chatting',
   'onboarding.short.chatHint':
-    'Try it now: turn on the Tob mode switch on the rail to enter your steward conversation. Your draft stays saved.',
+    'Try it now: open your steward conversation from the Channel list. Your draft stays saved.',
   'onboarding.short.configure': 'Configure a model',
   'onboarding.short.layout': 'Arrange your workspace',
   'onboarding.short.layoutHint': 'Learn to move, resize, hide and reopen panels.',
   'onboarding.short.layoutChoose':
     'Choose a layout mode first. You can switch any time in Bot Settings › Appearance.',
   'onboarding.short.layoutSimpleHint':
-    'Simple: the rail switches the whole view, and Messages shows the Channel list beside the conversation. Best for most people.',
+    'Simple: Messages always stays open, and the rail picks what the Side column beside it shows, such as the Channel list or Activity Center. Best for most people.',
   'onboarding.short.layoutAdvancedHint':
     'Advanced: drag, dock and resize panels freely to see many things at once.',
   'onboarding.short.views': 'Switch views',
   'onboarding.short.viewsHint':
-    'Each rail button switches the whole area on the right to its view, such as Messages or Activity Center.',
+    'Each rail button shows its view in the Side column, such as the Channel list or Activity Center. Click the active one again to hide the Side column.',
   'onboarding.short.messages': 'Messages',
   'onboarding.short.messagesHint':
     'Messages shows the Channel list beside the conversation. Drag the divider between them to change the width.',

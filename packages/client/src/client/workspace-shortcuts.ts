@@ -7,11 +7,10 @@ import type {
 import type { DockPanelRegistry } from './dock-panels.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
-import type { TobModeControl } from './tob-mode.js';
-import { TOB_MODE_SLOT, WORKSPACE_CHANNELS } from './workspace-context.js';
+import { HOME_SLOT, WORKSPACE_CHANNELS } from './workspace-context.js';
 
 const DEFAULT_KEYS: Readonly<Record<string, string>> = {
-  [TOB_MODE_SLOT]: 'KeyH',
+  [HOME_SLOT]: 'KeyH',
   [WORKSPACE_CHANNELS]: 'Digit1',
   [CHANNEL_BODY_PANEL]: 'Digit2',
   'activity-center': 'Digit3',
@@ -35,7 +34,7 @@ function defaultBindings(id: string): ShortcutCommand['defaults'] {
   return {
     'desktop:macos': binding,
     'desktop:windows': binding,
-    'desktop:linux': id === TOB_MODE_SLOT ? { ...binding, code: 'KeyO' } : binding,
+    'desktop:linux': id === HOME_SLOT ? { ...binding, code: 'KeyO' } : binding,
     'web:macos': binding,
     'web:windows': binding,
   };
@@ -46,20 +45,20 @@ export function registerWorkspaceShortcuts(
   registry: DockPanelRegistry,
   active: () => boolean,
   t: BotHarnessTranslate,
-  tobMode?: TobModeControl,
+  openTob?: () => void,
 ): () => void {
   const registered = new Map<string, () => void>();
-  const disposeTob = tobMode
+  const disposeTob = openTob
     ? shortcuts.register({
-        id: workspaceShortcutId(TOB_MODE_SLOT),
-        label: () => t('workspace.tobMode', { name: t('tob.defaultName') }),
-        aliases: ['Bot mode', 'Tob mode', TOB_MODE_SLOT],
-        defaults: defaultBindings(TOB_MODE_SLOT),
+        id: workspaceShortcutId(HOME_SLOT),
+        label: () => t('workspace.openTob', { name: t('tob.defaultName') }),
+        aliases: ['Bot mode', 'Tob', 'Home', HOME_SLOT],
+        defaults: defaultBindings(HOME_SLOT),
         regions: ['page', 'editable'],
         modals: [],
         resolve: (context) =>
-          active() && tobMode.available() && !context.modal
-            ? { status: 'handled', run: () => tobMode.toggle() }
+          active() && !context.modal
+            ? { status: 'handled', run: () => openTob() }
             : { status: 'pass' },
       })
     : undefined;
@@ -67,7 +66,7 @@ export function registerWorkspaceShortcuts(
     const labels = new Map(
       registry
         .panels()
-        .filter((panel) => panel.id !== 'members' && panel.id !== TOB_MODE_SLOT)
+        .filter((panel) => panel.id !== 'members' && panel.id !== HOME_SLOT)
         .map((panel) => [panel.id, panel.title]),
     );
     labels.set(WORKSPACE_CHANNELS, t('workspace.channels'));

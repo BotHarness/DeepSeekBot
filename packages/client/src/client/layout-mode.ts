@@ -3,10 +3,11 @@ import {
   CHANNEL_DOCK_STORAGE_KEY,
   type ChannelDockStorage,
 } from './channel-dock-layout.js';
-import { TOB_MODE_SLOT } from './workspace-context.js';
+import { HOME_SLOT, WORKSPACE_CHANNELS } from './workspace-context.js';
 
 export const LAYOUT_MODE_STORAGE_KEY = 'botharness.bot-mode-layout-mode';
 export const DEFAULT_SIMPLE_CHANNELS_WIDTH = 0.22;
+export const MAX_SIDE_COLUMN_WIDTH = 0.6;
 export const DEFAULT_SUBPANEL_COLUMN_WIDTH = 0.34;
 export const DEFAULT_SUBPANEL_HEIGHT = 320;
 export const MIN_SUBPANEL_HEIGHT = 120;
@@ -23,7 +24,7 @@ export interface SubpanelColumn {
 
 export interface SimpleLayout {
   readonly mode: LayoutMode;
-  readonly view: string;
+  readonly sideColumn: string | null;
   readonly channelsWidth: number;
   readonly column: SubpanelColumn;
 }
@@ -96,23 +97,43 @@ export function readLayoutMode(
       value = parsed as Record<string, unknown>;
   } catch {}
   const mode = value['mode'];
-  const home = value['view'] === TOB_MODE_SLOT;
+  const saved = value['sideColumn'];
+  const legacy = !('sideColumn' in value) && 'view' in value;
   const layout: SimpleLayout = {
     mode: mode === 'simple' || mode === 'advanced' ? mode : advanced ? 'advanced' : 'simple',
-    view:
-      typeof value['view'] === 'string' && value['view'].length > 0 && !home
-        ? value['view']
-        : CHANNEL_BODY_PANEL,
-    channelsWidth: fraction(value['channelsWidth']) ?? DEFAULT_SIMPLE_CHANNELS_WIDTH,
+    sideColumn:
+      saved === null
+        ? null
+        : typeof saved === 'string' && saved.length > 0
+          ? saved
+          : sideColumnFromView(value['view']),
+    channelsWidth: Math.min(
+      MAX_SIDE_COLUMN_WIDTH,
+      fraction(value['channelsWidth']) ?? DEFAULT_SIMPLE_CHANNELS_WIDTH,
+    ),
     column: readColumn(value['column']),
   };
-  if (home && raw)
+  if (legacy && raw)
     try {
-      const backup = `${LAYOUT_MODE_STORAGE_KEY}.before-tob-mode-v9`;
+      const backup = `${LAYOUT_MODE_STORAGE_KEY}.before-side-column-v10`;
       if (storage?.getItem(backup) == null) storage?.setItem(backup, raw);
-      storage?.setItem(LAYOUT_MODE_STORAGE_KEY, JSON.stringify({ ...value, view: layout.view }));
+      const rest = Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'view'));
+      storage?.setItem(
+        LAYOUT_MODE_STORAGE_KEY,
+        JSON.stringify({ ...rest, sideColumn: layout.sideColumn }),
+      );
     } catch {}
   return layout;
+}
+
+function sideColumnFromView(view: unknown): string {
+  return typeof view !== 'string' ||
+    view.length === 0 ||
+    view === CHANNEL_BODY_PANEL ||
+    view === WORKSPACE_CHANNELS ||
+    view === HOME_SLOT
+    ? WORKSPACE_CHANNELS
+    : view;
 }
 
 export function writeLayoutMode(

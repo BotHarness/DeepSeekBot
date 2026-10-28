@@ -22,12 +22,7 @@ import { mountPanelScrollbars } from './ds/panel-scrollbars.js';
 import { usePanelMenu } from './panel-menu.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { workspaceColumns, moveWorkspaceRail, isFullHeightRail } from './workspace-layout.js';
-import {
-  WorkspaceContext,
-  WORKSPACE_RAIL,
-  WORKSPACE_CHANNELS,
-  TOB_MODE_SLOT,
-} from './workspace-context.js';
+import { WorkspaceContext, WORKSPACE_RAIL, WORKSPACE_CHANNELS } from './workspace-context.js';
 import {
   createContext,
   useContext,
@@ -80,6 +75,7 @@ import {
   DEFAULT_SIMPLE_CHANNELS_WIDTH,
   DEFAULT_SUBPANEL_COLUMN,
   DEFAULT_SUBPANEL_HEIGHT,
+  MAX_SIDE_COLUMN_WIDTH,
   MIN_SUBPANEL_HEIGHT,
   readLayoutMode,
   writeLayoutMode,
@@ -88,7 +84,6 @@ import {
   type SubpanelColumn,
 } from './layout-mode.js';
 import { NARROW_CHANNEL_SIDEBAR_QUERY } from './channel-sidebar-layout.js';
-import { INACTIVE_TOB_MODE, readTobMode, writeTobMode, type TobModeState } from './tob-mode.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import {
   clampChannelSidebarWidth,
@@ -1230,21 +1225,7 @@ export function ChannelDock({
   });
   const simpleRef = useRef(layoutMode);
   const isSimple = (): boolean => workspace !== undefined && simpleRef.current.mode === 'simple';
-  const [tobMode, updateTobMode] = useState<TobModeState>(() =>
-    workspace ? readTobMode(storage) : INACTIVE_TOB_MODE,
-  );
-  const tobRef = useRef(tobMode);
-  const isTob = (): boolean => workspace !== undefined && tobRef.current.active;
-  const tobChannel = useRef<string>();
-  const tobReached = useRef(false);
-  const tobSelecting = useRef(false);
-  const tobFrozen = useRef(tobMode.active);
-  const tobAddedMessages = useRef(false);
-  const setTobState = (next: TobModeState): void => {
-    tobRef.current = next;
-    updateTobMode(next);
-    writeTobMode(next, storage);
-  };
+  const sideSizedAt = useRef(0);
   const setSimpleLayout = (next: SimpleLayout): void => {
     simpleRef.current = next;
     updateLayoutMode(next);
@@ -1299,7 +1280,7 @@ export function ChannelDock({
     [workspaceMode, gap],
   );
   const gapRef = useRef(gap);
-  const [order, updateOrder] = useState(() => readChannelDock(storage)?.order ?? [TOB_MODE_SLOT]);
+  const [order, updateOrder] = useState(() => readChannelDock(storage)?.order ?? []);
   const orderRef = useRef(order);
   const [hiddenControls, updateHiddenControls] = useState(
     () => readChannelDock(storage)?.hiddenControls ?? [],
@@ -1344,11 +1325,9 @@ export function ChannelDock({
   };
 
   const reportOpen = (target: DockviewApi): void => {
-    const ids = isTob()
-      ? [CHANNEL_BODY_PANEL].filter((id) => target.getPanel(id))
-      : isSimple()
-        ? simpleViewIds(simpleRef.current.view).filter((id) => target.getPanel(id))
-        : target.panels.map((panel) => panel.id);
+    const ids = isSimple()
+      ? simpleViewIds(simpleRef.current.sideColumn).filter((id) => target.getPanel(id))
+      : target.panels.map((panel) => panel.id);
     if (isSimple()) {
       registry?.reportOpen([...ids.filter((id) => id !== WORKSPACE_RAIL), ...columnOpenIds(ids)]);
       return;
@@ -1390,30 +1369,9 @@ export function ChannelDock({
     setOpenIds(ids);
     reportOpen(target);
     const simple = isSimple();
-    const channelsGroup = target.getPanel(WORKSPACE_CHANNELS)?.group;
-    if (
-      simple &&
-      !tobFrozen.current &&
-      simpleRef.current.view === CHANNEL_BODY_PANEL &&
-      channelsGroup &&
-      target.width > 0 &&
-      channelsGroup.api.width > 0
-    ) {
-      simpleRef.current = {
-        ...simpleRef.current,
-        channelsWidth: Math.min(0.6, channelsGroup.api.width / target.width),
-      };
-      writeLayoutMode(simpleRef.current, storage);
-    }
-    const advanced = simple || tobFrozen.current ? readChannelDock(storage) : undefined;
-    if (
-      !simple &&
-      tobFrozen.current &&
-      (advanced === undefined ||
-        (!isTob() && gridShape(advanced.layout) !== gridShape(target.toJSON())))
-    )
-      tobFrozen.current = false;
-    const frozen = simple || tobFrozen.current;
+    fitSideColumn(target);
+    const advanced = simple ? readChannelDock(storage) : undefined;
+    const frozen = simple;
     if (workspace || !readChannelDock(storage)?.layout.panels[WORKSPACE_RAIL]) {
       const persisted = writeChannelDock(
         {
@@ -1440,6 +1398,27 @@ export function ChannelDock({
       );
       setStorageFailed(!persisted);
     }
+  };
+
+  const fitSideColumn = (target: DockviewApi): void => {
+    const side = simpleRef.current.sideColumn;
+    const group = side === null ? undefined : target.getPanel(side)?.group;
+    if (!isSimple() || !group?.api.isVisible || target.width <= 0) return;
+    if (target.width === sideSizedAt.current) return;
+    sideSizedAt.current = target.width;
+    group.api.setSize({ width: Math.round(simpleRef.current.channelsWidth * target.width) });
+  };
+
+  const captureSideWidth = (target: DockviewApi): void => {
+    const side = simpleRef.current.sideColumn;
+    const group = side === null ? undefined : target.getPanel(side)?.group;
+    if (!isSimple() || sideSizedAt.current === 0 || !group?.api.isVisible) return;
+    if (target.width <= 0 || group.api.width <= 0) return;
+    simpleRef.current = {
+      ...simpleRef.current,
+      channelsWidth: Math.min(MAX_SIDE_COLUMN_WIDTH, group.api.width / target.width),
+    };
+    writeLayoutMode(simpleRef.current, storage);
   };
 
   const positionOf = (target: DockviewApi, panelId: string): DockPosition | undefined => {
@@ -1501,109 +1480,24 @@ export function ChannelDock({
     restoreEntryPanel(target, panel, remembered, workspace ? gapRef.current : 0);
   };
 
-  const applyTobView = (target: DockviewApi): void => {
-    tobFrozen.current = true;
-    const message = known.current.get(CHANNEL_BODY_PANEL);
-    if (message && !target.getPanel(CHANNEL_BODY_PANEL)) {
-      restoreEntryPanel(target, message, parked.current[CHANNEL_BODY_PANEL], gapRef.current);
-      target.getPanel(CHANNEL_BODY_PANEL)?.api.updateParameters({ entryId: CHANNEL_BODY_PANEL });
-      hideBodyHeader(target);
-      tobAddedMessages.current = !isSimple();
-    }
-    for (const group of target.groups) {
-      const visible = group.panels.some(
-        (panel) => panel.id === WORKSPACE_RAIL || panel.id === CHANNEL_BODY_PANEL,
-      );
-      if (group.api.isVisible !== visible) group.api.setVisible(visible);
-    }
-    target.getPanel(CHANNEL_BODY_PANEL)?.api.setActive();
-  };
+  const sideColumnItem = (panelId: string): boolean =>
+    panelId !== CHANNEL_BODY_PANEL && panelId !== WORKSPACE_RAIL && !inColumn(panelId);
 
-  const leaveTobView = (target: DockviewApi): void => {
-    const added = tobAddedMessages.current;
-    tobAddedMessages.current = false;
-    if (isSimple()) {
-      showSimpleView(target, simpleRef.current.view);
-      return;
-    }
-    const current = target.panels
-      .map((panel) => panel.id)
-      .filter((id) => !added || id !== CHANNEL_BODY_PANEL)
-      .sort();
-    const snapshot = tobFrozen.current ? readChannelDock(storage)?.layout : undefined;
-    const saved = snapshot ? gridViews(snapshot).sort() : [];
-    if (snapshot && current.join('\n') === saved.join('\n')) {
-      restoringVisibility.current = true;
-      try {
-        target.fromJSON(snapshot, { reuseExistingPanels: true });
-        hideBodyHeader(target);
-        return;
-      } catch {
-      } finally {
-        restoringVisibility.current = false;
-      }
-    }
-    const message = added ? target.getPanel(CHANNEL_BODY_PANEL) : undefined;
-    if (message) target.removePanel(message);
-    for (const group of target.groups) if (!group.api.isVisible) group.api.setVisible(true);
-  };
-
-  const selectTob = async (): Promise<void> => {
-    const source = workspace?.tob;
-    if (!source || tobSelecting.current) return;
-    tobSelecting.current = true;
-    try {
-      const id = await source.channel();
-      if (!tobRef.current.active) return;
-      tobChannel.current = id;
-      if (channelRef.current?.id === id) tobReached.current = true;
-      else await source.openChannel(id);
-    } catch {
-      actions.current.leaveTob({ restoreChannel: false });
-    } finally {
-      tobSelecting.current = false;
-    }
-  };
-
-  const enterTob = (): void => {
-    if (!workspace || isTob()) return;
-    setTobState({ active: true, previousChannelId: channelRef.current?.id });
-    tobReached.current = false;
-    if (api) {
-      applyTobView(api);
-      save(api);
-    }
-  };
-
-  const leaveTob = ({
-    restoreChannel = true,
-    reveal = false,
-  }: { restoreChannel?: boolean; reveal?: boolean } = {}): void => {
-    if (!isTob()) return;
-    const previous = tobRef.current.previousChannelId;
-    setTobState(INACTIVE_TOB_MODE);
-    tobReached.current = false;
-    if (api) {
-      leaveTobView(api);
-      if (reveal) layout.current.open(CHANNEL_BODY_PANEL);
-      save(api);
-    }
-    if (restoreChannel && previous && previous !== channelRef.current?.id)
-      void workspace?.tob?.openChannel(previous);
-  };
-
-  const showSimpleView = (target: DockviewApi, view: string): void => {
-    if (isTob()) {
-      applyTobView(target);
-      return;
-    }
-    let id = view === WORKSPACE_CHANNELS ? CHANNEL_BODY_PANEL : view;
-    if (id !== CHANNEL_BODY_PANEL) {
+  const showSimpleView = (target: DockviewApi, requested: string | null): void => {
+    let id = requested;
+    if (id !== null && id !== WORKSPACE_CHANNELS) {
       const panel = known.current.get(id) ?? registry?.panels().find((item) => item.id === id);
-      if (panel === undefined || !layout.current.canOpen(id)) id = CHANNEL_BODY_PANEL;
+      if (panel === undefined || !sideColumnItem(id) || !layout.current.canOpen(id))
+        id = WORKSPACE_CHANNELS;
       else if (target.getPanel(id) === undefined)
-        restoreEntryPanel(target, panel, undefined, gapRef.current);
+        restoreEntryPanel(
+          target,
+          panel,
+          { neighbor: CHANNEL_BODY_PANEL, direction: 'left' },
+          gapRef.current,
+        );
     }
+    if (id === WORKSPACE_CHANNELS && target.getPanel(WORKSPACE_CHANNELS) === undefined) id = null;
     const shown = simpleViewIds(id);
     for (const group of target.groups) {
       const visible = group.panels.some(
@@ -1611,11 +1505,12 @@ export function ChannelDock({
       );
       if (group.api.isVisible !== visible) group.api.setVisible(visible);
     }
-    const channels = target.getPanel(WORKSPACE_CHANNELS)?.group;
-    if (id === CHANNEL_BODY_PANEL && channels && target.width > 0)
-      channels.api.setSize({ width: Math.round(simpleRef.current.channelsWidth * target.width) });
-    target.getPanel(id)?.api.setActive();
-    if (id !== simpleRef.current.view) setSimpleLayout({ ...simpleRef.current, view: id });
+    const side = id === null ? undefined : target.getPanel(id)?.group;
+    sideSizedAt.current = side === undefined ? 0 : target.width;
+    if (side && target.width > 0)
+      side.api.setSize({ width: Math.round(simpleRef.current.channelsWidth * target.width) });
+    if (id !== simpleRef.current.sideColumn)
+      setSimpleLayout({ ...simpleRef.current, sideColumn: id });
   };
 
   const buildSimpleLayout = (target: DockviewApi): void => {
@@ -1641,7 +1536,8 @@ export function ChannelDock({
       );
     target.getPanel(CHANNEL_BODY_PANEL)?.api.updateParameters({ entryId: CHANNEL_BODY_PANEL });
     hideBodyHeader(target);
-    showSimpleView(target, revealBody ? CHANNEL_BODY_PANEL : simpleRef.current.view);
+    showSimpleView(target, simpleRef.current.sideColumn);
+    target.getPanel(CHANNEL_BODY_PANEL)?.api.setActive();
   };
 
   const setColumn = (next: SubpanelColumn, focus?: string): void => {
@@ -1658,11 +1554,10 @@ export function ChannelDock({
   };
 
   const onReady = ({ api: ready }: DockviewReadyEvent): void => {
-    tobAddedMessages.current = false;
     const stored = readChannelDock(storage, workspace !== undefined);
     seed.current = stored?.sessionSeed ?? DEFAULT_CHANNEL_WORKSPACE;
     botSeeds.current = stored?.botPanelSeeds ?? {};
-    orderRef.current = stored?.order ?? [TOB_MODE_SLOT];
+    orderRef.current = stored?.order ?? [];
     updateOrder(orderRef.current);
     hiddenControlsRef.current = stored?.hiddenControls ?? [];
     updateHiddenControls(hiddenControlsRef.current);
@@ -1750,12 +1645,10 @@ export function ChannelDock({
         ready.getPanel(WORKSPACE_CHANNELS)?.api.setSize({ width: 260 });
       }
     }
-    if (isTob()) applyTobView(ready);
     hideBodyHeader(ready);
     ready.onWillShowOverlay((event) => {
       if (
         isSimple() ||
-        isTob() ||
         !allowsDockDrop(event.kind, event.position) ||
         (workspace &&
           (((event.group === undefined || event.kind === 'edge') &&
@@ -1767,7 +1660,6 @@ export function ChannelDock({
     ready.onWillDrop((event) => {
       if (
         isSimple() ||
-        isTob() ||
         !allowsDockDrop(event.kind, event.position) ||
         (workspace &&
           (((event.group === undefined || event.kind === 'edge') &&
@@ -1777,8 +1669,7 @@ export function ChannelDock({
         event.preventDefault();
     });
     ready.onDidMovePanel(() => {
-      if (restoringVisibility.current || isTob()) return;
-      tobFrozen.current = false;
+      if (restoringVisibility.current) return;
       visibilityLayout.current = undefined;
       for (const panel of ready.panels) delete parked.current[panel.id];
       save(ready);
@@ -1805,8 +1696,7 @@ export function ChannelDock({
       const finish = () => {
         if (!resizing) return;
         resizing = false;
-        if (isTob()) return;
-        tobFrozen.current = false;
+        captureSideWidth(api);
         visibilityLayout.current = undefined;
         for (const panel of api.panels) delete parked.current[panel.id];
         save(api);
@@ -1814,7 +1704,18 @@ export function ChannelDock({
       root.addEventListener('pointerdown', start, true);
       window.addEventListener('pointerup', finish);
       window.addEventListener('pointercancel', finish);
+      let frame = 0;
+      const resized =
+        typeof ResizeObserver === 'undefined'
+          ? undefined
+          : new ResizeObserver(() => {
+              cancelAnimationFrame(frame);
+              frame = requestAnimationFrame(() => fitSideColumn(api));
+            });
+      resized?.observe(root);
       return () => {
+        resized?.disconnect();
+        cancelAnimationFrame(frame);
         releaseChrome?.();
         root.removeEventListener('pointerdown', start, true);
         window.removeEventListener('pointerup', finish);
@@ -1857,6 +1758,7 @@ export function ChannelDock({
       delete unregistered.current[id];
       addEntryPanel(api, panel, position);
     }
+    if (isSimple()) showSimpleView(api, simpleRef.current.sideColumn);
     save(api);
   }, [api, byId]);
 
@@ -1867,23 +1769,6 @@ export function ChannelDock({
       reportOpen(api);
     }
   }, [api, channel?.id, inbox?.open, sessionState.open, botWorkspaces]);
-
-  const tobChannelMount = useMountedResource<HTMLSpanElement>(() => {
-    if (!isTob()) return;
-    const id = channel?.id;
-    if (tobChannel.current !== undefined && id === tobChannel.current) tobReached.current = true;
-    else if (tobReached.current) actions.current.leaveTob({ restoreChannel: false, reveal: true });
-    else void selectTob();
-  }, [channel?.id, tobMode.active]);
-
-  const tobControlMount = useMountedResource<HTMLSpanElement>(
-    () =>
-      workspace?.tob?.control?.attach({
-        active: () => tobRef.current.active,
-        setActive: (active) => (active ? actions.current.enterTob() : actions.current.leaveTob()),
-      }),
-    [workspace?.tob?.control],
-  );
 
   const setSessionState = (next: ChannelWorkspaceState): void => {
     if (!channel) return;
@@ -1908,12 +1793,13 @@ export function ChannelDock({
   const subpanelState = (id: string) =>
     id === 'sessions' ? sessionStateRef.current : botStatesRef.current[id]!;
   const close = (panelId: string): void => {
-    if (isTob() && !inColumn(panelId)) {
-      leaveTob();
-      if (panelId === CHANNEL_BODY_PANEL) {
-        open(CHANNEL_BODY_PANEL);
-        return;
+    if (isSimple() && !inColumn(panelId)) {
+      if (api && panelId === simpleRef.current.sideColumn) {
+        showSimpleView(api, null);
+        api.getPanel(CHANNEL_BODY_PANEL)?.api.setActive();
+        save(api);
       }
+      return;
     }
     if (isSimple() && inColumn(panelId)) {
       const column = simpleRef.current.column;
@@ -1966,23 +1852,10 @@ export function ChannelDock({
   };
   const open = (panelId: string): void => {
     if (!canOpen(panelId)) return;
-    if (isTob() && !inColumn(panelId)) {
-      if (panelId === CHANNEL_BODY_PANEL && api) {
-        api.getPanel(CHANNEL_BODY_PANEL)?.api.setActive();
-        return;
-      }
-      leaveTob();
-    }
     const definition = byId.get(panelId) ?? registry?.panels().find((item) => item.id === panelId);
-    if (
-      isSimple() &&
-      api &&
-      !channelPanelIds.includes(panelId) &&
-      definition?.binding !== 'current-bot' &&
-      panelId !== 'bot-inbox' &&
-      panelId !== 'members'
-    ) {
-      showSimpleView(api, panelId);
+    if (isSimple() && api && !inColumn(panelId)) {
+      if (panelId !== CHANNEL_BODY_PANEL) showSimpleView(api, panelId);
+      api.getPanel(panelId)?.api.setActive();
       save(api);
       return;
     }
@@ -1990,7 +1863,6 @@ export function ChannelDock({
       if (!channel) return;
       if (panelId === 'bot-inbox' && (channel.type !== 'dm' || !inbox)) return;
       if (panelId === 'members' && channel.type !== 'group') return;
-      showSimpleView(api, CHANNEL_BODY_PANEL);
       const column = simpleRef.current.column;
       setColumn(
         {
@@ -2013,7 +1885,6 @@ export function ChannelDock({
       const message = byId.get(CHANNEL_BODY_PANEL);
       if (message && !api.getPanel(CHANNEL_BODY_PANEL))
         addEntryPanel(api, message, parked.current[CHANNEL_BODY_PANEL]);
-      if (isSimple()) showSimpleView(api, CHANNEL_BODY_PANEL);
       api.getPanel(CHANNEL_BODY_PANEL)?.api.setActive();
       save(api);
       return;
@@ -2025,7 +1896,6 @@ export function ChannelDock({
       const message = byId.get(CHANNEL_BODY_PANEL);
       if (message && !api.getPanel(CHANNEL_BODY_PANEL))
         addEntryPanel(api, message, parked.current[CHANNEL_BODY_PANEL]);
-      if (isSimple()) showSimpleView(api, CHANNEL_BODY_PANEL);
       api.getPanel(CHANNEL_BODY_PANEL)?.api.setActive();
       return;
     }
@@ -2038,7 +1908,6 @@ export function ChannelDock({
       const message = byId.get(CHANNEL_BODY_PANEL);
       if (message && !api.getPanel(CHANNEL_BODY_PANEL))
         addEntryPanel(api, message, parked.current[CHANNEL_BODY_PANEL]);
-      if (isSimple()) showSimpleView(api, CHANNEL_BODY_PANEL);
       save(api);
       return;
     }
@@ -2086,12 +1955,10 @@ export function ChannelDock({
 
   const reset = () => {
     if (!api) return;
-    leaveTob();
-    tobFrozen.current = false;
     if (isSimple()) {
       setSimpleLayout({
         ...simpleRef.current,
-        view: CHANNEL_BODY_PANEL,
+        sideColumn: WORKSPACE_CHANNELS,
         channelsWidth: DEFAULT_SIMPLE_CHANNELS_WIDTH,
         column: DEFAULT_SUBPANEL_COLUMN,
       });
@@ -2194,8 +2061,6 @@ export function ChannelDock({
       });
     },
     close,
-    leaveTob,
-    enterTob,
   };
   const actions = useRef(handlers);
   actions.current = handlers;
@@ -2319,7 +2184,6 @@ export function ChannelDock({
         save(api);
       },
       { mode: layoutMode.mode, setMode },
-      { active: tobMode.active, setActive: (active) => (active ? enterTob() : leaveTob()) },
     );
   const value = useSame<DockContextValue>(
     {
@@ -2423,8 +2287,6 @@ export function ChannelDock({
             </div>
           )}
           <span ref={inboxStateMount} hidden />
-          <span ref={tobChannelMount} hidden />
-          <span ref={tobControlMount} hidden />
           <span ref={layoutMount} hidden />
           <span ref={scrollbarsMount} hidden />
           <span ref={geometryMount} hidden />
@@ -2460,24 +2322,8 @@ const EMPTY_LAYOUT: import('dockview-react').SerializedDockview = {
   panels: {},
 };
 
-function gridViews(layout: import('dockview-react').SerializedDockview): string[] {
-  const walk = (node: { type: string; data: unknown }): string[] =>
-    node.type === 'leaf'
-      ? [...((node.data as { views?: readonly string[] }).views ?? [])]
-      : (node.data as { type: string; data: unknown }[]).flatMap(walk);
-  return walk(layout.grid.root);
-}
-
-function gridShape(layout: import('dockview-react').SerializedDockview): string {
-  const walk = (node: { type: string; data: unknown }): unknown =>
-    node.type === 'leaf' ? node.data : (node.data as { type: string; data: unknown }[]).map(walk);
-  return JSON.stringify(walk(layout.grid.root), ['views', 'activeView']);
-}
-
-function simpleViewIds(view: string): readonly string[] {
-  return view === CHANNEL_BODY_PANEL || view === WORKSPACE_CHANNELS
-    ? [WORKSPACE_CHANNELS, CHANNEL_BODY_PANEL]
-    : [view];
+function simpleViewIds(sideColumn: string | null): readonly string[] {
+  return sideColumn === null ? [CHANNEL_BODY_PANEL] : [sideColumn, CHANNEL_BODY_PANEL];
 }
 
 const groupRank = (panel: DockPanelRegistration): number =>

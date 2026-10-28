@@ -73,6 +73,11 @@ const findTarget = async () => {
   throw Error('No Client matches the browser configuration revision');
 };
 const clickBot = async (name) => {
+  const channels = '.bh-workspace-rail [data-pinned-panel="bh:channels"]';
+  if ((await page.$eval(channels, (n) => n.getAttribute('aria-pressed'))) !== 'true') {
+    await page.click(channels);
+    await pause();
+  }
   await page.evaluate((name) => {
     const matches = [
       ...document.querySelectorAll('.bh-workspace-channels button[data-channel-id]'),
@@ -251,9 +256,17 @@ try {
     assert.deepEqual((await read()).modes.light, light);
     await patch({ preference: 'light' });
     await header('bh:channel-body').click({ button: 'right' });
-    await page.locator('::-p-aria(Close Messages[role="menuitem"])').click();
     await pause();
-    assert.equal(await page.$('[data-dock-header="bh:channel-body"]'), null);
+    const closeMessages = await page.$('::-p-aria(Close Messages[role="menuitem"])');
+    if (closeMessages) {
+      await closeMessages.click();
+      await pause();
+      assert.equal(await page.$('[data-dock-header="bh:channel-body"]'), null);
+    } else {
+      await page.keyboard.press('Escape');
+      await pause();
+      assert.ok(await page.$('[data-dock-header="bh:channel-body"]'));
+    }
     await clickBot('Panel Alpha');
     if (!(await page.$('[data-dock-header="bh:channel-body"]')))
       await page.locator('.bh-workspace-rail button[aria-label^="Messages ·"]').click();

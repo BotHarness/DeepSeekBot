@@ -14,11 +14,7 @@ import {
   writeChannelDock,
 } from '../src/client/channel-dock-layout.js';
 import { ACTIVITY_CENTER_PANEL } from '../src/client/dock-panels.js';
-import {
-  WORKSPACE_CHANNELS,
-  TOB_MODE_SLOT,
-  WORKSPACE_RAIL,
-} from '../src/client/workspace-context.js';
+import { WORKSPACE_CHANNELS, HOME_SLOT, WORKSPACE_RAIL } from '../src/client/workspace-context.js';
 
 const leaf = (id: string, ...views: string[]) => ({
   type: 'leaf' as const,
@@ -337,7 +333,6 @@ describe('flat Sessions → Channel workspace migration', () => {
         CHANNEL_BODY_PANEL,
         'activity-center',
         'generated-files',
-        'bh:home',
       ]);
       expect(next.gap).toBe(8);
       expect(next.parked.future?.neighbor).toBe(CHANNEL_BODY_PANEL);
@@ -442,7 +437,6 @@ it('retains hidden Work intent when every legacy panel is closed', () => {
     CHANNEL_BODY_PANEL,
     'activity-center',
     'generated-files',
-    'bh:home',
   ]);
   expect(next.layout.panels[CHANNEL_BODY_PANEL]).toBeUndefined();
 });
@@ -519,7 +513,6 @@ describe('Bot subpanel migration', () => {
         CHANNEL_BODY_PANEL,
         'activity-center',
         'generated-files',
-        'bh:home',
       ]);
       expect(migrated.parked['plugin-y']?.neighbor).toBe(CHANNEL_BODY_PANEL);
       expect(migrated.gap).toBe(9);
@@ -613,7 +606,6 @@ it('upgrades v5 Browser/Computer without rewriting existing Channel workspaces o
     CHANNEL_BODY_PANEL,
     'activity-center',
     'generated-files',
-    'bh:home',
   ]);
   expect(next.hiddenControls).toEqual([]);
   expect(storage.getItem(`${CHANNEL_DOCK_STORAGE_KEY}.before-bot-workspace-v5`)).toBe(
@@ -686,7 +678,8 @@ describe('Home v8 upgrade', () => {
     expect(next.channelWorkspaces).toEqual(old.channelWorkspaces);
     expect(next.channelSplits).toEqual(old.channelSplits);
     expect(next.order?.slice(0, 3)).toEqual(old.order);
-    expect(next.order?.at(-1)).toBe('bh:home');
+    expect(next.order?.at(-1)).toBe('generated-files');
+    expect(next.order).not.toContain(HOME_SLOT);
     expect(storage.getItem(CHANNEL_DOCK_STORAGE_KEY + '.before-home-v8')).toBe(raw);
     expect(storage.getItem(CHANNEL_DOCK_STORAGE_KEY + '.before-tob-mode-v9')).toBe(raw);
     expect(readChannelDock(storage)).toEqual(next);
@@ -703,7 +696,7 @@ describe('Home v8 upgrade', () => {
             leaf('1', CHANNEL_BODY_PANEL),
             {
               type: 'branch',
-              data: [leaf('2', 'sessions', TOB_MODE_SLOT), leaf('home', TOB_MODE_SLOT)],
+              data: [leaf('2', 'sessions', HOME_SLOT), leaf('home', HOME_SLOT)],
               size: 320,
             },
             leaf('3', 'bot-inbox'),
@@ -712,7 +705,7 @@ describe('Home v8 upgrade', () => {
         },
       },
       panels: Object.fromEntries(
-        [CHANNEL_BODY_PANEL, 'sessions', TOB_MODE_SLOT, 'bot-inbox', 'computer'].map((id) => [
+        [CHANNEL_BODY_PANEL, 'sessions', HOME_SLOT, 'bot-inbox', 'computer'].map((id) => [
           id,
           { id },
         ]),
@@ -724,11 +717,11 @@ describe('Home v8 upgrade', () => {
       layout: withHome,
       visibilityLayout: withHome,
       gap: 6,
-      order: ['activity-center', TOB_MODE_SLOT, CHANNEL_BODY_PANEL],
-      hiddenControls: [TOB_MODE_SLOT, 'activity-center'],
+      order: ['activity-center', HOME_SLOT, CHANNEL_BODY_PANEL],
+      hiddenControls: [HOME_SLOT, 'activity-center'],
       parked: {
-        [TOB_MODE_SLOT]: { neighbor: CHANNEL_BODY_PANEL, direction: 'right' },
-        schedules: { neighbor: TOB_MODE_SLOT, direction: 'below', size: { width: 1, height: 0.4 } },
+        [HOME_SLOT]: { neighbor: CHANNEL_BODY_PANEL, direction: 'right' },
+        schedules: { neighbor: HOME_SLOT, direction: 'below', size: { width: 1, height: 0.4 } },
         'generated-files': { neighbor: 'sessions', direction: 'right' },
       },
     };
@@ -761,7 +754,7 @@ describe('Home v8 upgrade', () => {
       'generated-files': { neighbor: 'sessions', direction: 'right' },
     });
     expect(next.hiddenControls).toEqual(['activity-center']);
-    expect(next.order).toEqual(old.order);
+    expect(next.order).toEqual(old.order.filter((id) => id !== HOME_SLOT));
     expect(next.gap).toBe(6);
     expect(storage.getItem(CHANNEL_DOCK_STORAGE_KEY + '.before-tob-mode-v9')).toBe(raw);
     expect(storage.getItem(CHANNEL_DOCK_STORAGE_KEY + '.before-home-v8')).toBeNull();

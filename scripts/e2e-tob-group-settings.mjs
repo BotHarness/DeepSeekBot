@@ -5,19 +5,19 @@ import { readdirSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, basename } from 'node:path';
 import { tmpdir } from 'node:os';
 
-const TOB_SWITCH = '.bh-workspace-rail [data-pinned-switch="bh:tob-mode"]';
-const TOB_INPUT = '[data-dock-panel="bh:channel-body"] textarea.bh-composer-input';
-async function setTobMode(on) {
-  await page.waitForSelector(TOB_SWITCH, { visible: true });
-  const pressed = await page.$eval(TOB_SWITCH, (node) => node.getAttribute('aria-pressed'));
-  if ((pressed === 'true') !== on) await page.click(TOB_SWITCH);
-  await page.waitForFunction(
-    (selector, want) => document.querySelector(selector)?.getAttribute('aria-pressed') === want,
-    {},
-    TOB_SWITCH,
-    String(on),
-  );
-  if (on) await page.waitForSelector(TOB_INPUT, { visible: true });
+const TOB_INPUT = '.bh-dock-body .bh-composer-input';
+const CHANNELS_SWITCH = '.bh-workspace-rail [data-pinned-panel="bh:channels"]';
+async function showTobDm(on) {
+  await page.waitForSelector(CHANNELS_SWITCH, { visible: true });
+  if ((await page.$eval(CHANNELS_SWITCH, (n) => n.getAttribute('aria-pressed'))) !== 'true')
+    await page.click(CHANNELS_SWITCH);
+  if (!on) return;
+  const { channelId } = await rpc('tobHome');
+  const row = `.bh-workspace-channels [data-channel-id=${JSON.stringify(channelId)}]`;
+  await page.waitForSelector(row, { visible: true });
+  await page.click(row);
+  await page.waitForSelector(`${row}.bh-selected`);
+  await page.waitForSelector(TOB_INPUT, { visible: true });
 }
 
 const native = !!process.env.BH_DESKTOP_CDP;
@@ -317,7 +317,7 @@ async function verifyCliTrace(slug, previousIds, commands, refusal) {
 
 async function showApproval(message) {
   await dismissBubble();
-  await setTobMode(false);
+  await showTobDm(false);
   mark('approval-current-card');
   const latest = '.bh-timeline-new';
   if (await page.$(latest)) await page.locator(latest).setTimeout(5000).click();
@@ -412,7 +412,7 @@ async function beginPrompt(home, prompt) {
     previousMessages: new Set(messages.map((message) => message.id)),
     previousCalls: new Set(trace.turns.flatMap((turn) => turn.calls).map((call) => call.callId)),
   };
-  await setTobMode(true);
+  await showTobDm(true);
   const input = await visibleElement(TOB_INPUT);
   await input.type(prompt);
   await input.press('Enter');
@@ -501,7 +501,7 @@ async function saveState(fixture, label) {
 }
 async function openGroup(fixture, label) {
   await dismissBubble();
-  await setTobMode(false);
+  await showTobDm(false);
   const selector = `[data-dock-panel="bh:channels"] [data-channel-id=${JSON.stringify(fixture.channelId)}]`;
   await (await visibleElement(selector)).click();
   await page.waitForFunction(
@@ -668,7 +668,7 @@ try {
   assert.ok(entered, 'Client did not expose Bot mode workspace after onboarding');
   await visibleElement('.bh-workspace-rail');
   mark('entry-home');
-  await setTobMode(true);
+  await showTobDm(true);
   await pause(1200);
   mark('entry-home-ready');
   const home = await rpc('tobHome');

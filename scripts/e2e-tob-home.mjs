@@ -5,19 +5,19 @@ import { readdirSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, basename } from 'node:path';
 import { tmpdir } from 'node:os';
 
-const TOB_SWITCH = '.bh-workspace-rail [data-pinned-switch="bh:tob-mode"]';
-const TOB_INPUT = '[data-dock-panel="bh:channel-body"] textarea.bh-composer-input';
-async function setTobMode(on) {
-  await page.waitForSelector(TOB_SWITCH, { visible: true });
-  const pressed = await page.$eval(TOB_SWITCH, (node) => node.getAttribute('aria-pressed'));
-  if ((pressed === 'true') !== on) await page.click(TOB_SWITCH);
-  await page.waitForFunction(
-    (selector, want) => document.querySelector(selector)?.getAttribute('aria-pressed') === want,
-    {},
-    TOB_SWITCH,
-    String(on),
-  );
-  if (on) await page.waitForSelector(TOB_INPUT, { visible: true });
+const TOB_INPUT = '.bh-dock-body .bh-composer-input';
+const CHANNELS_SWITCH = '.bh-workspace-rail [data-pinned-panel="bh:channels"]';
+async function showTobDm(on) {
+  await page.waitForSelector(CHANNELS_SWITCH, { visible: true });
+  if ((await page.$eval(CHANNELS_SWITCH, (n) => n.getAttribute('aria-pressed'))) !== 'true')
+    await page.click(CHANNELS_SWITCH);
+  if (!on) return;
+  const { channelId } = await rpc('tobHome');
+  const row = `.bh-workspace-channels [data-channel-id=${JSON.stringify(channelId)}]`;
+  await page.waitForSelector(row, { visible: true });
+  await page.click(row);
+  await page.waitForSelector(`${row}.bh-selected`);
+  await page.waitForSelector(TOB_INPUT, { visible: true });
 }
 
 const native = !!process.env.BH_DESKTOP_CDP;
@@ -286,7 +286,7 @@ async function waitForApproval(channelId, previousApprovalIds, previousCalls, re
 }
 
 async function showApproval(message) {
-  await setTobMode(true);
+  await showTobDm(true);
   const latest = '.bh-timeline-new';
   if (await page.$(latest)) await page.locator(latest).click();
   const selector = `[data-message-id=${JSON.stringify(message.id)}] .bh-tool-approval-card`;
@@ -400,7 +400,7 @@ try {
     await click(name || 'Bot mode');
   }
   await page.waitForSelector('.bh-workspace-rail');
-  await setTobMode(true);
+  await showTobDm(true);
   await page.waitForSelector(TOB_INPUT, { visible: true });
   await pause(1200);
   const home = await rpc('tobHome');
@@ -422,7 +422,7 @@ try {
       'settings',
     );
     await page.reload({ waitUntil: 'networkidle2' });
-    await setTobMode(true);
+    await showTobDm(true);
     const draft = 'QA draft kept while the default model is configured';
     await page.$eval(TOB_INPUT, (n) => n.focus());
     await page.keyboard.type(draft);
@@ -453,7 +453,7 @@ try {
       (await rpc('channelMessages', { channelId: home.channelId })).messages.length,
       sentBefore,
     );
-    steps.push('Settings default model: cancellation and save; Tob Mode draft kept, nothing sent');
+    steps.push('Settings default model: cancellation and save; Tob DM draft kept, nothing sent');
   }
   if (phase === 'composer') {
     const initialSettings = (await rpc('describe', {}, 'settings')).namespaces.find(
@@ -474,8 +474,8 @@ try {
     await page.keyboard.down('Shift');
     await input.press('Enter');
     await page.keyboard.up('Shift');
-    await setTobMode(false);
-    await setTobMode(true);
+    await showTobDm(false);
+    await showTobDm(true);
     assert.ok((await page.$eval(TOB_INPUT, (n) => n.value)).includes('QA preserved Tob draft'));
     const settings = (await rpc('describe', {}, 'settings')).namespaces.find(
       (x) => x.ns === 'botharness-client',
@@ -495,7 +495,7 @@ try {
       'Read the global Assignment limit only. This attachment is synthetic QA data.',
     );
     const file = resolve(out, 'synthetic-note.txt');
-    writeFileSync(file, 'Synthetic Tob Mode attachment verification. No private data.');
+    writeFileSync(file, 'Synthetic Tob DM attachment verification. No private data.');
     await (await page.$('[data-dock-panel="bh:channel-body"] input[type="file"]')).uploadFile(file);
     await page.waitForFunction(
       () => !document.querySelector('[data-dock-panel="bh:channel-body"] .bh-send-btn')?.disabled,
@@ -584,7 +584,7 @@ try {
     assert.ok(response, 'real model reply missing');
     await verifyCliTrace(home.botSlug, previousCalls, ['capabilities', 'settings']);
     await shot('read-reply');
-    steps.push('Tob Mode submission and actual CLI-backed reply');
+    steps.push('Tob DM submission and actual CLI-backed reply');
   }
   const previousApprovalIds = new Set(
     phase === 'accept'
@@ -681,9 +681,9 @@ try {
 
   if (phase === 'layout') {
     const layoutKey = 'botharness.bot-mode-layout';
-    const pressed = () => page.$eval(TOB_SWITCH, (n) => n.getAttribute('aria-pressed') === 'true');
+    const tobRow = `.bh-workspace-channels [data-channel-id=${JSON.stringify(home.channelId)}]`;
     const saved = () => page.evaluate((k) => JSON.parse(localStorage.getItem(k)), layoutKey);
-    await setTobMode(false);
+    await showTobDm(false);
     await pause(600);
     const current = await saved();
     assert.ok(!current.layout.panels['bh:home']);
@@ -711,7 +711,7 @@ try {
       { k: layoutKey, raw },
     );
     await page.reload({ waitUntil: 'networkidle2' });
-    await page.waitForSelector(TOB_SWITCH, { visible: true });
+    await page.waitForSelector(CHANNELS_SWITCH, { visible: true });
     await pause(800);
     assert.equal(await page.$('[data-dock-header="bh:home"]'), null);
     const migrated = await saved();
@@ -723,7 +723,10 @@ try {
     );
     assert.deepEqual(migrated.channelSplits, old.channelSplits);
     assert.deepEqual(migrated.botWorkspaces, old.botWorkspaces);
-    assert.deepEqual(migrated.order, old.order);
+    assert.deepEqual(
+      migrated.order,
+      old.order.filter((id) => id !== 'bh:home'),
+    );
     assert.ok(!migrated.hiddenControls.includes('bh:home'));
     assert.equal(
       await page.evaluate((k) => localStorage.getItem(k + '.before-tob-mode-v9'), layoutKey),
@@ -733,25 +736,34 @@ try {
       '.bh-workspace-rail [data-pinned-panel], .bh-workspace-rail [data-pinned-switch]',
       (nodes) => nodes.map((n) => n.dataset.pinnedPanel ?? n.dataset.pinnedSwitch),
     );
-    assert.equal(rail.indexOf('bh:tob-mode'), rail.indexOf('generated-files') + 1, rail.join());
+    assert.ok(!rail.includes('bh:tob-mode') && !rail.includes('bh:home'), rail.join());
     await shot('upgraded-layout');
     const mods = await page.evaluate(() =>
       navigator.platform.includes('Mac') ? ['meta', 'alt', 'shift'] : ['control', 'alt', 'shift'],
     );
-    const toggled = async (code, want) => {
-      await key(code, mods);
+    const leaveTob = async () => {
+      await showTobDm(false);
+      await page.$$eval(
+        '.bh-workspace-channels [data-channel-id]',
+        (rows, id) => rows.find((row) => row.dataset.channelId !== id)?.click(),
+        home.channelId,
+      );
       await page.waitForFunction(
-        (s, want) => document.querySelector(s)?.getAttribute('aria-pressed') === want,
+        (s) => !document.querySelector(s)?.classList.contains('bh-selected'),
         {},
-        TOB_SWITCH,
-        String(want),
+        tobRow,
       );
     };
-    await toggled('H', true);
-    await toggled('H', false);
+    const opens = async (code) => {
+      await leaveTob();
+      await key(code, mods);
+      await page.waitForSelector(`${tobRow}.bh-selected`);
+      await page.waitForSelector(TOB_INPUT, { visible: true });
+    };
+    await opens('H');
     await page.click('.bh-workspace-rail button[aria-label="Bot 设置"]');
     await click('键盘快捷键');
-    const recorder = 'button[aria-label="修改“托布模式”的快捷键"]';
+    const recorder = 'button[aria-label="修改“打开托布”的快捷键"]';
     await page.waitForSelector(recorder);
     await page.click(recorder);
     await key('J', mods);
@@ -762,15 +774,12 @@ try {
     );
     await shot('custom-shortcut');
     await key('Escape');
-    await toggled('J', true);
-    await toggled('J', false);
+    await opens('J');
     await page.reload({ waitUntil: 'networkidle2' });
-    await page.waitForSelector(TOB_SWITCH, { visible: true });
-    assert.equal(await pressed(), false);
-    await toggled('J', true);
-    await toggled('J', false);
+    await page.waitForSelector(CHANNELS_SWITCH, { visible: true });
+    await opens('J');
     steps.push(
-      'v8 layout with Home migrates to v9: Home dropped, other placements and order kept, backup written; Tob Mode switch in the Home slot; default/custom shortcut and reload',
+      'v8 layout with Home migrates to v9: Home dropped, other placements and order kept, backup written; no Tob Mode switch; the Home command default/custom shortcut opens the Tob DM, also after reload',
     );
   }
   await shot(phase);

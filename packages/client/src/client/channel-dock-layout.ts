@@ -1,4 +1,4 @@
-import { TOB_MODE_SLOT, WORKSPACE_CHANNELS, WORKSPACE_RAIL } from './workspace-context.js';
+import { HOME_SLOT, WORKSPACE_CHANNELS, WORKSPACE_RAIL } from './workspace-context.js';
 import {
   BOT_WORKSPACE_PANELS,
   parseChannelSplit,
@@ -22,6 +22,7 @@ export const CHANNEL_BODY_PANEL = 'bh:channel-body';
 export const CHANNEL_DOCK_QUERY = '(min-width: 961px)';
 export const CHANNEL_BODY_COMPONENT = 'channel-body';
 export const CHANNEL_ENTRY_COMPONENT = 'channel-entry';
+const RETIRED_RAIL_IDS: readonly string[] = [HOME_SLOT, 'bh:tob-mode'];
 export const DEFAULT_DOCK_PANELS = ['sessions'] as const;
 export { BOT_WORKSPACE_PANELS, CHANNEL_WORKSPACE_PANELS } from './channel-split-layout.js';
 export type BotWorkspaceStates = Readonly<Record<string, ChannelWorkspaceState>>;
@@ -142,10 +143,22 @@ export function readChannelDock(
           ? Math.min(16, Math.max(0, Math.round(value['gap'])))
           : DEFAULT_WORKSPACE_GAP,
       order: Array.isArray(value['order'])
-        ? [...new Set(value['order'].filter((id): id is string => typeof id === 'string'))]
+        ? [
+            ...new Set(
+              value['order'].filter(
+                (id): id is string => typeof id === 'string' && !RETIRED_RAIL_IDS.includes(id),
+              ),
+            ),
+          ]
         : [],
       hiddenControls: Array.isArray(value['hiddenControls'])
-        ? [...new Set(value['hiddenControls'].filter((id): id is string => typeof id === 'string'))]
+        ? [
+            ...new Set(
+              value['hiddenControls'].filter(
+                (id): id is string => typeof id === 'string' && !RETIRED_RAIL_IDS.includes(id),
+              ),
+            ),
+          ]
         : [],
       members: isRecord(value['members'])
         ? {
@@ -211,7 +224,6 @@ export function readChannelDock(
                 CHANNEL_BODY_PANEL,
                 'activity-center',
                 'generated-files',
-                TOB_MODE_SLOT,
               ]),
             ],
           }
@@ -223,7 +235,7 @@ export function readChannelDock(
         ordered.visibilityLayout,
         ordered.parked,
         ordered.hiddenControls,
-      ]).includes(JSON.stringify(TOB_MODE_SLOT));
+      ]).includes(JSON.stringify(HOME_SLOT));
     const migrated = home ? removeHomePanel(ordered) : ordered;
     if (
       (value['version'] !== CHANNEL_DOCK_LAYOUT_VERSION && (value['version'] !== 8 || home)) ||
@@ -601,22 +613,22 @@ function withoutPanel(layout: SerializedDockview, id: string): SerializedDockvie
 function removeHomePanel(stored: StoredChannelDock): StoredChannelDock {
   const parked = Object.fromEntries(
     Object.entries(stored.parked)
-      .filter(([id]) => id !== TOB_MODE_SLOT)
+      .filter(([id]) => id !== HOME_SLOT)
       .map(([id, position]) => [
         id,
-        position.neighbor === TOB_MODE_SLOT
+        position.neighbor === HOME_SLOT
           ? { direction: position.direction, ...(position.size ? { size: position.size } : {}) }
           : position,
       ]),
   );
   return {
     ...stored,
-    layout: withoutPanel(stored.layout, TOB_MODE_SLOT),
+    layout: withoutPanel(stored.layout, HOME_SLOT),
     ...(stored.visibilityLayout
-      ? { visibilityLayout: withoutPanel(stored.visibilityLayout, TOB_MODE_SLOT) }
+      ? { visibilityLayout: withoutPanel(stored.visibilityLayout, HOME_SLOT) }
       : {}),
     parked,
-    hiddenControls: (stored.hiddenControls ?? []).filter((id) => id !== TOB_MODE_SLOT),
+    hiddenControls: (stored.hiddenControls ?? []).filter((id) => id !== HOME_SLOT),
   };
 }
 

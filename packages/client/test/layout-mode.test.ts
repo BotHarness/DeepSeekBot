@@ -8,6 +8,7 @@ import {
   readLayoutMode,
   writeLayoutMode,
 } from '../src/client/layout-mode.js';
+import { WORKSPACE_CHANNELS } from '../src/client/workspace-context.js';
 
 function memory(entries: Record<string, string> = {}) {
   const values = new Map(Object.entries(entries));
@@ -20,10 +21,10 @@ function memory(entries: Record<string, string> = {}) {
 }
 
 describe('Layout mode preference', () => {
-  it('starts new Humans in Simple on the Messages view', () => {
+  it('starts new Humans in Simple with the Channel list in the Side column', () => {
     expect(readLayoutMode(memory())).toEqual({
       mode: 'simple',
-      view: CHANNEL_BODY_PANEL,
+      sideColumn: WORKSPACE_CHANNELS,
       channelsWidth: DEFAULT_SIMPLE_CHANNELS_WIDTH,
       column: DEFAULT_SUBPANEL_COLUMN,
     });
@@ -33,51 +34,60 @@ describe('Layout mode preference', () => {
     expect(readLayoutMode(memory({ [CHANNEL_DOCK_STORAGE_KEY]: '{}' })).mode).toBe('advanced');
   });
 
-  it('moves a saved Simple Home view to Messages, keeps the rest and backs up the original', () => {
-    const column = {
-      open: true,
-      width: 0.4,
-      expanded: ['sessions'],
-      hidden: ['schedules'],
-      heights: { sessions: 260 },
-    };
-    const raw = JSON.stringify({ mode: 'simple', view: 'bh:home', channelsWidth: 0.3, column });
+  const column = {
+    open: true,
+    width: 0.4,
+    expanded: ['sessions'],
+    hidden: ['schedules'],
+    heights: { sessions: 260 },
+  };
+  it.each([
+    [CHANNEL_BODY_PANEL, WORKSPACE_CHANNELS],
+    [WORKSPACE_CHANNELS, WORKSPACE_CHANNELS],
+    ['bh:home', WORKSPACE_CHANNELS],
+    ['activity-center', 'activity-center'],
+    ['market', 'market'],
+    ['instance:abc', 'instance:abc'],
+  ])('moves a saved Simple %s view to the Side column item %s', (view, sideColumn) => {
+    const raw = JSON.stringify({ mode: 'simple', view, channelsWidth: 0.3, column });
     const storage = memory({ [LAYOUT_MODE_STORAGE_KEY]: raw });
-    const expected = { mode: 'simple', view: CHANNEL_BODY_PANEL, channelsWidth: 0.3, column };
+    const expected = { mode: 'simple', sideColumn, channelsWidth: 0.3, column };
     expect(readLayoutMode(storage)).toEqual(expected);
-    expect(storage.values.get(`${LAYOUT_MODE_STORAGE_KEY}.before-tob-mode-v9`)).toBe(raw);
+    const backup = `${LAYOUT_MODE_STORAGE_KEY}.before-side-column-v10`;
+    expect(storage.values.get(backup)).toBe(raw);
     expect(JSON.parse(storage.values.get(LAYOUT_MODE_STORAGE_KEY)!)).toEqual(expected);
     storage.values.set(LAYOUT_MODE_STORAGE_KEY, raw.replace('0.3', '0.25'));
     readLayoutMode(storage);
-    expect(storage.values.get(`${LAYOUT_MODE_STORAGE_KEY}.before-tob-mode-v9`)).toBe(raw);
+    expect(storage.values.get(backup)).toBe(raw);
   });
 
-  it('prefers the saved choice over the saved layout', () => {
+  it('does not rewrite or back up a current record', () => {
+    const raw = JSON.stringify({ mode: 'simple', sideColumn: null, channelsWidth: 0.3, column });
+    const storage = memory({ [LAYOUT_MODE_STORAGE_KEY]: raw });
+    expect(readLayoutMode(storage).sideColumn).toBeNull();
+    expect(storage.values.get(LAYOUT_MODE_STORAGE_KEY)).toBe(raw);
+    expect(storage.values.size).toBe(1);
+  });
+
+  it('prefers the saved choice over the saved layout and round-trips a hidden Side column', () => {
     const storage = memory({ [CHANNEL_DOCK_STORAGE_KEY]: '{}' });
-    const column = {
-      open: true,
-      width: 0.4,
-      expanded: ['sessions', 'botharness-browser'],
-      hidden: ['schedules'],
-      heights: { sessions: 260 },
-    };
-    writeLayoutMode(
-      { mode: 'simple', view: 'activity-center', channelsWidth: 0.3, column },
-      storage,
-    );
-    expect(readLayoutMode(storage)).toEqual({
-      mode: 'simple',
-      view: 'activity-center',
-      channelsWidth: 0.3,
-      column,
-    });
+    const wide = { ...column, expanded: ['sessions', 'botharness-browser'] };
+    for (const sideColumn of ['activity-center', null]) {
+      writeLayoutMode({ mode: 'simple', sideColumn, channelsWidth: 0.3, column: wide }, storage);
+      expect(readLayoutMode(storage)).toEqual({
+        mode: 'simple',
+        sideColumn,
+        channelsWidth: 0.3,
+        column: wide,
+      });
+    }
   });
 
   it('falls back field by field on damaged records', () => {
     const storage = memory({
       [LAYOUT_MODE_STORAGE_KEY]: JSON.stringify({
         mode: 'grid',
-        view: '',
+        sideColumn: 7,
         channelsWidth: 4,
         column: {
           open: 'yes',
@@ -90,7 +100,7 @@ describe('Layout mode preference', () => {
     });
     expect(readLayoutMode(storage)).toEqual({
       mode: 'simple',
-      view: CHANNEL_BODY_PANEL,
+      sideColumn: WORKSPACE_CHANNELS,
       channelsWidth: DEFAULT_SIMPLE_CHANNELS_WIDTH,
       column: { ...DEFAULT_SUBPANEL_COLUMN, hidden: ['x'], heights: { c: 200 } },
     });
@@ -110,7 +120,7 @@ describe('Layout mode preference', () => {
       writeLayoutMode(
         {
           mode: 'advanced',
-          view: CHANNEL_BODY_PANEL,
+          sideColumn: WORKSPACE_CHANNELS,
           channelsWidth: 0.2,
           column: DEFAULT_SUBPANEL_COLUMN,
         },
