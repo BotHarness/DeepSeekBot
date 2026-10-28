@@ -20,6 +20,7 @@ import {
   bold,
   disabled as disabledModifier,
   font,
+  listRowBackground,
   foregroundStyle,
   monospacedDigit,
   tint,
@@ -124,8 +125,10 @@ function Hosted({ children }: { children: ReactElement }) {
 }
 
 export function FormSection({ title, footer, children }: SettingsSectionProps) {
+  const theme = useDesignTheme();
   return (
     <Section
+      modifiers={[listRowBackground(theme.layer.raised.fill)]}
       {...(title === undefined ? {} : { title })}
       {...(footer === undefined ? {} : { footer: <Text>{footer}</Text> })}
     >
@@ -155,7 +158,10 @@ export function FormRow({
   const symbol =
     icon === undefined
       ? nativeLeading(leading)
-      : { name: icon, ...(iconTone === undefined ? {} : { color: theme.color[iconTone] }) };
+      : {
+          name: icon,
+          ...(iconTone === undefined ? {} : { color: theme.color[iconTone] }),
+        };
   const fromControl =
     control === undefined ? undefined : controlTrailing(control, accessibilityLabel ?? title);
   const end = fromControl?.end ?? nativeTrailing(trailing);
@@ -189,16 +195,12 @@ export function FormRow({
   const label =
     symbol !== undefined ? (
       <Label
-        icon={
-          <Image
-            systemName={rowSymbol(symbol.name).ios}
-            modifiers={[
-              foregroundStyle(
-                symbol.color === undefined ? PRIMARY : { type: 'color', color: symbol.color },
-              ),
-            ]}
-          />
-        }
+        systemImage={rowSymbol(symbol.name).ios}
+        modifiers={[
+          foregroundStyle(
+            symbol.color === undefined ? PRIMARY : { type: 'color', color: symbol.color },
+          ),
+        ]}
       >
         {text}
       </Label>

@@ -15,7 +15,9 @@ type NativeProps = {
   onPress?(): void;
 };
 
-vi.mock('@expo/ui', () => ({ Host: ({ children }: NativeProps) => <div>{children}</div> }));
+vi.mock('@expo/ui', () => ({
+  Host: ({ children }: NativeProps) => <div>{children}</div>,
+}));
 vi.mock('@expo/ui/swift-ui/modifiers', () =>
   Object.fromEntries(
     [
@@ -27,7 +29,9 @@ vi.mock('@expo/ui/swift-ui/modifiers', () =>
       'foregroundStyle',
       'frame',
       'labelStyle',
+      'listRowBackground',
       'offset',
+      'scrollContentBackground',
       'tint',
     ].map((kind) => [kind, (value: unknown) => ({ kind, value })]),
   ),
@@ -304,7 +308,11 @@ it('marks iOS Environment rows with one native checkmark and pins the add action
         rows={[
           row('studio', { selected: true, pairing: pairing === 'studio' }),
           row('laptop', {}),
-          row('office', { added: true, disabled: true, detail: t.pairAccount.added }),
+          row('office', {
+            added: true,
+            disabled: true,
+            detail: t.pairAccount.added,
+          }),
         ]}
         selectedCount={1}
         onToggle={onToggle}

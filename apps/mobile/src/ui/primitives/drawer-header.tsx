@@ -39,6 +39,21 @@ function HeaderButton({
   );
 }
 
+export type DrawerHeaderProps = {
+  title: string;
+  subtitle?: string;
+  icon?: ReactNode;
+  headingRef?: Ref<ViewInstance>;
+  onClose?: () => void;
+  glassClose?: boolean;
+  closeLabel?: string;
+  onBack?: () => void;
+  onConfirm?: () => void;
+  confirmLabel?: string;
+  trailing?: ReactNode;
+  titleLines?: number;
+};
+
 export function DrawerHeader({
   title,
   subtitle,
@@ -51,19 +66,8 @@ export function DrawerHeader({
   onConfirm,
   confirmLabel: requestedConfirmLabel,
   trailing,
-}: {
-  title: string;
-  subtitle?: string;
-  icon?: ReactNode;
-  headingRef?: Ref<ViewInstance>;
-  onClose?: () => void;
-  glassClose?: boolean;
-  closeLabel?: string;
-  onBack?: () => void;
-  onConfirm?: () => void;
-  confirmLabel?: string;
-  trailing?: ReactNode;
-}) {
+  titleLines,
+}: DrawerHeaderProps) {
   const t = useStrings();
   const closeLabel = requestedCloseLabel ?? t.close;
   const confirmLabel = requestedConfirmLabel ?? t.done;
@@ -71,7 +75,13 @@ export function DrawerHeader({
   const slot = { width: theme.touch, minHeight: theme.touch };
   return (
     <View style={{ gap: space.x3 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.x3 }}>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'flex-start',
+          gap: space.x3,
+        }}
+      >
         <View style={slot}>
           {onBack !== undefined ? (
             <HeaderButton label={t.back} onPress={onBack}>
@@ -103,7 +113,12 @@ export function DrawerHeader({
             }}
           >
             {icon === undefined ? null : <View accessible={false}>{icon}</View>}
-            <Text variant="title" strong style={{ flexShrink: 1, textAlign: 'center' }}>
+            <Text
+              variant="title"
+              strong
+              {...(titleLines === undefined ? {} : { numberOfLines: titleLines })}
+              style={{ flexShrink: 1, textAlign: 'center' }}
+            >
               {controlCase(title)}
             </Text>
           </View>

@@ -8,7 +8,6 @@ import { SHEET_GROUP } from '../../src/ui/chat/sheet';
 import { useDesignTheme } from '../../src/ui/design/theme';
 import { space } from '../../src/ui/design/tokens';
 import { Button } from '../../src/ui/primitives/button';
-import { DrawerHeader } from '../../src/ui/primitives/drawer-header';
 import { SettingsRow, SettingsSection } from '../../src/ui/primitives/settings-row';
 import { Text } from '../../src/ui/primitives/text';
 import { PairingGuide } from '../../src/ui/shell/pairing-guide';
@@ -30,7 +29,10 @@ export default function PairChoiceScreen() {
         router.push({ pathname: '/pair/tailscale', params: { p: params.p } });
       } else if (typeof params.account === 'string') {
         forwarded.current = true;
-        router.push({ pathname: '/pair/account', params: { account: params.account } });
+        router.push({
+          pathname: '/pair/account',
+          params: { account: params.account },
+        });
       }
     }, [params.p, params.account]),
   );
@@ -40,7 +42,6 @@ export default function PairChoiceScreen() {
       style={{ flex: 1, backgroundColor: theme.overlay.fill }}
       contentContainerStyle={{ padding: space.x5, gap: space.x4 }}
     >
-      <DrawerHeader title={t.pairTitle} onClose={() => router.back()} />
       <Text tone="muted">{t.pairChoice.intro}</Text>
       <SettingsSection on={SHEET_GROUP}>
         <SettingsRow
@@ -50,7 +51,12 @@ export default function PairChoiceScreen() {
           detail={t.pairChoice.lanDetail}
           icon="qr"
           disclosure
-          onPress={() => router.push({ pathname: '/pair/tailscale', params: { mode: 'lan' } })}
+          onPress={() =>
+            router.push({
+              pathname: '/pair/tailscale',
+              params: { mode: 'lan' },
+            })
+          }
         />
         <SettingsRow
           testID="pair-choice-account"

@@ -5,15 +5,9 @@ import { useStrings } from '../../src/ui/strings';
 export default function SettingsLayout() {
   const t = useStrings();
   return (
-    <SheetStack modalGrabber>
+    <SheetStack>
       <Stack.Screen name="chat-background" options={{ title: t.chatBackground.global }} />
-      <Stack.Screen
-        name="index"
-        options={{
-          title: t.settings,
-          headerShown: false,
-        }}
-      />
+      <Stack.Screen name="index" options={{ title: t.settings }} />
       <Stack.Screen name="usage" options={{ title: t.usage }} />
       <Stack.Screen name="storage" options={{ title: t.storage.title }} />
       <Stack.Screen name="app-icon" options={{ title: t.appIcon }} />

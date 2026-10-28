@@ -25,6 +25,7 @@ import { AppDialogHost } from '../src/ui/primitives/app-dialog-host';
 import { noteTouch } from '../src/ui/primitives/touch-anchor';
 import { sheetScreenOptions } from '../src/ui/primitives/sheet-screen';
 import { profileScreenOptions } from '../src/ui/chat/profile-presentation';
+import { swipeEntryListeners, swipeEntryOptions } from '../src/ui/shell/swipe-entry';
 import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
 import { useDesignTheme } from '../src/ui/design/theme';
 import { useStrings } from '../src/ui/strings';
@@ -52,6 +53,7 @@ function RootNavigator() {
   const workspace = useWorkspaceNavigation(hostDrawer.beginWorkspaceSelection);
   const activity = useMounted(watchRequestActivity, []);
   const back = usePredictiveBack();
+  const profileListeners = swipeEntryListeners(profileScreenOptions(design).animation);
   const stack = useCallback(
     (node: ViewInstance | null) => {
       workspace(node);
@@ -92,35 +94,55 @@ function RootNavigator() {
                 <Stack.Screen
                   name="dm/[slug]"
                   dangerouslySingular={channelRouteId}
-                  options={{ title: '', fullScreenGestureEnabled: false }}
+                  options={({ route }) => ({
+                    title: '',
+                    fullScreenGestureEnabled: false,
+                    ...swipeEntryOptions(route),
+                  })}
+                  listeners={swipeEntryListeners('default')}
                 />
                 <Stack.Screen
                   name="channel/[id]"
                   dangerouslySingular={channelRouteId}
-                  options={{ title: '', fullScreenGestureEnabled: false }}
+                  options={({ route }) => ({
+                    title: '',
+                    fullScreenGestureEnabled: false,
+                    ...swipeEntryOptions(route),
+                  })}
+                  listeners={swipeEntryListeners('default')}
                 />
                 <Stack.Screen name="dm-top" options={topEntranceScreenOptions} />
                 <Stack.Screen
                   name="bot/[slug]"
-                  options={{
+                  options={({ route }) => ({
                     title: t.profile,
                     ...profileScreenOptions(design),
-                  }}
+                    ...swipeEntryOptions(route),
+                  })}
+                  listeners={profileListeners}
                 />
-                <Stack.Screen name="channel-details" options={profileScreenOptions(design)} />
+                <Stack.Screen
+                  name="channel-details"
+                  options={({ route }) => ({
+                    ...profileScreenOptions(design),
+                    ...swipeEntryOptions(route),
+                  })}
+                  listeners={profileListeners}
+                />
                 <Stack.Screen
                   name="group/[id]"
-                  options={{
+                  options={({ route }) => ({
                     title: t.groupInfo,
                     ...profileScreenOptions(design),
-                  }}
+                    ...swipeEntryOptions(route),
+                  })}
+                  listeners={profileListeners}
                 />
                 <Stack.Screen
                   name="settings"
                   options={{
                     title: t.settings,
                     ...sheetScreenOptions(design, true),
-                    ...(Platform.OS === 'ios' ? { presentation: 'modal' as const } : {}),
                   }}
                 />
                 <Stack.Screen
@@ -128,7 +150,6 @@ function RootNavigator() {
                   options={{
                     title: t.pairTitle,
                     ...sheetScreenOptions(design, true),
-                    ...(Platform.OS === 'ios' ? { presentation: 'modal' as const } : {}),
                   }}
                 />
                 <Stack.Screen
@@ -142,7 +163,6 @@ function RootNavigator() {
                   name="private-input"
                   options={{
                     ...sheetScreenOptions(design, true),
-                    headerShown: true,
                     title: t.privateInputOpen,
                   }}
                 />

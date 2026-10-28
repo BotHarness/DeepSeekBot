@@ -94,6 +94,11 @@ vi.mock('../src/host/native-conversation-filter', () => ({
 vi.mock('../src/host/native-connect-account', () => ({
   connectAccount: { email: async () => null },
 }));
+vi.mock('expo-image', () => ({ Image: () => null }));
+vi.mock('../src/account/native-account-profile', () => ({
+  accountProfile: { getSnapshot: () => ({ status: 'signed-out' }), refresh: async () => undefined },
+  useAccountProfile: () => ({ status: 'signed-out' }),
+}));
 vi.mock('../src/host/native-carrier', () => ({ nativeCarrier: () => ({}) }));
 vi.mock('../src/host/client', () => ({
   createHostClient: () => ({ call: async () => ({ items: [] }) }),

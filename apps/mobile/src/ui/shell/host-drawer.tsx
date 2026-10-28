@@ -49,7 +49,9 @@ import { hostColorInk, hostTileFill, shownHostName, type HostLook } from '../des
 import { glassShadow, pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
 import { useMounted } from '../mounted';
 import { spring } from '../design/motion';
-import { edge, motion, radius, scrim, sidebar, space } from '../design/tokens';
+import { edge, motion, radius, scrim, sidebar, space, workspaceStack } from '../design/tokens';
+import { HeaderCircleButton } from '../chat/header-chrome';
+import { HumanAvatarButton } from './human-avatar';
 import { SidebarMaterial, useLiquidGlass } from '../primitives/drawer-material';
 import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
@@ -377,6 +379,45 @@ function DrawerTile({ look, name, current }: { look: HostLook; name: string; cur
             : hostColorInk(theme.scheme, theme.color, look.color)
         }
       />
+    </View>
+  );
+}
+
+const loadAccountName = () => connectAccount.email().then((email) => email ?? undefined);
+
+function StackedHostTile({ row, first }: { row: HostDrawerRow; first: boolean }) {
+  const theme = useDesignTheme();
+  const look = useHostLook(row.hostId);
+  return (
+    <View
+      style={{
+        marginLeft: first ? 0 : -workspaceStack.overlap,
+        padding: workspaceStack.ring,
+        borderRadius: radius.md,
+        backgroundColor: theme.layer.sheet.fill,
+      }}
+    >
+      <HostTile
+        hostName={shownHostName(look, row.hostName)}
+        icon={look.icon}
+        size={workspaceStack.tile}
+        fill={hostTileFill(theme.scheme, theme.color, look.color, theme.layer.sheet.inset)}
+        ink={
+          look.color === undefined
+            ? theme.color.fg
+            : hostColorInk(theme.scheme, theme.color, look.color)
+        }
+      />
+    </View>
+  );
+}
+
+function StackedHostTiles({ rows }: { rows: readonly HostDrawerRow[] }) {
+  return (
+    <View testID="drawer-all-stack" style={{ flexDirection: 'row' }}>
+      {rows.slice(0, workspaceStack.max).map((row, index) => (
+        <StackedHostTile key={row.hostId} row={row} first={index === 0} />
+      ))}
     </View>
   );
 }
@@ -937,7 +978,7 @@ export function WorkspacePanel({
                 ref={cloudAvailable ? undefined : tabFocus}
                 testID="drawer-all"
                 accessibilityRole="button"
-                accessibilityLabel={t.allEnvironments}
+                accessibilityLabel={page ? t.allEnvironmentsRow : t.allEnvironments}
                 accessibilityState={{ selected: !cloudRoute && filter === 'all' }}
                 onPress={() => closeThen(() => hostDrawer.selectAll())}
                 android_ripple={{ color: pressTint(theme.color.fg), foreground: true }}
@@ -951,12 +992,16 @@ export function WorkspacePanel({
                   overflow: 'hidden',
                 })}
               >
-                <ChatsIcon
-                  color={theme.color.accent}
-                  size={theme.type.body.line * theme.fontScale}
-                />
+                {page && rows.length > 0 ? (
+                  <StackedHostTiles rows={rows} />
+                ) : (
+                  <ChatsIcon
+                    color={theme.color.accent}
+                    size={theme.type.body.line * theme.fontScale}
+                  />
+                )}
                 <Text strong style={{ flexShrink: 1 }}>
-                  {t.allEnvironments}
+                  {page ? t.allEnvironmentsRow : t.allEnvironments}
                 </Text>
               </Pressable>
             );
@@ -1051,11 +1096,44 @@ export function WorkspacePanel({
         ListFooterComponent={
           <>
             {status}
-            {page ? actions : null}
+            {page && tab === 'cloud' ? (
+              <FooterRow
+                label={t.workspaceAdd.manage}
+                icon={<CloudIcon color={theme.color.fg} size={icon} />}
+                onPress={() => router.push('/cloud-services')}
+              />
+            ) : null}
           </>
         }
       />
-      {page ? null : actions}
+      {page ? (
+        <View
+          testID="workspace-panel-bar"
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: space.x4,
+            paddingTop: space.x2,
+            paddingBottom: Math.max(insets.bottom, space.x4),
+          }}
+        >
+          <HumanAvatarButton
+            testID="workspace-account"
+            loadName={loadAccountName}
+            onPress={() => router.push('/settings')}
+          />
+          <HeaderCircleButton
+            testID="workspace-notifications"
+            label={t.notifications}
+            onPress={() => hostDrawer.openNotifications()}
+          >
+            <ActivityIcon color={theme.color.fg} size={theme.type.title.line} />
+          </HeaderCircleButton>
+        </View>
+      ) : (
+        actions
+      )}
     </View>
   );
 }
