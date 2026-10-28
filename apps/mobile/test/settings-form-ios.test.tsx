@@ -46,6 +46,7 @@ vi.mock('@expo/ui/swift-ui/modifiers', () =>
       'listRowInsets',
       'monospacedDigit',
       'pickerStyle',
+      'scrollContentBackground',
       'tag',
       'tint',
     ].map((kind) => [kind, (value: unknown) => ({ kind, value })]),
@@ -320,7 +321,12 @@ it('hosts React Native items and images without nesting native rows inside them'
   );
   const item = host.querySelector('[data-native="form"] > [data-native="section"]')!;
   const insets = item.querySelector('[data-insets]')!.getAttribute('data-insets');
-  expect(JSON.parse(insets!)).toEqual({ top: 0, leading: 0, bottom: 0, trailing: 0 });
+  expect(JSON.parse(insets!)).toEqual({
+    top: 0,
+    leading: 0,
+    bottom: 0,
+    trailing: 0,
+  });
   const hosted = item.querySelector('[data-native="rn-host"]')!;
   expect(hosted.textContent).toBe('Hosted');
   expect(hosted.querySelector('[data-native]')).toBeNull();

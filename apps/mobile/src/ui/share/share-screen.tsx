@@ -12,7 +12,7 @@ import { conversations, type Conversation } from '../chat/conversations';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
-import { DrawerHeader } from '../primitives/drawer-header';
+import { SheetHeader } from '../primitives/sheet-header';
 import { Text } from '../primitives/text';
 import { useMounted } from '../mounted';
 import { FileIcon } from '../shell/icons';
@@ -72,103 +72,111 @@ export default function ShareScreen() {
     else router.replace('/');
   };
   return (
-    <FlatList
-      ref={mount}
-      style={{ flex: 1, backgroundColor: theme.overlay.fill }}
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={{ paddingBottom: insets.bottom + space.x6 }}
-      data={saved && !empty ? rows : []}
-      keyExtractor={(row) => row.key}
-      ListHeaderComponent={
-        <View style={{ paddingTop: space.x5, paddingHorizontal: space.x5 }}>
-          <DrawerHeader title={t.share.title} onClose={close} />
-          <View
-            testID="share-preview"
-            style={{
-              marginVertical: space.x5,
-              padding: space.x5,
-              gap: space.x3,
-              borderRadius: radius.lg,
-              backgroundColor: theme.layer.raised.fill,
-            }}
-          >
-            {incoming.isResolving ? (
-              <LoadingIndicator />
-            ) : empty ? (
-              <Text tone="muted">{t.share.nothing}</Text>
-            ) : (
-              <>
-                {share.text !== '' && <Text numberOfLines={4}>{share.text}</Text>}
-                {share.files.length > 0 && (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ gap: space.x2 }}
-                  >
-                    {share.files.map((file) =>
-                      file.kind === 'image' ? (
-                        <Image
-                          key={file.id}
-                          source={{ uri: file.uri }}
-                          accessibilityLabel={file.name}
-                          style={{
-                            width: thumb,
-                            height: thumb,
-                            borderRadius: radius.md,
-                            backgroundColor: theme.layer.raised.inset,
-                          }}
-                        />
-                      ) : (
-                        <View
-                          key={file.id}
-                          style={{
-                            minHeight: thumb,
-                            maxWidth: thumb * 3,
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: space.x2,
-                            paddingHorizontal: space.x3,
-                            borderRadius: radius.md,
-                            backgroundColor: theme.layer.raised.inset,
-                          }}
-                        >
-                          <FileIcon color={theme.color.muted} size={theme.type.title.line} />
-                          <Text variant="meta" numberOfLines={2} style={{ flexShrink: 1 }}>
-                            {file.name}
-                          </Text>
-                        </View>
-                      ),
-                    )}
-                  </ScrollView>
-                )}
-                {share.files.length > 0 && (
-                  <Text variant="meta" tone="muted">
-                    {t.share.files(share.files.length)}
-                  </Text>
-                )}
-              </>
-            )}
+    <View style={{ flex: 1, backgroundColor: theme.overlay.fill }}>
+      <SheetHeader title={t.share.title} onClose={close} />
+      <FlatList
+        ref={mount}
+        style={{ flex: 1 }}
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={{ paddingBottom: insets.bottom + space.x6 }}
+        data={saved && !empty ? rows : []}
+        keyExtractor={(row) => row.key}
+        ListHeaderComponent={
+          <View style={{ paddingHorizontal: space.x5 }}>
+            <View
+              testID="share-preview"
+              style={{
+                marginTop: space.x3,
+                marginBottom: space.x5,
+                padding: space.x5,
+                gap: space.x3,
+                borderRadius: radius.lg,
+                backgroundColor: theme.layer.raised.fill,
+              }}
+            >
+              {incoming.isResolving ? (
+                <LoadingIndicator />
+              ) : empty ? (
+                <Text tone="muted">{t.share.nothing}</Text>
+              ) : (
+                <>
+                  {share.text !== '' && <Text numberOfLines={4}>{share.text}</Text>}
+                  {share.files.length > 0 && (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{ gap: space.x2 }}
+                    >
+                      {share.files.map((file) =>
+                        file.kind === 'image' ? (
+                          <Image
+                            key={file.id}
+                            source={{ uri: file.uri }}
+                            accessibilityLabel={file.name}
+                            style={{
+                              width: thumb,
+                              height: thumb,
+                              borderRadius: radius.md,
+                              backgroundColor: theme.layer.raised.inset,
+                            }}
+                          />
+                        ) : (
+                          <View
+                            key={file.id}
+                            style={{
+                              minHeight: thumb,
+                              maxWidth: thumb * 3,
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: space.x2,
+                              paddingHorizontal: space.x3,
+                              borderRadius: radius.md,
+                              backgroundColor: theme.layer.raised.inset,
+                            }}
+                          >
+                            <FileIcon color={theme.color.muted} size={theme.type.title.line} />
+                            <Text variant="meta" numberOfLines={2} style={{ flexShrink: 1 }}>
+                              {file.name}
+                            </Text>
+                          </View>
+                        ),
+                      )}
+                    </ScrollView>
+                  )}
+                  {share.files.length > 0 && (
+                    <Text variant="meta" tone="muted">
+                      {t.share.files(share.files.length)}
+                    </Text>
+                  )}
+                </>
+              )}
+            </View>
           </View>
-        </View>
-      }
-      ListEmptyComponent={
-        saved === null ? (
-          <View style={{ paddingHorizontal: space.x5, gap: space.x4 }}>
-            <Text tone="muted">{t.share.pairFirst}</Text>
-            <Button
-              label={t.pairTitle}
-              tone="primary"
-              testID="share-pair"
-              onPress={() => router.replace('/pair')}
-            />
-          </View>
-        ) : !empty && snapshot.roster === undefined ? (
-          <LoadingIndicator />
-        ) : undefined
-      }
-      renderItem={({ item }) => (
-        <ConversationRow row={item} now={new Date()} look={look} onPress={() => void send(item)} />
-      )}
-    />
+        }
+        ListEmptyComponent={
+          saved === null ? (
+            <View style={{ paddingHorizontal: space.x5, gap: space.x4 }}>
+              <Text tone="muted">{t.share.pairFirst}</Text>
+              <Button
+                label={t.pairTitle}
+                tone="primary"
+                testID="share-pair"
+                onPress={() => router.replace('/pair')}
+              />
+            </View>
+          ) : !empty && snapshot.roster === undefined ? (
+            <LoadingIndicator />
+          ) : undefined
+        }
+        renderItem={({ item }) => (
+          <ConversationRow
+            row={item}
+            now={new Date()}
+            look={look}
+            onPress={() => void send(item)}
+          />
+        )}
+      />
+    </View>
   );
 }

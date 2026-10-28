@@ -23,7 +23,7 @@ import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import type { LayerName } from '../design/layers';
 import { confirmDestructive } from '../primitives/app-dialog';
-import { DrawerHeader } from '../primitives/drawer-header';
+import { SheetHeader } from '../primitives/sheet-header';
 import { SheetSaveButton } from '../primitives/sheet-save-button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { Segmented } from '../primitives/segmented';
@@ -247,21 +247,19 @@ export function HostLookEditor({
 
   return (
     <View ref={mounted} style={{ flex: 1 }}>
-      <View style={{ paddingHorizontal: space.x5, paddingTop: space.x3 }}>
-        <DrawerHeader
-          title={t.hostLook}
-          onBack={actions.onClose}
-          trailing={
-            <SheetSaveButton
-              label={t.hostLookSave}
-              testID="host-look-save"
-              busy={busy}
-              disabled={false}
-              onPress={() => void save()}
-            />
-          }
-        />
-      </View>
+      <SheetHeader
+        title={t.hostLook}
+        onBack={actions.onClose}
+        trailing={
+          <SheetSaveButton
+            label={t.hostLookSave}
+            testID="host-look-save"
+            busy={busy}
+            disabled={false}
+            onPress={() => void save()}
+          />
+        }
+      />
       <KeyboardFormScroll
         pointerEvents={busy ? 'none' : 'auto'}
         nestedScrollEnabled

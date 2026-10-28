@@ -7,7 +7,7 @@ import { useHostSession, useHostSnapshot } from '../src/host/host-session';
 import { nativeCarrier } from '../src/host/native-carrier';
 import { isConnectRoute, isLanRoute } from '../src/host/route';
 import { space } from '../src/ui/design/tokens';
-import { DrawerHeader } from '../src/ui/primitives/drawer-header';
+import { SheetHeader } from '../src/ui/primitives/sheet-header';
 import { SettingsRow, SettingsSection } from '../src/ui/primitives/settings-row';
 import { SheetScreen } from '../src/ui/primitives/sheet-screen';
 import { Text } from '../src/ui/primitives/text';
@@ -39,7 +39,7 @@ export default function HostConnectionScreen() {
     snapshot.routes ?? host?.routes.map((url) => ({ url, status: 'unchecked' as const })) ?? [];
   return (
     <SheetScreen>
-      <DrawerHeader
+      <SheetHeader
         title={copy.title}
         {...(host ? { subtitle: host.hostName } : {})}
         onClose={() => router.back()}

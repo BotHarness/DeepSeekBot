@@ -120,7 +120,6 @@ function RootNavigator() {
                   options={{
                     title: t.settings,
                     ...sheetScreenOptions(design, true),
-                    ...(Platform.OS === 'ios' ? { presentation: 'modal' as const } : {}),
                   }}
                 />
                 <Stack.Screen
@@ -128,7 +127,6 @@ function RootNavigator() {
                   options={{
                     title: t.pairTitle,
                     ...sheetScreenOptions(design, true),
-                    ...(Platform.OS === 'ios' ? { presentation: 'modal' as const } : {}),
                   }}
                 />
                 <Stack.Screen
@@ -142,7 +140,6 @@ function RootNavigator() {
                   name="private-input"
                   options={{
                     ...sheetScreenOptions(design, true),
-                    headerShown: true,
                     title: t.privateInputOpen,
                   }}
                 />

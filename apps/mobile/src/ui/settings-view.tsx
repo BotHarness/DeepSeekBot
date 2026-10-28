@@ -2,9 +2,6 @@ import { useState, type ReactNode } from 'react';
 
 import type { OverviewUsage } from '../host/usage';
 import { SHEET_GROUP } from './chat/sheet';
-import { space } from './design/tokens';
-import { View } from 'react-native';
-import { DrawerHeader } from './primitives/drawer-header';
 import { SettingsForm, SettingsFormItem } from './primitives/settings-form';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { UsageCard } from './shell/usage-card';
@@ -44,13 +41,7 @@ export function SettingsView({
   const t = useStrings();
   const [versionCopied, setVersionCopied] = useState(false);
   return (
-    <SettingsForm
-      header={
-        <View style={{ paddingHorizontal: space.x5, paddingTop: space.x5 }}>
-          <DrawerHeader title={t.settings} />
-        </View>
-      }
-    >
+    <SettingsForm>
       <SettingsFormItem>
         <UsageCard load={loadUsage} on={SHEET_GROUP} onOpen={actions.onUsage} />
       </SettingsFormItem>
