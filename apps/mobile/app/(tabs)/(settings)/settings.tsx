@@ -17,11 +17,13 @@ import { SettingsRow } from '../../../src/ui/primitives/settings-row';
 import { useStrings } from '../../../src/ui/strings';
 import { SettingsView } from '../../../src/ui/settings-view';
 import { AccountProfileRow } from '../../../src/ui/shell/account-profile-row';
+import { useChromeScroll } from '../../../src/ui/shell/scroll-chrome';
 
 export default function SettingsScreen() {
   const t = useStrings();
   const router = useRouter();
   const { saved, client } = useHostSession();
+  useChromeScroll(true, true);
   useFocusEffect(
     useCallback(() => {
       void accountProfile.refresh();
