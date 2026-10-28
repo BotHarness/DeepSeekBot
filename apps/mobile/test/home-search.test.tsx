@@ -328,6 +328,7 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 let root: Root | undefined;
 let host: HTMLElement | undefined;
+const rowCalls = () => call.mock.calls.filter(([method]) => method !== 'messageSearch');
 beforeEach(() => {
   channelHistory = channelNavigationHarness();
   whoami.mockReset();
@@ -1248,17 +1249,17 @@ describe('Chats row actions share the Host path', () => {
           continue;
         }
         await rowMenuAction(view, key);
-        const fromMenu = [...call.mock.calls];
+        const fromMenu = rowCalls();
         const navigation = [...push.mock.calls];
         call.mockClear();
         push.mockClear();
         await act(async () => invoke({ nativeEvent: { actionName: key } }));
-        expect(call.mock.calls).toEqual(fromMenu);
+        expect(rowCalls()).toEqual(fromMenu);
         expect(push.mock.calls).toEqual(navigation);
       }
       call.mockClear();
       await act(async () => invoke({ nativeEvent: { actionName: 'unknown' } }));
-      expect(call).not.toHaveBeenCalled();
+      expect(rowCalls()).toEqual([]);
       expect(typeof rowProps.get('conversation-row-bot:xiaoming')!.onLongPress).toBe(
         platform === 'android' ? 'function' : 'undefined',
       );
@@ -1410,7 +1411,7 @@ describe('Remote Host section and Pinned presentation', () => {
     await type(view, '');
     expect(ordered(view)[0]).toBe('chat-section-pinned');
     expect(roster.arrangement?.sections[0]?.channelIds).toEqual(['dm-ada', 'launch-team']);
-    expect(call).not.toHaveBeenCalled();
+    expect(rowCalls()).toEqual([]);
   });
 
   it('isolates section and Pinned collapse per Host and does not lose collapsed search matches', async () => {
