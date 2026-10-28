@@ -9,11 +9,11 @@
 
 ## How to get to it (user POV)
 
-In desktop Bot mode, right-click the Messages or Home Header → Appearance settings. The modal names the Panel and current light/dark mode. Adjust color, opacity and blur; use each Follow global button to remove just that override. Reset this panel removes only the current target and mode. Ordinary Header close/drag and content context menus retain their own actions. Nested Memory, Sessions, Browser and Computer Headers use the same menu. Memory file preview, commit detail and working changes share the Memory details target; child fields inherit global settings directly.
+In desktop Bot mode, right-click the Messages or Activity Center Header → Appearance settings. The modal names the Panel and current light/dark mode. Adjust color, opacity and blur; use each Follow global button to remove just that override. Reset this panel removes only the current target and mode. Ordinary Header close/drag and content context menus retain their own actions. Nested Memory, Sessions, Browser and Computer Headers use the same menu. Memory file preview, commit detail and working changes share the Memory details target; child fields inherit global settings directly.
 
 ## Driving it with verify-app
 
-Build, launch and doctor an isolated Host. Run `BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json node scripts/e2e-panel-appearance.mjs`. It drives real Messages and Home Headers, edits through UI/CLI, verifies composed styles, per-property inheritance, independent modes, close/reopen, reload and target reset. `--baseline` captures the T2 entry point without the new menu action. Review screenshots and saved canonical state; the test uses no model call.
+Build, launch and doctor an isolated Host. Run `BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json node scripts/e2e-panel-appearance.mjs`. It drives real Messages and Activity Center Headers, edits through UI/CLI, verifies composed styles, per-property inheritance, independent modes, close/reopen, reload and target reset. `--baseline` captures the T2 entry point without the new menu action. Review screenshots and saved canonical state; the test uses no model call.
 
 For task-owned macOS, follow [local appearance](local-appearance.md), open both functional Header menus, edit and read values through the targeted CLI, flush storage, restart the same application directory and compare the complete local appearance document.
 

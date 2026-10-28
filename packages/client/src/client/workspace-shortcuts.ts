@@ -1,12 +1,17 @@
 import { defaultStorage } from './roster-config.js';
-import type { Shortcuts, ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client';
+import type {
+  Shortcuts,
+  ShortcutCommand,
+  ShortcutCommandId,
+} from '@deepseek-ai/dsh-client-shortcuts/client';
 import type { DockPanelRegistry } from './dock-panels.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
-import { WORKSPACE_CHANNELS, WORKSPACE_HOME } from './workspace-context.js';
+import type { TobModeControl } from './tob-mode.js';
+import { TOB_MODE_SLOT, WORKSPACE_CHANNELS } from './workspace-context.js';
 
 const DEFAULT_KEYS: Readonly<Record<string, string>> = {
-  [WORKSPACE_HOME]: 'KeyH',
+  [TOB_MODE_SLOT]: 'KeyH',
   [WORKSPACE_CHANNELS]: 'Digit1',
   [CHANNEL_BODY_PANEL]: 'Digit2',
   'activity-center': 'Digit3',
@@ -23,18 +28,46 @@ const DEFAULT_KEYS: Readonly<Record<string, string>> = {
 export const workspaceShortcutId = (id: string): ShortcutCommandId =>
   `botharness.panel.p${Array.from(id, (char) => char.codePointAt(0)!.toString(16)).join('-')}` as ShortcutCommandId;
 
+function defaultBindings(id: string): ShortcutCommand['defaults'] {
+  const code = DEFAULT_KEYS[id];
+  if (!code) return {};
+  const binding = { code, modifiers: ['primary', 'alt', 'shift'] as const };
+  return {
+    'desktop:macos': binding,
+    'desktop:windows': binding,
+    'desktop:linux': id === TOB_MODE_SLOT ? { ...binding, code: 'KeyO' } : binding,
+    'web:macos': binding,
+    'web:windows': binding,
+  };
+}
+
 export function registerWorkspaceShortcuts(
   shortcuts: Pick<Shortcuts, 'register'>,
   registry: DockPanelRegistry,
   active: () => boolean,
   t: BotHarnessTranslate,
+  tobMode?: TobModeControl,
 ): () => void {
   const registered = new Map<string, () => void>();
+  const disposeTob = tobMode
+    ? shortcuts.register({
+        id: workspaceShortcutId(TOB_MODE_SLOT),
+        label: () => t('workspace.tobMode', { name: t('tob.defaultName') }),
+        aliases: ['Bot mode', 'Tob mode', TOB_MODE_SLOT],
+        defaults: defaultBindings(TOB_MODE_SLOT),
+        regions: ['page', 'editable'],
+        modals: [],
+        resolve: (context) =>
+          active() && tobMode.available() && !context.modal
+            ? { status: 'handled', run: () => tobMode.toggle() }
+            : { status: 'pass' },
+      })
+    : undefined;
   const sync = () => {
     const labels = new Map(
       registry
         .panels()
-        .filter((panel) => panel.id !== 'members')
+        .filter((panel) => panel.id !== 'members' && panel.id !== TOB_MODE_SLOT)
         .map((panel) => [panel.id, panel.title]),
     );
     labels.set(WORKSPACE_CHANNELS, t('workspace.channels'));
@@ -46,8 +79,6 @@ export function registerWorkspaceShortcuts(
       }
     for (const [id, title] of labels) {
       if (registered.has(id)) continue;
-      const code = DEFAULT_KEYS[id];
-      const binding = code ? { code, modifiers: ['primary', 'alt', 'shift'] as const } : undefined;
       registered.set(
         id,
         shortcuts.register({
@@ -62,15 +93,7 @@ export function registerWorkspaceShortcuts(
                     : (registry.panels().find((panel) => panel.id === id)?.title ?? title),
             }),
           aliases: ['Bot mode', 'panel', id],
-          defaults: binding
-            ? {
-                'desktop:macos': binding,
-                'desktop:windows': binding,
-                'desktop:linux': id === WORKSPACE_HOME ? { ...binding, code: 'KeyO' } : binding,
-                'web:macos': binding,
-                'web:windows': binding,
-              }
-            : {},
+          defaults: defaultBindings(id),
           regions: ['page', 'editable'],
           modals: [],
           resolve: (context) =>
@@ -85,6 +108,7 @@ export function registerWorkspaceShortcuts(
   const unsubscribe = registry.subscribe(sync);
   return () => {
     unsubscribe();
+    disposeTob?.();
     for (const dispose of registered.values()) dispose();
   };
 }

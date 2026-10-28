@@ -47,3 +47,41 @@ export function writeTobMode(
     return false;
   }
 }
+
+export interface TobModeOwner {
+  active(): boolean;
+  setActive(active: boolean): void;
+}
+
+export interface TobModeControl {
+  attach(owner: TobModeOwner): () => void;
+  available(): boolean;
+  toggle(): void;
+  onEnter(listener: () => void): () => void;
+}
+
+export function createTobModeControl(): TobModeControl {
+  let owner: TobModeOwner | undefined;
+  const listeners = new Set<() => void>();
+  return {
+    attach(next) {
+      owner = next;
+      return () => {
+        if (owner === next) owner = undefined;
+      };
+    },
+    available: () => owner !== undefined,
+    toggle() {
+      if (!owner) return;
+      const entering = !owner.active();
+      owner.setActive(entering);
+      if (entering && owner.active()) for (const listener of [...listeners]) listener();
+    },
+    onEnter(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+}

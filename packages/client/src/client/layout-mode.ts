@@ -3,6 +3,7 @@ import {
   CHANNEL_DOCK_STORAGE_KEY,
   type ChannelDockStorage,
 } from './channel-dock-layout.js';
+import { TOB_MODE_SLOT } from './workspace-context.js';
 
 export const LAYOUT_MODE_STORAGE_KEY = 'botharness.bot-mode-layout-mode';
 export const DEFAULT_SIMPLE_CHANNELS_WIDTH = 0.22;
@@ -95,15 +96,23 @@ export function readLayoutMode(
       value = parsed as Record<string, unknown>;
   } catch {}
   const mode = value['mode'];
-  return {
+  const home = value['view'] === TOB_MODE_SLOT;
+  const layout: SimpleLayout = {
     mode: mode === 'simple' || mode === 'advanced' ? mode : advanced ? 'advanced' : 'simple',
     view:
-      typeof value['view'] === 'string' && value['view'].length > 0
+      typeof value['view'] === 'string' && value['view'].length > 0 && !home
         ? value['view']
         : CHANNEL_BODY_PANEL,
     channelsWidth: fraction(value['channelsWidth']) ?? DEFAULT_SIMPLE_CHANNELS_WIDTH,
     column: readColumn(value['column']),
   };
+  if (home && raw)
+    try {
+      const backup = `${LAYOUT_MODE_STORAGE_KEY}.before-tob-mode-v9`;
+      if (storage?.getItem(backup) == null) storage?.setItem(backup, raw);
+      storage?.setItem(LAYOUT_MODE_STORAGE_KEY, JSON.stringify({ ...value, view: layout.view }));
+    } catch {}
+  return layout;
 }
 
 export function writeLayoutMode(

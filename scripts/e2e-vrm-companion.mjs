@@ -131,8 +131,6 @@ try {
           ?.click(),
       );
     await page.waitForSelector('[data-dock-header="bh:channel-body"]');
-    const homeClose = (await visible(aria('关闭 首页'))) ?? (await visible(aria('Close Home')));
-    if (homeClose) await homeClose.click();
     if (!(await visible('[data-vrm-bot="' + ada.slug + '"]')))
       await click('button[aria-label="VRM Companion"]');
     await loaded('[data-vrm-loaded="true"]');

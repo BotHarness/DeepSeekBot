@@ -3,8 +3,9 @@ import { DeviceRequestsNotice } from './device-requests-notice.js';
 import { activityIndicator } from './activity-indicator.js';
 import { useActivityIndicatorMenu } from './activity-indicator-menu.js';
 import { onboardingFor } from './onboarding.js';
-import { HomePanel } from './home-panel.js';
-import { WORKSPACE_HOME } from './workspace-context.js';
+import { receiveTobMessages } from './tob-requests.js';
+import type { TobModeControl } from './tob-mode.js';
+import { TOB_MODE_SLOT } from './workspace-context.js';
 import { BOT_ONLY_CHANNEL_PANELS } from './dock-panels.js';
 import { resolveChannelSidebarContext } from './channel-sidebar.js';
 import { usePanelMenu, PanelVisibilityLabel } from './panel-menu.js';
@@ -48,6 +49,7 @@ export type WorkspaceOptions = Omit<
   layout: WorkspaceLayoutCommand;
   prefs: BotModePrefs;
   shortcuts: Shortcuts;
+  tobMode?: TobModeControl | undefined;
   registerLayoutSettings(setTarget: (node: HTMLDivElement | null) => void): () => void;
 };
 
@@ -121,40 +123,29 @@ export function Workspace({
         order: 0,
         component: () => null,
       });
-      const unregisterHome = registry.register({
-        id: WORKSPACE_HOME,
-        title: t('workspace.home'),
-        icon: 'house',
-        scope: 'global',
-        order: 1000,
-        defaultPosition: { zone: 'right' },
-        onTitleHide: () =>
-          void onboardingFor(options.actions).finishFromHomeTitle(() =>
-            registry.open(CHANNEL_BODY_PANEL),
-          ),
-        component: function HomeEntry() {
-          const sendKey = useSyncExternalStore(
-            options.prefs.source.subscribe,
-            () => options.prefs.source.getSnapshot().sendKey,
-          );
-          return (
-            <HomePanel
-              actions={options.actions}
-              registry={registry}
-              t={t}
-              sendKey={sendKey}
-              onEditHumanName={() => options.openBotSettings('messaging')}
-            />
-          );
-        },
-      });
-      const detachGuide = onboardingFor(options.actions).attachHome(() =>
-        registry.open(WORKSPACE_HOME),
+      const onboarding = onboardingFor(options.actions);
+      const openTob = async () => {
+        registry.open(CHANNEL_BODY_PANEL);
+        const tob = await options.actions.tobHome();
+        await options.actions.openChannel(tob.channelId);
+        return tob;
+      };
+      const detachGuide = onboarding.attachTobConversation(() => void openTob().catch(() => {}));
+      const stopEnter = options.tobMode?.onEnter(() => void onboarding.finishFromTobMode());
+      const stopRequests = receiveTobMessages(
+        (body) =>
+          void openTob()
+            .then(async (tob) => {
+              if (await onboarding.prepareSend(tob.channelId, tob.botSlug, body))
+                await options.actions.sendHome(tob.channelId, body, 'human-' + crypto.randomUUID());
+            })
+            .catch(() => {}),
       );
       setEnabled(true);
       return () => {
+        stopRequests();
+        stopEnter?.();
         detachGuide();
-        unregisterHome();
         unregisterMessages();
         unregister();
         release();
@@ -173,6 +164,7 @@ export function Workspace({
                 tob: {
                   channel: async () => (await options.actions.tobHome()).channelId,
                   openChannel: (channelId) => options.actions.openChannel(channelId),
+                  control: options.tobMode,
                 },
                 rail: (
                   api,
@@ -353,22 +345,21 @@ function WorkspaceRail({
               extra={
                 tobMode && {
                   id: 'bh:tob-mode',
-                  after: WORKSPACE_HOME,
+                  slot: TOB_MODE_SLOT,
                   icon: 'bot',
                   label: t('workspace.tobMode', { name: tobName }),
+                  keys: shortcuts.find((row) => row.id === workspaceShortcutId(TOB_MODE_SLOT))
+                    ?.keys,
                   pressed: tobMode.active,
-                  onClick: () => tobMode.setActive(!tobMode.active),
+                  onClick: () =>
+                    options.tobMode?.available()
+                      ? options.tobMode.toggle()
+                      : tobMode.setActive(!tobMode.active),
                 }
               }
               menuTrigger={(id) =>
                 id === 'activity-center' ? indicatorMenu.triggerProps : undefined
               }
-              onActivate={(id) => {
-                if (simple && id === CHANNEL_BODY_PANEL)
-                  void onboardingFor(options.actions).finishFromRail(() =>
-                    options.dockPanels?.open(CHANNEL_BODY_PANEL),
-                  );
-              }}
               badge={(id) =>
                 id === 'activity-center'
                   ? {

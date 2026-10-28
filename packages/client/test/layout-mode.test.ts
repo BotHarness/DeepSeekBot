@@ -33,6 +33,25 @@ describe('Layout mode preference', () => {
     expect(readLayoutMode(memory({ [CHANNEL_DOCK_STORAGE_KEY]: '{}' })).mode).toBe('advanced');
   });
 
+  it('moves a saved Simple Home view to Messages, keeps the rest and backs up the original', () => {
+    const column = {
+      open: true,
+      width: 0.4,
+      expanded: ['sessions'],
+      hidden: ['schedules'],
+      heights: { sessions: 260 },
+    };
+    const raw = JSON.stringify({ mode: 'simple', view: 'bh:home', channelsWidth: 0.3, column });
+    const storage = memory({ [LAYOUT_MODE_STORAGE_KEY]: raw });
+    const expected = { mode: 'simple', view: CHANNEL_BODY_PANEL, channelsWidth: 0.3, column };
+    expect(readLayoutMode(storage)).toEqual(expected);
+    expect(storage.values.get(`${LAYOUT_MODE_STORAGE_KEY}.before-tob-mode-v9`)).toBe(raw);
+    expect(JSON.parse(storage.values.get(LAYOUT_MODE_STORAGE_KEY)!)).toEqual(expected);
+    storage.values.set(LAYOUT_MODE_STORAGE_KEY, raw.replace('0.3', '0.25'));
+    readLayoutMode(storage);
+    expect(storage.values.get(`${LAYOUT_MODE_STORAGE_KEY}.before-tob-mode-v9`)).toBe(raw);
+  });
+
   it('prefers the saved choice over the saved layout', () => {
     const storage = memory({ [CHANNEL_DOCK_STORAGE_KEY]: '{}' });
     const column = {
@@ -42,10 +61,13 @@ describe('Layout mode preference', () => {
       hidden: ['schedules'],
       heights: { sessions: 260 },
     };
-    writeLayoutMode({ mode: 'simple', view: 'bh:home', channelsWidth: 0.3, column }, storage);
+    writeLayoutMode(
+      { mode: 'simple', view: 'activity-center', channelsWidth: 0.3, column },
+      storage,
+    );
     expect(readLayoutMode(storage)).toEqual({
       mode: 'simple',
-      view: 'bh:home',
+      view: 'activity-center',
       channelsWidth: 0.3,
       column,
     });

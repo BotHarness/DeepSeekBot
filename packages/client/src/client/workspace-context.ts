@@ -1,8 +1,9 @@
 import type { Shortcuts } from '@deepseek-ai/dsh-client-shortcuts/client';
 import { createContext, type ReactNode } from 'react';
 import type { DockviewApi } from 'dockview-react';
+import type { TobModeControl } from './tob-mode.js';
 
-export const WORKSPACE_HOME = 'bh:home';
+export const TOB_MODE_SLOT = 'bh:home';
 export const WORKSPACE_RAIL = 'bh:workspace-rail';
 export const WORKSPACE_CHANNELS = 'bh:channels';
 export const WorkspaceContext = createContext<
@@ -12,6 +13,7 @@ export const WorkspaceContext = createContext<
         | {
             channel(): Promise<string>;
             openChannel(channelId: string): Promise<void> | void;
+            control?: TobModeControl | undefined;
           }
         | undefined;
       rail(

@@ -1,4 +1,4 @@
-import { WORKSPACE_CHANNELS, WORKSPACE_HOME, WORKSPACE_RAIL } from './workspace-context.js';
+import { TOB_MODE_SLOT, WORKSPACE_CHANNELS, WORKSPACE_RAIL } from './workspace-context.js';
 import {
   BOT_WORKSPACE_PANELS,
   parseChannelSplit,
@@ -15,7 +15,8 @@ import { ACTIVITY_CENTER_PANEL } from './dock-panels.js';
 import type { DockPanelPosition, DockPanelInstance } from './dock-panels.js';
 
 export const CHANNEL_DOCK_STORAGE_KEY = 'botharness.bot-mode-layout';
-export const CHANNEL_DOCK_LAYOUT_VERSION = 8;
+export const CHANNEL_DOCK_LAYOUT_VERSION = 9;
+const READABLE_VERSIONS = [1, 2, 3, 4, 5, 6, 7, 8, CHANNEL_DOCK_LAYOUT_VERSION];
 export const DEFAULT_WORKSPACE_GAP = 4;
 export const CHANNEL_BODY_PANEL = 'bh:channel-body';
 export const CHANNEL_DOCK_QUERY = '(min-width: 961px)';
@@ -116,10 +117,7 @@ export function readChannelDock(
     const raw = storage?.getItem(CHANNEL_DOCK_STORAGE_KEY);
     if (raw === null || raw === undefined) return undefined;
     const value: unknown = JSON.parse(raw);
-    if (
-      !isRecord(value) ||
-      ![1, 2, 3, 4, 5, 6, 7, CHANNEL_DOCK_LAYOUT_VERSION].includes(value['version'] as number)
-    )
+    if (!isRecord(value) || !READABLE_VERSIONS.includes(value['version'] as number))
       return undefined;
     if (!isLayout(value['layout'])) return undefined;
     const parked = isRecord(value['parked'])
@@ -202,7 +200,7 @@ export function readChannelDock(
     const sessions =
       Number(value['version']) < 4 ? migrateSessionsWorkspace(normalized) : normalized;
     const children = Number(value['version']) >= 6 ? sessions : migrateBotWorkspaces(sessions);
-    const migrated =
+    const ordered =
       Number(value['version']) < 8
         ? {
             ...children,
@@ -213,14 +211,31 @@ export function readChannelDock(
                 CHANNEL_BODY_PANEL,
                 'activity-center',
                 'generated-files',
-                WORKSPACE_HOME,
+                TOB_MODE_SLOT,
               ]),
             ],
           }
         : children;
-    if (value['version'] !== CHANNEL_DOCK_LAYOUT_VERSION || fallback) {
+    const home =
+      Number(value['version']) < 9 &&
+      JSON.stringify([
+        ordered.layout,
+        ordered.visibilityLayout,
+        ordered.parked,
+        ordered.hiddenControls,
+      ]).includes(JSON.stringify(TOB_MODE_SLOT));
+    const migrated = home ? removeHomePanel(ordered) : ordered;
+    if (
+      (value['version'] !== CHANNEL_DOCK_LAYOUT_VERSION && (value['version'] !== 8 || home)) ||
+      fallback
+    ) {
       try {
-        const backups = fallback ? ['before-workspace-shell'] : ['before-home-v8'];
+        const backups = fallback
+          ? ['before-workspace-shell']
+          : Number(value['version']) < 8
+            ? ['before-home-v8']
+            : [];
+        if (Number(value['version']) < 9) backups.push('before-tob-mode-v9');
         if (Number(value['version']) < 7) backups.push('before-channel-splits-v7');
         if (Number(value['version']) < 6) backups.push('before-bot-workspace-v6');
         if (Number(value['version']) < 5) backups.push('before-bot-workspace-v5');
@@ -279,12 +294,16 @@ export function writeChannelDock(
         !isRecord(previous) ||
         !isLayout(previous['layout']) ||
         typeof previous['version'] !== 'number' ||
-        ![1, 2, 3, 4, 5, 6, 7, CHANNEL_DOCK_LAYOUT_VERSION].includes(previous['version'])
+        !READABLE_VERSIONS.includes(previous['version'])
       ) {
         return false;
       }
-      if (previous['version'] !== CHANNEL_DOCK_LAYOUT_VERSION) {
-        const backupKey = `${CHANNEL_DOCK_STORAGE_KEY}.before-home-v8`;
+      const backups = [
+        ...(previous['version'] < 8 ? ['before-home-v8'] : []),
+        ...(previous['version'] < 9 ? ['before-tob-mode-v9'] : []),
+      ];
+      for (const suffix of backups) {
+        const backupKey = `${CHANNEL_DOCK_STORAGE_KEY}.${suffix}`;
         if (storage?.getItem(backupKey) == null) storage?.setItem(backupKey, raw);
       }
     }
@@ -523,6 +542,82 @@ export function resolveDefaultPosition(
 export function allowsDockDrop(kind: string, position: string): boolean {
   if (kind === 'tab' || kind === 'header_space') return false;
   return position !== 'center';
+}
+
+function withoutPanel(layout: SerializedDockview, id: string): SerializedDockview {
+  const leaf = <T extends { views: string[]; activeView?: string }>(data: T): T | undefined => {
+    if (!data.views.includes(id)) return data;
+    const views = data.views.filter((view) => view !== id);
+    if (views.length === 0) return undefined;
+    return {
+      ...data,
+      views,
+      activeView:
+        data.activeView !== undefined && views.includes(data.activeView)
+          ? data.activeView
+          : views[0]!,
+    };
+  };
+  const walk = (node: GridNode): GridNode | undefined => {
+    if (node.type === 'leaf') {
+      const data = leaf(node.data as { views: string[]; activeView?: string; id: string });
+      return data ? { ...node, data } : undefined;
+    }
+    const children = (node.data as GridNode[]).flatMap((child) => {
+      const next = walk(child);
+      return next ? [next] : [];
+    });
+    return children.length ? { ...node, data: children } : undefined;
+  };
+  const root = walk(layout.grid.root as GridNode) ?? {
+    ...layout.grid.root,
+    type: 'branch' as const,
+    data: [],
+  };
+  const groups = new Set(collectGroups(root));
+  const panels = Object.fromEntries(Object.entries(layout.panels).filter(([key]) => key !== id));
+  const { activeGroup, floatingGroups, popoutGroups, ...rest } = layout;
+  const detached = <T extends { data?: { views: string[]; activeView?: string; id: string } }>(
+    items: readonly T[] | undefined,
+  ): T[] =>
+    (items ?? []).flatMap((item) => {
+      if (!item.data) return [item];
+      const data = leaf(item.data);
+      if (data) groups.add(data.id);
+      return data ? [{ ...item, data } as T] : [];
+    });
+  const floating = detached(floatingGroups);
+  const popout = detached(popoutGroups);
+  return {
+    ...rest,
+    panels,
+    grid: { ...layout.grid, root },
+    ...(floatingGroups ? { floatingGroups: floating } : {}),
+    ...(popoutGroups ? { popoutGroups: popout } : {}),
+    ...(activeGroup && groups.has(activeGroup) ? { activeGroup } : {}),
+  };
+}
+
+function removeHomePanel(stored: StoredChannelDock): StoredChannelDock {
+  const parked = Object.fromEntries(
+    Object.entries(stored.parked)
+      .filter(([id]) => id !== TOB_MODE_SLOT)
+      .map(([id, position]) => [
+        id,
+        position.neighbor === TOB_MODE_SLOT
+          ? { direction: position.direction, ...(position.size ? { size: position.size } : {}) }
+          : position,
+      ]),
+  );
+  return {
+    ...stored,
+    layout: withoutPanel(stored.layout, TOB_MODE_SLOT),
+    ...(stored.visibilityLayout
+      ? { visibilityLayout: withoutPanel(stored.visibilityLayout, TOB_MODE_SLOT) }
+      : {}),
+    parked,
+    hiddenControls: (stored.hiddenControls ?? []).filter((id) => id !== TOB_MODE_SLOT),
+  };
 }
 
 export function migrateWorkPanel(stored: StoredChannelDock): StoredChannelDock {

@@ -126,7 +126,7 @@ try {
     await screenshot('before-panels');
   } else {
     await select('Colors', 'Forest Green');
-    const cardBefore = await page.$eval('[data-home-overview] > section', (n) => ({
+    const cardBefore = await page.$eval('.bh-workspace-channels', (n) => ({
       background: getComputedStyle(n).backgroundColor,
       opacity: getComputedStyle(n).opacity,
     }));
@@ -154,7 +154,7 @@ try {
     await screenshot('after-light-panels');
     const light = await read();
     assert.deepEqual(
-      await page.$eval('[data-home-overview] > section', (n) => ({
+      await page.$eval('.bh-workspace-channels', (n) => ({
         background: getComputedStyle(n).backgroundColor,
         opacity: getComputedStyle(n).opacity,
       })),
