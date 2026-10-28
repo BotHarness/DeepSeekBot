@@ -11,6 +11,7 @@ import { SettingsRow, SettingsSection, SettingsValue } from './ds/settings-row.j
 import { color, radius, size, space, text } from './ds/tokens.stylex.js';
 import type { ConnectSignInCode } from './connect-sign-in.js';
 import { GroupAvatarCropModal } from './group-avatar-crop.js';
+import { marketplaceError } from './marketplace.js';
 import { useMountedResource } from './mounted-resource.js';
 
 export const ACCOUNT_NAME_MAX = 40;
@@ -55,7 +56,7 @@ export function defaultAccountName(email: string | undefined): string {
 
 type State =
   | { status: 'loading' }
-  | { status: 'error' }
+  | { status: 'error'; message: string }
   | { status: 'ready'; account: MarketplaceAccount };
 
 export type AccountProfileSettingsProps = PropsLocale<'botharness'> &
@@ -88,8 +89,8 @@ export function AccountProfileSettings({
     try {
       const account = await actions.marketplaceAccount();
       if (mounted.current) setState({ status: 'ready', account });
-    } catch {
-      if (mounted.current) setState({ status: 'error' });
+    } catch (error) {
+      if (mounted.current) setState({ status: 'error', message: marketplaceError(error, t) });
     }
   };
 
@@ -188,7 +189,9 @@ export function AccountProfileSettings({
             {t('accountProfile.retry')}
           </Button>
         }
-      />,
+      >
+        <Note tone="danger">{state.message}</Note>
+      </SettingsRow>,
     );
 
   if (!state.account.signedIn)

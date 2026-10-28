@@ -70,6 +70,7 @@ const marketplaceErrorKeys: Record<string, BotHarnessKey> = {
   'repository-rate-limited': 'market.error.repositoryRateLimited',
   'invalid-report': 'market.error.invalidReport',
   'sign-in-required': 'market.error.signIn',
+  'sign-in-rejected': 'market.error.signInRejected',
   'author-required': 'market.error.authorRequired',
   'terms-required': 'market.error.terms',
   'invalid-author-name': 'market.error.authorName',
