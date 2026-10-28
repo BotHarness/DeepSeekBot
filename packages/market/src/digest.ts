@@ -438,11 +438,20 @@ interface DigestRow {
   sections: string;
 }
 
+export interface DigestPick {
+  id: string;
+  displayName: string | null;
+  banner: MarketplaceEntry['banner'];
+  avatar: MarketplaceEntry['avatar'];
+  filesBase: string | null;
+}
+
 export interface DigestSummary {
   day: string;
   lang: MarketplaceLanguage;
   title: string;
   lede: string;
+  picks: DigestPick[];
 }
 
 export interface DigestArticle extends DigestSummary {
@@ -452,6 +461,29 @@ export interface DigestArticle extends DigestSummary {
 export interface Digests {
   list(language?: MarketplaceLanguage): Promise<DigestSummary[]>;
   get(day: string, language?: MarketplaceLanguage): Promise<DigestArticle | undefined>;
+}
+
+export const DIGEST_PICK_LIMIT = 4;
+
+function pickOf(entry: MarketplaceEntry): DigestPick {
+  return {
+    id: entry.id,
+    displayName: entry.displayName,
+    banner: entry.banner,
+    avatar: entry.avatar,
+    filesBase: entry.source === 'upload' ? `${entry.htmlUrl}/files/` : null,
+  };
+}
+
+function picksOf(
+  sections: readonly DigestDraftSection[],
+  bots: ReadonlyMap<string, MarketplaceEntry>,
+): DigestPick[] {
+  return sections
+    .map((section) => bots.get(section.bot))
+    .filter((entry): entry is MarketplaceEntry => entry !== undefined)
+    .slice(0, DIGEST_PICK_LIMIT)
+    .map(pickOf);
 }
 
 function storedSections(value: string): DigestDraftSection[] {
@@ -477,22 +509,49 @@ export const DIGEST_DAY = /^\d{4}-\d{2}-\d{2}$/u;
 export function createDigests(deps: { db: D1Database }): Digests {
   const { db } = deps;
   const preferred = (language: MarketplaceLanguage | undefined) => language ?? 'en';
+  const listedBots = async (
+    ids: readonly string[],
+    language: MarketplaceLanguage | undefined,
+  ): Promise<Map<string, MarketplaceEntry>> => {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return new Map();
+    const { results } = await db
+      .prepare(
+        `SELECT * FROM indexed_repositories
+         WHERE visibility = 'listed' AND node_id IN (SELECT value FROM json_each(?))`,
+      )
+      .bind(JSON.stringify(unique))
+      .all<RepositoryRow>();
+    return new Map(results.map((row) => [row.node_id, entryFromRow(row, language)]));
+  };
   return {
     async list(language) {
       const lang = preferred(language);
       const { results } = await db
         .prepare(
-          `SELECT day, lang, title, lede FROM digests d
+          `SELECT day, lang, title, lede, sections FROM digests d
            WHERE lang = ? OR NOT EXISTS (SELECT 1 FROM digests x WHERE x.day = d.day AND x.lang = ?)
            ORDER BY day DESC, lang = ? DESC
            LIMIT ?`,
         )
         .bind(lang, lang, lang, DIGEST_ARCHIVE_LIMIT * 2)
-        .all<DigestSummary>();
+        .all<DigestRow>();
       const days = new Set<string>();
-      return results
+      const rows = results
         .filter((row) => (days.has(row.day) ? false : (days.add(row.day), true)))
-        .slice(0, DIGEST_ARCHIVE_LIMIT);
+        .slice(0, DIGEST_ARCHIVE_LIMIT)
+        .map((row) => ({ row, sections: storedSections(row.sections) }));
+      const bots = await listedBots(
+        rows.flatMap(({ sections }) => sections.map((section) => section.bot)),
+        language,
+      );
+      return rows.map(({ row, sections }) => ({
+        day: row.day,
+        lang: row.lang,
+        title: row.title,
+        lede: row.lede,
+        picks: picksOf(sections, bots),
+      }));
     },
     async get(day, language) {
       const lang = preferred(language);
@@ -506,19 +565,16 @@ export function createDigests(deps: { db: D1Database }): Digests {
         .first<DigestRow>();
       if (row === null) return undefined;
       const sections = storedSections(row.sections);
-      const bots = new Map<string, MarketplaceEntry>();
-      for (const section of sections) {
-        const listed = await db
-          .prepare("SELECT * FROM indexed_repositories WHERE node_id = ? AND visibility = 'listed'")
-          .bind(section.bot)
-          .first<RepositoryRow>();
-        if (listed !== null) bots.set(section.bot, entryFromRow(listed, language));
-      }
+      const bots = await listedBots(
+        sections.map((section) => section.bot),
+        language,
+      );
       return {
         day: row.day,
         lang: row.lang,
         title: row.title,
         lede: row.lede,
+        picks: picksOf(sections, bots),
         sections: sections.map((section) => ({
           heading: section.heading,
           body: section.body,
