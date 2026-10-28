@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { AccessibilityInfo } from 'react-native';
 
 import {
   PUSH_KINDS,
@@ -47,6 +48,16 @@ export function NotificationSettings({
     { state: 'sending' | 'sent' } | { state: 'failed'; error: string }
   >();
   const on = status.status === 'on';
+
+  useEffect(() => {
+    if (error !== undefined) AccessibilityInfo.announceForAccessibility(error);
+  }, [error]);
+  useEffect(() => {
+    if (test?.state === 'sent') AccessibilityInfo.announceForAccessibility(t.testSent);
+    if (test?.state === 'failed') {
+      AccessibilityInfo.announceForAccessibility(`${t.testFailed} ${test.error}`);
+    }
+  }, [test, t.testSent, t.testFailed]);
 
   const load = useCallback(() => {
     setError(undefined);
@@ -146,6 +157,7 @@ export function NotificationSettings({
             testID="notifications-allow"
             control={{
               kind: 'switch',
+              testID: 'notifications-allow',
               value: settings.enabled,
               onChange: allow,
               disabled: !settings.registered,
@@ -167,6 +179,7 @@ export function NotificationSettings({
               testID={`notifications-kind-${kind}`}
               control={{
                 kind: 'switch',
+                testID: `notifications-kind-${kind}`,
                 value: (preference?.preferences ?? settings!.preferences)[kind],
                 onChange: (value) => toggle(kind, value),
                 disabled: preference?.preferences === undefined && !settings?.registered,
