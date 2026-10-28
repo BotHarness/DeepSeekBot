@@ -98,6 +98,7 @@ function MarketplaceSections({
   const [sections, setSections] = useState<MarketplaceSection[]>([]);
   const mount = useMountedResource<HTMLDivElement>(() => {
     let live = true;
+    setSections([]);
     void actions.marketplaceSections(lang).then(
       (loaded) => {
         if (live) setSections(loaded);

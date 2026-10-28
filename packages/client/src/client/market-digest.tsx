@@ -72,6 +72,7 @@ const styles = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: space.x1,
+    width: '100%',
     padding: space.x4,
     borderWidth: 0,
     borderStyle: 'none',
@@ -192,18 +193,18 @@ export function MarketDigestDialog({
       ) : (
         <div {...stylex.props(styles.archive)} role="list">
           {archive.digests.map((item) => (
-            <button
-              key={item.day}
-              type="button"
-              role="listitem"
-              data-market-digest-day={item.day}
-              {...stylex.props(styles.archiveItem)}
-              onClick={() => open(item.day)}
-            >
-              <span {...stylex.props(styles.date)}>{digestDate(item.day, lang)}</span>
-              <span {...stylex.props(styles.archiveTitle)}>{item.title}</span>
-              <span {...stylex.props(styles.lede)}>{item.lede}</span>
-            </button>
+            <div key={item.day} role="listitem">
+              <button
+                type="button"
+                data-market-digest-day={item.day}
+                {...stylex.props(styles.archiveItem)}
+                onClick={() => open(item.day)}
+              >
+                <span {...stylex.props(styles.date)}>{digestDate(item.day, lang)}</span>
+                <span {...stylex.props(styles.archiveTitle)}>{item.title}</span>
+                <span {...stylex.props(styles.lede)}>{item.lede}</span>
+              </button>
+            </div>
           ))}
         </div>
       )}
@@ -226,6 +227,7 @@ export function MarketDigestHero({
   const [open, setOpen] = useState(false);
   const mount = useMountedResource<HTMLDivElement>(() => {
     let live = true;
+    setDigest(undefined);
     void actions.marketplaceDigest(undefined, lang).then(
       (loaded) => {
         if (live) setDigest(loaded);
