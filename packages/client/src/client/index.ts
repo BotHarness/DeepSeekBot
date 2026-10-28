@@ -20,6 +20,7 @@ import { createElement } from 'react';
 import { bindTobPresentation } from './tob-presentation.js';
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store';
 import { registerWorkspaceShortcuts, migrateWorkShortcut } from './workspace-shortcuts.js';
+import { createTobModeControl } from './tob-mode.js';
 import type {} from '@deepseek-ai/dsh-client-shortcuts/client';
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-client-locale/client';
@@ -475,8 +476,10 @@ export function apply(ctx: ClientContext): void {
     ]),
   );
   const channelSidebar = createChannelSidebarRegistry(dockPanels);
+  const tobMode = createTobModeControl();
   const workspace = {
     actions,
+    tobMode,
     companion,
     channelSidebar,
     dockPanels,
@@ -508,6 +511,7 @@ export function apply(ctx: ClientContext): void {
       dockPanels,
       () => document.querySelector('[data-workspace-enabled]') !== null,
       t,
+      tobMode,
     ),
   );
   ctx.effect(() =>

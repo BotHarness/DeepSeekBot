@@ -26,7 +26,7 @@ import {
   WorkspaceContext,
   WORKSPACE_RAIL,
   WORKSPACE_CHANNELS,
-  WORKSPACE_HOME,
+  TOB_MODE_SLOT,
 } from './workspace-context.js';
 import {
   createContext,
@@ -934,14 +934,7 @@ function DockPanelHeader({ entryId, panelId }: { entryId: string | undefined; pa
       >
         {contextMenu.menu}
         <PanelHeader
-          {...(dock.simple && !panel.onTitleHide
-            ? {}
-            : {
-                onHide: () => {
-                  dock.close(panelId);
-                  panel.onTitleHide?.();
-                },
-              })}
+          {...(dock.simple ? {} : { onHide: () => dock.close(panelId) })}
           hideLabel={closeLabel}
           hideHint={dock.t('dock.headHint')}
           icon={<ChannelSidebarIcon name={panel.icon} />}
@@ -1306,7 +1299,7 @@ export function ChannelDock({
     [workspaceMode, gap],
   );
   const gapRef = useRef(gap);
-  const [order, updateOrder] = useState(() => readChannelDock(storage)?.order ?? [WORKSPACE_HOME]);
+  const [order, updateOrder] = useState(() => readChannelDock(storage)?.order ?? [TOB_MODE_SLOT]);
   const orderRef = useRef(order);
   const [hiddenControls, updateHiddenControls] = useState(
     () => readChannelDock(storage)?.hiddenControls ?? [],
@@ -1669,7 +1662,7 @@ export function ChannelDock({
     const stored = readChannelDock(storage, workspace !== undefined);
     seed.current = stored?.sessionSeed ?? DEFAULT_CHANNEL_WORKSPACE;
     botSeeds.current = stored?.botPanelSeeds ?? {};
-    orderRef.current = stored?.order ?? [WORKSPACE_HOME];
+    orderRef.current = stored?.order ?? [TOB_MODE_SLOT];
     updateOrder(orderRef.current);
     hiddenControlsRef.current = stored?.hiddenControls ?? [];
     updateHiddenControls(hiddenControlsRef.current);
@@ -1751,14 +1744,6 @@ export function ChannelDock({
           delete parked.current[CHANNEL_BODY_PANEL];
         }
         ready.getPanel(CHANNEL_BODY_PANEL)?.api.setActive();
-      }
-      if (workspace && fresh) {
-        const home = known.current.get(WORKSPACE_HOME);
-        if (home && !ready.getPanel(WORKSPACE_HOME)) {
-          const messages = ready.getPanel(CHANNEL_BODY_PANEL);
-          if (messages) ready.removePanel(messages);
-          addEntryPanel(ready, home, { neighbor: WORKSPACE_CHANNELS, direction: 'right' });
-        }
       }
       if (newWorkspace && fresh) {
         ready.getPanel('sessions')?.api.setSize({ width: 320 });
@@ -1890,6 +1875,15 @@ export function ChannelDock({
     else if (tobReached.current) actions.current.leaveTob({ restoreChannel: false, reveal: true });
     else void selectTob();
   }, [channel?.id, tobMode.active]);
+
+  const tobControlMount = useMountedResource<HTMLSpanElement>(
+    () =>
+      workspace?.tob?.control?.attach({
+        active: () => tobRef.current.active,
+        setActive: (active) => (active ? actions.current.enterTob() : actions.current.leaveTob()),
+      }),
+    [workspace?.tob?.control],
+  );
 
   const setSessionState = (next: ChannelWorkspaceState): void => {
     if (!channel) return;
@@ -2201,6 +2195,7 @@ export function ChannelDock({
     },
     close,
     leaveTob,
+    enterTob,
   };
   const actions = useRef(handlers);
   actions.current = handlers;
@@ -2429,6 +2424,7 @@ export function ChannelDock({
           )}
           <span ref={inboxStateMount} hidden />
           <span ref={tobChannelMount} hidden />
+          <span ref={tobControlMount} hidden />
           <span ref={layoutMount} hidden />
           <span ref={scrollbarsMount} hidden />
           <span ref={geometryMount} hidden />

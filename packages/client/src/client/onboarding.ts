@@ -105,7 +105,7 @@ export class OnboardingController {
           this.update({ layoutComplete: false });
           this.openIntro();
         }
-        if (opening) this.revealHome?.();
+        if (opening) this.revealTob?.();
       }
       if (opening || (justCompleted && !first)) void this.refreshEvidence();
       if (first) {
@@ -184,13 +184,13 @@ export class OnboardingController {
       document.querySelector('[data-workspace-enabled]') !== null
     )
       await this.refresh(undefined, 'start', undefined, true);
-    else this.revealHome?.();
+    else this.revealTob?.();
   }
-  private revealHome: (() => void) | undefined;
-  attachHome(reveal: () => void): () => void {
-    this.revealHome = reveal;
+  private revealTob: (() => void) | undefined;
+  attachTobConversation(reveal: () => void): () => void {
+    this.revealTob = reveal;
     return () => {
-      if (this.revealHome === reveal) this.revealHome = undefined;
+      if (this.revealTob === reveal) this.revealTob = undefined;
     };
   }
   private layout: { setMode(mode: LayoutMode): void } | undefined;
@@ -368,15 +368,7 @@ export class OnboardingController {
     }
     this.update({ guideOpen: false, checklistOpen: this.state.receipt?.tutorial === 'active' });
   }
-  finishFromHomeTitle(revealMessages: () => void): Promise<void> {
-    if (this.state.layoutMode === 'simple') return Promise.resolve();
-    return this.finishInSteward(revealMessages);
-  }
-  finishFromRail(revealMessages: () => void): Promise<void> {
-    if (this.state.layoutMode !== 'simple') return Promise.resolve();
-    return this.finishInSteward(revealMessages);
-  }
-  private async finishInSteward(revealMessages: () => void): Promise<void> {
+  async finishFromTobMode(): Promise<void> {
     const receipt = this.state.receipt;
     if (
       !this.state.layoutComplete ||
@@ -388,7 +380,6 @@ export class OnboardingController {
     )
       return;
     try {
-      revealMessages();
       await this.actions.openChannel(receipt.channelId);
       const { selection, conversation } = store.getSnapshot();
       if (
@@ -397,13 +388,13 @@ export class OnboardingController {
         conversation.status !== 'ready' ||
         conversation.error
       ) {
-        this.revealHome?.();
+        this.revealTob?.();
         this.update({ error: conversation.error ?? 'Unable to open the Tob conversation' });
         return;
       }
       await this.refresh(undefined, 'finish');
     } catch (error) {
-      this.revealHome?.();
+      this.revealTob?.();
       this.update({ error: errorMessage(error) });
     }
   }

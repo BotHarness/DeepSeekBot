@@ -17,18 +17,26 @@ import type { ChannelSidebarEntryProps } from '../src/client/channel-sidebar.js'
 import { createDockPanelRegistry, type DockPanelChannel } from '../src/client/dock-panels.js';
 import { LAYOUT_MODE_STORAGE_KEY } from '../src/client/layout-mode.js';
 import { zhTranslate } from '../src/client/locale.js';
+import type { ShortcutCommand } from '@deepseek-ai/dsh-client-shortcuts/client';
+import { effectiveShortcuts } from '@deepseek-ai/dsh-client-shortcuts/protocol';
 import {
   INACTIVE_TOB_MODE,
   TOB_MODE_STORAGE_KEY,
+  createTobModeControl,
   readTobMode,
   writeTobMode,
 } from '../src/client/tob-mode.js';
 import {
+  TOB_MODE_SLOT,
   WORKSPACE_CHANNELS,
-  WORKSPACE_HOME,
   WORKSPACE_RAIL,
   WorkspaceContext,
 } from '../src/client/workspace-context.js';
+import {
+  registerWorkspaceShortcuts,
+  workspaceShortcutId,
+} from '../src/client/workspace-shortcuts.js';
+import { PinnedPanelCards } from '../src/client/pinned-panel-cards.js';
 
 const entryProps = {
   scope: 'personabot',
@@ -94,7 +102,7 @@ describe('Tob Mode record', () => {
   });
 });
 
-function mountWorkspace() {
+function mountWorkspace(control?: ReturnType<typeof createTobModeControl>) {
   let dock: DockviewApi | undefined;
   let layoutMode: { mode: 'simple' | 'advanced'; setMode(mode: 'simple' | 'advanced'): void };
   let tobMode: { active: boolean; setActive(active: boolean): void } | undefined;
@@ -104,7 +112,7 @@ function mountWorkspace() {
   for (const [id, title] of [
     [CHANNEL_BODY_PANEL, 'Messages'],
     [WORKSPACE_CHANNELS, 'Channels'],
-    [WORKSPACE_HOME, 'Home'],
+    ['market', 'Market'],
     ['activity-center', 'Activity'],
   ])
     registry.register({
@@ -129,7 +137,7 @@ function mountWorkspace() {
       WorkspaceContext.Provider,
       {
         value: {
-          tob: { channel: async () => 'dm-tob', openChannel },
+          tob: { channel: async () => 'dm-tob', openChannel, control },
           rail: (api, _gap, _setGap, _reset, _order, _setOrder, _hidden, _visible, mode, tob) => {
             dock = api;
             layoutMode = mode;
@@ -243,10 +251,10 @@ describe('Tob Mode in the workspace', () => {
     const ws = mountWorkspace();
     await ws.render();
     await ws.setTob(true);
-    act(() => ws.registry.toggle(WORKSPACE_HOME));
+    act(() => ws.registry.toggle('market'));
     await settle();
     expect(ws.tobMode().active).toBe(false);
-    expect(ws.shown()).toEqual([WORKSPACE_HOME]);
+    expect(ws.shown()).toEqual(['market']);
     expect(ws.channel().id).toBe('dm-ada');
   });
 
@@ -256,6 +264,7 @@ describe('Tob Mode in the workspace', () => {
     await ws.render();
     expect(ws.layoutMode().mode).toBe('advanced');
     act(() => {
+      ws.registry.open('market');
       ws.registry.open('activity-center');
       ws.registry.open(CHANNEL_BODY_PANEL);
       ws.dock().getPanel(WORKSPACE_CHANNELS)!.group.api.setSize({ width: 300 });
@@ -346,5 +355,117 @@ describe('Tob Mode in the workspace', () => {
     expect(ws.dock().getPanel(CHANNEL_BODY_PANEL)).toBeUndefined();
     expect(ws.dock().getPanel('activity-center')).toBeDefined();
     expect(ws.saved()).toEqual(before);
+  });
+});
+
+describe('Tob Mode takes over the Home command and rail slot', () => {
+  it('keeps the Home command ID and default keys, and toggles Tob Mode', async () => {
+    values = new Map();
+    const control = createTobModeControl();
+    const commands = new Map<string, ShortcutCommand>();
+    const registry = createDockPanelRegistry();
+    const dispose = registerWorkspaceShortcuts(
+      {
+        register: (command) => {
+          commands.set(command.id, command);
+          return () => void commands.delete(command.id);
+        },
+      },
+      registry,
+      () => true,
+      zhTranslate,
+      control,
+    );
+    const id = workspaceShortcutId(TOB_MODE_SLOT);
+    expect(id).toBe('botharness.panel.p62-68-3a-68-6f-6d-65');
+    const command = commands.get(id)!;
+    expect(command.defaults['desktop:macos']).toEqual({
+      code: 'KeyH',
+      modifiers: ['primary', 'alt', 'shift'],
+    });
+    expect(command.defaults['web:windows']?.code).toBe('KeyH');
+    expect(command.defaults['desktop:linux']?.code).toBe('KeyO');
+    expect(command.label()).toBe(zhTranslate('workspace.tobMode', { name: '托布' }));
+    const context = { region: 'page' as const, modal: null, target: null };
+    expect(command.resolve(context)).toEqual({ status: 'pass' });
+
+    const custom = { code: 'KeyJ', modifiers: ['meta', 'alt', 'shift'] as const };
+    const resolved = effectiveShortcuts(
+      [...commands.values()],
+      { schemaVersion: 2, profiles: { 'desktop:macos': { [id]: custom } } },
+      'desktop',
+      'macos',
+    ).find((row) => row.id === id);
+    expect(resolved).toMatchObject({ modified: true, binding: { code: 'KeyJ' }, conflicts: [] });
+
+    const entered = vi.fn();
+    control.onEnter(entered);
+    const ws = mountWorkspace(control);
+    await ws.render();
+    const run = async () => {
+      const result = command.resolve(context);
+      expect(result.status).toBe('handled');
+      if (result.status === 'handled') act(() => result.run());
+      await settle();
+      await settle();
+    };
+    await run();
+    expect(ws.tobMode().active).toBe(true);
+    expect(ws.shown()).toEqual([CHANNEL_BODY_PANEL]);
+    expect(entered).toHaveBeenCalledOnce();
+    expect(command.resolve({ ...context, modal: 'settings' })).toEqual({ status: 'pass' });
+    await run();
+    expect(ws.tobMode().active).toBe(false);
+    expect(entered).toHaveBeenCalledOnce();
+    dispose();
+    expect(commands.size).toBe(0);
+  });
+
+  it('puts the switch where Home sat in the saved rail order', async () => {
+    const registry = createDockPanelRegistry();
+    for (const id of [CHANNEL_BODY_PANEL, 'activity-center', 'market'])
+      registry.register({ id, title: id, scope: 'global', component: () => null });
+    const order = (ids: readonly string[]) => {
+      act(() =>
+        root.render(
+          createElement(PinnedPanelCards, {
+            registry,
+            collapsed: true,
+            order: ids,
+            t: zhTranslate,
+            extra: {
+              id: 'bh:tob-mode',
+              slot: TOB_MODE_SLOT,
+              icon: 'bot',
+              label: 'Tob',
+              pressed: false,
+              onClick: () => {},
+            },
+          }),
+        ),
+      );
+      return [
+        ...host.querySelectorAll<HTMLElement>('[data-pinned-panel],[data-pinned-switch]'),
+      ].map((node) => node.dataset.pinnedPanel ?? node.dataset.pinnedSwitch);
+    };
+    expect(order([TOB_MODE_SLOT])).toEqual([
+      'bh:tob-mode',
+      'activity-center',
+      CHANNEL_BODY_PANEL,
+      'market',
+    ]);
+    expect(order(['activity-center', TOB_MODE_SLOT, 'market'])).toEqual([
+      'activity-center',
+      'bh:tob-mode',
+      'market',
+      CHANNEL_BODY_PANEL,
+    ]);
+    expect(order([CHANNEL_BODY_PANEL, 'activity-center', 'market', TOB_MODE_SLOT])).toEqual([
+      CHANNEL_BODY_PANEL,
+      'activity-center',
+      'market',
+      'bh:tob-mode',
+    ]);
+    expect(order([])).toEqual(['bh:tob-mode', 'activity-center', CHANNEL_BODY_PANEL, 'market']);
   });
 });

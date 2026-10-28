@@ -4,6 +4,7 @@ import type { OnboardingSnapshot } from '../../core/src/onboarding/types.js';
 import type { BridgeActions } from '../src/client/actions.js';
 import { OnboardingController } from '../src/client/onboarding.js';
 import { store } from '../src/client/store.js';
+import { createTobModeControl } from '../src/client/tob-mode.js';
 import { WindowCompanions } from '../src/client/window-companions.js';
 
 const receipt: OnboardingSnapshot = {
@@ -302,11 +303,11 @@ it('ends the active highlight when the first real reply completes onboarding', a
   });
 });
 
-it('v2 entry and progress refresh preserve the selected DM and open Home only on explicit start', async () => {
+it('v2 entry and progress refresh preserve the selected DM and reveal the Tob DM only on explicit start', async () => {
   const { actions, controller } = harness(true);
   actions.onboarding.mockResolvedValue({ ...receipt, journey: { version: 2, done: false } });
   const reveal = vi.fn();
-  controller.attachHome(reveal);
+  controller.attachTobConversation(reveal);
   await controller.enter();
   expect(actions.openChannel).not.toHaveBeenCalled();
   expect(reveal).not.toHaveBeenCalled();
@@ -316,7 +317,7 @@ it('v2 entry and progress refresh preserve the selected DM and open Home only on
   expect(actions.openChannel).not.toHaveBeenCalled();
   expect(reveal).toHaveBeenCalledTimes(1);
 });
-it('v2 requires the real Home title action after layout tips before finishing', async () => {
+it('v2 requires entering Tob Mode after the layout tips before finishing', async () => {
   const { actions, controller } = harness(true);
   actions.onboarding.mockResolvedValue({
     ...receipt,
@@ -324,9 +325,8 @@ it('v2 requires the real Home title action after layout tips before finishing', 
     journey: { version: 2, done: false, botSlug: 'ada', groupChannelId: 'group' },
   });
   await controller.enter();
-  const reveal = vi.fn();
-  await controller.finishFromHomeTitle(reveal);
-  expect(reveal).not.toHaveBeenCalled();
+  await controller.finishFromTobMode();
+  expect(actions.openChannel).not.toHaveBeenCalled();
   controller.finishTour();
   await Promise.resolve();
   expect(actions.onboarding).not.toHaveBeenLastCalledWith(undefined, 'finish');
@@ -334,8 +334,7 @@ it('v2 requires the real Home title action after layout tips before finishing', 
     store.select({ kind: 'channel', channelId: 'dm-ada' });
     store.setConversation({ status: 'ready', error: undefined });
   });
-  await controller.finishFromHomeTitle(reveal);
-  expect(reveal).toHaveBeenCalledOnce();
+  await controller.finishFromTobMode();
   expect(actions.openChannel).toHaveBeenLastCalledWith('dm-ada');
   expect(actions.onboarding).toHaveBeenLastCalledWith(undefined, 'finish');
   expect(controller.getSnapshot().checklistOpen).toBe(false);
@@ -368,8 +367,8 @@ it.each(['no-op', 'failure', 'timeline-error'])(
       tutorial: 'active',
       journey: { version: 2, done: false, botSlug: 'ada', groupChannelId: 'group' },
     });
-    const home = vi.fn();
-    controller.attachHome(home);
+    const reveal = vi.fn();
+    controller.attachTobConversation(reveal);
     await controller.enter();
     controller.finishTour();
     if (kind === 'failure') actions.openChannel.mockRejectedValueOnce(new Error('offline'));
@@ -378,14 +377,14 @@ it.each(['no-op', 'failure', 'timeline-error'])(
         store.select({ kind: 'channel', channelId: 'dm-ada' });
         store.setConversation({ error: 'offline' });
       });
-    await controller.finishFromHomeTitle(vi.fn());
+    await controller.finishFromTobMode();
     expect(actions.onboarding).not.toHaveBeenLastCalledWith(undefined, 'finish');
-    expect(home).toHaveBeenCalledOnce();
+    expect(reveal).toHaveBeenCalledOnce();
     expect(controller.getSnapshot().error).toBeTruthy();
   },
 );
 it.each(['simple', 'advanced'] as const)(
-  'v2 %s step 5 finishes only from the action of that Layout mode',
+  'v2 %s step 5 finishes when the Human enters Tob Mode',
   async (mode) => {
     const { actions, controller } = harness(true);
     actions.onboarding.mockResolvedValue({
@@ -396,23 +395,23 @@ it.each(['simple', 'advanced'] as const)(
     await controller.enter();
     controller.attachLayout(mode, { setMode: vi.fn() });
     controller.finishTour();
-    const reveal = vi.fn();
-    const other = mode === 'simple' ? 'finishFromHomeTitle' : 'finishFromRail';
-    const own = mode === 'simple' ? 'finishFromRail' : 'finishFromHomeTitle';
-    await controller[other](reveal);
-    expect(reveal).not.toHaveBeenCalled();
-    expect(actions.openChannel).not.toHaveBeenCalled();
+    const control = createTobModeControl();
+    let active = false;
+    control.attach({ active: () => active, setActive: (next) => (active = next) });
+    control.onEnter(() => void controller.finishFromTobMode());
     actions.openChannel.mockImplementationOnce(async () => {
       store.select({ kind: 'channel', channelId: 'dm-ada' });
       store.setConversation({ status: 'ready', error: undefined });
     });
-    await controller[own](reveal);
-    expect(reveal).toHaveBeenCalledOnce();
+    control.toggle();
+    await vi.waitFor(() =>
+      expect(actions.onboarding).toHaveBeenLastCalledWith(undefined, 'finish'),
+    );
+    expect(active).toBe(true);
     expect(actions.openChannel).toHaveBeenLastCalledWith('dm-ada');
-    expect(actions.onboarding).toHaveBeenLastCalledWith(undefined, 'finish');
   },
 );
-it('v2 Simple rail selection before the layout tips does not finish', async () => {
+it('v2 leaving Tob Mode or entering it before the layout tips does not finish', async () => {
   const { actions, controller } = harness(true);
   actions.onboarding.mockResolvedValue({
     ...receipt,
@@ -424,9 +423,18 @@ it('v2 Simple rail selection before the layout tips does not finish', async () =
   const detach = controller.attachLayout('simple', { setMode });
   controller.chooseLayout('advanced');
   expect(setMode).toHaveBeenCalledWith('advanced');
-  const reveal = vi.fn();
-  await controller.finishFromRail(reveal);
-  expect(reveal).not.toHaveBeenCalled();
+  const control = createTobModeControl();
+  let active = true;
+  control.attach({ active: () => active, setActive: (next) => (active = next) });
+  const entered = vi.fn(() => void controller.finishFromTobMode());
+  control.onEnter(entered);
+  control.toggle();
+  expect(active).toBe(false);
+  expect(entered).not.toHaveBeenCalled();
+  control.toggle();
+  expect(entered).toHaveBeenCalledOnce();
+  await Promise.resolve();
+  expect(actions.openChannel).not.toHaveBeenCalled();
   expect(actions.onboarding).not.toHaveBeenLastCalledWith(undefined, 'finish');
   const stale = controller.attachLayout('advanced', { setMode });
   detach();

@@ -24,9 +24,10 @@ export interface PinnedPanelBadge {
 
 export interface PinnedPanelSwitch {
   readonly id: string;
-  readonly after: string;
+  readonly slot: string;
   readonly icon: string;
   readonly label: string;
+  readonly keys?: readonly string[] | undefined;
   readonly pressed: boolean;
   onClick(): void;
 }
@@ -123,11 +124,18 @@ export function PinnedPanelCards({
     };
   };
   if (sorted.length === 0 && extra === undefined) return null;
-  const extraFirst = extra !== undefined && !sorted.some((panel) => panel.id === extra.after);
+  const slot = extra === undefined ? -1 : ids.indexOf(extra.slot);
+  const extraAt =
+    extra === undefined
+      ? undefined
+      : slot < 0
+        ? 0
+        : sorted.findIndex((panel) => ids.indexOf(panel.id) > slot);
   const extraCard = extra && (
     <Tooltip
       key={extra.id}
       label={extra.label}
+      shortcutKeys={extra.keys}
       portal
       side={collapsed ? 'right' : 'bottom'}
       delayMs={400}
@@ -143,7 +151,9 @@ export function PinnedPanelCards({
         )}
         data-pinned-switch={extra.id}
         data-open={extra.pressed ? 'true' : undefined}
-        aria-label={extra.label}
+        aria-label={[extra.label, ...(extra.keys?.length ? [extra.keys.join(' ')] : [])].join(
+          ' · ',
+        )}
         aria-pressed={extra.pressed}
         onClick={extra.onClick}
       >
@@ -180,7 +190,6 @@ export function PinnedPanelCards({
       }}
       onDragEnd={clearDrag}
     >
-      {extraFirst && extraCard}
       {sorted.map((panel, index) => {
         const open = openIds.includes(panel.id) || current === panel.id;
         const run = available ? () => registry.toggle(panel.id) : fallback?.(panel.id);
@@ -298,15 +307,16 @@ export function PinnedPanelCards({
             </button>
           </Tooltip>
         );
-        return !extraFirst && extra?.after === panel.id ? (
+        return extraAt === index ? (
           <Fragment key={panel.id}>
-            {card}
             {extraCard}
+            {card}
           </Fragment>
         ) : (
           card
         );
       })}
+      {(extraAt === -1 || extraAt === sorted.length) && extraCard}
     </div>
   );
 }

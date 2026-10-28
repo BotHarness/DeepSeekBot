@@ -155,7 +155,7 @@ try {
   } else {
     const targets = await cli('appearance-targets', ['--client-id', target]);
     assert.ok(targets.targets.some((t) => t.id === 'dock:bh:channel-body'));
-    assert.ok(targets.targets.some((t) => t.id === 'dock:bh:home'));
+    assert.ok(targets.targets.some((t) => t.id === 'dock:activity-center'));
     await header('bh:channel-body').click({ button: 'right' });
     await screenshot('after-header-menu');
     await page.locator('::-p-aria(Appearance settings[role="menuitem"])').click();
@@ -180,10 +180,13 @@ try {
     await screenshot('after-messages-modal');
     await page.keyboard.press('Escape');
     await pause();
+    if (!(await page.$('[data-dock-header="activity-center"]')))
+      await page.locator('.bh-workspace-rail [data-pinned-panel="activity-center"]').click();
+    await page.waitForSelector('[data-dock-header="activity-center"]');
     await patch({
       mode: 'light',
       panel: {
-        id: 'dock:bh:home',
+        id: 'dock:activity-center',
         materials: {
           header: { color: '#e7d7b2' },
           body: { color: '#f4dfb5', opacity: 82, blur: 4 },
@@ -193,7 +196,7 @@ try {
     await screenshot('after-two-panels');
     const styles = await page.evaluate(() => {
       const result = {};
-      for (const id of ['bh:channel-body', 'bh:home']) {
+      for (const id of ['bh:channel-body', 'activity-center']) {
         const group = document.querySelector(
           `.dv-groupview:has(> .dv-tabs-and-actions-container .dv-active-tab [data-dock-header="${id}"])`,
         );
@@ -207,7 +210,7 @@ try {
     });
     assert.equal(styles['bh:channel-body'][0].blur, 'blur(9px)');
     assert.equal(styles['bh:channel-body'][1].blur, 'blur(8px)');
-    assert.equal(styles['bh:home'][1].blur, 'blur(4px)');
+    assert.equal(styles['activity-center'][1].blur, 'blur(4px)');
     assert.ok(
       Object.values(styles)
         .flat()
@@ -270,8 +273,8 @@ try {
     const reset = await read();
     assert.equal(reset.modes.light.panels['dock:bh:channel-body'], undefined);
     assert.deepEqual(
-      reset.modes.light.panels['dock:bh:home'],
-      saved.modes.light.panels['dock:bh:home'],
+      reset.modes.light.panels['dock:activity-center'],
+      saved.modes.light.panels['dock:activity-center'],
     );
     assert.deepEqual(reset.modes.dark, saved.modes.dark);
     await screenshot('after-reset-panel');
