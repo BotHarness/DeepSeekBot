@@ -686,7 +686,7 @@ describe('Uploaded Bots in the Market panel', () => {
     cloneUrl: '',
     stars: 0,
     source: 'upload',
-    author: { name: 'Alice', id: 'k3x9q2' },
+    author: { name: 'Alice', id: 'k3x9q2', avatar: null },
   });
 
   it('uploads a checked draft after the author signs up', async () => {

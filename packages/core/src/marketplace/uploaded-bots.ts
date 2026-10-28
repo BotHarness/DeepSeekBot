@@ -159,6 +159,10 @@ export function createMarketplaceUploads(deps: {
       return signed((token) => client.saveAuthor(token, input));
     },
 
+    saveAuthorAvatar(avatar: Uint8Array | null) {
+      return signed((token) => client.saveAuthorAvatar(token, avatar));
+    },
+
     mine(lang?: MarketplaceLanguage): Promise<Result<MarketplaceAuthoredBot[]>> {
       return signed((token) => client.authored(token, lang));
     },

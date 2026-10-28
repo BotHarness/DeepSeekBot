@@ -35,6 +35,7 @@ const statusLabels = (): Record<ConnectionState['status'], string> => ({
 });
 
 export function SettingsView({
+  profile,
   hostName,
   connection,
   loadUsage,
@@ -47,6 +48,7 @@ export function SettingsView({
   hapticFeedback,
   deliveryReceipts,
 }: {
+  profile?: ReactNode;
   hostName: string | undefined;
   connection: ConnectionState;
   loadUsage?: (() => Promise<OverviewUsage>) | undefined;
@@ -73,6 +75,7 @@ export function SettingsView({
         </View>
       }
     >
+      {profile}
       <SettingsFormItem>
         <UsageCard load={loadUsage} on={SHEET_GROUP} onOpen={actions.onUsage} />
       </SettingsFormItem>

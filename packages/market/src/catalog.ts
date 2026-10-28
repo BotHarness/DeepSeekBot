@@ -42,6 +42,7 @@ export type MarketplaceSource = 'github' | 'upload';
 export interface MarketplaceAuthor {
   name: string;
   id: string;
+  avatar: string | null;
 }
 
 export type MarketplaceBanner = { recipe: { scene: string; seed: number } } | { image: string };
@@ -144,7 +145,7 @@ export function entryFromRow(row: RepositoryRow, language?: MarketplaceLanguage)
     source: row.source,
     author:
       row.source === 'upload' && row.author_id !== null
-        ? { name: row.owner, id: row.author_id }
+        ? { name: row.owner, id: row.author_id, avatar: row.author_avatar ?? null }
         : null,
   };
 }

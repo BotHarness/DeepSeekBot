@@ -255,7 +255,11 @@ export function MarketUploadDialog({
   const loadAccount = async (): Promise<MarketplaceAccount | undefined> => {
     try {
       const loaded = await actions.marketplaceAccount();
-      if (mounted.current) setAccount({ status: 'ready', account: loaded });
+      if (mounted.current) {
+        setAccount({ status: 'ready', account: loaded });
+        const profileName = loaded.author?.name;
+        if (profileName !== undefined) setAuthorName((typed) => typed || profileName);
+      }
       return loaded;
     } catch (failure) {
       if (mounted.current) setAccount({ status: 'error', cause: failure });
@@ -307,7 +311,7 @@ export function MarketUploadDialog({
 
   const ready = account.status === 'ready' ? account.account : undefined;
   const author = ready?.author ?? null;
-  const accountDone = ready?.signedIn === true && author !== null;
+  const accountDone = ready?.signedIn === true && author?.termsAcceptedAt != null;
   const step: DirectStep = rawStep === 'account' && accountDone ? 'details' : rawStep;
   const shareDraft = draft.status === 'ready' ? draft.draft : undefined;
 

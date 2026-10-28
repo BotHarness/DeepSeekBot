@@ -42,6 +42,7 @@ import { createReceipts, isMarketplaceHostId, type Receipts } from './receipts.j
 import { MAX_UPLOAD_FILE_BYTES } from './upload-files.js';
 import {
   createUploads,
+  MAX_AUTHOR_AVATAR_BYTES,
   UPLOAD_REFUSAL_STATUS,
   type UploadResult,
   type Uploads,
@@ -227,6 +228,21 @@ export function createMarketHandler(
         },
       });
     }
+    const avatarMatch = /^\/v1\/authors\/([2-9a-z]{6})\/avatar\/([^/]+)$/u.exec(url.pathname);
+    if (avatarMatch !== null) {
+      if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+      const avatar = await deps.uploads?.store.readAvatar(avatarMatch[1]!, avatarMatch[2]!);
+      if (avatar === undefined) return failure(404, 'file-not-found');
+      return new Response(avatar.bytes, {
+        status: 200,
+        headers: {
+          'content-type': avatar.contentType,
+          'cache-control': 'public, max-age=31536000, immutable',
+          'x-content-type-options': 'nosniff',
+          'content-security-policy': "default-src 'none'; sandbox",
+        },
+      });
+    }
     const fileMatch = /^\/v1\/bots\/([^/]+)\/files\/(.+)$/u.exec(url.pathname);
     if (fileMatch !== null) {
       if (request.method !== 'GET') return failure(405, 'method-not-allowed');
@@ -268,6 +284,18 @@ export function createMarketHandler(
           displayName: body?.['displayName'],
           acceptTerms: body?.['acceptTerms'],
         });
+        return saved.ok ? json(200, { author: saved.value }) : refused(saved);
+      }
+      if (url.pathname === '/v1/me/avatar') {
+        if (request.method === 'DELETE') {
+          const removed = await store.removeAvatar(account);
+          return removed.ok ? json(200, { author: removed.value }) : refused(removed);
+        }
+        if (request.method !== 'PUT') return failure(405, 'method-not-allowed');
+        const declared = Number(request.headers.get('content-length') ?? '0');
+        if (declared > MAX_AUTHOR_AVATAR_BYTES) return failure(413, 'avatar-too-large');
+        const bytes = new Uint8Array(await request.arrayBuffer());
+        const saved = await store.saveAvatar(account, bytes, url.origin);
         return saved.ok ? json(200, { author: saved.value }) : refused(saved);
       }
       if (url.pathname === '/v1/me/bots') {

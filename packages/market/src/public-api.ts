@@ -20,7 +20,8 @@ export function isPublicRead(pathname: string): boolean {
     pathname === '/v1/digests' ||
     /^\/v1\/digests\/[^/]+$/u.test(pathname) ||
     /^\/v1\/bots\/[^/]+$/u.test(pathname) ||
-    /^\/v1\/bots\/[^/]+\/(files|view)\/.+$/u.test(pathname)
+    /^\/v1\/bots\/[^/]+\/(files|view)\/.+$/u.test(pathname) ||
+    /^\/v1\/authors\/[^/]+\/avatar\/[^/]+$/u.test(pathname)
   );
 }
 

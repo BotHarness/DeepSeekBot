@@ -980,6 +980,7 @@ export interface BridgeMethods {
   marketplaceReport(payload: unknown): Promise<BridgeResult<{ received: true }>>;
   marketplaceAccount(): Promise<BridgeResult<MarketplaceAccount>>;
   marketplaceAuthorSave(payload: unknown): Promise<BridgeResult<MarketplaceAuthorAccount>>;
+  marketplaceAuthorAvatarSet(payload: unknown): Promise<BridgeResult<MarketplaceAuthorAccount>>;
   marketplaceUploadPlan(payload: unknown): BridgeResult<UploadPlan>;
   marketplaceUpload(
     payload: unknown,
@@ -3884,6 +3885,21 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           displayName: displayName.trim(),
           acceptTerms: acceptTerms === true,
         }),
+      );
+    },
+    async marketplaceAuthorAvatarSet(payload) {
+      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
+      const { avatar } = asObject(payload);
+      const image =
+        typeof avatar === 'string'
+          ? /^data:image\/(?:png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/u.exec(avatar)?.[1]
+          : undefined;
+      if (avatar !== null && image === undefined)
+        return invalidInput('avatar must be a PNG, JPEG or WebP data URL, or null');
+      return uploadResult(
+        await deps.marketplaceUploads.saveAuthorAvatar(
+          image === undefined ? null : Buffer.from(image, 'base64'),
+        ),
       );
     },
     marketplaceUploadPlan(payload) {

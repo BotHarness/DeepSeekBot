@@ -22,6 +22,11 @@ export default function SettingsLayout() {
       <Stack.Screen name="model-picker" />
       <Stack.Screen name="model-preset" />
       <Stack.Screen name="notifications" options={{ title: t.notifications }} />
+      <Stack.Screen
+        name="profile"
+        options={{ title: t.accountProfile.title, headerShown: false }}
+      />
+      <Stack.Screen name="profile-name" options={{ headerShown: false }} />
     </SheetStack>
   );
 }
