@@ -1016,6 +1016,56 @@ describe('Uploaded Bots in the Market panel', () => {
     );
   });
 
+  it('opens a Bot detail in the panel body and steps back to the list it left', async () => {
+    await withPanel(
+      async () => ({ bots: [uploaded] }),
+      async ({ host, actions }) => {
+        const home = host.querySelector<HTMLElement>('.bh-market-page')!;
+        await click(host, '查看 Alice/Helper 详情');
+        expect(actions['telemetryEvent']).toHaveBeenCalledWith('marketplace:bot_open', {
+          entry: 'list',
+          step: 'detail',
+        });
+        const page = host.querySelector('[data-market-page="bot"]')!;
+        expect(page.getAttribute('aria-label')).toBe('Helper');
+        expect(home.hidden).toBe(true);
+        expect(host.querySelector('[role="dialog"]')).toBeNull();
+        await click(host, '安装');
+        expect(host.querySelector('[data-market-install]')).not.toBeNull();
+        const backs = [...host.querySelectorAll('button')].filter(
+          (item) => item.textContent === '返回',
+        );
+        await act(async () => backs.at(-1)!.click());
+        expect(host.querySelector('[data-market-install]')).toBeNull();
+        expect(host.querySelector('[data-market-page="bot"]')).toBe(page);
+        await click(host, '返回');
+        expect(host.querySelector('[data-market-page="bot"]')).toBeNull();
+        expect(home.hidden).toBe(false);
+        expect(host.querySelector('.bh-market-page')).toBe(home);
+      },
+      {
+        marketplaceInstallReview: vi.fn(async () => ({
+          reviewId: 'review-2',
+          listing: uploaded,
+          review: {
+            status: 'reviewed',
+            findings: [],
+            files: 3,
+            read: 2,
+            partial: false,
+          },
+        })),
+        marketplaceDetail: vi.fn(async () => ({
+          bot: uploaded,
+          readme: null,
+          readmeLanguage: null,
+          commitSha: null,
+          files: [],
+        })),
+      },
+    );
+  });
+
   it('shows the file breakdown and reads text files, scripts never as Markdown', async () => {
     const file = vi.fn(async (_id: string, path: string) =>
       path === 'SOUL.md'
