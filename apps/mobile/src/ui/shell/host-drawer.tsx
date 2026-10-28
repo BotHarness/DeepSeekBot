@@ -53,6 +53,8 @@ import { edge, motion, radius, scrim, sidebar, space, workspaceStack } from '../
 import { HeaderCircleButton } from '../chat/header-chrome';
 import { HumanAvatarButton } from './human-avatar';
 import { SidebarMaterial, useLiquidGlass } from '../primitives/drawer-material';
+import { SettingsForm } from '../primitives/settings-form';
+import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
 import { showActionMenu, showAppDialog } from '../primitives/app-dialog';
@@ -547,6 +549,75 @@ function HostRow({
   );
 }
 
+function HostFormRow({
+  row,
+  address,
+  selected,
+}: {
+  row: HostDrawerRow;
+  address: string;
+  selected: boolean;
+}) {
+  const t = useStrings();
+  const theme = useDesignTheme();
+  const look = useHostLook(row.hostId);
+  const name = shownHostName(look, row.hostName);
+  const pending = row.glance.pending ?? 0;
+  const unread = row.glance.unread ?? 0;
+  const badge = hostRowBadge(row.glance);
+  const status = statusText(row.glance.status);
+  return (
+    <SettingsRow
+      testID={`drawer-host-${row.hostId}`}
+      title={name}
+      detail={[status, address].filter((part) => part !== '').join(' · ')}
+      leading={
+        <HostTile
+          hostName={name}
+          icon={look.icon}
+          size={workspaceStack.tile}
+          fill={hostTileFill(theme.scheme, theme.color, look.color, theme.layer.sheet.inset)}
+          ink={
+            look.color === undefined
+              ? theme.color.fg
+              : hostColorInk(theme.scheme, theme.color, look.color)
+          }
+        />
+      }
+      {...(selected ? { control: { kind: 'check' as const } } : {})}
+      trailing={
+        badge === undefined ? undefined : (
+          <CountBadge
+            count={badge.count}
+            tone={badge.tone}
+            label={
+              badge.tone === 'needs-you' ? t.hostPending(badge.count) : t.hostUnread(badge.count)
+            }
+          />
+        )
+      }
+      accessory={
+        <ActionMenuButton
+          label={t.hostMore(name)}
+          actions={hostMenuActions(row, name)}
+          onOpen={() => openHostMenu(row, name)}
+        />
+      }
+      selected={selected}
+      accessibilityLabel={[
+        name,
+        selected ? t.showing : undefined,
+        status,
+        pending > 0 ? t.hostPending(pending) : undefined,
+        unread > 0 ? t.hostUnread(unread) : undefined,
+      ]
+        .filter((part) => part !== undefined)
+        .join(', ')}
+      onPress={() => void hostDrawer.select(row.hostId)}
+    />
+  );
+}
+
 function FooterRow({ label, icon, onPress }: { label: string; icon: ReactNode; onPress(): void }) {
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
@@ -888,9 +959,7 @@ export function WorkspacePanel({
       <View
         ref={tabMount}
         style={{
-          paddingTop: page
-            ? space.x2
-            : Math.max(insets.top - (glass ? sidebar.inset : 0), 0) + space.x5,
+          paddingTop: Math.max(insets.top - (glass ? sidebar.inset : 0), 0) + space.x5,
           paddingHorizontal: space.x5,
           paddingBottom: space.x4,
         }}
@@ -910,7 +979,7 @@ export function WorkspacePanel({
     </>
   );
   const status = (
-    <View ref={accountMount}>
+    <View ref={page ? undefined : accountMount}>
       {tab === 'cloud' && directory.busy && (
         <Text style={{ padding: space.x5 }} accessibilityLiveRegion="polite">
           {t.workspaceLoading}
@@ -959,18 +1028,140 @@ export function WorkspacePanel({
     </View>
   );
 
+  const allSelected = !cloudRoute && filter === 'all';
+  const title = (
+    <View
+      ref={tabMount}
+      style={{
+        paddingTop: insets.top + space.x2,
+        paddingHorizontal: space.x5,
+        paddingBottom: space.x3,
+        gap: space.x4,
+      }}
+    >
+      <Text variant="display" accessibilityRole="header" numberOfLines={1}>
+        {t.workspaces}
+      </Text>
+      {cloudAvailable && <WorkspaceTabs value={tab} onChange={setTab} selectedRef={tabFocus} />}
+    </View>
+  );
+  const form = (
+    <SettingsForm testID="workspace-panel">
+      <SettingsSection>
+        <SettingsRow
+          testID="workspace-pair"
+          title={t.pairAnother}
+          tone="accent"
+          icon="add"
+          iconTone="accent"
+          onPress={() => hostDrawer.pairNew()}
+        />
+      </SettingsSection>
+      <SettingsSection footer={rows.length === 0 ? t.workspaceAdd.noComputers : undefined}>
+        <SettingsRow
+          testID="drawer-all"
+          title={t.allEnvironmentsRow}
+          leading={
+            rows.length > 0 ? (
+              <StackedHostTiles rows={rows} />
+            ) : (
+              <ChatsIcon color={theme.color.accent} size={workspaceStack.tile} />
+            )
+          }
+          {...(allSelected ? { control: { kind: 'check' as const } } : {})}
+          selected={allSelected}
+          onPress={() => hostDrawer.selectAll()}
+        />
+        {rows.map((row) => (
+          <HostFormRow
+            key={row.hostId}
+            row={row}
+            selected={!cloudRoute && filter === computerEnvironmentKey(row.hostId)}
+            address={connectionAddress(hosts.find((host) => host.hostId === row.hostId)?.routes[0])}
+          />
+        ))}
+      </SettingsSection>
+      {unpaired.length === 0 ? null : (
+        <SettingsSection title={t.pairAccount.drawerTitle}>
+          {unpaired.map((host) => (
+            <SettingsRow
+              key={host.id}
+              title={host.name}
+              detail={host.online ? t.pairAccount.pair : t.pairAccount.offline}
+              icon="computer"
+              accessibilityLabel={
+                host.online
+                  ? t.pairAccount.pairWith(host.name)
+                  : [t.pairAccount.pairWith(host.name), t.pairAccount.offline].join(', ')
+              }
+              onPress={() =>
+                router.push({ pathname: '/pair/account', params: { account: host.id } })
+              }
+            />
+          ))}
+        </SettingsSection>
+      )}
+    </SettingsForm>
+  );
+  const bar = (
+    <View
+      ref={accountMount}
+      testID="workspace-panel-bar"
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: space.x4,
+        paddingTop: space.x2,
+        paddingBottom: Math.max(insets.bottom, space.x4),
+      }}
+    >
+      <HumanAvatarButton
+        testID="workspace-account"
+        loadName={loadAccountName}
+        onPress={() => router.push('/settings')}
+      />
+      <HeaderCircleButton
+        testID="workspace-notifications"
+        label={t.notifications}
+        onPress={() => hostDrawer.openNotifications()}
+      >
+        <ActivityIcon color={theme.color.fg} size={theme.type.title.line} />
+      </HeaderCircleButton>
+    </View>
+  );
+
+  if (page && tab === 'computers')
+    return (
+      <View ref={cloudMount} style={{ flex: 1, backgroundColor: theme.overlay.fill }}>
+        {title}
+        {form}
+        {bar}
+      </View>
+    );
+
   return (
-    <View ref={cloudMount} style={{ flex: 1 }}>
-      {page ? null : top}
+    <View
+      ref={cloudMount}
+      style={{ flex: 1, ...(page ? { backgroundColor: theme.overlay.fill } : {}) }}
+    >
+      {page ? title : top}
       <FlatList<WorkspaceDrawerItem>
         key={tab}
         testID={page ? 'workspace-panel' : undefined}
         style={{ flex: 1 }}
-        contentInsetAdjustmentBehavior={page ? 'automatic' : undefined}
         data={drawerRows}
         keyExtractor={(row) => row.key}
         contentContainerStyle={{ paddingBottom: page ? 0 : space.x4 }}
-        ListHeaderComponent={page ? top : undefined}
+        ListHeaderComponent={
+          page ? (
+            <WorkspaceAddButton
+              glass={glass}
+              label={t.workspaceAdd.join}
+              onPress={() => router.push('/cloud-join')}
+            />
+          ) : undefined
+        }
         renderItem={({ item }) => {
           if (item.kind === 'all')
             return (
@@ -1106,34 +1297,7 @@ export function WorkspacePanel({
           </>
         }
       />
-      {page ? (
-        <View
-          testID="workspace-panel-bar"
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingHorizontal: space.x4,
-            paddingTop: space.x2,
-            paddingBottom: Math.max(insets.bottom, space.x4),
-          }}
-        >
-          <HumanAvatarButton
-            testID="workspace-account"
-            loadName={loadAccountName}
-            onPress={() => router.push('/settings')}
-          />
-          <HeaderCircleButton
-            testID="workspace-notifications"
-            label={t.notifications}
-            onPress={() => hostDrawer.openNotifications()}
-          >
-            <ActivityIcon color={theme.color.fg} size={theme.type.title.line} />
-          </HeaderCircleButton>
-        </View>
-      ) : (
-        actions
-      )}
+      {page ? bar : actions}
     </View>
   );
 }
