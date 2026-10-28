@@ -564,11 +564,16 @@ function ChatConversation({
     },
     [selectionScope],
   );
+  const stackRoot = useStackRoot();
+  const leave = useCallback(
+    () => (paging === undefined ? leaveScreen(router) : paging.leaveChat()),
+    [paging, router],
+  );
   const pull = usePullToCompose({
-    enabled: composable,
+    enabled: composable || stackRoot,
     threshold: pullToCompose.threshold,
     flick: Platform.OS === 'android' ? pullToCompose.flick : undefined,
-    onCompose: compose,
+    onCompose: stackRoot ? leave : compose,
   });
   const markdownViewport = useMemo(
     () => ({
@@ -1092,9 +1097,7 @@ function ChatConversation({
   );
   const missing =
     host.roster !== undefined && (dm ? bot === undefined : channel === undefined && !botDm);
-  const leave = () => (paging === undefined ? leaveScreen(router) : paging.leaveChat());
   const profileTravel = useSharedValue(0);
-  const stackRoot = useStackRoot();
   const canGoBack = !stackRoot && router.canGoBack();
   const botDmName =
     channelDetails?.members
@@ -1657,11 +1660,12 @@ function ChatConversation({
                 solid={composerCover}
                 color={fadeColor}
               />
-              {composable && Platform.OS === 'ios' ? (
+              {(composable || stackRoot) && Platform.OS === 'ios' ? (
                 <PullToComposeHint
                   progress={pull.progress}
                   ready={pull.ready}
                   bottom={composerHeight + space.x3}
+                  leaves={stackRoot}
                 />
               ) : null}
               {latest.away ? (

@@ -1,5 +1,6 @@
 import type { AltchaChallenge } from '../marketplace/altcha.js';
 import { parseChallenge, solveChallenge } from '../marketplace/altcha.js';
+import type { MarketplaceDigestSummary } from '../marketplace/client.js';
 import { pairingCapabilities, type PairingCapability } from '../messaging/pairing.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
@@ -439,8 +440,19 @@ export async function runHostAdminCommand(
         ...(values.day === undefined ? {} : { day: values.day }),
         ...(values.lang === undefined ? {} : { lang: values.lang }),
       });
-    case 'marketplace-digests':
-      return rpc('marketplaceDigests', values.lang === undefined ? {} : { lang: values.lang });
+    case 'marketplace-digests': {
+      const listed = await rpc<{ digests?: MarketplaceDigestSummary[] }>(
+        'marketplaceDigests',
+        values.lang === undefined ? {} : { lang: values.lang },
+      );
+      for (const digest of listed.digests ?? []) {
+        const picks = (digest.picks ?? []).map((pick) => pick.displayName ?? pick.id);
+        io.stderr(
+          `tobs: ${digest.day} ${digest.title}${picks.length === 0 ? '' : ` | ${picks.join(', ')}`}`,
+        );
+      }
+      return listed;
+    }
     case 'marketplace-detail':
       return rpc(
         'marketplaceDetail',

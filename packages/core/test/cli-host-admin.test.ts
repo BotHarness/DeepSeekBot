@@ -69,7 +69,7 @@ async function invoke(argv: string[], url: string, stdin = '') {
   });
   expect(stdout).toHaveLength(1);
   expect(stdout.join('') + stderr.join('')).not.toContain('private-test-token');
-  return { code, json: JSON.parse(stdout.join('')) };
+  return { code, json: JSON.parse(stdout.join('')), stderr };
 }
 
 const ok = (value: unknown) => ({ ok: true, value });
@@ -128,6 +128,34 @@ describe('Bot Marketplace commands', () => {
       { method: 'marketplaceDigest', args: {} },
       { method: 'marketplaceDigest', args: { day: '2026-10-28', lang: 'en' } },
       { method: 'marketplaceDigests', args: { lang: 'zh' } },
+    ]);
+  });
+
+  it('prints each digest with its pick names', async () => {
+    const digests = [
+      {
+        day: '2026-10-28',
+        lang: 'en',
+        title: 'Bots worth trying today',
+        lede: 'Two picks.',
+        picks: [
+          { id: 'R_one', displayName: 'Writer', banner: null, avatar: null },
+          {
+            id: 'U_two',
+            displayName: null,
+            banner: { recipe: { scene: 'sea', seed: 7 } },
+            avatar: null,
+          },
+        ],
+      },
+      { day: '2026-10-27', lang: 'en', title: 'Older picks', lede: 'None left.', picks: [] },
+    ];
+    const live = await host(() => ok({ digests }));
+    const result = await invoke(['marketplace-digests'], live.url);
+    expect(result.json).toEqual({ digests });
+    expect(result.stderr).toEqual([
+      'tobs: 2026-10-28 Bots worth trying today | Writer, U_two',
+      'tobs: 2026-10-27 Older picks',
     ]);
   });
 
