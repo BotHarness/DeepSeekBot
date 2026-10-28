@@ -44,7 +44,8 @@
         "storage:packages/client/src/client/roster-config.ts:setItem(ROSTER_CONFIG_KEY)",
         "storage:packages/client/src/client/roster-config.ts:setItem(ROSTER_MIGRATED_KEY)",
         "storage:packages/client/src/client/session-target.tsx:setItem(SESSION_TARGET_KEY)",
-        "storage:packages/client/src/client/session-view-prefs.ts:setItem(SESSION_VIEW_PREFERENCES_KEY)"
+        "storage:packages/client/src/client/session-view-prefs.ts:setItem(SESSION_VIEW_PREFERENCES_KEY)",
+        "storage:packages/client/src/client/tob-mode.ts:setItem(TOB_MODE_STORAGE_KEY)"
       ],
       "issue": "#2096"
     },

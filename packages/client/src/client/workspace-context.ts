@@ -8,6 +8,12 @@ export const WORKSPACE_CHANNELS = 'bh:channels';
 export const WorkspaceContext = createContext<
   | {
       shortcuts?: Shortcuts | undefined;
+      tob?:
+        | {
+            channel(): Promise<string>;
+            openChannel(channelId: string): Promise<void> | void;
+          }
+        | undefined;
       rail(
         api: DockviewApi,
         gap: number,
@@ -18,6 +24,7 @@ export const WorkspaceContext = createContext<
         hiddenControls: readonly string[],
         setControlVisible: (id: string, visible: boolean) => void,
         layoutMode: { mode: 'simple' | 'advanced'; setMode(mode: 'simple' | 'advanced'): void },
+        tobMode?: { active: boolean; setActive(active: boolean): void },
       ): ReactNode;
     }
   | undefined

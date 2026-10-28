@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useState,
   useSyncExternalStore,
   type DragEvent,
@@ -21,7 +22,17 @@ export interface PinnedPanelBadge {
   readonly label?: string | undefined;
 }
 
+export interface PinnedPanelSwitch {
+  readonly id: string;
+  readonly after: string;
+  readonly icon: string;
+  readonly label: string;
+  readonly pressed: boolean;
+  onClick(): void;
+}
+
 export interface PinnedPanelCardsProps {
+  extra?: PinnedPanelSwitch | undefined;
   menuTrigger?:
     | ((
         id: string,
@@ -59,6 +70,7 @@ export function PinnedPanelCards({
   tourOf,
   menuTrigger,
   onActivate,
+  extra,
   t,
 }: PinnedPanelCardsProps): ReactElement | null {
   const [dragging, setDragging] = useState<string | null>(null);
@@ -110,7 +122,35 @@ export function PinnedPanelCards({
         : event.clientX > rect.x + rect.width / 2,
     };
   };
-  if (sorted.length === 0) return null;
+  if (sorted.length === 0 && extra === undefined) return null;
+  const extraFirst = extra !== undefined && !sorted.some((panel) => panel.id === extra.after);
+  const extraCard = extra && (
+    <Tooltip
+      key={extra.id}
+      label={extra.label}
+      portal
+      side={collapsed ? 'right' : 'bottom'}
+      delayMs={400}
+    >
+      <button
+        type="button"
+        {...hooked(
+          'bh-pinned-panel',
+          styles.card,
+          collapsed && styles.railCard,
+          extra.pressed && styles.open,
+          collapsed && extra.pressed && styles.railOpen,
+        )}
+        data-pinned-switch={extra.id}
+        data-open={extra.pressed ? 'true' : undefined}
+        aria-label={extra.label}
+        aria-pressed={extra.pressed}
+        onClick={extra.onClick}
+      >
+        <ChannelSidebarIcon name={extra.icon} size={collapsed ? 18 : 16} />
+      </button>
+    </Tooltip>
+  );
   return (
     <div
       {...hooked('bh-pinned-panels', styles.grid, collapsed && styles.rail)}
@@ -140,6 +180,7 @@ export function PinnedPanelCards({
       }}
       onDragEnd={clearDrag}
     >
+      {extraFirst && extraCard}
       {sorted.map((panel, index) => {
         const open = openIds.includes(panel.id) || current === panel.id;
         const run = available ? () => registry.toggle(panel.id) : fallback?.(panel.id);
@@ -152,7 +193,7 @@ export function PinnedPanelCards({
           ...(run === undefined ? [t('dock.cardUnavailable')] : []),
         ].join(' · ');
         const label = [tooltipLabel, ...(keys?.length ? [keys.join(' ')] : [])].join(' · ');
-        return (
+        const card = (
           <Tooltip
             key={panel.id}
             label={tooltipLabel}
@@ -256,6 +297,14 @@ export function PinnedPanelCards({
               ) : null}
             </button>
           </Tooltip>
+        );
+        return !extraFirst && extra?.after === panel.id ? (
+          <Fragment key={panel.id}>
+            {card}
+            {extraCard}
+          </Fragment>
+        ) : (
+          card
         );
       })}
     </div>

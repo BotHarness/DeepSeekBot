@@ -111,6 +111,7 @@ export const zh = {
   'workspace.home': '首页',
   'workspace.storageFailed': '布局未能保存，已保留原来的布局。你仍可继续使用当前界面。',
   'tob.defaultName': '托布',
+  'workspace.tobMode': '{name}模式',
   'home.editHumanName': '修改全局用户名',
   'home.defaultHumanName': '朋友',
   'home.starters': '快捷提问',
@@ -4828,6 +4829,7 @@ export const en = {
   'workspace.storageFailed':
     'Layout could not be saved. Your previous layout is retained; this session remains usable.',
   'tob.defaultName': 'Tob',
+  'workspace.tobMode': '{name} mode',
   'home.editHumanName': 'Edit global username',
   'home.defaultHumanName': 'friend',
   'home.starters': 'Suggested questions',

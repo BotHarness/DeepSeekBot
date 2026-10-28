@@ -52,6 +52,8 @@ export type WorkspaceOptions = Omit<
 };
 
 const railInputs = sameFields(['humanInbox', 'selection']);
+const tobDisplayName = (state: { bots: readonly { tob?: unknown; displayName: string }[] }) =>
+  state.bots.find((bot) => bot.tob)?.displayName;
 export function Workspace({
   options,
   t,
@@ -168,6 +170,10 @@ export function Workspace({
           enabled && options
             ? {
                 shortcuts: options.shortcuts,
+                tob: {
+                  channel: async () => (await options.actions.tobHome()).channelId,
+                  openChannel: (channelId) => options.actions.openChannel(channelId),
+                },
                 rail: (
                   api,
                   gap,
@@ -178,6 +184,7 @@ export function Workspace({
                   hiddenControls,
                   setControlVisible,
                   layoutMode,
+                  tobMode,
                 ) => (
                   <WorkspaceRail
                     options={options}
@@ -190,6 +197,7 @@ export function Workspace({
                     hiddenControls={hiddenControls}
                     setControlVisible={setControlVisible}
                     layoutMode={layoutMode}
+                    tobMode={tobMode}
                     t={t}
                   />
                 ),
@@ -214,6 +222,7 @@ function WorkspaceRail({
   hiddenControls,
   setControlVisible,
   layoutMode,
+  tobMode,
   t,
 }: {
   options: WorkspaceOptions;
@@ -226,6 +235,7 @@ function WorkspaceRail({
   hiddenControls: readonly string[];
   setControlVisible(id: string, visible: boolean): void;
   layoutMode: { mode: LayoutMode; setMode(mode: LayoutMode): void };
+  tobMode?: { active: boolean; setActive(active: boolean): void } | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
   const simple = layoutMode.mode === 'simple';
@@ -243,6 +253,7 @@ function WorkspaceRail({
     () => options.prefs.source.getSnapshot().botIcon,
   );
   const state = useClientStore(keepClientState, railInputs);
+  const tobName = useClientStore(tobDisplayName) ?? t('tob.defaultName');
   const indicatorMenu = useActivityIndicatorMenu(t);
   const indicator = activityIndicator(indicatorMenu.scope, state.humanInbox);
   const attentionLabel = [
@@ -339,6 +350,16 @@ function WorkspaceRail({
               shortcut={(id) => shortcuts.find((row) => row.id === workspaceShortcutId(id))?.keys}
               collapsed
               t={t}
+              extra={
+                tobMode && {
+                  id: 'bh:tob-mode',
+                  after: WORKSPACE_HOME,
+                  icon: 'bot',
+                  label: t('workspace.tobMode', { name: tobName }),
+                  pressed: tobMode.active,
+                  onClick: () => tobMode.setActive(!tobMode.active),
+                }
+              }
               menuTrigger={(id) =>
                 id === 'activity-center' ? indicatorMenu.triggerProps : undefined
               }

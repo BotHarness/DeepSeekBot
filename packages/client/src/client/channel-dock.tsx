@@ -88,6 +88,7 @@ import {
   type SubpanelColumn,
 } from './layout-mode.js';
 import { NARROW_CHANNEL_SIDEBAR_QUERY } from './channel-sidebar-layout.js';
+import { INACTIVE_TOB_MODE, readTobMode, writeTobMode, type TobModeState } from './tob-mode.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import {
   clampChannelSidebarWidth,
@@ -1236,6 +1237,21 @@ export function ChannelDock({
   });
   const simpleRef = useRef(layoutMode);
   const isSimple = (): boolean => workspace !== undefined && simpleRef.current.mode === 'simple';
+  const [tobMode, updateTobMode] = useState<TobModeState>(() =>
+    workspace ? readTobMode(storage) : INACTIVE_TOB_MODE,
+  );
+  const tobRef = useRef(tobMode);
+  const isTob = (): boolean => workspace !== undefined && tobRef.current.active;
+  const tobChannel = useRef<string>();
+  const tobReached = useRef(false);
+  const tobSelecting = useRef(false);
+  const tobFrozen = useRef(tobMode.active);
+  const tobAddedMessages = useRef(false);
+  const setTobState = (next: TobModeState): void => {
+    tobRef.current = next;
+    updateTobMode(next);
+    writeTobMode(next, storage);
+  };
   const setSimpleLayout = (next: SimpleLayout): void => {
     simpleRef.current = next;
     updateLayoutMode(next);
@@ -1335,9 +1351,11 @@ export function ChannelDock({
   };
 
   const reportOpen = (target: DockviewApi): void => {
-    const ids = isSimple()
-      ? simpleViewIds(simpleRef.current.view).filter((id) => target.getPanel(id))
-      : target.panels.map((panel) => panel.id);
+    const ids = isTob()
+      ? [CHANNEL_BODY_PANEL].filter((id) => target.getPanel(id))
+      : isSimple()
+        ? simpleViewIds(simpleRef.current.view).filter((id) => target.getPanel(id))
+        : target.panels.map((panel) => panel.id);
     if (isSimple()) {
       registry?.reportOpen([...ids.filter((id) => id !== WORKSPACE_RAIL), ...columnOpenIds(ids)]);
       return;
@@ -1382,6 +1400,7 @@ export function ChannelDock({
     const channelsGroup = target.getPanel(WORKSPACE_CHANNELS)?.group;
     if (
       simple &&
+      !tobFrozen.current &&
       simpleRef.current.view === CHANNEL_BODY_PANEL &&
       channelsGroup &&
       target.width > 0 &&
@@ -1393,19 +1412,27 @@ export function ChannelDock({
       };
       writeLayoutMode(simpleRef.current, storage);
     }
-    const advanced = simple ? readChannelDock(storage) : undefined;
+    const advanced = simple || tobFrozen.current ? readChannelDock(storage) : undefined;
+    if (
+      !simple &&
+      tobFrozen.current &&
+      (advanced === undefined ||
+        (!isTob() && gridShape(advanced.layout) !== gridShape(target.toJSON())))
+    )
+      tobFrozen.current = false;
+    const frozen = simple || tobFrozen.current;
     if (workspace || !readChannelDock(storage)?.layout.panels[WORKSPACE_RAIL]) {
       const persisted = writeChannelDock(
         {
-          layout: simple
+          layout: frozen
             ? (advanced?.layout ?? EMPTY_LAYOUT)
             : {
                 ...target.toJSON(),
                 panels: { ...unregistered.current, ...target.toJSON().panels },
               },
           instances: registry?.instances(),
-          parked: simple ? (advanced?.parked ?? {}) : parked.current,
-          visibilityLayout: simple ? advanced?.visibilityLayout : visibilityLayout.current,
+          parked: frozen ? (advanced?.parked ?? {}) : parked.current,
+          visibilityLayout: frozen ? advanced?.visibilityLayout : visibilityLayout.current,
           gap: gapRef.current,
           order: orderRef.current,
           hiddenControls: hiddenControlsRef.current,
@@ -1481,7 +1508,102 @@ export function ChannelDock({
     restoreEntryPanel(target, panel, remembered, workspace ? gapRef.current : 0);
   };
 
+  const applyTobView = (target: DockviewApi): void => {
+    tobFrozen.current = true;
+    const message = known.current.get(CHANNEL_BODY_PANEL);
+    if (message && !target.getPanel(CHANNEL_BODY_PANEL)) {
+      restoreEntryPanel(target, message, parked.current[CHANNEL_BODY_PANEL], gapRef.current);
+      target.getPanel(CHANNEL_BODY_PANEL)?.api.updateParameters({ entryId: CHANNEL_BODY_PANEL });
+      hideBodyHeader(target);
+      tobAddedMessages.current = !isSimple();
+    }
+    for (const group of target.groups) {
+      const visible = group.panels.some(
+        (panel) => panel.id === WORKSPACE_RAIL || panel.id === CHANNEL_BODY_PANEL,
+      );
+      if (group.api.isVisible !== visible) group.api.setVisible(visible);
+    }
+    target.getPanel(CHANNEL_BODY_PANEL)?.api.setActive();
+  };
+
+  const leaveTobView = (target: DockviewApi): void => {
+    const added = tobAddedMessages.current;
+    tobAddedMessages.current = false;
+    if (isSimple()) {
+      showSimpleView(target, simpleRef.current.view);
+      return;
+    }
+    const current = target.panels
+      .map((panel) => panel.id)
+      .filter((id) => !added || id !== CHANNEL_BODY_PANEL)
+      .sort();
+    const snapshot = tobFrozen.current ? readChannelDock(storage)?.layout : undefined;
+    const saved = snapshot ? gridViews(snapshot).sort() : [];
+    if (snapshot && current.join('\n') === saved.join('\n')) {
+      restoringVisibility.current = true;
+      try {
+        target.fromJSON(snapshot, { reuseExistingPanels: true });
+        hideBodyHeader(target);
+        return;
+      } catch {
+      } finally {
+        restoringVisibility.current = false;
+      }
+    }
+    const message = added ? target.getPanel(CHANNEL_BODY_PANEL) : undefined;
+    if (message) target.removePanel(message);
+    for (const group of target.groups) if (!group.api.isVisible) group.api.setVisible(true);
+  };
+
+  const selectTob = async (): Promise<void> => {
+    const source = workspace?.tob;
+    if (!source || tobSelecting.current) return;
+    tobSelecting.current = true;
+    try {
+      const id = await source.channel();
+      if (!tobRef.current.active) return;
+      tobChannel.current = id;
+      if (channelRef.current?.id === id) tobReached.current = true;
+      else await source.openChannel(id);
+    } catch {
+      actions.current.leaveTob({ restoreChannel: false });
+    } finally {
+      tobSelecting.current = false;
+    }
+  };
+
+  const enterTob = (): void => {
+    if (!workspace || isTob()) return;
+    setTobState({ active: true, previousChannelId: channelRef.current?.id });
+    tobReached.current = false;
+    if (api) {
+      applyTobView(api);
+      save(api);
+    }
+  };
+
+  const leaveTob = ({
+    restoreChannel = true,
+    reveal = false,
+  }: { restoreChannel?: boolean; reveal?: boolean } = {}): void => {
+    if (!isTob()) return;
+    const previous = tobRef.current.previousChannelId;
+    setTobState(INACTIVE_TOB_MODE);
+    tobReached.current = false;
+    if (api) {
+      leaveTobView(api);
+      if (reveal) layout.current.open(CHANNEL_BODY_PANEL);
+      save(api);
+    }
+    if (restoreChannel && previous && previous !== channelRef.current?.id)
+      void workspace?.tob?.openChannel(previous);
+  };
+
   const showSimpleView = (target: DockviewApi, view: string): void => {
+    if (isTob()) {
+      applyTobView(target);
+      return;
+    }
     let id = view === WORKSPACE_CHANNELS ? CHANNEL_BODY_PANEL : view;
     if (id !== CHANNEL_BODY_PANEL) {
       const panel = known.current.get(id) ?? registry?.panels().find((item) => item.id === id);
@@ -1543,6 +1665,7 @@ export function ChannelDock({
   };
 
   const onReady = ({ api: ready }: DockviewReadyEvent): void => {
+    tobAddedMessages.current = false;
     const stored = readChannelDock(storage, workspace !== undefined);
     seed.current = stored?.sessionSeed ?? DEFAULT_CHANNEL_WORKSPACE;
     botSeeds.current = stored?.botPanelSeeds ?? {};
@@ -1642,10 +1765,12 @@ export function ChannelDock({
         ready.getPanel(WORKSPACE_CHANNELS)?.api.setSize({ width: 260 });
       }
     }
+    if (isTob()) applyTobView(ready);
     hideBodyHeader(ready);
     ready.onWillShowOverlay((event) => {
       if (
         isSimple() ||
+        isTob() ||
         !allowsDockDrop(event.kind, event.position) ||
         (workspace &&
           (((event.group === undefined || event.kind === 'edge') &&
@@ -1657,6 +1782,7 @@ export function ChannelDock({
     ready.onWillDrop((event) => {
       if (
         isSimple() ||
+        isTob() ||
         !allowsDockDrop(event.kind, event.position) ||
         (workspace &&
           (((event.group === undefined || event.kind === 'edge') &&
@@ -1666,7 +1792,8 @@ export function ChannelDock({
         event.preventDefault();
     });
     ready.onDidMovePanel(() => {
-      if (restoringVisibility.current) return;
+      if (restoringVisibility.current || isTob()) return;
+      tobFrozen.current = false;
       visibilityLayout.current = undefined;
       for (const panel of ready.panels) delete parked.current[panel.id];
       save(ready);
@@ -1693,6 +1820,8 @@ export function ChannelDock({
       const finish = () => {
         if (!resizing) return;
         resizing = false;
+        if (isTob()) return;
+        tobFrozen.current = false;
         visibilityLayout.current = undefined;
         for (const panel of api.panels) delete parked.current[panel.id];
         save(api);
@@ -1754,6 +1883,14 @@ export function ChannelDock({
     }
   }, [api, channel?.id, inbox?.open, sessionState.open, botWorkspaces]);
 
+  const tobChannelMount = useMountedResource<HTMLSpanElement>(() => {
+    if (!isTob()) return;
+    const id = channel?.id;
+    if (tobChannel.current !== undefined && id === tobChannel.current) tobReached.current = true;
+    else if (tobReached.current) actions.current.leaveTob({ restoreChannel: false, reveal: true });
+    else void selectTob();
+  }, [channel?.id, tobMode.active]);
+
   const setSessionState = (next: ChannelWorkspaceState): void => {
     if (!channel) return;
     channelWorkspacesRef.current = { ...channelWorkspacesRef.current, [channel.id]: next };
@@ -1777,6 +1914,13 @@ export function ChannelDock({
   const subpanelState = (id: string) =>
     id === 'sessions' ? sessionStateRef.current : botStatesRef.current[id]!;
   const close = (panelId: string): void => {
+    if (isTob() && !inColumn(panelId)) {
+      leaveTob();
+      if (panelId === CHANNEL_BODY_PANEL) {
+        open(CHANNEL_BODY_PANEL);
+        return;
+      }
+    }
     if (isSimple() && inColumn(panelId)) {
       const column = simpleRef.current.column;
       setColumn({ ...column, expanded: column.expanded.filter((id) => id !== panelId) });
@@ -1828,6 +1972,13 @@ export function ChannelDock({
   };
   const open = (panelId: string): void => {
     if (!canOpen(panelId)) return;
+    if (isTob() && !inColumn(panelId)) {
+      if (panelId === CHANNEL_BODY_PANEL && api) {
+        api.getPanel(CHANNEL_BODY_PANEL)?.api.setActive();
+        return;
+      }
+      leaveTob();
+    }
     const definition = byId.get(panelId) ?? registry?.panels().find((item) => item.id === panelId);
     if (
       isSimple() &&
@@ -1941,6 +2092,8 @@ export function ChannelDock({
 
   const reset = () => {
     if (!api) return;
+    leaveTob();
+    tobFrozen.current = false;
     if (isSimple()) {
       setSimpleLayout({
         ...simpleRef.current,
@@ -2047,6 +2200,7 @@ export function ChannelDock({
       });
     },
     close,
+    leaveTob,
   };
   const actions = useRef(handlers);
   actions.current = handlers;
@@ -2170,6 +2324,7 @@ export function ChannelDock({
         save(api);
       },
       { mode: layoutMode.mode, setMode },
+      { active: tobMode.active, setActive: (active) => (active ? enterTob() : leaveTob()) },
     );
   const value = useSame<DockContextValue>(
     {
@@ -2273,6 +2428,7 @@ export function ChannelDock({
             </div>
           )}
           <span ref={inboxStateMount} hidden />
+          <span ref={tobChannelMount} hidden />
           <span ref={layoutMount} hidden />
           <span ref={scrollbarsMount} hidden />
           <span ref={geometryMount} hidden />
@@ -2307,6 +2463,20 @@ const EMPTY_LAYOUT: import('dockview-react').SerializedDockview = {
   },
   panels: {},
 };
+
+function gridViews(layout: import('dockview-react').SerializedDockview): string[] {
+  const walk = (node: { type: string; data: unknown }): string[] =>
+    node.type === 'leaf'
+      ? [...((node.data as { views?: readonly string[] }).views ?? [])]
+      : (node.data as { type: string; data: unknown }[]).flatMap(walk);
+  return walk(layout.grid.root);
+}
+
+function gridShape(layout: import('dockview-react').SerializedDockview): string {
+  const walk = (node: { type: string; data: unknown }): unknown =>
+    node.type === 'leaf' ? node.data : (node.data as { type: string; data: unknown }[]).map(walk);
+  return JSON.stringify(walk(layout.grid.root), ['views', 'activeView']);
+}
 
 function simpleViewIds(view: string): readonly string[] {
   return view === CHANNEL_BODY_PANEL || view === WORKSPACE_CHANNELS
