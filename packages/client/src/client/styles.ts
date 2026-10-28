@@ -2672,12 +2672,19 @@ html[data-botharness-motion='full'] .bh-skeleton-line {
 .bh-illustrated-head { transform-box: fill-box; transform-origin: 50% 65%; }
 .bh-illustrated-gaze { transform-box: fill-box; transform-origin: center; }
 .bh-avatar-editor { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: ${space.x6}; align-items: start; }
-.bh-card-list.bh-avatar-methods { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: ${space.x4}; overflow: visible; border: 0; border-radius: 0; }
-.bh-card-list.bh-avatar-methods > .bh-card-row { border: ${border.hairline} solid ${color.border}; border-radius: ${radius.md}; }
-.bh-card-list.bh-avatar-methods > .bh-card-row + .bh-card-row { border-top: ${border.hairline} solid ${color.divider}; }
-.bh-card-list.bh-avatar-methods > .bh-card-row[data-state="current"] { border-color: var(--bh-accent); }
-.bh-card-list.bh-avatar-methods .bh-card-title { white-space: normal; }
-.bh-card-list.bh-avatar-methods .bh-card-detail { padding-top: ${space.x1}; }
+.bh-avatar-methods { display: flex; flex-direction: column; gap: ${space.x3}; }
+.bh-avatar-method { display: flex; align-items: center; gap: ${space.x3}; width: 100%; box-sizing: border-box; margin: 0; padding: ${space.x3} ${space.x4}; border: ${border.hairline} solid ${color.border}; border-radius: ${radius.md}; background: transparent; color: var(--dsw-alias-label-primary); font: inherit; text-align: start; cursor: pointer; transition: background-color 120ms ease, border-color 120ms ease; }
+.bh-avatar-method:not(:disabled):hover { background: var(--dsw-alias-interactive-bg-hover); }
+.bh-avatar-method:not(:disabled):active { background: var(--dsw-alias-interactive-bg-active); }
+.bh-avatar-method:focus-visible { outline: ${border.focus} solid var(--dsw-alias-label-primary); outline-offset: 2px; }
+.bh-avatar-method:disabled { cursor: default; opacity: 0.5; }
+.bh-avatar-method[data-state="current"] { border-color: var(--bh-accent); }
+.bh-avatar-method-icon { display: grid; flex: none; place-items: center; width: 32px; height: 32px; border-radius: ${radius.sm}; background: var(--bh-well-inset); }
+.bh-avatar-method-body { display: flex; flex: 1; flex-direction: column; gap: ${space.x1}; min-width: 0; }
+.bh-avatar-method-title { display: flex; flex-wrap: wrap; align-items: center; gap: ${space.x2}; font-size: ${text.bodySize}; font-weight: ${text.strong}; line-height: ${text.bodyLine}; }
+.bh-avatar-method-meta { color: var(--dsw-alias-label-secondary); font-size: ${text.metaSize}; line-height: ${text.metaLine}; }
+.bh-avatar-method-chevron { display: grid; flex: none; place-items: center; color: var(--dsw-alias-label-tertiary); }
+.bh-avatar-remove { display: flex; margin-top: ${space.x3}; }
 .bh-avatar-editor-preview { display: flex; align-items: center; justify-content: center; }
 .bh-avatar-editor-controls h3 { margin: 0; font-size: ${text.titleSize}; }
 .bh-avatar-editor-controls p { margin: ${space.x3} 0 ${space.x4}; color: var(--dsw-alias-label-secondary); font-size: ${text.bodySize}; }
@@ -2825,11 +2832,7 @@ canvas.bh-banner-art { image-rendering: pixelated; }
   gap: ${space.x4};
   margin-top: -40px;
 }
-.bh-profile-header-top .bh-profile-avatar-button {
-  flex: none;
-  border: 4px solid var(--dsw-alias-bg-module-platform);
-  background: var(--dsw-alias-bg-module-platform);
-}
+.bh-profile-header-top .bh-profile-avatar-button { flex: none; }
 .bh-profile-header-actions {
   display: flex;
   flex-wrap: wrap;
@@ -3385,16 +3388,50 @@ button.bh-profile-heat-cell:focus-visible {
   color: var(--dsw-alias-label-secondary);
 }
 .bh-profile-avatar-button {
+  position: relative;
   padding: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: ${radius.lg};
   background: transparent;
   cursor: pointer;
 }
+.bh-profile-avatar-button:disabled { cursor: default; }
 .bh-profile-avatar-button:focus-visible {
   outline: ${border.focus} solid var(--dsw-alias-label-primary);
   outline-offset: 2px;
 }
+.bh-profile-avatar-button .bh-persona-avatar {
+  filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--dsw-alias-label-primary) 18%, transparent));
+  transition: filter 120ms ease;
+}
+.bh-profile-avatar-button:not(:disabled):hover .bh-persona-avatar,
+.bh-profile-avatar-button:focus-visible .bh-persona-avatar {
+  filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--dsw-alias-label-primary) 18%, transparent)) brightness(0.72);
+}
+.bh-profile-avatar-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dsw-alias-label-primary);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.bh-profile-avatar-overlay-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: ${border.hairline} solid ${color.border};
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-module-platform);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--dsw-alias-label-primary) 16%, transparent);
+}
+.bh-profile-avatar-button:not(:disabled):hover .bh-profile-avatar-overlay,
+.bh-profile-avatar-button:focus-visible .bh-profile-avatar-overlay { opacity: 1; }
 .bh-content {
   flex: 1;
   min-height: 0;
@@ -4484,6 +4521,8 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   margin: 0 ${space.x4} calc(${space.x4} + env(safe-area-inset-bottom, 0px));
   flex: 0 0 auto;
 }
+/* Cards above the composer (the Tob journey) share the composer's side inset. */
+.bh-composer-inset { margin-inline: ${space.x4}; }
 .bh-composer {
   --bh-composer-body-height: 34px;
   --bh-composer-compact-padding-left: 44px;
@@ -5650,7 +5689,8 @@ html[data-botharness-motion='full'] .bh-motion-preview-sample i:nth-child(3) {
 }
 
 @media (max-width: 720px) {
-  .bh-composer-shell {
+  .bh-composer-shell,
+  .bh-composer-inset {
     margin-right: ${space.x3};
     margin-left: ${space.x3};
   }

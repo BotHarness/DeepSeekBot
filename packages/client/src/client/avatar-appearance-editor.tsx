@@ -53,7 +53,8 @@ import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PartLibraryEntry } from '../../../core/src/bots/part-library.js';
 import { CustomPartEditor } from './custom-part-editor.js';
 import { PersonaBotAvatar, PersonaBotStatusBadges, normalizePersonaBotActivity } from './avatar.js';
-import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { ActionButton } from './ds/action-button.js';
 import type { BotSummary } from './store.js';
 import type { BotHarnessTranslate } from './locale.js';
 
@@ -861,61 +862,73 @@ export function AvatarAppearanceEditor({
                   {t('profile.avatar.unsupported')}
                 </p>
               ) : null}
-              <SidebarCardList className="bh-avatar-methods" label={t('profile.avatar.section')}>
-                <SidebarCardRow
-                  icon="palette"
-                  title={t('profile.avatar.designTitle')}
-                  chips={current === 'design' ? inUse : undefined}
-                  meta={t('profile.avatar.designDescription')}
-                  state={current === 'design' ? 'current' : undefined}
-                  detail={
-                    <div className="bh-profile-avatar-actions">
-                      <button
-                        data-avatar-edit
-                        type="button"
-                        className="bh-profile-action"
-                        disabled={bot.appearanceUnsupported === true}
-                        onClick={start}
-                      >
-                        {t('profile.avatar.design')}
-                      </button>
-                    </div>
-                  }
-                />
+              <section className="bh-avatar-methods" aria-label={t('profile.avatar.section')}>
+                <button
+                  data-avatar-edit
+                  type="button"
+                  className="bh-avatar-method"
+                  data-state={current === 'design' ? 'current' : undefined}
+                  disabled={bot.appearanceUnsupported === true}
+                  onClick={start}
+                >
+                  <span aria-hidden="true" className="bh-avatar-method-icon">
+                    <ChannelSidebarIcon name="palette" size={16} />
+                  </span>
+                  <span className="bh-avatar-method-body">
+                    <span className="bh-avatar-method-title">
+                      <span>{t('profile.avatar.designTitle')}</span>
+                      {current === 'design' ? inUse : null}
+                    </span>
+                    <span className="bh-avatar-method-meta">
+                      {t('profile.avatar.designDescription')}
+                    </span>
+                  </span>
+                  <span aria-hidden="true" className="bh-avatar-method-chevron">
+                    <ChannelSidebarIcon name="chevron-right" size={16} />
+                  </span>
+                </button>
                 {onUpload === undefined ? null : (
-                  <SidebarCardRow
-                    icon="image-up"
-                    title={t('profile.avatar.uploadTitle')}
-                    chips={current === 'image' ? inUse : undefined}
-                    meta={t('profile.avatar.uploadDescription')}
-                    state={current === 'image' ? 'current' : undefined}
-                    detail={
-                      <div className="bh-profile-avatar-actions">
-                        <button
-                          data-avatar-upload
-                          type="button"
-                          className="bh-profile-action"
-                          disabled={imageBusy}
-                          onClick={onUpload}
-                        >
-                          {t('profile.avatar.upload')}
-                        </button>
-                        {bot.avatar === undefined || onRemoveImage === undefined ? null : (
-                          <button
-                            data-avatar-remove
-                            type="button"
-                            className="bh-profile-action"
-                            disabled={imageBusy}
-                            onClick={onRemoveImage}
-                          >
-                            {t('profile.avatar.remove')}
-                          </button>
-                        )}
-                      </div>
-                    }
-                  />
+                  <button
+                    data-avatar-upload
+                    type="button"
+                    className="bh-avatar-method"
+                    data-state={current === 'image' ? 'current' : undefined}
+                    disabled={imageBusy}
+                    onClick={onUpload}
+                  >
+                    <span aria-hidden="true" className="bh-avatar-method-icon">
+                      <ChannelSidebarIcon name="image-up" size={16} />
+                    </span>
+                    <span className="bh-avatar-method-body">
+                      <span className="bh-avatar-method-title">
+                        <span>{t('profile.avatar.uploadTitle')}</span>
+                        {current === 'image' ? inUse : null}
+                      </span>
+                      <span className="bh-avatar-method-meta">
+                        {t('profile.avatar.uploadDescription')}
+                      </span>
+                    </span>
+                    <span aria-hidden="true" className="bh-avatar-method-chevron">
+                      <ChannelSidebarIcon name="chevron-right" size={16} />
+                    </span>
+                  </button>
                 )}
-              </SidebarCardList>
+              </section>
+              {onUpload === undefined ||
+              bot.avatar === undefined ||
+              onRemoveImage === undefined ? null : (
+                <div className="bh-avatar-remove">
+                  <ActionButton
+                    data-avatar-remove
+                    tone="danger"
+                    icon="x"
+                    disabled={imageBusy}
+                    onClick={onRemoveImage}
+                  >
+                    {t('profile.avatar.remove')}
+                  </ActionButton>
+                </div>
+              )}
             </>
           )}
           {draft && fields ? (

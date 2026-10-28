@@ -15,12 +15,25 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
       disabled,
       type = 'button',
       form,
+      ...rest
     }: PropsWithChildren<{
       onClick?: () => void;
       disabled?: boolean;
       type?: 'button' | 'submit';
       form?: string;
-    }>) => createElement('button', { type, form, onClick, disabled }, children),
+      [key: `data-${string}`]: unknown;
+    }>) =>
+      createElement(
+        'button',
+        {
+          type,
+          form,
+          onClick,
+          disabled,
+          ...Object.fromEntries(Object.entries(rest).filter(([key]) => key.startsWith('data-'))),
+        },
+        children,
+      ),
     HoverCard: stub,
     IconAgentPresetOutlineRegular: stub,
     IconCheckOutlineRegular: stub,
@@ -304,6 +317,23 @@ describe('PersonaBot Profile surface', () => {
         '所选时间范围内暂无模型调用记录。',
       );
       expect(container.querySelectorAll('.bh-profile-avatar-button').length).toBe(1);
+      const avatarButton = container.querySelector<HTMLButtonElement>('.bh-profile-avatar-button')!;
+      expect(avatarButton.getAttribute('aria-label')).toBe('更换头像');
+      expect(avatarButton.hasAttribute('data-avatar-editable')).toBe(true);
+      expect(avatarButton.disabled).toBe(false);
+      const overlay = avatarButton.querySelector('.bh-profile-avatar-overlay');
+      expect(overlay?.getAttribute('aria-hidden')).toBe('true');
+      const { CSS } = await import('../src/client/styles.js');
+      expect(CSS).toContain(
+        '.bh-profile-avatar-button:not(:disabled):hover .bh-profile-avatar-overlay',
+      );
+      expect(CSS).toContain('.bh-profile-avatar-button:not(:disabled):hover .bh-persona-avatar');
+      expect(CSS).toMatch(/\.bh-profile-avatar-overlay \{[^}]*\}/);
+      expect(CSS.match(/\.bh-profile-avatar-overlay \{[^}]*\}/)![0]).not.toContain('background');
+      expect(CSS).not.toMatch(
+        /\.bh-profile-header-top \.bh-profile-avatar-button \{[^}]*(border|background)/,
+      );
+      expect(CSS).toContain('.bh-profile-avatar-button:focus-visible .bh-profile-avatar-overlay');
       expect(container.querySelectorAll('.bh-profile-card').length).toBe(3);
       const sidebarLabels = [...container.querySelectorAll('.bh-channel-sidebar [role="tab"]')].map(
         (tab) => tab.getAttribute('aria-label') ?? tab.textContent,
@@ -370,7 +400,9 @@ describe('PersonaBot Profile surface', () => {
 
       await act(async () => click(container, '.bh-profile-avatar-button'));
       const avatarDialog = container.querySelector('[role="dialog"][aria-label="头像"]');
-      const avatarMethods = avatarDialog?.querySelectorAll('.bh-avatar-methods > .bh-card-row');
+      const avatarMethods = avatarDialog?.querySelectorAll(
+        '.bh-avatar-methods > .bh-avatar-method',
+      );
       expect(avatarMethods?.length).toBe(2);
       expect(avatarMethods?.[0]?.textContent).toContain('设计像素头像');
       expect(avatarMethods?.[1]?.textContent).toContain('上传图片');

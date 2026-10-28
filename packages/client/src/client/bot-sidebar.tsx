@@ -115,6 +115,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import { toolApprovalText } from './approval-text.js';
 import { personaBotActivity } from './persona-activity.js';
 import { CreatePersonaBotModal } from './persona-bot-create.js';
+import { BotAvatarModal } from './profile-header.js';
 import { BotZipShareDialog, ImportBotZipModal } from './bot-zip.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { PersonaBotDeletionView } from './personabot-deletion.js';
@@ -1031,6 +1032,9 @@ export function BotSidebar({
   const [searchOpen, setSearchOpen] = useState(false);
   const [channelMenu, setChannelMenu] = useState<ChannelMenuRequest | undefined>(undefined);
   const [sharing, setSharing] = useState<BotSummary | undefined>(undefined);
+  const [avatarTarget, setAvatarTarget] = useState<{ slug: string; channelId: string } | undefined>(
+    undefined,
+  );
   const [publishing, setPublishing] = useState<BotSummary | undefined>(undefined);
   const [undoToast, setUndoToast] = useState<
     { seq: number; text: string; undo: () => Promise<unknown> } | undefined
@@ -3124,6 +3128,15 @@ export function BotSidebar({
                   else void actions.openBot(menuBotSlug, 'profile');
                 }
           }
+          avatarAction={(() => {
+            const bot = state.bots.find((item) => item.slug === menuBotSlug);
+            if (bot === undefined || bot.deleted === true) return undefined;
+            const channelId = channelMenu.channelId;
+            return () => {
+              setAvatarTarget({ slug: bot.slug, channelId });
+              setChannelMenu(undefined);
+            };
+          })()}
           settingsAction={(() => {
             const channel = state.channels.find(
               (candidate) => candidate.id === channelMenu.channelId,
@@ -3289,6 +3302,22 @@ export function BotSidebar({
           onClose={() => setPublishing(undefined)}
         />
       )}
+      {(() => {
+        if (avatarTarget === undefined) return null;
+        const bot = state.bots.find((item) => item.slug === avatarTarget.slug);
+        const channel = state.channels.find((item) => item.id === avatarTarget.channelId);
+        if (bot === undefined || channel === undefined || bot.deleted === true) return null;
+        return (
+          <BotAvatarModal
+            key={bot.slug}
+            bot={bot}
+            channel={channel}
+            actions={actions}
+            t={t}
+            onClose={() => setAvatarTarget(undefined)}
+          />
+        );
+      })()}
       {sharing === undefined ? null : (
         <BotZipShareDialog
           key={sharing.slug}
@@ -3559,6 +3588,7 @@ export function ChannelMoveMenu({
   deleteAction,
   settingsAction,
   profileAction,
+  avatarAction,
   nicknameAction,
   dmActions,
   modelAction,
@@ -3582,6 +3612,7 @@ export function ChannelMoveMenu({
   deleteAction?: { label: string; run(): void } | undefined;
   settingsAction?: { attention: boolean; run(): void } | undefined;
   profileAction?: (() => void) | undefined;
+  avatarAction?: (() => void) | undefined;
   nicknameAction?: (() => void) | undefined;
   dmActions?:
     | {
@@ -3631,6 +3662,15 @@ export function ChannelMoveMenu({
             id: 'profile',
             label: t('profile.view'),
             icon: <ChannelSidebarIcon name="id-card" size={16} />,
+          },
+        ]
+      : []),
+    ...(avatarAction
+      ? [
+          {
+            id: 'change-avatar',
+            label: t('roster.menu.changeAvatar'),
+            icon: <ChannelSidebarIcon name="image-up" size={16} />,
           },
         ]
       : []),
@@ -3749,6 +3789,10 @@ export function ChannelMoveMenu({
         onSelect={(id) => {
           if (id === 'profile') {
             profileAction?.();
+            return;
+          }
+          if (id === 'change-avatar') {
+            avatarAction?.();
             return;
           }
           if (id === 'mark-read') {
