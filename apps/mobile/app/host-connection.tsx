@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { createHostClient } from '../src/host/client';
@@ -35,7 +35,12 @@ export default function HostConnectionScreen() {
   );
   const snapshot = useHostSnapshot(client);
   const [busy, setBusy] = useState<string>();
-  const [copied, setCopied] = useState<string>();
+  const [copied, setCopied] = useState<{ url: string }>();
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(undefined), 1500);
+    return () => clearTimeout(timer);
+  }, [copied]);
   const routes =
     snapshot.routes ?? host?.routes.map((url) => ({ url, status: 'unchecked' as const })) ?? [];
   const header = (
@@ -96,16 +101,10 @@ export default function HostConnectionScreen() {
               <SettingsRow
                 on={SHEET_GROUP}
                 icon="copy"
-                title={copied === url ? copy.copied : copy.copy}
+                title={copied?.url === url ? copy.copied : copy.copy}
                 testID={`connection-copy-${index}`}
                 onPress={() => {
-                  void Clipboard.setStringAsync(url).then(() => {
-                    setCopied(url);
-                    setTimeout(
-                      () => setCopied((value) => (value === url ? undefined : value)),
-                      1500,
-                    );
-                  });
+                  void Clipboard.setStringAsync(url).then(() => setCopied({ url }));
                 }}
               />
               <SettingsRow

@@ -53,9 +53,18 @@ it('groups each route as a settings section with native copy and test rows', asy
     expect(host.querySelector('[data-testid="connection-scan-update"]')).toBeNull();
     expect(host.querySelectorAll('[data-rn-symbol]').length).toBeGreaterThanOrEqual(5);
 
+    vi.useFakeTimers();
     const copy = host.querySelector<HTMLElement>('[data-testid="connection-copy-1"]')!;
     await act(async () => copy.click());
     expect(clipboard.setStringAsync).toHaveBeenCalledWith('https://mac.tail.ts.net');
+    expect(copy.textContent).toContain('Address copied');
+    await act(async () => vi.advanceTimersByTime(1000));
+    await act(async () => copy.click());
+    await act(async () => vi.advanceTimersByTime(1000));
+    expect(copy.textContent).toContain('Address copied');
+    await act(async () => vi.advanceTimersByTime(600));
+    expect(copy.textContent).not.toContain('Address copied');
+    vi.useRealTimers();
 
     const probe = host.querySelector<HTMLElement>('[data-testid="connection-test-0"]')!;
     await act(async () => probe.click());
