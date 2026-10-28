@@ -45,8 +45,29 @@ vi.mock('@expo/ui/jetpack-compose', () => {
         children,
       );
   return {
-    Host: ({ children, style }: { children: ReactNode; style?: { alignSelf?: string } }) =>
-      createElement('div', { 'data-testid': 'host', 'data-align': style?.alignSelf }, children),
+    Host: ({
+      children,
+      style,
+      onLayoutContent,
+      matchContents,
+    }: {
+      children: ReactNode;
+      matchContents?: boolean | { vertical?: boolean };
+      style?: { alignSelf?: string; flexGrow?: number; maxHeight?: number };
+      onLayoutContent?: (event: { nativeEvent: { width: number; height: number } }) => void;
+    }) =>
+      createElement(
+        'div',
+        {
+          'data-testid': 'host',
+          'data-align': style?.alignSelf,
+          'data-grow': style?.flexGrow,
+          'data-max-height': style?.maxHeight,
+          'data-match': JSON.stringify(matchContents),
+          onClick: () => onLayoutContent?.({ nativeEvent: { width: 120, height: 52 } }),
+        },
+        children,
+      ),
     Button: button('filled'),
     FilledTonalButton: button('tonal'),
     TextButton: button('text'),
@@ -128,6 +149,23 @@ it('keeps a 48dp minimum touch target and stretches to the caller width', async 
     { defaultMinSize: { minHeight: 48 } },
     { testID: 'save' },
   ]);
+});
+
+it('grows to fill a row, so a horizontal action row never lays it out at zero width', async () => {
+  const view = await mount(<Button label="Save" onPress={() => {}} />);
+  const host = view.querySelector('[data-testid="host"]') as HTMLElement;
+  expect(host.getAttribute('data-grow')).toBe('1');
+  expect(host.getAttribute('data-max-height')).toBeNull();
+  await act(async () => host.click());
+  expect(host.getAttribute('data-max-height')).toBe('52');
+});
+
+it('sizes to its label when it sits in a trailing slot', async () => {
+  const view = await mount(<Button label="Allow" fit onPress={() => {}} />);
+  const host = view.querySelector('[data-testid="host"]');
+  expect(host?.getAttribute('data-match')).toBe('true');
+  expect(host?.getAttribute('data-grow')).toBeNull();
+  expect(modifiers(view.querySelector('button'))).toEqual([{ defaultMinSize: { minHeight: 48 } }]);
 });
 
 it('shows a native busy indicator no larger than the label line and disables the button', async () => {
