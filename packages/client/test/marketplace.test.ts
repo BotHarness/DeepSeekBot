@@ -458,7 +458,7 @@ describe('Bot Marketplace modal', () => {
 
         await click(host, '确认安装');
 
-        expect(createBot).toHaveBeenCalledWith('R_helper', 'review-R_helper');
+        expect(createBot).toHaveBeenCalledWith('R_helper', 'review-R_helper', undefined, 'list');
         expect(onInstalled).toHaveBeenCalledOnce();
       },
     );
@@ -473,7 +473,7 @@ describe('Bot Marketplace modal', () => {
 
         await click(host, '确认安装');
 
-        expect(createBot).toHaveBeenCalledWith('R_helper', 'review-R_helper');
+        expect(createBot).toHaveBeenCalledWith('R_helper', 'review-R_helper', undefined, 'list');
         expect(onInstalled).not.toHaveBeenCalled();
         expect(host.querySelector('[role="alert"]')?.textContent).toContain('克隆失败');
 
@@ -626,7 +626,7 @@ describe('Bot Marketplace modal', () => {
 
         await click(host, '安装');
         await click(host, '确认安装');
-        expect(createBot).toHaveBeenCalledWith('R_helper', 'review-R_helper');
+        expect(createBot).toHaveBeenCalledWith('R_helper', 'review-R_helper', undefined, 'list');
       },
       undefined,
       undefined,
@@ -710,7 +710,12 @@ describe('Bot Marketplace modal', () => {
         expect(host.querySelector('h1')?.textContent).toBe('安装 Helper');
         await click(host, '确认安装');
 
-        expect(createBot).toHaveBeenCalledWith('R_helper-bot', 'review-R_helper-bot');
+        expect(createBot).toHaveBeenCalledWith(
+          'R_helper-bot',
+          'review-R_helper-bot',
+          undefined,
+          'list',
+        );
       },
     );
   });

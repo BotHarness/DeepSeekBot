@@ -49,7 +49,7 @@ export default function PairChoiceScreen() {
           on={SHEET_GROUP}
           title={t.pairChoice.lan}
           detail={t.pairChoice.lanDetail}
-          icon="qr"
+          icon="lan"
           disclosure
           onPress={() =>
             router.push({
@@ -72,7 +72,7 @@ export default function PairChoiceScreen() {
           on={SHEET_GROUP}
           title={t.pairChoice.tailscale}
           detail={t.pairChoice.tailscaleDetail}
-          icon="qr"
+          icon="encrypted"
           disclosure
           onPress={() => router.push('/pair/tailscale')}
         />

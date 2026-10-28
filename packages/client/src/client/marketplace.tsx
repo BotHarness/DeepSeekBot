@@ -28,6 +28,7 @@ import type {
   MarketplaceQuery,
   MarketplaceSort,
   MarketplaceTopic,
+  MarketplaceInstallSource,
 } from '../../../core/src/marketplace/client.js';
 import type {
   InstallFinding,
@@ -1042,6 +1043,7 @@ export function MarketplaceSubmitField({
 export interface MarketplaceFlowStart {
   readonly bot: MarketplaceEntry;
   readonly step: 'detail' | 'install';
+  readonly source?: MarketplaceInstallSource;
 }
 
 export function MarketplaceBotFlow({
@@ -1151,6 +1153,8 @@ export function MarketplaceBotFlow({
     const installed: Promise<unknown> = actions.marketplaceInstall(
       selected.id,
       review.result.reviewId,
+      undefined,
+      start.source ?? 'list',
     );
     void installed.then(
       () => {
