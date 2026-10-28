@@ -35,6 +35,8 @@ const ROW_ICONS = {
   share: { ios: 'square.and.arrow.up', android: 'share' },
   account: { ios: 'person.crop.circle', android: 'account_circle' },
   qr: { ios: 'qrcode.viewfinder', android: 'qr_code_scanner' },
+  lan: { ios: 'wifi', android: 'wifi' },
+  encrypted: { ios: 'lock', android: 'vpn_lock' },
   add: { ios: 'plus', android: 'add' },
 } as const;
 
