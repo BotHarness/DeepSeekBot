@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import type { DesignTheme } from '../design/theme';
 
-export function profileScreenOptions(theme: DesignTheme) {
+export function profileScreenOptions(theme: DesignTheme, reducedMotion = false) {
   return {
     presentation: 'card' as const,
     gestureEnabled: true,
@@ -9,7 +9,7 @@ export function profileScreenOptions(theme: DesignTheme) {
     contentStyle: { backgroundColor: theme.overlay.fill },
     ...(Platform.OS === 'ios'
       ? {
-          animation: 'default' as const,
+          animation: reducedMotion ? ('fade' as const) : ('default' as const),
           headerShown: true,
           headerTransparent: true,
           headerShadowVisible: false,

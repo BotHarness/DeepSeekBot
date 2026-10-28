@@ -24,6 +24,7 @@ import { KeyboardRoot } from '../src/ui/primitives/keyboard-frame';
 import { AppDialogHost } from '../src/ui/primitives/app-dialog-host';
 import { noteTouch } from '../src/ui/primitives/touch-anchor';
 import { sheetScreenOptions } from '../src/ui/primitives/sheet-screen';
+import { useSystemReducedMotion } from '../src/ui/primitives/use-system-reduced-motion';
 import { profileScreenOptions } from '../src/ui/chat/profile-presentation';
 import { swipeEntryListeners, swipeEntryOptions } from '../src/ui/shell/swipe-entry';
 import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
@@ -48,12 +49,15 @@ function RootNavigator() {
   const t = useStrings();
   const theme = useTheme();
   const design = useDesignTheme();
+  const reducedMotion = useSystemReducedMotion();
   const [routingPending, setRoutingPending] = useState(false);
   const routing = usePushRouting(setRoutingPending, hostDrawer.captureWorkspaceSelection);
   const workspace = useWorkspaceNavigation(hostDrawer.beginWorkspaceSelection);
   const activity = useMounted(watchRequestActivity, []);
   const back = usePredictiveBack();
-  const profileListeners = swipeEntryListeners(profileScreenOptions(design).animation);
+  const profileListeners = swipeEntryListeners(
+    profileScreenOptions(design, reducedMotion).animation,
+  );
   const stack = useCallback(
     (node: ViewInstance | null) => {
       workspace(node);
@@ -116,7 +120,7 @@ function RootNavigator() {
                   name="bot/[slug]"
                   options={({ route }) => ({
                     title: t.profile,
-                    ...profileScreenOptions(design),
+                    ...profileScreenOptions(design, reducedMotion),
                     ...swipeEntryOptions(route),
                   })}
                   listeners={profileListeners}
@@ -124,7 +128,7 @@ function RootNavigator() {
                 <Stack.Screen
                   name="channel-details"
                   options={({ route }) => ({
-                    ...profileScreenOptions(design),
+                    ...profileScreenOptions(design, reducedMotion),
                     ...swipeEntryOptions(route),
                   })}
                   listeners={profileListeners}
@@ -133,7 +137,7 @@ function RootNavigator() {
                   name="group/[id]"
                   options={({ route }) => ({
                     title: t.groupInfo,
-                    ...profileScreenOptions(design),
+                    ...profileScreenOptions(design, reducedMotion),
                     ...swipeEntryOptions(route),
                   })}
                   listeners={profileListeners}

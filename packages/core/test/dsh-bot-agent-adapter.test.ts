@@ -2433,7 +2433,10 @@ describe('DSH Bot Agent adapter', () => {
       type: 'text',
       text: expect.stringContaining('[Host reply transport reminder]'),
     });
-    expect(host.received.get('assignment-1')?.[0]?.content).toHaveLength(1);
+    expect(host.received.get('assignment-1')?.[0]?.content).toEqual([
+      { type: 'text', text: '核对发布状态' },
+      { type: 'text', text: expect.stringContaining('[Host Assignment report transport]') },
+    ]);
     expect(host.steered.get('orchestrator-ada')?.[0]?.content).toEqual([
       { type: 'text', text: '请继续回复当前 Channel' },
       {
