@@ -22,6 +22,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.sidesheet.SideSheetBehavior
 import com.google.android.material.sidesheet.SideSheetCallback
+import com.reactnativepagerview.ComposePagerView
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.viewevent.EventDispatcher
 import expo.modules.kotlin.views.ExpoView
@@ -34,12 +35,7 @@ internal fun startsEndDrag(dx: Float, dy: Float, slop: Int): Boolean =
 /** One native side sheet; its RN slots keep their identity throughout drag and settle. */
 class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
   private val materialContext = ContextThemeWrapper(context, com.google.android.material.R.style.Theme_Material3_DayNight_NoActionBar)
-  private val coordinator = object : CoordinatorLayout(materialContext) {
-    override fun requestDisallowInterceptTouchEvent(disallow: Boolean) {
-      android.util.Log.i("BHSheetQA", "phase=intercept-request disallow=$disallow")
-      super.requestDisallowInterceptTouchEvent(disallow)
-    }
-  }
+  private val coordinator = CoordinatorLayout(materialContext)
   private val content = FrameLayout(context)
   private val panel = FrameLayout(materialContext)
   private val scrim = View(context)
@@ -67,7 +63,6 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
         down = MotionEvent.obtain(event)
         val edges = ViewCompat.getRootWindowInsets(this@EndSheetView)?.getInsets(WindowInsetsCompat.Type.systemGestures())
         val reserve = 24 * resources.displayMetrics.density
-        android.util.Log.i("BHSheetQA", "phase=down active=$active enabled=$gesturesEnabled state=$state horizontal=${horizontalTarget(content, event.rawX, event.rawY)}")
         eligible = active && gesturesEnabled && state == STATE_HIDDEN &&
           event.x > max(reserve, (edges?.left ?: 0).toFloat()) &&
           event.x < parent.width - max(reserve, (edges?.right ?: 0).toFloat()) &&
@@ -81,7 +76,6 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
         val slop = ViewConfiguration.get(context).scaledTouchSlop
         if (abs(dy) > slop && abs(dy) >= abs(dx)) eligible = false
         if (startsEndDrag(dx, dy, slop)) {
-          android.util.Log.i("BHSheetQA", "phase=claim dx=$dx dy=$dy")
           eligible = false
           child.visibility = VISIBLE
           reportOpening()
@@ -217,6 +211,12 @@ private fun horizontalTarget(view: View, x: Float, y: Float): Boolean {
   view.getLocationOnScreen(at)
   if (x < at[0] || x >= at[0] + view.width || y < at[1] || y >= at[1] + view.height) return false
   if (view is EditText || view.canScrollHorizontally(-1) || view.canScrollHorizontally(1)) return true
+  // The pager owns enabled/disabled scroll state. Its Compose implementation reports
+  // semantics at the previous DOWN position; inspect public page views instead.
+  if (view is ComposePagerView) {
+    for (i in view.getPageCount() - 1 downTo 0) if (horizontalTarget(view.getPageAt(i), x, y)) return true
+    return false
+  }
   if (view is ViewGroup) for (i in view.childCount - 1 downTo 0) if (horizontalTarget(view.getChildAt(i), x, y)) return true
   return false
 }
