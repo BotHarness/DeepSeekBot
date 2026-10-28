@@ -74,7 +74,7 @@ describe('Settings sheet', () => {
     const handlers = actions();
     const view = await render(<SettingsView version="0.0.1 · 1c8d179" actions={handlers} />);
     expect(button(view, t.done)).toBeNull();
-    expect(view.textContent).not.toContain(t.computers);
+    expect(button(view, t.computers)).toBeNull();
     expect(view.textContent).not.toContain(t.connected);
 
     const rows: [string, keyof SettingsActions][] = [
