@@ -316,8 +316,8 @@ it('uploads a Bot, retries an expired token once, and installs it as a fresh Bot
   });
   if (!installed.ok) throw new Error(installed.error.message);
   expect(f.receipts).toEqual([uploaded.value.bot.id]);
-  expect(f.captures.filter(([event]) => event === 'marketplace_bot_installed')).toEqual([
-    ['marketplace_bot_installed', { from: 'digest' }],
+  expect(f.captures.filter(([event]) => event === 'marketplace:bot_install')).toEqual([
+    ['marketplace:bot_install', { entry: 'digest' }],
   ]);
   expect(installed.value.bot).toMatchObject({
     displayName: 'Helper',

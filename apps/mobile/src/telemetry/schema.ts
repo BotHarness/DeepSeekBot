@@ -60,17 +60,17 @@ export type ConnectionReason =
   | 'device-unknown'
   | 'device-credential-missing';
 export interface EventProperties {
-  mobile_bot_operation_started: {
+  'bot_library:create_attempt_start': {
     kind: BotOperationKind;
     phase: BotOperationPhase;
     attempt_id: string;
   };
-  mobile_bot_operation_result: EventProperties['mobile_bot_operation_started'] & {
+  'bot_library:create_attempt_complete': EventProperties['bot_library:create_attempt_start'] & {
     outcome: BotOperationOutcome;
     reason: BotOperationReason;
     duration_bucket: DurationBucket;
   };
-  mobile_connection_result: {
+  'connection:attempt_complete': {
     trigger: ConnectionTrigger;
     outcome: ConnectionOutcome;
     reason: ConnectionReason;
@@ -78,13 +78,16 @@ export interface EventProperties {
     duration_bucket: DurationBucket;
     retry_count_bucket: '0' | '1' | '2-3' | '4plus';
   };
-  mobile_activation_step: { step: ActivationStep; channel_kind: ChannelKind | 'none' };
-  mobile_app_opened: {
+  'onboarding:activation_step_complete': {
+    step: ActivationStep;
+    channel_kind: ChannelKind | 'none';
+  };
+  'app:app_open': {
     launch_kind: 'cold' | 'resume';
     paired_host_count_bucket: '0' | '1' | '2plus';
   };
-  mobile_pairing_started: { method: PairingMethod; attempt_id: string };
-  mobile_pairing_result: {
+  'pairing:attempt_start': { method: PairingMethod; attempt_id: string };
+  'pairing:attempt_complete': {
     method: PairingMethod;
     attempt_id: string;
     outcome: PairingOutcome;
@@ -128,13 +131,16 @@ const deviceFields: Record<keyof DeviceTelemetryContext, (value: unknown) => boo
   total_mem_gb_bucket: member('<=4', '8', '16', '32', '64plus', 'unknown'),
   device_year_class: (value) => value === 'unknown' || isDeviceYearClass(value),
 };
-const fields: Record<keyof EventProperties, Record<string, (value: unknown) => boolean>> = {
-  mobile_bot_operation_started: {
+export const MOBILE_EVENT_FIELDS: Record<
+  keyof EventProperties,
+  Record<string, (value: unknown) => boolean>
+> = {
+  'bot_library:create_attempt_start': {
     kind: member('blank', 'git', 'zip', 'marketplace'),
     phase: member('preview', 'submit', 'recover'),
     attempt_id: isUuid,
   },
-  mobile_bot_operation_result: {
+  'bot_library:create_attempt_complete': {
     kind: member('blank', 'git', 'zip', 'marketplace'),
     phase: member('preview', 'submit', 'recover'),
     attempt_id: isUuid,
@@ -160,7 +166,7 @@ const fields: Record<keyof EventProperties, Record<string, (value: unknown) => b
     ),
     duration_bucket: duration,
   },
-  mobile_connection_result: {
+  'connection:attempt_complete': {
     trigger: member('pair', 'open', 'resume', 'switch', 'recovery', 'manual_retry'),
     outcome: member('ready', 'refused', 'timeout', 'cancelled'),
     reason: member('none', 'device-revoked', 'device-unknown', 'device-credential-missing'),
@@ -168,16 +174,16 @@ const fields: Record<keyof EventProperties, Record<string, (value: unknown) => b
     duration_bucket: duration,
     retry_count_bucket: member('0', '1', '2-3', '4plus'),
   },
-  mobile_activation_step: {
+  'onboarding:activation_step_complete': {
     step: member('host_ready', 'message_accepted', 'bot_message_observed'),
     channel_kind: member('dm', 'group', 'none'),
   },
-  mobile_app_opened: {
+  'app:app_open': {
     launch_kind: member('cold', 'resume'),
     paired_host_count_bucket: member('0', '1', '2plus'),
   },
-  mobile_pairing_started: { method, attempt_id: isUuid },
-  mobile_pairing_result: {
+  'pairing:attempt_start': { method, attempt_id: isUuid },
+  'pairing:attempt_complete': {
     method,
     attempt_id: isUuid,
     outcome: member('success', 'refused', 'failed', 'cancelled'),
@@ -212,13 +218,26 @@ const fields: Record<keyof EventProperties, Record<string, (value: unknown) => b
     duration_bucket: duration,
   },
 };
+export const LEGACY_EVENT_NAMES: Readonly<Record<string, keyof EventProperties>> = {
+  mobile_bot_operation_started: 'bot_library:create_attempt_start',
+  mobile_bot_operation_result: 'bot_library:create_attempt_complete',
+  mobile_connection_result: 'connection:attempt_complete',
+  mobile_activation_step: 'onboarding:activation_step_complete',
+  mobile_app_opened: 'app:app_open',
+  mobile_pairing_started: 'pairing:attempt_start',
+  mobile_pairing_result: 'pairing:attempt_complete',
+};
 export function sanitizeEvent(value: unknown): TelemetryEvent | undefined {
   const input = record(value);
   const props = record(input['properties']);
-  const event = input['event'];
+  const named = input['event'];
+  const event =
+    typeof named === 'string' && Object.hasOwn(LEGACY_EVENT_NAMES, named)
+      ? LEGACY_EVENT_NAMES[named]
+      : named;
   if (
     typeof event !== 'string' ||
-    !Object.hasOwn(fields, event) ||
+    !Object.hasOwn(MOBILE_EVENT_FIELDS, event) ||
     !isUuid(input['uuid']) ||
     !isUuid(input['distinct_id']) ||
     typeof input['timestamp'] !== 'string' ||
@@ -260,7 +279,7 @@ export function sanitizeEvent(value: unknown): TelemetryEvent | undefined {
     if (!valid(field) || (typeof field !== 'string' && typeof field !== 'number')) return undefined;
     properties[name] = field;
   }
-  for (const [name, valid] of Object.entries(fields[event as keyof EventProperties])) {
+  for (const [name, valid] of Object.entries(MOBILE_EVENT_FIELDS[event as keyof EventProperties])) {
     const field = props[name];
     if (!valid(field) || typeof field !== 'string') return undefined;
     properties[name] = field;

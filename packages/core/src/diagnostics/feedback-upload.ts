@@ -19,7 +19,7 @@ export function feedbackUploader(
         api_key: TELEMETRY_API_KEY,
         batch: [
           {
-            event: 'message_feedback',
+            event: 'chat:message_feedback_submit',
             uuid: reportId,
             distinct_id: reportId,
             properties: {

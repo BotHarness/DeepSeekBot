@@ -122,7 +122,7 @@ export function MarketDigestDialog({
   const ticket = useRef(0);
 
   const showArchive = (): void => {
-    actions.introEvent('marketplace_digest_archive_opened');
+    actions.telemetryEvent('marketplace:digest_archive_open');
     const current = ++ticket.current;
     setCause(undefined);
     setArchive({ status: 'loading' });
@@ -142,7 +142,7 @@ export function MarketDigestDialog({
     void actions.marketplaceDigest(day, lang).then(
       (loaded) => {
         if (current !== ticket.current) return;
-        actions.introEvent('marketplace_digest_opened', { from: 'archive' });
+        actions.telemetryEvent('marketplace:digest_open', { entry: 'archive' });
         setDigest(loaded);
         setArchive(undefined);
       },
@@ -234,7 +234,7 @@ export function MarketDigestHero({
       (loaded) => {
         if (!live) return;
         setDigest(loaded);
-        actions.introEvent('marketplace_digest_shown');
+        actions.telemetryEvent('marketplace:digest_view');
       },
       () => undefined,
     );
@@ -250,7 +250,7 @@ export function MarketDigestHero({
           {...stylex.props(styles.hero)}
           aria-label={t('market.digest.read', { title: digest.title })}
           onClick={() => {
-            actions.introEvent('marketplace_digest_opened', { from: 'hero' });
+            actions.telemetryEvent('marketplace:digest_open', { entry: 'hero' });
             setOpen(true);
           }}
         >

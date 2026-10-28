@@ -665,8 +665,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
       }),
     );
   }
-  introEvent(event: string, properties: Record<string, string | boolean> = {}): null {
-    return unwrap(this.methods.introEvent({ ...properties, event }));
+  telemetryEvent(event: string, properties: Record<string, string | boolean> = {}): null {
+    return unwrap(this.methods.telemetryEvent({ event, properties }));
   }
   modelPlanInherit(slug: string, expectedRevision: number): { revision: number } {
     return unwrap(this.methods.modelPlanInherit({ slug, expectedRevision }));
@@ -2408,7 +2408,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'tobHome',
   'onboarding',
   'onboardingModel',
-  'introEvent',
+  'telemetryEvent',
   'modelPlanInherit',
   'channelRetry',
   'botNewSession',

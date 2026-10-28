@@ -1,4 +1,5 @@
 import { approveWorkspaceGrantRequest } from './bridge.js';
+import type { ClientTelemetryEventName } from '../../../core/src/telemetry/events.js';
 import type { PixelBannerRecipe } from '@botharness/pixel-banner';
 import { onboardingFor } from './onboarding.js';
 import { loadAveragePerf, type AveragePerfView } from './message-perf.js';
@@ -397,7 +398,10 @@ export interface BridgeActions {
     globalDefault: boolean,
   ): Promise<{ revision: number }>;
   inheritModel(slug: string, expectedRevision: number): Promise<{ revision: number }>;
-  introEvent(event: string, properties?: Record<string, string | boolean>): void;
+  telemetryEvent(
+    event: ClientTelemetryEventName,
+    properties?: Record<string, string | boolean>,
+  ): void;
   retryMessage(
     channelId: string,
     messageId: string,
@@ -1079,6 +1083,10 @@ function mergeLatestWindow(
   return { messages, keptPrefix: overlap >= 0 || continues };
 }
 
+function telemetrySurface(): 'desktop_app' | 'browser' {
+  return typeof globalThis === 'object' && 'dshDesktop' in globalThis ? 'desktop_app' : 'browser';
+}
+
 export function createActions(
   call: BridgeCall,
   clientStore: ClientStore,
@@ -1702,8 +1710,11 @@ export function createActions(
     },
     inheritModel: (slug, expectedRevision) =>
       invoke('modelPlanInherit', { slug, expectedRevision }),
-    introEvent: (event, properties = {}) => {
-      void invoke('introEvent', { ...properties, event }).catch(() => {});
+    telemetryEvent: (event, properties = {}) => {
+      void invoke('telemetryEvent', {
+        event,
+        properties: { ...properties, surface: telemetrySurface() },
+      }).catch(() => {});
     },
     async botContext(botSlug) {
       return invoke('botContext', { slug: botSlug });

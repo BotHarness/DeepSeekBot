@@ -56,7 +56,7 @@ describe('mobile statistics preference', () => {
     const first = send.mock.calls[0]![0];
     expect(first).toHaveLength(1);
     expect(first[0]).toMatchObject({
-      event: 'mobile_app_opened',
+      event: 'app:app_open',
       properties: { source: 'mobile', launch_kind: 'cold' },
     });
     expect(first[0]?.properties).toMatchObject({
@@ -97,7 +97,7 @@ it('keeps only sanitized bounded events, retries stable UUIDs, expires offline d
   advance(24 * 60 * 60 * 1000 + 1);
   await telemetry.flush();
   expect(send).toHaveBeenCalledTimes(2);
-  expect(JSON.stringify(stored())).not.toContain('mobile_pairing');
+  expect(JSON.stringify(stored())).not.toContain('pairing:attempt');
   telemetry.dispose();
 });
 
@@ -145,7 +145,7 @@ it('records activation once per identity and rejects pre-foreground or backgroun
   telemetry.send('group').accepted();
   await telemetry.flush();
   expect(
-    send.mock.calls[0]![0].filter((e) => e.event === 'mobile_activation_step').map(
+    send.mock.calls[0]![0].filter((e) => e.event === 'onboarding:activation_step_complete').map(
       (e) => e.properties,
     ),
   ).toMatchObject([
@@ -192,7 +192,7 @@ it('restores only sanitized unexpired data and activation deduplication; missing
   restored.send('dm').accepted();
   expect(JSON.stringify(disk)).not.toContain('SENTINEL');
   await restored.flush();
-  expect(batch.filter((e) => e.event === 'mobile_activation_step')).toHaveLength(1);
+  expect(batch.filter((e) => e.event === 'onboarding:activation_step_complete')).toHaveLength(1);
   expect(batch.every((e) => e.distinct_id === batch[0]!.distinct_id)).toBe(true);
   restored.dispose();
   const reinstalled = fixture();
@@ -284,9 +284,9 @@ it('retains an in-flight send acceptance on background without observing a hidde
   expect(observation.accepted()).toBe(true);
   observation.observed();
   await telemetry.flush();
-  expect(send.mock.calls[0]![0].filter((e) => e.event === 'mobile_activation_step')).toMatchObject([
-    { properties: { step: 'message_accepted' } },
-  ]);
+  expect(
+    send.mock.calls[0]![0].filter((e) => e.event === 'onboarding:activation_step_complete'),
+  ).toMatchObject([{ properties: { step: 'message_accepted' } }]);
   telemetry.dispose();
 });
 
@@ -373,7 +373,7 @@ it('records the first app open when foreground arrives before preference loading
   await telemetry.ready;
   await telemetry.flush();
   expect(send).toHaveBeenCalledTimes(1);
-  expect(send.mock.calls[0]![0]).toEqual([expect.objectContaining({ event: 'mobile_app_opened' })]);
+  expect(send.mock.calls[0]![0]).toEqual([expect.objectContaining({ event: 'app:app_open' })]);
   telemetry.dispose();
 });
 

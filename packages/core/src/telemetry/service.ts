@@ -6,10 +6,15 @@ import {
   readHostTelemetryFacts,
   type HostTelemetryFacts,
 } from './context.js';
+import {
+  isTelemetryEventName,
+  telemetryEventProperties,
+  type TelemetryEventName,
+} from './events.js';
 
 export const TELEMETRY_ENDPOINT = 'https://t.botharness.ai/batch/';
 export const TELEMETRY_API_KEY = 'phc_CxrCyBuRHVSs996eyHXAeyJbyE8rJXgREbEYsfxUkR3J';
-export const TELEMETRY_SOURCE = 'plugin';
+export const TELEMETRY_SOURCE = 'host';
 export const INSTALL_ID_FILE = 'telemetry.json';
 
 const FLUSH_DELAY_MS = 2_000;
@@ -19,7 +24,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
 export type TelemetryValue = string | number | boolean;
 
-export type TelemetryCapture = (event: string, properties?: Record<string, TelemetryValue>) => void;
+export type TelemetryCapture = (
+  event: TelemetryEventName,
+  properties?: Record<string, TelemetryValue>,
+) => void;
 
 export interface TelemetryStackFrame {
   platform: 'node:javascript';
@@ -65,7 +73,7 @@ export interface TelemetryService {
   readonly enabled: boolean;
   status(): TelemetryStatus;
   setPreference(enabled: boolean): TelemetryStatus;
-  capture(event: string, properties?: Record<string, TelemetryValue>): void;
+  capture(event: TelemetryEventName, properties?: Record<string, TelemetryValue>): void;
   captureException(exception: TelemetryExceptionEntry, at?: Date): void;
   flush(): Promise<void>;
   close(): Promise<void>;
@@ -137,6 +145,20 @@ export function writeDailyUsageAt(dataDir: string, at: Date): void {
   if (readInstallId(dataDir) === undefined) return;
   try {
     updateTelemetryFile(dataDir, { dailyUsageAt: at.toISOString() });
+  } catch {
+    return;
+  }
+}
+
+export function readActiveDay(dataDir: string): string | undefined {
+  const value = readTelemetryState(dataDir)['activeDay'];
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/u.test(value) ? value : undefined;
+}
+
+export function writeActiveDay(dataDir: string, day: string): void {
+  if (readInstallId(dataDir) === undefined) return;
+  try {
+    updateTelemetryFile(dataDir, { activeDay: day });
   } catch {
     return;
   }
@@ -318,7 +340,14 @@ export function createTelemetryService(options: TelemetryServiceOptions): Teleme
       return status();
     },
     capture(event, properties = {}) {
-      enqueue(event, properties);
+      const registered = isTelemetryEventName(event)
+        ? telemetryEventProperties(event, properties)
+        : undefined;
+      if (registered === undefined) {
+        options.log?.(`telemetry phase=refused event=${String(event).slice(0, 64)}`);
+        return;
+      }
+      enqueue(event, registered);
     },
     captureException(exception, at) {
       enqueue('$exception', { $exception_list: [exception], $exception_level: 'error' }, at);

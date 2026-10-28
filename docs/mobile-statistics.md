@@ -38,7 +38,7 @@ Only iOS/Android send; web preview never sends. Added `expo-device` and `expo-ap
 
 ## Analysis definition
 
-Project **648269**, timezone **Asia/Shanghai**. Base cohort: `properties.source = 'mobile'`, `schema_version = 1`, `environment = 'production'`, no `qa_run_id`. Segment by platform, public app version/build and language. Count distinct `distinct_id` as installations with statistics enabled, never people; separate `mobile_app_opened.paired_host_count_bucket = '0'` from returning paired installations.
+Project **648269**, timezone **Asia/Shanghai**. Base cohort: `properties.source = 'mobile'`, `schema_version = 1`, `environment = 'production'`, no `qa_run_id`. Segment by platform, public app version/build and language. Count distinct `distinct_id` as installations with statistics enabled, never people; separate `app:app_open.paired_host_count_bucket = '0'` from returning paired installations.
 
 - Pairing: starts vs results by `attempt_id`, method, outcome and bounded reason. Missing outcomes may mean process termination, TTL/overflow or transport loss; do not equate them with a product refusal.
 - Connection: `ready / all completed observation episodes`, segmented by trigger, bounded credential-refusal reason and retry bucket. Timeout ends only the observation, not Host reconnection. `recovery` is a new episode. Use duration buckets, not invented exact latency.
@@ -49,7 +49,7 @@ Do not add Host and mobile message totals together or estimate non-consenting us
 
 ## Bot creation and import observations / Bot 创建与导入观测 (#2682)
 
-`mobile_bot_operation_started` and `mobile_bot_operation_result` share a random `attempt_id`, `kind=blank|git|zip|marketplace` and `phase=preview|submit|recover`. Results include `outcome=preview_ready|created|recovered|pending|refused|failed|unknown`, a bounded reason and the existing duration bucket. Marketplace is classified from the selected Git source's origin; no listing, repository, file, commit, Host, Bot or operation identifier is sent.
+`bot_library:create_attempt_start` and `bot_library:create_attempt_complete` share a random `attempt_id`, `kind=blank|git|zip|marketplace` and `phase=preview|submit|recover`. Results include `outcome=preview_ready|created|recovered|pending|refused|failed|unknown`, a bounded reason and the existing duration bucket. Marketplace is classified from the selected Git source's origin; no listing, repository, file, commit, Host, Bot or operation identifier is sent.
 
 The existing Bot creation controller observes each serialized preview/submit/recovery invocation after its stored record loads. Draft edits, navigation, picker cancellation, empty recovery and acknowledged/already-visible completions do not start observations. Concurrent duplicate calls share one invocation. Success requires the owning Host's checked `created` receipt; `reserved` and an absent read-only lookup are `pending`. An existing receipt is `recovered`, including after app restart, and is never counted as a new `created` result. Transport loss is `unknown`, even when the Host may have committed. A subsequent explicit attempt receives a new anonymous attempt ID; no durable cross-restart analytics-operation key is introduced.
 
