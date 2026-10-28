@@ -1,7 +1,5 @@
 import { useRef, useState, type ReactElement } from 'react';
 
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
-
 import type {
   MarketplaceEntry,
   MarketplaceInstallSource,
@@ -9,6 +7,9 @@ import type {
 } from '../../../core/src/marketplace/client.js';
 import type { BridgeActions } from './actions.js';
 import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { IconButton } from './ds/icon-button.js';
+import { Tooltip } from './ds/tooltip.js';
 import type { DockPanel, DockPanelRegistry } from './dock-panels.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { MarketDailyPicks, MarketDigestPage, MarketPastPicksPage } from './market-digest.js';
@@ -16,6 +17,7 @@ import { MyUploadsDialog } from './market-mine.js';
 import { useKeptScroll } from './market-page.js';
 import { MarketRankingPage, MarketplaceSections, MarketplaceTile } from './market-rankings.js';
 import { MarketUploadDialog } from './market-upload.js';
+import { useMountedResource } from './mounted-resource.js';
 import {
   MarketplaceBotFlow,
   MarketplaceBrowseControls,
@@ -27,6 +29,43 @@ import {
 } from './marketplace.js';
 
 export const MARKET_PANEL = 'bot-market';
+
+type MarketRequest = 'upload' | 'mine';
+
+const marketRequests = new Set<(request: MarketRequest) => void>();
+
+function requestMarket(request: MarketRequest): void {
+  for (const listener of marketRequests) listener(request);
+}
+
+export function MarketHeaderAction({ t }: { t: BotHarnessTranslate }): ReactElement {
+  return (
+    <>
+      <Tooltip label={t('market.mine.open')} side="bottom" delayMs={500}>
+        <IconButton
+          size="row"
+          tone="subtle"
+          aria-label={t('market.mine.open')}
+          aria-haspopup="dialog"
+          onClick={() => requestMarket('mine')}
+        >
+          <ChannelSidebarIcon name="package" />
+        </IconButton>
+      </Tooltip>
+      <Tooltip label={t('market.panel.upload')} side="bottom" delayMs={500}>
+        <IconButton
+          size="row"
+          tone="subtle"
+          aria-label={t('market.panel.upload')}
+          aria-haspopup="dialog"
+          onClick={() => requestMarket('upload')}
+        >
+          <ChannelSidebarIcon name="upload" />
+        </IconButton>
+      </Tooltip>
+    </>
+  );
+}
 
 type MarketPageTarget =
   | {
@@ -59,6 +98,16 @@ export function MarketPanelView({
   const [uploading, setUploading] = useState(false);
   const [mine, setMine] = useState(false);
   const pageKey = useRef(0);
+  const listen = useMountedResource<HTMLDivElement>(() => {
+    const listener = (request: MarketRequest): void => {
+      if (request === 'upload') setUploading(true);
+      else setMine(true);
+    };
+    marketRequests.add(listener);
+    return () => {
+      marketRequests.delete(listener);
+    };
+  }, []);
   const { list, filters } = browse;
   const push = (target: MarketPageTarget): void => {
     const key = ++pageKey.current;
@@ -91,23 +140,10 @@ export function MarketPanelView({
     registry.open(CHANNEL_BODY_PANEL);
   };
   return (
-    <div className="bh-market-stack" data-market-panel>
+    <div className="bh-market-stack" data-market-panel ref={listen}>
       <div className="bh-market-page" ref={keepHome} hidden={pages.length > 0}>
         <div className="bh-market-panel" ref={browse.mount}>
-          <MarketplaceBrowseControls
-            browse={browse}
-            t={t}
-            action={
-              <>
-                <Button variant="outline" onClick={() => setMine(true)}>
-                  {t('market.mine.open')}
-                </Button>
-                <Button variant="primary" onClick={() => setUploading(true)}>
-                  {t('market.panel.upload')}
-                </Button>
-              </>
-            }
-          />
+          <MarketplaceBrowseControls browse={browse} t={t} />
           {filters.query.length === 0 && filters.topic === undefined ? (
             <MarketDailyPicks
               actions={actions}
@@ -255,5 +291,6 @@ export function createMarketPanel(
     order: 500,
     defaultPosition: { zone: 'right' },
     component: () => <MarketPanelView actions={actions} registry={registry} t={t} />,
+    headerAction: () => <MarketHeaderAction t={t} />,
   };
 }

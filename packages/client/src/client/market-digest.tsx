@@ -19,6 +19,8 @@ import { useMountedResource } from './mounted-resource.js';
 
 export const DAILY_PICKS_SHOWN = 7;
 
+const NARROW = '@container bh-market (max-width: 480px)';
+
 const styles = stylex.create({
   row: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0, flexShrink: 0 },
   rowHead: {
@@ -59,9 +61,14 @@ const styles = stylex.create({
     scrollSnapAlign: 'start',
     opacity: { default: 1, ':hover': 0.92 },
   },
-  hero: { width: 'min(400px, 88%)' },
+  hero: {
+    width: { default: 'min(400px, 88%)', [NARROW]: '100%' },
+    height: { default: '208px', [NARROW]: '232px' },
+  },
+  past: { display: { default: null, [NARROW]: 'none' } },
+  narrowOnly: { display: { default: 'none', [NARROW]: 'inline-flex' } },
   more: {
-    display: 'flex',
+    display: { default: 'flex', [NARROW]: 'none' },
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
@@ -190,6 +197,7 @@ function DigestCard({
   t,
   wide,
   grid,
+  past = false,
   onOpen,
 }: {
   digest: MarketplaceDigestSummary;
@@ -197,13 +205,19 @@ function DigestCard({
   t: BotHarnessTranslate;
   wide: boolean;
   grid: boolean;
+  past?: boolean;
   onOpen: () => void;
 }): ReactElement {
   return (
     <button
       type="button"
       role="listitem"
-      {...stylex.props(styles.card, wide && styles.hero, grid && styles.gridCard)}
+      {...stylex.props(
+        styles.card,
+        wide && styles.hero,
+        grid && styles.gridCard,
+        past && styles.past,
+      )}
       aria-label={t('market.digest.read', { title: digest.title })}
       data-market-digest-day={digest.day}
       onClick={onOpen}
@@ -251,6 +265,9 @@ export function MarketDailyPicks({
     >
       <div {...stylex.props(styles.rowHead)}>
         <h3 {...stylex.props(styles.rowTitle)}>{t('market.digest.label')}</h3>
+        <span {...stylex.props(styles.narrowOnly)}>
+          <SeePastPicks t={t} onArchive={onArchive} />
+        </span>
       </div>
       {digests.length === 0 ? null : (
         <div {...stylex.props(styles.carousel)} role="list">

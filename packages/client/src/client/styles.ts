@@ -1881,6 +1881,9 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
 .bh-market-panel > .bh-market-browse > :first-child { flex-basis: 160px; }
 .bh-market-panel > .bh-market-browse > button { flex-shrink: 0; }
 .bh-market-panel > .bh-market-browse > :last-child { max-width: 100%; overflow-x: auto; }
+@container bh-market (max-width: 480px) {
+  .bh-market-panel > .bh-market-browse > :first-child { flex-basis: 100%; }
+}
 /* The three sort tabs need about 330px in English; below that a menu keeps every choice reachable. */
 @container bh-market (max-width: 380px) {
   .bh-market-sort > [role='tablist'] { display: none; }

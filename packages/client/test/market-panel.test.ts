@@ -60,6 +60,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
         : null,
     ),
   Tag: (props: { children?: ReactNode }) => createElement('span', null, props.children),
+  Tooltip: (props: { children?: ReactNode }) => props.children,
   MarkdownText: (props: { text: string }) => createElement('div', null, props.text),
   SegmentedControl: (props: {
     value: string;
@@ -110,7 +111,12 @@ import type { BridgeActions } from '../src/client/actions.js';
 import { CHANNEL_BODY_PANEL } from '../src/client/channel-dock-layout.js';
 import type { DockPanelRegistry } from '../src/client/dock-panels.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { MarketPanelView, createMarketPanel, MARKET_PANEL } from '../src/client/market-panel.js';
+import {
+  MarketHeaderAction,
+  MarketPanelView,
+  createMarketPanel,
+  MARKET_PANEL,
+} from '../src/client/market-panel.js';
 import { MarketUploadDialog } from '../src/client/market-upload.js';
 import { store, type BotSummary } from '../src/client/store.js';
 import { CSS } from '../src/client/styles.js';
@@ -214,11 +220,16 @@ async function withPanel(
   try {
     await act(async () =>
       root.render(
-        createElement(MarketPanelView, {
-          actions: actions as unknown as BridgeActions,
-          registry: registry as unknown as DockPanelRegistry,
-          t: zhTranslate,
-        }),
+        createElement(
+          'div',
+          null,
+          createElement(MarketHeaderAction, { t: zhTranslate }),
+          createElement(MarketPanelView, {
+            actions: actions as unknown as BridgeActions,
+            registry: registry as unknown as DockPanelRegistry,
+            t: zhTranslate,
+          }),
+        ),
       ),
     );
     await test({ host, list, actions, registry });
@@ -785,6 +796,7 @@ describe('Market panel', () => {
       icon: 'store',
       scope: 'global',
     });
+    expect(panel.headerAction).toBeDefined();
   });
 
   it('shows a flat grid, sorts by creation time and searches only on Enter', async () => {

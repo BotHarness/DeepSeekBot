@@ -26,6 +26,9 @@ import { useMountedResource } from './mounted-resource.js';
 const POSTER_AVATAR = 40;
 const COMPACT_AVATAR = 48;
 
+export const NARROW = '@container bh-market (max-width: 480px)';
+const NARROW_LIST = 3;
+
 const styles = stylex.create({
   head: {
     display: 'flex',
@@ -73,7 +76,12 @@ const styles = stylex.create({
     scrollbarWidth: 'none',
   },
   posterRow: { gridAutoColumns: 'min(168px, 62%)' },
-  compactRow: { gridAutoColumns: 'min(300px, 85%)' },
+  compactRow: {
+    gridAutoFlow: { default: 'column', [NARROW]: 'row' },
+    gridAutoColumns: { default: 'min(300px, 85%)', [NARROW]: '100%' },
+    overflowX: { default: 'auto', [NARROW]: 'visible' },
+  },
+  extra: { display: { default: null, [NARROW]: 'none' } },
   poster: {
     position: 'relative',
     display: 'flex',
@@ -160,6 +168,7 @@ const styles = stylex.create({
     scrollSnapAlign: 'start',
   },
   compactOpen: {
+    flexGrow: 1,
     display: 'flex',
     alignItems: 'flex-start',
     gap: space.x4,
@@ -195,7 +204,6 @@ const styles = stylex.create({
     WebkitBoxOrient: 'vertical',
   },
   compactFoot: {
-    marginTop: 'auto',
     paddingInlineStart: `calc(${COMPACT_AVATAR}px + ${space.x1} * 2 + ${space.x4})`,
   },
 });
@@ -252,12 +260,13 @@ interface RankingCardProps {
   readonly t: BotHarnessTranslate;
   readonly onOpen: () => void;
   readonly onImport: () => void;
+  readonly extra?: boolean;
 }
 
-function PosterCard({ bot, t, onOpen, onImport }: RankingCardProps): ReactElement {
+function PosterCard({ bot, t, onOpen, onImport, extra = false }: RankingCardProps): ReactElement {
   return (
     <div
-      {...stylex.props(styles.poster)}
+      {...stylex.props(styles.poster, extra && styles.extra)}
       role="listitem"
       data-market-bot={bot.fullName}
       data-market-card="poster"
@@ -284,10 +293,10 @@ function PosterCard({ bot, t, onOpen, onImport }: RankingCardProps): ReactElemen
   );
 }
 
-function CompactCard({ bot, t, onOpen, onImport }: RankingCardProps): ReactElement {
+function CompactCard({ bot, t, onOpen, onImport, extra = false }: RankingCardProps): ReactElement {
   return (
     <div
-      {...stylex.props(styles.compact)}
+      {...stylex.props(styles.compact, extra && styles.extra)}
       role="listitem"
       data-market-bot={bot.fullName}
       data-market-card="compact"
@@ -391,11 +400,12 @@ export function MarketplaceSections({
               )}
               role="list"
             >
-              {section.entries.map(({ bot }) => (
+              {section.entries.map(({ bot }, index) => (
                 <Card
                   key={bot.id}
                   bot={bot}
                   t={t}
+                  extra={section.section !== 'hot' && index >= NARROW_LIST}
                   onOpen={() => onOpen(bot, section.section)}
                   onImport={() => onImport(bot, section.section)}
                 />
