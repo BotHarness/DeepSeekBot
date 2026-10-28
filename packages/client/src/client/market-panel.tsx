@@ -119,7 +119,7 @@ function MarketplaceSections({
           aria-label={t(SECTION_TITLES[section.section])}
         >
           <h3 className="bh-market-section-title">{t(SECTION_TITLES[section.section])}</h3>
-          <div className="bh-market-row" role="list">
+          <div className="bh-market-carousel" role="list">
             {section.entries.map(({ bot }) => (
               <MarketplaceTile
                 key={bot.id}

@@ -1903,7 +1903,7 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
   font-weight: ${text.strong};
   line-height: ${text.bodyLine};
 }
-.bh-market-row {
+.bh-market-carousel {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: min(240px, 80%);
@@ -1913,7 +1913,7 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
   scroll-snap-type: x proximity;
   scrollbar-width: none;
 }
-.bh-market-row > .bh-market-tile { scroll-snap-align: start; }
+.bh-market-carousel > .bh-market-tile { scroll-snap-align: start; }
 .bh-market-tile {
   display: flex;
   flex-direction: column;
