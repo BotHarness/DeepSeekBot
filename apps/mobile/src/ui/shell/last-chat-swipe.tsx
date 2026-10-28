@@ -9,13 +9,11 @@ import { lastChatSwipe } from '../design/tokens';
 import { useHostDrawerOpen } from './host-drawer';
 import { lastChatProgress, opensLastChat } from './last-chat-swipe-model';
 import { lastChat, useRecentChats } from './recent-chats';
-import { useTobModeOpen } from './tob-mode';
 
 export function LastChatSwipe({ enabled, children }: { enabled: boolean; children: ReactNode }) {
   const { hosts } = useHostSession();
   const recent = useRecentChats();
   const drawerOpen = useHostDrawerOpen();
-  const tobMode = useTobModeOpen();
   const chat = lastChat(
     recent,
     hosts.map((host) => host.hostId),
@@ -28,7 +26,7 @@ export function LastChatSwipe({ enabled, children }: { enabled: boolean; childre
   }, [href]);
 
   const pan = Gesture.Pan()
-    .enabled(enabled && chat !== undefined && !drawerOpen && !tobMode)
+    .enabled(enabled && chat !== undefined && !drawerOpen)
     .activeOffsetX(-lastChatSwipe.start)
     .failOffsetY([-lastChatSwipe.verticalFail, lastChatSwipe.verticalFail])
     .onStart(() => {

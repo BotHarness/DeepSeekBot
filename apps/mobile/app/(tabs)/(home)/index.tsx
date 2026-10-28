@@ -58,7 +58,7 @@ import { ChatsSearchBar } from '../../../src/ui/shell/chats-search-bar';
 import { LastChatSwipe } from '../../../src/ui/shell/last-chat-swipe';
 import { useWorkspacePanel } from '../../../src/ui/shell/use-workspace-panel';
 import { recentHostIds, useRecentChats } from '../../../src/ui/shell/recent-chats';
-import { tobComputer, tobModeHostId } from '../../../src/ui/shell/tob-mode-model';
+import { tobComputer, tobModeHostId, tobModeHref } from '../../../src/ui/shell/tob-mode-model';
 import {
   chatsSearchResults,
   messageSearchResults,
@@ -211,9 +211,10 @@ const HomeContent = memo(function HomeContent({
     }, [enrollment, effectiveFilter]),
   );
   const recent = useRecentChats();
+  const tobComputers = hosts.map(tobComputer);
   const tobHostId = tobModeHostId(
     effectiveFilter,
-    hosts.map(tobComputer),
+    tobComputers,
     recentHostIds(recent),
     saved?.hostId,
   );
@@ -221,9 +222,12 @@ const HomeContent = memo(function HomeContent({
     tobHostId === undefined ? null : (
       <HeaderAction
         icon="tob"
-        label={t.tobMode.open}
+        label={t.openTobMode}
         testID="tob-mode-button"
-        onPress={() => router.push({ pathname: '/tob', params: { hostId: tobHostId } })}
+        onPress={() => {
+          const href = tobModeHref(tobHostId, tobComputers);
+          if (href !== undefined) router.push(href);
+        }}
       />
     );
   const collapseScope =

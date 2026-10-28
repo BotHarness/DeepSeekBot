@@ -65,7 +65,6 @@ const { LastChatSwipe } = await import('../src/ui/shell/last-chat-swipe');
 const { lastChatProgress, opensLastChat } = await import('../src/ui/shell/last-chat-swipe-model');
 const { lastChat, recordRecentChat } = await import('../src/ui/shell/recent-chats');
 const { lastChatSwipe } = await import('../src/ui/design/tokens');
-const { holdTobMode } = await import('../src/ui/shell/tob-mode');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -186,16 +185,5 @@ describe('the Chats left swipe', () => {
     expect(pan().enabled).toBe(false);
     expect(container.textContent).toBe('');
     state.hosts = hosts;
-  });
-
-  it('stays off while Tob Mode covers Chats', async () => {
-    await render();
-    expect(pan().enabled).toBe(true);
-    const release = holdTobMode();
-    await render();
-    expect(pan().enabled).toBe(false);
-    release();
-    await render();
-    expect(pan().enabled).toBe(true);
   });
 });

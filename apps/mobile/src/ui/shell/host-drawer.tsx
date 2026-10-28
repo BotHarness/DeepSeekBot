@@ -78,7 +78,6 @@ import { noticeHostKept } from '../unpair-notice';
 import { chooseCloudWorkspace, showWorkspaceRoot } from './native-workspace-navigation';
 import { holdBack } from './back-owner';
 import { NativeHostDrawer, nativeHostDrawer } from './native-host-drawer';
-import { useTobModeOpen } from './tob-mode';
 
 export const hostDrawer = createHostDrawer({
   switchTo: (hostId, current) => hostSession.switchTo(hostId, current),
@@ -187,7 +186,6 @@ function DockedHostDrawer({ children }: { children: ReactNode }) {
   const { hosts } = useHostSession();
   const open = useHostDrawerOpen();
   const focused = useIsFocused();
-  const tobMode = useTobModeOpen();
   const mount = useMounted<ViewInstance>(() => {
     if (!focused) return;
     dock(1);
@@ -200,7 +198,7 @@ function DockedHostDrawer({ children }: { children: ReactNode }) {
     <View ref={mount} style={{ flex: 1 }} collapsable={false}>
       <NativeHostDrawer
         open={open && focused}
-        enabled={hosts.length > 0 && !tobMode}
+        enabled={hosts.length > 0}
         closeLabel={t.closeWorkspaces}
         panel={<HostDrawerPanel docked />}
         onOpenChange={dockedOpenChange}
@@ -223,10 +221,9 @@ function PanHostDrawerEdge({
   const width = drawerWidth(useWindowDimensions().width, Platform.OS);
   const reduced = useReducedMotion();
   const { hosts } = useHostSession();
-  const tobMode = useTobModeOpen();
   const swipe = drawerSwipe(Platform.OS, anywhere);
   const pan = Gesture.Pan()
-    .enabled(enabled && hosts.length > 0 && !tobMode)
+    .enabled(enabled && hosts.length > 0)
     .activeOffsetX(swipe.activeX)
     .failOffsetY([-swipe.failY, swipe.failY])
     .onStart(() => {

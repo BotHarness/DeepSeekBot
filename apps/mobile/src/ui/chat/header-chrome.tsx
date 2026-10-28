@@ -7,7 +7,6 @@ import { frosted, pressTint, useDesignTheme, type DesignTheme } from '../design/
 import { edge, radius, space } from '../design/tokens';
 import { DrawerMaterial, EdgeMaterial, useLiquidGlass } from '../primitives/drawer-material';
 import { BackIcon } from '../shell/back-icon';
-import { ChevronUpIcon } from '../shell/icons';
 import { headerIslands } from './header-kind';
 import { useStrings } from '../strings';
 import { edgeFadeStops } from './edge-fade';
@@ -96,28 +95,6 @@ export function HeaderBackButton({ onPress, plain }: { onPress(): void; plain?: 
   return (
     <HeaderCircleButton label={t.back} onPress={onPress} plain={plain === true}>
       <BackIcon color={theme.color.fg} size={ICON} />
-    </HeaderCircleButton>
-  );
-}
-
-export function HeaderCloseUpButton({
-  label,
-  onPress,
-  plain,
-}: {
-  label: string;
-  onPress(): void;
-  plain?: boolean;
-}) {
-  const theme = useDesignTheme();
-  return (
-    <HeaderCircleButton
-      label={label}
-      testID="tob-mode-close"
-      onPress={onPress}
-      plain={plain === true}
-    >
-      <ChevronUpIcon color={theme.color.fg} size={ICON} />
     </HeaderCircleButton>
   );
 }

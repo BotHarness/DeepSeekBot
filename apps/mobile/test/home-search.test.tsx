@@ -432,6 +432,7 @@ const rows = (view: HTMLElement) =>
           'studio',
           t.closeSearch,
           t.openSearch,
+          t.openTobMode,
           t.settings,
           t.workspaces,
         ].includes(node.getAttribute('aria-label') ?? ''),
@@ -1068,11 +1069,14 @@ describe('Search in the Chats header', () => {
     );
     expect(swipe().dataset.enabled).toBe('true');
   });
-  it("offers Tob Mode for the selected computer's Tob, and not where there is no Tob", async () => {
+  it("opens the computer's Tob DM from the Tob Mode action, through the top entrance", async () => {
     const tobButton = (view: HTMLElement) =>
-      view.querySelector<HTMLButtonElement>(`button[aria-label="${t.tobMode.open}"]`);
+      view.querySelector<HTMLButtonElement>(`button[aria-label="${t.openTobMode}"]`);
     let view = await home();
-    expect(tobButton(view)).toBeNull();
+    expect(tobButton(view)).not.toBeNull();
+    push.mockClear();
+    await act(async () => tobButton(view)!.click());
+    expect(push).not.toHaveBeenCalled();
     act(() => root?.unmount());
     host?.remove();
     roster.bots.push({
@@ -1088,10 +1092,13 @@ describe('Search in the Chats header', () => {
     });
     try {
       view = await home();
+      const href = { pathname: '/dm-top/[slug]', params: { slug: 'tob', hostId: 'h1' } };
+      await act(async () => tobButton(view)!.click());
+      expect(push).toHaveBeenLastCalledWith(href);
       await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
       expect(view.querySelector('[data-testid="conversation-row-bot:tob"]')).not.toBeNull();
       await act(async () => tobButton(view)!.click());
-      expect(push).toHaveBeenCalledWith({ pathname: '/tob', params: { hostId: 'h1' } });
+      expect(push).toHaveBeenLastCalledWith(href);
     } finally {
       roster.bots.pop();
     }

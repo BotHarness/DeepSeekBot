@@ -1,5 +1,5 @@
 import { computerEnvironmentKey } from '../../host/conversation-environments';
-import { tobMode } from '../design/tokens';
+import { topEntrance } from '../design/tokens';
 
 export type TobComputer = { hostId: string; tob: string | null | undefined };
 
@@ -21,38 +21,52 @@ export function tobComputer(host: RosterHost): TobComputer {
   };
 }
 
-function hasTob(computer: TobComputer): boolean {
-  return computer.tob !== null;
-}
-
-export function tobComputers(computers: readonly TobComputer[]): TobComputer[] {
-  return computers.filter(hasTob);
-}
-
 export function tobModeHostId(
   filter: string,
   computers: readonly TobComputer[],
   recentHostIds: readonly string[],
   currentHostId: string | undefined,
 ): string | undefined {
-  const eligible = tobComputers(computers);
-  if (filter !== 'all')
-    return eligible.find((computer) => computerEnvironmentKey(computer.hostId) === filter)?.hostId;
+  const paired = computers.map((computer) => computer.hostId);
+  const selected = paired.find((hostId) => computerEnvironmentKey(hostId) === filter);
+  if (selected !== undefined) return selected;
   const order = [
     ...recentHostIds,
     ...(currentHostId === undefined ? [] : [currentHostId]),
-    ...eligible.map((computer) => computer.hostId),
+    ...paired,
   ];
-  return order.find((hostId) => eligible.some((computer) => computer.hostId === hostId));
+  return order.find((hostId) => paired.includes(hostId));
 }
 
-export function tobModeOffset(translationY: number): number {
-  'worklet';
-  return Math.min(0, translationY);
+export type TobModeHref = {
+  pathname: '/dm-top/[slug]';
+  params: { slug: string; hostId: string };
+};
+
+export function tobModeHref(
+  hostId: string | undefined,
+  computers: readonly TobComputer[],
+): TobModeHref | undefined {
+  const slug = computers.find((computer) => computer.hostId === hostId)?.tob;
+  if (hostId === undefined || typeof slug !== 'string') return undefined;
+  return { pathname: '/dm-top/[slug]', params: { slug, hostId } };
 }
 
-export function closesTobMode(translationY: number, velocityY: number): boolean {
+export const topEntranceScreenOptions = {
+  headerShown: false,
+  presentation: 'transparentModal',
+  animation: 'none',
+  gestureEnabled: false,
+  contentStyle: { backgroundColor: 'transparent' },
+} as const;
+
+export function topEntranceDrag(translationX: number): number {
   'worklet';
-  if (velocityY > tobMode.flick) return false;
-  return velocityY < -tobMode.flick || translationY <= -tobMode.commit;
+  return Math.max(0, translationX);
+}
+
+export function closesTopEntrance(translationX: number, velocityX: number): boolean {
+  'worklet';
+  if (velocityX < -topEntrance.flick) return false;
+  return velocityX > topEntrance.flick || translationX >= topEntrance.commit;
 }

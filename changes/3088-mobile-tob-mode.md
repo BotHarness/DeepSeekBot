@@ -4,8 +4,8 @@ section: Added
 
 ## en
 
-- On the phone, the Tob Mode button in the Chats header opens Tob Mode: the Tob DM comes down over Chats from the top, without the tab bar, with the message box at the bottom. Push it up or use Back to return to Chats. It opens the selected computer's Tob, or under All the computer used most recently, and a menu in its header switches computers when more than one is paired. A cloud view has no Tob, so the button is hidden there ([#3088](https://github.com/BotHarness/DeepSeekBot/issues/3088)).
+- On the phone, the Tob Mode button in the Chats header opens your Tob DM — the same chat as tapping the Tob row — coming down from the top over Chats. Back, or a swipe from the left edge on iPhone, sends it back up. It opens the selected computer's Tob; under All, or in a cloud view, it opens the Tob of the computer you used most recently. With Reduce Motion on it opens without sliding ([#3088](https://github.com/BotHarness/DeepSeekBot/issues/3088)).
 
 ## zh
 
-- 手机上，聊天页顶栏的「Tob 模式」按钮会打开 Tob 模式：Tob 私聊从顶部盖住聊天列表，隐藏底部标签栏，输入框在底部。向上推或按返回即可回到聊天列表。它打开所选电脑的 Tob；在「全部」下打开最近使用的电脑的 Tob。配对了多台电脑时，可在顶栏菜单里切换。云端视图没有 Tob，因此不显示这个按钮（[#3088](https://github.com/BotHarness/DeepSeekBot/issues/3088)）。
+- 手机上，聊天页顶栏的「Tob 模式」按钮会打开你的 Tob 私聊——和点 Tob 那一行打开的是同一个聊天——它从顶部滑下盖住聊天列表。按返回，或在 iPhone 上从左边缘轻扫，它会向上收回。它打开所选电脑的 Tob；在「全部」或云端视图下，打开最近使用的电脑的 Tob。开启「减弱动态效果」时，它直接出现，不滑动（[#3088](https://github.com/BotHarness/DeepSeekBot/issues/3088)）。

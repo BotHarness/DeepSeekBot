@@ -1,45 +1,78 @@
 // @vitest-environment jsdom
-import { act, createElement, useLayoutEffect } from 'react';
+import { existsSync } from 'node:fs';
+import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-type PanEvent = { translationY: number; velocityY: number };
+type PanEvent = { translationX: number; velocityX: number };
 type Pan = {
-  activeY: unknown;
-  failX: unknown;
+  enabled: unknown;
+  activeX: unknown;
+  failY: unknown;
   slop: unknown;
   update(event: PanEvent): void;
   end(event: PanEvent): void;
 };
+type Action = { type: string };
+type Prevent = {
+  prevent: boolean;
+  callback(options: { data: { action: Action }; repeat(): void }): void;
+};
 
 const state = vi.hoisted(() => ({
+  os: 'ios',
+  reduced: false,
   pans: [] as Pan[],
+  springs: [] as { to: unknown; config: unknown }[],
   back: vi.fn(),
   replace: vi.fn(),
-  setParams: vi.fn(),
-  canGoBack: true,
-  held: [] as (() => boolean)[],
-  params: {} as Record<string, string | undefined>,
+  repeat: vi.fn(),
+  prevent: undefined as Prevent | undefined,
+  stackRoot: [] as boolean[],
 }));
 
-vi.mock('react-native', () => import('./react-native-shim'));
-vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
+vi.mock('react-native', async () => {
+  const shim = await import('./react-native-shim');
+  return {
+    ...shim,
+    Platform: {
+      get OS() {
+        return state.os;
+      },
+      select: shim.Platform.select,
+    },
+  };
+});
+vi.mock('react-native-reanimated', async () => {
+  const shim = await import('./reanimated-shim');
+  return {
+    ...shim,
+    useReducedMotion: () => state.reduced,
+    withSpring: (to: unknown, config: unknown, done?: (finished?: boolean) => void) => {
+      state.springs.push({ to, config });
+      done?.(true);
+      return to;
+    },
+  };
+});
 vi.mock('react-native-gesture-handler', async () => {
   const { createElement, Fragment } = await import('react');
   return {
     Gesture: {
       Pan: () => {
         const pan: Pan = {
-          activeY: undefined,
-          failX: undefined,
+          enabled: undefined,
+          activeX: undefined,
+          failY: undefined,
           slop: undefined,
           update: () => undefined,
           end: () => undefined,
         };
         state.pans.push(pan);
         const builder = {
-          activeOffsetY: (value: unknown) => ((pan.activeY = value), builder),
-          failOffsetX: (value: unknown) => ((pan.failX = value), builder),
+          enabled: (value: unknown) => ((pan.enabled = value), builder),
+          activeOffsetX: (value: unknown) => ((pan.activeX = value), builder),
+          failOffsetY: (value: unknown) => ((pan.failY = value), builder),
           hitSlop: (value: unknown) => ((pan.slop = value), builder),
           onUpdate: (run: Pan['update']) => ((pan.update = run), builder),
           onEnd: (run: Pan['end']) => ((pan.end = run), builder),
@@ -51,74 +84,91 @@ vi.mock('react-native-gesture-handler', async () => {
       createElement(Fragment, null, children as never),
   };
 });
-vi.mock('expo-router', () => ({
-  Stack: () => createElement('div', { 'data-testid': 'tob-stack' }),
-  router: {
-    back: state.back,
-    replace: state.replace,
-    setParams: state.setParams,
-    canGoBack: () => state.canGoBack,
-  },
-  useLocalSearchParams: () => state.params,
-  useFocusEffect: (effect: () => void | (() => void)) => useLayoutEffect(effect, [effect]),
-}));
+vi.mock('expo-router', async () => {
+  const { createElement } = await import('react');
+  const { useStackRoot } = await import('../src/ui/shell/stack-root');
+  function Stack() {
+    state.stackRoot.push(useStackRoot());
+    return createElement('div', { 'data-testid': 'nested-stack' });
+  }
+  return {
+    Stack,
+    router: { back: state.back, replace: state.replace, canGoBack: () => true },
+    useLocalSearchParams: () => ({}),
+    usePreventRemove: (
+      prevent: boolean,
+      callback: (options: { data: { action: Action }; repeat(): void }) => void,
+    ) => {
+      state.prevent = { prevent, callback };
+    },
+  };
+});
 vi.mock('expo-secure-store', () => ({
   getItemAsync: async () => null,
   setItemAsync: async () => undefined,
 }));
 vi.mock('expo-quick-actions', () => ({ setItems: async () => undefined }));
-vi.mock('../src/ui/shell/back-owner', () => ({
-  holdBack: (handler: () => boolean) => {
-    state.held.push(handler);
-    return { remove: () => state.held.splice(state.held.indexOf(handler), 1) };
-  },
-}));
-vi.mock('../src/ui/chat/header-chrome', () => ({ useChatHeaderHeight: () => 100 }));
 vi.mock('../src/ui/chat/conversation-screen', () => ({ ConversationScreen: () => null }));
-vi.mock('../src/host/host-session', () => ({ useHostSessions: () => [] }));
-vi.mock('../src/host/native-host-look', () => ({ hostLooks: { look: () => ({}) } }));
-vi.mock('../src/ui/primitives/action-menu-button', () => ({ ActionMenuButton: () => null }));
-vi.mock('../src/ui/primitives/app-dialog', () => ({ showActionMenu: () => undefined }));
 
-const { TobModeFrame } = await import('../src/ui/shell/tob-mode-screen');
-const { tobModeOpen, holdTobMode } = await import('../src/ui/shell/tob-mode');
-const { closesTobMode, tobComputer, tobComputers, tobModeHostId, tobModeOffset } =
-  await import('../src/ui/shell/tob-mode-model');
+const { TopEntranceStack } = await import('../src/ui/shell/top-entrance');
+const { useStackRoot } = await import('../src/ui/shell/stack-root');
+const {
+  closesTopEntrance,
+  tobComputer,
+  tobModeHostId,
+  tobModeHref,
+  topEntranceDrag,
+  topEntranceScreenOptions,
+} = await import('../src/ui/shell/tob-mode-model');
 const { recentHostIds } = await import('../src/ui/shell/recent-chats');
 const { computerEnvironmentKey, cloudEnvironmentKey } =
   await import('../src/host/conversation-environments');
-const { tobMode } = await import('../src/ui/design/tokens');
+const { topEntrance } = await import('../src/ui/design/tokens');
+const { spring } = await import('../src/ui/design/motion');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 const computers = [
   { hostId: 'h1', tob: 'tob' },
-  { hostId: 'h2', tob: 'tob' },
+  { hostId: 'h2', tob: 'tob-2' },
   { hostId: 'old', tob: null },
   { hostId: 'loading', tob: undefined },
 ];
 
-describe('the Tob Mode Environment', () => {
+describe('the Tob that Tob Mode opens', () => {
   it("is the selected computer Environment's Tob", () => {
     expect(tobModeHostId(computerEnvironmentKey('h2'), computers, ['h1'], 'h1')).toBe('h2');
-    expect(tobModeHostId(computerEnvironmentKey('loading'), computers, [], 'h1')).toBe('loading');
-  });
-
-  it('is none for a computer without a Tob, an unknown computer, or a cloud Environment', () => {
-    expect(tobModeHostId(computerEnvironmentKey('old'), computers, ['old'], 'old')).toBeUndefined();
-    expect(tobModeHostId(computerEnvironmentKey('gone'), computers, [], 'h1')).toBeUndefined();
-    expect(tobModeHostId(cloudEnvironmentKey('s', 'org'), computers, ['h1'], 'h1')).toBeUndefined();
+    expect(tobModeHostId(computerEnvironmentKey('old'), computers, ['h1'], 'h1')).toBe('old');
   });
 
   it('is the most recently used computer under All environments', () => {
-    expect(tobModeHostId('all', computers, ['gone', 'old', 'h2', 'h1'], 'h1')).toBe('h2');
+    expect(tobModeHostId('all', computers, ['gone', 'h2', 'h1'], 'h1')).toBe('h2');
     expect(tobModeHostId('all', computers, [], 'h2')).toBe('h2');
     expect(tobModeHostId('all', computers, [], undefined)).toBe('h1');
-    expect(tobModeHostId('all', [{ hostId: 'old', tob: null }], ['old'], 'old')).toBeUndefined();
-    expect(tobModeHostId('all', [], [], undefined)).toBeUndefined();
   });
 
-  it('reads recency from the recent chats and Tob from the roster', () => {
+  it('is still the most recently used computer under a cloud Environment', () => {
+    const cloud = cloudEnvironmentKey('s', 'org');
+    expect(tobModeHostId(cloud, computers, ['gone', 'h2'], 'h1')).toBe('h2');
+    expect(tobModeHostId(cloud, computers, [], undefined)).toBe('h1');
+  });
+
+  it('is none only when no computer Environment is paired', () => {
+    expect(tobModeHostId('all', [], ['h1'], 'h1')).toBeUndefined();
+    expect(tobModeHostId(cloudEnvironmentKey('s', 'org'), [], [], undefined)).toBeUndefined();
+  });
+
+  it("goes to that computer's Tob DM, once its roster names the Tob", () => {
+    expect(tobModeHref('h2', computers)).toEqual({
+      pathname: '/dm-top/[slug]',
+      params: { slug: 'tob-2', hostId: 'h2' },
+    });
+    expect(tobModeHref('loading', computers)).toBeUndefined();
+    expect(tobModeHref('old', computers)).toBeUndefined();
+    expect(tobModeHref(undefined, computers)).toBeUndefined();
+  });
+
+  it('reads recency from the recent chats and the Tob from the roster', () => {
     expect(
       recentHostIds([
         { id: 'a', title: 'A', href: '/dm/a?hostId=h2' },
@@ -133,32 +183,43 @@ describe('the Tob Mode Environment', () => {
     expect(tobComputer(host()).tob).toBeUndefined();
     expect(tobComputer(host([{ slug: 'ada' }])).tob).toBeNull();
     expect(tobComputer(host([{ slug: 'ada' }, { slug: 'tob', tob: true }])).tob).toBe('tob');
-    expect(tobComputers(computers).map((c) => c.hostId)).toEqual(['h1', 'h2', 'loading']);
   });
 });
 
-describe('pushing Tob Mode up', () => {
-  it('follows the finger upward only and closes past the threshold or on an upward flick', () => {
-    expect(tobModeOffset(40)).toBe(0);
-    expect(tobModeOffset(-40)).toBe(-40);
-    expect(closesTobMode(-tobMode.commit, 0)).toBe(true);
-    expect(closesTobMode(-tobMode.commit / 2, 0)).toBe(false);
-    expect(closesTobMode(-10, -tobMode.flick - 1)).toBe(true);
-    expect(closesTobMode(-tobMode.commit * 2, tobMode.flick + 1)).toBe(false);
-    expect(closesTobMode(tobMode.commit, 0)).toBe(false);
+describe('the Tob DM route', () => {
+  it('is the chat screen itself, under a top entrance, with no Tob screen of its own', async () => {
+    const dm = await import('../app/dm/[slug]');
+    const top = await import('../app/dm-top/[slug]');
+    expect(top.default).toBe(dm.default);
+    const layout = await import('../app/dm-top/_layout');
+    expect(layout.default).toBe(TopEntranceStack);
+    expect(existsSync(new URL('../app/tob', import.meta.url))).toBe(false);
+    expect(existsSync(new URL('../src/ui/shell/tob-mode-screen.tsx', import.meta.url))).toBe(false);
+  });
+
+  it('is presented over Chats without a system animation, so the entrance slides itself', () => {
+    expect(topEntranceScreenOptions).toMatchObject({
+      presentation: 'transparentModal',
+      animation: 'none',
+      headerShown: false,
+    });
   });
 });
 
-describe('the Tob Mode frame', () => {
+describe('the top entrance', () => {
   let root: Root;
   let container: HTMLDivElement;
 
   beforeEach(() => {
+    state.os = 'ios';
+    state.reduced = false;
     state.pans.length = 0;
-    state.held.length = 0;
+    state.springs.length = 0;
+    state.prevent = undefined;
+    state.stackRoot.length = 0;
     state.back.mockClear();
     state.replace.mockClear();
-    state.canGoBack = true;
+    state.repeat.mockClear();
     container = document.createElement('div');
     root = createRoot(container);
   });
@@ -167,54 +228,79 @@ describe('the Tob Mode frame', () => {
     await act(async () => root.unmount());
   });
 
-  const render = () => act(async () => root.render(<TobModeFrame />));
+  const render = () => act(async () => root.render(<TopEntranceStack />));
   const pan = () => state.pans.at(-1)!;
-
-  it('turns the Chats gestures off while it is open', async () => {
-    expect(tobModeOpen()).toBe(false);
-    await render();
-    expect(container.querySelector('[data-testid="tob-stack"]')).not.toBeNull();
-    expect(tobModeOpen()).toBe(true);
-    await act(async () => root.unmount());
-    expect(tobModeOpen()).toBe(false);
-    root = createRoot(container);
-  });
-
-  it('closes on system Back, once', async () => {
-    await render();
-    expect(state.held).toHaveLength(1);
-    await act(async () => {
-      expect(state.held[0]!()).toBe(true);
-      state.held[0]!();
+  const remove = () =>
+    act(async () => {
+      const prevent = state.prevent!;
+      if (prevent.prevent)
+        prevent.callback({ data: { action: { type: 'POP' } }, repeat: state.repeat });
+      else state.repeat();
     });
-    expect(state.back).toHaveBeenCalledTimes(1);
+
+  it('holds a nested stack whose chat screen draws its own Back', async () => {
+    await render();
+    expect(container.querySelector('[data-testid="nested-stack"]')).not.toBeNull();
+    expect(state.stackRoot.at(-1)).toBe(true);
+    let outside: boolean | undefined;
+    function Probe() {
+      outside = useStackRoot();
+      return null;
+    }
+    await act(async () => root.render(createElement(Probe)));
+    expect(outside).toBe(false);
   });
 
-  it('closes when pushed up from its header, and springs back when let go early', async () => {
+  it('comes down on the spatial spring and goes back up on the release spring', async () => {
     await render();
-    expect(pan().activeY).toBe(-tobMode.start);
-    expect(pan().failX).toEqual([-tobMode.horizontalFail, tobMode.horizontalFail]);
-    expect(pan().slop).toEqual({ top: 0, height: 100 });
-    await act(async () => pan().end({ translationY: -tobMode.commit / 2, velocityY: 0 }));
+    expect(state.springs[0]).toEqual({
+      to: 0,
+      config: { ...spring.spatial.default, overshootClamping: true },
+    });
+    expect(state.prevent!.prevent).toBe(true);
+    await remove();
+    expect(state.springs.at(-1)).toEqual({
+      to: -844,
+      config: { ...spring.release, overshootClamping: true },
+    });
+    expect(state.repeat).toHaveBeenCalledOnce();
+    expect(state.prevent!.prevent).toBe(false);
+  });
+
+  it('does not slide with Reduce Motion', async () => {
+    state.reduced = true;
+    await render();
+    expect(state.springs).toEqual([]);
+    expect(state.prevent!.prevent).toBe(false);
+    await remove();
+    expect(state.springs).toEqual([]);
+    expect(state.repeat).toHaveBeenCalledOnce();
+  });
+
+  it('goes back on an iOS swipe from the leading edge, and springs back when let go early', async () => {
+    await render();
+    expect(pan().enabled).toBe(true);
+    expect(pan().slop).toEqual({ left: 0, width: topEntrance.edge });
+    expect(pan().activeX).toBe(topEntrance.start);
+    expect(pan().failY).toEqual([-topEntrance.verticalFail, topEntrance.verticalFail]);
+    await act(async () => pan().end({ translationX: topEntrance.commit / 2, velocityX: 0 }));
     expect(state.back).not.toHaveBeenCalled();
-    await act(async () => pan().end({ translationY: -tobMode.commit, velocityY: 0 }));
-    expect(state.back).toHaveBeenCalledTimes(1);
+    await act(async () => pan().end({ translationX: topEntrance.commit, velocityX: 0 }));
+    expect(state.back).toHaveBeenCalledOnce();
   });
 
-  it('returns to Chats when there is nothing to go back to', async () => {
-    state.canGoBack = false;
+  it('leaves Android Back to the system', async () => {
+    state.os = 'android';
     await render();
-    await act(async () => void state.held[0]!());
-    expect(state.replace).toHaveBeenCalledWith('/');
+    expect(pan().enabled).toBe(false);
   });
 
-  it('counts every open presentation', () => {
-    const first = holdTobMode();
-    const second = holdTobMode();
-    first();
-    first();
-    expect(tobModeOpen()).toBe(true);
-    second();
-    expect(tobModeOpen()).toBe(false);
+  it('follows the finger only toward the trailing edge, and commits past the threshold or on a flick', () => {
+    expect(topEntranceDrag(-40)).toBe(0);
+    expect(topEntranceDrag(40)).toBe(40);
+    expect(closesTopEntrance(topEntrance.commit, 0)).toBe(true);
+    expect(closesTopEntrance(topEntrance.commit / 2, 0)).toBe(false);
+    expect(closesTopEntrance(10, topEntrance.flick + 1)).toBe(true);
+    expect(closesTopEntrance(topEntrance.commit * 2, -topEntrance.flick - 1)).toBe(false);
   });
 });

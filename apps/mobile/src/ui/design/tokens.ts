@@ -278,11 +278,12 @@ export const lastChatSwipe = {
   flick: 500,
 } as const;
 
-export const tobMode = {
+export const topEntrance = {
+  edge: 20,
   start: 12,
-  horizontalFail: 24,
+  verticalFail: 16,
   commit: 96,
-  flick: 800,
+  flick: 500,
 } as const;
 
 export const markdownTable = {
