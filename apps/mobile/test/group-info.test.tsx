@@ -7,6 +7,7 @@ const alert = vi.fn();
 vi.mock('expo-router', async () => {
   const { useLayoutEffect } = await import('react');
   return {
+    useIsFocused: () => true,
     useRouter: () => ({ back() {} }),
     useNavigation: () => ({ addListener: () => () => {} }),
     useFocusEffect: (work: () => () => void) => useLayoutEffect(work, [work]),

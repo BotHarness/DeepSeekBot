@@ -16,6 +16,7 @@ const navigation = vi.hoisted(() => {
   };
 });
 vi.mock('expo-router', () => ({
+  useIsFocused: () => true,
   useRouter: () => ({ back() {} }),
   useNavigation: () => navigation,
   useFocusEffect: (work: () => () => void) => useLayoutEffect(work, [work]),

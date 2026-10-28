@@ -1,9 +1,10 @@
-import { useRef, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Platform, View, type ViewInstance } from 'react-native';
 import { Tabs, type TabBarProps } from 'react-native-collapsible-tab-view';
 import { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHeaderHeight } from 'expo-router/react-navigation';
+import { useIsFocused } from 'expo-router';
 
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
@@ -15,6 +16,7 @@ import { useStrings } from '../strings';
 import { useMounted } from '../mounted';
 import { HeaderCircleButton } from './header-chrome';
 import type { ProfileTab } from './profile-tabs';
+import { createProfilePagerSelection } from './profile-pager-selection';
 
 export type ProfileRow = { key: string; render(): ReactNode };
 
@@ -49,7 +51,8 @@ export function ProfileShell({
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
-  const requested = useRef(tab);
+  const focused = useIsFocused();
+  const [selection] = useState(() => createProfilePagerSelection(tab));
   const showTabs = tabs.length > 1;
   return (
     <View
@@ -94,7 +97,7 @@ export function ProfileShell({
                   options={options}
                   tab={tab}
                   onTab={onTab}
-                  requested={requested}
+                  selection={selection}
                 />
               )
             : () => null
@@ -108,8 +111,14 @@ export function ProfileShell({
           onPageSelected: ({ nativeEvent }) => {
             const next = tabs[nativeEvent.position];
             if (next === undefined) return;
-            requested.current = next;
-            onTab(next);
+            const accepted = selection.settle(next);
+            if (accepted && focused && next !== tab) onTab(next);
+          },
+          onPageScrollStateChanged: ({ nativeEvent }) => {
+            if (nativeEvent.pageScrollState === 'dragging') {
+              const current = selection.drag();
+              if (focused && current !== tab) onTab(current);
+            }
           },
         }}
       >
@@ -130,23 +139,22 @@ function ProfileTabStrip({
   options,
   tab,
   onTab,
-  requested,
+  selection,
 }: {
   pager: TabBarProps;
   tabs: readonly ProfileTab[];
   options: readonly IconTabOption<ProfileTab>[];
   tab: ProfileTab;
   onTab(tab: ProfileTab): void;
-  requested: { current: ProfileTab };
+  selection: ReturnType<typeof createProfilePagerSelection>;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const reduced = useReducedMotion();
   const mount = useMounted<ViewInstance>(() => {
-    if (requested.current === tab) return;
-    requested.current = tab;
+    if (!selection.choose(tab)) return;
     pager.containerRef.current?.setPageWithoutAnimation(tabs.indexOf(tab));
-  }, [tab, tabs, pager.containerRef, requested]);
+  }, [tab, tabs, pager.containerRef, selection]);
   return (
     <View
       ref={mount}
@@ -165,8 +173,8 @@ function ProfileTabStrip({
           options={options}
           value={tab}
           onChange={(next) => {
-            if (next === tab) return;
-            requested.current = next;
+            const accepted = selection.choose(next);
+            if (!accepted) return;
             onTab(next);
             if (reduced) pager.containerRef.current?.setPageWithoutAnimation(tabs.indexOf(next));
             else pager.containerRef.current?.setPage(tabs.indexOf(next));
