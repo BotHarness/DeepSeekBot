@@ -31,6 +31,7 @@ const ICONS = {
   version: 'info',
   open: 'open_in_new',
   copy: 'content_copy',
+  testRoute: 'network_check',
   share: 'share',
   account: 'account_circle',
   qr: 'qr_code_scanner',

@@ -1,13 +1,14 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { ScrollView } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { createHostClient } from '../src/host/client';
 import { useHostSession, useHostSnapshot } from '../src/host/host-session';
 import { nativeCarrier } from '../src/host/native-carrier';
 import { isConnectRoute, isLanRoute } from '../src/host/route';
+import { SHEET_GROUP } from '../src/ui/chat/sheet';
 import { space } from '../src/ui/design/tokens';
 import { SheetHeader } from '../src/ui/primitives/sheet-header';
+import { SettingsForm, SettingsFormItem } from '../src/ui/primitives/settings-form';
 import { SettingsRow, SettingsSection } from '../src/ui/primitives/settings-row';
 import { SheetScreen } from '../src/ui/primitives/sheet-screen';
 import { Text } from '../src/ui/primitives/text';
@@ -37,20 +38,31 @@ export default function HostConnectionScreen() {
   const [copied, setCopied] = useState<string>();
   const routes =
     snapshot.routes ?? host?.routes.map((url) => ({ url, status: 'unchecked' as const })) ?? [];
+  const header = (
+    <SheetHeader
+      title={copy.title}
+      {...(host ? { subtitle: host.hostName } : {})}
+      onClose={() => router.back()}
+    />
+  );
   return (
     <SheetScreen>
-      <SheetHeader
-        title={copy.title}
-        {...(host ? { subtitle: host.hostName } : {})}
-        onClose={() => router.back()}
-      />
-      <ScrollView contentContainerStyle={{ padding: space.x5, gap: space.x5 }}>
-        <Text tone="muted">{host ? copy.automatic : t.hostLookMissing}</Text>
+      <SettingsForm header={header} testID="host-connection">
+        {host && routes.length > 0 ? null : (
+          <SettingsFormItem>
+            <Text tone="muted" style={{ paddingHorizontal: space.x5 }}>
+              {host ? copy.automatic : t.hostLookMissing}
+            </Text>
+          </SettingsFormItem>
+        )}
         {host && snapshot.connection.status !== 'connected' ? (
-          <SettingsSection>
+          <SettingsSection on={SHEET_GROUP}>
             <SettingsRow
+              on={SHEET_GROUP}
+              icon="qr"
               title={copy.scan}
               detail={copy.scanHint}
+              disclosure
               testID="connection-scan-update"
               onPress={() => router.push('/pair/tailscale')}
             />
@@ -67,16 +79,37 @@ export default function HostConnectionScreen() {
                 ? 'Tailscale'
                 : copy.local;
           return (
-            <SettingsSection key={url} title={kind}>
-              <SettingsRow title={current ? copy.current : copy[status]} detail={url} />
+            <SettingsSection
+              key={url}
+              title={kind}
+              on={SHEET_GROUP}
+              {...(index === routes.length - 1 ? { footer: copy.automatic } : {})}
+            >
               <SettingsRow
+                on={SHEET_GROUP}
+                title={current ? copy.current : copy[status]}
+                tone={status === 'unreachable' && !current ? 'danger' : 'fg'}
+                detail={url}
+                control={busy === url ? { kind: 'busy' } : current ? { kind: 'check' } : undefined}
+              />
+              <SettingsRow
+                on={SHEET_GROUP}
+                icon="copy"
                 title={copied === url ? copy.copied : copy.copy}
                 testID={`connection-copy-${index}`}
                 onPress={() => {
-                  void Clipboard.setStringAsync(url).then(() => setCopied(url));
+                  void Clipboard.setStringAsync(url).then(() => {
+                    setCopied(url);
+                    setTimeout(
+                      () => setCopied((value) => (value === url ? undefined : value)),
+                      1500,
+                    );
+                  });
                 }}
               />
               <SettingsRow
+                on={SHEET_GROUP}
+                icon="testRoute"
                 title={busy === url ? copy.testing : copy.test}
                 testID={`connection-test-${index}`}
                 onPress={
@@ -91,7 +124,7 @@ export default function HostConnectionScreen() {
             </SettingsSection>
           );
         })}
-      </ScrollView>
+      </SettingsForm>
     </SheetScreen>
   );
 }
