@@ -57,7 +57,7 @@ export function ActionMenuButton({
                       icon: (
                         <MenuIcon
                           icon={action.icon}
-                          color={destructive ? theme.color.danger : theme.color.muted}
+                          color={destructive ? theme.color.danger : theme.color.fg}
                           size={materialMenu.iconSize}
                         />
                       ),
