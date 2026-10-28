@@ -1,3 +1,5 @@
+import type { ChatPlace } from './chat-place';
+export type { ChatPlace } from './chat-place';
 import { HeaderTitleButton } from './header-title-button';
 import { useProfilePaging } from './profile-paging';
 import { NativePageHeader } from '../primitives/native-page-navigation';
@@ -146,10 +148,6 @@ const NO_DRAFTS: ConversationDraftReference[] = [];
 const cellLayer = ({ index }: { index: number }) => ({ zIndex: -index });
 
 type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
-
-export type ChatPlace =
-  | { kind: 'dm'; slug: string | undefined }
-  | { kind: 'channel'; channelId: string | undefined };
 
 export function ConversationScreen({
   expectedHostId,

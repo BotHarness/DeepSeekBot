@@ -1,5 +1,5 @@
 import type { RosterView } from '../../host/client';
-import type { ChatPlace } from './conversation-screen';
+import type { ChatPlace } from './chat-place';
 
 export type ProfilePageTarget =
   | { kind: 'bot'; hostId: string; slug: string }

@@ -1,4 +1,4 @@
-import type { ReactNode, RefCallback } from 'react';
+import type { ReactNode } from 'react';
 import { View, type StyleProp, type ViewInstance, type ViewStyle } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -23,7 +23,7 @@ export function usePopIn(
     onHidden?: (() => void) | undefined;
     from?: number;
   } = {},
-): { ref: RefCallback<ViewInstance>; style: ReturnType<typeof useAnimatedStyle> } {
+) {
   const reduced = useReducedMotion();
   const start = reduced ? 1 : from;
   const opacity = useSharedValue(enabled ? 0 : 1);

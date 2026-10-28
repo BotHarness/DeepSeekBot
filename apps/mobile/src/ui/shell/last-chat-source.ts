@@ -1,9 +1,8 @@
-import type { ChatPlace } from '../chat/conversation-screen';
-import type { RecentChat } from './recent-chats';
+import type { ChatPlace } from '../chat/chat-place';
 
 export type LastChatSource = { expectedHostId: string; place: ChatPlace; focus: undefined };
 
-export function lastChatSource(chat: RecentChat | undefined): LastChatSource | undefined {
+export function lastChatSource(chat: { href: string } | undefined): LastChatSource | undefined {
   if (chat === undefined) return undefined;
   const query = chat.href.indexOf('?');
   const hostId =
