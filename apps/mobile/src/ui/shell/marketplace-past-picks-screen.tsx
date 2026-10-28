@@ -48,7 +48,7 @@ export function MarketplacePastPicksScreen() {
             key={columns}
             numColumns={columns}
             contentInsetAdjustmentBehavior="automatic"
-            columnWrapperStyle={columns > 1 ? { gap: space.x3 } : undefined}
+            columnWrapperStyle={columns > 1 ? { gap: space.x3, alignItems: 'stretch' } : undefined}
             contentContainerStyle={{
               padding: space.x5,
               paddingBottom: insets.bottom + space.x5,

@@ -47,6 +47,7 @@ export function DigestCard({
               : { height: marketplaceHome.heroCover }
           }
           avatarSize={grid ? marketplaceHome.coverAvatar : marketplaceHome.heroAvatar}
+          fill={grid}
         />
       )}
     </Pressable>

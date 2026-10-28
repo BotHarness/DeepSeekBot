@@ -79,6 +79,7 @@ export function DigestCover({
   avatarSize = marketplaceHome.coverAvatar,
   caption = true,
   pressed = false,
+  fill = false,
 }: {
   day: string;
   title: string;
@@ -88,6 +89,7 @@ export function DigestCover({
   avatarSize?: number;
   caption?: boolean;
   pressed?: boolean;
+  fill?: boolean;
 }) {
   const theme = useDesignTheme();
   const layout = digestCoverLayout(picks.length);
@@ -100,6 +102,7 @@ export function DigestCover({
       accessibilityElementsHidden={!caption}
       importantForAccessibility={caption ? 'auto' : 'no-hide-descendants'}
       style={{
+        flexGrow: fill ? 1 : 0,
         borderRadius: radius.lg,
         overflow: 'hidden',
         backgroundColor: theme.layer.raised.fill,
@@ -137,6 +140,7 @@ export function DigestCover({
       {caption ? (
         <View
           style={{
+            flexGrow: 1,
             padding: space.x4,
             gap: space.x1,
             backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
@@ -145,7 +149,11 @@ export function DigestCover({
           <Text variant="meta" tone="muted" strong>
             {digestShortDate(day, lang)}
           </Text>
-          <Text variant="title" numberOfLines={2}>
+          <Text
+            variant="title"
+            numberOfLines={2}
+            style={fill ? { minHeight: theme.type.title.line * 2 } : undefined}
+          >
             {title}
           </Text>
         </View>
