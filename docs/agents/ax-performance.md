@@ -18,6 +18,13 @@ Measure performance before claiming a change is done when it touches any of thes
 
 Pure Host, CLI or docs changes are exempt unless they change what the Client renders.
 
+## Platform routing
+
+For native iOS, follow [iOS performance tuning and physical-device verification](ios-performance.md).
+It owns native capture, valid replay, physical Release A/B and evidence requirements. The Chromium
+scripts, DOM counters and Web budgets below apply to Web; they do not qualify native mobile.
+Native rendering, keyboard, streaming, animation and CPU changes are in scope too.
+
 ## Observe before changing
 
 Do not guess at a cause. Collect evidence first, in this order:
