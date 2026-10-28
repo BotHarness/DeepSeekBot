@@ -1,6 +1,7 @@
-import { useRouter } from 'expo-router';
-import { useMemo } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo } from 'react';
 
+import { accountProfile } from '../../src/account/native-account-profile';
 import { useHostSession } from '../../src/host/host-session';
 import { loadUsage } from '../../src/host/usage';
 import { appBuildLabel } from '../../src/ui/app-build';
@@ -15,17 +16,24 @@ import { SHEET_GROUP } from '../../src/ui/chat/sheet';
 import { SettingsRow } from '../../src/ui/primitives/settings-row';
 import { useStrings } from '../../src/ui/strings';
 import { SettingsView } from '../../src/ui/settings-view';
+import { AccountProfileRow } from '../../src/ui/shell/account-profile-row';
 
 export default function SettingsScreen() {
   const t = useStrings();
   const router = useRouter();
   const { saved, client } = useHostSession();
+  useFocusEffect(
+    useCallback(() => {
+      void accountProfile.refresh();
+    }, []),
+  );
   const usage = useMemo(
     () => (client === undefined ? undefined : () => loadUsage(client, 'week')),
     [client],
   );
   return (
     <SettingsView
+      profile={<AccountProfileRow onPress={() => router.push('/settings/profile')} />}
       statistics={<StatisticsSettings />}
       messageDisplay={<MessageDisplaySetting />}
       activityCount={<ActivityCountLink />}

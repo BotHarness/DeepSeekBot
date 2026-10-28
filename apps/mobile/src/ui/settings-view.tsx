@@ -18,6 +18,7 @@ export interface SettingsActions {
 }
 
 export function SettingsView({
+  profile,
   loadUsage,
   version,
   actions,
@@ -28,6 +29,7 @@ export function SettingsView({
   hapticFeedback,
   deliveryReceipts,
 }: {
+  profile?: ReactNode;
   loadUsage?: (() => Promise<OverviewUsage>) | undefined;
   version: string;
   actions: SettingsActions;
@@ -42,6 +44,7 @@ export function SettingsView({
   const [versionCopied, setVersionCopied] = useState(false);
   return (
     <SettingsForm>
+      {profile}
       <SettingsFormItem>
         <UsageCard load={loadUsage} on={SHEET_GROUP} onOpen={actions.onUsage} />
       </SettingsFormItem>

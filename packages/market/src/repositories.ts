@@ -43,6 +43,7 @@ export interface RepositoryRow {
   source: 'github' | 'upload';
   author_account: string | null;
   author_id: string | null;
+  author_avatar: string | null;
   files_id: string | null;
 }
 

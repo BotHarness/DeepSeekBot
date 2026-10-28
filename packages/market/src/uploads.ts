@@ -23,6 +23,13 @@ import {
 } from './upload-files.js';
 
 export const MAX_AUTHOR_NAME_LENGTH = 40;
+export const MAX_AUTHOR_AVATAR_BYTES = 1024 * 1024;
+const AVATAR_TYPES = [
+  ['png', 'image/png'],
+  ['jpg', 'image/jpeg'],
+  ['webp', 'image/webp'],
+] as const;
+const AVATAR_FILE = /^[a-f0-9]{64}\.(png|jpg|webp)$/u;
 export const PENDING_UPLOAD_TTL_MS = 24 * 60 * 60 * 1000;
 const REPLACEMENT_WINDOW_MS = 60 * 60 * 1000;
 
@@ -33,7 +40,8 @@ const SHA256 = /^[a-f0-9]{64}$/u;
 export interface Author {
   id: string;
   name: string;
-  termsAcceptedAt: string;
+  termsAcceptedAt: string | null;
+  avatar: string | null;
 }
 
 export interface UploadedFile {
@@ -59,7 +67,9 @@ export type UploadRefusal =
   | 'file-mismatch'
   | 'files-missing'
   | 'bot-not-found'
-  | 'replace-limit';
+  | 'replace-limit'
+  | 'avatar-type-refused'
+  | 'avatar-too-large';
 
 export const UPLOAD_REFUSAL_STATUS: Record<UploadRefusal, number> = {
   'author-required': 409,
@@ -79,6 +89,8 @@ export const UPLOAD_REFUSAL_STATUS: Record<UploadRefusal, number> = {
   'files-missing': 409,
   'bot-not-found': 404,
   'replace-limit': 429,
+  'avatar-type-refused': 415,
+  'avatar-too-large': 413,
 };
 
 export type UploadResult<T> =
@@ -89,7 +101,8 @@ interface AuthorRow {
   account: string;
   author_id: string;
   display_name: string;
-  terms_accepted_at: string;
+  terms_accepted_at: string | null;
+  avatar: string | null;
 }
 
 interface UploadRow {
@@ -113,7 +126,21 @@ function random(alphabet: string, length: number): string {
 }
 
 function authorFromRow(row: AuthorRow): Author {
-  return { id: row.author_id, name: row.display_name, termsAcceptedAt: row.terms_accepted_at };
+  return {
+    id: row.author_id,
+    name: row.display_name,
+    termsAcceptedAt: row.terms_accepted_at,
+    avatar: row.avatar,
+  };
+}
+
+export function authorAvatarKey(authorId: string, file: string): string {
+  return `authors/${authorId}/${file}`;
+}
+
+function avatarKeyOf(url: string | null): string | undefined {
+  const match = url === null ? null : /\/v1\/authors\/([^/]+)\/avatar\/([^/]+)$/u.exec(url);
+  return match === null ? undefined : authorAvatarKey(match[1]!, match[2]!);
 }
 
 function refuse<T>(code: UploadRefusal, path?: string): UploadResult<T> {
@@ -145,6 +172,16 @@ export interface Uploads {
     account: string,
     input: { displayName: unknown; acceptTerms: unknown },
   ): Promise<UploadResult<Author>>;
+  saveAvatar(
+    account: string,
+    bytes: Uint8Array<ArrayBuffer>,
+    origin: string,
+  ): Promise<UploadResult<Author>>;
+  removeAvatar(account: string): Promise<UploadResult<Author>>;
+  readAvatar(
+    authorId: string,
+    file: string,
+  ): Promise<{ bytes: ArrayBuffer; contentType: string } | undefined>;
   begin(
     account: string,
     input: Record<string, unknown>,
@@ -277,6 +314,16 @@ export function createUploads(deps: {
     return new TextDecoder().decode(await object.arrayBuffer());
   };
 
+  const setAvatar = async (account: string, url: string | null) => {
+    await db.prepare('UPDATE authors SET avatar = ? WHERE account = ?').bind(url, account).run();
+    await db
+      .prepare(
+        "UPDATE indexed_repositories SET author_avatar = ? WHERE author_account = ? AND source = 'upload'",
+      )
+      .bind(url, account)
+      .run();
+  };
+
   return {
     author,
     remove,
@@ -291,6 +338,8 @@ export function createUploads(deps: {
       for (const row of results) await remove(account, row.node_id);
       await discardPending('account', account);
       await db.prepare('DELETE FROM upload_replacements WHERE account = ?').bind(account).run();
+      const key = avatarKeyOf((await author(account))?.avatar ?? null);
+      if (key !== undefined) await bucket.delete(key);
       await db.prepare('DELETE FROM authors WHERE account = ?').bind(account).run();
     },
 
@@ -300,8 +349,8 @@ export function createUploads(deps: {
         return refuse('invalid-author-name');
       const existing = await author(account);
       const now = deps.now().toISOString();
+      const terms = input.acceptTerms === true ? now : null;
       if (existing === null) {
-        if (input.acceptTerms !== true) return refuse('terms-required');
         for (let attempt = 0; attempt < 8; attempt += 1) {
           const id = random(AUTHOR_ID_ALPHABET, AUTHOR_ID_LENGTH);
           const taken = await db
@@ -314,15 +363,17 @@ export function createUploads(deps: {
               `INSERT INTO authors (account, author_id, display_name, terms_accepted_at, created_at)
                VALUES (?, ?, ?, ?, ?) ON CONFLICT (account) DO NOTHING`,
             )
-            .bind(account, id, name, now, now)
+            .bind(account, id, name, terms, now)
             .run();
           return { ok: true, value: (await author(account))! };
         }
         throw new Error('author id space exhausted');
       }
       await db
-        .prepare('UPDATE authors SET display_name = ? WHERE account = ?')
-        .bind(name, account)
+        .prepare(
+          'UPDATE authors SET display_name = ?, terms_accepted_at = COALESCE(terms_accepted_at, ?) WHERE account = ?',
+        )
+        .bind(name, terms, account)
         .run();
       await db
         .prepare(
@@ -330,11 +381,51 @@ export function createUploads(deps: {
         )
         .bind(name, account)
         .run();
-      return { ok: true, value: { ...existing, name } };
+      return { ok: true, value: (await author(account))! };
+    },
+
+    async saveAvatar(account, bytes, origin) {
+      const existing = await author(account);
+      if (existing === null) return refuse('author-required');
+      if (bytes.byteLength > MAX_AUTHOR_AVATAR_BYTES) return refuse('avatar-too-large');
+      const type = AVATAR_TYPES.find(([ext]) => contentMatchesKind(`avatar.${ext}`, bytes));
+      if (type === undefined) return refuse('avatar-type-refused');
+      const file = `${await sha256Hex(bytes)}.${type[0]}`;
+      const url = `${origin}/v1/authors/${existing.id}/avatar/${file}`;
+      if (url === existing.avatar) return { ok: true, value: existing };
+      await bucket.put(authorAvatarKey(existing.id, file), bytes);
+      await setAvatar(account, url);
+      const previous = avatarKeyOf(existing.avatar);
+      if (previous !== undefined) await bucket.delete(previous);
+      return { ok: true, value: { ...existing, avatar: url } };
+    },
+
+    async removeAvatar(account) {
+      const existing = await author(account);
+      if (existing === null) return refuse('author-required');
+      await setAvatar(account, null);
+      const previous = avatarKeyOf(existing.avatar);
+      if (previous !== undefined) await bucket.delete(previous);
+      return { ok: true, value: { ...existing, avatar: null } };
+    },
+
+    async readAvatar(authorId, file) {
+      const match = AVATAR_FILE.exec(file);
+      if (match === null) return undefined;
+      const current = await db
+        .prepare('SELECT avatar FROM authors WHERE author_id = ?')
+        .bind(authorId)
+        .first<{ avatar: string | null }>();
+      if (current?.avatar?.endsWith(`/v1/authors/${authorId}/avatar/${file}`) !== true)
+        return undefined;
+      const object = await bucket.get(authorAvatarKey(authorId, file));
+      if (object === null) return undefined;
+      const contentType = AVATAR_TYPES.find(([ext]) => ext === match[1])![1];
+      return { bytes: await object.arrayBuffer(), contentType };
     },
 
     async begin(account, input) {
-      if ((await author(account)) === null) return refuse('author-required');
+      if ((await author(account))?.termsAcceptedAt == null) return refuse('author-required');
       const replaces = input['replaces'];
       if (replaces !== undefined && typeof replaces !== 'string') return refuse('invalid-upload');
       const presentation = parsePresentation(input);
@@ -438,7 +529,7 @@ export function createUploads(deps: {
       const pending = await upload(account, uploadId);
       if (pending === null) return refuse('upload-not-found');
       const owner = await author(account);
-      if (owner === null) return refuse('author-required');
+      if (owner?.termsAcceptedAt == null) return refuse('author-required');
       const missing = await db
         .prepare('SELECT path FROM uploaded_files WHERE bot_id = ? AND stored = 0 LIMIT 1')
         .bind(pending.bot_id)
@@ -491,7 +582,7 @@ export function createUploads(deps: {
             `UPDATE indexed_repositories SET
                owner = ?, name = ?, description = ?, pushed_at = ?, last_refreshed_at = ?,
                readme = ?, readme_pushed_at = ?, display_name = ?, roles = ?, bio = ?, banner = ?,
-               avatar = ?, files_id = ?
+               avatar = ?, files_id = ?, author_avatar = ?
              WHERE node_id = ?`,
           )
           .bind(
@@ -508,6 +599,7 @@ export function createUploads(deps: {
             presented(descriptor?.banner),
             presented(descriptor?.avatar),
             filesId,
+            owner.avatar,
             botId,
           )
           .run();
@@ -521,8 +613,8 @@ export function createUploads(deps: {
             node_id, owner, name, html_url, clone_url, description, topics, stars, pushed_at,
             default_branch, head_sha, head_committed_at, visibility, first_seen_at, last_refreshed_at,
             created_at, readme, readme_pushed_at, display_name, roles, bio, banner, avatar,
-            source, author_account, author_id
-          ) VALUES (?, ?, ?, ?, '', ?, '[]', 0, ?, 'main', NULL, NULL, 'listed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'upload', ?, ?)`,
+            source, author_account, author_id, author_avatar
+          ) VALUES (?, ?, ?, ?, '', ?, '[]', 0, ?, 'main', NULL, NULL, 'listed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'upload', ?, ?, ?)`,
         )
         .bind(
           botId,
@@ -543,6 +635,7 @@ export function createUploads(deps: {
           presented(descriptor?.avatar),
           account,
           owner.id,
+          owner.avatar,
         )
         .run();
       await db.prepare('DELETE FROM uploads WHERE upload_id = ?').bind(uploadId).run();

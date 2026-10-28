@@ -1,4 +1,7 @@
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
 import { createChallenge, verifySolution } from '../src/marketplace/altcha.js';
@@ -279,10 +282,32 @@ describe('Bot Marketplace commands', () => {
       ['marketplace-upload', 'bot-1', '--name', 'Helper'],
       ['marketplace-upload', 'bot-1', '--confirm'],
       ['marketplace-author'],
+      ['marketplace-author-avatar'],
+      ['marketplace-author-avatar', '--file', 'a.png', '--clear'],
       ['marketplace-detail', 'x', '--include-uploads'],
     ])
       expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
     expect(live.calls).toEqual([]);
+  });
+
+  it('sets the Account Profile avatar from an image file or clears it', async () => {
+    const live = await host((method) => ok({ method }));
+    const file = join(mkdtempSync(join(tmpdir(), 'author-avatar-')), 'me.png');
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]);
+    writeFileSync(file, png);
+    await invoke(['marketplace-author-avatar', '--file', file], live.url);
+    await invoke(['marketplace-author-avatar', '--clear'], live.url);
+    expect(live.calls).toEqual([
+      {
+        method: 'marketplaceAuthorAvatarSet',
+        args: { avatar: `data:image/png;base64,${png.toString('base64')}` },
+      },
+      { method: 'marketplaceAuthorAvatarSet', args: { avatar: null } },
+    ]);
+    writeFileSync(file, 'not an image');
+    expect(
+      (await invoke(['marketplace-author-avatar', '--file', file], live.url)).json.error.code,
+    ).toBe('usage');
   });
 
   it('solves the Host challenge before submitting or reporting, like the Web UI', async () => {

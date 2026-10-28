@@ -195,10 +195,44 @@ it('needs a Connect sign-in and an author before uploading', async () => {
   });
   expect(
     await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: false }),
-  ).toMatchObject({ ok: false, error: { code: 'terms-required' } });
+  ).toMatchObject({ ok: true, value: { name: 'Alice', termsAcceptedAt: null } });
+  expect(await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' })).toMatchObject({
+    ok: false,
+    error: { code: 'author-required' },
+  });
   expect(
     await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true }),
-  ).toMatchObject({ ok: true, value: { name: 'Alice', id: expect.any(String) } });
+  ).toMatchObject({
+    ok: true,
+    value: { name: 'Alice', id: expect.any(String), termsAcceptedAt: expect.any(String) },
+  });
+});
+
+it('sets and clears the Account Profile avatar through the Host', async () => {
+  const f = fixture();
+  f.session.state = 'signed-in';
+  expect(
+    await f.bridge.marketplaceAuthorAvatarSet({ avatar: 'data:text/plain;base64,aGk=' }),
+  ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+  expect(
+    await f.bridge.marketplaceAuthorAvatarSet({
+      avatar: `data:image/png;base64,${PNG.toString('base64')}`,
+    }),
+  ).toMatchObject({ ok: false, error: { code: 'author-required' } });
+  await f.bridge.marketplaceAuthorSave({ displayName: 'Alice' });
+  const set = await f.bridge.marketplaceAuthorAvatarSet({
+    avatar: `data:image/png;base64,${PNG.toString('base64')}`,
+  });
+  if (!set.ok) throw new Error(set.error.code);
+  expect(set.value.avatar).toMatch(
+    new RegExp(`^https://market\\.test/v1/authors/${set.value.id}/avatar/[a-f0-9]{64}\\.png$`, 'u'),
+  );
+  const account = await f.bridge.marketplaceAccount();
+  expect(account.ok && account.value.author?.avatar).toBe(set.value.avatar);
+  expect(await f.bridge.marketplaceAuthorAvatarSet({ avatar: null })).toMatchObject({
+    ok: true,
+    value: { avatar: null },
+  });
 });
 
 it('uploads a Bot, retries an expired token once, and installs it as a fresh Bot with one commit', async () => {

@@ -851,6 +851,7 @@ describe('bridge typert service', () => {
       'marketplaceReport',
       'marketplaceAccount',
       'marketplaceAuthorSave',
+      'marketplaceAuthorAvatarSet',
       'marketplaceUploadPlan',
       'marketplaceUpload',
       'marketplaceInstallReview',

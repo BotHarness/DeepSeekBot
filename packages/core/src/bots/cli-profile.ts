@@ -137,7 +137,7 @@ export function isProfileCommand(command: string): boolean {
   );
 }
 
-function readBytes(path: string | undefined, flag = '--file'): Buffer {
+export function readBytes(path: string | undefined, flag = '--file'): Buffer {
   if (!path?.trim()) usage(`${flag} <path> is required.`);
   try {
     return readFileSync(path);
@@ -146,7 +146,7 @@ function readBytes(path: string | undefined, flag = '--file'): Buffer {
   }
 }
 
-function imageDataUrl(bytes: Buffer): string {
+export function imageDataUrl(bytes: Buffer): string {
   const type = bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
     ? 'png'
     : bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff

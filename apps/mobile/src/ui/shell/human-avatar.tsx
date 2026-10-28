@@ -1,16 +1,14 @@
 import { useState } from 'react';
 import { Pressable, View, type ViewInstance } from 'react-native';
 
+import { accountProfile, useAccountProfile } from '../../account/native-account-profile';
 import { useDesignTheme } from '../design/theme';
-import { radius, space } from '../design/tokens';
+import { space } from '../design/tokens';
 import { useMounted } from '../mounted';
-import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-import { PersonIcon } from './icons';
+import { AccountAvatar } from './account-avatar';
 
-export function humanInitial(name: string | undefined): string | undefined {
-  return Array.from(name?.trim() ?? '')[0]?.toUpperCase();
-}
+export { humanInitial } from './human-avatar-initial';
 
 export function HumanAvatarButton({
   loadName,
@@ -23,9 +21,12 @@ export function HumanAvatarButton({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const account = useAccountProfile();
+  const profile = account.status === 'ready' ? account.profile : null;
   const [name, setName] = useState<string>();
   const mount = useMounted<ViewInstance>(() => {
     let live = true;
+    if (accountProfile.getSnapshot().status === 'loading') void accountProfile.refresh();
     loadName?.().then(
       (loaded) => live && setName(loaded),
       () => undefined,
@@ -34,8 +35,6 @@ export function HumanAvatarButton({
       live = false;
     };
   }, [loadName]);
-  const size = theme.touch - space.x3;
-  const initial = humanInitial(name);
   return (
     <Pressable
       testID={testID}
@@ -50,24 +49,12 @@ export function HumanAvatarButton({
         opacity: pressed ? 0.7 : 1,
       })}
     >
-      <View
-        ref={mount}
-        style={{
-          width: size,
-          height: size,
-          borderRadius: radius.round,
-          backgroundColor: theme.layer.raised.fill,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {initial === undefined ? (
-          <PersonIcon color={theme.color.fg} size={theme.type.title.size} />
-        ) : (
-          <Text allowFontScaling={false} strong>
-            {initial}
-          </Text>
-        )}
+      <View ref={mount}>
+        <AccountAvatar
+          uri={profile?.avatar}
+          name={profile?.name ?? name}
+          size={theme.touch - space.x3}
+        />
       </View>
     </Pressable>
   );
