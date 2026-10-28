@@ -16,6 +16,7 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 
 import { useDesignTheme } from '../design/theme';
 import { spring } from '../design/motion';
@@ -70,6 +71,7 @@ export function ProfileShell({
   const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
   const { width } = useWindowDimensions();
   const list = useRef<FlatList<Item>>(null);
   const offset = useSharedValue(0);
@@ -201,19 +203,23 @@ export function ProfileShell({
       onAccessibilityEscape={onClose}
       style={{ flex: 1, backgroundColor: theme.overlay.fill }}
     >
-      <View
-        style={{
-          paddingTop: insets.top + space.x1,
-          paddingHorizontal: space.x4,
-          paddingBottom: space.x1,
-          alignItems: 'flex-start',
-          backgroundColor: theme.overlay.fill,
-        }}
-      >
-        <HeaderCircleButton testID="profile-back" label={t.back} onPress={onClose}>
-          <BackIcon color={theme.color.fg} size={theme.type.title.line} />
-        </HeaderCircleButton>
-      </View>
+      {Platform.OS === 'ios' ? (
+        <View style={{ height: headerHeight + space.x3, backgroundColor: theme.overlay.fill }} />
+      ) : (
+        <View
+          style={{
+            paddingTop: insets.top + space.x2,
+            paddingHorizontal: space.x4,
+            paddingBottom: space.x3,
+            alignItems: 'flex-start',
+            backgroundColor: theme.overlay.fill,
+          }}
+        >
+          <HeaderCircleButton testID="profile-back" label={t.back} onPress={onClose}>
+            <BackIcon color={theme.color.fg} size={theme.type.title.line} />
+          </HeaderCircleButton>
+        </View>
+      )}
       <GestureDetector gesture={swipe}>
         <View style={{ flex: 1 }}>
           <AnimatedList
