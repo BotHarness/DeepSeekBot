@@ -28,6 +28,7 @@ vi.mock('react-native', () => ({
   },
 }));
 
+import { swipeEntryListeners, swipeEntryOptions } from '../src/ui/shell/swipe-entry';
 import { profileScreenOptions } from '../src/ui/chat/profile-presentation';
 import { resolveTheme } from '../src/ui/design/theme';
 import { useSystemReducedMotion } from '../src/ui/primitives/use-system-reduced-motion';
@@ -84,6 +85,22 @@ describe('profile navigation and the live system motion preference', () => {
     await act(async () => native.motion?.(true));
     await act(async () => resolveRead?.(false));
     expect(view?.textContent).toBe('fade');
+  });
+
+  it('keeps the native iOS header and restores fade after swipe entry', () => {
+    const options = profileScreenOptions(resolveTheme('light', {}, 'ios'), true);
+    expect(options).toMatchObject({
+      animation: 'fade',
+      headerShown: true,
+      headerTransparent: true,
+      headerBackButtonDisplayMode: 'minimal',
+      title: '',
+    });
+    const route = { params: { entry: 'swipe' } };
+    expect({ ...options, ...swipeEntryOptions(route) }.animation).toBe('none');
+    const navigation = { setOptions: vi.fn() };
+    swipeEntryListeners(options.animation)({ navigation, route }).transitionEnd();
+    expect(navigation.setOptions).toHaveBeenCalledWith({ animation: 'fade' });
   });
 
   it('preserves Android page navigation with either system preference', () => {

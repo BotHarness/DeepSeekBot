@@ -7,6 +7,7 @@ import {
   frame,
   pickerStyle,
   tag,
+  tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { View } from 'react-native';
 import { useDesignTheme } from '../design/theme';
@@ -43,7 +44,7 @@ export function PreferenceRow<T extends string>({
         }
         selection={value}
         onSelectionChange={onChange}
-        modifiers={[pickerStyle('menu'), accessibilityLabel(title)]}
+        modifiers={[pickerStyle('menu'), tint(theme.color.muted), accessibilityLabel(title)]}
       >
         {options.map((option) => (
           <Text key={option.value} modifiers={[tag(option.value)]}>

@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 
-import { hostSession, useHostSession, useHostSnapshot } from '../../src/host/host-session';
+import { useHostSession } from '../../src/host/host-session';
 import { loadUsage } from '../../src/host/usage';
 import { appBuildLabel } from '../../src/ui/app-build';
 import { copyMessage } from '../../src/ui/chat/message-menu';
@@ -15,14 +15,11 @@ import { SHEET_GROUP } from '../../src/ui/chat/sheet';
 import { SettingsRow } from '../../src/ui/primitives/settings-row';
 import { useStrings } from '../../src/ui/strings';
 import { SettingsView } from '../../src/ui/settings-view';
-import { openHostDrawer } from '../../src/ui/shell/host-drawer';
-import { noticeHostKept } from '../../src/ui/unpair-notice';
 
 export default function SettingsScreen() {
   const t = useStrings();
   const router = useRouter();
   const { saved, client } = useHostSession();
-  const { connection } = useHostSnapshot(client);
   const usage = useMemo(
     () => (client === undefined ? undefined : () => loadUsage(client, 'week')),
     [client],
@@ -44,26 +41,15 @@ export default function SettingsScreen() {
         />
       }
       key={saved?.hostId}
-      hostName={saved?.hostName}
-      connection={connection}
       loadUsage={usage}
       version={appBuildLabel(currentAppBuild())}
       actions={{
         onUsage: () => router.push('/settings/usage'),
-        onComputers: () => {
-          router.back();
-          openHostDrawer();
-        },
         onAppIcon: () => router.push('/settings/app-icon'),
         onNotifications: () => router.push('/settings/notifications'),
         onStorage: () => router.push('/settings/storage'),
         onModels: () => router.push('/settings/models'),
         onCopyVersion: copyMessage,
-        onUnpair: () =>
-          hostSession.unpair().then((result) => {
-            router.dismissTo('/');
-            noticeHostKept(result, saved?.hostName ?? '');
-          }),
       }}
     />
   );

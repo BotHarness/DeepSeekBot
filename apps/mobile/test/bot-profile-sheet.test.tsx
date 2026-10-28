@@ -22,6 +22,7 @@ vi.mock('expo-router', () => ({
 }));
 
 vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('expo-router/react-navigation', () => ({ useHeaderHeight: () => 96 }));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('../src/ui/chat/header-chrome', () => ({
   HeaderCircleButton: ({
@@ -64,7 +65,8 @@ import type { RosterBot } from '../src/host/client';
 import { BotProfilePage } from '../src/ui/chat/bot-profile';
 import { createProfileTabMemory, type ProfileTab } from '../src/ui/chat/profile-tabs';
 import { t } from '../src/ui/strings';
-import { profileScreenOptions } from '../src/ui/chat/profile-presentation';
+import { profileRootHeader, profileScreenOptions } from '../src/ui/chat/profile-presentation';
+import { Platform } from 'react-native';
 import { resolveTheme } from '../src/ui/design/resolve-theme';
 import profileWire from './fixtures/profile-wire.json';
 
@@ -327,10 +329,27 @@ describe('Bot profile page', () => {
     expect(options).toMatchObject({
       headerShown: false,
       presentation: 'card',
+      animation: 'slide_from_right',
       gestureEnabled: true,
       fullScreenGestureEnabled: false,
     });
     expect(options).not.toHaveProperty('sheetAllowedDetents');
+    expect(profileRootHeader('index')).toBeUndefined();
+    const os = Platform.OS;
+    Object.assign(Platform, { OS: 'ios' });
+    try {
+      expect(profileScreenOptions(resolveTheme('light', {}, 'ios'))).toMatchObject({
+        headerShown: true,
+        headerTransparent: true,
+        title: '',
+        presentation: 'card',
+        animation: 'default',
+      });
+      expect(profileRootHeader('index')).toEqual({ headerShown: true });
+      expect(profileRootHeader('memory')).toEqual({ headerShown: false });
+    } finally {
+      Object.assign(Platform, { OS: os });
+    }
     const onClose = vi.fn();
     const view = await render(
       <BotProfileSheet

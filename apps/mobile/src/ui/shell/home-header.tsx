@@ -25,6 +25,7 @@ export function HomeHeader({
   actions,
   search,
   bar,
+  barActions,
   onWorkspaces,
   children,
 }: {
@@ -33,6 +34,7 @@ export function HomeHeader({
   actions?: ReactNode;
   search?: ReactNode;
   bar?: ReactNode;
+  barActions?: ReactNode;
   onWorkspaces?: (() => void) | undefined;
   children: ReactNode | ((headerTravel: number) => ReactNode);
 }) {
@@ -74,9 +76,12 @@ export function HomeHeader({
       }}
     >
       {searchBar ? (
-        <View ref={chip} style={{ flex: 1 }}>
-          {bar}
-        </View>
+        <>
+          <View ref={chip} style={{ flex: 1 }}>
+            {bar}
+          </View>
+          {barActions}
+        </>
       ) : (
         (search ?? (
           <>

@@ -19,7 +19,7 @@ import {
   View,
   type ViewInstance,
 } from 'react-native';
-import Animated, { useAnimatedRef, useScrollOffset } from 'react-native-reanimated';
+import Animated, { useAnimatedRef, useScrollOffset, useSharedValue } from 'react-native-reanimated';
 
 import {
   chatBackgrounds,
@@ -84,6 +84,7 @@ import { Composer, type ComposerInput } from './composer';
 import { DraftSaveNotice } from './draft-save-notice';
 import { ClipboardImageOffer, useClipboardImage } from './clipboard-image';
 import { EdgeFade, HeaderBackButton, titleChipFill } from './header-chrome';
+import { useStackRoot } from '../shell/stack-root';
 import {
   barLabelStyle,
   floatingHeader,
@@ -96,6 +97,8 @@ import { useChannelViewport } from './channel-viewport';
 import { usePullToCompose } from './pull-to-compose';
 import { chatHref, useRecentChat } from '../shell/recent-chats';
 import { SwipeOpen } from '../shell/swipe-open';
+import { swipeEntry } from '../shell/swipe-entry';
+import { ProfileSwipePreview } from './profile-swipe-preview';
 import { ReplyBar } from './reply-bar';
 import { PullToComposeHint } from './pull-to-compose-hint';
 import { useMarkRead } from './mark-read';
@@ -124,7 +127,7 @@ import { createSpeakerRegistry, SpeakerStageContext } from './speaker-row';
 import { QuestionCard } from './question-card';
 import { TimeSeparator } from './time-separator';
 import { AccentProvider, pressTint, useDesignTheme } from '../design/theme';
-import { edge, edgeFade, pullToCompose, radius, space } from '../design/tokens';
+import { edge, edgeFade, glassPress, pullToCompose, radius, space } from '../design/tokens';
 import { navigateChannel } from '../shell/channel-navigation';
 import { leaveScreen } from '../shell/leave-screen';
 import { Text } from '../primitives/text';
@@ -1069,7 +1072,9 @@ function ChatConversation({
   const missing =
     host.roster !== undefined && (dm ? bot === undefined : channel === undefined && !botDm);
   const leave = () => leaveScreen(router);
-  const canGoBack = router.canGoBack();
+  const profileTravel = useSharedValue(0);
+  const stackRoot = useStackRoot();
+  const canGoBack = !stackRoot && router.canGoBack();
   const botDmName =
     channelDetails?.members
       .map(
@@ -1138,6 +1143,11 @@ function ChatConversation({
     : botDm
       ? () => router.push(pairHref)
       : () => router.push(groupHref);
+  const swipeProfile = dm
+    ? () => router.push({ ...profileHref, params: { ...profileHref.params, entry: swipeEntry } })
+    : botDm
+      ? () => router.push({ ...pairHref, params: { ...pairHref.params, entry: swipeEntry } })
+      : () => router.push({ ...groupHref, params: { ...groupHref.params, entry: swipeEntry } });
   const title = dm ? (
     <ChatTitle
       bot={bot}
@@ -1249,7 +1259,7 @@ function ChatConversation({
                             onPress: leave,
                           },
                         ]),
-                  { type: 'spacing' as const, spacing: 0 },
+                  { type: 'spacing' as const, spacing: glassPress.gap },
                   { type: 'custom' as const, element: titleItem },
                 ],
               }
@@ -1427,7 +1437,8 @@ function ChatConversation({
         <SwipeOpen
           testID="chat-profile-swipe"
           enabled={saved !== undefined && !hostRefused && !missing && selected === undefined}
-          onOpen={openProfile}
+          travel={profileTravel}
+          onOpen={swipeProfile}
         >
           <Animated.View style={{ flex: 1 }} onLayout={latest.onViewportLayout}>
             <MarkdownViewportContext.Provider value={markdownViewport}>
@@ -1628,6 +1639,12 @@ function ChatConversation({
           </Animated.View>
         </SwipeOpen>
       </KeyboardChatFrame>
+      <ProfileSwipePreview
+        travel={profileTravel}
+        name={dm ? (bot?.displayName ?? slug ?? '') : botDm ? botDmName : (channel?.name ?? '')}
+        bot={dm ? bot : undefined}
+        groupAvatar={channel?.avatar}
+      />
       {imageSelection?.scope === selectionScope ? (
         <SelectionScreenshot
           messages={imageSelection.messages}

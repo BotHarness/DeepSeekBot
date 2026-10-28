@@ -4,6 +4,8 @@
 - Date: 2026-10-18
 - Related: [#2081](https://github.com/BotHarness/DeepSeekBot/issues/2081), [#2082](https://github.com/BotHarness/DeepSeekBot/issues/2082), ADR-0221, ADR-0222
 
+> Partly superseded by [ADR-0268](0268-tob-mode-replaces-home.md) (2026-10-27): the Home panel is removed; Tob is reached through its DM (Tob Mode on mobile). The protected Tob identity and its single Human DM are unchanged. The Home panel, Home setup, layout v8 and Home growth described below are historical.
+
 ## Context
 
 Home needs a calm cross-Bot entry point and a conversation that can manage local settings. Giving an ordinary named Bot blanket Host credentials would make editable persona files or imported content a source of administrative authority. A second Home conversation would duplicate Channel history and lose the existing approval path.
