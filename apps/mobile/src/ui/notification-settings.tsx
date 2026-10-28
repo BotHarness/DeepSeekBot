@@ -1,5 +1,4 @@
-import { useCallback, useState } from 'react';
-import { ScrollView, View, type ScrollViewInstance } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
 
 import {
   PUSH_KINDS,
@@ -10,12 +9,9 @@ import {
 } from '../host/push';
 import type { PushStatus } from '../host/push-session';
 import type { DevicePreferenceSnapshot } from '../host/device-notification-preferences';
-import { space } from './design/tokens';
-import { useDesignTheme } from './design/theme';
-import { useMounted } from './mounted';
+import { SettingsForm } from './primitives/settings-form';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
-import { Text } from './primitives/text';
-import { ActionButton, Loading, Notice, errorText } from './request-parts';
+import { errorText } from './request-parts';
 import { useStrings, t } from './strings';
 
 export interface NotificationSettingsPort {
@@ -45,7 +41,6 @@ export function NotificationSettings({
   onOpenSettings(): void;
 }) {
   const t = useStrings();
-  const theme = useDesignTheme();
   const [settings, setSettings] = useState<PushSettings | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [test, setTest] = useState<
@@ -57,7 +52,7 @@ export function NotificationSettings({
     setError(undefined);
     port.load().then(setSettings, (reason: unknown) => setError(failure(reason)));
   }, [port]);
-  const mount = useMounted<ScrollViewInstance>(() => {
+  useEffect(() => {
     load();
   }, [on, load]);
 
@@ -99,46 +94,47 @@ export function NotificationSettings({
   const hostFailed = on && status.failed.length > 0 && settings?.registered !== true;
 
   return (
-    <ScrollView
-      ref={mount}
-      nestedScrollEnabled
-      contentInsetAdjustmentBehavior="automatic"
-      style={{ backgroundColor: theme.overlay.fill }}
-      contentContainerStyle={{ padding: space.x5, gap: space.x5 }}
-    >
-      <Text variant="meta" tone="muted">
-        {t.notificationsHint}
-      </Text>
-      {status.status === 'checking' ? <Loading /> : null}
+    <SettingsForm testID="notification-settings">
+      {status.status === 'checking' || (on && settings === undefined && error === undefined) ? (
+        <SettingsSection on="raised">
+          <SettingsRow title={t.loading} on="raised" control={{ kind: 'busy' }} />
+        </SettingsSection>
+      ) : null}
       {status.status === 'off' ? (
-        <View style={{ gap: space.x4 }}>
-          <Notice tone="warning">{t.notificationsOff}</Notice>
-          <View style={{ flexDirection: 'row' }}>
-            <ActionButton label={t.turnOnNotifications} onPress={onEnable} />
-          </View>
-        </View>
+        <SettingsSection on="raised" footer={t.notificationsOff}>
+          <SettingsRow
+            on="raised"
+            title={t.turnOnNotifications}
+            onPress={onEnable}
+            testID="notifications-enable"
+          />
+        </SettingsSection>
       ) : null}
       {status.status === 'denied' ? (
-        <View style={{ gap: space.x4 }}>
-          <Notice tone="warning">{t.notificationsDenied}</Notice>
-          <View style={{ flexDirection: 'row' }}>
-            <ActionButton label={t.openSettings} tone="secondary" onPress={onOpenSettings} />
-          </View>
-        </View>
+        <SettingsSection on="raised" footer={t.notificationsDenied}>
+          <SettingsRow
+            on="raised"
+            title={t.openSettings}
+            onPress={onOpenSettings}
+            testID="notifications-open-settings"
+          />
+        </SettingsSection>
       ) : null}
       {status.status === 'unavailable' ? (
-        <Notice tone="danger">{t.notificationsUnavailable}</Notice>
+        <SettingsSection on="raised">
+          <SettingsRow on="raised" title={t.notificationsUnavailable} />
+        </SettingsSection>
       ) : null}
-      {on ? (
-        <Notice tone={hostFailed ? 'warning' : 'success'}>
-          {hostFailed ? t.notificationsHostFailed(hostName) : t.notificationsOn(hostName)}
-        </Notice>
+      {hostFailed ? (
+        <SettingsSection on="raised">
+          <SettingsRow on="raised" title={t.notificationsHostFailed(hostName)} />
+        </SettingsSection>
       ) : null}
-      {error !== undefined ? <Notice tone="danger">{error}</Notice> : null}
-      {preference?.failed.length ? (
-        <Notice tone="warning">{t.notificationPreferencePending}</Notice>
+      {error !== undefined ? (
+        <SettingsSection on="raised">
+          <SettingsRow on="raised" title={error} tone="danger" />
+        </SettingsSection>
       ) : null}
-      {on && settings === undefined && error === undefined ? <Loading /> : null}
       {on && settings !== undefined ? (
         <SettingsSection
           on="raised"
@@ -147,6 +143,7 @@ export function NotificationSettings({
           <SettingsRow
             on="raised"
             title={t.allowNotifications}
+            testID="notifications-allow"
             control={{
               kind: 'switch',
               value: settings.enabled,
@@ -157,40 +154,42 @@ export function NotificationSettings({
         </SettingsSection>
       ) : null}
       {preference?.preferences !== undefined || (on && settings?.enabled === true) ? (
-        <View style={{ gap: space.x3 }}>
-          <Text accessibilityRole="header" variant="meta" tone="muted" strong>
-            {t.notifyAbout}
-          </Text>
-          <SettingsSection on="raised">
-            {PUSH_KINDS.map((kind) => (
-              <SettingsRow
-                on="raised"
-                key={kind}
-                title={t.pushKind[kind]}
-                control={{
-                  kind: 'switch',
-                  value: (preference?.preferences ?? settings!.preferences)[kind],
-                  onChange: (value) => toggle(kind, value),
-                  disabled: preference?.preferences === undefined && !settings?.registered,
-                }}
-              />
-            ))}
-          </SettingsSection>
-          <View style={{ flexDirection: 'row', paddingTop: space.x3 }}>
-            <ActionButton
-              label={t.sendTest}
-              tone="secondary"
-              onPress={sendTest}
-              busy={test?.state === 'sending'}
-              disabled={!on || !settings?.registered}
+        <SettingsSection
+          on="raised"
+          title={t.notifyAbout}
+          footer={preference?.failed.length ? t.notificationPreferencePending : undefined}
+        >
+          {PUSH_KINDS.map((kind) => (
+            <SettingsRow
+              on="raised"
+              key={kind}
+              title={t.pushKind[kind]}
+              testID={`notifications-kind-${kind}`}
+              control={{
+                kind: 'switch',
+                value: (preference?.preferences ?? settings!.preferences)[kind],
+                onChange: (value) => toggle(kind, value),
+                disabled: preference?.preferences === undefined && !settings?.registered,
+              }}
             />
-          </View>
-          {test?.state === 'sent' ? <Notice tone="success">{t.testSent}</Notice> : null}
-          {test?.state === 'failed' ? (
-            <Notice tone="danger">{`${t.testFailed} ${test.error}`}</Notice>
-          ) : null}
-        </View>
+          ))}
+        </SettingsSection>
       ) : null}
-    </ScrollView>
+      {on && settings?.registered && settings.enabled ? (
+        <SettingsSection
+          on="raised"
+          footer={test?.state === 'failed' ? `${t.testFailed} ${test.error}` : undefined}
+        >
+          <SettingsRow
+            on="raised"
+            title={t.sendTest}
+            testID="notifications-test"
+            onPress={test?.state === 'sending' ? undefined : sendTest}
+            detail={test?.state === 'sent' ? t.testSent : undefined}
+            control={test?.state === 'sending' ? { kind: 'busy' } : undefined}
+          />
+        </SettingsSection>
+      ) : null}
+    </SettingsForm>
   );
 }
