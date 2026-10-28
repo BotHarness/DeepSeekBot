@@ -46,6 +46,13 @@ async function ended(
     attachments: [],
   });
   core.channels.deleteGroup(channel.id);
+  core.port.transaction((db) =>
+    db
+      .prepare(
+        "UPDATE channel_records SET record_json = json_set(record_json, '$.name', ?) WHERE channel_id = ?",
+      )
+      .run(channel.name, channel.id),
+  );
   const source = core.purge.sources(channel.id).sources[0]!;
   return { ...core, home, channel, source };
 }

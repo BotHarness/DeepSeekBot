@@ -159,12 +159,12 @@ const en = {
 
   deletion: {
     deleteBot: 'Delete Bot',
-    dissolve: 'Dissolve group',
+    disband: 'Disband group',
     deleteSection: 'Delete section',
     scope: (host: string) => `This changes ${host} on all connected devices.`,
     botBody:
       'Permanently stop this Bot and delete its credentials. Sessions stop; access and bindings are revoked. Chat history and workspace files stay.',
-    groupBody: 'Bots will leave this group. Chat history stays on the computer.',
+    groupBody: 'Messages and files in this group are deleted. This cannot be undone.',
     sectionBody:
       'Conversations move out of this section and stay in your list. No Bots or conversations are deleted.',
     memory: 'Memory folder',
@@ -872,7 +872,7 @@ const en = {
   groupRemoveConfirm: (bot: string) => `Remove ${bot} from the group?`,
   groupDisband: 'Disband group',
   groupDisbandConfirm: (name: string) => `Disband “${name}”?`,
-  groupDisbandDetail: 'Bots leave the group. The history stays on the computer.',
+  groupDisbandDetail: 'Messages and files in this group are deleted. This cannot be undone.',
   groupFailed: 'That did not go through.',
   groupGone: 'This group is no longer on this computer.',
   state: {
@@ -2246,12 +2246,12 @@ const zh: typeof en = {
 
   deletion: {
     deleteBot: '删除 Bot',
-    dissolve: '解散群聊',
+    disband: '解散群聊',
     deleteSection: '删除分区',
     scope: (host: string) => `此操作会更改 ${host}，并影响所有已连接设备。`,
     botBody:
       '永久停止这个 Bot 并删除其凭据。会话将停止，授权和绑定将撤销。聊天历史和工作区文件保留。',
-    groupBody: 'Bot 将退出群聊，历史仍保留在电脑上。',
+    groupBody: '群里的消息和文件会被删除，无法恢复。',
     sectionBody: '分区内的会话将移回未分区列表。不会删除 Bot 或会话。',
     memory: '记忆文件夹',
     erase: '同时删除记忆文件',
@@ -2889,7 +2889,7 @@ const zh: typeof en = {
   groupRemoveConfirm: (bot: string) => `将 ${bot} 移出群聊？`,
   groupDisband: '解散群聊',
   groupDisbandConfirm: (name: string) => `解散“${name}”？`,
-  groupDisbandDetail: 'Bot 将退出群聊，历史仍保留在电脑上。',
+  groupDisbandDetail: '群里的消息和文件会被删除，无法恢复。',
   groupFailed: '操作没有成功。',
   groupGone: '这台电脑上已经没有这个群了。',
   state: {

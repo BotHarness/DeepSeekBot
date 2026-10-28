@@ -601,6 +601,21 @@ describe('live question attention authority', () => {
     expect(state.answerer.activeMessageIds()).toEqual([]);
   });
 
+  it('cancels questions in a disbanded group without writing to it', async () => {
+    const state = fixture();
+    const request = state.answerer.ask({ agent: state.agent, questions });
+    const rejected = expect(request).rejects.toThrow(/disbanded/);
+    await vi.waitFor(() => expect(state.states.snapshot('ada').attention?.questionCount).toBe(1));
+    const written = state.channels.readMessages(channelId).length;
+    state.answerer.cancelChannel('group-other');
+    expect(state.answerer.activeMessageIds()).toHaveLength(1);
+    state.answerer.cancelChannel(channelId);
+    await rejected;
+    expect(state.answerer.activeMessageIds()).toEqual([]);
+    expect(state.states.snapshot('ada').attention).toBeUndefined();
+    expect(state.channels.readMessages(channelId)).toHaveLength(written);
+  });
+
   it('clears disposed Sessions and close without requiring a query or changing execution', async () => {
     const state = fixture();
     const request = state.answerer.ask({ agent: state.agent, questions });

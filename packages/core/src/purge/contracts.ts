@@ -111,6 +111,11 @@ export interface TextCleanupResult {
   cleanupPending?: number;
 }
 
+export interface GroupDisbandResult {
+  messages: number;
+  cleanupPending?: number;
+}
+
 export interface ContentPurge {
   redactions(): PurgedPlacement[];
   history(): ChannelHistoryItem[];
@@ -123,6 +128,7 @@ export interface ContentPurge {
   ): { accepted: number; cleanupPending?: number };
   textPreview(scope: TextCleanupScope): TextCleanupPreview;
   textConfirm(scope: TextCleanupScope, token: string): TextCleanupResult;
+  disband(channelId: string): GroupDisbandResult;
   checkpoint(): PurgeCheckpoint;
   withCheckpoint<T>(exportSnapshot: (checkpoint: PurgeCheckpoint) => T): T;
   close(): void;

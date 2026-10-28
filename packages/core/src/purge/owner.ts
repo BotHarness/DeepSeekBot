@@ -12,6 +12,7 @@ import {
   ContentPurgeError,
   purgeCheckpointSchema,
   type ContentPurge,
+  type GroupDisbandResult,
   type PurgeFact,
   type PurgePreview,
   type PurgeSource,
@@ -555,7 +556,7 @@ export function mountContentPurge(options: {
             .flatMap((row) => {
               try {
                 const c = readChannel(db, String(row.channel_id), true);
-                return [{ id: c.id, name: c.name, deletedAt: c.deletedAt! }];
+                return c.name ? [{ id: c.id, name: c.name, deletedAt: c.deletedAt! }] : [];
               } catch {
                 return [];
               }
@@ -694,6 +695,23 @@ export function mountContentPurge(options: {
           freedBytes: Math.max(0, startUsed - size().used),
           ...(cleanupPending ? { cleanupPending } : {}),
         };
+      }),
+    disband: (channelId): GroupDisbandResult =>
+      exclusive(() => {
+        const rows = port.read((db) => {
+          readChannel(db, channelId, true);
+          return (
+            db
+              .prepare(
+                'SELECT e.* FROM source_events e JOIN channel_placements p USING(source_event_id) WHERE p.channel_id = ? AND NOT EXISTS (SELECT 1 FROM channel_placements o WHERE o.source_event_id = e.source_event_id AND o.channel_id != ?) AND NOT EXISTS (SELECT 1 FROM messaging_purge_facts f WHERE f.source_event_id = e.source_event_id) ORDER BY p.rowid',
+              )
+              .all(channelId, channelId) as unknown as SourceRow[]
+          ).filter((row) => !inspect(db, row).refusal);
+        });
+        let cleanupPending = 0;
+        for (let start = 0; start < rows.length; start += TEXT_CLEANUP_LIMIT)
+          cleanupPending += accept(rows.slice(start, start + TEXT_CLEANUP_LIMIT));
+        return { messages: rows.length, ...(cleanupPending ? { cleanupPending } : {}) };
       }),
     checkpoint: () =>
       exclusive(() => {

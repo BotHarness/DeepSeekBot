@@ -2961,8 +2961,7 @@ export const zh = {
   'members.wake.seconds': '最长等待（秒）',
   'members.wake.save': '保存提醒设置',
   'members.delete': '解散群聊',
-  'members.deleteConfirm':
-    '解散“{name}”？结束本地参与并保留历史；不会删除外部会话或清除正文。可从会话列表菜单查看已结束会话的历史。',
+  'members.deleteConfirm': '解散“{name}”？群里的消息和文件会被删除，无法恢复。',
   'members.error': '群聊管理失败，请重试。',
   'entry.memory': '记忆',
   'entry.memoryFiles': '记忆文件',
@@ -7434,7 +7433,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'members.wake.save': 'Save',
   'members.delete': 'Disband Group',
   'members.deleteConfirm':
-    'Disband “{name}”? End local participation and retain history, without deleting the external conversation or purging content. Open ended Channel history from the Channel list menu.',
+    'Disband “{name}”? Its messages and files are deleted. This cannot be undone.',
   'members.error': 'Group management failed. Please retry.',
   'entry.memory': 'Memory',
   'entry.memoryFiles': 'Memory files',

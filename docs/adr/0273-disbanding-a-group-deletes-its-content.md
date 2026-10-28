@@ -1,6 +1,6 @@
 # ADR-0273: Disbanding a group deletes its content
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-28
 - Supersedes: the "Ordinary Channel deletion" column of [ADR-0130](0130-deletion-preserves-history-and-makes-memory-erasure-explicit.md) for local groups
 - Related: [ADR-0146](0146-content-purge-retains-file-selectors-and-settles-issued-effects.md), [ADR-0262](0262-assignments-carry-a-title-and-description.md)

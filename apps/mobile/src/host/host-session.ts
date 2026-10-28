@@ -13,7 +13,12 @@ import { createConversationPlayback, type ConversationPlayback } from './convers
 import { useVisibleSnapshot } from './use-visible-snapshot';
 import { hostAvailabilitySource } from './host-availability';
 import { currentHost, selectHost, withHost, withoutHost, type SavedHosts } from './hosts';
-import { clearHostConversationCache, nativeConversationCache } from './native-cache';
+import {
+  clearHostConversationCache,
+  forgetConversationCache,
+  nativeConversationCache,
+} from './native-cache';
+import { watchDisbandedGroups } from './disbanded-groups';
 import { conversationFilter } from './native-conversation-filter';
 import { computerEnvironmentKey } from './conversation-environments';
 import { nativeCarrier } from './native-carrier';
@@ -128,8 +133,16 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   let connected = false;
   let avatars: string | undefined;
   let avatarRetryAt = Infinity;
+  const disbanded = watchDisbandedGroups();
   const offConnection = client.subscribe(() => {
     const snapshot = client.getSnapshot();
+    if (snapshot.roster !== undefined)
+      for (const id of disbanded(snapshot.roster.channels)) {
+        const key = `channel:${id}`;
+        conversations.get(client)?.get(key)?.stop();
+        conversations.get(client)?.delete(key);
+        if (saved !== null) forgetConversationCache(saved.hostId, key);
+      }
     const now = snapshot.connection.status === 'connected';
     if (now && !connected) {
       void pushSession.retryFailed();

@@ -44,3 +44,10 @@ export function clearHostConversationCache(hostId: string): void {
   for (const entry of directory.list())
     if (entry instanceof File && cachedForHost(entry.name, hostId)) entry.delete();
 }
+
+export function forgetConversationCache(hostId: string, key: string): void {
+  try {
+    const file = fileFor(JSON.stringify(['computer', hostId, key]));
+    if (file.exists) file.delete();
+  } catch {}
+}

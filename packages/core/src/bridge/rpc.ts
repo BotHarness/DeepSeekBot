@@ -15,6 +15,7 @@ import type { PairingRequest, PairingReviewInput } from '../messaging/pairing.js
 import type { SenderAccessInput } from '../messaging/sender-access.js';
 import type {
   ChannelHistoryItem,
+  GroupDisbandResult,
   PurgeSource,
   PurgePreview,
   TextCleanupPreview,
@@ -1402,7 +1403,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.humanNameSet({ displayName }));
   }
 
-  channelGroupDelete(channelId: string): { deleted: boolean } {
+  channelGroupDelete(channelId: string): { deleted: boolean } & GroupDisbandResult {
     return unwrap(this.methods.channelGroupDelete({ channelId }));
   }
 

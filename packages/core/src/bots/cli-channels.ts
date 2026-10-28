@@ -55,7 +55,10 @@ export const CHANNEL_COMMANDS = [
   },
   { command: 'group-wake-policies', description: "read each group member's wake policy" },
   { command: 'group-wake-set', description: "set or reset one group member's wake policy" },
-  { command: 'group-delete', description: 'delete a group Channel; needs --confirm' },
+  {
+    command: 'group-delete',
+    description: 'disband a group and delete its messages; needs --confirm',
+  },
   {
     command: 'channel-history',
     description: 'list deleted groups whose history can still be purged',
@@ -306,7 +309,7 @@ export async function runChannelCommand(
     case 'group-delete':
       method = 'channelGroupDelete';
       if (values.confirm !== true)
-        usage('Deleting a group removes it for every member. Pass --confirm to delete it.');
+        usage('Disbanding a group deletes its messages and files. Pass --confirm to disband it.');
       break;
     case 'channel-history':
       method = 'channelHistory';
