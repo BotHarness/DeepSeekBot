@@ -122,7 +122,12 @@ function MemberAvatar({ entry }: { entry: { slug: string; bot?: RosterBot } }) {
 }
 
 function RowButtons({ children }: { children: ReactNode }) {
-  return <View style={{ flexDirection: 'row', gap: space.x2 }}>{children}</View>;
+  const theme = useDesignTheme();
+  return (
+    <View style={{ flexDirection: theme.largeText ? 'column' : 'row', gap: space.x2 }}>
+      {children}
+    </View>
+  );
 }
 
 function RenameSheet({
@@ -622,6 +627,7 @@ function GroupRow({
             <Button
               label={t.groupInviteCancel}
               on={ON}
+              fit
               busy={busy === `invite:${row.pending.id}`}
               onPress={() => onCancelInvite(row.pending)}
             />
@@ -641,6 +647,7 @@ function GroupRow({
           <Button
             label={t.groupJoinDecline}
             on={ON}
+            fit
             disabled={deciding}
             onPress={() => onDecide(row.pending, false)}
           />
@@ -648,6 +655,7 @@ function GroupRow({
             label={t.groupJoinAllow}
             tone="primary"
             on={ON}
+            fit
             busy={deciding}
             onPress={() => onDecide(row.pending, true)}
           />

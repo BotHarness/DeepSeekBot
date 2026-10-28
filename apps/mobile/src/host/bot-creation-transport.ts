@@ -3,7 +3,7 @@ import type { HostCarrier } from './carrier';
 import type { SavedHost } from './hosts';
 import type { ZipFilePort } from './zip-import-file';
 import { uploadZip, zipUploadIdentity } from './zip-import-upload';
-import { seededAvatarFor } from '../../../../packages/core/src/bots/avatar-appearance';
+import { creationAvatarRecipe } from './bot-avatar-choice';
 import {
   BotCreationFailure,
   creationReceipt,
@@ -155,7 +155,7 @@ export function botCreationTransport(
       else
         await request(operation, 'botAppearanceSet', {
           channelId: receipt.channelId,
-          recipe: seededAvatarFor(avatar.seed, undefined),
+          recipe: creationAvatarRecipe(avatar),
         });
     },
     async create(operation, progress) {

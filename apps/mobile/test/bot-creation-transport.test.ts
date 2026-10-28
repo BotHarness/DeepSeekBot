@@ -1,3 +1,4 @@
+import { DEFAULT_LINE_RECIPE } from '../../../packages/core/src/bots/avatar-line';
 import { describe, expect, it, vi } from 'vitest';
 import { botCreationTransport } from '../src/host/bot-creation-transport';
 import { botCreationTargets } from '../src/host/bot-creation-targets';
@@ -85,10 +86,15 @@ describe('target-bound creation transport', () => {
     };
     await transport.applyAvatar!(operation, receipt, { kind: 'generated', seed: 'seed-1' });
     await transport.applyAvatar!(operation, receipt, {
+      kind: 'recipe',
+      recipe: DEFAULT_LINE_RECIPE,
+    });
+    await transport.applyAvatar!(operation, receipt, {
       kind: 'photo',
       image: 'data:image/jpeg;base64,AAAA',
     });
     expect(network.request.mock.calls.map(([url]) => url)).toEqual([
+      'https://b.ts.net/botharness-device/api/botharness/botAppearanceSet',
       'https://b.ts.net/botharness-device/api/botharness/botAppearanceSet',
       'https://b.ts.net/botharness-device/api/botharness/botAvatarSet',
     ]);
@@ -96,7 +102,8 @@ describe('target-bound creation transport', () => {
       ([, request]) => JSON.parse(String(request.body)).payload.args,
     );
     expect(args[0]).toMatchObject({ channelId: 'dm-new-bot', recipe: { family: 'illustrated' } });
-    expect(args[1]).toEqual({ channelId: 'dm-new-bot', avatar: 'data:image/jpeg;base64,AAAA' });
+    expect(args[1]).toEqual({ channelId: 'dm-new-bot', recipe: DEFAULT_LINE_RECIPE });
+    expect(args[2]).toEqual({ channelId: 'dm-new-bot', avatar: 'data:image/jpeg;base64,AAAA' });
   });
   it('uses B’s credential and routes without opening a live connection or visiting A', async () => {
     const network = carrier();

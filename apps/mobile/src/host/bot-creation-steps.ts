@@ -2,13 +2,20 @@ import type { BotCreationDraft, BotCreationOperation } from './bot-creation';
 import type { HostStatus } from './host-glance';
 
 export type CreationFlow = 'blank' | 'git' | 'zip' | 'marketplace';
-export type CreationStep = 'environment' | 'git' | 'zip' | 'identity' | 'persona' | 'confirm';
+export type CreationStep =
+  | 'environment'
+  | 'git'
+  | 'zip'
+  | 'identity'
+  | 'persona'
+  | 'details'
+  | 'confirm';
 
 const orders: Record<CreationFlow, readonly CreationStep[]> = {
-  blank: ['environment', 'identity', 'persona'],
-  git: ['environment', 'git', 'identity', 'persona'],
-  zip: ['environment', 'zip', 'identity', 'persona'],
-  marketplace: ['environment', 'identity', 'confirm'],
+  blank: ['environment', 'identity', 'persona', 'details'],
+  git: ['environment', 'git', 'identity', 'details'],
+  zip: ['environment', 'zip', 'identity', 'details'],
+  marketplace: ['environment', 'identity', 'details', 'confirm'],
 };
 
 export function creationSteps(flow: CreationFlow): readonly CreationStep[] {

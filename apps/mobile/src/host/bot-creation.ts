@@ -1,21 +1,20 @@
 import { zipFile, type ZipImportFile } from './zip-import-file';
+import { initialBotAvatar, type BotAvatarChoice } from './bot-avatar-choice';
+import { isAvatarRecipe } from '../../../../packages/core/src/bots/avatar-appearance';
+import { creationTags, type CreationTagDraft } from './bot-creation-tags';
+export type { BotAvatarChoice } from './bot-avatar-choice';
 import type { ZipImportPreview, ZipImportSource } from './zip-import-upload';
 import type { MobileTelemetry } from '../telemetry/mobile-telemetry';
 import type { BotOperationPhase, BotOperationReason } from '../telemetry/schema';
 
-export interface BotCreationDraft {
+export interface BotCreationDraft extends CreationTagDraft {
   hostId: string;
   displayName: string;
   persona: string;
   description: string;
-  tags: string;
   source?: GitImportDraft | ZipImportDraft;
   avatar?: BotAvatarChoice;
 }
-
-export type BotAvatarChoice =
-  | { kind: 'generated'; seed: string }
-  | { kind: 'photo'; image: string };
 
 export interface ZipImportDraft extends ZipImportSource {
   defaultsApplied?: true;
@@ -127,19 +126,26 @@ const emptyDraft = (): BotCreationDraft => ({
   persona: '',
   description: '',
   tags: '',
+  avatar: initialBotAvatar(),
 });
+
+function sourceAvatar(draft: BotCreationDraft): BotCreationDraft {
+  if (draft.avatar?.kind !== 'generated' || draft.avatar.origin !== 'initial') return draft;
+  const { avatar: _avatar, ...rest } = draft;
+  return rest;
+}
+
+function independentAvatar(draft: BotCreationDraft): BotCreationDraft {
+  if (draft.source) return sourceAvatar(draft);
+  return draft.avatar
+    ? draft
+    : { ...draft, avatar: initialBotAvatar(draft.displayName || undefined) };
+}
 
 export function normalizedBlankInput(draft: BotCreationDraft): BlankBotInput {
   const persona = draft.persona.trim();
   const description = draft.description.trim();
-  const roles = [
-    ...new Set(
-      draft.tags
-        .split(/[,，]/u)
-        .map((tag) => tag.trim())
-        .filter(Boolean),
-    ),
-  ];
+  const roles = creationTags(`${draft.tags},${draft.tagInput ?? ''}`);
   return {
     displayName: draft.displayName.trim(),
     ...(persona && !draft.source ? { persona } : {}),
@@ -250,7 +256,15 @@ const AVATAR_IMAGE = /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/u;
 function avatarChoice(value: unknown): Pick<BotCreationDraft, 'avatar'> {
   if (value === undefined) return {};
   if (object(value) && value.kind === 'generated' && typeof value.seed === 'string' && value.seed)
-    return { avatar: { kind: 'generated', seed: value.seed } };
+    return {
+      avatar: {
+        kind: 'generated',
+        seed: value.seed,
+        ...(value.origin === 'initial' ? { origin: 'initial' } : {}),
+      },
+    };
+  if (object(value) && value.kind === 'recipe' && isAvatarRecipe(value.recipe))
+    return { avatar: { kind: 'recipe', recipe: value.recipe } };
   if (
     object(value) &&
     value.kind === 'photo' &&
@@ -289,7 +303,8 @@ export function parseCreationRecord(value: unknown): CreationRecord {
       typeof d.displayName === 'string' &&
       typeof d.persona === 'string' &&
       typeof d.description === 'string' &&
-      typeof d.tags === 'string'
+      typeof d.tags === 'string' &&
+      (d.tagInput === undefined || typeof d.tagInput === 'string')
     )
       return {
         kind: 'draft',
@@ -300,6 +315,7 @@ export function parseCreationRecord(value: unknown): CreationRecord {
           persona: d.persona,
           description: d.description,
           tags: d.tags,
+          ...(typeof d.tagInput === 'string' ? { tagInput: d.tagInput } : {}),
           ...(d.source === undefined ? {} : { source: draftSource(d.source) }),
           ...avatarChoice(d.avatar),
         },
@@ -446,9 +462,11 @@ export function createBotCreationController(options: {
   const ready = options.storage
     .read()
     .then((raw) => {
+      const record = raw === undefined ? snapshot.record : parseCreationRecord(raw);
       publish({
         loaded: true,
-        record: raw === undefined ? snapshot.record : parseCreationRecord(raw),
+        record:
+          record.kind === 'draft' ? { ...record, draft: independentAvatar(record.draft) } : record,
       });
     })
     .catch(() => {
@@ -564,10 +582,27 @@ export function createBotCreationController(options: {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    async edit(draft: BotCreationDraft) {
+    setAvatar(avatar: BotAvatarChoice) {
+      return run(async () => {
+        if (storageFailed) throw new BotCreationFailure('storage-invalid');
+        if (snapshot.record.kind !== 'draft') throw new BotCreationFailure('draft-changed');
+        const record: CreationRecord = {
+          ...snapshot.record,
+          draft: { ...snapshot.record.draft, avatar },
+        };
+        try {
+          await save(record);
+        } catch {
+          throw new BotCreationFailure('storage-write');
+        }
+        publish({ record });
+      });
+    },
+    async edit(update: BotCreationDraft | ((current: BotCreationDraft) => BotCreationDraft)) {
       await ready;
       if (storageFailed || snapshot.busy || snapshot.record.kind !== 'draft') return;
       const previous = snapshot.record.draft;
+      const draft = typeof update === 'function' ? update(previous) : update;
       const changed =
         draft.hostId !== previous.hostId ||
         draft.source?.kind !== previous.source?.kind ||
@@ -578,7 +613,7 @@ export function createBotCreationController(options: {
       const record: CreationRecord = {
         kind: 'draft',
         draft: {
-          ...draft,
+          ...independentAvatar(draft),
           ...(changed && draft.source ? { source: unpreviewed(draft.source) } : {}),
         },
       };
@@ -599,7 +634,7 @@ export function createBotCreationController(options: {
         const record: CreationRecord = {
           kind: 'draft',
           draft: {
-            ...snapshot.record.draft,
+            ...sourceAvatar(snapshot.record.draft),
             source: { ...zipFile(file), kind: 'zip', uploadKey: options.key() },
           },
         };
@@ -653,7 +688,7 @@ export function createBotCreationController(options: {
       return run(async () => {
         await ready;
         if (storageFailed || snapshot.record.kind !== 'draft') return;
-        const previous = snapshot.record.draft;
+        const previous = sourceAvatar(snapshot.record.draft);
         const sameListing =
           input.origin === 'marketplace' &&
           !!input.listingId &&
@@ -677,7 +712,7 @@ export function createBotCreationController(options: {
             : { description: input.description }),
           ...(sameListing || input.roles === undefined ? {} : { tags: input.roles.join(', ') }),
         };
-        const record: CreationRecord = { kind: 'draft', draft };
+        const record: CreationRecord = { kind: 'draft', draft: independentAvatar(draft) };
         try {
           await save(record);
           publish({ record, receipt: undefined });
@@ -691,7 +726,7 @@ export function createBotCreationController(options: {
         await ready;
         if (storageFailed || snapshot.record.kind !== 'draft') return;
         const { source: _source, ...draft } = snapshot.record.draft;
-        const record: CreationRecord = { kind: 'draft', draft };
+        const record: CreationRecord = { kind: 'draft', draft: independentAvatar(draft) };
         try {
           await save(record);
           publish({ record });
@@ -1021,7 +1056,7 @@ export function createBotCreationController(options: {
         const record: CreationRecord = {
           kind: 'draft',
           draft: {
-            ...emptyDraft(),
+            ...(source ? sourceAvatar(emptyDraft()) : emptyDraft()),
             hostId,
             ...(source
               ? {

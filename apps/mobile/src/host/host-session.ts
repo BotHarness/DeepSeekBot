@@ -11,6 +11,7 @@ import { createInbox, type Inbox, type InboxSnapshot } from './inbox';
 import { createConversation, type Conversation, type ConversationSnapshot } from './conversation';
 import { createConversationPlayback, type ConversationPlayback } from './conversation-playback';
 import { useVisibleSnapshot } from './use-visible-snapshot';
+import { hostAvailabilitySource } from './host-availability';
 import { currentHost, selectHost, withHost, withoutHost, type SavedHosts } from './hosts';
 import { clearHostConversationCache, nativeConversationCache } from './native-cache';
 import { conversationFilter } from './native-conversation-filter';
@@ -409,6 +410,12 @@ const feedSource = {
 
 export function useHostSessions(visible = true): readonly ConnectedHost[] {
   return useVisibleSnapshot(feedSource, visible);
+}
+
+const availability = hostAvailabilitySource(feedSource);
+
+export function useHostAvailability(visible = true) {
+  return useVisibleSnapshot(availability, visible);
 }
 
 export function usePushStatus(): PushStatus {

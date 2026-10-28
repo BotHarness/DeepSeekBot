@@ -26,6 +26,7 @@ export function ActionMenuButton({
       <Host
         colorScheme={theme.scheme}
         seedColor={theme.color.accent}
+        ignoreSafeAreaKeyboardInsets
         pointerEvents="none"
         style={StyleSheet.absoluteFill}
       >
