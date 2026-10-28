@@ -228,6 +228,27 @@ function mergeBots(current: MarketplaceEntry[], next: MarketplaceEntry[]): Marke
   return [...current.filter((bot) => !seen.has(bot.id)), ...next];
 }
 
+export function MarketplaceInstalls({
+  bot,
+  t,
+  className = 'bh-market-installs',
+}: {
+  bot: MarketplaceEntry;
+  t: BotHarnessTranslate;
+  className?: string;
+}): ReactElement {
+  return (
+    <span
+      className={className}
+      data-market-installs={bot.installs}
+      aria-label={t('market.installs', { count: String(bot.installs) })}
+      title={t('market.installs', { count: String(bot.installs) })}
+    >
+      {t('market.installsCount', { count: formatStars(bot.installs, marketplaceLanguage(t)) })}
+    </span>
+  );
+}
+
 export function MarketplaceMeta({
   bot,
   t,
@@ -244,14 +265,7 @@ export function MarketplaceMeta({
       {bot.source === 'upload' ? null : (
         <span>{t('market.stars', { count: String(bot.stars) })}</span>
       )}
-      <span
-        className="bh-market-installs"
-        data-market-installs={bot.installs}
-        aria-label={t('market.installs', { count: String(bot.installs) })}
-        title={t('market.installs', { count: String(bot.installs) })}
-      >
-        {t('market.installsCount', { count: formatStars(bot.installs, marketplaceLanguage(t)) })}
-      </span>
+      <MarketplaceInstalls bot={bot} t={t} />
       {bot.installed?.authorUpdated === true ? (
         <span data-market-author-updated="">
           <Tag tone="info">{t('market.authorUpdated')}</Tag>
