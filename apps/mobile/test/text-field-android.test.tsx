@@ -243,3 +243,16 @@ it('reports focus to the field owner', async () => {
   expect(focus).toHaveBeenCalledTimes(1);
   expect(blur).toHaveBeenCalledTimes(1);
 });
+
+it('submits the current native text while retaining focus for tag entry', async () => {
+  const submitted = vi.fn();
+  await render({
+    value: '',
+    submitBehavior: 'submit',
+    onSubmitEditing: (event) => submitted(event.nativeEvent.text),
+  });
+  await act(() => native.props.keyboardActions?.['onDone']?.('旅行'));
+  expect(submitted).toHaveBeenCalledWith('旅行');
+  expect(native.blurs).toBe(0);
+  expect(native.mounts).toBe(1);
+});
