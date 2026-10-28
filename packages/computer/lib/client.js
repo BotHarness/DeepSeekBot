@@ -3235,6 +3235,20 @@ window.__ModuleLoader__.load({
 			] });
 		}
 		//#endregion
+		//#region packages/client/src/client/telemetry-surface.ts
+		function telemetrySurface() {
+			return typeof globalThis === "object" && "dshDesktop" in globalThis ? "desktop_app" : "browser";
+		}
+		function recordViewerOpen(rpc, panel) {
+			rpc?.call("/api", "botharness/telemetryEvent", { args: {
+				event: "viewer:subpanel_open",
+				properties: {
+					panel,
+					surface: telemetrySurface()
+				}
+			} }).catch(() => {});
+		}
+		//#endregion
 		//#region packages/computer/src/client/access-power-icon.tsx
 		function AccessPowerIcon() {
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
@@ -3739,6 +3753,7 @@ window.__ModuleLoader__.load({
 				}
 			}, []);
 			const statusResource = useMountedResource(() => {
+				recordViewerOpen(connectionRpc, "computer");
 				const controller = new AbortController();
 				let pending = false;
 				const poll = async () => {
