@@ -128,3 +128,27 @@ clearly without a foreground-only substitute. Verify both languages, light/dark,
 Type and VoiceOver. Measure visible start, remote update latency and added energy on the
 real device; leave those fields UNTESTED until measured. Current retry/repair facts stay
 unknown/nonterminal; no terminal request failure authority is implemented in this slice.
+
+## Bot activity chart inspection (#3032)
+
+On the isolated QA Host, use a Bot with genuine token usage. Record the canonical
+`bot-activity-history <bot-id> --weeks 1` result before interacting. From its
+native profile, open Activity. Confirm that the total and populated day match
+that result; do not manufacture historical database rows.
+
+On iOS, tap a populated day: the date and full compact value remain visible.
+Tap it again to clear. Scrub horizontally across the chart in both directions,
+including returning to the day selected before the drag. Capture intermediate
+readings during the actual gesture, rather than only after release. Release or
+cancel an active scrub: the reading clears. A tap or vertical scroll which does
+not activate horizontal inspection must not run the active-scrub cleanup.
+Vertical page scrolling still works when starting within the plot. Check both
+the Bot activity screen and the controlled chart in Settings → Usage.
+
+Capture matched before/after native light/dark images at default, intermediate
+and maximum system text settings. English values such as `28.8K tokens` must
+remain complete, with date and value wrapping inside the chart width. Include
+first/last day readings and verify VoiceOver adjustable actions separately when
+available. Keep physical iPhone, Simulator, Android, Human haptics and VoiceOver
+results distinct; an event trace or DOM test does not prove visible native text.
+Restore the original language, theme and system text settings afterward.
