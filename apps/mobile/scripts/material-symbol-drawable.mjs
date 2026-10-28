@@ -33,6 +33,7 @@ const ICONS = {
   copy: 'content_copy',
   share: 'share',
   account: 'account_circle',
+  qr: 'qr_code_scanner',
   lan: 'wifi',
   encrypted: 'vpn_lock',
   add: 'add',

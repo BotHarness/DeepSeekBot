@@ -36,6 +36,7 @@ export const ROW_ICON_SOURCES: Record<
   copy: require('../../../assets/row-icons/copy.xml'),
   share: require('../../../assets/row-icons/share.xml'),
   account: require('../../../assets/row-icons/account.xml'),
+  qr: require('../../../assets/row-icons/qr.xml'),
   lan: require('../../../assets/row-icons/lan.xml'),
   encrypted: require('../../../assets/row-icons/encrypted.xml'),
   check: require('../../../assets/row-icons/check.xml'),
