@@ -307,6 +307,7 @@ import {
   type BotSubagentPresetConfig,
 } from './runtime/subagent-model-tools.js';
 import { installNativeSubagentWake } from './runtime/native-subagent-wake.js';
+import { restartEmptyToolSeries } from './runtime/tool-declaration-series.js';
 import { promptTextOf } from './prompts/prompt-parts.js';
 import { createPromptPresetLibrary, promptPartTexts } from './prompts/prompt-presets.js';
 import { createPromptSettings, type PromptSettings } from './prompts/prompt-settings.js';
@@ -1745,7 +1746,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           compactionPolicy(),
           agentAdapter.modelSelection(agent.session.id),
         );
-      return next();
+      const decision = await next();
+      return contextOwner === undefined
+        ? decision
+        : restartEmptyToolSeries(agent.session, decision);
     },
     { global: true },
   );
