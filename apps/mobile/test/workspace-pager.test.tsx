@@ -13,9 +13,18 @@ const native = vi.hoisted(() => ({
 }));
 
 vi.mock('expo-router', () => ({ useSegments: () => native.segments }));
+vi.mock('../src/host/host-session', () => ({ useHostSession: () => ({ hosts: [] }) }));
+vi.mock('../src/ui/shell/recent-chats', () => ({
+  useRecentChats: () => [],
+  lastChat: () => undefined,
+}));
+vi.mock('../src/ui/chat/conversation-page-pair', () => ({
+  useConversationPagePair: () => undefined,
+}));
 vi.mock('react-native', async () => {
   const { createElement } = await import('react');
   return {
+    Keyboard: { dismiss: vi.fn() },
     View: ({
       children,
       accessibilityElementsHidden,

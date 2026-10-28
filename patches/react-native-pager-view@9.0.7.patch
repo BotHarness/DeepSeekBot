@@ -1,5 +1,83 @@
+diff --git a/android/src/main/java/com/reactnativepagerview/PagerViewViewManager.kt b/android/src/main/java/com/reactnativepagerview/PagerViewViewManager.kt
+index d41052a7ecf8976860c8ed9251582bddcde7ffc5..6e4e1cc55a647990fc38977c3666308de7fe7de4 100644
+--- a/android/src/main/java/com/reactnativepagerview/PagerViewViewManager.kt
++++ b/android/src/main/java/com/reactnativepagerview/PagerViewViewManager.kt
+@@ -81,6 +81,9 @@ class PagerViewViewManager : ViewGroupManager<ComposePagerView>(), RNCViewPagerM
+         }
+     }
+ 
++    @ReactProp(name = "pageLimit", defaultInt = 0)
++    override fun setPageLimit(view: ComposePagerView?, value: Int) = Unit
++
+     @ReactProp(name = "layoutDirection")
+     override fun setLayoutDirection(view: ComposePagerView?, value: String?) {
+         if (view != null && value != null) {
+diff --git a/ios/PagerView.swift b/ios/PagerView.swift
+index a4a850af33bb517422a7f7e7dc5a14482ce76ae8..b4f48778c6475bff99a634ab70c5db21876b83ca 100644
+--- a/ios/PagerView.swift
++++ b/ios/PagerView.swift
+@@ -19,7 +19,7 @@ struct PagerView: View {
+   var body: some View {
+     GeometryReader { proxy in
+       TabView(selection: $props.currentPage) {
+-        ForEach(Array(props.children.enumerated()), id: \.element.id) { index, child in
++        ForEach(Array(props.children.prefix(props.eligibleCount).enumerated()), id: \.element.id) { index, child in
+           RepresentableView(view: child.view)
+             .frame(width: proxy.size.width, height: proxy.size.height)
+             .rotationEffect(isVertical ? .degrees(-90) : .zero)
+@@ -87,6 +87,11 @@ struct PagerView: View {
+         props.currentPage = newValue.count - 1
+       }
+     }
++    .onChange(of: props.pageLimit) { _ in
++      if props.eligibleCount > 0 && props.currentPage >= props.eligibleCount {
++        props.currentPage = props.eligibleCount - 1
++      }
++    }
+     .onChange(of: props.currentPage) { newValue in
+       delegate?.onPageSelected(position: newValue)
+     }
+diff --git a/ios/PagerViewProps.swift b/ios/PagerViewProps.swift
+index fbc2c9ac3f6b21e5d7c39f6a7135540bf4e81101..1e5b12ac99d3ab9c3342faace157673d285892c2 100644
+--- a/ios/PagerViewProps.swift
++++ b/ios/PagerViewProps.swift
+@@ -27,6 +27,11 @@ struct IdentifiablePlatformView: Identifiable, Equatable {
+ class PagerViewProps: ObservableObject {
+   @Published var children: [IdentifiablePlatformView] = []
+   @Published var currentPage: Int = -1
++  @Published var pageLimit: Int = 0
++
++  var eligibleCount: Int {
++    pageLimit > 0 ? min(pageLimit, children.count) : children.count
++  }
+   @Published var scrollEnabled: Bool = true
+   @Published var overdrag: Bool = false
+   @Published var keyboardDismissMode: UIScrollView.KeyboardDismissMode = .none
+diff --git a/ios/PagerViewProvider.swift b/ios/PagerViewProvider.swift
+index 82cf6f1e7055aa4b641acf09fd1e8b474ee4b772..ecbfd8a29a05b20a7d9545fdb271ef575c71fd4c 100644
+--- a/ios/PagerViewProvider.swift
++++ b/ios/PagerViewProvider.swift
+@@ -35,6 +35,10 @@ import UIKit
+     }
+   }
+ 
++  @objc public var pageLimit: Int = 0 {
++    didSet { props.pageLimit = pageLimit }
++  }
++
+   @objc public var overdrag: Bool = false {
+     didSet {
+       props.overdrag = overdrag
+@@ -177,6 +181,7 @@ import UIKit
+   }
+ 
+   private func setPage(index: Int, animated: Bool) {
++    guard index >= 0 && index < props.eligibleCount else { return }
+     if animated {
+       withAnimation {
+         props.currentPage = index
 diff --git a/ios/RNCPagerViewComponentView.mm b/ios/RNCPagerViewComponentView.mm
-index eeeecde6365bf4d6bf2aa54b3b93efad74eaa7a6..77c0d4f3bfeb514d97640393e894a82958870eb9 100644
+index eeeecde6365bf4d6bf2aa54b3b93efad74eaa7a6..bfc8b95af662564a8ac0a60d5ff1b2d82b48908d 100644
 --- a/ios/RNCPagerViewComponentView.mm
 +++ b/ios/RNCPagerViewComponentView.mm
 @@ -7,6 +7,7 @@
@@ -10,7 +88,18 @@ index eeeecde6365bf4d6bf2aa54b3b93efad74eaa7a6..77c0d4f3bfeb514d97640393e894a829
  
  #import "RCTOnPageScrollEvent.h"
  
-@@ -122,6 +123,7 @@ using namespace facebook::react;
+@@ -73,6 +74,10 @@ using namespace facebook::react;
+      _pagerViewProvider.scrollEnabled = newScreenProps.scrollEnabled;
+    }
+ 
++  if (oldScreenProps.pageLimit != newScreenProps.pageLimit) {
++    _pagerViewProvider.pageLimit = newScreenProps.pageLimit;
++  }
++
+   if (oldScreenProps.overdrag != newScreenProps.overdrag) {
+      _pagerViewProvider.overdrag = newScreenProps.overdrag;
+    }
+@@ -122,6 +127,7 @@ using namespace facebook::react;
        break;
  
      case PageScrollStateDragging:
@@ -18,7 +107,7 @@ index eeeecde6365bf4d6bf2aa54b3b93efad74eaa7a6..77c0d4f3bfeb514d97640393e894a829
        scrollState = RNCViewPagerEventEmitter::OnPageScrollStateChangedPageScrollState::Dragging;
        break;
  
-@@ -137,6 +139,20 @@ using namespace facebook::react;
+@@ -137,6 +143,20 @@ using namespace facebook::react;
  
  #pragma mark - Internal methods
  
@@ -39,3 +128,28 @@ index eeeecde6365bf4d6bf2aa54b3b93efad74eaa7a6..77c0d4f3bfeb514d97640393e894a829
  - (void)goTo:(NSInteger)index animated:(BOOL)animated {
    [_pagerViewProvider goToIndex:index animated:animated];
  }
+diff --git a/lib/typescript/PagerViewNativeComponent.d.ts b/lib/typescript/PagerViewNativeComponent.d.ts
+index b843c6e2f020ed6ca9e204786c1451dccf08153d..4184e001b6fd1388969d1a122106b4c8b5ac7118 100644
+--- a/lib/typescript/PagerViewNativeComponent.d.ts
++++ b/lib/typescript/PagerViewNativeComponent.d.ts
+@@ -12,6 +12,7 @@ export type OnPageScrollStateChangedEventData = Readonly<{
+ }>;
+ export interface NativeProps extends ViewProps {
+     scrollEnabled?: CodegenTypes.WithDefault<boolean, true>;
++    pageLimit?: CodegenTypes.WithDefault<CodegenTypes.Int32, 0>;
+     layoutDirection?: CodegenTypes.WithDefault<'ltr' | 'rtl', 'ltr'>;
+     initialPage?: CodegenTypes.Int32;
+     orientation?: CodegenTypes.WithDefault<'horizontal' | 'vertical', 'horizontal'>;
+diff --git a/src/PagerViewNativeComponent.ts b/src/PagerViewNativeComponent.ts
+index 1ac31ca28ec3f8f8c6f94846ddcdf4de176c918c..815a6d51c2704dccaa5f028f5f9ab82a3afb81e0 100644
+--- a/src/PagerViewNativeComponent.ts
++++ b/src/PagerViewNativeComponent.ts
+@@ -17,6 +17,8 @@ export type OnPageScrollStateChangedEventData = Readonly<{
+ 
+ export interface NativeProps extends ViewProps {
+   scrollEnabled?: CodegenTypes.WithDefault<boolean, true>;
++  /** iOS: eligible leading pages; zero keeps all native pages. React children stay mounted. */
++  pageLimit?: CodegenTypes.WithDefault<CodegenTypes.Int32, 0>;
+   layoutDirection?: CodegenTypes.WithDefault<'ltr' | 'rtl', 'ltr'>;
+   initialPage?: CodegenTypes.Int32;
+   orientation?: CodegenTypes.WithDefault<

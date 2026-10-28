@@ -6,6 +6,7 @@ export type ProfilePaging = {
   focused: boolean;
   open(): void;
   close(): void;
+  leaveChat(): void;
   setEnabled(enabled: boolean): void;
 };
 

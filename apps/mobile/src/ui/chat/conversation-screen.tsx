@@ -156,12 +156,14 @@ export function ConversationScreen({
   focus,
   focusRequest,
   latestWindowOnly = false,
+  active = true,
 }: {
   place: ChatPlace;
   expectedHostId?: string | undefined;
   focus: string | undefined;
   focusRequest?: string | undefined;
   latestWindowOnly?: boolean;
+  active?: boolean;
 }) {
   const t = useStrings();
   const router = useRouter();
@@ -172,7 +174,8 @@ export function ConversationScreen({
     setOpenedOn(initial.saved.hostId);
   const { client, saved } = useHostSession(expectedHostId ?? openedOn);
 
-  const focused = useIsFocused();
+  const routeFocused = useIsFocused();
+  const focused = routeFocused && active;
   const roster = useHostSnapshot(client, focused).roster;
   const navigation = useNavigationContainerRef();
   const identities = useMemo(
@@ -195,7 +198,7 @@ export function ConversationScreen({
       <>
         <Text>{t.sourceChanged}</Text>
         {paging === undefined ? null : (
-          <NativePageHeader onBack={() => router.back()} backID="chat-page-back" />
+          <NativePageHeader onBack={paging.leaveChat} backID="chat-page-back" />
         )}
       </>
     );
@@ -578,9 +581,15 @@ function ChatConversation({
     }),
     [scroll, viewport, content, viewportLayout, focused],
   );
-  const readMount = useMarkRead(client, inbox, conversation, activeChannel, !latest.away);
+  const readMount = useMarkRead(
+    client,
+    inbox,
+    focused ? conversation : undefined,
+    activeChannel,
+    focused && !latest.away,
+  );
   const recentMount = useRecentChat(
-    botDm
+    !focused || botDm
       ? undefined
       : bot !== undefined
         ? {
@@ -598,21 +607,21 @@ function ChatConversation({
   );
   const sharedMount = useCallback(
     (node: unknown) => {
-      if (node === null) return;
+      if (node === null || !focused) return;
       const shared = takeSharedFiles(draftKey);
       if (shared.length > 0) setFiles((current) => [...current, ...shared].slice(0, MAX_PICKED));
     },
-    [draftKey],
+    [draftKey, focused],
   );
   const mountRef = dictation.mountRef;
   const screenRef = useCallback(
     (node: unknown) => {
-      mountRef(node);
+      mountRef(focused ? node : null);
       readMount(node);
       recentMount(node);
       sharedMount(node);
     },
-    [mountRef, readMount, recentMount, sharedMount],
+    [mountRef, readMount, recentMount, sharedMount, focused],
   );
 
   const asking = snapshot.messages.findLast(
@@ -1084,7 +1093,7 @@ function ChatConversation({
   );
   const missing =
     host.roster !== undefined && (dm ? bot === undefined : channel === undefined && !botDm);
-  const leave = () => leaveScreen(router);
+  const leave = () => (paging === undefined ? leaveScreen(router) : paging.leaveChat());
   const profileTravel = useSharedValue(0);
   const stackRoot = useStackRoot();
   const canGoBack = !stackRoot && router.canGoBack();
@@ -1234,8 +1243,7 @@ function ChatConversation({
                           : undefined;
 
   const listTop = notice === undefined ? headerPadding : 0;
-  const topFade =
-    notice !== undefined ? 0 : floatingHeader ? headerPadding : glassHeader ? 0 : headerOverlap;
+  const topFade = notice !== undefined ? 0 : floatingHeader ? headerPadding : headerOverlap;
   const composerCover = Math.max(0, composerHeight - space.x3 - space.x2);
   const fadeColor = background.kind === 'color' ? background.color : theme.color.base;
 
@@ -1621,8 +1629,8 @@ function ChatConversation({
               {topFade > 0 ? (
                 <EdgeFade
                   edge="top"
-                  height={topFade + edgeFade.reach}
-                  cover={topFade}
+                  height={topFade + (glassHeader ? space.x6 : edgeFade.reach)}
+                  cover={glassHeader ? 0 : topFade}
                   color={fadeColor}
                 />
               ) : null}

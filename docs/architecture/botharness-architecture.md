@@ -1296,7 +1296,7 @@ and returns focus after dismissal. No second shortcut router or Panel state is i
 
 ### Retained iOS workspace presentation
 
-The iOS workspace candidate keeps Workspaces and the complete existing Chats tab shell in two native SwiftUI paged views through `react-native-pager-view` ([ADR-0270](../adr/0270-ios-workspace-pages-retain-the-chats-shell.md), proposed). Paging changes presentation only: both React trees and their existing caches stay mounted, and the tab bar belongs to Chats. Explicit Computer/All/Cloud choices still use the existing selection and scoped navigation adapters. The component adds no Host, account, permission or persistence authority; normal chat/profile stacks and Android navigation retain their owners.
+The iOS workspace candidate keeps Workspaces, the complete existing Chats tab shell, the last visited chat and its profile in native SwiftUI paged views through `react-native-pager-view` ([ADR-0271](../adr/0271-ios-workspace-pages-retain-the-chats-shell.md), proposed). Paging changes presentation only: both React trees and their existing caches stay mounted, and the tab bar belongs to Chats. Explicit Computer/All/Cloud choices still use the existing selection and scoped navigation adapters. The component adds no Host, account, permission or persistence authority; profile child routes retain explicit Host identity in the existing native stack, and Android navigation retains its owner. Each chat/profile page uses the existing UIKit navigation bar, natural masked top material and native scroll-edge treatment. Paired profiles reserve full-body right swipes for returning to chat and use the native segmented picker for tabs.
 
 ### Mobile notification and interruption conversation entry
 
