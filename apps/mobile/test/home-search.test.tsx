@@ -36,6 +36,7 @@ const { push, cloudState, directoryState, hostState, call, refresh, menus, rowPr
     rowProps: new Map<string, Record<string, unknown>>(),
     hostState: {
       connecting: false,
+      offline: false,
       removed: false,
       color: undefined as HostColorId | undefined,
       fontScale: 1,
@@ -259,7 +260,11 @@ vi.mock('../src/host/host-session', () => ({
               ? useSyncExternalStore(hostState.live.subscribe, hostState.live.getSnapshot)
               : {
                   connection: {
-                    status: hostState.connecting ? 'connecting' : 'connected',
+                    status: hostState.offline
+                      ? 'unreachable'
+                      : hostState.connecting
+                        ? 'connecting'
+                        : 'connected',
                     route: '',
                   },
                   roster: hostState.connecting ? undefined : roster,
@@ -279,7 +284,14 @@ vi.mock('../src/host/host-session', () => ({
     hostState.live
       ? useSyncExternalStore(hostState.live.subscribe, hostState.live.getSnapshot)
       : {
-          connection: { status: hostState.connecting ? 'connecting' : 'connected', route: '' },
+          connection: {
+            status: hostState.offline
+              ? 'unreachable'
+              : hostState.connecting
+                ? 'connecting'
+                : 'connected',
+            route: '',
+          },
           roster: hostState.connecting ? undefined : roster,
         },
   useInbox: () =>
@@ -369,6 +381,7 @@ afterEach(() => {
   hostState.live?.stop();
   hostState.live = undefined;
   hostState.connecting = false;
+  hostState.offline = false;
   hostState.removed = false;
   hostState.color = undefined;
   hostState.fontScale = 1;
@@ -1613,4 +1626,22 @@ it('searches retained channel names and message text through the same Chats head
   expect(view.textContent).toContain('Needle checkpoint');
   expect(view.textContent).toContain('Studio');
   expect(view.querySelector('[data-testid="navigation-search"]')).toBeNull();
+});
+
+it('uses the retained source-qualified channel result when its Computer is offline', async () => {
+  const channel = roster.channels[0]!;
+  retainedFixture.records = [
+    {
+      target: { kind: 'channel', id: channel.id, name: channel.name },
+      hasOlder: false,
+      entries: [],
+    },
+  ];
+  hostState.offline = true;
+  conversationFilter.set(computerEnvironmentKey('h1'));
+  const view = await home();
+  await type(view, channel.name);
+  expect(view.querySelectorAll('[data-testid^="search-result-"]')).toHaveLength(1);
+  expect(view.querySelector(`[data-testid="conversation-row-channel:${channel.id}"]`)).toBeNull();
+  expect(call.mock.calls.filter(([method]) => method === 'messageSearch')).toEqual([]);
 });

@@ -374,6 +374,7 @@ const HomeContent = memo(function HomeContent({
       query.trim() === '' || messages.query !== query.trim()
         ? []
         : messages.hits.flatMap((hit) => {
+            if (!searchHosts.some((host) => host.hostId === hit.hostId)) return [];
             const found = conversationIndex.get(JSON.stringify([hit.hostId, hit.channelId]));
             return found === undefined
               ? []
@@ -386,11 +387,19 @@ const HomeContent = memo(function HomeContent({
                   },
                 ];
           }),
-    [query, messages, conversationIndex],
+    [query, messages, conversationIndex, searchScope],
+  );
+  const searchConversations = displayed.filter(
+    (item) =>
+      item.type !== 'computer' ||
+      item.host.snapshot.connection.status === 'connected' ||
+      !retained.conversations.some((hit) =>
+        retainedTargetMatches(hit, item.host.saved.hostId, item.conversation),
+      ),
   );
   const retainedConversations = retained.conversations.filter(
     (hit) =>
-      !displayed.some(
+      !searchConversations.some(
         (item) =>
           item.type === 'computer' &&
           retainedTargetMatches(hit, item.host.saved.hostId, item.conversation),
@@ -408,7 +417,7 @@ const HomeContent = memo(function HomeContent({
   const listItems: HomeItem[] =
     Platform.OS !== 'android' && query.trim() !== ''
       ? [
-          ...displayed,
+          ...searchConversations,
           ...retainedItems(retainedConversations),
           ...(messagesShown
             ? [
@@ -444,7 +453,7 @@ const HomeContent = memo(function HomeContent({
     () =>
       Platform.OS === 'android'
         ? [
-            ...chatsSearchResults(displayed, query, searchAppBar.recent, avatarImageUri),
+            ...chatsSearchResults(searchConversations, query, searchAppBar.recent, avatarImageUri),
             ...retainedSearchResults(
               retainedConversations,
               t.localSearch.conversations,
@@ -460,7 +469,7 @@ const HomeContent = memo(function HomeContent({
             ),
           ]
         : [],
-    [displayed, query, messageItems, retainedConversations, retainedMessages, t],
+    [searchConversations, query, messageItems, retainedConversations, retainedMessages, t],
   );
   const connecting = useConnectionProgress(selectedHost?.snapshot.connection.status) !== undefined;
   const pickSearch = (key: string) => {
