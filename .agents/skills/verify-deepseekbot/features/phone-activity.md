@@ -35,45 +35,28 @@ the shared QA Host. Use only the dedicated QA conversations.
    before/after in light/dark; disclose physical-device and Android gaps.
 
 
-## Activity tab triage (#1954)
+## Activity list triage (#3159, #3174)
 
-Use the same shared-device queue. Open Activity on the selected Host with a pending
-question/approval, a Human mention, a reply and ordinary unread group messages.
-Confirm exactly three pinned, underlined tabs: Needs you (default), For you and
-Other unread. Needs you retains approvals, formal questions and private input.
-Switch all three tabs; only their own rows appear, without collapsible section
-headings. The selected tab shows its leading icon and underline together; inactive
-tabs show only their labels. All three blocks have equal width; the selected icon and
-label are centered together and its underline fills the entire block without gutters.
-Swipe left/right on the tab strip to switch pages; a horizontal swipe on a row is that
-row's swipe action (below), not a page change. The underline tracks the gesture; short/cancelled drags
-return to the same page. Confirm the incoming icon is already partially visible before the page settles.
-On a populated page, scroll down: the Activity title/filter/search row and global bottom
-navigation leave, while all three tabs remain pinned beneath the safe area. Rows have no
-top fade. Reverse direction and return to the top: controls return. Short/empty pages,
-pull-to-refresh and elastic bottom bounce must not flicker the controls. While search or
-filters are open, keep their controls reachable. Switch pages while collapsed, confirm
-chrome restores and visited lists retain position. In Chats, repeat down/up scrolling
-to hide/restore the same global navigation. Native iOS and Android need separate proof.
-Its fade/scale and label movement track the same drag as the underline; cancelling
-reverses them, with no late icon pop or layout jump. Then scroll vertically, switch away/back,
-and confirm its scroll position is retained. Vertical scrolling and pull-to-refresh
-must not switch pages. Check repeated fast direction changes and tap-to-third-tab.
-Return to a loaded question and confirm it does not flash a loading card or lose
-its unsent choices. Include very long unread summaries: previews remain bounded
-while opening the row still reaches its full conversation.
-All and handled history remain available through the filter. The header contains
-sorting, filtering and Activity search; no permanent chips appear above the feed.
-Open Filters, combine Bot/Channel/unread/category, switch tabs and confirm those
-other filters survive. Reset returns to Needs you and default filters, preserving
-the search. Close the sheet. While a question submission is pending, switch tabs;
-a late refusal must not restore its post in the new tab. Repeat with a page swipe.
-Search a safe summary beyond the first page and use Load more. Default ordering
-puts mentions before replies; explicit newest/oldest replaces that priority.
-Scroll under the header with search open and closed; verify light/dark and large
-text. A failed query retains stale content with an error; an unsupported Host
-asks for an update. Capture matched screenshots only after driving these controls.
-Web preview evidence does not qualify native keyboard, safe-area or scrolling.
+Use the shared-device queue and a paired isolated Host. Open Activity with a pending
+question/approval, a Human mention, a reply and unread conversation messages.
+The screen has one virtualized list, with no Needs you / For you tab strip.
+Default All ordering places pending work first, then related messages, then unread
+conversations; newest/oldest sorts loaded items across categories.
+
+Open the filter toolbar button. iOS uses SwiftUI Inspector (a native Sheet on compact
+iPhone); Android keeps its modal side sheet. Select a category, Bot, Channel and
+unread-only; close and reopen to confirm selections persist. Reset returns to All
+and default sort, preserving search. Opening or dismissing without edits retains
+list position and inline question drafts. Test native swipe-dismiss and Close,
+medium/large detents on iPhone, default/intermediate/maximum Dynamic Type, light/dark.
+Wide-screen Inspector and physical iPhone results are separate from Simulator proof.
+
+Search a safe summary, close search with the software keyboard visible, and confirm
+no header jump. Filter with search active and confirm the query survives. Load more
+must retain bounded category pagination. Handled, snoozed and cleared remain explicit
+categories. Failed reads retain stale content with an error; unsupported Hosts ask
+for an update. Preserve first failures, screenshots and recordings. Native controls
+and gestures cannot be qualified from Web preview or component tests.
 
 ## Swipe to clear (inbox triage)
 
