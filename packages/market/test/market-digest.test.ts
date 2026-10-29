@@ -8,6 +8,7 @@ import {
   parseDigest,
   type DigestCandidate,
 } from '../src/digest.js';
+import { parseMarketplaceDigests } from '../../core/src/marketplace/client.js';
 import { admin, createMarket, fakeRepository, submit } from './market-harness.js';
 
 type Market = ReturnType<typeof createMarket>;
@@ -108,7 +109,9 @@ function seed(market: Market, id: string, count: number) {
   }
 }
 
-async function upload(market: Market, files: Record<string, string>): Promise<string> {
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+
+async function upload(market: Market, files: Record<string, string | Uint8Array>): Promise<string> {
   const token = 'token-alice';
   const send = (method: string, path: string, body?: unknown) =>
     market.request(path, {
@@ -121,7 +124,11 @@ async function upload(market: Market, files: Record<string, string>): Promise<st
     });
   await send('PUT', '/v1/me', { displayName: 'Alice', acceptTerms: true });
   const encoded = Object.entries(files).map(
-    ([path, text]) => [path, new TextEncoder().encode(text)] as const,
+    ([path, content]) =>
+      [
+        path,
+        typeof content === 'string' ? new TextEncoder().encode(content) : new Uint8Array(content),
+      ] as const,
   );
   const begun = (await (
     await send('POST', '/v1/uploads', {
@@ -185,6 +192,10 @@ describe('Marketplace Digest', () => {
         lang: 'zh',
         title: '今天值得一试的 Bot',
         lede: '一位热门的写作伙伴和一位新来的研究助手。',
+        picks: [
+          { id: hot, displayName: 'writer', banner: null, avatar: null, filesBase: null },
+          { id: fresh, displayName: 'researcher', banner: null, avatar: null, filesBase: null },
+        ],
       },
     ]);
     const today = (await (await market.request('/v1/digests/latest?lang=en')).json()) as {
@@ -265,6 +276,113 @@ describe('Marketplace Digest', () => {
       digest: { sections: { bot: unknown }[] };
     };
     expect(today.digest.sections[0]!.bot).toBeNull();
+  });
+
+  it('lists up to four listed Digest Picks in article order with catalog art', async () => {
+    const market = createMarket();
+    const recipe = { family: 'illustrated', species: 'cat' };
+    const github = [];
+    for (const [name, descriptor] of [
+      [
+        'scene',
+        { name: 'Scene', banner: { recipe: { scene: 'sea', seed: 7 } }, avatar: { recipe } },
+      ],
+      ['photo', { avatar: { image: '.botharness/avatar.png' } }],
+      ['third', null],
+      ['fourth', null],
+      ['hidden', { name: 'Hidden' }],
+    ] as const) {
+      const repository = fakeRepository({
+        name,
+        descriptor: descriptor === null ? null : JSON.stringify(descriptor),
+      });
+      market.publish(repository);
+      const response = await submit(market, repository.htmlUrl);
+      github.push(((await response.json()) as { bot: { id: string } }).bot.id);
+    }
+    const [scene, photo, third, fourth, hidden] = github as [
+      string,
+      string,
+      string,
+      string,
+      string,
+    ];
+    const uploaded = await upload(market, {
+      'README.md': '# Uploaded helper',
+      '.botharness/bot.json': JSON.stringify({
+        banner: { image: '.botharness/banner.png' },
+        avatar: { image: '.botharness/avatar.png' },
+      }),
+      '.botharness/banner.png': PNG,
+      '.botharness/avatar.png': PNG,
+    });
+    await admin(market, { id: hidden, action: 'block' });
+    const order = [hidden, uploaded, scene, 'R_missing', photo, third, fourth];
+    market.sqlite
+      .prepare(
+        'INSERT INTO digests (day, lang, title, lede, sections, model, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      )
+      .run(
+        '2026-10-05',
+        'en',
+        'Bots worth trying today',
+        'Picks for writers.',
+        JSON.stringify(order.map((bot) => ({ heading: 'A pick', body: 'It helps.', bot }))),
+        'big-free',
+        0,
+      );
+
+    const archive = (await (await market.request('/v1/digests')).json()) as {
+      digests: Array<{ picks: Array<Record<string, unknown>> }>;
+    };
+    const picks = archive.digests[0]!.picks;
+    expect(picks.map((pick) => pick['id'])).toEqual([uploaded, scene, photo, third]);
+    for (const pick of picks) {
+      const detail = (await (await market.request(`/v1/bots/${String(pick['id'])}`)).json()) as {
+        bot: {
+          name: string;
+          displayName: string | null;
+          banner: unknown;
+          avatar: unknown;
+          htmlUrl: string;
+        };
+      };
+      expect(pick).toEqual({
+        id: pick['id'],
+        displayName: detail.bot.displayName ?? detail.bot.name,
+        banner: detail.bot.banner,
+        avatar: detail.bot.avatar,
+        filesBase: pick['id'] === uploaded ? `${detail.bot.htmlUrl}/files/` : null,
+      });
+    }
+    expect(picks[0]).toMatchObject({
+      displayName: 'Uploaded helper',
+      banner: { image: expect.stringMatching(/\/files\/\.botharness\/banner\.png$/u) },
+      avatar: { image: expect.stringMatching(/\/files\/\.botharness\/avatar\.png$/u) },
+    });
+    expect(picks[1]).toMatchObject({
+      displayName: 'Scene',
+      banner: { recipe: { scene: 'sea', seed: 7 } },
+      avatar: { recipe },
+    });
+    expect(picks[2]!['avatar']).toEqual({
+      image: expect.stringMatching(/^https:\/\/raw\.githubusercontent\.com\/.+\/avatar\.png$/u),
+    });
+
+    const parsed = parseMarketplaceDigests(archive)![0]!.picks;
+    expect(parsed.map((pick) => pick.id)).toEqual([uploaded, scene, photo, third]);
+    expect(parsed[0]).toEqual({
+      id: uploaded,
+      displayName: 'Uploaded helper',
+      banner: picks[0]!['banner'],
+      avatar: picks[0]!['avatar'],
+    });
+    expect(parsed[2]!.avatar).toEqual(picks[2]!['avatar']);
+
+    const today = (await (await market.request('/v1/digests/latest')).json()) as {
+      digest: { picks: unknown[] };
+    };
+    expect(today.digest.picks).toEqual(picks);
   });
 
   it('skips the digest without a model key', async () => {

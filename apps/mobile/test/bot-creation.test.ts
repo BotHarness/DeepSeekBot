@@ -7,6 +7,7 @@ import {
   type BotCreationOperation,
   type CreationReceipt,
   type CreationRecord,
+  type BotCreationDraft,
 } from '../src/host/bot-creation';
 
 const draft = {
@@ -15,7 +16,8 @@ const draft = {
   persona: 'Be curious',
   description: ' A friend ',
   tags: 'helper, helper，writing',
-};
+  avatar: { kind: 'generated', seed: 'first-avatar', origin: 'initial' },
+} satisfies BotCreationDraft;
 const receipt = (operation: BotCreationOperation): CreationReceipt => ({
   operationKey: operation.operationKey,
   botSlug: 'original-bot',
@@ -157,11 +159,21 @@ describe('native blank Bot creation recovery', () => {
     const controller = test.make();
     await controller.edit(draft);
     test.lookup.mockImplementationOnce(async (operation) => {
-      expect(test.disk()).toEqual({ kind: 'submitted', operation, mutationStarted: false });
+      expect(test.disk()).toEqual({
+        kind: 'submitted',
+        operation,
+        mutationStarted: false,
+        avatar: draft.avatar,
+      });
       return null;
     });
     test.create.mockImplementationOnce(async (operation) => {
-      expect(test.disk()).toEqual({ kind: 'submitted', operation, mutationStarted: true });
+      expect(test.disk()).toEqual({
+        kind: 'submitted',
+        operation,
+        mutationStarted: true,
+        avatar: draft.avatar,
+      });
       expect(operation).toEqual({
         hostId: 'B',
         deviceId: 'device-b',

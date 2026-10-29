@@ -86,6 +86,11 @@ Each event also carries the common mobile context described in [mobile statistic
 | `bot_library:create_attempt_complete` | `kind`, `phase`, `attempt_id`, `outcome`, `reason`, `duration_bucket`                 |
 | `bot_library:create_attempt_start`    | `kind`, `phase`, `attempt_id`                                                         |
 | `connection:attempt_complete`         | `trigger`, `outcome`, `reason`, `attempt_id`, `duration_bucket`, `retry_count_bucket` |
+| `marketplace:bot_open`                | `entry`, `step`                                                                       |
+| `marketplace:digest_archive_open`     |                                                                                       |
+| `marketplace:digest_open`             | `entry`                                                                               |
+| `marketplace:digest_view`             |                                                                                       |
+| `marketplace:section_view`            |                                                                                       |
 | `model:plan_update`                   | `via`                                                                                 |
 | `notification:push_open`              |                                                                                       |
 | `onboarding:activation_step_complete` | `step`, `channel_kind`                                                                |

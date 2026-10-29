@@ -1114,7 +1114,7 @@ describe('Search in the Chats header', () => {
       view.querySelector<HTMLButtonElement>(`button[aria-label="${t.closeSearch}"]`)!.click(),
     );
     expect(view.querySelector(`textarea[aria-label="${t.searchPlaceholder}"]`)).toBeNull();
-    expect(view.querySelector(`button[aria-label="${t.settings}"]`)).not.toBeNull();
+    expect(view.querySelector('[data-testid="search-button"]')).not.toBeNull();
     expect(view.textContent).toContain('Launch team');
     await act(async () =>
       view.querySelector<HTMLButtonElement>('[data-testid="search-button"]')!.click(),
@@ -1124,11 +1124,10 @@ describe('Search in the Chats header', () => {
         .value,
     ).toBe('');
   });
-  it('replaces the title and Settings with the field, and keeps a query after editing ends', async () => {
+  it('replaces the title and Search with the field, and keeps a query after editing ends', async () => {
     const view = await home();
     expect(view.querySelector(`textarea[aria-label="${t.searchPlaceholder}"]`)).toBeNull();
     await type(view, 'ada');
-    expect(view.querySelector(`button[aria-label="${t.settings}"]`)).toBeNull();
     expect(view.querySelector('[data-testid="search-button"]')).toBeNull();
     const field = view.querySelector<HTMLTextAreaElement>(
       `textarea[aria-label="${t.searchPlaceholder}"]`,
@@ -1139,7 +1138,7 @@ describe('Search in the Chats header', () => {
     await type(view, '');
     await act(async () => field.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
     expect(view.querySelector(`textarea[aria-label="${t.searchPlaceholder}"]`)).toBeNull();
-    expect(view.querySelector(`button[aria-label="${t.settings}"]`)).not.toBeNull();
+    expect(view.querySelector('[data-testid="search-button"]')).not.toBeNull();
   });
 });
 
@@ -1486,10 +1485,10 @@ describe('Remote Host section and Pinned presentation', () => {
       Platform.OS = platform;
       const view = await home();
       await rowMenuAction(view, 'unpin');
-      expect(call).toHaveBeenLastCalledWith('rosterBatch', {
-        action: 'unpin',
-        channelIds: ['dm-ada'],
-      });
+      expect(rowCalls().at(-1)).toEqual([
+        'rosterBatch',
+        { action: 'unpin', channelIds: ['dm-ada'] },
+      ]);
       await rowMenuAction(view, 'section');
       expect(push).toHaveBeenLastCalledWith({
         pathname: '/conversation-section',

@@ -11,6 +11,7 @@ import type { Conversation, ConversationSnapshot } from '../src/host/conversatio
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
+vi.mock('expo-image', () => ({ Image: () => null }));
 vi.mock('expo-sharing', () => ({ isAvailableAsync: vi.fn(), shareAsync: vi.fn() }));
 vi.mock('react-native-view-shot', () => ({ captureRef: vi.fn(), releaseCapture: vi.fn() }));
 vi.mock('react-native-svg', () => ({ default: () => null, Circle: () => null, Path: () => null }));
@@ -56,6 +57,8 @@ const nativeList = vi.hoisted(() => ({
     onContentSizeChange?(width: number, height: number): void;
     onViewableItemsChanged?(): void;
     onScrollBeginDrag?(event: unknown): void;
+    onScroll?(event: unknown): void;
+    onScrollEndDrag?(event: unknown): void;
   },
 }));
 
@@ -225,7 +228,9 @@ vi.mock('../src/ui/chat/native-header', () => ({
   floatingHeader: false,
   useHeaderPadding: () => 0,
 }));
-vi.mock('../src/ui/chat/profile-swipe-preview', () => ({ ProfileSwipePreview: () => null }));
+vi.mock('../src/ui/chat/bot-profile-screen', () => ({ BotProfileScreen: () => null }));
+vi.mock('../src/ui/chat/group-profile-screen', () => ({ GroupProfileScreen: () => null }));
+vi.mock('../src/ui/chat/channel-details-screen', () => ({ ChannelDetailsScreen: () => null }));
 vi.mock('../src/ui/shell/swipe-open', () => ({
   SwipeOpen: ({
     enabled,
@@ -246,6 +251,7 @@ vi.mock('../src/ui/shell/swipe-open', () => ({
 }));
 vi.mock('../src/ui/chat/header-chrome', () => ({
   titleChipFill: () => ({}),
+  useChatHeaderHeight: () => 56,
   HeaderCircleButton: ({ label, onPress }: { label: string; onPress(): void }) => (
     <button type="button" onClick={onPress}>
       {label}
@@ -328,6 +334,7 @@ vi.mock('../src/ui/chat/time-separator', () => ({ TimeSeparator: () => null }));
 
 import { Platform } from 'react-native';
 import { ConversationScreen, type ChatPlace } from '../src/ui/chat/conversation-screen';
+import { StackRoot } from '../src/ui/shell/stack-root';
 import { t } from '../src/ui/strings';
 import { edgeFade } from '../src/ui/design/tokens';
 
@@ -763,7 +770,7 @@ it('keeps the bottom fade at the message viewport edge beneath the composer cont
   expect(fade!.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
 });
 
-it('leaves the top edge and Back to the iOS 26 glass header', async () => {
+it('extends the native glass fade while leaving Back to the iOS 26 header', async () => {
   const os = Platform.OS;
   Object.assign(Platform, { OS: 'ios' });
   try {
@@ -782,10 +789,60 @@ it('leaves the top edge and Back to the iOS 26 glass header', async () => {
     ];
     const view = await render({ kind: 'dm', slug: 'ada' });
     const header = view.querySelector('header')!;
-    expect(view.querySelector('[data-edge="top"]')).toBeNull();
+    expect(view.querySelector('[data-edge="top"]')).not.toBeNull();
     expect(header.getAttribute('data-blur')).toBe('none');
     expect(header.getAttribute('data-back-visible')).toBe('true');
     expect(header.textContent).not.toContain('Header back');
+  } finally {
+    Object.assign(Platform, { OS: os });
+  }
+});
+
+it.each([
+  ['Tob Mode leaves', true, ['/']],
+  ['an ordinary chat stays', false, ['/', '/dm/ada']],
+])('on a pull up from the latest message, %s', async (_, entered, history) => {
+  const os = Platform.OS;
+  Object.assign(Platform, { OS: 'ios' });
+  try {
+    state.history = entered ? ['/', '/dm-top/ada'] : ['/', '/dm/ada'];
+    state.host.roster.bots = [
+      {
+        slug: 'ada',
+        displayName: 'Ada',
+        state: 'idle',
+        roles: [],
+        computerAccess: false,
+        browserAccess: false,
+        paused: false,
+      },
+    ];
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+    await act(async () =>
+      root!.render(
+        <StackRoot value={entered}>
+          <ConversationScreen place={place} focus={undefined} />
+        </StackRoot>,
+      ),
+    );
+    const at = (y: number) => ({
+      nativeEvent: {
+        contentOffset: { y },
+        contentSize: { height: 2000 },
+        layoutMeasurement: { height: 800 },
+        contentInset: { top: 0, bottom: 0 },
+        velocity: { x: 0, y: 0 },
+      },
+    });
+    await act(async () => {
+      nativeList.events.onScrollBeginDrag?.(at(1200));
+      nativeList.events.onScroll?.(at(1260));
+      nativeList.events.onScrollEndDrag?.(at(1260));
+    });
+    expect(state.history).toEqual(history);
   } finally {
     Object.assign(Platform, { OS: os });
   }

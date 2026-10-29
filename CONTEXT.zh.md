@@ -434,6 +434,18 @@ _避免使用_：download、clone count、Telemetry event
 Bot Marketplace 每天一篇、按日期保存的文章，介绍近期的 Bot，内嵌可一键安装的 Bot 卡片；往期仍可查看。
 _避免使用_：newsletter、push notification、blog post
 
+**Digest Pick**：
+精选 Bot：Marketplace Digest 在某一段里点名介绍的 Bot。之后从 Bot Marketplace 下架的精选 Bot，文章里的文字保留，但卡片不再显示。
+_避免使用_：featured Bot、编辑推荐、推广 Bot
+
+**Digest Cover**：
+日报封面：代表一期 Marketplace Digest 的图，用这一期仍在架的 Digest Pick 的 banner 和头像拼成，版式按数量选择；一个都不在架时，用按日期生成的像素 banner 兜底。
+_避免使用_：缩略图、hero 图、生成图片
+
+**Marketplace Ranking**：
+榜单：Bot Marketplace 每天生成的三个在架 Bot 列表：热门（最近 7 天安装最多）、新上架（最近 7 天首次收录）和上升最快（比前一周安装增长最多）。三个榜单每天重算一次，读取当天的快照。
+_避免使用_：section、货架、排行榜
+
 **Bot Zip**：
 单个 PersonaBot 的 Memory 文件打成的 `.zip`，附带 `.botharness/bot.json` 描述和头像，由 Human 导出后交给别人；导入时创建新的 PersonaBot。默认只含文件，只有整个 Bot 导出并勾选时才带 Git 历史。不含身份、Session、绑定或凭据（ADR-0135）。
 _避免使用_：PersonaBot Export、SoulSnapshot、backup
@@ -1076,6 +1088,8 @@ _避免使用_：短网址、UTM 链接、邀请链接
 
 ### 原生 UI 组件
 
+iOS 工作区切换采用应用自定义的常驻导航页面，由 `PagerView` 的显式后端连接原生 UIKit `UIPageViewController`：工作区在左，之后依次为完整聊天列表与底部导航、上次聊天、资料页。Android 保留原导航抽屉。详见 `apps/mobile/DESIGN.md` 的 iOS workspace panel。
+
 讨论界面时说出平台自己的组件名，而不是描述它长什么样。Android 的名称来自 [Material 3 glossary](https://m3.material.io/foundations/glossary) 与 [Material 3 components](https://m3.material.io/components) 索引，代码名来自 [Compose Material 3](https://developer.android.com/reference/kotlin/androidx/compose/material3/package-summary)。Apple 没有单独的 glossary 页面；与之对应的是 [HIG Components](https://developer.apple.com/design/human-interface-guidelines/components) 索引（Content、Layout and organization、Menus and actions、Navigation and search、Presentation、Selection and input、Status、System experiences 八类），代码名来自 [SwiftUI](https://developer.apple.com/documentation/swiftui) 与 [UIKit](https://developer.apple.com/documentation/uikit)，行文拼写以 [Apple Style Guide](https://support.apple.com/guide/applestyleguide/welcome/web) 为准。某个界面用哪个组件、读哪一层 token，由 `apps/mobile/DESIGN.md`、[#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002) 与 ADR-0266 决定。
 
 **Component term**：
@@ -1160,7 +1174,7 @@ _避免使用_：Material You（动态取色以外）、毛玻璃、玻璃拟态
 
 - 按钮：主要 → filled ↔ bordered prominent（iOS 26 为 glass prominent）；次要与 tonal → filled tonal ↔ bordered（glass）；文本 → text button ↔ borderless；危险 → 使用 Material error 颜色的 filled ↔ destructive role。
 - Sheet：Android `ModalBottomSheet` ↔ iOS 带 detents 的 form sheet（经 Expo Router 的 `presentation: 'formSheet'`，或 `@expo/ui` 的 SwiftUI `BottomSheet`）。
-- Chats 的「-1 屏」：Android `DismissibleNavigationDrawer` ↔ iOS 把工作区面板作为 Chats 导航栈的根。
+- Chats 的「-1 屏」：Android `DismissibleNavigationDrawer` ↔ iOS 相邻的常驻导航页面：工作区、完整聊天列表及底部导航、上次聊天与资料页，通过 `PagerView` 的显式 UIKit `UIPageViewController` 后端连接。
 - 顶级导航：Android navigation bar 加创建 FAB ↔ iOS tab island 及其 **+**（自定义界面，ADR-0235）。
 - 活动与工作区标签页：Android primary tabs（`PrimaryTabRow`）。
 - 设置页：Android 分段列表的 list item ↔ iOS inset grouped list（SwiftUI `Form`，配 `Section`、`Label`、`Toggle`、menu 样式 `Picker`、`LabeledContent`），统一经由 `SettingsForm`。

@@ -437,6 +437,18 @@ _Avoid_: download, clone count, Telemetry event
 The Bot Marketplace's dated daily article about recent Bots, with embedded Bot cards that install in one tap; past digests stay readable.
 _Avoid_: newsletter, push notification, blog post
 
+**Digest Pick**:
+A Bot that a Marketplace Digest names in one of its sections. A pick that later leaves the Bot Marketplace keeps its text in the digest but loses its card.
+_Avoid_: featured Bot, editor's pick, sponsored Bot
+
+**Digest Cover**:
+The picture that stands for one Marketplace Digest, assembled from its listed Digest Picks' banners and avatars in a layout chosen by how many there are; with no listed pick it falls back to a pixel banner derived from the date.
+_Avoid_: thumbnail, hero image, generated image
+
+**Marketplace Ranking**:
+One of the Bot Marketplace's three daily lists of listed Bots: Hot (most installs in the last seven days), New (first seen in the last seven days) and Rising (the largest growth in installs over the week before). All three are recomputed once a day and read from that day's snapshot.
+_Avoid_: section, shelf, chart, leaderboard
+
 **Bot Zip**:
 A `.zip` of one PersonaBot's Memory files, with its `.botharness/bot.json` descriptor and avatar, that a Human exports and hands to someone else; importing it creates a fresh PersonaBot. It holds files only unless the whole Bot is exported with Git history. It never holds identity, Sessions, bindings or credentials (ADR-0135).
 _Avoid_: PersonaBot Export, SoulSnapshot, backup
@@ -1079,6 +1091,8 @@ Default-following Sessions headers omit a redundant scope label. Group scope cho
 
 ### Native UI components
 
+The iOS workspace switcher uses application-defined retained navigation pages backed by UIKit `UIPageViewController` through an opt-in `PagerView` backend; Workspaces is left of the complete Chats tab shell, followed by the last chat and its profile. Android retains its navigation drawer. See `apps/mobile/DESIGN.md` → iOS workspace panel.
+
 Interface talk names the platform's own component, not a description of how it looks. Android names come from the [Material 3 glossary](https://m3.material.io/foundations/glossary) and the [Material 3 components](https://m3.material.io/components) index; their code names come from [Compose Material 3](https://developer.android.com/reference/kotlin/androidx/compose/material3/package-summary). Apple publishes no glossary page; its counterpart is the [HIG Components](https://developer.apple.com/design/human-interface-guidelines/components) index (Content, Layout and organization, Menus and actions, Navigation and search, Presentation, Selection and input, Status, System experiences), with code names from [SwiftUI](https://developer.apple.com/documentation/swiftui) and [UIKit](https://developer.apple.com/documentation/uikit) and prose spelling from the [Apple Style Guide](https://support.apple.com/guide/applestyleguide/welcome/web). Which component a screen uses, and the token layers it reads, are decided in `apps/mobile/DESIGN.md`, [#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002) and ADR-0266.
 
 **Component term**:
@@ -1163,7 +1177,7 @@ How this app pairs them today (`apps/mobile/DESIGN.md`, #3002):
 
 - Buttons: primary → filled ↔ bordered prominent (glass prominent on iOS 26); secondary and tonal → filled tonal ↔ bordered (glass); text → text button ↔ borderless; danger → filled with the Material error colours ↔ the destructive role.
 - Sheets: Android `ModalBottomSheet` ↔ iOS form sheet with detents (`presentation: 'formSheet'` through Expo Router, or SwiftUI `BottomSheet` in `@expo/ui`).
-- The Chats "-1 screen": Android `DismissibleNavigationDrawer` ↔ iOS workspace panel as the Chats stack root.
+- The Chats "-1 screen": Android `DismissibleNavigationDrawer` ↔ iOS retained navigation pages, Workspaces beside the complete Chats tab shell (`UIPageViewController` through `PagerView`).
 - Top-level navigation: Android navigation bar with a creation FAB ↔ the iOS tab island with its **+** (a custom surface, ADR-0235).
 - Activity and workspace tabs: Android primary tabs (`PrimaryTabRow`).
 - Settings screens: Android segmented list of list items ↔ iOS inset grouped list (SwiftUI `Form` with `Section`, `Label`, `Toggle`, menu `Picker`, `LabeledContent`), through `SettingsForm`.

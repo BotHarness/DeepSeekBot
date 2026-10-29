@@ -6,8 +6,8 @@ import { hostLooks } from './native-host-look';
 import { shownHostName } from '../ui/design/host-look';
 import type { ActivitySource } from './activity-sources';
 
-export function useActivitySources(): readonly ActivitySource[] {
-  const hosts = useHostSessions();
+export function useActivitySources(visible = true): readonly ActivitySource[] {
+  const hosts = useHostSessions(visible);
   const [scope] = useConversationFilter();
   useSyncExternalStore(hostLooks.subscribe, () =>
     JSON.stringify(hosts.map((host) => hostLooks.look(host.saved.hostId))),

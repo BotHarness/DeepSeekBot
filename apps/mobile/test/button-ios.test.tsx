@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { interfacePreferences } from '../src/ui/interface-preferences';
 
 type Modifier = Record<string, unknown>;
 
@@ -97,6 +98,7 @@ import { DesignThemeProvider } from '../src/ui/design/theme';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 let root: ReturnType<typeof createRoot> | undefined;
+beforeEach(() => interfacePreferences.setLanguage('en'));
 afterEach(() => {
   act(() => root?.unmount());
   root = undefined;
