@@ -336,15 +336,15 @@ it('v2 finishes the journey when the layout tips end, without a created Bot or g
   expect(controller.getSnapshot()).toMatchObject({ guideOpen: false, layoutComplete: true });
 });
 
-it('v2 closing the layout tips also finishes instead of pausing', async () => {
+it('v2 leaving Bot mode mid-tips pauses the journey instead of finishing it', async () => {
   const { actions, controller } = harness(true);
   actions.onboarding.mockResolvedValue(journeyReceipt);
   await controller.enter();
   await controller.startTour();
   expect(controller.getSnapshot().guideOpen).toBe(true);
   controller.pauseGuide();
-  await vi.waitFor(() => expect(finishes(actions)).toBe(1));
-  expect(actions.onboarding).not.toHaveBeenCalledWith(undefined, 'pause');
+  await vi.waitFor(() => expect(actions.onboarding).toHaveBeenCalledWith(undefined, 'pause'));
+  expect(finishes(actions)).toBe(0);
 });
 
 it('v2 explicit replay resets only local tips while continue retains them', async () => {

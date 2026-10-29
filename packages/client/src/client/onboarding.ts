@@ -385,7 +385,6 @@ export class OnboardingController {
   }
   pauseGuide(): void {
     const wasOpen = this.state.guideOpen;
-    if (wasOpen && this.state.receipt?.journey) return this.finishTour();
     this.update({ guideOpen: false });
     if (wasOpen && this.state.receipt?.tutorial === 'active') void this.refresh(undefined, 'pause');
   }

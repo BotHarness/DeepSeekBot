@@ -514,7 +514,7 @@ export function OnboardingOverlay({
         (receipt.tutorial === 'active' || receipt.tutorial === 'paused') &&
         !controller.getSnapshot().guideOpen
       )
-        void controller.refresh(undefined, 'finish');
+        void controller.startTour();
     });
   const mount = useMountedResource<HTMLSpanElement>(() => {
     let active = true;
@@ -579,7 +579,8 @@ export function OnboardingOverlay({
         nextLabel: t('onboarding.tour.next'),
         doneLabel: t(state.receipt?.journey ? 'onboarding.tour.next' : 'onboarding.tour.done'),
         onClosed: () => {
-          controller.pauseGuide();
+          if (controller.getSnapshot().receipt?.journey) controller.finishTour();
+          else controller.pauseGuide();
         },
         onFinished: () => {
           controller.finishTour();

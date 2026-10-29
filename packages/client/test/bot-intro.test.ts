@@ -259,6 +259,11 @@ describe('intro modal', () => {
     expect(
       dialog().querySelector('[data-persona-detail="backend"]')!.getAttribute('aria-pressed'),
     ).toBe('true');
+    await click('上一步');
+    await click('下一步');
+    expect(dialog().querySelector('[data-persona="engineer"]')!.getAttribute('aria-pressed')).toBe(
+      'true',
+    );
     await tap('[data-intro-persona-next]');
     expect(dialog().querySelector('[data-intro-persona]')!.getAttribute('data-intro-persona')).toBe(
       'engineer creator',

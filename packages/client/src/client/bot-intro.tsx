@@ -28,7 +28,12 @@ import { COMMUNITY, cachedGithubStars, fetchGithubStars, formatStars } from './c
 import { requestTobMessage } from './tob-requests.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
-import { INTRO_STEPS, onboardingFor, type IntroStartOutcome } from './onboarding.js';
+import {
+  INTRO_STEPS,
+  onboardingFor,
+  type IntroOutcome,
+  type IntroStartOutcome,
+} from './onboarding.js';
 import {
   ONBOARDING_PERSONAS,
   PERSONA_DETAILS,
@@ -358,6 +363,11 @@ export function BotIntro({
   const intro = state.intro;
   const [model, setModel] = useState<{ save(): Promise<boolean> }>();
   const [busy, setBusy] = useState(false);
+  const startPicks = useState<StartPicks>(NO_PICKS);
+  const close = (outcome?: IntroOutcome): Promise<void> => {
+    startPicks[1](NO_PICKS);
+    return controller.closeIntro(outcome);
+  };
   if (!intro) return null;
   const step = INTRO_STEPS[intro.step] ?? 'welcome';
   const last = intro.step === INTRO_STEPS.length - 1;
@@ -375,7 +385,7 @@ export function BotIntro({
       open={!intro.hidden}
       headless
       title={t('intro.title')}
-      onClose={() => void controller.closeIntro({ via: 'close' })}
+      onClose={() => void close({ via: 'close' })}
       backdropBlur={!clear}
       className={
         (stylex.props(styles.dialog).className ?? '') + (clear ? ' bh-intro-see-through' : '')
@@ -408,7 +418,7 @@ export function BotIntro({
         <IconButton
           aria-label={t('common.close')}
           size="icon"
-          onClick={() => void controller.closeIntro({ via: 'close' })}
+          onClick={() => void close({ via: 'close' })}
         >
           <ChannelSidebarIcon name="x" size={16} />
         </IconButton>
@@ -448,6 +458,7 @@ export function BotIntro({
         {step === 'start' ? (
           <StartStep
             t={t}
+            picks={startPicks}
             track={({ persona, detail }) =>
               controller.introEvent(
                 detail ? 'onboarding:persona_detail_select' : 'onboarding:persona_select',
@@ -455,7 +466,7 @@ export function BotIntro({
               )
             }
             pick={(outcome, body) =>
-              void controller.closeIntro(outcome).then(() => {
+              void close(outcome).then(() => {
                 if (body !== undefined) requestTobMessage(body);
               })
             }
@@ -470,11 +481,7 @@ export function BotIntro({
           })}
         </span>
         {last ? null : (
-          <Button
-            variant="ghost"
-            disabled={busy}
-            onClick={() => void controller.closeIntro({ via: 'skip' })}
-          >
+          <Button variant="ghost" disabled={busy} onClick={() => void close({ via: 'skip' })}>
             {t('intro.skip')}
           </Button>
         )}
@@ -908,18 +915,28 @@ function CommunityStep({
   );
 }
 
+type StartPicks = {
+  chosen: readonly OnboardingPersona[];
+  details: readonly PersonaDetail[];
+  tasks: boolean;
+};
+const NO_PICKS: StartPicks = { chosen: [], details: [], tasks: false };
+
 function StartStep({
   t,
+  picks,
   pick,
   track,
 }: {
   t: BotHarnessTranslate;
+  picks: readonly [StartPicks, (next: StartPicks) => void];
   pick(outcome: IntroStartOutcome, body?: string): void;
   track(choice: { persona: OnboardingPersona; detail?: PersonaDetail }): void;
 }): ReactElement {
-  const [chosen, setChosen] = useState<readonly OnboardingPersona[]>([]);
-  const [details, setDetails] = useState<readonly PersonaDetail[]>([]);
-  const [tasks, setTasks] = useState(false);
+  const [{ chosen, details, tasks }, setPicks] = picks;
+  const setChosen = (next: readonly OnboardingPersona[]) => setPicks({ ...picks[0], chosen: next });
+  const setDetails = (next: readonly PersonaDetail[]) => setPicks({ ...picks[0], details: next });
+  const setTasks = (next: boolean) => setPicks({ ...picks[0], tasks: next });
   const [timeZone] = useState(browserTimeZone);
   const personas = ONBOARDING_PERSONAS.filter((id) => chosen.includes(id));
   const profile = (): Pick<IntroStartOutcome, 'personas' | 'details'> => ({
