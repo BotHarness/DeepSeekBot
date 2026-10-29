@@ -3,6 +3,7 @@ import { ScrollView, View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
+import { useFloatingTabInset } from '../shell/floating-tab-inset';
 
 export type SettingsFormProps = {
   header?: ReactNode;
@@ -12,6 +13,7 @@ export type SettingsFormProps = {
 
 export function SettingsForm({ header, testID, children }: SettingsFormProps) {
   const theme = useDesignTheme();
+  const tabInset = useFloatingTabInset();
   return (
     <View style={{ flex: 1, backgroundColor: theme.overlay.fill }}>
       {header}
@@ -20,7 +22,11 @@ export function SettingsForm({ header, testID, children }: SettingsFormProps) {
         nestedScrollEnabled
         contentInsetAdjustmentBehavior="automatic"
         style={{ flex: 1 }}
-        contentContainerStyle={{ gap: space.x6, padding: space.x5 }}
+        contentContainerStyle={{
+          gap: space.x6,
+          padding: space.x5,
+          paddingBottom: space.x5 + tabInset,
+        }}
       >
         {children}
       </ScrollView>

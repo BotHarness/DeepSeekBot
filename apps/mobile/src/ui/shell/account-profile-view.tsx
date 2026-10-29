@@ -34,11 +34,11 @@ export function AccountProfileView({
 }) {
   const t = useStrings();
   const copy = t.accountProfile;
-  const header = (
+  const header = actions.onBack ? (
     <View style={{ paddingHorizontal: space.x5, paddingTop: space.x5 }}>
-      <DrawerHeader title={copy.title} {...(actions.onBack ? { onBack: actions.onBack } : {})} />
+      <DrawerHeader title={copy.title} onBack={actions.onBack} />
     </View>
-  );
+  ) : undefined;
   if (state.status === 'loading')
     return (
       <SettingsForm header={header} testID="account-profile">

@@ -1,27 +1,29 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';
 
-import { accountProfile } from '../../src/account/native-account-profile';
-import { useHostSession } from '../../src/host/host-session';
-import { loadUsage } from '../../src/host/usage';
-import { appBuildLabel } from '../../src/ui/app-build';
-import { copyMessage } from '../../src/ui/chat/message-menu';
-import { currentAppBuild } from '../../src/ui/native-app-build';
-import { StatisticsSettings } from '../../src/ui/shell/statistics-settings';
-import { MessageDisplaySetting } from '../../src/ui/shell/message-display-settings';
-import { ActivityCountLink } from '../../src/ui/shell/activity-count-settings';
-import { HapticFeedbackSetting } from '../../src/ui/shell/haptic-feedback-setting';
-import { DeliveryReceiptSetting } from '../../src/ui/shell/delivery-receipt-setting';
-import { SHEET_GROUP } from '../../src/ui/chat/sheet';
-import { SettingsRow } from '../../src/ui/primitives/settings-row';
-import { useStrings } from '../../src/ui/strings';
-import { SettingsView } from '../../src/ui/settings-view';
-import { AccountProfileRow } from '../../src/ui/shell/account-profile-row';
+import { accountProfile } from '../../../src/account/native-account-profile';
+import { useHostSession } from '../../../src/host/host-session';
+import { loadUsage } from '../../../src/host/usage';
+import { appBuildLabel } from '../../../src/ui/app-build';
+import { copyMessage } from '../../../src/ui/chat/message-menu';
+import { currentAppBuild } from '../../../src/ui/native-app-build';
+import { StatisticsSettings } from '../../../src/ui/shell/statistics-settings';
+import { MessageDisplaySetting } from '../../../src/ui/shell/message-display-settings';
+import { ActivityCountLink } from '../../../src/ui/shell/activity-count-settings';
+import { HapticFeedbackSetting } from '../../../src/ui/shell/haptic-feedback-setting';
+import { DeliveryReceiptSetting } from '../../../src/ui/shell/delivery-receipt-setting';
+import { SHEET_GROUP } from '../../../src/ui/chat/sheet';
+import { SettingsRow } from '../../../src/ui/primitives/settings-row';
+import { useStrings } from '../../../src/ui/strings';
+import { SettingsView } from '../../../src/ui/settings-view';
+import { AccountProfileRow } from '../../../src/ui/shell/account-profile-row';
+import { useChromeScroll } from '../../../src/ui/shell/scroll-chrome';
 
 export default function SettingsScreen() {
   const t = useStrings();
   const router = useRouter();
   const { saved, client } = useHostSession();
+  useChromeScroll(true, true);
   useFocusEffect(
     useCallback(() => {
       void accountProfile.refresh();

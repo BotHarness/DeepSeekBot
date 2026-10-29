@@ -68,6 +68,7 @@ import {
 } from './bot-settings.js';
 import type { QuickSwitcherSettings } from './quick-switcher.js';
 import { searchSettings } from './settings-search.js';
+import { startConnectSignIn } from './connect-sign-in.js';
 import { DshBotSettingsItem } from './dsh-bot-settings-item.js';
 import { createImApps, ImAppsSection } from './im-apps-section.js';
 import {
@@ -838,7 +839,7 @@ export function apply(ctx: ClientContext): void {
           locale: LOCALE_NS,
           inject: () => ({
             actions,
-            openSignIn: () => botSettings.select(BOT_SETTINGS_SECTIONS.devices),
+            startSignIn: startConnectSignIn,
           }),
         },
         AccountSection,

@@ -23,10 +23,10 @@ import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { fileSize } from './market-files.js';
 import { watchShareDraft } from './share-flow.js';
 import { MarketplaceSubmitField, marketplaceError, useMarketplaceSubmit } from './marketplace.js';
+import { startConnectSignIn } from './connect-sign-in.js';
 import { useMountedResource } from './mounted-resource.js';
 import { store, type BotSummary } from './store.js';
 
-const CONNECT_PATH = './api/botharness/devices/connect';
 const ACCOUNT_POLL_MS = 3000;
 const MAX_AUTHOR_NAME_LENGTH = 40;
 const MAX_TAGS = 8;
@@ -109,23 +109,6 @@ function tagList(value: string): string[] {
 
 function publishable(bots: readonly BotSummary[]): BotSummary[] {
   return bots.filter((bot) => !bot.deleted && bot.tob === undefined);
-}
-
-async function startConnectSignIn(): Promise<{ userCode: string; verificationUri: string }> {
-  const response = await fetch(CONNECT_PATH, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ action: 'sign-in' }),
-    credentials: 'same-origin',
-  });
-  const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-  if (
-    !response.ok ||
-    typeof body['userCode'] !== 'string' ||
-    typeof body['verificationUri'] !== 'string'
-  )
-    throw new Error(typeof body['code'] === 'string' ? body['code'] : 'sign-in-unavailable');
-  return { userCode: body['userCode'], verificationUri: body['verificationUri'] };
 }
 
 function BotAvatar({
@@ -495,13 +478,24 @@ export function MarketUploadDialog({
       );
     } else if (step === 'account') {
       if (account.status === 'loading') content = <Note>{t('market.direct.loading')}</Note>;
-      else if (account.status === 'error')
+      else if (account.status === 'error') {
         content = (
           <Note tone="danger">
             {t('market.direct.accountFailed', { error: marketplaceError(account.cause, t) })}
           </Note>
         );
-      else if (!account.account.signedIn) {
+        primary = (
+          <Button
+            variant="primary"
+            onClick={() => {
+              setAccount({ status: 'loading' });
+              void loadAccount();
+            }}
+          >
+            {t('market.retry')}
+          </Button>
+        );
+      } else if (!account.account.signedIn) {
         content =
           signIn === undefined ? (
             <Note>{t('market.direct.signInHint')}</Note>
