@@ -2,7 +2,7 @@
 
 在 DeepSeek Harness（DSH）中安装 **托布 Tobs** 插件，启用后创建第一个 PersonaBot。只需安装一个产品包，Core、Client、Browser、Computer 和已验证的 IM Provider 会随包一起安装。
 
-本页安装公共 npm 正式包 **`@botharness/tobs@1.5.2`**。推荐 **DSH `0.2.1-rc.3`**；同一组发布包已在 **0.2.0-rc.2、0.2.1-rc.2 和 0.2.1-rc.3** 验证安装、Host 启动、Bot／DM 创建和重启持久化。声明安装范围为 `>=0.2.0-0`，不代表所有版本均已运行验证。下方截图属于历史界面记录；请按当前文字步骤操作。升级前备份 Profile，回退旧版可能需要恢复升级前备份。
+本页安装公共 npm 正式包 **`@botharness/tobs@1.6.0`**。推荐 **DSH `0.2.1-rc.3`**；同一组发布包已在 **0.2.0-rc.2、0.2.1-rc.2 和 0.2.1-rc.3** 验证安装、Host 启动、Bot／DM 创建和重启持久化。声明安装范围为 `>=0.2.0-0`，不代表所有版本均已运行验证。下方截图属于历史界面记录；请按当前文字步骤操作。升级前备份 Profile，回退旧版可能需要恢复升级前备份。
 
 新安装使用 `@botharness/tobs`，命令名为 `tobs`。已有 `deepseekbot` 用户可以继续使用 `deepseekbot` 和原命令；无需删除 Profile、配对或聊天数据。两个包使用相同产品组件。
 
@@ -19,7 +19,7 @@
 在 **包名或地址** 中粘贴完整内容：
 
 ```text
-@botharness/tobs@1.5.2
+@botharness/tobs@1.6.0
 ```
 
 安装源保持 **npm 官方源**，点击 **安装**，等待安装任务完成。
@@ -32,7 +32,7 @@ _这里通过来源地址导入插件，没有文件上传选择器。截图是�
 
 不要把精确版本改成 `deepseekbot` 或 `deepseekbot@latest`。在 1.2.1 发布后的 24 小时冷却期内，pnpm 11.7 默认策略下这两种写法都选择了 1.2.0，即使 DSH 预览显示 1.2.1。Core 1.2.0 精确要求 DSH 0.2.0-rc.1；Core 1.2.1 的声明为 `>=0.1.7-0`。这表示实际安装了不同的包，不是 1.2.1 仍有版本上限。
 
-请用上面的精确版本重试。已有 Desktop Profile 时，先完全退出桌面端，再运行 `dsh plugin --profile desktop add @botharness/tobs@1.5.2`；重启后核对实际安装的 Product/Core 版本。保留 Profile 和数据，不要删除 Profile 来重试。
+请用上面的精确版本重试。已有 Desktop Profile 时，先完全退出桌面端，再运行 `dsh plugin --profile desktop add @botharness/tobs@1.6.0`；重启后核对实际安装的 Product/Core 版本。保留 Profile 和数据，不要删除 Profile 来重试。
 
 pnpm 默认行为可能为精确版本记录 `minimumReleaseAgeExclude` 条目。如果严格策略要求审批或拒绝安装，只审批经过验证的精确包版本，或等待策略窗口结束；不要全局关闭供应链保护，也不要使用 DSH 版本豁免。本说明不代表已完成原生 Windows Desktop 复验，也不保证所有未来 DSH 版本的运行兼容性。
 
@@ -48,7 +48,7 @@ pnpm 默认行为可能为精确版本记录 `minimumReleaseAgeExclude` 条目�
 
 ## 4. 跟随 Home 引导开始
 
-进入 **Bot 模式**，在 Home 配置模型，向托布发送可编辑的创建请求。跟随引导实际创建 Bot 与群聊，管理操作仍需原有审批；再学习拖动面板标题、调整大小，以及通过控制列开关面板。最后点击 **Home 标题**关闭 Home，进入原来的托布私聊。
+进入 **Bot 模式**，在 Home 配置模型，向托布发送可编辑的创建请求。跟随引导实际创建 Bot 与群聊，管理操作仍需原有审批；然后选择布局模式（默认选中简洁），并阅读对应的提示。简洁模式下，最后在控制列选择 **Messages**；高级模式下，最后点击 **Home 标题**关闭 Home。两种方式都会进入原来的托布私聊。
 
 新 Bot 不再自动生成欢迎消息；你可以直接向它发送问候，收到真实回复后再确认模型可用。模型凭据仍由 DSH 管理，npm 安装不会提供凭据。模型配置见 [API 与 Bot 模型](/zh/docs/model-setup)，图标、并发上限、人格、唤醒策略、侧栏与工作区授权等参数见 [设置指南](/zh/docs/settings)。
 
@@ -79,18 +79,18 @@ DeepSeekBot 设置里的 **Git** 一行会显示正在使用的 Git 版本，以
 [DSH 官方打包文档](https://deepseek-harness.github.io/deepseek-harness/develop/basic/publish)也支持通过 CLI 安装到指定 Profile：
 
 ```bash
-dsh plugin --profile <your-profile> add @botharness/tobs@1.5.2
+dsh plugin --profile <your-profile> add @botharness/tobs@1.6.0
 ```
 
 使用你实际启动的 Profile 名称，之后在该 Profile 的插件页启用插件。
 
-如果想导入同一份已编译安装包，可以运行 `npm pack @botharness/tobs@1.5.2` 下载公共 npm tarball，它会在当前目录保存 `botharness-tobs-<version>.tgz`。在 Web 界面的「包名或地址」填写 **运行 DSH 的机器上的绝对路径**；另一台浏览器机器的路径不能替代 Host 路径。使用 CLI 时，也可以在下载目录运行 `dsh plugin --profile <your-profile> add ./botharness-tobs-<version>.tgz`。
+如果想导入同一份已编译安装包，可以运行 `npm pack @botharness/tobs@1.6.0` 下载公共 npm tarball，它会在当前目录保存 `botharness-tobs-<version>.tgz`。在 Web 界面的「包名或地址」填写 **运行 DSH 的机器上的绝对路径**；另一台浏览器机器的路径不能替代 Host 路径。使用 CLI 时，也可以在下载目录运行 `dsh plugin --profile <your-profile> add ./botharness-tobs-<version>.tgz`。
 
 ## 安装遇到问题
 
 | 现象                               | 下一步检查                                                                                         |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------- |
-| 提示 deepseekbot 与当前 DSH 不兼容 | 请使用已验证的 DSH 0.2.0-rc.2、0.2.1-rc.2 或 0.2.1-rc.3，并确认安装的是 `@botharness/tobs@1.5.2`。 |
+| 提示 deepseekbot 与当前 DSH 不兼容 | 请使用已验证的 DSH 0.2.0-rc.2、0.2.1-rc.2 或 0.2.1-rc.3，并确认安装的是 `@botharness/tobs@1.6.0`。 |
 | 找不到包或版本                     | 核对完整包名和版本，选择 npm 官方源，等待 registry 元数据可用后重试。                              |
 | 已安装，但没有 Bot 模式            | 在当前 Profile 启用 @botharness/tobs；按 DSH 的重启提示操作，再刷新 Web 页面。                     |
 | 有 Bot 模式，但 Bot 无法回复       | 核对选中的模型和 DSH 凭据；插件安装与模型权限分别验证。                                            |
