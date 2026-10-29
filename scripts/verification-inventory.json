@@ -2418,9 +2418,9 @@
       "path": "scripts/e2e-mobile-deletion-web.mjs",
       "category": "mapped",
       "behaviors": ["phone.deletion"],
-      "reason": "Real paired-device requests through Expo Web against a task-owned Host; checks retention, erasure, Tob and sections. Native acceptance remains separate.",
-      "task": 2783,
-      "sha256": "6dea0c5c116ad31febe69cae9d14f5bffa458a3f355a682f2830a6f7a673e6f7"
+      "reason": "Real paired-device requests through Expo Web against a task-owned Host; checks Bot Memory retention/erasure, Tob, sections and ADR-0274 Group Disband. Open-screen and native acceptance remain separate; the updated assertions await a live run in #3170.",
+      "task": 3171,
+      "sha256": "c1b9e779fe1c0c5f005aeb3139dd88f79fe7439ab7d7e34a4e7d92048e40611f"
     },
     {
       "path": "scripts/e2e-mobile-chat-resume.mjs",

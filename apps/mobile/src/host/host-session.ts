@@ -567,15 +567,27 @@ export function useChannelConversation(
   client: HostClient | undefined,
   channelId: string | undefined,
 ): Conversation | undefined {
+  const source = channelId === undefined ? detachedSource : (client ?? detachedSource);
+  const available = useSyncExternalStore(
+    source.subscribe,
+    useCallback(() => {
+      const roster = source.getSnapshot().roster;
+      return (
+        roster === undefined ||
+        roster.channels.some((channel) => channel.id === channelId) ||
+        roster.activityChannels?.some((channel) => channel.id === channelId) === true
+      );
+    }, [source, channelId]),
+  );
   return useMemo(
     () =>
-      client === undefined || channelId === undefined
+      client === undefined || channelId === undefined || !available
         ? undefined
         : conversationFor(client, `channel:${channelId}`, {
             channelId,
             cacheKey: `channel:${channelId}`,
           }),
-    [client, channelId],
+    [client, channelId, available],
   );
 }
 
