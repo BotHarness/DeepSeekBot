@@ -1,5 +1,5 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
+import { memo, useRef, useState } from 'react';
 import {
   FlatList,
   Keyboard,
@@ -42,34 +42,7 @@ export function MarketplaceScreen() {
   const [choosingTopic, setChoosingTopic] = useState(false);
   const insets = useSafeAreaInsets();
   const ios = Platform.OS === 'ios';
-  const target = marketplaceTarget({ entry, hostId });
-  const home = query === '' && topic === '';
   const resource = marketplace.list({ q: query, sort, topic, lang: locale });
-  const state = useCatalogueResource(resource);
-  const pagingIntent = useRef<CatalogueList | null>(null);
-  const loadNextPage = () => {
-    const current = resource.getSnapshot();
-    if (
-      pagingIntent.current !== resource ||
-      current.busy ||
-      current.error ||
-      !current.value?.nextCursor
-    )
-      return;
-    pagingIntent.current = null;
-    void resource.more();
-  };
-  const scrollNearEnd = (event: NativeScrollEvent) => {
-    if (
-      event.contentOffset.y + event.layoutMeasurement.height >=
-      event.contentSize.height - event.layoutMeasurement.height / 2
-    )
-      loadNextPage();
-  };
-  const mounted = useMounted<ViewInstance>(() => {
-    pagingIntent.current = null;
-    void resource.refresh();
-  }, [resource]);
   const searchNow = (submitted = search) => {
     Keyboard.dismiss();
     const next = submitted.trim();
@@ -92,7 +65,7 @@ export function MarketplaceScreen() {
     setChoosingTopic(true);
   };
   return (
-    <View ref={mounted} style={{ flex: 1, backgroundColor: theme.color.base }}>
+    <View style={{ flex: 1, backgroundColor: theme.color.base }}>
       <Stack.Screen
         options={
           ios && !searching
@@ -184,6 +157,73 @@ export function MarketplaceScreen() {
           )}
         </View>
       ) : null}
+      <MarketplaceCatalogue
+        query={query}
+        sort={sort}
+        topic={topic}
+        hostId={hostId}
+        entry={entry}
+        onSort={setSort}
+        onTopic={setTopic}
+      />
+      {choosingTopic ? (
+        <MarketplaceTopics
+          value={topic}
+          onChange={(value) => {
+            setTopic(value);
+            setChoosingTopic(false);
+          }}
+          onClose={() => setChoosingTopic(false)}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+const MarketplaceCatalogue = memo(function MarketplaceCatalogue({
+  query,
+  sort,
+  topic,
+  hostId,
+  entry,
+  onSort,
+  onTopic,
+}: {
+  query: string;
+  sort: MarketplaceSort;
+  topic: string;
+  hostId: string | undefined;
+  entry: string | undefined;
+  onSort(sort: MarketplaceSort): void;
+  onTopic(topic: string): void;
+}) {
+  const t = useStrings();
+  const insets = useSafeAreaInsets();
+  const target = marketplaceTarget({ entry, hostId });
+  const home = query === '' && topic === '';
+  const resource = marketplace.list({ q: query, sort, topic, lang: locale });
+  const state = useCatalogueResource(resource);
+  const pagingIntent = useRef<CatalogueList | null>(null);
+  const loadNextPage = () => {
+    const current = resource.getSnapshot();
+    if (pagingIntent.current !== resource) return;
+    pagingIntent.current = null;
+    if (current.busy || current.error || !current.value?.nextCursor) return;
+    void resource.more();
+  };
+  const scrollNearEnd = (event: NativeScrollEvent) => {
+    if (
+      event.contentOffset.y + event.layoutMeasurement.height >=
+      event.contentSize.height - event.layoutMeasurement.height / 2
+    )
+      loadNextPage();
+  };
+  const mounted = useMounted<ViewInstance>(() => {
+    pagingIntent.current = null;
+    void resource.refresh();
+  }, [resource]);
+  return (
+    <View ref={mounted} style={{ flex: 1 }}>
       <PullToRefresh
         refreshing={state.busy && state.operation !== 'more' && state.value !== undefined}
         onRefresh={() => void resource.refresh()}
@@ -217,12 +257,7 @@ export function MarketplaceScreen() {
                     <MarketplaceSections target={target} />
                   </View>
                 ) : null}
-                <MarketplaceDiscovery
-                  sort={sort}
-                  onSort={setSort}
-                  topic={topic}
-                  onTopic={setTopic}
-                />
+                <MarketplaceDiscovery sort={sort} onSort={onSort} topic={topic} onTopic={onTopic} />
                 {query || topic ? (
                   <Text variant="meta" tone="muted">
                     {[query, topic].filter(Boolean).join(' · ')}
@@ -273,16 +308,6 @@ export function MarketplaceScreen() {
           />
         )}
       </PullToRefresh>
-      {choosingTopic ? (
-        <MarketplaceTopics
-          value={topic}
-          onChange={(value) => {
-            setTopic(value);
-            setChoosingTopic(false);
-          }}
-          onClose={() => setChoosingTopic(false)}
-        />
-      ) : null}
     </View>
   );
-}
+});

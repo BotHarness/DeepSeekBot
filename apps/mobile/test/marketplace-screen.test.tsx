@@ -16,6 +16,7 @@ const fixture = vi.hoisted(() => {
     push: vi.fn(),
     openURL: vi.fn(async () => {}),
     link: 'docs/setup.md',
+    imageRenders: 0,
     listEvents: {} as Pick<ScrollViewProps, 'onScrollBeginDrag' | 'onScroll'> & {
       onEndReached?: () => void;
     },
@@ -77,8 +78,10 @@ vi.mock('react-native-keyboard-controller', () => ({
     createElement('div', { 'data-keyboard-form': true }, children),
 }));
 vi.mock('expo-image', () => ({
-  Image: ({ testID, source }: { testID?: string; source: { uri: string } }) =>
-    createElement('img', { 'data-testid': testID, src: source.uri, alt: '' }),
+  Image: ({ testID, source }: { testID?: string; source: { uri: string } }) => {
+    fixture.imageRenders++;
+    return createElement('img', { 'data-testid': testID, src: source.uri, alt: '' });
+  },
 }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('react-native-safe-area-context', () => ({
@@ -170,6 +173,7 @@ beforeEach(() => {
   fixture.platform = 'web';
   fixture.params = { entry: 'all' };
   fixture.listEvents = {};
+  fixture.imageRenders = 0;
   fixture.fetch.mockImplementation(async (url) => {
     const path = new URL(String(url)).pathname;
     return Response.json(
@@ -435,6 +439,7 @@ it('pages only after a scroll, coalesces end events and retries a failed page ex
           { ...bot, id: 'page-one' },
           { ...bot, id: 'page-two' },
         ],
+        nextCursor: 'page-three',
       }),
     ),
   );
@@ -442,4 +447,38 @@ it('pages only after a scroll, coalesces end events and retries a failed page ex
   expect(element.querySelector('[data-testid="marketplace-bot-page-two"]')).not.toBeNull();
   await act(async () => fixture.listEvents.onEndReached?.());
   expect(catalogueCalls).toHaveLength(firstPageCalls + 2);
+  await act(async () =>
+    fixture.listEvents.onScrollBeginDrag?.(
+      scroll as Parameters<NonNullable<ScrollViewProps['onScrollBeginDrag']>>[0],
+    ),
+  );
+  expect(catalogueCalls).toHaveLength(firstPageCalls + 3);
+  await act(async () => finishPage(Response.json({ bots: [{ ...bot, id: 'page-three' }] })));
+  await act(async () => {
+    fixture.listEvents.onScrollBeginDrag?.(
+      scroll as Parameters<NonNullable<ScrollViewProps['onScrollBeginDrag']>>[0],
+    );
+    fixture.listEvents.onEndReached?.();
+  });
+  expect(catalogueCalls).toHaveLength(firstPageCalls + 3);
+});
+
+it('keeps loaded catalogue artwork out of search-open and draft-edit renders', async () => {
+  await act(async () => root.render(<MarketplaceScreen />));
+  const row = element.querySelector('[data-testid="marketplace-bot-screen-writer"]');
+  const rendered = fixture.imageRenders;
+  await act(async () => button(t.marketplace.search).click());
+  expect(fixture.imageRenders).toBe(rendered);
+  const input = element.querySelector<HTMLTextAreaElement>('[data-testid="marketplace-search"]')!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+      input,
+      'writer',
+    );
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  expect(fixture.imageRenders).toBe(rendered);
+  expect(element.querySelector('[data-testid="marketplace-bot-screen-writer"]')).toBe(row);
+  await act(async () => button(t.closeSearch).click());
+  expect(fixture.imageRenders).toBe(rendered);
 });
