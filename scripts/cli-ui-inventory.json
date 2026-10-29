@@ -533,6 +533,14 @@
       "configurable": false
     },
     {
+      "id": "ui-mobile-apps-hint",
+      "description": "The Control Rail's mobile app hint is shown once per device until opened or dismissed.",
+      "scope": "Client transport / transient state",
+      "surfaces": ["storage:packages/client/src/client/mobile-apps.tsx:setItem(SEEN_KEY)"],
+      "exemption": "A device-local seen marker for a presentation hint, not a Host setting; the entry only links to public TestFlight, Discord and QQ destinations.",
+      "configurable": false
+    },
+    {
       "id": "ui-release",
       "description": "Release/build information and seen receipt only, not configurable release controls.",
       "scope": "Client transport / transient state",

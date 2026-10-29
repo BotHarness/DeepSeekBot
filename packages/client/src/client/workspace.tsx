@@ -1,5 +1,6 @@
 import { Menu } from './appearance-primitives.js';
 import { DeviceRequestsNotice } from './device-requests-notice.js';
+import { MobileAppsEntry } from './mobile-apps.js';
 import { activityIndicator } from './activity-indicator.js';
 import { useActivityIndicatorMenu } from './activity-indicator-menu.js';
 import { onboardingFor } from './onboarding.js';
@@ -435,6 +436,7 @@ function WorkspaceRail({
           settingsTarget,
         )}
 
+      <MobileAppsEntry t={t} />
       <Tooltip label={t('panel.settings')} side="right">
         <button aria-label={t('panel.settings')} onClick={() => options.openBotSettings()}>
           <ChannelSidebarIcon name="settings" />
