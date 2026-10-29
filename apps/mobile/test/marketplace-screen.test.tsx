@@ -435,6 +435,7 @@ it('pages only after a scroll, coalesces end events and retries a failed page ex
           { ...bot, id: 'page-one' },
           { ...bot, id: 'page-two' },
         ],
+        nextCursor: 'page-three',
       }),
     ),
   );
@@ -442,4 +443,18 @@ it('pages only after a scroll, coalesces end events and retries a failed page ex
   expect(element.querySelector('[data-testid="marketplace-bot-page-two"]')).not.toBeNull();
   await act(async () => fixture.listEvents.onEndReached?.());
   expect(catalogueCalls).toHaveLength(firstPageCalls + 2);
+  await act(async () =>
+    fixture.listEvents.onScrollBeginDrag?.(
+      scroll as Parameters<NonNullable<ScrollViewProps['onScrollBeginDrag']>>[0],
+    ),
+  );
+  expect(catalogueCalls).toHaveLength(firstPageCalls + 3);
+  await act(async () => finishPage(Response.json({ bots: [{ ...bot, id: 'page-three' }] })));
+  await act(async () => {
+    fixture.listEvents.onScrollBeginDrag?.(
+      scroll as Parameters<NonNullable<ScrollViewProps['onScrollBeginDrag']>>[0],
+    );
+    fixture.listEvents.onEndReached?.();
+  });
+  expect(catalogueCalls).toHaveLength(firstPageCalls + 3);
 });

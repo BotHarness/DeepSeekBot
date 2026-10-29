@@ -49,14 +49,9 @@ export function MarketplaceScreen() {
   const pagingIntent = useRef<CatalogueList | null>(null);
   const loadNextPage = () => {
     const current = resource.getSnapshot();
-    if (
-      pagingIntent.current !== resource ||
-      current.busy ||
-      current.error ||
-      !current.value?.nextCursor
-    )
-      return;
+    if (pagingIntent.current !== resource) return;
     pagingIntent.current = null;
+    if (current.busy || current.error || !current.value?.nextCursor) return;
     void resource.more();
   };
   const scrollNearEnd = (event: NativeScrollEvent) => {
