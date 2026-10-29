@@ -12,7 +12,6 @@ import {
 import { Keyboard } from 'react-native';
 import { ConversationScreen } from '../chat/conversation-screen';
 import { EndSheet } from '../primitives/end-sheet';
-import { ScrollChromeProvider } from './scroll-chrome';
 import { conversationTarget } from './swipe-chat-target';
 import type { ChatsSheetRequest } from './chats-sheet-root';
 import type { RecentChat } from './recent-chats';
@@ -58,15 +57,13 @@ function ChatPanel({
       onOpenChange={setOpen}
       panel={
         target ? (
-          <ScrollChromeProvider>
-            <ConversationScreen
-              key={href}
-              expectedHostId={target.hostId}
-              place={target.place}
-              focus={undefined}
-              presentation={{ active: active && open, onClose: close, onNestedChange: setNested }}
-            />
-          </ScrollChromeProvider>
+          <ConversationScreen
+            key={href}
+            expectedHostId={target.hostId}
+            place={target.place}
+            focus={undefined}
+            presentation={{ active: active && open, onClose: close, onNestedChange: setNested }}
+          />
         ) : null
       }
     >

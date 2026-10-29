@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 const fixture = vi.hoisted(() => ({
@@ -54,12 +54,6 @@ vi.mock('expo-router/js-tabs', () => ({
   ),
 }));
 vi.mock('../src/ui/primitives/drawer-material', () => ({ DrawerMaterial: () => null }));
-vi.mock('../src/ui/shell/scroll-chrome', () => ({
-  ScrollChromeProvider: ({ children }: { children: ReactNode }) =>
-    createElement('div', null, children),
-  useChromeHidden: () => false,
-  useChromeProgress: () => ({ value: 0 }),
-}));
 vi.mock('../src/host/host-session', () => ({
   useHostSession: () => ({ saved: undefined }),
   hostSession: { getState: () => ({ saved: undefined }) },

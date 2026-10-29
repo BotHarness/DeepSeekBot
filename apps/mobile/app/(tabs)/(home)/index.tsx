@@ -69,7 +69,6 @@ import { avatarImageUri } from '../../../src/host/native-notification-avatars';
 import { openConversation } from '../../../src/ui/shell/open-conversation';
 import { useConnectionProgress } from '../../../src/ui/primitives/connection-progress';
 import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
-import { useChromeScroll } from '../../../src/ui/shell/scroll-chrome';
 import { useStrings } from '../../../src/ui/strings';
 import { ListSkeleton } from '../../../src/ui/primitives/list-skeleton';
 import { PullToTob } from '../../../src/ui/shell/pull-to-tob';
@@ -138,10 +137,6 @@ const HomeContent = memo(function HomeContent({
   const messageSearch = useMessageSearch();
   const [searching, setSearching] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
-  const onScroll = useChromeScroll(
-    true,
-    searchFocused || query !== '' || (Platform.OS === 'android' && searching),
-  );
   const bottom = useFloatingTabInset();
   const look = useHostLook(saved?.hostId);
   const cloud = useCloudSnapshot();
@@ -590,191 +585,186 @@ const HomeContent = memo(function HomeContent({
             </>
           }
         >
-          {(headerTravel) => (
-            <LastChatSwipe
-              enabled={!searching && !searchFocused && query === ''}
-              candidates={displayed.flatMap((row) =>
-                row.type !== 'computer'
-                  ? []
-                  : [
-                      {
-                        id: row.key,
-                        title:
-                          row.conversation.kind === 'bot'
-                            ? row.conversation.bot.displayName
-                            : row.conversation.channel.name,
-                        href: chatHref(
-                          row.conversation.kind === 'bot'
-                            ? `/dm/${encodeURIComponent(row.conversation.bot.slug)}`
-                            : `/channel/${encodeURIComponent(row.conversation.channel.id)}`,
-                          row.host.saved.hostId,
-                        ),
-                      },
-                    ],
-              )}
-              travel={lastChatTravel}
+          <LastChatSwipe
+            enabled={!searching && !searchFocused && query === ''}
+            candidates={displayed.flatMap((row) =>
+              row.type !== 'computer'
+                ? []
+                : [
+                    {
+                      id: row.key,
+                      title:
+                        row.conversation.kind === 'bot'
+                          ? row.conversation.bot.displayName
+                          : row.conversation.channel.name,
+                      href: chatHref(
+                        row.conversation.kind === 'bot'
+                          ? `/dm/${encodeURIComponent(row.conversation.bot.slug)}`
+                          : `/channel/${encodeURIComponent(row.conversation.channel.id)}`,
+                        row.host.saved.hostId,
+                      ),
+                    },
+                  ],
+            )}
+            travel={lastChatTravel}
+          >
+            <PullToTob
+              enabled={pullFocused && !searching && !searchFocused && query === ''}
+              scope={`${effectiveFilter}:${tobHostId ?? ''}:${tobHref?.params.slug ?? ''}`}
+              hostId={tobHostId}
+              href={tobHref}
+              refreshing={refreshing}
+              onRefresh={() => void refresh()}
+              onOpen={(href) => router.push(href)}
             >
-              <PullToTob
-                enabled={pullFocused && !searching && !searchFocused && query === ''}
-                scope={`${effectiveFilter}:${tobHostId ?? ''}:${tobHref?.params.slug ?? ''}`}
-                hostId={tobHostId}
-                href={tobHref}
-                refreshing={refreshing}
-                onRefresh={() => void refresh()}
-                onOpen={(href) => router.push(href)}
-                onScroll={onScroll}
-              >
-                {(pull) => (
-                  <Animated.FlatList<HomeItem>
-                    {...pull}
-                    renderScrollComponent={renderKeyboardFormScroll}
-                    scrollEventThrottle={1}
-                    contentContainerStyle={{ paddingBottom: bottom + headerTravel + space.x6 }}
-                    keyboardShouldPersistTaps="handled"
-                    keyboardDismissMode="on-drag"
-                    data={listItems}
-                    keyExtractor={(r) => r.key}
-                    ListHeaderComponent={
-                      <>
-                        {actionError ? (
-                          <Text accessibilityRole="alert" tone="danger">
-                            {t.rowActions.failed}
-                          </Text>
-                        ) : null}
-                        {selectedHost &&
-                          selectedHost.snapshot.connection.status !== 'unreachable' && (
-                            <ConnectionBanner
-                              connection={selectedHost.snapshot.connection}
-                              onRetry={() => selectedHost.client.retryNow()}
-                              onPairAgain={() => router.push('/pair')}
-                            />
-                          )}
-                        {selectedHost &&
-                        ((refreshFailedHosts.includes(selectedHost.saved.hostId) && !hostFailed) ||
-                          selectedHost.snapshot.connection.status === 'unreachable' ||
-                          selectedHost.snapshot.connection.status === 'stopped') ? (
-                          <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
-                            <Text tone="muted">
-                              {selectedHost.snapshot.roster === undefined
-                                ? t.hostListLoadFailed
-                                : t.hostListUnavailable}
-                            </Text>
-                            <Button
-                              testID="chat-list-retry"
-                              label={t.retry}
-                              on="canvas"
-                              onPress={() => void refresh(selectedHost)}
-                              disabled={refreshing}
-                            />
-                          </View>
-                        ) : null}
-                        {(cloudFailed || error) && (
-                          <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
-                            <Text tone="muted" accessibilityRole="alert">
-                              {t.cloudListUnavailable}
-                              {error ? ` (${error})` : ''}
-                            </Text>
-                            <Button
-                              testID="cloud-list-retry"
-                              label={t.retry}
-                              on="canvas"
-                              onPress={() => (failedOpen ? openCloud(failedOpen) : void refresh())}
-                              disabled={refreshing}
-                            />
-                          </View>
-                        )}
-                      </>
-                    }
-                    ListEmptyComponent={
-                      coldLoading ? (
-                        <ListSkeleton />
-                      ) : hostFailed || cloudFailed ? undefined : (
-                        <Text tone="muted" style={{ padding: space.x6 }}>
-                          {query
-                            ? t.searchNoMatch(query.trim())
-                            : effectiveFilter === 'all' &&
-                                hosts.length > 0 &&
-                                hosts.every(
-                                  (host) => host.snapshot.connection.status !== 'connected',
-                                )
-                              ? t.noOnlineChats
-                              : t.cloudChannels.empty}
+              {(pull) => (
+                <Animated.FlatList<HomeItem>
+                  {...pull}
+                  renderScrollComponent={renderKeyboardFormScroll}
+                  scrollEventThrottle={1}
+                  contentContainerStyle={{ paddingBottom: bottom + space.x6 }}
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
+                  data={listItems}
+                  keyExtractor={(r) => r.key}
+                  ListHeaderComponent={
+                    <>
+                      {actionError ? (
+                        <Text accessibilityRole="alert" tone="danger">
+                          {t.rowActions.failed}
                         </Text>
-                      )
-                    }
-                    renderItem={({ item }) =>
-                      item.type === 'message-heading' ? (
-                        <MessageSearchHeading loading={messages.loading} />
-                      ) : item.type === 'message' ? (
-                        <MessageSearchRow
-                          hit={item.hit}
-                          conversation={item.conversation}
-                          now={new Date()}
-                          onPress={() => openMessage(item)}
-                        />
-                      ) : item.type === 'section' ? (
-                        <ItemMenu
-                          title={item.name ?? t.pinnedSection}
-                          actions={
-                            item.id === PINNED_SECTION || !item.host
-                              ? []
-                              : [
-                                  {
-                                    key: 'delete-section',
-                                    glyph: 'delete',
-                                    label: t.deletion.deleteSection,
-                                    destructive: true,
-                                    run: () =>
-                                      setDeleting({
-                                        host: item.host!,
-                                        target: {
-                                          kind: 'section',
-                                          id: item.id,
-                                          name: item.name ?? '',
-                                        },
-                                      }),
-                                  },
-                                ]
-                          }
-                        >
-                          {(open, nativeContextMenu) => (
-                            <SectionHeader
-                              count={item.count}
-                              needsYou={item.needsYou}
-                              unread={item.unread}
-                              collapsed={item.collapsed}
-                              testID={`chat-section-${item.id}`}
-                              name={item.name ?? t.pinnedSection}
-                              onLongPress={
-                                nativeContextMenu || item.id === PINNED_SECTION ? undefined : open
-                              }
-                              onMenu={item.id === PINNED_SECTION ? undefined : open}
-                              onToggle={() => {
-                                sectionCollapse.toggle(collapseScope, item.id);
-                              }}
-                            />
-                          )}
-                        </ItemMenu>
-                      ) : item.type === 'computer' ? (
-                        <HostRow
-                          item={item}
-                          showSourceLabel={effectiveFilter === 'all'}
-                          onError={() => setActionError(true)}
-                          onDelete={(target) => setDeleting({ host: item.host, target })}
-                        />
-                      ) : (
-                        <CloudConversationRow
-                          row={item.conversation}
-                          pending={opening === item.conversation.key}
-                          onPress={() => void openCloud(item.conversation)}
-                        />
-                      )
-                    }
-                  />
-                )}
-              </PullToTob>
-            </LastChatSwipe>
-          )}
+                      ) : null}
+                      {selectedHost &&
+                        selectedHost.snapshot.connection.status !== 'unreachable' && (
+                          <ConnectionBanner
+                            connection={selectedHost.snapshot.connection}
+                            onRetry={() => selectedHost.client.retryNow()}
+                            onPairAgain={() => router.push('/pair')}
+                          />
+                        )}
+                      {selectedHost &&
+                      ((refreshFailedHosts.includes(selectedHost.saved.hostId) && !hostFailed) ||
+                        selectedHost.snapshot.connection.status === 'unreachable' ||
+                        selectedHost.snapshot.connection.status === 'stopped') ? (
+                        <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
+                          <Text tone="muted">
+                            {selectedHost.snapshot.roster === undefined
+                              ? t.hostListLoadFailed
+                              : t.hostListUnavailable}
+                          </Text>
+                          <Button
+                            testID="chat-list-retry"
+                            label={t.retry}
+                            on="canvas"
+                            onPress={() => void refresh(selectedHost)}
+                            disabled={refreshing}
+                          />
+                        </View>
+                      ) : null}
+                      {(cloudFailed || error) && (
+                        <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
+                          <Text tone="muted" accessibilityRole="alert">
+                            {t.cloudListUnavailable}
+                            {error ? ` (${error})` : ''}
+                          </Text>
+                          <Button
+                            testID="cloud-list-retry"
+                            label={t.retry}
+                            on="canvas"
+                            onPress={() => (failedOpen ? openCloud(failedOpen) : void refresh())}
+                            disabled={refreshing}
+                          />
+                        </View>
+                      )}
+                    </>
+                  }
+                  ListEmptyComponent={
+                    coldLoading ? (
+                      <ListSkeleton />
+                    ) : hostFailed || cloudFailed ? undefined : (
+                      <Text tone="muted" style={{ padding: space.x6 }}>
+                        {query
+                          ? t.searchNoMatch(query.trim())
+                          : effectiveFilter === 'all' &&
+                              hosts.length > 0 &&
+                              hosts.every((host) => host.snapshot.connection.status !== 'connected')
+                            ? t.noOnlineChats
+                            : t.cloudChannels.empty}
+                      </Text>
+                    )
+                  }
+                  renderItem={({ item }) =>
+                    item.type === 'message-heading' ? (
+                      <MessageSearchHeading loading={messages.loading} />
+                    ) : item.type === 'message' ? (
+                      <MessageSearchRow
+                        hit={item.hit}
+                        conversation={item.conversation}
+                        now={new Date()}
+                        onPress={() => openMessage(item)}
+                      />
+                    ) : item.type === 'section' ? (
+                      <ItemMenu
+                        title={item.name ?? t.pinnedSection}
+                        actions={
+                          item.id === PINNED_SECTION || !item.host
+                            ? []
+                            : [
+                                {
+                                  key: 'delete-section',
+                                  glyph: 'delete',
+                                  label: t.deletion.deleteSection,
+                                  destructive: true,
+                                  run: () =>
+                                    setDeleting({
+                                      host: item.host!,
+                                      target: {
+                                        kind: 'section',
+                                        id: item.id,
+                                        name: item.name ?? '',
+                                      },
+                                    }),
+                                },
+                              ]
+                        }
+                      >
+                        {(open, nativeContextMenu) => (
+                          <SectionHeader
+                            count={item.count}
+                            needsYou={item.needsYou}
+                            unread={item.unread}
+                            collapsed={item.collapsed}
+                            testID={`chat-section-${item.id}`}
+                            name={item.name ?? t.pinnedSection}
+                            onLongPress={
+                              nativeContextMenu || item.id === PINNED_SECTION ? undefined : open
+                            }
+                            onMenu={item.id === PINNED_SECTION ? undefined : open}
+                            onToggle={() => {
+                              sectionCollapse.toggle(collapseScope, item.id);
+                            }}
+                          />
+                        )}
+                      </ItemMenu>
+                    ) : item.type === 'computer' ? (
+                      <HostRow
+                        item={item}
+                        showSourceLabel={effectiveFilter === 'all'}
+                        onError={() => setActionError(true)}
+                        onDelete={(target) => setDeleting({ host: item.host, target })}
+                      />
+                    ) : (
+                      <CloudConversationRow
+                        row={item.conversation}
+                        pending={opening === item.conversation.key}
+                        onPress={() => void openCloud(item.conversation)}
+                      />
+                    )
+                  }
+                />
+              )}
+            </PullToTob>
+          </LastChatSwipe>
         </HomeHeader>
       </HostDrawerEdge>
       <LastChatPreview travel={lastChatTravel} />

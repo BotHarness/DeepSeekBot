@@ -4,7 +4,6 @@ import { useIsFocused } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState, type ReactNode } from 'react';
 import { Platform, Pressable, View, type ViewInstance } from 'react-native';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ConversationEnvironment } from '../../host/conversation-environments';
 import { hostColorInk } from '../design/host-look';
@@ -17,7 +16,7 @@ import { useStrings } from '../strings';
 import { ChatsIcon, ChevronDownIcon, ChevronLeftIcon, CloudIcon } from './icons';
 import { HostGlyph } from './host-tile';
 import { focusOn, hostDrawer, openHostDrawer, useHostDrawerOpen } from './host-drawer';
-import { CollapsingToolbar, useChromeProgress } from './scroll-chrome';
+import { FixedToolbar } from './fixed-toolbar';
 
 export function HomeHeader({
   environment,
@@ -36,7 +35,7 @@ export function HomeHeader({
   bar?: ReactNode;
   barActions?: ReactNode;
   onWorkspaces?: (() => void) | undefined;
-  children: ReactNode | ((headerTravel: number) => ReactNode);
+  children: ReactNode;
 }) {
   const t = useStrings();
   const connectionLabel = useConnectionProgress(connection?.status);
@@ -51,11 +50,6 @@ export function HomeHeader({
     : insets.top + space.x2 * 2 + materialSearchHeight(theme.fontScale);
   const [measuredHeight, setMeasuredHeight] = useState(0);
   const height = Math.max(minimumHeight, measuredHeight);
-  const travel = android ? Math.max(0, height - insets.top) : 0;
-  const progress = useChromeProgress();
-  const pageStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: -travel * progress.get() }],
-  }));
   const chip = useMounted<ViewInstance>((node) => {
     hostDrawer.setReturnFocus(() => focusOn(node));
     return () => hostDrawer.setReturnFocus(undefined);
@@ -151,7 +145,6 @@ export function HomeHeader({
       )}
     </View>
   );
-  const content = typeof children === 'function' ? children(travel) : children;
   return (
     <View
       style={{
@@ -163,12 +156,8 @@ export function HomeHeader({
       {focused ? <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} /> : null}
       {android ? (
         <>
-          <Animated.View style={[{ flex: 1, marginTop: height, marginBottom: -travel }, pageStyle]}>
-            {content}
-          </Animated.View>
-          <CollapsingToolbar travel={travel} height={height}>
-            {header}
-          </CollapsingToolbar>
+          <View style={{ flex: 1, marginTop: height }}>{children}</View>
+          <FixedToolbar height={height}>{header}</FixedToolbar>
           <View
             pointerEvents="none"
             style={{
@@ -184,7 +173,7 @@ export function HomeHeader({
       ) : (
         <>
           {header}
-          {content}
+          {children}
         </>
       )}
     </View>

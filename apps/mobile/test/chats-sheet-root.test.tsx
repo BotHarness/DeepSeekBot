@@ -1,14 +1,11 @@
 // @vitest-environment jsdom
-import { act, useState, type ReactNode } from 'react';
+import { act, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import type { EndSheetProps } from '../src/ui/primitives/end-sheet';
 const state = vi.hoisted(() => ({ routeFocused: true }));
 vi.mock('expo-router', () => ({ useIsFocused: () => state.routeFocused }));
 vi.mock('react-native', () => ({ Keyboard: { dismiss: vi.fn() } }));
-vi.mock('../src/ui/shell/scroll-chrome', () => ({
-  ScrollChromeProvider: ({ children }: { children: ReactNode }) => children,
-}));
 vi.mock('../src/ui/primitives/end-sheet', () => ({
   EndSheet: ({ children, panel, open, active, enabled, onOpenChange }: EndSheetProps) => (
     <main data-open={String(open)} data-active={String(active)} data-enabled={String(enabled)}>

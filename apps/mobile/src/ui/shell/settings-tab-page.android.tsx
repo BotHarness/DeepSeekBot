@@ -1,43 +1,33 @@
 import { Stack } from 'expo-router';
 import { useState, type ReactNode } from 'react';
-import { View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { materialSearchHeight } from '../design/material-search';
 import { useDesignTheme } from '../design/theme';
 import { space, tabHeader } from '../design/tokens';
 import { Text } from '../primitives/text';
-import { SettingsScrollContext, type SettingsScroll } from '../primitives/settings-scroll';
+import { SettingsScrollContext } from '../primitives/settings-scroll';
 import { useStrings } from '../strings';
-import { CollapsingToolbar } from './scroll-chrome';
+import { FixedToolbar } from './fixed-toolbar';
 
-export function SettingsTabPage({
-  onScroll,
-  children,
-}: {
-  onScroll: SettingsScroll;
-  children: ReactNode;
-}) {
+export function SettingsTabPage({ children }: { children: ReactNode }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const minimum = insets.top + space.x2 * 2 + materialSearchHeight(theme.fontScale);
   const [measured, setMeasured] = useState(0);
   const height = Math.max(minimum, measured);
-  const travel = Math.max(0, height - insets.top);
   const fill = theme.overlay.fill;
   return (
     <View style={{ flex: 1, overflow: 'hidden', backgroundColor: fill }}>
       <Stack.Screen options={{ headerShown: false, title: t.settings }} />
-      <View style={{ flex: 1, marginTop: insets.top }}>
-        <SettingsScrollContext.Provider
-          value={{ onScroll, headerInset: travel, ScrollView: Animated.ScrollView }}
-        >
+      <View style={{ flex: 1, marginTop: height }}>
+        <SettingsScrollContext.Provider value={{ onScroll: undefined, headerInset: 0, ScrollView }}>
           {children}
         </SettingsScrollContext.Provider>
       </View>
-      <CollapsingToolbar travel={travel} height={height}>
+      <FixedToolbar height={height}>
         <View
           testID="settings-header"
           onLayout={(event) => setMeasured(event.nativeEvent.layout.height)}
@@ -55,7 +45,7 @@ export function SettingsTabPage({
             {t.settings}
           </Text>
         </View>
-      </CollapsingToolbar>
+      </FixedToolbar>
       <View
         pointerEvents="none"
         style={{

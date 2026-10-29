@@ -1,6 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';
-import { Platform } from 'react-native';
 
 import { accountProfile } from '../../../src/account/native-account-profile';
 import { useHostSession } from '../../../src/host/host-session';
@@ -18,14 +17,12 @@ import { SettingsRow } from '../../../src/ui/primitives/settings-row';
 import { useStrings } from '../../../src/ui/strings';
 import { SettingsView } from '../../../src/ui/settings-view';
 import { AccountProfileRow } from '../../../src/ui/shell/account-profile-row';
-import { useChromeScroll } from '../../../src/ui/shell/scroll-chrome';
 import { SettingsTabPage } from '../../../src/ui/shell/settings-tab-page';
 
 export default function SettingsScreen() {
   const t = useStrings();
   const router = useRouter();
   const { saved, client } = useHostSession();
-  const onScroll = useChromeScroll(true, Platform.OS !== 'android');
   useFocusEffect(
     useCallback(() => {
       void accountProfile.refresh();
@@ -36,7 +33,7 @@ export default function SettingsScreen() {
     [client],
   );
   return (
-    <SettingsTabPage onScroll={onScroll}>
+    <SettingsTabPage>
       <SettingsView
         profile={<AccountProfileRow onPress={() => router.push('/settings/profile')} />}
         statistics={<StatisticsSettings />}
