@@ -283,6 +283,7 @@ export default defineConfig([
   {
     entry: {
       'profile-cli': 'packages/deepseekbot/src/profile-cli.mjs',
+      'subagent-control': 'packages/deepseekbot/src/subagent-control.mjs',
       'desktop-zoom-setup': 'packages/deepseekbot/src/desktop-zoom-setup.mjs',
       deepseekbot: 'packages/deepseekbot/src/deepseekbot.mjs',
       'theme-schema': 'packages/client/src/theme-schema.ts',
