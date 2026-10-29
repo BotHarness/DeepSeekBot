@@ -105,16 +105,24 @@ export function reactable(message: ConversationMessage): boolean {
   );
 }
 
-export function shownInChat(message: ConversationMessage): boolean {
-  const resolution = message.resolves?.resolution;
-  if (
+function hiddenChatResolution(resolution: CardResolution | undefined): boolean {
+  return (
     resolution?.kind === 'tool-approval' ||
     resolution?.kind === 'grant' ||
     resolution?.kind === 'private-input' ||
     (resolution?.kind === 'user-question' && resolution.state === 'cancelled')
-  )
-    return false;
-  if (message.welcome === true) return false;
+  );
+}
+
+export function hiddenChatMessage(message: ChannelWireMessage): boolean {
+  return (
+    hiddenChatResolution(resolvesOf(message)?.resolution) ||
+    (message.author.kind === 'system' && message.onboardingWelcome !== undefined)
+  );
+}
+
+export function shownInChat(message: ConversationMessage): boolean {
+  if (hiddenChatResolution(message.resolves?.resolution) || message.welcome === true) return false;
   return (
     message.source?.message.contentPurge !== undefined ||
     message.source?.message.sessionFailure !== undefined ||

@@ -153,3 +153,41 @@ it('keeps only authorized previous results after a same-query refresh fails', as
   await f.search.query('different');
   expect(f.search.getSnapshot().messages).toEqual([]);
 });
+
+it('excludes hidden grant/private-input receipts using the conversation display rules', async () => {
+  const plain = record('needle visible');
+  const grant = record('needle grant receipt');
+  grant.entries[0]!.message.grantRequestResolution = { requestMessageId: 'grant-request' };
+  const privateInput = record('needle private receipt');
+  privateInput.entries[0]!.message.privateInputResolution = { requestMessageId: 'private-request' };
+  const search = createRetainedSearch({
+    sources: () => [a],
+    list: async () => [plain, grant, privateInput],
+    read: async () => plain,
+  });
+  await search.query('needle');
+  expect(search.getSnapshot().messages.map((hit) => hit.message?.body)).toEqual(['needle visible']);
+});
+
+it('opens an authorized exact result across an unrelated same-query cache refresh', async () => {
+  const saved = record('needle');
+  let finish!: (value: RetainedConversation) => void;
+  const search = createRetainedSearch({
+    sources: () => [a],
+    list: async () => [saved],
+    read: () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  });
+  await search.query('needle');
+  const hit = search.getSnapshot().messages[0]!;
+  const pending = search.resolve(hit);
+  await search.refresh();
+  finish(saved);
+  expect(await pending).toBe('available');
+  const cancelled = search.resolve(hit);
+  await search.query('changed');
+  finish(saved);
+  expect(await cancelled).toBe('detached');
+});

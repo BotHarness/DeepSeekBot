@@ -1,4 +1,4 @@
-import type { CachedConversation } from './conversation';
+import { hiddenChatMessage, type CachedConversation } from './conversation';
 
 export type ComputerCacheSource = { hostId: string; deviceId: string };
 export type SearchSource = ComputerCacheSource & { name: string };
@@ -39,6 +39,7 @@ export function createRetainedSearch(port: {
   ): Promise<RetainedConversation | undefined>;
 }) {
   let version = 0;
+  let interaction = 0;
   let active = true;
   let snapshot: RetainedSearchSnapshot = {
     scope: 'all',
@@ -96,15 +97,7 @@ export function createRetainedSearch(port: {
             if (record.target.name.toLocaleLowerCase().includes(query))
               conversations.push({ key, source, target: record.target });
             for (const { message } of record.entries) {
-              if (!message.body?.toLocaleLowerCase().includes(query) || message.onboardingWelcome)
-                continue;
-              if (
-                message.toolApprovalDecision ||
-                (typeof message.userQuestionResolution === 'object' &&
-                  message.userQuestionResolution !== null &&
-                  'state' in message.userQuestionResolution &&
-                  message.userQuestionResolution.state === 'cancelled')
-              )
+              if (!message.body?.toLocaleLowerCase().includes(query) || hiddenChatMessage(message))
                 continue;
               messages.push({
                 key: JSON.stringify([key, message.id]),
@@ -155,10 +148,12 @@ export function createRetainedSearch(port: {
       };
     },
     enter(scope: string) {
+      interaction++;
       snapshot = { ...snapshot, scope, query: '', scroll: 0 };
       void search(true);
     },
     query(query: string) {
+      interaction++;
       snapshot = { ...snapshot, query, scroll: 0 };
       return search(true);
     },
@@ -167,6 +162,7 @@ export function createRetainedSearch(port: {
     },
     refresh: () => search(),
     setActive(value: boolean) {
+      if (active !== value) interaction++;
       active = value;
       if (value) void search();
       else version++;
@@ -183,12 +179,12 @@ export function createRetainedSearch(port: {
       void search();
     },
     async resolve(hit: SearchHit): Promise<'available' | 'missing' | 'detached'> {
-      const current = version;
+      const current = interaction;
       const allowed = () =>
         sources().some((source) => computerCacheKey(source) === computerCacheKey(hit.source));
       if (!allowed()) return 'detached';
       const record = await port.read(hit.source, hit.target).catch(() => undefined);
-      if (current !== version || !allowed()) return 'detached';
+      if (current !== interaction || !allowed()) return 'detached';
       return record &&
         (!hit.message || record.entries.some(({ message }) => message.id === hit.message!.id))
         ? 'available'

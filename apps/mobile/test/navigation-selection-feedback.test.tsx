@@ -11,6 +11,7 @@ const navigation = vi.hoisted(() => ({
   navigate: vi.fn(),
   emit: vi.fn(),
 }));
+vi.mock('../src/host/native-retained-search', () => ({ retainedSearch: { enter() {} } }));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Platform: {

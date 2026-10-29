@@ -11,6 +11,7 @@ import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { useFloatingTabInset } from '../shell/floating-tab-inset';
 import { useStrings } from '../strings';
+import { Button } from '../primitives/button';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 
 type Row =
@@ -147,13 +148,13 @@ export function SearchScreen() {
               <Text variant="meta" tone="warning">
                 {t.localSearch.unavailable(snapshot.unavailable.join(', '))}
               </Text>
-              <Pressable
-                accessibilityRole="button"
+              <Button
+                label={t.retry}
+                variant="text"
+                fit
+                testID="retained-search-retry"
                 onPress={() => void retainedSearch.refresh()}
-                style={{ minHeight: theme.touch, justifyContent: 'center' }}
-              >
-                <Text tone="accent">{t.retry}</Text>
-              </Pressable>
+              />
             </View>
           )}
           {error && <Text tone="warning">{error}</Text>}
