@@ -57,7 +57,12 @@ it('preserves the real child identity when streaming completes and restarts', as
   expect(host.querySelectorAll('input')).toHaveLength(1);
   expect(mounts).toBe(1);
   expect(native.props.map(({ active }) => active)).toEqual([true, false, true]);
-  expect(native.props[0]).toMatchObject({ corners: [16, 16, 16, 4], duration: 120, mass: 1 });
+  expect(native.props[0]).toMatchObject({
+    corners: [16, 16, 16, 4],
+    duration: 120,
+    surfaceColor: 4294967295,
+    mass: 1,
+  });
 });
 
 it('keeps old native binaries readable without the new module', async () => {

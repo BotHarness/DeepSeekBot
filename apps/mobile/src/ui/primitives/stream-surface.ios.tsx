@@ -38,7 +38,7 @@ export function StreamSurface({ active, style, ...props }: ViewProps & { active:
       {...props}
       active={active}
       duration={streamReveal.surfaceDuration}
-      surfaceColor={color}
+      surfaceColor={color >>> 0}
       corners={corners}
       mass={spring.effects.fast.mass}
       stiffness={spring.effects.fast.stiffness}
