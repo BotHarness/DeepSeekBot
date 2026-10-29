@@ -1,7 +1,7 @@
 import { Host, type PrimitiveBaseProps } from '@expo/ui/jetpack-compose';
 import { testID } from '@expo/ui/jetpack-compose/modifiers';
 import { requireNativeView } from 'expo';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Keyboard, View, useWindowDimensions, type ViewInstance } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import { useDesignTheme } from '../design/theme';
@@ -43,7 +43,7 @@ function BackWhileOpen({ onBack }: { onBack(): void }) {
       return true;
     });
     return () => back.remove();
-  }, []);
+  }, [onBack]);
   return <View ref={mount} />;
 }
 
@@ -55,12 +55,16 @@ export function CreationMenuButton(props: CreationMenuButtonProps) {
   const [open, setOpen] = useState(false);
   const [sized, setSized] = useState(false);
   const [parent, setParent] = useState<CreationMenuItem>();
-  const close = () => {
+  const close = useCallback(() => {
     setOpen(false);
     setParent(undefined);
     if (reduced) setSized(false);
     else setTimeout(() => setSized(false), fab.menuSettle);
-  };
+  }, [reduced]);
+  const goBack = useCallback(() => {
+    if (parent) setParent(undefined);
+    else close();
+  }, [parent, close]);
   const entries: {
     key: string;
     label: string;
@@ -72,7 +76,12 @@ export function CreationMenuButton(props: CreationMenuButtonProps) {
       (item): { key: string; label: string; icon: FabMenuIcon; item: CreationMenuItem } => ({
         key: item.key,
         label: item.label,
-        icon: parent ? (item.target?.kind === 'cloud' ? 'cloud' : 'computer') : item.action,
+        icon:
+          parent && parent.action !== 'import'
+            ? item.target?.kind === 'cloud'
+              ? 'cloud'
+              : 'computer'
+            : item.action,
         item,
       }),
     ),
@@ -85,7 +94,7 @@ export function CreationMenuButton(props: CreationMenuButtonProps) {
     }
     const item = entries.find((entry) => entry.key === key)?.item;
     if (item === undefined) return;
-    if (item.children) {
+    if (item.action === 'import' || item.children) {
       setParent(item);
       return;
     }
@@ -103,7 +112,7 @@ export function CreationMenuButton(props: CreationMenuButtonProps) {
           : { width: props.size, height: props.size }
       }
     >
-      {open ? <BackWhileOpen onBack={close} /> : null}
+      {open ? <BackWhileOpen onBack={goBack} /> : null}
       <Host colorScheme={theme.scheme} seedColor={theme.color.accent} style={{ flex: 1 }}>
         <NativeFabMenu
           modifiers={[testID('creation-fab-menu')]}

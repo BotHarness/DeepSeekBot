@@ -27,9 +27,9 @@ describe('source-bound creation choices', () => {
     expect(creationActions('all', targets)).toEqual([
       'bot',
       'zip',
-      'marketplace',
       'git',
       'channel',
+      'marketplace',
       'join',
     ]);
     expect(targetsFor('channel', 'all', targets).map((t) => t.kind)).toEqual(['computer', 'cloud']);
@@ -41,9 +41,9 @@ describe('source-bound creation choices', () => {
     expect(creationActions(computerEnvironmentKey('mac'), targets)).toEqual([
       'bot',
       'zip',
-      'marketplace',
       'git',
       'channel',
+      'marketplace',
     ]);
   });
   it('does not fall back to All for a removed source, member or channel-only guest', () => {
@@ -54,7 +54,7 @@ describe('source-bound creation choices', () => {
       computerEnvironmentKey('other'),
     ])
       expect(creationActions(scope, targets)).toEqual([]);
-    expect(creationActions('all', [])).toEqual(['bot', 'zip', 'marketplace', 'git', 'join']);
+    expect(creationActions('all', [])).toEqual(['bot', 'zip', 'git', 'marketplace', 'join']);
   });
   it('distinguishes same-name targets without granting access through their labels', () => {
     const list = creationTargets(undefined, [

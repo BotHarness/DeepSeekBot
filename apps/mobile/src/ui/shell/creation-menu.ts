@@ -8,10 +8,11 @@ import {
 import { cloudAvailable } from '../../cloud/available';
 import { t } from '../strings';
 
-export const creationLabel = (action: CreationAction) =>
+export const creationLabel = (action: CreationAction | 'import') =>
   ({
     channel: t.newChannel,
     bot: t.botCreation.blank,
+    import: t.botCreation.importBot,
     zip: t.botCreation.fromZip,
     marketplace: t.marketplace.browse,
     git: t.botCreation.fromGit,
@@ -36,9 +37,16 @@ export function useCreationMenu({
   onPick,
 }: Pick<CreationPanelProps, 'scope' | 'targets' | 'onPick'>) {
   const [choosing, setChoosing] = useState<CreationAction>();
-  const actions = creationActions(scope, targets).filter((a) => cloudAvailable || a !== 'join');
+  const [importing, setImporting] = useState(false);
+  const available = creationActions(scope, targets).filter((a) => cloudAvailable || a !== 'join');
+  const actions = importing
+    ? available.filter((action) => action === 'zip' || action === 'git')
+    : available.flatMap((action): (CreationAction | 'import')[] =>
+        action === 'zip' ? ['import'] : action === 'git' ? [] : [action],
+      );
   const choices = choosing ? targetsFor(choosing, scope, targets) : [];
-  const pick = (action: CreationAction) => {
+  const pick = (action: CreationAction | 'import') => {
+    if (action === 'import') return setImporting(true);
     if (action === 'join') return onPick(action);
     if (['bot', 'zip', 'marketplace', 'git'].includes(action))
       return onPick(action, scope === 'all' ? undefined : targetsFor(action, scope, targets)[0]);
@@ -46,5 +54,5 @@ export function useCreationMenu({
     const target = targetsFor(action, scope, targets)[0];
     if (target) onPick(action, target);
   };
-  return { choosing, setChoosing, actions, choices, pick };
+  return { choosing, setChoosing, importing, setImporting, actions, choices, pick };
 }
