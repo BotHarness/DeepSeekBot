@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { remotes, secure } from './host-session-fixture';
 import { FakeHost } from './fake-host';
+import { createHostClient } from '../src/host/client';
 import type { Conversation, ConversationTimelineSnapshot } from '../src/host/conversation';
 
 vi.mock('expo-router', async () => {
@@ -314,10 +315,102 @@ it('retains offline content until reconnect confirms the open group was disbande
   expect(view.channel.followerCount).toBe(0);
 });
 
+it('does not treat the first roster load as a deleted conversation', async () => {
+  const host = new FakeHost('loading');
+  const channelId = 'loading-group';
+  let resolveChannels: (value: { channels: [] }) => void = () => {};
+  host.methods.set(
+    'channels',
+    () =>
+      new Promise((resolve) => {
+        resolveChannels = resolve;
+      }),
+  );
+  const client = createHostClient({
+    routes: ['https://loading.tailnet.ts.net'],
+    credential: host.credential,
+    carrier: host.carrier,
+  });
+  function LoadingScreen() {
+    current = hooks.useChannelConversation(client, channelId);
+    return null;
+  }
+  try {
+    act(() => {
+      client.start();
+      root.render(<LoadingScreen />);
+    });
+    await flush();
+    expect(host.calls.some((call) => call.method === 'channels')).toBe(true);
+    expect(client.getSnapshot().roster).toBeUndefined();
+    expect(current).toBeDefined();
+    await act(async () => resolveChannels({ channels: [] }));
+    await flush();
+    expect(client.getSnapshot().roster).toBeDefined();
+    expect(current).toBeUndefined();
+  } finally {
+    act(() => client.stop());
+  }
+});
+
+it('keeps the open conversation while a roster refresh is pending', async () => {
+  const view = await open();
+  await view.send();
+  await view.settle();
+  const owner = current;
+  let resolveChannels: (value: { channels: [] }) => void = () => {};
+  hosts.a.methods.set(
+    'channels',
+    () =>
+      new Promise((resolve) => {
+        resolveChannels = resolve;
+      }),
+  );
+  let refresh: Promise<void> | undefined;
+  act(() => {
+    refresh = hooks.hostSession.getHost('a')!.client.refresh();
+  });
+  await flush();
+  expect(current).toBe(owner);
+  expect(container.textContent).toContain('Keep my pending message');
+  expect(view.channel.followerCount).toBe(1);
+  await act(async () => {
+    resolveChannels({ channels: [] });
+    await refresh;
+  });
+  expect(current).toBeUndefined();
+  expect(snapshot.messages).toEqual([]);
+  expect(view.channel.followerCount).toBe(0);
+});
+
+it('does not infer disband from a failed roster refresh', async () => {
+  const view = await open();
+  await view.send();
+  await view.settle();
+  const owner = current;
+  hosts.a.methods.set('channels', () => {
+    throw new Error('Roster temporarily unavailable');
+  });
+  await act(async () => {
+    await expect(hooks.hostSession.getHost('a')!.client.refresh()).rejects.toThrow();
+  });
+  expect(current).toBe(owner);
+  expect(container.textContent).toContain('Keep my pending message');
+  hosts.a.methods.set('channels', () => ({
+    channels: [{ id: view.channelId, type: 'group', name: 'Test conversation', members: [] }],
+  }));
+  await act(async () => hooks.hostSession.getHost('a')!.client.refresh());
+  expect(current).toBe(owner);
+  expect(view.channel.followerCount).toBe(1);
+});
+
 it('keeps an activity-only conversation available without rerendering on unchanged membership', async () => {
   const view = await open('dm');
   await view.send();
   await view.settle();
+  const roster = hooks.hostSession.getHost('a')!.client.getSnapshot().roster!;
+  expect(roster.channels).toEqual([]);
+  expect(roster.activityChannels).toEqual([expect.objectContaining({ id: view.channelId })]);
   const owner = current;
   const renders = screenRenders;
   for (let refresh = 0; refresh < 3; refresh++) {
