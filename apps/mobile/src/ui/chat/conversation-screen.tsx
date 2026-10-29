@@ -393,6 +393,27 @@ function ChatConversation({
     ? undefined
     : host.roster?.activityChannels?.find((entry) => entry.id === channelId);
   const botDm = channelDetails?.type === 'dm' && channelDetails.botSlug === undefined;
+  const [lastChannelName, setLastChannelName] = useState({
+    hostId: saved?.hostId,
+    channelId,
+    name: channel?.name,
+  });
+  useLayoutEffect(() => {
+    if (channel !== undefined) {
+      setLastChannelName((previous) =>
+        previous.hostId === saved?.hostId &&
+        previous.channelId === channelId &&
+        previous.name === channel.name
+          ? previous
+          : { hostId: saved?.hostId, channelId, name: channel.name },
+      );
+    }
+  }, [saved?.hostId, channelId, channel?.name]);
+  const channelName =
+    lastChannelName.hostId === saved?.hostId && lastChannelName.channelId === channelId
+      ? lastChannelName.name
+      : undefined;
+
   const target = useMemo(
     () =>
       slug === undefined
@@ -1248,7 +1269,7 @@ function ChatConversation({
       channel={channel}
       working={working}
       connectionLabel={connectionLabel}
-      fallback={channelId ?? ''}
+      fallback={channelName ?? t.groupInfo}
       onPress={openProfile}
     />
   );
@@ -1692,8 +1713,9 @@ function ChatConversation({
                   viewportLayout.value += 1;
                 }}
               >
-                {(!latest.ready && rows.length > 0) ||
-                (snapshot.status === 'opening' && rows.length === 0) ? (
+                {!missing &&
+                ((!latest.ready && rows.length > 0) ||
+                  (snapshot.status === 'opening' && rows.length === 0)) ? (
                   <View
                     pointerEvents={latest.canRetry ? 'auto' : 'none'}
                     style={{
