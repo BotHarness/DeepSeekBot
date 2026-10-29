@@ -179,13 +179,14 @@ export function PullToTob({
     transform: [{ translateY: Math.min(distance.value, tobPull.maxTravel) }],
   }));
 
-  if (!enabled || drawer) return children({ onScroll });
-  if (hostId === undefined)
+  if (hostId === undefined) {
+    if (!enabled || drawer) return children({ onScroll });
     return (
       <PullToRefresh refreshing={refreshing} onRefresh={onRefresh}>
         {(pull) => children({ ...pull, onScroll })}
       </PullToRefresh>
     );
+  }
   if (!android)
     return (
       <View ref={mount} style={{ flex: 1 }} testID="pull-to-tob">

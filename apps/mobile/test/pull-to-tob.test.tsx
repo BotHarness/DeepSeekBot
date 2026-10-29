@@ -147,6 +147,29 @@ beforeEach(() => {
 afterEach(() => act(() => root?.unmount()));
 
 describe('iOS pull events through the real Chats pull component', () => {
+  it.each(['ios', 'android'])(
+    'keeps the hosted list mounted across focus/search/drawer changes on %s',
+    async (os) => {
+      state.os = os;
+      await mount();
+      const list = Array.from(view.querySelectorAll('div')).find(
+        (node) => node.textContent === 'Chats' && node.children.length === 0,
+      );
+      if (list === undefined) throw new Error('Chats list missing');
+      for (const [enabled, drawer] of [
+        [false, false],
+        [true, false],
+        [true, true],
+        [true, false],
+      ] as const) {
+        state.enabled = enabled;
+        state.drawer = drawer;
+        await act(async () => root?.render(<Harness />));
+        expect(view.contains(list)).toBe(true);
+      }
+    },
+  );
+
   it('opens once on release and gives one threshold haptic across recrossings', async () => {
     await mount();
     send('onBeginDrag', 0);
