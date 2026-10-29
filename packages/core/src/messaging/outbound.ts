@@ -96,6 +96,7 @@ import { createMessagingTyping, type MessagingProcessing } from './typing.js';
 import { createMessagingFeedback, type SourceFeedback } from './feedback.js';
 import { createBotSourcePolicyStore, type BotSourcePolicyStore } from '../runtime/source-policy.js';
 import type { DatabaseSync } from 'node:sqlite';
+import { CONNECTOR_TYPES as TELEMETRY_CONNECTOR_TYPES } from '../telemetry/events.js';
 import type { TelemetryCapture } from '../telemetry/service.js';
 import { OperationalDatabaseError, type OperationalDatabaseModulePort } from '../database/owner.js';
 import {
@@ -393,7 +394,9 @@ export interface OutboundMessaging {
 
 type StoredIntent = OutboxIntent & { requestId: string; payloadHash: string };
 
-const CONNECTOR_TYPES = new Set(['feishu', 'lark', 'slack', 'discord', 'weixin']);
+const CONNECTOR_TYPES = new Set<string>(
+  TELEMETRY_CONNECTOR_TYPES.filter((type) => type !== 'other'),
+);
 
 export function connectorType(platform: string): string {
   const normalized = platform.trim().toLowerCase();
@@ -424,7 +427,7 @@ export function createOutboundMessaging(options: {
   const { database } = options;
   const connectorEnabled = (platform: string): void => {
     try {
-      options.capture?.('connector_enabled', { type: connectorType(platform) });
+      options.capture?.('im:connector_enable', { type: connectorType(platform) });
     } catch {
       return;
     }

@@ -72,6 +72,7 @@ import type { HttpsFallback } from '../memory/clone.js';
 import {
   ContentPurgeError,
   type ContentPurge,
+  type GroupDisbandResult,
   type ChannelHistoryItem,
   type PurgeSource,
   type PurgePreview,
@@ -145,7 +146,11 @@ import type {
   MarketplaceSection,
   MarketplaceTopic,
 } from '../marketplace/client.js';
-import { MARKETPLACE_DIGEST_DAY, MARKETPLACE_SECTIONS } from '../marketplace/client.js';
+import {
+  MARKETPLACE_DIGEST_DAY,
+  MARKETPLACE_INSTALL_SOURCES,
+  MARKETPLACE_SECTIONS,
+} from '../marketplace/client.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
 import type {
   MarketplaceAccount,
@@ -183,6 +188,13 @@ import type {
   PluginUpdateService,
   PluginUpdates,
 } from '../release/plugins.js';
+import type { ActiveDay } from '../telemetry/active-day.js';
+import {
+  isClientTelemetryEventName,
+  telemetryEventProperties,
+  type TelemetryEventName,
+  type TelemetrySurface,
+} from '../telemetry/events.js';
 import type { TelemetryCapture, TelemetryStatus } from '../telemetry/service.js';
 import {
   AssignmentReplyTargetError,
@@ -612,7 +624,7 @@ export interface BridgeMethods {
   onboarding(payload: unknown): Promise<BridgeResult<OnboardingSnapshot>>;
   modelPlanInherit(payload: unknown): BridgeResult<{ revision: number }>;
   onboardingModel(payload: unknown): Promise<BridgeResult<{ revision: number }>>;
-  introEvent(payload: unknown): BridgeResult<null>;
+  telemetryEvent(payload: unknown): BridgeResult<null>;
   channelRetry(payload: unknown): Promise<BridgeResult<{ accepted: true }>>;
   botNewSession(payload: unknown): Promise<BridgeResult<{ started: true }>>;
   botCompact(payload: unknown): Promise<BridgeResult<ManualCompactionResult>>;
@@ -752,7 +764,7 @@ export interface BridgeMethods {
   channelGroupSendReview(payload: unknown): BridgeResult<{ enabled: boolean }>;
   channelGroupWakePolicies(payload: unknown): BridgeResult<{ members: GroupMemberWakePolicy[] }>;
   channelGroupWakeSet(payload: unknown): BridgeResult<{ channel: ChannelRecord }>;
-  channelGroupDelete(payload: unknown): BridgeResult<{ deleted: boolean }>;
+  channelGroupDelete(payload: unknown): BridgeResult<{ deleted: boolean } & GroupDisbandResult>;
   channelHistory(payload: unknown): BridgeResult<{ channels: ChannelHistoryItem[] }>;
   channelHistorySources(
     payload: unknown,
@@ -1181,6 +1193,7 @@ export interface BridgeMethodsDeps {
     setPreference(enabled: boolean): TelemetryStatus;
     capture?: TelemetryCapture;
   };
+  activeDay?: ActiveDay;
   git?: Pick<GitService, 'status' | 'install'>;
 }
 
@@ -1357,15 +1370,13 @@ function releaseUnavailable(): BridgeResult<never> {
   };
 }
 
-const INTRO_STEP_IDS = ['welcome', 'theme', 'model', 'community', 'start'];
-const INTRO_EVENTS: Record<string, Record<string, readonly string[] | 'boolean'>> = {
-  intro_shown: {},
-  intro_step_viewed: { step: INTRO_STEP_IDS },
-  intro_dismissed: { step: INTRO_STEP_IDS, via: ['skip', 'close'] },
-  intro_completed: { starter: ['botPrompt', 'firstRequest', 'exampleRequest', 'own'] },
-  intro_theme_changed: { setting: ['scheme', 'preset', 'layout', 'wallpaper'] },
-  intro_model_saved: { advanced: 'boolean' },
-  intro_community_clicked: { target: ['github', 'discord', 'qq'] },
+const TUTORIAL_EVENTS: Record<TutorialAction, TelemetryEventName> = {
+  start: 'onboarding:tutorial_start',
+  pause: 'onboarding:tutorial_pause',
+  skip: 'onboarding:tutorial_skip',
+  continue: 'onboarding:tutorial_resume',
+  restart: 'onboarding:tutorial_restart',
+  finish: 'onboarding:tutorial_complete',
 };
 
 function telemetryUnavailable(): BridgeResult<never> {
@@ -2590,7 +2601,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           action as TutorialAction | undefined,
         );
         if (action !== undefined)
-          deps.telemetry?.capture?.('tutorial_action', { action: String(action) });
+          deps.telemetry?.capture?.(TUTORIAL_EVENTS[action as TutorialAction]);
         const newsAvailable =
           (await deps
             .onboardingNews?.(asSlug(payload) ?? value.defaultBotSlug)
@@ -2615,26 +2626,20 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (!result.ok) return invalidInput('Bot model changed; reopen before saving');
       return { ok: true, value: { revision: result.record.modelPlanRevision ?? 0 } };
     },
-    introEvent(payload) {
+    telemetryEvent(payload) {
       const source = asObject(payload);
       const event = source['event'];
-      const shape =
-        typeof event === 'string' && Object.hasOwn(INTRO_EVENTS, event)
-          ? INTRO_EVENTS[event as keyof typeof INTRO_EVENTS]
-          : undefined;
-      if (shape === undefined) return invalidInput('Unknown intro event');
-      const properties: Record<string, string | boolean> = {};
-      for (const [key, allowed] of Object.entries(shape)) {
-        const value = source[key];
-        if (
-          allowed === 'boolean'
-            ? typeof value !== 'boolean'
-            : typeof value !== 'string' || !allowed.includes(value)
-        )
-          return invalidInput(`Invalid intro event ${key}`);
-        properties[key] = value as string | boolean;
+      if (!isClientTelemetryEventName(event)) return invalidInput('Unknown telemetry event');
+      const properties = telemetryEventProperties(event, asObject(source['properties']));
+      if (properties === undefined) return invalidInput('Invalid telemetry event properties');
+      deps.telemetry?.capture?.(event, properties);
+      if (event === 'app:bot_mode_enter') {
+        const surface = properties['surface'];
+        deps.activeDay?.mark(
+          'bot_mode_enter',
+          typeof surface === 'string' ? (surface as TelemetrySurface) : undefined,
+        );
       }
-      deps.telemetry?.capture?.(event as string, properties);
       return { ok: true, value: null };
     },
     async onboardingModel(payload) {
@@ -3652,7 +3657,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (listingId !== undefined) sendReceipt(listingId.trim());
       if (source['origin'] === 'marketplace') {
         try {
-          deps.telemetry?.capture?.('marketplace_bot_installed');
+          deps.telemetry?.capture?.('marketplace:bot_install');
         } catch {}
       }
       return {
@@ -4026,8 +4031,13 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     },
     async marketplaceInstall(payload) {
       if (deps.marketplaceInstallReviews === undefined) return marketplaceUnavailable();
-      const { id, reviewId, operationKey } = asObject(payload);
+      const { id, reviewId, operationKey, source: installSource } = asObject(payload);
       if (typeof id !== 'string' || id.trim().length === 0) return invalidInput('id is required');
+      if (
+        installSource !== undefined &&
+        !(MARKETPLACE_INSTALL_SOURCES as readonly unknown[]).includes(installSource)
+      )
+        return invalidInput('invalid source');
       if (typeof reviewId !== 'string' || reviewId.length === 0)
         return {
           ok: false,
@@ -4050,7 +4060,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         );
         sendReceipt(prepared.value.listing.id);
         try {
-          deps.telemetry?.capture?.('marketplace_bot_installed');
+          deps.telemetry?.capture?.(
+            'marketplace:bot_install',
+            typeof installSource === 'string' ? { entry: installSource } : undefined,
+          );
         } catch {}
         const listing = prepared.value.listing;
         const marked = deps.registry.setMarketplaceListing(created.record.slug, {
@@ -5482,12 +5495,37 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     channelGroupDelete(payload) {
       const channelId = asNonBlank(asObject(payload), 'channelId');
       if (channelId === undefined) return invalidInput('channelId is required');
+      const purge = deps.contentPurge;
+      if (!purge) return unavailable();
+      let ended: boolean;
       try {
-        deps.channels.deleteGroup(channelId);
-        deps.externalMessaging?.inbound.endChannel(channelId);
-        return { ok: true, value: { deleted: true } };
+        ended = purge.history().some((channel) => channel.id === channelId);
       } catch (error) {
-        return invalidInput(String(error));
+        return purgeFailure(error, 'Channel history is unavailable');
+      }
+      if (!ended)
+        try {
+          deps.channels.deleteGroup(channelId);
+          deps.externalMessaging?.inbound.endChannel(channelId);
+          void deps.runtime
+            ?.endGroup?.(channelId)
+            .catch((error: unknown) =>
+              deps.warn?.(`botharness.group_disband.stop_turns_failed error=${String(error)}`),
+            );
+          deps.toolApproval?.cancelChannel(channelId);
+          deps.userQuestions?.cancelChannel(channelId);
+        } catch (error) {
+          return invalidInput(String(error));
+        }
+      void deps.roster
+        .channelForget(channelId)
+        .catch((error: unknown) =>
+          deps.warn?.(`botharness.group_disband.roster_failed error=${String(error)}`),
+        );
+      try {
+        return { ok: true, value: { deleted: true, ...purge.disband(channelId) } };
+      } catch (error) {
+        return purgeFailure(error, 'The group was disbanded, but its messages were not deleted');
       }
     },
     channelMessages(payload) {

@@ -1,3 +1,4 @@
+import { chatHref } from '../../../src/ui/shell/recent-chats';
 import { HostRow } from '../../../src/ui/chat/host-conversation-row';
 import { renderKeyboardFormScroll } from '../../../src/ui/primitives/keyboard-form';
 import {
@@ -59,6 +60,7 @@ import { LastChatPreview, LastChatSwipe } from '../../../src/ui/shell/last-chat-
 import { useWorkspacePanel } from '../../../src/ui/shell/use-workspace-panel';
 import { recentHostIds, useRecentChats } from '../../../src/ui/shell/recent-chats';
 import { tobComputer, tobModeHostId, tobModeHref } from '../../../src/ui/shell/tob-mode-model';
+import { recordFeature } from '../../../src/telemetry/features';
 import {
   chatsSearchResults,
   messageSearchResults,
@@ -228,7 +230,9 @@ const HomeContent = memo(function HomeContent({
         label={t.openTobMode}
         testID="tob-mode-button"
         onPress={() => {
-          if (tobHref !== undefined) router.push(tobHref);
+          if (tobHref === undefined) return;
+          recordFeature('tob:mode_open', {});
+          router.push(tobHref);
         }}
       />
     );
@@ -378,6 +382,7 @@ const HomeContent = memo(function HomeContent({
       ? [...displayed, { type: 'message-heading', key: 'message-heading' }, ...messageItems]
       : displayed;
   const openMessage = ({ hit, host, conversation }: MessageItem) => {
+    recordFeature('search:result_open', { kind: 'message' });
     if (
       !navigateChannel(
         navigation,
@@ -422,35 +427,44 @@ const HomeContent = memo(function HomeContent({
         ['connecting', 'reconnecting'].includes(host.snapshot.connection.status),
     ) ||
     (includesCloud && cloud.rows.some((row) => row.hasSession) && !directory.ready && !cloudFailed);
+  const screen = <Stack.Screen options={{ title: environment.title, headerShown: false }} />;
   if (saved === undefined || (!cloud.ready && !cloud.error && displayed.length === 0))
-    return <ListSkeleton />;
+    return (
+      <>
+        {screen}
+        <ListSkeleton />
+      </>
+    );
   if (saved === null && cloud.rows.length === 0)
     return cloudAvailable ? (
       <Redirect href="/cloud-join" />
     ) : (
-      <View
-        testID="home-unpaired"
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: space.x6,
-          gap: space.x4,
-        }}
-      >
-        <Text variant="title" strong style={{ textAlign: 'center' }}>
-          {t.pairChoice.emptyTitle}
-        </Text>
-        <Text tone="muted" style={{ textAlign: 'center' }}>
-          {t.pairChoice.emptyBody}
-        </Text>
-        <Button
-          label={t.pairChoice.emptyAction}
-          tone="primary"
-          on="canvas"
-          onPress={() => router.push('/pair')}
-        />
-      </View>
+      <>
+        {screen}
+        <View
+          testID="home-unpaired"
+          style={{
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: space.x6,
+            gap: space.x4,
+          }}
+        >
+          <Text variant="title" strong style={{ textAlign: 'center' }}>
+            {t.pairChoice.emptyTitle}
+          </Text>
+          <Text tone="muted" style={{ textAlign: 'center' }}>
+            {t.pairChoice.emptyBody}
+          </Text>
+          <Button
+            label={t.pairChoice.emptyAction}
+            tone="primary"
+            on="canvas"
+            onPress={() => router.push('/pair')}
+          />
+        </View>
+      </>
     );
   const refresh = async (target?: ConnectedHost) => {
     setRefreshing(true);
@@ -527,7 +541,7 @@ const HomeContent = memo(function HomeContent({
   };
   return (
     <>
-      <Stack.Screen options={{ title: environment.title, headerShown: false }} />
+      {screen}
       <HostDrawerEdge anywhere enabled={showWorkspaces === undefined}>
         <HomeHeader
           environment={environment}
@@ -573,20 +587,31 @@ const HomeContent = memo(function HomeContent({
                 onPress={() => setSearching(true)}
               />
               {tobAction}
-              {Platform.OS !== 'ios' && Platform.OS !== 'android' && (
-                <HeaderAction
-                  icon="settings"
-                  label={t.settings}
-                  testID="settings-button"
-                  onPress={() => router.push('/settings')}
-                />
-              )}
             </>
           }
         >
           {(headerTravel) => (
             <LastChatSwipe
               enabled={!searching && !searchFocused && query === ''}
+              candidates={displayed.flatMap((row) =>
+                row.type !== 'computer'
+                  ? []
+                  : [
+                      {
+                        id: row.key,
+                        title:
+                          row.conversation.kind === 'bot'
+                            ? row.conversation.bot.displayName
+                            : row.conversation.channel.name,
+                        href: chatHref(
+                          row.conversation.kind === 'bot'
+                            ? `/dm/${encodeURIComponent(row.conversation.bot.slug)}`
+                            : `/channel/${encodeURIComponent(row.conversation.channel.id)}`,
+                          row.host.saved.hostId,
+                        ),
+                      },
+                    ],
+              )}
               travel={lastChatTravel}
             >
               <PullToTob

@@ -113,6 +113,13 @@ export const materialButton = { icon: 18, iconGap: space.x3 } as const;
 export const stepBar = { height: { ios: 52, android: 56 }, gap: space.x3 } as const;
 
 export const creationAvatar = { size: 112 } as const;
+export const avatarEditor = {
+  preview: 112,
+  tile: 64,
+  color: 40,
+  columns: 3,
+  largeColumns: 2,
+} as const;
 export const creationHeader = {
   avatar: 40,
   progressSpring: {
@@ -367,16 +374,28 @@ export const marketplaceArt = {
   menuWidth: 360,
 } as const;
 
+export const marketplaceHome = {
+  compactRows: 3,
+  heroCover: 168,
+  posterWidth: 168,
+  posterAspect: 2 / 3,
+  posterAvatar: 40,
+  compactAvatar: 48,
+  coverAvatar: 28,
+  heroAvatar: 32,
+  articleAvatar: 36,
+  articleCover: 200,
+  gridColumns: 2,
+  gridCoverAspect: 1,
+  dateMark: 48,
+} as const;
+
 export const profileShell = {
   avatar: 72,
   avatarEdge: 3,
   bannerAspect: 3,
   overlap: 28,
   chipOverlap: 12,
-  stuckTabsShadow: {
-    light: '0 2px 8px rgba(15, 17, 21, 0.12)',
-    dark: '0 2px 8px rgba(0, 0, 0, 0.45)',
-  },
 } as const;
 
 export const channelMedia = {

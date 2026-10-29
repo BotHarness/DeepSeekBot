@@ -286,6 +286,20 @@
       "commands": ["human-identity", "human-name-set", "channel-human-name-set"]
     },
     {
+      "id": "account-profile",
+      "description": "Account Profile name and photo shown on Marketplace uploads, plus the signed-in email and Author ID.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/account-profile-settings.tsx:{<label htmlFor=\"bh-account-name\">{t('accountProfile.name')}</label>}",
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.email')}",
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.id')}",
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.loadFailed')}",
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.photo')}",
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.signInHint')}"
+      ],
+      "commands": ["marketplace-account", "marketplace-author", "marketplace-author-avatar"]
+    },
+    {
       "id": "channel-history",
       "description": "Channel history and reviewed purge.",
       "scope": "Host",

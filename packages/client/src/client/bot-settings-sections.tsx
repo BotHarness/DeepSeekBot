@@ -6,6 +6,8 @@ import type { ReactElement, ReactNode } from 'react';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type { BridgeActions } from './actions.js';
+import { AccountProfileSettings } from './account-profile-settings.js';
+import type { ConnectSignInCode } from './connect-sign-in.js';
 import { ApprovalReviewerModelSetting } from './approval-reviewer-model-setting.js';
 import {
   AssignmentConcurrencyRow,
@@ -57,6 +59,16 @@ export type MessagingSectionFace = BotModePrefsFace & {
   store: ClientStore;
   onSaved(): Promise<void>;
 };
+
+export function AccountSection(
+  props: SectionProps<{ actions: BridgeActions; startSignIn(): Promise<ConnectSignInCode> }>,
+): ReactElement {
+  return (
+    <Rows>
+      <AccountProfileSettings actions={props.actions} startSignIn={props.startSignIn} t={props.t} />
+    </Rows>
+  );
+}
 
 export function GeneralSection(props: SectionProps<GeneralSectionFace>): ReactElement {
   return (

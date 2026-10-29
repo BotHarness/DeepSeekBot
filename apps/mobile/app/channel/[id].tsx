@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from 'expo-router';
 
-import { ConversationScreen } from '../../src/ui/chat/conversation-screen';
+import { ConversationPages } from '../../src/ui/chat/conversation-pages';
 
 export default function ChannelScreen() {
   const { id, focus, focusRequest, focusWindow, hostId } = useLocalSearchParams<{
@@ -11,7 +11,7 @@ export default function ChannelScreen() {
     focusWindow?: string;
   }>();
   return (
-    <ConversationScreen
+    <ConversationPages
       expectedHostId={hostId}
       place={{ kind: 'channel', channelId: id }}
       focus={focus}

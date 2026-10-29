@@ -15,6 +15,7 @@ import type { PairingRequest, PairingReviewInput } from '../messaging/pairing.js
 import type { SenderAccessInput } from '../messaging/sender-access.js';
 import type {
   ChannelHistoryItem,
+  GroupDisbandResult,
   PurgeSource,
   PurgePreview,
   TextCleanupPreview,
@@ -665,8 +666,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
       }),
     );
   }
-  introEvent(event: string, properties: Record<string, string | boolean> = {}): null {
-    return unwrap(this.methods.introEvent({ ...properties, event }));
+  telemetryEvent(event: string, properties: Record<string, string | boolean> = {}): null {
+    return unwrap(this.methods.telemetryEvent({ event, properties }));
   }
   modelPlanInherit(slug: string, expectedRevision: number): { revision: number } {
     return unwrap(this.methods.modelPlanInherit({ slug, expectedRevision }));
@@ -1402,7 +1403,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.humanNameSet({ displayName }));
   }
 
-  channelGroupDelete(channelId: string): { deleted: boolean } {
+  channelGroupDelete(channelId: string): { deleted: boolean } & GroupDisbandResult {
     return unwrap(this.methods.channelGroupDelete({ channelId }));
   }
 
@@ -2408,7 +2409,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'tobHome',
   'onboarding',
   'onboardingModel',
-  'introEvent',
+  'telemetryEvent',
   'modelPlanInherit',
   'channelRetry',
   'botNewSession',

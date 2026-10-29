@@ -4,17 +4,19 @@ import Animated, { interpolate, useAnimatedStyle, type SharedValue } from 'react
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
-import { KeyboardIcon } from '../shell/icons';
+import { ChevronUpIcon, KeyboardIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 
 export function PullToComposeHint({
   progress,
   ready,
   bottom,
+  leaves = false,
 }: {
   progress: SharedValue<number>;
   ready: boolean;
   bottom: number;
+  leaves?: boolean;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -46,12 +48,25 @@ export function PullToComposeHint({
           style,
         ]}
       >
-        <KeyboardIcon
-          color={ready ? theme.color.fg : theme.color.muted}
-          size={theme.type.meta.line}
-        />
+        {leaves ? (
+          <ChevronUpIcon
+            color={ready ? theme.color.fg : theme.color.muted}
+            size={theme.type.meta.line}
+          />
+        ) : (
+          <KeyboardIcon
+            color={ready ? theme.color.fg : theme.color.muted}
+            size={theme.type.meta.line}
+          />
+        )}
         <Text variant="meta" tone={ready ? 'fg' : 'muted'} strong={ready}>
-          {ready ? t.releaseToCompose : t.pullToCompose}
+          {leaves
+            ? ready
+              ? t.releaseToLeave
+              : t.pullToLeave
+            : ready
+              ? t.releaseToCompose
+              : t.pullToCompose}
         </Text>
       </Animated.View>
     </View>

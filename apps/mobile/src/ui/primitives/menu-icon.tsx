@@ -7,6 +7,7 @@ const symbols = {
   delete: { ios: 'trash', android: 'delete' },
   settings: { ios: 'gearshape', android: 'settings' },
   computer: { ios: 'desktopcomputer', android: 'computer' },
+  connection: { ios: 'network', android: 'hub' },
   cloud: { ios: 'cloud', android: 'cloud' },
   close: { ios: 'xmark.circle', android: 'link_off' },
   person: { ios: 'person.crop.circle', android: 'account_circle' },

@@ -6,7 +6,10 @@ import type { HeaderSearchProps } from './header-search';
 export function HeaderSearch({
   value,
   placeholder,
+  testID,
+  maxLength,
   onChangeText,
+  onSubmitEditing,
   onFocusChange,
   onClose,
 }: HeaderSearchProps) {
@@ -16,15 +19,18 @@ export function HeaderSearch({
         floating
         autoFocus
         inset={0}
+        {...(testID === undefined ? {} : { testID })}
+        {...(maxLength === undefined ? {} : { maxLength })}
+        {...(onSubmitEditing ? { onSubmitEditing } : {})}
         value={value}
         placeholder={placeholder}
         onChangeText={onChangeText}
-        onFocus={() => onFocusChange(true)}
-        onBlur={() => onFocusChange(false)}
+        onFocus={() => onFocusChange?.(true)}
+        onBlur={() => onFocusChange?.(false)}
         onClose={() => {
           Keyboard.dismiss();
           onChangeText('');
-          onFocusChange(false);
+          onFocusChange?.(false);
           onClose();
         }}
       />

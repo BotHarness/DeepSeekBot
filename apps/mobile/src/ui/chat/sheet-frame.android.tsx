@@ -20,7 +20,12 @@ export function SheetFrame({ visible, label, onClose, children }: SheetFrameProp
       pointerEvents="box-none"
       style={StyleSheet.absoluteFill}
     >
-      <ModalBottomSheet onDismissRequest={onClose} skipPartiallyExpanded>
+      <ModalBottomSheet
+        onDismissRequest={onClose}
+        skipPartiallyExpanded
+        containerColor={theme.layer.sheet.fill}
+        contentColor={theme.color.fg}
+      >
         <RNHostView matchContents={{ vertical: true }}>
           <View
             accessibilityLabel={label}

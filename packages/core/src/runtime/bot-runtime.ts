@@ -26,7 +26,11 @@ import type {
   ThreadReceptionView,
 } from '../messaging/thread-policy.js';
 import type { GroupReceptionInput, GroupReceptionPolicy } from '../messaging/group-policy.js';
-import { requireSourceContent, requireSourceEffects } from '../purge/fence.js';
+import {
+  requireAssignmentSource,
+  requireSourceContent,
+  requireSourceEffects,
+} from '../purge/fence.js';
 import {
   OriginalAttachmentAccess,
   type OriginalAttachmentInput,
@@ -807,11 +811,13 @@ export interface BotRuntime {
 
   stopBot?(botSlug: string): Promise<void>;
   stopTurn?(botSlug: string): Promise<{ sessionId: string } | undefined>;
+  endGroup?(channelId: string): Promise<void>;
   whenIdle(): Promise<void>;
   close(): Promise<void>;
 }
 
 export interface BotRuntimeOptions {
+  onTobDelegation?: () => void;
   promptText?: (botSlug: string) => PromptText;
   promptLimits?: (botSlug: string) => PromptLimits;
   tob?: TobService;
@@ -1416,11 +1422,13 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #waitOptions: Pick<BotRuntimeOptions, 'database' | 'beginAssignmentWait'>;
   #closed = false;
   readonly #tob: TobService | undefined;
+  readonly #onTobDelegation: () => void;
   readonly #directToolCalls = new Map<string, DirectBotToolCall[]>();
 
   constructor(options: BotRuntimeOptions) {
     this.#waitOptions = options;
     this.#tob = options.tob;
+    this.#onTobDelegation = options.onTobDelegation ?? (() => {});
     this.#externalMessaging = options.externalMessaging;
     this.#database = attachOperationalModule(options.database, 'bot-runtime');
     this.#grants = options.grants;
@@ -4432,6 +4440,27 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   async stopTurn(botSlug: string): Promise<{ sessionId: string } | undefined> {
+    return this.#stopTurn(
+      botSlug,
+      `[Host: the Human stopped your previous turn at ${this.#now().toISOString()} before it finished. Do not resume that work unless they ask again.]\n\n`,
+    );
+  }
+
+  async endGroup(channelId: string): Promise<void> {
+    const at = this.#now().toISOString();
+    await Promise.all(
+      [...this.#turnSources]
+        .filter(([, turn]) => turn.inboundChannelId === channelId)
+        .map(([botSlug]) =>
+          this.#stopTurn(
+            botSlug,
+            `[Host: the Human disbanded the group your previous turn was answering at ${at}, and its messages were deleted. Do not continue that work.]\n\n`,
+          ),
+        ),
+    );
+  }
+
+  async #stopTurn(botSlug: string, notice: string): Promise<{ sessionId: string } | undefined> {
     const turn = this.#turnSources.get(botSlug);
     const active = this.#activeTurns.get(botSlug);
     if (this.#closed || turn === undefined || active === undefined) return undefined;
@@ -4439,10 +4468,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (sessionId === undefined) return undefined;
     this.#stoppedTurns.add(botSlug);
     this.groupSendReview.stop(botSlug);
-    this.#stopNotices.set(
-      botSlug,
-      `[Host: the Human stopped your previous turn at ${this.#now().toISOString()} before it finished. Do not resume that work unless they ask again.]\n\n`,
-    );
+    this.#stopNotices.set(botSlug, notice);
     await active.catch(() => undefined);
     return { sessionId };
   }
@@ -6192,7 +6218,7 @@ class BotRuntimeImplementation implements BotRuntime {
           `${sender.displayName} · ${target.displayName}`,
         );
         if (dm === undefined) throw new Error('Bot DM is unavailable');
-        return this.#sendBotDm({
+        const sent = await this.#sendBotDm({
           botSlug,
           recipientBotSlug: target.slug,
           channel: dm,
@@ -6205,6 +6231,7 @@ class BotRuntimeImplementation implements BotRuntime {
           replyTo: input.replyTo,
           deliveryKey: input.deliveryKey,
         });
+        return sent;
       },
       ignore: ({ channelId, messageId }) => {
         const channel = resolve(channelId);
@@ -7207,6 +7234,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (result.status === 'conflict') throw new Error('Bot DM delivery key has different content');
     input.afterSend?.();
     this.admitBotDmMessage(channel.id, result.message.id);
+    if (result.status === 'appended' && this.#tob?.isTob(botSlug)) this.#onTobDelegation();
     return { channelId: channel.id, message: result.message };
   }
 
@@ -7469,7 +7497,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#trackAssignmentRun(sessionId, () =>
       this.#agents.runAssignment({
         requireContent: () =>
-          this.#database.read((db) => requireSourceEffects(db, sourceEventId, bot.slug)),
+          this.#database.read((db) => requireAssignmentSource(db, sourceEventId, bot.slug)),
         sessionId,
         bot,
         text,
@@ -7559,7 +7587,7 @@ class BotRuntimeImplementation implements BotRuntime {
     }
     const run: AssignmentAgentRun = {
       requireContent: () =>
-        this.#database.read((db) => requireSourceEffects(db, row.source_event_id, bot.slug)),
+        this.#database.read((db) => requireAssignmentSource(db, row.source_event_id, bot.slug)),
       sessionId: input.sessionId,
       bot,
       text,

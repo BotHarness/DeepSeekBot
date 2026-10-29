@@ -108,15 +108,18 @@ vi.mock('expo-router', () => ({
         unstable_headerRightItems?: () => { label: string; identifier: string; onPress(): void }[];
       };
     }) =>
-      options
-        .unstable_headerRightItems?.()
-        .map((item) =>
-          createElement(
-            'button',
-            { key: item.identifier, 'aria-label': item.label, onClick: item.onPress },
-            item.label,
-          ),
-        ) ?? null,
+      options.unstable_headerRightItems?.().map((item) =>
+        createElement(
+          'button',
+          {
+            key: item.identifier,
+            'data-testid': item.identifier,
+            'aria-label': item.label,
+            onClick: item.onPress,
+          },
+          item.label,
+        ),
+      ) ?? null,
   },
   router: { push: fixture.push },
   useLocalSearchParams: () => fixture.params,
@@ -204,7 +207,8 @@ const button = (name: string) =>
 
 it('browses without a Host, changes sort and topics, then carries All to the detail page', async () => {
   await act(async () => root.render(<MarketplaceScreen />));
-  expect(element.querySelectorAll('[data-keyboard-safe]')).toHaveLength(1);
+  expect(element.querySelectorAll('[data-keyboard-safe]')).toHaveLength(0);
+  expect(element.querySelector('[data-testid="marketplace-search-button"]')).not.toBeNull();
   expect(element.querySelectorAll('[data-testid="marketplace-banner"]')).toHaveLength(1);
   expect(element.querySelectorAll('[data-testid="marketplace-avatar"]')).toHaveLength(1);
   expect(element.textContent).toContain('Writer');
@@ -300,9 +304,7 @@ it('exposes topic shortcuts and refreshes only after explicit search submission,
   });
   expect(fixture.fetch.mock.calls).toHaveLength(before);
   const submit = () =>
-    (
-      element.querySelector('[data-testid="marketplace-search-submit"]') as HTMLButtonElement
-    ).click();
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
   await act(async () => submit());
   expect(fixture.fetch.mock.calls.some(([url]) => String(url).includes('q=Writer'))).toBe(true);
   const submitted = fixture.fetch.mock.calls.length;
@@ -327,6 +329,27 @@ it('keeps all sorting choices operable at large text while preserving the topic'
   expect(button(t.marketplace.newest).getAttribute('aria-checked')).toBe('true');
   expect(last.searchParams.get('sort')).toBe('created');
   expect(last.searchParams.get('topic')).toBe('writing');
+});
+
+it('searches from the iOS header and restores the native header on close', async () => {
+  fixture.platform = 'ios';
+  await act(async () => root.render(<MarketplaceScreen />));
+  expect(element.querySelector('[data-testid="marketplace-search"]')).toBeNull();
+  await act(async () =>
+    element.querySelector<HTMLButtonElement>('[data-testid="marketplace-search-button"]')!.click(),
+  );
+  expect(element.querySelector('[data-testid="marketplace-search-button"]')).toBeNull();
+  const input = element.querySelector<HTMLTextAreaElement>('[data-testid="marketplace-search"]')!;
+  input.value = 'writer';
+  await act(async () =>
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+  );
+  expect(new URL(String(fixture.fetch.mock.calls.at(-1)![0])).searchParams.get('q')).toBe('writer');
+  expect(element.querySelector('[data-testid="marketplace-home"]')).toBeNull();
+  await act(async () => button(t.closeSearch).click());
+  expect(element.querySelector('[data-testid="marketplace-search"]')).toBeNull();
+  expect(element.querySelector('[data-testid="marketplace-search-button"]')).not.toBeNull();
+  expect(element.querySelector('[data-testid="marketplace-home"]')).not.toBeNull();
 });
 
 it('submits the native text when its last edit has not reached React state', async () => {

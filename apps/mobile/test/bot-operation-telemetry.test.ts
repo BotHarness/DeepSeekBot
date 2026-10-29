@@ -112,7 +112,7 @@ async function setup(kind: BotOperationKind = 'blank', collect = true) {
     },
     async events() {
       await telemetry.flush();
-      return sent.filter((event) => event.event.startsWith('mobile_bot_operation_'));
+      return sent.filter((event) => event.event.startsWith('bot_library:create_attempt_'));
     },
     statistics: () => statistics,
   };
@@ -133,11 +133,11 @@ it.each<BotOperationKind>(['blank', 'git', 'zip', 'marketplace'])(
       ...(kind === 'blank'
         ? []
         : [
-            ['mobile_bot_operation_started', 'preview', undefined],
-            ['mobile_bot_operation_result', 'preview', 'preview_ready'],
+            ['bot_library:create_attempt_start', 'preview', undefined],
+            ['bot_library:create_attempt_complete', 'preview', 'preview_ready'],
           ]),
-      ['mobile_bot_operation_started', 'submit', undefined],
-      ['mobile_bot_operation_result', 'submit', 'created'],
+      ['bot_library:create_attempt_start', 'submit', undefined],
+      ['bot_library:create_attempt_complete', 'submit', 'created'],
     ]);
     for (let i = 0; i < events.length; i += 2) {
       expect(events[i]?.properties.kind).toBe(kind);
@@ -166,7 +166,7 @@ it('keeps lost replies unknown and reports recovery separately after restart', a
   const events = await test.events();
   expect(
     events
-      .filter((event) => event.event === 'mobile_bot_operation_result')
+      .filter((event) => event.event === 'bot_library:create_attempt_complete')
       .map((event) => [event.properties.phase, event.properties.outcome, event.properties.reason]),
   ).toEqual([
     ['submit', 'unknown', 'transport'],
@@ -175,7 +175,7 @@ it('keeps lost replies unknown and reports recovery separately after restart', a
   expect(
     new Set(
       events
-        .filter((event) => event.event === 'mobile_bot_operation_started')
+        .filter((event) => event.event === 'bot_library:create_attempt_start')
         .map((event) => event.properties.attempt_id),
     ).size,
   ).toBe(2);
@@ -234,7 +234,7 @@ it('measures failed preview and pre-submit validation without a create request',
   const events = await test.events();
   expect(
     events
-      .filter((event) => event.event === 'mobile_bot_operation_result')
+      .filter((event) => event.event === 'bot_library:create_attempt_complete')
       .map((event) => event.properties.reason),
   ).toEqual(['source-changed', 'validation']);
 });

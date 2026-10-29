@@ -97,13 +97,23 @@ export interface MarketplacePage {
 export type MarketplaceSort = 'updated' | 'created' | 'stars';
 
 export const MARKETPLACE_SECTIONS = ['hot', 'new', 'rising'] as const;
+export const MARKETPLACE_INSTALL_SOURCES = ['list', 'hot', 'new', 'rising', 'digest'] as const;
+export type MarketplaceInstallSource = (typeof MARKETPLACE_INSTALL_SOURCES)[number];
 export type MarketplaceSectionName = (typeof MARKETPLACE_SECTIONS)[number];
+
+export interface MarketplaceDigestPick {
+  id: string;
+  displayName: string | null;
+  banner: MarketplaceBanner | null;
+  avatar: MarketplaceAvatar | null;
+}
 
 export interface MarketplaceDigestSummary {
   day: string;
   lang: MarketplaceLanguage;
   title: string;
   lede: string;
+  picks: MarketplaceDigestPick[];
 }
 
 export interface MarketplaceDigest extends MarketplaceDigestSummary {
@@ -448,6 +458,33 @@ export function parseMarketplaceSection(value: unknown): MarketplaceSection | un
     : undefined;
 }
 
+function parseDigestPick(value: unknown): MarketplaceDigestPick | undefined {
+  const source = record(value);
+  const displayName = source?.['displayName'];
+  const base = source?.['filesBase'];
+  const filesBase =
+    typeof base === 'string' && base.startsWith('https://') && base.endsWith('/files/')
+      ? base
+      : undefined;
+  return typeof source?.['id'] === 'string'
+    ? {
+        id: source['id'],
+        displayName: typeof displayName === 'string' && displayName.length > 0 ? displayName : null,
+        banner: parseBanner(source['banner'], filesBase),
+        avatar: parseAvatar(source['avatar'], filesBase),
+      }
+    : undefined;
+}
+
+function parseDigestPicks(value: unknown): MarketplaceDigestPick[] {
+  return Array.isArray(value)
+    ? value
+        .map(parseDigestPick)
+        .filter((pick): pick is MarketplaceDigestPick => pick !== undefined)
+        .slice(0, 4)
+    : [];
+}
+
 function parseDigestSummary(value: unknown): MarketplaceDigestSummary | undefined {
   const source = record(value);
   const lang =
@@ -457,7 +494,13 @@ function parseDigestSummary(value: unknown): MarketplaceDigestSummary | undefine
     lang !== undefined &&
     typeof source['title'] === 'string' &&
     typeof source['lede'] === 'string'
-    ? { day: source['day'], lang, title: source['title'], lede: source['lede'] }
+    ? {
+        day: source['day'],
+        lang,
+        title: source['title'],
+        lede: source['lede'],
+        picks: parseDigestPicks(source['picks']),
+      }
     : undefined;
 }
 

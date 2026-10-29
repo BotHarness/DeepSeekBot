@@ -434,6 +434,18 @@ _避免使用_：download、clone count、Telemetry event
 Bot Marketplace 每天一篇、按日期保存的文章，介绍近期的 Bot，内嵌可一键安装的 Bot 卡片；往期仍可查看。
 _避免使用_：newsletter、push notification、blog post
 
+**Digest Pick**：
+精选 Bot：Marketplace Digest 在某一段里点名介绍的 Bot。之后从 Bot Marketplace 下架的精选 Bot，文章里的文字保留，但卡片不再显示。
+_避免使用_：featured Bot、编辑推荐、推广 Bot
+
+**Digest Cover**：
+日报封面：代表一期 Marketplace Digest 的图，用这一期仍在架的 Digest Pick 的 banner 和头像拼成，版式按数量选择；一个都不在架时，用按日期生成的像素 banner 兜底。
+_避免使用_：缩略图、hero 图、生成图片
+
+**Marketplace Ranking**：
+榜单：Bot Marketplace 每天生成的三个在架 Bot 列表：热门（最近 7 天安装最多）、新上架（最近 7 天首次收录）和上升最快（比前一周安装增长最多）。三个榜单每天重算一次，读取当天的快照。
+_避免使用_：section、货架、排行榜
+
 **Bot Zip**：
 单个 PersonaBot 的 Memory 文件打成的 `.zip`，附带 `.botharness/bot.json` 描述和头像，由 Human 导出后交给别人；导入时创建新的 PersonaBot。默认只含文件，只有整个 Bot 导出并勾选时才带 Git 历史。不含身份、Session、绑定或凭据（ADR-0135）。
 _避免使用_：PersonaBot Export、SoulSnapshot、backup
@@ -533,8 +545,12 @@ _避免使用_：room、server、board
 _避免使用_：deleted Channel、archived Channel、muted Channel、Content Purge
 
 **Channel Deletion**：
-由 Human 确认，结束某个 Channel 活跃成员关系和路由的操作，同时保留历史及因果归属。它不同于可恢复的隐藏，也不同于另行确认的 Content Purge。
+由 Human 确认，结束某个 Channel 活跃成员关系和路由的操作，同时保留历史及因果归属。它不同于可恢复的隐藏，也不同于另行确认的 Content Purge。对本地群聊而言，Channel Deletion 就是 Group Disband。
 _避免使用_：Hidden Channel、Content Purge、provider conversation deletion
+
+**Group Disband**：
+由 Human 确认、不可撤销地删除一个本地群聊（界面称「解散群聊」）：结束成员关系和路由，并删除该群自己的消息和文件，只保留群的身份作为已删除标记。与其他 Channel 共享的内容、Bot 记忆和 Workspace 文件不受影响。
+_避免使用_：dissolve、archive、退出群聊、Hidden Channel
 
 **Channel section**：
 用户创建、可折叠的 Channel 分组，显示在频道列表面板中。归属与顺序属于对应 Host 的 display arrangement，不属于 Soul。
@@ -1049,8 +1065,12 @@ Expo 手机应用内默认开启、可在设置底部关闭的粗粒度统计，
 启用统计时保存在手机上的随机统计 UUID，与 Host Install ID、配对设备身份、Human 账号及网站访客均独立。关闭统计会清除标识和待发队列，再开启生成新标识；系统恢复应用数据可能恢复已保存的选择与标识。
 
 **Telemetry**：
-Host 发送到项目分析服务的匿名产品使用事件，默认开启，可用插件配置 `telemetry: false`、`DO_NOT_TRACK=1` 或 `BOTHARNESS_TELEMETRY=0` 关闭。从不包含名称、Memory、对话内容、路径或 IP 地址（ADR-0132）。
+Host 发送到项目分析服务的匿名产品使用事件，默认开启，可用插件配置 `telemetry: false`、`DO_NOT_TRACK=1` 或 `BOTHARNESS_TELEMETRY=0` 关闭。从不包含名称、Memory、对话内容、路径或 IP 地址（ADR-0132）。每个事件都登记在 tracking plan 中，命名为 `category:object_action`，`source` 为 `host`（ADR-0270）。
 _避免使用_：追踪、分析 SDK、崩溃上报器
+
+**Active Day**：
+一次安装被使用的 Host 本地日：当天第一次进入 Bot 模式、Human 发消息或 IM 消息时发送一次 `app:active_day_start`（ADR-0270）。DAU、WAU、MAU 按有 Active Day 的安装计数；只是 Host 在线不算。
+_避免使用_：在线日、daily usage
 
 **Install ID**：
 插件安装首次启动时随机生成、附在其 Telemetry 上的标识。它标识一次安装而不是某个 Human，也从不与官网访客关联。
@@ -1071,6 +1091,8 @@ _避免使用_：短网址、UTM 链接、邀请链接
 会话面板默认跟随当前频道时不重复显示范围标签；群聊范围选择收进视图选项菜单，仅显式指定 Bot 时在标题栏显示 `Bot · 名称`。
 
 ### 原生 UI 组件
+
+iOS 工作区切换采用应用自定义的常驻导航页面，由 `PagerView` 的显式后端连接原生 UIKit `UIPageViewController`：工作区在左，之后依次为完整聊天列表与底部导航、上次聊天、资料页。Android 保留原导航抽屉。详见 `apps/mobile/DESIGN.md` 的 iOS workspace panel。
 
 讨论界面时说出平台自己的组件名，而不是描述它长什么样。Android 的名称来自 [Material 3 glossary](https://m3.material.io/foundations/glossary) 与 [Material 3 components](https://m3.material.io/components) 索引，代码名来自 [Compose Material 3](https://developer.android.com/reference/kotlin/androidx/compose/material3/package-summary)。Apple 没有单独的 glossary 页面；与之对应的是 [HIG Components](https://developer.apple.com/design/human-interface-guidelines/components) 索引（Content、Layout and organization、Menus and actions、Navigation and search、Presentation、Selection and input、Status、System experiences 八类），代码名来自 [SwiftUI](https://developer.apple.com/documentation/swiftui) 与 [UIKit](https://developer.apple.com/documentation/uikit)，行文拼写以 [Apple Style Guide](https://support.apple.com/guide/applestyleguide/welcome/web) 为准。某个界面用哪个组件、读哪一层 token，由 `apps/mobile/DESIGN.md`、[#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002) 与 ADR-0266 决定。
 
@@ -1110,6 +1132,7 @@ _避免使用_：Material You（动态取色以外）、毛玻璃、玻璃拟态
 
 | 职能                              | Android (Material 3)                                          | Compose                                                                         | iOS (HIG)                                                                              | SwiftUI · UIKit                                                                                                    |
 | --------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 当前内容的上下文筛选              | Modal side sheet                                              | 原生 modal side-sheet 容器                                                      | Inspector（窄屏 iPhone 适配为 Sheet）                                                  | `.inspector(isPresented:content:)`                                                                                 |
 | 当前界面的标题与操作              | Top app bar (small, center-aligned, medium/large flexible)    | `TopAppBar`, `CenterAlignedTopAppBar`, `MediumFlexibleTopAppBar`                | Navigation bar (HIG Toolbars)                                                          | `NavigationStack` + `.toolbar`, `.navigationTitle` · `UINavigationBar`                                             |
 | 手机上切换顶级目的地              | Navigation bar                                                | `NavigationBar`, `NavigationBarItem`                                            | Tab bar                                                                                | `TabView` · `UITabBarController`                                                                                   |
 | 宽窗口上的目的地                  | Navigation rail（M3 Expressive 中 expanded rail 取代 drawer） | `NavigationRail`, `WideNavigationRail`                                          | Sidebar                                                                                | `NavigationSplitView` · `UISplitViewController`                                                                    |
@@ -1156,7 +1179,7 @@ _避免使用_：Material You（动态取色以外）、毛玻璃、玻璃拟态
 
 - 按钮：主要 → filled ↔ bordered prominent（iOS 26 为 glass prominent）；次要与 tonal → filled tonal ↔ bordered（glass）；文本 → text button ↔ borderless；危险 → 使用 Material error 颜色的 filled ↔ destructive role。
 - Sheet：Android `ModalBottomSheet` ↔ iOS 带 detents 的 form sheet（经 Expo Router 的 `presentation: 'formSheet'`，或 `@expo/ui` 的 SwiftUI `BottomSheet`）。
-- Chats 的「-1 屏」：Android `DismissibleNavigationDrawer` ↔ iOS 把工作区面板作为 Chats 导航栈的根。
+- Chats 的「-1 屏」：Android `DismissibleNavigationDrawer` ↔ iOS 相邻的常驻导航页面：工作区、完整聊天列表及底部导航、上次聊天与资料页，通过 `PagerView` 的显式 UIKit `UIPageViewController` 后端连接。
 - 顶级导航：Android navigation bar 加创建 FAB ↔ iOS tab island 及其 **+**（自定义界面，ADR-0235）。
 - 活动与工作区标签页：Android primary tabs（`PrimaryTabRow`）。
 - 设置页：Android 分段列表的 list item ↔ iOS inset grouped list（SwiftUI `Form`，配 `Section`、`Label`、`Toggle`、menu 样式 `Picker`、`LabeledContent`），统一经由 `SettingsForm`。

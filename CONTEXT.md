@@ -437,6 +437,18 @@ _Avoid_: download, clone count, Telemetry event
 The Bot Marketplace's dated daily article about recent Bots, with embedded Bot cards that install in one tap; past digests stay readable.
 _Avoid_: newsletter, push notification, blog post
 
+**Digest Pick**:
+A Bot that a Marketplace Digest names in one of its sections. A pick that later leaves the Bot Marketplace keeps its text in the digest but loses its card.
+_Avoid_: featured Bot, editor's pick, sponsored Bot
+
+**Digest Cover**:
+The picture that stands for one Marketplace Digest, assembled from its listed Digest Picks' banners and avatars in a layout chosen by how many there are; with no listed pick it falls back to a pixel banner derived from the date.
+_Avoid_: thumbnail, hero image, generated image
+
+**Marketplace Ranking**:
+One of the Bot Marketplace's three daily lists of listed Bots: Hot (most installs in the last seven days), New (first seen in the last seven days) and Rising (the largest growth in installs over the week before). All three are recomputed once a day and read from that day's snapshot.
+_Avoid_: section, shelf, chart, leaderboard
+
 **Bot Zip**:
 A `.zip` of one PersonaBot's Memory files, with its `.botharness/bot.json` descriptor and avatar, that a Human exports and hands to someone else; importing it creates a fresh PersonaBot. It holds files only unless the whole Bot is exported with Git history. It never holds identity, Sessions, bindings or credentials (ADR-0135).
 _Avoid_: PersonaBot Export, SoulSnapshot, backup
@@ -536,8 +548,12 @@ A Channel omitted from expanded and collapsed roster navigation by a Human prese
 _Avoid_: deleted Channel, archived Channel, muted Channel, Content Purge
 
 **Channel Deletion**:
-The Human-confirmed end of a Channel’s active membership and routing while retaining its history and causal attribution. It is distinct from reversible hiding and separately confirmed Content Purge.
+The Human-confirmed end of a Channel’s active membership and routing while retaining its history and causal attribution. It is distinct from reversible hiding and separately confirmed Content Purge. For a local group, Channel Deletion is Group Disband.
 _Avoid_: Hidden Channel, Content Purge, provider conversation deletion
+
+**Group Disband**:
+The Human-confirmed, irreversible deletion of a local group: it ends membership and routing and removes the group's own messages and files, keeping only the group's identity as a deleted marker. Content shared with other Channels, Bot Memory and Workspace files are untouched.
+_Avoid_: dissolve, archive, leave group, Hidden Channel
 
 **Channel section**:
 A user-created, collapsible grouping of Channels in the Channel list panel. Its membership and order belong to the owning Host's display arrangement, not to a Soul.
@@ -1052,8 +1068,12 @@ Application-defined, default-on optional statistics from the Expo app, separate 
 A random statistics-only UUID saved on the phone while statistics are enabled. It is independent of Host Install ID, paired-device identity, Human accounts and site visitors. Opt-out clears it and the unsent queue; re-enabling creates a new one. OS app-data restoration may restore the saved preference and identifier.
 
 **Telemetry**:
-Anonymous product usage events the Host sends to the project's analytics service, on by default and turned off by plugin config `telemetry: false`, `DO_NOT_TRACK=1` or `BOTHARNESS_TELEMETRY=0`. It never carries names, Memory, conversation content, paths or IP addresses (ADR-0132).
+Anonymous product usage events the Host sends to the project's analytics service, on by default and turned off by plugin config `telemetry: false`, `DO_NOT_TRACK=1` or `BOTHARNESS_TELEMETRY=0`. It never carries names, Memory, conversation content, paths or IP addresses (ADR-0132). Every event is registered in the tracking plan and named `category:object_action`, with `source` `host` (ADR-0270).
 _Avoid_: tracking, analytics SDK, crash reporter
+
+**Active Day**:
+A Host-local day on which an installation was used: the first Bot mode entry, Human message or IM message sends `app:active_day_start` once (ADR-0270). DAU, WAU and MAU count installations with an Active Day; a Host that is only online does not count.
+_Avoid_: online day, daily usage
 
 **Install ID**:
 A random identifier generated on a plugin installation's first start and attached to its Telemetry. It identifies the installation, never a Human, and is never linked to a site visitor.
@@ -1074,6 +1094,8 @@ The single Sessions surface (`sessions`, TextQuote icon) for inspecting existing
 Default-following Sessions headers omit a redundant scope label. Group scope choices live in the existing view-options menu; only an explicit member-Bot override shows `Bot · name` in the header.
 
 ### Native UI components
+
+The iOS workspace switcher uses application-defined retained navigation pages backed by UIKit `UIPageViewController` through an opt-in `PagerView` backend; Workspaces is left of the complete Chats tab shell, followed by the last chat and its profile. Android retains its navigation drawer. See `apps/mobile/DESIGN.md` → iOS workspace panel.
 
 Interface talk names the platform's own component, not a description of how it looks. Android names come from the [Material 3 glossary](https://m3.material.io/foundations/glossary) and the [Material 3 components](https://m3.material.io/components) index; their code names come from [Compose Material 3](https://developer.android.com/reference/kotlin/androidx/compose/material3/package-summary). Apple publishes no glossary page; its counterpart is the [HIG Components](https://developer.apple.com/design/human-interface-guidelines/components) index (Content, Layout and organization, Menus and actions, Navigation and search, Presentation, Selection and input, Status, System experiences), with code names from [SwiftUI](https://developer.apple.com/documentation/swiftui) and [UIKit](https://developer.apple.com/documentation/uikit) and prose spelling from the [Apple Style Guide](https://support.apple.com/guide/applestyleguide/welcome/web). Which component a screen uses, and the token layers it reads, are decided in `apps/mobile/DESIGN.md`, [#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002) and ADR-0266.
 
@@ -1120,6 +1142,7 @@ Counterparts by job. The Android column uses Material 3 names, the iOS column HI
 | Frequent actions for the current page               | Toolbar (docked or floating)                                         | `HorizontalFloatingToolbar`, `FlexibleBottomAppBar`                             | Toolbar                                                                                | `ToolbarItem(placement: .bottomBar)` · `UIToolbar`                                                                 |
 | One primary creation action                         | FAB, extended FAB                                                    | `FloatingActionButton`, `ExtendedFloatingActionButton`                          | — (a toolbar item)                                                                     | `ToolbarItem`                                                                                                      |
 | Several related creation actions                    | FAB menu                                                             | `FloatingActionButtonMenu`                                                      | Pull-down button                                                                       | `Menu`                                                                                                             |
+| Contextual filters beside the current content       | Modal side sheet                                                     | Native modal side-sheet container                                               | Inspector (adapts to Sheet on compact iPhone)                                          | `.inspector(isPresented:content:)`                                                                                 |
 | Scoped task above the current context               | Modal bottom sheet                                                   | `ModalBottomSheet`                                                              | Sheet (form sheet, page sheet, with detents)                                           | `.sheet` + `.presentationDetents` · `UISheetPresentationController`                                                |
 | Supplementary content beside the screen content     | Standard bottom sheet                                                | `BottomSheetScaffold`                                                           | Sheet without a modal dimming view (largest undimmed detent)                           | `.presentationBackgroundInteraction`                                                                               |
 | Full-screen task                                    | Full-screen dialog                                                   | `Dialog` (full-screen properties)                                               | Full-screen modal                                                                      | `.fullScreenCover` · `UIModalPresentationStyle.fullScreen`                                                         |
@@ -1159,7 +1182,7 @@ How this app pairs them today (`apps/mobile/DESIGN.md`, #3002):
 
 - Buttons: primary → filled ↔ bordered prominent (glass prominent on iOS 26); secondary and tonal → filled tonal ↔ bordered (glass); text → text button ↔ borderless; danger → filled with the Material error colours ↔ the destructive role.
 - Sheets: Android `ModalBottomSheet` ↔ iOS form sheet with detents (`presentation: 'formSheet'` through Expo Router, or SwiftUI `BottomSheet` in `@expo/ui`).
-- The Chats "-1 screen": Android `DismissibleNavigationDrawer` ↔ iOS workspace panel as the Chats stack root.
+- The Chats "-1 screen": Android `DismissibleNavigationDrawer` ↔ iOS retained navigation pages, Workspaces beside the complete Chats tab shell (`UIPageViewController` through `PagerView`).
 - Top-level navigation: Android navigation bar with a creation FAB ↔ the iOS tab island with its **+** (a custom surface, ADR-0235).
 - Activity and workspace tabs: Android primary tabs (`PrimaryTabRow`).
 - Settings screens: Android segmented list of list items ↔ iOS inset grouped list (SwiftUI `Form` with `Section`, `Label`, `Toggle`, menu `Picker`, `LabeledContent`), through `SettingsForm`.

@@ -11,7 +11,10 @@
       "autoIncrement": true,
       "env": {
         "DEEPSEEKBOT_APP_VARIANT": "store",
-        "EXPO_PUBLIC_DEEPSEEKBOT_CLOUD": "off"
+        "EXPO_PUBLIC_DEEPSEEKBOT_CLOUD": "off",
+        "EXPO_PUBLIC_MOBILE_TELEMETRY": "production",
+        "EXPO_PUBLIC_MOBILE_POSTHOG_TOKEN": "phc_CxrCyBuRHVSs996eyHXAeyJbyE8rJXgREbEYsfxUkR3J",
+        "EXPO_PUBLIC_MOBILE_TELEMETRY_QUALIFIED": "true"
       },
       "android": {
         "buildType": "app-bundle"

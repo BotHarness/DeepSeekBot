@@ -7,6 +7,7 @@ const alert = vi.fn();
 vi.mock('expo-router', async () => {
   const { useLayoutEffect } = await import('react');
   return {
+    useIsFocused: () => true,
     useRouter: () => ({ back() {} }),
     useNavigation: () => ({ addListener: () => () => {} }),
     useFocusEffect: (work: () => () => void) => useLayoutEffect(work, [work]),
@@ -20,6 +21,11 @@ vi.mock('react-native', async () => ({
   Alert: { alert: (...args: unknown[]) => alert(...args) },
 }));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('react-native-worklets', () => ({
+  scheduleOnRN: <A extends unknown[]>(callback: (...args: A) => void, ...args: A) =>
+    callback(...args),
+}));
+vi.mock('react-native-collapsible-tab-view', () => import('./collapsible-tabs-shim'));
 vi.mock('../src/ui/chat/header-chrome', () => ({
   HeaderCircleButton: ({
     label,
@@ -146,7 +152,9 @@ function actions(overrides: Partial<GroupActions> = {}): GroupActions {
 }
 
 const button = (view: ParentNode, label: string) =>
-  view.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+  [...view.querySelectorAll<HTMLButtonElement>(`button[aria-label="${label}"]`)].find(
+    (node) => node.closest('[hidden]') === null,
+  ) ?? null;
 
 type AlertButton = { text: string; style?: string; onPress?: () => void };
 const pressAlert = (call: number, text: string) =>
@@ -264,7 +272,9 @@ describe('Group profile', () => {
     expect(text).toContain(t.groupOwner);
     expect(text).toContain(t.groupInvited);
     expect(text).toContain(t.groupJoinAsk);
-    const headers = [...view.querySelectorAll('[role="header"]')].map((node) => node.textContent);
+    const headers = [...view.querySelectorAll('[role="header"]')]
+      .filter((node) => node.closest('[hidden]') === null)
+      .map((node) => node.textContent);
     expect(headers).toEqual(['Launch', t.groupJoinsSection, t.groupMembersSection]);
     for (const slug of ['ada', 'bo', 'cy', 'di'])
       expect(view.querySelector(`[data-testid="avatar-${slug}"]`)).not.toBeNull();

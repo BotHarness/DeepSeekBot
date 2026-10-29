@@ -265,7 +265,7 @@ Host 重启后，先读取当前群聊，再用 `recover:true`、`draft_id`、�
 
 与 Web 界面一样，重命名 Bot 私聊会同时重命名该 Bot。`group-avatar-set` 读取不超过 96 KiB 的 PNG、JPEG 或 WebP 文件。邀请 ID 和入群申请 ID 位于群组的 `invitations` 和 `joinRequests` 中，`channels` 和每个群组命令都会返回。`group-wake-set` 设置成员 Bot 对普通群消息何时唤醒：`all`、`mentions`、`digest`（累计 `--count` 条消息或经过 `--interval` 秒后唤醒，默认 5 和 30）或 `silent`；`--inherit` 让该成员恢复其 Bot 的默认设置。`channel-timeline` 和 `channel-journal` 按聊天视图的方式分页读取消息；`channel-journal` 的 `--through` 取 `channel-timeline` 返回的 `revision`。`channel-retry` 在 Bot 回复失败后让它重新回答一条 Human 私聊消息。`channel-unread` 列出每个有未读的频道的 Bot 未读消息数，即侧边栏每行显示的数字。`channel-mute` 与侧边栏菜单一样把频道设为免打扰：该行变灰，普通消息、提及和回复在搜索与分页之前退出 Activity 消息列表，也不计入全局未读；`--off` 依原有已读、隐藏和稍后提醒规则恢复资格。真实 Channel 已读位置与待审批、问答等明确 Human 请求保持不变。`channel-bot-stop` 停止 Bot 当前这一轮工作，与工作状态条上的“停止”按钮相同：Bot 回到空闲，Channel 里记录 Human 停止了它；Bot 没在工作时以 `not-working` 拒绝。Bot 已委派的 Assignment 继续运行。`channel-react` 给一条消息加上你的表情回应，带 `--remove` 则撤回，并返回该消息的 `reactions`；每条消息最多保留你的 20 个回应，表情必须是单个 emoji。Bot 通过 `channel_action` 的 `action: "react"`、`channel_id`、`react_to` 和 `reaction` 回应；`bot-tool <bot> channel_action --args-stdin` 可直接执行。表情工具不发送正文。`channel-search` 在你可见的消息中不区分大小写地匹配 `--query`，按时间从新到旧返回，并用返回的 `nextCursor` 翻页。 `message-search` 是 Alt+K 和移动端 Chats 搜索背后的全局搜索：在你可见的所有 Bot 私聊和已加入的群里搜索，不含已隐藏的频道，按时间从新到旧返回 `hits`，每项含 `channelId`、`message` 和单行 `snippet`。三个字及以上走全文索引，也会匹配附件文件名；一到两个字逐条扫描，最多返回 200 条。
 
-`group-delete` 和 `channel-purge-confirm` 无法撤销，必须带 `--confirm`。`channel-history` 列出已删除、内容仍可清除的群组。清除与历史页面一样分两步：`channel-purge-preview` 列出所选 Source Event 将删除的消息、Bot 受理记录、文件和后续效果，并返回短时有效的 `token`；`channel-purge-confirm` 从标准输入读取 `{"token": …}`，针对同一组 Source Event 执行，范围变化时以错误码拒绝。Source Event 从 `channel-history-sources` 中选取，它用返回的 `before` 游标分页。
+`group-delete` 和 `channel-purge-confirm` 无法撤销，必须带 `--confirm`。`group-delete` 解散群聊，并删除群里没有被其他会话共享的消息和文件，返回 `{"deleted": true, "messages": n}`；文件清理仍在重试时另含 `cleanupPending`，有消息无法读取删除时另含 `retained`（该群仍留在 `channel-history` 中，再次运行 `group-delete` 会重试删除）。`channel-history` 列出在此变更之前解散的群组，以及删除没有完成的群组，它们的内容仍可清除。清除与历史页面一样分两步：`channel-purge-preview` 列出所选 Source Event 将删除的消息、Bot 受理记录、文件和后续效果，并返回短时有效的 `token`；`channel-purge-confirm` 从标准输入读取 `{"token": …}`，针对同一组 Source Event 执行，范围变化时以错误码拒绝。Source Event 从 `channel-history-sources` 中选取，它用返回的 `before` 游标分页。
 
 `channel-media-target` 通过当前 Human Channel 授权取得受检来源媒体，返回其 canonical Host 文件目标。`channel-media-download` 使用与卡片相同的认证附件路径，将原件字节写入新的本地 `--out` 文件，并在 JSON 中返回大小、MIME 和 SHA-256；目标已存在时拒绝覆盖。两条命令只使用 Channel、Source Event 和 attachment，不选择 Bot，也不调用模型；来源撤销仍返回明确错误码。默认上限为 25 MiB。
 
@@ -776,7 +776,7 @@ deepseekbot group-activity <group-channel>
 
 `marketplace-sections` 返回市场面板的热门、新上架和上升最快三行，来自 Worker 最近一次每日快照，格式为 `{ sections: [{ section, day, entries: [{ bot, score }] }] }`。热门的 `score` 是近 7 天安装数，新上架为 0，上升最快是 7 天增长数；首次快照之前 `day` 为 `null`。
 
-`marketplace-digest` 返回最近一篇每日精选（市场面板顶部的文章），或 `--day` 指定日期的那篇，格式为 `{ digest: { day, lang, title, lede, sections: [{ heading, body, bot }] } }`；条目之后被隐藏时 `bot` 为 `null`。没有精选时返回 `digest-not-found`。`marketplace-digests` 按日期从新到旧列出往期精选：`{ digests: [{ day, lang, title, lede }] }`。两者都优先用 `--lang`，某天只有另一种语言时返回那种语言。
+`marketplace-digest` 返回最近一篇每日精选（市场面板顶部的文章），或 `--day` 指定日期的那篇，格式为 `{ digest: { day, lang, title, lede, sections: [{ heading, body, bot }] } }`；条目之后被隐藏时 `bot` 为 `null`。没有精选时返回 `digest-not-found`。`marketplace-digests` 按日期从新到旧列出往期精选：`{ digests: [{ day, lang, title, lede, picks: [{ id, displayName, banner, avatar }] }] }`；`picks` 是文章中仍在上架的最多四个精选 Bot，按文章顺序排列，stderr 每篇一行，列出日期、标题和精选 Bot 名称。两者都优先用 `--lang`，某天只有另一种语言时返回那种语言。
 
 这些命令调用的 Host 方法与市场页面、更新卡片、使用统计提示、Git 提示和 IM 配对面板相同：
 

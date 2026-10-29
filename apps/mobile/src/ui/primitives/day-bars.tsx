@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { useSharedValue } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { chart } from '../design/chart';
 import { useDesignTheme } from '../design/theme';
@@ -53,8 +55,10 @@ export function chartSummary(
 function Callout({ reading, x, width }: { reading: BarReading; x: number; width: number }) {
   const theme = useDesignTheme();
   const ios = Platform.OS === 'ios';
-  const half = 56;
-  const left = Math.max(0, Math.min(width - half * 2, x - half));
+  const calloutWidth = ios
+    ? Math.min(width, chart.callout.ios * theme.fontScale)
+    : chart.callout.android;
+  const left = Math.max(0, Math.min(width - calloutWidth, x - calloutWidth / 2));
   return (
     <View
       pointerEvents="none"
@@ -64,7 +68,7 @@ function Callout({ reading, x, width }: { reading: BarReading; x: number; width:
         position: 'absolute',
         bottom: '100%',
         left,
-        width: half * 2,
+        width: calloutWidth,
         alignItems: 'center',
         marginBottom: space.x2,
         zIndex: 1,
@@ -81,6 +85,7 @@ function Callout({ reading, x, width }: { reading: BarReading; x: number; width:
                 borderColor: theme.color.border,
                 backgroundColor: theme.layer.raised.fill,
                 alignItems: 'center',
+                maxWidth: '100%',
               }
             : {
                 paddingHorizontal: space.x3,
@@ -92,10 +97,10 @@ function Callout({ reading, x, width }: { reading: BarReading; x: number; width:
       >
         {ios ? (
           <>
-            <Text variant="meta" tone="muted" numberOfLines={1}>
+            <Text variant="meta" tone="muted" style={{ textAlign: 'center' }}>
               {reading.label}
             </Text>
-            <Text strong numberOfLines={1} style={{ fontVariant: ['tabular-nums'] }}>
+            <Text strong style={{ textAlign: 'center', fontVariant: ['tabular-nums'] }}>
               {reading.value}
             </Text>
           </>
@@ -139,25 +144,44 @@ export function DayBars({
   const controlled = onSelect !== undefined;
   const selected = controlled ? chosen : own;
   const interactive = controlled || read !== undefined;
-  const select = (index?: number) => {
-    if (index === selected) return;
+  const selection = useRef({ selected, onSelect });
+  useLayoutEffect(() => {
+    selection.current = { selected, onSelect };
+  }, [selected, onSelect]);
+  const select = useCallback((index?: number) => {
+    const current = selection.current;
+    if (index === current.selected) return;
+    current.selected = index;
     if (index !== undefined) haptic('selection');
-    if (controlled) onSelect(index);
+    if (current.onSelect !== undefined) current.onSelect(index);
     else setOwn(index);
-  };
+  }, []);
   const heights = barHeights(bars, height);
   const labelled = bars.some((bar) => bar.label !== undefined);
   const ios = Platform.OS === 'ios';
-  const at = (x: number) =>
-    width === 0 ? 0 : Math.max(0, Math.min(bars.length - 1, Math.floor((x / width) * bars.length)));
-  const scrub = Gesture.Pan()
-    .enabled(ios && interactive)
-    .runOnJS(true)
-    .activeOffsetX([-space.x2, space.x2])
-    .failOffsetY([-space.x4, space.x4])
-    .onStart((event) => select(at(event.x)))
-    .onUpdate((event) => select(at(event.x)))
-    .onFinalize(() => select(undefined));
+  const scrubbed = useSharedValue<number | undefined>(undefined);
+  const count = bars.length;
+  const scrub = useMemo(() => {
+    const move = (event: { x: number }) => {
+      'worklet';
+      const next = Math.max(0, Math.min(count - 1, Math.floor((event.x / width) * count)));
+      if (next === scrubbed.get()) return;
+      scrubbed.set(next);
+      scheduleOnRN(select, next);
+    };
+    return Gesture.Pan()
+      .enabled(ios && interactive && width > 0 && count > 0)
+      .activeOffsetX([-space.x2, space.x2])
+      .failOffsetY([-space.x4, space.x4])
+      .onStart(move)
+      .onUpdate(move)
+      .onFinalize(() => {
+        'worklet';
+        if (scrubbed.get() === undefined) return;
+        scrubbed.set(undefined);
+        scheduleOnRN(select, undefined);
+      });
+  }, [ios, interactive, width, count, scrubbed, select]);
   const reading = selected === undefined || read === undefined ? undefined : read(selected);
   const step = (by: number) => {
     const next = selected === undefined ? (by > 0 ? 0 : bars.length - 1) : selected + by;

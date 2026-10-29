@@ -16,6 +16,7 @@ const navigation = vi.hoisted(() => {
   };
 });
 vi.mock('expo-router', () => ({
+  useIsFocused: () => true,
   useRouter: () => ({ back() {} }),
   useNavigation: () => navigation,
   useFocusEffect: (work: () => () => void) => useLayoutEffect(work, [work]),
@@ -24,6 +25,11 @@ vi.mock('expo-router', () => ({
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('expo-router/react-navigation', () => ({ useHeaderHeight: () => 96 }));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('react-native-worklets', () => ({
+  scheduleOnRN: <A extends unknown[]>(callback: (...args: A) => void, ...args: A) =>
+    callback(...args),
+}));
+vi.mock('react-native-collapsible-tab-view', () => import('./collapsible-tabs-shim'));
 vi.mock('../src/ui/chat/header-chrome', () => ({
   HeaderCircleButton: ({
     label,
@@ -201,7 +207,9 @@ const actions = () => ({
   onOpenActivity: vi.fn(),
 });
 const button = (view: HTMLElement, label: string) =>
-  view.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+  [...view.querySelectorAll<HTMLButtonElement>(`button[aria-label="${label}"]`)].find(
+    (node) => node.closest('[hidden]') === null,
+  ) ?? null;
 function BotProfileSheet(
   props: Omit<Parameters<typeof BotProfilePage>[0], 'tabMemory'> & {
     tab?: ProfileTab;
@@ -223,13 +231,52 @@ const openTab = (view: HTMLElement, tab: ProfileTab) =>
     view.querySelector<HTMLButtonElement>(`[data-testid="profile-tab-${tab}"]`)!.click(),
   );
 const headers = (view: HTMLElement) =>
-  [...view.querySelectorAll('[role="header"]')].map((node) => node.textContent);
+  [...view.querySelectorAll('[role="header"]')]
+    .filter((node) => node.closest('[hidden]') === null)
+    .map((node) => node.textContent);
 
 describe('Bot profile page', () => {
   const avatarNone = {
     pick: async () => undefined,
     save: async () => undefined,
   };
+
+  it('retains a loaded tab component and its edits when switching away and back', async () => {
+    function EditableSettings() {
+      const [value, setValue] = useState('');
+      return (
+        <input
+          aria-label="Retained setting"
+          value={value}
+          onInput={(event) => setValue(event.currentTarget.value)}
+        />
+      );
+    }
+    const load = vi.fn(async () => empty);
+    const view = await render(
+      <BotProfileSheet
+        bot={bot}
+        channels={[]}
+        load={load}
+        actions={actions()}
+        avatar={avatarNone}
+        settings={<EditableSettings />}
+      />,
+    );
+    await openTab(view, 'settings');
+    const input = view.querySelector<HTMLInputElement>('input[aria-label="Retained setting"]');
+    expect(input).not.toBeNull();
+    if (input === null) throw new Error('The settings input must be mounted');
+    await act(async () => {
+      input.value = 'Keep this edit';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await openTab(view, 'work');
+    await openTab(view, 'settings');
+    expect(view.querySelector('input[aria-label="Retained setting"]')).toBe(input);
+    expect(input.value).toBe('Keep this edit');
+    expect(load).toHaveBeenCalledTimes(1);
+  });
 
   it('lets the Human change the Bot avatar from its portrait and the settings row', async () => {
     const avatar = {

@@ -1,6 +1,6 @@
-import { useRef, useState, type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconChevronRightOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type {
   MarketplaceDigest,
@@ -10,53 +10,121 @@ import type {
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
 import type { BridgeActions } from './actions.js';
 import { Note } from './ds/note.js';
-import { PanelDialog } from './ds/panel-dialog.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { DigestCover, digestPickOf } from './market-cover.js';
+import { MarketPage } from './market-page.js';
 import { marketplaceError } from './marketplace.js';
 import { useMountedResource } from './mounted-resource.js';
 
+export const DAILY_PICKS_SHOWN = 7;
+
+const NARROW = '@container bh-market (max-width: 480px)';
+
 const styles = stylex.create({
-  hero: {
+  row: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0, flexShrink: 0 },
+  rowHead: {
     display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: space.x2,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.x3,
+    minWidth: 0,
+  },
+  rowTitle: {
+    margin: 0,
+    color: color.fg,
+    fontSize: text.titleSize,
+    lineHeight: text.titleLine,
+    fontWeight: text.strong,
+  },
+  carousel: {
+    display: 'flex',
+    gap: space.x3,
+    minWidth: 0,
+    overflowX: 'auto',
+    overscrollBehaviorX: 'contain',
+    scrollSnapType: 'x proximity',
+    scrollbarWidth: 'none',
+  },
+  card: {
+    display: 'block',
+    flexShrink: 0,
+    width: 'min(184px, 64%)',
+    height: '208px',
+    scrollSnapAlign: 'start',
+  },
+  open: {
+    display: 'block',
     width: '100%',
-    padding: space.x5,
+    height: '100%',
+    padding: 0,
     borderWidth: 0,
     borderStyle: 'none',
     borderRadius: radius.lg,
-    backgroundColor: { default: color.accentTint, ':hover': color.selected },
+    backgroundColor: 'transparent',
     color: color.fg,
-    textAlign: 'start',
     cursor: 'pointer',
+    opacity: { default: 1, ':hover': 0.92 },
+  },
+  hiddenRow: { display: 'none' },
+  hero: {
+    width: { default: 'min(400px, 88%)', [NARROW]: '100%' },
+    height: { default: '208px', [NARROW]: '232px' },
+  },
+  past: { display: { default: null, [NARROW]: 'none' } },
+  narrowOnly: { display: { default: 'none', [NARROW]: 'inline-flex' } },
+  moreItem: {
+    display: { default: 'block', [NARROW]: 'none' },
     flexShrink: 0,
+    width: '120px',
+    height: '208px',
+    scrollSnapAlign: 'start',
   },
-  eyebrow: {
+  more: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.x2,
+    width: '100%',
+    height: '100%',
+    padding: space.x4,
+    borderWidth: 0,
+    borderStyle: 'none',
+    borderRadius: radius.lg,
+    backgroundColor: { default: color.surface, ':hover': color.hover },
     color: color.accentText,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
     fontWeight: text.strong,
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
+    cursor: 'pointer',
   },
-  heroTitle: {
+  link: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: space.x1,
+    padding: 0,
+    borderWidth: 0,
+    borderStyle: 'none',
+    backgroundColor: 'transparent',
+    color: color.accentText,
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
+    fontWeight: text.strong,
+    cursor: 'pointer',
+    textDecoration: { default: 'none', ':hover': 'underline' },
+  },
+  header: { display: 'block', height: '200px', flexShrink: 0 },
+  article: { display: 'flex', flexDirection: 'column', gap: space.x5, minWidth: 0 },
+  date: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
+  articleTitle: {
     margin: 0,
+    color: color.fg,
     fontSize: text.titleSize,
     lineHeight: text.titleLine,
     fontWeight: text.strong,
   },
   lede: { margin: 0, color: color.muted, fontSize: text.bodySize, lineHeight: text.bodyLine },
-  article: { display: 'flex', flexDirection: 'column', gap: space.x5, minWidth: 0 },
-  date: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
-  articleLede: {
-    margin: 0,
-    color: color.fg,
-    fontSize: text.titleSize,
-    lineHeight: text.titleLine,
-    fontWeight: text.strong,
-  },
   section: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
   heading: {
     margin: 0,
@@ -66,23 +134,15 @@ const styles = stylex.create({
     fontWeight: text.strong,
   },
   body: { margin: 0, color: color.fg, fontSize: text.bodySize, lineHeight: text.bodyLine },
-  card: { maxWidth: '360px' },
-  archive: { display: 'flex', flexDirection: 'column', gap: space.x2, minWidth: 0 },
-  archiveItem: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: space.x1,
-    width: '100%',
-    padding: space.x4,
-    borderWidth: 0,
-    borderStyle: 'none',
-    borderRadius: radius.md,
-    backgroundColor: { default: color.surface, ':hover': color.hover },
-    color: color.fg,
-    textAlign: 'start',
-    cursor: 'pointer',
+  bot: { maxWidth: '360px' },
+  end: { display: 'flex', justifyContent: 'flex-start' },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+    gap: space.x3,
+    minWidth: 0,
   },
-  archiveTitle: { fontSize: text.titleSize, lineHeight: text.titleLine, fontWeight: text.strong },
+  gridCard: { width: '100%', height: 'auto', aspectRatio: '4 / 5' },
 });
 
 export function digestDate(day: string, lang: MarketplaceLanguage): string {
@@ -96,174 +156,297 @@ export function digestDate(day: string, lang: MarketplaceLanguage): string {
   }).format(at);
 }
 
-type ArchiveState =
+type Loaded<T> =
   | { status: 'loading' }
   | { status: 'error'; cause: unknown }
-  | { status: 'ready'; digests: MarketplaceDigestSummary[] };
+  | { status: 'ready'; value: T };
 
-export function MarketDigestDialog({
-  actions,
-  lang,
-  t,
-  initial,
-  renderBot,
-  onClose,
-}: {
-  actions: BridgeActions;
-  lang: MarketplaceLanguage;
-  t: BotHarnessTranslate;
-  initial: MarketplaceDigest;
-  renderBot: (bot: MarketplaceEntry) => ReactElement;
-  onClose: () => void;
-}): ReactElement {
-  const [digest, setDigest] = useState(initial);
-  const [archive, setArchive] = useState<ArchiveState | undefined>(undefined);
-  const [cause, setCause] = useState<unknown>();
-  const ticket = useRef(0);
-
-  const showArchive = (): void => {
-    const current = ++ticket.current;
-    setCause(undefined);
-    setArchive({ status: 'loading' });
-    void actions.marketplaceDigests(lang).then(
-      (digests) => {
-        if (current === ticket.current) setArchive({ status: 'ready', digests });
-      },
-      (failure: unknown) => {
-        if (current === ticket.current) setArchive({ status: 'error', cause: failure });
-      },
-    );
-  };
-
-  const open = (day: string): void => {
-    const current = ++ticket.current;
-    setCause(undefined);
-    void actions.marketplaceDigest(day, lang).then(
-      (loaded) => {
-        if (current !== ticket.current) return;
-        setDigest(loaded);
-        setArchive(undefined);
-      },
-      (failure: unknown) => {
-        if (current === ticket.current) setCause(failure);
-      },
-    );
-  };
-
-  return (
-    <PanelDialog
-      title={archive === undefined ? digest.title : t('market.digest.archive')}
-      closeLabel={t('common.close')}
-      onClose={onClose}
-      scroll
-      data={{ 'data-market-digest': archive === undefined ? digest.day : 'archive' }}
-      secondary={
-        archive === undefined ? (
-          <Button variant="outline" onClick={showArchive}>
-            {t('market.digest.archive')}
-          </Button>
-        ) : (
-          <Button variant="outline" onClick={() => setArchive(undefined)}>
-            {t('market.digest.back')}
-          </Button>
-        )
-      }
-    >
-      {cause === undefined ? null : <Note tone="danger">{marketplaceError(cause, t)}</Note>}
-      {archive === undefined ? (
-        <article {...stylex.props(styles.article)}>
-          <span {...stylex.props(styles.date)}>{digestDate(digest.day, lang)}</span>
-          <p {...stylex.props(styles.articleLede)}>{digest.lede}</p>
-          {digest.sections.map((section) => (
-            <section key={section.heading} {...stylex.props(styles.section)}>
-              <h3 {...stylex.props(styles.heading)}>{section.heading}</h3>
-              <p {...stylex.props(styles.body)}>{section.body}</p>
-              {section.bot === null ? null : (
-                <div {...stylex.props(styles.card)} role="list">
-                  {renderBot(section.bot)}
-                </div>
-              )}
-            </section>
-          ))}
-        </article>
-      ) : archive.status === 'loading' ? (
-        <Note>{t('market.digest.loading')}</Note>
-      ) : archive.status === 'error' ? (
-        <Note tone="danger">{marketplaceError(archive.cause, t)}</Note>
-      ) : (
-        <div {...stylex.props(styles.archive)} role="list">
-          {archive.digests.map((item) => (
-            <div key={item.day} role="listitem">
-              <button
-                type="button"
-                data-market-digest-day={item.day}
-                {...stylex.props(styles.archiveItem)}
-                onClick={() => open(item.day)}
-              >
-                <span {...stylex.props(styles.date)}>{digestDate(item.day, lang)}</span>
-                <span {...stylex.props(styles.archiveTitle)}>{item.title}</span>
-                <span {...stylex.props(styles.lede)}>{item.lede}</span>
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </PanelDialog>
-  );
-}
-
-export function MarketDigestHero({
-  actions,
-  lang,
-  t,
-  renderBot,
-}: {
-  actions: BridgeActions;
-  lang: MarketplaceLanguage;
-  t: BotHarnessTranslate;
-  renderBot: (bot: MarketplaceEntry, close: () => void) => ReactElement;
-}): ReactElement {
-  const [digest, setDigest] = useState<MarketplaceDigest | undefined>(undefined);
-  const [open, setOpen] = useState(false);
-  const mount = useMountedResource<HTMLDivElement>(() => {
+function useLoaded<T>(
+  load: () => Promise<T>,
+  dependencies: readonly unknown[],
+  onReady?: (value: T) => void,
+): [Loaded<T>, (node: HTMLElement | null) => void] {
+  const [state, setState] = useState<Loaded<T>>({ status: 'loading' });
+  const mount = useMountedResource<HTMLElement>(() => {
     let live = true;
-    setDigest(undefined);
-    void actions.marketplaceDigest(undefined, lang).then(
-      (loaded) => {
-        if (live) setDigest(loaded);
+    setState({ status: 'loading' });
+    void load().then(
+      (value) => {
+        if (!live) return;
+        setState({ status: 'ready', value });
+        onReady?.(value);
       },
-      () => undefined,
+      (cause: unknown) => {
+        if (live) setState({ status: 'error', cause });
+      },
     );
     return () => {
       live = false;
     };
-  }, [lang]);
+  }, dependencies);
+  return [state, mount];
+}
+
+function SeePastPicks({
+  t,
+  onArchive,
+}: {
+  t: BotHarnessTranslate;
+  onArchive: () => void;
+}): ReactElement {
   return (
-    <div ref={mount} hidden={digest === undefined} data-market-digest-hero="">
-      {digest === undefined ? null : (
-        <button
-          type="button"
-          {...stylex.props(styles.hero)}
-          aria-label={t('market.digest.read', { title: digest.title })}
-          onClick={() => setOpen(true)}
-        >
-          <span {...stylex.props(styles.eyebrow)}>
-            {t('market.digest.label')} · {digestDate(digest.day, lang)}
-          </span>
-          <span {...stylex.props(styles.heroTitle)}>{digest.title}</span>
-          <span {...stylex.props(styles.lede)}>{digest.lede}</span>
-        </button>
+    <button type="button" {...stylex.props(styles.link)} data-market-past-picks onClick={onArchive}>
+      {t('market.digest.seePast')}
+      <IconChevronRightOutlineRegular size={14} />
+    </button>
+  );
+}
+
+function DigestCard({
+  digest,
+  lang,
+  t,
+  wide,
+  grid,
+  past = false,
+  onOpen,
+}: {
+  digest: MarketplaceDigestSummary;
+  lang: MarketplaceLanguage;
+  t: BotHarnessTranslate;
+  wide: boolean;
+  grid: boolean;
+  past?: boolean;
+  onOpen: () => void;
+}): ReactElement {
+  return (
+    <div
+      role="listitem"
+      {...stylex.props(
+        styles.card,
+        wide && styles.hero,
+        grid && styles.gridCard,
+        past && styles.past,
       )}
-      {open && digest !== undefined ? (
-        <MarketDigestDialog
-          actions={actions}
+    >
+      <button
+        type="button"
+        {...stylex.props(styles.open)}
+        aria-label={t('market.digest.read', { title: digest.title })}
+        data-market-digest-day={digest.day}
+        onClick={onOpen}
+      >
+        <DigestCover
+          day={digest.day}
+          title={digest.title}
+          picks={digest.picks}
           lang={lang}
           t={t}
-          initial={digest}
-          renderBot={(bot) => renderBot(bot, () => setOpen(false))}
-          onClose={() => setOpen(false)}
+          avatarSize={wide ? 32 : 24}
         />
-      ) : null}
+      </button>
     </div>
+  );
+}
+
+export function MarketDailyPicks({
+  actions,
+  lang,
+  t,
+  onOpen,
+  onArchive,
+}: {
+  actions: BridgeActions;
+  lang: MarketplaceLanguage;
+  t: BotHarnessTranslate;
+  onOpen: (day: string) => void;
+  onArchive: () => void;
+}): ReactElement {
+  const [state, mount] = useLoaded(
+    () => actions.marketplaceDigests(lang),
+    [lang],
+    (digests) => {
+      if (digests.length > 0) actions.telemetryEvent('marketplace:digest_view');
+    },
+  );
+  const digests = state.status === 'ready' ? state.value.slice(0, DAILY_PICKS_SHOWN) : [];
+  return (
+    <section
+      {...stylex.props(styles.row, digests.length === 0 && styles.hiddenRow)}
+      ref={mount}
+      hidden={digests.length === 0}
+      aria-label={t('market.digest.label')}
+      data-market-daily-picks=""
+    >
+      <div {...stylex.props(styles.rowHead)}>
+        <h3 {...stylex.props(styles.rowTitle)}>{t('market.digest.label')}</h3>
+        <span {...stylex.props(styles.narrowOnly)}>
+          <SeePastPicks t={t} onArchive={onArchive} />
+        </span>
+      </div>
+      {digests.length === 0 ? null : (
+        <div {...stylex.props(styles.carousel)} role="list">
+          {digests.map((digest, index) => (
+            <DigestCard
+              key={digest.day}
+              digest={digest}
+              lang={lang}
+              t={t}
+              wide={index === 0}
+              grid={false}
+              past={index > 0}
+              onOpen={() => onOpen(digest.day)}
+            />
+          ))}
+          <div role="listitem" {...stylex.props(styles.moreItem)}>
+            <button
+              type="button"
+              {...stylex.props(styles.more)}
+              data-market-past-picks
+              onClick={onArchive}
+            >
+              {t('market.digest.seePast')}
+              <IconChevronRightOutlineRegular size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function LoadNote({
+  state,
+  t,
+}: {
+  state: Loaded<unknown>;
+  t: BotHarnessTranslate;
+}): ReactElement | null {
+  if (state.status === 'loading') return <Note>{t('market.digest.loading')}</Note>;
+  if (state.status === 'error')
+    return <Note tone="danger">{marketplaceError(state.cause, t)}</Note>;
+  return null;
+}
+
+export function MarketDigestPage({
+  actions,
+  day,
+  lang,
+  t,
+  hidden,
+  onBack,
+  onArchive,
+  renderBot,
+}: {
+  actions: BridgeActions;
+  day: string;
+  lang: MarketplaceLanguage;
+  t: BotHarnessTranslate;
+  hidden: boolean;
+  onBack: () => void;
+  onArchive: () => void;
+  renderBot: (bot: MarketplaceEntry) => ReactElement;
+}): ReactElement {
+  const [state, mount] = useLoaded<MarketplaceDigest>(
+    () => actions.marketplaceDigest(day, lang),
+    [day, lang],
+  );
+  const digest = state.status === 'ready' ? state.value : undefined;
+  return (
+    <MarketPage
+      page={`digest:${day}`}
+      title={digest?.title ?? t('market.digest.label')}
+      hidden={hidden}
+      t={t}
+      onBack={onBack}
+    >
+      <article {...stylex.props(styles.article)} ref={mount} data-market-digest={day}>
+        <LoadNote state={state} t={t} />
+        {digest === undefined ? null : (
+          <>
+            <span {...stylex.props(styles.header)}>
+              <DigestCover
+                day={digest.day}
+                title={digest.title}
+                picks={digest.sections
+                  .flatMap((section) => (section.bot === null ? [] : [digestPickOf(section.bot)]))
+                  .slice(0, 4)}
+                lang={lang}
+                t={t}
+                avatarSize={36}
+                caption={false}
+              />
+            </span>
+            <span {...stylex.props(styles.date)}>{digestDate(digest.day, lang)}</span>
+            <h2 {...stylex.props(styles.articleTitle)}>{digest.title}</h2>
+            <p {...stylex.props(styles.lede)}>{digest.lede}</p>
+            {digest.sections.map((section) => (
+              <section key={section.heading} {...stylex.props(styles.section)}>
+                <h3 {...stylex.props(styles.heading)}>{section.heading}</h3>
+                <p {...stylex.props(styles.body)}>{section.body}</p>
+                {section.bot === null ? null : (
+                  <div {...stylex.props(styles.bot)} role="list">
+                    {renderBot(section.bot)}
+                  </div>
+                )}
+              </section>
+            ))}
+            <div {...stylex.props(styles.end)}>
+              <SeePastPicks t={t} onArchive={onArchive} />
+            </div>
+          </>
+        )}
+      </article>
+    </MarketPage>
+  );
+}
+
+export function MarketPastPicksPage({
+  actions,
+  lang,
+  t,
+  hidden,
+  onBack,
+  onOpen,
+}: {
+  actions: BridgeActions;
+  lang: MarketplaceLanguage;
+  t: BotHarnessTranslate;
+  hidden: boolean;
+  onBack: () => void;
+  onOpen: (day: string) => void;
+}): ReactElement {
+  const [state, mount] = useLoaded(() => actions.marketplaceDigests(lang), [lang]);
+  return (
+    <MarketPage
+      page="past-picks"
+      title={t('market.digest.archive')}
+      hidden={hidden}
+      t={t}
+      onBack={onBack}
+    >
+      <div ref={mount} data-market-digest="archive">
+        <LoadNote state={state} t={t} />
+        {state.status === 'ready' ? (
+          state.value.length === 0 ? (
+            <Note>{t('market.digest.none')}</Note>
+          ) : (
+            <div {...stylex.props(styles.grid)} role="list">
+              {state.value.map((digest) => (
+                <DigestCard
+                  key={digest.day}
+                  digest={digest}
+                  lang={lang}
+                  t={t}
+                  wide={false}
+                  grid
+                  onOpen={() => onOpen(digest.day)}
+                />
+              ))}
+            </div>
+          )
+        ) : null}
+      </div>
+    </MarketPage>
   );
 }

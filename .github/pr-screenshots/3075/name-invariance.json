@@ -1,0 +1,22 @@
+[
+  {
+    "bounds": "[442,520][778,856]",
+    "label": "before-name-a",
+    "hash": "EB40A0E98FC233FE6B3CCE5256692A7AFB6E6FD813204B8ED399BD7758F6AC21"
+  },
+  {
+    "bounds": "[442,520][778,856]",
+    "label": "before-name-b",
+    "hash": "884B83ADC2F46655B45BA0E890C253DA47A935561528F9B7F85E39B077FE69CB"
+  },
+  {
+    "bounds": "[442,520][778,856]",
+    "label": "after-name-a",
+    "hash": "671A92AD6B98BBC1010A2D57849A74DF90BB1FBE0E781A6A63B62F7698133749"
+  },
+  {
+    "bounds": "[442,520][778,856]",
+    "label": "after-name-b",
+    "hash": "671A92AD6B98BBC1010A2D57849A74DF90BB1FBE0E781A6A63B62F7698133749"
+  }
+]

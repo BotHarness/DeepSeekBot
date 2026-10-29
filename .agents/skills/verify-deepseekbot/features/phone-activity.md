@@ -35,45 +35,36 @@ the shared QA Host. Use only the dedicated QA conversations.
    before/after in light/dark; disclose physical-device and Android gaps.
 
 
-## Activity tab triage (#1954)
+## Activity list triage (#1954, #3146, #3159, #3174)
 
-Use the same shared-device queue. Open Activity on the selected Host with a pending
+Use the shared-device queue. Open Activity on the selected QA Host with a pending
 question/approval, a Human mention, a reply and ordinary unread group messages.
-Confirm exactly three pinned, underlined tabs: Needs you (default), For you and
-Other unread. Needs you retains approvals, formal questions and private input.
-Switch all three tabs; only their own rows appear, without collapsible section
-headings. The selected tab shows its leading icon and underline together; inactive
-tabs show only their labels. All three blocks have equal width; the selected icon and
-label are centered together and its underline fills the entire block without gutters.
-Swipe left/right on the tab strip to switch pages; a horizontal swipe on a row is that
-row's swipe action (below), not a page change. The underline tracks the gesture; short/cancelled drags
-return to the same page. Confirm the incoming icon is already partially visible before the page settles.
-On a populated page, scroll down: the Activity title/filter/search row and global bottom
-navigation leave, while all three tabs remain pinned beneath the safe area. Rows have no
-top fade. Reverse direction and return to the top: controls return. Short/empty pages,
-pull-to-refresh and elastic bottom bounce must not flicker the controls. While search or
-filters are open, keep their controls reachable. Switch pages while collapsed, confirm
-chrome restores and visited lists retain position. In Chats, repeat down/up scrolling
-to hide/restore the same global navigation. Native iOS and Android need separate proof.
-Its fade/scale and label movement track the same drag as the underline; cancelling
-reverses them, with no late icon pop or layout jump. Then scroll vertically, switch away/back,
-and confirm its scroll position is retained. Vertical scrolling and pull-to-refresh
-must not switch pages. Check repeated fast direction changes and tap-to-third-tab.
-Return to a loaded question and confirm it does not flash a loading card or lose
-its unsent choices. Include very long unread summaries: previews remain bounded
-while opening the row still reaches its full conversation.
-All and handled history remain available through the filter. The header contains
-sorting, filtering and Activity search; no permanent chips appear above the feed.
-Open Filters, combine Bot/Channel/unread/category, switch tabs and confirm those
-other filters survive. Reset returns to Needs you and default filters, preserving
-the search. Close the sheet. While a question submission is pending, switch tabs;
-a late refusal must not restore its post in the new tab. Repeat with a page swipe.
-Search a safe summary beyond the first page and use Load more. Default ordering
-puts mentions before replies; explicit newest/oldest replaces that priority.
-Scroll under the header with search open and closed; verify light/dark and large
-text. A failed query retains stale content with an error; an unsupported Host
-asks for an update. Capture matched screenshots only after driving these controls.
-Web preview evidence does not qualify native keyboard, safe-area or scrolling.
+Confirm one virtualized list without Needs you / For you tabs or a category pager.
+Entry and Reset show All: Needs you first, For you next, then unread conversations.
+Handled, snoozed and cleared history remain explicit category filter choices.
+
+On Android, tap the header filter button: it directly opens the modal end side
+sheet above the bottom navigation. A left swipe on the screen also opens it.
+Close with the header action, scrim and Android Back; each dismisses only the sheet.
+Its fixed title and scrolling controls remain reachable at maximum system text.
+On iOS, the toolbar opens SwiftUI Inspector as a native Sheet on iPhone.
+Verify native Close and swipe-dismiss, medium/large detents, retained list position
+and drafts, and selected filters after reopening. Before iOS 17, use the native
+Sheet fallback. Physical iPhone and wide-screen results remain separate from Simulator proof.
+
+Combine category, Bot, Channel and unread-only filters. Reset restores All and
+default filters without clearing search. Newest/oldest sorts loaded categories
+together by time; load-more controls remain reachable after the rows. Search a
+safe summary beyond the first page and load more. Clear search to restore rows.
+Open and close filters with an unsent question draft; its choices must survive.
+Check Clear/Undo and snooze through the canonical CLI reads below.
+
+Scroll down/up to hide/restore header and global navigation; search and filters
+keep controls reachable. Pull-to-refresh and bottom bounce must not flicker the
+chrome. A failed query retains stale content with an error; an unsupported Host
+asks for an update. Record source/batch SHAs and matched light/dark screenshots
+at default/intermediate/maximum text. Web preview does not qualify native
+keyboard, safe-area, Back or scrolling behavior.
 
 ## Swipe to clear (inbox triage)
 
@@ -128,3 +119,27 @@ clearly without a foreground-only substitute. Verify both languages, light/dark,
 Type and VoiceOver. Measure visible start, remote update latency and added energy on the
 real device; leave those fields UNTESTED until measured. Current retry/repair facts stay
 unknown/nonterminal; no terminal request failure authority is implemented in this slice.
+
+## Bot activity chart inspection (#3032)
+
+On the isolated QA Host, use a Bot with genuine token usage. Record the canonical
+`bot-activity-history <bot-id> --weeks 1` result before interacting. From its
+native profile, open Activity. Confirm that the total and populated day match
+that result; do not manufacture historical database rows.
+
+On iOS, tap a populated day: the date and full compact value remain visible.
+Tap it again to clear. Scrub horizontally across the chart in both directions,
+including returning to the day selected before the drag. Capture intermediate
+readings during the actual gesture, rather than only after release. Release or
+cancel an active scrub: the reading clears. A tap or vertical scroll which does
+not activate horizontal inspection must not run the active-scrub cleanup.
+Vertical page scrolling still works when starting within the plot. Check both
+the Bot activity screen and the controlled chart in Settings → Usage.
+
+Capture matched before/after native light/dark images at default, intermediate
+and maximum system text settings. English values such as `28.8K tokens` must
+remain complete, with date and value wrapping inside the chart width. Include
+first/last day readings and verify VoiceOver adjustable actions separately when
+available. Keep physical iPhone, Simulator, Android, Human haptics and VoiceOver
+results distinct; an event trace or DOM test does not prove visible native text.
+Restore the original language, theme and system text settings afterward.

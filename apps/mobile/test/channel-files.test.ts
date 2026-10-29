@@ -165,6 +165,39 @@ it('discards late pages after leaving the files screen', async () => {
   expect(host.channel('files').followerCount).toBe(0);
 });
 
+it('keeps loaded pages while a retained profile is covered and refreshes on return', async () => {
+  const host = new FakeHost();
+  seed(host);
+  const subject = open(host);
+  await until(() => subject.getSnapshot().status === 'ready');
+  await subject.loadOlder();
+  const retained = subject.getSnapshot().files.map((file) => file.messageId);
+  subject.pause();
+  expect(host.channel('files').followerCount).toBe(0);
+  expect(subject.getSnapshot()).toMatchObject({ loaded: true, status: 'interrupted' });
+  expect(subject.getSnapshot().files.map((file) => file.messageId)).toEqual(retained);
+  subject.start();
+  expect(subject.getSnapshot().loaded).toBe(true);
+  expect(subject.getSnapshot().files.map((file) => file.messageId)).toEqual(retained);
+  await until(() => subject.getSnapshot().status === 'ready');
+  expect(subject.getSnapshot().files.map((file) => file.messageId)).toEqual(retained);
+  subject.stop();
+  expect(subject.getSnapshot()).toMatchObject({ files: [], loaded: false });
+});
+
+it('remembers a successfully loaded empty page but clears it on revocation', async () => {
+  const host = new FakeHost();
+  host.channel('files');
+  const subject = open(host);
+  await until(() => subject.getSnapshot().status === 'ready');
+  subject.pause();
+  subject.start();
+  expect(subject.getSnapshot()).toMatchObject({ files: [], loaded: true });
+  host.revoke();
+  await until(() => subject.getSnapshot().status === 'refused');
+  expect(subject.getSnapshot()).toMatchObject({ files: [], loaded: false });
+});
+
 it('deduplicates exact references and reads across pages containing no attachments', async () => {
   const host = new FakeHost();
   seed(host);

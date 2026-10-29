@@ -85,7 +85,7 @@ describe('telemetry service', () => {
     const context = vi.fn(() => FACTS);
     const telemetry = createTelemetryService({ decision, dataDir: dir, send, context });
 
-    telemetry.capture('plugin_started', STARTED);
+    telemetry.capture('app:host_start', STARTED);
     await telemetry.flush();
     await telemetry.close();
 
@@ -95,7 +95,7 @@ describe('telemetry service', () => {
       lockedBy: decision.enabled ? undefined : decision.reason,
     });
     expect(telemetry.setPreference(true).enabled).toBe(false);
-    telemetry.capture('second', {});
+    telemetry.capture('bot_library:bot_delete', {});
     await telemetry.flush();
     expect(send).not.toHaveBeenCalled();
     expect(context).not.toHaveBeenCalled();
@@ -113,7 +113,7 @@ describe('telemetry service', () => {
       context: () => FACTS,
     });
 
-    telemetry.capture('plugin_started', STARTED);
+    telemetry.capture('app:host_start', STARTED);
     await telemetry.flush();
 
     expect(send).toHaveBeenCalledOnce();
@@ -122,13 +122,13 @@ describe('telemetry service', () => {
     expect(batch?.batch).toHaveLength(1);
     const event = batch!.batch[0]!;
     expect(Object.keys(event).sort()).toEqual(['distinct_id', 'event', 'properties', 'timestamp']);
-    expect(event.event).toBe('plugin_started');
+    expect(event.event).toBe('app:host_start');
     expect(event.timestamp).toBe('2026-10-06T08:00:00.000Z');
     expect(event.distinct_id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u,
     );
     expect(event.properties).toEqual({
-      plugin_version: '1.0.2',
+      app_version: '1.0.2',
       dsh_version: '0.2.0-rc.1',
       os: 'darwin',
       arch: 'arm64',
@@ -136,7 +136,7 @@ describe('telemetry service', () => {
       os_release_major: '25',
       cpu_count_bucket: '9-16',
       total_mem_gb_bucket: '32',
-      source: 'plugin',
+      source: 'host',
       $process_person_profile: false,
       $geoip_disable: true,
     });
@@ -157,7 +157,7 @@ describe('telemetry service', () => {
       }),
     ).toEqual({
       ...STARTED,
-      plugin_version: 'unknown',
+      app_version: 'unknown',
       dsh_version: 'unknown',
       os: 'linux',
       arch: 'x64',
@@ -173,12 +173,12 @@ describe('telemetry service', () => {
       send,
       context,
     });
-    telemetry.capture('bot_created', {
-      plugin_version: 'spoofed',
+    telemetry.capture('bot_library:bot_create', {
+      app_version: 'spoofed',
       cpu_count_bucket: 999,
       $geoip_disable: false,
     });
-    telemetry.capture('daily_usage', { messages: 7 });
+    telemetry.capture('app:usage_report', { message_count: 7 });
     telemetry.captureException({
       type: 'Error',
       mechanism: { type: 'onuncaughtexception', handled: false },
@@ -186,16 +186,16 @@ describe('telemetry service', () => {
     });
     await telemetry.flush();
     telemetry.setPreference(false);
-    telemetry.capture('discarded');
+    telemetry.capture('bot_profile:banner_update');
     telemetry.setPreference(true);
-    telemetry.capture('bot_archived');
+    telemetry.capture('bot_library:bot_archive');
     await telemetry.close();
     const events = batches.flatMap((batch) => batch.batch);
     expect(events.map((event) => event.event)).toEqual([
-      'bot_created',
-      'daily_usage',
+      'bot_library:bot_create',
+      'app:usage_report',
       '$exception',
-      'bot_archived',
+      'bot_library:bot_archive',
     ]);
     for (const event of events)
       expect(event.properties).toMatchObject({
@@ -212,7 +212,7 @@ describe('telemetry service', () => {
     for (let start = 0; start < 2; start += 1) {
       const { send, batches } = recordingSender();
       const telemetry = createTelemetryService({ decision: { enabled: true }, dataDir: dir, send });
-      telemetry.capture('plugin_started', STARTED);
+      telemetry.capture('app:host_start', STARTED);
       await telemetry.close();
       ids.push(batches[0]!.batch[0]!.distinct_id);
     }
@@ -232,9 +232,42 @@ describe('telemetry service', () => {
       send,
       createId: () => '00000000-0000-4000-8000-000000000001',
     });
-    telemetry.capture('plugin_started', STARTED);
+    telemetry.capture('app:host_start', STARTED);
     await telemetry.flush();
     expect(batches[0]!.batch[0]!.distinct_id).toBe('00000000-0000-4000-8000-000000000001');
+  });
+
+  it('keeps a Marketplace entry property next to the Host source', async () => {
+    const { send, batches } = recordingSender();
+    const telemetry = createTelemetryService({
+      decision: { enabled: true },
+      dataDir: dataDir(),
+      send,
+    });
+    telemetry.capture('marketplace:bot_install', { entry: 'digest' });
+    await telemetry.close();
+    expect(batches[0]!.batch[0]!.properties).toMatchObject({ entry: 'digest', source: 'host' });
+  });
+
+  it('refuses unregistered events and invalid registered values before queueing', async () => {
+    const log = vi.fn();
+    const { send, batches } = recordingSender();
+    const telemetry = createTelemetryService({
+      decision: { enabled: true },
+      dataDir: dataDir(),
+      send,
+      log,
+    });
+    telemetry.capture('plugin_started' as never);
+    telemetry.capture('marketplace:bot_install', { entry: 'R_kgDO' });
+    telemetry.capture('app:usage_report', { message_count: -1 });
+    telemetry.capture('app:host_start', { hostname: 'my-mac' });
+    await telemetry.close();
+    expect(batches.flatMap((batch) => batch.batch.map((event) => event.event))).toEqual([
+      'app:host_start',
+    ]);
+    expect(batches[0]!.batch[0]!.properties).not.toHaveProperty('hostname');
+    expect(log).toHaveBeenCalledWith('telemetry phase=refused event=plugin_started');
   });
 
   it('swallows a sender rejection and retries those events once with the next batch', async () => {
@@ -242,18 +275,20 @@ describe('telemetry service', () => {
     const send = vi.fn<TelemetrySender>().mockRejectedValue(new Error('offline'));
     const telemetry = createTelemetryService({ decision: { enabled: true }, dataDir: dir, send });
 
-    telemetry.capture('plugin_started', STARTED);
+    telemetry.capture('app:host_start', STARTED);
     await expect(telemetry.flush()).resolves.toBeUndefined();
-    telemetry.capture('second', {});
+    telemetry.capture('bot_library:bot_delete', {});
     await expect(telemetry.flush()).resolves.toBeUndefined();
     await expect(telemetry.close()).resolves.toBeUndefined();
 
     expect(send).toHaveBeenCalledTimes(3);
     expect(send.mock.calls[1]![0].batch.map((event) => event.event)).toEqual([
-      'plugin_started',
-      'second',
+      'app:host_start',
+      'bot_library:bot_delete',
     ]);
-    expect(send.mock.calls[2]![0].batch.map((event) => event.event)).toEqual(['second']);
+    expect(send.mock.calls[2]![0].batch.map((event) => event.event)).toEqual([
+      'bot_library:bot_delete',
+    ]);
   });
 
   it('batches events captured close together into one request', async () => {
@@ -266,8 +301,8 @@ describe('telemetry service', () => {
         send,
         flushDelayMs: 1_000,
       });
-      telemetry.capture('plugin_started', STARTED);
-      telemetry.capture('second', {});
+      telemetry.capture('app:host_start', STARTED);
+      telemetry.capture('bot_library:bot_delete', {});
       expect(send).not.toHaveBeenCalled();
       await vi.advanceTimersByTimeAsync(1_000);
       expect(send).toHaveBeenCalledOnce();
@@ -283,12 +318,12 @@ describe('telemetry preference', () => {
     const dir = dataDir();
     const { send } = recordingSender();
     const telemetry = createTelemetryService({ decision: { enabled: true }, dataDir: dir, send });
-    telemetry.capture('plugin_started', STARTED);
+    telemetry.capture('app:host_start', STARTED);
     const installId = readInstallId(dir);
 
     expect(telemetry.setPreference(false)).toEqual({ enabled: false, preference: false });
     expect(telemetry.enabled).toBe(false);
-    telemetry.capture('second', {});
+    telemetry.capture('bot_library:bot_delete', {});
     await telemetry.flush();
     await telemetry.close();
     expect(send).not.toHaveBeenCalled();
@@ -304,7 +339,7 @@ describe('telemetry preference', () => {
       send: restarted.send,
     });
     expect(next.status()).toEqual({ enabled: false, preference: false });
-    next.capture('plugin_started', STARTED);
+    next.capture('app:host_start', STARTED);
     await next.close();
     expect(restarted.send).not.toHaveBeenCalled();
   });
@@ -319,7 +354,7 @@ describe('telemetry preference', () => {
         send,
         flushDelayMs: 1_000,
       });
-      telemetry.capture('plugin_started', STARTED);
+      telemetry.capture('app:host_start', STARTED);
       telemetry.setPreference(false);
       telemetry.setPreference(true);
       await vi.advanceTimersByTimeAsync(5_000);
@@ -340,7 +375,7 @@ describe('telemetry preference', () => {
         }),
     );
     const telemetry = createTelemetryService({ decision: { enabled: true }, dataDir: dir, send });
-    telemetry.capture('plugin_started', STARTED);
+    telemetry.capture('app:host_start', STARTED);
     const flushing = telemetry.flush();
     telemetry.setPreference(false);
     reject(new Error('offline'));
@@ -360,16 +395,16 @@ describe('telemetry preference', () => {
       send,
       createId: () => '00000000-0000-4000-8000-000000000002',
     });
-    telemetry.capture('plugin_started', STARTED);
+    telemetry.capture('app:host_start', STARTED);
 
     expect(telemetry.setPreference(true)).toEqual({ enabled: true, preference: true });
     expect(JSON.parse(readFileSync(join(dir, INSTALL_ID_FILE), 'utf8'))).toEqual({
       installId: '00000000-0000-4000-8000-000000000002',
     });
-    telemetry.capture('feature_used', {});
+    telemetry.capture('bot_profile:avatar_update', {});
     await telemetry.flush();
     expect(batches.flatMap((batch) => batch.batch.map((event) => event.event))).toEqual([
-      'feature_used',
+      'bot_profile:avatar_update',
     ]);
     expect(batches[0]!.batch[0]!.distinct_id).toBe('00000000-0000-4000-8000-000000000002');
   });

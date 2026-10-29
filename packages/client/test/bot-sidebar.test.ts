@@ -161,7 +161,7 @@ function stubActions(): BridgeActions {
     onboarding: vi.fn(),
     onboardingModel: vi.fn(),
     inheritModel: vi.fn(),
-    introEvent: vi.fn(),
+    telemetryEvent: vi.fn(),
     retryMessage: vi.fn(),
     stopBot: vi.fn(),
     botContext: vi.fn(),
@@ -187,6 +187,9 @@ function stubActions(): BridgeActions {
     marketplaceList: vi.fn(async () => ({ bots: [] })),
     marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
     marketplaceAuthorSave: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceAuthorAvatarSet: vi.fn(async () => {
       throw new Error('unused');
     }),
     marketplaceUploadPlan: vi.fn(async () => {

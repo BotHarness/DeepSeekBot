@@ -1859,15 +1859,21 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
   padding: ${space.x1};
 }
 /* The Market dock panel: browse controls on top, then a flat grid that follows the panel width. */
+.bh-market-stack { position: relative; height: 100%; min-width: 0; }
+.bh-market-page {
+  height: 100%;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.bh-market-page[hidden] { display: none; }
 .bh-market-panel {
   display: flex;
   flex-direction: column;
   gap: ${space.x3};
-  height: 100%;
+  min-height: 100%;
   min-width: 0;
   padding: ${space.x4};
-  overflow-y: auto;
-  overscroll-behavior: contain;
   box-sizing: border-box;
   container: bh-market / inline-size;
 }
@@ -1875,6 +1881,9 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
 .bh-market-panel > .bh-market-browse > :first-child { flex-basis: 160px; }
 .bh-market-panel > .bh-market-browse > button { flex-shrink: 0; }
 .bh-market-panel > .bh-market-browse > :last-child { max-width: 100%; overflow-x: auto; }
+@container bh-market (max-width: 480px) {
+  .bh-market-panel > .bh-market-browse > :first-child { flex-basis: 100%; }
+}
 /* The three sort tabs need about 330px in English; below that a menu keeps every choice reachable. */
 @container bh-market (max-width: 380px) {
   .bh-market-sort > [role='tablist'] { display: none; }
@@ -2199,6 +2208,14 @@ button.bh-market-file:focus-visible { outline: ${border.focus} solid ${color.acc
   color: var(--dsw-alias-label-tertiary);
   font-size: ${text.metaSize};
   font-weight: ${text.regular};
+}
+.bh-market-author-avatar {
+  width: 1.25em;
+  height: 1.25em;
+  margin-inline-end: ${space.x1};
+  border-radius: 50%;
+  object-fit: cover;
+  vertical-align: -0.3em;
 }
 .bh-market-owner,
 [data-market-author] {

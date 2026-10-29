@@ -399,7 +399,10 @@ function WorkspaceRail({
                     { value: 'simple', label: t('workspace.layoutMode.simple') },
                     { value: 'advanced', label: t('workspace.layoutMode.advanced') },
                   ]}
-                  onChange={(mode) => layoutMode.setMode(mode as LayoutMode)}
+                  onChange={(mode) => {
+                    layoutMode.setMode(mode as LayoutMode);
+                    options.actions.telemetryEvent('layout:mode_select', { mode });
+                  }}
                 />
               }
             />

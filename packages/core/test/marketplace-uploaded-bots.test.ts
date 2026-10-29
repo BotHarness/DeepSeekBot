@@ -59,6 +59,7 @@ function fixture() {
   const session = {
     state: 'signed-out',
     tokens: ['token-alice'] as string[],
+    freshToken: 'token-alice',
     fresh: 0,
   };
   const account = {
@@ -66,7 +67,7 @@ function fixture() {
     accessToken: (options?: { fresh?: boolean }) => {
       if (options?.fresh === true) session.fresh += 1;
       return Promise.resolve(
-        options?.fresh === true ? 'token-alice' : (session.tokens.shift() ?? 'token-alice'),
+        options?.fresh === true ? session.freshToken : (session.tokens.shift() ?? 'token-alice'),
       );
     },
   };
@@ -85,8 +86,15 @@ function fixture() {
     prompts: [],
     run: async () => ({ text: '{"findings": []}', model: 'deepseek/test' }),
   };
+  const captures: [string, Record<string, unknown> | undefined][] = [];
   const bridge = createBridgeMethods({
     ...core,
+    telemetry: {
+      status: () => ({ enabled: true, preference: true }),
+      setPreference: () => ({ enabled: true, preference: true }),
+      capture: (event: string, properties?: Record<string, unknown>) =>
+        captures.push([event, properties]),
+    },
     marketplace: client,
     shareDrafts,
     marketplaceReceipts: {
@@ -104,7 +112,7 @@ function fixture() {
       },
     }),
   });
-  return { core, bridge, market, session, reviewer, receipts };
+  return { core, bridge, market, session, reviewer, receipts, captures };
 }
 
 function write(root: string, path: string, data: string | Buffer) {
@@ -170,6 +178,18 @@ it('uploads only a ready Share Draft', async () => {
     ok: false,
     error: { code: 'share-draft-not-ready' },
   });
+});
+
+it('reports a signed-in account the Market keeps refusing instead of asking to sign in again', async () => {
+  const f = fixture();
+  f.session.state = 'signed-in';
+  f.session.tokens = ['token-stale!'];
+  f.session.freshToken = 'token-refused!';
+  expect(await f.bridge.marketplaceAccount()).toMatchObject({
+    ok: false,
+    error: { code: 'sign-in-rejected' },
+  });
+  expect(f.session.fresh).toBe(1);
 });
 
 it('needs a Connect sign-in and an author before uploading', async () => {
@@ -294,13 +314,24 @@ it('uploads a Bot, retries an expired token once, and installs it as a fresh Bot
     partial: false,
     model: 'deepseek/test',
   });
+  expect(
+    await f.bridge.marketplaceInstall({
+      id: uploaded.value.bot.id,
+      reviewId: reviewed.value.reviewId,
+      source: 'homepage',
+    }),
+  ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
   const installed = await f.bridge.marketplaceInstall({
     id: uploaded.value.bot.id,
     reviewId: reviewed.value.reviewId,
     operationKey: 'install-helper-01',
+    source: 'digest',
   });
   if (!installed.ok) throw new Error(installed.error.message);
   expect(f.receipts).toEqual([uploaded.value.bot.id]);
+  expect(f.captures.filter(([event]) => event === 'marketplace:bot_install')).toEqual([
+    ['marketplace:bot_install', { entry: 'digest' }],
+  ]);
   expect(installed.value.bot).toMatchObject({
     displayName: 'Helper',
     description: 'Writes things down',

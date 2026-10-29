@@ -18,7 +18,7 @@ import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
 import { edge, memoryGrid, profileShell, radius, rowGlyph, space } from '../design/tokens';
 import { profileTabPaths, profileTabSymbols } from '../design/profile-tab-icons';
-import { useFocusEffect } from 'expo-router';
+import { useProfileFocusEffect } from './profile-visibility';
 import { SettingsHeading, SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { useMounted } from '../mounted';
@@ -335,16 +335,19 @@ function BotIdentity({
         </EditableAvatar>
       }
     >
-      <Text variant="meta" tone={botStateTone(bot)}>
+      <Text pointerEvents="none" variant="meta" tone={botStateTone(bot)}>
         {[bot.paused ? t.paused : t.state[bot.state], ...bot.roles].join(' · ')}
       </Text>
       {bot.description === undefined || bot.description.trim() === '' ? null : (
-        <Text tone="muted" numberOfLines={3} style={{ textAlign: 'center' }}>
+        <Text pointerEvents="none" tone="muted" numberOfLines={3} style={{ textAlign: 'center' }}>
           {bot.description}
         </Text>
       )}
       {actions.onBrowser === undefined && actions.onComputer === undefined ? null : (
-        <View style={{ flexDirection: 'row', gap: space.x4, paddingTop: space.x1 }}>
+        <View
+          pointerEvents="box-none"
+          style={{ flexDirection: 'row', gap: space.x4, paddingTop: space.x1 }}
+        >
           {actions.onBrowser === undefined ? null : (
             <RoundAction
               label={t.profileBrowser}
@@ -646,7 +649,7 @@ export function BotProfilePage({
       live = false;
     };
   }, [load]);
-  useFocusEffect(read);
+  useProfileFocusEffect(read);
   const rows = profileRows(content.ready ? profile : undefined, channels, columns);
   const [memoryView, setMemoryView] = useState<MemoryView>('files');
   const changes = useMemoryChanges(memoryChanges);
@@ -783,7 +786,7 @@ export function BotProfilePage({
       options={profileTabOptions(tabs)}
       tab={tab}
       onTab={setTab}
-      body={tab === 'files' || tab === 'members' ? filesBody : bodies[tab]}
+      body={(page) => (page === 'files' || page === 'members' ? filesBody : bodies[page])}
       onClose={actions.onClose}
     />
   );
