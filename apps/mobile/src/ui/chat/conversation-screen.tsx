@@ -1158,8 +1158,8 @@ function ChatConversation({
     host.roster !== undefined && (dm ? bot === undefined : channel === undefined && !botDm);
   const missingGroup = missing && !dm && !hostRefused && snapshot.status !== 'refused';
   useLayoutEffect(() => {
-    if (missingGroup) Keyboard.dismiss();
-  }, [missingGroup]);
+    if (missingGroup && focused) Keyboard.dismiss();
+  }, [missingGroup, focused]);
   const backToChats = () => (closePresentation ? closePresentation() : router.dismissTo('/'));
   const profileTravel = useSharedValue(0);
   const canGoBack = !stackRoot && router.canGoBack();

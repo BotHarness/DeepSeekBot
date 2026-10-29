@@ -342,7 +342,7 @@ vi.mock('../src/ui/chat/working-status', () => ({
 }));
 vi.mock('../src/ui/chat/time-separator', () => ({ TimeSeparator: () => null }));
 
-import { Platform } from 'react-native';
+import { Keyboard, Platform } from 'react-native';
 import { ConversationScreen, type ChatPlace } from '../src/ui/chat/conversation-screen';
 import { StackRoot } from '../src/ui/shell/stack-root';
 import { t } from '../src/ui/strings';
@@ -1343,6 +1343,17 @@ describe('disbanded group presentation', () => {
     expect(view.querySelector('[data-testid="composer-input"]')).toBeNull();
     expect(view.querySelector('[data-testid="message-skeleton"]')).toBeNull();
     expect(view.querySelector('[data-testid="channel-title"]')?.textContent).toBe(t.groupInfo);
+  });
+  it('dismisses the keyboard only when the missing group becomes focused', async () => {
+    const dismiss = vi.spyOn(Keyboard, 'dismiss');
+    state.focused = false;
+    const place: ChatPlace = { kind: 'channel', channelId: 'gone' };
+    await render(place);
+    expect(dismiss).not.toHaveBeenCalled();
+    state.focused = true;
+    await act(async () => root!.render(<ConversationScreen place={place} focus={undefined} />));
+    expect(dismiss).toHaveBeenCalledOnce();
+    dismiss.mockRestore();
   });
   it('retains cached conversation controls until reconnect confirms absence', async () => {
     state.host.roster.channels = [
