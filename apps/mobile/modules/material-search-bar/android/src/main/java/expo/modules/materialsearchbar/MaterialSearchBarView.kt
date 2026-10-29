@@ -245,7 +245,7 @@ private fun SearchResultItem(result: SearchResult, onPick: () -> Unit) {
   val subtitle: (@Composable () -> Unit)? =
     if (result.subtitle.isEmpty()) null
     else {
-      { Text(result.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+      { Text(result.subtitle, maxLines = 3, overflow = TextOverflow.Ellipsis) }
     }
   ListItem(
     onClick = onPick,
@@ -258,7 +258,7 @@ private fun SearchResultItem(result: SearchResult, onPick: () -> Unit) {
       contentColor = MaterialTheme.colorScheme.onSurface,
     ),
   ) {
-    Text(result.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Text(result.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
   }
 }
 
