@@ -1,3 +1,7 @@
+import {
+  MARKETPLACE_INSTALL_SOURCES,
+  type MarketplaceInstallSource,
+} from '../../../../packages/core/src/marketplace/client';
 import { isDeviceYearClass, isPublicModelId, type DeviceTelemetryContext } from './device-context';
 
 export type PairingMethod = 'qr' | 'image' | 'paste' | 'deep_link' | 'account';
@@ -100,6 +104,11 @@ export interface EventProperties {
   };
   'activity:question_submit': { entry: 'app' | 'chat' };
   'activity:grant_request_submit': Record<string, never>;
+  'marketplace:bot_open': { entry: MarketplaceInstallSource; step: 'detail' | 'install' };
+  'marketplace:digest_archive_open': Record<string, never>;
+  'marketplace:digest_open': { entry: 'hero' | 'archive' };
+  'marketplace:digest_view': Record<string, never>;
+  'marketplace:section_view': Record<string, never>;
   'model:plan_update': { via: 'default' | 'custom' | 'plan' | 'assignments' | 'inherit' };
   'notification:push_open': Record<string, never>;
   'search:result_open': { kind: 'message' };
@@ -112,6 +121,11 @@ export type FeatureEventName =
   | 'activity:approval_submit'
   | 'activity:question_submit'
   | 'activity:grant_request_submit'
+  | 'marketplace:bot_open'
+  | 'marketplace:digest_archive_open'
+  | 'marketplace:digest_open'
+  | 'marketplace:digest_view'
+  | 'marketplace:section_view'
   | 'model:plan_update'
   | 'notification:push_open'
   | 'search:result_open'
@@ -212,6 +226,14 @@ export const MOBILE_EVENT_FIELDS: Record<
   },
   'activity:question_submit': { entry: member('app', 'chat') },
   'activity:grant_request_submit': {},
+  'marketplace:bot_open': {
+    entry: member(...MARKETPLACE_INSTALL_SOURCES),
+    step: member('detail', 'install'),
+  },
+  'marketplace:digest_archive_open': {},
+  'marketplace:digest_open': { entry: member('hero', 'archive') },
+  'marketplace:digest_view': {},
+  'marketplace:section_view': {},
   'model:plan_update': { via: member('default', 'custom', 'plan', 'assignments', 'inherit') },
   'notification:push_open': {},
   'search:result_open': { kind: member('message') },

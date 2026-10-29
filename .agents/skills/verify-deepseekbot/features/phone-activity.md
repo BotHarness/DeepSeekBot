@@ -35,28 +35,36 @@ the shared QA Host. Use only the dedicated QA conversations.
    before/after in light/dark; disclose physical-device and Android gaps.
 
 
-## Activity list triage (#3159, #3174)
+## Activity list triage (#1954, #3146, #3159, #3174)
 
-Use the shared-device queue and a paired isolated Host. Open Activity with a pending
-question/approval, a Human mention, a reply and unread conversation messages.
-The screen has one virtualized list, with no Needs you / For you tab strip.
-Default All ordering places pending work first, then related messages, then unread
-conversations; newest/oldest sorts loaded items across categories.
+Use the shared-device queue. Open Activity on the selected QA Host with a pending
+question/approval, a Human mention, a reply and ordinary unread group messages.
+Confirm one virtualized list without Needs you / For you tabs or a category pager.
+Entry and Reset show All: Needs you first, For you next, then unread conversations.
+Handled, snoozed and cleared history remain explicit category filter choices.
 
-Open the filter toolbar button. iOS uses SwiftUI Inspector (a native Sheet on compact
-iPhone); Android keeps its modal side sheet. Select a category, Bot, Channel and
-unread-only; close and reopen to confirm selections persist. Reset returns to All
-and default sort, preserving search. Opening or dismissing without edits retains
-list position and inline question drafts. Test native swipe-dismiss and Close,
-medium/large detents on iPhone, default/intermediate/maximum Dynamic Type, light/dark.
-Wide-screen Inspector and physical iPhone results are separate from Simulator proof.
+On Android, tap the header filter button: it directly opens the modal end side
+sheet above the bottom navigation. A left swipe on the screen also opens it.
+Close with the header action, scrim and Android Back; each dismisses only the sheet.
+Its fixed title and scrolling controls remain reachable at maximum system text.
+On iOS, the toolbar opens SwiftUI Inspector as a native Sheet on iPhone.
+Verify native Close and swipe-dismiss, medium/large detents, retained list position
+and drafts, and selected filters after reopening. Before iOS 17, use the native
+Sheet fallback. Physical iPhone and wide-screen results remain separate from Simulator proof.
 
-Search a safe summary, close search with the software keyboard visible, and confirm
-no header jump. Filter with search active and confirm the query survives. Load more
-must retain bounded category pagination. Handled, snoozed and cleared remain explicit
-categories. Failed reads retain stale content with an error; unsupported Hosts ask
-for an update. Preserve first failures, screenshots and recordings. Native controls
-and gestures cannot be qualified from Web preview or component tests.
+Combine category, Bot, Channel and unread-only filters. Reset restores All and
+default filters without clearing search. Newest/oldest sorts loaded categories
+together by time; load-more controls remain reachable after the rows. Search a
+safe summary beyond the first page and load more. Clear search to restore rows.
+Open and close filters with an unsent question draft; its choices must survive.
+Check Clear/Undo and snooze through the canonical CLI reads below.
+
+Scroll down/up to hide/restore header and global navigation; search and filters
+keep controls reachable. Pull-to-refresh and bottom bounce must not flicker the
+chrome. A failed query retains stale content with an error; an unsupported Host
+asks for an update. Record source/batch SHAs and matched light/dark screenshots
+at default/intermediate/maximum text. Web preview does not qualify native
+keyboard, safe-area, Back or scrolling behavior.
 
 ## Swipe to clear (inbox triage)
 

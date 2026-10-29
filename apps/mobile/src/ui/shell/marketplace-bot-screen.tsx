@@ -17,15 +17,17 @@ import { MarketplaceDetail } from './marketplace-detail';
 
 export function MarketplaceBotScreen() {
   const t = useStrings();
-  const { id, hostId, entry } = useLocalSearchParams<{
+  const params = useLocalSearchParams<{
     id?: string;
     hostId?: string;
     entry?: string;
+    error?: string;
   }>();
+  const { id, hostId, entry } = params;
   const resource = marketplace.detail(id ?? '', locale);
   const state = useCatalogueResource(resource);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<string | undefined>(params.error);
   const importing = useRef(false);
   const visible = useRef(false);
   const insets = useSafeAreaInsets();
