@@ -23,6 +23,7 @@ import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.sidesheet.SideSheetBehavior
 import com.google.android.material.sidesheet.SideSheetCallback
 import com.reactnativepagerview.ComposePagerView
+import com.facebook.react.uimanager.events.NativeGestureUtil
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.viewevent.EventDispatcher
 import expo.modules.kotlin.views.ExpoView
@@ -57,7 +58,24 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
   private val behavior = object : SideSheetBehavior<FrameLayout>(materialContext, null) {
     private var down: MotionEvent? = null
     private var eligible = false
+    private var nativeDragging = false
     override fun onInterceptTouchEvent(parent: CoordinatorLayout, child: FrameLayout, event: MotionEvent): Boolean {
+      val intercepted = interceptSheet(parent, child, event)
+      if (intercepted && !nativeDragging) {
+        NativeGestureUtil.notifyNativeGestureStarted(this@EndSheetView, event)
+        nativeDragging = true
+      }
+      return intercepted
+    }
+    override fun onTouchEvent(parent: CoordinatorLayout, child: FrameLayout, event: MotionEvent): Boolean {
+      val handled = super.onTouchEvent(parent, child, event)
+      if (nativeDragging && (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL)) {
+        NativeGestureUtil.notifyNativeGestureEnded(this@EndSheetView, event)
+        nativeDragging = false
+      }
+      return handled
+    }
+    private fun interceptSheet(parent: CoordinatorLayout, child: FrameLayout, event: MotionEvent): Boolean {
       if (event.actionMasked == MotionEvent.ACTION_DOWN) {
         down?.recycle()
         down = MotionEvent.obtain(event)

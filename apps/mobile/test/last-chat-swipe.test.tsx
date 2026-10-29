@@ -53,7 +53,7 @@ vi.mock('react-native-gesture-handler', async () => {
       createElement(Fragment, null, children as never),
   };
 });
-vi.mock('expo-router', () => ({ router: { navigate: state.navigate } }));
+vi.mock('expo-router', () => ({ router: { navigate: state.navigate }, useIsFocused: () => true }));
 vi.mock('expo-secure-store', () => ({
   getItemAsync: async (key: string) => state.stored.get(key) ?? null,
   setItemAsync: async (key: string, value: string) => void state.stored.set(key, value),

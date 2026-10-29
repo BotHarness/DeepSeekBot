@@ -1,3 +1,4 @@
+import { chatHref } from '../../../src/ui/shell/recent-chats';
 import { HostRow } from '../../../src/ui/chat/host-conversation-row';
 import { renderKeyboardFormScroll } from '../../../src/ui/primitives/keyboard-form';
 import {
@@ -591,6 +592,25 @@ const HomeContent = memo(function HomeContent({
           {(headerTravel) => (
             <LastChatSwipe
               enabled={!searching && !searchFocused && query === ''}
+              candidates={displayed.flatMap((row) =>
+                row.type !== 'computer'
+                  ? []
+                  : [
+                      {
+                        id: row.key,
+                        title:
+                          row.conversation.kind === 'bot'
+                            ? row.conversation.bot.displayName
+                            : row.conversation.channel.name,
+                        href: chatHref(
+                          row.conversation.kind === 'bot'
+                            ? `/dm/${encodeURIComponent(row.conversation.bot.slug)}`
+                            : `/channel/${encodeURIComponent(row.conversation.channel.id)}`,
+                          row.host.saved.hostId,
+                        ),
+                      },
+                    ],
+              )}
               travel={lastChatTravel}
             >
               <PullToRefresh refreshing={refreshing} onRefresh={() => void refresh()}>
