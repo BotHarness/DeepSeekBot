@@ -7,7 +7,7 @@ import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { titleChipFill } from './header-chrome';
-import { barLabelStyle } from './native-header';
+import { barLabelStyle, barLabelProps } from './native-header';
 import { GroupMark } from './group-mark';
 import { WorkingStatus, workingLabel } from './working-status';
 
@@ -54,7 +54,12 @@ export function ChannelTitle({
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x3,
-        minHeight: Math.max(theme.touch, theme.type.body.line * theme.fontScale + space.x3),
+        minHeight: Math.max(
+          theme.touch,
+          theme.type.body.line *
+            Math.min(theme.fontScale, barLabelProps.maxFontSizeMultiplier ?? Infinity) +
+            space.x3,
+        ),
         paddingLeft: (theme.touch - MARK) / 2,
         paddingRight: theme.touch / 2,
         borderRadius: radius.round,
@@ -62,7 +67,12 @@ export function ChannelTitle({
       })}
     >
       <GroupMark avatar={channel?.avatar} size={MARK} corner={radius.round} />
-      <Text strong numberOfLines={1} style={[{ flex: 1, minWidth: 0 }, barLabelStyle]}>
+      <Text
+        {...barLabelProps}
+        strong
+        numberOfLines={1}
+        style={[{ flex: 1, minWidth: 0 }, barLabelStyle]}
+      >
         {name}
       </Text>
       <ConnectionProgress active={connectionLabel !== undefined} />

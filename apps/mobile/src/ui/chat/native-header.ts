@@ -1,5 +1,5 @@
 import { useHeaderHeight } from 'expo-router/react-navigation';
-import { Platform, PlatformColor, type TextStyle } from 'react-native';
+import { Platform, PlatformColor, type TextProps, type TextStyle } from 'react-native';
 
 import { floatingHeader, glassHeader } from './header-kind';
 
@@ -16,3 +16,6 @@ export function useHeaderPadding(): number {
 }
 
 export const barLabelStyle: TextStyle = glassHeader ? { color: PlatformColor('label') } : {};
+
+export const barLabelProps: Pick<TextProps, 'maxFontSizeMultiplier'> =
+  Platform.OS === 'ios' ? { maxFontSizeMultiplier: 1.35 } : {};
