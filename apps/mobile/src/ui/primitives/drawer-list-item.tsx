@@ -13,7 +13,6 @@ export type DrawerListItemProps = {
   onLongPress?(): void;
 };
 
-// Only the Android drawer uses this platform adapter.
 export function DrawerListItem(_props: DrawerListItemProps) {
   return null;
 }
