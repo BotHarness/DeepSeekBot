@@ -4,6 +4,14 @@ export type OnboardingPersona = (typeof ONBOARDING_PERSONAS)[number];
 export const ONBOARDING_FEATURES = ['bot', 'group', 'schedule', 'browser', 'memory', 'im'] as const;
 export type OnboardingFeature = (typeof ONBOARDING_FEATURES)[number];
 
+export const PERSONA_DETAILS = {
+  engineer: ['frontend', 'backend', 'fullstack', 'mobile', 'data_ai', 'devops'],
+  creator: ['video', 'writing', 'live', 'marketing'],
+  operator: ['pm', 'user_ops', 'growth', 'project', 'founder'],
+  learner: ['student', 'researcher', 'exam', 'career_switch'],
+} as const satisfies Record<OnboardingPersona, readonly string[]>;
+export type PersonaDetail = (typeof PERSONA_DETAILS)[OnboardingPersona][number];
+
 export type PersonaPrompt = { id: string; feature: OnboardingFeature };
 
 export const PERSONA_TEMPLATES: Readonly<

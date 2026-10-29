@@ -244,21 +244,35 @@ describe('intro modal', () => {
     expect(step()).toBe('start');
     expect(dialog().querySelectorAll('[data-persona]')).toHaveLength(4);
     expect(dialog().querySelector('[data-intro-interview]')).not.toBeNull();
-    await act(async () =>
-      dialog().querySelector<HTMLButtonElement>('[data-persona="creator"]')!.click(),
+    const tap = async (selector: string) =>
+      act(async () => dialog().querySelector<HTMLButtonElement>(selector)!.click());
+    expect(dialog().querySelector<HTMLButtonElement>('[data-intro-persona-next]')!.disabled).toBe(
+      true,
     );
+    await tap('[data-persona="creator"]');
+    await tap('[data-persona="engineer"]');
+    expect(dialog().querySelectorAll('[data-persona-details]')).toHaveLength(2);
+    await tap('[data-persona-detail="video"]');
+    await tap('[data-persona-detail="backend"]');
+    await tap('[data-persona-detail="frontend"]');
+    await tap('[data-persona-detail="frontend"]');
+    expect(
+      dialog().querySelector('[data-persona-detail="backend"]')!.getAttribute('aria-pressed'),
+    ).toBe('true');
+    await tap('[data-intro-persona-next]');
     expect(dialog().querySelector('[data-intro-persona]')!.getAttribute('data-intro-persona')).toBe(
-      'creator',
+      'engineer creator',
     );
-    expect(dialog().querySelectorAll('[data-persona-prompt]')).toHaveLength(3);
+    expect(dialog().querySelectorAll('[data-persona-prompt]')).toHaveLength(6);
     expect(dialog().textContent).toContain(zhTranslate('intro.feature.browser'));
     const sent: string[] = [];
     const stop = receiveTobMessages((body) => sent.push(body));
-    await act(async () =>
-      dialog().querySelector<HTMLButtonElement>('[data-persona-prompt="trends"]')!.click(),
-    );
+    await tap('[data-persona-prompt="trends"]');
     stop();
-    expect(sent).toEqual([zhTranslate('intro.persona.creator.trends.body')]);
+    expect(sent).toEqual([
+      '关于我：工程师（后端）、自媒体人（短视频）。' +
+        zhTranslate('intro.persona.creator.trends.body'),
+    ]);
     const events = (actions.telemetryEvent as ReturnType<typeof vi.fn>).mock.calls;
     expect(events[0]).toEqual(['onboarding:intro_view', undefined]);
     expect(events).toContainEqual(['onboarding:intro_step_view', { step: 'community' }]);
@@ -266,9 +280,23 @@ describe('intro modal', () => {
     expect(events).toContainEqual(['onboarding:theme_update', { setting: 'layout' }]);
     detachLayout();
     expect(events).toContainEqual(['onboarding:persona_select', { persona: 'creator' }]);
+    expect(events).toContainEqual([
+      'onboarding:persona_detail_select',
+      { persona: 'engineer', detail: 'backend' },
+    ]);
+    expect(events.filter(([name]) => name === 'onboarding:persona_detail_select')).toHaveLength(3);
     expect(events.at(-1)).toEqual([
       'onboarding:intro_complete',
-      { starter: 'persona', persona: 'creator', feature: 'browser' },
+      {
+        starter: 'persona',
+        persona: 'creator',
+        feature: 'browser',
+        is_engineer: true,
+        is_creator: true,
+        is_operator: false,
+        is_learner: false,
+        has_detail: true,
+      },
     ]);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
@@ -297,13 +325,19 @@ describe('intro modal', () => {
       zhTranslate('intro.interview.body') +
         zhTranslate('intro.interview.timeZone', { timeZone: zone }),
     );
-    expect(events.at(-1)).toEqual(['onboarding:intro_complete', { starter: 'interview' }]);
+    const nobody = { is_engineer: false, is_creator: false, is_operator: false, is_learner: false };
+    expect(events.at(-1)).toEqual([
+      'onboarding:intro_complete',
+      { starter: 'interview', ...nobody, has_detail: false },
+    ]);
 
     await open();
     await press('[data-persona="operator"]');
+    await press('[data-intro-persona-next]');
     await press('[data-persona-prompt="weekly"]');
     expect(sent.at(-1)).toBe(
-      zhTranslate('intro.persona.operator.weekly.body') +
+      '关于我：产品 / 运营。' +
+        zhTranslate('intro.persona.operator.weekly.body') +
         zhTranslate('intro.persona.timeZone', { timeZone: zone }),
     );
 
@@ -318,7 +352,7 @@ describe('intro modal', () => {
     expect(sent).toHaveLength(2);
     expect(events.at(-1)).toEqual([
       'onboarding:intro_complete',
-      { starter: 'own', persona: 'engineer' },
+      { starter: 'own', ...nobody, is_engineer: true, has_detail: false },
     ]);
   });
 

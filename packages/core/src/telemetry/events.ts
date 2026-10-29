@@ -93,6 +93,27 @@ export interface TelemetryEventSpec {
 const INTRO_STEPS = ['welcome', 'theme', 'model', 'community', 'start'] as const;
 const INTRO_PERSONAS = ['engineer', 'creator', 'operator', 'learner'] as const;
 const INTRO_FEATURES = ['bot', 'group', 'schedule', 'browser', 'memory', 'im'] as const;
+const INTRO_PERSONA_DETAILS = [
+  'frontend',
+  'backend',
+  'fullstack',
+  'mobile',
+  'data_ai',
+  'devops',
+  'video',
+  'writing',
+  'live',
+  'marketing',
+  'pm',
+  'user_ops',
+  'growth',
+  'project',
+  'founder',
+  'student',
+  'researcher',
+  'exam',
+  'career_switch',
+] as const;
 const SURFACE = { surface: TELEMETRY_SURFACES } as const;
 const LAYOUT_MODES = ['simple', 'advanced'] as const;
 
@@ -294,6 +315,11 @@ export const TELEMETRY_EVENTS = {
       starter: ['botPrompt', 'firstRequest', 'exampleRequest', 'own', 'persona', 'interview'],
       persona: INTRO_PERSONAS,
       feature: INTRO_FEATURES,
+      is_engineer: 'boolean',
+      is_creator: 'boolean',
+      is_operator: 'boolean',
+      is_learner: 'boolean',
+      has_detail: 'boolean',
       ...SURFACE,
     },
   },
@@ -301,6 +327,11 @@ export const TELEMETRY_EVENTS = {
     origin: 'client',
     description: 'A starting persona was picked on the last intro step.',
     properties: { persona: INTRO_PERSONAS, ...SURFACE },
+  },
+  'onboarding:persona_detail_select': {
+    origin: 'client',
+    description: 'A focus under a starting persona was picked on the last intro step.',
+    properties: { persona: INTRO_PERSONAS, detail: INTRO_PERSONA_DETAILS, ...SURFACE },
   },
   'onboarding:theme_update': {
     origin: 'client',
