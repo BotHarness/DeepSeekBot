@@ -48,4 +48,4 @@ Default=`large`, intermediate=`accessibility-medium`, maximum=`accessibility-ext
 
 Selected screenshots in this directory are original native captures with synthetic content, inspected for publication. Local paths, pairing state and unrelated settings captures are not published.
 
-All3 disposable groups removed through canonical delete/UI. App temporary pairing removed, Host active devices0/pending0; subsequent redundant CLI revoke returned409 because already revoked. Original3 pairings preserved. Language restored to Follow system, appearance light, content size large. Owned Host9913/proxy11713 exited and50370/50371 free; driver graceful clean stop; SimulatorShutdown. Protected39100/8095 unchanged. Sources/raw evidence retained. Queue released.
+All three disposable groups and the temporary pairing were removed; active devices and pending requests are both zero. Original pairings preserved; system language, light appearance and default text size restored. Owned services and driver stopped; Simulator shut down. Shared services unchanged. Original evidence retained privately.
