@@ -24,7 +24,6 @@ const state = vi.hoisted(() => ({
   handlers: [] as Handlers[],
   os: 'ios',
   pan: undefined as PanHandlers | undefined,
-  chrome: vi.fn(),
   open: vi.fn(),
   refresh: vi.fn(),
   haptic: vi.fn(async () => {}),
@@ -92,7 +91,6 @@ vi.mock('../src/ui/primitives/use-system-reduced-motion', () => ({
 }));
 vi.mock('../src/ui/haptic-effect', () => ({ playHaptic: state.haptic }));
 
-import { useAnimatedScrollHandler } from 'react-native-reanimated';
 import { DesignThemeProvider } from '../src/ui/design/theme';
 import { setHapticsEnabled } from '../src/ui/haptics';
 import { PullToTob } from '../src/ui/shell/pull-to-tob';
@@ -101,9 +99,7 @@ import { tobPull } from '../src/ui/design/tokens';
 
 let root: Root | undefined;
 let view: HTMLDivElement;
-let scroll: unknown;
 function Harness() {
-  const chrome = useAnimatedScrollHandler({ onScroll: state.chrome });
   return (
     <DesignThemeProvider appearance={{}}>
       <PullToTob
@@ -114,12 +110,8 @@ function Harness() {
         refreshing={false}
         onOpen={state.open}
         onRefresh={state.refresh}
-        onScroll={chrome}
       >
-        {(props): ReactElement => {
-          scroll = props.onScroll;
-          return <div>Chats</div>;
-        }}
+        {(): ReactElement => <div>Chats</div>}
       </PullToTob>
     </DesignThemeProvider>
   );
@@ -332,16 +324,5 @@ describe('iOS pull events through the real Chats pull component', () => {
     expect(manager.fail).toHaveBeenCalledOnce();
     expect(manager.activate).not.toHaveBeenCalled();
     expect(state.open).not.toHaveBeenCalled();
-  });
-  it('composes the chrome handler rather than replacing it', async () => {
-    await mount();
-    expect(scroll).toBeDefined();
-    if (scroll === null || typeof scroll !== 'object')
-      throw new Error('composed shim handler missing');
-    const onScroll = Reflect.get(scroll, 'onScroll');
-    if (typeof onScroll !== 'function') throw new Error('composed scroll missing');
-    const event = { contentOffset: { y: 20 }, contentInset: { top: 0 } };
-    onScroll(event);
-    expect(state.chrome).toHaveBeenCalledWith(event, {});
   });
 });

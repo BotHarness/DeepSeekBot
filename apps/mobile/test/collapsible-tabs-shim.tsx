@@ -25,7 +25,7 @@ function Container({
 }: {
   children: ReactNode;
   initialTabName?: string;
-  renderHeader(): ReactNode;
+  renderHeader?(): ReactNode;
   renderTabBar(pager: Pager): ReactNode;
   pagerProps?: { onPageSelected?(event: Selection): void };
 }) {
@@ -44,7 +44,7 @@ function Container({
   });
   return (
     <>
-      {renderHeader()}
+      {renderHeader?.()}
       {renderTabBar({ containerRef })}
       {pages.map((page, position) => (
         <div key={page.props.name} hidden={position !== index}>

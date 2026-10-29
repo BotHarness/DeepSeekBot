@@ -4,14 +4,7 @@ import { ActivitySheetRoot } from './activity-sheet-root';
 import { BottomTabBar, Tabs } from 'expo-router/js-tabs';
 import { router } from 'expo-router';
 import { useRef, useState, type ComponentProps } from 'react';
-import {
-  AccessibilityInfo,
-  Platform,
-  View,
-  useWindowDimensions,
-  type ViewInstance,
-} from 'react-native';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import { Platform, View, useWindowDimensions, type ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHostSession } from '../../host/host-session';
 import { useConversationFilter } from '../../host/native-conversation-filter';
@@ -36,7 +29,6 @@ import { NavigationDestinations } from './navigation-destinations';
 import { CreationMenuButton } from './creation-menu-button';
 import { showAppDialog } from '../primitives/app-dialog';
 import { FloatingTabInset } from './floating-tab-inset';
-import { ScrollChromeProvider, useChromeHidden, useChromeProgress } from './scroll-chrome';
 import { useStrings } from '../strings';
 import { useSelectionFeedback } from '../selection-feedback';
 import type { NavigationDestination } from './navigation-destination';
@@ -45,13 +37,11 @@ type TabBarProps = ComponentProps<typeof BottomTabBar>;
 
 export function BottomNavigation() {
   return (
-    <ScrollChromeProvider>
-      <ActivitySheetRoot>
-        <ChatsSheetRoot>
-          <NavigationLayout />
-        </ChatsSheetRoot>
-      </ActivitySheetRoot>
-    </ScrollChromeProvider>
+    <ActivitySheetRoot>
+      <ChatsSheetRoot>
+        <NavigationLayout />
+      </ChatsSheetRoot>
+    </ActivitySheetRoot>
   );
 }
 
@@ -91,7 +81,6 @@ function NavigationLayout() {
                 {...props}
                 size={size}
                 bottom={bottom}
-                reserved={reserved}
                 onNativeHeight={setNativeHeight}
               />
             )}
@@ -113,7 +102,6 @@ function NavigationLayout() {
 type NavigationBarLayout = TabBarProps & {
   size: number;
   bottom: number;
-  reserved: number;
   onNativeHeight(height: number): void;
 };
 
@@ -128,7 +116,6 @@ function ScopedNavigationBar({
   navigateToTab,
   size,
   bottom,
-  reserved,
   onNativeHeight,
   scope,
 }: NavigationBarLayout & { scope: string }) {
@@ -150,36 +137,13 @@ function ScopedNavigationBar({
   const pending = useActivityCount().count ?? 0;
   const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState(false);
-  const [screenReader, setScreenReader] = useState(false);
   const pendingCreation = useRef(false);
   const generation = useRef(0);
   const mount = useMounted<ViewInstance>(() => {
-    let active = true;
-    const report = (enabled: boolean) => {
-      if (active) setScreenReader(enabled);
-    };
-    void AccessibilityInfo.isScreenReaderEnabled()
-      .then(report)
-      .catch(() => {});
-    const listener = AccessibilityInfo.addEventListener('screenReaderChanged', report);
     return () => {
-      active = false;
       generation.current++;
-      listener.remove();
     };
   }, [currentKey]);
-  const chromeHidden = useChromeHidden();
-  const keepVisible = Platform.OS === 'android' && screenReader;
-  const hidden = !keepVisible && chromeHidden;
-  const progress = useChromeProgress();
-  const style = useAnimatedStyle(() => ({
-    transform: [{ translateY: keepVisible ? 0 : reserved * progress.value }],
-    opacity: Platform.OS === 'android' || keepVisible ? 1 : 1 - progress.value,
-  }));
-  const fabStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: keepVisible ? 1 : 1 - progress.value }],
-    opacity: keepVisible ? 1 : 1 - progress.value,
-  }));
   const choose = async (action: CreationAction, target?: CreationTarget) => {
     if (pendingCreation.current) return;
     const version = generation.current;
@@ -263,12 +227,10 @@ function ScopedNavigationBar({
   if (Platform.OS === 'android')
     return (
       <>
-        <Animated.View
+        <View
           ref={mount}
           onLayout={({ nativeEvent }) => onNativeHeight(nativeEvent.layout.height)}
-          pointerEvents={hidden ? 'none' : 'box-none'}
-          accessibilityElementsHidden={hidden}
-          importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
+          pointerEvents="box-none"
           style={[
             {
               position: 'absolute',
@@ -277,38 +239,31 @@ function ScopedNavigationBar({
               bottom,
               backgroundColor: theme.layer.raised.fill,
             },
-            style,
           ]}
         >
           <NavigationDestinations items={items} />
-        </Animated.View>
+        </View>
         {state.routes[state.index]?.name === '(home)' ? (
-          <Animated.View
-            pointerEvents={hidden ? 'none' : 'box-none'}
-            accessibilityElementsHidden={hidden}
-            importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
+          <View
+            pointerEvents="box-none"
             style={[
               {
                 position: 'absolute',
                 right: insets.right + fab.margin,
                 bottom: fabBottom,
-                transformOrigin: 'center bottom',
               },
-              fabStyle,
             ]}
           >
             {create(fab.size)}
-          </Animated.View>
+          </View>
         ) : null}
       </>
     );
   return (
     <>
-      <Animated.View
+      <View
         ref={mount}
-        pointerEvents={hidden ? 'none' : 'box-none'}
-        accessibilityElementsHidden={hidden}
-        importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
+        pointerEvents="box-none"
         style={[
           {
             position: 'absolute',
@@ -319,7 +274,6 @@ function ScopedNavigationBar({
             alignItems: 'flex-end',
             gap: space.x3,
           },
-          style,
         ]}
       >
         <View
@@ -335,7 +289,7 @@ function ScopedNavigationBar({
           <NavigationDestinations items={items} />
         </View>
         {create(navigationBar.height)}
-      </Animated.View>
+      </View>
     </>
   );
 }

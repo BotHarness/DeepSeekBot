@@ -17,7 +17,7 @@ import {
   type ReactElement,
 } from 'react';
 import { AccessibilityInfo, Platform, Pressable, View } from 'react-native';
-import Animated, { FadeOut, LinearTransition, useAnimatedStyle } from 'react-native-reanimated';
+import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import type { HostClient, RosterBot } from '../../host/client';
 import {
@@ -77,7 +77,7 @@ import type { ActivityOptions } from './activity-header-actions';
 import { ActivityToolbar, type ActivityToolbarHandle } from './activity-toolbar';
 import { activityAvatar } from './activity-avatar';
 import { useFloatingTabInset } from './floating-tab-inset';
-import { CollapsingToolbar, useChromeProgress, useChromeScroll } from './scroll-chrome';
+import { FixedToolbar } from './fixed-toolbar';
 import { useStrings } from '../strings';
 import {
   DEFAULT_ACTIVITY,
@@ -504,7 +504,6 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
   const initialHeight = useChatHeaderHeight();
   const insets = useSafeAreaInsets();
   const [headerHeight, setHeaderHeight] = useState(Platform.OS === 'ios' ? 0 : initialHeight);
-  const progress = useChromeProgress();
   const slugsWithSelection =
     filter.bot !== undefined && !botSlugs.includes(filter.bot)
       ? [...botSlugs, filter.bot]
@@ -518,17 +517,13 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
     onFilter: setFilter,
   };
   const top = headerHeight;
-  const travel = Math.max(0, top - insets.top);
-  const pageStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: -travel * progress.value }],
-  }));
   const content = (
     <KeyboardAvoidingView
       style={{ flex: 1, overflow: 'hidden', backgroundColor: theme.color.base }}
       enabled={searchFocused}
       behavior="padding"
     >
-      <Animated.View style={[{ flex: 1, marginTop: top, marginBottom: -travel }, pageStyle]}>
+      <View style={{ flex: 1, marginTop: top }}>
         <DeferredContent fallback={<ListSkeleton />}>
           {props.unavailable ? (
             <View style={{ padding: space.x6 }}>
@@ -546,15 +541,12 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
               sort={sort}
               active={focused}
               searchFocused={searchFocused}
-              scrollActive={focused}
-              pinChrome={searchFocused || filtering || (Platform.OS === 'android' && search !== '')}
-              headerTravel={travel}
               dismissSearch={dismissSearch}
             />
           )}
         </DeferredContent>
-      </Animated.View>
-      <CollapsingToolbar travel={travel} height={top}>
+      </View>
+      <FixedToolbar height={top}>
         <ActivityToolbar
           ref={toolbar}
           unavailable={props.unavailable !== undefined}
@@ -572,7 +564,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
           onFilter={() => setFiltering(true)}
           onHeight={setHeaderHeight}
         />
-      </CollapsingToolbar>
+      </FixedToolbar>
       <View
         pointerEvents="none"
         style={{
@@ -645,9 +637,6 @@ const ActivityPage = memo(function ActivityPage({
   active,
   searchFocused,
   dismissSearch,
-  scrollActive,
-  pinChrome,
-  headerTravel,
   onNotice,
 }: ActivityFeedProps & {
   section: ActivityFilter['section'];
@@ -659,9 +648,6 @@ const ActivityPage = memo(function ActivityPage({
   active: boolean;
   searchFocused: boolean;
   dismissSearch(): void;
-  scrollActive: boolean;
-  pinChrome: boolean;
-  headerTravel: number;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -675,7 +661,6 @@ const ActivityPage = memo(function ActivityPage({
     }),
     [section, filterBot, filterChannel, filterUnread],
   );
-  const onScroll = useChromeScroll(scrollActive, pinChrome);
   const [refreshing, setRefreshing] = useState(false);
   const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set());
   const [held, setHeld] = useState<readonly HumanAttentionItem[]>([]);
@@ -717,7 +702,7 @@ const ActivityPage = memo(function ActivityPage({
       activeSettlementScope.current = undefined;
     };
   }, [settlementScope, active]);
-  const scopedSnapshot = useFocusedSnapshot(scoped ?? EMPTY_SOURCE, scrollActive);
+  const scopedSnapshot = useFocusedSnapshot(scoped ?? EMPTY_SOURCE, active);
   const visible = scoped === undefined ? snapshot : scopedSnapshot;
   const currentInbox = () => (scoped === undefined ? inbox : scoped.getInbox());
   const retained =
@@ -911,14 +896,13 @@ const ActivityPage = memo(function ActivityPage({
             contentInsetAdjustmentBehavior="never"
             contentContainerStyle={{
               flexGrow: 1,
-              paddingBottom: bottom + headerTravel + space.x6,
+              paddingBottom: bottom + space.x6,
             }}
             renderScrollComponent={(props) => (
               <KeyboardFormScroll {...props} enabled={!searchFocused} />
             )}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
-            onScroll={onScroll}
             scrollEventThrottle={1}
             style={{
               backgroundColor: theme.color.base,

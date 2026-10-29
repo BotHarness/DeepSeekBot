@@ -38,7 +38,14 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
   private val materialContext = ContextThemeWrapper(context, com.google.android.material.R.style.Theme_Material3_DayNight_NoActionBar)
   private val coordinator = CoordinatorLayout(materialContext)
   private val content = FrameLayout(context)
-  private val panel = FrameLayout(materialContext)
+  private val panel = object : FrameLayout(materialContext) {
+    override fun setTranslationX(value: Float) {
+      super.setTranslationX(value)
+      if (!fullWidth && width > 0) {
+        updateScrim((coordinator.width - left - value) / width)
+      }
+    }
+  }
   private val scrim = View(context)
   private val slots = mutableListOf<View>()
   private val onOpenChange by EventDispatcher()
@@ -95,6 +102,9 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
         if (abs(dy) > slop && abs(dy) >= abs(dx)) eligible = false
         if (startsEndDrag(dx, dy, slop)) {
           eligible = false
+          // Predictive Back hides by translation and requests layout afterward. RN may
+          // defer that layout; restore Material's hidden offset before exposing the panel.
+          super.onLayoutChild(parent, child, ViewCompat.getLayoutDirection(parent))
           child.visibility = VISIBLE
           reportOpening()
           val cancel = MotionEvent.obtain(start).apply { action = MotionEvent.ACTION_CANCEL }

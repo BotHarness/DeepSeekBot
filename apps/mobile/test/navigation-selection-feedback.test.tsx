@@ -62,11 +62,6 @@ vi.mock('../src/cloud/native', () => ({ cloudClient: {} }));
 vi.mock('../src/cloud/prepare-creation', () => ({ prepareCloudCreation: vi.fn() }));
 vi.mock('../src/ui/shell/quick-action-routing', () => ({ useQuickActionRouting: () => undefined }));
 vi.mock('../src/ui/mounted', () => ({ useMounted: () => undefined }));
-vi.mock('../src/ui/shell/scroll-chrome', () => ({
-  ScrollChromeProvider: ({ children }: { children: ReactNode }) => children,
-  useChromeHidden: () => false,
-  useChromeProgress: () => ({ value: 0 }),
-}));
 vi.mock('../src/ui/shell/navigation-destinations', () => ({
   NavigationDestinations: ({ items }: { items: NavigationDestination[] }) =>
     items.map((item) =>
