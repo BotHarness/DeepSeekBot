@@ -203,7 +203,7 @@ fun FunctionalComposableScope.SearchBarContent(
             Icon(search, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(props.emptyText, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (props.notice.isNotEmpty()) Text(props.notice, textAlign = TextAlign.Center)
-            if (props.retryLabel.isNotEmpty()) TextButton(onClick = onRetry) { Text(props.retryLabel) }
+            if (props.retryLabel.isNotEmpty()) TextButton(onClick = onRetry, modifier = Modifier.testTag("retained-search-retry")) { Text(props.retryLabel) }
           }
         }
       } else {
