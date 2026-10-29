@@ -19,12 +19,14 @@ import { StatisticsNotice } from '../src/ui/shell/statistics-notice';
 import { BotCreationNotice } from '../src/ui/shell/bot-creation-notice';
 import { ChannelCreationNotice } from '../src/ui/shell/channel-creation-notice';
 import { cloudChannelRouteId } from '../src/ui/shell/cloud-channel-navigation';
+import { topEntranceScreenOptions } from '../src/ui/shell/tob-mode-model';
 import { KeyboardRoot } from '../src/ui/primitives/keyboard-frame';
 import { AppDialogHost } from '../src/ui/primitives/app-dialog-host';
 import { noteTouch } from '../src/ui/primitives/touch-anchor';
 import { sheetScreenOptions } from '../src/ui/primitives/sheet-screen';
+import { useSystemReducedMotion } from '../src/ui/primitives/use-system-reduced-motion';
 import { profileScreenOptions } from '../src/ui/chat/profile-presentation';
-import { useReducedMotion } from 'react-native-reanimated';
+import { swipeEntryListeners, swipeEntryOptions } from '../src/ui/shell/swipe-entry';
 import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
 import { useDesignTheme } from '../src/ui/design/theme';
 import { useStrings } from '../src/ui/strings';
@@ -47,12 +49,28 @@ function RootNavigator() {
   const t = useStrings();
   const theme = useTheme();
   const design = useDesignTheme();
-  const reducedMotion = useReducedMotion();
+  const reducedMotion = useSystemReducedMotion();
   const [routingPending, setRoutingPending] = useState(false);
   const routing = usePushRouting(setRoutingPending, hostDrawer.captureWorkspaceSelection);
   const workspace = useWorkspaceNavigation(hostDrawer.beginWorkspaceSelection);
   const activity = useMounted(watchRequestActivity, []);
   const back = usePredictiveBack();
+  const settingsPages: [string, string | undefined][] = [
+    ['profile', t.accountProfile.title],
+    ['profile-name', undefined],
+    ['usage', t.usage],
+    ['models', t.modelSettings.title],
+    ['model-picker', undefined],
+    ['model-preset', undefined],
+    ['notifications', t.notifications],
+    ['storage', t.storage.title],
+    ['app-icon', t.appIcon],
+    ['activity-count', t.activityCountSettings.title],
+    ['chat-background', t.chatBackground.global],
+  ];
+  const profileListeners = swipeEntryListeners(
+    profileScreenOptions(design, reducedMotion).animation,
+  );
   const stack = useCallback(
     (node: ViewInstance | null) => {
       workspace(node);
@@ -93,45 +111,67 @@ function RootNavigator() {
                 <Stack.Screen
                   name="dm/[slug]"
                   dangerouslySingular={channelRouteId}
-                  options={{ title: '' }}
+                  options={({ route }) => ({
+                    title: '',
+                    fullScreenGestureEnabled: false,
+                    ...swipeEntryOptions(route),
+                  })}
+                  listeners={swipeEntryListeners('default')}
                 />
                 <Stack.Screen
                   name="channel/[id]"
                   dangerouslySingular={channelRouteId}
-                  options={{ title: '' }}
+                  options={({ route }) => ({
+                    title: '',
+                    fullScreenGestureEnabled: false,
+                    ...swipeEntryOptions(route),
+                  })}
+                  listeners={swipeEntryListeners('default')}
                 />
+                <Stack.Screen name="dm-top" options={topEntranceScreenOptions} />
                 <Stack.Screen
                   name="bot/[slug]"
-                  options={{
+                  options={({ route }) => ({
                     title: t.profile,
                     ...profileScreenOptions(design, reducedMotion),
-                  }}
+                    ...swipeEntryOptions(route),
+                  })}
+                  listeners={profileListeners}
                 />
                 <Stack.Screen
                   name="channel-details"
-                  options={profileScreenOptions(design, reducedMotion)}
+                  options={({ route }) => ({
+                    ...profileScreenOptions(design, reducedMotion),
+                    ...swipeEntryOptions(route),
+                  })}
+                  listeners={profileListeners}
                 />
                 <Stack.Screen
                   name="group/[id]"
-                  options={{
+                  options={({ route }) => ({
                     title: t.groupInfo,
                     ...profileScreenOptions(design, reducedMotion),
-                  }}
+                    ...swipeEntryOptions(route),
+                  })}
+                  listeners={profileListeners}
                 />
-                <Stack.Screen
-                  name="settings"
-                  options={{
-                    title: t.settings,
-                    ...sheetScreenOptions(design, true),
-                    ...(Platform.OS === 'ios' ? { presentation: 'modal' as const } : {}),
-                  }}
-                />
+                {settingsPages.map(([name, title]) => (
+                  <Stack.Screen
+                    key={name}
+                    name={`settings/${name}`}
+                    options={{
+                      ...(title === undefined ? {} : { title }),
+                      ...(name === 'profile-name' ? { headerShown: false } : {}),
+                      headerStyle: { backgroundColor: design.overlay.fill },
+                      contentStyle: { backgroundColor: design.overlay.fill },
+                    }}
+                  />
+                ))}
                 <Stack.Screen
                   name="pair"
                   options={{
                     title: t.pairTitle,
                     ...sheetScreenOptions(design, true),
-                    ...(Platform.OS === 'ios' ? { presentation: 'modal' as const } : {}),
                   }}
                 />
                 <Stack.Screen
@@ -145,7 +185,6 @@ function RootNavigator() {
                   name="private-input"
                   options={{
                     ...sheetScreenOptions(design, true),
-                    headerShown: true,
                     title: t.privateInputOpen,
                   }}
                 />

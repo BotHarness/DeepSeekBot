@@ -5,6 +5,19 @@ description: Use when developing, running, or debugging BotHarness against a loc
 
 # DSH development & debugging
 
+### Empty tool declaration series (#3137)
+
+DSH 0.2.1-rc.3 can record a `request/header` with `startsSeries: true` and no tools.
+Later tool additions then all become deferred during LLM route projection, and DeepSeek
+rejects the request because no immediate tool remains. The active header alone hides this:
+inspect `session.toolHistory().tools`, not only `session.requestHeader().tools`.
+For owned Bot Sessions, the pre-step owner requests a new declaration series after an empty
+baseline, letting the native loop persist its currently assembled tools. This also repairs
+an already-failing restored Session. Do not invent a resident tool, rewrite prior events,
+weaken tool access checks, or blame an installed Plugin from the HTTP error alone.
+The regression uses the real native Session fold and LLM projection in
+`packages/core/test/tool-declaration-series.test.ts`.
+
 BotHarness is a plugin layer inside DSH: unit tests do not cover the real boot. Every trap in this skill was invisible to `pnpm test` and only appeared in a running `dsh --profile web-dev`. **Validate against the running shell, not the test suite.**
 
 ## Proactive Client verification

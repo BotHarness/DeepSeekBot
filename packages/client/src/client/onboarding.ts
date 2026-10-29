@@ -1,4 +1,5 @@
 import type { OnboardingSnapshot, TutorialAction } from '../../../core/src/onboarding/types.js';
+import type { ClientTelemetryEventName } from '../../../core/src/telemetry/events.js';
 import type { BridgeActions } from './actions.js';
 import { errorMessage, type ModelRouteView } from './bridge.js';
 import { requestCreation } from './create-request.js';
@@ -105,7 +106,7 @@ export class OnboardingController {
           this.update({ layoutComplete: false });
           this.openIntro();
         }
-        if (opening) this.revealHome?.();
+        if (opening) this.revealTob?.();
       }
       if (opening || (justCompleted && !first)) void this.refreshEvidence();
       if (first) {
@@ -151,17 +152,17 @@ export class OnboardingController {
   }
   openIntro(): void {
     this.update({ intro: { step: 0, hidden: false } });
-    this.introEvent('intro_shown');
-    this.introEvent('intro_step_viewed', { step: INTRO_STEPS[0] });
+    this.introEvent('onboarding:intro_view');
+    this.introEvent('onboarding:intro_step_view', { step: INTRO_STEPS[0] });
   }
   setIntroStep(step: number): void {
     if (!this.state.intro || this.state.intro.step === step) return;
     this.update({ intro: { ...this.state.intro, step } });
-    this.introEvent('intro_step_viewed', { step: INTRO_STEPS[step] ?? INTRO_STEPS[0] });
+    this.introEvent('onboarding:intro_step_view', { step: INTRO_STEPS[step] ?? INTRO_STEPS[0] });
   }
-  introEvent(event: string, properties?: Record<string, string | boolean>): void {
+  introEvent(event: ClientTelemetryEventName, properties?: Record<string, string | boolean>): void {
     try {
-      this.actions.introEvent?.(event, properties);
+      this.actions.telemetryEvent?.(event, properties);
     } catch {}
   }
   hideIntro(hidden: boolean): void {
@@ -173,8 +174,8 @@ export class OnboardingController {
     if (!intro) return;
     this.update({ intro: undefined });
     const step = INTRO_STEPS[intro.step] ?? INTRO_STEPS[0];
-    if (outcome && 'starter' in outcome) this.introEvent('intro_completed', outcome);
-    else this.introEvent('intro_dismissed', { step, via: outcome?.via ?? 'close' });
+    if (outcome && 'starter' in outcome) this.introEvent('onboarding:intro_complete', outcome);
+    else this.introEvent('onboarding:intro_dismiss', { step, via: outcome?.via ?? 'close' });
     if (!receipt) return;
     try {
       localStorage.setItem(introKey(receipt.profileId), '1');
@@ -184,13 +185,13 @@ export class OnboardingController {
       document.querySelector('[data-workspace-enabled]') !== null
     )
       await this.refresh(undefined, 'start', undefined, true);
-    else this.revealHome?.();
+    else this.revealTob?.();
   }
-  private revealHome: (() => void) | undefined;
-  attachHome(reveal: () => void): () => void {
-    this.revealHome = reveal;
+  private revealTob: (() => void) | undefined;
+  attachTobConversation(reveal: () => void): () => void {
+    this.revealTob = reveal;
     return () => {
-      if (this.revealHome === reveal) this.revealHome = undefined;
+      if (this.revealTob === reveal) this.revealTob = undefined;
     };
   }
   private layout: { setMode(mode: LayoutMode): void } | undefined;
@@ -368,44 +369,40 @@ export class OnboardingController {
     }
     this.update({ guideOpen: false, checklistOpen: this.state.receipt?.tutorial === 'active' });
   }
-  finishFromHomeTitle(revealMessages: () => void): Promise<void> {
-    if (this.state.layoutMode === 'simple') return Promise.resolve();
-    return this.finishInSteward(revealMessages);
-  }
-  finishFromRail(revealMessages: () => void): Promise<void> {
-    if (this.state.layoutMode !== 'simple') return Promise.resolve();
-    return this.finishInSteward(revealMessages);
-  }
-  private async finishInSteward(revealMessages: () => void): Promise<void> {
+  private landing: string | undefined;
+  async finishInTobConversation(): Promise<void> {
     const receipt = this.state.receipt;
+    const { selection, conversation } = store.getSnapshot();
+    const here =
+      selection?.kind === 'channel' &&
+      selection.channelId === receipt?.channelId &&
+      conversation.status === 'ready' &&
+      !conversation.error
+        ? selection.channelId
+        : undefined;
+    if (here === undefined) this.landing = undefined;
     if (
+      here === undefined ||
+      this.landing === here ||
       !this.state.layoutComplete ||
       receipt?.tutorial !== 'active' ||
       receipt.journey?.done ||
       !receipt.journey?.botSlug ||
-      !receipt.journey.groupChannelId ||
-      !receipt.channelId
+      !receipt.journey.groupChannelId
     )
       return;
-    try {
-      revealMessages();
-      await this.actions.openChannel(receipt.channelId);
-      const { selection, conversation } = store.getSnapshot();
-      if (
-        selection?.kind !== 'channel' ||
-        selection.channelId !== receipt.channelId ||
-        conversation.status !== 'ready' ||
-        conversation.error
-      ) {
-        this.revealHome?.();
-        this.update({ error: conversation.error ?? 'Unable to open the Tob conversation' });
-        return;
-      }
-      await this.refresh(undefined, 'finish');
-    } catch (error) {
-      this.revealHome?.();
-      this.update({ error: errorMessage(error) });
-    }
+    this.landing = here;
+    await this.refresh(undefined, 'finish');
+  }
+  watchTobLanding(): () => void {
+    const check = (): void => void this.finishInTobConversation();
+    const stopStore = store.subscribe(check);
+    const stopSelf = this.subscribe(check);
+    check();
+    return () => {
+      stopStore();
+      stopSelf();
+    };
   }
   pauseGuide(): void {
     const wasOpen = this.state.guideOpen;

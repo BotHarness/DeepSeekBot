@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Circle: () => null, Path: () => null }));
+vi.mock('../src/ui/primitives/row-icon', () => ({ RowIcon: () => null }));
 vi.mock('../src/ui/primitives/keyboard-form', async () => ({
   KeyboardFormScroll: (await import('./react-native-shim')).ScrollView,
 }));
@@ -159,4 +160,11 @@ it('does not decode a picker result returned after leaving', async () => {
   await act(async () => finish({ canceled: false, assets: [{ uri: 'file:///late.png' }] }));
   expect(native.scan).not.toHaveBeenCalled();
   expect(pairing.pair).not.toHaveBeenCalled();
+});
+
+it('shows the computer menu path for Tailscale instead of a paragraph', async () => {
+  await act(async () => root!.render(<PairScreen />));
+  const path = host.querySelector('[data-testid="desktop-path"]')!;
+  for (const step of t.pairChoice.tailscalePath) expect(path.textContent).toContain(step);
+  expect(host.textContent).toContain(t.pairChoice.tailscaleHint);
 });

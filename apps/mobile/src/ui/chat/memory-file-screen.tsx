@@ -18,7 +18,6 @@ import { SplitButton } from '../primitives/split-button';
 import { TextInput } from '../primitives/system-text';
 import { Text } from '../primitives/text';
 import { HeaderIconButton } from '../shell/header-icon-button';
-import { CloseIcon, PencilIcon } from '../shell/icons';
 import { useMounted } from '../mounted';
 import { useStrings } from '../strings';
 import { MemoryFileView } from './memory-file-view';
@@ -72,8 +71,12 @@ export function MemoryFileScreen({
   const askDiscard = (onDiscard: () => void) =>
     confirmDestructive(t.memoryDiscardTitle, t.memoryDiscardMessage, t.memoryDiscard, onDiscard);
 
-  usePreventRemove(unsaved, ({ data }) =>
-    askDiscard(() => navigation.dispatch(data.action as never)),
+  usePreventRemove(unsaved, ({ repeat }) =>
+    askDiscard(() => {
+      setEditing(undefined);
+      setKept(undefined);
+      repeat();
+    }),
   );
   const holdDismissal = useMounted<ViewInstance>(() => {
     const parent = navigation.getParent();
@@ -125,12 +128,11 @@ export function MemoryFileScreen({
   const header = editing ? (
     <View style={{ flexDirection: 'row', gap: space.x3 }}>
       <HeaderIconButton
+        icon="close"
         label={t.memoryStopEditing}
         testID="memory-stop-editing"
         onPress={stopEditing}
-      >
-        <CloseIcon color={theme.color.fg} size={theme.type.title.line} />
-      </HeaderIconButton>
+      />
       <SheetSaveButton
         label={t.memorySave}
         testID="memory-save"
@@ -151,12 +153,11 @@ export function MemoryFileScreen({
     />
   ) : canEdit ? (
     <HeaderIconButton
+      icon="edit"
       label={t.memoryEdit(title)}
       testID="memory-edit"
       onPress={() => startEditing()}
-    >
-      <PencilIcon color={theme.color.fg} size={theme.type.title.line} />
-    </HeaderIconButton>
+    />
   ) : null;
 
   return (

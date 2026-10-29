@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { createBotImports, type BotImportsService } from '../bots/imports.js';
 import { SessionRecoveryError } from '../runtime/session-recovery.js';
 import type { BotContextWindow } from '../runtime/context-window.js';
@@ -130,15 +131,43 @@ import type {
 import { MessagingError, type MessagingTarget } from '../messaging/provider.js';
 import { OperationalDatabaseError } from '../database/owner.js';
 import type {
+  MarketplaceAuthoredBot,
+  MarketplaceAuthorAccount,
   MarketplaceClient,
   MarketplaceDetail,
+  MarketplaceDigest,
+  MarketplaceDigestSummary,
   MarketplaceEntry,
+  MarketplaceFileView,
   MarketplacePage,
   MarketplaceQuery,
   MarketplaceResult,
+  MarketplaceSection,
   MarketplaceTopic,
 } from '../marketplace/client.js';
+import {
+  MARKETPLACE_DIGEST_DAY,
+  MARKETPLACE_INSTALL_SOURCES,
+  MARKETPLACE_SECTIONS,
+} from '../marketplace/client.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
+import type {
+  MarketplaceAccount,
+  MarketplaceUploads,
+  UploadPlan,
+} from '../marketplace/uploaded-bots.js';
+import type {
+  InstallReviewResult,
+  MarketplaceInstallReviews,
+} from '../marketplace/install-review.js';
+import {
+  summarizeShareDraft,
+  type ShareDraft,
+  type ShareDrafts,
+  type ShareDraftView,
+} from '../marketplace/share-draft.js';
+import type { UploadFileKind } from '../../../market/src/upload-files.js';
+import type { InstallReceipts } from '../marketplace/install-receipts.js';
 import { MARKETPLACE_LANGUAGES, type MarketplaceLanguage } from '../marketplace/language.js';
 import {
   MAX_DESCRIPTOR_BIO_LENGTH,
@@ -158,6 +187,13 @@ import type {
   PluginUpdateService,
   PluginUpdates,
 } from '../release/plugins.js';
+import type { ActiveDay } from '../telemetry/active-day.js';
+import {
+  isClientTelemetryEventName,
+  telemetryEventProperties,
+  type TelemetryEventName,
+  type TelemetrySurface,
+} from '../telemetry/events.js';
 import type { TelemetryCapture, TelemetryStatus } from '../telemetry/service.js';
 import {
   AssignmentReplyTargetError,
@@ -231,7 +267,12 @@ import { ChannelAttachmentError } from '../attachments/store.js';
 import { isChannelAttachmentRef } from '../attachments/ref.js';
 import type { ChannelAttachmentRef } from '../attachments/ref.js';
 import type { ComposerRecoveryIdentity } from './composer-recovery.js';
-import type { ChannelReadPosition, ChannelStore, ChannelSendStatus } from '../channels/store.js';
+import type {
+  ChannelReadPosition,
+  ChannelStore,
+  ChannelSendStatus,
+  HumanMessageSearchPage,
+} from '../channels/store.js';
 import { groupProfileActivity, type GroupProfileActivity } from '../channels/profile-activity.js';
 import { channelActivityToday, type ChannelActivityToday } from '../channels/activity-today.js';
 import type { ChannelTimelinePage } from '../channels/timeline.js';
@@ -582,7 +623,7 @@ export interface BridgeMethods {
   onboarding(payload: unknown): Promise<BridgeResult<OnboardingSnapshot>>;
   modelPlanInherit(payload: unknown): BridgeResult<{ revision: number }>;
   onboardingModel(payload: unknown): Promise<BridgeResult<{ revision: number }>>;
-  introEvent(payload: unknown): BridgeResult<null>;
+  telemetryEvent(payload: unknown): BridgeResult<null>;
   channelRetry(payload: unknown): Promise<BridgeResult<{ accepted: true }>>;
   botNewSession(payload: unknown): Promise<BridgeResult<{ started: true }>>;
   botCompact(payload: unknown): Promise<BridgeResult<ManualCompactionResult>>;
@@ -744,6 +785,7 @@ export interface BridgeMethods {
   channelSearch(
     payload: unknown,
   ): BridgeResult<{ messages: ChannelMessage[]; nextCursor?: string }>;
+  messageSearch(payload: unknown): BridgeResult<HumanMessageSearchPage>;
   channelMessages(payload: unknown): BridgeResult<{ messages: ChannelMessage[]; revision: number }>;
   channelAllBotPreview(payload: unknown): BridgeResult<AllBotPreview>;
   channelSend(payload: unknown): Promise<BridgeResult<{ message: ChannelMessage }>>;
@@ -938,9 +980,42 @@ export interface BridgeMethods {
   marketplaceList(payload: unknown): Promise<BridgeResult<MarketplacePage>>;
   marketplaceSubmit(payload: unknown): Promise<BridgeResult<{ bot: MarketplaceEntry }>>;
   marketplaceTopics(): Promise<BridgeResult<MarketplaceTopic[]>>;
+  marketplaceSections(payload: unknown): Promise<BridgeResult<{ sections: MarketplaceSection[] }>>;
+  marketplaceDigests(
+    payload: unknown,
+  ): Promise<BridgeResult<{ digests: MarketplaceDigestSummary[] }>>;
+  marketplaceDigest(payload: unknown): Promise<BridgeResult<{ digest: MarketplaceDigest }>>;
   marketplaceDetail(payload: unknown): Promise<BridgeResult<MarketplaceDetail>>;
+  marketplaceFileView(payload: unknown): Promise<BridgeResult<MarketplaceFileView>>;
   marketplaceChallenge(): Promise<BridgeResult<AltchaChallenge>>;
   marketplaceReport(payload: unknown): Promise<BridgeResult<{ received: true }>>;
+  marketplaceAccount(): Promise<BridgeResult<MarketplaceAccount>>;
+  marketplaceAuthorSave(payload: unknown): Promise<BridgeResult<MarketplaceAuthorAccount>>;
+  marketplaceAuthorAvatarSet(payload: unknown): Promise<BridgeResult<MarketplaceAuthorAccount>>;
+  marketplaceUploadPlan(payload: unknown): BridgeResult<UploadPlan>;
+  marketplaceUpload(
+    payload: unknown,
+  ): Promise<BridgeResult<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }>>;
+  marketplaceInstallReview(payload: unknown): Promise<BridgeResult<InstallReviewResult>>;
+  marketplaceMine(payload: unknown): Promise<BridgeResult<{ bots: MarketplaceAuthoredBot[] }>>;
+  marketplaceDelete(payload: unknown): Promise<BridgeResult<{ deleted: true }>>;
+  shareDraftStart(payload: unknown): BridgeResult<ShareDraftView>;
+  shareDraftGet(payload: unknown): BridgeResult<ShareDraftView>;
+  shareDraftFile(
+    payload: unknown,
+  ): BridgeResult<{ path: string; kind: UploadFileKind; text?: string }>;
+  shareDraftDecide(payload: unknown): BridgeResult<ShareDraftView>;
+  shareDraftFinish(payload: unknown): BridgeResult<ShareDraftView>;
+  shareDraftDiscard(payload: unknown): BridgeResult<{ discarded: boolean }>;
+  shareDraftExport(payload: unknown): Promise<BridgeResult<{ path: string; files: number }>>;
+  marketplaceInstall(payload: unknown): Promise<
+    BridgeResult<{
+      bot: PersonaBotDetail;
+      channelId: string;
+      receipt?: BotCreationReceipt;
+      listing: MarketplaceEntry;
+    }>
+  >;
   releaseInfo(payload: unknown): BridgeResult<ReleaseInfo>;
   releaseUpdate(payload?: unknown): Promise<BridgeResult<ReleaseUpdate>>;
   releaseInstall(payload: unknown): Promise<BridgeResult<ReleaseInstall>>;
@@ -1106,6 +1181,10 @@ export interface BridgeMethodsDeps {
   browserProfile?: { changed(slug: string): void };
   createBotId?: () => string;
   marketplace?: MarketplaceClient;
+  marketplaceUploads?: MarketplaceUploads;
+  marketplaceInstallReviews?: MarketplaceInstallReviews;
+  shareDrafts?: ShareDrafts;
+  marketplaceReceipts?: InstallReceipts;
   release?: ReleaseService;
   plugins?: PluginUpdateService;
   telemetry?: {
@@ -1113,6 +1192,7 @@ export interface BridgeMethodsDeps {
     setPreference(enabled: boolean): TelemetryStatus;
     capture?: TelemetryCapture;
   };
+  activeDay?: ActiveDay;
   git?: Pick<GitService, 'status' | 'install'>;
 }
 
@@ -1289,15 +1369,13 @@ function releaseUnavailable(): BridgeResult<never> {
   };
 }
 
-const INTRO_STEP_IDS = ['welcome', 'theme', 'model', 'community', 'start'];
-const INTRO_EVENTS: Record<string, Record<string, readonly string[] | 'boolean'>> = {
-  intro_shown: {},
-  intro_step_viewed: { step: INTRO_STEP_IDS },
-  intro_dismissed: { step: INTRO_STEP_IDS, via: ['skip', 'close'] },
-  intro_completed: { starter: ['botPrompt', 'firstRequest', 'exampleRequest', 'own'] },
-  intro_theme_changed: { setting: ['scheme', 'preset', 'layout', 'wallpaper'] },
-  intro_model_saved: { advanced: 'boolean' },
-  intro_community_clicked: { target: ['github', 'discord', 'qq'] },
+const TUTORIAL_EVENTS: Record<TutorialAction, TelemetryEventName> = {
+  start: 'onboarding:tutorial_start',
+  pause: 'onboarding:tutorial_pause',
+  skip: 'onboarding:tutorial_skip',
+  continue: 'onboarding:tutorial_resume',
+  restart: 'onboarding:tutorial_restart',
+  finish: 'onboarding:tutorial_complete',
 };
 
 function telemetryUnavailable(): BridgeResult<never> {
@@ -1794,6 +1872,65 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       }),
     );
     return { ok: false, error: { code: result.code, message: result.code } };
+  };
+  const sendReceipt = (listingId: string): void => {
+    void deps.marketplaceReceipts?.send(listingId).catch(() => undefined);
+  };
+  const withInstalls = (entry: MarketplaceEntry): MarketplaceEntry => {
+    if (entry.source !== 'upload') return entry;
+    const copies = deps.registry
+      .list()
+      .flatMap((record) => (record.marketplaceListing?.id === entry.id ? [record] : []));
+    if (copies.length === 0) return entry;
+    return {
+      ...entry,
+      installed: {
+        bots: copies.map((record) => record.slug),
+        authorUpdated: copies.some(
+          (record) => Date.parse(record.marketplaceListing!.pushedAt) < Date.parse(entry.pushedAt),
+        ),
+      },
+    };
+  };
+  const marketplaceUnavailable = (): { ok: false; error: { code: string; message: string } } => ({
+    ok: false,
+    error: { code: 'marketplace-unavailable', message: 'Bot Marketplace is unavailable' },
+  });
+  const shareDraftSlug = (payload: unknown): string | undefined => {
+    const slug = asSlug(payload);
+    return slug === undefined ||
+      deps.registry.get(slug) === undefined ||
+      deps.tob?.isTob(slug) === true
+      ? undefined
+      : slug;
+  };
+  const draftResult = (
+    result: { ok: true; value: ShareDraft } | { ok: false; code: string; path?: string },
+  ): BridgeResult<ShareDraftView> =>
+    uploadResult(
+      result.ok
+        ? { ok: true, value: { ...result.value, summary: summarizeShareDraft(result.value) } }
+        : result,
+    );
+  const uploadResult = <T>(
+    result: { ok: true; value: T } | { ok: false; code: string; path?: string },
+  ): BridgeResult<T> => {
+    if (result.ok) return result;
+    deps.warn?.(
+      JSON.stringify({
+        module: 'marketplace',
+        initiator: 'client',
+        phase: 'upload-refused',
+        reason: result.code,
+      }),
+    );
+    return {
+      ok: false,
+      error: {
+        code: result.code,
+        message: result.path === undefined ? result.code : `${result.code}: ${result.path}`,
+      },
+    };
   };
   const messagingCall = async <T>(
     operation: (service: OutboundMessaging) => Promise<T>,
@@ -2463,7 +2600,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           action as TutorialAction | undefined,
         );
         if (action !== undefined)
-          deps.telemetry?.capture?.('tutorial_action', { action: String(action) });
+          deps.telemetry?.capture?.(TUTORIAL_EVENTS[action as TutorialAction]);
         const newsAvailable =
           (await deps
             .onboardingNews?.(asSlug(payload) ?? value.defaultBotSlug)
@@ -2488,26 +2625,20 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (!result.ok) return invalidInput('Bot model changed; reopen before saving');
       return { ok: true, value: { revision: result.record.modelPlanRevision ?? 0 } };
     },
-    introEvent(payload) {
+    telemetryEvent(payload) {
       const source = asObject(payload);
       const event = source['event'];
-      const shape =
-        typeof event === 'string' && Object.hasOwn(INTRO_EVENTS, event)
-          ? INTRO_EVENTS[event as keyof typeof INTRO_EVENTS]
-          : undefined;
-      if (shape === undefined) return invalidInput('Unknown intro event');
-      const properties: Record<string, string | boolean> = {};
-      for (const [key, allowed] of Object.entries(shape)) {
-        const value = source[key];
-        if (
-          allowed === 'boolean'
-            ? typeof value !== 'boolean'
-            : typeof value !== 'string' || !allowed.includes(value)
-        )
-          return invalidInput(`Invalid intro event ${key}`);
-        properties[key] = value as string | boolean;
+      if (!isClientTelemetryEventName(event)) return invalidInput('Unknown telemetry event');
+      const properties = telemetryEventProperties(event, asObject(source['properties']));
+      if (properties === undefined) return invalidInput('Invalid telemetry event properties');
+      deps.telemetry?.capture?.(event, properties);
+      if (event === 'app:bot_mode_enter') {
+        const surface = properties['surface'];
+        deps.activeDay?.mark(
+          'bot_mode_enter',
+          typeof surface === 'string' ? (surface as TelemetrySurface) : undefined,
+        );
       }
-      deps.telemetry?.capture?.(event as string, properties);
       return { ok: true, value: null };
     },
     async onboardingModel(payload) {
@@ -3462,6 +3593,14 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const roles = parseRoles(source);
       const description = parseOptional(source, 'description');
       if (!roles.ok || !description.ok) return invalidInput('invalid create payload');
+      const listingId = source['listingId'];
+      if (
+        listingId !== undefined &&
+        (typeof listingId !== 'string' ||
+          listingId.trim().length === 0 ||
+          source['origin'] !== 'marketplace')
+      )
+        return invalidInput('listingId needs origin marketplace');
       if (source['operationKey'] !== undefined) {
         const imports =
           deps.imports ??
@@ -3483,6 +3622,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             ...(description.value === undefined ? {} : { description: description.value }),
           });
           const created = await imports.create(source['operationKey'], input);
+          if (listingId !== undefined) sendReceipt(listingId.trim());
           return {
             ok: true,
             value: {
@@ -3513,9 +3653,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         ...(description.value === undefined ? {} : { description: description.value }),
       });
       if (!result.ok) return createFailure(slug, result);
+      if (listingId !== undefined) sendReceipt(listingId.trim());
       if (source['origin'] === 'marketplace') {
         try {
-          deps.telemetry?.capture?.('marketplace_bot_installed');
+          deps.telemetry?.capture?.('marketplace:bot_install');
         } catch {}
       }
       return {
@@ -3543,10 +3684,71 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const lang = marketplaceLang(source['lang']);
       if (lang === false) return Promise.resolve(invalidInput('invalid lang'));
       if (lang !== undefined) query.lang = lang;
-      return marketplaceCall((client) => client.list(query));
+      if (source['includeUploads'] !== undefined && typeof source['includeUploads'] !== 'boolean')
+        return Promise.resolve(invalidInput('invalid includeUploads'));
+      if (source['includeUploads'] === true) query.includeUploads = true;
+      return marketplaceCall(async (client) => {
+        const page = await client.list(query);
+        return page.ok
+          ? { ok: true, value: { ...page.value, bots: page.value.bots.map(withInstalls) } }
+          : page;
+      });
     },
     marketplaceTopics() {
       return marketplaceCall((client) => client.topics());
+    },
+    marketplaceDigests(payload) {
+      const lang = marketplaceLang(asObject(payload)['lang']);
+      if (lang === false) return Promise.resolve(invalidInput('invalid lang'));
+      return marketplaceCall(async (client) => {
+        const digests = await client.digests(lang);
+        return digests.ok ? { ok: true, value: { digests: digests.value } } : digests;
+      });
+    },
+    marketplaceDigest(payload) {
+      const source = asObject(payload);
+      const lang = marketplaceLang(source['lang']);
+      if (lang === false) return Promise.resolve(invalidInput('invalid lang'));
+      const day = source['day'] ?? 'latest';
+      if (typeof day !== 'string' || (day !== 'latest' && !MARKETPLACE_DIGEST_DAY.test(day)))
+        return Promise.resolve(invalidInput('invalid day'));
+      return marketplaceCall(async (client) => {
+        const digest = await client.digest(day, lang);
+        if (!digest.ok) return digest;
+        return {
+          ok: true,
+          value: {
+            digest: {
+              ...digest.value,
+              sections: digest.value.sections.map((section) => ({
+                ...section,
+                bot: section.bot === null ? null : withInstalls(section.bot),
+              })),
+            },
+          },
+        };
+      });
+    },
+    marketplaceSections(payload) {
+      const lang = marketplaceLang(asObject(payload)['lang']);
+      if (lang === false) return Promise.resolve(invalidInput('invalid lang'));
+      return marketplaceCall(async (client) => {
+        const results = await Promise.all(
+          MARKETPLACE_SECTIONS.map((name) => client.section(name, lang)),
+        );
+        const sections: MarketplaceSection[] = [];
+        for (const result of results) {
+          if (!result.ok) return result;
+          sections.push({
+            ...result.value,
+            entries: result.value.entries.map((entry) => ({
+              ...entry,
+              bot: withInstalls(entry.bot),
+            })),
+          });
+        }
+        return { ok: true, value: { sections } };
+      });
     },
     releaseInfo(payload) {
       if (deps.release === undefined) return releaseUnavailable();
@@ -3624,7 +3826,22 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       }
       const lang = marketplaceLang(langValue);
       if (lang === false) return Promise.resolve(invalidInput('invalid lang'));
-      return marketplaceCall((client) => client.detail(id.trim(), lang));
+      return marketplaceCall(async (client) => {
+        const detail = await client.detail(id.trim(), lang);
+        return detail.ok
+          ? { ok: true, value: { ...detail.value, bot: withInstalls(detail.value.bot) } }
+          : detail;
+      });
+    },
+    marketplaceFileView(payload) {
+      const { id, path } = asObject(payload);
+      if (typeof id !== 'string' || id.trim().length === 0) {
+        return Promise.resolve(invalidInput('id is required'));
+      }
+      if (typeof path !== 'string' || path.length === 0) {
+        return Promise.resolve(invalidInput('path is required'));
+      }
+      return marketplaceCall((client) => client.fileView(id.trim(), path));
     },
     marketplaceSubmit(payload) {
       const { url, altcha } = asObject(payload);
@@ -3654,6 +3871,218 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       return marketplaceCall((client) =>
         client.report(id.trim(), { altcha, ...(trimmed.length === 0 ? {} : { reason: trimmed }) }),
       );
+    },
+    async marketplaceAccount() {
+      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
+      return uploadResult(await deps.marketplaceUploads.account());
+    },
+    async marketplaceAuthorSave(payload) {
+      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
+      const { displayName, acceptTerms } = asObject(payload);
+      if (
+        typeof displayName !== 'string' ||
+        (acceptTerms !== undefined && typeof acceptTerms !== 'boolean')
+      )
+        return invalidInput('displayName is required');
+      return uploadResult(
+        await deps.marketplaceUploads.saveAuthor({
+          displayName: displayName.trim(),
+          acceptTerms: acceptTerms === true,
+        }),
+      );
+    },
+    async marketplaceAuthorAvatarSet(payload) {
+      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
+      const { avatar } = asObject(payload);
+      const image =
+        typeof avatar === 'string'
+          ? /^data:image\/(?:png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/u.exec(avatar)?.[1]
+          : undefined;
+      if (avatar !== null && image === undefined)
+        return invalidInput('avatar must be a PNG, JPEG or WebP data URL, or null');
+      return uploadResult(
+        await deps.marketplaceUploads.saveAuthorAvatar(
+          image === undefined ? null : Buffer.from(image, 'base64'),
+        ),
+      );
+    },
+    marketplaceUploadPlan(payload) {
+      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
+      const slug = asSlug(payload);
+      if (slug === undefined || deps.registry.get(slug) === undefined)
+        return invalidInput('slug is required');
+      return uploadResult(deps.marketplaceUploads.plan(slug));
+    },
+    async marketplaceUpload(payload) {
+      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
+      const slug = asSlug(payload);
+      const source = asObject(payload);
+      const record = slug === undefined ? undefined : deps.registry.get(slug);
+      if (slug === undefined || record === undefined || deps.tob?.isTob(slug) === true)
+        return invalidInput('slug must name one of your Bots');
+      const displayName = source['displayName'];
+      const bio = parseOptional(source, 'bio');
+      const tags = source['tags'];
+      if (
+        typeof displayName !== 'string' ||
+        displayName.trim().length === 0 ||
+        !bio.ok ||
+        (tags !== undefined &&
+          (!Array.isArray(tags) || !tags.every((tag) => typeof tag === 'string')))
+      )
+        return invalidInput('invalid upload payload');
+      const replaces = source['replaces'];
+      if (replaces !== undefined && (typeof replaces !== 'string' || replaces.trim().length === 0))
+        return invalidInput('invalid replaces');
+      const trimmedBio = bio.value?.trim();
+      return uploadResult(
+        await deps.marketplaceUploads.upload(slug, {
+          displayName: displayName.trim(),
+          ...(trimmedBio === undefined || trimmedBio.length === 0 ? {} : { bio: trimmedBio }),
+          ...(tags === undefined ? {} : { tags: tags as string[] }),
+          ...(replaces === undefined ? {} : { replaces: replaces.trim() }),
+        }),
+      );
+    },
+    async marketplaceMine(payload) {
+      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
+      const lang = marketplaceLang(asObject(payload)['lang']);
+      if (lang === false) return invalidInput('invalid lang');
+      const mine = await deps.marketplaceUploads.mine(lang);
+      return uploadResult(
+        mine.ok
+          ? {
+              ok: true,
+              value: {
+                bots: mine.value.map((entry) => ({ ...entry, bot: withInstalls(entry.bot) })),
+              },
+            }
+          : mine,
+      );
+    },
+    async marketplaceDelete(payload) {
+      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
+      const { id } = asObject(payload);
+      if (typeof id !== 'string' || id.trim().length === 0) return invalidInput('id is required');
+      return uploadResult(await deps.marketplaceUploads.remove(id.trim()));
+    },
+    shareDraftStart(payload) {
+      const slug = shareDraftSlug(payload);
+      if (deps.shareDrafts === undefined) return marketplaceUnavailable();
+      if (slug === undefined) return invalidInput('slug must name one of your Bots');
+      return draftResult(deps.shareDrafts.start(slug));
+    },
+    shareDraftGet(payload) {
+      const slug = shareDraftSlug(payload);
+      if (deps.shareDrafts === undefined) return marketplaceUnavailable();
+      if (slug === undefined) return invalidInput('slug must name one of your Bots');
+      return draftResult(deps.shareDrafts.get(slug));
+    },
+    shareDraftFile(payload) {
+      const slug = shareDraftSlug(payload);
+      const { path } = asObject(payload);
+      if (deps.shareDrafts === undefined) return marketplaceUnavailable();
+      if (slug === undefined || typeof path !== 'string' || path.length === 0)
+        return invalidInput('slug and path are required');
+      return uploadResult(deps.shareDrafts.read(slug, path));
+    },
+    shareDraftDecide(payload) {
+      const slug = shareDraftSlug(payload);
+      const { path, decision, text } = asObject(payload);
+      if (deps.shareDrafts === undefined) return marketplaceUnavailable();
+      if (slug === undefined || typeof path !== 'string' || path.length === 0)
+        return invalidInput('slug and path are required');
+      if (decision === 'keep')
+        return draftResult(deps.shareDrafts.decide(slug, path, { keep: true }));
+      if (decision === 'drop')
+        return draftResult(deps.shareDrafts.decide(slug, path, { drop: true }));
+      if (decision === 'rewrite' && typeof text === 'string')
+        return draftResult(deps.shareDrafts.decide(slug, path, { rewrite: text }));
+      return invalidInput('decision must be keep, drop, or rewrite with text');
+    },
+    shareDraftFinish(payload) {
+      const slug = shareDraftSlug(payload);
+      if (deps.shareDrafts === undefined) return marketplaceUnavailable();
+      if (slug === undefined) return invalidInput('slug must name one of your Bots');
+      return draftResult(deps.shareDrafts.finish(slug));
+    },
+    shareDraftDiscard(payload) {
+      const slug = shareDraftSlug(payload);
+      if (deps.shareDrafts === undefined) return marketplaceUnavailable();
+      if (slug === undefined) return invalidInput('slug must name one of your Bots');
+      return uploadResult(deps.shareDrafts.discard(slug));
+    },
+    async shareDraftExport(payload) {
+      const slug = shareDraftSlug(payload);
+      if (deps.shareDrafts === undefined || deps.tob === undefined) return marketplaceUnavailable();
+      if (slug === undefined) return invalidInput('slug must name one of your Bots');
+      const home = await deps.tob.ensure();
+      return uploadResult(
+        deps.shareDrafts.exportTo(slug, join(home.workspacePath, 'share-exports', slug)),
+      );
+    },
+    async marketplaceInstallReview(payload) {
+      if (deps.marketplaceInstallReviews === undefined) return marketplaceUnavailable();
+      const { id, lang } = asObject(payload);
+      if (typeof id !== 'string' || id.trim().length === 0) return invalidInput('id is required');
+      if (lang !== undefined && lang !== 'en' && lang !== 'zh') return invalidInput('invalid lang');
+      return uploadResult(await deps.marketplaceInstallReviews.review(id.trim(), lang));
+    },
+    async marketplaceInstall(payload) {
+      if (deps.marketplaceInstallReviews === undefined) return marketplaceUnavailable();
+      const { id, reviewId, operationKey, source: installSource } = asObject(payload);
+      if (typeof id !== 'string' || id.trim().length === 0) return invalidInput('id is required');
+      if (
+        installSource !== undefined &&
+        !(MARKETPLACE_INSTALL_SOURCES as readonly unknown[]).includes(installSource)
+      )
+        return invalidInput('invalid source');
+      if (typeof reviewId !== 'string' || reviewId.length === 0)
+        return {
+          ok: false,
+          error: { code: 'review-required', message: 'Run marketplaceInstallReview first' },
+        };
+      if (operationKey !== undefined && typeof operationKey !== 'string')
+        return invalidInput('invalid operationKey');
+      const imports =
+        deps.imports ??
+        (deps.creations
+          ? createBotImports(deps.creations, deps.warn === undefined ? {} : { log: deps.warn })
+          : undefined);
+      if (imports === undefined) return invalidInput('Bot import is unavailable');
+      const prepared = deps.marketplaceInstallReviews.staged(id.trim(), reviewId);
+      if (!prepared.ok) return uploadResult(prepared);
+      try {
+        const created = await imports.create(
+          operationKey ?? `marketplace:${reviewId}`,
+          prepared.value.input,
+        );
+        sendReceipt(prepared.value.listing.id);
+        try {
+          deps.telemetry?.capture?.(
+            'marketplace:bot_install',
+            typeof installSource === 'string' ? { entry: installSource } : undefined,
+          );
+        } catch {}
+        const listing = prepared.value.listing;
+        const marked = deps.registry.setMarketplaceListing(created.record.slug, {
+          id: listing.id,
+          pushedAt: listing.pushedAt,
+        });
+        return {
+          ok: true,
+          value: {
+            ...detailOf(marked.ok ? marked.record : created.record),
+            channelId: created.channelId,
+            ...(created.receipt === undefined ? {} : { receipt: created.receipt }),
+            listing: prepared.value.listing,
+          },
+        };
+      } catch (error) {
+        if (error instanceof BotCreationError)
+          return { ok: false, error: { code: error.code, message: error.message } };
+        throw error;
+      }
     },
     update(payload) {
       const slug = asSlug(payload);
@@ -5191,6 +5620,46 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return { ok: true, value: page };
       } catch (error) {
         return invalidInput((error as Error).message.replace(/^channel_read: /u, ''));
+      }
+    },
+    messageSearch(payload) {
+      const source = asObject(payload);
+      const text = source['text'];
+      const cursor = source['cursor'];
+      const limit = source['limit'];
+      if (typeof text !== 'string' || text.trim().length === 0 || text.length > 200)
+        return invalidInput('text must be 1 to 200 characters');
+      if (cursor !== undefined && (typeof cursor !== 'string' || cursor.length > 1024))
+        return invalidInput('cursor must be the nextCursor of the previous page');
+      if (
+        limit !== undefined &&
+        (typeof limit !== 'number' || !Number.isSafeInteger(limit) || limit < 1 || limit > 50)
+      )
+        return invalidInput('limit must be an integer from 1 to 50');
+      if (deps.channels.searchAllHumanMessages === undefined)
+        return {
+          ok: false,
+          error: { code: 'storage-unavailable', message: 'search is unavailable' },
+        };
+      let hidden: string[];
+      try {
+        hidden = deps.roster.snapshot().hidden;
+      } catch (error) {
+        if (error instanceof RosterUnavailableError) return unavailable();
+        throw error;
+      }
+      try {
+        return {
+          ok: true,
+          value: deps.channels.searchAllHumanMessages({
+            text,
+            limit: limit ?? 20,
+            excludeChannelIds: hidden,
+            ...(cursor === undefined ? {} : { cursor }),
+          }),
+        };
+      } catch (error) {
+        return invalidInput((error as Error).message.replace(/^message_search: /u, ''));
       }
     },
     async channelMarkAllRead() {

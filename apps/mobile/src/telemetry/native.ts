@@ -7,6 +7,7 @@ import { createMobileTelemetry } from './mobile-telemetry';
 import { createPostHogSender } from './posthog-sender';
 import { isUuid } from './schema';
 import { deviceTelemetryContext } from './device-context';
+import { setFeatureSink } from './features';
 
 const mode = process.env.EXPO_PUBLIC_MOBILE_TELEMETRY;
 const qaRun = process.env.EXPO_PUBLIC_MOBILE_TELEMETRY_QA_RUN;
@@ -72,3 +73,4 @@ export const mobileTelemetry = createMobileTelemetry({
   now: Date.now,
   monotonic: () => performance.now(),
 });
+setFeatureSink((event, properties) => mobileTelemetry.feature(event, properties));

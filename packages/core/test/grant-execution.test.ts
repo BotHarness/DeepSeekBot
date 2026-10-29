@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import {
   appendDelegatedPolicyOverrides,
   captureDelegatedPolicyOverrides,
@@ -8,10 +11,12 @@ import {
   alignAssignmentPermission,
   alignOrchestratorPermission,
   alignOrchestratorSubagentPermission,
+  admitBotSession,
   borrowedAgentDenial,
   deviceToolAuthorization,
   grantExecutionDenial,
   isDshGovernedTool,
+  sessionRefusalMessage,
   grantToolExecutionDenial,
   orchestratorPermission,
   requiresHumanToolApproval,
@@ -759,6 +764,58 @@ describe('Workspace Grant execution boundary', () => {
       /differs from this PersonaBot's access setting/,
     );
   });
+  it.each([
+    [
+      'Orchestrator Session requires its Memory working directory',
+      'MEMORY_CWD_MISMATCH',
+      'Start a new Session',
+    ],
+    [
+      "Orchestrator Session permission differs from this PersonaBot's access setting",
+      'SESSION_PERMISSION_MISMATCH',
+      'Full access',
+    ],
+    [
+      "Orchestrator Subagent permission differs from this PersonaBot's access setting",
+      'SESSION_PERMISSION_MISMATCH',
+      'Full access',
+    ],
+    [
+      'Assignment Session permission snapshot is missing or mismatched',
+      'ASSIGNMENT_PERMISSION_MISMATCH',
+      'new Assignment',
+    ],
+    [
+      'Assignment Session permission mode differs from its snapshot',
+      'ASSIGNMENT_PERMISSION_MISMATCH',
+      'new Assignment',
+    ],
+    [
+      'Assignment Workspace Grant is missing, revoked, or unavailable',
+      'GRANT_UNAVAILABLE',
+      'Authorize the folder again',
+    ],
+    [
+      'Assignment Workspace Grant no longer matches its permission snapshot',
+      'GRANT_UNAVAILABLE',
+      'Authorize the folder again',
+    ],
+    [
+      'DSH permission services are unavailable for BotHarness Session',
+      'PERMISSION_UNAVAILABLE',
+      'Restart the Host',
+    ],
+    ['BotHarness Session has no durable owner', 'SESSION_OWNER_MISSING', 'Start a new Session'],
+    ['BotHarness Session ownership is cyclic', 'SESSION_OWNER_MISSING', 'Start a new Session'],
+    ['Unknown BotHarness Session role', 'SESSION_OWNER_MISSING', 'Start a new Session'],
+    ['PersonaBot identity is deleted or unavailable', 'BOT_UNAVAILABLE', undefined],
+    ['Something new', 'SESSION_REFUSED', undefined],
+  ])('names the refusal %s and its Human fix', (denial, code, fix) => {
+    const message = sessionRefusalMessage(denial);
+    expect(message.startsWith(`${code}: The Host refused this turn: ${denial}.`)).toBe(true);
+    if (fix === undefined) expect(message).toBe(`${code}: The Host refused this turn: ${denial}.`);
+    else expect(message).toContain(fix);
+  });
   it('aligns a natively resumed Orchestrator whose access setting changed while it was idle', () => {
     const state = fixture();
     let mode: 'workspace-write' | 'danger-full-access' = 'workspace-write';
@@ -815,16 +872,45 @@ describe('Workspace Grant execution boundary', () => {
       /Orchestrator Session permission differs/,
     );
     expect(
-      borrowedAgentDenial(core, orchestrator, 'orchestrator', state.policy, state.approval),
+      admitBotSession(core, orchestrator, 'orchestrator', state.policy, state.approval),
     ).toBeUndefined();
-    expect(
-      borrowedAgentDenial(core, orchestrator, 'assignment', state.policy, state.approval),
-    ).toBe('BotHarness Agent role mismatch');
+    expect(admitBotSession(core, orchestrator, 'assignment', state.policy, state.approval)).toBe(
+      'BotHarness Agent role mismatch',
+    );
     state.getAssignment.mockReturnValue(undefined as never);
     expect(
-      borrowedAgentDenial(core, state.assignment, 'assignment', state.policy, state.approval),
+      admitBotSession(core, state.assignment, 'assignment', state.policy, state.approval),
     ).toMatch(/snapshot is missing/);
   });
+
+  it('admits an Orchestrator whose working directory is a symlink to its Memory directory', () => {
+    const root = mkdtempSync(join(tmpdir(), 'botharness-memory-cwd-'));
+    try {
+      const memory = join(root, 'home', 'bots', botSlug, 'memory');
+      mkdirSync(memory, { recursive: true });
+      symlinkSync(join(root, 'home'), join(root, 'linked-home'), 'dir');
+      const state = fixture();
+      state.memoryDirFor.mockReturnValue(memory);
+      const spelled = (cwd: string) =>
+        ({ id: 'botharness-orchestrator', header: { cwd } }) as never;
+      for (const cwd of [join(root, 'linked-home', 'bots', botSlug, 'memory'), memory + '/']) {
+        expect(
+          grantExecutionDenial(state.core, spelled(cwd), state.policy, state.approval),
+        ).toBeUndefined();
+        expect(
+          admitBotSession(state.core, spelled(cwd), 'orchestrator', state.policy, state.approval),
+        ).toBeUndefined();
+      }
+      const other = join(root, 'other-memory');
+      mkdirSync(other);
+      expect(
+        grantExecutionDenial(state.core, spelled(other), state.policy, state.approval),
+      ).toMatch(/requires its Memory working directory/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('lets the Host borrow a native Assignment whose mode drifted from its snapshot', () => {
     const state = fixture();
     const appended: Array<[string, unknown]> = [];
@@ -843,7 +929,7 @@ describe('Workspace Grant execution boundary', () => {
       /differs from its snapshot/,
     );
     expect(
-      borrowedAgentDenial(state.core, assignment, 'assignment', state.policy, state.approval),
+      admitBotSession(state.core, assignment, 'assignment', state.policy, state.approval),
     ).toBeUndefined();
     expect(appended).toEqual([
       ['sandbox/mode', { mode: 'workspace-write' }],
@@ -858,15 +944,15 @@ describe('Workspace Grant execution boundary', () => {
     const append = vi.fn();
     state.resolvePolicy.mockReturnValue({ mode: 'danger-full-access' });
     const moved = { id: assignmentSessionId, header: { cwd: '/tmp/elsewhere' }, append } as never;
-    expect(
-      borrowedAgentDenial(state.core, moved, 'assignment', state.policy, state.approval),
-    ).toMatch(/snapshot is missing or mismatched/);
+    expect(admitBotSession(state.core, moved, 'assignment', state.policy, state.approval)).toMatch(
+      /snapshot is missing or mismatched/,
+    );
     const assignment = { id: assignmentSessionId, header: { cwd }, append } as never;
     state.requireActive.mockImplementation(() => {
       throw new Error('revoked');
     });
     expect(
-      borrowedAgentDenial(state.core, assignment, 'assignment', state.policy, state.approval),
+      admitBotSession(state.core, assignment, 'assignment', state.policy, state.approval),
     ).toMatch(/permission mode differs from its snapshot/);
     expect(append).not.toHaveBeenCalled();
   });
@@ -901,4 +987,140 @@ describe('Workspace Grant execution boundary', () => {
 it('does not keep retired Tob management tools in the Bot tool policy', () => {
   expect(isDshGovernedTool('tob_assignment_limit_read')).toBe(true);
   expect(isDshGovernedTool('tob_assignment_limit_set')).toBe(true);
+});
+
+describe('Bot Session admission', () => {
+  type Role = 'orchestrator' | 'assignment';
+  type Entry = (
+    state: ReturnType<typeof fixture>,
+    core: never,
+    session: never,
+    role: Role,
+  ) => string | undefined;
+  const admitStep = (state: ReturnType<typeof fixture>, core: never, session: never) =>
+    admitBotSession(core, session, undefined, state.policy, state.approval);
+  const ENTRY_PATHS: ReadonlyArray<readonly [string, Entry]> = [
+    ['create', (state, core, session) => admitStep(state, core, session)],
+    ['resume', (state, core, session) => admitStep(state, core, session)],
+    [
+      'borrow',
+      (state, core, session, role) =>
+        borrowedAgentDenial(core, session, role) ?? admitStep(state, core, session),
+    ],
+    ['native wake', (state, core, session) => admitStep(state, core, session)],
+  ];
+  const memoryRoot = mkdtempSync(join(tmpdir(), 'botharness-admission-'));
+  const memory = join(memoryRoot, 'home', 'bots', botSlug, 'memory');
+  mkdirSync(memory, { recursive: true });
+  symlinkSync(join(memoryRoot, 'home'), join(memoryRoot, 'linked-home'), 'dir');
+  afterAll(() => rmSync(memoryRoot, { recursive: true, force: true }));
+  const STATES: ReadonlyArray<{
+    name: string;
+    role: Role;
+    access: 'workspace-write' | 'danger-full-access';
+    mode: string;
+    approval: string;
+    cwd?: string;
+  }> = [
+    {
+      name: 'Full access switched on while DSH held the Session',
+      role: 'orchestrator',
+      access: 'danger-full-access',
+      mode: 'workspace-write',
+      approval: 'ask',
+    },
+    {
+      name: 'Full access switched off while DSH held the Session',
+      role: 'orchestrator',
+      access: 'workspace-write',
+      mode: 'danger-full-access',
+      approval: 'ask',
+    },
+    {
+      name: 'Orchestrator approval policy changed inside the Session',
+      role: 'orchestrator',
+      access: 'workspace-write',
+      mode: 'workspace-write',
+      approval: 'never',
+    },
+    {
+      name: 'Memory path spelled through a symlink',
+      role: 'orchestrator',
+      access: 'workspace-write',
+      mode: 'workspace-write',
+      approval: 'ask',
+      cwd: join(memoryRoot, 'linked-home', 'bots', botSlug, 'memory'),
+    },
+    {
+      name: 'Assignment mode changed outside its snapshot',
+      role: 'assignment',
+      access: 'workspace-write',
+      mode: 'danger-full-access',
+      approval: 'never',
+    },
+  ];
+  const cases = STATES.flatMap((state) =>
+    ENTRY_PATHS.map(([path, entry]) => ({ ...state, path, entry })),
+  );
+
+  it.each(cases)('repairs "$name" on $path before it checks', (testCase) => {
+    const state = fixture();
+    state.memoryDirFor.mockReturnValue(memory);
+    state.resolvePolicy.mockReturnValue({ mode: testCase.mode });
+    state.overrideOf.mockReturnValue(testCase.approval);
+    const core = {
+      ...(state.core as object),
+      assignmentAccess: {
+        get: () => ({ botSlug, mode: testCase.access, scope: 'chat', revision: 1 }),
+      },
+    } as never;
+    const writes: string[] = [];
+    const session = {
+      id: testCase.role === 'orchestrator' ? 'botharness-orchestrator' : assignmentSessionId,
+      header: { cwd: testCase.cwd ?? (testCase.role === 'orchestrator' ? memory : cwd) },
+      append: (type: string, data: { mode?: string; policy?: string }) => {
+        writes.push(type);
+        if (type === 'sandbox/mode') state.resolvePolicy.mockReturnValue({ mode: data.mode! });
+        if (type === 'approval/policy') state.overrideOf.mockReturnValue(data.policy!);
+      },
+    } as never;
+
+    expect(testCase.entry(state, core, session, testCase.role)).toBeUndefined();
+    expect(grantExecutionDenial(core, session, state.policy, state.approval)).toBeUndefined();
+    const repaired = writes.length;
+    expect(admitStep(state, core, session)).toBeUndefined();
+    expect(writes).toHaveLength(repaired);
+  });
+
+  it('leaves every refusal after ownership and role to admission, which names the fix', () => {
+    const state = fixture();
+    state.requireActive.mockImplementation(() => {
+      throw new Error('revoked');
+    });
+    const assignment = { id: assignmentSessionId, header: { cwd }, append: vi.fn() } as never;
+    expect(borrowedAgentDenial(state.core, assignment, 'assignment')).toBeUndefined();
+    expect(borrowedAgentDenial(state.core, assignment, 'orchestrator')).toBe(
+      'BotHarness Agent role mismatch',
+    );
+    const denial = admitBotSession(
+      state.core,
+      assignment,
+      'assignment',
+      state.policy,
+      state.approval,
+    );
+    expect(denial).toBe('Assignment Workspace Grant is missing, revoked, or unavailable');
+    expect(sessionRefusalMessage(denial!)).toMatch(/^GRANT_UNAVAILABLE: .*Authorize the folder/);
+  });
+
+  it('reports each repair it made', () => {
+    const state = fixture();
+    state.resolvePolicy.mockReturnValue({ mode: 'danger-full-access' });
+    const repairs: string[] = [];
+    const assignment = { id: assignmentSessionId, header: { cwd }, append: vi.fn() } as never;
+    admitBotSession(state.core, assignment, undefined, state.policy, state.approval, (repair) =>
+      repairs.push(repair),
+    );
+    expect(repairs).toEqual(['assignment']);
+  });
 });

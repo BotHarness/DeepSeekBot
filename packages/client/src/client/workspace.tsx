@@ -3,8 +3,7 @@ import { DeviceRequestsNotice } from './device-requests-notice.js';
 import { activityIndicator } from './activity-indicator.js';
 import { useActivityIndicatorMenu } from './activity-indicator-menu.js';
 import { onboardingFor } from './onboarding.js';
-import { HomePanel } from './home-panel.js';
-import { WORKSPACE_HOME } from './workspace-context.js';
+import { receiveTobMessages } from './tob-requests.js';
 import { BOT_ONLY_CHANNEL_PANELS } from './dock-panels.js';
 import { resolveChannelSidebarContext } from './channel-sidebar.js';
 import { usePanelMenu, PanelVisibilityLabel } from './panel-menu.js';
@@ -13,7 +12,7 @@ import { workspaceShortcutId } from './workspace-shortcuts.js';
 import { createPortal } from 'react-dom';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 
-import { workspaceColumns, moveWorkspaceRail } from './workspace-layout.js';
+import { workspaceColumns, moveWorkspaceRail, railModeControls } from './workspace-layout.js';
 import { useRef, useState, useSyncExternalStore, type ReactNode, type ReactElement } from 'react';
 import { SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { LayoutMode } from './layout-mode.js';
@@ -119,40 +118,29 @@ export function Workspace({
         order: 0,
         component: () => null,
       });
-      const unregisterHome = registry.register({
-        id: WORKSPACE_HOME,
-        title: t('workspace.home'),
-        icon: 'house',
-        scope: 'global',
-        order: 1000,
-        defaultPosition: { zone: 'right' },
-        onTitleHide: () =>
-          void onboardingFor(options.actions).finishFromHomeTitle(() =>
-            registry.open(CHANNEL_BODY_PANEL),
-          ),
-        component: function HomeEntry() {
-          const sendKey = useSyncExternalStore(
-            options.prefs.source.subscribe,
-            () => options.prefs.source.getSnapshot().sendKey,
-          );
-          return (
-            <HomePanel
-              actions={options.actions}
-              registry={registry}
-              t={t}
-              sendKey={sendKey}
-              onEditHumanName={() => options.openBotSettings('messaging')}
-            />
-          );
-        },
-      });
-      const detachGuide = onboardingFor(options.actions).attachHome(() =>
-        registry.open(WORKSPACE_HOME),
+      const onboarding = onboardingFor(options.actions);
+      const openTob = async () => {
+        registry.open(CHANNEL_BODY_PANEL);
+        const tob = await options.actions.tobHome();
+        await options.actions.openChannel(tob.channelId);
+        return tob;
+      };
+      const detachGuide = onboarding.attachTobConversation(() => void openTob().catch(() => {}));
+      const stopLanding = onboarding.watchTobLanding();
+      const stopRequests = receiveTobMessages(
+        (body) =>
+          void openTob()
+            .then(async (tob) => {
+              if (await onboarding.prepareSend(tob.channelId, tob.botSlug, body))
+                await options.actions.sendHome(tob.channelId, body, 'human-' + crypto.randomUUID());
+            })
+            .catch(() => {}),
       );
       setEnabled(true);
       return () => {
+        stopRequests();
+        stopLanding();
         detachGuide();
-        unregisterHome();
         unregisterMessages();
         unregister();
         release();
@@ -325,7 +313,7 @@ function WorkspaceRail({
           {options.dockPanels && (
             <PinnedPanelCards
               registry={options.dockPanels}
-              order={order}
+              order={railModeControls(layoutMode.mode, order).order}
               onOrderChange={setOrder}
               hiddenIds={[
                 'members',
@@ -334,7 +322,7 @@ function WorkspaceRail({
                 ...panels.filter((p) => p.binding === 'current-bot').map((p) => p.id),
                 ...botOnlyHidden,
                 ...hiddenControls,
-                ...(simple ? [WORKSPACE_CHANNELS] : []),
+                ...railModeControls(layoutMode.mode, order).hidden,
               ]}
               shortcut={(id) => shortcuts.find((row) => row.id === workspaceShortcutId(id))?.keys}
               collapsed
@@ -342,12 +330,6 @@ function WorkspaceRail({
               menuTrigger={(id) =>
                 id === 'activity-center' ? indicatorMenu.triggerProps : undefined
               }
-              onActivate={(id) => {
-                if (simple && id === CHANNEL_BODY_PANEL)
-                  void onboardingFor(options.actions).finishFromRail(() =>
-                    options.dockPanels?.open(CHANNEL_BODY_PANEL),
-                  );
-              }}
               badge={(id) =>
                 id === 'activity-center'
                   ? {
@@ -417,7 +399,10 @@ function WorkspaceRail({
                     { value: 'simple', label: t('workspace.layoutMode.simple') },
                     { value: 'advanced', label: t('workspace.layoutMode.advanced') },
                   ]}
-                  onChange={(mode) => layoutMode.setMode(mode as LayoutMode)}
+                  onChange={(mode) => {
+                    layoutMode.setMode(mode as LayoutMode);
+                    options.actions.telemetryEvent('layout:mode_select', { mode });
+                  }}
                 />
               }
             />

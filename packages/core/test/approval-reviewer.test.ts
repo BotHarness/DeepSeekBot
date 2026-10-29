@@ -183,6 +183,28 @@ describe('Approval Templates', () => {
     ).toBe(true);
     expect(requiresHumanToolApproval('bash', { command: 'pnpm test' })).toBe(false);
   });
+
+  it('makes a Shell upload to the Bot Marketplace need Human approval', () => {
+    expect(
+      requiresHumanToolApproval('bash', {
+        command: 'deepseekbot marketplace-upload bot-1 --name Helper',
+      }),
+    ).toBe(true);
+    expect(
+      requiresHumanToolApproval('bash', { command: 'deepseekbot marketplace-install U_abc' }),
+    ).toBe(false);
+  });
+
+  it('makes deleting an Uploaded Bot from the Shell need Human approval', () => {
+    expect(
+      requiresHumanToolApproval('bash', {
+        command: 'deepseekbot marketplace-delete U_abc --confirm',
+      }),
+    ).toBe(true);
+    expect(requiresHumanToolApproval('bash', { command: 'deepseekbot marketplace-mine' })).toBe(
+      false,
+    );
+  });
 });
 
 describe('Approval Reviewer input', () => {

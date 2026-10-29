@@ -24,7 +24,7 @@ import {
   type ApprovalReviewRequest,
   type ApprovalReviewResult,
 } from './approval-reviewer.js';
-import { changesApprovalPolicy } from './approval-templates.js';
+import { requiresHumanDecision } from './approval-templates.js';
 
 export interface BotCreatePreview {
   memoryFolder: string;
@@ -861,7 +861,7 @@ export class ChannelToolApproval {
 
   #changesPolicy(tracked: TrackedCall): boolean {
     const inUse = this.#autoApproval?.templateInUse;
-    return changesApprovalPolicy(
+    return requiresHumanDecision(
       tracked.toolName + ' ' + tracked.input,
       inUse === undefined ? undefined : (name) => inUse(name),
     );

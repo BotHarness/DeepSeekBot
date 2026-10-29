@@ -22,8 +22,13 @@ export function ProfileHero({
   const theme = useDesignTheme();
   const { width } = useWindowDimensions();
   return (
-    <View style={{ gap: space.x3, paddingHorizontal: space.x5, paddingBottom: space.x4 }}>
+    <View
+      testID="profile-identity"
+      pointerEvents="box-none"
+      style={{ gap: space.x3, paddingHorizontal: space.x5, paddingBottom: space.x4 }}
+    >
       <View
+        pointerEvents="box-none"
         style={{
           minHeight: (width - space.x5 * 2) / profileShell.bannerAspect,
           alignItems: 'center',
@@ -36,6 +41,7 @@ export function ProfileHero({
       >
         {banner === undefined ? null : (
           <Image
+            pointerEvents="none"
             testID="profile-banner"
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
@@ -50,6 +56,7 @@ export function ProfileHero({
           />
         )}
         <View
+          pointerEvents="box-none"
           style={{
             padding: profileShell.avatarEdge,
             borderRadius: radius.round,
@@ -59,6 +66,7 @@ export function ProfileHero({
           {avatar}
         </View>
         <View
+          pointerEvents="box-none"
           style={{
             marginTop: -profileShell.chipOverlap,
             maxWidth: '90%',
@@ -71,6 +79,7 @@ export function ProfileHero({
           }}
         >
           <Text
+            pointerEvents="none"
             testID="profile-name"
             accessibilityRole="header"
             strong
@@ -81,7 +90,9 @@ export function ProfileHero({
         </View>
       </View>
       {children === undefined ? null : (
-        <View style={{ alignItems: 'center', gap: space.x2 }}>{children}</View>
+        <View pointerEvents="box-none" style={{ alignItems: 'center', gap: space.x2 }}>
+          {children}
+        </View>
       )}
     </View>
   );

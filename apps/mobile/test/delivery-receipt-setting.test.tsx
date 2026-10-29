@@ -2,6 +2,7 @@
 import { act, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
+vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 
 const disk = vi.hoisted(() => ({ saved: [] as boolean[] }));
 
@@ -44,7 +45,7 @@ it('keeps delivery receipts off until the person turns them on, and saves the ch
       container.querySelector<HTMLInputElement>(`[aria-label="${t.delivery.setting}"]`)!;
     expect(toggle().getAttribute('data-testid')).toBe('delivery-receipt-toggle');
     expect(toggle().checked).toBe(false);
-    expect(container.textContent).toContain(t.delivery.settingHint);
+    expect(container.textContent).not.toContain(t.delivery.settingStorageError);
     await act(async () => toggle().click());
     expect(toggle().checked).toBe(true);
     expect(disk.saved).toEqual([true]);

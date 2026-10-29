@@ -16,12 +16,15 @@ import { PullToRefresh } from '../primitives/pull-to-refresh';
 import { Text } from '../primitives/text';
 import { HeaderIconButton } from './header-icon-button';
 import { HeaderGlyph } from './header-glyph';
-import { ChevronLeftIcon, CloseIcon, CheckIcon } from './icons';
+import { CloseIcon, CheckIcon } from './icons';
 import { useDesignTheme } from '../design/theme';
 import { haptic } from '../haptics';
 import { useStrings, locale } from '../strings';
 import { MarketplaceRow } from './marketplace-row';
 import { MarketplaceTopics } from './marketplace-topics';
+import { MarketplaceDailyPicks } from './marketplace-daily-picks';
+import { marketplaceTarget, openMarketplaceBot } from './marketplace-navigation';
+import { MarketplaceSections } from './marketplace-sections';
 
 export function MarketplaceScreen() {
   const t = useStrings();
@@ -36,6 +39,8 @@ export function MarketplaceScreen() {
   const insets = useSafeAreaInsets();
   const [searchHeight, setSearchHeight] = useState(theme.touch + space.x5 * 2 + insets.bottom);
   const ios = Platform.OS === 'ios';
+  const target = marketplaceTarget({ entry, hostId });
+  const home = query === '' && topic === '';
   const resource = marketplace.list({ q: query, sort, topic, lang: locale });
   const state = useCatalogueResource(resource);
   const mounted = useMounted<ViewInstance>(() => {
@@ -101,20 +106,22 @@ export function MarketplaceScreen() {
             gap: space.x2,
           }}
         >
-          <HeaderIconButton label={t.back} testID="marketplace-back" onPress={() => router.back()}>
-            <ChevronLeftIcon color={theme.color.fg} size={theme.type.title.line} />
-          </HeaderIconButton>
+          <HeaderIconButton
+            icon="back"
+            label={t.back}
+            testID="marketplace-back"
+            onPress={() => router.back()}
+          />
           <Text variant="title" strong accessibilityRole="header" style={{ flex: 1 }}>
             {t.marketplace.title}
           </Text>
           <HeaderIconButton
+            icon="filter"
             label={t.marketplace.topics}
             testID="marketplace-filter-button"
             selected={topic !== ''}
             onPress={openFilters}
-          >
-            <HeaderGlyph icon="filter" active={topic !== ''} />
-          </HeaderIconButton>
+          />
         </View>
       ) : null}
       <PullToRefresh
@@ -137,6 +144,12 @@ export function MarketplaceScreen() {
             }}
             ListHeaderComponent={
               <View style={{ gap: space.x4 }}>
+                {home ? (
+                  <View testID="marketplace-home" style={{ gap: space.x6 }}>
+                    <MarketplaceDailyPicks target={target} />
+                    <MarketplaceSections target={target} />
+                  </View>
+                ) : null}
                 <MarketplaceDiscovery
                   sort={sort}
                   onSort={setSort}
@@ -182,20 +195,7 @@ export function MarketplaceScreen() {
               )
             }
             renderItem={({ item }) => (
-              <MarketplaceRow
-                bot={item}
-                onPress={() =>
-                  router.push({
-                    pathname: '/marketplace-bot',
-                    params: {
-                      id: item.id,
-                      ...(entry === 'host' && hostId
-                        ? { entry: 'host', hostId }
-                        : { entry: 'all' }),
-                    },
-                  })
-                }
-              />
+              <MarketplaceRow bot={item} onPress={() => openMarketplaceBot(item, target, 'list')} />
             )}
           />
         )}

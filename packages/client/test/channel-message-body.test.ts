@@ -964,6 +964,23 @@ describe('Channel message body', () => {
     expect(markup).not.toContain('bh-session-failure-card');
   });
 
+  it('shows why the Host refused a Turn and the fix instead of a generic failure', () => {
+    const detail =
+      "The Host refused this turn: Orchestrator Session requires its Memory working directory. Start a new Session; it opens in this Bot's Memory directory.";
+    const markup = render({ kind: 'bot', slug: 'ada' }, 'Session failed', {
+      sessionFailure: {
+        role: 'orchestrator',
+        sessionId: 'session-refused',
+        code: 'MEMORY_CWD_MISMATCH',
+        detail,
+      },
+    });
+    expect(markup).toContain('会话的工作目录不是这个 Bot 的 Memory 目录');
+    expect(markup).toContain('开启新会话即可，新会话会在 Memory 目录中打开。');
+    expect(markup).not.toContain('请查看错误详情');
+    expect(markup).toContain('MEMORY_CWD_MISMATCH');
+  });
+
   it('uses the pinned native chat locale for the failure title and AUTH copy', () => {
     const markup = renderToStaticMarkup(
       createElement(ChannelMessageBody, {

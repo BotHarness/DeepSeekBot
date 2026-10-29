@@ -25,7 +25,7 @@ import { WallpaperLibrary } from './wallpaper-library.js';
 import type { Wallpaper } from './wallpaper.js';
 import { CommunityIcon } from './community-icons.js';
 import { COMMUNITY, cachedGithubStars, fetchGithubStars, formatStars } from './community-links.js';
-import { requestHomeMessage } from './home-requests.js';
+import { requestTobMessage } from './tob-requests.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { INTRO_STEPS, onboardingFor, type IntroStarter } from './onboarding.js';
@@ -378,7 +378,7 @@ export function BotIntro({
             layoutMode={state.layoutMode}
             onLayoutMode={(mode) => controller.chooseLayout(mode)}
             t={t}
-            track={(setting) => controller.introEvent('intro_theme_changed', { setting })}
+            track={(setting) => controller.introEvent('onboarding:theme_update', { setting })}
           />
         ) : null}
         {step === 'model' ? (
@@ -392,7 +392,7 @@ export function BotIntro({
         {step === 'community' ? (
           <CommunityStep
             t={t}
-            track={(target) => controller.introEvent('intro_community_clicked', { target })}
+            track={(target) => controller.introEvent('onboarding:community_link_click', { target })}
           />
         ) : null}
         {step === 'start' ? (
@@ -400,7 +400,7 @@ export function BotIntro({
             t={t}
             pick={(starter, body) =>
               void controller.closeIntro({ starter }).then(() => {
-                if (body !== undefined) requestHomeMessage(body);
+                if (body !== undefined) requestTobMessage(body);
               })
             }
           />
@@ -663,7 +663,8 @@ function ModelStep({
         } else await actions.inheritModel(tob, revision);
         setPlanned(plan);
       }
-      if (changed) onboardingFor(actions).introEvent('intro_model_saved', { advanced: split });
+      if (changed)
+        onboardingFor(actions).introEvent('onboarding:model_save', { is_advanced: split });
       return true;
     } catch (cause) {
       setError(errorMessage(cause));

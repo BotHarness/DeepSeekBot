@@ -328,6 +328,7 @@ describe('client apply', () => {
     });
     const sections = specs.filter((spec) => spec.name === 'botharness.settings.section');
     expect(sections.map(({ id, order }) => ({ id, order }))).toEqual([
+      { id: 'account', order: -5 },
       { id: 'general', order: 0 },
       { id: 'appearance', order: 5 },
       { id: 'notifications', order: 21 },

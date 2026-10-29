@@ -6,10 +6,8 @@ import { errorText, HostAnswerInvalid } from '../../host/bot-settings';
 import type { HostClient, RosterBot } from '../../host/client';
 import { useDesignTheme } from '../design/theme';
 import { edge, space } from '../design/tokens';
-import { RowIcon } from '../primitives/row-icon';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
-import { Toggle } from '../primitives/toggle';
 import { useStrings } from '../strings';
 import { SHEET_GROUP } from './sheet';
 
@@ -75,16 +73,13 @@ export function BotAccessScreen({ client, bot }: { client: HostClient; bot: Rost
             ? copy.browserDetail(bot.displayName)
             : copy.computerDetail(bot.displayName)
         }
-        leading={<RowIcon name={kind} />}
-        trailing={
-          <Toggle
-            testID={`bot-access-${kind}`}
-            on={SHEET_GROUP}
-            label={copy[kind]}
-            value={access.value(kind)}
-            onChange={(enabled) => void access.change(kind, enabled)}
-          />
-        }
+        icon={kind}
+        control={{
+          kind: 'switch',
+          value: access.value(kind),
+          onChange: (enabled) => void access.change(kind, enabled),
+          testID: `bot-access-${kind}`,
+        }}
       />
     </View>
   );

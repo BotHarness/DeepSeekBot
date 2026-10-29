@@ -439,6 +439,7 @@ describe('Channel and group CLI commands', () => {
       [['channel-react', 'grp-1', '--message-id', 'm-1', '--emoji', '👍']],
       [['channel-react', 'grp-1', '--message-id', 'm-1', '--emoji', '👍', '--remove']],
       [['channel-search', 'grp-1', '--query', 'launch', '--cursor', 'c-2', '--limit', '5']],
+      [['message-search', '--query', '搜索', '--cursor', 'c-3', '--limit', '8']],
       [['channel-unread']],
       [['channel-mute', 'grp-1']],
       [['channel-mute', 'grp-1', '--off']],
@@ -528,6 +529,7 @@ describe('Channel and group CLI commands', () => {
         method: 'channelSearch',
         args: { channelId: 'grp-1', text: 'launch', cursor: 'c-2', limit: 5 },
       },
+      { method: 'messageSearch', args: { text: '搜索', cursor: 'c-3', limit: 8 } },
       { method: 'channelUnreadCounts', args: {} },
       { method: 'channelMuteSet', args: { channelId: 'grp-1', muted: true } },
       { method: 'channelMuteSet', args: { channelId: 'grp-1', muted: false } },
@@ -589,6 +591,8 @@ describe('Channel and group CLI commands', () => {
       [['channel-react', 'grp-1', '--message-id', 'm-1']],
       [['channel-search', 'grp-1']],
       [['channel-search', 'grp-1', '--query', 'x', '--limit', '51']],
+      [['message-search']],
+      [['message-search', 'grp-1', '--query', 'x']],
       [['channel-bot-stop', 'dm-ada']],
     ];
     for (const [argv, stdin] of refused) {

@@ -14,11 +14,7 @@ import {
   writeChannelDock,
 } from '../src/client/channel-dock-layout.js';
 import { ACTIVITY_CENTER_PANEL } from '../src/client/dock-panels.js';
-import {
-  WORKSPACE_CHANNELS,
-  WORKSPACE_HOME,
-  WORKSPACE_RAIL,
-} from '../src/client/workspace-context.js';
+import { WORKSPACE_CHANNELS, HOME_SLOT, WORKSPACE_RAIL } from '../src/client/workspace-context.js';
 
 const leaf = (id: string, ...views: string[]) => ({
   type: 'leaf' as const,
@@ -63,9 +59,9 @@ describe('Bot mode layout persistence', () => {
   it('round-trips a versioned dockview serialization', () => {
     const storage = memoryStorage();
     writeChannelDock({ layout, parked: { schedules: { direction: 'below' } } }, storage);
-    expect(JSON.parse(storage.values.get(CHANNEL_DOCK_STORAGE_KEY)!).version).toBe(8);
+    expect(JSON.parse(storage.values.get(CHANNEL_DOCK_STORAGE_KEY)!).version).toBe(9);
     expect(readChannelDock(storage)).toEqual({
-      version: 8,
+      version: 9,
       instances: [],
       channelSplits: {},
       gap: 4,
@@ -181,7 +177,7 @@ describe('drops never tab two panels together', () => {
 
 describe('Work → Sessions upgrade', () => {
   const stored = (views: string[]) => ({
-    version: 8 as const,
+    version: 9 as const,
     layout: {
       ...layout,
       grid: {
@@ -337,7 +333,6 @@ describe('flat Sessions → Channel workspace migration', () => {
         CHANNEL_BODY_PANEL,
         'activity-center',
         'generated-files',
-        'bh:home',
       ]);
       expect(next.gap).toBe(8);
       expect(next.parked.future?.neighbor).toBe(CHANNEL_BODY_PANEL);
@@ -442,7 +437,6 @@ it('retains hidden Work intent when every legacy panel is closed', () => {
     CHANNEL_BODY_PANEL,
     'activity-center',
     'generated-files',
-    'bh:home',
   ]);
   expect(next.layout.panels[CHANNEL_BODY_PANEL]).toBeUndefined();
 });
@@ -492,7 +486,7 @@ describe('Bot subpanel migration', () => {
       const raw = JSON.stringify(previous);
       storage.setItem(CHANNEL_DOCK_STORAGE_KEY, raw);
       const migrated = readChannelDock(storage)!;
-      expect(migrated.version).toBe(8);
+      expect(migrated.version).toBe(9);
       expect(migrated.layout.panels['memory-files']).toBeUndefined();
       expect(migrated.layout.panels['plugin-x']).toEqual({ id: 'plugin-x' });
       expect(migrated.layout.grid.root.data).toEqual([
@@ -519,7 +513,6 @@ describe('Bot subpanel migration', () => {
         CHANNEL_BODY_PANEL,
         'activity-center',
         'generated-files',
-        'bh:home',
       ]);
       expect(migrated.parked['plugin-y']?.neighbor).toBe(CHANNEL_BODY_PANEL);
       expect(migrated.gap).toBe(9);
@@ -586,7 +579,7 @@ it('upgrades v5 Browser/Computer without rewriting existing Channel workspaces o
   storage.setItem(CHANNEL_DOCK_STORAGE_KEY, raw);
   storage.setItem(`${CHANNEL_DOCK_STORAGE_KEY}.before-bot-workspace-v5`, 'original-v4');
   const next = readChannelDock(storage)!;
-  expect(next.version).toBe(8);
+  expect(next.version).toBe(9);
   expect(next.layout.panels['botharness-browser']).toBeUndefined();
   expect(next.layout.grid.root.data).toEqual([
     { ...leaf('message', CHANNEL_BODY_PANEL), size: 800 },
@@ -613,7 +606,6 @@ it('upgrades v5 Browser/Computer without rewriting existing Channel workspaces o
     CHANNEL_BODY_PANEL,
     'activity-center',
     'generated-files',
-    'bh:home',
   ]);
   expect(next.hiddenControls).toEqual([]);
   expect(storage.getItem(`${CHANNEL_DOCK_STORAGE_KEY}.before-bot-workspace-v5`)).toBe(
@@ -686,9 +678,98 @@ describe('Home v8 upgrade', () => {
     expect(next.channelWorkspaces).toEqual(old.channelWorkspaces);
     expect(next.channelSplits).toEqual(old.channelSplits);
     expect(next.order?.slice(0, 3)).toEqual(old.order);
-    expect(next.order?.at(-1)).toBe('bh:home');
+    expect(next.order?.at(-1)).toBe('generated-files');
+    expect(next.order).not.toContain(HOME_SLOT);
     expect(storage.getItem(CHANNEL_DOCK_STORAGE_KEY + '.before-home-v8')).toBe(raw);
+    expect(storage.getItem(CHANNEL_DOCK_STORAGE_KEY + '.before-tob-mode-v9')).toBe(raw);
     expect(readChannelDock(storage)).toEqual(next);
+  });
+  it('drops Home from a v8 document, keeps every other placement and backs up the original once', () => {
+    const storage = memoryStorage();
+    const withHome: SerializedDockview = {
+      ...layout,
+      grid: {
+        ...layout.grid,
+        root: {
+          type: 'branch',
+          data: [
+            leaf('1', CHANNEL_BODY_PANEL),
+            {
+              type: 'branch',
+              data: [leaf('2', 'sessions', HOME_SLOT), leaf('home', HOME_SLOT)],
+              size: 320,
+            },
+            leaf('3', 'bot-inbox'),
+            leaf('4', 'computer'),
+          ],
+        },
+      },
+      panels: Object.fromEntries(
+        [CHANNEL_BODY_PANEL, 'sessions', HOME_SLOT, 'bot-inbox', 'computer'].map((id) => [
+          id,
+          { id },
+        ]),
+      ),
+      activeGroup: 'home',
+    };
+    const old = {
+      version: 8,
+      layout: withHome,
+      visibilityLayout: withHome,
+      gap: 6,
+      order: ['activity-center', HOME_SLOT, CHANNEL_BODY_PANEL],
+      hiddenControls: [HOME_SLOT, 'activity-center'],
+      parked: {
+        [HOME_SLOT]: { neighbor: CHANNEL_BODY_PANEL, direction: 'right' },
+        schedules: { neighbor: HOME_SLOT, direction: 'below', size: { width: 1, height: 0.4 } },
+        'generated-files': { neighbor: 'sessions', direction: 'right' },
+      },
+    };
+    const raw = JSON.stringify(old);
+    storage.setItem(CHANNEL_DOCK_STORAGE_KEY, raw);
+    const next = readChannelDock(storage)!;
+    const expected = {
+      ...layout,
+      grid: {
+        ...layout.grid,
+        root: {
+          type: 'branch',
+          data: [
+            leaf('1', CHANNEL_BODY_PANEL),
+            { type: 'branch', data: [leaf('2', 'sessions')], size: 320 },
+            leaf('3', 'bot-inbox'),
+            leaf('4', 'computer'),
+          ],
+        },
+      },
+      panels: Object.fromEntries(
+        [CHANNEL_BODY_PANEL, 'sessions', 'bot-inbox', 'computer'].map((id) => [id, { id }]),
+      ),
+    };
+    delete (expected as { activeGroup?: string }).activeGroup;
+    expect(next.layout).toEqual(expected);
+    expect(next.visibilityLayout).toEqual(expected);
+    expect(next.parked).toEqual({
+      schedules: { direction: 'below', size: { width: 1, height: 0.4 } },
+      'generated-files': { neighbor: 'sessions', direction: 'right' },
+    });
+    expect(next.hiddenControls).toEqual(['activity-center']);
+    expect(next.order).toEqual(old.order.filter((id) => id !== HOME_SLOT));
+    expect(next.gap).toBe(6);
+    expect(storage.getItem(CHANNEL_DOCK_STORAGE_KEY + '.before-tob-mode-v9')).toBe(raw);
+    expect(storage.getItem(CHANNEL_DOCK_STORAGE_KEY + '.before-home-v8')).toBeNull();
+    expect(JSON.parse(storage.getItem(CHANNEL_DOCK_STORAGE_KEY)!).version).toBe(9);
+    writeChannelDock(next, storage);
+    expect(readChannelDock(storage)).toEqual(next);
+    expect(storage.getItem(CHANNEL_DOCK_STORAGE_KEY + '.before-tob-mode-v9')).toBe(raw);
+  });
+  it('backs up a v8 document before a direct write replaces it', () => {
+    const storage = memoryStorage();
+    const raw = JSON.stringify({ version: 8, layout, parked: {} });
+    storage.setItem(CHANNEL_DOCK_STORAGE_KEY, raw);
+    expect(writeChannelDock({ layout, parked: {} }, storage)).toBe(true);
+    expect(storage.getItem(CHANNEL_DOCK_STORAGE_KEY + '.before-tob-mode-v9')).toBe(raw);
+    expect(storage.getItem(CHANNEL_DOCK_STORAGE_KEY + '.before-home-v8')).toBeNull();
   });
   it('does not overwrite future documents or claim persistence after storage failure', () => {
     const storage = memoryStorage();
@@ -724,7 +805,7 @@ describe('workspace default placement', () => {
   it('opens Messages as a column beside the Channel list', () => {
     expect(
       resolveDefaultPosition(
-        dock(WORKSPACE_RAIL, WORKSPACE_CHANNELS, WORKSPACE_HOME),
+        dock(WORKSPACE_RAIL, WORKSPACE_CHANNELS),
         undefined,
         CHANNEL_BODY_PANEL,
       ),
@@ -734,18 +815,15 @@ describe('workspace default placement', () => {
   it('opens Activity Center as a column beside Messages', () => {
     expect(
       resolveDefaultPosition(
-        dock(WORKSPACE_RAIL, WORKSPACE_CHANNELS, CHANNEL_BODY_PANEL, WORKSPACE_HOME),
+        dock(WORKSPACE_RAIL, WORKSPACE_CHANNELS, CHANNEL_BODY_PANEL),
         { zone: 'right' },
         ACTIVITY_CENTER_PANEL,
       ),
     ).toEqual({ referencePanel: CHANNEL_BODY_PANEL, direction: 'right' });
   });
 
-  it('opens Home, plugin right panels and orphaned Activity Center at the right edge', () => {
+  it('opens plugin right panels and orphaned Activity Center at the right edge', () => {
     const api = dock(WORKSPACE_RAIL, WORKSPACE_CHANNELS, 'market');
-    expect(resolveDefaultPosition(api, { zone: 'right' }, WORKSPACE_HOME)).toEqual({
-      direction: 'right',
-    });
     expect(resolveDefaultPosition(api, { zone: 'right' }, 'vendor:panel')).toEqual({
       direction: 'right',
     });

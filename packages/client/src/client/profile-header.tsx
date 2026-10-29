@@ -4,7 +4,9 @@ import * as stylex from '@stylexjs/stylex';
 import { BANNER_SCENES, seededBannerRecipe } from '@botharness/pixel-banner';
 import {
   Button,
+  IconEditOutlineRegular,
   IconEllipsisOutlineRegular,
+  IconShareOutlineRegular,
   IconTrashOutlineRegular,
   type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -18,12 +20,14 @@ import { Field, TextField } from './ds/field.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
+import { Tooltip } from './ds/tooltip.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { BannerCropModal, PersonaBotAvatarCropModal } from './personabot-avatar-crop.js';
 import { botPrimaryColorOf } from './bot-primary-color.js';
 import { PrimaryColorModal } from './primary-color-editor.js';
 import { ProfileTags } from './profile-tags.js';
+import { openShareFlow } from './share-flow.js';
 import type { BotBannerView, BotSummary, ChannelSummary } from './store.js';
 import {
   MAX_BOT_BIO_LENGTH,
@@ -247,7 +251,19 @@ function EditProfileModal({
   );
 }
 
-function AvatarModal({
+export type BotAvatarActions = Pick<
+  BridgeActions,
+  | 'setBotAppearance'
+  | 'setBotAvatar'
+  | 'setBotPrimaryColor'
+  | 'loadPartLibrary'
+  | 'addLibraryPart'
+  | 'exportLibraryParts'
+  | 'importLibraryParts'
+  | 'importLibraryImage'
+>;
+
+export function BotAvatarModal({
   bot,
   channel,
   actions,
@@ -513,6 +529,11 @@ export function ProfileHeader({
   const [menuOpen, setMenuOpen] = useState(false);
   const menuItems: readonly MenuEntry[] = [
     {
+      id: 'share-market',
+      label: t('market.share'),
+      icon: <IconShareOutlineRegular size={16} />,
+    },
+    {
       id: 'delete',
       label: t('deletion.title'),
       icon: <IconTrashOutlineRegular size={16} />,
@@ -535,24 +556,40 @@ export function ProfileHeader({
       </div>
       <div className="bh-profile-header-body">
         <div className="bh-profile-header-top">
-          <button
-            type="button"
-            className="bh-profile-avatar-button"
-            aria-label={t('profile.avatar.change')}
-            disabled={bot.deleted}
-            onClick={() => setPanel('avatar')}
+          <Tooltip
+            label={t('profile.avatar.change')}
+            side="bottom"
+            portal
+            delayMs={300}
+            disabled={bot.deleted === true}
           >
-            <PersonaBotAvatar
-              t={t}
-              personaBotId={bot.slug}
-              name={bot.displayName}
-              src={bot.avatar}
-              appearance={bot.appearance}
-              avatarSeed={bot.avatarSeed}
-              size={80}
-              indicator={false}
-            />
-          </button>
+            <button
+              type="button"
+              className="bh-profile-avatar-button"
+              aria-label={t('profile.avatar.change')}
+              data-avatar-editable={bot.deleted ? undefined : ''}
+              disabled={bot.deleted}
+              onClick={() => setPanel('avatar')}
+            >
+              <PersonaBotAvatar
+                t={t}
+                personaBotId={bot.slug}
+                name={bot.displayName}
+                src={bot.avatar}
+                appearance={bot.appearance}
+                avatarSeed={bot.avatarSeed}
+                size={80}
+                indicator={false}
+              />
+              {bot.deleted ? null : (
+                <span aria-hidden="true" className="bh-profile-avatar-overlay">
+                  <span className="bh-profile-avatar-overlay-icon">
+                    <IconEditOutlineRegular size={16} />
+                  </span>
+                </span>
+              )}
+            </button>
+          </Tooltip>
           {bot.deleted ? null : (
             <div className="bh-profile-header-actions">
               <BotZipShareButton bot={bot} actions={actions} t={t} />
@@ -578,6 +615,7 @@ export function ProfileHeader({
                 onSelect={(id) => {
                   setMenuOpen(false);
                   if (id === 'delete') onDelete();
+                  if (id === 'share-market') openShareFlow(bot.slug);
                 }}
                 onClose={() => setMenuOpen(false)}
               />
@@ -607,7 +645,7 @@ export function ProfileHeader({
         />
       ) : null}
       {panel === 'avatar' ? (
-        <AvatarModal
+        <BotAvatarModal
           bot={bot}
           channel={channel}
           actions={actions}

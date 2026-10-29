@@ -36,6 +36,7 @@
         "storage:packages/client/src/client/channel-dock-layout.ts:setItem(key)",
         "storage:packages/client/src/client/channel-sidebar-prefs.ts:setItem(STORAGE_KEY)",
         "storage:packages/client/src/client/inbox-view-prefs.ts:setItem(INBOX_VIEW_PREFERENCES_KEY)",
+        "storage:packages/client/src/client/layout-mode.ts:setItem(backup)",
         "storage:packages/client/src/client/layout-mode.ts:setItem(LAYOUT_MODE_STORAGE_KEY)",
         "storage:packages/client/src/client/last-view.ts:setItem(LAST_VIEW_KEY)",
         "storage:packages/client/src/client/marketplace.tsx:setItem(SORT_STORAGE_KEY)",
@@ -285,6 +286,20 @@
       "commands": ["human-identity", "human-name-set", "channel-human-name-set"]
     },
     {
+      "id": "account-profile",
+      "description": "Account Profile name and photo shown on Marketplace uploads, plus the signed-in email and Author ID.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/account-profile-settings.tsx:{<label htmlFor=\"bh-account-name\">{t('accountProfile.name')}</label>}",
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.email')}",
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.id')}",
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.loadFailed')}",
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.photo')}",
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.signInHint')}"
+      ],
+      "commands": ["marketplace-account", "marketplace-author", "marketplace-author-avatar"]
+    },
+    {
       "id": "channel-history",
       "description": "Channel history and reviewed purge.",
       "scope": "Host",
@@ -467,9 +482,6 @@
         "storage:packages/client/src/client/composer-draft-store.ts:removeItem(key)",
         "storage:packages/client/src/client/composer-draft-store.ts:setItem(prefix + this.writer + ':' + version.sequence)",
         "storage:packages/client/src/client/composer-submission-store.ts:setItem(SUBMISSION_PREFIX + scope)",
-        "storage:packages/client/src/client/home-panel.tsx:setItem('botharness/home-draft/' + home.botSlug)",
-        "storage:packages/client/src/client/home-panel.tsx:setItem(key)",
-        "storage:packages/client/src/client/home-panel.tsx:removeItem(key)",
         "storage:packages/client/src/client/reachable-post-requests.ts:setItem(this.#key)"
       ],
       "exemption": "Drafts, pending sends and transport request recovery are per-Client delivery state, not configurable settings; sending is already covered by send.",

@@ -3,7 +3,10 @@ import {
   pixelBannerPixels,
   seededBannerRecipe,
 } from '@botharness/pixel-banner';
-import type { MarketplaceEntry } from '../../../../packages/core/src/marketplace/client';
+import type {
+  MarketplaceDigestPick,
+  MarketplaceEntry,
+} from '../../../../packages/core/src/marketplace/client';
 import { avatarSvg, seededAvatarFor } from '../../../../packages/core/src/bots/avatar-appearance';
 
 const cache = new Map<string, string>();
@@ -20,7 +23,20 @@ function cached(key: string, make: () => string) {
   return value;
 }
 const svgUri = (svg: string) => `data:image/svg+xml;base64,${btoa(svg)}`;
-export function marketplaceAvatar(bot: MarketplaceEntry) {
+export type MarketplaceArtSource = Pick<
+  MarketplaceEntry,
+  'name' | 'displayName' | 'banner' | 'avatar'
+>;
+export function pickArt(pick: MarketplaceDigestPick): MarketplaceArtSource {
+  return { ...pick, name: pick.displayName ?? pick.id };
+}
+export function marketplaceAvatar(bot: MarketplaceArtSource) {
+  const avatar = bot.avatar;
+  if (avatar && 'image' in avatar) return avatar.image;
+  if (avatar) {
+    const key = JSON.stringify(avatar.recipe);
+    return cached(`avatar:${key}`, () => svgUri(avatarSvg(avatar.recipe)));
+  }
   const name = bot.displayName ?? bot.name;
   return cached(`avatar:${name}`, () => svgUri(avatarSvg(seededAvatarFor(name, undefined))));
 }
@@ -35,13 +51,17 @@ export function botBanner(bot: {
   );
 }
 
-export function marketplaceBanner(bot: MarketplaceEntry, fallback = false) {
+export function marketplaceBanner(bot: MarketplaceArtSource, fallback = false) {
   if (!fallback && bot.banner && 'image' in bot.banner) return bot.banner.image;
   const recipe =
     bot.banner && 'recipe' in bot.banner
       ? bot.banner.recipe
       : seededBannerRecipe(bot.displayName ?? bot.name);
   return recipeBanner(recipe);
+}
+
+export function digestBanner(day: string): string {
+  return recipeBanner(seededBannerRecipe(`digest:${day}`));
 }
 
 function recipeBanner(recipe: Parameters<typeof pixelBannerPixels>[0]): string {

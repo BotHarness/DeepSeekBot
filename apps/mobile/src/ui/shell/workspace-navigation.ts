@@ -1,5 +1,6 @@
 import { appStackState, type ChannelNavigation } from './channel-navigation';
 import type { CloudWorkspace } from '../../cloud/workspace-directory';
+import { workspaceStackRoot } from './workspace-panel-root';
 
 export type CloudWorkspaceRoot = {
   instanceId: string;
@@ -26,6 +27,24 @@ export async function selectCloudWorkspace(
   });
 }
 
+export function openPairedHostSetup(navigation: ChannelNavigation, hostId: string): boolean {
+  if (!navigation.isReady()) return false;
+  const state = appStackState(navigation.getRootState());
+  if (!state) return false;
+  if (
+    state.routes[state.index]?.name === 'pair' &&
+    state.routes[state.index - 1]?.name === '(bot-creation)'
+  ) {
+    navigation.dispatch({
+      type: 'REPLACE',
+      target: state.key,
+      payload: { name: 'host-look', params: { hostId } },
+    });
+    return true;
+  }
+  return resetWorkspaceRoot(navigation, undefined, hostId);
+}
+
 export function resetWorkspaceRoot(
   navigation: ChannelNavigation,
   cloud?: CloudWorkspaceRoot,
@@ -47,10 +66,7 @@ export function resetWorkspaceRoot(
             history: [{ type: 'route', key: tabsState.routes[home]?.key }],
             routes: tabsState.routes.map((route) =>
               route.state?.type === 'stack'
-                ? {
-                    ...route,
-                    state: { ...route.state, index: 0, routes: route.state.routes.slice(0, 1) },
-                  }
+                ? { ...route, state: workspaceStackRoot(route.state) }
                 : route,
             ),
           },

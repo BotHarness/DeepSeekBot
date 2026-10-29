@@ -6,6 +6,7 @@ import {
 } from '../channels/send-review.js';
 import { TobError, type TobService } from '../tob/service.js';
 import { AssignmentInboxAcceptanceUncertainError } from './assignment-delivery.js';
+import { OrchestratorWorkingDirectoryError } from './orchestrator-working-directory.js';
 import {
   AssignmentApprovalCapacity,
   type AssignmentApprovalWaitLease,
@@ -811,6 +812,7 @@ export interface BotRuntime {
 }
 
 export interface BotRuntimeOptions {
+  onTobDelegation?: () => void;
   promptText?: (botSlug: string) => PromptText;
   promptLimits?: (botSlug: string) => PromptLimits;
   tob?: TobService;
@@ -1415,11 +1417,13 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #waitOptions: Pick<BotRuntimeOptions, 'database' | 'beginAssignmentWait'>;
   #closed = false;
   readonly #tob: TobService | undefined;
+  readonly #onTobDelegation: () => void;
   readonly #directToolCalls = new Map<string, DirectBotToolCall[]>();
 
   constructor(options: BotRuntimeOptions) {
     this.#waitOptions = options;
     this.#tob = options.tob;
+    this.#onTobDelegation = options.onTobDelegation ?? (() => {});
     this.#externalMessaging = options.externalMessaging;
     this.#database = attachOperationalModule(options.database, 'bot-runtime');
     this.#grants = options.grants;
@@ -6191,7 +6195,7 @@ class BotRuntimeImplementation implements BotRuntime {
           `${sender.displayName} · ${target.displayName}`,
         );
         if (dm === undefined) throw new Error('Bot DM is unavailable');
-        return this.#sendBotDm({
+        const sent = await this.#sendBotDm({
           botSlug,
           recipientBotSlug: target.slug,
           channel: dm,
@@ -6204,6 +6208,7 @@ class BotRuntimeImplementation implements BotRuntime {
           replyTo: input.replyTo,
           deliveryKey: input.deliveryKey,
         });
+        return sent;
       },
       ignore: ({ channelId, messageId }) => {
         const channel = resolve(channelId);
@@ -7206,6 +7211,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (result.status === 'conflict') throw new Error('Bot DM delivery key has different content');
     input.afterSend?.();
     this.admitBotDmMessage(channel.id, result.message.id);
+    if (result.status === 'appended' && this.#tob?.isTob(botSlug)) this.#onTobDelegation();
     return { channelId: channel.id, message: result.message };
   }
 
@@ -7234,12 +7240,10 @@ class BotRuntimeImplementation implements BotRuntime {
       await run(orchestrator);
       return orchestrator;
     } catch (error) {
-      if (
-        this.#closed ||
-        this.#sessionArchived?.(orchestrator.sessionId) !== true ||
-        this.#turnSideEffectStarted(bot.slug)
-      )
-        throw error;
+      if (this.#closed || this.#turnSideEffectStarted(bot.slug)) throw error;
+      if (error instanceof OrchestratorWorkingDirectoryError)
+        return this.#replaceMisplacedOrchestrator(bot, orchestrator, error, run);
+      if (this.#sessionArchived?.(orchestrator.sessionId) !== true) throw error;
       const replacement = this.#ensureOrchestrator(bot, this.#now().toISOString());
       if (replacement.sessionId === orchestrator.sessionId) throw error;
       this.#warn?.(
@@ -7254,6 +7258,32 @@ class BotRuntimeImplementation implements BotRuntime {
       await run(replacement);
       return replacement;
     }
+  }
+
+  async #replaceMisplacedOrchestrator(
+    bot: PersonaBotRecord,
+    orchestrator: { sessionId: string; resume: boolean },
+    error: OrchestratorWorkingDirectoryError,
+    run: (orchestrator: { sessionId: string; resume: boolean }) => Promise<void>,
+  ): Promise<{ sessionId: string; resume: boolean }> {
+    if (this.currentOrchestratorSessionId(bot.slug) !== orchestrator.sessionId) throw error;
+    const replaced = await this.#replaceOrchestrator(bot.slug, () => undefined);
+    if (replaced.outcome === 'refused') throw error;
+    const replacement = this.#ensureOrchestrator(bot, this.#now().toISOString());
+    if (replacement.sessionId === orchestrator.sessionId) throw error;
+    this.#warn?.(
+      JSON.stringify({
+        component: 'bot-runtime',
+        event: 'orchestrator-working-directory-replaced',
+        botSlug: bot.slug,
+        replacedSessionId: orchestrator.sessionId,
+        sessionId: replacement.sessionId,
+        sessionCwd: error.sessionCwd,
+        memoryCwd: error.memoryCwd,
+      }),
+    );
+    await run(replacement);
+    return replacement;
   }
 
   #turnSideEffectStarted(botSlug: string): boolean {

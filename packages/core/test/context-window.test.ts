@@ -1,7 +1,12 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
+import type { Agent } from '@deepseek-ai/dsh-agent';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
 import { createUserMessage, createSystemMessage } from '@deepseek-ai/dsh-llm';
-import { contextCapacity, fallbackCompactionRange } from '../src/runtime/context-window.js';
+import {
+  compactUnknownContext,
+  contextCapacity,
+  fallbackCompactionRange,
+} from '../src/runtime/context-window.js';
 import { compactionThresholdTokens } from '../src/runtime/idle-compaction.js';
 
 it('uses model capacity and labels a 200K fallback honestly', () => {
@@ -49,4 +54,48 @@ it('retains the latest message and never selects the system prompt', () => {
     { surfaceOp: 'append' },
   );
   expect(fallbackCompactionRange(session)).toEqual({ start: first.seq, end: first.seq });
+});
+
+function removedModelAgent() {
+  const removed = { provider: 'deepseek', model: 'removed-model' };
+  const resolveModelInfo = vi.fn(async (provider: string, model: string) => {
+    if (provider === removed.provider && model === removed.model)
+      throw Object.assign(new Error(`No adapter for ${provider}/${model}`), { code: 'NO_ADAPTER' });
+    return { context: { contextWindow: 1_000_000 }, defaultMaxTokens: 32_000 };
+  });
+  const measure = vi.fn(() => ({ totalTokens: 900_000 }));
+  const compactRegion = vi.fn(async () => undefined);
+  const agent = {
+    session: {
+      id: 'orchestrator-ada',
+      requestHeader: () => ({ config: { ...removed, maxTokens: 32_000 } }),
+    },
+    ctx: {
+      llm: { resolveModelInfo },
+      logger: { info: vi.fn() },
+      get: (name: string) =>
+        name === 'tokenMeter' ? { measure } : name === 'compaction' ? { compactRegion } : undefined,
+    },
+  } as unknown as Agent;
+  return { agent, resolveModelInfo, compactRegion };
+}
+
+it('protects context with the current model selection, not a removed previous model', async () => {
+  const { agent, resolveModelInfo, compactRegion } = removedModelAgent();
+  const selected = { provider: 'deepseek', model: 'deepseek-v4-pro' };
+  await expect(
+    compactUnknownContext(agent, new AbortController().signal, {}, selected),
+  ).resolves.toBeUndefined();
+  expect(resolveModelInfo).toHaveBeenCalledWith('deepseek', 'deepseek-v4-pro', expect.anything());
+  expect(resolveModelInfo).not.toHaveBeenCalledWith('deepseek', 'removed-model', expect.anything());
+  expect(compactRegion).not.toHaveBeenCalled();
+});
+
+it('skips context protection instead of failing the Turn when no route resolves', async () => {
+  const { agent, compactRegion } = removedModelAgent();
+  await expect(compactUnknownContext(agent, new AbortController().signal)).resolves.toBeUndefined();
+  expect(compactRegion).not.toHaveBeenCalled();
+  const aborted = new AbortController();
+  aborted.abort();
+  await expect(compactUnknownContext(agent, aborted.signal)).rejects.toThrow('No adapter');
 });

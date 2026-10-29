@@ -378,7 +378,14 @@ export function createIdleCompaction<Agent extends IdleCompactionAgent>(
     try {
       threshold = await ports.threshold(agent, route);
     } catch (error) {
-      ports.log({ event: 'skipped', reason: 'threshold-unavailable', error: errorCode(error) });
+      ports.log({
+        event: 'skipped',
+        reason: 'route-unavailable',
+        botSlug,
+        route: routeKey(route),
+        error: errorCode(error),
+      });
+      return;
     }
     if (tokensBefore === undefined || threshold === undefined) {
       ports.log({

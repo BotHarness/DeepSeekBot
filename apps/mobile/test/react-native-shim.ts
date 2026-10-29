@@ -50,7 +50,9 @@ export const Pressable = (props: Props) =>
       disabled: props['disabled'] === true,
       onClick: () => (props['onPress'] as (() => void) | undefined)?.(),
     },
-    props.children,
+    typeof props.children === 'function'
+      ? (props.children as (state: { pressed: boolean }) => ReactNode)({ pressed: false })
+      : props.children,
   );
 
 export const TextInput = (props: Props) =>
@@ -110,6 +112,8 @@ export const Keyboard = {
   metrics: () => undefined,
   dismiss() {},
 };
+export const PlatformColor = (...semantic: string[]) => ({ semantic });
+
 export const Platform = {
   OS: 'web',
   select: <T>(options: { default?: T; web?: T }) => options.web ?? options.default,
@@ -134,10 +138,11 @@ export const FlatList = (props: {
   ListFooterComponent?: ReactNode;
   ListEmptyComponent?: ReactNode;
   ref?: unknown;
+  testID?: string;
 }) =>
   createElement(
     'div',
-    { ref: props.ref },
+    { ...a11y(props), ref: props.ref },
     props.ListHeaderComponent ?? null,
     ...(props.data.length === 0
       ? [props.ListEmptyComponent ?? null]

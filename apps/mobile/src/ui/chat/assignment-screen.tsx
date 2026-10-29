@@ -18,7 +18,7 @@ import { MethodRefused } from '../../host/client';
 import { useHostSession } from '../../host/host-session';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, rowGlyph, space } from '../design/tokens';
-import { DrawerHeader } from '../primitives/drawer-header';
+import { SheetHeader } from '../primitives/sheet-header';
 import { SheetScreen } from '../primitives/sheet-screen';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
@@ -32,7 +32,10 @@ function sameDay(a: Date, b: Date): boolean {
 export function stepTime(iso: string, now = new Date()): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return '';
-  const time = at.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const time = at.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
   return sameDay(at, now)
     ? time
     : `${at.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${time}`;
@@ -94,7 +97,13 @@ function Step({ entry, last }: { entry: AssignmentTimelineEntry; last: boolean }
         <StepMark status={entry.status} />
       </View>
       <View style={{ flex: 1, gap: space.x1 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.x3 }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'baseline',
+            gap: space.x3,
+          }}
+        >
           <Text numberOfLines={1} style={{ flex: 1 }}>
             {summary}
           </Text>
@@ -199,7 +208,11 @@ function Instruction({ text }: { text: string }) {
       <Group>
         <View
           testID="assignment-instruction"
-          style={{ paddingHorizontal: space.x5, paddingVertical: space.x4, gap: space.x1 }}
+          style={{
+            paddingHorizontal: space.x5,
+            paddingVertical: space.x4,
+            gap: space.x1,
+          }}
         >
           <Text variant="meta" tone="muted">
             {t.assignmentDetail.instruction}
@@ -251,9 +264,19 @@ export function AssignmentDetail({ timeline }: { timeline: AssignmentTimeline })
           <Group>
             <View
               testID="assignment-report"
-              style={{ paddingHorizontal: space.x5, paddingVertical: space.x4, gap: space.x2 }}
+              style={{
+                paddingHorizontal: space.x5,
+                paddingVertical: space.x4,
+                gap: space.x2,
+              }}
             >
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.x3 }}>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'baseline',
+                  gap: space.x3,
+                }}
+              >
                 <Text
                   variant="meta"
                   strong
@@ -296,7 +319,11 @@ export function AssignmentDetail({ timeline }: { timeline: AssignmentTimeline })
           )}
           {main === undefined ? null : (
             <Lane
-              lane={{ ...main, entries: group.main, omitted: index === 0 ? main.omitted : 0 }}
+              lane={{
+                ...main,
+                entries: group.main,
+                omitted: index === 0 ? main.omitted : 0,
+              }}
             />
           )}
           {group.subagents.map((lane) => (
@@ -361,12 +388,10 @@ export function AssignmentScreenBody({
   );
   return (
     <>
-      <View style={{ paddingHorizontal: space.x5, paddingTop: space.x3, paddingBottom: space.x3 }}>
-        <DrawerHeader
-          title={timeline?.assignment.title ?? t.assignmentDetail.title}
-          onClose={() => router.back()}
-        />
-      </View>
+      <SheetHeader
+        title={timeline?.assignment.title ?? t.assignmentDetail.title}
+        onClose={() => router.back()}
+      />
       {timeline === undefined ? (
         error === undefined ? (
           <SheetLoading />
@@ -376,7 +401,11 @@ export function AssignmentScreenBody({
       ) : (
         <ScrollView
           testID="assignment-detail"
-          contentContainerStyle={{ paddingTop: space.x3, paddingBottom: insets.bottom + space.x6 }}
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            paddingTop: space.x3,
+            paddingBottom: insets.bottom + space.x6,
+          }}
         >
           <AssignmentDetail timeline={timeline} />
         </ScrollView>

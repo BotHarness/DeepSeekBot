@@ -27,6 +27,11 @@ function hostDir(host: string): Directory | undefined {
   return base === undefined ? undefined : new Directory(base, safeName(host));
 }
 
+export function avatarImageUri(host: string, file: string): string | undefined {
+  const dir = hostDir(host);
+  return dir === undefined ? undefined : new File(dir, file).uri;
+}
+
 export const notificationAvatars = createNotificationAvatars({
   async read(host) {
     const index = hostDir(host);

@@ -1,5 +1,5 @@
 import { TextField } from '../primitives/text-field';
-import { useFocusEffect } from 'expo-router';
+import { useProfileFocusEffect } from './profile-visibility';
 import { useCallback, useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 import { ActionMenuButton, type MenuAction } from '../primitives/action-menu-button';
@@ -28,7 +28,7 @@ import {
   SettingsSection,
 } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
-import { ChevronRightIcon, PlusIcon } from '../shell/icons';
+import { PlusIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { GroupMark } from './group-mark';
 import { AvatarSettings, EditableAvatar, useAvatarEditor } from './avatar-editor';
@@ -42,7 +42,6 @@ import { InviteSheet } from './invite-sheet';
 import { ProfileShell, type ProfileRow, type ProfileTabBody } from './profile-shell';
 import { profileTabs, type ProfileTabMemory } from './profile-tabs';
 import { ProfileHero } from './profile-hero';
-import { ProfileZoomTarget } from './profile-zoom-target';
 import { Sheet, SheetActions, SheetCallout } from './sheet';
 
 const ON = 'raised' as const;
@@ -123,7 +122,12 @@ function MemberAvatar({ entry }: { entry: { slug: string; bot?: RosterBot } }) {
 }
 
 function RowButtons({ children }: { children: ReactNode }) {
-  return <View style={{ flexDirection: 'row', gap: space.x2 }}>{children}</View>;
+  const theme = useDesignTheme();
+  return (
+    <View style={{ flexDirection: theme.largeText ? 'column' : 'row', gap: space.x2 }}>
+      {children}
+    </View>
+  );
 }
 
 function RenameSheet({
@@ -155,7 +159,7 @@ function RenameSheet({
       onClose={onClose}
       avoidKeyboard
     >
-      <KeyboardFormScroll enabled={false}>
+      <KeyboardFormScroll enabled={false} nestedScrollEnabled>
         <TextField
           value={draft}
           onChangeText={setDraft}
@@ -219,7 +223,6 @@ export function GroupProfilePage({
   files,
 }: GroupProfileProps) {
   const t = useStrings();
-  const theme = useDesignTheme();
   const [busy, setBusy] = useState<string | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [sheet, setSheet] = useState<'invite' | 'rename' | undefined>();
@@ -229,7 +232,6 @@ export function GroupProfilePage({
   const tabs = profileTabs('group');
   const [tab, setTab] = useRememberedProfileTab(tabMemory, tabs, 'group');
   const { channel } = info;
-  const chevron = <ChevronRightIcon color={theme.color.muted} size={ICON} />;
 
   const readWork = useCallback(() => {
     if (loadWork === undefined) return () => {};
@@ -252,7 +254,7 @@ export function GroupProfilePage({
       live = false;
     };
   }, [loadWork]);
-  useFocusEffect(readWork);
+  useProfileFocusEffect(readWork);
 
   const run = async (key: string, change: () => Promise<void>): Promise<boolean> => {
     setBusy(key);
@@ -371,7 +373,7 @@ export function GroupProfilePage({
           title={t.groupName}
           detail={channel.name}
           accessibilityLabel={`${t.groupRename}, ${channel.name}`}
-          trailing={chevron}
+          control={{ kind: 'chevron' }}
           onPress={() => {
             setRenameOpened((count) => count + 1);
             setSheet('rename');
@@ -460,7 +462,9 @@ export function GroupProfilePage({
       options={profileTabOptions(tabs)}
       tab={tab}
       onTab={setTab}
-      body={tab === 'members' || tab === 'work' || tab === 'settings' ? bodies[tab] : filesBody}
+      body={(page) =>
+        page === 'members' || page === 'work' || page === 'settings' ? bodies[page] : filesBody
+      }
       onClose={onClose}
     />
   );
@@ -513,23 +517,22 @@ function GroupIdentity({
     <ProfileHero
       name={channel.name}
       avatar={
-        <ProfileZoomTarget>
-          <EditableAvatar editor={avatar} corner={radius.round} testID="group-avatar-change">
-            <GroupMark
-              avatar={channel.avatar}
-              size={profileShell.avatar}
-              corner={radius.round}
-              variant="display"
-            />
-          </EditableAvatar>
-        </ProfileZoomTarget>
+        <EditableAvatar editor={avatar} corner={radius.round} testID="group-avatar-change">
+          <GroupMark
+            avatar={channel.avatar}
+            size={profileShell.avatar}
+            corner={radius.round}
+            variant="display"
+          />
+        </EditableAvatar>
       }
     >
-      <Text variant="meta" tone="muted">
+      <Text pointerEvents="none" variant="meta" tone="muted">
         {t.members(channel.memberCount)}
       </Text>
       {error === undefined ? null : (
         <Text
+          pointerEvents="none"
           accessibilityRole="alert"
           accessibilityLiveRegion="polite"
           tone="danger"
@@ -623,6 +626,7 @@ function GroupRow({
             <Button
               label={t.groupInviteCancel}
               on={ON}
+              fit
               busy={busy === `invite:${row.pending.id}`}
               onPress={() => onCancelInvite(row.pending)}
             />
@@ -642,6 +646,7 @@ function GroupRow({
           <Button
             label={t.groupJoinDecline}
             on={ON}
+            fit
             disabled={deciding}
             onPress={() => onDecide(row.pending, false)}
           />
@@ -649,6 +654,7 @@ function GroupRow({
             label={t.groupJoinAllow}
             tone="primary"
             on={ON}
+            fit
             busy={deciding}
             onPress={() => onDecide(row.pending, true)}
           />

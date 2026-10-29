@@ -124,7 +124,7 @@ it('asks for a Layout mode in step 4, applies it through the layout owner, and m
     detach();
     detach = controller.attachLayout('simple', { setMode });
   });
-  expect(host.textContent).toContain(t('onboarding.short.chatHintSimple'));
+  expect(host.textContent).toContain(t('onboarding.short.chatHint'));
   act(() => detach());
   expect(controller.getSnapshot().layoutMode).toBeUndefined();
   act(() => root.unmount());
@@ -155,5 +155,19 @@ it('reports only a real rail selection, not a programmatic open', async () => {
   );
   expect(open).toHaveBeenCalledTimes(2);
   expect(onActivate).toHaveBeenCalledWith(CHANNEL_BODY_PANEL);
+  act(() => root.unmount());
+});
+
+it('insets the journey card to the composer edges instead of touching the panel edges', async () => {
+  const { host, root } = await journey();
+  const card = host.querySelector<HTMLElement>('[data-tob-onboarding]')!;
+  expect(card.classList.contains('bh-composer-inset')).toBe(true);
+  const { CSS } = await import('../src/client/styles.js');
+  const { space } = await import('../src/client/ds/tokens.stylex.js');
+  expect(CSS).toContain(`margin: 0 ${space.x4} calc(${space.x4} + env(safe-area-inset-bottom`);
+  expect(CSS).toContain(`.bh-composer-inset { margin-inline: ${space.x4}; }`);
+  expect(CSS).toContain(
+    `.bh-composer-shell,\n  .bh-composer-inset {\n    margin-right: ${space.x3};`,
+  );
   act(() => root.unmount());
 });

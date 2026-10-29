@@ -5,6 +5,21 @@ import { readdirSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, basename } from 'node:path';
 import { tmpdir } from 'node:os';
 
+const TOB_INPUT = '.bh-dock-body .bh-composer-input';
+const CHANNELS_SWITCH = '.bh-workspace-rail [data-pinned-panel="bh:channels"]';
+async function showTobDm(on) {
+  await page.waitForSelector(CHANNELS_SWITCH, { visible: true });
+  if ((await page.$eval(CHANNELS_SWITCH, (n) => n.getAttribute('aria-pressed'))) !== 'true')
+    await page.click(CHANNELS_SWITCH);
+  if (!on) return;
+  const { channelId } = await rpc('tobHome');
+  const row = `.bh-workspace-channels [data-channel-id=${JSON.stringify(channelId)}]`;
+  await page.waitForSelector(row, { visible: true });
+  await page.click(row);
+  await page.waitForSelector(`${row}.bh-selected`);
+  await page.waitForSelector(TOB_INPUT, { visible: true });
+}
+
 const native = !!process.env.BH_DESKTOP_CDP;
 const instance = native ? undefined : JSON.parse(readFileSync(process.env.BH_E2E_INSTANCE));
 const out = resolve(
@@ -377,10 +392,7 @@ async function verifyCliTrace(slug, previousIds, commands, refusal) {
 
 async function showApproval(message) {
   await dismissBubble();
-  if (await page.$('[data-home-panel]')) {
-    await page.click('.bh-workspace-rail [data-pinned-panel="bh:home"]');
-    await page.waitForFunction(() => !document.querySelector('[data-home-panel]'));
-  }
+  await showTobDm(true);
   mark('approval-current-card');
   const latest = '.bh-timeline-new';
   if (await page.$(latest)) await page.locator(latest).setTimeout(5000).click();
@@ -525,9 +537,8 @@ try {
   }
   await page.waitForSelector('.bh-workspace-rail', { visible: true });
   mark('entry-home');
-  if (!(await page.$('[data-home-panel]')))
-    await page.locator('.bh-workspace-rail [data-pinned-panel="bh:home"]').click();
-  await page.waitForSelector('[data-home-panel]');
+  await showTobDm(true);
+  await page.waitForSelector(TOB_INPUT, { visible: true });
   await pause(1200);
   mark('entry-home-ready');
   const home = await rpc('tobHome');
@@ -535,7 +546,7 @@ try {
     new Set((await Promise.all([rpc('tobHome'), rpc('tobHome')])).map((x) => x.botSlug)).size,
     1,
   );
-  steps.push('concurrent Home identity converges');
+  steps.push('concurrent Tob identity converges');
 
   assert.ok(
     [
@@ -645,7 +656,7 @@ try {
       prompt = desiredDeveloper ? '帮我开启开发者模式。' : '帮我关闭开发者模式。';
     mark('prompt-submit');
     const started = Date.now();
-    const input = await page.waitForSelector('[data-home-panel] textarea');
+    const input = await page.waitForSelector(TOB_INPUT);
     await input.type(prompt);
     await input.press('Enter');
     await page.waitForSelector('[data-dock-header="bh:channel-body"]');
@@ -716,10 +727,7 @@ try {
         reply.id,
       );
       await dismissBubble();
-      if (await page.$('[data-home-panel]')) {
-        await page.locator('.bh-workspace-rail [data-pinned-panel="bh:home"]').click();
-        await page.waitForFunction(() => !document.querySelector('[data-home-panel]'));
-      }
+      await showTobDm(true);
       const replySelector = `[data-message-id="${reply.id}"]`;
       for (const label of ['展开全部', 'Expand all']) {
         const button = await page.$(`${replySelector} ::-p-aria(${JSON.stringify(label)})`);

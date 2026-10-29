@@ -8,12 +8,10 @@ import {
 } from 'expo-router';
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
 import { AppState, Platform, View, type ViewInstance } from 'react-native';
-import { useHostSession, useHostSessions } from '../../host/host-session';
-import { liveGlance } from '../../host/host-glance';
+import { useHostSession, useHostAvailability } from '../../host/host-session';
 import { botCreation, useBotCreation } from '../../host/native-bot-creation';
 import { enterBotCreation, type CreationEntrySource } from '../../host/bot-creation-entry';
 import type { BotCreationDraft } from '../../host/bot-creation';
-import { editCreationTags } from '../../host/bot-creation-tags';
 import {
   creationStepReady,
   creationSteps,
@@ -21,7 +19,6 @@ import {
   isCreationFlow,
   sourceFlow,
   type CreationFlow,
-  type EnvironmentChoice,
 } from '../../host/bot-creation-steps';
 import { botCreationTargets } from '../../host/bot-creation-targets';
 import { createCreationVisibility } from '../../host/bot-creation-visibility';
@@ -35,6 +32,7 @@ import { Button } from '../primitives/creation-button';
 import { Text } from '../primitives/text';
 import { CreationField as TextField } from '../primitives/creation-field';
 import { CreationTagsField } from '../primitives/creation-tags-field';
+import { editCreationTags } from '../../host/bot-creation-tags';
 import { EnvironmentList } from '../primitives/environment-list';
 import { StepBar, type StepBarProps } from '../primitives/step-bar';
 import { creationCopy as copy, creationError } from './bot-creation-copy';
@@ -115,20 +113,13 @@ export function useCreationModel({
   const initialIndex = useRef(index).current;
   const entering = initialIndex === 0;
   const { hosts } = useHostSession();
-  const feeds = useHostSessions();
+  const choices = useHostAvailability(presented);
   const theme = useDesignTheme();
   const state = useBotCreation();
   const first = index === 0;
   const [entryReady, setEntryReady] = useState(presented && !entering);
   const visibility = useRef(createCreationVisibility(AppState.currentState === 'active')).current;
   const ready = useRef(presented && !entering);
-  const choices: EnvironmentChoice[] = hosts.map((host) => {
-    const feed = feeds.find((candidate) => candidate.saved.hostId === host.hostId);
-    return {
-      hostId: host.hostId,
-      status: feed ? liveGlance(feed.snapshot.connection, feed.attention).status : 'checking',
-    };
-  });
   const choicesRef = useRef(choices);
   choicesRef.current = choices;
   const mounted = useMounted<ViewInstance>(() => {
@@ -527,7 +518,7 @@ function CreationStepContent({ index }: { index: number }) {
       ) : draft ? (
         <>
           <Text variant="title" strong>
-            {importing && step === 'persona' ? copy.prompt.importDetails : copy.prompt[step]}
+            {copy.prompt[step]}
           </Text>
           {step === 'environment' ? (
             hosts.length === 0 ? (
@@ -653,18 +644,24 @@ function CreationStepContent({ index }: { index: number }) {
             </View>
           ) : null}
           {step === 'persona' && flow === 'blank' ? (
-            <TextField
-              testID="create-bot-persona"
-              accessibilityLabel={copy.persona}
-              placeholder={copy.personaHint}
-              value={draft.persona}
-              onChangeText={(persona) => edit({ persona })}
-              multiline
-              editable={!state.busy}
-            />
-          ) : null}
-          {step === 'persona' || step === 'confirm' ? (
             <>
+              <Text strong>{copy.personaSystemLabel}</Text>
+              <Text tone="muted">{copy.personaSystemHint}</Text>
+              <TextField
+                testID="create-bot-persona"
+                accessibilityLabel={copy.persona}
+                placeholder={copy.personaHint}
+                value={draft.persona}
+                onChangeText={(persona) => edit({ persona })}
+                multiline
+                editable={!state.busy}
+              />
+            </>
+          ) : null}
+          {step === 'details' ? (
+            <>
+              <Text tone="muted">{copy.profileHint}</Text>
+              {importing ? <Text tone="muted">{copy.prompt.importDetails}</Text> : null}
               <TextField
                 testID="create-bot-bio"
                 accessibilityLabel={copy.bio}
@@ -675,13 +672,13 @@ function CreationStepContent({ index }: { index: number }) {
               />
               <CreationTagsField
                 value={draft}
-                disabled={state.busy}
                 onChange={(action) =>
                   void botCreation.edit((current) => ({
                     ...current,
                     ...editCreationTags(current, action),
                   }))
                 }
+                disabled={state.busy}
               />
               <Text tone="muted">{copy.model}</Text>
             </>

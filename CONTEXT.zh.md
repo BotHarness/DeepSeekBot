@@ -27,16 +27,20 @@ _避免使用_：已安装发布版、latest 版本、0.0.0 发布版
 ### PersonaBot（持久机器人身份）
 
 **Steward Bot**：
-一种持久的本地 PersonaBot，拥有自己的 Memory，可读取 Human 的所有 Bot 与 Channel 内容，并沿用现有审批规则帮助 Human 管理这些身份与应用设置。其主要用途是帮助创建和管理其他 Bot、调取工作进展并汇总待处理事项，对话是管理入口。总管身份本身不授予代批其他 Bot 操作的权限。通过对话处理待审批事项属于后续有明确范围的能力，应由原有审批 owner 接收 Human 的明确决定，而不是赋予总管自行批准一切操作的权限。
+一种持久的本地 PersonaBot，拥有自己的 Memory，可读取 Human 的所有 Bot 与 Channel 内容，并沿用现有审批规则帮助 Human 管理这些身份与应用设置。它是 Human 的唯一对接人：创建和管理其他 Bot，通过 Bot-to-Bot DM 把请求交给最合适的同事，调取工作进展、汇总待处理事项，并在 Human DM 中回报结果。总管身份本身不授予代批其他 Bot 操作的权限。通过对话处理待审批事项属于后续有明确范围的能力，应由原有审批 owner 接收 Human 的明确决定，而不是赋予总管自行批准一切操作的权限。
 _避免使用_：全局 Orchestrator、Home 面板、Dashboard
 
 **Tob**：
 为 Human 提供的内置本地总管 Bot，拥有独立于普通 DeepSeek Bot 的持久身份；名称是 Bot 的倒写，也寓意 Thousands of Bot。Tob 不可删除或归档，但其 Soul 与 Memory 可以编辑和迁移，且不携带本地管理权限。管理操作通过原生 Shell 调用 DeepSeekBot CLI；Host 只为当前已准入的 Human DM 执行授予明确支持的操作，保留身份、审批和 revision 校验。总管身份不等于无限制 CLI 或管理员权限。
 _避免使用_：Home 面板、全局 Orchestrator
 
-**Home**：
-一个全局 Dock panel，提供跨 Bot 概览、Bot 创建入口和面向 Tob 的消息输入。持续对话使用消息面板中的同一个 Tob DM；Home 保持为独立概览，不形成第二套聊天历史。
-_避免使用_：Tob、Bot Profile、Channel 子面板
+**Tob Mode**：
+Tob 模式。手机端在聊天列表下拉并按住后，从顶部滑入的 Tob DM 普通聊天详情页。与点击 Tob 行相比只是入口和入场动画不同；它就是同一个 Tob DM 与同一份历史，不是第二个对话或页面。下拉的目标总是 Tob，必要时使用最近使用的电脑环境的 Tob。桌面端没有 Tob 模式：原来的 Home 面板已移除，在 Simple 布局模式下隐藏 Side column 即可专注于任意频道的对话。
+_避免使用_：Home、Home 面板、拖布模式、personal agent 模式
+
+**Tob Delegation**：
+Tob 委派。Tob 把 Human 的请求交给它判断最合适的同事 PersonaBot：在双方的 Bot-to-Bot DM 中发一条普通消息，再把对方的结果回报到 Human DM。Tob 不先征求 Human 同意，Human 通过每次发送产生的活动提示看到它。委派不带审批权限：同事自己的审批仍交给 Human。
+_避免使用_：分发、路由、Assignment（Assignment 是 Bot 自己的 Session，不是另一个 Bot）
 
 **PersonaBot**：
 由 Host 拥有的一等 bot 实体：一种带 Git-backed Memory Repository、跨越 Session、Chat 与 Workspace，并可同时持有多个 Session 的持久身份。它的 Soul 是 Memory 中的 optional 内容，而不是身份本身。
@@ -407,12 +411,40 @@ _避免使用_：Channel authority、database backup、live inbox
 _避免使用_：credential、Service Grant、automatic reconnect
 
 **Bot Marketplace**：
-harness 中打开、用于浏览、搜索和安装可分享 Bot 的 hosted catalog。只列出 Indexed Repository，没有账号，也没有上传的 Bot（ADR-0131、ADR-0135）。
+harness 中打开、用于浏览、搜索和安装可分享 Bot 的 hosted catalog。同时列出两种条目：Indexed Repository 和 Uploaded Bot（ADR-0131、ADR-0267）。
 _避免使用_：store、hub、Soul registry
 
 **Indexed Repository**：
 带有 `botharness-bot` topic、被 Bot Marketplace 以引用方式列出并定期刷新的公开 GitHub 仓库。安装它即以其 Git URL 创建新的 PersonaBot；它不是 SoulSnapshot、Listing 或 Version。
 _避免使用_：submission、Listing、SoulSnapshot、mirror
+
+**Uploaded Bot**：
+已登录的作者上传 Memory 文件（不含 Git 历史）而形成的 Bot Marketplace 条目。作者可以整体替换它的文件，或彻底删除它；没有版本。安装时创建新的 PersonaBot，并做一次初始提交；之后的替换不会影响已安装的副本。
+_避免使用_：Listing、Version、SoulSnapshot、publication
+
+**Share Draft**：
+上传前由 Tob 与 Human 逐个文件确认、为某个 PersonaBot 的 Memory 文件准备的脱敏副本；源 Memory 不会被修改，只有 Share Draft 会被上传。
+_避免使用_：export、snapshot、redacted Memory
+
+**Install Receipt**：
+安装完成后 Host 向 Bot Marketplace 上报的一次计数，以只用于市场的随机 Host 标识去重，因此每台 Host 对每个条目只计一次。
+_避免使用_：download、clone count、Telemetry event
+
+**Marketplace Digest**：
+Bot Marketplace 每天一篇、按日期保存的文章，介绍近期的 Bot，内嵌可一键安装的 Bot 卡片；往期仍可查看。
+_避免使用_：newsletter、push notification、blog post
+
+**Digest Pick**：
+精选 Bot：Marketplace Digest 在某一段里点名介绍的 Bot。之后从 Bot Marketplace 下架的精选 Bot，文章里的文字保留，但卡片不再显示。
+_避免使用_：featured Bot、编辑推荐、推广 Bot
+
+**Digest Cover**：
+日报封面：代表一期 Marketplace Digest 的图，用这一期仍在架的 Digest Pick 的 banner 和头像拼成，版式按数量选择；一个都不在架时，用按日期生成的像素 banner 兜底。
+_避免使用_：缩略图、hero 图、生成图片
+
+**Marketplace Ranking**：
+榜单：Bot Marketplace 每天生成的三个在架 Bot 列表：热门（最近 7 天安装最多）、新上架（最近 7 天首次收录）和上升最快（比前一周安装增长最多）。三个榜单每天重算一次，读取当天的快照。
+_避免使用_：section、货架、排行榜
 
 **Bot Zip**：
 单个 PersonaBot 的 Memory 文件打成的 `.zip`，附带 `.botharness/bot.json` 描述和头像，由 Human 导出后交给别人；导入时创建新的 PersonaBot。默认只含文件，只有整个 Bot 导出并勾选时才带 Git 历史。不含身份、Session、绑定或凭据（ADR-0135）。
@@ -431,8 +463,16 @@ _避免使用_：repo、page、entry
 _避免使用_：release、build、revision
 
 **Handle**：
-account 唯一的公开标识符，作为其 Listing 的 namespace；绝不使用 account email。
+历史术语（Soul registry）：account 唯一的公开标识符，作为其 Listing 的 namespace。Uploaded Bot 改用 Author ID。
 _避免使用_：username、account id
+
+**Author ID**：
+Bot Marketplace 为上传账号分配的永不改变的短标识，显示在可自由设置的显示名旁边，用来区分重名作者；绝不使用 account email。
+_避免使用_：handle、username、account email
+
+**Account Profile**：
+一个 Connect 账号的显示名和可选头像，由 Bot Marketplace 和它的 Author ID 一起保存。Human 可以在任一客户端的设置里编辑它，Uploaded Bot 会把它显示为作者；account email 从不属于它。
+_避免使用_：Human display name、user profile、author account
 
 **Bot set**：
 一组计划一同导入、带名称的 Listing。
@@ -845,8 +885,12 @@ _避免使用_：sidebar roster、dashboard、bot list
 _避免使用_：workbench、panel layout、dock
 
 **Layout mode**：
-布局模式。Human 在本设备上为桌面端 Bot mode 布局选择的行为：**Simple**（简单模式）或 **Advanced**（高级模式）。Simple 下 Workspace Control Rail 每次只显示一个全局面板，频道子面板纵向排列在 Subpanel column 中；Advanced 是可自由排布的两层工作区。两种模式各自保存布局，切换不会改写另一方；新用户默认 Simple。
+布局模式。Human 在本设备上为桌面端 Bot mode 布局选择的行为：**Simple**（简单模式）或 **Advanced**（高级模式）。Simple 下消息面板始终显示，频道子面板纵向排列在其 Subpanel column 中，Workspace Control Rail 决定 Side column 显示什么；Advanced 是可自由排布的两层工作区。两种模式各自保存布局，切换不会改写另一方；新用户默认 Simple。
 _避免使用_：Bot mode、DSB mode、简单视图、专家模式
+
+**Side column**：
+侧列。Simple 布局模式下，位于 Workspace Control Rail 与消息面板之间的可选一列，显示一个全局面板，例如频道列表、Activity Center 或 Marketplace。点选控制列开关会在这里显示对应面板；再点一次当前已显示的开关则隐藏这一列，只留下控制列和消息面板。显示的各个面板共用同一宽度。
+_避免使用_：sidebar、左侧面板、App Sidebar、primary side bar
 
 **Subpanel column**：
 子面板列。Simple 布局模式下，消息面板内可展开收起的右侧一列，按固定顺序纵向列出当前频道可用的子面板。每个子面板可折叠，整列可滚动；折叠只卸载呈现，不会停止正在运行的浏览器、电脑或会话。
@@ -1017,8 +1061,12 @@ Expo 手机应用内默认开启、可在设置底部关闭的粗粒度统计，
 启用统计时保存在手机上的随机统计 UUID，与 Host Install ID、配对设备身份、Human 账号及网站访客均独立。关闭统计会清除标识和待发队列，再开启生成新标识；系统恢复应用数据可能恢复已保存的选择与标识。
 
 **Telemetry**：
-Host 发送到项目分析服务的匿名产品使用事件，默认开启，可用插件配置 `telemetry: false`、`DO_NOT_TRACK=1` 或 `BOTHARNESS_TELEMETRY=0` 关闭。从不包含名称、Memory、对话内容、路径或 IP 地址（ADR-0132）。
+Host 发送到项目分析服务的匿名产品使用事件，默认开启，可用插件配置 `telemetry: false`、`DO_NOT_TRACK=1` 或 `BOTHARNESS_TELEMETRY=0` 关闭。从不包含名称、Memory、对话内容、路径或 IP 地址（ADR-0132）。每个事件都登记在 tracking plan 中，命名为 `category:object_action`，`source` 为 `host`（ADR-0270）。
 _避免使用_：追踪、分析 SDK、崩溃上报器
+
+**Active Day**：
+一次安装被使用的 Host 本地日：当天第一次进入 Bot 模式、Human 发消息或 IM 消息时发送一次 `app:active_day_start`（ADR-0270）。DAU、WAU、MAU 按有 Active Day 的安装计数；只是 Host 在线不算。
+_避免使用_：在线日、daily usage
 
 **Install ID**：
 插件安装首次启动时随机生成、附在其 Telemetry 上的标识。它标识一次安装而不是某个 Human，也从不与官网访客关联。
@@ -1037,3 +1085,97 @@ _避免使用_：短网址、UTM 链接、邀请链接
 查看已有 Session 的唯一会话 surface（`sessions`，TextQuote 图标）；在两层目标布局中，它是消息面板内的 Channel subpanel（ADR-0221）。PersonaBot 私聊固定查看该 Bot；群聊默认查看「当前频道」，即原始 Source Event 属于该群的 Assignment，跨负责 Bot 展示。Human 可以明确选择可访问的群成员 Bot，查看其 Orchestrator 与 Assignment Session，且不改变当前聊天。范围是按频道保存的本地视图偏好，与历史筛选及工作区分组独立。查看操作不创建 Assignment、不发送执行请求、不改变执行。旧工作面板退役；活动中心仍负责 Human 待处理事项与审批。见 ADR-0220。
 
 会话面板默认跟随当前频道时不重复显示范围标签；群聊范围选择收进视图选项菜单，仅显式指定 Bot 时在标题栏显示 `Bot · 名称`。
+
+### 原生 UI 组件
+
+iOS 工作区切换采用应用自定义的常驻导航页面，由 `PagerView` 的显式后端连接原生 UIKit `UIPageViewController`：工作区在左，之后依次为完整聊天列表与底部导航、上次聊天、资料页。Android 保留原导航抽屉。详见 `apps/mobile/DESIGN.md` 的 iOS workspace panel。
+
+讨论界面时说出平台自己的组件名，而不是描述它长什么样。Android 的名称来自 [Material 3 glossary](https://m3.material.io/foundations/glossary) 与 [Material 3 components](https://m3.material.io/components) 索引，代码名来自 [Compose Material 3](https://developer.android.com/reference/kotlin/androidx/compose/material3/package-summary)。Apple 没有单独的 glossary 页面；与之对应的是 [HIG Components](https://developer.apple.com/design/human-interface-guidelines/components) 索引（Content、Layout and organization、Menus and actions、Navigation and search、Presentation、Selection and input、Status、System experiences 八类），代码名来自 [SwiftUI](https://developer.apple.com/documentation/swiftui) 与 [UIKit](https://developer.apple.com/documentation/uikit)，行文拼写以 [Apple Style Guide](https://support.apple.com/guide/applestyleguide/welcome/web) 为准。某个界面用哪个组件、读哪一层 token，由 `apps/mobile/DESIGN.md`、[#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002) 与 ADR-0266 决定。
+
+**Component term**：
+平台设计系统给组件起的确切名称：Android 用 Material 3 名称，iOS 用 HIG 名称；中英文术语表里都写英文原名。代码中用 API 名（`ModalBottomSheet`、`.sheet`），行文中用设计名（modal bottom sheet、sheet）。
+_避免使用_：弹窗、弹框、浮层、下拉框、抽屉（单独使用）、底部那个、popup、popover（除非确指 iOS popover）、modal、overlay、panel、dropdown（单独使用）
+
+**Counterpart**：
+另一个平台上承担相同职能的组件，见下表。对应组件共享的是职能，不是外观或 API：两边各自保持平台默认外观与行为。没有对应组件的职能要明说没有，而不是借用另一个平台的组件。
+_避免使用_：等价组件、同一个组件、某某的 iOS 版
+
+**Native component**：
+由平台自身工具包（Compose Material 3、SwiftUI 或 UIKit）绘制的组件，经原生导航、`@expo/ui` 或本地 Expo module 接入。
+_避免使用_：看起来像原生的 view、RN 仿制品（指原生组件时）
+
+**Look-alike**：
+用 React Native view 模仿原生组件画出来的界面。它是待迁移的债务，不是一种选择（#3002）。
+_避免使用_：原生组件、自定义组件
+
+**Custom surface**：
+没有原生组件能承担其职能、由应用自绘的界面，必须在 `DESIGN.md` 写明理由才保留：消息气泡、流式文本显现、Computer 视频画布及其远程键盘，以及 iOS tab island（ADR-0235）。
+_避免使用_：仿制品（指已记录的自定义界面时）
+
+**Navigation bar**：
+是两个不同的组件。Android 上，Material 3 navigation bar 是底部的顶级目的地栏（iOS 对应：tab bar）。iOS 上，navigation bar 是顶部带标题、Back 和 toolbar item 的栏（Android 对应：top app bar）。必须说明指哪个平台的 navigation bar。
+_避免使用_：底栏、顶栏 / header（平台讨论中）、不带平台的 nav bar、导航栏（不带平台时）
+
+**Expo UI `Host`**：
+`@expo/ui` 中把 Compose 或 SwiftUI 内容嵌入 React Native 并承载其主题（`seedColor`、`colorScheme`）的 view。它与产品术语 **Host** 无关；始终写作 Expo UI `Host` 或 `<Host>`。
+_避免使用_：单独的 Host（指 Expo UI view 时）
+
+**Platform design language**：
+Android 上是 Material 3 及其 Expressive 更新；iOS 26 及以后是 Liquid Glass。它们的 token 词汇就是 ADR-0266 的平台层：Android 的 Material colour roles（`useMaterialRoles()`）与 type styles（`materialType`）；iOS 的 semantic system colours（`systemColors`）、Dynamic Type text styles（`systemType`）与 tint。图标在 Android 用 Material Symbols，在 iOS 用 SF Symbols。
+_避免使用_：Material You（动态取色以外）、毛玻璃、玻璃拟态、Android 上的 iOS 风格、iOS 上的 Material 风格
+
+按职能列出的对应组件。Android 列用 Material 3 名称，iOS 列用 HIG 名称，API 列给出代码名。「—」表示该平台没有承担此职能的组件。
+
+| 职能                              | Android (Material 3)                                          | Compose                                                                         | iOS (HIG)                                                                              | SwiftUI · UIKit                                                                                                    |
+| --------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 当前内容的上下文筛选              | Modal side sheet                                              | 原生 modal side-sheet 容器                                                      | Inspector（窄屏 iPhone 适配为 Sheet）                                                  | `.inspector(isPresented:content:)`                                                                                 |
+| 当前界面的标题与操作              | Top app bar (small, center-aligned, medium/large flexible)    | `TopAppBar`, `CenterAlignedTopAppBar`, `MediumFlexibleTopAppBar`                | Navigation bar (HIG Toolbars)                                                          | `NavigationStack` + `.toolbar`, `.navigationTitle` · `UINavigationBar`                                             |
+| 手机上切换顶级目的地              | Navigation bar                                                | `NavigationBar`, `NavigationBarItem`                                            | Tab bar                                                                                | `TabView` · `UITabBarController`                                                                                   |
+| 宽窗口上的目的地                  | Navigation rail（M3 Expressive 中 expanded rail 取代 drawer） | `NavigationRail`, `WideNavigationRail`                                          | Sidebar                                                                                | `NavigationSplitView` · `UISplitViewController`                                                                    |
+| 在内容旁露出一个面板              | Navigation drawer (dismissible or modal)                      | `DismissibleNavigationDrawer`, `ModalNavigationDrawer`                          | —（Mail 模式：面板是导航栈的根，由 interactive pop 手势露出）                          | `NavigationStack` root · `interactiveContentPopGestureRecognizer`                                                  |
+| 当前页面的常用操作                | Toolbar (docked or floating)                                  | `HorizontalFloatingToolbar`, `FlexibleBottomAppBar`                             | Toolbar                                                                                | `ToolbarItem(placement: .bottomBar)` · `UIToolbar`                                                                 |
+| 唯一的主创建操作                  | FAB, extended FAB                                             | `FloatingActionButton`, `ExtendedFloatingActionButton`                          | —（用 toolbar item）                                                                   | `ToolbarItem`                                                                                                      |
+| 多个相关的创建操作                | FAB menu                                                      | `FloatingActionButtonMenu`                                                      | Pull-down button                                                                       | `Menu`                                                                                                             |
+| 在当前上下文之上完成一个限定任务  | Modal bottom sheet                                            | `ModalBottomSheet`                                                              | Sheet (form sheet, page sheet, with detents)                                           | `.sheet` + `.presentationDetents` · `UISheetPresentationController`                                                |
+| 与界面内容并存的补充内容          | Standard bottom sheet                                         | `BottomSheetScaffold`                                                           | 不带遮罩的 sheet（最大未变暗 detent）                                                  | `.presentationBackgroundInteraction`                                                                               |
+| 全屏任务                          | Full-screen dialog                                            | `Dialog`（全屏属性）                                                            | Full-screen modal                                                                      | `.fullScreenCover` · `UIModalPresentationStyle.fullScreen`                                                         |
+| 重要提示或确认                    | Dialog (basic dialog)                                         | `AlertDialog`                                                                   | Alert                                                                                  | `.alert` · `UIAlertController(.alert)`                                                                             |
+| 响应用户动作给出的选项            | Menu，或放操作的 modal bottom sheet                           | `DropdownMenu`, `ModalBottomSheet`                                              | Action sheet                                                                           | `.confirmationDialog` · `UIAlertController(.actionSheet)`                                                          |
+| 从按钮或 ⋮ / ⋯ 打开的命令         | Menu (dropdown menu)                                          | `DropdownMenu`, `DropdownMenuItem`                                              | Pull-down button (⋯ More)                                                              | `Menu` · `UIButton.menu` + `showsMenuAsPrimaryAction`                                                              |
+| 长按某一项时针对它的操作          | 锚定在该项上的 menu                                           | `DropdownMenu`                                                                  | Context menu                                                                           | `.contextMenu` · `UIContextMenuInteraction`                                                                        |
+| 就地选择一个值                    | Exposed dropdown menu                                         | `ExposedDropdownMenuBox`                                                        | Pop-up button                                                                          | `Picker` + `.pickerStyle(.menu)` · `UIButton.changesSelectionAsPrimaryAction`                                      |
+| 一个主操作加几个相关备选          | Split button                                                  | `SplitButtonLayout`                                                             | 带 primary action 的 pull-down button                                                  | `Menu(primaryAction:)`                                                                                             |
+| 在内容中切换 2–5 个并列视图或选项 | Button group（segmented button 为旧版）                       | `ButtonGroup`, `ToggleButton`, `SingleChoiceSegmentedButtonRow`                 | Segmented control                                                                      | `Picker` + `.pickerStyle(.segmented)` · `UISegmentedControl`                                                       |
+| 在一个界面内跨视图组织内容        | Tabs (primary, secondary)                                     | `PrimaryTabRow`, `SecondaryTabRow`, `Tab`                                       | Segmented control（tab views 是 macOS 组件）                                           | `Picker` + `.pickerStyle(.segmented)` · `UISegmentedControl`                                                       |
+| 一个操作                          | Button: filled, filled tonal, outlined, elevated, text        | `Button`, `FilledTonalButton`, `OutlinedButton`, `ElevatedButton`, `TextButton` | Button: bordered prominent, bordered, borderless；iOS 26 上为 glass prominent 与 glass | `.buttonStyle(.borderedProminent / .bordered / .borderless / .glassProminent / .glass)` · `UIButton.Configuration` |
+| 仅图标的操作                      | Icon button (standard, filled, tonal, outlined)               | `IconButton`, `FilledIconButton`, `FilledTonalIconButton`, `OutlinedIconButton` | 带 SF Symbol 的 button（栏中为 toolbar item）                                          | `Button` + `Image(systemName:)` · `UIBarButtonItem`                                                                |
+| 带开关状态的仅图标操作            | Icon toggle button (standard, filled, outlined)               | `IconToggleButton`, `FilledIconToggleButton`, `OutlinedIconToggleButton`        | 带 SF Symbol 和 selected trait 的 button                                               | `Button` + `.accessibilityAddTraits(.isSelected)`                                                                  |
+| 筛选内容                          | Filter chip                                                   | `FilterChip`                                                                    | Toggle (button style)                                                                  | `Toggle` + `.toggleStyle(.button)`                                                                                 |
+| 建议或上下文操作、已输入的值      | Assist, suggestion and input chips                            | `AssistChip`, `SuggestionChip`, `InputChip`                                     | —（搜索范围用 search tokens）                                                          | `.searchable(text:tokens:)`                                                                                        |
+| 开关一项设置                      | Switch                                                        | `Switch`                                                                        | Toggle (switch style)                                                                  | `Toggle` · `UISwitch`                                                                                              |
+| 在列表中单选                      | Radio button                                                  | `RadioButton`                                                                   | 带 checkmark 的列表行（inline picker）                                                 | `Picker` + `.pickerStyle(.inline)` · `UITableViewCell.accessoryType = .checkmark`                                  |
+| 多选                              | Checkbox                                                      | `Checkbox`, `TriStateCheckbox`                                                  | 带 checkmark 的列表行（checkbox 是 macOS 组件）                                        | `List(selection:)` · `.checkmark` accessory                                                                        |
+| 在范围内取值                      | Slider                                                        | `Slider`, `RangeSlider`                                                         | Slider                                                                                 | `Slider` · `UISlider`                                                                                              |
+| 输入文本                          | Text field (filled, outlined)                                 | `TextField`, `OutlinedTextField`, `SecureTextField`                             | Text field；长篇多行文本用 text view                                                   | `TextField`, `SecureField`, `TextEditor` · `UITextField`, `UITextView`                                             |
+| 搜索                              | Search (search bar, search view)                              | `SearchBar`, `DockedSearchBar`, `ExpandedFullScreenSearchBar`                   | Search field                                                                           | `.searchable` · `UISearchController`                                                                               |
+| 选择日期或时间                    | Date picker, time picker                                      | `DatePicker`, `DatePickerDialog`, `TimePicker`                                  | Picker (date picker: compact, wheels, graphical)                                       | `DatePicker` · `UIDatePicker`                                                                                      |
+| 一组相关内容或设置的行            | List (list items, one- to three-line)                         | `ListItem`, `LazyColumn`                                                        | Lists and tables（设置用 inset grouped）                                               | `List`, `Form`, `Section` · `UICollectionView` list, `UITableView`                                                 |
+| 关于单一主题的内容与操作          | Card (elevated, filled, outlined)                             | `Card`, `ElevatedCard`, `OutlinedCard`                                          | —（inset grouped list 的一个 section）                                                 | `Section`                                                                                                          |
+| 分隔各组                          | Divider                                                       | `HorizontalDivider`                                                             | Separator                                                                              | `Divider` · 列表行 separator                                                                                       |
+| 图标上的计数或状态                | Badge                                                         | `Badge`, `BadgedBox`                                                            | Badge（tab bar item 与 app 图标上）                                                    | `.badge` · `UITabBarItem.badgeValue`                                                                               |
+| 短暂等待                          | Loading indicator                                             | `LoadingIndicator`                                                              | Progress indicator (activity indicator, indeterminate)                                 | `ProgressView()` · `UIActivityIndicatorView`                                                                       |
+| 已知进度                          | Progress indicator (linear, circular)                         | `LinearProgressIndicator`, `CircularProgressIndicator`                          | Progress indicator (progress bar)                                                      | `ProgressView(value:)` · `UIProgressView`                                                                          |
+| 刷新列表                          | Pull to refresh                                               | `PullToRefreshBox`                                                              | Refresh control                                                                        | `.refreshable` · `UIRefreshControl`                                                                                |
+| 关于应用过程的简短消息            | Snackbar                                                      | `Snackbar`, `SnackbarHost`                                                      | —                                                                                      | —                                                                                                                  |
+| 元素的标签或提示                  | Tooltip                                                       | `TooltipBox`, `PlainTooltip`                                                    | iPhone 上没有（help tag 属于 macOS 与 iPadOS 指针）                                    | —                                                                                                                  |
+| 横向滚动浏览一组项目              | Carousel                                                      | `HorizontalMultiBrowseCarousel`                                                 | Collection；有序页面用 page control                                                    | `ScrollView(.horizontal)`, `TabView` + `.tabViewStyle(.page)` · `UICollectionView`, `UIPageControl`                |
+| 返回                              | 系统 Back 与 predictive back；top app bar 的 navigation icon  | `BackHandler`, `PredictiveBackHandler`                                          | Back button 与 interactive pop（边缘或内容区滑动）                                     | `NavigationStack` · `UINavigationController`                                                                       |
+
+本应用当前的配对（`apps/mobile/DESIGN.md`、#3002）：
+
+- 按钮：主要 → filled ↔ bordered prominent（iOS 26 为 glass prominent）；次要与 tonal → filled tonal ↔ bordered（glass）；文本 → text button ↔ borderless；危险 → 使用 Material error 颜色的 filled ↔ destructive role。
+- Sheet：Android `ModalBottomSheet` ↔ iOS 带 detents 的 form sheet（经 Expo Router 的 `presentation: 'formSheet'`，或 `@expo/ui` 的 SwiftUI `BottomSheet`）。
+- Chats 的「-1 屏」：Android `DismissibleNavigationDrawer` ↔ iOS 相邻的常驻导航页面：工作区、完整聊天列表及底部导航、上次聊天与资料页，通过 `PagerView` 的显式 UIKit `UIPageViewController` 后端连接。
+- 顶级导航：Android navigation bar 加创建 FAB ↔ iOS tab island 及其 **+**（自定义界面，ADR-0235）。
+- 活动与工作区标签页：Android primary tabs（`PrimaryTabRow`）。
+- 设置页：Android 分段列表的 list item ↔ iOS inset grouped list（SwiftUI `Form`，配 `Section`、`Label`、`Toggle`、menu 样式 `Picker`、`LabeledContent`），统一经由 `SettingsForm`。

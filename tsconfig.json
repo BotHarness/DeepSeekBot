@@ -68,6 +68,8 @@
     "apps/mobile/test/back-owner.test.ts",
     "apps/mobile/test/viewer-header.test.tsx",
     "apps/mobile/test/chats-search-results.test.ts",
+    "apps/mobile/test/workspace-panel-root.test.ts",
+    "apps/mobile/test/platform-tokens.test.ts",
     "apps/mobile/test/**/*.tsx"
   ]
 }

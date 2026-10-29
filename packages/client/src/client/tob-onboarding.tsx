@@ -1,18 +1,99 @@
-import { useSyncExternalStore, type ReactElement } from 'react';
+import { useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { LayoutMode } from './layout-mode.js';
 import { onboardingFor } from './onboarding.js';
-import { store } from './store.js';
+import { useClientStore } from './use-client-store.js';
+import { useMountedResource } from './mounted-resource.js';
+import { openModelsSettingsAndReturn } from './bot-settings-open.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
+
+export async function tobModelReady(actions: BridgeActions, botSlug: string): Promise<boolean> {
+  const [catalog, plan] = await Promise.all([
+    actions.modelCatalog(),
+    actions.modelPlanState(botSlug),
+  ]);
+  const route = plan.plan?.orchestrator ?? catalog.default;
+  return (
+    !plan.repair &&
+    !!route &&
+    catalog.models.some(
+      (model) =>
+        model.provider === route.provider && model.model === route.model && !model.credential,
+    )
+  );
+}
+
+export function TobJourneyCard({
+  actions,
+  t,
+  botSlug,
+  hasDraft,
+  suggest,
+  openChannel,
+}: {
+  actions: BridgeActions;
+  t: BotHarnessTranslate;
+  botSlug: string;
+  hasDraft: boolean;
+  suggest(body: string): void;
+  openChannel(id: string): void;
+}): ReactElement | null {
+  const controller = onboardingFor(actions);
+  const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
+  const journey = state.receipt?.journey;
+  const active = !!journey && !journey.done && state.receipt?.tutorial === 'active';
+  const [ready, setReady] = useState<boolean>();
+  const [checked, setChecked] = useState(0);
+  const settings = useRef<() => void>();
+  const mount = useMountedResource<HTMLSpanElement>(() => {
+    if (!active || state.modelOpen) return;
+    let current = true;
+    void tobModelReady(actions, botSlug).then(
+      (usable) => current && setReady(usable),
+      () => current && setReady(false),
+    );
+    return () => {
+      current = false;
+    };
+  }, [actions, botSlug, active, state.modelOpen, checked]);
+  const owner = useMountedResource<HTMLSpanElement>(
+    () => () => {
+      settings.current?.();
+      settings.current = undefined;
+    },
+    [],
+  );
+  return (
+    <>
+      <span ref={mount} hidden />
+      <span ref={owner} hidden />
+      {active && ready !== undefined ? (
+        <TobOnboarding
+          actions={actions}
+          t={t}
+          ready={ready}
+          hasDraft={hasDraft}
+          suggest={suggest}
+          openChannel={openChannel}
+          configure={() => {
+            settings.current?.();
+            settings.current = openModelsSettingsAndReturn(() => setChecked((n) => n + 1));
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
 
 const styles = stylex.create({
   card: {
     backgroundColor: color.surface,
     borderRadius: radius.panel,
     padding: space.x4,
+    marginBottom: space.x2,
     display: 'flex',
     flexDirection: 'column',
     gap: space.x3,
@@ -34,6 +115,7 @@ export function TobOnboarding({
   hasDraft,
   suggest,
   openChannel,
+  configure,
 }: {
   actions: BridgeActions;
   t: BotHarnessTranslate;
@@ -41,11 +123,14 @@ export function TobOnboarding({
   hasDraft: boolean;
   suggest(body: string): void;
   openChannel(id: string): void;
+  configure?: (() => void) | undefined;
 }): ReactElement | null {
   const controller = onboardingFor(actions);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-  const client = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const journey = state.receipt?.journey;
+  const createdName = useClientStore(
+    (client) => client.bots.find((bot) => bot.slug === journey?.botSlug)?.displayName,
+  );
   if (!journey || journey.done || state.receipt?.tutorial !== 'active' || state.guideOpen)
     return null;
   const step = !ready
@@ -62,11 +147,8 @@ export function TobOnboarding({
   const hint =
     step === 'layout' && mode !== undefined
       ? 'onboarding.short.layoutChoose'
-      : step === 'chat' && mode === 'simple'
-        ? 'onboarding.short.chatHintSimple'
-        : (`onboarding.short.${step}Hint` as const);
-  const created = client.bots.find((bot) => bot.slug === journey.botSlug);
-  const name = created?.displayName ?? journey.botSlug ?? '';
+      : (`onboarding.short.${step}Hint` as const);
+  const name = createdName ?? journey.botSlug ?? '';
   const greet =
     journey.botSlug === undefined ? null : (
       <Button
@@ -78,7 +160,7 @@ export function TobOnboarding({
     );
   return (
     <section
-      {...stylex.props(styles.card)}
+      className={`${stylex.props(styles.card).className ?? ''} bh-composer-inset`}
       aria-label={t('onboarding.short.title')}
       data-tob-onboarding
     >
@@ -115,6 +197,11 @@ export function TobOnboarding({
       ) : null}
       <div {...stylex.props(styles.actions)}>
         {step === 'group' ? greet : null}
+        {step === 'model' && configure ? (
+          <Button variant="primary" onClick={configure}>
+            {t('onboarding.short.configure')}
+          </Button>
+        ) : null}
         {step === 'model' || step === 'chat' ? null : step === 'layout' ? (
           <Button variant="ghost" onClick={() => void controller.startTour()}>
             {t(state.layoutComplete ? 'onboarding.restart' : 'onboarding.short.tour')}

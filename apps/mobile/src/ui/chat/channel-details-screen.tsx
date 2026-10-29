@@ -16,15 +16,25 @@ import { ProfileHero } from './profile-hero';
 import { ChannelFilesTab } from './channel-files-tab';
 import { ProfileShell, type ProfileTabBody } from './profile-shell';
 import { profileTabs } from './profile-tabs';
-import { ProfileZoomTarget } from './profile-zoom-target';
+import { useProfileFocused } from './profile-visibility';
 
 const PAIR_TABS = profileTabs('bot-pair');
 
-export function ChannelDetailsScreen({ hostId, channelId }: { hostId: string; channelId: string }) {
+export function ChannelDetailsScreen({
+  hostId,
+  channelId,
+  onClose,
+}: {
+  hostId: string;
+  channelId: string;
+  onClose?: () => void;
+}) {
   const { client, saved } = useHostSession(hostId);
-  const host = useHostSnapshot(client);
+  const focused = useProfileFocused();
+  const host = useHostSnapshot(client, focused);
   const t = useStrings();
   const router = useRouter();
+  const close = onClose ?? (() => router.back());
   const offline = host.connection.status === 'unreachable' || host.connection.status === 'stopped';
   const channel = host.roster?.activityChannels?.find(
     (entry) =>
@@ -53,8 +63,8 @@ export function ChannelDetailsScreen({ hostId, channelId }: { hostId: string; ch
       options={[]}
       tab="files"
       onTab={() => {}}
-      body={body}
-      onClose={() => router.back()}
+      body={() => body}
+      onClose={close}
     />
   );
   const note = (node: ReactNode) => shell({ rows: [{ key: 'note', render: () => node }] });
@@ -69,7 +79,7 @@ export function ChannelDetailsScreen({ hostId, channelId }: { hostId: string; ch
             variant="text"
             label={host.connection.status === 'unreachable' ? t.retry : t.back}
             onPress={() =>
-              host.connection.status === 'unreachable' ? client?.retryNow() : router.back()
+              host.connection.status === 'unreachable' ? client?.retryNow() : close()
             }
           />
         ) : null}
@@ -77,7 +87,7 @@ export function ChannelDetailsScreen({ hostId, channelId }: { hostId: string; ch
     );
   if (!channel || !client || !saved) return note(<LoadingIndicator />);
   return (
-    <ChannelFilesTab client={client} hostId={hostId} channelId={channelId} active>
+    <ChannelFilesTab client={client} hostId={hostId} channelId={channelId} active={focused}>
       {shell}
     </ChannelFilesTab>
   );
@@ -99,26 +109,24 @@ function PairIdentity({
       }
       name={title}
       avatar={
-        <ProfileZoomTarget>
-          <View style={{ flexDirection: 'row' }}>
-            {members.map((bot, index) =>
-              bot === undefined ? null : (
-                <View
-                  key={bot.slug}
-                  style={{
-                    padding: index === 0 ? 0 : profileShell.avatarEdge,
-                    marginVertical: index === 0 ? 0 : -profileShell.avatarEdge,
-                    borderRadius: radius.round,
-                    backgroundColor: theme.overlay.fill,
-                    marginLeft: index === 0 ? 0 : -profileShell.overlap,
-                  }}
-                >
-                  <BotAvatar bot={bot} size={profileShell.avatar} />
-                </View>
-              ),
-            )}
-          </View>
-        </ProfileZoomTarget>
+        <View pointerEvents="none" style={{ flexDirection: 'row' }}>
+          {members.map((bot, index) =>
+            bot === undefined ? null : (
+              <View
+                key={bot.slug}
+                style={{
+                  padding: index === 0 ? 0 : profileShell.avatarEdge,
+                  marginVertical: index === 0 ? 0 : -profileShell.avatarEdge,
+                  borderRadius: radius.round,
+                  backgroundColor: theme.overlay.fill,
+                  marginLeft: index === 0 ? 0 : -profileShell.overlap,
+                }}
+              >
+                <BotAvatar bot={bot} size={profileShell.avatar} />
+              </View>
+            ),
+          )}
+        </View>
       }
     />
   );

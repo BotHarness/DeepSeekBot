@@ -2,15 +2,21 @@ import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from '
 import { View, type ViewInstance } from 'react-native';
 
 import type { HumanAssignmentContext, HumanAttentionItem } from '../host/wire';
-import { ActionCard, CardButtons, CardLine, CardNote, DetailRow } from './chat/action-card';
+import {
+  ActionCard,
+  CardButtons,
+  CardField,
+  CardNote,
+  CardPreview,
+  DetailRow,
+} from './chat/action-card';
+import { CardLine } from './chat/card-line';
 import { useDesignTheme } from './design/theme';
-import { radius, space } from './design/tokens';
+import { space } from './design/tokens';
 import { haptic, type HapticMoment } from './haptics';
 import { useMounted } from './mounted';
 import { Button } from './primitives/button';
 import { KeyboardFormScroll } from './primitives/keyboard-form';
-import { Text } from './primitives/text';
-import { TextField } from './primitives/text-field';
 import { errorText } from './request-parts';
 import { useStrings } from './strings';
 
@@ -26,24 +32,6 @@ function Page({ children }: { children: ReactNode }) {
     >
       {children}
     </KeyboardFormScroll>
-  );
-}
-
-function Well({ children }: { children: string }) {
-  const theme = useDesignTheme();
-  return (
-    <View
-      style={{
-        backgroundColor: theme.layer.well.fill,
-        borderRadius: radius.md,
-        paddingHorizontal: space.x4,
-        paddingVertical: space.x3,
-      }}
-    >
-      <Text selectable variant="meta">
-        {children}
-      </Text>
-    </View>
   );
 }
 
@@ -129,7 +117,7 @@ export function AutoRejectionView({
         status={t.needsYou}
         title={t.autoRejectionTitle(botName)}
         wide
-        preview={<Well>{detail?.reason ?? item.summary}</Well>}
+        preview={<CardPreview text={detail?.reason ?? item.summary} />}
         {...(detail === undefined
           ? {}
           : {
@@ -194,7 +182,7 @@ export function RepairView({
         status={t.needsYou}
         title={t.repairTitle(botName)}
         wide
-        {...(item.summary ? { preview: <Well>{item.summary}</Well> } : {})}
+        {...(item.summary ? { preview: <CardPreview text={item.summary} /> } : {})}
         {...(error === undefined ? {} : { error })}
       >
         <CardNote>{t.repairHint}</CardNote>
@@ -373,7 +361,7 @@ export function AssignmentView({
           {...(reply === undefined ? { status: t.needsYou } : {})}
           title={title}
           wide
-          preview={<Well>{target?.summary ?? item.summary}</Well>}
+          preview={<CardPreview text={target?.summary ?? item.summary} />}
           details={<DetailRow label={t.assignmentPurpose} value={context.purpose} />}
           {...(error === undefined ? {} : { error })}
         >
@@ -384,12 +372,10 @@ export function AssignmentView({
             </>
           ) : context.canReply ? (
             <>
-              <TextField
-                accessibilityLabel={t.assignmentReplyHint}
+              <CardField
+                label={t.assignmentReplyHint}
                 testID="assignment-reply-input"
-                placeholder={t.assignmentReplyHint}
                 editable={busy === undefined}
-                multiline
                 value={draft}
                 onChangeText={setDraft}
               />

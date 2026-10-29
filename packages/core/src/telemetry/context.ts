@@ -54,7 +54,7 @@ export function totalMemoryBucket(bytes: number): string {
 
 export function hostContextProperties(facts: HostTelemetryFacts): Record<string, string> {
   return {
-    plugin_version: version(facts.pluginVersion),
+    app_version: version(facts.pluginVersion),
     dsh_version: version(facts.dshVersion),
     os: member(facts.os, [
       'aix',

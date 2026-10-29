@@ -2,7 +2,12 @@
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
-const fixture = vi.hoisted(() => ({ scope: 'all', platform: 'ios', index: 0 }));
+const fixture = vi.hoisted(() => ({
+  scope: 'all',
+  platform: 'ios',
+  index: 0,
+  navigateToTab: vi.fn(),
+}));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('../src/ui/shell/quick-action-routing', () => ({ useQuickActionRouting: () => () => {} }));
 vi.mock('../src/host/native-bot-creation', () => ({
@@ -39,10 +44,11 @@ vi.mock('expo-router/js-tabs', () => ({
           routes: [
             { key: 'home', name: '(home)' },
             { key: 'activity', name: '(activity)' },
+            { key: 'settings', name: '(settings)' },
           ],
         },
-        emitter: { emit: vi.fn() },
-        navigateToTab: vi.fn(),
+        emitter: { emit: () => ({ defaultPrevented: false }) },
+        navigateToTab: fixture.navigateToTab,
       }),
     { Screen: () => null },
   ),
@@ -122,28 +128,27 @@ it.each([
   ['ios', 1],
   ['android', 0],
   ['android', 1],
-] as const)(
-  'opens the existing Settings sheet over %s tab %s without changing selection',
-  async (platform, index) => {
-    fixture.platform = platform;
-    fixture.index = index;
-    vi.mocked(router.push).mockClear();
-    const host = document.createElement('div');
-    document.body.append(host);
-    const root = createRoot(host);
-    try {
-      await act(async () => root.render(<BottomNavigation />));
-      const selected = host.querySelector('[aria-selected="true"]');
-      const settings = host.querySelector<HTMLButtonElement>('[data-testid="settings-button"]')!;
-      expect(settings.getAttribute('aria-label')).toBe(t.settings);
-      await act(async () => settings.click());
-      expect(router.push).toHaveBeenCalledExactlyOnceWith('/settings');
-      expect(host.querySelector('[aria-selected="true"]')).toBe(selected);
-      expect(settings.getAttribute('aria-selected')).toBe('false');
-    } finally {
-      act(() => root.unmount());
-      host.remove();
-      fixture.index = 0;
-    }
-  },
-);
+] as const)('selects the Settings tab from %s tab %s', async (platform, index) => {
+  fixture.platform = platform;
+  fixture.index = index;
+  fixture.navigateToTab.mockClear();
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(<BottomNavigation />));
+    const settings = () => host.querySelector('[data-testid="settings-button"]')!;
+    expect(settings().getAttribute('aria-label')).toBe(t.settings);
+    expect(settings().getAttribute('aria-selected')).toBe('false');
+    await act(async () => (settings() as HTMLButtonElement).click());
+    expect(fixture.navigateToTab).toHaveBeenCalledExactlyOnceWith('settings');
+    expect(router.push).not.toHaveBeenCalled();
+    fixture.index = 2;
+    await act(async () => root.render(<BottomNavigation />));
+    expect(settings().getAttribute('aria-selected')).toBe('true');
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+    fixture.index = 0;
+  }
+});

@@ -27,17 +27,26 @@ class ConnectedPositionTest {
   @Test
   fun keepsTheSelectedButtonChecked() {
     assertEquals("memory", nextSelection("work", "memory", checked = true))
-    assertNull(nextSelection("work", "work", checked = false))
-    assertNull(nextSelection("work", "work", checked = true))
+    assertEquals("work", nextSelection("work", "work", checked = false))
+    assertEquals("work", nextSelection("work", "work", checked = true))
     assertNull(nextSelection("work", "memory", checked = false))
   }
 
   @Test
-  fun readsTheThemesCssColours() {
-    assertEquals(0xff4176e6.toInt(), cssColor("#4176e6"))
-    assertEquals(0xffffffff.toInt(), cssColor("#fff"))
-    assertEquals(0x0a000000, cssColor("#0000000a"))
-    assertNull(cssColor("rgb(0, 0, 0)"))
-    assertNull(cssColor(""))
+  fun returnsTheLastPressAfterAnEarlierJsSelectionEcho() {
+    var selected = "memory"
+    val intents = mutableListOf<String>()
+    fun press(target: String) {
+      nextSelection(selected, target, checked = selected != target)?.let {
+        selected = it
+        intents.add(it)
+      }
+    }
+    press("work")
+    press("settings")
+    selected = "work"
+    press("work")
+    assertEquals(listOf("work", "settings", "work"), intents)
+    assertEquals("work", selected)
   }
 }

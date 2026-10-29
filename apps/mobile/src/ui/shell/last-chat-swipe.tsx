@@ -1,0 +1,53 @@
+import { router } from 'expo-router';
+import type { ReactNode } from 'react';
+import { View } from 'react-native';
+import type { SharedValue } from 'react-native-reanimated';
+import { useHostSession } from '../../host/host-session';
+import { useDesignTheme } from '../design/theme';
+import { ListSkeleton } from '../primitives/list-skeleton';
+import { useHostDrawerOpen } from './host-drawer';
+import { lastChat, useRecentChats } from './recent-chats';
+import { swipeHref } from './swipe-entry';
+import { SwipeOpen } from './swipe-open';
+import { SwipePreview } from './swipe-preview';
+
+export function LastChatSwipe({
+  enabled,
+  travel,
+  children,
+}: {
+  enabled: boolean;
+  travel: SharedValue<number>;
+  children: ReactNode;
+}) {
+  const { hosts } = useHostSession();
+  const recent = useRecentChats();
+  const drawerOpen = useHostDrawerOpen();
+  const chat = lastChat(
+    recent,
+    hosts.map((host) => host.hostId),
+  );
+  const href = chat?.href;
+  return (
+    <SwipeOpen
+      enabled={enabled && href !== undefined && !drawerOpen}
+      travel={travel}
+      onOpen={() => {
+        if (href !== undefined) router.navigate(swipeHref(href));
+      }}
+    >
+      {children}
+    </SwipeOpen>
+  );
+}
+
+export function LastChatPreview({ travel }: { travel: SharedValue<number> }) {
+  const theme = useDesignTheme();
+  return (
+    <SwipePreview travel={travel} color={theme.color.base}>
+      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+        <ListSkeleton layout="messages" />
+      </View>
+    </SwipePreview>
+  );
+}

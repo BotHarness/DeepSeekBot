@@ -14,6 +14,7 @@ import { ConnectionNameField } from '../../src/ui/primitives/connection-name-fie
 import { KeyboardFormScroll } from '../../src/ui/primitives/keyboard-form';
 import { Text } from '../../src/ui/primitives/text';
 import { TextField } from '../../src/ui/primitives/text-field';
+import { DesktopPath } from '../../src/ui/shell/desktop-path';
 import { PairingVerification } from '../../src/ui/shell/pairing-verification';
 import { usePairing } from '../../src/ui/shell/use-pairing';
 import { useStrings } from '../../src/ui/strings';
@@ -104,11 +105,11 @@ export default function PairTailscaleScreen() {
       contentContainerStyle={{ padding: space.x5, gap: space.x4 }}
     >
       <Stack.Screen
-        options={{ title: params.mode === 'lan' ? t.pairChoice.lan : t.pairChoice.tailscale }}
+        options={{
+          title: params.mode === 'lan' ? t.pairChoice.lan : t.pairChoice.tailscale,
+        }}
       />
-      <Text tone="muted">
-        {params.mode === 'lan' ? t.pairChoice.lanHint : t.pairChoice.tailscaleHint}
-      </Text>
+      {params.mode === 'lan' ? null : <Text tone="muted">{t.pairChoice.tailscaleHint}</Text>}
       <View
         style={{
           alignItems: 'center',
@@ -118,6 +119,9 @@ export default function PairTailscaleScreen() {
           backgroundColor: theme.layer.raised.fill,
         }}
       >
+        <DesktopPath
+          steps={params.mode === 'lan' ? t.pairChoice.lanPath : t.pairChoice.tailscalePath}
+        />
         <View
           style={{
             width: scan,
@@ -143,7 +147,11 @@ export default function PairTailscaleScreen() {
             <Pressable
               onPress={() => void requestPermission()}
               accessibilityRole="button"
-              style={{ padding: space.x5, minHeight: theme.touch, justifyContent: 'center' }}
+              style={{
+                padding: space.x5,
+                minHeight: theme.touch,
+                justifyContent: 'center',
+              }}
             >
               <Text tone="accent" strong style={{ textAlign: 'center' }}>
                 {t.allowCamera}
@@ -151,9 +159,6 @@ export default function PairTailscaleScreen() {
             </Pressable>
           )}
         </View>
-        <Text variant="meta" tone="muted" style={{ textAlign: 'center' }}>
-          {t.pairHint}
-        </Text>
         <Button
           testID="pair-choose-image"
           label={readingImage ? t.pairImage.reading : t.pairImage.choose}

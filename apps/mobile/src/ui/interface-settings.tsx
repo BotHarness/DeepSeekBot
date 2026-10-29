@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { interfacePreferences } from './interface-preferences';
 import { PreferenceRow } from './primitives/preference-row';
 import { Button } from './primitives/button';
+import { SettingsFormItem } from './primitives/settings-form';
 import { Text } from './primitives/text';
 import { space } from './design/tokens';
 import type { LayerName } from './design/layers';
@@ -61,15 +62,17 @@ export function InterfaceSaveNotice() {
   const state = usePreferences();
   if (!state.storageError) return null;
   return (
-    <View style={{ padding: space.x5, gap: space.x3 }}>
-      <Text variant="meta" tone="danger">
-        {copy.interfacePreferences.storageError}
-      </Text>
-      <Button
-        label={copy.retry}
-        testID="settings-interface-retry"
-        onPress={interfacePreferences.retrySave}
-      />
-    </View>
+    <SettingsFormItem>
+      <View style={{ padding: space.x5, gap: space.x3 }}>
+        <Text variant="meta" tone="danger">
+          {copy.interfacePreferences.storageError}
+        </Text>
+        <Button
+          label={copy.retry}
+          testID="settings-interface-retry"
+          onPress={interfacePreferences.retrySave}
+        />
+      </View>
+    </SettingsFormItem>
   );
 }

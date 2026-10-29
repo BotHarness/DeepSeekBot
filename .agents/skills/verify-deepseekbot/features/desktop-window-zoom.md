@@ -186,7 +186,7 @@ results never close the Linux scope of #2270.
 
 ## Native Tooltip placement
 
-At144%, focus the Home name button through Tab/Shift+Tab: its tooltip must be adjacent to
+At144%, focus the Channel list rail switch through Tab/Shift+Tab: its tooltip must be adjacent to
 the button and remain within the viewport. Repeat after a zoom action and retain the original
 composer draft. `node scripts/check-select-zoom.mjs --output <report.json>` covers the shipped
 Tooltip code and CSS through all17 levels, three sides, two alignments and two viewport sizes,

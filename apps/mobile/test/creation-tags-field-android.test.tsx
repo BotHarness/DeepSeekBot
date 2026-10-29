@@ -12,9 +12,6 @@ const native = vi.hoisted(() => ({
 vi.mock('react-native', () => ({
   View: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
-vi.mock('@expo/ui', () => ({
-  Host: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-}));
 vi.mock('@expo/ui/jetpack-compose', () => {
   const Slot = ({ children }: { children?: ReactNode }) => <span>{children}</span>;
   const Chip = Object.assign(
@@ -33,7 +30,7 @@ vi.mock('@expo/ui/jetpack-compose', () => {
     ),
     { Label: Slot, TrailingIcon: Slot },
   );
-  return { FlowRow: Slot, Text: Slot, Icon: () => <span>×</span>, InputChip: Chip };
+  return { Host: Slot, FlowRow: Slot, Text: Slot, Icon: () => <span>×</span>, InputChip: Chip };
 });
 vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({
   defaultMinSize: () => ({}),
@@ -48,18 +45,18 @@ vi.mock('../src/ui/primitives/creation-field', () => ({
   CreationField: ({
     value,
     onChangeText,
-    onSubmitValue,
+    onSubmitEditing,
     editable,
     leadingContent,
   }: {
     value: string;
     onChangeText(text: string): void;
-    onSubmitValue(text: string): void;
+    onSubmitEditing(event: { nativeEvent: { text: string } }): void;
     editable: boolean;
     leadingContent?: ReactNode;
   }) => {
     native.change = onChangeText;
-    native.enter = onSubmitValue;
+    native.enter = (text) => onSubmitEditing({ nativeEvent: { text } });
     return (
       <>
         {leadingContent}
@@ -75,28 +72,26 @@ vi.mock('../src/ui/design/theme', async () => {
 vi.mock('../src/ui/strings', () => ({
   useStrings: () => ({
     botCreation: {
-      tagInput: 'Add tag',
+      tags: 'Tags',
       tagInputHint: 'Press Enter to add a tag',
       removeTag: (tag: string) => `Remove ${tag}`,
     },
   }),
 }));
 import { CreationTagsField } from '../src/ui/primitives/creation-tags-field.android';
-import { CreationTagsField as ExistingTagsField } from '../src/ui/primitives/creation-tags-field';
 
 let root: Root;
 let view: HTMLDivElement;
 let current: CreationTagDraft;
-async function mount(tags: string, disabled = false, android = true) {
+async function mount(tags: string, disabled = false) {
   view = document.createElement('div');
   document.body.append(view);
   root = createRoot(view);
   function Harness() {
     const [draft, setDraft] = useState<CreationTagDraft>({ tags });
     current = draft;
-    const Field = android ? CreationTagsField : ExistingTagsField;
     return (
-      <Field
+      <CreationTagsField
         value={draft}
         disabled={disabled}
         onChange={(action) => setDraft((value) => editCreationTags(value, action))}
@@ -144,11 +139,4 @@ it('prevents tag mutations while creation is busy', async () => {
     view.querySelector('button')!.click();
   });
   expect(current).toEqual({ tags: 'Existing' });
-});
-
-it('keeps the existing non-Android tags field editing its original value', async () => {
-  await mount('Existing', false, false);
-  await act(() => native.change?.('Existing, Added'));
-  expect(current).toEqual({ tags: 'Existing, Added' });
-  expect(view.querySelector('input')?.value).toBe('Existing, Added');
 });

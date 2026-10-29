@@ -11,6 +11,7 @@ import type { Conversation, ConversationSnapshot } from '../src/host/conversatio
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
+vi.mock('expo-image', () => ({ Image: () => null }));
 vi.mock('expo-sharing', () => ({ isAvailableAsync: vi.fn(), shareAsync: vi.fn() }));
 vi.mock('react-native-view-shot', () => ({ captureRef: vi.fn(), releaseCapture: vi.fn() }));
 vi.mock('react-native-svg', () => ({ default: () => null, Circle: () => null, Path: () => null }));
@@ -56,6 +57,8 @@ const nativeList = vi.hoisted(() => ({
     onContentSizeChange?(width: number, height: number): void;
     onViewableItemsChanged?(): void;
     onScrollBeginDrag?(event: unknown): void;
+    onScroll?(event: unknown): void;
+    onScrollEndDrag?(event: unknown): void;
   },
 }));
 
@@ -134,6 +137,7 @@ vi.mock('expo-router', () => ({
     },
   }),
 }));
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   return { ...shim, KeyboardAvoidingView: shim.View };
@@ -224,8 +228,30 @@ vi.mock('../src/ui/chat/native-header', () => ({
   floatingHeader: false,
   useHeaderPadding: () => 0,
 }));
+vi.mock('../src/ui/chat/bot-profile-screen', () => ({ BotProfileScreen: () => null }));
+vi.mock('../src/ui/chat/group-profile-screen', () => ({ GroupProfileScreen: () => null }));
+vi.mock('../src/ui/chat/channel-details-screen', () => ({ ChannelDetailsScreen: () => null }));
+vi.mock('../src/ui/shell/swipe-open', () => ({
+  SwipeOpen: ({
+    enabled,
+    onOpen,
+    testID,
+    children,
+  }: {
+    enabled: boolean;
+    onOpen(): void;
+    testID?: string;
+    children: ReactNode;
+  }) => (
+    <div data-testid={testID} data-enabled={String(enabled)}>
+      <button type="button" data-testid={`${testID}-trigger`} onClick={onOpen} />
+      {children}
+    </div>
+  ),
+}));
 vi.mock('../src/ui/chat/header-chrome', () => ({
   titleChipFill: () => ({}),
+  useChatHeaderHeight: () => 56,
   HeaderCircleButton: ({ label, onPress }: { label: string; onPress(): void }) => (
     <button type="button" onClick={onPress}>
       {label}
@@ -308,6 +334,7 @@ vi.mock('../src/ui/chat/time-separator', () => ({ TimeSeparator: () => null }));
 
 import { Platform } from 'react-native';
 import { ConversationScreen, type ChatPlace } from '../src/ui/chat/conversation-screen';
+import { StackRoot } from '../src/ui/shell/stack-root';
 import { t } from '../src/ui/strings';
 import { edgeFade } from '../src/ui/design/tokens';
 
@@ -743,7 +770,7 @@ it('keeps the bottom fade at the message viewport edge beneath the composer cont
   expect(fade!.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
 });
 
-it('leaves the top edge and Back to the iOS 26 glass header', async () => {
+it('extends the native glass fade while leaving Back to the iOS 26 header', async () => {
   const os = Platform.OS;
   Object.assign(Platform, { OS: 'ios' });
   try {
@@ -762,10 +789,60 @@ it('leaves the top edge and Back to the iOS 26 glass header', async () => {
     ];
     const view = await render({ kind: 'dm', slug: 'ada' });
     const header = view.querySelector('header')!;
-    expect(view.querySelector('[data-edge="top"]')).toBeNull();
+    expect(view.querySelector('[data-edge="top"]')).not.toBeNull();
     expect(header.getAttribute('data-blur')).toBe('none');
     expect(header.getAttribute('data-back-visible')).toBe('true');
     expect(header.textContent).not.toContain('Header back');
+  } finally {
+    Object.assign(Platform, { OS: os });
+  }
+});
+
+it.each([
+  ['Tob Mode leaves', true, ['/']],
+  ['an ordinary chat stays', false, ['/', '/dm/ada']],
+])('on a pull up from the latest message, %s', async (_, entered, history) => {
+  const os = Platform.OS;
+  Object.assign(Platform, { OS: 'ios' });
+  try {
+    state.history = entered ? ['/', '/dm-top/ada'] : ['/', '/dm/ada'];
+    state.host.roster.bots = [
+      {
+        slug: 'ada',
+        displayName: 'Ada',
+        state: 'idle',
+        roles: [],
+        computerAccess: false,
+        browserAccess: false,
+        paused: false,
+      },
+    ];
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+    await act(async () =>
+      root!.render(
+        <StackRoot value={entered}>
+          <ConversationScreen place={place} focus={undefined} />
+        </StackRoot>,
+      ),
+    );
+    const at = (y: number) => ({
+      nativeEvent: {
+        contentOffset: { y },
+        contentSize: { height: 2000 },
+        layoutMeasurement: { height: 800 },
+        contentInset: { top: 0, bottom: 0 },
+        velocity: { x: 0, y: 0 },
+      },
+    });
+    await act(async () => {
+      nativeList.events.onScrollBeginDrag?.(at(1200));
+      nativeList.events.onScroll?.(at(1260));
+      nativeList.events.onScrollEndDrag?.(at(1260));
+    });
+    expect(state.history).toEqual(history);
   } finally {
     Object.assign(Platform, { OS: os });
   }
@@ -1124,6 +1201,33 @@ it('the real conversation title opens a source-scoped Bot Profile', async () => 
   } finally {
     Object.assign(Platform, { OS: os });
   }
+});
+
+it('a swipe left on the messages opens the same profile as the title', async () => {
+  profileHistory = channelNavigationHarness();
+  profileHistory.push('dm/[slug]', { slug: 'ada', hostId: 'computer_a' });
+  state.history = ['/', '/dm/ada'];
+  state.host.roster.bots = [
+    {
+      slug: 'ada',
+      displayName: 'Ada',
+      state: 'idle',
+      roles: [],
+      computerAccess: false,
+      browserAccess: false,
+      paused: false,
+    },
+  ];
+  const view = await render({ kind: 'dm', slug: 'ada' });
+  const swipe = view.querySelector('[data-testid="chat-profile-swipe"]');
+  expect(swipe?.getAttribute('data-enabled')).toBe('true');
+  await act(async () =>
+    view.querySelector<HTMLButtonElement>('[data-testid="chat-profile-swipe-trigger"]')!.click(),
+  );
+  expect(profileHistory.state.routes.at(-1)).toMatchObject({
+    name: 'bot/[slug]',
+    params: { slug: 'ada', hostId: 'computer_a', entry: 'swipe' },
+  });
 });
 
 it('opens scoped Bot-to-Bot details from its title without exposing group management', async () => {

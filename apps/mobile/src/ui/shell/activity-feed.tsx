@@ -1,4 +1,7 @@
+import { ActivityInspector } from './activity-inspector';
 import { HostGlyph } from './host-tile';
+import { useIsFocused } from 'expo-router';
+import { ActivitySheetRegistration } from './activity-sheet-root';
 import { DEFAULT_HOST_LOOK, hostColorInk } from '../design/host-look';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
@@ -13,21 +16,8 @@ import {
   memo,
   type ReactElement,
 } from 'react';
-import {
-  AccessibilityInfo,
-  Animated as NativeAnimated,
-  Platform,
-  Pressable,
-  View,
-  useWindowDimensions,
-} from 'react-native';
-import { TabView } from 'react-native-tab-view';
-import Animated, {
-  FadeOut,
-  LinearTransition,
-  useAnimatedStyle,
-  useReducedMotion,
-} from 'react-native-reanimated';
+import { AccessibilityInfo, Platform, Pressable, View } from 'react-native';
+import Animated, { FadeOut, LinearTransition, useAnimatedStyle } from 'react-native-reanimated';
 
 import type { HostClient, RosterBot } from '../../host/client';
 import {
@@ -64,13 +54,16 @@ import {
 } from '../../host/attention-actions';
 import { useFocusedSnapshot } from '../../host/use-focused-snapshot';
 import { BotAvatar } from '../bot-avatar';
+import { GroupMark } from '../chat/group-mark';
+import { AvatarSlot, CONVERSATION_AVATAR, CONVERSATION_RING } from '../chat/avatar-slot';
+import { shortTime } from '../chat/conversations';
+import { SourceName } from '../chat/source-name';
 import { ApprovalCard } from '../chat/approval-card';
 import { QuestionCard } from '../chat/question-card';
 import { useDesignTheme } from '../design/theme';
 import { spring, springy } from '../design/motion';
-import { space, undoBar } from '../design/tokens';
+import { chatList, conversationType, radius, space, undoBar } from '../design/tokens';
 import { Text } from '../primitives/text';
-import { CountBadge } from '../primitives/count-badge';
 import { Notice } from '../request-parts';
 import { useChatHeaderHeight } from '../chat/header-chrome';
 import { Button } from '../primitives/button';
@@ -82,13 +75,14 @@ import { UndoBar, type UndoNotice } from '../primitives/undo-bar';
 import { ArchiveIcon, ClockIcon, UndoIcon } from './icons';
 import type { ActivityOptions } from './activity-header-actions';
 import { ActivityToolbar, type ActivityToolbarHandle } from './activity-toolbar';
-import { ActivityTabs, ACTIVITY_TABS, type ActivityTab } from './activity-tabs';
+import { activityAvatar } from './activity-avatar';
 import { useFloatingTabInset } from './floating-tab-inset';
 import { CollapsingToolbar, useChromeProgress, useChromeScroll } from './scroll-chrome';
 import { useStrings } from '../strings';
 import {
   DEFAULT_ACTIVITY,
   ActivityFilters,
+  ActivityFilterContent,
   type ActivityFilter,
   type ActivitySort,
 } from './activity-filters';
@@ -96,7 +90,6 @@ import {
 const AVATAR = 32;
 const LOADING: InboxSnapshot = { status: 'loading' };
 const EMPTY_SOURCE = { getSnapshot: () => LOADING, subscribe: () => () => {} };
-const ACTIVITY_ROUTES = [...ACTIVITY_TABS];
 const SUMMARY_PREVIEW_LIMIT = 512;
 const ROW_LAYOUT = springy(LinearTransition.springify(), spring.spatial.default);
 const ROW_EXIT = springy(FadeOut.springify(), spring.effects.fast);
@@ -171,6 +164,7 @@ export function feedRows(
   filter: ActivityFilter = DEFAULT_ACTIVITY,
   search = '',
   hidden: HiddenItems = new Map(),
+  sort: ActivitySort = 'default',
 ): FeedRow[] {
   if (snapshot.status !== 'ready') return [];
   const rows: FeedRow[] = [];
@@ -189,6 +183,15 @@ export function feedRows(
       );
     }
     if (snapshot.cursors?.[section]) rows.push({ kind: 'more', key: `more-${section}`, section });
+  }
+  if (sort !== 'default') {
+    rows.sort((a, b) => {
+      if (a.kind === 'more') return b.kind === 'more' ? 0 : 1;
+      if (b.kind === 'more') return -1;
+      if (a.kind === 'empty' || b.kind === 'empty') return 0;
+      const delta = Date.parse(a.item.createdAt) - Date.parse(b.item.createdAt);
+      return sort === 'oldest' ? delta : -delta;
+    });
   }
   if (rows.length === 0 && !search.trim())
     rows.push({ kind: 'empty', key: `empty-${filter.section}` });
@@ -225,6 +228,31 @@ function ActivityEnvironment({ item }: { item: HumanAttentionItem }) {
   );
 }
 
+function ActivityAvatar({
+  item,
+  bot,
+  size,
+}: {
+  item: HumanAttentionItem;
+  bot: RosterBot | undefined;
+  size: number;
+}) {
+  const corner = size >= CONVERSATION_AVATAR ? radius.md : radius.sm;
+  const avatar = activityAvatar(item, bot);
+  if (avatar.kind === 'bot')
+    return <BotAvatar bot={avatar.bot} size={size} corner={corner} ring={false} />;
+  return (
+    <GroupMark
+      avatar={avatar.kind === 'group' ? avatar.avatar : undefined}
+      initial={avatar.kind === 'initial' ? avatar.initial : '#'}
+      size={size}
+      corner={corner}
+      variant={size >= CONVERSATION_AVATAR ? 'title' : 'body'}
+      strong={false}
+    />
+  );
+}
+
 const Row = memo(function Row({
   item,
   settled,
@@ -249,82 +277,65 @@ const Row = memo(function Row({
       : (bot?.displayName ?? item.botSlug);
   const name = item.activitySource ? `${localName} · ${item.activitySource.label}` : localName;
   const summary = summaryPreview(itemSummary(item));
-  const size = settled ? theme.type.body.line : AVATAR;
-  const metadata = (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: space.x3,
-        marginLeft: theme.largeText ? 0 : 'auto',
-      }}
-    >
-      <Text variant="meta" tone="muted">
-        {t.ago(minutesSince(item.createdAt, now))}
-      </Text>
-      {(item.unreadCount ?? 0) > 0 ? <CountBadge count={item.unreadCount!} tone="unread" /> : null}
-    </View>
-  );
+  const preview = summary.length > 0 ? `${kind} · ${summary}` : kind;
+  const time = shortTime(item.createdAt, new Date(now));
   return (
     <SwipeRow actions={actions} testID={`inbox-swipe-${activityKey(item)}`}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={t.openPost(kind, name, summary)}
+        accessibilityLabel={t.openPost(
+          kind,
+          name,
+          [(item.unreadCount ?? 0) > 0 ? t.unreadCount(item.unreadCount!) : '', summary]
+            .filter((part) => part !== '')
+            .join(', '),
+        )}
         testID={`inbox-row-${activityKey(item)}`}
         onPress={() => onOpen(item)}
         {...swipeActionProps(t.rowTitle(kind, name), actions)}
         style={({ pressed }) => ({
-          minHeight: theme.touch,
           flexDirection: 'row',
-          alignItems: settled ? 'center' : 'flex-start',
-          gap: space.x3,
-          paddingHorizontal: space.x5,
+          alignItems: 'center',
+          gap: space.x4,
+          minHeight: theme.touch,
+          paddingLeft: chatList.gutter - CONVERSATION_RING / 2,
+          paddingRight: chatList.gutter,
           paddingVertical: space.x3,
           backgroundColor: pressed ? theme.layer.canvas.pressed : theme.layer.canvas.fill,
         })}
       >
-        {bot === undefined ? (
-          <View
-            style={{
-              width: size,
-              height: size,
-              borderRadius: size / 2,
-              backgroundColor: theme.layer.canvas.inset,
-            }}
-          />
-        ) : (
-          <BotAvatar bot={bot} size={size} />
-        )}
+        <AvatarSlot>
+          <ActivityAvatar item={item} bot={bot} size={CONVERSATION_AVATAR} />
+        </AvatarSlot>
         <View
           key={`${theme.scheme}:${theme.fontScale}:${name}`}
           style={{ flex: 1, minWidth: 0, gap: space.x1 }}
         >
-          <View
-            style={{
-              flexDirection: theme.largeText ? 'column' : 'row',
-              alignItems: theme.largeText ? 'flex-start' : 'center',
-              gap: space.x3,
-            }}
-          >
-            <Text
-              variant={theme.largeText ? 'meta' : 'body'}
-              numberOfLines={theme.largeText ? 2 : 1}
-              strong={!settled}
-              style={{ flexShrink: 1 }}
-            >
-              {theme.largeText ? localName : t.rowTitle(kind, localName)}
-              {settled && summary.length > 0 ? <Text tone="muted">{` · ${summary}`}</Text> : null}
-            </Text>
-            <ActivityEnvironment item={item} />
-            {theme.largeText ? null : metadata}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
+            <SourceName
+              name={localName}
+              source="computer"
+              look={
+                item.activitySource ? (item.activitySource.look ?? DEFAULT_HOST_LOOK) : undefined
+              }
+              sourceLabel={item.activitySource?.label}
+            />
+            {time === '' ? null : (
+              <Text variant="meta" tone="subtle" style={{ flexShrink: 0 }}>
+                {time}
+              </Text>
+            )}
           </View>
-          {!settled && summary.length > 0 ? (
-            <Text tone={theme.largeText ? 'fg' : 'muted'} numberOfLines={2}>
-              {summary}
-            </Text>
-          ) : null}
-          {theme.largeText ? metadata : null}
+          <Text
+            variant="meta"
+            dynamicTypeRamp="subheadline"
+            tone={settled ? 'muted' : 'fg'}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={conversationType.preview}
+          >
+            {preview}
+          </Text>
         </View>
       </Pressable>
     </SwipeRow>
@@ -408,18 +419,7 @@ function Post({
             opacity: pressed ? 0.6 : 1,
           })}
         >
-          {bot === undefined ? (
-            <View
-              style={{
-                width: AVATAR,
-                height: AVATAR,
-                borderRadius: AVATAR / 2,
-                backgroundColor: theme.layer.canvas.inset,
-              }}
-            />
-          ) : (
-            <BotAvatar bot={bot} size={AVATAR} />
-          )}
+          <ActivityAvatar item={item} bot={bot} size={AVATAR} />
           <View
             key={`${theme.scheme}:${theme.fontScale}:${name}`}
             style={{
@@ -472,6 +472,7 @@ type ActivityFeedProps = {
 };
 
 export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps) {
+  const focused = useIsFocused();
   const { botSlugs, channels = [], bot } = props;
   const theme = useDesignTheme();
   const toolbar = useRef<ActivityToolbarHandle>(null);
@@ -481,7 +482,6 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
   const [searchFocused, setSearchFocused] = useState(false);
   const [sort, setSort] = useState<ActivitySort>('default');
   const [filtering, setFiltering] = useState(false);
-  const [lastTab, setLastTab] = useState(0);
   const [notice, setNotice] = useState<UndoNotice>();
   const noticeCount = useRef(0);
   const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -504,12 +504,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
   const initialHeight = useChatHeaderHeight();
   const insets = useSafeAreaInsets();
   const [headerHeight, setHeaderHeight] = useState(Platform.OS === 'ios' ? 0 : initialHeight);
-  const width = useWindowDimensions().width;
-  const reducedMotion = useReducedMotion();
   const progress = useChromeProgress();
-  const selectedIndex = ACTIVITY_TABS.findIndex((tab) => tab.key === filter.section);
-  const index = selectedIndex < 0 ? lastTab : selectedIndex;
-  const placeholderPosition = useMemo(() => new NativeAnimated.Value(index), [index]);
   const slugsWithSelection =
     filter.bot !== undefined && !botSlugs.includes(filter.bot)
       ? [...botSlugs, filter.bot]
@@ -522,75 +517,41 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
     bots: slugsWithSelection.map((slug) => ({ slug, name: bot(slug)?.displayName ?? slug })),
     onFilter: setFilter,
   };
-  const selectIndex = (next: number) => {
-    const tab = ACTIVITY_TABS[next];
-    if (!tab) return;
-    setLastTab(next);
-    setFilter((current) => ({ ...current, section: tab.key }));
-  };
   const top = headerHeight;
   const travel = Math.max(0, top - insets.top);
   const pageStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: -travel * progress.value }],
   }));
-  return (
+  const content = (
     <KeyboardAvoidingView
       style={{ flex: 1, overflow: 'hidden', backgroundColor: theme.color.base }}
       enabled={searchFocused}
       behavior="padding"
     >
       <Animated.View style={[{ flex: 1, marginTop: top, marginBottom: -travel }, pageStyle]}>
-        <DeferredContent
-          fallback={
-            <View style={{ flex: 1 }}>
-              <ActivityTabs
-                selected={filter.section}
-                position={placeholderPosition}
-                onSelect={(key) => selectIndex(ACTIVITY_TABS.findIndex((tab) => tab.key === key))}
-              />
-              <ListSkeleton />
+        <DeferredContent fallback={<ListSkeleton />}>
+          {props.unavailable ? (
+            <View style={{ padding: space.x6 }}>
+              <Text tone="muted">{props.unavailable}</Text>
             </View>
-          }
-        >
-          <TabView
-            style={{ backgroundColor: theme.color.base }}
-            navigationState={{ index, routes: ACTIVITY_ROUTES }}
-            initialLayout={{ width }}
-            onIndexChange={selectIndex}
-            animationEnabled={!reducedMotion}
-            swipeEnabled={false}
-            lazy
-            renderLazyPlaceholder={() => <ListSkeleton />}
-            renderTabBar={({ position, jumpTo }) => (
-              <ActivityTabs selected={filter.section} position={position} onSelect={jumpTo} />
-            )}
-            renderScene={({ route }: { route: ActivityTab }) =>
-              props.unavailable ? (
-                <View style={{ padding: space.x6 }}>
-                  <Text tone="muted">{props.unavailable}</Text>
-                </View>
-              ) : (
-                <ActivityPage
-                  {...props}
-                  onNotice={showNotice}
-                  section={route.key === ACTIVITY_TABS[index]?.key ? filter.section : route.key}
-                  filterBot={filter.bot}
-                  filterChannel={filter.channel}
-                  filterUnread={filter.unreadOnly}
-                  search={search}
-                  sort={sort}
-                  active={route.key === ACTIVITY_TABS[index]?.key}
-                  searchFocused={searchFocused}
-                  scrollActive={route.key === ACTIVITY_TABS[index]?.key}
-                  pinChrome={
-                    searchFocused || filtering || (Platform.OS === 'android' && search !== '')
-                  }
-                  headerTravel={travel}
-                  dismissSearch={dismissSearch}
-                />
-              )
-            }
-          />
+          ) : (
+            <ActivityPage
+              {...props}
+              onNotice={showNotice}
+              section={filter.section}
+              filterBot={filter.bot}
+              filterChannel={filter.channel}
+              filterUnread={filter.unreadOnly}
+              search={search}
+              sort={sort}
+              active={focused}
+              searchFocused={searchFocused}
+              scrollActive={focused}
+              pinChrome={searchFocused || filtering || (Platform.OS === 'android' && search !== '')}
+              headerTravel={travel}
+              dismissSearch={dismissSearch}
+            />
+          )}
         </DeferredContent>
       </Animated.View>
       <CollapsingToolbar travel={travel} height={top}>
@@ -601,9 +562,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
           onSearchFocus={setSearchFocused}
           filtered={
             sort !== 'default' ||
-            filter.section === 'all' ||
-            filter.section === 'handled' ||
-            setAside(filter.section) ||
+            filter.section !== 'all' ||
             filter.bot !== undefined ||
             filter.channel !== undefined ||
             filter.unreadOnly === true
@@ -626,8 +585,44 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
         }}
       />
       <UndoBar notice={notice} bottom={tabInset} onDone={noticeDone} />
-      <ActivityFilters visible={filtering} {...filterOptions} onClose={() => setFiltering(false)} />
+      {Platform.OS === 'web' ? (
+        <ActivityFilters
+          visible={filtering}
+          {...filterOptions}
+          onClose={() => setFiltering(false)}
+        />
+      ) : null}
     </KeyboardAvoidingView>
+  );
+  return Platform.OS === 'android' ? (
+    <>
+      <ActivitySheetRegistration
+        open={filtering}
+        active={focused}
+        enabled={!searchFocused && search === ''}
+        onOpenChange={setFiltering}
+        panel={
+          <View
+            style={{
+              flex: 1,
+              paddingTop: insets.top,
+              paddingBottom: insets.bottom,
+            }}
+          >
+            <ActivityFilterContent {...filterOptions} onClose={() => setFiltering(false)} />
+          </View>
+        }
+      />
+      {content}
+    </>
+  ) : (
+    <ActivityInspector
+      visible={filtering && focused}
+      {...filterOptions}
+      onClose={() => setFiltering(false)}
+    >
+      {content}
+    </ActivityInspector>
   );
 });
 
@@ -731,7 +726,7 @@ const ActivityPage = memo(function ActivityPage({
       : held.filter((item) =>
           sources.some((source) => source.client === item.activitySource?.client),
         );
-  const rows = feedRows(visible, gone, retained, filter, search, hidden);
+  const rows = feedRows(visible, gone, retained, filter, search, hidden, sort);
   const hide = (item: HumanAttentionItem, on: boolean) =>
     setHidden((current) => {
       const next = new Map(current);

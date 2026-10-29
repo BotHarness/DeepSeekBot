@@ -27,16 +27,20 @@ _Avoid_: installed release, latest version, 0.0.0 release
 ### PersonaBots
 
 **Steward Bot**:
-A persistent local PersonaBot with its own Memory and read access to the Human's Bot and Channel content, helping the Human manage those identities and application settings under existing approval rules. Its primary purpose is to help create and manage other Bots, inspect their progress and surface attention items; conversation is the management interface. Its management role does not itself grant authority to approve other Bots' actions. Conversational handling of a pending approval is a future scoped workflow through the existing approval owner, carrying the Human's explicit decision rather than a blanket self-approval right.
+A persistent local PersonaBot with its own Memory and read access to the Human's Bot and Channel content, helping the Human manage those identities and application settings under existing approval rules. It is the Human's single point of contact: it creates and manages other Bots, delegates a request to the best-suited colleague through a Bot-to-Bot DM, inspects their progress, surfaces attention items and reports results back in its Human DM. Its management role does not itself grant authority to approve other Bots' actions. Conversational handling of a pending approval is a future scoped workflow through the existing approval owner, carrying the Human's explicit decision rather than a blanket self-approval right.
 _Avoid_: global Orchestrator, Home panel, dashboard
 
 **Tob**:
 The built-in local Steward Bot, with a persistent identity distinct from any ordinary DeepSeek Bot; its name reverses “Bot” and also stands for “Thousands of Bot.” Tob cannot be deleted or archived, while its Soul and Memory remain editable and portable without transferring its local management authority. Management uses the DeepSeekBot CLI through native Shell; the Host grants only explicitly supported operations for the current accepted Human DM execution and retains ownership, approval and revision checks. This role is not unrestricted CLI or administrator access.
 _Avoid_: Home panel, global Orchestrator
 
-**Home**:
-A global Dock panel that presents the Human's cross-Bot overview, Bot creation entry points and an input addressed to Tob. Continuing a conversation uses the same Tob DM in the Messages panel; Home remains an independent overview rather than another conversation history.
-_Avoid_: Tob, Bot Profile, Channel subpanel
+**Tob Mode**:
+On mobile, the Tob DM's normal chat detail screen opened by pulling and holding on Chats, sliding in from the top. Only the entry and animation differ from tapping the Tob row; it is the same Tob DM and history, never a second conversation or screen. The pull always targets a Tob, falling back to the most recently used computer Environment's Tob. Desktop has no Tob Mode: the former Home panel is removed, and hiding the Side column in Simple layout mode gives a focused conversation with any Channel.
+_Avoid_: Home, Home panel, Tob chat, 拖布模式, personal agent mode
+
+**Tob Delegation**:
+Tob handing a Human's request to the colleague PersonaBot it judges best suited, as an ordinary message in their Bot-to-Bot DM, then reporting the colleague's result back in its Human DM. Tob sends without asking the Human first; the Human sees each send as an action notice. It carries no approval authority: the colleague's own approvals still go to the Human.
+_Avoid_: dispatch, routing, Assignment (an Assignment is a Bot's own Session, not another Bot)
 
 **PersonaBot**:
 A first-class bot entity owned by the Host: a durable identity with a Git-backed Memory Repository that spans Sessions, Chats, and Workspaces and can hold several Sessions at once. Its Soul is optional content within Memory, not the identity itself.
@@ -410,12 +414,40 @@ An inactive imported reference describing a provider account or authority the Hu
 _Avoid_: credential, Service Grant, automatic reconnect
 
 **Bot Marketplace**:
-The hosted catalog the harness opens to browse, search and install shareable Bots. It lists only Indexed Repositories; there are no accounts or uploaded Bots (ADR-0131, ADR-0135).
+The hosted catalog the harness opens to browse, search and install shareable Bots. It lists two kinds of entry side by side: Indexed Repositories and Uploaded Bots (ADR-0131, ADR-0267).
 _Avoid_: store, hub, Soul registry
 
 **Indexed Repository**:
 A public GitHub repository carrying the `botharness-bot` topic that the Bot Marketplace lists by reference and refreshes on a schedule. Installing it creates a fresh PersonaBot from its Git URL; it is not a SoulSnapshot, Listing or Version.
 _Avoid_: submission, Listing, SoulSnapshot, mirror
+
+**Uploaded Bot**:
+A Bot Marketplace entry whose Memory files a signed-in author uploaded, with no Git history. The author can replace all of its files or delete it outright; there are no versions. Installing it creates a fresh PersonaBot with one initial commit, and later replacements never reach installed copies.
+_Avoid_: Listing, Version, SoulSnapshot, publication
+
+**Share Draft**:
+A sanitized copy of one PersonaBot's Memory files that Tob prepares with the Human, file by file, before an upload; the source Memory is never changed, and only a Share Draft is uploaded.
+_Avoid_: export, snapshot, redacted Memory
+
+**Install Receipt**:
+The one count a Host reports to the Bot Marketplace after an install completes, keyed by a random marketplace-only Host identifier so each Host counts once per entry.
+_Avoid_: download, clone count, Telemetry event
+
+**Marketplace Digest**:
+The Bot Marketplace's dated daily article about recent Bots, with embedded Bot cards that install in one tap; past digests stay readable.
+_Avoid_: newsletter, push notification, blog post
+
+**Digest Pick**:
+A Bot that a Marketplace Digest names in one of its sections. A pick that later leaves the Bot Marketplace keeps its text in the digest but loses its card.
+_Avoid_: featured Bot, editor's pick, sponsored Bot
+
+**Digest Cover**:
+The picture that stands for one Marketplace Digest, assembled from its listed Digest Picks' banners and avatars in a layout chosen by how many there are; with no listed pick it falls back to a pixel banner derived from the date.
+_Avoid_: thumbnail, hero image, generated image
+
+**Marketplace Ranking**:
+One of the Bot Marketplace's three daily lists of listed Bots: Hot (most installs in the last seven days), New (first seen in the last seven days) and Rising (the largest growth in installs over the week before). All three are recomputed once a day and read from that day's snapshot.
+_Avoid_: section, shelf, chart, leaderboard
 
 **Bot Zip**:
 A `.zip` of one PersonaBot's Memory files, with its `.botharness/bot.json` descriptor and avatar, that a Human exports and hands to someone else; importing it creates a fresh PersonaBot. It holds files only unless the whole Bot is exported with Git history. It never holds identity, Sessions, bindings or credentials (ADR-0135).
@@ -434,8 +466,16 @@ A human-named tag pointing at one immutable SoulSnapshot digest under a Listing.
 _Avoid_: release, build, revision
 
 **Handle**:
-An account's unique public identifier, used as the namespace of its Listings; never the account's email.
+Historical (Soul registry): an account's unique public identifier used as the namespace of its Listings. Uploaded Bots use an Author ID instead.
 _Avoid_: username, account id
+
+**Author ID**:
+The short, never-changing identifier the Bot Marketplace assigns to an uploading account, shown beside its free display name so same-named authors stay distinct; never the account's email.
+_Avoid_: handle, username, account email
+
+**Account Profile**:
+The display name and optional photo of one Connect account, kept by the Bot Marketplace with its Author ID. The Human edits it from Settings on any client, and Uploaded Bots show it as their author; the email is never part of it.
+_Avoid_: Human display name, user profile, author account
 
 **Bot set**:
 A named group of Listings meant to be imported together.
@@ -848,8 +888,12 @@ The desktop Bot mode arrangement of a Global workspace and the active Channel's 
 _Avoid_: workbench, panel layout, dock
 
 **Layout mode**:
-The Human's device-local choice of how the desktop Bot mode layout behaves: **Simple** or **Advanced**. Simple shows one Global panel at a time, chosen from the Workspace Control Rail, with Channel subpanels stacked in the Subpanel column; Advanced is the freely arranged two-level workspace. Each mode keeps its own arrangement, so switching never rewrites the other; Simple is the default for new Humans.
+The Human's device-local choice of how the desktop Bot mode layout behaves: **Simple** or **Advanced**. Simple always shows the Messages panel, with Channel subpanels stacked in its Subpanel column, and the Workspace Control Rail chooses what the Side column shows; Advanced is the freely arranged two-level workspace. Each mode keeps its own arrangement, so switching never rewrites the other; Simple is the default for new Humans.
 _Avoid_: Bot mode, DSB mode, simple view, expert mode
+
+**Side column**:
+In Simple layout mode, the optional column between the Workspace Control Rail and the Messages panel that shows one Global panel, such as Channel list, Activity Center or Marketplace. Selecting a rail switch shows that panel there; selecting the switch that is already shown hides the column, leaving only the rail and Messages. Its width is shared by every panel it shows.
+_Avoid_: sidebar, left panel, App Sidebar, primary side bar
 
 **Subpanel column**:
 In Simple layout mode, the collapsible right-hand column inside the Messages panel that lists the active Channel's available subpanels in a fixed vertical order. Each subpanel can be collapsed, and the column scrolls; collapsing only removes presentation, never stopping a running Browser, Computer or Session.
@@ -1020,8 +1064,12 @@ Application-defined, default-on optional statistics from the Expo app, separate 
 A random statistics-only UUID saved on the phone while statistics are enabled. It is independent of Host Install ID, paired-device identity, Human accounts and site visitors. Opt-out clears it and the unsent queue; re-enabling creates a new one. OS app-data restoration may restore the saved preference and identifier.
 
 **Telemetry**:
-Anonymous product usage events the Host sends to the project's analytics service, on by default and turned off by plugin config `telemetry: false`, `DO_NOT_TRACK=1` or `BOTHARNESS_TELEMETRY=0`. It never carries names, Memory, conversation content, paths or IP addresses (ADR-0132).
+Anonymous product usage events the Host sends to the project's analytics service, on by default and turned off by plugin config `telemetry: false`, `DO_NOT_TRACK=1` or `BOTHARNESS_TELEMETRY=0`. It never carries names, Memory, conversation content, paths or IP addresses (ADR-0132). Every event is registered in the tracking plan and named `category:object_action`, with `source` `host` (ADR-0270).
 _Avoid_: tracking, analytics SDK, crash reporter
+
+**Active Day**:
+A Host-local day on which an installation was used: the first Bot mode entry, Human message or IM message sends `app:active_day_start` once (ADR-0270). DAU, WAU and MAU count installations with an Active Day; a Host that is only online does not count.
+_Avoid_: online day, daily usage
 
 **Install ID**:
 A random identifier generated on a plugin installation's first start and attached to its Telemetry. It identifies the installation, never a Human, and is never linked to a site visitor.
@@ -1040,3 +1088,97 @@ _Avoid_: short URL, UTM link, referral link
 The single Sessions surface (`sessions`, TextQuote icon) for inspecting existing Sessions; in the two-level target it is a Channel subpanel inside Messages (ADR-0221). In a PersonaBot DM its scope is that Bot. In a Group Channel its default scope is **Current channel**: Assignments whose original Source Event belongs to that Group, across responsible Bots. The Human can explicitly select an accessible member Bot to inspect that Bot's owned Orchestrator and Assignment Sessions without changing the active conversation. Scope is a per-Channel local view preference, separate from history and workspace grouping. It does not create Assignments, send requests, or change execution. The former Work panel is retired; Activity Center still owns Human attention and approval. See ADR-0220.
 
 Default-following Sessions headers omit a redundant scope label. Group scope choices live in the existing view-options menu; only an explicit member-Bot override shows `Bot · name` in the header.
+
+### Native UI components
+
+The iOS workspace switcher uses application-defined retained navigation pages backed by UIKit `UIPageViewController` through an opt-in `PagerView` backend; Workspaces is left of the complete Chats tab shell, followed by the last chat and its profile. Android retains its navigation drawer. See `apps/mobile/DESIGN.md` → iOS workspace panel.
+
+Interface talk names the platform's own component, not a description of how it looks. Android names come from the [Material 3 glossary](https://m3.material.io/foundations/glossary) and the [Material 3 components](https://m3.material.io/components) index; their code names come from [Compose Material 3](https://developer.android.com/reference/kotlin/androidx/compose/material3/package-summary). Apple publishes no glossary page; its counterpart is the [HIG Components](https://developer.apple.com/design/human-interface-guidelines/components) index (Content, Layout and organization, Menus and actions, Navigation and search, Presentation, Selection and input, Status, System experiences), with code names from [SwiftUI](https://developer.apple.com/documentation/swiftui) and [UIKit](https://developer.apple.com/documentation/uikit) and prose spelling from the [Apple Style Guide](https://support.apple.com/guide/applestyleguide/welcome/web). Which component a screen uses, and the token layers it reads, are decided in `apps/mobile/DESIGN.md`, [#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002) and ADR-0266.
+
+**Component term**:
+The exact name a platform's design system gives a component: the Material 3 name on Android, the HIG name on iOS, written in English in both languages of this glossary. Code uses the API name (`ModalBottomSheet`, `.sheet`), prose uses the design name (modal bottom sheet, sheet).
+_Avoid_: popup, popover (unless it is an iOS popover), modal, overlay, panel, drawer (alone), dropdown (alone), the bottom thing, 弹窗, 弹框, 浮层, 下拉框
+
+**Counterpart**:
+A component on the other platform that does the same job, listed in the table below. Counterparts share a job, not a look or an API: each side keeps its platform's default appearance and behaviour. A job with no counterpart says so instead of borrowing the other platform's component.
+_Avoid_: equivalent, same component, iOS version of
+
+**Native component**:
+A component drawn by the platform's own toolkit (Compose Material 3, SwiftUI or UIKit), reached through native navigation, `@expo/ui` or a local Expo module.
+_Avoid_: native-looking view, RN look-alike (for a native component)
+
+**Look-alike**:
+A React Native view drawn to imitate a native component. It is migration debt, not a choice (#3002).
+_Avoid_: native component, custom component
+
+**Custom surface**:
+App-owned UI for a job no native component does, kept only with its reason written in `DESIGN.md`: message bubbles, streaming text reveal, the Computer video canvas and its remote keyboard, and the iOS tab island (ADR-0235).
+_Avoid_: look-alike (for a recorded custom surface)
+
+**Navigation bar**:
+Two different components. On Android, the Material 3 navigation bar is the bottom row of top-level destinations (iOS counterpart: tab bar). On iOS, the navigation bar is the top bar with the title, Back and toolbar items (Android counterpart: top app bar). Always say which platform's navigation bar is meant.
+_Avoid_: bottom bar, header (in platform discussion), nav bar (without the platform)
+
+**Expo UI `Host`**:
+The `@expo/ui` view that hosts Compose or SwiftUI content inside React Native and carries its theme (`seedColor`, `colorScheme`). It is unrelated to the product **Host**; always write it as Expo UI `Host` or `<Host>`.
+_Avoid_: Host (alone, for the Expo UI view)
+
+**Platform design language**:
+Material 3 with its Expressive update on Android; Liquid Glass on iOS 26 and later. Their token vocabularies are the platform layers of ADR-0266: Material colour roles (`useMaterialRoles()`) and type styles (`materialType`) on Android; semantic system colours (`systemColors`), Dynamic Type text styles (`systemType`) and the tint on iOS. Icons are Material Symbols on Android and SF Symbols on iOS.
+_Avoid_: Material You (for anything but dynamic colour), glassmorphism, frosted glass, iOS style on Android, Material style on iOS
+
+Counterparts by job. The Android column uses Material 3 names, the iOS column HIG names; code names follow in each API column. "—" means the platform has no component for that job.
+
+| Job                                                 | Android (Material 3)                                                 | Compose                                                                         | iOS (HIG)                                                                              | SwiftUI · UIKit                                                                                                    |
+| --------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Title and actions for the current screen            | Top app bar (small, center-aligned, medium/large flexible)           | `TopAppBar`, `CenterAlignedTopAppBar`, `MediumFlexibleTopAppBar`                | Navigation bar (HIG Toolbars)                                                          | `NavigationStack` + `.toolbar`, `.navigationTitle` · `UINavigationBar`                                             |
+| Switch top-level destinations on a phone            | Navigation bar                                                       | `NavigationBar`, `NavigationBarItem`                                            | Tab bar                                                                                | `TabView` · `UITabBarController`                                                                                   |
+| Destinations on a wider window                      | Navigation rail (expanded rail replaces the drawer in M3 Expressive) | `NavigationRail`, `WideNavigationRail`                                          | Sidebar                                                                                | `NavigationSplitView` · `UISplitViewController`                                                                    |
+| Reveal a panel beside the content                   | Navigation drawer (dismissible or modal)                             | `DismissibleNavigationDrawer`, `ModalNavigationDrawer`                          | — (Mail pattern: the panel is the stack root, revealed by the interactive pop gesture) | `NavigationStack` root · `interactiveContentPopGestureRecognizer`                                                  |
+| Frequent actions for the current page               | Toolbar (docked or floating)                                         | `HorizontalFloatingToolbar`, `FlexibleBottomAppBar`                             | Toolbar                                                                                | `ToolbarItem(placement: .bottomBar)` · `UIToolbar`                                                                 |
+| One primary creation action                         | FAB, extended FAB                                                    | `FloatingActionButton`, `ExtendedFloatingActionButton`                          | — (a toolbar item)                                                                     | `ToolbarItem`                                                                                                      |
+| Several related creation actions                    | FAB menu                                                             | `FloatingActionButtonMenu`                                                      | Pull-down button                                                                       | `Menu`                                                                                                             |
+| Contextual filters beside the current content       | Modal side sheet                                                     | Native modal side-sheet container                                               | Inspector (adapts to Sheet on compact iPhone)                                          | `.inspector(isPresented:content:)`                                                                                 |
+| Scoped task above the current context               | Modal bottom sheet                                                   | `ModalBottomSheet`                                                              | Sheet (form sheet, page sheet, with detents)                                           | `.sheet` + `.presentationDetents` · `UISheetPresentationController`                                                |
+| Supplementary content beside the screen content     | Standard bottom sheet                                                | `BottomSheetScaffold`                                                           | Sheet without a modal dimming view (largest undimmed detent)                           | `.presentationBackgroundInteraction`                                                                               |
+| Full-screen task                                    | Full-screen dialog                                                   | `Dialog` (full-screen properties)                                               | Full-screen modal                                                                      | `.fullScreenCover` · `UIModalPresentationStyle.fullScreen`                                                         |
+| Important prompt or confirmation                    | Dialog (basic dialog)                                                | `AlertDialog`                                                                   | Alert                                                                                  | `.alert` · `UIAlertController(.alert)`                                                                             |
+| Choices in response to something the person did     | Menu, or a modal bottom sheet of actions                             | `DropdownMenu`, `ModalBottomSheet`                                              | Action sheet                                                                           | `.confirmationDialog` · `UIAlertController(.actionSheet)`                                                          |
+| Commands from a button or ⋮ / ⋯                     | Menu (dropdown menu)                                                 | `DropdownMenu`, `DropdownMenuItem`                                              | Pull-down button (⋯ More)                                                              | `Menu` · `UIButton.menu` + `showsMenuAsPrimaryAction`                                                              |
+| Actions for one item, on long press                 | Menu anchored to the item                                            | `DropdownMenu`                                                                  | Context menu                                                                           | `.contextMenu` · `UIContextMenuInteraction`                                                                        |
+| Pick one value, shown in place                      | Exposed dropdown menu                                                | `ExposedDropdownMenuBox`                                                        | Pop-up button                                                                          | `Picker` + `.pickerStyle(.menu)` · `UIButton.changesSelectionAsPrimaryAction`                                      |
+| A main action with related alternatives             | Split button                                                         | `SplitButtonLayout`                                                             | Pull-down button with a primary action                                                 | `Menu(primaryAction:)`                                                                                             |
+| Switch 2–5 peer views or options in content         | Button group (segmented button is legacy)                            | `ButtonGroup`, `ToggleButton`, `SingleChoiceSegmentedButtonRow`                 | Segmented control                                                                      | `Picker` + `.pickerStyle(.segmented)` · `UISegmentedControl`                                                       |
+| Organize content across views within a screen       | Tabs (primary, secondary)                                            | `PrimaryTabRow`, `SecondaryTabRow`, `Tab`                                       | Segmented control (tab views are macOS)                                                | `Picker` + `.pickerStyle(.segmented)` · `UISegmentedControl`                                                       |
+| An action                                           | Button: filled, filled tonal, outlined, elevated, text               | `Button`, `FilledTonalButton`, `OutlinedButton`, `ElevatedButton`, `TextButton` | Button: bordered prominent, bordered, borderless; glass prominent and glass on iOS 26  | `.buttonStyle(.borderedProminent / .bordered / .borderless / .glassProminent / .glass)` · `UIButton.Configuration` |
+| An icon-only action                                 | Icon button (standard, filled, tonal, outlined)                      | `IconButton`, `FilledIconButton`, `FilledTonalIconButton`, `OutlinedIconButton` | Button with an SF Symbol (toolbar item in bars)                                        | `Button` + `Image(systemName:)` · `UIBarButtonItem`                                                                |
+| An icon-only action that shows on or off            | Icon toggle button (standard, filled, outlined)                      | `IconToggleButton`, `FilledIconToggleButton`, `OutlinedIconToggleButton`        | Button with an SF Symbol and the selected trait                                        | `Button` + `.accessibilityAddTraits(.isSelected)`                                                                  |
+| Filter content                                      | Filter chip                                                          | `FilterChip`                                                                    | Toggle (button style)                                                                  | `Toggle` + `.toggleStyle(.button)`                                                                                 |
+| Suggested or contextual action, or an entered value | Assist, suggestion and input chips                                   | `AssistChip`, `SuggestionChip`, `InputChip`                                     | — (search tokens for search scopes)                                                    | `.searchable(text:tokens:)`                                                                                        |
+| Turn one setting on or off                          | Switch                                                               | `Switch`                                                                        | Toggle (switch style)                                                                  | `Toggle` · `UISwitch`                                                                                              |
+| Choose one of a set in a list                       | Radio button                                                         | `RadioButton`                                                                   | List rows with a checkmark (inline picker)                                             | `Picker` + `.pickerStyle(.inline)` · `UITableViewCell.accessoryType = .checkmark`                                  |
+| Choose several of a set                             | Checkbox                                                             | `Checkbox`, `TriStateCheckbox`                                                  | List rows with a checkmark (checkboxes are macOS)                                      | `List(selection:)` · `.checkmark` accessory                                                                        |
+| Choose from a range                                 | Slider                                                               | `Slider`, `RangeSlider`                                                         | Slider                                                                                 | `Slider` · `UISlider`                                                                                              |
+| Enter text                                          | Text field (filled, outlined)                                        | `TextField`, `OutlinedTextField`, `SecureTextField`                             | Text field; text view for long multiline text                                          | `TextField`, `SecureField`, `TextEditor` · `UITextField`, `UITextView`                                             |
+| Search                                              | Search (search bar, search view)                                     | `SearchBar`, `DockedSearchBar`, `ExpandedFullScreenSearchBar`                   | Search field                                                                           | `.searchable` · `UISearchController`                                                                               |
+| Pick a date or time                                 | Date picker, time picker                                             | `DatePicker`, `DatePickerDialog`, `TimePicker`                                  | Picker (date picker: compact, wheels, graphical)                                       | `DatePicker` · `UIDatePicker`                                                                                      |
+| Rows of related content or settings                 | List (list items, one- to three-line)                                | `ListItem`, `LazyColumn`                                                        | Lists and tables (inset grouped for settings)                                          | `List`, `Form`, `Section` · `UICollectionView` list, `UITableView`                                                 |
+| One subject's content and actions                   | Card (elevated, filled, outlined)                                    | `Card`, `ElevatedCard`, `OutlinedCard`                                          | — (a section of an inset grouped list)                                                 | `Section`                                                                                                          |
+| Separate groups                                     | Divider                                                              | `HorizontalDivider`                                                             | Separator                                                                              | `Divider` · list row separators                                                                                    |
+| A count or status on an icon                        | Badge                                                                | `Badge`, `BadgedBox`                                                            | Badge (on tab bar items and app icons)                                                 | `.badge` · `UITabBarItem.badgeValue`                                                                               |
+| Short wait                                          | Loading indicator                                                    | `LoadingIndicator`                                                              | Progress indicator (activity indicator, indeterminate)                                 | `ProgressView()` · `UIActivityIndicatorView`                                                                       |
+| Known progress                                      | Progress indicator (linear, circular)                                | `LinearProgressIndicator`, `CircularProgressIndicator`                          | Progress indicator (progress bar)                                                      | `ProgressView(value:)` · `UIProgressView`                                                                          |
+| Refresh a list                                      | Pull to refresh                                                      | `PullToRefreshBox`                                                              | Refresh control                                                                        | `.refreshable` · `UIRefreshControl`                                                                                |
+| Brief message about an app process                  | Snackbar                                                             | `Snackbar`, `SnackbarHost`                                                      | —                                                                                      | —                                                                                                                  |
+| Label or hint for an element                        | Tooltip                                                              | `TooltipBox`, `PlainTooltip`                                                    | — on iPhone (help tags are macOS and iPadOS pointer)                                   | —                                                                                                                  |
+| Scroll through a set of items horizontally          | Carousel                                                             | `HorizontalMultiBrowseCarousel`                                                 | Collection; page control for ordered pages                                             | `ScrollView(.horizontal)`, `TabView` + `.tabViewStyle(.page)` · `UICollectionView`, `UIPageControl`                |
+| Go back                                             | System Back and predictive back; top app bar navigation icon         | `BackHandler`, `PredictiveBackHandler`                                          | Back button and the interactive pop (edge or content swipe)                            | `NavigationStack` · `UINavigationController`                                                                       |
+
+How this app pairs them today (`apps/mobile/DESIGN.md`, #3002):
+
+- Buttons: primary → filled ↔ bordered prominent (glass prominent on iOS 26); secondary and tonal → filled tonal ↔ bordered (glass); text → text button ↔ borderless; danger → filled with the Material error colours ↔ the destructive role.
+- Sheets: Android `ModalBottomSheet` ↔ iOS form sheet with detents (`presentation: 'formSheet'` through Expo Router, or SwiftUI `BottomSheet` in `@expo/ui`).
+- The Chats "-1 screen": Android `DismissibleNavigationDrawer` ↔ iOS retained navigation pages, Workspaces beside the complete Chats tab shell (`UIPageViewController` through `PagerView`).
+- Top-level navigation: Android navigation bar with a creation FAB ↔ the iOS tab island with its **+** (a custom surface, ADR-0235).
+- Activity and workspace tabs: Android primary tabs (`PrimaryTabRow`).
+- Settings screens: Android segmented list of list items ↔ iOS inset grouped list (SwiftUI `Form` with `Section`, `Label`, `Toggle`, menu `Picker`, `LabeledContent`), through `SettingsForm`.

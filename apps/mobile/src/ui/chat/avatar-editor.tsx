@@ -7,7 +7,6 @@ import { pressTint, useDesignTheme } from '../design/theme';
 import { edge, space } from '../design/tokens';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
-import { ChevronRightIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 
 export interface AvatarActions {
@@ -111,7 +110,7 @@ export function AvatarSettings({
           testID={`${testID}-change`}
           title={t.avatarChange}
           leading={portrait}
-          trailing={<ChevronRightIcon color={theme.color.muted} size={theme.type.body.line} />}
+          control={{ kind: 'chevron' }}
           onPress={editor.busy ? undefined : () => void editor.choose()}
         />
         {hasAvatar ? (

@@ -1,4 +1,10 @@
-import { Stack, useFocusEffect, useIsFocused, useNavigationContainerRef } from 'expo-router';
+import { Stack, useNavigationContainerRef } from 'expo-router';
+import {
+  useProfileFocused,
+  useProfileFocusEffect,
+  RevealProfileConversation,
+} from './profile-visibility';
+import { useContext } from 'react';
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { FlatList, Pressable, View } from 'react-native';
 
@@ -17,6 +23,7 @@ import { Text } from '../primitives/text';
 import { conversationHref } from '../shell/open-conversation';
 import { navigateChannel } from '../shell/channel-navigation';
 import { useStrings } from '../strings';
+import { useMounted } from '../mounted';
 import { FileTypeIcon, fileTypeLabel } from './channel-media';
 import { ImageViewer } from './image-viewer';
 import { fileSize } from './message-attachments';
@@ -43,6 +50,7 @@ function Files(place: FilesPlace & { client: HostClient }) {
         }}
       />
       <FlatList
+        ref={list.mount}
         testID="channel-files-list"
         style={{ flex: 1, backgroundColor: theme.color.base }}
         contentInsetAdjustmentBehavior="automatic"
@@ -61,12 +69,13 @@ function Files(place: FilesPlace & { client: HostClient }) {
 
 export function useChannelFilesList(
   { client, channelId, hostId, botSlug }: FilesPlace & { client: HostClient },
-  active = true,
+  { active = true, retain = false }: { active?: boolean; retain?: boolean } = {},
 ) {
   const t = useStrings();
   const theme = useDesignTheme();
   const navigation = useNavigationContainerRef();
-  const focused = useIsFocused();
+  const focused = useProfileFocused();
+  const revealConversation = useContext(RevealProfileConversation);
   const host = useHostSnapshot(client, focused);
   const files = useMemo(() => createChannelFiles({ host: client, channelId }), [client, channelId]);
   const snapshot = useSyncExternalStore(files.subscribe, files.getSnapshot);
@@ -77,9 +86,24 @@ export function useChannelFilesList(
   const live = useRef(false);
   const lifecycle = useRef(0);
   const sharePending = useRef(false);
-  useFocusEffect(
+  const [visited, setVisited] = useState(active);
+  const attached = active || (retain && visited);
+  const mount = useMounted<unknown>(() => () => files.stop(), [files]);
+  useProfileFocusEffect(
     useCallback(() => {
       if (!active) return;
+      setVisited(true);
+      return () => {
+        lifecycle.current++;
+        sharePending.current = false;
+        setSharing(undefined);
+        setPreviewKey(undefined);
+      };
+    }, [active]),
+  );
+  useProfileFocusEffect(
+    useCallback(() => {
+      if (!attached) return;
       live.current = true;
       sharePending.current = false;
       setSharing(undefined);
@@ -87,9 +111,10 @@ export function useChannelFilesList(
       return () => {
         live.current = false;
         lifecycle.current++;
-        files.stop();
+        if (retain) files.pause();
+        else files.stop();
       };
-    }, [files, active]),
+    }, [files, attached, retain]),
   );
   const available =
     focused && active && snapshot.status === 'ready' && host.connection.status === 'connected';
@@ -155,6 +180,7 @@ export function useChannelFilesList(
       ),
     );
     if (!opened) setSourceUnavailable(true);
+    else revealConversation?.();
   };
   const author = ({ author: sender }: ChannelFile) =>
     sender.kind === 'human'
@@ -285,6 +311,7 @@ export function useChannelFilesList(
     );
   };
   return {
+    mount,
     files: snapshot.files,
     status: snapshot.status,
     hasOlder: snapshot.hasOlder,
@@ -294,6 +321,7 @@ export function useChannelFilesList(
       if (available) setPreviewKey(item.key);
     },
     openActions: (item: ChannelFile) => openActions(item),
+    loaded: snapshot.loaded,
     header:
       notice === undefined ? undefined : (
         <View style={{ gap: space.x3, paddingBottom: space.x5 }}>
@@ -313,9 +341,9 @@ export function useChannelFilesList(
         </View>
       ),
     empty:
-      snapshot.status === 'opening' ? (
+      snapshot.status === 'opening' && !snapshot.loaded ? (
         <LoadingIndicator />
-      ) : snapshot.status === 'ready' ? (
+      ) : snapshot.status === 'ready' || snapshot.loaded ? (
         <Text tone="muted">
           {snapshot.hasOlder ? t.channelFiles.noRecent : t.channelFiles.empty}
         </Text>

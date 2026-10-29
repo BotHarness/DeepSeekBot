@@ -15,6 +15,7 @@ import { decideFromPush, removeFromPush } from './push-actions';
 import { removeDevice } from './pairing';
 import { t } from '../ui/strings';
 import { decideApproval } from './requests';
+import { recordFeature } from '../telemetry/features';
 
 class RoutingFailure extends Error {}
 
@@ -125,7 +126,7 @@ export function usePushRouting(
                     carrier: nativeCarrier(),
                   });
                   try {
-                    return await decideApproval(client, ref, outcome);
+                    return await decideApproval(client, ref, outcome, 'notification');
                   } finally {
                     client.stop();
                   }
@@ -185,6 +186,7 @@ export function usePushRouting(
     const offTap = onNotificationTap((data, action) => {
       const target = parsePushData(data);
       if (target === undefined) return;
+      if (action === undefined) recordFeature('notification:push_open', {});
       version++;
       waiting?.abort();
       queue.push({

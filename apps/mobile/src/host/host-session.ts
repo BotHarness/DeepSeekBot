@@ -11,6 +11,7 @@ import { createInbox, type Inbox, type InboxSnapshot } from './inbox';
 import { createConversation, type Conversation, type ConversationSnapshot } from './conversation';
 import { createConversationPlayback, type ConversationPlayback } from './conversation-playback';
 import { useVisibleSnapshot } from './use-visible-snapshot';
+import { hostAvailabilitySource } from './host-availability';
 import { currentHost, selectHost, withHost, withoutHost, type SavedHosts } from './hosts';
 import { clearHostConversationCache, nativeConversationCache } from './native-cache';
 import { conversationFilter } from './native-conversation-filter';
@@ -411,6 +412,12 @@ export function useHostSessions(visible = true): readonly ConnectedHost[] {
   return useVisibleSnapshot(feedSource, visible);
 }
 
+const availability = hostAvailabilitySource(feedSource);
+
+export function useHostAvailability(visible = true) {
+  return useVisibleSnapshot(availability, visible);
+}
+
 export function usePushStatus(): PushStatus {
   return useSyncExternalStore(pushSession.subscribe, pushSession.getSnapshot);
 }
@@ -566,9 +573,11 @@ const closed: ConversationSnapshot = {
 function useConversationForeground(
   conversation: Conversation | undefined,
   playback?: ConversationPlayback,
+  visible = true,
 ) {
   useFocusEffect(
     useCallback(() => {
+      if (!visible) return;
       const foreground = (active: boolean) => {
         conversation?.setForeground?.(active);
         playback?.setActive(active);
@@ -581,7 +590,7 @@ function useConversationForeground(
         subscription.remove();
         foreground(false);
       };
-    }, [conversation, playback]),
+    }, [conversation, playback, visible]),
   );
 }
 
@@ -607,13 +616,16 @@ export function useStreamPlayback(conversation: Conversation | undefined, enable
 export function useConversationTimelineSnapshot(
   conversation: Conversation | undefined,
   playback?: ConversationPlayback,
+  visible = true,
 ) {
-  useConversationForeground(conversation, playback);
-  return useSyncExternalStore(
-    useCallback(
-      (listener: () => void) => (playback ?? conversation)?.subscribe(listener) ?? (() => {}),
-      [conversation, playback],
-    ),
-    () => conversation?.getTimelineSnapshot() ?? closed,
+  useConversationForeground(conversation, playback, visible);
+  const source = useMemo(
+    () => ({
+      subscribe: (listener: () => void) =>
+        (playback ?? conversation)?.subscribe(listener) ?? (() => {}),
+      getSnapshot: () => conversation?.getTimelineSnapshot() ?? closed,
+    }),
+    [conversation, playback],
   );
+  return useVisibleSnapshot(source, visible, true);
 }
