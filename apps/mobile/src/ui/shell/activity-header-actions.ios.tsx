@@ -1,5 +1,6 @@
 import { Button, HStack, Host, Image } from '@expo/ui/swift-ui';
 import {
+  accessibilityAddTraits,
   accessibilityIdentifier,
   accessibilityLabel,
   buttonStyle,
@@ -50,6 +51,7 @@ export function ActivityHeaderActions({
           modifiers={[
             buttonStyle('plain'),
             accessibilityLabel(t.activityOptions),
+            accessibilityAddTraits(filtered ? ['isSelected'] : []),
             accessibilityIdentifier('activity-filter-button'),
           ]}
         >
