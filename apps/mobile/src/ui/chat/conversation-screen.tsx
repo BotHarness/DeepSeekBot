@@ -87,6 +87,7 @@ import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
 import { WorkingStatus } from './working-status';
 import { ChatTitle } from './chat-title';
+import { HeaderIconButton } from '../shell/header-icon-button';
 import { Composer, type ComposerInput } from './composer';
 import { DraftSaveNotice } from './draft-save-notice';
 import { ClipboardImageOffer, useClipboardImage } from './clipboard-image';
@@ -1191,6 +1192,15 @@ function ChatConversation({
       onPress={openProfile}
     />
   );
+  const canOpenProfile = saved !== undefined && !hostRefused && !missing && selected === undefined;
+  const profileButton = canOpenProfile ? (
+    <HeaderIconButton
+      icon="more"
+      label={t.openProfile}
+      testID="chat-profile-button"
+      onPress={openProfile}
+    />
+  ) : null;
   const ios = Platform.OS === 'ios';
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
   const titleItem = (
@@ -1267,7 +1277,18 @@ function ChatConversation({
                 title: '',
                 headerTitle: '',
                 headerBackVisible: canGoBack && !headerIslands,
-                unstable_headerRightItems: () => [],
+                unstable_headerRightItems: () =>
+                  canOpenProfile
+                    ? [
+                        {
+                          type: 'button' as const,
+                          label: t.openProfile,
+                          identifier: 'chat-profile-button',
+                          icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
+                          onPress: openProfile,
+                        },
+                      ]
+                    : [],
                 unstable_headerLeftItems: () => [
                   ...(headerIslands
                     ? [{ type: 'custom' as const, element: back }]
@@ -1290,7 +1311,7 @@ function ChatConversation({
               }
             : {
                 headerTitleAlign: 'left' as const,
-                headerRight: () => null,
+                headerRight: () => profileButton,
                 headerTitle: () => (
                   <View
                     key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
@@ -1714,7 +1735,8 @@ function ChatConversation({
             }}
           >
             {back}
-            {titleItem}
+            <View style={{ flex: 1, minWidth: 0 }}>{title}</View>
+            {profileButton}
           </View>
         ) : null}
       </EndSheet>

@@ -7,6 +7,7 @@ import { materialIconButton } from '../design/tokens';
 import type { HeaderIcon, HeaderIconButtonProps } from './header-icon-button';
 
 const icons: Record<HeaderIcon, number> = {
+  more: require('../../../assets/header/more-vert.xml'),
   back: require('../../../assets/header/arrow-back.xml'),
   close: require('../../../assets/header/close.xml'),
   clear: require('../../../assets/header/close.xml'),
