@@ -12,10 +12,11 @@ import { t } from '../strings';
 export type CreationMenuItem = {
   key: string;
   label: string;
-  action: CreationAction;
   target?: CreationTarget;
-  children?: CreationMenuItem[];
-};
+} & (
+  | { action: CreationAction; children?: CreationMenuItem[] }
+  | { action: 'import'; children: CreationMenuItem[] }
+);
 
 export function creationMenuItems({
   scope,
@@ -26,8 +27,8 @@ export function creationMenuItems({
 }): CreationMenuItem[] {
   const actions = creationActions(scope, targets);
   if (nativeChannelForm && scope === 'all' && !actions.includes('channel'))
-    actions.splice(4, 0, 'channel');
-  return actions
+    actions.splice(3, 0, 'channel');
+  const items = actions
     .filter((action) => cloudAvailable || action !== 'join')
     .map((action) => {
       const choices = targetsFor(action, scope, targets);
@@ -58,4 +59,12 @@ export function creationMenuItems({
       } else if (scope !== 'all' && choices[0]) item.target = choices[0];
       return item;
     });
+  const imports = items.filter((item) => item.action === 'zip' || item.action === 'git');
+  return items.flatMap((item): CreationMenuItem[] => {
+    if (item === imports[0])
+      return [
+        { key: 'import', label: t.botCreation.importBot, action: 'import', children: imports },
+      ];
+    return imports.includes(item) ? [] : [item];
+  });
 }

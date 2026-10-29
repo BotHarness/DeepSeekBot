@@ -79,7 +79,7 @@ it('joins directly without inventing a Computer target', async () => {
   expect(pick).toHaveBeenCalledWith('join');
 });
 
-it('exposes all four source entries directly and carries only the selected Computer', async () => {
+it('groups import sources and carries only the selected Computer', async () => {
   await render(computerEnvironmentKey('mac'));
   for (const [label, action] of [
     [t.botCreation.blank, 'bot'],
@@ -87,7 +87,9 @@ it('exposes all four source entries directly and carries only the selected Compu
     [t.marketplace.browse, 'marketplace'],
     [t.botCreation.fromGit, 'git'],
   ]) {
+    if (action === 'zip' || action === 'git') await click(t.botCreation.importBot);
     await click(label!);
+    if (action === 'zip' || action === 'git') await click(t.back);
     expect(pick).toHaveBeenLastCalledWith(action, expect.objectContaining({ hostId: 'mac' }));
   }
 });

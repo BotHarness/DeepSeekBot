@@ -1,8 +1,9 @@
 import type { CreationAction } from '../../host/creation-targets';
 
-export type FabMenuIcon = CreationAction | 'back' | 'computer' | 'cloud';
+export type FabMenuIcon = CreationAction | 'import' | 'back' | 'computer' | 'cloud';
 
 export const fabMenuPath: Record<FabMenuIcon, string> = {
+  import: 'M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z',
   bot: 'M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z',
   zip: 'M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-2 6h-2v2h2v2h-2v2h-2v-2h2v-2h-2v-2h2v-2h-2V8h2v2h2v2z',
   marketplace:

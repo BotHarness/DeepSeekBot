@@ -62,8 +62,8 @@ export function creationActions(
 ): CreationAction[] {
   const actions: CreationAction[] =
     scope === 'all'
-      ? ['bot', 'zip', 'marketplace', 'git', 'channel', 'join']
-      : ['bot', 'zip', 'marketplace', 'git', 'channel', 'invite'];
+      ? ['bot', 'zip', 'git', 'channel', 'marketplace', 'join']
+      : ['bot', 'zip', 'git', 'channel', 'marketplace', 'invite'];
   return actions.filter(
     (action) =>
       action === 'join' ||
