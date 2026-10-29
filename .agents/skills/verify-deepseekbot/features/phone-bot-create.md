@@ -57,7 +57,7 @@ Use the designated [shared device QA runner](../../../../docs/agents/device-qa.m
 
 Pair visible evidence with CLI `create-status` using the saved operation key and exact submitted input, canonical Bot/DM reads, and bounded redacted transport logs. Source tests cover deterministic lost-response and storage-failure branches; do not report those as native fault-injection results unless actually driven.
 
-Marketplace pagination: with a catalogue spanning multiple pages, opening the list must request only its bounded first page. Scroll near the end to append the next page without moving the current rows; repeated end events must coalesce. Capture the footer loading indicator, a failed-page retry that preserves existing rows, successful retry and the terminal page. Change query/topic/sort while a page is pending and verify the old response never appears in the new scope. Record visible rows alongside redacted request/cursor evidence; a catalogue with only one page does not qualify multi-page behavior.
+Marketplace pagination: with a catalogue spanning multiple pages, opening the list must request only its bounded first page. Scroll near the end to append the next page without moving the current rows; repeated end events must coalesce. Also invoke the accessible Load more footer without a touch scroll, including a short first page, keyboard and TalkBack paths. Capture the footer loading indicator, a failed-page retry that preserves existing rows, successful retry and the terminal page. Change query/topic/sort while a page is pending and verify the old response never appears in the new scope. Record visible rows alongside redacted request/cursor evidence; a catalogue with only one page does not qualify multi-page behavior.
 
 ## Gotchas
 

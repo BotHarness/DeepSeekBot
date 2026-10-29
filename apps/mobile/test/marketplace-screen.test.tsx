@@ -482,3 +482,28 @@ it('keeps loaded catalogue artwork out of search-open and draft-edit renders', a
   await act(async () => button(t.closeSearch).click());
   expect(fixture.imageRenders).toBe(rendered);
 });
+
+it('loads another page through the accessible action without a touch scroll', async () => {
+  const requests: string[] = [];
+  fixture.fetch.mockImplementation(async (url) => {
+    const request = new URL(String(url));
+    if (request.pathname !== '/v1/bots') return Response.json({ topics: [] });
+    requests.push(request.search);
+    return Response.json(
+      request.searchParams.has('cursor')
+        ? { bots: [{ ...bot, id: 'accessible-second' }] }
+        : { bots: [{ ...bot, id: 'accessible-first' }], nextCursor: 'accessible-next' },
+    );
+  });
+  await act(async () => root.render(<MarketplaceScreen />));
+  const more = element.querySelector<HTMLButtonElement>('[data-testid="marketplace-more"]');
+  expect(more).not.toBeNull();
+  expect(more?.getAttribute('aria-label') ?? more?.textContent).toBe(t.marketplace.more);
+  const before = requests.length;
+  await act(async () => more!.click());
+  expect(requests).toHaveLength(before + 1);
+  expect(requests.at(-1)).toContain('cursor=accessible-next');
+  expect(element.querySelector('[data-testid="marketplace-bot-accessible-first"]')).not.toBeNull();
+  expect(element.querySelector('[data-testid="marketplace-bot-accessible-second"]')).not.toBeNull();
+  expect(element.querySelector('[data-testid="marketplace-more"]')).toBeNull();
+});
