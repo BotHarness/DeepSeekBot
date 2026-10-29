@@ -6,7 +6,501 @@ Unreleased entries arrive as [change fragments](changes/README.md) and are folde
 
 ## [Unreleased]
 
-No changes since 1.5.2 yet.
+No changes since 1.6.0 yet.
+
+## [1.6.0] - 2026-10-29
+
+Tobs adds a Simple layout mode, the Bot Marketplace with uploads and pre-install review, Assignment work views by Orchestrator round, QQ private messages and Bot-to-Bot mentions in Lark and Discord, and many desktop and mobile fixes.
+
+Mobile entries describe independently versioned app changes; this npm release does not publish or qualify Android/iOS binaries.
+
+### Fixed
+
+- Coordinate Android chat scrolling with the native keyboard while preserving virtualized history, held reading positions and inset-aware return-to-latest targets ([#1806](https://github.com/BotHarness/DeepSeekBot/issues/1806)).
+
+- Fixed unreadable stored Channel messages blocking new messages: they are now shown as a placeholder so new messages can still be sent ([#1956](https://github.com/BotHarness/DeepSeekBot/issues/1956)).
+
+- A long Bot mode conversation costs far less CPU while something on screen animates. Message groups far from the viewport now skip style, layout and paint while keeping their exact height, and their avatars stop tracking visibility; with 600 messages and one running animation, idle main-thread time dropped from about 25% to about 14% ([#2413](https://github.com/BotHarness/DeepSeekBot/issues/2413)).
+
+- Typing in a long Bot mode conversation keeps up again. Each key used to re-render every message in the timeline, recompute Bot name colours and rebuild approval lookups for every message group; with 600 messages the median key event took about 270 ms to reach the screen. The timeline now skips messages that did not change, and the median is about 50 ms ([#2413](https://github.com/BotHarness/DeepSeekBot/issues/2413)).
+
+- Long Bot mode conversations use far less memory and CPU. Message groups far from the viewport are no longer mounted; a spacer keeps their exact height, so scrolling does not jump. With 600 messages loaded, the page holds about 11 messages instead of 600, the heap dropped from about 93 MB to about 42 MB, and idle main-thread time with one running animation dropped from about 13% to about 10% ([#2413](https://github.com/BotHarness/DeepSeekBot/issues/2413)).
+
+- On iOS and Android, group and Bot DM profiles now offer distinct Change avatar and Chat background settings; tap either large portrait or its settings row to choose an avatar, with cancellation, removal and retry. Bot profiles also support renaming, and a new Bot can open its chat background before a DM id is cached ([#2780](https://github.com/BotHarness/DeepSeekBot/issues/2780)).
+
+- Fixed mobile All environments showing only one paired Computer: Chats now combines online Computers, keeps one collapsible Pinned section, aggregates Activity and its badge, and keeps conversations, approvals, answers and notification navigation on their own source ([#2782](https://github.com/BotHarness/DeepSeekBot/issues/2782)).
+
+- Fixed All environments refusing a Group or Bot Profile when its route belongs to another connected Computer; group notification settings retain that source, and chat sections no longer spread React's reserved key into headers ([#2782](https://github.com/BotHarness/DeepSeekBot/issues/2782)).
+
+- Fixed Desktop appearance, font size and font choices rolling back after installing Tobs 1.5.2: the Bundle no longer replaces the native theme row, so Settings saves them again and they survive restarts. Whole-window zoom on Desktop is again enabled with `deepseekbot-zoom-setup enable` ([#2788](https://github.com/BotHarness/DeepSeekBot/issues/2788)).
+
+- Fixed complete environment backups being blocked by an exact DSH release check. New backups record actual runtime provenance, historical v1 backups remain readable, and Settings distinguishes upgrade requirements from damaged files, groups export/import actions and reveals detailed recovery guidance on demand. Upgrade Tobs before reading new v2 archives with an older installation ([#2790](https://github.com/BotHarness/DeepSeekBot/issues/2790), [#2794](https://github.com/BotHarness/DeepSeekBot/issues/2794)).
+
+- Long messages now stay expanded by default. Enable Auto-collapse long messages in Bot settings → Messaging to use folding ([#2797](https://github.com/BotHarness/BotHarness/issues/2797)).
+
+- Fixed mobile interrupted-processing details failing to open Bot-to-Bot conversations. Notification and interruption entries now reuse an existing conversation in the same Host, preserve Back for new destinations, and show unavailable-message or connection feedback ([#2798](https://github.com/BotHarness/DeepSeekBot/issues/2798)).
+
+- Fixed mobile Profile Message opening the previous page instead of the selected Bot's conversation. Chats, Activity and conversation shortcuts now share scoped conversation navigation, including return to an existing conversation without duplicate pages ([#2799](https://github.com/BotHarness/DeepSeekBot/issues/2799)).
+
+- Mobile workspace selection now clears old detail and sheet history after a successful switch while retaining the existing Chats and Activity roots. Failed switches retain the current page, and account replacement or unpairing removes stale scoped pages from Back ([#2800](https://github.com/BotHarness/DeepSeekBot/issues/2800)).
+
+- Cloud conversation details now create a real mobile navigation step: system and in-page Back agree, direct links have a reachable channel list, and repeated entries reuse the same account-scoped detail while keeping unsent drafts ([#2801](https://github.com/BotHarness/DeepSeekBot/issues/2801)).
+
+- Mobile conversations show a loading skeleton while history opens and wait for overflowing history to reach the latest message before revealing it; failed earlier pages can be retried without losing loaded messages ([#2806](https://github.com/BotHarness/BotHarness/issues/2806)).
+
+- Prevented Android hardware Enter from sending a message while confirming composed text, including delayed input-method key or newline echoes; changing input focus clears the previous field’s pending send key ([#2820](https://github.com/BotHarness/DeepSeekBot/issues/2820)).
+
+- Prevented iOS and iPadOS Command+Return from sending marked text or using a cached shortcut after focus leaves the composer; the next normal shortcut still sends once ([#2820](https://github.com/BotHarness/DeepSeekBot/issues/2820)).
+
+- Fixed mobile draft recovery after a storage read failure so new input cannot overwrite other conversations' saved drafts; failed saves retain editable text and offer Retry before sending ([#2820](https://github.com/BotHarness/DeepSeekBot/issues/2820)).
+
+- Added an explicit JS-only profiling mode for mobile production JavaScript without a React DevTools hook, keeping unavailable React measurements distinct from CPU and JS-frame samples ([#2820](https://github.com/BotHarness/DeepSeekBot/issues/2820)).
+
+- Fixed mobile pending-message retention across chat navigation, first-time navigation to older messages, and iOS Bot creation layout at large accessibility text sizes ([#2837](https://github.com/BotHarness/DeepSeekBot/issues/2837)).
+
+- Private credential tools now explain how to select the current IM request when several requests share a turn, distinguish source and account refusals, and reuse configured accounts without requiring a Web notification address. The direct Bot CLI can exercise the same registered tools and approval checks without the model ([#2847](https://github.com/BotHarness/DeepSeekBot/issues/2847)).
+
+- A profile whose database was edited outside the app, leaving rows without their parent, opens normally again instead of hiding every Bot behind `integrity-failed`. When the database really is damaged, the error now names what SQLite found ([#2849](https://github.com/BotHarness/DeepSeekBot/issues/2849)).
+
+- The Bot Marketplace panel no longer clips its sort tabs in a narrow column. When Newest, Recently updated and Most stars do not fit side by side, the panel shows a Sort menu with the same choices ([#2865](https://github.com/BotHarness/DeepSeekBot/issues/2865)).
+
+- A Bot that sends work back to a colleague with @ wakes it on every round instead of only the first, and Bots in an all-messages Group see and can answer every colleague message, so multi-round reviews and department-style tasks between Bots no longer stall until a Human steps in; the collaboration hop limit is raised from 8 to 32 and only stops runaway loops; when a colleague still cannot be woken, the sending Bot is told and reports where the work stands. Bots also confirm receipt of longer tasks, report progress at milestones and finish with a result or explicit status ([#2872](https://github.com/BotHarness/DeepSeekBot/issues/2872)).
+
+- Kept custom-theme links and message text readable across Web and mobile; sending stays quiet for three seconds and delayed or failed delivery feedback stays beside the bubble without adding a row ([#2875](https://github.com/BotHarness/DeepSeekBot/issues/2875)).
+
+- Give conversation names the remaining heading width beside the environment icon and timestamp, and avoid truncating Android timestamps ([#2890](https://github.com/BotHarness/DeepSeekBot/issues/2890)).
+
+- A Bot set to wake only on direct mentions (or Silent) for ordinary Group messages is no longer woken by a louder per-Group or Channel setting; those settings can still make it quieter ([#2897](https://github.com/BotHarness/DeepSeekBot/issues/2897)).
+
+- The bundled IM Provider moves to `4.32.0-botharness.23` and ships the QQ fixes. Bots on DSH 0.2.1 can create sessions again instead of failing with `INTERNAL_UNKNOWN` ([#2896](https://github.com/BotHarness/DeepSeekBot/issues/2896)). Quoted, image and mixed QQ messages are no longer dropped ([#2895](https://github.com/BotHarness/DeepSeekBot/issues/2895)). Concurrent QQ group replies retry on 429 ([#2897](https://github.com/BotHarness/DeepSeekBot/issues/2897)). Late QQ results are delivered as passive replies ([#2868](https://github.com/BotHarness/DeepSeekBot/issues/2868)). QQ private messages arrive in Bot mode ([#2918](https://github.com/BotHarness/DeepSeekBot/issues/2918)).
+
+- Lark Bot mode replies that use Markdown are sent as a native Markdown card, so bold text, headings, lists and tables no longer show raw symbols. Plain replies and replies that @ someone stay text ([#2792](https://github.com/BotHarness/DeepSeekBot/issues/2792)).
+
+- Show the channel creation time beside new Bot DMs and group names in mobile Chats until their first message arrives, while preserving conversation sorting ([#2920](https://github.com/BotHarness/DeepSeekBot/issues/2920)).
+
+- Bot and Group Work lists show full Assignment titles and descriptions at large system text sizes instead of truncating them to two lines ([#2921](https://github.com/BotHarness/DeepSeekBot/issues/2921)).
+
+- Adding an Environment while creating or importing a Bot now returns to the current creation flow after customization, preserving its draft and step ([#2922](https://github.com/BotHarness/DeepSeekBot/issues/2922)).
+
+- Keep Android's creation menu from creating a Compose window while its screen is detached during pairing navigation ([#2922](https://github.com/BotHarness/DeepSeekBot/issues/2922)).
+
+- Fixed Bot startup failing with “tool-subagent-list-agents: never started” on newer source-built DSH versions, while retaining support for Hosts with a separate listing Plugin ([#2932](https://github.com/BotHarness/DeepSeekBot/issues/2932)).
+
+- Fixed iOS conversations going blank after returning from the background with the keyboard open, while preserving the draft and existing pairing ([#2933](https://github.com/BotHarness/BotHarness/issues/2933)).
+
+- Fixed a native step-bar module cycle that could prevent the mobile app from opening Bot creation and Environment selection ([#2945](https://github.com/BotHarness/DeepSeekBot/issues/2945)).
+
+- On Android, the busy spinner on check and save icon buttons no longer spills out of the button and gets cut off, and the Computer screen's left and right click buttons sit evenly around the scroll pad ([#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)).
+
+- Start a new Bot import without carrying the previous completed Bot's name, bio or tags into its first preview, and clear upload progress when the request finishes ([#2954](https://github.com/BotHarness/DeepSeekBot/issues/2954), [#2922](https://github.com/BotHarness/DeepSeekBot/issues/2922)).
+
+- A Bot keeps replying when its Memory directory is spelled differently from its chat Session's working directory, for example through a symlinked home or a `DSH_HOME` written another way. Before, the Host compared the two paths as plain text, so every message failed until a new Session was started. When the chat Session really runs in another directory, such as after the profile moved, the Host now moves the Bot to a new Session on its own instead of failing every message ([#2990](https://github.com/BotHarness/DeepSeekBot/issues/2990)).
+
+- "New Session" and moving Memory now work when the Bot's first Turn failed before its Session was saved, for example on a model-route error. Before, both failed with a generic error in exactly the state where the Human needed them. Compact-and-retry on such a Session now says there is nothing to compact and points to "New Session" ([#2992](https://github.com/BotHarness/DeepSeekBot/issues/2992)).
+
+- A Bot restored from an Environment backup keeps replying after you change its Model Preset or customize its model in the Bot Profile. Before, the restore kept checking the model authorized when the Bot was activated, so any later model change made every message fail with an activation error, and compact-and-retry hit the same wall. Activating the Bot now completes its restore; the Host still checks that each model is usable before a Turn. While a restored Bot is not yet active, the error now says to open Settings → Environment backup, choose Authorize model, then Activate Bot ([#2993](https://github.com/BotHarness/DeepSeekBot/issues/2993)).
+
+- A Bot replies again after DSH reloads a plugin or releases its Agent, instead of failing or hanging on every later message ([#2994](https://github.com/BotHarness/DeepSeekBot/issues/2994)).
+
+- Stop now frees a Bot whose Turn hangs before its Agent starts. When preparing the Turn (checking the model route, which lists the provider's models, or resuming the Session) never answered, the Bot looked idle with no Stop button, Stop from the CLI hung too, and every later message waited behind it until the Host restarted. The Bot now shows as thinking while it prepares, Stop ends that preparation, a preparation that runs past two minutes fails with a clear message, and the next message runs normally ([#2995](https://github.com/BotHarness/DeepSeekBot/issues/2995)).
+
+- On iPhone, swipe right from Chats to Workspaces and left back through native retained pages. Chats and its tab bar move together; looking at Workspaces preserves the environment, search and list position instead of rebuilding Chats ([#3017](https://github.com/BotHarness/DeepSeekBot/issues/3017)).
+
+- On iPhone, left-swipe from Chats into the last chat and then its profile through stable native pages. The original translucent header and leading Back remain, with a slightly deeper top fade. A native profile-title button preserves the reading position when opening the profile; child routes retain their explicit Computer identity ([#3109](https://github.com/BotHarness/DeepSeekBot/issues/3109)).
+
+- Android Bot creation/import ignores late tag input and submission events while busy, preserving the pending draft and shared native tag editor ([#3027](https://github.com/BotHarness/DeepSeekBot/issues/3027)).
+
+- Kept iOS chart inspection attached to the current selection while dragging across days, preserved tapped readings when no drag starts, and allowed chart hints to show their full value at larger text sizes ([#3032](https://github.com/BotHarness/DeepSeekBot/issues/3032)).
+
+- Reduced unnecessary Bot creation redraws and background updates while editing, and stopped fixed Android menu anchors from repeating layout with every keyboard inset change ([#3043](https://github.com/BotHarness/DeepSeekBot/issues/3043)).
+
+- On Android, Chats search results now show each conversation's own avatar as the same rounded square as the chat list, instead of a coloured circle with its first letter. Activity rows now look like the chat list: a rounded-square avatar, the name with its computer icon and time on the first line and the activity on the second, without the unread count or the spinning ring; an unread group conversation shows its group picture instead of the last Bot who wrote there ([#3054](https://github.com/BotHarness/DeepSeekBot/pull/3054)).
+
+- A Bot shared to the Marketplace keeps the avatar its owner set: drawn Avatars too large for `bot.json` now travel as an image plus their recipe, Marketplace cards show the shared avatar instead of one generated from the name, importing restores it, and one invalid field in `bot.json` (such as an over-long translated bio) no longer discards its name, avatar and banner ([#3056](https://github.com/BotHarness/DeepSeekBot/pull/3056)).
+
+- Android native tabs avoid a selection event collision that could prevent the app from opening ([#3081](https://github.com/BotHarness/DeepSeekBot/issues/3081)).
+
+- Unified mobile sheet colours and headers on iOS: Settings and Pairing open as native form sheets again, every sheet page shares one compact header on the sheet colour with Close or Back, and the assignment detail title no longer overlaps scrolled content ([#3112](https://github.com/BotHarness/DeepSeekBot/pull/3112)).
+
+- Keep loaded mobile Bot and Group profile tabs in place and let their pages follow horizontal drags, including reversing a partial swipe, while retaining the shared collapsible header ([#3127](https://github.com/BotHarness/DeepSeekBot/issues/3127)).
+
+- Bots recover when a tool-less request starts a declaration series and tools return on the next turn, instead of repeatedly failing with HTTP 400 because every tool is deferred; existing affected Sessions recover without clearing their history ([#3137](https://github.com/BotHarness/DeepSeekBot/issues/3137)).
+
+- Android bottom sheets now use one surface colour for the native drag-handle area and content ([#3146](https://github.com/BotHarness/DeepSeekBot/issues/3146)).
+
+- iOS destructive buttons, including Disband group confirmations, use the danger color instead of inheriting the normal blue accent ([#3170](https://github.com/BotHarness/DeepSeekBot/issues/3170)).
+
+- Fixed an open phone conversation retaining messages after its group is disbanded on another device; the screen now releases the conversation and shows the group as gone without a loading skeleton or a raw group ID ([#3171](https://github.com/BotHarness/DeepSeekBot/issues/3171)).
+
+- Kept the iOS Activity header steady when closing search, including larger text sizes ([#3172](https://github.com/BotHarness/DeepSeekBot/issues/3172)).
+
+- On Android, buttons that sit side by side show up again: Create and Cancel on a new Routine, Allow, Decline and Cancel for Group join requests and invitations, Copy, Screenshot and Cancel while selecting messages, and Edit draft and Discard after a Memory save conflict. Confirming Discard when leaving a Memory file with an unsaved draft now goes back once instead of asking again([#3148](https://github.com/BotHarness/DeepSeekBot/pull/3148), [#3113](https://github.com/BotHarness/DeepSeekBot/issues/3113), [#3108](https://github.com/BotHarness/DeepSeekBot/issues/3108)).
+
+- An Assignment no longer gets stuck refusing every request with "Assignment Session permission mode differs from its snapshot". When DSH already had the Assignment's Session live on its own (after a Host restart, for example) and its mode or approval policy had been changed outside the Host, the Host refused to take the Session over, and every later request and step failed the same way. The Host now puts the Session back on the Assignment's permission snapshot before checking it, both when taking it over and before every step. A revoked or moved Workspace Grant is still refused as before ([#2991](https://github.com/BotHarness/DeepSeekBot/issues/2991)).
+
+- A Bot no longer gets stuck answering every message with "Orchestrator Session permission differs from this PersonaBot's access setting". When DSH had already resumed the Bot's chat Session on its own (after a Host restart, for example) and full access had been switched since the Session last ran, the Host refused to take the Session over before it could put the Session back on the switch, so every later message, and compact-and-retry, failed the same way. The Host now aligns the Session to the switch first, as it does before every step ([#2985](https://github.com/BotHarness/DeepSeekBot/pull/2985)).
+
+- Choosing a folder to authorize no longer stalls for minutes when the computer has a disconnected network drive or a slow disk. The Host now reads folders in a separate process with a 5 second limit, so a stuck drive shows "This folder is not responding" instead of freezing the whole Host, and drive tabs come from the system's drive list without opening any drive. While a folder is slow, you can still click other drives or folders. Folders you just opened reopen instantly, very large folders load more on request, and on the computer running DSH the desktop opens the system folder dialog directly ([#2934](https://github.com/BotHarness/DeepSeekBot/issues/2934)).
+
+- On iOS 26 and later, pressing the chat's title chip now dims it inside its glass instead of painting a grey block, and the chip keeps a small gap from Back so the two glass shapes do not run together ([#3107](https://github.com/BotHarness/DeepSeekBot/pull/3107)).
+
+- iOS Bot, Group and Bot-pair profiles now fade in and out with system Reduce Motion, including changes made while the app is running; normal page pushes are preserved, while iOS27 edge-back remains under investigation in [#3109](https://github.com/BotHarness/DeepSeekBot/issues/3109) ([#3104](https://github.com/BotHarness/DeepSeekBot/issues/3104)).
+
+- Assignments now distinguish their required internal report transport from text-only work restrictions, so requests for a Markdown final answer do not leave the result in private Session text; missing reports still fail explicitly ([#3102](https://github.com/BotHarness/DeepSeekBot/issues/3102)).
+
+- On iOS, opening Chats search after visiting Tob Mode keeps the search field focused instead of immediately closing it ([#3117](https://github.com/BotHarness/DeepSeekBot/pull/3117)).
+
+- Keep the hosted Chats list mounted when opening search, switching focus or viewing environments, preserving its scroll position ([#3117](https://github.com/BotHarness/DeepSeekBot/pull/3117)).
+
+- On iOS, rows in a Bot's Routines list and the Inbox fill the full width again and truncate long titles with an ellipsis that keeps the chevron in view, instead of shrinking to their text and leaving the right side blank ([#3100](https://github.com/BotHarness/DeepSeekBot/pull/3100)).
+
+- On iOS, the workspace panel keeps its **Workspaces** title after you come back from Settings or notifications, and its **Pair new computer** button and environment list now use the same native rows as Settings ([#3123](https://github.com/BotHarness/DeepSeekBot/pull/3123)).
+
+- When you are signed in but the Market refuses the sign-in, Profile settings and Bot upload now say so and offer a retry. Before, Profile asked you to sign in again, and signing in again did not help ([#3165](https://github.com/BotHarness/DeepSeekBot/pull/3165)).
+
+- Action and context menus (for example a computer's ··· menu on the iOS workspace panel) no longer show blue icons or icons in a different colour from their labels: ordinary items are black in light mode and white in dark mode, and destructive items such as Unpair or Delete are red ([#3128](https://github.com/BotHarness/DeepSeekBot/pull/3128)).
+
+- On iOS, the Chats tab no longer shows the word "index" as a large title while it loads or when no computer is paired yet ([#3132](https://github.com/BotHarness/DeepSeekBot/pull/3132)).
+
+- On iOS, the Settings tab's large title now shrinks into the navigation bar as you scroll, like the system Settings app. Before, it stayed at full size and the rows slid underneath it ([#3178](https://github.com/BotHarness/DeepSeekBot/pull/3178)).
+
+- Extended the existing compaction controls with Web and mobile failure recovery: compact or start a new Orchestrator Session without resending a message, using distinct filled icon-and-label buttons. Unknown model capacity uses a labeled 200K estimate; the Web composer shows current context occupancy/capacity with detailed usage and private-DM maintenance controls; failure reports can upload only the selected turn input and tool calls after redaction ([#2329](https://github.com/BotHarness/BotHarness/pull/2329), [#2335](https://github.com/BotHarness/BotHarness/pull/2335)).
+
+- Unified icon-and-label actions across approvals, questions, grants and read failures; Session maintenance shares busy/results across entry points. Bot-mode settings use distinct filled controls for compact actions and appearance recovery ([#2851](https://github.com/BotHarness/DeepSeekBot/pull/2851)).
+
+- On iPhone, opening a chat's profile no longer scrolls the chat to the top first, and the profile's Back button keeps clear of the banner on both phones ([#3107](https://github.com/BotHarness/DeepSeekBot/pull/3107)).
+
+- Signing in from desktop Profile settings now starts the sign-in right there and shows the code to confirm, then the profile once you approve. Before, the button opened Connections, where the sign-in row sits behind Manage ([#3160](https://github.com/BotHarness/DeepSeekBot/pull/3160)).
+
+- A Bot whose last model was removed (its provider deleted or renamed) now answers again as soon as you pick an available Model Preset, in the same Session and with its context. Before, every message failed with `NO_ADAPTER` because the Host still sized the context with the removed model, and only a new Session helped ([#2988](https://github.com/BotHarness/DeepSeekBot/issues/2988)).
+
+- Storage cleanup preview no longer fails with "Something went wrong" when a Bot's Memory folder holds a link, a socket or another special file, misses its Git metadata, or is gone. The preview now skips those entries while still keeping attachments that Memory text mentions, and the Host log records the underlying error when a cleanup step does fail ([#2882](https://github.com/BotHarness/DeepSeekBot/issues/2882)).
+
+- Full access now also applies to the Subagents a Bot delegates to. Before, the Host put every Orchestrator Subagent back in `workspace-write` inside the Bot's Memory, so with full access on, delegated edits outside Memory were refused or landed in Memory with no explanation. Subagents of a full-access Assignment are no longer held to the Grant by native file tools either ([#2870](https://github.com/BotHarness/DeepSeekBot/issues/2870)).
+
+- The onboarding card above the Tob DM composer no longer touches the panel edges; it lines up with the composer below it ([#3103](https://github.com/BotHarness/DeepSeekBot/pull/3103)).
+
+- When the Host refuses a Bot's turn before it starts (the chat Session's working directory is not the Bot's Memory directory, the Session's permissions differ from the Bot's access setting, an Assignment's Workspace Grant was revoked, and so on), the chat's failure notice now says which check refused it and how to fix it, for example "Start a new session", instead of "Agent turn ended without completion: blocked" ([#2989](https://github.com/BotHarness/DeepSeekBot/issues/2989)).
+
+### Changed
+
+- Move mobile Bot activity into the chat header: DMs show the current step beside the avatar, and groups show up to three active Bot avatars without reserving message-list space ([#1806](https://github.com/BotHarness/DeepSeekBot/issues/1806)).
+
+- Follow settled streaming content growth with native scrolling, without interrupting it for unchanged size reports; held history and native keyboard motion retain their existing ownership ([#1806](https://github.com/BotHarness/DeepSeekBot/issues/1806)).
+
+- Smooth Android streaming bubble growth with one native paint boundary for background and text, without animating message-list layout; respect reduced motion ([#1806](https://github.com/BotHarness/DeepSeekBot/issues/1806)).
+
+- Orchestrators no longer start DSH Subagents; they delegate with `create_assignment`, and only Assignments keep `bot_subagent` and `bot_subagent_fork`. `deepseekbot bot-tool` runs those tools on an Assignment named with `--session` ([#1961](https://github.com/BotHarness/DeepSeekBot/issues/1961)).
+
+- Orchestrator and Assignment rows in the Sessions and Group Work panels show the model the Session last ran on, or its configured model before it has run, and a single Subagent tool call reads "1 tool call" ([#1961](https://github.com/BotHarness/DeepSeekBot/issues/1961)).
+
+- Chats shows environment names only in All environments; individual environments keep their icon, and aggregate environment labels truncate earlier to leave more space for conversation names ([#2782](https://github.com/BotHarness/DeepSeekBot/issues/2782)).
+
+- Mobile aggregate Activity shows each environment’s colored icon, Chats keeps the environment label beside its first-line icon, and newly paired environments receive distinct icon and color defaults ([#2782](https://github.com/BotHarness/DeepSeekBot/issues/2782)).
+
+- Fixed conversation taps and workspace navigation targeting the Expo wrapper instead of the app navigation stack ([#2782](https://github.com/BotHarness/DeepSeekBot/issues/2782)).
+
+- Newly paired mobile environments now open their name, icon and color sheet and become the selected environment. Appearance edits are previewed locally and applied only with Save; Back discards unsaved edits ([#2782](https://github.com/BotHarness/DeepSeekBot/issues/2782)).
+
+- Improved phone connection setup with managed Tailscale publishing, automatic route learning and preference recovery, a separate Connect settings section, and saved-address details on mobile ([#2784](https://github.com/BotHarness/DeepSeekBot/issues/2784)).
+
+- Unified device and Connect settings under Connections, added guided LAN pairing and identity review, explained each connection method with a short description and instant encryption/data-flow tips, and enabled CLI enrollment into a selected browser Client with Host Feed verification ([#2793](https://github.com/BotHarness/DeepSeekBot/issues/2793)).
+
+- Mobile outgoing messages keep their normal appearance without a sending caption, becoming muted only after three seconds pending; retry starts a fresh wait while failures stay actionable ([#2803](https://github.com/BotHarness/DeepSeekBot/issues/2803)).
+
+- Mobile Chats and conversation headers show connection progress after the name inside the selected identity chip, keeping transient reconnect banners out of the conversation while retaining failure recovery actions. ([#2804](https://github.com/BotHarness/BotHarness/issues/2804))
+
+- Chats shows row skeletons on first load, keeps loaded conversations during refresh, and offers retry after a failed load instead of reporting an empty list. First-load errors no longer claim to show a previous list. ([#2805](https://github.com/BotHarness/BotHarness/issues/2805))
+
+- Creating a Bot on mobile now shows clear progress and opens its normal chat without an extra model banner. The short form keeps optional details tucked away and uses native iOS action buttons alongside the existing Android controls ([#2807](https://github.com/BotHarness/DeepSeekBot/issues/2807)).
+
+- Git, Marketplace and Zip imports now share the mobile creation progress screen, with a clear source-check action and no premature retry prompt while importing. Optional model details stay collapsed; source recovery and opening the imported Bot keep using the existing saved operation ([#2808](https://github.com/BotHarness/DeepSeekBot/issues/2808)).
+
+- Loaded Cloud conversations stay tappable while the directory refreshes. Opening progress follows the selected row, and newer taps or account changes prevent stale navigation. Failed access can be retried. ([#2809](https://github.com/BotHarness/BotHarness/issues/2809))
+
+- Mobile chat headers keep their upper-right area clear; open Channel files through the top identity Chip, with iOS lock-screen tracking in the Bot Profile ([#2857](https://github.com/BotHarness/DeepSeekBot/issues/2857)).
+
+- In the desktop Bot mode workspace, Messages, Activity Center, Home and plugin panels opened without a saved position now appear as full-height columns (Messages beside the Channel list, Activity Center beside Messages, Home at the right edge) instead of splitting another panel into rows ([#2859](https://github.com/BotHarness/DeepSeekBot/issues/2859)).
+
+- In the desktop app, Bot replies now appear once they are complete, while the conversation header shows what the Bots are doing. Turn on **Settings → Messaging → Stream Bot replies as they are written** (or `streamReplies` through `deepseekbot settings-set botharness-client`) to see the text as it is written. New messages scale into the list. In a Group, a new speaker's avatar and name arrive with the first message, and when the same Bot sends another message the avatar slides down to it instead of jumping. The reading indicator and reaction chips scale in when they appear and scale down and fade out when they go away. The Bot working status moves from the bottom of the message list to the header, so it no longer shifts the list: a Bot DM shows it in place of the Bot's name, and a Group shows up to three stacked avatars of the working Bots with their status after the Group name. The status line above the message box is gone, since the header now carries it ([#2871](https://github.com/BotHarness/DeepSeekBot/issues/2871)).
+
+- Channel messages now show which Bots are reading them right now. While a Bot's LLM turn has a message in view, small stacked avatars (newest reader first, up to 3) sit on the bubble's bottom corner and disappear once the turn ends, much like a typing indicator. Reactions float on the opposite corner instead of taking their own row, bubbles leave less empty space on the far side and have tighter tail corners. Per-recipient delivery and read status now shows as stacked avatars and is hidden by default; turn it on under Settings → Messages → Show delivery and read status ([#2871](https://github.com/BotHarness/DeepSeekBot/issues/2871)).
+
+- On mobile, new messages, including your own, now scale into the chat instead of appearing at once, as do the reading indicator and reaction chips, which also scale down and fade out when they go away. In a Group, a new speaker's avatar and name arrive with their first message, and the avatar slides down to each further message from the same Bot instead of jumping. Single-line messages render as fully rounded pills. Replies now show complete by default; streaming text stays available under message display settings ([#2871](https://github.com/BotHarness/DeepSeekBot/issues/2871)).
+
+- On mobile, messages now show which Bots are reading them during a live turn, as small stacked avatars on the bubble's bottom corner that clear when the turn ends. Reactions float on the opposite corner instead of taking a row of their own, bubbles use more of the screen width with softer joined corners, and the optional delivery status shows stacked Bot avatars instead of a pie ([#2871](https://github.com/BotHarness/DeepSeekBot/issues/2871)).
+
+- Mobile: a Memory change's page reads like a code review. Each file has a sticky header you can fold, with its +/− counts, and its lines show line numbers, a green or red change bar and tint, and the exact words that changed ([#2904](https://github.com/BotHarness/DeepSeekBot/issues/2904)).
+
+- Open the mobile Bot profile as a full-screen page from the chat's title chip, with a Profile Banner header and native icon tabs for Work, Memory, Files, Routines and Settings; the last tab is remembered, and a Bot-to-Bot DM opens the same page with only its files ([#2905](https://github.com/BotHarness/DeepSeekBot/issues/2905)).
+
+- Assignments now carry a short Title and a one- or two-sentence Description chosen by the Bot. The Web session sidebar, Group work and Inbox show the Title, Bot search matches both, and the new `deepseekbot assignments` and `assignment` commands list, search and inspect them; existing Assignments keep their old text as the Description with a Title taken from its start ([#2906](https://github.com/BotHarness/DeepSeekBot/issues/2906)).
+
+- The phone's Bot profile Memory tab pins `SOUL.md` and `MEMORY.md` as two cards, each opening with an "About this file" note, and shows every other Memory file and folder as a folder-style grid; a computer without the Memory service says so ([#2908](https://github.com/BotHarness/DeepSeekBot/issues/2908)).
+
+- The mobile Bot profile's Routines tab groups routines under Daily, Weekly, One-off and Other with each next run, adds a + button to create one, and lets you swipe a row to Run now, Pause or Resume, or Delete after confirming ([#2910](https://github.com/BotHarness/DeepSeekBot/issues/2910)).
+
+- The mobile Bot profile's Settings tab gains a Permissions group: Workspace grants (moved from the Bot group) and a Computer and browser access page with native switches for the Bot's Browser and Computer access. The profile's Browser and Computer buttons follow those switches ([#2912](https://github.com/BotHarness/DeepSeekBot/issues/2912)).
+
+- On mobile, a group's title chip now opens a full-screen Group profile on the same shell as the Bot profile, with Members (invites, removal and join requests), Files (Media and Files), Work (the group's Assignments with the shared detail) and Settings (name, photo, chat background, notifications, then Disband). The last tab is remembered separately from Bot profiles ([#2914](https://github.com/BotHarness/DeepSeekBot/issues/2914)).
+
+- Added native iOS streaming bubble expansion that clips the background and text together while preserving final list layout and Reduce Motion; requires a new native build, with physical-device qualification tracked separately ([#2942](https://github.com/BotHarness/DeepSeekBot/issues/2942)).
+
+- On Android, menus opened by a long press or a tap now appear as a Material 3 Expressive dropdown right where your finger touched, instead of a bottom sheet. A menu opened without a recent touch, such as with TalkBack, still uses the bottom sheet ([#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)).
+
+- On Android, the Chats header is now the Material 3 Expressive search bar: a search pill with the workspace menu at its start that expands into a full-screen native search with recent conversations and live results ([#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)).
+
+- On Android, a swipe right anywhere on Chats opens the workspace drawer; the list follows your finger and is pushed aside, like a Material 3 dismissible drawer ([#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)).
+
+- On Android, the Chats creation button is now the system's Material 3 Expressive FAB menu: the plus morphs into a close button and the actions rise above it as pill buttons. Choosing a new Channel swaps the items for its destinations in place, with Back first ([#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)).
+
+- On Android, Bot, DM and group profiles open as a full-height bottom sheet: drag it down to return to the chat. The ✕ is gone; the handle at the top closes it for screen readers ([#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)).
+
+- Bot activity charts can be inspected bar by bar: drag across them on iOS, or tap a bar on Android, to see its value. Screen readers now hear the busiest day and can step through each bar ([#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)).
+
+- Bot, DM and group profiles open with a compact header: the avatar sits centred on the banner and the name appears once, in a chip over the avatar, so the settings start higher up ([#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)).
+
+- On iOS, Bot, group and channel profiles open as a sheet you can pull down to close, in place of the full-screen page with a close button. The icon tabs that stay pinned while scrolling now float with a soft shadow instead of sitting in an extra rounded bar, and every group on a Bot's Settings tab uses the same heading and card style ([#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)).
+
+- A Memory file now offers **Copy all** and **History** next to Edit: an Expressive split button on Android, an ⋯ menu on iOS. History lists only the changes that touched that file, and `deepseekbot memory-graph --path <file>` returns the same list ([#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)).
+
+- On iOS, menus follow Apple's pop-up and pull-down button guidelines. Language and Appearance show their value with up-and-down chevrons and list plain choices. Activity's Filter and sort opens a pull-down menu, sharing one glass capsule with Search. A long press on a Host or an Activity row opens a context menu instead of an action sheet ([#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)).
+
+- The remote Browser viewer, and the Computer viewer used when a Host cannot stream video, now use the system navigation bar: Close on the leading side, the viewer's name and who is driving in the title, and Hand back as a bar button ([#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)).
+
+- Mobile copy follows each platform: iOS buttons, menus and titles use title case, Chinese uses 「轻点」 on iOS and 「点按」 on Android, and errors drop "Please" to say what failed and what to do next ([#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)).
+
+- Mobile animations now move like each platform: SwiftUI springs on iOS and Material 3 Expressive springs on Android ([#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)).
+
+- On Android, the Back gesture at the app's first screen now shows the system's predictive back-to-home preview ([#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)).
+
+- Keep Android Bot creation's Material header, live avatar/name and animated progress in one persistent shell while steps slide, with native text fields and keyboard-following actions that preserve the form layout ([#2958](https://github.com/BotHarness/DeepSeekBot/issues/2958)).
+
+- On Android, buttons across the app are now native Material 3 buttons: filled for the main action, tonal for the others, text buttons where text was used, and red for destructive actions. Their icons are Material symbols, and a busy button shows the system progress indicator inside it ([#3005](https://github.com/BotHarness/DeepSeekBot/issues/3005)).
+
+- Android header icon buttons in Chats, Activity, Marketplace, Bot profile, memory files and the Browser and Computer viewers are now Material 3 icon buttons with Material Symbols, a 48dp touch target and the Material selected treatment for active filters and searches ([#3006](https://github.com/BotHarness/DeepSeekBot/issues/3006)).
+
+- On iOS, the Settings sheet, App icon and Activity counts pages are now a system form: grouped sections, separators, switches, menus and row heights match the Settings app and grow with Dynamic Type ([#3011](https://github.com/BotHarness/DeepSeekBot/issues/3011)).
+
+- Show text fields on Android as Material 3 filled text fields with floating labels, in forms and edit screens as well as Bot creation ([#3012](https://github.com/BotHarness/DeepSeekBot/issues/3012)).
+
+- Activity now has two tabs, Needs you and For you; the Other unread tab is gone because unread conversations already show in Chats. A tab with items shows a small dot instead of a number: yellow on Needs you, blue on For you ([#3013](https://github.com/BotHarness/DeepSeekBot/issues/3013)).
+
+- On Android, the Activity tabs and the workspace drawer's Computers / Cloud tabs are now the Material 3 primary tab row, with its native indicator; labels grow with the system font size and TalkBack reads each tab's full name and selected state ([#3013](https://github.com/BotHarness/DeepSeekBot/issues/3013)).
+
+- On Android, unread and pending counts are now Material 3 badges, including a badge on the Activity tab icon, and approval, question and other action cards are Material 3 cards with native options, fields and buttons inside ([#3014](https://github.com/BotHarness/DeepSeekBot/issues/3014)).
+
+- On iPhone, Chats now sits on top of a Workspaces page, as Mail's inbox sits on Mailboxes. Swipe right anywhere on Chats (iOS 26) or from the left edge, or tap the Chats title, to go back to Workspaces and choose All, a computer or a cloud workspace ([#3017](https://github.com/BotHarness/DeepSeekBot/issues/3017)).
+
+- On Android, the app's bottom sheets (workspace, model, routine, deletion, delivery, folder and others) now open as Material 3 modal bottom sheets: drag, the scrim, Back and predictive back come from the system, the sheet sizes itself to its content, a field and its action stay above the keyboard, and long content scrolls inside the sheet before dragging it down ([#3018](https://github.com/BotHarness/DeepSeekBot/issues/3018)).
+
+- On iOS, the app's sheets (workspace, model, routine, deletion, delivery, folder and others) now open as native iOS sheets: the grabber, resizing, swipe-down dismissal and Liquid Glass on iOS 26 come from the system. Short sheets open at half height and long ones, or sheets with a text field, open full height; a field and its action stay above the keyboard, and long content scrolls inside the sheet before dragging it down ([#3019](https://github.com/BotHarness/DeepSeekBot/issues/3019)).
+
+- On Android, the Bot profile tabs, the Chats creation button and its menu, the search fields, the Chats search bar and the Memory file Edit button now use the same accent-seeded Material colours as the switches, chips and other native controls around them ([#3021](https://github.com/BotHarness/DeepSeekBot/issues/3021)).
+
+- Anonymous usage statistics now count how the Market's Hot, New and Rising rows and daily picks are used: when they are shown and opened, and whether a Bot was opened or installed from the list, a row or the daily picks. No Bot names or listing IDs are sent ([#3066](https://github.com/BotHarness/DeepSeekBot/issues/3066)).
+
+- Mobile Bot creation keeps its avatar while you edit the name and adds a native avatar customizer with the desktop's styles, parts, colors and proportions ([#3075](https://github.com/BotHarness/DeepSeekBot/issues/3075)).
+
+- In the Simple layout, Messages now always stays open and the rail picks what the Side column beside it shows: the Channel list, Activity Center, Marketplace or another Global panel. Click the active switch again to hide the Side column, as in an editor's activity bar. All items share one draggable width, the choice is remembered, and your previous Simple view carries over (the previous record is kept as a local backup). Advanced is unchanged ([#3092](https://github.com/BotHarness/DeepSeekBot/pull/3092)).
+
+- Mobile Bot creation separates name/avatar, persona instructions, and profile details, explains the system-prompt boundary, and adds removable tags with Enter ([#3095](https://github.com/BotHarness/DeepSeekBot/issues/3095)).
+
+- Store builds of the phone app now send the optional anonymous usage statistics described in Settings, on by default and off with one switch ([#3130](https://github.com/BotHarness/DeepSeekBot/pull/3130)).
+
+- The Bot Market panel opens on a discovery home: a Daily Picks row whose covers are made from each day's picked Bots, Hot as tall posters, New and Rising as compact cards with "See all", and the daily article, Past picks and Bot details open inside the panel with Back instead of in dialogs ([#3147](https://github.com/BotHarness/DeepSeekBot/pull/3147)).
+
+- The Bot Marketplace on iOS and Android opens on a discovery home: today's Daily picks card with a cover made from the picked Bots, Hot as tall posters you can import from, and New and Rising as three compact rows with "See all". The daily article, Past picks and each full ranking open as their own pages; search or a topic shows only results ([#3144](https://github.com/BotHarness/DeepSeekBot/issues/3144)).
+
+- Bot Marketplace search on iOS and Android now opens from the header, the same way Chats search does, instead of a floating button at the bottom ([#3144](https://github.com/BotHarness/DeepSeekBot/issues/3144)).
+
+- Mobile builds align React Native with the patch required by Expo SDK 58 ([#3175](https://github.com/BotHarness/DeepSeekBot/pull/3175)).
+
+- Android Chats can drag a preloaded conversation above the navigation bar and creation button, opening the most recent available Computer chat or the first one when there is no recent chat. Cancelled drags do not mark messages read ([#3146](https://github.com/BotHarness/DeepSeekBot/issues/3146)).
+
+- Drag the actual Android chat profile into view and back before releasing; Activity filters open in a native side sheet with a consistent surface colour. Activity uses one list, showing pending work first by default, with categories and chronological sorting in filters ([#3146](https://github.com/BotHarness/DeepSeekBot/issues/3146)).
+
+- Notification settings use native iOS and Android settings controls, omit routine success banners, and show permission or delivery feedback only when needed ([#3150](https://github.com/BotHarness/DeepSeekBot/issues/3150)).
+
+- Disbanding a group now deletes it. One confirmation removes the group's messages and files that no other conversation shares, keeps only a deleted marker, and cannot be undone. Bot turns it started stop, its pending approvals and questions are cancelled, Assignments it started finish and report to the Bot's DM, and the phone drops its cached copy. Bot Memory and Workspace files stay. Groups disbanded earlier stay in Ended Channel history ([#3164](https://github.com/BotHarness/DeepSeekBot/pull/3164)).
+
+- Disbanded phone groups now show a centered native empty state with a return-to-Chats button instead of a yellow banner and disabled composer ([#3170](https://github.com/BotHarness/DeepSeekBot/issues/3170)).
+
+- iOS Activity filters use a native Inspector, adapting to a sheet on iPhone, with category, sort and source filters for the single Activity list ([#3174](https://github.com/BotHarness/DeepSeekBot/issues/3174)).
+
+- Android builds now opt in to system predictive-back callbacks; gesture-progress support still depends on the active native component and does not extend to every in-app page transition ([#3181](https://github.com/BotHarness/DeepSeekBot/issues/3181)).
+
+- The intro's last step now starts from persona templates (engineers, creators, product/ops, students/researchers, several allowed, each with an optional focus): each offers three starter tasks that show a different Bot feature, and an "Interview me" option lets Tob ask a few questions before proposing the Bots, group chats and schedules to set up. The tutorial card above the Tob composer is gone; the layout tips open right after the intro instead ([#3187](https://github.com/BotHarness/DeepSeekBot/pull/3187)).
+
+- Android's environment drawer uses native Material list rows and an add button, preserving environment status, unread counts and management actions ([#3188](https://github.com/BotHarness/DeepSeekBot/issues/3188)).
+
+- On Android, the Settings tab's top bar now hides as you scroll down and comes back as you scroll up, like Chats and Activity ([#3176](https://github.com/BotHarness/DeepSeekBot/pull/3176)).
+
+- On Android, settings rows are now Material 3 list items: native leading icons, native switches, checks and chevrons, and a switch row turns on or off from anywhere on the row. TalkBack reads each row as one item with its label, role and state ([#3010](https://github.com/BotHarness/DeepSeekBot/issues/3010)).
+
+- A Bot's Model settings show one Model row listing the main model and the task model, instead of two rows that opened the same editor ([#3033](https://github.com/BotHarness/DeepSeekBot/issues/3033)).
+
+- Every way a Bot's chat Session or Assignment is entered (a new Session, a resumed one, one the Host takes over from DSH, or a native wake) now goes through one admission step that first repairs the Session's permission and then checks it. Taking a Session over only checks that it belongs to the right Bot role, so a refused turn always reaches the chat with its reason and fix. Resuming or taking over a Bot with Full access no longer briefly switches its Session back to workspace-only before the first step ([#2997](https://github.com/BotHarness/DeepSeekBot/issues/2997)).
+
+- On iOS and Android, swiping left on Chats now opens the last chat you were in, sliding in from the right just as a tap does (like Slack), so returning to the Bot or Channel you just left takes one swipe. Swiping right still opens the workspaces. Conversation rows no longer swipe; pin, section, mute and read stay in the long-press menu ([#3055](https://github.com/BotHarness/DeepSeekBot/pull/3055)).
+
+- On iOS, buttons across the app are now the system's own SwiftUI buttons: the main action is bordered prominent and other actions are bordered, becoming Liquid Glass on iOS 26 unless Reduce Transparency is on. Destructive actions use the system's destructive style, busy buttons show the system spinner, icons are SF Symbols, and labels grow with Dynamic Type ([#3008](https://github.com/BotHarness/DeepSeekBot/issues/3008)).
+
+- On iOS, filter chips (message feedback tags, Routine schedules, Marketplace topics) are now system toggle buttons, list choices (Marketplace topics, the Bot picker) are Settings-style rows with a trailing checkmark, and the chat background sliders are the system slider, so they look, press and read to VoiceOver like iOS ([#3009](https://github.com/BotHarness/DeepSeekBot/issues/3009)).
+
+- Settings rows look alike: App icon, Activity count and Default chat background keep the normal text and icon colour instead of the accent, every Interface row has an icon, and Message display is one row with a menu like Appearance ([#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002)).
+
+- Settings no longer lists the connection status, Computers or Unpair: the environment drawer manages computers. On iOS every Settings row now uses the same system icon size, and menu values such as Language and Appearance are grey instead of the accent ([#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002)).
+
+- On iPhone, the environment panel to the left of Chats is now a whole page: the tab bar hides there, All environments shows your Computers stacked, your avatar sits at the bottom left and notifications at the bottom right, and a swipe left brings Chats back ([#3107](https://github.com/BotHarness/DeepSeekBot/pull/3107)).
+
+- Mobile feedback uses native iOS and Material 3 Android controls, separates ratings from local diagnostics, and reveals file details on demand. [#2811](https://github.com/BotHarness/DeepSeekBot/issues/2811)
+
+- Message feedback sends only ratings, tags and comments to PostHog. Diagnostic bundles download locally for manual sharing, with no dedicated feedback storage or domain ([#2811](https://github.com/BotHarness/DeepSeekBot/issues/2811)).
+
+- On desktop, click the Bot's avatar and name in the Messages header to open its Profile; the separate profile button is gone, and the subpanel column button now sits at the far right of the header ([#3103](https://github.com/BotHarness/DeepSeekBot/pull/3103)).
+
+- Right-click a Bot in the Channel list and choose Change avatar… to edit its avatar without opening its Profile. In the Profile, the avatar now sits directly on the banner and dims with a pencil when hovered or focused ([#3103](https://github.com/BotHarness/DeepSeekBot/pull/3103)).
+
+- In the Avatar dialog, Design a pixel avatar and Upload an image are now stacked full-width choices you click directly, with a separate red Remove avatar button below them ([#3103](https://github.com/BotHarness/DeepSeekBot/pull/3103)).
+
+- Adding Environments from a Tobs Connect account on iOS and Android now uses one native selection list: tap a row to select it and a checkmark appears, with no separate checkbox. Environments already added say so and can't be selected. The add button stays pinned at the bottom and counts your selection, and each row shows its own progress and result while it pairs; the verification screen appears only when a code needs comparing ([#2923](https://github.com/BotHarness/DeepSeekBot/issues/2923)).
+
+- The mobile Connection details sheet now uses the native settings list: a SwiftUI Form on iOS and Material 3 list items on Android, with grouped route sections, a Wi-Fi, lock or computer icon for each route type, icons for Copy address and Test connection, a check on the route in use, and the automatic-update note as the section footer ([#3121](https://github.com/BotHarness/DeepSeekBot/pull/3121)).
+
+- Mobile chat lists use larger, regular-weight conversation names and more readable message previews, with secondary gray previews and smaller timestamps ([#2890](https://github.com/BotHarness/DeepSeekBot/issues/2890)).
+
+- Mobile Bot and Channel chat rows now show the same localized “No messages yet” preview when no message is available ([#2892](https://github.com/BotHarness/DeepSeekBot/issues/2892)).
+
+- Importing a Bot from a Git link on iOS and Android now goes step by step: Environment, Git link, name and avatar, then bio and tags. The link is checked on the chosen Environment when you continue, any problem stays on that step, and the name starts from the repository's name ([#2926](https://github.com/BotHarness/DeepSeekBot/issues/2926)).
+
+- In the mobile workspace list's long-press menu, Connection details now has its own network icon, and "Show this computer" is renamed "Show this workspace" ([#3138](https://github.com/BotHarness/DeepSeekBot/pull/3138)).
+
+- On mobile, the pairing choices now show a Wi-Fi icon for **Use the same Wi-Fi** and a lock icon for **Use Tailscale**, instead of a QR scanner icon on both ([#3119](https://github.com/BotHarness/DeepSeekBot/pull/3119)).
+
+- The mobile pairing screens use less text. The pairing choice drops the long setup guide and keeps one line per method, with what the computer needs underneath and a Setup guide link. The scan screen shows where to click on the computer as a menu path (Settings › Connections › Add connection › Connect a device to this Host › Local network or Tailscale), matching the current desktop labels ([#3133](https://github.com/BotHarness/DeepSeekBot/pull/3133)).
+
+- On iOS and Android, Settings in the bottom bar is now its own tab page, like Chats and Activity, instead of a sheet over the current tab. Its pages (Account, Usage, Models, Notifications, Storage and more) open as full pages with Back ([#3156](https://github.com/BotHarness/DeepSeekBot/pull/3156)).
+
+- Creating a Bot on iOS and Android is now step by step: choose the Environment from a list, then name the Bot, then describe its persona and bio. A pinned bar shows “Next · 1/3” with a round back button, swipe or Android back goes back one step, and ✕ leaves while keeping your draft. The only Environment, the one you started from, or the one you used last is preselected, offline ones can't be chosen, and with none you can add one right there. Creating shows native progress inside the button, says when the Environment is slow to respond, keeps any error on the last step with Retry, and opens the new Bot when it's ready ([#2924](https://github.com/BotHarness/DeepSeekBot/issues/2924)).
+
+- Importing a Bot from a Zip file on iOS and Android now starts with the Environment, then a file step that shows the file's size, lets you pick another one and shows upload progress, then name and avatar, then bio and tags prefilled from the archive. Marketplace imports go Environment, name and avatar, then a confirm step showing the listing source with a refresh action when it changed ([#2928](https://github.com/BotHarness/DeepSeekBot/issues/2928)).
+
+- Motion outside the chat now follows the same feel as chat bubbles: the Window Companion's speech bubble and pending question grow in from 92% with a quick settle instead of popping from half size and overshooting, and its answer options rise in without a bounce. Switching model mode and dismissing a handled approval in the Activity inbox use the same quick ease-out, and dismissal is a little faster. Marketplace cards lift on hover only with a mouse, never on touch. With **Reduce motion** set in the app, the sessions list no longer slides rows when they reorder, header controls fade without sliding, and the memory diff and release note chevrons turn without animating. On mobile, the Bot profile and its tab switches open with the same ease-out as chat, a swiped-away photo leaves at once instead of starting slowly, and the undo bar fades in and out faster ([#2944](https://github.com/BotHarness/DeepSeekBot/pull/2944)).
+
+- Mobile Bot and Group profile tabs no longer repeat the tab's name as a heading above their content; the selected icon tab already names it. Routines keeps its name beside its **+** button ([#2904](https://github.com/BotHarness/DeepSeekBot/issues/2904)).
+
+- On mobile Bot and group profiles, the tab bar no longer casts a shadow once it sticks to the top while scrolling; the full-width band in the page colour already separates it from the content below ([#3124](https://github.com/BotHarness/DeepSeekBot/pull/3124)).
+
+- On the phone, the swipe left on Chats and the swipe left in a chat now slide the last chat or the profile in from the right under your finger, and a short swipe slides back ([#3107](https://github.com/BotHarness/DeepSeekBot/pull/3107)).
+
+- Anonymous usage statistics now follow one tracking plan: every event is named `category:object_action`, listed in [the tracking plan](docs/telemetry-events.md), and refused by the Host if it is not registered. A new once-a-day `app:active_day_start` counts days a Human actually used DeepSeekBot. The first-entry intro and Marketplace events, which were lost whenever they carried details, now arrive with them ([#3126](https://github.com/BotHarness/DeepSeekBot/pull/3126)).
+
+- On the phone, pulling up past the newest message in Tob Mode now goes back to Chats instead of opening the keyboard, undoing the pull that brought Tob down. Other chats still open the keyboard ([#3155](https://github.com/BotHarness/DeepSeekBot/pull/3155), [#3090](https://github.com/BotHarness/DeepSeekBot/issues/3090)).
+
+### Added
+
+- `assignment-timeline` splits an Assignment into rounds: the request that created it and each request the Orchestrator sent later, with a short excerpt of its instruction. MAIN steps and Subagents are tagged with their round ([#1961](https://github.com/BotHarness/DeepSeekBot/issues/1961)).
+
+- Assignment rows in the Sessions panel and the Group Work panel have a Work button. It opens the Assignment's work by round: what the Orchestrator asked for when it created the Assignment and each time it sent more, the MAIN steps of that round, and the Subagents it started with their model and state. On the phone, an Assignment now opens in a bottom sheet with its timeline grouped by round the same way ([#1961](https://github.com/BotHarness/DeepSeekBot/issues/1961)).
+
+- The Sessions panel and a Group's Work panel show how many DSH Subagents each Orchestrator or Assignment Session started. Expanding a row lists each Subagent with its state and the model and reasoning effort it actually ran on, and an Assignment row shows the model it was created with. The chat timeline stays unchanged. `deepseekbot session-subagents` reads the same list, and `assignment-timeline` lanes now carry the model and state too ([#1961](https://github.com/BotHarness/DeepSeekBot/issues/1961)).
+
+- Added confirmed Bot deletion, group dissolution and section removal to the Expo app's long-press menus, retaining history and Memory by default and keeping conversations when a section is removed ([#2783](https://github.com/BotHarness/DeepSeekBot/issues/2783)).
+
+- Added an explicit iPhone Lock Screen tracking path for one request sent from that phone, without exposing request content, with stale-state handling and a return to the original Computer DM. It requires a new native app binary and a configured Connect delivery service; real background delivery and terminal failure projection remain pending qualification ([#2815](https://github.com/BotHarness/DeepSeekBot/issues/2815)).
+
+- Added Channel files to the mobile app, with paginated history, image preview, system sharing and a return to the original message. It reuses existing Channel attachments and permissions ([#2819](https://github.com/BotHarness/DeepSeekBot/issues/2819)).
+
+- The first-entry intro's Look step now also offers Simple and Advanced Layout modes, with small previews, next to color mode and theme color. Picking one applies it at once through the same switch as Bot Settings › Appearance ([#2858](https://github.com/BotHarness/DeepSeekBot/issues/2858)).
+
+- Desktop Bot mode has a Simple layout mode, the default for new users: each Control Rail switch shows one full view (Home, Activity Center, Messages or a plugin panel), and Messages shows the Channel list beside the conversation. Switch between Simple and Advanced in Bot Settings → Appearance; each mode keeps its own arrangement, and existing users keep their Advanced layout ([#2860](https://github.com/BotHarness/DeepSeekBot/issues/2860)).
+
+- In Simple layout mode, a single button in the Messages header shows a Subpanel column on the right. It lists the Channel's subpanels in a fixed order (Sessions, Memory files, Memory evolution, Schedules, Browser, Computer, Members, Channel files, Bot Inbox and Bot plugin panels); each one collapses from its title and has an adjustable height, and the column scrolls and can be resized. Collapsing Browser or Computer only hides its view, so the Bot keeps working. Panel shortcuts open the column at that subpanel ([#2861](https://github.com/BotHarness/DeepSeekBot/issues/2861)).
+
+- Desktop onboarding now asks you to choose a Layout mode in step 4, with Simple preselected. The choice takes effect at once, the layout tips that follow match the chosen mode, and you can switch later in Bot Settings › Appearance. In Simple, the last step finishes when you select Messages on the rail and land in the Tob DM; in Advanced it stays the Home title action ([#2862](https://github.com/BotHarness/DeepSeekBot/issues/2862)).
+
+- Added Enable / Turn off window zoom to Desktop Bot Settings → General: after you quit the app, the same setup runs in the background and the app reopens; `deepseekbot window-zoom-setup-status|enable|disable|cancel` drive it from the CLI ([#2864](https://github.com/BotHarness/DeepSeekBot/pull/2864)).
+
+- A message's delivery status now marks an @-mentioned Bot whose Inbox never received the message as Not received. Click a Bot in the status card to open its Inbox history, where the item for that message is tagged and shows any note on why it was ignored ([#2871](https://github.com/BotHarness/DeepSeekBot/issues/2871)).
+
+- On mobile, you can turn on Delivery status in Settings (off by default). Your messages that reach Bots then show a small delivery status pie, including Bots you @-mentioned that never received the message. Tap it to see each Bot's state, then tap a Bot to open its Inbox history with the item for that message tagged ([#2871](https://github.com/BotHarness/DeepSeekBot/issues/2871)).
+
+- In Lark and Discord groups, another Bot that explicitly mentions your Bot now wakes it, and your Bot can reply on the original message; messages from other Bots that do not mention it are still ignored. The Bot is told the sender is a Bot, and after 16 Bot mentions in a row in one conversation within an hour it keeps them as context until a Human speaks there ([#2872](https://github.com/BotHarness/DeepSeekBot/issues/2872)).
+
+- Mobile: the Bot profile's Memory tab gains **Files / Changes**. Changes lists Memory's commits by day; tapping one shows which files changed and their line diffs. Memory files and folders now show as aligned cards that say whether each is a folder (with its item count) or a file, and editing a file fills the whole page instead of a boxed field ([#2904](https://github.com/BotHarness/DeepSeekBot/issues/2904)).
+
+- The mobile Bot profile's Work tab lists each Assignment by its Title and Description under the day it was last active, and tapping one opens a read-only detail with its status, latest report and a MAIN / SUBAGENT timeline of public step summaries; `deepseekbot assignment-timeline` reads the same timeline ([#2907](https://github.com/BotHarness/DeepSeekBot/issues/2907)).
+
+- On iOS and Android, the Bot profile's Files tab now splits the DM's shared files into **Media**, a three-column photo grid that opens the image viewer, and **Files**, a list with a type badge, name, date and size. Bot-to-Bot profiles show the same view ([#2909](https://github.com/BotHarness/DeepSeekBot/issues/2909)).
+
+- Add Settings → Permissions to the mobile Bot profile: Approval history lists your answers to the Bot's approval requests, and Always-allow rules shows how many times each rule auto-approved and lets you revoke it. `deepseekbot tool-approval-history` reads the same history and `tool-approval-rules` now reports `autoApprovedCount` ([#2911](https://github.com/BotHarness/DeepSeekBot/issues/2911)).
+
+- Edit a Bot's Memory files, including `SOUL.md` and `MEMORY.md`, from its phone profile: Save checks that Memory has not changed, and if the Bot changed it meanwhile the phone shows the Bot's version and keeps your draft ([#2913](https://github.com/BotHarness/DeepSeekBot/issues/2913)).
+
+- The Bot context popover in a Bot DM can now show the system prompt the Bot's current Session uses, split into its named sections and marked Pending when a newer version waits for a new Session or compaction, and the exact input of the latest turn, including how Inbox items and the reply reminder were joined; an info button explains the underlying logic. The same views are available as `deepseekbot bot-system-prompt` and `deepseekbot bot-turn-input` ([#2931](https://github.com/BotHarness/DeepSeekBot/pull/2931)).
+
+- Prompt Presets: you can rewrite the behavior text of a Bot's system prompt and per-turn templates, such as how it reports progress or answers a Group mention, as named presets. Choose one preset for every Bot, and let a Bot use another preset or its own edits on top. Tool and delivery rules stay fixed. A Bot picks up a change at its next Session or compaction. Available as `deepseekbot prompt-presets`, `prompt-preset-create`, `bot-prompt` and related commands ([#2931](https://github.com/BotHarness/DeepSeekBot/pull/2931)).
+
+- Settings → Models & execution can change when every Bot's context is compacted automatically: the share of the context window and the tokens kept free. Also available as `deepseekbot compaction-threshold-set` ([#2931](https://github.com/BotHarness/DeepSeekBot/pull/2931)).
+
+- Tapping a Lock Screen Live Activity whose request created or advanced an Assignment now opens that Assignment's detail in the Bot profile, also from a cold start; other requests still open the chat. `deepseekbot send-status` and `deepseekbot device-activity status` show the same `assignmentId` ([#2943](https://github.com/BotHarness/DeepSeekBot/issues/2943)).
+
+- Alt+K now searches messages across every Bot DM and group you can see, not only conversation names and settings. Matching messages appear under Messages with the conversation, who wrote it, a highlighted snippet and when it was sent; Enter opens the conversation at that message. Two-character Chinese words match too, attachment file names are searched, and hidden conversations stay out. On mobile, the Chats search lists the same message matches from every connected computer and opens the chat at the message. Agents use `deepseekbot message-search --query <text>` ([#3057](https://github.com/BotHarness/DeepSeekBot/pull/3057)).
+
+- Upload one of your Bots to the Bot Marketplace without a GitHub repository: sign in with Connect, choose an author name once, and publish the Bot's Memory files; anyone can install the listing as a fresh Bot with one initial commit. The CLI adds `marketplace-upload` (needs Human approval when a Bot runs it) and `marketplace-install` ([#3059](https://github.com/BotHarness/DeepSeekBot/issues/3059)).
+
+- Share a Bot with Tob's help: **Share to Marketplace** on a Bot's profile has Tob copy the Bot's files into a Share Draft and go through them with you file by file, asking whether to keep, rewrite or drop anything that looks private. The Bot's Memory is never changed, and uploading to the Tobs Marketplace or pushing to your GitHub reads only the checked draft, with no Git history. The old prompt that had a Bot push itself to GitHub is gone. The CLI adds `share-draft-start`, `share-draft-show`, `share-draft-file`, `share-draft-decide`, `share-draft-finish`, `share-draft-export` and `share-draft-discard` ([#3060](https://github.com/BotHarness/DeepSeekBot/issues/3060)).
+
+- Manage your Uploaded Bots from **My uploads** in the Market panel: update one by replacing all its files with a Bot's current Memory, or delete it with its files and counts. Installed copies stay as they are and show **Author updated** once the author replaces the files. Deleting the Connect account also deletes its Uploaded Bots. The CLI adds `marketplace-mine`, `marketplace-delete` (needs Human approval when a Bot runs it) and `marketplace-upload --replaces` ([#3061](https://github.com/BotHarness/DeepSeekBot/issues/3061)).
+
+- Tob now reviews a Bot from the Bot Marketplace before it is installed, for both GitHub and uploaded listings: the install step lists any prompt injection, instructions to send data out, and scripts it found, and nothing is created until you continue. If Tob cannot review (no model or an error), the step says so and you may install anyway. `marketplace-install` prints the review first and installs with `--review <id> --confirm` ([#3063](https://github.com/BotHarness/DeepSeekBot/issues/3063)).
+
+- An Uploaded Bot's detail in the Bot Marketplace shows how its files break down by type (count and size of Markdown, text, data, scripts and images), and any text file opens in place: Markdown renders like the README, scripts and other text show as plain text and stay flagged. The CLI adds `marketplace-file` ([#3064](https://github.com/BotHarness/DeepSeekBot/issues/3064)).
+
+- The Market panel opens on three rows of Bots, Hot (most installs in the last 7 days), New (listed in the last 7 days) and Rising (fastest growing installs), refreshed daily; each card installs in one tap. The CLI adds `marketplace-sections` ([#3065](https://github.com/BotHarness/DeepSeekBot/issues/3065)).
+
+- The Market panel opens with today's picks: a short daily article about a few Hot, New and Rising Bots, written from their listings and files, with a card under each section that installs the Bot in one tap. Past picks are listed by date. The CLI adds `marketplace-digest` and `marketplace-digests` ([#3066](https://github.com/BotHarness/DeepSeekBot/issues/3066)).
+
+- Tob now hands a request it cannot answer itself to the colleague Bot whose description fits best, through their Bot-to-Bot DM and without asking first, then reports the colleague's result back in your Tob DM. Each send shows as an action notice; when no Bot fits, Tob says so and offers to create one. Approvals stay with you ([#3086](https://github.com/BotHarness/DeepSeekBot/issues/3086)).
+
+- On the phone, the Tob Mode button in the Chats header opens your Tob DM — the same chat as tapping the Tob row — coming down from the top over Chats. Back, or a swipe from the left edge on iPhone, sends it back up. It opens the selected computer's Tob; under All, or in a cloud view, it opens the Tob of the computer you used most recently. With Reduce Motion on it opens without sliding ([#3088](https://github.com/BotHarness/DeepSeekBot/issues/3088)).
+
+- Added a native three-dot button to mobile chat headers that opens the same Profile page as the avatar and left swipe ([#3191](https://github.com/BotHarness/DeepSeekBot/issues/3191)).
+
+- Signed-in accounts get an Account Profile: a display name and a photo you can set before ever uploading a Bot. The mobile Settings page opens with your profile, where you change the photo and name; the Marketplace shows both on your uploaded Bots, and `deepseekbot marketplace-author-avatar` sets the photo from the command line. The upload terms are now accepted at the first upload instead of when the profile is created ([#3115](https://github.com/BotHarness/DeepSeekBot/pull/3115)).
+
+- On the phone, a swipe left in a chat opens its profile, which now pushes in from the right with a Back button, and a swipe right on a message starts a reply that quotes it; `deepseekbot send --reply-to` sends the same reply from the CLI ([#3105](https://github.com/BotHarness/DeepSeekBot/pull/3105)).
+
+- The Control Rail has a Mobile app button. It shows a one-time hint about the iOS and Android betas, and opens the ways to get each one: TestFlight on iPhone, or Discord and the QQ group for the Android internal test ([#3192](https://github.com/BotHarness/DeepSeekBot/pull/3192)).
+
+- Desktop Bot settings open with a Profile section where a signed-in Human changes the photo and name shown on the Bots they share, and sees their ID and email. The Marketplace now shows the author's photo next to the author name on uploaded Bots ([#3120](https://github.com/BotHarness/DeepSeekBot/pull/3120)).
+
+- Give feedback from a saved mobile message with reviewed evidence and a submission receipt. Desktop and mobile multi-selection offers copy and screenshot separately from diagnostics; quoted replies still jump to their original message ([#2811](https://github.com/BotHarness/DeepSeekBot/issues/2811)).
+
+- Give feedback on one desktop message with Good/Bad, optional categories and a short comment. Review nearby messages and execution evidence, download the same snapshot or submit it to a configured private receiver with a receipt ([#2811](https://github.com/BotHarness/DeepSeekBot/issues/2811)).
+
+- When creating a Bot on iOS and Android, the name step now shows a large avatar with Shuffle and Choose from Photos. Your choice is applied as soon as the Bot is created; if that fails, the Bot is still created and the app tells you ([#2925](https://github.com/BotHarness/DeepSeekBot/issues/2925)).
+
+- Pull down from the top of Chats and release to open the selected or recent computer’s Tob, with threshold feedback, cancellation below the threshold and the saved haptic preference; keep the header entry and refresh fallback when Tob is unavailable ([#3090](https://github.com/BotHarness/DeepSeekBot/issues/3090)).
+
+- Tob Mode follows changes to Reduce Motion without restarting the app ([#3117](https://github.com/BotHarness/DeepSeekBot/pull/3117)).
+
+- QQ Bots in Bot mode receive private messages when the connected dsh-im supports them: each private chat arrives as a direct conversation and replies go back to the sender ([#2900](https://github.com/BotHarness/DeepSeekBot/pull/2900)).
+
+- Anonymous usage statistics now show which recent features are used on the computer and the phone: quick switcher search, layout mode, Activity Center approvals, answers and replies, model plan changes, Remote Host pairing, Browser and Computer viewers, Connect sign-in and Tob Delegation, and on the phone also notification approvals, sharing into a conversation and Tob Mode. Only the kind of action is sent ([#3129](https://github.com/BotHarness/DeepSeekBot/pull/3129)).
+
+### Documentation
+
+- Updated installation guides and README highlights to the verified Tobs 1.5.2 release ([#2777](https://github.com/BotHarness/DeepSeekBot/issues/2777)).
+
+- Defined the iOS AX performance workflow with valid replay, separate Simulator diagnostics and physical Release acceptance, matched before/after captures, and explicit limits on FPS claims ([#2942](https://github.com/BotHarness/DeepSeekBot/issues/2942)).
+
+- Added the canonical Material 3 and Apple HIG component terms to the product glossary, with each Android component paired to the iOS component that does the same job ([#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002)).
+
+### Removed
+
+- The desktop Bot mode workspace no longer has a Home panel. Its shortcut (⌘⌥⇧H / Ctrl+Alt+Shift+H, or Ctrl+Alt+Shift+O on Linux Desktop; custom bindings keep working) now opens the Tob DM in Messages, saved Simple and Advanced layouts drop Home and keep every other panel where it was (the previous layout is kept as a local backup), and the last onboarding step finishes when you reach the Tob DM. Activity Center keeps the cross-Bot overview, and the default model stays in Bot settings › Models & execution ([#3089](https://github.com/BotHarness/DeepSeekBot/issues/3089)).
 
 ## [1.5.2] - 2026-10-25
 
