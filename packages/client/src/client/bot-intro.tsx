@@ -7,19 +7,9 @@ import { BotIcon } from './bot-icon.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { IconButton } from './ds/icon-button.js';
 import { Note } from './ds/note.js';
-import {
-  actionColor,
-  border,
-  color,
-  dialog,
-  radius,
-  size,
-  space,
-  text,
-} from './ds/tokens.stylex.js';
+import { border, color, dialog, radius, size, space, text } from './ds/tokens.stylex.js';
 import { Modal } from './modal.js';
 import { ModelPicker } from './model-picker.js';
-import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { openModelsSettingsAndReturn } from './bot-settings-open.js';
 import type { Appearance, AppearancePatch } from './appearance.js';
 import { AppearanceMaterialSettings } from './appearance-material-settings.js';
@@ -221,9 +211,7 @@ const styles = stylex.create({
     margin: 0,
     padding: space.x4,
     borderRadius: radius.lg,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.divider,
+    backgroundColor: color.surface,
     color: color.fg,
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
@@ -234,9 +222,7 @@ const styles = stylex.create({
     gap: space.x3,
     padding: space.x4,
     borderRadius: radius.lg,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.divider,
+    backgroundColor: color.surface,
   },
   advancedSummary: {
     display: 'flex',
@@ -265,10 +251,9 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: space.x4,
     padding: space.x4,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: { default: color.border, ':hover': color.borderStrong },
+    borderWidth: 0,
     borderRadius: radius.lg,
+    backgroundColor: { default: color.surface, ':hover': color.hover },
     color: color.fg,
     textDecoration: 'none',
     outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
@@ -281,7 +266,7 @@ const styles = stylex.create({
     width: size.nav,
     height: size.nav,
     borderRadius: radius.md,
-    backgroundColor: color.surface,
+    backgroundColor: color.modal,
     color: color.fg,
   },
   linkText: { display: 'flex', flexDirection: 'column', flexGrow: 1, minWidth: 0 },
@@ -294,7 +279,7 @@ const styles = stylex.create({
     paddingInline: space.x4,
     height: size.icon,
     borderRadius: radius.sm,
-    backgroundColor: color.surface,
+    backgroundColor: color.modal,
     color: color.fg,
     fontWeight: text.strong,
     whiteSpace: 'nowrap',
@@ -328,7 +313,7 @@ const styles = stylex.create({
     paddingInline: space.x3,
     borderWidth: 0,
     borderRadius: radius.sm,
-    backgroundColor: { default: actionColor.secondary, ':hover': actionColor.hover },
+    backgroundColor: { default: color.surface, ':hover': color.hover },
     color: color.fg,
     fontFamily: 'inherit',
     fontSize: text.metaSize,
@@ -336,11 +321,17 @@ const styles = stylex.create({
     cursor: 'pointer',
     outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
   },
+  still: { backgroundColor: { default: color.surface, ':hover': color.surface } },
+  soft: {
+    borderWidth: 0,
+    backgroundColor: { default: color.surface, ':hover': color.hover },
+    color: color.fg,
+  },
+  full: { width: '100%' },
+  onCard: { backgroundColor: { default: color.modal, ':hover': color.hover } },
   strong: { color: color.fg, fontWeight: text.strong },
   meta: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
   starter: {
-    borderWidth: 0,
-    backgroundColor: { default: actionColor.secondary, ':hover': actionColor.hover },
     fontFamily: 'inherit',
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
@@ -491,7 +482,12 @@ export function BotIntro({
           </Button>
         )}
         {intro.step > 0 ? (
-          <Button variant="outline" disabled={busy} onClick={() => void go(intro.step - 1)}>
+          <Button
+            variant="outline"
+            disabled={busy}
+            onClick={() => void go(intro.step - 1)}
+            {...stylex.props(styles.soft)}
+          >
             {t('intro.back')}
           </Button>
         ) : null}
@@ -798,24 +794,30 @@ function ModelStep({
         </details>
       ) : null}
       {!loaded ? <p role="status">{t('modelPreset.loading')}</p> : null}
-      <SidebarCardList label={t('failure.openModels')}>
-        <SidebarCardRow
-          icon="settings"
-          title={t('failure.openModels')}
-          meta={
-            selected?.credential || (loaded && models.length === 0)
+      <button
+        type="button"
+        onClick={() => {
+          hide(true);
+          openModelsSettingsAndReturn(() => {
+            hide(false);
+            void load();
+          });
+        }}
+        {...stylex.props(styles.link, styles.starter, styles.full)}
+      >
+        <span {...stylex.props(styles.linkIcon)}>
+          <ChannelSidebarIcon name="settings" size={18} />
+        </span>
+        <span {...stylex.props(styles.linkText)}>
+          <span {...stylex.props(styles.strong)}>{t('failure.openModels')}</span>
+          <span {...stylex.props(styles.meta)}>
+            {selected?.credential || (loaded && models.length === 0)
               ? t('onboarding.keyHint')
-              : t('onboarding.providerSettingsHint')
-          }
-          onClick={() => {
-            hide(true);
-            openModelsSettingsAndReturn(() => {
-              hide(false);
-              void load();
-            });
-          }}
-        />
-      </SidebarCardList>
+              : t('onboarding.providerSettingsHint')}
+          </span>
+        </span>
+        <ChannelSidebarIcon name="chevron-right" size={16} />
+      </button>
       {error ? (
         <p role="alert" className="bh-error">
           {error}
@@ -891,7 +893,7 @@ function CommunityStep({
         </span>
         <ChannelSidebarIcon name="external-link" size={16} />
       </a>
-      <div {...stylex.props(styles.link)} data-community="qq">
+      <div {...stylex.props(styles.link, styles.still)} data-community="qq">
         <span {...stylex.props(styles.linkIcon)}>
           <CommunityIcon name="qq" />
         </span>
@@ -904,6 +906,7 @@ function CommunityStep({
         <Button
           variant="outline"
           size="sm"
+          {...stylex.props(styles.soft, styles.onCard)}
           onClick={() => {
             track('qq');
             void navigator.clipboard
