@@ -156,12 +156,18 @@ const cellLayer = ({ index }: { index: number }) => ({ zIndex: -index });
 
 type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
 
+type ConversationPresentation = {
+  active: boolean;
+  onClose(): void;
+  onNestedChange(open: boolean): void;
+};
 export function ConversationScreen({
   expectedHostId,
   place,
   focus,
   focusRequest,
   latestWindowOnly = false,
+  presentation,
   active = true,
 }: {
   place: ChatPlace;
@@ -169,6 +175,7 @@ export function ConversationScreen({
   focus: string | undefined;
   focusRequest?: string | undefined;
   latestWindowOnly?: boolean;
+  presentation?: ConversationPresentation;
   active?: boolean;
 }) {
   const t = useStrings();
@@ -181,7 +188,7 @@ export function ConversationScreen({
   const { client, saved } = useHostSession(expectedHostId ?? openedOn);
 
   const routeFocused = useIsFocused();
-  const focused = routeFocused && active;
+  const focused = routeFocused && active && (presentation?.active ?? true);
   const roster = useHostSnapshot(client, focused).roster;
   const navigation = useNavigationContainerRef();
   const identities = useMemo(
@@ -219,6 +226,7 @@ export function ConversationScreen({
             focusRequest={focusRequest}
             latestWindowOnly={latestWindowOnly}
             focused={focused}
+            presentation={presentation}
           />
         </MessageIdentities.Provider>
       </AccentProvider>
@@ -338,12 +346,14 @@ function ChatConversation({
   focusRequest,
   latestWindowOnly,
   focused,
+  presentation,
 }: {
   focused: boolean;
   place: ChatPlace;
   focus: string | undefined;
   focusRequest: string | undefined;
   latestWindowOnly: boolean;
+  presentation: ConversationPresentation | undefined;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -357,6 +367,11 @@ function ChatConversation({
   const android = Platform.OS === 'android';
   const headerPadding = android ? inlineHeaderHeight : nativeHeaderPadding;
   const [profileOpen, setProfileOpen] = useState(false);
+  const nestedChange = presentation?.onNestedChange;
+  useLayoutEffect(() => {
+    nestedChange?.(profileOpen);
+    return () => nestedChange?.(false);
+  }, [nestedChange, profileOpen]);
   const [profileVisited, setProfileVisited] = useState(false);
   const [profileOpening, setProfileOpening] = useState(false);
   const prepareProfile = () => {
@@ -584,10 +599,12 @@ function ChatConversation({
     [selectionScope],
   );
   const stackRoot = useStackRoot();
-  const leave = useCallback(
-    () => (paging === undefined ? leaveScreen(router) : paging.leaveChat()),
-    [paging, router],
-  );
+  const closePresentation = presentation?.onClose;
+  const leave = useCallback(() => {
+    if (closePresentation) closePresentation();
+    else if (paging) paging.leaveChat();
+    else leaveScreen(router);
+  }, [router, closePresentation, paging]);
   const pull = usePullToCompose({
     enabled: composable || stackRoot,
     threshold: pullToCompose.threshold,
@@ -639,10 +656,11 @@ function ChatConversation({
   const mountRef = dictation.mountRef;
   const screenRef = useCallback(
     (node: unknown) => {
-      mountRef(focused ? node : null);
-      readMount(node);
-      recentMount(node);
-      sharedMount(node);
+      const visibleNode = focused ? node : null;
+      mountRef(visibleNode);
+      readMount(visibleNode);
+      recentMount(visibleNode);
+      sharedMount(visibleNode);
     },
     [mountRef, readMount, recentMount, sharedMount, focused],
   );
@@ -1289,7 +1307,7 @@ function ChatConversation({
 
   return (
     <>
-      {paging === undefined ? (
+      {paging === undefined && presentation === undefined ? (
         <Stack.Screen
           options={{
             headerShown: !android,
@@ -1363,7 +1381,7 @@ function ChatConversation({
         }}
         panel={
           android && profileVisited && saved != null ? (
-            <ProfileVisibility value={profileOpen || profileOpening}>
+            <ProfileVisibility value={focused && (profileOpen || profileOpening)}>
               <RevealProfileConversation value={() => setProfileOpen(false)}>
                 {dm ? (
                   <BotProfileScreen {...profileHref.params} onClose={() => setProfileOpen(false)} />
@@ -1523,7 +1541,7 @@ function ChatConversation({
               ) : notice === t.noBot || notice === t.noChannel ? (
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => router.dismissTo('/')}
+                  onPress={() => (closePresentation ? closePresentation() : router.dismissTo('/'))}
                   hitSlop={space.x3}
                 >
                   <Text variant="meta" tone="accent" strong>

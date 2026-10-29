@@ -52,6 +52,7 @@ vi.mock('../src/host/conversation', () => ({ createConversation: vi.fn() }));
 vi.mock('../src/host/conversation-playback', () => ({ createConversationPlayback: vi.fn() }));
 vi.mock('../src/host/native-cache', () => ({
   clearHostConversationCache: clearCache,
+  pruneHostConversationCache: () => undefined,
   nativeConversationCache: {},
 }));
 vi.mock('../src/host/native-conversation-filter', async () => {

@@ -9,7 +9,7 @@ import {
   type ChannelAttachmentRef,
 } from '../attachments/ref.js';
 import type { AttachmentStore } from '../attachments/store.js';
-import type { ChannelRecord } from '../channels/channel.js';
+import { isChannelRecord, isDisbandedGroup, type ChannelRecord } from '../channels/channel.js';
 import type { OperationalDatabaseOwner } from '../database/owner.js';
 import { attachOperationalModule } from '../database/owner.js';
 
@@ -181,7 +181,18 @@ export function createStorageCleanup(deps: {
       throw new StorageCleanupError('storage-unavailable', 'The operational database is not ready');
   };
   const names = (): Map<string, ChannelRecord> =>
-    new Map(deps.channels.list().map((record) => [record.id, record]));
+    new Map(
+      port.read((db) =>
+        db
+          .prepare('SELECT channel_id, record_json FROM channel_records')
+          .all()
+          .flatMap((row) => {
+            const id = String(row.channel_id);
+            const record: unknown = JSON.parse(String(row.record_json));
+            return isChannelRecord(record, id) ? [[id, record] as const] : [];
+          }),
+      ),
+    );
   const chatName = (records: Map<string, ChannelRecord>, channelId: string): string => {
     const record = records.get(channelId);
     if (record === undefined) return channelId;
@@ -324,6 +335,7 @@ export function createStorageCleanup(deps: {
         kinds.set(kind, total);
         sizes.set(id, ref);
         for (const channelId of event.channelIds) {
+          if (isDisbandedGroup(records.get(channelId))) continue;
           const chat = chats.get(channelId) ?? {
             channelId,
             name: chatName(records, channelId),
@@ -375,6 +387,7 @@ export function createStorageCleanup(deps: {
           .all() as unknown as PlacementRow[];
         for (const row of rows) {
           const record = records.get(row.channel_id);
+          if (isDisbandedGroup(record)) continue;
           const chat = chats.get(row.channel_id) ?? {
             channelId: row.channel_id,
             name: chatName(records, row.channel_id),

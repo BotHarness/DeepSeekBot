@@ -462,6 +462,11 @@ export class ChannelToolApproval {
     return tracked?.agent === agent && tracked.automatic === true;
   }
 
+  cancelChannel(channelId: string): void {
+    for (const [messageId, pending] of this.#pending)
+      if (pending.channelId === channelId) this.#settle(messageId, 'cancelled');
+  }
+
   cancelInvalid(): void {
     for (const [messageId, pending] of this.#pending) {
       const tracked = this.#tracked.get(callKey(pending.sessionId, pending.callId));

@@ -4,6 +4,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { channelNavigationHarness } from './channel-navigation-harness';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 let profileHistory = channelNavigationHarness();
+const visibility = vi.hoisted(() => ({ recent: vi.fn(), read: vi.fn() }));
+vi.mock('../src/ui/chat/mark-read', () => ({ useMarkRead: () => visibility.read }));
 import type { ChannelListItem } from '../src/host/wire';
 import type { RosterBot, RosterChannel } from '../src/host/client';
 import type { Conversation, ConversationSnapshot } from '../src/host/conversation';
@@ -64,7 +66,7 @@ const nativeList = vi.hoisted(() => ({
 
 vi.mock('../src/ui/shell/recent-chats', () => ({
   chatHref: () => '',
-  useRecentChat: () => () => {},
+  useRecentChat: () => visibility.recent,
 }));
 vi.mock('../src/host/native-source-drafts', () => ({
   useSourceDraft: () => ['', () => {}, { loaded: true, failed: false, retry: async () => true }],
@@ -272,12 +274,14 @@ vi.mock('../src/ui/primitives/keyboard-frame', () => ({
     children,
     composer,
     background,
+    onMount,
   }: {
     children: ReactNode;
     composer: ReactNode;
     background?: ReactNode;
+    onMount?: (node: unknown) => void;
   }) => (
-    <div>
+    <div ref={onMount}>
       <div data-testid="chat-background">{background === undefined ? 'none' : 'view'}</div>
       <div data-testid="chat-content">{children}</div>
       <div data-testid="chat-controls">{composer}</div>
@@ -1248,5 +1252,68 @@ it('opens scoped Bot-to-Bot details from its title without exposing group manage
     expect(view.querySelector('header')!.textContent).not.toContain(t.channelFiles.title);
   } finally {
     Object.assign(Platform, { OS: previousOS });
+  }
+});
+
+it('preloads inline chat without marking read or recording recents until it settles open', async () => {
+  const os = Platform.OS;
+  Object.assign(Platform, { OS: 'android' });
+  const place = focusConversation();
+  container = document.createElement('div');
+  root = createRoot(container);
+  const onClose = vi.fn(),
+    onNestedChange = vi.fn();
+  const show = (active: boolean) =>
+    act(async () =>
+      root!.render(
+        <ConversationScreen
+          place={place}
+          focus={undefined}
+          presentation={{ active, onClose, onNestedChange }}
+        />,
+      ),
+    );
+  visibility.read.mockClear();
+  visibility.recent.mockClear();
+  try {
+    await show(false);
+    expect(visibility.read.mock.calls.every(([node]) => node === null)).toBe(true);
+    expect(visibility.recent.mock.calls.every(([node]) => node === null)).toBe(true);
+    expect(container.querySelector('header')).toBeNull();
+    await show(true);
+    expect(visibility.read.mock.calls.some(([node]) => node !== null)).toBe(true);
+    expect(visibility.recent.mock.calls.some(([node]) => node !== null)).toBe(true);
+    await press(container, 'Header back');
+    expect(onClose).toHaveBeenCalledOnce();
+    visibility.read.mockClear();
+    visibility.recent.mockClear();
+    await show(false);
+    expect(visibility.read.mock.calls.every(([node]) => node === null)).toBe(true);
+    expect(visibility.recent.mock.calls.every(([node]) => node === null)).toBe(true);
+  } finally {
+    Object.assign(Platform, { OS: os });
+  }
+});
+
+it('closes an inline deleted conversation through its recovery action', async () => {
+  const os = Platform.OS;
+  Object.assign(Platform, { OS: 'android' });
+  container = document.createElement('div');
+  root = createRoot(container);
+  const onClose = vi.fn();
+  try {
+    await act(async () =>
+      root!.render(
+        <ConversationScreen
+          place={{ kind: 'dm', slug: 'gone' }}
+          focus={undefined}
+          presentation={{ active: true, onClose, onNestedChange: () => {} }}
+        />,
+      ),
+    );
+    await press(container, t.backToChats);
+    expect(onClose).toHaveBeenCalledOnce();
+  } finally {
+    Object.assign(Platform, { OS: os });
   }
 });

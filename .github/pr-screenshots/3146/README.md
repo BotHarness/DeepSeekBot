@@ -22,3 +22,9 @@ This proves the listed interactions, not FPS or Human smoothness acceptance. iOS
 - Disabled Compose pager internals reported stale horizontal semantics after the first gesture. Hit testing now respects the public pager and visible actual page views.
 
 Refs #3146. Agent task:codex/local/01a17bef-21c0-75f0-bf5d-2fedb6df7b73.
+
+## Earlier bottom-sheet surface slice — PR #3149
+
+Physical Android, arm64 development-ID Release. Baseline main ef5d00ff5e89; candidate runtime 2feb357bc059. Native screenshots cropped only: system status, accounts, usage, Host identity and conversation content are excluded. b/a are before/after Activity filter, l/d light/dark. s-* show only the Settings top region; the extra title is removed, while Close and child headers remain. No generated product pixels.
+
+All five Profile buttons matched exactly after tap versus pager swipe (31,680 pixels per button); Human also reported no current shape problem. Real-scene Profile dragging and Activity side-sheet migration remain outside this slice, tracked in #3146.

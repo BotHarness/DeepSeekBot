@@ -13,7 +13,12 @@ import { createConversationPlayback, type ConversationPlayback } from './convers
 import { useVisibleSnapshot } from './use-visible-snapshot';
 import { hostAvailabilitySource } from './host-availability';
 import { currentHost, selectHost, withHost, withoutHost, type SavedHosts } from './hosts';
-import { clearHostConversationCache, nativeConversationCache } from './native-cache';
+import {
+  clearHostConversationCache,
+  pruneHostConversationCache,
+  nativeConversationCache,
+} from './native-cache';
+import { watchDisbandedGroups } from './disbanded-groups';
 import { conversationFilter } from './native-conversation-filter';
 import { computerEnvironmentKey } from './conversation-environments';
 import { nativeCarrier } from './native-carrier';
@@ -128,8 +133,21 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   let connected = false;
   let avatars: string | undefined;
   let avatarRetryAt = Infinity;
+  const disbanded = watchDisbandedGroups();
   const offConnection = client.subscribe(() => {
     const snapshot = client.getSnapshot();
+    if (snapshot.roster !== undefined) {
+      const change = disbanded(snapshot.roster);
+      const live = conversations.get(client);
+      const ended = new Set(change.gone.map((id) => `channel:${id}`));
+      for (const key of live?.keys() ?? []) if (change.stale?.(key)) ended.add(key);
+      for (const key of ended) {
+        live?.get(key)?.stop();
+        live?.delete(key);
+      }
+      if (saved !== null && change.stale !== undefined)
+        pruneHostConversationCache(saved.hostId, change.stale);
+    }
     const now = snapshot.connection.status === 'connected';
     if (now && !connected) {
       void pushSession.retryFailed();

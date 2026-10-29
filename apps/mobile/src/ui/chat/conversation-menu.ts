@@ -59,7 +59,7 @@ export function conversationMenu(
       key: 'delete',
       glyph: 'delete',
       icon: 'trash',
-      label: t.deletion.dissolve,
+      label: t.deletion.disband,
       destructive: true,
       run: () =>
         options.onDelete({

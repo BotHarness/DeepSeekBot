@@ -1,3 +1,4 @@
+import { ActivityInspector } from './activity-inspector';
 import { HostGlyph } from './host-tile';
 import { useIsFocused } from 'expo-router';
 import { ActivitySheetRegistration } from './activity-sheet-root';
@@ -15,21 +16,8 @@ import {
   memo,
   type ReactElement,
 } from 'react';
-import {
-  AccessibilityInfo,
-  Animated as NativeAnimated,
-  Platform,
-  Pressable,
-  View,
-  useWindowDimensions,
-} from 'react-native';
-import { TabView } from 'react-native-tab-view';
-import Animated, {
-  FadeOut,
-  LinearTransition,
-  useAnimatedStyle,
-  useReducedMotion,
-} from 'react-native-reanimated';
+import { AccessibilityInfo, Platform, Pressable, View } from 'react-native';
+import Animated, { FadeOut, LinearTransition, useAnimatedStyle } from 'react-native-reanimated';
 
 import type { HostClient, RosterBot } from '../../host/client';
 import {
@@ -87,9 +75,7 @@ import { UndoBar, type UndoNotice } from '../primitives/undo-bar';
 import { ArchiveIcon, ClockIcon, UndoIcon } from './icons';
 import type { ActivityOptions } from './activity-header-actions';
 import { ActivityToolbar, type ActivityToolbarHandle } from './activity-toolbar';
-import { ActivityTabs, ACTIVITY_TABS, type ActivityTab } from './activity-tabs';
 import { activityAvatar } from './activity-avatar';
-import { activityTabMarks } from './activity-tab-strip';
 import { useFloatingTabInset } from './floating-tab-inset';
 import { CollapsingToolbar, useChromeProgress, useChromeScroll } from './scroll-chrome';
 import { useStrings } from '../strings';
@@ -104,7 +90,6 @@ import {
 const AVATAR = 32;
 const LOADING: InboxSnapshot = { status: 'loading' };
 const EMPTY_SOURCE = { getSnapshot: () => LOADING, subscribe: () => () => {} };
-const ACTIVITY_ROUTES = [...ACTIVITY_TABS];
 const SUMMARY_PREVIEW_LIMIT = 512;
 const ROW_LAYOUT = springy(LinearTransition.springify(), spring.spatial.default);
 const ROW_EXIT = springy(FadeOut.springify(), spring.effects.fast);
@@ -179,6 +164,7 @@ export function feedRows(
   filter: ActivityFilter = DEFAULT_ACTIVITY,
   search = '',
   hidden: HiddenItems = new Map(),
+  sort: ActivitySort = 'default',
 ): FeedRow[] {
   if (snapshot.status !== 'ready') return [];
   const rows: FeedRow[] = [];
@@ -197,6 +183,15 @@ export function feedRows(
       );
     }
     if (snapshot.cursors?.[section]) rows.push({ kind: 'more', key: `more-${section}`, section });
+  }
+  if (sort !== 'default') {
+    rows.sort((a, b) => {
+      if (a.kind === 'more') return b.kind === 'more' ? 0 : 1;
+      if (b.kind === 'more') return -1;
+      if (a.kind === 'empty' || b.kind === 'empty') return 0;
+      const delta = Date.parse(a.item.createdAt) - Date.parse(b.item.createdAt);
+      return sort === 'oldest' ? delta : -delta;
+    });
   }
   if (rows.length === 0 && !search.trim())
     rows.push({ kind: 'empty', key: `empty-${filter.section}` });
@@ -487,7 +482,6 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
   const [searchFocused, setSearchFocused] = useState(false);
   const [sort, setSort] = useState<ActivitySort>('default');
   const [filtering, setFiltering] = useState(false);
-  const [lastTab, setLastTab] = useState(0);
   const [notice, setNotice] = useState<UndoNotice>();
   const noticeCount = useRef(0);
   const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -510,13 +504,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
   const initialHeight = useChatHeaderHeight();
   const insets = useSafeAreaInsets();
   const [headerHeight, setHeaderHeight] = useState(Platform.OS === 'ios' ? 0 : initialHeight);
-  const width = useWindowDimensions().width;
-  const reducedMotion = useReducedMotion();
   const progress = useChromeProgress();
-  const selectedIndex = ACTIVITY_TABS.findIndex((tab) => tab.key === filter.section);
-  const index = selectedIndex < 0 ? lastTab : selectedIndex;
-  const placeholderPosition = useMemo(() => new NativeAnimated.Value(index), [index]);
-  const marks = useMemo(() => activityTabMarks(props.snapshot), [props.snapshot]);
   const slugsWithSelection =
     filter.bot !== undefined && !botSlugs.includes(filter.bot)
       ? [...botSlugs, filter.bot]
@@ -528,12 +516,6 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
     channels,
     bots: slugsWithSelection.map((slug) => ({ slug, name: bot(slug)?.displayName ?? slug })),
     onFilter: setFilter,
-  };
-  const selectIndex = (next: number) => {
-    const tab = ACTIVITY_TABS[next];
-    if (!tab) return;
-    setLastTab(next);
-    setFilter((current) => ({ ...current, section: tab.key }));
   };
   const top = headerHeight;
   const travel = Math.max(0, top - insets.top);
@@ -547,63 +529,29 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
       behavior="padding"
     >
       <Animated.View style={[{ flex: 1, marginTop: top, marginBottom: -travel }, pageStyle]}>
-        <DeferredContent
-          fallback={
-            <View style={{ flex: 1 }}>
-              <ActivityTabs
-                selected={filter.section}
-                marks={marks}
-                position={placeholderPosition}
-                onSelect={(key) => selectIndex(ACTIVITY_TABS.findIndex((tab) => tab.key === key))}
-              />
-              <ListSkeleton />
+        <DeferredContent fallback={<ListSkeleton />}>
+          {props.unavailable ? (
+            <View style={{ padding: space.x6 }}>
+              <Text tone="muted">{props.unavailable}</Text>
             </View>
-          }
-        >
-          <TabView
-            style={{ backgroundColor: theme.color.base }}
-            navigationState={{ index, routes: ACTIVITY_ROUTES }}
-            initialLayout={{ width }}
-            onIndexChange={selectIndex}
-            animationEnabled={!reducedMotion}
-            swipeEnabled={false}
-            lazy
-            renderLazyPlaceholder={() => <ListSkeleton />}
-            renderTabBar={({ position, jumpTo }) => (
-              <ActivityTabs
-                selected={filter.section}
-                marks={marks}
-                position={position}
-                onSelect={jumpTo}
-              />
-            )}
-            renderScene={({ route }: { route: ActivityTab }) =>
-              props.unavailable ? (
-                <View style={{ padding: space.x6 }}>
-                  <Text tone="muted">{props.unavailable}</Text>
-                </View>
-              ) : (
-                <ActivityPage
-                  {...props}
-                  onNotice={showNotice}
-                  section={route.key === ACTIVITY_TABS[index]?.key ? filter.section : route.key}
-                  filterBot={filter.bot}
-                  filterChannel={filter.channel}
-                  filterUnread={filter.unreadOnly}
-                  search={search}
-                  sort={sort}
-                  active={route.key === ACTIVITY_TABS[index]?.key}
-                  searchFocused={searchFocused}
-                  scrollActive={route.key === ACTIVITY_TABS[index]?.key}
-                  pinChrome={
-                    searchFocused || filtering || (Platform.OS === 'android' && search !== '')
-                  }
-                  headerTravel={travel}
-                  dismissSearch={dismissSearch}
-                />
-              )
-            }
-          />
+          ) : (
+            <ActivityPage
+              {...props}
+              onNotice={showNotice}
+              section={filter.section}
+              filterBot={filter.bot}
+              filterChannel={filter.channel}
+              filterUnread={filter.unreadOnly}
+              search={search}
+              sort={sort}
+              active={focused}
+              searchFocused={searchFocused}
+              scrollActive={focused}
+              pinChrome={searchFocused || filtering || (Platform.OS === 'android' && search !== '')}
+              headerTravel={travel}
+              dismissSearch={dismissSearch}
+            />
+          )}
         </DeferredContent>
       </Animated.View>
       <CollapsingToolbar travel={travel} height={top}>
@@ -614,9 +562,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
           onSearchFocus={setSearchFocused}
           filtered={
             sort !== 'default' ||
-            filter.section === 'all' ||
-            filter.section === 'handled' ||
-            setAside(filter.section) ||
+            filter.section !== 'all' ||
             filter.bot !== undefined ||
             filter.channel !== undefined ||
             filter.unreadOnly === true
@@ -639,7 +585,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
         }}
       />
       <UndoBar notice={notice} bottom={tabInset} onDone={noticeDone} />
-      {Platform.OS !== 'android' ? (
+      {Platform.OS === 'web' ? (
         <ActivityFilters
           visible={filtering}
           {...filterOptions}
@@ -670,7 +616,13 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
       {content}
     </>
   ) : (
-    content
+    <ActivityInspector
+      visible={filtering && focused}
+      {...filterOptions}
+      onClose={() => setFiltering(false)}
+    >
+      {content}
+    </ActivityInspector>
   );
 });
 
@@ -774,7 +726,7 @@ const ActivityPage = memo(function ActivityPage({
       : held.filter((item) =>
           sources.some((source) => source.client === item.activitySource?.client),
         );
-  const rows = feedRows(visible, gone, retained, filter, search, hidden);
+  const rows = feedRows(visible, gone, retained, filter, search, hidden, sort);
   const hide = (item: HumanAttentionItem, on: boolean) =>
     setHidden((current) => {
       const next = new Map(current);

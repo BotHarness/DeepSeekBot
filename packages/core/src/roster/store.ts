@@ -387,6 +387,42 @@ export class RosterStore {
     });
   }
 
+  channelForget(channelId: string): Promise<void> {
+    return this.enqueue(() => {
+      const table = this.requireTable();
+      const global = this.requireGlobal();
+      const drop = (ids: readonly string[]) => ids.filter((id) => id !== channelId);
+      const changed = [...table.entries()].filter(([, record]) =>
+        record.channelIds.includes(channelId),
+      );
+      for (const [id, record] of changed)
+        table.put(id, { name: record.name, channelIds: drop(record.channelIds) });
+      const state = global.get();
+      const placed =
+        [state.pins, state.hidden ?? [], state.muted ?? []].some((ids) =>
+          ids.includes(channelId),
+        ) || state.topOrder?.some((entry) => entry.kind === 'channel' && entry.id === channelId);
+      if (!placed) return;
+      global.set(
+        nextGlobalState(state, {
+          pins: drop(state.pins),
+          ...(state.hidden ? { hidden: drop(state.hidden) } : {}),
+          ...(state.muted ? { muted: drop(state.muted) } : {}),
+          ...(state.topOrder
+            ? {
+                topOrder: sanitizeTopOrder(
+                  state.topOrder.filter(
+                    (entry) => entry.kind !== 'channel' || entry.id !== channelId,
+                  ),
+                  table,
+                ),
+              }
+            : {}),
+        }),
+      );
+    });
+  }
+
   sectionReorder(order: readonly string[]): Promise<string[]> {
     return this.enqueue(() => {
       const table = this.requireTable();

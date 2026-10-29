@@ -58,6 +58,7 @@
     "apps/mobile/test/quick-action-routing.test.ts",
     "apps/mobile/test/incoming-share.test.ts",
     "apps/mobile/test/recent-chats.test.ts",
+    "apps/mobile/test/swipe-chat-target.test.ts",
     "apps/mobile/test/grant-request-card.test.ts",
     "apps/mobile/test/attention-actions.test.ts",
     "apps/mobile/test/host-session-unpair.test.ts",
