@@ -1,10 +1,14 @@
-import type {
-  MarketplaceClient,
-  MarketplaceDetail,
-  MarketplacePage,
-  MarketplaceQuery,
-  MarketplaceResult,
-  MarketplaceTopic,
+import {
+  MARKETPLACE_SECTIONS,
+  type MarketplaceClient,
+  type MarketplaceDetail,
+  type MarketplaceDigest,
+  type MarketplaceDigestSummary,
+  type MarketplaceSection,
+  type MarketplacePage,
+  type MarketplaceQuery,
+  type MarketplaceResult,
+  type MarketplaceTopic,
 } from '../../../../packages/core/src/marketplace/client';
 import type { MarketplaceLanguage } from '../../../../packages/core/src/marketplace/language';
 
@@ -92,13 +96,44 @@ function cached<T>(cache: Map<string, T>, key: string, create: () => T): T {
 }
 
 export function createMobileMarketplace(
-  client: Pick<MarketplaceClient, 'list' | 'detail' | 'topics'>,
+  client: Pick<MarketplaceClient, 'list' | 'detail' | 'topics' | 'section' | 'digests' | 'digest'>,
 ) {
   const lists = new Map<string, CatalogueList>();
   const details = new Map<string, CatalogueResource<MarketplaceDetail>>();
+  const sections = new Map<string, CatalogueResource<MarketplaceSection[]>>();
+  const digestLists = new Map<string, CatalogueResource<MarketplaceDigestSummary[]>>();
+  const digests = new Map<string, CatalogueResource<MarketplaceDigest>>();
   const topics: CatalogueResource<MarketplaceTopic[]> = resource(() => client.topics());
   return {
     topics,
+    sections(lang: MarketplaceLanguage): CatalogueResource<MarketplaceSection[]> {
+      return cached(sections, lang, () =>
+        resource(async () => {
+          const results = await Promise.all(
+            MARKETPLACE_SECTIONS.map((name) => client.section(name, lang)),
+          );
+          const loaded: MarketplaceSection[] = [];
+          for (const result of results) {
+            if (!result.ok) return result;
+            loaded.push(result.value);
+          }
+          return { ok: true, value: loaded };
+        }),
+      );
+    },
+    digests(lang: MarketplaceLanguage): CatalogueResource<MarketplaceDigestSummary[]> {
+      return cached(digestLists, lang, () => resource(() => client.digests(lang)));
+    },
+    digest(day: string, lang: MarketplaceLanguage): CatalogueResource<MarketplaceDigest> {
+      return cached(digests, JSON.stringify([day, lang]), () =>
+        resource(async () => {
+          const result = await client.digest(day, lang);
+          return result.ok && result.value.day !== day
+            ? { ok: false, code: 'marketplace-unavailable' }
+            : result;
+        }),
+      );
+    },
     list(query: Omit<MarketplaceQuery, 'cursor'>): CatalogueList {
       const normalized = {
         lang: query.lang ?? 'en',

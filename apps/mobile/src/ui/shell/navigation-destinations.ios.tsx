@@ -69,7 +69,9 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
                   <Image
                     systemName={
                       item.settings
-                        ? 'gearshape'
+                        ? item.focused
+                          ? 'gearshape.fill'
+                          : 'gearshape'
                         : item.activity
                           ? item.focused
                             ? 'bell.fill'

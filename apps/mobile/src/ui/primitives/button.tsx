@@ -39,6 +39,7 @@ export function Button({
   symbol,
   testID,
 }: {
+  fit?: boolean;
   label: string;
   onPress(): void;
   tone?: ButtonTone;

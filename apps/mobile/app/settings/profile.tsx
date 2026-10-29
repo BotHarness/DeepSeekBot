@@ -29,7 +29,6 @@ export default function AccountProfileScreen() {
       avatar={avatar}
       signingIn={signingIn}
       actions={{
-        onBack: () => router.back(),
         onRetry: () => void accountProfile.refresh(),
         onEditName: () => router.push('/settings/profile-name'),
         onSignIn: () => {

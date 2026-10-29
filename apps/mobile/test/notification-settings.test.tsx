@@ -61,6 +61,7 @@ function port(overrides: Partial<NotificationSettingsPort> = {}) {
 
 describe('Notification settings', () => {
   it('keeps device choices editable without system permission or a push token', async () => {
+    const announce = vi.spyOn(AccessibilityInfo, 'announceForAccessibility');
     const settings = port({
       load: async () => {
         throw new Error('offline');
@@ -79,6 +80,7 @@ describe('Notification settings', () => {
     );
     const reply = view.querySelector<HTMLInputElement>(`[aria-label="${t.pushKind.reply}"]`)!;
     expect(reply.checked).toBe(true);
+    expect(announce).toHaveBeenCalledWith('offline');
     expect(reply.disabled).toBe(false);
     await act(async () => reply.click());
     expect(settings.set).toHaveBeenCalledWith({ reply: false });

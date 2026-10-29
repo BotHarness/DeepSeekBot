@@ -14,6 +14,8 @@ type NativeItem = {
 
 const nav = vi.hoisted(() => ({
   prevent: [] as boolean[],
+  onPrevent: undefined as ((event: { repeat(): void }) => void) | undefined,
+  dispatch: vi.fn(),
   header: undefined as (() => ReactNode) | undefined,
   items: undefined as (() => NativeItem[]) | undefined,
   parentOptions: [] as Record<string, unknown>[],
@@ -31,11 +33,12 @@ vi.mock('expo-router', () => ({
       return null;
     },
   },
-  usePreventRemove: (prevent: boolean) => {
+  usePreventRemove: (prevent: boolean, onPrevent: (event: { repeat(): void }) => void) => {
     nav.prevent.push(prevent);
+    nav.onPrevent = onPrevent;
   },
   useNavigation: () => ({
-    dispatch: vi.fn(),
+    dispatch: nav.dispatch,
     getParent: () => ({
       setOptions: (options: Record<string, unknown>) => nav.parentOptions.push(options),
     }),
@@ -113,6 +116,7 @@ afterEach(() => {
   nav.prevent.length = 0;
   nav.parentOptions.length = 0;
   nav.discard.mockReset();
+  nav.dispatch.mockReset();
 });
 
 const HEAD = 'a'.repeat(40);
@@ -217,6 +221,26 @@ describe('Memory file editing', () => {
     await click(button(t.memoryConflictDiscard));
     expect(host!.textContent).not.toContain(t.memoryConflict);
     expect(nav.prevent.at(-1)).toBe(false);
+  });
+
+  it('leaves once when Back is confirmed over a kept conflict draft', async () => {
+    const save = vi.fn(async (): Promise<string> => {
+      throw new MethodRefused('memory-conflict', 'changed');
+    });
+    await render({ title: 'SOUL.md', load: async () => file('Original'), save });
+    await click(header(t.memoryEdit('SOUL.md')));
+    await type('My draft');
+    await click(header(t.memorySave));
+    expect(nav.prevent.at(-1)).toBe(true);
+
+    const repeat = vi.fn();
+    act(() => nav.onPrevent!({ repeat }));
+    expect(nav.discard).toHaveBeenCalledTimes(1);
+    await act(async () => nav.discard.mock.calls[0]![0]());
+    expect(repeat).toHaveBeenCalledTimes(1);
+    expect(nav.dispatch).not.toHaveBeenCalled();
+    expect(nav.prevent.at(-1)).toBe(false);
+    expect(host!.textContent).not.toContain(t.memoryConflict);
   });
 
   it('asks before discarding edits, and shows other save failures in place', async () => {

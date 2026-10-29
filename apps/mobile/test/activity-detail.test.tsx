@@ -7,6 +7,11 @@ vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
 
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
+vi.mock('react-native-worklets', () => ({
+  scheduleOnRN: <A extends unknown[]>(callback: (...args: A) => void, ...args: A) =>
+    callback(...args),
+}));
 vi.mock('../src/ui/shell/icons', async () => ({
   ...(await import('./shell-icons-shim')),
   ChevronLeftIcon: () => null,

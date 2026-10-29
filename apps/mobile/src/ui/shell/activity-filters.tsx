@@ -23,7 +23,7 @@ export type ActivityFilter = {
 };
 export type ActivitySort = 'default' | 'newest' | 'oldest';
 export const ALL_ACTIVITY: ActivityFilter = { section: 'all', bot: undefined };
-export const DEFAULT_ACTIVITY: ActivityFilter = { section: 'action', bot: undefined };
+export const DEFAULT_ACTIVITY: ActivityFilter = ALL_ACTIVITY;
 export const ACTIVITY_SECTIONS: readonly ActivitySection[] = [
   'all',
   ...INBOX_SECTIONS.filter((section) => section !== 'unread'),
@@ -75,7 +75,15 @@ function TextAction({ label, onPress }: { label: string; onPress(): void }) {
   );
 }
 
-function OptionsEditor({ bots, channels, filter, sort, onFilter, onSort, onClose }: Props) {
+export function ActivityFilterContent({
+  bots,
+  channels,
+  filter,
+  sort,
+  onFilter,
+  onSort,
+  onClose,
+}: Omit<Props, 'visible'>) {
   const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
@@ -166,12 +174,19 @@ function OptionsEditor({ bots, channels, filter, sort, onFilter, onSort, onClose
           }}
         />
       ) : null}
+      {!ios ? (
+        <View style={{ paddingHorizontal: space.x5, paddingTop: space.x2 }}>
+          <DrawerHeader title={t.activityOptions} onClose={onClose} />
+        </View>
+      ) : null}
       <FlatList
         nestedScrollEnabled
         ListHeaderComponent={
-          <View style={{ paddingHorizontal: space.x5, paddingTop: space.x2 }}>
-            <DrawerHeader title={t.activityOptions} onClose={onClose} />
-          </View>
+          ios ? (
+            <View style={{ paddingHorizontal: space.x5, paddingTop: space.x2 }}>
+              <DrawerHeader title={t.activityOptions} onClose={onClose} />
+            </View>
+          ) : undefined
         }
         data={rows}
         keyExtractor={(row) => row.key}
@@ -282,18 +297,16 @@ function OptionsEditor({ bots, channels, filter, sort, onFilter, onSort, onClose
     </>
   );
   return (
-    <OptionsSurface onClose={onClose}>
-      <View
-        style={{
-          flex: ios ? 1 : undefined,
-          flexShrink: 1,
-          paddingBottom: ios ? Math.max(insets.bottom, space.x5) : 0,
-          backgroundColor: theme.layer.sheet.fill,
-        }}
-      >
-        {content}
-      </View>
-    </OptionsSurface>
+    <View
+      style={{
+        flex: 1,
+        flexShrink: 1,
+        paddingBottom: ios ? Math.max(insets.bottom, space.x5) : 0,
+        backgroundColor: ios ? theme.layer.sheet.fill : theme.overlay.fill,
+      }}
+    >
+      {content}
+    </View>
   );
 }
 
@@ -326,5 +339,9 @@ function OptionsSurface({ children, onClose }: { children: ReactNode; onClose():
 }
 
 export function ActivityFilters(props: Props) {
-  return props.visible ? <OptionsEditor {...props} /> : null;
+  return props.visible ? (
+    <OptionsSurface onClose={props.onClose}>
+      <ActivityFilterContent {...props} />
+    </OptionsSurface>
+  ) : null;
 }

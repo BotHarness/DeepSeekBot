@@ -522,6 +522,7 @@ describe('Model entry', () => {
     expect(cards(host)).toContain('flash · high');
     expect(cards(host)).toContain('Task model');
     expect(cards(host)).toContain('k2 · Default');
+    expect(host.querySelectorAll('.bh-model-entry button.bh-card-main')).toHaveLength(1);
   });
 
   it('preselects the DSH default model and offers keyless providers as unpickable', async () => {
