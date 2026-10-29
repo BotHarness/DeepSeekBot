@@ -1,27 +1,27 @@
 {
-  "version": "2026.10.2",
+  "version": "2026.10.6",
   "assets": {
     "darwin-arm64": {
       "name": "cloudflared-darwin-arm64.tgz",
-      "sha256": "529a07089ac2d46762578389230fa148e5cb6ce2689200fc006956864042d17a",
-      "binarySha256": "823f993ef362fba5e0e288db6f3452d8de34291632971c7a40b79548420e9a18"
+      "sha256": "ea1e5105d35bbe16cee5b2f7b4742059ada341fbd35938ed827c24b85efa51c8",
+      "binarySha256": "380451015c3676789adc4200f43757e950e7173b920b0094e272e8bea59d7927"
     },
     "darwin-x64": {
       "name": "cloudflared-darwin-amd64.tgz",
-      "sha256": "b64efd5a2772fc124b855f60eb3d33ba1a4f2ba67b19ddc58d32b705d42b82c9",
-      "binarySha256": "4be2a4c0b76f6be4a84bea590743e85041949c294efcee4de86a140a9f11869a"
+      "sha256": "6c04a13835ca5ff29a0c6f58d17d1f3956aad1b7df1631f5b5efbc06269deded",
+      "binarySha256": "2b74a9a6b9e5161dbf79a77c2fcc6337cd7e9d2b23eee9d1b6635ecb17608589"
     },
     "linux-arm64": {
       "name": "cloudflared-linux-arm64",
-      "sha256": "b7e55b4d9702c2ab5f8348f780bb1db044527fc555367714c78e0595750a4665"
+      "sha256": "0ae0e179475b2c77651a718d2b376e0151f4fca5954702a84f02843a4d5fcac0"
     },
     "linux-x64": {
       "name": "cloudflared-linux-amd64",
-      "sha256": "35fbdd2beb378436c7da377d7358cea8e33f9c94a6705d1d8036bf9b0d6d8005"
+      "sha256": "1d356dac769d0dbf62ebe588c4034824bbff98d5790c2f844cc99e0e2f57462d"
     },
     "win32-x64": {
       "name": "cloudflared-windows-amd64.exe",
-      "sha256": "12c7c887f8aaab779aef1dfa9b60673530a5adb88ecc55dd6df8f56e0b70f199"
+      "sha256": "d521b3bf68982165f0d06d76732f22d9a105ef057ff3ae4c0986f3a23190950f"
     }
   }
 }
