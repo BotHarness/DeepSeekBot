@@ -35,7 +35,7 @@ the shared QA Host. Use only the dedicated QA conversations.
    before/after in light/dark; disclose physical-device and Android gaps.
 
 
-## Activity list triage (#1954, #3146)
+## Activity list triage (#1954, #3146, #3159, #3174)
 
 Use the shared-device queue. Open Activity on the selected QA Host with a pending
 question/approval, a Human mention, a reply and ordinary unread group messages.
@@ -47,7 +47,10 @@ On Android, tap the header filter button: it directly opens the modal end side
 sheet above the bottom navigation. A left swipe on the screen also opens it.
 Close with the header action, scrim and Android Back; each dismisses only the sheet.
 Its fixed title and scrolling controls remain reachable at maximum system text.
-On iOS, verify the existing filter sheet separately.
+On iOS, the toolbar opens SwiftUI Inspector as a native Sheet on iPhone.
+Verify native Close and swipe-dismiss, medium/large detents, retained list position
+and drafts, and selected filters after reopening. Before iOS 17, use the native
+Sheet fallback. Physical iPhone and wide-screen results remain separate from Simulator proof.
 
 Combine category, Bot, Channel and unread-only filters. Reset restores All and
 default filters without clearing search. Newest/oldest sorts loaded categories
