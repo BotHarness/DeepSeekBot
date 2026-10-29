@@ -7,7 +7,7 @@ Date: 2026-10-29. Simulator: iPhone 18 Pro Max, iOS 27, 440 × 956 pt (1320 × 2
 - Before: latest origin/main `71ff1b41b99373bdfa40cd53c44329140daec65a`, including merged #3178.
 - After: #3175 integrated with that main at `119097c172d7c84b46e6efc9ab4e045fe47e60a4`.
 - Native shell: existing Release Simulator build from `2f5eecec0a4c4c049d18a820f513b86594680065`; iOS native inputs audited as compatible. Fresh production Hermes bundles exported separately for before/after, installed in place. This is not a newly compiled native binary and not physical-iPhone acceptance.
-- This is the initial RN 0.88.0 pass. CI subsequently exposed an existing Expo 58.0.21 / RN mismatch; RN 0.88.1 native rebuild and acceptance are pending. These captures do not qualify the upgraded binary.
+- This is the initial RN 0.88.0 pass. CI subsequently exposed an existing Expo 58.0.21 / RN mismatch; RN 0.88.1 native rebuild and final acceptance are tracked in the #3175 PR description and its final evidence link. These initial captures do not qualify the upgraded binary.
 - Existing pairings retained; all Hosts offline. Public market browsing needs no Host. The Settings usage error is expected in this offline setup, not a title failure.
 
 ## Results
