@@ -113,11 +113,14 @@ vi.mock('expo-router', () => ({
           options.headerLeft?.() ??
           null}
         <aside data-testid="trailing-header">
-          {options.unstable_headerRightItems?.().map((item) => (
-            <button key={item.label} type="button" onClick={item.onPress}>
-              {item.label}
-            </button>
-          )) ?? options.headerRight?.()}
+          {options
+            .unstable_headerRightItems?.()
+            .filter((item) => item.label !== undefined)
+            .map((item) => (
+              <button key={item.label} type="button" onClick={item.onPress}>
+                {item.label}
+              </button>
+            )) ?? options.headerRight?.()}
         </aside>
       </header>
     ),

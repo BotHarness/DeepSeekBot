@@ -1202,12 +1202,17 @@ function ChatConversation({
     />
   ) : null;
   const ios = Platform.OS === 'ios';
+  const headerGap = glassPress.gap;
+  const titleWidth = Math.max(
+    0,
+    windowWidth - insets.left - insets.right - (theme.touch + space.x5 + headerGap) * 2,
+  );
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
   const titleItem = (
     <View
       style={{
-        width: dm || botDm ? undefined : windowWidth - (theme.touch + space.x5) * 2,
-        maxWidth: windowWidth - (theme.touch + space.x5) * 2,
+        width: titleWidth,
+        maxWidth: titleWidth,
       }}
     >
       {title}
@@ -1280,6 +1285,7 @@ function ChatConversation({
                 unstable_headerRightItems: () =>
                   canOpenProfile
                     ? [
+                        { type: 'spacing' as const, spacing: headerGap },
                         {
                           type: 'button' as const,
                           label: t.openProfile,
@@ -1305,7 +1311,7 @@ function ChatConversation({
                             onPress: leave,
                           },
                         ]),
-                  { type: 'spacing' as const, spacing: glassPress.gap },
+                  { type: 'spacing' as const, spacing: headerGap },
                   { type: 'custom' as const, element: titleItem },
                 ],
               }
@@ -1731,7 +1737,7 @@ function ChatConversation({
               paddingHorizontal: space.x4,
               flexDirection: 'row',
               alignItems: 'center',
-              gap: space.x3,
+              gap: headerGap,
             }}
           >
             {back}
