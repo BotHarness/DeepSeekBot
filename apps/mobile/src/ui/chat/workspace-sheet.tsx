@@ -18,10 +18,13 @@ import {
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
-import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
+import {
+  SettingsGroupItem,
+  SettingsRow,
+  type SettingsRowControl,
+} from '../primitives/settings-row';
 import { Text } from '../primitives/text';
-import { Toggle } from '../primitives/toggle';
-import { CheckIcon, ChevronRightIcon, CloseIcon, FolderIcon, PlusIcon } from '../shell/icons';
+import { CloseIcon, FolderIcon, PlusIcon } from '../shell/icons';
 import { useStrings, t } from '../strings';
 import {
   Sheet,
@@ -36,7 +39,6 @@ import {
   SHEET_GROUP,
 } from './sheet';
 import { confirmDestructive } from '../primitives/app-dialog';
-import { LoadingIndicator } from '../primitives/loading-indicator';
 
 type Mode = 'main' | 'browse' | 'confirm';
 type Pending = { path: string; workspaceId?: string };
@@ -130,7 +132,7 @@ export function RowIcon({ kind }: { kind: 'folder' | 'add' }) {
   );
 }
 
-function RemoveButton({
+export function RemoveButton({
   label,
   disabled,
   onPress,
@@ -246,7 +248,6 @@ export function WorkspaceSheet({
   onClose(): void;
 }) {
   const t = useStrings();
-  const theme = useDesignTheme();
   const [mode, setMode] = useState<Mode>('main');
   const [listing, setListing] = useState<Loadable<HostFolderListing>>({
     status: 'loading',
@@ -363,12 +364,8 @@ export function WorkspaceSheet({
     });
   };
 
-  const trailingCheck = (key: string, selected: boolean) =>
-    busy === key ? (
-      <LoadingIndicator size="control" />
-    ) : selected ? (
-      <CheckIcon color={theme.color.fg} size={theme.type.title.line} />
-    ) : undefined;
+  const checkControl = (key: string, selected: boolean): SettingsRowControl | undefined =>
+    busy === key ? { kind: 'busy' } : selected ? { kind: 'check' } : undefined;
 
   const notice = (
     <>
@@ -396,7 +393,8 @@ export function WorkspaceSheet({
           <SettingsRow
             title={name}
             detail={pending.path}
-            leading={<RowIcon kind="folder" />}
+            icon="folder"
+            iconTone="muted"
             on={SHEET_GROUP}
           />
         </SettingsGroupItem>
@@ -496,6 +494,7 @@ export function WorkspaceSheet({
             data: readonly BrowseRow[];
           }
         >
+          nestedScrollEnabled
           style={page !== undefined ? { flex: 1 } : { flexShrink: 1 }}
           sections={sections}
           keyExtractor={(row) => row.key}
@@ -519,7 +518,8 @@ export function WorkspaceSheet({
                 <SettingsRow
                   title={item.option.title}
                   detail={item.option.path}
-                  leading={<RowIcon kind="folder" />}
+                  icon="folder"
+                  iconTone="muted"
                   on={SHEET_GROUP}
                   onPress={
                     busy === undefined ? () => choose(item.option.path, item.option.id) : undefined
@@ -528,10 +528,9 @@ export function WorkspaceSheet({
               ) : (
                 <SettingsRow
                   title={item.folder.name}
-                  leading={<RowIcon kind="folder" />}
-                  trailing={
-                    <ChevronRightIcon color={theme.color.subtle} size={theme.type.meta.line} />
-                  }
+                  icon="folder"
+                  iconTone="muted"
+                  control={{ kind: 'chevron' }}
                   on={SHEET_GROUP}
                   onPress={busy === undefined ? () => browse(item.folder.path) : undefined}
                 />
@@ -686,12 +685,12 @@ export function WorkspaceSheet({
           <SettingsRow
             title={item.grant.workspaceTitle}
             detail={`${item.grant.orchestratorWrite ? t.folderCanEdit : t.folderReadOnly} · ${item.grant.workspacePath}`}
-            leading={<RowIcon kind="folder" />}
+            icon="folder"
+            iconTone="muted"
             on={SHEET_GROUP}
+            {...(busy === item.key ? { control: { kind: 'busy' } as const } : {})}
             trailing={
-              busy === item.key ? (
-                <LoadingIndicator size="control" />
-              ) : (
+              busy === item.key ? undefined : (
                 <RemoveButton
                   label={t.removeFolder(item.grant.workspaceTitle)}
                   disabled={busy !== undefined}
@@ -712,7 +711,7 @@ export function WorkspaceSheet({
         return (
           <SettingsRow
             title={t.addFolder}
-            leading={<RowIcon kind="add" />}
+            icon="add"
             on={SHEET_GROUP}
             {...(busy === undefined ? { onPress: startBrowse } : {})}
           />
@@ -723,25 +722,22 @@ export function WorkspaceSheet({
             title={t.fullAccess}
             detail={t.fullAccessSummary}
             on={SHEET_GROUP}
-            trailing={
-              busy === 'safe-access' ? (
-                <LoadingIndicator size="control" />
-              ) : (
-                <Toggle
-                  label={t.fullAccess}
-                  value={item.access.mode === 'danger-full-access' || confirmDanger}
-                  disabled={busy !== undefined}
-                  on={SHEET_GROUP}
-                  onChange={(on) => {
-                    if (on) setConfirmDanger(true);
-                    else if (confirmDanger) setConfirmDanger(false);
-                    else
-                      changeAccess('safe-access', () =>
-                        settings.setAccess('workspace-write', false),
-                      );
-                  }}
-                />
-              )
+            control={
+              busy === 'safe-access'
+                ? { kind: 'busy' }
+                : {
+                    kind: 'switch',
+                    value: item.access.mode === 'danger-full-access' || confirmDanger,
+                    disabled: busy !== undefined,
+                    onChange: (on) => {
+                      if (on) setConfirmDanger(true);
+                      else if (confirmDanger) setConfirmDanger(false);
+                      else
+                        changeAccess('safe-access', () =>
+                          settings.setAccess('workspace-write', false),
+                        );
+                    },
+                  }
             }
           />
         );
@@ -801,7 +797,7 @@ export function WorkspaceSheet({
             }
             selected={item.selected}
             on={SHEET_GROUP}
-            trailing={trailingCheck(item.key, item.selected)}
+            control={checkControl(item.key, item.selected)}
             {...(busy === undefined && !item.selected
               ? {
                   onPress: () =>
@@ -819,7 +815,7 @@ export function WorkspaceSheet({
             detail={item.detail}
             selected={item.selected}
             on={SHEET_GROUP}
-            trailing={trailingCheck(item.key, item.selected)}
+            control={checkControl(item.key, item.selected)}
             {...(busy === undefined && !item.selected
               ? { onPress: () => chooseTemplate(item.name) }
               : {})}

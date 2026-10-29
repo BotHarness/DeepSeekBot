@@ -63,6 +63,11 @@ it('uses Device credentials from a file and activity tokens from stdin without p
       body: JSON.stringify({ token, clientActivityId: 'native-id' }),
     });
     expect((await run('stop', { clientActivityId: 'native-id' })).code).toBe(0);
+    expect((await run('status', { clientActivityId: 'native-id' })).code).toBe(0);
+    expect(calls.at(-1)).toEqual({
+      path: '/botharness-device/activity/status',
+      body: JSON.stringify({ clientActivityId: 'native-id' }),
+    });
     expect((await run('register')).code).toBe(1);
     revoked = true;
     expect((await run('capability')).value).toMatchObject({ error: { code: 'device-revoked' } });

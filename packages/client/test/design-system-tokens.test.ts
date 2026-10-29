@@ -138,7 +138,6 @@ const ALLOWANCES: readonly Allowance[] = [
     values: ['32px', '34px', '36px'],
     selectors: [
       '.bh-message-group:has(.bh-bubble-selecting)',
-      '.bh-timeline-working-more',
       '.bh-workspace-folder-detail',
       '.bh-memory-commit-row',
       '.bh-channel-activity-senders',
@@ -190,13 +189,6 @@ const ALLOWANCES: readonly Allowance[] = [
     property: /^padding$/,
     values: ['28px', '64px'],
     selectors: ['.bh-human-inbox', '.bh-hidden-empty'],
-  },
-  {
-    name: 'avatar knock-out ring',
-    reason: 'The profile avatar cuts a ring out of the banner in the card colour, not a border.',
-    property: /^border$/,
-    values: ['4px'],
-    selectors: ['.bh-profile-header-top .bh-profile-avatar-button'],
   },
 ];
 
@@ -412,4 +404,15 @@ describe('design-system tokens', () => {
     const widths = [...block('dialog').matchAll(/min\((\d+)px/g)].map((match) => Number(match[1]));
     expect(widths).toEqual([440, 760, 1060]);
   });
+});
+
+it('keeps derived action fills usable in portaled settings without Bot-mode variables', () => {
+  const tokens = readFileSync(`${dsDir}tokens.stylex.ts`, 'utf8');
+  const actions = tokens.slice(
+    tokens.indexOf('export const actionColor'),
+    tokens.indexOf('export const color'),
+  );
+  expect(actions).not.toContain('--bh-');
+  expect(actions.match(/color-mix\(in srgb/g)).toHaveLength(4);
+  expect(actions).toContain('--dsw-alias-bg-module-platform');
 });

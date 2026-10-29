@@ -25,7 +25,6 @@ import { SettingsGroupItem, SettingsRow, SettingsSection } from './primitives/se
 import { Text } from './primitives/text';
 import { DayBars } from './primitives/day-bars';
 import { dayLabel } from '../host/usage-days';
-import { ChevronRightIcon } from './shell/icons';
 import { tokenAmount, UsageBars, useLoaded, type Loaded } from './shell/usage-card';
 import { useStrings, t } from './strings';
 import { LoadingIndicator } from './primitives/loading-indicator';
@@ -173,11 +172,7 @@ function UsageSummary({
                 on="raised"
                 key={kind}
                 title={t.usageKind[kind]}
-                trailing={
-                  <Text tone="muted" style={{ fontVariant: ['tabular-nums'] }}>
-                    {tokenAmount(usage.totals[kind])}
-                  </Text>
-                }
+                control={{ kind: 'value', text: tokenAmount(usage.totals[kind]) }}
               />
             ))}
           </SettingsSection>
@@ -256,12 +251,11 @@ function UsageRow({
         leading={
           current === undefined ? undefined : <BotAvatar bot={current} size={AVATAR} ring={false} />
         }
-        trailing={
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
-            <Text tone="muted">{tokenAmount(bot.totalTokens, bot.partial === true)}</Text>
-            {bot.current ? <ChevronRightIcon color={theme.color.muted} size={space.x5} /> : null}
-          </View>
-        }
+        control={{
+          kind: 'value',
+          text: tokenAmount(bot.totalTokens, bot.partial === true),
+          chevron: bot.current,
+        }}
         onPress={bot.current ? () => onOpenBot(bot.slug) : undefined}
       />
     );

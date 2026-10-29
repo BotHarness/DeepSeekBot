@@ -21,8 +21,8 @@ export default function ActivityScreen() {
   const navigation = useNavigationContainerRef();
   const focused = useIsFocused();
   const theme = useDesignTheme();
-  const sources = useActivitySources();
-  const hosts = useHostSessions();
+  const sources = useActivitySources(focused);
+  const hosts = useHostSessions(focused);
   const [scope] = useConversationFilter();
   const cloud = useCloudSnapshot();
   const partial = scope === 'all' && cloud.rows.some((row) => row.hasSession);

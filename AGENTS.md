@@ -37,6 +37,7 @@ AX default model setup and credential reuse: follow `docs/agents/ax-model.md` fo
 - Diagrams: edit `docs/architecture/diagrams/*.mmd`, run `pnpm diagrams`, and commit the rendered light/dark SVGs (`rendered/*.svg`); the architecture page embeds those committed SVGs via the `<Diagram>` component, while the runtime mermaid loader remains for ad-hoc `mermaid` fences in hand-authored content.
 - OG cards: `apps/docs/src/pages/og/**` renders at build time with CanvasKit; Chinese titles use the committed Noto Sans SC subset. After editing Chinese page copy, run `pnpm og:font` (needs network) to regenerate `apps/docs/public/fonts/NotoSansSC-Bold.og-subset.otf`.
 - Installed agent skills are third-party files under `.agents/skills/` — do not reformat them (locked by hash in `skills-lock.json`). First-party skills live in the same tree and are ours to edit — `dsh-plugin-dev` (stable DSH/Cordis Context and Decision Tree), `dsh-dev`, `dsh-ui`, `verify-deepseekbot`, `ios-hig` and `android-material` (all symlinked into `.claude/skills/`, not in the lock file).
+- poteto's pstack (`cursor/plugins`, Claude Code harness copy under `harness/pstack/claude-code/`) is vendored the same way: its skills sit in `.agents/skills/` and the lock file, its guide and Claude Code adapter in `.agents/docs/` (`.claude/docs` links there so the skills' `../../docs/` paths resolve), and its `poteto-agent` and `comment-sicko` subagents in `.claude/agents/`. Matt Pocock's `tdd` and `teach` keep their names; pstack's versions are renamed to `pstack-tdd` and `pstack-teach` (the only local edit, so they are left out of the lock file), and pstack links to `tdd`/`teach` resolve to Matt's.
 - Local docs dev: `pnpm dev` (portless from `apps/docs` → https://docs.botharness.localhost; no-sudo variant `PORTLESS_PORT=8788 PORTLESS_HTTPS=0`) or `pnpm docs:dev` (http://localhost:4321); `syncDocs()` runs at Astro config load, so plain `astro dev`/`astro build` also works.
 - Mobile app: Expo workspace in `apps/mobile`; its mobile-only rules and the Expo, EAS and React Native skills to load live in its own `AGENTS.md`.
 - Presentations: open-slide workspace in `apps/presentations` (one deck per `slides/<id>/`, authoring rules in its own `AGENTS.md`); iterate with `pnpm slides:dev`, embed into the docs site at `/slides/` with `pnpm slides:build` (`scripts/sync-slides.mjs`, output `apps/docs/public/slides/` is generated — never edit or commit it). `pnpm docs:build` rebuilds the embed automatically.
@@ -60,6 +61,10 @@ Every feature must be operable and testable by an agent through the `deepseekbot
 - Tests for the command, an entry in `docs/bot-cli.md` and `docs/bot-cli.zh.md`, and a real run against a live Host.
 
 `pnpm lint` runs `scripts/check-cli-parity.mjs`: a new bridge method, route or Bot tool without a CLI command fails unless `scripts/cli-parity-baseline.json` records an issue or an exemption reason for it. The baseline only shrinks — covering an entry means deleting it, and the check fails while a covered entry remains. Remaining gaps are tracked in [#1690](https://github.com/BotHarness/DeepSeekBot/issues/1690).
+
+### Performance observation and verification (AX)
+
+A change to the Client's timeline, rendering, composer, live subscriptions, observers, timers or animations is not done until its performance is measured. Follow [performance observation and verification](docs/agents/ax-performance.md): find the cause with a profile or trace before fixing, A/B on identical data with at least three runs per side, keep scroll correctness at zero jumps and gaps, and put the base-versus-change table in the PR. `scripts/perf-budgets/timeline.json` is the regression guard; the `perf-budget` CI job fails on its structure budgets. Budgets only tighten; raising one needs the Human's approval.
 
 ### IM browser QA (AX)
 
@@ -149,7 +154,13 @@ Single-context layout: root `CONTEXT.md` + `docs/adr/` (extended lazily by the d
 
 Every new or changed Web, desktop or mobile interface follows [UI design](docs/agents/ui-design.md) ([中文](docs/agents/ui-design.zh.md)): communicate through layout, icons and interaction; keep descriptive prose secondary. Apply its review gate alongside the platform-specific rules.
 
+**Name the component.** When discussing, planning, reviewing or implementing UI (issues, PRs, commits, code comments, chat), name the concrete component by its platform term from `CONTEXT.md` → Native UI components: the Material 3 name on Android, the HIG name on iOS, and the API name (Compose, SwiftUI, UIKit, `@expo/ui`) when you mean code. Say "Android `ModalBottomSheet`" or "iOS pull-down button", not "popup", "弹窗", "drawer", "dropdown" or "the bottom thing". When a change covers both platforms, name both sides of the pair (Android `ModalBottomSheet` ↔ iOS form sheet). If a job has no counterpart, say so and name the custom surface recorded in `apps/mobile/DESIGN.md`. A component missing from the table is added to `CONTEXT.md` and `CONTEXT.zh.md` in the same change.
+
 Building or changing in-harness UI follows the `dsh-ui` skill: DSH tokens (central alias table, no inline hex), `ui-primitives`, the native inset contract, and the measure-the-shell workflow (ADR-0028). For net-new UI, the skill's `references/design-references.md` names the external precedents (coss.com/ui, Beautiful UI, shadcn/ui, Lucide) — patterns to adapt rather than dependencies, except vendored Lucide glyphs (ADR-0032).
+
+### Motion
+
+Animation is part of the product's feel. Any new or changed animation on web, desktop or mobile follows Emil Kowalski's skills (third-party, locked in `skills-lock.json`): `animate` to build web motion, `animate-expo` for React Native and Expo, `review-animations` before you ship it, `improve-animations` to audit existing motion, `animation-performance` for dropped frames, and `emil-design-eng` / `animation-vocabulary` for the shared rules and words. They decide whether something animates, which properties and its reduced-motion behavior. On mobile the platform decides the curve: iOS uses SwiftUI's springs and Android uses Material 3 Expressive springs, through the `spring` roles in `apps/mobile/src/ui/design/motion.ts` (ADR-0264). Extend the repo's motion tokens instead of adding parallel curves.
 
 ### UI copy
 

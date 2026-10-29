@@ -62,6 +62,10 @@ export interface UsageProjection {
 
   primeSession(sessionId: string, events: readonly DshSessionEvent[]): void;
 
+  latestRoute(
+    sessionId: string,
+  ): { provider: string; model: string; reasoningEffort?: string } | undefined;
+
   rebuild(
     sessionIds: readonly string[],
     readLog: DshUsageSessionLogReader,
@@ -193,6 +197,7 @@ function reportedBuckets(event: DshSessionEvent): {
 interface UsageRoute {
   provider: string;
   model: string;
+  reasoningEffort?: string;
 }
 
 function routeOf(value: unknown): UsageRoute | undefined {
@@ -201,7 +206,13 @@ function routeOf(value: unknown): UsageRoute | undefined {
     record['provider'].length > 0 &&
     typeof record['model'] === 'string' &&
     record['model'].length > 0
-    ? { provider: record['provider'], model: record['model'] }
+    ? {
+        provider: record['provider'],
+        model: record['model'],
+        ...(typeof record['reasoningEffort'] === 'string' && record['reasoningEffort'].length > 0
+          ? { reasoningEffort: record['reasoningEffort'] }
+          : {}),
+      }
     : undefined;
 }
 
@@ -472,6 +483,24 @@ export function createUsageProjection(options: {
     },
     primeSession(sessionId, events) {
       for (const event of events) observe(sessionId, event);
+    },
+    latestRoute(sessionId) {
+      const ordered = [...(routes.get(sessionId) ?? [])].sort(([a], [b]) => a - b);
+      const resolved = ordered.at(-1)?.[1];
+      if (resolved === undefined) return undefined;
+      const effort =
+        resolved.reasoningEffort ??
+        ordered.findLast(
+          ([, route]) =>
+            route.provider === resolved.provider &&
+            route.model === resolved.model &&
+            route.reasoningEffort !== undefined,
+        )?.[1].reasoningEffort;
+      return {
+        provider: resolved.provider,
+        model: resolved.model,
+        ...(effort === undefined ? {} : { reasoningEffort: effort }),
+      };
     },
     handleSessionEvent(sessionId, event) {
       const route = observe(sessionId, event);

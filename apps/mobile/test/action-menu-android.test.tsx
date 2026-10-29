@@ -33,7 +33,10 @@ vi.mock('@expo/ui/jetpack-compose', async () => {
     Text: pass,
   };
 });
-vi.mock('../src/ui/shell/icons', () => ({ MoreIcon: () => null }));
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
+  MoreIcon: () => null,
+}));
 vi.mock(
   '@expo/ui/jetpack-compose/modifiers',
   async () => (await import('./compose-menu-shim')).modifiers,

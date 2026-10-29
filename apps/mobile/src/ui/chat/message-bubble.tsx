@@ -3,6 +3,7 @@ import {
   useCallback,
   useMemo,
   useRef,
+  useState,
   useSyncExternalStore,
   type ComponentProps,
   type ReactNode,
@@ -13,8 +14,10 @@ import {
   Platform,
   Pressable,
   View,
+  useWindowDimensions,
   type AccessibilityRole,
   type DimensionValue,
+  type LayoutChangeEvent,
   type ViewInstance,
 } from 'react-native';
 import Animated, {
@@ -22,6 +25,7 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 
@@ -30,19 +34,35 @@ import {
   reactedByMe,
   type ConversationDraft,
   type ConversationMessage,
+  type ConversationReaction,
   type MessageAttachment,
 } from '../../host/conversation';
+import type { RosterBot } from '../../host/client';
 import type { ConversationPlayback } from '../../host/conversation-playback';
+import { spring } from '../design/motion';
 import { doubleTap, lift, motion, space } from '../design/tokens';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { MessageBody } from './message-body';
 import { Text } from '../primitives/text';
+import { StreamSurface } from '../primitives/stream-surface';
 import { haptic } from '../haptics';
 import { useStrings, t } from '../strings';
-import { bubbleCorners, bubbleRow, bubbleShape, type BubbleGroup } from './bubble-shape';
+import {
+  BADGE_OVERLAP,
+  singleLine,
+  BUBBLE_MAX,
+  bubbleCorners,
+  bubbleRow,
+  bubbleShape,
+  type BubbleGroup,
+} from './bubble-shape';
+import { DeliveryReceiptButton, ReadingBadge } from './delivery-stack';
 import { MessageAttachments } from './message-attachments';
 import { openMessageMenu } from './message-menu';
 import { ReactionChips } from './message-reactions';
+import { ReplyQuote } from './reply-quote';
+import { ReplySwipe } from './reply-swipe';
+import { PopIn, usePopIn } from './pop-in';
 import type { Rect } from './menu-placement';
 import { SpeakerRow, type Speaker } from './speaker-row';
 
@@ -56,6 +76,11 @@ export function deliveryLabel(message: ConversationMessage): string | undefined 
 }
 
 const PENDING_FEEDBACK_MS = 3_000;
+
+const NO_READERS: readonly string[] = [];
+const NO_REACTIONS: readonly ConversationReaction[] = [];
+
+const NO_BOTS: readonly RosterBot[] = [];
 
 function usePendingFeedback(message: ConversationMessage): boolean {
   const started =
@@ -98,7 +123,11 @@ export function BubbleBody({
   streaming = false,
   deliveryAccessibility = true,
   onImageReady,
+  onLayout,
+  quote,
 }: {
+  quote?: ReactNode;
+  onLayout?: ((event: LayoutChangeEvent) => void) | undefined;
   onImageReady?: ((key: string, ready: boolean) => void) | undefined;
   message: ConversationMessage;
   group: BubbleGroup;
@@ -111,17 +140,17 @@ export function BubbleBody({
   const t = useStrings();
   const theme = useDesignTheme();
   const human = message.author === 'human';
-  const mutedPending = usePendingFeedback(message);
   const ink = human ? 'onAccent' : 'fg';
   return (
-    <View
+    <StreamSurface
+      active={streaming}
+      {...(onLayout === undefined ? {} : { onLayout })}
       style={{
         ...bubbleShape(human, group),
         ...fill,
         overflow: fill?.maxHeight === undefined ? 'visible' : 'hidden',
         backgroundColor: human ? theme.color.accent : theme.color.surface,
         gap: space.x2,
-        opacity: mutedPending ? 0.7 : 1,
       }}
     >
       {deliveryAccessibility && human && message.delivery === 'pending' ? (
@@ -132,6 +161,7 @@ export function BubbleBody({
           style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden' }}
         />
       ) : null}
+      {quote}
       <MessageBody message={message} streaming={streaming} />
       {message.attachments.length > 0 ? (
         <MessageAttachments
@@ -147,7 +177,7 @@ export function BubbleBody({
           {t.card}
         </Text>
       ) : null}
-    </View>
+    </StreamSurface>
   );
 }
 
@@ -206,7 +236,7 @@ function PressableBubble({
       style={[
         {
           ...bubbleCorners(human, group),
-          maxWidth: '80%',
+          maxWidth: '100%',
           alignSelf: human ? 'flex-end' : 'flex-start',
           overflow: 'hidden',
           opacity: lifted ? 0 : 1,
@@ -234,7 +264,7 @@ function PressableBubble({
               },
               onLongPress: () => {
                 haptic('menu');
-                if (shrinks) scale.value = withTiming(1, { duration: motion.menu });
+                if (shrinks) scale.value = withSpring(1, spring.spatial.fast);
                 open();
               },
             })}
@@ -267,12 +297,24 @@ function PressableBubble({
             });
         }}
         onPressOut={() => {
-          if (shrinks) scale.value = withTiming(1, { duration: motion.menu });
+          if (shrinks) scale.value = withSpring(1, spring.spatial.fast);
         }}
       >
         {children}
       </Pressable>
     </Animated.View>
+  );
+}
+
+const entered = new Set<string>();
+
+export function replyable(message: ConversationMessage): boolean {
+  return (
+    message.author !== 'system' &&
+    message.delivery === 'committed' &&
+    message.welcome === undefined &&
+    message.card === undefined &&
+    message.activity === undefined
   );
 }
 
@@ -289,12 +331,18 @@ export const MessageBubble = memo(function MessageBubble({
   onShare = async () => {},
   onLongPress = (pressed) => openMessageMenu(pressed.body),
   onReact,
+  onReply,
+  onOpenDelivery,
+  readers = NO_READERS,
+  bots = NO_BOTS,
   botName = (id) => id,
   speaker,
   lifted = false,
   streaming = false,
   rowKey = message.id,
+  entering = false,
 }: {
+  entering?: boolean;
   message: ConversationMessage;
   first?: boolean;
   last?: boolean;
@@ -303,6 +351,10 @@ export const MessageBubble = memo(function MessageBubble({
   onShare?: (attachment: MessageAttachment) => Promise<void>;
   onLongPress?: (message: ConversationMessage, anchor: Rect, group: BubbleGroup) => void;
   onReact?: (messageId: string, emoji: string, active: boolean) => void;
+  onReply?: ((message: ConversationMessage) => void) | undefined;
+  onOpenDelivery?: ((message: ConversationMessage) => void) | undefined;
+  readers?: readonly string[] | undefined;
+  bots?: readonly RosterBot[] | undefined;
   botName?: (id: string) => string;
   speaker?: Speaker | undefined;
   lifted?: boolean;
@@ -313,6 +365,28 @@ export const MessageBubble = memo(function MessageBubble({
   const human = message.author === 'human';
   const failed = message.delivery === 'failed';
   const label = deliveryLabel(message);
+  const pendingFeedback = usePendingFeedback(message);
+  const theme = useDesignTheme();
+  const { fontScale } = useWindowDimensions();
+  const [compact, setCompact] = useState(false);
+  const [enter] = useState(() => {
+    const fresh = entering && !entered.has(rowKey);
+    entered.add(rowKey);
+    return fresh;
+  });
+  const pop = usePopIn(enter);
+  const [readingStill, setReadingStill] = useState(readers.length > 0);
+  if (readingStill && readers.length === 0) setReadingStill(false);
+  const [reactionsStill] = useState(
+    () => new Set((message.reactions ?? []).map((reaction) => reaction.emoji)),
+  );
+  const reactions = streaming ? NO_REACTIONS : (message.reactions ?? NO_REACTIONS);
+  const [chipsMounted, setChipsMounted] = useState(reactions.length > 0);
+  if (!chipsMounted && reactions.length > 0) setChipsMounted(true);
+  const reading = streaming ? NO_READERS : readers;
+  const [shownReading, setShownReading] = useState(reading);
+  if (reading.length > 0 && reading.join('\n') !== shownReading.join('\n'))
+    setShownReading(reading);
   if (message.author === 'system')
     return (
       <View
@@ -327,23 +401,30 @@ export const MessageBubble = memo(function MessageBubble({
   const actionable =
     !streaming &&
     (copyable || message.attachments.length > 0 || (onReact !== undefined && reactable(message)));
-  const reactions = streaming ? [] : (message.reactions ?? []);
-  const group = { first, last, avatar: speaker?.last === true };
+  const group = { first, last, avatar: speaker?.last === true, compact };
   const bubble = (
     <BubbleBody
       message={message}
       group={group}
+      onLayout={(event) =>
+        setCompact(singleLine(event.nativeEvent.layout.height, theme.type.body.line, fontScale))
+      }
       onOpenImage={onOpenImage}
       onShare={onShare}
       deliveryAccessibility={
         (human && message.delivery === 'pending' && message.attachments.length > 0) ||
         !(failed || actionable || streaming)
       }
-      fill={failed || actionable || streaming ? { maxWidth: '100%' } : undefined}
+      fill={{ maxWidth: '100%' }}
       streaming={streaming}
+      quote={
+        message.replyTo === undefined ? undefined : (
+          <ReplyQuote preview={message.replyPreview} botName={botName} onAccent={human} />
+        )
+      }
     />
   );
-  const surface =
+  const content =
     failed || actionable || streaming ? (
       <PressableBubble
         human={human}
@@ -378,47 +459,125 @@ export const MessageBubble = memo(function MessageBubble({
     ) : (
       bubble
     );
-  const after = (
-    <>
-      {reactions.length === 0 ? null : (
-        <ReactionChips
-          reactions={reactions}
-          human={human}
-          botName={botName}
-          {...(onReact === undefined
-            ? {}
-            : { onToggle: (emoji: string, active: boolean) => onReact(message.id, emoji, active) })}
-        />
-      )}
-      {label === undefined ? null : (
-        <Text
-          accessibilityLiveRegion="polite"
-          variant="meta"
-          tone={failed ? 'danger' : 'muted'}
-          style={{ alignSelf: 'flex-end' }}
+  const badged = chipsMounted || shownReading.length > 0;
+  const framed = (
+    <Animated.View
+      ref={pop.ref}
+      style={[
+        {
+          alignSelf: human ? 'flex-end' : 'flex-start',
+          maxWidth: BUBBLE_MAX,
+          transformOrigin: human ? 'right bottom' : 'left bottom',
+        },
+        pop.style,
+      ]}
+    >
+      {content}
+      {badged ? (
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: 'absolute',
+            bottom: -BADGE_OVERLAP,
+            left: space.x4,
+            right: space.x4,
+            flexDirection: human ? 'row-reverse' : 'row',
+            alignItems: 'center',
+            gap: space.x2,
+          }}
         >
-          {label}
-        </Text>
-      )}
-    </>
+          {!chipsMounted ? null : (
+            <ReactionChips
+              reactions={reactions}
+              still={reactionsStill}
+              human={human}
+              botName={botName}
+              {...(onReact === undefined
+                ? {}
+                : {
+                    onToggle: (emoji: string, active: boolean) =>
+                      onReact(message.id, emoji, active),
+                  })}
+            />
+          )}
+          {shownReading.length === 0 ? null : (
+            <PopIn
+              enabled={!readingStill}
+              show={reading.length > 0}
+              onHidden={() => setShownReading(NO_READERS)}
+              style={human ? { marginRight: 'auto' } : { marginLeft: 'auto' }}
+            >
+              <ReadingBadge messageId={message.id} readers={shownReading} bots={bots} />
+            </PopIn>
+          )}
+        </View>
+      ) : null}
+    </Animated.View>
   );
-  const row = bubbleRow(first);
-  if (speaker !== undefined)
-    return (
+  const surface = human ? (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        justifyContent: 'flex-end',
+        gap: space.x2,
+      }}
+    >
+      <View
+        style={{
+          minWidth: space.x6,
+          alignItems: 'center',
+          paddingBottom: space.x1,
+        }}
+      >
+        {failed ? (
+          <Pressable
+            testID={`message-retry-${message.id}`}
+            accessibilityRole="button"
+            accessibilityLabel={label}
+            onPress={() => onRetry?.(message.id)}
+          >
+            <Text variant="meta" tone="danger">
+              !
+            </Text>
+          </Pressable>
+        ) : pendingFeedback ? (
+          <Text
+            accessibilityLabel={t.sending}
+            accessibilityLiveRegion="polite"
+            variant="meta"
+            tone="muted"
+          >
+            …
+          </Text>
+        ) : onOpenDelivery !== undefined && !streaming ? (
+          <DeliveryReceiptButton message={message} bots={bots} onOpen={onOpenDelivery} />
+        ) : null}
+      </View>
+      {framed}
+    </View>
+  ) : (
+    framed
+  );
+  const row = { ...bubbleRow(first), ...(last ? { paddingBottom: space.x2 } : {}) };
+  const placed =
+    speaker !== undefined ? (
       <SpeakerRow
         speaker={speaker}
         rowKey={rowKey}
         inset={row.paddingTop}
         style={row}
         bubble={surface}
-        after={after}
+        entering={enter}
       />
+    ) : (
+      <View style={row}>{surface}</View>
     );
+  if (onReply === undefined) return placed;
   return (
-    <View style={{ ...row, gap: space.x1 }}>
-      {surface}
-      {after}
-    </View>
+    <ReplySwipe enabled={!streaming && replyable(message)} onReply={() => onReply(message)}>
+      {placed}
+    </ReplySwipe>
   );
 });
 

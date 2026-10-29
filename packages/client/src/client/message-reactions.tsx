@@ -48,24 +48,27 @@ const styles = stylex.create({
   },
   chips: {
     display: 'flex',
-    flexWrap: 'wrap',
-    gap: space.x2,
-    marginTop: space.x2,
+    gap: space.x1,
+    pointerEvents: 'auto',
   },
   chipsMine: {
-    justifyContent: 'flex-end',
+    flexDirection: 'row-reverse',
   },
   chip: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: space.x2,
-    paddingBlock: space.x1,
-    paddingInline: space.x3,
-    borderWidth: border.hairline,
+    paddingBlock: space.x2,
+    paddingInline: `calc(${space.x3} + ${space.x1})`,
+    borderWidth: border.focus,
     borderStyle: 'solid',
-    borderColor: color.border,
+    borderColor: 'var(--dsw-alias-bg-base)',
     borderRadius: radius.lg,
-    backgroundColor: { default: color.base, ':hover': color.hover },
+    backgroundColor: color.surface,
+    backgroundImage: {
+      default: 'none',
+      ':hover': `linear-gradient(${color.hover}, ${color.hover})`,
+    },
     color: color.muted,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
@@ -73,7 +76,10 @@ const styles = stylex.create({
     outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
   },
   chipMine: {
-    borderColor: color.accent,
+    backgroundImage: {
+      default: `linear-gradient(${color.selected}, ${color.selected})`,
+      ':hover': `linear-gradient(${color.hover}, ${color.hover}), linear-gradient(${color.selected}, ${color.selected})`,
+    },
     color: color.fg,
   },
   chipEmoji: {
@@ -262,37 +268,23 @@ export function MessageReactionChips({
   mine,
   names,
   onReact,
+  live,
+  still,
+  onLeft,
   t,
 }: {
   reactions: readonly ChannelReaction[];
   mine: boolean;
   names(actor: ChannelReaction['actors'][number]): string;
   onReact?: ((emoji: string, active: boolean) => void) | undefined;
+  live?: ReadonlySet<string> | undefined;
+  still?: ReadonlySet<string> | undefined;
+  onLeft?: ((emoji: string) => void) | undefined;
   t: BotHarnessTranslate;
 }): ReactElement | null {
-  const rowMount = useMountedResource<HTMLDivElement>((node) => {
-    const wrap = node.closest<HTMLElement>('.bh-bubble-wrap');
-    if (wrap === null) return;
-    const measure = (): void => {
-      const margin = Number.parseFloat(getComputedStyle(node).marginTop) || 0;
-      wrap.style.setProperty(
-        '--bh-reaction-row',
-        `${String(node.getBoundingClientRect().height + margin)}px`,
-      );
-    };
-    measure();
-    const observer =
-      typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure);
-    observer?.observe(node);
-    return () => {
-      observer?.disconnect();
-      wrap.style.removeProperty('--bh-reaction-row');
-    };
-  }, []);
   if (reactions.length === 0) return null;
   return (
     <div
-      ref={rowMount}
       role="group"
       aria-label={t('message.reactions')}
       data-message-reactions=""
@@ -300,6 +292,7 @@ export function MessageReactionChips({
     >
       {reactions.map((reaction) => {
         const pressed = reactedByMe(reaction);
+        const leaving = live !== undefined && !live.has(reaction.emoji);
         const who = reaction.actors.map(names).join(t('message.reaction.separator'));
         const label = t('message.reaction.summary', {
           emoji: reaction.emoji,
@@ -311,10 +304,16 @@ export function MessageReactionChips({
               type="button"
               aria-pressed={pressed}
               aria-label={label}
-              disabled={onReact === undefined}
+              disabled={onReact === undefined || leaving}
               data-reaction={reaction.emoji}
+              data-badge-motion={
+                leaving ? 'leave' : still?.has(reaction.emoji) === false ? 'enter' : undefined
+              }
               {...stylex.props(styles.chip, pressed && styles.chipMine)}
               onClick={() => onReact?.(reaction.emoji, !pressed)}
+              onAnimationEnd={(event) => {
+                if (leaving && event.target === event.currentTarget) onLeft?.(reaction.emoji);
+              }}
             >
               <span aria-hidden="true" {...stylex.props(styles.chipEmoji)}>
                 {reaction.emoji}

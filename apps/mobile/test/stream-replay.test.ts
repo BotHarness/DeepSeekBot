@@ -10,13 +10,17 @@ import { afterEach, expect, it } from 'vitest';
 let child: ChildProcess | undefined;
 let control: string | undefined;
 let eventsFile: string | undefined;
-afterEach(async () => {
+async function stopServer() {
   if (child !== undefined) {
     const exit = once(child, 'exit');
     child.kill();
     await exit;
     child = undefined;
   }
+}
+
+afterEach(async () => {
+  await stopServer();
   if (control !== undefined) {
     await unlink(control);
     control = undefined;
@@ -36,6 +40,11 @@ async function server(events = false) {
     eventsFile = join(tmpdir(), `botharness-replay-events-${randomUUID()}.jsonl`);
     await writeFile(eventsFile, '', { flag: 'wx' });
   }
+  return startServer();
+}
+
+async function startServer() {
+  if (control === undefined) throw new Error('Replay control is required');
   child = spawn(
     process.execPath,
     [
@@ -132,3 +141,51 @@ it('offers a long plain paragraph separately from the rich Markdown fixture', as
   expect(body).not.toMatch(/[\n*\[\]`]/u);
   expect(body.endsWith('PLAIN_REPLAY_COMPLETE')).toBe(true);
 });
+
+it.each([false, true])(
+  'keeps replay identity distinct after restart for the same Bot (stream=%s)',
+  async (stream) => {
+    const capture = async (base: string) => {
+      const response = await post(base, request('user', stream));
+      expect(response.status).toBe(200);
+      if (!stream) {
+        const result = await response.json();
+        const tool = result.choices[0].message.tool_calls[0];
+        expect(result.choices[0].finish_reason).toBe('tool_calls');
+        return { id: result.id, toolId: tool.id, argumentsText: tool.function.arguments };
+      }
+      const text = await response.text();
+      expect(text.endsWith('data: [DONE]\n\n')).toBe(true);
+      const events = text
+        .split('\n\n')
+        .filter((line) => line.startsWith('data: ') && line !== 'data: [DONE]')
+        .map((line) => JSON.parse(line.slice(6)));
+      expect(new Set(events.map((event) => event.id))).toEqual(new Set([events[0].id]));
+      expect(events.at(-1).choices[0].finish_reason).toBe('tool_calls');
+      return {
+        id: events[0].id,
+        toolId: events[0].choices[0].delta.tool_calls[0].id,
+        argumentsText: events
+          .map((event) => event.choices[0].delta.tool_calls?.[0]?.function.arguments ?? '')
+          .join(''),
+      };
+    };
+    const first = await capture(await server());
+    await stopServer();
+    await writeFile(
+      control!,
+      JSON.stringify({ slug: 'qa-bot', runId: 'second', fixture: 'smoke' }),
+    );
+    const second = await capture(await startServer());
+    expect(second.id).not.toBe(first.id);
+    expect(second.toolId).not.toBe(first.toolId);
+    for (const reply of [first, second]) {
+      expect(reply.toolId).toBe(reply.id);
+      expect(reply.id.length).toBeLessThanOrEqual(64);
+      expect(JSON.parse(reply.argumentsText)).toEqual({
+        channel_id: 'dm-qa-bot',
+        body: 'AX_REPLAY_OK\n\n中文👨‍👩‍👧‍👦 **完整**。\n',
+      });
+    }
+  },
+);

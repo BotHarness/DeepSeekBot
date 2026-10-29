@@ -16,6 +16,7 @@ import type { BotModePrefs } from './bot-mode-prefs.js';
 import { WorkspaceGrantsEntry } from './workspace-grants-entry.js';
 import { AutoApprovalBadge, AutoApprovalSettingsEntry } from './approval-template-entry.js';
 import { ModelPresetProfile } from './model-preset-profile.js';
+import { BotPromptSettingsEntry } from './prompt-preset-settings.js';
 import { modelPlanOf, rememberModelPlan, subscribeModelPlans } from './model-plan-store.js';
 import type { ModelPlanStateView, ModelPlanView } from './bridge.js';
 import { AssignmentConcurrencySetting } from './assignment-concurrency-setting.js';
@@ -219,14 +220,16 @@ function MembersBadge(): ReactElement {
   return <Tag tone="neutral">{count}</Tag>;
 }
 
-function BotInboxItemRow({
+export function BotInboxItemRow({
   item,
   source,
+  marker,
   actions,
   t,
 }: {
   item: BotAttentionItem;
   source?: string | undefined;
+  marker?: string | undefined;
   actions: ChannelSidebarEntryProps['actions'];
   t: BotHarnessTranslate;
 }): ReactElement {
@@ -399,6 +402,11 @@ function BotInboxItemRow({
     : [];
   const unavailable = !memoryChange && !item.sourceAvailable;
   const chips = [
+    marker === undefined ? null : (
+      <Tag key="marker" tone="info">
+        {marker}
+      </Tag>
+    ),
     item.externalOrigin?.voice ? (
       <Tag
         key="voice"
@@ -466,7 +474,7 @@ function BotInboxItemRow({
       }
       titleClassName="bh-inbox-item-head"
       badge={<Tag tone={INBOX_STATE_TONE[item.state]}>{t(`inbox.state.${item.state}`)}</Tag>}
-      summary={summary || item.assignmentPurpose || t('inbox.system')}
+      summary={summary || item.assignmentTitle || t('inbox.system')}
       hint={summary}
       mainClassName={memoryChange ? 'bh-inbox-item bh-inbox-item-info' : 'bh-inbox-item'}
       state={item.state}
@@ -787,7 +795,7 @@ function BotInboxEntry({ actions, t, botSlug, flush }: ChannelSidebarEntryProps)
           : `external:${item.externalOrigin.platform}:${item.externalOrigin.conversationId}`))
       : `assignment:${item.assignmentSessionId}`;
   const sourceLabel = (item: BotAttentionItem): string =>
-    item.assignmentPurpose ??
+    item.assignmentTitle ??
     item.externalOrigin?.conversationName ??
     sourceName(item) ??
     item.sourceChannelId ??
@@ -1323,6 +1331,15 @@ export function createChannelSidebarBuiltins(
       scope: 'personabot',
       component: AutoApprovalSettingsEntry,
       badge: AutoApprovalBadge,
+    },
+    {
+      id: 'prompts',
+      surface: 'settings',
+      icon: 'file-text',
+      label: t('entry.prompts'),
+      order: 24,
+      scope: 'personabot',
+      component: BotPromptSettingsEntry,
     },
     {
       id: 'model',

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { interfacePreferences } from '../src/ui/interface-preferences';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -45,6 +46,7 @@ function Action({ messageId }: { messageId: string }) {
   );
 }
 beforeEach(() => {
+  interfacePreferences.setLanguage('en');
   activity.state.tracking = false;
   activity.actions = [];
   activity.result = undefined;

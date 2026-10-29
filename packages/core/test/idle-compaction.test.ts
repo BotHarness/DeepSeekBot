@@ -154,6 +154,7 @@ function harness(options: { enabled?: boolean; tokens?: number } = {}) {
   const busy = { inbox: false };
   let tokens = options.tokens ?? 400_000;
   const records: IdleCompactionRecord[] = [];
+  const logs: Record<string, unknown>[] = [];
   const compactNow = vi.fn(async (_agent: FakeAgent, _signal: AbortSignal) => {
     agent.events.push({
       type: 'compaction/summary',
@@ -173,7 +174,7 @@ function harness(options: { enabled?: boolean; tokens?: number } = {}) {
     threshold: async () => 550_464,
     compactNow,
     record: (record) => records.push(record),
-    log: () => undefined,
+    log: (event) => logs.push(event),
     now: () => clock,
     setTimer: (task, ms) => {
       timers.push({ at: clock + ms, task, handle: ++next });
@@ -203,6 +204,8 @@ function harness(options: { enabled?: boolean; tokens?: number } = {}) {
     busy,
     compactNow,
     records,
+    logs,
+    ports,
     idle,
     settings,
     timers,
@@ -299,6 +302,25 @@ describe('idle compaction scheduler', () => {
     ]);
     h.idle.agentStatus('orchestrator', 'idle');
     expect(h.timers).toEqual([]);
+  });
+
+  it('skips without a failed record while the last request names a removed model', async () => {
+    const h = harness();
+    h.ports.threshold = async () => {
+      throw Object.assign(new Error('No adapter'), { code: 'NO_ADAPTER' });
+    };
+    h.answer(h.clock);
+    h.idle.agentStatus('orchestrator', 'idle');
+    await h.advance(HOUR);
+    expect(h.compactNow).not.toHaveBeenCalled();
+    expect(h.records).toEqual([]);
+    expect(h.logs).toContainEqual(
+      expect.objectContaining({
+        event: 'skipped',
+        reason: 'route-unavailable',
+        error: 'NO_ADAPTER',
+      }),
+    );
   });
 
   it('compacts on demand, refuses while busy and does not compact the same history again', async () => {
@@ -433,6 +455,35 @@ describe('idle compaction settings and bridge', () => {
       ok: false,
       error: { code: 'invalid-input' },
     });
+    const applyThreshold = vi.fn();
+    const thresholdBridge = createBridgeMethods({
+      idleCompaction: {
+        settings,
+        scheduler: { describe: () => [], scheduled: () => 0 },
+        routes: () => [],
+        rescan,
+        applyThreshold,
+      },
+    } as unknown as BridgeMethodsDeps);
+    expect(
+      thresholdBridge.compactionThresholdSet({ thresholdRatio: 0.7, headroomTokens: 32768 }),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        threshold: { ratio: 0.7, headroomTokens: 32768, ratioSet: true, headroomSet: true },
+      },
+    });
+    expect(applyThreshold).toHaveBeenCalledTimes(1);
+    thresholdBridge.compactionThresholdSet({ thresholdRatio: null });
+    expect(settings.read()).toEqual({ enabled: false, cacheLifetimes: {}, headroomTokens: 32768 });
+    expect(thresholdBridge.idleCompaction({})).toMatchObject({
+      value: { threshold: { ratio: 0.8, ratioSet: false, headroomTokens: 32768 } },
+    });
+    for (const payload of [{}, { thresholdRatio: 0.99 }, { headroomTokens: 1024 }])
+      expect(thresholdBridge.compactionThresholdSet(payload)).toMatchObject({
+        ok: false,
+        error: { code: 'invalid-input' },
+      });
     writeFileSync(join(dir, IDLE_COMPACTION_SETTINGS_FILE), '{');
     expect(bridge.idleCompaction({})).toMatchObject({
       ok: true,
@@ -534,6 +585,11 @@ describe('idle compaction CLI', () => {
       ['openrouter/deepseek/some-model', 'auto'],
       host.connect,
     );
+    await runIdleCompactionCommand('compaction-threshold-set', ['0.7', 'keep'], host.connect);
+    await runIdleCompactionCommand('compaction-threshold-set', ['default', '32768'], host.connect);
+    await expect(
+      runIdleCompactionCommand('compaction-threshold-set', ['0.99', 'keep'], host.connect),
+    ).rejects.toThrow('ratio');
     expect(host.calls).toEqual([
       ['idleCompaction', {}],
       ['idleCompactionSet', { enabled: false }],
@@ -545,6 +601,8 @@ describe('idle compaction CLI', () => {
         'idleCompactionCacheLifetimeSet',
         { provider: 'openrouter', model: 'deepseek/some-model', seconds: null },
       ],
+      ['compactionThresholdSet', { thresholdRatio: 0.7 }],
+      ['compactionThresholdSet', { thresholdRatio: null, headroomTokens: 32768 }],
     ]);
   });
 

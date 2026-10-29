@@ -5,7 +5,11 @@ import { hostSession } from '../../host/host-session';
 import { requestActivitySession } from '../../host/native-live-activity';
 import { navigateChannel } from '../shell/channel-navigation';
 import { hostDrawer } from '../shell/host-drawer';
-import { activityDestination, subscribeActivityHost } from '../../host/live-activity-routing';
+import {
+  activityAssignmentDestination,
+  activityDestination,
+  subscribeActivityHost,
+} from '../../host/live-activity-routing';
 import { useMounted } from '../mounted';
 import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
@@ -89,8 +93,19 @@ export function RequestActivityScreen() {
         return navigation.isReady() && snapshot?.roster !== undefined;
       });
       if (!current()) return;
+      const assignmentId = await requestActivitySession.assignment(id!);
+      if (!current()) return;
       if (!requestActivitySession.target(id!)) throw new Error('missing');
       const selected = hostSession.getState();
+      const assignment = activityAssignmentDestination(
+        target,
+        selected.saved?.hostId,
+        assignmentId,
+      );
+      if (assignment) {
+        router.replace(assignment);
+        return;
+      }
       const dm = selected.client
         ?.getSnapshot()
         .roster?.bots.find((bot) => bot.slug === target.botSlug)?.dmChannelId;

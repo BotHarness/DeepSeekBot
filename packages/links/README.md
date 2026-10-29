@@ -1,6 +1,6 @@
 # @botharness/links-worker
 
-`go.tobs.app`: the Campaign short link Worker ([ADR-0132](../../docs/adr/0132-anonymous-posthog-telemetry-and-campaign-short-links.md), [#953](https://github.com/BotHarness/BotHarness/issues/953)). A **Campaign** owns many **Campaign Links** (see `CONTEXT.md`). Resolving a link redirects to the product site with UTM parameters, counts the click in D1 and sends a server-side `link_clicked` event to PostHog. It is a Hono app built with `@hono/zod-openapi`; the API is defined once and published as `/openapi.json`.
+`go.tobs.app`: the Campaign short link Worker ([ADR-0132](../../docs/adr/0132-anonymous-posthog-telemetry-and-campaign-short-links.md), [#953](https://github.com/BotHarness/BotHarness/issues/953)). A **Campaign** owns many **Campaign Links** (see `CONTEXT.md`). Resolving a link redirects to the product site with UTM parameters, counts the click in D1 and sends a server-side `campaign:short_link_click` event to PostHog. It is a Hono app built with `@hono/zod-openapi`; the API is defined once and published as `/openapi.json`.
 
 ## Redirect
 
@@ -25,14 +25,14 @@
 
 Counting and the PostHog event run in `waitUntil` after the response, so a D1 write failure or a PostHog outage never blocks or breaks the redirect. D1 keeps a total and a per-UTC-day counter per link; no IP address, user agent or referrer is stored.
 
-Link previewers and crawlers (Twitterbot, facebookexternalhit, Slackbot, Discordbot, TelegramBot, WhatsApp, LinkedInBot, Googlebot, bingbot, Applebot, Embedly, redditbot, Bytespider and any `User-Agent` with a `bot` word, `bot/`, `crawler`, `spider` or `preview`) get the same redirect with UTMs but are neither counted nor sent as `link_clicked`. In-app browsers such as WeChat (`MicroMessenger`) count as people. The `User-Agent` is only matched in memory; it is never stored or sent.
+Link previewers and crawlers (Twitterbot, facebookexternalhit, Slackbot, Discordbot, TelegramBot, WhatsApp, LinkedInBot, Googlebot, bingbot, Applebot, Embedly, redditbot, Bytespider and any `User-Agent` with a `bot` word, `bot/`, `crawler`, `spider` or `preview`) get the same redirect with UTMs but are neither counted nor sent as `campaign:short_link_click`. In-app browsers such as WeChat (`MicroMessenger`) count as people. The `User-Agent` is only matched in memory; it is never stored or sent.
 
 The event goes to `POST {POSTHOG_HOST}/i/v0/e/`:
 
 ```json
 {
   "api_key": "<POSTHOG_KEY>",
-  "event": "link_clicked",
+  "event": "campaign:short_link_click",
   "distinct_id": "<random UUID per click>",
   "properties": {
     "source": "links",
@@ -191,7 +191,7 @@ The D1 database `botharness-links` (APAC) was created on 2026-10-06 and its `dat
    ```
 
 3. Set up Cloudflare Access for `/admin*` and fill `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` (see [Cloudflare Access setup](#cloudflare-access-setup)), then deploy again.
-4. Sign in at `https://go.tobs.app/admin`, create a Campaign with two links and a `write` PAT, and delete the bootstrap secret. Use the PAT against the API (for example `curl -H "authorization: Bearer $PAT" https://go.tobs.app/v1/campaigns`), then create a link with it, and open `https://go.tobs.app/<slug>`. Check that the site's `$pageview` in PostHog carries the four UTMs and that `link_clicked` arrives with the site script blocked.
+4. Sign in at `https://go.tobs.app/admin`, create a Campaign with two links and a `write` PAT, and delete the bootstrap secret. Use the PAT against the API (for example `curl -H "authorization: Bearer $PAT" https://go.tobs.app/v1/campaigns`), then create a link with it, and open `https://go.tobs.app/<slug>`. Check that the site's `$pageview` in PostHog carries the four UTMs and that `campaign:short_link_click` arrives with the site script blocked.
 
 New links use `go.tobs.app` and target `tobs.app`. Existing `go.botharness.ai` and `go.deepseekbot.app` hosts keep serving the same API, MCP and short codes from the same D1 database; existing configured CLI URLs remain valid. The Worker and database keep their existing names.
 

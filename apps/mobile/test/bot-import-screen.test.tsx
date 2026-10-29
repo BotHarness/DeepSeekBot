@@ -10,6 +10,7 @@ import {
 
 const fixture = vi.hoisted(() => ({
   routeReady: true,
+  params: { entry: 'resume' } as Record<string, string>,
   android: false,
   open: vi.fn(),
   screen: vi.fn(),
@@ -50,6 +51,7 @@ const controller = createBotCreationController({
     },
   },
 });
+vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
 vi.mock('../src/ui/primitives/sheet-content', () => ({
   useSheetContent: () => ({ ready: fixture.routeReady, mount: undefined }),
 }));
@@ -70,8 +72,10 @@ vi.mock('expo-router', () => ({
       return null;
     },
   },
-  router: { push: vi.fn() },
-  useLocalSearchParams: () => ({ entry: 'resume' }),
+  router: { push: vi.fn(), back: vi.fn(), dismiss: vi.fn() },
+  useNavigation: () => ({ goBack: vi.fn() }),
+  useIsFocused: () => true,
+  useLocalSearchParams: () => fixture.params,
   useFocusEffect: (effect: () => void | (() => void)) => useLayoutEffect(effect, [effect]),
 }));
 vi.mock('../src/host/native-bot-creation', () => ({
@@ -80,7 +84,10 @@ vi.mock('../src/host/native-bot-creation', () => ({
   },
   useBotCreation: () => useSyncExternalStore(controller.subscribe, controller.getSnapshot),
 }));
-vi.mock('../src/host/host-session', () => ({ useHostSession: () => ({ hosts: fixture.hosts }) }));
+vi.mock('../src/host/host-session', () => ({
+  useHostSession: () => ({ hosts: fixture.hosts }),
+  useHostAvailability: () => fixture.hosts.map(({ hostId }) => ({ hostId, status: 'checking' })),
+}));
 vi.mock('../src/host/native-host-look', () => ({ hostLooks: { look: () => ({}) } }));
 vi.mock('../src/ui/design/host-look', () => ({
   shownHostName: (_look: unknown, name: string) => name,
@@ -100,8 +107,73 @@ vi.mock('../src/ui/primitives/keyboard-form', () => ({
   KeyboardFormScroll: ({ children }: { children: ReactNode }) =>
     createElement('div', null, children),
 }));
+vi.mock('../src/ui/primitives/keyboard-form-footer', () => ({
+  KeyboardFormFooter: ({ children }: { children: ReactNode }) =>
+    createElement('div', null, children),
+}));
+vi.mock('../src/ui/primitives/environment-list', () => ({
+  EnvironmentList: ({
+    options,
+    onChange,
+  }: {
+    options: { value: string; label: string }[];
+    onChange(value: string): void;
+  }) =>
+    createElement(
+      'ul',
+      null,
+      options.map((option) =>
+        createElement(
+          'button',
+          { key: option.value, onClick: () => onChange(option.value) },
+          option.label,
+        ),
+      ),
+    ),
+}));
+vi.mock('../src/ui/primitives/step-bar', () => ({
+  StepBar: ({
+    primary,
+  }: {
+    primary: { label: string; onPress(): void; disabled?: boolean; busy?: boolean };
+  }) =>
+    createElement(
+      'button',
+      { onClick: primary.onPress, disabled: primary.disabled || primary.busy },
+      primary.label,
+    ),
+}));
+vi.mock('../src/ui/shell/navigation-action', () => ({ NavigationAction: () => null }));
+vi.mock('../src/ui/shell/creation-avatar', () => ({
+  CreationAvatar: ({
+    onChange,
+  }: {
+    onChange(avatar: { kind: 'generated'; seed: string } | { kind: 'photo'; image: string }): void;
+  }) =>
+    createElement(
+      'div',
+      null,
+      createElement(
+        'button',
+        {
+          'data-testid': 'create-bot-avatar-shuffle',
+          onClick: () => onChange({ kind: 'generated', seed: 'seed-1' }),
+        },
+        'shuffle',
+      ),
+      createElement(
+        'button',
+        {
+          'data-testid': 'create-bot-avatar-photo',
+          onClick: () => onChange({ kind: 'photo', image: 'data:image/jpeg;base64,AAAA' }),
+        },
+        'photo',
+      ),
+    ),
+}));
+
 vi.mock('../src/ui/shell/open-created-bot', () => ({ openCreatedBot: fixture.open }));
-import { CreateBotScreen } from '../src/ui/shell/create-bot-screen';
+import { CreateBotScreen, CreateBotStepScreen } from '../src/ui/shell/create-bot-screen';
 import { t } from '../src/ui/strings';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -112,36 +184,53 @@ afterEach(() => {
   element?.remove();
   fixture.routeReady = true;
   fixture.android = false;
+  fixture.params = { entry: 'resume' };
 });
-
-it.each([false, true])('imports with one action (Android: %s)', async (android) => {
-  fixture.android = android;
-  await controller.another('A');
-  await controller.enter({ kind: 'host', hostId: 'A' });
-  await controller.beginImport({ gitUrl: 'https://github.com/a/b', displayName: 'My helper' });
+function mountStep(flow: string, step: number) {
+  fixture.params = { entry: 'resume', flow, step: String(step) };
   element = document.createElement('div');
   document.body.append(element);
   root = createRoot(element);
-  await act(async () => root.render(<CreateBotScreen />));
-  const button = (name: string) =>
-    [...element.querySelectorAll('button')].find((item) => item.textContent === name)!;
-  expect(
-    element.querySelector(`[aria-label="${t.botCreation.gitUrl}"]`)?.getAttribute('value'),
-  ).toBe('https://github.com/a/b');
-  expect(element.querySelector(`[aria-label="${t.botCreation.name}"]`)?.getAttribute('value')).toBe(
-    'My helper',
-  );
-  expect(button(t.botCreation.import).disabled).toBe(false);
-  await act(async () => button('Desktop').click());
-  expect(button(t.botCreation.preview)).toBeUndefined();
-  expect(button(t.botCreation.import).disabled).toBe(false);
-  await act(async () => button(t.botCreation.import).click());
-  expect(fixture.create).toHaveBeenCalledWith(
-    expect.objectContaining({ hostId: 'B', input: { displayName: 'My helper' } }),
-  );
-  expect(button(t.botCreation.open)).toBeDefined();
-  expect(button(t.botCreation.importAnother)).toBeDefined();
-});
+  return act(async () => root.render(<CreateBotStepScreen />));
+}
+const labelled = (name: string) =>
+  [...element.querySelectorAll('button')].find((item) => item.textContent === name);
+
+it.each([false, true])(
+  'imports from the last step after choosing the Environment first (Android: %s)',
+  async (android) => {
+    fixture.android = android;
+    await controller.another('A');
+    await controller.enter({ kind: 'host', hostId: 'A' });
+    await controller.beginImport({ gitUrl: 'https://github.com/a/b', displayName: 'My helper' });
+    element = document.createElement('div');
+    document.body.append(element);
+    root = createRoot(element);
+    await act(async () => root.render(<CreateBotScreen initialSource="git" />));
+    await act(async () => labelled('Desktop')!.click());
+    await act(async () => root.unmount());
+    await mountStep('git', 1);
+    expect(
+      element.querySelector(`[aria-label="${t.botCreation.gitUrl}"]`)?.getAttribute('value'),
+    ).toBe('https://github.com/a/b');
+    await act(async () => root.unmount());
+    await mountStep('git', 2);
+    expect(
+      element.querySelector(`[aria-label="${t.botCreation.name}"]`)?.getAttribute('value'),
+    ).toBe('My helper');
+    await act(async () => root.unmount());
+    await mountStep('git', 3);
+    expect(element.querySelector(`[aria-label="${t.botCreation.persona}"]`)).toBeNull();
+    expect(element.textContent).toContain(t.botCreation.prompt.importDetails);
+    expect(labelled(t.botCreation.importShort)!.disabled).toBe(false);
+    await act(async () => labelled(t.botCreation.importShort)!.click());
+    expect(fixture.create).toHaveBeenCalledWith(
+      expect.objectContaining({ hostId: 'B', input: { displayName: 'My helper' } }),
+    );
+    expect(labelled(t.botCreation.open)).toBeDefined();
+    expect(labelled(t.botCreation.importAnother)).toBeDefined();
+  },
+);
 
 it('does not enter the creation flow before the native route is presented', async () => {
   fixture.routeReady = false;
@@ -179,9 +268,10 @@ it('keeps Marketplace progress in its existing page when reopening a submitted i
   root = createRoot(element);
   await act(async () => root.render(<CreateBotScreen initialSource="git" />));
   expect(element.querySelector('[role="dialog"]')).toBeNull();
+  expect(element.textContent).toContain('Marketplace Bot');
 });
 
-it('opens Android blank creation as a back-navigable page with its action inside the form', async () => {
+it('opens Android blank creation as a back-navigable page with its action pinned below', async () => {
   await controller.another('A');
   await controller.blank();
   fixture.android = true;
@@ -191,28 +281,18 @@ it('opens Android blank creation as a back-navigable page with its action inside
   await act(async () => root.render(<CreateBotScreen />));
   expect(element.querySelector('[role="dialog"]')).toBeNull();
   expect(fixture.screen).toHaveBeenLastCalledWith(
-    expect.objectContaining({ headerShown: true, presentation: 'card' }),
+    expect.objectContaining({ headerShown: false, presentation: 'card', headerBackVisible: false }),
   );
-  expect(element.querySelector(`[aria-label="${t.botCreation.name}"]`)).not.toBeNull();
-  expect(
-    [...element.querySelectorAll('button')].find(
-      (button) => button.textContent === t.botCreation.create,
-    ),
-  ).toBeDefined();
+  expect(element.textContent).toContain(t.botCreation.prompt.environment);
+  expect(labelled(t.botCreation.next)).toBeDefined();
 });
 
 it('keeps preview failure editable and retries from the same Import action', async () => {
   await controller.another('A');
   await controller.beginImport({ gitUrl: 'https://github.com/a/b', displayName: 'My helper' });
   fixture.preview.mockRejectedValueOnce(new Error('offline'));
-  element = document.createElement('div');
-  document.body.append(element);
-  root = createRoot(element);
-  await act(async () => root.render(<CreateBotScreen initialSource="git" />));
-  const button = () =>
-    [...element.querySelectorAll('button')].find(
-      (item) => item.textContent === t.botCreation.import,
-    )!;
+  await mountStep('git', 3);
+  const button = () => labelled(t.botCreation.importShort)!;
   const creates = fixture.create.mock.calls.length;
   await act(async () => button().click());
   expect(controller.getSnapshot().record.kind).toBe('draft');
@@ -225,22 +305,24 @@ it('keeps preview failure editable and retries from the same Import action', asy
   expect(fixture.create).toHaveBeenCalledTimes(creates + 1);
 });
 
-it('imports a Zip with source metadata even when its name has not been prefilled', async () => {
+it('prefills an empty name from the archive when leaving the Zip step', async () => {
   await controller.another('A');
   await controller.blank();
   await controller.beginZip();
   const draft = controller.getSnapshot().record;
   if (draft.kind !== 'draft') throw new Error('Expected draft');
   await controller.edit({ ...draft.draft, displayName: '' });
-  element = document.createElement('div');
-  document.body.append(element);
-  root = createRoot(element);
-  await act(async () => root.render(<CreateBotScreen initialSource="zip" />));
-  const button = [...element.querySelectorAll('button')].find(
-    (item) => item.textContent === t.botCreation.import,
-  )!;
-  expect(button.disabled).toBe(false);
-  await act(async () => button.click());
+  await mountStep('zip', 1);
+  expect(element.textContent).toContain('Helper.zip');
+  await act(async () => labelled(`${t.botCreation.next}`)!.click());
+  await act(async () => root.unmount());
+  await mountStep('zip', 2);
+  expect(element.querySelector(`[aria-label="${t.botCreation.name}"]`)?.getAttribute('value')).toBe(
+    'Archive helper',
+  );
+  await act(async () => root.unmount());
+  await mountStep('zip', 3);
+  await act(async () => labelled(t.botCreation.importShort)!.click());
   expect(fixture.create).toHaveBeenLastCalledWith(
     expect.objectContaining({
       input: { displayName: 'Archive helper' },
@@ -259,16 +341,9 @@ it('does not submit after leaving while the source check is pending', async () =
         finish = resolve;
       }),
   );
-  element = document.createElement('div');
-  document.body.append(element);
-  root = createRoot(element);
-  await act(async () => root.render(<CreateBotScreen initialSource="git" />));
+  await mountStep('git', 3);
   const creates = fixture.create.mock.calls.length;
-  await act(async () =>
-    [...element.querySelectorAll('button')]
-      .find((item) => item.textContent === t.botCreation.import)!
-      .click(),
-  );
+  await act(async () => labelled(t.botCreation.importShort)!.click());
   await act(async () => root.render(null));
   await act(async () =>
     finish({ kind: 'git', gitUrl: 'https://github.com/a/b.git', commit: 'a'.repeat(40) }),
@@ -277,7 +352,7 @@ it('does not submit after leaving while the source check is pending', async () =
   expect(controller.getSnapshot().record.kind).toBe('draft');
 });
 
-it('offers Import for a saved pre-send failure without claiming an unknown creation result', async () => {
+it('offers Retry and editing for a saved pre-send failure without claiming an unknown result', async () => {
   await controller.another('A');
   await controller.beginImport({ gitUrl: 'https://github.com/a/b', displayName: 'My helper' });
   await controller.preview();
@@ -291,11 +366,8 @@ it('offers Import for a saved pre-send failure without claiming an unknown creat
   document.body.append(element);
   root = createRoot(element);
   await act(async () => root.render(<CreateBotScreen initialSource="git" />));
-  expect(
-    [...element.querySelectorAll('button')].some(
-      (item) => item.textContent === t.botCreation.import,
-    ),
-  ).toBe(true);
+  expect(labelled(t.botCreation.retryShort)).toBeDefined();
+  expect(labelled(t.botCreation.edit)).toBeDefined();
   expect(element.textContent).not.toContain(t.botCreation.retry);
   expect(element.textContent).not.toContain(t.botCreation.uncertain);
 });

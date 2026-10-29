@@ -48,7 +48,7 @@ export function DeletionSheet({
     target.kind === 'bot'
       ? t.deletion.deleteBot
       : target.kind === 'group'
-        ? t.deletion.dissolve
+        ? t.deletion.disband
         : t.deletion.deleteSection;
   const close = () => {
     if (!submitting.current) onClose();
@@ -95,6 +95,7 @@ export function DeletionSheet({
   return (
     <Sheet visible label={label} title={label} onClose={close}>
       <ScrollView
+        nestedScrollEnabled
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{ padding: space.x5, gap: space.x4 }}
       >

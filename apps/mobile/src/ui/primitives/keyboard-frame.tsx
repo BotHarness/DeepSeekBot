@@ -1,6 +1,10 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, View, type ColorValue, type LayoutChangeEvent } from 'react-native';
-import { KeyboardProvider, useKeyboardState } from 'react-native-keyboard-controller';
+import { View, type ColorValue, type LayoutChangeEvent } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  KeyboardProvider,
+  useKeyboardState,
+} from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { space } from '../design/tokens';

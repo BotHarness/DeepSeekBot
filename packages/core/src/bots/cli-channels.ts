@@ -55,7 +55,10 @@ export const CHANNEL_COMMANDS = [
   },
   { command: 'group-wake-policies', description: "read each group member's wake policy" },
   { command: 'group-wake-set', description: "set or reset one group member's wake policy" },
-  { command: 'group-delete', description: 'delete a group Channel; needs --confirm' },
+  {
+    command: 'group-delete',
+    description: 'disband a group and delete its messages; needs --confirm',
+  },
   {
     command: 'channel-history',
     description: 'list deleted groups whose history can still be purged',
@@ -76,6 +79,10 @@ export const CHANNEL_COMMANDS = [
     description: 'add or remove your emoji reaction on one Channel message',
   },
   { command: 'channel-search', description: "search a Channel's messages, newest first" },
+  {
+    command: 'message-search',
+    description: 'search messages across every Channel you can see, newest first',
+  },
   { command: 'channel-unread', description: 'list unread message counts per Channel' },
   {
     command: 'channel-mute',
@@ -107,6 +114,8 @@ interface ChannelValues {
   before?: string;
   limit?: string;
   'message-id'?: string;
+  'failure-message-id'?: string;
+  recovery?: string;
   'confirmation-stdin'?: boolean;
   'avatar-file'?: string;
   invitation?: string;
@@ -214,7 +223,8 @@ export async function runChannelCommand(
   const noTarget =
     command === 'channel-history' ||
     command === 'channel-mark-all-read' ||
-    command === 'channel-unread';
+    command === 'channel-unread' ||
+    command === 'message-search';
   if (rest.length !== (noTarget ? 0 : 1))
     usage(
       `${command} ${noTarget ? 'takes no positional arguments' : 'needs exactly one Channel ID'}.`,
@@ -299,7 +309,7 @@ export async function runChannelCommand(
     case 'group-delete':
       method = 'channelGroupDelete';
       if (values.confirm !== true)
-        usage('Deleting a group removes it for every member. Pass --confirm to delete it.');
+        usage('Disbanding a group deletes its messages and files. Pass --confirm to disband it.');
       break;
     case 'channel-history':
       method = 'channelHistory';
@@ -362,6 +372,14 @@ export async function runChannelCommand(
       if (limit !== undefined) args.limit = limit;
       break;
     }
+    case 'message-search': {
+      method = 'messageSearch';
+      const limit = integer(values.limit, '--limit', 1, 50);
+      args = { text: required(values.query, '--query') };
+      if (values.cursor !== undefined) args.cursor = values.cursor;
+      if (limit !== undefined) args.limit = limit;
+      break;
+    }
     case 'channel-mark-all-read':
       method = 'channelMarkAllRead';
       args = {};
@@ -377,6 +395,12 @@ export async function runChannelCommand(
     case 'channel-retry':
       method = 'channelRetry';
       args.messageId = required(values['message-id'], '--message-id');
+      if (values.recovery !== undefined) {
+        if (values.recovery !== 'compact' && values.recovery !== 'new-session')
+          usage('--recovery must be compact or new-session');
+        args.recovery = values.recovery;
+        args.failureMessageId = required(values['failure-message-id'], '--failure-message-id');
+      }
       break;
     case 'channel-bot-stop':
       method = 'channelBotStop';

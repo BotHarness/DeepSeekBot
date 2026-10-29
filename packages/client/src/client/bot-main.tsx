@@ -1,3 +1,4 @@
+import { PendingDelivery } from './message-delivery.js';
 import { AppearanceContext } from './appearance-context.js';
 import type { Appearance } from './appearance.js';
 import { onboardingFor, type OnboardingViewState } from './onboarding.js';
@@ -7,7 +8,9 @@ import { PanelEmptyState } from './ds/empty-state.js';
 import { Workspace, type WorkspaceOptions } from './workspace.js';
 import { WorkspaceContext } from './workspace-context.js';
 import { OnboardingMemoryNavigation } from './onboarding-memory.js';
+import { useTimelineWindow } from './timeline-window.js';
 import { OnboardingOverlay } from './onboarding-view.js';
+import { TobJourneyCard } from './tob-onboarding.js';
 import { BotIntro } from './bot-intro.js';
 import type { Wallpaper } from './wallpaper.js';
 import {
@@ -28,6 +31,7 @@ import { ComposerSendKeyContext } from './composer-send-key.js';
 import { ConversationFileDropOverlay, useConversationFileDrop } from './conversation-file-drop.js';
 import type { ComposerShortcut } from './composer-shortcuts.js';
 import {
+  memo,
   useCallback,
   useContext,
   useMemo,
@@ -40,6 +44,7 @@ import {
 } from 'react';
 
 import {
+  IconWarningTriangleOutlineRegular,
   IconCheckOutlineRegular,
   IconChevronDownOutlineRegular,
   IconChecklistOutlineRegular,
@@ -105,7 +110,15 @@ import {
   humanBubbleColors,
   useConversationSurface,
 } from './bot-primary-color.js';
-import { ChannelDeliveryReceipt } from './channel-delivery-receipt.js';
+import {
+  ChannelDeliveryReceipt,
+  DeliveryReceiptsVisible,
+  readingBots,
+} from './channel-delivery-receipt.js';
+import { BubbleBadges } from './bubble-badges.js';
+import { BotInboxDialog } from './bot-inbox-dialog.js';
+import { StreamReplies } from './stream-replies.js';
+import { useMessageArrivals } from './message-arrivals.js';
 import { MessageCopyAction } from './message-copy-action.js';
 import { MessageAuthorHoverCard, messageAuthorCardModel } from './message-author-card.js';
 import { isBotDmChannel, isHumanReadOnlyDmChannel } from './channel-kind.js';
@@ -134,6 +147,7 @@ import { MemoryFileView, MemoryWorkingView } from './memory-current-view.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { groupChannelMessages, type MessageGroup } from './message-groups.js';
 import { ProfileView } from './personabot-profile.js';
+import { ShareFlowHost } from './share-flow.js';
 import { GroupProfileView } from './group-profile.js';
 import { personaBotActivity } from './persona-activity.js';
 import { BotDmActionLabel } from './bot-dm-action-line.js';
@@ -148,8 +162,9 @@ import {
 } from './dm-actions.js';
 import {
   timelineWorkingRows,
-  timelineWorkingRowsCover,
-  TimelineWorkingRowsView,
+  HeaderWorkingStatus,
+  WorkingAnnouncement,
+  WorkingSummary,
 } from './timeline-working-rows.js';
 import { groupComposerActivity } from './group-composer-activity.js';
 import { attentionCount } from './activity-attention.js';
@@ -159,6 +174,7 @@ import {
   type BotSummary,
   type ChannelAttachmentRef,
   type ChannelMessage,
+  type ChannelReaction,
   type ChannelSummary,
   type ClientState,
 } from './store.js';
@@ -177,6 +193,7 @@ import {
   toggleSelection,
   type MessageSelection,
 } from './message-selection-state.js';
+import { useAvatarFollow } from './avatar-follow.js';
 import { useMountedResource } from './mounted-resource.js';
 import * as stylex from '@stylexjs/stylex';
 import { IconButton } from './ds/icon-button.js';
@@ -194,7 +211,6 @@ import {
 import { TimelineUnreadDivider } from './timeline-unread-divider.js';
 import { AutoCollapseMessages, foldableMessage, MessageFold } from './message-fold.js';
 import {
-  MessageReactionChips,
   MessageReactionPicker,
   MessageReactionSurface,
   ReactionIcon,
@@ -390,11 +406,13 @@ const BUBBLE_LONG_PRESS_TOLERANCE_PX = 10;
 
 export function MessageBubbleWrap({
   message,
+  entering = false,
   focused,
   onContextMenu,
   children,
 }: {
   message: ChannelMessage;
+  entering?: boolean;
   focused: boolean;
   onContextMenu(message: ChannelMessage, x: number, y: number): void;
   children?: ReactNode;
@@ -424,7 +442,7 @@ export function MessageBubbleWrap({
   return (
     <div
       ref={mount}
-      className={`bh-bubble-wrap${focused ? ' bh-bubble-focused' : ''}${message.failed === undefined ? '' : ' bh-bubble-wrap-failed'}${selection?.active === true ? ' bh-bubble-selecting' : ''}`}
+      className={`bh-bubble-wrap${entering ? ' bh-bubble-enter' : ''}${focused ? ' bh-bubble-focused' : ''}${message.failed === undefined ? '' : ' bh-bubble-wrap-failed'}${selection?.active === true ? ' bh-bubble-selecting' : ''}`}
       data-message-id={message.id}
       {...(selection?.active === true && selectable
         ? {
@@ -508,10 +526,13 @@ export function MessageBubbleWrap({
   );
 }
 
-function humanBubbleStyle(source: string | undefined): CSSProperties | undefined {
+function humanBubbleStyle(
+  source: string | undefined,
+  background: string,
+): CSSProperties | undefined {
   if (source === undefined) return undefined;
-  const light = humanBubbleColors(source, 'light');
-  const dark = humanBubbleColors(source, 'dark');
+  const light = humanBubbleColors(source, 'light', background);
+  const dark = humanBubbleColors(source, 'dark', background);
   if (light === undefined || dark === undefined) return undefined;
   return {
     '--bh-bubble-me-fill-light': light.fill,
@@ -521,19 +542,32 @@ function humanBubbleStyle(source: string | undefined): CSSProperties | undefined
   } as CSSProperties;
 }
 
-function MessageGroupView({
+interface InboxTarget {
+  botSlug: string;
+  messageId: string;
+  missing: boolean;
+}
+
+const NO_HUMAN_MEMBERS: readonly ChannelHumanMember[] = [];
+const NO_REACTIONS: readonly ChannelReaction[] = [];
+const NO_READERS: readonly string[] = [];
+
+const MessageGroupView = memo(function MessageGroupView({
   humanMembers = [],
   group,
+  arrivals,
   channelId,
   bots,
   focusMessageId,
   currentDmBotSlug,
   onContextMenu,
   onAvatarMenu,
+  onOpenInbox,
   onReply,
   onReact,
   onJumpReply,
   onRestoreFailed,
+  reading,
   actions,
   resolvedGrantRequests,
   toolApprovalDecisions,
@@ -545,16 +579,19 @@ function MessageGroupView({
   humanMembers?: readonly ChannelHumanMember[];
   gallery?: Gallery | undefined;
   group: MessageGroup;
+  arrivals?: ReadonlySet<string> | undefined;
   channelId?: string | undefined;
   focusMessageId?: string | undefined;
   currentDmBotSlug?: string | undefined;
   bots: readonly BotSummary[];
   onContextMenu(message: ChannelMessage, x: number, y: number): void;
   onAvatarMenu?: ((botSlug: string, x: number, y: number) => void) | undefined;
+  onOpenInbox?: ((target: InboxTarget) => void) | undefined;
   onReply?: ((message: ChannelMessage) => void) | undefined;
   onReact?: ((message: ChannelMessage, emoji: string, active: boolean) => void) | undefined;
   onRestoreFailed?: ((message: ChannelMessage) => void) | undefined;
   onJumpReply(messageId: string): void;
+  reading?: ReadonlyMap<string, readonly string[]> | undefined;
   actions: BridgeActions;
   resolvedGrantRequests: ReadonlySet<string>;
   toolApprovalDecisions: ReadonlyMap<
@@ -636,49 +673,18 @@ function MessageGroupView({
     human && currentDmBotSlug !== undefined
       ? bots.find((candidate) => candidate.slug === currentDmBotSlug)
       : undefined;
-  const bubbleStyle = humanBubbleStyle(botNameSource(dmBot));
-  const lastMessage = group.messages[group.messages.length - 1];
-  const lastReactions = (lastMessage?.reactions ?? [])
-    .map((reaction) => `${reaction.emoji}${String(reaction.actors.length)}`)
-    .join(' ');
-  const groupMount = useMountedResource<HTMLDivElement>(
-    (node) => {
-      if (avatar === undefined || lastMessage === undefined || lastReactions === '') return;
-      const chips = Array.from(
-        node.querySelectorAll<HTMLElement>(
-          `.bh-bubble-wrap[data-message-id] > .bh-bubble-surface > [data-message-reactions]`,
-        ),
-      ).find(
-        (element) =>
-          element.closest<HTMLElement>('.bh-bubble-wrap')?.dataset.messageId === lastMessage.id,
-      );
-      if (chips === undefined) return;
-      const lift = (): void => {
-        const margin = Number.parseFloat(getComputedStyle(chips).marginTop) || 0;
-        node.style.setProperty(
-          '--bh-avatar-lift',
-          `${String(chips.getBoundingClientRect().height + margin)}px`,
-        );
-      };
-      lift();
-      const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(lift);
-      observer?.observe(chips);
-      return () => {
-        observer?.disconnect();
-        node.style.removeProperty('--bh-avatar-lift');
-      };
-    },
-    [avatar === undefined, lastMessage?.id, lastReactions],
-  );
+  const bubbleStyle = humanBubbleStyle(botNameSource(dmBot), surface.background);
+  const lastId = group.messages[group.messages.length - 1]!.id;
+  const arriving = arrivals?.has(lastId) === true;
+  const follow = useAvatarFollow(lastId, arriving);
   return (
     <div
-      ref={groupMount}
-      className={`bh-message-group${human ? ' bh-message-group-me' : ''}`}
+      className={`bh-message-group${human ? ' bh-message-group-me' : ''}${arriving && group.messages.length === 1 ? ' bh-message-group-enter' : ''}`}
       data-group-size={group.messages.length}
       style={bubbleStyle}
     >
       {avatar === undefined ? null : (
-        <span className="bh-message-group-avatar">
+        <span ref={follow} className="bh-message-group-avatar">
           {withAuthorCard(
             author.kind === 'bot' && currentDmBotSlug !== author.slug ? (
               <button
@@ -727,7 +733,7 @@ function MessageGroupView({
             withAuthorCard(
               <span
                 className="bh-bubble-author"
-                ref={nameColor === undefined ? undefined : surface.probe}
+                ref={surface.probe}
                 data-bot-name-color={nameColor}
                 style={nameColor === undefined ? undefined : { color: nameColor }}
               >
@@ -752,15 +758,26 @@ function MessageGroupView({
             <MessageBubbleWrap
               key={message.id}
               message={message}
+              entering={arrivals?.has(message.id) === true}
               focused={focusMessageId === message.id}
               onContextMenu={onContextMenu}
             >
               <div
                 className={`bh-bubble-surface${message.failed === undefined ? '' : ' bh-bubble-surface-failed'}`}
               >
+                {human && message.pending === true && message.failed === undefined ? (
+                  <PendingDelivery message={message} t={t} />
+                ) : null}
                 {message.failed === undefined ? null : onRestoreFailed === undefined ? (
-                  <span className="bh-bubble-failed-action" title={message.failed}>
-                    {t(message.unconfirmed === true ? 'message.unconfirmed' : 'message.failed')}
+                  <span
+                    className="bh-bubble-failed-action"
+                    role="img"
+                    aria-label={t(
+                      message.unconfirmed === true ? 'message.unconfirmed' : 'message.failed',
+                    )}
+                    title={message.failed}
+                  >
+                    <IconWarningTriangleOutlineRegular size={16} />
                   </span>
                 ) : (
                   <button
@@ -774,7 +791,7 @@ function MessageGroupView({
                     title={message.failed}
                     onClick={() => onRestoreFailed(message)}
                   >
-                    {t(message.unconfirmed === true ? 'message.unconfirmed' : 'message.failed')}
+                    <IconWarningTriangleOutlineRegular size={16} />
                   </button>
                 )}
                 <div
@@ -804,14 +821,15 @@ function MessageGroupView({
                       />
                     </MessageFold>
                   </ImageGalleryScope>
-                  {message.pending === true || message.streaming === true ? (
+                  {message.streaming === true ? (
                     <span className="bh-bubble-status" role="status">
                       {t(message.streaming === true ? 'message.generating' : 'message.sending')}
                     </span>
                   ) : null}
                 </div>
-                <MessageReactionChips
-                  reactions={message.reactions ?? []}
+                <BubbleBadges
+                  reactions={message.reactions ?? NO_REACTIONS}
+                  readers={reading?.get(message.id) ?? NO_READERS}
                   mine={human}
                   names={reactorName}
                   onReact={
@@ -819,6 +837,7 @@ function MessageGroupView({
                       ? undefined
                       : (emoji, active) => onReact(message, emoji, active)
                   }
+                  bots={bots}
                   t={t}
                 />
                 <div className="bh-bubble-toolbar">
@@ -854,6 +873,11 @@ function MessageGroupView({
                   message={message}
                   bots={bots}
                   humanMembers={humanMembers}
+                  onOpenInbox={
+                    onOpenInbox === undefined
+                      ? undefined
+                      : (target) => onOpenInbox({ ...target, messageId: message.id })
+                  }
                   t={t}
                 />
                 <div className="bh-bubble-meta">
@@ -874,7 +898,7 @@ function MessageGroupView({
       </div>
     </div>
   );
-}
+});
 
 function MessageActionMenu({
   onReply,
@@ -1111,6 +1135,7 @@ function ConversationView({
     return () => window.clearInterval(timer);
   }, [inboxOpen, dockBotSlug, actions]);
   const sendKey = useContext(ComposerSendKeyContext);
+  const streamReplies = useContext(StreamReplies);
   const settingsScope = resolveChannelSidebarContext(state)?.scope ?? 'channel';
   const settingsEntries = useSyncExternalStore(
     channelSidebar.subscribe,
@@ -1266,21 +1291,6 @@ function ConversationView({
     },
     [companion, scopeKey],
   );
-  const activityOverlayPane = useScopedRef<HTMLElement | null>(scopeKey, null);
-  const resizeActivityOverlay = useCallback(
-    (height: number): void => {
-      const timeline = scrollRef.current;
-      const pane = timeline?.closest<HTMLElement>('.bh-chat-pane') ?? activityOverlayPane.current;
-      if (pane === null) return;
-      activityOverlayPane.current = pane;
-      const following =
-        followingLatest.current && !store.getSnapshot().conversation.timeline.hasNewer;
-      if (height > 0) pane.style.setProperty('--bh-activity-overlay-inset', `${height + 6}px`);
-      else pane.style.removeProperty('--bh-activity-overlay-inset');
-      if (following && timeline !== null) timeline.scrollTop = timeline.scrollHeight;
-    },
-    [scopeKey],
-  );
   const prependAnchor = useScopedRef<{
     firstId: string | undefined;
     y: number | undefined;
@@ -1298,6 +1308,7 @@ function ConversationView({
   const [reactionMenu, setReactionMenu] = useScopedState<MessageMenuRequest | undefined>(scopeKey);
   const [feedbackMessage, setFeedbackMessage] = useScopedState<string | undefined>(scopeKey);
   const [avatarMenu, setAvatarMenu] = useScopedState<AvatarMenuRequest | undefined>(scopeKey);
+  const [inboxTarget, setInboxTarget] = useScopedState<InboxTarget | undefined>(scopeKey);
   const [selectedMessages, setSelectedMessages] = useScopedState<
     { channelId: string; ids: readonly string[] } | undefined
   >(scopeKey);
@@ -1327,16 +1338,45 @@ function ConversationView({
     () => dmMemoryDisplaySnapshot(dmBotSlug),
   );
   const messages = conversation.messages;
-  const displayMessages: ChannelMessage[] = [
-    ...visibleDmMessages(messages, hiddenActions),
-    ...(conversation.timeline.hasNewer ? [] : conversation.drafts).map((item) => ({
-      id: item.draftId,
-      at: '',
-      author: { kind: 'bot' as const, slug: item.botSlug },
-      body: item.body,
-      streaming: true,
-    })),
-  ];
+  const timelineDrafts =
+    conversation.timeline.hasNewer || !streamReplies ? undefined : conversation.drafts;
+  const displayMessages = useMemo<readonly ChannelMessage[]>(() => {
+    const visible = visibleDmMessages(messages, hiddenActions);
+    if (timelineDrafts === undefined || timelineDrafts.length === 0) return visible;
+    return [
+      ...visible,
+      ...timelineDrafts.map((item) => ({
+        id: item.draftId,
+        at: '',
+        author: { kind: 'bot' as const, slug: item.botSlug },
+        body: item.body,
+        streaming: true,
+      })),
+    ];
+  }, [messages, hiddenActions, timelineDrafts]);
+  const timelineDecisions = useMemo(
+    () => ({
+      resolvedGrantRequests: resolvedGrantRequestIds(displayMessages),
+      toolApprovalDecisions: new Map(
+        displayMessages
+          .filter((item) => item.toolApprovalDecision !== undefined)
+          .map((item) => [
+            item.toolApprovalDecision!.requestMessageId,
+            item.toolApprovalDecision!.outcome,
+          ]),
+      ),
+      userQuestionResolutions: new Map(
+        displayMessages
+          .filter((item) => item.userQuestionResolution !== undefined)
+          .map((item) => [
+            item.userQuestionResolution!.requestMessageId,
+            item.userQuestionResolution!.state,
+          ]),
+      ),
+    }),
+    [displayMessages],
+  );
+  const reading = useMemo(() => readingBots(messages), [messages]);
   const selection = state.selection;
   const bot =
     selection?.kind === 'bot'
@@ -1416,7 +1456,7 @@ function ConversationView({
                 ? `${composerFacepile[0]?.name ?? 'PersonaBot'} ${personaBotPresentationSummary(composerFacepile[0]?.state ?? 'idle', composerFacepile[0]?.activity, composerFacepile[0]?.attention, t)}`
                 : t('main.activity.bots', { count: composerFacepile.length }),
           };
-  const streamingBotSlugs = new Set(conversation.drafts.map((item) => item.botSlug));
+  const streamingBotSlugs = new Set(timelineDrafts?.map((item) => item.botSlug));
   const latestMessage = messages.findLast(
     (item) =>
       item.botDmAction === undefined &&
@@ -1429,18 +1469,11 @@ function ConversationView({
       item.toolAutoApprovalPause === undefined,
   );
   const workingRows = timelineWorkingRows(
-    conversation.status === 'ready' && !conversation.timeline.hasNewer
-      ? composerActivity
-      : undefined,
+    conversation.status === 'ready' ? composerActivity : undefined,
     streamingBotSlugs,
     latestMessage?.author.kind === 'bot' ? latestMessage.author.slug : undefined,
   );
-  const composerActivityConcealed =
-    atLatest &&
-    conversation.status === 'ready' &&
-    !conversation.timeline.hasNewer &&
-    timelineWorkingRowsCover(composerActivity, workingRows, streamingBotSlugs);
-  const workingRowsKey = `${workingRows.items.map((item) => item.personaBotId).join(',')}+${workingRows.more}`;
+  const dmWorking = channel?.type !== 'group' && workingRows.items.length > 0;
   const channelId = channel?.id;
   const reactToMessage =
     readOnlyDm || channelId === undefined || actions.reactToMessage === undefined
@@ -1522,23 +1555,26 @@ function ConversationView({
     selectedMessages !== undefined && selectedMessages.channelId === channelId
       ? selectedMessages.ids
       : undefined;
-  const messageSelection: MessageSelection | undefined =
-    channelId === undefined
-      ? undefined
-      : {
-          selected: new Set(selectedIds ?? []),
-          active: selectedIds !== undefined,
-          begin: (message) => {
-            setMessageMenu(undefined);
-            setSelectedMessages({ channelId, ids: toggleSelection([], message) });
+  const messageSelection = useMemo<MessageSelection | undefined>(
+    () =>
+      channelId === undefined
+        ? undefined
+        : {
+            selected: new Set(selectedIds ?? []),
+            active: selectedIds !== undefined,
+            begin: (message) => {
+              setMessageMenu(undefined);
+              setSelectedMessages({ channelId, ids: toggleSelection([], message) });
+            },
+            toggle: (message) =>
+              setSelectedMessages((current) =>
+                current === undefined || current.channelId !== channelId
+                  ? current
+                  : { channelId, ids: toggleSelection(current.ids, message) },
+              ),
           },
-          toggle: (message) =>
-            setSelectedMessages((current) =>
-              current === undefined || current.channelId !== channelId
-                ? current
-                : { channelId, ids: toggleSelection(current.ids, message) },
-            ),
-        };
+    [channelId, selectedIds],
+  );
   const cancelSelection = useCallback(() => setSelectedMessages(undefined), [scopeKey]);
   const [selectionBusy, setSelectionBusy] = useScopedState(scopeKey, false);
   const [selectionImage, setSelectionImage] = useScopedState<Blob | undefined>(scopeKey);
@@ -1851,8 +1887,15 @@ function ConversationView({
           ),
           result.outcome === 'nothing' ? 3000 : 6000,
         );
-    } catch {
-      show(t('composerCompact.failed'), 6000);
+    } catch (error) {
+      show(
+        t(
+          error instanceof BridgeCallError && error.code === 'session-unsaved'
+            ? 'failure.recoveryUnsaved'
+            : 'composerCompact.failed',
+        ),
+        6000,
+      );
     } finally {
       setCompacting(false);
     }
@@ -1879,6 +1922,33 @@ function ConversationView({
             icon: <ChannelSidebarIcon name="archive" />,
             disabled: compacting,
             run: () => void compactProfileBot(),
+          },
+          {
+            id: 'new' as const,
+            label: t('composerCommand.newSession'),
+            icon: <ChannelSidebarIcon name="text-quote" />,
+            disabled: compacting,
+            run: () => {
+              if (!profileBot || compacting) return;
+              setCompacting(true);
+              void actions
+                .newBotSession(profileBot.slug)
+                .then(() => {
+                  setCompactNotice({
+                    seq: ++compactSeq.current,
+                    text: t('composerCommand.newSessionDone'),
+                    holdMs: 4000,
+                  });
+                })
+                .catch(() => {
+                  setCompactNotice({
+                    seq: ++compactSeq.current,
+                    text: t('composerCompact.failed'),
+                    holdMs: 6000,
+                  });
+                })
+                .finally(() => setCompacting(false));
+            },
           },
         ]),
     {
@@ -1943,27 +2013,144 @@ function ConversationView({
     void actions.loadNewer(channelId);
   };
 
+  const restoreFailedMessage = (message: ChannelMessage): void => {
+    if (channelId === undefined) return;
+    if (draft.length > 0 || uploadItems.length > 0 || conversation.sending) {
+      setRestoreBlocked(true);
+      return;
+    }
+    if (message.unconfirmed === true) {
+      setSubmissionNotice(t('composer.submissionChecking'));
+      void actions.submissions
+        .check(channelId, message.id)
+        .then(async (status) => {
+          if (status === 'unknown') {
+            setSubmissionNotice(t('composer.submissionUncheckable'));
+            return;
+          }
+          await actions.submissions.reconcile(channelId);
+          setSubmissionNotice(
+            t(
+              status === 'committed'
+                ? 'composer.submissionDelivered'
+                : 'composer.submissionNotDelivered',
+            ),
+          );
+        })
+        .catch(() => setSubmissionNotice(t('composer.submissionUncheckable')));
+      return;
+    }
+    if (!actions.dismissFailedMessage(channelId, message.id)) return;
+    setDraft(message.body);
+    setMentionTokens(message.mentions ?? []);
+    setChannelRefTokens(message.channelRefs ?? []);
+    setUploadItems(
+      (message.attachments ?? []).map((ref) => ({
+        id: crypto.randomUUID(),
+        file: new File([], ref.name, { type: ref.mime }),
+        ref,
+        status: 'ready' as const,
+      })),
+    );
+    setReplyTarget(
+      message.replyTo === undefined
+        ? undefined
+        : messages.find((candidate) => candidate.id === message.replyTo),
+    );
+    setRestoreBlocked(false);
+    setRestoreFocusSignal((value) => value + 1);
+  };
+  const timelineHandlers = {
+    contextMenu: (message: ChannelMessage, x: number, y: number) => {
+      setAvatarMenu(undefined);
+      setMessageMenu({ message, x, y });
+    },
+    avatarMenu: (botSlug: string, x: number, y: number) => {
+      setMessageMenu(undefined);
+      setAvatarMenu({ botSlug, x, y });
+    },
+    reply: (message: ChannelMessage) => setReplyTarget(message),
+    react: (message: ChannelMessage, emoji: string, active: boolean) =>
+      reactToMessage?.(message, emoji, active),
+    jumpReply: (messageId: string) => {
+      if (channelId !== undefined) void actions.openAround(channelId, messageId);
+    },
+    restoreFailed: restoreFailedMessage,
+    openInbox: (target: InboxTarget) => setInboxTarget(target),
+    openMemoryView,
+  };
+  const latestTimeline = useRef(timelineHandlers);
+  latestTimeline.current = timelineHandlers;
+  const timelineCallbacks = useMemo(
+    () => ({
+      contextMenu: (message: ChannelMessage, x: number, y: number) =>
+        latestTimeline.current.contextMenu(message, x, y),
+      avatarMenu: (botSlug: string, x: number, y: number) =>
+        latestTimeline.current.avatarMenu(botSlug, x, y),
+      reply: (message: ChannelMessage) => latestTimeline.current.reply(message),
+      react: (message: ChannelMessage, emoji: string, active: boolean) =>
+        latestTimeline.current.react(message, emoji, active),
+      jumpReply: (messageId: string) => latestTimeline.current.jumpReply(messageId),
+      restoreFailed: (message: ChannelMessage) => latestTimeline.current.restoreFailed(message),
+      openInbox: (target: InboxTarget) => latestTimeline.current.openInbox(target),
+      memoryNavigation: {
+        file: (path: string) => latestTimeline.current.openMemoryView({ kind: 'file', path }),
+        commit: (sha: string) => latestTimeline.current.openMemoryView({ kind: 'commit', sha }),
+        working: (change: MemoryWorkingChange) =>
+          latestTimeline.current.openMemoryView({ kind: 'working', change }),
+      },
+    }),
+    [],
+  );
   const unreadAfter = conversation.unreadAfterMessageId;
-  const messageGroups = groupChannelMessages(displayMessages, unreadAfter);
-  const galleryImages: GalleryImage[] =
-    channelId === undefined
-      ? []
-      : displayMessages.flatMap((message) =>
-          message.contentPurged === true
-            ? []
-            : (message.attachments ?? []).flatMap((ref) =>
-                inlineImageAttachment(ref.mime)
-                  ? [
-                      {
-                        key: galleryImageKey(message.id, ref),
-                        src: channelAttachmentUrl(ref, { channelId, messageId: message.id }),
-                        alt: ref.name,
-                      },
-                    ]
-                  : [],
-              ),
-        );
+  const messageGroups = useMemo(
+    () => groupChannelMessages(displayMessages, unreadAfter),
+    [displayMessages, unreadAfter],
+  );
+  const arrivalIds = useMemo(
+    () =>
+      displayMessages
+        .filter((item) => !streamReplies || item.author.kind !== 'bot')
+        .map((item) => item.id),
+    [displayMessages, streamReplies],
+  );
+  const arrivals = useMessageArrivals(channelId, arrivalIds, conversation.status === 'ready');
+  const galleryImages = useMemo<GalleryImage[]>(
+    () =>
+      channelId === undefined
+        ? []
+        : displayMessages.flatMap((message) =>
+            message.contentPurged === true
+              ? []
+              : (message.attachments ?? []).flatMap((ref) =>
+                  inlineImageAttachment(ref.mime)
+                    ? [
+                        {
+                          key: galleryImageKey(message.id, ref),
+                          src: channelAttachmentUrl(ref, { channelId, messageId: message.id }),
+                          alt: ref.name,
+                        },
+                      ]
+                    : [],
+                ),
+          ),
+    [channelId, displayMessages],
+  );
   const imageGallery = useMessageImageGallery(galleryImages, t);
+  const groupKeys = useMemo(() => messageGroups.map((group) => group.key), [messageGroups]);
+  const pinnedGroups = useMemo(() => {
+    const pinned = new Set<string>();
+    const focus = conversation.focusMessageId;
+    messageGroups.forEach((group, index) => {
+      if (
+        (focus !== undefined && group.messages.some((message) => message.id === focus)) ||
+        (unreadAfter !== undefined && messageGroups[index - 1]?.messages.at(-1)?.id === unreadAfter)
+      )
+        pinned.add(group.key);
+    });
+    return pinned;
+  }, [messageGroups, unreadAfter, conversation.focusMessageId]);
+  const timelineWindow = useTimelineWindow(groupKeys, pinnedGroups);
   const placeUnreadDivider = (element: HTMLDivElement): boolean => {
     const divider = element.querySelector<HTMLElement>('[data-unread-divider]');
     if (divider === null) return false;
@@ -1979,6 +2166,7 @@ function ConversationView({
   const timelineMount = useMountedResource<HTMLDivElement>(
     (element) => {
       scrollRef.current = element;
+      timelineWindow.rootRef(element);
       if (conversation.timeline.olderError !== undefined) prependAnchor.current = null;
       if (conversation.status === 'ready') {
         if (conversation.focusMessageId !== undefined && conversation.timeline.hasNewer) {
@@ -2074,7 +2262,6 @@ function ConversationView({
       conversation.timeline.olderError,
       conversation.timeline.newerError,
       messages,
-      workingRowsKey,
     ],
   );
 
@@ -2416,12 +2603,8 @@ function ConversationView({
   const inboxAvailable =
     dockBotSlug !== undefined && dockEntryProps !== undefined && inboxEntry !== undefined;
   const conversationPane = (
-    <section
-      ref={companionReadMount}
-      className="bh-chat-pane"
-      data-activity-concealed={composerActivityConcealed ? 'true' : undefined}
-      {...fileDrop.handlers}
-    >
+    <section ref={companionReadMount} className="bh-chat-pane" {...fileDrop.handlers}>
+      <WorkingAnnouncement rows={workingRows} t={t} />
       {fileDrop.active ? (
         <ConversationFileDropOverlay
           label={t('composer.dropFiles')}
@@ -2474,6 +2657,7 @@ function ConversationView({
                       t={t}
                       onOpenActivity={openProfileView}
                       onToggleProfile={openProfileView}
+                      status={<HeaderWorkingStatus rows={workingRows} t={t} />}
                     />
                   ),
                 )}
@@ -2526,7 +2710,9 @@ function ConversationView({
                       ) : (
                         <ChannelMark />
                       )}
-                      <ConversationTitle>{title}</ConversationTitle>
+                      <ConversationTitle>
+                        {dmWorking ? <WorkingSummary rows={workingRows} t={t} /> : title}
+                      </ConversationTitle>
                       {menu === undefined ? null : <ChannelMenuCaret attention={menu.attention} />}
                     </button>
                   ),
@@ -2567,7 +2753,9 @@ function ConversationView({
                         size={22}
                         indicator={false}
                       />
-                      <ConversationTitle>{title}</ConversationTitle>
+                      <ConversationTitle>
+                        {dmWorking ? <WorkingSummary rows={workingRows} t={t} /> : title}
+                      </ConversationTitle>
                       {menu === undefined ? null : <ChannelMenuCaret attention={menu.attention} />}
                     </button>
                   ),
@@ -2676,6 +2864,7 @@ function ConversationView({
           <div
             className="bh-chat-body"
             ref={timelineMount}
+            data-loaded-messages={displayMessages.length}
             onScroll={onTimelineScroll}
             onTransitionEnd={(event) => {
               if (
@@ -2719,7 +2908,19 @@ function ConversationView({
               <EmptyConversation channel={channel} bot={bot} t={t} />
             ) : null}
             <MessageSelectionContext.Provider value={messageSelection}>
-              {messageGroups.map((group, index, groups) => {
+              {timelineWindow.runs.map((run) => {
+                const groups = messageGroups;
+                if (run.kind === 'gap')
+                  return (
+                    <div
+                      key={`gap:${groups[run.from]!.key}`}
+                      className="bh-timeline-gap"
+                      aria-hidden="true"
+                      style={{ height: run.height }}
+                    />
+                  );
+                const index = run.index;
+                const group = groups[index]!;
                 const first = group.messages[0]!;
                 const previous = groups[index - 1]?.messages.at(-1);
                 const firstDay = Number.isFinite(Date.parse(first.at))
@@ -2730,7 +2931,13 @@ function ConversationView({
                     ? new Date(previous.at).toDateString()
                     : undefined;
                 return (
-                  <div key={group.key} className="bh-message-block">
+                  <div
+                    key={group.key}
+                    ref={timelineWindow.blockRef(group.key)}
+                    className="bh-message-block"
+                    data-group-key={group.key}
+                    data-follows={index > 0 ? '' : undefined}
+                  >
                     {unreadAfter !== undefined && previous?.id === unreadAfter ? (
                       <TimelineUnreadDivider label={t('messages.newDivider')} />
                     ) : null}
@@ -2780,6 +2987,9 @@ function ConversationView({
                           message={first}
                           bots={state.bots}
                           humanMembers={channel?.humanMembers ?? []}
+                          onOpenInbox={(target) =>
+                            setInboxTarget({ ...target, messageId: first.id })
+                          }
                           t={t}
                         />
                       </div>
@@ -2858,122 +3068,36 @@ function ConversationView({
                       </button>
                     ) : first.botDmAction === undefined ? (
                       <OnboardingMemoryNavigation.Provider
-                        value={{
-                          file: (path) => openMemoryView({ kind: 'file', path }),
-                          commit: (sha) => openMemoryView({ kind: 'commit', sha }),
-                          working: (change) => openMemoryView({ kind: 'working', change }),
-                        }}
+                        value={timelineCallbacks.memoryNavigation}
                       >
                         <MessageGroupView
-                          humanMembers={channel?.humanMembers ?? []}
+                          humanMembers={channel?.humanMembers ?? NO_HUMAN_MEMBERS}
                           group={group}
+                          arrivals={arrivals}
+                          reading={reading}
                           channelId={channelId}
                           actions={actions}
                           gallery={imageGallery.gallery}
                           nativeChatT={nativeChatT}
-                          resolvedGrantRequests={resolvedGrantRequestIds(displayMessages)}
-                          toolApprovalDecisions={
-                            new Map(
-                              displayMessages
-                                .filter((item) => item.toolApprovalDecision !== undefined)
-                                .map((item) => [
-                                  item.toolApprovalDecision!.requestMessageId,
-                                  item.toolApprovalDecision!.outcome,
-                                ]),
-                            )
-                          }
-                          userQuestionResolutions={
-                            new Map(
-                              displayMessages
-                                .filter((item) => item.userQuestionResolution !== undefined)
-                                .map((item) => [
-                                  item.userQuestionResolution!.requestMessageId,
-                                  item.userQuestionResolution!.state,
-                                ]),
-                            )
-                          }
+                          resolvedGrantRequests={timelineDecisions.resolvedGrantRequests}
+                          toolApprovalDecisions={timelineDecisions.toolApprovalDecisions}
+                          userQuestionResolutions={timelineDecisions.userQuestionResolutions}
                           focusMessageId={conversation.focusMessageId}
                           currentDmBotSlug={
                             channel?.type === 'dm' && !botDm ? channel.botSlug : undefined
                           }
                           bots={state.bots}
-                          onContextMenu={(message, x, y) => {
-                            setAvatarMenu(undefined);
-                            setMessageMenu({ message, x, y });
-                          }}
+                          onContextMenu={timelineCallbacks.contextMenu}
                           onAvatarMenu={
-                            channel?.type === 'group'
-                              ? (botSlug, x, y) => {
-                                  setMessageMenu(undefined);
-                                  setAvatarMenu({ botSlug, x, y });
-                                }
-                              : undefined
+                            channel?.type === 'group' ? timelineCallbacks.avatarMenu : undefined
                           }
-                          onReply={readOnlyDm ? undefined : (message) => setReplyTarget(message)}
-                          onReact={reactToMessage}
-                          onJumpReply={(messageId) => {
-                            if (channelId !== undefined)
-                              void actions.openAround(channelId, messageId);
-                          }}
-                          onRestoreFailed={
-                            readOnlyDm
-                              ? undefined
-                              : (message) => {
-                                  if (channelId === undefined) return;
-                                  if (
-                                    draft.length > 0 ||
-                                    uploadItems.length > 0 ||
-                                    conversation.sending
-                                  ) {
-                                    setRestoreBlocked(true);
-                                    return;
-                                  }
-                                  if (message.unconfirmed === true) {
-                                    setSubmissionNotice(t('composer.submissionChecking'));
-                                    void actions.submissions
-                                      .check(channelId, message.id)
-                                      .then(async (status) => {
-                                        if (status === 'unknown') {
-                                          setSubmissionNotice(t('composer.submissionUncheckable'));
-                                          return;
-                                        }
-                                        await actions.submissions.reconcile(channelId);
-                                        setSubmissionNotice(
-                                          t(
-                                            status === 'committed'
-                                              ? 'composer.submissionDelivered'
-                                              : 'composer.submissionNotDelivered',
-                                          ),
-                                        );
-                                      })
-                                      .catch(() =>
-                                        setSubmissionNotice(t('composer.submissionUncheckable')),
-                                      );
-                                    return;
-                                  }
-                                  if (!actions.dismissFailedMessage(channelId, message.id)) return;
-                                  setDraft(message.body);
-                                  setMentionTokens(message.mentions ?? []);
-                                  setChannelRefTokens(message.channelRefs ?? []);
-                                  setUploadItems(
-                                    (message.attachments ?? []).map((ref) => ({
-                                      id: crypto.randomUUID(),
-                                      file: new File([], ref.name, { type: ref.mime }),
-                                      ref,
-                                      status: 'ready' as const,
-                                    })),
-                                  );
-                                  setReplyTarget(
-                                    message.replyTo === undefined
-                                      ? undefined
-                                      : messages.find(
-                                          (candidate) => candidate.id === message.replyTo,
-                                        ),
-                                  );
-                                  setRestoreBlocked(false);
-                                  setRestoreFocusSignal((value) => value + 1);
-                                }
+                          onOpenInbox={timelineCallbacks.openInbox}
+                          onReply={readOnlyDm ? undefined : timelineCallbacks.reply}
+                          onReact={
+                            reactToMessage === undefined ? undefined : timelineCallbacks.react
                           }
+                          onJumpReply={timelineCallbacks.jumpReply}
+                          onRestoreFailed={readOnlyDm ? undefined : timelineCallbacks.restoreFailed}
                           t={t}
                         />
                       </OnboardingMemoryNavigation.Provider>
@@ -3004,7 +3128,6 @@ function ConversationView({
               })}
             </MessageSelectionContext.Provider>
             {imageGallery.lightbox}
-            <TimelineWorkingRowsView rows={workingRows} t={t} />
             {conversation.timeline.hasNewer ? (
               <div className="bh-timeline-newer-sentinel">
                 {conversation.timeline.loadingNewer ? (
@@ -3147,6 +3270,20 @@ function ConversationView({
                     ))}
                   </section>
                 ) : null}
+                {dmBotSlug !== undefined &&
+                state.bots.some((bot) => bot.slug === dmBotSlug && bot.tob !== undefined) ? (
+                  <TobJourneyCard
+                    actions={actions}
+                    t={t}
+                    botSlug={dmBotSlug}
+                    hasDraft={draft.trim().length > 0 || uploadItems.length > 0}
+                    suggest={(body) => {
+                      recovery.update({ text: body, mentions: [], channelRefs: [] });
+                      setRestoreFocusSignal((value) => value + 1);
+                    }}
+                    openChannel={(id) => void actions.openChannel(id)}
+                  />
+                ) : null}
                 <ChannelComposer
                   key={channelId}
                   context={composerContext}
@@ -3202,9 +3339,6 @@ function ConversationView({
                     uploadControllers.current.delete(id);
                     setUploadItems((current) => current.filter((item) => item.id !== id));
                   }}
-                  activity={composerActivity}
-                  activityConcealed={composerActivityConcealed}
-                  onActivityOverlayResize={resizeActivityOverlay}
                   reply={
                     replyTarget === undefined
                       ? undefined
@@ -3282,6 +3416,21 @@ function ConversationView({
               onClose={() => setAvatarMenu(undefined)}
             />
           )}
+          {inboxTarget === undefined ? null : (
+            <BotInboxDialog
+              key={inboxTarget.botSlug + ':' + inboxTarget.messageId}
+              botSlug={inboxTarget.botSlug}
+              botName={
+                state.bots.find((bot) => bot.slug === inboxTarget.botSlug)?.displayName ??
+                inboxTarget.botSlug
+              }
+              messageId={inboxTarget.messageId}
+              missing={inboxTarget.missing}
+              actions={actions}
+              t={t}
+              onClose={() => setInboxTarget(undefined)}
+            />
+          )}
           {selectionImage === undefined ? null : (
             <MessageImagePreview
               blob={selectionImage}
@@ -3316,6 +3465,7 @@ function ConversationView({
       <span ref={searchShortcutMount} hidden />
       <span ref={replyPerfMount} hidden />
       <span ref={dockInboxMount} hidden />
+      <ShareFlowHost actions={actions} registry={dockPanels} t={t} />
       <div className="bh-chat-layout" data-sidebar={docked ? 'dock' : sidebar.mode}>
         <GeneratedFilesContext.Provider
           value={{
@@ -3332,6 +3482,11 @@ function ConversationView({
                 workspaceEnabled && channel !== undefined
                   ? {
                       title,
+                      ...(dmWorking
+                        ? { label: <WorkingSummary rows={workingRows} t={t} /> }
+                        : channel.type === 'group'
+                          ? { status: <HeaderWorkingStatus rows={workingRows} t={t} /> }
+                          : {}),
                       icon:
                         channel.type === 'group' || botDm ? (
                           <GroupChannelIcon
@@ -3358,28 +3513,21 @@ function ConversationView({
                         ) : (
                           <ChannelSidebarIcon name="user" size={20} />
                         ),
+                      ...(profileBot !== undefined || channel.type === 'group'
+                        ? {
+                            profile: {
+                              label: t(
+                                channel.type === 'group'
+                                  ? 'groupProfile.openAvatar'
+                                  : 'profile.openAvatar',
+                                { name: title },
+                              ),
+                              open: openProfileView,
+                            },
+                          }
+                        : {}),
                       actions: (
                         <>
-                          {(profileBot !== undefined || channel.type === 'group') && (
-                            <Tooltip
-                              label={t(
-                                channel.type === 'group' ? 'groupProfile.label' : 'profile.view',
-                              )}
-                              side="bottom"
-                              portal
-                              delayMs={500}
-                            >
-                              <IconButton
-                                aria-label={t(
-                                  channel.type === 'group' ? 'groupProfile.label' : 'profile.view',
-                                )}
-                                aria-pressed={profileViewOpen}
-                                onClick={openProfileView}
-                              >
-                                <ChannelSidebarIcon name="id-card" />
-                              </IconButton>
-                            </Tooltip>
-                          )}
                           {hasChannelSettings && (
                             <Tooltip
                               label={t('channelSettings.open')}
@@ -3608,18 +3756,32 @@ export function BotMain({
     () => prefs?.source.getSnapshot().autoCollapseMessages ?? false,
     () => false,
   );
+  const showDeliveryReceipts = useSyncExternalStore(
+    prefs?.source.subscribe ?? subscribeWithoutPrefs,
+    () => prefs?.source.getSnapshot().showDeliveryReceipts ?? false,
+    () => false,
+  );
+  const streamReplies = useSyncExternalStore(
+    prefs?.source.subscribe ?? subscribeWithoutPrefs,
+    () => prefs?.source.getSnapshot().streamReplies ?? false,
+    () => false,
+  );
   return (
-    <AutoCollapseMessages.Provider value={autoCollapseMessages}>
-      <MessageDeveloperMode.Provider value={developerMode}>
-        <ComposerSendKeyContext.Provider value={sendKey}>
-          <AppearanceContext.Provider value={appearance}>
-            <Workspace options={workspace} t={props.t ?? zhTranslate}>
-              <BotMainContent {...props} />
-            </Workspace>
-          </AppearanceContext.Provider>
-        </ComposerSendKeyContext.Provider>
-      </MessageDeveloperMode.Provider>
-    </AutoCollapseMessages.Provider>
+    <DeliveryReceiptsVisible.Provider value={showDeliveryReceipts}>
+      <StreamReplies.Provider value={streamReplies}>
+        <AutoCollapseMessages.Provider value={autoCollapseMessages}>
+          <MessageDeveloperMode.Provider value={developerMode}>
+            <ComposerSendKeyContext.Provider value={sendKey}>
+              <AppearanceContext.Provider value={appearance}>
+                <Workspace options={workspace} t={props.t ?? zhTranslate}>
+                  <BotMainContent {...props} />
+                </Workspace>
+              </AppearanceContext.Provider>
+            </ComposerSendKeyContext.Provider>
+          </MessageDeveloperMode.Provider>
+        </AutoCollapseMessages.Provider>
+      </StreamReplies.Provider>
+    </DeliveryReceiptsVisible.Provider>
   );
 }
 

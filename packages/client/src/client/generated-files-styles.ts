@@ -18,5 +18,5 @@ export const GENERATED_FILES_CSS = `
 .bh-generated-file .bh-message-file-download { width: ${size.icon}; height: ${size.icon}; }
 .bh-generated-file .bh-file-open { border: 0; background: transparent; }
 .bh-generated-file .bh-file-open-more { border: 0; }
-.bh-generated-file [data-file-reference][aria-pressed='true'] { color: ${color.accent}; background: ${color.accentTint}; border-radius: ${radius.sm}; }
+.bh-generated-file [data-file-reference][aria-pressed='true'] { color: ${color.accentText}; background: ${color.accentTint}; border-radius: ${radius.sm}; }
 `;

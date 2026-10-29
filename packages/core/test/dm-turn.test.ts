@@ -64,6 +64,21 @@ function startHarness(): Harness {
     stat: async (id: string) => (stored.has(id) ? {} : undefined),
   } as never);
   ctx.provide('agents', host as never);
+  const latest = (
+    session: { snapshotEvents(): Array<{ type: string; data: unknown }> },
+    type: string,
+  ) =>
+    session.snapshotEvents().findLast((event) => event.type === type)?.data as
+      | Record<string, string>
+      | undefined;
+  ctx.provide('sandboxPolicy', {
+    resolve: ({ session }: { session: never }) => ({
+      mode: latest(session, 'sandbox/mode')?.['mode'] ?? 'danger-full-access',
+    }),
+  } as never);
+  ctx.provide('approval', {
+    overrideOf: (session: never) => latest(session, 'approval/policy')?.['policy'],
+  } as never);
   ctx.provide('workspaceRegistry', {
     get: (id: string) =>
       id === 'test-workspace'
@@ -205,7 +220,8 @@ describe('DM turn end to end', () => {
 
     expect(core.runtime.listAssignments('ada')).toEqual([
       expect.objectContaining({
-        purpose: '核对发布状态',
+        title: '核对发布状态',
+        description: '核对发布状态',
         permission: {
           grantId: 'grant-1',
           workspaceId: 'test-workspace',
@@ -230,6 +246,7 @@ describe('DM turn end to end', () => {
     expect(core.registry.create({ slug: 'bob', displayName: 'Bob' }).ok).toBe(true);
     expect(bridge.sessions('bob').sessions).toEqual([]);
 
+    await host.get(assignment?.sessionId ?? '')?.whenIdle();
     expect(core.states.snapshot('ada').sessions).toEqual({
       [orchestrator?.sessionId ?? '']: 'done',
       [assignment?.sessionId ?? '']: 'done',

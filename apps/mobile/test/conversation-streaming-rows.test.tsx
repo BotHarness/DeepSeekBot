@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { interfacePreferences } from '../src/ui/interface-preferences';
 import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import type {
@@ -10,17 +11,25 @@ import type {
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { channelNavigationHarness } from './channel-navigation-harness';
 let navigationHistory = channelNavigationHarness();
+import { RequestActivityControl } from '../src/ui/chat/request-activity-control';
+import { useHostSession } from '../src/host/host-session';
 import type { RosterBot } from '../src/host/client';
 import type { ConversationTimelineSnapshot } from '../src/host/conversation';
 import type { ActivityTarget } from '../src/host/live-activity-session';
 import type { DialogAction } from '../src/ui/primitives/dialog-state';
 
+vi.mock('../src/ui/chat/profile-swipe-preview', () => ({ ProfileSwipePreview: () => null }));
+vi.mock('expo-image', () => ({ Image: () => null }));
+vi.mock('../src/ui/chat/bot-profile-screen', () => ({ BotProfileScreen: () => null }));
+vi.mock('../src/ui/chat/group-profile-screen', () => ({ GroupProfileScreen: () => null }));
+vi.mock('../src/ui/chat/channel-details-screen', () => ({ ChannelDetailsScreen: () => null }));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 vi.mock('expo-sharing', () => ({ isAvailableAsync: vi.fn(), shareAsync: vi.fn() }));
 vi.mock('react-native-view-shot', () => ({ captureRef: vi.fn(), releaseCapture: vi.fn() }));
 vi.mock('react-native-svg', () => ({ default: () => null, Circle: () => null, Path: () => null }));
+vi.mock('../src/ui/chat/delivery-sheet', () => ({ DeliverySheet: () => null }));
 
 const state = vi.hoisted(() => ({
   history: [] as string[],
@@ -32,6 +41,9 @@ const state = vi.hoisted(() => ({
   display: { mode: 'streaming', loaded: true },
   os: 'web',
   clientEnabled: false,
+  profile: undefined as
+    | { hostId: string; channelId?: string; activityMessageId?: string }
+    | undefined,
 }));
 const requestActivity = vi.hoisted(() => ({
   start: vi.fn<(target: ActivityTarget) => Promise<void>>(),
@@ -97,7 +109,15 @@ const stream = vi.hoisted(() => {
         drafts: [{ draftId: 'd1', botSlug: 'ada' }],
       };
     },
-    conversation: { loadOlder: () => Promise.resolve(), send: vi.fn() },
+    conversation: {
+      loadOlder: () => Promise.resolve(),
+      send: vi.fn(),
+      getSnapshot: () => timeline,
+      subscribe(listener: () => void) {
+        timelineListeners.add(listener);
+        return () => timelineListeners.delete(listener);
+      },
+    },
     playback: {
       getTimelineSnapshot: () => timeline,
       subscribe(listener: () => void) {
@@ -144,6 +164,7 @@ vi.mock('expo-router', () => ({
     }: {
       options: {
         headerLeft?: () => ReactNode;
+        unstable_headerLeftItems?: () => Array<{ element?: ReactNode }>;
         unstable_headerRightItems?: () => Array<{
           label: string;
           disabled: boolean;
@@ -152,7 +173,11 @@ vi.mock('expo-router', () => ({
       };
     }) => (
       <header>
-        {options.headerLeft?.() ?? null}
+        {options
+          .unstable_headerLeftItems?.()
+          .map((item, index) => <span key={index}>{item.element}</span>) ??
+          options.headerLeft?.() ??
+          null}
         {options.unstable_headerRightItems?.().map((item) => (
           <button key={item.label} disabled={item.disabled} onClick={item.onPress}>
             {item.label}
@@ -162,6 +187,9 @@ vi.mock('expo-router', () => ({
     ),
   },
   useRouter: () => ({
+    push: (href: { params: typeof state.profile }) => {
+      state.profile = href.params;
+    },
     canGoBack: () => state.history.length > 1,
     back: () => state.history.pop(),
     replace: (href: string) => state.history.splice(-1, 1, href),
@@ -172,6 +200,7 @@ vi.mock('expo-router', () => ({
     },
   }),
 }));
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   return {
@@ -244,6 +273,9 @@ vi.mock('../src/host/native-dm-activity', () => ({ useHiddenDmActivity: () => []
 vi.mock('../src/host/native-message-display', () => ({
   useMessageDisplay: () => state.display,
 }));
+vi.mock('../src/host/native-delivery-receipts', () => ({
+  useDeliveryReceiptPreferences: () => ({ enabled: false, loaded: true, storageError: false }),
+}));
 vi.mock('../src/host/native-chat-background', () => ({
   useChatBackgrounds: () => undefined,
   chatBackgrounds: { resolve: () => ({ kind: 'default' }) },
@@ -262,6 +294,7 @@ vi.mock('../src/ui/chat/native-header', () => ({
   useHeaderPadding: () => 0,
 }));
 vi.mock('../src/ui/chat/header-chrome', () => ({
+  useChatHeaderHeight: () => 56,
   titleChipFill: () => ({}),
   HeaderBackButton: ({ onPress }: { onPress(): void }) => (
     <button type="button" onClick={onPress}>
@@ -303,7 +336,9 @@ vi.mock('../src/ui/chat/private-input-card', () => ({ PrivateInputCard: () => nu
 vi.mock('../src/ui/chat/activity-row', () => ({ ActivityRow: () => null }));
 vi.mock('../src/ui/chat/question-card', () => ({ QuestionCard: () => null }));
 vi.mock('../src/ui/chat/channel-title', () => ({ ChannelTitle: () => null }));
-vi.mock('../src/ui/chat/chat-title', () => ({ ChatTitle: () => null }));
+vi.mock('../src/ui/chat/chat-title', () => ({
+  ChatTitle: ({ onPress }: { onPress(): void }) => <button onClick={onPress}>Open profile</button>,
+}));
 vi.mock('../src/ui/chat/composer', () => ({
   Composer: ({ onChange, onSend }: { onChange(value: string): void; onSend(): void }) => (
     <>
@@ -360,9 +395,11 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let frames = new Map<number, FrameRequestCallback>();
 let nextFrame = 0;
 beforeEach(() => {
+  interfacePreferences.setLanguage('en');
   state.os = 'web';
   state.clientEnabled = false;
   state.hostId = 'computer_a';
+  state.profile = undefined;
   requestActivity.start.mockReset().mockResolvedValue(undefined);
   requestActivity.actions = [];
   navigationHistory = channelNavigationHarness();
@@ -386,7 +423,7 @@ it.each(['ordinary send', 'question fallback'])(
   'tracks the exact first-DM receipt after %s commits its newly created Channel',
   async (path) => {
     state.os = 'ios';
-    state.clientEnabled = path === 'question fallback';
+    state.clientEnabled = true;
     stream.conversation.send.mockReturnValue('first-local-request');
     const historical = stream.history('historical-human', 'earlier', 'human');
     const question = {
@@ -400,16 +437,47 @@ it.each(['ordinary send', 'question fallback'])(
     const container = document.createElement('div');
     document.body.append(container);
     const root = createRoot(container);
+    function ProfileAction() {
+      const { client } = useHostSession();
+      const profile = state.profile;
+      if (!profile || profile.hostId !== state.hostId || !client) return null;
+      return (
+        <RequestActivityControl
+          client={client}
+          bot={{
+            slug: 'ada',
+            displayName: 'Ada',
+            roles: [],
+            state: 'idle',
+            computerAccess: false,
+            browserAccess: false,
+            paused: false,
+          }}
+          hostId={profile.hostId}
+          messageId={profile.activityMessageId}
+          channelId={profile.channelId}
+          refused={false}
+        />
+      );
+    }
     const render = () =>
-      root.render(<ConversationScreen place={{ kind: 'dm', slug: 'ada' }} focus={undefined} />);
+      root.render(
+        <>
+          <ConversationScreen place={{ kind: 'dm', slug: 'ada' }} focus={undefined} />
+          <ProfileAction />
+        </>,
+      );
     const button = (label: string) =>
       [...container.querySelectorAll('button')].find((node) => node.textContent === label)!;
     try {
       await act(async () => render());
-      expect(button('Track latest request').disabled).toBe(true);
+      expect(button('Track latest request')).toBeUndefined();
       await act(async () => button('Write question').click());
       await act(async () => button('Send question').click());
       expect(stream.conversation.send).toHaveBeenCalledOnce();
+      await act(async () => button('Open profile').click());
+      expect(state.profile?.activityMessageId).toBe('first-local-request');
+      await act(async () => render());
       expect(button('Track latest request').disabled).toBe(true);
       const accepted = stream.history('first-local-request', 'What is six times seven?', 'human');
       accepted.source = {
@@ -556,7 +624,7 @@ it('keeps a first DM visible through send, working, streaming and commit, then r
 
     state.host.roster.bots = [{ ...bot, state: 'thinking' }];
     render();
-    expect(container.querySelector('[data-testid="pending"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="pending"]')).toBeNull();
     expect(container.querySelector('[data-testid="chat-list"] [data-testid="pending"]')).toBeNull();
     visible();
     act(() => stream.publish({ drafts: [{ draftId: 'first', botSlug: 'ada' }] }));
@@ -570,7 +638,7 @@ it('keeps a first DM visible through send, working, streaming and commit, then r
     act(() => stream.publish({ messages: [human, reply], drafts: [] }));
     visible();
     expect(rows()).toEqual(['first-human', 'first-reply']);
-    expect(container.querySelector('[data-testid="pending"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="pending"]')).toBeNull();
     state.host.roster.bots = [bot];
     render();
     expect(container.querySelector('[data-testid="pending"]')).toBeNull();

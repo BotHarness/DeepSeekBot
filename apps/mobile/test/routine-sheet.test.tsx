@@ -2,6 +2,7 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 
 vi.mock('react-native-svg', () => ({
   default: () => null,
@@ -22,7 +23,8 @@ vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
-vi.mock('../src/ui/shell/icons', () => ({
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
   ChevronRightIcon: () => null,
   CloseIcon: () => null,
 }));

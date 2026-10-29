@@ -65,6 +65,15 @@ export function PersonIcon(props: IconProps) {
   return <Glyph {...props} d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7.5 8a7.5 7.5 0 0 1 15 0" />;
 }
 
+export function MembersIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-6.5 8a6.5 6.5 0 0 1 13 0M16 4.3a3.5 3.5 0 0 1 0 6.4M18.5 13.6a6.5 6.5 0 0 1 3 5.4"
+    />
+  );
+}
+
 export function SettingsIcon(props: IconProps) {
   return (
     <Glyph
@@ -88,6 +97,10 @@ export function ArrowBackIcon(props: IconProps) {
 
 export function ChevronRightIcon(props: IconProps) {
   return <Glyph {...props} d="m9 6 6 6-6 6" />;
+}
+
+export function TobModeIcon(props: IconProps) {
+  return <Glyph {...props} d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM8 10.5l4 4 4-4" />;
 }
 
 export function ChevronUpIcon(props: IconProps) {
@@ -314,10 +327,77 @@ export function ClockIcon(props: IconProps) {
   return <Glyph {...props} d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 7v5l3 2" />;
 }
 
+export function PlayIcon(props: IconProps) {
+  return <Glyph {...props} d="M8 5.5v13l10-6.5-10-6.5Z" />;
+}
+
+export function PauseIcon(props: IconProps) {
+  return <Glyph {...props} d="M8.5 5.5v13M15.5 5.5v13" />;
+}
+
+export function TrashIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M4 7h16M10 3.5h4M6 7l1 12a1.5 1.5 0 0 0 1.5 1.4h7A1.5 1.5 0 0 0 17 19l1-12M10 11v6m4-6v6"
+    />
+  );
+}
+
 export function ArchiveIcon(props: IconProps) {
   return <Glyph {...props} d="M3 4h18v4H3zM5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4" />;
 }
 
 export function UndoIcon(props: IconProps) {
   return <Glyph {...props} d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />;
+}
+
+export function ReplyIcon(props: IconProps) {
+  return <Glyph {...props} d="M9 17 4 12l5-5M4 12h11a5 5 0 0 1 5 5v2" />;
+}
+
+export function RefreshIcon(props: IconProps) {
+  return (
+    <Glyph {...props} d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 6M4 12l2 6a7 7 0 0 0 12-1" />
+  );
+}
+
+export function ShieldCheckIcon(props: IconProps) {
+  return <Glyph {...props} d="M12 3 3 7v5c0 5 9 9 9 9s9-4 9-9V7l-9-4Zm-4 9 3 3 5-5" />;
+}
+export function ExternalLinkIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M15 3h6v6m0-6L10 14M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4"
+    />
+  );
+}
+export function TerminalIcon(props: IconProps) {
+  return <Glyph {...props} d="m4 5 6 7-6 7m9 0h7" />;
+}
+export function InfoIcon(props: IconProps) {
+  return <Glyph {...props} d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 11v6m0-10v1" />;
+}
+
+export function WorkIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M9 6V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V6M4 6h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1ZM3 12h18"
+    />
+  );
+}
+
+export function MemoryIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v18H6.5A1.5 1.5 0 0 1 5 19.5v-15ZM5 18h14M9 3v8l2-1.5 2 1.5V3"
+    />
+  );
+}
+
+export function PencilIcon(props: IconProps) {
+  return <Glyph {...props} d="M4 20h4L19 9a2.83 2.83 0 0 0-4-4L4 16v4Zm9.5-13.5 4 4" />;
 }

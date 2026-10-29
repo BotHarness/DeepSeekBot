@@ -22,6 +22,10 @@ vi.mock('react-native', async () => {
   };
   return {
     useWindowDimensions,
+    Dimensions: {
+      get: useWindowDimensions,
+      addEventListener: (_event: string, _changed: () => void) => ({ remove() {} }),
+    },
     StyleSheet,
     View: host('View'),
     Text: host('Text'),
@@ -32,7 +36,7 @@ vi.mock('react-native', async () => {
 });
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 
-const { anchorShift, anchorStep, atLatest, distanceFromLatest, latestOffset, unseenSince } =
+const { atLatest, distanceFromLatest, latestOffset, unseenSince } =
   await import('../src/ui/chat/follow-latest');
 const { JumpToLatest } = await import('../src/ui/chat/jump-to-latest');
 const { t } = await import('../src/ui/strings');
@@ -68,26 +72,6 @@ describe('following the latest message', () => {
     expect(latestOffset({ content: 700, layout: 800 }, 100)).toBe(-100);
     expect(latestOffset({ content: 500, layout: 800 }, 100)).toBe(-100);
     expect(latestOffset({ content: 500, layout: 800 }, 0)).toBe(0);
-  });
-
-  it('keeps the working row anchor still while a following list grows ahead of its pin', () => {
-    expect(anchorStep(1200, 1200, 1260, true)).toBe(1200);
-    expect(anchorStep(1200, 1260, 1260, true)).toBe(1260);
-    expect(anchorStep(1260, 1300, 1260, true)).toBe(1260);
-    expect(anchorStep(1260, 1180, 1180, true)).toBe(1180);
-  });
-
-  it('anchors the working row to the end of the list once the Human scrolls away', () => {
-    expect(anchorStep(1200, 900, 1200, false)).toBe(1200);
-    expect(anchorStep(1200, 900, 1320, false)).toBe(1320);
-    expect(anchorStep(1320, 1100, 1320, true)).toBe(1320);
-  });
-
-  it('never lifts the working row above the end of a short chat before its first scroll event', () => {
-    expect(anchorShift(-100, 0)).toBe(0);
-    expect(anchorShift(-100, -100)).toBe(0);
-    expect(anchorShift(1320, 1100)).toBe(220);
-    expect(anchorShift(1260, 1300)).toBe(0);
   });
 
   it('counts the Bot messages that arrived after the Human left the latest', () => {

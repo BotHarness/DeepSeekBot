@@ -39,16 +39,20 @@ and SHA-256. Hashes establish integrity rather than source authenticity. Restore
 trusted installed local command, substituting your file and a directory that does not exist:
 
 ```text
-botharness-profile restore --file "environment.botharness-backup" --new-home "new-environment"
+tobs profile-backup-restore --file "environment.botharness-backup" --new-home "new-environment" --confirm
 ```
 
-For a source checkout, use `node scripts/profile-restore.mjs` with the same arguments. No Host is
-started by restore. Launch the new home using trusted DSH **0.2.0-rc.1** and the matching BotHarness
+For a source checkout, the legacy `node scripts/profile-restore.mjs restore --file <file> --new-home <directory>` entry remains available. No Host is
+started by restore. Launch the new home using a compatible trusted DSH installation and the matching BotHarness
 Bundle; development checkouts use `node scripts/dev-instance.mjs --home <new-home> --port <port>`.
 The launcher creates native Profile composition from the trusted pinned CLI rather than loading
 executable configuration from the backup. Live Settings cannot choose a destination or replace
 its own environment. Existing targets are refused, and the staging database uses the existing
 Profile Writer Lease before validation/migration and publication.
+
+DSH release labels record where a backup came from; compatibility depends on the archive format,
+database generation and required data contracts. Historical v1 backups remain readable. New v2
+exports require an updated Tobs reader; unsupported future formats or schemas require an upgrade.
 
 The restored environment starts in **Disaster Restore** posture: Bots paused; account bindings,
 provider triggers, Service Grants, saved tool approvals and schedules suspended; Workspaces need
@@ -219,11 +223,16 @@ For a first task, choose one specific directory, retain default permissions, and
 
 DeepSeekBot sends anonymous usage statistics from the DSH Host by default; Bot mode explains this once in a notice the first time it opens. Events are tied only to a random install ID stored in `$DSH_HOME/botharness/telemetry.json`:
 
-- `plugin_started`: plugin version, DSH version, operating system and architecture.
-- `bot_created`, `bot_archived`, `bot_deleted`, `marketplace_bot_installed` and `avatar_edited`: only that the action happened.
-- `connector_enabled`: only the connector type (`feishu`, `lark`, `slack`, `discord`, `weixin` or `other`).
-- First-entry intro and tutorial: `intro_shown`; `intro_step_viewed` (step name); `intro_dismissed` (step and whether Skip or Close was used); `intro_completed` (which starter prompt was picked, not its text); `intro_theme_changed` (only `scheme`, `preset` or `wallpaper`); `intro_model_saved` (only whether the Advanced task model was used); `intro_community_clicked` (`github`, `discord` or `qq`); and `tutorial_action` (`start`, `pause`, `skip`, `continue`, `restart` or `finish`). No model names, wallpaper files or typed text are included.
-- `daily_usage`: at most once a day, the number of PersonaBots, the number of new Sessions and messages since the previous summary, and that window's length in whole hours. No event is sent per message.
+Event names follow the [tracking plan](telemetry-events.md), which lists every event and property.
+
+- `app:host_start`: plugin version, DSH version, operating system and architecture.
+- `app:active_day_start`: at most once a local day, the first time Bot mode opens or a Human or IM message arrives, with only which of those it was and the surface (`desktop_app`, `browser` or `im`). `app:bot_mode_enter` records each Bot mode entry with its surface.
+- `bot_library:bot_create`, `bot_library:bot_archive`, `bot_library:bot_delete`, `bot_profile:avatar_update` and `bot_profile:banner_update`: only that the action happened.
+- Market: `marketplace:bot_install` and `marketplace:bot_open` (`entry`, where the Bot was opened: `list`, `hot`, `new`, `rising` or `digest`; `marketplace:bot_open` also says whether the detail or the install step opened); `marketplace:section_view` and `marketplace:digest_view` (only that the Hot, New and Rising rows or the daily picks were shown); `marketplace:digest_open` (whether it was opened from the panel or the archive); and `marketplace:digest_archive_open`. No Bot names, listing IDs or search text are included.
+- `im:connector_enable`: only the connector type (`feishu`, `lark`, `slack`, `discord`, `weixin` or `other`).
+- First-entry intro and tutorial: `onboarding:intro_view`; `onboarding:intro_step_view` (step name); `onboarding:intro_dismiss` (step and whether Skip or Close was used); `onboarding:intro_complete` (which starter prompt was picked, not its text); `onboarding:theme_update` (only `scheme`, `preset`, `layout` or `wallpaper`); `onboarding:model_save` (only whether the Advanced task model was used); `onboarding:community_link_click` (`github`, `discord` or `qq`); and `onboarding:tutorial_start`, `_pause`, `_skip`, `_resume`, `_restart` and `_complete`. No model names, wallpaper files or typed text are included.
+- Feature use, each with the surface (`desktop_app` or `browser`) and only the kind of action: `search:switcher_open` and `search:result_open` (`channel`, `message` or `setting`); `layout:mode_select` (`simple` or `advanced`; `app:bot_mode_enter` also carries the layout); `viewer:subpanel_open` (`browser` or `computer`); `activity:inbox_open`, `activity:approval_submit` (`allow_once`, `allow_always` or `reject`), `activity:question_submit`, `activity:grant_request_submit`, `activity:inbox_reply_send` (`message` or `assignment`), `activity:inbox_item_dismiss` and `activity:inbox_item_snooze`; `model:plan_update` (how the plan changed); `remote_host:host_pair_complete` (`success`, `refused` or `failed`) and `remote_host:conversation_open`. The Host also sends `connect:sign_in_start` and `connect:sign_in_complete` (`success`, `denied` or `expired`), and `tob:delegation_send` when Tob messages a colleague. No search text, model names, tool names, folders or message content are included.
+- `app:usage_report`: at most once a day, the number of PersonaBots, the number of new Sessions and messages since the previous summary, and that window's length in whole hours. No event is sent per message.
 - `$exception`: when the Host hits an unhandled error in BotHarness code, the error type and its stack's functions and line numbers, with each file reduced to its package-relative name (such as `@botharness/core/dist/index.mjs`) or just its file name. Errors without a BotHarness frame are dropped. The report is saved on the device and sent on the next start; the error message is never included.
 
 Names, Persona or Memory content, conversations, prompts, tool arguments, repository URLs, connector accounts or workspaces, your file paths, credentials and IP addresses are never sent. To turn it off, open **Bot settings** and switch off **Anonymous usage statistics**; it takes effect at once without a restart, queued events are dropped, and the choice is saved in the same `telemetry.json` so it survives restarts. Switching it back on resumes without a restart. Deployments can force it off with `telemetry: false` on the BotHarness core plugin (see Advanced parameters below) or by starting DSH with `DO_NOT_TRACK=1` or `BOTHARNESS_TELEMETRY=0`; the switch is then shown off and disabled with a note naming the setting. Details: [privacy](https://deepseekbot.botharness.ai/en/privacy) and [source](https://github.com/BotHarness/BotHarness/tree/main/packages/core/src/telemetry).

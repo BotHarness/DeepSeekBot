@@ -98,10 +98,12 @@ vi.mock('../src/host/host-session', () => ({ hostSession: source }));
 vi.mock('../src/ui/shell/host-drawer', () => ({
   hostDrawer: { captureWorkspaceSelection: () => () => workspaceCurrent },
 }));
+const assignment = vi.hoisted(() => ({ id: undefined as string | undefined }));
 vi.mock('../src/host/native-live-activity', () => ({
   requestActivitySession: {
     ready: Promise.resolve(),
     target: () => ({ hostId: 'a', botSlug: 'ada', channelId: 'dm-a', messageId: 'request' }),
+    assignment: async () => assignment.id,
   },
 }));
 vi.mock('expo-router', () => ({
@@ -110,6 +112,7 @@ vi.mock('expo-router', () => ({
   useNavigationContainerRef: () => navigation,
   Stack: { Screen: () => null },
 }));
+vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ bottom: 0 }) }));
 import { RequestActivityScreen } from '../src/ui/chat/request-activity-screen';
@@ -124,6 +127,7 @@ beforeEach(() => {
   source.state.client = source.a;
   source.router.replace.mockClear();
   source.switchTo.mockClear();
+  assignment.id = undefined;
   source.pauseSwitch(async () => {});
   history = channelNavigationHarness();
   navigationReady = true;
@@ -150,6 +154,22 @@ it('replaces the activity entry for a new original DM and Back leaves no interme
   expect(history.state.routes.at(-1)?.name).toBe('(tabs)');
   expect(source.router.replace).not.toHaveBeenCalled();
   expect(source.listeners.size + source.a.listeners.size + navigationListeners.size).toBe(0);
+});
+it('replaces the activity entry with the Assignment detail when the request has one, also from a cold start', async () => {
+  assignment.id = 'assignment-1';
+  navigationReady = false;
+  await act(async () => root.render(<RequestActivityScreen />));
+  await act(async () => source.a.emit());
+  expect(source.router.replace).not.toHaveBeenCalled();
+  await act(async () => {
+    navigationReady = true;
+    for (const fn of navigationListeners) fn();
+  });
+  expect(source.router.replace).toHaveBeenCalledWith({
+    pathname: '/bot/[slug]/assignment/[id]',
+    params: { slug: 'ada', id: 'assignment-1', hostId: 'a' },
+  });
+  expect(history.state.routes.at(-1)?.name).toBe('request-activity');
 });
 it('reuses the same scoped DM and refreshes focus through the shared navigation owner', async () => {
   history.back();

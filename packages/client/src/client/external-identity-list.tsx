@@ -73,7 +73,7 @@ const styles = stylex.create({
     display: 'inline-flex',
     alignItems: 'center',
     gap: space.x2,
-    color: color.accent,
+    color: color.accentText,
     textUnderlineOffset: '3px',
   },
   picker: {

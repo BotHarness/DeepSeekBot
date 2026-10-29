@@ -18,6 +18,7 @@ export interface ChannelFile {
 
 export interface ChannelFilesSnapshot {
   files: readonly ChannelFile[];
+  loaded: boolean;
   status: 'opening' | 'ready' | 'interrupted' | 'refused';
   hasOlder: boolean;
   loadingOlder: boolean;
@@ -29,6 +30,7 @@ export interface ChannelFiles {
   subscribe(listener: () => void): () => void;
   start(): void;
   stop(): void;
+  pause(): void;
   retry(): void;
   loadOlder(): Promise<void>;
 }
@@ -58,6 +60,7 @@ export function createChannelFiles({
   let offHost: (() => void) | undefined;
   let snapshot: ChannelFilesSnapshot = {
     files: [],
+    loaded: false,
     status: 'opening',
     hasOlder: false,
     loadingOlder: false,
@@ -82,7 +85,8 @@ export function createChannelFiles({
         });
       }
     }
-    snapshot = { ...snapshot, ...update, files };
+    const next = { ...snapshot, ...update };
+    snapshot = { ...next, loaded: next.loaded || next.status === 'ready', files };
     for (const listener of listeners) listener();
   };
 
@@ -107,7 +111,13 @@ export function createChannelFiles({
   const refuse = () => {
     generation++;
     entries.clear();
-    publish({ status: 'refused', hasOlder: false, loadingOlder: false, pageFailed: false });
+    publish({
+      status: 'refused',
+      loaded: false,
+      hasOlder: false,
+      loadingOlder: false,
+      pageFailed: false,
+    });
   };
 
   const follow = () => {
@@ -183,6 +193,7 @@ export function createChannelFiles({
     purged.clear();
     snapshot = {
       files: [],
+      loaded: false,
       status: 'opening',
       hasOlder: false,
       loadingOlder: false,
@@ -260,6 +271,10 @@ export function createChannelFiles({
     },
     start,
     stop,
+    pause() {
+      detach();
+      publish({ status: 'interrupted', loadingOlder: false });
+    },
     retry() {
       detach();
       start();

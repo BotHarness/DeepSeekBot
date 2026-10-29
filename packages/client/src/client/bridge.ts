@@ -37,15 +37,32 @@ import type {
 } from '../../../core/src/schedules/bot-schedules.js';
 import {
   parseMarketplaceDetail,
+  parseAuthoredBots,
+  parseMarketplaceFileView,
   parseMarketplacePage,
+  parseMarketplaceSection,
+  parseMarketplaceDigest,
+  parseMarketplaceDigests,
   parseMarketplaceSubmission,
+  type MarketplaceAuthoredBot,
   parseMarketplaceTopics,
   type MarketplaceDetail,
   type MarketplaceEntry,
+  type MarketplaceFileView,
   type MarketplacePage,
   type MarketplaceQuery,
+  type MarketplaceSection,
+  type MarketplaceDigest,
+  type MarketplaceDigestSummary,
   type MarketplaceTopic,
+  type MarketplaceInstallSource,
 } from '../../../core/src/marketplace/client.js';
+import type { UploadPlan } from '../../../core/src/marketplace/uploaded-bots.js';
+import type {
+  InstallFinding,
+  InstallReview,
+  InstallReviewResult,
+} from '../../../core/src/marketplace/install-review.js';
 import { parseChallenge, type AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
 import type { OverviewUsage } from '../../../core/src/bridge/methods.js';
@@ -329,6 +346,7 @@ export interface CreatePersonaBotInput {
   description?: string;
   gitUrl?: string;
   origin?: 'marketplace';
+  listingId?: string;
   memoryLocation?: string;
 }
 
@@ -1678,6 +1696,48 @@ export async function searchChannelMessages(
   };
 }
 
+export interface MessageSearchHit {
+  channelId: string;
+  message: ChannelMessage;
+  snippet: string;
+}
+
+export interface MessageSearchPage {
+  hits: MessageSearchHit[];
+  nextCursor?: string;
+}
+
+export async function searchAllMessages(
+  call: BridgeCall,
+  text: string,
+  cursor?: string,
+  limit = 8,
+): Promise<MessageSearchPage> {
+  const value = asRecord(
+    await unwrap(call, 'messageSearch', {
+      text,
+      limit,
+      ...(cursor === undefined ? {} : { cursor }),
+    }),
+  );
+  const hits = value?.['hits'];
+  const nextCursor = value?.['nextCursor'];
+  if (!Array.isArray(hits) || (nextCursor !== undefined && typeof nextCursor !== 'string'))
+    throw new Error('invalid messageSearch response');
+  return {
+    hits: hits.flatMap((entry) => {
+      const hit = asRecord(entry);
+      const message = parseChannelMessage(hit?.['message']);
+      const channelId = hit?.['channelId'];
+      const snippet = hit?.['snippet'];
+      return message === undefined || typeof channelId !== 'string' || typeof snippet !== 'string'
+        ? []
+        : [{ channelId, message, snippet }];
+    }),
+    ...(nextCursor === undefined ? {} : { nextCursor }),
+  };
+}
+
 export function parseChannelMessages(value: unknown): ChannelMessage[] {
   const messages = asRecord(value)?.['messages'];
   if (!Array.isArray(messages)) return [];
@@ -1831,8 +1891,22 @@ export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[
         ...(role === 'assignment' && record['assignmentArchived'] === true
           ? { assignmentArchived: true as const }
           : {}),
-        ...(role === 'assignment' && typeof record['assignmentPurpose'] === 'string'
-          ? { assignmentPurpose: record['assignmentPurpose'] }
+        ...(role === 'assignment' && typeof record['assignmentTitle'] === 'string'
+          ? { assignmentTitle: record['assignmentTitle'] }
+          : {}),
+        ...(role === 'assignment' && typeof record['assignmentDescription'] === 'string'
+          ? { assignmentDescription: record['assignmentDescription'] }
+          : {}),
+        ...(role === 'assignment' && parseSessionModelRoute(record['assignmentModelRoute'])
+          ? { assignmentModelRoute: parseSessionModelRoute(record['assignmentModelRoute'])! }
+          : {}),
+        ...(parseSessionModelRoute(record['modelRoute'])
+          ? { modelRoute: parseSessionModelRoute(record['modelRoute'])! }
+          : {}),
+        ...(typeof record['subagentCount'] === 'number' &&
+        Number.isSafeInteger(record['subagentCount']) &&
+        record['subagentCount'] > 0
+          ? { subagentCount: record['subagentCount'] }
           : {}),
       },
     ];
@@ -2027,10 +2101,60 @@ export async function loadMarketplaceDetail(
   return detail;
 }
 
+export async function loadMarketplaceFile(
+  call: BridgeCall,
+  id: string,
+  path: string,
+): Promise<MarketplaceFileView> {
+  const file = parseMarketplaceFileView({
+    file: await unwrap(call, 'marketplaceFileView', { id, path }),
+  });
+  if (file === undefined) throw new Error('invalid marketplaceFileView response');
+  return file;
+}
+
 export async function loadMarketplaceTopics(call: BridgeCall): Promise<MarketplaceTopic[]> {
   const topics = parseMarketplaceTopics({ topics: await unwrap(call, 'marketplaceTopics', {}) });
   if (topics === undefined) throw new Error('invalid marketplaceTopics response');
   return topics;
+}
+
+export async function loadMarketplaceSections(
+  call: BridgeCall,
+  lang?: MarketplaceLanguage,
+): Promise<MarketplaceSection[]> {
+  const body = await unwrap(call, 'marketplaceSections', lang === undefined ? {} : { lang });
+  const raw = (body as { sections?: unknown } | null)?.sections;
+  const sections = Array.isArray(raw) ? raw.map(parseMarketplaceSection) : undefined;
+  if (sections === undefined || sections.some((section) => section === undefined))
+    throw new Error('invalid marketplaceSections response');
+  return sections as MarketplaceSection[];
+}
+
+export async function loadMarketplaceDigests(
+  call: BridgeCall,
+  lang?: MarketplaceLanguage,
+): Promise<MarketplaceDigestSummary[]> {
+  const digests = parseMarketplaceDigests(
+    await unwrap(call, 'marketplaceDigests', lang === undefined ? {} : { lang }),
+  );
+  if (digests === undefined) throw new Error('invalid marketplaceDigests response');
+  return digests;
+}
+
+export async function loadMarketplaceDigest(
+  call: BridgeCall,
+  day?: string,
+  lang?: MarketplaceLanguage,
+): Promise<MarketplaceDigest> {
+  const digest = parseMarketplaceDigest(
+    await unwrap(call, 'marketplaceDigest', {
+      ...(day === undefined ? {} : { day }),
+      ...(lang === undefined ? {} : { lang }),
+    }),
+  );
+  if (digest === undefined) throw new Error('invalid marketplaceDigest response');
+  return digest;
 }
 
 export async function loadMarketplaceChallenge(call: BridgeCall): Promise<AltchaChallenge> {
@@ -2049,6 +2173,108 @@ export async function submitMarketplaceRepository(
   );
   if (result === undefined) throw new Error('invalid marketplaceSubmit response');
   return result.bot;
+}
+
+const INSTALL_FINDING_KINDS = new Set(['prompt-injection', 'exfiltration', 'script']);
+
+function parseInstallFinding(value: unknown): InstallFinding | undefined {
+  const finding = asRecord(value);
+  const kind = finding?.['kind'];
+  const path = finding?.['path'];
+  const note = finding?.['note'];
+  if (typeof kind !== 'string' || !INSTALL_FINDING_KINDS.has(kind) || typeof path !== 'string')
+    return undefined;
+  return {
+    kind: kind as InstallFinding['kind'],
+    path,
+    ...(typeof note === 'string' && note.length > 0 ? { note } : {}),
+  };
+}
+
+export function parseInstallReviewResult(value: unknown): InstallReviewResult | undefined {
+  const result = asRecord(value);
+  const review = asRecord(result?.['review']);
+  const reviewId = result?.['reviewId'];
+  const listing = parseMarketplaceSubmission({ bot: result?.['listing'] })?.bot;
+  if (typeof reviewId !== 'string' || listing === undefined || review === undefined)
+    return undefined;
+  const findings = Array.isArray(review['findings'])
+    ? review['findings'].map(parseInstallFinding)
+    : undefined;
+  if (findings === undefined || findings.some((finding) => finding === undefined)) return undefined;
+  const files = typeof review['files'] === 'number' ? review['files'] : 0;
+  let parsed: InstallReview;
+  if (review['status'] === 'reviewed') {
+    parsed = {
+      status: 'reviewed',
+      findings: findings as InstallFinding[],
+      files,
+      read: typeof review['read'] === 'number' ? review['read'] : files,
+      partial: review['partial'] === true,
+      ...(typeof review['model'] === 'string' ? { model: review['model'] } : {}),
+    };
+  } else if (review['status'] === 'unavailable' && typeof review['reason'] === 'string') {
+    parsed = {
+      status: 'unavailable',
+      reason: review['reason'] as Extract<InstallReview, { status: 'unavailable' }>['reason'],
+      findings: findings as InstallFinding[],
+      files,
+    };
+  } else return undefined;
+  return { reviewId, listing, review: parsed };
+}
+
+export async function reviewMarketplaceInstall(
+  call: BridgeCall,
+  id: string,
+  lang?: MarketplaceLanguage,
+): Promise<InstallReviewResult> {
+  const result = parseInstallReviewResult(
+    await unwrap(call, 'marketplaceInstallReview', lang === undefined ? { id } : { id, lang }),
+  );
+  if (result === undefined) throw new Error('invalid marketplaceInstallReview response');
+  return result;
+}
+
+export async function installMarketplaceBot(
+  call: BridgeCall,
+  id: string,
+  reviewId: string,
+  source?: MarketplaceInstallSource,
+): Promise<BotSummary> {
+  const value = await unwrap(call, 'marketplaceInstall', {
+    id,
+    reviewId,
+    ...(source === undefined ? {} : { source }),
+  });
+  const bot = parseBotSummary(asRecord(value)?.['bot']);
+  if (bot === undefined) throw new Error('invalid marketplaceInstall response');
+  return bot;
+}
+
+export async function loadMyMarketplaceUploads(
+  call: BridgeCall,
+  lang?: MarketplaceLanguage,
+): Promise<MarketplaceAuthoredBot[]> {
+  const bots = parseAuthoredBots(
+    await unwrap(call, 'marketplaceMine', lang === undefined ? {} : { lang }),
+  );
+  if (bots === undefined) throw new Error('invalid marketplaceMine response');
+  return bots;
+}
+
+export async function uploadMarketplaceBot(
+  call: BridgeCall,
+  slug: string,
+  presentation: { displayName: string; bio?: string; tags?: string[]; replaces?: string },
+): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }> {
+  const value = asRecord(await unwrap(call, 'marketplaceUpload', { slug, ...presentation }));
+  const parsed = parseMarketplaceSubmission(value);
+  if (parsed === undefined) throw new Error('invalid marketplaceUpload response');
+  return {
+    bot: parsed.bot,
+    skipped: Array.isArray(value?.['skipped']) ? (value['skipped'] as UploadPlan['skipped']) : [],
+  };
 }
 
 export async function reportMarketplaceBot(
@@ -2292,16 +2518,69 @@ export async function startGitInstall(call: BridgeCall): Promise<GitAvailability
   return parseGitAvailability(await unwrap(call, 'gitInstall', {}));
 }
 
+export interface CompactionThresholdRange {
+  defaultValue: number;
+  min: number;
+  max: number;
+}
+
+export interface CompactionThreshold {
+  ratio: number;
+  headroomTokens: number;
+  ratioSet: boolean;
+  headroomSet: boolean;
+  ratioRange: CompactionThresholdRange;
+  headroomRange: CompactionThresholdRange;
+}
+
 export interface IdleCompactionStatus {
   enabled: boolean;
   settingReadable: boolean;
+  threshold?: CompactionThreshold;
+}
+
+function parseThresholdRange(value: unknown): CompactionThresholdRange | undefined {
+  const item = asRecord(value);
+  const numbers = [item?.['defaultValue'], item?.['min'], item?.['max']];
+  if (!numbers.every((entry) => typeof entry === 'number' && Number.isFinite(entry)))
+    return undefined;
+  const [defaultValue, min, max] = numbers as number[];
+  return { defaultValue: defaultValue!, min: min!, max: max! };
+}
+
+function parseCompactionThreshold(value: unknown): CompactionThreshold | undefined {
+  const item = asRecord(value);
+  const ratioRange = parseThresholdRange(item?.['ratioRange']);
+  const headroomRange = parseThresholdRange(item?.['headroomRange']);
+  const ratio = item?.['ratio'];
+  const headroomTokens = item?.['headroomTokens'];
+  if (
+    ratioRange === undefined ||
+    headroomRange === undefined ||
+    typeof ratio !== 'number' ||
+    typeof headroomTokens !== 'number'
+  )
+    return undefined;
+  return {
+    ratio,
+    headroomTokens,
+    ratioSet: item?.['ratioSet'] === true,
+    headroomSet: item?.['headroomSet'] === true,
+    ratioRange,
+    headroomRange,
+  };
 }
 
 export function parseIdleCompactionStatus(value: unknown): IdleCompactionStatus {
   const item =
     typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
   if (typeof item['enabled'] !== 'boolean') throw new Error('invalid idle compaction status');
-  return { enabled: item['enabled'], settingReadable: item['settingReadable'] !== false };
+  const threshold = parseCompactionThreshold(item['threshold']);
+  return {
+    enabled: item['enabled'],
+    settingReadable: item['settingReadable'] !== false,
+    ...(threshold === undefined ? {} : { threshold }),
+  };
 }
 
 export interface BotCompactResult {
@@ -2342,6 +2621,13 @@ export async function setIdleCompaction(
   enabled: boolean,
 ): Promise<IdleCompactionStatus> {
   return parseIdleCompactionStatus(await unwrap(call, 'idleCompactionSet', { enabled }));
+}
+
+export async function setCompactionThreshold(
+  call: BridgeCall,
+  threshold: { thresholdRatio?: number | null; headroomTokens?: number | null },
+): Promise<IdleCompactionStatus> {
+  return parseIdleCompactionStatus(await unwrap(call, 'compactionThresholdSet', threshold));
 }
 
 export interface DataResetPreview {
@@ -2968,7 +3254,8 @@ export async function loadChannelAssignments(
       (row) =>
         typeof row?.sessionId !== 'string' ||
         typeof row.botSlug !== 'string' ||
-        typeof row.purpose !== 'string' ||
+        typeof row.title !== 'string' ||
+        typeof row.description !== 'string' ||
         !ASSIGNMENT_ACTIVITIES.includes(row.activity) ||
         typeof row.updatedAt !== 'string' ||
         (row.latestReport !== undefined &&
@@ -2978,6 +3265,250 @@ export async function loadChannelAssignments(
   )
     throw new Error('invalid channelAssignments response');
   return assignments;
+}
+
+const SUBAGENT_LANE_STATES = ['running', 'done', 'failed', 'cancelled', 'idle'];
+
+export interface SessionModelRoute {
+  provider: string;
+  model: string;
+  reasoningEffort?: string;
+}
+
+export interface SessionSubagent {
+  sessionId: string;
+  index: number;
+  title?: string;
+  route?: SessionModelRoute;
+  state: 'running' | 'done' | 'failed' | 'cancelled' | 'idle';
+  updatedAt?: string;
+  toolCount: number;
+}
+
+export function parseSessionModelRoute(value: unknown): SessionModelRoute | undefined {
+  const record = asRecord(value);
+  const provider = record?.['provider'];
+  const model = record?.['model'];
+  const effort = record?.['reasoningEffort'];
+  if (typeof provider !== 'string' || provider === '' || typeof model !== 'string' || model === '')
+    return undefined;
+  return { provider, model, ...(typeof effort === 'string' ? { reasoningEffort: effort } : {}) };
+}
+
+export async function loadSessionSubagents(
+  call: BridgeCall,
+  slug: string,
+  sessionId: string,
+): Promise<{ subagents: SessionSubagent[]; omitted: number }> {
+  const value = asRecord(await unwrap(call, 'sessionSubagents', { slug, sessionId }));
+  const lanes = value?.['lanes'];
+  const omitted = value?.['omittedSubagents'];
+  if (!Array.isArray(lanes) || typeof omitted !== 'number')
+    throw new Error('invalid sessionSubagents response');
+  const subagents = lanes.flatMap((entry): SessionSubagent[] => {
+    const lane = asRecord(entry);
+    const id = lane?.['sessionId'];
+    const index = lane?.['index'];
+    const state = lane?.['state'];
+    if (
+      typeof id !== 'string' ||
+      typeof index !== 'number' ||
+      !SUBAGENT_LANE_STATES.includes(state as string)
+    )
+      return [];
+    const title = lane?.['title'];
+    const updatedAt = lane?.['updatedAt'];
+    const route = parseSessionModelRoute(lane?.['route']);
+    const entries = lane?.['entries'];
+    const extra = lane?.['omitted'];
+    return [
+      {
+        sessionId: id,
+        index,
+        ...(typeof title === 'string' && title !== '' ? { title } : {}),
+        ...(route === undefined ? {} : { route }),
+        state: state as SessionSubagent['state'],
+        ...(typeof updatedAt === 'string' ? { updatedAt } : {}),
+        toolCount:
+          (Array.isArray(entries) ? entries.length : 0) + (typeof extra === 'number' ? extra : 0),
+      },
+    ];
+  });
+  return { subagents, omitted };
+}
+
+const WORK_STEP_STATUSES = ['running', 'done', 'failed', 'denied', 'cancelled'];
+
+export interface AssignmentWorkStep {
+  status: 'running' | 'done' | 'failed' | 'denied' | 'cancelled';
+  kind: string;
+  tool: string;
+  detail?: string;
+  at: string;
+  round?: number;
+}
+
+export interface AssignmentWorkLane {
+  role: 'main' | 'subagent';
+  index: number;
+  sessionId: string;
+  title?: string;
+  route?: SessionModelRoute;
+  state: SessionSubagent['state'];
+  round?: number;
+  entries: AssignmentWorkStep[];
+  omitted: number;
+}
+
+export interface AssignmentWorkRound {
+  index: number;
+  kind: 'created' | 'continued';
+  at: string;
+  instruction?: string;
+}
+
+export interface AssignmentWork {
+  title: string;
+  description: string;
+  activity: ChannelAssignmentSummary['activity'];
+  latestReport?: {
+    state: NonNullable<ChannelAssignmentSummary['latestReport']>['state'];
+    summary: string;
+    at?: string;
+  };
+  rounds: AssignmentWorkRound[];
+  lanes: AssignmentWorkLane[];
+  omittedSubagents: number;
+  omittedRounds: number;
+}
+
+function positiveCount(value: unknown): number {
+  return typeof value === 'number' && value > 0 ? value : 0;
+}
+
+function workStepOf(value: unknown): AssignmentWorkStep[] {
+  const entry = asRecord(value);
+  const status = entry?.['status'];
+  const tool = entry?.['tool'];
+  const at = entry?.['at'];
+  if (
+    !WORK_STEP_STATUSES.includes(status as string) ||
+    typeof tool !== 'string' ||
+    typeof at !== 'string'
+  )
+    return [];
+  const kind = entry?.['kind'];
+  const detail = entry?.['detail'];
+  const round = entry?.['round'];
+  return [
+    {
+      status: status as AssignmentWorkStep['status'],
+      kind: typeof kind === 'string' ? kind : 'other',
+      tool,
+      ...(typeof detail === 'string' && detail.trim() !== '' ? { detail } : {}),
+      at,
+      ...(typeof round === 'number' ? { round } : {}),
+    },
+  ];
+}
+
+function workLaneOf(value: unknown): AssignmentWorkLane[] {
+  const lane = asRecord(value);
+  const role = lane?.['role'];
+  const index = lane?.['index'];
+  const sessionId = lane?.['sessionId'];
+  const state = lane?.['state'];
+  const entries = lane?.['entries'];
+  if (
+    (role !== 'main' && role !== 'subagent') ||
+    typeof index !== 'number' ||
+    typeof sessionId !== 'string' ||
+    !Array.isArray(entries)
+  )
+    return [];
+  const title = lane?.['title'];
+  const route = parseSessionModelRoute(lane?.['route']);
+  const round = lane?.['round'];
+  return [
+    {
+      role,
+      index,
+      sessionId,
+      ...(typeof title === 'string' && title.trim() !== '' ? { title } : {}),
+      ...(route === undefined ? {} : { route }),
+      state: SUBAGENT_LANE_STATES.includes(state as string)
+        ? (state as SessionSubagent['state'])
+        : 'idle',
+      ...(typeof round === 'number' ? { round } : {}),
+      entries: entries.flatMap(workStepOf),
+      omitted: positiveCount(lane?.['omitted']),
+    },
+  ];
+}
+
+function workRoundOf(value: unknown): AssignmentWorkRound[] {
+  const round = asRecord(value);
+  const index = round?.['index'];
+  const kind = round?.['kind'];
+  const at = round?.['at'];
+  if (
+    typeof index !== 'number' ||
+    (kind !== 'created' && kind !== 'continued') ||
+    typeof at !== 'string'
+  )
+    return [];
+  const instruction = round?.['instruction'];
+  return [
+    {
+      index,
+      kind,
+      at,
+      ...(typeof instruction === 'string' && instruction !== '' ? { instruction } : {}),
+    },
+  ];
+}
+
+export async function loadAssignmentWork(
+  call: BridgeCall,
+  slug: string,
+  sessionId: string,
+): Promise<AssignmentWork> {
+  const value = asRecord(await unwrap(call, 'assignmentTimeline', { slug, sessionId }));
+  const assignment = asRecord(value?.['assignment']);
+  const lanes = value?.['lanes'];
+  const title = assignment?.['title'];
+  const activity = assignment?.['activity'];
+  if (
+    typeof title !== 'string' ||
+    !ASSIGNMENT_ACTIVITIES.includes(activity as string) ||
+    !Array.isArray(lanes)
+  )
+    throw new Error('invalid assignmentTimeline response');
+  const description = assignment?.['description'];
+  const report = asRecord(assignment?.['latestReport']);
+  const reportState = report?.['state'];
+  const reportSummary = report?.['summary'];
+  const reportAt = report?.['at'];
+  const rounds = value?.['rounds'];
+  return {
+    title,
+    description: typeof description === 'string' ? description : '',
+    activity: activity as AssignmentWork['activity'],
+    ...(ASSIGNMENT_REPORT_STATES.includes(reportState as string) &&
+    typeof reportSummary === 'string'
+      ? {
+          latestReport: {
+            state: reportState as NonNullable<AssignmentWork['latestReport']>['state'],
+            summary: reportSummary,
+            ...(typeof reportAt === 'string' ? { at: reportAt } : {}),
+          },
+        }
+      : {}),
+    rounds: Array.isArray(rounds) ? rounds.flatMap(workRoundOf) : [],
+    lanes: lanes.flatMap(workLaneOf),
+    omittedSubagents: positiveCount(value?.['omittedSubagents']),
+    omittedRounds: positiveCount(value?.['omittedRounds']),
+  };
 }
 
 export async function loadGroupWakePolicies(
@@ -3207,7 +3738,8 @@ export async function loadHumanAssignmentContext(
     context['botSlug'] !== slug ||
     context['sessionId'] !== sessionId ||
     context['sourceEventId'] !== sourceEventId ||
-    typeof context['purpose'] !== 'string' ||
+    typeof context['title'] !== 'string' ||
+    typeof context['description'] !== 'string' ||
     typeof context['canReply'] !== 'boolean' ||
     !Array.isArray(context['reports']) ||
     context['reports'].length > 5
@@ -3253,7 +3785,9 @@ export async function loadHumanAssignmentContext(
     botSlug: slug,
     sessionId,
     sourceEventId,
-    purpose: context['purpose'],
+    title: context['title'],
+    description: context['description'],
+    purpose: context['description'],
     canReply: context['canReply'],
     reports,
     ...(typeof context['hasOlder'] === 'boolean' ? { hasOlder: context['hasOlder'] } : {}),
@@ -3380,6 +3914,7 @@ export interface ToolApprovalRuleView {
   createdAt: string;
   revokedAt?: string;
   externalCreator?: import('../../../core/src/workspaces/tool-approval-actor.js').ToolApprovalActor;
+  autoApprovedCount?: number;
 }
 export async function loadToolApprovalRules(
   call: BridgeCall,
@@ -3741,9 +4276,18 @@ export async function loadHostFolders(
   call: BridgeCall,
   path?: string,
   signal?: AbortSignal,
+  offset?: number,
 ): Promise<import('../../../core/src/workspaces/folder-browse.js').FolderListing> {
   const value = asRecord(
-    await unwrap(call, 'folderBrowse', path === undefined ? {} : { path }, signal),
+    await unwrap(
+      call,
+      'folderBrowse',
+      {
+        ...(path === undefined ? {} : { path }),
+        ...(offset === undefined || offset === 0 ? {} : { offset }),
+      },
+      signal,
+    ),
   );
   const folders = (items: unknown): { name: string; path: string; hidden: boolean }[] => {
     if (!Array.isArray(items)) throw new Error('Invalid Host folder list');
@@ -3770,7 +4314,9 @@ export async function loadHostFolders(
     truncated: value['truncated'],
     crumbs: folders(value['crumbs']),
     entries: folders(value['entries']),
+    ...(typeof value['nextOffset'] === 'number' ? { nextOffset: value['nextOffset'] } : {}),
     roots: folders(value['roots']),
+    ...(value['nativePicker'] === true ? { nativePicker: true } : {}),
   };
 }
 
@@ -3922,7 +4468,7 @@ function parseBotAttentionItem(value: unknown): BotAttentionItem | undefined {
     'sourceChannelName',
     'sourceMessageId',
     'assignmentSessionId',
-    'assignmentPurpose',
+    'assignmentTitle',
     'authorBotSlug',
     'scheduleId',
   ])

@@ -2,11 +2,17 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
+vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 
 const push = vi.hoisted(() => vi.fn());
-vi.mock('expo-router', () => ({ useRouter: () => ({ push }), useFocusEffect: () => {} }));
+vi.mock('expo-router', () => ({
+  useRouter: () => ({ push }),
+  useFocusEffect: () => {},
+  useIsFocused: () => true,
+}));
 vi.mock('react-native', () => import('./react-native-shim'));
-vi.mock('../src/ui/shell/icons', () => ({
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
   ChevronRightIcon: () => null,
   CpuIcon: () => null,
   FolderIcon: () => null,
@@ -18,10 +24,12 @@ vi.mock('../src/ui/chat/composer-context', () => ({
   useComposerContext: () => ({
     model: { status: 'loading' },
     grants: { status: 'loading' },
+    reloadModel: () => {},
   }),
 }));
 vi.mock('../src/ui/chat/dm-activity-settings', () => ({ DmActivitySettings: () => null }));
 vi.mock('../src/ui/chat/bot-name-setting', () => ({ BotNameSetting: () => null }));
+vi.mock('../src/ui/primitives/row-icon', () => ({ RowIcon: () => null }));
 
 import { createHostClient } from '../src/host/client';
 import { BotSettingsPanel } from '../src/ui/chat/bot-settings-panel';

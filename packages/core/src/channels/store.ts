@@ -1,4 +1,10 @@
 import { isChannelNotice } from './channel-notice.js';
+import {
+  compareToolApprovalHistory,
+  toolApprovalHistoryEntry,
+  type ToolApprovalHistoryEntry,
+  type ToolApprovalHistoryPosition,
+} from './approval-history.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { allBotPreview, assertAllBotPreview, type AllBotPreview } from './all-bot-mention.js';
 import type { AttachmentMigrationResult } from '../attachments/legacy-migration.js';
@@ -82,6 +88,7 @@ export interface ChannelSendStatus {
   state: string;
   progress: ChannelRequestProgress;
   replies: ChannelMessage[];
+  assignmentId?: string;
 }
 
 export interface ChannelMessageCommit {
@@ -122,6 +129,24 @@ export interface ChannelMessageQueryOptions {
 
 export interface ChannelMessageQueryPage {
   messages: ChannelMessage[];
+  nextCursor?: string;
+}
+
+export interface HumanMessageSearchRequest {
+  text: string;
+  limit: number;
+  cursor?: string;
+  excludeChannelIds?: readonly string[];
+}
+
+export interface HumanMessageSearchHit {
+  channelId: string;
+  message: ChannelMessage;
+  snippet: string;
+}
+
+export interface HumanMessageSearchPage {
+  hits: HumanMessageSearchHit[];
   nextCursor?: string;
 }
 
@@ -427,6 +452,7 @@ export interface ChannelStore {
     id: string,
     options: Pick<ChannelMessageQueryOptions, 'text' | 'cursor' | 'limit'>,
   ): ChannelMessageQueryPage | undefined;
+  searchAllHumanMessages?(request: HumanMessageSearchRequest): HumanMessageSearchPage;
   readTimeline(id: string, request?: ChannelTimelineRequest): ChannelTimelinePage | undefined;
   readHumanTimeline(id: string, request?: ChannelTimelineRequest): ChannelTimelinePage | undefined;
   readHumanJournalPage(id: string, request: ChannelJournalRequest): ChannelJournalPage | undefined;
@@ -444,6 +470,10 @@ export interface ChannelStore {
     count: number;
   }>;
   admissionActivity?(botSlug: string, sinceIso: string): Array<{ at: string; reason: string }>;
+  toolApprovalHistory?(
+    botSlug: string,
+    page: { after?: ToolApprovalHistoryPosition; limit: number },
+  ): ToolApprovalHistoryEntry[];
 }
 
 export interface ChannelOutputObservation {
@@ -1014,6 +1044,28 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
         }
       }
       return result;
+    },
+    toolApprovalHistory(botSlug, page) {
+      const entries: ToolApprovalHistoryEntry[] = [];
+      for (const channel of this.list()) {
+        if (channel.deletedAt) continue;
+        const messages = readValidMessages(channel.id);
+        const byId = new Map(messages.map((message) => [message.id, message]));
+        for (const message of messages) {
+          const requestId = message.toolApprovalDecision?.requestMessageId;
+          const request = requestId === undefined ? undefined : byId.get(requestId);
+          const entry =
+            request === undefined
+              ? undefined
+              : toolApprovalHistoryEntry(channel.id, message, request, botSlug);
+          if (
+            entry !== undefined &&
+            (page.after === undefined || compareToolApprovalHistory(page.after, entry) < 0)
+          )
+            entries.push(entry);
+        }
+      }
+      return entries.sort(compareToolApprovalHistory).slice(0, page.limit);
     },
     queryMessages(id, queryOptions) {
       const messages = readValidMessages(id);

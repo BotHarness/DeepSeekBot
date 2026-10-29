@@ -2,6 +2,8 @@ import type { ReactElement } from 'react';
 import { ActionSheetIOS, Alert, Keyboard, Platform } from 'react-native';
 
 import { appDialogs, type DialogAction } from './dialog-state';
+import { recentTouch } from './touch-anchor';
+import { controlCase } from '../platform-copy';
 import { t } from '../strings';
 
 export function showAppDialog(
@@ -18,7 +20,7 @@ export function showAppDialog(
     title,
     message,
     actions.map(({ onPress, text, style }) => ({
-      text,
+      text: controlCase(text),
       ...(style === undefined ? {} : { style }),
       ...(onPress === undefined
         ? {}
@@ -85,7 +87,7 @@ export function showActionMenu(
     ActionSheetIOS.showActionSheetWithOptions(
       {
         title,
-        options: [...ordered.map((action) => action.text), t.cancel],
+        options: [...ordered.map((action) => controlCase(action.text)), t.cancel],
         ...(destructive === -1 ? {} : { destructiveButtonIndex: destructive }),
         cancelButtonIndex: ordered.length,
       },
@@ -104,6 +106,7 @@ export function showActionMenu(
       [{ text: t.cancel, style: 'cancel' }, ...ordered],
       'menu',
       avatar,
+      recentTouch(),
     );
     return;
   }

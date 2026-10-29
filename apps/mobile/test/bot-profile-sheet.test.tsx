@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, useLayoutEffect, type ReactElement } from 'react';
+import { act, createElement, useLayoutEffect, useState, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -16,17 +16,44 @@ const navigation = vi.hoisted(() => {
   };
 });
 vi.mock('expo-router', () => ({
+  useIsFocused: () => true,
   useRouter: () => ({ back() {} }),
   useNavigation: () => navigation,
   useFocusEffect: (work: () => () => void) => useLayoutEffect(work, [work]),
 }));
 
 vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('expo-router/react-navigation', () => ({ useHeaderHeight: () => 96 }));
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('react-native-worklets', () => ({
+  scheduleOnRN: <A extends unknown[]>(callback: (...args: A) => void, ...args: A) =>
+    callback(...args),
+}));
+vi.mock('react-native-collapsible-tab-view', () => import('./collapsible-tabs-shim'));
+vi.mock('../src/ui/chat/header-chrome', () => ({
+  HeaderCircleButton: ({
+    label,
+    testID,
+    onPress,
+  }: {
+    label: string;
+    testID?: string;
+    onPress(): void;
+  }) => <button type="button" data-testid={testID} aria-label={label} onClick={onPress} />,
+}));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+vi.mock('expo-image', () => ({ Image: () => null }));
+vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
+vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('../src/ui/bot-avatar', () => ({
   BotAvatar: ({ bot }: { bot: { slug: string } }) =>
     createElement('span', { 'data-testid': `avatar-${bot.slug}` }),
 }));
-vi.mock('../src/ui/shell/icons', () => ({
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
   ActivityIcon: () => null,
   ChevronRightIcon: () => null,
   FileIcon: () => null,
@@ -41,8 +68,12 @@ import type { BotProfile } from '../src/host/bot-profile';
 import { shiftDay, today as localToday, trailingDays } from '../src/host/usage-days';
 import type { ProfileActivity } from '../src/host/wire';
 import type { RosterBot } from '../src/host/client';
-import { BotProfileSheet } from '../src/ui/chat/bot-profile';
+import { BotProfilePage } from '../src/ui/chat/bot-profile';
+import { createProfileTabMemory, type ProfileTab } from '../src/ui/chat/profile-tabs';
 import { t } from '../src/ui/strings';
+import { profileRootHeader, profileScreenOptions } from '../src/ui/chat/profile-presentation';
+import { Platform } from 'react-native';
+import { resolveTheme } from '../src/ui/design/resolve-theme';
 import profileWire from './fixtures/profile-wire.json';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -103,15 +134,32 @@ const week: ProfileActivity = {
   modelUsageStatus: 'ready',
 };
 
-const full: BotProfile = {
-  identity: {
-    status: 'ready',
-    value: profileWire.rpc.memoryFile['SOUL.md'].file.body,
+const assignments = [
+  {
+    sessionId: 'assignment-1',
+    title: 'Summarise the week of papers',
+    description: 'Read this week’s papers and send a short digest.',
+    activity: 'working' as const,
+    latestReport: {
+      state: 'progress' as const,
+      summary: 'Read 3 of 5',
+      at: new Date().toISOString(),
+    },
+    updatedAt: new Date().toISOString(),
   },
+];
+
+const full: BotProfile = {
+  work: { status: 'ready', value: assignments },
   memory: {
     status: 'ready',
     value: {
+      status: 'attached',
       files: profileWire.rpc.memorySnapshot.snapshot.files,
+      pinned: [
+        { role: 'soul', path: 'SOUL.md', present: true },
+        { role: 'coreMemory', path: 'MEMORY.md', present: true },
+      ],
     },
   },
   routines: {
@@ -126,8 +174,18 @@ const full: BotProfile = {
 };
 
 const empty: BotProfile = {
-  identity: { status: 'ready', value: undefined },
-  memory: { status: 'ready', value: { files: [] } },
+  work: { status: 'ready', value: [] },
+  memory: {
+    status: 'ready',
+    value: {
+      status: 'attached',
+      files: [],
+      pinned: [
+        { role: 'soul', path: 'SOUL.md', present: false },
+        { role: 'coreMemory', path: 'MEMORY.md', present: false },
+      ],
+    },
+  },
   routines: { status: 'ready', value: [] },
   files: { status: 'ready', value: [] },
   activity: {
@@ -143,17 +201,83 @@ const empty: BotProfile = {
 };
 
 const actions = () => ({
-  onMessage: vi.fn(),
+  onClose: vi.fn(),
   onNotifications: vi.fn(),
   onOpenMemory: vi.fn(),
   onOpenActivity: vi.fn(),
 });
 const button = (view: HTMLElement, label: string) =>
-  view.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+  [...view.querySelectorAll<HTMLButtonElement>(`button[aria-label="${label}"]`)].find(
+    (node) => node.closest('[hidden]') === null,
+  ) ?? null;
+function BotProfileSheet(
+  props: Omit<Parameters<typeof BotProfilePage>[0], 'tabMemory'> & {
+    tab?: ProfileTab;
+  },
+) {
+  const { tab = 'work', ...rest } = props;
+  const [memory] = useState(() => {
+    const created = createProfileTabMemory({
+      read: async () => undefined,
+      write() {},
+    });
+    created.remember('bot', tab);
+    return created;
+  });
+  return <BotProfilePage {...rest} tabMemory={memory} />;
+}
+const openTab = (view: HTMLElement, tab: ProfileTab) =>
+  act(async () =>
+    view.querySelector<HTMLButtonElement>(`[data-testid="profile-tab-${tab}"]`)!.click(),
+  );
 const headers = (view: HTMLElement) =>
-  [...view.querySelectorAll('[role="header"]')].map((node) => node.textContent);
+  [...view.querySelectorAll('[role="header"]')]
+    .filter((node) => node.closest('[hidden]') === null)
+    .map((node) => node.textContent);
 
-describe('Bot profile sheet', () => {
+describe('Bot profile page', () => {
+  const avatarNone = {
+    pick: async () => undefined,
+    save: async () => undefined,
+  };
+
+  it('retains a loaded tab component and its edits when switching away and back', async () => {
+    function EditableSettings() {
+      const [value, setValue] = useState('');
+      return (
+        <input
+          aria-label="Retained setting"
+          value={value}
+          onInput={(event) => setValue(event.currentTarget.value)}
+        />
+      );
+    }
+    const load = vi.fn(async () => empty);
+    const view = await render(
+      <BotProfileSheet
+        bot={bot}
+        channels={[]}
+        load={load}
+        actions={actions()}
+        avatar={avatarNone}
+        settings={<EditableSettings />}
+      />,
+    );
+    await openTab(view, 'settings');
+    const input = view.querySelector<HTMLInputElement>('input[aria-label="Retained setting"]');
+    expect(input).not.toBeNull();
+    if (input === null) throw new Error('The settings input must be mounted');
+    await act(async () => {
+      input.value = 'Keep this edit';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await openTab(view, 'work');
+    await openTab(view, 'settings');
+    expect(view.querySelector('input[aria-label="Retained setting"]')).toBe(input);
+    expect(input.value).toBe('Keep this edit');
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
   it('lets the Human change the Bot avatar from its portrait and the settings row', async () => {
     const avatar = {
       pick: vi.fn(async () => 'data:image/jpeg;base64,/9j/AA=='),
@@ -161,6 +285,7 @@ describe('Bot profile sheet', () => {
     };
     const view = await render(
       <BotProfileSheet
+        tab="settings"
         bot={bot}
         channels={[]}
         load={async () => empty}
@@ -190,6 +315,7 @@ describe('Bot profile sheet', () => {
     };
     const view = await render(
       <BotProfileSheet
+        tab="settings"
         bot={{ ...bot, avatarUrl: 'https://example.test/avatar.jpg' }}
         channels={[]}
         load={async () => empty}
@@ -198,7 +324,6 @@ describe('Bot profile sheet', () => {
       />,
     );
     const portrait = view.querySelector<HTMLButtonElement>('[data-testid="bot-avatar-change"]');
-    expect(portrait !== null).toBe(true);
     await act(async () => portrait!.click());
     expect(view.querySelector('[role="alert"]')?.textContent).toContain('save refused');
     const remove = view.querySelector<HTMLButtonElement>(
@@ -209,11 +334,136 @@ describe('Bot profile sheet', () => {
     expect(view.querySelector('[role="alert"]')).toBeNull();
   });
 
+  it('opens with five icon tabs named for VoiceOver and TalkBack, no tab-name heading and no Share or Message', async () => {
+    const view = await render(
+      <BotProfileSheet
+        bot={bot}
+        channels={[]}
+        load={async () => full}
+        actions={actions()}
+        avatar={avatarNone}
+      />,
+    );
+    const tabs = [...view.querySelectorAll('[role="tab"]')];
+    expect(tabs.map((tab) => tab.getAttribute('aria-label'))).toEqual([
+      t.profileTabs.work,
+      t.profileTabs.memory,
+      t.profileTabs.files,
+      t.profileTabs.routines,
+      t.profileTabs.settings,
+    ]);
+    expect(tabs.map((tab) => tab.getAttribute('aria-selected'))).toEqual([
+      'true',
+      'false',
+      'false',
+      'false',
+      'false',
+    ]);
+    expect(tabs.every((tab) => tab.textContent === '')).toBe(true);
+    expect(view.querySelector('[data-testid="profile-tab-content-work"]')).not.toBeNull();
+    expect(headers(view)).not.toContain(t.profileTabs.work);
+    expect(button(view, 'Message')).toBeNull();
+    expect(button(view, t.share.title)).toBeNull();
+    await openTab(view, 'routines');
+    expect(view.querySelector('[data-testid="profile-tab-content-routines"]')).not.toBeNull();
+    expect(
+      view.querySelector('[data-testid="profile-tab-routines"]')?.getAttribute('aria-selected'),
+    ).toBe('true');
+  });
+
+  it('pushes in like a page from the right with a Back button instead of a sheet handle', async () => {
+    const options = profileScreenOptions(resolveTheme('light', {}, 'ios'));
+    expect(options).toMatchObject({
+      headerShown: false,
+      presentation: 'card',
+      animation: 'slide_from_right',
+      gestureEnabled: true,
+      fullScreenGestureEnabled: false,
+    });
+    expect(options).not.toHaveProperty('sheetAllowedDetents');
+    expect(profileRootHeader('index')).toBeUndefined();
+    const os = Platform.OS;
+    Object.assign(Platform, { OS: 'ios' });
+    try {
+      expect(profileScreenOptions(resolveTheme('light', {}, 'ios'))).toMatchObject({
+        headerShown: true,
+        headerTransparent: true,
+        title: '',
+        presentation: 'card',
+        animation: 'default',
+      });
+      expect(profileRootHeader('index')).toEqual({ headerShown: true });
+      expect(profileRootHeader('memory')).toEqual({ headerShown: false });
+    } finally {
+      Object.assign(Platform, { OS: os });
+    }
+    const onClose = vi.fn();
+    const view = await render(
+      <BotProfileSheet
+        bot={bot}
+        channels={[]}
+        load={async () => full}
+        actions={{ ...actions(), onClose }}
+        avatar={avatarNone}
+      />,
+    );
+    expect(view.querySelector('[data-testid="profile-handle"]')).toBeNull();
+    const back = view.querySelector('[data-testid="profile-back"]') as HTMLElement;
+    expect(back.getAttribute('aria-label')).toBe(t.back);
+    await act(async () => back.click());
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists the Bot’s Assignments by Title and Description under the day of their last activity', async () => {
+    const onOpenAssignment = vi.fn();
+    const view = await render(
+      <BotProfileSheet
+        bot={bot}
+        channels={[]}
+        load={async () => full}
+        actions={{ ...actions(), onOpenAssignment }}
+        avatar={avatarNone}
+      />,
+    );
+    const text = view.textContent ?? '';
+    expect(text).toContain(t.usageToday);
+    expect(text).toContain('Summarise the week of papers');
+    expect(text).toContain('Read this week’s papers and send a short digest.');
+    expect(text).not.toContain('Read 3 of 5');
+    const row = view.querySelector<HTMLButtonElement>(
+      '[data-testid="profile-assignment-assignment-1"]',
+    )!;
+    expect(row.getAttribute('aria-label')).toContain(t.profileAssignmentState.working);
+    await act(async () => row.click());
+    expect(onOpenAssignment).toHaveBeenCalledWith(assignments[0]);
+  });
+
+  it('places Permissions between the overview and the Bot settings', async () => {
+    const view = await render(
+      <BotProfileSheet
+        tab="settings"
+        avatar={avatarNone}
+        bot={bot}
+        channels={[]}
+        initialProfile={empty}
+        load={async () => empty}
+        permissions={<span data-testid="permissions-rows">Workspace grants</span>}
+        actions={actions()}
+      />,
+    );
+    const order = headers(view);
+    const permissions = order.indexOf(t.approvals.permissions);
+    expect(permissions).toBeGreaterThan(-1);
+    expect(order.indexOf(t.profileSettingsBot)).toBeGreaterThan(permissions);
+    expect(view.querySelector('[data-testid="permissions-rows"]')).not.toBeNull();
+  });
+
   it('opens a lightweight shell before data resolves and keeps cached content during refresh', async () => {
     const request = Promise.withResolvers<BotProfile>();
     const view = await render(
       <BotProfileSheet
-        avatar={{ pick: async () => undefined, save: async () => undefined }}
+        tab="settings"
+        avatar={avatarNone}
         bot={bot}
         channels={[]}
         initialProfile={full}
@@ -230,15 +480,19 @@ describe('Bot profile sheet', () => {
       for (const listener of navigation.listeners) listener({ data: { closing: false } });
     });
     expect(view.textContent).toContain('Full settings');
-    expect(view.textContent).toContain('Standing rules:');
+    await openTab(view, 'memory');
+    const notes = '[data-testid="memory-entry-notes"]';
+    expect(view.querySelector(notes)).not.toBeNull();
     await act(async () => request.resolve(empty));
-    expect(view.textContent).not.toContain('Standing rules:');
+    expect(view.querySelector(notes)).toBeNull();
+    expect(view.textContent).toContain(t.memoryPinnedMissing);
   });
 
-  it('shows the identity, persona, memory, routines, Channels and folders', async () => {
+  it('moves the identity, memory, routines, Channels and folders into their tabs', async () => {
     const view = await render(
       <BotProfileSheet
-        avatar={{ pick: async () => undefined, save: async () => undefined }}
+        tab="memory"
+        avatar={avatarNone}
         bot={bot}
         channels={[
           {
@@ -252,41 +506,43 @@ describe('Bot profile sheet', () => {
         actions={actions()}
       />,
     );
+    expect(view.textContent).toContain(profileWire.bot.description);
+    expect(view.textContent).toContain('researcher');
+    expect(view.textContent).not.toContain('Standing rules:');
+    expect(headers(view)).toEqual([bot.displayName]);
+    expect(view.textContent?.split(bot.displayName)).toHaveLength(2);
+    await openTab(view, 'routines');
+    expect(view.textContent).toContain('Morning digest');
+    expect(view.textContent).toContain(t.routineDaily('09:00'));
+    expect(view.textContent).toContain(t.routineEvery(3600));
+    await openTab(view, 'settings');
     expect(headers(view)).toEqual([
       bot.displayName,
+      t.profileSettingsBot,
       t.avatarTitle,
-      t.profileSection.activity,
-      t.profileSection.identity,
-      t.profileSection.memory,
-      t.profileSection.routines,
       t.profileSection.channels,
       t.profileSection.files,
     ]);
-    const text = view.textContent ?? '';
-    expect(text).toContain(profileWire.bot.description);
-    expect(text).toContain('researcher');
-    expect(text).toContain('Standing rules:');
-    expect(text).not.toContain('Vain prefers summaries under 100 words.');
-    expect(text).not.toContain('reading.md');
-    expect(text).toContain('Morning digest');
-    expect(text).toContain(t.routineDaily('09:00'));
-    expect(text).toContain(t.routineEvery(3600));
-    expect(text).toContain('# paper-club');
-    expect(text).toContain(`${t.folderReadOnly} · /Users/me/Documents/papers`);
-    expect(text).not.toContain('/Users/me/Documents/old');
+    expect(view.textContent).toContain('# paper-club');
+    expect(view.textContent).toContain(`${t.folderReadOnly} · /Users/me/Documents/papers`);
+    expect(view.textContent).not.toContain('/Users/me/Documents/old');
   });
 
   it('says so when a section is empty, and offers Browser and Computer only when the Bot has them', async () => {
     const view = await render(
       <BotProfileSheet
-        avatar={{ pick: async () => undefined, save: async () => undefined }}
         bot={bot}
         channels={[]}
         load={async () => empty}
         actions={actions()}
+        avatar={avatarNone}
       />,
     );
-    const text = view.textContent ?? '';
+    let text = '';
+    for (const tab of ['work', 'memory', 'routines', 'settings'] as const) {
+      await openTab(view, tab);
+      text += view.textContent ?? '';
+    }
     for (const note of Object.values(t.profileEmpty)) expect(text).toContain(note);
     expect(button(view, t.profileComputer)).toBeNull();
     expect(button(view, t.profileBrowser)).toBeNull();
@@ -295,7 +551,7 @@ describe('Bot profile sheet', () => {
     const onComputer = vi.fn();
     const withComputer = await render(
       <BotProfileSheet
-        avatar={{ pick: async () => undefined, save: async () => undefined }}
+        avatar={avatarNone}
         bot={{ ...bot, computerAccess: true }}
         channels={[]}
         load={async () => empty}
@@ -309,7 +565,7 @@ describe('Bot profile sheet', () => {
     const onBrowser = vi.fn();
     const withBrowser = await render(
       <BotProfileSheet
-        avatar={{ pick: async () => undefined, save: async () => undefined }}
+        avatar={avatarNone}
         bot={{ ...bot, browserAccess: true }}
         channels={[]}
         load={async () => empty}
@@ -324,7 +580,8 @@ describe('Bot profile sheet', () => {
     vi.useFakeTimers();
     const view = await render(
       <BotProfileSheet
-        avatar={{ pick: async () => undefined, save: async () => undefined }}
+        tab="routines"
+        avatar={avatarNone}
         bot={bot}
         channels={[]}
         load={async () => full}
@@ -337,12 +594,13 @@ describe('Bot profile sheet', () => {
     expect(view.textContent).toContain('Morning digest');
   });
 
-  it('closes back to the DM, opens notifications and retries a failed section', async () => {
+  it('opens notifications and retries a failed section', async () => {
     const handlers = actions();
     let attempt = 0;
     const view = await render(
       <BotProfileSheet
-        avatar={{ pick: async () => undefined, save: async () => undefined }}
+        tab="routines"
+        avatar={avatarNone}
         bot={bot}
         channels={[]}
         load={async () =>
@@ -359,44 +617,177 @@ describe('Bot profile sheet', () => {
         actions={handlers}
       />,
     );
-    expect(view.textContent).toContain(`${t.profileFailed} The Host did not answer in time.`);
+    expect(view.textContent).toContain(t.profileFailed);
+    expect(view.textContent).not.toContain('The Host did not answer in time.');
+    await act(async () =>
+      [...view.querySelectorAll<HTMLButtonElement>('button')]
+        .find((button) => button.textContent === t.details)!
+        .click(),
+    );
+    expect(view.textContent).toContain('The Host did not answer in time.');
     await act(async () => button(view, t.tryAgain)!.click());
     await act(async () => undefined);
     expect(view.textContent).toContain('Morning digest');
 
-    await act(async () => button(view, t.profileMessage)!.click());
+    await openTab(view, 'settings');
     await act(async () => button(view, t.profileNotifications)!.click());
-    expect(handlers.onMessage).toHaveBeenCalledTimes(1);
     expect(handlers.onNotifications).toHaveBeenCalledTimes(1);
   });
 
-  it('lists the top of the Memory tree and opens a folder or a file', async () => {
+  it('pins SOUL.md and MEMORY.md above a grid of the other Memory files', async () => {
     const handlers = actions();
     const view = await render(
       <BotProfileSheet
-        avatar={{ pick: async () => undefined, save: async () => undefined }}
+        tab="memory"
+        avatar={avatarNone}
         bot={bot}
         channels={[]}
         load={async () => full}
         actions={handlers}
       />,
     );
-    const memory = [...view.querySelectorAll('section')][2]!;
+    const entries = [...view.querySelectorAll('button')]
+      .map((node) => node.getAttribute('aria-label'))
+      .filter((label) => label !== null && !label.startsWith(t.avatarChange));
+    const memoryEntries = entries.filter((label) => !label!.startsWith(t.profileTabs.work));
+    expect(memoryEntries).toEqual(
+      expect.arrayContaining([
+        `SOUL.md, ${t.memoryPinned.soul}`,
+        `MEMORY.md, ${t.memoryPinned.coreMemory}`,
+        `.botharness, ${t.memoryItems(2)}`,
+        `notes, ${t.memoryItems(1)}`,
+        `.gitattributes, ${t.memoryKind.other}`,
+      ]),
+    );
+    expect(memoryEntries).not.toContain('SOUL.md');
+    expect(memoryEntries).not.toContain('MEMORY.md');
+    const grid = view.querySelector('[data-testid="memory-pinned"]')!;
     expect(
-      [...memory.querySelectorAll('button')].map((node) => node.getAttribute('aria-label')),
-    ).toEqual([
-      `.botharness, ${t.memoryItems(2)}`,
-      `notes, ${t.memoryItems(1)}`,
-      '.gitattributes',
-      'MEMORY.md',
-      'SOUL.md',
-    ]);
+      grid.compareDocumentPosition(view.querySelector('[data-testid="memory-entry-notes"]')!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     await act(async () => button(view, `notes, ${t.memoryItems(1)}`)!.click());
-    await act(async () => button(view, 'MEMORY.md')!.click());
+    await act(async () => button(view, `SOUL.md, ${t.memoryPinned.soul}`)!.click());
+    await act(async () => button(view, `MEMORY.md, ${t.memoryPinned.coreMemory}`)!.click());
     expect(handlers.onOpenMemory.mock.calls).toEqual([
       [{ kind: 'folder', name: 'notes', path: 'notes', count: 1 }],
-      [{ kind: 'file', name: 'MEMORY.md', path: 'MEMORY.md' }],
+      [{ kind: 'file', name: 'SOUL.md', path: 'SOUL.md', role: 'soul' }],
+      [{ kind: 'file', name: 'MEMORY.md', path: 'MEMORY.md', role: 'coreMemory' }],
     ]);
+  });
+
+  it('switches Memory between Files and Changes, lists commits by day and pages older ones', async () => {
+    const handlers = { ...actions(), onOpenMemoryChange: vi.fn() };
+    const now = new Date();
+    const sha = (digit: string) => digit.repeat(40);
+    const memoryChanges = vi.fn(async (offset: number) =>
+      offset === 0
+        ? {
+            commits: [
+              {
+                sha: sha('a'),
+                subject: 'Remember the Thursday seminar',
+                authoredAt: now.toISOString(),
+                status: 'accepted' as const,
+              },
+              {
+                sha: sha('b'),
+                subject: 'Edit SOUL.md',
+                authoredAt: now.toISOString(),
+                status: 'pending' as const,
+              },
+            ],
+            hasMore: true,
+          }
+        : {
+            commits: [
+              {
+                sha: sha('c'),
+                subject: 'Initial Memory',
+                authoredAt: '2024-01-02T10:00:00.000Z',
+                status: 'accepted' as const,
+              },
+            ],
+            hasMore: false,
+          },
+    );
+    const view = await render(
+      <BotProfileSheet
+        tab="memory"
+        avatar={avatarNone}
+        bot={bot}
+        channels={[]}
+        load={async () => full}
+        memoryChanges={memoryChanges}
+        actions={handlers}
+      />,
+    );
+    const segment = (label: string) =>
+      view.querySelector<HTMLButtonElement>(
+        `[data-testid="memory-views"] [role="tab"][aria-label="${label}"]`,
+      )!;
+    expect(view.querySelector('[data-testid="memory-pinned"]')).not.toBeNull();
+    expect(memoryChanges).not.toHaveBeenCalled();
+
+    await act(async () => segment(t.memoryViewChanges).click());
+    await act(async () => undefined);
+    expect(memoryChanges).toHaveBeenCalledWith(0);
+    expect(view.querySelector('[data-testid="memory-pinned"]')).toBeNull();
+    expect(view.textContent).toContain(t.usageToday);
+    expect(view.textContent).toContain('Remember the Thursday seminar');
+    expect(view.textContent).toContain(t.memoryChangeStatus.pending);
+
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>(`[data-testid="memory-change-${sha('a')}"]`)!.click(),
+    );
+    expect(handlers.onOpenMemoryChange).toHaveBeenCalledWith(
+      expect.objectContaining({ sha: sha('a') }),
+    );
+
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>('[data-testid="memory-changes-more"]')!.click(),
+    );
+    await act(async () => undefined);
+    expect(memoryChanges).toHaveBeenLastCalledWith(2);
+    expect(view.textContent).toContain('Initial Memory');
+    expect(view.querySelector('[data-testid="memory-changes-more"]')).toBeNull();
+
+    await act(async () => segment(t.memoryViewFiles).click());
+    expect(view.querySelector('[data-testid="memory-pinned"]')).not.toBeNull();
+  });
+
+  it('explains that Memory is not attached, and keeps missing pinned files closed', async () => {
+    const handlers = actions();
+    const view = await render(
+      <BotProfileSheet
+        tab="memory"
+        avatar={avatarNone}
+        bot={bot}
+        channels={[]}
+        load={async () => ({
+          ...full,
+          memory: { status: 'ready', value: { status: 'unavailable' } },
+        })}
+        actions={handlers}
+      />,
+    );
+    expect(view.textContent).toContain(t.memoryNotAttached);
+    expect(view.querySelector('[data-testid="memory-pinned"]')).toBeNull();
+
+    act(() => root?.unmount());
+    const missing = await render(
+      <BotProfileSheet
+        tab="memory"
+        avatar={avatarNone}
+        bot={bot}
+        channels={[]}
+        load={async () => empty}
+        actions={handlers}
+      />,
+    );
+    expect(missing.textContent).toContain(t.profileEmpty.memory);
+    await act(async () => button(missing, `SOUL.md, ${t.memoryPinnedMissing}`)!.click());
+    expect(handlers.onOpenMemory).not.toHaveBeenCalled();
   });
 
   it('navigates routines and creation without mounting another sheet', async () => {
@@ -404,7 +795,8 @@ describe('Bot profile sheet', () => {
     const onNewRoutine = vi.fn();
     const view = await render(
       <BotProfileSheet
-        avatar={{ pick: async () => undefined, save: async () => undefined }}
+        tab="routines"
+        avatar={avatarNone}
         bot={bot}
         channels={[]}
         load={async () => full}
@@ -416,6 +808,16 @@ describe('Bot profile sheet', () => {
     )!;
     await act(async () => open.click());
     expect(onOpenRoutine).toHaveBeenCalledWith(profileWire.rpc.scheduleList.schedules[0]);
+    expect(headers(view)).toEqual(
+      expect.arrayContaining([t.profileTabs.routines, t.routineGroup.daily, t.routineGroup.other]),
+    );
+    expect(headers(view)).not.toContain(t.routineGroup.weekly);
+    expect(
+      view.querySelector('[data-testid="profile-routine-group-daily"]')?.textContent,
+    ).toContain('Morning digest');
+    expect(
+      view.querySelector('[data-testid="profile-routine-group-other"]')?.textContent,
+    ).toContain('Hourly check');
     await act(async () => button(view, t.routineNew)!.click());
     expect(onNewRoutine).toHaveBeenCalledTimes(1);
     expect(view.querySelector('[role="dialog"]')).toBeNull();
@@ -424,7 +826,8 @@ describe('Bot profile sheet', () => {
   it('keeps routines read-only without a Host to change them', async () => {
     const view = await render(
       <BotProfileSheet
-        avatar={{ pick: async () => undefined, save: async () => undefined }}
+        tab="routines"
+        avatar={avatarNone}
         bot={bot}
         channels={[]}
         load={async () => full}
@@ -433,13 +836,46 @@ describe('Bot profile sheet', () => {
     );
     expect(button(view, t.routineNew)).toBeNull();
     expect(view.textContent).toContain('Morning digest');
+    expect(headers(view)).not.toContain(t.profileTabs.routines);
   });
 
-  it('shows the last 7 days and opens the Activity screen', async () => {
+  it('runs a routine from its swipe action and reloads the list', async () => {
+    let loads = 0;
+    const routines = {
+      runNow: vi.fn(async () => ({}) as never),
+      setEnabled: vi.fn(async () => ({}) as never),
+      remove: vi.fn(async () => undefined),
+    };
+    const view = await render(
+      <BotProfileSheet
+        tab="routines"
+        avatar={avatarNone}
+        bot={bot}
+        channels={[]}
+        load={async () => {
+          loads += 1;
+          return full;
+        }}
+        actions={{ ...actions(), routines }}
+      />,
+    );
+    const before = loads;
+    const id = profileWire.rpc.scheduleList.schedules[0]!.id;
+    const run = view
+      .querySelector(`[data-testid="profile-routine-swipe-${id}"]`)!
+      .querySelector<HTMLButtonElement>('[data-testid="swipe-action-run"]')!;
+    await act(async () => run.click());
+    await act(async () => undefined);
+    expect(routines.runNow).toHaveBeenCalledWith(id);
+    expect(loads).toBe(before + 1);
+  });
+
+  it('shows the last 7 days first in Settings and opens the Activity screen', async () => {
     const handlers = actions();
     const view = await render(
       <BotProfileSheet
-        avatar={{ pick: async () => undefined, save: async () => undefined }}
+        tab="settings"
+        avatar={avatarNone}
         bot={bot}
         channels={[]}
         load={async () => full}
@@ -470,7 +906,8 @@ describe('Bot profile sheet', () => {
     };
     const view = await render(
       <BotProfileSheet
-        avatar={{ pick: async () => undefined, save: async () => undefined }}
+        tab="settings"
+        avatar={avatarNone}
         bot={bot}
         channels={[]}
         load={async () => partial}
@@ -487,7 +924,8 @@ describe('Bot profile sheet', () => {
   it('shows a quiet week for a Bot with no activity, and Try again when the call fails', async () => {
     const quiet = await render(
       <BotProfileSheet
-        avatar={{ pick: async () => undefined, save: async () => undefined }}
+        tab="settings"
+        avatar={avatarNone}
         bot={bot}
         channels={[]}
         load={async () => empty}
@@ -501,7 +939,8 @@ describe('Bot profile sheet', () => {
     let attempt = 0;
     const failed = await render(
       <BotProfileSheet
-        avatar={{ pick: async () => undefined, save: async () => undefined }}
+        tab="settings"
+        avatar={avatarNone}
         bot={bot}
         channels={[]}
         load={async () =>
@@ -515,8 +954,13 @@ describe('Bot profile sheet', () => {
         actions={actions()}
       />,
     );
-    expect(failed.textContent).toContain(`${t.profileFailed} Unknown PersonaBot`);
-    expect(failed.textContent).toContain('Morning digest');
+    expect(failed.textContent).toContain(t.profileFailed);
+    await act(async () =>
+      [...failed.querySelectorAll<HTMLButtonElement>('button')]
+        .find((button) => button.textContent === t.details)!
+        .click(),
+    );
+    expect(failed.textContent).toContain('Unknown PersonaBot');
     await act(async () => button(failed, t.tryAgain)!.click());
     await act(async () => undefined);
     expect(failed.textContent).toContain(t.activityTokens('320K'));

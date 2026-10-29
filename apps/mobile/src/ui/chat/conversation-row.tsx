@@ -5,7 +5,7 @@ import { Platform, Pressable, View, type ViewInstance } from 'react-native';
 
 import { BotAvatar } from '../bot-avatar';
 import type { HostLook } from '../design/host-look';
-import { chatList, edge, radius, space } from '../design/tokens';
+import { chatList, conversationType, edge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
@@ -22,13 +22,14 @@ import {
   type RowStatus,
 } from './conversations';
 import { RowStatusGlyph } from './row-status-glyph';
+import {
+  AvatarSlot,
+  CONVERSATION_AVATAR as AVATAR,
+  CONVERSATION_RING as RING,
+} from './avatar-slot';
 import type { ConversationAction, ConversationActionKey } from './conversation-actions';
-import { ConversationSwipe } from './conversation-swipe';
 import { ConversationPeek, type ConversationPeekAction } from '../shell/conversation-peek';
 import { showActionMenu } from '../primitives/app-dialog';
-
-const AVATAR = 48;
-const RING = 6;
 
 export const AVATAR_EDGE = chatList.gutter;
 
@@ -57,20 +58,13 @@ export function ConversationRow({
   actions?: readonly ConversationAction[];
   onAction?: (key: ConversationActionKey) => void;
 }) {
-  const t = useStrings();
+  const copy = useStrings();
   const title = titleOf(row);
   const status = rowStatus(row, now);
   const latest = row.kind === 'bot' ? row.bot.preview : row.channel.preview;
-  const preview =
-    latest !== undefined
-      ? previewText(latest)
-      : row.kind === 'bot'
-        ? row.bot.paused
-          ? t.paused
-          : ''
-        : t.members(row.channel.memberCount);
+  const preview = previewText(latest, copy);
   const badge = countBadge(row);
-  const time = shortTime(row.at, now);
+  const time = shortTime(row.at ?? row.createdAt, now);
   const description = rowLabel(row, title, status, preview);
   const label = sourceLabel ? `${description}, ${sourceLabel}` : description;
   const act = onAction ?? (() => undefined);
@@ -94,9 +88,7 @@ export function ConversationRow({
     }));
   const avatar =
     row.kind === 'bot' ? (
-      <AvatarSlot>
-        <BotAvatar bot={row.bot} size={AVATAR} corner={radius.md} ring={false} />
-      </AvatarSlot>
+      <ConversationBotAvatar bot={row.bot} />
     ) : (
       <ConversationGroupAvatar avatar={row.channel.avatar} />
     );
@@ -142,34 +134,20 @@ export function ConversationRow({
       avatar={avatar}
     />
   );
-  const content = previewHref ? (
+  return previewHref ? (
     <ConversationPeek href={previewHref} actions={menuActions}>
       {frame}
     </ConversationPeek>
   ) : (
     frame
   );
-  return Platform.OS === 'android' ? (
-    content
-  ) : (
-    <ConversationSwipe actions={availableActions} onAction={act}>
-      {content}
-    </ConversationSwipe>
-  );
 }
 
-function AvatarSlot({ children }: { children: ReactNode }) {
+export function ConversationBotAvatar({ bot }: { bot: Parameters<typeof BotAvatar>[0]['bot'] }) {
   return (
-    <View
-      style={{
-        width: AVATAR + RING,
-        height: AVATAR + RING,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      {children}
-    </View>
+    <AvatarSlot>
+      <BotAvatar bot={bot} size={AVATAR} corner={radius.md} ring={false} />
+    </AvatarSlot>
   );
 }
 
@@ -287,7 +265,7 @@ export function ConversationRowFrame({
         >
           <SourceName name={title} source={source} look={look} sourceLabel={sourceLabel} />
           {time === '' ? null : (
-            <Text variant="meta" tone="subtle" numberOfLines={1} style={{ flexShrink: 0 }}>
+            <Text variant="meta" tone="subtle" style={{ flexShrink: 0 }}>
               {time}
             </Text>
           )}
@@ -295,10 +273,11 @@ export function ConversationRowFrame({
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
           <Text
             variant="meta"
+            dynamicTypeRamp="subheadline"
             tone={unread ? 'fg' : 'muted'}
             numberOfLines={1}
             ellipsizeMode="tail"
-            style={{ flex: 1 }}
+            style={[conversationType.preview, { flex: 1 }]}
           >
             {preview}
           </Text>

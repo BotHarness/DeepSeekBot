@@ -1,4 +1,7 @@
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
 import { createChallenge, verifySolution } from '../src/marketplace/altcha.js';
@@ -66,7 +69,7 @@ async function invoke(argv: string[], url: string, stdin = '') {
   });
   expect(stdout).toHaveLength(1);
   expect(stdout.join('') + stderr.join('')).not.toContain('private-test-token');
-  return { code, json: JSON.parse(stdout.join('')) };
+  return { code, json: JSON.parse(stdout.join('')), stderr };
 }
 
 const ok = (value: unknown) => ({ ok: true, value });
@@ -103,6 +106,12 @@ describe('Bot Marketplace commands', () => {
     await invoke(['marketplace-list', '--sort', 'created'], live.url);
     await invoke(['marketplace-detail', 'owner/repo'], live.url);
     await invoke(['marketplace-detail', 'owner/repo', '--lang', 'en'], live.url);
+    await invoke(['marketplace-file', 'U_abc', 'notes/today.md'], live.url);
+    await invoke(['marketplace-sections'], live.url);
+    await invoke(['marketplace-sections', '--lang', 'zh'], live.url);
+    await invoke(['marketplace-digest'], live.url);
+    await invoke(['marketplace-digest', '--day', '2026-10-28', '--lang', 'en'], live.url);
+    await invoke(['marketplace-digests', '--lang', 'zh'], live.url);
     expect(live.calls).toEqual([
       { method: 'marketplaceList', args: { query: {} } },
       {
@@ -113,6 +122,40 @@ describe('Bot Marketplace commands', () => {
       { method: 'marketplaceList', args: { query: { sort: 'created' } } },
       { method: 'marketplaceDetail', args: { id: 'owner/repo' } },
       { method: 'marketplaceDetail', args: { id: 'owner/repo', lang: 'en' } },
+      { method: 'marketplaceFileView', args: { id: 'U_abc', path: 'notes/today.md' } },
+      { method: 'marketplaceSections', args: {} },
+      { method: 'marketplaceSections', args: { lang: 'zh' } },
+      { method: 'marketplaceDigest', args: {} },
+      { method: 'marketplaceDigest', args: { day: '2026-10-28', lang: 'en' } },
+      { method: 'marketplaceDigests', args: { lang: 'zh' } },
+    ]);
+  });
+
+  it('prints each digest with its pick names', async () => {
+    const digests = [
+      {
+        day: '2026-10-28',
+        lang: 'en',
+        title: 'Bots worth trying today',
+        lede: 'Two picks.',
+        picks: [
+          { id: 'R_one', displayName: 'Writer', banner: null, avatar: null },
+          {
+            id: 'U_two',
+            displayName: null,
+            banner: { recipe: { scene: 'sea', seed: 7 } },
+            avatar: null,
+          },
+        ],
+      },
+      { day: '2026-10-27', lang: 'en', title: 'Older picks', lede: 'None left.', picks: [] },
+    ];
+    const live = await host(() => ok({ digests }));
+    const result = await invoke(['marketplace-digests'], live.url);
+    expect(result.json).toEqual({ digests });
+    expect(result.stderr).toEqual([
+      'tobs: 2026-10-28 Bots worth trying today | Writer, U_two',
+      'tobs: 2026-10-27 Older picks',
     ]);
   });
 
@@ -122,13 +165,177 @@ describe('Bot Marketplace commands', () => {
       ['marketplace-list', '--sort', 'newest'],
       ['marketplace-list', 'extra'],
       ['marketplace-detail'],
+      ['marketplace-file', 'U_abc'],
       ['marketplace-topics', '--sort', 'stars'],
       ['marketplace-list', '--lang', 'fr'],
       ['marketplace-topics', '--lang', 'zh'],
+      ['marketplace-sections', 'hot'],
+      ['marketplace-sections', '--lang', 'fr'],
+      ['marketplace-digest', '--day', 'yesterday'],
+      ['marketplace-digests', '--day', '2026-10-28'],
+      ['marketplace-digest', '2026-10-28'],
       ['marketplace-report', 'owner/repo', '--reason', 'x'.repeat(501)],
     ])
       expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
     expect(live.calls).toEqual([]);
+  });
+
+  it('uploads and installs Uploaded Bots through the Host', async () => {
+    const live = await host((method) => ok({ method }));
+    await invoke(['marketplace-list', '--include-uploads'], live.url);
+    await invoke(['marketplace-account'], live.url);
+    await invoke(['marketplace-author', '--name', ' 爱丽丝 ', '--accept-terms'], live.url);
+    await invoke(['marketplace-upload-plan', 'bot-1'], live.url);
+    await invoke(
+      [
+        'marketplace-upload',
+        'bot-1',
+        '--name',
+        'Helper',
+        '--description',
+        'Writes things down',
+        '--role',
+        'writing',
+        '--confirm',
+      ],
+      live.url,
+    );
+    await invoke(['marketplace-install', 'U_abc', '--lang', 'zh'], live.url);
+    await invoke(
+      [
+        'marketplace-install',
+        'U_abc',
+        '--review',
+        'review-1',
+        '--confirm',
+        '--operation-key',
+        'install-0001',
+      ],
+      live.url,
+    );
+    expect(live.calls).toEqual([
+      { method: 'marketplaceList', args: { query: { includeUploads: true } } },
+      { method: 'marketplaceAccount', args: {} },
+      { method: 'marketplaceAuthorSave', args: { displayName: '爱丽丝', acceptTerms: true } },
+      { method: 'marketplaceUploadPlan', args: { slug: 'bot-1' } },
+      {
+        method: 'marketplaceUpload',
+        args: {
+          slug: 'bot-1',
+          displayName: 'Helper',
+          bio: 'Writes things down',
+          tags: ['writing'],
+        },
+      },
+      { method: 'marketplaceInstallReview', args: { id: 'U_abc', lang: 'zh' } },
+      {
+        method: 'marketplaceInstall',
+        args: { id: 'U_abc', reviewId: 'review-1', operationKey: 'install-0001' },
+      },
+    ]);
+  });
+
+  it('prints what Tob found and asks for --review and --confirm before installing', async () => {
+    const live = await host((method) =>
+      method === 'marketplaceInstallReview'
+        ? ok({
+            reviewId: 'review-1',
+            listing: { id: 'U_abc' },
+            review: {
+              status: 'reviewed',
+              findings: [{ kind: 'exfiltration', path: 'persona.md', note: 'Sends notes out' }],
+              files: 2,
+              read: 2,
+              partial: false,
+            },
+          })
+        : ok({ bot: { slug: 'bot-2' }, channelId: 'dm-2' }),
+    );
+    const reviewed = await invoke(['marketplace-install', 'U_abc'], live.url);
+    expect(reviewed.code).toBe(0);
+    expect(reviewed.json).toMatchObject({
+      installed: false,
+      reviewId: 'review-1',
+      review: { findings: [{ kind: 'exfiltration', path: 'persona.md' }] },
+      next: ['deepseekbot marketplace-install U_abc --review review-1 --confirm'],
+    });
+    for (const argv of [
+      ['marketplace-install', 'U_abc', '--confirm'],
+      ['marketplace-install', 'U_abc', '--review', 'review-1'],
+      ['marketplace-detail', 'U_abc', '--review', 'review-1'],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    const installed = await invoke(
+      ['marketplace-install', 'U_abc', '--review', 'review-1', '--confirm'],
+      live.url,
+    );
+    expect(installed.json).toMatchObject({ installed: true, bot: { slug: 'bot-2' } });
+    expect(live.calls.map((call) => call.method)).toEqual([
+      'marketplaceInstallReview',
+      'marketplaceInstall',
+    ]);
+  });
+
+  it('lists, replaces and deletes your Uploaded Bots through the Host', async () => {
+    const live = await host((method) => ok({ method }));
+    await invoke(['marketplace-mine', '--lang', 'zh'], live.url);
+    await invoke(
+      ['marketplace-upload', 'bot-1', '--name', 'Helper', '--replaces', 'U_abc', '--confirm'],
+      live.url,
+    );
+    await invoke(['marketplace-delete', 'U_abc', '--confirm'], live.url);
+    expect(live.calls).toEqual([
+      { method: 'marketplaceMine', args: { lang: 'zh' } },
+      {
+        method: 'marketplaceUpload',
+        args: { slug: 'bot-1', displayName: 'Helper', replaces: 'U_abc' },
+      },
+      { method: 'marketplaceDelete', args: { id: 'U_abc' } },
+    ]);
+  });
+
+  it('needs --confirm before deleting an Uploaded Bot', async () => {
+    const live = await host(() => ok({}));
+    for (const argv of [
+      ['marketplace-delete', 'U_abc'],
+      ['marketplace-mine', '--replaces', 'U_abc'],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([]);
+  });
+
+  it('needs --confirm and a name before uploading a Bot', async () => {
+    const live = await host(() => ok({}));
+    for (const argv of [
+      ['marketplace-upload', 'bot-1', '--name', 'Helper'],
+      ['marketplace-upload', 'bot-1', '--confirm'],
+      ['marketplace-author'],
+      ['marketplace-author-avatar'],
+      ['marketplace-author-avatar', '--file', 'a.png', '--clear'],
+      ['marketplace-detail', 'x', '--include-uploads'],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([]);
+  });
+
+  it('sets the Account Profile avatar from an image file or clears it', async () => {
+    const live = await host((method) => ok({ method }));
+    const file = join(mkdtempSync(join(tmpdir(), 'author-avatar-')), 'me.png');
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]);
+    writeFileSync(file, png);
+    await invoke(['marketplace-author-avatar', '--file', file], live.url);
+    await invoke(['marketplace-author-avatar', '--clear'], live.url);
+    expect(live.calls).toEqual([
+      {
+        method: 'marketplaceAuthorAvatarSet',
+        args: { avatar: `data:image/png;base64,${png.toString('base64')}` },
+      },
+      { method: 'marketplaceAuthorAvatarSet', args: { avatar: null } },
+    ]);
+    writeFileSync(file, 'not an image');
+    expect(
+      (await invoke(['marketplace-author-avatar', '--file', file], live.url)).json.error.code,
+    ).toBe('usage');
   });
 
   it('solves the Host challenge before submitting or reporting, like the Web UI', async () => {

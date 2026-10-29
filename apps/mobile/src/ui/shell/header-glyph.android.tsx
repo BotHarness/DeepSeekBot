@@ -7,6 +7,7 @@ const symbols = {
   filter: { android: 'filter_list' },
   search: { android: 'search' },
   settings: { android: 'settings' },
+  tob: { android: 'expand_circle_down' },
 } as const;
 
 export function HeaderGlyph({ icon, active }: { icon: HeaderActionIcon; active: boolean }) {

@@ -1,65 +1,21 @@
-# Message feedback receiver
+# Message feedback and local diagnostics
 
-The desktop feedback path uses the authenticated Host diagnostics owner. Automatic telemetry
-preferences are independent. Preview and download work without a receiving service; submission
-requires the Host environment variable `BOTHARNESS_FEEDBACK_ENDPOINT`. Production is fixed to
-`https://feedback.botharness.ai/feedback`. Local QA accepts HTTP localhost/127.0.0.1 `/feedback`.
-Redirects and arbitrary external endpoints are refused. Never use existing user conversations for QA.
+Give feedback from one saved message on desktop or mobile. A required good/bad rating, optional fixed tags and a short comment are sent to PostHog through the existing `https://t.botharness.ai/batch/` proxy. Only those fields, a random feedback ID and application version leave the Host. Comments receive best-effort secret redaction. Automatic telemetry settings are unchanged; deliberate feedback remains available when telemetry is disabled.
 
-## Private service setup
+## Diagnostic bundles stay local
 
-`packages/ingest/wrangler.feedback.jsonc` is a separate Worker from the telemetry ingest proxy.
-Provision its private R2 bucket, configure the custom domain `feedback.botharness.ai`, and set
-`FEEDBACK_ADMIN_TOKEN` using Wrangler's secret input (at least 32 random characters). Do not enable
-public R2 access. `POSTHOG_KEY` optionally enables a small classification event, containing only
-report ID/link, rating, fixed tags, version and archive byte count. Free text and evidence stay in R2.
-Deploy only after separately authorized production setup; this change does not deploy the service.
+Chats, related Orchestrator/Assignment Sessions, Bot Inbox and delivery evidence are never attached to the feedback submission. Choose the local bundle scope, inspect its redacted files, then download it if needed. Desktop saves a ZIP; mobile opens the system save/share sheet. The user chooses whether and where to send it. No upload or share happens automatically. Download remains available after successful feedback submission.
 
-Use `wrangler dev --local --config packages/ingest/wrangler.feedback.jsonc` with a machine-local
-secret file for synthetic QA. Configure the Host endpoint with the printed loopback port. Keep local
-secrets, Wrangler logs and private evidence outside tracked files. Public POSTs have the configured
-10/minute per-IP rate limiter and a 16 MiB request bound; Host snapshots are limited to 15 MiB.
+Defaults include 20 visible messages on each side and related execution records. Whole-session history requires explicit selection. Missing material and diagnostic limits are shown. Redaction is best effort. Previews expire after 30 minutes; only four remain per connection. The archive filename includes the feedback ID to correlate a separately shared bundle.
 
-## Receipt and maintainer access
+## Submission and retries
 
-Each `POST /feedback/<UUID>` atomically saves one multipart report containing metadata and the ZIP.
-Identical retries return the original receipt; changed content with that ID returns 409. Acceptance
-means private storage succeeded. A PostHog outage does not invalidate the saved report. This first
-slice attempts indexing once; failed index events are not automatically replayed.
+Host submission posts a small `chat:message_feedback_submit` event using the existing project capture token. A random report ID is reused as the event UUID and distinct ID, with person processing and GeoIP disabled. A successful ingestion acknowledgement returns `{ reportId }`; it does not promise durable private evidence storage. Failed submissions retain the form for manual retry; changing the frozen rating requires an explicit refresh. No background upload queue is created.
 
-Open `/feedback/<UUID>/view` and enter the maintainer token. This shell contains no report data;
-the token stays in page memory and authenticated requests retrieve metadata and the archive.
-`GET /feedback/<UUID>` and `GET /feedback/<UUID>/archive` require `Authorization: Bearer <token>`.
-`DELETE /feedback/<UUID>` uses the same authorization for an early deletion request. UUID knowledge
-alone grants no read or delete access. Rotate the shared maintainer secret when access changes.
+No private bucket, dedicated feedback domain, admin token or new Worker deployment is required. `BOTHARNESS_FEEDBACK_ENDPOINT` is no longer used. The retired archive receiver, maintainer view and 30-day deletion service are removed. Local files are controlled by their owner; feedback fields follow the existing PostHog project retention policy.
 
-Private bodies expire 30 days after initial acceptance. Reads reject expired content immediately;
-the five-minute scheduled sweep overwrites expired bodies with zero-byte deletion markers. Early
-deletion uses the same marker, preventing late retries from recreating content. Markers retain only
-the random ID and deleted flag, not comments, evidence or classification. Do not add versioned
-backups of private objects that bypass this retention policy. Monitor scheduled-job failures.
+## Verification
 
-## Evidence boundaries
+Host/CLI regression tests inspect the outbound request and confirm that no diagnostic content is included while the same preview still downloads locally. UI checks cover explicit submit, retry, privacy copy and downloading after submission. Use only synthetic comments for an authorized live PostHog check. Expo Web validates browser interactions; native system save/share needs separate iOS/Android qualification.
 
-The snapshot defaults to 20 visible messages on each side of the selected message, relevant Bot
-Session turns and Inbox/Outbox facts. Whole Session inclusion requires explicit selection. Existing
-diagnostic limits and missing history are listed in the manifest; unavailable material is not invented.
-Each category controls its own records: execution history may repeat chat text when conversation
-records are deselected. Review all expanded files before submitting. Redaction is best effort.
-Previews expire after 30 minutes and only four are held per connection. Refresh explicitly to collect
-newer facts; ordinary retry preserves the same frozen evidence and report ID.
-
-Desktop and mobile offer feedback from one saved message. The mobile client uses its existing
-paired-device gateway and the same Host preview, download and submit owner; evidence never goes
-directly from the phone to the receiver. Mobile downloads use a temporary ZIP and the system share
-sheet, then remove the temporary file.
-
-Message multi-selection is separate: copy selected messages or preview/share a long image, then
-cancel. Selection is scoped to the current Host and Channel and clears on navigation. Mobile
-selection is bounded to 50 messages and image capture refuses content above 16,000 layout points.
-Desktop no longer offers diagnostic export or “Locate this message” in the message menu;
-clicking a quoted reply retains its jump behavior.
-
-Expo Web provides layout and implemented browser-interaction evidence. Native image capture,
-system share sheets, keyboard behavior and device accessibility remain separate iOS/Android
-checks. The added view-shot module requires an updated native development build.
+See [ADR-0256](adr/0256-message-feedback-sends-ratings-and-keeps-diagnostics-local.md).

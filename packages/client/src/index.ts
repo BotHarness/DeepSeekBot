@@ -37,6 +37,8 @@ export interface Config {
   motionPreference: Volatile<BotModeMotionPreference>;
   sendKey: Volatile<BotModeSendKey>;
   autoCollapseMessages: Volatile<boolean>;
+  showDeliveryReceipts: Volatile<boolean>;
+  streamReplies: Volatile<boolean>;
   sortMode: Volatile<BotModeSortMode>;
   sortModes: Volatile<Record<string, BotModeSortMode>>;
 }
@@ -51,6 +53,8 @@ export const Config: Schema<Partial<BotModeSettings>, Config> = Schema.object({
   autoAcceptGroupInvites: Schema.boolean().default(DEFAULT_BOT_MODE_GROUP_AUTO_ACCEPT).volatile(),
   developerMode: Schema.boolean().default(DEFAULT_BOT_MODE_DEVELOPER).volatile(),
   autoCollapseMessages: Schema.boolean().default(false).volatile(),
+  showDeliveryReceipts: Schema.boolean().default(false).volatile(),
+  streamReplies: Schema.boolean().default(false).volatile(),
   showBotSessions: Schema.boolean().default(DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS).volatile(),
   showApprovalReviewSessions: Schema.boolean()
     .default(DEFAULT_BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS)

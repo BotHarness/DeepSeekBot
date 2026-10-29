@@ -10,6 +10,7 @@ import { SettingsDialog } from './ds/settings-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 export const BOT_SETTINGS_SECTIONS = {
+  account: 'account',
   general: 'general',
   appearance: 'appearance',
   notifications: 'notifications',
@@ -17,6 +18,7 @@ export const BOT_SETTINGS_SECTIONS = {
   models: 'models',
   messaging: 'messaging',
   autoApproval: 'auto-approval',
+  prompts: 'prompts',
   imApps: 'im-apps',
   companions: 'companions',
   devices: 'devices',
@@ -29,10 +31,12 @@ export const BOT_SETTINGS_SECTIONS = {
 export const BOT_SETTINGS_DEFAULT_SECTION = BOT_SETTINGS_SECTIONS.general;
 
 const SECTION_ICONS: Readonly<Record<string, string>> = {
+  [BOT_SETTINGS_SECTIONS.account]: 'user',
   [BOT_SETTINGS_SECTIONS.general]: 'settings',
   [BOT_SETTINGS_SECTIONS.appearance]: 'palette',
   [BOT_SETTINGS_SECTIONS.models]: 'cpu',
   [BOT_SETTINGS_SECTIONS.autoApproval]: 'shield-check',
+  [BOT_SETTINGS_SECTIONS.prompts]: 'file-text',
   [BOT_SETTINGS_SECTIONS.messaging]: 'message-square',
   [BOT_SETTINGS_SECTIONS.notifications]: 'bell',
   [BOT_SETTINGS_SECTIONS.shortcuts]: 'keyboard',

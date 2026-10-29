@@ -374,3 +374,20 @@ it('a QQ event from the blocked interval cannot qualify the newly allowed conver
       ?.ordinaryDelivery,
   ).toBe('verified');
 });
+
+it("a group's louder custom wake cannot override a Bot's only-direct-mention setting", async () => {
+  const fx = await fixture();
+  await fx.receive('permission-probe');
+  await fx.core.externalMessaging.inbound.setPolicy(
+    'ada',
+    fx.grant.id,
+    { ...policy, wake: 'immediate' },
+    { kind: 'human' },
+  );
+  fx.core.sourcePolicy.setGroupOrdinary('ada', 'mentions', 5, 30, { kind: 'human' });
+  await fx.receive('ordinary-chatter');
+  expect(fx.runs).toHaveLength(0);
+  await fx.receive('direct-request', true);
+  expect(fx.runs).toHaveLength(1);
+  expect(fx.runs[0]?.inbox).toContain('direct-request');
+});

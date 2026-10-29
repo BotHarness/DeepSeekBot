@@ -57,6 +57,7 @@ module.exports = ({ config }) => {
       ...config.plugins,
       './modules/local-computer-video/app.plugin.js',
       './modules/hardware-send/app.plugin.js',
+      './modules/stream-reveal/app.plugin.js',
       [
         'expo-widgets',
         { enablePushNotifications: true, groupIdentifier: `group.${bundleIdentifier}` },

@@ -203,7 +203,11 @@ export class FakeHost {
         } catch (error) {
           result = {
             ok: false,
-            error: { code: 'invalid-input', message: (error as Error).message, details: {} },
+            error: {
+              code: (error as { code?: string }).code ?? 'invalid-input',
+              message: (error as Error).message,
+              details: {},
+            },
           };
         }
         return response(

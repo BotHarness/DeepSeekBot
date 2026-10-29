@@ -10,6 +10,7 @@ import {
   matchesGlob,
   mobileVerification,
   parseChanges,
+  timelinePerf,
   parseGitChanges,
   plan,
   REQUIRED_CHECK,
@@ -197,6 +198,17 @@ describe('mobile verification selection', () => {
 });
 
 describe('CI test plan', () => {
+  it('runs the timeline performance budget for Client source, perf tooling and full runs', () => {
+    expect(timelinePerf('affected', [{ path: 'packages/client/src/client/bot-main.tsx' }])).toBe(
+      true,
+    );
+    expect(timelinePerf('affected', [{ path: 'scripts/perf-budgets/timeline.json' }])).toBe(true);
+    expect(timelinePerf('affected', [{ path: 'scripts/perf-idle-timeline.mjs' }])).toBe(true);
+    expect(timelinePerf('full', [])).toBe(true);
+    expect(timelinePerf('affected', [{ path: 'packages/core/src/index.ts' }])).toBe(false);
+    expect(timelinePerf('affected', [{ path: 'packages/client/test/a.test.ts' }])).toBe(false);
+  });
+
   it('runs native module tests for Kotlin, native config, removals and full runs', () => {
     expect(
       androidNativeTests('none', [
@@ -383,6 +395,7 @@ describe('CI test plan drift checks', () => {
         'scripts/sync-slides.mjs',
         'packages/a/test/x.test.tsx',
         'apps/site/test/y.test.ts',
+        '.agents/skills/vendored/scripts/z.test.ts',
       ],
       ['packages/*/test/**/*.test.ts', 'apps/docs/test/**/*.test.ts'],
     );

@@ -37,6 +37,7 @@ const controller = createChannelCreation({
     },
   },
 });
+vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Platform: { OS: 'android', select: () => undefined },

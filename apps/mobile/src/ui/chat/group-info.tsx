@@ -1,10 +1,12 @@
 import { TextField } from '../primitives/text-field';
-import { useState, type ReactNode } from 'react';
-import { SectionList, View } from 'react-native';
+import { useProfileFocusEffect } from './profile-visibility';
+import { useCallback, useState, type ReactNode } from 'react';
+import { View } from 'react-native';
 import { ActionMenuButton, type MenuAction } from '../primitives/action-menu-button';
 import { confirmDestructive, showActionMenu, showAppDialog } from '../primitives/app-dialog';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 
+import type { ProfileAssignment, ProfilePart } from '../../host/bot-profile';
 import { errorText } from '../../host/bot-settings';
 import {
   GROUP_NAME_MAX,
@@ -17,7 +19,7 @@ import {
 import type { RosterBot } from '../../host/client';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
-import { radius, space } from '../design/tokens';
+import { profileShell, radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import {
   SettingsGroupItem,
@@ -26,14 +28,23 @@ import {
   SettingsSection,
 } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
-import { ChevronRightIcon, PlusIcon } from '../shell/icons';
+import { PlusIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { GroupMark } from './group-mark';
 import { AvatarSettings, EditableAvatar, useAvatarEditor } from './avatar-editor';
+import {
+  assignmentRows,
+  profileTabOptions,
+  useRememberedProfileTab,
+  WorkListRow,
+} from './bot-profile';
 import { InviteSheet } from './invite-sheet';
+import { ProfileShell, type ProfileRow, type ProfileTabBody } from './profile-shell';
+import { profileTabs, type ProfileTabMemory } from './profile-tabs';
+import { ProfileHero } from './profile-hero';
 import { Sheet, SheetActions, SheetCallout } from './sheet';
 
-const MARK = 72;
+const ON = 'raised' as const;
 const ICON = 20;
 const MEMBER_AVATAR = 32;
 
@@ -111,7 +122,12 @@ function MemberAvatar({ entry }: { entry: { slug: string; bot?: RosterBot } }) {
 }
 
 function RowButtons({ children }: { children: ReactNode }) {
-  return <View style={{ flexDirection: 'row', gap: space.x2 }}>{children}</View>;
+  const theme = useDesignTheme();
+  return (
+    <View style={{ flexDirection: theme.largeText ? 'column' : 'row', gap: space.x2 }}>
+      {children}
+    </View>
+  );
 }
 
 function RenameSheet({
@@ -143,7 +159,7 @@ function RenameSheet({
       onClose={onClose}
       avoidKeyboard
     >
-      <KeyboardFormScroll enabled={false}>
+      <KeyboardFormScroll enabled={false} nestedScrollEnabled>
         <TextField
           value={draft}
           onChangeText={setDraft}
@@ -177,30 +193,68 @@ function RenameSheet({
   );
 }
 
-export function GroupInfoSheet({
-  info,
-  actions,
-  pickAvatar,
-  onOpenBot,
-  onDisbanded,
-  background,
-}: {
+export interface GroupProfileProps {
   info: GroupInfo;
   actions: GroupActions;
   pickAvatar(): Promise<string | undefined>;
   onOpenBot(slug: string): void;
   onDisbanded(): void;
-  background?: ReactNode;
-}) {
+  onClose(): void;
+  tabMemory: ProfileTabMemory;
+  loadWork?: (() => Promise<ProfileAssignment[]>) | undefined;
+  onOpenAssignment?: ((assignment: ProfileAssignment) => void) | undefined;
+  onChatBackground?: (() => void) | undefined;
+  onNotifications?: (() => void) | undefined;
+  files?: ((active: boolean, render: (body: ProfileTabBody) => ReactNode) => ReactNode) | undefined;
+}
+
+export function GroupProfilePage({
+  info,
+  actions,
+  pickAvatar,
+  onOpenBot,
+  onDisbanded,
+  onClose,
+  tabMemory,
+  loadWork,
+  onOpenAssignment,
+  onChatBackground,
+  onNotifications,
+  files,
+}: GroupProfileProps) {
   const t = useStrings();
-  const theme = useDesignTheme();
   const [busy, setBusy] = useState<string | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [sheet, setSheet] = useState<'invite' | 'rename' | undefined>();
   const [renameOpened, setRenameOpened] = useState(0);
+  const [work, setWork] = useState<ProfilePart<ProfileAssignment[]> | undefined>();
   const avatar = useAvatarEditor({ pick: pickAvatar, save: actions.setAvatar });
+  const tabs = profileTabs('group');
+  const [tab, setTab] = useRememberedProfileTab(tabMemory, tabs, 'group');
   const { channel } = info;
-  const chevron = <ChevronRightIcon color={theme.color.muted} size={ICON} />;
+
+  const readWork = useCallback(() => {
+    if (loadWork === undefined) return () => {};
+    let live = true;
+    void loadWork().then(
+      (value) => {
+        if (live) setWork({ status: 'ready', value });
+      },
+      (failure: unknown) => {
+        if (!live) return;
+        const message = errorText(failure);
+        setWork((current) =>
+          current?.status === 'ready'
+            ? { ...current, staleError: message }
+            : { status: 'failed', error: message },
+        );
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [loadWork]);
+  useProfileFocusEffect(readWork);
 
   const run = async (key: string, change: () => Promise<void>): Promise<boolean> => {
     setBusy(key);
@@ -256,100 +310,179 @@ export function GroupInfoSheet({
       },
     ]);
 
-  const header = (
-    <View style={{ gap: space.x5, paddingBottom: space.x3, paddingHorizontal: space.x5 }}>
-      <View style={{ alignItems: 'center', gap: space.x3 }}>
-        <EditableAvatar editor={avatar} corner={radius.lg} testID="group-avatar-change">
-          <GroupMark avatar={channel.avatar} size={MARK} corner={radius.lg} variant="display" />
-        </EditableAvatar>
-        <View style={{ alignItems: 'center', gap: space.x1 }}>
-          <Text accessibilityRole="header" variant="display" numberOfLines={2}>
-            {channel.name}
-          </Text>
-          <Text variant="meta" tone="muted">
-            {t.members(channel.memberCount)}
-          </Text>
+  const node = (key: string, render: () => ReactNode): ProfileRow => ({ key, render });
+  const gap = (key: string, child: ReactNode) =>
+    node(key, () => <View style={{ paddingTop: space.x4 }}>{child}</View>);
+  const callout =
+    error === undefined
+      ? []
+      : [
+          node('error', () => (
+            <View style={{ marginHorizontal: -space.x5, paddingBottom: space.x3 }}>
+              <SheetCallout tone="danger">{error}</SheetCallout>
+            </View>
+          )),
+        ];
+
+  const sections = groupRows(info);
+  const members: ProfileRow[] = sections.flatMap(({ section, data }) => [
+    ...(sections.length === 1
+      ? []
+      : [
+          node(`${section}:heading`, () => (
+            <View
+              style={{ marginHorizontal: -space.x5, paddingTop: space.x4, paddingBottom: space.x2 }}
+            >
+              <SettingsHeading>
+                {section === 'joins' ? t.groupJoinsSection : t.groupMembersSection}
+              </SettingsHeading>
+            </View>
+          )),
+        ]),
+    ...data.map((item) =>
+      node(item.key, () => (
+        <View style={{ marginHorizontal: -space.x5 }}>
+          <SettingsGroupItem first={item.first} last={item.last} on={ON}>
+            <GroupRow
+              row={item}
+              busy={busy}
+              onInvite={() => setSheet('invite')}
+              onOpenBot={onOpenBot}
+              onMenu={memberMenu}
+              memberActions={memberActions}
+              onCancelInvite={(pending) =>
+                void run(`invite:${pending.id}`, () => actions.cancelInvite(pending.id))
+              }
+              onDecide={(pending, accept) =>
+                void run(`join:${pending.id}`, () => actions.decideJoin(pending.id, accept))
+              }
+            />
+          </SettingsGroupItem>
         </View>
-      </View>
-      {error === undefined ? null : (
-        <View style={{ marginHorizontal: -space.x5, marginBottom: -space.x4 }}>
-          <SheetCallout tone="danger">{error}</SheetCallout>
-        </View>
-      )}
-      <AvatarSettings
-        editor={avatar}
-        hasAvatar={channel.avatar !== undefined}
-        portrait={<GroupMark avatar={channel.avatar} size={MEMBER_AVATAR} corner={radius.sm} />}
-        testID="group-avatar-settings"
-      />
-      {background}
-      <SettingsSection title={t.groupSettingsSection}>
+      )),
+    ),
+  ]);
+
+  const workRows = loadWork === undefined ? [] : assignmentRows(work);
+  const settings: ProfileRow[] = [
+    node('settings:group', () => (
+      <SettingsSection title={t.groupSettingsSection} on={ON}>
         <SettingsRow
+          on={ON}
+          testID="group-rename"
           title={t.groupName}
           detail={channel.name}
           accessibilityLabel={`${t.groupRename}, ${channel.name}`}
-          trailing={chevron}
+          control={{ kind: 'chevron' }}
           onPress={() => {
             setRenameOpened((count) => count + 1);
             setSheet('rename');
           }}
         />
       </SettingsSection>
-    </View>
-  );
+    )),
+    gap(
+      'settings:avatar',
+      <AvatarSettings
+        editor={avatar}
+        hasAvatar={channel.avatar !== undefined}
+        portrait={<GroupMark avatar={channel.avatar} size={MEMBER_AVATAR} corner={radius.sm} />}
+        testID="group-avatar-settings"
+        on={ON}
+      />,
+    ),
+    ...(onChatBackground === undefined
+      ? []
+      : [
+          gap(
+            'settings:background',
+            <SettingsSection on={ON}>
+              <SettingsRow
+                on={ON}
+                testID="group-chat-background"
+                title={t.chatBackground.title}
+                disclosure
+                onPress={onChatBackground}
+              />
+            </SettingsSection>,
+          ),
+        ]),
+    ...(onNotifications === undefined
+      ? []
+      : [
+          gap(
+            'settings:notifications',
+            <SettingsSection on={ON}>
+              <SettingsRow
+                on={ON}
+                testID="group-notifications"
+                title={t.notifications}
+                disclosure
+                onPress={onNotifications}
+              />
+            </SettingsSection>,
+          ),
+        ]),
+    node('settings:disband', () => (
+      <View style={{ paddingTop: space.x6 }}>
+        <SettingsSection on={ON}>
+          <SettingsRow
+            on={ON}
+            testID="group-disband"
+            title={t.groupDisband}
+            tone="danger"
+            onPress={busy === 'disband' ? undefined : confirmDisband}
+          />
+        </SettingsSection>
+      </View>
+    )),
+  ];
 
-  const footer = (
-    <View style={{ paddingTop: space.x6, paddingHorizontal: space.x5 }}>
-      <SettingsSection>
-        <SettingsRow
-          title={t.groupDisband}
-          tone="danger"
-          onPress={busy === 'disband' ? undefined : confirmDisband}
+  const bodies: Record<'members' | 'work' | 'settings', ProfileTabBody> = {
+    members: { rows: [...callout, ...members] },
+    work: {
+      rows: workRows.map((row) =>
+        node(row.key, () => <WorkListRow row={row} onRetry={readWork} onOpen={onOpenAssignment} />),
+      ),
+      empty: <Text tone="muted">{t.profileEmpty.work}</Text>,
+    },
+    settings: { rows: [...callout, ...settings] },
+  };
+
+  const shell = (filesBody: ProfileTabBody) => (
+    <ProfileShell
+      identity={
+        <GroupIdentity
+          channel={channel}
+          avatar={avatar}
+          error={tab === 'settings' ? undefined : avatar.error}
         />
-      </SettingsSection>
-    </View>
+      }
+      tabs={tabs}
+      options={profileTabOptions(tabs)}
+      tab={tab}
+      onTab={setTab}
+      body={(page) =>
+        page === 'members' || page === 'work' || page === 'settings' ? bodies[page] : filesBody
+      }
+      onClose={onClose}
+    />
   );
 
   return (
     <>
       <View style={{ flex: 1 }}>
-        <SectionList
-          sections={groupRows(info)}
-          keyExtractor={(row) => row.key}
-          stickySectionHeadersEnabled={false}
-          nestedScrollEnabled
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingTop: space.x6, paddingBottom: space.x5 }}
-          ListHeaderComponent={header}
-          ListFooterComponent={footer}
-          renderSectionHeader={({ section }) => (
-            <View
-              style={{ paddingTop: space.x5, paddingBottom: space.x2, paddingHorizontal: space.x5 }}
-            >
-              <SettingsHeading>
-                {section.section === 'joins' ? t.groupJoinsSection : t.groupMembersSection}
-              </SettingsHeading>
-            </View>
-          )}
-          renderItem={({ item }) => (
-            <SettingsGroupItem first={item.first} last={item.last}>
-              <GroupRow
-                row={item}
-                busy={busy}
-                onInvite={() => setSheet('invite')}
-                onOpenBot={onOpenBot}
-                onMenu={memberMenu}
-                memberActions={memberActions}
-                onCancelInvite={(pending) =>
-                  void run(`invite:${pending.id}`, () => actions.cancelInvite(pending.id))
-                }
-                onDecide={(pending, accept) =>
-                  void run(`join:${pending.id}`, () => actions.decideJoin(pending.id, accept))
-                }
-              />
-            </SettingsGroupItem>
-          )}
-        />
+        {files === undefined
+          ? shell({
+              rows: [
+                node('files:none', () => (
+                  <Text testID="profile-files-none" tone="muted">
+                    {t.channelFiles.empty}
+                  </Text>
+                )),
+              ],
+            })
+          : files(tab === 'files', shell)}
       </View>
       {sheet === 'invite' ? (
         <InviteSheet
@@ -367,6 +500,48 @@ export function GroupInfoSheet({
         onClose={() => setSheet(undefined)}
       />
     </>
+  );
+}
+
+function GroupIdentity({
+  channel,
+  avatar,
+  error,
+}: {
+  channel: GroupInfo['channel'];
+  avatar: ReturnType<typeof useAvatarEditor>;
+  error: string | undefined;
+}) {
+  const t = useStrings();
+  return (
+    <ProfileHero
+      name={channel.name}
+      avatar={
+        <EditableAvatar editor={avatar} corner={radius.round} testID="group-avatar-change">
+          <GroupMark
+            avatar={channel.avatar}
+            size={profileShell.avatar}
+            corner={radius.round}
+            variant="display"
+          />
+        </EditableAvatar>
+      }
+    >
+      <Text pointerEvents="none" variant="meta" tone="muted">
+        {t.members(channel.memberCount)}
+      </Text>
+      {error === undefined ? null : (
+        <Text
+          pointerEvents="none"
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+          tone="danger"
+          style={{ textAlign: 'center' }}
+        >
+          {error}
+        </Text>
+      )}
+    </ProfileHero>
   );
 }
 
@@ -400,6 +575,7 @@ function GroupRow({
   if (row.kind === 'add')
     return (
       <SettingsRow
+        on={ON}
         title={t.groupInvite}
         tone="accent"
         leading={
@@ -422,6 +598,7 @@ function GroupRow({
   if (row.kind === 'member')
     return (
       <SettingsRow
+        on={ON}
         title={memberName(row.member)}
         {...(row.member.owner ? { detail: t.groupOwner } : {})}
         leading={<MemberAvatar entry={row.member} />}
@@ -440,6 +617,7 @@ function GroupRow({
   if (row.kind === 'invite')
     return (
       <SettingsRow
+        on={ON}
         title={memberName(row.pending)}
         detail={t.groupInvited}
         leading={<MemberAvatar entry={row.pending} />}
@@ -447,7 +625,8 @@ function GroupRow({
           <RowButtons>
             <Button
               label={t.groupInviteCancel}
-              on="sheet"
+              on={ON}
+              fit
               busy={busy === `invite:${row.pending.id}`}
               onPress={() => onCancelInvite(row.pending)}
             />
@@ -458,6 +637,7 @@ function GroupRow({
   const deciding = busy === `join:${row.pending.id}`;
   return (
     <SettingsRow
+      on={ON}
       title={memberName(row.pending)}
       detail={t.groupJoinAsk}
       leading={<MemberAvatar entry={row.pending} />}
@@ -465,14 +645,16 @@ function GroupRow({
         <RowButtons>
           <Button
             label={t.groupJoinDecline}
-            on="sheet"
+            on={ON}
+            fit
             disabled={deciding}
             onPress={() => onDecide(row.pending, false)}
           />
           <Button
             label={t.groupJoinAllow}
             tone="primary"
-            on="sheet"
+            on={ON}
+            fit
             busy={deciding}
             onPress={() => onDecide(row.pending, true)}
           />

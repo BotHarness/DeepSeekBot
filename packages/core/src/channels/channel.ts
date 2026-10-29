@@ -374,7 +374,7 @@ export interface ChannelMessagePerf {
   estimated: boolean;
 }
 
-export const MAX_BOT_HOPS = 8;
+export const MAX_BOT_HOPS = 32;
 
 export const CHANNEL_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const MAX_CHANNEL_SLUG_LENGTH = 64;
@@ -424,6 +424,10 @@ export function isChannelMessageAuthor(value: unknown): value is ChannelMessageA
     default:
       return false;
   }
+}
+
+export function isDisbandedGroup(record: ChannelRecord | undefined): boolean {
+  return record?.type === 'group' && record.deletedAt !== undefined && record.name === '';
 }
 
 export function isChannelRecord(value: unknown, id: string): value is ChannelRecord {

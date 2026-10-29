@@ -1,76 +1,109 @@
 import { Children, isValidElement, type ReactNode } from 'react';
-import { Platform, Pressable, View, type PressableProps } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 
 import type { LayerName } from '../design/layers';
-import type { ColorRole } from '../design/resolve-theme';
 import { settingsColors } from '../design/controls';
 import { androidSettings, edge, radius, space } from '../design/tokens';
-import { pressTint, useDesignTheme } from '../design/theme';
-import { ChevronRightIcon } from '../shell/icons';
+import { useDesignTheme } from '../design/theme';
+import { ChevronRightIcon, PlusIcon } from '../shell/icons';
+import { LoadingIndicator } from './loading-indicator';
+import { RowIcon } from './row-icon';
+import { SettingsListItem } from './settings-list-item';
+import type { SettingsRowControl, SettingsRowProps } from './settings-row-model';
+export type { SettingsRowControl, SettingsRowProps } from './settings-row-model';
+import { SystemSymbol } from './system-symbol';
 import { Text } from './text';
+import { Toggle } from './toggle';
 import { segmentCorners } from '../design/segment-corners';
+import { useSettingsFormPlace } from './settings-form-context';
+import { FormRow, FormSection } from './settings-form-row';
 
-function SettingsFrame({
-  onPress,
-  style,
-  children,
-  ...props
-}: Omit<PressableProps, 'children'> & { children: ReactNode }) {
-  if (Platform.OS === 'android' && onPress === undefined)
-    return (
-      <View style={typeof style === 'function' ? style({ pressed: false }) : style}>
-        {children}
-      </View>
-    );
-  return (
-    <Pressable {...props} onPress={onPress} style={style}>
-      {children}
-    </Pressable>
-  );
+function ControlView({
+  control,
+  label,
+  on,
+}: {
+  control: SettingsRowControl;
+  label: string;
+  on: LayerName;
+}) {
+  const theme = useDesignTheme();
+  switch (control.kind) {
+    case 'switch':
+      return (
+        <Toggle
+          {...(control.testID === undefined ? {} : { testID: control.testID })}
+          on={on}
+          label={label}
+          value={control.value}
+          disabled={control.disabled === true}
+          onChange={control.onChange}
+        />
+      );
+    case 'check':
+      return (
+        <SystemSymbol
+          name={{ ios: 'checkmark', android: 'check' }}
+          size={theme.type.title.line}
+          color={theme.color.accent}
+        />
+      );
+    case 'value':
+      return (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
+          <Text tone="muted" style={{ fontVariant: ['tabular-nums'] }}>
+            {control.text}
+          </Text>
+          {control.chevron === true ? (
+            <ChevronRightIcon color={theme.color.muted} size={theme.type.body.line} />
+          ) : null}
+        </View>
+      );
+    case 'busy':
+      return <LoadingIndicator size="control" />;
+    case 'chevron':
+      return <ChevronRightIcon color={theme.color.muted} size={theme.type.body.line} />;
+    case 'add':
+      return <PlusIcon color={theme.color.muted} size={theme.type.title.line} />;
+  }
 }
 
-export function SettingsRow({
+export function SettingsRow(props: SettingsRowProps) {
+  if (Platform.OS === 'android') return <SettingsListItem {...props} />;
+  return <SettingsRowByPlace {...props} />;
+}
+
+function SettingsRowByPlace(props: SettingsRowProps) {
+  if (useSettingsFormPlace() !== false) return <FormRow {...props} />;
+  return <ReactNativeSettingsRow {...props} />;
+}
+
+function ReactNativeSettingsRow({
   title,
   detail,
   tone = 'fg',
   strong = false,
+  icon,
+  iconTone,
   leading,
+  control,
   trailing,
   accessory,
   selected,
   expanded,
-  disclosure = false,
   accessibilityLabel,
   testID,
   on = 'sheet',
   onPress,
-}: {
-  title: string;
-  detail?: string;
-  tone?: ColorRole;
-  strong?: boolean;
-  leading?: ReactNode;
-  trailing?: ReactNode;
-  accessory?: ReactNode;
-  selected?: boolean;
-  expanded?: boolean;
-  disclosure?: boolean;
-  accessibilityLabel?: string;
-  testID?: string;
-  on?: LayerName;
-  onPress?: (() => void) | undefined;
-}) {
+}: SettingsRowProps) {
   const theme = useDesignTheme();
   const layer = theme.layer[on];
-  const android = Platform.OS === 'android';
-  const colors = settingsColors(theme, on);
   const row = (
-    <SettingsFrame
+    <Pressable
       testID={testID}
       onPress={onPress}
       disabled={onPress === undefined}
-      accessible={android && onPress === undefined ? false : undefined}
-      android_ripple={android && onPress ? { color: pressTint(theme.color.fg) } : undefined}
+      accessible={onPress === undefined ? false : undefined}
       accessibilityRole={onPress === undefined ? undefined : 'button'}
       accessibilityLabel={
         onPress === undefined
@@ -82,41 +115,37 @@ export function SettingsRow({
       }
       style={({ pressed }) => ({
         flex: accessory === undefined ? undefined : 1,
-        minHeight: android
-          ? detail === undefined
-            ? androidSettings.rowHeight
-            : androidSettings.supportingRowHeight
-          : theme.touch,
+        minHeight: theme.touch,
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x4,
         paddingHorizontal: space.x5,
-        paddingVertical: android ? androidSettings.vertical : space.x3,
-        backgroundColor:
-          pressed && !android ? layer.pressed : android && selected ? colors.selected : layer.fill,
+        paddingVertical: space.x3,
+        backgroundColor: pressed ? layer.pressed : layer.fill,
       })}
     >
+      {icon === undefined ? null : (
+        <RowIcon
+          name={icon}
+          {...(iconTone === undefined ? {} : { color: theme.color[iconTone] })}
+        />
+      )}
       {leading}
-      <View style={{ flex: 1, minWidth: 0, gap: android ? space.x2 : space.x1 }}>
-        <Text
-          variant={android ? 'title' : 'body'}
-          tone={android && selected ? 'accent' : tone}
-          strong={strong}
-          style={android && selected ? { color: colors.selectedText } : undefined}
-        >
+      <View style={{ flex: 1, minWidth: 0, gap: space.x1 }}>
+        <Text variant="body" tone={tone} strong={strong}>
           {title}
         </Text>
         {detail === undefined ? null : (
-          <Text variant={android ? 'body' : 'meta'} tone="muted">
+          <Text variant="meta" tone="muted">
             {detail}
           </Text>
         )}
       </View>
       {trailing ??
-        (android && disclosure ? (
-          <ChevronRightIcon size={space.x6} color={theme.color.muted} />
-        ) : null)}
-    </SettingsFrame>
+        (control === undefined ? null : (
+          <ControlView control={control} label={accessibilityLabel ?? title} on={on} />
+        ))}
+    </Pressable>
   );
   if (accessory === undefined) return row;
   return (
@@ -125,7 +154,7 @@ export function SettingsRow({
         flexDirection: 'row',
         alignItems: 'center',
         paddingRight: space.x3,
-        backgroundColor: android && selected ? colors.selected : layer.fill,
+        backgroundColor: layer.fill,
       }}
     >
       {row}
@@ -134,17 +163,19 @@ export function SettingsRow({
   );
 }
 
-export function SettingsSection({
-  title,
-  footer,
-  on = 'sheet',
-  children,
-}: {
+type SettingsSectionProps = {
   title?: string;
   footer?: string | undefined;
   on?: LayerName;
   children: ReactNode;
-}) {
+};
+
+export function SettingsSection(props: SettingsSectionProps) {
+  if (useSettingsFormPlace() !== false) return <FormSection {...props} />;
+  return <SettingsSectionView {...props} />;
+}
+
+function SettingsSectionView({ title, footer, on = 'sheet', children }: SettingsSectionProps) {
   const theme = useDesignTheme();
   const android = Platform.OS === 'android';
   const rows = android ? Children.toArray(children) : [];

@@ -25,6 +25,7 @@ function fixture() {
   let prepare: (() => Promise<void>) | undefined;
   let stop: (() => Promise<void>) | undefined;
   let registerFailed = false;
+  let status: Record<string, unknown> | Error = {};
   const native: NativeRequestActivity = {
     id: 'native-a',
     async token() {
@@ -59,6 +60,10 @@ function fixture() {
         if (operation === 'stop') await stop?.();
         if (operation === 'register' && registerFailed)
           throw new ActivityRequestFailed('activity-registration-unavailable');
+        if (operation === 'status') {
+          if (status instanceof Error) throw status;
+          return status;
+        }
         return operation === 'prepare'
           ? {
               bundleIdentifier: 'app.deepseekbot.mobile',
@@ -97,6 +102,9 @@ function fixture() {
     registerFailed: (value: boolean) => {
       registerFailed = value;
     },
+    status: (value: Record<string, unknown> | Error) => {
+      status = value;
+    },
     calls,
     writes,
     target,
@@ -114,6 +122,22 @@ function fixture() {
 }
 
 describe('single phone Live Activity owner', () => {
+  it('reads the Assignment of the tracked request only for its own link and request', async () => {
+    const f = fixture();
+    await f.owner.start(f.target);
+    expect(await f.owner.assignment('link-a')).toBeUndefined();
+    f.status({ channelId: 'dm-ada', messageId: 'human-1', assignmentId: 'assignment-1' });
+    expect(await f.owner.assignment('link-a')).toBe('assignment-1');
+    expect(f.calls.at(-1)).toEqual({
+      operation: 'status',
+      body: { clientActivityId: 'native-a' },
+    });
+    expect(await f.owner.assignment('other-link')).toBeUndefined();
+    f.status({ channelId: 'dm-ada', messageId: 'human-2', assignmentId: 'assignment-1' });
+    expect(await f.owner.assignment('link-a')).toBeUndefined();
+    f.status(new ActivityRequestFailed('unreachable'));
+    expect(await f.owner.assignment('link-a')).toBeUndefined();
+  });
   it('keeps stop busy until the remote stop settles', async () => {
     const f = fixture();
     await f.owner.start(f.target);

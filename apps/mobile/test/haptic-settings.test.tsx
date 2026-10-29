@@ -2,10 +2,14 @@
 import { act, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
+vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('../src/ui/chat/sheet', () => ({ SHEET_GROUP: 'raised' }));
-vi.mock('../src/ui/shell/icons', () => ({ ChevronRightIcon: () => null }));
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
+  ChevronRightIcon: () => null,
+}));
 vi.mock('../src/host/native-haptic-feedback', async () => {
   const { createHapticPreferences } = await import('../src/host/haptic-feedback');
   const preferences = createHapticPreferences({

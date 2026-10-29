@@ -2,6 +2,7 @@ import { Pressable, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { useDesignTheme } from '../design/theme';
+import { spring, springy } from '../design/motion';
 import { edge, radius, space } from '../design/tokens';
 import { Text } from './text';
 
@@ -26,8 +27,8 @@ export function UndoBar({
   return (
     <Animated.View
       key={notice.id}
-      entering={FadeIn}
-      exiting={FadeOut}
+      entering={springy(FadeIn.springify(), spring.effects.fast)}
+      exiting={springy(FadeOut.springify(), spring.effects.fast)}
       pointerEvents="box-none"
       style={{
         position: 'absolute',

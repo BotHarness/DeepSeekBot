@@ -296,6 +296,57 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it("lists, searches and inspects a Bot's Assignments by Title and Description", async () => {
+    const live = await host(echo);
+    await invoke(['assignments', 'ada'], live.url);
+    await invoke(
+      [
+        'assignments',
+        'ada',
+        '--search',
+        ' export button ',
+        '--activity',
+        'idle, working',
+        '--include-archived',
+        '--limit',
+        '5',
+        '--cursor',
+        'c1',
+      ],
+      live.url,
+    );
+    await invoke(['assignment', 'ada', '--session', 'sess-1'], live.url);
+    await invoke(['assignment-timeline', 'ada', '--session', 'sess-1'], live.url);
+    await invoke(['session-subagents', 'ada', '--session', 'orch-1'], live.url);
+    for (const argv of [
+      ['assignments'],
+      ['assignments', 'ada', '--activity', 'busy'],
+      ['assignments', 'ada', '--limit', '0'],
+      ['assignment', 'ada'],
+      ['assignment-timeline', 'ada'],
+      ['session-subagents', 'ada'],
+      ['session-subagents', '--session', 'orch-1'],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([
+      { method: 'assignments', args: { slug: 'ada', limit: 20 } },
+      {
+        method: 'assignments',
+        args: {
+          slug: 'ada',
+          query: 'export button',
+          activity: ['idle', 'working'],
+          includeArchived: true,
+          limit: 5,
+          cursor: 'c1',
+        },
+      },
+      { method: 'assignment', args: { slug: 'ada', sessionId: 'sess-1' } },
+      { method: 'assignmentTimeline', args: { slug: 'ada', sessionId: 'sess-1' } },
+      { method: 'sessionSubagents', args: { slug: 'ada', sessionId: 'orch-1' } },
+    ]);
+  });
+
   it('lists Bot Sessions, reads their owner and archives assignment Sessions', async () => {
     const live = await host(echo);
     await invoke(['session-ids'], live.url);
@@ -341,6 +392,20 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
           acknowledgeReadWrite: true,
         },
       },
+    ]);
+  });
+
+  it('pages approval history with a bounded limit and the returned cursor', async () => {
+    const live = await host(echo);
+    await invoke(['tool-approval-history', 'ada'], live.url);
+    await invoke(['tool-approval-history', 'ada', '--limit', '5', '--cursor', 'next'], live.url);
+    expect(
+      (await invoke(['tool-approval-history', 'ada', '--limit', '101'], live.url)).json.error.code,
+    ).toBe('usage');
+    expect((await invoke(['tool-approval-history'], live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([
+      { method: 'toolApprovalHistory', args: { slug: 'ada' } },
+      { method: 'toolApprovalHistory', args: { slug: 'ada', limit: 5, cursor: 'next' } },
     ]);
   });
 

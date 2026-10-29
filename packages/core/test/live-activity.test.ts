@@ -15,6 +15,7 @@ function fixture() {
   let stopFailed = false;
   let pause: (() => Promise<void>) | undefined;
   let configured = true;
+  let assignmentId: string | undefined;
   let progress: ChannelRequestProgress = {
     state: 'working',
     terminal: false,
@@ -60,7 +61,11 @@ function fixture() {
       deviceActive: (id) => active && id === 'device-a',
       request: (channel, message) =>
         channel === 'dm-ada' && message === 'human-1'
-          ? { sourceEventId: 'source-1', progress }
+          ? {
+              sourceEventId: 'source-1',
+              progress,
+              ...(assignmentId === undefined ? {} : { assignmentId }),
+            }
           : undefined,
     });
   const input = {
@@ -107,6 +112,9 @@ function fixture() {
     complete: () => {
       progress = { ...progress, state: 'completed', terminal: true };
     },
+    assign: (id: string) => {
+      assignmentId = id;
+    },
   };
 }
 
@@ -146,6 +154,46 @@ describe('Host Live Activity delivery owner', () => {
         })
       ).status,
     ).toBe(409);
+  });
+  it('reads the request Assignment for this device registration, also after the display ended', async () => {
+    const f = fixture();
+    const status = () =>
+      f.delivery.handle({
+        method: 'POST',
+        deviceId: 'device-a',
+        path: '/botharness-device/activity/status',
+        body: { clientActivityId: 'native-a' },
+      });
+    expect(await status()).toEqual({ status: 404, body: { code: 'activity-not-found' } });
+    await f.delivery.handle({
+      method: 'POST',
+      deviceId: 'device-a',
+      path: '/botharness-device/activity/register',
+      body: f.input,
+    });
+    expect((await status()).body).toEqual({
+      channelId: 'dm-ada',
+      messageId: 'human-1',
+      progress: { state: 'working', terminal: false, updatedAt: '2026-10-26T00:00:00Z' },
+    });
+    f.assign('assignment-session-1');
+    f.complete();
+    await f.delivery.reconcile();
+    expect(f.calls.at(-1)).toMatchObject({ operation: 'update', terminal: true });
+    expect(await status()).toMatchObject({
+      status: 200,
+      body: { assignmentId: 'assignment-session-1', progress: { state: 'completed' } },
+    });
+    expect(
+      (
+        await f.delivery.handle({
+          method: 'POST',
+          deviceId: 'device-b',
+          path: '/botharness-device/activity/status',
+          body: { clientActivityId: 'native-a' },
+        })
+      ).status,
+    ).toBe(401);
   });
   it('prepares canonical admission before native creation and sends changed states even with the same fact timestamp', async () => {
     const f = fixture();

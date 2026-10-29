@@ -2,7 +2,6 @@ import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { Pressable, View, type ColorValue } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
-  ReduceMotion,
   runOnJS,
   useAnimatedStyle,
   useReducedMotion,
@@ -13,12 +12,14 @@ import Animated, {
 
 import { haptic } from '../haptics';
 import { useDesignTheme, type DesignTheme } from '../design/theme';
-import { drawerSpring, space, swipeRow } from '../design/tokens';
+import { spring } from '../design/motion';
+import { space, swipeRow } from '../design/tokens';
+import { ContextMenuArea, nativeContextMenu } from './context-menu';
 import { showActionMenu } from './app-dialog';
 import { settleSwipe, swipeArmed } from './swipe-row-model';
 import { Text } from './text';
 
-export type SwipeTone = 'accent' | 'warning' | 'neutral';
+export type SwipeTone = 'accent' | 'warning' | 'danger' | 'neutral';
 
 export type SwipeAction = {
   key: string;
@@ -32,6 +33,7 @@ let openRow: (() => void) | undefined;
 
 function colors(theme: DesignTheme, tone: SwipeTone): { fill: string; ink: string } {
   if (tone === 'accent') return { fill: theme.color.accent, ink: theme.color.onAccent };
+  if (tone === 'danger') return { fill: theme.color.danger, ink: theme.color.onDanger };
   if (tone === 'warning')
     return {
       fill: theme.color.warning,
@@ -43,13 +45,21 @@ function colors(theme: DesignTheme, tone: SwipeTone): { fill: string; ink: strin
 export function swipeActionProps(title: string, actions: readonly SwipeAction[]) {
   if (actions.length === 0) return {};
   return {
-    onLongPress: () => {
-      haptic('menu');
-      showActionMenu(
-        title,
-        actions.map((action) => ({ text: action.label, icon: action.icon, onPress: action.run })),
-      );
-    },
+    ...(nativeContextMenu
+      ? {}
+      : {
+          onLongPress: () => {
+            haptic('menu');
+            showActionMenu(
+              title,
+              actions.map((action) => ({
+                text: action.label,
+                icon: action.icon,
+                onPress: action.run,
+              })),
+            );
+          },
+        }),
     accessibilityActions: actions.map((action) => ({ name: action.key, label: action.label })),
     onAccessibilityAction: (event: { nativeEvent: { actionName: string } }) =>
       actions.find((action) => action.key === event.nativeEvent.actionName)?.run(),
@@ -79,9 +89,7 @@ export function SwipeRow({
   const settleTo = useCallback(
     (to: number) => {
       'worklet';
-      offset.value = reduced
-        ? withTiming(to, { duration: 0 })
-        : withSpring(to, { ...drawerSpring, reduceMotion: ReduceMotion.System });
+      offset.value = reduced ? withTiming(to, { duration: 0 }) : withSpring(to, spring.release);
     },
     [offset, reduced],
   );
@@ -210,7 +218,15 @@ export function SwipeRow({
       )}
       <GestureDetector gesture={pan}>
         <Animated.View style={[{ backgroundColor: theme.color.base }, contentStyle]}>
-          {children}
+          <ContextMenuArea
+            actions={actions.map((action) => ({
+              key: action.key,
+              label: action.label,
+              run: action.run,
+            }))}
+          >
+            {children}
+          </ContextMenuArea>
           {open ? (
             <Pressable
               accessible={false}

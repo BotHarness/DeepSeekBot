@@ -10,7 +10,9 @@ vi.mock('react-native-tab-view', () => import('./tab-view-shim'));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
-vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
+vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, Circle: () => null }));
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
@@ -27,6 +29,7 @@ vi.mock('expo-router', () => {
     useRouter: () => ({ push, prefetch: () => undefined }),
   };
 });
+vi.mock('../src/ui/shell/use-workspace-panel', () => ({ useWorkspacePanel: () => undefined }));
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 vi.mock('../src/host/native-host-look', () => ({
   useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
@@ -51,6 +54,7 @@ vi.mock('../src/ui/shell/home-header', () => ({
   ),
 }));
 vi.mock('../src/ui/shell/host-drawer', () => ({
+  useHostDrawerOpen: () => false,
   HostDrawerEdge: ({ children }: { children: ReactNode | ((height: number) => ReactNode) }) =>
     typeof children === 'function' ? children(0) : children,
 }));
@@ -315,7 +319,11 @@ it('All renders both real Host feeds and opens the tapped row on its own Host', 
 });
 
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
-
-vi.mock('react-native-gesture-handler/ReanimatedSwipeable', () => ({
-  default: ({ children }: { children: ReactNode }) => children,
+vi.mock('../src/ui/shell/last-chat-swipe', () => ({
+  LastChatPreview: () => null,
+  LastChatSwipe: ({ enabled, children }: { enabled: boolean; children: ReactNode }) => (
+    <div data-testid="last-chat-swipe" data-enabled={String(enabled)}>
+      {children}
+    </div>
+  ),
 }));

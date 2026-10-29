@@ -7,6 +7,7 @@ import {
   type BotCreationOperation,
   type CreationReceipt,
   type CreationRecord,
+  type BotCreationDraft,
 } from '../src/host/bot-creation';
 
 const draft = {
@@ -15,7 +16,8 @@ const draft = {
   persona: 'Be curious',
   description: ' A friend ',
   tags: 'helper, helper，writing',
-};
+  avatar: { kind: 'generated', seed: 'first-avatar', origin: 'initial' },
+} satisfies BotCreationDraft;
 const receipt = (operation: BotCreationOperation): CreationReceipt => ({
   operationKey: operation.operationKey,
   botSlug: 'original-bot',
@@ -157,11 +159,21 @@ describe('native blank Bot creation recovery', () => {
     const controller = test.make();
     await controller.edit(draft);
     test.lookup.mockImplementationOnce(async (operation) => {
-      expect(test.disk()).toEqual({ kind: 'submitted', operation, mutationStarted: false });
+      expect(test.disk()).toEqual({
+        kind: 'submitted',
+        operation,
+        mutationStarted: false,
+        avatar: draft.avatar,
+      });
       return null;
     });
     test.create.mockImplementationOnce(async (operation) => {
-      expect(test.disk()).toEqual({ kind: 'submitted', operation, mutationStarted: true });
+      expect(test.disk()).toEqual({
+        kind: 'submitted',
+        operation,
+        mutationStarted: true,
+        avatar: draft.avatar,
+      });
       expect(operation).toEqual({
         hostId: 'B',
         deviceId: 'device-b',
@@ -361,4 +373,37 @@ describe('native blank Bot creation recovery', () => {
     await restarted.another('B');
     expect(restarted.getSnapshot().record.kind).toBe('draft');
   });
+});
+
+it('persists an avatar choice in the draft and rejects a malformed one', async () => {
+  const { parseCreationRecord } = await import('../src/host/bot-creation');
+  const draft = { hostId: 'A', displayName: 'Ada', persona: '', description: '', tags: '' };
+  expect(
+    parseCreationRecord({
+      kind: 'draft',
+      draft: { ...draft, avatar: { kind: 'generated', seed: 'seed-1' } },
+    }),
+  ).toMatchObject({ draft: { avatar: { kind: 'generated', seed: 'seed-1' } } });
+  expect(
+    parseCreationRecord({
+      kind: 'draft',
+      draft: { ...draft, avatar: { kind: 'photo', image: 'data:image/jpeg;base64,AAAA' } },
+    }),
+  ).toMatchObject({ draft: { avatar: { kind: 'photo' } } });
+  expect(() =>
+    parseCreationRecord({
+      kind: 'draft',
+      draft: { ...draft, avatar: { kind: 'photo', image: 'https://example.invalid/a.png' } },
+    }),
+  ).toThrow('storage-invalid');
+});
+
+it.each([
+  ['https://github.com/acme/travel-helper.git', 'travel helper'],
+  ['git@github.com:acme/Code_Reviewer.git', 'Code Reviewer'],
+  ['https://gitlab.example/acme/bots/notes/', 'notes'],
+  ['https://github.com/acme/helper?tab=readme', 'helper'],
+])('names a Git import %s after its repository by default', async (url, name) => {
+  const { repositoryName } = await import('../src/host/bot-creation');
+  expect(repositoryName(url)).toBe(name);
 });

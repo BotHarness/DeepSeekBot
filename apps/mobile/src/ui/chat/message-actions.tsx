@@ -1,11 +1,12 @@
 import { RowIcon } from '../primitives/row-icon';
 import { Fragment, useRef, useState, type ReactNode } from 'react';
 import { Modal, Platform, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
-import Animated, { Easing, Keyframe } from 'react-native-reanimated';
+import Animated, { withSpring, type EntryExitAnimationFunction } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MENU_REACTIONS, reactedByMe, type ConversationMessage } from '../../host/conversation';
-import { edge, motion, radius, space } from '../design/tokens';
+import { spring } from '../design/motion';
+import { edge, radius, space } from '../design/tokens';
 import { glassShadow, useDesignTheme, type DesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { ChevronRightIcon, CopyIcon, ShareIcon } from '../shell/icons';
@@ -53,10 +54,16 @@ function sideOffset(anchor: Rect, human: boolean, width: number, screen: number)
   return Math.min(Math.max(left, space.x4), screen - space.x4 - width);
 }
 
-const POP = new Keyframe({
-  0: { opacity: 0, transform: [{ scale: 0.9 }] },
-  100: { opacity: 1, transform: [{ scale: 1 }], easing: Easing.out(Easing.quad) },
-}).duration(motion.menu);
+const POP: EntryExitAnimationFunction = () => {
+  'worklet';
+  return {
+    initialValues: { opacity: 0, transform: [{ scale: 0.9 }] },
+    animations: {
+      opacity: withSpring(1, spring.effects.fast),
+      transform: [{ scale: withSpring(1, spring.spatial.fast) }],
+    },
+  };
+};
 
 function Pop({
   from,

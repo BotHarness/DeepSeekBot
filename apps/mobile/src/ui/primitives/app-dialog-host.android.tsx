@@ -1,6 +1,8 @@
 import {
   AlertDialog,
+  Box,
   Column,
+  DropdownMenu,
   Host,
   ListItem,
   RNHostView,
@@ -9,7 +11,13 @@ import {
   TextButton,
   type ButtonColors,
 } from '@expo/ui/jetpack-compose';
-import { fillMaxWidth, padding, testID } from '@expo/ui/jetpack-compose/modifiers';
+import {
+  fillMaxSize,
+  fillMaxWidth,
+  padding,
+  testID,
+  width,
+} from '@expo/ui/jetpack-compose/modifiers';
 import { useSyncExternalStore } from 'react';
 import { Platform, StyleSheet } from 'react-native';
 
@@ -51,6 +59,75 @@ export function AppDialogHost() {
       <Text>{shown.busy === index ? `${action.text}…` : action.text}</Text>
     </TextButton>
   );
+  const groups = [false, true].map((destructive) => {
+    const group = choices.filter(({ action }) => (action.style === 'destructive') === destructive);
+    return group.length === 0 ? null : (
+      <MaterialMenuGroup
+        key={String(destructive)}
+        items={group.map(({ action, index }) => ({
+          key: String(index),
+          label: shown.busy === index ? `${action.text}…` : action.text,
+          disabled: !idle,
+          destructive,
+          icon: (
+            <MenuIcon
+              icon={action.icon ?? 'settings'}
+              color={destructive ? theme.color.danger : theme.color.muted}
+              size={materialMenu.iconSize}
+            />
+          ),
+          onPress: () => {
+            void appDialogs.choose(index, shown.id);
+          },
+        }))}
+      />
+    );
+  });
+  const failure =
+    shown.error === undefined ? null : (
+      <ListItem>
+        <ListItem.HeadlineContent>
+          <Text color={theme.color.danger}>{`${t.dialogFailed} ${shown.error}`}</Text>
+        </ListItem.HeadlineContent>
+      </ListItem>
+    );
+  if (menu && shown.anchor !== undefined)
+    return (
+      <Host
+        key={shown.id}
+        colorScheme={theme.scheme}
+        seedColor={theme.color.accent}
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          left: shown.anchor.x,
+          top: shown.anchor.y,
+          width: 1,
+          height: 1,
+        }}
+      >
+        <DropdownMenu
+          expanded
+          onDismissRequest={dismiss}
+          color="transparent"
+          shadowElevation={0}
+          properties={{ dismissOnBackPress: idle, dismissOnClickOutside: idle }}
+        >
+          <DropdownMenu.Trigger>
+            <Box modifiers={[fillMaxSize()]} />
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Items>
+            <Column
+              verticalArrangement={{ spacedBy: materialMenu.groupGap }}
+              modifiers={[width(materialMenu.width), testID('action-menu-anchored')]}
+            >
+              {groups}
+              {failure}
+            </Column>
+          </DropdownMenu.Items>
+        </DropdownMenu>
+      </Host>
+    );
   if (menu)
     return (
       <Host
@@ -90,39 +167,8 @@ export function AppDialogHost() {
                 </ListItem.HeadlineContent>
               </ListItem>
             ) : null}
-            {[false, true].map((destructive) => {
-              const group = choices.filter(
-                ({ action }) => (action.style === 'destructive') === destructive,
-              );
-              return group.length === 0 ? null : (
-                <MaterialMenuGroup
-                  key={String(destructive)}
-                  items={group.map(({ action, index }) => ({
-                    key: String(index),
-                    label: shown.busy === index ? `${action.text}…` : action.text,
-                    disabled: !idle,
-                    destructive,
-                    icon: (
-                      <MenuIcon
-                        icon={action.icon ?? 'settings'}
-                        color={destructive ? theme.color.danger : theme.color.muted}
-                        size={materialMenu.iconSize}
-                      />
-                    ),
-                    onPress: () => {
-                      void appDialogs.choose(index, shown.id);
-                    },
-                  }))}
-                />
-              );
-            })}
-            {shown.error === undefined ? null : (
-              <ListItem>
-                <ListItem.HeadlineContent>
-                  <Text color={theme.color.danger}>{`${t.dialogFailed} ${shown.error}`}</Text>
-                </ListItem.HeadlineContent>
-              </ListItem>
-            )}
+            {groups}
+            {failure}
           </Column>
         </ModalBottomSheet>
       </Host>

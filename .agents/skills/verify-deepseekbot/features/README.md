@@ -2,11 +2,13 @@
 
 | Feature | Needs a model | Scripted journey | File |
 | --- | --- | --- | --- |
+| Complete environment backup across versions | no | `verify-app` Settings + backup CLI | [profile-backup.md](profile-backup.md) |
+
 | Mobile concurrent paired Hosts, Chats and Activity | only for a reply | shared-device two-Host journey | [phone-multiple-hosts.md](phone-multiple-hosts.md) |
 | Phone long-press Bot/group/section deletion | no | `scripts/e2e-mobile-deletion-web.mjs` | [phone-deletion.md](phone-deletion.md) |
 | Native Subagent presets, live-parent CLI and background wake lifecycle | yes for child results | `verify-app` Bot DM and direct CLI | [subagent-presets.md](subagent-presets.md) |
 | Local Computer video: Windows to physical Android | no | Windows testing-center native journey | [local-computer-video.md](local-computer-video.md) |
-| Bot Marketplace cards, filters, remembered sorting and upload/import | no | `verify-app` Bot mode path | [marketplace.md](marketplace.md) |
+| Bot Marketplace cards, filters, remembered sorting, upload/import and Tob's install review | yes | `verify-app` Bot mode path; `scripts/e2e-install-review.mjs` | [marketplace.md](marketplace.md) |
 | Connect encrypted pairing, resources and native private input | yes for DM/tool/private request | `verify-app` isolated Host and shared native QA | [connect-channel.md](connect-channel.md) |
 | SSH tunnel to an existing Linux Host | no | `verify-app` two-Host path and system SSH | [ssh-host.md](ssh-host.md) |
 | Browser Remote Host pairing, icon strip, local appearance/notifications and Host-level settings | only for a reply | `verify-app` two-Host path | [remote-hosts.md](remote-hosts.md) |
@@ -17,7 +19,7 @@
 | DeepSeekBot device-local appearance | no | `scripts/e2e-local-appearance.mjs` | [local-appearance.md](local-appearance.md) |
 | Functional Panel appearance | no | `scripts/e2e-panel-appearance.mjs`, `scripts/e2e-nested-appearance.mjs` | [panel-appearance.md](panel-appearance.md) |
 | Global panel materials | no | `scripts/e2e-global-materials.mjs` | [global-materials.md](global-materials.md) |
-| Home and protected Tob (Bot management, models, runtime, privacy and updates) | yes for reply and approval | `scripts/e2e-tob-home.mjs`, `scripts/e2e-tob-model-runtime.mjs`, `scripts/e2e-tob-bot-management.mjs`, `scripts/e2e-tob-channel-management.mjs`, `scripts/e2e-tob-group-settings.mjs`, `scripts/e2e-tob-group-decisions.mjs` | [tob-home.md](tob-home.md) |
+| Protected Tob DM and mobile pull-to-Tob (management, models, runtime, privacy and updates) | yes for reply and approval | `scripts/e2e-tob-home.mjs`, `scripts/e2e-tob-model-runtime.mjs`, `scripts/e2e-tob-bot-management.mjs`, `scripts/e2e-tob-channel-management.mjs`, `scripts/e2e-tob-group-settings.mjs`, `scripts/e2e-tob-group-decisions.mjs`, `scripts/e2e-tob-delegation.mjs` | [tob-home.md](tob-home.md) |
 | DSH Session list Bot folders | for fresh execution | `scripts/e2e-bot-session-folders.mjs` | [bot-session-folders.md](bot-session-folders.md) |
 
 One file per user-facing feature. Each file has four sections: `Sub-features`, `How to get to it (user POV)`, `Driving it with verify-app`, and `Gotchas`.
@@ -39,8 +41,8 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Phone Chats swipe actions and Remote Host section creation | no | none (shared-device native path) | [phone-chat-row-actions.md](phone-chat-row-actions.md) |
 | Phone Remote Host sections and Pinned list | no | shared-device queue; `scripts/e2e-mobile-sim.mjs` | [phone-pinned-list.md](phone-pinned-list.md) |
 | Native mobile quiet send, connection/loading feedback, history entry/retry and Cloud row opening | no (except live-reply regression) | none (shared-device native path) | [phone-qol.md](phone-qol.md) |
-| Native mobile message composer | no (except Bot reply) | none (shared-device native path) | [phone-composer.md](phone-composer.md) |
-| Native mobile Channel files, preview/share and original message | no | none (shared-device native path) | [phone-channel-files.md](phone-channel-files.md) |
+| Native mobile message composer | no (except Bot reply) | `scripts/e2e-mobile-chat-resume.mjs` (assigned physical iOS session; other checks use the shared-device native path) | [phone-composer.md](phone-composer.md) |
+| Native mobile Profile paging/cache, Channel files, preview/share and original message | no | none (shared-device native path) | [phone-channel-files.md](phone-channel-files.md) |
 | Mobile press feedback, semantic haptics and local setting | no (except seeding a real decision) | none (shared-device native and physical-device path) | [phone-haptic-feedback.md](phone-haptic-feedback.md) |
 | Native Bot creation entries, Marketplace cards/profiles, Git/Zip import and recovery | no | `scripts/e2e-personabot-create.mjs` + imported `scripts/e2e-zip-import-proof.mjs` (Host/CLI only; native uses shared-device path) | [phone-bot-create.md](phone-bot-create.md) |
 | Native mobile chat backgrounds | no (except live-reply regression) | none (shared-device native path) | [phone-chat-backgrounds.md](phone-chat-backgrounds.md) |
@@ -114,4 +116,6 @@ Historical failures from 2026-10-14 (not requalified by this audit):
 | Phone language and appearance | no | Queued native checks; preference and mounted composer regression tests | [phone-interface.md](phone-interface.md) |
 
 | Mobile group/Bot avatars and separate chat backgrounds | no | none (Expo and shared-device user path) | [phone-channel-avatars.md](phone-channel-avatars.md) |
+
+
 | Mobile workspace history and source transitions | no | shared Android/iOS device lanes; two paired QA Hosts and two Cloud accounts | [phone-workspace-navigation.md](phone-workspace-navigation.md) |

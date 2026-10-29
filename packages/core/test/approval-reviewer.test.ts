@@ -183,6 +183,28 @@ describe('Approval Templates', () => {
     ).toBe(true);
     expect(requiresHumanToolApproval('bash', { command: 'pnpm test' })).toBe(false);
   });
+
+  it('makes a Shell upload to the Bot Marketplace need Human approval', () => {
+    expect(
+      requiresHumanToolApproval('bash', {
+        command: 'deepseekbot marketplace-upload bot-1 --name Helper',
+      }),
+    ).toBe(true);
+    expect(
+      requiresHumanToolApproval('bash', { command: 'deepseekbot marketplace-install U_abc' }),
+    ).toBe(false);
+  });
+
+  it('makes deleting an Uploaded Bot from the Shell need Human approval', () => {
+    expect(
+      requiresHumanToolApproval('bash', {
+        command: 'deepseekbot marketplace-delete U_abc --confirm',
+      }),
+    ).toBe(true);
+    expect(requiresHumanToolApproval('bash', { command: 'deepseekbot marketplace-mine' })).toBe(
+      false,
+    );
+  });
 });
 
 describe('Approval Reviewer input', () => {
@@ -199,6 +221,16 @@ describe('Approval Reviewer input', () => {
     expect(prompt).toContain('do not send anything yet');
     expect(prompt).not.toContain('IGNORE YOUR TEMPLATE');
     expect(prompt).not.toContain('web page says');
+  });
+
+  it("applies the Bot's excerpt limits", () => {
+    const excerpt = approvalSessionExcerpt(events, undefined, {
+      humanMessages: 1,
+      humanMessageChars: 4,
+      toolCalls: 1,
+    });
+    expect(excerpt.humanMessages).toEqual(['Plan …[truncated]']);
+    expect(excerpt.toolCalls).toEqual([{ name: 'todo_write', input: '{"todos":[]}' }]);
   });
 
   it('parses one clear outcome and rejects anything else', () => {

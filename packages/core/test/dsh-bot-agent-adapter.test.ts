@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { BotScheduleError } from '../src/schedules/bot-schedules.js';
 import { SendReviewRequired } from '../src/channels/send-review.js';
-import { isDshGovernedTool } from '../src/workspaces/grant-execution.js';
+import { isDshGovernedTool, sessionRefusalMessage } from '../src/workspaces/grant-execution.js';
 import type { AssignmentAgentRun, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
 
@@ -32,7 +32,8 @@ const TOB_CLI_TOOL_NAMES = ['bot_create', ...TOB_GROUP_TOOL_CASES.map(([name]) =
 
 const ASSIGNMENT = {
   sessionId: 'assignment-1',
-  purpose: '核对发布状态',
+  title: '核对发布状态',
+  description: '核对发布状态',
   activity: 'working' as const,
   createdAt: '2026-09-17T00:00:00.000Z',
   updatedAt: '2026-09-17T00:00:00.000Z',
@@ -110,6 +111,43 @@ const reportRun: OrchestratorAgentRun = {
 };
 
 describe('direct Subagent execution', () => {
+  it.each(['secret_cli', 'secret_http', 'protected_cli', 'secret_mcp_connect', 'ask_secret'])(
+    'executes %s through the live parent tool pipeline without a model turn',
+    async (name) => {
+      const agents = new FakeAgentHost();
+      const execute = vi.fn(async () => ({
+        isError: true,
+        error: { message: 'Select with ask_secret', info: { code: 'private-source-required' } },
+      }));
+      const parent = {
+        id: 'live-parent',
+        ctx: { tools: { execute, get: () => ({ name }) } },
+      } as unknown as Agent;
+      vi.spyOn(agents, 'get').mockReturnValue(parent);
+      const adapter = createDshBotAgentAdapter({
+        agents,
+        defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      });
+      try {
+        await expect(
+          adapter.runDirectTool!(
+            reportRun,
+            name,
+            { account: 'synthetic' },
+            new AbortController().signal,
+            'live-parent',
+          ),
+        ).rejects.toMatchObject({ code: 'private-source-required' });
+        expect(execute).toHaveBeenCalledOnce();
+        expect(execute).toHaveBeenCalledWith(
+          expect.objectContaining({ agent: parent, name, arguments: { account: 'synthetic' } }),
+        );
+        expect(agents.createOptions).toEqual([]);
+      } finally {
+        await adapter.close();
+      }
+    },
+  );
   function deferred<T>() {
     let resolve!: (value: T | PromiseLike<T>) => void;
     const promise = new Promise<T>((accept) => {
@@ -564,6 +602,8 @@ describe('DSH Bot Agent adapter', () => {
           rolePrompt?.includes("Tob is the Human's private steward, never a Group participant"),
         ).toBe(tobCli);
         expect(rolePrompt?.includes('You may create a Group with group_create')).toBe(!tobCli);
+        expect(rolePrompt?.includes('Tob Delegation:')).toBe(tobCli);
+        expect(scope.tools.map((tool) => tool.name)).toContain('list_bot_contacts');
         expect(scope.tools.map((tool) => tool.name)).not.toContain('tob_assignment_limit_read');
         expect(scope.tools.map((tool) => tool.name)).not.toContain('tob_assignment_limit_set');
         expect(scope.tools.map((tool) => tool.name)).toContain('create_assignment');
@@ -734,6 +774,82 @@ describe('DSH Bot Agent adapter', () => {
     },
   );
 
+  it('fails a Turn the Host pre-step refused with the refusal reason instead of blocked', async () => {
+    const host = new FakeAgentHost({ kind: 'blocked' }, { onTurn: async () => undefined });
+    const refusal = sessionRefusalMessage(
+      'Orchestrator Session requires its Memory working directory',
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: {
+        currentSelection: () => ({ provider: 'test', model: 'test' }),
+      },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+      turnRefusal: (sessionId) => (sessionId === reportRun.sessionId ? refusal : undefined),
+    });
+    try {
+      await expect(adapter.runOrchestrator(reportRun)).rejects.toThrow(
+        "MEMORY_CWD_MISMATCH: The Host refused this turn: Orchestrator Session requires its Memory working directory. Start a new Session; it opens in this Bot's Memory directory.",
+      );
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('leaves Session permission and its refusal to admission when it creates or borrows an Agent', async () => {
+    const host = new FakeAgentHost(
+      { kind: 'blocked' },
+      { onTurn: async () => undefined, assignmentTurnEnd: { kind: 'blocked' } },
+    );
+    await host.create({
+      sessionId: SessionId('moved-assignment'),
+      meta: { cwd: '/elsewhere' },
+    });
+    const refusal = sessionRefusalMessage(
+      'Assignment Session permission snapshot is missing or mismatched',
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+      turnRefusal: (sessionId) => (sessionId === 'moved-assignment' ? refusal : undefined),
+      admitSession: (agent) => void admitted.push(agent.session.id),
+    });
+    const admitted: string[] = [];
+    const permissionEvents = (index: number) =>
+      host.sessions[index]!.snapshotEvents().filter(
+        (event) => event.type === 'sandbox/mode' || event.type === 'approval/policy',
+      );
+    try {
+      await expect(adapter.runOrchestrator(reportRun)).rejects.toThrow(
+        'Agent turn ended without completion: blocked',
+      );
+      expect(permissionEvents(1)).toEqual([]);
+      await expect(
+        adapter.runAssignment({
+          sessionId: 'moved-assignment',
+          bot: BOT,
+          text: 'Continue',
+          permission: {
+            grantId: 'grant-1',
+            workspaceId: 'workspace-1',
+            primaryCwd: '/project',
+            mode: 'workspace-write',
+            approval: 'ask',
+            presetRevision: 0,
+          },
+          report: vi.fn(),
+        }),
+      ).rejects.toThrow(refusal);
+      expect(permissionEvents(0)).toEqual([]);
+      expect(admitted).toEqual([reportRun.sessionId, 'moved-assignment']);
+    } finally {
+      await adapter.close();
+    }
+  });
+
   it.each<TurnEndCancelCause>([
     { kind: 'user' },
     { kind: 'parent' },
@@ -762,7 +878,7 @@ describe('DSH Bot Agent adapter', () => {
         adapter.runAssignment({
           sessionId: 'native-cancel-assignment',
           bot: BOT,
-          purpose: 'Cancelled work',
+          text: 'Cancelled work',
           permission: {
             grantId: 'grant-1',
             workspaceId: 'workspace-1',
@@ -876,7 +992,7 @@ describe('DSH Bot Agent adapter', () => {
         adapter.runAssignment({
           sessionId: 'native-error-assignment',
           bot: BOT,
-          purpose: 'Failing work',
+          text: 'Failing work',
           permission: {
             grantId: 'grant-1',
             workspaceId: 'workspace-1',
@@ -917,7 +1033,10 @@ describe('DSH Bot Agent adapter', () => {
         onAgentCreated: () => {
           const tools = host.scopes.get('orchestrator-ada')?.tools ?? [];
           for (const [name, args] of [
-            ['create_assignment', { purpose: 'Continue A', grant_id: 'grant-1', key: 'a' }],
+            [
+              'create_assignment',
+              { title: 'Continue A', description: 'Continue A', grant_id: 'grant-1', key: 'a' },
+            ],
             ['send_assignment_request', { session_id: 'assignment-1', text: 'Continue A' }],
           ] as const) {
             const tool = tools.find((tool) => tool.name === name);
@@ -1404,7 +1523,8 @@ describe('DSH Bot Agent adapter', () => {
         inspect: () => undefined,
         stop: async () => ({
           sessionId: 'test',
-          purpose: 'test',
+          title: 'test',
+          description: 'test',
           activity: 'stopped',
           createdAt: '',
           updatedAt: '',
@@ -1482,7 +1602,8 @@ describe('DSH Bot Agent adapter', () => {
         inspect: () => undefined,
         stop: async () => ({
           sessionId: 'test',
-          purpose: 'test',
+          title: 'test',
+          description: 'test',
           activity: 'stopped',
           createdAt: '',
           updatedAt: '',
@@ -1576,7 +1697,8 @@ describe('DSH Bot Agent adapter', () => {
           inspect: () => undefined,
           stop: async () => ({
             sessionId: 'test',
-            purpose: 'test',
+            title: 'test',
+            description: 'test',
             activity: 'stopped',
             createdAt: '',
             updatedAt: '',
@@ -1833,7 +1955,8 @@ describe('DSH Bot Agent adapter', () => {
           inspect: () => undefined,
           stop: async () => ({
             sessionId: 'test',
-            purpose: 'test',
+            title: 'test',
+            description: 'test',
             activity: 'stopped',
             createdAt: '',
             updatedAt: '',
@@ -1844,6 +1967,163 @@ describe('DSH Bot Agent adapter', () => {
     ).rejects.toThrow(/TRANSPORT.*DeepSeek API request failed/);
 
     await adapter.close();
+  });
+
+  it('resumes a fresh Orchestrator Agent after DSH disposed the cached one', async () => {
+    const host = new FakeAgentHost();
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      hasSession: async (id) => host.sessions.some((session) => session.id === id),
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    const run = (message: string): OrchestratorAgentRun => ({
+      sessionId: 'orchestrator-ada',
+      resume: true,
+      bot: BOT,
+      inboundChannelId: 'dm-test',
+      inbox: '',
+      message,
+      channels: {
+        ...groupTools,
+        contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+        sendToBot: async () => {
+          throw new Error('unexpected Bot DM');
+        },
+        ignore: () => ({
+          sourceEventId: 'source-1',
+          ignoredAt: BOT.createdAt,
+          alreadyIgnored: false,
+        }),
+        read: () => [],
+        requestGrant: async () => undefined as never,
+        send: async (input) => ({
+          id: 'bot-1',
+          at: BOT.createdAt,
+          author: { kind: 'bot', slug: BOT.slug },
+          body: input.body,
+        }),
+      },
+      assignments: {
+        create: () => ({ outcome: 'created', assignment: ASSIGNMENT }),
+        grants: () => [],
+        list: () => [],
+        inspect: () => undefined,
+        stop: async () => ({
+          sessionId: 'test',
+          title: 'test',
+          description: 'test',
+          activity: 'stopped',
+          createdAt: '',
+          updatedAt: '',
+        }),
+        request: () => ({ assignment: ASSIGNMENT, delivery: 'followup' }),
+      },
+    });
+    try {
+      await adapter.runOrchestrator(run('第一条'));
+      const dead = host.disposeFromDsh('orchestrator-ada');
+
+      await adapter.runOrchestrator(run('第二条'));
+
+      expect(host.get('orchestrator-ada')).not.toBe(dead);
+      expect(host.resumeOptions.map((options) => String(options.resumeSessionId))).toEqual([
+        'orchestrator-ada',
+      ]);
+      const received = host.received.get('orchestrator-ada') ?? [];
+      expect(received).toHaveLength(2);
+      expect(JSON.stringify(received[1]?.content)).toContain('第二条');
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('forgets a handle when DSH reports its Agent disposed', async () => {
+    const host = new FakeAgentHost();
+    const adapter = createDshBotAgentAdapter({
+      agents: {
+        create: (options) => host.create(options),
+        resume: (options) => host.resume(options),
+      },
+      hasSession: async (id) => host.sessions.some((session) => session.id === id),
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    const run = {
+      sessionId: 'assignment-1',
+      bot: BOT,
+      text: '核对发布状态',
+      resume: true,
+      permission: {
+        grantId: 'grant-1',
+        workspaceId: 'workspace-1',
+        primaryCwd: '/project',
+        mode: 'workspace-write',
+        approval: 'ask',
+        presetRevision: 0,
+      },
+      report: async (input: { state: string; summary: string }) => ({
+        ...input,
+        at: BOT.createdAt,
+      }),
+    } as Parameters<typeof adapter.runAssignment>[0];
+    try {
+      await adapter.runAssignment(run);
+      const dead = host.disposeFromDsh('assignment-1');
+      adapter.forgetAgent(dead);
+
+      await adapter.runAssignment(run);
+
+      expect(host.get('assignment-1')).not.toBe(dead);
+      expect(host.resumeOptions).toHaveLength(1);
+      expect(host.received.get('assignment-1')).toHaveLength(2);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('resumes a fresh Assignment Agent after DSH disposed the cached one', async () => {
+    const host = new FakeAgentHost();
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      hasSession: async (id) => host.sessions.some((session) => session.id === id),
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    const run = {
+      sessionId: 'assignment-1',
+      bot: BOT,
+      text: '核对发布状态',
+      resume: true,
+      permission: {
+        grantId: 'grant-1',
+        workspaceId: 'workspace-1',
+        primaryCwd: '/project',
+        mode: 'workspace-write',
+        approval: 'ask',
+        presetRevision: 0,
+      },
+      report: async (input: { state: string; summary: string }) => ({
+        ...input,
+        at: BOT.createdAt,
+      }),
+    } as Parameters<typeof adapter.runAssignment>[0];
+    try {
+      await adapter.runAssignment(run);
+      const dead = host.disposeFromDsh('assignment-1');
+
+      const next = adapter.requestAssignment(run);
+      if (next.delivery !== 'followup') throw new Error('Missing followup');
+      await next.done;
+
+      expect(host.get('assignment-1')).not.toBe(dead);
+      expect(host.received.get('assignment-1')).toHaveLength(2);
+    } finally {
+      await adapter.close();
+    }
   });
 
   it('releases a replaced Orchestrator handle but keeps a running one', async () => {
@@ -1897,7 +2177,8 @@ describe('DSH Bot Agent adapter', () => {
         inspect: () => undefined,
         stop: async () => ({
           sessionId: 'test',
-          purpose: 'test',
+          title: 'test',
+          description: 'test',
           activity: 'stopped',
           createdAt: '',
           updatedAt: '',
@@ -1996,7 +2277,7 @@ describe('DSH Bot Agent adapter', () => {
       },
       assignments: {
         create: (input) => {
-          expect(input.purpose).toBe('核对发布状态');
+          expect(input.description).toBe('核对发布状态');
           return { outcome: 'created', assignment: ASSIGNMENT };
         },
         grants: () => [],
@@ -2004,7 +2285,8 @@ describe('DSH Bot Agent adapter', () => {
         inspect: () => undefined,
         stop: async () => ({
           sessionId: 'test',
-          purpose: 'test',
+          title: 'test',
+          description: 'test',
           activity: 'stopped',
           createdAt: '',
           updatedAt: '',
@@ -2015,7 +2297,7 @@ describe('DSH Bot Agent adapter', () => {
     await adapter.runAssignment({
       sessionId: 'assignment-1',
       bot: BOT,
-      purpose: '核对发布状态',
+      text: '核对发布状态',
       permission: {
         grantId: 'grant-1',
         workspaceId: 'workspace-1',
@@ -2123,7 +2405,11 @@ describe('DSH Bot Agent adapter', () => {
       rolePrompt.indexOf('Use three complementary sources'),
     );
     expect(rolePrompt).toContain('Your assistant text is private Session output');
-    expect(rolePrompt).toContain('Do not acknowledge every request');
+    expect(rolePrompt).toContain('make your first call a short receipt');
+    expect(rolePrompt).toContain('report at real milestones');
+    expect(rolePrompt).toContain('Never stop with work half done and no status');
+    expect(rolePrompt).toContain('If bot_send_message returns notWoken');
+    expect(rolePrompt).not.toContain('speak only to move it forward');
     expect(rolePrompt).toContain('Respect requests for silence');
     expect(rolePrompt).toContain('Use the same tool for Group/Bot DM, attachments and external IM');
     expect(rolePrompt).toContain('do not retry uncertain sends blindly');
@@ -2147,7 +2433,10 @@ describe('DSH Bot Agent adapter', () => {
       type: 'text',
       text: expect.stringContaining('[Host reply transport reminder]'),
     });
-    expect(host.received.get('assignment-1')?.[0]?.content).toHaveLength(1);
+    expect(host.received.get('assignment-1')?.[0]?.content).toEqual([
+      { type: 'text', text: '核对发布状态' },
+      { type: 'text', text: expect.stringContaining('[Host Assignment report transport]') },
+    ]);
     expect(host.steered.get('orchestrator-ada')?.[0]?.content).toEqual([
       { type: 'text', text: '请继续回复当前 Channel' },
       {
@@ -2245,7 +2534,7 @@ describe('DSH Bot Agent adapter', () => {
           appliedAt: BOT.createdAt,
         },
       },
-      purpose: 'Inspect',
+      text: 'Inspect',
       modelRoute: { provider: 'deepseek', model: 'flash', reasoningEffort: 'low' },
       permission: {
         grantId: 'grant-1',
@@ -2270,7 +2559,7 @@ describe('DSH Bot Agent adapter', () => {
     });
     const delivery = adapter.requestAssignment({
       ...selected,
-      purpose: 'Continue on Pro',
+      text: 'Continue on Pro',
       resume: true,
       modelRoute: { provider: 'deepseek', model: 'pro', reasoningEffort: 'off' },
     });
@@ -2305,7 +2594,7 @@ describe('DSH Bot Agent adapter', () => {
       const run: AssignmentAgentRun = {
         sessionId: 'inherited-assignment',
         bot: BOT,
-        purpose: 'Inspect',
+        text: 'Inspect',
         ...(retained === undefined ? {} : { modelRoute: retained }),
         permission: {
           grantId: 'grant-1',
@@ -2321,7 +2610,7 @@ describe('DSH Bot Agent adapter', () => {
       expect(await host.selectedModel(run.sessionId)).toEqual(retained ?? globalRoute);
       plan = { ...plan, revision: 2, orchestrator: { provider: 'chat', model: 'two' } };
       globalRoute = { provider: 'global', model: 'after' };
-      const next = adapter.requestAssignment({ ...run, resume: true, purpose: 'Continue' });
+      const next = adapter.requestAssignment({ ...run, resume: true, text: 'Continue' });
       if (next.delivery === 'followup') await next.done;
       expect(await host.selectedModel(run.sessionId)).toEqual(retained ?? globalRoute);
       await adapter.close();
@@ -2338,7 +2627,7 @@ describe('DSH Bot Agent adapter', () => {
     await adapter.runAssignment({
       sessionId: 'assignment-danger',
       bot: BOT,
-      purpose: 'Run pwd',
+      text: 'Run pwd',
       permission: {
         grantId: 'grant-1',
         workspaceId: 'workspace-1',
@@ -2378,7 +2667,7 @@ describe('DSH Bot Agent adapter', () => {
       const run: AssignmentAgentRun = {
         sessionId: 'acceptance-test',
         bot: BOT,
-        purpose: 'Answer',
+        text: 'Answer',
         resume: true,
         permission: {
           grantId: 'grant-1',
@@ -2429,7 +2718,7 @@ describe('DSH Bot Agent adapter', () => {
       const result = adapter.requestAssignment({
         sessionId: 'delayed-completion',
         bot: BOT,
-        purpose: 'Answer',
+        text: 'Answer',
         resume: true,
         permission: {
           grantId: 'grant-1',
@@ -2470,7 +2759,7 @@ describe('DSH Bot Agent adapter', () => {
     const run = {
       sessionId: 'assignment-1',
       bot: BOT,
-      purpose: '核对发布状态',
+      text: '核对发布状态',
       permission: {
         grantId: 'grant-1',
         workspaceId: 'workspace-1',
@@ -2571,7 +2860,8 @@ describe('DSH Bot Agent adapter', () => {
           inspect: () => undefined,
           stop: async () => ({
             sessionId: 'test',
-            purpose: 'test',
+            title: 'test',
+            description: 'test',
             activity: 'stopped',
             createdAt: '',
             updatedAt: '',
@@ -3082,6 +3372,8 @@ describe('Assignment Directory Tools', () => {
     const calls: Array<Promise<unknown>> = [];
     const queries: unknown[] = [];
     const archived: string[] = [];
+    const created: unknown[] = [];
+    const refusals: Array<Promise<unknown>> = [];
     const host = new FakeAgentHost(
       { kind: 'completed' },
       {
@@ -3112,6 +3404,23 @@ describe('Assignment Directory Tools', () => {
           );
           calls.push(
             tool('unarchive_assignment').execute({ session_id: 'a-1' }, {} as ToolRunContext),
+          );
+          calls.push(
+            tool('create_assignment').execute(
+              {
+                title: 'Check release notes',
+                description: 'Compare the draft release notes with merged PRs.',
+                instructions: 'Read CHANGELOG.md first.',
+                grant_id: 'grant-1',
+              },
+              {} as ToolRunContext,
+            ),
+          );
+          refusals.push(
+            tool('create_assignment').execute(
+              { description: 'No title given.', grant_id: 'grant-1' },
+              {} as ToolRunContext,
+            ),
           );
         },
       },
@@ -3150,7 +3459,10 @@ describe('Assignment Directory Tools', () => {
         }),
       },
       assignments: {
-        create: () => ({ outcome: 'created', assignment: ASSIGNMENT }),
+        create: (input) => {
+          created.push(input);
+          return { outcome: 'created', assignment: ASSIGNMENT };
+        },
         grants: () => [],
         list: () => [],
         query: (input) => {
@@ -3192,8 +3504,21 @@ describe('Assignment Directory Tools', () => {
         { outcome: 'archived', sessionId: 'a-1', archivedAt: BOT.createdAt },
         { outcome: 'refused', code: 'assignment-active', sessionId: 'busy', activity: 'working' },
         { outcome: 'unarchived', sessionId: 'a-1' },
+        {
+          outcome: 'created',
+          sessionId: ASSIGNMENT.sessionId,
+          title: ASSIGNMENT.title,
+          description: ASSIGNMENT.description,
+        },
       ]);
       expect(archived).toEqual(['a-1']);
+      expect(created).toContainEqual({
+        title: 'Check release notes',
+        description: 'Compare the draft release notes with merged PRs.',
+        instructions: 'Read CHANGELOG.md first.',
+        grantId: 'grant-1',
+      });
+      await expect(refusals[0]).rejects.toThrow(/missing required property "title"/);
     } finally {
       await adapter.close();
     }

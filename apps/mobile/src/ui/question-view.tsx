@@ -206,6 +206,7 @@ export function QuestionView({
               })}
               <TextField
                 accessibilityLabel={`${t.otherAnswer}: ${question.question}`}
+                label={t.otherAnswer}
                 placeholder={t.otherAnswer}
                 editable={pending && phase.busy !== true}
                 multiline

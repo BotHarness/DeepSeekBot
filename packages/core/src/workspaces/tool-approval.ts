@@ -19,11 +19,12 @@ import type { AssignmentApprovalWaitLease } from '../runtime/assignment-approval
 import {
   approvalSessionExcerpt,
   reviewerCallInput,
+  type ApprovalExcerptLimits,
   type ApprovalReview,
   type ApprovalReviewRequest,
   type ApprovalReviewResult,
 } from './approval-reviewer.js';
-import { changesApprovalPolicy } from './approval-templates.js';
+import { requiresHumanDecision } from './approval-templates.js';
 
 export interface BotCreatePreview {
   memoryFolder: string;
@@ -67,6 +68,7 @@ export interface ToolAutoApproval {
   template(botSlug: string): { name: string; text: string } | undefined;
   templateInUse?(template: string): boolean;
   review(request: ApprovalReviewRequest): Promise<ApprovalReviewResult>;
+  excerptLimits?(botSlug: string): ApprovalExcerptLimits;
   log(entry: {
     botSlug: string;
     template: string;
@@ -303,8 +305,11 @@ export class ChannelToolApproval {
       tracked.authorized = () => this.#fullAccess?.(tracked.sessionId) === true;
       return 'allowed-once';
     }
-    if (tracked.externalDecision !== 'each-use' && this.#matchingRule(tracked) !== undefined) {
+    const standing =
+      tracked.externalDecision === 'each-use' ? undefined : this.#matchingRule(tracked);
+    if (standing !== undefined) {
       tracked.automatic = true;
+      this.#rules?.recordAutoApproval(standing.botSlug, standing.id);
       return 'allowed-once';
     }
     const origin =
@@ -455,6 +460,11 @@ export class ChannelToolApproval {
   usesStandingRule(agent: Agent, callId: string): boolean {
     const tracked = this.#tracked.get(callKey(agent.session.id, callId));
     return tracked?.agent === agent && tracked.automatic === true;
+  }
+
+  cancelChannel(channelId: string): void {
+    for (const [messageId, pending] of this.#pending)
+      if (pending.channelId === channelId) this.#settle(messageId, 'cancelled');
   }
 
   cancelInvalid(): void {
@@ -856,7 +866,7 @@ export class ChannelToolApproval {
 
   #changesPolicy(tracked: TrackedCall): boolean {
     const inUse = this.#autoApproval?.templateInUse;
-    return changesApprovalPolicy(
+    return requiresHumanDecision(
       tracked.toolName + ' ' + tracked.input,
       inUse === undefined ? undefined : (name) => inUse(name),
     );
@@ -934,7 +944,11 @@ export class ChannelToolApproval {
             ? {}
             : { authorization: { device: tracked.device, sessionId: tracked.sessionId } }),
         },
-        excerpt: approvalSessionExcerpt(tracked.agent.session.snapshotEvents(), tracked.callId),
+        excerpt: approvalSessionExcerpt(
+          tracked.agent.session.snapshotEvents(),
+          tracked.callId,
+          auto.excerptLimits?.(tracked.botSlug),
+        ),
         signal: signal ?? new AbortController().signal,
       });
     } catch (error) {

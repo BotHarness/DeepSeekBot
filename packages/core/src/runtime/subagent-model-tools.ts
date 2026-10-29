@@ -333,6 +333,22 @@ export function createBotSubagentModelTools(
   ];
 }
 
+export function installOrchestratorSubagentGuard(ctx: Context): void {
+  ctx.tools.guard((execution) =>
+    execution.name === 'subagent' ||
+    execution.name === 'subagent_fork' ||
+    execution.name === 'list_subagent_models' ||
+    isBotSubagentModelTool(execution.name)
+      ? 'An Orchestrator does not start DSH Subagents; delegate with create_assignment'
+      : undefined,
+  );
+  ctx.systemPrompt.section({
+    name: 'botharness:subagent-model-route',
+    order: 10_360,
+    text: 'This Orchestrator Session does not start DSH Subagents. Delegate work that needs its own Session or parallel execution with create_assignment; each Assignment can start its own Subagents.',
+  });
+}
+
 export async function installBotSubagentModelTools(
   ctx: Context,
   resolvePlan: () => PersonaBotModelPlan | undefined,

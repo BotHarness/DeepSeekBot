@@ -15,15 +15,19 @@ const ENTRY_SHAPE = {
   bio: expect.any(String),
   bioGenerated: false,
   banner: null,
+  avatar: null,
   description: expect.any(String),
   topics: expect.any(Array),
   stars: expect.any(Number),
+  installs: expect.any(Number),
   pushedAt: expect.any(String),
   createdAt: expect.any(String),
   htmlUrl: expect.any(String),
   cloneUrl: expect.any(String),
   defaultBranch: expect.any(String),
   headCommit: { sha: expect.any(String), committedAt: expect.any(String) },
+  source: 'github',
+  author: null,
 };
 
 async function listedMarket() {

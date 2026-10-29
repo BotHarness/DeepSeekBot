@@ -14,6 +14,7 @@ import { seededAvatarFor } from '../src/bots/avatar-appearance.js';
 import { syncBotDescriptor } from '../src/bots/bot-descriptor-sync.js';
 import { fallbackPrimaryColor, resolveBotPrimaryColor } from '../src/bots/primary-color.js';
 import {
+  alwaysIncludedFiles,
   BOT_ZIP_HISTORY_PATH,
   BOT_ZIP_MAX_BYTES,
   exportBotZip,
@@ -171,6 +172,27 @@ describe('Bot Zip file selection', () => {
     ]);
     expect(listing.files).toContainEqual({ path: 'people/alex.md', size: 5 });
     expect(listing.files.some((file) => file.path.startsWith('.git/'))).toBe(false);
+  });
+
+  it('always includes the recipe beside an Avatar snapshot', () => {
+    const memoryDir = tempRoot();
+    mkdirSync(join(memoryDir, '.botharness'));
+    writeFileSync(
+      join(memoryDir, '.botharness/bot.json'),
+      JSON.stringify({ avatar: { image: '.botharness/avatar.png' } }),
+    );
+    const files = [
+      '.botharness/avatar.png',
+      '.botharness/avatar.recipe.json',
+      '.botharness/bot.json',
+      'SOUL.md',
+    ];
+
+    expect(alwaysIncludedFiles(memoryDir, files)).toEqual([
+      '.botharness/bot.json',
+      '.botharness/avatar.png',
+      '.botharness/avatar.recipe.json',
+    ]);
   });
 
   it('exports exactly the selected files plus bot.json and the avatar', async () => {

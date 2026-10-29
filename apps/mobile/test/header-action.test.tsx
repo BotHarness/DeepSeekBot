@@ -43,7 +43,8 @@ vi.mock('@expo/ui/swift-ui', () => ({
       children,
     ),
 }));
-vi.mock('../src/ui/shell/icons', () => ({
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
   ActivityFilterIcon: () => createElement('svg', { 'data-icon': 'filter' }),
   ActivitySearchIcon: () => createElement('svg', { 'data-icon': 'search' }),
   SettingsIcon: () => createElement('svg', { 'data-icon': 'settings' }),

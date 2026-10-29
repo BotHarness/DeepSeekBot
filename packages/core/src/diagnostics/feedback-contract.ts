@@ -26,6 +26,7 @@ export const feedbackSelectionSchema = z
     deliveries: z.boolean().default(true),
     relatedChats: z.boolean().default(true),
     wholeSessions: z.boolean().default(false),
+    failureTurn: z.boolean().default(false),
   })
   .strict();
 
@@ -49,7 +50,6 @@ export type FeedbackSelection = z.infer<typeof feedbackSelectionSchema>;
 export type FeedbackRating = z.infer<typeof feedbackRatingSchema>;
 export interface FeedbackReceipt {
   reportId: string;
-  expiresAt: string;
 }
 
 export const feedbackPreviewSchema = z.object({
@@ -64,7 +64,7 @@ export const feedbackPreviewSchema = z.object({
     omissions: z.array(z.object({ kind: z.string(), detail: z.string() })),
   }),
 });
-export const feedbackReceiptSchema = z.object({ reportId: z.string(), expiresAt: z.string() });
+export const feedbackReceiptSchema = z.object({ reportId: z.string() });
 export const feedbackErrorSchema = z.object({ error: z.object({ code: z.string() }) });
 
 export type FeedbackPreview = z.infer<typeof feedbackPreviewSchema>;

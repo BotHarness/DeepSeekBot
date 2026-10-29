@@ -2,12 +2,18 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 
 vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
 
 vi.mock('../src/ui/primitives/row-icon', () => ({ RowIcon: () => null }));
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('react-native-worklets', () => ({
+  scheduleOnRN: <A extends unknown[]>(callback: (...args: A) => void, ...args: A) =>
+    callback(...args),
+}));
 vi.mock('expo-image', () => ({ Image: () => null }));
 vi.mock('expo-router', () => ({ useRouter: () => ({ back() {} }) }));
 vi.mock('react-native-safe-area-context', () => ({
@@ -73,12 +79,10 @@ const button = (view: HTMLElement, label: string) =>
 function actions(overrides: Partial<SettingsActions> = {}): SettingsActions {
   return {
     onUsage: vi.fn(),
-    onComputers: vi.fn(),
     onAppIcon: vi.fn(),
     onNotifications: vi.fn(),
     onStorage: vi.fn(),
     onModels: vi.fn(),
-    onUnpair: vi.fn(async () => undefined),
     onCopyVersion: vi.fn(),
     ...overrides,
   };
@@ -88,15 +92,7 @@ describe('Usage card in Settings', () => {
   it("shows the Host's 7-day total over a bar per day, and opens the Usage screen", async () => {
     const handlers = actions();
     const load = vi.fn(async () => week());
-    const view = await render(
-      <SettingsView
-        hostName="studio"
-        version="0.0.1"
-        connection={{ status: 'connected', route: '' }}
-        loadUsage={load}
-        actions={handlers}
-      />,
-    );
+    const view = await render(<SettingsView version="0.0.1" loadUsage={load} actions={handlers} />);
     const amount = tokenAmount(active.overviewUsage.week.totals.totalTokens);
     const card = button(view, t.usageCard(amount));
     expect(card).not.toBeNull();
@@ -116,9 +112,7 @@ describe('Usage card in Settings', () => {
   it('shows an idle Host as an empty week, not an error', async () => {
     const view = await render(
       <SettingsView
-        hostName="studio"
         version="0.0.1"
-        connection={{ status: 'connected', route: '' }}
         loadUsage={async () =>
           structuredClone(usageWire.rpc.idle.overviewUsage.week) as OverviewUsage
         }
@@ -133,13 +127,7 @@ describe('Usage card in Settings', () => {
     const week = structuredClone(usageWire.rpc.active.overviewUsage.week) as OverviewUsage;
     week.totals.partial = true;
     const view = await render(
-      <SettingsView
-        hostName="studio"
-        version="0.0.1"
-        connection={{ status: 'connected', route: '' }}
-        loadUsage={async () => week}
-        actions={actions()}
-      />,
+      <SettingsView version="0.0.1" loadUsage={async () => week} actions={actions()} />,
     );
     const amount = tokenAmount(week.totals.totalTokens, true);
     expect(amount).toMatch(/\+$/u);
@@ -154,13 +142,7 @@ describe('Usage card in Settings', () => {
       .mockRejectedValueOnce(new Error('Usage statistics unavailable'))
       .mockResolvedValueOnce(week());
     const view = await render(
-      <SettingsView
-        hostName="studio"
-        version="0.0.1"
-        connection={{ status: 'connected', route: '' }}
-        loadUsage={load}
-        actions={actions()}
-      />,
+      <SettingsView version="0.0.1" loadUsage={load} actions={actions()} />,
     );
     expect(view.textContent).toContain(`${t.usageFailed} Usage statistics unavailable`);
     await act(async () => button(view, t.tryAgain)!.click());

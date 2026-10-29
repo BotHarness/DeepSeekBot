@@ -333,6 +333,175 @@ describe('bridge methods', () => {
     expect((await methods.botToolTrace({ slug: 'nobody' })).ok).toBe(false);
     expect(read).toHaveBeenCalledTimes(1);
   });
+  it("reads an Assignment's MAIN and SUBAGENT timeline without raw tool input", async () => {
+    const ownership = createTestOwnership({ 'asg-1': { botSlug: 'ada' } });
+    ownership.claim({
+      sessionId: 'sub-1',
+      botSlug: 'ada',
+      rootRole: 'assignment',
+      provenance: 'subagent',
+      parentSessionId: 'asg-1',
+      at: '2026-09-19T00:00:01.000Z',
+    });
+    ownership.claim({
+      sessionId: 'fork-1',
+      botSlug: 'ada',
+      rootRole: 'assignment',
+      provenance: 'fork',
+      parentSessionId: 'asg-1',
+      at: '2026-09-19T00:00:02.000Z',
+    });
+    const read = vi.fn(async (sessionId: string) => ({
+      events: [
+        {
+          type: 'tool/call',
+          seq: 1,
+          time: 1,
+          data: {
+            turn: 1,
+            callId: `${sessionId}-c1`,
+            name: 'bash',
+            arguments: '{"command":"cat ~/.ssh/id_rsa"}',
+          },
+        },
+      ],
+      inheritedEventCount: 0,
+    }));
+    const assignment = {
+      sessionId: 'asg-1',
+      botSlug: 'ada',
+      sourceEventId: 'source-1',
+      title: 'Check the release',
+      description: 'Check that the release is live.',
+      activity: 'working' as const,
+      createdAt: '2026-09-19T00:00:00.000Z',
+      updatedAt: '2026-09-19T00:00:01.000Z',
+    };
+    const { registry, methods } = setup(
+      [],
+      ['ada'],
+      () =>
+        ({
+          getAssignment: (_slug: string, sessionId: string) =>
+            sessionId === 'asg-1' ? assignment : undefined,
+          whenIdle: async () => undefined,
+          close: async () => undefined,
+        }) as unknown as BotRuntime,
+      ownership,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      read,
+    );
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    const result = await methods.assignmentTimeline({ slug: 'ada', sessionId: 'asg-1' });
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        assignment,
+        rounds: [],
+        omittedRounds: 0,
+        omittedSubagents: 0,
+        lanes: [
+          {
+            role: 'main',
+            index: 0,
+            sessionId: 'asg-1',
+            state: 'idle',
+            startedAt: '1970-01-01T00:00:00.001Z',
+            updatedAt: '1970-01-01T00:00:00.001Z',
+            omitted: 0,
+            entries: [
+              { status: 'running', kind: 'other', tool: 'bash', at: '1970-01-01T00:00:00.001Z' },
+            ],
+          },
+          {
+            role: 'subagent',
+            index: 1,
+            sessionId: 'sub-1',
+            state: 'idle',
+            startedAt: '1970-01-01T00:00:00.001Z',
+            updatedAt: '1970-01-01T00:00:00.001Z',
+            omitted: 0,
+            entries: [
+              { status: 'running', kind: 'other', tool: 'bash', at: '1970-01-01T00:00:00.001Z' },
+            ],
+          },
+        ],
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain('id_rsa');
+    expect(read.mock.calls.map(([id]) => id)).toEqual(['asg-1', 'sub-1']);
+    const subagents = await methods.sessionSubagents({ slug: 'ada', sessionId: 'asg-1' });
+    expect(subagents).toMatchObject({
+      ok: true,
+      value: {
+        sessionId: 'asg-1',
+        role: 'assignment',
+        omittedSubagents: 0,
+        lanes: [{ role: 'subagent', index: 1, sessionId: 'sub-1', state: 'idle' }],
+      },
+    });
+    expect(JSON.stringify(subagents)).not.toContain('id_rsa');
+    expect((await methods.sessionSubagents({ slug: 'ada', sessionId: 'sub-1' })).ok).toBe(false);
+    expect((await methods.sessionSubagents({ slug: 'ada', sessionId: 'nope' })).ok).toBe(false);
+    expect((await methods.sessionSubagents({ slug: 'ada' })).ok).toBe(false);
+    expect((await methods.assignmentTimeline({ slug: 'ada', sessionId: 'nope' })).ok).toBe(false);
+    expect((await methods.assignmentTimeline({ slug: 'ada' })).ok).toBe(false);
+    expect((await methods.assignmentTimeline({ slug: 'nobody', sessionId: 'asg-1' })).ok).toBe(
+      false,
+    );
+  });
+  it("reads a Bot's recent turn input from its own Session log only", async () => {
+    const ownership = createTestOwnership({
+      'session-ada': { botSlug: 'ada', rootRole: 'orchestrator' },
+      'session-other': { botSlug: 'outsider', rootRole: 'orchestrator' },
+    });
+    const read = vi.fn(async () => ({
+      events: [
+        { type: 'turn/start', seq: 1, time: 1, data: { turn: 1 } },
+        {
+          type: 'user/message',
+          seq: 2,
+          time: 2,
+          data: { source: { kind: 'user' }, content: [{ type: 'text', text: 'Hi' }] },
+        },
+      ],
+      inheritedEventCount: 0,
+    }));
+    const { registry, methods } = setup(
+      [],
+      ['ada'],
+      undefined,
+      ownership,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      read,
+    );
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    expect(await methods.botTurnInput({ slug: 'ada', sessionId: 'session-ada' })).toMatchObject({
+      ok: true,
+      value: {
+        slug: 'ada',
+        sessionId: 'session-ada',
+        turns: [{ turn: 1, messages: [{ step: 1, source: 'user', text: 'Hi' }] }],
+      },
+    });
+    expect((await methods.botTurnInput({ slug: 'ada', sessionId: 'session-other' })).ok).toBe(
+      false,
+    );
+    expect(
+      (await methods.botTurnInput({ slug: 'ada', sessionId: 'session-ada', turns: 21 })).ok,
+    ).toBe(false);
+    expect((await methods.botTurnInput({ slug: 'nobody' })).ok).toBe(false);
+    expect(read).toHaveBeenCalledTimes(1);
+    expect((await methods.botSystemPrompt({ slug: 'ada' })).ok).toBe(false);
+  });
   it('lists and runs direct Bot tools through the runtime and traces them as session direct', async () => {
     const run = vi.fn(async (_slug: string, tool: string) => {
       if (tool === 'create_assignment')
@@ -370,7 +539,29 @@ describe('bridge methods', () => {
       ok: true,
       value: { slug: 'ada', tool: 'channel_list', sessionId: 'direct', result: { channels: [] } },
     });
-    expect(run).toHaveBeenCalledWith('ada', 'channel_list', { limit: 1 }, expect.any(AbortSignal));
+    expect(run).toHaveBeenCalledWith(
+      'ada',
+      'channel_list',
+      { limit: 1 },
+      expect.any(AbortSignal),
+      undefined,
+    );
+    await methods.botToolRun({
+      slug: 'ada',
+      tool: 'bot_subagent',
+      args: {},
+      sessionId: ' assign-1 ',
+    });
+    expect(run).toHaveBeenLastCalledWith(
+      'ada',
+      'bot_subagent',
+      {},
+      expect.any(AbortSignal),
+      'assign-1',
+    );
+    expect(
+      await methods.botToolRun({ slug: 'ada', tool: 'bot_subagent', sessionId: 7 }),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
     expect(await methods.botToolRun({ slug: 'ada', tool: 'create_assignment' })).toEqual({
       ok: false,
       error: { code: 'tool-not-direct', message: 'create_assignment cannot run' },
@@ -2254,7 +2445,8 @@ describe('bridge methods', () => {
       listAssignments: () => [
         {
           sessionId: 'assignment-1',
-          purpose: '核对发布状态',
+          title: '核对发布状态',
+          description: '核对发布状态',
           activity: 'idle' as const,
           latestReport: {
             state: 'completed' as const,
@@ -2271,7 +2463,8 @@ describe('bridge methods', () => {
               sessionId,
               botSlug: 'ada',
               sourceEventId: 'source-1',
-              purpose: '核对发布状态',
+              title: '核对发布状态',
+              description: '核对发布状态',
               activity: 'idle' as const,
               latestReport: {
                 state: 'completed' as const,
@@ -2315,7 +2508,7 @@ describe('bridge methods', () => {
         assignments: [
           expect.objectContaining({
             sessionId: 'assignment-1',
-            purpose: '核对发布状态',
+            description: '核对发布状态',
             activity: 'idle',
           }),
         ],
@@ -2451,6 +2644,53 @@ describe('bridge methods', () => {
     expect(result.value.sessions.map((session) => session.sessionId)).not.toContain('session-3');
   });
 
+  it('reports the model each root Session last ran on, else the configured route', () => {
+    const ownership = createTestOwnership({
+      orc: { botSlug: 'ada', rootRole: 'orchestrator' },
+      work: { botSlug: 'ada', rootRole: 'assignment' },
+    });
+    const usage = {
+      latestRoute: (sessionId: string) =>
+        sessionId === 'work'
+          ? { provider: 'opencode-go', model: 'deepseek-v4.1-flash' }
+          : undefined,
+    } as unknown as UsageProjection;
+    const { methods, registry } = setup(
+      [],
+      ['ada'],
+      undefined,
+      ownership,
+      undefined,
+      undefined,
+      undefined,
+      usage,
+    );
+    methods.create({ slug: 'ada', displayName: 'Ada' });
+    const orchestrator = {
+      provider: 'deepseek',
+      model: 'deepseek-v4-pro',
+      reasoningEffort: 'high',
+    };
+    vi.spyOn(registry, 'get').mockImplementation(
+      (slug) =>
+        ({
+          slug,
+          modelPlan: { orchestrator, assignmentDefault: orchestrator },
+        }) as unknown as ReturnType<typeof registry.get>,
+    );
+
+    const result = methods.sessions({ slug: 'ada' });
+    if (!result.ok) throw new Error('Expected Sessions');
+    expect(
+      Object.fromEntries(
+        result.value.sessions.map((session) => [session.sessionId, session.modelRoute]),
+      ),
+    ).toEqual({
+      orc: orchestrator,
+      work: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+    });
+  });
+
   it('marks which Orchestrator Session the runtime resumes', () => {
     const ownership = createTestOwnership({
       resumed: { botSlug: 'ada', rootRole: 'orchestrator' },
@@ -2489,7 +2729,8 @@ describe('bridge methods', () => {
         listAssignments: () =>
           (['session-safe', 'session-danger'] as const).map((sessionId) => ({
             sessionId,
-            purpose: 'Inspect files',
+            title: 'Inspect files',
+            description: 'Inspect files',
             activity: 'idle' as const,
             createdAt: '2026-09-19T00:00:00.000Z',
             updatedAt: '2026-09-19T00:00:00.000Z',
@@ -3092,4 +3333,35 @@ it('resolves attachment identity within its current message and keeps resend ide
       fileId: ref.hash,
     }).ok,
   ).toBe(false);
+});
+
+it('logs why storage cleanup failed instead of hiding it behind storage-unavailable (#2882)', () => {
+  const h = setup();
+  const warn = vi.fn();
+  const methods = createBridgeMethods({
+    registry: h.registry,
+    states: h.states,
+    channels: h.channels,
+    ownership: createTestOwnership(),
+    roster: createTestRosterStore(),
+    warn,
+    storage: {
+      usage: () => {
+        throw new Error('usage broke');
+      },
+      preview: () => {
+        throw new Error('Managed files contain a link');
+      },
+      confirm: () => {
+        throw new Error('unused');
+      },
+    },
+  });
+  expect(methods.storageCleanupPreview({ before: '2026-01-01T00:00:00.000Z' })).toEqual({
+    ok: false,
+    error: { code: 'storage-unavailable', message: 'Storage cleanup preview is unavailable' },
+  });
+  expect(warn).toHaveBeenCalledWith(
+    'Storage cleanup preview is unavailable: Managed files contain a link',
+  );
 });

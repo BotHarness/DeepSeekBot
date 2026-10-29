@@ -324,7 +324,7 @@ describe('release composition', () => {
     expect(() => verifyProductComposition(entries)).toThrow('conflicts');
   });
   it('keeps product provenance independent when the development Provider selection changes', () => {
-    expect(productImProvider.upstream.source).toBe('beaed4a6dabb583654d28fb09298716267039b4a');
+    expect(productImProvider.upstream.source).toBe('7505ce6fcda26c02810781fde9d4da81dab28a68');
     expect(productImProvider.upstream.dsh).toBe('0.2.0-rc.2');
   });
 
@@ -339,7 +339,7 @@ describe('release composition', () => {
       '@botharness/computer': '0.0.0-test.823',
       '@botharness/core': '0.0.0-test.823',
       '@botharness/ui': '0.0.0-test.823',
-      '@botharness/im-provider': '4.32.0-botharness.22',
+      '@botharness/im-provider': '4.32.0-botharness.23',
     });
     expect(release.optionalDependencies).toEqual(
       Object.fromEntries(cloudflaredPackageNames.map((name) => [name, '0.0.0-test.823'])),

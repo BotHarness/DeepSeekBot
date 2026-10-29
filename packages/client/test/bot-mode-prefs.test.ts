@@ -86,11 +86,39 @@ describe('BOT-mode policy store', () => {
     await vi.waitFor(() => expect(prefs.source.getSnapshot().autoAcceptGroupInvites).toBe(false));
   });
 
+  it('keeps delivery receipts hidden until the Host stores an explicit choice', () => {
+    const scope = fakeHost();
+    const prefs = new BotModePrefs();
+    prefs.attach(scope.host);
+    expect(prefs.source.getSnapshot().showDeliveryReceipts).toBe(false);
+    botModePrefsFace(prefs).setShowDeliveryReceipts(true);
+    expect(scope.set).toHaveBeenCalledWith('showDeliveryReceipts', true);
+    scope.push({ value: { ...scope.host.getSnapshot().value!, showDeliveryReceipts: true } });
+    const reloaded = new BotModePrefs();
+    reloaded.attach(scope.host);
+    expect(reloaded.source.getSnapshot().showDeliveryReceipts).toBe(true);
+  });
+
+  it('shows Bot replies once complete until the Host stores streaming', () => {
+    const scope = fakeHost();
+    const prefs = new BotModePrefs();
+    prefs.attach(scope.host);
+    expect(prefs.source.getSnapshot().streamReplies).toBe(false);
+    botModePrefsFace(prefs).setStreamReplies(true);
+    expect(scope.set).toHaveBeenCalledWith('streamReplies', true);
+    scope.push({ value: { ...scope.host.getSnapshot().value!, streamReplies: true } });
+    const reloaded = new BotModePrefs();
+    reloaded.attach(scope.host);
+    expect(reloaded.source.getSnapshot().streamReplies).toBe(true);
+  });
+
   it('starts on the default without pretending persistence', () => {
     const prefs = new BotModePrefs();
 
     expect(prefs.source.getSnapshot()).toEqual({
       autoCollapseMessages: false,
+      showDeliveryReceipts: false,
+      streamReplies: false,
       motionPreference: 'system',
       botIcon: 'mascot' as const,
       sendKey: 'enter' as const,
@@ -162,6 +190,8 @@ describe('BOT-mode policy store', () => {
       motionPreference: 'reduce',
       botIcon: 'mascot' as const,
       autoCollapseMessages: false,
+      showDeliveryReceipts: false,
+      streamReplies: false,
       sendKey: 'enter' as const,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
@@ -309,6 +339,8 @@ describe('BOT-mode policy store', () => {
       botIcon: 'mascot' as const,
       sendKey: 'enter' as const,
       autoCollapseMessages: false,
+      showDeliveryReceipts: false,
+      streamReplies: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
       developerMode: false,
@@ -351,6 +383,22 @@ describe('BOT-mode policy store', () => {
       sortMode: 'manual',
       sortModes: { s1: 'updated' },
     });
+  });
+
+  it('restores the saved value when the Host refuses or fails a write', async () => {
+    const scope = fakeHost();
+    scope.host.set = async () => false;
+    const prefs = new BotModePrefs();
+    prefs.attach(scope.host);
+    prefs.setStreamReplies(true);
+    expect(prefs.source.getSnapshot().streamReplies).toBe(true);
+    await vi.waitFor(() => expect(prefs.source.getSnapshot().streamReplies).toBe(false));
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    scope.host.set = async () => Promise.reject(new Error('offline'));
+    prefs.setShowDeliveryReceipts(true);
+    await vi.waitFor(() => expect(prefs.source.getSnapshot().showDeliveryReceipts).toBe(false));
+    warn.mockRestore();
   });
 
   it('warns on a rejected write instead of dropping it silently', async () => {

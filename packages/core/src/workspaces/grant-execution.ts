@@ -1,33 +1,117 @@
-import { changesApprovalPolicy } from './approval-templates.js';
+import { requiresHumanDecision } from './approval-templates.js';
 import type { Session } from '@deepseek-ai/dsh-session';
 import { setSandboxMode, type SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy';
 import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-approval';
 
+import { sameDirectory } from '../fs/same-directory.js';
 import type { BotHarnessCore } from '../plugin.js';
 import { NATIVE_FILE_TOOL_NAMES, nativeFileToolDenial } from './grant-native-tools.js';
 
 type AccessCore = { assignmentAccess?: Pick<BotHarnessCore['assignmentAccess'], 'get'> };
 
+type Owner = NonNullable<ReturnType<BotHarnessCore['ownership']['resolve']>>;
+
+function rootOwner(core: Pick<BotHarnessCore, 'ownership'>, sessionId: string): Owner | undefined {
+  let owner = core.ownership.resolve(sessionId);
+  const seen = new Set<string>();
+  while (owner?.parentSessionId !== undefined) {
+    if (seen.has(owner.sessionId)) return undefined;
+    seen.add(owner.sessionId);
+    const parent = core.ownership.resolve(owner.parentSessionId);
+    if (parent === undefined || parent.botSlug !== owner.botSlug) return undefined;
+    owner = parent;
+  }
+  return owner;
+}
+
 export function alignOrchestratorSubagentPermission(
-  core: Pick<BotHarnessCore, 'ownership'>,
+  core: Pick<BotHarnessCore, 'ownership'> & AccessCore,
   session: Session,
   policy: SandboxPolicyService | undefined,
   approval: ApprovalService | undefined,
-): void {
-  let owner = core.ownership.resolve(session.id);
-  if (owner?.provenance !== 'subagent' || policy === undefined || approval === undefined) return;
-  const seen = new Set<string>();
-  while (owner.parentSessionId !== undefined) {
-    if (seen.has(owner.sessionId)) return;
-    seen.add(owner.sessionId);
-    const parent = core.ownership.resolve(owner.parentSessionId);
-    if (parent === undefined || parent.botSlug !== owner.botSlug) return;
-    owner = parent;
+): boolean {
+  if (
+    core.ownership.resolve(session.id)?.provenance !== 'subagent' ||
+    policy === undefined ||
+    approval === undefined
+  )
+    return false;
+  const owner = rootOwner(core, session.id);
+  if (owner?.rootRole !== 'orchestrator') return false;
+  const mode = orchestratorPermission(core, owner.botSlug).mode;
+  let changed = false;
+  if (policy.resolve({ session }).mode !== mode) {
+    setSandboxMode(session, mode);
+    changed = true;
   }
-  if (owner.rootRole !== 'orchestrator') return;
-  if (policy.resolve({ session }).mode !== 'workspace-write')
-    setSandboxMode(session, 'workspace-write');
-  if (approval.overrideOf(session) !== 'never') setApprovalPolicy(session, 'never');
+  if (approval.overrideOf(session) !== 'never') {
+    setApprovalPolicy(session, 'never');
+    changed = true;
+  }
+  return changed;
+}
+
+export function alignOrchestratorPermission(
+  core: Pick<BotHarnessCore, 'ownership'> & AccessCore,
+  session: Session,
+  policy: SandboxPolicyService | undefined,
+  approval: ApprovalService | undefined,
+): boolean | undefined {
+  const owner = core.ownership.resolve(session.id);
+  if (
+    owner?.rootRole !== 'orchestrator' ||
+    owner.provenance === 'subagent' ||
+    owner.parentSessionId !== undefined ||
+    policy === undefined ||
+    approval === undefined
+  )
+    return undefined;
+  const expected = orchestratorPermission(core, owner.botSlug);
+  if (
+    policy.resolve({ session }).mode === expected.mode &&
+    approval.overrideOf(session) === expected.approval
+  )
+    return false;
+  setSandboxMode(session, expected.mode);
+  setApprovalPolicy(session, expected.approval);
+  return true;
+}
+
+export function alignAssignmentPermission(
+  core: Pick<BotHarnessCore, 'ownership' | 'runtime' | 'grants'>,
+  session: Session,
+  policy: SandboxPolicyService | undefined,
+  approval: ApprovalService | undefined,
+): boolean | undefined {
+  const owner = core.ownership.resolve(session.id);
+  if (
+    owner?.rootRole !== 'assignment' ||
+    owner.provenance === 'subagent' ||
+    owner.parentSessionId !== undefined ||
+    policy === undefined ||
+    approval === undefined
+  )
+    return undefined;
+  const permission = core.runtime.getAssignment(owner.botSlug, owner.sessionId)?.permission;
+  if (permission === undefined || session.header.cwd !== permission.primaryCwd) return undefined;
+  try {
+    const grant = core.grants.requireActive(owner.botSlug, permission.grantId);
+    if (
+      grant.workspaceId !== permission.workspaceId ||
+      grant.workspacePath !== permission.primaryCwd
+    )
+      return undefined;
+  } catch {
+    return undefined;
+  }
+  if (
+    policy.resolve({ session }).mode === permission.mode &&
+    approval.overrideOf(session) === permission.approval
+  )
+    return false;
+  setSandboxMode(session, permission.mode);
+  setApprovalPolicy(session, permission.approval);
+  return true;
 }
 
 export function orchestratorPermission(
@@ -44,7 +128,7 @@ export function sessionHasFullAccess(
   core: Pick<BotHarnessCore, 'ownership' | 'runtime'> & AccessCore,
   sessionId: string,
 ): boolean {
-  const owner = core.ownership.resolve(sessionId);
+  const owner = rootOwner(core, sessionId);
   if (owner === undefined) return false;
   if (owner.rootRole === 'assignment')
     return (
@@ -53,7 +137,6 @@ export function sessionHasFullAccess(
     );
   return (
     owner.rootRole === 'orchestrator' &&
-    owner.provenance !== 'subagent' &&
     orchestratorPermission(core, owner.botSlug).mode === 'danger-full-access'
   );
 }
@@ -108,15 +191,16 @@ export function grantExecutionDenial(
   const approvalPolicy = approval.overrideOf(session);
   if (owner.rootRole === 'orchestrator') {
     if (delegatedSubagent) {
-      if (mode !== 'workspace-write' || approvalPolicy !== 'never')
-        return 'Orchestrator Subagent requires workspace-write and never approval';
+      if (mode !== orchestratorPermission(core, owner.botSlug).mode || approvalPolicy !== 'never')
+        return "Orchestrator Subagent permission differs from this PersonaBot's access setting";
     } else {
       const expected = orchestratorPermission(core, owner.botSlug);
       if (mode !== expected.mode || approvalPolicy !== expected.approval)
         return "Orchestrator Session permission differs from this PersonaBot's access setting";
     }
     const memoryCwd = core.registry.memoryDirFor(owner.botSlug);
-    return memoryCwd !== undefined && session.header.cwd === memoryCwd
+    const cwd = session.header.cwd;
+    return memoryCwd !== undefined && cwd !== undefined && sameDirectory(cwd, memoryCwd)
       ? undefined
       : 'Orchestrator Session requires its Memory working directory';
   }
@@ -144,6 +228,70 @@ export function grantExecutionDenial(
     return 'Assignment Workspace Grant is missing, revoked, or unavailable';
   }
   return undefined;
+}
+
+const SESSION_REFUSALS: ReadonlyArray<readonly [RegExp, string, string | undefined]> = [
+  [
+    /requires its Memory working directory/u,
+    'MEMORY_CWD_MISMATCH',
+    "Start a new Session; it opens in this Bot's Memory directory.",
+  ],
+  [
+    /^Orchestrator (?:Session|Subagent) permission differs/u,
+    'SESSION_PERMISSION_MISMATCH',
+    "Start a new Session, or check Full access in this Bot's workspace settings.",
+  ],
+  [
+    /^Assignment Session permission/u,
+    'ASSIGNMENT_PERMISSION_MISMATCH',
+    'Ask the Bot to start a new Assignment.',
+  ],
+  [
+    /^Assignment Workspace Grant/u,
+    'GRANT_UNAVAILABLE',
+    'Authorize the folder again on a Workspace Grant card, then ask the Bot to start a new Assignment.',
+  ],
+  [/^DSH permission services are unavailable/u, 'PERMISSION_UNAVAILABLE', 'Restart the Host.'],
+  [/^PersonaBot identity/u, 'BOT_UNAVAILABLE', undefined],
+  [/ownership|owner|role/u, 'SESSION_OWNER_MISSING', 'Start a new Session.'],
+];
+
+export function sessionRefusalMessage(denial: string): string {
+  const [, code, fix] = SESSION_REFUSALS.find(([pattern]) => pattern.test(denial)) ?? [
+    undefined,
+    'SESSION_REFUSED',
+    undefined,
+  ];
+  return `${code}: The Host refused this turn: ${denial}.${fix === undefined ? '' : ' ' + fix}`;
+}
+
+export type BotSessionRepair = 'orchestrator' | 'assignment' | 'orchestrator-subagent';
+
+export function admitBotSession(
+  core: Pick<BotHarnessCore, 'ownership' | 'runtime' | 'grants' | 'registry'> & AccessCore,
+  session: Session,
+  role: 'orchestrator' | 'assignment' | undefined,
+  policy: SandboxPolicyService | undefined,
+  approval: ApprovalService | undefined,
+  repaired?: (repair: BotSessionRepair) => void,
+): string | undefined {
+  const roleDenial = role === undefined ? undefined : borrowedAgentDenial(core, session, role);
+  if (roleDenial !== undefined) return roleDenial;
+  if (alignOrchestratorPermission(core, session, policy, approval)) repaired?.('orchestrator');
+  if (alignAssignmentPermission(core, session, policy, approval)) repaired?.('assignment');
+  if (alignOrchestratorSubagentPermission(core, session, policy, approval))
+    repaired?.('orchestrator-subagent');
+  return grantExecutionDenial(core, session, policy, approval);
+}
+
+export function borrowedAgentDenial(
+  core: Pick<BotHarnessCore, 'ownership'>,
+  session: Session,
+  role: 'orchestrator' | 'assignment',
+): string | undefined {
+  return core.ownership.resolve(session.id)?.rootRole === role
+    ? undefined
+    : 'BotHarness Agent role mismatch';
 }
 
 const BOT_TOOL_NAMES = new Set([
@@ -230,7 +378,7 @@ export function requiresHumanToolApproval(
       (args as Record<string, unknown>).access !== 'read'
     );
   if (name === 'secret_cli' || name === 'secret_mcp_connect' || name === 'bot_create') return true;
-  return isDshGovernedTool(name) && changesApprovalPolicy(policyInput(args), templateInUse);
+  return isDshGovernedTool(name) && requiresHumanDecision(policyInput(args), templateInUse);
 }
 
 export function approvalTemplateInUse(
@@ -284,19 +432,7 @@ export function grantToolExecutionDenial(
   if (BOT_TOOL_NAMES.has(name)) return undefined;
 
   if (core.hostTools.has(name)) return undefined;
-  const owner = core.ownership.resolve(session.id);
-  if (
-    owner?.rootRole === 'assignment' &&
-    core.runtime.getAssignment(owner.botSlug, owner.sessionId)?.permission?.mode ===
-      'danger-full-access'
-  )
-    return undefined;
-  if (
-    owner?.rootRole === 'orchestrator' &&
-    owner.provenance !== 'subagent' &&
-    orchestratorPermission(core, owner.botSlug).mode === 'danger-full-access'
-  )
-    return undefined;
+  if (sessionHasFullAccess(core, session.id)) return undefined;
   if (NATIVE_FILE_TOOL_NAMES.has(name)) return nativeFileToolDenial(core, session, name, args);
   if (requiresHumanToolApproval(name, args, approvalTemplateInUse(core.registry)) && !allowedOnce)
     return name + ' requires Human approval';

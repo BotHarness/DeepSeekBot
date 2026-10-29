@@ -86,10 +86,10 @@ export function compactionThresholdTokens(
     (entry) => entry.provider === route.provider && entry.model === route.model,
   );
   const ratio = exact?.thresholdRatio ?? policy.thresholdRatio ?? 0.8;
-  const headroom = exact?.headroomTokens ?? policy.headroomTokens ?? 65536;
-  return Math.floor(
-    Math.min(contextWindow * ratio, contextWindow - reservedCompletionTokens - headroom),
-  );
+  const free = contextWindow - reservedCompletionTokens;
+  const configured = exact?.headroomTokens ?? policy.headroomTokens ?? 65536;
+  const headroom = free - configured > 0 ? configured : Math.min(configured, 65536);
+  return Math.floor(Math.min(contextWindow * ratio, free - headroom));
 }
 
 export function cacheHitRatio(usage: TokenUsageBuckets): number | undefined {
@@ -268,7 +268,7 @@ export interface ManualCompactionResult {
 }
 
 export interface IdleCompaction {
-  compactNow(sessionId: string): Promise<ManualCompactionResult>;
+  compactNow(sessionId: string, runtimeReserved?: boolean): Promise<ManualCompactionResult>;
   observeEvent(sessionId: string, event: DshSessionEvent): void;
   agentStatus(sessionId: string, status: string): void;
   rescan(sessionIds: readonly string[]): void;
@@ -378,7 +378,14 @@ export function createIdleCompaction<Agent extends IdleCompactionAgent>(
     try {
       threshold = await ports.threshold(agent, route);
     } catch (error) {
-      ports.log({ event: 'skipped', reason: 'threshold-unavailable', error: errorCode(error) });
+      ports.log({
+        event: 'skipped',
+        reason: 'route-unavailable',
+        botSlug,
+        route: routeKey(route),
+        error: errorCode(error),
+      });
+      return;
     }
     if (tokensBefore === undefined || threshold === undefined) {
       ports.log({
@@ -497,12 +504,16 @@ export function createIdleCompaction<Agent extends IdleCompactionAgent>(
   };
 
   return {
-    async compactNow(sessionId) {
+    async compactNow(sessionId, runtimeReserved = false) {
       const botSlug = ports.orchestratorBot(sessionId);
       const agent = ports.agent(sessionId);
       if (closed || botSlug === undefined || agent === undefined)
         return { outcome: 'not-loaded', tokensBefore: null, tokensAfter: null };
-      if (running.has(sessionId) || agent.status !== 'idle' || ports.botBusy(botSlug))
+      if (
+        running.has(sessionId) ||
+        agent.status !== 'idle' ||
+        (!runtimeReserved && ports.botBusy(botSlug))
+      )
         return { outcome: 'busy', tokensBefore: null, tokensAfter: null };
       cancel(sessionId);
       const anchor = anchorOf(sessionId, agent);

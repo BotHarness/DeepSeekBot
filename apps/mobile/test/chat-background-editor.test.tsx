@@ -5,6 +5,7 @@ import { expect, it, vi } from 'vitest';
 
 vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
 
+vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   PanResponder: { create: () => ({ panHandlers: {} }) },

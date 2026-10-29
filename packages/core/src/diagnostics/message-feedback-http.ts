@@ -1,4 +1,5 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { collectFailureTurn, type FailureTurnEvidence } from './failure-turn.js';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { ChannelStore } from '../channels/store.js';
 import { collectDiagnosticBundle, DiagnosticBundleError, diagnosticBundleZip } from './bundle.js';
@@ -23,10 +24,9 @@ export interface MessageFeedbackOptions extends DiagnosticBundleHttpOptions {
   readTimeline: ChannelStore['readHumanTimeline'];
   submit?: (report: {
     reportId: string;
-    archive: Buffer;
-    digest: string;
     feedback: FeedbackRating;
     version: string;
+    turn?: FailureTurnEvidence;
   }) => Promise<FeedbackReceipt>;
 }
 
@@ -36,10 +36,9 @@ export function createMessageFeedbackHttp(options: MessageFeedbackOptions) {
     string,
     {
       archive: Buffer;
+      turn?: FailureTurnEvidence;
       expires: number;
       submission?: {
-        archive: Buffer;
-        digest: string;
         ratingKey: string;
         reportId: string;
         feedback: FeedbackRating;
@@ -80,6 +79,14 @@ export function createMessageFeedbackHttp(options: MessageFeedbackOptions) {
           createDiagnosticRedactor({ homes: options.homes }),
           { ...selection, messages: page.entries },
         );
+        const turn = selection.failureTurn
+          ? await collectFailureTurn(
+              options.source,
+              selection.channelId,
+              selection.messageId,
+              createDiagnosticRedactor({ homes: options.homes }),
+            )
+          : undefined;
         const token = randomUUID();
         const archive = diagnosticBundleZip(bundle);
         if (archive.length > 15 * 1024 * 1024)
@@ -89,7 +96,7 @@ export function createMessageFeedbackHttp(options: MessageFeedbackOptions) {
           if (oldest.done) break;
           previews.delete(oldest.value);
         }
-        previews.set(token, { archive, expires: now() + 30 * 60_000 });
+        previews.set(token, { archive, ...(turn ? { turn } : {}), expires: now() + 30 * 60_000 });
         options.log?.(`message-feedback initiator=human phase=previewed bytes=${archive.length}`);
         return Response.json(
           {
@@ -97,6 +104,7 @@ export function createMessageFeedbackHttp(options: MessageFeedbackOptions) {
             summary: bundle.summary,
             bytes: archive.length,
             selection,
+            ...(turn ? { uploadEvidence: turn } : {}),
             files: bundle.entries.map((entry) => ({
               path: entry.path,
               content: entry.data.toString('utf8'),
@@ -117,7 +125,7 @@ export function createMessageFeedbackHttp(options: MessageFeedbackOptions) {
           headers: {
             ...headers,
             'content-type': 'application/zip',
-            'content-disposition': 'attachment; filename="message-feedback.zip"',
+            'content-disposition': `attachment; filename="message-feedback-${token}.zip"`,
           },
         });
       if (action !== 'submit') return new Response(null, { status: 404, headers });
@@ -128,10 +136,8 @@ export function createMessageFeedbackHttp(options: MessageFeedbackOptions) {
       if (entry.submission && entry.submission.ratingKey !== ratingKey)
         return Response.json({ error: { code: 'submission-frozen' } }, { status: 409, headers });
       entry.submission ??= {
-        archive: entry.archive,
-        digest: createHash('sha256').update(entry.archive).digest('hex'),
         ratingKey,
-        reportId: randomUUID(),
+        reportId: token,
         feedback: {
           ...feedback,
           comment: Array.from(
@@ -145,8 +151,10 @@ export function createMessageFeedbackHttp(options: MessageFeedbackOptions) {
         const started = now();
         options.log?.('message-feedback initiator=human phase=submitting');
         entry.submission.receipt = await options.submit({
-          ...entry.submission,
+          reportId: entry.submission.reportId,
+          feedback: entry.submission.feedback,
           version: options.source.environment.version,
+          ...(entry.turn ? { turn: entry.turn } : {}),
         });
         options.log?.(
           `message-feedback initiator=human phase=accepted durationMs=${now() - started}`,

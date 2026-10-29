@@ -28,6 +28,10 @@ vi.mock('react-native', async () => {
       },
     },
     useWindowDimensions: () => ({ width: 320, height: 844, scale: 3, fontScale: device.scale }),
+    Dimensions: {
+      get: () => ({ width: 320, height: 844, scale: 3, fontScale: device.scale }),
+      addEventListener: (_event: string, _changed: () => void) => ({ remove() {} }),
+    },
     View: (props: Props) => createElement('div', attributes(props), props.children),
     Pressable: (props: Props) =>
       createElement(
@@ -55,21 +59,20 @@ vi.mock('react-native', async () => {
 });
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
 vi.mock('../src/ui/chat/group-mark', () => ({ GroupMark: () => null }));
-vi.mock('../src/ui/chat/conversation-swipe', () => ({
-  ConversationSwipe: ({ children }: { children: ReactNode }) => children,
-}));
 vi.mock('../src/ui/chat/row-status-glyph', () => ({
   RowStatusGlyph: ({ status }: { status: string }) =>
     status === 'none' ? null : createElement('i', { 'data-status': status }),
 }));
 vi.mock('../src/ui/shell/host-tile', () => ({ HostGlyph: () => createElement('i') }));
-vi.mock('../src/ui/shell/icons', () => ({
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
   CloudIcon: () => createElement('i'),
   ComputerIcon: () => createElement('i'),
 }));
 
 import { View } from 'react-native';
-import { ConversationRowFrame } from '../src/ui/chat/conversation-row';
+import { ConversationRow, ConversationRowFrame } from '../src/ui/chat/conversation-row';
+import { conversations, shortTime } from '../src/ui/chat/conversations';
 import { useDesignTheme } from '../src/ui/design/theme';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -140,7 +143,7 @@ describe.each(['android', 'ios'])('Chats row layout contract on %s', (os) => {
         expect(style(header)).toMatchObject({ flexDirection: 'row', alignItems: 'center' });
         expect(style(content)).toMatchObject({ flex: 1, minWidth: 0 });
         expect(style(source)).toMatchObject({ flex: 1, minWidth: 0 });
-        expect(style(row.name)).toMatchObject({ flexShrink: 1 });
+        expect(style(row.name)).toMatchObject({ flex: 1, minWidth: 0 });
         expect(style(source.children[1]!)).toMatchObject({ flexShrink: 0 });
         expect(source.getAttribute('aria-label')).toContain(title);
         expect(row.name.dataset.ellipsis).toBe('tail');
@@ -150,7 +153,7 @@ describe.each(['android', 'ios'])('Chats row layout contract on %s', (os) => {
         expect(row.preview.parentElement).toBe(content.children[1]);
         expect(row.preview.parentElement!.querySelector('[data-status="working"]')).not.toBeNull();
         for (const text of [row.name, row.time, row.preview]) {
-          expect(text.dataset.lines).toBe('1');
+          expect(text.dataset.lines).toBe(text === row.time ? undefined : '1');
           expect(text.dataset.scaling).not.toBe('false');
           expect(text.dataset.maximum).toBeUndefined();
           expect(text.dataset.fit).not.toBe('true');
@@ -178,11 +181,70 @@ describe.each(['android', 'ios'])('Chats row layout contract on %s', (os) => {
   });
 });
 
-it('keeps the environment beside the title icon rather than adding a third line', () => {
-  render();
-  const texts = [...host!.querySelectorAll('span')];
-  const name = texts.find((node) => node.textContent === title)!;
-  const environment = texts.find((node) => node.textContent === 'Research')!;
-  expect(environment.parentElement).toBe(name.parentElement);
-  expect(environment.previousElementSibling?.querySelector('i')).not.toBeNull();
+it('reserves visible heading space for the name and icon while retaining accessible source context', () => {
+  const row = render();
+  const source = row.name.parentElement!;
+  expect(source.getAttribute('aria-label')).toContain('Research');
+  expect(source.querySelector('i')).not.toBeNull();
+  expect(row.view.textContent).not.toContain('Research');
+});
+
+describe.each(['android', 'ios'])('Empty conversation time on %s', (os) => {
+  it.each(['dm', 'group'] as const)(
+    'renders creation time then replaces it with the first message time for %s',
+    (type) => {
+      device.os = os;
+      const createdAt = '2026-10-14T07:00:00.000Z';
+      const messageAt = '2026-10-14T09:00:00.000Z';
+      const now = new Date(messageAt);
+      host = document.createElement('div');
+      document.body.append(host);
+      root = createRoot(host);
+      for (const at of [undefined, messageAt]) {
+        const preview = at === undefined ? {} : { preview: 'First reply', previewAt: at };
+        const rows = conversations(
+          {
+            bots:
+              type === 'dm'
+                ? [
+                    {
+                      slug: 'qa',
+                      displayName: 'QA Bot',
+                      roles: [],
+                      computerAccess: false,
+                      browserAccess: false,
+                      state: 'idle',
+                      paused: false,
+                      dmChannelId: 'qa-channel',
+                      ...preview,
+                    },
+                  ]
+                : [],
+            channels:
+              type === 'group'
+                ? [
+                    {
+                      id: 'qa-channel',
+                      name: 'QA group',
+                      memberCount: 1,
+                      members: ['qa'],
+                      ...preview,
+                    },
+                  ]
+                : [],
+            activityChannels: [{ id: 'qa-channel', name: 'QA', type, members: ['qa'], createdAt }],
+          },
+          [],
+        );
+        act(() => root!.render(<ConversationRow row={rows[0]!} now={now} />));
+        const time = shortTime(at ?? createdAt, now);
+        const text = [...host.querySelectorAll('span')].find(
+          (element) => element.textContent === time,
+        );
+        expect(text).toBeDefined();
+        expect(style(text!)).toMatchObject({ flexShrink: 0 });
+        if (at !== undefined) expect(host.textContent).not.toContain(shortTime(createdAt, now));
+      }
+    },
+  );
 });

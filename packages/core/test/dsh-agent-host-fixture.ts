@@ -61,6 +61,7 @@ export class FakeAgentHost implements DshAgentHost {
   readonly createOptions: CreateAgentOptions[] = [];
   readonly resumeOptions: ResumeAgentOptions[] = [];
   readonly disposed: string[] = [];
+  readonly disposedByDsh: string[] = [];
   readonly scopes = new Map<string, FakeScope>();
   readonly sessions: FakeSession[] = [];
   readonly received = new Map<string, UserMessage[]>();
@@ -68,6 +69,22 @@ export class FakeAgentHost implements DshAgentHost {
   readonly cancelled: Array<{ sessionId: string; reason: unknown }> = [];
   readonly #cwdBySession = new Map<string, string | undefined>();
   readonly #live = new Map<string, Agent>();
+
+  disposeFromDsh(sessionId: string): Agent {
+    const agent = this.#live.get(sessionId);
+    if (agent === undefined) throw new Error(`No live Agent for ${sessionId}`);
+    this.#live.delete(sessionId);
+    this.disposedByDsh.push(sessionId);
+    const dead = agent as unknown as Record<string, unknown>;
+    const refuse = () => {
+      throw new Error(
+        `agent "${sessionId}" cannot read inbox state: its projection registration is not active`,
+      );
+    };
+    dead.followup = refuse;
+    dead.steer = refuse;
+    return agent;
+  }
 
   get(id: string): Agent | undefined {
     return this.#live.get(String(id));
@@ -195,6 +212,7 @@ export class FakeAgentHost implements DshAgentHost {
         return () => void scope.listeners.delete(event);
       },
       tools: {
+        get: (name: string) => scope.tools.find((tool) => tool.name === name),
         schemas: (viewingAgent: unknown) =>
           viewingAgent === undefined
             ? []
@@ -223,9 +241,15 @@ export class FakeAgentHost implements DshAgentHost {
         },
       },
       systemPrompt: {
-        section: (section: { name: string; text: string }) => {
-          scope.sections.push(section);
-          return () => void scope.sections.splice(scope.sections.indexOf(section), 1);
+        section: (section: { name: string; text: string | ((context: object) => string) }) => {
+          const entry = {
+            name: section.name,
+            get text() {
+              return typeof section.text === 'function' ? section.text({}) : section.text;
+            },
+          };
+          scope.sections.push(entry);
+          return () => void scope.sections.splice(scope.sections.indexOf(entry), 1);
         },
       },
     };
@@ -255,7 +279,7 @@ export class FakeAgentHost implements DshAgentHost {
     const createAssignment = scope.tools.find((tool) => tool.name === 'create_assignment');
     if (createAssignment !== undefined) {
       await createAssignment.execute(
-        { purpose: '核对发布状态', grant_id: 'grant-1' },
+        { title: '核对发布状态', description: '核对发布状态', grant_id: 'grant-1' },
         {} as ToolRunContext,
       );
       const channelSend = scope.tools.find((tool) => tool.name === 'bot_send_message');

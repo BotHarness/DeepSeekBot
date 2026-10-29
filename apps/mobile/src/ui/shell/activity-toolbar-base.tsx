@@ -8,7 +8,7 @@ import { materialSearchHeight } from '../design/material-search';
 import { space, tabHeader } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-import { HeaderAction } from './header-action';
+import { ActivityHeaderActions, type ActivityOptions } from './activity-header-actions';
 import { HeaderSearch } from './header-search';
 
 export type ActivityToolbarHandle = { dismissSearch(): void };
@@ -18,6 +18,7 @@ export type ActivityToolbarProps = {
   unavailable?: boolean;
   search: string;
   filtered: boolean;
+  options: ActivityOptions;
   onSearch(value: string): void;
   onSearchFocus(focused: boolean): void;
   onFilter(): void;
@@ -29,6 +30,7 @@ export function ActivityToolbar({
   unavailable = false,
   search,
   filtered,
+  options,
   onSearch,
   onSearchFocus,
   onFilter,
@@ -38,6 +40,8 @@ export function ActivityToolbar({
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const [searching, setSearching] = useState(false);
+  const searchVisible = !unavailable && searching;
+  const retainActions = Platform.OS === 'ios';
   useImperativeHandle(
     ref,
     () => ({
@@ -68,29 +72,26 @@ export function ActivityToolbar({
           testID="activity-header"
           style={{
             minHeight:
-              Platform.OS === 'android' ? materialSearchHeight(theme.fontScale) : undefined,
+              Platform.OS === 'android' ? materialSearchHeight(theme.fontScale) : theme.touch,
             flexDirection: 'row',
             alignItems: 'center',
             gap: space.x2,
             paddingHorizontal: tabHeader.gutter,
           }}
         >
-          {!unavailable && searching ? (
-            <HeaderSearch
-              value={search}
-              placeholder={t.activitySearch}
-              onChangeText={(value) => onSearch(value.slice(0, 200))}
-              onFocusChange={(focused) => {
-                onSearchFocus(focused);
-                if (!focused) setSearching(false);
+          {(!searchVisible || retainActions) && (
+            <View
+              pointerEvents={searchVisible ? 'none' : 'auto'}
+              accessibilityElementsHidden={searchVisible}
+              importantForAccessibility={searchVisible ? 'no-hide-descendants' : 'auto'}
+              style={{
+                flex: 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space.x2,
+                opacity: searchVisible ? 0 : 1,
               }}
-              onClose={() => {
-                onSearchFocus(false);
-                setSearching(false);
-              }}
-            />
-          ) : (
-            <>
+            >
               <Text
                 variant="title"
                 strong
@@ -101,27 +102,41 @@ export function ActivityToolbar({
                 {t.activity}
               </Text>
               {!unavailable ? (
-                <HeaderAction
-                  icon="filter"
-                  label={t.activityOptions}
-                  testID="activity-filter-button"
-                  active={filtered}
-                  onPress={onFilter}
-                />
-              ) : null}
-              {!unavailable ? (
-                <HeaderAction
-                  icon="search"
-                  label={t.activitySearch}
-                  testID="activity-search-button"
-                  active={search !== ''}
-                  onPress={() => {
+                <ActivityHeaderActions
+                  filtered={filtered}
+                  searching={search !== ''}
+                  options={options}
+                  onFilter={onFilter}
+                  onSearch={() => {
                     onSearchFocus(true);
                     setSearching(true);
                   }}
                 />
               ) : null}
-            </>
+            </View>
+          )}
+          {searchVisible && (
+            <View
+              style={
+                retainActions
+                  ? { position: 'absolute', left: tabHeader.gutter, right: tabHeader.gutter }
+                  : { flex: 1 }
+              }
+            >
+              <HeaderSearch
+                value={search}
+                placeholder={t.activitySearch}
+                onChangeText={(value) => onSearch(value.slice(0, 200))}
+                onFocusChange={(focused) => {
+                  onSearchFocus(focused);
+                  if (!focused) setSearching(false);
+                }}
+                onClose={() => {
+                  onSearchFocus(false);
+                  setSearching(false);
+                }}
+              />
+            </View>
           )}
         </View>
       </View>

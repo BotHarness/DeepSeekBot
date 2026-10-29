@@ -6,6 +6,10 @@
   "compatibility_date": "2026-09-17",
   "routes": [{ "pattern": "market.botharness.ai", "custom_domain": true }],
   "triggers": { "crons": ["0 3 * * *", "17 * * * *"] },
+  // secrets: GITHUB_TOKEN, ALTCHA_HMAC_KEY, ADMIN_TOKEN, SUMMARY_API_KEY, WORKOS_CLIENT_ID (Connect's
+  // WorkOS client, for Uploaded Bot sign-in; uploads answer uploads-unavailable without it)
+  // Uploaded Bot files, one object per path under bots/<id>/ (ADR-0267)
+  "r2_buckets": [{ "binding": "MARKET_FILES", "bucket_name": "botharness-market-files" }],
   "d1_databases": [
     {
       "binding": "MARKET_DB",

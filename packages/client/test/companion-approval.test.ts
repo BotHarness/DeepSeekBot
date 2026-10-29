@@ -12,6 +12,7 @@ import { ToolApprovalCard } from '../src/client/tool-approval-card.js';
 import type { ChannelMessage } from '../src/client/store.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  IconRefreshOutlineRegular: () => null,
   Button: ({ children, variant: _variant, ...props }: { children: ReactNode; variant?: string }) =>
     createElement('button', props, children),
   Menu: () => null,
@@ -188,7 +189,13 @@ it.each([
       if (decisionBeforeProjection) {
         const pendingButton = node.querySelector<HTMLButtonElement>('[aria-busy="true"]')!;
         expect(pendingButton.disabled).toBe(true);
-        expect(pendingButton.textContent).toBe('提交中…');
+        expect(pendingButton.textContent).toBe(
+          outcome === 'rejected'
+            ? '拒绝'
+            : outcome === 'allowed-always-tool'
+              ? '始终允许'
+              : '允许这次',
+        );
         pendingButton.blur();
         if (movedFocus) node.querySelector<HTMLButtonElement>('.bh-companion-character')!.focus();
         await act(async () => releaseDecision!());

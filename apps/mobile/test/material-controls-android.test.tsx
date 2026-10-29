@@ -9,6 +9,10 @@ const screen = vi.hoisted(() => ({ width: 411, height: 914, scale: 3, fontScale:
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   useWindowDimensions: () => screen,
+  Dimensions: {
+    get: () => screen,
+    addEventListener: (_event: string, _changed: () => void) => ({ remove() {} }),
+  },
   Platform: { OS: 'android' },
   View: (props: {
     children?: ReactNode;
@@ -64,7 +68,10 @@ vi.mock('@expo/ui/jetpack-compose', () => {
       createElement('i', { 'data-testid': 'native-radio', 'data-selected': props.selected }),
   };
 });
-vi.mock('../src/ui/shell/icons', () => ({ ChevronRightIcon: () => null }));
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
+  ChevronRightIcon: () => null,
+}));
 vi.mock('../src/ui/primitives/radio-mark', () => import('../src/ui/primitives/radio-mark.android'));
 vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({
   fillMaxWidth: () => ({}),

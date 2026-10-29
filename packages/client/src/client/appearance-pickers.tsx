@@ -11,6 +11,7 @@ import {
 } from './appearance.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
+import type { LayoutMode } from './layout-mode.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 
 export const APPEARANCE_PRESETS: readonly { id: AppearancePreset; label: BotHarnessKey }[] = [
@@ -143,6 +144,31 @@ const styles = stylex.create({
     boxShadow: `inset 0 0 0 1px ${color.divider}`,
   },
   name: {},
+  layoutFrame: {
+    position: 'absolute',
+    inset: 0,
+    display: 'flex',
+    gap: space.x1,
+    padding: space.x2,
+    backgroundColor: color.base,
+  },
+  layoutColumn: { display: 'flex', flexDirection: 'column', gap: space.x1, minWidth: 0 },
+  layoutRail: {
+    width: '9%',
+    flexShrink: 0,
+    borderRadius: radius.xs,
+    backgroundColor: color.divider,
+  },
+  layoutPane: {
+    flexGrow: 1,
+    minWidth: 0,
+    borderWidth: border.hairline,
+    borderStyle: 'solid',
+    borderColor: color.divider,
+    borderRadius: radius.xs,
+    backgroundColor: color.surface,
+  },
+  layoutActive: { borderColor: color.accent },
   swatchRow: { display: 'inline-flex', alignItems: 'center', gap: space.x2, color: color.muted },
   swatch: {
     position: 'relative',
@@ -323,5 +349,76 @@ export function PrimaryColorPicker({
         />
       </span>
     </span>
+  );
+}
+
+const LAYOUT_MODES: readonly { id: LayoutMode; label: BotHarnessKey }[] = [
+  { id: 'simple', label: 'workspace.layoutMode.simple' },
+  { id: 'advanced', label: 'workspace.layoutMode.advanced' },
+];
+
+function LayoutPreview({ mode }: { mode: LayoutMode }): ReactElement {
+  const pane = (grow: number, active = false) => (
+    <span
+      {...stylex.props(styles.layoutPane, active && styles.layoutActive)}
+      style={{ flexGrow: grow }}
+    />
+  );
+  return (
+    <span {...stylex.props(styles.layoutFrame)}>
+      <span {...stylex.props(styles.layoutRail)} />
+      {mode === 'simple' ? (
+        <>
+          {pane(1)}
+          {pane(2.4, true)}
+        </>
+      ) : (
+        <>
+          <span {...stylex.props(styles.layoutColumn)} style={{ flexGrow: 1 }}>
+            {pane(1)}
+            {pane(1.4)}
+          </span>
+          {pane(1.6, true)}
+          <span {...stylex.props(styles.layoutColumn)} style={{ flexGrow: 1 }}>
+            {pane(1.2)}
+            {pane(1)}
+          </span>
+        </>
+      )}
+    </span>
+  );
+}
+
+export function LayoutModePicker({
+  value,
+  onChange,
+  t,
+}: {
+  value: LayoutMode;
+  onChange: (value: LayoutMode) => void;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  return (
+    <div role="radiogroup" aria-label={t('workspace.layoutMode')} {...stylex.props(styles.grid)}>
+      {LAYOUT_MODES.map((mode) => {
+        const checked = value === mode.id;
+        return (
+          <button
+            key={mode.id}
+            type="button"
+            role="radio"
+            aria-checked={checked}
+            data-layout-mode={mode.id}
+            onClick={() => onChange(mode.id)}
+            {...stylex.props(styles.card, checked && styles.checked)}
+          >
+            <span {...stylex.props(styles.preview)} aria-hidden="true">
+              <LayoutPreview mode={mode.id} />
+            </span>
+            {t(mode.label)}
+          </button>
+        );
+      })}
+    </div>
   );
 }

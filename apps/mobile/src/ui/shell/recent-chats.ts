@@ -1,6 +1,6 @@
 import * as QuickActions from 'expo-quick-actions';
 import * as SecureStore from 'expo-secure-store';
-import { useCallback, type RefCallback } from 'react';
+import { useCallback, useSyncExternalStore, type RefCallback } from 'react';
 import { Platform } from 'react-native';
 
 import { recentChats } from '../design/tokens';
@@ -56,9 +56,21 @@ export function quickAction(chat: RecentChat): QuickActions.Action {
 }
 
 let recent: Promise<RecentChat[]> | undefined;
+let shown: readonly RecentChat[] = [];
+const watchers = new Set<() => void>();
+
+function show(list: RecentChat[]): RecentChat[] {
+  if (list !== shown) {
+    shown = list;
+    for (const watcher of watchers) watcher();
+  }
+  return list;
+}
 
 function load(): Promise<RecentChat[]> {
-  recent ??= SecureStore.getItemAsync(KEY).then(parseRecentChats, () => []);
+  recent ??= SecureStore.getItemAsync(KEY)
+    .then(parseRecentChats, () => [])
+    .then(show);
   return recent;
 }
 
@@ -72,7 +84,7 @@ export function recordRecentChat(chat: RecentChat): Promise<RecentChat[]> {
       SecureStore.setItemAsync(KEY, JSON.stringify(next)).catch(() => undefined),
       QuickActions.setItems(next.map(quickAction)).catch(() => undefined),
     ]);
-    return next;
+    return show(next);
   });
   return recent;
 }
@@ -91,10 +103,37 @@ export function forgetRecentChats(hostId: string): Promise<RecentChat[]> {
     const next = list.filter((chat) => chatHostId(chat.href) !== hostId);
     await SecureStore.setItemAsync(KEY, JSON.stringify(next));
     await QuickActions.setItems(next.map(quickAction));
-    return next;
+    return show(next);
   });
   recent = removal.catch(() => previous);
   return removal;
+}
+
+export function lastChat(
+  list: readonly RecentChat[],
+  hostIds: readonly string[],
+): RecentChat | undefined {
+  return list.find((chat) => {
+    const hostId = chatHostId(chat.href);
+    return hostId !== undefined && hostIds.includes(hostId);
+  });
+}
+
+export function recentHostIds(list: readonly RecentChat[]): string[] {
+  return list.flatMap((chat) => {
+    const hostId = chatHostId(chat.href);
+    return hostId === undefined ? [] : [hostId];
+  });
+}
+
+function watchRecentChats(watcher: () => void): () => void {
+  watchers.add(watcher);
+  void load();
+  return () => watchers.delete(watcher);
+}
+
+export function useRecentChats(): readonly RecentChat[] {
+  return useSyncExternalStore(watchRecentChats, () => shown);
 }
 
 export function useRecentChat(chat: RecentChat | undefined): RefCallback<unknown> {

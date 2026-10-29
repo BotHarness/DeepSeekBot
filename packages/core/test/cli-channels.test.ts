@@ -78,6 +78,120 @@ const ok = (method: string, args: Record<string, unknown>) => ({
 });
 
 describe('Channel and group CLI commands', () => {
+  it('routes recovery and current context inspection through the same Host commands', async () => {
+    const live = await host(ok);
+    expect(
+      (
+        await invoke(
+          [
+            'channel-retry',
+            'dm',
+            '--message-id',
+            'request',
+            '--recovery',
+            'compact',
+            '--failure-message-id',
+            'failure',
+          ],
+          live.url,
+        )
+      ).json,
+    ).toMatchObject({
+      method: 'channelRetry',
+      args: {
+        channelId: 'dm',
+        messageId: 'request',
+        recovery: 'compact',
+        failureMessageId: 'failure',
+      },
+    });
+    expect((await invoke(['bot-context', 'ada'], live.url)).json).toMatchObject({
+      method: 'botContext',
+      args: { slug: 'ada' },
+    });
+    expect((await invoke(['bot-system-prompt', 'ada'], live.url)).json).toMatchObject({
+      method: 'botSystemPrompt',
+      args: { slug: 'ada' },
+    });
+    expect(
+      (await invoke(['bot-turn-input', 'ada', '--turns', '2', '--session', 'sess-1'], live.url))
+        .json,
+    ).toMatchObject({
+      method: 'botTurnInput',
+      args: { slug: 'ada', sessionId: 'sess-1', turns: 2 },
+    });
+    expect(
+      (await invoke(['bot-turn-input', 'ada', '--session', 'direct'], live.url)).code,
+    ).not.toBe(0);
+  });
+  it('routes Prompt Preset commands with their part edits from stdin', async () => {
+    const live = await host(ok);
+    expect((await invoke(['prompt-parts'], live.url)).json).toMatchObject({
+      method: 'promptParts',
+    });
+    expect(
+      (
+        await invoke(
+          ['prompt-preset-create', '--name', 'Quiet', '--parts-stdin'],
+          live.url,
+          '{"triage":"Close it."}',
+        )
+      ).json,
+    ).toMatchObject({
+      method: 'promptPresetCreate',
+      args: { name: 'Quiet', parts: { triage: 'Close it.' } },
+    });
+    expect(
+      (
+        await invoke(
+          ['prompt-preset-update', 'p1', '--name', 'Calm', '--expected-revision', '2'],
+          live.url,
+        )
+      ).json,
+    ).toMatchObject({
+      method: 'promptPresetUpdate',
+      args: { id: 'p1', name: 'Calm', expectedRevision: 2 },
+    });
+    expect((await invoke(['prompt-preset-delete', 'p1'], live.url)).code).not.toBe(0);
+    expect((await invoke(['prompt-global-set', 'built-in'], live.url)).json).toMatchObject({
+      method: 'promptGlobalSet',
+      args: { presetId: null },
+    });
+    expect(
+      (
+        await invoke(
+          ['bot-prompt-set', 'ada', '--preset', 'global', '--parts-stdin'],
+          live.url,
+          '{"silence":null}',
+        )
+      ).json,
+    ).toMatchObject({
+      method: 'botPromptSet',
+      args: { slug: 'ada', presetId: null, parts: { silence: null } },
+    });
+    expect(
+      (
+        await invoke(
+          [
+            'bot-prompt-set',
+            'ada',
+            '--prompt-limit',
+            'dm-context-chars=4000',
+            '--prompt-limit',
+            'review-tool-calls=default',
+          ],
+          live.url,
+        )
+      ).json,
+    ).toMatchObject({
+      method: 'botPromptSet',
+      args: { slug: 'ada', limits: { 'dm-context-chars': 4000, 'review-tool-calls': null } },
+    });
+    expect((await invoke(['bot-prompt', 'ada'], live.url)).json).toMatchObject({
+      method: 'botPrompt',
+      args: { slug: 'ada' },
+    });
+  });
   it('reads group snapshots and forwards stable create and invite identity without changing unkeyed calls', async () => {
     const live = await host(ok);
     expect((await invoke(['channel', 'team'], live.url)).json).toMatchObject({
@@ -325,6 +439,7 @@ describe('Channel and group CLI commands', () => {
       [['channel-react', 'grp-1', '--message-id', 'm-1', '--emoji', '👍']],
       [['channel-react', 'grp-1', '--message-id', 'm-1', '--emoji', '👍', '--remove']],
       [['channel-search', 'grp-1', '--query', 'launch', '--cursor', 'c-2', '--limit', '5']],
+      [['message-search', '--query', '搜索', '--cursor', 'c-3', '--limit', '8']],
       [['channel-unread']],
       [['channel-mute', 'grp-1']],
       [['channel-mute', 'grp-1', '--off']],
@@ -414,6 +529,7 @@ describe('Channel and group CLI commands', () => {
         method: 'channelSearch',
         args: { channelId: 'grp-1', text: 'launch', cursor: 'c-2', limit: 5 },
       },
+      { method: 'messageSearch', args: { text: '搜索', cursor: 'c-3', limit: 8 } },
       { method: 'channelUnreadCounts', args: {} },
       { method: 'channelMuteSet', args: { channelId: 'grp-1', muted: true } },
       { method: 'channelMuteSet', args: { channelId: 'grp-1', muted: false } },
@@ -475,6 +591,8 @@ describe('Channel and group CLI commands', () => {
       [['channel-react', 'grp-1', '--message-id', 'm-1']],
       [['channel-search', 'grp-1']],
       [['channel-search', 'grp-1', '--query', 'x', '--limit', '51']],
+      [['message-search']],
+      [['message-search', 'grp-1', '--query', 'x']],
       [['channel-bot-stop', 'dm-ada']],
     ];
     for (const [argv, stdin] of refused) {

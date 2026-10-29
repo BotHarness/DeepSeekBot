@@ -65,7 +65,7 @@ const styles = stylex.create({
   dropping: {
     borderColor: color.accent,
     backgroundColor: color.accentTint,
-    color: color.accent,
+    color: color.accentText,
   },
   selected: {
     borderColor: color.accent,

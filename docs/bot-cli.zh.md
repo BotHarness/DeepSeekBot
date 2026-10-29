@@ -29,7 +29,7 @@
 
 `deepseekbot device-notifications --device-file <私有配对.json>` 从运行中的 Host 读取当前配对设备的通知发送副本。加上 `--preferences-stdin`，从标准输入传入 `{"approval":true,"question":true,"private-input":true,"reply":false}`，即可替换四种通知选择，无需先注册推送 token。私有文件使用已保存配对的结构（`hostId`、`hostName`、`routes`、`deviceId`、`credential`）；凭据不能放入参数或公开文件。标准输出仅有一个不含凭据的 JSON，配对撤销后返回 `device-revoked`。命令只修改该 Host 的发送副本；手机持久化选择仍是权威，下次同步会覆盖副本。浏览器通知选择只保存在该浏览器，不影响 Host attention。
 
-`deepseekbot device-activity capability --device-file <私有配对.json>` 检查此电脑的锁屏状态服务。`prepare`、`register`、`stop` 通过 `--activity-stdin` 接收 JSON：prepare 需要 `channelId`、`messageId`、`bundleIdentifier`；register 另需 iOS 实际生成的 `clientActivityId`、每项活动的 `token` 和 `locale`（`en`/`zh`）；stop 只需 `clientActivityId`。设备身份来自配对凭据，不能由输入指定。token 属于秘密，只能私下传入标准输入，不能放在参数或公开文件中。命令调用与手机相同的鉴权/加密路由，只输出一个 JSON 结果或拒绝码；未配置、不支持、已结束或撤销配对会明确拒绝。停止显示不会停止原请求。`activity-cleanup-pending` 表示停止投递尚未确认；Host 只重试清理，到确认或登记到期为止。`send-status <bot> --message-id <id>` 新增 `progress`，仅显式 Inbox 解决事实表示完成，单轮处理结束不算完成。CLI 源码测试与真实 Host、iPhone 后台送达仍是独立验收项，参见 [ADR-0255](adr/0255-live-activities-project-one-admitted-dm-request.md)。
+`deepseekbot device-activity capability --device-file <私有配对.json>` 检查此电脑的锁屏状态服务。`prepare`、`register`、`stop` 通过 `--activity-stdin` 接收 JSON：prepare 需要 `channelId`、`messageId`、`bundleIdentifier`；register 另需 iOS 实际生成的 `clientActivityId`、每项活动的 `token` 和 `locale`（`en`/`zh`）；stop 只需 `clientActivityId`。`status` 同样只需 `clientActivityId`，读取本设备自己的登记（活动结束后也可读）：返回请求的 `channelId`、`messageId`、`progress`；若该请求创建或推进了某个任务（Assignment），另含 `assignmentId`（即 Assignment Session id，手机据此打开 `bot/[slug]/assignment/[id]`）；`prepare`、`register` 在已知时也带同一 `assignmentId`。设备身份来自配对凭据，不能由输入指定。token 属于秘密，只能私下传入标准输入，不能放在参数或公开文件中。命令调用与手机相同的鉴权/加密路由，只输出一个 JSON 结果或拒绝码；未配置、不支持、已结束或撤销配对会明确拒绝。停止显示不会停止原请求。`activity-cleanup-pending` 表示停止投递尚未确认；Host 只重试清理，到确认或登记到期为止。`send-status <bot> --message-id <id>` 新增 `progress`，仅显式 Inbox 解决事实表示完成，单轮处理结束不算完成；若该请求创建或推进了任务，另含 `assignmentId`（以最近一次为准）。CLI 源码测试与真实 Host、iPhone 后台送达仍是独立验收项，参见 [ADR-0255](adr/0255-live-activities-project-one-admitted-dm-request.md)。
 
 ```bash
 deepseekbot create --name <name> [--persona <text> | --persona-stdin]
@@ -110,15 +110,37 @@ deepseekbot bot-sessions <bot-id> --limit 20
 deepseekbot bot-activity <bot-id> --limit 20
 deepseekbot bot-new-session <bot-id>
 deepseekbot bot-compact <bot-id>
+deepseekbot bot-context <bot-id>
+deepseekbot bot-system-prompt <bot-id>
+deepseekbot bot-turn-input <bot-id> --turns 1
+deepseekbot prompt-parts
+deepseekbot prompt-presets
+echo '{"triage":"Close what is done."}' | deepseekbot prompt-preset-create --name Quiet --parts-stdin
+deepseekbot prompt-preset-update <preset-id> --name Calm --expected-revision 1
+deepseekbot prompt-preset-delete <preset-id> --confirm
+deepseekbot prompt-global-set <preset-id>|built-in
+deepseekbot bot-prompt <bot-id>
+echo '{"silence":null}' | deepseekbot bot-prompt-set <bot-id> --preset <preset-id>|global --parts-stdin
+deepseekbot bot-prompt-set <bot-id> --prompt-limit dm-context-chars=4000 --prompt-limit review-tool-calls=default
 ```
 
 创建返回 `bot`、`dm`、Host 的 Memory `dataDir`、完成／延后阶段 `steps` 和 `next`。模型预设经其 owner 应用，不会被误传为原生 Agent preset。已确定不存在的预设在创建前拒绝；创建后的模型失败保留 Bot，返回已知身份、完成阶段与 `outcome: created`。不带稳定 operation key 的创建／导入响应丢失时可能返回 `outcome: unknown`，先检查 Host 再决定是否重建，CLI 不自动重试修改。空白在线创建可用下文的持久创建回执核对同一个身份。创建成功不证明模型可用：使用 `send` 和准确关联的持久回复验证。
 
-`bot-attention` 支持 `--cursor` 及 Host 的 pending/processing/observed/deferred/needs-repair/handled 状态，分页上限 1–100。Session 摘要按创建时间倒序，限制 1–100（默认 50），返回 `total`；活动摘要限制 Session 明细并返回 `sessionCount`。这些是有界摘要，不是完整工具调用日志或流式草稿。
+`bot-attention` 支持 `--cursor` 及 Host 的 pending/processing/observed/deferred/needs-repair/handled 状态，分页上限 1–100。Session 摘要按创建时间倒序，限制 1–100（默认 50），返回 `total`；每条带 `modelRoute`，即该会话最近一次调用模型的路由，尚未运行时为它配置的路由；活动摘要限制 Session 明细并返回 `sessionCount`。这些是有界摘要，不是完整工具调用日志或流式草稿。
 
 `bot-new-session <bot-id>` 通过与 IM `/new` 相同的 Host 运行时退役空闲 Bot 的编排会话，下一条消息开启新会话。成功返回 `{"started":true}`；Bot 正在工作时以 `bot-busy` 拒绝，需先停止当前轮次。
 
-`bot-compact <bot-id>` 通过 DSH `/compact` 立即压缩空闲 Bot 的编排会话，与 IM `/compact`、Bot 私信输入框的 `/compact` 和空闲压缩走同一路径。成功返回 `{"outcome":"compacted","tokensBefore":…,"tokensAfter":…}`；DSH 没有可压缩内容、或摘要不会更小时返回 `nothing`；会话尚未在 Host 中加载（例如 Host 重启后、下一条消息之前）时返回 `not-loaded`。Bot 有进行中的轮次或待处理的 Inbox Admission 时以 `bot-busy` 拒绝。
+`bot-compact <bot-id>` 通过 DSH `/compact` 压缩空闲 Bot 的编排会话；Host 重启后会加载原会话，无需先发消息。成功返回 `{"outcome":"compacted","tokensBefore":…,"tokensAfter":…}`；没有可用的更小摘要时返回 `nothing`。两种结果都会让待生效的 Prompt Preset 改动生效。有运行中或排队轮次时返回 `bot-busy`；原会话不可用时返回明确错误。
+
+`bot-context <bot-id>` 返回当前 `sessionId`、估算占用 `usedTokens`（会话未加载时为 null）、`contextWindow`、容量来源 `capacitySource`（`model` 或 `estimate`）及压缩阈值 `thresholdTokens`。模型容量缺失时按 200,000 tokens 估算，再扣除输出预留和安全余量；该估算不是已验证的服务商上限。Web 输入框显示当前上下文数据，点击后仍可查看累计用量。
+
+`bot-system-prompt <bot-id>` 返回 Bot 编排会话当前使用的 System Prompt（`effectiveText`：会话 surface 上最新的一条 system 消息，因为 DSH 会把变化后的提示词追加到历史里，而不是改写第一条；会话已加载时读自会话 surface，未加载时读自会话日志并返回 `loaded: false`）、最新组装出的 `next`（含具名分段 `sections` 和每步附加的运行时上下文 `contexts`），以及 `pending`：Prompt Preset 或人设改动在等新会话或下一次压缩时为 true。生效后，会话的下一次请求会追加新文字。会话未加载时 `next` 为 null。
+
+`bot-turn-input <bot-id> [--turns <1-20>] [--session <session-id>]` 返回最近几轮（默认 1 轮）模型收到的全部输入消息，按顺序给出 `step`、`source`（Inbox 和 steer 进来的输入为 `user`，每步的环境说明为 `runtime-context`）、时间和原文 `text`，包括 Host 附加的回复提醒。steer 进来的消息出现在同一轮的后续 step。Web 输入框的用量弹层可以打开这两个视图。
+
+Prompt Preset 用于编辑 System Prompt 和每轮模板里的行为文字；围绕它们的工具与投递约定保持固定。`prompt-parts` 列出每个可编辑部件的 `id`、`kind`（`system` 或 `turn`）、所属 `section` 和内置 `defaultText`。预设只保存它改动的部件。每个部件按 Bot 解析：先取 Bot 自己的覆盖，再取它选的预设，再取全局预设（`prompt-global-set`），最后取内置文字；`bot-prompt` 返回结果和每个部件的 `source`（`bot`、`preset`、`global` 或 `built-in`）。部件改动是 `{"<part-id>": "text"}` 形式的 JSON 对象；`null` 或内置原文会删掉改动，让部件重新继承。`bot-prompt-set --preset global` 取消 Bot 的预设。删除预设会返回 `clearedBots`，这些 Bot 回到全局预设。运行中的会话保持它开始时的文字：`pending: true` 表示改动要等 Bot 的新会话或下一次压缩才生效。要立即生效，可运行 `bot-compact <bot-id>` 或 `bot-new-session <bot-id>`，与界面上“待生效”旁的两个按钮相同。改过的部件在内置原文之后又更新时返回 `defaultChanged: true`；没改过的部件跟随内置更新。
+
+预设和 Bot 还可以用可重复的 `--prompt-limit <id>=<整数>` 设置数值上限（`<id>=default` 删除设置、重新继承），适用于 `prompt-preset-create`、`prompt-preset-update` 和 `bot-prompt-set`。`prompt-parts` 列出每个上限的 `defaultValue`、`min` 和 `max`：`group-context-chars`、`dm-context-chars`、`context-message-chars` 限制 Bot Inbox 每轮带入的 Group 和私聊上下文；`review-timeout-seconds`、`review-human-messages`、`review-human-message-chars`、`review-tool-calls` 限制审批审查员。上限和部件走同样的分层，`bot-prompt` 在 `limits` 里返回，从下一次 Inbox 投递或审查起生效，不等新会话。
 
 显式清理先用 `bot-delete-preview <bot-id>` 查看 owner 的当前范围与 `preview.token`，审核后将 `{"token":"<preview.token>"}` 从 stdin 交给 `bot-delete-confirm <bot-id> --confirmation-stdin --confirm`。默认保留 Memory，仅显式 `--erase-memory` 才选择擦除 owner 审核的目录，并在停止阶段删除这个 Bot 通过私密输入保存的密钥。检查 `deletion.phase`；未完成的清理可用 `bot-delete-retry <bot-id> --confirm` 继续。范围变化由 owner 拒绝；删除身份不是内容清除或全部数据擦除。
 
@@ -129,6 +151,7 @@ deepseekbot bot-compact <bot-id>
 ```bash
 deepseekbot send <bot-id> --body "回复 QA_OK" --timeout 60
 deepseekbot send <bot-id> --body-stdin --message-id human-<UUID>
+deepseekbot send <bot-id> --body "就这条" --reply-to <消息-id>
 deepseekbot send-status <bot-id> --message-id <回执中的消息-id>
 deepseekbot channel-messages <channel-id> --host http://127.0.0.1:31917 --limit 20
 deepseekbot tool-approval-status <channel-id> --message-id <卡片-id>
@@ -140,7 +163,7 @@ deepseekbot user-question-status <channel-id> --message-id <卡片-id>
 deepseekbot user-question-answer <channel-id> --message-id <卡片-id> --answer-stdin
 deepseekbot release-info [--since <版本>]
 deepseekbot workspace-options
-deepseekbot folder-browse [<文件夹路径>]
+deepseekbot folder-browse [<文件夹路径>] [--offset <n>]
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
 
@@ -159,6 +182,8 @@ deepseekbot access-set <bot-id> --mode workspace-write
 deepseekbot settings botharness-client
 printf '{"assignmentConcurrencyLimit":3}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"autoCollapseMessages":true}' | deepseekbot settings-set botharness-client --patch-stdin
+printf '{"showDeliveryReceipts":true}' | deepseekbot settings-set botharness-client --patch-stdin
+printf '{"streamReplies":true}' | deepseekbot settings-set botharness-client --patch-stdin
 deepseekbot workspace-create /srv/bots/workspace
 deepseekbot group-create "Skill Lab" --member <bot-id> --member <bot-id>
 ```
@@ -193,9 +218,12 @@ deepseekbot channel-mark-read <channel> --message-id <message-id>
 deepseekbot channel-mark-all-read
 deepseekbot channel-react <channel> --message-id <message-id> --emoji 👍 [--remove]
 deepseekbot channel-search <channel> --query <text> [--cursor <cursor>] [--limit <n>]
+deepseekbot message-search --query <text> [--cursor <cursor>] [--limit <n>]
 deepseekbot channel-unread
 deepseekbot channel-mute <channel> [--off]
 deepseekbot channel-retry <dm-channel> --message-id <human-message-id>
+deepseekbot channel-retry <dm-channel> --message-id <human-message-id> --recovery compact --failure-message-id <failure-card-id>
+deepseekbot channel-retry <dm-channel> --message-id <human-message-id> --recovery new-session --failure-message-id <failure-card-id>
 deepseekbot channel-bot-stop <channel> --bot <id>
 deepseekbot channel-history
 deepseekbot channel-history-sources <channel> [--before <cursor>]
@@ -235,9 +263,9 @@ Host 重启后，先读取当前群聊，再用 `recover:true`、`draft_id`、�
 
 `channel <group-channel>` 返回 `{channel, channelFingerprint, invitationPolicy:{autoAccept}, wakePolicies}`，拒绝非群频道。稳定创建／邀请参数及重试语义见 [Tob 建群与邀请](#tob-建群与邀请)，Human 在线命令也可使用。
 
-与 Web 界面一样，重命名 Bot 私聊会同时重命名该 Bot。`group-avatar-set` 读取不超过 96 KiB 的 PNG、JPEG 或 WebP 文件。邀请 ID 和入群申请 ID 位于群组的 `invitations` 和 `joinRequests` 中，`channels` 和每个群组命令都会返回。`group-wake-set` 设置成员 Bot 对普通群消息何时唤醒：`all`、`mentions`、`digest`（累计 `--count` 条消息或经过 `--interval` 秒后唤醒，默认 5 和 30）或 `silent`；`--inherit` 让该成员恢复其 Bot 的默认设置。`channel-timeline` 和 `channel-journal` 按聊天视图的方式分页读取消息；`channel-journal` 的 `--through` 取 `channel-timeline` 返回的 `revision`。`channel-retry` 在 Bot 回复失败后让它重新回答一条 Human 私聊消息。`channel-unread` 列出每个有未读的频道的 Bot 未读消息数，即侧边栏每行显示的数字。`channel-mute` 与侧边栏菜单一样把频道设为免打扰：该行变灰，普通消息、提及和回复在搜索与分页之前退出 Activity 消息列表，也不计入全局未读；`--off` 依原有已读、隐藏和稍后提醒规则恢复资格。真实 Channel 已读位置与待审批、问答等明确 Human 请求保持不变。`channel-bot-stop` 停止 Bot 当前这一轮工作，与工作状态条上的“停止”按钮相同：Bot 回到空闲，Channel 里记录 Human 停止了它；Bot 没在工作时以 `not-working` 拒绝。Bot 已委派的 Assignment 继续运行。`channel-react` 给一条消息加上你的表情回应，带 `--remove` 则撤回，并返回该消息的 `reactions`；每条消息最多保留你的 20 个回应，表情必须是单个 emoji。Bot 通过 `channel_action` 的 `action: "react"`、`channel_id`、`react_to` 和 `reaction` 回应；`bot-tool <bot> channel_action --args-stdin` 可直接执行。表情工具不发送正文。`channel-search` 在你可见的消息中不区分大小写地匹配 `--query`，按时间从新到旧返回，并用返回的 `nextCursor` 翻页。
+与 Web 界面一样，重命名 Bot 私聊会同时重命名该 Bot。`group-avatar-set` 读取不超过 96 KiB 的 PNG、JPEG 或 WebP 文件。邀请 ID 和入群申请 ID 位于群组的 `invitations` 和 `joinRequests` 中，`channels` 和每个群组命令都会返回。`group-wake-set` 设置成员 Bot 对普通群消息何时唤醒：`all`、`mentions`、`digest`（累计 `--count` 条消息或经过 `--interval` 秒后唤醒，默认 5 和 30）或 `silent`；`--inherit` 让该成员恢复其 Bot 的默认设置。`channel-timeline` 和 `channel-journal` 按聊天视图的方式分页读取消息；`channel-journal` 的 `--through` 取 `channel-timeline` 返回的 `revision`。`channel-retry` 在 Bot 回复失败后让它重新回答一条 Human 私聊消息。`channel-unread` 列出每个有未读的频道的 Bot 未读消息数，即侧边栏每行显示的数字。`channel-mute` 与侧边栏菜单一样把频道设为免打扰：该行变灰，普通消息、提及和回复在搜索与分页之前退出 Activity 消息列表，也不计入全局未读；`--off` 依原有已读、隐藏和稍后提醒规则恢复资格。真实 Channel 已读位置与待审批、问答等明确 Human 请求保持不变。`channel-bot-stop` 停止 Bot 当前这一轮工作，与工作状态条上的“停止”按钮相同：Bot 回到空闲，Channel 里记录 Human 停止了它；Bot 没在工作时以 `not-working` 拒绝。Bot 已委派的 Assignment 继续运行。`channel-react` 给一条消息加上你的表情回应，带 `--remove` 则撤回，并返回该消息的 `reactions`；每条消息最多保留你的 20 个回应，表情必须是单个 emoji。Bot 通过 `channel_action` 的 `action: "react"`、`channel_id`、`react_to` 和 `reaction` 回应；`bot-tool <bot> channel_action --args-stdin` 可直接执行。表情工具不发送正文。`channel-search` 在你可见的消息中不区分大小写地匹配 `--query`，按时间从新到旧返回，并用返回的 `nextCursor` 翻页。 `message-search` 是 Alt+K 和移动端 Chats 搜索背后的全局搜索：在你可见的所有 Bot 私聊和已加入的群里搜索，不含已隐藏的频道，按时间从新到旧返回 `hits`，每项含 `channelId`、`message` 和单行 `snippet`。三个字及以上走全文索引，也会匹配附件文件名；一到两个字逐条扫描，最多返回 200 条。
 
-`group-delete` 和 `channel-purge-confirm` 无法撤销，必须带 `--confirm`。`channel-history` 列出已删除、内容仍可清除的群组。清除与历史页面一样分两步：`channel-purge-preview` 列出所选 Source Event 将删除的消息、Bot 受理记录、文件和后续效果，并返回短时有效的 `token`；`channel-purge-confirm` 从标准输入读取 `{"token": …}`，针对同一组 Source Event 执行，范围变化时以错误码拒绝。Source Event 从 `channel-history-sources` 中选取，它用返回的 `before` 游标分页。
+`group-delete` 和 `channel-purge-confirm` 无法撤销，必须带 `--confirm`。`group-delete` 解散群聊，并删除群里没有被其他会话共享的消息和文件，返回 `{"deleted": true, "messages": n}`；文件清理仍在重试时另含 `cleanupPending`，有消息无法读取删除时另含 `retained`（该群仍留在 `channel-history` 中，再次运行 `group-delete` 会重试删除）。`channel-history` 列出在此变更之前解散的群组，以及删除没有完成的群组，它们的内容仍可清除。清除与历史页面一样分两步：`channel-purge-preview` 列出所选 Source Event 将删除的消息、Bot 受理记录、文件和后续效果，并返回短时有效的 `token`；`channel-purge-confirm` 从标准输入读取 `{"token": …}`，针对同一组 Source Event 执行，范围变化时以错误码拒绝。Source Event 从 `channel-history-sources` 中选取，它用返回的 `before` 游标分页。
 
 `channel-media-target` 通过当前 Human Channel 授权取得受检来源媒体，返回其 canonical Host 文件目标。`channel-media-download` 使用与卡片相同的认证附件路径，将原件字节写入新的本地 `--out` 文件，并在 JSON 中返回大小、MIME 和 SHA-256；目标已存在时拒绝覆盖。两条命令只使用 Channel、Source Event 和 attachment，不选择 Bot，也不调用模型；来源撤销仍返回明确错误码。默认上限为 25 MiB。
 
@@ -405,12 +433,17 @@ deepseekbot inbox-snooze <item-id> --source-key <source-event-id> --clear
 deepseekbot inbox --category action --snoozed
 deepseekbot inbox-ignore <report-source-event-id>
 deepseekbot assignment-context <bot-id> --session <session-id> --source <source-event-id>
+deepseekbot assignments <bot-id> [--search <text>] [--activity idle,working] [--include-archived] [--limit 20] [--cursor <next>]
+deepseekbot assignment <bot-id> --session <session-id>
+deepseekbot assignment-timeline <bot-id> --session <session-id>
+deepseekbot session-subagents <bot-id> --session <root-session-id>
 deepseekbot channel-assignments <group-channel>
 deepseekbot channel-assign <channel> --section <section-id> --index 0
 deepseekbot session-ids
 deepseekbot session-owner <session-id>
 deepseekbot session-archive-set <bot-id> --session <session-id> --archived
 deepseekbot tool-approval-rules <bot-id>
+deepseekbot tool-approval-history <bot-id> [--limit 30] [--cursor <next>]
 deepseekbot tool-approval-rule-revoke <bot-id> --rule <rule-id> --confirm
 deepseekbot grant-revoke <bot-id> --grant <grant-id> --confirm
 deepseekbot grant-write-set <bot-id> --grant <grant-id> --disabled
@@ -424,7 +457,7 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 
 `inbox --search <文字>` 在分页前搜索安全的 Activity 摘要、Channel 名称和 Bot slug（最多 200 字符）。`--unread` 仅保留未读的个人消息，不隐藏待处理事项。`--sort newest|oldest` 按时间排序；`--category replies --sort mentions-first` 将提及排在回复前。使用 `--cursor` 时须保持筛选条件不变。搜索、未读筛选和提及排序要求查询版本 1；旧 Host 返回 `host-query-unsupported`，不会静默返回部分结果。
 
-`inbox` 返回 Human Inbox 的一页（`items` 和 `nextCursor`），可以像 Inbox 的标签页一样按 `--category`（`action`、`info`、`unread`、`replies`、`handled`）、`--bot` 或 `--channel` 筛选。`inbox-dismiss` 接收条目的 `id`，条目带有 `sourceEventId` 时把它作为 `--source-key` 传入；`inbox --dismissed` 列出已移除的条目（对应手机上的「已清理」筛选），`inbox-restore` 用同样的 `id` 和 `--source-key` 把一条恢复回来，旧版 Host 会以 `host-query-unsupported` 失败；`inbox-ignore` 把一条仅供知悉的委派汇报标为已读。`inbox-snooze` 把需要处理、通知或回复里的条目隐藏到 `--until`（最多 30 天后），对应网页 Inbox 的「稍后提醒」；`--clear` 立即让它回来，`inbox --snoozed` 列出仍在延后的条目及其 `snoozedUntil`。`assignment-context` 读取 `assignment-report` 条目背后的汇报。`channel-assignments` 列出群组 Channel 的委派工作；`channel-assign` 把 Channel 移到侧栏的某个分组（`--unsectioned` 移出分组）。`session-ids` 列出 Bot 拥有的根会话，`session-owner` 说明某个会话属于哪个 Bot、以什么角色运行。`tool-approval-rules` 列出 Bot 的"始终允许"规则。撤销规则、工作区授权或私有 MCP 服务器都需要 `--confirm`，与 Web UI 的确认一致。指定了 Host 时，`grant-revoke` 和 `grant-write-set` 经由 Host 执行；使用 `--home` 时仍是离线维护命令。私有 MCP 服务器由 `ask-secret-accounts` 列出；Host 不认识的名称会以 `private-mcp-server-unavailable` 失败。
+`inbox` 返回 Human Inbox 的一页（`items` 和 `nextCursor`），可以像 Inbox 的标签页一样按 `--category`（`action`、`info`、`unread`、`replies`、`handled`）、`--bot` 或 `--channel` 筛选。`inbox-dismiss` 接收条目的 `id`，条目带有 `sourceEventId` 时把它作为 `--source-key` 传入；`inbox --dismissed` 列出已移除的条目（对应手机上的「已清理」筛选），`inbox-restore` 用同样的 `id` 和 `--source-key` 把一条恢复回来，旧版 Host 会以 `host-query-unsupported` 失败；`inbox-ignore` 把一条仅供知悉的委派汇报标为已读。`inbox-snooze` 把需要处理、通知或回复里的条目隐藏到 `--until`（最多 30 天后），对应网页 Inbox 的「稍后提醒」；`--clear` 立即让它回来，`inbox --snoozed` 列出仍在延后的条目及其 `snoozedUntil`。`assignment-context` 读取 `assignment-report` 条目背后的汇报。`assignments` 按最近更新顺序列出 Bot 的委派任务，每条都带 `title`（委派标题）和 `description`（委派描述）、活动状态、Continuity Key 和最新汇报；`--search` 不区分大小写地匹配标题、描述、Continuity Key 和最新汇报摘要，`--activity` 用逗号列出要保留的 `working`、`idle`、`error`、`stopping`、`stopped`，`--include-archived` 同时列出已归档的，`--cursor` 用上一页的 `nextCursor` 在相同筛选下继续（`--limit` 为 1–50，默认 20）。它读取的就是 Bot 的 `list_assignments` 所用的 Assignment Directory。`assignment` 按 `--session` 查看一个委派任务。`assignment-timeline` 返回该委派任务、它的 `rounds`（轮次）及 `lanes` 中的时间线。每一轮是委派 Agent 的一个 turn：第 1 轮为 `created`，之后为 `continued`（Orchestrator 又发来一个请求），每轮带开始时间和 Orchestrator 指令 `instruction` 的前 280 个字符；保留最新 20 轮，`omittedRounds` 统计其余。MAIN 条目和 Subagent 泳道带有所属的 `round`。泳道先是 `main`（委派 Agent），再按创建顺序列出每个 DSH Subagent，记为 `subagent` 1、2…（最多最近 20 个，其余数量见 `omittedSubagents`）。每条泳道保留最近 40 条 `entries`，每条带工具名、`kind`、`status`（`running`、`done`、`failed`、`denied` 或 `cancelled`）、时间，以及仅在工具声明时才有的简短公开 `detail`；原始工具输入和输出不会出现。每条泳道还带 `state`（`running`、`done`、`failed`、`cancelled` 或 `idle`）、首末事件时间，以及该会话调用过模型后实际使用的 `route`（`provider`、`model`、`reasoningEffort`）。Sessions 面板和群组 Work 面板里 Assignment 行上的“执行过程”按钮读取的就是它：按轮次列出 Orchestrator 的指示、MAIN 步骤和这一轮开出的 Subagent。`session-subagents` 对 Bot 拥有的任一根会话（Orchestrator 或 Assignment）返回同样的 `subagent` 泳道，因此也覆盖 Orchestrator 自己用 `bot_subagent` 派出的 Subagent；会话面板和群聊 Work 面板展开某一行时读取它。`channel-assignments` 列出群组 Channel 的委派工作；`channel-assign` 把 Channel 移到侧栏的某个分组（`--unsectioned` 移出分组）。`session-ids` 列出 Bot 拥有的根会话，`session-owner` 说明某个会话属于哪个 Bot、以什么角色运行。`tool-approval-rules` 列出 Bot 的"始终允许"规则；每条规则的 `autoApprovedCount` 是它不经询问就批准的请求次数，每个请求只计一次。`tool-approval-history` 按从新到旧列出 Human 对该 Bot 批准卡片的答复：每条包含工具、输入、`outcome`（`allowed-once`、`allowed-always-tool`、`allowed-always-exact`、`allowed-always-all` 或 `rejected`）、`channelId` 和两条消息 ID；答复来自已配对的 IM 账号时还带 `actor`。`--cursor` 用上一页的 `nextCursor` 继续（`--limit` 为 1–100，默认 30）。撤销规则、工作区授权或私有 MCP 服务器都需要 `--confirm`，与 Web UI 的确认一致。指定了 Host 时，`grant-revoke` 和 `grant-write-set` 经由 Host 执行；使用 `--home` 时仍是离线维护命令。私有 MCP 服务器由 `ask-secret-accounts` 列出；Host 不认识的名称会以 `private-mcp-server-unavailable` 失败。
 
 ### 在线 Host 上的定时任务
 
@@ -559,7 +592,7 @@ printf '{"channel_id":"dm-<bot-id>","body":"检查已通过。"}' | deepseekbot 
 
 `channel_action` 通过同一 `bot-tool` 执行表情与草稿动作：明确指定 `channel_id`，`action` 使用 `inspect`、`drop` 或 `react`，并提供相应草稿或消息引用。它不能发送正文。模型仅看到 `bot_send_message` 发送入口，旧发送名仅供直接 CLI 兼容。主动联系同事使用 `bot_id`；可达外部会话使用 `binding_id` 与 `conversation_id`，均与其他目标形式互斥。
 
-`bot-tools` 列出可直接调用的工具及其输入 schema。`bot-tool` 从标准输入读取参数 JSON 对象，执行与 Bot 回合中完全相同的工具代码，保留工具自身的参数校验、成员资格和权限检查，返回 `{slug, tool, sessionId: "direct", result}`。直接调用没有入站 Channel，回合中默认使用入站 Channel 的地方要显式传 `channel_id`。直接读取不会把 Inbox 条目标为已读；Bot 之间的发送会被拒绝，因为没有 Source Event 承载 Bot 因果链。失败时以非零退出并给出错误码：只能在 Bot 回合内运行的工具（创建或等待 Assignment、提问与密钥卡片、切换 Memory 分支、申请工作区授权、交给模型的图片）返回 `tool-not-direct`，此外还有 `invalid-args`、`unknown-bot`、`bot-paused`，以及带工具原始消息的 `tool-failed`。每次调用都记入 Host 的近期直接调用记录，`bot-trace --session direct` 可读取，Host 重启后清空。
+`bot-tools` 列出可直接调用的工具及其输入 schema。`bot-tool` 从标准输入读取参数 JSON 对象，执行与 Bot 回合中完全相同的工具代码，保留工具自身的参数校验、成员资格和权限检查，返回 `{slug, tool, sessionId: "direct", result}`。直接调用没有入站 Channel，回合中默认使用入站 Channel 的地方要显式传 `channel_id`。直接读取不会把 Inbox 条目标为已读；Bot 之间的发送会被拒绝，因为没有 Source Event 承载 Bot 因果链。失败时以非零退出并给出错误码：只能在 Bot 回合内运行的工具（创建或等待 Assignment、提问卡片、切换 Memory 分支、申请工作区授权、交给模型的图片）返回 `tool-not-direct`，此外还有 `invalid-args`、`unknown-bot`、`bot-paused`，以及带工具原始消息的 `tool-failed`。每次调用都记入 Host 的近期直接调用记录，`bot-trace --session direct` 可读取，Host 重启后清空。
 
 `bot_create` 以该 Bot 的身份创建一个空白 PersonaBot，与 Bot 在聊天中创建时相同：`display_name` 必填；`description`、`tags`、`avatar_path`（Bot 记忆仓库或工作区授权内 PNG、JPEG 或 WebP 文件的绝对路径）、`soul`、`core_memory` 和 `memory_location` 可选。返回 `bot_id`、`display_name`、`dm_channel_id`、`memory_dir` 和 `model`（新 Bot 使用 Host 默认模型时为 `host-default`，有自己的模型后为 `set`），同时打开新 Bot 的私聊，并在创建者 Bot 的 Human 私聊中留下一条提示。拒绝时返回错误码：`invalid-input`、`invalid-avatar`、`invalid-memory-dir`、`git-not-found` 和 `memory-unavailable`。直接运行时不经过 Bot 回合中的工具审批，因为运行命令的就是 Human 本人。
 
@@ -569,7 +602,7 @@ printf '{"display_name":"Tim","tags":["translator"],"soul":"# Tim\\nCalm and pre
 
 结合 `send` 与 `bot-trace` 即可定位问题：直接调用成功而同一请求经 `send` 失败，去 `bot-trace` 看模型的调用；直接调用也失败，问题在 Harness 或运行时。
 
-`send` 由 Host 建立已注册 Bot 的 DM，返回 `receipt`、已提交的人类 `message`、`sourceEventId`、处理 `state` 和 `replies`。回复必须关联这一条请求及归该 Bot 所有的 Session；其他请求、审批／提问卡片、通知和失败不算回复。真实回复同时验证当前模型和 key。默认期限 120 秒，最多 600 秒；发送不会自动重试。开始发送后的错误包含回执，请先用 `send-status` 查结果。指定同一 `human-<UUID>` ID 与正文可由 Host 去重，改变正文则返回错误码。已处理但无回复返回 `reply-not-produced`，需要修复返回 `send-needs-repair`。
+`send` 由 Host 建立已注册 Bot 的 DM，返回 `receipt`、已提交的人类 `message`、`sourceEventId`、处理 `state` 和 `replies`。回复必须关联这一条请求及归该 Bot 所有的 Session；其他请求、审批／提问卡片、通知和失败不算回复。真实回复同时验证当前模型和 key。默认期限 120 秒，最多 600 秒；发送不会自动重试。开始发送后的错误包含回执，请先用 `send-status` 查结果。指定同一 `human-<UUID>` ID 与正文可由 Host 去重，改变正文则返回错误码。已处理但无回复返回 `reply-not-produced`，需要修复返回 `send-needs-repair`。`--reply-to <消息-id>` 把这条消息作为对该 DM 中某条旧消息的回复发出，与手机上右滑回复相同；目标不在这个 DM 中时 Host 拒绝。
 
 问题答案由 stdin 提供：`{"answers":[{"id":"question-id","selected":["Blue"],"custom":"可选文字"}]}`；从在线历史获取问题 ID 与选项。Host owner 只应用一次决定，重复或竞争操作返回原有错误码。工具审批提供仅允许一次和拒绝；问题状态保留 pending/submitted/answered/expired。`release-info` 只读生命周期，工作区授权使用 `workspace-options` 返回的 ID。
 
@@ -647,9 +680,12 @@ deepseekbot idle-compaction
 deepseekbot idle-compaction-set on|off
 deepseekbot idle-compaction-cache-set deepseek/<model> <seconds>
 deepseekbot idle-compaction-cache-set deepseek/<model> auto
+deepseekbot compaction-threshold-set <ratio|default|keep> <headroom-tokens|default|keep>
 ```
 
 三个命令都返回 `{enabled, settingReadable, minimumIdleSeconds, scheduled, routes}`。每条线路列出 `cacheLifetimeSeconds`、来源 `source` 和 `compactAfterSeconds`（跳过时为 `null`）。缓存寿命依次取自这里为该线路设置的值（`setting`）、模型目录（`catalog`，Anthropic 的短档）、观测到的请求前空闲间隔中仍大部分命中缓存的最长值（`observed`；命中的间隔不会缩短默认值，更长的未命中间隔会把它封顶），或 DeepSeek 线路的 2 小时（`default`）；其它没有任何信息的线路为 `unknown` 并跳过，寿命不足 15 分钟的也跳过。`idle-compaction-cache-set ... auto` 删除该线路的设置值。每次执行都记录在 `deepseekbot bot-activity-history <bot-id>` 的 `idleCompactions` 中，包含线路、空闲时长、压缩前后 token 数，以及压缩请求的输入、缓存读取和输出 token。拒绝时带错误码：`usage`（缺少 `on`/`off`、`<provider>/<model>` 或整数秒）和 `invalid-input`。
+
+DSH 在 Session 上下文达到“上下文窗口 × `ratio`”与“窗口 − 线路输出上限 − `headroom-tokens`”中较小者时自动压缩。`compaction-threshold-set` 修改这两个值，对本机所有 Bot 从下一步开始生效：比例 0.5–0.95（默认 0.8），余量 8192–262144 token（默认 65536）。`default` 恢复某一项默认值，`keep` 保持不变，例如 `compaction-threshold-set 0.7 keep` 只改比例。空闲压缩使用同一阈值。如果余量加上输出上限超过某个模型的上下文窗口，这个余量对该模型过大：DSH 会记录警告并跳过它的压力压缩，没有声明窗口的模型则继续使用默认余量。`idle-compaction` 在 `threshold` 下返回两者，以及 `ratioSet`/`headroomSet` 和取值范围。
 
 ### 加密局域网手机连接
 
@@ -738,14 +774,38 @@ deepseekbot group-activity <group-channel>
 
 客户端市场默认按最多 Star 排序，并在当前浏览器记住选择。`--sort stars` 依次按 Star、最后更新、创建时间、仓库 ID 降序排列，翻页保持同一顺序。CLI 不读取浏览器偏好。
 
+`marketplace-sections` 返回市场面板的热门、新上架和上升最快三行，来自 Worker 最近一次每日快照，格式为 `{ sections: [{ section, day, entries: [{ bot, score }] }] }`。热门的 `score` 是近 7 天安装数，新上架为 0，上升最快是 7 天增长数；首次快照之前 `day` 为 `null`。
+
+`marketplace-digest` 返回最近一篇每日精选（市场面板顶部的文章），或 `--day` 指定日期的那篇，格式为 `{ digest: { day, lang, title, lede, sections: [{ heading, body, bot }] } }`；条目之后被隐藏时 `bot` 为 `null`。没有精选时返回 `digest-not-found`。`marketplace-digests` 按日期从新到旧列出往期精选：`{ digests: [{ day, lang, title, lede, picks: [{ id, displayName, banner, avatar }] }] }`；`picks` 是文章中仍在上架的最多四个精选 Bot，按文章顺序排列，stderr 每篇一行，列出日期、标题和精选 Bot 名称。两者都优先用 `--lang`，某天只有另一种语言时返回那种语言。
+
 这些命令调用的 Host 方法与市场页面、更新卡片、使用统计提示、Git 提示和 IM 配对面板相同：
 
 ```bash
-deepseekbot marketplace-list [--query <关键词>] [--topic <主题>] [--sort updated|created|stars] [--lang zh|en] [--cursor <next-cursor>]
+deepseekbot marketplace-list [--query <关键词>] [--topic <主题>] [--sort updated|created|stars] [--lang zh|en] [--cursor <next-cursor>] [--include-uploads]
 deepseekbot marketplace-topics
+deepseekbot marketplace-sections [--lang zh|en]
+deepseekbot marketplace-digest [--day YYYY-MM-DD] [--lang zh|en]
+deepseekbot marketplace-digests [--lang zh|en]
 deepseekbot marketplace-detail <owner/repo> [--lang zh|en]
+deepseekbot marketplace-file <listing-id> <path>
 deepseekbot marketplace-submit https://github.com/<owner>/<repo>
 deepseekbot marketplace-report <owner/repo> [--reason <说明>]
+deepseekbot marketplace-account
+deepseekbot marketplace-author --name <显示名> [--accept-terms]
+deepseekbot marketplace-author-avatar (--file <图片> | --clear)
+deepseekbot marketplace-upload-plan <bot-id>
+deepseekbot marketplace-upload <bot-id> --name <名称> [--description <简介>] [--role <标签> ...] [--replaces <listing-id>] --confirm [--timeout <秒>]
+deepseekbot marketplace-mine [--lang zh|en]
+deepseekbot marketplace-delete <listing-id> --confirm
+deepseekbot marketplace-install <listing-id> [--lang zh|en]
+deepseekbot marketplace-install <listing-id> --review <review-id> --confirm [--operation-key <key>]
+deepseekbot share-draft-start <bot-id>
+deepseekbot share-draft-show <bot-id>
+deepseekbot share-draft-file <bot-id> --path <文件路径>
+deepseekbot share-draft-decide <bot-id> --path <文件路径> (--keep | --drop | --rewrite-stdin)
+deepseekbot share-draft-finish <bot-id>
+deepseekbot share-draft-export <bot-id>
+deepseekbot share-draft-discard <bot-id>
 deepseekbot release-check [--force]
 deepseekbot release-install <version> --confirm
 deepseekbot release-restart --confirm
@@ -770,6 +830,12 @@ deepseekbot pairing-review <bot-id> <pairing-id> --decision revoke --confirm
 `plugin-check`、`plugin-install` 和 `plugin-restart` 对应 **Bot 设置 → 插件** 页面，覆盖除 `deepseekbot` 以外已安装的 `@botharness/*` 插件 Bundle，例如 `@botharness/vrm-companion`。`plugin-check` 返回 `installable`、`restartable`，以及每个插件一条记录，`status` 为 `current`、`available`、`blocked`、`restart-required`、`development` 或 `unavailable`；`--force` 绕过六小时的检查缓存。兼容判断复用运行中 DSH 的评估器，读取该插件在 registry 上的清单。`plugin-install <package> <version> --confirm` 会再次检查兼容性，通过原生 Plugin Manager 安装；Manager 拒绝覆盖已安装的包名时，改用 registry 的安装包地址。返回 `applied: true` 表示 Host 已经加载新版本，只需刷新页面；否则用 `plugin-restart --confirm` 重启 Host，让所有待生效的插件更新生效。失败时以非零退出，错误码为 `plugin-<原因>`，例如 `plugin-incompatible`、`plugin-unknown-plugin` 或 `plugin-not-pending`。
 
 `--lang zh|en` 按该语言读取列表，与市场页面按界面语言读取一致：名称和简介依次取作者 `bot.json` 里 `i18n` 的翻译、本来就是该语言的简介、市场生成的摘要（`descriptionGenerated: true`）；`marketplace-detail` 返回仓库里该语言的 README，并在 `readmeLanguage` 里注明，没有就返回 `README.md`：`zh` 依次取 `README.zh-CN.md`、`README.zh.md`，再取 `README_CN.md`、`README-zh.md` 等其他写法；`en` 取 `README.en.md`。`marketplace-submit` 和 `marketplace-report` 会像网页一样先完成 Host 下发的工作量证明，因此可能需要几秒；市场本身的拒绝（`repository-missing-topic`、`rate-limited` 等）作为错误码返回。举报说明最多 500 个字符。`release-check` 返回更新状态（`current`、`available`、`restart-required`、`development`、`unknown` 或 `unavailable`）。`release-install` 和 `release-restart` 必须带 `--confirm`；安装或重启失败时以非零退出，错误码为 `release-<原因>`，例如 `release-network` 或 `release-not-pending`。重启会中断所有正在运行的 Bot 回合，只在自己负责的 Host 上执行。`pairing-list` 列出 Bot 的配对请求和角色；`pairing-review` 自行读取当前版本号，期间被改动过的请求会被拒绝而不是被覆盖。对话类请求用一个 `--role` 批准，管理类请求用 `--capability` 批准。
+
+**上传的 Bot**（[ADR-0267](adr/0267-the-bot-marketplace-hosts-uploaded-bots-under-connect-accounts.md)）和 GitHub 仓库在同一个目录里。`marketplace-list --include-uploads` 会把它们加进来；每个条目带 `source`（`github` 或 `upload`），上传的条目还带 `author`（`name`、区分同名作者且永不改变的作者 `id`，以及头像图片地址 `avatar` 或 `null`）。上传的 Bot 的 `marketplace-detail` 还返回 `files`（`path`、`size`、`kind`：`text`、`script` 或 `image`）和 `fileSummary`：`count`、`size` 和 `types`，即每种类型（`markdown`、`text`、`data`、`script`、`image`）的文件数和字节数，按大小从大到小。`marketplace-file <listing-id> <path>` 以 `file`（`path`、`size`、`type`、`text`）读取一个文本文件：Markdown 像 README 一样经过整理和清洗，相对链接指向这个 Bot 的文件；脚本和其他文本原样返回，从不当作 Markdown 整理。图片被拒绝，错误码 `file-not-text`；不在列表里的路径返回 `file-not-found`。上传要求这个 Host 已登录 Tobs Connect（设置 → 设备）；`marketplace-account` 返回 `signedIn` 和 `author`，即已登录账户的**账户资料**（`name`、`id`、`avatar`、`termsAcceptedAt`），在 `marketplace-author --name <名称>` 创建资料之前为 `null`；之后再调用会改名，它的条目也随之更新。第一次上传还需要用 `--accept-terms` 接受一次条款（之前返回 `author-required`）。`marketplace-author-avatar --file <图片>` 用不超过 1 MB 的 PNG、JPEG 或 WebP 设置资料头像（`avatar-type-refused`、`avatar-too-large`），头像公开提供，并显示在作者的条目上；`--clear` 移除头像。`marketplace-upload-plan` 列出上传会包含的文件和跳过的文件（二进制和压缩包为 `file-type-refused`，超过 5 MB 为 `file-too-large`）。`marketplace-upload` 用给定的名称、简介和标签发布 Bot 已就绪的分享草稿（不含 Git 历史），必须带 `--confirm`：文件会公开。Bot 在自己的 Shell 里运行它时总会弹出给人类的批准卡片，即使开了完全访问。拒绝带错误码：`sign-in-required`、`author-required`、`too-many-files`（超过 2,000 个）、`too-large`（超过 50 MB）、`bot-limit`（每个账号 20 个）、`nothing-to-upload`、`share-draft-required`（还没有草稿）、`share-draft-not-ready`（还有文件没有结论）。`marketplace-install` 对两种条目都分两步。先运行 `marketplace-install <listing-id>`：暂存文件（上传的 Bot 的文件，或按目录索引到的提交克隆的 GitHub 仓库，没有索引提交时返回 `listing-not-installable`），由 Tob 用 Tob 的模型检查，输出 `reviewId`、`review` 和 `installed: false`，不会创建任何东西。`review.status` 为 `reviewed` 时带 `findings`（`kind`：`prompt-injection`、`exfiltration` 或 `script`，`path`，可选的 `note`）、`files`、`read`，有文本太长没读完时 `partial` 为 true；Tob 没能检查时为 `unavailable`，带 `reason`（`no-model`、`model-unavailable`、`llm-unavailable`、`timeout`、`model-error`、`unparseable`）。脚本文件无论如何都会列出。`--lang` 决定说明的语言。然后运行 `marketplace-install <listing-id> --review <review-id> --confirm`，把刚才暂存的这些文件（或这个提交）安装成全新的 Bot，用条目的名称、简介和标签，只有一次初始提交，返回新的 `bot`、它的 `channelId`、`listing` 和 `installed: true`。检查结果保留 30 分钟（过期为 `review-expired`，换了条目为 `review-mismatch`）；用同一个 `--operation-key` 重试会返回那个 Bot，不会装两次。Bot 建好之后，Host 发送一次**安装回执**，用一个只给市场用的随机 Host 标识（Host 数据目录里的 `marketplace-host.json`，从不使用遥测安装 ID）；每个 Host 对每个条目只计一次，安装失败不发送；`marketplace-list` 和 `marketplace-detail` 的每个条目都带 `installs`。
+
+上传和推送到 GitHub 读的都是**分享草稿**，源 Memory 不会被改动。`share-draft-start` 把 Bot 可分享的记忆文件（和 `marketplace-upload-plan` 会包含的一样）复制到 Host 自己的数据目录，并替换之前的草稿。`share-draft-show` 返回草稿的 `state`（`reviewing` 或 `ready`）、计数 `summary`，以及每个文件的 `path`、`kind`、`size`、`status`（`pending`、`kept`、`rewritten` 或 `dropped`）和模式扫描发现的 `flags`（`secret`、`private-key`、`url-credential`、`email`、`phone`）。`share-draft-file --path` 返回一个文本文件在草稿里的当前内容。`share-draft-decide` 记录一个结论：`--keep`、`--drop`（删除草稿里的副本）或 `--rewrite-stdin`（完整的新内容，最多 5 MB）。任何结论都会让已就绪的草稿回到 `reviewing`。`share-draft-finish` 在没有 `pending` 文件时把草稿标为 `ready`（`share-draft-pending` 会给出第一个未决文件）。`share-draft-export` 把已就绪的草稿复制到 Tob 工作区里一个不带 `.git` 的新文件夹并返回 `path`，用于推送到 GitHub。`share-draft-discard` 删除草稿。Tob 的受限 CLI 只有 `share-draft-show`、`share-draft-file`、`share-draft-decide` 和 `share-draft-finish`，而且只能处理人类已开始的草稿；开始、导出和删除草稿由人类操作。
+
+`marketplace-mine` 按时间从新到旧列出已登录作者自己上传的 Bot，每项为 `{ bot, files, bytes, blocked }`；`blocked` 的条目别人看不到，但仍可更新或删除。`marketplace-upload --replaces <listing-id>` 用这个 Bot 当前的记忆文件整体替换其中一个：没有版本，条目 id 不变，新文件全部存好后才对外可见，随后删除旧文件。每小时最多替换 10 次（`replace-limit`）；替换不占 20 个 Bot 的名额。`marketplace-delete` 删除条目、文件和计数，必须带 `--confirm`；和 `marketplace-upload` 一样，Bot 在自己的 Shell 里运行它时总会弹出给人类的批准卡片。已安装的副本永远不会被改动：本 Host 装过的条目在 `marketplace-list` 和 `marketplace-detail` 里带 `installed`（`bots` 为装出来的 Bot id，作者在安装之后替换过文件时 `authorUpdated` 为 true）。注销 Connect 账号会一并删除它上传的所有 Bot 和作者信息。
 
 ### 清除全部 BotHarness 数据
 
@@ -882,9 +948,10 @@ deepseekbot grants <bot-id>
 ```bash
 deepseekbot folder-browse
 deepseekbot folder-browse 'D:\code'
+deepseekbot folder-browse 'D:\code' --offset 500
 ```
 
-`folder-browse` 列出 Host 上某个文件夹的子文件夹，与桌面工作区授权浏览器相同，也用于电脑使用系统文件夹选择器时的手机文件夹选择。不传路径时从 Host 主目录开始。返回 `{path, home, crumbs, entries, truncated, roots}`：只有文件夹名称和路径，不含文件。`roots` 是主目录和各个磁盘（Windows）或 `/`。相对路径返回 `folder-browse/invalid-path`；不存在、不是文件夹或无权读取分别返回 `folder-browse/not-found`、`folder-browse/not-directory`、`folder-browse/denied`。浏览不授予任何权限：选好路径后按上文登记并授权。
+`folder-browse` 列出 Host 上某个文件夹的子文件夹，与桌面工作区授权浏览器相同，也用于电脑使用系统文件夹选择器时的手机文件夹选择。不传路径时从 Host 主目录开始。返回 `{path, home, crumbs, entries, truncated, nextOffset?, roots, nativePicker?}`：只有文件夹名称和路径，不含文件，每页最多 500 个。`truncated` 为 true 时，把 `nextOffset` 作为 `--offset` 传回即可取下一页。`roots` 是主目录和各个磁盘（Windows 上读系统盘符表，不打开任何磁盘）或 `/`。`nativePicker: true` 表示 Host 使用系统文件夹对话框，桌面 Client 会改为打开它。Host 在单独的进程里读取文件夹，截止时间 5 秒。相对路径返回 `folder-browse/invalid-path`；不存在、不是文件夹、无权读取或读取失败分别返回 `folder-browse/not-found`、`folder-browse/not-directory`、`folder-browse/denied`、`folder-browse/unreadable`；文件夹没有按时响应（例如网络盘断开）返回 `folder-browse/timeout`。浏览不授予任何权限：选好路径后按上文登记并授权。
 
 ## Memory
 
@@ -893,7 +960,7 @@ deepseekbot folder-browse 'D:\code'
 选定在线 Host 时，上述命令改为通过 Host 的 Memory 模块执行，而不是读写本地存储，此时 `memory-save` 必须带 `--expected-head`。在线 Host 还提供 Memory 面板的其余功能：
 
 ```bash
-deepseekbot memory-graph <bot-id> [--offset <n>]
+deepseekbot memory-graph <bot-id> [--offset <n>] [--path <file>]
 deepseekbot memory-commit-diff <bot-id> --sha <commit>
 deepseekbot memory-changes <bot-id>
 deepseekbot memory-working-diff <bot-id> --path <file> --kind staged|unstaged|untracked|current
@@ -906,6 +973,8 @@ deepseekbot memory-restore <bot-id> --checkpoint <id> --expected-current <id>
 deepseekbot memory-restore-commit <bot-id> --sha <commit> --expected-head <commit> [--name <version>]
 deepseekbot memory-repair <bot-id> --expected-head <commit>
 ```
+
+`memory-graph --path` 只列出改过这个文件的提交，和 App 里 Memory 文件页的「修改记录」一致。
 
 写入和恢复都必须指明预期的 head 或检查点，所以并发修改会以 `memory-conflict` 失败，而不会被覆盖；`--restore-id` 和 `--repair-id` 默认是新的 UUID，使重试保持幂等。恢复前会先记录一个检查点，可以用 `memory-checkpoints` 查看。
 
@@ -1150,11 +1219,9 @@ deepseekbot memory-image <bot-id> --path notes/guide.md --image-source <document
 
 ## 桌面整页缩放（S1 受控切片）
 
-新版 Tobs Bundle 默认加载 macOS/Windows 原生桌面窗口缩放，无需另行 enable。下面的启用/停用命令用于历史手动配置；日常操作进入 Bot 设置 → 通用 → 窗口缩放。浏览器缩放不变，原生验收单独记录于 #2775。
+Tobs 1.5.2 曾通过再插入一行 `ui-theme` Loader 行默认加载缩放，导致 DSH 0.2.1-rc.3 设置拒绝所有外观与字体写入（[#2788](https://github.com/BotHarness/DeepSeekBot/issues/2788)）。产品 Bundle 现已不再改动原生 `ui-theme` 行，缩放需通过下面的显式命令启用。
 
-### 旧版手动启用方式
-
-早期产品附带独立的显式启用命令。普通安装产品后，先退出目标 macOS 桌面，再明确指定应用 Bundle
+产品附带独立的显式启用命令。普通安装产品后，先退出目标 macOS 桌面，再明确指定应用 Bundle
 和 Profile。命令使用所选应用附带的 pnpm，禁用安装脚本，并持有与原生插件管理器相同的 Profile
 写锁。桌面 Host 仍在运行、存在其他主题覆盖或产品仍采用旧组合时拒绝；准入检查依据协议、平台及包内容完整性。
 只改变一个 Profile 依赖，不修改已安装应用：
@@ -1169,9 +1236,22 @@ deepseekbot-zoom-setup disable --home <绝对路径-DSH_HOME> --profile desktop 
 DSH CLI 明确拒绝管理 `desktop` Profile；原生插件管理器会优先解析应用自带的同名主题，因此也拒绝
 这一普通库替换。两条路径的无窗口测试结果不能作为桌面启用验收。
 
-历史手动启用的 Profile 应在卸载产品前先 `disable`，并重启以恢复原生包解析。此命令清理旧链接；新版 Bundle 仍安装时不会关闭缩放。手动字体偏好仍由原生 `ui-theme` Patch 保存。
+卸载产品前先 `disable`，并重启以恢复原生包解析。手动字体偏好仍由原生 `ui-theme` Patch 保存。
 JSON 标准输出包含 `restartRequired:true`、`runtimeVerified:false`；包配置成功不表示原生窗口已加载。
 包操作结果不确定时不会自动重试。
+
+### 在 Bot 设置中启用
+
+在 macOS 或 Windows 桌面端，Bot 设置 → 通用会显示「启用窗口缩放」（已安装时显示「关闭窗口缩放」）。按钮让 Host 以独立后台进程运行同一个 `deepseekbot-zoom-setup enable|disable --after-quit <状态文件> --request <id>` 事务。后台进程等到桌面端完全退出后，执行原有检查与 Profile 修改，记录结果并重新打开应用。退出前可点「取消」撤回；新的请求会取代旧的。30 分钟内未退出应用时，后台进程不做任何修改、也不重新打开应用便结束。下次打开设置会显示失败代码。Host 根据自身运行路径确定目标应用，只在原生 `desktop` Profile 中提供此入口。
+
+```sh
+deepseekbot window-zoom-setup-status --host <host> --token-file <私有文件>
+deepseekbot window-zoom-setup-enable --host <host> --token-file <私有文件>
+deepseekbot window-zoom-setup-disable --host <host> --token-file <私有文件>
+deepseekbot window-zoom-setup-cancel --host <host> --token-file <私有文件>
+```
+
+在非桌面 Profile 中状态为 `{supported:false, code}`，否则为 `{supported:true, enabled, pending?, last?}`。拒绝代码包括 `zoom-setup-not-desktop`、`zoom-setup-desktop-app-unresolved`、`zoom-setup-command-unavailable`、`zoom-setup-already-enabled|disabled` 与 `zoom-setup-not-pending`；后台进程未写结果即结束时报告 `zoom-setup-helper-exited`。
 
 `window-zoom-clients` 列出在线目标，必须明确传入 `--client-id`，不会隐式选择窗口。
 `window-zoom-get` 读取 Client 持有的状态；写入必须携带其 `document.revision`：
@@ -1193,11 +1273,11 @@ deepseekbot window-zoom-reset --client-id <id> --expected-revision <revision> --
 Client 重启后投递 ID 会改变，需要重新列出；主窗口偏好独立保存。原生验证范围见
 [S1](https://github.com/BotHarness/DeepSeekBot/issues/2268)。这条路径不需要模型，也没有 Host 偏好副本。
 
-Windows 旧版手动链接配置使用已安装产品的 `deepseekbot-zoom-setup` 命令，显式传入
+Windows 候选版使用已安装产品的 `deepseekbot-zoom-setup` 命令，显式传入
 `--home <隔离-home> --profile desktop --desktop-app "<应用目录>/DeepSeek Harness.exe"`。
 整个 `enable` 或 `disable` 事务期间须关闭所选 Desktop；该可执行文件有运行进程即拒绝事务。
 准入检查依据协议、平台及包内容完整性，不限制为某个固定 FileVersion。
-原生 `ui-theme` 行和字体设置保持原有身份。历史手动启用的 Profile 应在移除产品前先执行 `disable`；每次冷启动后重新枚举 Client ID。
+原生 `ui-theme` 行和字体设置保持原有身份。移除产品前先执行 `disable`；每次冷启动后重新枚举 Client ID。
 Ctrl+0 恢复已保存的默认值，包括 120%；固定原生协议不支持数字小键盘键码。
 原生输入、guest 前台恢复、DPI 和 Human QA 的独立门槛见
 [Windows 资格 #2270](https://github.com/BotHarness/DeepSeekBot/issues/2270)。
@@ -1368,18 +1448,33 @@ macOS 继续使用现有 `computer-start --target local`、`computer-video statu
 
 ### 原生 Subagent preset 与直接调用
 
-`bot_subagent` 依次选择允许的显式 `agent_preset`、配置的 `subagent.agentPreset`、当前 DSH 系统默认 preset。`subagent.allowedAgentPresets` 允许显式选择；省略时不允许显式选择。这些原生 preset 控制工具和人格，与允许的 LLM 路由独立。`bot_subagent_fork` 继承父 preset，并拒绝 `agent_preset`。
+只有 Assignment 会话带有 `bot_subagent`、`bot_subagent_fork` 和 `list_bot_subagent_models`。Orchestrator 用 `create_assignment` 委派；它调用原生或 Bot Subagent 工具时会被拒绝，并提示改用 `create_assignment`（ADR-0265）。`bot_subagent` 依次选择允许的显式 `agent_preset`、配置的 `subagent.agentPreset`、当前 DSH 系统默认 preset。`subagent.allowedAgentPresets` 允许显式选择；省略时不允许显式选择。这些原生 preset 控制工具和人格，与允许的 LLM 路由独立。`bot_subagent_fork` 继承父 preset，并拒绝 `agent_preset`。
 
-`bot-tool` 支持 `bot_subagent`、`bot_subagent_fork` 和 `list_bot_subagent_models`。这些命令要求现有存活的 Orchestrator Agent，包括私聊结束后处于 idle 的 Agent。调用经过其原生工具执行链，不会创建或恢复父 Agent。`parent-unavailable` 表示没有存活父 Agent，应先向 Bot 发送私聊。原生策略拒绝仍返回错误。通过 `bot-trace --session direct` 查看直接调用结果，通过子 Session 查看实际执行历史。
+`bot-tool` 支持 `bot_subagent`、`bot_subagent_fork` 和 `list_bot_subagent_models`，需用 `--session <assignment-session-id>` 指定该 Bot 的一个 Assignment 会话（`assignments` 可列出）。该 Assignment Agent 必须存活，包括汇报后处于 idle 的 Agent。调用经过其原生工具执行链，不会创建或恢复父 Agent。`parent-unavailable` 表示该会话不存在、不是这个 Bot 的 Assignment，或没有存活 Agent，应先继续该 Assignment。其他 Bot 工具不接受 `--session`。原生策略拒绝仍返回错误。通过 `bot-trace --session direct` 查看直接调用结果，通过子 Session 查看实际执行历史。
 
-后台子任务的原生回报可以唤醒该存活父 Agent。BotRuntime 在恢复请求前准备新的工具上下文和当前模型，不借用上一条私聊的来源或目标。如需投递结果，应在委派任务中明确回复来源或发送目标。前台 CLI 调用不会遮蔽另一个用户回合的停止与追加指令。参见 ADR-0252。
+后台子任务的原生回报可以唤醒该存活的 Assignment。BotRuntime 在恢复请求前准备新的工具上下文和当前模型，不借用上一条私聊的来源或目标。如需投递结果，应在委派任务中明确回复来源或发送目标。前台 CLI 调用不会遮蔽另一个用户回合的停止与追加指令。参见 ADR-0252。
 
 ```sh
-printf '%s' '{"description":"Review","prompt":"Review the supplied task","run_in_background":false}' | deepseekbot bot-tool <slug> bot_subagent --args-stdin
-printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --args-stdin
+printf '%s' '{"description":"Review","prompt":"Review the supplied task","run_in_background":false}' | deepseekbot bot-tool <slug> bot_subagent --session <assignment-session-id> --args-stdin
+printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --session <assignment-session-id> --args-stdin
 ```
 
 `computer-open-permission-settings` 在本机 Computer 所在的 macOS Host 上打开指定隐私设置页，不会自动授权。用户在系统设置里开启权限，必要时重启运行 DSH 的应用，再重新检查。`computer-status` 返回稳定的安装失败原因与各项缺失的 macOS 权限；技术细节保留在诊断信息中。
+
+## 完整环境备份与恢复
+
+`profile-backup-*` 命令与 Settings 使用同一个 Profile Backup owner。在线命令沿用 `--host` / `DEEPSEEKBOT_HOST` 和私有 token 文件或环境凭证，每次在 stdout 输出一份 JSON；不导出凭证存储，但聊天和 Memory 中仍可能含有秘密。
+
+```bash
+tobs profile-backup-preview --host http://127.0.0.1:31967 > preview.json
+tobs profile-backup-export --host http://127.0.0.1:31967 --confirmation-stdin --out environment.botharness-backup < preview.json
+tobs profile-backup-inspect --host http://127.0.0.1:31967 --file environment.botharness-backup
+tobs profile-backup-restore --file environment.botharness-backup --new-home new-environment --confirm
+```
+
+导出消费当前预览 token，不覆盖已有文件。恢复在**本机离线执行**，目标目录必须尚不存在，完成后环境保持停止状态。恢复时不传 `--host` 或 `--token-file`。用兼容的可信 Tobs 安装启动目标环境后，通过 `profile-backup-recovery` 查看准备度。恢复的 Bot 保持冷状态；`profile-backup-authorize <bot> --confirm` 授权所选目标模型，`profile-backup-activate <bot> --confirm --acknowledge-risk` 明确接受源环境可能重复运行的风险。这些操作不会恢复外部账号授权。
+
+继续支持历史 v1 备份。新 v2 备份分别记录 Host 与实际解析的 DSH tools 版本，`null` 表示无法确定来源信息。兼容性由数据契约和 schema 迁移决定，不要求 DSH 精确版本相同。旧 reader 遇到不支持的新格式需要升级。`format-upgrade-required`、`upgrade-required` 和 `dependency-incompatible` 表示无法解释所需数据；`core-contract-invalid` 表示需要具备有效核心声明的完整备份；`package-invalid` 表示文件验证失败；`source-unavailable` 表示需先修复源数据库再导出。预览过期、完整性、取消和目标目录检查继续生效。
 
 ### 消息反馈（#2811）
 
@@ -1398,8 +1493,16 @@ printf '%s' '{"token":"<preview-token>","feedback":{"rating":"bad","tags":["no-r
 评分为 `good` 或 `bad`，固定标签可选，评价最多 500 个 Unicode 字符。内容通过 stdin 或文件输入，
 不要放在命令参数中。预览令牌属于当前 Host 连接，30 分钟后失效，最多保留最近四份。
 `preview-stale` 需要重新预览。提交失败后材料与评分被冻结，重试原请求沿用同一反馈编号；
-修改内容时请主动刷新预览。成功返回 `reportId` 和 `expiresAt`。
+修改内容时请主动刷新预览。成功返回 `reportId`。仅评分、标签、短评、编号与版本发送到 PostHog，诊断包仍是本地下载。
 
-Host 通过 `BOTHARNESS_FEEDBACK_ENDPOINT` 显式启用提交，否则仍可预览和下载，提交返回
-`feedback-unavailable`。只接受 `https://feedback.botharness.ai/feedback` 与回环 HTTP `/feedback`，
-拒绝重定向。接收服务配置见[运维说明](message-feedback.md)。
+提交沿用现有 PostHog 接入地址，无需额外配置，不部署专用接收服务或私有诊断存储。见[反馈与本地诊断](message-feedback.md)。
+
+### Failed-turn feedback
+
+`feedback-preview` accepts `failureTurn: true` alongside the canonical failed message's `channelId` and `messageId` in stdin JSON. Its frozen preview includes `uploadEvidence`: only the matching turn input and tool call/result events, redacted and capped at 128 KiB. Ambiguous/missing turn identity and oversized evidence refuse instead of uploading a whole Session. `feedback-submit --confirm` uploads that frozen turn with rating/tags/comment to the existing feedback endpoint. The diagnostic ZIP stays a separate download. Ordinary feedback keeps its existing metadata-only POST.
+
+### 直接调用凭据工具与来源恢复
+
+Bot 已有存活的 Orchestrator Agent 后，`bot-tools` 也会列出其注册的 `ask_secret`、`protected_cli`、`secret_http`、`secret_cli` 和 `secret_mcp_connect`。用 `bot-tool <bot-id> <tool> --args-stdin` 调用，参数 JSON 从 stdin 传入；不要把原值或引用放进命令行参数。执行复用已有 Agent 的原生工具与审批链，不调用模型、不创建新的来源；没有存活的工具注册时拒绝。命令可等待执行审批，由通常的审批命令或 Web 卡片处理。直接调用与原生诊断轨迹都省略私密工具参数和结果。
+
+同轮存在多条 IM 请求时，先用原账号和字段声明调用 `ask_secret`，并传入正在处理的那条已接受请求的精确 `source_event_id`，再消费引用。已配置账号会复用原值，不新建卡片，也不要求 Web 通知地址。Web 与 Schedule 复用不传来源选择器。`private-source-required` 给出这条恢复路径；`private-source-invalid`、`private-source-unavailable`、`private-source-ambiguous`、`private-source-revoked`、`private-account-unavailable` 分别区分其他拒绝原因。不要重复原样调用、选择历史来源，或把 Host 拒绝当成远端故障。同账号来源冲突需要新一轮；撤销检查始终保留。

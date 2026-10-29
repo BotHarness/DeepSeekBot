@@ -11,6 +11,8 @@ const native = vi.hoisted(() => ({
   styles: new Map<string, { style: ViewStyle & TextStyle; text: boolean }>(),
 }));
 
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   const isStyleList = (
@@ -45,6 +47,15 @@ vi.mock('react-native', async () => {
       scale: 1,
       fontScale: native.fontScale,
     }),
+    Dimensions: {
+      get: () => ({
+        width: native.width,
+        height: 800,
+        scale: 1,
+        fontScale: native.fontScale,
+      }),
+      addEventListener: (_event: string, _changed: () => void) => ({ remove() {} }),
+    },
   };
 });
 vi.mock('react-native-reanimated', async () => {
@@ -70,6 +81,7 @@ vi.mock('../src/ui/chat/message-menu', () => ({
 vi.mock('../src/ui/chat/message-attachments', () => ({ MessageAttachments: () => null }));
 vi.mock('../src/ui/chat/message-reactions', () => ({ ReactionChips: () => null }));
 vi.mock('../src/ui/chat/speaker-row', () => ({ SpeakerRow: () => null }));
+vi.mock('../src/ui/chat/delivery-stack', () => ({ DeliveryReceiptButton: () => null }));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
 vi.mock('../src/ui/haptics', () => ({ haptic: () => {} }));
 

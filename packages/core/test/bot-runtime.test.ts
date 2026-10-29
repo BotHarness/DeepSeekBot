@@ -25,6 +25,7 @@ import {
 import { createTempRoot, FIXED_NOW } from './helpers.js';
 import { createTestWorkspaceGrants, TEST_GRANT_ID } from './workspace-grant-fixture.js';
 import { createWorkspaceGrantStore } from '../src/workspaces/grants.js';
+import { OrchestratorWorkingDirectoryError } from '../src/runtime/orchestrator-working-directory.js';
 import { createAssignmentAccessStore } from '../src/workspaces/assignment-access.js';
 
 class DeterministicAgentAdapter implements BotAgentAdapter {
@@ -34,8 +35,9 @@ class DeterministicAgentAdapter implements BotAgentAdapter {
     this.runs.push({ role: 'orchestrator', sessionId: run.sessionId });
     if (run.message.trim().length > 0) {
       const outcome = run.assignments.create({
+        title: 'Assignment',
         grantId: TEST_GRANT_ID,
-        purpose: `调查并回答：${run.message.split('\n').at(-1)}`,
+        description: `调查并回答：${run.message.split('\n').at(-1)}`,
       });
       if (outcome.outcome === 'created' || outcome.outcome === 'reused') return;
       throw new Error(outcome.message);
@@ -51,7 +53,7 @@ class DeterministicAgentAdapter implements BotAgentAdapter {
 
   async runAssignment(run: AssignmentAgentRun): Promise<void> {
     this.runs.push({ role: 'assignment', sessionId: run.sessionId });
-    await run.report({ state: 'completed', summary: `Assignment 已处理「${run.purpose}」` });
+    await run.report({ state: 'completed', summary: `Assignment 已处理「${run.text}」` });
   }
 
   requestAssignment(run: AssignmentAgentRun): AssignmentRequestDelivery {
@@ -130,7 +132,11 @@ it('publishes failed Orchestrator and Assignment turns into the owning DM', asyn
       attempts += 1;
       if (attempts === 1) throw new Error('QUOTA: Insufficient Balance (request_id: test-123)');
       if (attempts === 2) throw new Error('TRANSPORT: retry outage');
-      const outcome = run.assignments.create({ grantId: TEST_GRANT_ID, purpose: '检查余额' });
+      const outcome = run.assignments.create({
+        title: '检查余额',
+        grantId: TEST_GRANT_ID,
+        description: '检查余额',
+      });
       expect(outcome.outcome).toBe('created');
     },
     async runAssignment() {
@@ -520,8 +526,9 @@ describe('Bot runtime tracer bullet', () => {
         if (run.message.trim().length > 0) {
           if (orchestratorAttempts === 1) throw new Error('TRANSPORT: DeepSeek API request failed');
           const outcome = run.assignments.create({
+            title: 'Assignment',
             grantId: TEST_GRANT_ID,
-            purpose: `调查并回答：${run.message.split('\n').at(-1)}`,
+            description: `调查并回答：${run.message.split('\n').at(-1)}`,
           });
           if (outcome.outcome === 'created' || outcome.outcome === 'reused') return;
           throw new Error(outcome.message);
@@ -534,7 +541,7 @@ describe('Bot runtime tracer bullet', () => {
       },
       async runAssignment(run) {
         assignmentRuns += 1;
-        await run.report({ state: 'completed', summary: `Assignment 已处理「${run.purpose}」` });
+        await run.report({ state: 'completed', summary: `Assignment 已处理「${run.text}」` });
       },
       requestAssignment(run) {
         return { delivery: 'followup', accepted: Promise.resolve(), done: this.runAssignment(run) };
@@ -635,8 +642,9 @@ describe('Bot runtime tracer bullet', () => {
           orchestratorAttempts += 1;
           if (run.message.trim().length > 0) {
             const outcome = run.assignments.create({
+              title: 'Assignment',
               grantId: TEST_GRANT_ID,
-              purpose: '核对副作用',
+              description: '核对副作用',
             });
             if (outcome.outcome === 'capacity' || outcome.outcome === 'key-busy') {
               throw new Error(outcome.message);
@@ -813,7 +821,8 @@ describe('Bot runtime tracer bullet', () => {
           assignmentAccess = run.assignments;
           const create = (model?: { provider: string; model: string; reasoningEffort?: string }) =>
             run.assignments.create({
-              purpose: 'Inspect',
+              title: 'Assignment',
+              description: 'Inspect',
               grantId: TEST_GRANT_ID,
               ...(model === undefined ? {} : { model }),
             });
@@ -837,7 +846,7 @@ describe('Bot runtime tracer bullet', () => {
           await run.report({ state: 'completed', summary: 'Done' });
         },
         requestAssignment: (run) => {
-          if (run.purpose === 'Delivery failure') throw new Error('Delivery unavailable');
+          if (run.text === 'Delivery failure') throw new Error('Delivery unavailable');
           resumedRoutes.push(run.modelRoute);
           return {
             delivery: 'followup' as const,
@@ -1010,7 +1019,7 @@ describe('Bot runtime tracer bullet', () => {
     expect(runtime.listAssignments('ada')).toEqual([
       expect.objectContaining({
         sessionId: 'assignment-1',
-        purpose: '调查并回答：请调查发布状态',
+        description: '调查并回答：请调查发布状态',
         activity: 'idle',
         permission: {
           grantId: TEST_GRANT_ID,
@@ -1529,7 +1538,12 @@ it('requests a folder in the DM and resumes the same Orchestrator after Human au
         if (active === undefined) {
           await run.channels.requestGrant('需要项目文件夹以完成这项工作');
         } else {
-          run.assignments.create({ purpose: '读取项目', grantId: active.id, key: 'project-read' });
+          run.assignments.create({
+            title: 'Assignment',
+            description: '读取项目',
+            grantId: active.id,
+            key: 'project-read',
+          });
         }
       },
       runAssignment: async (run) => {
@@ -1648,6 +1662,98 @@ it('does not replay a DM whose archived turn already acted', async () => {
   expect(runs).toHaveLength(1);
   expect(bodies).toContain('partial');
   expect(bodies).not.toContain('answered');
+});
+
+async function misplacedOrchestrator(archiveRefused: boolean) {
+  const home = createTempRoot('botharness-misplaced-orchestrator-');
+  const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
+  expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
+  const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
+  const dm = channels.getOrCreateDm('ada', 'Ada')!;
+  const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+  const archived = new Set<string>();
+  const runs: Array<{ sessionId: string; resume: boolean }> = [];
+  const warnings: string[] = [];
+  let nextSession = 0;
+  let nextId = 0;
+  const runtime = createBotRuntime({
+    database: owner,
+    registry,
+    channels,
+    sessionArchived: (sessionId) => archived.has(sessionId),
+    sessionArchive: () => ({
+      archiveSession: async (sessionId) => {
+        if (archiveRefused)
+          throw Object.assign(new Error('active'), { name: 'WorkspaceActiveSessionError' });
+        archived.add(sessionId);
+      },
+      unarchiveSession: async (sessionId) => {
+        archived.delete(sessionId);
+      },
+    }),
+    agents: {
+      runOrchestrator: async (run) => {
+        runs.push({ sessionId: run.sessionId, resume: run.resume });
+        if (run.sessionId === 'session-1' && run.resume)
+          throw new OrchestratorWorkingDirectoryError(
+            run.sessionId,
+            '/old-home/bots/ada/memory',
+            '/new-home/bots/ada/memory',
+          );
+        await run.channels.send({ body: 'answered ' + runs.length });
+      },
+      runAssignment: async () => undefined,
+      requestAssignment: () => ({
+        delivery: 'followup' as const,
+        accepted: Promise.resolve(),
+        done: Promise.resolve(),
+      }),
+      close: async () => undefined,
+    },
+    warn: (message) => warnings.push(message),
+    now: FIXED_NOW,
+    createSessionId: () => `session-${++nextSession}`,
+    createEventId: () => `event-${++nextId}`,
+    createMessageId: () => `message-${++nextId}`,
+  });
+  for (const [id, body] of [
+    ['human-1', 'hello'],
+    ['human-2', 'still there?'],
+  ] as const) {
+    await channels.appendMessage(dm.id, {
+      id,
+      at: FIXED_NOW().toISOString(),
+      author: { kind: 'human' },
+      body,
+    });
+    await admit(runtime, { channelId: dm.id, messageId: id, body }).catch(() => undefined);
+    await runtime.whenIdle();
+  }
+  const bodies = channels.readMessages(dm.id).map((message) => message.body);
+  const current = runtime.currentOrchestratorSessionId?.('ada');
+  await runtime.close();
+  owner.close();
+  return { runs, bodies, archived, current, warnings };
+}
+
+it('moves the Bot to a new Orchestrator Session when its Session runs outside the Memory directory', async () => {
+  const { runs, bodies, archived, current, warnings } = await misplacedOrchestrator(false);
+  expect(runs.map((run) => run.sessionId)).toEqual(['session-1', 'session-1', current]);
+  expect(current).not.toBe('session-1');
+  expect(runs[2]!.resume).toBe(false);
+  expect([...archived]).toEqual(['session-1']);
+  expect(bodies).toContain('answered 3');
+  expect(warnings.some((line) => line.includes('orchestrator-working-directory-replaced'))).toBe(
+    true,
+  );
+});
+
+it('keeps a misplaced Orchestrator Session when DSH refuses to archive it', async () => {
+  const { runs, bodies, archived, current } = await misplacedOrchestrator(true);
+  expect(runs.map((run) => run.sessionId)).toEqual(['session-1', 'session-1']);
+  expect(current).toBe('session-1');
+  expect(archived.size).toBe(0);
+  expect(bodies).not.toContain('answered 3');
 });
 
 it('starts a new Orchestrator Session when DSH archived the current one', async () => {

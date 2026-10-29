@@ -1,3 +1,4 @@
+import { SessionRecoveryError, type SessionRecoveryAction } from './session-recovery.js';
 import {
   GroupReplySourceRevoked,
   GroupSendReview,
@@ -5,6 +6,7 @@ import {
 } from '../channels/send-review.js';
 import { TobError, type TobService } from '../tob/service.js';
 import { AssignmentInboxAcceptanceUncertainError } from './assignment-delivery.js';
+import { OrchestratorWorkingDirectoryError } from './orchestrator-working-directory.js';
 import {
   AssignmentApprovalCapacity,
   type AssignmentApprovalWaitLease,
@@ -24,7 +26,11 @@ import type {
   ThreadReceptionView,
 } from '../messaging/thread-policy.js';
 import type { GroupReceptionInput, GroupReceptionPolicy } from '../messaging/group-policy.js';
-import { requireSourceContent, requireSourceEffects } from '../purge/fence.js';
+import {
+  requireAssignmentSource,
+  requireSourceContent,
+  requireSourceEffects,
+} from '../purge/fence.js';
 import {
   OriginalAttachmentAccess,
   type OriginalAttachmentInput,
@@ -38,7 +44,8 @@ import { authorizedPathRoot } from '../workspaces/grant-native-tools.js';
 import { mentionPeople, withMentionNames } from '../messaging/mention-text.js';
 import type { MessagingInboundEvent } from '../messaging/provider.js';
 import type { OutboxIntent, OutboundMessaging } from '../messaging/outbound.js';
-import type { PrivateInputOrigin } from '../credentials/im-origin.js';
+import { PrivateInputRefusal, type PrivateInputOrigin } from '../credentials/im-origin.js';
+import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
 import type { MessagingProcessing } from '../messaging/typing.js';
 import type {
   ExternalSource,
@@ -122,6 +129,10 @@ import {
   type BotSourcePolicy,
   type BotSourcePolicyStore,
 } from './source-policy.js';
+import {
+  ASSIGNMENT_DESCRIPTION_MAX_LENGTH,
+  ASSIGNMENT_TITLE_MAX_LENGTH,
+} from './assignment-title.js';
 import type { AssignmentReportPage } from './assignment-tail.js';
 import type {
   BotSchedule,
@@ -134,6 +145,9 @@ import type {
   WorkspaceGrant,
   WorkspaceGrantStore,
 } from '../workspaces/grants.js';
+import { DEFAULT_PROMPT_TEXT, type PromptText } from '../prompts/prompt-parts.js';
+import { DEFAULT_PROMPT_LIMITS, type PromptLimits } from '../prompts/prompt-limits.js';
+import { isBotSubagentModelTool } from './subagent-model-tools.js';
 
 export type AssignmentActivity = 'working' | 'idle' | 'error' | 'stopping' | 'stopped';
 export type AssignmentReportState =
@@ -167,7 +181,8 @@ export interface AssignmentOpenAsk {
 
 export interface AssignmentSummary {
   sessionId: string;
-  purpose: string;
+  title: string;
+  description: string;
   activity: AssignmentActivity;
   executionWait?: AssignmentExecutionWait;
   latestReport?: AssignmentReport;
@@ -220,9 +235,12 @@ export interface NativeSessionArchive {
 export interface ChannelAssignmentSummary {
   sessionId: string;
   botSlug: string;
-  purpose: string;
+  title: string;
+  description: string;
   activity: AssignmentActivity;
   latestReport?: AssignmentReport;
+  modelRoute?: ModelRoute;
+  subagentCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -267,7 +285,9 @@ export type AssignmentRequestOutcome =
 export interface OrchestratorAssignmentAccess {
   wait?(sessionId: string, signal: AbortSignal, timeoutMs?: number): Promise<AssignmentWaitOutcome>;
   create(input: {
-    purpose: string;
+    title: string;
+    description: string;
+    instructions?: string;
     key?: string;
     grantId: string;
     model?: ModelRoute;
@@ -423,7 +443,7 @@ export interface AssignmentAgentRun {
   requireContent?(): void;
   sessionId: string;
   bot: PersonaBotRecord;
-  purpose: string;
+  text: string;
 
   resume?: boolean;
   permission: AssignmentPermissionSnapshot;
@@ -650,6 +670,7 @@ export class DirectBotToolError extends Error {
 
 export interface BotAgentAdapter {
   runOrchestrator(run: OrchestratorAgentRun): Promise<void>;
+  loadOrchestrator?(run: OrchestratorAgentRun): Promise<void>;
 
   steerOrchestrator?(botSlug: string, text: string): boolean;
   stopOrchestratorTurn?(botSlug: string): string | undefined;
@@ -741,6 +762,13 @@ export interface BotRuntime {
   ): string | undefined;
   reconcileMemoryChangesOnStartup?(): void;
   retryDmMessage?(channelId: string, messageId: string): Promise<void>;
+  recoverDmMessage?(input: {
+    channelId: string;
+    failureMessageId: string;
+    action: SessionRecoveryAction;
+    compact(sessionId: string): Promise<boolean>;
+  }): Promise<void>;
+  compactOrchestrator?<T>(botSlug: string, compact: (sessionId: string) => Promise<T>): Promise<T>;
   admitDmMessage(input: HandleDmMessageInput): DmMessageAdmission;
 
   admitGroupMessage(channelId: string, messageId: string): void;
@@ -766,6 +794,7 @@ export interface BotRuntime {
     tool: string,
     args: Record<string, unknown>,
     signal: AbortSignal,
+    parentSessionId?: string,
   ): Promise<{ tool: string; sessionId: 'direct'; result: unknown }>;
   triageOpenCount?(botSlug: string): number | undefined;
   listChannelAssignments?(channelId: string): ChannelAssignmentSummary[];
@@ -782,11 +811,15 @@ export interface BotRuntime {
 
   stopBot?(botSlug: string): Promise<void>;
   stopTurn?(botSlug: string): Promise<{ sessionId: string } | undefined>;
+  endGroup?(channelId: string): Promise<void>;
   whenIdle(): Promise<void>;
   close(): Promise<void>;
 }
 
 export interface BotRuntimeOptions {
+  onTobDelegation?: () => void;
+  promptText?: (botSlug: string) => PromptText;
+  promptLimits?: (botSlug: string) => PromptLimits;
   tob?: TobService;
   inboxHistory?: InboxHistoryQuery;
   triageContinuation?: boolean;
@@ -851,7 +884,8 @@ interface AssignmentRow {
   session_id: string;
   source_event_id: string;
   bot_slug: string;
-  purpose: string;
+  title: string;
+  description: string;
   activity: 'working' | 'idle' | 'error';
   stop_state: 'running' | 'requested' | 'stopped';
   latest_report_state: AssignmentReportState | null;
@@ -939,6 +973,7 @@ interface GroupContext {
   channelId: string;
   rows: DigestRow[];
   omittedCount: number;
+  bodyLimit: number;
 }
 
 interface GroupPromptBudget {
@@ -946,10 +981,7 @@ interface GroupPromptBudget {
   includedByChannel: Map<string, number>;
 }
 
-const GROUP_PROMPT_CHARACTER_BUDGET = 24_000;
-const DM_CONTEXT_CHARACTER_BUDGET = 8_000;
 const GROUP_PROMPT_CHANNEL_LIMIT = 100;
-const GROUP_CONTEXT_BODY_LIMIT = 1_000;
 
 interface ScheduleFiringFacts {
   id: string;
@@ -1042,7 +1074,8 @@ function assignmentFromRow(row: AssignmentRow): AssignmentDetail {
     sessionId: row.session_id,
     sourceEventId: row.source_event_id,
     botSlug: row.bot_slug,
-    purpose: row.purpose,
+    title: row.title,
+    description: row.description,
     activity:
       row.stop_state === 'requested'
         ? 'stopping'
@@ -1115,7 +1148,8 @@ export function queryAssignmentDirectory(
     if (activity !== undefined && !activity.has(assignment.activity)) return false;
     if (text !== undefined && text !== '') {
       const haystack = [
-        assignment.purpose,
+        assignment.title,
+        assignment.description,
         assignment.continuityKey ?? '',
         assignment.latestReport?.summary ?? '',
       ]
@@ -1214,10 +1248,10 @@ function coalesceInbox(rows: InboxReportRow[]): InboxUnit[] {
   return [...units.values()];
 }
 
-function renderInbox(units: InboxUnit[]): string {
+function renderInbox(units: InboxUnit[], text: PromptText = DEFAULT_PROMPT_TEXT): string {
   const lines = units.map((unit) => {
     if (unit.external !== undefined) {
-      return `- Message ${unit.external.event.messageId} [Source Event ${unit.sourceEventId}] from ${JSON.stringify(unit.external.event.actor.name ?? unit.external.event.actor.id)} (${unit.external.event.actor.id}) at ${unit.external.at}. External ${unit.external.event.conversation.kind === 'dm' ? 'private message' : `work-group ${unit.external.event.mentionedAccount ? 'mention' : 'ordinary message; no reply required'}`}. Trusted receiving identity and origin: ${JSON.stringify({ platform: unit.external.platform, account: unit.external.accountName, conversation: unit.external.conversationName, conversationKind: unit.external.event.conversation.kind, conversationId: unit.external.event.conversation.id, localChannelId: unit.external.localChannelId, receptionPaths: unit.external.receptionPaths?.map((path) => ({ channelId: path.channelId, mode: path.mode })), sender: unit.external.sender, sourceEventId: unit.sourceEventId, senderId: unit.external.event.actor.id, senderName: unit.external.event.actor.name, people: mentionPeople(unit.external.event.actor, unit.external.event.mentions), at: unit.external.at, threadId: unit.external.event.reply.threadId, rootId: unit.external.event.reply.rootId, parentId: unit.external.event.reply.parentId, report: unit.external.report, voice: unit.external.event.voice, quote: unit.external.quote, nativeQuote: unit.external.event.quote, attachments: unit.external.event.attachments?.map(({ id, name, sizeBytes, mediaType }) => ({ id, name, sizeBytes, mediaType })) })}. External message data: ${JSON.stringify(withMentionNames(unit.summary, unit.external.event.mentions))}. Decide whether to participate. To answer, use bot_send_message with this source_event_id and body, or a trusted imported attachment reference. For a Lark, Slack or Discord mention, write <@ID> in body using an id from people. Use bridge_read for attachment details and bridge_attachment_save for a working copy. Never guess an account or route and never mirror this message or its response to the Human DM.`;
+      return `- Message ${unit.external.event.messageId} [Source Event ${unit.sourceEventId}] from ${unit.external.event.actor.kind === 'bot' ? 'external Bot ' : ''}${JSON.stringify(unit.external.event.actor.name ?? unit.external.event.actor.id)} (${unit.external.event.actor.id}) at ${unit.external.at}. External ${unit.external.event.conversation.kind === 'dm' ? 'private message' : `work-group ${unit.external.event.mentionedAccount ? 'mention' : 'ordinary message; no reply required'}`}. Trusted receiving identity and origin: ${JSON.stringify({ platform: unit.external.platform, account: unit.external.accountName, conversation: unit.external.conversationName, conversationKind: unit.external.event.conversation.kind, conversationId: unit.external.event.conversation.id, localChannelId: unit.external.localChannelId, receptionPaths: unit.external.receptionPaths?.map((path) => ({ channelId: path.channelId, mode: path.mode })), sender: unit.external.sender, sourceEventId: unit.sourceEventId, senderId: unit.external.event.actor.id, senderName: unit.external.event.actor.name, ...(unit.external.event.actor.kind === 'bot' ? { senderKind: 'bot' } : {}), people: mentionPeople(unit.external.event.actor, unit.external.event.mentions), at: unit.external.at, threadId: unit.external.event.reply.threadId, rootId: unit.external.event.reply.rootId, parentId: unit.external.event.reply.parentId, report: unit.external.report, voice: unit.external.event.voice, quote: unit.external.quote, nativeQuote: unit.external.event.quote, attachments: unit.external.event.attachments?.map(({ id, name, sizeBytes, mediaType }) => ({ id, name, sizeBytes, mediaType })) })}. External message data: ${JSON.stringify(withMentionNames(unit.summary, unit.external.event.mentions))}. ${unit.external.event.actor.kind === 'bot' ? `${text('external-bot-sender')} ` : ''}Decide whether to participate. To answer, use bot_send_message with this source_event_id and body, or a trusted imported attachment reference. For a Lark, Slack or Discord mention, write <@ID> in body using an id from people. Use bridge_read for attachment details and bridge_attachment_save for a working copy. Never guess an account or route and never mirror this message or its response to the Human DM.`;
     }
     if (unit.schedule !== undefined) {
       const schedule = unit.schedule;
@@ -1258,6 +1292,17 @@ function renderInbox(units: InboxUnit[]): string {
     'context. Do not repeat these summaries back verbatim.',
     ...lines,
   ].join('\n');
+}
+
+function requireBoundedText(value: unknown, field: string, maxLength: number): string {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  if (normalized === '')
+    throw new TypeError(`create_assignment: ${field} is required and must not be blank`);
+  if ([...normalized].length > maxLength)
+    throw new TypeError(
+      `create_assignment: ${field} must be at most ${maxLength} characters; keep it short`,
+    );
+  return normalized;
 }
 
 function requireNonBlank(value: string, name: string): string {
@@ -1324,6 +1369,8 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #readAssignmentReportPage: BotRuntimeOptions['readAssignmentReportPage'];
   readonly #messagePerf: MessagePerfTracker | undefined;
   readonly #now: () => Date;
+  readonly #promptText: (botSlug: string) => PromptText;
+  readonly #promptLimits: (botSlug: string) => PromptLimits;
   readonly #createSessionId: () => string;
   readonly #sessionArchived: ((sessionId: string) => boolean) | undefined;
   readonly #createEventId: () => string;
@@ -1375,11 +1422,13 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #waitOptions: Pick<BotRuntimeOptions, 'database' | 'beginAssignmentWait'>;
   #closed = false;
   readonly #tob: TobService | undefined;
+  readonly #onTobDelegation: () => void;
   readonly #directToolCalls = new Map<string, DirectBotToolCall[]>();
 
   constructor(options: BotRuntimeOptions) {
     this.#waitOptions = options;
     this.#tob = options.tob;
+    this.#onTobDelegation = options.onTobDelegation ?? (() => {});
     this.#externalMessaging = options.externalMessaging;
     this.#database = attachOperationalModule(options.database, 'bot-runtime');
     this.#grants = options.grants;
@@ -1422,6 +1471,8 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#readAssignmentReportPage = options.readAssignmentReportPage;
     this.#messagePerf = options.messagePerf;
     this.#now = options.now ?? (() => new Date());
+    this.#promptText = options.promptText ?? (() => DEFAULT_PROMPT_TEXT);
+    this.#promptLimits = options.promptLimits ?? (() => DEFAULT_PROMPT_LIMITS);
     this.#createSessionId = options.createSessionId ?? (() => `botharness-${randomUUID()}`);
     this.#createEventId = options.createEventId ?? (() => randomUUID());
     this.#createMessageId = options.createMessageId ?? (() => randomUUID());
@@ -1534,7 +1585,7 @@ class BotRuntimeImplementation implements BotRuntime {
         .get(anchor),
     ) as { channel_id: string | null } | undefined;
     const channelId = channel?.channel_id ?? this.#dmChannel(botSlug)?.id;
-    const body = `[Triage] ${ids.length} item${ids.length === 1 ? ' is' : 's are'} still open after your last turn. Give each one a destination: act on it now, resolve it with inbox_resolve once it is done or needs nothing more, snooze it with inbox_snooze when it waits on someone or a later time, or ignore noise. Check a completed Assignment report against what you asked for before resolving it. You are woken again while open items remain, unless a round leaves the open count unchanged.`;
+    const body = `[Triage] ${ids.length} item${ids.length === 1 ? ' is' : 's are'} still open after your last turn. ${this.#promptText(botSlug)('triage')}`;
     this.#triageBaseline.set(botSlug, ids.length);
     this.#triageRunning.set(botSlug, ids.length);
     try {
@@ -1673,6 +1724,13 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   async retryDmMessage(channelId: string, messageId: string): Promise<void> {
+    const message = this.#retryableDmMessage(channelId, messageId);
+    const admission = this.admitDmMessage({ channelId, messageId, body: message.body });
+    if (!admission.admitted) throw new Error(admission.reason);
+    void admission.settled.catch(() => undefined);
+  }
+
+  #retryableDmMessage(channelId: string, messageId: string) {
     const channel = this.#channels.get(channelId);
     const message = this.#channels.message(channelId, messageId);
     if (channel?.type !== 'dm' || !channel.botSlug || message?.author.kind !== 'human')
@@ -1689,9 +1747,138 @@ class BotRuntimeImplementation implements BotRuntime {
     );
     if (!safe)
       throw new Error('This message cannot be safely retried; inspect its original Session');
-    const admission = this.admitDmMessage({ channelId, messageId, body: message.body });
-    if (!admission.admitted) throw new Error(admission.reason);
-    void admission.settled.catch(() => undefined);
+    return message;
+  }
+
+  async recoverDmMessage(input: {
+    channelId: string;
+    failureMessageId: string;
+    action: SessionRecoveryAction;
+    compact(sessionId: string): Promise<boolean>;
+  }): Promise<void> {
+    const card = this.#channels.message(input.channelId, input.failureMessageId);
+    const failure = card?.sessionFailure;
+    const channel = this.#channels.get(input.channelId);
+    const botSlug = channel?.type === 'dm' ? channel.botSlug : undefined;
+    if (
+      !botSlug ||
+      card?.author.kind !== 'bot' ||
+      card.author.slug !== botSlug ||
+      failure?.role !== 'orchestrator' ||
+      !failure.requestMessageId
+    )
+      throw new SessionRecoveryError(
+        'retry-unavailable',
+        'Recovery requires the original Bot failure',
+      );
+    const messageId = failure.requestMessageId;
+    const assertAllowed = () => {
+      const bot = this.#registry.get(botSlug);
+      if (!bot || bot.paused || this.#closed)
+        throw new SessionRecoveryError('recovery-unavailable', 'This Bot is unavailable');
+      this.#requireExecution?.(botSlug);
+      try {
+        this.#retryableDmMessage(input.channelId, messageId);
+      } catch {
+        throw new SessionRecoveryError(
+          'retry-unavailable',
+          'This message cannot be safely retried. Inspect its original Session.',
+        );
+      }
+    };
+    const assertCurrent = () => {
+      if (this.currentOrchestratorSessionId(botSlug) !== failure.sessionId)
+        throw new SessionRecoveryError(
+          'session-changed',
+          'The Session has changed. Retry the message without resetting it.',
+        );
+      assertAllowed();
+    };
+    assertCurrent();
+    if (this.#tails.has(botSlug))
+      throw new SessionRecoveryError(
+        'bot-busy',
+        'Wait for the current reply or stop the Bot first',
+      );
+    await this.#enqueue(botSlug, async () => {
+      assertCurrent();
+      if (input.action === 'new-session') {
+        const result = await this.#replaceOrchestrator(botSlug, assertAllowed);
+        if (result.outcome === 'refused')
+          throw new SessionRecoveryError(
+            'bot-busy',
+            'Wait for the current reply or stop the Bot first',
+          );
+      } else {
+        await this.#loadOrchestrator(botSlug, failure.sessionId);
+        assertCurrent();
+        const compacted = await input.compact(failure.sessionId).catch(() => false);
+        if (!compacted)
+          throw new SessionRecoveryError(
+            'compaction-failed',
+            'Could not compact this Session. Start a new Session to recover.',
+          );
+        assertCurrent();
+      }
+      await this.retryDmMessage(input.channelId, messageId);
+    });
+  }
+
+  async #loadOrchestrator(botSlug: string, sessionId: string): Promise<void> {
+    const bot = this.#registry.get(botSlug);
+    if (!bot || bot.paused || !this.#agents.loadOrchestrator)
+      throw new SessionRecoveryError('recovery-unavailable', 'Could not load the original Session');
+    this.#requireExecution?.(botSlug);
+    const loading = this.#agents.loadOrchestrator({
+      sessionId,
+      resume: true,
+      bot,
+      message: '',
+      inbox: '',
+      inboundChannelId: undefined,
+      ...this.#orchestratorServices(bot, {
+        sessionId,
+        channelId: undefined,
+        sourceEventId: `maintenance-${randomUUID()}`,
+        markSideEffect: () => {
+          throw new Error('Maintenance cannot perform Bot actions');
+        },
+        readAdmissions: new Set(),
+        importedFiles: new Map(),
+        turnSources: new Set(),
+        observeMemory: false,
+        observeReads: false,
+      }),
+    });
+    await loading.catch((error: unknown) => {
+      if (error instanceof Error && error.name === 'SessionUnavailableError')
+        throw new SessionRecoveryError(
+          'session-unsaved',
+          'This Session was never saved, so there is nothing to compact. Start a new Session to recover.',
+        );
+      throw error;
+    });
+  }
+
+  async compactOrchestrator<T>(
+    botSlug: string,
+    compact: (sessionId: string) => Promise<T>,
+  ): Promise<T> {
+    if (this.#tails.has(botSlug))
+      throw new SessionRecoveryError(
+        'bot-busy',
+        'Wait for the current reply or stop the Bot first',
+      );
+    let result: { value: T } | undefined;
+    await this.#enqueue(botSlug, async () => {
+      const sessionId = this.currentOrchestratorSessionId(botSlug);
+      if (!sessionId)
+        throw new SessionRecoveryError('recovery-unavailable', 'No Session to compact');
+      await this.#loadOrchestrator(botSlug, sessionId);
+      result = { value: await compact(sessionId) };
+    });
+    if (!result) throw new SessionRecoveryError('recovery-unavailable', 'This Bot is unavailable');
+    return result.value;
   }
 
   admitDmMessage(input: HandleDmMessageInput): DmMessageAdmission {
@@ -1726,7 +1913,13 @@ class BotRuntimeImplementation implements BotRuntime {
         input.messageId,
         claim.sourceEventId,
         'human-dm',
-        this.#inboundChannelMessage(channel.id, input.messageId, body, claim.sourceEventId),
+        this.#inboundChannelMessage(
+          bot.slug,
+          channel.id,
+          input.messageId,
+          body,
+          claim.sourceEventId,
+        ),
       );
     return {
       admitted: true,
@@ -1851,7 +2044,11 @@ class BotRuntimeImplementation implements BotRuntime {
         )
           continue;
         const context = this.#externalMessaging.inbound.read(botSlug, candidate.source_event_id);
-        if (context.grantId !== source.grantId || characters + context.body.length + 1600 > 24000)
+        if (
+          context.grantId !== source.grantId ||
+          characters + context.body.length + 1600 >
+            this.#promptLimits(botSlug)['group-context-chars']
+        )
           continue;
         characters += context.body.length + 1600;
         units.push({
@@ -1868,7 +2065,8 @@ class BotRuntimeImplementation implements BotRuntime {
               this.#claimGroupContext(db, botSlug, source.localChannelId!, {
                 remainingCharacters: Math.max(
                   0,
-                  GROUP_PROMPT_CHARACTER_BUDGET - renderInbox(units).length,
+                  this.#promptLimits(botSlug)['group-context-chars'] -
+                    renderInbox(units, this.#promptText(botSlug)).length,
                 ),
                 includedByChannel: new Map(),
               }),
@@ -1883,9 +2081,10 @@ class BotRuntimeImplementation implements BotRuntime {
       try {
         delivered = this.#agents.steerOrchestrator(
           botSlug,
-          [renderInbox(units), ...(context ? [this.#groupContextSection(context)] : [])].join(
-            '\n\n',
-          ),
+          [
+            renderInbox(units, this.#promptText(botSlug)),
+            ...(context ? [this.#groupContextSection(context)] : []),
+          ].join('\n\n'),
         );
       } catch {
         this.#setObserved(included, null, botSlug);
@@ -1999,7 +2198,13 @@ class BotRuntimeImplementation implements BotRuntime {
             messageId,
             row.source_event_id,
             'bot-dm',
-            this.#inboundChannelMessage(channelId, messageId, source.body, row.source_event_id),
+            this.#inboundChannelMessage(
+              row.bot_slug,
+              channelId,
+              messageId,
+              source.body,
+              row.source_event_id,
+            ),
           )
         )
           continue;
@@ -2123,7 +2328,9 @@ class BotRuntimeImplementation implements BotRuntime {
     }
     const memoryInbox = this.#collectMemoryInbox(botSlug);
     const text =
-      memoryInbox.units.length === 0 ? prompt : `${prompt}\n\n${renderInbox(memoryInbox.units)}`;
+      memoryInbox.units.length === 0
+        ? prompt
+        : `${prompt}\n\n${renderInbox(memoryInbox.units, this.#promptText(botSlug))}`;
     const delivered = this.#agents.steerOrchestrator?.(botSlug, text) ?? false;
     if (delivered) {
       activeEvents.eventIds.push(...memoryInbox.eventIds);
@@ -2166,20 +2373,22 @@ class BotRuntimeImplementation implements BotRuntime {
         excludeSourceEventId,
         GROUP_PROMPT_CHANNEL_LIMIT,
       ) as unknown as DigestRow[];
+    const limits = this.#promptLimits(botSlug);
+    const bodyLimit = limits['context-message-chars'];
     const rows: DigestRow[] = [];
     let characters = 0;
     for (const row of candidates) {
-      const cost = Math.min(row.body.length, GROUP_CONTEXT_BODY_LIMIT) + 80;
+      const cost = Math.min(row.body.length, bodyLimit) + 80;
       if (
         rows.length >= GROUP_PROMPT_CHANNEL_LIMIT ||
-        characters + cost > DM_CONTEXT_CHARACTER_BUDGET
+        characters + cost > limits['dm-context-chars']
       )
         break;
       rows.push(row);
       characters += cost;
     }
     if (rows.length === 0) return undefined;
-    const context = { channelId, rows, omittedCount: total.count - rows.length };
+    const context = { channelId, rows, omittedCount: total.count - rows.length, bodyLimit };
     for (const row of rows)
       database
         .prepare(`
@@ -2199,9 +2408,9 @@ class BotRuntimeImplementation implements BotRuntime {
           `${row.reply_session_id == null || row.reply_source_event_id == null ? '' : `[Human response to Assignment Session ${row.reply_session_id}, report Source Event ${row.reply_source_event_id}]\n`}` +
           `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${
             row.author_kind === 'bot' ? `PersonaBot ${row.author_slug ?? '?'}` : 'Human'
-          } at ${row.created_at}: ${row.body.slice(0, GROUP_CONTEXT_BODY_LIMIT)}${
-            row.body.length > GROUP_CONTEXT_BODY_LIMIT
-              ? ` [excerpt; ${row.body.length - GROUP_CONTEXT_BODY_LIMIT} more characters available with channel_read]`
+          } at ${row.created_at}: ${row.body.slice(0, context.bodyLimit)}${
+            row.body.length > context.bodyLimit
+              ? ` [excerpt; ${row.body.length - context.bodyLimit} more characters available with channel_read]`
               : ''
           }`
         );
@@ -2230,7 +2439,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (source === undefined) return false;
     const mentionPrompt =
       `Source Event ID: ${sourceEventId}\n` +
-      this.#groupMentionPrompt(channelId, messageId, source.body);
+      this.#groupMentionPrompt(botSlug, channelId, messageId, source.body);
     const claimed = this.#database.transaction(
       (database) => {
         const mention =
@@ -2245,7 +2454,7 @@ class BotRuntimeImplementation implements BotRuntime {
           ? this.#claimGroupContext(database, botSlug, channelId, {
               remainingCharacters: Math.max(
                 0,
-                GROUP_PROMPT_CHARACTER_BUDGET - mentionPrompt.length,
+                this.#promptLimits(botSlug)['group-context-chars'] - mentionPrompt.length,
               ),
               includedByChannel: new Map(),
             })
@@ -2663,7 +2872,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const claimed = this.#claimHarvest(
       botSlug,
       externalContextChannels,
-      renderInbox(collected.units).length,
+      renderInbox(collected.units, this.#promptText(botSlug)).length,
     );
     if (
       claimed.items.length === 0 &&
@@ -2721,6 +2930,7 @@ class BotRuntimeImplementation implements BotRuntime {
       const sections = [
         ...claimed.items.map((item) =>
           this.#inboundChannelMessage(
+            botSlug,
             item.channelId,
             item.messageId,
             item.body,
@@ -2728,7 +2938,7 @@ class BotRuntimeImplementation implements BotRuntime {
           ),
         ),
         ...claimed.digests.map((digest) =>
-          this.#digestSection(digest.channelId, digest.rows, digest.omittedCount),
+          this.#digestSection(botSlug, digest.channelId, digest.rows, digest.omittedCount),
         ),
         ...claimed.contexts.map((context) => this.#groupContextSection(context)),
       ];
@@ -2880,12 +3090,13 @@ class BotRuntimeImplementation implements BotRuntime {
         const budget: GroupPromptBudget = {
           remainingCharacters: Math.max(
             0,
-            GROUP_PROMPT_CHARACTER_BUDGET -
+            this.#promptLimits(botSlug)['group-context-chars'] -
               externalCharacters -
               itemRows.reduce(
                 (size, row) =>
                   size +
                   this.#inboundChannelMessage(
+                    botSlug,
                     row.channel_id,
                     row.message_id,
                     row.body,
@@ -2971,6 +3182,7 @@ class BotRuntimeImplementation implements BotRuntime {
           for (const row of candidates) {
             if (alreadyIncluded + rows.length >= GROUP_PROMPT_CHANNEL_LIMIT) break;
             const nextLength = this.#digestSection(
+              botSlug,
               group.channel_id,
               [...rows, row],
               group.count - rows.length - 1,
@@ -2980,6 +3192,7 @@ class BotRuntimeImplementation implements BotRuntime {
           }
           if (rows.length > 0) {
             budget.remainingCharacters -= this.#digestSection(
+              botSlug,
               group.channel_id,
               rows,
               group.count - rows.length,
@@ -3052,6 +3265,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const candidates = database
       .prepare(`${columns} ${base} ORDER BY e.created_at, e.rowid LIMIT ?`)
       .all(botSlug, channelId, GROUP_PROMPT_CHANNEL_LIMIT) as unknown as DigestRow[];
+    const bodyLimit = this.#promptLimits(botSlug)['context-message-chars'];
     const rows: DigestRow[] = [];
     for (const row of candidates) {
       if (!sourceSenderAllowed(database, botSlug, row.source_event_id, true)) continue;
@@ -3060,12 +3274,13 @@ class BotRuntimeImplementation implements BotRuntime {
         channelId,
         rows: [...rows, row],
         omittedCount: total.count - rows.length - 1,
+        bodyLimit,
       };
       if (this.#groupContextSection(candidateContext).length > budget.remainingCharacters) break;
       rows.push(row);
     }
     if (rows.length === 0) return undefined;
-    const context = { channelId, rows, omittedCount: total.count - rows.length };
+    const context = { channelId, rows, omittedCount: total.count - rows.length, bodyLimit };
     budget.remainingCharacters -= this.#groupContextSection(context).length;
     budget.includedByChannel.set(channelId, alreadyIncluded + rows.length);
     for (const row of rows)
@@ -3104,7 +3319,7 @@ class BotRuntimeImplementation implements BotRuntime {
       `Channel: ${channel?.name ?? context.channelId} (${context.channelId})`,
       ...context.rows.map(
         (row) =>
-          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, GROUP_CONTEXT_BODY_LIMIT)}${groupMessageBody(row).length > GROUP_CONTEXT_BODY_LIMIT ? ` [excerpt; ${groupMessageBody(row).length - GROUP_CONTEXT_BODY_LIMIT} more characters available with channel_read]` : ''}`,
+          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, context.bodyLimit)}${groupMessageBody(row).length > context.bodyLimit ? ` [excerpt; ${groupMessageBody(row).length - context.bodyLimit} more characters available with channel_read]` : ''}`,
       ),
       context.omittedCount > 0
         ? `${context.omittedCount} earlier or intervening messages remain pending for later turns. Use channel_read if more history is needed.`
@@ -3114,7 +3329,7 @@ class BotRuntimeImplementation implements BotRuntime {
       .join('\n');
   }
 
-  #digestSection(channelId: string, rows: DigestRow[], omittedCount = 0): string {
+  #digestSection(botSlug: string, channelId: string, rows: DigestRow[], omittedCount = 0): string {
     const channel = this.#channels.get(channelId);
     const humanName = this.#channels.listHumanMembers(channelId)[0]?.displayName;
     return [
@@ -3125,7 +3340,7 @@ class BotRuntimeImplementation implements BotRuntime {
           ]
         : []),
       `Channel: ${channel?.name ?? channelId} (${channelId})`,
-      `${rows.length} ordinary messages are due. Review them and respond only if useful; no acknowledgment is required.`,
+      `${rows.length} ordinary messages are due. ${this.#promptText(botSlug)('digest-hint')}`,
       ...rows.map(
         (row) =>
           `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, 1000)}`,
@@ -3233,13 +3448,14 @@ class BotRuntimeImplementation implements BotRuntime {
       .join('');
   }
 
-  #groupMentionPrompt(channelId: string, messageId: string, body: string): string {
+  #groupMentionPrompt(botSlug: string, channelId: string, messageId: string, body: string): string {
     const message = this.#channels.message(channelId, messageId);
     const sender = message?.author.kind === 'bot' ? `PersonaBot ${message.author.slug}` : 'Human';
-    return `[Bot Inbox: direct Group mention from ${sender}]\nChannel: ${channelId}\nMessage ID: ${messageId}\nMessage: ${sessionMentionText(body, message?.mentions ?? [])}\nDecide whether a reply would be useful. You may finish without replying; if you speak in this Group Channel, use bot_send_message with the trusted source_event_id.`;
+    return `[Bot Inbox: direct Group mention from ${sender}]\nChannel: ${channelId}\nMessage ID: ${messageId}\nMessage: ${sessionMentionText(body, message?.mentions ?? [])}\n${this.#promptText(botSlug)('group-mention-hint')}`;
   }
 
   #inboundChannelMessage(
+    botSlug: string,
     channelId: string,
     messageId: string,
     body: string,
@@ -3254,7 +3470,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (messageId.startsWith('group-join-') && message === undefined)
       return '[Bot Inbox: Group join request]\n' + body;
     if (channel !== undefined && isBotDmChannel(channel) && message?.author.kind === 'bot')
-      return `[Bot Inbox: direct message from PersonaBot ${message.author.slug}]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${body}\nDecide whether a reply would be useful. You may finish without replying; if you speak in this Bot DM, use bot_send_message with this source_event_id.`;
+      return `[Bot Inbox: direct message from PersonaBot ${message.author.slug}]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${body}\n${this.#promptText(botSlug)('bot-dm-hint')}`;
     if (message?.author.kind === 'human' && message.toolAutoApprovalOverride !== undefined) {
       const target = message.toolAutoApprovalOverride;
       const input =
@@ -3263,7 +3479,8 @@ class BotRuntimeImplementation implements BotRuntime {
     }
     if (channel?.type === 'group' && message?.mentions?.length)
       return (
-        `Source Event ID: ${sourceEventId}\n` + this.#groupMentionPrompt(channelId, messageId, body)
+        `Source Event ID: ${sourceEventId}\n` +
+        this.#groupMentionPrompt(botSlug, channelId, messageId, body)
       );
     if (channel?.type === 'group' && message?.grantRequestResolution !== undefined)
       return `[Bot Inbox: Human answered your Workspace Grant request]\nChannel: ${channelId}\nMessage ID: ${messageId}\nMessage: ${body}\nContinue the task you requested access for; if you speak in this Group Channel, use bot_send_message with the trusted source_event_id.`;
@@ -3489,7 +3706,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const owner = this.#ownership.resolve(sessionId);
     const turn = owner === undefined ? undefined : this.#turnSources.get(owner.botSlug);
     if (owner?.rootRole !== 'orchestrator' || turn?.sessionId !== sessionId) {
-      if (selected !== undefined) throw new Error('Private input IM source is unavailable');
+      if (selected !== undefined) throw new PrivateInputRefusal('private-source-invalid');
       return undefined;
     }
     if (
@@ -3505,11 +3722,13 @@ class BotRuntimeImplementation implements BotRuntime {
     });
     if (ids.length === 0 && selected === undefined) return undefined;
     const id = selected ?? (ids.length === 1 ? ids[0] : undefined);
-    if (id === undefined || !ids.includes(id) || this.#externalMessaging === undefined)
-      throw new Error('Select one live accepted IM source_event_id for private input');
+    if (id === undefined) throw new PrivateInputRefusal('private-source-required');
+    if (!ids.includes(id)) throw new PrivateInputRefusal('private-source-invalid');
+    if (this.#externalMessaging === undefined)
+      throw new PrivateInputRefusal('private-source-unavailable');
     const messaging = this.#externalMessaging;
     const bot = this.#registry.get(owner.botSlug);
-    if (bot === undefined) throw new Error('Private input IM source is unavailable');
+    if (bot === undefined) throw new PrivateInputRefusal('private-source-revoked');
     const signal = messaging.inbound.sourceSignal(owner.botSlug, id);
     const applies = () => this.#turnSources.get(owner.botSlug) === turn;
     const current = () => {
@@ -3535,7 +3754,7 @@ class BotRuntimeImplementation implements BotRuntime {
         return false;
       }
     };
-    if (!current()) throw new Error('Private input IM source is unavailable');
+    if (!current()) throw new PrivateInputRefusal('private-source-revoked');
     return { sourceEventId: id, signal, applies, current };
   }
 
@@ -3800,6 +4019,7 @@ class BotRuntimeImplementation implements BotRuntime {
     tool: string,
     args: Record<string, unknown>,
     signal: AbortSignal,
+    parentSessionId?: string,
   ): Promise<{ tool: string; sessionId: 'direct'; result: unknown }> {
     if (this.#closed) throw new DirectBotToolError('runtime-closed', 'BotRuntime is closed');
     const bot = this.#registry.get(botSlug);
@@ -3814,6 +4034,21 @@ class BotRuntimeImplementation implements BotRuntime {
         'tool-not-direct',
         `${tool} is not a Bot tool the direct runner can call; list them with bot-tools`,
       );
+    const delegation = isBotSubagentModelTool(tool);
+    if (!delegation && parentSessionId !== undefined)
+      throw new DirectBotToolError(
+        'invalid-args',
+        `${tool} runs as the Bot's Orchestrator; --session applies only to Subagent tools`,
+      );
+    if (delegation) {
+      const owner =
+        parentSessionId === undefined ? undefined : this.#ownership.resolve(parentSessionId);
+      if (owner?.botSlug !== bot.slug || owner.rootRole !== 'assignment')
+        throw new DirectBotToolError(
+          'parent-unavailable',
+          `${tool} runs inside an Assignment; pass --session with one of ${bot.slug}'s Assignment Sessions`,
+        );
+    }
     this.#requireExecution?.(bot.slug);
     const sessionId = `direct-${randomUUID()}`;
     const directChannel =
@@ -3857,11 +4092,11 @@ class BotRuntimeImplementation implements BotRuntime {
       calls.push({
         callId: sessionId,
         tool,
-        args,
+        args: PRIVATE_INPUT_TOOLS.has(tool) ? {} : args,
         at: started.toISOString(),
         durationMs: this.#now().getTime() - started.getTime(),
         outcome,
-        result,
+        result: PRIVATE_INPUT_TOOLS.has(tool) ? '[private tool result omitted]' : result,
       });
       this.#directToolCalls.set(bot.slug, calls.slice(-DIRECT_TOOL_CALL_LIMIT));
     };
@@ -3871,7 +4106,7 @@ class BotRuntimeImplementation implements BotRuntime {
         tool,
         args,
         signal,
-        this.currentOrchestratorSessionId(botSlug),
+        delegation ? parentSessionId : this.currentOrchestratorSessionId(botSlug),
       );
       record('ok', typeof result === 'string' ? result : JSON.stringify(result));
       return { tool, sessionId: 'direct', result };
@@ -3915,7 +4150,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const rows = this.#database.read((database) =>
       database
         .prepare(
-          `SELECT session_id, source_event_id, bot_slug, purpose, activity, stop_state,
+          `SELECT session_id, source_event_id, bot_slug, title, description, activity, stop_state,
                   latest_report_state, latest_report_summary, latest_report_at,
                   continuity_key, open_ask_source_event_id, open_ask_at,
                   grant_id, workspace_id, primary_cwd, permission_mode,
@@ -3942,7 +4177,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const rows = this.#database.read((database) =>
       database
         .prepare(
-          `SELECT a.session_id, a.source_event_id, a.bot_slug, a.purpose, a.activity, a.stop_state,
+          `SELECT a.session_id, a.source_event_id, a.bot_slug, a.title, a.description, a.activity, a.stop_state,
                   a.latest_report_state, a.latest_report_summary, a.latest_report_at,
                   a.continuity_key, a.open_ask_source_event_id, a.open_ask_at,
                   a.grant_id, a.workspace_id, a.primary_cwd, a.permission_mode,
@@ -3961,9 +4196,11 @@ class BotRuntimeImplementation implements BotRuntime {
       return {
         sessionId: assignment.sessionId,
         botSlug: assignment.botSlug,
-        purpose: assignment.purpose,
+        title: assignment.title,
+        description: assignment.description,
         activity: assignment.activity,
         ...(assignment.latestReport === undefined ? {} : { latestReport: assignment.latestReport }),
+        ...(assignment.modelRoute === undefined ? {} : { modelRoute: assignment.modelRoute }),
         createdAt: assignment.createdAt,
         updatedAt: assignment.updatedAt,
       };
@@ -4034,7 +4271,8 @@ class BotRuntimeImplementation implements BotRuntime {
       await archive.archiveSession(current);
     } catch (error) {
       if (error instanceof Error && error.name === 'WorkspaceActiveSessionError') return BOT_BUSY;
-      throw error;
+      if (!(error instanceof Error && error.name === 'WorkspaceUnknownSessionError')) throw error;
+      return { outcome: 'replaced', value: this.#supersedeUnsavedOrchestrator(current, body) };
     }
     await this.#agents.releaseSession?.(current).catch(() =>
       this.#warn?.(
@@ -4054,6 +4292,19 @@ class BotRuntimeImplementation implements BotRuntime {
     }
   }
 
+  #supersedeUnsavedOrchestrator<T>(unsaved: string, body: () => T): T {
+    const owner = this.#ownership.resolve(unsaved);
+    const bot = owner === undefined ? undefined : this.#registry.get(owner.botSlug);
+    if (owner === undefined || bot === undefined) throw new Error('Unknown Orchestrator Session');
+    const value = body();
+    const at = Math.max(this.#now().getTime(), Date.parse(owner.createdAt) + 1);
+    this.#releaseReplacedOrchestrators(
+      bot.slug,
+      this.#claimOrchestrator(bot, new Date(at).toISOString()),
+    );
+    return value;
+  }
+
   triageOpenCount(botSlug: string): number | undefined {
     return this.#triageRunning.get(botSlug);
   }
@@ -4062,7 +4313,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const row = this.#database.read((database) =>
       database
         .prepare(
-          `SELECT session_id, source_event_id, bot_slug, purpose, activity, stop_state,
+          `SELECT session_id, source_event_id, bot_slug, title, description, activity, stop_state,
                   latest_report_state, latest_report_summary, latest_report_at,
                   continuity_key, open_ask_source_event_id, open_ask_at,
                   grant_id, workspace_id, primary_cwd, permission_mode,
@@ -4189,6 +4440,27 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   async stopTurn(botSlug: string): Promise<{ sessionId: string } | undefined> {
+    return this.#stopTurn(
+      botSlug,
+      `[Host: the Human stopped your previous turn at ${this.#now().toISOString()} before it finished. Do not resume that work unless they ask again.]\n\n`,
+    );
+  }
+
+  async endGroup(channelId: string): Promise<void> {
+    const at = this.#now().toISOString();
+    await Promise.all(
+      [...this.#turnSources]
+        .filter(([, turn]) => turn.inboundChannelId === channelId)
+        .map(([botSlug]) =>
+          this.#stopTurn(
+            botSlug,
+            `[Host: the Human disbanded the group your previous turn was answering at ${at}, and its messages were deleted. Do not continue that work.]\n\n`,
+          ),
+        ),
+    );
+  }
+
+  async #stopTurn(botSlug: string, notice: string): Promise<{ sessionId: string } | undefined> {
     const turn = this.#turnSources.get(botSlug);
     const active = this.#activeTurns.get(botSlug);
     if (this.#closed || turn === undefined || active === undefined) return undefined;
@@ -4196,10 +4468,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (sessionId === undefined) return undefined;
     this.#stoppedTurns.add(botSlug);
     this.groupSendReview.stop(botSlug);
-    this.#stopNotices.set(
-      botSlug,
-      `[Host: the Human stopped your previous turn at ${this.#now().toISOString()} before it finished. Do not resume that work unless they ask again.]\n\n`,
-    );
+    this.#stopNotices.set(botSlug, notice);
     await active.catch(() => undefined);
     return { sessionId };
   }
@@ -4291,7 +4560,7 @@ class BotRuntimeImplementation implements BotRuntime {
           session,
           claim.sourceEventId,
           channelId,
-          this.#inboundChannelMessage(channelId, messageId, body, claim.sourceEventId),
+          this.#inboundChannelMessage(bot.slug, channelId, messageId, body, claim.sourceEventId),
           collected.units,
           this.#channels.message(channelId, messageId)?.memorySwitchTarget !== undefined,
           undefined,
@@ -4454,7 +4723,7 @@ class BotRuntimeImplementation implements BotRuntime {
       memoryEventIds = memoryInbox.eventIds;
       const units = [...inboxUnits, ...memoryInbox.units];
       const inbox = [
-        units.length === 0 ? '' : renderInbox(units),
+        units.length === 0 ? '' : renderInbox(units, this.#promptText(bot.slug)),
         this.#inboxTriage.openSummary(bot.slug),
       ]
         .filter((part) => part.length > 0)
@@ -4979,7 +5248,10 @@ class BotRuntimeImplementation implements BotRuntime {
           throw new Error('Assignment creation requires a Source Event');
         this.#database.read((db) => requireSourceEffects(db, sourceEventId, bot.slug));
         const outcome = this.#createOrReuseAssignment(bot, sourceEventId, input);
-        if (outcome.outcome === 'created' || outcome.outcome === 'reused') markSideEffect();
+        if (outcome.outcome === 'created' || outcome.outcome === 'reused') {
+          markSideEffect();
+          this.#linkRequestAssignment(sourceEventId, outcome.assignment.sessionId);
+        }
         return outcome;
       },
       grants: () => this.#grants?.list(bot.slug) ?? [],
@@ -5008,7 +5280,11 @@ class BotRuntimeImplementation implements BotRuntime {
         if (sourceEventId !== undefined)
           this.#database.read((db) => requireSourceEffects(db, sourceEventId, bot.slug));
         const outcome = this.#requestAssignment(bot, input);
-        if (outcome.delivery !== 'capacity') markSideEffect();
+        if (outcome.delivery !== 'capacity') {
+          markSideEffect();
+          if (sourceEventId !== undefined)
+            this.#linkRequestAssignment(sourceEventId, input.sessionId);
+        }
         return outcome;
       },
       wait: (sessionId, signal, timeoutMs = 30000) => {
@@ -5942,7 +6218,7 @@ class BotRuntimeImplementation implements BotRuntime {
           `${sender.displayName} · ${target.displayName}`,
         );
         if (dm === undefined) throw new Error('Bot DM is unavailable');
-        return this.#sendBotDm({
+        const sent = await this.#sendBotDm({
           botSlug,
           recipientBotSlug: target.slug,
           channel: dm,
@@ -5955,6 +6231,7 @@ class BotRuntimeImplementation implements BotRuntime {
           replyTo: input.replyTo,
           deliveryKey: input.deliveryKey,
         });
+        return sent;
       },
       ignore: ({ channelId, messageId }) => {
         const channel = resolve(channelId);
@@ -6957,6 +7234,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (result.status === 'conflict') throw new Error('Bot DM delivery key has different content');
     input.afterSend?.();
     this.admitBotDmMessage(channel.id, result.message.id);
+    if (result.status === 'appended' && this.#tob?.isTob(botSlug)) this.#onTobDelegation();
     return { channelId: channel.id, message: result.message };
   }
 
@@ -6985,12 +7263,10 @@ class BotRuntimeImplementation implements BotRuntime {
       await run(orchestrator);
       return orchestrator;
     } catch (error) {
-      if (
-        this.#closed ||
-        this.#sessionArchived?.(orchestrator.sessionId) !== true ||
-        this.#turnSideEffectStarted(bot.slug)
-      )
-        throw error;
+      if (this.#closed || this.#turnSideEffectStarted(bot.slug)) throw error;
+      if (error instanceof OrchestratorWorkingDirectoryError)
+        return this.#replaceMisplacedOrchestrator(bot, orchestrator, error, run);
+      if (this.#sessionArchived?.(orchestrator.sessionId) !== true) throw error;
       const replacement = this.#ensureOrchestrator(bot, this.#now().toISOString());
       if (replacement.sessionId === orchestrator.sessionId) throw error;
       this.#warn?.(
@@ -7005,6 +7281,32 @@ class BotRuntimeImplementation implements BotRuntime {
       await run(replacement);
       return replacement;
     }
+  }
+
+  async #replaceMisplacedOrchestrator(
+    bot: PersonaBotRecord,
+    orchestrator: { sessionId: string; resume: boolean },
+    error: OrchestratorWorkingDirectoryError,
+    run: (orchestrator: { sessionId: string; resume: boolean }) => Promise<void>,
+  ): Promise<{ sessionId: string; resume: boolean }> {
+    if (this.currentOrchestratorSessionId(bot.slug) !== orchestrator.sessionId) throw error;
+    const replaced = await this.#replaceOrchestrator(bot.slug, () => undefined);
+    if (replaced.outcome === 'refused') throw error;
+    const replacement = this.#ensureOrchestrator(bot, this.#now().toISOString());
+    if (replacement.sessionId === orchestrator.sessionId) throw error;
+    this.#warn?.(
+      JSON.stringify({
+        component: 'bot-runtime',
+        event: 'orchestrator-working-directory-replaced',
+        botSlug: bot.slug,
+        replacedSessionId: orchestrator.sessionId,
+        sessionId: replacement.sessionId,
+        sessionCwd: error.sessionCwd,
+        memoryCwd: error.memoryCwd,
+      }),
+    );
+    await run(replacement);
+    return replacement;
   }
 
   #turnSideEffectStarted(botSlug: string): boolean {
@@ -7076,9 +7378,26 @@ class BotRuntimeImplementation implements BotRuntime {
   #createOrReuseAssignment(
     bot: PersonaBotRecord,
     sourceEventId: string,
-    input: { purpose: string; key?: string; grantId: string; model?: ModelRoute },
+    input: {
+      title: string;
+      description: string;
+      instructions?: string;
+      key?: string;
+      grantId: string;
+      model?: ModelRoute;
+    },
   ): AssignmentCreateOutcome {
-    const purpose = requireNonBlank(input.purpose, 'Assignment purpose');
+    const title = requireBoundedText(input.title, 'title', ASSIGNMENT_TITLE_MAX_LENGTH);
+    const description = requireBoundedText(
+      input.description,
+      'description',
+      ASSIGNMENT_DESCRIPTION_MAX_LENGTH,
+    );
+    const instructions =
+      input.instructions === undefined || input.instructions.trim() === ''
+        ? undefined
+        : input.instructions.trim();
+    const text = instructions ?? description;
     const grantId = requireNonBlank(input.grantId, 'Workspace Grant id');
     if (this.#registry.get(bot.slug) === undefined) throw new Error('PersonaBot is deleted');
     const plan = this.#registry.get(bot.slug)?.modelPlan ?? bot.modelPlan;
@@ -7115,7 +7434,7 @@ class BotRuntimeImplementation implements BotRuntime {
         const request = this.#requestAssignment(bot, {
           sessionId: holder.session_id,
           mode: 'next-turn',
-          text: purpose,
+          text,
         });
         if (request.delivery === 'capacity') {
           const { assignment: _assignment, delivery: _delivery, ...refusal } = request;
@@ -7150,16 +7469,17 @@ class BotRuntimeImplementation implements BotRuntime {
         database
           .prepare(
             `INSERT INTO assignments (
-               session_id, source_event_id, bot_slug, purpose, activity, continuity_key,
-               grant_id, workspace_id, primary_cwd, permission_mode, approval_policy,
-               preset_revision, model_route_json, created_at, updated_at
-             ) VALUES (?, ?, ?, ?, 'working', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               session_id, source_event_id, bot_slug, title, description, activity,
+               continuity_key, grant_id, workspace_id, primary_cwd, permission_mode,
+               approval_policy, preset_revision, model_route_json, created_at, updated_at
+             ) VALUES (?, ?, ?, ?, ?, 'working', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .run(
             sessionId,
             sourceEventId,
             bot.slug,
-            purpose,
+            title,
+            description,
             key ?? null,
             permission.grantId,
             permission.workspaceId,
@@ -7177,10 +7497,10 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#trackAssignmentRun(sessionId, () =>
       this.#agents.runAssignment({
         requireContent: () =>
-          this.#database.read((db) => requireSourceEffects(db, sourceEventId, bot.slug)),
+          this.#database.read((db) => requireAssignmentSource(db, sourceEventId, bot.slug)),
         sessionId,
         bot,
-        purpose,
+        text,
         permission,
         ...(modelRoute === undefined ? {} : { modelRoute }),
         report: async (report, execution) =>
@@ -7267,10 +7587,10 @@ class BotRuntimeImplementation implements BotRuntime {
     }
     const run: AssignmentAgentRun = {
       requireContent: () =>
-        this.#database.read((db) => requireSourceEffects(db, row.source_event_id, bot.slug)),
+        this.#database.read((db) => requireAssignmentSource(db, row.source_event_id, bot.slug)),
       sessionId: input.sessionId,
       bot,
-      purpose: text,
+      text,
       resume: true,
       permission,
       ...(modelRoute === undefined ? {} : { modelRoute }),
@@ -7524,7 +7844,7 @@ class BotRuntimeImplementation implements BotRuntime {
       sessionId: row.session_id,
       role: 'assignment',
       error,
-      context: row.purpose,
+      context: row.title,
       ...(error instanceof AssignmentInboxAcceptanceUncertainError ||
       row.open_ask_source_event_id === null
         ? {}
@@ -7584,7 +7904,7 @@ class BotRuntimeImplementation implements BotRuntime {
               sessionId,
               role: 'assignment',
               error,
-              context: row.purpose,
+              context: row.title,
               ...(refused.answerTo === undefined ? {} : { assignmentAnswerTo: refused.answerTo }),
             });
           }
@@ -8120,7 +8440,7 @@ class BotRuntimeImplementation implements BotRuntime {
     for (const row of this.#pendingExternalRows(botSlug, true)) {
       if (!this.#externalMessaging?.inbound.available(botSlug, row.source_event_id, true)) continue;
       const cost = row.body.length + 1600;
-      if (externalCharacters + cost > 24000) break;
+      if (externalCharacters + cost > this.#promptLimits(botSlug)['group-context-chars']) break;
       externalCharacters += cost;
       rows.push({
         ...row,
@@ -8446,6 +8766,22 @@ class BotRuntimeImplementation implements BotRuntime {
             .run(sessionId, ...sourceEventIds);
       },
       ['bot-inbox', 'bot-schedules'],
+    );
+  }
+
+  #linkRequestAssignment(sourceEventId: string, sessionId: string): void {
+    this.#database.transaction(
+      (database) => {
+        database
+          .prepare(
+            `INSERT INTO request_assignments (request_source_event_id, session_id, linked_at)
+             SELECT source_event_id, ?, ? FROM source_events
+              WHERE source_event_id = ? AND source_kind = 'human-message'
+             ON CONFLICT (request_source_event_id, session_id) DO UPDATE SET linked_at = excluded.linked_at`,
+          )
+          .run(sessionId, this.#now().toISOString(), sourceEventId);
+      },
+      ['assignments'],
     );
   }
 

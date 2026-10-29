@@ -11,8 +11,14 @@ import { createInbox, type Inbox, type InboxSnapshot } from './inbox';
 import { createConversation, type Conversation, type ConversationSnapshot } from './conversation';
 import { createConversationPlayback, type ConversationPlayback } from './conversation-playback';
 import { useVisibleSnapshot } from './use-visible-snapshot';
+import { hostAvailabilitySource } from './host-availability';
 import { currentHost, selectHost, withHost, withoutHost, type SavedHosts } from './hosts';
-import { clearHostConversationCache, nativeConversationCache } from './native-cache';
+import {
+  clearHostConversationCache,
+  pruneHostConversationCache,
+  nativeConversationCache,
+} from './native-cache';
+import { watchDisbandedGroups } from './disbanded-groups';
 import { conversationFilter } from './native-conversation-filter';
 import { computerEnvironmentKey } from './conversation-environments';
 import { nativeCarrier } from './native-carrier';
@@ -127,8 +133,21 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   let connected = false;
   let avatars: string | undefined;
   let avatarRetryAt = Infinity;
+  const disbanded = watchDisbandedGroups();
   const offConnection = client.subscribe(() => {
     const snapshot = client.getSnapshot();
+    if (snapshot.roster !== undefined) {
+      const change = disbanded(snapshot.roster);
+      const live = conversations.get(client);
+      const ended = new Set(change.gone.map((id) => `channel:${id}`));
+      for (const key of live?.keys() ?? []) if (change.stale?.(key)) ended.add(key);
+      for (const key of ended) {
+        live?.get(key)?.stop();
+        live?.delete(key);
+      }
+      if (saved !== null && change.stale !== undefined)
+        pruneHostConversationCache(saved.hostId, change.stale);
+    }
     const now = snapshot.connection.status === 'connected';
     if (now && !connected) {
       void pushSession.retryFailed();
@@ -155,6 +174,8 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
       offInbox();
       offConnection();
       inbox.stop();
+      for (const conversation of conversations.get(client)?.values() ?? []) conversation.stop();
+      conversations.delete(client);
       client.stop();
     },
   };
@@ -409,6 +430,12 @@ export function useHostSessions(visible = true): readonly ConnectedHost[] {
   return useVisibleSnapshot(feedSource, visible);
 }
 
+const availability = hostAvailabilitySource(feedSource);
+
+export function useHostAvailability(visible = true) {
+  return useVisibleSnapshot(availability, visible);
+}
+
 export function usePushStatus(): PushStatus {
   return useSyncExternalStore(pushSession.subscribe, pushSession.getSnapshot);
 }
@@ -471,11 +498,35 @@ function conversationFor(
   });
   let watchers = 0;
   let idle: ReturnType<typeof setTimeout> | undefined;
+  let offRetained: (() => void) | undefined;
+  const reconcileIdle = () => {
+    if (watchers > 0) return;
+    const outgoing = inner
+      .getSnapshot()
+      .messages.filter((message) => message.author === 'human' && message.revision === undefined);
+    if (outgoing.length > 0) {
+      if (outgoing.every((message) => message.delivery === 'failed')) inner.stop();
+      return;
+    }
+    offRetained?.();
+    offRetained = undefined;
+    inner.stop();
+    if (byKey.get(key) === conversation) byKey.delete(key);
+  };
   const conversation: Conversation = {
     ...inner,
+    stop() {
+      clearTimeout(idle);
+      offRetained?.();
+      offRetained = undefined;
+      inner.stop();
+      if (byKey.get(key) === conversation) byKey.delete(key);
+    },
     subscribe(listener) {
       watchers += 1;
       clearTimeout(idle);
+      offRetained?.();
+      offRetained = undefined;
       inner.start();
       const off = inner.subscribe(listener);
       return () => {
@@ -484,8 +535,8 @@ function conversationFor(
         if (watchers > 0) return;
         idle = setTimeout(() => {
           if (watchers > 0) return;
-          inner.stop();
-          byKey.delete(key);
+          offRetained = inner.subscribe(reconcileIdle);
+          reconcileIdle();
         }, 0);
       };
     },
@@ -516,15 +567,27 @@ export function useChannelConversation(
   client: HostClient | undefined,
   channelId: string | undefined,
 ): Conversation | undefined {
+  const source = channelId === undefined ? detachedSource : (client ?? detachedSource);
+  const available = useSyncExternalStore(
+    source.subscribe,
+    useCallback(() => {
+      const roster = source.getSnapshot().roster;
+      return (
+        roster === undefined ||
+        roster.channels.some((channel) => channel.id === channelId) ||
+        roster.activityChannels?.some((channel) => channel.id === channelId) === true
+      );
+    }, [source, channelId]),
+  );
   return useMemo(
     () =>
-      client === undefined || channelId === undefined
+      client === undefined || channelId === undefined || !available
         ? undefined
         : conversationFor(client, `channel:${channelId}`, {
             channelId,
             cacheKey: `channel:${channelId}`,
           }),
-    [client, channelId],
+    [client, channelId, available],
   );
 }
 
@@ -540,9 +603,11 @@ const closed: ConversationSnapshot = {
 function useConversationForeground(
   conversation: Conversation | undefined,
   playback?: ConversationPlayback,
+  visible = true,
 ) {
   useFocusEffect(
     useCallback(() => {
+      if (!visible) return;
       const foreground = (active: boolean) => {
         conversation?.setForeground?.(active);
         playback?.setActive(active);
@@ -555,7 +620,7 @@ function useConversationForeground(
         subscription.remove();
         foreground(false);
       };
-    }, [conversation, playback]),
+    }, [conversation, playback, visible]),
   );
 }
 
@@ -581,13 +646,16 @@ export function useStreamPlayback(conversation: Conversation | undefined, enable
 export function useConversationTimelineSnapshot(
   conversation: Conversation | undefined,
   playback?: ConversationPlayback,
+  visible = true,
 ) {
-  useConversationForeground(conversation, playback);
-  return useSyncExternalStore(
-    useCallback(
-      (listener: () => void) => (playback ?? conversation)?.subscribe(listener) ?? (() => {}),
-      [conversation, playback],
-    ),
-    () => conversation?.getTimelineSnapshot() ?? closed,
+  useConversationForeground(conversation, playback, visible);
+  const source = useMemo(
+    () => ({
+      subscribe: (listener: () => void) =>
+        (playback ?? conversation)?.subscribe(listener) ?? (() => {}),
+      getSnapshot: () => conversation?.getTimelineSnapshot() ?? closed,
+    }),
+    [conversation, playback],
   );
+  return useVisibleSnapshot(source, visible, true);
 }

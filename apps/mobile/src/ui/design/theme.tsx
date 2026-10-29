@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, useSyncExternalStore, type ReactNode } from 'react';
-import { Platform, useColorScheme, useWindowDimensions } from 'react-native';
+import { Dimensions, Platform, useColorScheme } from 'react-native';
 
 import { resolveTheme, type Appearance, type ColorScheme, type DesignTheme } from './resolve-theme';
 import { glass, PRESS_TINT, type PlatformOS } from './tokens';
@@ -21,6 +21,12 @@ function platformOS(): PlatformOS {
 }
 
 const AppearanceContext = createContext<Appearance>({});
+
+const subscribeFontScale = (changed: () => void) => {
+  const subscription = Dimensions.addEventListener('change', changed);
+  return () => subscription.remove();
+};
+const fontScaleSnapshot = () => Dimensions.get('window').fontScale;
 
 export function DesignThemeProvider({
   appearance,
@@ -59,7 +65,7 @@ export function useDesignTheme(): DesignTheme {
     [preferences.appearance, appearance],
   );
   const system: ColorScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
-  const { fontScale } = useWindowDimensions();
+  const fontScale = useSyncExternalStore(subscribeFontScale, fontScaleSnapshot, fontScaleSnapshot);
   return useMemo(
     () => ({
       ...resolveTheme(system, effective, platformOS()),

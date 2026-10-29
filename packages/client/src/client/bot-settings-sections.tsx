@@ -1,10 +1,13 @@
 import { WindowZoomSettings } from './window-zoom-settings.js';
+import { WindowZoomSetup } from './window-zoom-setup.js';
 import type { ZoomSurface } from './window-zoom-mount.js';
 import type { ReactElement, ReactNode } from 'react';
 
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type { BridgeActions } from './actions.js';
+import { AccountProfileSettings } from './account-profile-settings.js';
+import type { ConnectSignInCode } from './connect-sign-in.js';
 import { ApprovalReviewerModelSetting } from './approval-reviewer-model-setting.js';
 import {
   AssignmentConcurrencyRow,
@@ -14,8 +17,11 @@ import {
   GroupAutoAcceptSetting,
   SendKeySetting,
   AutoCollapseMessagesSetting,
+  DeliveryReceiptsSetting,
+  StreamRepliesSetting,
 } from './bot-mode-setting-rows.js';
 import { ApprovalTemplateLibrarySettings } from './approval-template-library.js';
+import { PromptPresetSettings } from './prompt-preset-settings.js';
 import { buildLabel, clientBuild } from './build-id.js';
 import { DataResetSettings } from './data-reset-settings.js';
 import { StorageSettings } from './storage-settings.js';
@@ -24,6 +30,7 @@ import type { BridgeCall } from './bridge.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { GitSettings } from './git-settings.js';
 import { HumanNameSettings } from './human-name-settings.js';
+import { CompactionThresholdSetting } from './compaction-threshold-setting.js';
 import { IdleCompactionSetting } from './idle-compaction-setting.js';
 import { MessagingDefaultsSettings } from './messaging-defaults-settings.js';
 import { DefaultModelSettings, OnboardingSetting } from './onboarding-view.js';
@@ -53,10 +60,21 @@ export type MessagingSectionFace = BotModePrefsFace & {
   onSaved(): Promise<void>;
 };
 
+export function AccountSection(
+  props: SectionProps<{ actions: BridgeActions; startSignIn(): Promise<ConnectSignInCode> }>,
+): ReactElement {
+  return (
+    <Rows>
+      <AccountProfileSettings actions={props.actions} startSignIn={props.startSignIn} t={props.t} />
+    </Rows>
+  );
+}
+
 export function GeneralSection(props: SectionProps<GeneralSectionFace>): ReactElement {
   return (
     <Rows>
       <WindowZoomSettings surface={props.zoomSurface} t={props.t} />
+      <WindowZoomSetup surface={props.zoomSurface} t={props.t} />
       <OnboardingSetting
         actions={props.actions}
         closeBotSettings={props.closeBotSettings}
@@ -73,6 +91,7 @@ export function ModelsSection(
     <Rows>
       <DefaultModelSettings actions={props.actions} t={props.t} />
       <IdleCompactionSetting call={props.call} t={props.t} />
+      <CompactionThresholdSetting call={props.call} t={props.t} />
       <AssignmentConcurrencyRow {...props} />
       <BotSessionsVisibilitySetting {...props} />
       <ApprovalReviewSessionsVisibilitySetting {...props} />
@@ -93,6 +112,14 @@ export function AutoApprovalSection(
   );
 }
 
+export function PromptsSection(props: SectionProps<{ actions: BridgeActions }>): ReactElement {
+  return (
+    <Rows>
+      <PromptPresetSettings actions={props.actions} t={props.t} />
+    </Rows>
+  );
+}
+
 export function MessagingSection(props: SectionProps<MessagingSectionFace>): ReactElement {
   return (
     <Rows>
@@ -104,6 +131,8 @@ export function MessagingSection(props: SectionProps<MessagingSectionFace>): Rea
       />
       <SendKeySetting {...props} />
       <AutoCollapseMessagesSetting {...props} />
+      <DeliveryReceiptsSetting {...props} />
+      <StreamRepliesSetting {...props} />
       <SettingsSection>
         <GroupAutoAcceptSetting {...props} />
       </SettingsSection>

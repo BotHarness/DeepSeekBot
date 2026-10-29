@@ -6,6 +6,8 @@ import type { BotCreationReceipt } from '../bots/creation.js';
 import type { BotZipUploadStatus } from '../bots/zip-upload.js';
 import type { BotZipPreview } from '../bots/zip-import.js';
 import type { TurnTrace } from '../bots/tool-trace.js';
+import type { AssignmentTimelineLane } from '../runtime/assignment-timeline.js';
+import type { SessionRootRole } from '../sessions/ownership.js';
 import type { PartLibraryEntry } from '../bots/part-library.js';
 import type { OnboardingSnapshot, TutorialAction } from '../onboarding/service.js';
 import type { HttpsFallback } from '../memory/clone.js';
@@ -13,6 +15,7 @@ import type { PairingRequest, PairingReviewInput } from '../messaging/pairing.js
 import type { SenderAccessInput } from '../messaging/sender-access.js';
 import type {
   ChannelHistoryItem,
+  GroupDisbandResult,
   PurgeSource,
   PurgePreview,
   TextCleanupPreview,
@@ -52,13 +55,22 @@ import type {
 } from '../messaging/conversation-ingest.js';
 import type { UsageOverviewPeriod } from '../usage/overview.js';
 import type {
+  MarketplaceAuthoredBot,
+  MarketplaceAuthorAccount,
   MarketplaceDetail,
+  MarketplaceDigest,
+  MarketplaceDigestSummary,
   MarketplaceEntry,
+  MarketplaceFileView,
   MarketplacePage,
   MarketplaceQuery,
+  MarketplaceSection,
   MarketplaceTopic,
 } from '../marketplace/client.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
+import type { MarketplaceAccount, UploadPlan } from '../marketplace/uploaded-bots.js';
+import type { InstallReviewResult } from '../marketplace/install-review.js';
+import type { ShareDraftView } from '../marketplace/share-draft.js';
 import type { MarketplaceLanguage } from '../marketplace/language.js';
 import type {
   ReleaseInfo,
@@ -69,7 +81,15 @@ import type {
 import type { PluginInstall, PluginRestart, PluginUpdates } from '../release/plugins.js';
 import type { TelemetryStatus } from '../telemetry/service.js';
 import type { OverviewMemory } from '../memory/overview.js';
-import type { ApprovalReviewerModelView, IdleCompactionView, OverviewUsage } from './methods.js';
+import type {
+  ApprovalReviewerModelView,
+  BotPromptView,
+  IdleCompactionView,
+  OverviewUsage,
+  PromptLimitView,
+  PromptPartView,
+} from './methods.js';
+import type { PromptPreset } from '../prompts/prompt-presets.js';
 import type { ManualCompactionResult } from '../runtime/idle-compaction.js';
 import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
 import type { HumanAssignmentContext } from '../runtime/assignment-human-context.js';
@@ -113,7 +133,7 @@ import type {
 import type { ChannelActivityToday } from '../channels/activity-today.js';
 import type { GroupProfileActivity } from '../channels/profile-activity.js';
 import type { ChannelMessage, ChannelReaction, ChannelRecord } from '../channels/channel.js';
-import type { ChannelSendStatus } from '../channels/store.js';
+import type { ChannelSendStatus, HumanMessageSearchPage } from '../channels/store.js';
 import type { ChannelAttachmentRef } from '../attachments/ref.js';
 import type { ChannelReadPosition } from '../channels/store.js';
 import type { RosterSection, RosterSnapshot } from '../roster/store.js';
@@ -121,6 +141,7 @@ import type { TopOrderEntry } from '../roster/spec.js';
 import type { ChannelTimelinePage, TimelineDirection } from '../channels/timeline.js';
 import type {
   AssignmentDetail,
+  AssignmentActivity,
   AssignmentSummary,
   ChannelAssignmentSummary,
   DirectBotToolSpec,
@@ -156,6 +177,7 @@ import type { MemoryRecoveryCheckpoint } from '../memory/recovery.js';
 import type { WorkspaceGrant } from '../workspaces/grants.js';
 import type { FolderListing } from '../workspaces/folder-browse.js';
 import type { ToolApprovalRule } from '../workspaces/tool-approval-rules.js';
+import type { ToolApprovalHistoryEntry } from '../channels/approval-history.js';
 import type {
   AssignmentAccessPreset,
   AssignmentAccessMode,
@@ -644,14 +666,21 @@ export class BotharnessBridgeService extends TypertRemoteService {
       }),
     );
   }
-  introEvent(event: string, properties: Record<string, string | boolean> = {}): null {
-    return unwrap(this.methods.introEvent({ ...properties, event }));
+  telemetryEvent(event: string, properties: Record<string, string | boolean> = {}): null {
+    return unwrap(this.methods.telemetryEvent({ event, properties }));
   }
   modelPlanInherit(slug: string, expectedRevision: number): { revision: number } {
     return unwrap(this.methods.modelPlanInherit({ slug, expectedRevision }));
   }
-  channelRetry(channelId: string, messageId: string): Promise<{ accepted: true }> {
-    return unwrapAsync(this.methods.channelRetry({ channelId, messageId }));
+  channelRetry(
+    channelId: string,
+    messageId: string,
+    recovery?: 'compact' | 'new-session',
+    failureMessageId?: string,
+  ): Promise<{ accepted: true }> {
+    return unwrapAsync(
+      this.methods.channelRetry({ channelId, messageId, recovery, failureMessageId }),
+    );
   }
   botNewSession(slug: string): Promise<{ started: true }> {
     return unwrapAsync(this.methods.botNewSession({ slug }));
@@ -659,6 +688,31 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   botCompact(slug: string): Promise<ManualCompactionResult> {
     return unwrapAsync(this.methods.botCompact({ slug }));
+  }
+  botContext(slug: string): Promise<import('../runtime/context-window.js').BotContextWindow> {
+    return unwrapAsync(this.methods.botContext({ slug }));
+  }
+  botSystemPrompt(
+    slug: string,
+  ): Promise<import('../runtime/prompt-inspection.js').BotSystemPromptView> {
+    return unwrapAsync(this.methods.botSystemPrompt({ slug }));
+  }
+  botTurnInput(
+    slug: string,
+    sessionId?: string,
+    turns?: number,
+  ): Promise<{
+    slug: string;
+    sessionId: string;
+    turns: import('../runtime/prompt-inspection.js').TurnInputView[];
+  }> {
+    return unwrapAsync(
+      this.methods.botTurnInput({
+        slug,
+        ...(sessionId === undefined ? {} : { sessionId }),
+        ...(turns === undefined ? {} : { turns }),
+      }),
+    );
   }
   channelBotStop(
     channelId: string,
@@ -929,6 +983,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     origin?: 'marketplace',
     operationKey?: string,
     expectedCommit?: string,
+    listingId?: string,
   ): Promise<{
     bot: PersonaBotDetail;
     httpsFallback?: HttpsFallback;
@@ -944,6 +999,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         origin,
         operationKey,
         expectedCommit,
+        listingId,
       }),
     );
   }
@@ -1024,6 +1080,74 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.approvalTemplateUpdate({ name, text }));
   }
 
+  promptParts(): { parts: PromptPartView[]; limits: PromptLimitView[] } {
+    return unwrap(this.methods.promptParts({}));
+  }
+
+  promptPresets(): { presets: PromptPreset[]; globalPresetId: string | null } {
+    return unwrap(this.methods.promptPresets({}));
+  }
+
+  promptPresetCreate(
+    name: string,
+    parts?: Record<string, unknown>,
+    limits?: Record<string, unknown>,
+  ): { preset: PromptPreset } {
+    return unwrap(
+      this.methods.promptPresetCreate({
+        name,
+        ...(parts === undefined ? {} : { parts }),
+        ...(limits === undefined ? {} : { limits }),
+      }),
+    );
+  }
+
+  promptPresetUpdate(
+    id: string,
+    name?: string,
+    parts?: Record<string, unknown>,
+    expectedRevision?: number,
+    limits?: Record<string, unknown>,
+  ): { preset: PromptPreset } {
+    return unwrap(
+      this.methods.promptPresetUpdate({
+        id,
+        ...(name === undefined ? {} : { name }),
+        ...(parts === undefined ? {} : { parts }),
+        ...(limits === undefined ? {} : { limits }),
+        ...(expectedRevision === undefined ? {} : { expectedRevision }),
+      }),
+    );
+  }
+
+  promptPresetDelete(id: string): { id: string; clearedBots: string[] } {
+    return unwrap(this.methods.promptPresetDelete({ id }));
+  }
+
+  promptGlobalSet(presetId: string | null): { presetId: string | null } {
+    return unwrap(this.methods.promptGlobalSet({ presetId }));
+  }
+
+  botPrompt(slug: string): BotPromptView {
+    return unwrap(this.methods.botPrompt({ slug }));
+  }
+
+  botPromptSet(
+    slug: string,
+    presetId?: string | null,
+    parts?: Record<string, unknown>,
+    limits?: Record<string, unknown>,
+  ): BotPromptView {
+    return unwrap(
+      this.methods.botPromptSet({
+        slug,
+        ...(presetId === undefined ? {} : { presetId }),
+        ...(parts === undefined ? {} : { parts }),
+        ...(limits === undefined ? {} : { limits }),
+      }),
+    );
+  }
+
   approvalTemplateDelete(name: string): { template: { name: string }; clearedBots: string[] } {
     return unwrap(this.methods.approvalTemplateDelete({ name }));
   }
@@ -1046,6 +1170,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   idleCompactionSet(enabled: boolean): IdleCompactionView {
     return unwrap(this.methods.idleCompactionSet({ enabled }));
+  }
+
+  compactionThresholdSet(
+    thresholdRatio?: number | null,
+    headroomTokens?: number | null,
+  ): IdleCompactionView {
+    return unwrap(
+      this.methods.compactionThresholdSet({
+        ...(thresholdRatio === undefined ? {} : { thresholdRatio }),
+        ...(headroomTokens === undefined ? {} : { headroomTokens }),
+      }),
+    );
   }
 
   idleCompactionCacheLifetimeSet(
@@ -1267,7 +1403,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.humanNameSet({ displayName }));
   }
 
-  channelGroupDelete(channelId: string): { deleted: boolean } {
+  channelGroupDelete(channelId: string): { deleted: boolean } & GroupDisbandResult {
     return unwrap(this.methods.channelGroupDelete({ channelId }));
   }
 
@@ -1408,6 +1544,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     limit?: number,
   ): { messages: ChannelMessage[]; nextCursor?: string } {
     return unwrap(this.methods.channelSearch({ channelId, text, cursor, limit }));
+  }
+
+  messageSearch(text: string, cursor?: string, limit?: number): HumanMessageSearchPage {
+    return unwrap(this.methods.messageSearch({ text, cursor, limit }));
   }
 
   channelAllBotPreview(channelId: string): AllBotPreview {
@@ -1558,8 +1698,17 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.humanAttentionSnooze({ itemId, sourceKey, until }));
   }
 
-  assignments(slug: string): { assignments: AssignmentSummary[] } {
-    return unwrap(this.methods.assignments({ slug }));
+  assignments(
+    slug: string,
+    query?: string,
+    activity?: AssignmentActivity[],
+    includeArchived?: boolean,
+    limit?: number,
+    cursor?: string,
+  ): { assignments: AssignmentSummary[]; nextCursor?: string } {
+    return unwrap(
+      this.methods.assignments({ slug, query, activity, includeArchived, limit, cursor }),
+    );
   }
 
   channelAssignments(channelId: string): { assignments: ChannelAssignmentSummary[] } {
@@ -1568,6 +1717,29 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   assignment(slug: string, sessionId: string): { assignment: AssignmentDetail } {
     return unwrap(this.methods.assignment({ slug, sessionId }));
+  }
+
+  assignmentTimeline(
+    slug: string,
+    sessionId: string,
+  ): Promise<{
+    assignment: AssignmentDetail;
+    lanes: AssignmentTimelineLane[];
+    omittedSubagents: number;
+  }> {
+    return unwrapAsync(this.methods.assignmentTimeline({ slug, sessionId }));
+  }
+
+  sessionSubagents(
+    slug: string,
+    sessionId: string,
+  ): Promise<{
+    sessionId: string;
+    role: SessionRootRole;
+    lanes: AssignmentTimelineLane[];
+    omittedSubagents: number;
+  }> {
+    return unwrapAsync(this.methods.sessionSubagents({ slug, sessionId }));
   }
 
   workspaceOptions(): { workspaces: { id: string; path: string; title: string }[] } {
@@ -1590,8 +1762,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.messageAttachmentTarget({ channelId, messageId, fileId }));
   }
 
-  folderBrowse(path?: string): FolderListing {
-    return unwrap(this.methods.folderBrowse(path === undefined ? {} : { path }));
+  folderBrowse(path?: string, offset?: number): Promise<FolderListing> {
+    return unwrapAsync(
+      this.methods.folderBrowse({
+        ...(path === undefined ? {} : { path }),
+        ...(offset === undefined ? {} : { offset }),
+      }),
+    );
   }
 
   workspaceFileTarget(
@@ -1661,6 +1838,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   toolApprovalRuleRevoke(slug: string, id: string): { rule: ToolApprovalRule } {
     return unwrap(this.methods.toolApprovalRuleRevoke({ slug, id }));
+  }
+
+  toolApprovalHistory(
+    slug: string,
+    page?: { cursor?: string; limit?: number },
+  ): { entries: ToolApprovalHistoryEntry[]; nextCursor?: string } {
+    return unwrap(this.methods.toolApprovalHistory({ slug, ...page }));
   }
 
   toolApprovalStatus(
@@ -1733,9 +1917,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
     slug: string,
     tool: string,
     args?: Record<string, unknown>,
+    sessionId?: string,
   ): Promise<{ slug: string; tool: string; sessionId: 'direct'; result: unknown }> {
     return unwrapAsync(
-      this.methods.botToolRun({ slug, tool, ...(args === undefined ? {} : { args }) }),
+      this.methods.botToolRun({
+        slug,
+        tool,
+        ...(args === undefined ? {} : { args }),
+        ...(sessionId === undefined ? {} : { sessionId }),
+      }),
     );
   }
 
@@ -1979,8 +2169,125 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.marketplaceTopics());
   }
 
+  async marketplaceSections(
+    lang?: MarketplaceLanguage,
+  ): Promise<{ sections: MarketplaceSection[] }> {
+    return unwrapAsync(this.methods.marketplaceSections(lang === undefined ? {} : { lang }));
+  }
+
+  async marketplaceDigests(
+    lang?: MarketplaceLanguage,
+  ): Promise<{ digests: MarketplaceDigestSummary[] }> {
+    return unwrapAsync(this.methods.marketplaceDigests(lang === undefined ? {} : { lang }));
+  }
+
+  async marketplaceDigest(
+    day?: string,
+    lang?: MarketplaceLanguage,
+  ): Promise<{ digest: MarketplaceDigest }> {
+    return unwrapAsync(
+      this.methods.marketplaceDigest({
+        ...(day === undefined ? {} : { day }),
+        ...(lang === undefined ? {} : { lang }),
+      }),
+    );
+  }
+
   async marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail> {
     return unwrapAsync(this.methods.marketplaceDetail(lang === undefined ? { id } : { id, lang }));
+  }
+
+  async marketplaceFileView(id: string, path: string): Promise<MarketplaceFileView> {
+    return unwrapAsync(this.methods.marketplaceFileView({ id, path }));
+  }
+
+  async marketplaceAccount(): Promise<MarketplaceAccount> {
+    return unwrapAsync(this.methods.marketplaceAccount());
+  }
+
+  async marketplaceAuthorSave(
+    displayName: string,
+    acceptTerms?: boolean,
+  ): Promise<MarketplaceAuthorAccount> {
+    return unwrapAsync(this.methods.marketplaceAuthorSave({ displayName, acceptTerms }));
+  }
+
+  async marketplaceAuthorAvatarSet(avatar: string | null): Promise<MarketplaceAuthorAccount> {
+    return unwrapAsync(this.methods.marketplaceAuthorAvatarSet({ avatar }));
+  }
+
+  marketplaceUploadPlan(slug: string): UploadPlan {
+    return unwrap(this.methods.marketplaceUploadPlan({ slug }));
+  }
+
+  async marketplaceUpload(
+    slug: string,
+    displayName: string,
+    bio?: string,
+    tags?: string[],
+    replaces?: string,
+  ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }> {
+    return unwrapAsync(this.methods.marketplaceUpload({ slug, displayName, bio, tags, replaces }));
+  }
+
+  async marketplaceMine(lang?: MarketplaceLanguage): Promise<{ bots: MarketplaceAuthoredBot[] }> {
+    return unwrapAsync(this.methods.marketplaceMine(lang === undefined ? {} : { lang }));
+  }
+
+  async marketplaceDelete(id: string): Promise<{ deleted: true }> {
+    return unwrapAsync(this.methods.marketplaceDelete({ id }));
+  }
+
+  async marketplaceInstallReview(id: string, lang?: 'en' | 'zh'): Promise<InstallReviewResult> {
+    return unwrapAsync(
+      this.methods.marketplaceInstallReview(lang === undefined ? { id } : { id, lang }),
+    );
+  }
+
+  shareDraftStart(slug: string): ShareDraftView {
+    return unwrap(this.methods.shareDraftStart({ slug }));
+  }
+
+  shareDraftGet(slug: string): ShareDraftView {
+    return unwrap(this.methods.shareDraftGet({ slug }));
+  }
+
+  shareDraftFile(slug: string, path: string): { path: string; kind: string; text?: string } {
+    return unwrap(this.methods.shareDraftFile({ slug, path }));
+  }
+
+  shareDraftDecide(
+    slug: string,
+    path: string,
+    decision: 'keep' | 'drop' | 'rewrite',
+    text?: string,
+  ): ShareDraftView {
+    return unwrap(this.methods.shareDraftDecide({ slug, path, decision, text }));
+  }
+
+  shareDraftFinish(slug: string): ShareDraftView {
+    return unwrap(this.methods.shareDraftFinish({ slug }));
+  }
+
+  shareDraftDiscard(slug: string): { discarded: boolean } {
+    return unwrap(this.methods.shareDraftDiscard({ slug }));
+  }
+
+  async shareDraftExport(slug: string): Promise<{ path: string; files: number }> {
+    return unwrapAsync(this.methods.shareDraftExport({ slug }));
+  }
+
+  async marketplaceInstall(
+    id: string,
+    reviewId: string,
+    operationKey?: string,
+  ): Promise<{
+    bot: PersonaBotDetail;
+    channelId: string;
+    receipt?: BotCreationReceipt;
+    listing: MarketplaceEntry;
+  }> {
+    return unwrapAsync(this.methods.marketplaceInstall({ id, reviewId, operationKey }));
   }
 
   async releaseInfo(since?: string): Promise<ReleaseInfo> {
@@ -2102,11 +2409,14 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'tobHome',
   'onboarding',
   'onboardingModel',
-  'introEvent',
+  'telemetryEvent',
   'modelPlanInherit',
   'channelRetry',
   'botNewSession',
   'botCompact',
+  'botContext',
+  'botSystemPrompt',
+  'botTurnInput',
   'channelBotStop',
   'modelCatalog',
   'modelPresets',
@@ -2174,6 +2484,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'channelMarkAllRead',
   'channelReact',
   'channelSearch',
+  'messageSearch',
   'channelUnreadCounts',
   'channelAllBotPreview',
   'channelSend',
@@ -2194,6 +2505,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'assignments',
   'channelAssignments',
   'assignment',
+  'assignmentTimeline',
+  'sessionSubagents',
   'workspaceOptions',
   'messageAttachmentTarget',
   'channelMediaTarget',
@@ -2208,6 +2521,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'assignmentAccessSet',
   'toolApprovalRules',
   'toolApprovalRuleRevoke',
+  'toolApprovalHistory',
   'toolApprovalStatus',
   'toolApprovalDecide',
   'toolAutoRejectionOverride',
@@ -2260,6 +2574,14 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'browserAccessSet',
   'browserProfileSet',
   'approvalTemplates',
+  'promptParts',
+  'promptPresets',
+  'promptPresetCreate',
+  'promptPresetUpdate',
+  'promptPresetDelete',
+  'promptGlobalSet',
+  'botPrompt',
+  'botPromptSet',
   'approvalTemplateCreate',
   'approvalTemplateUpdate',
   'approvalTemplateDelete',
@@ -2269,6 +2591,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'idleCompaction',
   'idleCompactionSet',
   'idleCompactionCacheLifetimeSet',
+  'compactionThresholdSet',
   'standingLimitsSet',
   'botAvatarSet',
   'botAppearanceSet',
@@ -2282,9 +2605,29 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'marketplaceList',
   'marketplaceSubmit',
   'marketplaceTopics',
+  'marketplaceSections',
+  'marketplaceDigests',
+  'marketplaceDigest',
   'marketplaceDetail',
+  'marketplaceFileView',
   'marketplaceChallenge',
   'marketplaceReport',
+  'marketplaceAccount',
+  'marketplaceAuthorSave',
+  'marketplaceAuthorAvatarSet',
+  'marketplaceUploadPlan',
+  'marketplaceUpload',
+  'marketplaceInstallReview',
+  'marketplaceMine',
+  'marketplaceDelete',
+  'shareDraftStart',
+  'shareDraftGet',
+  'shareDraftFile',
+  'shareDraftDecide',
+  'shareDraftFinish',
+  'shareDraftDiscard',
+  'shareDraftExport',
+  'marketplaceInstall',
   'releaseInfo',
   'releaseUpdate',
   'releaseInstall',

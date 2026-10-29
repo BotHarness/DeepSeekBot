@@ -50,6 +50,10 @@ export const RULES = [
   ),
   related('packages/*/src/**', 'Package source'),
   full(
+    'packages/core/test/fixtures/profile-backup/**',
+    'Historical backup archives are loaded dynamically by restore and CLI tests',
+  ),
+  full(
     'packages/core/test/fixtures/memory-images/**',
     'Binary image fixtures are loaded dynamically by Host, CLI and mobile tests',
   ),
@@ -74,7 +78,6 @@ export const RULES = [
   ),
   related('packages/*/*.yml', 'Product patches'),
   related('packages/*/wrangler.jsonc', 'Worker configs'),
-  related('packages/*/wrangler.*.jsonc', 'Named Worker configs'),
   none(
     'packages/*/{README.md,THIRD_PARTY_NOTICES.md,LICENSE,.gitignore}',
     'Package prose and ignores',
@@ -105,6 +108,7 @@ export const RULES = [
   related('docs/assets/readme/pixel/source/**', 'README renderer source geometry and licenses'),
   related('scripts/fixtures/**', 'Script test fixtures'),
   related('scripts/product-provider/**', 'Product provider scripts'),
+  related('scripts/perf-budgets/**', 'Performance budgets, checked by the timeline budget job'),
   related('scripts/*', 'Repository scripts'),
   none('docs/**', 'Documentation synced into the docs site', true),
   none('{CHANGELOG,CHANGELOG.zh,CONTEXT,CONTEXT.zh}.md', 'Release Ledger and glossary pages', true),
@@ -122,7 +126,7 @@ export const RULES = [
   none('{prototype,dsh_research,design}/**', 'Prototypes and research notes'),
   none('*.md', 'Root prose'),
   none(
-    '{LICENSE,.gitignore,.easignore,.gitattributes,.oxlintrc.json,.oxfmtrc.json,skills-lock.json,vps.local.example.env}',
+    '{LICENSE,.lintstagedrc.json,.husky/pre-commit,.gitignore,.easignore,.gitattributes,.oxlintrc.json,.oxfmtrc.json,skills-lock.json,vps.local.example.env}',
     'Root metadata; lint and format always run',
   ),
 ];
@@ -431,7 +435,12 @@ export function checkClassification(files, rules = RULES) {
 export function checkTestInclude(files, include) {
   const problems = [];
   for (const file of files) {
-    if (!/\.test\.[cm]?[jt]sx?$/.test(file) || file.includes('/fixtures/')) continue;
+    if (
+      !/\.test\.[cm]?[jt]sx?$/.test(file) ||
+      file.includes('/fixtures/') ||
+      file.startsWith('.agents/')
+    )
+      continue;
     if (!include.some((glob) => matchesGlob(file, glob)))
       problems.push(`${file} is a test outside the Vitest include in vitest.config.ts`);
   }
@@ -491,6 +500,17 @@ export function androidNativeTests(tests, changes) {
     tests === 'full' ||
     changes.some((change) =>
       [change.path, change.previous].some((path) => path?.startsWith('apps/mobile/modules/')),
+    )
+  );
+}
+
+const TIMELINE_PERF_INPUT =
+  /^packages\/client\/src\/|^scripts\/perf-|^scripts\/perf-budgets\/|^\.github\/workflows\/verify\.yml$/;
+export function timelinePerf(tests, changes) {
+  return (
+    tests === 'full' ||
+    changes.some((change) =>
+      [change.path, change.previous].some((path) => path && TIMELINE_PERF_INPUT.test(path)),
     )
   );
 }
@@ -634,12 +654,12 @@ function githubPlan(changesFile) {
   const result = { ...plan(input), mobile: mobileVerification(input) };
   appendFileSync(
     process.env.GITHUB_OUTPUT,
-    `tests=${result.tests}\ndocs-site=${result.docsSite}\nmobile=${result.mobile.run}\nandroid-native=${androidNativeTests(result.tests, changes)}\nrelated=${JSON.stringify(result.related)}\n`,
+    `tests=${result.tests}\ndocs-site=${result.docsSite}\nmobile=${result.mobile.run}\nandroid-native=${androidNativeTests(result.tests, changes)}\nperf=${result.tests !== 'none' && timelinePerf(result.tests, changes)}\nrelated=${JSON.stringify(result.related)}\n`,
   );
   const listed = result.related.map((file) => `- \`${file}\``).join('\n');
   appendFileSync(
     process.env.GITHUB_STEP_SUMMARY,
-    `### CI test plan: ${result.tests}\n\n${result.reason}.\n\nDocs site build: ${result.docsSite ? 'yes' : 'no'}\n\nMobile verification: ${result.mobile.run ? 'yes' : 'no'} (${result.mobile.reason})\n\n${listed ? `Related test inputs:\n\n${listed}\n` : ''}`,
+    `### CI test plan: ${result.tests}\n\n${result.reason}.\n\nDocs site build: ${result.docsSite ? 'yes' : 'no'}\n\nMobile verification: ${result.mobile.run ? 'yes' : 'no'} (${result.mobile.reason})\n\nTimeline performance budget: ${result.tests !== 'none' && timelinePerf(result.tests, changes) ? 'yes' : 'no'}\n\n${listed ? `Related test inputs:\n\n${listed}\n` : ''}`,
   );
   console.log(JSON.stringify(result, null, 2));
 }

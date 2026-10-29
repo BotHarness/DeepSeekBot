@@ -4,21 +4,16 @@ import { edge, radius, space } from '../design/tokens';
 import { Text } from './text';
 import { useStrings } from '../strings';
 
-export function Chip({
-  label,
-  testID,
-  count,
-  selected,
-  onPress,
-  disabled = false,
-}: {
+export interface ChipProps {
   label: string;
-  testID?: string;
-  count?: number;
+  testID?: string | undefined;
+  count?: number | undefined;
   selected: boolean;
   onPress(): void;
-  disabled?: boolean;
-}) {
+  disabled?: boolean | undefined;
+}
+
+export function Chip({ label, testID, count, selected, onPress, disabled = false }: ChipProps) {
   const t = useStrings();
   const theme = useDesignTheme();
   const height = theme.type.body.line + space.x3 * 2;

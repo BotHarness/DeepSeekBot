@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createElement, type CSSProperties, type ReactNode } from 'react';
+import { createElement, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -9,6 +9,10 @@ vi.mock('react-native', async () => ({
   Platform: { OS: 'android' },
   useColorScheme: () => device.scheme,
   useWindowDimensions: () => ({ width: 390, height: 844, scale: 3, fontScale: device.fontScale }),
+  Dimensions: {
+    get: () => ({ width: 390, height: 844, scale: 3, fontScale: device.fontScale }),
+    addEventListener: (_event: string, _changed: () => void) => ({ remove() {} }),
+  },
   View: ({
     children,
     style,
@@ -35,7 +39,8 @@ vi.mock('../src/ui/shell/host-drawer', () => ({
 vi.mock('../src/ui/primitives/text', () => ({
   Text: ({ children }: { children: ReactNode }) => children,
 }));
-vi.mock('../src/ui/shell/icons', () => ({
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
   ChatsIcon: () => null,
   CloudIcon: () => null,
   ChevronDownIcon: () => null,
@@ -59,12 +64,18 @@ vi.mock('../src/ui/primitives/system-symbol', () => ({
       style: { width: size, height: size, color },
     }),
 }));
-vi.mock('expo', () => ({
-  requireNativeView:
-    () =>
-    ({ style, testID }: { style: CSSProperties; testID: string }) =>
-      createElement('input', { style, 'data-testid': testID }),
+vi.mock('@expo/ui/jetpack-compose', () => ({
+  Host: ({
+    style,
+    children,
+  }: {
+    style: CSSProperties;
+    children: ReactElement<{ modifiers?: { testID: string }[] }>;
+  }) =>
+    createElement('div', { style, 'data-testid': children.props.modifiers?.[0]?.testID }, children),
 }));
+vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({ testID: (testID: string) => ({ testID }) }));
+vi.mock('expo', () => ({ requireNativeView: () => () => createElement('input') }));
 vi.mock(
   '../src/ui/primitives/search-field',
   () => import('../src/ui/primitives/search-field.android'),
@@ -74,6 +85,7 @@ import { HomeHeader } from '../src/ui/shell/home-header';
 import { HeaderGlyph } from '../src/ui/shell/header-glyph.android';
 import { HeaderSearch } from '../src/ui/shell/header-search.android';
 import { ActivityToolbar } from '../src/ui/shell/activity-toolbar-base';
+import { ChatsSearchBar } from '../src/ui/shell/chats-search-bar.android';
 
 function header(searching: boolean) {
   const view = document.createElement('div');
@@ -105,6 +117,37 @@ function header(searching: boolean) {
 }
 
 describe('Android Chats header', () => {
+  it.each([1, 2])('hosts the native search app bar at its own height at font scale %s', (scale) => {
+    device.fontScale = scale;
+    const view = document.createElement('div');
+    view.innerHTML = renderToStaticMarkup(
+      <HomeHeader
+        environment={{ kind: 'all', key: 'all', title: 'All environments' }}
+        actions={<HeaderGlyph icon="search" active={false} />}
+        bar={
+          <ChatsSearchBar
+            placeholder="Search All environments"
+            busy={false}
+            results={[]}
+            onQuery={() => {}}
+            onExpanded={() => {}}
+            onPick={() => {}}
+            onNavigation={() => {}}
+          />
+        }
+      >
+        <div>Conversations</div>
+      </HomeHeader>,
+    );
+    const resting = view.querySelector<HTMLElement>('[data-testid="home-header"]')!;
+    const bar = resting.querySelector<HTMLElement>('[data-testid="chats-search-bar"]')!;
+    expect(resting.querySelector('[data-symbol]')).toBeNull();
+    expect(Number.parseFloat(resting.style.minHeight)).toBe(
+      24 + Number.parseFloat(bar.style.height),
+    );
+    expect(Number.parseFloat(bar.style.height)).toBe(56 + 24 * (scale - 1) + 8);
+  });
+
   it.each([1, 1.5, 2])(
     'reserves the native search height before opening at font scale %s',
     (fontScale) => {
@@ -124,6 +167,14 @@ describe('Android Chats header', () => {
         <ActivityToolbar
           search=""
           filtered={false}
+          options={{
+            bots: [],
+            channels: [],
+            filter: { section: 'all', bot: undefined },
+            sort: 'default',
+            onFilter: () => {},
+            onSort: () => {},
+          }}
           onSearch={() => {}}
           onSearchFocus={() => {}}
           onFilter={() => {}}

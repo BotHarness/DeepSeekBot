@@ -26,6 +26,7 @@
       "surfaces": [
         "setting:packages/client/src/client/workspace.tsx:{t('dock.reset')}",
         "setting:packages/client/src/client/workspace.tsx:{t('workspace.gap')}",
+        "setting:packages/client/src/client/workspace.tsx:{t('workspace.layoutMode')}",
         "storage:packages/client/src/client/activity-feed.ts:setItem(preferenceKey)",
         "storage:packages/client/src/client/bot-session-folders.tsx:setItem(BOT_FOLDER_PREFERENCES_KEY)",
         "storage:packages/client/src/client/channel-activity-view.tsx:setItem('botharness/overview-statistics-collapsed.v1')",
@@ -35,6 +36,8 @@
         "storage:packages/client/src/client/channel-dock-layout.ts:setItem(key)",
         "storage:packages/client/src/client/channel-sidebar-prefs.ts:setItem(STORAGE_KEY)",
         "storage:packages/client/src/client/inbox-view-prefs.ts:setItem(INBOX_VIEW_PREFERENCES_KEY)",
+        "storage:packages/client/src/client/layout-mode.ts:setItem(backup)",
+        "storage:packages/client/src/client/layout-mode.ts:setItem(LAYOUT_MODE_STORAGE_KEY)",
         "storage:packages/client/src/client/last-view.ts:setItem(LAST_VIEW_KEY)",
         "storage:packages/client/src/client/marketplace.tsx:setItem(SORT_STORAGE_KEY)",
         "storage:packages/client/src/client/memory-view-prefs.ts:setItem(MEMORY_VIEW_PREFERENCES_KEY)",
@@ -116,7 +119,15 @@
         "route:packages/core/src/plugin.ts:PROFILE_BACKUP_PATH + suffix in ['', '/inspect', '/recovery', '/authorize', '/activate']",
         "setting:packages/client/src/client/profile-backup.tsx:{t('backup.title')}"
       ],
-      "issue": "#2099"
+      "commands": [
+        "profile-backup-preview",
+        "profile-backup-export",
+        "profile-backup-inspect",
+        "profile-backup-restore",
+        "profile-backup-recovery",
+        "profile-backup-authorize",
+        "profile-backup-activate"
+      ]
     },
     {
       "id": "browser-pairing",
@@ -180,11 +191,15 @@
         "field:packages/client/src/bot-mode-settings.ts:sendKey",
         "field:packages/client/src/bot-mode-settings.ts:sortMode",
         "field:packages/client/src/bot-mode-settings.ts:sortModes",
+        "field:packages/client/src/bot-mode-settings.ts:showDeliveryReceipts",
+        "field:packages/client/src/bot-mode-settings.ts:streamReplies",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('groupAutoAccept.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('icon.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('motion.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sendKey.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('messageFold.row.title')}",
+        "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('message.delivery.row.title')}",
+        "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('message.stream.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sort.row.title')}"
       ],
       "commands": ["settings", "settings-set"]
@@ -207,6 +222,27 @@
       ]
     },
     {
+      "id": "prompt-presets",
+      "description": "Prompt Preset library, the global preset and each Bot's preset and own part edits.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/prompt-preset-settings.tsx:{t('prompts.global')}",
+        "setting:packages/client/src/client/prompt-preset-settings.tsx:{t('prompts.new')}",
+        "setting:packages/client/src/client/prompt-preset-settings.tsx:{preset.name}",
+        "setting:packages/client/src/client/prompt-preset-settings.tsx:{own === 0 ? t('prompts.bot.none') : t('prompts.changed', { count: own })}"
+      ],
+      "commands": [
+        "prompt-parts",
+        "prompt-presets",
+        "prompt-preset-create",
+        "prompt-preset-update",
+        "prompt-preset-delete",
+        "prompt-global-set",
+        "bot-prompt",
+        "bot-prompt-set"
+      ]
+    },
+    {
       "id": "idle-compaction",
       "description": "Host idle Orchestrator Session compaction setting.",
       "scope": "Host",
@@ -214,6 +250,15 @@
         "setting:packages/client/src/client/idle-compaction-setting.tsx:{t('idleCompaction.row.title')}"
       ],
       "commands": ["idle-compaction", "idle-compaction-set", "idle-compaction-cache-set"]
+    },
+    {
+      "id": "compaction-threshold",
+      "description": "Host automatic context compaction threshold (window ratio and headroom).",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/compaction-threshold-setting.tsx:{t('compactionThreshold.row.title')}"
+      ],
+      "commands": ["idle-compaction", "compaction-threshold-set"]
     },
     {
       "id": "messaging-defaults",
@@ -239,6 +284,20 @@
         "setting:packages/client/src/client/human-name-settings.tsx:{<label htmlFor=\"bh-human-default-name\">{t('humanName.title')}</label>}"
       ],
       "commands": ["human-identity", "human-name-set", "channel-human-name-set"]
+    },
+    {
+      "id": "account-profile",
+      "description": "Account Profile name and photo shown on Marketplace uploads, plus the signed-in email and Author ID.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/account-profile-settings.tsx:{<label htmlFor=\"bh-account-name\">{t('accountProfile.name')}</label>}",
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.email')}",
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.id')}",
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.loadFailed')}",
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.photo')}",
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.signInHint')}"
+      ],
+      "commands": ["marketplace-account", "marketplace-author", "marketplace-author-avatar"]
     },
     {
       "id": "channel-history",
@@ -423,9 +482,6 @@
         "storage:packages/client/src/client/composer-draft-store.ts:removeItem(key)",
         "storage:packages/client/src/client/composer-draft-store.ts:setItem(prefix + this.writer + ':' + version.sequence)",
         "storage:packages/client/src/client/composer-submission-store.ts:setItem(SUBMISSION_PREFIX + scope)",
-        "storage:packages/client/src/client/home-panel.tsx:setItem('botharness/home-draft/' + home.botSlug)",
-        "storage:packages/client/src/client/home-panel.tsx:setItem(key)",
-        "storage:packages/client/src/client/home-panel.tsx:removeItem(key)",
         "storage:packages/client/src/client/reachable-post-requests.ts:setItem(this.#key)"
       ],
       "exemption": "Drafts, pending sends and transport request recovery are per-Client delivery state, not configurable settings; sending is already covered by send.",
@@ -815,6 +871,21 @@
         "storage:packages/client/src/client/window-zoom.ts:setItem(WINDOW_ZOOM_KEY)"
       ],
       "commands": ["window-zoom-clients", "window-zoom-get", "window-zoom-set", "window-zoom-reset"]
+    },
+    {
+      "id": "desktop-window-zoom-setup",
+      "description": "Host schedules the Desktop zoom Profile link to be added or removed after the app quits, then reopens the app.",
+      "scope": "Host / desktop Profile",
+      "surfaces": [
+        "route:packages/core/src/plugin.ts:WINDOW_ZOOM_SETUP_PATH",
+        "setting:packages/client/src/client/window-zoom-setup.tsx:{t(action === 'enable' ? 'zoom.setup.enable' : 'zoom.setup.disable')}"
+      ],
+      "commands": [
+        "window-zoom-setup-status",
+        "window-zoom-setup-enable",
+        "window-zoom-setup-disable",
+        "window-zoom-setup-cancel"
+      ]
     },
     {
       "id": "remote-host-notifications",

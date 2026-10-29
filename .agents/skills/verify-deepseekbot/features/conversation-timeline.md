@@ -22,6 +22,11 @@ Reading a Bot DM or group: where the timeline opens, how it keeps your place, an
 - Open Bot settings → Messaging to enable Auto-collapse long messages. Long messages start expanded; when folding is enabled, Show all reveals the full body.
 
 - In a Bot DM with Memory updates from another conversation, open its Channel menu → Show what this Bot did elsewhere → Memory display: Compact / Detailed. The same choice is under Channel settings → Show what this Bot did elsewhere → Memory display. Hide Memory updates to disable the choice; show them again to restore it.
+- **Failed-turn report:** choose Report this error in a failed message. The Web/mobile feedback form preselects Bad and explains that POST adds only the matching turn input and tool calls/results, redacted and bounded. Preview first; synthetic upload tests must exclude unrelated turns, whole Sessions and diagnostic archives. Download remains separate.
+- **Shared action state:** while a DM maintenance action is pending, open the context usage panel: both entry points observe the same lock and outcome, and competing compact/new clicks do not issue another request. Approval/question read retries retain their original request guards and do not replay decisions.
+- **Session maintenance:** in a Bot DM Orchestrator failure card, choose Compact context or Start a new session directly. Buttons use icons and filled backgrounds distinct from the bubble. Neither action retries a message; verify the timeline count remains unchanged. No Retry or More recovery button remains. Groups expose neither maintenance action. Busy Bots refuse; failed compaction must not reset the Session. Repeat after Host restart to verify loading without a new Human message. The mobile app exposes the same actions (`session-compact`, `session-new`); submit native checks to the device queue.
+- **Context occupancy:** the Web DM composer footer shows estimated current context / model capacity, marks a missing-capacity 200K estimate, and shows unknown occupancy for unloaded Sessions. Clicking opens current used/capacity/remaining/threshold/source details and cumulative usage. The chip has no approximation mark or text label. Only the Bot Human DM popover offers Compact context and Start a new session; neither retries. Groups expose neither action. Compare with `deepseekbot bot-context <bot>`; verify refresh after a turn and compaction, a model change, and a Bot switch. `/new` only retires the current Orchestrator and does not resend an old message.
+
 - Enter Bot mode and open a DM that has messages after your last read position: the divider sits about a quarter down the view.
 - Scroll up, open another conversation in the sidebar, then come back: the same message is at the same height.
 - Send a file with a long name, then narrow the Messages dock panel: the file information and action controls stay inside both Human and Bot bubbles. Open the file menu and download the file.
@@ -48,19 +53,23 @@ Preconditions: a model credential, a Bot with a few replies (one long list), thr
 
 ### Single-message feedback (#2811)
 
-Use an isolated Host with `BOTHARNESS_FEEDBACK_ENDPOINT=http://127.0.0.1:<receiver-port>/feedback`
-and a local receiver from `packages/ingest/wrangler.feedback.jsonc`. Use synthetic messages only.
-Right-click a saved Human or Bot message → **Give feedback**. Verify default nearby selection,
-Good/Bad, optional tags/comment, category deselection, and Refresh evidence before submission.
-Inspect expanded preview files, then submit and capture the receipt. Read the private receiver with
-maintainer authorization and compare its archive bytes with `feedback-download` for the same token.
-Unauthorized GET must refuse. Retry a lost response with the same ID; deletion/expiry must prevent
-resurrection. `packages/core/test/message-feedback.test.ts`,
-`packages/ingest/test/message-feedback.test.ts` and `packages/client/test/message-feedback.test.ts`
-cover these seams. A model failure is a valid no-response case but does not prove normal Bot replies.
+Use an isolated Host with synthetic messages only. Right-click a saved Human or Bot message →
+**Give feedback**. Verify rating/tags/comment are described as the only PostHog submission fields.
+Review the local diagnostic scope, deselect categories, expand files, and download the ZIP without
+submitting. Submit a synthetic rating, inspect the receipt, and download again: the archive remains
+local and its filename carries the feedback ID. Outbound request inspection must show no chat,
+Session, Inbox, delivery content or archive bytes. No dedicated receiver is needed.
+`packages/core/test/message-feedback.test.ts`, `packages/core/test/feedback-posthog.test.ts` and
+`packages/client/test/message-feedback.test.ts` cover these seams. A model failure is a valid
+no-response case but does not prove normal Bot replies.
 Mobile: pair the Expo Web export with this isolated Host, open the synthetic DM, long-press the
 saved message and choose **Give feedback**. Change evidence scope, verify stale material cannot
-submit, refresh, rate and submit; inspect the receipt. Long-press → **Select messages**, toggle
+submit, refresh, rate and submit; inspect the receipt. Rating and local diagnostics occupy separate
+groups; file contents start collapsed. Open **View files**, check the actual included chats/Inbox
+summary, then hide files. Confirm download remains after the receipt and after a failed save/refresh
+its filename still uses the original receipt ID. On native platforms check SwiftUI buttons/tags and
+Compose Material buttons/chips, operation progress, keyboard reachability and maximum text size.
+Long-press → **Select messages**, toggle
 another saved message, copy, open **Screenshot** and inspect the preview, then cancel. Switch
 Channels and verify selection clears. Web previews are layout/browser evidence only; native
 capture/share, keyboard and accessibility checks remain tracked in #2811 for both device lanes.
@@ -69,6 +78,10 @@ the selection toolbar directly offers Copy/Screenshot/Cancel and quoted replies 
 Automated seams: apps/mobile/test/message-feedback.test.ts,
 apps/mobile/test/message-feedback-form.test.tsx, apps/mobile/test/message-menu-feedback.test.ts,
 apps/mobile/test/message-selection.test.ts, packages/client/test/message-selection-bar.test.ts.
+
+### Performance (#2413)
+
+- `BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json node scripts/perf-idle-timeline.mjs --messages 600 --profile` seeds a 600-message Group with mixed Markdown, mounts all of it and reports idle main-thread time and typing latency. Run it with and without `--animate`. Typing must not re-render the timeline: `typing.hottest` should not contain `MessageGroupView`. See [the performance guide](../references/performance.md).
 
 ## Gotchas
 
@@ -79,3 +92,8 @@ apps/mobile/test/message-selection.test.ts, packages/client/test/message-selecti
 - `deepseekbot pause` and `resume` have no online adapter; you cannot pause a Bot on a live Host to keep it from answering seeded messages.
 
 - The pinned DSH Menu renders one submenu level. Memory display choices are flat labelled rows inside the existing action submenu; do not encode a third menu level in MenuItem data. Settings uses the existing Select.
+
+
+## Theme readability and quiet sending (#2875)
+
+Use synthetic Chinese messages. Compare light/dark and custom yellow, green, white and black themes, including a custom panel background. Inspect Bot Markdown links, quoted text, code, Human text and settings actions. Send once with completion before 3 seconds: no visible delivery feedback. Delay another send beyond 3 seconds: feedback appears beside the unchanged bubble. Fail then retry: failure remains horizontally beside the bubble, retry starts a fresh delay, and no extra vertical status row appears. Record bubble and following-message positions before and after each transition. Compare multiple Web panels with different backgrounds. Native evidence follows the shared device lane; browser previews do not qualify native layout or accessibility.

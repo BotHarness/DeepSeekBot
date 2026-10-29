@@ -2,10 +2,14 @@
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
+vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
-vi.mock('../src/ui/shell/icons', () => ({ ChevronRightIcon: () => null }));
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
+  ChevronRightIcon: () => null,
+}));
 vi.mock('../src/ui/chat/sheet', () => ({
   Sheet: ({
     visible,

@@ -2,14 +2,11 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 
 vi.mock('../src/ui/primitives/row-icon', () => ({ RowIcon: () => null }));
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
-const alert = vi.fn();
-vi.mock('react-native', async () => ({
-  ...(await import('./react-native-shim')),
-  Alert: { alert: (...args: unknown[]) => alert(...args) },
-}));
+vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('expo-router', () => ({ useRouter: () => ({ back() {} }) }));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
@@ -22,7 +19,19 @@ import { SettingsView, type SettingsActions } from '../src/ui/settings-view';
 import { HumanAvatarButton } from '../src/ui/shell/human-avatar';
 import { t } from '../src/ui/strings';
 import { StatisticsSettings } from '../src/ui/shell/statistics-settings';
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
+vi.mock('react-native-worklets', () => ({
+  scheduleOnRN: <A extends unknown[]>(callback: (...args: A) => void, ...args: A) =>
+    callback(...args),
+}));
+vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
 
+vi.mock('../src/account/native-account-profile', () => ({
+  accountProfile: { getSnapshot: () => ({ status: 'signed-out' }), refresh: vi.fn() },
+  useAccountProfile: () => ({ status: 'signed-out' }),
+}));
+vi.mock('expo-image', () => ({ Image: () => null }));
 vi.mock('../src/telemetry/native', () => ({
   mobileTelemetry: {
     subscribe: () => () => {},
@@ -53,12 +62,10 @@ async function render(element: ReactElement): Promise<HTMLElement> {
 function actions(overrides: Partial<SettingsActions> = {}): SettingsActions {
   return {
     onUsage: vi.fn(),
-    onComputers: vi.fn(),
     onAppIcon: vi.fn(),
     onNotifications: vi.fn(),
     onStorage: vi.fn(),
     onModels: vi.fn(),
-    onUnpair: vi.fn(async () => undefined),
     onCopyVersion: vi.fn(),
     ...overrides,
   };
@@ -67,31 +74,16 @@ function actions(overrides: Partial<SettingsActions> = {}): SettingsActions {
 const button = (view: HTMLElement, label: string) =>
   view.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
 
-const dangerNotices = (view: HTMLElement) =>
-  [...view.querySelectorAll('[data-testid="notice-danger"]')].map((node) => node.textContent);
-
 describe('Settings sheet', () => {
-  it('holds every row the Me tab had, and each opens its screen', async () => {
+  it("opens each row's screen and leaves computers and unpairing to the environment drawer", async () => {
     const handlers = actions();
-    const view = await render(
-      <SettingsView
-        hostName="studio"
-        connection={{
-          status: 'connected',
-          route: 'https://studio.tail.ts.net',
-        }}
-        version="0.0.1 · 1c8d179"
-        actions={handlers}
-      />,
-    );
+    const view = await render(<SettingsView version="0.0.1 · 1c8d179" actions={handlers} />);
     expect(button(view, t.done)).toBeNull();
-    expect(view.textContent).toContain(t.connections);
-    expect(view.textContent).toContain('studio');
-    expect(view.textContent).toContain(`${t.connected} · https://studio.tail.ts.net`);
+    expect(button(view, t.computers)).toBeNull();
+    expect(view.textContent).not.toContain(t.connected);
 
     const rows: [string, keyof SettingsActions][] = [
-      [`${t.computers}, ${t.computersHint}`, 'onComputers'],
-      [`${t.appIcon}, ${t.appIconHint}`, 'onAppIcon'],
+      [t.appIcon, 'onAppIcon'],
       [t.notifications, 'onNotifications'],
       [`${t.storage.title}, ${t.storage.hint}`, 'onStorage'],
       [`${t.modelSettings.title}, ${t.modelSettings.global}`, 'onModels'],
@@ -100,56 +92,14 @@ describe('Settings sheet', () => {
       await act(async () => button(view, label)!.click());
       expect(handlers[action]).toHaveBeenCalledTimes(1);
     }
-    expect(button(view, t.unpair)).not.toBeNull();
-  });
-
-  it('reports an unpair failure and clears it on the next try', async () => {
-    const onUnpair = vi
-      .fn<() => Promise<void>>()
-      .mockRejectedValueOnce(new Error('cannot reach your computer.'))
-      .mockResolvedValueOnce(undefined);
-    const view = await render(
-      <SettingsView
-        hostName="studio"
-        connection={{ status: 'connecting', route: '' }}
-        version=""
-        actions={actions({ onUnpair })}
-      />,
-    );
-    const confirm = async (text: string) => {
-      const buttons = alert.mock.calls.at(-1)![2] as {
-        text: string;
-        onPress?: () => void;
-      }[];
-      await act(async () => buttons.find((entry) => entry.text === text)!.onPress?.());
-    };
-    await act(async () => button(view, t.unpair)!.click());
-    expect(alert.mock.calls.at(-1)![0]).toBe(t.unpairHost('studio'));
-    await confirm(t.cancel);
-    expect(onUnpair).not.toHaveBeenCalled();
-
-    await act(async () => button(view, t.unpair)!.click());
-    await confirm(t.unpair);
-    expect(dangerNotices(view)).toEqual([`${t.unpairFailed} cannot reach your computer.`]);
-
-    await act(async () => button(view, t.unpair)!.click());
-    await confirm(t.unpair);
-    expect(onUnpair).toHaveBeenCalledTimes(2);
-    expect(dangerNotices(view)).toEqual([]);
+    expect(button(view, t.unpair)).toBeNull();
   });
 });
 
 describe('App version', () => {
   it('shows the build in About and copies it on tap', async () => {
     const handlers = actions();
-    const view = await render(
-      <SettingsView
-        hostName="studio"
-        connection={{ status: 'connected', route: '' }}
-        version="0.0.1 · 1c8d179 · main"
-        actions={handlers}
-      />,
-    );
+    const view = await render(<SettingsView version="0.0.1 · 1c8d179 · main" actions={handlers} />);
     expect(view.textContent).toContain(t.about);
     expect(view.textContent).toContain('0.0.1 · 1c8d179 · main');
     await act(async () =>
@@ -160,14 +110,7 @@ describe('App version', () => {
   });
 
   it('says the version is unknown when nothing was recorded', async () => {
-    const view = await render(
-      <SettingsView
-        hostName="studio"
-        connection={{ status: 'connected', route: '' }}
-        version=""
-        actions={actions()}
-      />,
-    );
+    const view = await render(<SettingsView version="" actions={actions()} />);
     expect(view.textContent).toContain(t.appVersionUnknown);
   });
 
@@ -233,13 +176,7 @@ describe('Human avatar', () => {
 
 it('keeps statistics last and details collapsed until requested', async () => {
   const view = await render(
-    <SettingsView
-      hostName={undefined}
-      connection={{ status: 'stopped', route: '' }}
-      version="2.0.0"
-      actions={actions()}
-      statistics={<StatisticsSettings />}
-    />,
+    <SettingsView version="2.0.0" actions={actions()} statistics={<StatisticsSettings />} />,
   );
   const text = view.textContent!;
   expect(text.lastIndexOf(t.statisticsTitle)).toBeGreaterThan(text.lastIndexOf(t.appVersion));

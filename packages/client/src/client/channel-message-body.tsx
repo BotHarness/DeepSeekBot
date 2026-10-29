@@ -1,3 +1,6 @@
+import { ActionButton, ActionGroup } from './ds/action-button.js';
+import { useSessionMaintenance, sessionMaintenanceText } from './session-maintenance.js';
+import { MessageFeedbackDialog } from './message-feedback.js';
 import { useMessageHost } from './message-host.js';
 import { BridgeAudio } from './bridge-audio.js';
 import { BridgeFile } from './bridge-file.js';
@@ -11,7 +14,6 @@ import { ClearedMessageAttachment, MessageAttachment } from './message-attachmen
 import { useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import {
-  Button,
   FileTypeIcon,
   fileSizeText,
   MarkdownText,
@@ -30,8 +32,12 @@ import { referenceRuns } from './channel-refs.js';
 import { preserveHumanLineBreaks, rendersHumanMarkdown } from './human-markdown.js';
 import { attachmentReferenceRuns, messageAttachmentReferences } from './attachment-refs.js';
 import type { BridgeActions } from './actions.js';
-import { FolderBrowser, type FolderBrowserActions } from './workspace-grants-entry.js';
-import type { BotHarnessTranslate } from './locale.js';
+import {
+  FolderBrowser,
+  folderBrowseError,
+  type FolderBrowserActions,
+} from './workspace-grants-entry.js';
+import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { toolApprovalText } from './approval-text.js';
 import { useFooterPreferences } from './composer-footer-preferences.js';
 import { messagePerfView } from './message-perf.js';
@@ -44,11 +50,33 @@ const ChannelMarkdownText = MarkdownText as unknown as (
 
 export type NativeChatFailureText = (key: 'message.turnError' | 'message.failure.auth') => string;
 
+const REFUSAL_TEXT: Record<string, readonly [BotHarnessKey, BotHarnessKey?]> = {
+  MEMORY_CWD_MISMATCH: ['failure.refused.memoryCwd', 'failure.refused.memoryCwdHint'],
+  SESSION_PERMISSION_MISMATCH: [
+    'failure.refused.sessionPermission',
+    'failure.refused.sessionPermissionHint',
+  ],
+  ASSIGNMENT_PERMISSION_MISMATCH: [
+    'failure.refused.assignmentPermission',
+    'failure.refused.assignmentPermissionHint',
+  ],
+  GRANT_UNAVAILABLE: ['failure.refused.grant', 'failure.refused.grantHint'],
+  PERMISSION_UNAVAILABLE: [
+    'failure.refused.permissionServices',
+    'failure.refused.permissionServicesHint',
+  ],
+  BOT_UNAVAILABLE: ['failure.refused.bot'],
+  SESSION_OWNER_MISSING: ['failure.refused.owner', 'failure.refused.ownerHint'],
+  SESSION_REFUSED: ['failure.refused.generic'],
+};
+
 function failureSummary(
   failure: NonNullable<ChannelMessage['sessionFailure']>,
   t: BotHarnessTranslate,
   nativeChatT?: NativeChatFailureText,
 ): string {
+  const refusal = failure.code === undefined ? undefined : REFUSAL_TEXT[failure.code];
+  if (refusal !== undefined) return t(refusal[0]);
   switch (failure.code) {
     case 'AUTH':
       return nativeChatT?.('message.failure.auth') ?? t('failure.auth');
@@ -68,6 +96,8 @@ function failureSummary(
       return t('failure.server');
     case 'CONTEXT_WINDOW_EXCEEDED':
       return t('failure.contextWindow');
+    case 'OUTPUT_TOKEN_LIMIT':
+      return t('failure.outputLimit');
     default:
       return t('failure.generic');
   }
@@ -88,9 +118,18 @@ function SessionFailureNotice({
 }): ReactElement {
   const host = useMessageHost();
   const failure = message.sessionFailure!;
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
+  const [reportOpen, setReportOpen] = useState(false);
+  const botSlug = message.author.kind === 'bot' ? message.author.slug : undefined;
+  const maintenance = useSessionMaintenance(
+    actions,
+    channelId,
+    failure.role === 'orchestrator' ? botSlug : undefined,
+  );
+  const busy = maintenance.pending !== undefined;
+  const canRecover = maintenance.available;
+  const recover = maintenance.run;
   const title = nativeChatT?.('message.turnError') ?? t('failure.title');
+  const refusalHint = failure.code === undefined ? undefined : REFUSAL_TEXT[failure.code]?.[1];
   const needsModels =
     host === undefined &&
     ['AUTH', 'MISSING_CREDENTIAL', 'INVALID_CREDENTIAL', 'QUOTA'].includes(failure.code ?? '');
@@ -109,6 +148,9 @@ function SessionFailureNotice({
       {failure.code === 'CONTEXT_WINDOW_EXCEEDED' ? (
         <div className="bh-session-failure-context">{t('failure.contextWindowHint')}</div>
       ) : null}
+      {refusalHint === undefined ? null : (
+        <div className="bh-session-failure-context">{t(refusalHint)}</div>
+      )}
       {failure.context === undefined ? null : (
         <div className="bh-session-failure-context">
           {t('failure.assignmentContext', { context: failure.context })}
@@ -126,32 +168,50 @@ function SessionFailureNotice({
         <div className="bh-session-failure-raw">{failure.detail}</div>
         <code>{failure.sessionId}</code>
       </details>
-      {needsModels || (failure.requestMessageId && actions && channelId) ? (
-        <div className="bh-message-card-actions">
-          {needsModels ? (
-            <Button variant="outline" onClick={() => openModelsSettings()}>
-              {t('failure.openModels')}
-            </Button>
-          ) : null}
-          {failure.requestMessageId && actions && channelId ? (
-            <Button
-              variant="outline"
+      <ActionGroup>
+        {canRecover ? (
+          <>
+            <ActionButton
+              icon="archive"
               disabled={busy}
-              onClick={() => {
-                setBusy(true);
-                setError(undefined);
-                void actions
-                  .retryMessage(channelId, failure.requestMessageId!)
-                  .catch((cause) => setError(errorMessage(cause)))
-                  .finally(() => setBusy(false));
-              }}
+              busy={maintenance.pending === 'compact'}
+              onClick={() => recover('compact')}
             >
-              {t('onboarding.retryMessage')}
-            </Button>
-          ) : null}
-        </div>
+              {t('composerContext.compactNow')}
+            </ActionButton>
+            <ActionButton
+              icon="plus"
+              busy={maintenance.pending === 'new-session'}
+              disabled={busy}
+              onClick={() => recover('new-session')}
+            >
+              {t('composerCommand.newSession')}
+            </ActionButton>
+          </>
+        ) : null}
+        {channelId && host === undefined ? (
+          <ActionButton icon="message-square" onClick={() => setReportOpen(true)}>
+            {t('feedback.reportFailure')}
+          </ActionButton>
+        ) : null}
+        {needsModels ? (
+          <ActionButton icon="settings" onClick={() => openModelsSettings()}>
+            {t('failure.openModels')}
+          </ActionButton>
+        ) : null}
+      </ActionGroup>
+      {maintenance.notice ? (
+        <p role="status">{sessionMaintenanceText(maintenance.notice, t)}</p>
       ) : null}
-      {error ? <p role="alert">{error}</p> : null}
+      {reportOpen && channelId ? (
+        <MessageFeedbackDialog
+          channelId={channelId}
+          messageId={message.id}
+          failureTurn
+          onClose={() => setReportOpen(false)}
+          t={t}
+        />
+      ) : null}
     </div>
   );
 }
@@ -191,21 +251,25 @@ export function GrantRequestCard({
     setError(undefined);
     void (async () => {
       if (!alreadyChecked && beforeOpen !== undefined && !(await beforeOpen())) return;
-      return actions.listHostFolders().then(setListing, async (cause: unknown) => {
-        if (
-          cause instanceof Error &&
-          'rpcError' in cause &&
-          typeof cause.rpcError === 'object' &&
-          cause.rpcError !== null &&
-          'code' in cause.rpcError &&
-          cause.rpcError.code === 'directory-picker/unavailable'
-        ) {
-          const path = await actions.pickWorkspaceFolder();
-          if (path !== null) approve(path);
-          return;
-        }
-        setError(errorMessage(cause));
-      });
+      const pickNatively = async (): Promise<void> => {
+        const path = await actions.pickWorkspaceFolder();
+        if (path !== null) approve(path);
+      };
+      return actions.listHostFolders().then(
+        (value) => (value.nativePicker === true ? pickNatively() : setListing(value)),
+        async (cause: unknown) => {
+          if (
+            cause instanceof Error &&
+            'rpcError' in cause &&
+            typeof cause.rpcError === 'object' &&
+            cause.rpcError !== null &&
+            'code' in cause.rpcError &&
+            cause.rpcError.code === 'directory-picker/unavailable'
+          )
+            return pickNatively();
+          setError(folderBrowseError(cause, t));
+        },
+      );
     })()
       .catch((cause: unknown) => setError(errorMessage(cause)))
       .finally(() => setOpening(false));
@@ -245,16 +309,16 @@ export function GrantRequestCard({
     }
   }, [workspacePickerRequest]);
   const chooseButton = (
-    <Button
-      variant="primary"
+    <ActionButton
+      icon="folder-key"
+      tone="primary"
       size={compact ? 'sm' : 'md'}
+      busy={opening}
       disabled={busy || opening}
       onClick={() => open()}
     >
-      {opening
-        ? t('grant.loading')
-        : t(compact ? 'humanInbox.grant.handle' : 'grant.requestChoose')}
-    </Button>
+      {t(compact ? 'humanInbox.grant.handle' : 'grant.requestChoose')}
+    </ActionButton>
   );
   return (
     <div

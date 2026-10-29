@@ -2,7 +2,8 @@ import { randomBytes } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 
 import { defineSchemaPlan, type SchemaMigration } from './schema.js';
-import { INBOX_HISTORY_INDEX_SQL } from './inbox-history-index.js';
+import { INBOX_HISTORY_INDEX_SQL, MESSAGE_SEARCH_INDEX_SQL } from './inbox-history-index.js';
+import { deriveAssignmentTitle } from '../runtime/assignment-title.js';
 
 const SESSION_OWNERSHIP_MIGRATION: SchemaMigration = {
   generation: 2,
@@ -2497,6 +2498,71 @@ const DEVICE_LIVE_ACTIVITY_MIGRATION: SchemaMigration = {
   },
 };
 
+const ASSIGNMENT_TITLE_MIGRATION: SchemaMigration = {
+  generation: 108,
+  module: 'assignments',
+  description: 'Give Assignments a Title and turn purpose into their Description (ADR-0262)',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE assignments RENAME COLUMN purpose TO description;
+      ALTER TABLE assignments ADD COLUMN title TEXT NOT NULL DEFAULT '';
+    `);
+    const rows = database
+      .prepare('SELECT session_id, description FROM assignments')
+      .all() as Array<{
+      session_id: string;
+      description: string;
+    }>;
+    const update = database.prepare('UPDATE assignments SET title = ? WHERE session_id = ?');
+    for (const row of rows) update.run(deriveAssignmentTitle(row.description), row.session_id);
+  },
+};
+
+const SESSION_PROMPT_SNAPSHOT_MIGRATION: SchemaMigration = {
+  generation: 109,
+  module: 'session-ownership',
+  description: 'Freeze each Session Prompt Preset text at its first assembly',
+  migrate(database) {
+    database.exec('ALTER TABLE session_ownership ADD COLUMN prompt_snapshot TEXT;');
+  },
+};
+
+const TOOL_RULE_AUTO_APPROVAL_COUNT_MIGRATION: SchemaMigration = {
+  generation: 110,
+  module: 'tool-approval-rules',
+  description: 'Count the approval requests each always-allow rule answers',
+  migrate(database) {
+    database.exec(
+      'ALTER TABLE tool_approval_rules ADD COLUMN auto_approved_count INTEGER NOT NULL DEFAULT 0;',
+    );
+  },
+};
+
+const REQUEST_ASSIGNMENT_LINK_MIGRATION: SchemaMigration = {
+  generation: 111,
+  module: 'assignments',
+  description: 'Record which Assignment each Human request created or advanced',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE request_assignments (
+        request_source_event_id TEXT NOT NULL REFERENCES source_events(source_event_id),
+        session_id TEXT NOT NULL REFERENCES session_ownership(session_id),
+        linked_at TEXT NOT NULL,
+        PRIMARY KEY (request_source_event_id, session_id)
+      );
+    `);
+  },
+};
+
+const MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION: SchemaMigration = {
+  generation: 112,
+  module: 'messaging',
+  description: 'Index attachment file names in the message full-text index for global search',
+  migrate(database) {
+    database.exec(MESSAGE_SEARCH_INDEX_SQL);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2604,4 +2670,9 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   PUSH_APP_RENDER_MIGRATION,
   DEVICE_NOTIFICATION_PREFERENCE_MIGRATION,
   DEVICE_LIVE_ACTIVITY_MIGRATION,
+  ASSIGNMENT_TITLE_MIGRATION,
+  SESSION_PROMPT_SNAPSHOT_MIGRATION,
+  TOOL_RULE_AUTO_APPROVAL_COUNT_MIGRATION,
+  REQUEST_ASSIGNMENT_LINK_MIGRATION,
+  MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION,
 ]);

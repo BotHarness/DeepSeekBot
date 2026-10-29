@@ -1,6 +1,7 @@
 # Android Material search
 
-Local Expo view wrapping Compose Material 3 `DockedSearchBar` and `SearchBarDefaults.InputField`.
+Local Expo UI extension wrapping Compose Material 3 `DockedSearchBar` and
+`SearchBarDefaults.InputField`, registered with `ExpoUIView` and rendered inside `<Host>`.
 Search stays inline with each screen's virtualized results. Chats and Activity expose a native
 back button; model pickers keep their existing sheet navigation. Marketplace also uses this view, preserving its test ID, 100-character limit and submit callback.
 
@@ -16,9 +17,11 @@ not replace the native text field; theme and text-size changes keep its composit
 Submit forwards the native query directly, so Marketplace does not depend on the last React
 render having received the final keystroke. Both platform adapters share that callback contract.
 
-Colors come from the app's theme; shape, typography, input, clear/back icon buttons and ripple
-come from Material 3. System font scaling stays enabled. Compose owns Back handling and its
-composition is disposed when its view detaches, including its Back handler.
+Colours come from the Host's Material theme seeded by the accent (ADR-0266); shape, typography,
+input, clear/back icon buttons and ripple come from Material 3. The view takes no colour props.
+System font scaling stays enabled. Compose owns Back handling. Host keeps its composition while
+React Native Screens detaches an inactive screen, so the Back handler is enabled only while the
+view is attached to a window.
 
 A new Android development build is required. CI compiles and tests `:material-search:testDebugUnitTest`.
 Native acceptance follows `phone-android-interactions.md` → `material-search`, through the

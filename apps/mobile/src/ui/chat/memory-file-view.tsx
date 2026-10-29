@@ -1,16 +1,16 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, type ReactNode } from 'react';
 import { Lexer } from 'marked';
 import { FlatList, View, type ViewInstance } from 'react-native';
 
 import type { HostClient } from '../../host/client';
 import type { MemoryPreviewIO } from '../../host/memory-preview';
+import type { PinnedRole } from '../../host/bot-profile';
 import type { MemoryFile } from '../../host/wire';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Text } from '../primitives/text';
-import { Segmented } from '../primitives/segmented';
 import { useStrings } from '../strings';
-import { useLoad, Status } from './memory-browser';
+import { MemoryAbout, useLoad, Status } from './memory-browser';
 import { MemoryMarkdownBlock } from './memory-markdown';
 import { MemoryPreviewImage } from './memory-preview-image';
 import { createMemoryVisibility, MemoryVisibility } from './memory-visibility';
@@ -18,14 +18,17 @@ import { createMemoryVisibility, MemoryVisibility } from './memory-visibility';
 export function MemoryFileView({
   load,
   preview,
+  role,
+  notice,
 }: {
   load: () => Promise<MemoryFile | undefined>;
   preview?: { client: HostClient; io: MemoryPreviewIO; slug: string; path: string };
+  role?: PinnedRole | undefined;
+  notice?: ReactNode;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const { state, read, mount } = useLoad<MemoryFile | undefined, ViewInstance>(load);
-  const [mode, setMode] = useState<'preview' | 'source'>('preview');
   const frame = useRef<ViewInstance | null>(null);
   const visibility = useMemo(() => createMemoryVisibility(() => frame.current), []);
   const attach = useCallback(
@@ -37,7 +40,7 @@ export function MemoryFileView({
   );
   const file = state.status === 'ready' ? state.value : undefined;
   const markdown = preview === undefined ? undefined : file?.markdown;
-  const rendered = markdown?.status === 'ready' && mode === 'preview';
+  const rendered = markdown?.status === 'ready';
   const blocks = useMemo(
     () =>
       rendered
@@ -59,9 +62,7 @@ export function MemoryFileView({
         version={file.image}
         onRefresh={read}
       />
-    ) : rendered && preview && markdown ? null : markdown &&
-      markdown.status !== 'ready' &&
-      mode === 'preview' ? (
+    ) : rendered && preview && markdown ? null : markdown && markdown.status !== 'ready' ? (
       <Text tone="muted">{t.memoryImageError(`memory-image-${markdown.status}`)}</Text>
     ) : file.binary === true ? (
       <Text tone="muted">{t.memoryBinary}</Text>
@@ -89,17 +90,12 @@ export function MemoryFileView({
           onRefresh={read}
           contentContainerStyle={{ padding: space.x5, gap: space.x4 }}
           ListHeaderComponent={
-            markdown ? (
-              <Segmented<'preview' | 'source'>
-                label={t.memoryViewMode}
-                options={[
-                  { value: 'preview', label: t.memoryPreview },
-                  { value: 'source', label: t.memorySource },
-                ]}
-                value={mode}
-                onChange={setMode}
-              />
-            ) : undefined
+            role === undefined && notice === undefined ? undefined : (
+              <View style={{ gap: space.x4 }}>
+                {notice}
+                {role === undefined ? null : <MemoryAbout role={role} />}
+              </View>
+            )
           }
           ListEmptyComponent={
             content === null ? <Text tone="muted">{t.memoryEmptyFile}</Text> : content

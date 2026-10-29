@@ -3,8 +3,7 @@ import { DeviceRequestsNotice } from './device-requests-notice.js';
 import { activityIndicator } from './activity-indicator.js';
 import { useActivityIndicatorMenu } from './activity-indicator-menu.js';
 import { onboardingFor } from './onboarding.js';
-import { HomePanel } from './home-panel.js';
-import { WORKSPACE_HOME } from './workspace-context.js';
+import { receiveTobMessages } from './tob-requests.js';
 import { BOT_ONLY_CHANNEL_PANELS } from './dock-panels.js';
 import { resolveChannelSidebarContext } from './channel-sidebar.js';
 import { usePanelMenu, PanelVisibilityLabel } from './panel-menu.js';
@@ -13,9 +12,11 @@ import { workspaceShortcutId } from './workspace-shortcuts.js';
 import { createPortal } from 'react-dom';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 
-import { workspaceColumns, moveWorkspaceRail } from './workspace-layout.js';
-import { useState, useSyncExternalStore, type ReactNode, type ReactElement } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
+import { workspaceColumns, moveWorkspaceRail, railModeControls } from './workspace-layout.js';
+import { useRef, useState, useSyncExternalStore, type ReactNode, type ReactElement } from 'react';
+import { SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
+import type { LayoutMode } from './layout-mode.js';
+import { ActionButton } from './ds/action-button.js';
 import { Tooltip } from './ds/tooltip.js';
 import type { DockviewApi } from 'dockview-react';
 import type { BotModeSidebarProps } from './bot-mode-sidebar.js';
@@ -117,40 +118,29 @@ export function Workspace({
         order: 0,
         component: () => null,
       });
-      const unregisterHome = registry.register({
-        id: WORKSPACE_HOME,
-        title: t('workspace.home'),
-        icon: 'house',
-        scope: 'global',
-        order: 1000,
-        defaultPosition: { zone: 'center' },
-        onTitleHide: () =>
-          void onboardingFor(options.actions).finishFromHomeTitle(() =>
-            registry.open(CHANNEL_BODY_PANEL),
-          ),
-        component: function HomeEntry() {
-          const sendKey = useSyncExternalStore(
-            options.prefs.source.subscribe,
-            () => options.prefs.source.getSnapshot().sendKey,
-          );
-          return (
-            <HomePanel
-              actions={options.actions}
-              registry={registry}
-              t={t}
-              sendKey={sendKey}
-              onEditHumanName={() => options.openBotSettings('messaging')}
-            />
-          );
-        },
-      });
-      const detachGuide = onboardingFor(options.actions).attachHome(() =>
-        registry.open(WORKSPACE_HOME),
+      const onboarding = onboardingFor(options.actions);
+      const openTob = async () => {
+        registry.open(CHANNEL_BODY_PANEL);
+        const tob = await options.actions.tobHome();
+        await options.actions.openChannel(tob.channelId);
+        return tob;
+      };
+      const detachGuide = onboarding.attachTobConversation(() => void openTob().catch(() => {}));
+      const stopLanding = onboarding.watchTobLanding();
+      const stopRequests = receiveTobMessages(
+        (body) =>
+          void openTob()
+            .then(async (tob) => {
+              if (await onboarding.prepareSend(tob.channelId, tob.botSlug, body))
+                await options.actions.sendHome(tob.channelId, body, 'human-' + crypto.randomUUID());
+            })
+            .catch(() => {}),
       );
       setEnabled(true);
       return () => {
+        stopRequests();
+        stopLanding();
         detachGuide();
-        unregisterHome();
         unregisterMessages();
         unregister();
         release();
@@ -175,6 +165,7 @@ export function Workspace({
                   setOrder,
                   hiddenControls,
                   setControlVisible,
+                  layoutMode,
                 ) => (
                   <WorkspaceRail
                     options={options}
@@ -186,6 +177,7 @@ export function Workspace({
                     setOrder={setOrder}
                     hiddenControls={hiddenControls}
                     setControlVisible={setControlVisible}
+                    layoutMode={layoutMode}
                     t={t}
                   />
                 ),
@@ -209,6 +201,7 @@ function WorkspaceRail({
   setOrder,
   hiddenControls,
   setControlVisible,
+  layoutMode,
   t,
 }: {
   options: WorkspaceOptions;
@@ -220,8 +213,19 @@ function WorkspaceRail({
   setOrder(ids: readonly string[]): void;
   hiddenControls: readonly string[];
   setControlVisible(id: string, visible: boolean): void;
+  layoutMode: { mode: LayoutMode; setMode(mode: LayoutMode): void };
   t: BotHarnessTranslate;
 }): ReactElement {
+  const simple = layoutMode.mode === 'simple';
+  const setLayoutMode = useRef(layoutMode.setMode);
+  setLayoutMode.current = layoutMode.setMode;
+  const layoutMount = useMountedResource<HTMLSpanElement>(
+    () =>
+      onboardingFor(options.actions).attachLayout(layoutMode.mode, {
+        setMode: (mode) => setLayoutMode.current(mode),
+      }),
+    [options.actions, layoutMode.mode],
+  );
   const icon = useSyncExternalStore(
     options.prefs.source.subscribe,
     () => options.prefs.source.getSnapshot().botIcon,
@@ -309,7 +313,7 @@ function WorkspaceRail({
           {options.dockPanels && (
             <PinnedPanelCards
               registry={options.dockPanels}
-              order={order}
+              order={railModeControls(layoutMode.mode, order).order}
               onOrderChange={setOrder}
               hiddenIds={[
                 'members',
@@ -318,6 +322,7 @@ function WorkspaceRail({
                 ...panels.filter((p) => p.binding === 'current-bot').map((p) => p.id),
                 ...botOnlyHidden,
                 ...hiddenControls,
+                ...railModeControls(layoutMode.mode, order).hidden,
               ]}
               shortcut={(id) => shortcuts.find((row) => row.id === workspaceShortcutId(id))?.keys}
               collapsed
@@ -340,7 +345,7 @@ function WorkspaceRail({
         </div>
       </div>
       {indicatorMenu.menu}
-      <span className="bh-workspace-grip">
+      <span className="bh-workspace-grip" hidden={simple}>
         <Menu
           open={menu}
           portal
@@ -378,9 +383,29 @@ function WorkspaceRail({
         />
       </span>
       <span ref={settingsMount} hidden />
+      <span ref={layoutMount} hidden />
       {settingsTarget &&
         createPortal(
           <SettingsSection title={t('workspace.appearance')}>
+            <SettingsRow
+              title={t('workspace.layoutMode')}
+              description={t('workspace.layoutModeHint')}
+              control={
+                <SegmentedControl
+                  id="bh-layout-mode"
+                  label={t('workspace.layoutMode')}
+                  value={layoutMode.mode}
+                  options={[
+                    { value: 'simple', label: t('workspace.layoutMode.simple') },
+                    { value: 'advanced', label: t('workspace.layoutMode.advanced') },
+                  ]}
+                  onChange={(mode) => {
+                    layoutMode.setMode(mode as LayoutMode);
+                    options.actions.telemetryEvent('layout:mode_select', { mode });
+                  }}
+                />
+              }
+            />
             <SettingsRow
               title={t('workspace.gap')}
               control={
@@ -400,7 +425,11 @@ function WorkspaceRail({
             />
             <SettingsRow
               title={t('dock.reset')}
-              control={<Button onClick={reset}>{t('dock.reset')}</Button>}
+              control={
+                <ActionButton icon="refresh" onClick={reset}>
+                  {t('dock.reset')}
+                </ActionButton>
+              }
             />
           </SettingsSection>,
           settingsTarget,

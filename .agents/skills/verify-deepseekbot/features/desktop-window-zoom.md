@@ -11,12 +11,25 @@
 In the isolated desktop, enter Bot mode → Bot Settings → General → Window zoom.
 Set a default, press ordinary Cmd+= once, and press Cmd+0 to reset to the saved default. The sidebar,
 settings modal and content must change together while manual font sizes remain unchanged.
-New product Bundles activate the carried theme without a separate setup command. The same
-`ui-theme` identity preserves native appearance and font settings. Legacy manually enabled
-Profiles must remove their old link with `deepseekbot-zoom-setup disable` before uninstalling
-its target product. Restart Desktop after changing Bundle composition. Admission uses the
-adapter protocol, platform and payload integrity, not an exact release label. Native platform
-qualification remains separate. Ordinary Web keeps browser-native zoom.
+Ordinary product install carries the pinned adapter but does not enable it. Use the explicit
+`deepseekbot-zoom-setup enable --home <home> --profile desktop --desktop-app <app>`
+command with the isolated Desktop fully closed, then reopen the same Desktop. The macOS path and Windows
+candidate admit by adapter protocol, platform and payload integrity, retaining the root `ui-theme` settings namespace and exactly one native theme
+module id. A Profile-local package link points to the portable licensed product payload;
+there is no task-only theme dependency or installed-app modification. Disable before uninstall
+or switching outside the qualified Desktop/Host/Client tuple. Do not insert a second `ui-theme`
+row from a Bundle Patch: native Settings then refuses every appearance and font write (#2788).
+Ordinary browsers retain browser-native zoom. Package tests and native activation are
+separate checks; verify the actual theme id and source in `__DSH_BOOT__` after restart.
+
+## Settings button (enable after quit)
+
+On the native Desktop Profile, Bot Settings → General shows "Enable window zoom" (or "Turn off window zoom").
+Clicking it schedules the helper and the row says to quit the app fully; Cancel withdraws it. Quit
+with Cmd+Q (Windows: exit fully): the app must reopen by itself with zoom rows present (or gone after
+turning off). `deepseekbot window-zoom-setup-status|enable|disable|cancel` drive the same Host route;
+check `$DSH_HOME/botharness/window-zoom-setup.json` for the recorded outcome. Web and non-desktop
+Profiles report `supported:false` and show no row.
 
 ## Driving it with verify-app
 
@@ -90,8 +103,7 @@ compatibility and platform matrices remain separate S2/S3 gates.
 
 ## Product activation and native Settings identity
 
-Legacy manual-link qualification only: new Bundles activate zoom without setup. For a Profile
-that was manually enabled before default activation, use an explicit isolated Profile and
+Ordinary Bundle install alone does not activate zoom. In the explicit isolated Profile,
 run `deepseekbot-zoom-setup enable --home <home> --profile desktop --desktop-app <app>`
 with the target Desktop fully closed, then reopen it. Keep the root `ui-theme` namespace and one native theme
 module id. Read pre-existing fonts, edit them through native Settings, restart and read back.
@@ -174,7 +186,7 @@ results never close the Linux scope of #2270.
 
 ## Native Tooltip placement
 
-At144%, focus the Home name button through Tab/Shift+Tab: its tooltip must be adjacent to
+At144%, focus the Channel list rail switch through Tab/Shift+Tab: its tooltip must be adjacent to
 the button and remain within the viewport. Repeat after a zoom action and retain the original
 composer draft. `node scripts/check-select-zoom.mjs --output <report.json>` covers the shipped
 Tooltip code and CSS through all17 levels, three sides, two alignments and two viewport sizes,
@@ -183,7 +195,3 @@ adapter and must fail the coordinate regression. Source fixtures are separate fr
 native pixels and never qualify guest painting. The adapter is owned by the qualified zoom
 lease and restores its styles/listeners on disposal; ordinary browsers and unknown Desktop
 versions do not acquire it.
-
-## Default packaged activation (#2775)
-
-Install the ordinary candidate Bundle and restart native Desktop without running zoom-setup. Check exactly one ui-theme Fiber, preserved appearance and custom font sizes, one change per shortcut, saved default/reset, and unchanged Web behavior. Remove the candidate Bundle and confirm upstream theme restoration. Separately verify an existing manually enabled Profile; retain its old link until explicit cleanup before uninstall. Record Windows/macOS independently; source tests do not qualify native input.

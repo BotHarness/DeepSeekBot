@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
-import { readFileSync } from 'node:fs';
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 beforeEach(() => localStorage.clear());
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  relativeTime: (at: number, now: number) => ({
+    unit: 'days',
+    n: Math.floor((now - at) / 86_400_000),
+  }),
   Button: (props: Record<string, unknown> & { children?: ReactNode }) =>
     createElement(
       'button',
@@ -18,7 +21,46 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
       props.children,
     ),
   Input: (props: Record<string, unknown>) => createElement('input', props),
+  Checkbox: (props: { checked: boolean; onChange(checked: boolean): void; label?: ReactNode }) =>
+    createElement(
+      'label',
+      null,
+      createElement('input', {
+        type: 'checkbox',
+        checked: props.checked,
+        onChange: (event: { target: { checked: boolean } }) => props.onChange(event.target.checked),
+      }),
+      props.label,
+    ),
+  IconChevronDownOutlineRegular: () => null,
+  IconChevronLeftOutlineRegular: () => null,
+  IconChevronRightOutlineRegular: () => null,
+  Menu: (props: {
+    open: boolean;
+    items: readonly { id: string; label: ReactNode }[];
+    selectedId?: string;
+    onSelect(id: string): void;
+  }) =>
+    createElement(
+      'span',
+      { role: 'menu' },
+      props.open
+        ? props.items.map((item) =>
+            createElement(
+              'button',
+              {
+                key: item.id,
+                role: 'menuitemradio',
+                'aria-checked': item.id === props.selectedId,
+                onClick: () => props.onSelect(item.id),
+              },
+              item.label,
+            ),
+          )
+        : null,
+    ),
   Tag: (props: { children?: ReactNode }) => createElement('span', null, props.children),
+  Tooltip: (props: { children?: ReactNode }) => props.children,
   MarkdownText: (props: { text: string }) => createElement('div', null, props.text),
   SegmentedControl: (props: {
     value: string;
@@ -54,24 +96,31 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
 }));
 
 vi.mock('../src/client/avatar.js', () => ({
-  PersonaBotAvatar: (props: { name: string }) =>
-    createElement('span', { 'data-avatar': props.name }),
+  PersonaBotAvatar: (props: { name: string; src?: string; appearance?: { recipe: unknown } }) =>
+    createElement('span', {
+      'data-avatar': props.name,
+      'data-src': props.src,
+      'data-recipe':
+        props.appearance === undefined ? undefined : JSON.stringify(props.appearance.recipe),
+    }),
 }));
 
-const drafts = vi.hoisted(() => ({ appended: [] as [string, string][] }));
-vi.mock('../src/client/conversation-draft.js', () => ({
-  conversationDraftKey: () => 'dm-scope',
-  appendConversationDraft: (scope: string, text: string) => drafts.appended.push([scope, text]),
-}));
-
+import { DEFAULT_ILLUSTRATED_RECIPE } from '../../core/src/bots/avatar-appearance.js';
 import type { MarketplaceEntry, MarketplacePage } from '../../core/src/marketplace/client.js';
 import type { BridgeActions } from '../src/client/actions.js';
 import { CHANNEL_BODY_PANEL } from '../src/client/channel-dock-layout.js';
 import type { DockPanelRegistry } from '../src/client/dock-panels.js';
+import { BridgeCallError } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { MarketPanelView, createMarketPanel, MARKET_PANEL } from '../src/client/market-panel.js';
-import { MARKET_SHARE_PROMPT } from '../src/client/market-share-prompt.js';
+import {
+  MarketHeaderAction,
+  MarketPanelView,
+  createMarketPanel,
+  MARKET_PANEL,
+} from '../src/client/market-panel.js';
+import { MarketUploadDialog } from '../src/client/market-upload.js';
 import { store, type BotSummary } from '../src/client/store.js';
+import { CSS } from '../src/client/styles.js';
 
 function entry(name: string, overrides: Partial<MarketplaceEntry> = {}): MarketplaceEntry {
   return {
@@ -81,18 +130,46 @@ function entry(name: string, overrides: Partial<MarketplaceEntry> = {}): Marketp
     fullName: `alice/${name}`,
     displayName: null,
     banner: null,
+    avatar: null,
     roles: [],
     description: `${name} description`,
     descriptionGenerated: false,
     topics: [],
     stars: 7,
+    installs: 0,
     pushedAt: '2026-10-01T08:00:00Z',
     createdAt: '2026-03-05T08:00:00Z',
     htmlUrl: `https://github.com/alice/${name}`,
     cloneUrl: `https://github.com/alice/${name}.git`,
     defaultBranch: 'main',
     headCommit: null,
+    source: 'github',
+    author: null,
     ...overrides,
+  };
+}
+
+function draftView(state: 'reviewing' | 'ready') {
+  return {
+    slug: 'writer',
+    id: 'draft-1',
+    state,
+    createdAt: '2026-10-27T00:00:00Z',
+    updatedAt: '2026-10-27T00:00:00Z',
+    files: [],
+    skipped: [],
+    summary: {
+      slug: 'writer',
+      id: 'draft-1',
+      state,
+      total: 4,
+      pending: state === 'ready' ? 0 : 1,
+      kept: 2,
+      rewritten: state === 'ready' ? 1 : 0,
+      dropped: 1,
+      flagged: 2,
+      updatedAt: '2026-10-27T00:00:00Z',
+    },
   };
 }
 
@@ -116,6 +193,7 @@ async function withPanel(
     actions: Record<string, ReturnType<typeof vi.fn>>;
     registry: { open: ReturnType<typeof vi.fn> };
   }) => Promise<void>,
+  extra: Record<string, ReturnType<typeof vi.fn>> = {},
 ) {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const host = document.createElement('div');
@@ -125,21 +203,34 @@ async function withPanel(
   const actions = {
     marketplaceList: list,
     marketplaceTopics: vi.fn(async () => []),
+    marketplaceSections: vi.fn(async () => []),
+    marketplaceDigest: vi.fn(async () => {
+      throw new Error('digest-not-found');
+    }),
+    marketplaceDigests: vi.fn(async () => []),
     marketplaceDetail: vi.fn(async () => {
       throw new Error('unused');
     }),
     createBot: vi.fn(async () => undefined),
     openBot: vi.fn(async () => undefined),
+    marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
+    telemetryEvent: vi.fn(),
+    ...extra,
   };
   const registry = { open: vi.fn() };
   try {
     await act(async () =>
       root.render(
-        createElement(MarketPanelView, {
-          actions: actions as unknown as BridgeActions,
-          registry: registry as unknown as DockPanelRegistry,
-          t: zhTranslate,
-        }),
+        createElement(
+          'div',
+          null,
+          createElement(MarketHeaderAction, { t: zhTranslate }),
+          createElement(MarketPanelView, {
+            actions: actions as unknown as BridgeActions,
+            registry: registry as unknown as DockPanelRegistry,
+            t: zhTranslate,
+          }),
+        ),
       ),
     );
     await test({ host, list, actions, registry });
@@ -161,12 +252,392 @@ async function click(host: HTMLElement, label: string) {
   await act(async () => button(host, label).click());
 }
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe('Market panel', () => {
+  it('shows the Daily Picks row with a cover per pick count and at most seven days', async () => {
+    const pick = (name: string) => ({
+      id: `R_${name}`,
+      displayName: name,
+      banner: null,
+      avatar: null,
+    });
+    const picks = (count: number) =>
+      Array.from({ length: count }, (_, index) => pick(`bot${index}`));
+    const counts = [1, 2, 3, 4, 5, 0, 1, 2];
+    const digests = vi.fn(async () =>
+      counts.map((count, index) => ({
+        day: `2026-10-${String(28 - index).padStart(2, '0')}`,
+        lang: 'zh',
+        title: `第 ${index} 天`,
+        lede: '',
+        picks: picks(Math.min(count, 4)),
+      })),
+    );
+    await withPanel(
+      async () => ({ bots: [] }),
+      async ({ host, actions }) => {
+        expect(digests).toHaveBeenCalledWith('zh');
+        const row = host.querySelector<HTMLElement>('[data-market-daily-picks]')!;
+        expect(row.hidden).toBe(false);
+        const cards = [...row.querySelectorAll('[data-market-digest-day]')];
+        expect(cards).toHaveLength(7);
+        expect(
+          cards.map((card) =>
+            card.querySelector('[data-digest-cover]')!.getAttribute('data-digest-cover'),
+          ),
+        ).toEqual(['one', 'two', 'three', 'four', 'four', 'date', 'one']);
+        expect(
+          cards.map((card) => card.querySelectorAll('[data-digest-cover-pick]').length),
+        ).toEqual([1, 2, 3, 4, 4, 0, 1]);
+        expect(
+          row.lastElementChild!.lastElementChild!.querySelector('[data-market-past-picks]'),
+        ).not.toBeNull();
+        const order = [...host.querySelectorAll('[data-market-daily-picks], .bh-market-sections')];
+        expect(order[0]).toBe(row);
+        expect(actions['telemetryEvent']).toHaveBeenCalledWith('marketplace:digest_view');
+      },
+      { marketplaceDigests: digests },
+    );
+  });
+
+  it('opens a digest and past picks as panel pages and walks back one page at a time', async () => {
+    const today = {
+      day: '2026-10-28',
+      lang: 'zh',
+      title: '今天值得一试的 Bot',
+      lede: '一位写作伙伴。',
+      picks: [],
+      sections: [
+        { heading: '写作伙伴', body: '它帮你整理想法。', bot: entry('writer') },
+        { heading: '已下架', body: '这位已经不在市场里。', bot: null },
+      ],
+    };
+    const yesterday = { ...today, day: '2026-10-27', title: '昨天的精选', sections: [] };
+    const digest = vi.fn(async (day?: string) => (day === '2026-10-27' ? yesterday : today));
+    const digests = vi.fn(async () => [
+      { day: today.day, lang: 'zh', title: today.title, lede: today.lede, picks: [] },
+      { day: yesterday.day, lang: 'zh', title: yesterday.title, lede: yesterday.lede, picks: [] },
+    ]);
+    await withPanel(
+      async () => ({ bots: [] }),
+      async ({ host, actions }) => {
+        const home = host.querySelector<HTMLElement>('.bh-market-page')!;
+        await click(host, '阅读每日精选：今天值得一试的 Bot');
+        expect(digest).toHaveBeenCalledWith('2026-10-28', 'zh');
+        expect(home.hidden).toBe(true);
+        expect(host.querySelector('[role="dialog"]')).toBeNull();
+        const article = host.querySelector('[data-market-digest="2026-10-28"]')!;
+        expect(article.textContent).toContain('它帮你整理想法。');
+        expect(
+          article.querySelector('[data-digest-cover]')!.getAttribute('data-digest-cover'),
+        ).toBe('one');
+        expect(article.querySelectorAll('[data-market-bot]')).toHaveLength(1);
+        expect([...article.querySelectorAll('h3')].map((node) => node.textContent)).toEqual([
+          '写作伙伴',
+          '已下架',
+        ]);
+
+        await act(async () =>
+          article.querySelector<HTMLButtonElement>('[data-market-past-picks]')!.click(),
+        );
+        const archive = host.querySelector('[data-market-digest="archive"]')!;
+        const days = [...archive.querySelectorAll<HTMLButtonElement>('[data-market-digest-day]')];
+        expect(days.map((node) => node.getAttribute('data-market-digest-day'))).toEqual([
+          '2026-10-28',
+          '2026-10-27',
+        ]);
+        await act(async () => days[1]!.click());
+        expect(digest).toHaveBeenLastCalledWith('2026-10-27', 'zh');
+        const visible = () =>
+          [...host.querySelectorAll<HTMLElement>('[data-market-page]')]
+            .filter((page) => !page.hasAttribute('aria-hidden'))
+            .map((page) => page.getAttribute('data-market-page'));
+        expect(visible()).toEqual(['digest:2026-10-27']);
+
+        await click(host, '返回');
+        expect(visible()).toEqual(['past-picks']);
+        await click(host, '返回');
+        expect(visible()).toEqual(['digest:2026-10-28']);
+        await act(async () =>
+          article.querySelector<HTMLButtonElement>('.bh-market-tile-open')!.click(),
+        );
+        expect(visible()).toEqual(['bot']);
+        await click(host, '返回');
+        expect(visible()).toEqual(['digest:2026-10-28']);
+        await click(host, '返回');
+        expect(visible()).toEqual([]);
+        expect(home.hidden).toBe(false);
+        expect(actions['telemetryEvent']!.mock.calls).toEqual([
+          ['marketplace:digest_view'],
+          ['marketplace:digest_open', { entry: 'hero' }],
+          ['marketplace:digest_archive_open'],
+          ['marketplace:digest_open', { entry: 'archive' }],
+          ['marketplace:bot_open', { entry: 'digest', step: 'detail' }],
+        ]);
+      },
+      {
+        marketplaceDigest: digest,
+        marketplaceDigests: digests,
+        marketplaceDetail: vi.fn(async () => ({
+          bot: entry('writer'),
+          readme: null,
+          readmeLanguage: null,
+          commitSha: null,
+          files: [],
+        })),
+      },
+    );
+  });
+
+  it('hides the Daily Picks row while searching', async () => {
+    const digests = vi.fn(async () => [
+      { day: '2026-10-28', lang: 'zh', title: '今天', lede: '', picks: [] },
+    ]);
+    await withPanel(
+      async () => ({ bots: [entry('translator')] }),
+      async ({ host }) => {
+        expect(host.querySelector('[data-market-daily-picks]')).not.toBeNull();
+        const search = host.querySelector<HTMLInputElement>('input[type="search"]')!;
+        await act(async () => {
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+            search,
+            'translator',
+          );
+          search.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        await act(async () => {
+          search.dispatchEvent(
+            new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+          );
+        });
+        expect(host.querySelector('[data-market-daily-picks]')).toBeNull();
+      },
+      { marketplaceDigests: digests },
+    );
+  });
+
+  it('opens on the Hot, New and Rising rows and hides an empty row', async () => {
+    const sections = vi.fn(async () => [
+      { section: 'hot', day: '2026-10-28', entries: [{ bot: entry('popular'), score: 4 }] },
+      { section: 'new', day: '2026-10-28', entries: [] },
+      { section: 'rising', day: '2026-10-28', entries: [{ bot: entry('climber'), score: 3 }] },
+    ]);
+    await withPanel(
+      async () => ({ bots: [entry('helper')] }),
+      async ({ host, actions }) => {
+        expect(sections).toHaveBeenCalledWith('zh');
+        const rows = [...host.querySelectorAll('[data-market-section]')];
+        expect(rows.map((row) => row.getAttribute('data-market-section'))).toEqual([
+          'hot',
+          'rising',
+        ]);
+        expect(rows.map((row) => row.querySelector('h3')?.textContent)).toEqual([
+          '热门',
+          '上升最快',
+        ]);
+        expect(rows[0]!.querySelector('[data-market-bot]')?.getAttribute('data-market-bot')).toBe(
+          'alice/popular',
+        );
+        expect([...rows[0]!.querySelectorAll('button')].at(-1)?.textContent).toBe('导入');
+        expect(actions['telemetryEvent']!.mock.calls).toEqual([['marketplace:section_view']]);
+      },
+      { marketplaceSections: sections },
+    );
+  });
+
+  it('shows Hot as banner posters and New and Rising as compact cards', async () => {
+    const author = { name: 'Alice', id: 'k3x9q2', avatar: null };
+    const sections = vi.fn(async () => [
+      {
+        section: 'hot',
+        day: '2026-10-28',
+        entries: [
+          {
+            bot: entry('popular', {
+              installs: 1200,
+              banner: { recipe: { scene: 'sea', seed: 1 } },
+            } as Partial<MarketplaceEntry>),
+            score: 4,
+          },
+          { bot: entry('plain'), score: 2 },
+        ],
+      },
+      {
+        section: 'new',
+        day: '2026-10-28',
+        entries: [
+          {
+            bot: entry('fresh', {
+              id: 'U_fresh',
+              displayName: 'Fresh',
+              fullName: 'Alice/Fresh',
+              source: 'upload',
+              author,
+              installs: 3,
+            }),
+            score: 1,
+          },
+        ],
+      },
+      { section: 'rising', day: '2026-10-28', entries: [{ bot: entry('climber'), score: 3 }] },
+    ]);
+    await withPanel(
+      async () => ({ bots: [] }),
+      async ({ host }) => {
+        const row = (name: string) => host.querySelector(`[data-market-section="${name}"]`)!;
+        const cards = (name: string) =>
+          [...row(name).querySelectorAll('[data-market-card]')].map((card) =>
+            card.getAttribute('data-market-card'),
+          );
+        expect(cards('hot')).toEqual(['poster', 'poster']);
+        expect(cards('new')).toEqual(['compact']);
+        expect(cards('rising')).toEqual(['compact']);
+
+        const poster = row('hot').querySelector('[data-market-bot="alice/popular"]')!;
+        expect(
+          poster.querySelector('[data-market-banner]')?.getAttribute('data-market-banner'),
+        ).toBe('shown');
+        expect(poster.querySelector('[data-market-avatar]')).not.toBeNull();
+        expect(
+          poster.querySelector('[data-market-installs]')?.getAttribute('data-market-installs'),
+        ).toBe('1200');
+        expect(poster.textContent).not.toContain('popular description');
+        expect(
+          row('hot')
+            .querySelector('[data-market-bot="alice/plain"] [data-market-banner]')
+            ?.getAttribute('data-market-banner'),
+        ).toBe('none');
+
+        const compact = row('new').querySelector('[data-market-bot="Alice/Fresh"]')!;
+        expect(compact.querySelector('[data-market-author]')?.textContent).toBe('Alice #k3x9q2');
+        expect(compact.textContent).toContain('fresh description');
+        expect(
+          compact.querySelector('[data-market-installs]')?.getAttribute('data-market-installs'),
+        ).toBe('3');
+        expect(compact.querySelector('[data-market-banner]')).toBeNull();
+        expect(row('rising').querySelector('[data-market-author]')?.textContent).toBe(
+          'alice/climber',
+        );
+        expect(
+          [...host.querySelectorAll('[data-market-see-all]')].map((link) => link.textContent),
+        ).toEqual(['查看全部', '查看全部', '查看全部']);
+      },
+      { marketplaceSections: sections },
+    );
+  });
+
+  it('opens every entry of a ranking from See all and goes back to the home', async () => {
+    const climbers = ['climber', 'sprinter', 'jumper'].map((name, index) => ({
+      bot: entry(name),
+      score: 3 - index,
+    }));
+    const sections = vi.fn(async () => [
+      { section: 'hot', day: '2026-10-28', entries: [] },
+      { section: 'new', day: '2026-10-28', entries: [{ bot: entry('fresh'), score: 1 }] },
+      { section: 'rising', day: '2026-10-28', entries: climbers },
+    ]);
+    await withPanel(
+      async () => ({ bots: [entry('helper')] }),
+      async ({ host, actions }) => {
+        expect(host.querySelector('[data-market-section="hot"]')).toBeNull();
+        const home = host.querySelector<HTMLElement>('.bh-market-page')!;
+        const rising = host.querySelector('[data-market-section="rising"]')!;
+        await act(async () =>
+          rising.querySelector<HTMLButtonElement>('[data-market-see-all="rising"]')!.click(),
+        );
+        const page = host.querySelector<HTMLElement>('[data-market-page="ranking"]')!;
+        expect(page.getAttribute('aria-label')).toBe('上升最快');
+        expect(home.hidden).toBe(true);
+        const grid = page.querySelector('.bh-market-grid[data-market-ranking="rising"]')!;
+        expect(
+          [...grid.querySelectorAll('[data-market-bot]')].map((tile) =>
+            tile.getAttribute('data-market-bot'),
+          ),
+        ).toEqual(['alice/climber', 'alice/sprinter', 'alice/jumper']);
+
+        await act(async () => button(page, '查看 alice/sprinter 详情').click());
+        expect(actions['telemetryEvent']).toHaveBeenLastCalledWith('marketplace:bot_open', {
+          entry: 'rising',
+          step: 'detail',
+        });
+        expect(host.querySelector('[data-market-page="bot"]')).not.toBeNull();
+        expect(page.getAttribute('aria-hidden')).toBe('true');
+        await act(async () =>
+          button(host.querySelector<HTMLElement>('[data-market-page="bot"]')!, '返回').click(),
+        );
+        expect(host.querySelector('[data-market-page="bot"]')).toBeNull();
+        expect(host.querySelector('[data-market-page="ranking"]')).toBe(page);
+
+        const imports = [...grid.querySelectorAll('button')].filter(
+          (item) => item.textContent === '导入',
+        );
+        await act(async () => imports[2]!.click());
+        expect(actions['telemetryEvent']).toHaveBeenLastCalledWith('marketplace:bot_open', {
+          entry: 'rising',
+          step: 'install',
+        });
+        expect(host.querySelector('h1')?.textContent).toBe('安装 jumper');
+        await act(async () => button(host.querySelector('[data-dialog]')!, '返回').click());
+
+        await act(async () => button(page, '返回').click());
+        expect(host.querySelector('[data-market-page="ranking"]')).toBeNull();
+        expect(home.hidden).toBe(false);
+        expect(host.querySelector('.bh-market-page')).toBe(home);
+        expect(home.querySelector('[data-market-section="rising"]')).toBe(rising);
+      },
+      {
+        marketplaceSections: sections,
+        marketplaceInstallReview: vi.fn(() => new Promise(() => undefined)),
+        marketplaceDetail: vi.fn(async () => ({
+          bot: climbers[1]!.bot,
+          readme: null,
+          readmeLanguage: null,
+          commitSha: null,
+          files: [],
+        })),
+      },
+    );
+  });
+
+  it('sends the ranking name when a Bot is opened or imported from a home row', async () => {
+    const sections = vi.fn(async () => [
+      { section: 'hot', day: '2026-10-28', entries: [{ bot: entry('popular'), score: 4 }] },
+      { section: 'new', day: '2026-10-28', entries: [{ bot: entry('fresh'), score: 1 }] },
+    ]);
+    await withPanel(
+      async () => ({ bots: [] }),
+      async ({ host, actions }) => {
+        const hot = host.querySelector<HTMLElement>('[data-market-section="hot"]')!;
+        await act(async () => button(hot, '导入').click());
+        expect(actions['telemetryEvent']).toHaveBeenLastCalledWith('marketplace:bot_open', {
+          entry: 'hot',
+          step: 'install',
+        });
+        await act(async () => button(host.querySelector('[data-dialog]')!, '返回').click());
+        const fresh = host.querySelector<HTMLElement>('[data-market-section="new"]')!;
+        await act(async () => button(fresh, '查看 alice/fresh 详情').click());
+        expect(actions['telemetryEvent']).toHaveBeenLastCalledWith('marketplace:bot_open', {
+          entry: 'new',
+          step: 'detail',
+        });
+        expect(host.querySelector('[data-market-page="bot"]')).not.toBeNull();
+      },
+      {
+        marketplaceSections: sections,
+        marketplaceInstallReview: vi.fn(() => new Promise(() => undefined)),
+        marketplaceDetail: vi.fn(() => new Promise(() => undefined)),
+      },
+    );
+  });
+
   it('defaults to stars and remembers each explicit sort after reopening', async () => {
     await withPanel(
       async () => ({ bots: [] }),
       async ({ host, list }) => {
-        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh' });
+        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh', includeUploads: true });
         expect(button(host, '最多 Star').getAttribute('aria-selected')).toBe('true');
         await click(host, '最新创建');
       },
@@ -174,21 +645,60 @@ describe('Market panel', () => {
     await withPanel(
       async () => ({ bots: [] }),
       async ({ host, list }) => {
-        expect(list).toHaveBeenLastCalledWith({ sort: 'created', lang: 'zh' });
+        expect(list).toHaveBeenLastCalledWith({
+          sort: 'created',
+          lang: 'zh',
+          includeUploads: true,
+        });
         await click(host, '最近更新');
       },
     );
     await withPanel(
       async () => ({ bots: [] }),
       async ({ host, list }) => {
-        expect(list).toHaveBeenLastCalledWith({ sort: 'updated', lang: 'zh' });
+        expect(list).toHaveBeenLastCalledWith({
+          sort: 'updated',
+          lang: 'zh',
+          includeUploads: true,
+        });
         await click(host, '最多 Star');
       },
     );
     await withPanel(
       async () => ({ bots: [] }),
       async ({ list }) => {
-        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh' });
+        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh', includeUploads: true });
+      },
+    );
+  });
+
+  it('keeps every sort reachable from a menu when the panel is too narrow for the tabs', async () => {
+    expect(CSS).toMatch(
+      /@container bh-market \(max-width: 380px\) \{\s*\.bh-market-sort > \[role='tablist'\] \{ display: none; \}\s*\.bh-market-sort-menu \{ display: flex; \}/u,
+    );
+    await withPanel(
+      async () => ({ bots: [] }),
+      async ({ host, list }) => {
+        const menu = host.querySelector<HTMLButtonElement>(
+          '.bh-market-sort-menu > button[aria-label="排序"]',
+        )!;
+        expect(menu.textContent).toBe('最多 Star');
+        await act(async () => menu.click());
+        const items = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')];
+        expect(items.map((item) => item.textContent)).toEqual([
+          '最新创建',
+          '最近更新',
+          '最多 Star',
+        ]);
+        expect(items[2]?.getAttribute('aria-checked')).toBe('true');
+        await act(async () => items[1]!.click());
+        expect(list).toHaveBeenLastCalledWith({
+          sort: 'updated',
+          lang: 'zh',
+          includeUploads: true,
+        });
+        expect(menu.textContent).toBe('最近更新');
+        expect(button(host, '最近更新').getAttribute('aria-selected')).toBe('true');
       },
     );
   });
@@ -198,7 +708,7 @@ describe('Market panel', () => {
     await withPanel(
       async () => ({ bots: [] }),
       async ({ list }) => {
-        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh' });
+        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh', includeUploads: true });
       },
     );
     const read = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
@@ -211,9 +721,17 @@ describe('Market panel', () => {
       await withPanel(
         async () => ({ bots: [] }),
         async ({ host, list }) => {
-          expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh' });
+          expect(list).toHaveBeenLastCalledWith({
+            sort: 'stars',
+            lang: 'zh',
+            includeUploads: true,
+          });
           await click(host, '最新创建');
-          expect(list).toHaveBeenLastCalledWith({ sort: 'created', lang: 'zh' });
+          expect(list).toHaveBeenLastCalledWith({
+            sort: 'created',
+            lang: 'zh',
+            includeUploads: true,
+          });
         },
       );
     } finally {
@@ -245,6 +763,32 @@ describe('Market panel', () => {
     );
   });
 
+  it('shows the avatar each Bot shares instead of one seeded from its name', async () => {
+    const image = 'https://raw.githubusercontent.com/alice/photo/main/.botharness/avatar.png';
+    await withPanel(
+      async () => ({
+        bots: [
+          entry('photo', { avatar: { image } }),
+          entry('drawn', { avatar: { recipe: DEFAULT_ILLUSTRATED_RECIPE } }),
+          entry('none'),
+        ],
+      }),
+      async ({ host }) => {
+        const avatars = [...host.querySelectorAll('.bh-market-tile [data-market-avatar]')];
+        expect(avatars.map((avatar) => avatar.getAttribute('data-market-avatar'))).toEqual([
+          'image',
+          'recipe',
+          'seeded',
+        ]);
+        expect(avatars[0]?.querySelector('[data-src]')?.getAttribute('data-src')).toBe(image);
+        expect(avatars[1]?.querySelector('[data-recipe]')?.getAttribute('data-recipe')).toBe(
+          JSON.stringify(DEFAULT_ILLUSTRATED_RECIPE),
+        );
+        expect(avatars[2]?.querySelector('[data-src]')).toBeNull();
+      },
+    );
+  });
+
   it('registers as a global dock panel', () => {
     const panel = createMarketPanel({} as BridgeActions, {} as DockPanelRegistry, zhTranslate);
     expect(panel).toMatchObject({
@@ -253,9 +797,11 @@ describe('Market panel', () => {
       icon: 'store',
       scope: 'global',
     });
+    expect(panel.headerAction).toBeDefined();
   });
 
   it('shows a flat grid, sorts by creation time and searches only on Enter', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-04T08:00:00Z'));
     await withPanel(
       async (query) =>
         query?.q !== undefined
@@ -265,17 +811,21 @@ describe('Market panel', () => {
             : { bots: [entry('fresh')] },
       async ({ host, list }) => {
         expect(host.querySelectorAll('.bh-market-grid [role="listitem"]')).toHaveLength(1);
-        expect(host.textContent).toContain('更新于 2026-10-01');
+        expect(host.textContent).toContain('更新于 3 天前');
 
         await click(host, '最新创建');
 
-        expect(list).toHaveBeenLastCalledWith({ sort: 'created', lang: 'zh' });
+        expect(list).toHaveBeenLastCalledWith({
+          sort: 'created',
+          lang: 'zh',
+          includeUploads: true,
+        });
         expect(
           [...host.querySelectorAll('[data-market-bot]')].map((tile) =>
             tile.getAttribute('data-market-bot'),
           ),
         ).toEqual(['alice/newest', 'alice/older']);
-        expect(host.textContent).toContain('创建于 2026-03-05');
+        expect(host.textContent).toContain('创建于 213 天前');
 
         const search = host.querySelector<HTMLInputElement>('input[type="search"]')!;
         await act(async () => {
@@ -293,38 +843,121 @@ describe('Market panel', () => {
           );
         });
 
-        expect(list).toHaveBeenLastCalledWith({ sort: 'created', lang: 'zh', q: 'translator' });
+        expect(list).toHaveBeenLastCalledWith({
+          sort: 'created',
+          lang: 'zh',
+          includeUploads: true,
+          q: 'translator',
+        });
         expect(host.textContent).toContain('translator description');
       },
     );
   });
 
-  it('imports a Bot through the install confirmation and shows its conversation', async () => {
+  it('shows what Tob found before installing, and installs only after the Human continues', async () => {
+    const review = vi.fn(async () => ({
+      reviewId: 'review-1',
+      listing: entry('helper'),
+      review: {
+        status: 'reviewed',
+        findings: [
+          {
+            kind: 'exfiltration',
+            path: 'SOUL.md',
+            note: '让 Bot 把 ~/.ssh 发到外部邮箱。',
+          },
+          { kind: 'script', path: 'tools/run.sh' },
+        ],
+        files: 3,
+        read: 2,
+        partial: false,
+      },
+    }));
+    const install = vi.fn(async () => bot('helper'));
     await withPanel(
       async () => ({ bots: [entry('helper')] }),
       async ({ host, actions, registry }) => {
         await click(host, '导入');
         expect(host.querySelector('h1')?.textContent).toBe('安装 helper');
-        expect(host.textContent).toContain('这是第三方仓库');
+        expect(review).toHaveBeenCalledWith('R_helper', 'zh');
+        expect(host.textContent).toContain('Tob 发现 2 处需要留意');
+        const findings = [...host.querySelectorAll('[data-market-finding]')];
+        expect(findings.map((item) => item.getAttribute('data-market-finding'))).toEqual([
+          'exfiltration',
+          'script',
+        ]);
+        expect(findings[0]!.textContent).toContain(
+          '外发数据SOUL.md让 Bot 把 ~/.ssh 发到外部邮箱。',
+        );
 
-        await click(host, '确认安装');
+        await click(host, '仍然安装');
 
-        expect(actions['createBot']).toHaveBeenCalledWith({
-          displayName: 'helper',
-          gitUrl: 'https://github.com/alice/helper.git',
-          roles: [],
-          origin: 'marketplace',
-          description: 'helper description',
+        expect(install).toHaveBeenCalledWith('R_helper', 'review-1', undefined, 'list');
+        expect(actions['telemetryEvent']).toHaveBeenCalledWith('marketplace:bot_open', {
+          entry: 'list',
+          step: 'install',
         });
+        expect(actions['createBot']).not.toHaveBeenCalled();
         expect(registry.open).toHaveBeenCalledWith(CHANNEL_BODY_PANEL);
         expect(host.querySelector('h1')).toBeNull();
         expect(host.querySelector('[data-market-panel]')).not.toBeNull();
       },
+      { marketplaceInstallReview: review, marketplaceInstall: install },
     );
   });
 
-  it('hands publishing to the chosen Bot by drafting the share prompt into its DM', async () => {
-    drafts.appended.length = 0;
+  it('leaves no Bot behind when the Human goes back from the review', async () => {
+    const install = vi.fn(async () => bot('helper'));
+    await withPanel(
+      async () => ({ bots: [entry('helper')] }),
+      async ({ host }) => {
+        await click(host, '导入');
+        await click(host, '返回');
+        expect(install).not.toHaveBeenCalled();
+        expect(host.querySelector('[data-market-panel]')).not.toBeNull();
+      },
+      {
+        marketplaceInstallReview: vi.fn(async () => ({
+          reviewId: 'review-1',
+          listing: entry('helper'),
+          review: {
+            status: 'reviewed',
+            findings: [{ kind: 'prompt-injection', path: 'SOUL.md' }],
+            files: 1,
+            read: 1,
+            partial: false,
+          },
+        })),
+        marketplaceInstall: install,
+      },
+    );
+  });
+
+  it('says when Tob could not review and lets the Human install anyway', async () => {
+    const install = vi.fn(async () => bot('helper'));
+    await withPanel(
+      async () => ({ bots: [entry('helper')] }),
+      async ({ host }) => {
+        await click(host, '导入');
+        expect(host.querySelector('[data-market-review]')?.getAttribute('data-market-review')).toBe(
+          'unavailable',
+        );
+        expect(host.textContent).toContain('Tob 没能检查这个 Bot');
+        await click(host, '不检查直接安装');
+        expect(install).toHaveBeenCalledWith('R_helper', 'review-3', undefined, 'list');
+      },
+      {
+        marketplaceInstallReview: vi.fn(async () => ({
+          reviewId: 'review-3',
+          listing: entry('helper'),
+          review: { status: 'unavailable', reason: 'no-model', findings: [], files: 1 },
+        })),
+        marketplaceInstall: install,
+      },
+    );
+  });
+
+  it('hands the Share Draft check to Tob in its DM', async () => {
     store.setRoster(
       [
         bot('writer', { displayName: 'Writer' }),
@@ -333,29 +966,515 @@ describe('Market panel', () => {
       ],
       [],
     );
+    const start = vi.fn(async () => draftView('reviewing'));
+    const sendHome = vi.fn(async () => undefined);
     await withPanel(
       async () => ({ bots: [] }),
-      async ({ host, actions, registry }) => {
+      async ({ host, registry }) => {
         await click(host, '上传 Bot');
-        const rows = [...host.querySelectorAll('.bh-market-upload-bot')];
-        expect(rows.map((row) => row.textContent)).toEqual(['Writer交给它发布']);
-
-        await click(host, '让 Writer 发布到市场');
-
-        expect(actions['openBot']).toHaveBeenCalledWith('writer');
-        expect(drafts.appended).toEqual([['dm-scope', MARKET_SHARE_PROMPT.zh]]);
+        await click(host, '分享 Bot');
+        const choices = [...host.querySelectorAll('[role="listitem"] button')];
+        expect(choices.map((choice) => choice.getAttribute('aria-label'))).toEqual(['Writer']);
+        await click(host, 'Writer');
+        expect(host.querySelector('[data-market-draft-meta]')?.textContent).toBe(
+          'Tob 会逐个文件问你，原文件不会改动。',
+        );
+        await click(host, '让 Tob 检查');
+        expect(start).toHaveBeenCalledWith('writer');
+        expect(sendHome).toHaveBeenCalledWith(
+          'tob-dm',
+          expect.stringContaining('（Bot ID：writer）'),
+          expect.stringMatching(/^human-/u),
+        );
         expect(registry.open).toHaveBeenCalledWith(CHANNEL_BODY_PANEL);
         expect(host.querySelector('[data-market-upload]')).toBeNull();
+      },
+      {
+        shareDraftGet: vi.fn(async () => undefined),
+        shareDraftStart: start,
+        tobHome: vi.fn(async () => ({ botSlug: 'tob', channelId: 'tob-dm' })),
+        sendHome,
       },
     );
   });
 });
 
-describe('Market share prompt', () => {
-  it('is the prompt the Share a Bot guide publishes', () => {
-    const block = (path: string) =>
-      /```text\n([\s\S]*?)\n```/u.exec(readFileSync(new URL(path, import.meta.url), 'utf8'))?.[1];
-    expect(MARKET_SHARE_PROMPT.zh).toBe(block('../../../docs/share-bot.zh.md'));
-    expect(MARKET_SHARE_PROMPT.en).toBe(block('../../../docs/share-bot.md'));
+describe('Uploaded Bots in the Market panel', () => {
+  const author = { name: 'Alice', id: 'k3x9q2', termsAcceptedAt: '2026-10-27T00:00:00Z' };
+  const uploaded = entry('helper', {
+    id: 'U_helper',
+    owner: 'Alice',
+    displayName: 'Helper',
+    fullName: 'Alice/Helper',
+    htmlUrl: 'https://market.botharness.ai/v1/bots/U_helper',
+    cloneUrl: '',
+    stars: 0,
+    source: 'upload',
+    author: {
+      name: 'Alice',
+      id: 'k3x9q2',
+      avatar: 'https://market.botharness.ai/v1/authors/k3x9q2/avatar/a.webp',
+    },
+  });
+
+  it('uploads a checked draft after the author signs up', async () => {
+    store.setRoster(
+      [bot('writer', { displayName: 'Writer', description: 'Writes', roles: ['writing'] })],
+      [],
+    );
+    const account = vi.fn(async () => ({ signedIn: true, email: 'a@example.com', author: null }));
+    const save = vi.fn(async () => ({ ...author, name: '爱丽丝' }));
+    const plan = vi.fn(async () => ({
+      files: [{ path: 'SOUL.md', size: 10, kind: 'text' }],
+      skipped: [{ path: 'tool.exe', reason: 'file-type-refused' }],
+      totalBytes: 10,
+    }));
+    const upload = vi.fn(async () => ({ bot: uploaded, skipped: [] }));
+    await withPanel(
+      async () => ({ bots: [] }),
+      async ({ host }) => {
+        await click(host, '上传 Bot');
+        await click(host, '分享 Bot');
+        await click(host, 'Writer');
+        expect(host.querySelector('[data-market-draft-meta]')?.textContent).toBe(
+          '保留 2 · 改写 1 · 删除 1',
+        );
+        await click(host, '下一步');
+        expect(host.querySelector('[aria-current="step"]')?.textContent).toBe('3去向');
+        await click(host, 'Tobs 市场');
+        const nameInput = host.querySelector<HTMLInputElement>(
+          '[data-market-direct="account"] input',
+        )!;
+        await act(async () => {
+          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+          setter.call(nameInput, '爱丽丝');
+          nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        expect(button(host, '继续').disabled).toBe(true);
+        await act(async () =>
+          host
+            .querySelector<HTMLElement>('[data-market-direct="account"] input[type="checkbox"]')!
+            .click(),
+        );
+        await click(host, '继续');
+        expect(save).toHaveBeenCalledWith('爱丽丝', true);
+        const form = host.querySelector('[data-market-direct="details"]')!;
+        const values = [
+          ...form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea'),
+        ].map((field) => field.value);
+        expect(values).toEqual(['Writer', 'Writes', 'writing']);
+        await click(host, '下一步');
+        const review = host.querySelector('[data-market-direct="review"]')!;
+        expect(review.textContent).toContain('爱丽丝 #k3x9q2 · 1 个文件，10 B');
+        expect(review.textContent).toContain('不会上传：tool.exe');
+        await click(host, '上传');
+        expect(upload).toHaveBeenCalledWith('writer', {
+          displayName: 'Writer',
+          bio: 'Writes',
+          tags: ['writing'],
+        });
+        expect(host.querySelector('[data-market-upload]')).toBeNull();
+        expect(host.querySelector('[data-market-bot="Alice/Helper"]')?.textContent).toContain(
+          'Alice #k3x9q2',
+        );
+      },
+      {
+        shareDraftGet: vi.fn(async () => draftView('ready')),
+        marketplaceAccount: account,
+        marketplaceAuthorSave: save,
+        marketplaceUploadPlan: plan,
+        marketplaceUpload: upload,
+      },
+    );
+  });
+
+  it('opens on the check step for a preselected Bot', async () => {
+    store.setRoster([bot('writer', { displayName: 'Writer' })], []);
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    const get = vi.fn(async () => draftView('reviewing'));
+    const actions = {
+      marketplaceAccount: vi.fn(async () => ({ signedIn: true, author })),
+      shareDraftGet: get,
+    };
+    try {
+      await act(async () =>
+        root.render(
+          createElement(MarketUploadDialog, {
+            actions: actions as unknown as BridgeActions,
+            registry: { open: vi.fn() } as unknown as DockPanelRegistry,
+            t: zhTranslate,
+            onListed: vi.fn(),
+            onClose: vi.fn(),
+            initialSlug: 'writer',
+          }),
+        ),
+      );
+      expect(host.querySelector('[data-market-direct]')?.getAttribute('data-market-direct')).toBe(
+        'draft',
+      );
+      expect(host.querySelector('[aria-current="step"]')?.textContent).toBe('2检查');
+      expect(get).toHaveBeenCalledWith('writer');
+      expect(host.querySelector('[data-market-draft-meta]')?.textContent).toBe('已检查 3/4');
+      expect(button(host, '回到 Tob')).toBeDefined();
+      await click(host, '返回');
+      expect(host.querySelector('[data-market-direct]')).toBeNull();
+      expect(button(host, '分享 Bot')).toBeDefined();
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+    }
+  });
+
+  it('lists my uploads, updates one through the upload steps and deletes another after a confirm', async () => {
+    store.setRoster([bot('writer', { displayName: 'Writer' })], []);
+    const other = entry('notes', { ...uploaded, id: 'U_notes', displayName: 'Notes' });
+    const mine = vi.fn(async () => [
+      { bot: uploaded, files: 3, bytes: 2048, blocked: false },
+      { bot: other, files: 1, bytes: 10, blocked: true },
+    ]);
+    const plan = vi.fn(async () => ({
+      files: [{ path: 'SOUL.md', size: 10, kind: 'text' }],
+      skipped: [],
+      totalBytes: 10,
+    }));
+    const replaced = { ...uploaded, displayName: 'Helper', pushedAt: '2026-10-27T09:00:00Z' };
+    const upload = vi.fn(async () => ({ bot: replaced, skipped: [] }));
+    const remove = vi.fn(async () => undefined);
+    await withPanel(
+      async () => ({ bots: [uploaded, other] }),
+      async ({ host }) => {
+        await click(host, '我上传的');
+        const rows = [...host.querySelectorAll('[data-market-mine-bot]')];
+        expect(rows.map((row) => row.getAttribute('data-market-mine-bot'))).toEqual([
+          'U_helper',
+          'U_notes',
+        ]);
+        expect(rows[0]?.textContent).toContain('3 个文件 · 2.0 KB · 2026-10-01');
+        expect(rows[1]?.textContent).toContain('已下架');
+
+        await click(host, '更新 Helper');
+        expect(document.body.textContent).toContain('更新 Helper');
+        expect(host.querySelector('[aria-current="step"]')?.textContent).toBe('1选择 Bot');
+        expect(host.querySelectorAll('[aria-label="上传步骤"] li')).toHaveLength(5);
+        await click(host, 'Writer');
+        expect(host.querySelector('[data-market-direct="draft"]')).not.toBeNull();
+        await click(host, '下一步');
+        expect(plan).toHaveBeenCalledWith('writer');
+        const values = [
+          ...host
+            .querySelector('[data-market-direct="details"]')!
+            .querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea'),
+        ].map((field) => field.value);
+        expect(values).toEqual(['Helper', 'helper description', '']);
+        await click(host, '下一步');
+        const review = host.querySelector('[data-market-direct="review"]')!;
+        expect(review.textContent).toContain('1 个文件，10 B');
+        await click(host, '替换全部文件');
+        expect(upload).toHaveBeenCalledWith('writer', {
+          displayName: 'Helper',
+          bio: 'helper description',
+          tags: [],
+          replaces: 'U_helper',
+        });
+        expect(host.querySelector('[data-market-upload]')).toBeNull();
+        expect(host.querySelector('[data-market-mine="list"]')).not.toBeNull();
+
+        await click(host, '删除 Notes');
+        expect(host.textContent).toContain('已安装的副本不受影响');
+        await act(async () => host.querySelector('form')!.requestSubmit());
+        expect(remove).toHaveBeenCalledWith('U_notes');
+        expect(host.querySelector('[data-market-mine-bot="U_notes"]')).toBeNull();
+        expect(host.querySelector('[data-market-bot="Alice/Notes"]')).toBeNull();
+      },
+      {
+        marketplaceAccount: vi.fn(async () => ({ signedIn: true, author })),
+        marketplaceMine: mine,
+        shareDraftGet: vi.fn(async () => draftView('ready')),
+        marketplaceUploadPlan: plan,
+        marketplaceUpload: upload,
+        marketplaceDelete: remove,
+      },
+    );
+  });
+
+  it('marks an installed Uploaded Bot whose author updated it', async () => {
+    await withPanel(
+      async () => ({
+        bots: [{ ...uploaded, installed: { bots: ['helper-copy'], authorUpdated: true } }],
+      }),
+      async ({ host }) => {
+        const tile = host.querySelector('[data-market-bot="Alice/Helper"]')!;
+        expect(tile.querySelector('[data-market-author-updated]')?.textContent).toBe('作者已更新');
+      },
+    );
+  });
+
+  it('asks a signed-out user to register before sharing a preselected Bot', async () => {
+    store.setRoster([bot('writer', { displayName: 'Writer' })], []);
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    const actions = {
+      marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
+      marketplaceUploadPlan: vi.fn(async () => ({ files: [], skipped: [], totalBytes: 0 })),
+      shareDraftGet: vi.fn(async () => draftView('ready')),
+    };
+    try {
+      await act(async () =>
+        root.render(
+          createElement(MarketUploadDialog, {
+            actions: actions as unknown as BridgeActions,
+            registry: { open: vi.fn() } as unknown as DockPanelRegistry,
+            t: zhTranslate,
+            onListed: vi.fn(),
+            onClose: vi.fn(),
+            initialSlug: 'writer',
+          }),
+        ),
+      );
+      await click(host, '下一步');
+      await click(host, 'Tobs 市场');
+      expect(host.querySelector('[data-market-direct]')?.getAttribute('data-market-direct')).toBe(
+        'account',
+      );
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+    }
+  });
+
+  it('retries the account when the Market refuses a signed-in user', async () => {
+    store.setRoster([bot('writer', { displayName: 'Writer' })], []);
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    const account = vi
+      .fn()
+      .mockRejectedValueOnce(new BridgeCallError('sign-in-rejected', 'refused'))
+      .mockResolvedValue({ signedIn: false, author: null });
+    const actions = {
+      marketplaceAccount: account,
+      marketplaceUploadPlan: vi.fn(async () => ({ files: [], skipped: [], totalBytes: 0 })),
+      shareDraftGet: vi.fn(async () => draftView('ready')),
+    };
+    try {
+      await act(async () =>
+        root.render(
+          createElement(MarketUploadDialog, {
+            actions: actions as unknown as BridgeActions,
+            registry: { open: vi.fn() } as unknown as DockPanelRegistry,
+            t: zhTranslate,
+            onListed: vi.fn(),
+            onClose: vi.fn(),
+            initialSlug: 'writer',
+          }),
+        ),
+      );
+      await click(host, '下一步');
+      await click(host, 'Tobs 市场');
+      expect(host.textContent).toContain(zhTranslate('market.error.signInRejected'));
+      await click(host, zhTranslate('market.retry'));
+      expect(account).toHaveBeenCalledTimes(2);
+      expect(host.textContent).toContain(zhTranslate('market.direct.signInHint'));
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+    }
+  });
+
+  it('hands a ready draft to Tob for a GitHub push', async () => {
+    store.setRoster([bot('writer', { displayName: 'Writer' })], []);
+    const exported = vi.fn(async () => ({ path: '/tob/share-exports/writer', files: 3 }));
+    const sendHome = vi.fn(async () => undefined);
+    await withPanel(
+      async () => ({ bots: [] }),
+      async ({ host }) => {
+        await click(host, '上传 Bot');
+        await click(host, '分享 Bot');
+        await click(host, 'Writer');
+        await click(host, '下一步');
+        await click(host, '我的 GitHub');
+        expect(host.querySelector('[aria-current="step"]')?.textContent).toBe('4GitHub');
+        await click(host, '让 Tob 推送');
+        expect(exported).toHaveBeenCalledWith('writer');
+        expect(sendHome).toHaveBeenCalledWith(
+          'tob-dm',
+          expect.stringContaining('/tob/share-exports/writer'),
+          expect.stringMatching(/^human-/u),
+        );
+        expect(host.querySelector('[data-market-upload]')).toBeNull();
+      },
+      {
+        shareDraftGet: vi.fn(async () => draftView('ready')),
+        shareDraftExport: exported,
+        tobHome: vi.fn(async () => ({ botSlug: 'tob', channelId: 'tob-dm' })),
+        sendHome,
+      },
+    );
+  });
+
+  it('shows the author and folder tree, and installs an Uploaded Bot through the Host', async () => {
+    const install = vi.fn(async () => bot('helper-copy'));
+    await withPanel(
+      async () => ({ bots: [uploaded] }),
+      async ({ host, actions, registry }) => {
+        const tile = host.querySelector('[data-market-bot="Alice/Helper"]')!;
+        expect(tile.textContent).toContain('Alice #k3x9q2');
+        expect(tile.querySelector('[data-market-author-avatar]')?.getAttribute('src')).toBe(
+          'https://market.botharness.ai/v1/authors/k3x9q2/avatar/a.webp',
+        );
+        expect(tile.textContent).not.toContain('★');
+        await click(host, '查看 Alice/Helper 详情');
+        const files = host.querySelector('[data-market-files]')!;
+        expect(files.getAttribute('data-market-files')).toBe('3');
+        expect(files.querySelector('[data-market-folder="tools"]')?.textContent).toContain(
+          'run.sh',
+        );
+        expect(files.textContent).toContain('脚本');
+        expect(host.querySelector('.bh-market-github')).toBeNull();
+        await click(host, '安装');
+        expect(host.querySelector('[data-market-author]')?.textContent).toBe('Alice #k3x9q2');
+        expect(host.querySelector('[data-market-author] img')).not.toBeNull();
+        expect(host.textContent).toContain('Tob 没发现风险');
+        await click(host, '确认安装');
+        expect(install).toHaveBeenCalledWith('U_helper', 'review-2', undefined, 'list');
+        expect(actions['createBot']).not.toHaveBeenCalled();
+        expect(registry.open).toHaveBeenCalledWith(CHANNEL_BODY_PANEL);
+      },
+      {
+        marketplaceInstall: install,
+        marketplaceInstallReview: vi.fn(async () => ({
+          reviewId: 'review-2',
+          listing: uploaded,
+          review: { status: 'reviewed', findings: [], files: 3, read: 2, partial: false },
+        })),
+        marketplaceDetail: vi.fn(async () => ({
+          bot: uploaded,
+          readme: null,
+          readmeLanguage: null,
+          commitSha: null,
+          files: [
+            { path: 'SOUL.md', size: 20, kind: 'text' },
+            { path: 'tools/run.sh', size: 8, kind: 'script' },
+            { path: '.botharness/avatar.png', size: 2048, kind: 'image' },
+          ],
+        })),
+      },
+    );
+  });
+
+  it('opens a Bot detail in the panel body and steps back to the list it left', async () => {
+    await withPanel(
+      async () => ({ bots: [uploaded] }),
+      async ({ host, actions }) => {
+        const home = host.querySelector<HTMLElement>('.bh-market-page')!;
+        await click(host, '查看 Alice/Helper 详情');
+        expect(actions['telemetryEvent']).toHaveBeenCalledWith('marketplace:bot_open', {
+          entry: 'list',
+          step: 'detail',
+        });
+        const page = host.querySelector('[data-market-page="bot"]')!;
+        expect(page.getAttribute('aria-label')).toBe('Helper');
+        expect(home.hidden).toBe(true);
+        expect(host.querySelector('[role="dialog"]')).toBeNull();
+        await click(host, '安装');
+        expect(host.querySelector('[data-market-install]')).not.toBeNull();
+        const backs = [...host.querySelectorAll('button')].filter(
+          (item) => item.textContent === '返回',
+        );
+        await act(async () => backs.at(-1)!.click());
+        expect(host.querySelector('[data-market-install]')).toBeNull();
+        expect(host.querySelector('[data-market-page="bot"]')).toBe(page);
+        await click(host, '返回');
+        expect(host.querySelector('[data-market-page="bot"]')).toBeNull();
+        expect(home.hidden).toBe(false);
+        expect(host.querySelector('.bh-market-page')).toBe(home);
+      },
+      {
+        marketplaceInstallReview: vi.fn(async () => ({
+          reviewId: 'review-2',
+          listing: uploaded,
+          review: {
+            status: 'reviewed',
+            findings: [],
+            files: 3,
+            read: 2,
+            partial: false,
+          },
+        })),
+        marketplaceDetail: vi.fn(async () => ({
+          bot: uploaded,
+          readme: null,
+          readmeLanguage: null,
+          commitSha: null,
+          files: [],
+        })),
+      },
+    );
+  });
+
+  it('shows the file breakdown and reads text files, scripts never as Markdown', async () => {
+    const file = vi.fn(async (_id: string, path: string) =>
+      path === 'SOUL.md'
+        ? { path, size: 20, type: 'markdown', text: '# Soul\n\nI help.' }
+        : { path, size: 8, type: 'script', text: '# echo\n**not bold**' },
+    );
+    await withPanel(
+      async () => ({ bots: [uploaded] }),
+      async ({ host }) => {
+        await click(host, '查看 Alice/Helper 详情');
+        const breakdown = host.querySelector('[data-market-breakdown]')!;
+        expect(
+          [...breakdown.querySelectorAll('[data-market-type]')].map((item) => item.textContent),
+        ).toEqual(['图片12.0 KB', 'Markdown120 B', '脚本18 B']);
+        expect(
+          host.querySelector('[data-market-scripts]')?.getAttribute('data-market-scripts'),
+        ).toBe('1');
+        expect(host.querySelector('[aria-label="查看 .botharness/avatar.png"]')).toBeNull();
+
+        await click(host, '查看 tools/run.sh');
+        await act(async () => {});
+        expect(file).toHaveBeenCalledWith('U_helper', 'tools/run.sh');
+        const script = host.querySelector('[data-market-reader-body="script"]')!;
+        expect(script.tagName).toBe('PRE');
+        expect(script.textContent).toBe('# echo\n**not bold**');
+        expect(host.querySelector('[data-market-files]')).toBeNull();
+
+        await click(host, '返回文件列表');
+        await click(host, '查看 SOUL.md');
+        await act(async () => {});
+        const markdown = host.querySelector('[data-market-reader-body="markdown"]')!;
+        expect(markdown.tagName).toBe('DIV');
+        expect(markdown.textContent).toBe('# Soul\n\nI help.');
+      },
+      {
+        marketplaceFile: file,
+        marketplaceDetail: vi.fn(async () => ({
+          bot: uploaded,
+          readme: null,
+          readmeLanguage: null,
+          commitSha: null,
+          files: [
+            { path: 'SOUL.md', size: 20, kind: 'text' },
+            { path: 'tools/run.sh', size: 8, kind: 'script' },
+            { path: '.botharness/avatar.png', size: 2048, kind: 'image' },
+          ],
+          fileSummary: {
+            count: 3,
+            size: 2076,
+            types: [
+              { type: 'image', count: 1, size: 2048 },
+              { type: 'markdown', count: 1, size: 20 },
+              { type: 'script', count: 1, size: 8 },
+            ],
+          },
+        })),
+      },
+    );
   });
 });

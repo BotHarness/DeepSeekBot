@@ -46,6 +46,7 @@ export interface ConnectAccount {
   activity: ActivityProvider;
   status(): AccountStatus;
   verifyOffer(body: string, signature: string | undefined): Promise<OfferVerification>;
+  accessToken(options?: { fresh?: boolean }): Promise<string | undefined>;
   start(): Promise<void>;
   signIn(): Promise<AccountResult>;
   signOut(): Promise<AccountResult>;
@@ -403,6 +404,7 @@ export function createConnectAccount(options: {
       if (run !== attempt) return;
       if (Date.now() > expires) {
         status = { state: 'error', issue: 'sign-in-expired' };
+        record('sign-in-expired');
         return;
       }
       let reply: Awaited<ReturnType<typeof post>>;
@@ -424,11 +426,12 @@ export function createConnectAccount(options: {
       }
       const refreshToken = reply.body['refresh_token'];
       if (!reply.ok || typeof refreshToken !== 'string') {
-        status = {
-          state: 'error',
-          issue: error === 'expired_token' ? 'sign-in-expired' : 'sign-in-denied',
-        };
-        record('sign-in-failed', `error=${typeof error === 'string' ? error : reply.status}`);
+        const expired = error === 'expired_token';
+        status = { state: 'error', issue: expired ? 'sign-in-expired' : 'sign-in-denied' };
+        record(
+          expired ? 'sign-in-expired' : 'sign-in-failed',
+          `error=${typeof error === 'string' ? error : reply.status}`,
+        );
         return;
       }
       const email = (reply.body['user'] as { email?: unknown } | undefined)?.email;
@@ -554,6 +557,17 @@ export function createConnectAccount(options: {
     },
     status: () => ({ ...status }),
     verifyOffer,
+    accessToken: (options) =>
+      serial(async () => {
+        if (status.state !== 'signed-in') return undefined;
+        try {
+          const current = await read();
+          if (current === undefined) return undefined;
+          return options?.fresh !== true && cached !== undefined ? cached : await refresh(current);
+        } catch {
+          return undefined;
+        }
+      }),
     async start() {
       startWatch();
       await sync();

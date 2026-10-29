@@ -15,8 +15,8 @@ export function dmActionKind(message: ChannelMessage): DmActionKind | undefined 
 export function visibleDmMessages(
   messages: readonly ChannelMessage[],
   hidden: readonly DmActionKind[],
-): ChannelMessage[] {
-  if (hidden.length === 0) return [...messages];
+): readonly ChannelMessage[] {
+  if (hidden.length === 0) return messages;
   return messages.filter((message) => {
     const kind = dmActionKind(message);
     return kind === undefined || !hidden.includes(kind);

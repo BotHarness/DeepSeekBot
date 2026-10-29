@@ -21,6 +21,7 @@ import {
   isUsableAvatarAppearance,
   type CreatePersonaBotInput,
   type CreatePersonaBotResult,
+  type MarketplaceListingRef,
   type PersonaBotPatch,
   type PersonaBotRecord,
   type RemovePersonaBotOptions,
@@ -53,6 +54,7 @@ import {
   seedStandingFiles,
   type StandingLimits,
 } from '../memory/soul.js';
+import type { TelemetryEventName } from '../telemetry/events.js';
 import type { TelemetryCapture } from '../telemetry/service.js';
 import type {
   AssignmentModelOption,
@@ -60,6 +62,8 @@ import type {
   ModelRoute,
   PersonaBotModelPlan,
 } from '../models/presets.js';
+import { parsePromptLimitValues, type PromptLimitValues } from '../prompts/prompt-limits.js';
+import { parsePromptPartOverrides, type PromptPartOverrides } from '../prompts/prompt-presets.js';
 
 export interface MemoryRepositoryInitialization {
   ok: boolean;
@@ -124,6 +128,15 @@ export interface PersonaBotRegistry {
   setBrowserAccess(slug: string, enabled: boolean): UpdatePersonaBotResult;
   setBrowserProfile(slug: string, profile: string): UpdatePersonaBotResult;
   setApprovalTemplate(slug: string, template: string | undefined): UpdatePersonaBotResult;
+  setMarketplaceListing(slug: string, listing: MarketplaceListingRef): UpdatePersonaBotResult;
+  setPromptSettings(
+    slug: string,
+    settings: {
+      preset?: string | null;
+      overrides?: PromptPartOverrides;
+      limits?: PromptLimitValues;
+    },
+  ): UpdatePersonaBotResult;
   setStandingLimits(slug: string, limits: StandingLimits): UpdatePersonaBotResult;
   inheritModel(slug: string, expectedRevision: number): UpdatePersonaBotResult;
   applyModelPreset(slug: string, preset: ModelPreset): UpdatePersonaBotResult;
@@ -186,7 +199,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
   const defaultMemoryDir = (slug: string): string => join(botDir(slug), 'memory');
 
   const port = attachOperationalModule(options.database, 'bot-registry');
-  const capture = (event: string): void => {
+  const capture = (event: TelemetryEventName): void => {
     try {
       options.capture?.(event);
     } catch {
@@ -219,10 +232,22 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       'browserAccess',
       'browserProfile',
       'approvalTemplate',
+      'promptPreset',
     ] as const) {
       if (record[key] !== undefined) Object.assign(result, { [key]: record[key] });
     }
     if (record.primaryColor !== undefined) result.primaryColor = { ...record.primaryColor };
+    if (record.promptOverrides !== undefined) {
+      const overrides = parsePromptPartOverrides(record.promptOverrides);
+      if (overrides !== undefined && Object.keys(overrides).length > 0)
+        result.promptOverrides = overrides;
+    }
+    if (record.promptLimits !== undefined) {
+      const limits = parsePromptLimitValues(record.promptLimits);
+      if (Object.keys(limits).length > 0) result.promptLimits = limits;
+    }
+    if (record.marketplaceListing !== undefined)
+      result.marketplaceListing = { ...record.marketplaceListing };
     if (record.standingLimits !== undefined)
       result.standingLimits = {
         soul: record.standingLimits.soul,
@@ -543,7 +568,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       const result = create(input, false);
       created = result.ok;
       if (!result.ok) return result;
-      capture('bot_created');
+      capture('bot_library:bot_create');
       const shared = readSharedPresentation(defaultMemoryDir(input.slug));
       const banner = readSharedBanner(defaultMemoryDir(input.slug));
       const primaryColor = readSharedPrimaryColor(defaultMemoryDir(input.slug));
@@ -590,7 +615,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     rootDir,
     create(input) {
       const result = create(input, true);
-      if (result.ok) capture('bot_created');
+      if (result.ok) capture('bot_library:bot_create');
       return result;
     },
     async createFromGit(input, authorize) {
@@ -720,7 +745,8 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       if (record.displayName !== previousName) options.onDisplayNameChanged?.();
       if (record.avatar !== previousAvatar || record.appearance !== previousAppearance)
         options.onAvatarChanged?.();
-      if (patch.avatar !== undefined && record.avatar !== previousAvatar) capture('avatar_edited');
+      if (patch.avatar !== undefined && record.avatar !== previousAvatar)
+        capture('bot_profile:avatar_update');
       if (
         record.displayName !== previousName ||
         JSON.stringify([record.roles, record.tag, record.description, record.avatar]) !==
@@ -739,7 +765,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       write(updated);
       if (record.appearance?.revision !== updated.appearance.revision) options.onAvatarChanged?.();
       syncDescriptor(updated);
-      capture('avatar_edited');
+      capture('bot_profile:avatar_update');
       return { ok: true, record: updated };
     },
     setBanner(slug, banner) {
@@ -749,7 +775,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       const updated = { ...record, banner };
       write(updated);
       syncDescriptor(updated);
-      capture('banner_edited');
+      capture('bot_profile:banner_update');
       return { ok: true, record: updated };
     },
     setPrimaryColor(slug, choice) {
@@ -778,7 +804,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       if (paused) record.paused = true;
       else delete record.paused;
       write(record);
-      if (archiving) capture('bot_archived');
+      if (archiving) capture('bot_library:bot_archive');
       return { ok: true, record };
     },
     setComputerAccess(slug, enabled) {
@@ -811,6 +837,29 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       if (record === undefined) return { ok: false, reason: 'not-found' };
       if (template === undefined) delete record.approvalTemplate;
       else record.approvalTemplate = template;
+      write(record);
+      return { ok: true, record };
+    },
+    setMarketplaceListing(slug, listing) {
+      const record = active(slug);
+      if (record === undefined) return { ok: false, reason: 'not-found' };
+      record.marketplaceListing = { id: listing.id, pushedAt: listing.pushedAt };
+      write(record);
+      return { ok: true, record };
+    },
+    setPromptSettings(slug, settings) {
+      const record = active(slug);
+      if (record === undefined) return { ok: false, reason: 'not-found' };
+      if (settings.preset === null) delete record.promptPreset;
+      else if (settings.preset !== undefined) record.promptPreset = settings.preset;
+      if (settings.overrides !== undefined) {
+        if (Object.keys(settings.overrides).length === 0) delete record.promptOverrides;
+        else record.promptOverrides = settings.overrides;
+      }
+      if (settings.limits !== undefined) {
+        if (Object.keys(settings.limits).length === 0) delete record.promptLimits;
+        else record.promptLimits = settings.limits;
+      }
       write(record);
       return { ok: true, record };
     },

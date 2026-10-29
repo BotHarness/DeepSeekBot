@@ -20,6 +20,7 @@ export function AccountHosts(props: {
     | 'finishLocalCleanup'
   >;
   busy: boolean;
+  pairing?: string | undefined;
   saved: readonly SavedHost[];
   results: Readonly<Record<string, AccountPairResult>>;
   onPair(hosts: ConnectHost[]): Promise<void>;
@@ -194,6 +195,7 @@ export function AccountHosts(props: {
           added: isAdded,
           disabled: isAdded || !host.online,
           selected: !isAdded && host.online && selected.includes(host.id),
+          pairing: props.pairing === host.id,
         };
       })}
       selectedCount={chosen.length}

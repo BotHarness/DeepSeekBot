@@ -10,6 +10,8 @@ import {
 } from './avatar-appearance.js';
 import { isBotBanner, type BotBanner } from './bot-banner.js';
 import { isBotPrimaryColor, type BotPrimaryColor } from './primary-color.js';
+import type { PromptLimitValues } from '../prompts/prompt-limits.js';
+import type { PromptPartOverrides } from '../prompts/prompt-presets.js';
 
 export interface PersonaBotRecord {
   slug: string;
@@ -41,6 +43,23 @@ export interface PersonaBotRecord {
   approvalTemplate?: string;
 
   standingLimits?: StandingLimits;
+
+  marketplaceListing?: MarketplaceListingRef;
+
+  promptPreset?: string;
+  promptOverrides?: PromptPartOverrides;
+  promptLimits?: PromptLimitValues;
+}
+
+export interface MarketplaceListingRef {
+  id: string;
+  pushedAt: string;
+}
+
+export function isMarketplaceListingRef(value: unknown): value is MarketplaceListingRef {
+  if (typeof value !== 'object' || value === null) return false;
+  const source = value as Record<string, unknown>;
+  return typeof source['id'] === 'string' && typeof source['pushedAt'] === 'string';
 }
 
 export interface CreatePersonaBotInput {
@@ -159,6 +178,22 @@ export function isPersonaBotRecord(value: unknown, slug: string): value is Perso
     return false;
   if (record['approvalTemplate'] !== undefined && typeof record['approvalTemplate'] !== 'string')
     return false;
+  if (record['promptPreset'] !== undefined && typeof record['promptPreset'] !== 'string')
+    return false;
+  if (
+    record['promptOverrides'] !== undefined &&
+    (typeof record['promptOverrides'] !== 'object' ||
+      record['promptOverrides'] === null ||
+      Array.isArray(record['promptOverrides']))
+  )
+    return false;
+  if (
+    record['promptLimits'] !== undefined &&
+    (typeof record['promptLimits'] !== 'object' ||
+      record['promptLimits'] === null ||
+      Array.isArray(record['promptLimits']))
+  )
+    return false;
   if (
     record['appearance'] !== undefined &&
     !isUsableAvatarAppearance(record['appearance'], record['avatar'])
@@ -187,6 +222,11 @@ export function isPersonaBotRecord(value: unknown, slug: string): value is Perso
   if (record['modelPlan'] !== undefined && !isPersonaBotModelPlan(record['modelPlan']))
     return false;
   if (record['standingLimits'] !== undefined && !isStandingLimits(record['standingLimits']))
+    return false;
+  if (
+    record['marketplaceListing'] !== undefined &&
+    !isMarketplaceListingRef(record['marketplaceListing'])
+  )
     return false;
   return true;
 }

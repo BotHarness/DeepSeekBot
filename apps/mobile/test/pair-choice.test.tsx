@@ -2,6 +2,7 @@
 import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
+vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
@@ -82,4 +83,16 @@ it('forwards a pairing link to Tailscale and an account computer to sign-in', as
     pathname: '/pair/account',
     params: { account: 'hstudio' },
   });
+});
+
+it('states what the computer needs and opens the setup guide', async () => {
+  const { Linking } = await import('react-native');
+  const openURL = vi.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+  const view = await render();
+  expect(view.textContent).toContain(t.pairChoice.needs);
+  await act(async () =>
+    view.querySelector<HTMLElement>('[data-testid="pair-guide-open"]')!.click(),
+  );
+  expect(openURL).toHaveBeenCalledWith(t.pairGuide.url);
+  expect(view.querySelector('[role="alert"]')).toBeNull();
 });

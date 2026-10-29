@@ -27,3 +27,21 @@ Android surface choices follow the official Material references recorded in [the
 Waiting for profile data before navigation adds network latency to the tap. Mounting every profile section at the start adds React work to the native opening transition. Caching editor mutations with the read-only profile risks displaying outdated settings. Forwarding network chunks, even with a tail fade, exposes their burst timing. Flushing on Host commitment defeats a reserved playback queue. Playback intentionally introduces local presentation lag, including after commitment; its bounded clock credit/release sizes and cancellation prevent a delayed callback or a background interval from producing an instant large catch-up. Long-message rendering and the naturalness of the tuned rates remain native QA concerns.
 
 Separate subscriptions reduce React invalidation, but do not prove native visibility or 120 FPS. The real-device fixed replay now passes the disappearing-text check for Chinese paragraphs, a continuous long paragraph, code and tables. Disabling clipping, disabling selection and switching to native CommonMark had each failed before the Android renderer change. These results isolate a renderer/layout boundary, not a particular unproven upstream race. Unsupported native extensions and iOS remain outside this Android qualification. [Buffering research](../research/2028-native-streaming-buffer.md) records the references, replay conditions and limits.
+
+## Android streaming surface amendment (#1806)
+
+Keep bubble growth inside a native paint adapter, separate from received text,
+playback and viewport geometry. `StreamSurface` draws the background and clips
+existing child drawing to one expanding rounded path for 120ms. Layout immediately
+retains the final content bounds; animation ticks only invalidate drawing. It
+does not duplicate text, allocate an offscreen bitmap, request child layout or
+send per-frame events to JavaScript. Interrupted growth continues from the
+current paint boundary. Initial layout, changed width, shrinking, detach and
+reduced motion settle immediately. Static messages retain ordinary Views.
+
+Animating only a background was rejected because large text could briefly appear
+outside it. Animating the in-flow bubble height was rejected because it competed
+with list/keyboard positioning. Clipping foreground and background together keeps
+the boundary coherent without creating a second layout owner. This Android local
+module needs a native rebuild. iOS keeps its existing renderer and must be assessed
+separately; Android results cannot qualify it.

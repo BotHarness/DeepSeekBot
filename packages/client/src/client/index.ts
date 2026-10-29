@@ -1,4 +1,4 @@
-import { readChannelDock, writeChannelDock } from './channel-dock-layout.js';
+import { CHANNEL_BODY_PANEL, readChannelDock, writeChannelDock } from './channel-dock-layout.js';
 import { createBotPresentation } from './bot-presentation.js';
 import { mountWindowZoomControl } from './window-zoom-control.js';
 import { mountWindowZoom, type ZoomCompatibility } from './window-zoom-mount.js';
@@ -10,7 +10,7 @@ import { refreshBotPrimaryColors } from './bot-primary-color.js';
 import { Appearance } from './appearance.js';
 import { mountAppearance } from './appearance-scope.js';
 import { mountAppearanceControl } from './appearance-control.js';
-import { remoteHosts } from './remote-hosts.js';
+import { recordRemoteHosts, remoteHosts } from './remote-hosts.js';
 import { bindBotAppearance } from './bot-color-scheme.js';
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client';
 import { AppearanceSection } from './appearance-settings.js';
@@ -68,6 +68,7 @@ import {
 } from './bot-settings.js';
 import type { QuickSwitcherSettings } from './quick-switcher.js';
 import { searchSettings } from './settings-search.js';
+import { startConnectSignIn } from './connect-sign-in.js';
 import { DshBotSettingsItem } from './dsh-bot-settings-item.js';
 import { createImApps, ImAppsSection } from './im-apps-section.js';
 import {
@@ -76,10 +77,12 @@ import {
   CompanionsSection,
   DataPrivacySection,
   DevicesSection,
+  AccountSection,
   GeneralSection,
   MessagingSection,
   ModelsSection,
   AutoApprovalSection,
+  PromptsSection,
 } from './bot-settings-sections.js';
 import { PluginsSection } from './plugin-updates-view.js';
 import { ReleaseNotesController } from './release-notes.js';
@@ -284,6 +287,7 @@ export function apply(ctx: ClientContext): void {
   });
   const setupRpc = connectionRpc(ctx);
   if (setupRpc) actions.appSetup = new ProviderAppSetup(setupRpc);
+  recordRemoteHosts((event, properties) => actions.telemetryEvent(event, properties));
   let companionSource: ((url: string) => CompanionSource) | undefined;
   const companion = new WindowCompanions({
     storage,
@@ -507,6 +511,13 @@ export function apply(ctx: ClientContext): void {
       dockPanels,
       () => document.querySelector('[data-workspace-enabled]') !== null,
       t,
+      () => {
+        dockPanels.open(CHANNEL_BODY_PANEL);
+        void actions
+          .tobHome()
+          .then((tob) => actions.openChannel(tob.channelId))
+          .catch(() => {});
+      },
     ),
   );
   ctx.effect(() =>
@@ -822,6 +833,22 @@ export function apply(ctx: ClientContext): void {
       settingsCtx.slots.register(
         {
           name: 'botharness.settings.section',
+          id: BOT_SETTINGS_SECTIONS.account,
+          order: -5,
+          label: () => t('botSettings.section.account'),
+          locale: LOCALE_NS,
+          inject: () => ({
+            actions,
+            startSignIn: startConnectSignIn,
+          }),
+        },
+        AccountSection,
+      ),
+    );
+    settingsCtx.slots.inject('botharness.settings.section', () =>
+      settingsCtx.slots.register(
+        {
+          name: 'botharness.settings.section',
           id: BOT_SETTINGS_SECTIONS.general,
           order: 0,
           label: () => t('botSettings.section.general'),
@@ -912,6 +939,19 @@ export function apply(ctx: ClientContext): void {
           inject: () => ({ actions, call, store }),
         },
         AutoApprovalSection,
+      ),
+    );
+    settingsCtx.slots.inject('botharness.settings.section', () =>
+      settingsCtx.slots.register(
+        {
+          name: 'botharness.settings.section',
+          id: BOT_SETTINGS_SECTIONS.prompts,
+          order: 16,
+          label: () => t('botSettings.section.prompts'),
+          locale: LOCALE_NS,
+          inject: () => ({ actions }),
+        },
+        PromptsSection,
       ),
     );
     settingsCtx.slots.inject('botharness.settings.section', () =>

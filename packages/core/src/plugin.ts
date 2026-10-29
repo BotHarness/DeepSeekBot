@@ -1,4 +1,9 @@
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from './window-zoom/control.js';
+import { compactUnknownContext, contextCapacity } from './runtime/context-window.js';
+import { messageText, systemPromptFromLog } from './runtime/prompt-inspection.js';
+
+import { createWindowZoomSetup, WINDOW_ZOOM_SETUP_PATH } from './window-zoom/setup.js';
+import { nativeReleaseRuntime } from './release/compatibility.js';
 import { createFolderBrowser } from './workspaces/folder-browse.js';
 import { APPEARANCE_CONTROL_PATH, createAppearanceControl } from './appearance/control.js';
 import { CloudConnections } from './cloud/connections.js';
@@ -22,6 +27,10 @@ import {
   createTobBotProfileOperations,
   TOB_BOT_PROFILE_CAPABILITIES,
 } from './tob/cli-bot-profile-operations.js';
+import {
+  createTobShareDraftOperations,
+  TOB_SHARE_DRAFT_CAPABILITIES,
+} from './tob/cli-share-draft-operations.js';
 import { followCompanion } from './companions/live.js';
 import {
   createTobService,
@@ -79,9 +88,9 @@ import { createHash } from 'node:crypto';
 import { createCompanionFeed, COMPANION_PATH, type CompanionFeed } from './companions/feed.js';
 
 import type { Context } from '@deepseek-ai/cordis';
-import type {} from '@deepseek-ai/dsh-agent';
+import { assembleContextFor } from '@deepseek-ai/dsh-agent';
 import type {} from '@deepseek-ai/dsh-session';
-import type {} from '@deepseek-ai/dsh-system-prompt';
+import { renderContextSections, renderPrompt } from '@deepseek-ai/dsh-system-prompt';
 import type {} from '@deepseek-ai/dsh-tools';
 import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-approval';
 import { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy';
@@ -117,6 +126,15 @@ import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
 import { mountDevicePairing } from './devices/mount.js';
 import { humanInboxPushSource } from './push/source.js';
 import { createMarketplaceClient } from './marketplace/client.js';
+import { createInstallReceipts } from './marketplace/install-receipts.js';
+import { createMarketplaceUploads } from './marketplace/uploaded-bots.js';
+import {
+  createMarketplaceInstallReviews,
+  INSTALL_REVIEW_SYSTEM_PROMPT,
+  INSTALL_REVIEW_TIMEOUT_MS,
+} from './marketplace/install-review.js';
+import { createShareDrafts } from './marketplace/share-draft.js';
+import type { ConnectAccount } from './devices/connect-account.js';
 import {
   createLoadingReleaseService,
   installedRelease,
@@ -133,6 +151,11 @@ import {
   type TelemetryCapture,
 } from './telemetry/service.js';
 import { readDailyUsageCounts, startDailyUsage } from './telemetry/daily-usage.js';
+import {
+  createActiveDay,
+  readHumanMessageCounts,
+  startActiveDayWatch,
+} from './telemetry/active-day.js';
 import { deliverPendingExceptions, installExceptionCapture } from './telemetry/exceptions.js';
 import { createPersonaBotRegistry, type PersonaBotRegistry } from './bots/registry.js';
 import { createPersonaBotDeletions, type PersonaBotDeletions } from './bots/deletion.js';
@@ -193,9 +216,12 @@ import {
   type HumanAttentionDecisions,
 } from './runtime/human-attention.js';
 import {
-  alignOrchestratorSubagentPermission,
+  admitBotSession,
+  borrowedAgentDenial,
+  type BotSessionRepair,
   deviceToolAuthorization,
   grantExecutionDenial,
+  sessionRefusalMessage,
   grantToolExecutionDenial,
   orchestratorPermission,
   isDshGovernedTool,
@@ -210,16 +236,24 @@ import {
 } from './workspaces/tool-approval.js';
 import {
   changesApprovalPolicy,
+  deletesMarketplaceBot,
+  publishesBotMemory,
+  requiresHumanDecision,
   createApprovalTemplateLibrary,
 } from './workspaces/approval-templates.js';
 import {
   APPROVAL_REVIEW_SESSION_PREFIX,
+  ApprovalReviewError,
+  type ApprovalReviewerRoute,
   createApprovalReviewRunner,
   isApprovalReviewSession,
+  routeLabel,
+  runReviewerTurn,
 } from './workspaces/approval-reviewer.js';
 import { createApprovalReviewerSettings } from './workspaces/approval-reviewer-settings.js';
 import {
   compactionThresholdTokens,
+  type CompactionThresholdPolicy,
   createIdleCompaction,
   IdleCompactionError,
   runCompactCommand,
@@ -263,15 +297,20 @@ import {
 } from './state/bot-state.js';
 import { ActivityToolDetails, createToolDetailIndex } from './state/tool-details.js';
 import { createDshActivityProjection } from './state/dsh-activity.js';
-import { readPublicToolDetail } from './state/tool-activity.js';
+import { readPublicToolDetail, toolKindForView } from './state/tool-activity.js';
 import { createUsageProjection, type UsageProjection } from './usage/usage.js';
 import { createMessagePerfTracker, type MessagePerfTracker } from './usage/message-perf.js';
 import {
   createBotSubagentModelTools,
   installBotSubagentModelTools,
+  installOrchestratorSubagentGuard,
   type BotSubagentPresetConfig,
 } from './runtime/subagent-model-tools.js';
 import { installNativeSubagentWake } from './runtime/native-subagent-wake.js';
+import { restartEmptyToolSeries } from './runtime/tool-declaration-series.js';
+import { promptTextOf } from './prompts/prompt-parts.js';
+import { createPromptPresetLibrary, promptPartTexts } from './prompts/prompt-presets.js';
+import { createPromptSettings, type PromptSettings } from './prompts/prompt-settings.js';
 
 export const name = 'botharness-core';
 
@@ -309,6 +348,7 @@ export interface CompactionRefreshSink {
   memory: {
     refreshPersonaAfterCompaction(botSlug: string, sessionId: string): { refreshed: boolean };
   };
+  prompts?: { refreshAfterCompaction(sessionId: string): { refreshed: boolean } };
   warn(message: string): void;
 }
 
@@ -318,12 +358,21 @@ export function handleCompactionEvent(
   eventType: string,
 ): void {
   if (eventType !== COMPACTION_END_EVENT) return;
+  refreshSessionTexts(sink, sessionId);
+}
+
+export function refreshSessionTexts(sink: CompactionRefreshSink, sessionId: string): void {
   const owner = sink.ownership.resolve(sessionId);
   if (owner === undefined) return;
   try {
     sink.memory.refreshPersonaAfterCompaction(owner.botSlug, sessionId);
   } catch (error) {
     sink.warn(`botharness: persona refresh after compaction failed: ${String(error)}`);
+  }
+  try {
+    sink.prompts?.refreshAfterCompaction(sessionId);
+  } catch (error) {
+    sink.warn(`botharness: prompt refresh after compaction failed: ${String(error)}`);
   }
 }
 
@@ -389,6 +438,7 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
 });
 
 export interface BotHarnessCore {
+  prompts: PromptSettings;
   profileRecovery: ProfileRecovery;
   rootDir: string;
   onboarding: BotOnboarding;
@@ -439,6 +489,26 @@ export interface BotHarnessCore {
   cloudWork?: CloudWork;
   toolRules: ToolApprovalRuleStore;
   assignmentAccess: AssignmentAccessStore;
+}
+
+function describeToolCall(
+  ctx: Context,
+  sessionId: string,
+  name: string,
+  args: unknown,
+  unscoped = false,
+) {
+  const agent = ctx.agents.list().find((candidate) => candidate.session.id === sessionId);
+  if (agent === undefined && !unscoped) return undefined;
+  const definition = agent === undefined ? ctx.tools.get(name) : ctx.tools.get(name, agent);
+  if (definition === undefined) return undefined;
+  const view = definition.presentCall?.(args);
+  const publicDetail = readPublicToolDetail(definition, args);
+  return {
+    name: definition.name,
+    ...(view === undefined ? {} : { view }),
+    ...(publicDetail === undefined ? {} : { publicDetail }),
+  };
 }
 
 function reviewerRejectionText(reason: string): string {
@@ -505,6 +575,14 @@ export function createCore(
     dshHome,
     schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
   });
+  if (operationalDatabase.recovery !== undefined)
+    options.warn?.(
+      `operational-database initiator=host-startup phase=recovery code=${operationalDatabase.recovery.code} path=${JSON.stringify(operationalDatabase.databasePath)} reason=${JSON.stringify(operationalDatabase.recovery.message)}`,
+    );
+  if (operationalDatabase.foreignKeyOrphans !== undefined)
+    options.warn?.(
+      `operational-database initiator=host-startup phase=foreign-key-orphans path=${JSON.stringify(operationalDatabase.databasePath)} orphans=${JSON.stringify(operationalDatabase.foreignKeyOrphans)}`,
+    );
   let usage: UsageProjection | undefined;
   const partLibrary = createPartLibrary({
     database: attachOperationalModule(operationalDatabase, 'avatar-part-library'),
@@ -916,7 +994,20 @@ export function createCore(
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
   const messagePerf: MessagePerfTracker = createMessagePerfTracker();
+  const prompts = createPromptSettings({
+    library: createPromptPresetLibrary(join(dshHome, 'botharness', 'prompt-presets')),
+    registry,
+    ownership,
+  });
   runtime = createBotRuntime({
+    onTobDelegation: () => options.capture?.('tob:delegation_send', { surface: 'bot_tool' }),
+    promptText: (slug) => {
+      const sessionId = runtime?.currentOrchestratorSessionId?.(slug);
+      return sessionId === undefined
+        ? promptTextOf(promptPartTexts(prompts.resolved(slug)))
+        : prompts.textForSession(sessionId);
+    },
+    promptLimits: (slug) => prompts.limits(slug),
     tob,
     triageContinuation: options.triageContinuation === true,
     inboxHistory,
@@ -1017,6 +1108,7 @@ export function createCore(
   });
   if (operationalDatabase.mode === 'ready') schedules.start();
   return {
+    prompts,
     deletions,
     profileRecovery,
     contentPurge,
@@ -1099,7 +1191,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       : `telemetry phase=disabled reason=${telemetryState.lockedBy ?? 'preference'}`,
   );
   ctx.effect(() => () => void telemetry.close(), 'botharness: telemetry');
-  telemetry.capture('plugin_started');
+  telemetry.capture('app:host_start');
+  const activeDay = createActiveDay({ telemetry, dataDir: telemetryDir });
   deliverPendingExceptions(telemetry, telemetryDir);
   if (telemetryState.lockedBy === undefined)
     ctx.effect(
@@ -1168,10 +1261,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const privateExecution = new ProtectedExecution((phase, details = {}) =>
     ctx.logger.info('private-input %j', { phase, ...details }),
   );
+  const turnRefusals = new Map<string, string>();
+  ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
   const agentAdapter = createDshBotAgentAdapter({
     agents: ctx.agents,
+    promptText: (sessionId) => core.prompts.textForSession(sessionId),
     defaultModel,
     observeTurnFailure: (provider, code) => providerCredentials.observe(provider, code),
+    turnRefusal: (sessionId) => turnRefusals.get(sessionId),
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
     subagentTools: (slug) =>
       createBotSubagentModelTools(ctx, () => core.registry.get(slug)?.modelPlan, config.subagent),
@@ -1187,6 +1284,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       return modelReadiness.prepare(slug, role, retainedRoute);
     },
     orchestratorCwd: (bot) => core.registry.memoryDirFor(bot.slug),
+    observePreparation: (slug, sessionId, preparing) => {
+      if (!preparing && core.states.snapshot(slug).sessions[sessionId] !== 'thinking') return;
+      core.states.setSessionState(
+        slug,
+        sessionId,
+        preparing ? 'thinking' : 'done',
+        undefined,
+        'orchestrator',
+      );
+    },
     defaultAgentPreset: config.agentPreset ?? DEFAULT_AGENT_PRESET,
     resolveAgentPresets: () => ctx.get('agentPresets') as DshAgentPresetHost | undefined,
     publishDraft: (event) => publishDraft(event),
@@ -1240,6 +1347,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                     (await tobMaintenanceOperations(command, args)) ??
                     (await tobBotCreationOperations(command, args)) ??
                     (await tobBotProfileOperations(command, args)) ??
+                    (await tobShareDraftOperations(command, args)) ??
                     (await tobChannelOperations(command, args));
                   if (!prepared || !['create', 'group-create'].includes(command)) return prepared;
                   return {
@@ -1261,6 +1369,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   ...TOB_MAINTENANCE_CAPABILITIES,
                   ...TOB_BOT_CREATE_CAPABILITIES,
                   ...TOB_BOT_PROFILE_CAPABILITIES,
+                  ...TOB_SHARE_DRAFT_CAPABILITIES,
                   ...TOB_CHANNEL_CAPABILITIES,
                 ],
                 beforeWrite: () => source.markSideEffect?.(),
@@ -1296,16 +1405,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           }),
       ),
     authorizeBorrow: (agent, role) => {
-      const owner = core.ownership.resolve(agent.session.id);
-      if (owner?.rootRole !== role) throw new Error('BotHarness Agent role mismatch');
-      const denial = grantExecutionDenial(
-        core,
-        agent.session,
-        ctx.get('sandboxPolicy'),
-        ctx.get('approval'),
-      );
+      const denial = borrowedAgentDenial(core, agent.session, role);
       if (denial !== undefined) throw new Error(denial);
     },
+    admitSession: (agent) =>
+      void admitBotSession(
+        core,
+        agent.session,
+        undefined,
+        ctx.get('sandboxPolicy'),
+        ctx.get('approval'),
+      ),
   });
   let userQuestions: ChannelUserQuestions | undefined;
   let toolApproval: ChannelToolApproval | undefined;
@@ -1393,7 +1503,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       }),
     'botharness: attachment sweep',
   );
+  let connectAccount: ConnectAccount | undefined;
   mountDevicePairing(ctx, {
+    telemetry,
+    onAccount: (account) => {
+      connectAccount = account;
+    },
     requestStatus: (channelId, messageId) => core.channels.humanSendStatus?.(channelId, messageId),
     database: core.operationalDatabase,
     dshHome,
@@ -1430,6 +1545,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           log: (message) => ctx.logger.info(message),
         }),
       'botharness: telemetry daily usage',
+    );
+    ctx.effect(
+      () =>
+        startActiveDayWatch({
+          activeDay,
+          counts: (since) => readHumanMessageCounts(usageDatabase, since),
+          log: (message) => ctx.logger.info(message),
+        }),
+      'botharness: telemetry active day',
     );
   }
   ctx.effect(() => () => core.roster.detach(), 'botharness: roster');
@@ -1527,33 +1651,20 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
 
   const appliedPermission = new Map<string, string>();
   ctx.effect(() => () => appliedPermission.clear(), 'botharness: Orchestrator permission record');
-  const alignOrchestratorPermission = (agent: import('@deepseek-ai/dsh-agent').Agent): void => {
-    const session = agent.session;
+  const recordOrchestratorPermission = (
+    session: import('@deepseek-ai/dsh-session').Session,
+    changed: boolean,
+  ): void => {
     const owner = core.ownership.resolve(session.id);
-    const policy = ctx.get('sandboxPolicy') as
-      | import('@deepseek-ai/dsh-sandbox-policy').SandboxPolicyService
-      | undefined;
-    const approval = ctx.get('approval') as ApprovalService | undefined;
     if (
       owner?.rootRole !== 'orchestrator' ||
       owner.provenance === 'subagent' ||
-      owner.parentSessionId !== undefined ||
-      policy === undefined ||
-      approval === undefined
+      owner.parentSessionId !== undefined
     )
       return;
     const expected = orchestratorPermission(core, owner.botSlug);
     const key = expected.mode + '+' + expected.approval;
-    if (
-      policy.resolve({ session }).mode === expected.mode &&
-      approval.overrideOf(session) === expected.approval
-    ) {
-      appliedPermission.set(session.id, key);
-      return;
-    }
-    const changedOutside = appliedPermission.get(session.id) === key;
-    setSandboxMode(session, expected.mode);
-    setApprovalPolicy(session, expected.approval);
+    const changedOutside = changed && appliedPermission.get(session.id) === key;
     appliedPermission.set(session.id, key);
     if (!changedOutside) return;
     ctx.logger.warn(
@@ -1571,10 +1682,35 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         .catch(() => undefined);
   };
   const reviewing = new Set<string>();
+  const idleCompactionSettings = createIdleCompactionSettings(join(dshHome, 'botharness'));
+  const compactionPolicy = (): CompactionThresholdPolicy => {
+    const value = idleCompactionSettings.read();
+    if (value === 'invalid') return {};
+    return {
+      ...(value.thresholdRatio === undefined ? {} : { thresholdRatio: value.thresholdRatio }),
+      ...(value.headroomTokens === undefined ? {} : { headroomTokens: value.headroomTokens }),
+    };
+  };
+  let compactionBaseConfig: Record<string, unknown> | undefined;
+  const applyCompactionPolicy = (): void => {
+    const engine = ctx.get('compaction') as unknown as
+      | { config?: Record<string, unknown> }
+      | undefined;
+    const config = engine?.config;
+    if (engine === undefined || typeof config !== 'object' || !('thresholdRatio' in config)) return;
+    compactionBaseConfig ??= config;
+    const policy = compactionPolicy();
+    const thresholdRatio = policy.thresholdRatio ?? compactionBaseConfig['thresholdRatio'];
+    const headroomTokens = policy.headroomTokens ?? compactionBaseConfig['headroomTokens'];
+    if (config['thresholdRatio'] === thresholdRatio && config['headroomTokens'] === headroomTokens)
+      return;
+    engine.config = Object.freeze({ ...compactionBaseConfig, thresholdRatio, headroomTokens });
+  };
   installNativeSubagentWake(ctx, core.runtime);
   ctx.on(
     'agent/pre-step',
     async ({ agent, signal }, next) => {
+      applyCompactionPolicy();
       if (isApprovalReviewSession(agent.session.id))
         return reviewing.has(agent.session.id) ? next() : { kind: 'reject' };
       try {
@@ -1582,14 +1718,38 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       } catch {
         return { kind: 'reject' };
       }
-      alignOrchestratorPermission(agent);
-      alignOrchestratorSubagentPermission(
+      const repairs = new Set<BotSessionRepair>();
+      const denial = admitBotSession(
         core,
         agent.session,
+        undefined,
         ctx.get('sandboxPolicy'),
         ctx.get('approval'),
+        (repair) => repairs.add(repair),
       );
-      return permissionDenial(agent.session) === undefined ? next() : { kind: 'reject' };
+      if (ctx.get('sandboxPolicy') !== undefined && ctx.get('approval') !== undefined)
+        recordOrchestratorPermission(agent.session, repairs.has('orchestrator'));
+      if (repairs.has('assignment'))
+        ctx.logger.warn(
+          'botharness: restored the permission mode of an Assignment Session that was changed outside its permission snapshot',
+        );
+      if (denial !== undefined) {
+        turnRefusals.set(agent.session.id, sessionRefusalMessage(denial));
+        return { kind: 'reject' };
+      }
+      turnRefusals.delete(agent.session.id);
+      const contextOwner = core.ownership.resolve(agent.session.id);
+      if (contextOwner?.rootRole === 'orchestrator' && contextOwner.parentSessionId === undefined)
+        await compactUnknownContext(
+          agent,
+          signal,
+          compactionPolicy(),
+          agentAdapter.modelSelection(agent.session.id),
+        );
+      const decision = await next();
+      return contextOwner === undefined
+        ? decision
+        : restartEmptyToolSeries(agent.session, decision);
     },
     { global: true },
   );
@@ -1597,7 +1757,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     join(dshHome, 'botharness', 'approval-templates'),
   );
   const approvalReviewer = createApprovalReviewerSettings(join(dshHome, 'botharness'));
-  const idleCompactionSettings = createIdleCompactionSettings(join(dshHome, 'botharness'));
   const liveAgent = (sessionId: string) =>
     ctx.agents.list().find((agent) => agent.session.id === sessionId);
   const idleCompaction = createIdleCompaction({
@@ -1622,11 +1781,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       )?.measure(agent.session).totalTokens,
     threshold: async (agent, route) => {
       const info = await ctx.llm.resolveModelInfo(route.provider, route.model);
-      if (info.context === undefined) return undefined;
       return compactionThresholdTokens(
-        {},
+        compactionPolicy(),
         route,
-        info.context.contextWindow,
+        contextCapacity(info.context?.contextWindow).contextWindow,
         agent.session.requestHeader()?.config.maxTokens ?? info.defaultMaxTokens ?? 0,
       );
     },
@@ -1639,12 +1797,24 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (event) => ctx.logger.info(`idle-compaction ${JSON.stringify(event)}`),
   });
   ctx.effect(() => () => idleCompaction.close(), 'botharness: idle compaction');
-  const compactBot = (slug: string) => {
-    const sessionId = core.runtime.currentOrchestratorSessionId?.(slug);
-    return sessionId === undefined
-      ? Promise.resolve({ outcome: 'not-loaded' as const, tokensBefore: null, tokensAfter: null })
-      : idleCompaction.compactNow(sessionId);
+  const compactReservedSession = async (sessionId: string) => {
+    const result = await idleCompaction.compactNow(sessionId, true);
+    if (result.outcome === 'nothing')
+      refreshSessionTexts(
+        {
+          ownership: core.ownership,
+          memory: core.memory,
+          prompts: core.prompts,
+          warn: (message) => ctx.logger.warn(message),
+        },
+        sessionId,
+      );
+    return result;
   };
+  const compactBot = (slug: string) =>
+    core.runtime.compactOrchestrator
+      ? core.runtime.compactOrchestrator(slug, compactReservedSession)
+      : Promise.resolve({ outcome: 'not-loaded' as const, tokensBefore: null, tokensAfter: null });
   let reviewLogs: LogDatabase | undefined;
   try {
     reviewLogs = openLogDatabase({ dir: join(dshHome, 'botharness') });
@@ -1660,6 +1830,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       return template === undefined ? undefined : { name: template.name, text: template.text };
     },
     templateInUse,
+    excerptLimits: (slug) => {
+      const limits = core.prompts.limits(slug);
+      return {
+        humanMessages: limits['review-human-messages'],
+        humanMessageChars: limits['review-human-message-chars'],
+        toolCalls: limits['review-tool-calls'],
+      };
+    },
     review: createApprovalReviewRunner({
       setting: () => approvalReviewer.model(),
       botRoute: (slug) => {
@@ -1684,6 +1862,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         return {
           sessionId,
           cwd,
+          timeoutMs: core.prompts.limits(request.botSlug)['review-timeout-seconds'] * 1000,
           botName: core.registry.get(request.botSlug)?.displayName ?? request.botSlug,
           ...(typeof titles?.rename === 'function'
             ? { rename: (session, title) => titles.rename!(session, title) }
@@ -1998,7 +2177,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       const fullAccess = sessionHasFullAccess(core, agent.session.id);
       if (
         fullAccess &&
-        !changesApprovalPolicy(JSON.stringify(execution.arguments) ?? '', templateInUse)
+        !requiresHumanDecision(JSON.stringify(execution.arguments) ?? '', templateInUse)
       )
         return next();
       const approval = ctx.get('approval') as ApprovalService | undefined;
@@ -2032,12 +2211,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   ? 'This PersonaBot wants to edit the selected original attachment. All references to this file will show its current contents.'
                   : execution.name === 'bot_create'
                     ? 'This PersonaBot wants to create a new PersonaBot with a new Memory folder. The new Bot gets no grants, accesses or secrets from it.'
-                    : changesApprovalPolicy(
-                          JSON.stringify(execution.arguments) ?? '',
-                          templateInUse,
-                        )
-                      ? 'This PersonaBot wants to change persistent permissions or its approval policy. A Human can approve once or save Always allow for this tool in the current scope.'
-                      : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
+                    : publishesBotMemory(JSON.stringify(execution.arguments) ?? '')
+                      ? 'This PersonaBot wants to upload a Bot to the Bot Marketplace. Its Memory files become public. Check them for secrets and private details first.'
+                      : deletesMarketplaceBot(JSON.stringify(execution.arguments) ?? '')
+                        ? 'This PersonaBot wants to delete one of your Uploaded Bots from the Bot Marketplace. Its files and counts are erased and cannot be restored.'
+                        : changesApprovalPolicy(
+                              JSON.stringify(execution.arguments) ?? '',
+                              templateInUse,
+                            )
+                          ? 'This PersonaBot wants to change persistent permissions or its approval policy. A Human can approve once or save Always allow for this tool in the current scope.'
+                          : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
               signal: execution.signal,
             });
         if (outcome !== 'allowed-once') {
@@ -2273,13 +2456,109 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     git,
     release: releaseService,
   });
+  const folders = createFolderBrowser({
+    nativePicker: () =>
+      (
+        ctx.get('directoryPicker') as unknown as { capability?(): { kind?: string } } | undefined
+      )?.capability?.().kind === 'native',
+  });
+  ctx.effect(() => () => folders.close(), 'botharness: folder reader');
+  const marketplaceClient = createMarketplaceClient({
+    baseUrl: config.marketplaceUrl ?? DEFAULT_MARKETPLACE_URL,
+  });
+  const shareDrafts = createShareDrafts({
+    root: join(dshHome, 'botharness', 'share-drafts'),
+    memoryDir: (slug) =>
+      core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
+    log: (event) => ctx.logger.info(JSON.stringify(event)),
+  });
+  const marketplaceUploads = createMarketplaceUploads({
+    client: marketplaceClient,
+    account: () => connectAccount,
+    drafts: shareDrafts,
+    log: (event) => ctx.logger.info(JSON.stringify(event)),
+  });
   const bridgeMethods = createBridgeMethods({
+    prompts: core.prompts,
+    botContext: async (slug) => {
+      const sessionId = core.runtime.currentOrchestratorSessionId?.(slug) ?? null;
+      const agent = sessionId === null ? undefined : liveAgent(sessionId);
+      const request = agent?.session.requestHeader()?.config;
+      const route =
+        request ??
+        core.registry.get(slug)?.modelPlan?.orchestrator ??
+        defaultModel.currentSelection();
+      const info = await ctx.llm.resolveModelInfo(route.provider, route.model);
+      const capacity = contextCapacity(info.context?.contextWindow);
+      return {
+        sessionId,
+        usedTokens: agent
+          ? (agent.ctx.get('tokenMeter')?.measure(agent.session).totalTokens ?? null)
+          : null,
+        ...capacity,
+        thresholdTokens: compactionThresholdTokens(
+          compactionPolicy(),
+          route,
+          capacity.contextWindow,
+          request?.maxTokens ?? info.defaultMaxTokens ?? 0,
+        ),
+      };
+    },
+    botSystemPrompt: async (slug) => {
+      const sessionId =
+        core.runtime.currentOrchestratorSessionId?.(slug) ??
+        [...core.ownership.rootsFor(slug)]
+          .reverse()
+          .find((root) => root.rootRole === 'orchestrator')?.sessionId ??
+        null;
+      const agent = sessionId === null ? undefined : liveAgent(sessionId);
+      if (agent === undefined) {
+        const query = ctx.get('sessionQuery') as unknown as
+          | { readSession(id: string): Promise<{ events: readonly DshSessionEvent[] }> }
+          | undefined;
+        const logged =
+          sessionId === null || query === undefined
+            ? null
+            : systemPromptFromLog((await query.readSession(sessionId)).events);
+        return {
+          sessionId,
+          loaded: false,
+          effectiveText: logged,
+          effectiveSource: logged === null ? 'none' : 'log',
+          next: null,
+          pending: sessionId !== null && core.prompts.pending(slug, sessionId),
+        };
+      }
+      const nodes = agent.session.surface.nodes
+        .map((seq) => agent.session.eventAt(seq))
+        .filter((event) => event?.type === 'system/message')
+        .map((event) => messageText((event!.data as { message: unknown }).message))
+        .filter((text) => text !== '');
+      const effectiveText = nodes.at(-1) ?? null;
+      const assembly = await agent.ctx.systemPrompt.assemble(assembleContextFor(agent));
+      const text = renderPrompt(assembly);
+      return {
+        sessionId,
+        loaded: true,
+        effectiveText,
+        effectiveSource: effectiveText === null ? 'none' : 'session',
+        next: {
+          text,
+          sections: assembly.sections.map(({ name, text }) => ({ name, text })),
+          contexts: renderContextSections(assembly).map(({ name, text }) => ({ name, text })),
+        },
+        pending:
+          core.prompts.pending(slug, sessionId ?? undefined) ||
+          (sessionId !== null && core.memory.personaPending?.(sessionId) === true),
+      };
+    },
     cloudConnections,
     cloudWork,
     approvalReviewer,
     idleCompaction: {
       settings: idleCompactionSettings,
       scheduler: idleCompaction,
+      applyThreshold: applyCompactionPolicy,
       routes: () => {
         let fallback: { provider: string; model: string } | undefined;
         try {
@@ -2295,6 +2574,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       },
       rescan: () => idleCompaction.rescan(ctx.agents.list().map((agent) => agent.session.id)),
       compactBot,
+      compactReservedSession,
     },
     composerIdentity: () =>
       composerRecoveryIdentity(
@@ -2342,6 +2622,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ownership: core.ownership,
     memory: core.memory,
     ...(core.usage === undefined ? {} : { usage: core.usage }),
+    describeToolCall: (sessionId, name, args) => {
+      const call = describeToolCall(ctx, sessionId, name, args, true);
+      if (call === undefined) return undefined;
+      return {
+        kind: toolKindForView(call.view),
+        ...(call.publicDetail === undefined ? {} : { detail: call.publicDetail }),
+      };
+    },
     readUsageSessionLog: async (sessionId) => {
       const query = ctx.get('sessionQuery') as unknown as
         | {
@@ -2362,18 +2650,80 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     humanAttention: core.humanAttention,
     humanAttentionDecisions: core.humanAttentionDecisions,
     grants: core.grants,
-    folders: createFolderBrowser(),
+    folders,
     externalMessaging: core.externalMessaging,
     toolApproval,
     userQuestions,
     toolRules: core.toolRules,
     assignmentAccess: core.assignmentAccess,
-    marketplace: createMarketplaceClient({
-      baseUrl: config.marketplaceUrl ?? DEFAULT_MARKETPLACE_URL,
+    marketplace: marketplaceClient,
+    marketplaceUploads,
+    marketplaceInstallReviews: createMarketplaceInstallReviews({
+      uploads: marketplaceUploads,
+      reviewer: async (prompt, botName) => {
+        const tob = core.tob.slug();
+        let route: ApprovalReviewerRoute | undefined =
+          tob === undefined ? undefined : core.registry.get(tob)?.modelPlan?.orchestrator;
+        if (route === undefined) {
+          try {
+            route = defaultModel.currentSelection();
+          } catch {
+            route = undefined;
+          }
+        }
+        if (route === undefined) throw new ApprovalReviewError('no-model');
+        try {
+          await modelCatalog.validate(route);
+        } catch (error) {
+          throw new ApprovalReviewError(
+            'model-unavailable',
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+        const sessionId = APPROVAL_REVIEW_SESSION_PREFIX + 'install-' + randomUUID();
+        const cwd = join(dshHome, 'botharness', 'approval-reviews');
+        mkdirSync(cwd, { recursive: true });
+        const titles = ctx.get('sessionTitle') as
+          | { rename?: (session: unknown, title: string) => void }
+          | undefined;
+        reviewing.add(sessionId);
+        try {
+          const text = await runReviewerTurn(
+            ctx.agents,
+            route,
+            {
+              systemPrompt: INSTALL_REVIEW_SYSTEM_PROMPT,
+              sectionName: 'botharness:install-review',
+              prompt,
+              title: `Install review · ${botName}`,
+              signal: new AbortController().signal,
+              maxTokens: 4_000,
+            },
+            {
+              sessionId,
+              cwd,
+              timeoutMs: INSTALL_REVIEW_TIMEOUT_MS,
+              ...(typeof titles?.rename === 'function'
+                ? { rename: (session, title) => titles.rename!(session, title) }
+                : {}),
+            },
+          );
+          return { text, model: routeLabel(route) };
+        } finally {
+          reviewing.delete(sessionId);
+        }
+      },
+    }),
+    shareDrafts,
+    marketplaceReceipts: createInstallReceipts({
+      client: marketplaceClient,
+      dataDir: telemetryDir,
+      log: (event) => ctx.logger.info(JSON.stringify(event)),
     }),
     release: releaseService,
     plugins: pluginUpdates,
     telemetry,
+    activeDay,
     git,
     developerMode: {
       set: (enabled: boolean) => developerModeTarget.gate?.set(enabled),
@@ -2463,6 +2813,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     bridge: () => bridgeMethods,
     isProtectedBot: (slug) => core.tob.isTob(slug),
   });
+  const tobShareDraftOperations = createTobShareDraftOperations({ bridge: () => bridgeMethods });
   const tobChannelOperations = createTobChannelOperations({
     management: core.channelManagement,
     channels: core.channels,
@@ -2548,6 +2899,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         await off();
       };
     }, 'botharness: targeted window zoom delivery');
+    connectionCtx.effect(() => {
+      const setup = createWindowZoomSetup({
+        dshHome,
+        profileDir: profile?.dir,
+        log: (phase, detail) => ctx.logger.info('window-zoom-setup %j', { phase, ...detail }),
+      });
+      return connection.fetch.register({
+        path: WINDOW_ZOOM_SETUP_PATH,
+        methods: ['GET', 'POST'],
+        requestBody: 'buffered',
+        fetch: setup.fetch,
+      });
+    }, 'botharness: desktop window zoom setup after quit');
     connectionCtx.effect(() => {
       const control = createAppearanceControl();
       const off = connection.fetch.register({
@@ -2678,7 +3042,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         purge: core.contentPurge,
         version: runningRelease.version,
         sessionCount: () => core.ownership.list().length,
-        dshVersion: installedDshVersion(),
+        runtimeVersions: async () => ({
+          host: (await nativeReleaseRuntime())?.version ?? null,
+          tools: installedDshVersion() ?? null,
+        }),
         log: (message) => ctx.logger.info(message),
       },
       join(dshHome, 'botharness', 'backup-staging'),
@@ -2732,11 +3099,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       log: (message) => ctx.logger.info(message),
     };
     const diagnosticBundleHttp = createDiagnosticBundleHttp(diagnosticOptions);
-    const feedbackEndpoint = process.env['BOTHARNESS_FEEDBACK_ENDPOINT'];
     const feedbackHttp = createMessageFeedbackHttp({
       ...diagnosticOptions,
       readTimeline: (id, request) => core.channels.readHumanTimeline(id, request),
-      ...(feedbackEndpoint ? { submit: feedbackUploader(feedbackEndpoint) } : {}),
+      submit: feedbackUploader(),
     });
     for (const action of MESSAGE_FEEDBACK_ACTIONS)
       connectionCtx.effect(
@@ -2815,19 +3181,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       ctx.agents
         .list()
         .some((agent) => agent.session.id === sessionId && agent.status === 'running'),
-    describeCall: (sessionId, name, args) => {
-      const agent = ctx.agents.list().find((candidate) => candidate.session.id === sessionId);
-      if (agent === undefined) return undefined;
-      const definition = ctx.tools.get(name, agent);
-      if (definition === undefined) return undefined;
-      const view = definition.presentCall?.(args);
-      const publicDetail = readPublicToolDetail(definition, args);
-      return {
-        name: definition.name,
-        ...(view === undefined ? {} : { view }),
-        ...(publicDetail === undefined ? {} : { publicDetail }),
-      };
-    },
+    describeCall: (sessionId, name, args) => describeToolCall(ctx, sessionId, name, args),
   });
   ctx.effect(() =>
     core.states.onActivity((event) => ctx.emit('botharness/personabot/activity', event)),
@@ -2854,6 +3208,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         {
           ownership: core.ownership,
           memory: core.memory,
+          prompts: core.prompts,
           warn: (message) => ctx.logger.warn(message),
         },
         session.id,
@@ -2868,7 +3223,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       activity.handleAgentCreated(agent.session);
       core.usage?.primeSession(agent.session.id, agent.session.snapshotEvents());
       const owner = core.ownership.resolve(agent.session.id);
-      if (owner !== undefined) {
+      if (owner?.rootRole === 'orchestrator') installOrchestratorSubagentGuard(agent.ctx);
+      else if (owner !== undefined) {
         await installBotSubagentModelTools(
           agent.ctx,
           () => core.registry.get(owner.botSlug)?.modelPlan,
@@ -2889,6 +3245,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.on(
     'agent/disposed',
     ({ agent }) => {
+      agentAdapter.forgetAgent(agent);
       userQuestions.cancelSession(agent.session.id);
       idleCompaction.forget(agent.session.id);
       activity.handleSessionDisposed(agent.session.id);

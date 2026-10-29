@@ -8,10 +8,16 @@ const state = vi.hoisted(() => ({
   platform: 'ios',
   computerAvailable: true,
   connection: 'connected',
-  bot: { slug: 'test', displayName: 'Test', computerAccess: false, browserAccess: false },
+  bot: {
+    slug: 'test',
+    displayName: 'Test',
+    computerAccess: false,
+    browserAccess: false,
+  },
   actions: undefined as { onComputer?: () => void } | undefined,
   push: vi.fn(),
 }));
+vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
 vi.mock('react-native', () => ({
   Platform: {
     get OS() {
@@ -24,6 +30,11 @@ vi.mock('expo-router', () => ({
   useNavigationContainerRef: () => channelNavigationHarness().navigation,
   useLocalSearchParams: () => ({ slug: 'test' }),
   useRouter: () => ({ push: state.push }),
+  useIsFocused: () => true,
+}));
+vi.mock('../src/host/native-live-activity', () => ({
+  useRequestActivity: () => ({ ready: true, tracking: false, busy: false }),
+  requestActivitySession: {},
 }));
 vi.mock('../src/host/host-session', () => ({
   useHostSession: () => ({ client: {}, saved: { hostId: 'qa' } }),
@@ -38,12 +49,26 @@ vi.mock('../src/host/bot-profile', () => ({
   botProfileResource: () => ({ peek: () => undefined, refresh: vi.fn() }),
 }));
 vi.mock('../src/ui/chat/bot-profile', () => ({
-  BotProfileSheet: ({ actions }: { actions: { onComputer?: () => void } }) => {
+  BotProfilePage: ({ actions }: { actions: { onComputer?: () => void } }) => {
     state.actions = actions;
     return null;
   },
 }));
-vi.mock('../src/ui/chat/bot-settings-panel', () => ({ BotSettingsPanel: () => null }));
+vi.mock('../src/ui/chat/native-profile-tab-memory', () => ({
+  profileTabMemory: {},
+}));
+vi.mock('../src/ui/chat/channel-files-tab', () => ({
+  ChannelFilesTab: () => null,
+}));
+vi.mock('../src/ui/chat/request-activity-control', () => ({
+  RequestActivityControl: () => null,
+}));
+vi.mock('../src/ui/chat/bot-settings-panel', () => ({
+  BotSettingsPanel: () => null,
+}));
+vi.mock('../src/ui/chat/bot-permissions', () => ({
+  BotPermissions: () => null,
+}));
 vi.mock('../src/host/pick-avatar-image', () => ({ pickAvatarImage: vi.fn() }));
 vi.mock('../src/ui/design/theme', () => ({
   useDesignTheme: () => ({ color: { surface: 'black' } }),
@@ -75,6 +100,7 @@ describe('Human Computer profile entry', () => {
     'hides remembered capability after device is %s',
     async (connection) => {
       state.connection = connection;
+      state.bot.computerAccess = true;
       await render();
       expect(state.actions?.onComputer).toBeUndefined();
     },
@@ -89,7 +115,8 @@ describe('Human Computer profile entry', () => {
       expect(state.actions?.onComputer).toBeUndefined();
     },
   );
-  it('opens the iOS Human viewer without changing the Bot tool opt-in', async () => {
+  it('opens the Human viewer when the Bot has Computer access', async () => {
+    state.bot.computerAccess = true;
     await render();
     expect(state.actions?.onComputer).toBeTypeOf('function');
     state.actions?.onComputer?.();
@@ -97,15 +124,14 @@ describe('Human Computer profile entry', () => {
       pathname: '/computer/[slug]',
       params: { slug: 'test', hostId: 'qa' },
     });
-    expect(state.bot.computerAccess).toBe(false);
   });
-  it.each([false, true])(
-    'opens the supported Host on Android regardless of Bot tool opt-in (%s)',
-    async (enabled) => {
-      state.platform = 'android';
-      state.bot.computerAccess = enabled;
+  it.each(['ios', 'android'])(
+    'hides the Computer button on %s when the Bot has no Computer access',
+    async (platform) => {
+      state.platform = platform;
+      state.bot.computerAccess = false;
       await render();
-      expect(state.actions?.onComputer !== undefined).toBe(true);
+      expect(state.actions?.onComputer).toBeUndefined();
     },
   );
 });

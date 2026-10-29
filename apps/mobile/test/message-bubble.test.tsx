@@ -24,7 +24,9 @@ const native = vi.hoisted(() => ({
 }));
 
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
+vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
 
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('react-native', async () => {
   const { useWindowDimensions, StyleSheet } = await import('./react-native-shim');
   const host = (name: string) => {
@@ -51,6 +53,7 @@ vi.mock('react-native', async () => {
       const style = props['style'] as { opacity?: number } | undefined;
       return (
         <div
+          ref={props['ref'] as never}
           data-native={name}
           {...attributes}
           style={{ opacity: style?.opacity }}
@@ -64,6 +67,10 @@ vi.mock('react-native', async () => {
   };
   return {
     useWindowDimensions,
+    Dimensions: {
+      get: useWindowDimensions,
+      addEventListener: (_event: string, _changed: () => void) => ({ remove() {} }),
+    },
     AppState: {
       get currentState() {
         return native.appState;
@@ -148,12 +155,13 @@ vi.mock('react-native-enriched-markdown', () => ({
 }));
 
 vi.mock('react-native-svg', () => ({
-  default: () => <svg />,
-  Path: () => null,
+  default: ({ children }: { children?: unknown }) => <svg>{children as never}</svg>,
+  Circle: ({ fill }: { fill: string }) => <circle fill={fill} />,
+  Path: ({ fill }: { fill?: string }) => (fill === undefined ? null : <path fill={fill} />),
   Rect: () => null,
 }));
 
-const { MessageBubble, DraftBubble, deliveryLabel, secondTap } =
+const { MessageBubble, DraftBubble, deliveryLabel, secondTap, replyable } =
   await import('../src/ui/chat/message-bubble');
 const { createSpeakerRegistry } = await import('../src/ui/chat/speaker-row');
 const { t } = await import('../src/ui/strings');
@@ -180,6 +188,71 @@ const human = (overrides: Partial<ConversationMessage>): ConversationMessage => 
   attachments: [],
   delivery: 'committed',
   ...overrides,
+});
+
+describe('message delivery receipt', () => {
+  const mentioned = human({
+    revision: 4,
+    body: '@ADA @BEA check',
+    mentions: [
+      { botSlug: 'ada', label: 'ADA', start: 0, end: 4 },
+      { botSlug: 'bea', label: 'BEA', start: 5, end: 9 },
+    ],
+    deliveries: [{ botSlug: 'ada', state: 'handled' }],
+  });
+
+  it('opens the receipt for a Human message with Bot recipients', () => {
+    const open = vi.fn();
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    try {
+      act(() => root.render(<MessageBubble message={mentioned} onOpenDelivery={open} />));
+      const label = t.delivery.summary(
+        `1 ${t.delivery.state.handled} · 1 ${t.delivery.state.missing}`,
+      );
+      const button = container.querySelector<HTMLElement>(`[data-accessibilitylabel="${label}"]`);
+      expect(button?.textContent).toBe('AB');
+      act(() => button!.click());
+      expect(open).toHaveBeenCalledWith(mentioned);
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
+  it('shows the Bots reading a message until their turn ends', () => {
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const reading = `[data-accessibilitylabel="${t.delivery.reading('ada, bea')}"]`;
+    try {
+      act(() => root.render(<MessageBubble message={mentioned} readers={['ada', 'bea']} />));
+      expect(container.querySelector(reading)?.textContent).toBe('AB');
+      act(() => root.render(<MessageBubble message={mentioned} readers={[]} />));
+      expect(container.querySelector(reading)).toBeNull();
+      act(() => root.render(<MessageBubble message={mentioned} readers={['ada']} />));
+      act(() => root.render(<MessageBubble message={mentioned} readers={[]} />));
+      expect(container.querySelector(reading)).toBeNull();
+      act(() =>
+        root.render(<MessageBubble message={mentioned} readers={['ada', 'bea']} streaming />),
+      );
+      expect(container.querySelector(reading)).toBeNull();
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
+  it('keeps the receipt off messages without recipients or while sending', () => {
+    for (const message of [
+      human({ revision: 4 }),
+      { ...mentioned, delivery: 'pending' as const },
+      { ...mentioned, delivery: 'failed' as const },
+    ]) {
+      const html = renderToStaticMarkup(
+        <MessageBubble message={message} onOpenDelivery={() => {}} />,
+      );
+      expect(html).not.toContain(t.delivery.summary(''));
+      expect(html).not.toContain('<svg');
+    }
+  });
 });
 
 describe('message states', () => {
@@ -716,7 +789,10 @@ describe('outgoing delivery presentation through Conversation', () => {
       });
       await flush();
     };
-    const surface = () => container.querySelector<HTMLElement>('[style*="opacity"]')!;
+    const surface = () =>
+      Array.from(container.querySelectorAll<HTMLElement>('[data-native="View"]')).findLast(
+        (node) => node.textContent === 'A quiet message',
+      )!;
     return {
       container,
       target,
@@ -736,15 +812,18 @@ describe('outgoing delivery presentation through Conversation', () => {
     };
   }
 
-  it('keeps a send normal for three seconds, then mutes only that pending bubble', async () => {
+  it('keeps a send normal for three seconds, then shows feedback beside that pending bubble', async () => {
     const view = await open();
     await view.send();
     expect(view.container.textContent).not.toContain(t.sending);
-    expect(view.surface().style.opacity).toBe('1');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).not.toContain('…');
     act(() => vi.advanceTimersByTime(2_999));
-    expect(view.surface().style.opacity).toBe('1');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).not.toContain('…');
     act(() => vi.advanceTimersByTime(1));
-    expect(view.surface().style.opacity).toBe('0.7');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).toContain('…');
     expect(
       view.container
         .querySelector('[data-accessibilitystate]')
@@ -755,19 +834,22 @@ describe('outgoing delivery presentation through Conversation', () => {
     expect(view.surface()).toBe(bubble);
     expect(view.container.querySelector('[data-accessibilityvalue]')).toBeNull();
     expect(view.container.querySelector('[data-accessibilitystate]')).toBeNull();
-    expect(view.surface().style.opacity).toBe('1');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).not.toContain('…');
     expect(view.host.channel('quiet-dm').messages).toHaveLength(1);
     expect(view.target.getSnapshot().messages).toHaveLength(1);
   });
 
-  it('never mutes a fast committed send when its old deadline passes', async () => {
+  it('never shows feedback for a fast committed send when its old deadline passes', async () => {
     const view = await open();
     await view.send();
     act(() => vi.advanceTimersByTime(2_900));
     await view.settle();
-    expect(view.surface().style.opacity).toBe('1');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).not.toContain('…');
     act(() => vi.advanceTimersByTime(3_100));
-    expect(view.surface().style.opacity).toBe('1');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).not.toContain('…');
     expect(view.container.textContent).not.toContain(t.sending);
   });
 
@@ -779,22 +861,27 @@ describe('outgoing delivery presentation through Conversation', () => {
       act(() => vi.advanceTimersByTime(delay));
       const originalAt = view.target.getSnapshot().messages[0]!.at;
       await view.settle(true);
-      expect(view.container.textContent).toContain(t.notSent);
-      expect(view.surface().style.opacity).toBe('1');
+      expect(view.container.textContent).toContain('!');
+      expect(view.surface().style.opacity).not.toBe('0.7');
+      expect(view.container.textContent).not.toContain('…');
       const retry = Array.from(
         view.container.querySelectorAll<HTMLElement>('[data-accessibilityrole="button"]'),
       ).find((element) => element.dataset.accessibilitylabel?.includes(t.retrySend));
       expect(retry).toBeDefined();
       act(() => retry!.click());
       await view.flush();
-      expect(view.surface().style.opacity).toBe('1');
+      expect(view.surface().style.opacity).not.toBe('0.7');
+      expect(view.container.textContent).not.toContain('…');
       expect(view.container.textContent).not.toContain(t.notSent);
       act(() => vi.advanceTimersByTime(2_999));
-      expect(view.surface().style.opacity).toBe('1');
+      expect(view.surface().style.opacity).not.toBe('0.7');
+      expect(view.container.textContent).not.toContain('…');
       act(() => vi.advanceTimersByTime(1));
-      expect(view.surface().style.opacity).toBe('0.7');
+      expect(view.surface().style.opacity).not.toBe('0.7');
+      expect(view.container.textContent).toContain('…');
       await view.settle();
-      expect(view.surface().style.opacity).toBe('1');
+      expect(view.surface().style.opacity).not.toBe('0.7');
+      expect(view.container.textContent).not.toContain('…');
       expect(view.host.channel('quiet-dm').messages).toHaveLength(1);
       expect(view.target.getSnapshot().messages).toHaveLength(1);
       expect(
@@ -811,11 +898,14 @@ describe('outgoing delivery presentation through Conversation', () => {
     await view.send();
     act(() => vi.advanceTimersByTime(2_000));
     view.remount();
-    expect(view.surface().style.opacity).toBe('1');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).not.toContain('…');
     act(() => vi.advanceTimersByTime(1_000));
-    expect(view.surface().style.opacity).toBe('0.7');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).toContain('…');
     view.remount();
-    expect(view.surface().style.opacity).toBe('0.7');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).toContain('…');
   });
 
   it('rechecks a pending attempt on foreground return even when its timer was suspended', async () => {
@@ -830,12 +920,47 @@ describe('outgoing delivery presentation through Conversation', () => {
       native.appState = 'active';
       for (const listener of native.appStateListeners) listener('active');
     });
-    expect(view.surface().style.opacity).toBe('0.7');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).toContain('…');
     await view.settle();
     act(() => {
       for (const listener of native.appStateListeners) listener('active');
       vi.advanceTimersByTime(3_000);
     });
-    expect(view.surface().style.opacity).toBe('1');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).not.toContain('…');
+  });
+});
+
+describe('replies', () => {
+  it('quotes the replied message above the body, or says it is gone', () => {
+    const quoted = renderToStaticMarkup(
+      <MessageBubble
+        message={human({
+          body: 'this one',
+          replyTo: 'bot-1',
+          replyPreview: { author: { kind: 'bot', slug: 'ada' }, body: 'Pick a file' },
+        })}
+        botName={(id) => (id === 'ada' ? 'Ada' : id)}
+      />,
+    );
+    expect(quoted.indexOf('Ada')).toBeGreaterThan(-1);
+    expect(quoted.indexOf('Pick a file')).toBeLessThan(quoted.indexOf('this one'));
+    const gone = renderToStaticMarkup(
+      <MessageBubble message={human({ replyTo: 'bot-1', replyPreview: null })} />,
+    );
+    expect(gone).toContain(t.reply.unavailable);
+    expect(renderToStaticMarkup(<MessageBubble message={human({})} />)).not.toContain(
+      t.reply.unavailable,
+    );
+  });
+
+  it('offers a swipe reply only on committed Human and Bot messages', () => {
+    expect(replyable(human({}))).toBe(true);
+    expect(replyable({ ...human({}), author: 'bot', bot: 'ada' })).toBe(true);
+    expect(replyable(human({ delivery: 'pending' }))).toBe(false);
+    expect(replyable(human({ delivery: 'failed' }))).toBe(false);
+    expect(replyable({ ...human({}), author: 'system' })).toBe(false);
+    expect(replyable(human({ welcome: true }))).toBe(false);
   });
 });

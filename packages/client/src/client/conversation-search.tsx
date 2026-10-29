@@ -123,7 +123,7 @@ const styles = stylex.create({
     borderWidth: 0,
     borderRadius: radius.sm,
     backgroundColor: { default: 'transparent', ':hover': color.hover },
-    color: color.accent,
+    color: color.accentText,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     cursor: 'pointer',

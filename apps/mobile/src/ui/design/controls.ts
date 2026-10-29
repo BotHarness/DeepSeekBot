@@ -1,4 +1,5 @@
-import { contrast, type DesignTheme } from './resolve-theme';
+import type { DesignTheme } from './resolve-theme';
+import { readable as readableColor } from '../../../../../packages/client/src/client/bot-name-color';
 import { distance, over, SEPARATION, tint, type LayerName } from './layers';
 
 export const BUTTON_TONES = ['primary', 'secondary', 'tonal', 'danger'] as const;
@@ -20,14 +21,17 @@ const NEXT: Record<LayerName, LayerName> = {
   sheet: 'canvas',
 };
 
-function readable(paint: string, against: string, toward: string): string {
-  let amount = 0;
-  let next = paint;
-  while (contrast(next, against) < LABEL_CONTRAST && amount < 1) {
-    amount += 0.02;
-    next = tint(paint, toward, amount);
-  }
-  return next;
+function readable(paint: string, against: string): string {
+  return readableColor(paint, against, LABEL_CONTRAST);
+}
+
+export function messageColors(theme: DesignTheme) {
+  const background = theme.color.surface;
+  return {
+    link: readableColor(theme.color.accent, background, LABEL_CONTRAST),
+    muted: readableColor(theme.color.muted, background, LABEL_CONTRAST),
+    code: readableColor(theme.color.fg, theme.layer.raised.inset, LABEL_CONTRAST),
+  };
 }
 
 export function buttonColors(theme: DesignTheme, tone: ButtonTone, on: LayerName): ButtonColors {
@@ -37,7 +41,7 @@ export function buttonColors(theme: DesignTheme, tone: ButtonTone, on: LayerName
     return {
       fill,
       pressed: tint(fill, behind.fill, 0.25),
-      label: readable(theme.color.base, fill, behind.fill),
+      label: readable(theme.color.base, fill),
     };
   }
   if (tone === 'tonal') {
@@ -56,7 +60,7 @@ export function buttonColors(theme: DesignTheme, tone: ButtonTone, on: LayerName
     return {
       fill,
       pressed: tint(fill, theme.color.fg, 0.16),
-      label: readable(theme.color.accent, fill, theme.color.fg),
+      label: readable(theme.color.accent, fill),
     };
   }
   if (tone === 'secondary') {
@@ -75,7 +79,7 @@ export function buttonColors(theme: DesignTheme, tone: ButtonTone, on: LayerName
   return {
     fill: behind.danger,
     pressed: over(theme.color.dangerSoft, behind.danger, 2),
-    label: readable(theme.color.danger, behind.danger, theme.color.fg),
+    label: readable(theme.color.danger, behind.danger),
   };
 }
 
@@ -97,8 +101,8 @@ export function switchColors(theme: DesignTheme, on: LayerName): SwitchColors {
 
 export function settingsColors(theme: DesignTheme, on: LayerName) {
   return {
-    heading: readable(theme.color.accent, theme.overlay.fill, theme.color.fg),
+    heading: readable(theme.color.accent, theme.overlay.fill),
     selected: theme.layer[on].chosen,
-    selectedText: readable(theme.color.accent, theme.layer[on].chosen, theme.color.fg),
+    selectedText: readable(theme.color.accent, theme.layer[on].chosen),
   };
 }

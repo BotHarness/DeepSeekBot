@@ -1,0 +1,992 @@
+[
+  {
+    "label": "alternate-a1",
+    "build": "Release, non-debuggable",
+    "installedSha": "08c9d24cdebdcf081f499842d26a3178ae288ea536c3ea1ae6853f13a2089fa5",
+    "actualImeOpenClosePairs": 6,
+    "failures": 0,
+    "frames": 1409,
+    "janky": 14,
+    "jankyPercent": 0.99361249112846,
+    "first": [
+      {
+        "cycle": 0,
+        "kind": "open",
+        "frames": 139,
+        "janky": 2,
+        "p95Ms": 32
+      },
+      {
+        "cycle": 0,
+        "kind": "close",
+        "frames": 114,
+        "janky": 0,
+        "p95Ms": 14
+      }
+    ],
+    "warm": [
+      {
+        "cycle": 1,
+        "kind": "open",
+        "frames": 118,
+        "janky": 1,
+        "p95Ms": 11
+      },
+      {
+        "cycle": 1,
+        "kind": "close",
+        "frames": 112,
+        "janky": 1,
+        "p95Ms": 13
+      },
+      {
+        "cycle": 2,
+        "kind": "open",
+        "frames": 116,
+        "janky": 1,
+        "p95Ms": 15
+      },
+      {
+        "cycle": 2,
+        "kind": "close",
+        "frames": 114,
+        "janky": 1,
+        "p95Ms": 20
+      },
+      {
+        "cycle": 3,
+        "kind": "open",
+        "frames": 116,
+        "janky": 2,
+        "p95Ms": 14
+      },
+      {
+        "cycle": 3,
+        "kind": "close",
+        "frames": 116,
+        "janky": 1,
+        "p95Ms": 22
+      },
+      {
+        "cycle": 4,
+        "kind": "open",
+        "frames": 118,
+        "janky": 2,
+        "p95Ms": 14
+      },
+      {
+        "cycle": 4,
+        "kind": "close",
+        "frames": 114,
+        "janky": 1,
+        "p95Ms": 24
+      },
+      {
+        "cycle": 5,
+        "kind": "open",
+        "frames": 118,
+        "janky": 1,
+        "p95Ms": 12
+      },
+      {
+        "cycle": 5,
+        "kind": "close",
+        "frames": 114,
+        "janky": 1,
+        "p95Ms": 24
+      }
+    ],
+    "note": "Platform counters reset for every actual IME transition; p95 is per phase, not FPS. No profiler/screen recorder attached."
+  },
+  {
+    "label": "alternate-b1",
+    "build": "Release, non-debuggable",
+    "installedSha": "3014fccfa7dbf4ee150f072ddb5ef2fa4362e4bfc6364541b482fa416a3ae027",
+    "actualImeOpenClosePairs": 6,
+    "failures": 0,
+    "frames": 1907,
+    "janky": 2,
+    "jankyPercent": 0.1048767697954903,
+    "first": [
+      {
+        "cycle": 0,
+        "kind": "open",
+        "frames": 139,
+        "janky": 2,
+        "p95Ms": 30
+      },
+      {
+        "cycle": 0,
+        "kind": "close",
+        "frames": 178,
+        "janky": 0,
+        "p95Ms": 17
+      }
+    ],
+    "warm": [
+      {
+        "cycle": 1,
+        "kind": "open",
+        "frames": 118,
+        "janky": 0,
+        "p95Ms": 20
+      },
+      {
+        "cycle": 1,
+        "kind": "close",
+        "frames": 194,
+        "janky": 0,
+        "p95Ms": 15
+      },
+      {
+        "cycle": 2,
+        "kind": "open",
+        "frames": 116,
+        "janky": 0,
+        "p95Ms": 19
+      },
+      {
+        "cycle": 2,
+        "kind": "close",
+        "frames": 210,
+        "janky": 0,
+        "p95Ms": 13
+      },
+      {
+        "cycle": 3,
+        "kind": "open",
+        "frames": 118,
+        "janky": 0,
+        "p95Ms": 14
+      },
+      {
+        "cycle": 3,
+        "kind": "close",
+        "frames": 196,
+        "janky": 0,
+        "p95Ms": 16
+      },
+      {
+        "cycle": 4,
+        "kind": "open",
+        "frames": 118,
+        "janky": 0,
+        "p95Ms": 15
+      },
+      {
+        "cycle": 4,
+        "kind": "close",
+        "frames": 200,
+        "janky": 0,
+        "p95Ms": 14
+      },
+      {
+        "cycle": 5,
+        "kind": "open",
+        "frames": 118,
+        "janky": 0,
+        "p95Ms": 14
+      },
+      {
+        "cycle": 5,
+        "kind": "close",
+        "frames": 202,
+        "janky": 0,
+        "p95Ms": 12
+      }
+    ],
+    "note": "Platform counters reset for every actual IME transition; p95 is per phase, not FPS. No profiler/screen recorder attached."
+  },
+  {
+    "label": "alternate-a2",
+    "build": "Release, non-debuggable",
+    "installedSha": "08c9d24cdebdcf081f499842d26a3178ae288ea536c3ea1ae6853f13a2089fa5",
+    "actualImeOpenClosePairs": 6,
+    "failures": 0,
+    "frames": 1423,
+    "janky": 13,
+    "jankyPercent": 0.9135628952916374,
+    "first": [
+      {
+        "cycle": 0,
+        "kind": "open",
+        "frames": 145,
+        "janky": 2,
+        "p95Ms": 28
+      },
+      {
+        "cycle": 0,
+        "kind": "close",
+        "frames": 114,
+        "janky": 0,
+        "p95Ms": 19
+      }
+    ],
+    "warm": [
+      {
+        "cycle": 1,
+        "kind": "open",
+        "frames": 118,
+        "janky": 1,
+        "p95Ms": 12
+      },
+      {
+        "cycle": 1,
+        "kind": "close",
+        "frames": 112,
+        "janky": 1,
+        "p95Ms": 21
+      },
+      {
+        "cycle": 2,
+        "kind": "open",
+        "frames": 116,
+        "janky": 2,
+        "p95Ms": 16
+      },
+      {
+        "cycle": 2,
+        "kind": "close",
+        "frames": 116,
+        "janky": 1,
+        "p95Ms": 23
+      },
+      {
+        "cycle": 3,
+        "kind": "open",
+        "frames": 118,
+        "janky": 0,
+        "p95Ms": 13
+      },
+      {
+        "cycle": 3,
+        "kind": "close",
+        "frames": 116,
+        "janky": 1,
+        "p95Ms": 20
+      },
+      {
+        "cycle": 4,
+        "kind": "open",
+        "frames": 120,
+        "janky": 0,
+        "p95Ms": 11
+      },
+      {
+        "cycle": 4,
+        "kind": "close",
+        "frames": 114,
+        "janky": 2,
+        "p95Ms": 21
+      },
+      {
+        "cycle": 5,
+        "kind": "open",
+        "frames": 120,
+        "janky": 2,
+        "p95Ms": 12
+      },
+      {
+        "cycle": 5,
+        "kind": "close",
+        "frames": 114,
+        "janky": 1,
+        "p95Ms": 20
+      }
+    ],
+    "note": "Platform counters reset for every actual IME transition; p95 is per phase, not FPS. No profiler/screen recorder attached."
+  },
+  {
+    "label": "alternate-b2",
+    "build": "Release, non-debuggable",
+    "installedSha": "3014fccfa7dbf4ee150f072ddb5ef2fa4362e4bfc6364541b482fa416a3ae027",
+    "actualImeOpenClosePairs": 6,
+    "failures": 0,
+    "frames": 1905,
+    "janky": 2,
+    "jankyPercent": 0.10498687664041995,
+    "first": [
+      {
+        "cycle": 0,
+        "kind": "open",
+        "frames": 145,
+        "janky": 2,
+        "p95Ms": 28
+      },
+      {
+        "cycle": 0,
+        "kind": "close",
+        "frames": 182,
+        "janky": 0,
+        "p95Ms": 16
+      }
+    ],
+    "warm": [
+      {
+        "cycle": 1,
+        "kind": "open",
+        "frames": 118,
+        "janky": 0,
+        "p95Ms": 21
+      },
+      {
+        "cycle": 1,
+        "kind": "close",
+        "frames": 198,
+        "janky": 0,
+        "p95Ms": 14
+      },
+      {
+        "cycle": 2,
+        "kind": "open",
+        "frames": 116,
+        "janky": 0,
+        "p95Ms": 18
+      },
+      {
+        "cycle": 2,
+        "kind": "close",
+        "frames": 194,
+        "janky": 0,
+        "p95Ms": 22
+      },
+      {
+        "cycle": 3,
+        "kind": "open",
+        "frames": 118,
+        "janky": 0,
+        "p95Ms": 16
+      },
+      {
+        "cycle": 3,
+        "kind": "close",
+        "frames": 196,
+        "janky": 0,
+        "p95Ms": 14
+      },
+      {
+        "cycle": 4,
+        "kind": "open",
+        "frames": 118,
+        "janky": 0,
+        "p95Ms": 14
+      },
+      {
+        "cycle": 4,
+        "kind": "close",
+        "frames": 202,
+        "janky": 0,
+        "p95Ms": 13
+      },
+      {
+        "cycle": 5,
+        "kind": "open",
+        "frames": 118,
+        "janky": 0,
+        "p95Ms": 14
+      },
+      {
+        "cycle": 5,
+        "kind": "close",
+        "frames": 200,
+        "janky": 0,
+        "p95Ms": 13
+      }
+    ],
+    "note": "Platform counters reset for every actual IME transition; p95 is per phase, not FPS. No profiler/screen recorder attached."
+  },
+  {
+    "label": "alternate-a3",
+    "build": "Release, non-debuggable",
+    "installedSha": "08c9d24cdebdcf081f499842d26a3178ae288ea536c3ea1ae6853f13a2089fa5",
+    "actualImeOpenClosePairs": 6,
+    "failures": 0,
+    "frames": 1427,
+    "janky": 15,
+    "jankyPercent": 1.051156271899089,
+    "first": [
+      {
+        "cycle": 0,
+        "kind": "open",
+        "frames": 133,
+        "janky": 2,
+        "p95Ms": 36
+      },
+      {
+        "cycle": 0,
+        "kind": "close",
+        "frames": 114,
+        "janky": 0,
+        "p95Ms": 17
+      }
+    ],
+    "warm": [
+      {
+        "cycle": 1,
+        "kind": "open",
+        "frames": 118,
+        "janky": 2,
+        "p95Ms": 16
+      },
+      {
+        "cycle": 1,
+        "kind": "close",
+        "frames": 114,
+        "janky": 0,
+        "p95Ms": 28
+      },
+      {
+        "cycle": 2,
+        "kind": "open",
+        "frames": 116,
+        "janky": 2,
+        "p95Ms": 18
+      },
+      {
+        "cycle": 2,
+        "kind": "close",
+        "frames": 114,
+        "janky": 1,
+        "p95Ms": 22
+      },
+      {
+        "cycle": 3,
+        "kind": "open",
+        "frames": 118,
+        "janky": 3,
+        "p95Ms": 16
+      },
+      {
+        "cycle": 3,
+        "kind": "close",
+        "frames": 116,
+        "janky": 1,
+        "p95Ms": 26
+      },
+      {
+        "cycle": 4,
+        "kind": "open",
+        "frames": 134,
+        "janky": 0,
+        "p95Ms": 13
+      },
+      {
+        "cycle": 4,
+        "kind": "close",
+        "frames": 116,
+        "janky": 0,
+        "p95Ms": 13
+      },
+      {
+        "cycle": 5,
+        "kind": "open",
+        "frames": 118,
+        "janky": 2,
+        "p95Ms": 13
+      },
+      {
+        "cycle": 5,
+        "kind": "close",
+        "frames": 116,
+        "janky": 2,
+        "p95Ms": 23
+      }
+    ],
+    "note": "Platform counters reset for every actual IME transition; p95 is per phase, not FPS. No profiler/screen recorder attached."
+  },
+  {
+    "label": "alternate-b3",
+    "build": "Release, non-debuggable",
+    "installedSha": "3014fccfa7dbf4ee150f072ddb5ef2fa4362e4bfc6364541b482fa416a3ae027",
+    "actualImeOpenClosePairs": 6,
+    "failures": 0,
+    "frames": 1899,
+    "janky": 2,
+    "jankyPercent": 0.105318588730911,
+    "first": [
+      {
+        "cycle": 0,
+        "kind": "open",
+        "frames": 137,
+        "janky": 2,
+        "p95Ms": 34
+      },
+      {
+        "cycle": 0,
+        "kind": "close",
+        "frames": 174,
+        "janky": 0,
+        "p95Ms": 19
+      }
+    ],
+    "warm": [
+      {
+        "cycle": 1,
+        "kind": "open",
+        "frames": 120,
+        "janky": 0,
+        "p95Ms": 21
+      },
+      {
+        "cycle": 1,
+        "kind": "close",
+        "frames": 200,
+        "janky": 0,
+        "p95Ms": 14
+      },
+      {
+        "cycle": 2,
+        "kind": "open",
+        "frames": 118,
+        "janky": 0,
+        "p95Ms": 19
+      },
+      {
+        "cycle": 2,
+        "kind": "close",
+        "frames": 204,
+        "janky": 0,
+        "p95Ms": 15
+      },
+      {
+        "cycle": 3,
+        "kind": "open",
+        "frames": 118,
+        "janky": 0,
+        "p95Ms": 14
+      },
+      {
+        "cycle": 3,
+        "kind": "close",
+        "frames": 200,
+        "janky": 0,
+        "p95Ms": 15
+      },
+      {
+        "cycle": 4,
+        "kind": "open",
+        "frames": 118,
+        "janky": 0,
+        "p95Ms": 15
+      },
+      {
+        "cycle": 4,
+        "kind": "close",
+        "frames": 198,
+        "janky": 0,
+        "p95Ms": 15
+      },
+      {
+        "cycle": 5,
+        "kind": "open",
+        "frames": 118,
+        "janky": 0,
+        "p95Ms": 15
+      },
+      {
+        "cycle": 5,
+        "kind": "close",
+        "frames": 194,
+        "janky": 0,
+        "p95Ms": 20
+      }
+    ],
+    "note": "Platform counters reset for every actual IME transition; p95 is per phase, not FPS. No profiler/screen recorder attached."
+  },
+  {
+    "label": "alternate-a4",
+    "build": "Release, non-debuggable",
+    "installedSha": "08c9d24cdebdcf081f499842d26a3178ae288ea536c3ea1ae6853f13a2089fa5",
+    "actualImeOpenClosePairs": 6,
+    "failures": 0,
+    "frames": 1429,
+    "janky": 6,
+    "jankyPercent": 0.4198740377886634,
+    "first": [
+      {
+        "cycle": 0,
+        "kind": "open",
+        "frames": 135,
+        "janky": 2,
+        "p95Ms": 36
+      },
+      {
+        "cycle": 0,
+        "kind": "close",
+        "frames": 114,
+        "janky": 0,
+        "p95Ms": 14
+      }
+    ],
+    "warm": [
+      {
+        "cycle": 1,
+        "kind": "open",
+        "frames": 118,
+        "janky": 1,
+        "p95Ms": 16
+      },
+      {
+        "cycle": 1,
+        "kind": "close",
+        "frames": 112,
+        "janky": 0,
+        "p95Ms": 26
+      },
+      {
+        "cycle": 2,
+        "kind": "open",
+        "frames": 112,
+        "janky": 1,
+        "p95Ms": 18
+      },
+      {
+        "cycle": 2,
+        "kind": "close",
+        "frames": 110,
+        "janky": 1,
+        "p95Ms": 16
+      },
+      {
+        "cycle": 3,
+        "kind": "open",
+        "frames": 128,
+        "janky": 1,
+        "p95Ms": 11
+      },
+      {
+        "cycle": 3,
+        "kind": "close",
+        "frames": 112,
+        "janky": 0,
+        "p95Ms": 15
+      },
+      {
+        "cycle": 4,
+        "kind": "open",
+        "frames": 130,
+        "janky": 0,
+        "p95Ms": 12
+      },
+      {
+        "cycle": 4,
+        "kind": "close",
+        "frames": 112,
+        "janky": 0,
+        "p95Ms": 12
+      },
+      {
+        "cycle": 5,
+        "kind": "open",
+        "frames": 134,
+        "janky": 0,
+        "p95Ms": 11
+      },
+      {
+        "cycle": 5,
+        "kind": "close",
+        "frames": 112,
+        "janky": 0,
+        "p95Ms": 22
+      }
+    ],
+    "note": "Platform counters reset for every actual IME transition; p95 is per phase, not FPS. No profiler/screen recorder attached."
+  },
+  {
+    "label": "alternate-b4",
+    "build": "Release, non-debuggable",
+    "installedSha": "3014fccfa7dbf4ee150f072ddb5ef2fa4362e4bfc6364541b482fa416a3ae027",
+    "actualImeOpenClosePairs": 6,
+    "failures": 0,
+    "frames": 1913,
+    "janky": 2,
+    "jankyPercent": 0.10454783063251437,
+    "first": [
+      {
+        "cycle": 0,
+        "kind": "open",
+        "frames": 145,
+        "janky": 2,
+        "p95Ms": 27
+      },
+      {
+        "cycle": 0,
+        "kind": "close",
+        "frames": 194,
+        "janky": 0,
+        "p95Ms": 15
+      }
+    ],
+    "warm": [
+      {
+        "cycle": 1,
+        "kind": "open",
+        "frames": 116,
+        "janky": 0,
+        "p95Ms": 20
+      },
+      {
+        "cycle": 1,
+        "kind": "close",
+        "frames": 200,
+        "janky": 0,
+        "p95Ms": 13
+      },
+      {
+        "cycle": 2,
+        "kind": "open",
+        "frames": 118,
+        "janky": 0,
+        "p95Ms": 19
+      },
+      {
+        "cycle": 2,
+        "kind": "close",
+        "frames": 192,
+        "janky": 0,
+        "p95Ms": 14
+      },
+      {
+        "cycle": 3,
+        "kind": "open",
+        "frames": 118,
+        "janky": 0,
+        "p95Ms": 15
+      },
+      {
+        "cycle": 3,
+        "kind": "close",
+        "frames": 190,
+        "janky": 0,
+        "p95Ms": 13
+      },
+      {
+        "cycle": 4,
+        "kind": "open",
+        "frames": 118,
+        "janky": 0,
+        "p95Ms": 16
+      },
+      {
+        "cycle": 4,
+        "kind": "close",
+        "frames": 204,
+        "janky": 0,
+        "p95Ms": 21
+      },
+      {
+        "cycle": 5,
+        "kind": "open",
+        "frames": 118,
+        "janky": 0,
+        "p95Ms": 13
+      },
+      {
+        "cycle": 5,
+        "kind": "close",
+        "frames": 200,
+        "janky": 0,
+        "p95Ms": 13
+      }
+    ],
+    "note": "Platform counters reset for every actual IME transition; p95 is per phase, not FPS. No profiler/screen recorder attached."
+  },
+  {
+    "label": "alternate-a5",
+    "build": "Release, non-debuggable",
+    "installedSha": "08c9d24cdebdcf081f499842d26a3178ae288ea536c3ea1ae6853f13a2089fa5",
+    "actualImeOpenClosePairs": 6,
+    "failures": 0,
+    "frames": 1415,
+    "janky": 16,
+    "jankyPercent": 1.1307420494699647,
+    "first": [
+      {
+        "cycle": 0,
+        "kind": "open",
+        "frames": 141,
+        "janky": 2,
+        "p95Ms": 30
+      },
+      {
+        "cycle": 0,
+        "kind": "close",
+        "frames": 114,
+        "janky": 0,
+        "p95Ms": 20
+      }
+    ],
+    "warm": [
+      {
+        "cycle": 1,
+        "kind": "open",
+        "frames": 118,
+        "janky": 2,
+        "p95Ms": 16
+      },
+      {
+        "cycle": 1,
+        "kind": "close",
+        "frames": 112,
+        "janky": 1,
+        "p95Ms": 13
+      },
+      {
+        "cycle": 2,
+        "kind": "open",
+        "frames": 118,
+        "janky": 1,
+        "p95Ms": 15
+      },
+      {
+        "cycle": 2,
+        "kind": "close",
+        "frames": 116,
+        "janky": 1,
+        "p95Ms": 23
+      },
+      {
+        "cycle": 3,
+        "kind": "open",
+        "frames": 118,
+        "janky": 1,
+        "p95Ms": 14
+      },
+      {
+        "cycle": 3,
+        "kind": "close",
+        "frames": 116,
+        "janky": 2,
+        "p95Ms": 20
+      },
+      {
+        "cycle": 4,
+        "kind": "open",
+        "frames": 118,
+        "janky": 3,
+        "p95Ms": 15
+      },
+      {
+        "cycle": 4,
+        "kind": "close",
+        "frames": 112,
+        "janky": 1,
+        "p95Ms": 13
+      },
+      {
+        "cycle": 5,
+        "kind": "open",
+        "frames": 118,
+        "janky": 1,
+        "p95Ms": 12
+      },
+      {
+        "cycle": 5,
+        "kind": "close",
+        "frames": 114,
+        "janky": 1,
+        "p95Ms": 17
+      }
+    ],
+    "note": "Platform counters reset for every actual IME transition; p95 is per phase, not FPS. No profiler/screen recorder attached."
+  },
+  {
+    "label": "alternate-b5",
+    "build": "Release, non-debuggable",
+    "installedSha": "3014fccfa7dbf4ee150f072ddb5ef2fa4362e4bfc6364541b482fa416a3ae027",
+    "actualImeOpenClosePairs": 6,
+    "failures": 0,
+    "frames": 1885,
+    "janky": 2,
+    "jankyPercent": 0.10610079575596817,
+    "first": [
+      {
+        "cycle": 0,
+        "kind": "open",
+        "frames": 141,
+        "janky": 2,
+        "p95Ms": 34
+      },
+      {
+        "cycle": 0,
+        "kind": "close",
+        "frames": 180,
+        "janky": 0,
+        "p95Ms": 13
+      }
+    ],
+    "warm": [
+      {
+        "cycle": 1,
+        "kind": "open",
+        "frames": 116,
+        "janky": 0,
+        "p95Ms": 20
+      },
+      {
+        "cycle": 1,
+        "kind": "close",
+        "frames": 188,
+        "janky": 0,
+        "p95Ms": 14
+      },
+      {
+        "cycle": 2,
+        "kind": "open",
+        "frames": 114,
+        "janky": 0,
+        "p95Ms": 18
+      },
+      {
+        "cycle": 2,
+        "kind": "close",
+        "frames": 200,
+        "janky": 0,
+        "p95Ms": 14
+      },
+      {
+        "cycle": 3,
+        "kind": "open",
+        "frames": 118,
+        "janky": 0,
+        "p95Ms": 18
+      },
+      {
+        "cycle": 3,
+        "kind": "close",
+        "frames": 196,
+        "janky": 0,
+        "p95Ms": 14
+      },
+      {
+        "cycle": 4,
+        "kind": "open",
+        "frames": 118,
+        "janky": 0,
+        "p95Ms": 16
+      },
+      {
+        "cycle": 4,
+        "kind": "close",
+        "frames": 200,
+        "janky": 0,
+        "p95Ms": 15
+      },
+      {
+        "cycle": 5,
+        "kind": "open",
+        "frames": 116,
+        "janky": 0,
+        "p95Ms": 15
+      },
+      {
+        "cycle": 5,
+        "kind": "close",
+        "frames": 198,
+        "janky": 0,
+        "p95Ms": 15
+      }
+    ],
+    "note": "Platform counters reset for every actual IME transition; p95 is per phase, not FPS. No profiler/screen recorder attached."
+  }
+]

@@ -41,6 +41,7 @@ type Preview = {
   admissions: number;
   omissions: string[];
   files: Array<{ path: string; content: string }>;
+  uploadEvidence?: string;
 };
 const styles = stylex.create({
   body: { display: 'flex', flexDirection: 'column', gap: space.x4, minWidth: 0 },
@@ -84,6 +85,9 @@ function parsePreview(value: unknown): Preview {
     summary = record(result['summary']);
   return {
     token: string(result['token']),
+    ...(result['uploadEvidence']
+      ? { uploadEvidence: JSON.stringify(result['uploadEvidence'], null, 2) }
+      : {}),
     canSubmit: result['canSubmit'] === true,
     bytes: number(result['bytes']),
     channels: list(summary['channels']).map((item) => {
@@ -108,14 +112,16 @@ export function MessageFeedbackDialog({
   channelId,
   messageId,
   onClose,
+  failureTurn = false,
   t,
 }: {
   channelId: string;
   messageId: string;
+  failureTurn?: boolean;
   onClose(): void;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const [rating, setRating] = useState<Rating>();
+  const [rating, setRating] = useState<Rating | undefined>(failureTurn ? 'bad' : undefined);
   const [tags, setTags] = useState<string[]>([]);
   const [comment, setComment] = useState('');
   const [scope, setScope] = useState({
@@ -164,7 +170,7 @@ export function MessageFeedbackDialog({
   const prepare = () =>
     run(async (signal) => {
       const value: unknown = await (
-        await post('preview', { channelId, messageId, ...scope }, signal)
+        await post('preview', { channelId, messageId, ...scope, failureTurn }, signal)
       ).json();
       if (!signal.aborted) {
         setPreview(parsePreview(value));
@@ -198,7 +204,7 @@ export function MessageFeedbackDialog({
       const url = URL.createObjectURL(blob),
         anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = 'message-feedback.zip';
+      anchor.download = `message-feedback-${preview.token}.zip`;
       anchor.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     });
@@ -206,7 +212,7 @@ export function MessageFeedbackDialog({
   return (
     <FormDialog
       title={t('feedback.title')}
-      description={t('feedback.description')}
+      description={t(failureTurn ? 'feedback.failureTurnDescription' : 'feedback.description')}
       size="wide"
       scroll
       labels={{ close: t('common.close'), cancel: t('common.cancel') }}
@@ -270,6 +276,12 @@ export function MessageFeedbackDialog({
               disabled={busy || submitted}
               onChange={(value) => setComment(Array.from(value).slice(0, 500).join(''))}
             />
+            {preview?.uploadEvidence ? (
+              <details>
+                <summary>{t('feedback.uploadPreview')}</summary>
+                <pre {...stylex.props(styles.content)}>{preview.uploadEvidence}</pre>
+              </details>
+            ) : null}
             <fieldset {...stylex.props(styles.choices)} disabled={busy || submitted}>
               <legend>{t('feedback.include')}</legend>
               <div {...stylex.props(styles.row)}>

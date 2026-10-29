@@ -45,6 +45,7 @@ const styles = stylex.create({
   dimmed: { cursor: 'default', opacity: 0.6 },
   fixed: { flexGrow: 0, flexBasis: 'auto', maxWidth: '40%' },
   compact: { flexGrow: 0, flexBasis: 'auto', cursor: 'grab' },
+  hugged: { flexGrow: 0, flexBasis: 'auto' },
   context: { display: 'flex', alignItems: 'center', minWidth: 0, flexShrink: 1 },
   spacer: { flexGrow: 1 },
   chevron: {
@@ -145,6 +146,7 @@ export function PanelHeader({
     return clipped && typeof label === 'string' ? `${label} · ${hideHint ?? ''}` : (hideHint ?? '');
   };
   const fixed = tabs !== undefined;
+  const hug = !!onHide || (context !== undefined && disclosure === undefined);
   const content = (
     <>
       {icon === undefined ? null : (
@@ -158,7 +160,7 @@ export function PanelHeader({
         title={typeof label === 'string' && hideHint === undefined ? label : undefined}
         {...stylex.props(
           styles.label,
-          (fixed || !!onHide) && styles.labelFixed,
+          (fixed || hug) && styles.labelFixed,
           struck && styles.struck,
         )}
       >
@@ -217,6 +219,7 @@ export function PanelHeader({
             styles.head,
             styles.static,
             fixed && styles.fixed,
+            hug && styles.hugged,
             dimmed && styles.dimmed,
           )}
         >
@@ -269,7 +272,7 @@ export function PanelHeader({
           {tabs}
         </span>
       )}
-      {onHide ? <span aria-hidden="true" {...stylex.props(styles.spacer)} /> : null}
+      {hug ? <span aria-hidden="true" {...stylex.props(styles.spacer)} /> : null}
       {action === undefined ? null : (
         <span data-panel-actions="" data-window-drag-recall {...stylex.props(styles.action)}>
           <InstantTooltipScope>{action}</InstantTooltipScope>

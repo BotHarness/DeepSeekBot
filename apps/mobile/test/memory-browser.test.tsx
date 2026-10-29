@@ -16,13 +16,20 @@ vi.mock('expo-image', () => ({
 }));
 
 vi.mock('react-native', () => import('./react-native-shim'));
-vi.mock('../src/ui/shell/icons', () => ({
+vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
   ChevronRightIcon: () => null,
   FileIcon: () => null,
   FolderIcon: () => null,
 }));
 
-import { MemoryFolderView } from '../src/ui/chat/memory-browser';
+import {
+  MemoryFolderView,
+  memoryColumns,
+  memoryGridRows,
+  memorySymbol,
+} from '../src/ui/chat/memory-browser';
 import { MemoryFileView } from '../src/ui/chat/memory-file-view';
 import { MemoryPreviewImage } from '../src/ui/chat/memory-preview-image';
 import { MemoryVisibility } from '../src/ui/chat/memory-visibility';
@@ -62,13 +69,54 @@ describe('Memory browser', () => {
     const view = await render(
       <MemoryFolderView folder=".botharness" load={async () => files} onOpen={onOpen} />,
     );
-    expect(labels(view)).toEqual(['banner.png', 'bot.json']);
+    expect(labels(view)).toEqual([
+      `banner.png, ${t.memoryKind.image}`,
+      `bot.json, ${t.memoryKind.data}`,
+    ]);
     await act(async () => view.querySelector<HTMLButtonElement>('button')!.click());
     expect(onOpen).toHaveBeenCalledWith({
       kind: 'file',
       name: 'banner.png',
       path: '.botharness/banner.png',
     });
+  });
+
+  it('lays a folder out as a grid that keeps its columns at large text sizes', async () => {
+    expect(memoryColumns(390, false)).toBe(3);
+    expect(memoryColumns(820, false)).toBe(5);
+    expect(memoryColumns(390, true)).toBe(2);
+    expect(memoryGridRows([1, 2, 3, 4], 3)).toEqual([[1, 2, 3], [4]]);
+    const view = await render(
+      <MemoryFolderView
+        folder=""
+        load={async () => ['a.md', 'b.png', 'c.json', 'd', 'e/f.md']}
+        onOpen={() => {}}
+      />,
+    );
+    expect(labels(view)).toEqual([
+      `e, ${t.memoryItems(1)}`,
+      `a.md, ${t.memoryKind.text}`,
+      `b.png, ${t.memoryKind.image}`,
+      `c.json, ${t.memoryKind.data}`,
+      `d, ${t.memoryKind.other}`,
+    ]);
+    expect(
+      [...view.querySelectorAll('[data-testid^="memory-entry-"]')].map(
+        (node) =>
+          node.parentElement ===
+          view.querySelector('[data-testid="memory-entry-e"]')!.parentElement,
+      ),
+    ).toEqual([true, true, true, false, false]);
+  });
+
+  it('picks the icon from the entry kind and file extension', () => {
+    const file = (name: string) => ({ kind: 'file' as const, name, path: name });
+    expect(memorySymbol({ kind: 'folder', name: 'notes', path: 'notes', count: 1 })).toBe('folder');
+    expect(memorySymbol(file('README.MD'))).toBe('text');
+    expect(memorySymbol(file('banner.webp'))).toBe('image');
+    expect(memorySymbol(file('bot.json'))).toBe('data');
+    expect(memorySymbol(file('.gitattributes'))).toBe('other');
+    expect(memorySymbol(file('archive.zip'))).toBe('other');
   });
 
   it('says so when a folder is empty, and retries a failed read', async () => {
@@ -84,7 +132,14 @@ describe('Memory browser', () => {
         onOpen={() => {}}
       />,
     );
-    expect(view.textContent).toContain(`${t.profileFailed} The Host did not answer in time.`);
+    expect(view.textContent).toContain(t.profileFailed);
+    expect(view.textContent).not.toContain('The Host did not answer in time.');
+    await act(async () =>
+      [...view.querySelectorAll<HTMLButtonElement>('button')]
+        .find((button) => button.textContent === t.details)!
+        .click(),
+    );
+    expect(view.textContent).toContain('The Host did not answer in time.');
     await act(async () =>
       view.querySelector<HTMLButtonElement>(`button[aria-label="${t.tryAgain}"]`)!.click(),
     );
@@ -106,6 +161,14 @@ describe('Memory browser', () => {
       <MemoryFileView load={async () => ({ ...memory, body: '', binary: true })} />,
     );
     expect(binary.textContent).toBe(t.memoryBinary);
+  });
+
+  it('puts the About note above a pinned file', async () => {
+    const memory = profileWire.rpc.memoryFile['MEMORY.md'].file;
+    const view = await render(<MemoryFileView load={async () => memory} role="coreMemory" />);
+    expect(view.textContent).toBe(
+      `${t.memoryAboutTitle} ${t.memoryAbout.coreMemory}${memory.body}`,
+    );
   });
 });
 
@@ -138,7 +201,7 @@ function previewPort() {
   };
 }
 
-it('renders real Markdown headings, tables, inert HTML and source without a native Markdown mock', async () => {
+it('renders real Markdown headings, tables and inert HTML without a native Markdown mock', async () => {
   const body =
     '# Readable note\n\n| A | B |\n|---|---|\n| one | two |\n\n<script>neverRun()</script>';
   const view = await render(
@@ -156,15 +219,6 @@ it('renders real Markdown headings, tables, inert HTML and source without a nati
   expect(view.textContent).toContain('onetwo');
   expect(view.querySelector('script')).toBeNull();
   expect(view.textContent).toContain('<script>neverRun()</script>');
-  await act(async () =>
-    view.querySelector<HTMLButtonElement>(`button[aria-label="${t.memorySource}"]`)!.click(),
-  );
-  expect(view.textContent).toContain(body);
-  expect(view.querySelector('[role="header"]')).toBeNull();
-  await act(async () =>
-    view.querySelector<HTMLButtonElement>(`button[aria-label="${t.memoryPreview}"]`)!.click(),
-  );
-  expect(view.querySelector('[role="header"]')?.textContent).toBe('Readable note');
 });
 
 it('splits nested and reference images without losing surrounding formatting', () => {

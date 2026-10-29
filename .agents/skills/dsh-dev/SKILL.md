@@ -5,6 +5,19 @@ description: Use when developing, running, or debugging BotHarness against a loc
 
 # DSH development & debugging
 
+### Empty tool declaration series (#3137)
+
+DSH 0.2.1-rc.3 can record a `request/header` with `startsSeries: true` and no tools.
+Later tool additions then all become deferred during LLM route projection, and DeepSeek
+rejects the request because no immediate tool remains. The active header alone hides this:
+inspect `session.toolHistory().tools`, not only `session.requestHeader().tools`.
+For owned Bot Sessions, the pre-step owner requests a new declaration series after an empty
+baseline, letting the native loop persist its currently assembled tools. This also repairs
+an already-failing restored Session. Do not invent a resident tool, rewrite prior events,
+weaken tool access checks, or blame an installed Plugin from the HTTP error alone.
+The regression uses the real native Session fold and LLM projection in
+`packages/core/test/tool-declaration-series.test.ts`.
+
 BotHarness is a plugin layer inside DSH: unit tests do not cover the real boot. Every trap in this skill was invisible to `pnpm test` and only appeared in a running `dsh --profile web-dev`. **Validate against the running shell, not the test suite.**
 
 ## Proactive Client verification
@@ -77,7 +90,7 @@ A saved AX model id may disappear from the pinned native catalog. Preserve the l
 
 ## Pitfall log
 
-In DSH 0.2.1-rc.3, a non-insert Patch `name` is a selector, not a rename operation. For the product theme, a final inserted `ui-theme` row selects one Fiber through the Loader’s last-row-per-id rule; later Profile settings still target that identity. Relative Plugin names must point to the entry file (`./desktop-theme/lib/index.js`), not its package directory: Node ESM refuses directory imports. Check the actual Host log and Client, not just a successful health request. Require a Desktop restart after changing Bundle composition; a minimal Loader without HMR does not prove hot replacement (#2775).
+In DSH 0.2.1-rc.3, never give two Loader rows the same id across Bundle layers. A Bundle `insert` of an existing id such as `ui-theme` makes the Loader start the last row, but native Settings (`configEditor`) composes the Profile Patch and checks the first row; every write then fails with `settings/rejected: Configuration for "ui-theme" is overridden by a home patch or command-line overlay`. The theme Client rolls back to the stored preference without a visible error. A non-insert Patch `name` is a selector, not a rename, so a Bundle cannot replace a native Plugin row; use a Profile-local package link instead. Reproduce by clicking Settings → General → Appearance → Dark and reading the `settings/mutate` reply (#2788).
 
 Native `dsh plugin add` reconciles newly installed Bundle packages into `dsh.profile.bundles`. Installing a renamed product Bundle beside the old one is not command-only installation. For the Tobs coexistence qualification, explicitly restore the previous Bundle selection before booting; for replacement, remove the old product entry and enable Tobs. Keep the same Profile, canonical data and Patch identities, and verify composition plus writes after restart. Never infer that package installation leaves the enabled Bundle list unchanged (#2722).
 

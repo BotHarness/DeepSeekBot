@@ -12,6 +12,8 @@ export interface HumanAssignmentReport {
 export interface HumanAssignmentContext {
   botSlug: string;
   sessionId: string;
+  title: string;
+  description: string;
   purpose: string;
   sourceEventId: string;
   reports: HumanAssignmentReport[];
@@ -127,12 +129,14 @@ export function readHumanAssignmentContext(
   return database.read((db) => {
     const source = db
       .prepare(`
-      SELECT e.rowid AS position, a.purpose FROM source_events e
+      SELECT e.rowid AS position, a.title, a.description FROM source_events e
       JOIN assignments a ON a.session_id = e.assignment_session_id AND a.bot_slug = e.bot_slug
       WHERE a.bot_slug = ? AND a.session_id = ? AND e.source_event_id = ?
         AND e.source_kind = 'assignment-report'
     `)
-      .get(botSlug, sessionId, sourceEventId) as { position: number; purpose: string } | undefined;
+      .get(botSlug, sessionId, sourceEventId) as
+      | { position: number; title: string; description: string }
+      | undefined;
     if (source === undefined) return undefined;
     const rows = db
       .prepare(`
@@ -160,7 +164,9 @@ export function readHumanAssignmentContext(
     return {
       botSlug,
       sessionId,
-      purpose: source.purpose,
+      title: source.title,
+      description: source.description,
+      purpose: source.description,
       sourceEventId,
       hasOlder: edge(rows[0]?.source_event_id, '<'),
       hasNewer: edge(rows.at(-1)?.source_event_id, '>'),

@@ -282,9 +282,13 @@ export interface OwnedSessionSummary {
   assignmentReportState?: 'progress' | 'completed' | 'blocked' | 'waiting-human' | 'failed';
   assignmentExecutionWait?: 'waiting-human' | 'waiting-capacity';
   assignmentArchived?: true;
-  assignmentPurpose?: string;
+  assignmentTitle?: string;
+  assignmentDescription?: string;
+  assignmentModelRoute?: { provider: string; model: string; reasoningEffort?: string };
+  modelRoute?: { provider: string; model: string; reasoningEffort?: string };
   currentOrchestrator?: boolean;
   triageOpenCount?: number;
+  subagentCount?: number;
 }
 
 export type HumanInboxCategory = 'action' | 'info' | 'unread' | 'replies' | 'handled';
@@ -430,7 +434,7 @@ export interface BotAttentionItem {
   sourceChannelName?: string;
   sourceMessageId?: string;
   assignmentSessionId?: string;
-  assignmentPurpose?: string;
+  assignmentTitle?: string;
   assignmentReportState?: 'progress' | 'completed' | 'blocked' | 'waiting-human' | 'failed';
   scheduleId?: string;
   externalOrigin?: {

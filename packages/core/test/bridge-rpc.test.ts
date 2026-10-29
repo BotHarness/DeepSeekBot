@@ -121,6 +121,7 @@ describe('bridge typert service', () => {
             throw new Error('unused');
           },
           isTob: (slug) => slug === 'ada',
+          slug: () => 'ada',
           readSetting: () => ({ scope: 'global', value: 8, revision: 0 }),
           writeSetting: async () => {
             throw new Error('unused');
@@ -645,11 +646,14 @@ describe('bridge typert service', () => {
       'tobHome',
       'onboarding',
       'onboardingModel',
-      'introEvent',
+      'telemetryEvent',
       'modelPlanInherit',
       'channelRetry',
       'botNewSession',
       'botCompact',
+      'botContext',
+      'botSystemPrompt',
+      'botTurnInput',
       'channelBotStop',
       'modelCatalog',
       'modelPresets',
@@ -717,6 +721,7 @@ describe('bridge typert service', () => {
       'channelMarkAllRead',
       'channelReact',
       'channelSearch',
+      'messageSearch',
       'channelUnreadCounts',
       'channelAllBotPreview',
       'channelSend',
@@ -737,6 +742,8 @@ describe('bridge typert service', () => {
       'assignments',
       'channelAssignments',
       'assignment',
+      'assignmentTimeline',
+      'sessionSubagents',
       'workspaceOptions',
       'messageAttachmentTarget',
       'channelMediaTarget',
@@ -751,6 +758,7 @@ describe('bridge typert service', () => {
       'assignmentAccessSet',
       'toolApprovalRules',
       'toolApprovalRuleRevoke',
+      'toolApprovalHistory',
       'toolApprovalStatus',
       'toolApprovalDecide',
       'toolAutoRejectionOverride',
@@ -803,6 +811,14 @@ describe('bridge typert service', () => {
       'browserAccessSet',
       'browserProfileSet',
       'approvalTemplates',
+      'promptParts',
+      'promptPresets',
+      'promptPresetCreate',
+      'promptPresetUpdate',
+      'promptPresetDelete',
+      'promptGlobalSet',
+      'botPrompt',
+      'botPromptSet',
       'approvalTemplateCreate',
       'approvalTemplateUpdate',
       'approvalTemplateDelete',
@@ -812,6 +828,7 @@ describe('bridge typert service', () => {
       'idleCompaction',
       'idleCompactionSet',
       'idleCompactionCacheLifetimeSet',
+      'compactionThresholdSet',
       'standingLimitsSet',
       'botAvatarSet',
       'botAppearanceSet',
@@ -825,9 +842,29 @@ describe('bridge typert service', () => {
       'marketplaceList',
       'marketplaceSubmit',
       'marketplaceTopics',
+      'marketplaceSections',
+      'marketplaceDigests',
+      'marketplaceDigest',
       'marketplaceDetail',
+      'marketplaceFileView',
       'marketplaceChallenge',
       'marketplaceReport',
+      'marketplaceAccount',
+      'marketplaceAuthorSave',
+      'marketplaceAuthorAvatarSet',
+      'marketplaceUploadPlan',
+      'marketplaceUpload',
+      'marketplaceInstallReview',
+      'marketplaceMine',
+      'marketplaceDelete',
+      'shareDraftStart',
+      'shareDraftGet',
+      'shareDraftFile',
+      'shareDraftDecide',
+      'shareDraftFinish',
+      'shareDraftDiscard',
+      'shareDraftExport',
+      'marketplaceInstall',
       'releaseInfo',
       'releaseUpdate',
       'releaseInstall',
@@ -878,7 +915,7 @@ describe('bridge typert service', () => {
       'limit',
     ]);
     expect(parameterNames(service.followCompanion)).toEqual(['resume', 'lastEventId', 'signal']);
-    expect(parameterNames(service.botToolRun)).toEqual(['slug', 'tool', 'args']);
+    expect(parameterNames(service.botToolRun)).toEqual(['slug', 'tool', 'args', 'sessionId']);
     expect(parameterNames(service.memoryMove)).toEqual(['slug', 'location']);
   });
 
@@ -930,6 +967,7 @@ describe('bridge typert service', () => {
       'origin',
       'operationKey',
       'expectedCommit',
+      'listingId',
     ]);
     expect(parameterNames(service.botImportPreview)).toEqual(['gitUrl']);
     expect(parameterNames(service.botImportLookup)).toEqual([
@@ -942,6 +980,10 @@ describe('bridge typert service', () => {
     ]);
     expect(parameterNames(service.marketplaceList)).toEqual(['query']);
     expect(parameterNames(service.marketplaceTopics)).toEqual([]);
+    expect(parameterNames(service.marketplaceSections)).toEqual(['lang']);
+    expect(parameterNames(service.marketplaceDigests)).toEqual(['lang']);
+    expect(parameterNames(service.marketplaceDigest)).toEqual(['day', 'lang']);
+    expect(parameterNames(service.marketplaceFileView)).toEqual(['id', 'path']);
     expect(parameterNames(service.marketplaceDetail)).toEqual(['id', 'lang']);
     expect(parameterNames(service.marketplaceSubmit)).toEqual(['url', 'altcha']);
     expect(parameterNames(service.marketplaceChallenge)).toEqual([]);
@@ -955,6 +997,7 @@ describe('bridge typert service', () => {
       'active',
     ]);
     expect(parameterNames(service.channelSearch)).toEqual(['channelId', 'text', 'cursor', 'limit']);
+    expect(parameterNames(service.messageSearch)).toEqual(['text', 'cursor', 'limit']);
     expect(parameterNames(service.releaseInstall)).toEqual(['version']);
     expect(parameterNames(service.releaseRestart)).toEqual([]);
     expect(parameterNames(service.telemetryStatus)).toEqual([]);
@@ -1008,7 +1051,14 @@ describe('bridge typert service', () => {
       'sessionId',
       'sourceEventId',
     ]);
-    expect(parameterNames(service.assignments)).toEqual(['slug']);
+    expect(parameterNames(service.assignments)).toEqual([
+      'slug',
+      'query',
+      'activity',
+      'includeArchived',
+      'limit',
+      'cursor',
+    ]);
     expect(parameterNames(service.assignment)).toEqual(['slug', 'sessionId']);
     expect(parameterNames(service.sessions)).toEqual(['slug']);
     expect(parameterNames(service.sessionOwner)).toEqual(['sessionId']);

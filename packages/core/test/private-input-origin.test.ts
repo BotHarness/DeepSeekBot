@@ -1,8 +1,10 @@
+import { readFile } from 'node:fs/promises';
 import { setImmediate as tick } from 'node:timers/promises';
 import { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { createServer } from 'node:http';
 import { expect, it, vi } from 'vitest';
 import { createCore } from '../src/plugin.js';
 import { PrivateInputs } from '../src/credentials/private-inputs.js';
@@ -11,6 +13,9 @@ import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { ChannelToolApproval } from '../src/workspaces/tool-approval.js';
 import type { ToolExecution } from '@deepseek-ai/dsh-tools';
 import { createTempRoot } from './helpers.js';
+import { mountPrivateInputs } from '../src/credentials/mount.js';
+import { createScope } from '@deepseek-ai/dsh-scope';
+import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 
 const declaration = {
   account: 'synthetic-origin',
@@ -18,7 +23,7 @@ const declaration = {
   fields: [{ id: 'token', label: 'Token', required: true }],
 };
 
-async function fixture() {
+async function fixture(mounted = false) {
   const home = createTempRoot('bh-private-origin-');
   const ctx = new Context();
   const fiber = ctx.plugin(LocalCredentialProvider, {
@@ -53,20 +58,30 @@ async function fixture() {
   });
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
   core.channels.getOrCreateDm('ada', 'Ada');
-  const privateInputs = new PrivateInputs({
-    channels: core.channels,
-    ownership: core.ownership,
-    registry: core.registry,
-    credentials: () => ctx.credentials,
-    isLive: () => true,
-    qualified: async () => true,
-    canRequest: (agent, id) => core.runtime.canRequestPrivateInput?.(agent.session.id, id) === true,
-    origin: (agent, id) => core.runtime.bindPrivateInputOrigin?.(agent.session.id, id),
-    notify: async () => {},
-    replyAuthority: (bot, id, authority) =>
-      core.externalMessaging.privateInputReplyAuthority(bot, id, authority),
-    log: () => {},
-  });
+  const tools: ToolDefinition[] = [];
+  let liveAgent: Agent | undefined;
+  if (mounted) {
+    ctx.provide('tools', { guard: () => () => {}, register: () => () => {} } as never);
+    ctx.provide('agents', { get: () => liveAgent } as never);
+    ctx.provide('sandbox', { confine: async (argv: string[]) => ({ argv }) } as never);
+  }
+  const privateInputs = mounted
+    ? mountPrivateInputs(ctx, core, undefined, undefined, home)
+    : new PrivateInputs({
+        channels: core.channels,
+        ownership: core.ownership,
+        registry: core.registry,
+        credentials: () => ctx.credentials,
+        isLive: () => true,
+        qualified: async () => true,
+        canRequest: (agent, id) =>
+          core.runtime.canRequestPrivateInput?.(agent.session.id, id) === true,
+        origin: (agent, id) => core.runtime.bindPrivateInputOrigin?.(agent.session.id, id),
+        notify: async () => {},
+        replyAuthority: (bot, id, authority) =>
+          core.externalMessaging.privateInputReplyAuthority(bot, id, authority),
+        log: () => {},
+      });
   const fingerprint = 'a'.repeat(64);
   let consumer: Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1] | undefined;
   const transport: DshImOutboundService = {
@@ -125,9 +140,34 @@ async function fixture() {
   await core.externalMessaging.inbound.setEnabled('ada', grant.id, true);
   let next = 0;
   return {
+    home,
     core,
     privateInputs,
     grant,
+    mount(agent: Agent) {
+      liveAgent = agent;
+      const root = new Context();
+      root.provide('tools', {
+        schemas: () => tools.map((tool) => ({ name: tool.name })),
+        register: (tool: ToolDefinition) => {
+          tools.push(tool);
+          return () => {};
+        },
+      } as never);
+      const scope = createScope(root, agent);
+      core.runBotAgentSetups(scope.ctx, agent, { botSlug: 'ada', rootRole: 'orchestrator' });
+      return {
+        async call(name: string, args: Record<string, unknown>) {
+          const tool = tools.find((candidate) => candidate.name === name);
+          if (tool === undefined) throw new Error('Missing registered tool: ' + name);
+          return tool.execute(args, { signal: new AbortController().signal } as ToolRunContext);
+        },
+        async close() {
+          await scope.dispose();
+          await root.fiber.dispose();
+        },
+      };
+    },
     started: () => started,
     async nextTurn() {
       release();
@@ -193,8 +233,12 @@ async function fixture() {
       expect(sources.length).toBeGreaterThan(0);
       return sources.find((item) => !before.has(item.id))!.id;
     },
-    async configure(agent: Agent) {
-      const waiting = privateInputs.ask(agent, declaration, new AbortController().signal);
+    async configure(
+      agent: Agent,
+      request = declaration,
+      values: Record<string, string> = { token: 'SYNTHETIC-2290' },
+    ) {
+      const waiting = privateInputs.ask(agent, request, new AbortController().signal);
       await vi.waitFor(() =>
         expect(core.channels.readMessages('dm-ada').some((m) => m.privateInputRequest)).toBe(true),
       );
@@ -203,7 +247,7 @@ async function fixture() {
         await privateInputs.submit(true, {
           channelId: 'dm-ada',
           messageId: card.id,
-          values: { token: 'SYNTHETIC-2290' },
+          values,
         }),
       ).toBe(true);
       return { result: await waiting, cardId: card.id };
@@ -219,6 +263,141 @@ async function fixture() {
     },
   };
 }
+
+it('recovers a registered secret_cli multi-IM refusal by selecting the configured account source without a Web notice', async () => {
+  const f = await fixture(true);
+  let mounted: ReturnType<typeof f.mount> | undefined;
+  try {
+    await f.local();
+    const run = await f.started();
+    const agent = {
+      id: run.sessionId,
+      session: { id: run.sessionId, header: { cwd: f.home } },
+    } as Agent;
+    mounted = f.mount(agent);
+    const { result } = await f.configure(agent);
+    await f.nextTurn();
+    const source = await f.im();
+    await f.started();
+    await f.im();
+    const marker = join(f.home, 'command-starts.txt');
+    const args = {
+      account: declaration.account,
+      references: Object.values(result.references),
+      program: 'git',
+      args: ['config', '--file', marker, '--add', 'qa.started', 'once'],
+      env: [{ name: 'GH_TOKEN', value: '{{token}}' }],
+    };
+    await expect(mounted.call('secret_cli', args)).rejects.toMatchObject({
+      code: 'private-source-required',
+      message: expect.stringContaining('ask_secret'),
+    });
+    await expect(readFile(marker, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+    const cards = f.core.channels
+      .readMessages('dm-ada')
+      .filter((message) => message.privateInputRequest).length;
+    await expect(
+      mounted.call('ask_secret', { ...declaration, source_event_id: source }),
+    ).resolves.toContain('configured');
+    await expect(mounted.call('secret_cli', args)).resolves.toContain('"exitCode":0');
+    expect((await readFile(marker, 'utf8')).match(/started = once/g)).toHaveLength(1);
+    expect(
+      f.core.channels.readMessages('dm-ada').filter((message) => message.privateInputRequest),
+    ).toHaveLength(cards);
+  } finally {
+    await mounted?.close();
+    await f.close();
+  }
+});
+
+it.each(['secret_http', 'protected_cli', 'secret_mcp_connect'])(
+  'recovers the registered %s consumer without issuing duplicate external requests',
+  async (name) => {
+    let requests = 0;
+    const server = createServer((request, response) => {
+      expect(request.headers['x-api-key']).toBe('SYNTHETIC-key');
+      expect(request.headers['x-api-secret']).toBe('SYNTHETIC-secret');
+      requests++;
+      response.end('ok');
+    });
+    await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+    const address = server.address();
+    if (address === null || typeof address === 'string') throw new Error('Missing test endpoint');
+    const f = await fixture(true);
+    let mounted: ReturnType<typeof f.mount> | undefined;
+    try {
+      await f.local();
+      const run = await f.started();
+      const agent = {
+        id: run.sessionId,
+        session: { id: run.sessionId, header: { cwd: f.home } },
+      } as Agent;
+      mounted = f.mount(agent);
+      const request = {
+        ...declaration,
+        fields: ['endpoint', 'api_key', 'api_secret'].map((id) => ({
+          id,
+          label: id,
+          required: true,
+        })),
+      };
+      const { result } = await f.configure(agent, request, {
+        endpoint: `http://127.0.0.1:${address.port}`,
+        api_key: 'SYNTHETIC-key',
+        api_secret: 'SYNTHETIC-secret',
+      });
+      await f.nextTurn();
+      const source = await f.im();
+      await f.started();
+      await f.im();
+      const common = { account: declaration.account, references: Object.values(result.references) };
+      const args =
+        name === 'secret_http'
+          ? {
+              ...common,
+              method: 'GET',
+              path: '',
+              headers: [
+                { name: 'x-api-key', value: '{{api_key}}' },
+                { name: 'x-api-secret', value: '{{api_secret}}' },
+              ],
+            }
+          : name === 'protected_cli'
+            ? { account: declaration.account, consumer: 'http-status-v1', ...result.references }
+            : {
+                ...common,
+                server_name: 'originqa',
+                program: 'node',
+                args: [resolve('scripts/secret-mcp-fixture.mjs')],
+                env: [
+                  { name: 'STATUS_ENDPOINT', value: '{{endpoint}}' },
+                  { name: 'STATUS_API_KEY', value: '{{api_key}}' },
+                  { name: 'STATUS_API_SECRET', value: '{{api_secret}}' },
+                ],
+              };
+      await expect(mounted.call(name, args)).rejects.toMatchObject({
+        code: 'private-source-required',
+      });
+      expect(requests).toBe(0);
+      await expect(
+        mounted.call('ask_secret', { ...request, source_event_id: source }),
+      ).resolves.toContain('configured');
+      const value = await mounted.call(name, args);
+      expect(value).not.toContain('SYNTHETIC-key');
+      if (name === 'secret_mcp_connect') {
+        expect(value).toContain('"connected":true');
+        await mounted.call('mcp__originqa__check_status', {});
+        await mounted.call('secret_mcp_disconnect', { server_name: 'originqa' });
+      } else expect(value).toContain('200');
+      expect(requests).toBe(1);
+    } finally {
+      await mounted?.close();
+      await f.close();
+      server.closeAllConnections();
+      await new Promise<void>((done) => server.close(() => done()));
+    }
+  },
+);
 
 it.each([0, 1, 2])(
   'consumes a local DM account with %i accepted IM steering inputs',
@@ -390,7 +569,7 @@ it('rejects revoked explicit IM authority even after local steering, then reuses
         result.references,
         async () => 'unexpected',
       ),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: 'private-account-unavailable' });
   } finally {
     await f.close();
   }

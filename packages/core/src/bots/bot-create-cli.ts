@@ -202,11 +202,30 @@ Usage:
   tobs plugin-check [--force]
   tobs plugin-install <package> <version> --confirm
   tobs plugin-restart --confirm
-  tobs marketplace-list [--query <words>] [--topic <topic>] [--sort updated|created|stars] [--cursor <c>]
+  tobs marketplace-list [--query <words>] [--topic <topic>] [--sort updated|created|stars] [--cursor <c>] [--include-uploads]
   tobs marketplace-topics
+  tobs marketplace-sections [--lang zh|en]
+  tobs marketplace-digest [--day YYYY-MM-DD] [--lang zh|en]
+  tobs marketplace-digests [--lang zh|en]
   tobs marketplace-detail <owner/repo>
+  tobs marketplace-file <listing-id> <path>
   tobs marketplace-submit <github-repo-url>
   tobs marketplace-report <owner/repo> [--reason <text>]
+  tobs marketplace-account
+  tobs marketplace-author --name <display name> [--accept-terms]
+  tobs marketplace-upload-plan <bot-id>
+  tobs marketplace-upload <bot-id> --name <name> [--description <bio>] [--role <tag> ...] [--replaces <listing-id>] --confirm
+  tobs marketplace-mine [--lang zh|en]
+  tobs marketplace-delete <listing-id> --confirm
+  tobs marketplace-install <listing-id> [--lang zh|en]
+  tobs marketplace-install <listing-id> --review <review-id> --confirm [--operation-key <key>]
+  tobs share-draft-start <bot-id>
+  tobs share-draft-show <bot-id>
+  tobs share-draft-file <bot-id> --path <file>
+  tobs share-draft-decide <bot-id> --path <file> (--keep | --drop | --rewrite-stdin)
+  tobs share-draft-finish <bot-id>
+  tobs share-draft-export <bot-id>
+  tobs share-draft-discard <bot-id>
   tobs data-reset-preview
   tobs data-reset-confirm --confirmation-stdin --confirm
   tobs telemetry-status
@@ -279,7 +298,7 @@ Usage:
   tobs group-activity <channel>
   tobs bot-trace <id> [--turns <1-20>] [--session <session-id>|direct]
   tobs bot-tools
-  tobs bot-tool <id> <tool> [--args-stdin]
+  tobs bot-tool <id> <tool> [--args-stdin] [--session <assignment-session-id>]
   tobs computer-tools
   tobs computer-tool <id> <tool> [--args-stdin] [--out <absolute-file>]
   tobs todos
@@ -307,6 +326,7 @@ Usage:
   tobs session-owner <session-id>
   tobs session-archive-set <id> --session <session-id> (--archived | --unarchived)
   tobs tool-approval-rules <id>
+  tobs tool-approval-history <id> [--limit <1-100>] [--cursor <cursor>]
   tobs tool-approval-rule-revoke <id> --rule <rule-id> --confirm
   tobs private-mcp-set <id> --server <name> (--enabled | --disabled)
   tobs private-mcp-remove <id> --server <name> --confirm
@@ -2611,10 +2631,17 @@ export async function runBotCreateCli(
     }
     if (
       values['operation-key'] !== undefined &&
-      (!online || !['create', 'create-status', 'group-create', 'group-invite'].includes(command))
+      (!online ||
+        ![
+          'create',
+          'create-status',
+          'group-create',
+          'group-invite',
+          'marketplace-install',
+        ].includes(command))
     )
       throw usageError(
-        '--operation-key is supported only for online Bot creation or status, group creation or group invitation.',
+        '--operation-key is supported only for online Bot creation or status, Marketplace install, group creation or group invitation.',
       );
     if (
       values['expected-channel'] !== undefined &&
@@ -2882,7 +2909,11 @@ export async function runBotCreateCli(
       out.stdout(
         JSON.stringify(
           {
-            error: { code: error.code, message: error.message },
+            error: {
+              code: error.code,
+              message: error.message,
+              ...(error.operation === undefined ? {} : { operation: error.operation }),
+            },
             ...(error.receipt === undefined ? {} : { receipt: error.receipt }),
             ...(error.authorization === undefined ? {} : { authorization: error.authorization }),
             ...(error.creation === undefined ? {} : error.creation),

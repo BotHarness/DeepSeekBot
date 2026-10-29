@@ -3,14 +3,12 @@ import { View, type ViewInstance } from 'react-native';
 
 import type { WorkspaceOption } from '../../host/bot-settings';
 import type { DecisionResult, GrantRequest } from '../../host/requests';
-import { useDesignTheme } from '../design/theme';
-import { radius, space } from '../design/tokens';
 import { haptic } from '../haptics';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
-import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-import { ActionCard, CardButtons, CardLine, CardNote } from './action-card';
+import { ActionCard, CardButtons, CardNote, CardPreview } from './action-card';
+import { CardLine } from './card-line';
 import type { BubbleGroup } from './bubble-shape';
 import { FolderPickerSheet, type FolderPickerPort } from './folder-picker-sheet';
 
@@ -46,7 +44,6 @@ export function GrantRequestCard({
   onSettled?(result: DecisionResult): void;
 }) {
   const t = useStrings();
-  const theme = useDesignTheme();
   const known = useRef(resolved);
   const current = useRef({ port, pending: undefined as Promise<void> | undefined, active: false });
   if (current.current.port !== port) {
@@ -116,7 +113,7 @@ export function GrantRequestCard({
           {...(phase.kind === 'failed' ? { error: t.cardLoadFailed } : {})}
         >
           <CardButtons>
-            <Button label={t.tryAgain} onPress={() => void load()} />
+            <Button symbol="refresh" label={t.tryAgain} onPress={() => void load()} />
           </CardButtons>
         </ActionCard>
       </View>
@@ -156,25 +153,13 @@ export function GrantRequestCard({
         {...(request.reason.trim() === ''
           ? {}
           : {
-              preview: (
-                <View
-                  style={{
-                    backgroundColor: theme.layer.well.fill,
-                    borderRadius: radius.md,
-                    paddingHorizontal: space.x4,
-                    paddingVertical: space.x3,
-                  }}
-                >
-                  <Text selectable variant="meta">
-                    {request.reason}
-                  </Text>
-                </View>
-              ),
+              preview: <CardPreview text={request.reason} />,
             })}
       >
         <CardNote>{t.grantScopeNote}</CardNote>
         <CardButtons stack>
           <Button
+            symbol="folder-key"
             label={t.grantChoose}
             testID="grant-choose-folder"
             tone="primary"

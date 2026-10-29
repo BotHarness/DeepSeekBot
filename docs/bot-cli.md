@@ -29,7 +29,7 @@ The phone command explicitly settles JavaScript Promises through the inspector; 
 
 `deepseekbot device-notifications --device-file <private-pairing.json>` reads the admitted device's send-preference copy from a live Host. Add `--preferences-stdin` and pipe `{"approval":true,"question":true,"private-input":true,"reply":false}` to replace its four kinds, even before a push token is registered. The private file has the saved pairing shape (`hostId`, `hostName`, `routes`, `deviceId`, `credential`); never put its credential in arguments or publish the file. Output is one JSON document without credentials; revoked pairings return `device-revoked`. This edits that Host's delivery copy only; the phone's persisted preference is authoritative and overwrites it on the next sync. Browser notification choices remain local to that browser and do not change Host attention.
 
-`deepseekbot device-activity capability --device-file <private-pairing.json>` checks this Computer's configured Lock Screen service. `prepare`, `register` and `stop` use `--activity-stdin`: prepare receives `channelId`, `messageId`, `bundleIdentifier`; register also receives the actual iOS `clientActivityId`, per-activity `token` and `locale` (`en`/`zh`); stop receives only `clientActivityId`. Device identity always comes from the saved pairing, never stdin. A token is secret: pipe it privately, never put it in arguments or publish it. The CLI invokes the same authenticated/encrypted Device routes as the phone and prints only a JSON result or coded refusal. `activity-provider-unconfigured`, `activity-app-unsupported`, `activity-ended` and `device-revoked` refuse unavailable or stale operations. `activity-cleanup-pending` reports a temporary stop failure; only cleanup is retried until acknowledgement or registration expiry. Stopping display never stops the underlying request. `send-status <bot> --message-id <id>` now includes `progress` with explicit Inbox resolution; a handled turn is not completion. CLI tests cover these contracts; the live Host and real iPhone remote-delivery run remain separate QA gates. See [ADR-0255](adr/0255-live-activities-project-one-admitted-dm-request.md).
+`deepseekbot device-activity capability --device-file <private-pairing.json>` checks this Computer's configured Lock Screen service. `prepare`, `register` and `stop` use `--activity-stdin`: prepare receives `channelId`, `messageId`, `bundleIdentifier`; register also receives the actual iOS `clientActivityId`, per-activity `token` and `locale` (`en`/`zh`); stop receives only `clientActivityId`. `status` also receives only `clientActivityId` and reads that device's own registration, even after it ended: it returns the request's `channelId`, `messageId`, `progress` and, when the request created or advanced an Assignment, its `assignmentId` (the Assignment Session id the phone opens at `bot/[slug]/assignment/[id]`); `prepare` and `register` carry the same `assignmentId` when it is already known. Device identity always comes from the saved pairing, never stdin. A token is secret: pipe it privately, never put it in arguments or publish it. The CLI invokes the same authenticated/encrypted Device routes as the phone and prints only a JSON result or coded refusal. `activity-provider-unconfigured`, `activity-app-unsupported`, `activity-ended` and `device-revoked` refuse unavailable or stale operations. `activity-cleanup-pending` reports a temporary stop failure; only cleanup is retried until acknowledgement or registration expiry. Stopping display never stops the underlying request. `send-status <bot> --message-id <id>` now includes `progress` with explicit Inbox resolution; a handled turn is not completion. It also includes `assignmentId` when the request created or advanced an Assignment (the latest one wins). CLI tests cover these contracts; the live Host and real iPhone remote-delivery run remain separate QA gates. See [ADR-0255](adr/0255-live-activities-project-one-admitted-dm-request.md).
 
 ```bash
 deepseekbot create --name <name> [--persona <text> | --persona-stdin]
@@ -110,15 +110,37 @@ deepseekbot bot-sessions <bot-id> --limit 20
 deepseekbot bot-activity <bot-id> --limit 20
 deepseekbot bot-new-session <bot-id>
 deepseekbot bot-compact <bot-id>
+deepseekbot bot-context <bot-id>
+deepseekbot bot-system-prompt <bot-id>
+deepseekbot bot-turn-input <bot-id> --turns 1
+deepseekbot prompt-parts
+deepseekbot prompt-presets
+echo '{"triage":"Close what is done."}' | deepseekbot prompt-preset-create --name Quiet --parts-stdin
+deepseekbot prompt-preset-update <preset-id> --name Calm --expected-revision 1
+deepseekbot prompt-preset-delete <preset-id> --confirm
+deepseekbot prompt-global-set <preset-id>|built-in
+deepseekbot bot-prompt <bot-id>
+echo '{"silence":null}' | deepseekbot bot-prompt-set <bot-id> --preset <preset-id>|global --parts-stdin
+deepseekbot bot-prompt-set <bot-id> --prompt-limit dm-context-chars=4000 --prompt-limit review-tool-calls=default
 ```
 
 Creation returns `bot`, `dm`, the Host's Memory `dataDir`, completed/deferred `steps` and `next`. The model preset is applied through its owner, never forwarded as a native Agent preset. A missing specified preset is rejected before creation; other model failures after creation preserve the Bot and return its known identity and steps with `outcome: created`. A lost creation/import response without a stable operation key can return `outcome: unknown`: inspect the Host before creating again; no automatic mutation retry is provided. For blank online creation, use the [receipt-backed operation key](#tob-bot-creation-profiles-and-lifecycle) to reconcile the same identity. A created Bot alone does not prove model usability: use `send` and its exact correlated committed reply.
 
-`bot-attention` supports `--cursor` and the Host's pending/processing/observed/deferred/needs-repair/handled states; it limits pages to 1–100. Session summaries are newest-first and limited to 1–100 (default 50), with `total`; activity limits its session details and reports `sessionCount`. These are bounded summaries, not full tool-call logs or streaming drafts.
+`bot-attention` supports `--cursor` and the Host's pending/processing/observed/deferred/needs-repair/handled states; it limits pages to 1–100. Session summaries are newest-first and limited to 1–100 (default 50), with `total`; each carries `modelRoute`, the route the Session last called a model on, or the route it is configured to use before it has run; activity limits its session details and reports `sessionCount`. These are bounded summaries, not full tool-call logs or streaming drafts.
 
 `bot-new-session <bot-id>` retires an idle Bot’s Orchestrator Session through the same Host runtime as IM `/new`; the next message starts a fresh Session. It returns `{"started":true}` and refuses with `bot-busy` while the Bot is working; stop the current turn first.
 
-`bot-compact <bot-id>` compacts an idle Bot’s Orchestrator Session now through DSH `/compact`, the same path as IM `/compact`, the Bot DM composer’s `/compact` and Idle Compaction. It returns `{"outcome":"compacted","tokensBefore":…,"tokensAfter":…}`, `nothing` when DSH finds nothing to compact or a summary would not be smaller, or `not-loaded` when the Session is not live in the Host yet (for example after a Host restart, until the next message). It refuses with `bot-busy` while the Bot has a running turn or a pending Inbox Admission.
+`bot-compact <bot-id>` compacts an idle Bot’s Orchestrator Session through DSH `/compact`, loading the original Session after Host restart without sending a message. It returns `{"outcome":"compacted","tokensBefore":…,"tokensAfter":…}` or `nothing` when no useful smaller summary can be made; either outcome applies a pending Prompt Preset change. A running or queued turn returns `bot-busy`; an unavailable original Session is a coded refusal.
+
+`bot-context <bot-id>` returns the current `sessionId`, estimated `usedTokens` (null if unloaded), `contextWindow`, `capacitySource` (`model` or `estimate`) and `thresholdTokens`. Missing model capacity uses a 200,000-token estimate with output reservation and safety headroom; it is not a verified provider limit. The Web composer shows these current context values; its usage popover still shows cumulative usage.
+
+`bot-system-prompt <bot-id>` returns the system prompt the Bot's Orchestrator Session uses now (`effectiveText`: the latest system message on the live Session surface, since DSH appends a changed prompt to the history instead of rewriting the first one; or from the Session log with `loaded: false` when it is not loaded), the freshly assembled `next` prompt with its named `sections` and per-step runtime `contexts`, and `pending`: true when a Prompt Preset or persona change waits for a new Session or the next compaction. Once applied, the Session's next request appends the new text. `next` is null while the Session is not loaded.
+
+`bot-turn-input <bot-id> [--turns <1-20>] [--session <session-id>]` returns, for the newest turns (default 1), every input message the model received, in order, with its `step`, `source` (`user` for Inbox and steered input, `runtime-context` for the per-step environment note), time and exact `text`, including the reply reminder the Host appends. Steered messages appear at a later step of the same turn. The Web composer's usage popover opens both views.
+
+Prompt Presets let you edit the behavior text of the system prompt and the per-turn templates; the tool and delivery contracts around them stay fixed. `prompt-parts` lists each editable part with its `id`, `kind` (`system` or `turn`), owning `section` and built-in `defaultText`. A preset stores only the parts it changes. Each part resolves per Bot from the Bot's own overrides, then its chosen preset, then the global preset (`prompt-global-set`), then the built-in text; `bot-prompt` shows the result with each part's `source` (`bot`, `preset`, `global` or `built-in`). Part edits are a JSON object of `{"<part-id>": "text"}`; `null` or the built-in text removes the edit so the part inherits again. `bot-prompt-set --preset global` drops the Bot's preset. Deleting a preset returns `clearedBots`, whose Bots fall back to the global one. A running Session keeps the texts it started with: `pending: true` means a change waits for the Bot's next Session or compaction. To apply it now, run `bot-compact <bot-id>` or `bot-new-session <bot-id>`, the same actions as the apply buttons next to Pending in the UI. An edited part reports `defaultChanged: true` when the built-in text changed after the edit; parts you did not edit follow built-in updates.
+
+A preset and a Bot can also set numeric limits with repeatable `--prompt-limit <id>=<integer>` (`<id>=default` removes the setting so it inherits again) on `prompt-preset-create`, `prompt-preset-update` and `bot-prompt-set`. `prompt-parts` lists each limit's `defaultValue`, `min` and `max`: `group-context-chars`, `dm-context-chars` and `context-message-chars` bound how much pending Group and DM context the Bot Inbox adds to a turn; `review-timeout-seconds`, `review-human-messages`, `review-human-message-chars` and `review-tool-calls` bound the Approval Reviewer. Limits resolve through the same layers as parts, are reported under `limits` by `bot-prompt`, and apply from the next Inbox delivery or review without waiting for a new Session.
 
 For explicit cleanup, `bot-delete-preview <bot-id>` returns the owner's current scope and `preview.token`. Review it, then pipe `{"token":"<preview.token>"}` to `bot-delete-confirm <bot-id> --confirmation-stdin --confirm`. Memory is retained unless `--erase-memory` explicitly selects the owner-reviewed directory, and it erases the Bot's private-input secrets during the stop phase. Inspect `deletion.phase`; an incomplete cleanup can be continued with `bot-delete-retry <bot-id> --confirm`. Scope changes remain owner refusals; deletion is not content purge or complete data erasure.
 
@@ -127,6 +149,7 @@ From a built checkout, `node scripts/cli-smoke.mjs --preset <id> [--zip ./shared
 ```bash
 deepseekbot send <bot-id> --body "Reply with QA_OK" --timeout 60
 deepseekbot send <bot-id> --body-stdin --message-id human-<UUID>
+deepseekbot send <bot-id> --body "Yes, this one" --reply-to <message-id>
 deepseekbot send-status <bot-id> --message-id <receipt-message-id>
 deepseekbot channel-messages <channel-id> --host http://127.0.0.1:31917 --limit 20
 deepseekbot tool-approval-status <channel-id> --message-id <card-id>
@@ -145,7 +168,7 @@ deepseekbot ask-secret-revoke <channel-id> --message-id <configured-card-id>
 deepseekbot ask-secret-accounts <bot-id>
 deepseekbot release-info [--since <version>]
 deepseekbot workspace-options
-deepseekbot folder-browse [<folder-path>]
+deepseekbot folder-browse [<folder-path>] [--offset <n>]
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
 
@@ -164,6 +187,8 @@ deepseekbot access-set <bot-id> --mode workspace-write
 deepseekbot settings botharness-client
 printf '{"assignmentConcurrencyLimit":3}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"autoCollapseMessages":true}' | deepseekbot settings-set botharness-client --patch-stdin
+printf '{"showDeliveryReceipts":true}' | deepseekbot settings-set botharness-client --patch-stdin
+printf '{"streamReplies":true}' | deepseekbot settings-set botharness-client --patch-stdin
 deepseekbot workspace-create /srv/bots/workspace
 deepseekbot group-create "Skill Lab" --member <bot-id> --member <bot-id>
 ```
@@ -198,9 +223,12 @@ deepseekbot channel-mark-read <channel> --message-id <message-id>
 deepseekbot channel-mark-all-read
 deepseekbot channel-react <channel> --message-id <message-id> --emoji 👍 [--remove]
 deepseekbot channel-search <channel> --query <text> [--cursor <cursor>] [--limit <n>]
+deepseekbot message-search --query <text> [--cursor <cursor>] [--limit <n>]
 deepseekbot channel-unread
 deepseekbot channel-mute <channel> [--off]
 deepseekbot channel-retry <dm-channel> --message-id <human-message-id>
+deepseekbot channel-retry <dm-channel> --message-id <human-message-id> --recovery compact --failure-message-id <failure-card-id>
+deepseekbot channel-retry <dm-channel> --message-id <human-message-id> --recovery new-session --failure-message-id <failure-card-id>
 deepseekbot channel-bot-stop <channel> --bot <id>
 deepseekbot channel-history
 deepseekbot channel-history-sources <channel> [--before <cursor>]
@@ -245,9 +273,9 @@ still use the existing send path; resolve only explicitly selected completed Inb
 
 `channel <group-channel>` returns `{channel, channelFingerprint, invitationPolicy:{autoAccept}, wakePolicies}` and refuses non-group Channels. Stable creation/invitation inputs and retry semantics are described under [Tob group creation and invitations](#tob-group-creation-and-invitations); Human online commands may use them too.
 
-Renaming a Bot DM renames that Bot, as in the Web UI. `group-avatar-set` reads a PNG, JPEG or WebP file of at most 96 KiB. Invitation and join-request IDs are in the group's `invitations` and `joinRequests`, returned by `channels` and by every group command. `group-wake-set` sets when a member Bot wakes for ordinary group messages: `all`, `mentions`, `digest` (after `--count` messages or `--interval` seconds; defaults 5 and 30) or `silent`; `--inherit` returns the member to its Bot's default. `channel-timeline` and `channel-journal` page messages the way the chat view does; take the `revision` from `channel-timeline` as `--through`. `channel-retry` asks the Bot to answer a Human DM message again after a failed reply. `channel-unread` lists the unread Bot message count of each Channel that has any; these are the numbers the sidebar shows on each row. `channel-mute` mutes a Channel the way the sidebar menu does: it keeps its row greyed and excludes its ordinary messages, mentions and replies from Activity message lists and the global unread total; `--off` restores eligibility under the existing read/dismissal/snooze rules. Actual Channel read positions and explicit pending Human requests remain unchanged. `channel-bot-stop` stops the Bot's current turn, as the Stop button on the working status does: the Bot goes idle, the Channel records that the Human stopped it, and a Bot that is not working is refused with `not-working`. Assignments the Bot delegated keep running. `channel-react` adds your reaction to one message, or removes it with `--remove`, and returns the message's `reactions`; a message holds at most 20 of your reactions, and the emoji must be a single emoji. Bots react through `channel_action` with `action: "react"`, `channel_id`, `react_to` and `reaction`; `bot-tool <bot> channel_action --args-stdin` runs it without the model. Reactions cannot send text. `channel-search` matches `--query` without case in the messages you can see, newest first, and pages with the `nextCursor` it returns.
+Renaming a Bot DM renames that Bot, as in the Web UI. `group-avatar-set` reads a PNG, JPEG or WebP file of at most 96 KiB. Invitation and join-request IDs are in the group's `invitations` and `joinRequests`, returned by `channels` and by every group command. `group-wake-set` sets when a member Bot wakes for ordinary group messages: `all`, `mentions`, `digest` (after `--count` messages or `--interval` seconds; defaults 5 and 30) or `silent`; `--inherit` returns the member to its Bot's default. `channel-timeline` and `channel-journal` page messages the way the chat view does; take the `revision` from `channel-timeline` as `--through`. `channel-retry` asks the Bot to answer a Human DM message again after a failed reply. `channel-unread` lists the unread Bot message count of each Channel that has any; these are the numbers the sidebar shows on each row. `channel-mute` mutes a Channel the way the sidebar menu does: it keeps its row greyed and excludes its ordinary messages, mentions and replies from Activity message lists and the global unread total; `--off` restores eligibility under the existing read/dismissal/snooze rules. Actual Channel read positions and explicit pending Human requests remain unchanged. `channel-bot-stop` stops the Bot's current turn, as the Stop button on the working status does: the Bot goes idle, the Channel records that the Human stopped it, and a Bot that is not working is refused with `not-working`. Assignments the Bot delegated keep running. `channel-react` adds your reaction to one message, or removes it with `--remove`, and returns the message's `reactions`; a message holds at most 20 of your reactions, and the emoji must be a single emoji. Bots react through `channel_action` with `action: "react"`, `channel_id`, `react_to` and `reaction`; `bot-tool <bot> channel_action --args-stdin` runs it without the model. Reactions cannot send text. `channel-search` matches `--query` without case in the messages you can see, newest first, and pages with the `nextCursor` it returns. `message-search` is the global search behind Alt+K and the mobile Chats search: it searches every Bot DM and joined group you can see, leaves out hidden Channels, and returns `hits` of `channelId`, `message` and a one-line `snippet`, newest first. Text of three or more characters uses the full-text index and also matches attachment file names; one or two characters scan for at most 200 hits.
 
-`group-delete` and `channel-purge-confirm` cannot be undone and need `--confirm`. `channel-history` lists deleted groups whose content can still be purged. Purging works in two steps like the history page: `channel-purge-preview` lists the messages, Bot admissions, files and effects the chosen Source Events would remove and returns a short-lived `token`; `channel-purge-confirm` reads `{"token": …}` from stdin for the same Source Events and fails coded when the scope changed. Pick Source Events from `channel-history-sources`, which pages with the `before` cursor it returns.
+`group-delete` and `channel-purge-confirm` cannot be undone and need `--confirm`. `group-delete` disbands the group and deletes its messages and files that no other conversation shares; it returns `{"deleted": true, "messages": n}`, plus `cleanupPending` while file cleanup retries and `retained` when some messages could not be read for deletion (the group then stays in `channel-history`, and running `group-delete` again retries it). `channel-history` lists groups disbanded before that change, and groups whose deletion did not finish, whose content can still be purged. Purging works in two steps like the history page: `channel-purge-preview` lists the messages, Bot admissions, files and effects the chosen Source Events would remove and returns a short-lived `token`; `channel-purge-confirm` reads `{"token": …}` from stdin for the same Source Events and fails coded when the scope changed. Pick Source Events from `channel-history-sources`, which pages with the `before` cursor it returns.
 
 `channel-media-target` acquires checked source media through current Human Channel authorization and returns its canonical Host file target. `channel-media-download` uses the same authenticated attachment route as the card, writes the original bytes to a new local `--out` file and returns size, MIME and SHA-256 in its JSON result. It refuses an existing output instead of overwriting it. Both commands use `channel + source-event + attachment` without a Bot selector or model call; source revocation remains a coded refusal. The default bound is 25 MiB.
 
@@ -445,12 +473,17 @@ deepseekbot inbox-snooze <item-id> --source-key <source-event-id> --clear
 deepseekbot inbox --category action --snoozed
 deepseekbot inbox-ignore <report-source-event-id>
 deepseekbot assignment-context <bot-id> --session <session-id> --source <source-event-id>
+deepseekbot assignments <bot-id> [--search <text>] [--activity idle,working] [--include-archived] [--limit 20] [--cursor <next>]
+deepseekbot assignment <bot-id> --session <session-id>
+deepseekbot assignment-timeline <bot-id> --session <session-id>
+deepseekbot session-subagents <bot-id> --session <root-session-id>
 deepseekbot channel-assignments <group-channel>
 deepseekbot channel-assign <channel> --section <section-id> --index 0
 deepseekbot session-ids
 deepseekbot session-owner <session-id>
 deepseekbot session-archive-set <bot-id> --session <session-id> --archived
 deepseekbot tool-approval-rules <bot-id>
+deepseekbot tool-approval-history <bot-id> [--limit 30] [--cursor <next>]
 deepseekbot tool-approval-rule-revoke <bot-id> --rule <rule-id> --confirm
 deepseekbot grant-revoke <bot-id> --grant <grant-id> --confirm
 deepseekbot grant-write-set <bot-id> --grant <grant-id> --disabled
@@ -464,7 +497,7 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 
 `inbox --search <text>` searches safe Activity summaries, Channel names and Bot slugs before pagination (maximum 200 characters). `--unread` restricts personal messages to unread entries and leaves pending actions intact. `--sort newest|oldest` orders each category; `--category replies --sort mentions-first` puts mentions before replies. Keep filters unchanged when using `--cursor`. Search, unread filtering and mention ordering require query version 1; an older Host fails with `host-query-unsupported` instead of returning partial results.
 
-`inbox` returns one page of the Human Inbox (`items` and `nextCursor`), filtered like the Inbox tabs by `--category` (`action`, `info`, `unread`, `replies`, `handled`), `--bot` or `--channel`. `inbox-dismiss` takes an item's `id` and, when the item has one, its `sourceEventId` as `--source-key`; `inbox --dismissed` lists the dismissed items (the phone's "Cleared" filter) and `inbox-restore` brings one back with the same `id` and `--source-key`, failing on a Host that predates it with `host-query-unsupported`; `inbox-ignore` marks an informational assignment report as read. `inbox-snooze` hides an Action, Info or Replies item until `--until` (at most 30 days away), the Web Inbox's "Remind me later"; `--clear` brings it back now, and `inbox --snoozed` lists the items still snoozed with their `snoozedUntil`. `assignment-context` reads the report behind an `assignment-report` item. `channel-assignments` lists a group Channel's assignment work; `channel-assign` moves a Channel into a sidebar section (`--unsectioned` takes it out). `session-ids` lists the root Sessions Bots own and `session-owner` names a Session's Bot and role. `tool-approval-rules` lists a Bot's "always allow" rules. Revoking a rule, a Workspace Grant or a private MCP server needs `--confirm`, as the Web UI asks for confirmation. With a Host targeted, `grant-revoke` and `grant-write-set` go through it; with `--home` they stay offline maintenance commands. Private MCP servers are listed by `ask-secret-accounts`; a name the Host does not know fails with `private-mcp-server-unavailable`.
+`inbox` returns one page of the Human Inbox (`items` and `nextCursor`), filtered like the Inbox tabs by `--category` (`action`, `info`, `unread`, `replies`, `handled`), `--bot` or `--channel`. `inbox-dismiss` takes an item's `id` and, when the item has one, its `sourceEventId` as `--source-key`; `inbox --dismissed` lists the dismissed items (the phone's "Cleared" filter) and `inbox-restore` brings one back with the same `id` and `--source-key`, failing on a Host that predates it with `host-query-unsupported`; `inbox-ignore` marks an informational assignment report as read. `inbox-snooze` hides an Action, Info or Replies item until `--until` (at most 30 days away), the Web Inbox's "Remind me later"; `--clear` brings it back now, and `inbox --snoozed` lists the items still snoozed with their `snoozedUntil`. `assignment-context` reads the report behind an `assignment-report` item. `assignments` lists a Bot's Assignments newest first, each with its `title` (Assignment Title) and `description` (Assignment Description), activity, Continuity Key and latest report; `--search` matches the Title, Description, Continuity Key and latest report summary without case, `--activity` keeps a comma list of `working`, `idle`, `error`, `stopping` and `stopped`, `--include-archived` adds archived ones, and `--cursor` continues from the page's `nextCursor` with unchanged filters (`--limit` 1–50, default 20). It is the same Assignment Directory the Bot's `list_assignments` reads. `assignment` inspects one Assignment by `--session`. `assignment-timeline` returns that Assignment with its `rounds` and a timeline in `lanes`. Each round is one turn of the Assignment Agent: round 1 is `created`, later ones are `continued` (the Orchestrator sent it another request), each with its start time and the first 280 characters of the Orchestrator's `instruction`; the newest 20 are kept and `omittedRounds` counts the rest. MAIN entries and Subagent lanes carry the `round` they belong to. The lanes are `main` (the Assignment Agent) first, then each DSH Subagent as `subagent` 1, 2… in creation order (the newest 20; `omittedSubagents` counts the rest). Each lane keeps its latest 40 `entries`, each with the tool name, its `kind`, a `status` (`running`, `done`, `failed`, `denied` or `cancelled`), the time and, only when the tool declares one, a short public `detail`; raw tool input and output never appear. Each lane also has a `state` (`running`, `done`, `failed`, `cancelled` or `idle`), its first and last event time, and, once the Session has called a model, the `route` it actually ran on (`provider`, `model`, `reasoningEffort`). The Work button on an Assignment row in the Sessions panel and the Group Work panel reads it and lists each round with the Orchestrator's instruction, its MAIN steps and the Subagents started in it. `session-subagents` returns the same `subagent` lanes for any root Session a Bot owns, an Orchestrator or an Assignment, which covers Subagents the Orchestrator started itself with `bot_subagent`; the Sessions panel and the Group Work panel read it when a row is expanded. `channel-assignments` lists a group Channel's assignment work; `channel-assign` moves a Channel into a sidebar section (`--unsectioned` takes it out). `session-ids` lists the root Sessions Bots own and `session-owner` names a Session's Bot and role. `tool-approval-rules` lists a Bot's "always allow" rules; each rule's `autoApprovedCount` is how many approval requests it has answered without asking, counted once per request. `tool-approval-history` lists the Human's answers to the Bot's approval cards, newest first: each entry has the tool, its input, the `outcome` (`allowed-once`, `allowed-always-tool`, `allowed-always-exact`, `allowed-always-all` or `rejected`), the `channelId` and both message ids, and `actor` when the answer came from a paired IM account; `--cursor` continues from the page's `nextCursor` (`--limit` 1–100, default 30). Revoking a rule, a Workspace Grant or a private MCP server needs `--confirm`, as the Web UI asks for confirmation. With a Host targeted, `grant-revoke` and `grant-write-set` go through it; with `--home` they stay offline maintenance commands. Private MCP servers are listed by `ask-secret-accounts`; a name the Host does not know fails with `private-mcp-server-unavailable`.
 
 ### Schedules on a live Host
 
@@ -548,7 +581,7 @@ To see what the Bot did in path A, read its tool-call trace right after `send`:
 deepseekbot bot-trace <bot-id> --turns 1
 ```
 
-Each turn lists the tools the model called with bounded arguments, the outcome (`ok`, `error`, `denied` when an approval was rejected, `cancelled`, or `pending`), the approval decision when there was one, and the first part of the result. Arguments and results of `secret_cli`, `secret_mcp_connect` and `ask_secret` are never returned. A `denied` call points at the Harness (access or approval); a missing or wrongly argued call points at the model; an `error` from the same tool that also fails in path B points at the Browser or Computer. `--session` reads another of the Bot's Sessions, such as an Assignment.
+Each turn lists the tools the model called with bounded arguments, the outcome (`ok`, `error`, `denied` when an approval was rejected, `cancelled`, or `pending`), the approval decision when there was one, and the first part of the result. Arguments and results of `secret_cli`, `secret_http`, `protected_cli`, `secret_mcp_connect` and `ask_secret` are never returned. A `denied` call points at the Harness (access or approval); a missing or wrongly argued call points at the model; an `error` from the same tool that also fails in path B points at the Browser or Computer. `--session` reads another of the Bot's Sessions, such as an Assignment.
 
 ### Harness Bot tools without the model
 
@@ -586,7 +619,7 @@ reaction references. It is available through `bot-tool` as well. The model sees 
 Proactive colleague text uses `bot_id`; reachable external posting uses `binding_id` with
 `conversation_id`. These target forms are exclusive with the other destination fields.
 
-`bot-tools` lists the tools the runner can call with their input schemas. `bot-tool` reads the arguments as a JSON object on stdin and runs the same tool code a Bot turn runs, with the tool's own argument validation, membership and permission checks; it returns `{slug, tool, sessionId: "direct", result}`. There is no inbound Channel, so pass `channel_id` where a turn would default to it. A direct read does not mark Inbox items as seen, and a Bot-to-Bot send is refused because it has no Source Event to carry Bot causation. Failures exit non-zero with a code: `tool-not-direct` for a tool that only works inside a Bot turn (starting or waiting on an Assignment, question and secret cards, Memory branch switches, workspace grant requests, images for the model), `invalid-args`, `unknown-bot`, `bot-paused`, or `tool-failed` with the tool's own message. Each call is kept in the Host's recent direct-call log, which `bot-trace --session direct` returns; it lasts until the Host restarts.
+`bot-tools` lists the tools the runner can call with their input schemas. `bot-tool` reads the arguments as a JSON object on stdin and runs the same tool code a Bot turn runs, with the tool's own argument validation, membership and permission checks; it returns `{slug, tool, sessionId: "direct", result}`. There is no inbound Channel, so pass `channel_id` where a turn would default to it. A direct read does not mark Inbox items as seen, and a Bot-to-Bot send is refused because it has no Source Event to carry Bot causation. Failures exit non-zero with a code: `tool-not-direct` for a tool that only works inside a Bot turn (starting or waiting on an Assignment, question cards, Memory branch switches, workspace grant requests, images for the model), `invalid-args`, `unknown-bot`, `bot-paused`, or `tool-failed` with the tool's own message. Each call is kept in the Host's recent direct-call log, which `bot-trace --session direct` returns; it lasts until the Host restarts.
 
 `bot_create` creates a blank PersonaBot as that Bot would from chat: `display_name` is required; `description`, `tags`, `avatar_path` (an absolute PNG, JPEG or WebP path in the Bot's Memory Repository or a Workspace Grant), `soul`, `core_memory` and `memory_location` are optional. It returns `bot_id`, `display_name`, `dm_channel_id`, `memory_dir` and `model` (`host-default` when the new Bot answers on the Host default model, `set` once it has its own), opens the new Bot's DM and adds a notice in the creating Bot's Human DM. Refusals are coded: `invalid-input`, `invalid-avatar`, `invalid-memory-dir`, `git-not-found` and `memory-unavailable`. Run directly, it skips the tool approval a Bot turn goes through, because you are the Human running it.
 
@@ -596,7 +629,7 @@ printf '{"display_name":"Tim","tags":["translator"],"soul":"# Tim\\nCalm and pre
 
 Together with `send` and `bot-trace`, this places a failure: if the direct call works and the same request through `send` does not, look at the model's call in `bot-trace`; if the direct call also fails, the problem is in the Harness or the runtime.
 
-`send` establishes the registered Bot's DM and returns `receipt`, the committed Human `message`, `sourceEventId`, processing `state`, and `replies` associated with that exact request and Bot-owned Session. Other requests, approval/question cards, notices and failures do not count as replies. A real reply verifies the selected model and key together. The deadline defaults to 120 seconds and accepts up to 600. No send is automatically retried. Failures after starting the send include its receipt: inspect `send-status` before resubmitting. A supplied `human-<UUID>` ID with the same body lets the Host deduplicate; a changed body fails coded. Handled-without-reply returns `reply-not-produced`; repair-needed processing returns `send-needs-repair`.
+`send` establishes the registered Bot's DM and returns `receipt`, the committed Human `message`, `sourceEventId`, processing `state`, and `replies` associated with that exact request and Bot-owned Session. Other requests, approval/question cards, notices and failures do not count as replies. A real reply verifies the selected model and key together. The deadline defaults to 120 seconds and accepts up to 600. No send is automatically retried. Failures after starting the send include its receipt: inspect `send-status` before resubmitting. A supplied `human-<UUID>` ID with the same body lets the Host deduplicate; a changed body fails coded. Handled-without-reply returns `reply-not-produced`; repair-needed processing returns `send-needs-repair`. `--reply-to <message-id>` sends the message as a reply to an earlier message of that DM, as the phone's swipe-to-reply does; the Host refuses a target that is not in the DM.
 
 Question answer stdin is `{"answers":[{"id":"question-id","selected":["Blue"],"custom":"optional text"}]}`; read IDs and options from live channel history. Host owners apply decisions once and return coded refusals for repeated or competing decisions. Tool approval exposes allow-once and reject. Question status preserves pending/submitted/answered/expired distinctions. `release-info` only reads lifecycle information. Workspace grants take IDs from `workspace-options`.
 
@@ -676,9 +709,12 @@ deepseekbot idle-compaction
 deepseekbot idle-compaction-set on|off
 deepseekbot idle-compaction-cache-set deepseek/<model> <seconds>
 deepseekbot idle-compaction-cache-set deepseek/<model> auto
+deepseekbot compaction-threshold-set <ratio|default|keep> <headroom-tokens|default|keep>
 ```
 
 All three return `{enabled, settingReadable, minimumIdleSeconds, scheduled, routes}`. Each route lists `cacheLifetimeSeconds`, its `source` and `compactAfterSeconds` (`null` when the route is skipped). The lifetime comes from the per-route value set here (`setting`), the model catalog (`catalog`, Anthropic's short tier), the observed gaps before requests that still read most of their input from the cache (`observed`; a warm gap never shortens the default, and a longer cold gap caps it), or 2 hours for DeepSeek routes (`default`); other routes with nothing known are `unknown` and skipped, as are lifetimes under 15 minutes. `idle-compaction-cache-set ... auto` removes the per-route value. Each run is recorded under `idleCompactions` in `deepseekbot bot-activity-history <bot-id>` with the route, idle gap, tokens before and after, and the compaction request's input, cache-read and output tokens. Refusals carry a code: `usage` (a missing `on`/`off`, `<provider>/<model>` or whole seconds) and `invalid-input`.
+
+DSH compacts any Session automatically once its context reaches the smaller of the context window × `ratio` and the window minus the route's output limit minus `headroom-tokens`. `compaction-threshold-set` changes both for every Bot on the Host from the next step: the ratio from 0.5 to 0.95 (default 0.8) and the headroom from 8192 to 262144 tokens (default 65536). `default` restores one value and `keep` leaves it, so `compaction-threshold-set 0.7 keep` changes only the ratio. Idle compaction uses the same threshold. A headroom that leaves no room under a model's context window after its output limit is too large for that model: DSH logs a warning and skips pressure compaction for it, and a model without a declared window keeps the default headroom. `idle-compaction` reports both under `threshold` with `ratioSet`/`headroomSet` and their ranges.
 
 ### Encrypted LAN phone access
 
@@ -765,14 +801,38 @@ The online Human CLI accepts `home-model-set --orchestrator-effort` and `--expec
 
 Marketplace browsing in the Client defaults to most stars and remembers the chosen sort in this browser. `--sort stars` orders by stars, last update, creation time, then repository ID (all descending); pagination preserves this order. The CLI does not read browser preferences.
 
+`marketplace-sections` returns the Market panel's Hot, New and Rising rows from the Worker's latest daily snapshot as `{ sections: [{ section, day, entries: [{ bot, score }] }] }`. `score` is the installs in the last 7 days for Hot, 0 for New and the 7-day growth for Rising; `day` is `null` before the first snapshot.
+
+`marketplace-digest` returns the latest daily Marketplace Digest (the article at the top of the Market panel), or the one for `--day`, as `{ digest: { day, lang, title, lede, sections: [{ heading, body, bot }] } }`; `bot` is `null` when the listing has since been hidden. It answers `digest-not-found` when no digest exists. `marketplace-digests` lists past digests newest first as `{ digests: [{ day, lang, title, lede, picks: [{ id, displayName, banner, avatar }] }] }`; `picks` are up to four Digest Picks still listed, in article order, and stderr prints one line per digest with its date, title and pick names. Both prefer `--lang` and fall back to the other language for a day written only in that one.
+
 These commands call the same Host methods as the Marketplace page, the update card, the usage statistics notice, the Git prompt and the IM pairing panel:
 
 ```bash
-deepseekbot marketplace-list [--query <words>] [--topic <topic>] [--sort updated|created|stars] [--lang zh|en] [--cursor <next-cursor>]
+deepseekbot marketplace-list [--query <words>] [--topic <topic>] [--sort updated|created|stars] [--lang zh|en] [--cursor <next-cursor>] [--include-uploads]
 deepseekbot marketplace-topics
+deepseekbot marketplace-sections [--lang zh|en]
+deepseekbot marketplace-digest [--day YYYY-MM-DD] [--lang zh|en]
+deepseekbot marketplace-digests [--lang zh|en]
 deepseekbot marketplace-detail <owner/repo> [--lang zh|en]
+deepseekbot marketplace-file <listing-id> <path>
 deepseekbot marketplace-submit https://github.com/<owner>/<repo>
 deepseekbot marketplace-report <owner/repo> [--reason <text>]
+deepseekbot marketplace-account
+deepseekbot marketplace-author --name <display name> [--accept-terms]
+deepseekbot marketplace-author-avatar (--file <image> | --clear)
+deepseekbot marketplace-upload-plan <bot-id>
+deepseekbot marketplace-upload <bot-id> --name <name> [--description <bio>] [--role <tag> ...] [--replaces <listing-id>] --confirm [--timeout <seconds>]
+deepseekbot marketplace-mine [--lang zh|en]
+deepseekbot marketplace-delete <listing-id> --confirm
+deepseekbot marketplace-install <listing-id> [--lang zh|en]
+deepseekbot marketplace-install <listing-id> --review <review-id> --confirm [--operation-key <key>]
+deepseekbot share-draft-start <bot-id>
+deepseekbot share-draft-show <bot-id>
+deepseekbot share-draft-file <bot-id> --path <file path>
+deepseekbot share-draft-decide <bot-id> --path <file path> (--keep | --drop | --rewrite-stdin)
+deepseekbot share-draft-finish <bot-id>
+deepseekbot share-draft-export <bot-id>
+deepseekbot share-draft-discard <bot-id>
 deepseekbot release-check [--force]
 deepseekbot release-install <version> --confirm
 deepseekbot release-restart --confirm
@@ -797,6 +857,12 @@ deepseekbot pairing-review <bot-id> <pairing-id> --decision revoke --confirm
 `plugin-check`, `plugin-install` and `plugin-restart` are the **Bot settings → Plugins** page. They cover installed `@botharness/*` plugin Bundles other than `deepseekbot`, such as `@botharness/vrm-companion`. `plugin-check` returns `installable`, `restartable` and one entry per plugin with `status` `current`, `available`, `blocked`, `restart-required`, `development` or `unavailable`; `--force` bypasses the six-hour check cache. Compatibility uses the running DSH evaluator on that plugin's registry manifest. `plugin-install <package> <version> --confirm` rechecks compatibility, installs through the native Plugin Manager and falls back to the registry tarball when the Manager refuses an installed name; `applied: true` means the Host loaded it already and only the page needs a reload. Otherwise `plugin-restart --confirm` restarts the Host to finish every staged plugin update. Failures exit non-zero with `plugin-<reason>`, such as `plugin-incompatible`, `plugin-unknown-plugin` or `plugin-not-pending`.
 
 `--lang zh|en` asks for listings in that language, as the Marketplace page does in the interface language: the name and bio come from the author's `bot.json` `i18n` translation, then a bio already in that language, then the Marketplace's generated summary (`descriptionGenerated: true`); `marketplace-detail` returns the repository's README in that language and names it in `readmeLanguage`, else `README.md`: for `zh` it takes `README.zh-CN.md`, then `README.zh.md`, then another spelling such as `README_CN.md` or `README-zh.md`; for `en` it takes `README.en.md`. `marketplace-submit` and `marketplace-report` first solve the Host's proof-of-work challenge, as the Web page does, so they can take a few seconds; the Marketplace's own refusals (`repository-missing-topic`, `rate-limited`, …) come back as the error code. A report reason is at most 500 characters. `release-check` returns the update status (`current`, `available`, `restart-required`, `blocked`, `development`, `unknown` or `unavailable`). `release-install` and `release-restart` need `--confirm`; a failed install or restart exits non-zero with `release-<reason>`, such as `release-network` or `release-not-pending`. Restarting stops every running Bot turn, so do it only on a Host you own. `pairing-list` shows a Bot's pairing requests and its roles; `pairing-review` reads the current revisions itself, so a request that changed in between is refused instead of overwritten. Approve with one `--role` for a conversation request or with `--capability` for a management request.
+
+**Uploaded Bots** ([ADR-0267](adr/0267-the-bot-marketplace-hosts-uploaded-bots-under-connect-accounts.md)) sit in the same catalog as GitHub repositories. `marketplace-list --include-uploads` adds them; each entry carries `source` (`github` or `upload`) and, for uploads, `author` (`name`, the immutable Author `id` that tells same-named authors apart, and the `avatar` image URL or `null`). `marketplace-detail` of an Uploaded Bot also returns its `files` (`path`, `size`, `kind`: `text`, `script` or `image`) and a `fileSummary`: `count`, `size` and `types`, the count and bytes per type (`markdown`, `text`, `data`, `script`, `image`), largest first. `marketplace-file <listing-id> <path>` reads one text file as `file` (`path`, `size`, `type`, `text`): Markdown comes prepared and sanitized like the README, with relative links pointing at the Bot's files; scripts and other text come verbatim and are never prepared as Markdown. An image is refused with `file-not-text`, a path that is not listed with `file-not-found`. Uploading needs this Host signed in to Tobs Connect (Settings → Devices); `marketplace-account` shows `signedIn` and the `author`, the signed-in account's **Account Profile** (`name`, `id`, `avatar`, `termsAcceptedAt`), `null` until `marketplace-author --name <name>` creates one; later calls rename it everywhere, including its listings. The first upload also needs the terms, accepted once with `--accept-terms` (`author-required` until then). `marketplace-author-avatar --file <image>` sets the profile avatar from a PNG, JPEG or WebP of at most 1 MB (`avatar-type-refused`, `avatar-too-large`), served publicly and shown on the author's listings; `--clear` removes it. `marketplace-upload-plan` lists the files an upload would include and the ones it skips (`file-type-refused` for binaries and archives, `file-too-large` over 5 MB). `marketplace-upload` publishes the Bot's ready Share Draft, without Git history, under the given name, bio and tags, and needs `--confirm`: the files become public. A Bot that runs it from its own Shell always gets a Human approval card, even with full access. Refusals are coded: `sign-in-required`, `author-required`, `too-many-files` (over 2,000), `too-large` (over 50 MB), `bot-limit` (20 per account), `nothing-to-upload`, `share-draft-required` (no draft yet), `share-draft-not-ready` (a file still has no decision). `marketplace-install` works for both kinds of listing in two steps. First `marketplace-install <listing-id>` stages the files (an Uploaded Bot's files, or the GitHub repository at the commit the catalog indexed, `listing-not-installable` when it has none), has Tob review them with Tob's model and prints `reviewId`, `review` and `installed: false`; it creates nothing. `review.status` is `reviewed` with `findings` (`kind`: `prompt-injection`, `exfiltration` or `script`, the `path`, an optional `note`), `files`, `read` and `partial` when some text was too long to read in full, or `unavailable` with a `reason` (`no-model`, `model-unavailable`, `llm-unavailable`, `timeout`, `model-error`, `unparseable`) when Tob could not review; script files are listed either way. `--lang` picks the language of the notes. Then `marketplace-install <listing-id> --review <review-id> --confirm` installs exactly those staged files (or that commit) as a fresh Bot with the listing's name, bio and tags and one initial commit, returning the new `bot`, its `channelId`, the `listing` and `installed: true`; a review is kept for 30 minutes (`review-expired` after that, `review-mismatch` for another listing), and retrying with the same `--operation-key` returns that Bot instead of installing twice. After the Bot exists, the Host sends one **Install Receipt** keyed by a random marketplace-only Host identifier (`marketplace-host.json` in the Host data folder, never the Telemetry install id); each Host counts once per entry, a failed install sends nothing, and every entry in `marketplace-list` and `marketplace-detail` carries `installs`.
+
+A **Share Draft** is what uploads and GitHub pushes read; the source Memory is never changed. `share-draft-start` copies the Bot's shareable Memory files (the same ones `marketplace-upload-plan` would include) into the Host's own data folder and replaces any earlier draft. `share-draft-show` returns the draft's `state` (`reviewing` or `ready`), a `summary` of counts, and each file's `path`, `kind`, `size`, `status` (`pending`, `kept`, `rewritten` or `dropped`) and `flags` (`secret`, `private-key`, `url-credential`, `email`, `phone`) found by a pattern scan. `share-draft-file --path` returns a text file's current draft text. `share-draft-decide` records one decision: `--keep`, `--drop` (removes the draft copy) or `--rewrite-stdin` (the whole new text, at most 5 MB). Any decision puts a ready draft back to `reviewing`. `share-draft-finish` marks it `ready` once no file is `pending` (`share-draft-pending` names the first one). `share-draft-export` copies a ready draft into a fresh folder in Tob's workspace with no `.git` and returns its `path`, for a GitHub push. `share-draft-discard` deletes the draft. Tob's scoped CLI has `share-draft-show`, `share-draft-file`, `share-draft-decide` and `share-draft-finish` for a draft the Human started; starting, exporting and discarding stay with the Human.
+
+`marketplace-mine` lists the signed-in author's own Uploaded Bots, newest first, each as `{ bot, files, bytes, blocked }`; `blocked` ones are hidden from everyone else but can still be updated or deleted. `marketplace-upload --replaces <listing-id>` replaces all files of one of them with the Bot's current Memory files: there are no versions, the listing keeps its id, the new files become visible only once all are stored, then the old ones are deleted. At most 10 replacements per hour (`replace-limit`); a replacement does not count toward the 20 Bots. `marketplace-delete` erases the listing, its files and counts and needs `--confirm`; like `marketplace-upload`, a Bot running it from its Shell always gets a Human approval card. Installed copies are never touched: an entry from `marketplace-list` or `marketplace-detail` that this Host installed carries `installed` (`bots`, the installed Bot ids, and `authorUpdated`, true once the author replaced the files after an install). Deleting the Connect account also deletes all its Uploaded Bots and its author.
 
 ### Clear all BotHarness data
 
@@ -909,9 +975,10 @@ deepseekbot grants <bot-id>
 ```bash
 deepseekbot folder-browse
 deepseekbot folder-browse 'D:\code'
+deepseekbot folder-browse 'D:\code' --offset 500
 ```
 
-`folder-browse` lists the subfolders of one Host folder, the same way the desktop Workspace Grant browser does, and the phone picker does when the computer uses the system folder dialog. With no path it starts at the Host home. It returns `{path, home, crumbs, entries, truncated, roots}`: folder names and paths only, never files. `roots` holds the home folder and the drives (Windows) or `/`. A relative path fails `folder-browse/invalid-path`; a missing, non-folder or unreadable path fails `folder-browse/not-found`, `folder-browse/not-directory` or `folder-browse/denied`. Browsing grants nothing: register the chosen path and grant it as above.
+`folder-browse` lists the subfolders of one Host folder, the same way the desktop Workspace Grant browser does, and the phone picker does when the computer uses the system folder dialog. With no path it starts at the Host home. It returns `{path, home, crumbs, entries, truncated, nextOffset?, roots, nativePicker?}`: folder names and paths only, never files, at most 500 per page. While `truncated` is true, pass `nextOffset` back as `--offset` for the next page. `roots` holds the home folder and the drives (Windows, read from the OS drive table without opening any drive) or `/`. `nativePicker: true` means the Host shows the system folder dialog, so the desktop Client opens that instead of this browser. The Host reads folders in a separate process with a 5 second deadline. A relative path fails `folder-browse/invalid-path`; a missing, non-folder or unreadable path fails `folder-browse/not-found`, `folder-browse/not-directory`, `folder-browse/denied` or `folder-browse/unreadable`; a folder that does not answer in time (for example a disconnected network drive) fails `folder-browse/timeout`. Browsing grants nothing: register the chosen path and grant it as above.
 
 ## Memory
 
@@ -920,7 +987,7 @@ deepseekbot folder-browse 'D:\code'
 With a live Host selected, the same commands go through the Host's Memory owner instead of the local store, and `memory-save` then requires `--expected-head`. The live Host also offers the rest of the Memory panel:
 
 ```bash
-deepseekbot memory-graph <bot-id> [--offset <n>]
+deepseekbot memory-graph <bot-id> [--offset <n>] [--path <file>]
 deepseekbot memory-commit-diff <bot-id> --sha <commit>
 deepseekbot memory-changes <bot-id>
 deepseekbot memory-working-diff <bot-id> --path <file> --kind staged|unstaged|untracked|current
@@ -933,6 +1000,8 @@ deepseekbot memory-restore <bot-id> --checkpoint <id> --expected-current <id>
 deepseekbot memory-restore-commit <bot-id> --sha <commit> --expected-head <commit> [--name <version>]
 deepseekbot memory-repair <bot-id> --expected-head <commit>
 ```
+
+`memory-graph --path` lists only the commits that touched that file, as the app's Memory file **History** does.
 
 Writes and restores always name the head or checkpoint they expect, so a concurrent change fails with `memory-conflict` instead of being overwritten; `--restore-id` and `--repair-id` default to fresh UUIDs and make a retry idempotent. A restore records a checkpoint first, which `memory-checkpoints` lists.
 
@@ -1179,11 +1248,9 @@ Use the exact metadata from the selected file/diff side. The authenticated Host 
 
 ## Desktop window zoom (controlled S1)
 
-New Tobs Bundles load native macOS/Windows window zoom by default; the setup commands below apply only to legacy manually enabled Profiles. Use Bot Settings → General → Window zoom. Browser zoom is unchanged. Native qualification is tracked in #2775.
+Tobs 1.5.2 briefly loaded zoom by default by inserting a second `ui-theme` Loader row; DSH 0.2.1-rc.3 Settings then refused every appearance and font write ([#2788](https://github.com/BotHarness/DeepSeekBot/issues/2788)). Product Bundles again leave the native `ui-theme` row alone, so zoom needs the explicit setup below.
 
-### Legacy manual setup
-
-Earlier product versions included a separate opt-in configuration command. Install the product normally,
+The product includes a separate opt-in configuration command. Install the product normally,
 quit the target macOS Desktop, then point setup at that application's bundle and explicit
 Profile. Setup uses the selected application's bundled pnpm with scripts disabled, under the
 same Profile writer lock as the native plugin manager. It refuses a running Desktop Host,
@@ -1202,10 +1269,23 @@ the managed `desktop` Profile; the native plugin manager also refuses this plain
 replacement, because it resolves the installation-owned theme before Profile Bundle metadata.
 Those two paths do not establish Desktop activation.
 
-For a legacy manually enabled Profile, run `disable` before uninstalling the product and restart to restore native package resolution. This cleans up the legacy link; it does not turn off zoom while the new Bundle remains installed.
+Run `disable` before uninstalling the product and restart to restore native package resolution.
 Manual font preferences remain in the same native `ui-theme` Patch. JSON stdout reports
 `restartRequired:true` and `runtimeVerified:false`; a successful package change does not prove
 the native window has loaded it. An uncertain package operation is not retried automatically.
+
+### Enable from Bot Settings
+
+On the macOS or Windows Desktop, Bot Settings → General shows **Enable window zoom** (or **Turn off window zoom** once installed). The button asks the Host to start the same `deepseekbot-zoom-setup enable|disable --after-quit <state-file> --request <id>` transaction as a detached helper. The helper waits until the Desktop is fully quit, runs the unchanged checks and Profile change, records the outcome, then reopens the app. Cancel before quitting withdraws it; a newer request supersedes an older one. If the app is not quit within 30 minutes, the helper stops without changes and without reopening. The next Settings visit shows a failed outcome code. The Host reads the target app from its own runtime path and only offers this in the native `desktop` Profile.
+
+```sh
+deepseekbot window-zoom-setup-status --host <host> --token-file <private-file>
+deepseekbot window-zoom-setup-enable --host <host> --token-file <private-file>
+deepseekbot window-zoom-setup-disable --host <host> --token-file <private-file>
+deepseekbot window-zoom-setup-cancel --host <host> --token-file <private-file>
+```
+
+Status is `{supported:false, code}` outside the Desktop Profile, or `{supported:true, enabled, pending?, last?}`. Refusals include `zoom-setup-not-desktop`, `zoom-setup-desktop-app-unresolved`, `zoom-setup-command-unavailable`, `zoom-setup-already-enabled|disabled` and `zoom-setup-not-pending`; a helper that ended without an outcome reports `zoom-setup-helper-exited`.
 
 `window-zoom-clients` lists active targets. Select one `--client-id`; commands never choose a
 window implicitly. `window-zoom-get` reads the Client-owned snapshot. A write requires the
@@ -1231,12 +1311,12 @@ Restarting the Client changes its delivery ID; list again. The desktop's primary
 survives independently. See [S1](https://github.com/BotHarness/DeepSeekBot/issues/2268) for native
 qualification limits. No model or Host-side preference copy is involved.
 
-Legacy Windows manual-link setup uses the installed product's `deepseekbot-zoom-setup` command with
+The Windows candidate uses the installed product's `deepseekbot-zoom-setup` command with
 `--home <isolated-home> --profile desktop --desktop-app "<app-directory>/DeepSeek Harness.exe"`.
 Keep the selected Desktop closed throughout `enable` or `disable`; setup refuses any running
 process of that executable. Admission checks the protocol, platform and payload integrity,
 not a fixed FileVersion. The native `ui-theme` row and font settings remain in place.
-For manually enabled Profiles, run `disable` before removing the product. After every cold boot, enumerate Client IDs again.
+Run `disable` before removing the product. After every cold boot, enumerate Client IDs again.
 Ctrl+0 restores the saved default, including 120%; numberpad codes are unsupported by the
 pinned protocol. See [Windows qualification #2270](https://github.com/BotHarness/DeepSeekBot/issues/2270)
 for the separate native input, guest foreground, DPI and Human-QA gates.
@@ -1413,18 +1493,33 @@ When `status` advertises `continuousScroll:true`, iOS and `computer-video input 
 
 ### Native Subagent presets and direct calls
 
-`bot_subagent` selects an explicitly allowed `agent_preset`, then the configured `subagent.agentPreset`, then the current DSH system default. `subagent.allowedAgentPresets` permits explicit choices; omitting it disables explicit selection. These native presets control tools and persona, independently of allowed LLM routes. `bot_subagent_fork` inherits the parent preset and rejects `agent_preset`.
+Only Assignment Sessions have `bot_subagent`, `bot_subagent_fork` and `list_bot_subagent_models`. An Orchestrator delegates with `create_assignment`; its native and Bot Subagent tools are refused with a pointer to `create_assignment` (ADR-0265). `bot_subagent` selects an explicitly allowed `agent_preset`, then the configured `subagent.agentPreset`, then the current DSH system default. `subagent.allowedAgentPresets` permits explicit choices; omitting it disables explicit selection. These native presets control tools and persona, independently of allowed LLM routes. `bot_subagent_fork` inherits the parent preset and rejects `agent_preset`.
 
-The `bot-tool` command also supports `bot_subagent`, `bot_subagent_fork` and `list_bot_subagent_models`. These commands require an existing live Orchestrator Agent, including one that is idle after a DM. They use its native tool pipeline and do not create or resume a parent. `parent-unavailable` means the Bot has no live parent; first send it a DM. Native policy refusals remain errors. Use `bot-trace --session direct` for the direct-call result and the child's Session for its execution history.
+The `bot-tool` command also supports `bot_subagent`, `bot_subagent_fork` and `list_bot_subagent_models` with `--session <assignment-session-id>`, one of the Bot's Assignment Sessions (`assignments` lists them). The Assignment Agent must be live, including one that is idle after a report. The call uses its native tool pipeline and does not create or resume a parent. `parent-unavailable` means the Session is missing, is not this Bot's Assignment, or has no live Agent; continue the Assignment first. Other Bot tools reject `--session`. Native policy refusals remain errors. Use `bot-trace --session direct` for the direct-call result and the child's Session for its execution history.
 
-A background child's native report may wake that live parent. BotRuntime prepares fresh tool context and the current model before the resumed request, without borrowing the previous DM's source or target. Include the intended reply source or explicit destination in the delegated task when a result should be delivered. A foreground CLI call does not block stop or steering of a separate Human turn. See ADR-0252.
+A background child's native report may wake that live Assignment. BotRuntime prepares fresh tool context and the current model before the resumed request, without borrowing the previous DM's source or target. Include the intended reply source or explicit destination in the delegated task when a result should be delivered. A foreground CLI call does not block stop or steering of a separate Human turn. See ADR-0252.
 
 ```sh
-printf '%s' '{"description":"Review","prompt":"Review the supplied task","run_in_background":false}' | deepseekbot bot-tool <slug> bot_subagent --args-stdin
-printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --args-stdin
+printf '%s' '{"description":"Review","prompt":"Review the supplied task","run_in_background":false}' | deepseekbot bot-tool <slug> bot_subagent --session <assignment-session-id> --args-stdin
+printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --session <assignment-session-id> --args-stdin
 ```
 
 `computer-open-permission-settings` opens the selected macOS privacy pane on the Local Computer Host; it does not grant permission. The Human enables access in System Settings, restarts the app running DSH when required, then checks again. `computer-status` retains coded setup refusals and individual missing macOS permissions; technical details remain in diagnostics.
+
+## Complete environment backup and restore
+
+The `profile-backup-*` commands use the same Profile Backup owner as Settings. Online commands use `--host` / `DEEPSEEKBOT_HOST` and the existing private token-file or environment authority. They print one JSON document; credential stores are excluded, but chats and Memory can contain secrets.
+
+```bash
+tobs profile-backup-preview --host http://127.0.0.1:31967 > preview.json
+tobs profile-backup-export --host http://127.0.0.1:31967 --confirmation-stdin --out environment.botharness-backup < preview.json
+tobs profile-backup-inspect --host http://127.0.0.1:31967 --file environment.botharness-backup
+tobs profile-backup-restore --file environment.botharness-backup --new-home new-environment --confirm
+```
+
+Export consumes the current preview token and refuses to overwrite a file. Restore runs **locally and offline**, requires a new target directory, and leaves the Profile stopped. Omit `--host` and `--token-file` for restore. Start the target with a compatible trusted Tobs installation before querying `profile-backup-recovery`. Restored Bots remain cold; `profile-backup-authorize <bot> --confirm` authorizes the chosen target model, and `profile-backup-activate <bot> --confirm --acknowledge-risk` explicitly accepts possible duplicate source execution. These operations do not restore external account authority.
+
+Historical v1 archives remain readable. New v2 archives record Host and resolved DSH tools versions independently; `null` means unavailable provenance. Compatibility follows data contracts and schema migration, not an exact DSH release. An older reader must be upgraded to read an unsupported newer format. `format-upgrade-required`, `upgrade-required` and `dependency-incompatible` identify unsupported data interpretation; `core-contract-invalid` requires a complete backup with a valid required core declaration; `package-invalid` identifies failed validation. `source-unavailable` means the source database must be repaired before export. Existing preview expiry, integrity, cancellation and destination checks still apply.
 
 ### Message feedback (#2811)
 
@@ -1446,8 +1541,16 @@ optional fixed categories and comment accepts up to 500 Unicode characters. Secr
 belong on stdin/files, never command arguments. Preview tokens expire after 30 minutes, are scoped
 to this Host connection, and only the last four snapshots remain. `preview-stale` requires a new
 preview. A failed submission freezes its rating and snapshot; retry that same request to retain the
-same report ID. To edit it, explicitly refresh the preview. Receipt returns `reportId` and `expiresAt`.
+same report ID. To edit it, explicitly refresh the preview. Receipt returns `reportId`. Only rating/tags/comment, reference and version are sent to PostHog; diagnostic archives remain local downloads.
 
-The Host must opt in with `BOTHARNESS_FEEDBACK_ENDPOINT`; otherwise preview/download work but
-submit returns `feedback-unavailable`. Only `https://feedback.botharness.ai/feedback` and loopback
-HTTP `/feedback` are accepted; redirects are refused. See [receiver operations](message-feedback.md).
+Submission uses the existing PostHog ingest path without extra configuration. No dedicated receiver or private archive storage is deployed. See [feedback and local diagnostics](message-feedback.md).
+
+### Failed-turn feedback
+
+`feedback-preview` accepts `failureTurn: true` alongside the canonical failed message's `channelId` and `messageId` in stdin JSON. Its frozen preview includes `uploadEvidence`: only the matching turn input and tool call/result events, redacted and capped at 128 KiB. Ambiguous/missing turn identity and oversized evidence refuse instead of uploading a whole Session. `feedback-submit --confirm` uploads that frozen turn with rating/tags/comment to the existing feedback endpoint. The diagnostic ZIP stays a separate download. Ordinary feedback keeps its existing metadata-only POST.
+
+### Private credential tools in the direct runner
+
+After a Bot has a live Orchestrator Agent, `bot-tools` also lists its registered `ask_secret`, `protected_cli`, `secret_http`, `secret_cli` and `secret_mcp_connect` tools. Invoke them with `bot-tool <bot-id> <tool> --args-stdin`. Arguments are a JSON object on stdin; never put private values or references in shell arguments. The runner uses the existing Agent and native tool execution/approval pipeline without calling the model or creating a new source. Missing live registration is refused. An execution approval can be pending while the command waits; use the usual approval commands or Web card. Private arguments/results are omitted from both direct and native diagnostic traces.
+
+For several IM requests in one turn, call `ask_secret` with the existing account and field declaration plus the exact accepted `source_event_id` of the request being handled before consuming the references. Configured accounts reuse their values without another card or a Web notification address. Web and Schedule reuse omit the selector. `private-source-required` supplies this recovery; `private-source-invalid`, `private-source-unavailable`, `private-source-ambiguous`, `private-source-revoked` and `private-account-unavailable` distinguish the other refusals. Do not retry an unchanged operation, choose a historical source, or treat a Host refusal as a remote outage. Conflicting account associations require a new turn; revocation remains authoritative.

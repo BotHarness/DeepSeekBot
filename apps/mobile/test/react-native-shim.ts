@@ -33,6 +33,10 @@ export const KeyboardAvoidingView = View;
 export const Modal = (props: Props) =>
   props['visible'] === true ? createElement('div', { role: 'dialog' }, props.children) : null;
 export const useWindowDimensions = () => ({ width: 390, height: 844, scale: 3, fontScale: 1 });
+export const Dimensions = {
+  get: useWindowDimensions,
+  addEventListener: (_event: string, _listener: () => void) => ({ remove() {} }),
+};
 export const ActivityIndicator = () => createElement('span', { role: 'progressbar' });
 export const RefreshControl = () => null;
 export const Image = () => createElement('img');
@@ -46,7 +50,9 @@ export const Pressable = (props: Props) =>
       disabled: props['disabled'] === true,
       onClick: () => (props['onPress'] as (() => void) | undefined)?.(),
     },
-    props.children,
+    typeof props.children === 'function'
+      ? (props.children as (state: { pressed: boolean }) => ReactNode)({ pressed: false })
+      : props.children,
   );
 
 export const TextInput = (props: Props) =>
@@ -106,6 +112,8 @@ export const Keyboard = {
   metrics: () => undefined,
   dismiss() {},
 };
+export const PlatformColor = (...semantic: string[]) => ({ semantic });
+
 export const Platform = {
   OS: 'web',
   select: <T>(options: { default?: T; web?: T }) => options.web ?? options.default,
@@ -130,10 +138,11 @@ export const FlatList = (props: {
   ListFooterComponent?: ReactNode;
   ListEmptyComponent?: ReactNode;
   ref?: unknown;
+  testID?: string;
 }) =>
   createElement(
     'div',
-    { ref: props.ref },
+    { ...a11y(props), ref: props.ref },
     props.ListHeaderComponent ?? null,
     ...(props.data.length === 0
       ? [props.ListEmptyComponent ?? null]
@@ -157,5 +166,6 @@ export const StyleSheet = {
 export const AccessibilityInfo = {
   announceForAccessibility: (_message: string) => {},
   isScreenReaderEnabled: async () => false,
+  isReduceMotionEnabled: async () => false,
   addEventListener: (_event: string, _listener: (enabled: boolean) => void) => ({ remove() {} }),
 };

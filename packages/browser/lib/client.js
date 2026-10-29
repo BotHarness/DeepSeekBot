@@ -326,6 +326,17 @@ window.__ModuleLoader__.load({
 				}]
 			],
 			"shield-check": [["path", { d: "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" }], ["path", { d: "m9 12 2 2 4-4" }]],
+			upload: [
+				["path", { d: "M12 3v12" }],
+				["path", { d: "m17 8-5-5-5 5" }],
+				["path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }]
+			],
+			package: [
+				["path", { d: "M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z" }],
+				["path", { d: "M12 22V12" }],
+				["path", { d: "M3.29 7 12 12l8.71-5" }],
+				["path", { d: "m7.5 4.27 9 5.15" }]
+			],
 			plus: [["path", { d: "M5 12h14" }], ["path", { d: "M12 5v14" }]],
 			user: [["path", { d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" }], ["circle", {
 				cx: "12",
@@ -507,6 +518,13 @@ window.__ModuleLoader__.load({
 				["path", { d: "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" }],
 				["path", { d: "M2 12h20" }]
 			],
+			"panel-right": [["rect", {
+				width: "18",
+				height: "18",
+				x: "3",
+				y: "3",
+				rx: "2"
+			}], ["path", { d: "M15 3v18" }]],
 			"panels-top-left": [
 				["rect", {
 					width: "18",
@@ -802,6 +820,7 @@ window.__ModuleLoader__.load({
 			selected: "var(--dsw-alias-interactive-bg-active)",
 			navSelected: "var(--dsw-specific-sidebar-nav-item-active)",
 			accent: "var(--dsw-alias-state-business-primary)",
+			accentText: "var(--dsw-alias-link)",
 			onAccent: "var(--dsw-alias-label-primary-foreground)",
 			danger: "var(--dsw-alias-state-error-primary)",
 			onDanger: "var(--dsw-alias-label-primary-foreground)",
@@ -1648,6 +1667,20 @@ window.__ModuleLoader__.load({
 				delayMs: 0,
 				focusDelayMs: 0
 			}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, { ...props });
+		}
+		//#endregion
+		//#region packages/client/src/client/telemetry-surface.ts
+		function telemetrySurface() {
+			return typeof globalThis === "object" && "dshDesktop" in globalThis ? "desktop_app" : "browser";
+		}
+		function recordViewerOpen(rpc, panel) {
+			rpc?.call("/api", "botharness/telemetryEvent", { args: {
+				event: "viewer:subpanel_open",
+				properties: {
+					panel,
+					surface: telemetrySurface()
+				}
+			} }).catch(() => {});
 		}
 		//#endregion
 		//#region packages/client/src/client/sidebar-card.tsx
@@ -2612,7 +2645,7 @@ window.__ModuleLoader__.load({
 			kg3NbH: "bhx1vid4s1",
 			kMzoRj: "bhxc342km",
 			kaIpWk: "bhx4g09nt",
-			kWkggS: "bhxw43b1w bhx1lc0nsx",
+			kWkggS: "bhx1eunnl6 bhx8yp5u",
 			kMwMTN: "bhx24dycr",
 			kMv6JI: "bhxjb2p0i",
 			kGuDYH: "bhx5g6txa",
@@ -3255,7 +3288,7 @@ window.__ModuleLoader__.load({
 .bhx-level-3:not(#\\#):not(#\\#):not(#\\#){}
 .bhx1g31g6d:not(#\\#):not(#\\#):not(#\\#){accent-color:var(--dsw-alias-state-business-primary)}
 .bhx6s0dn4:not(#\\#):not(#\\#):not(#\\#){align-items:center}
-.bhxw43b1w:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-bg-module-platform)}
+.bhx1eunnl6:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--dsw-alias-label-primary) 8%, var(--dsw-alias-bg-module-platform))}
 .bhx1xojs80:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-interactive-bg-hover)}
 .bhx9f619:not(#\\#):not(#\\#):not(#\\#){box-sizing:border-box}
 .bhx24dycr:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-primary)}
@@ -3301,7 +3334,7 @@ window.__ModuleLoader__.load({
 .bhxp6lfbs:not(#\\#):not(#\\#):not(#\\#){z-index:1100}
 .bhxtgyt42:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:default}
 .bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}
-.bhx1lc0nsx:hover:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-interactive-bg-hover)}
+.bhx8yp5u:hover:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--dsw-alias-label-primary) 13%, var(--dsw-alias-bg-module-platform))}
 @media (max-width: 648px){.bhx15bqsqq.bhx15bqsqq:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}
 @media (max-width: 648px){.bhx1uptv2i.bhx1uptv2i:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}
 @media (max-width: 648px){.bhx3xz8fp.bhx3xz8fp:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}
@@ -4055,6 +4088,7 @@ window.__ModuleLoader__.load({
 		}
 		function createBrowserBody(t) {
 			return function BrowserBodyView(props) {
+				(0, react.useState)(() => recordViewerOpen(connectionRpc, "browser"));
 				const store = botInfoStore(props.botSlug);
 				if ((0, react.useSyncExternalStore)(store.subscribe, store.getSnapshot).browserAccess === false) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PanelEmptyState, {
 					icon: "globe",

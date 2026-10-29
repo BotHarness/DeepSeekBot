@@ -3,6 +3,7 @@ import { cloudMessageAllowed } from '../cloud/admission.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { readMessagingIdentity } from './identity.js';
+import { externalBotTurnsExhausted } from './bot-sender-guard.js';
 import { MessagingError, type MessagingInboundEvent } from './provider.js';
 import type { PairingCapability, PairingRequest } from './pairing.js';
 import type { MessagingGrant } from './outbound.js';
@@ -462,6 +463,7 @@ export function senderAdmissionAllowed(
   event: Omit<MessagingInboundEvent, 'text'>,
 ): boolean {
   if (event.channel === 'tob') return cloudMessageAllowed(db, botSlug, event, false);
+  if (externalBotTurnsExhausted(db, botSlug, event)) return false;
   return (
     !chatPairingApplies(event) ||
     !readSenderPolicy(db, botSlug).restricted ||

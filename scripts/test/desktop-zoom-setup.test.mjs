@@ -15,6 +15,8 @@ import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import {
   configureDesktopZoom,
+  configureDesktopZoomAfterQuit,
+  relaunchDesktopApp,
   runDesktopZoomSetup,
 } from '../../packages/deepseekbot/src/desktop-zoom-setup.mjs';
 const roots = [];
@@ -331,4 +333,103 @@ it('refuses a macOS-only payload on Windows before adding its Profile alias', ()
   writeFileSync(path, JSON.stringify(provenance));
   expect(() => configureDesktopZoom({ ...f, action: 'enable' })).toThrow('theme-unqualified');
   expect(f.run).toHaveBeenCalledTimes(1);
+});
+function afterQuitState(status = 'waiting') {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'zoom-after-quit-')));
+  roots.push(root);
+  const state = join(root, 'window-zoom-setup.json');
+  writeFileSync(state, JSON.stringify({ version: 1, id: 'r1', action: 'enable', status }));
+  return state;
+}
+it('waits for the Desktop to quit, records the outcome and reopens the app', async () => {
+  const state = afterQuitState();
+  const refusal = Object.assign(Error('running'), { code: 'desktop-zoom-setup-desktop-running' });
+  const configure = vi
+    .fn()
+    .mockImplementationOnce(() => {
+      throw refusal;
+    })
+    .mockReturnValueOnce({ changed: true });
+  const relaunch = vi.fn();
+  const sleep = vi.fn(async () => {});
+  expect(
+    await configureDesktopZoomAfterQuit({
+      action: 'enable',
+      home: '/home',
+      profile: 'desktop',
+      desktopApp: '/Applications/DeepSeek Harness.app',
+      platform: 'darwin',
+      state,
+      id: 'r1',
+      configure,
+      relaunch,
+      sleep,
+    }),
+  ).toEqual({ status: 'done', changed: true });
+  expect(configure).toHaveBeenCalledTimes(2);
+  expect(configure.mock.calls[0][0]).toMatchObject({ action: 'enable', profile: 'desktop' });
+  expect(sleep).toHaveBeenCalledTimes(1);
+  expect(JSON.parse(readFileSync(state, 'utf8'))).toMatchObject({ id: 'r1', status: 'done' });
+  expect(relaunch).toHaveBeenCalledWith('/Applications/DeepSeek Harness.app', 'darwin');
+});
+it('stops without touching the Profile once the request is cancelled or replaced', async () => {
+  const configure = vi.fn();
+  const relaunch = vi.fn();
+  const base = { action: 'enable', id: 'r1', configure, relaunch };
+  expect(
+    await configureDesktopZoomAfterQuit({ ...base, state: afterQuitState('cancelled') }),
+  ).toEqual({ status: 'superseded' });
+  const state = afterQuitState();
+  writeFileSync(state, JSON.stringify({ version: 1, id: 'r2', status: 'waiting' }));
+  expect(await configureDesktopZoomAfterQuit({ ...base, state })).toEqual({
+    status: 'superseded',
+  });
+  expect(configure).not.toHaveBeenCalled();
+  expect(relaunch).not.toHaveBeenCalled();
+});
+it('gives up without reopening when the Desktop never quits', async () => {
+  const state = afterQuitState();
+  let time = 0;
+  const configure = vi.fn(() => {
+    throw Object.assign(Error('running'), { code: 'desktop-zoom-setup-desktop-running' });
+  });
+  const relaunch = vi.fn();
+  expect(
+    await configureDesktopZoomAfterQuit({
+      action: 'enable',
+      state,
+      id: 'r1',
+      configure,
+      relaunch,
+      timeoutMs: 3000,
+      now: () => time,
+      sleep: async (ms) => {
+        time += ms;
+      },
+    }),
+  ).toEqual({ status: 'failed', code: 'desktop-zoom-setup-wait-expired' });
+  expect(relaunch).not.toHaveBeenCalled();
+  expect(JSON.parse(readFileSync(state, 'utf8'))).toMatchObject({
+    status: 'failed',
+    code: 'desktop-zoom-setup-wait-expired',
+  });
+});
+it('requires a request id with the after-quit state file', () => {
+  expect(() =>
+    runDesktopZoomSetup(['enable', '--profile', 'desktop', '--after-quit', '/tmp/state.json']),
+  ).toThrow('arguments-invalid');
+});
+it('reopens the Windows executable rather than its folder', () => {
+  const unref = vi.fn();
+  const launch = vi.fn(() => ({ unref }));
+  relaunchDesktopApp('C:/Apps/DSH', 'win32', launch, () => true);
+  expect(launch.mock.calls[0][0]).toBe('explorer.exe');
+  expect(launch.mock.calls[0][1][0].replaceAll('\\', '/')).toBe('C:/Apps/DSH/DeepSeek Harness.exe');
+  relaunchDesktopApp('/Applications/DeepSeek Harness.app', 'darwin', launch, () => true);
+  expect(launch.mock.calls[1]).toEqual([
+    '/usr/bin/open',
+    ['/Applications/DeepSeek Harness.app'],
+    expect.objectContaining({ detached: true }),
+  ]);
+  expect(unref).toHaveBeenCalledTimes(2);
 });

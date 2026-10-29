@@ -5,13 +5,13 @@ import { pressTint, useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
+import { CheckmarkRow } from '../primitives/checkmark-row';
 import { DrawerHeader } from '../primitives/drawer-header';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { MarketplaceTopicSheet } from '../primitives/marketplace-topic-sheet';
 import { RadioMark } from '../primitives/radio-mark';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-import { CheckIcon } from './icons';
 
 export function MarketplaceTopics({
   value,
@@ -69,32 +69,42 @@ export function MarketplaceTopics({
               )}
             </View>
           }
-          renderItem={({ item }) => (
-            <Pressable
-              testID={`marketplace-topic-${item.topic || 'all'}`}
-              accessibilityRole="radio"
-              accessibilityLabel={item.topic || t.marketplace.allTopics}
-              accessibilityState={{ checked: item.topic === value }}
-              onPress={() => onChange(item.topic)}
-              android_ripple={{ color: pressTint(theme.color.fg) }}
-              style={({ pressed }) => ({
-                minHeight: theme.touch,
-                padding: space.x4,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: space.x4,
-                backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
-              })}
-            >
-              {Platform.OS === 'android' ? <RadioMark selected={item.topic === value} /> : null}
-              <Text style={{ flex: 1 }}>
-                {item.topic ? `${item.topic} (${item.count})` : t.marketplace.allTopics}
-              </Text>
-              {Platform.OS === 'ios' && item.topic === value ? (
-                <CheckIcon color={theme.color.accent} size={theme.type.body.line} />
-              ) : null}
-            </Pressable>
-          )}
+          renderItem={({ item }) => {
+            const label = item.topic ? `${item.topic} (${item.count})` : t.marketplace.allTopics;
+            const testID = `marketplace-topic-${item.topic || 'all'}`;
+            if (Platform.OS === 'ios')
+              return (
+                <View style={{ backgroundColor: theme.layer.raised.fill }}>
+                  <CheckmarkRow
+                    testID={testID}
+                    label={label}
+                    selected={item.topic === value}
+                    onPress={() => onChange(item.topic)}
+                  />
+                </View>
+              );
+            return (
+              <Pressable
+                testID={testID}
+                accessibilityRole="radio"
+                accessibilityLabel={item.topic || t.marketplace.allTopics}
+                accessibilityState={{ checked: item.topic === value }}
+                onPress={() => onChange(item.topic)}
+                android_ripple={{ color: pressTint(theme.color.fg) }}
+                style={({ pressed }) => ({
+                  minHeight: theme.touch,
+                  padding: space.x4,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: space.x4,
+                  backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
+                })}
+              >
+                <RadioMark selected={item.topic === value} />
+                <Text style={{ flex: 1 }}>{label}</Text>
+              </Pressable>
+            );
+          }}
         />
       </View>
     </MarketplaceTopicSheet>
