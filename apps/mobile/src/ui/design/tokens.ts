@@ -362,6 +362,22 @@ export const marketplaceArt = {
   menuWidth: 360,
 } as const;
 
+export const marketplaceHome = {
+  compactRows: 3,
+  heroCover: 168,
+  posterWidth: 168,
+  posterAspect: 2 / 3,
+  posterAvatar: 40,
+  compactAvatar: 48,
+  coverAvatar: 28,
+  heroAvatar: 32,
+  articleAvatar: 36,
+  articleCover: 200,
+  gridColumns: 2,
+  gridCoverAspect: 1,
+  dateMark: 48,
+} as const;
+
 export const profileShell = {
   avatar: 72,
   avatarEdge: 3,

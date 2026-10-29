@@ -774,7 +774,7 @@ it('keeps the bottom fade at the message viewport edge beneath the composer cont
   expect(fade!.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
 });
 
-it('leaves the top edge and Back to the iOS 26 glass header', async () => {
+it('extends the native glass fade while leaving Back to the iOS 26 header', async () => {
   const os = Platform.OS;
   Object.assign(Platform, { OS: 'ios' });
   try {
@@ -793,7 +793,7 @@ it('leaves the top edge and Back to the iOS 26 glass header', async () => {
     ];
     const view = await render({ kind: 'dm', slug: 'ada' });
     const header = view.querySelector('header')!;
-    expect(view.querySelector('[data-edge="top"]')).toBeNull();
+    expect(view.querySelector('[data-edge="top"]')).not.toBeNull();
     expect(header.getAttribute('data-blur')).toBe('none');
     expect(header.getAttribute('data-back-visible')).toBe('true');
     expect(header.textContent).not.toContain('Header back');

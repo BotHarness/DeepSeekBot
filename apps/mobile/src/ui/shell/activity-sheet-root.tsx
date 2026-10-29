@@ -14,7 +14,6 @@ import type { EndSheetProps } from '../primitives/end-sheet';
 type Sheet = Omit<EndSheetProps, 'children' | 'fullWidth'>;
 const Register = createContext<Dispatch<SetStateAction<Sheet | null>>>(() => {});
 
-/** Owns the sheet above both the Activity scene and the app navigation bar. */
 export function ActivitySheetRoot({ children }: { children: ReactNode }) {
   const [sheet, setSheet] = useState<Sheet | null>(null);
   return (

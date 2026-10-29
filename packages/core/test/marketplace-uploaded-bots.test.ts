@@ -59,6 +59,7 @@ function fixture() {
   const session = {
     state: 'signed-out',
     tokens: ['token-alice'] as string[],
+    freshToken: 'token-alice',
     fresh: 0,
   };
   const account = {
@@ -66,7 +67,7 @@ function fixture() {
     accessToken: (options?: { fresh?: boolean }) => {
       if (options?.fresh === true) session.fresh += 1;
       return Promise.resolve(
-        options?.fresh === true ? 'token-alice' : (session.tokens.shift() ?? 'token-alice'),
+        options?.fresh === true ? session.freshToken : (session.tokens.shift() ?? 'token-alice'),
       );
     },
   };
@@ -177,6 +178,18 @@ it('uploads only a ready Share Draft', async () => {
     ok: false,
     error: { code: 'share-draft-not-ready' },
   });
+});
+
+it('reports a signed-in account the Market keeps refusing instead of asking to sign in again', async () => {
+  const f = fixture();
+  f.session.state = 'signed-in';
+  f.session.tokens = ['token-stale!'];
+  f.session.freshToken = 'token-refused!';
+  expect(await f.bridge.marketplaceAccount()).toMatchObject({
+    ok: false,
+    error: { code: 'sign-in-rejected' },
+  });
+  expect(f.session.fresh).toBe(1);
 });
 
 it('needs a Connect sign-in and an author before uploading', async () => {

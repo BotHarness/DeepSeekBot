@@ -110,6 +110,7 @@ import type { MarketplaceEntry, MarketplacePage } from '../../core/src/marketpla
 import type { BridgeActions } from '../src/client/actions.js';
 import { CHANNEL_BODY_PANEL } from '../src/client/channel-dock-layout.js';
 import type { DockPanelRegistry } from '../src/client/dock-panels.js';
+import { BridgeCallError } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
 import {
   MarketHeaderAction,
@@ -1240,6 +1241,46 @@ describe('Uploaded Bots in the Market panel', () => {
       expect(host.querySelector('[data-market-direct]')?.getAttribute('data-market-direct')).toBe(
         'account',
       );
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+    }
+  });
+
+  it('retries the account when the Market refuses a signed-in user', async () => {
+    store.setRoster([bot('writer', { displayName: 'Writer' })], []);
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    const account = vi
+      .fn()
+      .mockRejectedValueOnce(new BridgeCallError('sign-in-rejected', 'refused'))
+      .mockResolvedValue({ signedIn: false, author: null });
+    const actions = {
+      marketplaceAccount: account,
+      marketplaceUploadPlan: vi.fn(async () => ({ files: [], skipped: [], totalBytes: 0 })),
+      shareDraftGet: vi.fn(async () => draftView('ready')),
+    };
+    try {
+      await act(async () =>
+        root.render(
+          createElement(MarketUploadDialog, {
+            actions: actions as unknown as BridgeActions,
+            registry: { open: vi.fn() } as unknown as DockPanelRegistry,
+            t: zhTranslate,
+            onListed: vi.fn(),
+            onClose: vi.fn(),
+            initialSlug: 'writer',
+          }),
+        ),
+      );
+      await click(host, '下一步');
+      await click(host, 'Tobs 市场');
+      expect(host.textContent).toContain(zhTranslate('market.error.signInRejected'));
+      await click(host, zhTranslate('market.retry'));
+      expect(account).toHaveBeenCalledTimes(2);
+      expect(host.textContent).toContain(zhTranslate('market.direct.signInHint'));
     } finally {
       await act(async () => root.unmount());
       host.remove();

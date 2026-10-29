@@ -1,5 +1,6 @@
+import { HeaderTitleButton } from './header-title-button';
 import { ConnectionProgress } from '../primitives/connection-progress';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import type { RosterBot } from '../../host/client';
 import { BotAvatar } from '../bot-avatar';
@@ -32,7 +33,7 @@ export function ChatTitle({
   const activity =
     bot !== undefined && botBusy(bot) ? stepLabel(bot.activity, bot.state) : undefined;
   const chip = (press: () => void) => (
-    <Pressable
+    <HeaderTitleButton
       testID="bot-details-chip"
       accessibilityRole="button"
       accessibilityLabel={[name, activity ?? status, connectionLabel].filter(Boolean).join(', ')}
@@ -61,7 +62,7 @@ export function ChatTitle({
         {activity ?? name}
       </Text>
       <ConnectionProgress active={connectionLabel !== undefined} />
-    </Pressable>
+    </HeaderTitleButton>
   );
   return chip(onPress);
 }

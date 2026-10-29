@@ -586,14 +586,6 @@ const HomeContent = memo(function HomeContent({
                 onPress={() => setSearching(true)}
               />
               {tobAction}
-              {Platform.OS !== 'ios' && Platform.OS !== 'android' && (
-                <HeaderAction
-                  icon="settings"
-                  label={t.settings}
-                  testID="settings-button"
-                  onPress={() => router.push('/settings')}
-                />
-              )}
             </>
           }
         >

@@ -5,7 +5,6 @@ import type { ReactNode } from 'react';
 import { View, Platform } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
 import { useHostSession } from '../../host/host-session';
-import { useHeaderOverlap } from '../chat/native-header';
 import { useDesignTheme } from '../design/theme';
 import { ListSkeleton } from '../primitives/list-skeleton';
 import { useHostDrawerOpen } from './host-drawer';
@@ -66,18 +65,6 @@ export function LastChatPreview({ travel }: { travel: SharedValue<number> }) {
     <SwipePreview travel={travel} color={theme.color.base}>
       <View style={{ flex: 1, justifyContent: 'flex-end' }}>
         <ListSkeleton layout="messages" />
-      </View>
-    </SwipePreview>
-  );
-}
-
-export function ChatsSwipePreview({ travel }: { travel: SharedValue<number> }) {
-  const theme = useDesignTheme();
-  const headerOverlap = useHeaderOverlap();
-  return (
-    <SwipePreview travel={travel} color={theme.color.base}>
-      <View style={{ paddingTop: headerOverlap }}>
-        <ListSkeleton />
       </View>
     </SwipePreview>
   );

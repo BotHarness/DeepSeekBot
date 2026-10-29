@@ -3,16 +3,10 @@ import type { NavigationAction } from 'expo-router/react-navigation';
 import { StackRouter } from '../node_modules/expo-router/build/react-navigation/routers/StackRouter.js';
 import { createHostDrawer } from '../src/ui/shell/host-drawer-model';
 import { resetWorkspaceRoot } from '../src/ui/shell/workspace-navigation';
-import {
-  showsWorkspacePanel,
-  usesWorkspacePanel,
-  withWorkspacePanel,
-  workspaceStackRoot,
-} from '../src/ui/shell/workspace-panel-root';
+import { workspaceStackRoot } from '../src/ui/shell/workspace-panel-root';
 
-const homeNames = ['index', 'workspaces'];
+const homeNames = ['index'];
 const chats = { key: 'chats', name: 'index' };
-const panel = { key: 'panel', name: 'workspaces' };
 
 function homeStack(routes: { key: string; name: string }[], index = routes.length - 1) {
   return {
@@ -79,46 +73,15 @@ function home(navigation: ReturnType<typeof navigator>) {
   return tabs?.routes[0]?.state;
 }
 
-describe('iOS workspace panel under Chats (#3017)', () => {
-  it('is the iOS Chats structure only', () => {
-    expect(usesWorkspacePanel('ios')).toBe(true);
-    expect(usesWorkspacePanel('android')).toBe(false);
-    expect(usesWorkspacePanel('web')).toBe(false);
-  });
-
-  it('a cold start keeps Chats on top and puts the panel beneath it', () => {
-    const next = withWorkspacePanel(homeStack([chats]));
-    expect(next?.index).toBe(1);
-    expect(next?.routes.map((route) => route.name)).toEqual(['workspaces', 'index']);
-    expect(next?.routes[1]).toBe(chats);
-  });
-
-  it('leaves a stack that already has the panel, or does not start at Chats', () => {
-    expect(withWorkspacePanel(homeStack([panel, chats]))).toBeUndefined();
-    expect(withWorkspacePanel(homeStack([panel], 0))).toBeUndefined();
-    expect(withWorkspacePanel({ routes: [] })).toBeUndefined();
-  });
-
-  it('choosing from the panel pushes a new Chats page above it', () => {
-    const next = workspaceStackRoot(homeStack([panel], 0));
-    expect(next.index).toBe(1);
-    expect(next.routes[0]).toBe(panel);
-    expect(next.routes[1]).toMatchObject({ name: 'index' });
-    expect(next.routes[1]?.key).not.toBe(chats.key);
-  });
-
-  it('reuses the Chats page when the choice comes from the sidebar or Settings', () => {
-    const next = workspaceStackRoot(homeStack([panel, chats]));
-    expect(next).toMatchObject({ index: 1, routes: [panel, chats] });
-  });
-
-  it('keeps the single-root reset on Android and the web', () => {
-    const next = workspaceStackRoot(homeStack([chats, { key: 'x', name: 'other' }]));
+describe('workspace selection preserves the Chats root', () => {
+  it('keeps the same Chats route and drops nested pages on explicit selection', () => {
+    const next = workspaceStackRoot(homeStack([chats, { key: 'detail', name: 'detail' }]));
     expect(next).toMatchObject({ index: 0, routes: [chats] });
+    expect(next.routes[0]).toBe(chats);
   });
 
-  it('a Host chosen on the panel lands on Chats above the panel, with details removed', async () => {
-    const navigation = navigator(homeStack([panel], 0));
+  it('choosing a Host retains Chats while removing detail routes', async () => {
+    const navigation = navigator(homeStack([chats]));
     navigation.dispatch({ type: 'PUSH', payload: { name: 'dm/[slug]' } });
     const drawer = createHostDrawer({
       switchTo: async () => true,
@@ -129,19 +92,7 @@ describe('iOS workspace panel under Chats (#3017)', () => {
     expect(await drawer.select('a')).toBe(true);
     expect(navigation.getRootState().routes.map((route) => route.name)).toEqual(['(tabs)']);
     expect(navigation.getRootState().routes[0]?.state?.index).toBe(0);
-    expect(home(navigation)?.index).toBe(1);
-    expect(home(navigation)?.routes.map((route) => route.name)).toEqual(['workspaces', 'index']);
-  });
-
-  it('hides the tab bar only while the iOS panel itself is showing', () => {
-    const tabs = (routes: { key: string; name: string }[], index?: number) => ({
-      index: 0,
-      routes: [{ name: '(home)', state: { routes, ...(index === undefined ? {} : { index }) } }],
-    });
-    expect(showsWorkspacePanel('ios', tabs([panel], 0))).toBe(true);
-    expect(showsWorkspacePanel('ios', tabs([panel]))).toBe(true);
-    expect(showsWorkspacePanel('ios', tabs([panel, chats], 1))).toBe(false);
-    expect(showsWorkspacePanel('ios', { index: 0, routes: [{ name: '(home)' }] })).toBe(false);
-    expect(showsWorkspacePanel('android', tabs([panel], 0))).toBe(false);
+    expect(home(navigation)?.index).toBe(0);
+    expect(home(navigation)?.routes).toEqual([chats]);
   });
 });
