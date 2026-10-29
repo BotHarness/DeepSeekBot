@@ -9,6 +9,7 @@ import { GENERATED_FILES_CSS } from './generated-files-styles.js';
 import { keyframesFor } from '@botharness/botui-core';
 import { DEEPSEEKBOT_TRANSPARENT_DATA_URI } from './bot-icon-assets.js';
 import { ACTIVITY_INBOX_CSS } from './activity-inbox-styles.js';
+import { MOBILE_APPS_CSS } from './mobile-apps-styles.js';
 import { STYLEX_CSS } from './ds/stylex-css.js';
 
 export const CSS =
@@ -20,6 +21,7 @@ export const CSS =
   CHANNEL_DOCK_CSS +
   GENERATED_FILES_CSS +
   ACTIVITY_INBOX_CSS +
+  MOBILE_APPS_CSS +
   `
 .bh-settings-search-input input { color: ${color.fg}; }
 .bh-settings-search-input { width: 100%; box-sizing: border-box; color: ${color.fg}; }
