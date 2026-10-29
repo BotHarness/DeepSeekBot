@@ -91,6 +91,8 @@ export interface TelemetryEventSpec {
 }
 
 const INTRO_STEPS = ['welcome', 'theme', 'model', 'community', 'start'] as const;
+const INTRO_PERSONAS = ['engineer', 'creator', 'operator', 'learner'] as const;
+const INTRO_FEATURES = ['bot', 'group', 'schedule', 'browser', 'memory', 'im'] as const;
 const SURFACE = { surface: TELEMETRY_SURFACES } as const;
 const LAYOUT_MODES = ['simple', 'advanced'] as const;
 
@@ -289,9 +291,16 @@ export const TELEMETRY_EVENTS = {
     origin: 'client',
     description: 'The intro finished with a chosen starter.',
     properties: {
-      starter: ['botPrompt', 'firstRequest', 'exampleRequest', 'own'],
+      starter: ['botPrompt', 'firstRequest', 'exampleRequest', 'own', 'persona', 'interview'],
+      persona: INTRO_PERSONAS,
+      feature: INTRO_FEATURES,
       ...SURFACE,
     },
+  },
+  'onboarding:persona_select': {
+    origin: 'client',
+    description: 'A starting persona was picked on the last intro step.',
+    properties: { persona: INTRO_PERSONAS, ...SURFACE },
   },
   'onboarding:theme_update': {
     origin: 'client',

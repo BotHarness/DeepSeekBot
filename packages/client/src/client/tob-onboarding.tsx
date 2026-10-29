@@ -149,6 +149,7 @@ export function TobOnboarding({
       ? 'onboarding.short.layoutChoose'
       : (`onboarding.short.${step}Hint` as const);
   const name = createdName ?? journey.botSlug ?? '';
+  const persona = controller.persona();
   const greet =
     journey.botSlug === undefined ? null : (
       <Button
@@ -212,9 +213,16 @@ export function TobOnboarding({
             disabled={hasDraft || state.busy}
             onClick={() =>
               suggest(
-                step === 'bot'
-                  ? t('onboarding.short.botPrompt')
-                  : t('onboarding.short.groupPrompt', { name }),
+                persona
+                  ? t(
+                      `onboarding.short.${step === 'bot' ? 'botPrompt' : 'groupPrompt'}.${persona}`,
+                      {
+                        name,
+                      },
+                    )
+                  : step === 'bot'
+                    ? t('onboarding.short.botPrompt')
+                    : t('onboarding.short.groupPrompt', { name }),
               )
             }
           >

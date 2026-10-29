@@ -28,7 +28,15 @@ import { COMMUNITY, cachedGithubStars, fetchGithubStars, formatStars } from './c
 import { requestTobMessage } from './tob-requests.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
-import { INTRO_STEPS, onboardingFor, type IntroStarter } from './onboarding.js';
+import { INTRO_STEPS, onboardingFor, type IntroStartOutcome } from './onboarding.js';
+import {
+  ONBOARDING_PERSONAS,
+  PERSONA_TEMPLATES,
+  browserTimeZone,
+  type OnboardingFeature,
+  type OnboardingPersona,
+  type PersonaPrompt,
+} from './onboarding-personas.js';
 import { invalidateInheritedModelPlans } from './model-plan-store.js';
 
 export { INTRO_STEPS };
@@ -40,11 +48,14 @@ const REVIEWS: readonly BotHarnessKey[] = [
   'intro.reviews.details',
 ];
 
-const STARTERS: readonly { key: BotHarnessKey; id: IntroStarter }[] = [
-  { key: 'onboarding.short.botPrompt', id: 'botPrompt' },
-  { key: 'onboarding.firstRequest', id: 'firstRequest' },
-  { key: 'onboarding.exampleRequest', id: 'exampleRequest' },
-];
+const FEATURE_ICONS: Readonly<Record<OnboardingFeature, string>> = {
+  bot: 'bot',
+  group: 'users',
+  schedule: 'alarm-clock',
+  browser: 'globe',
+  memory: 'brain',
+  im: 'plug',
+};
 
 const styles = stylex.create({
   dialog: {
@@ -279,6 +290,21 @@ const styles = stylex.create({
     width: '100%',
     maxWidth: '560px',
   },
+  personas: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+    gap: space.x3,
+  },
+  wide: { maxWidth: 'none' },
+  persona: { height: '100%', alignItems: 'flex-start' },
+  interview: {
+    borderColor: { default: color.accent, ':hover': color.accent },
+    backgroundColor: { default: color.accentTint, ':hover': color.accentTint },
+  },
+  interviewIcon: { backgroundColor: color.accent, color: color.onAccent },
+  personaActions: { display: 'flex', justifyContent: 'center', gap: space.x3 },
+  strong: { color: color.fg, fontWeight: text.strong },
+  meta: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
   starter: {
     backgroundColor: { default: 'transparent', ':hover': color.hover },
     fontFamily: 'inherit',
@@ -398,8 +424,11 @@ export function BotIntro({
         {step === 'start' ? (
           <StartStep
             t={t}
-            pick={(starter, body) =>
-              void controller.closeIntro({ starter }).then(() => {
+            choosePersona={(persona) =>
+              controller.introEvent('onboarding:persona_select', { persona })
+            }
+            pick={(outcome, body) =>
+              void controller.closeIntro(outcome).then(() => {
                 if (body !== undefined) requestTobMessage(body);
               })
             }
@@ -855,36 +884,129 @@ function CommunityStep({
 function StartStep({
   t,
   pick,
+  choosePersona,
 }: {
   t: BotHarnessTranslate;
-  pick(starter: IntroStarter, body?: string): void;
+  pick(outcome: IntroStartOutcome, body?: string): void;
+  choosePersona(persona: OnboardingPersona): void;
 }): ReactElement {
+  const [persona, setPersona] = useState<OnboardingPersona>();
+  const [timeZone] = useState(browserTimeZone);
+  if (persona) {
+    const template = PERSONA_TEMPLATES[persona];
+    const body = (prompt: PersonaPrompt): string => {
+      const text = t(`intro.persona.${persona}.${prompt.id}.body` as BotHarnessKey);
+      if (prompt.feature !== 'schedule') return text;
+      return (
+        text +
+        (timeZone ? t('intro.persona.timeZone', { timeZone }) : t('intro.persona.timeZoneUnknown'))
+      );
+    };
+    return (
+      <div {...stylex.props(styles.section)} data-intro-persona={persona}>
+        <div {...stylex.props(styles.heroCopy)}>
+          <h2 {...stylex.props(styles.title)}>
+            {t('intro.persona.promptsTitle', {
+              persona: t(`intro.persona.${persona}.name`),
+            })}
+          </h2>
+          <p {...stylex.props(styles.copy)}>{t('intro.persona.promptsHint')}</p>
+        </div>
+        <div
+          {...stylex.props(styles.starters, styles.wide)}
+          role="list"
+          aria-label={t('home.starters')}
+        >
+          {template.prompts.map((prompt) => (
+            <div key={prompt.id} role="listitem" {...stylex.props(styles.starterItem)}>
+              <button
+                type="button"
+                data-persona-prompt={prompt.id}
+                onClick={() =>
+                  pick({ starter: 'persona', persona, feature: prompt.feature }, body(prompt))
+                }
+                {...stylex.props(styles.link, styles.starter)}
+              >
+                <span {...stylex.props(styles.linkIcon)}>
+                  <ChannelSidebarIcon name={FEATURE_ICONS[prompt.feature]} size={18} />
+                </span>
+                <span {...stylex.props(styles.linkText)}>
+                  <span {...stylex.props(styles.strong)}>
+                    {t(`intro.persona.${persona}.${prompt.id}.title` as BotHarnessKey)}
+                  </span>
+                  <span {...stylex.props(styles.meta)}>{t(`intro.feature.${prompt.feature}`)}</span>
+                </span>
+                <ChannelSidebarIcon name="chevron-right" size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+        <div {...stylex.props(styles.personaActions)}>
+          <Button variant="ghost" onClick={() => setPersona(undefined)}>
+            {t('intro.persona.change')}
+          </Button>
+          <Button variant="ghost" onClick={() => pick({ starter: 'own', persona })}>
+            {t('intro.start.own')}
+          </Button>
+        </div>
+      </div>
+    );
+  }
   return (
-    <div {...stylex.props(styles.hero)}>
-      <BotIcon icon="mascot" size={96} />
+    <div {...stylex.props(styles.section)}>
       <div {...stylex.props(styles.heroCopy)}>
         <h2 {...stylex.props(styles.title)}>{t('intro.start.title')}</h2>
         <p {...stylex.props(styles.copy)}>{t('intro.start.hint')}</p>
       </div>
-      <div {...stylex.props(styles.starters)} role="list" aria-label={t('home.starters')}>
-        {STARTERS.map(({ key, id }) => (
-          <div key={key} role="listitem" {...stylex.props(styles.starterItem)}>
+      <div {...stylex.props(styles.personas)} role="list" aria-label={t('intro.persona.label')}>
+        {ONBOARDING_PERSONAS.map((id) => (
+          <div key={id} role="listitem" {...stylex.props(styles.starterItem)}>
             <button
               type="button"
-              onClick={() => pick(id, t(key))}
-              {...stylex.props(styles.link, styles.starter)}
+              data-persona={id}
+              onClick={() => {
+                choosePersona(id);
+                setPersona(id);
+              }}
+              {...stylex.props(styles.link, styles.starter, styles.persona)}
             >
               <span {...stylex.props(styles.linkIcon)}>
-                <ChannelSidebarIcon name="messages-circle" size={18} />
+                <ChannelSidebarIcon name={PERSONA_TEMPLATES[id].icon} size={18} />
               </span>
-              <span {...stylex.props(styles.linkText)}>{t(key)}</span>
+              <span {...stylex.props(styles.linkText)}>
+                <span {...stylex.props(styles.strong)}>{t(`intro.persona.${id}.name`)}</span>
+                <span {...stylex.props(styles.meta)}>{t(`intro.persona.${id}.hint`)}</span>
+              </span>
             </button>
           </div>
         ))}
       </div>
-      <Button variant="ghost" onClick={() => pick('own')}>
-        {t('intro.start.own')}
-      </Button>
+      <button
+        type="button"
+        data-intro-interview
+        onClick={() =>
+          pick(
+            { starter: 'interview' },
+            t('intro.interview.body') +
+              (timeZone ? t('intro.interview.timeZone', { timeZone }) : ''),
+          )
+        }
+        {...stylex.props(styles.link, styles.starter, styles.interview)}
+      >
+        <span {...stylex.props(styles.linkIcon, styles.interviewIcon)}>
+          <ChannelSidebarIcon name="messages-square" size={18} />
+        </span>
+        <span {...stylex.props(styles.linkText)}>
+          <span {...stylex.props(styles.strong)}>{t('intro.interview.title')}</span>
+          <span {...stylex.props(styles.meta)}>{t('intro.interview.hint')}</span>
+        </span>
+        <ChannelSidebarIcon name="chevron-right" size={16} />
+      </button>
+      <div {...stylex.props(styles.personaActions)}>
+        <Button variant="ghost" onClick={() => pick({ starter: 'own' })}>
+          {t('intro.start.own')}
+        </Button>
+      </div>
     </div>
   );
 }

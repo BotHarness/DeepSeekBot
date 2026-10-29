@@ -8,6 +8,11 @@ import { invalidateModelPlan } from './model-plan-store.js';
 import type { WindowCompanions } from './window-companions.js';
 import type { LayoutMode } from './layout-mode.js';
 import {
+  ONBOARDING_PERSONAS,
+  type OnboardingFeature,
+  type OnboardingPersona,
+} from './onboarding-personas.js';
+import {
   loadChecklistEvidence,
   type ChecklistEvidence,
   type ChecklistTarget,
@@ -165,6 +170,16 @@ export class OnboardingController {
       this.actions.telemetryEvent?.(event, properties);
     } catch {}
   }
+  persona(): OnboardingPersona | undefined {
+    const receipt = this.state.receipt;
+    if (!receipt) return undefined;
+    try {
+      const value = localStorage.getItem(personaKey(receipt.profileId));
+      return ONBOARDING_PERSONAS.find((persona) => persona === value);
+    } catch {
+      return undefined;
+    }
+  }
   hideIntro(hidden: boolean): void {
     if (this.state.intro) this.update({ intro: { ...this.state.intro, hidden } });
   }
@@ -179,6 +194,8 @@ export class OnboardingController {
     if (!receipt) return;
     try {
       localStorage.setItem(introKey(receipt.profileId), '1');
+      if (outcome && 'persona' in outcome && outcome.persona)
+        localStorage.setItem(personaKey(receipt.profileId), outcome.persona);
     } catch {}
     if (
       receipt.tutorial === 'not-started' &&
@@ -521,10 +538,16 @@ export class OnboardingController {
 function introKey(profileId: string): string {
   return `botharness/onboarding/intro-v1/${profileId}`;
 }
+function personaKey(profileId: string): string {
+  return `botharness/onboarding/persona-v1/${profileId}`;
+}
 const controllers = new WeakMap<BridgeActions, OnboardingController>();
 export const INTRO_STEPS = ['welcome', 'theme', 'model', 'community', 'start'] as const;
-export type IntroStarter = 'botPrompt' | 'firstRequest' | 'exampleRequest' | 'own';
-export type IntroOutcome = { via: 'skip' | 'close' } | { starter: IntroStarter };
+export type IntroStartOutcome =
+  | { starter: 'persona'; persona: OnboardingPersona; feature: OnboardingFeature }
+  | { starter: 'interview' }
+  | { starter: 'own'; persona?: OnboardingPersona };
+export type IntroOutcome = { via: 'skip' | 'close' } | IntroStartOutcome;
 
 export function onboardingFor(actions: BridgeActions): OnboardingController {
   let controller = controllers.get(actions);

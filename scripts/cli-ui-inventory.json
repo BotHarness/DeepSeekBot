@@ -504,7 +504,8 @@
         "storage:packages/client/src/client/onboarding.ts:setItem(key)",
         "storage:packages/client/src/client/onboarding.ts:removeItem('botharness/onboarding/sessions-return')",
         "storage:packages/client/src/client/onboarding.ts:setItem(`botharness/onboarding/layout-v2/${this.state.receipt.profileId}`)",
-        "storage:packages/client/src/client/onboarding.ts:setItem(introKey(receipt.profileId))"
+        "storage:packages/client/src/client/onboarding.ts:setItem(introKey(receipt.profileId))",
+        "storage:packages/client/src/client/onboarding.ts:setItem(personaKey(receipt.profileId))"
       ],
       "exemption": "Device-local tour anchors and seen markers are presentation state, not Host settings. Profile tutorial lifecycle is available through onboarding.",
       "configurable": false

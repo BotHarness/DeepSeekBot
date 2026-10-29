@@ -171,3 +171,36 @@ it('insets the journey card to the composer edges instead of touching the panel 
   );
   act(() => root.unmount());
 });
+
+it('suggests the Bot and group that match the persona picked in the intro', async () => {
+  localStorage.setItem('botharness/onboarding/persona-v1/qa', 'engineer');
+  const fresh = { ...receipt, journey: { version: 2, done: false } } as OnboardingSnapshot;
+  const actions = {
+    onboarding: vi.fn(async () => fresh),
+    load: vi.fn(async () => {}),
+    openChannel: vi.fn(async () => {}),
+  } as unknown as BridgeActions;
+  await onboardingFor(actions).enter();
+  const suggested: string[] = [];
+  const host = document.body.appendChild(document.createElement('div'));
+  const root = createRoot(host);
+  await act(async () =>
+    root.render(
+      <TobOnboarding
+        actions={actions}
+        t={t}
+        ready
+        hasDraft={false}
+        suggest={(body) => suggested.push(body)}
+        openChannel={() => {}}
+      />,
+    ),
+  );
+  act(() =>
+    [...host.querySelectorAll('button')]
+      .find((button) => button.textContent === t('onboarding.short.suggest'))!
+      .click(),
+  );
+  expect(suggested).toEqual([t('onboarding.short.botPrompt.engineer')]);
+  act(() => root.unmount());
+});

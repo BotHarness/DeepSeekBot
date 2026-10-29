@@ -49,8 +49,9 @@ import { Appearance } from '../src/client/appearance.js';
 import { BotIntro } from '../src/client/bot-intro.js';
 import { cachedGithubStars, fetchGithubStars } from '../src/client/community-links.js';
 import { receiveTobMessages, requestTobMessage } from '../src/client/tob-requests.js';
-import { zhTranslate } from '../src/client/locale.js';
-import { OnboardingController, onboardingFor } from '../src/client/onboarding.js';
+import { en, zh, zhTranslate } from '../src/client/locale.js';
+import { ONBOARDING_PERSONAS, PERSONA_TEMPLATES } from '../src/client/onboarding-personas.js';
+import { INTRO_STEPS, OnboardingController, onboardingFor } from '../src/client/onboarding.js';
 
 const fresh: OnboardingSnapshot = {
   profileId: 'intro',
@@ -241,19 +242,95 @@ describe('intro modal', () => {
     expect(dialog().querySelectorAll('[data-user-reviews] blockquote')).toHaveLength(3);
     await click('下一步');
     expect(step()).toBe('start');
+    expect(dialog().querySelectorAll('[data-persona]')).toHaveLength(4);
+    expect(dialog().querySelector('[data-intro-interview]')).not.toBeNull();
+    await act(async () =>
+      dialog().querySelector<HTMLButtonElement>('[data-persona="creator"]')!.click(),
+    );
+    expect(dialog().querySelector('[data-intro-persona]')!.getAttribute('data-intro-persona')).toBe(
+      'creator',
+    );
+    expect(dialog().querySelectorAll('[data-persona-prompt]')).toHaveLength(3);
+    expect(dialog().textContent).toContain(zhTranslate('intro.feature.browser'));
     const sent: string[] = [];
     const stop = receiveTobMessages((body) => sent.push(body));
-    await click(zhTranslate('onboarding.firstRequest'));
+    await act(async () =>
+      dialog().querySelector<HTMLButtonElement>('[data-persona-prompt="trends"]')!.click(),
+    );
     stop();
-    expect(sent).toEqual([zhTranslate('onboarding.firstRequest')]);
+    expect(sent).toEqual([zhTranslate('intro.persona.creator.trends.body')]);
     const events = (actions.telemetryEvent as ReturnType<typeof vi.fn>).mock.calls;
     expect(events[0]).toEqual(['onboarding:intro_view', undefined]);
     expect(events).toContainEqual(['onboarding:intro_step_view', { step: 'community' }]);
     expect(events).toContainEqual(['onboarding:theme_update', { setting: 'preset' }]);
     expect(events).toContainEqual(['onboarding:theme_update', { setting: 'layout' }]);
     detachLayout();
-    expect(events.at(-1)).toEqual(['onboarding:intro_complete', { starter: 'firstRequest' }]);
+    expect(events).toContainEqual(['onboarding:persona_select', { persona: 'creator' }]);
+    expect(events.at(-1)).toEqual([
+      'onboarding:intro_complete',
+      { starter: 'persona', persona: 'creator', feature: 'browser' },
+    ]);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('offers an interview, adds the time zone to schedules and keeps the persona on own', async () => {
+    const actions = actionsFor() as unknown as BridgeActions;
+    const events = (actions.telemetryEvent as ReturnType<typeof vi.fn>).mock.calls;
+    const sent: string[] = [];
+    const stop = receiveTobMessages((body) => sent.push(body));
+    const open = async () => {
+      const controller = onboardingFor(actions);
+      await controller.enter();
+      controller.openIntro();
+      controller.setIntroStep(INTRO_STEPS.indexOf('start'));
+      await act(async () => {
+        root.render(createElement(BotIntro, { actions, t: zhTranslate }));
+      });
+    };
+    const press = async (selector: string) =>
+      act(async () => document.querySelector<HTMLButtonElement>(selector)!.click());
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    await open();
+    await press('[data-intro-interview]');
+    expect(sent.at(-1)).toBe(
+      zhTranslate('intro.interview.body') +
+        zhTranslate('intro.interview.timeZone', { timeZone: zone }),
+    );
+    expect(events.at(-1)).toEqual(['onboarding:intro_complete', { starter: 'interview' }]);
+
+    await open();
+    await press('[data-persona="operator"]');
+    await press('[data-persona-prompt="weekly"]');
+    expect(sent.at(-1)).toBe(
+      zhTranslate('intro.persona.operator.weekly.body') +
+        zhTranslate('intro.persona.timeZone', { timeZone: zone }),
+    );
+
+    await open();
+    await press('[data-persona="engineer"]');
+    await act(async () =>
+      [...document.querySelectorAll<HTMLButtonElement>('button')]
+        .find((button) => button.textContent === zhTranslate('intro.start.own'))!
+        .click(),
+    );
+    stop();
+    expect(sent).toHaveLength(2);
+    expect(events.at(-1)).toEqual([
+      'onboarding:intro_complete',
+      { starter: 'own', persona: 'engineer' },
+    ]);
+  });
+
+  it('has copy for every persona prompt in both languages', () => {
+    for (const table of [zh, en] as Record<string, string>[])
+      for (const persona of ONBOARDING_PERSONAS) {
+        for (const suffix of ['name', 'hint'])
+          expect(table[`intro.persona.${persona}.${suffix}`]).toBeTruthy();
+        for (const prompt of PERSONA_TEMPLATES[persona].prompts)
+          for (const suffix of ['title', 'body'])
+            expect(table[`intro.persona.${persona}.${prompt.id}.${suffix}`]).toBeTruthy();
+      }
   });
 
   it('keeps one model by default and splits Tob task model under Advanced', async () => {
