@@ -2,6 +2,7 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { AccessibilityInfo } from 'react-native';
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 
 vi.mock('react-native', () => import('./react-native-shim'));
@@ -19,6 +20,7 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;
 let host: HTMLElement | undefined;
 afterEach(() => {
+  vi.restoreAllMocks();
   act(() => root?.unmount());
   host?.remove();
   root = undefined;
@@ -57,11 +59,9 @@ function port(overrides: Partial<NotificationSettingsPort> = {}) {
   };
 }
 
-const notice = (container: HTMLElement, tone: string) =>
-  [...container.querySelectorAll(`[data-testid="notice-${tone}"]`)].map((node) => node.textContent);
-
 describe('Notification settings', () => {
   it('keeps device choices editable without system permission or a push token', async () => {
+    const announce = vi.spyOn(AccessibilityInfo, 'announceForAccessibility');
     const settings = port({
       load: async () => {
         throw new Error('offline');
@@ -80,6 +80,7 @@ describe('Notification settings', () => {
     );
     const reply = view.querySelector<HTMLInputElement>(`[aria-label="${t.pushKind.reply}"]`)!;
     expect(reply.checked).toBe(true);
+    expect(announce).toHaveBeenCalledWith('offline');
     expect(reply.disabled).toBe(false);
     await act(async () => reply.click());
     expect(settings.set).toHaveBeenCalledWith({ reply: false });
@@ -98,7 +99,7 @@ describe('Notification settings', () => {
         onOpenSettings={() => {}}
       />,
     );
-    expect(notice(view, 'warning')).toEqual([t.notificationsOff]);
+    expect(view.textContent).toContain(t.notificationsOff);
     await act(async () =>
       view
         .querySelector<HTMLButtonElement>(`button[aria-label="${t.turnOnNotifications}"]`)!
@@ -109,6 +110,7 @@ describe('Notification settings', () => {
   });
 
   it('turns a kind off and sends a test notification', async () => {
+    const announce = vi.spyOn(AccessibilityInfo, 'announceForAccessibility');
     const settings = port();
     const view = await render(
       <NotificationSettings
@@ -119,7 +121,8 @@ describe('Notification settings', () => {
         onOpenSettings={() => {}}
       />,
     );
-    expect(notice(view, 'success')).toEqual([t.notificationsOn('studio')]);
+    expect(view.textContent).not.toContain(t.notificationsOn('studio'));
+    expect(view.textContent).not.toContain(t.notificationsHint);
     const reply = view.querySelector<HTMLInputElement>(`[aria-label="${t.pushKind.reply}"]`)!;
     expect(reply.checked).toBe(true);
     await act(async () => reply.click());
@@ -134,7 +137,8 @@ describe('Notification settings', () => {
     );
     await settle();
     expect(settings.test).toHaveBeenCalled();
-    expect(notice(view, 'success')).toContain(t.testSent);
+    expect(view.textContent).toContain(t.testSent);
+    expect(announce).toHaveBeenCalledWith(t.testSent);
   });
 
   it('hides the kinds while this phone does not allow notifications, and brings them back', async () => {
@@ -165,6 +169,7 @@ describe('Notification settings', () => {
   });
 
   it('explains why a test was not sent, and when the phone blocks notifications', async () => {
+    const announce = vi.spyOn(AccessibilityInfo, 'announceForAccessibility');
     const view = await render(
       <NotificationSettings
         status={{ status: 'on', failed: [] }}
@@ -182,7 +187,8 @@ describe('Notification settings', () => {
       view.querySelector<HTMLButtonElement>(`button[aria-label="${t.sendTest}"]`)!.click(),
     );
     await settle();
-    expect(notice(view, 'danger')).toEqual([`${t.testFailed} ${t.pushFailed['push-send-failed']}`]);
+    expect(view.textContent).toContain(`${t.testFailed} ${t.pushFailed['push-send-failed']}`);
+    expect(announce).toHaveBeenCalledWith(`${t.testFailed} ${t.pushFailed['push-send-failed']}`);
 
     const denied = await render(
       <NotificationSettings
@@ -193,6 +199,6 @@ describe('Notification settings', () => {
         onOpenSettings={() => {}}
       />,
     );
-    expect(notice(denied, 'warning')).toEqual([t.notificationsDenied]);
+    expect(denied.textContent).toContain(t.notificationsDenied);
   });
 });
