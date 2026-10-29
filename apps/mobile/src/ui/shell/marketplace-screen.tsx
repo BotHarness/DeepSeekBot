@@ -1,6 +1,13 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { FlatList, Keyboard, Platform, View, type ViewInstance } from 'react-native';
+import { useRef, useState } from 'react';
+import {
+  FlatList,
+  Keyboard,
+  Platform,
+  View,
+  type NativeScrollEvent,
+  type ViewInstance,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MarketplaceSort } from '../../../../../packages/core/src/marketplace/client';
 import { marketplace, useCatalogueResource } from '../../marketplace/native-catalogue';
@@ -21,6 +28,7 @@ import { MarketplaceTopics } from './marketplace-topics';
 import { MarketplaceDailyPicks } from './marketplace-daily-picks';
 import { marketplaceTarget, openMarketplaceBot } from './marketplace-navigation';
 import { MarketplaceSections } from './marketplace-sections';
+import type { CatalogueList } from '../../marketplace/catalogue';
 
 export function MarketplaceScreen() {
   const t = useStrings();
@@ -38,7 +46,28 @@ export function MarketplaceScreen() {
   const home = query === '' && topic === '';
   const resource = marketplace.list({ q: query, sort, topic, lang: locale });
   const state = useCatalogueResource(resource);
+  const pagingIntent = useRef<CatalogueList | null>(null);
+  const loadNextPage = () => {
+    const current = resource.getSnapshot();
+    if (
+      pagingIntent.current !== resource ||
+      current.busy ||
+      current.error ||
+      !current.value?.nextCursor
+    )
+      return;
+    pagingIntent.current = null;
+    void resource.more();
+  };
+  const scrollNearEnd = (event: NativeScrollEvent) => {
+    if (
+      event.contentOffset.y + event.layoutMeasurement.height >=
+      event.contentSize.height - event.layoutMeasurement.height / 2
+    )
+      loadNextPage();
+  };
   const mounted = useMounted<ViewInstance>(() => {
+    pagingIntent.current = null;
     void resource.refresh();
   }, [resource]);
   const searchNow = (submitted = search) => {
@@ -156,7 +185,7 @@ export function MarketplaceScreen() {
         </View>
       ) : null}
       <PullToRefresh
-        refreshing={state.busy && state.value !== undefined}
+        refreshing={state.busy && state.operation !== 'more' && state.value !== undefined}
         onRefresh={() => void resource.refresh()}
       >
         {(scroll) => (
@@ -168,6 +197,13 @@ export function MarketplaceScreen() {
             contentInsetAdjustmentBehavior="automatic"
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
+            onScrollBeginDrag={({ nativeEvent }) => {
+              pagingIntent.current = resource;
+              scrollNearEnd(nativeEvent);
+            }}
+            onScroll={({ nativeEvent }) => scrollNearEnd(nativeEvent)}
+            onEndReached={loadNextPage}
+            onEndReachedThreshold={0.5}
             contentContainerStyle={{
               padding: space.x5,
               paddingBottom: insets.bottom + space.x5,
@@ -192,7 +228,7 @@ export function MarketplaceScreen() {
                     {[query, topic].filter(Boolean).join(' · ')}
                   </Text>
                 ) : null}
-                {state.error ? (
+                {state.error && state.operation !== 'more' ? (
                   <View style={{ gap: space.x3 }}>
                     <Text accessibilityRole="alert">{t.marketplace.unavailable}</Text>
                     <Button
@@ -214,13 +250,19 @@ export function MarketplaceScreen() {
               )
             }
             ListFooterComponent={
-              state.value?.nextCursor ? (
-                <Button
-                  testID="marketplace-more"
-                  label={t.marketplace.more}
-                  busy={state.busy}
-                  onPress={() => void resource.more()}
-                />
+              state.operation === 'more' && state.busy ? (
+                <View testID="marketplace-page-loading">
+                  <LoadingIndicator accessibilityLabel={t.marketplace.loading} />
+                </View>
+              ) : state.operation === 'more' && state.error ? (
+                <View style={{ gap: space.x3 }}>
+                  <Text accessibilityRole="alert">{t.marketplace.unavailable}</Text>
+                  <Button
+                    testID="marketplace-page-retry"
+                    label={t.marketplace.retry}
+                    onPress={() => void resource.more()}
+                  />
+                </View>
               ) : (
                 <></>
               )

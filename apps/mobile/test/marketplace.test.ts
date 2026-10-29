@@ -105,12 +105,48 @@ describe('mobile Marketplace catalogue', () => {
     });
     const list = createMobileMarketplace(client).list({});
     await list.refresh();
-    await Promise.all([list.more(), list.more()]);
+    const firstPage = list.getSnapshot().value;
+    const page = list.more();
+    expect(list.getSnapshot()).toMatchObject({ busy: true, operation: 'more', value: firstPage });
+    await Promise.all([page, list.more()]);
     expect(list.getSnapshot().value?.bots.map((item) => item.id)).toEqual(['one']);
+    expect(list.getSnapshot()).toMatchObject({
+      busy: false,
+      operation: 'more',
+      error: 'marketplace-unavailable',
+    });
     await list.more();
     expect(list.getSnapshot().value?.bots.map((item) => item.id)).toEqual(['one', 'two']);
     expect(requests.slice(1)).toHaveLength(2);
     expect(requests[1]).toBe(requests[2]);
+  });
+
+  it('isolates a late next-page response after changing query, sort or topic', async () => {
+    let finishPage!: (response: Response) => void;
+    const client = createMarketplaceClient({
+      baseUrl: 'https://market.botharness.ai',
+      fetchImpl: async (url) => {
+        const request = new URL(String(url));
+        if (request.searchParams.has('cursor'))
+          return new Promise<Response>((resolve) => {
+            finishPage = resolve;
+          });
+        return Response.json({
+          bots: [bot(request.searchParams.get('q') || 'one')],
+          nextCursor: 'next',
+        });
+      },
+    });
+    const catalogue = createMobileMarketplace(client);
+    const old = catalogue.list({ q: 'old', sort: 'updated', topic: 'writing' });
+    await old.refresh();
+    const pending = old.more();
+    const current = catalogue.list({ q: 'current', sort: 'stars', topic: 'coding' });
+    await current.refresh();
+    finishPage(Response.json({ bots: [bot('old-page-two')] }));
+    await pending;
+    expect(current.getSnapshot().value?.bots.map((entry) => entry.id)).toEqual(['current']);
+    expect(old.getSnapshot().value?.bots.map((entry) => entry.id)).toEqual(['old', 'old-page-two']);
   });
 
   it('retains the readme and revision with a visible failure when a listing disappears', async () => {
