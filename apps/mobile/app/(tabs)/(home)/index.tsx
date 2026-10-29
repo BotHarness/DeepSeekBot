@@ -449,28 +449,51 @@ const HomeContent = memo(function HomeContent({
             : []),
           ...(retained.error ? [retained.error] : []),
         ].join('\n');
-  const searchResults = useMemo(
-    () =>
-      Platform.OS === 'android'
-        ? [
-            ...chatsSearchResults(searchConversations, query, searchAppBar.recent, avatarImageUri),
-            ...retainedSearchResults(
-              retainedConversations,
-              t.localSearch.conversations,
-              new Date(),
-              t.reactionYou,
-            ),
-            ...messageSearchResults(messageItems, t.searchMessages, new Date(), avatarImageUri),
-            ...retainedSearchResults(
-              retainedMessages,
-              messageItems.length ? undefined : t.searchMessages,
-              new Date(),
-              t.reactionYou,
-            ),
-          ]
-        : [],
-    [searchConversations, query, messageItems, retainedConversations, retainedMessages, t],
-  );
+  const searchResults = useMemo(() => {
+    if (Platform.OS !== 'android') return [];
+    const sources = new Map([
+      ...searchConversations.flatMap((item) =>
+        item.type === 'computer'
+          ? [
+              [
+                item.key,
+                shownHostName(hostLooks.look(item.host.saved.hostId), item.host.saved.hostName),
+              ] as const,
+            ]
+          : [],
+      ),
+      ...messageItems.map(
+        (item) =>
+          [
+            item.key,
+            shownHostName(hostLooks.look(item.host.saved.hostId), item.host.saved.hostName),
+          ] as const,
+      ),
+    ]);
+    const online = (results: ReturnType<typeof chatsSearchResults>) =>
+      results.map((result) => {
+        const source = sources.get(result.key);
+        return source ? { ...result, subtitle: `${source} · ${result.subtitle}` } : result;
+      });
+    return [
+      ...online(
+        chatsSearchResults(searchConversations, query, searchAppBar.recent, avatarImageUri),
+      ),
+      ...retainedSearchResults(
+        retainedConversations,
+        t.localSearch.conversations,
+        new Date(),
+        t.reactionYou,
+      ),
+      ...online(messageSearchResults(messageItems, t.searchMessages, new Date(), avatarImageUri)),
+      ...retainedSearchResults(
+        retainedMessages,
+        messageItems.length ? undefined : t.searchMessages,
+        new Date(),
+        t.reactionYou,
+      ),
+    ];
+  }, [searchConversations, query, messageItems, retainedConversations, retainedMessages, t]);
   const connecting = useConnectionProgress(selectedHost?.snapshot.connection.status) !== undefined;
   const pickSearch = (key: string) => {
     const cached = [...retainedConversations, ...retainedMessages].find((hit) => hit.key === key);
