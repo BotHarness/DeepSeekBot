@@ -1,7 +1,8 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useState, type ComponentProps } from 'react';
 import { useHostSession } from '../../../src/host/host-session';
 import { HostScope } from '../../../src/host/host-scope';
+import { profileHostSource } from '../../../src/ui/chat/profile-host-source';
 import { useStrings } from '../../../src/ui/strings';
 import { SheetStack } from '../../../src/ui/primitives/sheet-stack';
 import { sheetScreenOptions } from '../../../src/ui/primitives/sheet-screen';
@@ -14,10 +15,24 @@ export default function BotProfileLayout() {
   const { saved } = useHostSession(hostId);
   const [origin, setOrigin] = useState(hostId ?? saved?.hostId);
   if (origin === undefined && saved) setOrigin(saved.hostId);
+  const screenLayout = useCallback<NonNullable<ComponentProps<typeof Stack>['screenLayout']>>(
+    ({ children, route, navigation }) => (
+      <HostScope
+        value={profileHostSource(
+          route.params,
+          navigation.getState().routes[0]?.params,
+          hostId ?? origin,
+        )}
+      >
+        {children}
+      </HostScope>
+    ),
+    [hostId, origin],
+  );
 
   return (
     <HostScope value={hostId ?? origin}>
-      <SheetStack fullScreen>
+      <SheetStack fullScreen screenLayout={screenLayout}>
         <Stack.Screen name="chat-background" options={{ title: t.chatBackground.title }} />
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="memory" />

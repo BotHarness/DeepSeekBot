@@ -212,6 +212,39 @@ it('isolates equal Channel IDs by Host and releases a settled owner while its ro
   expect(view.channel.followerCount).toBe(0);
 });
 
+it('keeps an offscreen retained timeline from taking foreground or rerendering on live updates', async () => {
+  const view = await open();
+  const conversation = current!;
+  if (!conversation.setForeground) throw new Error('Foreground owner missing');
+  const foreground = vi.spyOn(conversation, 'setForeground');
+  const retainedRoot = createRoot(document.createElement('div'));
+  let renders = 0;
+  let held: ReturnType<typeof hooks.useConversationTimelineSnapshot> | undefined;
+  function Retained({ visible }: { visible: boolean }) {
+    held = hooks.useConversationTimelineSnapshot(conversation, undefined, visible);
+    renders++;
+    return null;
+  }
+  try {
+    act(() => retainedRoot.render(<Retained visible={false} />));
+    expect(foreground).not.toHaveBeenCalled();
+    const before = renders;
+    view.channel.append({ id: 'retained-live', body: 'Visible owner stays live' });
+    await flush();
+    expect(renders).toBe(before);
+    expect(held?.messages.some((message) => message.id === 'retained-live')).toBe(false);
+    act(() => root.render(null));
+    foreground.mockClear();
+    act(() => retainedRoot.render(<Retained visible />));
+    await flush();
+    expect(foreground).toHaveBeenCalledWith(true);
+    expect(held?.messages.some((message) => message.id === 'retained-live')).toBe(true);
+  } finally {
+    act(() => retainedRoot.unmount());
+    foreground.mockRestore();
+  }
+});
+
 it('drops the retained route owner when its Host session is removed', async () => {
   const view = await open();
   await view.send();

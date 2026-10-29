@@ -34,7 +34,8 @@
     "docs:dev": "pnpm --filter docs dev",
     "docs:build": "pnpm slides:build && pnpm --filter docs build",
     "docs:deploy": "pnpm --filter docs run deploy",
-    "telemetry:plan": "BOTHARNESS_WRITE_TELEMETRY_PLAN=1 vitest run packages/core/test/telemetry-plan.test.ts"
+    "telemetry:plan": "BOTHARNESS_WRITE_TELEMETRY_PLAN=1 vitest run packages/core/test/telemetry-plan.test.ts",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@astrojs/compiler": "2.13.1",
@@ -47,6 +48,8 @@
     "@mermaid-js/mermaid-cli": "^11.17.0",
     "@stylexjs/babel-plugin": "0.19.1",
     "@types/node": "^22.20.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
     "oxfmt": "^0.68.0",
     "oxlint": "^1.83.0",
     "portless": "^0.15.6",

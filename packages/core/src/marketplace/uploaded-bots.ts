@@ -129,7 +129,7 @@ export function createMarketplaceUploads(deps: {
     if (fresh === undefined) return { ok: false, code: 'sign-in-required' };
     const second = await call(fresh);
     return !second.ok && second.code === 'unauthorized'
-      ? { ok: false, code: 'sign-in-required' }
+      ? { ok: false, code: 'sign-in-rejected' }
       : second;
   };
 

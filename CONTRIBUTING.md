@@ -51,6 +51,8 @@ Use the current toolchain and commands in [AGENTS.md](AGENTS.md#commands), the [
 
 Start with relevant checks, then broaden as appropriate. Record exact commands and results, including blocked or unrun checks. Avoid unrelated refactors and generated-file edits. Consult [product vocabulary](CONTEXT.md) and [architecture](docs/architecture/botharness-architecture.md) when your change needs those boundaries.
 
+After `pnpm install`, a pre-commit hook formats staged files with the same oxfmt configuration as CI, including Markdown under `.github/pr-screenshots/`. Partially staged edits are restored by lint-staged; unrelated unstaged files are not formatted. Run `pnpm format:check` before pushing to check the entire repository.
+
 ### Expo / React Native app contributions
 
 Read the [mobile agent guide](apps/mobile/AGENTS.md) and the [system text and large-text contract](apps/mobile/DESIGN.md#system-text-and-large-text-acceptance) before changing mobile UI.

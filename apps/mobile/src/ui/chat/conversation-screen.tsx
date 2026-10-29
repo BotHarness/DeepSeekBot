@@ -1,3 +1,8 @@
+import type { ChatPlace } from './chat-place';
+export type { ChatPlace } from './chat-place';
+import { HeaderTitleButton } from './header-title-button';
+import { useProfilePaging } from './profile-paging';
+import { NativePageHeader } from '../primitives/native-page-navigation';
 import type { InitiatedActivityRequest } from '../../host/live-activity-routing';
 import { ConnectionProgress, useConnectionProgress } from '../primitives/connection-progress';
 import { SelectionBar, SelectionScreenshot, MessageSelectionRow } from './message-selection-ui';
@@ -151,31 +156,32 @@ const cellLayer = ({ index }: { index: number }) => ({ zIndex: -index });
 
 type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
 
-export type ChatPlace =
-  | { kind: 'dm'; slug: string | undefined }
-  | { kind: 'channel'; channelId: string | undefined };
-
 export function ConversationScreen({
   expectedHostId,
   place,
   focus,
   focusRequest,
   latestWindowOnly = false,
+  active = true,
 }: {
   place: ChatPlace;
   expectedHostId?: string | undefined;
   focus: string | undefined;
   focusRequest?: string | undefined;
   latestWindowOnly?: boolean;
+  active?: boolean;
 }) {
   const t = useStrings();
+  const router = useRouter();
+  const paging = useProfilePaging();
   const initial = useHostSession();
   const [openedOn, setOpenedOn] = useState(initial.saved?.hostId);
   if (openedOn === undefined && initial.saved?.hostId !== undefined)
     setOpenedOn(initial.saved.hostId);
   const { client, saved } = useHostSession(expectedHostId ?? openedOn);
 
-  const focused = useIsFocused();
+  const routeFocused = useIsFocused();
+  const focused = routeFocused && active;
   const roster = useHostSnapshot(client, focused).roster;
   const navigation = useNavigationContainerRef();
   const identities = useMemo(
@@ -193,7 +199,15 @@ export function ConversationScreen({
   const bot =
     place.kind === 'dm' ? roster?.bots.find((entry) => entry.slug === place.slug) : undefined;
   const shownHostId = expectedHostId ?? openedOn;
-  if (shownHostId && saved?.hostId !== shownHostId) return <Text>{t.sourceChanged}</Text>;
+  if (shownHostId && saved?.hostId !== shownHostId)
+    return (
+      <>
+        <Text>{t.sourceChanged}</Text>
+        {paging === undefined ? null : (
+          <NativePageHeader onBack={paging.leaveChat} backID="chat-page-back" />
+        )}
+      </>
+    );
   return (
     <HostScope value={saved?.hostId}>
       <AccentProvider accent={bot === undefined ? undefined : botColor(bot)}>
@@ -334,6 +348,7 @@ function ChatConversation({
   const t = useStrings();
   const theme = useDesignTheme();
   const router = useRouter();
+  const paging = useProfilePaging();
   const navigation = useNavigationContainerRef();
   const headerOverlap = useHeaderOverlap();
   const nativeHeaderPadding = useHeaderPadding();
@@ -394,7 +409,7 @@ function ChatConversation({
   const receiptPreference = useDeliveryReceiptPreferences();
   const receipts = receiptPreference.loaded && receiptPreference.enabled;
   const playback = useStreamPlayback(conversation, display.loaded && display.mode === 'streaming');
-  const snapshot = useConversationTimelineSnapshot(conversation, playback);
+  const snapshot = useConversationTimelineSnapshot(conversation, playback, focused);
   const shownDrafts = display.loaded && display.mode === 'streaming' ? snapshot.drafts : NO_DRAFTS;
   const draftKey = hostDraftKey(
     saved?.hostId ?? '',
@@ -569,7 +584,10 @@ function ChatConversation({
     [selectionScope],
   );
   const stackRoot = useStackRoot();
-  const leave = useCallback(() => leaveScreen(router), [router]);
+  const leave = useCallback(
+    () => (paging === undefined ? leaveScreen(router) : paging.leaveChat()),
+    [paging, router],
+  );
   const pull = usePullToCompose({
     enabled: composable || stackRoot,
     threshold: pullToCompose.threshold,
@@ -586,9 +604,15 @@ function ChatConversation({
     }),
     [scroll, viewport, content, viewportLayout, focused],
   );
-  const readMount = useMarkRead(client, inbox, conversation, activeChannel, !latest.away);
+  const readMount = useMarkRead(
+    client,
+    inbox,
+    focused ? conversation : undefined,
+    activeChannel,
+    focused && !latest.away,
+  );
   const recentMount = useRecentChat(
-    botDm
+    !focused || botDm
       ? undefined
       : bot !== undefined
         ? {
@@ -606,21 +630,21 @@ function ChatConversation({
   );
   const sharedMount = useCallback(
     (node: unknown) => {
-      if (node === null) return;
+      if (node === null || !focused) return;
       const shared = takeSharedFiles(draftKey);
       if (shared.length > 0) setFiles((current) => [...current, ...shared].slice(0, MAX_PICKED));
     },
-    [draftKey],
+    [draftKey, focused],
   );
   const mountRef = dictation.mountRef;
   const screenRef = useCallback(
     (node: unknown) => {
-      mountRef(node);
+      mountRef(focused ? node : null);
       readMount(node);
       recentMount(node);
       sharedMount(node);
     },
-    [mountRef, readMount, recentMount, sharedMount],
+    [mountRef, readMount, recentMount, sharedMount, focused],
   );
 
   const asking = snapshot.messages.findLast(
@@ -1130,7 +1154,7 @@ function ChatConversation({
     },
   };
   const pairChip = (press: (() => void) | undefined) => (
-    <Pressable
+    <HeaderTitleButton
       testID="channel-details-chip"
       accessibilityRole="button"
       accessibilityLabel={[botDmName, connectionLabel].filter(Boolean).join(', ')}
@@ -1155,8 +1179,27 @@ function ChatConversation({
       </Text>
       <ConnectionProgress active={connectionLabel !== undefined} />
       <WorkingStatus bots={working} />
-    </Pressable>
+    </HeaderTitleButton>
   );
+  const profileActivity = useMemo(
+    () => ({
+      channelId: activeChannel,
+      messageId:
+        initiatedRequest !== undefined &&
+        initiatedRequest.hostId === saved?.hostId &&
+        initiatedRequest.botSlug === slug
+          ? initiatedRequest.messageId
+          : undefined,
+    }),
+    [activeChannel, initiatedRequest, saved?.hostId, slug],
+  );
+  useLayoutEffect(() => {
+    paging?.setActivity(profileActivity);
+  }, [paging?.setActivity, profileActivity]);
+  const canSwipeProfile = saved !== undefined && !hostRefused && !missing && selected === undefined;
+  useLayoutEffect(() => {
+    paging?.setEnabled(canSwipeProfile);
+  }, [paging?.setEnabled, canSwipeProfile]);
   const pushProfile = dm
     ? () => router.push(profileHref)
     : botDm
@@ -1167,7 +1210,7 @@ function ChatConversation({
         prepareProfile();
         setProfileOpen(true);
       }
-    : pushProfile;
+    : (paging?.open ?? pushProfile);
   const swipeProfile = dm
     ? () => router.push({ ...profileHref, params: { ...profileHref.params, entry: swipeEntry } })
     : botDm
@@ -1240,73 +1283,74 @@ function ChatConversation({
                           : undefined;
 
   const listTop = notice === undefined ? headerPadding : 0;
-  const topFade =
-    notice !== undefined ? 0 : floatingHeader ? headerPadding : glassHeader ? 0 : headerOverlap;
+  const topFade = notice !== undefined ? 0 : floatingHeader ? headerPadding : headerOverlap;
   const composerCover = Math.max(0, composerHeight - space.x3 - space.x2);
   const fadeColor = background.kind === 'color' ? background.color : theme.color.base;
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          headerShown: !android,
-          headerTransparent: ios || floatingHeader,
-          headerStyle: ios || floatingHeader ? {} : { backgroundColor: theme.color.base },
-          headerShadowVisible: false,
-          headerBackButtonDisplayMode: 'minimal',
-          ...(glassHeader
-            ? {
-                scrollEdgeEffects: {
-                  top: 'automatic' as const,
-                  bottom: 'hidden' as const,
-                },
-              }
-            : {}),
-          ...(ios
-            ? {
-                title: '',
-                headerTitle: '',
-                headerBackVisible: canGoBack && !headerIslands,
-                unstable_headerRightItems: () => [],
-                unstable_headerLeftItems: () => [
-                  ...(headerIslands
-                    ? [{ type: 'custom' as const, element: back }]
-                    : canGoBack
-                      ? []
-                      : [
-                          {
-                            type: 'button' as const,
-                            label: t.back,
-                            icon: {
-                              type: 'sfSymbol' as const,
-                              name: 'chevron.left' as const,
+      {paging === undefined ? (
+        <Stack.Screen
+          options={{
+            headerShown: !android,
+            headerTransparent: ios || floatingHeader,
+            headerStyle: ios || floatingHeader ? {} : { backgroundColor: theme.color.base },
+            headerShadowVisible: false,
+            headerBackButtonDisplayMode: 'minimal',
+            ...(glassHeader
+              ? {
+                  scrollEdgeEffects: {
+                    top: 'automatic' as const,
+                    bottom: 'hidden' as const,
+                  },
+                }
+              : {}),
+            ...(ios
+              ? {
+                  title: '',
+                  headerTitle: '',
+                  headerBackVisible: canGoBack && !headerIslands,
+                  unstable_headerRightItems: () => [],
+                  unstable_headerLeftItems: () => [
+                    ...(headerIslands
+                      ? [{ type: 'custom' as const, element: back }]
+                      : canGoBack
+                        ? []
+                        : [
+                            {
+                              type: 'button' as const,
+                              label: t.back,
+                              icon: {
+                                type: 'sfSymbol' as const,
+                                name: 'chevron.left' as const,
+                              },
+                              onPress: leave,
                             },
-                            onPress: leave,
-                          },
-                        ]),
-                  { type: 'spacing' as const, spacing: glassPress.gap },
-                  { type: 'custom' as const, element: titleItem },
-                ],
-              }
-            : {
-                headerTitleAlign: 'left' as const,
-                headerRight: () => null,
-                headerTitle: () => (
-                  <View
-                    key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
-                    style={{
-                      width: dm || botDm ? undefined : windowWidth - (theme.touch + space.x5) * 2,
-                      maxWidth: windowWidth - (theme.touch + space.x5) * 2,
-                      marginHorizontal: space.x3,
-                    }}
-                  >
-                    {title}
-                  </View>
-                ),
-                ...(canGoBack && !floatingHeader ? {} : { headerLeft: () => back }),
-              }),
-        }}
-      />
+                          ]),
+                    { type: 'spacing' as const, spacing: glassPress.gap },
+                    { type: 'custom' as const, element: titleItem },
+                  ],
+                }
+              : {
+                  headerTitleAlign: 'left' as const,
+                  headerRight: () => null,
+                  headerTitle: () => (
+                    <View
+                      key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
+                      style={{
+                        width: dm || botDm ? undefined : windowWidth - (theme.touch + space.x5) * 2,
+                        maxWidth: windowWidth - (theme.touch + space.x5) * 2,
+                        marginHorizontal: space.x3,
+                      }}
+                    >
+                      {title}
+                    </View>
+                  ),
+                  ...(canGoBack && !floatingHeader ? {} : { headerLeft: () => back }),
+                }),
+          }}
+        />
+      ) : null}
       <EndSheet
         open={profileOpen}
         active={focused}
@@ -1491,9 +1535,7 @@ function ChatConversation({
           )}
           <SwipeOpen
             testID="chat-profile-swipe"
-            enabled={
-              !android && saved !== undefined && !hostRefused && !missing && selected === undefined
-            }
+            enabled={!android && paging === undefined && canSwipeProfile}
             travel={profileTravel}
             onOpen={swipeProfile}
           >
@@ -1659,8 +1701,8 @@ function ChatConversation({
                 {topFade > 0 ? (
                   <EdgeFade
                     edge="top"
-                    height={topFade + edgeFade.reach}
-                    cover={topFade}
+                    height={topFade + (glassHeader ? space.x6 : edgeFade.reach)}
+                    cover={glassHeader ? 0 : topFade}
                     color={fadeColor}
                   />
                 ) : null}
@@ -1718,7 +1760,7 @@ function ChatConversation({
           </View>
         ) : null}
       </EndSheet>
-      {!android ? (
+      {!android && paging === undefined ? (
         <ProfileSwipePreview
           travel={profileTravel}
           name={dm ? (bot?.displayName ?? slug ?? '') : botDm ? botDmName : (channel?.name ?? '')}
@@ -1772,6 +1814,9 @@ function ChatConversation({
         onCopy={copyMessage}
         onShareText={shareText}
       />
+      {paging === undefined ? null : (
+        <NativePageHeader title={titleItem} onBack={leave} backID="chat-page-back" />
+      )}
     </>
   );
 }
