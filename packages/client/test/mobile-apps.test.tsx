@@ -76,6 +76,7 @@ it('dismissing the hint remembers it without opening the panel', async () => {
   expect(hint()).toBeNull();
   expect(panel()).toBeNull();
   expect(localStorage.getItem('botharness/mobile-apps/seen')).toBe('1');
+  expect(document.activeElement?.getAttribute('aria-label')).toBe(t('mobileApps.open'));
   await act(async () => root.unmount());
 });
 

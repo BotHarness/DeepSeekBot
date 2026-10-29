@@ -2,7 +2,7 @@ import { actionColor, border, color, radius, space, text } from './ds/tokens.sty
 
 export const MOBILE_APPS_CSS = `
 .bh-mobile-apps-hint,.bh-mobile-apps-popover {position:fixed;z-index:1000;box-sizing:border-box;padding:${space.x5};border:${border.hairline} solid ${color.border};border-radius:${radius.md};background:${color.base};color:${color.fg};box-shadow:0 8px 32px color-mix(in srgb,${color.fg} 15%,transparent);font-size:${text.bodySize};line-height:${text.bodyLine};}
-.bh-mobile-apps-popover {max-height:min(80vh,520px);overflow:auto;}
+.bh-mobile-apps-popover {overflow:auto;}
 .bh-mobile-apps-hint::before {content:'';position:absolute;bottom:var(--bh-mobile-apps-arrow,10px);width:10px;height:10px;box-sizing:border-box;background:inherit;border:${border.hairline} solid ${color.border};transform:rotate(45deg);}
 .bh-mobile-apps-hint[data-side='right']::before {left:-6px;border-top-color:transparent;border-right-color:transparent;}
 .bh-mobile-apps-hint[data-side='left']::before {right:-6px;border-bottom-color:transparent;border-left-color:transparent;}

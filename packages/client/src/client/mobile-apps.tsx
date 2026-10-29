@@ -65,6 +65,7 @@ export function MobileAppsEntry({ t }: { t: BotHarnessTranslate }): ReactElement
           t={t}
           onOpen={show}
           onDismiss={() => {
+            trigger.current?.focus();
             markMobileAppsSeen();
             setSeen(true);
           }}
@@ -92,6 +93,7 @@ function usePlacement(
           ? Math.min(rect.right + 8, window.innerWidth - fit - 16)
           : Math.max(16, rect.left - fit - 8),
         bottom: Math.max(16, window.innerHeight - rect.bottom),
+        maxHeight: Math.max(0, rect.bottom - 16),
         ['--bh-mobile-apps-arrow' as string]: `${rect.height / 2 - 6}px`,
       });
     };
