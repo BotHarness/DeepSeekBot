@@ -228,6 +228,7 @@ vi.mock('../src/ui/chat/native-header', () => ({
   get headerIslands() {
     return !state.glassHeader;
   },
+  barLabelProps: {},
   barLabelStyle: {},
   useHeaderOverlap: () => 80,
   floatingHeader: false,

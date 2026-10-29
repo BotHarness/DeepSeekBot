@@ -15,7 +15,7 @@ export function HeaderTitleButton(props: HeaderTitleButtonProps) {
   const theme = useDesignTheme();
   const t = useStrings();
   return (
-    <Host matchContents colorScheme={theme.scheme}>
+    <Host matchContents={{ vertical: true }} style={{ width: '100%' }} colorScheme={theme.scheme}>
       <Button
         {...(props.testID ? { testID: props.testID } : {})}
         {...(props.onPress ? { onPress: props.onPress } : {})}
@@ -27,7 +27,7 @@ export function HeaderTitleButton(props: HeaderTitleButtonProps) {
           ...(props.accessibilityState?.busy ? [accessibilityValue(t.loading)] : []),
         ]}
       >
-        <RNHostView matchContents>
+        <RNHostView matchContents={{ vertical: true }} boundedByHost>
           <View
             pointerEvents="none"
             accessibilityElementsHidden

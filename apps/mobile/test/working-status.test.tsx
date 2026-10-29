@@ -45,7 +45,7 @@ vi.mock('react-native-svg', () => ({
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 
 vi.mock('../src/ui/chat/header-chrome', () => ({ titleChipFill: () => ({}) }));
-vi.mock('../src/ui/chat/native-header', () => ({ barLabelStyle: {} }));
+vi.mock('../src/ui/chat/native-header', () => ({ barLabelProps: {}, barLabelStyle: {} }));
 vi.mock('../src/ui/primitives/connection-progress', () => ({ ConnectionProgress: () => null }));
 vi.mock('../src/ui/chat/group-mark', () => ({ GroupMark: () => null }));
 

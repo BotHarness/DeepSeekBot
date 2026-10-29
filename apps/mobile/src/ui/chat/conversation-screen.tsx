@@ -101,6 +101,7 @@ import { EdgeFade, HeaderBackButton, titleChipFill, useChatHeaderHeight } from '
 import { useStackRoot } from '../shell/stack-root';
 import {
   barLabelStyle,
+  barLabelProps,
   floatingHeader,
   glassHeader,
   headerIslands,
@@ -1220,7 +1221,7 @@ function ChatConversation({
         overflow: 'hidden',
       })}
     >
-      <Text strong numberOfLines={1} style={[{ flexShrink: 1 }, barLabelStyle]}>
+      <Text {...barLabelProps} strong numberOfLines={1} style={[{ flexShrink: 1 }, barLabelStyle]}>
         {botDmName}
       </Text>
       <ConnectionProgress active={connectionLabel !== undefined} />
@@ -1293,7 +1294,11 @@ function ChatConversation({
   const headerGap = glassPress.gap;
   const titleWidth = Math.max(
     0,
-    windowWidth - insets.left - insets.right - (theme.touch + space.x5 + headerGap) * 2,
+    windowWidth -
+      insets.left -
+      insets.right -
+      (theme.touch + space.x5 + headerGap) * 2 -
+      (ios && glassHeader ? space.x4 * 2 : 0),
   );
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
   const titleItem = (

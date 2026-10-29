@@ -9,7 +9,7 @@ import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { titleChipFill } from './header-chrome';
-import { barLabelStyle } from './native-header';
+import { barLabelStyle, barLabelProps } from './native-header';
 import { botBusy } from './bot-tone';
 import { stepLabel } from './bot-steps';
 
@@ -46,7 +46,12 @@ export function ChatTitle({
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x3,
-        minHeight: Math.max(theme.touch, theme.type.body.line * theme.fontScale + space.x3),
+        minHeight: Math.max(
+          theme.touch,
+          theme.type.body.line *
+            Math.min(theme.fontScale, barLabelProps.maxFontSizeMultiplier ?? Infinity) +
+            space.x3,
+        ),
         paddingLeft: (theme.touch - AVATAR) / 2,
         paddingRight: theme.touch / 2,
         borderRadius: radius.round,
@@ -58,7 +63,7 @@ export function ChatTitle({
       ) : (
         <View style={{ width: AVATAR, height: AVATAR }} />
       )}
-      <Text strong numberOfLines={1} style={[{ flexShrink: 1 }, barLabelStyle]}>
+      <Text {...barLabelProps} strong numberOfLines={1} style={[{ flexShrink: 1 }, barLabelStyle]}>
         {activity ?? name}
       </Text>
       <ConnectionProgress active={connectionLabel !== undefined} />
