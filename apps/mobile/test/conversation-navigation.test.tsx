@@ -1441,8 +1441,8 @@ it('retries a retained target on real cell measurement progress without a conten
     );
     await render({ kind: 'dm', slug: 'ada' }, 'cached-30');
     expect(nativeList.scrollToIndex).toHaveBeenCalledOnce();
-    const row = nativeList.rows.find((row) => row.message?.id === 'cached-30')!;
-    const measure = nativeList.cellLayouts.get('focused-message')!;
+    const row = nativeList.rows.find((row) => row.message?.id === 'cached-20')!;
+    const measure = nativeList.cellLayouts.get(`chat-cell-${row.key}`)!;
     expect(measure).toBeTypeOf('function');
     const event = { nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 80 } } };
     await act(async () => measure(event));
