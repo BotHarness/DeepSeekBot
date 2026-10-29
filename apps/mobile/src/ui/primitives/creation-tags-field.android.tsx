@@ -34,7 +34,9 @@ export function CreationTagsField({ value, onChange, disabled }: CreationTagsFie
             <InputChip
               key={tag}
               enabled={!disabled}
-              onClick={() => onChange({ kind: 'remove', value: tag })}
+              onClick={() => {
+                if (!disabled) onChange({ kind: 'remove', value: tag });
+              }}
               colors={{
                 containerColor: theme.layer.field.fill,
                 labelColor: theme.color.fg,
@@ -70,8 +72,12 @@ export function CreationTagsField({ value, onChange, disabled }: CreationTagsFie
         editable={!disabled}
         returnKeyType="send"
         submitBehavior="submit"
-        onChangeText={(text) => onChange({ kind: 'input', value: text })}
-        onSubmitEditing={({ nativeEvent }) => onChange({ kind: 'add', value: nativeEvent.text })}
+        onChangeText={(text) => {
+          if (!disabled) onChange({ kind: 'input', value: text });
+        }}
+        onSubmitEditing={({ nativeEvent }) => {
+          if (!disabled) onChange({ kind: 'add', value: nativeEvent.text });
+        }}
       />
     </View>
   );

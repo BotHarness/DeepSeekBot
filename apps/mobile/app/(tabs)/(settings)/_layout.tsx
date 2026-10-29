@@ -11,7 +11,10 @@ export default function SettingsTabLayout() {
   return (
     <ThemeProvider value={theme.scheme === 'dark' ? DarkTheme : DefaultTheme}>
       <TabStack background={theme.overlay.fill}>
-        <Stack.Screen name="settings" options={{ title: t.settings }} />
+        <Stack.Screen
+          name="settings"
+          options={{ title: t.settings, headerLargeStyle: { backgroundColor: 'transparent' } }}
+        />
       </TabStack>
     </ThemeProvider>
   );
