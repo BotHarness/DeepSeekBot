@@ -1,6 +1,6 @@
 import { useRef, type ReactElement } from 'react';
 import { Platform, View, type ScrollViewProps, type ViewInstance } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, State } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
   useAnimatedReaction,
@@ -160,6 +160,7 @@ export function PullToTob({
         manager.fail();
         return;
       }
+      if (event.state === State.ACTIVE) return;
       const x = touch.absoluteX - startX.value;
       const y = touch.absoluteY - startY.value;
       if (Math.abs(x) > tobPull.horizontalFail || y < -tobPull.start) manager.fail();

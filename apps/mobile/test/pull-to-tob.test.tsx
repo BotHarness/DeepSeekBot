@@ -7,6 +7,7 @@ type ScrollEvent = { contentOffset: { y: number }; contentInset: { top: number }
 type TouchEvent = {
   allTouches: { absoluteX: number; absoluteY: number }[];
   numberOfTouches: number;
+  state?: number;
 };
 type Manager = { fail(): void; activate(): void };
 type PanEvent = { translationY: number };
@@ -38,6 +39,7 @@ vi.mock('react-native-gesture-handler', async () => {
   const shim = await import('./gesture-handler-shim');
   return {
     ...shim,
+    State: { ACTIVE: 4 },
     Gesture: {
       Native: () => ({}),
       Pan: () => {
@@ -295,6 +297,41 @@ describe('iOS pull events through the real Chats pull component', () => {
     expect(manager.fail).toHaveBeenCalledOnce();
     expect(state.open).not.toHaveBeenCalled();
     expect(state.haptic).not.toHaveBeenCalled();
+  });
+  it('Android completes a short-list pull without scroll events after its finger drifts sideways', async () => {
+    state.os = 'android';
+    await mount();
+    const touch = { allTouches: [{ absoluteX: 100, absoluteY: 100 }], numberOfTouches: 1 };
+    const manager = { fail: vi.fn(), activate: vi.fn() };
+    act(() => state.pan?.down(touch, manager));
+    act(() =>
+      state.pan?.move({ ...touch, allTouches: [{ absoluteX: 100, absoluteY: 120 }] }, manager),
+    );
+    expect(manager.activate).toHaveBeenCalledOnce();
+    act(() =>
+      state.pan?.move(
+        { ...touch, state: 4, allTouches: [{ absoluteX: 120, absoluteY: 300 }] },
+        manager,
+      ),
+    );
+    expect(manager.fail).not.toHaveBeenCalled();
+    act(() => state.pan?.update({ translationY: tobPull.commit * 3 }));
+    act(() => state.pan?.end({ translationY: tobPull.commit * 3 }));
+    expect(state.open).toHaveBeenCalledOnce();
+    expect(state.refresh).not.toHaveBeenCalled();
+  });
+  it('Android leaves horizontal gestures alone before a vertical pull activates', async () => {
+    state.os = 'android';
+    await mount();
+    const touch = { allTouches: [{ absoluteX: 100, absoluteY: 100 }], numberOfTouches: 1 };
+    const manager = { fail: vi.fn(), activate: vi.fn() };
+    act(() => state.pan?.down(touch, manager));
+    act(() =>
+      state.pan?.move({ ...touch, allTouches: [{ absoluteX: 120, absoluteY: 104 }] }, manager),
+    );
+    expect(manager.fail).toHaveBeenCalledOnce();
+    expect(manager.activate).not.toHaveBeenCalled();
+    expect(state.open).not.toHaveBeenCalled();
   });
   it('composes the chrome handler rather than replacing it', async () => {
     await mount();
