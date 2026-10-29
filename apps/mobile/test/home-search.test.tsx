@@ -1085,8 +1085,10 @@ describe('Search in the Chats header', () => {
   it('says plainly when nothing matches', async () => {
     const view = await home();
     await type(view, ' zed ');
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 180)));
     expect(rows(view)).toEqual([]);
-    expect(view.textContent).toContain(t.searchNoMatch('zed'));
+    expect(view.textContent).toContain(t.searchNoResults);
+    expect(view.querySelector('[data-testid="search-empty-state"]')).not.toBeNull();
   });
   it('wraps the list in the last-chat swipe, off while searching', async () => {
     const view = await home();
@@ -1620,6 +1622,7 @@ it('searches retained channel names and message text through the same Chats head
   ];
   const view = await home();
   await type(view, 'Needle');
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 180)));
   const matches = view.querySelectorAll('[data-testid^="search-result-"]');
   expect(matches).toHaveLength(2);
   expect(view.textContent).toContain('Needle project');
@@ -1641,6 +1644,7 @@ it('uses the retained source-qualified channel result when its Computer is offli
   conversationFilter.set(computerEnvironmentKey('h1'));
   const view = await home();
   await type(view, channel.name);
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 180)));
   expect(view.querySelectorAll('[data-testid^="search-result-"]')).toHaveLength(1);
   expect(view.querySelector(`[data-testid="conversation-row-channel:${channel.id}"]`)).toBeNull();
   expect(call).not.toHaveBeenCalledWith(

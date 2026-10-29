@@ -191,3 +191,31 @@ it('opens an authorized exact result across an unrelated same-query cache refres
   finish(saved);
   expect(await cancelled).toBe('detached');
 });
+
+it('debounces rapid retained queries and prevents refresh from bypassing the delay', async () => {
+  vi.useFakeTimers();
+  try {
+    const f = fixture();
+    f.search.schedule('n');
+    await vi.advanceTimersByTimeAsync(60);
+    f.search.schedule('ne');
+    await vi.advanceTimersByTimeAsync(60);
+    f.search.schedule('needle');
+    await f.search.refresh();
+    expect(f.list).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(149);
+    expect(f.list).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(f.list).toHaveBeenCalledTimes(2);
+    expect(f.search.getSnapshot().messages.map((hit) => hit.message?.body)).toEqual([
+      'needle A',
+      'needle B',
+    ]);
+    f.search.schedule('cancelled');
+    f.search.setActive(false);
+    await vi.advanceTimersByTimeAsync(300);
+    expect(f.list).toHaveBeenCalledTimes(2);
+  } finally {
+    vi.useRealTimers();
+  }
+});

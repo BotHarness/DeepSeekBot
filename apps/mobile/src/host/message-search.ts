@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 import type { HostClient } from './client';
 
@@ -101,5 +101,12 @@ export function useMessageSearch(): {
       });
     }, MESSAGE_SEARCH_DEBOUNCE_MS);
   }, []);
+  useLayoutEffect(
+    () => () => {
+      sequence.current++;
+      if (timer.current !== undefined) clearTimeout(timer.current);
+    },
+    [],
+  );
   return { state, schedule };
 }

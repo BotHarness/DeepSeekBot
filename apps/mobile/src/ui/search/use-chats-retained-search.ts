@@ -17,8 +17,8 @@ export function useChatsRetainedSearch(scope: string, query: string) {
   useFocusEffect(
     useCallback(() => {
       if (retainedSearch.getSnapshot().scope !== scope) retainedSearch.enter(scope);
+      if (retainedSearch.getSnapshot().query !== query) retainedSearch.schedule(query);
       retainedSearch.setActive(true);
-      if (retainedSearch.getSnapshot().query !== query) void retainedSearch.query(query);
       setError(undefined);
       return () => retainedSearch.setActive(false);
     }, [scope, query]),
@@ -75,6 +75,7 @@ export function useChatsRetainedSearch(scope: string, query: string) {
   const current = snapshot.scope === scope && snapshot.query === query;
   return {
     snapshot,
+    pending: snapshot.scope !== scope || snapshot.query !== query || snapshot.status === 'loading',
     error,
     open,
     retry: () => void retainedSearch.refresh(),

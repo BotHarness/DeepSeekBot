@@ -3,6 +3,12 @@
 package expo.modules.materialsearchbar
 
 import android.view.View
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -191,35 +197,40 @@ fun FunctionalComposableScope.SearchBarContent(
   if (attached) {
     ExpandedFullScreenSearchBar(state = bar, inputField = inputField) {
       if (showsEmpty(text.text.toString(), props.results.size)) {
-        Text(
-          props.emptyText,
-          modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp),
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
-      LazyColumn(state = resultsPosition, modifier = Modifier.semantics { testTagsAsResourceId = true }) {
-        if (text.text.isNotBlank() && props.notice.isNotEmpty()) {
-          item(key = "search-notice") {
-            Text(props.notice, modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (props.retryLabel.isNotEmpty()) {
-              TextButton(onClick = onRetry, modifier = Modifier.testTag("retained-search-retry")) { Text(props.retryLabel) }
-            }
+        Box(modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }, contentAlignment = Alignment.Center) {
+          if (props.busy) CircularProgressIndicator()
+          else Column(modifier = Modifier.padding(24.dp).testTag("search-empty-state"), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Icon(search, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(props.emptyText, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (props.notice.isNotEmpty()) Text(props.notice, textAlign = TextAlign.Center)
+            if (props.retryLabel.isNotEmpty()) TextButton(onClick = onRetry) { Text(props.retryLabel) }
           }
         }
-        props.results.forEach { result ->
-          if (result.section.isNotEmpty()) {
-            item(key = "section:${result.key}") {
-              Text(
-                result.section,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.labelLarge,
-              )
+      } else {
+        LazyColumn(state = resultsPosition, modifier = Modifier.semantics { testTagsAsResourceId = true }) {
+          if (text.text.isNotBlank() && props.notice.isNotEmpty()) {
+            item(key = "search-notice") {
+              Text(props.notice, modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+              if (props.retryLabel.isNotEmpty()) {
+                TextButton(onClick = onRetry, modifier = Modifier.testTag("retained-search-retry")) { Text(props.retryLabel) }
+              }
             }
           }
-          item(key = result.key) {
-            SearchResultItem(result) {
-              onPick(result.key)
+          props.results.forEach { result ->
+            if (result.section.isNotEmpty()) {
+              item(key = "section:${result.key}") {
+                Text(
+                  result.section,
+                  modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  style = MaterialTheme.typography.labelLarge,
+                )
+              }
+            }
+            item(key = result.key) {
+              SearchResultItem(result) {
+                onPick(result.key)
+              }
             }
           }
         }

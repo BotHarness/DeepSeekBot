@@ -1,3 +1,5 @@
+import { SearchEmptyState } from '../../../src/ui/search/search-empty-state';
+import { LoadingIndicator } from '../../../src/ui/primitives/loading-indicator';
 import { useChatsRetainedSearch } from '../../../src/ui/search/use-chats-retained-search';
 import { RetainedSearchRow } from '../../../src/ui/search/retained-search-row';
 import {
@@ -442,13 +444,12 @@ const HomeContent = memo(function HomeContent({
     query.trim() === ''
       ? ''
       : [
-          t.localSearch.coverage,
-          ...(environment.kind !== 'computer' ? [t.localSearch.cloudUnavailable] : []),
           ...(retained.snapshot.unavailable.length
             ? [t.localSearch.unavailable(retained.snapshot.unavailable.join(', '))]
             : []),
           ...(retained.error ? [retained.error] : []),
         ].join('\n');
+  const searchPending = messages.loading || retained.pending;
   const searchResults = useMemo(() => {
     if (Platform.OS !== 'android') return [];
     const sources = new Map([
@@ -649,7 +650,7 @@ const HomeContent = memo(function HomeContent({
             Platform.OS === 'android' ? (
               <ChatsSearchBar
                 placeholder={t.searchIn(environment.title)}
-                busy={connecting || messages.loading || retained.snapshot.status === 'loading'}
+                busy={query.trim() ? searchPending : connecting}
                 results={searchResults}
                 notice={searchNotice}
                 retryLabel={retained.snapshot.unavailable.length ? t.retry : ''}
@@ -730,19 +731,17 @@ const HomeContent = memo(function HomeContent({
                     {...pull}
                     renderScrollComponent={renderKeyboardFormScroll}
                     scrollEventThrottle={1}
-                    contentContainerStyle={{ paddingBottom: bottom + headerTravel + space.x6 }}
+                    contentContainerStyle={{
+                      paddingBottom: bottom + headerTravel + space.x6,
+                      ...(query.trim() !== '' && listItems.length === 0 ? { flexGrow: 1 } : {}),
+                    }}
                     keyboardShouldPersistTaps="handled"
                     keyboardDismissMode="on-drag"
                     data={listItems}
                     keyExtractor={(r) => r.key}
                     ListHeaderComponent={
                       <>
-                        {retained.error ? (
-                          <Text accessibilityRole="alert" tone="warning">
-                            {retained.error}
-                          </Text>
-                        ) : null}
-                        {query.trim() !== '' && (
+                        {searchNotice !== '' && (
                           <Text variant="meta" tone="muted" style={{ paddingHorizontal: space.x5 }}>
                             {searchNotice}
                           </Text>
@@ -806,7 +805,15 @@ const HomeContent = memo(function HomeContent({
                       </>
                     }
                     ListEmptyComponent={
-                      coldLoading ? (
+                      query.trim() !== '' ? (
+                        <View style={{ flex: 1, justifyContent: 'center' }}>
+                          {searchPending ? (
+                            <LoadingIndicator />
+                          ) : (
+                            <SearchEmptyState title={t.searchNoResults} />
+                          )}
+                        </View>
+                      ) : coldLoading ? (
                         <ListSkeleton />
                       ) : hostFailed || cloudFailed ? undefined : (
                         <Text tone="muted" style={{ padding: space.x6 }}>

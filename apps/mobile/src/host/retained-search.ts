@@ -1,5 +1,7 @@
 import { hiddenChatMessage, type CachedConversation } from './conversation';
 
+export const RETAINED_SEARCH_DEBOUNCE_MS = 150;
+
 export type ComputerCacheSource = { hostId: string; deviceId: string };
 export type SearchSource = ComputerCacheSource & { name: string };
 export type RetainedTarget = { kind: 'dm' | 'channel'; id: string; name: string };
@@ -38,6 +40,11 @@ export function createRetainedSearch(port: {
     target: RetainedTarget,
   ): Promise<RetainedConversation | undefined>;
 }) {
+  let scheduled: ReturnType<typeof setTimeout> | undefined;
+  const cancelScheduled = () => {
+    if (scheduled !== undefined) clearTimeout(scheduled);
+    scheduled = undefined;
+  };
   let version = 0;
   let interaction = 0;
   let active = true;
@@ -81,7 +88,7 @@ export function createRetainedSearch(port: {
           ? 'ready'
           : 'loading',
     });
-    if (!query || !active) return;
+    if (!query || !active || scheduled !== undefined) return;
     const conversations: SearchHit[] = [];
     const messages: SearchHit[] = [];
     const unavailable: string[] = [];
@@ -148,14 +155,27 @@ export function createRetainedSearch(port: {
       };
     },
     enter(scope: string) {
+      cancelScheduled();
       interaction++;
       snapshot = { ...snapshot, scope, query: '', scroll: 0 };
       void search(true);
     },
     query(query: string) {
+      cancelScheduled();
       interaction++;
       snapshot = { ...snapshot, query, scroll: 0 };
       return search(true);
+    },
+    schedule(query: string) {
+      cancelScheduled();
+      interaction++;
+      snapshot = { ...snapshot, query, scroll: 0 };
+      if (query.trim())
+        scheduled = setTimeout(() => {
+          scheduled = undefined;
+          void search(true);
+        }, RETAINED_SEARCH_DEBOUNCE_MS);
+      void search(true);
     },
     scroll(offset: number) {
       snapshot = { ...snapshot, scroll: offset };
@@ -165,7 +185,10 @@ export function createRetainedSearch(port: {
       if (active !== value) interaction++;
       active = value;
       if (value) void search();
-      else version++;
+      else {
+        cancelScheduled();
+        version++;
+      }
     },
     remove(source: ComputerCacheSource, target: RetainedTarget) {
       const keep = (hit: SearchHit) =>
