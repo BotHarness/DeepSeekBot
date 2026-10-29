@@ -4,7 +4,7 @@ import type { ScrollViewProps } from 'react-native';
 export type SettingsScroll = ScrollViewProps['onScroll'];
 
 export const SettingsScrollContext = createContext<
-  | { onScroll: SettingsScroll; travel: number; ScrollView: ComponentType<ScrollViewProps> }
+  | { onScroll: SettingsScroll; headerInset: number; ScrollView: ComponentType<ScrollViewProps> }
   | undefined
 >(undefined);
 

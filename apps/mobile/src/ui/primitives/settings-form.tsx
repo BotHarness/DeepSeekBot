@@ -30,7 +30,8 @@ export function SettingsForm({ header, testID, children }: SettingsFormProps) {
         contentContainerStyle={{
           gap: space.x6,
           padding: space.x5,
-          paddingBottom: space.x5 + tabInset + (scroll?.travel ?? 0),
+          paddingTop: space.x5 + (scroll?.headerInset ?? 0),
+          paddingBottom: space.x5 + tabInset,
         }}
       >
         {children}

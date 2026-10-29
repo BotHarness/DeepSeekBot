@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { View } from 'react-native';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { materialSearchHeight } from '../design/material-search';
@@ -10,7 +10,7 @@ import { space, tabHeader } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { SettingsScrollContext, type SettingsScroll } from '../primitives/settings-scroll';
 import { useStrings } from '../strings';
-import { CollapsingToolbar, useChromeProgress } from './scroll-chrome';
+import { CollapsingToolbar } from './scroll-chrome';
 
 export function SettingsTabPage({
   onScroll,
@@ -26,21 +26,17 @@ export function SettingsTabPage({
   const [measured, setMeasured] = useState(0);
   const height = Math.max(minimum, measured);
   const travel = Math.max(0, height - insets.top);
-  const progress = useChromeProgress();
-  const pageStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: -travel * progress.get() }],
-  }));
   const fill = theme.overlay.fill;
   return (
     <View style={{ flex: 1, overflow: 'hidden', backgroundColor: fill }}>
       <Stack.Screen options={{ headerShown: false, title: t.settings }} />
-      <Animated.View style={[{ flex: 1, marginTop: height, marginBottom: -travel }, pageStyle]}>
+      <View style={{ flex: 1, marginTop: insets.top }}>
         <SettingsScrollContext.Provider
-          value={{ onScroll, travel, ScrollView: Animated.ScrollView }}
+          value={{ onScroll, headerInset: travel, ScrollView: Animated.ScrollView }}
         >
           {children}
         </SettingsScrollContext.Provider>
-      </Animated.View>
+      </View>
       <CollapsingToolbar travel={travel} height={height}>
         <View
           testID="settings-header"
