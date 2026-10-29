@@ -1,3 +1,13 @@
+import { SearchEmptyState } from '../../../src/ui/search/search-empty-state';
+import { LoadingIndicator } from '../../../src/ui/primitives/loading-indicator';
+import { useChatsRetainedSearch } from '../../../src/ui/search/use-chats-retained-search';
+import { RetainedSearchRow } from '../../../src/ui/search/retained-search-row';
+import {
+  retainedTargetMatches,
+  retainedMessageMatches,
+  retainedSearchResults,
+} from '../../../src/ui/search/retained-search-results';
+import type { SearchHit } from '../../../src/host/retained-search';
 import { chatHref } from '../../../src/ui/shell/recent-chats';
 import { HostRow } from '../../../src/ui/chat/host-conversation-row';
 import { renderKeyboardFormScroll } from '../../../src/ui/primitives/keyboard-form';
@@ -92,7 +102,11 @@ type MessageItem = {
   host: ConnectedHost;
   conversation: Conversation;
 };
-type HomeItem = EnvironmentChatItem | { type: 'message-heading'; key: string } | MessageItem;
+type HomeItem =
+  | EnvironmentChatItem
+  | { type: 'message-heading'; key: string }
+  | MessageItem
+  | { type: 'retained'; key: string; hit: SearchHit };
 import { sectionCollapse, useCollapsedSections } from '../../../src/host/native-section-collapse';
 
 export default function HomeScreen() {
@@ -197,6 +211,7 @@ const HomeContent = memo(function HomeContent({
   );
   const environment = filters.find((f) => f.key === filter) ?? filters[0]!;
   const effectiveFilter = environment.key;
+  const retained = useChatsRetainedSearch(effectiveFilter, query);
   const selectedHost = hosts.find(
     (host) => computerEnvironmentKey(host.saved.hostId) === effectiveFilter,
   );
@@ -361,6 +376,7 @@ const HomeContent = memo(function HomeContent({
       query.trim() === '' || messages.query !== query.trim()
         ? []
         : messages.hits.flatMap((hit) => {
+            if (!searchHosts.some((host) => host.hostId === hit.hostId)) return [];
             const found = conversationIndex.get(JSON.stringify([hit.hostId, hit.channelId]));
             return found === undefined
               ? []
@@ -373,13 +389,46 @@ const HomeContent = memo(function HomeContent({
                   },
                 ];
           }),
-    [query, messages, conversationIndex],
+    [query, messages, conversationIndex, searchScope],
   );
+  const searchConversations = displayed.filter(
+    (item) =>
+      item.type !== 'computer' ||
+      item.host.snapshot.connection.status === 'connected' ||
+      !retained.conversations.some((hit) =>
+        retainedTargetMatches(hit, item.host.saved.hostId, item.conversation),
+      ),
+  );
+  const retainedConversations = retained.conversations.filter(
+    (hit) =>
+      !searchConversations.some(
+        (item) =>
+          item.type === 'computer' &&
+          retainedTargetMatches(hit, item.host.saved.hostId, item.conversation),
+      ),
+  );
+  const retainedMessages = retained.messages.filter(
+    (hit) => !messageItems.some((item) => retainedMessageMatches(hit, item.hit, item.conversation)),
+  );
+  const retainedItems = (hits: SearchHit[]): HomeItem[] =>
+    hits.map((hit) => ({ type: 'retained', key: hit.key, hit }));
   const messagesShown =
-    messageItems.length > 0 || (messages.loading && query.trim() !== '' && displayed.length > 0);
+    messageItems.length > 0 ||
+    retainedMessages.length > 0 ||
+    (messages.loading && displayed.length > 0);
   const listItems: HomeItem[] =
-    Platform.OS !== 'android' && messagesShown
-      ? [...displayed, { type: 'message-heading', key: 'message-heading' }, ...messageItems]
+    Platform.OS !== 'android' && query.trim() !== ''
+      ? [
+          ...searchConversations,
+          ...retainedItems(retainedConversations),
+          ...(messagesShown
+            ? [
+                { type: 'message-heading' as const, key: 'message-heading' },
+                ...messageItems,
+                ...retainedItems(retainedMessages),
+              ]
+            : []),
+        ]
       : displayed;
   const openMessage = ({ hit, host, conversation }: MessageItem) => {
     recordFeature('search:result_open', { kind: 'message' });
@@ -391,18 +440,68 @@ const HomeContent = memo(function HomeContent({
     )
       setActionError(true);
   };
-  const searchResults = useMemo(
-    () =>
-      Platform.OS === 'android'
-        ? [
-            ...chatsSearchResults(displayed, query, searchAppBar.recent, avatarImageUri),
-            ...messageSearchResults(messageItems, t.searchMessages, new Date(), avatarImageUri),
-          ]
-        : [],
-    [displayed, query, messageItems, t],
-  );
+  const searchNotice =
+    query.trim() === ''
+      ? ''
+      : [
+          ...(retained.snapshot.unavailable.length
+            ? [t.localSearch.unavailable(retained.snapshot.unavailable.join(', '))]
+            : []),
+          ...(retained.error ? [retained.error] : []),
+        ].join('\n');
+  const searchPending = messages.loading || retained.pending;
+  const searchResults = useMemo(() => {
+    if (Platform.OS !== 'android') return [];
+    const sources = new Map([
+      ...searchConversations.flatMap((item) =>
+        item.type === 'computer'
+          ? [
+              [
+                item.key,
+                shownHostName(hostLooks.look(item.host.saved.hostId), item.host.saved.hostName),
+              ] as const,
+            ]
+          : [],
+      ),
+      ...messageItems.map(
+        (item) =>
+          [
+            item.key,
+            shownHostName(hostLooks.look(item.host.saved.hostId), item.host.saved.hostName),
+          ] as const,
+      ),
+    ]);
+    const online = (results: ReturnType<typeof chatsSearchResults>) =>
+      results.map((result) => {
+        const source = sources.get(result.key);
+        return source ? { ...result, subtitle: `${source} · ${result.subtitle}` } : result;
+      });
+    return [
+      ...online(
+        chatsSearchResults(searchConversations, query, searchAppBar.recent, avatarImageUri),
+      ),
+      ...retainedSearchResults(
+        retainedConversations,
+        t.localSearch.conversations,
+        new Date(),
+        t.reactionYou,
+      ),
+      ...online(messageSearchResults(messageItems, t.searchMessages, new Date(), avatarImageUri)),
+      ...retainedSearchResults(
+        retainedMessages,
+        messageItems.length ? undefined : t.searchMessages,
+        new Date(),
+        t.reactionYou,
+      ),
+    ];
+  }, [searchConversations, query, messageItems, retainedConversations, retainedMessages, t]);
   const connecting = useConnectionProgress(selectedHost?.snapshot.connection.status) !== undefined;
   const pickSearch = (key: string) => {
+    const cached = [...retainedConversations, ...retainedMessages].find((hit) => hit.key === key);
+    if (cached) {
+      void retained.open(cached);
+      return;
+    }
     const message = messageItems.find((entry) => entry.key === key);
     if (message !== undefined) {
       openMessage(message);
@@ -551,8 +650,11 @@ const HomeContent = memo(function HomeContent({
             Platform.OS === 'android' ? (
               <ChatsSearchBar
                 placeholder={t.searchIn(environment.title)}
-                busy={connecting || messages.loading}
+                busy={query.trim() ? searchPending : connecting}
                 results={searchResults}
+                notice={searchNotice}
+                retryLabel={retained.snapshot.unavailable.length ? t.retry : ''}
+                onRetry={retained.retry}
                 onQuery={onQuery}
                 onExpanded={setSearchFocused}
                 onPick={pickSearch}
@@ -629,13 +731,30 @@ const HomeContent = memo(function HomeContent({
                     {...pull}
                     renderScrollComponent={renderKeyboardFormScroll}
                     scrollEventThrottle={1}
-                    contentContainerStyle={{ paddingBottom: bottom + headerTravel + space.x6 }}
+                    contentContainerStyle={{
+                      paddingBottom: bottom + headerTravel + space.x6,
+                      ...(query.trim() !== '' && listItems.length === 0 ? { flexGrow: 1 } : {}),
+                    }}
                     keyboardShouldPersistTaps="handled"
                     keyboardDismissMode="on-drag"
                     data={listItems}
                     keyExtractor={(r) => r.key}
                     ListHeaderComponent={
                       <>
+                        {searchNotice !== '' && (
+                          <Text variant="meta" tone="muted" style={{ paddingHorizontal: space.x5 }}>
+                            {searchNotice}
+                          </Text>
+                        )}
+                        {query.trim() !== '' && retained.snapshot.unavailable.length > 0 && (
+                          <Button
+                            label={t.retry}
+                            variant="text"
+                            fit
+                            testID="retained-search-retry"
+                            onPress={retained.retry}
+                          />
+                        )}
                         {actionError ? (
                           <Text accessibilityRole="alert" tone="danger">
                             {t.rowActions.failed}
@@ -686,7 +805,15 @@ const HomeContent = memo(function HomeContent({
                       </>
                     }
                     ListEmptyComponent={
-                      coldLoading ? (
+                      query.trim() !== '' ? (
+                        <View style={{ flex: 1, justifyContent: 'center' }}>
+                          {searchPending ? (
+                            <LoadingIndicator />
+                          ) : (
+                            <SearchEmptyState title={t.searchNoResults} />
+                          )}
+                        </View>
+                      ) : coldLoading ? (
                         <ListSkeleton />
                       ) : hostFailed || cloudFailed ? undefined : (
                         <Text tone="muted" style={{ padding: space.x6 }}>
@@ -703,7 +830,12 @@ const HomeContent = memo(function HomeContent({
                       )
                     }
                     renderItem={({ item }) =>
-                      item.type === 'message-heading' ? (
+                      item.type === 'retained' ? (
+                        <RetainedSearchRow
+                          hit={item.hit}
+                          onPress={() => void retained.open(item.hit)}
+                        />
+                      ) : item.type === 'message-heading' ? (
                         <MessageSearchHeading loading={messages.loading} />
                       ) : item.type === 'message' ? (
                         <MessageSearchRow

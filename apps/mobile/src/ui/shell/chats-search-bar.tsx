@@ -12,6 +12,9 @@ export type ChatsSearchResult = {
 export type ChatsSearchBarProps = {
   placeholder: string;
   busy: boolean;
+  notice?: string;
+  retryLabel?: string;
+  onRetry?(): void;
   results: ChatsSearchResult[];
   onQuery(value: string): void;
   onExpanded(expanded: boolean): void;

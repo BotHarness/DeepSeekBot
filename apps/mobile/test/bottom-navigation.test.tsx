@@ -7,7 +7,9 @@ const fixture = vi.hoisted(() => ({
   platform: 'ios',
   index: 0,
   navigateToTab: vi.fn(),
+  enter: vi.fn(),
 }));
+vi.mock('../src/host/native-retained-search', () => ({ retainedSearch: { enter: fixture.enter } }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('../src/ui/shell/quick-action-routing', () => ({ useQuickActionRouting: () => () => {} }));
 vi.mock('../src/host/native-bot-creation', () => ({
@@ -152,3 +154,20 @@ it.each([
     fixture.index = 0;
   }
 });
+
+it.each(['ios', 'android'])(
+  'keeps Chats, Activity and Settings as the only tabs on %s',
+  async (platform) => {
+    fixture.platform = platform;
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    try {
+      await act(async () => root.render(<BottomNavigation />));
+      expect(host.querySelector('[data-testid="navigation-search"]')).toBeNull();
+      expect(host.querySelectorAll('[role="tab"]')).toHaveLength(3);
+      expect(host.querySelector('[data-testid="settings-button"]')).not.toBeNull();
+    } finally {
+      act(() => root.unmount());
+    }
+  },
+);

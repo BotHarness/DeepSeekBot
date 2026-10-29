@@ -27,6 +27,12 @@ vi.mock('../src/host/native-source-drafts', async () => {
   };
 });
 vi.mock('../src/host/native-cache', () => ({
+  retainedCache: {
+    allowed: () => true,
+    authorize() {},
+    forget() {},
+    conversation: () => ({ read: async () => undefined, write() {} }),
+  },
   clearHostConversationCache: () => undefined,
   pruneHostConversationCache: () => undefined,
   nativeConversationCache: { read: async () => undefined, write() {} },

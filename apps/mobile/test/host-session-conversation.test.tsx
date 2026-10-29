@@ -422,6 +422,34 @@ it('keeps an activity-only conversation available without rerendering on unchang
   expect(view.channel.followerCount).toBe(1);
 });
 
+it('releases both live and retained adapters when their group disappears from the owning Host', async () => {
+  const view = await open();
+  let live: Conversation | undefined;
+  let retained: Conversation | undefined;
+  function Both() {
+    const { client } = hooks.useHostSession('a');
+    live = hooks.useChannelConversation(client, view.channelId);
+    retained = hooks.useChannelConversation(client, view.channelId, true);
+    hooks.useConversationTimelineSnapshot(live);
+    hooks.useConversationTimelineSnapshot(retained);
+    return null;
+  }
+  await act(async () => root.render(<Both />));
+  await flush();
+  expect(live).toBeDefined();
+  expect(retained).toBeDefined();
+  expect(live).not.toBe(retained);
+  const stopLive = vi.spyOn(live!, 'stop');
+  const stopRetained = vi.spyOn(retained!, 'stop');
+  hosts.a.methods.set('channels', () => ({ channels: [] }));
+  await act(async () => hooks.hostSession.getHost('a')!.client.refresh());
+  expect(stopLive).toHaveBeenCalledOnce();
+  expect(stopRetained).toHaveBeenCalledOnce();
+  expect(live).toBeUndefined();
+  expect(retained).toBeUndefined();
+  expect(view.channel.followerCount).toBe(0);
+});
+
 it('drops the retained route owner when its Host session is removed', async () => {
   const view = await open();
   await view.send();

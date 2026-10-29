@@ -105,16 +105,24 @@ export function reactable(message: ConversationMessage): boolean {
   );
 }
 
-export function shownInChat(message: ConversationMessage): boolean {
-  const resolution = message.resolves?.resolution;
-  if (
+function hiddenChatResolution(resolution: CardResolution | undefined): boolean {
+  return (
     resolution?.kind === 'tool-approval' ||
     resolution?.kind === 'grant' ||
     resolution?.kind === 'private-input' ||
     (resolution?.kind === 'user-question' && resolution.state === 'cancelled')
-  )
-    return false;
-  if (message.welcome === true) return false;
+  );
+}
+
+export function hiddenChatMessage(message: ChannelWireMessage): boolean {
+  return (
+    hiddenChatResolution(resolvesOf(message)?.resolution) ||
+    (message.author.kind === 'system' && message.onboardingWelcome !== undefined)
+  );
+}
+
+export function shownInChat(message: ConversationMessage): boolean {
+  if (hiddenChatResolution(message.resolves?.resolution) || message.welcome === true) return false;
   return (
     message.source?.message.contentPurge !== undefined ||
     message.source?.message.sessionFailure !== undefined ||
@@ -158,7 +166,7 @@ export interface ConversationDraft {
 
 export type ConversationDraftReference = Pick<ConversationDraft, 'draftId' | 'botSlug'>;
 
-export type ConversationStatus = 'opening' | 'live' | 'interrupted' | 'refused';
+export type ConversationStatus = 'opening' | 'live' | 'interrupted' | 'refused' | 'retained';
 
 export interface ConversationSnapshot {
   status: ConversationStatus;
@@ -214,6 +222,8 @@ export interface CachedConversation {
 export interface ConversationCache {
   read(key: string): Promise<CachedConversation | undefined>;
   write(key: string, value: CachedConversation): void;
+  remove?(): void;
+  onInvalidated?(listener: () => void): () => void;
 }
 
 export interface SendObservation {
@@ -227,6 +237,7 @@ export interface Conversation {
   subscribe(listener: () => void): () => void;
   start(): void;
   stop(): void;
+  connect?(): void;
   loadOlder(): Promise<void>;
   send(body: string, files?: OutgoingFile[], tags?: MessageTags): string;
   retry(messageId: string): void;
@@ -242,6 +253,7 @@ export interface ConversationOptions {
   channelId?: string;
   cacheKey?: string;
   cache?: ConversationCache;
+  retainedOnly?: boolean;
   pageSize?: number;
   olderPageSize?: number;
   cachedEntries?: number;
@@ -585,6 +597,9 @@ export function createConversation(options: ConversationOptions): Conversation {
     }
   };
 
+  let retainedOnly = options.retainedOnly === true;
+  let offCache: (() => void) | undefined;
+
   const persist = (): void => {
     const cache = options.cache;
     if (cache === undefined || cacheKey === undefined || fromCache) return;
@@ -824,6 +839,9 @@ export function createConversation(options: ConversationOptions): Conversation {
             return;
           }
           status = 'refused';
+          clearTimeout(cacheTimer);
+          window = [];
+          options.cache?.remove?.();
           reason = error.message;
           publish();
         },
@@ -881,6 +899,17 @@ export function createConversation(options: ConversationOptions): Conversation {
       const current = session;
       status = 'opening';
       publish();
+      offCache = options.cache?.onInvalidated?.(() => {
+        session++;
+        unfollow?.();
+        unfollow = undefined;
+        clearTimeout(cacheTimer);
+        window = [];
+        clearDrafts();
+        status = 'refused';
+        fromCache = false;
+        publish();
+      });
       const cached =
         (cacheKey === undefined
           ? undefined
@@ -894,11 +923,19 @@ export function createConversation(options: ConversationOptions): Conversation {
           fromCache = true;
           publish();
         }
+        if (retainedOnly) {
+          status = 'retained';
+          fromCache = true;
+          publish();
+          return;
+        }
         return open(current);
       });
     },
     stop() {
       running = false;
+      offCache?.();
+      offCache = undefined;
       acceptedSend = undefined;
       session += 1;
       unfollow?.();
@@ -906,6 +943,13 @@ export function createConversation(options: ConversationOptions): Conversation {
       clearTimeout(cacheTimer);
       clearTimeout(draftTimer);
       draftTimer = undefined;
+    },
+    connect() {
+      if (!retainedOnly || !running) return;
+      retainedOnly = false;
+      status = 'opening';
+      publish();
+      void open(session);
     },
     async loadOlder() {
       if (loadingOlder || !hasOlder || window.length === 0 || fromCache) return;
@@ -932,6 +976,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       }
     },
     send(body, files = [], tags = {}) {
+      if (retainedOnly) throw new Error('Connect before sending.');
       const item: Outgoing = {
         id: newMessageId(),
         at: new Date().toISOString(),
@@ -952,6 +997,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       return item.id;
     },
     async react(messageId, emoji, active) {
+      if (retainedOnly) throw new Error('Connect before reacting.');
       const id = channelId;
       const before = window.find((entry) => entry.message.id === messageId)?.message.reactions;
       if (id === undefined || !setReactions(messageId, toggledReactions(before, emoji, active)))

@@ -379,7 +379,11 @@ vi.mock('../src/ui/chat/message-bubble', async () => {
         [queueKey],
       );
       const text = useSyncExternalStore(subscribe, () => stream.playback.getBubble(queueKey));
-      return <span data-testid={queueKey}>{text ?? message?.body}</span>;
+      return (
+        <span data-testid={queueKey} data-message-id={queueKey}>
+          {text ?? message?.body}
+        </span>
+      );
     }),
   };
 });
@@ -581,11 +585,9 @@ it('keeps a first DM visible through send, working, streaming and commit, then r
     );
   const visible = () => expect(native.list?.style).toMatchObject({ opacity: 1 });
   const rows = () =>
-    [
-      ...container.querySelectorAll(
-        '[data-testid="chat-list"] [data-testid]:not([data-testid^="select-message-"])',
-      ),
-    ].map((node) => node.getAttribute('data-testid'));
+    [...container.querySelectorAll('[data-testid="chat-list"] [data-message-id]')].map((node) =>
+      node.getAttribute('data-message-id'),
+    );
   const scrollEvent = (offset: number, content: number): NativeSyntheticEvent<NativeScrollEvent> =>
     ({
       nativeEvent: {

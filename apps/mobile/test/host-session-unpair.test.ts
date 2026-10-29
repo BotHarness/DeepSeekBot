@@ -51,6 +51,12 @@ vi.mock('../src/host/native-source-drafts', () => ({
 vi.mock('../src/host/conversation', () => ({ createConversation: vi.fn() }));
 vi.mock('../src/host/conversation-playback', () => ({ createConversationPlayback: vi.fn() }));
 vi.mock('../src/host/native-cache', () => ({
+  retainedCache: {
+    allowed: () => true,
+    authorize() {},
+    forget() {},
+    conversation: () => ({ read: async () => undefined, write() {} }),
+  },
   clearHostConversationCache: clearCache,
   pruneHostConversationCache: () => undefined,
   nativeConversationCache: {},

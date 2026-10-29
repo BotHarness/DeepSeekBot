@@ -48,6 +48,7 @@ const state = vi.hoisted(() => ({
 const navigation = vi.hoisted(() => ({ push: vi.fn(), loadOlder: vi.fn(async () => {}) }));
 const nativeList = vi.hoisted(() => ({
   scrollToIndex: vi.fn(),
+  cellLayouts: new Map<string, (event: unknown) => void>(),
   scrollToOffset: vi.fn(),
   rows: [] as Array<{ key: string; kind?: string; message?: { id: string } }>,
   events: {} as {
@@ -145,7 +146,21 @@ vi.mock('expo-router', () => ({
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
-  return { ...shim, KeyboardAvoidingView: shim.View };
+  return {
+    ...shim,
+    KeyboardAvoidingView: shim.View,
+    View: (props: Parameters<typeof shim.View>[0]) => {
+      const id = props['testID'];
+      const layout = props['onLayout'];
+      if (
+        typeof id === 'string' &&
+        (id.startsWith('chat-cell-') || id === 'focused-message') &&
+        typeof layout === 'function'
+      )
+        nativeList.cellLayouts.set(id, (event) => layout(event));
+      return shim.View(props);
+    },
+  };
 });
 vi.mock('react-native-reanimated', async () => {
   const shim = await import('./reanimated-shim');
@@ -361,6 +376,7 @@ beforeEach(() => {
   navigation.push.mockClear();
   navigation.loadOlder.mockClear();
   nativeList.scrollToIndex.mockReset();
+  nativeList.cellLayouts.clear();
   nativeList.scrollToOffset.mockClear();
   state.hostId = 'computer_a';
   state.host.connection.status = 'connected';
@@ -1415,4 +1431,103 @@ describe('disbanded group presentation', () => {
     const view = await render({ kind: 'channel', channelId: 'group-a' });
     expect(view.querySelector('[data-testid="message-skeleton"]')).not.toBeNull();
   });
+});
+
+it('retries a retained target on real cell measurement progress without a content-size or viewability event', async () => {
+  vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
+  try {
+    state.conversation.status = 'retained';
+    state.conversation.fromCache = true;
+    state.conversation.messages = Array.from({ length: 31 }, (_, i) => ({
+      id: `cached-${i}`,
+      at: '2026-10-25T01:00:00Z',
+      author: 'human' as const,
+      body: `cached ${i}`,
+      attachments: [],
+      delivery: 'committed' as const,
+    }));
+    nativeList.scrollToIndex.mockImplementationOnce(({ index }) =>
+      nativeList.events.onScrollToIndexFailed?.({
+        index,
+        highestMeasuredFrameIndex: 10,
+        averageItemLength: 80,
+      }),
+    );
+    await render({ kind: 'dm', slug: 'ada' }, 'cached-30');
+    expect(nativeList.scrollToIndex).toHaveBeenCalledOnce();
+    const row = nativeList.rows.find((row) => row.message?.id === 'cached-20')!;
+    const measure = nativeList.cellLayouts.get(`chat-cell-${row.key}`)!;
+    expect(measure).toBeTypeOf('function');
+    const event = { nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 80 } } };
+    await act(async () => measure(event));
+    expect(nativeList.scrollToIndex).toHaveBeenCalledOnce();
+    await act(async () => vi.advanceTimersByTimeAsync(17));
+    expect(nativeList.scrollToIndex).toHaveBeenCalledTimes(2);
+    expect(nativeList.rows[nativeList.scrollToIndex.mock.calls[1]![0].index]?.message?.id).toBe(
+      'cached-30',
+    );
+    await act(async () => {
+      measure(event);
+      await vi.advanceTimersByTimeAsync(17);
+    });
+    expect(nativeList.scrollToIndex).toHaveBeenCalledTimes(2);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it.each(['drag', 'blur'] as const)('cancels a queued measurement retry on %s', async (cancel) => {
+  vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
+  try {
+    state.conversation.status = 'retained';
+    state.conversation.messages = [
+      {
+        id: 'cached',
+        at: '2026-10-25T01:00:00Z',
+        author: 'human',
+        body: 'cached',
+        attachments: [],
+        delivery: 'committed',
+      },
+    ];
+    nativeList.scrollToIndex.mockImplementation(({ index }) =>
+      nativeList.events.onScrollToIndexFailed?.({
+        index,
+        highestMeasuredFrameIndex: -1,
+        averageItemLength: 80,
+      }),
+    );
+    const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+    await render(place, 'cached');
+    const row = nativeList.rows.find((row) => row.message?.id === 'cached')!;
+    await act(async () =>
+      nativeList.cellLayouts.get('focused-message')!({
+        nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 80 } },
+      }),
+    );
+    if (cancel === 'drag')
+      await act(async () =>
+        nativeList.events.onScrollBeginDrag?.({ nativeEvent: { contentOffset: { y: 0 } } }),
+      );
+    else {
+      state.focused = false;
+      await act(async () => root!.render(<ConversationScreen place={place} focus="cached" />));
+    }
+    await act(async () => vi.advanceTimersByTimeAsync(17));
+    expect(nativeList.scrollToIndex).toHaveBeenCalledOnce();
+    state.focused = true;
+    await act(async () =>
+      root!.render(<ConversationScreen place={place} focus="cached" focusRequest="again" />),
+    );
+    expect(nativeList.scrollToIndex).toHaveBeenCalledTimes(2);
+    await act(async () =>
+      nativeList.cellLayouts.get('focused-message')!({
+        nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 80 } },
+      }),
+    );
+    await act(async () => vi.advanceTimersByTimeAsync(17));
+    expect(nativeList.scrollToIndex).toHaveBeenCalledTimes(3);
+  } finally {
+    vi.useRealTimers();
+  }
 });

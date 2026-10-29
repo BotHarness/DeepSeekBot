@@ -36,6 +36,7 @@ const { push, cloudState, directoryState, hostState, call, refresh, menus, rowPr
     rowProps: new Map<string, Record<string, unknown>>(),
     hostState: {
       connecting: false,
+      offline: false,
       removed: false,
       color: undefined as HostColorId | undefined,
       fontScale: 1,
@@ -62,6 +63,21 @@ const { push, cloudState, directoryState, hostState, call, refresh, menus, rowPr
     },
   }),
 );
+import type { RetainedConversation } from '../src/host/retained-search';
+const retainedFixture = vi.hoisted(() => ({ records: [] as RetainedConversation[] }));
+vi.mock('../src/host/native-retained-search', async () => {
+  const { createRetainedSearch } = await import('../src/host/retained-search');
+  const retainedSearch = createRetainedSearch({
+    sources: () => [{ hostId: 'h1', deviceId: 'phone', name: 'Studio' }],
+    list: async () => retainedFixture.records,
+    read: async () => undefined,
+  });
+  return {
+    retainedSearch,
+    useRetainedSearch: () =>
+      useSyncExternalStore(retainedSearch.subscribe, retainedSearch.getSnapshot),
+  };
+});
 vi.mock('../src/ui/primitives/app-dialog', () => ({
   showActionMenu: (_title: string, actions: { text: string; onPress?: () => unknown }[]) =>
     menus.push(actions),
@@ -244,7 +260,11 @@ vi.mock('../src/host/host-session', () => ({
               ? useSyncExternalStore(hostState.live.subscribe, hostState.live.getSnapshot)
               : {
                   connection: {
-                    status: hostState.connecting ? 'connecting' : 'connected',
+                    status: hostState.offline
+                      ? 'unreachable'
+                      : hostState.connecting
+                        ? 'connecting'
+                        : 'connected',
                     route: '',
                   },
                   roster: hostState.connecting ? undefined : roster,
@@ -264,7 +284,14 @@ vi.mock('../src/host/host-session', () => ({
     hostState.live
       ? useSyncExternalStore(hostState.live.subscribe, hostState.live.getSnapshot)
       : {
-          connection: { status: hostState.connecting ? 'connecting' : 'connected', route: '' },
+          connection: {
+            status: hostState.offline
+              ? 'unreachable'
+              : hostState.connecting
+                ? 'connecting'
+                : 'connected',
+            route: '',
+          },
           roster: hostState.connecting ? undefined : roster,
         },
   useInbox: () =>
@@ -336,6 +363,7 @@ let root: Root | undefined;
 let host: HTMLElement | undefined;
 const rowCalls = () => call.mock.calls.filter(([method]) => method !== 'messageSearch');
 beforeEach(() => {
+  retainedFixture.records = [];
   channelHistory = channelNavigationHarness();
   whoami.mockReset();
   vi.stubGlobal(
@@ -353,6 +381,7 @@ afterEach(() => {
   hostState.live?.stop();
   hostState.live = undefined;
   hostState.connecting = false;
+  hostState.offline = false;
   hostState.removed = false;
   hostState.color = undefined;
   hostState.fontScale = 1;
@@ -1056,8 +1085,10 @@ describe('Search in the Chats header', () => {
   it('says plainly when nothing matches', async () => {
     const view = await home();
     await type(view, ' zed ');
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 180)));
     expect(rows(view)).toEqual([]);
-    expect(view.textContent).toContain(t.searchNoMatch('zed'));
+    expect(view.textContent).toContain(t.searchNoResults);
+    expect(view.querySelector('[data-testid="search-empty-state"]')).not.toBeNull();
   });
   it('wraps the list in the last-chat swipe, off while searching', async () => {
     const view = await home();
@@ -1568,4 +1599,56 @@ describe('Activity Channel navigation', () => {
     channelHistory.back();
     expect(channelHistory.state.routes.at(-1)!.name).toBe('(tabs)');
   });
+});
+
+it('searches retained channel names and message text through the same Chats header', async () => {
+  retainedFixture.records = [
+    {
+      target: { kind: 'channel', id: 'cached-only', name: 'Needle project' },
+      hasOlder: false,
+      entries: [
+        {
+          channelId: 'cached-only',
+          revision: 1,
+          message: {
+            id: 'cached-message',
+            body: 'Needle checkpoint',
+            at: '2026-10-29T00:00:00Z',
+            author: { kind: 'human' },
+          },
+        },
+      ],
+    },
+  ];
+  const view = await home();
+  await type(view, 'Needle');
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 180)));
+  const matches = view.querySelectorAll('[data-testid^="search-result-"]');
+  expect(matches).toHaveLength(2);
+  expect(view.textContent).toContain('Needle project');
+  expect(view.textContent).toContain('Needle checkpoint');
+  expect(view.textContent).toContain('Studio');
+  expect(view.querySelector('[data-testid="navigation-search"]')).toBeNull();
+});
+
+it('uses the retained source-qualified channel result when its Computer is offline', async () => {
+  const channel = roster.channels[0]!;
+  retainedFixture.records = [
+    {
+      target: { kind: 'channel', id: channel.id, name: channel.name },
+      hasOlder: false,
+      entries: [],
+    },
+  ];
+  hostState.offline = true;
+  conversationFilter.set(computerEnvironmentKey('h1'));
+  const view = await home();
+  await type(view, channel.name);
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 180)));
+  expect(view.querySelectorAll('[data-testid^="search-result-"]')).toHaveLength(1);
+  expect(view.querySelector(`[data-testid="conversation-row-channel:${channel.id}"]`)).toBeNull();
+  expect(call).not.toHaveBeenCalledWith(
+    'messageSearch',
+    expect.objectContaining({ text: channel.name }),
+  );
 });

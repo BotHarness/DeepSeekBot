@@ -19,6 +19,7 @@ class SearchBarStateTest {
   fun clearsTheQueryWhenTheSearchCollapses() {
     assertTrue(clearsOnCollapse(expanded = false, query = "ada"))
     assertFalse(clearsOnCollapse(expanded = true, query = "ada"))
+    assertFalse(clearsOnCollapse(expanded = false, query = "ada", returningToResults = true))
     assertFalse(clearsOnCollapse(expanded = false, query = ""))
   }
 

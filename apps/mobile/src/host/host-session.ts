@@ -16,7 +16,7 @@ import { currentHost, selectHost, withHost, withoutHost, type SavedHosts } from 
 import {
   clearHostConversationCache,
   pruneHostConversationCache,
-  nativeConversationCache,
+  retainedCache,
 } from './native-cache';
 import { watchDisbandedGroups } from './disbanded-groups';
 import { conversationFilter } from './native-conversation-filter';
@@ -33,6 +33,7 @@ import { createQuietChannels } from './quiet-channels';
 import { loadSavedHosts, saveHosts, type SavedHost } from './saved-host';
 import { mobileTelemetry } from '../telemetry/native';
 import { createConnectionTelemetry } from '../telemetry/connection';
+import type { ComputerCacheSource, RetainedTarget } from './retained-search';
 import type { ConnectionTrigger } from '../telemetry/schema';
 import { forgetRecentChats } from '../ui/shell/recent-chats';
 import { locale, t } from '../ui/strings';
@@ -64,7 +65,7 @@ function publishFeeds(): void {
   for (const listener of feedListeners) listener();
 }
 
-const clientHosts = new WeakMap<HostClient, string>();
+const clientHosts = new WeakMap<HostClient, ComputerCacheSource>();
 const listeners = new Set<() => void>();
 const removalListeners = new Set<(host: SavedHost) => Promise<void>>();
 export function onHostRemoval(listener: (host: SavedHost) => Promise<void>): () => void {
@@ -123,7 +124,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
     carrier: nativeCarrier(),
     telemetry: createConnectionTelemetry(mobileTelemetry, trigger),
   });
-  clientHosts.set(client, saved.hostId);
+  clientHosts.set(client, { hostId: saved.hostId, deviceId: saved.deviceId });
   const inbox = createInbox(client);
   const offInbox = inbox.subscribe(() => {
     reflectInbox(saved.hostId, inbox);
@@ -138,17 +139,22 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
     const snapshot = client.getSnapshot();
     if (snapshot.roster !== undefined) {
       const change = disbanded(snapshot.roster);
-      const live = conversations.get(client);
-      const ended = new Set(change.gone.map((id) => `channel:${id}`));
-      for (const key of live?.keys() ?? []) if (change.stale?.(key)) ended.add(key);
-      for (const key of ended) {
-        live?.get(key)?.stop();
-        live?.delete(key);
+      for (const store of conversationStores) {
+        const live = store.get(client);
+        const ended = new Set(change.gone.map((id) => `channel:${id}`));
+        for (const key of live?.keys() ?? []) if (change.stale?.(key)) ended.add(key);
+        for (const key of ended) {
+          live?.get(key)?.stop();
+          live?.delete(key);
+        }
       }
       if (saved !== null && change.stale !== undefined)
         pruneHostConversationCache(saved.hostId, change.stale);
     }
+    if (snapshot.connection.status === 'refused' && retainedCache.allowed(saved))
+      retainedCache.forget(saved);
     const now = snapshot.connection.status === 'connected';
+    if (now) retainedCache.authorize(saved);
     if (now && !connected) {
       void pushSession.retryFailed();
       void notificationPreferences.retry().catch(() => undefined);
@@ -174,8 +180,10 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
       offInbox();
       offConnection();
       inbox.stop();
-      for (const conversation of conversations.get(client)?.values() ?? []) conversation.stop();
-      conversations.delete(client);
+      for (const store of conversationStores) {
+        for (const conversation of store.get(client)?.values() ?? []) conversation.stop();
+        store.delete(client);
+      }
       client.stop();
     },
   };
@@ -191,9 +199,11 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
     const saved = next.hosts.find((host) => host.hostId === id);
     if (
       !saved ||
+      saved.deviceId !== session.host.saved.deviceId ||
       saved.credential !== session.host.saved.credential ||
       JSON.stringify(saved.encryption) !== JSON.stringify(session.host.saved.encryption)
     ) {
+      retainedCache.forget(session.host.saved);
       sessions.delete(id);
       session.dispose();
     }
@@ -476,24 +486,46 @@ export interface DmTarget {
 }
 
 const conversations = new WeakMap<HostClient, Map<string, Conversation>>();
+const retainedConversations = new WeakMap<HostClient, Map<string, Conversation>>();
+const conversationStores = [conversations, retainedConversations];
 
 function conversationFor(
   client: HostClient,
   key: string,
   options: Omit<Parameters<typeof createConversation>[0], 'host' | 'cache'>,
 ): Conversation {
-  let byKey = conversations.get(client);
+  const store = options.retainedOnly ? retainedConversations : conversations;
+  let byKey = store.get(client);
   if (byKey === undefined) {
     byKey = new Map();
-    conversations.set(client, byKey);
+    store.set(client, byKey);
   }
   const existing = byKey.get(key);
   if (existing !== undefined) return existing;
+  const source = clientHosts.get(client);
+  const descriptor = (): RetainedTarget => {
+    const roster = client.getSnapshot().roster;
+    return options.botSlug === undefined
+      ? {
+          kind: 'channel',
+          id: options.channelId!,
+          name:
+            roster?.channels.find((c) => c.id === options.channelId)?.name ?? options.channelId!,
+        }
+      : {
+          kind: 'dm',
+          id: options.botSlug,
+          name:
+            roster?.bots.find((b) => b.slug === options.botSlug)?.displayName ??
+            options.displayName ??
+            options.botSlug,
+        };
+  };
   const inner = createConversation({
     host: client,
     ...options,
-    cache: nativeConversationCache,
-    cacheKey: JSON.stringify(['computer', clientHosts.get(client), key]),
+    ...(source ? { cache: retainedCache.conversation(source, descriptor) } : {}),
+    cacheKey: key,
     telemetry: { send: () => mobileTelemetry.send(options.botSlug === undefined ? 'group' : 'dm') },
   });
   let watchers = 0;
@@ -548,6 +580,7 @@ function conversationFor(
 export function useConversation(
   client: HostClient | undefined,
   bot: DmTarget | undefined,
+  retainedOnly = false,
 ): Conversation | undefined {
   const slug = bot?.slug;
   return useMemo(
@@ -556,16 +589,18 @@ export function useConversation(
         ? undefined
         : conversationFor(client, bot.slug, {
             botSlug: bot.slug,
+            retainedOnly,
             ...(bot.displayName === undefined ? {} : { displayName: bot.displayName }),
             ...(bot.dmChannelId === undefined ? {} : { channelId: bot.dmChannelId }),
           }),
-    [client, slug],
+    [client, slug, retainedOnly],
   );
 }
 
 export function useChannelConversation(
   client: HostClient | undefined,
   channelId: string | undefined,
+  retainedOnly = false,
 ): Conversation | undefined {
   const source = channelId === undefined ? detachedSource : (client ?? detachedSource);
   const available = useSyncExternalStore(
@@ -585,9 +620,10 @@ export function useChannelConversation(
         ? undefined
         : conversationFor(client, `channel:${channelId}`, {
             channelId,
+            retainedOnly,
             cacheKey: `channel:${channelId}`,
           }),
-    [client, channelId, available],
+    [client, channelId, available, retainedOnly],
   );
 }
 

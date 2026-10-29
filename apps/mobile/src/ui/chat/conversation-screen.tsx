@@ -165,6 +165,8 @@ type ConversationPresentation = {
 };
 export function ConversationScreen({
   expectedHostId,
+  expectedDeviceId,
+  retainedOnly = false,
   place,
   focus,
   focusRequest,
@@ -174,6 +176,8 @@ export function ConversationScreen({
 }: {
   place: ChatPlace;
   expectedHostId?: string | undefined;
+  expectedDeviceId?: string | undefined;
+  retainedOnly?: boolean;
   focus: string | undefined;
   focusRequest?: string | undefined;
   latestWindowOnly?: boolean;
@@ -208,7 +212,10 @@ export function ConversationScreen({
   const bot =
     place.kind === 'dm' ? roster?.bots.find((entry) => entry.slug === place.slug) : undefined;
   const shownHostId = expectedHostId ?? openedOn;
-  if (shownHostId && saved?.hostId !== shownHostId)
+  if (
+    (shownHostId && saved?.hostId !== shownHostId) ||
+    (expectedDeviceId && saved?.deviceId !== expectedDeviceId)
+  )
     return (
       <>
         <Text>{t.sourceChanged}</Text>
@@ -222,11 +229,12 @@ export function ConversationScreen({
       <AccentProvider accent={bot === undefined ? undefined : botColor(bot)}>
         <MessageIdentities.Provider value={identities}>
           <ChatConversation
-            key={JSON.stringify([saved?.hostId, place])}
+            key={JSON.stringify([saved?.hostId, saved?.deviceId, place, retainedOnly])}
             place={place}
             focus={focus}
             focusRequest={focusRequest}
             latestWindowOnly={latestWindowOnly}
+            retainedOnly={retainedOnly}
             focused={focused}
             presentation={presentation}
           />
@@ -347,6 +355,7 @@ function ChatConversation({
   focus,
   focusRequest,
   latestWindowOnly,
+  retainedOnly,
   focused,
   presentation,
 }: {
@@ -355,6 +364,7 @@ function ChatConversation({
   focus: string | undefined;
   focusRequest: string | undefined;
   latestWindowOnly: boolean;
+  retainedOnly: boolean;
   presentation: ConversationPresentation | undefined;
 }) {
   const t = useStrings();
@@ -427,8 +437,8 @@ function ChatConversation({
           },
     [slug, bot !== undefined],
   );
-  const dmConversation = useConversation(client, target);
-  const channelConversation = useChannelConversation(client, channelId);
+  const dmConversation = useConversation(client, target, retainedOnly);
+  const channelConversation = useChannelConversation(client, channelId, retainedOnly);
   const conversation = dm ? dmConversation : channelConversation;
   const members = useMemo(
     () =>
@@ -520,6 +530,36 @@ function ChatConversation({
     { message: string; request: string | undefined; index: number } | undefined
   >(undefined);
   const retryFocus = useRef<() => void>(() => undefined);
+  const focusMeasurementFrame = useRef<number | undefined>(undefined);
+  const focusMeasurements = useRef(new Map<string, { index: number; height: number }>());
+  const cancelFocusMeasurement = useCallback(() => {
+    if (focusMeasurementFrame.current !== undefined)
+      cancelAnimationFrame(focusMeasurementFrame.current);
+    focusMeasurementFrame.current = undefined;
+  }, []);
+  useLayoutEffect(() => cancelFocusMeasurement, [cancelFocusMeasurement]);
+  const measuredFocusCell = useCallback(
+    (key: string, index: number, height: number) => {
+      if (
+        !focused ||
+        focus === undefined ||
+        focusCancelled.current ||
+        !focusNeedsLayout.current ||
+        height <= 0
+      )
+        return;
+      const previous = focusMeasurements.current.get(key);
+      if (previous !== undefined && previous.index === index && previous.height === height) return;
+      focusMeasurements.current.set(key, { index, height });
+      if (focusMeasurementFrame.current !== undefined) return;
+      focusMeasurementFrame.current = requestAnimationFrame(() => {
+        focusMeasurementFrame.current = undefined;
+        focusNeedsLayout.current = false;
+        retryFocus.current();
+      });
+    },
+    [focused, focus],
+  );
   const onFocusViewabilityChange = useCallback(() => {
     focusNeedsLayout.current = false;
     retryFocus.current();
@@ -547,17 +587,21 @@ function ChatConversation({
 
   const visible = useMemo(() => {
     const shown = snapshot.messages.filter(shownInChat);
-    return dm ? visibleDmActivity(shown, hiddenActivity) : shown;
-  }, [snapshot.messages, dm, hiddenActivity]);
+    if (!dm) return shown;
+    const allowed = new Set(visibleDmActivity(shown, hiddenActivity).map((message) => message.id));
+    return shown.filter((message) => message.id === focus || allowed.has(message.id));
+  }, [snapshot.messages, dm, hiddenActivity, focus]);
   const chronological = useMemo(
     () =>
       chatRows(
         visible,
-        (message) => message.card !== undefined && (!dm || !resolutions.has(message.id)),
+        (message) =>
+          message.id === focus ||
+          (message.card !== undefined && (!dm || !resolutions.has(message.id))),
       ).map((row) =>
         row.kind === 'message' ? { ...row, key: playback?.rowKey(row.message.id) ?? row.key } : row,
       ),
-    [visible, resolutions, dm, playback],
+    [visible, resolutions, dm, playback, focus],
   );
   const [speakers] = useState(createSpeakerRegistry);
   const groups = useMemo(() => messageGroups(chronological), [chronological]);
@@ -590,7 +634,7 @@ function ChatConversation({
     list,
     visible,
     playback?.setFollowing,
-    headerOverlap,
+    snapshot.status === 'retained' ? 0 : headerOverlap,
     snapshot.status === 'live' && visible.length === 0,
     shownDrafts.length > 0,
   );
@@ -608,7 +652,11 @@ function ChatConversation({
   const composerInput = useRef<ComposerInput>(null);
   const [typing, setTyping] = useState(false);
   const clipboard = useClipboardImage(typing && files.length < MAX_PICKED);
-  const composable = !botDm && conversation !== undefined && host.connection.status === 'connected';
+  const composable =
+    !botDm &&
+    conversation !== undefined &&
+    snapshot.status !== 'retained' &&
+    host.connection.status === 'connected';
   const { jumpToLatest } = latest;
   const compose = useCallback(() => {
     jumpToLatest();
@@ -649,7 +697,7 @@ function ChatConversation({
     inbox,
     focused ? conversation : undefined,
     activeChannel,
-    focused && !latest.away,
+    focused && !latest.away && snapshot.status === 'live',
   );
   const recentMount = useRecentChat(
     !focused || botDm
@@ -757,9 +805,15 @@ function ChatConversation({
 
   useLayoutEffect(() => {
     retryFocus.current = jump;
-    if (!focused) return;
+    if (!focused) {
+      cancelFocusMeasurement();
+      focusNeedsLayout.current = false;
+      return;
+    }
     const previous = focusIntent.current;
     if (previous.message !== focus || previous.request !== focusRequest) {
+      cancelFocusMeasurement();
+      focusMeasurements.current.clear();
       focusIntent.current = { request: focusRequest, message: focus };
       jumped.current = undefined;
       focusPage.current = undefined;
@@ -769,7 +823,7 @@ function ChatConversation({
       focusAttempt.current = undefined;
     }
     jump();
-  }, [focused, focus, focusRequest, jump]);
+  }, [focused, focus, focusRequest, jump, cancelFocusMeasurement]);
 
   const membersKey = channel === undefined ? undefined : `${channel.id}:${channel.members.join()}`;
   const mentionQuery = dm ? undefined : activeMentionQuery(draft, caret, mentions);
@@ -952,7 +1006,7 @@ function ChatConversation({
   );
 
   const renderItem = useCallback(
-    ({ item }: { item: Row }) => {
+    ({ item, index }: { item: Row; index: number }) => {
       if (item.kind === 'draft')
         return conversation === undefined ? null : (
           <PlaybackBubble
@@ -979,7 +1033,17 @@ function ChatConversation({
           onToggle={() => togglePicked(item.message)}
           onOpen={item.message.card === undefined ? undefined : openActions}
         >
-          {children}
+          <View
+            testID={item.message.id === focus ? 'focused-message' : `chat-cell-${item.key}`}
+            onLayout={(event) =>
+              measuredFocusCell(`cell:${item.key}`, index, event.nativeEvent.layout.height)
+            }
+            style={{
+              backgroundColor: item.message.id === focus ? theme.color.accentTint : 'transparent',
+            }}
+          >
+            {children}
+          </View>
         </MessageSelectionRow>
       );
 
@@ -1044,7 +1108,7 @@ function ChatConversation({
           />,
         );
       const author = item.message.bot ?? slug;
-      if (client && activeChannel && item.message.sessionFailure)
+      if (snapshot.status !== 'retained' && client && activeChannel && item.message.sessionFailure)
         return (
           <SessionFailureCard
             client={client}
@@ -1068,6 +1132,7 @@ function ChatConversation({
           />
         );
       if (
+        snapshot.status !== 'retained' &&
         client !== undefined &&
         author !== undefined &&
         (item.message.card?.kind === 'tool-approval' ||
@@ -1104,7 +1169,7 @@ function ChatConversation({
           onShare={share}
           onLongPress={openActions}
           lifted={Platform.OS === 'web' && item.message.id === actionsFor?.message.id}
-          {...(botDm ? {} : { onReact: react })}
+          {...(botDm || snapshot.status === 'retained' ? {} : { onReact: react })}
           {...(composable && selected === undefined ? { onReply: startReply } : {})}
           {...(receipts ? { onOpenDelivery: openDelivery } : {})}
           readers={reading.get(item.message.id)}
@@ -1121,6 +1186,9 @@ function ChatConversation({
       dm,
       playback,
       focused,
+      measuredFocusCell,
+      focus,
+      snapshot.status,
       conversation,
       client,
       slug,
@@ -1306,6 +1374,17 @@ function ChatConversation({
       {title}
     </View>
   );
+  const retainedMissing =
+    snapshot.status === 'retained' &&
+    (!focus
+      ? snapshot.messages.length === 0
+      : !snapshot.messages.some((message) => message.id === focus));
+  const focusMissing =
+    retainedOnly &&
+    focus &&
+    snapshot.status === 'live' &&
+    !snapshot.hasOlder &&
+    !snapshot.messages.some((message) => message.id === focus);
   const notice = missingGroup
     ? undefined
     : hostRefused
@@ -1314,37 +1393,43 @@ function ChatConversation({
         ? dm
           ? t.dmRefused
           : t.channelRefused
-        : missing
-          ? dm
-            ? t.noBot
-            : t.noChannel
-          : host.connection.status === 'unreachable' ||
-              (snapshot.fromCache && host.connection.status === 'stopped')
-            ? t.offline
-            : snapshot.status === 'interrupted' && connectionLabel === undefined
-              ? t.liveInterrupted
-              : attachError
-                ? t.attachFailed
-                : shareError
-                  ? t.shareFailed
-                  : reactError
-                    ? t.reactFailed
-                    : dictation.state.status === 'denied'
-                      ? t.dictationDenied
-                      : dictation.state.status === 'unavailable'
-                        ? t.dictationUnavailable
-                        : dictation.state.status === 'failed'
-                          ? t.dictationFailed
-                          : focus !== undefined &&
-                              !latestWindowOnly &&
-                              snapshot.status === 'live' &&
-                              !snapshot.hasOlder &&
-                              !snapshot.loadingOlder &&
-                              !rows.some(
-                                (row) => row.kind === 'message' && row.message.id === focus,
-                              )
-                            ? t.messageFocusUnavailable
-                            : undefined;
+        : snapshot.status === 'retained'
+          ? retainedMissing
+            ? t.localSearch.missing
+            : t.localSearch.retained
+          : focusMissing
+            ? t.localSearch.notFound
+            : missing
+              ? dm
+                ? t.noBot
+                : t.noChannel
+              : host.connection.status === 'unreachable' ||
+                  (snapshot.fromCache && host.connection.status === 'stopped')
+                ? t.offline
+                : snapshot.status === 'interrupted' && connectionLabel === undefined
+                  ? t.liveInterrupted
+                  : attachError
+                    ? t.attachFailed
+                    : shareError
+                      ? t.shareFailed
+                      : reactError
+                        ? t.reactFailed
+                        : dictation.state.status === 'denied'
+                          ? t.dictationDenied
+                          : dictation.state.status === 'unavailable'
+                            ? t.dictationUnavailable
+                            : dictation.state.status === 'failed'
+                              ? t.dictationFailed
+                              : focus !== undefined &&
+                                  !latestWindowOnly &&
+                                  snapshot.status === 'live' &&
+                                  !snapshot.hasOlder &&
+                                  !snapshot.loadingOlder &&
+                                  !rows.some(
+                                    (row) => row.kind === 'message' && row.message.id === focus,
+                                  )
+                                ? t.messageFocusUnavailable
+                                : undefined;
 
   const listTop = notice === undefined ? headerPadding : 0;
   const topFade = notice !== undefined ? 0 : floatingHeader ? headerPadding : headerOverlap;
@@ -1498,6 +1583,7 @@ function ChatConversation({
                 disabled={
                   conversation === undefined ||
                   host.connection.status !== 'connected' ||
+                  snapshot.status === 'retained' ||
                   !draftPersistence.loaded ||
                   draftPersistence.failed
                 }
@@ -1584,6 +1670,13 @@ function ChatConversation({
                     {t.pairAgain}
                   </Text>
                 </Pressable>
+              ) : snapshot.status === 'retained' && host.connection.status === 'connected' ? (
+                <Button
+                  label={t.localSearch.recover}
+                  onPress={() => conversation?.connect?.()}
+                  testID="retained-recover"
+                  fit
+                />
               ) : host.connection.status === 'unreachable' ? (
                 <Pressable
                   testID="chat-connection-retry"
@@ -1684,6 +1777,10 @@ function ChatConversation({
                         : {})}
                       onStartReachedThreshold={0.5}
                       {...latest.listProps}
+                      onLayout={(event) => {
+                        latest.listProps.onLayout(event);
+                        measuredFocusCell('viewport', -1, event.nativeEvent.layout.height);
+                      }}
                       onScrollBeginDrag={(event: ScrollEvent) => {
                         focusCancelled.current = true;
                         focusAttempt.current = undefined;
@@ -1894,7 +1991,7 @@ function ChatConversation({
       />
       <MessageActions
         target={actionsFor}
-        readOnly={botDm}
+        readOnly={botDm || snapshot.status === 'retained'}
         onClose={() => setActionsFor(undefined)}
         onReact={(message, emoji, active) => react(message.id, emoji, active)}
         onCopy={copyMessage}

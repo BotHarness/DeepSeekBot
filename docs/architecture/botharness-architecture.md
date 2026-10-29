@@ -1260,6 +1260,10 @@ External HTTPS images require a per-image click and load directly in the browser
 
 T4 保留 ADR-0220 的 Sessions 范围：DM 中为 Bot 所有的 Sessions，Group 默认按原始 Source Event 查看 Assignments，并保留已有显式成员 Bot 筛选。群聊不显示 Bot-bound 面板不等于移除该筛选，也不改变 Session ownership。T5 的 Members 在 DM 消息内隐藏，但全局固定 Group 实例不受当前聊天切换影响。Panel Consumer 释放与卸载领域 Provider／整个 Bundle 分开；后者遵循原生生命周期，能力缺失须明确显示不可用。
 
+### Mobile retained Computer search (#2196)
+
+The mobile Search destination queries the existing bounded local conversation cache, grouped by conversation and message, within the Chats-selected environment. Cache records carry the Host ID, paired device ID and conversation target; unpaired, refused or replaced identities cannot revive late results. Legacy Host-only files are not adopted into a new identity. Opening a result uses the existing conversation screen in retained-only mode and highlights its exact message. Eviction is explicit; only a requested online recovery follows Host history. Query/scope/scroll are in-memory UI state. Cloud search remains a later slice. See [ADR-0229](../adr/0229-mobile-cloud-sessions-are-independent-of-host-pairing.md).
+
 Nested appearance surfaces use the same Client-local owner and functional `dock:` identities as top-level panels. Memory detail views share one identity, while file lists and evolution remain separate. Direct surface paint preserves global inheritance independently of parent customization; real registered Plugin contributions receive the generic wrapper without new domain or layout authority (ADR-0236, #2261).
 
 DeepSeekBot's image wallpaper has a separate Client-local media owner and one atomic IndexedDB Blob/crop record. One disposable layer spans the enabled workspace behind the sidebar and panels; original bytes stay on the current browser/site or Desktop application. The CLI transfers bounded chunks to one explicitly selected online Client and commits through that same owner, while the Host remains a transient transport (ADR-0236, #2262).

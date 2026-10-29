@@ -20,6 +20,19 @@ const fileCount = (count: number) => (count === 1 ? '1 file' : `${count} files`)
 const messageCount = (count: number) => (count === 1 ? '1 message' : `${count} messages`);
 
 const en = {
+  localSearch: {
+    title: 'Search',
+    placeholder: 'Search conversations and messages',
+    conversations: 'Conversations',
+    messages: 'Messages',
+    unavailable: (names: string) => `Some local caches could not be read: ${names}`,
+    empty: 'No retained matches.',
+    start: 'Enter a name or message text.',
+    retained: 'Showing messages retained on this device.',
+    missing: 'This message is no longer on this device.',
+    notFound: 'This message was not found in the available history.',
+    recover: 'Load from Computer',
+  },
   avatarEditor: {
     title: 'Customize',
     preview: 'Avatar preview',
@@ -1428,8 +1441,8 @@ const en = {
   closeSearch: 'Close search',
   searchPlaceholder: 'Search Bots, Channels and messages',
   searchIn: (place: string) => `Search ${place}`,
-  searchNoResults: 'No Bot or Channel matches.',
-  searchNoMatch: (query: string) => `No Bot or Channel matches “${query}”.`,
+  searchNoResults: 'No results',
+  searchNoMatch: (query: string) => `No chats or messages match “${query}”.`,
   searchMessages: 'Messages',
   searchMessagesLoading: 'Searching messages',
   searchMessageAuthorYou: 'You',
@@ -2125,6 +2138,19 @@ const en = {
 };
 
 const zh: typeof en = {
+  localSearch: {
+    title: '搜索',
+    placeholder: '搜索会话和消息',
+    conversations: '会话',
+    messages: '消息',
+    unavailable: (names: string) => `部分本机缓存无法读取：${names}`,
+    empty: '没有本机匹配结果。',
+    start: '输入会话名称或消息文字。',
+    retained: '正在查看本设备保留的消息。',
+    missing: '该消息已不在本设备上。',
+    notFound: '未在可读取的历史中找到该消息。',
+    recover: '从电脑加载',
+  },
   avatarEditor: {
     title: '捏人',
     preview: '头像预览',
@@ -3429,8 +3455,8 @@ const zh: typeof en = {
   closeSearch: '关闭搜索',
   searchPlaceholder: '搜索 Bot、频道和消息',
   searchIn: (place: string) => `在${place}中搜索`,
-  searchNoResults: '没有匹配的 Bot 或频道。',
-  searchNoMatch: (query: string) => `没有名称包含“${query}”的 Bot 或频道。`,
+  searchNoResults: '没有搜索结果',
+  searchNoMatch: (query: string) => `没有与“${query}”匹配的聊天或消息。`,
   searchMessages: '消息',
   searchMessagesLoading: '正在搜索消息',
   searchMessageAuthorYou: '你',
