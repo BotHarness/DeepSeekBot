@@ -7,11 +7,17 @@ import {
   onOperationalDatabaseClose,
   type OperationalDatabaseOwner,
 } from '../database/owner.js';
-import { isChannelMessage, isChannelRecord, type ChannelMessage } from '../channels/channel.js';
+import {
+  isChannelMessage,
+  isChannelRecord,
+  isDisbandedGroup,
+  type ChannelMessage,
+} from '../channels/channel.js';
 import {
   ContentPurgeError,
   purgeCheckpointSchema,
   type ContentPurge,
+  type GroupDisbandResult,
   type PurgeFact,
   type PurgePreview,
   type PurgeSource,
@@ -104,6 +110,15 @@ export function mountContentPurge(options: {
       throw unsupported();
     return record;
   };
+  const disbandedGroups = (db: DatabaseSync): Set<string> =>
+    new Set(
+      db
+        .prepare(
+          "SELECT channel_id FROM channel_records WHERE json_extract(record_json, '$.type') = 'group' AND json_extract(record_json, '$.deletedAt') IS NOT NULL AND json_extract(record_json, '$.name') = ''",
+        )
+        .all()
+        .map((row) => String(row.channel_id)),
+    );
   const inspect = (
     db: DatabaseSync,
     row: SourceRow,
@@ -412,6 +427,7 @@ export function mountContentPurge(options: {
       const before = new Date(Math.min(Date.parse(input.before), now().getTime())).toISOString();
       const channelIds = [...new Set(input.channelIds ?? [])].sort();
       const chosen = input.channelIds === undefined ? undefined : new Set(channelIds);
+      const ended = disbandedGroups(db);
       const kept = new Map<TextCleanupKeptReason, number>();
       const rows: SourceRow[] = [];
       const names = new Map<string, string>();
@@ -424,7 +440,8 @@ export function mountContentPurge(options: {
         const row = candidate as unknown as SourceRow;
         const placed = db
           .prepare('SELECT channel_id, revision FROM channel_placements WHERE source_event_id = ?')
-          .all(row.source_event_id);
+          .all(row.source_event_id)
+          .filter((p) => !ended.has(String(p.channel_id)));
         if (chosen && !placed.some((p) => chosen.has(String(p.channel_id)))) continue;
         if (inspect(db, row).refusal) continue;
         const reason: TextCleanupKeptReason | undefined =
@@ -458,7 +475,8 @@ export function mountContentPurge(options: {
       const described = describe(db, rows);
       const chats = new Map<string, number>();
       for (const placement of described.placements)
-        chats.set(placement.channelId, (chats.get(placement.channelId) ?? 0) + 1);
+        if (!ended.has(placement.channelId))
+          chats.set(placement.channelId, (chats.get(placement.channelId) ?? 0) + 1);
       return {
         rows,
         before,
@@ -555,7 +573,9 @@ export function mountContentPurge(options: {
             .flatMap((row) => {
               try {
                 const c = readChannel(db, String(row.channel_id), true);
-                return [{ id: c.id, name: c.name, deletedAt: c.deletedAt! }];
+                return isDisbandedGroup(c)
+                  ? []
+                  : [{ id: c.id, name: c.name, deletedAt: c.deletedAt! }];
               } catch {
                 return [];
               }
@@ -693,6 +713,37 @@ export function mountContentPurge(options: {
           messages: result.rows.length,
           freedBytes: Math.max(0, startUsed - size().used),
           ...(cleanupPending ? { cleanupPending } : {}),
+        };
+      }),
+    disband: (channelId): GroupDisbandResult =>
+      exclusive(() => {
+        const { rows, retained } = port.read((db) => {
+          readChannel(db, channelId, true);
+          const candidates = db
+            .prepare(
+              'SELECT e.* FROM source_events e JOIN channel_placements p USING(source_event_id) WHERE p.channel_id = ? AND NOT EXISTS (SELECT 1 FROM channel_placements o WHERE o.source_event_id = e.source_event_id AND o.channel_id != ?) AND NOT EXISTS (SELECT 1 FROM messaging_purge_facts f WHERE f.source_event_id = e.source_event_id) ORDER BY p.rowid',
+            )
+            .all(channelId, channelId) as unknown as SourceRow[];
+          const accepted = candidates.filter((row) => !inspect(db, row).refusal);
+          return { rows: accepted, retained: candidates.length - accepted.length };
+        });
+        let cleanupPending = 0;
+        for (let start = 0; start < rows.length; start += TEXT_CLEANUP_LIMIT)
+          cleanupPending += accept(rows.slice(start, start + TEXT_CLEANUP_LIMIT));
+        if (retained === 0)
+          port.transaction(
+            (db) =>
+              db
+                .prepare(
+                  "UPDATE channel_records SET record_json = json_set(record_json, '$.name', '') WHERE channel_id = ?",
+                )
+                .run(channelId),
+            ['channel'],
+          );
+        return {
+          messages: rows.length,
+          ...(cleanupPending ? { cleanupPending } : {}),
+          ...(retained ? { retained } : {}),
         };
       }),
     checkpoint: () =>

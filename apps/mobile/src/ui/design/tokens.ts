@@ -11,6 +11,8 @@ export const space = {
   x6: 24,
 } as const;
 
+export const groupUnavailable = { icon: 48 } as const;
+
 export const materialSearch = { height: 56, lineHeight: 24 } as const;
 
 export const splitButton = { initial: { width: 160, height: 40 } } as const;
@@ -310,6 +312,18 @@ export const topEntrance = {
   flick: 500,
 } as const;
 
+export const tobPull = {
+  commit: 80,
+  start: 12,
+  topTolerance: 1,
+  horizontalFail: 12,
+  resistance: 0.5,
+  maxTravel: 120,
+  indicator: 32,
+  glyph: 18,
+  stroke: 2,
+} as const;
+
 export const markdownTable = {
   minColumnWidth: 96,
   maxColumnWidth: 280,
@@ -360,6 +374,22 @@ export const marketplaceArt = {
   cardOverlap: 20,
   profileOverlap: 32,
   menuWidth: 360,
+} as const;
+
+export const marketplaceHome = {
+  compactRows: 3,
+  heroCover: 168,
+  posterWidth: 168,
+  posterAspect: 2 / 3,
+  posterAvatar: 40,
+  compactAvatar: 48,
+  coverAvatar: 28,
+  heroAvatar: 32,
+  articleAvatar: 36,
+  articleCover: 200,
+  gridColumns: 2,
+  gridCoverAspect: 1,
+  dateMark: 48,
 } as const;
 
 export const profileShell = {

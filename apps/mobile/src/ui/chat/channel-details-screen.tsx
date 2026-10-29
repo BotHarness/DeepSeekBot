@@ -34,6 +34,7 @@ export function ChannelDetailsScreen({
   const host = useHostSnapshot(client, focused);
   const t = useStrings();
   const router = useRouter();
+  const close = onClose ?? (() => router.back());
   const offline = host.connection.status === 'unreachable' || host.connection.status === 'stopped';
   const channel = host.roster?.activityChannels?.find(
     (entry) =>
@@ -63,7 +64,7 @@ export function ChannelDetailsScreen({
       tab="files"
       onTab={() => {}}
       body={() => body}
-      onClose={onClose ?? (() => router.back())}
+      onClose={close}
     />
   );
   const note = (node: ReactNode) => shell({ rows: [{ key: 'note', render: () => node }] });
@@ -78,9 +79,7 @@ export function ChannelDetailsScreen({
             variant="text"
             label={host.connection.status === 'unreachable' ? t.retry : t.back}
             onPress={() =>
-              host.connection.status === 'unreachable'
-                ? client?.retryNow()
-                : (onClose ?? (() => router.back()))()
+              host.connection.status === 'unreachable' ? client?.retryNow() : close()
             }
           />
         ) : null}

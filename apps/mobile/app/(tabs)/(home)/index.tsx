@@ -1,3 +1,4 @@
+import { chatHref } from '../../../src/ui/shell/recent-chats';
 import { HostRow } from '../../../src/ui/chat/host-conversation-row';
 import { renderKeyboardFormScroll } from '../../../src/ui/primitives/keyboard-form';
 import {
@@ -71,7 +72,7 @@ import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
 import { useChromeScroll } from '../../../src/ui/shell/scroll-chrome';
 import { useStrings } from '../../../src/ui/strings';
 import { ListSkeleton } from '../../../src/ui/primitives/list-skeleton';
-import { PullToRefresh } from '../../../src/ui/primitives/pull-to-refresh';
+import { PullToTob } from '../../../src/ui/shell/pull-to-tob';
 
 import {
   environmentChatList,
@@ -220,6 +221,8 @@ const HomeContent = memo(function HomeContent({
     recentHostIds(recent),
     saved?.hostId,
   );
+  const tobHref = tobModeHref(tobHostId, tobComputers);
+  const pullFocused = useIsFocused();
   const tobAction =
     tobHostId === undefined ? null : (
       <HeaderAction
@@ -227,10 +230,9 @@ const HomeContent = memo(function HomeContent({
         label={t.openTobMode}
         testID="tob-mode-button"
         onPress={() => {
-          const href = tobModeHref(tobHostId, tobComputers);
-          if (href === undefined) return;
+          if (tobHref === undefined) return;
           recordFeature('tob:mode_open', {});
-          router.push(href);
+          router.push(tobHref);
         }}
       />
     );
@@ -591,14 +593,41 @@ const HomeContent = memo(function HomeContent({
           {(headerTravel) => (
             <LastChatSwipe
               enabled={!searching && !searchFocused && query === ''}
+              candidates={displayed.flatMap((row) =>
+                row.type !== 'computer'
+                  ? []
+                  : [
+                      {
+                        id: row.key,
+                        title:
+                          row.conversation.kind === 'bot'
+                            ? row.conversation.bot.displayName
+                            : row.conversation.channel.name,
+                        href: chatHref(
+                          row.conversation.kind === 'bot'
+                            ? `/dm/${encodeURIComponent(row.conversation.bot.slug)}`
+                            : `/channel/${encodeURIComponent(row.conversation.channel.id)}`,
+                          row.host.saved.hostId,
+                        ),
+                      },
+                    ],
+              )}
               travel={lastChatTravel}
             >
-              <PullToRefresh refreshing={refreshing} onRefresh={() => void refresh()}>
+              <PullToTob
+                enabled={pullFocused && !searching && !searchFocused && query === ''}
+                scope={`${effectiveFilter}:${tobHostId ?? ''}:${tobHref?.params.slug ?? ''}`}
+                hostId={tobHostId}
+                href={tobHref}
+                refreshing={refreshing}
+                onRefresh={() => void refresh()}
+                onOpen={(href) => router.push(href)}
+                onScroll={onScroll}
+              >
                 {(pull) => (
                   <Animated.FlatList<HomeItem>
                     {...pull}
                     renderScrollComponent={renderKeyboardFormScroll}
-                    onScroll={onScroll}
                     scrollEventThrottle={1}
                     contentContainerStyle={{ paddingBottom: bottom + headerTravel + space.x6 }}
                     keyboardShouldPersistTaps="handled"
@@ -743,7 +772,7 @@ const HomeContent = memo(function HomeContent({
                     }
                   />
                 )}
-              </PullToRefresh>
+              </PullToTob>
             </LastChatSwipe>
           )}
         </HomeHeader>

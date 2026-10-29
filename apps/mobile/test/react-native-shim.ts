@@ -50,7 +50,9 @@ export const Pressable = (props: Props) =>
       disabled: props['disabled'] === true,
       onClick: () => (props['onPress'] as (() => void) | undefined)?.(),
     },
-    props.children,
+    typeof props.children === 'function'
+      ? (props.children as (state: { pressed: boolean }) => ReactNode)({ pressed: false })
+      : props.children,
   );
 
 export const TextInput = (props: Props) =>
@@ -136,10 +138,11 @@ export const FlatList = (props: {
   ListFooterComponent?: ReactNode;
   ListEmptyComponent?: ReactNode;
   ref?: unknown;
+  testID?: string;
 }) =>
   createElement(
     'div',
-    { ref: props.ref },
+    { ...a11y(props), ref: props.ref },
     props.ListHeaderComponent ?? null,
     ...(props.data.length === 0
       ? [props.ListEmptyComponent ?? null]
@@ -163,5 +166,6 @@ export const StyleSheet = {
 export const AccessibilityInfo = {
   announceForAccessibility: (_message: string) => {},
   isScreenReaderEnabled: async () => false,
+  isReduceMotionEnabled: async () => false,
   addEventListener: (_event: string, _listener: (enabled: boolean) => void) => ({ remove() {} }),
 };

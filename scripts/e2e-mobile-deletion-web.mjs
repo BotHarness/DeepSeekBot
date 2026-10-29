@@ -210,8 +210,8 @@ try {
   assert.equal(deleted.preview.deletion.memory, 'retained');
   assert.equal(existsSync(memory.preview.memoryDir), true);
   await hold(`[data-testid="conversation-row-channel:${group.id}"]`);
-  await click('Dissolve group');
-  await waitText('Chat history stays on the computer.');
+  await click('Disband group');
+  await waitText('Messages and files in this group are deleted. This cannot be undone.');
   await shot('group-review');
   await page.locator('[data-testid="deletion-cancel"]').click();
   await hold('[data-testid^="chat-section-"]');
@@ -226,14 +226,17 @@ try {
   );
   assert.ok(await page.$(`[data-testid="conversation-row-channel:${group.id}"]`));
   await hold(`[data-testid="conversation-row-channel:${group.id}"]`);
-  await click('Dissolve group');
+  await click('Disband group');
   await page.locator('[data-testid="deletion-confirm"]').click();
   await page.waitForFunction(
     (id) => !document.querySelector(`[data-testid="conversation-row-channel:${id}"]`),
     {},
     group.id,
   );
-  assert.ok((await call('channelHistory', {})).channels.some((row) => row.id === group.id));
+  assert.equal(
+    (await call('channelHistory', {})).channels.some((row) => row.id === group.id),
+    false,
+  );
   await shot('result');
   const tob = (await call('list', {})).bots.find((bot) => bot.tob);
   assert.ok(tob);
@@ -271,7 +274,7 @@ try {
         explicitMemoryErased: true,
         tobProtected: true,
         sectionMembersRetained: true,
-        groupHistoryRetained: true,
+        disbandedGroupAbsentFromHistory: true,
         pageErrors: errors,
       },
       null,
@@ -279,7 +282,7 @@ try {
     ),
   );
   console.log(
-    'PASS: mobile deletion, section retention, group history, Memory reset, and matched Expo Web captures',
+    'PASS: mobile deletion, section retention, Group Disband, Memory reset, and matched Expo Web captures',
   );
 } catch (error) {
   await page.screenshot({ path: join(paths.evidence, 'failure.png') });

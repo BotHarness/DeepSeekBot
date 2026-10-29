@@ -1,3 +1,4 @@
+import { closeWorkspacePage } from './workspace-paging';
 import { router, useIsFocused, usePathname, useGlobalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
@@ -55,6 +56,7 @@ import { HumanAvatarButton } from './human-avatar';
 import { SidebarMaterial, useLiquidGlass } from '../primitives/drawer-material';
 import { SettingsForm } from '../primitives/settings-form';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
+import { DrawerListItem } from '../primitives/drawer-list-item';
 import { CountBadge } from '../primitives/count-badge';
 import { SystemSymbol } from '../primitives/system-symbol';
 import { Text } from '../primitives/text';
@@ -450,6 +452,51 @@ function HostRow({
       : row.glance.status === 'checking'
         ? theme.color.warning
         : theme.color.subtle;
+  if (Platform.OS === 'android') {
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: space.x4 }}>
+        <View style={{ flex: 1 }}>
+          <DrawerListItem
+            testID={'drawer-host-' + row.hostId}
+            label={name}
+            detail={[status, address].filter(Boolean).join(' · ')}
+            accessibilityLabel={[
+              name,
+              selected ? t.showing : undefined,
+              status,
+              address,
+              pending > 0 ? t.hostPending(pending) : undefined,
+              unread > 0 ? t.hostUnread(unread) : undefined,
+            ]
+              .filter(Boolean)
+              .join(', ')}
+            selected={selected}
+            leading={<DrawerTile look={look} name={name} current={selected} />}
+            trailing={
+              badge && (
+                <CountBadge
+                  count={badge.count}
+                  tone={badge.tone}
+                  label={
+                    badge.tone === 'needs-you'
+                      ? t.hostPending(badge.count)
+                      : t.hostUnread(badge.count)
+                  }
+                />
+              )
+            }
+            onPress={() => closeThen(() => void hostDrawer.select(row.hostId))}
+            onLongPress={() => openHostMenu(row, name)}
+          />
+        </View>
+        <ActionMenuButton
+          label={t.hostMore(name)}
+          actions={hostMenuActions(row, name)}
+          onOpen={() => openHostMenu(row, name)}
+        />
+      </View>
+    );
+  }
   return (
     <View
       style={[
@@ -631,6 +678,8 @@ function HostFormRow({
 function FooterRow({ label, icon, onPress }: { label: string; icon: ReactNode; onPress(): void }) {
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
+  if (Platform.OS === 'android')
+    return <DrawerListItem label={label} leading={icon} onPress={onPress} />;
   return (
     <Pressable
       onPress={onPress}
@@ -672,6 +721,15 @@ function CloudServiceRow({
   const t = useStrings();
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
+  if (Platform.OS === 'android')
+    return (
+      <DrawerListItem
+        label={name}
+        detail={[t.cloudJoin.signIn, connectionAddress(server)].join(' · ')}
+        leading={<CloudIcon color={theme.color.muted} size={theme.type.title.line + space.x3} />}
+        onPress={onPress}
+      />
+    );
   return (
     <Pressable
       accessibilityRole="button"
@@ -704,6 +762,17 @@ function AccountHostRow({ host, onPress }: { host: ConnectHost; onPress(): void 
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const status = host.online ? t.pairAccount.pair : t.pairAccount.offline;
+  if (Platform.OS === 'android')
+    return (
+      <DrawerListItem
+        label={host.name}
+        detail={status}
+        testID={'workspace-account-' + host.id}
+        accessibilityLabel={[t.pairAccount.pairWith(host.name), status].join(', ')}
+        leading={<ComputerIcon color={theme.color.muted} size={theme.type.title.line + space.x3} />}
+        onPress={onPress}
+      />
+    );
   return (
     <Pressable
       accessibilityRole="button"
@@ -781,6 +850,21 @@ function WorkspaceRow({
   const t = useStrings();
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
+  if (Platform.OS === 'android')
+    return (
+      <DrawerListItem
+        label={workspace.name}
+        selected={selected}
+        disabled={disabled}
+        testID={'workspace-cloud-' + workspace.instanceId + '-' + workspace.organizationId}
+        detail={[
+          workspace.role === 'guest' ? t.workspaceGuest : t.cloudOrganizations[workspace.role],
+          new URL(server).host,
+        ].join(' · ')}
+        leading={<CloudIcon color={theme.color.muted} size={theme.type.title.line + space.x3} />}
+        onPress={onPress}
+      />
+    );
   return (
     <Pressable
       onPress={onPress}
@@ -1129,7 +1213,10 @@ export function WorkspacePanel({
       <HumanAvatarButton
         testID="workspace-account"
         loadName={loadAccountName}
-        onPress={() => router.push('/settings')}
+        onPress={() => {
+          if (page) closeWorkspacePage();
+          router.push('/settings');
+        }}
       />
       <HeaderCircleButton
         testID="workspace-notifications"
@@ -1173,6 +1260,18 @@ export function WorkspacePanel({
           ) : undefined
         }
         renderItem={({ item }) => {
+          if (item.kind === 'all' && Platform.OS === 'android')
+            return (
+              <View ref={cloudAvailable ? undefined : tabFocus}>
+                <DrawerListItem
+                  testID="drawer-all"
+                  label={page ? t.allEnvironmentsRow : t.allEnvironments}
+                  selected={!cloudRoute && filter === 'all'}
+                  leading={<ChatsIcon color={theme.color.accent} size={theme.type.body.line} />}
+                  onPress={() => closeThen(() => hostDrawer.selectAll())}
+                />
+              </View>
+            );
           if (item.kind === 'all')
             return (
               <Pressable

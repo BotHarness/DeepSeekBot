@@ -28,6 +28,7 @@ vi.mock('../src/host/native-source-drafts', async () => {
 });
 vi.mock('../src/host/native-cache', () => ({
   clearHostConversationCache: () => undefined,
+  pruneHostConversationCache: () => undefined,
   nativeConversationCache: { read: async () => undefined, write() {} },
 }));
 vi.mock('../src/host/native-conversation-filter', async () => {

@@ -22,3 +22,17 @@ export function requireSourceEffects(db: DatabaseSync, id: string, botSlug: stri
     .get(id, botSlug);
   if (admission?.last_error === 'channel-ended') throw new Error('Source Channel has ended');
 }
+
+export function requireAssignmentSource(db: DatabaseSync, id: string, botSlug: string): void {
+  const disbanded = db
+    .prepare(`SELECT 1 FROM source_events e
+    JOIN channel_placements p ON p.source_event_id IN (e.source_event_id,
+      json_extract(e.payload_json, '$.botCausation.rootSourceEventId'),
+      json_extract(e.payload_json, '$.botCausation.parentSourceEventId'))
+    JOIN channel_records c ON c.channel_id = p.channel_id
+    WHERE e.source_event_id = ? AND json_extract(c.record_json, '$.type') = 'group'
+      AND json_extract(c.record_json, '$.deletedAt') IS NOT NULL
+      AND json_extract(c.record_json, '$.name') = '' LIMIT 1`)
+    .get(id);
+  if (disbanded === undefined) requireSourceEffects(db, id, botSlug);
+}

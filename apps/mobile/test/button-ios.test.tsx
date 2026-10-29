@@ -93,7 +93,7 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => ({
 }));
 
 import { Button, ACTION_SF_SYMBOL } from '../src/ui/primitives/button.ios';
-import { DesignThemeProvider } from '../src/ui/design/theme';
+import { DesignThemeProvider, resolveTheme } from '../src/ui/design/theme';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -137,7 +137,8 @@ it.each([
     expect(button.dataset.style).toBe(style);
     expect(button.dataset.role).toBe(role);
     expect(button.dataset.size).toBe('large');
-    expect(button.dataset.tint === undefined).toBe(tone === 'danger');
+    const colors = resolveTheme('light').color;
+    expect(button.dataset.tint).toBe(tone === 'danger' ? colors.danger : colors.accent);
   },
 );
 

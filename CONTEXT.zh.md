@@ -545,8 +545,12 @@ _避免使用_：room、server、board
 _避免使用_：deleted Channel、archived Channel、muted Channel、Content Purge
 
 **Channel Deletion**：
-由 Human 确认，结束某个 Channel 活跃成员关系和路由的操作，同时保留历史及因果归属。它不同于可恢复的隐藏，也不同于另行确认的 Content Purge。
+由 Human 确认，结束某个 Channel 活跃成员关系和路由的操作，同时保留历史及因果归属。它不同于可恢复的隐藏，也不同于另行确认的 Content Purge。对本地群聊而言，Channel Deletion 就是 Group Disband。
 _避免使用_：Hidden Channel、Content Purge、provider conversation deletion
+
+**Group Disband**：
+由 Human 确认、不可撤销地删除一个本地群聊（界面称「解散群聊」）：结束成员关系和路由，并删除该群自己的消息和文件，只保留群的身份作为已删除标记。与其他 Channel 共享的内容、Bot 记忆和 Workspace 文件不受影响。
+_避免使用_：dissolve、archive、退出群聊、Hidden Channel
 
 **Channel section**：
 用户创建、可折叠的 Channel 分组，显示在频道列表面板中。归属与顺序属于对应 Host 的 display arrangement，不属于 Soul。
@@ -1088,6 +1092,8 @@ _避免使用_：短网址、UTM 链接、邀请链接
 
 ### 原生 UI 组件
 
+iOS 工作区切换采用应用自定义的常驻导航页面，由 `PagerView` 的显式后端连接原生 UIKit `UIPageViewController`：工作区在左，之后依次为完整聊天列表与底部导航、上次聊天、资料页。Android 保留原导航抽屉。详见 `apps/mobile/DESIGN.md` 的 iOS workspace panel。
+
 讨论界面时说出平台自己的组件名，而不是描述它长什么样。Android 的名称来自 [Material 3 glossary](https://m3.material.io/foundations/glossary) 与 [Material 3 components](https://m3.material.io/components) 索引，代码名来自 [Compose Material 3](https://developer.android.com/reference/kotlin/androidx/compose/material3/package-summary)。Apple 没有单独的 glossary 页面；与之对应的是 [HIG Components](https://developer.apple.com/design/human-interface-guidelines/components) 索引（Content、Layout and organization、Menus and actions、Navigation and search、Presentation、Selection and input、Status、System experiences 八类），代码名来自 [SwiftUI](https://developer.apple.com/documentation/swiftui) 与 [UIKit](https://developer.apple.com/documentation/uikit)，行文拼写以 [Apple Style Guide](https://support.apple.com/guide/applestyleguide/welcome/web) 为准。某个界面用哪个组件、读哪一层 token，由 `apps/mobile/DESIGN.md`、[#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002) 与 ADR-0266 决定。
 
 **Component term**：
@@ -1126,6 +1132,7 @@ _避免使用_：Material You（动态取色以外）、毛玻璃、玻璃拟态
 
 | 职能                              | Android (Material 3)                                          | Compose                                                                         | iOS (HIG)                                                                              | SwiftUI · UIKit                                                                                                    |
 | --------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 当前内容的上下文筛选              | Modal side sheet                                              | 原生 modal side-sheet 容器                                                      | Inspector（窄屏 iPhone 适配为 Sheet）                                                  | `.inspector(isPresented:content:)`                                                                                 |
 | 当前界面的标题与操作              | Top app bar (small, center-aligned, medium/large flexible)    | `TopAppBar`, `CenterAlignedTopAppBar`, `MediumFlexibleTopAppBar`                | Navigation bar (HIG Toolbars)                                                          | `NavigationStack` + `.toolbar`, `.navigationTitle` · `UINavigationBar`                                             |
 | 手机上切换顶级目的地              | Navigation bar                                                | `NavigationBar`, `NavigationBarItem`                                            | Tab bar                                                                                | `TabView` · `UITabBarController`                                                                                   |
 | 宽窗口上的目的地                  | Navigation rail（M3 Expressive 中 expanded rail 取代 drawer） | `NavigationRail`, `WideNavigationRail`                                          | Sidebar                                                                                | `NavigationSplitView` · `UISplitViewController`                                                                    |
@@ -1172,7 +1179,7 @@ _避免使用_：Material You（动态取色以外）、毛玻璃、玻璃拟态
 
 - 按钮：主要 → filled ↔ bordered prominent（iOS 26 为 glass prominent）；次要与 tonal → filled tonal ↔ bordered（glass）；文本 → text button ↔ borderless；危险 → 使用 Material error 颜色的 filled ↔ destructive role。
 - Sheet：Android `ModalBottomSheet` ↔ iOS 带 detents 的 form sheet（经 Expo Router 的 `presentation: 'formSheet'`，或 `@expo/ui` 的 SwiftUI `BottomSheet`）。
-- Chats 的「-1 屏」：Android `DismissibleNavigationDrawer` ↔ iOS 把工作区面板作为 Chats 导航栈的根。
+- Chats 的「-1 屏」：Android `DismissibleNavigationDrawer` ↔ iOS 相邻的常驻导航页面：工作区、完整聊天列表及底部导航、上次聊天与资料页，通过 `PagerView` 的显式 UIKit `UIPageViewController` 后端连接。
 - 顶级导航：Android navigation bar 加创建 FAB ↔ iOS tab island 及其 **+**（自定义界面，ADR-0235）。
 - 活动与工作区标签页：Android primary tabs（`PrimaryTabRow`）。
 - 设置页：Android 分段列表的 list item ↔ iOS inset grouped list（SwiftUI `Form`，配 `Section`、`Label`、`Toggle`、menu 样式 `Picker`、`LabeledContent`），统一经由 `SettingsForm`。

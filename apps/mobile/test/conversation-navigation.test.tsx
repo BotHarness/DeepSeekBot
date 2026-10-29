@@ -4,6 +4,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { channelNavigationHarness } from './channel-navigation-harness';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 let profileHistory = channelNavigationHarness();
+const visibility = vi.hoisted(() => ({ recent: vi.fn(), read: vi.fn() }));
+vi.mock('../src/ui/chat/mark-read', () => ({ useMarkRead: () => visibility.read }));
 import type { ChannelListItem } from '../src/host/wire';
 import type { RosterBot, RosterChannel } from '../src/host/client';
 import type { Conversation, ConversationSnapshot } from '../src/host/conversation';
@@ -64,7 +66,7 @@ const nativeList = vi.hoisted(() => ({
 
 vi.mock('../src/ui/shell/recent-chats', () => ({
   chatHref: () => '',
-  useRecentChat: () => () => {},
+  useRecentChat: () => visibility.recent,
 }));
 vi.mock('../src/host/native-source-drafts', () => ({
   useSourceDraft: () => ['', () => {}, { loaded: true, failed: false, retry: async () => true }],
@@ -275,12 +277,14 @@ vi.mock('../src/ui/primitives/keyboard-frame', () => ({
     children,
     composer,
     background,
+    onMount,
   }: {
     children: ReactNode;
     composer: ReactNode;
     background?: ReactNode;
+    onMount?: (node: unknown) => void;
   }) => (
-    <div>
+    <div ref={onMount}>
       <div data-testid="chat-background">{background === undefined ? 'none' : 'view'}</div>
       <div data-testid="chat-content">{children}</div>
       <div data-testid="chat-controls">{composer}</div>
@@ -299,9 +303,15 @@ vi.mock('../src/ui/chat/grant-request-card', () => ({ GrantRequestCard: () => nu
 vi.mock('../src/ui/chat/private-input-card', () => ({ PrivateInputCard: () => null }));
 vi.mock('../src/ui/chat/activity-row', () => ({ ActivityRow: () => null }));
 vi.mock('../src/ui/chat/question-card', () => ({ QuestionCard: () => null }));
-vi.mock('../src/ui/chat/channel-title', () => ({ ChannelTitle: () => null }));
+vi.mock('../src/ui/chat/channel-title', () => ({
+  ChannelTitle: ({ channel, fallback }: { channel?: RosterChannel; fallback: string }) => (
+    <span data-testid="channel-title">{channel?.name ?? fallback}</span>
+  ),
+}));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null, BotPortrait: () => null }));
-vi.mock('../src/ui/chat/composer', () => ({ Composer: () => null }));
+vi.mock('../src/ui/chat/composer', () => ({
+  Composer: () => <div data-testid="composer-input" />,
+}));
 vi.mock('../src/ui/chat/image-viewer', () => ({ ImageViewer: () => null }));
 vi.mock('../src/ui/chat/jump-to-latest', () => ({ JumpToLatest: () => null }));
 vi.mock('../src/ui/chat/pull-to-compose-hint', () => ({ PullToComposeHint: () => null }));
@@ -335,7 +345,7 @@ vi.mock('../src/ui/chat/working-status', () => ({
 }));
 vi.mock('../src/ui/chat/time-separator', () => ({ TimeSeparator: () => null }));
 
-import { Platform } from 'react-native';
+import { Keyboard, Platform } from 'react-native';
 import { ConversationScreen, type ChatPlace } from '../src/ui/chat/conversation-screen';
 import { StackRoot } from '../src/ui/shell/stack-root';
 import { t } from '../src/ui/strings';
@@ -720,8 +730,11 @@ it('shows delivery receipts on bubbles only after the setting turns them on', as
 });
 
 it('shows a message-shaped skeleton only while an empty history is opening', async () => {
+  state.host.roster.channels = [
+    { id: 'group-a', name: 'Review group', members: [], memberCount: 0 },
+  ];
   state.conversation.status = 'opening';
-  const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+  const place: ChatPlace = { kind: 'channel', channelId: 'group-a' };
   const view = await render(place);
   expect(view.querySelector('[data-testid="message-skeleton"]')).not.toBeNull();
   state.conversation.status = 'live';
@@ -784,7 +797,7 @@ it('keeps the bottom fade at the message viewport edge beneath the composer cont
   expect(fade!.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
 });
 
-it('leaves the top edge and Back to the iOS 26 glass header', async () => {
+it('extends the native glass fade while leaving Back to the iOS 26 header', async () => {
   const os = Platform.OS;
   Object.assign(Platform, { OS: 'ios' });
   try {
@@ -803,7 +816,7 @@ it('leaves the top edge and Back to the iOS 26 glass header', async () => {
     ];
     const view = await render({ kind: 'dm', slug: 'ada' });
     const header = view.querySelector('header')!;
-    expect(view.querySelector('[data-edge="top"]')).toBeNull();
+    expect(view.querySelector('[data-edge="top"]')).not.toBeNull();
     expect(header.getAttribute('data-blur')).toBe('none');
     expect(header.getAttribute('data-back-visible')).toBe('true');
     expect(header.textContent).not.toContain('Header back');
@@ -1090,7 +1103,7 @@ describe('missing conversation navigation', () => {
       name: 'Channel',
       place: { kind: 'channel', channelId: 'gone' },
       route: '/channel/gone',
-      notice: t.noChannel,
+      notice: t.groupUnavailableTitle,
     },
   ];
 
@@ -1263,4 +1276,143 @@ it('opens scoped Bot-to-Bot details from its title without exposing group manage
   } finally {
     Object.assign(Platform, { OS: previousOS });
   }
+});
+
+it('preloads inline chat without marking read or recording recents until it settles open', async () => {
+  const os = Platform.OS;
+  Object.assign(Platform, { OS: 'android' });
+  const place = focusConversation();
+  container = document.createElement('div');
+  root = createRoot(container);
+  const onClose = vi.fn(),
+    onNestedChange = vi.fn();
+  const show = (active: boolean) =>
+    act(async () =>
+      root!.render(
+        <ConversationScreen
+          place={place}
+          focus={undefined}
+          presentation={{ active, onClose, onNestedChange }}
+        />,
+      ),
+    );
+  visibility.read.mockClear();
+  visibility.recent.mockClear();
+  try {
+    await show(false);
+    expect(visibility.read.mock.calls.every(([node]) => node === null)).toBe(true);
+    expect(visibility.recent.mock.calls.every(([node]) => node === null)).toBe(true);
+    expect(container.querySelector('header')).toBeNull();
+    await show(true);
+    expect(visibility.read.mock.calls.some(([node]) => node !== null)).toBe(true);
+    expect(visibility.recent.mock.calls.some(([node]) => node !== null)).toBe(true);
+    await press(container, 'Header back');
+    expect(onClose).toHaveBeenCalledOnce();
+    visibility.read.mockClear();
+    visibility.recent.mockClear();
+    await show(false);
+    expect(visibility.read.mock.calls.every(([node]) => node === null)).toBe(true);
+    expect(visibility.recent.mock.calls.every(([node]) => node === null)).toBe(true);
+  } finally {
+    Object.assign(Platform, { OS: os });
+  }
+});
+
+it('closes an inline deleted conversation through its recovery action', async () => {
+  const os = Platform.OS;
+  Object.assign(Platform, { OS: 'android' });
+  container = document.createElement('div');
+  root = createRoot(container);
+  const onClose = vi.fn();
+  try {
+    await act(async () =>
+      root!.render(
+        <ConversationScreen
+          place={{ kind: 'dm', slug: 'gone' }}
+          focus={undefined}
+          presentation={{ active: true, onClose, onNestedChange: () => {} }}
+        />,
+      ),
+    );
+    await press(container, t.backToChats);
+    expect(onClose).toHaveBeenCalledOnce();
+  } finally {
+    Object.assign(Platform, { OS: os });
+  }
+});
+
+describe('disbanded group presentation', () => {
+  const os = Platform.OS;
+  beforeEach(() => {
+    Object.assign(Platform, { OS: 'ios' });
+  });
+  afterEach(() => {
+    Object.assign(Platform, { OS: os });
+  });
+  it('does not show loading for an authoritatively missing group', async () => {
+    state.conversation.status = 'opening';
+    const view = await render({ kind: 'channel', channelId: 'gone' });
+    expect(view.textContent).toContain(t.groupUnavailableTitle);
+    expect(view.querySelector('[data-testid="group-unavailable"]')).not.toBeNull();
+    expect(view.querySelector('[data-testid="composer-input"]')).toBeNull();
+    expect(view.querySelector('[data-testid="message-skeleton"]')).toBeNull();
+    expect(view.querySelector('[data-testid="channel-title"]')?.textContent).toBe(t.groupInfo);
+  });
+  it('dismisses the keyboard only when the missing group becomes focused', async () => {
+    const dismiss = vi.spyOn(Keyboard, 'dismiss');
+    state.focused = false;
+    const place: ChatPlace = { kind: 'channel', channelId: 'gone' };
+    await render(place);
+    expect(dismiss).not.toHaveBeenCalled();
+    state.focused = true;
+    await act(async () => root!.render(<ConversationScreen place={place} focus={undefined} />));
+    expect(dismiss).toHaveBeenCalledOnce();
+    dismiss.mockRestore();
+  });
+  it('retains cached conversation controls until reconnect confirms absence', async () => {
+    state.host.roster.channels = [
+      { id: 'cached', name: 'Offline group', members: [], memberCount: 0 },
+    ];
+    Object.assign(state.host.connection, { status: 'unreachable' });
+    state.conversation.fromCache = true;
+    const view = await render({ kind: 'channel', channelId: 'cached' });
+    expect(view.textContent).toContain(t.offline);
+    expect(view.querySelector('[data-testid="group-unavailable"]')).toBeNull();
+    expect(view.querySelector('[data-testid="composer-input"]')).not.toBeNull();
+    state.host.roster.channels = [];
+    Object.assign(state.host.connection, { status: 'connected' });
+    state.conversation.fromCache = false;
+    await act(async () =>
+      root!.render(
+        <ConversationScreen place={{ kind: 'channel', channelId: 'cached' }} focus={undefined} />,
+      ),
+    );
+    expect(view.textContent).not.toContain(t.offline);
+    expect(view.textContent).toContain(t.groupUnavailableTitle);
+    expect(view.querySelector('[data-testid="composer-input"]')).toBeNull();
+  });
+  it('keeps the last group name after disband without leaking it to another Host', async () => {
+    const place: ChatPlace = { kind: 'channel', channelId: 'group-a' };
+    state.host.roster.channels = [
+      { id: 'group-a', name: 'Review group', members: [], memberCount: 0 },
+    ];
+    const view = await render(place);
+    state.host.roster.channels = [];
+    state.conversation.status = 'opening';
+    await act(async () => root!.render(<ConversationScreen place={place} focus={undefined} />));
+    expect(view.querySelector('[data-testid="channel-title"]')?.textContent).toBe('Review group');
+    expect(view.querySelector('[data-testid="message-skeleton"]')).toBeNull();
+    state.hostId = 'computer_b';
+    await act(async () => root!.render(<ConversationScreen place={place} focus={undefined} />));
+    expect(view.textContent).toContain(t.sourceChanged);
+    expect(view.textContent).not.toContain('Review group');
+  });
+  it('still shows loading for an existing group opening its history', async () => {
+    state.host.roster.channels = [
+      { id: 'group-a', name: 'Review group', members: [], memberCount: 0 },
+    ];
+    state.conversation.status = 'opening';
+    const view = await render({ kind: 'channel', channelId: 'group-a' });
+    expect(view.querySelector('[data-testid="message-skeleton"]')).not.toBeNull();
+  });
 });

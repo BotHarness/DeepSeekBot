@@ -126,7 +126,7 @@ export const RULES = [
   none('{prototype,dsh_research,design}/**', 'Prototypes and research notes'),
   none('*.md', 'Root prose'),
   none(
-    '{LICENSE,.gitignore,.easignore,.gitattributes,.oxlintrc.json,.oxfmtrc.json,skills-lock.json,vps.local.example.env}',
+    '{LICENSE,.lintstagedrc.json,.husky/pre-commit,.gitignore,.easignore,.gitattributes,.oxlintrc.json,.oxfmtrc.json,skills-lock.json,vps.local.example.env}',
     'Root metadata; lint and format always run',
   ),
 ];

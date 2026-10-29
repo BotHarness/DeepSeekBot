@@ -20,6 +20,11 @@ import { HumanAvatarButton } from '../src/ui/shell/human-avatar';
 import { t } from '../src/ui/strings';
 import { StatisticsSettings } from '../src/ui/shell/statistics-settings';
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
+vi.mock('react-native-worklets', () => ({
+  scheduleOnRN: <A extends unknown[]>(callback: (...args: A) => void, ...args: A) =>
+    callback(...args),
+}));
 vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
 
 vi.mock('../src/account/native-account-profile', () => ({
@@ -74,7 +79,7 @@ describe('Settings sheet', () => {
     const handlers = actions();
     const view = await render(<SettingsView version="0.0.1 · 1c8d179" actions={handlers} />);
     expect(button(view, t.done)).toBeNull();
-    expect(view.textContent).not.toContain(t.computers);
+    expect(button(view, t.computers)).toBeNull();
     expect(view.textContent).not.toContain(t.connected);
 
     const rows: [string, keyof SettingsActions][] = [

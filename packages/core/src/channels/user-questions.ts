@@ -568,12 +568,21 @@ export class ChannelUserQuestions {
     return true;
   }
 
-  #cancel(messageId: string): void {
+  cancelChannel(channelId: string): void {
+    for (const [messageId, pending] of this.#pending)
+      if (pending.channelId === channelId) this.#cancel(messageId, false);
+  }
+
+  #cancel(messageId: string, record = true): void {
     const pending = this.#pending.get(messageId);
     if (pending === undefined) return;
     this.#pending.delete(messageId);
     if (pending.committed) this.#publishAttention(pending.botSlug);
     pending.signal?.removeEventListener('abort', pending.abort);
+    if (!record) {
+      pending.reject(new Error('DSH user question was cancelled because the group was disbanded'));
+      return;
+    }
     const resolution: ChannelMessage = {
       id: randomUUID(),
       at: new Date().toISOString(),

@@ -26,6 +26,7 @@
     },
     "android": {
       "package": "ai.botharness.deepseekbot.dev",
+      "predictiveBackGestureEnabled": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/app-icons/deepseekbot-android-foreground.png",
         "backgroundColor": "#FFFFFF"

@@ -137,7 +137,7 @@ it('does not repeat a successful group dissolution when only list refresh failed
   const { client, onDeleted } = await setup({ kind: 'group', id: 'g1', name: 'Launch' });
   client.call.mockResolvedValue({ deleted: true });
   client.refresh.mockRejectedValueOnce(new Error('offline'));
-  await press(t.deletion.dissolve);
+  await press(t.deletion.disband);
   expect(onDeleted).not.toHaveBeenCalled();
   await press(t.retry);
   expect(client.call).toHaveBeenCalledExactlyOnceWith('channelGroupDelete', { channelId: 'g1' });

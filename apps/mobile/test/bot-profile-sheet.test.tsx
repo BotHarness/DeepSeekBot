@@ -25,6 +25,10 @@ vi.mock('expo-router', () => ({
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('expo-router/react-navigation', () => ({ useHeaderHeight: () => 96 }));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('react-native-worklets', () => ({
+  scheduleOnRN: <A extends unknown[]>(callback: (...args: A) => void, ...args: A) =>
+    callback(...args),
+}));
 vi.mock('react-native-collapsible-tab-view', () => import('./collapsible-tabs-shim'));
 vi.mock('../src/ui/chat/header-chrome', () => ({
   HeaderCircleButton: ({

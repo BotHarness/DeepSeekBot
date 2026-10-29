@@ -82,7 +82,7 @@ export function Button({
         modifiers={[
           buttonStyle(style),
           controlSize('large'),
-          ...(tone === 'danger' ? [] : [tint(theme.color.accent)]),
+          tint(tone === 'danger' ? theme.color.danger : theme.color.accent),
           controlDisabled(disabled || busy),
           accessibilityLabel(label),
           ...(busy ? [accessibilityValue(t.loading)] : []),
