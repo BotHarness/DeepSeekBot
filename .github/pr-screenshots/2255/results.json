@@ -1,0 +1,249 @@
+{
+  "productionSource": "28c7667083f6c7b0b9b428dd08198728175a84df",
+  "base": "1f399f12bee277a8e9aeaa02e86497bdfe151bbd",
+  "builds": {
+    "zhMatrix": {
+      "abi": "arm64-v8a",
+      "apkSha256": "32efd45b22b30fd96022a86e1014b814ea83a06c51f6bfd0e0986447589954ea",
+      "source": "9398900a80dca8e4191b0a102d0def66b7afe789",
+      "certificateMatches": true,
+      "nativeUnitTests": "3/3 pass"
+    },
+    "final": {
+      "certificateMatches": true,
+      "abi": "arm64-v8a",
+      "nativeUnitTests": "3/3 pass",
+      "source": "28c7667083f6c7b0b9b428dd08198728175a84df",
+      "apkSha256": "64ef15c624e8e6083b3a945bf814ebecead9aec5edb5d952b974ff8a19976749"
+    }
+  },
+  "nativeMatrix": [
+    {
+      "locale": "zh",
+      "theme": "light",
+      "font": "1",
+      "status": "pass",
+      "offline": true,
+      "backQuery": "30",
+      "backBoundsEqual": true,
+      "highlight": "[0,2220][1220,2448]",
+      "message": "[222,2286][1136,2406]",
+      "search": "zh-l-1.png",
+      "focus": "zh-l-1-f.png",
+      "source": "9398900a80dc"
+    },
+    {
+      "locale": "zh",
+      "theme": "light",
+      "font": "1.3",
+      "status": "pass",
+      "offline": true,
+      "backQuery": "30",
+      "backBoundsEqual": true,
+      "highlight": "[0,2198][1220,2448]",
+      "message": "[222,2264][1136,2406]",
+      "search": "zh-l-13.png",
+      "focus": "zh-l-13-f.png",
+      "source": "9398900a80dc"
+    },
+    {
+      "locale": "zh",
+      "theme": "light",
+      "font": "2",
+      "status": "pass",
+      "offline": true,
+      "backQuery": "30",
+      "backBoundsEqual": true,
+      "highlight": "[0,1894][1220,2308]",
+      "message": "[222,1960][1136,2266]",
+      "search": "zh-l-2.png",
+      "focus": "zh-l-2-f.png",
+      "source": "9398900a80dc"
+    },
+    {
+      "locale": "zh",
+      "theme": "dark",
+      "font": "1",
+      "status": "pass",
+      "offline": true,
+      "backQuery": "30",
+      "backBoundsEqual": true,
+      "highlight": "[0,2220][1220,2448]",
+      "message": "[222,2286][1136,2406]",
+      "search": "zh-d-1.png",
+      "focus": "zh-d-1-f.png",
+      "source": "9398900a80dc"
+    },
+    {
+      "locale": "zh",
+      "theme": "dark",
+      "font": "1.3",
+      "status": "pass",
+      "offline": true,
+      "backQuery": "30",
+      "backBoundsEqual": true,
+      "highlight": "[0,2198][1220,2448]",
+      "message": "[222,2264][1136,2406]",
+      "search": "zh-d-13.png",
+      "focus": "zh-d-13-f.png",
+      "source": "9398900a80dc"
+    },
+    {
+      "locale": "zh",
+      "theme": "dark",
+      "font": "2",
+      "status": "pass",
+      "offline": true,
+      "backQuery": "30",
+      "backBoundsEqual": true,
+      "highlight": "[0,1894][1220,2308]",
+      "message": "[222,1960][1136,2266]",
+      "search": "zh-d-2.png",
+      "focus": "zh-d-2-f.png",
+      "source": "9398900a80dc"
+    },
+    {
+      "locale": "en",
+      "theme": "light",
+      "font": "1",
+      "status": "pass",
+      "offline": true,
+      "backQuery": "30",
+      "backBoundsEqual": true,
+      "highlight": "[0,2220][1220,2448]",
+      "message": "[222,2286][1136,2406]",
+      "search": "en-l-1.png",
+      "focus": "en-l-1-f.png",
+      "source": "28c7667083f6"
+    },
+    {
+      "locale": "en",
+      "theme": "light",
+      "font": "1.3",
+      "status": "pass",
+      "offline": true,
+      "backQuery": "30",
+      "backBoundsEqual": true,
+      "highlight": "[0,2198][1220,2448]",
+      "message": "[222,2264][1136,2406]",
+      "search": "en-l-13.png",
+      "focus": "en-l-13-f.png",
+      "source": "28c7667083f6"
+    },
+    {
+      "locale": "en",
+      "theme": "light",
+      "font": "2",
+      "status": "pass",
+      "offline": true,
+      "backQuery": "30",
+      "backBoundsEqual": true,
+      "highlight": "[0,1894][1220,2308]",
+      "message": "[222,1960][1136,2266]",
+      "search": "en-l-2.png",
+      "focus": "en-l-2-f.png",
+      "source": "28c7667083f6"
+    },
+    {
+      "locale": "en",
+      "theme": "dark",
+      "font": "1",
+      "status": "pass",
+      "offline": true,
+      "backQuery": "30",
+      "backBoundsEqual": true,
+      "highlight": "[0,2220][1220,2448]",
+      "message": "[222,2286][1136,2406]",
+      "search": "en-d-1.png",
+      "focus": "en-d-1-f.png",
+      "source": "28c7667083f6"
+    },
+    {
+      "locale": "en",
+      "theme": "dark",
+      "font": "1.3",
+      "status": "pass",
+      "offline": true,
+      "backQuery": "30",
+      "backBoundsEqual": true,
+      "highlight": "[0,2198][1220,2448]",
+      "message": "[222,2264][1136,2406]",
+      "search": "en-d-13.png",
+      "focus": "en-d-13-f.png",
+      "source": "28c7667083f6"
+    },
+    {
+      "locale": "en",
+      "theme": "dark",
+      "font": "2",
+      "status": "pass",
+      "offline": true,
+      "backQuery": "30",
+      "backBoundsEqual": true,
+      "highlight": "[0,1894][1220,2308]",
+      "message": "[222,1960][1136,2266]",
+      "search": "en-d-2.png",
+      "focus": "en-d-2-f.png",
+      "source": "28c7667083f6"
+    }
+  ],
+  "canonicalOffline": {
+    "historyUnchanged": true,
+    "readPositionUnchanged": true,
+    "beforeSha256": "77d425a4d0e827ea498d448162e7e04f3cbbdd52d9f517109764cc3bb5b63506",
+    "afterSha256": "77d425a4d0e827ea498d448162e7e04f3cbbdd52d9f517109764cc3bb5b63506"
+  },
+  "revocation": {
+    "otherSourceCacheFiles": 1,
+    "revokedSourceAbsent": true,
+    "queryPreserved": true,
+    "revokedCacheFiles": 0
+  },
+  "disband": {
+    "queryPreserved": true,
+    "deletedCacheFiles": 0,
+    "qaGroupVisible": false,
+    "emptyState": true
+  },
+  "secondSource": {
+    "bodyBounds": "[431,2346][1136,2406]",
+    "retainedNotice": true,
+    "explicitRecovery": false,
+    "secondSourceOnly": true,
+    "conversationComponentUnchangedFromCapture": true,
+    "componentSha256": "99e4ffb97b785a1ef14ef70d21baff4fd0d386bfbdd569d80d6a6b9f21dc144f"
+  },
+  "focusedTests": {
+    "files": 8,
+    "passed": 121
+  },
+  "nativeUnitTests": {
+    "passed": 3
+  },
+  "limits": [
+    "Current iOS native UI, physical iPhone, accessibility and Human acceptance were not run.",
+    "Earlier eviction/recovery and old iOS Batch46 evidence retain their own source SHAs; they are not new exact-head native passes.",
+    "Debug build; no Release FPS claim.",
+    "The final native return-position matrix used the single-hit query30; current M3 nonzero long-list return scrolling was not separately rechecked. Earlier scrolled old-page proof retains its older source."
+  ],
+  "restoration": {
+    "taskOnlyChanges": true,
+    "originalPairings": 6,
+    "fontScale": 1,
+    "taskPairings": 0,
+    "status": "pass",
+    "originalWorkspaceRestored": true,
+    "night": "no",
+    "language": "system",
+    "taskServicesStopped": true,
+    "taskReversesRemoved": true,
+    "leaseReleased": true
+  },
+  "emptyState": {
+    "bounds": "[412,1388][808,1668]",
+    "viewport": "[0,343][1220,2712]",
+    "locale": "zh",
+    "source": "28c7667083f6",
+    "removedHintsAbsent": true
+  }
+}
