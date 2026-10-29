@@ -1,8 +1,12 @@
-# Android tag entry — native verification
+# Android tag entry — historical native verification
 
 Issue #3027 / PR #3030. Physical Android 16, arm64 Debug, Chinese locale, portrait 1220 × 2712.
 
-## Provenance
+## Current integration status
+
+This report records the original physical QA runtime through `837036ab9`. Its screenshots, one-Host layout and Send-action observations are historical evidence, not verification of the integrated field. The current implementation preserves main's shared native text-field adapter: the chips and editable input use separate Compose Hosts. Integrated native smoke testing and Human visual acceptance remain pending under #3027 and the shared Windows QA queue.
+
+## Historical provenance
 
 - PR base: `3b79218873262f29d73d082d62469c60ae0c7e1a`.
 - Before: frozen QA baseline `e686147549f05fe49e038eb20fd57e77b41bf973`, including unchanged #2986 and #2999 prerequisites (both now merged).
@@ -11,7 +15,7 @@ Issue #3027 / PR #3030. Physical Android 16, arm64 Debug, Chinese locale, portra
 - This PR changes JavaScript only; no native dependency, module or app configuration was added.
 - Public images are real phone captures, cropped only to remove the status bar and resized from 1220 to 488 pixels wide. Raw captures, native hierarchy, source manifests, build logs and the APK remain in the main checkout's ignored task evidence.
 
-## Results
+## Historical runtime results
 
 | Journey                                                               | Result                                                                             |
 | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -27,13 +31,13 @@ Issue #3027 / PR #3030. Physical Android 16, arm64 Debug, Chinese locale, portra
 
 All six matched screenshot pairs have the same viewport, theme, locale, synthetic draft data and keyboard top (1402 px). The before field contains `Alpha, Beta`; the after field has those two committed chips and an empty pending field.
 
-The input and chips share one native Compose Host, with the chip container retained at zero chips. Native Send editor actions submit the event's current text without invoking Done's keyboard dismissal. No JavaScript hide/refocus cycle is used.
+In that historical runtime, the input and chips shared one native Compose Host, with the chip container retained at zero chips. Its native Send editor actions submitted the event's current text without invoking Done's keyboard dismissal. That runtime used no JavaScript hide/refocus cycle. These observations do not qualify the integrated field.
 
 ## Scope and cleanup
 
 - iOS retains its existing tag editor; native iOS acceptance belongs to the other engineer.
 - Git and Marketplace enter the same details editor, but their network import journeys were not repeated for this PR. Zip was exercised end to end.
 - Debug interaction/layout results do not establish Release FPS. No frame-rate improvement is claimed.
-- 134 focused related tests pass; mobile typecheck, lint, format and changelog checks pass. CI is reported separately on the PR.
+- Historical implementation: 134 focused related tests passed, along with mobile typecheck, lint, format and changelog checks. Current integration results and CI are reported separately on the PR.
 - Original phone APK hash, input method, font/theme/density/navigation settings and all five existing pairings were verified after restoration. The task pairing was revoked, the task Zip removed, only the task's Metro/Host and USB mappings were stopped/removed, and the phone lease was released.
 - Human visual acceptance remains pending.

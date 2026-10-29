@@ -8,6 +8,7 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const native = vi.hoisted(() => ({
   change: undefined as undefined | ((text: string) => void),
   enter: undefined as undefined | ((text: string) => void),
+  remove: undefined as undefined | (() => void),
 }));
 vi.mock('react-native', () => ({
   View: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -23,11 +24,14 @@ vi.mock('@expo/ui/jetpack-compose', () => {
       enabled: boolean;
       onClick(): void;
       children: ReactNode;
-    }) => (
-      <button disabled={!enabled} onClick={onClick}>
-        {children}
-      </button>
-    ),
+    }) => {
+      native.remove = onClick;
+      return (
+        <button disabled={!enabled} onClick={onClick}>
+          {children}
+        </button>
+      );
+    },
     { Label: Slot, TrailingIcon: Slot },
   );
   return { Host: Slot, FlowRow: Slot, Text: Slot, Icon: () => <span>×</span>, InputChip: Chip };
@@ -136,7 +140,7 @@ it('prevents tag mutations while creation is busy', async () => {
   await act(() => {
     native.change?.('New');
     native.enter?.('New\n');
-    view.querySelector('button')!.click();
+    native.remove?.();
   });
   expect(current).toEqual({ tags: 'Existing' });
 });
