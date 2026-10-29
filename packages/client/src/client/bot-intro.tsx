@@ -7,7 +7,16 @@ import { BotIcon } from './bot-icon.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { IconButton } from './ds/icon-button.js';
 import { Note } from './ds/note.js';
-import { border, color, dialog, radius, size, space, text } from './ds/tokens.stylex.js';
+import {
+  actionColor,
+  border,
+  color,
+  dialog,
+  radius,
+  size,
+  space,
+  text,
+} from './ds/tokens.stylex.js';
 import { Modal } from './modal.js';
 import { ModelPicker } from './model-picker.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
@@ -304,27 +313,22 @@ const styles = stylex.create({
   },
   wide: { maxWidth: 'none' },
   persona: { height: '100%', alignItems: 'flex-start' },
-  interview: {
-    borderColor: { default: color.accent, ':hover': color.accent },
-    backgroundColor: { default: color.accentTint, ':hover': color.accentTint },
-  },
   interviewIcon: { backgroundColor: color.accent, color: color.onAccent },
   personaActions: { display: 'flex', justifyContent: 'center', gap: space.x3 },
-  chosen: {
-    borderColor: { default: color.accent, ':hover': color.accent },
-    backgroundColor: { default: color.accentTint, ':hover': color.accentTint },
-  },
+  chosen: { backgroundColor: { default: color.accentTint, ':hover': color.accentTint } },
   chosenIcon: { backgroundColor: color.accent, color: color.onAccent },
+  chosenChip: {
+    backgroundColor: { default: color.accent, ':hover': color.accent },
+    color: color.onAccent,
+  },
   details: { display: 'flex', flexDirection: 'column', gap: space.x2 },
   chips: { display: 'flex', flexWrap: 'wrap', gap: space.x2 },
   chip: {
     paddingBlock: space.x1,
-    paddingInline: space.x4,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: { default: color.border, ':hover': color.borderStrong },
-    borderRadius: radius.round,
-    backgroundColor: { default: 'transparent', ':hover': color.hover },
+    paddingInline: space.x3,
+    borderWidth: 0,
+    borderRadius: radius.sm,
+    backgroundColor: { default: actionColor.secondary, ':hover': actionColor.hover },
     color: color.fg,
     fontFamily: 'inherit',
     fontSize: text.metaSize,
@@ -335,7 +339,8 @@ const styles = stylex.create({
   strong: { color: color.fg, fontWeight: text.strong },
   meta: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
   starter: {
-    backgroundColor: { default: 'transparent', ':hover': color.hover },
+    borderWidth: 0,
+    backgroundColor: { default: actionColor.secondary, ':hover': actionColor.hover },
     fontFamily: 'inherit',
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
@@ -1096,7 +1101,7 @@ function StartStep({
                       on ? details.filter((other) => other !== detail) : [...details, detail],
                     );
                   }}
-                  {...stylex.props(styles.chip, on && styles.chosen)}
+                  {...stylex.props(styles.chip, on && styles.chosenChip)}
                 >
                   {t(`intro.persona.${id}.detail.${detail}` as BotHarnessKey)}
                 </button>
@@ -1116,7 +1121,7 @@ function StartStep({
               (timeZone ? t('intro.interview.timeZone', { timeZone }) : ''),
           )
         }
-        {...stylex.props(styles.link, styles.starter, styles.interview)}
+        {...stylex.props(styles.link, styles.starter)}
       >
         <span {...stylex.props(styles.linkIcon, styles.interviewIcon)}>
           <ChannelSidebarIcon name="messages-square" size={18} />
