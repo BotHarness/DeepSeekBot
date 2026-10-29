@@ -8,17 +8,17 @@ Issue #3172. Application fix: `4146c9c5d`. Base main: `3e5089387d92`.
 - Original screenshots are unchanged video frames, not redrawn UI. Before shows the brief collapsed frame; after shows the stable final geometry. Videos retain the full observed transitions.
 - Input used Xcode Device Hub's native accessibility controls after XCTest tap injection repeatedly failed with invalid coordinates. Those failures are retained privately and are not product failures.
 
-| Check | Result |
-| --- | --- |
-| Baseline, default/light, 3 closes | FAIL: tab underline y=159 → about137 →159pt each time; maximum excursion22pt |
-| Final fix, default/light, 3 closes | PASS: y=159pt throughout |
-| Final fix, default/dark, 3 closes | PASS: y=159pt throughout |
-| Final fix, maximum/dark, 3 closes | PASS for search layout stability: y=217.5pt throughout |
-| Type `qa`, close search | PASS: no-match state returns to original empty feed |
-| Search accessibility tree | PASS: resting heading/filter/search controls excluded while search input and close action are exposed |
-| Android layout regression tests + style guard | PASS:12 tests |
-| Mobile typecheck, touched-file lint/format, release fragment | PASS |
-| Physical iPhone, Android native, VoiceOver gestures, software-keyboard animation, intermediate/max-light matrix | UNTESTED; outside this Simulator-only run |
+| Check                                                                                                           | Result                                                                                                |
+| --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Baseline, default/light, 3 closes                                                                               | FAIL: tab underline y=159 → about137 →159pt each time; maximum excursion22pt                          |
+| Final fix, default/light, 3 closes                                                                              | PASS: y=159pt throughout                                                                              |
+| Final fix, default/dark, 3 closes                                                                               | PASS: y=159pt throughout                                                                              |
+| Final fix, maximum/dark, 3 closes                                                                               | PASS for search layout stability: y=217.5pt throughout                                                |
+| Type `qa`, close search                                                                                         | PASS: no-match state returns to original empty feed                                                   |
+| Search accessibility tree                                                                                       | PASS: resting heading/filter/search controls excluded while search input and close action are exposed |
+| Android layout regression tests + style guard                                                                   | PASS:12 tests                                                                                         |
+| Mobile typecheck, touched-file lint/format, release fragment                                                    | PASS                                                                                                  |
+| Physical iPhone, Android native, VoiceOver gestures, software-keyboard animation, intermediate/max-light matrix | UNTESTED; outside this Simulator-only run                                                             |
 
 A first min-height-only candidate passed default light/dark but still changed14pt between search and title at maximum text size; that candidate was rejected. The final fix retains the native resting layout, hides its interaction/accessibility during search, and overlays search in the same row. Existing oversized native icons at maximum text remain outside this fix; the max-size PASS above is only header position stability.
 
