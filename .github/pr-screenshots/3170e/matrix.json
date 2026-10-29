@@ -1,0 +1,122 @@
+[
+  {
+    "locale": "en",
+    "return": "pass",
+    "font": "1",
+    "composer": "absent",
+    "oldRoute": "pass",
+    "theme": "light",
+    "empty": "pass",
+    "image": "en-light-1.png"
+  },
+  {
+    "locale": "en",
+    "return": "pass",
+    "font": "1.3",
+    "composer": "absent",
+    "oldRoute": "pass",
+    "theme": "light",
+    "empty": "pass",
+    "image": "en-light-1p3.png"
+  },
+  {
+    "locale": "en",
+    "return": "pass",
+    "font": "2",
+    "composer": "absent",
+    "oldRoute": "pass",
+    "theme": "light",
+    "empty": "pass",
+    "image": "en-light-2.png"
+  },
+  {
+    "locale": "en",
+    "return": "pass",
+    "font": "1",
+    "composer": "absent",
+    "oldRoute": "pass",
+    "theme": "dark",
+    "empty": "pass",
+    "image": "en-dark-1.png"
+  },
+  {
+    "locale": "en",
+    "return": "pass",
+    "font": "1.3",
+    "composer": "absent",
+    "oldRoute": "pass",
+    "theme": "dark",
+    "empty": "pass",
+    "image": "en-dark-1p3.png"
+  },
+  {
+    "locale": "en",
+    "return": "pass",
+    "font": "2",
+    "composer": "absent",
+    "oldRoute": "pass",
+    "theme": "dark",
+    "empty": "pass",
+    "image": "en-dark-2.png"
+  },
+  {
+    "composer": "absent",
+    "theme": "light",
+    "empty": "pass",
+    "font": "1",
+    "return": "pass",
+    "oldRoute": "pass",
+    "locale": "zh",
+    "image": "zh-light-1.png"
+  },
+  {
+    "composer": "absent",
+    "theme": "light",
+    "empty": "pass",
+    "font": "1.3",
+    "return": "pass",
+    "oldRoute": "pass",
+    "locale": "zh",
+    "image": "zh-light-1p3.png"
+  },
+  {
+    "composer": "absent",
+    "theme": "light",
+    "empty": "pass",
+    "font": "2",
+    "return": "pass",
+    "oldRoute": "pass",
+    "locale": "zh",
+    "image": "zh-light-2.png"
+  },
+  {
+    "composer": "absent",
+    "theme": "dark",
+    "empty": "pass",
+    "font": "1",
+    "return": "pass",
+    "oldRoute": "pass",
+    "locale": "zh",
+    "image": "zh-dark-1.png"
+  },
+  {
+    "composer": "absent",
+    "theme": "dark",
+    "empty": "pass",
+    "font": "1.3",
+    "return": "pass",
+    "oldRoute": "pass",
+    "locale": "zh",
+    "image": "zh-dark-1p3.png"
+  },
+  {
+    "composer": "absent",
+    "theme": "dark",
+    "empty": "pass",
+    "font": "2",
+    "return": "pass",
+    "oldRoute": "pass",
+    "locale": "zh",
+    "image": "zh-dark-2.png"
+  }
+]
