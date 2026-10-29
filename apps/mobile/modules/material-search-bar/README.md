@@ -14,7 +14,7 @@ sends the results back as plain records (`key`, `title`, `subtitle`, `initial`, 
 `dimmed`). `image` is a `file://` PNG from the device's avatar cache; Compose decodes it off the
 main thread and draws it as the Chats row's 48dp rounded square, with `initial` as the fallback. Results render as
 Material `ListItem`s inside the expanded surface, because that surface is a separate window that
-React Native views cannot draw into. A pick sends `onPick` with the key and collapses the bar.
+React Native views cannot draw into. A pick sends `onPick` with the key and temporarily collapses the bar. Returning from the conversation restores the query, expanded results and scroll position. Explicitly closing search still clears the query. The native results panel also shows scope/cache notices and a retry action when a local cache cannot be read.
 
 Colours come from the Host's Material theme seeded by the accent (ADR-0266); the view takes no
 colour props. Host keeps its composition while React Native Screens detaches an inactive screen,

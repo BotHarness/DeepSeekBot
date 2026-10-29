@@ -47,7 +47,6 @@ vi.mock('expo-router/js-tabs', () => ({
             { key: 'home', name: '(home)' },
             { key: 'activity', name: '(activity)' },
             { key: 'settings', name: '(settings)' },
-            { key: 'search', name: '(search)' },
           ],
         },
         emitter: { emit: () => ({ defaultPrevented: false }) },
@@ -157,33 +156,18 @@ it.each([
 });
 
 it.each(['ios', 'android'])(
-  'enters Search with Chats scope and hides creation on %s while retaining Settings',
+  'keeps Chats, Activity and Settings as the only tabs on %s',
   async (platform) => {
     fixture.platform = platform;
-    fixture.scope = JSON.stringify(['computer', 'a']);
-    fixture.index = 0;
-    fixture.enter.mockClear();
-    fixture.navigateToTab.mockClear();
     const host = document.createElement('div');
     const root = createRoot(host);
     try {
       await act(async () => root.render(<BottomNavigation />));
-      const search = () =>
-        host.querySelector<HTMLButtonElement>('[data-testid="navigation-search"]')!;
-      expect(search().getAttribute('aria-label')).toBe(t.localSearch.title);
+      expect(host.querySelector('[data-testid="navigation-search"]')).toBeNull();
+      expect(host.querySelectorAll('[role="tab"]')).toHaveLength(3);
       expect(host.querySelector('[data-testid="settings-button"]')).not.toBeNull();
-      await act(async () => search().click());
-      expect(fixture.enter).toHaveBeenCalledExactlyOnceWith(fixture.scope);
-      expect(fixture.navigateToTab).toHaveBeenCalledExactlyOnceWith('search');
-      fixture.index = 3;
-      await act(async () => root.render(<BottomNavigation />));
-      expect(host.querySelector(`button[aria-label="${t.createHere}"]`)).toBeNull();
-      await act(async () => search().click());
-      expect(fixture.enter).toHaveBeenCalledTimes(1);
     } finally {
       act(() => root.unmount());
-      fixture.index = 0;
-      fixture.scope = 'all';
     }
   },
 );

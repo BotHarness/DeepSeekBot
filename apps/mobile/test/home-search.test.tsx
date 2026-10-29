@@ -62,6 +62,21 @@ const { push, cloudState, directoryState, hostState, call, refresh, menus, rowPr
     },
   }),
 );
+import type { RetainedConversation } from '../src/host/retained-search';
+const retainedFixture = vi.hoisted(() => ({ records: [] as RetainedConversation[] }));
+vi.mock('../src/host/native-retained-search', async () => {
+  const { createRetainedSearch } = await import('../src/host/retained-search');
+  const retainedSearch = createRetainedSearch({
+    sources: () => [{ hostId: 'h1', deviceId: 'phone', name: 'Studio' }],
+    list: async () => retainedFixture.records,
+    read: async () => undefined,
+  });
+  return {
+    retainedSearch,
+    useRetainedSearch: () =>
+      useSyncExternalStore(retainedSearch.subscribe, retainedSearch.getSnapshot),
+  };
+});
 vi.mock('../src/ui/primitives/app-dialog', () => ({
   showActionMenu: (_title: string, actions: { text: string; onPress?: () => unknown }[]) =>
     menus.push(actions),
@@ -336,6 +351,7 @@ let root: Root | undefined;
 let host: HTMLElement | undefined;
 const rowCalls = () => call.mock.calls.filter(([method]) => method !== 'messageSearch');
 beforeEach(() => {
+  retainedFixture.records = [];
   channelHistory = channelNavigationHarness();
   whoami.mockReset();
   vi.stubGlobal(
@@ -1568,4 +1584,33 @@ describe('Activity Channel navigation', () => {
     channelHistory.back();
     expect(channelHistory.state.routes.at(-1)!.name).toBe('(tabs)');
   });
+});
+
+it('searches retained channel names and message text through the same Chats header', async () => {
+  retainedFixture.records = [
+    {
+      target: { kind: 'channel', id: 'cached-only', name: 'Needle project' },
+      hasOlder: false,
+      entries: [
+        {
+          channelId: 'cached-only',
+          revision: 1,
+          message: {
+            id: 'cached-message',
+            body: 'Needle checkpoint',
+            at: '2026-10-29T00:00:00Z',
+            author: { kind: 'human' },
+          },
+        },
+      ],
+    },
+  ];
+  const view = await home();
+  await type(view, 'Needle');
+  const matches = view.querySelectorAll('[data-testid^="search-result-"]');
+  expect(matches).toHaveLength(2);
+  expect(view.textContent).toContain('Needle project');
+  expect(view.textContent).toContain('Needle checkpoint');
+  expect(view.textContent).toContain('Studio');
+  expect(view.querySelector('[data-testid="navigation-search"]')).toBeNull();
 });

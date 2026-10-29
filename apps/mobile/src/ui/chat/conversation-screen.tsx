@@ -633,7 +633,7 @@ function ChatConversation({
     list,
     visible,
     playback?.setFollowing,
-    headerOverlap,
+    snapshot.status === 'retained' ? 0 : headerOverlap,
     snapshot.status === 'live' && visible.length === 0,
     shownDrafts.length > 0,
   );

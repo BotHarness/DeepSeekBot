@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.AppBarWithSearch
@@ -23,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.SearchBarValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSearchBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -72,6 +74,8 @@ data class SearchBarProps(
   val closeLabel: String = "",
   val clearLabel: String = "",
   val emptyText: String = "",
+  val notice: String = "",
+  val retryLabel: String = "",
   val busy: Boolean = false,
   val results: List<SearchResult> = emptyList(),
   val modifiers: ModifierList = emptyList(),
@@ -104,9 +108,12 @@ fun FunctionalComposableScope.SearchBarContent(
   onExpandedChange: (Boolean) -> Unit,
   onPick: (String) -> Unit,
   onNavigation: () -> Unit,
+  onRetry: () -> Unit,
 ) {
   val text = rememberTextFieldState()
   val bar = rememberSearchBarState()
+  val resultsPosition = rememberLazyListState()
+  var returningToResults by remember { mutableStateOf(false) }
   val scope = rememberCoroutineScope()
   val menu = remember { vector(MENU) }
   val search = remember { vector(SEARCH) }
@@ -117,17 +124,26 @@ fun FunctionalComposableScope.SearchBarContent(
   val queryChanged by rememberUpdatedState(onQueryChange)
   val expandedChanged by rememberUpdatedState(onExpandedChange)
   LaunchedEffect(text) {
-    snapshotFlow { text.text.toString() }.collect { queryChanged(it) }
+    snapshotFlow { text.text.toString() }.collect {
+      queryChanged(it)
+      resultsPosition.scrollToItem(0)
+    }
   }
   LaunchedEffect(bar) {
     snapshotFlow { bar.currentValue == SearchBarValue.Expanded }.collect { open ->
       expandedChanged(open)
-      if (clearsOnCollapse(open, text.text.toString())) text.clearText()
+      if (clearsOnCollapse(open, text.text.toString(), returningToResults)) text.clearText()
+      if (open) returningToResults = false
     }
   }
   // Host keeps its composition while React Native Screens detaches an inactive screen, so the
   // full-screen search window closes with its screen instead of staying over the next one.
-  LaunchedEffect(attached) { if (!attached) bar.snapTo(0f) }
+  LaunchedEffect(attached) {
+    if (!attached) {
+      returningToResults = bar.currentValue == SearchBarValue.Expanded
+      bar.snapTo(0f)
+    } else if (returningToResults) bar.snapTo(1f)
+  }
   val inputField = @Composable {
     SearchBarDefaults.InputField(
       textFieldState = text,
@@ -181,7 +197,15 @@ fun FunctionalComposableScope.SearchBarContent(
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
-      LazyColumn(modifier = Modifier.semantics { testTagsAsResourceId = true }) {
+      LazyColumn(state = resultsPosition, modifier = Modifier.semantics { testTagsAsResourceId = true }) {
+        if (text.text.isNotBlank() && props.notice.isNotEmpty()) {
+          item(key = "search-notice") {
+            Text(props.notice, modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (props.retryLabel.isNotEmpty()) {
+              TextButton(onClick = onRetry, modifier = Modifier.testTag("retained-search-retry")) { Text(props.retryLabel) }
+            }
+          }
+        }
         props.results.forEach { result ->
           if (result.section.isNotEmpty()) {
             item(key = "section:${result.key}") {
@@ -196,7 +220,6 @@ fun FunctionalComposableScope.SearchBarContent(
           item(key = result.key) {
             SearchResultItem(result) {
               onPick(result.key)
-              scope.launch { bar.animateToCollapsed() }
             }
           }
         }

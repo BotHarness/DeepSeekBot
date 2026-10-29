@@ -14,6 +14,9 @@ type NativeSearchBarProps = PrimitiveBaseProps & {
   clearLabel: string;
   emptyText: string;
   busy: boolean;
+  notice: string;
+  retryLabel: string;
+  onRetry(): void;
   results: ChatsSearchResult[];
   onQueryChange(event: { nativeEvent: { value: string } }): void;
   onExpandedChange(event: { nativeEvent: { expanded: boolean } }): void;
@@ -43,6 +46,9 @@ export function ChatsSearchBar(props: ChatsSearchBarProps) {
         clearLabel={t.activityClearSearch}
         emptyText={t.searchNoResults}
         busy={props.busy}
+        notice={props.notice ?? ''}
+        retryLabel={props.retryLabel ?? ''}
+        onRetry={() => props.onRetry?.()}
         results={props.results}
         onQueryChange={(event) => props.onQuery(event.nativeEvent.value)}
         onExpandedChange={(event) => props.onExpanded(event.nativeEvent.expanded)}

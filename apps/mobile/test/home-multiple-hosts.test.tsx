@@ -5,6 +5,19 @@ import { expect, it, vi } from 'vitest';
 
 import { secure, remotes } from './host-session-fixture';
 import { FakeHost } from './fake-host';
+vi.mock('../src/host/native-retained-search', async () => {
+  const { createRetainedSearch } = await import('../src/host/retained-search');
+  const retainedSearch = createRetainedSearch({
+    sources: () => [],
+    list: async () => [],
+    read: async () => undefined,
+  });
+  return {
+    retainedSearch,
+    useRetainedSearch: () =>
+      useSyncExternalStore(retainedSearch.subscribe, retainedSearch.getSnapshot),
+  };
+});
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('react-native-tab-view', () => import('./tab-view-shim'));
 vi.mock('react-native', () => import('./react-native-shim'));
@@ -82,7 +95,7 @@ vi.mock('../src/ui/primitives/item-menu', () => ({
 vi.mock('../src/ui/connection-banner', () => ({ ConnectionBanner: () => null }));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
 
-import { act, useLayoutEffect, type ReactNode } from 'react';
+import { act, useSyncExternalStore, useLayoutEffect, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createHostLooks } from '../src/host/host-look';
 import { createSectionCollapse } from '../src/host/section-collapse';

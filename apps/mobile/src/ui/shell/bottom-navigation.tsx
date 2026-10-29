@@ -1,4 +1,3 @@
-import { retainedSearch } from '../../host/native-retained-search';
 import { ChatsSheetRoot } from './chats-sheet-root';
 import { WorkspacePager } from './workspace-pager';
 import { ActivitySheetRoot } from './activity-sheet-root';
@@ -103,7 +102,6 @@ function NavigationLayout() {
           >
             <Tabs.Screen name="(home)" options={{ title: t.chats }} />
             <Tabs.Screen name="(activity)" options={{ title: t.activity }} />
-            <Tabs.Screen name="(search)" options={{ title: t.localSearch.title }} />
             <Tabs.Screen name="(settings)" options={{ title: t.settings }} />
           </Tabs>
         </View>
@@ -241,7 +239,6 @@ function ScopedNavigationBar({
     focused: route.key === currentKey,
     activity: route.name === '(activity)',
     settings: route.name === '(settings)',
-    search: route.name === '(search)',
     count: route.name === '(activity)' ? pending : 0,
     onPress: () => {
       const event = emitter.emit({
@@ -249,10 +246,7 @@ function ScopedNavigationBar({
         target: route.key,
         canPreventDefault: true,
       });
-      if (!event.defaultPrevented) {
-        if (route.name === '(search)' && route.key !== currentKey) retainedSearch.enter(scope);
-        selectTab(route.key);
-      }
+      if (!event.defaultPrevented) selectTab(route.key);
     },
     onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
   }));
@@ -340,7 +334,7 @@ function ScopedNavigationBar({
           <NavigationMaterial />
           <NavigationDestinations items={items} />
         </View>
-        {state.routes[state.index]?.name === '(home)' ? create(navigationBar.height) : null}
+        {create(navigationBar.height)}
       </Animated.View>
     </>
   );

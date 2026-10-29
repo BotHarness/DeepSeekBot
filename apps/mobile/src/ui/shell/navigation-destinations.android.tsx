@@ -40,24 +40,16 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
       >
         {items.map((item) => {
           const showCount = item.activity && item.count > 0;
-          const normal = item.search
-            ? t.localSearch.title
-            : item.settings
-              ? t.settings
-              : item.activity
-                ? t.activity
-                : t.chats;
+          const normal = item.settings ? t.settings : item.activity ? t.activity : t.chats;
           const pending = t.activityPendingLabel(badgeCount(item.count));
           const icon = (
             <Icon
               source={
-                item.search
-                  ? require('../../../assets/header/search.xml')
-                  : item.settings
-                    ? require('../../../assets/toolbar/settings.xml')
-                    : item.activity
-                      ? require('../../../assets/toolbar/activity.xml')
-                      : require('../../../assets/toolbar/chats.xml')
+                item.settings
+                  ? require('../../../assets/toolbar/settings.xml')
+                  : item.activity
+                    ? require('../../../assets/toolbar/activity.xml')
+                    : require('../../../assets/toolbar/chats.xml')
               }
               size={materialNavigationBar.iconSize}
             />
@@ -72,13 +64,11 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
               modifiers={[
                 weight(1),
                 testID(
-                  item.search
-                    ? 'navigation-search'
-                    : item.settings
-                      ? 'settings-button'
-                      : item.activity
-                        ? 'navigation-activity'
-                        : 'navigation-chats',
+                  item.settings
+                    ? 'settings-button'
+                    : item.activity
+                      ? 'navigation-activity'
+                      : 'navigation-chats',
                 ),
                 semantics({
                   contentDescription:

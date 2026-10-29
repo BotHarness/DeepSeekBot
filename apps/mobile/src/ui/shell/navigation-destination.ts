@@ -3,7 +3,6 @@ export type NavigationDestination = {
   focused: boolean;
   activity: boolean;
   settings?: boolean;
-  search?: boolean;
   count: number;
   onPress(): void;
   onLongPress(): void;
