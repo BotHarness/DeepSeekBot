@@ -548,8 +548,12 @@ A Channel omitted from expanded and collapsed roster navigation by a Human prese
 _Avoid_: deleted Channel, archived Channel, muted Channel, Content Purge
 
 **Channel Deletion**:
-The Human-confirmed end of a Channel’s active membership and routing while retaining its history and causal attribution. It is distinct from reversible hiding and separately confirmed Content Purge.
+The Human-confirmed end of a Channel’s active membership and routing while retaining its history and causal attribution. It is distinct from reversible hiding and separately confirmed Content Purge. For a local group, Channel Deletion is Group Disband.
 _Avoid_: Hidden Channel, Content Purge, provider conversation deletion
+
+**Group Disband**:
+The Human-confirmed, irreversible deletion of a local group: it ends membership and routing and removes the group's own messages and files, keeping only the group's identity as a deleted marker. Content shared with other Channels, Bot Memory and Workspace files are untouched.
+_Avoid_: dissolve, archive, leave group, Hidden Channel
 
 **Channel section**:
 A user-created, collapsible grouping of Channels in the Channel list panel. Its membership and order belong to the owning Host's display arrangement, not to a Soul.

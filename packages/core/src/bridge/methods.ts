@@ -72,6 +72,7 @@ import type { HttpsFallback } from '../memory/clone.js';
 import {
   ContentPurgeError,
   type ContentPurge,
+  type GroupDisbandResult,
   type ChannelHistoryItem,
   type PurgeSource,
   type PurgePreview,
@@ -763,7 +764,7 @@ export interface BridgeMethods {
   channelGroupSendReview(payload: unknown): BridgeResult<{ enabled: boolean }>;
   channelGroupWakePolicies(payload: unknown): BridgeResult<{ members: GroupMemberWakePolicy[] }>;
   channelGroupWakeSet(payload: unknown): BridgeResult<{ channel: ChannelRecord }>;
-  channelGroupDelete(payload: unknown): BridgeResult<{ deleted: boolean }>;
+  channelGroupDelete(payload: unknown): BridgeResult<{ deleted: boolean } & GroupDisbandResult>;
   channelHistory(payload: unknown): BridgeResult<{ channels: ChannelHistoryItem[] }>;
   channelHistorySources(
     payload: unknown,
@@ -5494,12 +5495,37 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     channelGroupDelete(payload) {
       const channelId = asNonBlank(asObject(payload), 'channelId');
       if (channelId === undefined) return invalidInput('channelId is required');
+      const purge = deps.contentPurge;
+      if (!purge) return unavailable();
+      let ended: boolean;
       try {
-        deps.channels.deleteGroup(channelId);
-        deps.externalMessaging?.inbound.endChannel(channelId);
-        return { ok: true, value: { deleted: true } };
+        ended = purge.history().some((channel) => channel.id === channelId);
       } catch (error) {
-        return invalidInput(String(error));
+        return purgeFailure(error, 'Channel history is unavailable');
+      }
+      if (!ended)
+        try {
+          deps.channels.deleteGroup(channelId);
+          deps.externalMessaging?.inbound.endChannel(channelId);
+          void deps.runtime
+            ?.endGroup?.(channelId)
+            .catch((error: unknown) =>
+              deps.warn?.(`botharness.group_disband.stop_turns_failed error=${String(error)}`),
+            );
+          deps.toolApproval?.cancelChannel(channelId);
+          deps.userQuestions?.cancelChannel(channelId);
+        } catch (error) {
+          return invalidInput(String(error));
+        }
+      void deps.roster
+        .channelForget(channelId)
+        .catch((error: unknown) =>
+          deps.warn?.(`botharness.group_disband.roster_failed error=${String(error)}`),
+        );
+      try {
+        return { ok: true, value: { deleted: true, ...purge.disband(channelId) } };
+      } catch (error) {
+        return purgeFailure(error, 'The group was disbanded, but its messages were not deleted');
       }
     },
     channelMessages(payload) {

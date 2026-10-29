@@ -2248,23 +2248,14 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       if (channel?.type !== 'group') throw new Error('Group Channel not found');
       const timestamp = now().toISOString();
       const deleted: ChannelRecord = {
-        ...channel,
+        id: channel.id,
+        type: channel.type,
+        name: channel.name,
         members: [],
-        invitations: (channel.invitations ?? []).map((item) =>
-          item.status === 'pending'
-            ? { ...item, status: 'cancelled', respondedAt: timestamp }
-            : item,
-        ),
-        joinRequests: (channel.joinRequests ?? []).map((item) =>
-          item.status === 'pending'
-            ? { ...item, status: 'cancelled', decidedAt: timestamp, decidedBy: 'human' }
-            : item,
-        ),
         deletedAt: timestamp,
+        createdAt: channel.createdAt,
         updatedAt: timestamp,
       };
-      delete deleted.ownerBotSlug;
-      delete deleted.wakePolicies;
       database.transaction(
         (db) => {
           db.prepare('UPDATE channel_records SET record_json = ? WHERE channel_id = ?').run(

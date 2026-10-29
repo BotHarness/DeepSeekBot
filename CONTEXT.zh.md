@@ -545,8 +545,12 @@ _避免使用_：room、server、board
 _避免使用_：deleted Channel、archived Channel、muted Channel、Content Purge
 
 **Channel Deletion**：
-由 Human 确认，结束某个 Channel 活跃成员关系和路由的操作，同时保留历史及因果归属。它不同于可恢复的隐藏，也不同于另行确认的 Content Purge。
+由 Human 确认，结束某个 Channel 活跃成员关系和路由的操作，同时保留历史及因果归属。它不同于可恢复的隐藏，也不同于另行确认的 Content Purge。对本地群聊而言，Channel Deletion 就是 Group Disband。
 _避免使用_：Hidden Channel、Content Purge、provider conversation deletion
+
+**Group Disband**：
+由 Human 确认、不可撤销地删除一个本地群聊（界面称「解散群聊」）：结束成员关系和路由，并删除该群自己的消息和文件，只保留群的身份作为已删除标记。与其他 Channel 共享的内容、Bot 记忆和 Workspace 文件不受影响。
+_避免使用_：dissolve、archive、退出群聊、Hidden Channel
 
 **Channel section**：
 用户创建、可折叠的 Channel 分组，显示在频道列表面板中。归属与顺序属于对应 Host 的 display arrangement，不属于 Soul。

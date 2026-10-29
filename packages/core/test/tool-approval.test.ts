@@ -394,6 +394,20 @@ describe('Channel tool approval', () => {
     untrack?.();
   });
 
+  it('cancels pending approvals in a disbanded group so the Bot stops waiting', async () => {
+    const state = fixture();
+    const untrack = state.broker.track(state.execution());
+    const answer = state.broker.ask({ agent: state.agent, toolName: 'bash', callId: 'call-1' });
+    await vi.waitFor(() => expect(state.messages).toHaveLength(1));
+    const requestId = state.messages[0]!.id;
+    state.broker.cancelChannel('group-other');
+    expect(state.broker.status(botSlug, requestId)).toBe('pending');
+    state.broker.cancelChannel(channelId);
+    expect(await answer).toBe('cancelled');
+    expect(state.broker.status(botSlug, requestId)).toBe('expired');
+    untrack?.();
+  });
+
   it('expires a pending native approval when its Workspace Grant is revoked', async () => {
     const state = fixture();
     let grantActive = true;
