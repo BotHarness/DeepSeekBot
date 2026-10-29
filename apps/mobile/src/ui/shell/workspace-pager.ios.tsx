@@ -73,10 +73,7 @@ export function WorkspacePager({ children }: { children: ReactNode }) {
     [page, home, open, close, leaveChat, activity],
   );
   const pair = useConversationPagePair(source, paging);
-  const limit = Math.max(
-    page + 1,
-    !home || !forward || pair === undefined ? 2 : profileEnabled ? 4 : 3,
-  );
+  const limit = Math.max(page + 1, !home || pair === undefined ? 2 : profileEnabled ? 4 : 3);
   return (
     <PagerView
       ref={mount}
@@ -84,7 +81,7 @@ export function WorkspacePager({ children }: { children: ReactNode }) {
       style={{ flex: 1, backgroundColor: theme.color.base }}
       stableNativePages
       initialPage={1}
-      scrollEnabled={home}
+      scrollEnabled={home && forward}
       pageLimit={limit}
       keyboardDismissMode="on-drag"
       overdrag={false}

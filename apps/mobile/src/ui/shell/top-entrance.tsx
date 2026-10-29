@@ -5,7 +5,6 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
   useAnimatedStyle,
-  useReducedMotion,
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
@@ -14,6 +13,7 @@ import { spring } from '../design/motion';
 import { useDesignTheme } from '../design/theme';
 import { topEntrance } from '../design/tokens';
 import { useMounted } from '../mounted';
+import { useSystemReducedMotion } from '../primitives/use-system-reduced-motion';
 import { leaveScreen } from './leave-screen';
 import { StackRoot } from './stack-root';
 import { closesTopEntrance, topEntranceDrag } from './tob-mode-model';
@@ -25,7 +25,7 @@ function leave(): void {
 export function TopEntranceStack() {
   const theme = useDesignTheme();
   const { height } = useWindowDimensions();
-  const reduced = useReducedMotion();
+  const reduced = useSystemReducedMotion();
   const offset = useSharedValue(reduced ? 0 : -height);
   const drag = useSharedValue(0);
   const [leaving, setLeaving] = useState(false);
@@ -56,7 +56,10 @@ export function TopEntranceStack() {
     });
 
   const slide = useAnimatedStyle(() => ({
-    transform: [{ translateY: offset.value }, { translateX: drag.value }],
+    transform: [
+      { translateY: reduced ? 0 : offset.value },
+      { translateX: reduced ? 0 : drag.value },
+    ],
   }));
 
   return (

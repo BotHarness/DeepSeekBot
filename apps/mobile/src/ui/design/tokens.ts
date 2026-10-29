@@ -310,6 +310,18 @@ export const topEntrance = {
   flick: 500,
 } as const;
 
+export const tobPull = {
+  commit: 80,
+  start: 12,
+  topTolerance: 1,
+  horizontalFail: 12,
+  resistance: 0.5,
+  maxTravel: 120,
+  indicator: 32,
+  glyph: 18,
+  stroke: 2,
+} as const;
+
 export const markdownTable = {
   minColumnWidth: 96,
   maxColumnWidth: 280,

@@ -93,3 +93,20 @@ export class Keyframe {
     return this;
   }
 }
+
+export function useComposedEventHandler(handlers: unknown[]) {
+  const contexts = handlers.map(() => ({}));
+  const events = ['onScroll', 'onBeginDrag', 'onEndDrag', 'onMomentumBegin', 'onMomentumEnd'];
+  return Object.fromEntries(
+    events.map((event) => [
+      event,
+      (payload: unknown) => {
+        handlers.forEach((handler, index) => {
+          if (handler === null || typeof handler !== 'object') return;
+          const callback = Reflect.get(handler, event);
+          if (typeof callback === 'function') callback(payload, contexts[index]);
+        });
+      },
+    ]),
+  );
+}

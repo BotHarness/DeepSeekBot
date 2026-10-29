@@ -166,5 +166,6 @@ export const StyleSheet = {
 export const AccessibilityInfo = {
   announceForAccessibility: (_message: string) => {},
   isScreenReaderEnabled: async () => false,
+  isReduceMotionEnabled: async () => false,
   addEventListener: (_event: string, _listener: (enabled: boolean) => void) => ({ remove() {} }),
 };
