@@ -1,0 +1,20 @@
+{
+  "channelId": "group-qa3171-offline",
+  "history": {
+    "channels": []
+  },
+  "roster": {
+    "pins": [],
+    "hidden": [],
+    "muted": [],
+    "sectionOrder": [],
+    "sections": [],
+    "topOrder": []
+  },
+  "channelGet": {
+    "refusal": "botharness/channelGet failed: HTTP 200, unknown-channel"
+  },
+  "channelTimeline": {
+    "refusal": "botharness/channelTimeline failed: HTTP 200, not-found"
+  }
+}

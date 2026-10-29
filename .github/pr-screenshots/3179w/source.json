@@ -1,0 +1,9 @@
+{
+  "batchSha": "7d68e5db7f35e1f38feb556a8a13f9c45eb62bb3",
+  "reload": "task Metro8097 restarted, native app process restarted",
+  "hostSessionSha256": "F5A5AE7449A76C1C85FE579EC4B2926374410ECE9EB85D4186301ACE3226FAE5",
+  "conversationScreenSha256": "65F02A6F12CF30D821B36CB4325397D9A1BCADCCE3E10CA1B772DEA1A4B98982",
+  "nativeInputsUnchanged": true,
+  "finalPrHead": "f4a3da7d0e98934559cde0da65fbb1b192f33710",
+  "excluded": "3117"
+}

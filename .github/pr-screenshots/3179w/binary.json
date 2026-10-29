@@ -1,0 +1,9 @@
+{
+  "batchSha": "3f7da759b0f2f9c83cac042a7b3fb475920a924b",
+  "signatureMatch": true,
+  "apkSha256": "168F5EE0FA864C266407A917E35FF1B752B08C589D4623EBB5DEB50B880DEFC0",
+  "rn": "0.88.1",
+  "node": "24.21.0",
+  "abi": "arm64-v8a",
+  "signature": "V2 Signer: certificate SHA-256 digest: fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c"
+}
