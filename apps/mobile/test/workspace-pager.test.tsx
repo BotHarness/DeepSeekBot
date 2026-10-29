@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, useContext, useEffect, useState, type ReactNode } from 'react';
+import { act, useContext, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -76,17 +76,18 @@ const { WorkspacePager } = await import('../src/ui/shell/workspace-pager.ios');
 const { openWorkspacePage, closeWorkspacePage } = await import('../src/ui/shell/workspace-paging');
 
 const { ChatsPagingContext } = await import('../src/ui/shell/chats-paging');
+const { useMounted } = await import('../src/ui/mounted');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 function Chats() {
   const [draft, setDraft] = useState('');
   const setPaging = useContext(ChatsPagingContext);
-  useEffect(() => {
+  const mount = useMounted<HTMLDivElement>(() => {
     setPaging?.(draft === '');
   }, [draft, setPaging]);
   return (
-    <div data-testid="chat-list">
+    <div ref={mount} data-testid="chat-list">
       <input
         aria-label="Search chats"
         value={draft}
