@@ -1,6 +1,6 @@
 # 设置指南
 
-本页说明公共包 **deepseekbot** 在 DSH **0.2.0-rc.1** 中的非 IM 设置：从哪里打开、各参数做什么，以及保存后的作用范围。先完成 [安装](/zh/docs/installation) 和 [API 与 Bot 模型配置](/zh/docs/model-setup)。Slack、Lark 的账号和连接参数分别见现有连接教程。
+本页说明公共包 **deepseekbot** 在 DSH **0.2.1-rc.2** 中的非 IM 设置：从哪里打开、各参数做什么，以及保存后的作用范围。先完成 [安装](/zh/docs/installation) 和 [API 与 Bot 模型配置](/zh/docs/model-setup)。Slack、Lark 的账号和连接参数分别见现有连接教程。
 
 ## 设置入口地图
 
@@ -27,10 +27,12 @@
 选择备份文件可检查清单、数据库完整性、数量、实际大小和 SHA-256；哈希证明完整性，不证明来源。用可信安装包提供的本地命令，将文件恢复到一个尚不存在的新目录：
 
 ```text
-botharness-profile restore --file "environment.botharness-backup" --new-home "new-environment"
+tobs profile-backup-restore --file "environment.botharness-backup" --new-home "new-environment" --confirm
 ```
 
-源码 checkout 可使用 `node scripts/profile-restore.mjs` 加相同参数。恢复完成时环境仍停止；用可信的 DSH **0.2.0-rc.1** 和匹配的 BotHarness Bundle 启动该 DSH_HOME。开发环境可运行 `node scripts/dev-instance.mjs --home <新目录> --port <端口>`，由固定原生 CLI 创建 Profile 组合，不加载备份里的可执行配置。运行中的 Settings 不提供任意目标目录写入，也不替换自身数据；已有目录会被拒绝，暂存数据库使用既有 Profile Writer Lease 校验和迁移后才发布。
+源码 checkout 也保留 `node scripts/profile-restore.mjs restore --file <文件> --new-home <新目录>` 入口。恢复完成时环境仍停止；用兼容且可信的 DSH 安装和匹配的 BotHarness Bundle 启动该 DSH_HOME。开发环境可运行 `node scripts/dev-instance.mjs --home <新目录> --port <端口>`，由固定原生 CLI 创建 Profile 组合，不加载备份里的可执行配置。运行中的 Settings 不提供任意目标目录写入，也不替换自身数据；已有目录会被拒绝，暂存数据库使用既有 Profile Writer Lease 校验和迁移后才发布。
+
+DSH 版本只记录备份来源；兼容性由归档格式、数据库代数及必需数据契约决定。历史 v1 备份仍可读取，新导出的 v2 备份需要更新后的 Tobs。遇到不支持的未来格式或数据库结构时，需要升级读取方。
 
 恢复默认进入灾难恢复状态：Bot 暂停，账号绑定、外部触发器、Service Grants、持久工具授权和定时任务挂起；Workspace 需要重新映射，Browser／Computer 访问关闭，旧 Session／Inbox／Outbox 不重放。冷状态仍能读取聊天历史和 Memory。在 DSH 模型设置配置目标本地凭证，并在 Bot Profile 保存明确的模型计划；回到管理备份刷新准备度，点击「授权此目标模型」，确认已考虑旧设备仍运行的同身份双活风险，再「激活此 Bot」。发送新的 DM，保留身份并使用新的 Orchestrator Session。模型不可用或计划修订变化会阻止新请求，不静默回退；外部账号需要另行明确授权。
 
@@ -89,6 +91,34 @@ botharness-profile restore --file "environment.botharness-backup" --new-home "ne
 | 匿名使用统计        | 开                                                 | 切换即保存，立即生效、无需重启；被插件配置或环境变量关闭时锁定为关。见[匿名使用统计](#匿名使用统计)。                         |
 
 下方「外部平台默认行为」属于 IM 收件与身份设置，参见 [Lark / 飞书](/zh/docs/lark-connection)、[Slack](/zh/docs/slack-connection) 与 Discord。各平台的默认值和版本独立保存。Profile 身份及群收件策略可以继承默认值或保留自定义选项；恢复继承时使用该平台的当前默认值。Discord 普通消息收件仍需 Message Content Intent 和实际投递验证，修改默认值不会授予这些能力。
+
+## 外观与壁纸
+
+打开 **Bot 设置 → 界面设置**（在 Bot 模式下，macOS 按 ⌘, 、其他系统按 Ctrl+, 可直接打开 Bot 设置）。本页设置只保存在这台设备上，网页和桌面端各自保存，不会改变 DSH 主题。
+
+| 设置项                | 选项                                             | 作用                                                                                                                             |
+| --------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| 主题                  | 浅色、深色或跟随系统                             | Bot 模式自己的主题。                                                                                                             |
+| 配色与主色            | 经典蓝、雾紫、森林绿、暖琥珀；主色可任选         | 浅色和深色模式分别设置。                                                                                                         |
+| 面板标题栏 / 内容底层 | 底色、不透明度、背景模糊                         | 作用于当前模式下的所有面板；文字和消息气泡保持各自颜色。                                                                         |
+| 壁纸库                | 最多 24 张；图片最大 20 MB，静音视频最大 100 MB  | 点击「添加壁纸」或一次拖入多个文件，选中一张或选「无」；「调整取景」设置位置和缩放。首次设置壁纸时，未调整过的面板会变为半透明。 |
+| 自动切换              | 关闭、每 1／5／15／30 分钟、每小时；「随机顺序」 | 在壁纸库中轮换。视频静音循环，切到后台时暂停；无法播放时显示已保存的封面并说明原因。                                             |
+| 恢复外观              | 「清除面板单独设置」「恢复默认外观…」            | 前者清除当前模式下各面板的单独设置；后者先确认，再恢复两种模式的默认外观并清空壁纸库。Bot、数据和布局不受影响。                  |
+
+要单独设置某个面板，打开它标题栏的菜单 →「外观设置」。每一项都可以跟随全局或单独设置，「恢复此面板」会清除它的单独设置。`deepseekbot` 的外观和壁纸命令需要指定一个已打开的 Client，见 [CLI 指南](bot-cli.zh.md#设备本地-deepseekbot-外观)。
+
+## 上下文压缩
+
+Bot 的主会话（Orchestrator Session）会随着每轮对话变长。压缩会用摘要替换冗长的历史，让下一条消息要重读的内容更少。
+
+- **立即压缩：** 在 Bot 私聊输入框输入 `/compact`，在 IM 私聊发送 `/compact`（或 `/压缩`），或运行 `deepseekbot bot-compact <bot-id>`。结果会显示压缩前后的 token 数。Bot 正在工作时会被拒绝，请先停止或等待。
+- **空闲时提前压缩上下文：** 位于 **Bot 设置 → 模型与运行**，默认开启。Bot 安静到所用模型提示缓存寿命的一半时（最少 15 分钟；DeepSeek 模型在观测到实际数据前按 2 小时估计），Host 会趁缓存还在压缩会话，比之后在缓存失效时压缩更省。聊天里不显示，每次都记录在 Bot 活动中。细节和按模型的覆盖方式见 [CLI 指南](bot-cli.zh.md#空闲压缩idle-compaction)。
+
+如果某一轮仍因上下文已满而失败，失败提示会直接说明；请缩小请求后重试。
+
+## 快速搜索与快捷键
+
+在 Bot 模式下按 **Alt+K**（macOS 为 Option+K）可搜索 Bot、群聊、频道以及 Bot 设置里的具体一行；浏览器能收到 Ctrl+K 或 ⌘K 时也可以使用。中文名称可用全拼或首字母搜索。选中设置结果会打开对应页面并高亮那一行。按 `?` 或 Ctrl/⌘+/ 查看全部快捷键，在 **Bot 设置 → 键盘快捷键** 中修改。
 
 ## 创建 Bot 与编辑 Profile
 
@@ -158,16 +188,22 @@ Bot 的 **唤醒策略** 已移到私聊的 Channel sidebar。打开 **Bot 私�
 
 DeepSeekBot 默认由 DSH 后台发送匿名使用统计；首次打开 Bot 模式时会弹出一次说明。事件只关联一个保存在 `$DSH_HOME/botharness/telemetry.json` 的随机安装 ID：
 
-- `plugin_started`：插件版本、DSH 版本、操作系统和架构。
-- `bot_created`、`bot_archived`、`bot_deleted`、`marketplace_bot_installed`、`avatar_edited`：只记录发生了这个操作。
-- `connector_enabled`：只记录连接器类型（`feishu`、`lark`、`slack`、`discord`、`weixin` 或 `other`）。
-- `daily_usage`：每天最多一次，记录 PersonaBot 数量、自上次汇总以来新增的会话数和消息数，以及这段统计时长（整小时数）；不会按单条消息发送事件。
+事件名遵循 [tracking plan](telemetry-events.md)，其中列出了每个事件和属性。
+
+- `app:host_start`：插件版本、DSH 版本、操作系统和架构。
+- `app:active_day_start`：每个本地日最多一次，在当天第一次打开 Bot 模式、Human 发消息或收到 IM 消息时发送，只记录是哪一种以及界面（`desktop_app`、`browser` 或 `im`）。`app:bot_mode_enter` 记录每次进入 Bot 模式及其界面。
+- `bot_library:bot_create`、`bot_library:bot_archive`、`bot_library:bot_delete`、`bot_profile:avatar_update`、`bot_profile:banner_update`：只记录发生了这个操作。
+- 市场：`marketplace:bot_install` 和 `marketplace:bot_open`（`entry`，从哪里打开的 Bot：`list`、`hot`、`new`、`rising` 或 `digest`；`marketplace:bot_open` 还记录打开的是详情还是安装步骤）；`marketplace:section_view` 和 `marketplace:digest_view`（只记录显示了热门、新上架、上升最快三排或每日精选）；`marketplace:digest_open`（从面板还是往期列表打开）；以及 `marketplace:digest_archive_open`。不包含 Bot 名称、条目 ID 或搜索文字。
+- `im:connector_enable`：只记录连接器类型（`feishu`、`lark`、`slack`、`discord`、`weixin` 或 `other`）。
+- 首次进入引导和新手教程：`onboarding:intro_view`；`onboarding:intro_step_view`（步骤名）；`onboarding:intro_dismiss`（停在哪一步，点的是跳过还是关闭）；`onboarding:intro_complete`（选了哪个开场问题，不含文字）；`onboarding:theme_update`（只记 `scheme`、`preset`、`layout` 或 `wallpaper`）；`onboarding:model_save`（只记是否用了进阶的执行模型）；`onboarding:community_link_click`（`github`、`discord` 或 `qq`）；以及 `onboarding:tutorial_start`、`_pause`、`_skip`、`_resume`、`_restart`、`_complete`。不包含模型名称、壁纸文件或输入的文字。
+- 功能使用，每条都带界面（`desktop_app` 或 `browser`），只记录操作类型：`search:switcher_open` 和 `search:result_open`（`channel`、`message` 或 `setting`）；`layout:mode_select`（`simple` 或 `advanced`；`app:bot_mode_enter` 也带当前布局）；`viewer:subpanel_open`（`browser` 或 `computer`）；`activity:inbox_open`、`activity:approval_submit`（`allow_once`、`allow_always` 或 `reject`）、`activity:question_submit`、`activity:grant_request_submit`、`activity:inbox_reply_send`（`message` 或 `assignment`）、`activity:inbox_item_dismiss` 和 `activity:inbox_item_snooze`；`model:plan_update`（方案怎么改的）；`remote_host:host_pair_complete`（`success`、`refused` 或 `failed`）和 `remote_host:conversation_open`。Host 还会发送 `connect:sign_in_start`、`connect:sign_in_complete`（`success`、`denied` 或 `expired`），以及 Tob 给同事 Bot 发消息时的 `tob:delegation_send`。不包含搜索文字、模型名称、工具名称、文件夹或消息内容。
+- `app:usage_report`：每天最多一次，记录 PersonaBot 数量、自上次汇总以来新增的会话数和消息数，以及这段统计时长（整小时数）；不会按单条消息发送事件。
 - `$exception`：BotHarness 代码在后台出现未处理的错误时，记录错误类型和调用栈中的函数名与行号，文件只保留包内相对路径（如 `@botharness/core/dist/index.mjs`）或文件名；调用栈中没有 BotHarness 代码的错误会被丢弃。报告先保存在本机，下次启动时发送；从不包含错误信息正文。
 
 名称、Persona 或 Memory 内容、对话、提示词、工具参数、仓库地址、连接器账号或工作区、你的文件路径、凭据和 IP 地址从不发送。要关闭，打开 **Bot 设置**，关掉 **匿名使用统计** 开关即可：立即生效、无需重启，尚未发送的事件会被丢弃，选择保存在同一个 `telemetry.json` 里，重启后仍然有效；重新打开同样无需重启。部署方也可以在 BotHarness core 插件上设置 `telemetry: false`（见下方高级参数），或用 `DO_NOT_TRACK=1` 或 `BOTHARNESS_TELEMETRY=0` 启动 DSH 强制关闭，此时开关显示为关闭且不可操作，并注明是哪项设置关闭了它。详见[隐私说明](https://deepseekbot.botharness.ai/privacy)和[源码](https://github.com/BotHarness/BotHarness/tree/main/packages/core/src/telemetry)。
 
 ## 高级参数与可选能力
 
-公共 npm 包的产品组合是 Core、Client 和已验证的 IM Provider。Browser / Computer 等开发能力不因为上述安装步骤就自动可用；只在实际部署了相应插件时出现。Core 的 `enabled`（启用）、`agentPreset`（会话工具预设，默认 standard）、`activityDetailConsumers`（允许读取活动详情的受信任 Host 插件名单，默认空）、`telemetry`（匿名使用统计，默认开启）见代码生成的 [Core 配置参考](/zh/dev/reference/config)。可选 Browser 的目标、驱动、路径、无窗口模式和空闲停止参数见 [Browser 配置定义](https://github.com/BotHarness/BotHarness/blob/main/packages/browser/src/index.ts)；Computer 的目标、桌面资源、导出目录和操作授权参数见 [Computer 配置定义](https://github.com/BotHarness/BotHarness/blob/main/packages/computer/src/index.ts)。操作教程见 [分享日常浏览器标签页](/zh/docs/daily-browser) 与 [Computer 导出与迁移](/zh/docs/computer-export)。
+公共 npm 包 **`deepseekbot`** 默认包含 Core、Client、Browser、Computer 和已验证的 IM Provider；首次安装不连接任何 IM 账号，每个 Bot 的 Browser / Computer 访问权限也默认关闭，需按 Bot 显式开启。Core 的 `enabled`（启用）、`agentPreset`（会话工具预设，默认 standard）、`activityDetailConsumers`（允许读取活动详情的受信任 Host 插件名单，默认空）、`telemetry`（匿名使用统计，默认开启）见代码生成的 [Core 配置参考](/zh/dev/reference/config)。Browser 的目标、驱动、路径、无窗口模式和空闲停止参数见 [Browser 配置定义](https://github.com/BotHarness/BotHarness/blob/main/packages/browser/src/index.ts)；Computer 的目标、桌面资源、导出目录和操作授权参数见 [Computer 配置定义](https://github.com/BotHarness/BotHarness/blob/main/packages/computer/src/index.ts)。操作教程见 [分享日常浏览器标签页](/zh/docs/daily-browser) 与 [Computer 导出与迁移](/zh/docs/computer-export)。
 
 高级修改时先核对实际安装版本，再从 **设置 → 内置插件** 查看对应插件的详情 / 参数；没有表单的部署参数按 [DSH 官方文档](https://deepseek-harness.github.io/deepseek-harness/develop/basic/publish) 在 Profile / Patch 层配置。当前网站开发参考可能比 npm 发布版更新，不能把开发参考中的可选能力当作这个安装包已经提供。

@@ -1,0 +1,390 @@
+{
+  "base": "024d1c675b246b8ef1e402fa4d4d557d270bebf3",
+  "runtimeCandidate": "e952589cb0a70cd38cd9dc9bc7e5e661ee54584a",
+  "apks": {
+    "baseline": "f5fb8e9e9333712c9e480195c1dac420cc6ab4e463bfc88c45d199bd92a7d592",
+    "candidate": "bbefa60a265d9b795de0f9e2ea809c69d3a00ef98b1b236a630cc5a53d9efbd1",
+    "instrumented": false
+  },
+  "fixture": {
+    "count": 300,
+    "exact": true,
+    "utf16": 32961,
+    "sha256": "22302e29c3dc50f5303934d621aceba96264affa762e7c868cf4640fe68d4ad3",
+    "unique": 300,
+    "pages": 2
+  },
+  "canonicalAfter": {
+    "count": 300,
+    "unique": 300,
+    "exact": true,
+    "pages": 2
+  },
+  "minimizedBaseline": {
+    "gestures": 12,
+    "failed": 3,
+    "runs": 3
+  },
+  "matrix": [
+    {
+      "arm": "baseline",
+      "font": "1.0",
+      "theme": "light",
+      "beforeTable": true,
+      "returned": true,
+      "afterTable": false,
+      "pass": false,
+      "screenshot": "matrix-a-10-light.png"
+    },
+    {
+      "arm": "baseline",
+      "font": "1.0",
+      "theme": "dark",
+      "beforeTable": true,
+      "returned": true,
+      "afterTable": true,
+      "pass": true,
+      "screenshot": "matrix-a-10-dark.png"
+    },
+    {
+      "arm": "baseline",
+      "font": "1.3",
+      "theme": "light",
+      "beforeTable": true,
+      "returned": true,
+      "afterTable": false,
+      "pass": false,
+      "screenshot": "matrix-a-13-light.png"
+    },
+    {
+      "arm": "baseline",
+      "font": "1.3",
+      "theme": "dark",
+      "beforeTable": true,
+      "returned": true,
+      "afterTable": true,
+      "pass": true,
+      "screenshot": "matrix-a-13-dark.png"
+    },
+    {
+      "arm": "baseline",
+      "font": "2.0",
+      "theme": "light",
+      "beforeTable": true,
+      "returned": true,
+      "afterTable": false,
+      "pass": false,
+      "screenshot": "matrix-a-20-light.png"
+    },
+    {
+      "arm": "baseline",
+      "font": "2.0",
+      "theme": "dark",
+      "beforeTable": true,
+      "returned": true,
+      "afterTable": false,
+      "pass": false,
+      "screenshot": "matrix-a-20-dark.png"
+    },
+    {
+      "arm": "candidate",
+      "font": "1.0",
+      "theme": "light",
+      "beforeTable": true,
+      "returned": true,
+      "afterTable": true,
+      "pass": true,
+      "screenshot": "matrix-b-10-light.png"
+    },
+    {
+      "arm": "candidate",
+      "font": "1.0",
+      "theme": "dark",
+      "beforeTable": true,
+      "returned": true,
+      "afterTable": true,
+      "pass": true,
+      "screenshot": "matrix-b-10-dark.png"
+    },
+    {
+      "arm": "candidate",
+      "font": "1.3",
+      "theme": "light",
+      "beforeTable": true,
+      "returned": true,
+      "afterTable": true,
+      "pass": true,
+      "screenshot": "matrix-b-13-light.png"
+    },
+    {
+      "arm": "candidate",
+      "font": "1.3",
+      "theme": "dark",
+      "beforeTable": true,
+      "returned": true,
+      "afterTable": true,
+      "pass": true,
+      "screenshot": "matrix-b-13-dark.png"
+    },
+    {
+      "arm": "candidate",
+      "font": "2.0",
+      "theme": "light",
+      "beforeTable": true,
+      "returned": true,
+      "afterTable": true,
+      "pass": true,
+      "screenshot": "matrix-b-20-light.png"
+    },
+    {
+      "arm": "candidate",
+      "font": "2.0",
+      "theme": "dark",
+      "beforeTable": true,
+      "returned": true,
+      "afterTable": true,
+      "pass": true,
+      "screenshot": "matrix-b-20-dark.png"
+    }
+  ],
+  "paging": {
+    "samples": [
+      {
+        "phase": "history-6",
+        "markers": [229, 228, 227, 226, 225, 224, 223],
+        "ellipsis": 0
+      },
+      {
+        "phase": "history-12",
+        "markers": [166, 165, 164, 163, 162, 161, 160],
+        "ellipsis": 0
+      },
+      {
+        "phase": "history-18",
+        "markers": [106, 105, 104, 103, 102, 101, 100],
+        "ellipsis": 0
+      },
+      {
+        "phase": "history-24",
+        "markers": [45, 44, 43, 42, 41, 40],
+        "ellipsis": 0
+      },
+      {
+        "phase": "idle-before",
+        "markers": [45, 44, 43, 42, 41, 40],
+        "ellipsis": 0
+      },
+      {
+        "phase": "idle-after",
+        "markers": [45, 44, 43, 42, 41, 40],
+        "ellipsis": 0
+      }
+    ],
+    "idleBoundsStable": true,
+    "returned": true,
+    "afterTable": true
+  },
+  "focus": [
+    {
+      "label": "focus-230",
+      "target": "AX_HISTORY_0230",
+      "targetInAccessibilityTree": true,
+      "initialMarkers": [233, 232, 231, 230, 229, 228, 227],
+      "returnTableInAccessibilityTree": true,
+      "exactCenteringQualified": false
+    },
+    {
+      "label": "focus-235",
+      "target": "AX_HISTORY_0235",
+      "targetInAccessibilityTree": true,
+      "initialMarkers": [238, 237, 236, 235, 234, 233, 232],
+      "returnTableInAccessibilityTree": true,
+      "exactCenteringQualified": false
+    }
+  ],
+  "scrollGuard": {
+    "order": ["guard-a1", "guard-b1", "guard-b2", "guard-a2", "guard-a3", "guard-b3"],
+    "windowSeconds": 18,
+    "comparison": [
+      {
+        "metric": "js_cpu_per_second",
+        "baseline": 0.327355,
+        "candidate": 0.335701,
+        "changePercent": 2.549525744222647,
+        "guard": true
+      },
+      {
+        "metric": "ui_p95_ms",
+        "baseline": 6.828677,
+        "candidate": 7.306707,
+        "changePercent": 7.000331103667667,
+        "guard": true
+      },
+      {
+        "metric": "present_p95_ms",
+        "baseline": 8.341092,
+        "candidate": 8.344997,
+        "changePercent": 0.04681641204771214,
+        "guard": true
+      }
+    ],
+    "valid": true,
+    "rows": [
+      {
+        "label": "guard-a1",
+        "metrics": {
+          "js_cpu_per_second": 0.327355,
+          "ui_p95_ms": 6.804504,
+          "ui_max_ms": 35.89323,
+          "ui_frames": 2124,
+          "present_p95_ms": 8.340189,
+          "present_max_ms": 556.025692,
+          "app_presentations_per_second": 108.423474,
+          "gaps_over_16_7ms": 8,
+          "native_scroll_events": 3195,
+          "retained_seconds": 22.850705
+        },
+        "display": [true, true],
+        "thermal": [0, 0],
+        "traceErrors": []
+      },
+      {
+        "label": "guard-b1",
+        "metrics": {
+          "js_cpu_per_second": 0.355943,
+          "ui_p95_ms": 7.276215,
+          "ui_max_ms": 38.055154,
+          "ui_frames": 2115,
+          "present_p95_ms": 8.343046,
+          "present_max_ms": 307.080231,
+          "app_presentations_per_second": 109.871791,
+          "gaps_over_16_7ms": 11,
+          "native_scroll_events": 3231,
+          "retained_seconds": 22.871057
+        },
+        "display": [true, true],
+        "thermal": [0, 0],
+        "traceErrors": []
+      },
+      {
+        "label": "guard-b2",
+        "metrics": {
+          "js_cpu_per_second": 0.335701,
+          "ui_p95_ms": 7.375981,
+          "ui_max_ms": 37.658461,
+          "ui_frames": 2122,
+          "present_p95_ms": 8.344997,
+          "present_max_ms": 580.936153,
+          "app_presentations_per_second": 109.842001,
+          "gaps_over_16_7ms": 7,
+          "native_scroll_events": 3223,
+          "retained_seconds": 22.892092
+        },
+        "display": [true, true],
+        "thermal": [0, 0],
+        "traceErrors": []
+      },
+      {
+        "label": "guard-a2",
+        "metrics": {
+          "js_cpu_per_second": 0.323126,
+          "ui_p95_ms": 6.828677,
+          "ui_max_ms": 37.803462,
+          "ui_frames": 2117,
+          "present_p95_ms": 8.341092,
+          "present_max_ms": 514.566385,
+          "app_presentations_per_second": 107.908839,
+          "gaps_over_16_7ms": 10,
+          "native_scroll_events": 3188,
+          "retained_seconds": 22.864699
+        },
+        "display": [true, true],
+        "thermal": [0, 0],
+        "traceErrors": []
+      },
+      {
+        "label": "guard-a3",
+        "metrics": {
+          "js_cpu_per_second": 0.339106,
+          "ui_p95_ms": 6.908847,
+          "ui_max_ms": 35.213615,
+          "ui_frames": 2126,
+          "present_p95_ms": 8.341715,
+          "present_max_ms": 514.576308,
+          "app_presentations_per_second": 110.604324,
+          "gaps_over_16_7ms": 8,
+          "native_scroll_events": 3213,
+          "retained_seconds": 22.873422
+        },
+        "display": [true, true],
+        "thermal": [0, 0],
+        "traceErrors": []
+      },
+      {
+        "label": "guard-b3",
+        "metrics": {
+          "js_cpu_per_second": 0.322735,
+          "ui_p95_ms": 7.306707,
+          "ui_max_ms": 37.09577,
+          "ui_frames": 2117,
+          "present_p95_ms": 8.347308,
+          "present_max_ms": 473.079153,
+          "app_presentations_per_second": 109.811046,
+          "gaps_over_16_7ms": 9,
+          "native_scroll_events": 3203,
+          "retained_seconds": 22.898607
+        },
+        "display": [true, true],
+        "thermal": [0, 0],
+        "traceErrors": []
+      }
+    ],
+    "returnResults": [
+      {
+        "label": "guard-a1",
+        "pass": true
+      },
+      {
+        "label": "guard-b1",
+        "pass": true
+      },
+      {
+        "label": "guard-b2",
+        "pass": true
+      },
+      {
+        "label": "guard-a2",
+        "pass": false
+      },
+      {
+        "label": "guard-a3",
+        "pass": true
+      },
+      {
+        "label": "guard-b3",
+        "pass": true
+      }
+    ]
+  },
+  "limits": [
+    "Correctness fix with a measured cost, not a speedup",
+    "Presentation density includes pauses and is not sustained scrolling FPS",
+    "Exact old-message centering remains unqualified",
+    "iOS native and ProMotion 120 FPS untested",
+    "Broader history/combined performance continues under #2283"
+  ],
+  "environment": {
+    "refreshHz": 120,
+    "manufacturer": "Xiaomi",
+    "model": "24090RA29C",
+    "privateBuildOverlay": "loopback-only network access",
+    "batch": "windows-markdown-return-2284",
+    "runtimeOverlay": "e952589cb0a70cd38cd9dc9bc7e5e661ee54584a",
+    "qaBranch": "qa/windows-batch-2284",
+    "android": "16",
+    "qaBase": "024d1c675b246b8ef1e402fa4d4d557d270bebf3",
+    "baselineQaCommit": "579dbd2439f87d3fd9921bec48112de7a4256aaa",
+    "api": 36,
+    "abi": "arm64"
+  }
+}

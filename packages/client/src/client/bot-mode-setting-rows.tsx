@@ -275,6 +275,69 @@ export function SendKeySetting({
   );
 }
 
+export function AutoCollapseMessagesSetting({
+  t,
+  useBotModePrefs,
+  setAutoCollapseMessages,
+}: BotModeSettingRowProps): ReactElement {
+  const enabled = useBotModePrefs((value) => value.autoCollapseMessages);
+  return (
+    <SettingsRow
+      title={t('messageFold.row.title')}
+      description={t('messageFold.row.description')}
+      control={
+        <Switch
+          checked={enabled}
+          onChange={setAutoCollapseMessages}
+          label={t('messageFold.row.title')}
+        />
+      }
+    />
+  );
+}
+
+export function DeliveryReceiptsSetting({
+  t,
+  useBotModePrefs,
+  setShowDeliveryReceipts,
+}: BotModeSettingRowProps): ReactElement {
+  const enabled = useBotModePrefs((value) => value.showDeliveryReceipts);
+  return (
+    <SettingsRow
+      title={t('message.delivery.row.title')}
+      description={t('message.delivery.row.description')}
+      control={
+        <Switch
+          checked={enabled}
+          onChange={setShowDeliveryReceipts}
+          label={t('message.delivery.row.title')}
+        />
+      }
+    />
+  );
+}
+
+export function StreamRepliesSetting({
+  t,
+  useBotModePrefs,
+  setStreamReplies,
+}: BotModeSettingRowProps): ReactElement {
+  const enabled = useBotModePrefs((value) => value.streamReplies);
+  return (
+    <SettingsRow
+      title={t('message.stream.row.title')}
+      description={t('message.stream.row.description')}
+      control={
+        <Switch
+          checked={enabled}
+          onChange={setStreamReplies}
+          label={t('message.stream.row.title')}
+        />
+      }
+    />
+  );
+}
+
 export function DeveloperModeSetting({
   t,
   useBotModePrefs,

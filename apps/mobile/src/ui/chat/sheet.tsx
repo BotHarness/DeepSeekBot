@@ -1,26 +1,17 @@
 import type { ComponentType, ReactNode } from 'react';
-import { ActivityIndicator, Modal, Pressable, View, useWindowDimensions } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { View } from 'react-native';
 
 import type { LayerName } from '../design/layers';
 import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
-import { SheetGrabber } from '../primitives/sheet-grabber';
 import { DrawerHeader } from '../primitives/drawer-header';
-import { t } from '../strings';
+import { useStrings } from '../strings';
+import { LoadingIndicator } from '../primitives/loading-indicator';
+import { SheetFrame } from './sheet-frame';
 
 export const SHEET_GROUP: LayerName = 'raised';
-
-function Grabber() {
-  return (
-    <View style={{ alignSelf: 'center', marginBottom: space.x3 }}>
-      <SheetGrabber />
-    </View>
-  );
-}
 
 export interface SheetPageProps {
   title?: string;
@@ -35,8 +26,10 @@ export function Sheet({
   title,
   subtitle,
   onClose,
+  onDismissed,
   children,
   avoidKeyboard = false,
+  animationType = 'fade',
 }: {
   page?: ComponentType<SheetPageProps> | undefined;
   visible: boolean;
@@ -44,12 +37,11 @@ export function Sheet({
   title?: string;
   subtitle?: string;
   onClose(): void;
+  onDismissed?: (() => void) | undefined;
   children: ReactNode;
   avoidKeyboard?: boolean;
+  animationType?: 'none' | 'slide' | 'fade';
 }) {
-  const theme = useDesignTheme();
-  const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
   if (Page !== undefined)
     return visible ? (
       <Page
@@ -60,63 +52,30 @@ export function Sheet({
       </Page>
     ) : null;
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      {visible ? (
-        <KeyboardAvoidingView
-          behavior="padding"
-          enabled={avoidKeyboard}
+    <SheetFrame
+      visible={visible}
+      label={label}
+      onClose={onClose}
+      onDismissed={onDismissed}
+      avoidKeyboard={avoidKeyboard}
+      animationType={animationType}
+    >
+      {title === undefined ? null : (
+        <View
           style={{
-            flex: 1,
-            justifyContent: 'flex-end',
-            backgroundColor: theme.scrim,
+            paddingHorizontal: space.x5,
+            paddingBottom: space.x4,
           }}
         >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t.cancel}
-            onPress={onClose}
-            style={{
-              position: 'absolute',
-              top: 0,
-              right: 0,
-              bottom: 0,
-              left: 0,
-            }}
+          <DrawerHeader
+            title={title}
+            {...(subtitle === undefined ? {} : { subtitle })}
+            onClose={onClose}
           />
-          <View
-            accessibilityViewIsModal
-            accessibilityLabel={label}
-            onAccessibilityEscape={onClose}
-            style={{
-              maxHeight: height - insets.top - theme.touch,
-              backgroundColor: theme.overlay.fill,
-              borderTopLeftRadius: radius.lg,
-              borderTopRightRadius: radius.lg,
-              paddingTop: space.x3,
-              paddingBottom: Math.max(insets.bottom, space.x5),
-              overflow: 'hidden',
-            }}
-          >
-            <Grabber />
-            {title === undefined ? null : (
-              <View
-                style={{
-                  paddingHorizontal: space.x5,
-                  paddingBottom: space.x4,
-                }}
-              >
-                <DrawerHeader
-                  title={title}
-                  {...(subtitle === undefined ? {} : { subtitle })}
-                  onClose={onClose}
-                />
-              </View>
-            )}
-            {children}
-          </View>
-        </KeyboardAvoidingView>
-      ) : null}
-    </Modal>
+        </View>
+      )}
+      {children}
+    </SheetFrame>
   );
 }
 
@@ -192,7 +151,7 @@ export function SheetFooter({ children }: { children: string }) {
 export function SheetLoading() {
   return (
     <View style={{ padding: space.x6, alignItems: 'center' }}>
-      <ActivityIndicator />
+      <LoadingIndicator />
     </View>
   );
 }
@@ -206,6 +165,7 @@ export function SheetFailed({
   onRetry(): void;
   on?: LayerName;
 }) {
+  const t = useStrings();
   return (
     <View style={{ gap: space.x3, padding: space.x5, alignItems: 'flex-start' }}>
       <Text tone="danger">{message}</Text>
@@ -215,10 +175,11 @@ export function SheetFailed({
 }
 
 export function SheetActions({ children }: { children: ReactNode }) {
+  const theme = useDesignTheme();
   return (
     <View
       style={{
-        flexDirection: 'row',
+        flexDirection: theme.largeText ? 'column' : 'row',
         justifyContent: 'flex-end',
         gap: space.x3,
         paddingHorizontal: space.x5,

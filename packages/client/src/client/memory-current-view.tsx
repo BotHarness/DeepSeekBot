@@ -1,3 +1,4 @@
+import { AppearancePanelHeader } from './appearance-panel-header.js';
 import {
   MemoryMarkdownView,
   MemoryMarkdownDiff,
@@ -96,7 +97,12 @@ export function MemoryFileView({
       aria-label={t('entry.memoryFiles')}
       ref={mount}
     >
-      <div className="bh-memory-commit-header">
+      <AppearancePanelHeader
+        id="memory-details"
+        label={t('appearance.memoryDetails')}
+        t={t}
+        className="bh-memory-commit-header"
+      >
         <MemoryViewIconButton action="backToChat" onClick={onClose} t={t} />
         {file?.markdown === undefined ? null : (
           <MemoryMarkdownToggle preview={preview} onToggle={() => setPreview((v) => !v)} t={t} />
@@ -122,25 +128,27 @@ export function MemoryFileView({
           onClick={() => setRevision((value) => value + 1)}
           t={t}
         />
+      </AppearancePanelHeader>
+      <div className="bh-memory-detail-body" data-appearance-body="memory-details">
+        {error === undefined ? null : (
+          <div className="bh-error" role="alert">
+            {error}
+          </div>
+        )}
+        {file === undefined ? (
+          error === undefined ? (
+            <div className="bh-note">{t('memory.loading')}</div>
+          ) : null
+        ) : file.image !== undefined && botSlug !== undefined ? (
+          <MemoryImageView slug={botSlug} path={path} image={file.image} t={t} />
+        ) : file.markdown !== undefined && preview && botSlug !== undefined ? (
+          <MemoryMarkdownView slug={botSlug} path={path} document={file.markdown} t={t} />
+        ) : file.binary ? (
+          <div className="bh-note">{t('memory.binaryPreview')}</div>
+        ) : (
+          <pre className="bh-memory-commit-code">{file.body}</pre>
+        )}
       </div>
-      {error === undefined ? null : (
-        <div className="bh-error" role="alert">
-          {error}
-        </div>
-      )}
-      {file === undefined ? (
-        error === undefined ? (
-          <div className="bh-note">{t('memory.loading')}</div>
-        ) : null
-      ) : file.image !== undefined && botSlug !== undefined ? (
-        <MemoryImageView slug={botSlug} path={path} image={file.image} t={t} />
-      ) : file.markdown !== undefined && preview && botSlug !== undefined ? (
-        <MemoryMarkdownView slug={botSlug} path={path} document={file.markdown} t={t} />
-      ) : file.binary ? (
-        <div className="bh-note">{t('memory.binaryPreview')}</div>
-      ) : (
-        <pre className="bh-memory-commit-code">{file.body}</pre>
-      )}
     </div>
   );
 }
@@ -221,7 +229,12 @@ export function MemoryWorkingView({
       aria-label={t('memory.workingDiff')}
       ref={mount}
     >
-      <div className="bh-memory-commit-header">
+      <AppearancePanelHeader
+        id="memory-details"
+        label={t('appearance.memoryDetails')}
+        t={t}
+        className="bh-memory-commit-header"
+      >
         <MemoryViewIconButton action="backToChat" onClick={onClose} t={t} />
         <strong>{t('memory.workingDiff')}</strong>
         {detail?.markdown === undefined ? null : (
@@ -238,62 +251,64 @@ export function MemoryWorkingView({
           onClick={() => setRevision((value) => value + 1)}
           t={t}
         />
+      </AppearancePanelHeader>
+      <div className="bh-memory-detail-body" data-appearance-body="memory-details">
+        {error === undefined ? null : (
+          <div className="bh-error" role="alert">
+            {error}
+          </div>
+        )}
+        {detail === undefined ? (
+          error === undefined ? (
+            <div className="bh-note">{t('memory.loading')}</div>
+          ) : null
+        ) : (
+          <MemoryDiffFile
+            path={change.path}
+            status={badge ?? detail.status}
+            badge={
+              badge === 'new'
+                ? t('memory.badge.new')
+                : badge === 'deleted'
+                  ? t('memory.badge.deleted')
+                  : badge === 'updated'
+                    ? t('memory.badge.updated')
+                    : (badge ?? detail.status)
+            }
+            preview={
+              botSlug !== undefined && detail.markdown !== undefined && preview ? (
+                <MemoryMarkdownDiff
+                  slug={botSlug}
+                  path={change.path}
+                  markdown={detail.markdown}
+                  t={t}
+                />
+              ) : detail.images === undefined || botSlug === undefined ? undefined : (
+                <MemoryImageDiff slug={botSlug} path={change.path} images={detail.images} t={t} />
+              )
+            }
+            diff={detail.diff}
+            wrap={wrap}
+            label={t('memory.workingDiff')}
+            binary={detail.binary}
+            binaryLabel={t('memory.binaryPreview')}
+            emptyLabel={t('memory.noTextDiff')}
+            oldLineLabel={t('memory.oldLine')}
+            newLineLabel={t('memory.newLine')}
+            action={
+              botSlug === undefined ? undefined : (
+                <MemoryCurrentFileOpenButton
+                  actions={actions}
+                  slug={botSlug}
+                  path={change.path}
+                  deletion={detail.status === 'D' ? 'working' : undefined}
+                  t={t}
+                />
+              )
+            }
+          />
+        )}
       </div>
-      {error === undefined ? null : (
-        <div className="bh-error" role="alert">
-          {error}
-        </div>
-      )}
-      {detail === undefined ? (
-        error === undefined ? (
-          <div className="bh-note">{t('memory.loading')}</div>
-        ) : null
-      ) : (
-        <MemoryDiffFile
-          path={change.path}
-          status={badge ?? detail.status}
-          badge={
-            badge === 'new'
-              ? t('memory.badge.new')
-              : badge === 'deleted'
-                ? t('memory.badge.deleted')
-                : badge === 'updated'
-                  ? t('memory.badge.updated')
-                  : (badge ?? detail.status)
-          }
-          preview={
-            botSlug !== undefined && detail.markdown !== undefined && preview ? (
-              <MemoryMarkdownDiff
-                slug={botSlug}
-                path={change.path}
-                markdown={detail.markdown}
-                t={t}
-              />
-            ) : detail.images === undefined || botSlug === undefined ? undefined : (
-              <MemoryImageDiff slug={botSlug} path={change.path} images={detail.images} t={t} />
-            )
-          }
-          diff={detail.diff}
-          wrap={wrap}
-          label={t('memory.workingDiff')}
-          binary={detail.binary}
-          binaryLabel={t('memory.binaryPreview')}
-          emptyLabel={t('memory.noTextDiff')}
-          oldLineLabel={t('memory.oldLine')}
-          newLineLabel={t('memory.newLine')}
-          action={
-            botSlug === undefined ? undefined : (
-              <MemoryCurrentFileOpenButton
-                actions={actions}
-                slug={botSlug}
-                path={change.path}
-                deletion={detail.status === 'D' ? 'working' : undefined}
-                t={t}
-              />
-            )
-          }
-        />
-      )}
     </div>
   );
 }

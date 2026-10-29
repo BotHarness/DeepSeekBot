@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { parseToolApprovalActor, type ToolApprovalActor } from './tool-approval-actor.js';
 
-export type ToolRuleKind = 'exact' | 'all-opaque' | 'secret-cli';
+export type ToolRuleKind = 'exact' | 'tool' | 'all-opaque' | 'secret-cli';
 
 export function secretCliKind(input: string): string | undefined {
   let args: unknown;
@@ -34,6 +34,7 @@ export interface ToolApprovalRule {
   createdAt: string;
   revokedAt?: string;
   externalCreator?: ToolApprovalActor;
+  autoApprovedCount: number;
 }
 interface RuleRow {
   id: string;
@@ -46,6 +47,7 @@ interface RuleRow {
   created_at: string;
   revoked_at: string | null;
   external_creator: string | null;
+  auto_approved_count: number;
 }
 function record(row: RuleRow): ToolApprovalRule {
   const externalCreator =
@@ -63,6 +65,7 @@ function record(row: RuleRow): ToolApprovalRule {
     toolName: row.tool_name,
     input: row.input,
     createdAt: row.created_at,
+    autoApprovedCount: row.auto_approved_count,
     ...(row.revoked_at === null ? {} : { revokedAt: row.revoked_at }),
     ...(externalCreator ? { externalCreator } : {}),
   };
@@ -72,8 +75,10 @@ export interface ToolApprovalRuleStore {
   match(
     input: Pick<ToolApprovalRule, 'botSlug' | 'role' | 'scopeKey' | 'toolName' | 'input'> & {
       externalDecision?: 'operation' | 'web-only' | 'each-use';
+      explicitOnly?: boolean;
     },
   ): ToolApprovalRule | undefined;
+  recordAutoApproval(botSlug: string, id: string): void;
   createPending(
     input: Pick<
       ToolApprovalRule,
@@ -121,13 +126,22 @@ export function createToolApprovalRuleStore(
               .prepare(
                 `SELECT * FROM tool_approval_rules
          WHERE bot_slug = ? AND role = ? AND scope_key = ? AND active = 1 AND revoked_at IS NULL
-           AND ((kind = 'exact' AND tool_name = ? AND input = ?) OR kind = 'all-opaque')
+           AND ((kind = 'exact' AND tool_name = ? AND input = ?)
+             OR (kind = 'tool' AND tool_name = ?) OR kind = 'all-opaque')
          ORDER BY CASE kind WHEN 'exact' THEN 0 ELSE 1 END, created_at DESC`,
               )
-              .all(input.botSlug, input.role, input.scopeKey, input.toolName, input.input),
+              .all(
+                input.botSlug,
+                input.role,
+                input.scopeKey,
+                input.toolName,
+                input.input,
+                input.toolName,
+              ),
       ) as unknown as RuleRow[];
       for (const row of rows) {
         const rule = record(row);
+        if (input.explicitOnly && rule.kind === 'all-opaque') continue;
         if (!authorized(rule)) {
           store.revoke(rule.botSlug, rule.id);
           continue;
@@ -137,6 +151,18 @@ export function createToolApprovalRuleStore(
       }
       return undefined;
     },
+    recordAutoApproval(botSlug, id) {
+      database.transaction(
+        (connection) => {
+          connection
+            .prepare(
+              'UPDATE tool_approval_rules SET auto_approved_count = auto_approved_count + 1 WHERE bot_slug = ? AND id = ?',
+            )
+            .run(botSlug, id);
+        },
+        ['tool-approval-rules'],
+      );
+    },
     createPending(input) {
       if (input.externalCreator && !parseToolApprovalActor(input.externalCreator))
         throw new Error('External tool approval rule creator is invalid');
@@ -144,6 +170,7 @@ export function createToolApprovalRuleStore(
         ...input,
         id: randomUUID(),
         createdAt: new Date().toISOString(),
+        autoApprovedCount: 0,
       };
       if (!authorized(row)) throw new Error('External tool approval rule creator is unavailable');
       database.transaction(

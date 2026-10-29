@@ -43,8 +43,11 @@ describe('shortcut list', () => {
     expect(row('bot-mode')?.textContent).toBe('Enter or leave Bot modeAlt`');
     expect(row('help')?.textContent).toBe('Show keyboard shortcuts?orCtrl/');
     expect(row('recall')?.textContent).toContain('When the composer is empty');
-    expect(row('quick-switcher')?.textContent).toBe('Quick switcherCtrlK');
+    expect(row('quick-switcher')?.textContent).toBe(
+      'Search conversations, messages and settingsAltK',
+    );
     expect(row('search')?.textContent).toBe('Search this conversationCtrlF');
+    expect(row('settings')?.textContent).toBe('Open Bot settingsCtrl,');
     expect(row('unread-next')?.textContent).toBe(
       'Next unread conversationSkips muted conversationsAlt⇧↓',
     );
@@ -118,9 +121,9 @@ describe('shortcut list', () => {
     expect(recorder()?.textContent).toBe('Press new keys, Esc to cancel');
     press({ key: 'Control', code: 'ControlLeft', ctrlKey: true });
     expect(recorder()).not.toBeNull();
-    press({ key: 'k', code: 'KeyK', ctrlKey: true });
+    press({ key: 'k', code: 'KeyK', altKey: true });
     expect(row().querySelector('[role="alert"]')?.textContent).toBe(
-      'Already used by “Quick switcher”',
+      'Already used by “Search conversations, messages and settings”',
     );
     press({ key: 'j', code: 'KeyJ' });
     expect(row().querySelector('[role="alert"]')?.textContent).toBe('Include Ctrl or Alt');

@@ -2,9 +2,11 @@ import { watchInbox } from './cli-inbox-watch.js';
 import { CliLiveError } from './cli-live-error.js';
 
 export const INBOX_OPTIONS = {
+  notifications: { type: 'boolean' },
   category: { type: 'string' },
   'watch-seconds': { type: 'string' },
   channel: { type: 'string' },
+  request: { type: 'string' },
   sort: { type: 'string' },
   search: { type: 'string' },
   unread: { type: 'boolean' },
@@ -20,9 +22,16 @@ export const INBOX_OPTIONS = {
   confirm: { type: 'boolean' },
   until: { type: 'string' },
   snoozed: { type: 'boolean' },
+  dismissed: { type: 'boolean' },
+  activity: { type: 'string' },
+  'include-archived': { type: 'boolean' },
 } as const;
 
 export const INBOX_COMMANDS = [
+  {
+    command: 'grant-request-approve',
+    description: 'approve persistent read/write for one workspace request (needs --confirm)',
+  },
   {
     command: 'inbox-watch',
     description: 'observe live inbox changes for a bounded time and return one JSON snapshot',
@@ -30,6 +39,7 @@ export const INBOX_COMMANDS = [
   { command: 'inbox', description: 'list Human Inbox items by category, Bot or Channel' },
   { command: 'inbox-status', description: 'read the Human Inbox unread count and action flag' },
   { command: 'inbox-dismiss', description: 'dismiss one Human Inbox item' },
+  { command: 'inbox-restore', description: 'bring back one dismissed Human Inbox item' },
   {
     command: 'inbox-allow-once',
     description: 'allow one auto-rejected call once anyway, from its Human Inbox item',
@@ -43,6 +53,20 @@ export const INBOX_COMMANDS = [
     command: 'assignment-context',
     description: "read an assignment report's context from the Human Inbox",
   },
+  {
+    command: 'assignments',
+    description: "list or search a Bot's Assignments with their Title and Description",
+  },
+  { command: 'assignment', description: "inspect one of a Bot's Assignments" },
+  {
+    command: 'assignment-timeline',
+    description: "read an Assignment's MAIN and SUBAGENT timeline (public summaries only)",
+  },
+  {
+    command: 'session-subagents',
+    description:
+      'read the DSH Subagents an Orchestrator or Assignment Session started, with model and state',
+  },
   { command: 'channel-assignments', description: "list a group Channel's assignment work" },
   { command: 'channel-assign', description: 'move a Channel into a sidebar section or out of it' },
   { command: 'session-ids', description: 'list the root Session IDs owned by Bots' },
@@ -52,6 +76,10 @@ export const INBOX_COMMANDS = [
     description: "archive or unarchive a Bot's assignment Session",
   },
   { command: 'tool-approval-rules', description: "list a Bot's always-allow tool approval rules" },
+  {
+    command: 'tool-approval-history',
+    description: "list the Human's answers to a Bot's tool approval requests, newest first",
+  },
   {
     command: 'tool-approval-rule-revoke',
     description: 'revoke an always-allow tool approval rule (needs --confirm)',
@@ -69,6 +97,7 @@ export const INBOX_COMMANDS = [
 export const INBOX_HOST_COMMANDS = ['grant-revoke', 'grant-write-set'] as const;
 
 export interface InboxValues {
+  notifications?: boolean;
   category?: string;
   'watch-seconds'?: string;
   kind?: string;
@@ -82,6 +111,8 @@ export interface InboxValues {
   session?: string;
   'source-key'?: string;
   source?: string;
+  request?: string;
+  workspace?: string;
   section?: string;
   unsectioned?: boolean;
   index?: string;
@@ -96,11 +127,15 @@ export interface InboxValues {
   until?: string;
   clear?: boolean;
   snoozed?: boolean;
+  dismissed?: boolean;
+  activity?: string;
+  'include-archived'?: boolean;
 }
 
 type Rpc = <T>(method: string, args: Record<string, unknown>) => Promise<T>;
 
 const CATEGORIES = ['action', 'info', 'unread', 'replies', 'handled'];
+const ASSIGNMENT_ACTIVITIES = ['working', 'idle', 'error', 'stopping', 'stopped'];
 
 function usage(message: string): never {
   throw new CliLiveError('usage', message);
@@ -147,6 +182,8 @@ export async function runInboxCommand(
   values: InboxValues,
   connect: () => Promise<{ rpc: Rpc; stream?: (path: string) => Promise<Response> }>,
 ): Promise<unknown> {
+  if (command === 'inbox-watch' && values.notifications)
+    usage('Use inbox --notifications with its returned cursor.');
   const call = prepare(command === 'inbox-watch' ? 'inbox' : command, rest, values);
   if (command === 'inbox-watch') {
     const seconds = Number(values['watch-seconds'] ?? 10);
@@ -174,6 +211,13 @@ export async function runInboxCommand(
   }
   const { rpc } = await connect();
   const result = await rpc<Record<string, unknown>>(call.method, call.args);
+  if (call.args['notifications'] === true && result['notificationVersion'] !== 1)
+    throw new CliLiveError(
+      'host-query-unsupported',
+      'Update the Host to discover notification attention.',
+    );
+  if (call.args['dismissed'] === true && result['dismissed'] !== true)
+    throw new CliLiveError('host-query-unsupported', 'Update the Host to list dismissed items.');
   if (call.args['queryVersion'] === 1 && result['queryVersion'] !== 1)
     throw new CliLiveError(
       'host-query-unsupported',
@@ -215,9 +259,35 @@ function prepare(
         usage('--search must be at most 200 characters.');
       if (values.kind !== undefined && values.kind !== 'auto-rejection')
         usage('--kind must be auto-rejection.');
+      if (values.snoozed === true && values.dismissed === true)
+        usage('inbox takes --snoozed or --dismissed, not both.');
       const limit = values.limit === undefined ? undefined : Number(values.limit);
       if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 100))
         usage('--limit must be 1–100.');
+      if (values.notifications) {
+        if (
+          [
+            values.category,
+            values.bot,
+            values.channel,
+            values.sort,
+            values.search,
+            values.kind,
+          ].some((value) => value !== undefined) ||
+          values.unread ||
+          values.snoozed ||
+          values.dismissed
+        )
+          usage('--notifications only accepts --limit and --cursor.');
+        return {
+          method: 'humanAttention',
+          args: {
+            notifications: true,
+            ...(limit === undefined ? {} : { limit }),
+            ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+          },
+        };
+      }
       return {
         method: 'humanAttention',
         args: {
@@ -235,6 +305,7 @@ function prepare(
             : {}),
           ...(values.unread ? { unreadOnly: true } : {}),
           ...(values.snoozed === true ? { snoozed: true } : {}),
+          ...(values.dismissed === true ? { dismissed: true } : {}),
           ...(values.kind === undefined ? {} : { kind: values.kind }),
         },
       };
@@ -252,6 +323,13 @@ function prepare(
       const [itemId] = positionals(command, rest, 1, 'exactly one inbox item id');
       return {
         method: 'humanAttentionDismiss',
+        args: { itemId, sourceKey: values['source-key']?.trim() ?? '' },
+      };
+    }
+    case 'inbox-restore': {
+      const [itemId] = positionals(command, rest, 1, 'exactly one inbox item id');
+      return {
+        method: 'humanAttentionRestore',
         args: { itemId, sourceKey: values['source-key']?.trim() ?? '' },
       };
     }
@@ -283,6 +361,53 @@ function prepare(
           sessionId: required(values.session, 'session', command),
           sourceEventId: required(values.source, 'source', command),
         },
+      };
+    }
+    case 'assignments': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      const activity = values.activity
+        ?.split(',')
+        .map((value) => value.trim())
+        .filter((value) => value !== '');
+      if (activity?.some((value) => !ASSIGNMENT_ACTIVITIES.includes(value)))
+        usage(`--activity takes a comma list of ${ASSIGNMENT_ACTIVITIES.join(', ')}.`);
+      const limit = values.limit === undefined ? undefined : Number(values.limit);
+      if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 50))
+        usage('--limit must be an integer from 1 to 50.');
+      const query = values.search?.trim();
+      return {
+        method: 'assignments',
+        args: {
+          slug,
+          ...(query ? { query } : {}),
+          ...(activity === undefined || activity.length === 0 ? {} : { activity }),
+          ...(values['include-archived'] === true ? { includeArchived: true } : {}),
+          ...(limit === undefined ? { limit: 20 } : { limit }),
+          ...(values.cursor === undefined
+            ? {}
+            : { cursor: required(values.cursor, 'cursor', command) }),
+        },
+      };
+    }
+    case 'assignment': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      return {
+        method: 'assignment',
+        args: { slug, sessionId: required(values.session, 'session', command) },
+      };
+    }
+    case 'assignment-timeline': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      return {
+        method: 'assignmentTimeline',
+        args: { slug, sessionId: required(values.session, 'session', command) },
+      };
+    }
+    case 'session-subagents': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      return {
+        method: 'sessionSubagents',
+        args: { slug, sessionId: required(values.session, 'session', command) },
       };
     }
     case 'channel-assignments': {
@@ -328,6 +453,22 @@ function prepare(
       const [slug] = positionals(command, rest, 1, 'exactly one bot id');
       return { method: 'toolApprovalRules', args: { slug } };
     }
+    case 'tool-approval-history': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      const limit = values.limit === undefined ? undefined : Number(values.limit);
+      if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 100))
+        usage('--limit must be 1–100.');
+      return {
+        method: 'toolApprovalHistory',
+        args: {
+          slug,
+          ...(limit === undefined ? {} : { limit }),
+          ...(values.cursor === undefined
+            ? {}
+            : { cursor: required(values.cursor, 'cursor', command) }),
+        },
+      };
+    }
     case 'tool-approval-rule-revoke': {
       const [slug] = positionals(command, rest, 1, 'exactly one bot id');
       const id = required(values.rule, 'rule', command);
@@ -339,6 +480,20 @@ function prepare(
       const grantId = required(values.grant, 'grant', command);
       confirmed(command, values);
       return { method: 'grantRevoke', args: { slug, grantId } };
+    }
+    case 'grant-request-approve': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      confirmed(command, values);
+      return {
+        method: 'grantRequestApprove',
+        args: {
+          slug,
+          channelId: required(values.channel, 'channel', command),
+          requestMessageId: required(values.request, 'request', command),
+          workspaceId: required(values.workspace, 'workspace', command),
+          acknowledgeReadWrite: true,
+        },
+      };
     }
     case 'grant-write-set': {
       const [slug] = positionals(command, rest, 1, 'exactly one bot id');

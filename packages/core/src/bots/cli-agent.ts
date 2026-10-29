@@ -116,10 +116,10 @@ export async function runAgentCli(
       Object.assign(args, { patch: typedPatch, ...reviewed });
     }
   }
-  const seconds = values['timeout'] === undefined ? 120 : Number(values['timeout']);
+  const write = managed?.write ?? operation === 'settings-set';
+  const seconds = values['timeout'] === undefined ? (write ? 600 : 120) : Number(values['timeout']);
   if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 600)
     refuse('usage', '--timeout must be between 0 and 600 seconds.');
-  const write = managed?.write ?? operation === 'settings-set';
   let response: Response;
   let body: unknown;
   try {

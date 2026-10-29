@@ -1,3 +1,4 @@
+import { PRIVATE_SOURCE_GUIDANCE } from './tool-contract.js';
 import { basename } from 'node:path';
 import type { Context } from '@deepseek-ai/cordis';
 import { defineTool } from '@deepseek-ai/dsh-tools';
@@ -202,7 +203,8 @@ export function mountPrivateInputs(
           defineTool({
             name: 'ask_secret',
             description:
-              'Reuse configured private references, or ask the authenticated Owner for private strings in an interactive conversation. Declare account, purpose and dynamic fields. Web and scheduled runs must omit source_event_id; configured accounts can be reused without an IM source or new input. For an accepted IM Source Event the Host sends the Owner an existing Web Chat card link; never collect private values in IM text, attachments, quoted messages or ordinary questions. For a local Channel request the input card appears in the Channel the request came from, a Group or your Human DM; only the Owner can fill it, the values are never shown there, and only you receive the references. In a Group, say first in a sentence what the account is for, and never ask anyone to type a secret into the conversation. Returns opaque references only. Do not send references or private configuration details to IM; report only the authorized nonsecret operation result with bridge_reply to the same source. Private input does not approve execution. Unattended runs cannot open input cards. A failed handoff may already have sent its notice; report missing private configuration and do not retry.',
+              PRIVATE_SOURCE_GUIDANCE +
+              'Reuse configured private references, or ask the authenticated Owner for private strings in an interactive conversation. Declare account, purpose and dynamic fields. Web and scheduled runs must omit source_event_id; configured accounts can be reused without an IM source or new input. For an accepted IM Source Event the Host sends the Owner an existing Web Chat card link; never collect private values in IM text, attachments, quoted messages or ordinary questions. For a local Channel request the input card appears in the Channel the request came from, a Group or your Human DM; only the Owner can fill it, the values are never shown there, and only you receive the references. When the account purpose needs explanation, briefly explain it in the originating conversation; do not require a separate acknowledgment. Never ask anyone to type a secret into the conversation. Returns opaque references only. Do not send references or private configuration details to IM; report only the authorized nonsecret operation result with bot_send_message using the same source_event_id. Private input does not approve execution. Unattended runs cannot open input cards. A failed handoff may already have sent its notice; report missing private configuration and do not retry.',
             parameters: {
               account: {
                 type: 'string',
@@ -253,6 +255,7 @@ export function mountPrivateInputs(
           defineTool({
             name: 'protected_cli',
             description:
+              PRIVATE_SOURCE_GUIDANCE +
               'Run a qualified trusted CLI using opaque private references. Supported consumer: http-status-v1, one GET with endpoint, api_key and api_secret references; returns only numeric HTTP status and request success, never response text. A successful HTTP status does not independently certify remote authentication. No arbitrary command, env, headers, redirects or plaintext fallback. Existing Human execution approval applies.',
             parameters: {
               consumer: { type: 'string', required: true, description: 'http-status-v1' },
@@ -296,6 +299,7 @@ export function mountPrivateInputs(
           defineTool({
             name: 'secret_http',
             description:
+              PRIVATE_SOURCE_GUIDANCE +
               'Call an HTTP API with secrets the Owner entered through ask_secret, without ever seeing them. The Host sends the request. The destination is the Owner-supplied endpoint field of that account; you choose only a path under it, the method, and where each secret goes. Write {{field_id}} in a header value, a query value or the body where a secret belongs and the Host substitutes it. Redirects are refused. Returns the HTTP status, content type and up to 32 KB of response text with the secret values masked. Existing Human execution approval applies.',
             parameters: {
               account: {
@@ -426,6 +430,7 @@ export function mountPrivateInputs(
           defineTool({
             name: 'secret_cli',
             description:
+              PRIVATE_SOURCE_GUIDANCE +
               'Run one installed command-line tool with secrets the Owner entered through ask_secret placed in its environment, for a tool that only reads its credential from an environment variable. Prefer secret_http for a plain HTTP API. The Host starts the program directly, without a shell: no pipes, redirects, variables or substitutions. Give the bare program name, its arguments, and the environment variables the tool documents, writing {{field_id}} where a secret belongs. It runs in your working folder inside the same file sandbox as bash, with a clean environment, for at most two minutes. Returns the exit code and up to 32 KB each of stdout and stderr with the secret values masked. A call needs a Human approval, which shows the exact program and arguments, unless the Human chose to always allow this program with this account and these environment variable names; a different program, account or set of variable names asks again. Never ask the tool to print, export or store the credential.',
             parameters: {
               account: {
@@ -676,6 +681,7 @@ export function mountPrivateInputs(
           defineTool({
             name: 'secret_mcp_connect',
             description:
+              PRIVATE_SOURCE_GUIDANCE +
               'Start an MCP server for yourself with secrets the Owner entered through ask_secret placed in its environment, then use its tools as mcp__<server_name>__<tool>. Use it for an integration that needs a client library or several calls; prefer secret_http for one plain HTTP request and secret_cli for one command. The Host starts the launcher directly, without a shell, inside the same file sandbox as bash with a clean environment; give the bare launcher name (for example npx or uvx), its arguments, and the environment variables the server documents, writing {{field_id}} where a secret belongs. The server stays connected for this conversation Session until you disconnect it or the account is revoked; it is not available to Assignments. Starting it needs a Human approval that shows the exact program and arguments; the Human may choose to remember it, and a remembered server is connected automatically when your Session starts and can be enabled for other PersonaBots in their settings, so check whether its tools are already present before connecting again. Each later tool call follows the usual approval. Returns the tool names the server offers.',
             parameters: {
               server_name: {

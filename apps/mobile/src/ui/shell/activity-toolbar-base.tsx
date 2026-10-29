@@ -1,14 +1,15 @@
-import { useImperativeHandle, useState, type ReactNode, type Ref } from 'react';
+import { useImperativeHandle, useState, type Ref } from 'react';
 import { Stack } from 'expo-router';
-import { Keyboard, Pressable, View } from 'react-native';
+import { Keyboard, Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useDesignTheme } from '../design/theme';
-import { radius, space } from '../design/tokens';
-import { SearchField } from '../primitives/search-field';
+import { materialSearchHeight } from '../design/material-search';
+import { space, tabHeader } from '../design/tokens';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
-import { ActivityFilterIcon, ActivitySearchIcon, CloseIcon } from './icons';
+import { useStrings } from '../strings';
+import { ActivityHeaderActions, type ActivityOptions } from './activity-header-actions';
+import { HeaderSearch } from './header-search';
 
 export type ActivityToolbarHandle = { dismissSearch(): void };
 
@@ -17,6 +18,7 @@ export type ActivityToolbarProps = {
   unavailable?: boolean;
   search: string;
   filtered: boolean;
+  options: ActivityOptions;
   onSearch(value: string): void;
   onSearchFocus(focused: boolean): void;
   onFilter(): void;
@@ -28,14 +30,18 @@ export function ActivityToolbar({
   unavailable = false,
   search,
   filtered,
+  options,
   onSearch,
   onSearchFocus,
   onFilter,
   onHeight,
 }: ActivityToolbarProps) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const [searching, setSearching] = useState(false);
+  const searchVisible = !unavailable && searching;
+  const retainActions = Platform.OS === 'ios';
   useImperativeHandle(
     ref,
     () => ({
@@ -63,109 +69,77 @@ export function ActivityToolbar({
         }}
       >
         <View
+          testID="activity-header"
           style={{
+            minHeight:
+              Platform.OS === 'android' ? materialSearchHeight(theme.fontScale) : theme.touch,
             flexDirection: 'row',
             alignItems: 'center',
             gap: space.x2,
-            paddingHorizontal: space.x4,
+            paddingHorizontal: tabHeader.gutter,
           }}
         >
-          <Text
-            variant="title"
-            strong
-            accessibilityRole="header"
-            numberOfLines={1}
-            style={{ flex: 1 }}
-          >
-            {t.activity}
-          </Text>
-          {!unavailable ? (
-            <ActivityIconButton label={t.activityOptions} onPress={onFilter} selected={filtered}>
-              <ActivityFilterIcon
-                color={filtered ? theme.color.accent : theme.color.fg}
-                size={theme.type.title.size}
-              />
-            </ActivityIconButton>
-          ) : null}
-          {!unavailable && !searching ? (
-            <ActivityIconButton
-              label={t.activitySearch}
-              onPress={() => {
-                onSearchFocus(true);
-                setSearching(true);
+          {(!searchVisible || retainActions) && (
+            <View
+              pointerEvents={searchVisible ? 'none' : 'auto'}
+              accessibilityElementsHidden={searchVisible}
+              importantForAccessibility={searchVisible ? 'no-hide-descendants' : 'auto'}
+              style={{
+                flex: 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space.x2,
+                opacity: searchVisible ? 0 : 1,
               }}
             >
-              <ActivitySearchIcon
-                color={search ? theme.color.accent : theme.color.fg}
-                size={theme.type.title.size}
-              />
-            </ActivityIconButton>
-          ) : null}
-        </View>
-        {!unavailable && searching ? (
-          <SearchField
-            trailing={
-              search ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t.activityClearSearch}
-                  onPress={() => onSearch('')}
-                  style={{
-                    width: theme.touch,
-                    minHeight: theme.touch,
-                    alignItems: 'center',
-                    justifyContent: 'center',
+              <Text
+                variant="title"
+                strong
+                accessibilityRole="header"
+                numberOfLines={1}
+                style={{ flex: 1 }}
+              >
+                {t.activity}
+              </Text>
+              {!unavailable ? (
+                <ActivityHeaderActions
+                  filtered={filtered}
+                  searching={search !== ''}
+                  options={options}
+                  onFilter={onFilter}
+                  onSearch={() => {
+                    onSearchFocus(true);
+                    setSearching(true);
                   }}
-                >
-                  <CloseIcon color={theme.color.muted} size={theme.type.title.size} />
-                </Pressable>
-              ) : null
-            }
-            autoFocus
-            onBlur={() => {
-              setSearching(false);
-              onSearchFocus(false);
-            }}
-            value={search}
-            inset={space.x4}
-            placeholder={t.activitySearch}
-            onChangeText={(value) => onSearch(value.slice(0, 200))}
-          />
-        ) : null}
+                />
+              ) : null}
+            </View>
+          )}
+          {searchVisible && (
+            <View
+              style={
+                retainActions
+                  ? { position: 'absolute', left: tabHeader.gutter, right: tabHeader.gutter }
+                  : { flex: 1 }
+              }
+            >
+              <HeaderSearch
+                value={search}
+                placeholder={t.activitySearch}
+                onChangeText={(value) => onSearch(value.slice(0, 200))}
+                onFocusChange={(focused) => {
+                  onSearchFocus(focused);
+                  if (!focused) setSearching(false);
+                }}
+                onClose={() => {
+                  onSearchFocus(false);
+                  setSearching(false);
+                }}
+              />
+            </View>
+          )}
+        </View>
       </View>
     </>
-  );
-}
-
-function ActivityIconButton({
-  label,
-  selected = false,
-  onPress,
-  children,
-}: {
-  label: string;
-  selected?: boolean;
-  onPress(): void;
-  children: ReactNode;
-}) {
-  const theme = useDesignTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      android_ripple={{ color: theme.layer.canvas.pressed, borderless: true }}
-      style={({ pressed }) => ({
-        width: theme.touch,
-        height: theme.touch,
-        borderRadius: radius.round,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: pressed ? theme.layer.canvas.pressed : theme.layer.canvas.fill,
-      })}
-    >
-      {children}
-    </Pressable>
   );
 }

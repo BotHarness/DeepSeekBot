@@ -1,7 +1,8 @@
+import { Menu } from '../appearance-primitives.js';
 import type { ComponentProps } from 'react';
 import { createPortal } from 'react-dom';
 import * as stylex from '@stylexjs/stylex';
-import { Menu } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { useMountedResource } from '../mounted-resource.js';
 import { border, space } from './tokens.stylex.js';
 
@@ -29,17 +30,29 @@ export function pointerMenuPosition(
 type PointerMenuProps = Omit<
   ComponentProps<typeof Menu>,
   'open' | 'portal' | 'getAnchorRect' | 'side' | 'align' | 'className'
-> & { point: MenuPoint };
+> & { point: MenuPoint; container?: Element; align?: 'start' | 'end' };
 
-export function PointerMenu({ point, ...props }: PointerMenuProps) {
+export function PointerMenu({
+  point,
+  container = document.body,
+  align = 'start',
+  ...props
+}: PointerMenuProps) {
   const mount = useMountedResource<HTMLSpanElement>(
     (node) => {
       const menu = node.querySelector<HTMLElement>('[role="menu"]');
       if (!menu) return;
       const originalMaxWidth = Number.parseFloat(getComputedStyle(menu).maxWidth);
+      const originalMinWidth = Number.parseFloat(getComputedStyle(menu).minWidth);
       const place = () => {
         const scale = node.getBoundingClientRect();
         if (!scale.width || !scale.height) return;
+        const cssZoom =
+          'currentCSSZoom' in node && typeof node.currentCSSZoom === 'number'
+            ? node.currentCSSZoom
+            : undefined;
+        const scaleX = cssZoom ?? scale.width;
+        const scaleY = cssZoom ?? scale.height;
         const root = document.documentElement;
         const clearance = root.hasAttribute('data-fullscreen')
           ? 0
@@ -47,18 +60,25 @@ export function PointerMenu({ point, ...props }: PointerMenuProps) {
               getComputedStyle(root).getPropertyValue('--dsh-frame-top-clearance'),
             ) || 0;
         const margin = Number.parseFloat(space.x4);
-        menu.style.maxWidth = `${Math.min(originalMaxWidth || Infinity, (innerWidth - 2 * margin) / scale.width)}px`;
-        menu.style.maxHeight = `${Math.max(0, innerHeight - Math.max(margin, clearance) - margin) / scale.height}px`;
+        const availableWidth = Math.max(0, innerWidth - 2 * margin) / scaleX;
+        menu.style.minWidth = `${Math.min(originalMinWidth || 0, availableWidth)}px`;
+        menu.style.maxWidth = `${Math.min(originalMaxWidth || Infinity, availableWidth)}px`;
+        menu.style.maxHeight = `${Math.max(0, innerHeight - Math.max(margin, clearance) - margin) / scaleY}px`;
         const box = menu.getBoundingClientRect();
-        const desired = pointerMenuPosition(point, box.width, box.height, {
-          width: innerWidth,
-          height: innerHeight,
-          top: clearance,
-        });
+        const desired = pointerMenuPosition(
+          { x: align === 'end' ? point.x - box.width : point.x, y: point.y },
+          box.width,
+          box.height,
+          {
+            width: innerWidth,
+            height: innerHeight,
+            top: clearance,
+          },
+        );
         const left = Number.parseFloat(node.style.left) || 0;
         const top = Number.parseFloat(node.style.top) || 0;
-        node.style.left = `${left + (desired.x - box.left) / scale.width}px`;
-        node.style.top = `${top + (desired.y - box.top) / scale.height}px`;
+        node.style.left = `${left + (desired.x - box.left) / scaleX}px`;
+        node.style.top = `${top + (desired.y - box.top) / scaleY}px`;
       };
       place();
       const observer =
@@ -73,13 +93,13 @@ export function PointerMenu({ point, ...props }: PointerMenuProps) {
         window.removeEventListener('scroll', place, true);
       };
     },
-    [point.x, point.y],
+    [point.x, point.y, align],
   );
   return createPortal(
     <span ref={mount} data-pointer-menu="" {...stylex.props(styles.origin)}>
       <Menu {...props} open portal={false} className={stylex.props(styles.menu).className} />
     </span>,
-    document.body,
+    container,
   );
 }
 

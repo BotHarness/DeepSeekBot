@@ -1,14 +1,14 @@
 import { useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, View, type ImageSourcePropType } from 'react-native';
+import { Image, type ImageSourcePropType } from 'react-native';
 
 import { useDesignTheme } from './design/theme';
-import { edge, radius, space } from './design/tokens';
+import { radius, space } from './design/tokens';
+import { SettingsForm, SettingsFormItem } from './primitives/settings-form';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { Notice, errorText } from './request-parts';
-import { CheckIcon } from './shell/icons';
-import { t } from './strings';
+import { useStrings, t } from './strings';
 
-export const APP_ICONS = ['default', 'DeepSeekBot', 'DeepSeekBotSimple'] as const;
+export const APP_ICONS = ['default', 'DeepSeekBotSimple'] as const;
 export type AppIconName = (typeof APP_ICONS)[number];
 
 export interface AppIconPort {
@@ -17,24 +17,17 @@ export interface AppIconPort {
   set(name: AppIconName): Promise<void>;
 }
 
-export type AppIconPreviews = Record<
-  Exclude<AppIconName, 'default'>,
-  Record<'light' | 'dark', ImageSourcePropType>
->;
+export type AppIconPreviews = Record<AppIconName, Record<'light' | 'dark', ImageSourcePropType>>;
 
 const ICON_SIZE = 48;
 
-const LABEL: Record<AppIconName, { title: string; detail: string }> = {
-  default: { title: t.appIconDefault, detail: t.appIconDefaultHint },
-  DeepSeekBot: {
-    title: t.appIconDeepSeekBot,
-    detail: t.appIconDeepSeekBotHint,
-  },
+const iconLabels = (): Record<AppIconName, { title: string; detail: string }> => ({
+  default: { title: t.appIconDeepSeekBot, detail: t.appIconDefaultHint },
   DeepSeekBotSimple: {
     title: t.appIconDeepSeekBotSimple,
     detail: t.appIconDeepSeekBotSimpleHint,
   },
-};
+});
 
 function IconPreview({ name, previews }: { name: AppIconName; previews: AppIconPreviews }) {
   const theme = useDesignTheme();
@@ -43,18 +36,6 @@ function IconPreview({ name, previews }: { name: AppIconName; previews: AppIconP
     height: ICON_SIZE,
     borderRadius: radius.md,
   } as const;
-  if (name === 'default') {
-    return (
-      <View
-        style={{
-          ...frame,
-          backgroundColor: theme.layer.well.fill,
-          borderWidth: edge.hairline,
-          borderColor: theme.color.border,
-        }}
-      />
-    );
-  }
   return (
     <Image source={previews[name][theme.scheme]} style={frame} accessibilityIgnoresInvertColors />
   );
@@ -67,7 +48,7 @@ export function AppIconSettings({
   port: AppIconPort;
   previews: AppIconPreviews;
 }) {
-  const theme = useDesignTheme();
+  const t = useStrings();
   const [current, setCurrent] = useState<AppIconName>(() =>
     port.supported ? port.current() : 'default',
   );
@@ -91,33 +72,33 @@ export function AppIconSettings({
   };
 
   return (
-    <ScrollView
-      nestedScrollEnabled
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={{ gap: space.x6, padding: space.x5 }}
-    >
-      {port.supported ? null : <Notice tone="warning">{t.appIconUnsupported}</Notice>}
+    <SettingsForm>
+      {port.supported ? null : (
+        <SettingsFormItem>
+          <Notice tone="warning">{t.appIconUnsupported}</Notice>
+        </SettingsFormItem>
+      )}
       <SettingsSection on="raised" footer={t.appIconFooter}>
         {APP_ICONS.map((name) => (
           <SettingsRow
             on="raised"
             key={name}
-            title={LABEL[name].title}
-            detail={LABEL[name].detail}
+            title={iconLabels()[name].title}
+            detail={iconLabels()[name].detail}
             selected={current === name}
             leading={<IconPreview name={name} previews={previews} />}
-            trailing={
-              busy === name ? (
-                <ActivityIndicator />
-              ) : current === name ? (
-                <CheckIcon color={theme.color.fg} size={theme.type.title.line} />
-              ) : undefined
+            control={
+              busy === name ? { kind: 'busy' } : current === name ? { kind: 'check' } : undefined
             }
             onPress={port.supported ? () => choose(name) : undefined}
           />
         ))}
       </SettingsSection>
-      {error === undefined ? null : <Notice tone="danger">{error}</Notice>}
-    </ScrollView>
+      {error === undefined ? null : (
+        <SettingsFormItem>
+          <Notice tone="danger">{error}</Notice>
+        </SettingsFormItem>
+      )}
+    </SettingsForm>
   );
 }

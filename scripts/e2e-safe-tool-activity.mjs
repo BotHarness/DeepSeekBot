@@ -239,11 +239,11 @@ try {
           channelId,
           body: publicDetailMode
             ? sessionMode
-              ? 'Use browser_tabs action=list exactly once. Then use the native Shell tool to run exactly node -e "setTimeout(() => {}, 2000)" once. Do not skip either operation, delegate, or modify any files. After both finish, use channel_send with the exact phrase Safe tool activity confirmed.'
-              : 'Use browser_tabs exactly once with action open and URL https://example.com/?bhqa=private-token-for-proof . Do not use browser_open, browse other pages, delegate, or change files. After it succeeds, use channel_send to send the exact phrase "Safe tool activity confirmed" in this DM.'
+              ? 'Use browser_tabs action=list exactly once. Then use the native Shell tool to run exactly node -e "setTimeout(() => {}, 2000)" once. Do not skip either operation, delegate, or modify any files. After both finish, use bot_send_message with the exact phrase Safe tool activity confirmed.'
+              : 'Use browser_tabs exactly once with action open and URL https://example.com/?bhqa=private-token-for-proof . Do not use browser_open, browse other pages, delegate, or change files. After it succeeds, use bot_send_message to send the exact phrase "Safe tool activity confirmed" in this DM.'
             : sourceRole === 'assignment'
-              ? `For this QA, create exactly one Assignment with active Workspace Grant ${assignmentGrant.id}, omitting provider/model/effort. Its purpose: use the native Shell tool to run exactly node -e "setTimeout(() => {}, 2000)" once, then report_to_orchestrator that the harmless two-second timer completed. Do not modify files, use any other commands, or create subagents. Do not run Shell yourself. After the Assignment reports successful completion, use channel_send in this DM with exact phrase "Safe tool activity confirmed". Before completion, end your turn and await the Assignment report; do not poll it.`
-              : 'Use the native Shell tool to run exactly node -e "setTimeout(() => {}, 2000)" once. This is a harmless two-second QA timer. Do not use any other tool except channel_send afterwards to send the exact phrase "Safe tool activity confirmed" in this DM. Do not delegate or modify any files.',
+              ? `For this QA, create exactly one Assignment with active Workspace Grant ${assignmentGrant.id}, omitting provider/model/effort. Its purpose: use the native Shell tool to run exactly node -e "setTimeout(() => {}, 2000)" once, then report_to_orchestrator that the harmless two-second timer completed. Do not modify files, use any other commands, or create subagents. Do not run Shell yourself. After the Assignment reports successful completion, use bot_send_message in this DM with exact phrase "Safe tool activity confirmed". Before completion, end your turn and await the Assignment report; do not poll it.`
+              : 'Use the native Shell tool to run exactly node -e "setTimeout(() => {}, 2000)" once. This is a harmless two-second QA timer. Do not use any other tool except bot_send_message afterwards to send the exact phrase "Safe tool activity confirmed" in this DM. Do not delegate or modify any files.',
         });
   let pending;
   for (let i = 0; i < 1200; i++) {
@@ -675,7 +675,7 @@ try {
       type: record.event.type,
       time: record.event.time,
       ...(record.event.type === 'tool/call' &&
-      [toolName, 'channel_send', 'report_to_orchestrator'].includes(record.event.data.name)
+      [toolName, 'bot_send_message', 'report_to_orchestrator'].includes(record.event.data.name)
         ? { name: record.event.data.name }
         : {}),
     }));

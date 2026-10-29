@@ -30,6 +30,26 @@ function fakeDriver(screens: string[]) {
 }
 
 describe('desktop view input', () => {
+  it('accepts horizontal wheel input and carries it to the desktop driver', () => {
+    const input = parseDesktopInput({
+      kind: 'scroll',
+      direction: 'right',
+      amount: 2,
+      x: 40,
+      y: 50,
+    });
+    expect(input).toEqual({ kind: 'scroll', direction: 'right', amount: 2, x: 40, y: 50 });
+    if (input === undefined) throw new Error('horizontal wheel input refused');
+    expect(desktopInputCall(input, undefined)).toEqual({
+      tool: 'scroll',
+      args: { scope: 'desktop', direction: 'right', amount: 2, x: 40, y: 50 },
+    });
+    expect(parseDesktopInput({ kind: 'scroll', direction: 'left', amount: 3 })).toEqual({
+      kind: 'scroll',
+      direction: 'left',
+      amount: 3,
+    });
+  });
   it('accepts the phone viewer input shapes and rejects anything else', () => {
     expect(parseDesktopInput({ kind: 'click', x: 10.4, y: 20 })).toEqual({
       kind: 'click',

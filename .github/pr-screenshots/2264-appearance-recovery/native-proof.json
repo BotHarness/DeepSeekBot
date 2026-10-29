@@ -1,0 +1,9 @@
+{
+  "modeClearScope": true,
+  "cancelPreserves": true,
+  "imageReset": true,
+  "partialFailureRetry": true,
+  "videoAndPreviewReleased": true,
+  "dshAndLayoutUnchanged": true,
+  "errors": []
+}

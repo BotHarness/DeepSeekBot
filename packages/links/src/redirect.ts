@@ -1,7 +1,7 @@
 import type { Language } from './schemas.js';
 
-export const SITE_ORIGIN = 'https://deepseekbot.botharness.ai';
-export const SHORT_ORIGIN = 'https://go.botharness.ai';
+export const SITE_ORIGIN = 'https://tobs.app';
+export const SHORT_ORIGIN = 'https://go.tobs.app';
 
 const PREVIEWER =
   /twitterbot|facebookexternalhit|facebookcatalog|slackbot|slack-imgproxy|discordbot|telegrambot|whatsapp|linkedinbot|googlebot|bingbot|applebot|embedly|redditbot|bytespider|pinterestbot|skypeuripreview|vkshare|\bbot\b|bot\/|crawler|spider|preview/i;
@@ -47,7 +47,7 @@ export interface PostHogConfig {
 export function linkClickedEvent(link: TargetLink, key: string, timestamp: string) {
   return {
     api_key: key,
-    event: 'link_clicked',
+    event: 'campaign:short_link_click',
     distinct_id: crypto.randomUUID(),
     timestamp,
     properties: {

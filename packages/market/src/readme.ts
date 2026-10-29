@@ -2,6 +2,8 @@ export interface ReadmeSource {
   owner: string;
   name: string;
   ref: string;
+  filesBase?: string;
+  directory?: string;
 }
 
 const FENCE = /^( {0,3})(`{3,}|~{3,})/u;
@@ -42,15 +44,25 @@ export function rewriteUrl(
 ): string | undefined {
   const url = raw.trim().replace(/^<|>$/gu, '');
   if (url.length === 0) return undefined;
-  if (url.startsWith('#')) return `https://github.com/${source.owner}/${source.name}${url}`;
+  if (url.startsWith('#'))
+    return source.filesBase === undefined
+      ? `https://github.com/${source.owner}/${source.name}${url}`
+      : undefined;
   if (url.startsWith('//')) return `https:${url}`;
   if (SCHEME.test(url)) return SAFE_SCHEME.test(url) ? url : undefined;
   const [pathPart = '', fragment] = url.split('#', 2);
-  const path = resolvePath(pathPart.split('?')[0] ?? '');
+  const relative = pathPart.split('?')[0] ?? '';
+  const path = resolvePath(
+    source.directory === undefined || relative.startsWith('/')
+      ? relative
+      : `${source.directory}/${relative}`,
+  );
   const base =
-    kind === 'image'
-      ? `https://raw.githubusercontent.com/${source.owner}/${source.name}/${source.ref}`
-      : `https://github.com/${source.owner}/${source.name}/blob/${source.ref}`;
+    source.filesBase !== undefined
+      ? source.filesBase
+      : kind === 'image'
+        ? `https://raw.githubusercontent.com/${source.owner}/${source.name}/${source.ref}`
+        : `https://github.com/${source.owner}/${source.name}/blob/${source.ref}`;
   return `${base}/${path}${fragment === undefined ? '' : `#${fragment}`}`;
 }
 

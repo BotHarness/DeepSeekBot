@@ -57,6 +57,30 @@ async function invoke(argv: string[], url: string, stdin = '') {
 }
 
 describe('Harness Bot tool runner commands', () => {
+  it('names the Assignment parent of a Subagent tool with --session', async () => {
+    const live = await host(() => ({
+      ok: true,
+      value: { slug: 'ada', tool: 'bot_subagent', sessionId: 'direct', result: 'done' },
+    }));
+    const result = await invoke(
+      ['bot-tool', 'ada', 'bot_subagent', '--session', 'assign-1', '--args-stdin'],
+      live.url,
+      JSON.stringify({ description: 'Review', prompt: 'Review' }),
+    );
+    expect(result.code).toBe(0);
+    expect(live.calls).toEqual([
+      {
+        method: 'botToolRun',
+        args: {
+          slug: 'ada',
+          tool: 'bot_subagent',
+          args: { description: 'Review', prompt: 'Review' },
+          sessionId: 'assign-1',
+        },
+      },
+    ]);
+  });
+
   it('carries an explicit Group freshness decision and returns the owning coded outcome', async () => {
     const args = {
       channel_id: 'group',
@@ -69,33 +93,33 @@ describe('Harness Bot tool runner commands', () => {
       ok: true,
       value: {
         slug: 'ada',
-        tool: 'channel_send',
+        tool: 'bot_send_message',
         sessionId: 'direct',
         result: { status: 'refused', reason: 'draft-version-changed' },
       },
     }));
     const result = await invoke(
-      ['bot-tool', 'ada', 'channel_send', '--args-stdin'],
+      ['bot-tool', 'ada', 'bot_send_message', '--args-stdin'],
       live.url,
       JSON.stringify(args),
     );
     expect(result.json.result).toEqual({ status: 'refused', reason: 'draft-version-changed' });
     expect(live.calls).toEqual([
-      { method: 'botToolRun', args: { slug: 'ada', tool: 'channel_send', args } },
+      { method: 'botToolRun', args: { slug: 'ada', tool: 'bot_send_message', args } },
     ]);
   });
 
   it('passes Group inspection and explicit recovery to the same direct Tool owner', async () => {
     const live = await host(() => ({
       ok: true,
-      value: { tool: 'channel_send', result: { status: 'inspected' } },
+      value: { tool: 'bot_send_message', result: { status: 'inspected' } },
     }));
     for (const args of [
-      { channel_id: 'group-review', body: '', review_action: 'inspect', draft_id: 'draft-a' },
+      { channel_id: 'group-review', body: '', action: 'inspect', draft_id: 'draft-a' },
       {
         channel_id: 'group-review',
         body: '11:00',
-        review_action: 'recover',
+        recover: true,
         draft_id: 'draft-a',
         observation_id: 'fresh-read',
       },
@@ -103,7 +127,12 @@ describe('Harness Bot tool runner commands', () => {
       expect(
         (
           await invoke(
-            ['bot-tool', 'ada', 'channel_send', '--args-stdin'],
+            [
+              'bot-tool',
+              'ada',
+              args.action ? 'channel_action' : 'bot_send_message',
+              '--args-stdin',
+            ],
             live.url,
             JSON.stringify(args),
           )
@@ -111,7 +140,7 @@ describe('Harness Bot tool runner commands', () => {
       ).toBe(0);
       expect(live.calls.at(-1)).toEqual({
         method: 'botToolRun',
-        args: { slug: 'ada', tool: 'channel_send', args },
+        args: { slug: 'ada', tool: args.action ? 'channel_action' : 'bot_send_message', args },
       });
     }
   });

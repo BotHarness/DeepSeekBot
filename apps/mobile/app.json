@@ -2,66 +2,82 @@
   "expo": {
     "name": "DeepSeekBot Dev",
     "slug": "deepseekbot",
-    "scheme": ["deepseekbot-dev", "deepseekbot", "ai.botharness.deepseekbot.dev"],
+    "scheme": ["deepseekbot-dev", "ai.botharness.deepseekbot.dev"],
     "version": "0.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/app-icons/deepseekbot-light.png",
     "locales": {
       "zh-Hans": "./locales/zh-Hans.json"
     },
     "ios": {
       "bundleIdentifier": "ai.botharness.deepseekbot.dev",
       "supportsTablet": false,
+      "icon": {
+        "light": "./assets/app-icons/deepseekbot-light.png",
+        "dark": "./assets/app-icons/deepseekbot-dark.png",
+        "tinted": "./assets/app-icons/deepseekbot-tinted.png"
+      },
       "infoPlist": {
+        "NSLocalNetworkUsageDescription": "DeepSeekBot connects to your computer on this network using an encrypted connection.",
         "CFBundleDevelopmentRegion": "en",
         "CFBundleLocalizations": ["en", "zh-Hans"]
       }
     },
     "android": {
-      "package": "ai.botharness.deepseekbot.dev"
+      "package": "ai.botharness.deepseekbot.dev",
+      "predictiveBackGestureEnabled": true,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/app-icons/deepseekbot-android-foreground.png",
+        "backgroundColor": "#FFFFFF"
+      }
     },
     "plugins": [
+      ["expo-localization", { "supportedLocales": ["en", "zh-Hans"], "supportsRTL": false }],
+      "./with-lan-channel",
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/app-icons/deepseekbot-light.png",
+          "imageWidth": 128,
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF",
+          "dark": {
+            "image": "./assets/app-icons/deepseekbot-dark.png",
+            "backgroundColor": "#242424"
+          }
+        }
+      ],
       "expo-secure-store",
       "expo-notifications",
+      "@bacons/apple-targets",
       [
         "expo-camera",
         {
-          "cameraPermission": "DeepSeekBot uses the camera to scan the pairing code shown on your computer and to take photos you send to a PersonaBot.",
-          "microphonePermission": "DeepSeekBot uses the microphone to turn what you say into a message you can edit before sending to a PersonaBot.",
+          "cameraPermission": "DeepSeekBot uses the camera to scan the pairing code shown on your computer and to take photos you send to a Bot.",
+          "microphonePermission": "DeepSeekBot uses the microphone to turn what you say into a message you can edit before sending to a Bot.",
           "recordAudioAndroid": false
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "DeepSeekBot opens your photos so you can send them to a PersonaBot.",
-          "cameraPermission": "DeepSeekBot uses the camera to scan the pairing code shown on your computer and to take photos you send to a PersonaBot.",
-          "microphonePermission": "DeepSeekBot uses the microphone to turn what you say into a message you can edit before sending to a PersonaBot."
+          "photosPermission": "DeepSeekBot opens your photos so you can send them to a Bot.",
+          "cameraPermission": "DeepSeekBot uses the camera to scan the pairing code shown on your computer and to take photos you send to a Bot.",
+          "microphonePermission": "DeepSeekBot uses the microphone to turn what you say into a message you can edit before sending to a Bot."
         }
       ],
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "DeepSeekBot uses the microphone to turn what you say into a message you can edit before sending to a PersonaBot.",
-          "speechRecognitionPermission": "DeepSeekBot turns what you say into text so you can send it to a PersonaBot. You see and edit the text before it is sent."
+          "microphonePermission": "DeepSeekBot uses the microphone to turn what you say into a message you can edit before sending to a Bot.",
+          "speechRecognitionPermission": "DeepSeekBot turns what you say into text so you can send it to a Bot. You see and edit the text before it is sent."
         }
       ],
       [
         "expo-alternate-app-icons",
         [
-          {
-            "name": "DeepSeekBot",
-            "ios": {
-              "light": "./assets/app-icons/deepseekbot-light.png",
-              "dark": "./assets/app-icons/deepseekbot-dark.png",
-              "tinted": "./assets/app-icons/deepseekbot-tinted.png"
-            },
-            "android": {
-              "foregroundImage": "./assets/app-icons/deepseekbot-android-foreground.png",
-              "backgroundColor": "#FFFFFF"
-            }
-          },
           {
             "name": "DeepSeekBotSimple",
             "ios": {
@@ -78,11 +94,12 @@
       ],
       "expo-font",
       "expo-image",
-      "expo-sharing",
       "expo-status-bar",
       "expo-web-browser"
     ],
     "web": {
+      "name": "Tobs",
+      "shortName": "Tobs",
       "output": "single"
     },
     "experiments": {

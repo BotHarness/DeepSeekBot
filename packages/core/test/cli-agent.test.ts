@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
@@ -77,6 +77,29 @@ describe('scoped Tob CLI', () => {
       { command: 'capabilities', args: {} },
       { command: 'capabilities', args: {} },
     ]);
+  });
+  it('keeps a write open while its approval card waits, and a read on the short default', async () => {
+    const live = await broker();
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
+    try {
+      await invoke(['settings', 'botharness-client'], live.endpoint);
+      await invoke(
+        [
+          'settings-set',
+          'botharness-client',
+          '--patch-stdin',
+          '--expected-revision',
+          '4',
+          '--previous-value',
+          '{"assignmentConcurrencyLimit":3}',
+        ],
+        live.endpoint,
+        '{"assignmentConcurrencyLimit":5}',
+      );
+      expect(timeout.mock.calls.map(([ms]) => ms)).toEqual([120_000, 600_000]);
+    } finally {
+      timeout.mockRestore();
+    }
   });
   it('reads only its permitted namespace and forwards the exact reviewed write without fetching newer state', async () => {
     const live = await broker();

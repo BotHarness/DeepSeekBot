@@ -106,6 +106,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
 
 import type { BridgeActions } from '../src/client/actions.js';
 import { BotMain } from '../src/client/bot-main.js';
+import { BotModePrefs } from '../src/client/bot-mode-prefs.js';
+import { WindowCompanions } from '../src/client/window-companions.js';
 import { createChannelSidebarRegistry } from '../src/client/channel-sidebar.js';
 import { store, type BotSummary, type ChannelSummary } from '../src/client/store.js';
 import { inertSubmissionActions } from './inert-submissions.js';
@@ -148,6 +150,8 @@ async function open(
   channel: ChannelSummary,
   bots: BotSummary[],
   from: 'bot' | 'channel' = 'bot',
+  companion?: WindowCompanions,
+  prefs?: BotModePrefs,
 ): Promise<HTMLElement> {
   await act(async () => {
     store.setRoster(bots, [channel]);
@@ -164,7 +168,12 @@ async function open(
     });
     store.setSessions({ status: 'ready', items: [], error: undefined });
     root.render(
-      createElement(BotMain, { actions, channelSidebar: createChannelSidebarRegistry() }),
+      createElement(BotMain, {
+        actions,
+        channelSidebar: createChannelSidebarRegistry(),
+        companion,
+        prefs,
+      }),
     );
   });
   return container.querySelector<HTMLElement>('.bh-chat-body')!;
@@ -181,14 +190,18 @@ function layout(element: HTMLElement, scrollHeight: number, clientHeight = 400):
 
 const rowNames = (): string[] =>
   Array.from(
-    container.querySelectorAll<HTMLElement>('.bh-timeline-working .bh-persona-avatar'),
+    container.querySelectorAll<HTMLElement>('.bh-topbar .bh-header-working .bh-persona-avatar'),
   ).map((avatar) => (avatar.getAttribute('title') ?? '').split(' · ')[0]!.toLowerCase());
+
+const headerTitle = (): string =>
+  container.querySelector('.bh-topbar [data-conversation-title]')?.textContent ?? '';
 
 beforeEach(() => {
   Object.assign(globalThis, {
     IS_REACT_ACT_ENVIRONMENT: true,
     ResizeObserver: class {
       observe(): void {}
+      unobserve(): void {}
       disconnect(): void {}
     },
   });
@@ -203,28 +216,28 @@ afterEach(async () => {
   container.remove();
 });
 
-describe('timeline working rows in the Channel body', () => {
-  it('shows one row under the latest DM message while the Bot works and removes it when idle', async () => {
+describe('Bot working status in the Channel header', () => {
+  it('replaces the Bot name in the DM header while the Bot works, outside the message list', async () => {
     const chat = await open(dm, [bot('mira', 'Mira', 'working')]);
-    const working = chat.querySelector('.bh-timeline-working');
-    expect(rowNames()).toEqual(['mira']);
-    expect(
-      working?.previousElementSibling?.querySelector('[data-message-id="m-1"]'),
-    ).not.toBeNull();
-    expect(working?.getAttribute('aria-hidden')).toBe('true');
-    expect(working?.textContent).not.toContain('Mira');
-    expect(container.querySelectorAll('.bh-composer-activity-summary[aria-live]')).toHaveLength(1);
+    const summary = container.querySelector('.bh-topbar .bh-header-working-summary');
+    expect(summary?.getAttribute('aria-hidden')).toBe('true');
+    expect(headerTitle()).not.toContain('Mira');
+    expect(headerTitle()).toContain('...');
+    expect(chat.querySelector('.bh-header-working-summary, .bh-timeline-working')).toBeNull();
+    expect(container.querySelector('.bh-composer-activity-status')).toBeNull();
+    const live = container.querySelectorAll('.bh-chat-pane > [role="status"][aria-live="polite"]');
+    expect(live).toHaveLength(1);
+    expect(live[0]?.textContent).toContain('Mira');
     expect(container.querySelector('.bh-stop-btn')?.getAttribute('aria-label')).toBe('停止 Mira');
 
     await setBots([bot('mira', 'Mira', 'idle')], dm);
-    expect(chat.querySelector('.bh-timeline-working')).toBeNull();
+    expect(headerTitle()).toBe('Mira');
     expect(container.querySelector('.bh-stop-btn')).toBeNull();
   });
 
-  it('shows the working row when the DM is opened from the Channel list', async () => {
-    const chat = await open(dm, [bot('mira', 'Mira', 'working')], 'channel');
-    expect(rowNames()).toEqual(['mira']);
-    expect(chat.querySelector('.bh-timeline-working')).not.toBeNull();
+  it('shows the working status when the DM is opened from the Channel list', async () => {
+    await open(dm, [bot('mira', 'Mira', 'working')], 'channel');
+    expect(container.querySelector('.bh-topbar .bh-header-working-summary')).not.toBeNull();
   });
 
   it('stacks the active Bots of a Group in one row and skips waiting Bots', async () => {
@@ -237,10 +250,12 @@ describe('timeline working rows in the Channel body', () => {
     expect(container.querySelector('.bh-stop-btn')?.getAttribute('aria-label')).toBe(
       '停止 2 个 Bot',
     );
-    expect(container.querySelectorAll('.bh-timeline-working-row')).toHaveLength(1);
+    expect(container.querySelectorAll('.bh-group-channel-header .bh-header-working')).toHaveLength(
+      1,
+    );
   });
 
-  it('replaces the row with the Bot streaming draft', async () => {
+  it('keeps the Bot in the row and hides its draft until the reply is complete', async () => {
     const chat = await open(group, [
       bot('mira', 'Mira', 'working'),
       bot('nova', 'Nova', 'working'),
@@ -259,50 +274,91 @@ describe('timeline working rows in the Channel body', () => {
         ],
       }),
     );
-    expect(rowNames()).toEqual(['nova']);
-    expect(chat.querySelector('[data-message-id="draft-mira"]')).not.toBeNull();
-    expect(chat.lastElementChild?.classList.contains('bh-timeline-working')).toBe(true);
+    expect(rowNames()).toEqual(['mira', 'nova']);
+    expect(chat.querySelector('[data-message-id="draft-mira"]')).toBeNull();
   });
 
-  it('stays pinned to the bottom while following and leaves the scroll position alone otherwise', async () => {
+  it('replaces the row with the Bot streaming draft when streaming is on', async () => {
+    const prefs = new BotModePrefs();
+    prefs.setStreamReplies(true);
+    const chat = await open(
+      group,
+      [bot('mira', 'Mira', 'working'), bot('nova', 'Nova', 'working')],
+      'bot',
+      undefined,
+      prefs,
+    );
+    await act(async () =>
+      store.setConversation({
+        drafts: [
+          {
+            channelId: group.id,
+            draftId: 'draft-mira',
+            attemptId: 'attempt-1',
+            revision: 1,
+            botSlug: 'mira',
+            body: 'Found three sources',
+          },
+        ],
+      }),
+    );
+    expect(rowNames()).toEqual(['nova']);
+    expect(chat.querySelector('[data-message-id="draft-mira"]')).not.toBeNull();
+  });
+
+  it('leaves the message list and its scroll position alone when Bots start working', async () => {
     const nova = bot('nova', 'Nova', 'working');
     const chat = await open(group, [bot('mira', 'Mira', 'idle'), nova]);
     layout(chat, 1000);
     chat.scrollTop = 600;
     await act(async () => chat.dispatchEvent(new Event('scroll')));
-    layout(chat, 1040);
+    const children = chat.childElementCount;
     await setBots([bot('mira', 'Mira', 'working'), nova], group);
     expect(rowNames()).toEqual(['mira', 'nova']);
-    expect(chat.scrollTop).toBe(1040);
-
-    chat.scrollTop = 100;
-    await act(async () => chat.dispatchEvent(new Event('scroll')));
-    layout(chat, 1000);
-    await setBots([bot('mira', 'Mira', 'idle'), nova], group);
-    layout(chat, 1040);
-    await setBots([bot('mira', 'Mira', 'working'), nova], group);
-    expect(chat.scrollTop).toBe(100);
-    expect(container.querySelector('.bh-timeline-new')).toBeNull();
+    expect(chat.childElementCount).toBe(children);
+    expect(chat.scrollTop).toBe(600);
   });
 
-  it('fades the composer status at the latest message and brings it back when scrolled up', async () => {
-    const chat = await open(dm, [bot('mira', 'Mira', 'working')]);
-    const status = (): HTMLElement | null =>
-      container.querySelector<HTMLElement>('.bh-composer-activity-status');
-    expect(status()?.dataset['concealed']).toBe('true');
-    expect(status()?.querySelector('[aria-live]')).not.toBeNull();
-
-    layout(chat, 1000);
-    chat.scrollTop = 100;
-    await act(async () => chat.dispatchEvent(new Event('scroll')));
-    expect(status()?.dataset['concealed']).toBeUndefined();
-
-    chat.scrollTop = 600;
-    await act(async () => chat.dispatchEvent(new Event('scroll')));
-    expect(status()?.dataset['concealed']).toBe('true');
+  it('keeps latest content clear of companions without moving history or waiting for transitions', async () => {
+    const companion = new WindowCompanions({
+      context: async () => ({ profileId: 'reading-space' }),
+      source: () => ({ addEventListener() {}, close() {} }),
+      update: async () => {},
+    });
+    await companion.start();
+    document.documentElement.dataset['botharnessMotion'] = 'reduce';
+    try {
+      const chat = await open(dm, [bot('mira', 'Mira', 'working')], 'bot', companion);
+      const pane = chat.closest<HTMLElement>('.bh-chat-pane')!;
+      expect(pane.style.getPropertyValue('--bh-companion-read-inset')).toBe('');
+      layout(chat, 1000);
+      chat.scrollTop = 600;
+      await act(async () => chat.dispatchEvent(new Event('scroll')));
+      layout(chat, 1112);
+      await act(async () => companion.select('mira'));
+      expect(pane.style.getPropertyValue('--bh-companion-read-inset')).toBe('112px');
+      expect(chat.scrollTop).toBe(1112);
+      await setBots([bot('mira', 'Mira', 'idle')], dm);
+      expect(pane.style.getPropertyValue('--bh-companion-read-inset')).toBe('112px');
+      await act(async () => companion.select('nova'));
+      expect(pane.style.getPropertyValue('--bh-companion-read-inset')).toBe('112px');
+      chat.scrollTop = 100;
+      await act(async () => chat.dispatchEvent(new Event('scroll')));
+      await act(async () => {
+        companion.remove('mira');
+        companion.remove('nova');
+      });
+      expect(pane.style.getPropertyValue('--bh-companion-read-inset')).toBe('');
+      expect(chat.scrollTop).toBe(100);
+      await act(async () => companion.select('mira'));
+      expect(chat.scrollTop).toBe(100);
+    } finally {
+      companion.dispose();
+      delete document.documentElement.dataset['botharnessMotion'];
+    }
   });
 
-  it('keeps the composer status visible when a Bot waits on a card', async () => {
+  it('leaves a Bot that waits on a card out of the header status', async () => {
     await open(group, [bot('mira', 'Mira', 'working'), bot('nova', 'Nova', 'working')]);
     await act(async () =>
       store.applyActivity({
@@ -315,14 +371,11 @@ describe('timeline working rows in the Channel body', () => {
       }),
     );
     expect(rowNames()).toEqual(['mira']);
-    expect(
-      container.querySelector<HTMLElement>('.bh-composer-activity-status')?.dataset['concealed'],
-    ).toBeUndefined();
   });
 
-  it('hides the thinking row right after the Bot replies', async () => {
+  it('hides the thinking status right after the Bot replies', async () => {
     const chat = await open(dm, [bot('mira', 'Mira', 'thinking')]);
-    expect(rowNames()).toEqual(['mira']);
+    expect(headerTitle()).not.toBe('Mira');
     await act(async () =>
       store.setConversation({
         messages: [
@@ -332,10 +385,7 @@ describe('timeline working rows in the Channel body', () => {
         revision: store.getSnapshot().conversation.revision + 1,
       }),
     );
-    expect(rowNames()).toEqual([]);
-    expect(
-      container.querySelector<HTMLElement>('.bh-composer-activity-status')?.dataset['concealed'],
-    ).toBeUndefined();
+    expect(headerTitle()).toBe('Mira');
     expect(chat.querySelector('[data-message-id="m-2"]')).not.toBeNull();
   });
 
@@ -353,6 +403,9 @@ describe('timeline working rows in the Channel body', () => {
         revision: store.getSnapshot().conversation.revision + 1,
       }),
     );
-    expect(container.querySelector('.bh-timeline-new')?.textContent).toBe('1 条新消息 · 跳到最新');
+    expect(container.querySelector('.bh-timeline-new-count')?.textContent).toBe('1');
+    expect(container.querySelector('.bh-timeline-new')?.getAttribute('aria-description')).toBe(
+      '1 条新消息 · 跳到最新',
+    );
   });
 });

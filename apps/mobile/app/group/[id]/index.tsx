@@ -1,59 +1,7 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo } from 'react';
-import { View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { GroupProfileScreen } from '../../../src/ui/chat/group-profile-screen';
 
-import { groupActions, groupInfo } from '../../../src/host/group-channel';
-import { useHostSession, useHostSnapshot } from '../../../src/host/host-session';
-import { pickGroupAvatar } from '../../../src/host/pick-group-avatar';
-import { SettingsRow, SettingsSection } from '../../../src/ui/primitives/settings-row';
-import { GroupInfoSheet } from '../../../src/ui/chat/group-info';
-import { useDesignTheme } from '../../../src/ui/design/theme';
-import { space } from '../../../src/ui/design/tokens';
-import { Text } from '../../../src/ui/primitives/text';
-import { t } from '../../../src/ui/strings';
-
-export default function GroupInfoScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
-  const theme = useDesignTheme();
-  const { client, saved } = useHostSession();
-  const roster = useHostSnapshot(client).roster;
-  const info = useMemo(() => groupInfo(roster, id ?? ''), [roster, id]);
-  const actions = useMemo(
-    () => (client === undefined || id === undefined ? undefined : groupActions(client, id)),
-    [client, id],
-  );
-
-  if (info === undefined || actions === undefined)
-    return (
-      <View style={{ flex: 1, padding: space.x6, backgroundColor: theme.color.surface }}>
-        {roster === undefined ? null : <Text tone="muted">{t.groupGone}</Text>}
-      </View>
-    );
-
-  return (
-    <GroupInfoSheet
-      info={info}
-      background={
-        saved && id ? (
-          <SettingsSection>
-            <SettingsRow
-              title={t.chatBackground.title}
-              disclosure
-              onPress={() =>
-                router.push({
-                  pathname: '/group/[id]/chat-background',
-                  params: { id, hostId: saved.hostId, channelId: id },
-                })
-              }
-            />
-          </SettingsSection>
-        ) : null
-      }
-      actions={actions}
-      pickAvatar={pickGroupAvatar}
-      onOpenBot={(slug) => router.push({ pathname: '/bot/[slug]', params: { slug } })}
-      onDisbanded={() => router.dismissAll()}
-    />
-  );
+export default function GroupProfileRoute() {
+  const params = useLocalSearchParams<{ id: string; hostId?: string }>();
+  return <GroupProfileScreen {...params} />;
 }

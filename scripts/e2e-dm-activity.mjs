@@ -138,7 +138,7 @@ try {
   await screenshot('idle.png');
   const initialSend = await rpc('channelSend', {
     channelId,
-    body: 'Use native glob to inspect your Memory Repository, then use native write to create activity-qa.txt containing the line activity verified. Read that file using native read. Then use the native Shell tool to run exactly node -e \"setTimeout(() => {}, 2000)\" once; this is a harmless two-second timer. Finally send the exact phrase "DM activity confirmed" in this DM using channel_send. Do not delegate or change any other file. Use Shell only for that exact timer command.',
+    body: 'Use native glob to inspect your Memory Repository, then use native write to create activity-qa.txt containing the line activity verified. Read that file using native read. Then use the native Shell tool to run exactly node -e \"setTimeout(() => {}, 2000)\" once; this is a harmless two-second timer. Finally send the exact phrase "DM activity confirmed" in this DM using bot_send_message. Do not delegate or change any other file. Use Shell only for that exact timer command.',
   });
   const inputIds = [initialSend.message.id];
   let steered = false;

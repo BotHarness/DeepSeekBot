@@ -15,10 +15,10 @@ html[data-windows-titlebar] [data-workspace-dock] :is([data-window-drag], .dv-ta
 html[data-windows-titlebar] [data-workspace-dock] :is([data-window-drag-recall], button, a, input, select, textarea, [contenteditable="true"], [role="menu"], [role="dialog"], [role="tooltip"]) { -webkit-app-region:no-drag; }
 html[data-windows-titlebar]:has([data-workspace-dock]) body > :not(#root) { -webkit-app-region:no-drag; }
 [data-bh-workspace-main] { --dsh-frame-leading-clearance:0px; }
-html[data-platform="darwin"]:not([data-fullscreen]) [data-workspace-enabled] > .bh-workspace-chrome { display:block; position:absolute; top:0; left:0; width:calc(${size.nav} * 2 + ${space.x3}); height:${size.nav}; z-index:10; background:${color.base}; }
+html[data-platform="darwin"]:not([data-fullscreen]) [data-workspace-enabled] > .bh-workspace-chrome { display:block; position:absolute; top:0; left:0; width:calc((${size.nav} * 2 + ${space.x3}) / var(--bh-workspace-zoom, 1)); height:calc(${size.nav} / var(--bh-workspace-zoom, 1)); z-index:10; background:${color.base}; }
 .bh-dock[data-workspace-dock] .dv-groupview { border-radius:${radius.xs}; corner-shape:round; overflow:hidden; }
 .bh-dock[data-workspace-dock] .bh-root { background:${panelBackground}; }
-html[data-platform="darwin"]:not([data-fullscreen]) .bh-dock:has([data-bh-rail-corner]) .bh-workspace-rail { padding-top:calc(${size.nav} + ${space.x2}); }
+html[data-platform="darwin"]:not([data-fullscreen]) .bh-dock:has([data-bh-rail-corner]) .bh-workspace-rail { padding-top:calc(${size.nav} / var(--bh-workspace-zoom, 1) + ${space.x2}); }
 html[data-platform="darwin"]:not([data-fullscreen]) [data-bh-mac-corner] > .dv-tabs-and-actions-container .bh-dock-header,
 html[data-platform="darwin"]:not([data-fullscreen]) [data-bh-mac-corner] .bh-topbar { padding-left:var(--bh-mac-leading); box-sizing:border-box; }
 .bh-dock[data-workspace-dock] .dv-dockview { background:${color.base}; }
@@ -29,12 +29,12 @@ html[data-platform="darwin"]:not([data-fullscreen]) [data-bh-mac-corner] .bh-top
 .bh-workspace-rail { border-radius:${radius.xs}; corner-shape:round; overflow:hidden; position:relative; height:100%; display:flex; flex-direction:column; align-items:center; gap:${space.x2}; padding:${space.x2}; box-sizing:border-box; background:${panelBackground}; }
 /* Light DSH base and the blended Panel are both nearly white. Recess only
    the workspace canvas; keep Panels bright and the existing dark palette. */
-body:not([data-ds-dark-theme]) .bh-dock[data-workspace-dock],
-body:not([data-ds-dark-theme]) .bh-dock[data-workspace-dock] .dv-dockview,
-body:not([data-ds-dark-theme]) .bh-message-member-divider,
-body:not([data-ds-dark-theme]) .bh-channel-session-divider,
-html[data-platform="darwin"]:not([data-fullscreen]) body:not([data-ds-dark-theme]) [data-workspace-enabled] > .bh-workspace-chrome { background:${color.surface}; }
-body:not([data-ds-dark-theme]) .bh-dock[data-workspace-dock] .dv-tabs-and-actions-container { border-bottom-color:${color.surface}; }
+:root:has(style[data-bh-appearance="light"]) .bh-dock[data-workspace-dock],
+:root:has(style[data-bh-appearance="light"]) .bh-dock[data-workspace-dock] .dv-dockview,
+:root:has(style[data-bh-appearance="light"]) .bh-message-member-divider,
+:root:has(style[data-bh-appearance="light"]) .bh-channel-session-divider,
+html[data-platform="darwin"]:not([data-fullscreen]):has(style[data-bh-appearance="light"]) [data-workspace-enabled] > .bh-workspace-chrome { background:${color.surface}; }
+:root:has(style[data-bh-appearance="light"]) .bh-dock[data-workspace-dock] .dv-tabs-and-actions-container { border-bottom-color:${color.surface}; }
 .bh-workspace-rail > button, .bh-workspace-rail > span > button, .bh-workspace-move { display:flex; align-items:center; justify-content:center; flex-shrink:0; width:${size.row}; height:${size.row}; padding:0; border:0; border-radius:${radius.md}; corner-shape:round; color:${color.fg}; background:transparent; cursor:pointer; }
 .bh-workspace-rail button:hover { background:${color.hover}; }
 .bh-workspace-rail button:focus-visible { outline:${border.focus} solid ${color.accent}; outline-offset:calc(-1 * ${space.x1}); }
@@ -66,6 +66,16 @@ body:not([data-ds-dark-theme]) .bh-dock[data-workspace-dock] .dv-tabs-and-action
 .bh-message-members > section { flex:1; min-height:0; overflow:auto; }
 .bh-message-member-divider { flex:0 0 var(--bh-workspace-gap); min-width:${space.x2}; background:${color.base}; cursor:col-resize; touch-action:none; }
 .bh-message-member-divider:focus-visible { outline:${border.focus} solid ${color.accent}; outline-offset:calc(-1 * ${space.x1}); }
+.bh-subpanel-column { display:flex; flex-direction:column; min-width:0; min-height:0; overflow-y:auto; overflow-x:hidden; background:${panelBackground}; }
+.bh-subpanel-entry { display:flex; flex-direction:column; flex:none; min-width:0; }
+.bh-subpanel-entry + .bh-subpanel-entry { border-top:var(--bh-workspace-header-gap) solid ${color.base}; }
+.bh-subpanel-entry-header { flex:none; }
+.bh-subpanel-entry-body { display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+.bh-subpanel-entry-body > section { flex:1; min-height:0; overflow:auto; }
+.bh-subpanel-entry-resize { position:relative; flex:none; height:${space.x1}; cursor:row-resize; touch-action:none; }
+.bh-subpanel-entry-resize::before { content:''; position:absolute; inset:0 0 calc(-1 * var(--bh-workspace-header-gap)); }
+.bh-subpanel-entry-resize:hover { background:${color.hover}; }
+.bh-subpanel-entry-resize:focus-visible { outline:${border.focus} solid ${color.accent}; outline-offset:calc(-1 * ${space.x1}); }
 .bh-channel-workspace-root, .bh-channel-branch, .bh-channel-leaf, .bh-channel-leaf-content { display:flex; flex-direction:column; min-width:0; min-height:0; height:100%; overflow:hidden; }
 .bh-channel-leaf { position:relative; flex:1; }
 .bh-channel-leaf-content { flex:1; }

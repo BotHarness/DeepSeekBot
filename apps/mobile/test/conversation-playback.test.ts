@@ -204,3 +204,113 @@ describe('conversation playback ownership', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 });
+
+it('keeps paged history out of draft matching while a same-time reply commits', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(0);
+  const existing = {
+    id: 'known',
+    revision: 25,
+    at: '2026-10-19T00:00:00.000Z',
+    author: 'bot' as const,
+    bot: 'ada',
+    body: 'existing',
+    attachments: [],
+    delivery: 'committed' as const,
+  };
+  const f = fixture({ messages: [existing] });
+  const body = '同一前缀的旧历史不能接管新回复。'.repeat(30);
+  f.update({ drafts: [{ draftId: 'live', botSlug: 'ada', body }] });
+  vi.advanceTimersByTime(600);
+  f.playback.setFollowing(false);
+  const held = f.playback.getBubble('draft:live')!.message.body;
+  const historical = { ...existing, id: 'history', revision: 24, body };
+  const committed = { ...existing, id: 'new', revision: 26, body };
+  f.update({ messages: [historical, existing, committed], drafts: [] });
+  expect(f.playback.rowKey(historical.id)).toBe(historical.id);
+  expect(f.playback.getBubble(historical.id)).toBeUndefined();
+  expect(f.playback.rowKey(committed.id)).toBe('draft:live');
+  expect(f.playback.getBubble('draft:live')).toMatchObject({
+    message: { id: committed.id, body: held },
+    streaming: true,
+  });
+  f.playback.setFollowing(true);
+  vi.advanceTimersByTime(30000);
+  expect(f.playback.getBubble('draft:live')).toMatchObject({ message: { body }, streaming: false });
+  expect(f.playback.getBubble(historical.id)).toBeUndefined();
+  f.stop();
+});
+
+it('uses committed revisions even when a pending Human message ends the visible list', () => {
+  vi.useFakeTimers();
+  const existing = {
+    id: 'known',
+    revision: 50,
+    at: '2026-10-19T00:00:00.000Z',
+    author: 'bot' as const,
+    bot: 'ada',
+    body: 'known answer',
+    attachments: [],
+    delivery: 'committed' as const,
+  };
+  const pending = {
+    id: 'pending',
+    at: existing.at,
+    author: 'human' as const,
+    body: 'next question',
+    attachments: [],
+    delivery: 'pending' as const,
+  };
+  const f = fixture({ messages: [existing, pending] });
+  f.playback.setFollowing(false);
+  const historical = { ...existing, id: 'history', revision: 49, body: 'older answer' };
+  const reply = { ...existing, id: 'new', revision: 51, body: 'new answer' };
+  f.update({ messages: [historical, existing, reply, pending] });
+  expect(f.playback.getBubble(historical.id)).toBeUndefined();
+  expect(f.playback.getBubble(reply.id)).toMatchObject({ message: { body: '' }, streaming: true });
+  f.playback.setFollowing(true);
+  vi.advanceTimersByTime(5000);
+  expect(f.playback.getBubble(reply.id)).toMatchObject({
+    message: { body: reply.body },
+    streaming: false,
+  });
+  f.stop();
+});
+
+it.each([
+  { status: 'opening' as const, fromCache: true },
+  { status: 'interrupted' as const, fromCache: false },
+])('shows recovered history directly after $status and plays subsequent replies', (initial) => {
+  vi.useFakeTimers();
+  const known = {
+    id: 'known',
+    revision: 50,
+    at: '2026-10-19T00:00:00.000Z',
+    author: 'bot' as const,
+    bot: 'ada',
+    body: 'cached answer',
+    attachments: [],
+    delivery: 'committed' as const,
+  };
+  const f = fixture({ ...initial, messages: [known] });
+  f.playback.setFollowing(false);
+  const recovered = { ...known, id: 'recovered', revision: 51, body: 'recovered answer' };
+  f.update({ status: 'live', fromCache: false, messages: [known, recovered] });
+  expect(f.playback.getBubble(known.id)).toBeUndefined();
+  expect(f.playback.getBubble(recovered.id)).toBeUndefined();
+  expect(vi.getTimerCount()).toBe(0);
+  const historical = { ...known, id: 'history', revision: 49, body: 'older answer' };
+  const reply = { ...known, id: 'new', revision: 52, body: 'new answer'.repeat(30) };
+  f.update({ messages: [historical, known, recovered, reply] });
+  expect(f.playback.getBubble(historical.id)).toBeUndefined();
+  expect(f.playback.getBubble(recovered.id)).toBeUndefined();
+  expect(f.playback.getBubble(reply.id)).toMatchObject({ message: { body: '' }, streaming: true });
+  f.playback.setFollowing(true);
+  vi.advanceTimersByTime(30000);
+  expect(f.playback.getBubble(reply.id)).toMatchObject({
+    message: { body: reply.body },
+    streaming: false,
+  });
+  expect(f.playback.getBubble(recovered.id)).toBeUndefined();
+  f.stop();
+});

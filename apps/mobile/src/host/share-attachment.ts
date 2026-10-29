@@ -12,20 +12,32 @@ function fileName(name: string): string {
   return safe === '' ? 'attachment' : safe;
 }
 
-export async function shareAttachment(attachment: MessageAttachment): Promise<void> {
+export async function shareAttachment(
+  attachment: MessageAttachment,
+  stillAvailable: () => boolean = () => true,
+): Promise<void> {
+  if (!stillAvailable()) throw new Error('attachment-unavailable');
   const source = attachment.source;
   if (source === undefined) throw new Error('attachment-unavailable');
   let uri = source.uri;
   if (!attachment.local) {
     const folder = new Directory(Paths.cache, 'attachments', folderName(attachment.key));
     folder.create({ intermediates: true, idempotent: true });
-    const file = await File.downloadFileAsync(
-      source.uri,
-      new File(folder, fileName(attachment.name)),
-      { headers: source.headers, idempotent: true },
-    );
-    uri = file.uri;
+    if (source.read) {
+      const { bytes } = await source.read(new AbortController().signal);
+      const file = new File(folder, fileName(attachment.name));
+      await file.write(bytes);
+      uri = file.uri;
+    } else {
+      const file = await File.downloadFileAsync(
+        source.uri,
+        new File(folder, fileName(attachment.name)),
+        { headers: source.headers, idempotent: true },
+      );
+      uri = file.uri;
+    }
   }
+  if (!stillAvailable()) throw new Error('attachment-unavailable');
   await Sharing.shareAsync(uri, {
     dialogTitle: attachment.name,
     ...(attachment.mime === undefined ? {} : { mimeType: attachment.mime }),

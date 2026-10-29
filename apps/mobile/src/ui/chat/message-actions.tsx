@@ -1,54 +1,38 @@
+import { RowIcon } from '../primitives/row-icon';
 import { Fragment, useRef, useState, type ReactNode } from 'react';
 import { Modal, Platform, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
-import Animated, { Easing, Keyframe } from 'react-native-reanimated';
+import Animated, { withSpring, type EntryExitAnimationFunction } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import {
-  MENU_REACTIONS,
-  reactable,
-  reactedByMe,
-  type ConversationMessage,
-} from '../../host/conversation';
-import { edge, motion, radius, space } from '../design/tokens';
+import { MENU_REACTIONS, reactedByMe, type ConversationMessage } from '../../host/conversation';
+import { spring } from '../design/motion';
+import { edge, radius, space } from '../design/tokens';
 import { glassShadow, useDesignTheme, type DesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { ChevronRightIcon, CopyIcon, ShareIcon } from '../shell/icons';
-import { t } from '../strings';
-import type { BubbleGroup } from './bubble-shape';
+import { useStrings } from '../strings';
 import { BubbleBody } from './message-bubble';
-import { separatorLabel } from './message-groups';
 import { placeMenu, type Rect } from './menu-placement';
+import {
+  dismissQueue,
+  menuLabel,
+  menuReactions,
+  menuTime,
+  messageMenuActions,
+  runAction,
+  type MessageActionsProps,
+  type MessageMenuAction,
+  type MessageMenuTarget,
+} from './message-sheet';
 
-export type ActivityMenuLink = { label?: string; onOpen?: () => void };
-export type MessageMenuTarget = {
-  message: ConversationMessage;
-  anchor: Rect;
-  group: BubbleGroup;
-  activity?: ActivityMenuLink;
-};
-
-export type MessageMenuAction = { key: 'copy' | 'share' | 'open'; label: string };
-
-export function messageMenuActions(
-  message: ConversationMessage,
-  activity?: ActivityMenuLink,
-): MessageMenuAction[] {
-  if (message.body.trim() === '') return [];
-  return [
-    ...(activity?.onOpen === undefined || activity.label === undefined
-      ? []
-      : [{ key: 'open' as const, label: activity.label }]),
-    { key: 'copy', label: t.copy },
-    { key: 'share', label: t.shareText },
-  ];
-}
-
-export function menuTime(iso: string, now: Date): string {
-  const label = separatorLabel(iso, now, t.yesterday);
-  return label !== '' && new Date(iso).toDateString() === now.toDateString()
-    ? `${t.today} ${label}`
-    : label;
-}
+export {
+  dismissQueue,
+  menuTime,
+  messageMenuActions,
+  type ActivityMenuLink,
+  type MessageMenuAction,
+  type MessageMenuTarget,
+} from './message-sheet';
 
 export function menuSizes(theme: DesignTheme, rows: number, reactions: boolean) {
   return {
@@ -70,25 +54,16 @@ function sideOffset(anchor: Rect, human: boolean, width: number, screen: number)
   return Math.min(Math.max(left, space.x4), screen - space.x4 - width);
 }
 
-export function dismissQueue(os: string) {
-  let pending: (() => void) | undefined;
+const POP: EntryExitAnimationFunction = () => {
+  'worklet';
   return {
-    after(run: () => void) {
-      if (os === 'ios') pending = run;
-      else run();
-    },
-    flush() {
-      const run = pending;
-      pending = undefined;
-      run?.();
+    initialValues: { opacity: 0, transform: [{ scale: 0.9 }] },
+    animations: {
+      opacity: withSpring(1, spring.effects.fast),
+      transform: [{ scale: withSpring(1, spring.spatial.fast) }],
     },
   };
-}
-
-const POP = new Keyframe({
-  0: { opacity: 0, transform: [{ scale: 0.9 }] },
-  100: { opacity: 1, transform: [{ scale: 1 }], easing: Easing.out(Easing.quad) },
-}).duration(motion.menu);
+};
 
 function Pop({
   from,
@@ -113,6 +88,7 @@ function ReactionIsland({
   message: ConversationMessage;
   onReact(emoji: string, active: boolean): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const mine = new Set((message.reactions ?? []).filter(reactedByMe).map((r) => r.emoji));
   return (
@@ -161,7 +137,9 @@ function ActionIcon({
   color: string;
   size: number;
 }) {
-  return action.key === 'open' ? (
+  return action.key === 'feedback' || action.key === 'select' ? (
+    <RowIcon name={action.key} color={color} size={size} />
+  ) : action.key === 'open' ? (
     <ChevronRightIcon color={color} size={size} />
   ) : action.key === 'copy' ? (
     <CopyIcon color={color} size={size} />
@@ -177,14 +155,7 @@ export function MessageActions({
   onReact,
   onCopy,
   onShareText,
-}: {
-  target: MessageMenuTarget | undefined;
-  readOnly?: boolean;
-  onClose(): void;
-  onReact(message: ConversationMessage, emoji: string, active: boolean): void;
-  onCopy(text: string): void;
-  onShareText(text: string): void;
-}) {
+}: MessageActionsProps) {
   const queue = useRef(dismissQueue(Platform.OS)).current;
   return (
     <Modal
@@ -228,6 +199,7 @@ function MessageMenu({
   onShareText(text: string): void;
   onOpen(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const pressedIn = useRef(false);
@@ -239,8 +211,8 @@ function MessageMenu({
     ? { ...anchor, x: space.x4, width: screen - space.x4 * 2, height: previewHeight }
     : anchor;
   const human = message.author === 'human';
-  const actions = messageMenuActions(message, target.activity);
-  const reactions = !activity && !readOnly && reactable(message);
+  const actions = messageMenuActions(message, target.activity, target.actions !== undefined);
+  const reactions = menuReactions(target, readOnly);
   const sizes = menuSizes(theme, actions.length, reactions);
   const place = placeMenu({
     anchor: previewAnchor,
@@ -274,7 +246,7 @@ function MessageMenu({
       />
       <View
         accessibilityViewIsModal
-        accessibilityLabel={activity ? t.activityRow.actions : t.messageActions}
+        accessibilityLabel={menuLabel(target)}
         onAccessibilityEscape={onClose}
         pointerEvents="box-none"
         style={{ flex: 1 }}
@@ -363,9 +335,13 @@ function MessageMenu({
                   accessibilityRole="button"
                   accessibilityLabel={action.label}
                   onPress={() => {
-                    if (action.key === 'open') onOpen();
-                    else if (action.key === 'copy') onCopy(message.body);
-                    else onShareText(message.body);
+                    runAction(action, message, {
+                      onCopy,
+                      onShareText,
+                      onOpen,
+                      onFeedback: target.actions?.feedback,
+                      onSelect: target.actions?.select,
+                    });
                     onClose();
                   }}
                   style={({ pressed }) => ({

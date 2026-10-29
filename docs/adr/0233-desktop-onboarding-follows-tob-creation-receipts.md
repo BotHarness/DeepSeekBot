@@ -2,6 +2,8 @@
 
 Status: Accepted for the first Desktop slice of #2192; mobile Web remains separate.
 
+> Step 5 is partly superseded by [ADR-0268](0268-tob-mode-replaces-home.md) (2026-10-27): it now completes when the Human reaches the Tob DM, in either layout mode.
+
 ## Context
 
 The seven-item tutorial and generated welcome letters predate the protected Tob identity and panel workspace. A successful model reply does not prove a Bot or group was created.
@@ -22,4 +24,4 @@ Expose lifecycle read/write through `deepseekbot onboarding [--action ...]`, wit
 
 The schema upgrade is additive but older binaries cannot reopen the upgraded database under the existing generation fence. Back up before upgrade. There is no forced layout migration. Native Desktop qualification and source tests remain distinct; narrow Web navigation and real-phone qualification are outside this slice.
 
-The fifth step requires the Human to click Home's actual title control. Finishing the layout tips only records a device-local presentation fact; it does not finish onboarding. The title action closes Home using the existing layout owner, reveals Messages and opens the same Tob DM, then settles tutorial lifecycle. Rail toggles, programmatic closure and reading the tips alone do not complete this action. Unsent Home drafts are preserved.
+The fifth step requires the Human to click Home's actual title control. Finishing the layout tips only records a device-local presentation fact; it does not finish onboarding. The title action closes Home using the existing layout owner, reveals Messages and opens the same Tob DM, then settles tutorial lifecycle. Rail toggles, programmatic closure and reading the tips alone do not complete this action. Unsent Home drafts are preserved. _Amended by [ADR-0259](0259-desktop-layout-has-simple-and-advanced-modes.md): step 4 first asks for a Layout mode, and in Simple mode step 5 is a real rail selection of Messages instead of the Home title._

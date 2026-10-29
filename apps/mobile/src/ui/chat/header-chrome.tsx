@@ -1,12 +1,15 @@
 import { useId, type ReactNode } from 'react';
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
-import { frosted, useDesignTheme } from '../design/theme';
-import { edge, edgeFade, radius, space } from '../design/tokens';
-import { ChevronLeftIcon } from '../shell/icons';
-import { t } from '../strings';
+import { frosted, pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
+import { edge, glassPress, radius, space } from '../design/tokens';
+import { DrawerMaterial, EdgeMaterial, useLiquidGlass } from '../primitives/drawer-material';
+import { BackIcon } from '../shell/back-icon';
+import { glassHeader, headerIslands } from './header-kind';
+import { useStrings } from '../strings';
+import { edgeFadeStops } from './edge-fade';
 
 const ICON = 22;
 
@@ -19,59 +22,32 @@ export function useChatHeaderHeight(): number {
   );
 }
 
-export function ChatHeader({
-  left,
-  center,
-  right,
-}: {
-  left: ReactNode;
-  center: ReactNode;
-  right: ReactNode;
-}) {
-  const theme = useDesignTheme();
-  const insets = useSafeAreaInsets();
-  return (
-    <View
-      pointerEvents="box-none"
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        paddingTop: insets.top + space.x2,
-        paddingBottom: space.x2,
-        paddingHorizontal: space.x4,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space.x3,
-      }}
-    >
-      <View style={{ width: theme.touch }}>{left}</View>
-      <View pointerEvents="box-none" style={{ flex: 1, alignItems: 'center' }}>
-        {center}
-      </View>
-      <View style={{ width: theme.touch }}>{right}</View>
-    </View>
-  );
-}
-
 export function HeaderCircleButton({
   label,
+  testID,
   onPress,
   children,
   selected = false,
+  plain = false,
+  disabled = false,
 }: {
   label: string;
+  testID?: string;
   onPress(): void;
   children: ReactNode;
   selected?: boolean;
+  plain?: boolean;
+  disabled?: boolean;
 }) {
   const theme = useDesignTheme();
+  const glass = useLiquidGlass();
   return (
     <Pressable
+      testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ selected }}
+      accessibilityState={{ selected, disabled }}
+      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => ({
         width: theme.touch,
@@ -79,29 +55,71 @@ export function HeaderCircleButton({
         borderRadius: radius.round,
         alignItems: 'center',
         justifyContent: 'center',
-        borderWidth: edge.hairline,
-        borderColor: theme.layer.raised.edge,
-        backgroundColor: pressed ? theme.layer.raised.pressed : frosted(theme.layer.raised.fill),
+        opacity: disabled ? 0.4 : 1,
+        ...(plain
+          ? { backgroundColor: pressed ? theme.layer.raised.pressed : undefined }
+          : headerGlassFill(theme, glass, pressed)),
       })}
     >
+      {glass && !plain ? <DrawerMaterial /> : null}
       {children}
     </Pressable>
   );
 }
 
-export function HeaderBackButton({ onPress }: { onPress(): void }) {
+export function headerGlassFill(theme: DesignTheme, glass: boolean, pressed: boolean) {
+  if (glass)
+    return {
+      borderWidth: 0,
+      backgroundColor: pressed ? pressTint(theme.color.fg) : 'transparent',
+    };
+  return {
+    borderWidth: edge.hairline,
+    borderColor: theme.layer.raised.edge,
+    backgroundColor: pressed
+      ? theme.layer.raised.pressed
+      : Platform.OS === 'ios'
+        ? theme.layer.raised.fill
+        : frosted(theme.layer.raised.fill),
+  };
+}
+
+export function titleChipFill(theme: DesignTheme, pressed: boolean) {
+  if (headerIslands) return headerGlassFill(theme, false, pressed);
+  if (glassHeader) return { opacity: pressed ? glassPress.dim : 1 };
+  return { backgroundColor: pressed ? theme.layer.raised.pressed : undefined };
+}
+
+export function HeaderBackButton({ onPress, plain }: { onPress(): void; plain?: boolean }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   return (
-    <HeaderCircleButton label={t.back} onPress={onPress}>
-      <ChevronLeftIcon color={theme.color.fg} size={ICON} />
+    <HeaderCircleButton label={t.back} onPress={onPress} plain={plain === true}>
+      <BackIcon color={theme.color.fg} size={ICON} />
     </HeaderCircleButton>
   );
 }
 
-export function EdgeFade({ edge: side, height }: { edge: 'top' | 'bottom'; height: number }) {
+export function EdgeFade({
+  edge: side,
+  height,
+  cover = 0,
+  solid,
+  color,
+}: {
+  edge: 'top' | 'bottom';
+  height: number;
+  cover?: number;
+  solid?: number;
+  color?: string;
+}) {
   const theme = useDesignTheme();
+  const glass = useLiquidGlass();
   const id = `fade-${useId().replace(/[^a-z0-9]/giu, '')}`;
   const top = side === 'top';
+  const insets = useSafeAreaInsets();
+  const stops = edgeFadeStops(height, cover, solid ?? (top ? insets.top : insets.bottom));
+  const span = Math.ceil(height) + 1;
   return (
     <View
       pointerEvents="none"
@@ -109,25 +127,32 @@ export function EdgeFade({ edge: side, height }: { edge: 'top' | 'bottom'; heigh
         position: 'absolute',
         left: 0,
         right: 0,
-        height,
-        ...(top ? { top: 0 } : { bottom: 0 }),
+        height: span,
+        ...(top ? { top: -1 } : { bottom: -1 }),
       }}
     >
-      <Svg width="100%" height="100%" preserveAspectRatio="none">
-        <Defs>
-          <LinearGradient id={id} x1="0%" y1={top ? '0%' : '100%'} x2="0%" y2={top ? '100%' : '0%'}>
-            {edgeFade.stops.map((stop) => (
-              <Stop
-                key={stop.offset}
-                offset={stop.offset}
-                stopColor={theme.color.base}
-                stopOpacity={stop.opacity}
-              />
-            ))}
-          </LinearGradient>
-        </Defs>
-        <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id})`} />
-      </Svg>
+      {glass && cover === 0 ? (
+        <EdgeMaterial edge={side} />
+      ) : (
+        <Svg width="100%" height={span} preserveAspectRatio="none">
+          <Defs>
+            <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+              {(top
+                ? stops
+                : stops.map((stop) => ({ ...stop, offset: 1 - stop.offset })).reverse()
+              ).map((stop) => (
+                <Stop
+                  key={stop.offset}
+                  offset={stop.offset}
+                  stopColor={color ?? theme.color.base}
+                  stopOpacity={stop.opacity}
+                />
+              ))}
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height={span} fill={`url(#${id})`} />
+        </Svg>
+      )}
     </View>
   );
 }

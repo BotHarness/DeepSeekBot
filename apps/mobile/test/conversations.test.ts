@@ -2,10 +2,16 @@ import { describe, expect, it } from 'vitest';
 
 import type { RosterView } from '../src/host/client';
 import type { HumanAttentionItem } from '../src/host/wire';
+import { locale, t } from '../src/ui/strings';
+import { interfacePreferences } from '../src/ui/interface-preferences';
 import {
   chatList,
   conversations,
   countBadge,
+  DONE_WINDOW_MS,
+  previewText,
+  rowLabel,
+  rowStatus,
   searchConversations,
   shortTime,
   type ChatListItem,
@@ -68,6 +74,60 @@ const item = (overrides: Partial<HumanAttentionItem>): HumanAttentionItem => ({
 });
 
 describe('Home conversations', () => {
+  it('uses canonical DM and group creation times without changing message recency', () => {
+    const createdAt = '2026-10-14T07:00:00.000Z';
+    const empty: RosterView = {
+      bots: [{ ...roster.bots[1]! }],
+      channels: [{ id: 'empty-group', name: 'New group', members: [], memberCount: 0 }],
+      activityChannels: [
+        {
+          id: 'dm-bo',
+          name: 'Bo',
+          type: 'dm',
+          members: ['bo'],
+          createdAt,
+          updatedAt: '2026-10-14T12:00:00.000Z',
+        },
+        { id: 'empty-group', name: 'New group', type: 'group', members: [], createdAt },
+      ],
+    };
+    const rows = conversations(empty, []);
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.at).toBeUndefined();
+      expect(row.createdAt).toBe(createdAt);
+      expect(shortTime(row.at ?? row.createdAt, new Date(createdAt))).not.toBe('');
+    }
+    const withCreation = { ...roster, activityChannels: empty.activityChannels ?? [] };
+    expect(conversations(withCreation, []).map((row) => row.key)).toEqual(
+      conversations(roster, []).map((row) => row.key),
+    );
+
+    const messageAt = '2026-10-14T13:00:00.000Z';
+    const updated = conversations(
+      {
+        ...empty,
+        bots: empty.bots.map((bot) => ({ ...bot, preview: 'Hello', previewAt: messageAt })),
+        channels: empty.channels.map((channel) => ({
+          ...channel,
+          preview: 'Hello',
+          previewAt: messageAt,
+        })),
+      },
+      [],
+    );
+    for (const row of updated) {
+      expect(row.at ?? row.createdAt).toBe(messageAt);
+      expect(row.createdAt).toBe(createdAt);
+    }
+  });
+
+  it('does not invent a creation timestamp when channel metadata is unavailable', () => {
+    const empty = conversations(roster, []).find((row) => row.key === 'bot:bo')!;
+    expect(empty.createdAt).toBeUndefined();
+    expect(shortTime(empty.at ?? empty.createdAt, new Date())).toBe('');
+  });
+
   it('mixes Bot DMs and Channels by latest activity', () => {
     expect(conversations(roster, []).map((row) => row.key)).toEqual([
       'bot:cy',
@@ -115,12 +175,22 @@ describe('Home conversations', () => {
     expect(countBadge({ ...team, needsYou: 1 })).toEqual({ tone: 'needs-you', count: 1 });
   });
 
-  it('shows a clock time today and a date otherwise', () => {
+  it('treats a Channel on Do Not Disturb on this phone like a muted one', () => {
+    const team = conversations(roster, [], { team: 4 }, ['team']).find(
+      (row) => row.key === 'channel:team',
+    )!;
+    expect(team.muted).toBe(true);
+    expect(countBadge(team)).toEqual({ tone: 'muted', count: 4 });
+  });
+
+  it('follows IM list conventions for the time', () => {
     const now = new Date('2026-10-14T12:00:00');
-    expect(shortTime(new Date('2026-10-14T09:05:00').toISOString(), now, 'en-GB')).toMatch(
-      /^0?9:05$/,
-    );
-    expect(shortTime(new Date('2026-10-12T09:05:00').toISOString(), now, 'en-GB')).toBe('12/10');
+    const at = (iso: string) => new Date(iso).toISOString();
+    expect(shortTime(at('2026-10-14T09:05:00'), now, 'en-GB')).toMatch(/^0?9:05$/);
+    expect(shortTime(at('2026-10-13T23:59:00'), now, 'en-GB', 'Yesterday')).toBe('Yesterday');
+    expect(shortTime(at('2026-10-12T09:05:00'), now, 'en-GB')).toBe('Mon');
+    expect(shortTime(at('2026-10-02T09:05:00'), now, 'en-GB')).toBe('02/10');
+    expect(shortTime(at('2025-12-30T09:05:00'), now, 'en-GB')).toBe('30/12/2025');
     expect(shortTime(undefined, now)).toBe('');
   });
 });
@@ -165,7 +235,202 @@ const shape = (items: ChatListItem[]) =>
       : item.key,
   );
 
+describe('Row status', () => {
+  const now = new Date('2026-10-14T12:00:00.000Z');
+  const bot = roster.bots[0]!;
+  const row = (
+    patch: Partial<typeof bot>,
+    attention: { needsYou?: number; unread?: number } = {},
+  ): Parameters<typeof rowStatus>[0] => ({
+    kind: 'bot',
+    key: 'bot:ada',
+    bot: { ...bot, ...patch },
+    needsYou: attention.needsYou ?? 0,
+    unread: attention.unread ?? 0,
+    muted: false,
+  });
+  const fromAda = { previewAuthor: { kind: 'bot' as const, slug: 'ada' } };
+
+  it('puts the Human first, then blocked work, then running work', () => {
+    expect(rowStatus(row({ state: 'working' }, { needsYou: 1 }), now)).toBe('needs-you');
+    expect(rowStatus(row({ state: 'waiting' }), now)).toBe('needs-you');
+    expect(rowStatus(row({ state: 'blocked' }), now)).toBe('blocked');
+    expect(rowStatus(row({ state: 'thinking', paused: true }), now)).toBe('working');
+    expect(rowStatus(row({ paused: true }), now)).toBe('paused');
+  });
+
+  it('marks a finished turn by the Bot as unread, then done for a day, then nothing', () => {
+    expect(rowStatus(row(fromAda, { unread: 2 }), now)).toBe('done-unread');
+    expect(rowStatus(row(fromAda), now)).toBe('done');
+    expect(
+      rowStatus(
+        row({
+          ...fromAda,
+          previewAt: new Date(now.getTime() - DONE_WINDOW_MS - 1).toISOString(),
+        }),
+        now,
+      ),
+    ).toBe('none');
+    expect(rowStatus(row({ previewAuthor: { kind: 'human' } }, { unread: 1 }), now)).toBe('none');
+    expect(rowStatus(row({}), now)).toBe('none');
+  });
+
+  it('uses the current app language for missing and empty message previews', () => {
+    const language = interfacePreferences.getSnapshot().language;
+    try {
+      interfacePreferences.setLanguage('en');
+      expect(previewText(undefined)).toBe('No messages yet');
+      expect(previewText('')).toBe('No messages yet');
+      expect(previewText('Hello')).toBe('Hello');
+      interfacePreferences.setLanguage('zh');
+      expect(previewText(undefined)).toBe('暂无消息');
+      expect(previewText('')).toBe('暂无消息');
+      expect(previewText('你好')).toBe('你好');
+    } finally {
+      interfacePreferences.setLanguage(language);
+    }
+  });
+
+  it('shows a pending tool approval preview in the app language', () => {
+    expect(previewText('请求批准执行 secret_cli')).toBe(t.approvalPreview('secret_cli'));
+    expect(t.approvalPreview('secret_cli')).toBe(
+      locale === 'zh' ? '请求批准执行 secret_cli' : 'Requests approval to run secret_cli',
+    );
+    expect(previewText('Sure, done')).toBe('Sure, done');
+  });
+
+  it('reads the status once in the row label', () => {
+    const paused = locale === 'zh' ? '已暂停' : 'Paused';
+    expect(rowLabel(row({ paused: true }), 'Ada', 'paused', paused)).toBe('Ada, ' + paused);
+    expect(rowLabel(row({ state: 'working' }), 'Ada', 'working', 'Sure')).toBe(
+      locale === 'zh' ? 'Ada, 工作中, Sure' : 'Ada, Working, Sure',
+    );
+    expect(rowLabel(row({}, { needsYou: 2 }), 'Ada', 'needs-you', 'Done')).toBe(
+      locale === 'zh' ? 'Ada, 2 项等你处理, Done' : 'Ada, 2 need you, Done',
+    );
+  });
+});
+
 describe('Chats grouped by Channel section', () => {
+  it('shows pins without custom sections, deduplicates legacy slugs and keeps quiet counts', () => {
+    const pinned = {
+      ...roster,
+      arrangement: { pins: ['ada', 'dm-ada', 'team'], hidden: [], sections: [], sectionOrder: [] },
+    };
+    expect(shape(chatList(pinned, [], new Set(), { 'dm-ada': 3, team: 7 }, ['team']))).toEqual([
+      '[pinned 2 +3]',
+      'channel:team',
+      'bot:ada',
+      'bot:cy',
+      'bot:bo',
+    ]);
+  });
+
+  it('unpin returns to retained membership without mutating the Host snapshot', () => {
+    const pinned: RosterView = {
+      ...arranged,
+      arrangement: { ...arranged.arrangement!, pins: ['dm-ada'] },
+    };
+    const before = structuredClone(pinned);
+    const displayed = chatList(pinned, []);
+    expect(
+      displayed.filter((entry) => entry.kind === 'row' && entry.row.key === 'bot:ada'),
+    ).toHaveLength(1);
+    expect(
+      displayed.find((entry) => entry.kind === 'row' && entry.row.key === 'bot:ada'),
+    ).toMatchObject({ sectionId: 'pinned' });
+    expect(pinned).toEqual(before);
+    const unpinned = chatList({ ...pinned, arrangement: { ...pinned.arrangement!, pins: [] } }, []);
+    expect(
+      unpinned.find((entry) => entry.kind === 'row' && entry.row.key === 'bot:ada'),
+    ).toMatchObject({ sectionId: 'work' });
+    expect(unpinned.some((entry) => entry.kind === 'section' && entry.id === 'pinned')).toBe(false);
+  });
+
+  it('inherits Host global manual order while scope overrides restore newest sorting', () => {
+    const manual: RosterView = { ...arranged, sorting: { sortMode: 'manual', sortModes: {} } };
+    expect(shape(chatList(manual, []))).toEqual([
+      'channel:ops',
+      '[work 3]',
+      'channel:design',
+      'bot:ada',
+      'channel:team',
+      'bot:bo',
+      '[later 0]',
+      'bot:cy',
+    ]);
+    const newestWork = {
+      ...manual,
+      sorting: { sortMode: 'manual' as const, sortModes: { work: 'updated' as const } },
+    };
+    expect(shape(chatList(newestWork, []))).toEqual(shape(chatList(arranged, [])));
+    const newestGlobal = {
+      ...arranged,
+      sorting: { sortMode: 'updated' as const, sortModes: { work: 'manual' as const } },
+    };
+    expect(shape(chatList(newestGlobal, []))).toEqual(shape(chatList(manual, [])));
+  });
+
+  it('keeps manual pin order through new messages; a pin override can inherit or restore newest', () => {
+    const pinned: RosterView = {
+      ...arranged,
+      arrangement: { ...arranged.arrangement!, pins: ['ada', 'team', 'cy'] },
+      sorting: { sortMode: 'manual', sortModes: {} },
+    };
+    const keys = (view: RosterView) =>
+      chatList(view, [])
+        .filter((entry) => entry.kind === 'row' && entry.sectionId === 'pinned')
+        .map((entry) => entry.key);
+    expect(keys(pinned)).toEqual(['bot:ada', 'channel:team', 'bot:cy']);
+    expect(
+      keys({ ...pinned, sorting: { sortMode: 'manual', sortModes: { pinned: 'updated' } } }),
+    ).toEqual(['bot:cy', 'channel:team', 'bot:ada']);
+    expect(
+      keys({ ...pinned, sorting: { sortMode: 'updated', sortModes: { pinned: 'manual' } } }),
+    ).toEqual(['bot:ada', 'channel:team', 'bot:cy']);
+  });
+
+  it('sorts loose runs independently, never moving rows across section blocks', () => {
+    const top = {
+      ...arranged,
+      arrangement: {
+        ...arranged.arrangement!,
+        topOrder: [
+          { kind: 'channel' as const, id: 'dm-bo' },
+          { kind: 'channel' as const, id: 'ops' },
+          { kind: 'section' as const, id: 'work' },
+          { kind: 'section' as const, id: 'later' },
+        ],
+      },
+    };
+    expect(
+      shape(chatList({ ...top, sorting: { sortMode: 'manual', sortModes: {} } }, [])).slice(0, 3),
+    ).toEqual(['bot:bo', 'channel:ops', '[work 3]']);
+    expect(shape(chatList(top, [])).slice(0, 3)).toEqual(['channel:ops', 'bot:bo', '[work 3]']);
+    expect(shape(chatList(top, [])).at(-1)).toBe('bot:cy');
+  });
+
+  it('uses Host channel recency when a conversation has no message and breaks ties by ID like Web', () => {
+    const view: RosterView = {
+      bots: [],
+      channels: [channel('z', ''), channel('a', ''), channel('b', '')],
+      activityChannels: ['a', 'b', 'z'].map((id) => ({
+        id,
+        name: id,
+        type: 'group',
+        members: [],
+        updatedAt: id === 'z' ? '2026-10-20T00:00:00Z' : '2026-10-19T00:00:00Z',
+      })),
+      arrangement: { pins: ['a', 'z', 'b'], hidden: [], sections: [], sectionOrder: [] },
+    };
+    expect(shape(chatList(view, []))).toEqual([
+      '[pinned 3]',
+      'channel:z',
+      'channel:a',
+      'channel:b',
+    ]);
+  });
+
   it('keeps the flat list for a Host with no sections', () => {
     const flat = conversations(roster, []).map((row) => row.key);
     expect(shape(chatList(roster, []))).toEqual(flat);
@@ -219,6 +484,13 @@ describe('Chats grouped by Channel section', () => {
       '[later 0]',
       'bot:cy',
     ]);
+  });
+
+  it('excludes device-muted channels from collapsed section unread totals', () => {
+    const unread = { team: 2, 'dm-ada': 5, design: 7, ops: 1 };
+    expect(shape(chatList(arranged, [], new Set(['work']), unread, ['design']))).toContain(
+      '[work 3 collapsed +7]',
+    );
   });
 
   it('lists pinned conversations first, outside their section', () => {

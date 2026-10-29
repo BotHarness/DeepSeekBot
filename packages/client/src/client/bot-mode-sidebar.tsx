@@ -4,9 +4,10 @@ import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-store';
 import {
   IconPanelLeftOutlineRegular,
   IconSettingsOutlineRegular,
-  Tooltip,
   isDarwinDesktop,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
+import { DeviceRequestsNotice } from './device-requests-notice.js';
 
 import type { BotModeSortMode } from '../bot-mode-settings.js';
 import type { BridgeActions } from './actions.js';
@@ -24,6 +25,7 @@ import { observeHumanAttention } from './messaging-defaults-live.js';
 import { useMountedResource } from './mounted-resource.js';
 import { OnboardingLauncher } from './onboarding-checklist-view.js';
 import { PinnedPanelCards } from './pinned-panel-cards.js';
+import type { QuickSwitcherSettings } from './quick-switcher.js';
 import type { ShortcutBindings } from './shortcut-bindings.js';
 import type { WindowCompanions } from './window-companions.js';
 
@@ -41,6 +43,7 @@ export interface BotModeSidebarProps {
   exitBotMode: () => void;
   toggleSidebar: () => void;
   openBotSettings: (sectionId?: string) => void;
+  quickSwitcherSettings?: QuickSwitcherSettings | undefined;
   t: BotHarnessTranslate;
 }
 
@@ -201,12 +204,20 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
           useBotModePrefs={useBotModePrefs}
           channelSidebar={props.channelSidebar}
           shortcutBindings={props.shortcutBindings}
+          quickSwitcherSettings={props.quickSwitcherSettings}
           setSortMode={props.setSortMode}
           setSectionSortMode={props.setSectionSortMode}
+          dockPanels={props.dockPanels}
           t={t}
         />
       </div>
       <div {...stylex.props(styles.list, styles.foot, collapsed && styles.listCollapsed)}>
+        <DeviceRequestsNotice
+          t={t}
+          trigger={(open) =>
+            row(t('connections.pending'), <InboxIcon size={wide ? 16 : 18} />, open, { dot: true })
+          }
+        />
         {row(
           t('panel.settings'),
           <IconSettingsOutlineRegular size={wide ? 16 : 18} />,

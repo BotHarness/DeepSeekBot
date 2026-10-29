@@ -1,3 +1,4 @@
+import { AppearancePanelHeader } from './appearance-panel-header.js';
 import { MemoryMarkdownDiff, MemoryMarkdownToggle } from './memory-markdown-view.js';
 import { MemoryImageDiff } from './memory-image-view.js';
 import { useState, type ReactElement } from 'react';
@@ -54,7 +55,12 @@ export function MemoryCommitView({
 
   return (
     <div className="bh-memory-commit-view" role="region" aria-label={t('memory.diff')} ref={mount}>
-      <div className="bh-memory-commit-header">
+      <AppearancePanelHeader
+        id="memory-details"
+        label={t('appearance.memoryDetails')}
+        t={t}
+        className="bh-memory-commit-header"
+      >
         <MemoryViewIconButton action="backToChat" onClick={onClose} t={t} />
         <MemoryViewIconButton
           action="refresh"
@@ -79,58 +85,60 @@ export function MemoryCommitView({
           />
         ) : null}
         <MemoryDiffWrapButton wrap={wrap} onToggle={() => setWrap((value) => !value)} t={t} />
-      </div>
-      {error !== undefined ? (
-        <div className="bh-error" role="alert">
-          {error}
-        </div>
-      ) : null}
-      {detail === undefined ? (
-        <div className="bh-note">{t('memory.loading')}</div>
-      ) : (
-        <>
-          <div className="bh-memory-commit-files-count">
-            {t('memory.changedFiles')} · {detail.files.length}
+      </AppearancePanelHeader>
+      <div className="bh-memory-detail-body" data-appearance-body="memory-details">
+        {error !== undefined ? (
+          <div className="bh-error" role="alert">
+            {error}
           </div>
-          {detail.files.map((file, index) => (
-            <MemoryDiffFile
-              key={file.path + index}
-              path={file.path}
-              status={file.status}
-              preview={
-                botSlug !== undefined && file.markdown !== undefined && preview ? (
-                  <MemoryMarkdownDiff
-                    slug={botSlug}
-                    path={file.path}
-                    markdown={file.markdown}
-                    t={t}
-                  />
-                ) : file.images === undefined || botSlug === undefined ? undefined : (
-                  <MemoryImageDiff slug={botSlug} path={file.path} images={file.images} t={t} />
-                )
-              }
-              diff={diffSections[index] ?? ''}
-              wrap={wrap}
-              label={t('memory.diff')}
-              binaryLabel={t('memory.binaryPreview')}
-              emptyLabel={t('memory.noTextDiff')}
-              oldLineLabel={t('memory.oldLine')}
-              newLineLabel={t('memory.newLine')}
-              action={
-                botSlug === undefined ? undefined : (
-                  <MemoryCurrentFileOpenButton
-                    actions={actions}
-                    slug={botSlug}
-                    path={file.path}
-                    deletion={file.status === 'D' ? 'commit' : undefined}
-                    t={t}
-                  />
-                )
-              }
-            />
-          ))}
-        </>
-      )}
+        ) : null}
+        {detail === undefined ? (
+          <div className="bh-note">{t('memory.loading')}</div>
+        ) : (
+          <>
+            <div className="bh-memory-commit-files-count">
+              {t('memory.changedFiles')} · {detail.files.length}
+            </div>
+            {detail.files.map((file, index) => (
+              <MemoryDiffFile
+                key={file.path + index}
+                path={file.path}
+                status={file.status}
+                preview={
+                  botSlug !== undefined && file.markdown !== undefined && preview ? (
+                    <MemoryMarkdownDiff
+                      slug={botSlug}
+                      path={file.path}
+                      markdown={file.markdown}
+                      t={t}
+                    />
+                  ) : file.images === undefined || botSlug === undefined ? undefined : (
+                    <MemoryImageDiff slug={botSlug} path={file.path} images={file.images} t={t} />
+                  )
+                }
+                diff={diffSections[index] ?? ''}
+                wrap={wrap}
+                label={t('memory.diff')}
+                binaryLabel={t('memory.binaryPreview')}
+                emptyLabel={t('memory.noTextDiff')}
+                oldLineLabel={t('memory.oldLine')}
+                newLineLabel={t('memory.newLine')}
+                action={
+                  botSlug === undefined ? undefined : (
+                    <MemoryCurrentFileOpenButton
+                      actions={actions}
+                      slug={botSlug}
+                      path={file.path}
+                      deletion={file.status === 'D' ? 'commit' : undefined}
+                      t={t}
+                    />
+                  )
+                }
+              />
+            ))}
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -51,7 +51,7 @@ export function createModeration(deps: {
     if (locator === undefined) return 'invalid-repository-url';
     const indexed = await db
       .prepare(
-        'SELECT * FROM indexed_repositories WHERE lower(owner) = lower(?) AND lower(name) = lower(?)',
+        "SELECT * FROM indexed_repositories WHERE source = 'github' AND lower(owner) = lower(?) AND lower(name) = lower(?)",
       )
       .bind(locator.owner, locator.name)
       .first<RepositoryRow>();
@@ -113,6 +113,10 @@ export function createModeration(deps: {
       const row = await resolve(target, false);
       if (typeof row === 'string') return { ok: false, code: row };
       await db.prepare('DELETE FROM reports WHERE node_id = ?').bind(row.node_id).run();
+      if (row.source === 'upload') {
+        await setVisibility(row.node_id, 'listed');
+        return summary(row.node_id);
+      }
       await setVisibility(row.node_id, 'hidden_missing');
       await catalog.submit(row.html_url);
       return summary(row.node_id);

@@ -15,10 +15,11 @@ import {
   IconFullscreenOutlineRegular,
   Switch,
   Tag,
-  Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from '../../../client/src/client/ds/tooltip.js';
 import { ChannelSidebarIcon } from '../../../client/src/client/channel-sidebar-icon.js';
 import { useMountedResource } from '../../../client/src/client/mounted-resource.js';
+import { recordViewerOpen } from '../../../client/src/client/telemetry-surface.js';
 import { SidebarCardList, SidebarCardRow } from '../../../client/src/client/sidebar-card.js';
 import type {} from '@deepseek-ai/dsh-client-ui-slots';
 
@@ -917,6 +918,7 @@ function BrowserBody({ botSlug, t }: ChannelSidebarEntryProps): ReactElement {
 
 function createBrowserBody(t: BrowserTranslate): ComponentType<ChannelSidebarEntryProps> {
   return function BrowserBodyView(props: Omit<ChannelSidebarEntryProps, 't'>): ReactElement {
+    useState(() => recordViewerOpen(connectionRpc, 'browser'));
     const store = botInfoStore(props.botSlug);
     const info = useSyncExternalStore(store.subscribe, store.getSnapshot);
     if (info.browserAccess === false)

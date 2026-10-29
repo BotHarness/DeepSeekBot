@@ -52,6 +52,7 @@ async function fixture() {
     stopTurn: vi.fn(async () => undefined),
     startFreshOrchestrator: vi.fn(async () => 'started' as const),
     turnRunning: () => false,
+    compact: async () => ({ outcome: 'nothing', tokensBefore: null, tokensAfter: null }),
   };
   const onAdmitted = vi.fn();
   const service = createOutboundMessaging({

@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
@@ -26,6 +26,7 @@ import { createTempRoot, trackTestOwner } from './helpers.js';
 
 const TOKEN_A = 'ExponentPushToken[aaaaaaaaaaaaaaaaaaaaaa]';
 const TOKEN_B = 'ExponentPushToken[bbbbbbbbbbbbbbbbbbbbbb]';
+const TOKEN_C = 'ExponentPushToken[cccccccccccccccccccccc]';
 const SECRET_TEXT = 'rm -rf ~/private --token=hunter2';
 
 function fakeExpo() {
@@ -123,6 +124,48 @@ const approval = (id: string, createdAt: string): PushCandidate => ({
 });
 
 describe('Push delivery', () => {
+  it('accepts a device preference before token registration and uses the copy only for sends', async () => {
+    const f = fixture();
+    const phone = f.device('Phone');
+    const http = createDevicePushHttp(f.push);
+    const answer = await http({
+      method: 'POST',
+      path: '/botharness-device/push/preferences',
+      deviceId: phone.device.id,
+      body: { preferences: { approval: false } },
+    });
+    expect(answer).toMatchObject({
+      status: 200,
+      body: { registered: false, preferences: { approval: false } },
+    });
+    f.push.register(phone.device.id, { token: TOKEN_A, platform: 'ios' });
+    expect(f.push.settings(phone.device.id).preferences.approval).toBe(false);
+    f.advance(1000);
+    f.setInbox([approval('blocked', f.at(0))]);
+    await f.push.reconcile();
+    expect(f.expo.flat().filter((message) => message.data.itemId)).toEqual([]);
+    expect(f.push.settings(phone.device.id).registered).toBe(true);
+    f.push.setPreferences(phone.device.id, { approval: true });
+    f.advance(1000);
+    f.setInbox([approval('new', f.at(0))]);
+    await f.push.reconcile();
+    expect(
+      f.expo
+        .flat()
+        .filter((message) => message.data.itemId)
+        .map((message) => message.data.itemId),
+    ).toEqual(['new']);
+    expect(
+      (
+        await http({
+          method: 'POST',
+          path: '/botharness-device/push/preferences',
+          deviceId: phone.device.id,
+          body: { preferences: { approval: 'false' } },
+        })
+      ).status,
+    ).toBe(400);
+  });
   it('sends one notification per enabled device for a new approval', async () => {
     const f = fixture();
     const phone = f.device('Phone');
@@ -148,6 +191,7 @@ describe('Push delivery', () => {
       priority: 'high',
       channelId: 'requests',
       categoryId: 'tool-approval',
+      mutableContent: true,
       data: {
         v: 1,
         hostId: f.pairing.host().id,
@@ -156,6 +200,8 @@ describe('Push delivery', () => {
         botSlug: 'ada',
         channelId: 'dm-ada',
         messageId: 'msg-approval:1',
+        sender: 'Ada',
+        text: 'Needs your approval',
       },
     });
     expect(JSON.stringify(f.events)).not.toMatch(/ExponentPushToken/u);
@@ -221,6 +267,43 @@ describe('Push delivery', () => {
       ['#ops', 'Ada：Done, see the log'],
       ['Ada', 'Ada 回复了你'],
     ]);
+    expect(
+      f.expo
+        .flat()
+        .filter((message) => message.to === TOKEN_A)
+        .map(({ data }) => [data.sender, data.group, data.text]),
+    ).toEqual([
+      ['Ada', 'ops', 'Needs your approval: bash · date'],
+      ['Ada', undefined, 'Has a question for you: Which branch?'],
+      ['Ada', 'ops', 'Done, see the log'],
+      ['Ada', undefined, 'Ada replied to you'],
+    ]);
+  });
+
+  it('sends a data-only push to an Android app that draws its own notifications', async () => {
+    const f = fixture();
+    const phone = f.device('Phone');
+    const older = f.device('Older');
+    f.push.register(phone.device.id, { token: TOKEN_A, platform: 'android', render: 'app' });
+    f.push.register(older.device.id, { token: TOKEN_B, platform: 'android', render: 'system' });
+    f.advance(1000);
+    f.setInbox([{ ...approval('approval:1', f.at(0)), channelId: 'g1', channelName: 'ops' }]);
+    await f.push.reconcile();
+    const [drawn] = f.expo.flat().filter((message) => message.to === TOKEN_A);
+    const [system] = f.expo.flat().filter((message) => message.to === TOKEN_B);
+    expect(Object.keys(drawn ?? {}).sort()).toEqual(['data', 'priority', 'to']);
+    expect(drawn?.priority).toBe('high');
+    expect(drawn?.data).toMatchObject({
+      title: '#ops',
+      message: 'Ada needs your approval',
+      text: 'Needs your approval',
+      sender: 'Ada',
+      group: 'ops',
+      categoryId: 'tool-approval',
+      badge: 1,
+    });
+    expect(system).toMatchObject({ title: '#ops', body: 'Ada needs your approval' });
+    expect(system?.data).not.toHaveProperty('title');
   });
 
   it('does not notify items from before registration, and keeps restarts from resending', async () => {
@@ -300,6 +383,76 @@ describe('Push delivery', () => {
     f.push.setPreferences(phone.device.id, { approval: true });
     await f.push.reconcile();
     expect(f.expo.flat().filter((message) => message.title !== undefined)).toHaveLength(1);
+  });
+
+  it('sends nothing while this device has notifications off, without flooding when they come back', async () => {
+    const f = fixture();
+    const phone = f.device('Phone');
+    f.push.register(phone.device.id, { token: TOKEN_A, platform: 'ios' });
+    expect(f.push.setPreferences(phone.device.id, { reply: false }, false)).toMatchObject({
+      enabled: false,
+      preferences: { reply: false, approval: true },
+    });
+    f.advance(1000);
+    f.setInbox([approval('approval:1', f.at(0))]);
+    await f.push.reconcile();
+    expect(f.expo.sent).toEqual([]);
+
+    expect(f.push.setPreferences(phone.device.id, undefined, true)).toMatchObject({
+      enabled: true,
+      preferences: { reply: false },
+    });
+    await f.push.reconcile();
+    expect(f.expo.flat().filter((message) => message.title !== undefined)).toEqual([]);
+    f.setInbox([approval('approval:1', f.at(0)), approval('approval:2', f.at(0))]);
+    await f.push.reconcile();
+    expect(
+      f.expo
+        .flat()
+        .filter((message) => message.title !== undefined)
+        .map((message) => message.data.itemId),
+    ).toEqual(['approval:2']);
+  });
+
+  it('keeps a quiet Channel to its requests on this device only', async () => {
+    const f = fixture();
+    const phone = f.device('Phone');
+    const tablet = f.device('Tablet');
+    f.push.register(phone.device.id, { token: TOKEN_A, platform: 'ios' });
+    f.push.register(tablet.device.id, { token: TOKEN_B, platform: 'ios' });
+    expect(f.push.setQuiet(phone.device.id, { channelId: 'g1', quiet: true })).toMatchObject({
+      quietChannelIds: ['g1'],
+    });
+    expect(f.push.setQuiet(phone.device.id, { channelId: '', quiet: true })).toEqual({
+      invalid: true,
+    });
+    expect(f.push.setQuiet('nobody', { channelId: 'g1', quiet: true })).toEqual({
+      registered: false,
+    });
+    f.advance(1000);
+    const reply: PushCandidate = {
+      id: 'reply:1',
+      kind: 'reply',
+      attentionKind: 'channel-mention',
+      botSlug: 'ada',
+      createdAt: f.at(0),
+      channelId: 'g1',
+      channelName: 'ops',
+    };
+    f.setInbox([reply, { ...approval('approval:1', f.at(0)), channelId: 'g1' }]);
+    await f.push.reconcile();
+    const items = (token: string) =>
+      f.expo
+        .flat()
+        .filter((message) => message.to === token)
+        .map((message) => message.data.itemId);
+    expect(items(TOKEN_A)).toEqual(['approval:1']);
+    expect(items(TOKEN_B)).toEqual(['reply:1', 'approval:1']);
+
+    expect(f.push.setQuiet(phone.device.id, { channelId: 'g1', quiet: false })).toMatchObject({
+      quietChannelIds: [],
+    });
+    expect(f.push.settings(phone.device.id)).toMatchObject({ enabled: true, quietChannelIds: [] });
   });
 
   it('stops and removes the token when the device is revoked', async () => {
@@ -397,6 +550,43 @@ describe('Push delivery', () => {
       data: { v: 1, hostId: f.pairing.host().id, test: true },
     });
   });
+
+  it('tells the other phones about a new pairing so they can remove it', async () => {
+    const f = fixture();
+    const phone = f.device('Phone');
+    const tablet = f.device('Tablet');
+    const muted = f.device('Muted');
+    f.push.register(phone.device.id, { token: TOKEN_A, platform: 'ios', locale: 'zh' });
+    f.push.register(tablet.device.id, { token: TOKEN_B, platform: 'android' });
+    f.push.register(muted.device.id, { token: TOKEN_C, platform: 'ios' });
+    f.push.setPreferences(muted.device.id, {}, false);
+    const added = f.device('Stranger');
+    await f.push.announcePaired(added.device);
+    expect(f.expo.flat()).toEqual([
+      expect.objectContaining({
+        to: TOKEN_A,
+        title: '有新设备配对',
+        body: 'Stranger 现在可以使用 studio。不是你？请移除它。',
+        categoryId: 'device-paired',
+        data: {
+          v: 1,
+          hostId: f.pairing.host().id,
+          kind: 'device-paired',
+          deviceId: added.device.id,
+        },
+      }),
+      expect.objectContaining({ to: TOKEN_B, title: 'New device paired' }),
+    ]);
+    f.push.register(added.device.id, { token: 'ExponentPushToken[stranger-1]', platform: 'ios' });
+    f.pairing.revoke(tablet.device.id);
+    await f.push.announcePaired(added.device);
+    expect(
+      f.expo
+        .flat()
+        .slice(2)
+        .map((message) => message.to),
+    ).toEqual([TOKEN_A]);
+  });
 });
 
 describe('Human Inbox push source', () => {
@@ -443,12 +633,26 @@ describe('Human Inbox push source', () => {
                 ],
         }),
         actionCount: () => 3,
+        dmReplies: () => [
+          item({
+            id: 'dm-reply:1',
+            category: 'replies',
+            kind: 'channel-reply',
+            channelId: 'dm-ada',
+            summary: 'Done',
+            isUnread: true,
+          }),
+        ],
       },
       () => 'Ada',
       (_, messageId) =>
         messageId === 'm'
-          ? { toolName: 'bash', input: JSON.stringify({ description: 'x', command: 'date > now' }) }
-          : { toolName: 'secret_cli', input: '{}' },
+          ? {
+              toolName: 'bash',
+              input: JSON.stringify({ description: 'x', command: 'date > now' }),
+              allowAlways: true,
+            }
+          : { toolName: 'secret_cli', input: '{}', allowAlways: true },
     );
     const pending = source.pending();
     expect(pending.badge).toBe(3);
@@ -462,12 +666,126 @@ describe('Human Inbox push source', () => {
       ]),
     ).toEqual([
       ['approval:1', 'approval', undefined, 'bash · date > now', 'tool-approval'],
-      ['approval:2', 'approval', 'ops', 'secret_cli', 'tool-approval-once'],
+      ['approval:2', 'approval', 'ops', 'secret_cli', 'tool-approval'],
+      ['join:1', 'approval', undefined, '请求批准执行 bash', undefined],
       ['secret:1', 'private-input', undefined, undefined, undefined],
       ['question:1', 'question', undefined, 'Which branch?', undefined],
       ['reply:1', 'reply', undefined, `${'x'.repeat(139)}…`, undefined],
+      ['dm-reply:1', 'reply', undefined, 'Done', undefined],
     ]);
     expect(JSON.stringify(pending)).not.toContain(SECRET_TEXT);
+  });
+
+  it('offers Always allow from the notification only when the Host offers it', () => {
+    const source = humanInboxPushSource(
+      {
+        list: ({ category }) => ({
+          items:
+            category === 'action'
+              ? [
+                  {
+                    id: 'approval:human-only',
+                    category: 'action',
+                    kind: 'tool-approval',
+                    createdAt: '2026-10-14T08:00:00.000Z',
+                    botSlug: 'ada',
+                    summary: '请求批准执行 bash',
+                    channelId: 'dm-ada',
+                    messageId: 'm',
+                  },
+                ]
+              : [],
+        }),
+        actionCount: () => 1,
+        dmReplies: () => [],
+      },
+      () => 'Ada',
+      () => ({ toolName: 'bash', input: '{"command":"deepseekbot grant-write-set"}' }),
+    );
+    expect(source.pending().items.map((entry) => entry.categoryId)).toEqual(['tool-approval-once']);
+  });
+
+  it('notifies a folder request as an approval that opens the app, with its reason', () => {
+    const lookup = vi.fn(() => ({ toolName: 'bash', input: '{}', allowAlways: true }));
+    const source = humanInboxPushSource(
+      {
+        list: ({ category }) => ({
+          items:
+            category === 'action'
+              ? [
+                  {
+                    id: 'grant:e1',
+                    category: 'action',
+                    kind: 'workspace-grant-request',
+                    createdAt: '2026-10-14T08:00:00.000Z',
+                    botSlug: 'ada',
+                    summary: 'I need to write the report into your project folder.',
+                    channelId: 'dm-ada',
+                    messageId: 'g1',
+                  },
+                ]
+              : [],
+        }),
+        actionCount: () => 1,
+        dmReplies: () => [],
+      },
+      () => 'Ada',
+      lookup,
+    );
+    expect(source.pending().items).toEqual([
+      {
+        id: 'grant:e1',
+        kind: 'approval',
+        attentionKind: 'workspace-grant-request',
+        botSlug: 'ada',
+        createdAt: '2026-10-14T08:00:00.000Z',
+        channelId: 'dm-ada',
+        messageId: 'g1',
+        preview: 'I need to write the report into your project folder.',
+      },
+    ]);
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it('notifies auto-rejections and join requests as approvals and Assignment asks as questions', () => {
+    const item = (id: string, kind: string, summary: string) => ({
+      id,
+      category: 'action' as const,
+      kind: kind as 'tool-approval',
+      createdAt: '2026-10-14T08:00:00.000Z',
+      botSlug: 'ada',
+      summary,
+      channelId: 'dm-ada',
+    });
+    const source = humanInboxPushSource(
+      {
+        list: ({ category }) => ({
+          items:
+            category === 'action'
+              ? [
+                  item('autoreject:e1', 'auto-rejection', 'Rejected by the template'),
+                  item('join:r1', 'group-join-request', ''),
+                  item('assignment:s1', 'assignment-waiting-human', 'Which region?'),
+                  item('assignment:s2', 'assignment-blocked', 'Build is failing'),
+                  item('repair:e2:ada', 'bot-message-needs-repair', 'Check this'),
+                ]
+              : [],
+        }),
+        actionCount: () => 5,
+        dmReplies: () => [],
+      },
+      () => 'Ada',
+    );
+    expect(
+      source
+        .pending()
+        .items.map((entry) => [entry.id, entry.kind, entry.preview, entry.categoryId]),
+    ).toEqual([
+      ['autoreject:e1', 'approval', 'Rejected by the template', undefined],
+      ['join:r1', 'approval', undefined, undefined],
+      ['assignment:s1', 'question', 'Which region?', undefined],
+      ['assignment:s2', 'question', 'Build is failing', undefined],
+    ]);
   });
 });
 
@@ -537,6 +855,18 @@ describe('Device gateway push endpoints', () => {
     expect(await call('/preferences', { preferences: { reply: false } })).toMatchObject({
       status: 200,
       body: { preferences: { reply: false } },
+    });
+    expect(await call('/preferences', { enabled: false })).toMatchObject({
+      status: 200,
+      body: { enabled: false, preferences: { reply: false } },
+    });
+    expect(await call('/quiet', { channelId: 'g1', quiet: true })).toMatchObject({
+      status: 200,
+      body: { quietChannelIds: ['g1'] },
+    });
+    expect(await call('/quiet', { channelId: 'g1' })).toEqual({
+      status: 400,
+      body: { code: 'invalid-input' },
     });
     expect(await call('/test', {})).toEqual({ status: 200, body: { sent: true } });
     expect(

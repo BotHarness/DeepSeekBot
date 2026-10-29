@@ -1,7 +1,11 @@
+import type { ReactElement } from 'react';
+import type { MenuGlyph } from './menu-icon';
+import type { TouchAnchor } from './touch-anchor';
+
 export type DialogAction = {
   text: string;
   style?: 'default' | 'cancel' | 'destructive';
-  icon?: 'person' | 'chat' | 'settings' | 'close' | 'computer';
+  icon?: MenuGlyph;
   onPress?: () => unknown;
 };
 
@@ -12,6 +16,9 @@ export type DialogState = {
   actions: readonly DialogAction[];
   busy: number | undefined;
   error: string | undefined;
+  presentation: 'dialog' | 'menu';
+  avatar?: ReactElement | undefined;
+  anchor?: TouchAnchor | undefined;
 };
 
 export function createDialogState() {
@@ -30,8 +37,25 @@ export function createDialogState() {
       };
     },
     getSnapshot: () => current,
-    open(title: string, message: string | undefined, actions: readonly DialogAction[]) {
-      publish({ id: ++nextId, title, message, actions, busy: undefined, error: undefined });
+    open(
+      title: string,
+      message: string | undefined,
+      actions: readonly DialogAction[],
+      presentation: DialogState['presentation'] = 'dialog',
+      avatar?: ReactElement,
+      anchor?: TouchAnchor,
+    ) {
+      publish({
+        id: ++nextId,
+        title,
+        message,
+        actions,
+        busy: undefined,
+        error: undefined,
+        presentation,
+        avatar,
+        anchor,
+      });
     },
     dismiss() {
       if (current?.busy === undefined) publish(undefined);

@@ -2,7 +2,7 @@ import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-export const DEFAULT_URL = 'https://go.botharness.ai';
+export const DEFAULT_URL = 'https://go.tobs.app';
 
 export interface StoredConfig {
   token?: string;

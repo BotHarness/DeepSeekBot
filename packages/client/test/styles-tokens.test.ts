@@ -71,15 +71,21 @@ describe('client styles', () => {
     expect(source).toMatch(/\.bh-section \+ \.bh-section \{\s*margin-top: 12px/);
     expect(source).toMatch(/\.bh-section-head:hover \.bh-row-actions,[^}]*display: inline-flex/);
   });
-  it('floats the channel island over a non-interactive fade without header dividers', () => {
+  it('fades only timeline alpha while keeping the channel island and composer outside the mask', () => {
     expect(source).toMatch(/\.bh-topbar \{[^}]*position: absolute/);
     expect(source).toMatch(
       /\.bh-channel-island:hover \{[^}]*background: color-mix\([^;]*var\(--dsw-alias-bg-module-platform\)/,
     );
     expect(source).toMatch(/\.bh-channel-island-wrap \{[^}]*align-items: center/);
     expect(source).toContain(".bh-topbar[data-channel-detail='true'] { display: none; }");
-    expect(source).toMatch(/\.bh-chat-top-fade \{[^}]*mask-image: linear-gradient\(/);
-    expect(source).toMatch(/\.bh-chat-top-fade \{[^}]*pointer-events: none/);
+    expect(source).not.toContain('.bh-chat-top-fade');
+    expect(source).not.toContain('.bh-composer-activity-status::before');
+    expect(source).toMatch(
+      /\.bh-chat-body \{[^}]*mask-image: linear-gradient\(to bottom, transparent, black/,
+    );
+    expect(source).toMatch(/\.bh-chat-body \{[^}]*mask-mode: alpha/);
+    expect(source).not.toMatch(/\.bh-chat-pane \{[^}]*mask-image:/);
+    expect(source).not.toMatch(/\.bh-composer-shell \{[^}]*mask-image:/);
     expect(source).not.toMatch(/\.bh-topbar \{[^}]*border-bottom:/);
     expect(source).not.toMatch(/\.bh-channel-sidebar-head \{[^}]*border-bottom:/);
   });
@@ -164,8 +170,9 @@ describe('client styles', () => {
 
   it('floats bubble hover actions over the top-right edge without shifting layout', () => {
     expect(source).toMatch(
-      /\.bh-bubble-toolbar \{\s*position: absolute;[^}]*top: 0;[^}]*justify-content: safe flex-end;[^}]*opacity: 0;/,
+      /\.bh-bubble-toolbar \{\s*position: absolute;[^}]*bottom: calc\(100% - [^)]+\);[^}]*justify-content: safe flex-end;[^}]*opacity: 0;/,
     );
+    expect(source).not.toMatch(/\.bh-bubble-toolbar \{[^}]*transform:/);
     expect(source).toMatch(
       /\.bh-message-group-me \.bh-bubble-toolbar \{\s*justify-content: flex-end;/,
     );
@@ -221,10 +228,7 @@ describe('client styles', () => {
       /\.bh-composer \{[^}]*background: var\(--dsw-alias-bg-module-platform\)/,
     );
     expect(source).toMatch(/\.bh-composer-shell \{[^}]*safe-area-inset-bottom/);
-    expect(source).toMatch(/\.bh-composer-activity-facepile \.bh-persona-avatar[^}]*border: 0/);
-    expect(source).toMatch(
-      /\.bh-composer-activity-facepile \.bh-persona-avatar::before \{[^}]*display: none/,
-    );
+    expect(source).not.toContain('.bh-composer-activity');
     expect(source).toMatch(/\.bh-composer-input \{[^}]*max-height: 144px/);
     expect(source).toMatch(/\.bh-composer-input \{[^}]*padding: 7px 8px 5px/);
     expect(source).not.toMatch(/\.bh-composer-input \{[^}]*transition:/);

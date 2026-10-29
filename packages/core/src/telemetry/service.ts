@@ -1,21 +1,33 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import {
+  hostContextProperties,
+  readHostTelemetryFacts,
+  type HostTelemetryFacts,
+} from './context.js';
+import {
+  isTelemetryEventName,
+  telemetryEventProperties,
+  type TelemetryEventName,
+} from './events.js';
 
 export const TELEMETRY_ENDPOINT = 'https://t.botharness.ai/batch/';
 export const TELEMETRY_API_KEY = 'phc_CxrCyBuRHVSs996eyHXAeyJbyE8rJXgREbEYsfxUkR3J';
-export const TELEMETRY_SOURCE = 'plugin';
+export const TELEMETRY_SOURCE = 'host';
 export const INSTALL_ID_FILE = 'telemetry.json';
 
 const FLUSH_DELAY_MS = 2_000;
 const REQUEST_TIMEOUT_MS = 8_000;
 const MAX_QUEUE = 100;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
-const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
 
 export type TelemetryValue = string | number | boolean;
 
-export type TelemetryCapture = (event: string, properties?: Record<string, TelemetryValue>) => void;
+export type TelemetryCapture = (
+  event: TelemetryEventName,
+  properties?: Record<string, TelemetryValue>,
+) => void;
 
 export interface TelemetryStackFrame {
   platform: 'node:javascript';
@@ -61,7 +73,7 @@ export interface TelemetryService {
   readonly enabled: boolean;
   status(): TelemetryStatus;
   setPreference(enabled: boolean): TelemetryStatus;
-  capture(event: string, properties?: Record<string, TelemetryValue>): void;
+  capture(event: TelemetryEventName, properties?: Record<string, TelemetryValue>): void;
   captureException(exception: TelemetryExceptionEntry, at?: Date): void;
   flush(): Promise<void>;
   close(): Promise<void>;
@@ -70,18 +82,14 @@ export interface TelemetryService {
 export interface TelemetryServiceOptions {
   decision: TelemetryDecision;
   dataDir: string;
+  pluginVersion?: string | undefined;
+  dshVersion?: string | undefined;
+  context?: () => HostTelemetryFacts;
   send?: TelemetrySender;
   now?: () => Date;
   flushDelayMs?: number;
   createId?: () => string;
   log?: (message: string) => void;
-}
-
-export interface PluginStartedFacts {
-  pluginVersion: string | undefined;
-  dshVersion: string | undefined;
-  os: string;
-  arch: string;
 }
 
 const OFF_VALUES = new Set(['0', 'false', 'off', 'no']);
@@ -142,6 +150,20 @@ export function writeDailyUsageAt(dataDir: string, at: Date): void {
   }
 }
 
+export function readActiveDay(dataDir: string): string | undefined {
+  const value = readTelemetryState(dataDir)['activeDay'];
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/u.test(value) ? value : undefined;
+}
+
+export function writeActiveDay(dataDir: string, day: string): void {
+  if (readInstallId(dataDir) === undefined) return;
+  try {
+    updateTelemetryFile(dataDir, { activeDay: day });
+  } catch {
+    return;
+  }
+}
+
 export function readTelemetryPreference(dataDir: string): boolean {
   return readTelemetryState(dataDir)['enabled'] !== false;
 }
@@ -160,19 +182,6 @@ export function ensureInstallId(dataDir: string, createId: () => string = random
 
 export function writeTelemetryPreference(dataDir: string, enabled: boolean): void {
   updateTelemetryFile(dataDir, { enabled: enabled ? undefined : false });
-}
-
-export function telemetryVersion(value: string | undefined): string {
-  return value !== undefined && VERSION.test(value) ? value : 'unknown';
-}
-
-export function pluginStartedProperties(facts: PluginStartedFacts): Record<string, TelemetryValue> {
-  return {
-    plugin_version: telemetryVersion(facts.pluginVersion),
-    dsh_version: telemetryVersion(facts.dshVersion),
-    os: facts.os,
-    arch: facts.arch,
-  };
 }
 
 export function installedDshVersion(
@@ -224,6 +233,7 @@ export function createTelemetryService(options: TelemetryServiceOptions): Teleme
   let timer: ReturnType<typeof setTimeout> | undefined;
   let inflight: Promise<void> | undefined;
   let closed = false;
+  let context: Record<string, string> | undefined;
 
   const distinctId = (): string => {
     installId ??= ensureInstallId(options.dataDir, options.createId);
@@ -283,14 +293,19 @@ export function createTelemetryService(options: TelemetryServiceOptions): Teleme
   ): void => {
     if (!enabled || closed) return;
     try {
+      context ??= hostContextProperties(
+        options.context?.() ?? readHostTelemetryFacts(options.pluginVersion, options.dshVersion),
+      );
       queue.push({
         event: {
           event,
           distinct_id: distinctId(),
           properties: {
             ...properties,
+            ...context,
             source: TELEMETRY_SOURCE,
             $process_person_profile: false,
+            $geoip_disable: true,
           },
           timestamp: at.toISOString(),
         },
@@ -325,7 +340,14 @@ export function createTelemetryService(options: TelemetryServiceOptions): Teleme
       return status();
     },
     capture(event, properties = {}) {
-      enqueue(event, properties);
+      const registered = isTelemetryEventName(event)
+        ? telemetryEventProperties(event, properties)
+        : undefined;
+      if (registered === undefined) {
+        options.log?.(`telemetry phase=refused event=${String(event).slice(0, 64)}`);
+        return;
+      }
+      enqueue(event, registered);
     },
     captureException(exception, at) {
       enqueue('$exception', { $exception_list: [exception], $exception_level: 'error' }, at);

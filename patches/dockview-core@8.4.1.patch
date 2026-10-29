@@ -1,0 +1,136 @@
+diff --git a/dist/package/main.cjs.js b/dist/package/main.cjs.js
+index 01bdfc366b8491d38d0723484293a7eff8605090..26dba337b5b121420b577ad75e522df93d3ea1dd 100644
+--- a/dist/package/main.cjs.js
++++ b/dist/package/main.cjs.js
+@@ -502,6 +502,15 @@ function addStyles(document, styleSheetList, options = {}) {
+ 		document.head.appendChild(fragment);
+ 	}
+ }
++function getCssZoom(element) {
++	if (Number.isFinite(element.currentCSSZoom) && element.currentCSSZoom > 0) return element.currentCSSZoom;
++	let zoom = 1;
++	for (let node = element; node; node = node.parentElement) {
++		const value = Number(node.ownerDocument.defaultView.getComputedStyle(node).zoom);
++		if (Number.isFinite(value) && value > 0) zoom *= value;
++	}
++	return zoom;
++}
+ function getDomNodePagePosition(domNode) {
+ 	const { left, top, width, height } = domNode.getBoundingClientRect();
+ 	return {
+@@ -1470,6 +1479,7 @@ var Splitview = class {
+ 				const doc = (_sash$ownerDocument = sash.ownerDocument) !== null && _sash$ownerDocument !== void 0 ? _sash$ownerDocument : document;
+ 				const iframes = disableIframePointEvents(doc);
+ 				const start = this._orientation === "HORIZONTAL" ? event.clientX : event.clientY;
++				const cssZoom = getCssZoom(this.element);
+ 				const sashIndex = firstIndex(this.sashes, (s) => s.container === sash);
+ 				const sizes = this.viewItems.map((x) => x.size);
+ 				let snapBefore;
+@@ -1503,7 +1513,7 @@ var Splitview = class {
+ 					};
+ 				}
+ 				const onPointerMove = (event) => {
+-					const delta = (this._orientation === "HORIZONTAL" ? event.clientX : event.clientY) - start;
++					const delta = ((this._orientation === "HORIZONTAL" ? event.clientX : event.clientY) - start) / cssZoom;
+ 					this.resize(sashIndex, delta, sizes, void 0, void 0, minDelta, maxDelta, snapBefore, snapAfter);
+ 					this.distributeEmptySpace();
+ 					this.layoutViews();
+@@ -14675,10 +14685,11 @@ var OverlayRenderContainer = class extends CompositeDisposable {
+ 				const clip = entry.clip;
+ 				const box = this.positionCache.getPosition(referenceContainer.element);
+ 				const box2 = this.positionCache.getPosition(this.element);
+-				const left = box.left - box2.left;
+-				const top = box.top - box2.top;
+-				const width = box.width;
+-				const height = box.height;
++				const cssZoom = getCssZoom(this.element);
++				const left = (box.left - box2.left) / cssZoom;
++				const top = (box.top - box2.top) / cssZoom;
++				const width = box.width / cssZoom;
++				const height = box.height / cssZoom;
+ 				if (entry.retainPreviousGeometry && (width === 0 || height === 0)) {
+ 					if (!panel.api.isVisible && !forceVisible) {
+ 						focusContainer.style.visibility = "hidden";
+@@ -14708,10 +14719,10 @@ var OverlayRenderContainer = class extends CompositeDisposable {
+ 					const sy = (_view$scrollY = view === null || view === void 0 ? void 0 : view.scrollY) !== null && _view$scrollY !== void 0 ? _view$scrollY : 0;
+ 					const top = clip.top + sy;
+ 					const left = clip.left + sx;
+-					const insetTop = Math.max(0, top - box.top);
+-					const insetLeft = Math.max(0, left - box.left);
+-					const insetRight = Math.max(0, box.left + width - (clip.right + sx));
+-					const insetBottom = Math.max(0, box.top + height - (clip.bottom + sy));
++					const insetTop = Math.max(0, (top - box.top) / cssZoom);
++					const insetLeft = Math.max(0, (left - box.left) / cssZoom);
++					const insetRight = Math.max(0, (box.left + box.width - (clip.right + sx)) / cssZoom);
++					const insetBottom = Math.max(0, (box.top + box.height - (clip.bottom + sy)) / cssZoom);
+ 					focusContainer.style.clipPath = `inset(${insetTop}px ${insetRight}px ${insetBottom}px ${insetLeft}px)`;
+ 				} else focusContainer.style.clipPath = "";
+ 				toggleClass(focusContainer, "dv-render-overlay-float", panel.group.api.location.type === "floating");
+diff --git a/dist/package/main.esm.mjs b/dist/package/main.esm.mjs
+index af57917dbd5e99fb8879b0e937f66e20a90a19f9..bb4fc137868b75b254cecebd394d60a94429fd57 100644
+--- a/dist/package/main.esm.mjs
++++ b/dist/package/main.esm.mjs
+@@ -500,6 +500,15 @@ function addStyles(document, styleSheetList, options = {}) {
+ 		document.head.appendChild(fragment);
+ 	}
+ }
++function getCssZoom(element) {
++	if (Number.isFinite(element.currentCSSZoom) && element.currentCSSZoom > 0) return element.currentCSSZoom;
++	let zoom = 1;
++	for (let node = element; node; node = node.parentElement) {
++		const value = Number(node.ownerDocument.defaultView.getComputedStyle(node).zoom);
++		if (Number.isFinite(value) && value > 0) zoom *= value;
++	}
++	return zoom;
++}
+ function getDomNodePagePosition(domNode) {
+ 	const { left, top, width, height } = domNode.getBoundingClientRect();
+ 	return {
+@@ -1468,6 +1477,7 @@ var Splitview = class {
+ 				const doc = (_sash$ownerDocument = sash.ownerDocument) !== null && _sash$ownerDocument !== void 0 ? _sash$ownerDocument : document;
+ 				const iframes = disableIframePointEvents(doc);
+ 				const start = this._orientation === "HORIZONTAL" ? event.clientX : event.clientY;
++				const cssZoom = getCssZoom(this.element);
+ 				const sashIndex = firstIndex(this.sashes, (s) => s.container === sash);
+ 				const sizes = this.viewItems.map((x) => x.size);
+ 				let snapBefore;
+@@ -1501,7 +1511,7 @@ var Splitview = class {
+ 					};
+ 				}
+ 				const onPointerMove = (event) => {
+-					const delta = (this._orientation === "HORIZONTAL" ? event.clientX : event.clientY) - start;
++					const delta = ((this._orientation === "HORIZONTAL" ? event.clientX : event.clientY) - start) / cssZoom;
+ 					this.resize(sashIndex, delta, sizes, void 0, void 0, minDelta, maxDelta, snapBefore, snapAfter);
+ 					this.distributeEmptySpace();
+ 					this.layoutViews();
+@@ -14673,10 +14683,11 @@ var OverlayRenderContainer = class extends CompositeDisposable {
+ 				const clip = entry.clip;
+ 				const box = this.positionCache.getPosition(referenceContainer.element);
+ 				const box2 = this.positionCache.getPosition(this.element);
+-				const left = box.left - box2.left;
+-				const top = box.top - box2.top;
+-				const width = box.width;
+-				const height = box.height;
++				const cssZoom = getCssZoom(this.element);
++				const left = (box.left - box2.left) / cssZoom;
++				const top = (box.top - box2.top) / cssZoom;
++				const width = box.width / cssZoom;
++				const height = box.height / cssZoom;
+ 				if (entry.retainPreviousGeometry && (width === 0 || height === 0)) {
+ 					if (!panel.api.isVisible && !forceVisible) {
+ 						focusContainer.style.visibility = "hidden";
+@@ -14706,10 +14717,10 @@ var OverlayRenderContainer = class extends CompositeDisposable {
+ 					const sy = (_view$scrollY = view === null || view === void 0 ? void 0 : view.scrollY) !== null && _view$scrollY !== void 0 ? _view$scrollY : 0;
+ 					const top = clip.top + sy;
+ 					const left = clip.left + sx;
+-					const insetTop = Math.max(0, top - box.top);
+-					const insetLeft = Math.max(0, left - box.left);
+-					const insetRight = Math.max(0, box.left + width - (clip.right + sx));
+-					const insetBottom = Math.max(0, box.top + height - (clip.bottom + sy));
++					const insetTop = Math.max(0, (top - box.top) / cssZoom);
++					const insetLeft = Math.max(0, (left - box.left) / cssZoom);
++					const insetRight = Math.max(0, (box.left + box.width - (clip.right + sx)) / cssZoom);
++					const insetBottom = Math.max(0, (box.top + box.height - (clip.bottom + sy)) / cssZoom);
+ 					focusContainer.style.clipPath = `inset(${insetTop}px ${insetRight}px ${insetBottom}px ${insetLeft}px)`;
+ 				} else focusContainer.style.clipPath = "";
+ 				toggleClass(focusContainer, "dv-render-overlay-float", panel.group.api.location.type === "floating");

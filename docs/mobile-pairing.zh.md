@@ -1,0 +1,138 @@
+# 用 Tailscale 配对手机
+
+DeepSeekBot 手机 App 连接的是你自己电脑上的 DeepSeek Harness（DSH）。Bot、聊天记录和审批都留在电脑上，手机只是远程客户端。
+
+不登录账号时，手机**通过 Tailscale 连接电脑**：手机和电脑登录同一个 Tailscale 网络（tailnet），电脑用 `tailscale serve` 把 DSH 发布成 `https://<电脑名>.<tailnet>.ts.net`，手机扫码后就通过这个地址连回电脑。不需要公网 IP，不用改路由器，在外面用蜂窝数据也能连。不想装 Tailscale 的话，可以改用 [DeepSeekBot Connect](#不用-tailscaledeepseekbot-connect)。
+
+整个流程大约 10 分钟：
+
+1. 手机和电脑都安装 Tailscale，并登录同一个账号。
+2. 电脑启动装有 DeepSeekBot 插件的 DSH。
+3. 在电脑上运行设置里显示的 `tailscale serve` 命令。
+4. 在电脑上生成配对二维码，用手机 App 扫码。
+
+## 1. 安装并登录 Tailscale
+
+Tailscale 个人版免费。在**手机和电脑**上都安装：
+
+| 设备    | 下载                                                                                                                                       |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| iPhone  | [App Store：Tailscale](https://apps.apple.com/app/tailscale/id1470499037)                                                                  |
+| Android | [Google Play：Tailscale](https://play.google.com/store/apps/details?id=com.tailscale.ipn)                                                  |
+| 电脑    | [tailscale.com/download](https://tailscale.com/download)（macOS、Windows、Linux）。macOS 推荐官网的独立版，它自带 `tailscale` 命令行工具。 |
+
+安装后在两台设备上用**同一个账号**登录（Google、Microsoft、GitHub、Apple 等都可以），并保持开关为已连接。手机上第一次打开时，系统会请求添加 VPN 配置，选择允许。
+
+登录后，在电脑上打开 [Tailscale 管理后台的 DNS 页](https://login.tailscale.com/admin/dns)，确认 **MagicDNS** 和 **HTTPS Certificates** 都已开启。手机只接受 `*.ts.net` 的 HTTPS 地址，没有 HTTPS 证书就连不上。
+
+## 2. 在电脑上启动 DSH 和 DeepSeekBot
+
+启动 DeepSeek Harness 桌面端（或 `dsh web`），确认已经安装并启用 DeepSeekBot 插件，左侧能看到 **Bot 模式**。还没安装的话，先按 [安装 DeepSeekBot](/zh/docs/installation) 操作。
+
+进入 **Bot 模式**，点击左下角的齿轮打开 **Bot 设置**，选择 **设备**。
+
+![Bot 设置中的设备页，Tailscale 已就绪](/guides/mobile-pairing/01-devices-zh.webp)
+
+如果像上图一样只显示 **配对手机** 按钮，说明 Tailscale 已经就绪，直接跳到第 4 步。
+
+## 3. 把 DSH 发布到 tailnet
+
+Tailscale 没装好或还没发布时，**设备** 页会显示黄色提示和一条命令，例如：
+
+![没有找到 Tailscale 时的提示和 tailscale serve 命令](/guides/mobile-pairing/03-tailscale-missing-zh.webp)
+
+在电脑上打开终端，**原样运行提示里的命令**（端口号以你的提示为准）：
+
+```bash
+tailscale serve --bg 3080
+```
+
+- `--bg` 表示在后台持续运行，关掉终端或重启电脑后仍然有效。
+- macOS 上提示找不到 `tailscale` 命令时，可以用完整路径：`/Applications/Tailscale.app/Contents/MacOS/Tailscale serve --bg 3080`。
+- 第一次运行时如果命令输出一个链接，说 tailnet 还没开启 HTTPS，打开链接开启后再运行一次。
+
+这条命令只把 DSH 发布给你自己 tailnet 里的设备，公网访问不到。运行后关掉设置窗口再打开 **设备** 页，黄色提示消失就可以继续。
+
+## 4. 生成配对二维码并在手机上配对
+
+在电脑的 **设备** 页点击 **配对手机**，会弹出二维码：
+
+![扫码配对窗口，显示二维码和复制配对链接](/guides/mobile-pairing/02-pair-qr-zh.webp)
+
+二维码**只能用一次，10 分钟后失效**。过期了点 **换一个二维码** 即可。
+
+在手机上：
+
+1. 确认 Tailscale App 处于已连接状态。
+2. 打开 DeepSeekBot App。第一次打开会直接进入 **与电脑配对** 页面；已经配对过其他电脑的，打开 **工作区** → **电脑** → **配对新电脑**。
+3. 允许使用相机，对准电脑上的二维码。扫不到时，在电脑上点 **复制配对链接**，把链接发到手机（例如用自己的备忘录或聊天工具），粘贴到 **或粘贴配对链接** 输入框。
+4. 可以在 **在这台手机上的名称** 里给手机起个名字，然后点 **配对**。
+
+![手机上的与电脑配对页面，包含扫码区域和粘贴输入框](/guides/mobile-pairing/04-phone-pair-zh.webp)
+
+![已粘贴配对链接，可以点配对](/guides/mobile-pairing/05-phone-pasted-zh.webp)
+
+配对成功后，手机会显示电脑上的 Bot 和群聊，电脑的 **设备** 页也会在 **已配对设备** 中列出这台手机和最近使用时间。之后电脑重启、DSH 重启都不需要重新配对。
+
+![配对后的手机，在全部和 My Mac 下显示电脑上的 Bot](/guides/mobile-pairing/06-phone-paired-zh.webp)
+
+## 通过 Tailscale 远控电脑
+
+手机通过 Host 的 Tailscale HTTPS 地址配对后，可以从另一网络打开 Bot 的 **Computer**。手机与电脑不必连接同一 Wi-Fi。这复用现有原生桌面观看端，不代表 Connect 已支持桌面视频。
+
+### 使用前提
+
+- 手机和电脑加入同一 tailnet，Tailscale 保持在线，访问规则允许两端通信。Host 持续运行，电脑保持唤醒并有可访问的桌面会话。
+- 完成上面的 HTTPS 配对。在手机连接设置中确认选中的 Host 使用 `https://<computer>.<tailnet>.ts.net` 地址（可能带配置的端口），而不是 Connect 或 LAN 路径。如果 Tailscale Serve 已承载其他服务，保留原映射，使用 Host 配置的端点，不要直接覆盖。
+- Host 和手机原生 App 都须包含 Local Computer 视频模块。下方记录了已验证的 macOS/iOS 测试构建，不代表所有旧稳定版或商店版均具备此能力。
+- 为 Bot 开启 Computer Access，并在 Host 上通过「检查权限」或 `deepseekbot computer-start --target local` 启动本机 Computer。macOS 需要为采集助手与 Computer 驱动授予屏幕录制权限，为输入授予辅助功能权限；授权采集后重启本机 Computer。
+
+### 观看、接管与交还
+
+1. 在手机选中已配对的 Host，打开 Bot，进入 **Computer**。
+2. 等待实时画面。观看不会暂停 Bot。没有画面时，检查连接、电脑唤醒状态和采集权限，解决后点「重新连接视频」。
+3. 点「接管控制」，再用触控板移动光标；使用当前 App 版本实际提供的控件。接管会暂停同一 Profile 中所有 Bot 对这台 Computer 的操作。
+4. 结束时点「交还 Bot／交还控制」，确认回到 Bot 可操作状态。仅退出页面不等于恢复 Bot。交还会释放控制并恢复 Bot，同时可继续观看。
+
+网络中断或手机锁屏后，输入应停止。重新连接只恢复观看，需再次明确接管。输入结果不确定时，先检查桌面，不要自动重复点击或输入文字。
+
+### 已验证范围
+
+2026-10-25 已验证 macOS → iPhone XS Max：手机连接另一台手机的移动数据热点，**拔掉 USB** 后，持续画面、接管、移动光标和交还均通过。Host 与 iOS Release App 源码为 `8418bad80a499213427606b23dcbc8e9ff2974ad`。这是绑定具体构建的证据，不是最低支持版本或新商店版本公告。Windows → Android 在源码中支持原生观看端，但 **Tailscale 跨网络实测仍待完成**。强制断网恢复、完整输入矩阵和长时间性能也仍待验收。参见[验收记录](https://github.com/BotHarness/DeepSeekBot/issues/2562#issuecomment-6388900922)。
+
+自行验证跨网络时，让电脑保留原网络，手机使用移动数据或另一台手机提供的移动数据热点。拔掉 USB，不使用 ADB reverse 等本地转发，否则画面可能绕过 Tailscale。HTTPS 连接成功只能证明信令可达，不能单独证明视频路径。
+
+这条路径不依赖项目提供公共 TURN。Tailscale 可能直连，也可能使用它自己的中继；WebRTC 显示 `direct` 不等于 Tailscale 底层必然点对点。用户的网络与 Tailscale 套餐仍适用。**Connect 暂不支持桌面视频**，不影响普通 Connect 聊天和配对，也不妨碍改用单独的 Tailscale 连接。
+
+## 不用 Tailscale：DeepSeekBot Connect
+
+DeepSeekBot Connect 让手机通过 `https://<id>.deepseekbot.dev` 的加密隧道连到电脑，不需要 Tailscale。两台设备登录同一个 DeepSeekBot 账号即可，可以用 Google、Apple 或发到邮箱的验证码登录。隧道只开放 DSH 给手机用的接口，你的 Bot 和对话仍然留在电脑上。
+
+1. 在电脑上打开 **设备** → **DeepSeekBot Connect**，点 **登录**，在浏览器里确认页面显示的代码一致。之后这一栏会显示 Connect 地址和 **已连接**。一个账号最多关联 5 台电脑。
+2. 在手机上打开配对页（**与电脑配对**），在 **或者用 DeepSeekBot 账号** 下点 **登录**，登录同一个账号。
+3. 手机会列出这个账号关联的电脑，点 **与 &lt;电脑名&gt; 配对**，不用扫码。
+
+通过 Tailscale 配对的手机照常可用；Connect 开着时生成的配对二维码会同时带上两个地址。不想在某台电脑上用 Connect 了，就在那台电脑上点 **退出登录**，它的隧道和地址会被删除。要删除账号本身，在手机配对页点 **删除账号**，所有关联的电脑都会退出登录。CLI 里也能做同样的操作：`deepseekbot connect-sign-in --wait`、`connect-status` 和 `connect-sign-out`（[CLI 文档](bot-cli.zh.md#deepseekbot-connectadr-0241)）。
+
+## 常见问题
+
+**电脑设置里说「这个二维码只有本机地址」**
+Tailscale 还没把 DSH 发布出去。回到第 3 步运行 `tailscale serve` 命令，然后点 **换一个二维码**。
+
+**手机显示连不上电脑**
+依次检查：手机上的 Tailscale 是否已连接；两台设备是否登录同一个账号；电脑是否开机且没有睡眠；电脑上的 DSH 是否在运行。在手机浏览器里打开 `https://<电脑名>.<tailnet>.ts.net`，只要显示出电脑返回的页面（哪怕是 DSH 的报错页），就说明手机能连到电脑；如果浏览器提示找不到网站、无法连接或证书错误，说明还连不上。
+
+**重启 DSH 后设置又出现黄色提示**
+提示里的端口和之前不同时，按新提示再运行一次 `tailscale serve` 命令。
+
+**手机丢了或不想再用这台手机**
+在电脑 **设备** 页的 **已配对设备** 里点 **撤销**，手机会立刻断开。手机上的 **取消配对** 只会删除手机自己保存的凭据。
+
+**公司或学校网络能用吗**
+Tailscale 在大多数网络下都能直连或通过它自己的中继连通。如果所在网络屏蔽了 Tailscale，可以改用 [DeepSeekBot Connect](#不用-tailscaledeepseekbot-connect)，它只需要普通的 HTTPS。
+
+## 安全说明
+
+- 配对后的手机拥有和你在电脑上一样的权限，请只配对自己的设备。
+- 手机上的凭据只保存在系统钥匙串（iOS Keychain／Android Keystore）里，电脑只保存它的哈希值。
+- DSH 本身仍只监听本机地址，手机的请求经过 DeepSeekBot 的设备网关转发，并且随时可以撤销。技术细节见 [ADR-0199](adr/0199-paired-devices-reach-the-host-through-a-same-listener-device-gateway.md)。

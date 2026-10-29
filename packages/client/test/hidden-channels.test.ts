@@ -39,6 +39,7 @@ vi.mock('../src/client/avatar.js', () => ({
 import {
   HIDDEN_CHANNEL_SEARCH_DEBOUNCE_MS,
   HiddenChannelsModal,
+  deletedBotDmIds,
   hiddenChannelSequence,
 } from '../src/client/hidden-channels.js';
 import { zhTranslate } from '../src/client/locale.js';
@@ -66,7 +67,11 @@ it('preserves explicit hide order when Channel updates reorder the live list', (
     updatedAt: AT,
   });
   const hidden = [channel('hidden-first'), channel('hidden-second')];
-  const botDm = { ...channel('dm-bots-ada-bea'), type: 'dm' as const, members: ['ada', 'bea'] };
+  const botDm = {
+    ...channel('dm-bots-ada-bea'),
+    type: 'dm' as const,
+    members: ['ada', 'bea'],
+  };
   const latestFirst = [botDm, hidden[1]!, hidden[0]!];
   expect(
     hiddenChannelSequence(latestFirst, ['hidden-first', 'hidden-second', botDm.id]).map(
@@ -251,4 +256,51 @@ describe('hidden Channels modal', () => {
     expect(markup).toContain('没有隐藏的频道');
     expect(markup).toContain('只读查看 Bot 之间的私聊');
   });
+});
+
+it('lists a deleted Bot DM as read-only history instead of a restorable Channel', () => {
+  const bot = (slug: string, deleted?: boolean) => ({
+    slug,
+    displayName: slug,
+    roles: [],
+    aggregateState: 'idle' as const,
+    workspaces: [],
+    createdAt: AT,
+    ...(deleted === true ? { deleted, paused: true } : {}),
+  });
+  const dm = (slug: string) => ({
+    id: `dm-${slug}`,
+    type: 'dm' as const,
+    name: slug,
+    members: [slug],
+    botSlug: slug,
+    createdAt: AT,
+    updatedAt: AT,
+  });
+  const gone = bot('gone', true);
+  const live = bot('live');
+  const channels = [dm('live'), dm('gone')];
+  expect(deletedBotDmIds(channels, [live, gone])).toEqual(['dm-gone']);
+  expect(hiddenChannelSequence(channels, [], [live, gone]).map((item) => item.id)).toEqual([
+    'dm-gone',
+  ]);
+  expect(hiddenChannelSequence(channels, ['dm-gone'], [live, gone]).map((item) => item.id)).toEqual(
+    ['dm-gone'],
+  );
+
+  const onOpen = vi.fn();
+  const markup = renderToStaticMarkup(
+    createElement(HiddenChannelsModal, {
+      t: t as never,
+      onRestore: vi.fn(),
+      onOpen,
+      onClose: vi.fn(),
+      items: [{ channel: dm('gone'), bot: gone }],
+    }),
+  );
+  expect(markup).toContain('已删除的 Bot');
+  expect(captured.buttons.filter((button) => button['children'] === '恢复')).toHaveLength(0);
+  const view = captured.buttons.find((button) => button['children'] === '查看');
+  (view!['onClick'] as () => void)();
+  expect(onOpen).toHaveBeenCalledWith('dm-gone');
 });

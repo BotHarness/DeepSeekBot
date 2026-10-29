@@ -18,6 +18,38 @@ Pairing gives the phone a per-device credential, kept only in Keychain/Keystore.
 
 Carrier decision and evidence: [ADR-0200](../../docs/adr/0200-the-mobile-app-reads-live-state-over-the-dsh-remote-stream-socket.md).
 
+## Android Local Computer video controls
+
+The native Windows → Android video viewer opens as an observer, with no mouse or click buttons.
+After **Take control**, swipe one finger to move the large local arrow, then tap to left-click
+at that arrow. The icon + **Left** / **Right** buttons and a long press act at the same cursor.
+Remote clicks require **Take control**, a current grant
+and live video; observing and moving the local arrow do not pause Bots.
+
+Use two fingers to pinch and pan the phone preview, while watching or controlling. This does
+not scroll or drag the remote desktop. The canvas starts at the top and keeps its zoom and
+position when fingers lift, including below fit size. **Reset view** restores its default fit
+and top position without remote input. Showing/hiding control buttons preserves the preview;
+width/display changes and reconnect reset the preview and cursor.
+
+Computer supports Android landscape; other screens remain portrait. The compact toolbar keeps
+**Left** at its left edge and **Right** at its right edge. Tap either button to click; drag it
+horizontally or vertically to scroll the remote desktop at the cursor. The slider follows the
+chosen drag axis (Left starts horizontal, Right vertical); dragging never also clicks.
+The single **Take control** / **Hand back** button explicitly pauses or resumes Bots.
+Hand back releases control and resumes Bots together, retaining observation. Exit is in the
+top-right header; exit, backgrounding and connection loss preserve a paused Bot state.
+There is no visible instruction caption. Keyboard/IME and direct-touch parity remain
+tracked in [#2559](https://github.com/BotHarness/DeepSeekBot/issues/2559).
+
+Errors offer concrete recovery steps: LAN pairing/connection failures ask you to connect the
+phone to the computer's Wi-Fi, allow local-network access and enable local access in the
+computer's Settings → Devices. Remote connection failures ask you to check the phone network
+and keep the computer awake with DeepSeekBot running. Computer offers **Retry** for a lost
+Host connection, **Reconnect video** for video failures, and **Pair again** after device
+refusal. Retrying never takes control or resumes Bots. Normal viewing has no instruction
+caption; long error guidance scrolls separately from the mouse controls.
+
 ## Toolchain
 
 Expo SDK 58 (React Native 0.88, React 19.3) inside the pnpm workspace with pnpm's default isolated linker: no `node-linker=hoisted`, no `.npmrc` change. `metro.config.js` adds one resolver rule so Metro can follow the Host sources' `.js`-suffixed TypeScript imports. Having React Native in the workspace makes pnpm link it as an optional peer of a few web packages (`morphicons`, `@tanstack/charts`); those packages only load it from their explicit React Native entry points.
@@ -33,9 +65,11 @@ MOBILE_LIVE_HOST_URL='http://127.0.0.1:<port>/?token=<token>' pnpm vitest run ap
 pnpm --filter @botharness/mobile export          # Metro bundles for iOS and Android
 ```
 
+For first-DM visibility, working-indicator ordering and reply scrolling, use the [first-reply regression checks](../../docs/agents/mobile-first-reply.md) ([中文](../../docs/agents/mobile-first-reply.zh.md)). The guide separates source coverage from queued iOS/Android acceptance.
+
 ## Full client in the app
 
-Every native screen can offer "Open full client" (`src/ui/open-full-client.tsx`), which opens `app/full-client.tsx` as a full-screen modal with no header bar; a draggable floating exit button (`src/ui/floating-exit.tsx`) that snaps to either side edge leaves it, and holding it shows an "Exit web mode" tooltip. It loads `<route>/botharness-device/web/` in a WebView on the route the native screens are using and sends the device credential as a header only on that first load; the Host answers with a session cookie scoped to that directory ([ADR-0199](../../docs/adr/0199-paired-devices-reach-the-host-through-a-same-listener-device-gateway.md#full-web-client-in-the-app-1654)). The target (`home`, a PersonaBot DM, or a private input request) becomes a hash the Web Client reads to land there. Links that leave the Host's web directory open in the system browser. When the Host refuses the device, the modal shows "Pair again" instead of the page. `react-native-webview` is native code, so a development build made before this change must be rebuilt.
+The full Host WebView and all in-app entry points are removed (#2541). Use native screens; operations they do not support require the Host client or a separately opened browser over Tailscale. The old `/botharness-device/web/` HTTP, cookie and socket proxy is unavailable. Native Browser/Computer viewers are separate features.
 
 ## Drive it on the iOS Simulator (Mac)
 
@@ -110,11 +144,13 @@ Agents verify native UI on a Mac with Xcode: they drive a development build on t
 Native checks happen on a Mac (above). Cloud sessions have no simulator: the container has no KVM for the Android emulator, no macOS for the iOS simulator, and the egress policy blocks `expo.dev`, so EAS cannot be driven from there; they reach a Mac through Remote Control for native checks. For PR evidence they render the same screens through React Native Web and screenshot them at a 390 × 844 phone viewport:
 
 ```bash
-EXPO_OFFLINE=1 pnpm --filter @botharness/mobile export:web
+BOTHARNESS_MOBILE_WEB_PREVIEW=1 EXPO_OFFLINE=1 pnpm --filter @botharness/mobile export:web
 python3 -m http.server 8099 --directory apps/mobile/dist-web &
 node apps/mobile/scripts/web-screenshot.mjs http://127.0.0.1:8099/ connect-light.png light
 node apps/mobile/scripts/web-screenshot.mjs http://127.0.0.1:8099/ connect-dark.png dark
 ```
+
+`BOTHARNESS_MOBILE_WEB_PREVIEW=1` opts into screenshot-only Metro overrides under `scripts/web-preview/`: browser-local language/appearance preferences, Material-symbol rendering, and `localStorage` in place of `expo-secure-store` and the file-backed computer looks so a pasted pairing link can be saved. Normal app builds keep their native adapters. Use the same overrides for both base and PR exports, label the images **Expo Web layout preview**, and follow the [PR evidence workflow](../../docs/agents/pr-ui-visual-evidence.md#mobile-web-preview-first-native-evidence-follows) to supplement them with native device screenshots. Other unsupported Web paths remain unsupported.
 
 The web render is layout evidence, not native evidence: it shows the app's own views, copy, spacing and theme, but not native headers, large titles, keyboard behavior or fonts. `expo-secure-store` has no web backend, so the web build keeps the paired Host in the tab's `sessionStorage` instead (`src/host/saved-host.web.ts`), and the camera scanner only runs on a native build; paste the pairing link instead. To render screens with live data, serve `dist-web` from the Host's own origin (a small reverse proxy that forwards `/botharness-device/*` and its WebSocket upgrade to the Host; a browser cannot set headers on a WebSocket, so the proxy adds the `Authorization: Device …` header from the app's unary calls to the upgrade) and pair with a link from Settings → Devices. Native behavior is still checked on a development build (below) and reported in the PR's Human QA.
 
@@ -145,6 +181,36 @@ The web render is layout evidence, not native evidence: it shows the app's own v
 
 The device credential is stored only in the platform's secure storage and never logged; the Host keeps only its hash. "Unpair" forgets it on the phone; revoking it in the Web Client cuts the phone off on the Host.
 
+## TestFlight and Google Play test builds
+
+The `store-test` EAS profile builds the formal app: **DeepSeekBot** / `app.deepseekbot.mobile`, scheme `deepseekbot`, owner `deepseekbots-team` and the linked EAS project (`app.config.js` reads `DEEPSEEKBOT_APP_VARIANT=store`). Development builds keep `DeepSeekBot Dev` / `ai.botharness.deepseekbot.dev`. Cloud Channels are behind a feature flag: every build hides them unless `EXPO_PUBLIC_DEEPSEEKBOT_CLOUD=on` (the store build sets `off`). With the flag off, the app only pairs with the Human's own Computers, through a DeepSeekBot account or over Tailscale: a fresh install opens the pairing sheet, and cloud Channels, workspace tabs and cloud links are hidden. Build numbers are remote and auto-increment; OTA updates stay off. Testers set up Tailscale and pair with [Pair your phone](../../docs/mobile-pairing.md) ([中文](../../docs/mobile-pairing.zh.md)).
+
+**Links when both apps are installed.** Public `deepseekbot://pair?p=…` links open the store app. Dev registers only `deepseekbot-dev` and `ai.botharness.deepseekbot.dev`, plus the Expo launcher scheme `exp+deepseekbot`; store builds do not register the Expo launcher scheme. Rebuild and update both installed variants in place to remove their old conflicting registrations (Metro alone cannot change it). Do not uninstall or reset either app. Bundle IDs, Keychain keys and App Groups stay unchanged.
+
+The Host continues generating public pairing links. Inside either app, the pairing camera and paste field accept both public and Dev links with the same payload validation. For an external Dev launch, change only the `deepseekbot:` prefix of a fresh pairing link to `deepseekbot-dev:`; keep the encoded payload intact and private. `scripts/e2e-mobile-sim.mjs` does this for its Dev-only journey while renaming its test Host. Android's paste-based helper needs no rewrite. No new Host link variant or API is needed.
+
+Connect authorization still returns to the initiating app's bundle-ID scheme (`ai.botharness.deepseekbot.dev:/oauth2redirect` or `app.deepseekbot.mobile:/oauth2redirect`). Cloud UAT keeps its existing Dev callback. This does not change provider callback allowlists. Share extensions use the first scheme of their own variant; notification extensions retain the corresponding App Group. Verify both apps installed, external links, in-app QR/paste, share return, Expo launch, existing pairing/login retention and authorization return in the next owner-assigned native batch; configuration tests do not prove OS app selection.
+
+```bash
+cd apps/mobile
+npx eas-cli build:version:get -p all -e store-test   # once: compare with App Store Connect and Play Console
+npx eas-cli build --profile store-test --platform all --auto-submit
+```
+
+`--auto-submit` uploads iOS to TestFlight (`ascAppId` in `eas.json`) and Android to the Play internal track as a draft, which is rolled out in Play Console. Google Play needs one manual AAB upload before the API (and so `eas submit`) can upload, plus a Google service account key in EAS credentials. Android push needs two things from the Firebase project, which registers both `app.deepseekbot.mobile` and the development package `ai.botharness.deepseekbot.dev`: its `google-services.json`, stored as the EAS file environment variable `GOOGLE_SERVICES_JSON` in the production, preview and development environments (`npx eas-cli env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret --environment production --environment preview --environment development`), which `app.config.js` passes to `android.googleServicesFile` for either variant; and the FCM V1 service account key, uploaded with `npx eas-cli credentials` for each package. A local `expo run:android` gets push from `.secrets/google-services.json` in the main checkout (see [machine-local secrets](../../docs/agents/device-secrets.md)). Without them the app works but cannot register for notifications.
+
+`store-test-apk` builds the same store app as an installable APK for sideloading (`npx eas-cli build --profile store-test-apk --platform android`). It is signed with the upload key, while Play re-signs its copy, so a phone must uninstall one before installing the other. Run EAS builds with `EAS_NO_VCS=1 EAS_PROJECT_ROOT=../..` from `apps/mobile`: otherwise EAS also uploads the repository's `.git` history, which is over 1 GB.
+
+### Store privacy answers
+
+Both stores refuse an external TestFlight review or a Play rollout until the app's privacy answers and policy are in place. The answers live in [`store/privacy/`](store/privacy/README.md); the public policy is the "Mobile app" section of <https://deepseekbot.app/en/privacy/#mobile-app>.
+
+1. **Re-check before each store build** whether anything the app sends changed: cloud on, statistics on, a new permission, SDK or data flow. If it did, update `store/privacy/` and the site's `content/privacy/{en,zh}.md` in the same change.
+2. **Publish the policy.** The site does not deploy on merge: after the site PR merges, run `pnpm deploy` in `deepseekbot-site` (after `npx wrangler login`) and check the live page.
+3. **App Store:** upload `app-store-privacy.json` with fastlane ([command](store/privacy/README.md#apply)). It replaces and publishes the answers.
+4. **Google Play:** the first time, fill App content → Data safety in Play Console from the table in `store/privacy/README.md`, export it and commit `play-data-safety.csv`. After that, edit the CSV and upload it through the Play Developer API ([command](store/privacy/README.md#apply)).
+5. Put the policy URL in both store listings, then submit the build for review.
+
 ## Optional statistics
 
 Phone statistics default on for new installs and preserve saved opt-outs, independently of Host telemetry. Settings places the switch last with collapsed details. A one-time informational notice follows the Web client; collection does not wait for dismissal. Public mobile privacy copy and device qualification remain release gates. See [privacy, configuration and device acceptance](../../docs/mobile-statistics.md). Builds send nothing unless explicitly configured for tagged QA or qualified production.
@@ -164,3 +230,45 @@ Open Cloud channels → choose an owned channel → Channel agents. Create a nam
 ### Memory file previews
 
 Open a Bot profile, expand Memory and choose a file. PNG/JPEG/GIF/WebP and safe static SVG open in the reader and tap to enlarge; Share uses the displayed temporary bytes. Markdown opens as a readable GFM document with Preview/Source controls. Local image references follow the observed document version and the same repository-relative rules as Web; pull to refresh when a document changes. External HTTPS images require an explicit tap and only load when visible. Static SVG shares the Host XML/CSS, size and expansion checks before native decoding. Native Git diff navigation, editor and attachment previews remain future #2214 slices. Native acceptance is scheduled through the shared device QA queue; component shims and bundle exports are separate checks.
+
+## Profiling production JavaScript
+
+Use the assigned native QA window and its existing Metro inspector. The default
+`apps/mobile/scripts/rn-profile.mjs` mode requires a React DevTools hook and fails
+if it is missing. For production JavaScript on a Debug native binary, explicitly
+select CPU and JS-frame sampling without React:
+
+```sh
+node /path/to/tool-checkout/apps/mobile/scripts/rn-profile.mjs \
+  --no-react --metro "$QA_METRO_PORT" --out "$QA_RUN_DIR/profile" \
+  --max 20 --quiet 3 --run 'sh "$QA_ACTION_DRIVER"'
+```
+
+The tool can run from a separate checkout with its existing dependencies; it does
+not modify the app checkout. Verify the intended inspector target first: it picks
+the first eligible target. Without `--run`, JS-only mode records until `--max`;
+with a driver, it stops after the driver exits and the quiet tail, or at the cap.
+Check driver exit, completed actions and owned child cleanup separately: profiler
+success alone does not prove the scenario succeeded.
+JS-only captures stop their frame collector on normal completion, errors and
+SIGINT/SIGTERM, with at most one second for best-effort inspector cleanup. An
+unreachable inspector is reported as cleanup unconfirmed. SIGKILL cannot run
+cleanup; the next JS-only installation disables the previous collector before
+starting another. CPU cleanup sends stop only after its own start was acknowledged. A rejected or
+unacknowledged start does not establish ownership; an unknown outcome is reported
+as unconfirmed. Check the inspector before retrying an interrupted CPU capture.
+
+In this mode, `summary.json` reports `mode: "js-only"`, `react: null` and the reason;
+`js-frames.json` contains the actual JS capture boundaries and rAF samples, while
+`profile.cpuprofile` retains the Hermes samples. Use a fresh output directory per
+capture. Default React mode still writes `react.json` and uses the first-to-last
+commit window for its frame metrics. The `capture` fields label JS monotonic and
+CPU-profile time spans separately; legacy `recordedSeconds` also includes result
+processing and must not be used as an exact capture denominator.
+
+JS-only frame metrics use the full JS capture window, including idle time. They
+measure JavaScript scheduling, assume a 60 Hz frame budget, and do not measure
+native presentation, physical touch latency or 120 FPS. Hermes attribution is
+sampled; it does not count or time individual draft writes. Keep tool version,
+mode, binary, workload and duration fixed across comparisons. Missing React data
+requires a separate development-JS React profile; do not report it as zero work.

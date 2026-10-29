@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
-import { act, createElement, type ContextType, type ReactNode } from 'react';
+import { act, createElement, useState, type ContextType, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { LAYOUT_MODE_STORAGE_KEY } from '../src/client/layout-mode.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  MarkdownText: ({ text }: { text: string }) => createElement('span', null, text),
   IconChevronDownOutlineRegular: () => null,
   Tooltip: ({ children }: { children: ReactNode }) => children,
   Menu: ({
@@ -55,6 +57,7 @@ import {
   type DockPanelRegistration,
 } from '../src/client/dock-panels.js';
 
+const GLOBAL_PANEL = 'market';
 const entry = (id: string, scope: ChannelSidebarEntry['scope'] = 'personabot') =>
   ({
     id,
@@ -129,7 +132,7 @@ beforeEach(() => {
       disconnect() {}
     },
   );
-  values = new Map();
+  values = new Map([[LAYOUT_MODE_STORAGE_KEY, JSON.stringify({ mode: 'advanced' })]]);
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
@@ -251,6 +254,48 @@ describe('desktop Bot mode dock', () => {
     expect(Object.keys(panels())).toEqual([CHANNEL_BODY_PANEL, 'sessions']);
     await click('[data-dock-menu] button');
     expect(host.querySelector('[data-menu-item="sessions"]')).not.toBeNull();
+  });
+});
+
+describe('dock entry state per Bot or Channel', () => {
+  const remember =
+    (part: string) =>
+    ({ botSlug, channelId }: ChannelSidebarEntryProps) => {
+      const [first] = useState(botSlug ?? channelId);
+      return createElement('span', { [`data-remembered-${part}`]: first });
+    };
+  const sessions = {
+    id: 'sessions',
+    label: 'sessions',
+    scope: 'personabot',
+    component: remember('body'),
+    headerAction: remember('action'),
+  } satisfies ChannelSidebarEntry;
+  const show = (props: Partial<ChannelSidebarEntryProps>) =>
+    act(() =>
+      root.render(
+        createElement(ChannelDock, {
+          body: createElement('section', { className: 'bh-chat-pane' }, 'channel body'),
+          panels: dockPanelsFromEntries([sessions]),
+          entryProps: { ...entryProps, ...props },
+          shows: (candidate: ChannelSidebarEntry) => candidate.scope === 'personabot',
+          t: zhTranslate,
+          storage,
+        }),
+      ),
+    );
+  const remembered = () =>
+    ['body', 'action'].map((part) =>
+      host.querySelector(`[data-remembered-${part}]`)?.getAttribute(`data-remembered-${part}`),
+    );
+
+  it('starts a docked entry and its header action fresh when another Bot is selected', async () => {
+    show({});
+    await settle();
+    expect(remembered()).toEqual(['ada', 'ada']);
+    show({ channelId: 'dm-bob', botSlug: 'bob' });
+    await settle();
+    expect(remembered()).toEqual(['bob', 'bob']);
   });
 });
 
@@ -870,6 +915,136 @@ it('updates the Messages Channel title and trailing actions without replacing it
   expect(draft.value).toBe('Keep');
 });
 
+it('opens Profile from the Messages header identity and keeps the subpanel toggle last', async () => {
+  const { WorkspaceContext, WORKSPACE_CHANNELS } =
+    await import('../src/client/workspace-context.js');
+  const { writeLayoutMode, readLayoutMode } = await import('../src/client/layout-mode.js');
+  values = new Map();
+  const registry = createDockPanelRegistry();
+  for (const [id, title] of [
+    [CHANNEL_BODY_PANEL, 'Messages'],
+    [WORKSPACE_CHANNELS, 'Channels'],
+  ])
+    registry.register({ id: id!, title: title!, scope: 'global', component: () => null });
+  registry.registerEntry(entry('sessions'));
+  const profile = vi.fn();
+  const view = (withProfile: boolean) =>
+    createElement(
+      WorkspaceContext.Provider,
+      { value: { rail: () => createElement('nav') } },
+      createElement(ChannelDock, {
+        body: createElement('div'),
+        header: {
+          title: 'Tob',
+          icon: createElement('img', { alt: '' }),
+          ...(withProfile ? { profile: { label: "Open Tob's Profile", open: profile } } : {}),
+          actions: createElement('button', { 'aria-label': 'Channel settings' }, 'Settings'),
+        },
+        panels: registry.panels(),
+        registry,
+        channel: { id: 'dm', type: 'dm', botSlug: 'tob' },
+        entryProps,
+        shows: () => true,
+        t: zhTranslate,
+        storage,
+      }),
+    );
+  act(() => root.render(view(true)));
+  await settle();
+  const header = () => host.querySelector<HTMLElement>('[data-dock-header="bh:channel-body"]')!;
+  const identity = header().querySelector<HTMLButtonElement>('[data-channel-header-profile]')!;
+  expect(identity.tagName).toBe('BUTTON');
+  expect(identity.type).toBe('button');
+  expect(identity.getAttribute('aria-label')).toBe("Open Tob's Profile");
+  expect(identity.querySelector('[data-channel-header-icon]')).not.toBeNull();
+  expect(identity.textContent).toBe('Tob');
+  act(() => identity.click());
+  expect(profile).toHaveBeenCalledOnce();
+
+  const controls = [...header().querySelectorAll<HTMLButtonElement>('[data-panel-actions] button')];
+  expect(controls.map((button) => button.getAttribute('aria-label'))).toEqual([
+    'Channel settings',
+    zhTranslate('workspace.subpanelColumn'),
+  ]);
+  expect(controls.at(-1)!.hasAttribute('data-subpanel-column-toggle')).toBe(true);
+  expect(header().querySelector('[aria-label="查看资料"]')).toBeNull();
+
+  act(() => root.render(view(false)));
+  await settle();
+  expect(header().querySelector('[data-channel-header-profile]')).toBeNull();
+  expect(header().textContent).toContain('Tob');
+
+  writeLayoutMode({ ...readLayoutMode(storage), mode: 'advanced' }, storage);
+  act(() => root.unmount());
+  root = createRoot(host);
+  act(() => root.render(view(true)));
+  await settle();
+  const advanced = [
+    ...header().querySelectorAll<HTMLButtonElement>('[data-panel-actions] button'),
+  ].map((button) => button.getAttribute('aria-label'));
+  expect(advanced[0]).toBe('Channel settings');
+  expect(header().querySelector('[data-subpanel-column-toggle]')).toBeNull();
+  expect(header().querySelector('[data-channel-header-profile]')).not.toBeNull();
+});
+
+it('keeps panel chrome still when only the Messages body and header slots change', async () => {
+  const { WorkspaceContext } = await import('../src/client/workspace-context.js');
+  const registry = createDockPanelRegistry();
+  const renders = { header: 0, body: 0 };
+  registry.register({
+    id: CHANNEL_BODY_PANEL,
+    title: 'Messages',
+    scope: 'global',
+    component: () => null,
+  });
+  registry.register({
+    id: 'notes',
+    title: 'Notes',
+    scope: 'global',
+    defaultPosition: { zone: 'right' },
+    component: () => {
+      renders.body += 1;
+      return createElement('div', { 'data-notes': '' });
+    },
+    headerAction: () => {
+      renders.header += 1;
+      return null;
+    },
+  });
+  const workspace = { rail: () => createElement('nav') };
+  const channel: DockPanelChannel = { id: 'dm', type: 'dm', botSlug: 'ada' };
+  const view = (frame: number) =>
+    createElement(
+      WorkspaceContext.Provider,
+      { value: workspace },
+      createElement(ChannelDock, {
+        body: createElement('p', { 'data-stream': '' }, 'x'.repeat(frame)),
+        header: { title: 'Ada', actions: createElement('span', null, `frame ${frame}`) },
+        panels: registry.panels(),
+        registry,
+        channel,
+        entryProps,
+        shows: () => true,
+        t: zhTranslate,
+        storage,
+      }),
+    );
+  act(() => root.render(view(1)));
+  await settle();
+  act(() => registry.open('notes'));
+  await settle();
+  expect(host.querySelector('[data-notes]')).not.toBeNull();
+  const before = { ...renders };
+  expect(before.header).toBeGreaterThan(0);
+  for (let frame = 2; frame <= 6; frame += 1) act(() => root.render(view(frame)));
+  await settle();
+  expect(host.querySelector('[data-stream]')!.textContent).toBe('xxxxxx');
+  expect(host.querySelector('[data-dock-header="bh:channel-body"]')!.textContent).toContain(
+    'frame 6',
+  );
+  expect(renders).toEqual(before);
+});
+
 it('routes Sessions through its parent, remembers each Channel and preserves content on rearrangement', async () => {
   const { WorkspaceContext } = await import('../src/client/workspace-context.js');
   const registry = createDockPanelRegistry();
@@ -1120,15 +1295,15 @@ it('does not reapply Dockview options while geometry changes', async () => {
   );
 });
 
-it('restores Home and nested global panel geometry without remounting surviving content', async () => {
-  const { WorkspaceContext, WORKSPACE_CHANNELS, WORKSPACE_HOME } =
+it('restores a global panel and nested global panel geometry without remounting surviving content', async () => {
+  const { WorkspaceContext, WORKSPACE_CHANNELS } =
     await import('../src/client/workspace-context.js');
   let dock: import('dockview-react').DockviewApi | undefined;
   const registry = createDockPanelRegistry();
   for (const [id, title] of [
     [CHANNEL_BODY_PANEL, 'Messages'],
     [WORKSPACE_CHANNELS, 'Channels'],
-    [WORKSPACE_HOME, 'Home'],
+    [GLOBAL_PANEL, 'Market'],
     ['computer', 'Computer'],
   ])
     registry.register({
@@ -1162,6 +1337,7 @@ it('restores Home and nested global panel geometry without remounting surviving 
   await settle();
   act(() => {
     dock!.layout(1500, 900);
+    registry.open(GLOBAL_PANEL);
     registry.open(CHANNEL_BODY_PANEL);
     dock!.getPanel(CHANNEL_BODY_PANEL)!.api.moveTo({ position: 'right' });
     registry.open('computer');
@@ -1173,7 +1349,7 @@ it('restores Home and nested global panel geometry without remounting surviving 
       position: 'bottom',
     });
     dock!.getPanel(WORKSPACE_CHANNELS)!.group.api.setSize({ width: 265 });
-    dock!.getPanel(WORKSPACE_HOME)!.group.api.setSize({ width: 550 });
+    dock!.getPanel(GLOBAL_PANEL)!.group.api.setSize({ width: 550 });
     dock!.getPanel('computer')!.group.api.setSize({ height: 330 });
   });
   await settle();
@@ -1187,10 +1363,10 @@ it('restores Home and nested global panel geometry without remounting surviving 
   const draft = host.querySelector<HTMLInputElement>('[data-message-draft]')!;
   draft.value = 'unsent message';
   const computer = dock!.getPanel('computer');
-  act(() => registry.close(WORKSPACE_HOME));
+  act(() => registry.close(GLOBAL_PANEL));
   await settle();
-  expect(registry.isOpen(WORKSPACE_HOME)).toBe(false);
-  act(() => registry.open(WORKSPACE_HOME));
+  expect(registry.isOpen(GLOBAL_PANEL)).toBe(false);
+  act(() => registry.open(GLOBAL_PANEL));
   await settle();
   expect(grid()).toEqual(before);
   expect(host.querySelector('[data-message-draft]')).toBe(draft);
@@ -1198,15 +1374,15 @@ it('restores Home and nested global panel geometry without remounting surviving 
   expect(dock!.getPanel('computer')).toBe(computer);
 
   act(() => {
-    registry.close(WORKSPACE_HOME);
+    registry.close(GLOBAL_PANEL);
     registry.close(CHANNEL_BODY_PANEL);
-    registry.open(WORKSPACE_HOME);
+    registry.open(GLOBAL_PANEL);
     registry.open(CHANNEL_BODY_PANEL);
   });
   await settle();
   expect(grid()).toEqual(before);
 
-  act(() => registry.close(WORKSPACE_HOME));
+  act(() => registry.close(GLOBAL_PANEL));
   await settle();
   expect(readChannelDock(storage)?.visibilityLayout).toBeDefined();
   act(() => root.unmount());
@@ -1215,32 +1391,32 @@ it('restores Home and nested global panel geometry without remounting surviving 
   await settle();
   act(() => {
     dock!.layout(1500, 900);
-    registry.open(WORKSPACE_HOME);
+    registry.open(GLOBAL_PANEL);
   });
   await settle();
   expect(grid()).toEqual(before);
   expect(readChannelDock(storage)?.visibilityLayout).toBeUndefined();
-  act(() => registry.close(WORKSPACE_HOME));
+  act(() => registry.close(GLOBAL_PANEL));
   await settle();
   const fromJSON = dock!.fromJSON.bind(dock!);
   const restore = vi.spyOn(dock!, 'fromJSON').mockImplementationOnce((layout, options) => {
     fromJSON(layout, options);
     throw Error('restore interrupted after partial mutation');
   });
-  act(() => registry.open(WORKSPACE_HOME));
+  act(() => registry.open(GLOBAL_PANEL));
   await settle();
-  expect(dock!.panels.filter((x) => x.id === WORKSPACE_HOME)).toHaveLength(1);
+  expect(dock!.panels.filter((x) => x.id === GLOBAL_PANEL)).toHaveLength(1);
   expect(dock!.getPanel(CHANNEL_BODY_PANEL)).toBeDefined();
   expect(readChannelDock(storage)?.visibilityLayout).toBeUndefined();
   restore.mockRestore();
 });
 
 it('keeps a newly resized column when a hidden lower panel is reopened', async () => {
-  const { WorkspaceContext, WORKSPACE_CHANNELS, WORKSPACE_HOME } =
+  const { WorkspaceContext, WORKSPACE_CHANNELS } =
     await import('../src/client/workspace-context.js');
   let dock: import('dockview-react').DockviewApi | undefined;
   const registry = createDockPanelRegistry();
-  for (const id of [CHANNEL_BODY_PANEL, WORKSPACE_CHANNELS, WORKSPACE_HOME])
+  for (const id of [CHANNEL_BODY_PANEL, WORKSPACE_CHANNELS, GLOBAL_PANEL])
     registry.register({ id, title: id, scope: 'global', component: () => createElement('div') });
   act(() =>
     root.render(
@@ -1269,9 +1445,10 @@ it('keeps a newly resized column when a hidden lower panel is reopened', async (
   await settle();
   act(() => {
     dock!.layout(1500, 900);
+    registry.open(GLOBAL_PANEL);
     registry.open(CHANNEL_BODY_PANEL);
     dock!.getPanel(CHANNEL_BODY_PANEL)!.api.moveTo({
-      group: dock!.getPanel(WORKSPACE_HOME)!.group,
+      group: dock!.getPanel(GLOBAL_PANEL)!.group,
       position: 'bottom',
     });
     dock!.getPanel(WORKSPACE_CHANNELS)!.group.api.setSize({ width: 500 });
@@ -1290,4 +1467,268 @@ it('keeps a newly resized column when a hidden lower panel is reopened', async (
   act(() => registry.open(CHANNEL_BODY_PANEL));
   await settle();
   expect(Math.abs(dock!.getPanel(WORKSPACE_CHANNELS)!.group.width - width)).toBeLessThanOrEqual(4);
+});
+
+it('refuses a newly registered Bot-bound Panel in a Group before the registry rerenders', async () => {
+  const registry = createDockPanelRegistry();
+  await render(registry.panels(), 'group', {
+    channel: { id: 'group-qa', type: 'group', botSlug: undefined },
+    registry,
+  });
+  registry.register({
+    id: 'new-character',
+    title: 'Character',
+    scope: 'channel',
+    binding: 'current-bot',
+    component: () => createElement('div', { 'data-new-character': '' }),
+  });
+  expect(registry.canOpen?.('new-character')).toBe(false);
+  act(() => registry.open('new-character'));
+  await settle();
+  expect(host.querySelector('[data-new-character]')).toBeNull();
+  await render(registry.panels(), 'personabot', {
+    channel: { id: 'dm-ada', type: 'dm', botSlug: 'ada' },
+    registry,
+  });
+  expect(registry.canOpen?.('new-character')).toBe(true);
+  act(() => registry.open('new-character'));
+  await settle();
+  expect(host.querySelector('[data-new-character]')).not.toBeNull();
+});
+
+it('switches the Simple Side column without adding panels and restores the Advanced arrangement', async () => {
+  const { WorkspaceContext, WORKSPACE_CHANNELS, WORKSPACE_RAIL } =
+    await import('../src/client/workspace-context.js');
+  values = new Map();
+  let dock: import('dockview-react').DockviewApi | undefined;
+  let layoutMode: { mode: 'simple' | 'advanced'; setMode(mode: 'simple' | 'advanced'): void };
+  const registry = createDockPanelRegistry();
+  for (const [id, title] of [
+    [CHANNEL_BODY_PANEL, 'Messages'],
+    [WORKSPACE_CHANNELS, 'Channels'],
+    [GLOBAL_PANEL, 'Market'],
+    ['activity-center', 'Activity'],
+  ])
+    registry.register({
+      id: id!,
+      title: title!,
+      scope: 'global',
+      component: () => createElement('input', { 'data-content': id, defaultValue: title }),
+    });
+  const view = () =>
+    createElement(
+      WorkspaceContext.Provider,
+      {
+        value: {
+          rail: (api, _gap, _setGap, _reset, _order, _setOrder, _hidden, _setVisible, mode) => {
+            dock = api;
+            layoutMode = mode;
+            return createElement('nav');
+          },
+        },
+      },
+      createElement(ChannelDock, {
+        body: createElement('input', { 'data-message-draft': '' }),
+        panels: registry.panels(),
+        registry,
+        entryProps,
+        shows: () => true,
+        t: zhTranslate,
+        storage,
+      }),
+    );
+  act(() => root.render(view()));
+  await settle();
+  act(() => dock!.layout(1500, 900));
+  await settle();
+  const shown = () =>
+    dock!.groups
+      .filter((group) => group.api.isVisible)
+      .flatMap((group) => group.panels.map((panel) => panel.id))
+      .filter((id) => id !== WORKSPACE_RAIL)
+      .sort();
+  expect(layoutMode!.mode).toBe('simple');
+  expect(shown()).toEqual([CHANNEL_BODY_PANEL, WORKSPACE_CHANNELS].sort());
+  expect(registry.isOpen(CHANNEL_BODY_PANEL)).toBe(true);
+  expect(registry.isOpen(GLOBAL_PANEL)).toBe(false);
+
+  const draft = host.querySelector<HTMLInputElement>('[data-message-draft]')!;
+  draft.value = 'unsent message';
+  act(() => registry.toggle(GLOBAL_PANEL));
+  await settle();
+  expect(shown()).toEqual([CHANNEL_BODY_PANEL, GLOBAL_PANEL].sort());
+  expect(registry.isOpen(CHANNEL_BODY_PANEL)).toBe(true);
+  expect(registry.isOpen(WORKSPACE_CHANNELS)).toBe(false);
+  act(() => registry.toggle(GLOBAL_PANEL));
+  await settle();
+  expect(shown()).toEqual([CHANNEL_BODY_PANEL]);
+  act(() => registry.open('activity-center'));
+  await settle();
+  expect(shown()).toEqual([CHANNEL_BODY_PANEL, 'activity-center'].sort());
+  act(() => registry.open(CHANNEL_BODY_PANEL));
+  await settle();
+  expect(shown()).toEqual([CHANNEL_BODY_PANEL, 'activity-center'].sort());
+  act(() => registry.open(WORKSPACE_CHANNELS));
+  await settle();
+  expect(shown()).toEqual([CHANNEL_BODY_PANEL, WORKSPACE_CHANNELS].sort());
+  expect(host.querySelector('[data-message-draft]')).toBe(draft);
+  expect(draft.value).toBe('unsent message');
+  expect(readChannelDock(storage)?.layout.panels).toEqual({});
+
+  act(() => registry.open(GLOBAL_PANEL));
+  act(() => layoutMode!.setMode('advanced'));
+  await settle();
+  act(() => dock!.layout(1500, 900));
+  await settle();
+  expect(layoutMode!.mode).toBe('advanced');
+  act(() => {
+    registry.open(GLOBAL_PANEL);
+    registry.open(CHANNEL_BODY_PANEL);
+    dock!.getPanel(WORKSPACE_CHANNELS)!.group.api.setSize({ width: 300 });
+  });
+  await settle();
+  const advanced = readChannelDock(storage)!.layout;
+  expect(Object.keys(advanced.panels)).toEqual(
+    expect.arrayContaining([GLOBAL_PANEL, CHANNEL_BODY_PANEL]),
+  );
+
+  act(() => layoutMode!.setMode('simple'));
+  await settle();
+  act(() => dock!.layout(1500, 900));
+  await settle();
+  expect(shown()).toEqual([CHANNEL_BODY_PANEL, GLOBAL_PANEL].sort());
+  expect(readChannelDock(storage)!.layout).toEqual(advanced);
+  act(() => layoutMode!.setMode('advanced'));
+  await settle();
+  expect(dock!.getPanel(GLOBAL_PANEL)).toBeDefined();
+  expect(dock!.getPanel(CHANNEL_BODY_PANEL)).toBeDefined();
+  expect(dock!.groups.every((group) => group.api.isVisible)).toBe(true);
+});
+
+it('shows Channel subpanels as one Simple column with global collapse state', async () => {
+  const { WorkspaceContext, WORKSPACE_CHANNELS } =
+    await import('../src/client/workspace-context.js');
+  const { readLayoutMode } = await import('../src/client/layout-mode.js');
+  values = new Map();
+  const registry = createDockPanelRegistry();
+  for (const [id, title] of [
+    [CHANNEL_BODY_PANEL, 'Messages'],
+    [WORKSPACE_CHANNELS, 'Channels'],
+  ])
+    registry.register({ id: id!, title: title!, scope: 'global', component: () => null });
+  for (const id of ['sessions', 'schedules', 'botharness-browser', 'bot-inbox'])
+    registry.registerEntry(entry(id));
+  registry.registerEntry(entry('members', 'channel'));
+  let inboxOpen = false;
+  let group = false;
+  const view = () =>
+    createElement(
+      WorkspaceContext.Provider,
+      { value: { rail: () => createElement('nav') } },
+      createElement(ChannelDock, {
+        body: createElement('input', { 'data-message-draft': '' }),
+        inbox: group
+          ? undefined
+          : {
+              open: inboxOpen,
+              setOpen: (open: boolean) => {
+                inboxOpen = open;
+                root.render(view());
+              },
+            },
+        files: {
+          open: false,
+          setOpen: () => {},
+          content: createElement('div', { 'data-files': '' }),
+        },
+        panels: registry.panels(),
+        registry,
+        channel: group
+          ? { id: 'group', type: 'group', botSlug: undefined }
+          : { id: 'dm', type: 'dm', botSlug: 'ada' },
+        entryProps,
+        shows: () => true,
+        t: zhTranslate,
+        storage,
+      }),
+    );
+  act(() => root.render(view()));
+  await settle();
+  const entries = () =>
+    [...host.querySelectorAll('[data-subpanel-entry]')].map((node) =>
+      node.getAttribute('data-subpanel-entry'),
+    );
+  const toggle = host.querySelector<HTMLButtonElement>('[data-subpanel-column-toggle]')!;
+  expect(toggle.getAttribute('aria-pressed')).toBe('false');
+  expect(host.querySelector('[data-subpanel-column]')).toBeNull();
+  expect(registry.isOpen('sessions')).toBe(false);
+
+  await click('[data-subpanel-column-toggle]');
+  expect(entries()).toEqual([
+    'sessions',
+    'schedules',
+    'botharness-browser',
+    'generated-files',
+    'bot-inbox',
+  ]);
+  expect(host.querySelector('[data-subpanel-entry="sessions"] [data-body]')).not.toBeNull();
+  expect(host.querySelector('[data-subpanel-entry="schedules"] [data-body]')).toBeNull();
+  expect(registry.isOpen('sessions')).toBe(true);
+  expect(readLayoutMode(storage).column.open).toBe(true);
+
+  act(() => registry.toggle('botharness-browser'));
+  await settle();
+  expect(
+    host.querySelector('[data-subpanel-entry="botharness-browser"] [data-body]'),
+  ).not.toBeNull();
+  expect(registry.isOpen('botharness-browser')).toBe(true);
+  act(() => registry.toggle('botharness-browser'));
+  await settle();
+  expect(host.querySelector('[data-subpanel-entry="botharness-browser"] [data-body]')).toBeNull();
+  expect(host.querySelector('[data-subpanel-column]')).not.toBeNull();
+
+  await click('[data-subpanel-entry="bot-inbox"] [data-panel-head]');
+  expect(inboxOpen).toBe(true);
+  await click('[data-subpanel-entry="bot-inbox"] [data-panel-head]');
+  expect(inboxOpen).toBe(false);
+
+  const resize = host.querySelector<HTMLElement>(
+    '[data-subpanel-entry="sessions"] .bh-subpanel-entry-resize',
+  )!;
+  act(() =>
+    resize.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })),
+  );
+  await settle();
+  expect(readLayoutMode(storage).column.heights['sessions']).toBe(336);
+
+  const header = host.querySelector<HTMLElement>(
+    '[data-subpanel-entry="schedules"] .bh-subpanel-entry-header',
+  )!;
+  act(() =>
+    header.dispatchEvent(
+      new MouseEvent('contextmenu', { bubbles: true, clientX: 30, clientY: 40 }),
+    ),
+  );
+  act(() => document.querySelector<HTMLButtonElement>('[data-menu-item="hide"]')!.click());
+  await settle();
+  expect(entries()).not.toContain('schedules');
+
+  group = true;
+  act(() => root.render(view()));
+  await settle();
+  expect(entries()).toEqual(['sessions', 'members', 'generated-files']);
+  act(() => registry.open('botharness-browser'));
+  await settle();
+  expect(entries()).toEqual(['sessions', 'members', 'generated-files']);
+  expect(readLayoutMode(storage).column.expanded).toEqual(['sessions']);
+
+  act(() => registry.toggle('members'));
+  await settle();
+  expect(host.querySelector('[data-subpanel-entry="members"] [data-body]')).not.toBeNull();
+  await click('[data-subpanel-column-toggle]');
+  expect(host.querySelector('[data-subpanel-column]')).toBeNull();
+  expect(registry.isOpen('members')).toBe(false);
+  act(() => registry.open('schedules'));
+  await settle();
+  expect(host.querySelector('[data-subpanel-column]')).toBeNull();
 });

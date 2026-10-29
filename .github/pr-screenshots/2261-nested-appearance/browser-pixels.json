@@ -1,0 +1,22 @@
+{
+  "media": [
+    {
+      "tag": "CANVAS",
+      "width": 756,
+      "height": 413,
+      "opacity": "1",
+      "filter": "none"
+    }
+  ],
+  "afterMedia": [
+    {
+      "tag": "CANVAS",
+      "width": 756,
+      "height": 413,
+      "opacity": "1",
+      "filter": "none"
+    }
+  ],
+  "beforePixels": [0, 0, 0, 255],
+  "afterPixels": [0, 0, 0, 255]
+}

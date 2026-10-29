@@ -30,7 +30,7 @@ After the owner's first message, the DM appears under **Active** in the app's co
 
 ## 4. Check a real text and its reply
 
-In the paired WeChat Bot DM, send a short unique test: `Please use bridge_reply to reply only WECHAT-SETUP-OK in this WeChat DM.` Expand **Bot Inbox**, open the message and confirm the platform is WeChat and the scope is Direct message. When no native nickname was supplied, the UI uses the generic label WeChat user; raw sender/message/source identifiers remain in details.
+In the paired WeChat Bot DM, send a short unique test: `Please use bot_send_message to reply only WECHAT-SETUP-OK in this WeChat DM.` Expand **Bot Inbox**, open the message and confirm the platform is WeChat and the scope is Direct message. When no native nickname was supplied, the UI uses the generic label WeChat user; raw sender/message/source identifiers remain in details.
 
 Check both sides: the Inbox item should become handled and the response should appear in that original WeChat conversation. A provider-accepted record alone is not delivery or read proof. The iLink receipt contains a client-generated acknowledgement ID, not a native server message ID.
 
@@ -50,7 +50,7 @@ Send one file up to 25 MiB in the paired WeChat Bot DM. Open its **Bot Inbox** s
 
 This capture shows the received file-source UI. Result receipt was verified separately using the file downloaded from WeChat.
 
-Authorize a dedicated writable Workspace for that PersonaBot before processing. Ask the Bot to save an independent working copy with `bridge_attachment_save`, process it with native tools and approved commands, import the finished file with `channel_attachment_import`, and return it using `bridge_reply_file`. Approve native Tool requests only for the intended work. The original file remains unchanged. File results and text replies share one source reply intent; avoid a preliminary acknowledgement when you want a file result.
+Authorize a dedicated writable Workspace for that PersonaBot before processing. Ask the Bot to save an independent working copy with `bridge_attachment_save`, process it with native tools and approved commands, import the finished file with `channel_attachment_import`, and return it using `bot_send_message`. Approve native Tool requests only for the intended work. The original file remains unchanged. File results use attachments and an empty body. Text replies are separate messages to the same source; no preliminary acknowledgment is required.
 
 Download the returned file in WeChat and inspect its contents independently. A locally accepted send alone does not prove receipt or correct processing. If a declared file exceeds 25 MiB, its metadata stays inspectable but download is refused. Changed identity, revoked authorization, disposed reception or an expired private file ticket also refuses access. Native images, voice and video are not ordinary file intake in this slice.
 
@@ -74,7 +74,7 @@ The three source captures above are from the candidate before the presentation c
 
 To have the Bot understand the image, authorize a working Workspace and ask it to save a separate copy with `bridge_attachment_save`, then open that copy using native `read_image` with the extension matching its actual MIME. The selected model must support image input; a working preview alone does not establish model understanding. DeepSeek Flash was used for this test and identified the visible Discord application, layout and several labels from the actual image. An image's embedded instructions remain untrusted content.
 
-To return an image, select a completed image file with `channel_attachment_import` and use `bridge_reply_file` for the same Source Event. It is sent as a native WeChat image when its canonical MIME and bytes agree; it is not renamed into a generic document. Each source still has one reply intent, so do not send an acknowledgement first when an image result is required. Approve only the native Tool calls needed for the task. Check the result in the original WeChat conversation yourself.
+To return an image, select a completed image file with `channel_attachment_import` and use `bot_send_message` for the same Source Event. It is sent as a native WeChat image when its canonical MIME and bytes agree; it is not renamed into a generic document. Each message has its own identity; an image result uses attachments and empty body. Approve only the native Tool calls needed for the task. Check the result in the original WeChat conversation yourself.
 
 If preview or reading is refused, retain the source and inspect the refusal. Retry only after correcting the cause; a current-authorization check still applies to downloads and again after image upload, immediately before send. Closing the source dialog releases the preview. Raw audio, video, groups and proactive messages remain separate slices.
 
@@ -86,6 +86,8 @@ The #905 source-preview candidate uses local product `0.0.0-test.905.1` and mana
 
 ![The same native voice source and platform-transcript label, dark theme](/guides/wechat/voice-source-dark.jpg)
 
+Historical qualification (tool names refer to that build):
+
 This voice's platform text was “语音测试暗号是蓝色灯塔37，请只回复暗号”. The real DeepSeek Flash model read its source with `bridge_read` and used its own bound identity to reply “蓝色灯塔37” through `bridge_reply`; the Human confirmed receipt in the original WeChat DM. No local DM message was created. These source screenshots prove the installed UI; external receipt was separately confirmed by the Human.
 
 WeChat transcription is optional. When no transcript is supplied, the UI explicitly says **WeChat voice · no transcript** and asks for text. BotHarness does not run ASR, infer audio content, or offer a raw-audio player/download in this slice. The missing-transcript state has automated coverage; the real successful test did include platform text. Native transcription can change number formatting or words, so verify the displayed text before acting on it. Partial/generating and ambiguous multi-item messages are outside this candidate.
@@ -96,7 +98,7 @@ The #906 candidate (`0.0.0-test.906.3`, managed Provider `4.32.0-botharness.8`) 
 
 Choose **Prepare playback** to create a separate WAV for supported SILK input and reveal an audio player. The fresh iLink test reported codec identifier `4` but carried a valid Tencent SILK header; playback accepts observed identifiers `4` and `6` only after checking the actual SILK packets, and preserves the reported value. This is not support for arbitrary codec-4 files. The converted file is mono, 24 kHz, 16-bit PCM; these are output properties, not the native recording's inferred sample rate. Closing the Modal cancels preparation and releases playback resources; reopening requires selecting playback again. Unsupported codec, failed decoding or processing-limit refusal leaves original download available. Original downloads have the existing 25 MiB bound. Playback preparation limits input to 1 MiB, packet count to 6,000, decoding time to 10 seconds and PCM output to 12 MiB.
 
-With a writable Workspace Grant, the Bot can use `bridge_attachment_save` with `representation: playback` to save an independent `voice.wav` working copy, then process that file using authorized native tools. Omit that field to save the unchanged original. Normal native Tool approval still applies, and another Bot's identity is never borrowed. After actual processing, `bridge_reply` can send text to the original DM. Saving, playing or inspecting a file is not speech understanding: this connection adds no ASR, automatic audio-model input or native voice reply. Without platform text or a separately configured and verified audio-understanding route, ask for text.
+With a writable Workspace Grant, the Bot can use `bridge_attachment_save` with `representation: playback` to save an independent `voice.wav` working copy, then process that file using authorized native tools. Omit that field to save the unchanged original. Normal native Tool approval still applies, and another Bot's identity is never borrowed. After actual processing, `bot_send_message` can send text to the original DM. Saving, playing or inspecting a file is not speech understanding: this connection adds no ASR, automatic audio-model input or native voice reply. Without platform text or a separately configured and verified audio-understanding route, ask for text.
 
 The installed #906 candidate has completed a fresh paired-owner test: native voice → Bot Inbox → unchanged original through the checked download endpoint → separate WAV → authorized Workspace copy → approved native Python file inspection → `BH906-AUDIO-OK` in the original WeChat DM, confirmed by the receiving Human. The Bot inspected the actual file as mono, 16-bit, 24 kHz PCM with 179,040 frames (7.46 seconds) and wrote a JSON result. The Workspace copy and checked WAV have identical bytes. This proves audio file processing, not speech understanding. The voice also carried a platform transcript; transcript-free intake and refusal paths have automated coverage, not a separate real receiving-side test.
 
@@ -122,7 +124,7 @@ Open the video source in **Bot Inbox**. The original video is retrieved and show
 
 These captures use the installed candidate after integration with main `fe177d46`. The five-second H.264 fixture arrived through real WeChat intake; its checked 239,132 bytes exactly match the sent fixture. Native browser playback reached the end without a media error, and reopening reset the player without autoplay. These UI captures do not prove external result delivery.
 
-For actual processing, authorize a writable Workspace for that PersonaBot. The Bot saves an independent copy using `bridge_attachment_save`, then processes that selected file with native tools and normal approval. Import the completed MP4 with `channel_attachment_import` and reply to the same Source Event using `bridge_reply_file`. A checked WeChat Provider sends the matching MP4 as a native video using that Bot's own bound identity. Video upload and the final send recheck the current authorization. Each Source Event has one reply intent: do not acknowledge first if a video result is required.
+For actual processing, authorize a writable Workspace for that PersonaBot. The Bot saves an independent copy using `bridge_attachment_save`, then processes that selected file with native tools and normal approval. Import the completed MP4 with `channel_attachment_import` and reply to the same Source Event using `bot_send_message`. A checked WeChat Provider sends the matching MP4 as a native video using that Bot's own bound identity. Video upload and the final send recheck the current authorization. Video replies use attachments and empty body; separate useful text can reply to the same source.
 
 In the real QA run, the Bot saved the original into an explicitly authorized isolated Workspace and, after once-only native Tool approvals, produced the first three seconds using ffmpeg. Independent inspection confirmed a 204,644-byte, three-second H.264 result and an unchanged input. The Bot imported that result and sent it using its own identity; the Provider accepted the reply. This is file processing, not semantic video understanding.
 
@@ -160,6 +162,8 @@ Keep the receiving PersonaBot's WeChat app bound. Create a local Group with this
 
 ![The same private-source configuration, dark theme](/guides/wechat/channel-connector-config-dark.jpg)
 
+Historical qualification (tool names refer to that build):
+
 Each Group member chooses its own Channel message policy: process each message, harvest by count/time, or receive silently. In the live test, the receiver processed its Inbox immediately while a collaborator waited for two shared messages. The collaborator used `bridge_read` to inspect both real sources and replied locally with `channel_send`. That Bot had no WeChat identity or Grant. Reading shared text does not lend the receiver's external identity: external replies, context and attachment access still require the acting Bot's own valid binding and Grant.
 
 ![Shared reader waiting after the first message; the second message triggers harvest](/guides/wechat/routing-inbox-pending-dark.jpg)
@@ -186,7 +190,7 @@ This short sampled browser recording shows the real connector switch and saved s
 
 ## 12. Send an external-only text report
 
-Keep the PersonaBot's own enabled WeChat identity. Until the Provider lists WeChat conversations for proactive posts, reports use the advanced fallback: in the Bot DM sidebar, open **External connectors → Save a send target (advanced)** and save the QR-paired owner DM. A qualified Provider exposes **Message → Send message**. Write a unique report and send explicitly. It creates a canonical Outbox report in WeChat only, without a local Human DM mirror or new Inbox Admission. The Bot can use the same capability through `bridge_targets`, `bridge_post` and `bridge_outbox`. This adds no scheduler.
+Keep the PersonaBot's own enabled WeChat identity. Until the Provider lists WeChat conversations for proactive posts, reports use the advanced fallback: in the Bot DM sidebar, open **External connectors → Save a send target (advanced)** and save the QR-paired owner DM. A qualified Provider exposes **Message → Send message**. Write a unique report and send explicitly. It creates a canonical Outbox report in WeChat only, without a local Human DM mirror or new Inbox Admission. The Bot can use the same capability through `bridge_targets`, `bot_send_message` and `bridge_outbox`. This adds no scheduler.
 
 ![Qualified owner-DM posting controls, light theme](/guides/wechat/proactive-after-light.jpg)
 
@@ -198,7 +202,7 @@ The paired owner first sends a message in the original WeChat conversation while
 
 ![Real missing-context refusal and fresh-message recovery](/guides/wechat/proactive-after-context-light.jpg)
 
-Open **Recent sends** to inspect report content and outcome. **Platform accepted** proves neither recipient delivery nor reading. **Origin details** separates the client acknowledgement from a genuine native server message ID actually returned; absent server IDs remain unavailable. Inspect an uncertain outcome with the same request ID rather than blindly resending. Revocation or changed/disabled identity refuses new sends; old Outbox records remain inspectable.
+Open **Recent sends** to inspect report content and outcome. **Platform accepted** proves neither recipient delivery nor reading. **Origin details** separates the client acknowledgement from a genuine native server message ID actually returned; absent server IDs remain unavailable. Inspect an uncertain outcome using its retained Outbox intent rather than blindly resending. Revocation or changed/disabled identity refuses new sends; old Outbox records remain inspectable.
 
 ![A real accepted report, with separate native and client IDs](/guides/wechat/proactive-after-receipt-light.jpg)
 
@@ -289,7 +293,7 @@ Send `/commands` (or `/命令`) for help, `/status` for the current model and ac
 `/model` for numbered model choices, and `/effort` for the current model's reasoning choices.
 `/model <number|name>` changes only the Orchestrator model; `/effort <level>` changes its effort.
 Assignment model choices retain their existing settings or inheritance.
-Use `/stop` to stop the active turn, then `/new` to retire an idle Orchestrator Session.
+Use `/stop` to stop the active turn, then `/new` to retire an idle Orchestrator Session. Use `/compact` to compact an idle Orchestrator Session in place.
 The next ordinary message starts a fresh Session; the Bot's identity and Memory remain.
 
 Commands must occupy one text-only DM message. Chinese aliases and full-width `／` work;
@@ -307,6 +311,8 @@ Mute the DM to stop it waking the Bot, or Block it to refuse future messages, wh
 If text does not arrive, check the connected account, the enabled identity and whether the owner DM is muted or blocked. Messages from other contacts and groups remain unsupported. This candidate supports owner text, files, qualified images and platform voice transcripts; section 8 describes the separately qualified original-audio candidate. Section 9 describes the separately qualified native-video candidate; its real native intake, processing and Human-confirmed original-DM video receipt are verified. If a reply is refused because its original continuation expired or is absent, send a new text in the paired conversation; the Bot must not borrow another conversation. An unknown send outcome must not be blindly resent.
 
 ## Verification and scope
+
+Historical qualification (tool names refer to that build):
 
 [#878](https://github.com/BotHarness/BotHarness/issues/878) records source and installed-product qualification. The installed-product test retained the same paired identity and owner-DM Grant across restart, then produced one handled canonical Admission, one successful model `bridge_reply`, one accepted Outbox result and the visible `BH878-PACKED-OK` reply. The Human provided the native screenshot and approved publication.
 

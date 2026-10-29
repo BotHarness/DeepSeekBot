@@ -1,9 +1,33 @@
 {
   "cli": {
     "version": ">= 18.0.0",
-    "appVersionSource": "local"
+    "appVersionSource": "remote"
   },
   "build": {
+    "store-test": {
+      "distribution": "store",
+      "developmentClient": false,
+      "corepack": true,
+      "autoIncrement": true,
+      "env": {
+        "DEEPSEEKBOT_APP_VARIANT": "store",
+        "EXPO_PUBLIC_DEEPSEEKBOT_CLOUD": "off",
+        "EXPO_PUBLIC_MOBILE_TELEMETRY": "production",
+        "EXPO_PUBLIC_MOBILE_POSTHOG_TOKEN": "phc_CxrCyBuRHVSs996eyHXAeyJbyE8rJXgREbEYsfxUkR3J",
+        "EXPO_PUBLIC_MOBILE_TELEMETRY_QUALIFIED": "true"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      }
+    },
+    "store-test-apk": {
+      "extends": "store-test",
+      "distribution": "internal",
+      "environment": "production",
+      "android": {
+        "buildType": "apk"
+      }
+    },
     "development": {
       "developmentClient": true,
       "distribution": "internal",
@@ -16,6 +40,17 @@
       "extends": "development",
       "ios": {
         "simulator": true
+      }
+    }
+  },
+  "submit": {
+    "store-test": {
+      "ios": {
+        "ascAppId": "6823306258"
+      },
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft"
       }
     }
   }

@@ -48,10 +48,11 @@ export function createContentRedactions() {
       };
     return matches(channelId, value.replyTo) ? { ...value, replyToPreview: null } : value;
   };
-  const channel = (value: ChannelSummary): ChannelSummary =>
-    value.latestMessage === undefined
-      ? value
-      : { ...value, latestMessage: message(value.id, value.latestMessage) };
+  const channel = (value: ChannelSummary): ChannelSummary => {
+    if (value.latestMessage === undefined) return value;
+    const latestMessage = message(value.id, value.latestMessage);
+    return latestMessage === value.latestMessage ? value : { ...value, latestMessage };
+  };
   return {
     accept(values: readonly PurgedPlacement[]): void {
       for (const value of values) {

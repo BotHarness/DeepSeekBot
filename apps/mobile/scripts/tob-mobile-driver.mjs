@@ -1,8 +1,9 @@
-import { readdirSync, writeFileSync } from 'node:fs';
+import { connect } from '../../../packages/core/src/bots/development-inspector.mjs';
+export { connect, targetSocket } from '../../../packages/core/src/bots/development-inspector.mjs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
 import { argsOf, privateFile } from './tob-uat-session.mjs';
 
@@ -43,87 +44,6 @@ export function fixtureExpression(mode, state) {
     if (!entry.session || row?.identity?.userId !== expected.userId || row.identity.instanceRole !== expected.instanceRole) throw Error('VERIFIED_NATIVE_IDENTITY_REQUIRED');
     return { accessToken: entry.session.accessToken, refreshToken: entry.session.refreshToken };
   })()`;
-}
-export function targetSocket(target, port, simulatorName) {
-  if (
-    !target ||
-    target.deviceName !== simulatorName ||
-    target.appId !== 'ai.botharness.deepseekbot.dev'
-  )
-    throw Error('EXPLICIT_SIMULATOR_APP_TARGET_REQUIRED');
-  const url = new URL(target.webSocketDebuggerUrl);
-  if (
-    !['127.0.0.1', 'localhost'].includes(url.hostname) ||
-    url.port !== String(port) ||
-    url.protocol !== 'ws:'
-  )
-    throw Error('LOOPBACK_DEBUGGER_REQUIRED');
-  url.hostname = '127.0.0.1';
-  return url;
-}
-export async function connect(port, targetId, simulatorName) {
-  if (!Number.isInteger(port) || port < 1024 || port > 65535) throw Error('INVALID_METRO_PORT');
-  const targets = await (
-    await fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(5000) })
-  ).json();
-  const target = targets.find((t) => t.id === targetId);
-  const url = targetSocket(target, port, simulatorName);
-  const root = fileURLToPath(new URL('../../../', import.meta.url));
-  const store = join(root, 'node_modules/.pnpm');
-  const dependency = readdirSync(store)
-    .filter((name) => name.startsWith('ws@8.'))
-    .sort()
-    .pop();
-  if (!dependency) throw Error('DEBUG_WEBSOCKET_DEPENDENCY_MISSING');
-  const WebSocket = createRequire(join(store, dependency, 'node_modules/ws/package.json'))('ws');
-  const ws = new WebSocket(url, { origin: `http://127.0.0.1:${port}` });
-  await new Promise((resolve, reject) => {
-    ws.once('open', resolve);
-    ws.once('error', reject);
-  });
-  let id = 0;
-  const pending = new Map();
-  ws.on('message', (raw) => {
-    const r = JSON.parse(String(raw));
-    const p = pending.get(r.id);
-    if (!p) return;
-    clearTimeout(p.timer);
-    pending.delete(r.id);
-    if (r.error || r.result?.exceptionDetails) {
-      const description = r.result?.exceptionDetails?.exception?.description ?? '';
-      const code = [
-        'DEBUG_ONLY',
-        'CLOUD_MODULE_AMBIGUOUS',
-        'SESSION_BUSY',
-        'INVALID_VAULT',
-        'TRUSTED_IMPORT_REQUIRED',
-        'EXISTING_SESSION_REFUSED',
-        'LOCAL_SESSION_REMAINS',
-        'VERIFIED_NATIVE_IDENTITY_REQUIRED',
-      ].find((v) => description.includes(v));
-      p.reject(Error(code ?? 'INSPECTOR_EVALUATION_FAILED'));
-    } else p.resolve(r.result);
-  });
-  ws.on('close', () => {
-    for (const p of pending.values()) {
-      clearTimeout(p.timer);
-      p.reject(Error('INSPECTOR_CLOSED'));
-    }
-    pending.clear();
-  });
-  return {
-    send: (method, params) =>
-      new Promise((resolve, reject) => {
-        const n = ++id;
-        const timer = setTimeout(() => {
-          pending.delete(n);
-          reject(Error('INSPECTOR_TIMEOUT'));
-        }, 20000);
-        pending.set(n, { resolve, reject, timer });
-        ws.send(JSON.stringify({ id: n, method, params }));
-      }),
-    close: () => ws.close(),
-  };
 }
 export async function main(mode, args) {
   const state = JSON.parse(privateFile(args.session));

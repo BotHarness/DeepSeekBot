@@ -8,7 +8,8 @@ import {
   type ReactElement,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, IconEditOutlineRegular, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, IconEditOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 
 import type { BotModeSendKey } from '../bot-mode-settings.js';
 import type { BotModePrefsSnapshot } from './bot-mode-prefs.js';
@@ -68,6 +69,7 @@ export const SHORTCUT_HELP_GROUPS: readonly ShortcutHelpGroup[] = [
         note: 'shortcuts.unreadStep.note',
       },
       { id: 'search', keys: [['Mod', 'F']], label: 'shortcuts.search' },
+      { id: 'settings', action: 'settings', label: 'shortcuts.settings' },
       { id: 'help', keys: [['?']], action: 'help', label: 'shortcuts.help' },
     ],
   },
@@ -379,7 +381,12 @@ export function ShortcutHelpList({
                 const action = shortcutBindings === undefined ? undefined : entry.action;
                 const rowStatus = status?.id === entry.id ? status : undefined;
                 return (
-                  <div key={entry.id} data-shortcut={entry.id} {...stylex.props(styles.row)}>
+                  <div
+                    key={entry.id}
+                    data-shortcut={entry.id}
+                    data-settings-title={t(entry.label)}
+                    {...stylex.props(styles.row)}
+                  >
                     <dt {...stylex.props(styles.label)}>
                       <span>{t(entry.label)}</span>
                       {entry.note === undefined ? null : (

@@ -27,15 +27,41 @@ export function createDevicePushHttp(
           token: body['token'],
           platform: body['platform'],
           locale: body['locale'],
+          render: body['render'],
         });
         return result.ok
           ? { status: 200, body: delivery.settings(deviceId) }
           : { status: 400, body: { code: result.code } };
       }
       case `${DEVICE_PUSH_PATH}/preferences`: {
-        const settings = delivery.setPreferences(deviceId, body['preferences']);
-        return settings.registered
-          ? { status: 200, body: settings }
+        const preferences = body['preferences'];
+        if (
+          preferences !== undefined &&
+          (typeof preferences !== 'object' ||
+            preferences === null ||
+            Array.isArray(preferences) ||
+            Object.entries(preferences).some(
+              ([key, value]) =>
+                !['approval', 'question', 'private-input', 'reply'].includes(key) ||
+                typeof value !== 'boolean',
+            ))
+        )
+          return { status: 400, body: { code: 'invalid-input' } };
+        if (body['enabled'] !== undefined && typeof body['enabled'] !== 'boolean')
+          return { status: 400, body: { code: 'invalid-input' } };
+        if (preferences === undefined && !delivery.settings(deviceId).registered)
+          return { status: 409, body: { code: 'push-not-registered' } };
+        const settings = delivery.setPreferences(deviceId, body['preferences'], body['enabled']);
+        return { status: 200, body: settings };
+      }
+      case `${DEVICE_PUSH_PATH}/quiet`: {
+        const result = delivery.setQuiet(deviceId, {
+          channelId: body['channelId'],
+          quiet: body['quiet'],
+        });
+        if ('invalid' in result) return { status: 400, body: { code: 'invalid-input' } };
+        return result.registered
+          ? { status: 200, body: result }
           : { status: 409, body: { code: 'push-not-registered' } };
       }
       case `${DEVICE_PUSH_PATH}/test`: {

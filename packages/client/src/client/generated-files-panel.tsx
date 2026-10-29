@@ -1,8 +1,8 @@
 import {
-  Tooltip,
   IconPaperclipOutlineRegular,
   IconCheckOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 import { IconButton } from './ds/icon-button.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { createContext, useContext, useState, type ReactElement } from 'react';

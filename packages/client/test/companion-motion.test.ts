@@ -97,3 +97,33 @@ it('bounds a delayed frame and clears spring energy when motion is reduced or a 
   motion.move(200);
   expect(motion.advance(64, false, false, 1)).toMatchObject({ x: 200, tilt: 0, phase: 'rest' });
 });
+
+it('stands on the ground it is given instead of covering it, and lands on it after a throw', () => {
+  const motion = new CompanionMotion();
+  motion.setGround((x) => (x + 96 > 300 && x < 700 ? 90 : 0));
+  motion.measure(1200, 800, 0.4);
+  expect(motion.point.y).toBe(90);
+  for (let frame = 0; frame < 1200; frame++) motion.advance(16, false, true, 1);
+  expect(motion.point.x).toBeGreaterThan(700);
+  expect(motion.point.y).toBe(0);
+  motion.move(400);
+  expect(motion.point.y).toBe(90);
+  motion.grab(0, false);
+  motion.drag(420, 400, 16, false);
+  motion.release(500, false);
+  for (let frame = 0; frame < 300; frame++) motion.advance(16, false, false, 1);
+  expect(motion.point).toMatchObject({ phase: 'rest', y: 90 });
+  motion.setGround(() => 0);
+  motion.advance(0, true, false, 1);
+  expect(motion.point.y).toBe(0);
+});
+
+it('drops in from the top on entry and lands with one impact', () => {
+  const feedback: string[] = [];
+  const motion = new CompanionMotion((event) => feedback.push(event.kind));
+  motion.measure(1200, 800, 0.4);
+  expect(motion.drop()).toMatchObject({ phase: 'fall', y: 680 });
+  for (let frame = 0; frame < 300; frame++) motion.advance(16, false, false, 1);
+  expect(feedback).toEqual(['land']);
+  expect(motion.point).toMatchObject({ phase: 'rest', y: 0 });
+});

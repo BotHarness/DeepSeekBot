@@ -65,3 +65,30 @@ Search inherits the Chats environment and has no independent source selector. It
 Queries enumerate only still-paired identities. Unpair, definitive refusal and credential replacement invalidate that identity's cache and pending reads/writes. Transient disconnection retains the last authorized local content. Search and result resolution make no remote history requests. Selecting a result rereads its cache in the existing conversation screen, highlights the exact message and explicitly reports eviction; loading from the Computer is an explicit action. Returning preserves the in-memory query and scroll, while entering Search anew inherits Chats and resets the query. Cloud cache search remains a separate slice.
 
 This adds no Host route, bridge method, Bot tool or durable message authority. The public search controller and existing conversation API provide the agent-testable boundary; native rendering and navigation require the shared-device UAT path.
+
+## Concurrent paired Host Chats (#2782)
+
+The mobile session owner maintains one existing HostClient and Inbox per saved pairing.
+Changing the browsing scope or management selection retains other connections and
+subscriptions. The drawer consumes that same pool instead of creating probe clients.
+Removing a pairing or replacing its credentials disposes only that source session.
+This avoids a second connection lifecycle and keeps each Host as the message authority.
+
+All projects only online, loaded Host rosters into a source-qualified directory, retaining
+Cloud directory behavior. It flattens Host sections into recent-message order and one
+collapsible Pinned section; individual Host scopes retain their own sections and order.
+Routes and nested screens carry the originating Host ID; identical
+local Bot or Channel IDs never authorize a fallback to the management Host. Open offline
+chats retain history and device-local drafts, disable sends and never replay drafts on recovery.
+
+This decision extends the Chats slice above. Activity composes each online Host's existing
+Inbox observer and paginated count reader. Source-qualified filters, records and mutations
+retain their Host owner. Counts preserve category preferences; notification routes retain
+the originating Host. Foreground return reconciles every pairing independently. Android/iOS navigation, previews and background delivery still
+require separate runtime qualification; automated screen/transport tests do not establish it.
+
+## Amendment: Cloud Channel navigation state (2026-10-26)
+
+For #2791 / #2801, Cloud list and detail locations belong to the existing Expo root Stack. The compatible `/cloud-channels` URL uses a scoped `channelId` parameter to distinguish detail from list. Root route identity contains instance, account scope, Organization, guest access and Channel ID. Local Channel objects are content only and cannot change the current location.
+
+New list entries push a detail; matching scoped details unwind to the retained route. Direct detail links establish a reachable scoped list parent when absent. Parent synthesis verifies the active route's scope and cannot restore a route after an incompatible root reset. Native, header and in-page Back use the same navigation authority. The existing Cloud client owns admission and authorization; message caches and source drafts retain their keys and invalidation behavior. No Host identity or alternate Cloud session store is introduced.

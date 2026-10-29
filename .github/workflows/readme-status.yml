@@ -1,0 +1,70 @@
+name: README repository status
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/readme-status.yml'
+      - 'scripts/readme-*.mjs'
+      - 'docs/assets/readme/pixel/source/**'
+  pull_request:
+    paths:
+      - '.github/workflows/readme-status.yml'
+      - 'scripts/readme-*.mjs'
+      - 'scripts/test/readme-status.test.mjs'
+      - 'docs/assets/readme/pixel/source/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: readme-status-${{ github.event.pull_request.number || 'publish' }}
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - name: Collect and render a complete snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/readme-status.mjs collect "$RUNNER_TEMP/readme-status"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: readme-status
+          path: ${{ runner.temp }}/readme-status/
+          retention-days: 3
+
+  publish:
+    needs: collect
+    if: github.repository == 'BotHarness/DeepSeekBot' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - uses: actions/download-artifact@v4
+        with:
+          name: readme-status
+          path: ${{ runner.temp }}/readme-status/
+      - name: Atomically update the dedicated asset branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/readme-status.mjs publish "$RUNNER_TEMP/readme-status"

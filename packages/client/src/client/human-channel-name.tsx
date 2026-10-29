@@ -1,7 +1,7 @@
+import { Menu } from './appearance-primitives.js';
 import { useState, type ReactElement, type ReactNode } from 'react';
 import {
   Button,
-  Menu,
   IconTrashOutlineRegular,
   type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -11,7 +11,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { TextField } from './ds/field.js';
 import { PersonaBotDeletionView } from './personabot-deletion.js';
-import { toggleHiddenDmAction } from './dm-actions.js';
+import { setDmMemoryDisplay, toggleHiddenDmAction } from './dm-actions.js';
 import {
   CHANNEL_NICKNAME_ITEM,
   CHANNEL_SETTINGS_ITEM,
@@ -19,6 +19,8 @@ import {
   channelSettingsItem,
   dmActionKindOf,
   dmActionsItem,
+  dmMemoryDisplayOf,
+  useDmMemoryDisplay,
   useHiddenDmActions,
 } from './channel-options.js';
 
@@ -117,11 +119,12 @@ export function ChannelHeaderMenu({
   const [deleting, setDeleting] = useState(false);
   const dmBotSlug = channel.type === 'dm' ? channel.botSlug : undefined;
   const hidden = useHiddenDmActions(dmBotSlug);
+  const memoryDisplay = useDmMemoryDisplay(dmBotSlug);
   const attention = settingsAttention && onOpenSettings !== undefined;
   const optionItems: MenuEntry[] = [
     ...(onOpenSettings === undefined ? [] : [channelSettingsItem(t, attention)]),
     ...(channel.humanNickname === undefined ? [] : [channelNicknameItem(t)]),
-    ...(dmBotSlug === undefined ? [] : [dmActionsItem(t, hidden)]),
+    ...(dmBotSlug === undefined ? [] : [dmActionsItem(t, hidden, memoryDisplay)]),
   ];
   const items: MenuEntry[] = [
     ...(primaryAction === undefined
@@ -153,6 +156,12 @@ export function ChannelHeaderMenu({
         items={items}
         onClose={() => setMenuOpen(false)}
         onSelect={(id) => {
+          const display = dmMemoryDisplayOf(id);
+          if (display !== undefined) {
+            if (dmBotSlug !== undefined && !hidden.includes('memory'))
+              setDmMemoryDisplay(dmBotSlug, display);
+            return;
+          }
           const kind = dmActionKindOf(id);
           if (kind !== undefined) {
             if (dmBotSlug !== undefined) toggleHiddenDmAction(dmBotSlug, kind);

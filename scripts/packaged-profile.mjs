@@ -4,7 +4,8 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { parse, parseDocument } from 'yaml';
 import semver from 'semver';
-import { productDsh, productImProvider } from './product-artifacts.mjs';
+import { productImProvider } from './product-artifacts.mjs';
+import { cloudflaredPackageNames } from './cloudflared-packages.mjs';
 import { providerRuntimeDigest } from './dev-im-provider.mjs';
 
 export function verifyProductComposition(entries) {
@@ -54,6 +55,7 @@ export function parseProductComposition(source) {
 }
 
 const PRODUCT_PACKAGES = new Set([
+  '@botharness/tobs',
   'deepseekbot',
   '@botharness/browser',
   '@botharness/computer',
@@ -79,7 +81,8 @@ export function verifiedProductArtifacts(directory) {
   const root = resolve(directory);
   const manifest = JSON.parse(readFileSync(join(root, 'artifacts.json'), 'utf8'));
   if (
-    manifest.dsh !== productDsh ||
+    typeof manifest.dsh !== 'string' ||
+    semver.valid(manifest.dsh) !== manifest.dsh ||
     !Number.isSafeInteger(manifest.providerRuntime?.runtimeFiles) ||
     manifest.providerRuntime.runtimeFiles < 1 ||
     !/^[a-f0-9]{64}$/.test(manifest.providerRuntime.runtimeSha256) ||
@@ -111,7 +114,29 @@ export function verifiedProductArtifacts(directory) {
       throw new Error(`Product artifact changed: ${artifact.name}`);
     seen.add(artifact.name);
   }
-  return { ...manifest, directory: root };
+  const platformArtifacts = manifest.platformArtifacts ?? [];
+  const platformNames = new Set(cloudflaredPackageNames);
+  if (
+    !Array.isArray(platformArtifacts) ||
+    (platformArtifacts.length !== 0 && platformArtifacts.length !== platformNames.size)
+  )
+    throw new Error('Product artifacts do not describe the platform package set');
+  for (const artifact of platformArtifacts) {
+    if (
+      !platformNames.has(artifact.name) ||
+      seen.has(artifact.name) ||
+      typeof artifact.filename !== 'string' ||
+      basename(artifact.filename) !== artifact.filename ||
+      !artifact.filename.endsWith('.tgz') ||
+      artifact.version !== manifest.productVersion
+    )
+      throw new Error('Invalid platform artifact identity');
+    const bytes = readFileSync(join(root, artifact.filename));
+    if (artifact.integrity !== `sha512-${createHash('sha512').update(bytes).digest('base64')}`)
+      throw new Error(`Product artifact changed: ${artifact.name}`);
+    seen.add(artifact.name);
+  }
+  return { ...manifest, platformArtifacts, directory: root };
 }
 
 const ownedStandaloneBundles = new Set([
@@ -131,11 +156,13 @@ export function packagedProfileManifest(manifest, directory) {
   const retained = bundles.filter((bundle) => !ownedStandaloneBundles.has(bundle));
   const artifacts = verifiedProductArtifacts(directory);
   const product = artifacts.artifacts.find((artifact) => artifact.name === 'deepseekbot');
+  const tobs = artifacts.artifacts.find((artifact) => artifact.name === '@botharness/tobs');
   return {
     ...manifest,
     dependencies: {
       ...manifest.dependencies,
       deepseekbot: `file:${join(artifacts.directory, product.filename)}`,
+      '@botharness/tobs': `file:${join(artifacts.directory, tobs.filename)}`,
     },
     dsh: {
       ...manifest.dsh,
@@ -161,12 +188,15 @@ export function verifyPackagedProfile(profileDirectory, directory) {
   const expected = verifiedProductArtifacts(directory);
   const productManifestPath = join(profileDirectory, 'node_modules', 'deepseekbot', 'package.json');
   const dependencyRequire = createRequire(realpathSync(productManifestPath));
+  const profileRequire = createRequire(join(profileDirectory, 'package.json'));
   const installedPaths = new Map();
   for (const artifact of expected.artifacts) {
     const manifestPath =
       artifact.name === 'deepseekbot'
         ? productManifestPath
-        : dependencyRequire.resolve(`${artifact.name}/package.json`);
+        : artifact.name === '@botharness/tobs'
+          ? profileRequire.resolve('@botharness/tobs/package.json')
+          : dependencyRequire.resolve(`${artifact.name}/package.json`);
     installedPaths.set(artifact.name, dirname(manifestPath));
     const installed = JSON.parse(readFileSync(manifestPath, 'utf8'));
     if (installed.name !== artifact.name || installed.version !== artifact.version)
@@ -177,7 +207,7 @@ export function verifyPackagedProfile(profileDirectory, directory) {
   const digest = providerRuntimeDigest(provider);
   if (
     provenance.source !== productImProvider.upstream.source ||
-    provenance.dsh !== expected.dsh ||
+    provenance.dsh !== productImProvider.upstream.dsh ||
     digest.runtimeFiles !== provenance.compiledOutput.runtimeFiles ||
     digest.runtimeSha256 !== provenance.compiledOutput.runtimeSha256 ||
     digest.runtimeFiles !== expected.providerRuntime.runtimeFiles ||
@@ -198,7 +228,7 @@ export function packagedWorkspaceSettings(source, directory) {
   const previous = document.toJS();
   const overrides = { ...previous?.overrides };
   const artifacts = verifiedProductArtifacts(directory);
-  for (const artifact of artifacts.artifacts)
+  for (const artifact of [...artifacts.artifacts, ...artifacts.platformArtifacts])
     overrides[`${artifact.name}@${artifact.version}`] =
       `file:${join(artifacts.directory, artifact.filename)}`;
   document.set('overrides', overrides);

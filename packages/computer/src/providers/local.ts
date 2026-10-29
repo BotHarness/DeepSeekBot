@@ -6,6 +6,8 @@ import {
 } from '../../../core/src/system/system-packages.js';
 import type { CuaDriver } from '../tool/driver.js';
 import { LocalDesktopMissingError } from '../tool/local-display.js';
+import { ensureMacVideoHelper } from '../media/install-macos.js';
+import { ensureLocalVideoHelper } from '../media/install.js';
 import {
   LOCAL_DRIVER_QUIET_ENV,
   localDriverBuild,
@@ -98,10 +100,34 @@ export function createLocalComputerProvider(options: {
         controller = new AbortController();
         const signal = controller.signal;
         state = { state: 'stopped', phase: 'starting' };
+        let permissions: LocalPermissions | undefined;
         try {
           await options.driver.ensure(signal, (progress) => {
             if (!signal.aborted) state = { state: 'stopped', phase: 'starting', progress };
           });
+          if (platform === 'darwin') {
+            await ensureMacVideoHelper({
+              runner: options.runner,
+              signal,
+              arch,
+              onEvent: options.onEvent,
+              onProgress: (progress) => {
+                if (!signal.aborted) state = { state: 'stopped', phase: 'starting', progress };
+              },
+            });
+          }
+          if (platform === 'win32' && arch === 'x64') {
+            await ensureLocalVideoHelper({
+              runner: options.runner,
+              signal,
+              platform,
+              arch,
+              onEvent: options.onEvent,
+              onProgress: (progress) => {
+                if (!signal.aborted) state = { state: 'stopped', phase: 'starting', progress };
+              },
+            });
+          }
           if (signal.aborted) throw new Error('Local Computer setup cancelled');
           const path = localDriverExecutable(options.dir ?? localDriverDirectory(build), build);
           const doctor = await options.runner.run([path, 'doctor', '--json'], {
@@ -111,10 +137,13 @@ export function createLocalComputerProvider(options: {
             throw new Error(
               'Local Computer driver doctor failed. Check the installation and retry.',
             );
-          const readiness = localReadiness(
-            platform,
-            await options.driver.call('check_permissions', localPermissionArgs(platform), signal),
+          const checked = await options.driver.call(
+            'check_permissions',
+            localPermissionArgs(platform),
+            signal,
           );
+          if (platform === 'darwin') permissions = localPermissions(checked);
+          const readiness = localReadiness(platform, checked);
           options.onEvent?.(
             `phase=permissions platform=${platform} ${readiness.detail} durationMs=${String(Date.now() - started)}`,
           );
@@ -133,6 +162,16 @@ export function createLocalComputerProvider(options: {
           state = {
             state: 'failed',
             phase: 'failed',
+            refusal:
+              permissions && (!permissions.accessibility || !permissions.screenRecording)
+                ? 'permissions-required'
+                : error &&
+                    typeof error === 'object' &&
+                    'setupCode' in error &&
+                    typeof error.setupCode === 'string'
+                  ? error.setupCode
+                  : 'setup-failed',
+            ...(permissions ? { permissions } : {}),
             detail: error instanceof Error ? error.message : String(error),
             ...(missing === undefined ? {} : { missing }),
           };

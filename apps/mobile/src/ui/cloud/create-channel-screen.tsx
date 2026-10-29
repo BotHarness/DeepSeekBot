@@ -11,10 +11,12 @@ import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
-import { TextInput } from '../primitives/system-text';
-import { t } from '../strings';
+import { TextField } from '../primitives/text-field';
+import { labelInField } from '../primitives/field-label';
+import { useStrings } from '../strings';
 
 export function CloudCreateChannelScreen() {
+  const t = useStrings();
   const params = useLocalSearchParams<{
     instanceId: string;
     organizationId: string;
@@ -37,6 +39,7 @@ function CreateChannelForm({
   organizationId: string;
   accountScope: string;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const snapshot = useCloudSnapshot();
   const row = snapshot.rows.find((r) => r.config.instanceId === instanceId);
@@ -120,20 +123,14 @@ function CreateChannelForm({
           <Text>{t.cloudInvitations.required}</Text>
         ) : (
           <>
-            <Text>{t.cloudChannels.name}</Text>
-            <TextInput
+            {labelInField ? null : <Text>{t.cloudChannels.name}</Text>}
+            <TextField
               accessibilityLabel={t.cloudChannels.name}
               value={name}
               onChangeText={setName}
               maxLength={80}
               editable={!working && !pendingHere}
               autoCapitalize="none"
-              style={{
-                minHeight: theme.touch,
-                color: theme.color.fg,
-                backgroundColor: theme.layer.field.fill,
-                padding: space.x4,
-              }}
             />
             {!!pendingHere && <Text>{t.cloudChannels.pending}</Text>}
             <View>

@@ -69,7 +69,7 @@ SOFTWARE.
 - Package: `lucide` icons (vendored glyph paths; see ADR-0032)
 - License: ISC
 - Source: <https://github.com/lucide-icons/lucide>
-- Used for: Channel sidebar function/settings/check glyphs (`house`, `files`, `git-branch`, `messages-square`, `inbox`, `folder-key`, `users`, `settings-2`, `settings`, `monitor`, `globe`, `panels-top-left`, `grip-vertical`, `check`, `eye`, `eye-off`, `chevron-right`, from `lucide-react@1.46.0`) in `channel-sidebar-icon.tsx`; the `inbox` Activity Center glyph (`InboxIcon` in `src/client/inbox-icon.tsx`) and the `hash` channel glyph (`HashIcon` in `src/client/hash-icon.tsx`, from `lucide-react@1.46.0`); the `git-commit-vertical` Memory commit glyph (`GitCommitIcon` in `src/client/git-commit-icon.tsx`, from `lucide-react@1.46.0`)
+- Used for: Channel sidebar function/settings/check glyphs (`house`, `files`, `git-branch`, `messages-square`, `inbox`, `folder-key`, `users`, `settings-2`, `settings`, `monitor`, `globe`, `panels-top-left`, `grip-vertical`, `check`, `message-square`, `keyboard`, `smartphone`, `sliders-horizontal`, `info`, `eye`, `eye-off`, `chevron-right`, from `lucide-react@1.46.0`) in `channel-sidebar-icon.tsx`; the `inbox` Activity Center glyph (`InboxIcon` in `src/client/inbox-icon.tsx`) and the `hash` channel glyph (`HashIcon` in `src/client/hash-icon.tsx`, from `lucide-react@1.46.0`); the `git-commit-vertical` Memory commit glyph (`GitCommitIcon` in `src/client/git-commit-icon.tsx`, from `lucide-react@1.46.0`)
 
 ```
 ISC License
@@ -217,6 +217,37 @@ SOFTWARE.
 MIT License
 
 Copyright (c) 2017-2025 W.Y.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## pinyin-pro
+
+- Package: `pinyin-pro` 3.29.5
+- License: MIT
+- Source: <https://github.com/zh-lx/pinyin-pro>
+- Used for: matching Chinese conversation and settings names by full pinyin or initials in the quick switcher and roster search (inlined by the client bundle build).
+
+```
+MIT License
+
+Copyright (c) 2022-present zh-lx
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

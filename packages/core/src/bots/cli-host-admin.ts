@@ -1,8 +1,10 @@
 import type { AltchaChallenge } from '../marketplace/altcha.js';
 import { parseChallenge, solveChallenge } from '../marketplace/altcha.js';
+import type { MarketplaceDigestSummary } from '../marketplace/client.js';
 import { pairingCapabilities, type PairingCapability } from '../messaging/pairing.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
+import { imageDataUrl, readBytes } from './cli-profile.js';
 
 export const HOST_ADMIN_OPTIONS = {
   force: { type: 'boolean' },
@@ -10,10 +12,16 @@ export const HOST_ADMIN_OPTIONS = {
   query: { type: 'string' },
   topic: { type: 'string' },
   sort: { type: 'string' },
+  lang: { type: 'string' },
   reason: { type: 'string' },
   decision: { type: 'string' },
   capability: { type: 'string', multiple: true },
   confirm: { type: 'boolean' },
+  'accept-terms': { type: 'boolean' },
+  'include-uploads': { type: 'boolean' },
+  review: { type: 'string' },
+  replaces: { type: 'string' },
+  day: { type: 'string' },
 } as const;
 
 export interface HostAdminValues {
@@ -22,14 +30,26 @@ export interface HostAdminValues {
   query?: string;
   topic?: string;
   sort?: string;
+  lang?: string;
   cursor?: string;
   reason?: string;
   decision?: string;
   capability?: string[];
   role?: string[];
   confirm?: boolean;
+  'confirmation-stdin'?: boolean;
   enabled?: boolean;
   disabled?: boolean;
+  name?: string;
+  description?: string;
+  'operation-key'?: string;
+  'accept-terms'?: boolean;
+  'include-uploads'?: boolean;
+  file?: string;
+  clear?: boolean;
+  review?: string;
+  replaces?: string;
+  day?: string;
 }
 
 export const HOST_ADMIN_COMMANDS = [
@@ -42,17 +62,82 @@ export const HOST_ADMIN_COMMANDS = [
   },
   { command: 'marketplace-list', description: 'browse or search Bot Marketplace listings' },
   { command: 'marketplace-topics', description: 'list Bot Marketplace topics with counts' },
+  {
+    command: 'marketplace-sections',
+    description: "read today's Hot, New and Rising Bot Marketplace rows",
+  },
+  {
+    command: 'marketplace-digest',
+    description: "read today's Marketplace Digest, or one day's with --day",
+  },
+  { command: 'marketplace-digests', description: 'list past Marketplace Digests by date' },
   { command: 'marketplace-detail', description: 'read one Bot Marketplace listing and README' },
+  {
+    command: 'marketplace-file',
+    description: 'read one text file of an Uploaded Bot, Markdown prepared like its README',
+  },
   {
     command: 'marketplace-submit',
     description: 'list a public GitHub Bot repository on the Bot Marketplace',
   },
   { command: 'marketplace-report', description: 'report a Bot Marketplace listing for review' },
+  {
+    command: 'marketplace-account',
+    description: 'read the Connect sign-in and its Account Profile (name, avatar, Author ID)',
+  },
+  {
+    command: 'marketplace-author',
+    description: 'set the Account Profile display name; uploading also needs --accept-terms once',
+  },
+  {
+    command: 'marketplace-author-avatar',
+    description: 'set the Account Profile avatar from a PNG, JPEG or WebP --file, or --clear it',
+  },
+  {
+    command: 'marketplace-upload-plan',
+    description: "list which of a Bot's files an upload would include or skip",
+  },
+  {
+    command: 'marketplace-upload',
+    description: "publish a Bot's ready Share Draft to the Bot Marketplace; needs --confirm",
+  },
+  {
+    command: 'marketplace-mine',
+    description: 'list your own Uploaded Bots, with file counts and whether one is blocked',
+  },
+  {
+    command: 'marketplace-delete',
+    description: 'delete one of your Uploaded Bots from the Bot Marketplace; needs --confirm',
+  },
+  {
+    command: 'marketplace-install',
+    description:
+      'have Tob review a Bot Marketplace listing, then install it with --review <id> --confirm',
+  },
   { command: 'release-check', description: 'check the release channel for a newer version' },
   { command: 'release-install', description: 'install a newer release; needs --confirm' },
   {
     command: 'release-restart',
     description: 'restart the Host into an installed release; needs --confirm',
+  },
+  { command: 'plugin-check', description: 'list BotHarness plugins and check each for an update' },
+  {
+    command: 'plugin-install',
+    description: 'update one BotHarness plugin to a newer version; needs --confirm',
+  },
+  {
+    command: 'plugin-restart',
+    description: 'restart the Host to finish plugin updates; needs --confirm',
+  },
+  {
+    command: 'data-reset-preview',
+    description:
+      'list every BotHarness folder a full data reset removes, with its confirmation token',
+  },
+  {
+    command: 'data-reset-confirm',
+    description:
+      'clear all BotHarness data and restart the Host; needs --confirmation-stdin --confirm',
   },
   { command: 'telemetry-status', description: 'read the usage statistics choice' },
   { command: 'telemetry-set', description: 'turn usage statistics on or off' },
@@ -90,12 +175,29 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
   onboarding: 0,
   'marketplace-list': 0,
   'marketplace-topics': 0,
+  'marketplace-sections': 0,
+  'marketplace-digest': 0,
+  'marketplace-digests': 0,
   'marketplace-detail': 1,
+  'marketplace-file': 2,
   'marketplace-submit': 1,
   'marketplace-report': 1,
+  'marketplace-account': 0,
+  'marketplace-author': 0,
+  'marketplace-author-avatar': 0,
+  'marketplace-upload-plan': 1,
+  'marketplace-upload': 1,
+  'marketplace-mine': 0,
+  'marketplace-delete': 1,
+  'marketplace-install': 1,
   'release-check': 0,
   'release-install': 1,
   'release-restart': 0,
+  'plugin-check': 0,
+  'plugin-install': 2,
+  'plugin-restart': 0,
+  'data-reset-preview': 0,
+  'data-reset-confirm': 0,
   'telemetry-status': 0,
   'telemetry-set': 0,
   'git-status': 0,
@@ -121,23 +223,87 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     usage(
       expected === 0
         ? `${command} takes no positional arguments.`
-        : `${command} needs ${POSITIONAL_NAMES[expected]!}.`,
+        : `${command} needs ${command === 'plugin-install' ? 'a package name and a version' : command === 'marketplace-file' ? 'a Bot id and a file path' : POSITIONAL_NAMES[expected]!}.`,
     );
   if (
     values.sort !== undefined &&
-    (command !== 'marketplace-list' || (values.sort !== 'updated' && values.sort !== 'stars'))
+    (command !== 'marketplace-list' ||
+      (values.sort !== 'updated' && values.sort !== 'created' && values.sort !== 'stars'))
   )
-    usage('--sort must be updated or stars, on marketplace-list.');
+    usage('--sort must be updated, created or stars, on marketplace-list.');
+  if (
+    values.lang !== undefined &&
+    ((command !== 'marketplace-list' &&
+      command !== 'marketplace-detail' &&
+      command !== 'marketplace-sections' &&
+      command !== 'marketplace-digest' &&
+      command !== 'marketplace-digests' &&
+      command !== 'marketplace-install' &&
+      command !== 'marketplace-mine') ||
+      (values.lang !== 'zh' && values.lang !== 'en'))
+  )
+    usage(
+      '--lang must be zh or en, on marketplace-list, marketplace-detail, marketplace-sections, marketplace-digest, marketplace-digests, marketplace-mine or marketplace-install.',
+    );
+  if (
+    values.day !== undefined &&
+    (command !== 'marketplace-digest' || !/^\d{4}-\d{2}-\d{2}$/u.test(values.day))
+  )
+    usage('--day must be a YYYY-MM-DD date, on marketplace-digest.');
   if (command === 'marketplace-report' && values.reason !== undefined) {
     if (values.reason.trim().length > MAX_REPORT_REASON_LENGTH)
       usage(`--reason must be at most ${String(MAX_REPORT_REASON_LENGTH)} characters.`);
   }
+  if (values['include-uploads'] === true && command !== 'marketplace-list')
+    usage('--include-uploads only applies to marketplace-list.');
+  if (values.review !== undefined && command !== 'marketplace-install')
+    usage('--review only applies to marketplace-install.');
+  if (
+    command === 'marketplace-install' &&
+    (values.review === undefined) !== (values.confirm !== true)
+  )
+    usage(
+      'Run marketplace-install <listing-id> first to see what Tob found, then install with --review <review-id> --confirm.',
+    );
+  if (command === 'marketplace-author' && (values.name === undefined || !values.name.trim()))
+    usage('marketplace-author needs --name <display name>.');
+  if (
+    command === 'marketplace-author-avatar' &&
+    (values.file !== undefined) === (values.clear === true)
+  )
+    usage('marketplace-author-avatar needs exactly one of --file or --clear.');
+  if (values.replaces !== undefined && command !== 'marketplace-upload')
+    usage('--replaces only applies to marketplace-upload.');
+  if (command === 'marketplace-delete' && values.confirm !== true)
+    usage(
+      'marketplace-delete erases the Uploaded Bot, its files and counts for everyone. Pass --confirm.',
+    );
+  if (command === 'marketplace-upload') {
+    if (values.name === undefined || !values.name.trim())
+      usage('marketplace-upload needs --name <listing name>.');
+    if (values.confirm !== true)
+      usage(
+        'marketplace-upload makes this Bot’s ready Share Draft public. Pass --confirm to upload.',
+      );
+  }
   if ((command === 'release-install' || command === 'release-restart') && values.confirm !== true)
     usage(
       command === 'release-install'
-        ? 'release-install replaces the installed DeepSeekBot. Pass --confirm to install.'
+        ? 'release-install replaces the installed Tobs. Pass --confirm to install.'
         : 'release-restart stops every running Bot turn on this Host. Pass --confirm to restart.',
     );
+  if ((command === 'plugin-install' || command === 'plugin-restart') && values.confirm !== true)
+    usage(
+      command === 'plugin-install'
+        ? 'plugin-install replaces the installed plugin. Pass --confirm to install.'
+        : 'plugin-restart stops every running Bot turn on this Host. Pass --confirm to restart.',
+    );
+  if (command === 'data-reset-confirm' && values.confirm !== true)
+    usage(
+      'data-reset-confirm removes every Bot and its data on this Host. Pass --confirm to clear.',
+    );
+  if (command === 'data-reset-confirm' && values['confirmation-stdin'] !== true)
+    usage('data-reset-confirm requires --confirmation-stdin.');
   if (command === 'telemetry-set' && values.enabled === values.disabled)
     usage('telemetry-set needs exactly one of --enabled or --disabled.');
   if (command !== 'pairing-review') return undefined;
@@ -212,15 +378,34 @@ async function messagingSnapshot(rpc: Rpc, slug: string) {
   return { pairings: list('pairings'), roles: list('roles') };
 }
 
+async function readResetToken(io: BotCreateCliIo): Promise<string> {
+  let input: unknown;
+  try {
+    input = JSON.parse(await (io.readStdin?.() ?? Promise.resolve('')));
+  } catch {
+    usage('Confirmation stdin must be JSON with a token string.');
+  }
+  const token = record(input)['token'];
+  if (
+    typeof token !== 'string' ||
+    !token.trim() ||
+    token.length > 256 ||
+    Object.keys(record(input)).some((key) => key !== 'token')
+  )
+    usage('Confirmation stdin must be JSON with only a token string from data-reset-preview.');
+  return token;
+}
+
 export async function runHostAdminCommand(
   command: HostAdminCommand,
   rest: string[],
   values: HostAdminValues,
-  _io: BotCreateCliIo,
+  io: BotCreateCliIo,
   host: { connect: () => Promise<Rpc>; signal: AbortSignal },
 ): Promise<unknown> {
   const review = validate(command, rest, values);
   const target = rest[0]?.trim() ?? '';
+  const resetToken = command === 'data-reset-confirm' ? await readResetToken(io) : undefined;
   const rpc = await host.connect();
   switch (command) {
     case 'pause':
@@ -242,12 +427,39 @@ export async function runHostAdminCommand(
           ...(values.topic === undefined ? {} : { topic: values.topic }),
           ...(values.sort === undefined ? {} : { sort: values.sort }),
           ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+          ...(values.lang === undefined ? {} : { lang: values.lang }),
+          ...(values['include-uploads'] === true ? { includeUploads: true } : {}),
         },
       });
     case 'marketplace-topics':
       return { topics: await rpc('marketplaceTopics', {}) };
+    case 'marketplace-sections':
+      return rpc('marketplaceSections', values.lang === undefined ? {} : { lang: values.lang });
+    case 'marketplace-digest':
+      return rpc('marketplaceDigest', {
+        ...(values.day === undefined ? {} : { day: values.day }),
+        ...(values.lang === undefined ? {} : { lang: values.lang }),
+      });
+    case 'marketplace-digests': {
+      const listed = await rpc<{ digests?: MarketplaceDigestSummary[] }>(
+        'marketplaceDigests',
+        values.lang === undefined ? {} : { lang: values.lang },
+      );
+      for (const digest of listed.digests ?? []) {
+        const picks = (digest.picks ?? []).map((pick) => pick.displayName ?? pick.id);
+        io.stderr(
+          `tobs: ${digest.day} ${digest.title}${picks.length === 0 ? '' : ` | ${picks.join(', ')}`}`,
+        );
+      }
+      return listed;
+    }
     case 'marketplace-detail':
-      return rpc('marketplaceDetail', { id: target });
+      return rpc(
+        'marketplaceDetail',
+        values.lang === undefined ? { id: target } : { id: target, lang: values.lang },
+      );
+    case 'marketplace-file':
+      return { file: await rpc('marketplaceFileView', { id: target, path: rest[1]! }) };
     case 'marketplace-submit':
       return rpc('marketplaceSubmit', {
         url: target,
@@ -260,6 +472,66 @@ export async function runHostAdminCommand(
         altcha: await proveHuman(rpc, host.signal),
         ...(reason === '' ? {} : { reason }),
       });
+    }
+    case 'marketplace-account':
+      return rpc('marketplaceAccount', {});
+    case 'marketplace-author':
+      return {
+        author: await rpc('marketplaceAuthorSave', {
+          displayName: values.name!.trim(),
+          acceptTerms: values['accept-terms'] === true,
+        }),
+      };
+    case 'marketplace-author-avatar':
+      return {
+        author: await rpc('marketplaceAuthorAvatarSet', {
+          avatar: values.clear === true ? null : imageDataUrl(readBytes(values.file)),
+        }),
+      };
+    case 'marketplace-upload-plan':
+      return rpc('marketplaceUploadPlan', { slug: target });
+    case 'marketplace-upload': {
+      const description = values.description?.trim();
+      return rpc('marketplaceUpload', {
+        slug: target,
+        displayName: values.name!.trim(),
+        ...(description === undefined || description === '' ? {} : { bio: description }),
+        ...(values.role === undefined ? {} : { tags: values.role.map((role) => role.trim()) }),
+        ...(values.replaces === undefined ? {} : { replaces: values.replaces.trim() }),
+      });
+    }
+    case 'marketplace-mine':
+      return rpc('marketplaceMine', values.lang === undefined ? {} : { lang: values.lang });
+    case 'marketplace-delete':
+      return rpc('marketplaceDelete', { id: target });
+    case 'marketplace-install': {
+      if (values.review === undefined) {
+        const reviewed = record(
+          await rpc('marketplaceInstallReview', {
+            id: target,
+            ...(values.lang === undefined ? {} : { lang: values.lang }),
+          }),
+        );
+        return {
+          ...reviewed,
+          installed: false,
+          next: [
+            `deepseekbot marketplace-install ${target} --review ${String(reviewed['reviewId'])} --confirm`,
+          ],
+        };
+      }
+      return {
+        ...record(
+          await rpc('marketplaceInstall', {
+            id: target,
+            reviewId: values.review,
+            ...(values['operation-key'] === undefined
+              ? {}
+              : { operationKey: values['operation-key'] }),
+          }),
+        ),
+        installed: true,
+      };
     }
     case 'release-check':
       return rpc('releaseUpdate', values.force === true ? { force: true } : {});
@@ -289,6 +561,39 @@ export async function runHostAdminCommand(
         );
       return result;
     }
+    case 'plugin-check':
+      return rpc('pluginUpdates', values.force === true ? { force: true } : {});
+    case 'plugin-install': {
+      const version = rest[1]!.trim();
+      const result = record(await rpc('pluginInstall', { name: target, version }));
+      if (result['status'] === 'failed')
+        throw new CliLiveError(
+          `plugin-${String(result['reason'])}`,
+          [
+            `Plugin ${target}@${version} was not installed (${String(result['reason'])}).`,
+            typeof result['diagnostic'] === 'string' ? result['diagnostic'] : '',
+            typeof result['logPath'] === 'string' ? `Log: ${result['logPath']}` : '',
+          ]
+            .filter(Boolean)
+            .join(' '),
+        );
+      return result;
+    }
+    case 'plugin-restart': {
+      const result = record(await rpc('pluginRestart', {}));
+      if (result['status'] === 'failed')
+        throw new CliLiveError(
+          `plugin-${String(result['reason'])}`,
+          result['reason'] === 'not-pending'
+            ? 'No plugin update is waiting for a restart.'
+            : 'This Host cannot restart itself; restart it from its launcher.',
+        );
+      return result;
+    }
+    case 'data-reset-preview':
+      return rpc('dataResetPreview', {});
+    case 'data-reset-confirm':
+      return rpc('dataResetConfirm', { token: resetToken });
     case 'telemetry-status':
       return rpc('telemetryStatus', {});
     case 'telemetry-set':

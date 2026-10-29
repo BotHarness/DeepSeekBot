@@ -1,3 +1,30 @@
+import { runDeviceActivity } from './cli-live-activity.js';
+import { HOST_LOOK_COMMANDS, runHostLook } from './cli-host-look.js';
+import {
+  PROFILE_BACKUP_COMMANDS,
+  isProfileBackupCommand,
+  runProfileBackupCommand,
+} from './cli-profile-backup.js';
+import { runPhoneNotifications } from './cli-phone-notifications.js';
+import {
+  WINDOW_ZOOM_COMMANDS,
+  WINDOW_ZOOM_OPTIONS,
+  runWindowZoomCommand,
+} from './cli-window-zoom.js';
+import { PHONE_ROUTE_COMMANDS, runPhoneRouteCommand } from './cli-phone-route.js';
+import { DEVICES_COMMANDS, isDevicesCommand, runDevicesCommand } from './cli-devices.js';
+import { DEVICE_CLIENT_COMMANDS, runDeviceClientCommand } from './cli-device-client.js';
+import {
+  DEVICE_NOTIFICATION_COMMANDS,
+  DEVICE_NOTIFICATION_OPTIONS,
+  runDeviceNotifications,
+} from './cli-device-notifications.js';
+import {
+  BROWSER_NOTIFICATION_COMMANDS,
+  runBrowserNotifications,
+} from './cli-browser-notifications.js';
+import { FEEDBACK_COMMANDS, runFeedbackCommand } from './cli-feedback.js';
+import { APPEARANCE_COMMANDS, APPEARANCE_OPTIONS, runAppearanceCommand } from './cli-appearance.js';
 import { prepareCloud, prepareCloudWork } from './cli-cloud.js';
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
@@ -7,6 +34,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { dmChannelId } from '../channels/channel.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
+import { CONNECTION_COMMANDS, runConnectionCommand } from './cli-connection.js';
 import { BOT_TOOL_COMMANDS, runBotToolCommand } from './cli-bot-tool.js';
 import {
   channelOperationKey,
@@ -87,27 +115,72 @@ import {
   type ApprovalTemplateValues,
 } from './cli-approval-templates.js';
 import {
+  PROMPT_PRESET_COMMANDS,
+  PROMPT_PRESET_OPTIONS,
+  isPromptPresetCommand,
+  runPromptPresetCommand,
+} from './cli-prompt-presets.js';
+import {
   APPROVAL_REVIEWER_COMMANDS,
   APPROVAL_REVIEWER_OPTIONS,
   isApprovalReviewerCommand,
   runApprovalReviewerCommand,
   type ApprovalReviewerValues,
 } from './cli-approval-reviewer.js';
+import {
+  isStorageCommand,
+  runStorageCommand,
+  STORAGE_COMMANDS,
+  STORAGE_OPTIONS,
+  type StorageValues,
+} from './cli-storage.js';
+import {
+  IDLE_COMPACTION_COMMANDS,
+  isIdleCompactionCommand,
+  runIdleCompactionCommand,
+} from './cli-idle-compaction.js';
+import {
+  CONNECT_COMMANDS,
+  CONNECT_OPTIONS,
+  isConnectCommand,
+  runConnectCommand,
+} from './cli-connect.js';
+import {
+  isShareDraftCommand,
+  runShareDraftCommand,
+  SHARE_DRAFT_COMMANDS,
+  SHARE_DRAFT_OPTIONS,
+} from './cli-share-draft.js';
 export { CliLiveError } from './cli-live-error.js';
 
 export const LIVE_OPTIONS = {
+  'new-home': { type: 'string' },
+
+  'connection-id': { type: 'string' },
+  fingerprint: { type: 'string' },
+  'link-file': { type: 'string' },
+  'remote-host-id': { type: 'string' },
+  'host-id': { type: 'string' },
+  ...DEVICE_NOTIFICATION_OPTIONS,
+  'activity-stdin': { type: 'boolean' },
+  ...WINDOW_ZOOM_OPTIONS,
+  ...CONNECT_OPTIONS,
+  ...APPEARANCE_OPTIONS,
   ...IM_OPTIONS,
   ...MESSAGING_OPTIONS,
   ...MODELS_USAGE_OPTIONS,
   ...CHANNEL_OPTIONS,
   ...HOST_ADMIN_OPTIONS,
+  ...SHARE_DRAFT_OPTIONS,
   ...INBOX_OPTIONS,
   ...SCHEDULE_OPTIONS,
   ...BROWSER_COMPUTER_OPTIONS,
   ...PROFILE_OPTIONS,
   ...TODO_OPTIONS,
   ...APPROVAL_TEMPLATE_OPTIONS,
+  ...PROMPT_PRESET_OPTIONS,
   ...APPROVAL_REVIEWER_OPTIONS,
+  ...STORAGE_OPTIONS,
   host: { type: 'string' },
   'token-file': { type: 'string' },
   'image-source': { type: 'string' },
@@ -115,6 +188,9 @@ export const LIVE_OPTIONS = {
   'image-reference': { type: 'string' },
   timeout: { type: 'string' },
   'message-id': { type: 'string' },
+  'reply-to': { type: 'string' },
+  'failure-message-id': { type: 'string' },
+  recovery: { type: 'string' },
   outcome: { type: 'string' },
   'answer-stdin': { type: 'boolean' },
   'values-stdin': { type: 'boolean' },
@@ -124,6 +200,7 @@ export const LIVE_OPTIONS = {
   scope: { type: 'string' },
   'acknowledge-risk': { type: 'boolean' },
   'patch-stdin': { type: 'boolean' },
+  refresh: { type: 'boolean' },
   'previous-value': { type: 'string' },
   member: { type: 'string', multiple: true },
   app: { type: 'string' },
@@ -160,6 +237,7 @@ const DEVICE_COMMANDS = [
   'computer-frame',
   'computer-takeover',
   'computer-input',
+  'computer-video',
 ] as const;
 
 const IM_CONTROL_COMMANDS = [
@@ -187,6 +265,22 @@ const CONTROL_COMMANDS = [
 ] as const;
 
 export const LIVE_COMMANDS = [
+  ...PROFILE_BACKUP_COMMANDS,
+  ...BROWSER_NOTIFICATION_COMMANDS,
+  ...CONNECTION_COMMANDS,
+  ...HOST_LOOK_COMMANDS,
+  ...DEVICE_NOTIFICATION_COMMANDS,
+  {
+    command: 'device-activity',
+    description:
+      'read capability or prepare/register/stop/status one device Lock Screen status (--device-file, --activity-stdin)',
+  },
+  ...FEEDBACK_COMMANDS,
+  ...WINDOW_ZOOM_COMMANDS,
+  ...PHONE_ROUTE_COMMANDS,
+  ...DEVICES_COMMANDS,
+  ...DEVICE_CLIENT_COMMANDS,
+  ...CONNECT_COMMANDS,
   ...IM_COMMANDS,
   ...MESSAGING_COMMANDS,
   {
@@ -200,13 +294,18 @@ export const LIVE_COMMANDS = [
   ...MODELS_USAGE_COMMANDS,
   ...CHANNEL_COMMANDS,
   ...HOST_ADMIN_COMMANDS,
+  ...SHARE_DRAFT_COMMANDS,
+  ...APPEARANCE_COMMANDS,
   ...INBOX_COMMANDS,
   ...BROWSER_COMPUTER_COMMANDS,
   ...PROFILE_COMMANDS,
   ...BOT_TOOL_COMMANDS,
   ...TODO_COMMANDS,
   ...APPROVAL_TEMPLATE_COMMANDS,
+  ...PROMPT_PRESET_COMMANDS,
   ...APPROVAL_REVIEWER_COMMANDS,
+  ...IDLE_COMPACTION_COMMANDS,
+  ...STORAGE_COMMANDS,
   {
     command: 'send',
     description: 'send a Human DM and collect its committed Bot reply from a live Host',
@@ -243,6 +342,10 @@ export const LIVE_COMMANDS = [
   },
   { command: 'release-info', description: 'read the running Host release lifecycle' },
   { command: 'workspace-options', description: 'list live Host workspaces for grants' },
+  {
+    command: 'folder-browse',
+    description: 'list folder names on the Host computer, as the phone folder picker does',
+  },
   { command: 'grant-create', description: 'authorize a Bot workspace through the live Host' },
   {
     command: 'browser-access-set',
@@ -299,6 +402,11 @@ export const LIVE_COMMANDS = [
   },
   { command: 'computer-status', description: 'read the profile Computer target and state' },
   {
+    command: 'computer-video',
+    description:
+      'Local Computer video status/open/signal/heartbeat/takeover/input/release/resume/close (JSON from stdin; open needs --out)',
+  },
+  {
     command: 'computer-frame',
     description: 'save the current picture of the profile Computer desktop to a file',
   },
@@ -348,6 +456,10 @@ export const LIVE_COMMANDS = [
     description: 'show which tools a Bot called in its recent turns, with outcomes',
   },
   {
+    command: 'bot-turn-input',
+    description: 'show the exact input messages a Bot received in its recent turns',
+  },
+  {
     command: 'computer-tools',
     description: 'list the Computer tools a Bot can call, with input schemas',
   },
@@ -371,6 +483,15 @@ interface LiveValues
     TodoValues,
     ApprovalTemplateValues,
     ApprovalReviewerValues {
+  'new-home'?: string;
+  'client-id'?: string;
+  'device-file'?: string;
+  'link-file'?: string;
+  'connection-id'?: string;
+  fingerprint?: string;
+  'remote-host-id'?: string;
+  'host-id'?: string;
+  'preferences-stdin'?: boolean;
   host?: string;
   'token-file'?: string;
   'image-source'?: string;
@@ -378,6 +499,9 @@ interface LiveValues
   'image-reference'?: string;
   timeout?: string;
   'message-id'?: string;
+  'reply-to'?: string;
+  'failure-message-id'?: string;
+  recovery?: string;
   body?: string;
   'body-stdin'?: boolean;
   'answer-stdin'?: boolean;
@@ -393,6 +517,7 @@ interface LiveValues
   scope?: string;
   'acknowledge-risk'?: boolean;
   'patch-stdin'?: boolean;
+  refresh?: boolean;
   'previous-value'?: string;
   member?: string[];
   'operation-key'?: string;
@@ -418,10 +543,17 @@ interface LiveValues
   'expected-head'?: string;
   'edit-id'?: string;
   target?: string;
+  keep?: boolean;
+  drop?: boolean;
+  'rewrite-stdin'?: boolean;
 }
 
 function usage(message: string): never {
   throw new CliLiveError('usage', message);
+}
+
+function isLoopbackName(name: string): boolean {
+  return name === 'localhost' || name === '[::1]' || /^127\.\d+\.\d+\.\d+$/u.test(name);
 }
 
 function hostUrl(value: string | undefined): URL {
@@ -433,7 +565,7 @@ function hostUrl(value: string | undefined): URL {
     usage('--host must be an HTTP(S) origin.');
   }
   const name = url.hostname;
-  const loopback = name === 'localhost' || name === '[::1]' || /^127\.\d+\.\d+\.\d+$/u.test(name);
+  const loopback = isLoopbackName(name);
   const tailnet =
     name.endsWith('.ts.net') || /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+$/u.test(name);
   if (
@@ -484,6 +616,16 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
   const login = new URL(base);
   login.searchParams.set('token', secret);
   let cookie = '';
+  const refused = (status: number): CliLiveError =>
+    status === 403 && !isLoopbackName(base.hostname)
+      ? new CliLiveError(
+          'host-untrusted',
+          `The Host does not accept requests addressed to ${base.hostname}; restart it with --trusted-host ${base.hostname}.`,
+        )
+      : new CliLiveError(
+          'host-unauthorized',
+          'The Host refused this authority cookie; refresh its launch token.',
+        );
   const request = async (url: URL, init: RequestInit = {}): Promise<Response> => {
     try {
       return await fetch(url, { ...init, signal, redirect: 'manual' });
@@ -511,10 +653,7 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
   const readResponse = async (response: Response): Promise<Record<string, unknown>> => {
     if (response.status === 401 || response.status === 403) {
       await response.body?.cancel();
-      throw new CliLiveError(
-        'host-unauthorized',
-        'The Host refused this authority cookie; refresh its launch token.',
-      );
+      throw refused(response.status);
     }
     try {
       const body = await response.text();
@@ -610,11 +749,7 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
         : typeof nested['code'] === 'string'
           ? nested['code']
           : undefined;
-    if ((status === 401 || status === 403) && code === undefined)
-      throw new CliLiveError(
-        'host-unauthorized',
-        'Host login was refused; refresh its launch token.',
-      );
+    if ((status === 401 || status === 403) && code === undefined) throw refused(status);
     const packages = Array.isArray(detail['packages'])
       ? detail['packages'].filter((name): name is string => typeof name === 'string')
       : [];
@@ -680,6 +815,43 @@ export async function runLiveCli(
   values: LiveValues,
   io: BotCreateCliIo,
 ): Promise<unknown> {
+  if (isProfileBackupCommand(command))
+    return runProfileBackupCommand(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (CONNECTION_COMMANDS.some((entry) => entry.command === command))
+    return runConnectionCommand(
+      command,
+      rest,
+      {
+        ...(values['client-id'] === undefined ? {} : { 'client-id': values['client-id'] }),
+        ...(values['connection-id'] === undefined
+          ? {}
+          : { 'connection-id': values['connection-id'] }),
+        ...(values['link-file'] === undefined ? {} : { 'link-file': values['link-file'] }),
+        ...(values.fingerprint === undefined ? {} : { fingerprint: values.fingerprint }),
+        ...(values.confirm === undefined ? {} : { confirm: values.confirm }),
+      },
+      io,
+      () => connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (command === 'host-look') {
+    const duration = timeoutMs(values.timeout);
+    const expiresAt = Date.now() + duration;
+    const signal = AbortSignal.timeout(duration);
+    return runHostLook(rest, values, io, () => connectLiveHost(values, io, signal), expiresAt);
+  }
+  if (command === 'device-activity') return runDeviceActivity(rest, values, io);
+  if (command === 'device-notifications') return runDeviceNotifications(rest, values, io);
+  if (command === 'phone-notifications') return runPhoneNotifications(rest, values, io);
+  if (BROWSER_NOTIFICATION_COMMANDS.some((entry) => entry.command === command))
+    return runBrowserNotifications(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (FEEDBACK_COMMANDS.some((entry) => entry.command === command))
+    return runFeedbackCommand(command, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
   if (IM_COMMANDS.some((entry) => entry.command === command)) {
     const operation = await prepareImAuthorization(command, rest, values, io);
     const signal = AbortSignal.timeout(timeoutMs(values.timeout));
@@ -708,6 +880,24 @@ export async function runLiveCli(
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
       return (await connectLiveHost(values, io, signal)).rpc;
     });
+  if (isConnectCommand(command))
+    return runConnectCommand(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (WINDOW_ZOOM_COMMANDS.some((entry) => entry.command === command))
+    return runWindowZoomCommand(command, rest, values, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (PHONE_ROUTE_COMMANDS.some((entry) => entry.command === command))
+    return runPhoneRouteCommand(command, rest, values, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (isDevicesCommand(command))
+    return runDevicesCommand(command, rest, values, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (DEVICE_CLIENT_COMMANDS.some((entry) => entry.command === command))
+    return runDeviceClientCommand(command, rest, values);
   if (command === 'cloud-work') {
     const input = await prepareCloudWork(rest, values, io);
     const host = await connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout)));
@@ -736,6 +926,10 @@ export async function runLiveCli(
     return runBrowserComputerCommand(command, rest, values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
+  if (APPEARANCE_COMMANDS.some((entry) => entry.command === command))
+    return runAppearanceCommand(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
   if (isProfileCommand(command))
     return runProfileCommand(command, rest, values, io, async () => {
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
@@ -743,6 +937,21 @@ export async function runLiveCli(
     });
   if (isApprovalReviewerCommand(command))
     return runApprovalReviewerCommand(command, rest, values, async () => {
+      const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+      return (await connectLiveHost(values, io, signal)).rpc;
+    });
+  if (isStorageCommand(command))
+    return runStorageCommand(command, rest, values as StorageValues, io, async () => {
+      const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+      return (await connectLiveHost(values, io, signal)).rpc;
+    });
+  if (isIdleCompactionCommand(command))
+    return runIdleCompactionCommand(command, rest, async () => {
+      const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+      return (await connectLiveHost(values, io, signal)).rpc;
+    });
+  if (isPromptPresetCommand(command))
+    return runPromptPresetCommand(command, rest, values, io, async () => {
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
       return (await connectLiveHost(values, io, signal)).rpc;
     });
@@ -763,20 +972,30 @@ export async function runLiveCli(
       io,
       () => connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
-  if (command === 'bot-trace') {
-    if (rest.length !== 1 || !rest[0]?.trim()) usage('bot-trace needs exactly one bot id.');
+  if (command === 'bot-trace' || command === 'bot-turn-input') {
+    if (rest.length !== 1 || !rest[0]?.trim()) usage(`${command} needs exactly one bot id.`);
     const turns = values.turns === undefined ? undefined : Number(values.turns);
     if (turns !== undefined && (!Number.isInteger(turns) || turns < 1 || turns > 20))
       usage('--turns must be an integer from 1 to 20.');
     const signal = AbortSignal.timeout(timeoutMs(values.timeout));
-    return (await connectLiveHost(values, io, signal)).rpc('botToolTrace', {
-      slug: rest[0].trim(),
-      ...(values.session === undefined ? {} : { sessionId: values.session }),
-      ...(turns === undefined ? {} : { turns }),
-    });
+    if (command === 'bot-turn-input' && values.session === 'direct')
+      usage('bot-turn-input reads a model Session, not direct tool calls.');
+    return (await connectLiveHost(values, io, signal)).rpc(
+      command === 'bot-trace' ? 'botToolTrace' : 'botTurnInput',
+      {
+        slug: rest[0].trim(),
+        ...(values.session === undefined ? {} : { sessionId: values.session }),
+        ...(turns === undefined ? {} : { turns }),
+      },
+    );
   }
   if (isChannelCommand(command))
     return runChannelCommand(command, rest, values, io, connectLiveHost);
+  if (isShareDraftCommand(command))
+    return runShareDraftCommand(command, rest, values, io, async () => {
+      const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+      return (await connectLiveHost(values, io, signal)).rpc;
+    });
   if (isHostAdminCommand(command)) {
     const signal = AbortSignal.timeout(timeoutMs(values.timeout));
     return runHostAdminCommand(command, rest, values, io, {
@@ -786,6 +1005,18 @@ export async function runLiveCli(
   }
   if (DEVICE_COMMANDS.some((entry) => entry === command))
     return runDeviceCommand(command as (typeof DEVICE_COMMANDS)[number], rest, values, io);
+  if (command === 'folder-browse') {
+    if (rest.length > 1) usage('folder-browse takes at most one folder path.');
+    const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+    const path = rest[0]?.trim();
+    const offset = values.offset === undefined ? undefined : Number(values.offset);
+    if (offset !== undefined && (!Number.isInteger(offset) || offset < 0 || offset > 1_000_000))
+      usage('--offset must be an integer from 0 to 1000000.');
+    return (await connectLiveHost(values, io, signal)).rpc('folderBrowse', {
+      ...(path ? { path } : {}),
+      ...(offset === undefined ? {} : { offset }),
+    });
+  }
   if (command === 'grants') {
     if (rest.length !== 1 || !rest[0]?.trim()) usage('grants needs exactly one bot id.');
     const signal = AbortSignal.timeout(timeoutMs(values.timeout));
@@ -858,14 +1089,17 @@ export async function runLiveCli(
       !/^human-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(messageId)
     )
       usage('--message-id must be human- followed by a UUID.');
+    if (values['reply-to'] !== undefined && !values['reply-to'].trim())
+      usage('--reply-to needs a message id.');
   }
   if (
     command === 'tool-approval-decide' &&
     values.outcome !== 'allowed-once' &&
+    values.outcome !== 'allowed-always-tool' &&
     values.outcome !== 'allowed-always-kind' &&
     values.outcome !== 'rejected'
   )
-    usage('--outcome must be allowed-once, allowed-always-kind or rejected.');
+    usage('--outcome must be allowed-once, allowed-always-tool, allowed-always-kind or rejected.');
   if (command === 'user-question-answer') {
     if (!values['answer-stdin']) usage('user-question-answer requires --answer-stdin.');
     try {
@@ -1020,7 +1254,12 @@ export async function runLiveCli(
     try {
       const bot = await rpc<{ bot: { displayName?: string } }>('get', { slug: target });
       await rpc('channelDm', { slug: target, displayName: bot.bot.displayName });
-      sent = await rpc('channelSend', { channelId, body, messageId: receipt.messageId });
+      sent = await rpc('channelSend', {
+        channelId,
+        body,
+        messageId: receipt.messageId,
+        ...(values['reply-to'] === undefined ? {} : { replyTo: values['reply-to'].trim() }),
+      });
       while (Date.now() < deadline) {
         const status = await rpc<{ state: string; replies: unknown[] }>(
           'channelSendStatus',
@@ -1318,25 +1557,35 @@ async function runDeviceCommand(
   io: BotCreateCliIo,
 ): Promise<unknown> {
   const direct = command === 'browser-tool' || command === 'computer-tool';
+  const video = command === 'computer-video';
   const computer = (command.startsWith('computer-') && !direct) || command === 'browser-tools';
-  const positionals = direct ? 2 : computer ? 0 : 1;
+  const positionals = direct ? 2 : video ? 1 : computer ? 0 : 1;
   if (rest.length !== positionals || rest.some((value) => !value.trim()))
     usage(
       direct
         ? `${command} needs a bot id and a tool name.`
-        : computer
-          ? `${command} takes no positional arguments.`
-          : `${command} needs exactly one bot id.`,
+        : video
+          ? 'computer-video needs exactly one operation.'
+          : computer
+            ? `${command} takes no positional arguments.`
+            : `${command} needs exactly one bot id.`,
     );
   let toolArgs: Record<string, unknown> = {};
-  const input = command === 'browser-input' || command === 'computer-input';
+  const input =
+    command === 'browser-input' ||
+    command === 'computer-input' ||
+    (video && !['status', 'open'].includes(rest[0]!));
   if (input && values['args-stdin'] !== true)
     usage(
-      `${command} needs --args-stdin with a JSON input such as {"kind":"click","x":10,"y":20}.`,
+      video
+        ? `computer-video ${rest[0]} needs --args-stdin with its binding/runtime command JSON.`
+        : `${command} needs --args-stdin with a JSON input such as {"kind":"click","x":10,"y":20}.`,
     );
   if ((direct || input) && values['args-stdin'] === true) {
     try {
-      const parsed: unknown = JSON.parse(await (io.readStdin?.() ?? Promise.resolve('')));
+      const raw = await (io.readStdin?.() ?? Promise.resolve(''));
+      if (video && Buffer.byteLength(raw) > 128 * 1024) throw new Error('input too large');
+      const parsed: unknown = JSON.parse(raw);
       if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
         throw new Error('not an object');
       toolArgs = parsed as Record<string, unknown>;
@@ -1352,6 +1601,32 @@ async function runDeviceCommand(
   )
     usage('--out must be an absolute file path.');
   const slug = rest[0]?.trim() ?? '';
+  if (video) {
+    if (
+      ![
+        'status',
+        'open',
+        'signal',
+        'heartbeat',
+        'takeover',
+        'input',
+        'release',
+        'resume',
+        'close',
+      ].includes(slug)
+    )
+      usage(
+        'computer-video needs status, open, signal, heartbeat, takeover, input, release, resume or close.',
+      );
+    if (toolArgs['force'] === true && values.confirm !== true)
+      usage('Forced takeover requires --confirm.');
+    if (
+      slug === 'open' &&
+      (values.out === undefined ||
+        (!values.out.startsWith('/') && !/^[A-Za-z]:[\\/]/u.test(values.out)))
+    )
+      usage('computer-video open requires --out <absolute-file> for private signaling data.');
+  }
   if (command === 'browser-frame' || command === 'computer-frame') {
     const out = values.out ?? '';
     if (!out.startsWith('/') && !/^[A-Za-z]:[\\/]/u.test(out))
@@ -1398,6 +1673,36 @@ async function runDeviceCommand(
       return { type: 'image', mimeType: item['mimeType'], bytes: bytes.byteLength };
     });
   if (command === 'browser-tools') return json('/api/browser/tools');
+  if (video) {
+    const result = record(
+      await json('/api/computer/video', {
+        ...toolArgs,
+        kind: slug,
+        ...(toolArgs['force'] === true ? { confirm: values.confirm === true } : {}),
+      }),
+    );
+    const state = record(result['state']);
+    const { offer, ...safeState } = state;
+    if (offer !== undefined && values.out !== undefined) {
+      try {
+        writeFileSync(values.out, JSON.stringify(offer), { mode: 0o600, flag: 'wx' });
+      } catch {
+        if (state['binding'] !== undefined)
+          await json('/api/computer/video', { kind: 'close', binding: state['binding'] }).catch(
+            () => undefined,
+          );
+        throw new CliLiveError(
+          'signaling-file-failed',
+          'Private signaling could not be saved. Use a new writable absolute file.',
+        );
+      }
+    }
+    return {
+      ...result,
+      ...(result['state'] === undefined ? {} : { state: safeState }),
+      ...(offer === undefined ? {} : { signalingFile: values.out }),
+    };
+  }
   if (command === 'computer-tools') return json('/api/computer/tools');
   if (command === 'computer-tool') {
     const result = record(
@@ -1582,7 +1887,14 @@ async function runMemoryCommand(
       const offset = values.offset === undefined ? 0 : Number(values.offset);
       if (!Number.isInteger(offset) || offset < 0 || offset > 10_000)
         usage('--offset must be an integer from 0 to 10000.');
-      [method, args] = ['memoryGitGraph', { channelId, offset }];
+      [method, args] = [
+        'memoryGitGraph',
+        {
+          channelId,
+          offset,
+          ...(values.path === undefined ? {} : { path: required('path', 'path <file>') }),
+        },
+      ];
       break;
     }
     case 'memory-commit-diff':

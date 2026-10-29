@@ -1,0 +1,44 @@
+{
+  "scope": "#2293; wallpaper-active Bot workspace only; no upstream edits",
+  "checks": {
+    "clientTests": {
+      "passed": 2035,
+      "skipped": 1
+    },
+    "chromiumCascadeCases": 64,
+    "nativeMacOSZoomCases": 68,
+    "lint": "passed",
+    "typecheck": "passed",
+    "format": "passed",
+    "changelog": "passed",
+    "fullBuild": "passed",
+    "cdpCachedConsole": {
+      "exceptions": 0,
+      "errors": 0,
+      "warnings": 0
+    }
+  },
+  "retained": {
+    "macOSWindowSafeArea": "88 x 40 physical CSS pixels",
+    "fullscreenCorner": "hidden",
+    "nativeControls": "present in AX; native fullscreen entry/exit exercised",
+    "defaultCanvas": "restored after wallpaper disposal in browser fixture",
+    "originalMedia": "original bytes and crop restored after testing",
+    "effectiveAppearance": "restored via Client CLI; fresh revision and empty default material objects expected"
+  },
+  "limits": [
+    "Human QA pending",
+    "Native Host diagnostic collector unavailable; CDP cached console is narrower evidence",
+    "Native video codecs and Windows/Linux are not newly qualified",
+    "macOS system screen-sharing indicator is retained"
+  ],
+  "nativeMatrixCheckpoint": "2c32667f841987abd29015036cbccbe97d7e7e19; global-material cases; precedes the final selector strengthening for per-Panel overrides",
+  "finalSourceSha256": "52e69f35c64d2ec52ac33b3b2d6dd8b72be40a2849d6a20dbbb81d114cb24887",
+  "finalNativeCheckpoint": {
+    "sameProfile": true,
+    "zoom": "100%",
+    "border": "transparent",
+    "selector": "Refined theme/group selector matches actual native header; configured background retained",
+    "matrixLimit": "The 68-case native matrix was not repeated after the selector-only refinement; final per-Panel override combinations are qualified by the 64-case Chromium production-CSS regression."
+  }
+}

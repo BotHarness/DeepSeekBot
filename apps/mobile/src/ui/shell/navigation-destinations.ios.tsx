@@ -6,19 +6,22 @@ import {
   buttonBorderShape,
   buttonStyle,
   font,
-  fixedSize,
   foregroundStyle,
   frame,
+  lineLimit,
+  minimumScaleFactor,
+  monospacedDigit,
   onLongPressGesture,
 } from '@expo/ui/swift-ui/modifiers';
 import { Platform } from 'react-native';
 import { useDesignTheme } from '../design/theme';
-import { space } from '../design/tokens';
+import { navigationBar, space } from '../design/tokens';
 import { badgeCount } from '../primitives/badge-count';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import type { NavigationDestination } from './navigation-destination';
 
 export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const glass = Number.parseInt(String(Platform.Version), 10) >= 26;
   return (
@@ -31,11 +34,24 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
         ]}
       >
         {items.map((item) => {
-          const label = item.search ? t.localSearch.title : item.activity ? t.activity : t.chats;
+          const label = item.search
+            ? t.localSearch.title
+            : item.settings
+              ? t.settings
+              : item.activity
+                ? t.activity
+                : t.chats;
           const accessibility = item.count > 0 ? `${label}, ${badgeCount(item.count)}` : label;
           return (
             <Button
               key={item.key}
+              testID={
+                item.search
+                  ? 'navigation-search'
+                  : item.settings
+                    ? 'settings-button'
+                    : `tab-${item.key}`
+              }
               onPress={item.onPress}
               modifiers={[
                 buttonStyle(item.focused ? (glass ? 'glass' : 'bordered') : 'plain'),
@@ -52,31 +68,40 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
                 spacing={space.x1}
                 modifiers={[frame({ maxWidth: Infinity, minHeight: theme.touch })]}
               >
-                <HStack spacing={space.x2}>
+                {item.activity && !item.focused && item.count > 0 ? (
+                  <Text
+                    modifiers={[
+                      font({ textStyle: 'title2', weight: 'semibold' }),
+                      monospacedDigit(),
+                    ]}
+                  >
+                    {badgeCount(item.count)}
+                  </Text>
+                ) : (
                   <Image
                     systemName={
                       item.search
                         ? 'magnifyingglass'
-                        : item.activity
+                        : item.settings
                           ? item.focused
-                            ? 'bell.fill'
-                            : 'bell'
-                          : item.focused
-                            ? 'bubble.left.and.bubble.right.fill'
-                            : 'bubble.left.and.bubble.right'
+                            ? 'gearshape.fill'
+                            : 'gearshape'
+                          : item.activity
+                            ? item.focused
+                              ? 'bell.fill'
+                              : 'bell'
+                            : item.focused
+                              ? 'bubble.left.and.bubble.right.fill'
+                              : 'bubble.left.and.bubble.right'
                     }
                     modifiers={[font({ textStyle: 'title2' })]}
                   />
-                  {item.count > 0 && (
-                    <Text modifiers={[font({ textStyle: 'caption2', weight: 'semibold' })]}>
-                      {badgeCount(item.count)}
-                    </Text>
-                  )}
-                </HStack>
+                )}
                 <Text
                   modifiers={[
                     font({ textStyle: 'caption2' }),
-                    fixedSize({ horizontal: false, vertical: true }),
+                    lineLimit(1),
+                    minimumScaleFactor(navigationBar.labelMinScale),
                   ]}
                 >
                   {label}

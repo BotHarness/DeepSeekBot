@@ -40,6 +40,7 @@
 /docs/share-bot.md https://deepseekbot.botharness.ai/en/docs/share-bot/ 301
 /docs/soul-and-core-memory.md https://deepseekbot.botharness.ai/en/docs/soul-and-core-memory/ 301
 /docs/update-deepseekbot.md https://deepseekbot.botharness.ai/en/docs/update-deepseekbot/ 301
+/docs/mobile-pairing.md https://deepseekbot.botharness.ai/en/docs/mobile-pairing/ 301
 /docs/concepts.md https://deepseekbot.botharness.ai/en/docs/concepts/ 301
 /zh/docs/overview.md https://deepseekbot.botharness.ai/docs/overview/ 301
 /zh/docs/quickstart.md https://deepseekbot.botharness.ai/docs/quickstart/ 301
@@ -73,6 +74,7 @@
 /zh/docs/share-bot.md https://deepseekbot.botharness.ai/docs/share-bot/ 301
 /zh/docs/soul-and-core-memory.md https://deepseekbot.botharness.ai/docs/soul-and-core-memory/ 301
 /zh/docs/update-deepseekbot.md https://deepseekbot.botharness.ai/docs/update-deepseekbot/ 301
+/zh/docs/mobile-pairing.md https://deepseekbot.botharness.ai/docs/mobile-pairing/ 301
 /zh/docs/concepts.md https://deepseekbot.botharness.ai/docs/concepts/ 301
 
 # BotHarness product runtime docs moved out of the DSH/Cordis development tree.

@@ -12,6 +12,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   const stub = () => null;
   const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
   return {
+    IconWarningTriangleOutlineRegular: () => null,
     IconCodeOutlineRegular: () => null,
     IconBranchOutlineRegular: () => null,
     Button: stub,
@@ -392,7 +393,7 @@ describe('Bot main Sessions pane', () => {
     expect(markup).toContain('data-channel-menu-caret=""');
     expect(markup).toMatch(/<span data-conversation-title="" class="[^"]+">Ada<\/span>/);
     expect(markup).not.toContain('bh-channel-sidebar-title');
-    expect(markup).toContain('class="bh-chat-top-fade"');
+    expect(markup).not.toContain('bh-chat-top-fade');
     expect(markup).not.toContain('研究发布状态');
     expect(markup).not.toContain('Ada 空闲');
     expect(markup).not.toContain('bh-composer-activity-status');
@@ -562,7 +563,7 @@ describe('Bot main Sessions pane', () => {
       }),
     );
     expect(markup).toContain('bh-bubble-pending');
-    expect(markup).toContain('发送中');
+    expect(markup).not.toContain('发送中');
     expect(markup).toContain('hello');
     expect(markup).not.toContain('bh-message-group-avatar');
   });
@@ -610,7 +611,8 @@ describe('Bot main Sessions pane', () => {
     );
     expect(markup).toContain('hello');
     expect(markup).toContain('bh-bubble-failed');
-    expect(markup).toContain('发送失败');
+    expect(markup).toContain('将失败消息放回输入框修改后重发');
+    expect(markup).toContain('network disconnected');
     expect(markup).not.toContain('发送中');
   });
   it('keeps a Bot DM read-only when its stored member list is incomplete', () => {
@@ -652,6 +654,69 @@ describe('Bot main Sessions pane', () => {
     store.setRoster(previous.bots, previous.channels);
     store.select(previous.selection);
     store.setConversation(previous.conversation);
+  });
+  it('labels a deleted Bot DM as read-only history', () => {
+    const previous = store.getSnapshot();
+    const channel = {
+      id: 'dm-ada',
+      type: 'dm' as const,
+      name: 'Ada',
+      members: ['ada'],
+      botSlug: 'ada',
+      createdAt: '2026-09-21T00:00:00.000Z',
+      updatedAt: '2026-09-21T00:01:00.000Z',
+    };
+    const render = (deleted: boolean): string => {
+      store.setRoster(
+        [
+          {
+            slug: 'ada',
+            displayName: 'Ada',
+            roles: [],
+            aggregateState: 'idle',
+            workspaces: [],
+            createdAt: '2026-09-21T00:00:00.000Z',
+            ...(deleted ? { deleted: true, paused: true } : {}),
+          },
+        ],
+        [channel],
+      );
+      store.select({ kind: 'channel', channelId: channel.id });
+      store.setConversation({
+        status: 'ready',
+        channel,
+        messages: [
+          {
+            id: 'local-failed-1',
+            at: '2026-09-21T00:02:00.000Z',
+            author: { kind: 'human' },
+            body: 'hello',
+            failed: 'network disconnected',
+          },
+        ],
+        sending: false,
+      });
+      return renderToStaticMarkup(
+        createElement(BotMain, {
+          actions: { ...inertSubmissionActions } as BridgeActions,
+          channelSidebar: sidebarRegistry(),
+        }),
+      );
+    };
+    try {
+      const live = render(false);
+      expect(live).not.toContain('bh-bot-dm-readonly');
+      expect(live).toContain('<button type="button" class="bh-bubble-failed-action"');
+      const markup = render(true);
+      expect(markup).toContain('已删除的 Bot · 仅供查看');
+      expect(markup).toContain('发送失败');
+      expect(markup).not.toContain('<button type="button" class="bh-bubble-failed-action"');
+      expect(markup).not.toContain('Bot 之间的私聊 · 仅供查看');
+    } finally {
+      store.setRoster(previous.bots, previous.channels);
+      store.select(previous.selection);
+      store.setConversation(previous.conversation);
+    }
   });
   it('keeps the own identity row inside the mirrored group while name still precedes time in DOM order', () => {
     const previous = store.getSnapshot();
@@ -1140,9 +1205,9 @@ describe('Bot main Sessions pane', () => {
     expect(menu?.items?.map((item) => item.id)).toEqual([
       'reply',
       'react',
-      'locate',
       'copy',
       'select',
+      'feedback',
     ]);
     await act(async () => menu!.onSelect!('react'));
     const pressed = document.body.querySelector('[data-reaction-picker]');
@@ -1335,7 +1400,7 @@ describe('DM usage refresh', () => {
         root.render(createElement(BotMain, { actions, channelSidebar: sidebarRegistry() })),
       );
       const before = node.querySelector('[data-composer-chip="usage"]')!.textContent;
-      expect(before).toContain('0');
+      expect(before).toContain('— / —');
       await act(async () => {
         store.setConversation({
           messages: [
@@ -1423,6 +1488,99 @@ describe('Bot main question developer details', () => {
     } finally {
       await act(async () => root.unmount());
       node.remove();
+      store.select(previous.selection);
+      store.setConversation(previous.conversation);
+    }
+  });
+});
+
+describe('return to latest messages', () => {
+  it('appears on ordinary history scroll, counts live messages and hides after return', async () => {
+    const previous = store.getSnapshot();
+    const bot = {
+      slug: 'timeline-return',
+      displayName: 'Timeline return',
+      roles: [],
+      aggregateState: 'idle',
+      workspaces: [],
+      createdAt: '2026-10-24T00:00:00.000Z',
+    };
+    const channel = {
+      id: 'dm-timeline-return',
+      type: 'dm' as const,
+      name: bot.displayName,
+      members: [bot.slug],
+      botSlug: bot.slug,
+      createdAt: bot.createdAt,
+      updatedAt: bot.createdAt,
+    };
+    const message = (id: string): ChannelMessage => ({
+      id,
+      at: bot.createdAt,
+      author: { kind: 'bot', slug: bot.slug },
+      body: id,
+    });
+    const actions = {
+      profileActivity: async () => ({
+        slug: bot.slug,
+        modelUsageStatus: 'ready',
+        modelUsageRows: [],
+      }),
+      modelPlanState: async () => ({}),
+      modelCatalog: async () => ({ models: [] }),
+      listWorkspaceGrants: async () => [],
+      botSourcePolicies: async () => [],
+      markRead: async () => undefined,
+      ...inertSubmissionActions,
+    } as unknown as BridgeActions;
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    store.setRoster([bot], [channel]);
+    store.select({ kind: 'bot', slug: bot.slug });
+    store.setConversation({
+      status: 'ready',
+      channel,
+      messages: [message('first')],
+      revision: 1,
+      sending: false,
+    });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      await act(async () =>
+        root.render(createElement(BotMain, { actions, channelSidebar: sidebarRegistry() })),
+      );
+      const viewport = container.querySelector<HTMLElement>('.bh-chat-body')!;
+      Object.defineProperties(viewport, {
+        scrollHeight: { value: 2000 },
+        clientHeight: { value: 500 },
+      });
+      const button = () => container.querySelector<HTMLButtonElement>('.bh-timeline-new');
+      expect(button()).toBeNull();
+      await act(async () => {
+        viewport.scrollTop = 1000;
+        viewport.dispatchEvent(new Event('scroll'));
+      });
+      expect(button()?.getAttribute('aria-label')).toBe(zhTranslate('messages.latest'));
+      expect(button()?.textContent).toBe('');
+      expect(button()?.querySelector('.bh-timeline-new-count')).toBeNull();
+      await act(async () => {
+        store.setConversation({
+          messages: [message('first'), message('second'), message('third')],
+          revision: 3,
+        });
+      });
+      expect(button()?.textContent).toBe('2');
+      expect(button()?.getAttribute('aria-description')).toBe(
+        zhTranslate('messages.unseen', { count: 2 }),
+      );
+      await act(async () => button()!.click());
+      expect(viewport.scrollTop).toBe(2000);
+      expect(button()).toBeNull();
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      store.setRoster(previous.bots, previous.channels);
       store.select(previous.selection);
       store.setConversation(previous.conversation);
     }

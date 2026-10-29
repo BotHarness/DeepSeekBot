@@ -152,6 +152,11 @@ window.__ModuleLoader__.load({
 		*/
 		const glyphs = {
 			"chevron-right": [["path", { d: "m9 18 6-6-6-6" }]],
+			store: [
+				["path", { d: "M15 21v-5a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v5" }],
+				["path", { d: "M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244" }],
+				["path", { d: "M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05" }]
+			],
 			house: [["path", { d: "m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" }]],
 			hash: [
 				["line", {
@@ -321,6 +326,17 @@ window.__ModuleLoader__.load({
 				}]
 			],
 			"shield-check": [["path", { d: "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" }], ["path", { d: "m9 12 2 2 4-4" }]],
+			upload: [
+				["path", { d: "M12 3v12" }],
+				["path", { d: "m17 8-5-5-5 5" }],
+				["path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }]
+			],
+			package: [
+				["path", { d: "M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z" }],
+				["path", { d: "M12 22V12" }],
+				["path", { d: "M3.29 7 12 12l8.71-5" }],
+				["path", { d: "m7.5 4.27 9 5.15" }]
+			],
 			plus: [["path", { d: "M5 12h14" }], ["path", { d: "M12 5v14" }]],
 			user: [["path", { d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" }], ["circle", {
 				cx: "12",
@@ -502,6 +518,13 @@ window.__ModuleLoader__.load({
 				["path", { d: "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" }],
 				["path", { d: "M2 12h20" }]
 			],
+			"panel-right": [["rect", {
+				width: "18",
+				height: "18",
+				x: "3",
+				y: "3",
+				rx: "2"
+			}], ["path", { d: "M15 3v18" }]],
 			"panels-top-left": [
 				["rect", {
 					width: "18",
@@ -545,8 +568,196 @@ window.__ModuleLoader__.load({
 					r: "1"
 				}]
 			],
+			star: [["path", { d: "M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z" }]],
+			copy: [["rect", {
+				width: "14",
+				height: "14",
+				x: "8",
+				y: "8",
+				rx: "2",
+				ry: "2"
+			}], ["path", { d: "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" }]],
+			"external-link": [
+				["path", { d: "M15 3h6v6" }],
+				["path", { d: "M10 14 21 3" }],
+				["path", { d: "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" }]
+			],
+			sun: [
+				["circle", {
+					cx: "12",
+					cy: "12",
+					r: "4"
+				}],
+				["path", { d: "M12 2v2" }],
+				["path", { d: "M12 20v2" }],
+				["path", { d: "m4.93 4.93 1.41 1.41" }],
+				["path", { d: "m17.66 17.66 1.41 1.41" }],
+				["path", { d: "M2 12h2" }],
+				["path", { d: "M20 12h2" }],
+				["path", { d: "m6.34 17.66-1.41 1.41" }],
+				["path", { d: "m19.07 4.93-1.41 1.41" }]
+			],
+			moon: [["path", { d: "M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" }]],
+			crop: [["path", { d: "M6 2v14a2 2 0 0 0 2 2h14" }], ["path", { d: "M18 22V8a2 2 0 0 0-2-2H2" }]],
+			ban: [["circle", {
+				cx: "12",
+				cy: "12",
+				r: "10"
+			}], ["path", { d: "M4.929 4.929 19.07 19.071" }]],
 			x: [["path", { d: "M18 6 6 18" }], ["path", { d: "m6 6 12 12" }]],
-			check: [["path", { d: "M20 6 9 17l-5-5" }]]
+			"message-square": [["path", { d: "M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z" }]],
+			keyboard: [
+				["path", { d: "M10 8h.01" }],
+				["path", { d: "M12 12h.01" }],
+				["path", { d: "M14 8h.01" }],
+				["path", { d: "M16 12h.01" }],
+				["path", { d: "M18 8h.01" }],
+				["path", { d: "M6 8h.01" }],
+				["path", { d: "M7 16h10" }],
+				["path", { d: "M8 12h.01" }],
+				["rect", {
+					width: "20",
+					height: "16",
+					x: "2",
+					y: "4",
+					rx: "2"
+				}]
+			],
+			smartphone: [["rect", {
+				width: "14",
+				height: "20",
+				x: "5",
+				y: "2",
+				rx: "2",
+				ry: "2"
+			}], ["path", { d: "M12 18h.01" }]],
+			"sliders-horizontal": [
+				["path", { d: "M10 5H3" }],
+				["path", { d: "M12 19H3" }],
+				["path", { d: "M14 3v4" }],
+				["path", { d: "M16 17v4" }],
+				["path", { d: "M21 12h-9" }],
+				["path", { d: "M21 19h-5" }],
+				["path", { d: "M21 5h-7" }],
+				["path", { d: "M8 10v4" }],
+				["path", { d: "M8 12H3" }]
+			],
+			info: [
+				["circle", {
+					cx: "12",
+					cy: "12",
+					r: "10"
+				}],
+				["path", { d: "M12 16v-4" }],
+				["path", { d: "M12 8h.01" }]
+			],
+			puzzle: [["path", { d: "M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z" }]],
+			check: [["path", { d: "M20 6 9 17l-5-5" }]],
+			laptop: [["path", { d: "M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z" }], ["path", { d: "M20.054 15.987H3.946" }]],
+			server: [
+				["rect", {
+					width: "20",
+					height: "8",
+					x: "2",
+					y: "2",
+					rx: "2",
+					ry: "2"
+				}],
+				["rect", {
+					width: "20",
+					height: "8",
+					x: "2",
+					y: "14",
+					rx: "2",
+					ry: "2"
+				}],
+				["line", {
+					x1: "6",
+					x2: "6.01",
+					y1: "6",
+					y2: "6"
+				}],
+				["line", {
+					x1: "6",
+					x2: "6.01",
+					y1: "18",
+					y2: "18"
+				}]
+			],
+			building: [
+				["path", { d: "M12 10h.01" }],
+				["path", { d: "M12 14h.01" }],
+				["path", { d: "M12 6h.01" }],
+				["path", { d: "M16 10h.01" }],
+				["path", { d: "M16 14h.01" }],
+				["path", { d: "M16 6h.01" }],
+				["path", { d: "M8 10h.01" }],
+				["path", { d: "M8 14h.01" }],
+				["path", { d: "M8 6h.01" }],
+				["path", { d: "M9 22v-3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" }],
+				["rect", {
+					x: "4",
+					y: "2",
+					width: "16",
+					height: "20",
+					rx: "2"
+				}]
+			],
+			briefcase: [["path", { d: "M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" }], ["rect", {
+				width: "20",
+				height: "14",
+				x: "2",
+				y: "6",
+				rx: "2"
+			}]],
+			"flask-conical": [
+				["path", { d: "M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2" }],
+				["path", { d: "M6.453 15h11.094" }],
+				["path", { d: "M8.5 2h7" }]
+			],
+			"gamepad-2": [
+				["line", {
+					x1: "6",
+					x2: "10",
+					y1: "11",
+					y2: "11"
+				}],
+				["line", {
+					x1: "8",
+					x2: "8",
+					y1: "9",
+					y2: "13"
+				}],
+				["line", {
+					x1: "15",
+					x2: "15.01",
+					y1: "12",
+					y2: "12"
+				}],
+				["line", {
+					x1: "18",
+					x2: "18.01",
+					y1: "10",
+					y2: "10"
+				}],
+				["path", { d: "M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z" }]
+			],
+			paintbrush: [
+				["path", { d: "m14.622 17.897-10.68-2.913" }],
+				["path", { d: "M18.376 2.622a1 1 0 1 1 3.002 3.002L17.36 9.643a.5.5 0 0 0 0 .707l.944.944a2.41 2.41 0 0 1 0 3.408l-.944.944a.5.5 0 0 1-.707 0L8.354 7.348a.5.5 0 0 1 0-.707l.944-.944a2.41 2.41 0 0 1 3.408 0l.944.944a.5.5 0 0 0 .707 0z" }],
+				["path", { d: "M9 8c-1.804 2.71-3.97 3.46-6.583 3.948a.507.507 0 0 0-.302.819l7.32 8.883a1 1 0 0 0 1.185.204C12.735 20.405 16 16.792 16 15" }]
+			],
+			"book-open": [["path", { d: "M12 5v16" }], ["path", { d: "M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z" }]],
+			zap: [["path", { d: "M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z" }]],
+			heart: [["path", { d: "M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5" }]],
+			leaf: [["path", { d: "M11 20a10 10 0 0010-10 25.9 25.9 0 00-1.04-7.281 1 1 0 00-1.755-.325C15.833 5.5 13 5.5 9.8 6.1A7 7 0 0011 20" }], ["path", { d: "M2 21a5 5 0 012.911-4.544C7.613 15.212 8.351 15.24 11 13" }]],
+			tv: [["path", { d: "m17 2-5 5-5-5" }], ["rect", {
+				width: "20",
+				height: "15",
+				x: "2",
+				y: "7",
+				rx: "2"
+			}]]
 		};
 		function ChannelSidebarIcon({ name = "panels-top-left", size = 16 }) {
 			const nodes = Object.hasOwn(glyphs, name) ? glyphs[name] : glyphs["panels-top-left"];
@@ -609,6 +820,7 @@ window.__ModuleLoader__.load({
 			selected: "var(--dsw-alias-interactive-bg-active)",
 			navSelected: "var(--dsw-specific-sidebar-nav-item-active)",
 			accent: "var(--dsw-alias-state-business-primary)",
+			accentText: "var(--dsw-alias-link)",
 			onAccent: "var(--dsw-alias-label-primary-foreground)",
 			danger: "var(--dsw-alias-state-error-primary)",
 			onDanger: "var(--dsw-alias-label-primary-foreground)",
@@ -1445,6 +1657,32 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
+		//#region packages/client/src/client/ds/tooltip.tsx
+		const shared = globalThis;
+		const InstantTooltips = shared[Symbol.for("botharness.instant-tooltips")] ??= (0, react.createContext)(false);
+		function Tooltip(props) {
+			return (0, react.useContext)(InstantTooltips) ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+				...props,
+				portal: true,
+				delayMs: 0,
+				focusDelayMs: 0
+			}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, { ...props });
+		}
+		//#endregion
+		//#region packages/client/src/client/telemetry-surface.ts
+		function telemetrySurface() {
+			return typeof globalThis === "object" && "dshDesktop" in globalThis ? "desktop_app" : "browser";
+		}
+		function recordViewerOpen(rpc, panel) {
+			rpc?.call("/api", "botharness/telemetryEvent", { args: {
+				event: "viewer:subpanel_open",
+				properties: {
+					panel,
+					surface: telemetrySurface()
+				}
+			} }).catch(() => {});
+		}
+		//#endregion
 		//#region packages/client/src/client/sidebar-card.tsx
 		function SidebarCardList({ label, className, listRef, flush = false, children }) {
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
@@ -2249,6 +2487,7 @@ window.__ModuleLoader__.load({
 						role: "listbox",
 						"aria-label": label,
 						className: "bh-combobox-list",
+						"data-bh-appearance-owned": "",
 						style: {
 							...position,
 							width: root.current?.getBoundingClientRect().width ?? 200,
@@ -2315,6 +2554,87 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
+		//#region packages/client/src/client/appearance-scope.ts
+		const APPEARANCE_CLASS = "bh-appearance-scope";
+		//#endregion
+		//#region packages/client/src/client/appearance-primitives.tsx
+		function Menu(props) {
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
+				...props,
+				listClassName: [APPEARANCE_CLASS, props.listClassName].filter(Boolean).join(" ")
+			});
+		}
+		//#endregion
+		//#region packages/client/src/client/ds/pointer-menu.tsx
+		function pointerMenuPosition(point, width, height, viewport) {
+			const margin = Number.parseFloat(space.x4);
+			return {
+				x: Math.max(margin, Math.min(point.x, viewport.width - width - margin)),
+				y: Math.max(Math.max(margin, viewport.top), Math.min(point.y, viewport.height - height - margin))
+			};
+		}
+		function PointerMenu({ point, container = document.body, align = "start", ...props }) {
+			const mount = useMountedResource((node) => {
+				const menu = node.querySelector("[role=\"menu\"]");
+				if (!menu) return;
+				const originalMaxWidth = Number.parseFloat(getComputedStyle(menu).maxWidth);
+				const originalMinWidth = Number.parseFloat(getComputedStyle(menu).minWidth);
+				const place = () => {
+					const scale = node.getBoundingClientRect();
+					if (!scale.width || !scale.height) return;
+					const cssZoom = "currentCSSZoom" in node && typeof node.currentCSSZoom === "number" ? node.currentCSSZoom : void 0;
+					const scaleX = cssZoom ?? scale.width;
+					const scaleY = cssZoom ?? scale.height;
+					const root = document.documentElement;
+					const clearance = root.hasAttribute("data-fullscreen") ? 0 : Number.parseFloat(getComputedStyle(root).getPropertyValue("--dsh-frame-top-clearance")) || 0;
+					const margin = Number.parseFloat(space.x4);
+					const availableWidth = Math.max(0, innerWidth - 2 * margin) / scaleX;
+					menu.style.minWidth = `${Math.min(originalMinWidth || 0, availableWidth)}px`;
+					menu.style.maxWidth = `${Math.min(originalMaxWidth || Infinity, availableWidth)}px`;
+					menu.style.maxHeight = `${Math.max(0, innerHeight - Math.max(margin, clearance) - margin) / scaleY}px`;
+					const box = menu.getBoundingClientRect();
+					const desired = pointerMenuPosition({
+						x: align === "end" ? point.x - box.width : point.x,
+						y: point.y
+					}, box.width, box.height, {
+						width: innerWidth,
+						height: innerHeight,
+						top: clearance
+					});
+					const left = Number.parseFloat(node.style.left) || 0;
+					const top = Number.parseFloat(node.style.top) || 0;
+					node.style.left = `${left + (desired.x - box.left) / scaleX}px`;
+					node.style.top = `${top + (desired.y - box.top) / scaleY}px`;
+				};
+				place();
+				const observer = typeof ResizeObserver === "undefined" ? void 0 : new ResizeObserver(place);
+				observer?.observe(menu);
+				observer?.observe(node);
+				window.addEventListener("resize", place);
+				window.addEventListener("scroll", place, true);
+				return () => {
+					observer?.disconnect();
+					window.removeEventListener("resize", place);
+					window.removeEventListener("scroll", place, true);
+				};
+			}, [
+				point.x,
+				point.y,
+				align
+			]);
+			return (0, react_dom.createPortal)(/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+				ref: mount,
+				"data-pointer-menu": "",
+				className: "bhxixxii4 bhxu96u03 bhx13vifvy bhx51uzqw bhx1kkor1i bhxp6lfbs bhx47corl",
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Menu, {
+					...props,
+					open: true,
+					portal: false,
+					className: { className: "bhx67bb7w" }.className
+				})
+			}), container);
+		}
+		//#endregion
 		//#region packages/client/src/client/ds/pill-button.tsx
 		const pillStyles = { pill: {
 			k1xSpc: "bhx3nfvp2",
@@ -2325,7 +2645,7 @@ window.__ModuleLoader__.load({
 			kg3NbH: "bhx1vid4s1",
 			kMzoRj: "bhxc342km",
 			kaIpWk: "bhx4g09nt",
-			kWkggS: "bhxw43b1w bhx1lc0nsx",
+			kWkggS: "bhx1eunnl6 bhx8yp5u",
 			kMwMTN: "bhx24dycr",
 			kMv6JI: "bhxjb2p0i",
 			kGuDYH: "bhx5g6txa",
@@ -2339,46 +2659,96 @@ window.__ModuleLoader__.load({
 		} };
 		//#endregion
 		//#region packages/client/src/client/ds/select.tsx
-		function Select({ label, value, options, onChange, disabled = false, align = "end", autoFocus = false }) {
+		function Select({ label, value, options, onChange, disabled = false, align = "end", autoFocus = false, reselect = false }) {
 			const [open, setOpen] = (0, react.useState)(false);
+			const [point, setPoint] = (0, react.useState)();
+			const trigger = (0, react.useRef)(null);
+			const active = open && !disabled;
+			const mount = useMountedResource((node) => {
+				trigger.current = node;
+				if (!active) return () => {
+					trigger.current = null;
+				};
+				const place = () => {
+					const rect = node.getBoundingClientRect();
+					const scale = node.offsetHeight > 0 ? rect.height / node.offsetHeight : 1;
+					const next = {
+						x: align === "end" ? rect.right : rect.left,
+						y: rect.bottom + Number.parseFloat(space.x2) * scale
+					};
+					setPoint((previous) => previous?.x === next.x && previous.y === next.y ? previous : next);
+				};
+				place();
+				const resize = typeof ResizeObserver === "undefined" ? void 0 : new ResizeObserver(place);
+				resize?.observe(node);
+				resize?.observe(document.documentElement);
+				const observer = new MutationObserver(place);
+				observer.observe(document.documentElement, {
+					attributes: true,
+					attributeFilter: ["style", "data-fullscreen"]
+				});
+				window.addEventListener("resize", place);
+				window.addEventListener("scroll", place, true);
+				return () => {
+					trigger.current = null;
+					resize?.disconnect();
+					observer.disconnect();
+					window.removeEventListener("resize", place);
+					window.removeEventListener("scroll", place, true);
+				};
+			}, [active, align]);
+			const close = () => {
+				const button = trigger.current;
+				const menu = document.activeElement?.closest("[data-pointer-menu]");
+				setOpen(false);
+				setPoint(void 0);
+				queueMicrotask(() => {
+					const focused = document.activeElement;
+					if (button?.isConnected && !button.disabled && (focused === document.body || focused !== null && menu?.contains(focused))) button.focus({ preventScroll: true });
+				});
+			};
 			const current = options.find((option) => option.value === value);
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
-				open: open && !disabled,
-				portal: true,
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+				ref: mount,
+				type: "button",
+				"aria-label": label,
+				"aria-haspopup": "menu",
+				"aria-expanded": active,
+				disabled,
+				"data-modal-autofocus": autoFocus ? "" : void 0,
+				onPointerDown: (event) => {
+					if (active) event.stopPropagation();
+				},
+				onClick: () => {
+					if (active) close();
+					else setOpen(true);
+				},
+				...props(pillStyles.pill),
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "bhxeuugli bhxb3r6kr bhxlyipyv bhxuxw1ft",
+					children: current?.label
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "bhx3nfvp2 bhx2lah0s bhxr3raxm",
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutlineRegular, { size: 12 })
+				})]
+			}), active && point ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PointerMenu, {
+				point,
 				align,
+				container: trigger.current?.closest("[role=\"dialog\"]") ?? document.body,
+				autoFocus: true,
+				anchor: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { "aria-hidden": "true" }),
 				items: options.map((option) => ({
 					id: option.value,
 					label: option.label
 				})),
 				selectedId: value,
 				onSelect: (id) => {
-					setOpen(false);
+					close();
 					const next = options.find((option) => option.value === id);
-					if (next !== void 0 && next.value !== value) onChange(next.value);
+					if (next !== void 0 && (reselect || next.value !== value)) onChange(next.value);
 				},
-				onClose: () => {
-					setOpen(false);
-				},
-				anchor: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-					type: "button",
-					"aria-label": label,
-					"aria-haspopup": "menu",
-					"aria-expanded": open && !disabled,
-					disabled,
-					"data-modal-autofocus": autoFocus ? "" : void 0,
-					onClick: () => {
-						setOpen((previous) => !previous);
-					},
-					...props(pillStyles.pill),
-					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "bhxeuugli bhxb3r6kr bhxlyipyv bhxuxw1ft",
-						children: current?.label
-					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "bhx3nfvp2 bhx2lah0s bhxr3raxm",
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconChevronDownOutlineRegular, { size: 12 })
-					})]
-				})
-			});
+				onClose: close
+			}) : null] });
 		}
 		//#endregion
 		//#region packages/client/src/client/ds/settings-row.tsx
@@ -2399,7 +2769,7 @@ window.__ModuleLoader__.load({
 				"aria-labelledby": titleId,
 				"aria-describedby": description === void 0 ? void 0 : descriptionId,
 				...data,
-				className: "bhx78zum5 bhx6s0dn4 bhx15bqsqq bhx1q0g3np bhx1uptv2i bhx1mckxr8 bhxv0lzym bhxeuugli bhxe74ayl bhxrvphhj bhx1q0q8m5 bhxnoyelg bhx1bta2m4",
+				className: "bhx78zum5 bhx6s0dn4 bhx4bgz6 bhx15bqsqq bhx1q0g3np bhxcxmu7o bhx1uptv2i bhx1mckxr8 bhx1kwkzks bhxv0lzym bhxeuugli bhxe74ayl bhxrvphhj bhx1q0q8m5 bhxnoyelg bhx1bta2m4",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: "bhx78zum5 bhxdt5ytf bhx5v8n67 bhx1iyjqo2 bhxs83m0k bhx1r8uery bhxeuugli",
 					children: [
@@ -2416,7 +2786,7 @@ window.__ModuleLoader__.load({
 						children
 					]
 				}), control === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "bhx78zum5 bhx1a02dak bhx6s0dn4 bhx13a6bvl bhx3xz8fp bhx2zm2ee bhx2lah0s bhxeuugli bhxh9uqaf bhx1cnm762",
+					className: "bhx78zum5 bhx1a02dak bhx6s0dn4 bhx13a6bvl bhx403fy9 bhx3xz8fp bhx2zm2ee bhx2lah0s bhxeuugli bhxh9uqaf bhx1r6q2vj bhx1cnm762",
 					children: control
 				})]
 			});
@@ -2914,10 +3284,11 @@ window.__ModuleLoader__.load({
 .bhx1w8vjyx:not(#\\#):not(#\\#){padding-inline:4px}
 .bhx1m95a6t:focus-visible:not(#\\#):not(#\\#){outline:var(--dsw-focus-ring-width, 2px) solid var(--dsw-alias-state-business-primary)}
 @media (max-width: 648px){.bhxv0lzym.bhxv0lzym:not(#\\#):not(#\\#){gap:8px}}
+@container bh-settings (max-width: 480px){.bhx1kwkzks.bhx1kwkzks:not(#\\#):not(#\\#){gap:8px}}
 .bhx-level-3:not(#\\#):not(#\\#):not(#\\#){}
 .bhx1g31g6d:not(#\\#):not(#\\#):not(#\\#){accent-color:var(--dsw-alias-state-business-primary)}
 .bhx6s0dn4:not(#\\#):not(#\\#):not(#\\#){align-items:center}
-.bhxw43b1w:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-bg-module-platform)}
+.bhx1eunnl6:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--dsw-alias-label-primary) 8%, var(--dsw-alias-bg-module-platform))}
 .bhx1xojs80:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-interactive-bg-hover)}
 .bhx9f619:not(#\\#):not(#\\#):not(#\\#){box-sizing:border-box}
 .bhx24dycr:not(#\\#):not(#\\#):not(#\\#){color:var(--dsw-alias-label-primary)}
@@ -2952,35 +3323,47 @@ window.__ModuleLoader__.load({
 .bhx1hc1fzr:not(#\\#):not(#\\#):not(#\\#){opacity:1}
 .bhx1y3gkto:not(#\\#):not(#\\#):not(#\\#){outline-offset:1px}
 .bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}
+.bhx67bb7w:not(#\\#):not(#\\#):not(#\\#){pointer-events:auto}
+.bhx47corl:not(#\\#):not(#\\#):not(#\\#){pointer-events:none}
+.bhxixxii4:not(#\\#):not(#\\#):not(#\\#){position:fixed}
 .bhx2b8uid:not(#\\#):not(#\\#):not(#\\#){text-align:center}
 .bhxp4054r:not(#\\#):not(#\\#):not(#\\#){text-align:end}
 .bhxlyipyv:not(#\\#):not(#\\#):not(#\\#){text-overflow:ellipsis}
 .bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}
 .bhx126k92a:not(#\\#):not(#\\#):not(#\\#){white-space:pre-wrap}
+.bhxp6lfbs:not(#\\#):not(#\\#):not(#\\#){z-index:1100}
 .bhxtgyt42:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:default}
 .bhxijokvz:disabled:not(#\\#):not(#\\#):not(#\\#){opacity:.5}
-.bhx1lc0nsx:hover:not(#\\#):not(#\\#):not(#\\#){background-color:var(--dsw-alias-interactive-bg-hover)}
+.bhx8yp5u:hover:not(#\\#):not(#\\#):not(#\\#){background-color:color-mix(in srgb, var(--dsw-alias-label-primary) 13%, var(--dsw-alias-bg-module-platform))}
 @media (max-width: 648px){.bhx15bqsqq.bhx15bqsqq:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}
 @media (max-width: 648px){.bhx1uptv2i.bhx1uptv2i:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}
 @media (max-width: 648px){.bhx3xz8fp.bhx3xz8fp:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}
+@container bh-settings (max-width: 480px){.bhx4bgz6.bhx4bgz6:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}
+@container bh-settings (max-width: 480px){.bhxcxmu7o.bhxcxmu7o:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}
+@container bh-settings (max-width: 480px){.bhx403fy9.bhx403fy9:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-start}}
 .bhx-level-4:not(#\\#):not(#\\#):not(#\\#):not(#\\#){}
 .bhxnoyelg:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:var(--dsw-alias-border-l1)}
 .bhx1q0q8m5:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-style:solid}
 .bhxrvphhj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-width:1px}
+.bhx1kkor1i:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:1px}
 .bhxxevliy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:28px}
 .bhxdkzj7d:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:40px}
 .bhxols6we:not(#\\#):not(#\\#):not(#\\#):not(#\\#){height:6px}
+.bhxu96u03:not(#\\#):not(#\\#):not(#\\#):not(#\\#){left:0}
 .bhx193iq5w:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}
 .bhxxc7z9f:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:360px}
 .bhxh9uqaf:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:60%}
 .bhxeuugli:not(#\\#):not(#\\#):not(#\\#):not(#\\#){min-width:0}
 .bhx1e1oj2y:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-bottom:4px}
 .bhxb590mu:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:16px}
+.bhx13vifvy:not(#\\#):not(#\\#):not(#\\#):not(#\\#){top:0}
 .bhxh8yej3:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:100%}
+.bhx51uzqw:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:1px}
 .bhx1i1gie9:not(#\\#):not(#\\#):not(#\\#):not(#\\#){width:40px}
 .bhx10zg81t:first-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){padding-top:0}
 .bhx1bta2m4:last-child:not(#\\#):not(#\\#):not(#\\#):not(#\\#){border-bottom-color:transparent}
 @media (max-width: 648px){.bhx1cnm762.bhx1cnm762:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}
+@container bh-settings (max-width: 480px){.bhx1r6q2vj.bhx1r6q2vj:not(#\\#):not(#\\#):not(#\\#):not(#\\#){max-width:100%}}
 `;
 		//#endregion
 		//#region packages/browser/src/client/access-power-icon.tsx
@@ -3236,7 +3619,7 @@ window.__ModuleLoader__.load({
 			const label = t(accessOn ? "entry.access.disable" : "entry.access.enable");
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 				className: "bh-browser-access-control",
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Tooltip, {
 					label: error ? t("entry.access.failed") + ": " + label : label,
 					side: "bottom",
 					delayMs: 500,
@@ -3705,6 +4088,7 @@ window.__ModuleLoader__.load({
 		}
 		function createBrowserBody(t) {
 			return function BrowserBodyView(props) {
+				(0, react.useState)(() => recordViewerOpen(connectionRpc, "browser"));
 				const store = botInfoStore(props.botSlug);
 				if ((0, react.useSyncExternalStore)(store.subscribe, store.getSnapshot).browserAccess === false) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PanelEmptyState, {
 					icon: "globe",

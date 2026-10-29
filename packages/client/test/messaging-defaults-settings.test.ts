@@ -120,7 +120,7 @@ async function mount(call: BridgeCall, t = zhTranslate) {
     pick: async (label: string, option: string) => {
       await act(async () => button(label)!.click());
       await act(async () =>
-        [...container.querySelectorAll<HTMLButtonElement>('[role=menuitem]')]
+        [...document.querySelectorAll<HTMLButtonElement>('[role=menuitem]')]
           .find((item) => item.textContent === option)!
           .click(),
       );

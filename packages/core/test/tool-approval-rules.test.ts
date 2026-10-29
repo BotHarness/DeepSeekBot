@@ -147,4 +147,128 @@ describe('durable tool approval rules', () => {
       rmSync(home, { recursive: true, force: true });
     }
   });
+  it('remembers one tool across inputs and restart, preserving legacy rules and access snapshots', () => {
+    const home = createTempRoot('bh-tool-rule-upgrade-');
+    let owner = mountOperationalDatabase({
+      dshHome: home,
+      schemaPlan: defineSchemaPlan(
+        BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 103),
+      ),
+    });
+    const store = () =>
+      createToolApprovalRuleStore(attachOperationalModule(owner, 'tool-approval-rules'));
+    const target = {
+      botSlug: 'ada',
+      role: 'assignment' as const,
+      scopeKey: 'grant-1',
+      toolName: 'bash',
+      input: '{"command":"pwd"}',
+    };
+    try {
+      const legacy = store().createPending({ ...target, kind: 'exact' });
+      store().activate('ada', legacy.id);
+      attachOperationalModule(owner, 'assignments').transaction((db) =>
+        db.exec(`
+        INSERT INTO session_ownership (session_id,bot_slug,root_role,created_at) VALUES ('full','ada','assignment','2026-10-20');
+        INSERT INTO source_events (source_event_id,bot_slug,source_kind,body,created_at) VALUES ('source','ada','human-message','QA','2026-10-20');
+        INSERT INTO workspace_grants (id,bot_slug,workspace_id,workspace_path,workspace_title,created_at)
+          VALUES ('grant-1','ada','workspace','/qa','QA','2026-10-20');
+        INSERT INTO assignments (session_id,source_event_id,bot_slug,purpose,activity,created_at,updated_at,
+          grant_id,workspace_id,primary_cwd,permission_mode,approval_policy,preset_revision)
+          VALUES ('full','source','ada','QA','idle','2026-10-20','2026-10-20','grant-1','workspace','/qa','danger-full-access','never',7);
+      `),
+      );
+      owner.close();
+      owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+      expect(store().match(target)?.id).toBe(legacy.id);
+      expect(store().match({ ...target, input: '{"command":"changed"}' })).toBeUndefined();
+      const snapshot = attachOperationalModule(owner, 'assignments').read((db) =>
+        db
+          .prepare(
+            'SELECT grant_id, permission_mode, approval_policy, preset_revision FROM assignments WHERE session_id = ?',
+          )
+          .get('full'),
+      );
+      expect(snapshot).toEqual({
+        grant_id: 'grant-1',
+        permission_mode: 'danger-full-access',
+        approval_policy: 'ask',
+        preset_revision: 7,
+      });
+      const rule = store().createPending({ ...target, kind: 'tool', input: '' });
+      store().activate('ada', rule.id);
+      owner.close();
+      owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+      expect(store().match({ ...target, input: '{"command":"changed"}' })?.id).toBe(rule.id);
+      for (const changed of [
+        { toolName: 'pwsh' },
+        { botSlug: 'bob' },
+        { scopeKey: 'grant-2' },
+        { role: 'orchestrator' as const },
+      ]) {
+        expect(store().match({ ...target, ...changed, input: 'different' })).toBeUndefined();
+      }
+      store().revoke('ada', rule.id);
+      expect(store().match({ ...target, input: 'different' })).toBeUndefined();
+    } finally {
+      owner.close();
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+  it('counts each request a rule answers and keeps the count across restart', () => {
+    const home = createTempRoot('bh-rule-count-');
+    let owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+    const store = () =>
+      createToolApprovalRuleStore(attachOperationalModule(owner, 'tool-approval-rules'));
+    const input = {
+      botSlug: 'ada',
+      role: 'orchestrator' as const,
+      scopeKey: 'grant-1',
+      toolName: 'bash',
+      input: '{"command":"pwd"}',
+    };
+    try {
+      const rule = store().createPending({ ...input, kind: 'exact' });
+      expect(rule.autoApprovedCount).toBe(0);
+      store().activate('ada', rule.id);
+      store().recordAutoApproval('ada', rule.id);
+      store().recordAutoApproval('ada', rule.id);
+      store().recordAutoApproval('grace', rule.id);
+      owner.close();
+      owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+      expect(store().list('ada')).toMatchObject([{ id: rule.id, autoApprovedCount: 2 }]);
+      expect(store().match(input)).toMatchObject({ autoApprovedCount: 2 });
+    } finally {
+      owner.close();
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it('generation 110 starts existing rules at zero auto approvals', () => {
+    const home = createTempRoot('bh-rule-count-upgrade-');
+    let owner = mountOperationalDatabase({
+      dshHome: home,
+      schemaPlan: defineSchemaPlan(
+        BOT_HARNESS_SCHEMA_PLAN.migrations.filter((m) => m.generation < 110),
+      ),
+    });
+    try {
+      attachOperationalModule(owner, 'tool-approval-rules').transaction((db) =>
+        db
+          .prepare(
+            "INSERT INTO tool_approval_rules (id,bot_slug,role,scope_key,kind,tool_name,input,created_at,active) VALUES ('legacy','ada','assignment','grant','tool','bash','','2026-10-11T00:00:00Z',1)",
+          )
+          .run(),
+      );
+      owner.close();
+      owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+      const rules = createToolApprovalRuleStore(
+        attachOperationalModule(owner, 'tool-approval-rules'),
+      );
+      expect(rules.list('ada')).toMatchObject([{ id: 'legacy', autoApprovedCount: 0 }]);
+    } finally {
+      owner.close();
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
 });

@@ -2,13 +2,29 @@
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 
+vi.mock('react-native-svg', () => ({
+  default: () => null,
+  Defs: () => null,
+  LinearGradient: () => null,
+  Rect: () => null,
+  Stop: () => null,
+}));
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
+vi.mock('react-native-svg', () => ({
+  default: () => null,
+  Defs: () => null,
+  LinearGradient: () => null,
+  Rect: () => null,
+  Stop: () => null,
+}));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }));
-vi.mock('../src/ui/shell/icons', () => ({
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
   ChevronRightIcon: () => null,
   CloseIcon: () => null,
 }));
@@ -99,7 +115,6 @@ describe('Routine sheet', () => {
         routines={fakeRoutines()}
         onChanged={vi.fn()}
         onClose={vi.fn()}
-        onOpenFullClient={vi.fn()}
         onEdit={onEdit}
       />,
     );
@@ -122,7 +137,6 @@ describe('Routine sheet', () => {
         routines={routines}
         onChanged={vi.fn()}
         onClose={onClose}
-        onOpenFullClient={vi.fn()}
       />,
     );
     await type(view, t.routineTitleLabel, 'Evening digest');
@@ -144,7 +158,6 @@ describe('Routine sheet', () => {
         routines={routines}
         onChanged={onChanged}
         onClose={vi.fn()}
-        onOpenFullClient={vi.fn()}
       />,
     );
     const text = view.textContent ?? '';
@@ -172,7 +185,6 @@ describe('Routine sheet', () => {
         routines={routines}
         onChanged={vi.fn()}
         onClose={onClose}
-        onOpenFullClient={vi.fn()}
       />,
     );
     await act(async () => button(view, t.routinePause)!.click());
@@ -203,7 +215,6 @@ describe('Routine sheet', () => {
         routines={routines}
         onChanged={vi.fn()}
         onClose={vi.fn()}
-        onOpenFullClient={vi.fn()}
       />,
     );
     await act(async () => button(view, t.routineRunNow)!.click());
@@ -221,15 +232,13 @@ describe('Routine sheet', () => {
         routines={routines}
         onChanged={vi.fn()}
         onClose={vi.fn()}
-        onOpenFullClient={vi.fn()}
       />,
     );
     await act(async () => button(view, t.routineRunNow)!.click());
     expect(view.textContent).toContain(`${t.routineFailed} Bot Schedule digest is inactive`);
   });
 
-  it('sends a schedule the phone cannot edit to the full client', async () => {
-    const onOpenFullClient = vi.fn();
+  it('keeps unsupported schedules read only without opening a full client', async () => {
     const view = await render(
       <RoutineSheet
         botName="Ada"
@@ -243,12 +252,10 @@ describe('Routine sheet', () => {
         routines={fakeRoutines()}
         onChanged={vi.fn()}
         onClose={vi.fn()}
-        onOpenFullClient={onOpenFullClient}
       />,
     );
     expect(view.textContent).toContain(t.routineAdvanced);
-    await act(async () => button(view, t.routineEdit)!.click());
-    expect(onOpenFullClient).toHaveBeenCalled();
+    expect(button(view, t.routineEdit)).toBeNull();
   });
 
   it('creates a weekly routine once the form is complete, previewing the next runs', async () => {
@@ -263,7 +270,6 @@ describe('Routine sheet', () => {
         routines={routines}
         onChanged={onChanged}
         onClose={onClose}
-        onOpenFullClient={vi.fn()}
       />,
     );
     await act(async () => vi.runAllTimers());
@@ -306,7 +312,6 @@ describe('Routine sheet', () => {
         routines={routines}
         onChanged={vi.fn()}
         onClose={vi.fn()}
-        onOpenFullClient={vi.fn()}
       />,
     );
     await act(async () => button(view, t.routineEdit)!.click());

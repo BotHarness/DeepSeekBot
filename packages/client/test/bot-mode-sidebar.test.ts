@@ -94,7 +94,7 @@ describe('Bot mode sidebar', () => {
 
     expect(calls.refreshHumanInboxStatus).toHaveBeenCalledTimes(1);
     expect(node.querySelector('[data-roster]')?.getAttribute('data-roster')).toBe('wide');
-    expect(node.textContent).toContain('DeepSeekBot');
+    expect(node.textContent).toContain('Tobs');
     expect(node.textContent).not.toContain('Bot mode');
     expect(node.querySelectorAll('button[aria-label="Exit Bot mode"]')).toHaveLength(1);
     const logo = button('Exit Bot mode');
@@ -124,7 +124,7 @@ describe('Bot mode sidebar', () => {
     expect(node.querySelector('[data-roster]')?.getAttribute('data-roster')).toBe('rail');
     expect(button('Open sidebar')).toBeTruthy();
     expect(button('Exit Bot mode').classList.contains('bh-mode-sidebar-logo')).toBe(true);
-    expect(node.textContent).not.toContain('DeepSeekBot');
+    expect(node.textContent).not.toContain('Tobs');
   });
 
   it('shows one pinned card per Dock panel and toggles it in the mounted dock', () => {

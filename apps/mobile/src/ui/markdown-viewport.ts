@@ -15,6 +15,7 @@ import type { MarkdownViewport } from './markdown-window';
 
 export type MarkdownViewportStage = {
   viewport: AnimatedRef<ViewInstance>;
+  content: AnimatedRef<ViewInstance>;
   scroll: SharedValue<number>;
   layout: SharedValue<number>;
   active: boolean;
@@ -55,17 +56,29 @@ export function useMarkdownViewport() {
   );
   const scroll = stage?.scroll;
   const viewport = stage?.viewport;
+  const content = stage?.content;
   const layout = stage?.layout;
   const active = stage?.active === true;
   useAnimatedReaction(
     () => {
-      if (!active || viewport === undefined || scroll === undefined || layout === undefined)
+      if (
+        !active ||
+        viewport === undefined ||
+        content === undefined ||
+        scroll === undefined ||
+        layout === undefined
+      )
         return null;
       if (!Number.isFinite(scroll.value) || layout.value <= 0 || revision.value <= 0) return null;
       const document = measure(root);
       const frame = measure(viewport);
-      if (document === null || frame === null || frame.height <= 0) return null;
-      return { top: frame.pageY - document.pageY, height: frame.height };
+      const contentFrame = measure(content);
+      if (document === null || frame === null || contentFrame === null || frame.height <= 0)
+        return null;
+      return {
+        top: contentFrame.pageY - document.pageY + scroll.value,
+        height: frame.height,
+      };
     },
     (next) => {
       if (next === null) return;

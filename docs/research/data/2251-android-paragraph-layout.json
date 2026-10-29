@@ -1,0 +1,1561 @@
+{
+  "issue": 2251,
+  "base": "d6775e6ad119e52ddab2bc19b46b22cb94ed5936",
+  "measuredImplementation": "c73f9850f38f9714713675697b3f0fb3743fbe1f",
+  "protocol": {
+    "order": "ABBAAB",
+    "trialsPerArm": 3,
+    "build": "minified arm64 Release",
+    "platform": "Android 16",
+    "refreshHz": 120,
+    "traceSeconds": 45,
+    "earlySeconds": [2, 22],
+    "lateSeconds": [22, 42],
+    "plainUtf16": 19221,
+    "proseUtf16": 21492,
+    "producerGraphemes": 80,
+    "producerIntervalMs": 32,
+    "memory": "end total PSS; not peak",
+    "observation": "post-trace upper bound; not completion latency",
+    "nativeCost": "inclusive slices; do not sum as independent CPU"
+  },
+  "binaries": [
+    {
+      "apk": "1856E2D9ECD9A5EB43CBB7AFAB1C573D77A4F714EF41107EEE897737C5914CC8",
+      "arm": "baseline-main",
+      "entries": [
+        {
+          "sha256": "DF437B908A20A7FB6DEB9DB99CC00E6F062BD2DC71CAD0154FF482A4BDCA5493",
+          "entry": "assets/index.android.bundle"
+        },
+        {
+          "sha256": "CBB8133AF5C900598E40A191D7E83208852AA1CC9B197993DBF0104DCCD67321",
+          "entry": "classes.dex"
+        }
+      ]
+    },
+    {
+      "apk": "BDADF188E9EDBCAF018DBBE137AACC0418EEC4713266BFBAE8D97DB6E8E81A84",
+      "arm": "simple",
+      "entries": [
+        {
+          "sha256": "97D59CD83157A20B50E8FB0E1643D868A5C3BC967D8F7D82ACC477126DDBD0FE",
+          "entry": "assets/index.android.bundle"
+        },
+        {
+          "sha256": "CBB8133AF5C900598E40A191D7E83208852AA1CC9B197993DBF0104DCCD67321",
+          "entry": "classes.dex"
+        }
+      ]
+    }
+  ],
+  "plain": {
+    "rows": [
+      {
+        "label": "final-plain-1-a",
+        "arm": "control",
+        "staticLayout": 10657.6,
+        "dynamicLayout": 9550.5,
+        "draw": 13463.3,
+        "measure": 14216.4,
+        "uiEarly": 28.126,
+        "uiLate": 92.214,
+        "presentEarly": 33.18,
+        "presentLate": 107.897,
+        "presentLateAverage": 27.083,
+        "js": 24.523,
+        "observed": 52504,
+        "pss": 356437,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "cost": [
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 607,
+            "total_ms": 14216.4,
+            "max_ms": 100.76
+          },
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 2330,
+            "total_ms": 13463.3,
+            "max_ms": 53.61
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 610,
+            "total_ms": 10657.6,
+            "max_ms": 67.35
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 604,
+            "total_ms": 9550.5,
+            "max_ms": 70.86
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 608,
+            "total_ms": 827.1,
+            "max_ms": 3.96
+          }
+        ],
+        "traceDelayMs": 199
+      },
+      {
+        "label": "final-plain-2-b",
+        "arm": "candidate",
+        "staticLayout": 7221.8,
+        "dynamicLayout": 6421.6,
+        "draw": 13320.9,
+        "measure": 10428.3,
+        "uiEarly": 26.086,
+        "uiLate": 39.702,
+        "presentEarly": 32.122,
+        "presentLate": 78.09,
+        "presentLateAverage": 21.545,
+        "js": 20.994,
+        "observed": 52532,
+        "pss": 348375,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "cost": [
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 2356,
+            "total_ms": 13320.9,
+            "max_ms": 52.51
+          },
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 607,
+            "total_ms": 10428.3,
+            "max_ms": 78.54
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 610,
+            "total_ms": 7221.8,
+            "max_ms": 51.68
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 604,
+            "total_ms": 6421.6,
+            "max_ms": 50.42
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 608,
+            "total_ms": 789.5,
+            "max_ms": 2.77
+          }
+        ],
+        "traceDelayMs": 214
+      },
+      {
+        "label": "final-plain-3-b",
+        "arm": "candidate",
+        "staticLayout": 7208,
+        "dynamicLayout": 6383.1,
+        "draw": 13373.8,
+        "measure": 10391,
+        "uiEarly": 26.359,
+        "uiLate": 38.96,
+        "presentEarly": 24.978,
+        "presentLate": 74.701,
+        "presentLateAverage": 20.805,
+        "js": 20.759,
+        "observed": 52554,
+        "pss": 349142,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "cost": [
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 2361,
+            "total_ms": 13373.8,
+            "max_ms": 53.82
+          },
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 607,
+            "total_ms": 10391,
+            "max_ms": 72.45
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 610,
+            "total_ms": 7208,
+            "max_ms": 46.33
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 604,
+            "total_ms": 6383.1,
+            "max_ms": 49.23
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 608,
+            "total_ms": 781.4,
+            "max_ms": 3.09
+          }
+        ],
+        "traceDelayMs": 221
+      },
+      {
+        "label": "final-plain-4-a",
+        "arm": "control",
+        "staticLayout": 10711.1,
+        "dynamicLayout": 9654.8,
+        "draw": 13725.4,
+        "measure": 14344,
+        "uiEarly": 28.198,
+        "uiLate": 92.29,
+        "presentEarly": 33.169,
+        "presentLate": 107.841,
+        "presentLateAverage": 26.812,
+        "js": 24.655,
+        "observed": 52487,
+        "pss": 350353,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "cost": [
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 607,
+            "total_ms": 14344,
+            "max_ms": 99.34
+          },
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 2324,
+            "total_ms": 13725.4,
+            "max_ms": 65.98
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 611,
+            "total_ms": 10711.1,
+            "max_ms": 69.34
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 605,
+            "total_ms": 9654.8,
+            "max_ms": 66.17
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 609,
+            "total_ms": 783.8,
+            "max_ms": 3.26
+          }
+        ],
+        "traceDelayMs": 188
+      },
+      {
+        "label": "final-plain-5-a",
+        "arm": "control",
+        "staticLayout": 10369.7,
+        "dynamicLayout": 9372.4,
+        "draw": 13681.5,
+        "measure": 13912.1,
+        "uiEarly": 28.036,
+        "uiLate": 92.631,
+        "presentEarly": 33.195,
+        "presentLate": 107.893,
+        "presentLateAverage": 26.359,
+        "js": 24.261,
+        "observed": 52602,
+        "pss": 356488,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "cost": [
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 608,
+            "total_ms": 13912.1,
+            "max_ms": 105.36
+          },
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 2350,
+            "total_ms": 13681.5,
+            "max_ms": 53.61
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 610,
+            "total_ms": 10369.7,
+            "max_ms": 72.95
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 604,
+            "total_ms": 9372.4,
+            "max_ms": 84.63
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 608,
+            "total_ms": 787.2,
+            "max_ms": 7.96
+          }
+        ],
+        "traceDelayMs": 208
+      },
+      {
+        "label": "final-plain-6-b",
+        "arm": "candidate",
+        "staticLayout": 7233.2,
+        "dynamicLayout": 6361.4,
+        "draw": 13229.3,
+        "measure": 8.3,
+        "uiEarly": 25.602,
+        "uiLate": 39.099,
+        "presentEarly": 24.971,
+        "presentLate": 74.693,
+        "presentLateAverage": 21.28,
+        "js": 21.027,
+        "observed": 52629,
+        "pss": 358035,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "cost": [
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 2437,
+            "total_ms": 13229.3,
+            "max_ms": 53.07
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 609,
+            "total_ms": 11277.2,
+            "max_ms": 79.87
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 610,
+            "total_ms": 7233.2,
+            "max_ms": 49.24
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 605,
+            "total_ms": 6361.4,
+            "max_ms": 49.73
+          },
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 608,
+            "total_ms": 8.3,
+            "max_ms": 1.11
+          }
+        ],
+        "traceDelayMs": 211
+      }
+    ],
+    "medians": {
+      "control": {
+        "staticLayout": 10657.6,
+        "dynamicLayout": 9550.5,
+        "draw": 13681.5,
+        "measure": 14216.4,
+        "uiEarly": 28.126,
+        "uiLate": 92.29,
+        "presentEarly": 33.18,
+        "presentLate": 107.893,
+        "presentLateAverage": 26.812,
+        "js": 24.523,
+        "observed": 52504,
+        "pss": 356437
+      },
+      "candidate": {
+        "staticLayout": 7221.8,
+        "dynamicLayout": 6383.1,
+        "draw": 13320.9,
+        "measure": 10391,
+        "uiEarly": 26.086,
+        "uiLate": 39.099,
+        "presentEarly": 24.978,
+        "presentLate": 74.701,
+        "presentLateAverage": 21.28,
+        "js": 20.994,
+        "observed": 52554,
+        "pss": 349142
+      }
+    }
+  },
+  "prose": {
+    "rows": [
+      {
+        "label": "final-prose-1-a",
+        "arm": "control",
+        "staticLayout": 1478.9,
+        "dynamicLayout": 273.3,
+        "draw": 6032.1,
+        "measure": 487.6,
+        "uiEarly": 5.95,
+        "uiLate": 5.658,
+        "presentEarly": 8.434,
+        "presentLate": 8.428,
+        "presentLateAverage": 8.311,
+        "js": 20.249000000000002,
+        "observed": 57059,
+        "pss": 355289,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "cost": [
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 5531,
+            "total_ms": 6032.1,
+            "max_ms": 4.6
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 13591,
+            "total_ms": 1478.9,
+            "max_ms": 1.6
+          },
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 1107,
+            "total_ms": 487.6,
+            "max_ms": 1.85
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 903,
+            "total_ms": 273.3,
+            "max_ms": 1.48
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 1313,
+            "total_ms": 266.8,
+            "max_ms": 1.29
+          }
+        ],
+        "traceDelayMs": 268
+      },
+      {
+        "label": "final-prose-2-b",
+        "arm": "candidate",
+        "staticLayout": 1374.2,
+        "dynamicLayout": 252.4,
+        "draw": 6057.1,
+        "measure": 467.2,
+        "uiEarly": 6.008,
+        "uiLate": 5.837,
+        "presentEarly": 8.429,
+        "presentLate": 8.426,
+        "presentLateAverage": 8.311,
+        "js": 20.383,
+        "observed": 56141,
+        "pss": 316958,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "cost": [
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 5547,
+            "total_ms": 6057.1,
+            "max_ms": 6.61
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 13577,
+            "total_ms": 1374.2,
+            "max_ms": 2.11
+          },
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 1108,
+            "total_ms": 467.2,
+            "max_ms": 1.44
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 1314,
+            "total_ms": 294.9,
+            "max_ms": 1.46
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 905,
+            "total_ms": 252.4,
+            "max_ms": 0.88
+          }
+        ],
+        "traceDelayMs": 183
+      },
+      {
+        "label": "final-prose-3-b",
+        "arm": "candidate",
+        "staticLayout": 1325.5,
+        "dynamicLayout": 242.4,
+        "draw": 5758.2,
+        "measure": 439.6,
+        "uiEarly": 5.857,
+        "uiLate": 5.836,
+        "presentEarly": 8.428,
+        "presentLate": 8.421,
+        "presentLateAverage": 8.315,
+        "js": 20.441,
+        "observed": 56469,
+        "pss": 311871,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "cost": [
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 5535,
+            "total_ms": 5758.2,
+            "max_ms": 5.29
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 13415,
+            "total_ms": 1325.5,
+            "max_ms": 2.16
+          },
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 1108,
+            "total_ms": 439.6,
+            "max_ms": 1.11
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 1312,
+            "total_ms": 268.2,
+            "max_ms": 1.73
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 904,
+            "total_ms": 242.4,
+            "max_ms": 0.91
+          }
+        ],
+        "traceDelayMs": 219
+      },
+      {
+        "label": "final-prose-4-a",
+        "arm": "control",
+        "staticLayout": 1507.3,
+        "dynamicLayout": 268.5,
+        "draw": 5899.4,
+        "measure": 468.5,
+        "uiEarly": 6.011,
+        "uiLate": 5.405,
+        "presentEarly": 8.423,
+        "presentLate": 8.424,
+        "presentLateAverage": 8.311,
+        "js": 20.616,
+        "observed": 56651,
+        "pss": 310215,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "cost": [
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 5548,
+            "total_ms": 5899.4,
+            "max_ms": 6.9
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 13598,
+            "total_ms": 1507.3,
+            "max_ms": 3
+          },
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 1108,
+            "total_ms": 468.5,
+            "max_ms": 2.27
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 905,
+            "total_ms": 268.5,
+            "max_ms": 2.07
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 1312,
+            "total_ms": 264.4,
+            "max_ms": 0.88
+          }
+        ],
+        "traceDelayMs": 212
+      },
+      {
+        "label": "final-prose-5-a",
+        "arm": "control",
+        "staticLayout": 1404.3,
+        "dynamicLayout": 267.9,
+        "draw": 6058.5,
+        "measure": 465.3,
+        "uiEarly": 5.91,
+        "uiLate": 5.59,
+        "presentEarly": 8.428,
+        "presentLate": 8.414,
+        "presentLateAverage": 8.307,
+        "js": 20.240000000000002,
+        "observed": 56371,
+        "pss": 327940,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "cost": [
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 5539,
+            "total_ms": 6058.5,
+            "max_ms": 6.49
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 13352,
+            "total_ms": 1404.3,
+            "max_ms": 2.67
+          },
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 1106,
+            "total_ms": 465.3,
+            "max_ms": 3.23
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 903,
+            "total_ms": 267.9,
+            "max_ms": 0.79
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 1309,
+            "total_ms": 257.6,
+            "max_ms": 1.76
+          }
+        ],
+        "traceDelayMs": 222
+      },
+      {
+        "label": "final-prose-6-b",
+        "arm": "candidate",
+        "staticLayout": 1352.5,
+        "dynamicLayout": 251,
+        "draw": 6082.3,
+        "measure": 457.8,
+        "uiEarly": 5.986,
+        "uiLate": 5.7,
+        "presentEarly": 8.43,
+        "presentLate": 8.402,
+        "presentLateAverage": 8.299,
+        "js": 20.354,
+        "observed": 56224,
+        "pss": 321079,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "cost": [
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 5548,
+            "total_ms": 6082.3,
+            "max_ms": 5.31
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 13558,
+            "total_ms": 1352.5,
+            "max_ms": 2.75
+          },
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 1108,
+            "total_ms": 457.8,
+            "max_ms": 1.49
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 1314,
+            "total_ms": 286.5,
+            "max_ms": 1.64
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 904,
+            "total_ms": 251,
+            "max_ms": 0.72
+          }
+        ],
+        "traceDelayMs": 203
+      }
+    ],
+    "medians": {
+      "control": {
+        "staticLayout": 1478.9,
+        "dynamicLayout": 268.5,
+        "draw": 6032.1,
+        "measure": 468.5,
+        "uiEarly": 5.95,
+        "uiLate": 5.59,
+        "presentEarly": 8.428,
+        "presentLate": 8.424,
+        "presentLateAverage": 8.311,
+        "js": 20.249000000000002,
+        "observed": 56651,
+        "pss": 327940
+      },
+      "candidate": {
+        "staticLayout": 1352.5,
+        "dynamicLayout": 251,
+        "draw": 6057.1,
+        "measure": 457.8,
+        "uiEarly": 5.986,
+        "uiLate": 5.836,
+        "presentEarly": 8.429,
+        "presentLate": 8.421,
+        "presentLateAverage": 8.311,
+        "js": 20.383,
+        "observed": 56224,
+        "pss": 316958
+      }
+    }
+  },
+  "completion": {
+    "method": "Independent matched nominal 1.5 s screen captures with PC OCR. Conservative last-negative capture start to first-positive capture end; not absolute uninstrumented latency or full opacity. All boundary images manually inspected.",
+    "completion": [
+      {
+        "scenario": "plain",
+        "trials": [
+          {
+            "label": "completion-plain-1-a",
+            "arm": "a",
+            "intervalMs": [40367, 43714],
+            "negativeIndex": 20,
+            "positiveIndex": 21,
+            "canonicalComplete": true,
+            "actual120": true
+          },
+          {
+            "label": "completion-plain-2-b",
+            "arm": "b",
+            "intervalMs": [37181, 39248],
+            "negativeIndex": 18,
+            "positiveIndex": 19,
+            "canonicalComplete": true,
+            "actual120": true
+          },
+          {
+            "label": "completion-plain-3-b",
+            "arm": "b",
+            "intervalMs": [36271, 38335],
+            "negativeIndex": 17,
+            "positiveIndex": 18,
+            "canonicalComplete": true,
+            "actual120": true
+          },
+          {
+            "label": "completion-plain-4-a",
+            "arm": "a",
+            "intervalMs": [40236, 42306],
+            "negativeIndex": 20,
+            "positiveIndex": 21,
+            "canonicalComplete": true,
+            "actual120": true
+          },
+          {
+            "label": "completion-plain-5-a",
+            "arm": "a",
+            "intervalMs": [40198, 42259],
+            "negativeIndex": 20,
+            "positiveIndex": 21,
+            "canonicalComplete": true,
+            "actual120": true
+          },
+          {
+            "label": "completion-plain-6-b",
+            "arm": "b",
+            "intervalMs": [37276, 39323],
+            "negativeIndex": 18,
+            "positiveIndex": 19,
+            "canonicalComplete": true,
+            "actual120": true
+          }
+        ],
+        "arms": {
+          "a": {
+            "medianIntervalMs": [40236, 42306]
+          },
+          "b": {
+            "medianIntervalMs": [37181, 39248]
+          }
+        },
+        "conservativeCandidateUpperOverBaselineLower": 0.975444875236107
+      },
+      {
+        "scenario": "prose",
+        "trials": [
+          {
+            "label": "completion-prose-1-a",
+            "arm": "a",
+            "intervalMs": [38680, 40686],
+            "negativeIndex": 19,
+            "positiveIndex": 20,
+            "canonicalComplete": true,
+            "actual120": true
+          },
+          {
+            "label": "completion-prose-2-b",
+            "arm": "b",
+            "intervalMs": [38746, 40751],
+            "negativeIndex": 19,
+            "positiveIndex": 20,
+            "canonicalComplete": true,
+            "actual120": true
+          },
+          {
+            "label": "completion-prose-3-b",
+            "arm": "b",
+            "intervalMs": [38692, 40699],
+            "negativeIndex": 19,
+            "positiveIndex": 20,
+            "canonicalComplete": true,
+            "actual120": true
+          },
+          {
+            "label": "completion-prose-4-a",
+            "arm": "a",
+            "intervalMs": [38713, 40715],
+            "negativeIndex": 19,
+            "positiveIndex": 20,
+            "canonicalComplete": true,
+            "actual120": true
+          },
+          {
+            "label": "completion-prose-5-a",
+            "arm": "a",
+            "intervalMs": [39012, 41070],
+            "negativeIndex": 19,
+            "positiveIndex": 20,
+            "canonicalComplete": true,
+            "actual120": true
+          },
+          {
+            "label": "completion-prose-6-b",
+            "arm": "b",
+            "intervalMs": [39087, 41220],
+            "negativeIndex": 19,
+            "positiveIndex": 20,
+            "canonicalComplete": true,
+            "actual120": true
+          }
+        ],
+        "arms": {
+          "a": {
+            "medianIntervalMs": [38713, 40715]
+          },
+          "b": {
+            "medianIntervalMs": [38746, 40751]
+          }
+        },
+        "conservativeCandidateUpperOverBaselineLower": 1.052643814739235
+      }
+    ]
+  },
+  "traceQuality": [
+    {
+      "label": "final-plain-1-a",
+      "errorOrDataLossRows": 0,
+      "thermal": [
+        {
+          "phase": "start",
+          "status": "0"
+        },
+        {
+          "phase": "end",
+          "status": "0"
+        }
+      ]
+    },
+    {
+      "label": "final-plain-2-b",
+      "errorOrDataLossRows": 0,
+      "thermal": [
+        {
+          "phase": "start",
+          "status": "0"
+        },
+        {
+          "phase": "end",
+          "status": "0"
+        }
+      ]
+    },
+    {
+      "label": "final-plain-3-b",
+      "errorOrDataLossRows": 0,
+      "thermal": [
+        {
+          "phase": "start",
+          "status": "0"
+        },
+        {
+          "phase": "end",
+          "status": "0"
+        }
+      ]
+    },
+    {
+      "label": "final-plain-4-a",
+      "errorOrDataLossRows": 0,
+      "thermal": [
+        {
+          "phase": "start",
+          "status": "0"
+        },
+        {
+          "phase": "end",
+          "status": "0"
+        }
+      ]
+    },
+    {
+      "label": "final-plain-5-a",
+      "errorOrDataLossRows": 0,
+      "thermal": [
+        {
+          "phase": "start",
+          "status": "0"
+        },
+        {
+          "phase": "end",
+          "status": "0"
+        }
+      ]
+    },
+    {
+      "label": "final-plain-6-b",
+      "errorOrDataLossRows": 0,
+      "thermal": [
+        {
+          "phase": "start",
+          "status": "0"
+        },
+        {
+          "phase": "end",
+          "status": "0"
+        }
+      ]
+    },
+    {
+      "label": "final-prose-1-a",
+      "errorOrDataLossRows": 0,
+      "thermal": [
+        {
+          "phase": "start",
+          "status": "0"
+        },
+        {
+          "phase": "end",
+          "status": "0"
+        }
+      ]
+    },
+    {
+      "label": "final-prose-2-b",
+      "errorOrDataLossRows": 0,
+      "thermal": [
+        {
+          "phase": "start",
+          "status": "0"
+        },
+        {
+          "phase": "end",
+          "status": "0"
+        }
+      ]
+    },
+    {
+      "label": "final-prose-3-b",
+      "errorOrDataLossRows": 0,
+      "thermal": [
+        {
+          "phase": "start",
+          "status": "0"
+        },
+        {
+          "phase": "end",
+          "status": "0"
+        }
+      ]
+    },
+    {
+      "label": "final-prose-4-a",
+      "errorOrDataLossRows": 0,
+      "thermal": [
+        {
+          "phase": "start",
+          "status": "0"
+        },
+        {
+          "phase": "end",
+          "status": "0"
+        }
+      ]
+    },
+    {
+      "label": "final-prose-5-a",
+      "errorOrDataLossRows": 0,
+      "thermal": [
+        {
+          "phase": "start",
+          "status": "0"
+        },
+        {
+          "phase": "end",
+          "status": "0"
+        }
+      ]
+    },
+    {
+      "label": "final-prose-6-b",
+      "errorOrDataLossRows": 0,
+      "thermal": [
+        {
+          "phase": "start",
+          "status": "0"
+        },
+        {
+          "phase": "end",
+          "status": "0"
+        }
+      ]
+    }
+  ],
+  "visualDriverExceptions": [
+    {
+      "label": "visual-b-10-light",
+      "cliExit": 1,
+      "error": "host-unreachable",
+      "exactCanonicalBody": true,
+      "finalAccessibilityComplete": true,
+      "retry": "visual-b-10-light-retry",
+      "retryCliExit": 0,
+      "transportCause": "unresolved; CLI combines fetch failures"
+    },
+    {
+      "label": "visual-b-20-light",
+      "cliExit": 1,
+      "error": "host-unreachable",
+      "exactCanonicalBody": true,
+      "finalAccessibilityComplete": true,
+      "retry": "visual-b-20-light-retry",
+      "retryCliExit": 0,
+      "transportCause": "unresolved; CLI combines fetch failures"
+    }
+  ],
+  "tests": {
+    "focusedRendererAndWindow": 10,
+    "integratedMobile": {
+      "passed": 788,
+      "skipped": 9,
+      "testDefaultLocale": "en-US",
+      "unmodifiedZhCn": {
+        "failed": 4,
+        "file": "apps/mobile/test/cloud-channel-cache.test.tsx",
+        "baselineControlSameFailures": true
+      },
+      "englishFileControl": {
+        "passed": 9
+      }
+    },
+    "mobileTypecheck": "pass",
+    "repositoryLint": "pass",
+    "changelog": "pass"
+  },
+  "visuals": {
+    "method": "Producer paused for 45s after 80 chunks; active screenshot at +20s, before canonical commit. Separate final body/accessibility check after reopening; not natural-completion timing.",
+    "trials": [
+      {
+        "label": "visual-a-10-light",
+        "arm": "a",
+        "fontScale": "1.0",
+        "theme": "light",
+        "utf16Units": 20880,
+        "canonicalBotRepliesDuringPause": 0,
+        "activeCaptureMsAfterPause": 20674,
+        "canonicalComplete": true,
+        "accessibilityFullBodyAfterReopen": true
+      },
+      {
+        "label": "visual-a-10-dark",
+        "arm": "a",
+        "fontScale": "1.0",
+        "theme": "dark",
+        "utf16Units": 20880,
+        "canonicalBotRepliesDuringPause": 0,
+        "activeCaptureMsAfterPause": 20814,
+        "canonicalComplete": true,
+        "accessibilityFullBodyAfterReopen": true
+      },
+      {
+        "label": "visual-a-13-light",
+        "arm": "a",
+        "fontScale": "1.3",
+        "theme": "light",
+        "utf16Units": 20880,
+        "canonicalBotRepliesDuringPause": 0,
+        "activeCaptureMsAfterPause": 20784,
+        "canonicalComplete": true,
+        "accessibilityFullBodyAfterReopen": true
+      },
+      {
+        "label": "visual-a-13-dark",
+        "arm": "a",
+        "fontScale": "1.3",
+        "theme": "dark",
+        "utf16Units": 20880,
+        "canonicalBotRepliesDuringPause": 0,
+        "activeCaptureMsAfterPause": 20635,
+        "canonicalComplete": true,
+        "accessibilityFullBodyAfterReopen": true
+      },
+      {
+        "label": "visual-a-20-light",
+        "arm": "a",
+        "fontScale": "2.0",
+        "theme": "light",
+        "utf16Units": 20880,
+        "canonicalBotRepliesDuringPause": 0,
+        "activeCaptureMsAfterPause": 20748,
+        "canonicalComplete": true,
+        "accessibilityFullBodyAfterReopen": true
+      },
+      {
+        "label": "visual-a-20-dark",
+        "arm": "a",
+        "fontScale": "2.0",
+        "theme": "dark",
+        "utf16Units": 20880,
+        "canonicalBotRepliesDuringPause": 0,
+        "activeCaptureMsAfterPause": 20604,
+        "canonicalComplete": true,
+        "accessibilityFullBodyAfterReopen": true
+      },
+      {
+        "label": "visual-b-10-light-retry",
+        "arm": "b",
+        "fontScale": "1.0",
+        "theme": "light",
+        "utf16Units": 20880,
+        "canonicalBotRepliesDuringPause": 0,
+        "activeCaptureMsAfterPause": 20677,
+        "canonicalComplete": true,
+        "accessibilityFullBodyAfterReopen": true
+      },
+      {
+        "label": "visual-b-10-dark",
+        "arm": "b",
+        "fontScale": "1.0",
+        "theme": "dark",
+        "utf16Units": 20880,
+        "canonicalBotRepliesDuringPause": 0,
+        "activeCaptureMsAfterPause": 20714,
+        "canonicalComplete": true,
+        "accessibilityFullBodyAfterReopen": true
+      },
+      {
+        "label": "visual-b-13-light",
+        "arm": "b",
+        "fontScale": "1.3",
+        "theme": "light",
+        "utf16Units": 20880,
+        "canonicalBotRepliesDuringPause": 0,
+        "activeCaptureMsAfterPause": 20830,
+        "canonicalComplete": true,
+        "accessibilityFullBodyAfterReopen": true
+      },
+      {
+        "label": "visual-b-13-dark",
+        "arm": "b",
+        "fontScale": "1.3",
+        "theme": "dark",
+        "utf16Units": 20880,
+        "canonicalBotRepliesDuringPause": 0,
+        "activeCaptureMsAfterPause": 20829,
+        "canonicalComplete": true,
+        "accessibilityFullBodyAfterReopen": true
+      },
+      {
+        "label": "visual-b-20-light-retry",
+        "arm": "b",
+        "fontScale": "2.0",
+        "theme": "light",
+        "utf16Units": 20880,
+        "canonicalBotRepliesDuringPause": 0,
+        "activeCaptureMsAfterPause": 20620,
+        "canonicalComplete": true,
+        "accessibilityFullBodyAfterReopen": true
+      },
+      {
+        "label": "visual-b-20-dark",
+        "arm": "b",
+        "fontScale": "2.0",
+        "theme": "dark",
+        "utf16Units": 20880,
+        "canonicalBotRepliesDuringPause": 0,
+        "activeCaptureMsAfterPause": 20600,
+        "canonicalComplete": true,
+        "accessibilityFullBodyAfterReopen": true
+      }
+    ]
+  },
+  "bodyIntegrity": [
+    {
+      "label": "completion-plain-1-a",
+      "fixture": "plain",
+      "exactBody": true,
+      "utf16Units": 19221,
+      "sha256": "43b16706b3a550aaf34e698df19faaf0ccb229f7d53f483a1715651b7ba1b9b4"
+    },
+    {
+      "label": "completion-plain-2-b",
+      "fixture": "plain",
+      "exactBody": true,
+      "utf16Units": 19221,
+      "sha256": "43b16706b3a550aaf34e698df19faaf0ccb229f7d53f483a1715651b7ba1b9b4"
+    },
+    {
+      "label": "completion-plain-3-b",
+      "fixture": "plain",
+      "exactBody": true,
+      "utf16Units": 19221,
+      "sha256": "43b16706b3a550aaf34e698df19faaf0ccb229f7d53f483a1715651b7ba1b9b4"
+    },
+    {
+      "label": "completion-plain-4-a",
+      "fixture": "plain",
+      "exactBody": true,
+      "utf16Units": 19221,
+      "sha256": "43b16706b3a550aaf34e698df19faaf0ccb229f7d53f483a1715651b7ba1b9b4"
+    },
+    {
+      "label": "completion-plain-5-a",
+      "fixture": "plain",
+      "exactBody": true,
+      "utf16Units": 19221,
+      "sha256": "43b16706b3a550aaf34e698df19faaf0ccb229f7d53f483a1715651b7ba1b9b4"
+    },
+    {
+      "label": "completion-plain-6-b",
+      "fixture": "plain",
+      "exactBody": true,
+      "utf16Units": 19221,
+      "sha256": "43b16706b3a550aaf34e698df19faaf0ccb229f7d53f483a1715651b7ba1b9b4"
+    },
+    {
+      "label": "completion-prose-1-a",
+      "fixture": "prose",
+      "exactBody": true,
+      "utf16Units": 21492,
+      "sha256": "3d23c3787bbc76feedea35df8d9cda90d26b0911861cea0c6fd25eaf5b518e4a"
+    },
+    {
+      "label": "completion-prose-2-b",
+      "fixture": "prose",
+      "exactBody": true,
+      "utf16Units": 21492,
+      "sha256": "3d23c3787bbc76feedea35df8d9cda90d26b0911861cea0c6fd25eaf5b518e4a"
+    },
+    {
+      "label": "completion-prose-3-b",
+      "fixture": "prose",
+      "exactBody": true,
+      "utf16Units": 21492,
+      "sha256": "3d23c3787bbc76feedea35df8d9cda90d26b0911861cea0c6fd25eaf5b518e4a"
+    },
+    {
+      "label": "completion-prose-4-a",
+      "fixture": "prose",
+      "exactBody": true,
+      "utf16Units": 21492,
+      "sha256": "3d23c3787bbc76feedea35df8d9cda90d26b0911861cea0c6fd25eaf5b518e4a"
+    },
+    {
+      "label": "completion-prose-5-a",
+      "fixture": "prose",
+      "exactBody": true,
+      "utf16Units": 21492,
+      "sha256": "3d23c3787bbc76feedea35df8d9cda90d26b0911861cea0c6fd25eaf5b518e4a"
+    },
+    {
+      "label": "completion-prose-6-b",
+      "fixture": "prose",
+      "exactBody": true,
+      "utf16Units": 21492,
+      "sha256": "3d23c3787bbc76feedea35df8d9cda90d26b0911861cea0c6fd25eaf5b518e4a"
+    },
+    {
+      "label": "final-plain-1-a",
+      "fixture": "plain",
+      "exactBody": true,
+      "utf16Units": 19221,
+      "sha256": "43b16706b3a550aaf34e698df19faaf0ccb229f7d53f483a1715651b7ba1b9b4"
+    },
+    {
+      "label": "final-plain-2-b",
+      "fixture": "plain",
+      "exactBody": true,
+      "utf16Units": 19221,
+      "sha256": "43b16706b3a550aaf34e698df19faaf0ccb229f7d53f483a1715651b7ba1b9b4"
+    },
+    {
+      "label": "final-plain-3-b",
+      "fixture": "plain",
+      "exactBody": true,
+      "utf16Units": 19221,
+      "sha256": "43b16706b3a550aaf34e698df19faaf0ccb229f7d53f483a1715651b7ba1b9b4"
+    },
+    {
+      "label": "final-plain-4-a",
+      "fixture": "plain",
+      "exactBody": true,
+      "utf16Units": 19221,
+      "sha256": "43b16706b3a550aaf34e698df19faaf0ccb229f7d53f483a1715651b7ba1b9b4"
+    },
+    {
+      "label": "final-plain-5-a",
+      "fixture": "plain",
+      "exactBody": true,
+      "utf16Units": 19221,
+      "sha256": "43b16706b3a550aaf34e698df19faaf0ccb229f7d53f483a1715651b7ba1b9b4"
+    },
+    {
+      "label": "final-plain-6-b",
+      "fixture": "plain",
+      "exactBody": true,
+      "utf16Units": 19221,
+      "sha256": "43b16706b3a550aaf34e698df19faaf0ccb229f7d53f483a1715651b7ba1b9b4"
+    },
+    {
+      "label": "final-prose-1-a",
+      "fixture": "prose",
+      "exactBody": true,
+      "utf16Units": 21492,
+      "sha256": "3d23c3787bbc76feedea35df8d9cda90d26b0911861cea0c6fd25eaf5b518e4a"
+    },
+    {
+      "label": "final-prose-2-b",
+      "fixture": "prose",
+      "exactBody": true,
+      "utf16Units": 21492,
+      "sha256": "3d23c3787bbc76feedea35df8d9cda90d26b0911861cea0c6fd25eaf5b518e4a"
+    },
+    {
+      "label": "final-prose-3-b",
+      "fixture": "prose",
+      "exactBody": true,
+      "utf16Units": 21492,
+      "sha256": "3d23c3787bbc76feedea35df8d9cda90d26b0911861cea0c6fd25eaf5b518e4a"
+    },
+    {
+      "label": "final-prose-4-a",
+      "fixture": "prose",
+      "exactBody": true,
+      "utf16Units": 21492,
+      "sha256": "3d23c3787bbc76feedea35df8d9cda90d26b0911861cea0c6fd25eaf5b518e4a"
+    },
+    {
+      "label": "final-prose-5-a",
+      "fixture": "prose",
+      "exactBody": true,
+      "utf16Units": 21492,
+      "sha256": "3d23c3787bbc76feedea35df8d9cda90d26b0911861cea0c6fd25eaf5b518e4a"
+    },
+    {
+      "label": "final-prose-6-b",
+      "fixture": "prose",
+      "exactBody": true,
+      "utf16Units": 21492,
+      "sha256": "3d23c3787bbc76feedea35df8d9cda90d26b0911861cea0c6fd25eaf5b518e4a"
+    },
+    {
+      "label": "integration-plain",
+      "fixture": "plain",
+      "exactBody": true,
+      "utf16Units": 19221,
+      "sha256": "43b16706b3a550aaf34e698df19faaf0ccb229f7d53f483a1715651b7ba1b9b4"
+    },
+    {
+      "label": "integration-rich",
+      "fixture": "rich",
+      "exactBody": true,
+      "utf16Units": 4504,
+      "sha256": "21973d36b762bdd6b6e6f9ea32cdaf76c22ff7b2647801c7e372829db29f4dee"
+    },
+    {
+      "label": "visual-a-10-dark",
+      "fixture": "long",
+      "exactBody": true,
+      "utf16Units": 20880,
+      "sha256": "9f000e64e6a4e3f2b114c7d492efa88523bb495a068f62b56ec7c5d161abfa8e"
+    },
+    {
+      "label": "visual-a-10-light",
+      "fixture": "long",
+      "exactBody": true,
+      "utf16Units": 20880,
+      "sha256": "9f000e64e6a4e3f2b114c7d492efa88523bb495a068f62b56ec7c5d161abfa8e"
+    },
+    {
+      "label": "visual-a-13-dark",
+      "fixture": "long",
+      "exactBody": true,
+      "utf16Units": 20880,
+      "sha256": "9f000e64e6a4e3f2b114c7d492efa88523bb495a068f62b56ec7c5d161abfa8e"
+    },
+    {
+      "label": "visual-a-13-light",
+      "fixture": "long",
+      "exactBody": true,
+      "utf16Units": 20880,
+      "sha256": "9f000e64e6a4e3f2b114c7d492efa88523bb495a068f62b56ec7c5d161abfa8e"
+    },
+    {
+      "label": "visual-a-20-dark",
+      "fixture": "long",
+      "exactBody": true,
+      "utf16Units": 20880,
+      "sha256": "9f000e64e6a4e3f2b114c7d492efa88523bb495a068f62b56ec7c5d161abfa8e"
+    },
+    {
+      "label": "visual-a-20-light",
+      "fixture": "long",
+      "exactBody": true,
+      "utf16Units": 20880,
+      "sha256": "9f000e64e6a4e3f2b114c7d492efa88523bb495a068f62b56ec7c5d161abfa8e"
+    },
+    {
+      "label": "visual-b-10-dark",
+      "fixture": "long",
+      "exactBody": true,
+      "utf16Units": 20880,
+      "sha256": "9f000e64e6a4e3f2b114c7d492efa88523bb495a068f62b56ec7c5d161abfa8e"
+    },
+    {
+      "label": "visual-b-10-light",
+      "fixture": "long",
+      "exactBody": true,
+      "utf16Units": 20880,
+      "sha256": "9f000e64e6a4e3f2b114c7d492efa88523bb495a068f62b56ec7c5d161abfa8e"
+    },
+    {
+      "label": "visual-b-10-light-retry",
+      "fixture": "long",
+      "exactBody": true,
+      "utf16Units": 20880,
+      "sha256": "9f000e64e6a4e3f2b114c7d492efa88523bb495a068f62b56ec7c5d161abfa8e"
+    },
+    {
+      "label": "visual-b-13-dark",
+      "fixture": "long",
+      "exactBody": true,
+      "utf16Units": 20880,
+      "sha256": "9f000e64e6a4e3f2b114c7d492efa88523bb495a068f62b56ec7c5d161abfa8e"
+    },
+    {
+      "label": "visual-b-13-light",
+      "fixture": "long",
+      "exactBody": true,
+      "utf16Units": 20880,
+      "sha256": "9f000e64e6a4e3f2b114c7d492efa88523bb495a068f62b56ec7c5d161abfa8e"
+    },
+    {
+      "label": "visual-b-20-dark",
+      "fixture": "long",
+      "exactBody": true,
+      "utf16Units": 20880,
+      "sha256": "9f000e64e6a4e3f2b114c7d492efa88523bb495a068f62b56ec7c5d161abfa8e"
+    },
+    {
+      "label": "visual-b-20-light",
+      "fixture": "long",
+      "exactBody": true,
+      "utf16Units": 20880,
+      "sha256": "9f000e64e6a4e3f2b114c7d492efa88523bb495a068f62b56ec7c5d161abfa8e"
+    },
+    {
+      "label": "visual-b-20-light-retry",
+      "fixture": "long",
+      "exactBody": true,
+      "utf16Units": 20880,
+      "sha256": "9f000e64e6a4e3f2b114c7d492efa88523bb495a068f62b56ec7c5d161abfa8e"
+    }
+  ],
+  "integrationBinary": {
+    "assets/index.android.bundle": "42455A0A55512CA29EA073C6F96849A5FE0E2390EA100633D263BC736A18F7B9",
+    "source": "9d2a2401d15e7379fa887ec63c7afef7483a44b8",
+    "classes.dex": "CBB8133AF5C900598E40A191D7E83208852AA1CC9B197993DBF0104DCCD67321",
+    "apk": "96FD3C026699C0B7EBB2A22BB6D26A308E148F7C1CEC573E34E4F2AD45A9ACCE"
+  },
+  "visualCaptureRecovery": {
+    "label": "visual-b-20-dark",
+    "reason": "Original final accessibility dump exited 137 while another QA capture was started too early. Final reopened-body capture repeated serially; original active capture and CLI exit 0 retained.",
+    "finalComplete": true
+  },
+  "integration": {
+    "source": "9d2a2401d15e7379fa887ec63c7afef7483a44b8",
+    "method": "Natural completion without reopening, no latency measurement",
+    "runs": [
+      {
+        "content": "plain",
+        "cliExit": 0,
+        "canonicalComplete": true,
+        "canonicalLength": 19221,
+        "visibleComplete": true,
+        "actual120": true
+      },
+      {
+        "content": "rich",
+        "cliExit": 0,
+        "canonicalComplete": true,
+        "canonicalLength": 4504,
+        "visibleComplete": true,
+        "actual120": true
+      }
+    ],
+    "interactions": {
+      "fontScale": 1,
+      "theme": "light",
+      "scrollMovement": "Table rows 23–40 to rows 3–22, then heading/list/quote/code start",
+      "returnLatest": "Final table row 40 and REPLAY_COMPLETE visible again",
+      "longPress": "Reaction menu and Copy/Share visible",
+      "initialSwipe": "First swipe outside bubble produced no visible movement; retained privately and not counted as a pass"
+    },
+    "candidateLargeFont": {
+      "fontScale": 2,
+      "theme": "dark",
+      "longPress": "Reaction menu and Copy/Share visible"
+    }
+  }
+}

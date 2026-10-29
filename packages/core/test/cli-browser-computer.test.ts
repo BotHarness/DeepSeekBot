@@ -428,3 +428,35 @@ describe('WebRTC commands', () => {
     expect(live.calls).toEqual([]);
   });
 });
+
+it('opens a selected Host privacy pane only with explicit confirmation', async () => {
+  const live = await host(() => ({ json: { ok: true } }));
+  expect(
+    (await invoke(['computer-open-permission-settings', '--permission', 'accessibility'], live.url))
+      .code,
+  ).toBe(2);
+  expect(
+    (
+      await invoke(
+        ['computer-open-permission-settings', '--permission', 'arbitrary', '--confirm'],
+        live.url,
+      )
+    ).code,
+  ).toBe(2);
+  expect(live.calls).toHaveLength(0);
+  expect(
+    (
+      await invoke(
+        ['computer-open-permission-settings', '--permission', 'screen-recording', '--confirm'],
+        live.url,
+      )
+    ).json,
+  ).toEqual({ ok: true });
+  expect(live.calls).toEqual([
+    {
+      method: 'POST',
+      path: '/api/computer/open-permission-settings',
+      body: { authorize: true, permission: 'screen-recording' },
+    },
+  ]);
+});

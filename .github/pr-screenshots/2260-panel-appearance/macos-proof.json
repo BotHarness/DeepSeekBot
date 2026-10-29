@@ -1,0 +1,19 @@
+{
+  "styles": {
+    "bh:channel-body": {
+      "background": "color(srgb 0.835294 0.913725 0.945098 / 0.7)",
+      "blur": "blur(8px)",
+      "opacity": "1"
+    },
+    "bh:home": {
+      "background": "color(srgb 0.956863 0.87451 0.709804 / 0.82)",
+      "blur": "blur(4px)",
+      "opacity": "1"
+    }
+  },
+  "native": {
+    "mode": true,
+    "style": "--dsh-content-font-size: 14px; --dsh-code-font-size: 11px; --dsh-terminal-font-size: 13px;"
+  },
+  "errors": []
+}

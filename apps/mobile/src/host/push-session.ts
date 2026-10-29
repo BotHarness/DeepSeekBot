@@ -33,6 +33,7 @@ export interface PushSession {
   stop(): void;
 }
 
+const TOKEN_TIMEOUT_MS = 20_000;
 const RESOLVABLE = new Set(['tool-approval', 'user-question', 'private-input']);
 
 export function createPushSession(options: {
@@ -40,6 +41,9 @@ export function createPushSession(options: {
   hostPush: HostPush;
   platform: 'ios' | 'android';
   locale: 'en' | 'zh';
+  tokenTimeoutMs?: number;
+  beforeRegister?: () => Promise<void>;
+  prepareRegistration?: (host: SavedHost) => Promise<void>;
 }): PushSession {
   const { notifications, hostPush } = options;
   const listeners = new Set<() => void>();
@@ -54,9 +58,24 @@ export function createPushSession(options: {
   };
 
   const registerAll = async (hosts: readonly SavedHost[]): Promise<void> => {
+    try {
+      await options.beforeRegister?.();
+    } catch {
+      publish({ status: 'unavailable', reason: 'notification-preferences-unavailable' });
+      return;
+    }
     let token: string;
     try {
-      token = await notifications.token();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      token = await Promise.race([
+        notifications.token(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('push-token-timeout')),
+            options.tokenTimeoutMs ?? TOKEN_TIMEOUT_MS,
+          );
+        }),
+      ]).finally(() => clearTimeout(timer));
     } catch (error) {
       publish({
         status: 'unavailable',
@@ -66,10 +85,20 @@ export function createPushSession(options: {
     }
     const results = await Promise.all(
       hosts.map((host) =>
-        hostPush.register(host, { token, platform: options.platform, locale: options.locale }).then(
-          () => undefined,
-          () => host.hostId,
-        ),
+        Promise.resolve()
+          .then(() => options.prepareRegistration?.(host))
+          .then(() =>
+            hostPush.register(host, {
+              token,
+              platform: options.platform,
+              locale: options.locale,
+              ...(options.platform === 'android' ? { render: 'app' as const } : {}),
+            }),
+          )
+          .then(
+            () => undefined,
+            () => host.hostId,
+          ),
       ),
     );
     publish({ status: 'on', failed: results.flatMap((id) => (id === undefined ? [] : [id])) });
@@ -99,7 +128,19 @@ export function createPushSession(options: {
     },
     async forget(host) {
       latest = latest.filter((entry) => entry.hostId !== host.hostId);
-      await hostPush.unregister(host).catch(() => undefined);
+      reflected = '';
+      const cleared = notifications
+        .presented()
+        .then((shown) =>
+          Promise.all(
+            shown.flatMap(({ id, data }) =>
+              parsePushData(data)?.hostId === host.hostId ? [notifications.dismiss(id)] : [],
+            ),
+          ),
+        )
+        .catch(() => undefined);
+      const badge = latest.length === 0 ? notifications.setBadge(0).catch(() => undefined) : null;
+      await Promise.all([cleared, badge, hostPush.unregister(host).catch(() => undefined)]);
     },
     retryFailed() {
       if (retrying !== undefined) return retrying;

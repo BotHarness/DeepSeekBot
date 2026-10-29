@@ -1,97 +1,47 @@
 import { TextInput } from '../primitives/system-text';
-import { useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
 import {
   Image,
-  Keyboard,
-  PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   View,
   useWindowDimensions,
   type ViewStyle,
 } from 'react-native';
-import Animated, {
-  ReduceMotion,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { PickSource, PickedFile } from '../../host/pick-files';
-import { useDesignTheme } from '../design/theme';
-import { edge, motion, radius, space } from '../design/tokens';
+import { pressTint, useDesignTheme } from '../design/theme';
+import { spring } from '../design/motion';
+import { edge, radius, space } from '../design/tokens';
+import { HardwareSend } from '../primitives/hardware-send';
 import { Text } from '../primitives/text';
+import { ArrowUpIcon, ChevronUpIcon, CloseIcon, FileIcon, LockIcon } from '../shell/icons';
 import {
-  ArrowUpIcon,
-  CameraIcon,
-  ChevronUpIcon,
-  CloseIcon,
-  FileIcon,
-  LockIcon,
-  MicIcon,
-  PhotoIcon,
-  PlusIcon,
-  RecordingStopIcon,
-} from '../shell/icons';
+  ComposerCircleButton,
+  ComposerFieldMaterial,
+  composerBar,
+  composerControl,
+  composerPrimary,
+} from './composer-chrome';
+import { ComposerActionButton } from './composer-action';
+import { VoiceButton } from './voice-button';
 import { DraftEditor } from './draft-editor';
 import { haptic } from '../haptics';
-import { t } from '../strings';
+import { PlusMenuButton } from '../primitives/plus-menu-button';
+import { useStrings } from '../strings';
 import {
   composerActions,
   composerFieldHeight,
   composerStacked,
   dictating,
-  voiceDrag,
-  voiceRelease,
   type DictationStatus,
 } from './dictation';
 
-const SOURCES: Array<{ source: PickSource; label: string; Icon: typeof PhotoIcon }> = [
-  { source: 'photos', label: t.attachPhotos, Icon: PhotoIcon },
-  { source: 'camera', label: t.attachCamera, Icon: CameraIcon },
-  { source: 'file', label: t.attachFile, Icon: FileIcon },
-];
-
-function RoundButton({
-  label,
-  filled,
-  onPress,
-  children,
-}: {
-  label: string;
-  filled: boolean;
-  onPress(): void;
-  children: ReactNode;
-}) {
-  const theme = useDesignTheme();
-  const size = theme.touch - space.x4;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      hitSlop={space.x2}
-      style={({ pressed }) => ({
-        width: size,
-        height: size,
-        borderRadius: radius.round,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: filled
-          ? theme.color.accent
-          : pressed
-            ? theme.layer.raised.pressed
-            : undefined,
-        opacity: filled && pressed ? 0.7 : 1,
-      })}
-    >
-      {children}
-    </Pressable>
-  );
-}
-
 function AttachmentTile({ file, onRemove }: { file: PickedFile; onRemove(): void }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const tile = theme.touch + space.x5;
   const badge = theme.type.meta.line + space.x1;
@@ -133,19 +83,21 @@ function AttachmentTile({ file, onRemove }: { file: PickedFile; onRemove(): void
         accessibilityLabel={t.removeAttachment(file.name)}
         onPress={onRemove}
         hitSlop={space.x3}
-        style={{
+        android_ripple={{ color: pressTint(theme.color.base) }}
+        style={({ pressed }) => ({
           position: 'absolute',
           top: 0,
           right: 0,
           width: badge,
           height: badge,
           borderRadius: radius.round,
+          overflow: 'hidden',
           alignItems: 'center',
           justifyContent: 'center',
           borderWidth: edge.focus,
           borderColor: theme.color.surface,
-          backgroundColor: theme.color.fg,
-        }}
+          backgroundColor: pressed ? theme.color.muted : theme.color.fg,
+        })}
       >
         <CloseIcon color={theme.color.base} size={theme.type.meta.size} />
       </Pressable>
@@ -153,93 +105,8 @@ function AttachmentTile({ file, onRemove }: { file: PickedFile; onRemove(): void
   );
 }
 
-function VoiceButton({
-  active,
-  onStart,
-  onStop,
-  onCancel,
-  onHeld,
-}: {
-  active: boolean;
-  onStart(): void;
-  onStop(): void;
-  onCancel(): void;
-  onHeld(held: boolean): void;
-}) {
+function HoldDot({ size }: { size: number }) {
   const theme = useDesignTheme();
-  const [held, setHeld] = useState(false);
-  const size = theme.touch - space.x4;
-  const latest = useRef({ active, onStart, onStop, onCancel, onHeld });
-  latest.current = { active, onStart, onStop, onCancel, onHeld };
-  const gesture = useRef({ at: 0, startedHere: false, done: false });
-  const hold = (next: boolean) => {
-    setHeld(next);
-    latest.current.onHeld(next);
-  };
-  const responder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: () => {
-        const startedHere = !latest.current.active;
-        gesture.current = { at: Date.now(), startedHere, done: false };
-        if (!startedHere) return;
-        latest.current.onStart();
-        hold(true);
-      },
-      onPanResponderMove: (_event, { dx, dy }) => {
-        const current = gesture.current;
-        if (!current.startedHere || current.done) return;
-        const drag = voiceDrag(dx, dy);
-        if (drag === undefined) return;
-        current.done = true;
-        hold(false);
-        if (drag === 'cancel') latest.current.onCancel();
-      },
-      onPanResponderRelease: () => {
-        const current = gesture.current;
-        hold(false);
-        if (current.done) return;
-        if (!current.startedHere) latest.current.onStop();
-        else if (voiceRelease(Date.now() - current.at) === 'stop') latest.current.onStop();
-      },
-      onPanResponderTerminate: () => hold(false),
-    }),
-  ).current;
-  const filled = active || held;
-  return (
-    <View
-      {...responder.panHandlers}
-      accessible
-      accessibilityRole="button"
-      accessibilityLabel={active ? t.stopDictation : t.dictate}
-      accessibilityHint={active ? undefined : t.dictateHint}
-      onAccessibilityTap={() => (latest.current.active ? onStop() : onStart())}
-      hitSlop={space.x2}
-      style={{
-        width: size,
-        height: size,
-        borderRadius: radius.round,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: filled ? theme.color.accent : undefined,
-      }}
-    >
-      {active && !held ? (
-        <RecordingStopIcon color={theme.color.onAccent} size={theme.type.title.line} />
-      ) : (
-        <MicIcon
-          color={filled ? theme.color.onAccent : theme.color.muted}
-          size={theme.type.title.line}
-        />
-      )}
-    </View>
-  );
-}
-
-function HoldDot() {
-  const theme = useDesignTheme();
-  const size = theme.touch - space.x4;
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <View
@@ -256,7 +123,7 @@ function HoldDot() {
 
 function LockHint({ style }: { style: ViewStyle }) {
   const theme = useDesignTheme();
-  const size = theme.touch - space.x4;
+  const size = composerControl(theme);
   return (
     <View
       style={[
@@ -279,53 +146,7 @@ function LockHint({ style }: { style: ViewStyle }) {
   );
 }
 
-function AttachMenu({ onPick }: { onPick(source: PickSource): void }) {
-  const theme = useDesignTheme();
-  return (
-    <View
-      style={{
-        flexDirection: theme.largeText ? 'column' : 'row',
-        gap: space.x3,
-        justifyContent: 'space-around',
-        paddingTop: space.x5,
-        paddingBottom: space.x2,
-      }}
-    >
-      {SOURCES.map(({ source, label, Icon }) => (
-        <Pressable
-          key={source}
-          accessibilityRole="button"
-          accessibilityLabel={label}
-          onPress={() => onPick(source)}
-          style={({ pressed }) => ({
-            alignItems: 'center',
-            gap: space.x2,
-            minWidth: theme.touch * 2,
-            opacity: pressed ? 0.6 : 1,
-          })}
-        >
-          <View
-            style={{
-              width: theme.touch + space.x3,
-              height: theme.touch + space.x3,
-              borderRadius: radius.round,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: theme.color.surface,
-              borderWidth: edge.hairline,
-              borderColor: theme.color.border,
-            }}
-          >
-            <Icon color={theme.color.fg} size={theme.type.display.size} />
-          </View>
-          <Text variant="meta" tone="muted">
-            {label}
-          </Text>
-        </Pressable>
-      ))}
-    </View>
-  );
-}
+export type ComposerInput = ComponentRef<typeof TextInput>;
 
 export function Composer({
   value,
@@ -346,6 +167,8 @@ export function Composer({
   above,
   selection,
   onSelection,
+  inputRef,
+  onFocusChange,
 }: {
   value: string;
   placeholder: string;
@@ -365,11 +188,13 @@ export function Composer({
   above?: ReactNode;
   selection?: { start: number; end: number } | undefined;
   onSelection?(caret: number): void;
+  inputRef?: Ref<ComposerInput>;
+  onFocusChange?(focused: boolean): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const [footerHeight, setFooterHeight] = useState(0);
-  const [menu, setMenu] = useState(false);
   const [held, setHeld] = useState(false);
   const [editing, setEditing] = useState(false);
   const [contentHeight, setContentHeight] = useState(0);
@@ -381,20 +206,19 @@ export function Composer({
     measuredLine.scale === theme.fontScale
       ? measuredLine.height
       : theme.type.body.line * theme.fontScale;
-  const lineHeight = Math.max(theme.touch - space.x4, textLine);
+  const bar = composerBar(theme);
+  const integratedLeading = Platform.OS === 'ios';
+  const lineHeight = Math.max(composerControl(theme), textLine);
   const fieldPadding = Math.max(space.x2, (lineHeight - textLine) / 2);
   const fieldLimit = Math.max(textLine + 2 * fieldPadding, viewportHeight / 5);
-  const inset = space.x3;
-  const pillHeight = useSharedValue(lineHeight + 2 * (inset + edge.hairline));
+  const button = composerControl(theme);
+  const inset = (bar - button) / 2;
+  const corner = bar / 2;
+  const pillHeight = useSharedValue(lineHeight + 2 * inset);
   const pillStyle = useAnimatedStyle(() => ({ height: pillHeight.value }));
-  const settlePill = (content: number) => {
-    const next = content + 2 * edge.hairline;
+  const settlePill = (next: number) => {
     if (pill.height === 0) pillHeight.value = next;
-    else
-      pillHeight.value = withTiming(next, {
-        duration: motion.composer,
-        reduceMotion: ReduceMotion.System,
-      });
+    else pillHeight.value = withSpring(next, spring.spatial.default);
   };
   const listening = dictating(dictation);
   const actions = composerActions({
@@ -404,38 +228,63 @@ export function Composer({
     dictation,
     canDictate,
   });
-  const toggleMenu = () => {
-    if (!menu) Keyboard.dismiss();
-    setMenu(!menu);
+  const canSend = actions.includes('send') && !disabled;
+  const send = () => {
+    if (!canSend) return;
+    haptic('send');
+    onSend();
   };
   const expanded = theme.largeText || wraps;
   const stacked = composerStacked(actions, files.length, expanded);
   const icon = theme.type.title.line;
-  const button = theme.touch - space.x4;
-  const compactWidth = pill.width - 2 * (inset + button + space.x2);
   const leading = held ? (
-    <HoldDot key="lead" />
+    <HoldDot key="lead" size={integratedLeading ? button : bar} />
   ) : listening ? (
-    <RoundButton key="lead" label={t.cancelDictation} filled={false} onPress={onCancelDictation}>
-      <CloseIcon color={theme.color.muted} size={icon} />
-    </RoundButton>
-  ) : canAttach ? (
-    <RoundButton
+    <ComposerCircleButton
       key="lead"
-      label={menu ? t.closeAttach : t.attach}
-      filled={false}
-      onPress={toggleMenu}
+      label={t.cancelDictation}
+      symbol="xmark"
+      testID="composer-dictation-cancel"
+      size={integratedLeading ? button : bar}
+      embedded={integratedLeading}
+      onPress={onCancelDictation}
     >
-      {menu ? (
-        <CloseIcon color={theme.color.muted} size={icon} />
-      ) : (
-        <PlusIcon color={theme.color.muted} size={icon} />
-      )}
-    </RoundButton>
+      <CloseIcon color={theme.color.fg} size={icon} />
+    </ComposerCircleButton>
+  ) : canAttach ? (
+    <PlusMenuButton
+      key="lead"
+      label={t.attach}
+      testID="composer-attach"
+      size={integratedLeading ? button : bar}
+      embedded={integratedLeading}
+      items={[
+        {
+          id: 'composer-attach-photos',
+          label: t.attachPhotos,
+          symbol: 'photo',
+          run: () => onPick('photos'),
+        },
+        {
+          id: 'composer-attach-camera',
+          label: t.attachCamera,
+          symbol: 'camera',
+          run: () => onPick('camera'),
+        },
+        {
+          id: 'composer-attach-file',
+          label: t.attachFile,
+          symbol: 'folder',
+          run: () => onPick('file'),
+        },
+      ]}
+    />
   ) : null;
   const field = (
     <TextInput
       key="field"
+      ref={inputRef}
+      testID="composer-input"
       value={value}
       onChangeText={onChange}
       {...(selection === undefined ? {} : { selection })}
@@ -445,7 +294,10 @@ export function Composer({
             onSelectionChange: (event: { nativeEvent: { selection: { end: number } } }) =>
               onSelection(event.nativeEvent.selection.end),
           })}
-      onFocus={() => setMenu(false)}
+      onFocus={() => {
+        onFocusChange?.(true);
+      }}
+      onBlur={() => onFocusChange?.(false)}
       placeholder={
         held
           ? t.dictationHoldHint
@@ -469,7 +321,7 @@ export function Composer({
             }
           : { height: textLine + fieldPadding * 2 }),
         paddingVertical: fieldPadding,
-        paddingHorizontal: stacked || leading === null ? space.x3 : 0,
+        paddingHorizontal: space.x3,
         color: theme.color.fg,
         fontSize: theme.type.body.size,
         lineHeight: theme.type.body.line,
@@ -478,23 +330,22 @@ export function Composer({
   );
   const trailing = actions.map((action) =>
     action === 'send' ? (
-      <RoundButton
+      <ComposerActionButton
         key={action}
         label={t.send}
+        symbol="arrow.up"
+        testID="composer-send"
         filled
-        onPress={() => {
-          haptic('send');
-          onSend();
-        }}
+        disabled={!canSend}
+        onPress={send}
       >
-        <ArrowUpIcon color={theme.color.onAccent} size={icon} />
-      </RoundButton>
+        <ArrowUpIcon color={composerPrimary(theme).ink} size={icon} />
+      </ComposerActionButton>
     ) : (
       <VoiceButton
         key="voice"
         active={listening}
         onStart={() => {
-          setMenu(false);
           onDictate();
         }}
         onStop={onStopDictation}
@@ -503,6 +354,24 @@ export function Composer({
       />
     ),
   );
+  const leadingWidth = integratedLeading && leading !== null ? button + space.x2 : 0;
+  const compactWidth =
+    pill.width -
+    2 * (inset + space.x3) -
+    leadingWidth -
+    (trailing.length === 0 ? 0 : button + space.x2);
+  const expand =
+    expanded && !listening ? (
+      <ComposerActionButton
+        symbol="chevron.up"
+        testID="composer-expand"
+        label={t.expandDraft}
+        filled={false}
+        onPress={() => setEditing(true)}
+      >
+        <ChevronUpIcon color={theme.color.muted} size={icon} />
+      </ComposerActionButton>
+    ) : null;
   return (
     <View
       style={{
@@ -515,15 +384,16 @@ export function Composer({
         <DraftEditor
           value={value}
           placeholder={placeholder}
-          canSend={actions.includes('send')}
+          canSend={canSend}
+          showSend={actions.includes('send')}
           above={above}
           selection={selection}
           onSelection={onSelection}
           onChange={onChange}
           onClose={() => setEditing(false)}
           onSend={() => {
-            haptic('send');
-            onSend();
+            if (!canSend) return;
+            send();
             setEditing(false);
           }}
         />
@@ -532,6 +402,7 @@ export function Composer({
       <Text
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
+        pointerEvents="none"
         onTextLayout={(event) => {
           const height = event.nativeEvent.lines[0]?.height;
           if (height !== undefined && height > 0)
@@ -545,82 +416,80 @@ export function Composer({
       >
         M
       </Text>
-      <Animated.View
-        style={[
-          {
-            borderRadius: (theme.touch - space.x4) / 2 + inset,
-            borderWidth: edge.hairline,
-            borderColor: theme.color.borderStrong,
-            backgroundColor: theme.color.surface,
-            overflow: 'hidden',
-          },
-          pillStyle,
-        ]}
-      >
-        <View
-          style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
-          onLayout={(event) => {
-            const { width, height } = event.nativeEvent.layout;
-            settlePill(height);
-            setPill({ width, height: height + 2 * edge.hairline });
-          }}
-        >
-          {files.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ paddingHorizontal: space.x4, paddingTop: space.x2 }}
-            >
-              {files.map((file) => (
-                <AttachmentTile key={file.id} file={file} onRemove={() => onRemove(file.id)} />
-              ))}
-            </ScrollView>
-          ) : null}
-          <View style={{ padding: inset }}>
-            <View
-              style={{
-                flexDirection: 'row',
-                paddingLeft: stacked || leading === null ? 0 : button + space.x2,
-                paddingRight: stacked || trailing.length === 0 ? 0 : button + space.x2,
-              }}
-            >
-              {field}
-            </View>
-            <View
-              pointerEvents="box-none"
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: space.x2,
-                ...(stacked
-                  ? { paddingTop: space.x2 }
-                  : { position: 'absolute', left: inset, right: inset, bottom: inset }),
-              }}
-            >
-              {leading}
-              {expanded && !listening ? (
-                <RoundButton label={t.expandDraft} filled={false} onPress={() => setEditing(true)}>
-                  <ChevronUpIcon color={theme.color.muted} size={icon} />
-                </RoundButton>
-              ) : null}
-              <View pointerEvents="none" style={{ flex: 1 }} />
-              {trailing}
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: space.x3 }}>
+        {integratedLeading ? null : leading}
+        <Animated.View style={[{ flex: 1, borderRadius: corner, overflow: 'hidden' }, pillStyle]}>
+          <ComposerFieldMaterial cornerRadius={corner} />
+          <View
+            style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
+            onLayout={(event) => {
+              const { width, height } = event.nativeEvent.layout;
+              settlePill(height);
+              setPill({ width, height });
+            }}
+          >
+            {files.length > 0 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingHorizontal: space.x4, paddingTop: space.x2 }}
+              >
+                {files.map((file) => (
+                  <AttachmentTile key={file.id} file={file} onRemove={() => onRemove(file.id)} />
+                ))}
+              </ScrollView>
+            ) : null}
+            <View style={{ padding: inset }}>
+              <HardwareSend
+                enabled={canSend}
+                enter
+                onSend={send}
+                style={{
+                  flexDirection: 'row',
+                  paddingLeft: stacked ? 0 : leadingWidth,
+                  paddingRight: stacked || trailing.length === 0 ? 0 : button + space.x2,
+                }}
+              >
+                {field}
+              </HardwareSend>
+              {stacked && expand === null && trailing.length === 0 && leadingWidth === 0 ? null : (
+                <View
+                  pointerEvents="box-none"
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: space.x2,
+                    ...(stacked
+                      ? { paddingTop: space.x2 }
+                      : { position: 'absolute', left: inset, right: inset, bottom: inset }),
+                  }}
+                >
+                  {integratedLeading ? leading : null}
+                  {expand}
+                  <View pointerEvents="none" style={{ flex: 1 }} />
+                  {trailing}
+                </View>
+              )}
             </View>
           </View>
-        </View>
-        {compactWidth > 0 ? (
-          <Text
-            variant="body"
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            onLayout={(event) => setWraps(event.nativeEvent.layout.height > textLine * 1.5)}
-            style={{ position: 'absolute', opacity: 0, width: compactWidth, left: 0, top: 0 }}
-          >
-            {value === '' ? ' ' : value}
-          </Text>
-        ) : null}
-      </Animated.View>
+          {compactWidth > 0 ? (
+            <View
+              pointerEvents="none"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              style={{ position: 'absolute', opacity: 0, width: compactWidth, left: 0, top: 0 }}
+            >
+              <Text
+                variant="body"
+                onLayout={(event) => setWraps(event.nativeEvent.layout.height > textLine * 1.5)}
+              >
+                {value === '' ? ' ' : value}
+              </Text>
+            </View>
+          ) : null}
+        </Animated.View>
+      </View>
       {footer === undefined ? null : (
         <View
           onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
@@ -633,20 +502,12 @@ export function Composer({
         <LockHint
           style={{
             position: 'absolute',
-            right: space.x4 + edge.hairline + inset,
+            right: space.x4 + inset,
             bottom:
               Math.max(insets.bottom, space.x3) +
               (footer === undefined ? 0 : footerHeight) +
               pill.height +
               space.x3,
-          }}
-        />
-      ) : null}
-      {menu && canAttach && !listening ? (
-        <AttachMenu
-          onPick={(source) => {
-            setMenu(false);
-            onPick(source);
           }}
         />
       ) : null}

@@ -1,31 +1,63 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { AccessibilityInfo, Platform, View, type ViewInstance } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import {
   useAnimatedReaction,
   useAnimatedScrollHandler,
   useDerivedValue,
   useSharedValue,
-  withTiming,
+  withSpring,
   type SharedValue,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
-import { scrollChrome } from '../design/tokens';
+import { spring } from '../design/motion';
+import { useMounted } from '../mounted';
 import { scrollChromeStep, type ScrollChromeState } from './scroll-chrome-model';
 
-type Chrome = { hidden: SharedValue<boolean>; pinned: SharedValue<boolean> };
+type Chrome = {
+  hidden: SharedValue<boolean>;
+  pinned: SharedValue<boolean>;
+  screenReader: SharedValue<boolean>;
+};
 const Context = createContext<Chrome | undefined>(undefined);
 
 function useLocalChrome(): Chrome {
   const hidden = useSharedValue(false);
   const pinned = useSharedValue(false);
-  return useMemo(() => ({ hidden, pinned }), [hidden, pinned]);
+  const screenReader = useSharedValue(Platform.OS === 'android');
+  return useMemo(() => ({ hidden, pinned, screenReader }), [hidden, pinned, screenReader]);
 }
 
 export function ScrollChromeProvider({ children }: { children: ReactNode }) {
   const chrome = useLocalChrome();
-  return <Context.Provider value={chrome}>{children}</Context.Provider>;
+  const { screenReader } = chrome;
+  const mount = useMounted<ViewInstance>(() => {
+    if (Platform.OS !== 'android') return;
+    let active = true;
+    let changed = false;
+    void AccessibilityInfo.isScreenReaderEnabled()
+      .then((enabled) => {
+        if (active && !changed) screenReader.set(enabled);
+      })
+      .catch(() => {});
+    const listener = AccessibilityInfo.addEventListener('screenReaderChanged', (enabled) => {
+      changed = true;
+      if (active) screenReader.set(enabled);
+    });
+    return () => {
+      active = false;
+      listener.remove();
+    };
+  }, [screenReader]);
+  return (
+    <Context.Provider value={chrome}>
+      <View ref={mount} style={{ flex: 1 }}>
+        {children}
+      </View>
+    </Context.Provider>
+  );
 }
 
 export function useScrollChrome() {
@@ -34,17 +66,17 @@ export function useScrollChrome() {
 }
 
 export function useChromeProgress() {
-  const { hidden, pinned } = useScrollChrome();
+  const { hidden, pinned, screenReader } = useScrollChrome();
   return useDerivedValue(() =>
-    withTiming(hidden.value && !pinned.value ? 1 : 0, { duration: scrollChrome.duration }),
+    withSpring(hidden.get() && !pinned.get() && !screenReader.get() ? 1 : 0, spring.effects.fast),
   );
 }
 
 export function useChromeHidden() {
-  const { hidden, pinned } = useScrollChrome();
+  const { hidden, pinned, screenReader } = useScrollChrome();
   const [value, setValue] = useState(false);
   useAnimatedReaction(
-    () => hidden.value && !pinned.value,
+    () => hidden.get() && !pinned.get() && !screenReader.get(),
     (next, previous) => {
       if (next !== previous) scheduleOnRN(setValue, next);
     },

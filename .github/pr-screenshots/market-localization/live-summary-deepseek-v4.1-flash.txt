@@ -1,0 +1,2 @@
+LIVE deepseek-v4.1-flash 2081ms Hiring Partner {"zh":"把职位要求转化为一致的面试问题和评分标准。","en":"Turns role requirements into consistent interview questions and scoring criteria."}
+LIVE deepseek-v4.1-flash 2343ms Meeting Assistant {"zh":"把会议记录整理成决策与承诺，保留原话中的负责人和期限，并标出未解决或冲突之处。","en":"Turns meeting notes into decisions and commitments, keeping stated owners and deadlines and flagging unresolved or conflicting points."}

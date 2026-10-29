@@ -114,6 +114,10 @@ export function createConversationPlayback(
     const now = Date.now();
     const ids = new Set(current.messages.map((message) => message.id));
     const previousIds = new Set(previous.messages.map((message) => message.id));
+    const previousRevision = previous.messages.reduce(
+      (revision, message) => Math.max(revision, message.revision ?? 0),
+      0,
+    );
     const draftIds = new Set(current.drafts.map((draft) => draft.draftId));
     for (const draft of current.drafts) {
       const key = `draft:${draft.draftId}`;
@@ -129,6 +133,7 @@ export function createConversationPlayback(
       if (
         queue === undefined &&
         !previousIds.has(message.id) &&
+        (message.revision === undefined || message.revision > previousRevision) &&
         message.author === 'bot' &&
         message.activity === undefined &&
         message.card === undefined &&

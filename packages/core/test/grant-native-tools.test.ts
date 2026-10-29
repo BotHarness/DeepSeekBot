@@ -138,6 +138,10 @@ describe('Grant policy for native DSH file tools', () => {
     ).toBeUndefined();
     expect(
       f.gate(f.oldAssignment, 'str_replace_editor', { command: 'create', path: 'new.txt' }),
+    ).toMatch(/outside/);
+    f.allowWrite(true);
+    expect(
+      f.gate(f.oldAssignment, 'str_replace_editor', { command: 'create', path: 'new.txt' }),
     ).toBeUndefined();
     for (const path of ['../outside/secret.txt', 'escape/secret.txt', 'dangling']) {
       expect(f.gate(f.oldAssignment, 'read', { file_path: path })).toMatch(/outside|resolved/);

@@ -1,12 +1,20 @@
 // @vitest-environment jsdom
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+beforeEach(() => localStorage.clear());
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  relativeTime: (at: number, now: number) => ({
+    unit: 'days',
+    n: Math.floor((now - at) / 86_400_000),
+  }),
+  IconRefreshOutlineRegular: () => null,
   Button: (props: { children?: ReactNode; disabled?: boolean; onClick?: () => void }) =>
     createElement('button', { disabled: props.disabled, onClick: props.onClick }, props.children),
   Input: (props: Record<string, unknown>) => createElement('input', props),
+  IconChevronDownOutlineRegular: () => null,
   Tag: (props: { children?: ReactNode }) => createElement('span', null, props.children),
   MarkdownText: (props: { text: string }) =>
     createElement('div', { 'data-markdown': '' }, props.text),
@@ -64,7 +72,8 @@ import type {
 import { createChallenge } from '../../core/src/marketplace/altcha.js';
 import type { BridgeActions } from '../src/client/actions.js';
 import { BridgeCallError } from '../src/client/bridge.js';
-import { MarketplaceModal, SEARCH_DEBOUNCE_MS } from '../src/client/marketplace.js';
+import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
+import { MarketplaceModal } from '../src/client/marketplace.js';
 
 function entry(name: string, overrides: Partial<MarketplaceEntry> = {}): MarketplaceEntry {
   return {
@@ -74,10 +83,13 @@ function entry(name: string, overrides: Partial<MarketplaceEntry> = {}): Marketp
     fullName: `alice/${name}`,
     displayName: null,
     banner: null,
+    avatar: null,
     roles: [],
     description: `${name} description`,
+    descriptionGenerated: false,
     topics: ['writing'],
     stars: 7,
+    installs: 0,
     pushedAt: '2026-10-01T08:00:00Z',
     htmlUrl: `https://github.com/alice/${name}`,
     cloneUrl: `https://github.com/alice/${name}.git`,
@@ -86,6 +98,8 @@ function entry(name: string, overrides: Partial<MarketplaceEntry> = {}): Marketp
       sha: '0123456789abcdef0123456789abcdef01234567',
       committedAt: '2026-09-30T12:00:00Z',
     },
+    source: 'github',
+    author: null,
     ...overrides,
   };
 }
@@ -96,15 +110,20 @@ interface Harness {
   submit: ReturnType<typeof vi.fn<(url: string, altcha: string) => Promise<MarketplaceEntry>>>;
   challenge: ReturnType<typeof vi.fn<() => ReturnType<typeof createChallenge>>>;
   report: ReturnType<typeof vi.fn<(id: string, altcha: string, reason?: string) => Promise<void>>>;
-  createBot: ReturnType<typeof vi.fn<() => Promise<unknown>>>;
+  createBot: ReturnType<typeof vi.fn<(id: string, reviewId: string) => Promise<unknown>>>;
   onInstalled: ReturnType<typeof vi.fn<() => void>>;
+  translate: (t: BotHarnessTranslate) => Promise<void>;
+}
+
+function enTranslate(key: string): string {
+  return (en as Record<string, string>)[key] ?? key;
 }
 
 async function withMarketplace(
   pages: (query?: MarketplaceQuery) => Promise<MarketplacePage>,
   test: (harness: Harness) => Promise<void>,
   submit: (url: string) => Promise<MarketplaceEntry> = async () => entry('pasted'),
-  createBot: () => Promise<unknown> = async () => undefined,
+  createBot: (id: string, reviewId: string) => Promise<unknown> = async () => undefined,
   topics: () => Promise<MarketplaceTopic[]> = async () => [],
   detail: (id: string) => Promise<MarketplaceDetail> = async () => {
     throw new Error('unused');
@@ -125,26 +144,42 @@ async function withMarketplace(
     report: vi.fn(report),
     createBot: vi.fn(createBot),
     onInstalled: vi.fn(),
+    translate: async (t) => {
+      await act(async () => render(t));
+    },
   };
-  try {
-    await act(async () =>
-      root.render(
-        createElement(MarketplaceModal, {
-          actions: {
-            marketplaceList: harness.list,
-            marketplaceSubmit: harness.submit,
-            marketplaceChallenge: harness.challenge,
-            marketplaceReport: harness.report,
-            marketplaceTopics: topics,
-            marketplaceDetail: detail,
-            createBot: harness.createBot,
-          } as unknown as BridgeActions,
-          t: (await import('../src/client/locale.js')).zhTranslate,
-          onClose: vi.fn(),
-          onInstalled: harness.onInstalled,
-        }),
-      ),
+  const listed = async (id: string) => {
+    for (const result of harness.list.mock.results) {
+      const page = (await result.value) as MarketplacePage;
+      const found = page.bots.find((bot) => bot.id === id);
+      if (found !== undefined) return found;
+    }
+    return (await detail(id)).bot;
+  };
+  const render = (t: BotHarnessTranslate) =>
+    root.render(
+      createElement(MarketplaceModal, {
+        actions: {
+          marketplaceList: harness.list,
+          marketplaceSubmit: harness.submit,
+          marketplaceChallenge: harness.challenge,
+          marketplaceReport: harness.report,
+          marketplaceTopics: topics,
+          marketplaceDetail: detail,
+          marketplaceInstallReview: async (id: string) => ({
+            reviewId: `review-${id}`,
+            listing: await listed(id),
+            review: { status: 'reviewed', findings: [], files: 1, read: 1, partial: false },
+          }),
+          marketplaceInstall: harness.createBot,
+        } as unknown as BridgeActions,
+        t,
+        onClose: vi.fn(),
+        onInstalled: harness.onInstalled,
+      }),
     );
+  try {
+    await harness.translate(zhTranslate);
     await test(harness);
   } finally {
     await act(async () => root.unmount());
@@ -170,6 +205,26 @@ async function until(check: () => boolean) {
   expect(check()).toBe(true);
 }
 
+async function typeInto(input: HTMLInputElement, value: string) {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
+
+async function pressEnter(input: HTMLInputElement, options: { composing?: boolean } = {}) {
+  await act(async () => {
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'Enter',
+        bubbles: true,
+        cancelable: true,
+        isComposing: options.composing === true,
+      }),
+    );
+  });
+}
+
 async function typeReason(host: HTMLElement, value: string) {
   const textarea = host.querySelector<HTMLTextAreaElement>('textarea')!;
   await act(async () => {
@@ -189,29 +244,41 @@ async function typeUrl(host: HTMLElement, value: string) {
   });
 }
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe('Bot Marketplace modal', () => {
   it('lists indexed repositories and loads the next page with the cursor', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-04T08:00:00Z'));
     await withMarketplace(
       async (query) =>
         query?.cursor === undefined
           ? { bots: [entry('first')], nextCursor: 'page-2' }
-          : { bots: [entry('second')] },
+          : { bots: [entry('second', { descriptionGenerated: true })] },
       async ({ host, list }) => {
         expect(host.textContent).toContain('Bot 市场');
         expect(host.textContent).toContain('first description');
+        expect(host.querySelector('.bh-market-generated')).toBeNull();
         expect(host.textContent).toContain('★ 7');
-        expect(host.textContent).toContain('更新于 2026-10-01');
+        expect(host.textContent).toContain('更新于 3 天前');
         expect(host.textContent).not.toContain('writing');
         expect(host.querySelector('.bh-market-row .bh-market-avatar [data-avatar]')).not.toBeNull();
 
         await click(host, '加载更多');
 
-        expect(list).toHaveBeenLastCalledWith({ sort: 'updated', cursor: 'page-2' });
+        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh', cursor: 'page-2' });
         expect(
           [...host.querySelectorAll('[data-market-bot]')].map((row) =>
             row.getAttribute('data-market-bot'),
           ),
         ).toEqual(['alice/first', 'alice/second']);
+        expect(
+          [...host.querySelectorAll('.bh-market-description')].map((node) => node.textContent),
+        ).toEqual(['first description', 'second descriptionAI 摘要']);
+        expect(host.querySelector('.bh-market-generated')?.getAttribute('title')).toBe(
+          '作者没写中文简介，这句由 AI 根据 README 生成',
+        );
         expect(host.textContent).not.toContain('加载更多');
       },
     );
@@ -303,7 +370,12 @@ describe('Bot Marketplace modal', () => {
   });
 
   it('reports a Bot from its detail view with an optional reason', async () => {
-    const detail = async () => ({ bot: entry('spammy'), readme: null, commitSha: null });
+    const detail = async () => ({
+      bot: entry('spammy'),
+      readme: null,
+      readmeLanguage: null,
+      commitSha: null,
+    });
     let fail = true;
     await withMarketplace(
       async () => ({ bots: [entry('spammy')] }),
@@ -371,7 +443,7 @@ describe('Bot Marketplace modal', () => {
     );
   });
 
-  it('confirms with commit time, short SHA and the risk notice before installing through Git', async () => {
+  it('confirms with commit time, short SHA and the Tob review before installing', async () => {
     await withMarketplace(
       async () => ({ bots: [entry('helper')] }),
       async ({ host, createBot, onInstalled }) => {
@@ -381,19 +453,12 @@ describe('Bot Marketplace modal', () => {
         expect(host.querySelector('[data-market-commit]')?.textContent).toBe(
           '0123456 · 2026-09-30',
         );
-        expect(host.textContent).toContain('这是第三方仓库');
-        expect(host.textContent).toContain('只安装你信任的仓库');
+        expect(host.textContent).toContain('Tob 没发现风险');
         expect(createBot).not.toHaveBeenCalled();
 
         await click(host, '确认安装');
 
-        expect(createBot).toHaveBeenCalledWith({
-          displayName: 'helper',
-          gitUrl: 'https://github.com/alice/helper.git',
-          roles: [],
-          origin: 'marketplace',
-          description: 'helper description',
-        });
+        expect(createBot).toHaveBeenCalledWith('R_helper', 'review-R_helper', undefined, 'list');
         expect(onInstalled).toHaveBeenCalledOnce();
       },
     );
@@ -408,12 +473,7 @@ describe('Bot Marketplace modal', () => {
 
         await click(host, '确认安装');
 
-        expect(createBot).toHaveBeenCalledWith({
-          displayName: 'helper',
-          gitUrl: 'https://github.com/alice/helper.git',
-          roles: [],
-          origin: 'marketplace',
-        });
+        expect(createBot).toHaveBeenCalledWith('R_helper', 'review-R_helper', undefined, 'list');
         expect(onInstalled).not.toHaveBeenCalled();
         expect(host.querySelector('[role="alert"]')?.textContent).toContain('克隆失败');
 
@@ -432,66 +492,62 @@ describe('Bot Marketplace modal', () => {
       async (query) =>
         query?.sort === 'stars' ? { bots: [entry('popular')] } : { bots: [entry('fresh')] },
       async ({ host, list }) => {
-        expect(host.textContent).toContain('fresh description');
-
-        await click(host, '最多 Star');
-
-        expect(list).toHaveBeenLastCalledWith({ sort: 'stars' });
         expect(host.textContent).toContain('popular description');
-        expect(host.textContent).not.toContain('fresh description');
+
+        await click(host, '最近更新');
+
+        expect(list).toHaveBeenLastCalledWith({ sort: 'updated', lang: 'zh' });
+        expect(host.textContent).toContain('fresh description');
+        expect(host.textContent).not.toContain('popular description');
+
+        await click(host, '最新创建');
+
+        expect(list).toHaveBeenLastCalledWith({ sort: 'created', lang: 'zh' });
       },
     );
   });
 
-  it('debounces search, orders by relevance and pages with the search cursor', async () => {
-    vi.useFakeTimers();
-    try {
-      await withMarketplace(
-        async (query) =>
-          query?.q === undefined
-            ? { bots: [entry('fresh')] }
-            : query.cursor === undefined
-              ? { bots: [entry('translator')], nextCursor: 'search-2' }
-              : { bots: [entry('notes')] },
-        async ({ host, list }) => {
-          const search = host.querySelector<HTMLInputElement>('input[type="search"]')!;
-          await act(async () => {
-            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
-              search,
-              ' transl',
-            );
-            search.dispatchEvent(new Event('input', { bubbles: true }));
-          });
-          await act(async () => {
-            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
-              search,
-              ' translator ',
-            );
-            search.dispatchEvent(new Event('input', { bubbles: true }));
-          });
-          expect(list).toHaveBeenCalledTimes(1);
+  it('searches only on Enter, orders by relevance and pages with the search cursor', async () => {
+    await withMarketplace(
+      async (query) =>
+        query?.q === undefined
+          ? { bots: [entry('fresh')] }
+          : query.cursor === undefined
+            ? { bots: [entry('translator')], nextCursor: 'search-2' }
+            : { bots: [entry('notes')] },
+      async ({ host, list }) => {
+        const search = host.querySelector<HTMLInputElement>('input[type="search"]')!;
+        await typeInto(search, ' transl');
+        await typeInto(search, ' translator ');
+        await act(async () => new Promise((resolve) => setTimeout(resolve, 400)));
+        expect(list).toHaveBeenCalledTimes(1);
 
-          await act(async () => vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS));
+        await pressEnter(search, { composing: true });
+        expect(list).toHaveBeenCalledTimes(1);
 
-          expect(list).toHaveBeenCalledTimes(2);
-          expect(list).toHaveBeenLastCalledWith({ sort: 'updated', q: 'translator' });
-          expect(host.textContent).toContain('搜索结果按相关度排序');
-          expect(button(host, '最近更新').disabled).toBe(true);
+        await pressEnter(search);
 
-          await click(host, '加载更多');
+        expect(list).toHaveBeenCalledTimes(2);
+        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh', q: 'translator' });
+        expect(host.textContent).toContain('搜索结果按相关度排序');
+        expect(button(host, '最近更新').disabled).toBe(true);
 
-          expect(list).toHaveBeenLastCalledWith({
-            sort: 'updated',
-            q: 'translator',
-            cursor: 'search-2',
-          });
-          expect(host.textContent).toContain('translator description');
-          expect(host.textContent).toContain('notes description');
-        },
-      );
-    } finally {
-      vi.useRealTimers();
-    }
+        await click(host, '加载更多');
+
+        expect(list).toHaveBeenLastCalledWith({
+          sort: 'stars',
+          lang: 'zh',
+          q: 'translator',
+          cursor: 'search-2',
+        });
+        expect(host.textContent).toContain('translator description');
+        expect(host.textContent).toContain('notes description');
+
+        await typeInto(search, '');
+        await pressEnter(search);
+        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh' });
+      },
+    );
   });
 
   it('filters by a topic chip and clears it with 全部', async () => {
@@ -503,13 +559,13 @@ describe('Bot Marketplace modal', () => {
 
         await act(async () => chip.click());
 
-        expect(list).toHaveBeenLastCalledWith({ sort: 'updated', topic: 'research' });
+        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh', topic: 'research' });
         expect(chip.getAttribute('aria-pressed')).toBe('true');
         expect(host.textContent).toContain('没有符合条件的 Bot');
 
         await click(host, '全部');
 
-        expect(list).toHaveBeenLastCalledWith({ sort: 'updated' });
+        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh' });
         expect(host.textContent).toContain('fresh description');
       },
       undefined,
@@ -540,6 +596,7 @@ describe('Bot Marketplace modal', () => {
     const detail = vi.fn(async (id: string) => ({
       bot: entry('helper', { stars: 9 }),
       readme: '# Helper\n\nReads your notes.',
+      readmeLanguage: null,
       commitSha: id === 'R_helper' ? '0123456789abcdef0123456789abcdef01234567' : null,
     }));
     await withMarketplace(
@@ -549,7 +606,7 @@ describe('Bot Marketplace modal', () => {
           host.querySelector<HTMLButtonElement>('[aria-label="查看 alice/helper 详情"]')!.click(),
         );
 
-        expect(detail).toHaveBeenCalledWith('R_helper');
+        expect(detail).toHaveBeenCalledWith('R_helper', 'zh');
         expect(host.querySelector('h1')?.textContent).toBe('helper');
         expect(host.querySelector('[data-markdown]')?.textContent).toBe(
           '# Helper\n\nReads your notes.',
@@ -569,9 +626,37 @@ describe('Bot Marketplace modal', () => {
 
         await click(host, '安装');
         await click(host, '确认安装');
-        expect(createBot).toHaveBeenCalledWith(
-          expect.objectContaining({ gitUrl: 'https://github.com/alice/helper.git' }),
+        expect(createBot).toHaveBeenCalledWith('R_helper', 'review-R_helper', undefined, 'list');
+      },
+      undefined,
+      undefined,
+      undefined,
+      detail,
+    );
+  });
+
+  it('reloads the list and an open detail in the new interface language', async () => {
+    const detail = vi.fn(async () => ({
+      bot: entry('helper'),
+      readme: '# Helper',
+      readmeLanguage: null,
+      commitSha: null,
+    }));
+    await withMarketplace(
+      async () => ({ bots: [entry('helper')] }),
+      async ({ host, list, translate }) => {
+        await act(async () =>
+          host.querySelector<HTMLButtonElement>('[aria-label="查看 alice/helper 详情"]')!.click(),
         );
+        expect(detail).toHaveBeenLastCalledWith('R_helper', 'zh');
+
+        await translate(enTranslate as BotHarnessTranslate);
+        expect(detail).toHaveBeenCalledTimes(2);
+        expect(detail).toHaveBeenLastCalledWith('R_helper', 'en');
+
+        await click(host, 'Back');
+        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'en' });
+        expect(detail).toHaveBeenCalledTimes(2);
       },
       undefined,
       undefined,
@@ -604,7 +689,7 @@ describe('Bot Marketplace modal', () => {
       async () => {
         attempts += 1;
         if (attempts === 1) throw new BridgeCallError('marketplace-unavailable', 'down');
-        return { bot: entry('helper'), readme: null, commitSha: null };
+        return { bot: entry('helper'), readme: null, readmeLanguage: null, commitSha: null };
       },
     );
   });
@@ -625,13 +710,12 @@ describe('Bot Marketplace modal', () => {
         expect(host.querySelector('h1')?.textContent).toBe('安装 Helper');
         await click(host, '确认安装');
 
-        expect(createBot).toHaveBeenCalledWith({
-          displayName: 'Helper',
-          gitUrl: 'https://github.com/alice/helper-bot.git',
-          roles: ['writer', 'editor'],
-          origin: 'marketplace',
-          description: 'helper-bot description',
-        });
+        expect(createBot).toHaveBeenCalledWith(
+          'R_helper-bot',
+          'review-R_helper-bot',
+          undefined,
+          'list',
+        );
       },
     );
   });

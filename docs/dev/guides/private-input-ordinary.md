@@ -14,6 +14,8 @@ Since [ADR-0189](../../adr/0189-secret-input-is-available-in-ordinary-profiles.m
 
 Every consumer needs Human execution approval. The approval card shows references and placeholders, not values. A `secret_cli` card offers allow once, always allow this kind, and reject. The kind is the program, the account and the set of environment variable names; arguments are not part of it. Always allow saves a revocable `secret-cli` rule for that Bot and role, so later calls of the same kind run with any arguments without a card, and a different program, account or variable set gets a new card. No exact or all-opaque rule covers `secret_cli` ([ADR-0191](../../adr/0191-a-bot-runs-a-command-line-tool-with-owner-secrets-per-approved-call.md), [ADR-0208](../../adr/0208-secret-cli-can-be-always-allowed-per-program-and-account.md)).
 
+A local DM or Group interaction can reuse configured accounts while IM requests arrive in the same turn. Omit `source_event_id` for local work. For IM work, select a live accepted source with `ask_secret` when needed before calling a consumer such as `secret_cli`, which has no source selector. Two IM sources that select the same account in one turn remain ambiguous; a revoked source stays refused until that turn ends. Historical messages never qualify as current interaction.
+
 ## What protects the secret
 
 - Values live in DSH's native credential store, bound to the requesting Bot and account. Another Bot cannot use them.

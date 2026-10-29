@@ -9,6 +9,36 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
+- 在验证 1.5.2 发布后同步下游 Tobs 安装指南；独立 Skill 版本与 DSH 来源不变（[#2777](https://github.com/BotHarness/DeepSeekBot/issues/2777)）。
+
+- 准备下游 Tobs 1.5.2 发布记录；独立版本的 DSH Skill 及其已验证 DSH 来源不变（[#2777](https://github.com/BotHarness/DeepSeekBot/issues/2777)）。
+
+- 补充下游桌面缩放默认装载与旧手动配置清理说明；DSH/Cordis Context 和 Skill 行为不变 ([#2775](https://github.com/BotHarness/DeepSeekBot/issues/2775)).
+
+- 补充 Electron 桌面环境的 ASAR 文件系统行为，以及运行时复用所需的真实文件安装验证（[#2761](https://github.com/BotHarness/DeepSeekBot/issues/2761)）。
+
+- 将下游产品安装指南同步到已验证的 Tobs 1.5.1 包，区分新的命令与兼容入口；DSH/Cordis Context 和 Skill 行为不变（[#2751](https://github.com/BotHarness/DeepSeekBot/issues/2751)）。
+
+- 更新下游审批指南与验收路径，说明管理与设备操作的显式持久授权；DSH/Cordis Context 与 Skill 行为不变（[#2730](https://github.com/BotHarness/DeepSeekBot/issues/2730)）。
+
+- 补充 Profile 路径及参数检查、macOS/Linux 独立后台准备进程追踪，并明确 Windows 与环境继承的验证边界 ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
+
+- 补充安装与 Host 进程归属持久化、清理期间重复扫描及 Windows 独立 Home 并行的说明 ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
+
+- 补充整个 Home 的运行归属、启动失败清理及 Go 原生已修复时跳过补丁的说明 ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
+
+- 修正下游验证器的实际运行时诊断，移除产物及桌面 QA 残留版本门槛；Go 补丁使用实际适配器版本（[#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)）。
+
+- 移除下游开发启动的 rc 白名单，记录原生 Host 准入与可选缩放的协议检查（[#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)）；DSH Context 与 Skill 版本不变。
+
+- 更新[本地开发指南](../dsh-dev/SKILL.md)，使用 rc.3 开发版本，并保留桌面缩放与 Provider 的独立验证范围；DSH/Cordis Context 和 Skill 行为不变（[#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)）。
+
+- 新增下游 [Windows 到 Android 的 Local Computer 视频验证路径](../verify-deepseekbot/features/local-computer-video.md)，分别记录源码、本机呈现与 Human 验收；运行验证尚待完成，DSH/Cordis Context 保持不变（[#2558](https://github.com/BotHarness/DeepSeekBot/issues/2558)）。
+- 在[本地开发指南](../dsh-dev/SKILL.md)记录原生提问回答器的优先顺序，并以 DSH `0.2.1-rc.2` 核验；DSH／Cordis Context 与 Skill 行为保持不变（[#2590](https://github.com/BotHarness/DeepSeekBot/issues/2590)）。
+
+- 更新[下游 Panel 指南](../../../docs/panel-plugin.md)与真实 Web 验收路径，说明视图本地渲染、原生 dialog 切换和资源所有权；DSH／Cordis Context 与 Skill 行为保持不变（[#2222](https://github.com/BotHarness/DeepSeekBot/issues/2222)）。
+- 在[本地开发指南](../dsh-dev/SKILL.md)记录 Windows Desktop 候选激活、可执行文件与平台标识、物理键驱动限制及固定 Provider 来源校验，并补充[原生验证路径](../verify-deepseekbot/features/desktop-window-zoom.md)；DSH/Cordis Context 与 Decision Tree 保持不变（[#2270](https://github.com/BotHarness/DeepSeekBot/issues/2270)）。
+
 - 在[本地开发指南](../dsh-dev/SKILL.md)记录 rc.2 快捷键定义就绪时序与已归档 Session 导航核验，经真实 Web 升级和 Session 导航验证；DSH／Cordis Context 与 Skill 行为保持不变（[#2034](https://github.com/BotHarness/DeepSeekBot/issues/2034)）。
 
 - 在[本地开发指南](../dsh-dev/SKILL.md)记录生产工厂选项透传与新接收器真实事件核验，以 DSH `0.2.0-rc.2` Host 和固定提交的 dsh-im 普通文本候选核验；DSH／Cordis Context 与 Skill 行为保持不变（[#1155](https://github.com/BotHarness/DeepSeekBot/issues/1155)）。

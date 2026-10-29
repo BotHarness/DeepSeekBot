@@ -1,5 +1,7 @@
+import { openComputerPermissionSettings } from './permission-settings.js';
 import { spawn } from 'node:child_process';
 import ComputerUseRegistry from './native-registry.js';
+import { createDeviceApprovalScope } from '../../core/src/workspaces/device-approval.js';
 import { stampReleaseComponent } from '../../core/src/release/component.js';
 import { createReadStream, createWriteStream, existsSync } from 'node:fs';
 import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
@@ -23,9 +25,20 @@ import {
 import { createTransferTokens } from './transfer-tokens.js';
 import { createIdleWatcher } from './idle.js';
 import { DesktopViewError, createDesktopView, parseDesktopInput } from './desktop-view.js';
+import { createComputerPauseStore, createLocalVideoOwner } from './local-video-owner.js';
+import { createMacScroll } from './macos-scroll.js';
+import { createLocalVideoHttp } from './local-video-http.js';
+import { LOCAL_VIDEO_PATH, LocalVideoError } from './local-video-contract.js';
+import { createLocalVideoMedia } from './media/supervisor.js';
+import { resolveDshHome } from '../../core/src/im/config-store.js';
 import type { ComputerSettings } from './settings.js';
 import { DEFAULT_DOCKER_CONFIG, createDockerComputerProvider } from './providers/docker.js';
-import type { ComputerRuntimeResult, ComputerRuntimeRunner, ComputerStatus } from './provider.js';
+import type {
+  ComputerRuntimeResult,
+  ComputerRuntimeRunner,
+  ComputerRuntimeRunOptions,
+  ComputerStatus,
+} from './provider.js';
 import { createComputerService, type ComputerService } from './service.js';
 import { createCuaDriver } from './tool/driver.js';
 import { createLocalCuaDriver } from './tool/local-driver.js';
@@ -43,13 +56,7 @@ import {
   formatAudit,
   ownsComputerTool,
 } from './tool/provider.js';
-import {
-  ViewerProxy,
-  deviceViewerUpgradeRoutes,
-  proxyUpgrade,
-  viewerUpgradePaths,
-  type DeviceViewerUpgrade,
-} from './viewer.js';
+import { ViewerProxy, proxyUpgrade, viewerUpgradePaths } from './viewer.js';
 
 export const name = 'botharness-computer';
 stampReleaseComponent(apply, import.meta.url);
@@ -206,35 +213,80 @@ export function createProcessRunner(): ComputerRuntimeRunner {
   const spawnOnce = (
     argv: readonly string[],
     onChunk?: (chunk: string) => void,
-    extraEnv?: Readonly<Record<string, string>>,
+    options?: ComputerRuntimeRunOptions,
   ): Promise<ComputerRuntimeResult> =>
     new Promise((resolve) => {
+      if (options?.signal?.aborted) {
+        resolve({ code: -1, stdout: '', stderr: 'Computer subprocess cancelled before start' });
+        return;
+      }
       const child = spawn(argv[0] ?? '', argv.slice(1), {
         stdio: ['ignore', 'pipe', 'pipe'],
-        ...(extraEnv === undefined ? {} : { env: { ...process.env, ...extraEnv } }),
+        windowsHide: true,
+        ...(options?.env === undefined ? {} : { env: { ...process.env, ...options.env } }),
       });
       let stdout = '';
       let stderr = '';
+      let outputBytes = 0;
+      let refusal: string | undefined;
+      let settled = false;
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      let stopTimeout: ReturnType<typeof setTimeout> | undefined;
+      const finish = (code: number): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        clearTimeout(stopTimeout);
+        options?.signal?.removeEventListener('abort', abort);
+        resolve({ code: refusal === undefined ? code : -1, stdout, stderr: refusal ?? stderr });
+      };
+      const stop = (reason: string): void => {
+        if (settled || refusal !== undefined) return;
+        refusal = reason;
+        child.kill('SIGKILL');
+        stopTimeout = setTimeout(() => {
+          child.stdout.destroy();
+          child.stderr.destroy();
+          finish(-1);
+        }, 2_000);
+      };
+      const abort = (): void => stop('Computer subprocess cancelled');
+      options?.signal?.addEventListener('abort', abort, { once: true });
+      if (options?.signal?.aborted) abort();
+      if (options?.timeoutMs !== undefined)
+        timeout = setTimeout(() => stop('Computer subprocess timed out'), options.timeoutMs);
+      const append = (chunk: Buffer): string | undefined => {
+        if (settled || refusal !== undefined) return undefined;
+        outputBytes += chunk.byteLength;
+        if (options?.maxOutputBytes !== undefined && outputBytes > options.maxOutputBytes) {
+          stop('Computer subprocess output limit exceeded');
+          return undefined;
+        }
+        return chunk.toString();
+      };
       child.stdout.on('data', (chunk: Buffer) => {
-        const text = chunk.toString();
+        const text = append(chunk);
+        if (text === undefined) return;
         stdout += text;
         onChunk?.(text);
       });
       child.stderr.on('data', (chunk: Buffer) => {
-        const text = chunk.toString();
+        const text = append(chunk);
+        if (text === undefined) return;
         stderr += text;
         onChunk?.(text);
       });
       child.on('error', (error) => {
-        resolve({ code: -1, stdout, stderr: `${stderr}${String(error)}` });
+        stderr = `${stderr}${String(error)}`;
+        finish(-1);
       });
       child.on('close', (code) => {
-        resolve({ code: code ?? -1, stdout, stderr });
+        finish(code ?? -1);
       });
     });
 
   return {
-    run: (argv, options) => spawnOnce(argv, undefined, options?.env),
+    run: (argv, options) => spawnOnce(argv, undefined, options),
     runStreaming: (argv, onChunk) => spawnOnce(argv, onChunk),
   };
 }
@@ -300,11 +352,25 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
   let authorizationRevision = 0;
   const authorizationScope = (): string => `${target()}:${String(authorizationRevision)}`;
   const target = (): ComputerTarget => computerTarget(readLive(config.target));
+  const savedTargetScope = createDeviceApprovalScope(
+    join(resolveDshHome(), 'botharness', 'computer-approval-target.json'),
+    () =>
+      JSON.stringify(
+        target() === 'local'
+          ? ['local']
+          : ['container', config.containerName, config.volumeName, config.dataDir, config.image],
+      ),
+  );
+  const migratedLocal = (): boolean =>
+    (process.platform === 'win32' || process.platform === 'darwin') && target() === 'local';
   const runtime = createComputerTargetRuntime({
     target,
     onChange: () => {
       transferTokens = createTransferTokens();
       toolProvider.resetRuntime();
+      void localVideo
+        .resetRuntime()
+        .catch(() => diagnostics.record('lifecycle', 'phase=local-video-runtime-cleanup-refused'));
     },
     onEvent: (detail) => diagnostics.record('lifecycle', detail),
     create: (selected) => {
@@ -355,6 +421,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
   ctx.on('loader/volatile-update', (paths) => {
     if (!paths.some((path) => path[0] === 'target')) return;
     authorizationRevision += 1;
+    savedTargetScope.invalidate();
     toolProvider.resetRuntime();
     void runtime
       .sync()
@@ -369,6 +436,28 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
   ctx.effect(() => () => runtime.dispose(), 'botharness-computer: target runtime');
   const activity = { touch: (): void => undefined };
   const driver = runtime.driver;
+  const localVideo = createLocalVideoOwner({
+    pause: createComputerPauseStore(join(resolveDshHome(), 'botharness', 'computer-pause.json')),
+    driver,
+    media: createLocalVideoMedia({
+      onEvent: (detail) => diagnostics.record('lifecycle', detail),
+    }),
+    isRunning: () => migratedLocal() && runtime.isRunning(),
+    supported: migratedLocal,
+    driverPlatform: process.platform === 'darwin' ? 'darwin' : 'win32',
+    ...(process.platform === 'darwin'
+      ? { scrollMotion: createMacScroll((detail) => diagnostics.record('lifecycle', detail)) }
+      : {}),
+    onEvent: (detail) => diagnostics.record('lifecycle', detail),
+  });
+  service.localVideo = localVideo;
+  ctx.effect(
+    () => async () => {
+      service.localVideo = undefined;
+      await localVideo.dispose();
+    },
+    'botharness-computer: Local video owner',
+  );
   const desktopView = createDesktopView({
     driver,
     isRunning: () => runtime.isRunning(),
@@ -378,7 +467,9 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     ctx,
     driver,
     isComputerRunning: () => runtime.isRunning(),
-    isPaused: () => desktopView.isPaused(),
+    isPaused: () => (migratedLocal() ? localVideo.isPaused() : desktopView.isPaused()),
+    runBotOperation: (operation, signal) =>
+      migratedLocal() ? localVideo.runBotOperation(() => operation()) : operation(signal),
     authorizationScope,
     guidance: () => (target() === 'local' ? localComputerGuidance() : COMPUTER_GUIDANCE),
     isAutoAllowed: () => effective().autoAllowActions,
@@ -398,6 +489,9 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
   ctx.provide('botharnessComputerTools', {
     reconcileBot: (slug: string) => toolProvider.reconcileBot(slug),
     ownsTool: (name: string) => ownsComputerTool(name),
+    approvalScope: () => savedTargetScope.current(),
+    authorizeCall: (token: symbol, authorized: () => boolean) =>
+      toolProvider.authorizeCall(token, authorized),
     needsAuthorization: (sessionId: string) => toolProvider.needsAuthorization(sessionId),
     authorizationScope,
     markAuthorized: (sessionId: string, scope?: string) =>
@@ -483,6 +577,27 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
 
     const unknownToken = (kind: string): Response =>
       json({ ok: false, code: 'unknown-token', error: `unknown or expired ${kind} token` }, 404);
+
+    connectionCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: LOCAL_VIDEO_PATH,
+          methods: ['POST'],
+          requestBody: 'buffered',
+          fetch: createLocalVideoHttp(() => service.localVideo),
+        }),
+      'botharness-computer: Local video commands',
+    );
+    const legacyLocalRefusal = (): Response =>
+      json(
+        {
+          ok: false,
+          code: 'update-required',
+          error:
+            'Update the viewer to use Local Computer video and explicit control. Image viewing is unavailable.',
+        },
+        409,
+      );
 
     const webrtcRoute = {
       path: '/api/computer/webrtc',
@@ -737,8 +852,18 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
             result: await toolProvider.runDirect(slug, tool, args as Record<string, unknown>),
           });
         } catch (error) {
+          const code =
+            error instanceof LocalVideoError
+              ? error.code
+              : migratedLocal() && localVideo.isPaused()
+                ? 'control-required'
+                : undefined;
           return json(
-            { ok: false, error: error instanceof Error ? error.message : String(error) },
+            {
+              ok: false,
+              ...(code === undefined ? {} : { code }),
+              error: error instanceof Error ? error.message : String(error),
+            },
             409,
           );
         }
@@ -763,6 +888,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       methods: ['GET'] as const,
       requestBody: 'buffered' as const,
       fetch: async (request: Request): Promise<Response> => {
+        if (migratedLocal()) return legacyLocalRefusal();
         const raw = new URL(request.url).searchParams.get('after');
         const after = raw === null || raw === '' ? undefined : Number(raw);
         if (after !== undefined && !Number.isSafeInteger(after))
@@ -787,6 +913,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       methods: ['POST'] as const,
       requestBody: 'buffered' as const,
       fetch: async (request: Request): Promise<Response> => {
+        if (migratedLocal()) return legacyLocalRefusal();
         const body = await parseBody(request);
         if (typeof body['active'] !== 'boolean')
           return json({ ok: false, code: 'invalid-input', error: 'active must be a boolean' }, 400);
@@ -812,6 +939,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       methods: ['POST'] as const,
       requestBody: 'buffered' as const,
       fetch: async (request: Request): Promise<Response> => {
+        if (migratedLocal()) return legacyLocalRefusal();
         const input = parseDesktopInput(await parseBody(request));
         if (input === undefined)
           return json(
@@ -852,6 +980,30 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
         { ok: false, code: 'authorize-required', error: 'explicit authorization required' },
         400,
       );
+
+    const permissionSettingsRoute = {
+      path: '/api/computer/open-permission-settings',
+      methods: ['POST'] as const,
+      requestBody: 'buffered' as const,
+      fetch: async (request: Request): Promise<Response> => {
+        const body = await parseBody(request);
+        const result = await openComputerPermissionSettings({
+          permission: body.permission,
+          authorize: body.authorize,
+          target: target(),
+          runner,
+        });
+        diagnostics.record(
+          'lifecycle',
+          `phase=permission-settings result=${result.ok ? 'opened' : result.code}`,
+        );
+        return json(result, result.ok ? 200 : 400);
+      },
+    };
+    connectionCtx.effect(
+      () => connection.fetch.register(permissionSettingsRoute),
+      'botharness-computer: permission settings route',
+    );
 
     const exportRoute = {
       path: '/api/computer/export',
@@ -1310,19 +1462,6 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
           `botharness-computer: viewer upgrade ${socketPath}`,
         );
       }
-      for (const route of deviceViewerUpgradeRoutes(
-        VIEWER_PREFIX,
-        () =>
-          (
-            ctx.get('botharness') as unknown as
-              | { deviceWebUpgrade?: DeviceViewerUpgrade }
-              | undefined
-          )?.deviceWebUpgrade,
-      ))
-        ctx.effect(
-          () => webServer.registerUpgrade?.(route) ?? (() => undefined),
-          `botharness-computer: device viewer upgrade ${route.path}`,
-        );
     }
   });
 }

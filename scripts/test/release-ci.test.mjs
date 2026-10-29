@@ -8,6 +8,12 @@ const verify = parse(
 const release = parse(
   readFileSync(new URL('../../.github/workflows/npm-release.yml', import.meta.url), 'utf8'),
 );
+const candidate = parse(
+  readFileSync(
+    new URL('../../.github/workflows/npm-prerelease-prepare.yml', import.meta.url),
+    'utf8',
+  ),
+);
 
 function expression(source, context) {
   const body = source
@@ -32,6 +38,20 @@ const gate = (passed, lookup = 'success', fallback = 'skipped', cancelled = fals
   });
 
 describe('release verification protection', () => {
+  it('qualifies manual candidates without publication credentials or a publish job', () => {
+    expect(candidate.on.workflow_dispatch.inputs.version.required).toBe(true);
+    expect(candidate.permissions).toEqual({ contents: 'read' });
+    expect(candidate.jobs.publish).toBeUndefined();
+    expect(candidate.jobs['qualify-host'].needs).toBe('prepare');
+    expect(candidate.jobs['qualify-commands'].strategy.matrix.os).toEqual([
+      'ubuntu-latest',
+      'windows-latest',
+    ]);
+    for (const job of Object.values(candidate.jobs)) {
+      expect(job.environment).toBeUndefined();
+      expect(JSON.stringify(job)).not.toContain('secrets.NPM_TOKEN');
+    }
+  });
   it('keeps distinct main commits and release callers out of the same cancellation group', () => {
     expect(group(github)).not.toBe(group({ ...github, sha: 'b' }));
     expect(group(github)).not.toBe(group({ ...github, workflow: 'npm release' }));
@@ -64,9 +84,11 @@ describe('release verification protection', () => {
   });
   it('allows publishing after reused verification but blocks unsuccessful preparation', () => {
     for (const result of ['success', 'failure', 'cancelled', 'skipped']) {
-      expect(expression(release.jobs.publish.if, { needs: { prepare: { result } } })).toBe(
-        result === 'success',
-      );
+      expect(
+        expression(release.jobs.publish.if, {
+          needs: { prepare: { result }, 'qualify-commands': { result: 'success' } },
+        }),
+      ).toBe(result === 'success');
     }
     expect(
       expression(release.jobs.publish.if, {
@@ -81,7 +103,16 @@ describe('release verification protection', () => {
         step.run?.includes('scripts/e2e-fresh-profile-install.mjs'),
       ),
     ).toBe(true);
-    expect(release.jobs.publish.needs).toBe('prepare');
+    expect(release.jobs.publish.needs).toEqual(['prepare', 'qualify-commands']);
+    expect(release.jobs['qualify-commands'].strategy.matrix.os).toEqual([
+      'ubuntu-latest',
+      'windows-latest',
+    ]);
+    expect(
+      expression(release.jobs.publish.if, {
+        needs: { prepare: { result: 'success' }, 'qualify-commands': { result: 'failure' } },
+      }),
+    ).toBe(false);
     expect(release.jobs.publish.environment).toBe('npm-release');
     expect(
       release.jobs.publish.steps.some((step) => step.run?.includes('--plan-sha256 "$PLAN_SHA"')),

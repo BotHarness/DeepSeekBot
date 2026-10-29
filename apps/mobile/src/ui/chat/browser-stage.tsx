@@ -18,16 +18,17 @@ import {
   type BrowserFrame,
   type BrowserInput,
 } from '../../host/browser-viewer';
+import { spring } from '../design/motion';
 import { pointer, radius, edge } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { PointerArrow } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { settleZoom } from './zoom-math';
 
 export type BrowserTouchMode = 'direct' | 'trackpad';
 export type StagePoint = { x: number; y: number };
 
-const SPRING = { damping: 20, stiffness: 220 };
+const SPRING = spring.release;
 const TAP_SLOP = 10;
 const LONG_PRESS_MS = 500;
 
@@ -48,6 +49,7 @@ export function BrowserStage({
   pointerShape?: 'dot' | 'arrow';
   onWheel?(dragY: number, at: StagePoint | undefined): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [stage, setStage] = useState({ width: 0, height: 0 });
   const page = { width: frame.width, height: frame.height };

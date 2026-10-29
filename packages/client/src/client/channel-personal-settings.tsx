@@ -1,21 +1,26 @@
-import { useRef, useState, type ReactElement } from 'react';
+import { Fragment, useRef, useState, type ReactElement } from 'react';
 import { Button, Input, Switch } from '@deepseek-ai/dsh-client-ui-primitives';
-import { useClientState } from './bot-sidebar.js';
+import { useClientStore } from './use-client-store.js';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import type { ChannelSummary } from './store.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
+import { Select } from './ds/select.js';
 import { Note } from './ds/note.js';
-import { DM_ACTION_KINDS, toggleHiddenDmAction } from './dm-actions.js';
-import { useHiddenDmActions } from './channel-options.js';
+import {
+  DM_ACTION_KINDS,
+  DM_MEMORY_DISPLAYS,
+  setDmMemoryDisplay,
+  toggleHiddenDmAction,
+} from './dm-actions.js';
+import { useDmMemoryDisplay, useHiddenDmActions } from './channel-options.js';
 
 export function ChannelNicknameEntry(props: ChannelSidebarEntryProps): ReactElement | null {
-  const state = useClientState();
-  const channel = state.conversation.channel;
+  const channel = useClientStore((state) => state.conversation.channel);
+  const botName = useClientStore(
+    (state) => state.bots.find((bot) => bot.slug === channel?.botSlug)?.displayName,
+  );
   if (channel?.id !== props.channelId || channel.humanNickname === undefined) return null;
-  const name =
-    channel.type === 'dm'
-      ? (state.bots.find((bot) => bot.slug === channel.botSlug)?.displayName ?? channel.name)
-      : channel.name;
+  const name = channel.type === 'dm' ? (botName ?? channel.name) : channel.name;
   return <ChannelNicknameSetting key={channel.id} {...props} channel={{ ...channel, name }} />;
 }
 
@@ -108,21 +113,40 @@ export function ChannelNicknameSetting({
 
 export function ChannelTraceEntry({ botSlug, t }: ChannelSidebarEntryProps): ReactElement | null {
   const hidden = useHiddenDmActions(botSlug);
+  const memoryDisplay = useDmMemoryDisplay(botSlug);
   if (botSlug === undefined) return null;
   return (
     <SettingsSection>
       {DM_ACTION_KINDS.map((kind) => (
-        <SettingsRow
-          key={kind}
-          title={t(`dmTrace.kind.${kind}`)}
-          control={
-            <Switch
-              label={t(`dmTrace.kind.${kind}`)}
-              checked={!hidden.includes(kind)}
-              onChange={() => toggleHiddenDmAction(botSlug, kind)}
+        <Fragment key={kind}>
+          <SettingsRow
+            title={t(`dmTrace.kind.${kind}`)}
+            control={
+              <Switch
+                label={t(`dmTrace.kind.${kind}`)}
+                checked={!hidden.includes(kind)}
+                onChange={() => toggleHiddenDmAction(botSlug, kind)}
+              />
+            }
+          />
+          {kind === 'memory' ? (
+            <SettingsRow
+              title={t('dmTrace.memoryDisplay')}
+              control={
+                <Select
+                  label={t('dmTrace.memoryDisplay')}
+                  value={memoryDisplay}
+                  disabled={hidden.includes('memory')}
+                  options={DM_MEMORY_DISPLAYS.map((value) => ({
+                    value,
+                    label: t(`dmTrace.memoryDisplay.${value}`),
+                  }))}
+                  onChange={(value) => setDmMemoryDisplay(botSlug, value)}
+                />
+              }
             />
-          }
-        />
+          ) : null}
+        </Fragment>
       ))}
     </SettingsSection>
   );

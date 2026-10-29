@@ -1,15 +1,13 @@
 import { useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
-import type { ColorRole } from '../design/theme';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { ChevronDownIcon } from '../shell/icons';
-import { t } from '../strings';
-import { bubbleRow, bubbleShape, type BubbleGroup } from './bubble-shape';
-
-export type CardLineTone = 'success' | 'danger' | 'subtle';
+import { useStrings } from '../strings';
+import { LoadingIndicator } from '../primitives/loading-indicator';
+import { TextField } from '../primitives/text-field';
 
 function Frame({ children }: { children: ReactNode }) {
   return <View style={{ paddingHorizontal: space.x4, paddingTop: space.x3 }}>{children}</View>;
@@ -34,6 +32,7 @@ function StatusPill({ label }: { label: string }) {
 }
 
 function Details({ children }: { children: ReactNode }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [open, setOpen] = useState(false);
   return (
@@ -148,7 +147,7 @@ export function ActionCard({
         </View>
         {preview}
         {details === undefined ? null : <Details>{details}</Details>}
-        {busy ? <ActivityIndicator /> : children}
+        {busy ? <LoadingIndicator /> : children}
         {error === undefined ? null : (
           <Text accessibilityRole="alert" variant="meta" tone="danger">
             {error}
@@ -159,47 +158,99 @@ export function ActionCard({
   );
 }
 
-export function CardLine({
+export function CardNote({
+  children,
+  variant = 'note',
+  live = false,
+}: {
+  children: string;
+  variant?: 'note' | 'body';
+  live?: boolean;
+}) {
+  return (
+    <Text
+      {...(variant === 'note' ? { variant: 'meta' as const, tone: 'muted' as const } : {})}
+      {...(live ? { accessibilityLiveRegion: 'polite' as const } : {})}
+    >
+      {children}
+    </Text>
+  );
+}
+
+export function CardPreview({
   text,
-  tone,
-  focused = false,
-  group = { first: true, last: true },
+  well = true,
+  mono = false,
+  variant = 'meta',
+  tone = 'fg',
+  maxLines,
 }: {
   text: string;
-  tone: CardLineTone;
-  focused?: boolean;
-  group?: BubbleGroup;
+  well?: boolean;
+  mono?: boolean;
+  variant?: 'meta' | 'body';
+  tone?: 'fg' | 'muted';
+  maxLines?: number;
 }) {
   const theme = useDesignTheme();
-  const dot: ColorRole = tone;
+  const body = (
+    <Text
+      selectable
+      variant={variant === 'meta' ? 'meta' : 'body'}
+      tone={tone}
+      {...(maxLines === undefined ? {} : { numberOfLines: maxLines })}
+      {...(mono ? { style: { fontFamily: theme.mono } } : {})}
+    >
+      {text}
+    </Text>
+  );
+  if (!well) return body;
   return (
-    <View style={bubbleRow(group.first)}>
-      <View
-        testID="card-line"
-        accessibilityLabel={text}
-        style={{
-          ...bubbleShape(false, group),
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: space.x3,
-          backgroundColor: theme.color.surface,
-          borderWidth: focused ? edge.focus : 0,
-          borderColor: theme.color.accent,
-        }}
-      >
-        <View
-          style={{
-            width: space.x3,
-            height: space.x3,
-            borderRadius: radius.round,
-            backgroundColor: theme.color[dot],
-          }}
-        />
-        <Text tone="muted" numberOfLines={1} style={{ flexShrink: 1 }}>
-          {text}
-        </Text>
-      </View>
+    <View
+      style={{
+        backgroundColor: theme.layer.well.fill,
+        borderRadius: radius.md,
+        paddingHorizontal: space.x4,
+        paddingVertical: space.x3,
+      }}
+    >
+      {body}
     </View>
+  );
+}
+
+export function CardGroup({ children }: { children: ReactNode }) {
+  return <View style={{ gap: space.x5 }}>{children}</View>;
+}
+
+export function CardField({
+  label,
+  accessibilityLabel = label,
+  placeholder = label,
+  value,
+  editable = true,
+  testID,
+  onChangeText,
+}: {
+  label: string;
+  accessibilityLabel?: string;
+  placeholder?: string;
+  value: string;
+  editable?: boolean;
+  testID?: string;
+  onChangeText(text: string): void;
+}) {
+  return (
+    <TextField
+      accessibilityLabel={accessibilityLabel}
+      label={label}
+      {...(testID === undefined ? {} : { testID })}
+      placeholder={placeholder}
+      editable={editable}
+      multiline
+      value={value}
+      onChangeText={onChangeText}
+    />
   );
 }
 

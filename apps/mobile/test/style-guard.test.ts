@@ -6,8 +6,6 @@ import { describe, expect, it } from 'vitest';
 const root = fileURLToPath(new URL('..', import.meta.url));
 
 const LEGACY = new Set([
-  'app/full-client.tsx',
-  'app/pair.tsx',
   'app/inbox/[id].tsx',
   'src/ui/approval-view.tsx',
   'src/ui/connection-banner.tsx',
@@ -50,6 +48,20 @@ describe('mobile style guard', () => {
       files
         .filter((file) => file !== 'src/ui/primitives/app-dialog.ts')
         .filter((file) => /\bAlert\s*\.\s*alert\s*\(/.test(readFileSync(join(root, file), 'utf8'))),
+    ).toEqual([]);
+  });
+  it('keeps loading and pull-to-refresh behind the native loading primitives', () => {
+    expect(
+      files
+        .filter(
+          (file) =>
+            !/^src\/ui\/primitives\/(?:loading-indicator|pull-to-refresh)(?:\.android)?\.tsx$/.test(
+              file,
+            ),
+        )
+        .filter((file) =>
+          /<(?:ActivityIndicator|RefreshControl)\b/.test(readFileSync(join(root, file), 'utf8')),
+        ),
     ).toEqual([]);
   });
   it('keeps colour, type, spacing, radius and edge values on the design tokens', () => {

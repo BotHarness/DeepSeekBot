@@ -254,6 +254,7 @@ export function CreatePersonaBotModal({
               name: sectionName,
             })
       }
+      scroll
       description={t('bot.create.description')}
       labels={{ close: t('common.close'), cancel: t('common.cancel') }}
       submitLabel={

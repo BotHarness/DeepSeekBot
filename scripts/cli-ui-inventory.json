@@ -7,14 +7,15 @@
       "scope": "Client",
       "surfaces": [
         "setting:packages/client/src/client/appearance-settings.tsx:{t('settings.language')}",
-        "setting:packages/client/src/client/appearance-settings.tsx:{t('settings.theme')}",
         "setting:packages/client/src/client/notification-settings.tsx:{t('desktopNotify.row.title')}",
         "storage:packages/client/src/client/composer-footer-preferences.ts:setItem(FOOTER_STORAGE_KEY)",
         "storage:packages/client/src/client/desktop-notifications.ts:setItem(DESKTOP_NOTIFICATIONS_KEY)",
         "storage:packages/client/src/client/dm-actions.ts:setItem(STORAGE_KEY)",
         "storage:packages/client/src/client/file-open-preferences.ts:setItem(storageKey)",
         "setting:packages/client/src/client/channel-personal-settings.tsx:{t(`dmTrace.kind.${kind}`)}",
-        "storage:packages/client/src/client/activity-indicator.ts:setItem(ACTIVITY_INDICATOR_KEY)"
+        "storage:packages/client/src/client/activity-indicator.ts:setItem(ACTIVITY_INDICATOR_KEY)",
+        "setting:packages/client/src/client/channel-personal-settings.tsx:{t('dmTrace.memoryDisplay')}",
+        "storage:packages/client/src/client/dm-actions.ts:setItem(MEMORY_DISPLAY_STORAGE_KEY)"
       ],
       "issue": "#2095"
     },
@@ -25,6 +26,7 @@
       "surfaces": [
         "setting:packages/client/src/client/workspace.tsx:{t('dock.reset')}",
         "setting:packages/client/src/client/workspace.tsx:{t('workspace.gap')}",
+        "setting:packages/client/src/client/workspace.tsx:{t('workspace.layoutMode')}",
         "storage:packages/client/src/client/activity-feed.ts:setItem(preferenceKey)",
         "storage:packages/client/src/client/bot-session-folders.tsx:setItem(BOT_FOLDER_PREFERENCES_KEY)",
         "storage:packages/client/src/client/channel-activity-view.tsx:setItem('botharness/overview-statistics-collapsed.v1')",
@@ -34,7 +36,10 @@
         "storage:packages/client/src/client/channel-dock-layout.ts:setItem(key)",
         "storage:packages/client/src/client/channel-sidebar-prefs.ts:setItem(STORAGE_KEY)",
         "storage:packages/client/src/client/inbox-view-prefs.ts:setItem(INBOX_VIEW_PREFERENCES_KEY)",
+        "storage:packages/client/src/client/layout-mode.ts:setItem(backup)",
+        "storage:packages/client/src/client/layout-mode.ts:setItem(LAYOUT_MODE_STORAGE_KEY)",
         "storage:packages/client/src/client/last-view.ts:setItem(LAST_VIEW_KEY)",
+        "storage:packages/client/src/client/marketplace.tsx:setItem(SORT_STORAGE_KEY)",
         "storage:packages/client/src/client/memory-view-prefs.ts:setItem(MEMORY_VIEW_PREFERENCES_KEY)",
         "storage:packages/client/src/client/roster-config.ts:setItem(ROSTER_BACKUP_KEY)",
         "storage:packages/client/src/client/roster-config.ts:setItem(ROSTER_CONFIG_KEY)",
@@ -59,14 +64,52 @@
     },
     {
       "id": "device-pairing",
-      "description": "Device list, offers, revoke and paired-device gateway authorization.",
+      "description": "Device list, offers, offer status and revoke; the Connect tunnel action on the same route family has connect-status/enable/disable/sign-in/sign-out.",
       "scope": "Profile",
       "surfaces": [
-        "route:packages/core/src/devices/mount.ts:path in [ [DEVICES_PATH, ['GET']], [`${DEVICES_PATH}/offer`, ['POST']], [`${DEVICES_PATH}/revoke`, ['POST']], ] as const",
+        "route:packages/core/src/devices/mount.ts:path in [ [DEVICES_PATH, ['GET']], [`${DEVICES_PATH}/requests`, ['GET']], [`${DEVICES_PATH}/offer`, ['POST']], [`${DEVICES_PATH}/offer-status`, ['POST']], [`${DEVICES_PATH}/approve-key`, ['POST']], [`${DEVICES_PATH}/revoke`, ['POST']], [`${DEVICES_PATH}/connect`, ['POST']], [`${DEVICES_PATH}/lan`, ['POST']], ] as const",
+        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.lan.title')}",
         "setting:packages/client/src/client/paired-devices.tsx:{device.name}",
-        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.pair.title')}"
+        "setting:packages/client/src/client/paired-devices.tsx:{item.name}",
+        "route:packages/core/src/devices/mount.ts:CONNECT_CHANNEL_PATH",
+        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.pair.title')}",
+        "setting:packages/client/src/client/paired-devices.tsx:{t('connections.title')}",
+        "setting:packages/client/src/client/paired-devices.tsx:{t('connections.methods')}",
+        "setting:packages/client/src/client/paired-devices.tsx:{t('connections.pending')}"
       ],
-      "issue": "#2098"
+      "commands": [
+        "devices",
+        "device-offer",
+        "device-offer-status",
+        "device-approve-key",
+        "device-lan",
+        "device-revoke",
+        "connect-enable",
+        "connect-disable",
+        "device-requests",
+        "connection-clients",
+        "connection"
+      ]
+    },
+    {
+      "id": "device-connect",
+      "description": "Devices page hosted Connect account and tunnel state (ADR-0241).",
+      "scope": "Profile",
+      "surfaces": [
+        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.connect.account')}",
+        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.connect.tunnel')}"
+      ],
+      "commands": ["connect-status", "connect-sign-in", "connect-sign-out"]
+    },
+    {
+      "id": "phone-route",
+      "description": "Phone route status and the confirmed tailscale serve publish under the separate Tailscale connection entry.",
+      "scope": "Profile",
+      "surfaces": [
+        "route:packages/core/src/devices/mount.ts:DEVICES_SERVE_PATH",
+        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.tailscale.title')}"
+      ],
+      "commands": ["phone-route", "phone-route-publish"]
     },
     {
       "id": "profile-recovery",
@@ -76,7 +119,15 @@
         "route:packages/core/src/plugin.ts:PROFILE_BACKUP_PATH + suffix in ['', '/inspect', '/recovery', '/authorize', '/activate']",
         "setting:packages/client/src/client/profile-backup.tsx:{t('backup.title')}"
       ],
-      "issue": "#2099"
+      "commands": [
+        "profile-backup-preview",
+        "profile-backup-export",
+        "profile-backup-inspect",
+        "profile-backup-restore",
+        "profile-backup-recovery",
+        "profile-backup-authorize",
+        "profile-backup-activate"
+      ]
     },
     {
       "id": "browser-pairing",
@@ -134,15 +185,21 @@
       "scope": "Host",
       "surfaces": [
         "field:packages/client/src/bot-mode-settings.ts:autoAcceptGroupInvites",
+        "field:packages/client/src/bot-mode-settings.ts:autoCollapseMessages",
         "field:packages/client/src/bot-mode-settings.ts:botIcon",
         "field:packages/client/src/bot-mode-settings.ts:motionPreference",
         "field:packages/client/src/bot-mode-settings.ts:sendKey",
         "field:packages/client/src/bot-mode-settings.ts:sortMode",
         "field:packages/client/src/bot-mode-settings.ts:sortModes",
+        "field:packages/client/src/bot-mode-settings.ts:showDeliveryReceipts",
+        "field:packages/client/src/bot-mode-settings.ts:streamReplies",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('groupAutoAccept.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('icon.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('motion.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sendKey.row.title')}",
+        "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('messageFold.row.title')}",
+        "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('message.delivery.row.title')}",
+        "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('message.stream.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sort.row.title')}"
       ],
       "commands": ["settings", "settings-set"]
@@ -163,6 +220,45 @@
         "approval-template",
         "approval-template-set"
       ]
+    },
+    {
+      "id": "prompt-presets",
+      "description": "Prompt Preset library, the global preset and each Bot's preset and own part edits.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/prompt-preset-settings.tsx:{t('prompts.global')}",
+        "setting:packages/client/src/client/prompt-preset-settings.tsx:{t('prompts.new')}",
+        "setting:packages/client/src/client/prompt-preset-settings.tsx:{preset.name}",
+        "setting:packages/client/src/client/prompt-preset-settings.tsx:{own === 0 ? t('prompts.bot.none') : t('prompts.changed', { count: own })}"
+      ],
+      "commands": [
+        "prompt-parts",
+        "prompt-presets",
+        "prompt-preset-create",
+        "prompt-preset-update",
+        "prompt-preset-delete",
+        "prompt-global-set",
+        "bot-prompt",
+        "bot-prompt-set"
+      ]
+    },
+    {
+      "id": "idle-compaction",
+      "description": "Host idle Orchestrator Session compaction setting.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/idle-compaction-setting.tsx:{t('idleCompaction.row.title')}"
+      ],
+      "commands": ["idle-compaction", "idle-compaction-set", "idle-compaction-cache-set"]
+    },
+    {
+      "id": "compaction-threshold",
+      "description": "Host automatic context compaction threshold (window ratio and headroom).",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/compaction-threshold-setting.tsx:{t('compactionThreshold.row.title')}"
+      ],
+      "commands": ["idle-compaction", "compaction-threshold-set"]
     },
     {
       "id": "messaging-defaults",
@@ -190,6 +286,20 @@
       "commands": ["human-identity", "human-name-set", "channel-human-name-set"]
     },
     {
+      "id": "account-profile",
+      "description": "Account Profile name and photo shown on Marketplace uploads, plus the signed-in email and Author ID.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/account-profile-settings.tsx:{<label htmlFor=\"bh-account-name\">{t('accountProfile.name')}</label>}",
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.email')}",
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.id')}",
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.loadFailed')}",
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.photo')}",
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.signInHint')}"
+      ],
+      "commands": ["marketplace-account", "marketplace-author", "marketplace-author-avatar"]
+    },
+    {
       "id": "channel-history",
       "description": "Channel history and reviewed purge.",
       "scope": "Host",
@@ -202,6 +312,17 @@
       "scope": "Host",
       "surfaces": ["setting:packages/client/src/client/git-settings.tsx:{t('git.settings.title')}"],
       "commands": ["git-status", "git-install"]
+    },
+    {
+      "id": "plugin-updates",
+      "description": "Installed BotHarness plugins: version check, in-place update and the restart that finishes it.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/plugin-updates-view.tsx:{pluginTitle(plugin.name, t)}",
+        "setting:packages/client/src/client/plugin-updates-view.tsx:{t('plugins.restart.title')}",
+        "setting:packages/client/src/client/plugin-updates-view.tsx:{t('plugins.row.title')}"
+      ],
+      "commands": ["plugin-check", "plugin-install", "plugin-restart"]
     },
     {
       "id": "channel-name",
@@ -217,7 +338,8 @@
       "description": "#2088 reuses default-model, Bot plan and preset create/read/update/apply owners with scoped Tob revisions/catalog validation. No preset delete owner; credentials remain native private input.",
       "scope": "Host",
       "surfaces": [
-        "setting:packages/client/src/client/onboarding-view.tsx:{t('onboarding.defaultTitle')}"
+        "setting:packages/client/src/client/onboarding-view.tsx:{t('onboarding.defaultTitle')}",
+        "setting:packages/client/src/client/remote-host-models.tsx:{t('remoteHosts.settings.models')}"
       ],
       "commands": [
         "home-model-set",
@@ -252,14 +374,39 @@
       "commands": ["telemetry-status", "telemetry-set"]
     },
     {
+      "id": "data-reset",
+      "description": "Clear all BotHarness data on this Host after a reviewed preview and a second confirmation.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/data-reset-settings.tsx:{t('dataReset.row.title')}"
+      ],
+      "commands": ["data-reset-preview", "data-reset-confirm"]
+    },
+    {
+      "id": "storage-cleanup",
+      "description": "Show storage used by chat media, messages and Memory, clear reviewed chat media by chat, age and type, and delete reviewed old messages by chat and age.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/storage-settings.tsx:{t('storage.row.title')}"
+      ],
+      "commands": [
+        "storage-usage",
+        "storage-cleanup-preview",
+        "storage-cleanup-confirm",
+        "storage-messages-cleanup-preview",
+        "storage-messages-cleanup-confirm"
+      ]
+    },
+    {
       "id": "workspace-grants",
       "description": "Workspace access and grant controls.",
       "scope": "Host",
       "surfaces": [
+        "setting:packages/client/src/client/workspace-grants-entry.tsx:{t('grant.browseLocation')}",
         "setting:packages/client/src/client/workspace-grants-entry.tsx:{t('access.scopeTitle')}",
         "setting:packages/client/src/client/workspace-grants-entry.tsx:{t('access.title')}"
       ],
-      "commands": ["grants", "grant-create", "grant-revoke"]
+      "commands": ["folder-browse", "grants", "grant-create", "grant-revoke"]
     },
     {
       "id": "im-apps",
@@ -335,9 +482,6 @@
         "storage:packages/client/src/client/composer-draft-store.ts:removeItem(key)",
         "storage:packages/client/src/client/composer-draft-store.ts:setItem(prefix + this.writer + ':' + version.sequence)",
         "storage:packages/client/src/client/composer-submission-store.ts:setItem(SUBMISSION_PREFIX + scope)",
-        "storage:packages/client/src/client/home-panel.tsx:setItem('botharness/home-draft/' + home.botSlug)",
-        "storage:packages/client/src/client/home-panel.tsx:setItem(key)",
-        "storage:packages/client/src/client/home-panel.tsx:removeItem(key)",
         "storage:packages/client/src/client/reachable-post-requests.ts:setItem(this.#key)"
       ],
       "exemption": "Drafts, pending sends and transport request recovery are per-Client delivery state, not configurable settings; sending is already covered by send.",
@@ -359,9 +503,33 @@
         "storage:packages/client/src/client/onboarding.ts:removeItem(`botharness/onboarding/layout-v2/${receipt.profileId}`)",
         "storage:packages/client/src/client/onboarding.ts:setItem(key)",
         "storage:packages/client/src/client/onboarding.ts:removeItem('botharness/onboarding/sessions-return')",
-        "storage:packages/client/src/client/onboarding.ts:setItem(`botharness/onboarding/layout-v2/${this.state.receipt.profileId}`)"
+        "storage:packages/client/src/client/onboarding.ts:setItem(`botharness/onboarding/layout-v2/${this.state.receipt.profileId}`)",
+        "storage:packages/client/src/client/onboarding.ts:setItem(introKey(receipt.profileId))"
       ],
       "exemption": "Device-local tour anchors and seen markers are presentation state, not Host settings. Profile tutorial lifecycle is available through onboarding.",
+      "configurable": false
+    },
+    {
+      "id": "browser-remote-hosts",
+      "description": "A browser's own Remote Host pairings, selected Host tab, legacy-key migration and the icon and colour it shows for each Host (#2500).",
+      "scope": "Client transport / transient state",
+      "surfaces": [
+        "storage:packages/client/src/client/remote-hosts.ts:removeItem(REMOTE_HOSTS_STORAGE_KEY)",
+        "storage:packages/client/src/client/remote-notifications.ts:removeItem(REMOTE_NOTIFICATION_KEY)",
+        "storage:packages/client/src/client/remote-hosts.ts:setItem(REMOTE_HOSTS_STORAGE_KEY)",
+        "storage:packages/client/src/client/remote-hosts.ts:setItem(HOST_TAB_STORAGE_KEY)",
+        "storage:packages/client/src/client/remote-hosts.ts:removeItem(oldKey)",
+        "storage:packages/client/src/client/remote-hosts.ts:setItem(key)"
+      ],
+      "exemption": "Per-browser connections, legacy-key migration, and the tab filter belong to that browser profile, not to any Host (spec #2178, ADR-0243: Host looks are device-local), so no Host CLI can read or set them. Permanent pairing removal also deletes its browser notification choice as automatic cleanup, not a separate setting. Browser notifications and Host looks use separately inventoried Client relay commands. The Remote Host's side is its existing device gateway: pair, unary calls, stream ticket and revoke.",
+      "configurable": false
+    },
+    {
+      "id": "ui-community-stars",
+      "description": "The intro's GitHub star count is cached on the device for offline display.",
+      "scope": "Client transport / transient state",
+      "surfaces": ["storage:packages/client/src/client/community-links.ts:setItem(STARS_KEY)"],
+      "exemption": "A display cache of a public GitHub number, not a user setting; nothing to configure.",
       "configurable": false
     },
     {
@@ -404,8 +572,7 @@
         "route:packages/computer/src/index.ts:VIEWER_PREFIX",
         "route:packages/computer/src/index.ts:socketPath in viewerUpgradePaths(VIEWER_PREFIX)",
         "route:packages/core/src/devices/mount.ts:DEVICE_GATEWAY_PREFIX",
-        "route:packages/core/src/devices/mount.ts:path in [DEVICE_MUX_PATH, DEVICE_WEB_MUX_PATH, ...DEVICE_SIGNALING_PATHS]",
-        "route:packages/core/src/http/viewer-proxy.ts:`${DEVICE_WEB_PREFIX}${path}`"
+        "route:packages/core/src/devices/mount.ts:path in [DEVICE_MUX_PATH, ...DEVICE_SIGNALING_PATHS]"
       ],
       "exemption": "Native viewer media/signaling/proxy transport; no user-configurable setting on these routes. Control and diagnostic APIs are covered separately.",
       "configurable": false
@@ -564,6 +731,13 @@
       "commands": ["computer-logs"]
     },
     {
+      "id": "computer-open-permission-settings",
+      "description": "Open an allowlisted macOS privacy pane on the Local Computer Host without granting permission.",
+      "scope": "Host",
+      "surfaces": ["route:packages/computer/src/index.ts:'/api/computer/open-permission-settings'"],
+      "commands": ["computer-open-permission-settings"]
+    },
+    {
       "id": "computer-open-dir",
       "description": "HTTP operation with existing direct CLI command.",
       "scope": "Host",
@@ -623,6 +797,13 @@
       "commands": ["computer-upload"]
     },
     {
+      "id": "computer-video",
+      "description": "Observe and explicitly control Local Computer video through the same Computer owner as paired devices.",
+      "scope": "Host",
+      "surfaces": ["route:packages/computer/src/index.ts:LOCAL_VIDEO_PATH"],
+      "commands": ["computer-video"]
+    },
+    {
       "id": "computer-webrtc",
       "description": "HTTP operation with existing direct CLI command.",
       "scope": "Host",
@@ -678,6 +859,98 @@
         "setting:packages/computer/src/client/settings-rows.tsx:{t('rows.exportSection.title')}",
         "setting:packages/computer/src/client/settings-rows.tsx:{t('rows.importSection.title')}"
       ]
+    },
+    {
+      "id": "desktop-window-zoom",
+      "description": "Device-local primary window preferences; Host relays exact Client requests without storing settings.",
+      "scope": "Client / desktop primary window",
+      "surfaces": [
+        "route:packages/core/src/plugin.ts:WINDOW_ZOOM_CONTROL_PATH",
+        "setting:packages/client/src/client/window-zoom-settings.tsx:{t('zoom.current')}",
+        "setting:packages/client/src/client/window-zoom-settings.tsx:{t('zoom.default')}",
+        "storage:packages/client/src/client/window-zoom.ts:setItem(WINDOW_ZOOM_KEY)"
+      ],
+      "commands": ["window-zoom-clients", "window-zoom-get", "window-zoom-set", "window-zoom-reset"]
+    },
+    {
+      "id": "desktop-window-zoom-setup",
+      "description": "Host schedules the Desktop zoom Profile link to be added or removed after the app quits, then reopens the app.",
+      "scope": "Host / desktop Profile",
+      "surfaces": [
+        "route:packages/core/src/plugin.ts:WINDOW_ZOOM_SETUP_PATH",
+        "setting:packages/client/src/client/window-zoom-setup.tsx:{t(action === 'enable' ? 'zoom.setup.enable' : 'zoom.setup.disable')}"
+      ],
+      "commands": [
+        "window-zoom-setup-status",
+        "window-zoom-setup-enable",
+        "window-zoom-setup-disable",
+        "window-zoom-setup-cancel"
+      ]
+    },
+    {
+      "id": "remote-host-notifications",
+      "description": "Browser-owned Remote Host choices; inbox --notifications pages Host-decided attention. Phone owner AX is development-client-only (phone-notifications); release parity and native real runs remain unverified. device-notifications edits Host copies only.",
+      "scope": "Client / Paired Device",
+      "surfaces": [
+        "storage:packages/client/src/client/remote-notifications.ts:setItem(REMOTE_NOTIFICATION_KEY)",
+        "setting:packages/client/src/client/remote-notification-settings.tsx:{t('remoteHosts.notifications.enable')}",
+        "setting:packages/client/src/client/remote-notification-settings.tsx:{t(labels[kind])}"
+      ],
+      "commands": [
+        "browser-notification-clients",
+        "browser-notifications",
+        "device-notifications",
+        "phone-notifications",
+        "inbox"
+      ]
+    },
+    {
+      "id": "deepseekbot-local-appearance",
+      "description": "Explicit Client-targeted device-local DeepSeekBot themes; authenticated Host forwards requests without a preference mirror.",
+      "scope": "Client",
+      "surfaces": [
+        "setting:packages/client/src/client/appearance-settings.tsx:{t('appearance.primary')}",
+        "setting:packages/client/src/client/wallpaper-settings.tsx:{t('wallpaper.interval')}",
+        "setting:packages/client/src/client/wallpaper-settings.tsx:{t('wallpaper.shuffle')}",
+        "storage:packages/client/src/client/appearance.ts:setItem(APPEARANCE_KEY)",
+        "route:packages/core/src/plugin.ts:APPEARANCE_CONTROL_PATH",
+        "setting:packages/client/src/client/appearance-material-settings.tsx:{t('appearance.materialBlur')}",
+        "setting:packages/client/src/client/appearance-material-settings.tsx:{t('appearance.materialColor')}",
+        "setting:packages/client/src/client/appearance-material-settings.tsx:{t('appearance.materialOpacity')}",
+        "setting:packages/client/src/client/appearance-panel-settings.tsx:{t( field === 'color' ? 'appearance.materialColor' : field === 'opacity' ? 'appearance.materialOpacity' : 'appearance.materialBlur', )}"
+      ],
+      "commands": [
+        "appearance-clients",
+        "appearance-get",
+        "appearance-set",
+        "appearance-targets",
+        "wallpaper-get",
+        "wallpaper-import",
+        "wallpaper-crop",
+        "wallpaper-remove",
+        "wallpaper-select",
+        "wallpaper-rotation",
+        "appearance-clear-panels",
+        "appearance-reset"
+      ]
+    },
+    {
+      "id": "device-local-host-look",
+      "description": "Browser-owned Host name, icon and colour; shared HostLooks locks persisted revision/merge, supports explicit refresh after read failure, and checks CLI absolute expiry before setItem. Early disconnect is unknown outcome with readback; no Host mirror.",
+      "scope": "Client / Host",
+      "surfaces": [
+        "storage:packages/client/src/client/host-looks.ts:setItem(HOST_LOOKS_STORAGE_KEY)"
+      ],
+      "commands": ["appearance-clients", "host-look"]
+    },
+    {
+      "id": "message-feedback",
+      "description": "Single-message frozen evidence preview, local download and explicit private submission.",
+      "scope": "Host diagnostics",
+      "surfaces": [
+        "route:packages/core/src/plugin.ts:`${MESSAGE_FEEDBACK_PATH}/${action}` in MESSAGE_FEEDBACK_ACTIONS"
+      ],
+      "commands": ["feedback-preview", "feedback-download", "feedback-submit"]
     }
   ]
 }

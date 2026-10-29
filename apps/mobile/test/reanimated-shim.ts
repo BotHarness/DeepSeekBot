@@ -2,23 +2,33 @@ import { createElement, Fragment, type ReactNode } from 'react';
 
 type Props = Record<string, unknown> & { children?: ReactNode };
 
-const transition = { duration: () => transition };
+const transition: Record<string, () => unknown> = {};
+for (const step of ['duration', 'springify', 'mass', 'damping', 'stiffness', 'reduceMotion'])
+  transition[step] = () => transition;
 
 const FlatList = (props: {
   data: Array<{ key: string }>;
   keyExtractor(row: unknown): string;
   renderItem(info: { item: unknown }): ReactNode;
   ListHeaderComponent?: ReactNode;
+  ListFooterComponent?: ReactNode;
   ListEmptyComponent?: ReactNode;
+  contentInset?: { bottom?: number };
+  keyboardDismissMode?: string;
 }) =>
   createElement(
     'div',
-    null,
+    {
+      'data-testid': 'chat-list',
+      'data-inset-bottom': props.contentInset?.bottom,
+      'data-dismiss': props.keyboardDismissMode,
+    },
     props.ListHeaderComponent ?? null,
     props.data.length === 0 ? (props.ListEmptyComponent ?? null) : null,
     ...props.data.map((row) =>
       createElement(Fragment, { key: props.keyExtractor(row) }, props.renderItem({ item: row })),
     ),
+    props.ListFooterComponent ?? null,
   );
 
 const View = (props: Props) => createElement('div', null, props.children);
@@ -28,15 +38,45 @@ export const makeMutable = <T>(value: T) => ({ value });
 export const measure = () => null;
 export const useAnimatedRef = () => ({ current: null });
 export const useAnimatedStyle = (worklet: () => object) => worklet();
-export const useDerivedValue = <T>(worklet: () => T) => ({ value: worklet() });
+export const useDerivedValue = <T>(worklet: () => T) => ({ value: worklet(), get: worklet });
 export const useAnimatedReaction = () => {};
 export const useAnimatedScrollHandler = (handlers: unknown) => handlers;
 export const useScrollOffset = () => ({ value: 0 });
-export const useSharedValue = <T>(value: T) => ({ value });
+export const useSharedValue = <T>(value: T) => ({
+  value,
+  get() {
+    return this.value;
+  },
+  set(next: T) {
+    this.value = next;
+  },
+});
 export const FadeOut = transition;
+export const FadeIn = transition;
+export const withSpring = <T>(
+  value: T,
+  _config?: unknown,
+  callback?: (finished?: boolean) => void,
+) => {
+  callback?.(true);
+  return value;
+};
+export const runOnJS =
+  <A extends unknown[]>(callback: (...args: A) => void) =>
+  (...args: A) =>
+    callback(...args);
 export const LinearTransition = transition;
 export const useReducedMotion = () => false;
-export const withTiming = <T>(value: T) => value;
+export const withTiming = <T>(
+  value: T,
+  _config?: unknown,
+  callback?: (finished?: boolean) => void,
+) => {
+  callback?.(true);
+  return value;
+};
+export const withRepeat = <T>(value: T) => value;
+export const useAnimatedProps = (worklet: () => object) => worklet();
 export const interpolateColor = (_value: number, _range: number[], colors: string[]) =>
   colors.at(-1);
 export const cancelAnimation = () => {};
@@ -44,10 +84,29 @@ export const ReduceMotion = { System: 'system' };
 export const Easing = {
   linear: (t: number) => t,
   out: (curve: unknown) => curve,
+  in: (curve: unknown) => curve,
+  bezier: () => (t: number) => t,
   quad: (t: number) => t * t,
 };
 export class Keyframe {
   duration() {
     return this;
   }
+}
+
+export function useComposedEventHandler(handlers: unknown[]) {
+  const contexts = handlers.map(() => ({}));
+  const events = ['onScroll', 'onBeginDrag', 'onEndDrag', 'onMomentumBegin', 'onMomentumEnd'];
+  return Object.fromEntries(
+    events.map((event) => [
+      event,
+      (payload: unknown) => {
+        handlers.forEach((handler, index) => {
+          if (handler === null || typeof handler !== 'object') return;
+          const callback = Reflect.get(handler, event);
+          if (typeof callback === 'function') callback(payload, contexts[index]);
+        });
+      },
+    ]),
+  );
 }

@@ -49,6 +49,7 @@ export interface ModelPreset {
 
 export interface BotModel {
   revision: number;
+  defaultRevision?: number;
   plan?: ModelPlan;
   repair?: string;
   models: ModelCatalogEntry[];
@@ -82,6 +83,7 @@ export interface HostFolderListing {
   crumbs: HostFolder[];
   entries: HostFolder[];
   truncated: boolean;
+  roots: HostFolder[];
 }
 
 export type AccessMode = 'workspace-write' | 'danger-full-access';
@@ -250,8 +252,14 @@ export async function loadGlobalModel(client: HostClient): Promise<BotModel> {
   const models = record(catalog)?.['models'];
   if (!Array.isArray(models)) throw new HostAnswerInvalid('modelCatalog returned no models.');
   const fallback = route(record(catalog)?.['default']);
+  const defaultRevision = record(catalog)?.['defaultRevision'];
   return {
     revision: 0,
+    ...(typeof defaultRevision === 'number' &&
+    Number.isSafeInteger(defaultRevision) &&
+    defaultRevision >= 0
+      ? { defaultRevision }
+      : {}),
     models: some(models, catalogEntry),
     presets: some(record(presets)?.['presets'], preset),
     ...(fallback === undefined ? {} : { fallback }),
@@ -370,20 +378,42 @@ function folder(value: unknown): HostFolder | undefined {
   return { name: row['name'], path: row['path'], hidden: row['hidden'] === true };
 }
 
+function listing(value: unknown): HostFolderListing {
+  const row = record(value);
+  if (!text(row?.['path'])) throw new HostAnswerInvalid('The folder list has no location.');
+  return {
+    path: row['path'],
+    crumbs: some(row['crumbs'], folder),
+    entries: some(row['entries'], folder),
+    truncated: row['truncated'] === true,
+    roots: some(row['roots'], folder),
+  };
+}
+
+const systemPickerHosts = new WeakSet<HostClient>();
+
 export async function listHostFolders(
   client: HostClient,
   path?: string,
 ): Promise<HostFolderListing> {
-  const value = record(
-    await client.call<unknown>('directoryPicker/list', path === undefined ? {} : { path }),
-  );
-  if (!text(value?.['path'])) throw new HostAnswerInvalid('The folder list has no location.');
-  return {
-    path: value['path'],
-    crumbs: some(value['crumbs'], folder),
-    entries: some(value['entries'], folder),
-    truncated: value['truncated'] === true,
-  };
+  const args = path === undefined ? {} : { path };
+  if (!systemPickerHosts.has(client)) {
+    try {
+      return listing(await client.call<unknown>('directoryPicker/list', args));
+    } catch (error) {
+      if (!folderBrowsingUnavailable(error)) throw error;
+      try {
+        const value = listing(await client.call<unknown>('folderBrowse', args));
+        systemPickerHosts.add(client);
+        return value;
+      } catch (fallback) {
+        if (fallback instanceof MethodRefused && fallback.code.startsWith('folder-browse/'))
+          throw fallback;
+        throw error;
+      }
+    }
+  }
+  return listing(await client.call<unknown>('folderBrowse', args));
 }
 
 function option(value: unknown): WorkspaceOption | undefined {
@@ -434,6 +464,28 @@ export async function authorizeWorkspacePath(
   path: string,
 ): Promise<WorkspaceGrant> {
   return createWorkspaceGrant(client, slug, await createWorkspace(client, path));
+}
+
+export async function approveWorkspaceRequest(
+  client: HostClient,
+  slug: string,
+  channelId: string,
+  requestMessageId: string,
+  workspaceId: string,
+): Promise<WorkspaceGrant> {
+  const granted = grantResult(
+    await client.call<unknown>('grantRequestApprove', {
+      slug,
+      channelId,
+      requestMessageId,
+      workspaceId,
+      acknowledgeReadWrite: true,
+    }),
+    'grantRequestApprove',
+  );
+  if (!granted.orchestratorWrite)
+    throw new HostAnswerInvalid('The computer did not confirm read/write access.');
+  return granted;
 }
 
 function access(value: unknown, slug: string, method: string): AssignmentAccess {

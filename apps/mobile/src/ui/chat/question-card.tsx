@@ -1,29 +1,26 @@
-import { TextInput } from '../primitives/system-text';
 import { useCallback, useRef, useState } from 'react';
-import { Pressable, View, type ViewInstance } from 'react-native';
+import { View, type ViewInstance } from 'react-native';
 
 import type { CardResolution } from '../../host/conversation';
 import {
   buildAnswer,
   emptyDraft,
-  toggleOption,
   typeCustom,
   type DecisionResult,
   type QuestionDraft,
   type QuestionRequest,
 } from '../../host/requests';
-import type { QuestionAnswer, QuestionItem } from '../../host/wire';
-import { useDesignTheme } from '../design/theme';
-import { edge, radius, space } from '../design/tokens';
+import type { QuestionAnswer } from '../../host/wire';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
-import { Text } from '../primitives/text';
 import { errorText } from '../request-parts';
 import { haptic } from '../haptics';
-import { t } from '../strings';
-import { ActionCard, CardButtons, CardLine, type CardLineTone } from './action-card';
+import { useStrings, t } from '../strings';
+import { ActionCard, CardButtons, CardGroup, CardPreview } from './action-card';
+import { CardLine, type CardLineTone } from './card-line';
 import type { BubbleGroup } from './bubble-shape';
 import { DraftEditor } from './draft-editor';
+import { QuestionFields } from './question-fields';
 
 export interface QuestionCardPort {
   load(): Promise<QuestionRequest>;
@@ -43,10 +40,6 @@ type Phase =
   | { kind: 'settled'; status: 'decided' | 'expired'; mine: boolean };
 
 type Line = { text: string; tone: CardLineTone };
-
-export function letter(index: number): string {
-  return String.fromCharCode(65 + (index % 26));
-}
 
 function settledLine(
   subject: string,
@@ -69,209 +62,6 @@ function settledLine(
   return phase.status === 'expired'
     ? line(t.cardExpired, 'subtle')
     : line(t.elsewhere(t.cardAnswered), 'success');
-}
-
-function Option({
-  index,
-  label,
-  description,
-  chosen,
-  multiple,
-  disabled,
-  onPress,
-}: {
-  index: number;
-  label: string;
-  description?: string;
-  chosen: boolean;
-  multiple: boolean;
-  disabled: boolean;
-  onPress(): void;
-}) {
-  const theme = useDesignTheme();
-  const badge = theme.type.body.line * theme.fontScale + space.x2;
-  return (
-    <Pressable
-      accessibilityRole={multiple ? 'checkbox' : 'radio'}
-      accessibilityLabel={t.option(letter(index), label)}
-      accessibilityState={{ checked: chosen, disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        minHeight: theme.touch,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space.x4,
-        paddingHorizontal: space.x4,
-        paddingVertical: space.x3,
-        borderTopWidth: index === 0 ? 0 : edge.hairline,
-        borderTopColor: theme.layer.well.divider,
-        backgroundColor: chosen
-          ? theme.layer.well.chosen
-          : pressed
-            ? theme.layer.well.pressed
-            : theme.layer.well.fill,
-      })}
-    >
-      <View
-        style={{
-          width: badge,
-          height: badge,
-          borderRadius: multiple ? radius.sm : radius.round,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: chosen ? theme.color.accent : theme.layer.well.inset,
-        }}
-      >
-        <Text variant="meta" strong tone={chosen ? 'onAccent' : 'muted'}>
-          {letter(index)}
-        </Text>
-      </View>
-      <View style={{ flexShrink: 1, gap: space.x1 }}>
-        <Text>{label}</Text>
-        {description === undefined ? null : (
-          <Text variant="meta" tone="muted">
-            {description}
-          </Text>
-        )}
-      </View>
-    </Pressable>
-  );
-}
-
-function QuestionFields({
-  question,
-  draft,
-  heading,
-  disabled,
-  inChat,
-  expandInput,
-  onChange,
-  onPick,
-}: {
-  question: QuestionItem;
-  draft: QuestionDraft;
-  heading: boolean;
-  disabled: boolean;
-  inChat: boolean;
-  expandInput: boolean;
-  onChange(next: QuestionDraft): void;
-  onPick?(label: string): void;
-}) {
-  const theme = useDesignTheme();
-  const multiple = question.multiSelect === true;
-  const [editing, setEditing] = useState(false);
-  const inputLabel = `${t.otherAnswer}: ${question.question}`;
-  const placeholder = question.options?.length ? t.otherAnswer : t.typeAnswer;
-  return (
-    <View style={{ gap: space.x3 }}>
-      {heading ? (
-        <View style={{ gap: space.x1 }}>
-          {question.header === undefined ? null : (
-            <Text variant="meta" tone="muted" strong>
-              {question.header}
-            </Text>
-          )}
-          <Text strong>{question.question}</Text>
-          {question.detail === undefined ? null : (
-            <Text selectable variant="meta" tone="muted">
-              {question.detail}
-            </Text>
-          )}
-        </View>
-      ) : null}
-      {multiple ? (
-        <Text variant="meta" tone="muted">
-          {t.multiSelectHint}
-        </Text>
-      ) : null}
-      {question.options?.length ? (
-        <View
-          accessibilityLabel={question.question}
-          style={{
-            overflow: 'hidden',
-            borderRadius: radius.md,
-            backgroundColor: theme.layer.well.fill,
-          }}
-        >
-          {question.options.map((option, index) => (
-            <Option
-              key={option.label}
-              index={index}
-              label={option.label}
-              {...(option.description === undefined ? {} : { description: option.description })}
-              chosen={draft.selected.includes(option.label)}
-              multiple={multiple}
-              disabled={disabled}
-              onPress={() =>
-                onPick === undefined
-                  ? onChange(toggleOption(question, draft, option.label))
-                  : onPick(option.label)
-              }
-            />
-          ))}
-        </View>
-      ) : null}
-      {inChat ? (
-        <Text variant="meta" tone="muted">
-          {t.replyInChat}
-        </Text>
-      ) : expandInput ? (
-        <>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={inputLabel}
-            disabled={disabled}
-            onPress={() => setEditing(true)}
-            style={{
-              minHeight: theme.touch,
-              paddingHorizontal: space.x4,
-              paddingVertical: space.x3,
-              backgroundColor: theme.layer.field.fill,
-              borderColor: theme.layer.field.edge,
-              borderWidth: edge.hairline,
-              borderRadius: radius.md,
-            }}
-          >
-            <Text tone={draft.custom === '' ? 'muted' : 'fg'}>
-              {draft.custom === '' ? placeholder : draft.custom}
-            </Text>
-          </Pressable>
-          {editing ? (
-            <DraftEditor
-              value={draft.custom}
-              placeholder={placeholder}
-              canSend={false}
-              onChange={(text) => onChange(typeCustom(question, draft, text))}
-              onSend={() => setEditing(false)}
-              onClose={() => setEditing(false)}
-            />
-          ) : null}
-        </>
-      ) : (
-        <TextInput
-          accessibilityLabel={`${t.otherAnswer}: ${question.question}`}
-          placeholder={question.options?.length ? t.otherAnswer : t.typeAnswer}
-          placeholderTextColor={theme.color.subtle}
-          editable={!disabled}
-          multiline
-          value={draft.custom}
-          onChangeText={(text) => onChange(typeCustom(question, draft, text))}
-          style={{
-            minHeight: theme.touch,
-            color: theme.color.fg,
-            fontSize: theme.type.body.size,
-            borderColor: theme.layer.field.edge,
-            borderWidth: edge.hairline,
-            borderRadius: radius.md,
-            paddingHorizontal: space.x4,
-            paddingVertical: space.x3,
-            backgroundColor: theme.layer.field.fill,
-          }}
-        />
-      )}
-    </View>
-  );
 }
 
 export function QuestionCard({
@@ -299,29 +89,44 @@ export function QuestionCard({
   answeredHere?: boolean;
   onSettled?(result: DecisionResult): void;
 }) {
+  const t = useStrings();
   const known = useRef(resolution !== undefined);
+  const current = useRef({ port, pending: false, active: false });
+  if (current.current.port !== port) {
+    current.current = { port, pending: false, active: false };
+    known.current = resolution !== undefined;
+  }
+  const submission = current.current;
   const [phase, setPhase] = useState<Phase>(
     known.current ? { kind: 'known' } : { kind: 'loading' },
   );
   const [drafts, setDrafts] = useState<Record<string, QuestionDraft>>({});
+  const [editing, setEditing] = useState<string>();
 
   const load = useCallback(async () => {
+    setDrafts({});
     setPhase({ kind: 'loading' });
     try {
       const request = await port.load();
+      if (!submission.active || current.current !== submission) return;
       setPhase(
         request.status === 'pending'
           ? { kind: 'pending', request }
           : { kind: 'settled', status: request.status, mine: false },
       );
     } catch {
+      if (!submission.active || current.current !== submission) return;
       setPhase({ kind: 'failed' });
     }
-  }, [port]);
+  }, [port, submission]);
 
   const mount = useMounted<ViewInstance>(() => {
+    submission.active = true;
     if (!known.current) void load();
-  }, [load]);
+    return () => {
+      submission.active = false;
+    };
+  }, [load, submission]);
 
   const first =
     phase.kind === 'pending' ? (phase.request.questions[0]?.question ?? '') : (subject ?? '');
@@ -351,7 +156,7 @@ export function QuestionCard({
           {...(phase.kind === 'failed' ? { error: t.cardLoadFailed } : {})}
         >
           <CardButtons>
-            <Button label={t.tryAgain} onPress={() => void load()} />
+            <Button symbol="refresh" label={t.tryAgain} onPress={() => void load()} />
           </CardButtons>
         </ActionCard>
       </View>
@@ -362,12 +167,22 @@ export function QuestionCard({
   const answer = buildAnswer(request.questions, drafts);
   const instant = single !== undefined && single.multiSelect !== true;
   const typed = Object.values(drafts).some((draft) => draft.custom.trim() !== '');
+  const editingQuestion = request.questions.find((question) => question.id === editing);
   const submit = async (answer: QuestionAnswer | undefined) => {
-    if (answer === undefined) return;
-    haptic('submit');
+    if (
+      answer === undefined ||
+      submission.pending ||
+      !submission.active ||
+      current.current !== submission ||
+      resolution !== undefined
+    )
+      return;
+    submission.pending = true;
     setPhase({ kind: 'pending', request, busy: true });
     try {
       const result = await port.answer(answer);
+      if (!submission.active || current.current !== submission) return;
+      if (result === 'accepted') haptic('submit');
       setPhase({
         kind: 'settled',
         status: result === 'expired' ? 'expired' : 'decided',
@@ -375,6 +190,8 @@ export function QuestionCard({
       });
       onSettled?.(result);
     } catch (error) {
+      if (!submission.active || current.current !== submission) return;
+      submission.pending = false;
       setPhase({
         kind: 'pending',
         request,
@@ -388,15 +205,14 @@ export function QuestionCard({
         category={single?.header ?? category}
         status={t.needsYou}
         title={single?.question ?? t.asks(botName)}
+        busy={instant && phase.busy === true}
         focused={focused}
         wide={wide}
         {...(phase.error === undefined ? {} : { error: phase.error })}
         preview={
-          <View style={{ gap: space.x5 }}>
+          <CardGroup>
             {single?.detail === undefined ? null : (
-              <Text selectable variant="meta" tone="muted">
-                {single.detail}
-              </Text>
+              <CardPreview text={single.detail} well={false} tone="muted" />
             )}
             {request.questions.map((question) => (
               <QuestionFields
@@ -406,7 +222,7 @@ export function QuestionCard({
                 heading={single === undefined}
                 disabled={phase.busy === true}
                 inChat={replyInChat && single !== undefined}
-                expandInput={expandInput}
+                {...(expandInput ? { onExpand: () => setEditing(question.id) } : {})}
                 {...(instant
                   ? {
                       onPick: (label: string) =>
@@ -418,12 +234,13 @@ export function QuestionCard({
                 onChange={(next) => setDrafts((current) => ({ ...current, [question.id]: next }))}
               />
             ))}
-          </View>
+          </CardGroup>
         }
       >
         {instant && !typed ? null : (
           <CardButtons>
             <Button
+              symbol="check"
               label={t.submitChoice}
               tone="primary"
               disabled={answer === undefined}
@@ -433,6 +250,25 @@ export function QuestionCard({
           </CardButtons>
         )}
       </ActionCard>
+      {editingQuestion === undefined ? null : (
+        <DraftEditor
+          value={drafts[editingQuestion.id]?.custom ?? ''}
+          placeholder={editingQuestion.options?.length ? t.otherAnswer : t.typeAnswer}
+          canSend={false}
+          onChange={(text) =>
+            setDrafts((current) => ({
+              ...current,
+              [editingQuestion.id]: typeCustom(
+                editingQuestion,
+                current[editingQuestion.id] ?? emptyDraft(),
+                text,
+              ),
+            }))
+          }
+          onSend={() => setEditing(undefined)}
+          onClose={() => setEditing(undefined)}
+        />
+      )}
     </View>
   );
 }

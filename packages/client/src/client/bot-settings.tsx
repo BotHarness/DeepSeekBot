@@ -5,10 +5,12 @@ import { useState, useSyncExternalStore, type ReactElement, type ReactNode } fro
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots';
 
 import type {} from './bot-settings-slot.js';
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { SettingsDialog } from './ds/settings-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 export const BOT_SETTINGS_SECTIONS = {
+  account: 'account',
   general: 'general',
   appearance: 'appearance',
   notifications: 'notifications',
@@ -16,15 +18,42 @@ export const BOT_SETTINGS_SECTIONS = {
   models: 'models',
   messaging: 'messaging',
   autoApproval: 'auto-approval',
+  prompts: 'prompts',
   imApps: 'im-apps',
   companions: 'companions',
   devices: 'devices',
   dataPrivacy: 'data-privacy',
   advanced: 'advanced',
+  plugins: 'plugins',
   about: 'about',
 } as const;
 
 export const BOT_SETTINGS_DEFAULT_SECTION = BOT_SETTINGS_SECTIONS.general;
+
+const SECTION_ICONS: Readonly<Record<string, string>> = {
+  [BOT_SETTINGS_SECTIONS.account]: 'user',
+  [BOT_SETTINGS_SECTIONS.general]: 'settings',
+  [BOT_SETTINGS_SECTIONS.appearance]: 'palette',
+  [BOT_SETTINGS_SECTIONS.models]: 'cpu',
+  [BOT_SETTINGS_SECTIONS.autoApproval]: 'shield-check',
+  [BOT_SETTINGS_SECTIONS.prompts]: 'file-text',
+  [BOT_SETTINGS_SECTIONS.messaging]: 'message-square',
+  [BOT_SETTINGS_SECTIONS.notifications]: 'bell',
+  [BOT_SETTINGS_SECTIONS.shortcuts]: 'keyboard',
+  [BOT_SETTINGS_SECTIONS.imApps]: 'plug',
+  computer: 'monitor',
+  browser: 'globe',
+  [BOT_SETTINGS_SECTIONS.companions]: 'bot',
+  [BOT_SETTINGS_SECTIONS.devices]: 'smartphone',
+  [BOT_SETTINGS_SECTIONS.dataPrivacy]: 'lock',
+  [BOT_SETTINGS_SECTIONS.advanced]: 'sliders-horizontal',
+  [BOT_SETTINGS_SECTIONS.plugins]: 'puzzle',
+  [BOT_SETTINGS_SECTIONS.about]: 'info',
+};
+
+export function botSettingsSectionIcon(id: string): string {
+  return Object.hasOwn(SECTION_ICONS, id) ? SECTION_ICONS[id]! : 'settings-2';
+}
 
 const SECTION_SLOT = 'botharness.settings.section';
 
@@ -35,9 +64,15 @@ export interface BotSettingsSectionRow {
   readonly layoutAvailable?: boolean;
 }
 
+export interface BotSettingsTarget {
+  readonly title: string;
+  readonly nonce: number;
+}
+
 export interface BotSettingsSnapshot {
   readonly open: boolean;
   readonly sectionId: string | undefined;
+  readonly target?: BotSettingsTarget | undefined;
 }
 
 export interface BotSettingsSectionSource {
@@ -58,20 +93,36 @@ export class BotSettings {
     };
   };
 
-  readonly open = (sectionId?: string): void => {
-    this.#set({ open: true, sectionId: sectionId ?? this.#snapshot.sectionId });
+  readonly open = (sectionId?: string, target?: string): void => {
+    this.#set({
+      open: true,
+      sectionId:
+        sectionId === 'connect'
+          ? BOT_SETTINGS_SECTIONS.devices
+          : (sectionId ?? this.#snapshot.sectionId),
+      target: this.#target(target),
+    });
   };
 
-  readonly select = (sectionId: string): void => {
-    this.#set({ ...this.#snapshot, sectionId });
+  readonly select = (sectionId: string, target?: string): void => {
+    this.#set({ ...this.#snapshot, sectionId, target: this.#target(target) });
   };
 
   readonly close = (): void => {
-    this.#set({ ...this.#snapshot, open: false });
+    this.#set({ ...this.#snapshot, open: false, target: undefined });
   };
 
+  #target(title: string | undefined): BotSettingsTarget | undefined {
+    return title === undefined ? undefined : { title, nonce: Date.now() };
+  }
+
   #set(next: BotSettingsSnapshot): void {
-    if (next.open === this.#snapshot.open && next.sectionId === this.#snapshot.sectionId) return;
+    if (
+      next.open === this.#snapshot.open &&
+      next.sectionId === this.#snapshot.sectionId &&
+      next.target === this.#snapshot.target
+    )
+      return;
     this.#snapshot = next;
     for (const listener of this.#listeners) listener();
   }
@@ -92,7 +143,7 @@ export function BotSettingsView({
   const state = useSyncExternalStore(botSettings.subscribe, botSettings.getSnapshot);
   const registered = useSyncExternalStore(sections.subscribe, sections.getSnapshot);
   const [query, setQuery] = useState('');
-  const [target, setTarget] = useState<{ title: string; nonce: number } | undefined>();
+  const target = state.target;
   const locate = useMountedResource<HTMLDivElement>(
     (root) => {
       for (const item of root.querySelectorAll('[data-settings-highlight]'))
@@ -104,19 +155,17 @@ export function BotSettingsView({
       let found = false;
       const find = () => {
         if (found) return;
-        const node = [...root.querySelectorAll<HTMLElement>('[role="group"], section, h3')].find(
-          (item) => {
-            const label = item.getAttribute('aria-labelledby');
-            return (
-              (label
-                ? document.getElementById(label)?.textContent
-                : item.tagName === 'H3'
-                  ? item.textContent
-                  : ''
-              )?.trim() === target.title
-            );
-          },
-        );
+        const titleOf = (item: HTMLElement): string | undefined => {
+          if (item.dataset.settingsTitle !== undefined) return item.dataset.settingsTitle;
+          const label = item.getAttribute('aria-labelledby');
+          if (label) return document.getElementById(label)?.textContent ?? undefined;
+          return item.tagName === 'H3' ? (item.textContent ?? undefined) : undefined;
+        };
+        const node = [
+          ...root.querySelectorAll<HTMLElement>(
+            '[role="group"], section, h3, [data-settings-title]',
+          ),
+        ].find((item) => titleOf(item)?.trim() === target.title);
         if (!node) return;
         found = true;
         node.scrollIntoView?.({ block: 'center' });
@@ -139,14 +188,16 @@ export function BotSettingsView({
     rows[0];
   const close = (): void => {
     setQuery('');
-    setTarget(undefined);
     botSettings.close();
   };
   return (
     <SettingsDialog
       title={t('settings.nav')}
       navTitle={t('settings.nav')}
-      sections={rows}
+      sections={rows.map((row) => ({
+        ...row,
+        icon: <ChannelSidebarIcon name={botSettingsSectionIcon(row.id)} />,
+      }))}
       activeId={active?.id}
       navigationSearch={<SettingsSearch query={query} onChange={setQuery} t={t} />}
       navigationResults={
@@ -158,10 +209,7 @@ export function BotSettingsView({
                   type="button"
                   key={`${result.section}:${result.title}`}
                   onClick={() => {
-                    botSettings.select(result.section);
-                    setTarget(
-                      result.target ? { title: result.target, nonce: Date.now() } : undefined,
-                    );
+                    botSettings.select(result.section, result.target);
                     setQuery('');
                   }}
                 >
@@ -176,7 +224,6 @@ export function BotSettingsView({
         ) : undefined
       }
       onSelect={(id) => {
-        setTarget(undefined);
         setQuery('');
         botSettings.select(id);
       }}
@@ -199,7 +246,11 @@ export function BotSettingsView({
 interface SectionLedger {
   slots: {
     entries(key: string): readonly {
-      options: { id?: string; order?: number; label?: string | (() => string) };
+      options: {
+        id?: string;
+        order?: number;
+        label?: string | (() => string);
+      };
     }[];
     getVersion(key: string): number;
     subscribe(key: string, listener: () => void): () => void;

@@ -1,13 +1,32 @@
-import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import type { ActionSymbol } from '../../../../../packages/client/src/shared/action-presentation';
+import {
+  ArchiveIcon,
+  CheckIcon,
+  CloseIcon,
+  PlusIcon,
+  MessageIcon,
+  SettingsIcon,
+  FolderIcon,
+  ShieldCheckIcon,
+  ExternalLinkIcon,
+  TerminalIcon,
+  InfoIcon,
+  RefreshIcon,
+  PhotoIcon,
+} from '../shell/icons';
+import { Pressable, View } from 'react-native';
+import { controlCase } from '../platform-copy';
 
 import { buttonColors, type ButtonTone } from '../design/controls';
 import type { LayerName } from '../design/layers';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Text } from './text';
+import { LoadingIndicator } from './loading-indicator';
 
 export type { ButtonTone } from '../design/controls';
+
+export type ButtonSymbol = ActionSymbol | 'photo';
 
 export function Button({
   label,
@@ -17,8 +36,10 @@ export function Button({
   busy = false,
   on = 'raised',
   variant = 'filled',
-  icon,
+  symbol,
+  testID,
 }: {
+  fit?: boolean;
   label: string;
   onPress(): void;
   tone?: ButtonTone;
@@ -26,7 +47,8 @@ export function Button({
   busy?: boolean;
   on?: LayerName;
   variant?: 'filled' | 'text';
-  icon?: ReactNode;
+  symbol?: ButtonSymbol;
+  testID?: string;
 }) {
   const theme = useDesignTheme();
   const colors = buttonColors(theme, tone, on);
@@ -38,6 +60,7 @@ export function Button({
       : theme.color.fg;
   return (
     <Pressable
+      testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled: disabled || busy, busy }}
@@ -60,19 +83,32 @@ export function Button({
       })}
     >
       {busy ? (
-        <ActivityIndicator color={labelColor} />
-      ) : (
-        <>
-          {icon === undefined ? null : (
-            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-              {icon}
-            </View>
-          )}
-          <Text strong style={{ color: labelColor, textAlign: 'center', flexShrink: 1 }}>
-            {label}
-          </Text>
-        </>
-      )}
+        <LoadingIndicator size="control" color={labelColor} />
+      ) : symbol ? (
+        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {(() => {
+            const Icon = {
+              refresh: RefreshIcon,
+              check: CheckIcon,
+              'shield-check': ShieldCheckIcon,
+              x: CloseIcon,
+              archive: ArchiveIcon,
+              plus: PlusIcon,
+              'message-square': MessageIcon,
+              settings: SettingsIcon,
+              'folder-key': FolderIcon,
+              'external-link': ExternalLinkIcon,
+              terminal: TerminalIcon,
+              info: InfoIcon,
+              photo: PhotoIcon,
+            }[symbol];
+            return <Icon color={labelColor} size={theme.type.body.size} />;
+          })()}
+        </View>
+      ) : null}
+      <Text strong style={{ color: labelColor, textAlign: 'center', flexShrink: 1 }}>
+        {controlCase(label)}
+      </Text>
     </Pressable>
   );
 }

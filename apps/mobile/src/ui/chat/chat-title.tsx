@@ -1,62 +1,68 @@
-import { SourceName } from './source-name';
-import { Pressable, View } from 'react-native';
+import { HeaderTitleButton } from './header-title-button';
+import { ConnectionProgress } from '../primitives/connection-progress';
+import { View } from 'react-native';
 
 import type { RosterBot } from '../../host/client';
 import { BotAvatar } from '../bot-avatar';
-import { frosted, useDesignTheme } from '../design/theme';
-import { edge, radius, space } from '../design/tokens';
-import { t } from '../strings';
-import { botDotTone } from './bot-tone';
+import { useDesignTheme } from '../design/theme';
+import { radius, space } from '../design/tokens';
+import { Text } from '../primitives/text';
+import { useStrings } from '../strings';
+import { titleChipFill } from './header-chrome';
+import { barLabelStyle } from './native-header';
+import { botBusy } from './bot-tone';
+import { stepLabel } from './bot-steps';
 
 const AVATAR = 28;
-const DOT = space.x3;
 
 export function ChatTitle({
   bot,
   fallback,
+  connectionLabel,
   onPress,
 }: {
   bot: RosterBot | undefined;
   fallback: string;
+  connectionLabel?: string | undefined;
   onPress(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const status = bot === undefined ? undefined : bot.paused ? t.paused : t.state[bot.state];
   const name = bot?.displayName ?? fallback;
-  return (
-    <Pressable
+  const activity =
+    bot !== undefined && botBusy(bot) ? stepLabel(bot.activity, bot.state) : undefined;
+  const chip = (press: () => void) => (
+    <HeaderTitleButton
+      testID="bot-details-chip"
       accessibilityRole="button"
-      accessibilityLabel={status === undefined ? name : `${name}, ${status}`}
+      accessibilityLabel={[name, activity ?? status, connectionLabel].filter(Boolean).join(', ')}
+      accessibilityState={{ busy: connectionLabel !== undefined }}
       accessibilityHint={t.openProfile}
       disabled={bot === undefined}
-      onPress={onPress}
+      onPress={press}
       style={({ pressed }) => ({
-        maxWidth: '100%',
+        flexShrink: 1,
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x3,
         minHeight: Math.max(theme.touch, theme.type.body.line * theme.fontScale + space.x3),
-        paddingLeft: bot === undefined ? theme.touch / 2 : (theme.touch - AVATAR) / 2,
-        paddingRight: bot === undefined ? theme.touch / 2 : (theme.touch - DOT) / 2,
+        paddingLeft: (theme.touch - AVATAR) / 2,
+        paddingRight: theme.touch / 2,
         borderRadius: radius.round,
-        borderWidth: edge.hairline,
-        borderColor: theme.layer.raised.edge,
-        backgroundColor: pressed ? theme.layer.raised.pressed : frosted(theme.layer.raised.fill),
+        ...titleChipFill(theme, pressed),
       })}
     >
-      {bot === undefined ? null : <BotAvatar bot={bot} size={AVATAR} ring={false} />}
-      <SourceName name={name} source="computer" />
-      {bot === undefined ? null : (
-        <View
-          testID="chat-title-state"
-          style={{
-            width: DOT,
-            height: DOT,
-            borderRadius: radius.round,
-            backgroundColor: theme.color[botDotTone(bot)],
-          }}
-        />
+      {bot ? (
+        <BotAvatar bot={bot} size={AVATAR} ring={false} />
+      ) : (
+        <View style={{ width: AVATAR, height: AVATAR }} />
       )}
-    </Pressable>
+      <Text strong numberOfLines={1} style={[{ flexShrink: 1 }, barLabelStyle]}>
+        {activity ?? name}
+      </Text>
+      <ConnectionProgress active={connectionLabel !== undefined} />
+    </HeaderTitleButton>
   );
+  return chip(onPress);
 }

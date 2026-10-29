@@ -1,0 +1,19 @@
+{
+  "instance": "ax2080-mobile",
+  "calls": [
+    {
+      "name": "pwsh",
+      "outcome": "ok",
+      "result": "MOBILE_2080_ONCE_OK\r\n",
+      "approval": "allowed-once"
+    }
+  ],
+  "requestCount": 1,
+  "decisions": [
+    {
+      "requestMessageId": "6641ea60-f51f-4b8a-9d1f-48a53973cde6",
+      "outcome": "allowed-once"
+    }
+  ],
+  "rules": []
+}

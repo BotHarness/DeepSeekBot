@@ -36,6 +36,13 @@ export function ChannelWorkspace({
         }),
       ),
   );
+  for (const id of Object.keys(panels)) {
+    if (!containers.has(id)) {
+      const node = document.createElement('div');
+      node.className = 'bh-channel-leaf-content';
+      containers.set(id, node);
+    }
+  }
   useLayoutEffect(() => {
     for (const [id, container] of containers) {
       const slot = host.current?.querySelector(`[data-channel-leaf="${id}"]`);
@@ -199,6 +206,7 @@ export function ChannelWorkspace({
             >
               <div
                 className="bh-channel-session-header"
+                data-appearance-header={id}
                 onDragStart={(event) => {
                   if (!channelId || !(event.target as Element).closest('[data-panel-hide]')) {
                     event.preventDefault();
@@ -216,7 +224,9 @@ export function ChannelWorkspace({
               >
                 {panel.header}
               </div>
-              {panel.content}
+              <div className="bh-channel-subpanel-body" data-appearance-body={id}>
+                {panel.content}
+              </div>
             </section>
           ),
           containers.get(id)!,

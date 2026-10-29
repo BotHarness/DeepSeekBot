@@ -1,6 +1,6 @@
 import { Directory, File, Paths } from 'expo-file-system';
 
-import type { ConversationCache } from './conversation';
+import type { CachedConversation, ConversationCache } from './conversation';
 import {
   computerCacheKey,
   type ComputerCacheSource,
@@ -11,6 +11,69 @@ import {
 const root = (): Directory => new Directory(Paths.cache, 'deepseekbot-conversations');
 
 const fileFor = (key: string): File => new File(root(), `${encodeURIComponent(key)}.json`);
+
+export const nativeConversationCache: ConversationCache = {
+  async read(key) {
+    const file = fileFor(key);
+    if (!file.exists) return undefined;
+    const value = JSON.parse(await file.text()) as Partial<CachedConversation>;
+    return Array.isArray(value.entries) && typeof value.hasOlder === 'boolean'
+      ? { entries: value.entries, hasOlder: value.hasOlder }
+      : undefined;
+  },
+  write(key, value) {
+    try {
+      const directory = root();
+      if (!directory.exists) directory.create({ intermediates: true, idempotent: true });
+      fileFor(key).writeSync(JSON.stringify(value));
+    } catch {}
+  },
+};
+
+export function cachedForHost(fileName: string, hostId: string): boolean {
+  const prefixes = ['computer', 'computer-v2'].map(
+    (kind) => JSON.stringify([kind, hostId]).slice(0, -1) + ',',
+  );
+  let name = fileName;
+  for (let pass = 0; pass < 2; pass += 1) {
+    try {
+      name = decodeURIComponent(name);
+    } catch {
+      return false;
+    }
+    if (prefixes.some((prefix) => name.startsWith(prefix))) return true;
+  }
+  return false;
+}
+
+export function clearHostConversationCache(hostId: string): void {
+  const directory = root();
+  if (!directory.exists) return;
+  for (const entry of directory.list())
+    if (entry instanceof File && cachedForHost(entry.name, hostId)) entry.delete();
+}
+
+export function pruneHostConversationCache(hostId: string, stale: (key: string) => boolean): void {
+  try {
+    const directory = root();
+    if (!directory.exists) return;
+    for (const entry of directory.list()) {
+      if (!(entry instanceof File) || !cachedForHost(entry.name, hostId)) continue;
+      try {
+        const name = decodeURIComponent(entry.name.replace(/\.json$/u, ''));
+        const parts = JSON.parse(name);
+        if (parts[0] === 'computer-v2') {
+          const target: RetainedTarget = { kind: parts[3], id: parts[4], name: '' };
+          const key = target.kind === 'channel' ? `channel:${target.id}` : target.id;
+          if (stale(key)) retainedCache.remove({ hostId, deviceId: parts[2] }, target);
+        } else {
+          const key: unknown = parts[2];
+          if (typeof key === 'string' && stale(key)) entry.delete();
+        }
+      } catch {}
+    }
+  } catch {}
+}
 
 type RemovedRecord = { source: ComputerCacheSource; target: RetainedTarget };
 const listeners = new Set<(removed?: RemovedRecord) => void>();
@@ -93,6 +156,15 @@ export const retainedCache = {
     }
     return this.allowed(source) ? result : [];
   },
+  remove(source: ComputerCacheSource, target: RetainedTarget) {
+    const key = retainedKey(source, target);
+    targetEpochs.set(key, (targetEpochs.get(key) ?? 0) + 1);
+    try {
+      const file = fileFor(key);
+      if (file.exists) file.delete();
+    } catch {}
+    changed({ source, target });
+  },
   conversation(source: ComputerCacheSource, target: () => RetainedTarget): ConversationCache {
     const key = computerCacheKey(source);
     const epoch = epochs.get(key) ?? 0;
@@ -123,14 +195,7 @@ export const retainedCache = {
           changed();
         } catch {}
       },
-      remove: () => {
-        targetEpochs.set(targetKey, (targetEpochs.get(targetKey) ?? 0) + 1);
-        try {
-          const file = fileFor(retainedKey(source, target()));
-          if (file.exists) file.delete();
-        } catch {}
-        changed({ source, target: target() });
-      },
+      remove: () => this.remove(source, target()),
     };
   },
 };

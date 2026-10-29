@@ -36,7 +36,7 @@ export function botPreset(standard) {
   body = replaceOnce(
     body,
     '        id: standard\n',
-    `        id: ${BOT_PRESET_ID}\n        name: DeepSeekBot\n        description: '${BOT_PRESET_DESCRIPTION}'\n`,
+    `        id: ${BOT_PRESET_ID}\n        name: Tobs\n        description: '${BOT_PRESET_DESCRIPTION}'\n`,
   );
   body = replaceOnce(body, '        order: 1\n', '        order: 5\n');
   const ask = "            name: '@deepseek-ai/dsh-tool-ask-user'\n";

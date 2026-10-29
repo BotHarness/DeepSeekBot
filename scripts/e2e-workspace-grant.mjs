@@ -266,7 +266,7 @@ try {
   await dismissOnboarding();
   stage = 'enter-Bot-mode';
   await click('Bot mode');
-  await page.waitForSelector('.bh-mode-sidebar', { visible: true, timeout: 30_000 });
+  await page.waitForSelector('.bh-workspace-rail', { visible: true, timeout: 30_000 });
   await page.keyboard.press('Escape');
   const botName = created.bot.name;
   const selectBot = async () => {
@@ -282,6 +282,8 @@ try {
     if (!label) throw new Error('created-Bot-sidebar-entry-missing');
     await click(label);
     await dismissOnboarding();
+    if (!(await page.$('[aria-label^="Workspace Grants ·"]')))
+      await click('Messages · Ctrl + Alt + Shift + 2');
     await page.waitForSelector('[aria-label^="Workspace Grants ·"]', { visible: true });
   };
   await selectBot();
@@ -360,7 +362,7 @@ try {
   save('read-after.json', readFixture());
   stage = 'observe-revoked-Web-state';
   await page.reload({ waitUntil: 'networkidle2', timeout: 30_000 });
-  await page.waitForSelector('.bh-mode-sidebar', { visible: true });
+  await page.waitForSelector('.bh-workspace-rail', { visible: true });
   await selectBot();
   await openGrants();
   save('visible-after.json', await visible());

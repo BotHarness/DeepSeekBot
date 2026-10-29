@@ -13,6 +13,7 @@ import {
   type ModelRoute,
 } from './bot-settings';
 import type { HostClient } from './client';
+import { recordFeature } from '../telemetry/features';
 
 export type ModelScope =
   | { kind: 'global' }
@@ -148,7 +149,19 @@ export async function setModelRoute(
     throw new HostAnswerInvalid('MODEL_UNAVAILABLE');
   if (scope.kind === 'global') {
     if (field !== 'orchestrator') throw new HostAnswerInvalid('GLOBAL_MODEL_REQUIRED');
-    await client.call('onboardingModel', { expectedRevision: 0, route, globalDefault: true });
+    if (
+      state.defaultRevision === undefined ||
+      !Number.isSafeInteger(state.defaultRevision) ||
+      state.defaultRevision < 0
+    )
+      throw new HostAnswerInvalid('MODEL_DEFAULT_REVISION_REQUIRED');
+    await client.call('onboardingModel', {
+      expectedRevision: 0,
+      expectedDefaultRevision: state.defaultRevision,
+      route,
+      globalDefault: true,
+    });
+    recordFeature('model:plan_update', { via: 'default' });
     return;
   }
   const previous = modelRoutes(state);
@@ -158,6 +171,7 @@ export async function setModelRoute(
       expectedRevision: state.plan?.revision ?? state.revision,
       orchestrator: route,
     });
+    recordFeature('model:plan_update', { via: 'custom' });
     return;
   }
   const assignmentDefault =
@@ -191,6 +205,7 @@ export async function setModelRoute(
     assignmentDefault,
     assignmentModels,
   });
+  recordFeature('model:plan_update', { via: 'plan' });
 }
 
 export async function toggleAssignmentModel(
@@ -224,6 +239,7 @@ export async function toggleAssignmentModel(
     assignmentDefault,
     assignmentModels,
   });
+  recordFeature('model:plan_update', { via: 'assignments' });
 }
 
 export async function inheritModel(
@@ -235,6 +251,7 @@ export async function inheritModel(
     slug,
     expectedRevision: state.plan?.revision ?? state.revision,
   });
+  recordFeature('model:plan_update', { via: 'inherit' });
 }
 
 export async function saveModelPreset(

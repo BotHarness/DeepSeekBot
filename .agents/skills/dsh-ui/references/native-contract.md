@@ -62,9 +62,13 @@ Use the Puppeteer install from `node_modules/.pnpm/puppeteer@*/node_modules/pupp
 
 ## Pointer-anchored context menus
 
-Application-defined context menus use `packages/client/src/client/ds/pointer-menu.tsx`. A mouse caller supplies raw viewport `clientX/clientY`; a keyboard caller supplies the trigger's `getBoundingClientRect()` left/bottom. Do not use page/offset coordinates, feature-local nudges, or a transformed panel as a positioning container. Ordinary button-anchored dropdowns keep the native `Menu`.
+Application-defined context menus use `packages/client/src/client/ds/pointer-menu.tsx`. A mouse caller supplies raw viewport `clientX/clientY`; a keyboard caller supplies the trigger's `getBoundingClientRect()` left/bottom. Do not use page/offset coordinates, feature-local nudges, or a transformed panel as a positioning container. Ordinary button-anchored dropdowns keep the native `Menu`, except the measured shared `ds/Select` contract below.
 
 `PointerMenu` portals to `document.body`, measures its rendered coordinate scale and the actual native menu rectangle, and positions the menu at the requested viewport point. It alone owns window-edge clamping, native traffic-light clearance, available menu size and resize/scroll repositioning. A menu moves away from the pointer only to remain inside the safe viewport; native scrolling and submenu behavior remain intact. This keeps panel transforms, clipping ancestors and CSS zoom out of feature code.
+
+### Qualified compact Settings picker exception
+
+The compact Settings section picker uses `PointerMenu` because the pinned native body-portaled dropdown multiplies viewport coordinates under whole-window CSS zoom. Its optional `container` is the owning `[role="dialog"]`, so the native Menu root remains inside the active Modal and the native keyboard owner admits selection and Escape. Other callers retain the default `document.body` container. Keep the fixed viewport coordinate owner, measured scale, edge/traffic-light clamping and native scroll behavior; do not use a transformed Panel as a container. This exception is specific to the measured Settings picker, not permission to replace all anchored dropdowns. The #2269 native 430% journey verified viewport bounds, Down/Return selection, menu-only Escape, focus return and reset recovery; the feature map records remaining popup and platform qualification.
 
 Regression: run `scripts/e2e-panel-workspace.mjs` against an isolated Host. It checks Channel-header and Channel-row menus at 100% and 125% CSS zoom, plus every Control Rail Panel’s header at normal scale, verifies alignment within one rendered pixel away from edges, tests bottom/right clamping and keyboard dismissal, and saves numeric evidence. Panel header Close menus use the same `usePanelMenu` → `PointerMenu` path regardless of Panel type. Closing affects only that Panel; its Control Rail switch and remembered position remain available. Escape restores header focus, and Shift+F10 anchors to the header’s lower-left corner. CSS zoom stress is Web evidence, not qualification of native macOS window behavior.
 
@@ -81,3 +85,44 @@ Only the shared Panel title button (`data-panel-hide`, icon + label) is a Panel 
 Verified against Dockview 8.4.1 and the shipped DSH 0.2.1-rc.2 frontend: Dockview adds a draggable, focusable `role=tab` wrapper outside our React header. A drag starting on that wrapper never traverses the inner header's capture handler. Reject non-title header drag starts at the outer Dock capture boundary, before Dockview's native listener. Regression tests must dispatch on the real `.dv-tab` and `.dv-tabs-and-actions-container` as well as the inner header, and separately prove title drags remain allowed.
 
 DSH marks `[tabindex]` and `[role=tab]` as native `no-drag` regions. On macOS, explicitly restore `drag` on these Dock header wrappers while keeping title, context, tabs and actions `no-drag`. A passing DOM drag test does not prove native window movement: check both blank-header window displacement and title-only Panel drops in a non-fullscreen Desktop.
+
+### Shared Select under whole-window zoom
+
+The shared `ds/Select` also uses `PointerMenu` after the native body-portaled menu was measured
+outside the viewport at 144% and 430%, and detached from its trigger below 100%. Its trigger
+supplies the measured left/bottom or right/bottom anchor, and the menu owner applies start/end
+alignment, native frame clearance and viewport clamping. The owning dialog is the portal
+container so native Modal keyboard ownership still applies. Zoom/style, resize and scroll
+changes update the anchor; closing restores focus only if the next action did not move it.
+Native Menu still owns option rendering, composition guards and keyboard traversal. Other
+button-anchored native Menu callers are unchanged and require their own qualification.
+
+The coordinate owner uses CSSOM `currentCSSZoom` when available, with its existing rendered
+probe fallback. A 1px probe is quantized at small zoom factors and cannot reliably convert a
+long viewport distance in one placement. The qualified Desktop exposes `currentCSSZoom`;
+[CSSOM View](https://www.w3.org/TR/cssom-view/#dom-element-currentcsszoom) defines it as the
+effective CSS zoom. Available width also caps the native minimum so a choice menu can fit a
+small viewport. This changes popup geometry, not the owning Panel's minimum constraints.
+
+Run `node scripts/check-select-zoom.mjs --output <report.json>` for the real production
+Select/SettingsDialog/PointerMenu and unmodified reachable native Menu/Modal code and CSS.
+The isolated source fixture covers all 17 levels, start/end alignment, page/dialog placement,
+two viewport sizes, keyboard selection, menu-only Escape, focus return, outside clicks and
+zoom changes while open. `--baseline <ref>` runs the old Select and must fail on the reported
+coordinate bug. It does not qualify a running DSH Host, native window controls or guest painting;
+macOS acceptance remains a separate #2269 check.
+
+### Native Tooltip under qualified desktop zoom
+
+The 0.2.1-rc.2 native Tooltip also writes viewport anchor coordinates into a zoomed fixed
+position element. At 144%, the Home name tooltip was measured around x907 while its button
+was at x659–705. The downstream zoom lease owns the conversion for the pinned
+`role=tooltip` / `data-side` / `data-align` contract. It records the focus/hover trigger,
+measures the actual bubble, fits its screen rectangle and converts only the corrective
+translation through `currentCSSZoom`; native visibility, delays, keycaps, dismissal and
+composition remain native. It restores its translation/width lease on disposal and does not
+run in ordinary browsers or unsupported desktop compositions. An existing independent
+translation is not taken over. Source checks include all 17 levels, three sides, two alignments,
+two viewport sizes and retained pinned bubbles while zoom changes. Native window
+pixels remain a separate acceptance check; programmatic/unmapped third-party tooltip
+triggers are not qualified by these representative button paths.

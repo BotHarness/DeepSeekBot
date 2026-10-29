@@ -37,16 +37,34 @@ import type {
 } from '../../../core/src/schedules/bot-schedules.js';
 import {
   parseMarketplaceDetail,
+  parseAuthoredBots,
+  parseMarketplaceFileView,
   parseMarketplacePage,
+  parseMarketplaceSection,
+  parseMarketplaceDigest,
+  parseMarketplaceDigests,
   parseMarketplaceSubmission,
+  type MarketplaceAuthoredBot,
   parseMarketplaceTopics,
   type MarketplaceDetail,
   type MarketplaceEntry,
+  type MarketplaceFileView,
   type MarketplacePage,
   type MarketplaceQuery,
+  type MarketplaceSection,
+  type MarketplaceDigest,
+  type MarketplaceDigestSummary,
   type MarketplaceTopic,
+  type MarketplaceInstallSource,
 } from '../../../core/src/marketplace/client.js';
+import type { UploadPlan } from '../../../core/src/marketplace/uploaded-bots.js';
+import type {
+  InstallFinding,
+  InstallReview,
+  InstallReviewResult,
+} from '../../../core/src/marketplace/install-review.js';
 import { parseChallenge, type AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
+import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
 import type { OverviewUsage } from '../../../core/src/bridge/methods.js';
 import type { ProfileSessionUsage } from '../../../core/src/bridge/methods.js';
 export type { ProfileSessionUsage } from '../../../core/src/bridge/methods.js';
@@ -76,7 +94,10 @@ import type {
 import type { MessagingTarget } from '../../../core/src/messaging/provider.js';
 import type { HostFileTarget } from './host-file-actions.js';
 import type { ComposerRecoveryIdentity } from '../../../core/src/bridge/composer-recovery.js';
-import { isChannelAttachmentRef } from '../../../core/src/attachments/ref.js';
+import {
+  isChannelAttachmentRef,
+  isChannelClearedAttachment,
+} from '../../../core/src/attachments/ref.js';
 import type { UsageFilter, UsageQueryResult } from '../../../core/src/usage/query.js';
 export type { UsageFilter, UsageQueryResult } from '../../../core/src/usage/query.js';
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
@@ -325,6 +346,7 @@ export interface CreatePersonaBotInput {
   description?: string;
   gitUrl?: string;
   origin?: 'marketplace';
+  listingId?: string;
   memoryLocation?: string;
 }
 
@@ -990,6 +1012,9 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
           }
         : undefined;
     toolApprovalRequest = {
+      ...(typeof request['allowAlways'] === 'boolean'
+        ? { allowAlways: request['allowAlways'] }
+        : {}),
       sessionId: request['sessionId'],
       callId: request['callId'],
       toolName: request['toolName'],
@@ -1361,6 +1386,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       author.kind !== 'human' ||
       typeof decision['requestMessageId'] !== 'string' ||
       (decision['outcome'] !== 'allowed-once' &&
+        decision['outcome'] !== 'allowed-always-tool' &&
         decision['outcome'] !== 'allowed-always-exact' &&
         decision['outcome'] !== 'allowed-always-all' &&
         decision['outcome'] !== 'rejected') ||
@@ -1595,6 +1621,11 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(userQuestionRequest === undefined ? {} : { userQuestionRequest }),
     ...(userQuestionResolution === undefined ? {} : { userQuestionResolution }),
     ...(attachments === undefined ? {} : { attachments: attachments as ChannelAttachmentRef[] }),
+    ...(Array.isArray(record['clearedAttachments']) &&
+    record['clearedAttachments'].length <= 10 &&
+    record['clearedAttachments'].every(isChannelClearedAttachment)
+      ? { clearedAttachments: record['clearedAttachments'] }
+      : {}),
     ...(format === undefined ? {} : { format }),
     ...(bridgeOrigin === undefined ? {} : { bridgeOrigin }),
     ...(bridgeMedia === undefined ? {} : { bridgeMedia }),
@@ -1661,6 +1692,48 @@ export async function searchChannelMessages(
     throw new Error('invalid channelSearch response');
   return {
     messages: parseChannelMessages(value),
+    ...(nextCursor === undefined ? {} : { nextCursor }),
+  };
+}
+
+export interface MessageSearchHit {
+  channelId: string;
+  message: ChannelMessage;
+  snippet: string;
+}
+
+export interface MessageSearchPage {
+  hits: MessageSearchHit[];
+  nextCursor?: string;
+}
+
+export async function searchAllMessages(
+  call: BridgeCall,
+  text: string,
+  cursor?: string,
+  limit = 8,
+): Promise<MessageSearchPage> {
+  const value = asRecord(
+    await unwrap(call, 'messageSearch', {
+      text,
+      limit,
+      ...(cursor === undefined ? {} : { cursor }),
+    }),
+  );
+  const hits = value?.['hits'];
+  const nextCursor = value?.['nextCursor'];
+  if (!Array.isArray(hits) || (nextCursor !== undefined && typeof nextCursor !== 'string'))
+    throw new Error('invalid messageSearch response');
+  return {
+    hits: hits.flatMap((entry) => {
+      const hit = asRecord(entry);
+      const message = parseChannelMessage(hit?.['message']);
+      const channelId = hit?.['channelId'];
+      const snippet = hit?.['snippet'];
+      return message === undefined || typeof channelId !== 'string' || typeof snippet !== 'string'
+        ? []
+        : [{ channelId, message, snippet }];
+    }),
     ...(nextCursor === undefined ? {} : { nextCursor }),
   };
 }
@@ -1818,8 +1891,22 @@ export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[
         ...(role === 'assignment' && record['assignmentArchived'] === true
           ? { assignmentArchived: true as const }
           : {}),
-        ...(role === 'assignment' && typeof record['assignmentPurpose'] === 'string'
-          ? { assignmentPurpose: record['assignmentPurpose'] }
+        ...(role === 'assignment' && typeof record['assignmentTitle'] === 'string'
+          ? { assignmentTitle: record['assignmentTitle'] }
+          : {}),
+        ...(role === 'assignment' && typeof record['assignmentDescription'] === 'string'
+          ? { assignmentDescription: record['assignmentDescription'] }
+          : {}),
+        ...(role === 'assignment' && parseSessionModelRoute(record['assignmentModelRoute'])
+          ? { assignmentModelRoute: parseSessionModelRoute(record['assignmentModelRoute'])! }
+          : {}),
+        ...(parseSessionModelRoute(record['modelRoute'])
+          ? { modelRoute: parseSessionModelRoute(record['modelRoute'])! }
+          : {}),
+        ...(typeof record['subagentCount'] === 'number' &&
+        Number.isSafeInteger(record['subagentCount']) &&
+        record['subagentCount'] > 0
+          ? { subagentCount: record['subagentCount'] }
           : {}),
       },
     ];
@@ -2005,16 +2092,69 @@ export async function loadMarketplacePage(
 export async function loadMarketplaceDetail(
   call: BridgeCall,
   id: string,
+  lang?: MarketplaceLanguage,
 ): Promise<MarketplaceDetail> {
-  const detail = parseMarketplaceDetail(await unwrap(call, 'marketplaceDetail', { id }));
+  const detail = parseMarketplaceDetail(
+    await unwrap(call, 'marketplaceDetail', lang === undefined ? { id } : { id, lang }),
+  );
   if (detail === undefined) throw new Error('invalid marketplaceDetail response');
   return detail;
+}
+
+export async function loadMarketplaceFile(
+  call: BridgeCall,
+  id: string,
+  path: string,
+): Promise<MarketplaceFileView> {
+  const file = parseMarketplaceFileView({
+    file: await unwrap(call, 'marketplaceFileView', { id, path }),
+  });
+  if (file === undefined) throw new Error('invalid marketplaceFileView response');
+  return file;
 }
 
 export async function loadMarketplaceTopics(call: BridgeCall): Promise<MarketplaceTopic[]> {
   const topics = parseMarketplaceTopics({ topics: await unwrap(call, 'marketplaceTopics', {}) });
   if (topics === undefined) throw new Error('invalid marketplaceTopics response');
   return topics;
+}
+
+export async function loadMarketplaceSections(
+  call: BridgeCall,
+  lang?: MarketplaceLanguage,
+): Promise<MarketplaceSection[]> {
+  const body = await unwrap(call, 'marketplaceSections', lang === undefined ? {} : { lang });
+  const raw = (body as { sections?: unknown } | null)?.sections;
+  const sections = Array.isArray(raw) ? raw.map(parseMarketplaceSection) : undefined;
+  if (sections === undefined || sections.some((section) => section === undefined))
+    throw new Error('invalid marketplaceSections response');
+  return sections as MarketplaceSection[];
+}
+
+export async function loadMarketplaceDigests(
+  call: BridgeCall,
+  lang?: MarketplaceLanguage,
+): Promise<MarketplaceDigestSummary[]> {
+  const digests = parseMarketplaceDigests(
+    await unwrap(call, 'marketplaceDigests', lang === undefined ? {} : { lang }),
+  );
+  if (digests === undefined) throw new Error('invalid marketplaceDigests response');
+  return digests;
+}
+
+export async function loadMarketplaceDigest(
+  call: BridgeCall,
+  day?: string,
+  lang?: MarketplaceLanguage,
+): Promise<MarketplaceDigest> {
+  const digest = parseMarketplaceDigest(
+    await unwrap(call, 'marketplaceDigest', {
+      ...(day === undefined ? {} : { day }),
+      ...(lang === undefined ? {} : { lang }),
+    }),
+  );
+  if (digest === undefined) throw new Error('invalid marketplaceDigest response');
+  return digest;
 }
 
 export async function loadMarketplaceChallenge(call: BridgeCall): Promise<AltchaChallenge> {
@@ -2033,6 +2173,108 @@ export async function submitMarketplaceRepository(
   );
   if (result === undefined) throw new Error('invalid marketplaceSubmit response');
   return result.bot;
+}
+
+const INSTALL_FINDING_KINDS = new Set(['prompt-injection', 'exfiltration', 'script']);
+
+function parseInstallFinding(value: unknown): InstallFinding | undefined {
+  const finding = asRecord(value);
+  const kind = finding?.['kind'];
+  const path = finding?.['path'];
+  const note = finding?.['note'];
+  if (typeof kind !== 'string' || !INSTALL_FINDING_KINDS.has(kind) || typeof path !== 'string')
+    return undefined;
+  return {
+    kind: kind as InstallFinding['kind'],
+    path,
+    ...(typeof note === 'string' && note.length > 0 ? { note } : {}),
+  };
+}
+
+export function parseInstallReviewResult(value: unknown): InstallReviewResult | undefined {
+  const result = asRecord(value);
+  const review = asRecord(result?.['review']);
+  const reviewId = result?.['reviewId'];
+  const listing = parseMarketplaceSubmission({ bot: result?.['listing'] })?.bot;
+  if (typeof reviewId !== 'string' || listing === undefined || review === undefined)
+    return undefined;
+  const findings = Array.isArray(review['findings'])
+    ? review['findings'].map(parseInstallFinding)
+    : undefined;
+  if (findings === undefined || findings.some((finding) => finding === undefined)) return undefined;
+  const files = typeof review['files'] === 'number' ? review['files'] : 0;
+  let parsed: InstallReview;
+  if (review['status'] === 'reviewed') {
+    parsed = {
+      status: 'reviewed',
+      findings: findings as InstallFinding[],
+      files,
+      read: typeof review['read'] === 'number' ? review['read'] : files,
+      partial: review['partial'] === true,
+      ...(typeof review['model'] === 'string' ? { model: review['model'] } : {}),
+    };
+  } else if (review['status'] === 'unavailable' && typeof review['reason'] === 'string') {
+    parsed = {
+      status: 'unavailable',
+      reason: review['reason'] as Extract<InstallReview, { status: 'unavailable' }>['reason'],
+      findings: findings as InstallFinding[],
+      files,
+    };
+  } else return undefined;
+  return { reviewId, listing, review: parsed };
+}
+
+export async function reviewMarketplaceInstall(
+  call: BridgeCall,
+  id: string,
+  lang?: MarketplaceLanguage,
+): Promise<InstallReviewResult> {
+  const result = parseInstallReviewResult(
+    await unwrap(call, 'marketplaceInstallReview', lang === undefined ? { id } : { id, lang }),
+  );
+  if (result === undefined) throw new Error('invalid marketplaceInstallReview response');
+  return result;
+}
+
+export async function installMarketplaceBot(
+  call: BridgeCall,
+  id: string,
+  reviewId: string,
+  source?: MarketplaceInstallSource,
+): Promise<BotSummary> {
+  const value = await unwrap(call, 'marketplaceInstall', {
+    id,
+    reviewId,
+    ...(source === undefined ? {} : { source }),
+  });
+  const bot = parseBotSummary(asRecord(value)?.['bot']);
+  if (bot === undefined) throw new Error('invalid marketplaceInstall response');
+  return bot;
+}
+
+export async function loadMyMarketplaceUploads(
+  call: BridgeCall,
+  lang?: MarketplaceLanguage,
+): Promise<MarketplaceAuthoredBot[]> {
+  const bots = parseAuthoredBots(
+    await unwrap(call, 'marketplaceMine', lang === undefined ? {} : { lang }),
+  );
+  if (bots === undefined) throw new Error('invalid marketplaceMine response');
+  return bots;
+}
+
+export async function uploadMarketplaceBot(
+  call: BridgeCall,
+  slug: string,
+  presentation: { displayName: string; bio?: string; tags?: string[]; replaces?: string },
+): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }> {
+  const value = asRecord(await unwrap(call, 'marketplaceUpload', { slug, ...presentation }));
+  const parsed = parseMarketplaceSubmission(value);
+  if (parsed === undefined) throw new Error('invalid marketplaceUpload response');
+  return {
+    bot: parsed.bot,
+    skipped: Array.isArray(value?.['skipped']) ? (value['skipped'] as UploadPlan['skipped']) : [],
+  };
 }
 
 export async function reportMarketplaceBot(
@@ -2274,6 +2516,482 @@ export async function loadGitAvailability(
 
 export async function startGitInstall(call: BridgeCall): Promise<GitAvailability> {
   return parseGitAvailability(await unwrap(call, 'gitInstall', {}));
+}
+
+export interface CompactionThresholdRange {
+  defaultValue: number;
+  min: number;
+  max: number;
+}
+
+export interface CompactionThreshold {
+  ratio: number;
+  headroomTokens: number;
+  ratioSet: boolean;
+  headroomSet: boolean;
+  ratioRange: CompactionThresholdRange;
+  headroomRange: CompactionThresholdRange;
+}
+
+export interface IdleCompactionStatus {
+  enabled: boolean;
+  settingReadable: boolean;
+  threshold?: CompactionThreshold;
+}
+
+function parseThresholdRange(value: unknown): CompactionThresholdRange | undefined {
+  const item = asRecord(value);
+  const numbers = [item?.['defaultValue'], item?.['min'], item?.['max']];
+  if (!numbers.every((entry) => typeof entry === 'number' && Number.isFinite(entry)))
+    return undefined;
+  const [defaultValue, min, max] = numbers as number[];
+  return { defaultValue: defaultValue!, min: min!, max: max! };
+}
+
+function parseCompactionThreshold(value: unknown): CompactionThreshold | undefined {
+  const item = asRecord(value);
+  const ratioRange = parseThresholdRange(item?.['ratioRange']);
+  const headroomRange = parseThresholdRange(item?.['headroomRange']);
+  const ratio = item?.['ratio'];
+  const headroomTokens = item?.['headroomTokens'];
+  if (
+    ratioRange === undefined ||
+    headroomRange === undefined ||
+    typeof ratio !== 'number' ||
+    typeof headroomTokens !== 'number'
+  )
+    return undefined;
+  return {
+    ratio,
+    headroomTokens,
+    ratioSet: item?.['ratioSet'] === true,
+    headroomSet: item?.['headroomSet'] === true,
+    ratioRange,
+    headroomRange,
+  };
+}
+
+export function parseIdleCompactionStatus(value: unknown): IdleCompactionStatus {
+  const item =
+    typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+  if (typeof item['enabled'] !== 'boolean') throw new Error('invalid idle compaction status');
+  const threshold = parseCompactionThreshold(item['threshold']);
+  return {
+    enabled: item['enabled'],
+    settingReadable: item['settingReadable'] !== false,
+    ...(threshold === undefined ? {} : { threshold }),
+  };
+}
+
+export interface BotCompactResult {
+  outcome: 'compacted' | 'nothing' | 'busy' | 'not-loaded';
+  tokensBefore: number | null;
+  tokensAfter: number | null;
+}
+
+export function parseBotCompactResult(value: unknown): BotCompactResult {
+  const item =
+    typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+  const outcome = item['outcome'];
+  if (
+    outcome !== 'compacted' &&
+    outcome !== 'nothing' &&
+    outcome !== 'busy' &&
+    outcome !== 'not-loaded'
+  )
+    throw new Error('invalid compaction result');
+  const tokens = (raw: unknown) =>
+    typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 ? raw : null;
+  return {
+    outcome,
+    tokensBefore: tokens(item['tokensBefore']),
+    tokensAfter: tokens(item['tokensAfter']),
+  };
+}
+
+export async function loadIdleCompaction(
+  call: BridgeCall,
+  signal?: AbortSignal,
+): Promise<IdleCompactionStatus> {
+  return parseIdleCompactionStatus(await unwrap(call, 'idleCompaction', {}, signal));
+}
+
+export async function setIdleCompaction(
+  call: BridgeCall,
+  enabled: boolean,
+): Promise<IdleCompactionStatus> {
+  return parseIdleCompactionStatus(await unwrap(call, 'idleCompactionSet', { enabled }));
+}
+
+export async function setCompactionThreshold(
+  call: BridgeCall,
+  threshold: { thresholdRatio?: number | null; headroomTokens?: number | null },
+): Promise<IdleCompactionStatus> {
+  return parseIdleCompactionStatus(await unwrap(call, 'compactionThresholdSet', threshold));
+}
+
+export interface DataResetPreview {
+  token: string;
+  bots: number;
+  targets: {
+    kind: 'data' | 'im-settings' | 'local-tools';
+    path: string;
+    bytes: number;
+    files: number;
+    partial?: boolean;
+  }[];
+  kept: { kind: 'credentials' | 'memory' | 'exports'; path: string }[];
+  restartable: boolean;
+}
+
+export type DataResetResult = { status: 'restarting' } | { status: 'restart-required' };
+
+const DATA_RESET_TARGETS = new Set(['data', 'im-settings', 'local-tools']);
+const DATA_RESET_KEPT = new Set(['credentials', 'memory', 'exports']);
+
+function parseDataResetPreview(value: unknown): DataResetPreview {
+  const preview = asRecord(asRecord(value)?.['preview']);
+  const token = preview?.['token'];
+  const bots = preview?.['bots'];
+  const targets = preview?.['targets'];
+  const kept = preview?.['kept'];
+  if (
+    typeof token !== 'string' ||
+    typeof bots !== 'number' ||
+    !Array.isArray(targets) ||
+    !Array.isArray(kept)
+  )
+    throw new BridgeCallError('invalid-response', 'Invalid data reset preview');
+  return {
+    token,
+    bots,
+    targets: targets.flatMap((entry) => {
+      const target = asRecord(entry);
+      const kind = target?.['kind'];
+      const path = target?.['path'];
+      const bytes = target?.['bytes'];
+      const files = target?.['files'];
+      if (
+        typeof kind !== 'string' ||
+        !DATA_RESET_TARGETS.has(kind) ||
+        typeof path !== 'string' ||
+        typeof bytes !== 'number' ||
+        typeof files !== 'number'
+      )
+        return [];
+      return [
+        {
+          kind: kind as DataResetPreview['targets'][number]['kind'],
+          path,
+          bytes,
+          files,
+          ...(target?.['partial'] === true ? { partial: true } : {}),
+        },
+      ];
+    }),
+    kept: kept.flatMap((entry) => {
+      const item = asRecord(entry);
+      const kind = item?.['kind'];
+      const path = item?.['path'];
+      return typeof kind === 'string' && DATA_RESET_KEPT.has(kind) && typeof path === 'string'
+        ? [{ kind: kind as DataResetPreview['kept'][number]['kind'], path }]
+        : [];
+    }),
+    restartable: preview?.['restartable'] === true,
+  };
+}
+
+export async function loadDataResetPreview(
+  call: BridgeCall,
+  signal?: AbortSignal,
+): Promise<DataResetPreview> {
+  return parseDataResetPreview(await unwrap(call, 'dataResetPreview', {}, signal));
+}
+
+export async function confirmDataReset(call: BridgeCall, token: string): Promise<DataResetResult> {
+  const reset = asRecord(asRecord(await unwrap(call, 'dataResetConfirm', { token }))?.['reset']);
+  return reset?.['status'] === 'restarting'
+    ? { status: 'restarting' }
+    : { status: 'restart-required' };
+}
+
+export type StorageMediaKind = 'image' | 'video' | 'audio' | 'file';
+export const STORAGE_MEDIA_KINDS: readonly StorageMediaKind[] = ['image', 'video', 'audio', 'file'];
+
+export interface StorageMediaTotal {
+  kind: StorageMediaKind;
+  count: number;
+  bytes: number;
+}
+
+export interface StorageChatUsage {
+  channelId: string;
+  name: string;
+  type: 'dm' | 'group';
+  deleted?: true;
+  messages: number;
+  oldestAt?: string;
+  mediaBytes: number;
+  media: StorageMediaTotal[];
+}
+
+export interface StorageUsage {
+  totalBytes: number;
+  parts: { kind: 'media' | 'messages' | 'memory' | 'other'; bytes: number }[];
+  chats: StorageChatUsage[];
+}
+
+export interface StorageCleanupScope {
+  before: string;
+  channelIds?: string[];
+  kinds?: StorageMediaKind[];
+}
+
+export interface StorageCleanupPreview {
+  token: string;
+  scope: { before: string; channelIds: string[]; kinds: StorageMediaKind[] };
+  messages: number;
+  files: number;
+  bytes: number;
+  freedBytes: number;
+  kinds: StorageMediaTotal[];
+  chats: { channelId: string; name: string; files: number; bytes: number }[];
+  kept: { reason: 'bot-working' | 'delivery-pending' | 'memory' | 'migration'; files: number }[];
+}
+
+export interface StorageCleanupResult {
+  messages: number;
+  files: number;
+  freedBytes: number;
+}
+
+export interface StorageMessagesPreview {
+  token: string;
+  scope: { before: string; channelIds: string[] };
+  messages: number;
+  bytes: number;
+  files: number;
+  chats: { channelId: string; name: string; messages: number }[];
+  kept: { reason: 'bot-working' | 'delivery-pending' | 'shared'; messages: number }[];
+  memoryReferences: number;
+  more: boolean;
+}
+
+export interface StorageMessagesResult {
+  messages: number;
+  freedBytes: number;
+}
+
+const STORAGE_MESSAGES_KEPT = new Set(['bot-working', 'delivery-pending', 'shared']);
+const STORAGE_PARTS = new Set(['media', 'messages', 'memory', 'other']);
+const STORAGE_KEPT = new Set(['bot-working', 'delivery-pending', 'memory', 'migration']);
+
+function count(value: unknown): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
+function mediaTotals(value: unknown): StorageMediaTotal[] {
+  return (Array.isArray(value) ? value : []).flatMap((entry) => {
+    const item = asRecord(entry);
+    const kind = item?.['kind'];
+    return typeof kind === 'string' && (STORAGE_MEDIA_KINDS as readonly string[]).includes(kind)
+      ? [
+          {
+            kind: kind as StorageMediaKind,
+            count: count(item?.['count']),
+            bytes: count(item?.['bytes']),
+          },
+        ]
+      : [];
+  });
+}
+
+function parseStorageUsage(value: unknown): StorageUsage {
+  const usage = asRecord(value);
+  const parts = usage?.['parts'];
+  const chats = usage?.['chats'];
+  if (usage === undefined || !Array.isArray(parts) || !Array.isArray(chats))
+    throw new BridgeCallError('invalid-response', 'Invalid storage usage');
+  return {
+    totalBytes: count(usage['totalBytes']),
+    parts: parts.flatMap((entry) => {
+      const part = asRecord(entry);
+      const kind = part?.['kind'];
+      return typeof kind === 'string' && STORAGE_PARTS.has(kind)
+        ? [{ kind: kind as StorageUsage['parts'][number]['kind'], bytes: count(part?.['bytes']) }]
+        : [];
+    }),
+    chats: chats.flatMap((entry) => {
+      const chat = asRecord(entry);
+      const channelId = chat?.['channelId'];
+      const name = chat?.['name'];
+      if (typeof channelId !== 'string' || typeof name !== 'string') return [];
+      return [
+        {
+          channelId,
+          name,
+          type: chat?.['type'] === 'dm' ? ('dm' as const) : ('group' as const),
+          ...(chat?.['deleted'] === true ? { deleted: true as const } : {}),
+          messages: count(chat?.['messages']),
+          ...(typeof chat?.['oldestAt'] === 'string' ? { oldestAt: chat['oldestAt'] } : {}),
+          mediaBytes: count(chat?.['mediaBytes']),
+          media: mediaTotals(chat?.['media']),
+        },
+      ];
+    }),
+  };
+}
+
+function parseStorageCleanupPreview(value: unknown): StorageCleanupPreview {
+  const preview = asRecord(value);
+  const scope = asRecord(preview?.['scope']);
+  const token = preview?.['token'];
+  if (typeof token !== 'string' || typeof scope?.['before'] !== 'string')
+    throw new BridgeCallError('invalid-response', 'Invalid storage cleanup preview');
+  return {
+    token,
+    scope: {
+      before: scope['before'],
+      channelIds: Array.isArray(scope['channelIds'])
+        ? scope['channelIds'].filter((id): id is string => typeof id === 'string')
+        : [],
+      kinds: Array.isArray(scope['kinds'])
+        ? (scope['kinds'].filter((kind) =>
+            (STORAGE_MEDIA_KINDS as readonly unknown[]).includes(kind),
+          ) as StorageMediaKind[])
+        : [...STORAGE_MEDIA_KINDS],
+    },
+    messages: count(preview?.['messages']),
+    files: count(preview?.['files']),
+    bytes: count(preview?.['bytes']),
+    freedBytes: count(preview?.['freedBytes']),
+    kinds: mediaTotals(preview?.['kinds']),
+    chats: (Array.isArray(preview?.['chats']) ? preview['chats'] : []).flatMap((entry) => {
+      const chat = asRecord(entry);
+      return typeof chat?.['channelId'] === 'string' && typeof chat['name'] === 'string'
+        ? [
+            {
+              channelId: chat['channelId'],
+              name: chat['name'],
+              files: count(chat['files']),
+              bytes: count(chat['bytes']),
+            },
+          ]
+        : [];
+    }),
+    kept: (Array.isArray(preview?.['kept']) ? preview['kept'] : []).flatMap((entry) => {
+      const item = asRecord(entry);
+      const reason = item?.['reason'];
+      return typeof reason === 'string' && STORAGE_KEPT.has(reason)
+        ? [
+            {
+              reason: reason as StorageCleanupPreview['kept'][number]['reason'],
+              files: count(item?.['files']),
+            },
+          ]
+        : [];
+    }),
+  };
+}
+
+export async function loadStorageUsage(
+  call: BridgeCall,
+  signal?: AbortSignal,
+): Promise<StorageUsage> {
+  return parseStorageUsage(await unwrap(call, 'storageUsage', {}, signal));
+}
+
+export async function previewStorageCleanup(
+  call: BridgeCall,
+  scope: StorageCleanupScope,
+  signal?: AbortSignal,
+): Promise<StorageCleanupPreview> {
+  return parseStorageCleanupPreview(
+    await unwrap(call, 'storageCleanupPreview', { ...scope }, signal),
+  );
+}
+
+export async function confirmStorageCleanup(
+  call: BridgeCall,
+  preview: Pick<StorageCleanupPreview, 'scope' | 'token'>,
+): Promise<StorageCleanupResult> {
+  const result = asRecord(
+    await unwrap(call, 'storageCleanupConfirm', {
+      before: preview.scope.before,
+      ...(preview.scope.channelIds.length === 0 ? {} : { channelIds: preview.scope.channelIds }),
+      kinds: preview.scope.kinds,
+      token: preview.token,
+    }),
+  );
+  return {
+    messages: count(result?.['messages']),
+    files: count(result?.['files']),
+    freedBytes: count(result?.['freedBytes']),
+  };
+}
+
+function parseStorageMessagesPreview(value: unknown): StorageMessagesPreview {
+  const preview = asRecord(value);
+  const scope = asRecord(preview?.['scope']);
+  const token = preview?.['token'];
+  if (typeof token !== 'string' || typeof scope?.['before'] !== 'string')
+    throw new BridgeCallError('invalid-response', 'Invalid message cleanup preview');
+  return {
+    token,
+    scope: {
+      before: scope['before'],
+      channelIds: (Array.isArray(scope['channelIds']) ? scope['channelIds'] : []).filter(
+        (id): id is string => typeof id === 'string',
+      ),
+    },
+    messages: count(preview?.['messages']),
+    bytes: count(preview?.['bytes']),
+    files: count(preview?.['files']),
+    chats: (Array.isArray(preview?.['chats']) ? preview['chats'] : []).flatMap((entry) => {
+      const chat = asRecord(entry);
+      return typeof chat?.['channelId'] === 'string' && typeof chat['name'] === 'string'
+        ? [{ channelId: chat['channelId'], name: chat['name'], messages: count(chat['messages']) }]
+        : [];
+    }),
+    kept: (Array.isArray(preview?.['kept']) ? preview['kept'] : []).flatMap((entry) => {
+      const item = asRecord(entry);
+      const reason = item?.['reason'];
+      return typeof reason === 'string' && STORAGE_MESSAGES_KEPT.has(reason)
+        ? [
+            {
+              reason: reason as StorageMessagesPreview['kept'][number]['reason'],
+              messages: count(item?.['messages']),
+            },
+          ]
+        : [];
+    }),
+    memoryReferences: count(preview?.['memoryReferences']),
+    more: preview?.['more'] === true,
+  };
+}
+
+export async function previewStorageMessages(
+  call: BridgeCall,
+  scope: { before: string; channelIds?: string[] },
+  signal?: AbortSignal,
+): Promise<StorageMessagesPreview> {
+  return parseStorageMessagesPreview(
+    await unwrap(call, 'storageMessagesCleanupPreview', { ...scope }, signal),
+  );
+}
+
+export async function confirmStorageMessages(
+  call: BridgeCall,
+  preview: StorageMessagesPreview,
+): Promise<StorageMessagesResult> {
+  const result = asRecord(
+    await unwrap(call, 'storageMessagesCleanupConfirm', {
+      before: preview.scope.before,
+      ...(preview.scope.channelIds.length === 0 ? {} : { channelIds: preview.scope.channelIds }),
+      token: preview.token,
+    }),
+  );
+  return { messages: count(result?.['messages']), freedBytes: count(result?.['freedBytes']) };
 }
 
 export async function loadTelemetryStatus(
@@ -2536,7 +3254,8 @@ export async function loadChannelAssignments(
       (row) =>
         typeof row?.sessionId !== 'string' ||
         typeof row.botSlug !== 'string' ||
-        typeof row.purpose !== 'string' ||
+        typeof row.title !== 'string' ||
+        typeof row.description !== 'string' ||
         !ASSIGNMENT_ACTIVITIES.includes(row.activity) ||
         typeof row.updatedAt !== 'string' ||
         (row.latestReport !== undefined &&
@@ -2546,6 +3265,250 @@ export async function loadChannelAssignments(
   )
     throw new Error('invalid channelAssignments response');
   return assignments;
+}
+
+const SUBAGENT_LANE_STATES = ['running', 'done', 'failed', 'cancelled', 'idle'];
+
+export interface SessionModelRoute {
+  provider: string;
+  model: string;
+  reasoningEffort?: string;
+}
+
+export interface SessionSubagent {
+  sessionId: string;
+  index: number;
+  title?: string;
+  route?: SessionModelRoute;
+  state: 'running' | 'done' | 'failed' | 'cancelled' | 'idle';
+  updatedAt?: string;
+  toolCount: number;
+}
+
+export function parseSessionModelRoute(value: unknown): SessionModelRoute | undefined {
+  const record = asRecord(value);
+  const provider = record?.['provider'];
+  const model = record?.['model'];
+  const effort = record?.['reasoningEffort'];
+  if (typeof provider !== 'string' || provider === '' || typeof model !== 'string' || model === '')
+    return undefined;
+  return { provider, model, ...(typeof effort === 'string' ? { reasoningEffort: effort } : {}) };
+}
+
+export async function loadSessionSubagents(
+  call: BridgeCall,
+  slug: string,
+  sessionId: string,
+): Promise<{ subagents: SessionSubagent[]; omitted: number }> {
+  const value = asRecord(await unwrap(call, 'sessionSubagents', { slug, sessionId }));
+  const lanes = value?.['lanes'];
+  const omitted = value?.['omittedSubagents'];
+  if (!Array.isArray(lanes) || typeof omitted !== 'number')
+    throw new Error('invalid sessionSubagents response');
+  const subagents = lanes.flatMap((entry): SessionSubagent[] => {
+    const lane = asRecord(entry);
+    const id = lane?.['sessionId'];
+    const index = lane?.['index'];
+    const state = lane?.['state'];
+    if (
+      typeof id !== 'string' ||
+      typeof index !== 'number' ||
+      !SUBAGENT_LANE_STATES.includes(state as string)
+    )
+      return [];
+    const title = lane?.['title'];
+    const updatedAt = lane?.['updatedAt'];
+    const route = parseSessionModelRoute(lane?.['route']);
+    const entries = lane?.['entries'];
+    const extra = lane?.['omitted'];
+    return [
+      {
+        sessionId: id,
+        index,
+        ...(typeof title === 'string' && title !== '' ? { title } : {}),
+        ...(route === undefined ? {} : { route }),
+        state: state as SessionSubagent['state'],
+        ...(typeof updatedAt === 'string' ? { updatedAt } : {}),
+        toolCount:
+          (Array.isArray(entries) ? entries.length : 0) + (typeof extra === 'number' ? extra : 0),
+      },
+    ];
+  });
+  return { subagents, omitted };
+}
+
+const WORK_STEP_STATUSES = ['running', 'done', 'failed', 'denied', 'cancelled'];
+
+export interface AssignmentWorkStep {
+  status: 'running' | 'done' | 'failed' | 'denied' | 'cancelled';
+  kind: string;
+  tool: string;
+  detail?: string;
+  at: string;
+  round?: number;
+}
+
+export interface AssignmentWorkLane {
+  role: 'main' | 'subagent';
+  index: number;
+  sessionId: string;
+  title?: string;
+  route?: SessionModelRoute;
+  state: SessionSubagent['state'];
+  round?: number;
+  entries: AssignmentWorkStep[];
+  omitted: number;
+}
+
+export interface AssignmentWorkRound {
+  index: number;
+  kind: 'created' | 'continued';
+  at: string;
+  instruction?: string;
+}
+
+export interface AssignmentWork {
+  title: string;
+  description: string;
+  activity: ChannelAssignmentSummary['activity'];
+  latestReport?: {
+    state: NonNullable<ChannelAssignmentSummary['latestReport']>['state'];
+    summary: string;
+    at?: string;
+  };
+  rounds: AssignmentWorkRound[];
+  lanes: AssignmentWorkLane[];
+  omittedSubagents: number;
+  omittedRounds: number;
+}
+
+function positiveCount(value: unknown): number {
+  return typeof value === 'number' && value > 0 ? value : 0;
+}
+
+function workStepOf(value: unknown): AssignmentWorkStep[] {
+  const entry = asRecord(value);
+  const status = entry?.['status'];
+  const tool = entry?.['tool'];
+  const at = entry?.['at'];
+  if (
+    !WORK_STEP_STATUSES.includes(status as string) ||
+    typeof tool !== 'string' ||
+    typeof at !== 'string'
+  )
+    return [];
+  const kind = entry?.['kind'];
+  const detail = entry?.['detail'];
+  const round = entry?.['round'];
+  return [
+    {
+      status: status as AssignmentWorkStep['status'],
+      kind: typeof kind === 'string' ? kind : 'other',
+      tool,
+      ...(typeof detail === 'string' && detail.trim() !== '' ? { detail } : {}),
+      at,
+      ...(typeof round === 'number' ? { round } : {}),
+    },
+  ];
+}
+
+function workLaneOf(value: unknown): AssignmentWorkLane[] {
+  const lane = asRecord(value);
+  const role = lane?.['role'];
+  const index = lane?.['index'];
+  const sessionId = lane?.['sessionId'];
+  const state = lane?.['state'];
+  const entries = lane?.['entries'];
+  if (
+    (role !== 'main' && role !== 'subagent') ||
+    typeof index !== 'number' ||
+    typeof sessionId !== 'string' ||
+    !Array.isArray(entries)
+  )
+    return [];
+  const title = lane?.['title'];
+  const route = parseSessionModelRoute(lane?.['route']);
+  const round = lane?.['round'];
+  return [
+    {
+      role,
+      index,
+      sessionId,
+      ...(typeof title === 'string' && title.trim() !== '' ? { title } : {}),
+      ...(route === undefined ? {} : { route }),
+      state: SUBAGENT_LANE_STATES.includes(state as string)
+        ? (state as SessionSubagent['state'])
+        : 'idle',
+      ...(typeof round === 'number' ? { round } : {}),
+      entries: entries.flatMap(workStepOf),
+      omitted: positiveCount(lane?.['omitted']),
+    },
+  ];
+}
+
+function workRoundOf(value: unknown): AssignmentWorkRound[] {
+  const round = asRecord(value);
+  const index = round?.['index'];
+  const kind = round?.['kind'];
+  const at = round?.['at'];
+  if (
+    typeof index !== 'number' ||
+    (kind !== 'created' && kind !== 'continued') ||
+    typeof at !== 'string'
+  )
+    return [];
+  const instruction = round?.['instruction'];
+  return [
+    {
+      index,
+      kind,
+      at,
+      ...(typeof instruction === 'string' && instruction !== '' ? { instruction } : {}),
+    },
+  ];
+}
+
+export async function loadAssignmentWork(
+  call: BridgeCall,
+  slug: string,
+  sessionId: string,
+): Promise<AssignmentWork> {
+  const value = asRecord(await unwrap(call, 'assignmentTimeline', { slug, sessionId }));
+  const assignment = asRecord(value?.['assignment']);
+  const lanes = value?.['lanes'];
+  const title = assignment?.['title'];
+  const activity = assignment?.['activity'];
+  if (
+    typeof title !== 'string' ||
+    !ASSIGNMENT_ACTIVITIES.includes(activity as string) ||
+    !Array.isArray(lanes)
+  )
+    throw new Error('invalid assignmentTimeline response');
+  const description = assignment?.['description'];
+  const report = asRecord(assignment?.['latestReport']);
+  const reportState = report?.['state'];
+  const reportSummary = report?.['summary'];
+  const reportAt = report?.['at'];
+  const rounds = value?.['rounds'];
+  return {
+    title,
+    description: typeof description === 'string' ? description : '',
+    activity: activity as AssignmentWork['activity'],
+    ...(ASSIGNMENT_REPORT_STATES.includes(reportState as string) &&
+    typeof reportSummary === 'string'
+      ? {
+          latestReport: {
+            state: reportState as NonNullable<AssignmentWork['latestReport']>['state'],
+            summary: reportSummary,
+            ...(typeof reportAt === 'string' ? { at: reportAt } : {}),
+          },
+        }
+      : {}),
+    rounds: Array.isArray(rounds) ? rounds.flatMap(workRoundOf) : [],
+    lanes: lanes.flatMap(workLaneOf),
+    omittedSubagents: positiveCount(value?.['omittedSubagents']),
+    omittedRounds: positiveCount(value?.['omittedRounds']),
+  };
 }
 
 export async function loadGroupWakePolicies(
@@ -2775,7 +3738,8 @@ export async function loadHumanAssignmentContext(
     context['botSlug'] !== slug ||
     context['sessionId'] !== sessionId ||
     context['sourceEventId'] !== sourceEventId ||
-    typeof context['purpose'] !== 'string' ||
+    typeof context['title'] !== 'string' ||
+    typeof context['description'] !== 'string' ||
     typeof context['canReply'] !== 'boolean' ||
     !Array.isArray(context['reports']) ||
     context['reports'].length > 5
@@ -2821,7 +3785,9 @@ export async function loadHumanAssignmentContext(
     botSlug: slug,
     sessionId,
     sourceEventId,
-    purpose: context['purpose'],
+    title: context['title'],
+    description: context['description'],
+    purpose: context['description'],
     canReply: context['canReply'],
     reports,
     ...(typeof context['hasOlder'] === 'boolean' ? { hasOlder: context['hasOlder'] } : {}),
@@ -2942,12 +3908,13 @@ export interface ToolApprovalRuleView {
   botSlug: string;
   role: 'orchestrator' | 'assignment';
   scopeKey: string;
-  kind: 'exact' | 'all-opaque' | 'secret-cli';
+  kind: 'exact' | 'tool' | 'all-opaque' | 'secret-cli';
   toolName: string;
   input: string;
   createdAt: string;
   revokedAt?: string;
   externalCreator?: import('../../../core/src/workspaces/tool-approval-actor.js').ToolApprovalActor;
+  autoApprovedCount?: number;
 }
 export async function loadToolApprovalRules(
   call: BridgeCall,
@@ -3167,7 +4134,12 @@ export async function decideToolApproval(
   call: BridgeCall,
   channelId: string,
   messageId: string,
-  outcome: 'allowed-once' | 'allowed-always-exact' | 'allowed-always-all' | 'rejected',
+  outcome:
+    | 'allowed-once'
+    | 'allowed-always-tool'
+    | 'allowed-always-exact'
+    | 'allowed-always-all'
+    | 'rejected',
 ): Promise<void> {
   const response = asRecord(
     await unwrap(call, 'toolApprovalDecide', {
@@ -3177,6 +4149,42 @@ export async function decideToolApproval(
     }),
   );
   if (response?.['accepted'] !== true) throw new Error('Tool approval was not accepted');
+}
+
+export async function loadPrivateInputStatus(
+  call: BridgeCall,
+  channelId: string,
+  messageId: string,
+): Promise<import('../../../core/src/credentials/contracts.js').PrivateInputStatus> {
+  const result = await call('privateInputStatus', { channelId, messageId });
+  if (!result.ok) throw new Error('Private input status is unavailable');
+  const status = (result.value as { status?: unknown }).status;
+  if (!['pending', 'configured', 'cancelled', 'expired'].includes(String(status)))
+    throw new Error('Private input status is invalid');
+  return status as import('../../../core/src/credentials/contracts.js').PrivateInputStatus;
+}
+
+export async function submitPrivateInput(
+  call: BridgeCall,
+  channelId: string,
+  messageId: string,
+  values: Record<string, string>,
+): Promise<void> {
+  const result = await call('privateInputSubmit', { channelId, messageId, values });
+  if (!result.ok)
+    throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
+  if ((result.value as { accepted?: unknown }).accepted !== true)
+    throw new Error('Private input was not accepted');
+}
+
+export async function cancelPrivateInput(
+  call: BridgeCall,
+  channelId: string,
+  messageId: string,
+): Promise<void> {
+  const result = await call('privateInputCancel', { channelId, messageId });
+  if (!result.ok || (result.value as { accepted?: unknown }).accepted !== true)
+    throw new Error('Private input cancellation was not accepted');
 }
 
 export async function loadUserQuestionStatus(
@@ -3264,6 +4272,54 @@ function parseWorkspaceGrant(value: unknown): WorkspaceGrantView | undefined {
   };
 }
 
+export async function loadHostFolders(
+  call: BridgeCall,
+  path?: string,
+  signal?: AbortSignal,
+  offset?: number,
+): Promise<import('../../../core/src/workspaces/folder-browse.js').FolderListing> {
+  const value = asRecord(
+    await unwrap(
+      call,
+      'folderBrowse',
+      {
+        ...(path === undefined ? {} : { path }),
+        ...(offset === undefined || offset === 0 ? {} : { offset }),
+      },
+      signal,
+    ),
+  );
+  const folders = (items: unknown): { name: string; path: string; hidden: boolean }[] => {
+    if (!Array.isArray(items)) throw new Error('Invalid Host folder list');
+    return items.map((item) => {
+      const row = asRecord(item);
+      if (
+        typeof row?.['name'] !== 'string' ||
+        typeof row['path'] !== 'string' ||
+        typeof row['hidden'] !== 'boolean'
+      )
+        throw new Error('Invalid Host folder entry');
+      return { name: row['name'], path: row['path'], hidden: row['hidden'] };
+    });
+  };
+  if (
+    typeof value?.['path'] !== 'string' ||
+    typeof value['home'] !== 'string' ||
+    typeof value['truncated'] !== 'boolean'
+  )
+    throw new Error('Invalid Host folder listing');
+  return {
+    path: value['path'],
+    home: value['home'],
+    truncated: value['truncated'],
+    crumbs: folders(value['crumbs']),
+    entries: folders(value['entries']),
+    ...(typeof value['nextOffset'] === 'number' ? { nextOffset: value['nextOffset'] } : {}),
+    roots: folders(value['roots']),
+    ...(value['nativePicker'] === true ? { nativePicker: true } : {}),
+  };
+}
+
 export async function loadWorkspaceOptions(call: BridgeCall): Promise<WorkspaceOption[]> {
   const rows = asRecord(await unwrap(call, 'workspaceOptions', {}))?.['workspaces'];
   if (!Array.isArray(rows)) throw new Error('invalid workspaceOptions response');
@@ -3323,6 +4379,28 @@ export async function readGroupWorkspaceGrant(
   const grants = result['grants'].map(parseWorkspaceGrant);
   if (grants.some((grant) => grant === undefined)) throw new Error('invalid scoped grant readback');
   return grants[0];
+}
+
+export async function approveWorkspaceGrantRequest(
+  call: BridgeCall,
+  slug: string,
+  channelId: string,
+  requestMessageId: string,
+  workspaceId: string,
+): Promise<WorkspaceGrantView> {
+  const value = asRecord(
+    await unwrap(call, 'grantRequestApprove', {
+      slug,
+      channelId,
+      requestMessageId,
+      workspaceId,
+      acknowledgeReadWrite: true,
+    }),
+  );
+  const grant = parseWorkspaceGrant(value?.['grant']);
+  if (!grant || grant.orchestratorWrite !== true)
+    throw new Error('Workspace write authorization could not be confirmed');
+  return grant;
 }
 
 export async function setWorkspaceGrantWrite(
@@ -3390,7 +4468,7 @@ function parseBotAttentionItem(value: unknown): BotAttentionItem | undefined {
     'sourceChannelName',
     'sourceMessageId',
     'assignmentSessionId',
-    'assignmentPurpose',
+    'assignmentTitle',
     'authorBotSlug',
     'scheduleId',
   ])
@@ -3430,7 +4508,7 @@ export async function loadBotAttention(
   return parseBotAttentionPage(await unwrap(call, 'botAttention', { slug, limit, cursor, state }));
 }
 
-function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
+export function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
   const row = asRecord(value);
   const raw = row?.['items'];
   if (!Array.isArray(raw)) throw new Error('invalid Human attention page');

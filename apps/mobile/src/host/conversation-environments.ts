@@ -1,4 +1,5 @@
 import type { ConversationWorkspace } from '../cloud/conversations';
+import type { HostColorId, HostIcon } from '../ui/design/host-look';
 
 export type ConversationEnvironment = {
   key: string;
@@ -6,23 +7,32 @@ export type ConversationEnvironment = {
   detail?: string;
   accessibilityLabel?: string;
   kind: 'all' | 'computer' | 'cloud';
+  hostIcon?: HostIcon;
+  hostColor?: HostColorId;
 };
 export const computerEnvironmentKey = (hostId: string) => JSON.stringify(['computer', hostId]);
 export const cloudEnvironmentKey = (scope: string, organizationId: string) =>
   JSON.stringify([scope, organizationId]);
 
+type ComputerEnvironment = { hostId: string; name: string; icon?: HostIcon; color?: HostColorId };
 export function conversationEnvironments(
-  computer: { hostId: string; name: string } | undefined,
+  computers: ComputerEnvironment | readonly ComputerEnvironment[] | undefined,
   sourceScopes: readonly string[],
   workspaces: readonly ConversationWorkspace[],
   allTitle: string,
 ): ConversationEnvironment[] {
   const result: ConversationEnvironment[] = [{ key: 'all', title: allTitle, kind: 'all' }];
-  if (computer)
+  for (const computer of computers === undefined
+    ? []
+    : 'hostId' in computers
+      ? [computers]
+      : computers)
     result.push({
       key: computerEnvironmentKey(computer.hostId),
       title: computer.name,
       kind: 'computer',
+      ...(computer.icon === undefined ? {} : { hostIcon: computer.icon }),
+      ...(computer.color === undefined ? {} : { hostColor: computer.color }),
     });
   const seen = new Set<string>();
   for (const scope of sourceScopes) {

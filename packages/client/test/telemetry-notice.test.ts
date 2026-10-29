@@ -132,7 +132,7 @@ describe('TelemetryNotice', () => {
       [...view.host.querySelectorAll('[role="dialog"]')].map((node) =>
         node.getAttribute('data-title'),
       );
-    expect(dialogs()).toEqual(['DeepSeekBot 1.0.2 更新内容']);
+    expect(dialogs()).toEqual(['Tobs 1.0.2 更新内容']);
 
     await act(async () => {
       releaseNotes.dismiss();
@@ -147,7 +147,7 @@ describe('TelemetryNotice', () => {
     buttons.find((button) => button.textContent === '隐私说明')?.click();
     buttons.find((button) => button.textContent === '查看源码')?.click();
     expect(opened.mock.calls.map(([url]) => url)).toEqual([
-      'https://deepseekbot.botharness.ai/privacy',
+      'https://tobs.app/privacy/',
       'https://github.com/BotHarness/BotHarness/tree/main/packages/core/src/telemetry',
     ]);
 
@@ -180,6 +180,6 @@ describe('TelemetryNotice', () => {
   });
 
   it('links the English privacy page from the English locale', () => {
-    expect(en['telemetry.notice.privacyUrl']).toBe('https://deepseekbot.botharness.ai/en/privacy');
+    expect(en['telemetry.notice.privacyUrl']).toBe('https://tobs.app/en/privacy/');
   });
 });

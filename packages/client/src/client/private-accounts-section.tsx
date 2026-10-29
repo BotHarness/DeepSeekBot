@@ -3,7 +3,8 @@ import { useState, type ReactElement } from 'react';
 import { Button, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { PrivateAccountSummary } from '../../../core/src/credentials/contracts.js';
-import { useClientState } from './bot-sidebar.js';
+import { useClientStore } from './use-client-store.js';
+import { shallowEqual } from '@deepseek-ai/dsh-client-store';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { channelSettings } from './channel-settings-state.js';
 import { formatRelativeTime } from './labels.js';
@@ -25,10 +26,15 @@ const STATUS_TONE = {
 } as const;
 
 function PrivateAccountsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps): ReactElement {
-  const state = useClientState();
-  const channel = state.conversation.channel;
+  const channel = useClientStore((state) => state.conversation.channel);
+  const conversationRevision = useClientStore((state) => state.conversation.revision);
+  const inputRequests = useClientStore(
+    (state) =>
+      state.conversation.messages.filter((message) => message.privateInputRequest !== undefined),
+    shallowEqual,
+  );
   const revision =
-    channel?.type === 'dm' && channel.botSlug === botSlug ? state.conversation.revision : undefined;
+    channel?.type === 'dm' && channel.botSlug === botSlug ? conversationRevision : undefined;
   const [load, setLoad] = useState<Load>({ status: 'loading' });
   const [reload, setReload] = useState(0);
   const [busy, setBusy] = useState<string | undefined>();
@@ -115,9 +121,7 @@ function PrivateAccountsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps)
     unavailable: t('privateAccounts.status.unavailable'),
   } as const;
   const replacementCard = (row: PrivateAccountSummary) => {
-    const message = state.conversation.messages.find(
-      (candidate) => candidate.id === row.replacementMessageId,
-    );
+    const message = inputRequests.find((candidate) => candidate.id === row.replacementMessageId);
     return message?.privateInputRequest === undefined ? null : (
       <PrivateInputCard message={message} actions={actions} t={t} />
     );

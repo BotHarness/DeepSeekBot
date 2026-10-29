@@ -1,11 +1,13 @@
 import { nativeApplicationVersion, nativeBuildVersion } from 'expo-application';
-import { isDevice } from 'expo-device';
+import * as Device from 'expo-device';
 import { File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 import { locale } from '../ui/strings';
 import { createMobileTelemetry } from './mobile-telemetry';
 import { createPostHogSender } from './posthog-sender';
 import { isUuid } from './schema';
+import { deviceTelemetryContext } from './device-context';
+import { setFeatureSink } from './features';
 
 const mode = process.env.EXPO_PUBLIC_MOBILE_TELEMETRY;
 const qaRun = process.env.EXPO_PUBLIC_MOBILE_TELEMETRY_QA_RUN;
@@ -15,7 +17,7 @@ const qa = mode === 'qa' && isUuid(qaRun);
 const production =
   mode === 'production' &&
   !__DEV__ &&
-  isDevice &&
+  Device.isDevice &&
   process.env.EXPO_PUBLIC_MOBILE_TELEMETRY_QUALIFIED === 'true';
 const configured =
   native && typeof token === 'string' && token.startsWith('phc_') && (qa || production);
@@ -38,6 +40,20 @@ export const mobileTelemetry = createMobileTelemetry({
     app_build: nativeBuildVersion ?? 'unknown',
     environment: production ? 'production' : __DEV__ ? 'development' : 'preview',
     language: locale === 'zh' ? 'zh' : 'en',
+    ...(configured
+      ? deviceTelemetryContext({
+          osVersion: Device.osVersion,
+          deviceClass:
+            Device.deviceType === Device.DeviceType.PHONE
+              ? 'phone'
+              : Device.deviceType === Device.DeviceType.TABLET
+                ? 'tablet'
+                : 'unknown',
+          modelId: Device.modelId,
+          totalMemory: Device.totalMemory,
+          deviceYearClass: Device.deviceYearClass,
+        })
+      : {}),
     ...(qa ? { qa_run_id: qaRun } : {}),
   },
   storage: {
@@ -57,3 +73,4 @@ export const mobileTelemetry = createMobileTelemetry({
   now: Date.now,
   monotonic: () => performance.now(),
 });
+setFeatureSink((event, properties) => mobileTelemetry.feature(event, properties));

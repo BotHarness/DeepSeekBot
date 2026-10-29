@@ -22,7 +22,7 @@ function usage(message: string): never {
 export async function runBotToolCommand(
   command: (typeof BOT_TOOL_COMMANDS)[number]['command'],
   rest: string[],
-  values: { 'args-stdin'?: boolean },
+  values: { 'args-stdin'?: boolean; session?: string },
   io: BotCreateCliIo,
   connect: () => Promise<{ rpc: LiveRpc }>,
 ): Promise<unknown> {
@@ -47,5 +47,6 @@ export async function runBotToolCommand(
     slug: rest[0]!.trim(),
     tool: rest[1]!.trim(),
     args,
+    ...(values.session === undefined ? {} : { sessionId: values.session }),
   });
 }

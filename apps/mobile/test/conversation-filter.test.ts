@@ -17,3 +17,22 @@ it('restores a source-scoped choice and does not overwrite a newer choice during
   expect(next.getSnapshot()).toBe(value);
   expect(next.getSnapshot()).toContain('org_b');
 });
+
+it('retains a failed account filter reset for a durable retry', async () => {
+  let disk = 'owned';
+  let failed = true;
+  const filter = createConversationFilter({
+    read: async () => disk,
+    write: (value) => {
+      if (failed) throw new Error('disk');
+      disk = value;
+    },
+  });
+  await filter.ready;
+  await expect(filter.clearPersisted('owned')).rejects.toThrow('disk');
+  expect(filter.getSnapshot()).toBe('owned');
+  failed = false;
+  await filter.clearPersisted('owned');
+  expect(disk).toBe('all');
+  expect(filter.getSnapshot()).toBe('all');
+});

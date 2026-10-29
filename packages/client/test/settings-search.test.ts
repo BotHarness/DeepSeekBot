@@ -1,13 +1,22 @@
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({ Input: () => null }));
 import { expect, it, vi } from 'vitest';
-import { searchSettings } from '../src/client/settings-search.js';
-import { zhTranslate } from '../src/client/locale.js';
+import { readFileSync } from 'node:fs';
+import { PLUGIN_INDEX, SETTINGS_INDEX, searchSettings } from '../src/client/settings-search.js';
+import { en, zh, zhTranslate } from '../src/client/locale.js';
 const rows = [
   { id: 'appearance', order: 5, label: '界面设置' },
   { id: 'messaging', order: 20, label: '消息' },
   { id: 'notifications', order: 21, label: '通知' },
   { id: 'browser', order: 32, label: '浏览器控制' },
 ];
+it('finds the long-message folding switch in Messages in either language', () => {
+  for (const query of ['折叠', 'collapse']) {
+    expect(searchSettings(rows, query, zhTranslate)[0]).toMatchObject({
+      section: 'messaging',
+      target: '自动折叠长消息',
+    });
+  }
+});
 it('finds settings across unmounted sections and returns the exact destination', () => {
   expect(searchSettings(rows, '间距', zhTranslate)).toEqual([
     { section: 'appearance', title: '面板间距', target: '面板间距', page: '界面设置' },
@@ -38,4 +47,76 @@ it('does not advertise layout controls when the responsive workspace is unavaila
   expect(
     searchSettings(rows, 'Enter', zhTranslate).some((row) => row.section === 'messaging'),
   ).toBe(true);
+});
+
+it('matches pinyin and English words in the Chinese interface', () => {
+  expect(searchSettings(rows, 'jianju', zhTranslate)[0]).toMatchObject({ title: '面板间距' });
+  expect(searchSettings(rows, 'mbjj', zhTranslate)[0]).toMatchObject({ title: '面板间距' });
+  expect(searchSettings(rows, 'notifications', zhTranslate)[0]).toMatchObject({
+    section: 'notifications',
+    title: '通知',
+  });
+  expect(searchSettings(rows, 'tongzhi', zhTranslate)[0]).toMatchObject({
+    section: 'notifications',
+  });
+});
+
+it('lists every section for a bare settings query and finds sections by common words', () => {
+  expect(
+    searchSettings(rows, 'shezhi', zhTranslate)
+      .filter((row) => row.target === undefined)
+      .map((row) => row.section),
+  ).toEqual(['appearance', 'messaging', 'notifications', 'browser']);
+  expect(searchSettings(rows, 'waiguan', zhTranslate)[0]).toMatchObject({
+    section: 'appearance',
+    title: '界面设置',
+  });
+});
+
+it('indexes only real locale keys and mirrors the plugin row titles', () => {
+  for (const keys of Object.values(SETTINGS_INDEX))
+    for (const key of keys) expect(zh[key], key).toBeTypeOf('string');
+  const browser = readFileSync(
+    new URL('../../browser/src/client/locale.ts', import.meta.url),
+    'utf8',
+  );
+  const computer = readFileSync(
+    new URL('../../computer/src/client/locale.ts', import.meta.url),
+    'utf8',
+  );
+  const sources = { browser, computer } as Record<string, string>;
+  for (const [section, items] of Object.entries(PLUGIN_INDEX))
+    for (const item of items) {
+      expect(sources[section], item.zh).toContain(`: '${item.zh}',`);
+      expect(sources[section], item.en).toContain(`: '${item.en}',`);
+    }
+});
+
+it('reaches individual rows on the right-hand side of every page', () => {
+  const all = [
+    ...rows,
+    { id: 'shortcuts', order: 6, label: '快捷键' },
+    { id: 'computer', order: 33, label: '电脑控制' },
+  ];
+  expect(searchSettings(all, 'mohu', zhTranslate)[0]).toMatchObject({
+    section: 'appearance',
+    target: '背景模糊',
+  });
+  expect(searchSettings(all, 'bizhi', zhTranslate)[0]).toMatchObject({
+    section: 'appearance',
+    title: '壁纸',
+  });
+  expect(searchSettings(all, 'kuaijie sousuo', zhTranslate)[0]).toMatchObject({
+    section: 'shortcuts',
+  });
+  expect(searchSettings(all, 'local driver', zhTranslate)[0]).toMatchObject({
+    section: 'browser',
+    title: '本机驱动',
+  });
+  expect(searchSettings(all, 'zidong yunxu', zhTranslate)[0]).toMatchObject({
+    section: 'computer',
+    title: '自动允许 Computer 操作',
+  });
+  const enT = ((key: keyof typeof en) => en[key] ?? key) as unknown as typeof zhTranslate;
+  expect(searchSettings(all, 'local driver', enT)[0]).toMatchObject({ title: 'Local driver' });
 });

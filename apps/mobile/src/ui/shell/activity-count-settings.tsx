@@ -1,45 +1,45 @@
 import { useRouter } from 'expo-router';
-import { ScrollView } from 'react-native';
-
 import { ACTIVITY_COUNT_KINDS } from '../../host/activity-count';
 import {
   activityCountPreferences,
   useActivityCountPreferences,
 } from '../../host/native-activity-count';
 import { SHEET_GROUP } from '../chat/sheet';
-import { useDesignTheme } from '../design/theme';
-import { space } from '../design/tokens';
+import { SettingsForm } from '../primitives/settings-form';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
-import { Toggle } from '../primitives/toggle';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function ActivityCountLink() {
+  const t = useStrings();
   const router = useRouter();
   const { kinds } = useActivityCountPreferences();
   return (
     <SettingsRow
       on={SHEET_GROUP}
       title={t.activityCountSettings.title}
-      detail={
+      icon="activityCount"
+      accessibilityLabel={`${t.activityCountSettings.title}, ${
         kinds.length
-          ? kinds.map((kind) => t.activityCountSettings[kind]).join(' · ')
+          ? kinds.map((kind) => t.activityCountSettings[kind]).join(', ')
           : t.activityCountSettings.none
-      }
-      disclosure
+      }`}
+      control={{
+        kind: 'value',
+        text: kinds.length
+          ? t.activityCountSettings.count(kinds.length)
+          : t.activityCountSettings.none,
+        chevron: true,
+      }}
       onPress={() => router.push('/settings/activity-count')}
     />
   );
 }
 
 export function ActivityCountSettings() {
-  const theme = useDesignTheme();
+  const t = useStrings();
   const state = useActivityCountPreferences();
   return (
-    <ScrollView
-      nestedScrollEnabled
-      style={{ flex: 1, backgroundColor: theme.overlay.fill }}
-      contentContainerStyle={{ padding: space.x5 }}
-    >
+    <SettingsForm>
       <SettingsSection
         on={SHEET_GROUP}
         footer={state.storageError ? t.activityCountSettings.error : t.activityCountSettings.hint}
@@ -49,24 +49,18 @@ export function ActivityCountSettings() {
             key={kind}
             on={SHEET_GROUP}
             title={t.activityCountSettings[kind]}
-            trailing={
-              <Toggle
-                on={SHEET_GROUP}
-                label={t.activityCountSettings[kind]}
-                value={state.kinds.includes(kind)}
-                disabled={!state.loaded}
-                onChange={(enabled) =>
-                  activityCountPreferences.setKinds(
-                    enabled
-                      ? [...state.kinds, kind]
-                      : state.kinds.filter((value) => value !== kind),
-                  )
-                }
-              />
-            }
+            control={{
+              kind: 'switch',
+              value: state.kinds.includes(kind),
+              onChange: (enabled) =>
+                activityCountPreferences.setKinds(
+                  enabled ? [...state.kinds, kind] : state.kinds.filter((value) => value !== kind),
+                ),
+              disabled: !state.loaded,
+            }}
           />
         ))}
       </SettingsSection>
-    </ScrollView>
+    </SettingsForm>
   );
 }

@@ -56,6 +56,19 @@ node scripts/verify-app.mjs shot <label> --name <n> --bot-mode \
 - Use `rpc <namespace/method> [json]` to read canonical state (Channel timelines, Bot lists) after a UI action, or to seed preconditions through the same public API the Client calls. It is evidence of state, never a substitute for the UI step it follows.
 - For scripted journeys, use the feature file’s launch contract. Some accept `BH_E2E_INSTANCE=.humanlayer/verify/<n>/instance.json`, the model suite accepts `--name <n>`, and others own their Host; check before running so the journey targets this task’s instance.
 
+## Measure performance
+
+For a change that touches the timeline, the composer or message rendering, or a report that
+Bot mode is slow, hot or laggy, measure before and after. Native iOS follows
+[iOS performance verification](../../../docs/agents/ios-performance.md); the Web path uses
+`scripts/perf-idle-timeline.mjs`.
+It seeds a long Group without a model, mounts the whole history, and reports idle main-thread
+time, typing latency per key and the hottest functions. Follow
+[the performance guide](references/performance.md) for the A/B protocol and how to read it.
+Add `--budget scripts/perf-budgets/timeline.json` so the run fails on a regression; the rules
+for when to measure and what evidence a PR needs are in
+[performance observation and verification](../../../docs/agents/ax-performance.md).
+
 ## Native mobile
 
 The Web Client drives above do not cover the Expo app in `apps/mobile`. Before starting a
@@ -76,11 +89,22 @@ A proof has three parts: the user action, the visible result, and the canonical 
 
 ## Cleanup
 
+Cleanup is required after successful and failed verification, before task completion or handoff.
+Follow [verification resource cleanup](../../../docs/agents/ax-resource-cleanup.md) for ownership
+checks, interrupted runs, retained environments and shared E2E/QA protection. Use the command
+below only for this task's verified instance with a disposable Profile after confirming that
+no child or other process uses that Profile. The helper waits only for the recorded Host before
+removing the directory. If other users exist or ownership is uncertain, use separate shutdown
+and deletion steps from the runbook. If Profile state must survive, stop the verified Host
+separately and preserve its closed Profile.
+
 ```bash
 node scripts/verify-app.mjs stop --name <n>
 ```
 
-It stops only the recorded PID, deletes that instance's temporary `DSH_HOME` and leaves the evidence directory in place. Confirm the evidence files still exist after `stop`.
+It signals the recorded PID, waits for exit, deletes that instance's matching temporary
+`DSH_HOME` and leaves the evidence directory in place. Recheck that the process and its owned
+children have exited, its port is free and the evidence files still exist after `stop`.
 
 ## Feature map
 

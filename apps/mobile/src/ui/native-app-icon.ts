@@ -24,7 +24,7 @@ export const nativeAppIcon: AppIconPort = {
 };
 
 export const appIconPreviews: AppIconPreviews = {
-  DeepSeekBot: {
+  default: {
     light: require('../../assets/app-icons/deepseekbot-light-preview.png'),
     dark: require('../../assets/app-icons/deepseekbot-dark-preview.png'),
   },

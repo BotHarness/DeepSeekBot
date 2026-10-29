@@ -12,6 +12,7 @@ import type { RosterSection, TopOrderEntry } from './roster.js';
 import type { PurgedPlacement } from '../../../core/src/purge/contracts.js';
 import type { PixelBannerRecipe } from '@botharness/pixel-banner';
 import { createContentRedactions } from './content-redactions.js';
+import { ActivitySmoother } from './activity-smoothing.js';
 
 export type ClientMode = 'dsh' | 'bot';
 
@@ -118,6 +119,7 @@ export interface BotCreatePreview {
 }
 
 export interface ToolApprovalRequestCard {
+  allowAlways?: boolean;
   sessionId: string;
   callId: string;
   toolName: string;
@@ -129,7 +131,12 @@ export interface ToolApprovalRequestCard {
 
 export interface ToolApprovalDecision {
   requestMessageId: string;
-  outcome: 'allowed-once' | 'allowed-always-exact' | 'allowed-always-all' | 'rejected';
+  outcome:
+    | 'allowed-once'
+    | 'allowed-always-tool'
+    | 'allowed-always-exact'
+    | 'allowed-always-all'
+    | 'rejected';
 }
 
 export interface UserQuestionOption {
@@ -245,6 +252,7 @@ export interface ChannelMessage {
   privateInputRequest?: import('../../../core/src/credentials/contracts.js').PrivateInputCard;
   privateInputResolution?: import('../../../core/src/credentials/contracts.js').PrivateInputResolution;
   attachments?: ChannelAttachmentRef[];
+  clearedAttachments?: import('../../../core/src/attachments/ref.js').ChannelClearedAttachment[];
   format?: 'markdown' | 'text';
   replyTo?: string;
   replyToPreview?: ChannelReplyPreview | null;
@@ -274,9 +282,13 @@ export interface OwnedSessionSummary {
   assignmentReportState?: 'progress' | 'completed' | 'blocked' | 'waiting-human' | 'failed';
   assignmentExecutionWait?: 'waiting-human' | 'waiting-capacity';
   assignmentArchived?: true;
-  assignmentPurpose?: string;
+  assignmentTitle?: string;
+  assignmentDescription?: string;
+  assignmentModelRoute?: { provider: string; model: string; reasoningEffort?: string };
+  modelRoute?: { provider: string; model: string; reasoningEffort?: string };
   currentOrchestrator?: boolean;
   triageOpenCount?: number;
+  subagentCount?: number;
 }
 
 export type HumanInboxCategory = 'action' | 'info' | 'unread' | 'replies' | 'handled';
@@ -422,7 +434,7 @@ export interface BotAttentionItem {
   sourceChannelName?: string;
   sourceMessageId?: string;
   assignmentSessionId?: string;
-  assignmentPurpose?: string;
+  assignmentTitle?: string;
   assignmentReportState?: 'progress' | 'completed' | 'blocked' | 'waiting-human' | 'failed';
   scheduleId?: string;
   externalOrigin?: {
@@ -613,7 +625,22 @@ function sameSelection(
   return false;
 }
 
-export function createStore(): ClientStore {
+function sameActivity(
+  left: PersonaBotActivitySnapshot['bots'][number] | undefined,
+  right: PersonaBotActivitySnapshot['bots'][number] | undefined,
+): boolean {
+  if (left === right) return true;
+  if (left === undefined || right === undefined) return false;
+  return (
+    left.state === right.state &&
+    JSON.stringify([left.activity, left.attention, left.sessions]) ===
+      JSON.stringify([right.activity, right.attention, right.sessions])
+  );
+}
+
+export function createStore({
+  smoothActivity = true,
+}: { smoothActivity?: boolean } = {}): ClientStore {
   const conversations = new Map<string, ConversationState>();
   const redactions = createContentRedactions();
   const botChannels = new Map<string, string>();
@@ -685,6 +712,35 @@ export function createStore(): ClientStore {
     bot.tob?.defaultName ? { ...bot, displayName: defaultTobName } : bot;
   let activity: PersonaBotActivitySnapshot | undefined;
   let activityStates = new Map<string, PersonaBotActivitySnapshot['bots'][number]>();
+  let rawActivity = new Map<string, PersonaBotActivitySnapshot['bots'][number]>();
+  const smoother = new ActivitySmoother<PersonaBotActivitySnapshot['bots'][number]>();
+  let settle: ReturnType<typeof setTimeout> | undefined;
+  const refreshActivity = (shownBefore: typeof activityStates): void => {
+    const bots = state.bots.map((bot) =>
+      sameActivity(shownBefore.get(bot.slug), activityStates.get(bot.slug))
+        ? bot
+        : withActivity(bot),
+    );
+    if (bots.some((bot, index) => bot !== state.bots[index])) update({ bots });
+  };
+  const smooth = () => {
+    if (settle !== undefined) clearTimeout(settle);
+    settle = undefined;
+    if (!smoothActivity) {
+      activityStates = rawActivity;
+      return;
+    }
+    const now = Date.now();
+    const { shown, wake } = smoother.step(rawActivity, now);
+    activityStates = shown;
+    if (wake !== undefined)
+      settle = setTimeout(() => {
+        settle = undefined;
+        const shownBefore = activityStates;
+        smooth();
+        refreshActivity(shownBefore);
+      }, wake - now);
+  };
   const withActivity = (bot: BotSummary): BotSummary => {
     const current = activityStates.get(bot.slug);
     const {
@@ -798,8 +854,10 @@ export function createStore(): ClientStore {
       if (activity?.generation === snapshot.generation && snapshot.revision <= activity.revision)
         return;
       activity = snapshot;
-      activityStates = new Map(snapshot.bots.map((bot) => [bot.slug, bot]));
-      update({ bots: state.bots.map(withActivity) });
+      rawActivity = new Map(snapshot.bots.map((bot) => [bot.slug, bot]));
+      const shownBefore = activityStates;
+      smooth();
+      refreshActivity(shownBefore);
     },
     setActivitySync(activitySync) {
       if (state.activitySync !== activitySync) update({ activitySync });

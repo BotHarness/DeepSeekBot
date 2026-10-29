@@ -1,3 +1,17 @@
+import { CHANNEL_BODY_PANEL, readChannelDock, writeChannelDock } from './channel-dock-layout.js';
+import { createBotPresentation } from './bot-presentation.js';
+import { mountWindowZoomControl } from './window-zoom-control.js';
+import { mountWindowZoom, type ZoomCompatibility } from './window-zoom-mount.js';
+import { Wallpaper } from './wallpaper.js';
+import { createWallpaperStore } from './wallpaper-store.js';
+import { mountWallpaper } from './wallpaper-layer.js';
+import { panelTargetId } from './appearance-panels.js';
+import { refreshBotPrimaryColors } from './bot-primary-color.js';
+import { Appearance } from './appearance.js';
+import { mountAppearance } from './appearance-scope.js';
+import { mountAppearanceControl } from './appearance-control.js';
+import { recordRemoteHosts, remoteHosts } from './remote-hosts.js';
+import { bindBotAppearance } from './bot-color-scheme.js';
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client';
 import { AppearanceSection } from './appearance-settings.js';
 import { KeyboardSettings, setWorkShortcutNotice } from './keyboard-settings.js';
@@ -52,6 +66,9 @@ import {
   BotSettingsView,
   botSettingsSectionSource,
 } from './bot-settings.js';
+import type { QuickSwitcherSettings } from './quick-switcher.js';
+import { searchSettings } from './settings-search.js';
+import { startConnectSignIn } from './connect-sign-in.js';
 import { DshBotSettingsItem } from './dsh-bot-settings-item.js';
 import { createImApps, ImAppsSection } from './im-apps-section.js';
 import {
@@ -60,11 +77,14 @@ import {
   CompanionsSection,
   DataPrivacySection,
   DevicesSection,
+  AccountSection,
   GeneralSection,
   MessagingSection,
   ModelsSection,
   AutoApprovalSection,
+  PromptsSection,
 } from './bot-settings-sections.js';
+import { PluginsSection } from './plugin-updates-view.js';
 import { ReleaseNotesController } from './release-notes.js';
 import { TelemetryNoticeController } from './telemetry-notice.js';
 import './bot-settings-slot.js';
@@ -85,6 +105,7 @@ import {
 } from './channel-sidebar-builtins.js';
 import { webShortcutBlocked, webModalOpen, webShortcutHelpQuestion } from './channel-shortcuts.js';
 import { ShortcutBindings } from './shortcut-bindings.js';
+import { mountSettingsShortcut } from './settings-shortcut.js';
 import {
   browserNotificationApi,
   DesktopNotificationPrefs,
@@ -95,6 +116,7 @@ import { mountTabTitle } from './tab-title.js';
 import { createChannelSidebarRegistry } from './channel-sidebar.js';
 import { createDockPanelRegistry } from './dock-panels.js';
 import { createActivityCenterPanel } from './activity-center-panel.js';
+import { createMarketPanel } from './market-panel.js';
 import { createProfileCardBuiltins } from './profile-cards-builtins.js';
 import { createGroupProfileCards } from './group-profile.js';
 import { createProfileCardRegistry } from './profile-cards.js';
@@ -186,11 +208,50 @@ export function installStyles(): () => void {
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => clearConversationDrafts);
   const storage = defaultStorage();
+  const wallpaper = new Wallpaper(
+    createWallpaperStore(typeof indexedDB === 'undefined' ? undefined : indexedDB),
+  );
+  const appearance = new Appearance(storage, () =>
+    typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark'
+      : 'light',
+  );
+  ctx.effect(() => {
+    if (typeof document === 'undefined') return () => {};
+    const offScheme = bindBotAppearance(appearance);
+    const offStyle = mountAppearance(appearance);
+    const offColors = appearance.subscribe(refreshBotPrimaryColors);
+    refreshBotPrimaryColors();
+    const offWallpaper = mountWallpaper(wallpaper);
+    const offControl = mountAppearanceControl(appearance, wallpaper);
+    return () => {
+      offControl();
+      offWallpaper();
+      offColors();
+      offStyle();
+      offScheme();
+    };
+  });
   const hmrView =
     typeof window === 'undefined'
       ? undefined
       : takeHmrView(window as unknown as Record<string, unknown>);
   const t = ctx.locale.bind(LOCALE_NS);
+  remoteHosts(t);
+  const zoom = mountWindowZoom({
+    document: typeof document === 'undefined' ? undefined : document,
+    window: typeof window === 'undefined' ? undefined : window,
+    shortcuts: ctx.shortcuts,
+    storage,
+    onReady: mountWindowZoomControl,
+    compatibility:
+      typeof window === 'undefined'
+        ? undefined
+        : (window as unknown as { __botharnessWindowZoomCompatibility?: ZoomCompatibility })
+            .__botharnessWindowZoomCompatibility,
+    t,
+  });
+  ctx.effect(() => () => zoom.dispose(), 'botharness: device-local window zoom');
   const nativeChatT = ctx.locale.bind('chat');
   const call = createBridgeCall(ctx);
   const profileContext = async (): Promise<{ profileId: string }> => {
@@ -214,11 +275,6 @@ export function apply(ctx: ClientContext): void {
       if (picker === undefined) throw new Error('DSH folder picker is unavailable');
       return picker.pickDirectory();
     },
-    listDirectory: (path, signal) => {
-      const picker = ctx.get('uiWorkspace');
-      if (picker === undefined) throw new Error('DSH folder browser is unavailable');
-      return picker.listDirectory(path, signal);
-    },
     createWorkspace: (input) => {
       const workspaces = ctx.get('workspaces');
       if (workspaces === undefined) throw new Error('DSH Workspace controller is unavailable');
@@ -231,11 +287,11 @@ export function apply(ctx: ClientContext): void {
   });
   const setupRpc = connectionRpc(ctx);
   if (setupRpc) actions.appSetup = new ProviderAppSetup(setupRpc);
+  recordRemoteHosts((event, properties) => actions.telemetryEvent(event, properties));
   let companionSource: ((url: string) => CompanionSource) | undefined;
   const companion = new WindowCompanions({
     storage,
     exists: (botId) => botExists(call, botId),
-    onActivity: (snapshot) => store.applyActivity(snapshot),
     context: profileContext,
     source: (url) => companionSource?.(url) ?? new EventSource(url),
     update: async (value) => {
@@ -250,23 +306,7 @@ export function apply(ctx: ClientContext): void {
   });
   ctx.effect(() => {
     void companion.start();
-    let mirrored: 'live' | 'stale' | undefined;
-    const off = companion.subscribe(() => {
-      const value = companion.getSnapshot();
-      if (!value.companions.length && mirrored === undefined) return;
-      const sync = !value.companions.length || value.sync === 'live' ? 'live' : 'stale';
-      if (sync === mirrored) return;
-      mirrored = value.companions.length ? sync : undefined;
-      store.setActivitySync(sync);
-      if (typeof document !== 'undefined') {
-        if (sync === 'stale') document.documentElement.dataset['botharnessActivity'] = 'stale';
-        else delete document.documentElement.dataset['botharnessActivity'];
-      }
-    });
-    return () => {
-      off();
-      companion.dispose();
-    };
+    return () => companion.dispose();
   }, 'botharness: independent Window Companion owner');
   const prefs = new BotModePrefs(storage);
   ctx.effect(
@@ -318,6 +358,7 @@ export function apply(ctx: ClientContext): void {
           companion,
           prefs,
           actions,
+          dropIn: true,
           openDm: (botId: string) => {
             ctx.layout.selectPanel(PANEL_ID);
             void actions.openBot(botId);
@@ -339,6 +380,10 @@ export function apply(ctx: ClientContext): void {
     ),
   );
   const botSettingsSections = botSettingsSectionSource(ctx);
+  const quickSwitcherSettings: QuickSwitcherSettings = {
+    search: (query) => searchSettings(botSettingsSections.getSnapshot(), query, t),
+    open: (result) => botSettings.open(result.section, result.target),
+  };
   ctx.slots.inject('shell.overlay', () =>
     ctx.slots.register(
       {
@@ -413,8 +458,25 @@ export function apply(ctx: ClientContext): void {
       visibility.dispose();
     };
   }, 'botharness: Bot Session visibility');
-  const dockPanels = createDockPanelRegistry();
+  const presentation = createBotPresentation(store);
+  ctx.provide('botPresentation', presentation);
+  ctx.effect(() => () => presentation.dispose());
+  const dockPanels = createDockPanelRegistry({
+    instances: readChannelDock()?.instances ?? [],
+    saveInstances(instances) {
+      const current = readChannelDock();
+      if (!current || !writeChannelDock({ ...current, instances }))
+        throw new Error('panel_layout_unavailable');
+    },
+  });
   ctx.provide('dockPanels', dockPanels);
+  ctx.effect(() =>
+    appearance.setTargetSource(() => [
+      ...dockPanels.panels().map((panel) => ({ id: panelTargetId(panel.id), label: panel.title })),
+      { id: panelTargetId('memory-details'), label: t('appearance.memoryDetails') },
+      { id: panelTargetId('generated-files'), label: t('generatedFiles.title') },
+    ]),
+  );
   const channelSidebar = createChannelSidebarRegistry(dockPanels);
   const workspace = {
     actions,
@@ -440,6 +502,7 @@ export function apply(ctx: ClientContext): void {
       ),
     exitBotMode: () => ctx.layout.selectPanel(null),
     openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
+    quickSwitcherSettings,
   };
 
   ctx.effect(() =>
@@ -448,6 +511,13 @@ export function apply(ctx: ClientContext): void {
       dockPanels,
       () => document.querySelector('[data-workspace-enabled]') !== null,
       t,
+      () => {
+        dockPanels.open(CHANNEL_BODY_PANEL);
+        void actions
+          .tobHome()
+          .then((tob) => actions.openChannel(tob.channelId))
+          .catch(() => {});
+      },
     ),
   );
   ctx.effect(() =>
@@ -468,7 +538,8 @@ export function apply(ctx: ClientContext): void {
         ...createChannelSidebarBuiltins(t, prefs, nativeSessions).map((entry) =>
           channelSidebar.register(entry),
         ),
-        dockPanels.register(createActivityCenterPanel(actions, t)),
+        dockPanels.register(createActivityCenterPanel(actions, t, dockPanels)),
+        dockPanels.register(createMarketPanel(actions, dockPanels, t)),
       ];
     };
     reconcile();
@@ -561,6 +632,15 @@ export function apply(ctx: ClientContext): void {
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, 'botharness: keyboard shortcut list');
+  ctx.effect(() => {
+    if (typeof document === 'undefined') return () => {};
+    return mountSettingsShortcut({
+      document,
+      bindings: shortcutBindings,
+      botSettings,
+      active: () => store.getSnapshot().mode === 'bot',
+    });
+  }, 'botharness: Bot settings keyboard shortcut');
   ctx.effect(() => {
     if (typeof document === 'undefined') return () => {};
     return mountTabTitle(store, document);
@@ -690,11 +770,7 @@ export function apply(ctx: ClientContext): void {
     };
   }, 'botharness: live streams on the native Remote stream carrier');
   ctx.effect(
-    () =>
-      mountActivityLive(store, undefined, (signal) => loadActivitySnapshot(call, signal), {
-        enabled: () => companion.getSnapshot().companions.length === 0,
-        subscribe: companion.subscribe,
-      }),
+    () => mountActivityLive(store, undefined, (signal) => loadActivitySnapshot(call, signal)),
     'botharness: PersonaBot activity subscription',
   );
   ctx.effect(() => {
@@ -757,11 +833,31 @@ export function apply(ctx: ClientContext): void {
       settingsCtx.slots.register(
         {
           name: 'botharness.settings.section',
+          id: BOT_SETTINGS_SECTIONS.account,
+          order: -5,
+          label: () => t('botSettings.section.account'),
+          locale: LOCALE_NS,
+          inject: () => ({
+            actions,
+            startSignIn: startConnectSignIn,
+          }),
+        },
+        AccountSection,
+      ),
+    );
+    settingsCtx.slots.inject('botharness.settings.section', () =>
+      settingsCtx.slots.register(
+        {
+          name: 'botharness.settings.section',
           id: BOT_SETTINGS_SECTIONS.general,
           order: 0,
           label: () => t('botSettings.section.general'),
           locale: LOCALE_NS,
-          inject: () => ({ actions, closeBotSettings: botSettings.close }),
+          inject: () => ({
+            actions,
+            closeBotSettings: botSettings.close,
+            zoomSurface: zoom.surface,
+          }),
         },
         GeneralSection,
       ),
@@ -777,11 +873,8 @@ export function apply(ctx: ClientContext): void {
           children: { 'botharness.settings.layout': { kind: 'list', scope: 'root' } },
           inject: () => ({
             ...botModePrefsFace(prefs),
-            themeSource: {
-              getSnapshot: () => ctx.theme.getTheme(),
-              subscribe: (listener: () => void) => ctx.on('theme/change', listener),
-              set: (value: string) => ctx.theme.setTheme(value),
-            },
+            appearance,
+            wallpaper,
             localeSource: {
               getSnapshot: () => ctx.locale.getSnapshot(),
               subscribe: (listener: () => void) => ctx.locale.subscribe(listener),
@@ -830,7 +923,7 @@ export function apply(ctx: ClientContext): void {
           order: 10,
           label: () => t('botSettings.section.models'),
           locale: LOCALE_NS,
-          inject: () => ({ ...botModePrefsFace(prefs), actions }),
+          inject: () => ({ ...botModePrefsFace(prefs), actions, call }),
         },
         ModelsSection,
       ),
@@ -846,6 +939,19 @@ export function apply(ctx: ClientContext): void {
           inject: () => ({ actions, call, store }),
         },
         AutoApprovalSection,
+      ),
+    );
+    settingsCtx.slots.inject('botharness.settings.section', () =>
+      settingsCtx.slots.register(
+        {
+          name: 'botharness.settings.section',
+          id: BOT_SETTINGS_SECTIONS.prompts,
+          order: 16,
+          label: () => t('botSettings.section.prompts'),
+          locale: LOCALE_NS,
+          inject: () => ({ actions }),
+        },
+        PromptsSection,
       ),
     );
     settingsCtx.slots.inject('botharness.settings.section', () =>
@@ -936,6 +1042,19 @@ export function apply(ctx: ClientContext): void {
       settingsCtx.slots.register(
         {
           name: 'botharness.settings.section',
+          id: BOT_SETTINGS_SECTIONS.plugins,
+          order: 65,
+          label: () => t('botSettings.section.plugins'),
+          locale: LOCALE_NS,
+          inject: () => ({ call }),
+        },
+        PluginsSection,
+      ),
+    );
+    settingsCtx.slots.inject('botharness.settings.section', () =>
+      settingsCtx.slots.register(
+        {
+          name: 'botharness.settings.section',
           id: BOT_SETTINGS_SECTIONS.about,
           order: 70,
           label: () => t('botSettings.section.about'),
@@ -1009,6 +1128,8 @@ export function apply(ctx: ClientContext): void {
           channelSidebar,
           dockPanels,
           profileCards,
+          appearance,
+          wallpaper,
           nativeChatT,
           nativeSessions,
           prefs,
@@ -1018,6 +1139,7 @@ export function apply(ctx: ClientContext): void {
           ...botModePrefsFace(prefs),
           exitBotMode: () => ctx.layout.selectPanel(null),
           openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
+          quickSwitcherSettings,
         }),
       },
       MobileBotPanel,
@@ -1104,6 +1226,7 @@ export function apply(ctx: ClientContext): void {
             exitBotMode: () => ctx.layout.selectPanel(null),
             toggleSidebar: () => ctx.layout.toggleSidebar(),
             openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
+            quickSwitcherSettings,
           }),
         },
         BotModeSidebar,
@@ -1154,6 +1277,7 @@ export function apply(ctx: ClientContext): void {
             channelSidebar,
             dockPanels,
             profileCards,
+            appearance,
             nativeChatT,
             nativeSessions,
             prefs,

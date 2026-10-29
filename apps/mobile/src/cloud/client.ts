@@ -1209,6 +1209,7 @@ export class CloudClient {
         state,
         code_challenge: challenge,
         code_challenge_method: 'S256',
+        max_age: '0',
       }).toString();
       const callback = await this.rt.authorize(url.href, MOBILE_REDIRECT_URI);
       if (!callback) return fail('LOGIN_CANCELLED');

@@ -1,0 +1,93 @@
+{
+  "reset": {
+    "version": 1,
+    "revision": "6b261cd0-eb1c-4cc1-9c9d-bc8d9c48f0b9",
+    "preference": "light",
+    "modes": {
+      "light": {
+        "preset": "classic-blue",
+        "panels": {
+          "dock:bh:channel-body": {
+            "header": {
+              "opacity": 42,
+              "color": "#9fd8a8",
+              "blur": 9
+            },
+            "body": {
+              "color": "#a9dcb1",
+              "opacity": 100,
+              "blur": 8
+            }
+          },
+          "dock:bh:home": {
+            "header": {
+              "color": "#e7d7b2"
+            },
+            "body": {
+              "color": "#f4dfb5",
+              "opacity": 82,
+              "blur": 4
+            }
+          },
+          "dock:memory-details": {
+            "header": {
+              "color": "#d3c8f0"
+            },
+            "body": {
+              "color": "#e9e0f7",
+              "opacity": 85
+            }
+          },
+          "dock:botharness-browser": {
+            "header": {
+              "color": "#c9d4f2"
+            },
+            "body": {
+              "color": "#e3e7f7",
+              "opacity": 60,
+              "blur": 5
+            }
+          },
+          "dock:botharness-computer": {
+            "header": {
+              "color": "#edc9bf"
+            },
+            "body": {
+              "color": "#f5e0d8",
+              "opacity": 75,
+              "blur": 4
+            }
+          },
+          "dock:appearance-qa:sample": {
+            "header": {
+              "color": "#b8dce6"
+            },
+            "body": {
+              "color": "#c5dfe8",
+              "opacity": 55,
+              "blur": 5
+            }
+          }
+        }
+      },
+      "dark": {
+        "preset": "classic-blue",
+        "panels": {
+          "dock:bh:channel-body": {
+            "body": {
+              "color": "#283d4b",
+              "opacity": 90
+            }
+          },
+          "dock:memory-files": {
+            "body": {
+              "color": "#33444f",
+              "opacity": 80
+            }
+          }
+        }
+      }
+    }
+  },
+  "errors": []
+}

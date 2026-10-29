@@ -1,0 +1,25 @@
+{
+  "sourceRevision": "3dbbba7073e1565e289c80ffcf6414bc696d3333",
+  "scenario": "375px actual Slow3G after warm application load",
+  "calls": [
+    {
+      "name": "pwsh",
+      "outcome": "ok",
+      "result": "MOBILE_2080_FINAL_OK\r\n",
+      "approval": "allowed-once"
+    }
+  ],
+  "priorRequestCount": 1,
+  "currentRequestCount": 2,
+  "decisions": [
+    {
+      "requestMessageId": "1abef631-18f1-45d9-8ba8-a8fd9bdea2a3",
+      "outcome": "allowed-once"
+    },
+    {
+      "requestMessageId": "db3967a8-0db5-4a87-b2de-4d5d062fe9f1",
+      "outcome": "allowed-once"
+    }
+  ],
+  "rules": []
+}

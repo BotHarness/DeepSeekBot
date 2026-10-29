@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
-import { act, useState } from 'react';
+import { act, createElement, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const speech = vi.hoisted(() => ({
   scale: 1,
+  platform: 'android',
+  hardware: new Map<boolean, { enabled: boolean; onSend(): void }>(),
   listeners: new Map<string, (event: unknown) => void>(),
   available: true,
   granted: true,
@@ -16,6 +18,15 @@ const speech = vi.hoisted(() => ({
 }));
 
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
+vi.mock('../src/ui/primitives/hardware-send', async () => {
+  const { View } = await import('./react-native-shim');
+  return {
+    HardwareSend: (props: { enter: boolean; enabled: boolean; onSend(): void }) => {
+      speech.hardware.set(props.enter, props);
+      return View(props);
+    },
+  };
+});
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   const { createElement } = await import('react');
@@ -32,7 +43,17 @@ vi.mock('react-native', async () => {
   };
   return {
     ...shim,
+    Platform: {
+      ...shim.Platform,
+      get OS() {
+        return speech.platform;
+      },
+    },
     useWindowDimensions: () => ({ width: 402, height: 874, scale: 3, fontScale: speech.scale }),
+    Dimensions: {
+      get: () => ({ width: 402, height: 874, scale: 3, fontScale: speech.scale }),
+      addEventListener: (_event: string, _changed: () => void) => ({ remove() {} }),
+    },
     View,
     Keyboard: { dismiss() {} },
     PanResponder: { create: (config: unknown) => ({ panHandlers: { __gesture: config } }) },
@@ -52,7 +73,57 @@ vi.mock('react-native-reanimated', async () => {
   };
 });
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
+vi.mock('../src/ui/chat/composer-action', async (importOriginal) => {
+  const fallback = await importOriginal<typeof import('../src/ui/chat/composer-action')>();
+  const ios = await import('../src/ui/chat/composer-action.ios');
+  return {
+    ComposerActionButton: (props: Parameters<typeof fallback.ComposerActionButton>[0]) =>
+      speech.platform === 'ios'
+        ? createElement(ios.ComposerActionButton, props)
+        : createElement(fallback.ComposerActionButton, props),
+  };
+});
+vi.mock('@expo/ui/swift-ui/modifiers', () => ({
+  accessibilityLabel: (label: string) => ({ label }),
+  disabled: (disabled: boolean) => ({ disabled }),
+  opacity: () => ({}),
+  foregroundStyle: () => ({}),
+  background: () => ({}),
+  buttonBorderShape: () => ({}),
+  buttonStyle: () => ({}),
+  contentShape: () => ({}),
+  frame: () => ({}),
+  shapes: { circle: () => ({}), rectangle: () => ({}) },
+}));
+vi.mock('@expo/ui', () => ({
+  Host: ({ children }: { children: ReactNode }) => createElement('div', null, children),
+}));
+vi.mock('@expo/ui/swift-ui', () => ({
+  Button: ({
+    children,
+    testID,
+    onPress,
+    modifiers,
+  }: {
+    children: ReactNode;
+    testID?: string;
+    onPress(): void;
+    modifiers: Array<{ label?: string; disabled?: boolean }>;
+  }) =>
+    createElement(
+      'button',
+      {
+        'data-testid': testID,
+        'aria-label': modifiers.find((m) => m.label)?.label,
+        disabled: modifiers.some((m) => m.disabled),
+        onClick: onPress,
+      },
+      children,
+    ),
+  Image: () => null,
+}));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
+vi.mock('expo-router', () => ({ usePreventRemove: () => {} }));
 vi.mock('expo-speech-recognition', () => ({
   ExpoSpeechRecognitionModule: {
     isRecognitionAvailable: () => speech.available,
@@ -71,12 +142,15 @@ const { Composer } = await import('../src/ui/chat/composer');
 const { useDictation } = await import('../src/host/speech');
 const { t } = await import('../src/ui/strings');
 const { played } = await import('./expo-haptics-shim');
+const { setHapticsEnabled } = await import('../src/ui/haptics');
+const { interfacePreferences } = await import('../src/ui/interface-preferences');
+const strings = await import('../src/ui/strings');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 const sent = vi.fn();
 
-function Harness() {
+function Harness({ disabled = false }: { disabled?: boolean }) {
   const [draft, setDraft] = useState('');
   const dictation = useDictation(setDraft);
   return (
@@ -92,7 +166,7 @@ function Harness() {
           </button>
         }
         placeholder="Message Mika"
-        disabled={false}
+        disabled={disabled}
         files={[]}
         canAttach
         dictation={dictation.state.status}
@@ -113,7 +187,11 @@ let root: Root | undefined;
 let host: HTMLElement;
 
 beforeEach(async () => {
+  setHapticsEnabled(true);
+  speech.platform = 'android';
   speech.scale = 1;
+  speech.hardware.clear();
+  played.length = 0;
   speech.listeners.clear();
   speech.available = true;
   speech.granted = true;
@@ -127,6 +205,8 @@ beforeEach(async () => {
 
 afterEach(() => {
   act(() => root?.unmount());
+  interfacePreferences.setLanguage('system');
+  interfacePreferences.setAppearance('system');
   host.remove();
 });
 
@@ -149,6 +229,86 @@ const result = (transcript: string, isFinal: boolean) => ({
 });
 
 describe('Composer dictation', () => {
+  it.each(['ios', 'android'])(
+    'retains the mounted draft and caret while language and appearance change on %s',
+    async (platform) => {
+      speech.platform = platform;
+      await press('Pick Mika');
+      const input = field();
+      input.focus();
+      input.setSelectionRange(1, 3);
+      await act(async () => interfacePreferences.setLanguage('zh'));
+      expect(button(strings.t.send)).not.toBeNull();
+      await act(async () => interfacePreferences.setAppearance('dark'));
+      expect(field()).toBe(input);
+      expect(input.value).toBe('@Mika ');
+      expect(input.selectionStart).toBe(1);
+      expect(input.selectionEnd).toBe(3);
+      expect(document.activeElement).toBe(input);
+      await act(async () => interfacePreferences.setLanguage('en'));
+      expect(field()).toBe(input);
+      expect(button(strings.t.send)).not.toBeNull();
+      expect(sent).not.toHaveBeenCalled();
+    },
+  );
+  it.each(['ios', 'android'])(
+    'keeps Send disabled through disconnect and restores the same draft on %s',
+    async (platform) => {
+      speech.platform = platform;
+      await press('Pick Mika');
+      const input = field();
+      expect(button(t.send)?.disabled).toBe(false);
+      await act(async () => root!.render(<Harness disabled />));
+      const send = button(t.send);
+      expect(send).not.toBeNull();
+      expect(send!.disabled).toBe(true);
+      expect(speech.hardware.get(true)?.enabled).toBe(false);
+      await act(async () => speech.hardware.get(true)?.onSend());
+      await act(async () => send!.click());
+      expect(sent).not.toHaveBeenCalled();
+      expect(played).toEqual([]);
+      expect(field()).toBe(input);
+      expect(field().value).toBe('@Mika ');
+      await act(async () => root!.render(<Harness />));
+      expect(button(t.send)).toBe(send);
+      expect(send!.disabled).toBe(false);
+      await press(t.send);
+      expect(sent).toHaveBeenCalledExactlyOnceWith('@Mika ');
+      expect(played).toEqual(['impact:light']);
+    },
+  );
+
+  it.each(['ios', 'android'])(
+    'keeps the expanded editor open with disabled Send during disconnection on %s',
+    async (platform) => {
+      speech.platform = platform;
+      speech.scale = 3;
+      await press('Pick Mika');
+      await act(async () => root!.render(<Harness />));
+      await press(t.expandDraft);
+      const editor = () => host.querySelector('[role="dialog"]')!;
+      const editorSend = () =>
+        editor().querySelector<HTMLButtonElement>(`button[aria-label="${t.send}"]`)!;
+      const send = editorSend();
+      await act(async () => root!.render(<Harness disabled />));
+      expect(editorSend()).toBe(send);
+      expect(send.disabled).toBe(true);
+      expect(speech.hardware.get(false)?.enabled).toBe(false);
+      await act(async () => speech.hardware.get(false)?.onSend());
+      await act(async () => send.click());
+      expect(sent).not.toHaveBeenCalled();
+      expect(played).toEqual([]);
+      expect(editor()).not.toBeNull();
+      expect(editor().querySelector('textarea')!.value).toBe('@Mika ');
+      await act(async () => root!.render(<Harness />));
+      expect(send.disabled).toBe(false);
+      await act(async () => send.click());
+      expect(sent).toHaveBeenCalledExactlyOnceWith('@Mika ');
+      expect(played).toEqual(['impact:light']);
+      expect(editor()).toBeNull();
+    },
+  );
+
   it('shows the mic while empty and fills the field with what was heard', async () => {
     expect(button(t.dictate)).not.toBeNull();
     expect(button(t.send)).toBeNull();
@@ -235,6 +395,19 @@ describe('Composer dictation', () => {
   });
 });
 
+describe('Composer test IDs', () => {
+  const byId = (id: string) => host.querySelector(`[data-testid="${id}"]`);
+
+  it('keeps stable test IDs on the field, attach and send controls', async () => {
+    expect(byId('composer-input')).toBe(field());
+    expect(byId('composer-attach')?.getAttribute('aria-label')).toBe(t.attach);
+    expect(byId('composer-send')).toBeNull();
+
+    await press('Pick Mika');
+    expect(byId('composer-send')?.getAttribute('aria-label')).toBe(t.send);
+  });
+});
+
 describe('Holding the mic', () => {
   const grab = async (heldMs: number, move?: { dx: number; dy: number }) => {
     const now = vi.spyOn(Date, 'now').mockReturnValue(1_000);
@@ -284,6 +457,31 @@ describe('Holding the mic', () => {
   });
 });
 
+describe('native compose bar', () => {
+  it('keeps + outside the field capsule and the mic or Send inside it', async () => {
+    const attach = button(t.attach)!;
+    const capsule = attach.nextElementSibling!;
+    expect(capsule.contains(field())).toBe(true);
+    expect(capsule.contains(button(t.dictate))).toBe(true);
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+        field(),
+        'Hello',
+      );
+      field().dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(capsule.contains(button(t.send))).toBe(true);
+    expect(button(t.attach)).toBe(attach);
+  });
+
+  it('puts cancel in the + slot while listening', async () => {
+    const slot = button(t.attach)!.parentElement!;
+    await press(t.dictate);
+    expect(button(t.attach)).toBeNull();
+    expect(button(t.cancelDictation)!.parentElement).toBe(slot);
+  });
+});
+
 describe('expanded draft', () => {
   it('shares edits with the existing composer and sends the current draft once', async () => {
     const original = field();
@@ -318,5 +516,48 @@ describe('expanded draft', () => {
     );
     expect(sent).toHaveBeenCalledExactlyOnceWith('Long draft updated');
     expect(host.querySelector('[role="dialog"]')).toBeNull();
+  });
+});
+
+describe.each(['ios', 'android'])('%s composer haptic coverage', (platform) => {
+  it('acknowledges attachment opening once, closes silently and can reopen', async () => {
+    speech.platform = platform;
+    await act(async () => root!.render(<Harness />));
+    const attach = button(t.attach)!;
+    await act(async () => {
+      attach.click();
+      attach.click();
+    });
+    expect(played).toEqual(['impact:light']);
+    expect(button(t.attach)).not.toBeNull();
+    await press(t.close);
+    await press(t.attach);
+    expect(played).toEqual(['impact:light', 'impact:light']);
+    await press(t.attachPhotos);
+    expect(played).toEqual(['impact:light', 'impact:light']);
+    expect(button(t.attach)).not.toBeNull();
+  });
+
+  it('keeps attachment and compact/expanded send functional with feedback off', async () => {
+    speech.platform = platform;
+    speech.scale = 3;
+    setHapticsEnabled(false);
+    await act(async () => root!.render(<Harness />));
+    await press(t.attach);
+    expect(button(t.close)).not.toBeNull();
+    await press(t.close);
+    await press('Pick Mika');
+    await press(t.send);
+    expect(sent).toHaveBeenCalledTimes(1);
+    await press(t.expandDraft);
+    const send = host.querySelector<HTMLButtonElement>(
+      `[role="dialog"] button[aria-label="${t.send}"]`,
+    )!;
+    await act(async () => send.click());
+    expect(sent).toHaveBeenCalledTimes(2);
+    expect(played).toEqual([]);
+    setHapticsEnabled(true);
+    await press(t.send);
+    expect(played).toEqual(['impact:light']);
   });
 });

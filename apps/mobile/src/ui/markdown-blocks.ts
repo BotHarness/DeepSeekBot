@@ -56,6 +56,24 @@ export interface MarkdownBlock {
 }
 
 function parseBlocks(source: string, normalized: string) {
+  if (
+    /^\p{L}/u.test(normalized) &&
+    !/[\\`*_[\]<>~&:@\r\n\t]/.test(normalized) &&
+    !normalized.includes('www.')
+  ) {
+    const tokens: Token[] = [
+      {
+        type: 'paragraph',
+        raw: normalized,
+        text: normalized,
+        tokens: [{ type: 'text', raw: normalized, text: normalized, escaped: false }],
+      },
+    ];
+    return {
+      blocks: [{ key: 0, source: normalized, parsed: { source: normalized, tokens } }],
+      local: true,
+    };
+  }
   const tokens = Lexer.lex(normalized, { gfm: true });
   if (
     Object.keys(tokens.links).length > 0 ||

@@ -17,6 +17,7 @@ import {
 } from '../src/messaging/im-commands.js';
 import type { ModelCatalogEntry } from '../src/models/catalog.js';
 import type { ModelRoute, PersonaBotModelPlan } from '../src/models/presets.js';
+import type { ManualCompactionResult } from '../src/runtime/idle-compaction.js';
 
 const catalog: ModelCatalogEntry[] = [
   {
@@ -71,11 +72,13 @@ function harness(
   freshCalls: number;
   nextStop: ({ sessionId: string } | undefined)[];
   nextFresh: ('started' | 'busy')[];
+  nextCompact: ManualCompactionResult[];
   host: ImCommandServices;
 } {
   const applied: ModelRoute[] = [];
   const nextStop: ({ sessionId: string } | undefined)[] = [];
   const nextFresh: ('started' | 'busy')[] = [];
+  const nextCompact: ManualCompactionResult[] = [];
   let stopCalls = 0;
   let freshCalls = 0;
   let currentPlan = overrides.plan;
@@ -97,6 +100,8 @@ function harness(
       return nextFresh.shift() ?? 'started';
     },
     turnRunning: () => overrides.working === true,
+    compact: async () =>
+      nextCompact.shift() ?? { outcome: 'nothing', tokensBefore: 100, tokensAfter: 100 },
   };
   const run = async (text: string, manage: ImCommandManage = 'allowed'): Promise<string> => {
     const command = parseImCommand(text);
@@ -123,6 +128,7 @@ function harness(
     },
     nextStop,
     nextFresh,
+    nextCompact,
     host,
   };
 }
@@ -359,6 +365,23 @@ it('starts a fresh session or asks to stop first', async () => {
   expect(await harnessed.run('/新会话')).toContain('先 /stop');
 });
 
+it('compacts the session and reports busy, unloaded and empty outcomes', async () => {
+  const harnessed = harness();
+  expect(imCommandRequiresAuthority(parseImCommand('/compact')!)).toBe(true);
+  expect(await harnessed.run('/compact', 'web-only')).toContain('use the Web app');
+  harnessed.nextCompact.push({ outcome: 'compacted', tokensBefore: 471_070, tokensAfter: 27_782 });
+  expect(await harnessed.run('/compact')).toBe('Compacted the context: 471,070 → 27,782 tokens.');
+  harnessed.nextCompact.push({ outcome: 'busy', tokensBefore: null, tokensAfter: null });
+  expect(await harnessed.run('/压缩')).toContain('先 /stop');
+  harnessed.nextCompact.push({ outcome: 'not-loaded', tokensBefore: null, tokensAfter: null });
+  expect(await harnessed.run('/compact')).toContain('send a message first');
+  expect(await harnessed.run('/compact')).toBe('Nothing to compact.');
+  harnessed.host.compact = async () => {
+    throw new Error('boom');
+  };
+  expect(await harnessed.run('/压缩')).toBe('压缩失败，请稍后再试。');
+});
+
 it('replies in Chinese for Chinese aliases and English otherwise', async () => {
   const { run } = harness();
   expect(await run('/help')).toContain('list every command');
@@ -509,6 +532,7 @@ it('serializes model and effort changes without restoring the previous model', a
     stopTurn: async () => undefined,
     startFreshOrchestrator: async () => 'started',
     turnRunning: () => false,
+    compact: async () => ({ outcome: 'nothing', tokensBefore: null, tokensAfter: null }),
   };
   const execute = createImCommandExecutor();
   const run = (text: string) =>

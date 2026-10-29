@@ -1,5 +1,7 @@
 import type { HostClient, RemoteSource } from './client';
+import { sessionFailure } from './session-failure';
 import { activityOf, type ChannelActivity } from './channel-activity';
+import { approvalCommand } from './requests';
 import type {
   AttachmentRef,
   WireAllBotMention,
@@ -11,8 +13,10 @@ import type {
   JournalPage,
   ToolApprovalOutcome,
   WireDraft,
+  WireDelivery,
   WireDraftAppend,
   WireReaction,
+  WireReplyPreview,
 } from './wire';
 
 export type DeliveryState = 'pending' | 'committed' | 'failed';
@@ -23,20 +27,26 @@ export interface MessageCard {
   kind: CardKind;
   channelId: string;
   subject?: string;
+  command?: string;
+  resolved?: true;
 }
 
 export type CardResolution =
   | { kind: 'tool-approval'; outcome: ToolApprovalOutcome }
-  | { kind: 'user-question'; state: 'answered' | 'cancelled' };
+  | { kind: 'user-question'; state: 'answered' | 'cancelled' }
+  | { kind: 'grant' }
+  | { kind: 'private-input' };
 
 export interface MessageAttachment {
   key: string;
+  identity?: string;
   kind: 'image' | 'file' | 'audio';
   name: string;
   mime?: string;
   size?: number;
   source?: RemoteSource;
   local: boolean;
+  cleared?: true;
 }
 
 export const LOCAL_HUMAN = 'local-human';
@@ -99,11 +109,15 @@ export function shownInChat(message: ConversationMessage): boolean {
   const resolution = message.resolves?.resolution;
   if (
     resolution?.kind === 'tool-approval' ||
+    resolution?.kind === 'grant' ||
+    resolution?.kind === 'private-input' ||
     (resolution?.kind === 'user-question' && resolution.state === 'cancelled')
   )
     return false;
   if (message.welcome === true) return false;
   return (
+    message.source?.message.contentPurge !== undefined ||
+    message.source?.message.sessionFailure !== undefined ||
     message.activity !== undefined ||
     message.body.trim() !== '' ||
     message.attachments.length > 0 ||
@@ -113,6 +127,8 @@ export function shownInChat(message: ConversationMessage): boolean {
 }
 
 export interface ConversationMessage {
+  source?: JournalEntry;
+  sessionFailure?: import('./session-failure').SessionFailure;
   id: string;
   revision?: number;
   at: string;
@@ -120,11 +136,15 @@ export interface ConversationMessage {
   bot?: string;
   body: string;
   mentions?: WireMention[];
+  replyTo?: string;
+  replyPreview?: WireReplyPreview | null;
   attachments: MessageAttachment[];
   card?: MessageCard;
   resolves?: { requestId: string; resolution: CardResolution };
   reactions?: ConversationReaction[];
+  deliveries?: WireDelivery[];
   delivery: DeliveryState;
+  attemptStartedAt?: number;
   error?: string;
   welcome?: true;
   activity?: ChannelActivity;
@@ -147,6 +167,7 @@ export interface ConversationSnapshot {
   drafts: ConversationDraft[];
   hasOlder: boolean;
   loadingOlder: boolean;
+  olderError?: boolean;
   fromCache: boolean;
 }
 
@@ -173,6 +194,7 @@ function timelineOf(
     current.reason === previous.reason &&
     current.hasOlder === previous.hasOlder &&
     current.loadingOlder === previous.loadingOlder &&
+    current.olderError === previous.olderError &&
     current.fromCache === previous.fromCache
   )
     return previous;
@@ -212,6 +234,7 @@ export interface Conversation {
   send(body: string, files?: OutgoingFile[], tags?: MessageTags): string;
   retry(messageId: string): void;
   react(messageId: string, emoji: string, active: boolean): Promise<void>;
+  wireMessage?(messageId: string): ChannelWireMessage | undefined;
 }
 
 export interface ConversationOptions {
@@ -246,6 +269,7 @@ export const ATTACHMENT_PATH = '/api/botharness/attachment';
 export interface MessageTags {
   mentions?: WireMention[];
   allBotMention?: WireAllBotMention;
+  replyTo?: string;
 }
 
 interface Outgoing {
@@ -253,6 +277,7 @@ interface Outgoing {
   acceptanceObserved?: boolean;
   id: string;
   at: string;
+  attemptStartedAt: number;
   body: string;
   tags: MessageTags;
   files: OutgoingFile[];
@@ -261,7 +286,7 @@ interface Outgoing {
   error?: string;
 }
 
-function uuid(): string {
+export function uuid(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/gu, (c) => {
     const r = (Math.random() * 16) | 0;
     return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
@@ -281,20 +306,37 @@ function field(value: unknown, key: string): unknown {
 function cardOf(channelId: string, message: ChannelWireMessage): MessageCard | undefined {
   if (message.toolApprovalRequest !== undefined) {
     const subject = text(field(message.toolApprovalRequest, 'toolName'));
-    return { kind: 'tool-approval', channelId, ...(subject === undefined ? {} : { subject }) };
+    const input = text(field(message.toolApprovalRequest, 'input'));
+    const command =
+      subject === undefined || input === undefined ? undefined : approvalCommand(subject, input);
+    return {
+      kind: 'tool-approval',
+      channelId,
+      ...(subject === undefined ? {} : { subject }),
+      ...(command === undefined ? {} : { command }),
+    };
   }
   if (message.userQuestionRequest !== undefined) {
     const questions = field(message.userQuestionRequest, 'questions');
     const subject = Array.isArray(questions) ? text(field(questions[0], 'question')) : undefined;
     return { kind: 'user-question', channelId, ...(subject === undefined ? {} : { subject }) };
   }
-  if (message.privateInputRequest !== undefined) return { kind: 'private-input', channelId };
-  if (message.grantRequest === true) return { kind: 'grant', channelId };
+  if (message.privateInputRequest !== undefined) {
+    const subject = text(field(message.privateInputRequest, 'purpose'));
+    return { kind: 'private-input', channelId, ...(subject === undefined ? {} : { subject }) };
+  }
+  if (message.grantRequest === true)
+    return {
+      kind: 'grant',
+      channelId,
+      ...(message.grantRequestResolved === true ? { resolved: true as const } : {}),
+    };
   return undefined;
 }
 
 const OUTCOMES = new Set<string>([
   'allowed-once',
+  'allowed-always-tool',
   'allowed-always-exact',
   'allowed-always-all',
   'rejected',
@@ -314,6 +356,10 @@ function resolvesOf(message: ChannelWireMessage): ConversationMessage['resolves'
   const state = field(resolution, 'state');
   if (answered !== undefined && (state === 'answered' || state === 'cancelled'))
     return { requestId: answered, resolution: { kind: 'user-question', state } };
+  const granted = text(field(message.grantRequestResolution, 'requestMessageId'));
+  if (granted !== undefined) return { requestId: granted, resolution: { kind: 'grant' } };
+  const provided = text(field(message.privateInputResolution, 'requestMessageId'));
+  if (provided !== undefined) return { requestId: provided, resolution: { kind: 'private-input' } };
   return undefined;
 }
 
@@ -321,10 +367,10 @@ function attachmentPath(params: Record<string, string>): string {
   return `${ATTACHMENT_PATH}?${new URLSearchParams(params)}`;
 }
 
-function attachmentsOf(
+export function attachmentsOf(
   entry: JournalEntry,
   resolve: (path: string) => RemoteSource,
-  picked: readonly (OutgoingFile | undefined)[],
+  picked: readonly (OutgoingFile | undefined)[] = [],
 ): MessageAttachment[] {
   const message = entry.message;
   const owner = { channelId: entry.channelId, messageId: message.id };
@@ -332,6 +378,7 @@ function attachmentsOf(
     const file = picked[index];
     return {
       key: `${message.id}:${index}`,
+      ...((ref.fileId ?? ref.hash) === undefined ? {} : { identity: ref.fileId ?? ref.hash! }),
       kind: PREVIEWABLE.has(ref.mime) ? 'image' : 'file',
       name: ref.name,
       mime: ref.mime,
@@ -353,6 +400,7 @@ function attachmentsOf(
   const sourceEventId = message.bridgeOrigin?.sourceEventId;
   const bridged = (message.bridgeMedia?.items ?? []).map((item): MessageAttachment => ({
     key: `${message.id}:bridge:${item.id}`,
+    identity: `${sourceEventId ?? message.id}:bridge:${item.id}`,
     kind: item.kind,
     name: item.name,
     ...(item.sizeBytes === undefined ? {} : { size: item.sizeBytes }),
@@ -369,7 +417,16 @@ function attachmentsOf(
         }),
     local: false,
   }));
-  return [...stored, ...bridged];
+  const cleared = (message.clearedAttachments ?? []).map((item, index): MessageAttachment => ({
+    key: `${message.id}:cleared:${index}`,
+    kind: 'file',
+    name: item.name,
+    mime: item.mime,
+    size: item.size,
+    local: false,
+    cleared: true,
+  }));
+  return [...stored, ...cleared, ...bridged];
 }
 
 function present(
@@ -382,21 +439,30 @@ function present(
   const card = cardOf(entry.channelId, message);
   const resolves = resolvesOf(message);
   const activity = activityOf(message);
+  const failure = kind === 'bot' ? sessionFailure(message.sessionFailure) : undefined;
   return {
     id: message.id,
+    source: entry,
     revision: entry.revision,
     at: message.at,
     author: kind === 'human' ? 'human' : kind === 'bot' ? 'bot' : 'system',
     ...(message.author.kind === 'bot' ? { bot: message.author.slug } : {}),
     body: message.body,
     ...(message.mentions === undefined ? {} : { mentions: message.mentions }),
+    ...(message.replyTo === undefined
+      ? {}
+      : { replyTo: message.replyTo, replyPreview: message.replyToPreview ?? null }),
     attachments: attachmentsOf(entry, resolve, picked),
     ...(card === undefined ? {} : { card }),
     ...(resolves === undefined ? {} : { resolves }),
     ...(activity === undefined ? {} : { activity }),
+    ...(failure === undefined ? {} : { sessionFailure: failure }),
     ...(message.reactions === undefined || message.reactions.length === 0
       ? {}
       : { reactions: message.reactions }),
+    ...(message.deliveries === undefined || message.deliveries.length === 0
+      ? {}
+      : { deliveries: message.deliveries }),
     delivery: 'committed',
     ...(kind === 'system' && message.onboardingWelcome !== undefined ? { welcome: true } : {}),
   };
@@ -414,6 +480,7 @@ export function createConversation(options: ConversationOptions): Conversation {
   let window: JournalEntry[] = [];
   let hasOlder = false;
   let loadingOlder = false;
+  let olderError = false;
   let fromCache = false;
   let status: ConversationStatus = 'opening';
   let reason: string | undefined;
@@ -443,6 +510,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       drafts: [...drafts.values()],
       hasOlder,
       loadingOlder,
+      ...(olderError ? { olderError: true } : {}),
       fromCache,
     };
   }
@@ -456,6 +524,13 @@ export function createConversation(options: ConversationOptions): Conversation {
     return message;
   }
 
+  function replyPreview(id: string): WireReplyPreview | null {
+    const target = window.find((entry) => entry.message.id === id)?.message;
+    if (target !== undefined) return { author: target.author, body: target.body };
+    const pending = outgoing.get(id);
+    return pending === undefined ? null : { author: { kind: 'human' }, body: pending.body };
+  }
+
   function buildMessages(): ConversationMessage[] {
     const committed = new Set(window.map((entry) => entry.message.id));
     const pending: ConversationMessage[] = [];
@@ -467,6 +542,9 @@ export function createConversation(options: ConversationOptions): Conversation {
         author: 'human',
         body: item.body,
         ...(item.tags.mentions === undefined ? {} : { mentions: item.tags.mentions }),
+        ...(item.tags.replyTo === undefined
+          ? {}
+          : { replyTo: item.tags.replyTo, replyPreview: replyPreview(item.tags.replyTo) }),
         attachments: item.files.map((file, index) => ({
           key: `${item.id}:${index}`,
           kind: file.kind ?? 'file',
@@ -476,6 +554,7 @@ export function createConversation(options: ConversationOptions): Conversation {
           local: file.uri !== undefined,
         })),
         delivery: item.delivery,
+        attemptStartedAt: item.attemptStartedAt,
         ...(item.error === undefined ? {} : { error: item.error }),
       });
     }
@@ -589,7 +668,25 @@ export function createConversation(options: ConversationOptions): Conversation {
     return true;
   };
 
-  const applyNotification = (notification: ChannelNotification, current: number): void => {
+  const setDeliveries = (messageId: string, deliveries: readonly WireDelivery[]): boolean => {
+    const signature = (list: readonly WireDelivery[] | undefined) =>
+      (list ?? []).map((delivery) => delivery.botSlug + ':' + delivery.state).join('|');
+    const index = window.findIndex((entry) => entry.message.id === messageId);
+    const entry = window[index];
+    if (entry === undefined || signature(entry.message.deliveries) === signature(deliveries))
+      return false;
+    const next = { ...entry, message: { ...entry.message, deliveries: [...deliveries] } };
+    window = window.map((current, position) => (position === index ? next : current));
+    return true;
+  };
+
+  const applyNotification = (notification: ChannelNotification, current: number): boolean => {
+    if (notification.kind === 'admission')
+      return (
+        notification.channelId === channelId &&
+        notification.deliveries !== undefined &&
+        setDeliveries(notification.messageId, notification.deliveries)
+      );
     if (notification.kind === 'reaction') {
       if (notification.channelId === channelId)
         setReactions(notification.messageId, notification.reactions);
@@ -600,6 +697,7 @@ export function createConversation(options: ConversationOptions): Conversation {
     else if (notification.kind === 'draft-append') appendDraft(notification.append, current);
     else if (notification.kind === 'draft-settled' || notification.kind === 'draft-abandoned')
       deleteDraft(notification.event.draftId);
+    return false;
   };
 
   const upsertDraft = (draft: WireDraft): void => {
@@ -648,10 +746,10 @@ export function createConversation(options: ConversationOptions): Conversation {
         for (const [draftId, draft] of drafts)
           if (draft.botSlug === entry.message.author.slug) deleteDraft(draftId);
     } else {
-      applyNotification(frame.notification, current);
+      const admitted = applyNotification(frame.notification, current);
       const kind = frame.notification.kind;
       if (kind === 'draft' || kind === 'draft-append') return publishDrafts();
-      if (kind !== 'reaction') return publish(false);
+      if (kind !== 'reaction' && !admitted) return publish(false);
     }
     settleOutgoing();
     publish();
@@ -760,6 +858,7 @@ export function createConversation(options: ConversationOptions): Conversation {
         ...(item.tags.allBotMention === undefined
           ? {}
           : { allBotMention: item.tags.allBotMention }),
+        ...(item.tags.replyTo === undefined ? {} : { replyTo: item.tags.replyTo }),
       });
       accepted(item);
       if (outgoing.get(item.id) !== item) return;
@@ -780,6 +879,7 @@ export function createConversation(options: ConversationOptions): Conversation {
     },
     getSnapshot: () => snapshot,
     getTimelineSnapshot: () => timelineSnapshot,
+    wireMessage: (messageId) => window.find((entry) => entry.message.id === messageId)?.message,
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -849,6 +949,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       const current = session;
       const before = first();
       loadingOlder = true;
+      olderError = false;
       publish();
       try {
         const page = await readPage(last(), before, olderPageSize);
@@ -860,6 +961,7 @@ export function createConversation(options: ConversationOptions): Conversation {
         } else if (entries.length === 0) hasOlder = false;
         persist();
       } catch {
+        if (current === session) olderError = true;
       } finally {
         loadingOlder = false;
         publish();
@@ -870,6 +972,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       const item: Outgoing = {
         id: newMessageId(),
         at: new Date().toISOString(),
+        attemptStartedAt: Date.now(),
         body,
         tags,
         files,
@@ -910,6 +1013,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       const item = outgoing.get(messageId);
       if (item === undefined || item.delivery !== 'failed') return;
       item.delivery = 'pending';
+      item.attemptStartedAt = Date.now();
       delete item.error;
       publish();
       void deliver(item);

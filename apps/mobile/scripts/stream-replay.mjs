@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -55,7 +56,6 @@ const record = (value) => {
   if (log) appendFileSync(log, JSON.stringify({ ...value, at: Date.now() }) + '\n');
 };
 const consumed = new Set();
-let requestCount = 0;
 const server = createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && req.url === '/health') {
@@ -102,7 +102,7 @@ const server = createServer(async (req, res) => {
     const fixture = config.fixture ?? 'prose';
     const intervalMs = ['gentle', 'rhythm'].includes(fixture) ? 100 : 32;
     const chunkGraphemes = fixture === 'gentle' ? 3 : 80;
-    const tool = (request.tools ?? []).find((entry) => entry.function?.name === 'channel_send');
+    const tool = (request.tools ?? []).find((entry) => entry.function?.name === 'bot_send_message');
     const done =
       !config.runId ||
       consumed.has(config.runId) ||
@@ -113,10 +113,10 @@ const server = createServer(async (req, res) => {
       if (consumed.size > 64) consumed.delete(consumed.values().next().value);
     }
     const body = fixtures[fixture];
-    const id = 'qa_replay_' + ++requestCount;
+    const id = 'qa_replay_' + randomUUID();
     const argumentsText = JSON.stringify({ channel_id: 'dm-' + config.slug, body });
     const toolCalls = [
-      { id, type: 'function', function: { name: 'channel_send', arguments: argumentsText } },
+      { id, type: 'function', function: { name: 'bot_send_message', arguments: argumentsText } },
     ];
     if (!request.stream) {
       res.writeHead(200, { 'content-type': 'application/json' });
@@ -174,7 +174,7 @@ const server = createServer(async (req, res) => {
       send({
         role: 'assistant',
         tool_calls: [
-          { index: 0, id, type: 'function', function: { name: 'channel_send', arguments: '' } },
+          { index: 0, id, type: 'function', function: { name: 'bot_send_message', arguments: '' } },
         ],
       });
       const graphemes = Array.from(

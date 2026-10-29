@@ -1,16 +1,15 @@
 import { useState, useSyncExternalStore } from 'react';
-import { Platform } from 'react-native';
 import { mobileTelemetry } from '../../telemetry/native';
 import { SHEET_GROUP } from '../chat/sheet';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
-import { Toggle } from '../primitives/toggle';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function StatisticsSettings() {
+  const t = useStrings();
   const state = useSyncExternalStore(mobileTelemetry.subscribe, mobileTelemetry.getSnapshot);
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const on = Platform.OS === 'android' ? SHEET_GROUP : 'sheet';
+  const on = SHEET_GROUP;
   return (
     <SettingsSection
       on={on}
@@ -25,23 +24,19 @@ export function StatisticsSettings() {
       <SettingsRow
         on={on}
         title={t.statisticsTitle}
-        trailing={
-          <Toggle
-            on={on}
-            label={t.statisticsTitle}
-            value={state.enabled}
-            disabled={!state.loaded || saving}
-            onChange={(value) => {
-              setSaving(true);
-              void mobileTelemetry.setEnabled(value).finally(() => setSaving(false));
-            }}
-          />
-        }
+        control={{
+          kind: 'switch',
+          value: state.enabled,
+          onChange: (value) => {
+            setSaving(true);
+            void mobileTelemetry.setEnabled(value).finally(() => setSaving(false));
+          },
+          disabled: !state.loaded || saving,
+        }}
       />
       <SettingsRow
         on={on}
         title={expanded ? t.statisticsHideDetails : t.statisticsDetails}
-        tone="muted"
         onPress={() => setExpanded(!expanded)}
         expanded={expanded}
       />

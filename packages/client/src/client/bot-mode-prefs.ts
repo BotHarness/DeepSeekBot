@@ -10,6 +10,9 @@ import {
   DEFAULT_BOT_MODE_GROUP_AUTO_ACCEPT,
   BOT_MODE_MOTION_FIELD,
   BOT_MODE_SEND_KEY_FIELD,
+  BOT_MODE_AUTO_COLLAPSE_MESSAGES_FIELD,
+  BOT_MODE_SHOW_DELIVERY_RECEIPTS_FIELD,
+  BOT_MODE_STREAM_REPLIES_FIELD,
   BOT_MODE_SORT_FIELD,
   BOT_MODE_SORT_MODES_FIELD,
   BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS_FIELD,
@@ -70,6 +73,9 @@ export interface BotModePrefsSnapshot {
   motionPreference: BotModeMotionPreference;
   botIcon: BotModeIcon;
   sendKey: BotModeSendKey;
+  autoCollapseMessages: boolean;
+  showDeliveryReceipts: boolean;
+  streamReplies: boolean;
   effectiveMotion: EffectiveMotion;
   sortMode: BotModeSortMode;
   sortModes: Record<string, BotModeSortMode>;
@@ -94,6 +100,9 @@ export interface BotModePrefsFace {
   setMotionPreference: (preference: BotModeMotionPreference) => void;
   setBotIcon: (icon: BotModeIcon) => void;
   setSendKey: (sendKey: BotModeSendKey) => void;
+  setAutoCollapseMessages: (enabled: boolean) => void;
+  setShowDeliveryReceipts: (enabled: boolean) => void;
+  setStreamReplies: (enabled: boolean) => void;
   setDeveloperMode: (enabled: boolean) => void;
   setShowBotSessions: (enabled: boolean) => void;
   setShowApprovalReviewSessions: (enabled: boolean) => void;
@@ -116,6 +125,9 @@ export function botModePrefsFace(prefs: BotModePrefs): BotModePrefsFace {
     setSendKey: (sendKey) => {
       prefs.setSendKey(sendKey);
     },
+    setAutoCollapseMessages: (enabled) => prefs.setAutoCollapseMessages(enabled),
+    setShowDeliveryReceipts: (enabled) => prefs.setShowDeliveryReceipts(enabled),
+    setStreamReplies: (enabled) => prefs.setStreamReplies(enabled),
     setDeveloperMode: (enabled) => {
       prefs.setDeveloperMode(enabled);
     },
@@ -183,6 +195,9 @@ export class BotModePrefs {
       motionPreference: DEFAULT_BOT_MODE_MOTION,
       botIcon: DEFAULT_BOT_MODE_ICON,
       sendKey: DEFAULT_BOT_MODE_SEND_KEY,
+      autoCollapseMessages: false,
+      showDeliveryReceipts: false,
+      streamReplies: false,
       developerMode: DEFAULT_BOT_MODE_DEVELOPER,
       showBotSessions: DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS,
       showApprovalReviewSessions: DEFAULT_BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS,
@@ -261,6 +276,33 @@ export class BotModePrefs {
       draft.sendKey = sendKey;
     });
     if (this.host !== undefined) this.persist(this.host.set(BOT_MODE_SEND_KEY_FIELD, sendKey));
+  }
+
+  setAutoCollapseMessages(enabled: boolean): void {
+    if (this.source.getSnapshot().autoCollapseMessages === enabled) return;
+    this.source.update((draft) => {
+      draft.autoCollapseMessages = enabled;
+    });
+    if (this.host !== undefined)
+      this.persist(this.host.set(BOT_MODE_AUTO_COLLAPSE_MESSAGES_FIELD, enabled));
+  }
+
+  setShowDeliveryReceipts(enabled: boolean): void {
+    if (this.source.getSnapshot().showDeliveryReceipts === enabled) return;
+    this.source.update((draft) => {
+      draft.showDeliveryReceipts = enabled;
+    });
+    if (this.host !== undefined)
+      this.persist(this.host.set(BOT_MODE_SHOW_DELIVERY_RECEIPTS_FIELD, enabled));
+  }
+
+  setStreamReplies(enabled: boolean): void {
+    if (this.source.getSnapshot().streamReplies === enabled) return;
+    this.source.update((draft) => {
+      draft.streamReplies = enabled;
+    });
+    if (this.host !== undefined)
+      this.persist(this.host.set(BOT_MODE_STREAM_REPLIES_FIELD, enabled));
   }
 
   async setAssignmentConcurrencyLimit(limit: number): Promise<boolean> {
@@ -405,6 +447,9 @@ export class BotModePrefs {
           ? section.assignmentConcurrencyLimit
           : DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT;
         draft.developerMode = section.developerMode === true;
+        draft.autoCollapseMessages = section.autoCollapseMessages === true;
+        draft.showDeliveryReceipts = section.showDeliveryReceipts === true;
+        draft.streamReplies = section.streamReplies === true;
         draft.showBotSessions = section.showBotSessions !== false;
         draft.showApprovalReviewSessions = section.showApprovalReviewSessions === true;
         draft.autoAcceptGroupInvites = section.autoAcceptGroupInvites !== false;
@@ -445,8 +490,14 @@ export class BotModePrefs {
   }
 
   private persist(operation: Promise<boolean | void>): void {
-    operation.catch((error: unknown) => {
-      console.warn('botharness: failed to persist the BOT-mode preference', error);
-    });
+    operation.then(
+      (saved) => {
+        if (saved === false) this.sync();
+      },
+      (error: unknown) => {
+        console.warn('botharness: failed to persist the BOT-mode preference', error);
+        this.sync();
+      },
+    );
   }
 }

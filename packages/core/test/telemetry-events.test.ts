@@ -13,6 +13,7 @@ import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { connectorType, createOutboundMessaging } from '../src/messaging/outbound.js';
 import type { MessagingProvider } from '../src/messaging/provider.js';
 import { createBotStateTracker } from '../src/state/bot-state.js';
+import type { TelemetryEventName } from '../src/telemetry/events.js';
 import {
   DAILY_USAGE_PERIOD_MS,
   dailyUsageProperties,
@@ -40,7 +41,7 @@ import {
   type TelemetryDecision,
   type TelemetrySender,
 } from '../src/telemetry/service.js';
-import { createTestRegistry } from './registry-fixture.js';
+import { createTestRegistry, registryDatabase } from './registry-fixture.js';
 
 const dirs: string[] = [];
 const cleanup: (() => void)[] = [];
@@ -61,7 +62,19 @@ const PERSONA = 'Secret persona text about the Human';
 const GIT_URL = 'https://github.com/someone/private-memory.git';
 const PNG =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/ZFsAAAAASUVORK5CYII=';
-const BASE_KEYS = ['$process_person_profile', 'source'];
+const BASE_KEYS = [
+  '$geoip_disable',
+  '$process_person_profile',
+  'source',
+  'app_version',
+  'dsh_version',
+  'os',
+  'arch',
+  'node_version',
+  'os_release_major',
+  'cpu_count_bucket',
+  'total_mem_gb_bucket',
+].sort();
 
 function recorder(decision: TelemetryDecision = { enabled: true }) {
   const events: TelemetryBatchEvent[] = [];
@@ -82,7 +95,7 @@ function recorder(decision: TelemetryDecision = { enabled: true }) {
     dataDir,
     send,
     capture: (event: string, properties?: Parameters<typeof telemetry.capture>[1]) =>
-      telemetry.capture(event, properties),
+      telemetry.capture(event as TelemetryEventName, properties),
     async events(): Promise<TelemetryBatchEvent[]> {
       await telemetry.flush();
       return events;
@@ -108,8 +121,11 @@ function expectNoContent(events: TelemetryBatchEvent[], ...extra: string[]): voi
 
 function registryWith(capture: (event: string) => void) {
   const root = tempDir('bh-telemetry-registry-');
+  const database = registryDatabase(join(root, 'bots'));
+  cleanup.push(() => database.close());
   return createTestRegistry({
     rootDir: join(root, 'bots'),
+    database,
     capture,
     cloneMemory: async (destination) => {
       mkdirSync(destination, { recursive: true });
@@ -128,7 +144,7 @@ describe('PersonaBot lifecycle telemetry', () => {
     );
     expect(registry.create({ slug: 'ada', displayName: DISPLAY_NAME }).ok).toBe(false);
     const events = await r.events();
-    expect(events.map((event) => event.event)).toEqual(['bot_created']);
+    expect(events.map((event) => event.event)).toEqual(['bot_library:bot_create']);
     expect(keys(events[0])).toEqual(BASE_KEYS);
     expectNoContent(events, 'ada');
   });
@@ -143,7 +159,7 @@ describe('PersonaBot lifecycle telemetry', () => {
     });
     expect(result.ok).toBe(true);
     const events = await r.events();
-    expect(events.map((event) => event.event)).toEqual(['bot_created']);
+    expect(events.map((event) => event.event)).toEqual(['bot_library:bot_create']);
     expect(keys(events[0])).toEqual(BASE_KEYS);
     expectNoContent(events, 'imported');
   });
@@ -156,8 +172,8 @@ describe('PersonaBot lifecycle telemetry', () => {
     registry.setPaused('ada', true);
     registry.setPaused('ada', false);
     registry.setPaused('missing', true);
-    const events = (await r.events()).filter((event) => event.event !== 'bot_created');
-    expect(events.map((event) => event.event)).toEqual(['bot_archived']);
+    const events = (await r.events()).filter((event) => event.event !== 'bot_library:bot_create');
+    expect(events.map((event) => event.event)).toEqual(['bot_library:bot_archive']);
     expect(keys(events[0])).toEqual(BASE_KEYS);
     expectNoContent(events, 'ada');
   });
@@ -168,7 +184,9 @@ describe('PersonaBot lifecycle telemetry', () => {
     try {
       core.registry.create({ slug: 'ada', displayName: DISPLAY_NAME, persona: PERSONA });
       expect(() => core.registry.remove('ada')).toThrow('confirmed PersonaBot deletion');
-      expect((await r.events()).filter((event) => event.event === 'bot_deleted')).toEqual([]);
+      expect(
+        (await r.events()).filter((event) => event.event === 'bot_library:bot_delete'),
+      ).toEqual([]);
       const preview = core.deletions.preview('ada');
       await expect(core.deletions.confirm('ada', 'stale', false)).rejects.toThrow('scope changed');
       await core.deletions.confirm('ada', preview.token, false);
@@ -176,8 +194,8 @@ describe('PersonaBot lifecycle telemetry', () => {
       await expect(core.deletions.confirm('ada', preview.token, false)).rejects.toThrow(
         'scope changed',
       );
-      const events = (await r.events()).filter((event) => event.event !== 'bot_created');
-      expect(events.map((event) => event.event)).toEqual(['bot_deleted']);
+      const events = (await r.events()).filter((event) => event.event !== 'bot_library:bot_create');
+      expect(events.map((event) => event.event)).toEqual(['bot_library:bot_delete']);
       expect(keys(events[0])).toEqual(BASE_KEYS);
       expectNoContent(events, 'ada');
     } finally {
@@ -197,14 +215,17 @@ describe('PersonaBot lifecycle telemetry', () => {
     expect(registry.update('ada', { displayName: 'Renamed' }).ok).toBe(true);
     expect(registry.setAppearance('ada', DEFAULT_ILLUSTRATED_RECIPE).ok).toBe(true);
     expect(registry.setAppearance('ada', { invalid: true }).ok).toBe(false);
-    const events = (await r.events()).filter((event) => event.event !== 'bot_created');
-    expect(events.map((event) => event.event)).toEqual(['avatar_edited', 'avatar_edited']);
+    const events = (await r.events()).filter((event) => event.event !== 'bot_library:bot_create');
+    expect(events.map((event) => event.event)).toEqual([
+      'bot_profile:avatar_update',
+      'bot_profile:avatar_update',
+    ]);
     for (const event of events) expect(keys(event)).toEqual(BASE_KEYS);
     expectNoContent(events, 'ada', 'base64', 'Renamed');
   });
 });
 
-describe('marketplace_bot_installed', () => {
+describe('marketplace:bot_install', () => {
   it('is captured only for a successful Marketplace install', async () => {
     const r = recorder();
     const registry = registryWith(r.capture);
@@ -231,16 +252,16 @@ describe('marketplace_bot_installed', () => {
 
     const events = await r.events();
     expect(events.map((event) => event.event)).toEqual([
-      'bot_created',
-      'marketplace_bot_installed',
-      'bot_created',
+      'bot_library:bot_create',
+      'marketplace:bot_install',
+      'bot_library:bot_create',
     ]);
     expect(keys(events[1])).toEqual(BASE_KEYS);
     expectNoContent(events, 'bot-1', 'someone', 'private-memory');
   });
 });
 
-describe('connector_enabled', () => {
+describe('im:connector_enable', () => {
   function messaging(platform: string, capture: (event: string, properties?: never) => void) {
     const home = tempDir('bh-telemetry-messaging-');
     const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
@@ -318,7 +339,7 @@ describe('connector_enabled', () => {
     const m = messaging('slack', r.capture);
     await m.bind('ada');
     const events = await r.events();
-    expect(events.map((event) => event.event)).toEqual(['connector_enabled']);
+    expect(events.map((event) => event.event)).toEqual(['im:connector_enable']);
     expect(keys(events[0])).toEqual([...BASE_KEYS, 'type'].sort());
     expect(events[0]!.properties['type']).toBe('slack');
     expectNoContent(events, ...forbidden);
@@ -329,7 +350,7 @@ describe('connector_enabled', () => {
     const m = messaging('feishu', r.capture);
     await m.authorize('ada');
     const events = await r.events();
-    expect(events.map((event) => event.event)).toEqual(['connector_enabled']);
+    expect(events.map((event) => event.event)).toEqual(['im:connector_enable']);
     expect(keys(events[0])).toEqual([...BASE_KEYS, 'type'].sort());
     expect(events[0]!.properties['type']).toBe('feishu');
     expectNoContent(events, ...forbidden);
@@ -364,7 +385,10 @@ describe('connector_enabled', () => {
       inheritEnabled: false,
     });
     const events = await r.events();
-    expect(events.map((event) => event.event)).toEqual(['connector_enabled', 'connector_enabled']);
+    expect(events.map((event) => event.event)).toEqual([
+      'im:connector_enable',
+      'im:connector_enable',
+    ]);
     expectNoContent(events, ...forbidden, 'Renamed Account');
   });
 
@@ -375,7 +399,7 @@ describe('connector_enabled', () => {
   });
 });
 
-describe('daily_usage', () => {
+describe('app:usage_report', () => {
   it('reads PersonaBot, Session and message counts in a window', () => {
     const home = tempDir('bh-telemetry-usage-');
     const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
@@ -449,14 +473,20 @@ describe('daily_usage', () => {
       expect(windows).toHaveLength(2);
 
       const events = await r.events();
-      expect(events.map((event) => event.event)).toEqual(['daily_usage', 'daily_usage']);
+      expect(events.map((event) => event.event)).toEqual(['app:usage_report', 'app:usage_report']);
       expect(keys(events[0])).toEqual(
-        [...BASE_KEYS, 'messages', 'persona_bots', 'sessions', 'window_hours'].sort(),
+        [
+          ...BASE_KEYS,
+          'message_count',
+          'persona_bot_count',
+          'session_count',
+          'window_hours',
+        ].sort(),
       );
       expect(events[0]!.properties).toMatchObject({
-        persona_bots: 3,
-        sessions: 4,
-        messages: 25,
+        persona_bot_count: 3,
+        session_count: 4,
+        message_count: 25,
         window_hours: 24,
       });
       expect(JSON.parse(readFileSync(join(r.dataDir, INSTALL_ID_FILE), 'utf8'))).toEqual({
@@ -476,9 +506,9 @@ describe('daily_usage', () => {
         37.6 * 3_600_000,
       ),
     ).toEqual({
-      persona_bots: 0,
-      sessions: 2,
-      messages: 0,
+      persona_bot_count: 0,
+      session_count: 2,
+      message_count: 0,
       window_hours: 38,
     });
   });
@@ -716,8 +746,8 @@ describe('the Human telemetry preference', () => {
       uninstall();
       stopUsage();
       expect((await r.events()).map((event) => event.event)).toEqual([
-        'bot_archived',
-        'daily_usage',
+        'bot_library:bot_archive',
+        'app:usage_report',
         '$exception',
       ]);
     } finally {

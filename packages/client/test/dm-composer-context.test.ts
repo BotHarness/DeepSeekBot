@@ -469,6 +469,13 @@ it('uses compact icon labels and a left context/right usage split, with keyboard
     modelCatalog: async () => ({ models: [] }),
     listWorkspaceGrants: async () => [],
     profileSessionUsage,
+    botContext: async () => ({
+      sessionId: 'orch',
+      usedTokens: 28039,
+      contextWindow: 1000000,
+      capacitySource: 'model',
+      thresholdTokens: 800000,
+    }),
   } as unknown as BridgeActions;
   const details = vi.fn();
   function Harness() {
@@ -515,7 +522,7 @@ it('uses compact icon labels and a left context/right usage split, with keyboard
     expect(host.querySelector('[data-composer-context-leading]')!.textContent).toContain(
       '0 个工作区',
     );
-    expect(host.querySelector('[data-composer-chip="usage"]')!.textContent).toBe('1.3M');
+    expect(host.querySelector('[data-composer-chip="usage"]')!.textContent).toBe('28K / 1M');
     expect(host.querySelectorAll('[data-composer-context] button svg')).toHaveLength(3);
     await clickUsage();
     expect(details).not.toHaveBeenCalled();
@@ -561,7 +568,7 @@ it('uses compact icon labels and a left context/right usage split, with keyboard
         meter.getAttribute('aria-valuenow'),
       ),
     ).toEqual(['75', '25']);
-    expect(popover.querySelectorAll('.bh-composer-usage-caption')).toHaveLength(0);
+    expect(popover.textContent).toContain('当前用量为估算');
     expect(popover.querySelector('.bh-composer-usage-footer > button')?.textContent).toContain(
       '查看详细用量',
     );

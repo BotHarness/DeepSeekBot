@@ -11,9 +11,13 @@ export const REFERENCE_SURFACES: Record<ThemeName, { background: string; label: 
 
 export function parseColor(value: string): { rgb: Rgb; alpha: number } | undefined {
   const text = value.trim().toLowerCase();
-  const hex = /^#([0-9a-f]{6})$/u.exec(text);
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/u.exec(text);
   if (hex !== null) {
-    const number = Number.parseInt(hex[1]!, 16);
+    const digits = hex[1]!;
+    const number = Number.parseInt(
+      digits.length === 3 ? [...digits].map((digit) => digit + digit).join('') : digits,
+      16,
+    );
     return { rgb: [number >> 16, (number >> 8) & 255, number & 255], alpha: 1 };
   }
   const functional = /^(rgba?|color)\(([^)]+)\)$/u.exec(text);
@@ -133,6 +137,80 @@ export function readable(source: string, background: string, minimum: number): s
   return adjusted === undefined ? toHex(from) : toHex(adjusted);
 }
 
+const nameColors = new Map<string, string>();
+
 export function botNameColor(source: string, background: string): string {
-  return readable(source, background, NAME_TARGET);
+  const key = `${source}\n${background}`;
+  let color = nameColors.get(key);
+  if (color === undefined) {
+    if (nameColors.size >= 256) nameColors.clear();
+    color = readable(source, background, NAME_TARGET);
+    nameColors.set(key, color);
+  }
+  return color;
+}
+
+export const BUBBLE_SURFACES: Record<ThemeName, { base: string; surface: string; fg: string }> = {
+  light: { base: '#ffffff', surface: '#f5f6f7', fg: '#0f1115' },
+  dark: { base: '#151517', surface: '#353638', fg: '#f9fafb' },
+};
+export const BUBBLE_SEPARATION = 1.3;
+const INK_LIGHT: Rgb = [255, 255, 255];
+const INK_DARK: Rgb = [15, 17, 21];
+const LIGHT_INK_FLOOR = 3;
+
+function mixRgb(from: Rgb, to: Rgb, amount: number): Rgb {
+  return [0, 1, 2].map((index) => from[index]! + (to[index]! - from[index]!) * amount) as [
+    number,
+    number,
+    number,
+  ];
+}
+
+export function humanBubbleColors(
+  source: string,
+  theme: ThemeName,
+  background?: string,
+  surfaces = BUBBLE_SURFACES[theme],
+): { fill: string; ink: string } | undefined {
+  const from = parseColor(source)?.rgb;
+  if (from === undefined) return undefined;
+  const reference = surfaces;
+  const fg = parseColor(reference.fg)!.rgb;
+  const behind = [background ?? reference.base, reference.surface].map(
+    (value) => parseColor(value)!.rgb,
+  );
+  const steps = Array.from({ length: 41 }, (_, step) => step / 40);
+  const separatedStep = steps.find((step) =>
+    behind.every(
+      (rgb) =>
+        contrastRatio(parseColor(toHex(mixRgb(from, fg, step)))!.rgb, rgb) >= BUBBLE_SEPARATION,
+    ),
+  );
+  const separated = mixRgb(from, fg, separatedStep ?? 1);
+  const darkStep = steps.find(
+    (step) => contrastRatio(mixRgb(separated, [0, 0, 0], step), INK_LIGHT) >= NAME_TARGET,
+  );
+  const preferred =
+    contrastRatio(separated, INK_LIGHT) < LIGHT_INK_FLOOR
+      ? { fill: toHex(separated), ink: toHex(INK_DARK) }
+      : { fill: toHex(mixRgb(separated, [0, 0, 0], darkStep ?? 1)), ink: toHex(INK_LIGHT) };
+  const valid = (pair: { fill: string; ink: string }) => {
+    const fill = parseColor(pair.fill)!.rgb;
+    return (
+      contrastRatio(fill, parseColor(pair.ink)!.rgb) >= NAME_CONTRAST &&
+      behind.every((surface) => contrastRatio(fill, surface) >= BUBBLE_SEPARATION)
+    );
+  };
+  if (valid(preferred)) return preferred;
+  for (const step of steps) {
+    for (const toward of [fg, [0, 0, 0] as const, INK_LIGHT]) {
+      const fill = toHex(mixRgb(from, toward, step));
+      const rgb = parseColor(fill)!.rgb;
+      const ink = contrastRatio(rgb, INK_LIGHT) >= NAME_TARGET ? INK_LIGHT : INK_DARK;
+      const pair = { fill, ink: toHex(ink) };
+      if (valid(pair)) return pair;
+    }
+  }
+  return preferred;
 }

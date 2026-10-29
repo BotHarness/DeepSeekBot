@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createMemoryService } from '../src/index.js';
 import { ensureMemoryRepository } from '../src/memory/repository.js';
-import { handleCompactionEvent } from '../src/plugin.js';
+import { handleCompactionEvent, refreshSessionTexts } from '../src/plugin.js';
 import { createTestOwnership, FIXED_NOW, createTempRoot } from './helpers.js';
 
 function setup() {
@@ -103,5 +103,17 @@ describe('handleCompactionEvent', () => {
     );
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain('persona refresh after compaction failed');
+  });
+
+  it('applies a pending persona without a compaction when refreshed directly', () => {
+    const { ownership, service, memoryDir } = setup();
+    writeFileSync(join(memoryDir, 'SOUL.md'), '# Persona v1\n');
+    expect(service.personaForSession('session-ada')).toContain('# Persona v1');
+    writeFileSync(join(memoryDir, 'SOUL.md'), '# Persona v2\n');
+    expect(service.personaPending?.('session-ada')).toBe(true);
+
+    refreshSessionTexts({ ownership, memory: service, warn: () => undefined }, 'session-ada');
+    expect(service.personaPending?.('session-ada')).toBe(false);
+    expect(service.personaForSession('session-ada')).toContain('# Persona v2');
   });
 });

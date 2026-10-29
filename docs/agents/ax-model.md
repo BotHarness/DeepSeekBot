@@ -40,6 +40,8 @@ the credential reference, preserves other Provider configuration, and selects th
 model without copying any Profile credential store. It retains DSH's native request attribution
 and real Session handling. Existing Profiles and independently launched Hosts are untouched.
 
+A per-run `BOTHARNESS_AX_MODEL=<installed-model-id>` selects a different model for that launch only; the launcher still verifies the selected id against its pinned native catalog. This does not edit the shared selection or another Host. Use it when an older saved model id is no longer in the pinned catalog.
+
 A per-run `OPENCODE_GO_API_KEY` environment override takes precedence after setup. The previous
 DeepSeek setup remains the fallback when no AX selection exists. To rotate the shared selection,
 inspect and remove the private file yourself, then rerun setup; active Hosts keep their inherited
@@ -53,7 +55,7 @@ this header; the first real QA turn failed with HTTP 400 `MissingSessionID`.
 
 For an opted-in AX launch, the helper installs an independent pinned CLI under the isolated
 home's `ax-cli` directory (or `packaged-cli` for product-artifact qualification). It applies the
-reviewed `dsh-llm-pi-ai` pnpm patch (re-keyed to `0.2.1-rc.2`): only the Go route adds the actual
+reviewed `dsh-llm-pi-ai` pnpm patch (re-keyed to `0.2.1-rc.3`): only the Go route adds the actual
 `GenerateOptions.sessionId`, removes case-insensitive collisions with a configured static
 header, and retains native `User-Agent` attribution and other headers. Missing Session identity
 stays missing; no fixed, random or substitute identity is supplied. Other Providers keep their
@@ -65,7 +67,7 @@ under the runtime directory and fails with `ERR_PNPM_PATCH_NOT_FOUND`, especiall
 worktree and isolated home are on different drives. Each launch refreshes the staged bytes from
 the worktree; other workspace settings and patch entries are preserved.
 
-The repository default is DSH `0.2.1-rc.2`; its installed adapter still omits the header.
+The repository default is DSH `0.2.1-rc.3`; its installed adapter still omits the header.
 Runtime qualification of this pin remains required. Historical RC2 evidence: the DSH
 `0.2.0-rc.2` adapter omitted the header, the patch applied unchanged, and the adapter regression
 (`scripts/test/dev-go-session.test.mjs`) passed against the patched RC2 package. On 2026-10-13 a

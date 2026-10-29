@@ -1,5 +1,6 @@
 import { useState, type ReactElement, type ReactNode } from 'react';
-import { Button, Checkbox, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 import type { MessagingConversationInput } from '../../../core/src/messaging/conversations.js';
 import type { GroupReceptionInput } from '../../../core/src/messaging/group-policy.js';
 import type { MessagingIdentityView } from '../../../core/src/messaging/identity.js';

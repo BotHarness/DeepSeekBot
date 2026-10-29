@@ -1,0 +1,19 @@
+{
+  "instance": "ax2080-breaker",
+  "calls": [
+    {
+      "name": "pwsh",
+      "outcome": "ok",
+      "result": "QA_BREAKER_2080_NATIVE_7391\r\n",
+      "approval": "allowed-once"
+    }
+  ],
+  "requestCount": 1,
+  "decisions": [
+    {
+      "requestMessageId": "cccd4f23-6dbd-4cc3-9a9d-f641458a5cce",
+      "outcome": "allowed-once"
+    }
+  ],
+  "rules": []
+}

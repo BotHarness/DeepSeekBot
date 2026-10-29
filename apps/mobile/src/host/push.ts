@@ -1,3 +1,5 @@
+import { isConnectRoute } from './route';
+import { encryptedCarrier } from './encrypted-carrier';
 import type { HostCarrier } from './carrier';
 import type { SavedHost } from './hosts';
 import { DEVICE_PREFIX } from './pairing';
@@ -8,12 +10,15 @@ export type PushPreferences = Record<PushKind, boolean>;
 
 export interface PushSettings {
   registered: boolean;
+  enabled: boolean;
   preferences: PushPreferences;
+  quietChannelIds: string[];
 }
 
 export type PushRefusal =
   | 'push-not-registered'
   | 'push-token-invalid'
+  | 'invalid-input'
   | 'push-send-failed'
   | 'device-revoked'
   | 'device-unknown'
@@ -33,6 +38,7 @@ export interface PushTarget {
   botSlug?: string;
   channelId?: string;
   messageId?: string;
+  deviceId?: string;
   test?: true;
 }
 
@@ -45,7 +51,7 @@ export function parsePushData(input: unknown): PushTarget | undefined {
   if (data['v'] !== 1 || typeof data['hostId'] !== 'string' || data['hostId'] === '')
     return undefined;
   const target: PushTarget = { hostId: data['hostId'] };
-  for (const key of ['itemId', 'kind', 'botSlug', 'channelId', 'messageId'] as const) {
+  for (const key of ['itemId', 'kind', 'botSlug', 'channelId', 'messageId', 'deviceId'] as const) {
     const value = data[key];
     if (typeof value === 'string' && value !== '') target[key] = value;
   }
@@ -63,7 +69,7 @@ export type PushHref =
   | { pathname: '/activity' };
 
 const REPLIES = new Set(['channel-reply', 'channel-mention']);
-const CARDS = new Set(['tool-approval', 'user-question']);
+const CARDS = new Set(['tool-approval', 'user-question', 'workspace-grant-request']);
 
 function chatHref(
   botSlug: string,
@@ -92,6 +98,15 @@ export function cardHref(
     item.channelId === undefined
   )
     return undefined;
+  return chatHref(item.botSlug, item.channelId, dmChannelOf, isGroup, item.messageId);
+}
+
+export function messageHref(
+  item: { botSlug: string; channelId?: string; messageId?: string },
+  dmChannelOf: (slug: string) => string | undefined,
+  isGroup: (channelId: string) => boolean = () => false,
+): ChatHref | undefined {
+  if (item.channelId === undefined) return undefined;
   return chatHref(item.botSlug, item.channelId, dmChannelOf, isGroup, item.messageId);
 }
 
@@ -132,11 +147,16 @@ export function pushHref(
 function settingsOf(value: unknown): PushSettings {
   const body = record(value);
   const preferences = record(body['preferences']);
+  const quiet = body['quietChannelIds'];
   return {
     registered: body['registered'] === true,
+    enabled: body['enabled'] !== false,
     preferences: Object.fromEntries(
       PUSH_KINDS.map((kind) => [kind, preferences[kind] !== false]),
     ) as PushPreferences,
+    quietChannelIds: Array.isArray(quiet)
+      ? quiet.filter((id): id is string => typeof id === 'string')
+      : [],
   };
 }
 
@@ -144,12 +164,15 @@ export interface PushRegistration {
   token: string;
   platform: 'ios' | 'android';
   locale: 'en' | 'zh';
+  render?: 'app';
 }
 
 export interface HostPush {
   settings(host: SavedHost): Promise<PushSettings>;
   register(host: SavedHost, registration: PushRegistration): Promise<PushSettings>;
   setPreferences(host: SavedHost, preferences: Partial<PushPreferences>): Promise<PushSettings>;
+  setEnabled(host: SavedHost, enabled: boolean): Promise<PushSettings>;
+  setQuiet(host: SavedHost, channelId: string, quiet: boolean): Promise<PushSettings>;
   test(host: SavedHost): Promise<void>;
   unregister(host: SavedHost): Promise<void>;
 }
@@ -160,38 +183,46 @@ export function createHostPush(carrier: HostCarrier, timeoutMs = 10_000): HostPu
     path: string,
     body?: Record<string, unknown>,
   ): Promise<unknown> => {
-    for (const route of host.routes) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      let status: number;
-      let text: string;
-      try {
-        const response = await carrier.request(`${route}${DEVICE_PREFIX}/push${path}`, {
-          method: body === undefined ? 'GET' : 'POST',
-          headers: { authorization: `Device ${host.credential}` },
-          signal: controller.signal,
-          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-        });
-        status = response.status;
-        text = await response.text();
-      } catch {
-        continue;
-      } finally {
-        clearTimeout(timer);
+    const transport = encryptedCarrier({ raw: carrier, ...host });
+    try {
+      for (const route of host.routes) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        let status: number;
+        let text: string;
+        try {
+          const response = await transport.request(`${route}${DEVICE_PREFIX}/push${path}`, {
+            method: body === undefined ? 'GET' : 'POST',
+            headers: { authorization: `Device ${host.credential}` },
+            signal: controller.signal,
+            ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+          });
+          status = response.status;
+          text = await response.text();
+        } catch (error) {
+          if (isConnectRoute(route)) throw error;
+          continue;
+        } finally {
+          clearTimeout(timer);
+        }
+        let value: unknown;
+        try {
+          value = JSON.parse(text);
+        } catch (error) {
+          if (isConnectRoute(route)) throw error;
+          continue;
+        }
+        if (status === 200) return value;
+        const code = record(value)['code'];
+        if (typeof code === 'string' && status >= 400 && status < 500)
+          throw new PushRequestFailed(code as PushRefusal);
+        if (status === 502) throw new PushRequestFailed('push-send-failed');
+        if (isConnectRoute(route)) throw new PushRequestFailed('unreachable');
       }
-      let value: unknown;
-      try {
-        value = JSON.parse(text);
-      } catch {
-        continue;
-      }
-      if (status === 200) return value;
-      const code = record(value)['code'];
-      if (typeof code === 'string' && status >= 400 && status < 500)
-        throw new PushRequestFailed(code as PushRefusal);
-      if (status === 502) throw new PushRequestFailed('push-send-failed');
+      throw new PushRequestFailed('unreachable');
+    } finally {
+      transport.close?.();
     }
-    throw new PushRequestFailed('unreachable');
   };
 
   return {
@@ -200,6 +231,10 @@ export function createHostPush(carrier: HostCarrier, timeoutMs = 10_000): HostPu
       settingsOf(await request(host, '/register', { ...registration })),
     setPreferences: async (host, preferences) =>
       settingsOf(await request(host, '/preferences', { preferences })),
+    setEnabled: async (host, enabled) =>
+      settingsOf(await request(host, '/preferences', { enabled })),
+    setQuiet: async (host, channelId, quiet) =>
+      settingsOf(await request(host, '/quiet', { channelId, quiet })),
     async test(host) {
       await request(host, '/test', {});
     },

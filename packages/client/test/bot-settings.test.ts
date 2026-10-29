@@ -69,6 +69,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
 }));
 
 import {
+  BOT_SETTINGS_SECTIONS,
   BotSettings,
   BotSettingsView,
   type BotSettingsSectionRow,
@@ -148,6 +149,37 @@ it('stays closed until opened and lists sections in order', () => {
   expect(current()).toBe('通用');
   expect(shownSection()).toBe('general');
   expect(document.querySelector('h2')?.textContent).toBe('通用');
+});
+
+it('leads every sidebar section with its own glyph and keeps the label as the name', () => {
+  const settings = new BotSettings();
+  const ids = [...Object.values(BOT_SETTINGS_SECTIONS), 'computer', 'browser'];
+  mount(
+    settings,
+    ids.map((id, order) => ({ id, order, label: id })),
+  );
+  act(() => {
+    settings.open('devices');
+  });
+  const buttons = [...document.querySelectorAll('nav button')];
+  expect(buttons.map((button) => button.textContent)).toEqual(ids);
+  const glyphs = buttons.map((button) => {
+    const icon = button.firstElementChild;
+    expect(icon?.getAttribute('aria-hidden')).toBe('true');
+    expect(icon?.querySelector('svg')).not.toBeNull();
+    return icon?.innerHTML;
+  });
+  expect(new Set(glyphs).size).toBe(ids.length);
+  expect(current()).toBe('devices');
+});
+
+it('gives a plugin section without a mapped glyph the generic settings glyph', () => {
+  const settings = new BotSettings();
+  mount(settings, [...ROWS, { id: 'some-plugin', order: 80, label: '插件' }]);
+  act(() => {
+    settings.open('some-plugin');
+  });
+  expect(document.querySelector('nav [aria-current="page"] svg')).not.toBeNull();
 });
 
 it('opens a requested section and falls back to General for an unknown id', () => {
@@ -291,14 +323,19 @@ it('renders only a section dropdown in narrow frames and switches sections from 
   expect(picker?.hasAttribute('data-modal-autofocus')).toBe(true);
   expect(picker?.getAttribute('aria-haspopup')).toBe('menu');
   expect(picker?.getAttribute('aria-label')).toBe('Bot 设置分区：模型与运行');
-  expect(document.querySelector('[data-menu="sections"]')?.getAttribute('data-selected')).toBe(
-    'models',
-  );
 
   act(() => {
     picker?.click();
   });
   expect(picker?.getAttribute('aria-expanded')).toBe('true');
+  expect(
+    document
+      .querySelector('[role="dialog"]')
+      ?.contains(document.querySelector('[data-pointer-menu]')),
+  ).toBe(true);
+  expect(document.querySelector('[data-menu="sections"]')?.getAttribute('data-selected')).toBe(
+    'models',
+  );
   expect(
     [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent),
   ).toEqual(['通用', '模型与运行', '数据与隐私', '关于']);

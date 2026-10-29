@@ -4,6 +4,7 @@ import * as stylex from '@stylexjs/stylex';
 import { border, color, space, text } from './tokens.stylex.js';
 
 const NARROW = '@media (max-width: 648px)';
+const COMPACT = '@container bh-settings (max-width: 480px)';
 
 const styles = stylex.create({
   rows: {
@@ -32,9 +33,9 @@ const styles = stylex.create({
   },
   row: {
     display: 'flex',
-    alignItems: { default: 'center', [NARROW]: 'stretch' },
-    flexDirection: { default: 'row', [NARROW]: 'column' },
-    gap: { default: space.x4, [NARROW]: space.x3 },
+    alignItems: { default: 'center', [NARROW]: 'stretch', [COMPACT]: 'stretch' },
+    flexDirection: { default: 'row', [NARROW]: 'column', [COMPACT]: 'column' },
+    gap: { default: space.x4, [NARROW]: space.x3, [COMPACT]: space.x3 },
     minWidth: 0,
     paddingBlock: space.x4,
     borderBottomWidth: border.hairline,
@@ -67,11 +68,11 @@ const styles = stylex.create({
     display: 'flex',
     flexWrap: 'wrap',
     alignItems: 'center',
-    justifyContent: { default: 'flex-end', [NARROW]: 'flex-start' },
+    justifyContent: { default: 'flex-end', [NARROW]: 'flex-start', [COMPACT]: 'flex-start' },
     gap: space.x3,
     flexShrink: 0,
     minWidth: 0,
-    maxWidth: { default: '60%', [NARROW]: '100%' },
+    maxWidth: { default: '60%', [NARROW]: '100%', [COMPACT]: '100%' },
   },
   value: {
     color: color.muted,

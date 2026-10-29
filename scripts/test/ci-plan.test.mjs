@@ -8,7 +8,9 @@ import {
   DOCS_SITE_TEST,
   FULL_LABEL,
   matchesGlob,
+  mobileVerification,
   parseChanges,
+  timelinePerf,
   parseGitChanges,
   plan,
   REQUIRED_CHECK,
@@ -55,7 +57,158 @@ const pr = (...paths) => ({
   changes: paths.map((path) => ({ status: 'modified', path })),
 });
 
+describe('mobile verification selection', () => {
+  const sources = {
+    ...repo,
+    'apps/mobile/app/index.tsx': "import { color } from '../../../packages/core/src/color';",
+    'packages/core/src/color.ts': "export { color } from './palette.js';",
+    'packages/core/src/palette.ts': 'export const color = 1;',
+    'packages/core/src/palette.ios.ts': 'export const color = 2;',
+    'packages/core/src/devices/connect-account.ts': 'export const connect = 1;',
+  };
+  const mobileIndex = (extra = {}) => {
+    const files = { ...sources, ...extra };
+    return createIndex(Object.keys(files), (file) => files[file]);
+  };
+  const select = (paths, extra = {}) =>
+    mobileVerification({
+      event: 'pull_request',
+      changes: paths.map((path) => ({ path, status: 'modified' })),
+      index: mobileIndex(),
+      ...extra,
+    });
+
+  it('skips the Host-only #2529 change and docs without skipping shared imports', () => {
+    expect(
+      select([
+        'packages/core/src/devices/connect-account.ts',
+        'docs/bot-cli.md',
+        'changes/2526-connect-account-deleted.md',
+      ]).run,
+    ).toBe(false);
+    expect(select(['packages/core/src/palette.ts']).run).toBe(true);
+    expect(select(['packages/core/src/palette.ios.ts']).run).toBe(true);
+  });
+
+  it.each([
+    'apps/mobile/app/index.tsx',
+    'apps/mobile/assets/icon.png',
+    'apps/mobile/app.config.js',
+    'apps/mobile/modules/a/index.ts',
+    'pnpm-lock.yaml',
+    '.node-version',
+    'scripts/ci-plan.mjs',
+    '.github/workflows/verify.yml',
+  ])('runs for %s', (path) => {
+    expect(select([path]).run).toBe(true);
+  });
+
+  it.each([
+    'docs/guide.md',
+    'apps/mobile/README.md',
+    'apps/mobile/test/a.test.ts',
+    'apps/mobile/.maestro/flow.yaml',
+    'apps/mobile/store/notes.md',
+  ])('skips non-bundle input %s', (path) => {
+    expect(select([path]).run).toBe(false);
+  });
+
+  it('keeps full-event, label, truncation, unknown and deletion fallbacks', () => {
+    for (const event of ['push', 'schedule', 'workflow_dispatch', 'workflow_call'])
+      expect(select([], { event }).run).toBe(true);
+    expect(select([], { labels: [FULL_LABEL] }).run).toBe(true);
+    expect(select([], { truncated: true }).run).toBe(true);
+    expect(select(['unknown/input']).run).toBe(true);
+    expect(
+      select([], { changes: [{ path: 'packages/core/src/removed.ts', status: 'removed' }] }).run,
+    ).toBe(true);
+    expect(
+      select([], {
+        changes: [
+          {
+            path: 'packages/core/src/new.ts',
+            previous: 'apps/mobile/src/old.ts',
+            status: 'renamed',
+          },
+        ],
+      }).run,
+    ).toBe(true);
+  });
+
+  it('traces require, side-effect imports, assets and cycles conservatively', () => {
+    const index = mobileIndex({
+      'apps/mobile/app/index.tsx': "import '../../../packages/core/src/start';",
+      'packages/core/src/start.ts':
+        "const value = require('./other'); const image = require('./icon.png');",
+      'packages/core/src/other.ts': "export * from './start';",
+      'packages/core/src/icon.png': '',
+    });
+    expect(select(['packages/core/src/other.ts'], { index }).run).toBe(true);
+    expect(select(['packages/core/src/icon.png'], { index }).run).toBe(true);
+  });
+
+  it('runs when an import cannot be safely resolved', () => {
+    for (const source of [
+      "import './missing';",
+      'const x = require(path);',
+      "import x from '@/shared';",
+      "import x from '@botharness/core';",
+      "import x from 'shared';",
+      "const x = require('../../../packages/core/src/color' + variant);",
+      'const x = require.resolve(path);',
+    ]) {
+      expect(
+        select(['packages/core/src/devices/connect-account.ts'], {
+          index: mobileIndex({ 'apps/mobile/app/index.tsx': source }),
+        }).run,
+      ).toBe(true);
+    }
+  });
+
+  it('parses imports across comments, template expressions and regex literals', () => {
+    for (const source of [
+      "import /* annotation */ '../../../packages/core/src/color';",
+      "const x = require /* annotation */ ('../../../packages/core/src/color');",
+      "const x = `${require('../../../packages/core/src/color')}`;",
+      "const apostrophe = /'/; import x from '../../../packages/core/src/color';",
+      "import shared = require('../../../packages/core/src/color');",
+    ]) {
+      const index = mobileIndex({ 'apps/mobile/app/index.tsx': source });
+      expect(select(['packages/core/src/color.ts'], { index }).run).toBe(true);
+      expect(select(['packages/core/src/devices/connect-account.ts'], { index }).run).toBe(false);
+    }
+  });
+
+  it('keeps removed script inputs conservative', () => {
+    expect(select([], { changes: [{ path: 'scripts/deleted.mjs', status: 'removed' }] }).run).toBe(
+      true,
+    );
+  });
+
+  it('follows declared workspace packages while accepting declared external dependencies', () => {
+    const index = mobileIndex({
+      'apps/mobile/app/index.tsx': "import '@botharness/shared'; import 'external/subpath';",
+      'apps/mobile/package.json': JSON.stringify({ dependencies: { external: '1.0.0' } }),
+      'packages/shared/package.json': JSON.stringify({ name: '@botharness/shared' }),
+      'packages/shared/src/value.ts': 'export const value = 1;',
+    });
+    expect(select(['packages/shared/src/value.ts'], { index }).run).toBe(true);
+    expect(select(['packages/core/src/devices/connect-account.ts'], { index }).run).toBe(false);
+  });
+});
+
 describe('CI test plan', () => {
+  it('runs the timeline performance budget for Client source, perf tooling and full runs', () => {
+    expect(timelinePerf('affected', [{ path: 'packages/client/src/client/bot-main.tsx' }])).toBe(
+      true,
+    );
+    expect(timelinePerf('affected', [{ path: 'scripts/perf-budgets/timeline.json' }])).toBe(true);
+    expect(timelinePerf('affected', [{ path: 'scripts/perf-idle-timeline.mjs' }])).toBe(true);
+    expect(timelinePerf('full', [])).toBe(true);
+    expect(timelinePerf('affected', [{ path: 'packages/core/src/index.ts' }])).toBe(false);
+    expect(timelinePerf('affected', [{ path: 'packages/client/test/a.test.ts' }])).toBe(false);
+  });
+
   it('runs native module tests for Kotlin, native config, removals and full runs', () => {
     expect(
       androidNativeTests('none', [
@@ -242,6 +395,7 @@ describe('CI test plan drift checks', () => {
         'scripts/sync-slides.mjs',
         'packages/a/test/x.test.tsx',
         'apps/site/test/y.test.ts',
+        '.agents/skills/vendored/scripts/z.test.ts',
       ],
       ['packages/*/test/**/*.test.ts', 'apps/docs/test/**/*.test.ts'],
     );

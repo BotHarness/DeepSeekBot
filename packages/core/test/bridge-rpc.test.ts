@@ -76,6 +76,22 @@ function parameterNames(method: (...args: never[]) => unknown): string[] {
 }
 
 describe('bridge typert service', () => {
+  it('refuses workspace authorization without an authenticated Owner invocation', () => {
+    const { service, methods } = setup();
+    const approve = vi.spyOn(methods, 'grantRequestApprove');
+    expect(() => service.grantRequestApprove('ada', 'dm-ada', 'request', 'project', true)).toThrow(
+      /authenticated Owner/,
+    );
+    const guest = Object.create(service) as typeof service;
+    Object.defineProperty(guest, 'ctx', {
+      value: new Context().extend({ invocation: { peer: { principal: { kind: 'guest' } } } }),
+    });
+    expect(() => guest.grantRequestApprove('ada', 'dm-ada', 'request', 'project', true)).toThrow(
+      /authenticated Owner/,
+    );
+    expect(approve).not.toHaveBeenCalled();
+  });
+
   it('refuses reviewed or keyed Channel writes when the durable owner is unavailable', () => {
     const { service, channels } = setup();
     service.create('Ada');
@@ -105,6 +121,7 @@ describe('bridge typert service', () => {
             throw new Error('unused');
           },
           isTob: (slug) => slug === 'ada',
+          slug: () => 'ada',
           readSetting: () => ({ scope: 'global', value: 8, revision: 0 }),
           writeSetting: async () => {
             throw new Error('unused');
@@ -293,6 +310,71 @@ describe('bridge typert service', () => {
     expect(result.channelId).toBe('dm-ada');
   });
 
+  it('forwards every lookup field and preserves receipt refusals through the RPC facade', () => {
+    const { service, methods } = setup();
+    const lookup = vi
+      .spyOn(methods, 'createLookup')
+      .mockReturnValue({ ok: true, value: { receipt: null } });
+    expect(
+      service.createLookup(
+        'lookup-ada-01',
+        'Ada',
+        ['research'],
+        'Soul',
+        'Bio',
+        'model',
+        'preset',
+        ['workspace'],
+        'avatar',
+        'memory',
+        'Remember',
+      ),
+    ).toEqual({ receipt: null });
+    expect(lookup).toHaveBeenCalledWith({
+      operationKey: 'lookup-ada-01',
+      displayName: 'Ada',
+      roles: ['research'],
+      persona: 'Soul',
+      description: 'Bio',
+      model: 'model',
+      preset: 'preset',
+      workspaces: ['workspace'],
+      avatar: 'avatar',
+      memoryLocation: 'memory',
+      coreMemory: 'Remember',
+    });
+    lookup.mockReturnValue({
+      ok: false,
+      error: { code: 'creation-key-conflict', message: 'Different input' },
+    });
+    expect(() => service.createLookup('lookup-ada-01', 'Changed')).toThrow('Different input');
+  });
+
+  it('forwards the Marketplace origin of a Git install through the named RPC facade', async () => {
+    const { service, methods } = setup();
+    const createFromGit = vi
+      .spyOn(methods, 'createFromGit')
+      .mockResolvedValue({ ok: false, error: { code: 'git-clone-failed', message: 'offline' } });
+    await expect(
+      service.createFromGit(
+        'Mascot',
+        'https://github.com/alice/mascot.git',
+        ['helper'],
+        'Bio',
+        'marketplace',
+      ),
+    ).rejects.toThrow();
+    expect(createFromGit).toHaveBeenCalledWith({
+      displayName: 'Mascot',
+      gitUrl: 'https://github.com/alice/mascot.git',
+      roles: ['helper'],
+      description: 'Bio',
+      origin: 'marketplace',
+      operationKey: undefined,
+      expectedCommit: undefined,
+    });
+  });
+
   it('round-trips profile fingerprint and preserves stale profile refusal through the RPC facade', () => {
     const { service } = setup();
     service.create('Ada');
@@ -361,8 +443,9 @@ describe('bridge typert service', () => {
       assignmentModels,
     });
   });
-  it('exposes Activity query arguments through the gateway service and refuses an unavailable owner', () => {
-    const { service } = setup();
+  it('exposes Activity and notification query arguments and refuses an unavailable owner', () => {
+    const { service, methods } = setup();
+    const query = vi.spyOn(methods, 'humanAttention');
     expect(parameterNames(service.humanAttention)).toEqual([
       'category',
       'botSlug',
@@ -375,7 +458,10 @@ describe('bridge typert service', () => {
       'search',
       'unreadOnly',
       'queryVersion',
+      'dismissed',
+      'notifications',
     ]);
+    expect(parameterNames(service.humanAttentionRestore)).toEqual(['itemId', 'sourceKey']);
     expect(() =>
       service.humanAttention(
         'replies',
@@ -391,6 +477,38 @@ describe('bridge typert service', () => {
         1,
       ),
     ).toThrow('Activity queries are unavailable');
+    expect(() =>
+      service.humanAttention(
+        undefined,
+        undefined,
+        undefined,
+        100,
+        'notification-cursor',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        true,
+      ),
+    ).toThrow('notification queries are unavailable');
+    expect(query).toHaveBeenLastCalledWith({
+      category: undefined,
+      botSlug: undefined,
+      channelId: undefined,
+      limit: 100,
+      cursor: 'notification-cursor',
+      sort: undefined,
+      snoozed: undefined,
+      kind: undefined,
+      search: undefined,
+      unreadOnly: undefined,
+      queryVersion: undefined,
+      dismissed: undefined,
+      notifications: true,
+    });
   });
 
   it('exposes and forwards model revision and advanced preset arguments through the gateway façade', async () => {
@@ -528,9 +646,14 @@ describe('bridge typert service', () => {
       'tobHome',
       'onboarding',
       'onboardingModel',
+      'telemetryEvent',
       'modelPlanInherit',
       'channelRetry',
       'botNewSession',
+      'botCompact',
+      'botContext',
+      'botSystemPrompt',
+      'botTurnInput',
       'channelBotStop',
       'modelCatalog',
       'modelPresets',
@@ -545,8 +668,18 @@ describe('bridge typert service', () => {
       'activitySnapshot',
       'get',
       'create',
+      'createLookup',
+      'zipUploadBegin',
+      'zipUploadChunk',
+      'zipUploadPreview',
+      'zipImportLookup',
+      'zipImport',
+      'botImportPreview',
+      'botImportLookup',
       'createFromGit',
       'update',
+      'dataResetPreview',
+      'dataResetConfirm',
       'deletionPreview',
       'deletionConfirm',
       'deletionRetry',
@@ -576,6 +709,11 @@ describe('bridge typert service', () => {
       'channelHistorySources',
       'channelPurgePreview',
       'channelPurgeConfirm',
+      'storageUsage',
+      'storageCleanupPreview',
+      'storageCleanupConfirm',
+      'storageMessagesCleanupPreview',
+      'storageMessagesCleanupConfirm',
       'channelMessages',
       'channelTimeline',
       'channelReadPosition',
@@ -583,6 +721,7 @@ describe('bridge typert service', () => {
       'channelMarkAllRead',
       'channelReact',
       'channelSearch',
+      'messageSearch',
       'channelUnreadCounts',
       'channelAllBotPreview',
       'channelSend',
@@ -598,22 +737,28 @@ describe('bridge typert service', () => {
       'humanAttentionStatus',
       'humanAttentionIgnore',
       'humanAttentionDismiss',
+      'humanAttentionRestore',
       'humanAttentionSnooze',
       'assignments',
       'channelAssignments',
       'assignment',
+      'assignmentTimeline',
+      'sessionSubagents',
       'workspaceOptions',
       'messageAttachmentTarget',
       'channelMediaTarget',
       'workspaceFileTarget',
+      'folderBrowse',
       'grants',
       'grantCreate',
       'grantRevoke',
       'grantWriteSet',
+      'grantRequestApprove',
       'assignmentAccessGet',
       'assignmentAccessSet',
       'toolApprovalRules',
       'toolApprovalRuleRevoke',
+      'toolApprovalHistory',
       'toolApprovalStatus',
       'toolApprovalDecide',
       'toolAutoRejectionOverride',
@@ -666,12 +811,24 @@ describe('bridge typert service', () => {
       'browserAccessSet',
       'browserProfileSet',
       'approvalTemplates',
+      'promptParts',
+      'promptPresets',
+      'promptPresetCreate',
+      'promptPresetUpdate',
+      'promptPresetDelete',
+      'promptGlobalSet',
+      'botPrompt',
+      'botPromptSet',
       'approvalTemplateCreate',
       'approvalTemplateUpdate',
       'approvalTemplateDelete',
       'botApprovalTemplateSet',
       'approvalReviewerModel',
       'approvalReviewerModelSet',
+      'idleCompaction',
+      'idleCompactionSet',
+      'idleCompactionCacheLifetimeSet',
+      'compactionThresholdSet',
       'standingLimitsSet',
       'botAvatarSet',
       'botAppearanceSet',
@@ -685,13 +842,36 @@ describe('bridge typert service', () => {
       'marketplaceList',
       'marketplaceSubmit',
       'marketplaceTopics',
+      'marketplaceSections',
+      'marketplaceDigests',
+      'marketplaceDigest',
       'marketplaceDetail',
+      'marketplaceFileView',
       'marketplaceChallenge',
       'marketplaceReport',
+      'marketplaceAccount',
+      'marketplaceAuthorSave',
+      'marketplaceAuthorAvatarSet',
+      'marketplaceUploadPlan',
+      'marketplaceUpload',
+      'marketplaceInstallReview',
+      'marketplaceMine',
+      'marketplaceDelete',
+      'shareDraftStart',
+      'shareDraftGet',
+      'shareDraftFile',
+      'shareDraftDecide',
+      'shareDraftFinish',
+      'shareDraftDiscard',
+      'shareDraftExport',
+      'marketplaceInstall',
       'releaseInfo',
       'releaseUpdate',
       'releaseInstall',
       'releaseRestart',
+      'pluginUpdates',
+      'pluginInstall',
+      'pluginRestart',
       'telemetryStatus',
       'telemetrySet',
       'gitStatus',
@@ -735,7 +915,7 @@ describe('bridge typert service', () => {
       'limit',
     ]);
     expect(parameterNames(service.followCompanion)).toEqual(['resume', 'lastEventId', 'signal']);
-    expect(parameterNames(service.botToolRun)).toEqual(['slug', 'tool', 'args']);
+    expect(parameterNames(service.botToolRun)).toEqual(['slug', 'tool', 'args', 'sessionId']);
     expect(parameterNames(service.memoryMove)).toEqual(['slug', 'location']);
   });
 
@@ -766,15 +946,45 @@ describe('bridge typert service', () => {
     expect(parameterNames(service.update)).toEqual(['slug', 'patch', 'expectedProfile']);
     expect(parameterNames(service.pause)).toEqual(['slug']);
     expect(parameterNames(service.resume)).toEqual(['slug']);
+    expect(parameterNames(service.createLookup)).toEqual([
+      'operationKey',
+      'displayName',
+      'roles',
+      'persona',
+      'description',
+      'model',
+      'preset',
+      'workspaces',
+      'avatar',
+      'memoryLocation',
+      'coreMemory',
+    ]);
     expect(parameterNames(service.createFromGit)).toEqual([
       'displayName',
       'gitUrl',
       'roles',
       'description',
+      'origin',
+      'operationKey',
+      'expectedCommit',
+      'listingId',
+    ]);
+    expect(parameterNames(service.botImportPreview)).toEqual(['gitUrl']);
+    expect(parameterNames(service.botImportLookup)).toEqual([
+      'operationKey',
+      'gitUrl',
+      'expectedCommit',
+      'displayName',
+      'roles',
+      'description',
     ]);
     expect(parameterNames(service.marketplaceList)).toEqual(['query']);
     expect(parameterNames(service.marketplaceTopics)).toEqual([]);
-    expect(parameterNames(service.marketplaceDetail)).toEqual(['id']);
+    expect(parameterNames(service.marketplaceSections)).toEqual(['lang']);
+    expect(parameterNames(service.marketplaceDigests)).toEqual(['lang']);
+    expect(parameterNames(service.marketplaceDigest)).toEqual(['day', 'lang']);
+    expect(parameterNames(service.marketplaceFileView)).toEqual(['id', 'path']);
+    expect(parameterNames(service.marketplaceDetail)).toEqual(['id', 'lang']);
     expect(parameterNames(service.marketplaceSubmit)).toEqual(['url', 'altcha']);
     expect(parameterNames(service.marketplaceChallenge)).toEqual([]);
     expect(parameterNames(service.marketplaceReport)).toEqual(['id', 'altcha', 'reason']);
@@ -787,6 +997,7 @@ describe('bridge typert service', () => {
       'active',
     ]);
     expect(parameterNames(service.channelSearch)).toEqual(['channelId', 'text', 'cursor', 'limit']);
+    expect(parameterNames(service.messageSearch)).toEqual(['text', 'cursor', 'limit']);
     expect(parameterNames(service.releaseInstall)).toEqual(['version']);
     expect(parameterNames(service.releaseRestart)).toEqual([]);
     expect(parameterNames(service.telemetryStatus)).toEqual([]);
@@ -840,7 +1051,14 @@ describe('bridge typert service', () => {
       'sessionId',
       'sourceEventId',
     ]);
-    expect(parameterNames(service.assignments)).toEqual(['slug']);
+    expect(parameterNames(service.assignments)).toEqual([
+      'slug',
+      'query',
+      'activity',
+      'includeArchived',
+      'limit',
+      'cursor',
+    ]);
     expect(parameterNames(service.assignment)).toEqual(['slug', 'sessionId']);
     expect(parameterNames(service.sessions)).toEqual(['slug']);
     expect(parameterNames(service.sessionOwner)).toEqual(['sessionId']);

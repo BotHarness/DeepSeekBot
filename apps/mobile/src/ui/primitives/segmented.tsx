@@ -4,6 +4,17 @@ import type { LayerName } from '../design/layers';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Text } from './text';
+import { useSelectionFeedback } from '../selection-feedback';
+
+export type SegmentedProps<T extends string> = {
+  label: string;
+  options: readonly { value: T; label: string }[];
+  value: T;
+  on?: LayerName;
+  onChange(value: T): void;
+  compact?: boolean;
+  disabled?: boolean;
+};
 
 export function Segmented<T extends string>({
   label,
@@ -11,17 +22,12 @@ export function Segmented<T extends string>({
   value,
   on = 'canvas',
   onChange,
+  disabled = false,
   compact = false,
-}: {
-  label: string;
-  options: readonly { value: T; label: string }[];
-  value: T;
-  on?: LayerName;
-  onChange(value: T): void;
-  compact?: boolean;
-}) {
+}: SegmentedProps<T>) {
   const theme = useDesignTheme();
   const layer = theme.layer[on];
+  const select = useSelectionFeedback(value, onChange);
   return (
     <View
       accessibilityRole="tablist"
@@ -41,11 +47,10 @@ export function Segmented<T extends string>({
             key={option.value}
             accessibilityRole="tab"
             accessibilityLabel={option.label}
-            accessibilityState={{ selected }}
+            accessibilityState={{ selected, disabled }}
+            disabled={disabled}
             hitSlop={{ top: space.x1, bottom: space.x1 }}
-            onPress={() => {
-              if (!selected) onChange(option.value);
-            }}
+            onPress={() => select(option.value)}
             style={({ pressed }) => ({
               ...(theme.largeText ? {} : { flex: 1 }),
               paddingHorizontal: space.x3,

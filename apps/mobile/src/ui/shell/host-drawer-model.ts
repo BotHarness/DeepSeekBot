@@ -1,9 +1,14 @@
+import type { ConnectHost } from '../../host/connect-account';
 import type { HostGlance } from '../../host/host-glance';
 import type { SavedHost } from '../../host/hosts';
-import { modalRail } from '../design/tokens';
+import { materialDrawer, modalRail } from '../design/tokens';
 
 export const DRAWER_SHARE = 0.85;
 export const EDGE_WIDTH = 24;
+const EDGE_DRAG_START = 10;
+const EDGE_VERTICAL_FAIL = 15;
+const ANYWHERE_DRAG_START = 24;
+const ANYWHERE_VERTICAL_FAIL = 8;
 const SETTLE_SHARE = 0.4;
 const FLING = 500;
 
@@ -12,6 +17,22 @@ export interface HostDrawerRow {
   hostName: string;
   current: boolean;
   glance: HostGlance;
+}
+
+function routeHost(route: string): string {
+  try {
+    return new URL(route).host;
+  } catch {
+    return '';
+  }
+}
+
+export function unpairedAccountHosts(
+  linked: readonly ConnectHost[],
+  hosts: readonly SavedHost[],
+): ConnectHost[] {
+  const paired = new Set(hosts.flatMap((host) => host.routes.map(routeHost)));
+  return linked.filter((host) => !paired.has(host.hostname));
 }
 
 export function hostDrawerRows(
@@ -45,8 +66,29 @@ export function hostRowBadge(glance: HostGlance): HostRowBadge {
   return undefined;
 }
 
-export function drawerWidth(windowWidth: number): number {
+export function drawerWidth(windowWidth: number, os: string = 'ios'): number {
+  if (os === 'android')
+    return Math.min(materialDrawer.width, windowWidth - materialDrawer.scrimGutter);
   return Math.min(modalRail.maxWidth, Math.round(windowWidth * DRAWER_SHARE));
+}
+
+export function drawerSwipe(
+  os: string,
+  anywhere: boolean,
+): {
+  push: boolean;
+  activeX: number;
+  failY: number;
+  hitSlop?: { left: number; width: number };
+} {
+  return anywhere && os === 'android'
+    ? { push: true, activeX: ANYWHERE_DRAG_START, failY: ANYWHERE_VERTICAL_FAIL }
+    : {
+        push: false,
+        activeX: EDGE_DRAG_START,
+        failY: EDGE_VERTICAL_FAIL,
+        hitSlop: { left: 0, width: EDGE_WIDTH },
+      };
 }
 
 export function settleOpen(progress: number, velocityX: number): boolean {
@@ -62,9 +104,11 @@ export interface HostDrawerState {
 }
 
 export interface HostDrawerPort {
-  switchTo(hostId: string): Promise<boolean>;
+  switchTo(hostId: string, current: () => boolean): Promise<boolean>;
+  showView(hostId: string | undefined): void;
   pair(): void;
   notifications(): void;
+  failed?(): void;
 }
 
 export interface HostDrawer {
@@ -75,6 +119,9 @@ export interface HostDrawer {
   close(): void;
   hidden(): void;
   select(hostId: string): Promise<boolean>;
+  selectAll(): void;
+  beginWorkspaceSelection(): () => boolean;
+  captureWorkspaceSelection(): () => boolean;
   pairNew(): void;
   openNotifications(): void;
   setReturnFocus(focus: (() => void) | undefined): void;
@@ -84,6 +131,8 @@ export function createHostDrawer(port: HostDrawerPort): HostDrawer {
   const listeners = new Set<() => void>();
   let state: HostDrawerState = { open: false, shown: false };
   let returnFocus: (() => void) | undefined;
+  let selection = 0;
+  let switching: Promise<boolean> | undefined;
 
   const publish = (next: HostDrawerState): void => {
     if (next.open === state.open && next.shown === state.shown) return;
@@ -94,6 +143,10 @@ export function createHostDrawer(port: HostDrawerPort): HostDrawer {
   };
 
   const close = (): void => publish({ open: false, shown: state.shown });
+  const beginWorkspaceSelection = () => {
+    const selected = ++selection;
+    return () => selected === selection;
+  };
 
   return {
     getSnapshot: () => state,
@@ -108,8 +161,34 @@ export function createHostDrawer(port: HostDrawerPort): HostDrawer {
       if (!state.open) publish({ open: false, shown: false });
     },
     async select(hostId) {
+      const current = beginWorkspaceSelection();
       close();
-      return port.switchTo(hostId);
+      const switchHost = () =>
+        current() ? port.switchTo(hostId, current) : Promise.resolve(false);
+      const pending =
+        switching === undefined ? switchHost() : switching.then(switchHost, switchHost);
+      switching = pending;
+      try {
+        const switched = await pending;
+        if (switched && current()) port.showView(hostId);
+        if (!switched && current()) port.failed?.();
+        return switched;
+      } catch {
+        if (current()) port.failed?.();
+        return false;
+      } finally {
+        if (switching === pending) switching = undefined;
+      }
+    },
+    selectAll() {
+      beginWorkspaceSelection();
+      close();
+      port.showView(undefined);
+    },
+    beginWorkspaceSelection,
+    captureWorkspaceSelection() {
+      const selected = selection;
+      return () => selected === selection;
     },
     pairNew() {
       close();
@@ -123,4 +202,14 @@ export function createHostDrawer(port: HostDrawerPort): HostDrawer {
       returnFocus = focus;
     },
   };
+}
+
+export function addressLines(largeText: boolean, os: string) {
+  if (os === 'android')
+    return {
+      numberOfLines: 1,
+      adjustsFontSizeToFit: true,
+      minimumFontScale: materialDrawer.addressMinScale,
+    };
+  return largeText ? {} : { numberOfLines: 1 };
 }

@@ -1,42 +1,40 @@
-import { Image, View } from 'react-native';
-import { SvgXml } from 'react-native-svg';
+import { View } from 'react-native';
 
-import {
-  avatarSvg,
-  seededAvatarFor,
-} from '../../../../../packages/core/src/bots/avatar-appearance';
-import type { HostAvatar } from '../design/host-look';
+import { HOST_SYMBOLS, type HostIcon } from '../design/host-look';
 import { radius } from '../design/tokens';
+import { SystemSymbol } from '../primitives/system-symbol';
 import { Text } from '../primitives/text';
-
-const presets = new Map<string, string>();
-
-export function presetAvatarSvg(id: string): string {
-  let svg = presets.get(id);
-  if (svg === undefined) {
-    const seed = id.endsWith('2') ? 2 : undefined;
-    svg = avatarSvg(seededAvatarFor(seed === 2 ? id.slice(0, -1) : id, seed));
-    presets.set(id, svg);
-  }
-  return svg;
-}
 
 export function hostInitial(hostName: string): string {
   return Array.from(hostName.trim())[0]?.toUpperCase() ?? '?';
 }
 
+export function HostGlyph({ icon, size, color }: { icon: HostIcon; size: number; color: string }) {
+  if (icon.kind === 'symbol')
+    return <SystemSymbol name={HOST_SYMBOLS[icon.id]} size={size} color={color} />;
+  return (
+    <Text
+      allowFontScaling={false}
+      accessible={false}
+      style={{ fontSize: size * 0.86, lineHeight: size, textAlign: 'center' }}
+    >
+      {icon.emoji}
+    </Text>
+  );
+}
+
 export function HostTile({
   hostName,
-  avatar,
+  icon,
   size,
   fill,
-  letter,
+  ink,
 }: {
   hostName: string;
-  avatar: HostAvatar;
+  icon?: HostIcon;
   size: number;
   fill: string;
-  letter: string;
+  ink: string;
 }) {
   return (
     <View
@@ -50,14 +48,12 @@ export function HostTile({
         justifyContent: 'center',
       }}
     >
-      {avatar.kind === 'preset' ? (
-        <SvgXml xml={presetAvatarSvg(avatar.id)} width={size} height={size} />
-      ) : avatar.kind === 'image' ? (
-        <Image source={{ uri: avatar.uri }} style={{ width: size, height: size }} />
-      ) : (
-        <Text allowFontScaling={false} variant="title" style={{ color: letter }}>
+      {icon === undefined ? (
+        <Text allowFontScaling={false} variant="title" style={{ color: ink }}>
           {hostInitial(hostName)}
         </Text>
+      ) : (
+        <HostGlyph icon={icon} size={Math.round(size * 0.58)} color={ink} />
       )}
     </View>
   );

@@ -31,11 +31,16 @@ export const DEFAULT_RELEASE_NOTE_SOURCES = [
   (version: string) => `https://registry.npmmirror.com/${RELEASE_NOTES_PACKAGE}/${version}/files/`,
 ] as const;
 
-const CHECK_CACHE_MS = 6 * 60 * 60 * 1000;
-const FAILURE_CACHE_MS = 5 * 60 * 1000;
-const REQUEST_TIMEOUT_MS = 8_000;
+export const RELEASE_CHECK_CACHE_MS = 6 * 60 * 60 * 1000;
+export const RELEASE_FAILURE_CACHE_MS = 5 * 60 * 1000;
+export const RELEASE_REQUEST_TIMEOUT_MS = 8_000;
 const DIAGNOSTIC_CHARS = 2_000;
-const NETWORK_FAILURES = new Set(['network', 'timeout', 'not-found', 'no-matching-version']);
+export const RELEASE_NETWORK_FAILURES = new Set([
+  'network',
+  'timeout',
+  'not-found',
+  'no-matching-version',
+]);
 
 export interface ReleaseLedgers {
   english: string;
@@ -76,7 +81,13 @@ export type ReleaseInstallFailure =
   | 'failed';
 
 export type ReleaseInstall =
-  | { status: 'installed'; current: string; installed: string; restartable: boolean }
+  | {
+      status: 'installed';
+      current: string;
+      installed: string;
+      restartable: boolean;
+      applied: boolean;
+    }
   | {
       status: 'failed';
       reason: ReleaseInstallFailure;
@@ -172,7 +183,7 @@ export function installedRelease(moduleUrl: string): Pick<
   };
 }
 
-function newestTag(tags: unknown, current: string): string | undefined {
+export function newestTag(tags: unknown, current: string): string | undefined {
   if (typeof tags !== 'object' || tags === null) return undefined;
   const source = tags as Record<string, unknown>;
   const candidates = [source['latest'], current.includes('-') ? source['next'] : undefined].filter(
@@ -184,17 +195,31 @@ function newestTag(tags: unknown, current: string): string | undefined {
   return candidates.sort(compareVersions).at(-1);
 }
 
-function failureOf(result: ReleaseInstallerResult): ReleaseInstall {
+export function packageTarball(registry: string, name: string, version: string): string {
+  const base = name.slice(name.lastIndexOf('/') + 1);
+  return `${registry.replace(/\/+$/u, '')}/${name}/-/${base}-${version}.tgz`;
+}
+
+export function releaseTarball(registry: string, version: string): string {
+  return packageTarball(registry, RELEASE_PACKAGE, version);
+}
+
+export function releaseInstallFailure(result: ReleaseInstallerResult): ReleaseInstall {
   const kind = result.packageResult?.kind;
   const reason: ReleaseInstallFailure =
     result.error?.code === 'incompatible-version'
       ? 'incompatible'
       : kind === 'build-blocked'
         ? 'build-blocked'
-        : kind !== undefined && NETWORK_FAILURES.has(kind)
+        : kind !== undefined && RELEASE_NETWORK_FAILURES.has(kind)
           ? 'network'
           : 'failed';
-  const diagnostic = (result.error?.diagnostic ?? result.packageResult?.output ?? '').trim();
+  const diagnostic = (
+    result.error?.diagnostic ??
+    result.packageResult?.output ??
+    (reason === 'failed' ? result.error?.code : undefined) ??
+    ''
+  ).trim();
   const logPath = result.packageResult?.logPath;
   return {
     status: 'failed',
@@ -238,7 +263,7 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
   const now = options.now ?? Date.now;
   const registries = options.registries ?? DEFAULT_RELEASE_REGISTRIES;
   const noteSources = options.noteSources ?? DEFAULT_RELEASE_NOTE_SOURCES;
-  const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
+  const timeoutMs = options.timeoutMs ?? RELEASE_REQUEST_TIMEOUT_MS;
   let notes: ReleaseNote[] | undefined;
   let cached: { at: number; result: CheckResult } | undefined;
   let pending: Promise<CheckResult> | undefined;
@@ -292,6 +317,12 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
     let result: ReleaseInstallerResult;
     try {
       result = await installer.installBundle(`${RELEASE_PACKAGE}@${version}`);
+      if (result.error?.code === 'already-installed') {
+        for (const registry of registries) {
+          result = await installer.installBundle(releaseTarball(registry, version));
+          if (!RELEASE_NETWORK_FAILURES.has(result.packageResult?.kind ?? '')) break;
+        }
+      }
     } catch (error) {
       return {
         status: 'failed',
@@ -303,7 +334,7 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
       result.error !== undefined ||
       (result.application !== 'restart-required' && result.application !== 'applied')
     ) {
-      return failureOf(result);
+      return releaseInstallFailure(result);
     }
     installed = version;
     return {
@@ -311,6 +342,7 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
       current,
       installed: version,
       restartable: options.restarter?.() !== undefined,
+      applied: result.application === 'applied',
     };
   };
 
@@ -484,8 +516,8 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
         cached.result.status === 'unavailable' ||
         cached.result.status === 'unknown' ||
         (cached.result.status === 'blocked' && cached.result.compatibility.status === 'unknown')
-          ? FAILURE_CACHE_MS
-          : CHECK_CACHE_MS;
+          ? RELEASE_FAILURE_CACHE_MS
+          : RELEASE_CHECK_CACHE_MS;
       if (age < limit) return Promise.resolve(cached.result);
     }
     pending ??= check()

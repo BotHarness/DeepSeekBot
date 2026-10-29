@@ -111,7 +111,7 @@ export function renamePairingLink(link, hostName) {
   payload.host.name = hostName;
   return {
     hostId: payload.host.id,
-    link: `deepseekbot://pair?p=${Buffer.from(JSON.stringify(payload)).toString('base64url')}`,
+    link: `deepseekbot-dev://pair?p=${Buffer.from(JSON.stringify(payload)).toString('base64url')}`,
   };
 }
 

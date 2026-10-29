@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 
 import { textRamp } from '../design/system-type';
+import { useDesignTheme } from '../design/theme';
 import { typeScale } from '../design/tokens';
 
 const TextAncestor = createContext(false);
@@ -43,8 +44,10 @@ type InputProps = ComponentPropsWithRef<typeof NativeTextInput> &
 
 export function TextInput({ style, dynamicTypeRamp = 'body', ...props }: InputProps) {
   const ios = Platform.OS === 'ios';
+  const { scheme } = useDesignTheme();
   return (
     <NativeTextInput
+      keyboardAppearance={scheme}
       {...props}
       {...(ios ? { dynamicTypeRamp } : {})}
       style={ios ? [{ fontSize: typeScale.ios.body.size }, style] : style}

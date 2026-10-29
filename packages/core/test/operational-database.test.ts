@@ -1,4 +1,12 @@
-import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+  writeSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
@@ -603,6 +611,160 @@ describe('operational database owner', () => {
     expect(original.mode).toBe('ready');
     expect(original.generation).toBe(1);
     original.close();
+  });
+
+  function parentChildPlan(extra: SchemaPlan['migrations'] = []): SchemaPlan {
+    return defineSchemaPlan([
+      {
+        generation: 2,
+        module: 'test-records',
+        description: 'create a parent and a referencing child table',
+        migrate(database) {
+          database.exec(`
+            CREATE TABLE test_parents (id INTEGER PRIMARY KEY) STRICT;
+            CREATE TABLE test_children (
+              id INTEGER PRIMARY KEY,
+              parent_id INTEGER NOT NULL REFERENCES test_parents(id)
+            ) STRICT;
+          `);
+        },
+      },
+      ...extra,
+    ]);
+  }
+
+  function orphanChildrenOutsideHost(dshHome: string, plan: SchemaPlan): void {
+    const owner = mountOperationalDatabase({ dshHome, schemaPlan: plan });
+    attachOperationalModule(owner, 'test-records').transaction((database) => {
+      database.exec(
+        'INSERT INTO test_parents VALUES (1); INSERT INTO test_children VALUES (1, 1), (2, 1)',
+      );
+    });
+    owner.close();
+    const external = new DatabaseSync(databasePath(dshHome), {
+      enableForeignKeyConstraints: false,
+    });
+    external.exec('DELETE FROM test_parents');
+    external.close();
+  }
+
+  it('mounts a database with orphaned rows left by an external writer and reports them', () => {
+    const dshHome = createTempRoot('botharness-db-orphans-');
+    const plan = parentChildPlan();
+    orphanChildrenOutsideHost(dshHome, plan);
+
+    const owner = mountOperationalDatabase({ dshHome, schemaPlan: plan });
+    expect(owner.mode).toBe('ready');
+    expect(owner.foreignKeyOrphans).toBe('test_children -> test_parents x2');
+    expect(owner.diagnostics().foreignKeyOrphans).toBe('test_children -> test_parents x2');
+    const port = attachOperationalModule(owner, 'test-records');
+    expect(() =>
+      port.transaction((database) => database.exec('INSERT INTO test_children VALUES (3, 9)')),
+    ).toThrow();
+    owner.close();
+  });
+
+  it('carries existing orphans through a migration but rejects orphans it creates', () => {
+    const dshHome = createTempRoot('botharness-db-orphan-migration-');
+    orphanChildrenOutsideHost(dshHome, parentChildPlan());
+
+    const keeps = parentChildPlan([
+      {
+        generation: 3,
+        module: 'test-records',
+        description: 'rebuild the child table',
+        rebuildsReferencedTables: true,
+        migrate(database) {
+          database.exec(`
+            CREATE TABLE test_children_next (
+              id INTEGER PRIMARY KEY,
+              parent_id INTEGER NOT NULL REFERENCES test_parents(id),
+              note TEXT
+            ) STRICT;
+            INSERT INTO test_children_next (id, parent_id) SELECT id, parent_id FROM test_children;
+            DROP TABLE test_children;
+            ALTER TABLE test_children_next RENAME TO test_children;
+          `);
+        },
+      },
+    ]);
+    const migrated = mountOperationalDatabase({ dshHome, schemaPlan: keeps });
+    expect(migrated.mode).toBe('ready');
+    expect(migrated.generation).toBe(3);
+    expect(migrated.foreignKeyOrphans).toBe('test_children -> test_parents x2');
+    migrated.close();
+
+    const orphaning = defineSchemaPlan([
+      ...keeps.migrations,
+      {
+        generation: 4,
+        module: 'test-records',
+        description: 'orphan one more child',
+        rebuildsReferencedTables: true,
+        migrate(database) {
+          database.exec('INSERT INTO test_children (id, parent_id) VALUES (3, 7)');
+        },
+      },
+    ]);
+    const failed = mountOperationalDatabase({ dshHome, schemaPlan: orphaning });
+    expect(failed.recovery).toEqual({
+      code: 'integrity-failed',
+      message: 'SQLite foreign key check failed: test_children -> test_parents x3',
+    });
+    expect(() => attachOperationalModule(failed, 'test-records').read(() => 1)).toThrow(
+      'Operational database is in recovery mode: integrity-failed (SQLite foreign key check failed: test_children -> test_parents x3)',
+    );
+    failed.close();
+    const resumed = mountOperationalDatabase({ dshHome, schemaPlan: keeps });
+    expect(resumed.generation).toBe(3);
+    resumed.close();
+  });
+
+  it('reports the first SQLite integrity findings for a damaged index', () => {
+    const dshHome = createTempRoot('botharness-db-damaged-index-');
+    const plan = defineSchemaPlan([
+      {
+        generation: 2,
+        module: 'test-records',
+        description: 'create an indexed table',
+        migrate(database) {
+          database.exec(`
+            CREATE TABLE test_records (id INTEGER PRIMARY KEY, a TEXT NOT NULL, b TEXT NOT NULL) STRICT;
+            CREATE INDEX test_records_a ON test_records(a);
+          `);
+        },
+      },
+    ]);
+    const owner = mountOperationalDatabase({ dshHome, schemaPlan: plan });
+    attachOperationalModule(owner, 'test-records').transaction((database) => {
+      const insert = database.prepare('INSERT INTO test_records VALUES (?, ?, ?)');
+      for (let id = 1; id <= 8; id += 1) insert.run(id, `a${id}`, `b${id}`);
+    });
+    owner.close();
+
+    const inspect = new DatabaseSync(databasePath(dshHome), { readOnly: true });
+    const { rootpage } = inspect
+      .prepare("SELECT rootpage FROM sqlite_master WHERE name = 'test_records_a'")
+      .get() as { rootpage: number };
+    const { page_size: pageSize } = inspect.prepare('PRAGMA page_size').get() as {
+      page_size: number;
+    };
+    inspect.close();
+    const offset = (rootpage - 1) * pageSize;
+    const bytes = readFileSync(databasePath(dshHome));
+    const page = bytes.subarray(offset, offset + pageSize);
+    for (let id = 1; id <= 8; id += 1) page[page.indexOf(`a${id}`)] = 'z'.charCodeAt(0);
+    const file = openSync(databasePath(dshHome), 'r+');
+    writeSync(file, page, 0, pageSize, offset);
+    closeSync(file);
+
+    const failed = mountOperationalDatabase({ dshHome, schemaPlan: plan });
+    expect(failed.recovery?.code).toBe('integrity-failed');
+    expect(failed.recovery?.message).toMatch(
+      /^SQLite integrity check failed: (?:[^;]+; ){5}\+\d+ more$/,
+    );
+    expect(failed.recovery?.message).toContain('missing from index test_records_a');
+    failed.close();
   });
 
   it('enters recovery mode for an unreadable active database', () => {

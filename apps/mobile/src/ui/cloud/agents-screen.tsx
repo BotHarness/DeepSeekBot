@@ -11,8 +11,9 @@ import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { Text } from '../primitives/text';
-import { TextInput } from '../primitives/system-text';
-import { t } from '../strings';
+import { TextField } from '../primitives/text-field';
+import { useStrings } from '../strings';
+import { confirmDestructive } from '../primitives/app-dialog';
 function AgentScroll(props: ScrollViewProps) {
   const theme = useDesignTheme();
   return (
@@ -52,6 +53,7 @@ function Agents({
   channelId: string;
   channelName?: string;
 }) {
+  const t = useStrings();
   const snapshot = useCloudSnapshot(),
     theme = useDesignTheme(),
     insets = useSafeAreaInsets();
@@ -144,11 +146,9 @@ function Agents({
               {owner && (
                 <View style={box}>
                   <Text>{t.cloudAgents.hint}</Text>
-                  <TextInput
+                  <TextField
                     accessibilityLabel={t.cloudAgents.name}
                     placeholder={t.cloudAgents.name}
-                    placeholderTextColor={theme.color.subtle}
-                    style={{ color: theme.color.fg }}
                     value={here?.name ?? name}
                     onChangeText={setName}
                     editable={!busy && !handoff}
@@ -259,17 +259,24 @@ function Agents({
           {owner && item.state === 'active' && (
             <Button
               label={t.cloudAgents.revoke}
+              tone="danger"
               disabled={busy}
               onPress={() =>
-                void run(async () => {
-                  await cloudClient.revokeAgent(
-                    instanceId,
-                    organizationId,
-                    channelId,
-                    item.actorId,
-                  );
-                  await reload();
-                })
+                confirmDestructive(
+                  t.confirmAction(t.cloudAgents.revoke),
+                  t.cloudAgents.revokeDetail,
+                  t.cloudAgents.revoke,
+                  () =>
+                    void run(async () => {
+                      await cloudClient.revokeAgent(
+                        instanceId,
+                        organizationId,
+                        channelId,
+                        item.actorId,
+                      );
+                      await reload();
+                    }),
+                )
               }
             />
           )}

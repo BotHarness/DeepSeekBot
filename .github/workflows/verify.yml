@@ -8,6 +8,12 @@ on:
   schedule:
     - cron: '0 18 * * *'
   workflow_dispatch:
+    inputs:
+      ios_hardware_send_tests:
+        description: Run iOS HardwareSend UIKit tests on a standard Mac runner
+        type: boolean
+        required: false
+        default: false
   workflow_call:
 
 concurrency:
@@ -24,9 +30,9 @@ env:
 
 jobs:
   plan:
-    name: plan tests
+    name: plan tests and run small selections
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
     permissions:
       contents: read
       pull-requests: read
@@ -35,11 +41,21 @@ jobs:
       docs-site: ${{ steps.plan.outputs.docs-site }}
       related: ${{ steps.plan.outputs.related }}
       android-native: ${{ steps.plan.outputs.android-native }}
+      perf: ${{ steps.plan.outputs.perf }}
+      mobile: ${{ steps.plan.outputs.mobile }}
+      matrix: ${{ steps.select.outputs.matrix }}
+      count: ${{ steps.select.outputs.count }}
+      shards: ${{ steps.select.outputs.shards }}
     steps:
       - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
       - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - name: List changed files
         if: github.event_name == 'pull_request'
         env:
@@ -51,6 +67,16 @@ jobs:
           > "$RUNNER_TEMP/changes.tsv"
       - id: plan
         run: node scripts/ci-plan.mjs --github --changes "$RUNNER_TEMP/changes.tsv"
+      - id: select
+        if: steps.plan.outputs.tests == 'affected'
+        env:
+          RELATED: ${{ steps.plan.outputs.related }}
+        run: node scripts/ci-affected.mjs --select
+      - name: Run small affected selection
+        if: steps.select.outputs.shards == '1'
+        run: node scripts/ci-affected.mjs --run
+        env:
+          TEST_FILES: ${{ toJSON(fromJSON(steps.select.outputs.matrix || '{"include":[{"files":[]}]}').include[0].files) }}
 
   static:
     name: lint, format, typecheck, build
@@ -69,12 +95,13 @@ jobs:
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck
-      - run: pnpm --filter @botharness/mobile expo:doctor
       - run: pnpm build
       - run: git diff --exit-code -- packages/computer/lib/client.js packages/computer/lib/client.js.map packages/browser/lib/client.js packages/browser/lib/client.js.map
 
   mobile-export:
-    name: mobile bundles (iOS and Android)
+    name: mobile verification (iOS and Android)
+    needs: plan
+    if: needs.plan.outputs.mobile == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -87,6 +114,7 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @botharness/mobile expo:doctor
       - run: pnpm --filter @botharness/mobile export
         env:
           CI: '1'
@@ -117,7 +145,118 @@ jobs:
         env:
           CI: '1'
           EXPO_OFFLINE: '1'
-      - run: bash apps/mobile/android/gradlew -p apps/mobile/android :stream-reveal:testDebugUnitTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
+      - run: bash apps/mobile/android/gradlew -p apps/mobile/android :stream-reveal:testDebugUnitTest :hardware-send:testDebugUnitTest :remote-keyboard:testDebugUnitTest :material-search:testDebugUnitTest :material-button-group:testDebugUnitTest :material-tab-row:testDebugUnitTest :conversation-notifications:compileDebugKotlin :local-computer-video:compileDebugKotlin :lan-channel:testDebugUnitTest :material-fab-menu:testDebugUnitTest :material-split-button:testDebugUnitTest :material-search-bar:testDebugUnitTest :predictive-back:compileDebugKotlin :dismissible-drawer:testDebugUnitTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
+
+  mobile-native-ios:
+    name: iOS HardwareSend UIKit tests (manual)
+    if: github.event_name == 'workflow_dispatch' && inputs.ios_hardware_send_tests
+    runs-on: xcode-27
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    env:
+      CI: '1'
+      EXPO_OFFLINE: '1'
+      EXPO_NO_TELEMETRY: '1'
+      BOTHARNESS_HARDWARE_SEND_IOS_TESTS: '1'
+      LANG: en_US.UTF-8
+      LC_ALL: en_US.UTF-8
+      COCOAPODS_DISABLE_STATS: 'true'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Generate the opt-in test specification
+        working-directory: apps/mobile
+        run: node node_modules/expo/bin/cli prebuild --platform ios --no-install
+      - name: Install test host pods
+        working-directory: apps/mobile/ios
+        run: pod install --no-repo-update
+      - name: Check the test scheme and select an installed simulator
+        id: simulator
+        run: |
+          mkdir -p "$RUNNER_TEMP/hardware-send-ios"
+          xcodebuild -version
+          xcodebuild -list -json -workspace apps/mobile/ios/DeepSeekBotDev.xcworkspace > "$RUNNER_TEMP/hardware-send-ios/schemes.json"
+          xcrun simctl list devices available --json > "$RUNNER_TEMP/available-simulators.json"
+          node <<'NODE'
+          const fs = require('node:fs');
+          const directory = `${process.env.RUNNER_TEMP}/hardware-send-ios`;
+          const schemes = JSON.parse(fs.readFileSync(`${directory}/schemes.json`, 'utf8'));
+          if (!schemes.workspace?.schemes?.includes('HardwareSend-Unit-Tests')) {
+            throw new Error('Missing HardwareSend-Unit-Tests scheme');
+          }
+          const devices = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/available-simulators.json`, 'utf8'));
+          const phones = Object.entries(devices.devices).flatMap(([runtime, entries]) =>
+            /\.iOS-27(?:-|$)/.test(runtime)
+              ? entries.filter((device) => device.isAvailable && device.name.startsWith('iPhone'))
+                .map((device) => ({ runtime, name: device.name, udid: device.udid }))
+              : []);
+          phones.sort((a, b) => a.name.localeCompare(b.name) || a.udid.localeCompare(b.udid));
+          if (!phones[0]) throw new Error('No installed and available iOS 27 phone simulator');
+          fs.writeFileSync(`${directory}/simulator.json`, JSON.stringify(phones[0], null, 2));
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `id=${phones[0].udid}\n`);
+          NODE
+      - name: Prove ordinary command delivery before composition regressions
+        env:
+          SIMULATOR_ID: ${{ steps.simulator.outputs.id }}
+        run: |
+          xcodebuild test \
+            -workspace apps/mobile/ios/DeepSeekBotDev.xcworkspace \
+            -scheme HardwareSend-Unit-Tests -configuration Debug -sdk iphonesimulator \
+            -destination "id=$SIMULATOR_ID" -destination-timeout 120 \
+            -derivedDataPath "$RUNNER_TEMP/hardware-send-ios-derived" \
+            -resultBundlePath "$RUNNER_TEMP/hardware-send-ios/positive.xcresult" \
+            -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 -jobs 2 \
+            -only-testing:HardwareSend-Unit-Tests/HardwareSendViewTests/testOrdinaryCommandReturnSendsThroughTheResponderChain \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$RUNNER_TEMP/hardware-send-ios/positive.log"
+          xcrun xcresulttool get test-results summary --path "$RUNNER_TEMP/hardware-send-ios/positive.xcresult" --compact > "$RUNNER_TEMP/hardware-send-ios/positive-summary.json"
+          xcrun xcresulttool get test-results tests --path "$RUNNER_TEMP/hardware-send-ios/positive.xcresult" --compact > "$RUNNER_TEMP/hardware-send-ios/positive-tests.json"
+          node apps/mobile/scripts/check-hardware-send-ios-results.mjs positive "$RUNNER_TEMP/hardware-send-ios/positive-summary.json" "$RUNNER_TEMP/hardware-send-ios/positive-tests.json"
+      - name: Exercise marked text and stale command actions
+        env:
+          SIMULATOR_ID: ${{ steps.simulator.outputs.id }}
+        run: |
+          xcodebuild test-without-building \
+            -workspace apps/mobile/ios/DeepSeekBotDev.xcworkspace \
+            -scheme HardwareSend-Unit-Tests -configuration Debug -sdk iphonesimulator \
+            -destination "id=$SIMULATOR_ID" -destination-timeout 120 \
+            -derivedDataPath "$RUNNER_TEMP/hardware-send-ios-derived" \
+            -resultBundlePath "$RUNNER_TEMP/hardware-send-ios/regressions.xcresult" \
+            -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 \
+            -only-testing:HardwareSend-Unit-Tests/HardwareSendViewTests/testCachedCommandDoesNotSendMarkedTextAndNextCommandStillWorks \
+            -only-testing:HardwareSend-Unit-Tests/HardwareSendViewTests/testCachedCommandCannotSendAfterFocusLeavesTheComposer \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$RUNNER_TEMP/hardware-send-ios/regressions.log"
+          xcrun xcresulttool get test-results summary --path "$RUNNER_TEMP/hardware-send-ios/regressions.xcresult" --compact > "$RUNNER_TEMP/hardware-send-ios/regressions-summary.json"
+          xcrun xcresulttool get test-results tests --path "$RUNNER_TEMP/hardware-send-ios/regressions.xcresult" --compact > "$RUNNER_TEMP/hardware-send-ios/regressions-tests.json"
+          node apps/mobile/scripts/check-hardware-send-ios-results.mjs regressions "$RUNNER_TEMP/hardware-send-ios/regressions-summary.json" "$RUNNER_TEMP/hardware-send-ios/regressions-tests.json"
+      - name: Retain only synthetic HardwareSend test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hardware-send-ios-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/hardware-send-ios/positive.log
+            ${{ runner.temp }}/hardware-send-ios/regressions.log
+            ${{ runner.temp }}/hardware-send-ios/positive.xcresult
+            ${{ runner.temp }}/hardware-send-ios/regressions.xcresult
+            ${{ runner.temp }}/hardware-send-ios/*-summary.json
+            ${{ runner.temp }}/hardware-send-ios/*-tests.json
+            ${{ runner.temp }}/hardware-send-ios/schemes.json
+            ${{ runner.temp }}/hardware-send-ios/simulator.json
+          if-no-files-found: ignore
+          retention-days: 7
 
   test-full:
     name: test (shard ${{ matrix.shard }})
@@ -142,11 +281,14 @@ jobs:
       - run: pnpm vitest run --exclude "$DOCS_SITE_TEST" --shard=${{ matrix.shard }}/${{ strategy.job-total }}
 
   test-affected:
-    name: test (affected)
+    name: test (affected shard ${{ matrix.shard }})
     needs: plan
-    if: needs.plan.outputs.tests == 'affected'
+    if: needs.plan.outputs.shards == '3'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -157,11 +299,9 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - env:
-          RELATED: ${{ needs.plan.outputs.related }}
-        run: |
-          mapfile -t files < <(jq -r '.[]' <<<"$RELATED")
-          pnpm vitest related --run --passWithNoTests --exclude "$DOCS_SITE_TEST" "${files[@]}"
+      - run: node scripts/ci-affected.mjs --run
+        env:
+          TEST_FILES: ${{ toJSON(matrix.files) }}
 
   docs-site:
     name: docs site build
@@ -202,16 +342,90 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm e2e:smoke
 
+  perf-budget:
+    name: timeline performance budget
+    needs: plan
+    if: needs.plan.outputs.perf == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BH_E2E_INSTANCE: .humanlayer/verify/perf/instance.json
+      DEEPSEEK_API_KEY: perf-budget-placeholder
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/verify-app.mjs launch --name perf --build > /dev/null
+      - run: >-
+          node scripts/perf-idle-timeline.mjs --messages 600 --label ci
+          --budget scripts/perf-budgets/timeline.json --out .humanlayer/perf/ci > /dev/null
+      - if: always()
+        run: node scripts/verify-app.mjs stop --name perf
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: timeline-perf
+          path: |
+            .humanlayer/perf/ci/*.json
+            .humanlayer/perf/ci/*.png
+          if-no-files-found: ignore
+
   verify:
     name: lint, format, typecheck, test, build, docs
     needs:
-      [plan, static, mobile-export, mobile-native, test-full, test-affected, docs-site, e2e-smoke]
+      [
+        plan,
+        static,
+        mobile-export,
+        mobile-native,
+        mobile-native-ios,
+        test-full,
+        test-affected,
+        docs-site,
+        e2e-smoke,
+        perf-budget,
+      ]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - env:
           NEEDS: ${{ toJSON(needs) }}
+          IOS_HARDWARE_SEND_TESTS: ${{ github.event_name == 'workflow_dispatch' && inputs.ios_hardware_send_tests }}
         run: |
-          jq -e '.plan.result == "success" and .static.result == "success" and .["mobile-export"].result == "success"' <<<"$NEEDS"
-          jq -e 'to_entries | all(.value.result == "success" or .value.result == "skipped")' <<<"$NEEDS"
+          node <<'NODE'
+          const needs = JSON.parse(process.env.NEEDS);
+          const plan = needs.plan.outputs;
+          const required = ['plan', 'static'];
+          if (process.env.IOS_HARDWARE_SEND_TESTS === 'true') required.push('mobile-native-ios');
+          if (plan.mobile === 'true') required.push('mobile-export');
+          if (plan['android-native'] === 'true') required.push('mobile-native');
+          if (plan['docs-site'] === 'true') required.push('docs-site');
+          if (plan.tests !== 'none') required.push('e2e-smoke');
+          if (plan.perf === 'true') required.push('perf-budget');
+          if (plan.tests === 'full') required.push('test-full');
+          if (plan.tests === 'affected') {
+            const count = plan.count;
+            const shards = plan.shards;
+            if (!/^\d+$/.test(count ?? '')) throw new Error('Missing affected test count');
+            if (!['0', '1', '3'].includes(shards) ||
+                (Number(count) === 0) !== (shards === '0')) throw new Error('Invalid affected test shards');
+            if (shards === '3') required.push('test-affected');
+          }
+          if (!['none', 'affected', 'full'].includes(plan.tests) ||
+              !['true', 'false'].includes(plan.mobile)) throw new Error('Invalid CI plan');
+          const failed = Object.entries(needs).filter(([, job]) => !['success', 'skipped'].includes(job.result));
+          const missing = required.filter((name) => needs[name]?.result !== 'success');
+          if (failed.length || missing.length) {
+            console.error('Verification failed', { failed: failed.map(([name]) => name), missing });
+            process.exit(1);
+          }
+          NODE

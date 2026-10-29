@@ -1,3 +1,4 @@
+import type { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { realpathSync, statSync } from 'node:fs';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
@@ -56,6 +57,11 @@ export interface WorkspaceGrantStore {
   revoke(botSlug: string, grantId: string): WorkspaceGrant;
   requireActive(botSlug: string, grantId: string): WorkspaceGrant;
   setOrchestratorWrite(botSlug: string, grantId: string, enabled: boolean): WorkspaceGrant;
+  prepareWrite?(
+    botSlug: string,
+    workspaceId: string,
+    validate: () => void,
+  ): Promise<{ grant: WorkspaceGrant; commit(database?: DatabaseSync): boolean }>;
   availableWorkspaces(): { id: string; path: string; title: string }[];
 }
 
@@ -273,6 +279,88 @@ export function createWorkspaceGrantStore(options: {
         ['workspace-grants'],
       );
       return toRecord(row);
+    },
+    async prepareWrite(botSlug, workspaceId, validate) {
+      validate();
+      const existing = this.list(botSlug).find(
+        (grant) => grant.workspaceId === workspaceId && grant.revokedAt === undefined,
+      );
+      const revokedCount = () =>
+        this.list(botSlug).filter(
+          (grant) => grant.workspaceId === workspaceId && grant.revokedAt !== undefined,
+        ).length;
+      const generation = revokedCount();
+      const workspace = lookup().get(workspaceId);
+      if (!workspace || (await workspace.status()) !== 'ok' || !isCurrentDirectory(workspace.path))
+        throw new WorkspaceGrantError('unavailable-workspace', 'Workspace is unavailable');
+      const grant: WorkspaceGrant = {
+        id: existing?.id ?? createId(),
+        botSlug,
+        workspaceId,
+        workspacePath: workspace.path,
+        workspaceTitle: workspace.title,
+        createdAt: existing?.createdAt ?? now().toISOString(),
+        orchestratorWrite: true,
+        writeRevision: (existing?.writeRevision ?? 0) + (existing?.orchestratorWrite ? 0 : 1),
+      };
+      return {
+        grant,
+        commit(connection) {
+          if (!connection || !connection.isTransaction || database.read((db) => db !== connection))
+            throw new WorkspaceGrantError(
+              'invalid-grant',
+              'Authorization requires the owning Channel transaction',
+            );
+          validate();
+          const current = read(botSlug, grant.id);
+          if (
+            revokedCount() !== generation ||
+            (existing &&
+              (!current ||
+                current.revokedAt ||
+                current.writeRevision !== existing.writeRevision)) ||
+            lookup().get(workspaceId)?.path !== workspace.path ||
+            !isCurrentDirectory(workspace.path)
+          )
+            throw new WorkspaceGrantError(
+              'invalid-grant',
+              'Workspace authority changed while authorization was pending',
+            );
+          if (existing) {
+            if (current?.workspacePath !== workspace.path)
+              throw new WorkspaceGrantError('invalid-grant', 'Workspace directory changed');
+            connection
+              .prepare(`UPDATE workspace_grants SET orchestrator_write = 1,
+              write_revision = write_revision + CASE WHEN orchestrator_write = 0 THEN 1 ELSE 0 END
+              WHERE bot_slug = ? AND id = ? AND revoked_at IS NULL`)
+              .run(botSlug, grant.id);
+          } else {
+            const active = connection
+              .prepare(
+                'SELECT id FROM workspace_grants WHERE bot_slug = ? AND workspace_id = ? AND revoked_at IS NULL',
+              )
+              .get(botSlug, workspaceId);
+            if (active)
+              throw new WorkspaceGrantError(
+                'invalid-grant',
+                'Workspace was authorized concurrently; read back and retry',
+              );
+            connection
+              .prepare(`INSERT INTO workspace_grants
+              (id, bot_slug, workspace_id, workspace_path, workspace_title, created_at, orchestrator_write, write_revision)
+              VALUES (?, ?, ?, ?, ?, ?, 1, 1)`)
+              .run(
+                grant.id,
+                botSlug,
+                workspaceId,
+                workspace.path,
+                workspace.title,
+                grant.createdAt,
+              );
+          }
+          return true;
+        },
+      };
     },
     availableWorkspaces() {
       return lookup()

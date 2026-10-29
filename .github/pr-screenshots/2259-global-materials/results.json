@@ -1,0 +1,76 @@
+{
+  "native": {
+    "mode": true,
+    "style": "--dsh-content-font-size: 14px; --dsh-code-font-size: 11px; --dsh-terminal-font-size: 13px;"
+  },
+  "styles": {
+    "headers": [
+      {
+        "background": "color(srgb 0.85098 0.796079 0.917647 / 0.35)",
+        "blur": "blur(18px)",
+        "opacity": "1"
+      },
+      {
+        "background": "color(srgb 0.85098 0.796079 0.917647 / 0.35)",
+        "blur": "blur(18px)",
+        "opacity": "1"
+      },
+      {
+        "background": "color(srgb 0.85098 0.796079 0.917647 / 0.35)",
+        "blur": "blur(18px)",
+        "opacity": "1"
+      }
+    ],
+    "bodies": [
+      {
+        "background": "color(srgb 0.913725 0.945098 0.913725 / 0.6)",
+        "blur": "blur(12px)",
+        "opacity": "1"
+      },
+      {
+        "background": "color(srgb 0.913725 0.945098 0.913725 / 0.6)",
+        "blur": "blur(12px)",
+        "opacity": "1"
+      },
+      {
+        "background": "color(srgb 0.913725 0.945098 0.913725 / 0.6)",
+        "blur": "blur(12px)",
+        "opacity": "1"
+      }
+    ]
+  },
+  "pixels": {
+    "sharpVariance": 16256.25,
+    "blurredVariance": 38.32694214875846
+  },
+  "cardBefore": {
+    "background": "rgb(245, 246, 247)",
+    "opacity": "1"
+  },
+  "saved": {
+    "version": 1,
+    "revision": "a31d73ed-62f4-4843-b4bf-825eb0a32a3c",
+    "preference": "dark",
+    "modes": {
+      "light": {
+        "preset": "forest-green",
+        "materials": {
+          "header": {
+            "opacity": 35,
+            "color": "#d9cbea",
+            "blur": 18
+          },
+          "body": {
+            "color": "#e9f1e9",
+            "opacity": 60,
+            "blur": 12
+          }
+        }
+      },
+      "dark": {
+        "preset": "warm-amber"
+      }
+    }
+  },
+  "errors": []
+}

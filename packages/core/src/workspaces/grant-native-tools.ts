@@ -88,7 +88,8 @@ export function currentRoots(core: GrantCore, session: Session, kind: AccessKind
   if (permission === undefined || permission.primaryCwd !== session.header.cwd) return [];
   try {
     const grant = core.grants.requireActive(owner.botSlug, permission.grantId);
-    return grant.workspaceId === permission.workspaceId &&
+    return (kind === 'read' || grant.orchestratorWrite === true) &&
+      grant.workspaceId === permission.workspaceId &&
       grant.workspacePath === permission.primaryCwd
       ? [grant.workspacePath]
       : [];

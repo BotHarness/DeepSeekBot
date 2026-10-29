@@ -27,6 +27,11 @@ function fixture(overrides: Partial<TelemetryOptions> = {}) {
       app_build: '12',
       environment: 'development',
       language: 'en',
+      os_version: '26.1',
+      device_class: 'phone',
+      device_model: 'iPhone11,6',
+      total_mem_gb_bucket: '8',
+      device_year_class: 2018,
     },
     ...overrides,
   });
@@ -51,8 +56,15 @@ describe('mobile statistics preference', () => {
     const first = send.mock.calls[0]![0];
     expect(first).toHaveLength(1);
     expect(first[0]).toMatchObject({
-      event: 'mobile_app_opened',
+      event: 'app:app_open',
       properties: { source: 'mobile', launch_kind: 'cold' },
+    });
+    expect(first[0]?.properties).toMatchObject({
+      os_version: '26.1',
+      device_class: 'phone',
+      device_model: 'iPhone11,6',
+      total_mem_gb_bucket: '8',
+      device_year_class: 2018,
     });
     await telemetry.setEnabled(false);
     expect(stored()).toEqual({ version: 1, enabled: false });
@@ -85,7 +97,7 @@ it('keeps only sanitized bounded events, retries stable UUIDs, expires offline d
   advance(24 * 60 * 60 * 1000 + 1);
   await telemetry.flush();
   expect(send).toHaveBeenCalledTimes(2);
-  expect(JSON.stringify(stored())).not.toContain('mobile_pairing');
+  expect(JSON.stringify(stored())).not.toContain('pairing:attempt');
   telemetry.dispose();
 });
 
@@ -133,7 +145,7 @@ it('records activation once per identity and rejects pre-foreground or backgroun
   telemetry.send('group').accepted();
   await telemetry.flush();
   expect(
-    send.mock.calls[0]![0].filter((e) => e.event === 'mobile_activation_step').map(
+    send.mock.calls[0]![0].filter((e) => e.event === 'onboarding:activation_step_complete').map(
       (e) => e.properties,
     ),
   ).toMatchObject([
@@ -180,7 +192,7 @@ it('restores only sanitized unexpired data and activation deduplication; missing
   restored.send('dm').accepted();
   expect(JSON.stringify(disk)).not.toContain('SENTINEL');
   await restored.flush();
-  expect(batch.filter((e) => e.event === 'mobile_activation_step')).toHaveLength(1);
+  expect(batch.filter((e) => e.event === 'onboarding:activation_step_complete')).toHaveLength(1);
   expect(batch.every((e) => e.distinct_id === batch[0]!.distinct_id)).toBe(true);
   restored.dispose();
   const reinstalled = fixture();
@@ -272,9 +284,9 @@ it('retains an in-flight send acceptance on background without observing a hidde
   expect(observation.accepted()).toBe(true);
   observation.observed();
   await telemetry.flush();
-  expect(send.mock.calls[0]![0].filter((e) => e.event === 'mobile_activation_step')).toMatchObject([
-    { properties: { step: 'message_accepted' } },
-  ]);
+  expect(
+    send.mock.calls[0]![0].filter((e) => e.event === 'onboarding:activation_step_complete'),
+  ).toMatchObject([{ properties: { step: 'message_accepted' } }]);
   telemetry.dispose();
 });
 
@@ -288,6 +300,42 @@ it('preserves a saved opt-out on startup instead of applying the new default', a
   await telemetry.flush();
   expect(send).not.toHaveBeenCalled();
   telemetry.dispose();
+});
+
+it('retries pre-upgrade queued events unchanged and uses current context only for new events', async () => {
+  const first = fixture({
+    context: {
+      platform: 'ios',
+      app_version: '1.9.0',
+      app_build: '11',
+      environment: 'development',
+      language: 'en',
+    },
+  });
+  await first.telemetry.ready;
+  first.telemetry.foreground(true, 0);
+  const saved = structuredClone(first.stored());
+  first.send.mockRejectedValueOnce(new Error('offline'));
+  await first.telemetry.flush();
+  const original = first.send.mock.calls[0]![0][0]!;
+  first.telemetry.dispose();
+
+  const restored = fixture({ storage: { read: async () => saved, write: vi.fn() } });
+  await restored.telemetry.ready;
+  restored.send.mockRejectedValueOnce(new Error('offline'));
+  await restored.telemetry.flush();
+  await restored.telemetry.flush();
+  expect(restored.send.mock.calls.map(([batch]) => batch)).toEqual([[original], [original]]);
+  expect(original.properties).not.toHaveProperty('device_model');
+  restored.telemetry.foreground(true, 0);
+  await restored.telemetry.flush();
+  expect(restored.send.mock.calls[2]![0][0]!.properties).toMatchObject({
+    app_version: '2.0.0',
+    app_build: '12',
+    device_model: 'iPhone11,6',
+    os_version: '26.1',
+  });
+  restored.telemetry.dispose();
 });
 
 it('does not replace an unreadable saved preference with default-on', async () => {
@@ -325,7 +373,7 @@ it('records the first app open when foreground arrives before preference loading
   await telemetry.ready;
   await telemetry.flush();
   expect(send).toHaveBeenCalledTimes(1);
-  expect(send.mock.calls[0]![0]).toEqual([expect.objectContaining({ event: 'mobile_app_opened' })]);
+  expect(send.mock.calls[0]![0]).toEqual([expect.objectContaining({ event: 'app:app_open' })]);
   telemetry.dispose();
 });
 

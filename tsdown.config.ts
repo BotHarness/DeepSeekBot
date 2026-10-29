@@ -1,8 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type UserConfig } from 'tsdown';
 
+import { preparePackagedDesktopZoomTheme } from './scripts/desktop-zoom-compat.mjs';
 import { dockviewCssPlugin } from './scripts/dockview-css-plugin.mjs';
 import { stylexPlugin } from './scripts/stylex-plugin.mjs';
 
@@ -40,7 +42,10 @@ function clientBundle(id: string, entry: string[], outDir: string): UserConfig {
       {
         name: 'botharness:vfile-browser-imports',
         resolveId(id, importer) {
-          if (/^#min(?:path|proc|url)$/u.test(id) && importer?.includes('/node_modules/vfile/lib/'))
+          if (
+            /^#min(?:path|proc|url)$/u.test(id) &&
+            importer?.replaceAll('\\', '/').includes('/node_modules/vfile/lib/')
+          )
             return join(dirname(importer), `${id.slice(1)}.browser.js`);
           return null;
         },
@@ -137,9 +142,75 @@ function sourceBuildStamp(): { revision: string; dirty: boolean } | null {
   }
 }
 
+function roomAsset(name: string) {
+  const directory = join(ROOT_DIR, 'packages/vrm-companion/assets/kaykit');
+  const model = JSON.parse(readFileSync(join(directory, name + '.gltf'), 'utf8'));
+  for (const buffer of model.buffers)
+    buffer.uri =
+      'data:application/octet-stream;base64,' +
+      readFileSync(join(directory, buffer.uri)).toString('base64');
+  for (const image of model.images)
+    image.uri =
+      'data:image/png;base64,' + readFileSync(join(directory, image.uri)).toString('base64');
+  return 'data:model/gltf+json;base64,' + Buffer.from(JSON.stringify(model)).toString('base64');
+}
+
+const vrmCompanionClient = clientBundle(
+  '@botharness/vrm-companion',
+  ['packages/vrm-companion/src/client/index.tsx'],
+  'packages/vrm-companion/lib',
+);
+
+export const vrmCompanionClientBundleOptions: UserConfig = {
+  ...vrmCompanionClient,
+  plugins: [
+    ...(vrmCompanionClient.plugins as unknown[]),
+    {
+      name: 'botharness:vrm-default-model-chunk',
+      generateBundle() {
+        const url =
+          'data:model/gltf-binary;base64,' +
+          readFileSync(
+            join(ROOT_DIR, 'packages/vrm-companion/assets/avatar-sample-a.vrm'),
+          ).toString('base64');
+        this.emitFile({
+          type: 'asset',
+          fileName: 'client.model.js',
+          source: `window.__ModuleLoader__.load({ id: '@botharness/vrm-companion/client.model.js', factory: () => ({ url: ${JSON.stringify(url)} }) });\n`,
+        });
+      },
+    },
+  ] as UserConfig['plugins'],
+  define: {
+    'process.env.NODE_ENV': JSON.stringify('production'),
+    __VRM_POSTER__: JSON.stringify(
+      'data:image/webp;base64,' +
+        readFileSync(join(ROOT_DIR, 'packages/vrm-companion/assets/poster-default.webp')).toString(
+          'base64',
+        ),
+    ),
+    __ROOM_ASSETS__: JSON.stringify(
+      Object.fromEntries(
+        [
+          'book_set',
+          'shelf_B_small_decorated',
+          'cactus_small_A',
+          'cactus_medium_A',
+          'pictureframe_small_A',
+          'pillow_A',
+          'book_single',
+        ].map((name) => [name, roomAsset(name)]),
+      ),
+    ),
+  },
+};
+
 export default defineConfig([
   {
-    entry: ['packages/core/src/index.ts'],
+    entry: {
+      index: 'packages/core/src/index.ts',
+      'folder-browse-worker': 'packages/core/src/workspaces/folder-browse-worker.ts',
+    },
     outDir: 'packages/core/dist',
     define: { __BOTHARNESS_SOURCE__: JSON.stringify(sourceBuildStamp()) },
     format: ['esm'],
@@ -162,7 +233,7 @@ export default defineConfig([
   },
   coreCliBundleOptions,
   {
-    entry: ['packages/client/src/index.ts'],
+    entry: ['packages/client/src/index.ts', 'packages/client/src/panel-api.ts'],
     outDir: 'packages/client/dist',
     format: ['esm'],
     platform: 'node',
@@ -210,15 +281,36 @@ export default defineConfig([
   },
   clientBundleOptions,
   {
-    entry: ['packages/deepseekbot/src/profile-cli.mjs', 'packages/deepseekbot/src/deepseekbot.mjs'],
+    entry: {
+      'profile-cli': 'packages/deepseekbot/src/profile-cli.mjs',
+      'desktop-zoom-setup': 'packages/deepseekbot/src/desktop-zoom-setup.mjs',
+      deepseekbot: 'packages/deepseekbot/src/deepseekbot.mjs',
+      'theme-schema': 'packages/client/src/theme-schema.ts',
+    },
+    deps: { alwaysBundle: ['@deepseek-ai/schemastery'] },
+    onSuccess: () => {
+      preparePackagedDesktopZoomTheme({
+        source: join(ROOT_DIR, 'packages/client/node_modules/@deepseek-ai/dsh-client-ui-theme'),
+        target: join(ROOT_DIR, 'packages/deepseekbot/desktop-theme'),
+      });
+    },
     outDir: 'packages/deepseekbot/dist',
     format: ['esm'],
     platform: 'node',
     dts: false,
     clean: true,
-    external: ['@botharness/core'],
+    external: ['@botharness/core', '@botharness/core/cli'],
     outputOptions: { banner: '#!/usr/bin/env node' },
   },
   computerClientBundleOptions,
   browserClientBundleOptions,
+  {
+    entry: ['packages/vrm-companion/src/index.ts'],
+    outDir: 'packages/vrm-companion/dist',
+    format: ['esm'],
+    platform: 'node',
+    dts: true,
+    clean: true,
+  },
+  vrmCompanionClientBundleOptions,
 ]);

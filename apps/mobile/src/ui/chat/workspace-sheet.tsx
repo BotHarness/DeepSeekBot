@@ -1,5 +1,5 @@
 import { useState, type ComponentType, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, SectionList, View } from 'react-native';
+import { Pressable, ScrollView, SectionList, View } from 'react-native';
 
 import {
   errorText,
@@ -18,11 +18,14 @@ import {
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
-import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
+import {
+  SettingsGroupItem,
+  SettingsRow,
+  type SettingsRowControl,
+} from '../primitives/settings-row';
 import { Text } from '../primitives/text';
-import { Toggle } from '../primitives/toggle';
-import { CheckIcon, ChevronRightIcon, CloseIcon, FolderIcon, PlusIcon } from '../shell/icons';
-import { t } from '../strings';
+import { CloseIcon, FolderIcon, PlusIcon } from '../shell/icons';
+import { useStrings, t } from '../strings';
 import {
   Sheet,
   type SheetPageProps,
@@ -35,6 +38,7 @@ import {
   SheetNote,
   SHEET_GROUP,
 } from './sheet';
+import { confirmDestructive } from '../primitives/app-dialog';
 
 type Mode = 'main' | 'browse' | 'confirm';
 type Pending = { path: string; workspaceId?: string };
@@ -72,6 +76,24 @@ type BrowseRow =
 
 const OFF = 'off';
 
+export function OpenFolderTarget({ listing }: { listing: Loadable<HostFolderListing> }) {
+  const t = useStrings();
+  return listing.status === 'ready' ? (
+    <SheetNote>{t.authorizeTarget(listing.value.path)}</SheetNote>
+  ) : null;
+}
+
+export function locationSection(listing: HostFolderListing) {
+  const data = listing.roots
+    .map((root, index) => ({
+      kind: 'folder' as const,
+      key: `root:${root.path}`,
+      folder: index === 0 ? { ...root, name: t.browseHome } : root,
+    }))
+    .filter((row) => row.folder.path !== listing.path);
+  return data.length === 0 ? [] : [{ key: 'locations', title: t.browseLocations, data }];
+}
+
 export function templateTitle(template: Pick<ApprovalTemplate, 'name' | 'title'>): string {
   if (template.name === 'cautious') return t.autoApprovalCautious;
   if (template.name === 'get-work-done') return t.autoApprovalGetWorkDone;
@@ -84,7 +106,7 @@ export function templateDescription(template: ApprovalTemplate): string {
   return template.description;
 }
 
-function Grouped({
+export function Grouped({
   index,
   count,
   children,
@@ -100,7 +122,7 @@ function Grouped({
   );
 }
 
-function RowIcon({ kind }: { kind: 'folder' | 'add' }) {
+export function RowIcon({ kind }: { kind: 'folder' | 'add' }) {
   const theme = useDesignTheme();
   const size = theme.type.title.line;
   return kind === 'folder' ? (
@@ -110,7 +132,7 @@ function RowIcon({ kind }: { kind: 'folder' | 'add' }) {
   );
 }
 
-function RemoveButton({
+export function RemoveButton({
   label,
   disabled,
   onPress,
@@ -143,7 +165,7 @@ function RemoveButton({
   );
 }
 
-function Crumbs({
+export function Crumbs({
   crumbs,
   disabled,
   onOpen,
@@ -159,6 +181,7 @@ function Crumbs({
       horizontal
       showsHorizontalScrollIndicator={false}
       accessibilityRole="toolbar"
+      style={{ flexGrow: 0, flexShrink: 0 }}
       contentContainerStyle={{
         gap: space.x2,
         paddingHorizontal: space.x5,
@@ -224,7 +247,7 @@ export function WorkspaceSheet({
   onTemplates(templates: ApprovalTemplates): void;
   onClose(): void;
 }) {
-  const theme = useDesignTheme();
+  const t = useStrings();
   const [mode, setMode] = useState<Mode>('main');
   const [listing, setListing] = useState<Loadable<HostFolderListing>>({
     status: 'loading',
@@ -341,12 +364,8 @@ export function WorkspaceSheet({
     });
   };
 
-  const trailingCheck = (key: string, selected: boolean) =>
-    busy === key ? (
-      <ActivityIndicator />
-    ) : selected ? (
-      <CheckIcon color={theme.color.fg} size={theme.type.title.line} />
-    ) : undefined;
+  const checkControl = (key: string, selected: boolean): SettingsRowControl | undefined =>
+    busy === key ? { kind: 'busy' } : selected ? { kind: 'check' } : undefined;
 
   const notice = (
     <>
@@ -374,7 +393,8 @@ export function WorkspaceSheet({
           <SettingsRow
             title={name}
             detail={pending.path}
-            leading={<RowIcon kind="folder" />}
+            icon="folder"
+            iconTone="muted"
             on={SHEET_GROUP}
           />
         </SettingsGroupItem>
@@ -447,6 +467,7 @@ export function WorkspaceSheet({
           listing.status === 'ready' && listing.value.truncated ? t.browseTruncated : undefined,
         data: folderRows,
       },
+      ...(listing.status === 'ready' ? locationSection(listing.value) : []),
     ];
     return (
       <Sheet
@@ -466,8 +487,14 @@ export function WorkspaceSheet({
         ) : null}
         <SectionList<
           BrowseRow,
-          { key: string; title: string; footer?: string | undefined; data: readonly BrowseRow[] }
+          {
+            key: string;
+            title: string;
+            footer?: string | undefined;
+            data: readonly BrowseRow[];
+          }
         >
+          nestedScrollEnabled
           style={page !== undefined ? { flex: 1 } : { flexShrink: 1 }}
           sections={sections}
           keyExtractor={(row) => row.key}
@@ -491,7 +518,8 @@ export function WorkspaceSheet({
                 <SettingsRow
                   title={item.option.title}
                   detail={item.option.path}
-                  leading={<RowIcon kind="folder" />}
+                  icon="folder"
+                  iconTone="muted"
                   on={SHEET_GROUP}
                   onPress={
                     busy === undefined ? () => choose(item.option.path, item.option.id) : undefined
@@ -500,10 +528,9 @@ export function WorkspaceSheet({
               ) : (
                 <SettingsRow
                   title={item.folder.name}
-                  leading={<RowIcon kind="folder" />}
-                  trailing={
-                    <ChevronRightIcon color={theme.color.subtle} size={theme.type.meta.line} />
-                  }
+                  icon="folder"
+                  iconTone="muted"
+                  control={{ kind: 'chevron' }}
                   on={SHEET_GROUP}
                   onPress={busy === undefined ? () => browse(item.folder.path) : undefined}
                 />
@@ -511,6 +538,7 @@ export function WorkspaceSheet({
             </Grouped>
           )}
         />
+        <OpenFolderTarget listing={listing} />
         <SheetActions>
           <Button
             label={t.back}
@@ -657,16 +685,23 @@ export function WorkspaceSheet({
           <SettingsRow
             title={item.grant.workspaceTitle}
             detail={`${item.grant.orchestratorWrite ? t.folderCanEdit : t.folderReadOnly} · ${item.grant.workspacePath}`}
-            leading={<RowIcon kind="folder" />}
+            icon="folder"
+            iconTone="muted"
             on={SHEET_GROUP}
+            {...(busy === item.key ? { control: { kind: 'busy' } as const } : {})}
             trailing={
-              busy === item.key ? (
-                <ActivityIndicator />
-              ) : (
+              busy === item.key ? undefined : (
                 <RemoveButton
                   label={t.removeFolder(item.grant.workspaceTitle)}
                   disabled={busy !== undefined}
-                  onPress={() => remove(item.grant)}
+                  onPress={() =>
+                    confirmDestructive(
+                      t.confirmAction(t.removeFolder(item.grant.workspaceTitle)),
+                      undefined,
+                      t.remove,
+                      () => remove(item.grant),
+                    )
+                  }
                 />
               )
             }
@@ -676,7 +711,7 @@ export function WorkspaceSheet({
         return (
           <SettingsRow
             title={t.addFolder}
-            leading={<RowIcon kind="add" />}
+            icon="add"
             on={SHEET_GROUP}
             {...(busy === undefined ? { onPress: startBrowse } : {})}
           />
@@ -687,25 +722,22 @@ export function WorkspaceSheet({
             title={t.fullAccess}
             detail={t.fullAccessSummary}
             on={SHEET_GROUP}
-            trailing={
-              busy === 'safe-access' ? (
-                <ActivityIndicator />
-              ) : (
-                <Toggle
-                  label={t.fullAccess}
-                  value={item.access.mode === 'danger-full-access' || confirmDanger}
-                  disabled={busy !== undefined}
-                  on={SHEET_GROUP}
-                  onChange={(on) => {
-                    if (on) setConfirmDanger(true);
-                    else if (confirmDanger) setConfirmDanger(false);
-                    else
-                      changeAccess('safe-access', () =>
-                        settings.setAccess('workspace-write', false),
-                      );
-                  }}
-                />
-              )
+            control={
+              busy === 'safe-access'
+                ? { kind: 'busy' }
+                : {
+                    kind: 'switch',
+                    value: item.access.mode === 'danger-full-access' || confirmDanger,
+                    disabled: busy !== undefined,
+                    onChange: (on) => {
+                      if (on) setConfirmDanger(true);
+                      else if (confirmDanger) setConfirmDanger(false);
+                      else
+                        changeAccess('safe-access', () =>
+                          settings.setAccess('workspace-write', false),
+                        );
+                    },
+                  }
             }
           />
         );
@@ -765,7 +797,7 @@ export function WorkspaceSheet({
             }
             selected={item.selected}
             on={SHEET_GROUP}
-            trailing={trailingCheck(item.key, item.selected)}
+            control={checkControl(item.key, item.selected)}
             {...(busy === undefined && !item.selected
               ? {
                   onPress: () =>
@@ -783,7 +815,7 @@ export function WorkspaceSheet({
             detail={item.detail}
             selected={item.selected}
             on={SHEET_GROUP}
-            trailing={trailingCheck(item.key, item.selected)}
+            control={checkControl(item.key, item.selected)}
             {...(busy === undefined && !item.selected
               ? { onPress: () => chooseTemplate(item.name) }
               : {})}

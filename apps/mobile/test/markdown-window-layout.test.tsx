@@ -47,6 +47,10 @@ vi.mock('react-native', async () => {
     ...shim,
     View,
     useWindowDimensions: () => ({ width: geometry.width, height: 800, scale: 2, fontScale: 1 }),
+    Dimensions: {
+      get: () => ({ width: geometry.width, height: 800, scale: 2, fontScale: 1 }),
+      addEventListener: (_event: string, _changed: () => void) => ({ remove() {} }),
+    },
   };
 });
 vi.mock('react-native-reanimated', async () => {

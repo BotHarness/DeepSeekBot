@@ -14,9 +14,11 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   buttonStyle: () => ({}),
   buttonBorderShape: () => ({}),
   font: () => ({}),
-  fixedSize: () => ({}),
+  lineLimit: () => ({}),
+  minimumScaleFactor: () => ({}),
   foregroundStyle: () => ({}),
   frame: () => ({}),
+  monospacedDigit: () => ({}),
 }));
 vi.mock('@expo/ui/swift-ui', () => {
   const container = ({ children }: { children: ReactNode }) => createElement('div', null, children);
@@ -25,7 +27,7 @@ vi.mock('@expo/ui/swift-ui', () => {
     HStack: container,
     VStack: container,
     Text: container,
-    Image: () => null,
+    Image: ({ systemName }: { systemName: string }) => createElement('i', { title: systemName }),
     Button: ({
       onPress,
       children,
@@ -93,6 +95,9 @@ it('native controls preserve selection, unread label and distinct navigation/cre
     const buttons = [...host.querySelectorAll('button')];
     expect(buttons[0]!.getAttribute('aria-pressed')).toBe('true');
     expect(buttons[1]!.getAttribute('aria-label')).toContain('4');
+    expect(buttons[1]!.querySelector('i')).toBeNull();
+    expect(buttons[1]!.textContent).toContain('4');
+    expect(buttons[0]!.querySelector('i')?.title).toBe('bubble.left.and.bubble.right.fill');
     await act(async () => {
       buttons[0]!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
       buttons[1]!.click();
@@ -104,6 +109,41 @@ it('native controls preserve selection, unread label and distinct navigation/cre
     expect(close).toHaveBeenCalledOnce();
     expect(chats).not.toHaveBeenCalled();
     expect(longPress).toHaveBeenCalledOnce();
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+  }
+});
+
+it('shows the native Settings gear and opens it without selecting a new tab', async () => {
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const open = vi.fn();
+  try {
+    await act(async () =>
+      root.render(
+        <NavigationDestinations
+          items={[
+            {
+              key: 'settings',
+              focused: false,
+              activity: false,
+              settings: true,
+              count: 0,
+              onPress: open,
+              onLongPress: () => {},
+            },
+          ]}
+        />,
+      ),
+    );
+    const button = host.querySelector('button')!;
+    expect(button.querySelector('i')?.title).toBe('gearshape');
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+    expect(button.getAttribute('aria-label')).toBe(button.textContent);
+    await act(async () => button.click());
+    expect(open).toHaveBeenCalledOnce();
   } finally {
     act(() => root.unmount());
     host.remove();

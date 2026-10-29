@@ -9,14 +9,15 @@ import {
   IconPlusOutlineRegular,
   IconTrashOutlineRegular,
   Tag,
-  Tooltip,
   type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 
 import type { BridgeActions } from './actions.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { AtSignIcon } from './at-sign-icon.js';
-import { useClientState } from './bot-sidebar.js';
+import { useClientStore } from './use-client-store.js';
+import { shallowEqual } from '@deepseek-ai/dsh-client-store';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { useDelayedSearch } from './delayed-search.js';
 import { Field, TextField } from './ds/field.js';
@@ -27,7 +28,7 @@ import { border, color, radius, size, space, text } from './ds/tokens.stylex.js'
 import { humanLabel } from './actor-names.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { personaBotActivity } from './persona-activity.js';
-import type { BotSummary, ChannelSummary } from './store.js';
+import { store, type BotSummary, type ChannelSummary } from './store.js';
 import { IconButton } from './ds/icon-button.js';
 
 const styles = stylex.create({
@@ -383,8 +384,8 @@ function MembersHeaderActionForChannel({
   actions,
   t,
 }: ChannelSidebarEntryProps): ReactElement {
-  const state = useClientState();
-  const group = state.conversation.channel;
+  const group = useClientStore((state) => state.conversation.channel);
+  const bots = useClientStore((state) => state.bots, shallowEqual);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [attentionOpen, setAttentionOpen] = useState(false);
   if (group?.id !== channelId || group.type !== 'group') return <></>;
@@ -423,7 +424,7 @@ function MembersHeaderActionForChannel({
       {inviteOpen ? (
         <InviteMemberModal
           group={group}
-          bots={state.bots}
+          bots={bots}
           actions={actions}
           t={t}
           onClose={() => setInviteOpen(false)}
@@ -432,7 +433,7 @@ function MembersHeaderActionForChannel({
       {attentionOpen ? (
         <GroupAttentionModal
           group={group}
-          bots={state.bots}
+          bots={bots}
           actions={actions}
           t={t}
           onClose={() => setAttentionOpen(false)}
@@ -557,8 +558,8 @@ function MembersEntryForChannel({
   channelId,
   onMentionBot,
 }: ChannelSidebarEntryProps): ReactElement {
-  const state = useClientState();
-  const channel = state.conversation.channel;
+  const channel = useClientStore((state) => state.conversation.channel);
+  const bots = useClientStore((state) => state.bots, shallowEqual);
   const group = channel?.type === 'group' && channel.id === channelId ? channel : undefined;
   const [menu, setMenu] = useState<{ slug: string; x: number; y: number } | undefined>();
   const [policySlug, setPolicySlug] = useState<string | undefined>();
@@ -568,7 +569,7 @@ function MembersEntryForChannel({
   const selectedMember = menu?.slug;
   const canMention =
     onMentionBot !== undefined &&
-    state.bots.some(
+    bots.some(
       (bot) => bot.slug === selectedMember && bot.deleted !== true && members.includes(bot.slug),
     );
   const menuItems: readonly MenuEntry[] = [
@@ -602,7 +603,7 @@ function MembersEntryForChannel({
         </div>
       ))}
       {members.map((slug) => {
-        const member = state.bots.find((candidate) => candidate.slug === slug);
+        const member = bots.find((candidate) => candidate.slug === slug);
         return (
           <div
             className="bh-member-row"
@@ -621,7 +622,7 @@ function MembersEntryForChannel({
             <button
               type="button"
               className="bh-member-open-dm"
-              aria-label={t('message.mention.openDm', { bot: memberName(state.bots, slug) })}
+              aria-label={t('message.mention.openDm', { bot: memberName(bots, slug) })}
               onClick={() => void actions.openBot(slug)}
             >
               <PersonaBotAvatar
@@ -631,17 +632,19 @@ function MembersEntryForChannel({
                 src={member?.avatar}
                 appearance={member?.appearance}
                 avatarSeed={member?.avatarSeed}
-                state={member === undefined ? 'idle' : personaBotActivity(state, member)}
+                state={
+                  member === undefined ? 'idle' : personaBotActivity(store.getSnapshot(), member)
+                }
                 size={26}
               />
-              <span className="bh-name">{memberName(state.bots, slug)}</span>
+              <span className="bh-name">{memberName(bots, slug)}</span>
             </button>
             <Tag tone="neutral">{t('message.mention.botType')}</Tag>
             {group?.ownerBotSlug === slug ? <Tag tone="neutral">{t('members.owner')}</Tag> : null}
             <button
               type="button"
               className="bh-member-menu-button"
-              aria-label={t('members.menu', { bot: memberName(state.bots, slug) })}
+              aria-label={t('members.menu', { bot: memberName(bots, slug) })}
               aria-haspopup="menu"
               aria-expanded={menu?.slug === slug}
               onClick={(event) => {
@@ -670,7 +673,7 @@ function MembersEntryForChannel({
               else if (
                 id === 'remove' &&
                 window.confirm(
-                  t('members.removeConfirm', { bot: memberName(state.bots, selectedMember) }),
+                  t('members.removeConfirm', { bot: memberName(bots, selectedMember) }),
                 )
               ) {
                 void actions
@@ -687,7 +690,7 @@ function MembersEntryForChannel({
           key={`${group.id}:${policySlug}:${group.wakePolicies?.[policySlug]?.revision ?? 0}`}
           group={group}
           slug={policySlug}
-          name={memberName(state.bots, policySlug)}
+          name={memberName(bots, policySlug)}
           actions={actions}
           t={t}
           onClose={() => setPolicySlug(undefined)}

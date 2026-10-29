@@ -1,11 +1,5 @@
 import { use, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  useWindowDimensions,
-  View,
-  type ViewInstance,
-} from 'react-native';
+import { Pressable, useWindowDimensions, View, type ViewInstance } from 'react-native';
 import { Image } from 'expo-image';
 
 import type { HostClient } from '../../host/client';
@@ -23,9 +17,10 @@ import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { ImageViewer } from './image-viewer';
 import { MemoryVisibility } from './memory-visibility';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 export function MemoryPreviewImage({
   client,
@@ -46,6 +41,7 @@ export function MemoryPreviewImage({
   alt?: string;
   onRefresh?: (() => void) | undefined;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const frame = useWindowDimensions();
   const stage = use(MemoryVisibility);
@@ -174,7 +170,7 @@ export function MemoryPreviewImage({
         </View>
       ) : (
         <>
-          {!decoded ? <ActivityIndicator accessibilityLabel={t.memoryImageLoading} /> : null}
+          {!decoded ? <LoadingIndicator accessibilityLabel={t.memoryImageLoading} /> : null}
           {image && attachment ? (
             <>
               <Pressable

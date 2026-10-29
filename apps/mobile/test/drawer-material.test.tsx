@@ -27,13 +27,14 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   foregroundStyle: () => ({}),
   accessibilityHidden: () => ({}),
   glassEffect: () => ({}),
+  ignoreSafeArea: () => ({}),
 }));
 vi.mock('@expo/ui/swift-ui', () => ({
   Host: ({ children }: { children: ReactNode }) => createElement('div', null, children),
   Capsule: () => createElement('div', { 'data-material': 'capsule' }),
   RoundedRectangle: () => createElement('div', { 'data-material': 'panel' }),
 }));
-import { DrawerMaterial } from '../src/ui/primitives/drawer-material.ios';
+import { DrawerMaterial, useLiquidGlass } from '../src/ui/primitives/drawer-material.ios';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 it('uses panel glass only when supported and keeps live transparency and drawer-title fallbacks', async () => {
@@ -62,5 +63,31 @@ it('uses panel glass only when supported and keeps live transparency and drawer-
     native.version = 26;
     native.reduced = false;
     expect(native.listeners.size).toBe(0);
+  }
+});
+
+it('floats the sidebar on glass only on iOS 26 with transparency allowed', async () => {
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const Probe = () => createElement('span', null, useLiquidGlass() ? 'glass' : 'opaque');
+  try {
+    await act(async () => root.render(<Probe />));
+    expect(container.textContent).toBe('glass');
+    await act(async () => {
+      native.reduced = true;
+      native.listeners.forEach((notify) => notify(true));
+    });
+    expect(container.textContent).toBe('opaque');
+    await act(async () => {
+      native.reduced = false;
+      native.listeners.forEach((notify) => notify(false));
+    });
+    native.version = 18;
+    await act(async () => root.render(<Probe key="older" />));
+    expect(container.textContent).toBe('opaque');
+  } finally {
+    act(() => root.unmount());
+    native.version = 26;
+    native.reduced = false;
   }
 });

@@ -1,0 +1,10 @@
+{
+  "01-account-a-channels-light.png": "0e7db799b0595556727929c8b5e0b649deccf045a989ccc3612722ff35c49f4c",
+  "02-account-a-channels-dark.png": "a9e8114b84788bd2a26b93781ae189bce73c8f2bf05d6c57a87e45d8d4f87ab3",
+  "03-logged-out-old-view-dark.png": "1cf1c813d356648bbb1df07a5a5cfc3e89a6bed3aafd19bb04a2ddc107cb7461",
+  "04-logged-out-directory-dark.png": "6b6bc270ac10e5a43b5600da0c9e2cc9268a3da86de122fbb7105e493ae3e38f",
+  "05-account-b-workspaces-dark.png": "4b90723eebf0d4c16552be90eafae6dbc312473f10766af25e97401dc7ff8cf7",
+  "07-account-b-old-channel-denied-light.png": "65699b35e02d3e45312a2bd8faf9ae6e30c42e90e39dbd83b8600e5d3510fc3c",
+  "08-account-b-retry-denied-dark.png": "b39f7e76990515a7cb7ba8f304fe7491dfff95edd69aeee57ef126c5b98902a5",
+  "09-account-b-own-channels-dark.png": "895f1bb079add7691414785211794d505e674afb2d87a4b5a986fa0fa9bd0800"
+}

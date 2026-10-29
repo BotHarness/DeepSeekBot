@@ -10,7 +10,7 @@ import { androidSettings, radius, space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Text } from '../primitives/text';
 import { DayBars, type DayBar } from '../primitives/day-bars';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 import { ChevronRightIcon } from './icons';
 
 export type Loaded<T> =
@@ -88,6 +88,7 @@ export function UsageBars({
   selected?: number | undefined;
   onSelect?: (index?: number) => void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   return (
     <DayBars
@@ -111,6 +112,7 @@ export function UsageCard({
   on?: LayerName;
   onOpen(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const { state, read, mount } = useLoaded<OverviewUsage, ViewInstance>(load);
   const week = state.value === undefined ? undefined : usageWeek(state.value);

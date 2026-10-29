@@ -153,6 +153,7 @@ export function ImageGalleryLightbox({
     <div
       ref={mount}
       role="dialog"
+      data-bh-appearance-owned=""
       aria-modal="true"
       aria-label={t('message.image.preview', { name: image.alt })}
       {...stylex.props(styles.backdrop)}

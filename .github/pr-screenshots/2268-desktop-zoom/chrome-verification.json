@@ -1,0 +1,95 @@
+{
+  "sourceCommit": "24cfc1b1f9a7d1d2c5aabf03c3c961c28ca41483",
+  "platform": "macOS arm64 / DSH 0.2.1-rc.2",
+  "zoomLevel": 2,
+  "factor": 1.44,
+  "viewportCssPixels": [1261, 820],
+  "before": {
+    "sourceCommit": "dbef7e7d8facc364244f9e660bb671a3fc2a439f",
+    "corner": {
+      "x": 0,
+      "y": 0,
+      "width": 126.71875,
+      "height": 57.59375,
+      "right": 126.71875,
+      "bottom": 57.59375
+    },
+    "headers": [
+      {
+        "panel": "bh:channels",
+        "button": {
+          "x": 96.1484375,
+          "y": 7.390625,
+          "width": 138.2265625,
+          "height": 46.078125,
+          "right": 234.375,
+          "bottom": 53.46875
+        },
+        "overlapPixels": 30.5703125
+      },
+      {
+        "panel": "bh:home",
+        "button": {
+          "x": 637.4296875,
+          "y": 7.390625,
+          "width": 97.90625,
+          "height": 46.078125,
+          "right": 735.3359375,
+          "bottom": 53.46875
+        },
+        "overlapPixels": 0
+      }
+    ]
+  },
+  "after": {
+    "corner": {
+      "x": 0,
+      "y": 0,
+      "width": 88,
+      "height": 40,
+      "right": 88,
+      "bottom": 40
+    },
+    "headers": [
+      {
+        "panel": "bh:channels",
+        "button": {
+          "x": 94.0703125,
+          "y": 7.390625,
+          "width": 138.2265625,
+          "height": 46.078125,
+          "right": 232.296875,
+          "bottom": 53.46875
+        },
+        "overlapPixels": 0
+      },
+      {
+        "panel": "bh:home",
+        "button": {
+          "x": 407.03125,
+          "y": 7.390625,
+          "width": 97.90625,
+          "height": 46.078125,
+          "right": 504.9375,
+          "bottom": 53.46875
+        },
+        "overlapPixels": 0
+      }
+    ]
+  },
+  "panelBoundsVerdict": "PASS",
+  "humanQA": "标题完整，没有遮挡",
+  "browserRegression": {
+    "cases": 204,
+    "failures": 0
+  },
+  "focusedTests": {
+    "files": 4,
+    "passed": 47
+  },
+  "limits": [
+    "Before is measured DOM evidence, not a matched native screenshot; native coordinate actions still returned noWindowsAvailable.",
+    "After is a complete native-window capture following Human foreground activation, including the automation status/pointer overlay.",
+    "This accepts this 144-percent header scene only; extreme GUI reset and repeated webview foreground painting remain open."
+  ]
+}

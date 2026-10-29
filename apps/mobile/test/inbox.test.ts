@@ -8,9 +8,11 @@ import {
   decideApproval,
   loadApproval,
   loadQuestion,
+  approvalSummaryTool,
   previewInput,
   readableInput,
   requestRef,
+  secretCommand,
   toggleOption,
   typeCustom,
   type RequestRef,
@@ -18,7 +20,7 @@ import {
 import type { HumanAttentionItem, QuestionItem } from '../src/host/wire';
 import { t } from '../src/ui/strings';
 import { FakeHost } from './fake-host';
-import { unreadHref } from '../src/host/push';
+import { messageHref, unreadHref } from '../src/host/push';
 import hostWire from './fixtures/host-wire.json';
 import inboxWire from './fixtures/inbox-wire.json';
 
@@ -150,6 +152,43 @@ describe('Human Inbox', () => {
     expect((await ready(inbox)).sections.action).toEqual([]);
   });
 
+  it('puts the newest pending request first by default', async () => {
+    const fake = host();
+    fake.answers.delete('humanAttention');
+    fake.methods.set('humanAttention', () => ({ queryVersion: 1, items: [] }));
+    inbox = createInbox(connect(fake), { activity: true });
+    await ready(inbox);
+    const sorts = Object.fromEntries(
+      fake.calls
+        .filter((call) => call.method === 'humanAttention')
+        .map((call) => [call.args['category'], call.args['sort']]),
+    );
+    expect(sorts).toEqual({ action: 'newest', replies: 'mentions-first', unread: undefined });
+  });
+
+  it('reads cleared items across categories and refuses a Host that cannot list them', async () => {
+    const fake = host();
+    fake.answers.delete('humanAttention');
+    let supported = false;
+    fake.methods.set('humanAttention', (args) => ({
+      queryVersion: 1,
+      items: [],
+      ...(supported && args['dismissed'] === true ? { dismissed: true } : {}),
+    }));
+    inbox = createInbox(connect(fake), { activity: true, section: 'cleared' });
+    const error = await until(() =>
+      inbox!.getSnapshot().status === 'error' ? inbox!.getSnapshot() : undefined,
+    );
+    expect(error).toMatchObject({ error: t.activityUpdateHost });
+    supported = true;
+    fake.calls.length = 0;
+    await inbox.refresh();
+    await ready(inbox);
+    const calls = fake.calls.filter((call) => call.method === 'humanAttention');
+    expect(calls.map((call) => call.args['category'])).toEqual(['action', 'replies', 'unread']);
+    expect(calls.every((call) => call.args['dismissed'] === true)).toBe(true);
+  });
+
   it('lets explicit chronological sorting replace mention priority without fetching history', async () => {
     const fake = host();
     fake.answers.delete('humanAttention');
@@ -199,6 +238,14 @@ describe('Human Inbox', () => {
       ),
     ).toEqual({ pathname: '/channel/[id]', params: { id: 'team' } });
     expect(unreadHref({ ...item, channelId: 'removed' }, () => 'dm-ada')).toBeUndefined();
+  });
+  it('opens an interrupted message at that message in its DM or Group', () => {
+    const item = { botSlug: 'ada', channelId: 'dm-ada', messageId: 'm9' };
+    expect(messageHref(item, () => 'dm-ada')).toEqual({
+      pathname: '/dm/[slug]',
+      params: { slug: 'ada', focus: 'm9' },
+    });
+    expect(messageHref({ botSlug: 'ada' }, () => 'dm-ada')).toBeUndefined();
   });
   it('loads other unread conversations from the owning attention projection', async () => {
     const fake = host();
@@ -312,6 +359,26 @@ describe('Tool approval', () => {
       label: 'query',
       value: 'weather',
     });
+  });
+
+  it('previews a secret command as the program and its arguments, not the account', () => {
+    const input = JSON.stringify({
+      account: 'GitHub personal access token',
+      references: ['ref-1'],
+      program: 'gh',
+      args: ['api', 'repos/a b', "it's"],
+      env: [{ name: 'GH_TOKEN', value: 'ref-1' }],
+    });
+    expect(secretCommand('secret_cli', input)).toBe(`gh api 'repos/a b' 'it'\\''s'`);
+    expect(secretCommand('secret_cli', JSON.stringify({ program: 'gh' }))).toBe('gh');
+    expect(secretCommand('bash', input)).toBeUndefined();
+    expect(secretCommand('secret_cli', JSON.stringify({ account: 'x' }))).toBeUndefined();
+  });
+
+  it('reads the tool out of the Host’s stored approval line', () => {
+    expect(approvalSummaryTool('请求批准执行 bash')).toBe('bash');
+    expect(approvalSummaryTool('Something else')).toBeUndefined();
+    expect(approvalSummaryTool('请求批准执行 ')).toBeUndefined();
   });
 
   it('allows once, and a second decision reports the first one won', async () => {

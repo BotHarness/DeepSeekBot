@@ -25,8 +25,17 @@ export class CompanionMotion {
   private dragging = false;
   private landingFeedback = false;
   private dragFeedbackAt = -Infinity;
+  private ground: (x: number) => number = () => 0;
 
   constructor(private readonly interaction?: (event: CompanionInteraction) => void) {}
+
+  setGround(ground: (x: number) => number): void {
+    this.ground = ground;
+  }
+
+  private groundAt(x: number): number {
+    return Math.max(0, Math.min(this.height, this.ground(x)));
+  }
 
   measure(width: number, height: number, position: number): CompanionPoint {
     this.height = Math.max(0, height - 120);
@@ -36,14 +45,23 @@ export class CompanionMotion {
     this.dragging = false;
     this.landingFeedback = false;
     this.resetTilt();
+    const x = this.clampX(position * Math.max(0, width - 104), width);
     return (this.point = {
-      x: this.clampX(position * Math.max(0, width - 104), width),
-      y: 0,
+      x,
+      y: this.groundAt(x),
       width,
       tilt: 0,
       squash: 0,
       phase: 'rest',
     });
+  }
+
+  drop(): CompanionPoint {
+    this.vx = 0;
+    this.vy = 0;
+    this.landing = 0;
+    this.landingFeedback = true;
+    return (this.point = { ...this.point, y: this.height, squash: 0, phase: 'fall' });
   }
 
   resize(width: number, height: number): CompanionPoint {
@@ -130,8 +148,9 @@ export class CompanionMotion {
       if (this.point.phase === 'drag') return (this.point = { ...this.point, tilt: 0, squash: 0 });
       if (this.point.phase !== 'rest')
         return this.measure(this.point.width, this.height + 120, this.position());
-      if (this.point.tilt || this.point.squash)
-        return (this.point = { ...this.point, tilt: 0, squash: 0 });
+      const floor = this.groundAt(this.point.x);
+      if (this.point.tilt || this.point.squash || this.point.y !== floor)
+        return (this.point = { ...this.point, y: floor, tilt: 0, squash: 0 });
       return this.point;
     }
     const limit = this.point.phase === 'fall' || this.point.phase === 'land' ? 2000 : 64;
@@ -157,8 +176,9 @@ export class CompanionMotion {
           y = this.height;
           this.vy *= -0.2;
         }
-        if (y <= 0) {
-          y = 0;
+        const floor = this.groundAt(x);
+        if (y <= floor) {
+          y = floor;
           const impact = Math.abs(this.vy);
           if (this.landingFeedback) {
             this.landingFeedback = false;
@@ -176,6 +196,7 @@ export class CompanionMotion {
       } else if (phase === 'land') {
         this.vx *= Math.exp(-16 * dt);
         x = this.clampX(x + this.vx * dt);
+        y = this.groundAt(x);
         squash *= Math.exp(-18 * dt);
         this.landing -= dt * 1000;
         if (this.landing <= 0) {
@@ -183,8 +204,10 @@ export class CompanionMotion {
           squash = 0;
           this.vx = 0;
         }
-      } else if (walking) {
-        x = this.clampX(x + direction * 18 * dt);
+      } else {
+        if (walking) x = this.clampX(x + direction * 18 * dt);
+        const floor = this.groundAt(x);
+        if (y !== floor) y = y < floor ? floor : Math.max(floor, y - 480 * dt);
       }
       this.tiltVelocity += (90 * (target - tilt) - 9 * this.tiltVelocity) * dt;
       tilt += this.tiltVelocity * dt;
@@ -217,7 +240,7 @@ export class CompanionMotion {
     return (this.point = {
       ...this.point,
       x: this.clampX(x),
-      y: 0,
+      y: this.groundAt(this.clampX(x)),
       tilt: 0,
       squash: 0,
       phase: 'rest',

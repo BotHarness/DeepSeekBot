@@ -2,7 +2,8 @@ import { randomBytes } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 
 import { defineSchemaPlan, type SchemaMigration } from './schema.js';
-import { INBOX_HISTORY_INDEX_SQL } from './inbox-history-index.js';
+import { INBOX_HISTORY_INDEX_SQL, MESSAGE_SEARCH_INDEX_SQL } from './inbox-history-index.js';
+import { deriveAssignmentTitle } from '../runtime/assignment-title.js';
 
 const SESSION_OWNERSHIP_MIGRATION: SchemaMigration = {
   generation: 2,
@@ -2403,6 +2404,165 @@ const TOB_ONBOARDING_MIGRATION: SchemaMigration = {
   },
 };
 
+const USAGE_IDLE_COMPACTION_MIGRATION: SchemaMigration = {
+  generation: 103,
+  module: 'usage',
+  description: 'Record idle Orchestrator Session compactions for Bot activity',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE usage_idle_compactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bot_slug TEXT NOT NULL,
+        at TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        model TEXT NOT NULL,
+        idle_gap_ms INTEGER NOT NULL,
+        cache_lifetime_ms INTEGER NOT NULL,
+        cache_lifetime_source TEXT NOT NULL,
+        tokens_before INTEGER NOT NULL,
+        tokens_after INTEGER,
+        outcome TEXT NOT NULL CHECK (outcome IN ('compacted', 'nothing', 'failed')),
+        error TEXT,
+        input_tokens INTEGER,
+        cache_read_tokens INTEGER,
+        output_tokens INTEGER
+      );
+      CREATE INDEX usage_idle_compactions_bot_at ON usage_idle_compactions (bot_slug, at);
+    `);
+  },
+};
+
+const THREE_ACTION_APPROVAL_MIGRATION: SchemaMigration = {
+  generation: 104,
+  module: 'tool-approval-rules',
+  description: 'Remember one tool per authority scope and retain native ask for Full Access',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE tool_approval_rules_next (
+        id TEXT PRIMARY KEY, bot_slug TEXT NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ('orchestrator', 'assignment')),
+        scope_key TEXT NOT NULL,
+        kind TEXT NOT NULL CHECK (kind IN ('exact', 'tool', 'all-opaque', 'secret-cli')),
+        tool_name TEXT NOT NULL, input TEXT NOT NULL, created_at TEXT NOT NULL,
+        active INTEGER NOT NULL CHECK (active IN (0, 1)), revoked_at TEXT, external_creator TEXT
+      );
+      INSERT INTO tool_approval_rules_next
+        SELECT * FROM tool_approval_rules;
+      DROP TABLE tool_approval_rules;
+      ALTER TABLE tool_approval_rules_next RENAME TO tool_approval_rules;
+      CREATE INDEX tool_approval_rules_lookup
+        ON tool_approval_rules (bot_slug, role, scope_key, active, revoked_at);
+      UPDATE assignments SET approval_policy = 'ask'
+        WHERE permission_mode = 'danger-full-access' AND approval_policy = 'never';
+    `);
+  },
+};
+
+const PUSH_APP_RENDER_MIGRATION: SchemaMigration = {
+  generation: 105,
+  module: 'push',
+  description: 'Record which paired devices draw push notifications in the app',
+  migrate(database) {
+    database.exec(`ALTER TABLE push_devices ADD COLUMN render TEXT;`);
+  },
+};
+
+const DEVICE_NOTIFICATION_PREFERENCE_MIGRATION: SchemaMigration = {
+  generation: 106,
+  module: 'push',
+  description: 'Keep the device-owned notification preference copy without a push token',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE device_notification_preferences (
+        device_id TEXT PRIMARY KEY,
+        preferences_json TEXT NOT NULL
+      );
+      INSERT INTO device_notification_preferences SELECT device_id, preferences_json FROM push_devices;
+    `);
+  },
+};
+
+const DEVICE_LIVE_ACTIVITY_MIGRATION: SchemaMigration = {
+  generation: 107,
+  module: 'live-activity',
+  description: 'Track device-owned Live Activity delivery handles, never request execution state',
+  migrate(database) {
+    database.exec(`CREATE TABLE device_live_activities (
+      client_id TEXT PRIMARY KEY, device_id TEXT NOT NULL, channel_id TEXT NOT NULL,
+      message_id TEXT NOT NULL, source_event_id TEXT NOT NULL, handle TEXT NOT NULL,
+      expires_at INTEGER NOT NULL, locale TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0,
+      terminal INTEGER NOT NULL DEFAULT 0, last_sent INTEGER NOT NULL DEFAULT 0,
+      last_state TEXT NOT NULL DEFAULT '', pending_state TEXT NOT NULL DEFAULT '',
+      attempt_at INTEGER NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0
+    );`);
+  },
+};
+
+const ASSIGNMENT_TITLE_MIGRATION: SchemaMigration = {
+  generation: 108,
+  module: 'assignments',
+  description: 'Give Assignments a Title and turn purpose into their Description (ADR-0262)',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE assignments RENAME COLUMN purpose TO description;
+      ALTER TABLE assignments ADD COLUMN title TEXT NOT NULL DEFAULT '';
+    `);
+    const rows = database
+      .prepare('SELECT session_id, description FROM assignments')
+      .all() as Array<{
+      session_id: string;
+      description: string;
+    }>;
+    const update = database.prepare('UPDATE assignments SET title = ? WHERE session_id = ?');
+    for (const row of rows) update.run(deriveAssignmentTitle(row.description), row.session_id);
+  },
+};
+
+const SESSION_PROMPT_SNAPSHOT_MIGRATION: SchemaMigration = {
+  generation: 109,
+  module: 'session-ownership',
+  description: 'Freeze each Session Prompt Preset text at its first assembly',
+  migrate(database) {
+    database.exec('ALTER TABLE session_ownership ADD COLUMN prompt_snapshot TEXT;');
+  },
+};
+
+const TOOL_RULE_AUTO_APPROVAL_COUNT_MIGRATION: SchemaMigration = {
+  generation: 110,
+  module: 'tool-approval-rules',
+  description: 'Count the approval requests each always-allow rule answers',
+  migrate(database) {
+    database.exec(
+      'ALTER TABLE tool_approval_rules ADD COLUMN auto_approved_count INTEGER NOT NULL DEFAULT 0;',
+    );
+  },
+};
+
+const REQUEST_ASSIGNMENT_LINK_MIGRATION: SchemaMigration = {
+  generation: 111,
+  module: 'assignments',
+  description: 'Record which Assignment each Human request created or advanced',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE request_assignments (
+        request_source_event_id TEXT NOT NULL REFERENCES source_events(source_event_id),
+        session_id TEXT NOT NULL REFERENCES session_ownership(session_id),
+        linked_at TEXT NOT NULL,
+        PRIMARY KEY (request_source_event_id, session_id)
+      );
+    `);
+  },
+};
+
+const MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION: SchemaMigration = {
+  generation: 112,
+  module: 'messaging',
+  description: 'Index attachment file names in the message full-text index for global search',
+  migrate(database) {
+    database.exec(MESSAGE_SEARCH_INDEX_SQL);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2505,4 +2665,14 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   CLOUD_CONNECTION_MIGRATION,
   CLOUD_WORK_MIGRATION,
   TOB_ONBOARDING_MIGRATION,
+  USAGE_IDLE_COMPACTION_MIGRATION,
+  THREE_ACTION_APPROVAL_MIGRATION,
+  PUSH_APP_RENDER_MIGRATION,
+  DEVICE_NOTIFICATION_PREFERENCE_MIGRATION,
+  DEVICE_LIVE_ACTIVITY_MIGRATION,
+  ASSIGNMENT_TITLE_MIGRATION,
+  SESSION_PROMPT_SNAPSHOT_MIGRATION,
+  TOOL_RULE_AUTO_APPROVAL_COUNT_MIGRATION,
+  REQUEST_ASSIGNMENT_LINK_MIGRATION,
+  MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION,
 ]);

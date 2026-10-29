@@ -4,24 +4,39 @@ import { TextInput } from './system-text';
 
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
+import { ActivitySearchIcon } from '../shell/icons';
+import { DrawerMaterial } from './drawer-material';
 
-export function SearchField({
-  trailing,
-  autoFocus,
-  onBlur,
-  value,
-  inset,
-  placeholder,
-  onChangeText,
-}: {
+export type SearchFieldProps = {
   trailing?: ReactNode;
+  testID?: string;
+  maxLength?: number;
+  onSubmitEditing?(text: string): void;
   autoFocus?: boolean;
+  onFocus?(): void;
   onBlur?(): void;
   value: string;
   inset: number;
+  floating?: boolean;
   placeholder: string;
   onChangeText(text: string): void;
-}) {
+  onClose?(): void;
+};
+
+export function SearchField({
+  trailing,
+  testID,
+  maxLength,
+  onSubmitEditing,
+  autoFocus,
+  onFocus,
+  onBlur,
+  value,
+  inset,
+  floating = false,
+  placeholder,
+  onChangeText,
+}: SearchFieldProps) {
   const theme = useDesignTheme();
   return (
     <View
@@ -30,33 +45,50 @@ export function SearchField({
         alignItems: 'center',
         gap: space.x3,
         marginHorizontal: inset,
-        marginTop: space.x5,
-        marginBottom: space.x3,
+        marginTop: floating ? 0 : space.x5,
+        marginBottom: floating ? 0 : space.x3,
       }}
     >
-      <TextInput
-        autoFocus={autoFocus}
-        onBlur={onBlur}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={theme.color.subtle}
-        accessibilityLabel={placeholder}
-        accessibilityRole="search"
-        autoCapitalize="none"
-        autoCorrect={false}
-        clearButtonMode="while-editing"
-        returnKeyType="search"
+      <View
         style={{
-          minHeight: theme.touch,
           flex: 1,
-          paddingHorizontal: space.x4,
-          borderRadius: radius.md,
-          backgroundColor: theme.layer.raised.fill,
-          color: theme.color.fg,
-          fontSize: theme.type.body.size,
+          minHeight: theme.touch,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: space.x3,
+          paddingLeft: space.x4,
+          borderRadius: floating ? radius.round : radius.md,
+          backgroundColor: floating ? 'transparent' : theme.layer.raised.fill,
         }}
-      />
+      >
+        {floating ? <DrawerMaterial /> : null}
+        <ActivitySearchIcon color={theme.color.subtle} size={theme.type.body.size} />
+        <TextInput
+          testID={testID}
+          maxLength={maxLength}
+          onSubmitEditing={({ nativeEvent }) => onSubmitEditing?.(nativeEvent.text)}
+          autoFocus={autoFocus}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={theme.color.subtle}
+          accessibilityLabel={placeholder}
+          accessibilityRole="search"
+          autoCapitalize="none"
+          autoCorrect={false}
+          clearButtonMode="while-editing"
+          returnKeyType="search"
+          style={{
+            flex: 1,
+            minHeight: theme.touch,
+            paddingRight: space.x3,
+            color: theme.color.fg,
+            fontSize: theme.type.body.size,
+          }}
+        />
+      </View>
       {trailing}
     </View>
   );

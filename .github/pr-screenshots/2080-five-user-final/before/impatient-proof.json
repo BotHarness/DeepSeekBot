@@ -1,0 +1,11 @@
+{
+  "instance": "ax2080-impatient",
+  "calls": [
+    {
+      "name": "pwsh",
+      "outcome": "ok",
+      "result": "QA_IMPATIENT_RERUN_20261020\r\n",
+      "approval": "allowed-once"
+    }
+  ]
+}

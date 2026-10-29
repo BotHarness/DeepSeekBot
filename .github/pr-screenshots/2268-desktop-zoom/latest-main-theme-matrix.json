@@ -1,0 +1,2624 @@
+{
+  "source": "74e491db496b4329eba5402af71d161f5cfb0b0c",
+  "main": "b0e35529c",
+  "levels": [
+    {
+      "zoom": "0.232568",
+      "visibility": "visible",
+      "viewport": [1261, 820],
+      "verdict": "PASS",
+      "panels": [
+        {
+          "id": "bh:channels",
+          "actual": {
+            "x": 14.2578125,
+            "y": 9.296875,
+            "width": 312.1796875,
+            "height": 809.8046875,
+            "right": 326.4375,
+            "bottom": 819.1015625
+          },
+          "expected": {
+            "x": 14.2578125,
+            "y": 9.296875,
+            "width": 312.1796875,
+            "height": 809.8046875,
+            "right": 326.4375,
+            "bottom": 819.1015625
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": false,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 14.2578125,
+                "y": 9.296875,
+                "width": 312.1796875,
+                "height": 809.8046875,
+                "right": 326.4375,
+                "bottom": 819.1015625
+              },
+              "client": [1342, 3482],
+              "scroll": [1342, 3482],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 14.2578125,
+                "y": 9.296875,
+                "width": 312.1796875,
+                "height": 809.8046875,
+                "right": 326.4375,
+                "bottom": 819.1015625
+              },
+              "client": [1342, 3482],
+              "scroll": [1342, 3482],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 14.2578125,
+                "y": 9.296875,
+                "width": 312.1796875,
+                "height": 809.8046875,
+                "right": 326.4375,
+                "bottom": 819.1015625
+              },
+              "client": [1342, 3482],
+              "scroll": [1342, 3482],
+              "inline": "left: 57.3085px; top: 35.9774px; width: 1342.32px; height: 3482.01px;"
+            }
+          ]
+        },
+        {
+          "id": "bh:home",
+          "actual": {
+            "x": 327.375,
+            "y": 9.296875,
+            "width": 932.671875,
+            "height": 809.8046875,
+            "right": 1260.046875,
+            "bottom": 819.1015625
+          },
+          "expected": {
+            "x": 327.375,
+            "y": 9.296875,
+            "width": 932.671875,
+            "height": 809.8046875,
+            "right": 1260.046875,
+            "bottom": 819.1015625
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": true,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 327.375,
+                "y": 9.296875,
+                "width": 932.671875,
+                "height": 809.8046875,
+                "right": 1260.046875,
+                "bottom": 819.1015625
+              },
+              "client": [4010, 3482],
+              "scroll": [4010, 3482],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 327.375,
+                "y": 9.296875,
+                "width": 932.671875,
+                "height": 809.8046875,
+                "right": 1260.046875,
+                "bottom": 819.1015625
+              },
+              "client": [4010, 3482],
+              "scroll": [4010, 3482],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 327.375,
+                "y": 9.296875,
+                "width": 932.671875,
+                "height": 809.8046875,
+                "right": 1260.046875,
+                "bottom": 819.1015625
+              },
+              "client": [4010, 3482],
+              "scroll": [4010, 3482],
+              "inline": "left: 1403.66px; top: 35.9774px; width: 4010.32px; height: 3482.01px;"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "zoom": "0.279082",
+      "visibility": "visible",
+      "viewport": [1261, 820],
+      "verdict": "PASS",
+      "panels": [
+        {
+          "id": "bh:channels",
+          "actual": {
+            "x": 17.109375,
+            "y": 11.15625,
+            "width": 312.1015625,
+            "height": 807.65625,
+            "right": 329.2109375,
+            "bottom": 818.8125
+          },
+          "expected": {
+            "x": 17.109375,
+            "y": 11.15625,
+            "width": 312.1015625,
+            "height": 807.65625,
+            "right": 329.2109375,
+            "bottom": 818.8125
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": false,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 17.109375,
+                "y": 11.15625,
+                "width": 312.1015625,
+                "height": 807.65625,
+                "right": 329.2109375,
+                "bottom": 818.8125
+              },
+              "client": [1118, 2894],
+              "scroll": [1118, 2894],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 17.109375,
+                "y": 11.15625,
+                "width": 312.1015625,
+                "height": 807.65625,
+                "right": 329.2109375,
+                "bottom": 818.8125
+              },
+              "client": [1118, 2894],
+              "scroll": [1118, 2894],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 17.109375,
+                "y": 11.15625,
+                "width": 312.1015625,
+                "height": 807.65625,
+                "right": 329.2109375,
+                "bottom": 818.8125
+              },
+              "client": [1118, 2894],
+              "scroll": [1118, 2894],
+              "inline": "left: 57.3309px; top: 35.9998px; width: 1118.32px; height: 2893.98px;"
+            }
+          ]
+        },
+        {
+          "id": "bh:home",
+          "actual": {
+            "x": 330.328125,
+            "y": 11.15625,
+            "width": 929.4296875,
+            "height": 807.65625,
+            "right": 1259.7578125,
+            "bottom": 818.8125
+          },
+          "expected": {
+            "x": 330.328125,
+            "y": 11.15625,
+            "width": 929.4296875,
+            "height": 807.65625,
+            "right": 1259.7578125,
+            "bottom": 818.8125
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": true,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 330.328125,
+                "y": 11.15625,
+                "width": 929.4296875,
+                "height": 807.65625,
+                "right": 1259.7578125,
+                "bottom": 818.8125
+              },
+              "client": [3330, 2894],
+              "scroll": [3330, 2894],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 330.328125,
+                "y": 11.15625,
+                "width": 929.4296875,
+                "height": 807.65625,
+                "right": 1259.7578125,
+                "bottom": 818.8125
+              },
+              "client": [3330, 2894],
+              "scroll": [3330, 2894],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 330.328125,
+                "y": 11.15625,
+                "width": 929.4296875,
+                "height": 807.65625,
+                "right": 1259.7578125,
+                "bottom": 818.8125
+              },
+              "client": [3330, 2894],
+              "scroll": [3330, 2894],
+              "inline": "left: 1179.65px; top: 35.9998px; width: 3330.31px; height: 2893.98px;"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "zoom": "0.334898",
+      "visibility": "visible",
+      "viewport": [1261, 820],
+      "verdict": "PASS",
+      "panels": [
+        {
+          "id": "bh:channels",
+          "actual": {
+            "x": 20.53125,
+            "y": 13.390625,
+            "width": 311.8984375,
+            "height": 805.4296875,
+            "right": 332.4296875,
+            "bottom": 818.8203125
+          },
+          "expected": {
+            "x": 20.53125,
+            "y": 13.390625,
+            "width": 311.8984375,
+            "height": 805.4296875,
+            "right": 332.4296875,
+            "bottom": 818.8203125
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": false,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 20.53125,
+                "y": 13.390625,
+                "width": 311.8984375,
+                "height": 805.4296875,
+                "right": 332.4296875,
+                "bottom": 818.8203125
+              },
+              "client": [931, 2405],
+              "scroll": [931, 2405],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 20.53125,
+                "y": 13.390625,
+                "width": 311.8984375,
+                "height": 805.4296875,
+                "right": 332.4296875,
+                "bottom": 818.8203125
+              },
+              "client": [931, 2405],
+              "scroll": [931, 2405],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 20.53125,
+                "y": 13.390625,
+                "width": 311.8984375,
+                "height": 805.4296875,
+                "right": 332.4296875,
+                "bottom": 818.8203125
+              },
+              "client": [931, 2405],
+              "scroll": [931, 2405],
+              "inline": "left: 57.3169px; top: 35.9951px; width: 931.324px; height: 2405px;"
+            }
+          ]
+        },
+        {
+          "id": "bh:home",
+          "actual": {
+            "x": 333.7734375,
+            "y": 13.390625,
+            "width": 925.765625,
+            "height": 805.4296875,
+            "right": 1259.5390625,
+            "bottom": 818.8203125
+          },
+          "expected": {
+            "x": 333.7734375,
+            "y": 13.390625,
+            "width": 925.765625,
+            "height": 805.4296875,
+            "right": 1259.5390625,
+            "bottom": 818.8203125
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": true,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 333.7734375,
+                "y": 13.390625,
+                "width": 925.765625,
+                "height": 805.4296875,
+                "right": 1259.5390625,
+                "bottom": 818.8203125
+              },
+              "client": [2764, 2405],
+              "scroll": [2764, 2405],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 333.7734375,
+                "y": 13.390625,
+                "width": 925.765625,
+                "height": 805.4296875,
+                "right": 1259.5390625,
+                "bottom": 818.8203125
+              },
+              "client": [2764, 2405],
+              "scroll": [2764, 2405],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 333.7734375,
+                "y": 13.390625,
+                "width": 925.765625,
+                "height": 805.4296875,
+                "right": 1259.5390625,
+                "bottom": 818.8203125
+              },
+              "client": [2764, 2405],
+              "scroll": [2764, 2405],
+              "inline": "left: 992.653px; top: 35.9951px; width: 2764.32px; height: 2405px;"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "zoom": "0.401878",
+      "visibility": "visible",
+      "viewport": [1261, 820],
+      "verdict": "PASS",
+      "panels": [
+        {
+          "id": "bh:channels",
+          "actual": {
+            "x": 24.640625,
+            "y": 16.0625,
+            "width": 311.5859375,
+            "height": 802.1484375,
+            "right": 336.2265625,
+            "bottom": 818.2109375
+          },
+          "expected": {
+            "x": 24.640625,
+            "y": 16.0625,
+            "width": 311.5859375,
+            "height": 802.1484375,
+            "right": 336.2265625,
+            "bottom": 818.2109375
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": false,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 24.640625,
+                "y": 16.0625,
+                "width": 311.5859375,
+                "height": 802.1484375,
+                "right": 336.2265625,
+                "bottom": 818.2109375
+              },
+              "client": [775, 1996],
+              "scroll": [775, 1996],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 24.640625,
+                "y": 16.0625,
+                "width": 311.5859375,
+                "height": 802.1484375,
+                "right": 336.2265625,
+                "bottom": 818.2109375
+              },
+              "client": [775, 1996],
+              "scroll": [775, 1996],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 24.640625,
+                "y": 16.0625,
+                "width": 311.5859375,
+                "height": 802.1484375,
+                "right": 336.2265625,
+                "bottom": 818.2109375
+              },
+              "client": [775, 1996],
+              "scroll": [775, 1996],
+              "inline": "left: 57.3286px; top: 35.9834px; width: 775.326px; height: 1996px;"
+            }
+          ]
+        },
+        {
+          "id": "bh:home",
+          "actual": {
+            "x": 337.8359375,
+            "y": 16.0625,
+            "width": 921.6328125,
+            "height": 802.1484375,
+            "right": 1259.46875,
+            "bottom": 818.2109375
+          },
+          "expected": {
+            "x": 337.8359375,
+            "y": 16.0625,
+            "width": 921.6328125,
+            "height": 802.1484375,
+            "right": 1259.46875,
+            "bottom": 818.2109375
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": true,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 337.8359375,
+                "y": 16.0625,
+                "width": 921.6328125,
+                "height": 802.1484375,
+                "right": 1259.46875,
+                "bottom": 818.2109375
+              },
+              "client": [2293, 1996],
+              "scroll": [2293, 1996],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 337.8359375,
+                "y": 16.0625,
+                "width": 921.6328125,
+                "height": 802.1484375,
+                "right": 1259.46875,
+                "bottom": 818.2109375
+              },
+              "client": [2293, 1996],
+              "scroll": [2293, 1996],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 337.8359375,
+                "y": 16.0625,
+                "width": 921.6328125,
+                "height": 802.1484375,
+                "right": 1259.46875,
+                "bottom": 818.2109375
+              },
+              "client": [2293, 1996],
+              "scroll": [2293, 1996],
+              "inline": "left: 836.659px; top: 35.9834px; width: 2293.32px; height: 1996px;"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "zoom": "0.482253",
+      "visibility": "visible",
+      "viewport": [1261, 820],
+      "verdict": "PASS",
+      "panels": [
+        {
+          "id": "bh:channels",
+          "actual": {
+            "x": 29.5703125,
+            "y": 19.28125,
+            "width": 311.2109375,
+            "height": 798.609375,
+            "right": 340.78125,
+            "bottom": 817.890625
+          },
+          "expected": {
+            "x": 29.5703125,
+            "y": 19.28125,
+            "width": 311.2109375,
+            "height": 798.609375,
+            "right": 340.78125,
+            "bottom": 817.890625
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": false,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 29.5703125,
+                "y": 19.28125,
+                "width": 311.2109375,
+                "height": 798.609375,
+                "right": 340.78125,
+                "bottom": 817.890625
+              },
+              "client": [645, 1656],
+              "scroll": [645, 1656],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 29.5703125,
+                "y": 19.28125,
+                "width": 311.2109375,
+                "height": 798.609375,
+                "right": 340.78125,
+                "bottom": 817.890625
+              },
+              "client": [645, 1656],
+              "scroll": [645, 1656],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 29.5703125,
+                "y": 19.28125,
+                "width": 311.2109375,
+                "height": 798.609375,
+                "right": 340.78125,
+                "bottom": 817.890625
+              },
+              "client": [645, 1656],
+              "scroll": [645, 1656],
+              "inline": "left: 57.3318px; top: 35.9964px; width: 645.327px; height: 1656px;"
+            }
+          ]
+        },
+        {
+          "id": "bh:home",
+          "actual": {
+            "x": 342.7109375,
+            "y": 19.28125,
+            "width": 916.4375,
+            "height": 798.609375,
+            "right": 1259.1484375,
+            "bottom": 817.890625
+          },
+          "expected": {
+            "x": 342.7109375,
+            "y": 19.28125,
+            "width": 916.4375,
+            "height": 798.609375,
+            "right": 1259.1484375,
+            "bottom": 817.890625
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": true,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 342.7109375,
+                "y": 19.28125,
+                "width": 916.4375,
+                "height": 798.609375,
+                "right": 1259.1484375,
+                "bottom": 817.890625
+              },
+              "client": [1900, 1656],
+              "scroll": [1900, 1656],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 342.7109375,
+                "y": 19.28125,
+                "width": 916.4375,
+                "height": 798.609375,
+                "right": 1259.1484375,
+                "bottom": 817.890625
+              },
+              "client": [1900, 1656],
+              "scroll": [1900, 1656],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 342.7109375,
+                "y": 19.28125,
+                "width": 916.4375,
+                "height": 798.609375,
+                "right": 1259.1484375,
+                "bottom": 817.890625
+              },
+              "client": [1900, 1656],
+              "scroll": [1900, 1656],
+              "inline": "left: 706.66px; top: 35.9964px; width: 1900.32px; height: 1656px;"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "zoom": "0.578704",
+      "visibility": "visible",
+      "viewport": [1261, 820],
+      "verdict": "PASS",
+      "panels": [
+        {
+          "id": "bh:channels",
+          "actual": {
+            "x": 35.484375,
+            "y": 23.140625,
+            "width": 310.953125,
+            "height": 794.5625,
+            "right": 346.4375,
+            "bottom": 817.703125
+          },
+          "expected": {
+            "x": 35.484375,
+            "y": 23.140625,
+            "width": 310.953125,
+            "height": 794.5625,
+            "right": 346.4375,
+            "bottom": 817.703125
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": false,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 35.484375,
+                "y": 23.140625,
+                "width": 310.953125,
+                "height": 794.5625,
+                "right": 346.4375,
+                "bottom": 817.703125
+              },
+              "client": [537, 1373],
+              "scroll": [537, 1373],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 35.484375,
+                "y": 23.140625,
+                "width": 310.953125,
+                "height": 794.5625,
+                "right": 346.4375,
+                "bottom": 817.703125
+              },
+              "client": [537, 1373],
+              "scroll": [537, 1373],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 35.484375,
+                "y": 23.140625,
+                "width": 310.953125,
+                "height": 794.5625,
+                "right": 346.4375,
+                "bottom": 817.703125
+              },
+              "client": [537, 1373],
+              "scroll": [537, 1373],
+              "inline": "left: 57.321px; top: 35.991px; width: 537.327px; height: 1373px;"
+            }
+          ]
+        },
+        {
+          "id": "bh:home",
+          "actual": {
+            "x": 348.7578125,
+            "y": 23.140625,
+            "width": 909.9140625,
+            "height": 794.5625,
+            "right": 1258.671875,
+            "bottom": 817.703125
+          },
+          "expected": {
+            "x": 348.7578125,
+            "y": 23.140625,
+            "width": 909.9140625,
+            "height": 794.5625,
+            "right": 1258.671875,
+            "bottom": 817.703125
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": true,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 348.7578125,
+                "y": 23.140625,
+                "width": 909.9140625,
+                "height": 794.5625,
+                "right": 1258.671875,
+                "bottom": 817.703125
+              },
+              "client": [1572, 1373],
+              "scroll": [1572, 1373],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 348.7578125,
+                "y": 23.140625,
+                "width": 909.9140625,
+                "height": 794.5625,
+                "right": 1258.671875,
+                "bottom": 817.703125
+              },
+              "client": [1572, 1373],
+              "scroll": [1572, 1373],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 348.7578125,
+                "y": 23.140625,
+                "width": 909.9140625,
+                "height": 794.5625,
+                "right": 1258.671875,
+                "bottom": 817.703125
+              },
+              "client": [1572, 1373],
+              "scroll": [1572, 1373],
+              "inline": "left: 598.658px; top: 35.991px; width: 1572.33px; height: 1373px;"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "zoom": "0.694444",
+      "visibility": "visible",
+      "viewport": [1261, 820],
+      "verdict": "PASS",
+      "panels": [
+        {
+          "id": "bh:channels",
+          "actual": {
+            "x": 42.5859375,
+            "y": 27.7734375,
+            "width": 309.953125,
+            "height": 789.578125,
+            "right": 352.5390625,
+            "bottom": 817.3515625
+          },
+          "expected": {
+            "x": 42.5859375,
+            "y": 27.7734375,
+            "width": 309.953125,
+            "height": 789.578125,
+            "right": 352.5390625,
+            "bottom": 817.3515625
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": false,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 42.5859375,
+                "y": 27.7734375,
+                "width": 309.953125,
+                "height": 789.578125,
+                "right": 352.5390625,
+                "bottom": 817.3515625
+              },
+              "client": [446, 1137],
+              "scroll": [446, 1137],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 42.5859375,
+                "y": 27.7734375,
+                "width": 309.953125,
+                "height": 789.578125,
+                "right": 352.5390625,
+                "bottom": 817.3515625
+              },
+              "client": [446, 1137],
+              "scroll": [446, 1137],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 42.5859375,
+                "y": 27.7734375,
+                "width": 309.953125,
+                "height": 789.578125,
+                "right": 352.5390625,
+                "bottom": 817.3515625
+              },
+              "client": [446, 1137],
+              "scroll": [446, 1137],
+              "inline": "left: 57.33px; top: 36px; width: 446.333px; height: 1136.99px;"
+            }
+          ]
+        },
+        {
+          "id": "bh:home",
+          "actual": {
+            "x": 355.3125,
+            "y": 27.7734375,
+            "width": 903.0078125,
+            "height": 789.578125,
+            "right": 1258.3203125,
+            "bottom": 817.3515625
+          },
+          "expected": {
+            "x": 355.3125,
+            "y": 27.7734375,
+            "width": 903.0078125,
+            "height": 789.578125,
+            "right": 1258.3203125,
+            "bottom": 817.3515625
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": true,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 355.3125,
+                "y": 27.7734375,
+                "width": 903.0078125,
+                "height": 789.578125,
+                "right": 1258.3203125,
+                "bottom": 817.3515625
+              },
+              "client": [1300, 1137],
+              "scroll": [1300, 1137],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 355.3125,
+                "y": 27.7734375,
+                "width": 903.0078125,
+                "height": 789.578125,
+                "right": 1258.3203125,
+                "bottom": 817.3515625
+              },
+              "client": [1300, 1137],
+              "scroll": [1300, 1137],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 355.3125,
+                "y": 27.7734375,
+                "width": 903.0078125,
+                "height": 789.578125,
+                "right": 1258.3203125,
+                "bottom": 817.3515625
+              },
+              "client": [1300, 1137],
+              "scroll": [1300, 1137],
+              "inline": "left: 507.656px; top: 36px; width: 1300.33px; height: 1136.99px;"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "zoom": "0.833333",
+      "visibility": "visible",
+      "viewport": [1261, 820],
+      "verdict": "PASS",
+      "panels": [
+        {
+          "id": "bh:channels",
+          "actual": {
+            "x": 51.1015625,
+            "y": 33.328125,
+            "width": 309.4375,
+            "height": 783.328125,
+            "right": 360.5390625,
+            "bottom": 816.65625
+          },
+          "expected": {
+            "x": 51.1015625,
+            "y": 33.328125,
+            "width": 309.4375,
+            "height": 783.328125,
+            "right": 360.5390625,
+            "bottom": 816.65625
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": false,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 51.1015625,
+                "y": 33.328125,
+                "width": 309.4375,
+                "height": 783.328125,
+                "right": 360.5390625,
+                "bottom": 816.65625
+              },
+              "client": [371, 940],
+              "scroll": [371, 940],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 51.1015625,
+                "y": 33.328125,
+                "width": 309.4375,
+                "height": 783.328125,
+                "right": 360.5390625,
+                "bottom": 816.65625
+              },
+              "client": [371, 940],
+              "scroll": [371, 940],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 51.1015625,
+                "y": 33.328125,
+                "width": 309.4375,
+                "height": 783.328125,
+                "right": 360.5390625,
+                "bottom": 816.65625
+              },
+              "client": [371, 940],
+              "scroll": [371, 940],
+              "inline": "left: 57.3281px; top: 36px; width: 371.325px; height: 939.994px;"
+            }
+          ]
+        },
+        {
+          "id": "bh:home",
+          "actual": {
+            "x": 363.8828125,
+            "y": 33.328125,
+            "width": 893.609375,
+            "height": 783.328125,
+            "right": 1257.4921875,
+            "bottom": 816.65625
+          },
+          "expected": {
+            "x": 363.8828125,
+            "y": 33.328125,
+            "width": 893.609375,
+            "height": 783.328125,
+            "right": 1257.4921875,
+            "bottom": 816.65625
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": true,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 363.8828125,
+                "y": 33.328125,
+                "width": 893.609375,
+                "height": 783.328125,
+                "right": 1257.4921875,
+                "bottom": 816.65625
+              },
+              "client": [1072, 940],
+              "scroll": [1072, 940],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 363.8828125,
+                "y": 33.328125,
+                "width": 893.609375,
+                "height": 783.328125,
+                "right": 1257.4921875,
+                "bottom": 816.65625
+              },
+              "client": [1072, 940],
+              "scroll": [1072, 940],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 363.8828125,
+                "y": 33.328125,
+                "width": 893.609375,
+                "height": 783.328125,
+                "right": 1257.4921875,
+                "bottom": 816.65625
+              },
+              "client": [1072, 940],
+              "scroll": [1072, 940],
+              "inline": "left: 432.666px; top: 36px; width: 1072.33px; height: 939.994px;"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "zoom": "1",
+      "visibility": "visible",
+      "viewport": [1261, 820],
+      "verdict": "PASS",
+      "panels": [
+        {
+          "id": "bh:channels",
+          "actual": {
+            "x": 61.328125,
+            "y": 40,
+            "width": 308.328125,
+            "height": 776,
+            "right": 369.65625,
+            "bottom": 816
+          },
+          "expected": {
+            "x": 61.328125,
+            "y": 40,
+            "width": 308.328125,
+            "height": 776,
+            "right": 369.65625,
+            "bottom": 816
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": false,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 61.328125,
+                "y": 40,
+                "width": 308.328125,
+                "height": 776,
+                "right": 369.65625,
+                "bottom": 816
+              },
+              "client": [308, 776],
+              "scroll": [308, 776],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 61.328125,
+                "y": 40,
+                "width": 308.328125,
+                "height": 776,
+                "right": 369.65625,
+                "bottom": 816
+              },
+              "client": [308, 776],
+              "scroll": [308, 776],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 61.328125,
+                "y": 40,
+                "width": 308.328125,
+                "height": 776,
+                "right": 369.65625,
+                "bottom": 816
+              },
+              "client": [308, 776],
+              "scroll": [308, 776],
+              "inline": "left: 57.3281px; top: 36px; width: 308.328px; height: 776px;"
+            }
+          ]
+        },
+        {
+          "id": "bh:home",
+          "actual": {
+            "x": 373.6640625,
+            "y": 40,
+            "width": 883.328125,
+            "height": 776,
+            "right": 1256.9921875,
+            "bottom": 816
+          },
+          "expected": {
+            "x": 373.6640625,
+            "y": 40,
+            "width": 883.328125,
+            "height": 776,
+            "right": 1256.9921875,
+            "bottom": 816
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": true,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 373.6640625,
+                "y": 40,
+                "width": 883.328125,
+                "height": 776,
+                "right": 1256.9921875,
+                "bottom": 816
+              },
+              "client": [883, 776],
+              "scroll": [883, 776],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 373.6640625,
+                "y": 40,
+                "width": 883.328125,
+                "height": 776,
+                "right": 1256.9921875,
+                "bottom": 816
+              },
+              "client": [883, 776],
+              "scroll": [883, 776],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 373.6640625,
+                "y": 40,
+                "width": 883.328125,
+                "height": 776,
+                "right": 1256.9921875,
+                "bottom": 816
+              },
+              "client": [883, 776],
+              "scroll": [883, 776],
+              "inline": "left: 369.664px; top: 36px; width: 883.328px; height: 776px;"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "zoom": "1.2",
+      "visibility": "visible",
+      "viewport": [1261, 820],
+      "verdict": "PASS",
+      "panels": [
+        {
+          "id": "bh:channels",
+          "actual": {
+            "x": 73.59375,
+            "y": 47.9921875,
+            "width": 307.59375,
+            "height": 766.8046875,
+            "right": 381.1875,
+            "bottom": 814.796875
+          },
+          "expected": {
+            "x": 73.59375,
+            "y": 47.9921875,
+            "width": 307.59375,
+            "height": 766.8046875,
+            "right": 381.1875,
+            "bottom": 814.796875
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": false,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 73.59375,
+                "y": 47.9921875,
+                "width": 307.59375,
+                "height": 766.8046875,
+                "right": 381.1875,
+                "bottom": 814.796875
+              },
+              "client": [256, 639],
+              "scroll": [256, 639],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 73.59375,
+                "y": 47.9921875,
+                "width": 307.59375,
+                "height": 766.8046875,
+                "right": 381.1875,
+                "bottom": 814.796875
+              },
+              "client": [256, 639],
+              "scroll": [256, 639],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 73.59375,
+                "y": 47.9921875,
+                "width": 307.59375,
+                "height": 766.8046875,
+                "right": 381.1875,
+                "bottom": 814.796875
+              },
+              "client": [256, 639],
+              "scroll": [256, 639],
+              "inline": "left: 57.3307px; top: 35.9961px; width: 256.328px; height: 639.004px;"
+            }
+          ]
+        },
+        {
+          "id": "bh:home",
+          "actual": {
+            "x": 385.9921875,
+            "y": 47.9921875,
+            "width": 870.3984375,
+            "height": 766.8046875,
+            "right": 1256.390625,
+            "bottom": 814.796875
+          },
+          "expected": {
+            "x": 385.9921875,
+            "y": 47.9921875,
+            "width": 870.3984375,
+            "height": 766.8046875,
+            "right": 1256.390625,
+            "bottom": 814.796875
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": true,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 385.9921875,
+                "y": 47.9921875,
+                "width": 870.3984375,
+                "height": 766.8046875,
+                "right": 1256.390625,
+                "bottom": 814.796875
+              },
+              "client": [725, 639],
+              "scroll": [725, 639],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 385.9921875,
+                "y": 47.9921875,
+                "width": 870.3984375,
+                "height": 766.8046875,
+                "right": 1256.390625,
+                "bottom": 814.796875
+              },
+              "client": [725, 639],
+              "scroll": [725, 639],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 385.9921875,
+                "y": 47.9921875,
+                "width": 870.3984375,
+                "height": 766.8046875,
+                "right": 1256.390625,
+                "bottom": 814.796875
+              },
+              "client": [725, 639],
+              "scroll": [725, 639],
+              "inline": "left: 317.663px; top: 35.9961px; width: 725.332px; height: 639.004px;"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "zoom": "1.44",
+      "visibility": "visible",
+      "viewport": [1261, 820],
+      "verdict": "PASS",
+      "panels": [
+        {
+          "id": "bh:channels",
+          "actual": {
+            "x": 88.3125,
+            "y": 57.59375,
+            "width": 307.1953125,
+            "height": 756,
+            "right": 395.5078125,
+            "bottom": 813.59375
+          },
+          "expected": {
+            "x": 88.3125,
+            "y": 57.59375,
+            "width": 307.1953125,
+            "height": 756,
+            "right": 395.5078125,
+            "bottom": 813.59375
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": false,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 88.3125,
+                "y": 57.59375,
+                "width": 307.1953125,
+                "height": 756,
+                "right": 395.5078125,
+                "bottom": 813.59375
+              },
+              "client": [213, 525],
+              "scroll": [213, 525],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 88.3125,
+                "y": 57.59375,
+                "width": 307.1953125,
+                "height": 756,
+                "right": 395.5078125,
+                "bottom": 813.59375
+              },
+              "client": [213, 525],
+              "scroll": [213, 525],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 88.3125,
+                "y": 57.59375,
+                "width": 307.1953125,
+                "height": 756,
+                "right": 395.5078125,
+                "bottom": 813.59375
+              },
+              "client": [213, 525],
+              "scroll": [213, 525],
+              "inline": "left: 57.3296px; top: 35.9972px; width: 213.33px; height: 525px;"
+            }
+          ]
+        },
+        {
+          "id": "bh:home",
+          "actual": {
+            "x": 401.2734375,
+            "y": 57.59375,
+            "width": 854.3984375,
+            "height": 756,
+            "right": 1255.671875,
+            "bottom": 813.59375
+          },
+          "expected": {
+            "x": 401.2734375,
+            "y": 57.59375,
+            "width": 854.3984375,
+            "height": 756,
+            "right": 1255.671875,
+            "bottom": 813.59375
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": true,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 401.2734375,
+                "y": 57.59375,
+                "width": 854.3984375,
+                "height": 756,
+                "right": 1255.671875,
+                "bottom": 813.59375
+              },
+              "client": [593, 525],
+              "scroll": [593, 525],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 401.2734375,
+                "y": 57.59375,
+                "width": 854.3984375,
+                "height": 756,
+                "right": 1255.671875,
+                "bottom": 813.59375
+              },
+              "client": [593, 525],
+              "scroll": [593, 525],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 401.2734375,
+                "y": 57.59375,
+                "width": 854.3984375,
+                "height": 756,
+                "right": 1255.671875,
+                "bottom": 813.59375
+              },
+              "client": [593, 525],
+              "scroll": [593, 525],
+              "inline": "left: 274.664px; top: 35.9972px; width: 593.332px; height: 525px;"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "zoom": "1.728",
+      "visibility": "visible",
+      "viewport": [1261, 820],
+      "verdict": "PASS",
+      "panels": [
+        {
+          "id": "bh:channels",
+          "actual": {
+            "x": 105.9765625,
+            "y": 69.109375,
+            "width": 304.703125,
+            "height": 744.765625,
+            "right": 410.6796875,
+            "bottom": 813.875
+          },
+          "expected": {
+            "x": 105.9765625,
+            "y": 69.109375,
+            "width": 304.703125,
+            "height": 744.765625,
+            "right": 410.6796875,
+            "bottom": 813.875
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": false,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 105.9765625,
+                "y": 69.109375,
+                "width": 304.703125,
+                "height": 744.765625,
+                "right": 410.6796875,
+                "bottom": 813.875
+              },
+              "client": [176, 431],
+              "scroll": [176, 431],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 105.9765625,
+                "y": 69.109375,
+                "width": 304.703125,
+                "height": 744.765625,
+                "right": 410.6796875,
+                "bottom": 813.875
+              },
+              "client": [176, 431],
+              "scroll": [176, 431],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 105.9765625,
+                "y": 69.109375,
+                "width": 304.703125,
+                "height": 744.765625,
+                "right": 410.6796875,
+                "bottom": 813.875
+              },
+              "client": [176, 431],
+              "scroll": [176, 431],
+              "inline": "left: 57.3324px; top: 35.9972px; width: 176.333px; height: 430.999px;"
+            }
+          ]
+        },
+        {
+          "id": "bh:home",
+          "actual": {
+            "x": 417.59375,
+            "y": 69.109375,
+            "width": 836.921875,
+            "height": 744.765625,
+            "right": 1254.515625,
+            "bottom": 813.875
+          },
+          "expected": {
+            "x": 417.59375,
+            "y": 69.109375,
+            "width": 836.921875,
+            "height": 744.765625,
+            "right": 1254.515625,
+            "bottom": 813.875
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": true,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 417.59375,
+                "y": 69.109375,
+                "width": 836.921875,
+                "height": 744.765625,
+                "right": 1254.515625,
+                "bottom": 813.875
+              },
+              "client": [484, 431],
+              "scroll": [484, 431],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 417.59375,
+                "y": 69.109375,
+                "width": 836.921875,
+                "height": 744.765625,
+                "right": 1254.515625,
+                "bottom": 813.875
+              },
+              "client": [484, 431],
+              "scroll": [484, 431],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 417.59375,
+                "y": 69.109375,
+                "width": 836.921875,
+                "height": 744.765625,
+                "right": 1254.515625,
+                "bottom": 813.875
+              },
+              "client": [484, 431],
+              "scroll": [484, 431],
+              "inline": "left: 237.666px; top: 35.9972px; width: 484.33px; height: 430.999px;"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "zoom": "2.0736",
+      "visibility": "visible",
+      "viewport": [1261, 820],
+      "verdict": "PASS",
+      "panels": [
+        {
+          "id": "bh:channels",
+          "actual": {
+            "x": 127.171875,
+            "y": 82.9375,
+            "width": 303.4296875,
+            "height": 727.828125,
+            "right": 430.6015625,
+            "bottom": 810.765625
+          },
+          "expected": {
+            "x": 127.171875,
+            "y": 82.9375,
+            "width": 303.4296875,
+            "height": 727.828125,
+            "right": 430.6015625,
+            "bottom": 810.765625
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": false,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 127.171875,
+                "y": 82.9375,
+                "width": 303.4296875,
+                "height": 727.828125,
+                "right": 430.6015625,
+                "bottom": 810.765625
+              },
+              "client": [146, 351],
+              "scroll": [146, 351],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 127.171875,
+                "y": 82.9375,
+                "width": 303.4296875,
+                "height": 727.828125,
+                "right": 430.6015625,
+                "bottom": 810.765625
+              },
+              "client": [146, 351],
+              "scroll": [146, 351],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 127.171875,
+                "y": 82.9375,
+                "width": 303.4296875,
+                "height": 727.828125,
+                "right": 430.6015625,
+                "bottom": 810.765625
+              },
+              "client": [146, 351],
+              "scroll": [146, 351],
+              "inline": "left: 57.3316px; top: 35.9994px; width: 146.33px; height: 350.997px;"
+            }
+          ]
+        },
+        {
+          "id": "bh:home",
+          "actual": {
+            "x": 438.90625,
+            "y": 82.9375,
+            "width": 813.5390625,
+            "height": 727.828125,
+            "right": 1252.4453125,
+            "bottom": 810.765625
+          },
+          "expected": {
+            "x": 438.90625,
+            "y": 82.9375,
+            "width": 813.5390625,
+            "height": 727.828125,
+            "right": 1252.4453125,
+            "bottom": 810.765625
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": true,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 438.90625,
+                "y": 82.9375,
+                "width": 813.5390625,
+                "height": 727.828125,
+                "right": 1252.4453125,
+                "bottom": 810.765625
+              },
+              "client": [392, 351],
+              "scroll": [392, 351],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 438.90625,
+                "y": 82.9375,
+                "width": 813.5390625,
+                "height": 727.828125,
+                "right": 1252.4453125,
+                "bottom": 810.765625
+              },
+              "client": [392, 351],
+              "scroll": [392, 351],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 438.90625,
+                "y": 82.9375,
+                "width": 813.5390625,
+                "height": 727.828125,
+                "right": 1252.4453125,
+                "bottom": 810.765625
+              },
+              "client": [392, 351],
+              "scroll": [392, 351],
+              "inline": "left: 207.666px; top: 35.9994px; width: 392.332px; height: 350.997px;"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "zoom": "2.48832",
+      "visibility": "visible",
+      "viewport": [1261, 820],
+      "verdict": "PASS",
+      "panels": [
+        {
+          "id": "bh:channels",
+          "actual": {
+            "x": 152.609375,
+            "y": 99.53125,
+            "width": 301.9140625,
+            "height": 711.65625,
+            "right": 454.5234375,
+            "bottom": 811.1875
+          },
+          "expected": {
+            "x": 152.609375,
+            "y": 99.53125,
+            "width": 301.9140625,
+            "height": 711.65625,
+            "right": 454.5234375,
+            "bottom": 811.1875
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": false,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 152.609375,
+                "y": 99.53125,
+                "width": 301.9140625,
+                "height": 711.65625,
+                "right": 454.5234375,
+                "bottom": 811.1875
+              },
+              "client": [121, 286],
+              "scroll": [121, 286],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 152.609375,
+                "y": 99.53125,
+                "width": 301.9140625,
+                "height": 711.65625,
+                "right": 454.5234375,
+                "bottom": 811.1875
+              },
+              "client": [121, 286],
+              "scroll": [121, 286],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 152.609375,
+                "y": 99.53125,
+                "width": 301.9140625,
+                "height": 711.65625,
+                "right": 454.5234375,
+                "bottom": 811.1875
+              },
+              "client": [121, 286],
+              "scroll": [121, 286],
+              "inline": "left: 57.3303px; top: 35.9994px; width: 121.332px; height: 285.999px;"
+            }
+          ]
+        },
+        {
+          "id": "bh:home",
+          "actual": {
+            "x": 464.484375,
+            "y": 99.53125,
+            "width": 787.1328125,
+            "height": 711.65625,
+            "right": 1251.6171875,
+            "bottom": 811.1875
+          },
+          "expected": {
+            "x": 464.484375,
+            "y": 99.53125,
+            "width": 787.1328125,
+            "height": 711.65625,
+            "right": 1251.6171875,
+            "bottom": 811.1875
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": true,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 464.484375,
+                "y": 99.53125,
+                "width": 787.1328125,
+                "height": 711.65625,
+                "right": 1251.6171875,
+                "bottom": 811.1875
+              },
+              "client": [316, 286],
+              "scroll": [316, 286],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 464.484375,
+                "y": 99.53125,
+                "width": 787.1328125,
+                "height": 711.65625,
+                "right": 1251.6171875,
+                "bottom": 811.1875
+              },
+              "client": [316, 286],
+              "scroll": [316, 286],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 464.484375,
+                "y": 99.53125,
+                "width": 787.1328125,
+                "height": 711.65625,
+                "right": 1251.6171875,
+                "bottom": 811.1875
+              },
+              "client": [316, 286],
+              "scroll": [316, 286],
+              "inline": "left: 182.666px; top: 35.9994px; width: 316.331px; height: 285.999px;"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "zoom": "2.98598",
+      "visibility": "visible",
+      "viewport": [1261, 820],
+      "verdict": "PASS",
+      "panels": [
+        {
+          "id": "bh:channels",
+          "actual": {
+            "x": 183.1328125,
+            "y": 119.4296875,
+            "width": 299.59375,
+            "height": 689.7578125,
+            "right": 482.7265625,
+            "bottom": 809.1875
+          },
+          "expected": {
+            "x": 183.1328125,
+            "y": 119.4296875,
+            "width": 299.59375,
+            "height": 689.7578125,
+            "right": 482.7265625,
+            "bottom": 809.1875
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": false,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 183.1328125,
+                "y": 119.4296875,
+                "width": 299.59375,
+                "height": 689.7578125,
+                "right": 482.7265625,
+                "bottom": 809.1875
+              },
+              "client": [100, 231],
+              "scroll": [100, 231],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 183.1328125,
+                "y": 119.4296875,
+                "width": 299.59375,
+                "height": 689.7578125,
+                "right": 482.7265625,
+                "bottom": 809.1875
+              },
+              "client": [100, 231],
+              "scroll": [100, 231],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 183.1328125,
+                "y": 119.4296875,
+                "width": 299.59375,
+                "height": 689.7578125,
+                "right": 482.7265625,
+                "bottom": 809.1875
+              },
+              "client": [100, 231],
+              "scroll": [100, 231],
+              "inline": "left: 57.333px; top: 35.9989px; width: 100.333px; height: 230.998px;"
+            }
+          ]
+        },
+        {
+          "id": "bh:home",
+          "actual": {
+            "x": 494.6640625,
+            "y": 119.4296875,
+            "width": 753.4609375,
+            "height": 689.7578125,
+            "right": 1248.125,
+            "bottom": 809.1875
+          },
+          "expected": {
+            "x": 494.6640625,
+            "y": 119.4296875,
+            "width": 753.4609375,
+            "height": 689.7578125,
+            "right": 1248.125,
+            "bottom": 809.1875
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": true,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 494.6640625,
+                "y": 119.4296875,
+                "width": 753.4609375,
+                "height": 689.7578125,
+                "right": 1248.125,
+                "bottom": 809.1875
+              },
+              "client": [252, 231],
+              "scroll": [252, 231],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 494.6640625,
+                "y": 119.4296875,
+                "width": 753.4609375,
+                "height": 689.7578125,
+                "right": 1248.125,
+                "bottom": 809.1875
+              },
+              "client": [252, 231],
+              "scroll": [252, 231],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 494.6640625,
+                "y": 119.4296875,
+                "width": 753.4609375,
+                "height": 689.7578125,
+                "right": 1248.125,
+                "bottom": 809.1875
+              },
+              "client": [252, 231],
+              "scroll": [252, 231],
+              "inline": "left: 161.664px; top: 35.9989px; width: 252.333px; height: 230.998px;"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "zoom": "3.58318",
+      "visibility": "visible",
+      "viewport": [1261, 820],
+      "verdict": "PASS",
+      "panels": [
+        {
+          "id": "bh:channels",
+          "actual": {
+            "x": 219.7578125,
+            "y": 143.3203125,
+            "width": 348.7578125,
+            "height": 662.890625,
+            "right": 568.515625,
+            "bottom": 806.2109375
+          },
+          "expected": {
+            "x": 219.7578125,
+            "y": 143.3203125,
+            "width": 348.7578125,
+            "height": 662.890625,
+            "right": 568.515625,
+            "bottom": 806.2109375
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": false,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 219.7578125,
+                "y": 143.3203125,
+                "width": 348.7578125,
+                "height": 662.890625,
+                "right": 568.515625,
+                "bottom": 806.2109375
+              },
+              "client": [97, 185],
+              "scroll": [97, 185],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 219.7578125,
+                "y": 143.3203125,
+                "width": 348.7578125,
+                "height": 662.890625,
+                "right": 568.515625,
+                "bottom": 806.2109375
+              },
+              "client": [97, 185],
+              "scroll": [97, 185],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 219.7578125,
+                "y": 143.3203125,
+                "width": 348.7578125,
+                "height": 662.890625,
+                "right": 568.515625,
+                "bottom": 806.2109375
+              },
+              "client": [97, 185],
+              "scroll": [97, 185],
+              "inline": "left: 57.3317px; top: 35.9994px; width: 97.3319px; height: 185.001px;"
+            }
+          ]
+        },
+        {
+          "id": "bh:home",
+          "actual": {
+            "x": 582.859375,
+            "y": 143.3203125,
+            "width": 664.078125,
+            "height": 662.890625,
+            "right": 1246.9375,
+            "bottom": 806.2109375
+          },
+          "expected": {
+            "x": 582.859375,
+            "y": 143.3203125,
+            "width": 664.078125,
+            "height": 662.890625,
+            "right": 1246.9375,
+            "bottom": 806.2109375
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": true,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 582.859375,
+                "y": 143.3203125,
+                "width": 664.078125,
+                "height": 662.890625,
+                "right": 1246.9375,
+                "bottom": 806.2109375
+              },
+              "client": [185, 185],
+              "scroll": [185, 185],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 582.859375,
+                "y": 143.3203125,
+                "width": 664.078125,
+                "height": 662.890625,
+                "right": 1246.9375,
+                "bottom": 806.2109375
+              },
+              "client": [185, 185],
+              "scroll": [185, 185],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 582.859375,
+                "y": 143.3203125,
+                "width": 664.078125,
+                "height": 662.890625,
+                "right": 1246.9375,
+                "bottom": 806.2109375
+              },
+              "client": [185, 185],
+              "scroll": [185, 185],
+              "inline": "left: 158.667px; top: 35.9994px; width: 185.332px; height: 185.001px;"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "zoom": "4.29982",
+      "visibility": "visible",
+      "viewport": [1261, 820],
+      "verdict": "PASS",
+      "panels": [
+        {
+          "id": "bh:channels",
+          "actual": {
+            "x": 263.7109375,
+            "y": 171.984375,
+            "width": 418.5078125,
+            "height": 632.0703125,
+            "right": 682.21875,
+            "bottom": 804.0546875
+          },
+          "expected": {
+            "x": 263.7109375,
+            "y": 171.984375,
+            "width": 418.5078125,
+            "height": 632.0703125,
+            "right": 682.21875,
+            "bottom": 804.0546875
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": false,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 263.7109375,
+                "y": 171.984375,
+                "width": 418.5078125,
+                "height": 632.0703125,
+                "right": 682.21875,
+                "bottom": 804.0546875
+              },
+              "client": [97, 147],
+              "scroll": [97, 147],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 263.7109375,
+                "y": 171.984375,
+                "width": 418.5078125,
+                "height": 632.0703125,
+                "right": 682.21875,
+                "bottom": 804.0546875
+              },
+              "client": [97, 147],
+              "scroll": [97, 147],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 263.7109375,
+                "y": 171.984375,
+                "width": 418.5078125,
+                "height": 632.0703125,
+                "right": 682.21875,
+                "bottom": 804.0546875
+              },
+              "client": [97, 147],
+              "scroll": [97, 147],
+              "inline": "left: 57.3317px; top: 35.999px; width: 97.3315px; height: 146.999px;"
+            }
+          ]
+        },
+        {
+          "id": "bh:home",
+          "actual": {
+            "x": 699.4296875,
+            "y": 171.984375,
+            "width": 543.203125,
+            "height": 632.0703125,
+            "right": 1242.6328125,
+            "bottom": 804.0546875
+          },
+          "expected": {
+            "x": 699.4296875,
+            "y": 171.984375,
+            "width": 543.203125,
+            "height": 632.0703125,
+            "right": 1242.6328125,
+            "bottom": 804.0546875
+          },
+          "outside": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0
+          },
+          "home": true,
+          "ancestors": [
+            {
+              "tag": "SECTION",
+              "classes": "bhx78zum5 bhxdt5ytf bhx5yr21d bhx2lwn1j",
+              "rect": {
+                "x": 699.4296875,
+                "y": 171.984375,
+                "width": 543.203125,
+                "height": 632.0703125,
+                "right": 1242.6328125,
+                "bottom": 804.0546875
+              },
+              "client": [126, 147],
+              "scroll": [126, 147],
+              "inline": null
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-react-part",
+              "rect": {
+                "x": 699.4296875,
+                "y": 171.984375,
+                "width": 543.203125,
+                "height": 632.0703125,
+                "right": 1242.6328125,
+                "bottom": 804.0546875
+              },
+              "client": [126, 147],
+              "scroll": [126, 147],
+              "inline": "height: 100%; width: 100%;"
+            },
+            {
+              "tag": "DIV",
+              "classes": "dv-render-overlay",
+              "rect": {
+                "x": 699.4296875,
+                "y": 171.984375,
+                "width": 543.203125,
+                "height": 632.0703125,
+                "right": 1242.6328125,
+                "bottom": 804.0546875
+              },
+              "client": [126, 147],
+              "scroll": [126, 147],
+              "inline": "left: 158.666px; top: 35.999px; width: 126.332px; height: 146.999px;"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

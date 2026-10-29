@@ -1,0 +1,11 @@
+# PR 2899 physical Android regression — 2026-10-27 JST
+
+- Product source/JS: 9e7a78c74ca2e626db56790b7ac824db8d31eb4f. New arm64 Release dev build, Android 16/API 36 physical POCO; no data clear or uninstall. APK SHA256 EF582630977C1294314A2989DE38B905CE374838CD4F712CE86D2F42C412605D.
+- System: Chinese, dark, font_scale 1.0, density 480. Existing draft `c`, pairings and QA history retained. Dedicated pre-existing synthetic QA Host; deterministic provider only, no external model.
+- Static keyboard open/close: PASS functional. Composer reachable, draft retained, history returns after close.
+- Stream while following latest: PASS functional. 927-character Bot reply, 3 graphemes/100ms, four commanded IME open/close cycles; visible text grows during IME movement. Completion checked against canonical Host timeline (new Bot message at revision 21).
+- Stream while holding history: PASS functional. Three IME cycles; QA_STREAM_17 bounds [72,58][918,238] and QA_STREAM_18 [72,262][918,442] identical before/after. New Bot reply committed at revision 23. Return-to-latest subsequently shows QA_STREAM_18 at [72,2244][918,2424].
+- UNTESTED: quantitative residual phase shift / FPS, fixed-height text replacement comparison, repeated >=20-cycle statistics, continuous typing/multiline, light/large-text matrix and iOS. This is not a proven jitter fix.
+- Test harness issue: initial replay restarted its tool-call counter and reused prior IDs. Streaming previews occurred but no new committed Bot message. Those initial stream/held recordings are excluded. Fixed only the local replay harness to use timestamp-unique IDs; re-recorded and verified committed replies. Product source did not change.
+- Public media: static.mp4, stream.mp4, held.mp4 and stream.gif. Notification/header region cropped; moving keyboard candidate/clipboard strip masked with a conservative guard. MP4s are real-time 30fps derivatives of up-to-60fps originals; GIF is a 10fps excerpt, not timing evidence. No audio or private conversation content.
+- Cleanup: native recording sessions ended, own Host PID 50704 and replay PID 57704 stopped, own reverse4365 removed, windows-viewport-2899 lease released. Original settings unchanged; updated dev build remains installed. Raw videos/XML and replay facts retained in shared batch evidence and task directory.

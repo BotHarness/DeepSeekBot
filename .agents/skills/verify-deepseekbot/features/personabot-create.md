@@ -8,6 +8,7 @@ A Human creates a PersonaBot bound to a native Workspace. The Bot gets a DM Chan
 - `create` creates the PersonaBot with a role and Workspace grant.
 - `memory` initializes the Bot's Git Memory with an accepted HEAD.
 - `restart` keeps the Bot, its DM and the Human message after a Host restart.
+- `blank-recovery` queries an absent operation, creates an independent blank Bot, recovers its receipt through RPC and the built `create-status` CLI, and retries the same input/key before and after Host restart with exactly one Bot and DM.
 - `memory-location` stores a blank Bot's Memory in `<chosen folder>/<bot id>` when the Human picks an existing folder under Advanced settings.
 - `bot-create-tool` lets a Bot create a blank PersonaBot from chat with `bot_create`: name, Bio, Tags, Avatar file, Soul, Core Memory and Memory location. It goes through normal tool approval; the card previews the new Bot.
 - `memory-move` moves an existing Bot's Memory to `<chosen folder>/<bot id>`, or back to the default, from the Memory Repository row of Workspace Grants; the next DM runs in a new main session there.
@@ -21,8 +22,8 @@ A Human creates a PersonaBot bound to a native Workspace. The Bot gets a DM Chan
 
 The scripted journey owns its Host: it launches a fresh instance on a free port, drives the same `/api` calls the Client makes, restarts the Host and stops it.
 
-- **Run.** `pnpm build`, then `node scripts/e2e-personabot-create.mjs --with-dm`. It prints JSON with `"result":"pass"` and `workspaceCreated`, `personaBotCreated`, `persistedAfterRestart`, `gitMemoryReady` and `dmHistoryAfterRestart` all `true`. CI runs this journey on every pull request that changes code.
-- **UI.** The rest of the creation form is not mapped yet; the scripted journey proves the API path only.
+- **Run.** `pnpm build`, then `node scripts/e2e-personabot-create.mjs --with-dm`. It prints JSON with `"result":"pass"` and `workspaceCreated`, `personaBotCreated`, `persistedAfterRestart`, `gitMemoryReady` and `dmHistoryAfterRestart` all `true`; `blankCreationLookup`, `blankCreationCli`, `blankCreationRetry` and `blankCreationAfterRestart` prove the independent blank recovery path. CI runs this journey on every pull request that changes code.
+- **UI, narrow screens.** At 375 × 667, open Create Bot, fill Name, expand Advanced settings and scroll the form. The dialog title and Cancel/Create actions stay within the viewport while its body scrolls. Submit and verify the new Bot appears, then send a real DM. Capture the dialog before/after; the scripted journey above proves the API path only.
 - **Memory location.** Make an empty folder on the Host, then `shot <label> --bot-mode --click "New" --click "Create Bot" --fill "Name=Ada" --click "Advanced settings" --fill "Memory location=<folder>" --click "Create" --wait-text "Hi, I'm Ada"`. Proof: `<folder>/<bot id>` is a Git repository, and `rpc botharness/get '{"slug":"<bot id>"}'` reports that path as `memoryDir`. A folder that does not exist shows the inline refusal instead.
 - **Memory move.** Send one DM first so the Bot has a main session. Make an empty folder on the Host, then `shot <label> --bot-mode --click-text Ada --click "Workspace Grants · Ada · 0 workspaces" --click-text "Memory Repository" --fill "New Memory location=<folder>" --click "Move Memory" --wait-text "<folder>/<bot id>"`. Proof: `git -C <folder>/<bot id> rev-parse HEAD` matches the HEAD before the move, the old folder is gone, `rpc botharness/get` reports the new `memoryDir`, and after the next DM `rpc botharness/botSessionIds '{}'` lists a second session whose `cwd` (in `<DSH_HOME>/storages/session_projcache/sessions/<id>.json`) is the new folder. `deepseekbot memory-move <bot id> --default-location` moves it back. The turn may fail for lack of model credit; the move is still provable.
 - **Bot creates Bot, without the model.** `printf '{"display_name":"Tim","tags":["translator"],"soul":"# Tim"}' | deepseekbot bot-tool <bot id> bot_create --args-stdin`. Proof: the result has `bot_id`, `dm_channel_id` and `memory_dir`; `<memory_dir>/SOUL.md` holds the Soul; Tim shows in the sidebar; the creating Bot's DM shows "<Bot> created a new Bot, Tim". Bad input exits non-zero with `invalid-input`, `invalid-avatar` or `invalid-memory-dir`.
@@ -30,7 +31,15 @@ The scripted journey owns its Host: it launches a fresh instance on a free port,
 
 ## Gotchas
 
-- The journey needs no model credential.
+- The journey needs no model credential. It discards the blank create response and recovers by lookup; this is live recovery coverage, not a claim of actual network fault injection. Device gateway tests separately drop the response. The CLI receives the current launch token only in its environment, including after restart.
 - `bot_create` returns `model: host-default` for a Bot without its own Model Plan; it still answers on the Host default model.
 - `--locale zh` does not switch the Client language on a fresh Profile; read accessible names from the English UI.
 - It uses its own temporary `DSH_HOME`, so it never touches a `verify-app` instance.
+
+## Android creation header and native fields (#2958)
+
+On a reserved Windows USB-phone batch, open Chats → Create or join → Create Bot. The first page uses one continuous canvas across native top app bar, body and pinned footer. Close is a standard unfilled native icon button and exits the entire flow while retaining its draft. Next/Back slides only the body while the same header and footer stay mounted; progress animates and respects reduced motion; typing the name updates the header text while its portrait remains fixed. Only explicit Shuffle/photo/Customize actions change that saved portrait. Customize opens the native mobile editor; Back discards its local edits and Done applies the recipe to the same creation draft. Back restores the previous step and progress. Only an active submission/recovery request is indeterminate; an idle unresolved operation retains its final setup position until the original Host outcome is confirmed.
+
+Enter and edit long names, Chinese composing text, multi-line Persona/bio and tags using the actual native Material filled TextFields. Verify caret/focus, rapid input, draft restoration, source-prefilled name, errors and reachable Next/Create with a real keyboard. Repeat default/intermediate/maximum system font in light/dark, using the app appearance setting and checking the actual rendered theme. Capture matching before/after states on the same device. Original/native prerequisite #2947 is recorded separately; a web or mocked component result does not qualify the native header or input.
+
+Compare actual keyboard open/close cycles in non-debuggable Release builds on the same phone and IME, alternating baseline/candidate runs. Separate first and warm transitions, record failed interactions and platform frame counters. Record the persistent-header/body transition separately without a profiler or recorder attached during reported performance runs. Check the lowest field, multiline growth and reachable actions at maximum font. Hidden steps must not move their own footer or scroll in response to the active keyboard.

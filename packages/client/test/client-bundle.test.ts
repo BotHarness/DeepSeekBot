@@ -100,6 +100,11 @@ beforeAll(async () => {
   const sandbox = {
     document: browserDom.window.document,
     MutationObserver: browserDom.window.MutationObserver,
+    ResizeObserver: class {
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    },
     window: Object.assign(browserDom.window, {
       matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
       __ModuleLoader__: {

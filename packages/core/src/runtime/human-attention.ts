@@ -53,6 +53,7 @@ export interface HumanAttentionItem {
 
 export interface HumanAttentionPage {
   queryVersion?: 1;
+  notificationVersion?: 1;
   items: HumanAttentionItem[];
   nextCursor?: string;
 }
@@ -74,6 +75,7 @@ export interface HumanAttentionQuery {
     itemId?: string;
     includeDismissed?: boolean;
     snoozed?: boolean;
+    dismissed?: boolean;
     category?: HumanAttentionCategory;
     kind?: HumanAttentionItem['kind'];
     sort?: HumanAttentionSort;
@@ -86,6 +88,10 @@ export interface HumanAttentionQuery {
   }): HumanAttentionPage;
   status(messageCounts?: boolean): HumanAttentionStatus;
   unreadByChannel(): Array<{ channelId: string; unreadCount: number }>;
+  dmReplies(
+    limit: number,
+    before?: { createdAt: string; sourceEventId: string },
+  ): HumanAttentionItem[];
   durableAttention(): Array<{
     botSlug: string;
     waitingHumanCount: number;
@@ -358,6 +364,16 @@ const channelAttentionCte = (excludeMuted: boolean): string => `
     SELECT * FROM visible_messages WHERE revision > read_revision
   )`;
 
+const DM_CARD_FIELDS = [
+  'toolApprovalRequest',
+  'toolApprovalDecision',
+  'userQuestionRequest',
+  'userQuestionResolution',
+  'privateInputRequest',
+  'privateInputResolution',
+  'grantRequest',
+];
+
 const CHANNEL_ATTENTION_CTE = channelAttentionCte(false);
 const INBOX_CHANNEL_ATTENTION_CTE = channelAttentionCte(true);
 
@@ -551,6 +567,9 @@ export function createHumanAttentionQuery(
       const direction = sort === 'oldest' ? 'ASC' : 'DESC';
       const cursorComparison = sort === 'oldest' ? '>' : '<';
       const snoozedOnly = input.snoozed === true;
+      const dismissedOnly = input.dismissed === true;
+      if (snoozedOnly && dismissedOnly)
+        throw new Error('Snoozed and dismissed filters cannot be combined');
       if (snoozedOnly && (category === 'unread' || category === 'handled')) return { items: [] };
       const filters = JSON.stringify([
         category,
@@ -558,15 +577,18 @@ export function createHumanAttentionQuery(
         input.channelId ?? null,
         sort,
         ...(snoozedOnly ? ['snoozed'] : []),
+        ...(dismissedOnly ? ['dismissed'] : []),
         ...(input.kind === undefined ? [] : [input.kind]),
         ...(search === '' ? [] : ['search', createHash('sha256').update(search).digest('hex')]),
         ...(input.unreadOnly ? ['unreadOnly'] : []),
       ]);
       const at = now().toISOString();
       const dismissFilter = (id: string, source: string): string =>
-        input.includeDismissed
-          ? ''
-          : `AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = ${id} AND d.source_key = coalesce(${source}, '')) AND ${snoozedOnly ? '' : 'NOT '}${activeSnooze(id, source, at)}`;
+        dismissedOnly
+          ? `AND EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = ${id} AND d.source_key = coalesce(${source}, ''))`
+          : input.includeDismissed
+            ? ''
+            : `AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = ${id} AND d.source_key = coalesce(${source}, '')) AND ${snoozedOnly ? '' : 'NOT '}${activeSnooze(id, source, at)}`;
       const cursor = input.cursor === undefined ? undefined : decodeCursor(input.cursor, filters);
       if (
         sort === 'mentions-first' &&
@@ -792,7 +814,7 @@ SELECT 'handled:' || request.source_event_id AS id,
             db
               .prepare(`${channelCte},
           filtered_unread AS (
-            SELECT * FROM visible_unread v WHERE ${input.includeDismissed ? '' : `NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = 'unread:' || v.channel_id AND v.revision <= d.through_revision) AND`} is_reply = 0 AND is_mention = 0 AND (? IS NULL OR bot_slug = ?)
+            SELECT * FROM visible_unread v WHERE ${dismissedOnly ? `EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = 'unread:' || v.channel_id AND v.revision <= d.through_revision) AND` : input.includeDismissed ? '' : `NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = 'unread:' || v.channel_id AND v.revision <= d.through_revision) AND`} is_reply = 0 AND is_mention = 0 AND (? IS NULL OR bot_slug = ?)
             ${match('body', 'channel_name', 'bot_slug')}
           ),
           unread_channels AS (
@@ -1027,6 +1049,54 @@ SELECT 'handled:' || request.source_event_id AS id,
           : {}),
       };
     },
+    dmReplies(limit, before) {
+      const rows = database.read(
+        (db) =>
+          db
+            .prepare(`${INBOX_CHANNEL_ATTENTION_CTE}
+        SELECT v.channel_id, v.message_id, v.source_event_id, v.created_at, v.body, v.bot_slug
+          FROM visible_unread v
+          JOIN source_events e ON e.source_event_id = v.source_event_id
+          JOIN channel_records c ON c.channel_id = v.channel_id
+         WHERE json_extract(c.record_json, '$.type') = 'dm'
+           AND json_extract(e.payload_json, '$.author.kind') = 'bot'
+           AND ${DM_CARD_FIELDS.map((field) => `json_extract(e.payload_json, '$.${field}') IS NULL`).join(' AND ')}
+           AND NOT EXISTS (SELECT 1 FROM human_inbox_dismissals d WHERE d.human_id = '${LOCAL_HUMAN_ID}' AND d.item_id = 'unread:' || v.channel_id AND v.revision <= d.through_revision)
+           AND (? IS NULL OR v.created_at < ? OR (v.created_at = ? AND v.source_event_id < ?))
+         ORDER BY v.created_at DESC, v.source_event_id DESC
+         LIMIT ?
+      `)
+            .all(
+              LOCAL_HUMAN_ID,
+              LOCAL_HUMAN_ID,
+              JSON.stringify(mutedChannelIds()),
+              before?.createdAt ?? null,
+              before?.createdAt ?? null,
+              before?.createdAt ?? null,
+              before?.sourceEventId ?? null,
+              limit,
+            ) as Array<{
+            channel_id: string;
+            message_id: string;
+            source_event_id: string;
+            created_at: string;
+            body: string;
+            bot_slug: string;
+          }>,
+      );
+      return rows.map((row) => ({
+        id: `dm-reply:${row.source_event_id}`,
+        category: 'replies',
+        kind: 'channel-reply',
+        createdAt: row.created_at,
+        channelId: row.channel_id,
+        botSlug: row.bot_slug,
+        summary: row.body,
+        messageId: row.message_id,
+        sourceEventId: row.source_event_id,
+        isUnread: true,
+      }));
+    },
     unreadByChannel() {
       return database.read((db) =>
         (
@@ -1046,6 +1116,7 @@ export const HUMAN_INBOX_SNOOZE_MAX_MS = 30 * 24 * 60 * 60 * 1000;
 
 export interface HumanAttentionDecisions {
   dismiss(item: HumanAttentionItem): boolean;
+  restore(item: HumanAttentionItem): boolean;
   snooze(item: HumanAttentionItem, until: string | null): boolean;
   ignoreAssignmentReport(sourceEventId: string): boolean;
 }
@@ -1082,6 +1153,22 @@ export function createHumanAttentionDecisions(
           );
           return true;
         },
+        ['human-attention'],
+      );
+    },
+    restore(item) {
+      return database.transaction(
+        (db) =>
+          (item.kind === 'channel-unread'
+            ? db
+                .prepare('DELETE FROM human_inbox_dismissals WHERE human_id = ? AND item_id = ?')
+                .run(LOCAL_HUMAN_ID, item.id)
+            : db
+                .prepare(
+                  'DELETE FROM human_inbox_dismissals WHERE human_id = ? AND item_id = ? AND source_key = ?',
+                )
+                .run(LOCAL_HUMAN_ID, item.id, item.sourceEventId ?? '')
+          ).changes > 0,
         ['human-attention'],
       );
     },

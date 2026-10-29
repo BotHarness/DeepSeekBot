@@ -33,6 +33,10 @@ export const KeyboardAvoidingView = View;
 export const Modal = (props: Props) =>
   props['visible'] === true ? createElement('div', { role: 'dialog' }, props.children) : null;
 export const useWindowDimensions = () => ({ width: 390, height: 844, scale: 3, fontScale: 1 });
+export const Dimensions = {
+  get: useWindowDimensions,
+  addEventListener: (_event: string, _listener: () => void) => ({ remove() {} }),
+};
 export const ActivityIndicator = () => createElement('span', { role: 'progressbar' });
 export const RefreshControl = () => null;
 export const Image = () => createElement('img');
@@ -46,7 +50,9 @@ export const Pressable = (props: Props) =>
       disabled: props['disabled'] === true,
       onClick: () => (props['onPress'] as (() => void) | undefined)?.(),
     },
-    props.children,
+    typeof props.children === 'function'
+      ? (props.children as (state: { pressed: boolean }) => ReactNode)({ pressed: false })
+      : props.children,
   );
 
 export const TextInput = (props: Props) =>
@@ -68,7 +74,7 @@ interface Section {
 export const SectionList = (props: {
   sections: Section[];
   keyExtractor(item: unknown): string;
-  renderItem(info: { item: unknown }): ReactNode;
+  renderItem(info: { item: unknown; index: number; section: Section }): ReactNode;
   renderSectionHeader?(info: { section: Section }): ReactNode;
   renderSectionFooter?(info: { section: Section }): ReactNode;
   ListHeaderComponent?: ReactNode;
@@ -84,8 +90,12 @@ export const SectionList = (props: {
         'section',
         { key: index },
         props.renderSectionHeader?.({ section }) ?? null,
-        ...section.data.map((item) =>
-          createElement(Fragment, { key: props.keyExtractor(item) }, props.renderItem({ item })),
+        ...section.data.map((item, position) =>
+          createElement(
+            Fragment,
+            { key: props.keyExtractor(item) },
+            props.renderItem({ item, index: position, section }),
+          ),
         ),
         props.renderSectionFooter?.({ section }) ?? null,
       ),
@@ -102,6 +112,8 @@ export const Keyboard = {
   metrics: () => undefined,
   dismiss() {},
 };
+export const PlatformColor = (...semantic: string[]) => ({ semantic });
+
 export const Platform = {
   OS: 'web',
   select: <T>(options: { default?: T; web?: T }) => options.web ?? options.default,
@@ -126,10 +138,11 @@ export const FlatList = (props: {
   ListFooterComponent?: ReactNode;
   ListEmptyComponent?: ReactNode;
   ref?: unknown;
+  testID?: string;
 }) =>
   createElement(
     'div',
-    { ref: props.ref },
+    { ...a11y(props), ref: props.ref },
     props.ListHeaderComponent ?? null,
     ...(props.data.length === 0
       ? [props.ListEmptyComponent ?? null]
@@ -149,4 +162,10 @@ export const StyleSheet = {
       return Object.assign({}, ...style.map((item) => StyleSheet.flatten(item)));
     return style && typeof style === 'object' ? style : undefined;
   },
+};
+export const AccessibilityInfo = {
+  announceForAccessibility: (_message: string) => {},
+  isScreenReaderEnabled: async () => false,
+  isReduceMotionEnabled: async () => false,
+  addEventListener: (_event: string, _listener: (enabled: boolean) => void) => ({ remove() {} }),
 };

@@ -1,3 +1,6 @@
+import { ToolCallId } from '@deepseek-ai/dsh-llm';
+import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
+import { createBotMessageTool } from '../src/runtime/bot-message-tool.js';
 import { setImmediate as tick } from 'node:timers/promises';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
@@ -264,6 +267,7 @@ it('passes malformed slash commands unchanged to the Bot through DM intake', asy
     stopTurn: vi.fn(async () => undefined),
     startFreshOrchestrator: vi.fn(async (): Promise<'started'> => 'started'),
     turnRunning: () => false,
+    compact: async () => ({ outcome: 'nothing', tokensBefore: null, tokensAfter: null }),
   };
   const fx = await fixture({ imCommands: () => host });
   const reply = vi.fn(async () => ({ sent: true as const }));
@@ -436,6 +440,31 @@ it('fails closed for revocation, old callbacks, cross-Bot sources and stopped co
   );
   expect(fx.core.externalMessaging.inbound.read('ada', id).body).toBe(event().text);
   expect(fx.replies).toHaveLength(0);
+});
+
+it('keeps independent reply messages for one source and replays only the same message identity', async () => {
+  const fx = await fixture({ receipts: true });
+  await fx.enable();
+  await fx.receive();
+  await fx.idle();
+  const id = fx.core.attention.list({ botSlug: 'ada' }).items[0]!.id;
+  const progress = await fx.core.externalMessaging.reply(
+    'ada',
+    id,
+    'Work started',
+    'message-progress',
+  );
+  const final = await fx.core.externalMessaging.reply('ada', id, 'Work completed', 'message-final');
+  expect(progress.state).toBe('provider-accepted');
+  expect(final.state).toBe('provider-accepted');
+  expect(final.id).not.toBe(progress.id);
+  expect(
+    await fx.core.externalMessaging.reply('ada', id, 'Work started', 'message-progress'),
+  ).toEqual(progress);
+  await expect(
+    fx.core.externalMessaging.reply('ada', id, 'Changed', 'message-progress'),
+  ).rejects.toThrow('request-conflict');
+  expect(fx.replies).toHaveLength(2);
 });
 
 it('does not repeat unknown reply outcomes and refuses a changed payload for the same source', async () => {
@@ -3905,51 +3934,56 @@ it('binds nearby minima to continuation and permits delayed reads for thirty min
   }
 });
 
-it('derives setup receipt from an admitted topic, own reply and authenticated echo; revocation removes completion', async () => {
-  const fx = await fixture({ receipts: true, secondIdentity: true });
-  await fx.enable();
-  await fx.receive(event({ text: '[BH-LARK-SETUP] Reply LARK-SETUP-OK' }));
-  await fx.idle();
-  const sources = fx.query(
-    "SELECT source_event_id FROM source_events WHERE source_kind = 'bridge-message'",
-  ) as { source_event_id: string }[];
-  const id = sources[0]!.source_event_id;
-  expect((await fx.core.externalMessaging.snapshot('ada')).setup).toMatchObject({
-    providerReady: true,
-    receipts: [{ sourceEventId: id, echoObserved: false, threadId: 'omt-topic' }],
-  });
-  await fx.core.externalMessaging.reply('ada', id, 'LARK-SETUP-OK');
-  expect((await fx.core.externalMessaging.snapshot('ada')).setup?.receipts[0]).toMatchObject({
-    replyState: 'provider-accepted',
-    echoObserved: false,
-  });
-  await fx.echo('lark-app-reply', 'Wrong text');
-  expect((await fx.core.externalMessaging.snapshot('ada')).setup?.receipts[0]?.echoObserved).toBe(
-    false,
-  );
-  await fx.echo('lark-app-reply', 'LARK-SETUP-OK');
-  expect((await fx.core.externalMessaging.snapshot('ada')).setup?.receipts[0]?.echoObserved).toBe(
-    true,
-  );
-  for (let index = 0; index < 31; index++)
-    await fx.core.externalMessaging.send(
-      'ada',
-      fx.grant.id,
-      `setup-later-${index}`,
-      `later ${index}`,
+it.each([undefined, 'unified-setup-message', 'setup-with-whitespace'])(
+  'derives setup receipt from an admitted topic, own reply and authenticated echo; revocation removes completion (%s)',
+  async (messageKey) => {
+    const fx = await fixture({ receipts: true, secondIdentity: true });
+    await fx.enable();
+    await fx.receive(event({ text: '[BH-LARK-SETUP] Reply LARK-SETUP-OK' }));
+    await fx.idle();
+    const sources = fx.query(
+      "SELECT source_event_id FROM source_events WHERE source_kind = 'bridge-message'",
+    ) as { source_event_id: string }[];
+    const id = sources[0]!.source_event_id;
+    expect((await fx.core.externalMessaging.snapshot('ada')).setup).toMatchObject({
+      providerReady: true,
+      receipts: [{ sourceEventId: id, echoObserved: false, threadId: 'omt-topic' }],
+    });
+    const setupText =
+      messageKey === 'setup-with-whitespace' ? '\tLARK-SETUP-OK\n' : 'LARK-SETUP-OK';
+    await fx.core.externalMessaging.reply('ada', id, setupText, messageKey);
+    expect((await fx.core.externalMessaging.snapshot('ada')).setup?.receipts[0]).toMatchObject({
+      replyState: 'provider-accepted',
+      echoObserved: false,
+    });
+    await fx.echo('lark-app-reply', 'Wrong text');
+    expect((await fx.core.externalMessaging.snapshot('ada')).setup?.receipts[0]?.echoObserved).toBe(
+      false,
     );
-  const afterLaterSends = await fx.core.externalMessaging.snapshot('ada');
-  expect(afterLaterSends.intents.some((intent) => intent.sourceEventId === id)).toBe(false);
-  expect(afterLaterSends.setup?.receipts[0]).toMatchObject({
-    replyState: 'provider-accepted',
-    replyMessageId: 'lark-app-reply',
-  });
-  fx.setReady(false);
-  expect((await fx.core.externalMessaging.snapshot('ada')).setup?.receipts).toEqual([]);
-  fx.setReady(true);
-  fx.core.externalMessaging.revoke('ada', fx.grant.id);
-  expect((await fx.core.externalMessaging.snapshot('ada')).setup?.receipts).toEqual([]);
-});
+    await fx.echo('lark-app-reply', setupText);
+    expect((await fx.core.externalMessaging.snapshot('ada')).setup?.receipts[0]?.echoObserved).toBe(
+      true,
+    );
+    for (let index = 0; index < 31; index++)
+      await fx.core.externalMessaging.send(
+        'ada',
+        fx.grant.id,
+        `setup-later-${index}`,
+        `later ${index}`,
+      );
+    const afterLaterSends = await fx.core.externalMessaging.snapshot('ada');
+    expect(afterLaterSends.intents.some((intent) => intent.sourceEventId === id)).toBe(false);
+    expect(afterLaterSends.setup?.receipts[0]).toMatchObject({
+      replyState: 'provider-accepted',
+      replyMessageId: 'lark-app-reply',
+    });
+    fx.setReady(false);
+    expect((await fx.core.externalMessaging.snapshot('ada')).setup?.receipts).toEqual([]);
+    fx.setReady(true);
+    fx.core.externalMessaging.revoke('ada', fx.grant.id);
+    expect((await fx.core.externalMessaging.snapshot('ada')).setup?.receipts).toEqual([]);
+  },
+);
 
 function watchMessagingViews(core: BotHarnessCore) {
   const reader = core.live
@@ -4142,6 +4176,7 @@ it.each(['ordinary group text', '/model'])(
       stopTurn: async () => undefined,
       startFreshOrchestrator: async () => 'started',
       turnRunning: () => false,
+      compact: async () => ({ outcome: 'nothing', tokensBefore: null, tokensAfter: null }),
     };
     const fx = await fixture({ imCommands: () => host });
     await fx.enable();
@@ -4151,3 +4186,87 @@ it.each(['ordinary group text', '/model'])(
     expect(fx.runs[0]!.inbox).toContain(JSON.stringify(text));
   },
 );
+
+it.each([true, false])(
+  'unified external reply concludes only with a receipt (receipts=%s)',
+  async (receipts) => {
+    let conclusions = 0;
+    let result: unknown;
+    let sourceId = '';
+    const fx = await fixture({
+      receipts,
+      secondIdentity: receipts,
+      onRun: async (run) => {
+        sourceId = run.triage!.current()[0]!;
+        const tool = createBotMessageTool(() => run);
+        result = JSON.parse(
+          String(
+            await tool.execute(
+              {
+                source_event_id: sourceId,
+                body: 'Completed',
+                resolve_inbox_ids: [sourceId],
+                end_turn: true,
+              },
+              {
+                callId: ToolCallId('unified-external'),
+                signal: new AbortController().signal,
+                concludeTurn: () => {
+                  conclusions += 1;
+                },
+              } as ToolRunContext,
+            ),
+          ),
+        );
+      },
+    });
+    await fx.enable();
+    await fx.receive();
+    await fx.idle();
+    expect(fx.replies).toHaveLength(1);
+    expect(result).toMatchObject({ status: receipts ? 'committed' : 'provider-accepted' });
+    expect(conclusions).toBe(receipts ? 1 : 0);
+    expect(
+      fx.core.attention.list({ botSlug: 'ada' }).items.find((item) => item.id === sourceId)?.state,
+    ).toBe(receipts ? 'handled' : 'open');
+  },
+);
+
+it('unified messaging preserves an unknown external outcome without concluding or replaying', async () => {
+  let conclusions = 0;
+  let result: unknown;
+  let sourceId = '';
+  const fx = await fixture({
+    onRun: async (run) => {
+      sourceId = run.triage!.current()[0]!;
+      const tool = createBotMessageTool(() => run);
+      const args = {
+        source_event_id: sourceId,
+        body: 'Result',
+        resolve_inbox_ids: [sourceId],
+        end_turn: true,
+      };
+      const context = {
+        callId: ToolCallId('unknown-result'),
+        signal: new AbortController().signal,
+        concludeTurn: () => {
+          conclusions += 1;
+        },
+      } as ToolRunContext;
+      result = JSON.parse(String(await tool.execute(args, context)));
+      expect(JSON.parse(String(await tool.execute(args, context)))).toEqual(result);
+    },
+  });
+  fx.setReply(async () => {
+    throw new Error('transport interrupted after dispatch');
+  });
+  await fx.enable();
+  await fx.receive();
+  await fx.idle();
+  expect(result).toMatchObject({ status: 'unknown-outcome' });
+  expect(conclusions).toBe(0);
+  expect(fx.replies).toHaveLength(1);
+  expect(
+    fx.core.attention.list({ botSlug: 'ada' }).items.find((item) => item.id === sourceId)?.state,
+  ).toBe('open');
+});

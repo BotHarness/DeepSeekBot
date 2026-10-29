@@ -8,11 +8,8 @@ import {
 import { bridgeSourceLabel } from './bridge-source-label.js';
 import type { ReactElement } from 'react';
 
-import {
-  Pill,
-  Tooltip,
-  IconChevronLeftOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { Pill, IconChevronLeftOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 
 import type { GroupProfileActivity, GroupProfileAuthorActivity } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';

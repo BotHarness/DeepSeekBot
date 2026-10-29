@@ -13,12 +13,16 @@ vi.mock('../src/runtimes.js', () => ({
 
 import { apply, DEFAULT_CONFIG, type BrowserConfig } from '../src/index.js';
 import { BrowserProvisionError } from '../src/runtime/provision.js';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 interface BrowserHostService {
   resetBot?(slug: string): void;
   executionSignal(sessionId: string): AbortSignal | undefined;
   needsAuthorization(sessionId: string): boolean;
   authorizationScope(sessionId?: string): string;
+  approvalScope(sessionId: string): string;
   markAuthorized(sessionId: string, scope?: string): boolean;
   reconcileBot(slug: string): Promise<void>;
 }
@@ -40,7 +44,7 @@ async function setup(
   autoAllowActions = true,
   target: BrowserConfig['target'] = 'local',
 ) {
-  vi.stubEnv('DSH_HOME', '');
+  vi.stubEnv('DSH_HOME', mkdtempSync(join(tmpdir(), 'browser-host-test-')));
   const ctx = new Context();
   contexts.push(ctx);
   const profiles = new Map([
@@ -170,6 +174,15 @@ async function setup(
 }
 
 describe('published Browser Host service', () => {
+  it('binds standing approvals to the selected Browser Profile across Sessions', async () => {
+    const h = await setup();
+    const original = h.service.approvalScope('bot-a');
+    expect(h.service.approvalScope('bot-b')).toBe(original);
+    h.profiles.set('bot-a', 'different-profile');
+    expect(h.service.approvalScope('bot-a')).not.toBe(original);
+    expect(h.service.approvalScope('bot-b')).toBe(original);
+  });
+
   it('does not publish the local viewer while the Human window has no owned current tab', async () => {
     const h = await setup();
     let finish!: () => void;

@@ -8,15 +8,16 @@ import type { Invitation } from '../../cloud/invitation-contract';
 import { parseInvitationLink } from '../../cloud/invitation-link';
 import { cloudClient, pendingCloudJoin, useCloudSnapshot } from '../../cloud/native';
 import { useDesignTheme } from '../design/theme';
-import { edge, radius, space } from '../design/tokens';
+import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
-import { TextInput } from '../primitives/system-text';
+import { TextField } from '../primitives/text-field';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { CloudChannelName } from './channel-name';
 
 export function CloudJoinScreen() {
+  const t = useStrings();
   const params = useLocalSearchParams<{ link?: string }>();
   const snapshot = useCloudSnapshot(),
     theme = useDesignTheme();
@@ -99,10 +100,9 @@ export function CloudJoinScreen() {
     >
       <Stack.Screen options={{ title: t.cloudJoin.title }} />
       <Text>{t.cloudJoin.neutral}</Text>
-      <TextInput
+      <TextField
         accessibilityLabel={t.cloudJoin.link}
         placeholder={t.cloudJoin.link}
-        placeholderTextColor={theme.color.subtle}
         value={link}
         onChangeText={(value) => {
           setLink(value);
@@ -110,20 +110,11 @@ export function CloudJoinScreen() {
           setInvitation(undefined);
           setError(undefined);
         }}
+        keyboardType="url"
         autoCapitalize="none"
         autoCorrect={false}
         maxLength={2048}
         editable={!busy}
-        style={{
-          minHeight: theme.touch,
-          padding: space.x3,
-          borderWidth: edge.hairline,
-          borderColor: theme.layer.raised.edge,
-          borderRadius: radius.md,
-          color: theme.color.fg,
-          backgroundColor: theme.layer.raised.fill,
-          fontSize: theme.type.body.size,
-        }}
       />
       <Button label={t.cloudJoin.scan} disabled={busy} onPress={() => setScanning(true)} />
       {scanning &&

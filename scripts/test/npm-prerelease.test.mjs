@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import semver from 'semver';
 import {
   awaitPublished,
   assertCleanReleaseSource,
@@ -22,6 +23,9 @@ import {
 } from '../npm-prerelease.mjs';
 import { providerReleasePlan } from '../npm-provider-release.mjs';
 import { productDsh, productImProvider } from '../product-artifacts.mjs';
+import { cloudflaredPackages } from '../cloudflared-packages.mjs';
+
+const platformPackages = new Map(cloudflaredPackages.map((entry) => [entry.name, entry]));
 
 const roots = [];
 afterEach(() => roots.splice(0).forEach((r) => rmSync(r, { recursive: true, force: true })));
@@ -35,15 +39,33 @@ function fixture(productVersion = '0.1.0-alpha.1') {
     mkdirSync(join(dir, 'package'), { recursive: true });
     const version = name === productImProvider.name ? productImProvider.version : productVersion;
     const manifest = { name, version, license: 'MIT', main: './index.js' };
+    if (name === '@botharness/computer') {
+      mkdirSync(join(dir, 'package/native/local-video'), { recursive: true });
+      for (const asset of [
+        'launcher.cs',
+        'main.cjs',
+        'preload.cjs',
+        'renderer.html',
+        'renderer.js',
+      ]) {
+        writeFileSync(join(dir, 'package/native/local-video', asset), 'fixture media asset');
+      }
+    }
+    const platform = platformPackages.get(name);
+    if (platform) {
+      Object.assign(manifest, { license: 'Apache-2.0', os: [platform.os], cpu: [platform.cpu] });
+      mkdirSync(join(dir, 'package/bin'));
+      writeFileSync(join(dir, `package/bin/${platform.executable}`), 'binary');
+    }
     if (name === '@botharness/core') {
       manifest.exports = { './cli': './cli/index.mjs' };
       mkdirSync(join(dir, 'package/cli'));
       writeFileSync(
         join(dir, 'package/cli/index.mjs'),
-        'export const runBotCreateCli = () => { if (process.env.PATH !== "" || process.env.DEEPSEEKBOT_HOST_TOKEN || process.env.DEEPSEEKBOT_AGENT_TOKEN || process.env.NODE_PATH) throw new Error("ambient dependency"); console.log("deepseekbot packed help"); };',
+        'export const runBotCreateCli = () => { if (process.env.PATH !== "" || process.env.DEEPSEEKBOT_HOST_TOKEN || process.env.DEEPSEEKBOT_AGENT_TOKEN || process.env.NODE_PATH) throw new Error("ambient dependency"); console.log("tobs: packed help"); };',
       );
     }
-    if (name === 'deepseekbot') {
+    if (name === 'deepseekbot' || name === '@botharness/tobs') {
       manifest.bin = { deepseekbot: './dist/deepseekbot.mjs' };
       mkdirSync(join(dir, 'package/dist'));
       writeFileSync(
@@ -52,14 +74,27 @@ function fixture(productVersion = '0.1.0-alpha.1') {
       );
       manifest.dependencies = Object.fromEntries(
         publicationOrder
-          .slice(0, -1)
+          .filter((n) => !['deepseekbot', '@botharness/tobs'].includes(n))
+          .filter((n) => !platformPackages.has(n))
           .map((n) => [n, n === productImProvider.name ? productImProvider.version : version]),
+      );
+      manifest.optionalDependencies = Object.fromEntries(
+        [...platformPackages.keys()].map((n) => [n, version]),
       );
       manifest.dsh = { bundle: { patch: './cordis.im.patch.yml' } };
       writeFileSync(
         join(dir, 'package/cordis.im.patch.yml'),
         "- insert:\n    - id: xmanrui-dsh-im\n      name: '@botharness/im-provider'\n    - id: botharness-core\n      name: '@botharness/core'\n    - id: botharness-client\n      name: '@botharness/ui'\n    - id: botharness-browser\n      name: '@botharness/browser'\n    - id: botharness-computer\n      name: '@botharness/computer'\n",
       );
+      if (name === '@botharness/tobs') {
+        manifest.bin = { tobs: './src/tobs.mjs' };
+        manifest.dependencies.deepseekbot = version;
+        mkdirSync(join(dir, 'package/src'));
+        writeFileSync(
+          join(dir, 'package/src/tobs.mjs'),
+          'import "deepseekbot/dist/deepseekbot.mjs";',
+        );
+      }
     }
     if (name === productImProvider.name) {
       manifest.botharness = { managedByProduct: true };
@@ -88,7 +123,8 @@ function fixture(productVersion = '0.1.0-alpha.1') {
       productVersion,
       dsh: productDsh,
       providerRuntime: runtime,
-      artifacts,
+      artifacts: artifacts.filter((artifact) => !platformPackages.has(artifact.name)),
+      platformArtifacts: artifacts.filter((artifact) => platformPackages.has(artifact.name)),
     }),
   );
   const plan = {
@@ -109,8 +145,11 @@ describe('reviewed npm prerelease', () => {
   it('pins the published product Provider separately from historical standalone publication', () => {
     expect(publishedProductProvider).toMatchObject({
       name: productImProvider.name,
-      distTag: 'next',
+      distTag: 'latest',
     });
+    if (publishedProductProvider.version === productImProvider.version)
+      expect(publishedProductProvider.providerSource).toBe(productImProvider.upstream.source);
+    else expect(semver.gt(productImProvider.version, publishedProductProvider.version)).toBe(true);
     expect(publishedProductProvider.version).toMatch(/^\d+\.\d+\.\d+-botharness\.\d+$/);
     expect(publishedProductProvider.providerSource).toMatch(/^[a-f0-9]{40}$/);
     expect(publishedProductProvider.productSource).toMatch(/^[a-f0-9]{40}$/);
@@ -321,6 +360,27 @@ describe('reviewed npm prerelease', () => {
       'must provide its bundled deepseekbot executable',
     );
   });
+  it('rejects a Computer archive missing any lazily loaded native helper asset', () => {
+    const artifact = { name: '@botharness/computer', version: '0.1.0-alpha.1' };
+    const manifest = { ...artifact, license: 'MIT', main: './dist/index.mjs' };
+    const assets = ['launcher.cs', 'main.cjs', 'preload.cjs', 'renderer.html', 'renderer.js'];
+    const files = [
+      'package/LICENSE',
+      'package/dist/index.mjs',
+      ...assets.map((name) => `package/native/local-video/${name}`),
+    ];
+    expect(() => checkPackage(manifest, artifact, files, [artifact])).not.toThrow();
+    for (const asset of assets) {
+      expect(() =>
+        checkPackage(
+          manifest,
+          artifact,
+          files.filter((path) => !path.endsWith(`/${asset}`)),
+          [artifact],
+        ),
+      ).toThrow(`Missing packed entry: @botharness/computer:./native/local-video/${asset}`);
+    }
+  });
   it('executes the archived product CLI without a source checkout or global CLI in its environment', () => {
     const { root } = fixture();
     const { packages } = verifyRelease(root);
@@ -379,8 +439,9 @@ describe('reviewed npm prerelease', () => {
     const packages = publicationOrder.map(entry);
     const waves = publicationWaves(packages);
     expect(waves.map((wave) => wave.map(({ artifact }) => artifact.name))).toEqual([
-      publicationOrder.slice(0, -1),
+      publicationOrder.slice(0, -2),
       ['deepseekbot'],
+      ['@botharness/tobs'],
     ]);
     expect(publicationWaves([entry('deepseekbot')])).toHaveLength(1);
     const events = [];
@@ -390,11 +451,14 @@ describe('reviewed npm prerelease', () => {
       return new Promise((done) => pending.set(artifact.name, done));
     });
     await Promise.resolve();
-    expect(events).toEqual(publicationOrder.slice(0, -1).map((name) => `start ${name}`));
-    for (const name of publicationOrder.slice(0, -1)) pending.get(name)();
+    expect(events).toEqual(publicationOrder.slice(0, -2).map((name) => `start ${name}`));
+    for (const name of publicationOrder.slice(0, -2)) pending.get(name)();
     await new Promise((done) => setTimeout(done, 0));
     expect(events.at(-1)).toBe('start deepseekbot');
     pending.get('deepseekbot')();
+    await new Promise((done) => setTimeout(done, 0));
+    expect(events.at(-1)).toBe('start @botharness/tobs');
+    pending.get('@botharness/tobs')();
     await run;
     const product = vi.fn();
     await expect(

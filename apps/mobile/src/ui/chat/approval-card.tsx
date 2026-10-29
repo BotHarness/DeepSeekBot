@@ -3,7 +3,7 @@ import { View, type ViewInstance } from 'react-native';
 
 import type { CardResolution } from '../../host/conversation';
 import {
-  offersAlwaysAllow,
+  approvalCommand,
   previewInput,
   readableInput,
   type ApprovalChoice,
@@ -11,15 +11,16 @@ import {
   type DecisionResult,
 } from '../../host/requests';
 import type { ToolApprovalOutcome } from '../../host/wire';
-import { useDesignTheme } from '../design/theme';
-import { radius, space } from '../design/tokens';
+import { approvalFileChange } from '../../../../../packages/client/src/client/approval-diff';
+import { alwaysNote, executionNote, expiryLabel, highRisk, riskNote } from '../approval-note';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
-import { Text } from '../primitives/text';
 import { errorText } from '../request-parts';
 import { haptic } from '../haptics';
-import { t } from '../strings';
-import { ActionCard, CardButtons, CardLine, DetailRow, type CardLineTone } from './action-card';
+import { useStrings, t } from '../strings';
+import { ActionCard, CardButtons, CardNote, CardPreview, DetailRow } from './action-card';
+import { CardLine, type CardLineTone } from './card-line';
+import { FileDiff } from './approval-diff';
 import type { BubbleGroup } from './bubble-shape';
 
 export interface ApprovalCardPort {
@@ -42,9 +43,25 @@ type Phase =
       status: 'decided' | 'expired';
       outcome?: ToolApprovalOutcome;
       mine: boolean;
+      label?: string;
     };
 
 type Line = { text: string; tone: CardLineTone };
+
+const LABEL_LIMIT = 80;
+
+function requestLabel(request: ApprovalRequest): string {
+  const command = approvalCommand(request.toolName, request.input);
+  if (command === undefined) return request.toolName;
+  return briefCommand(command);
+}
+
+function briefCommand(command: string): string {
+  const first = command.split('\n', 1)[0]!.trim();
+  return first.length <= LABEL_LIMIT && first.length === command.trim().length
+    ? first
+    : `${first.slice(0, LABEL_LIMIT).trimEnd()}…`;
+}
 
 function outcomeTone(outcome: ToolApprovalOutcome | undefined): CardLineTone {
   if (outcome === undefined) return 'subtle';
@@ -55,11 +72,12 @@ function settledLine(
   subject: string,
   phase: Phase,
   resolution: Extract<CardResolution, { kind: 'tool-approval' }> | undefined,
+  decidedHere: boolean,
 ): Line | undefined {
   const state = (outcome: ToolApprovalOutcome | undefined, elsewhere: boolean): Line => {
     const label = outcome === undefined ? t.cardDecided : t.cardOutcome[outcome];
     return {
-      text: t.cardLine(subject, elsewhere ? t.elsewhere(label) : label),
+      text: t.cardLine(subject, elsewhere && !decidedHere ? t.elsewhere(label) : label),
       tone: outcomeTone(outcome),
     };
   };
@@ -78,7 +96,9 @@ function settledLine(
 export function ApprovalCard({
   port,
   subject,
+  command,
   resolution,
+  decidedHere = false,
   focused = false,
   group,
   wide = false,
@@ -86,14 +106,22 @@ export function ApprovalCard({
 }: {
   port: ApprovalCardPort;
   subject?: string;
+  command?: string;
   resolution?: Extract<CardResolution, { kind: 'tool-approval' }>;
+  decidedHere?: boolean;
   focused?: boolean;
   group?: BubbleGroup;
   wide?: boolean;
   onSettled?(result: DecisionResult): void;
 }) {
-  const theme = useDesignTheme();
+  const t = useStrings();
   const known = useRef(resolution !== undefined);
+  const current = useRef({ port, pending: false, active: false });
+  if (current.current.port !== port) {
+    current.current = { port, pending: false, active: false };
+    known.current = resolution !== undefined;
+  }
+  const submission = current.current;
   const [phase, setPhase] = useState<Phase>(
     known.current ? { kind: 'known' } : { kind: 'loading' },
   );
@@ -102,6 +130,7 @@ export function ApprovalCard({
     setPhase({ kind: 'loading' });
     try {
       const request = await port.load();
+      if (!submission.active || current.current !== submission) return;
       setPhase(
         request.status === 'pending'
           ? { kind: 'pending', request }
@@ -109,20 +138,34 @@ export function ApprovalCard({
               kind: 'settled',
               status: request.status,
               mine: false,
+              label: requestLabel(request),
               ...(request.outcome === undefined ? {} : { outcome: request.outcome }),
             },
       );
     } catch {
+      if (!submission.active || current.current !== submission) return;
       setPhase({ kind: 'failed' });
     }
-  }, [port]);
+  }, [port, submission]);
 
   const mount = useMounted<ViewInstance>(() => {
+    submission.active = true;
     if (!known.current) void load();
-  }, [load]);
+    return () => {
+      submission.active = false;
+    };
+  }, [load, submission]);
 
   const tool = phase.kind === 'pending' ? phase.request.toolName : (subject ?? '');
-  const line = settledLine(tool, phase, resolution);
+  const label =
+    phase.kind === 'pending'
+      ? requestLabel(phase.request)
+      : phase.kind === 'settled' && phase.label !== undefined
+        ? phase.label
+        : command === undefined
+          ? tool
+          : briefCommand(command);
+  const line = settledLine(label, phase, resolution, decidedHere);
   if (line !== undefined)
     return (
       <View ref={mount}>
@@ -149,7 +192,7 @@ export function ApprovalCard({
           {...(phase.kind === 'failed' ? { error: t.cardLoadFailed } : {})}
         >
           <CardButtons>
-            <Button label={t.tryAgain} onPress={() => void load()} />
+            <Button symbol="refresh" label={t.tryAgain} onPress={() => void load()} />
           </CardButtons>
         </ActionCard>
       </View>
@@ -157,24 +200,43 @@ export function ApprovalCard({
 
   const { request } = phase;
   const decide = async (outcome: ApprovalChoice) => {
-    haptic(outcome === 'rejected' ? 'deny' : 'approve');
+    if (
+      submission.pending ||
+      !submission.active ||
+      current.current !== submission ||
+      resolution !== undefined
+    )
+      return;
+    submission.pending = true;
     setPhase({ kind: 'pending', request, busy: outcome });
     try {
       const result = await port.decide(outcome);
+      if (!submission.active || current.current !== submission) return;
       if (result === 'accepted') {
-        setPhase({ kind: 'settled', status: 'decided', outcome, mine: true });
+        haptic(outcome === 'rejected' ? 'deny' : 'approve');
+        setPhase({
+          kind: 'settled',
+          status: 'decided',
+          outcome,
+          mine: true,
+          label: requestLabel(request),
+        });
         onSettled?.(result);
         return;
       }
       const now = await port.load().catch(() => undefined);
+      if (!submission.active || current.current !== submission) return;
       setPhase({
         kind: 'settled',
         status: result,
         mine: false,
+        label: requestLabel(request),
         ...(now?.outcome === undefined ? {} : { outcome: now.outcome }),
       });
       onSettled?.(result);
     } catch (error) {
+      if (!submission.active || current.current !== submission) return;
+      submission.pending = false;
       setPhase({
         kind: 'pending',
         request,
@@ -183,12 +245,20 @@ export function ApprovalCard({
     }
   };
   const rows = readableInput(request.input);
-  const first = previewInput(request.input);
+  const change = approvalFileChange(request.toolName, request.input);
+  const shown = change === undefined ? approvalCommand(request.toolName, request.input) : undefined;
+  const first =
+    change !== undefined
+      ? { label: '', value: `${change.path}  +${change.added} −${change.removed}` }
+      : shown !== undefined
+        ? { label: '', value: shown }
+        : previewInput(request.input);
+  const running = executionNote(request);
   return (
     <View ref={mount}>
       <ActionCard
         category={category}
-        status={t.needsYou}
+        status={expiryLabel(request.expiresAt, Date.now()) ?? t.needsYou}
         title={title}
         focused={focused}
         wide={wide}
@@ -196,54 +266,48 @@ export function ApprovalCard({
         {...(first === undefined || first.value === ''
           ? {}
           : {
-              preview: (
-                <View
-                  style={{
-                    backgroundColor: theme.layer.well.fill,
-                    borderRadius: radius.md,
-                    paddingHorizontal: space.x4,
-                    paddingVertical: space.x3,
-                  }}
-                >
-                  <Text
-                    selectable
-                    variant="meta"
-                    numberOfLines={2}
-                    style={{ fontFamily: theme.mono }}
-                  >
-                    {first.value}
-                  </Text>
-                </View>
-              ),
+              preview: <CardPreview text={first.value} mono maxLines={2} />,
             })}
         details={
           <>
             <DetailRow label={t.tool} value={request.toolName} />
             <DetailRow label={t.workingFolder} value={request.cwd} />
-            {rows.map((row, index) => (
-              <DetailRow key={`${row.label}-${index}`} label={row.label} value={row.value} />
-            ))}
+            {change !== undefined ? (
+              <FileDiff change={change} />
+            ) : (
+              rows.map((row, index) => (
+                <DetailRow key={`${row.label}-${index}`} label={row.label} value={row.value} />
+              ))
+            )}
+            {highRisk(request.toolName) ? null : <CardNote>{riskNote(request.toolName)}</CardNote>}
           </>
         }
       >
+        {running === undefined ? null : <CardNote>{running}</CardNote>}
+        {highRisk(request.toolName) ? <CardNote>{riskNote(request.toolName)}</CardNote> : null}
+        <CardNote>{alwaysNote(request)}</CardNote>
         <CardButtons stack>
           <Button
+            symbol="check"
             label={t.allowOnce}
+            testID="approval-allow-once"
             tone="primary"
             disabled={phase.busy !== undefined}
             busy={phase.busy === 'allowed-once'}
             onPress={() => void decide('allowed-once')}
           />
-          {offersAlwaysAllow(request.toolName) ? (
-            <Button
-              label={t.alwaysAllow}
-              disabled={phase.busy !== undefined}
-              busy={phase.busy === 'allowed-always-exact'}
-              onPress={() => void decide('allowed-always-exact')}
-            />
-          ) : null}
           <Button
-            label={t.deny}
+            symbol="shield-check"
+            label={t.alwaysAllow}
+            testID="approval-always-allow"
+            disabled={phase.busy !== undefined || !request.allowAlways}
+            busy={phase.busy === 'allowed-always-tool'}
+            onPress={() => void decide('allowed-always-tool')}
+          />
+          <Button
+            symbol="x"
+            label={t.reject}
+            testID="approval-deny"
             tone="danger"
             disabled={phase.busy !== undefined}
             busy={phase.busy === 'rejected'}

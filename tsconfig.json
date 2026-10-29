@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2023",
+    "paths": { "@botharness/ui/panels": ["./packages/client/src/panel-api.ts"] },
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
     "module": "ESNext",
@@ -26,6 +27,7 @@
   "include": [
     "packages/client/src",
     "packages/computer/src",
+    "packages/vrm-companion/src",
     "packages/core/src",
     "packages/deepseekbot/src",
     "packages/browser/src",
@@ -34,19 +36,41 @@
     "packages/ingest/src",
     "packages/links/src",
     "packages/links-cli/src",
+    "packages/connect-relay/src",
     "packages/*/test",
     "apps/mobile/test",
     "*.config.ts"
   ],
   "exclude": [
     "apps/mobile/test/posthog-sender.test.ts",
+    "apps/mobile/test/mobile-telemetry-wire-live.test.ts",
     "apps/mobile/test/native-telemetry.test.ts",
+    "apps/mobile/test/native-lan-socket.test.ts",
     "apps/mobile/test/native-persistence.test.ts",
+    "apps/mobile/test/native-zip-import-file.test.ts",
+    "apps/mobile/test/share-attachment.test.ts",
+    "apps/mobile/test/haptic-feedback.test.ts",
     "apps/mobile/test/native-chat-background.test.ts",
     "apps/mobile/test/inbox-screens.test.ts",
     "apps/mobile/test/action-cards.test.ts",
     "apps/mobile/test/activity-feed.test.ts",
+    "apps/mobile/test/open-conversation.test.ts",
+    "apps/mobile/test/quick-action-routing.test.ts",
+    "apps/mobile/test/incoming-share.test.ts",
+    "apps/mobile/test/recent-chats.test.ts",
+    "apps/mobile/test/swipe-chat-target.test.ts",
+    "apps/mobile/test/grant-request-card.test.ts",
+    "apps/mobile/test/attention-actions.test.ts",
+    "apps/mobile/test/host-session-unpair.test.ts",
+    "apps/mobile/test/host-session-multiple.test.ts",
+    "apps/mobile/test/conversation-cache-host.test.ts",
     "apps/mobile/test/reanimated-shim.ts",
+    "apps/mobile/test/motion-springs.test.ts",
+    "apps/mobile/test/back-owner.test.ts",
+    "apps/mobile/test/viewer-header.test.tsx",
+    "apps/mobile/test/chats-search-results.test.ts",
+    "apps/mobile/test/workspace-panel-root.test.ts",
+    "apps/mobile/test/platform-tokens.test.ts",
     "apps/mobile/test/**/*.tsx"
   ]
 }

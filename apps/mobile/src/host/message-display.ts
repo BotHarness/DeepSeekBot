@@ -1,3 +1,20 @@
+import type { ConversationMessage } from './conversation';
+import type { ChannelWireMessage } from './wire';
+
+export function messageForDisplay(message: ConversationMessage): ChannelWireMessage {
+  return (
+    message.source?.message ?? {
+      id: message.id,
+      at: message.at,
+      body: message.body,
+      author:
+        message.author === 'bot'
+          ? { kind: 'bot', slug: message.bot ?? '' }
+          : { kind: message.author },
+    }
+  );
+}
+
 export type MessageDisplayMode = 'streaming' | 'complete';
 
 export function createMessageDisplayPreferences(storage: {
@@ -5,7 +22,7 @@ export function createMessageDisplayPreferences(storage: {
   write(mode: MessageDisplayMode): void;
 }) {
   let snapshot: { mode: MessageDisplayMode; loaded: boolean; storageError: boolean } = {
-    mode: 'streaming',
+    mode: 'complete',
     loaded: false,
     storageError: false,
   };

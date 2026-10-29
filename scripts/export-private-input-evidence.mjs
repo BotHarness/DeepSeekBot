@@ -40,7 +40,7 @@ export function projectPrivateInputEvents(events) {
         'ask_secret',
         'protected_cli',
         'bash',
-        'channel_send',
+        'bot_send_message',
         'mcp__linux_demo__workspace_probe',
         'mcp__private_status__authenticated_status',
       ].includes(data.name)
@@ -124,7 +124,7 @@ export function projectPrivateInputEvents(events) {
           timedOut: parsed.timedOut === true,
           aborted: parsed.aborted === true,
         };
-      if (name === 'channel_send' && identifier(parsed?.messageId))
+      if (name === 'bot_send_message' && identifier(parsed?.messageId))
         value = { messageId: parsed.messageId };
       if (name === 'bash' && value === undefined) {
         const exit = text.match(/\[exit code: (-?\d{1,3})\]\s*$/);

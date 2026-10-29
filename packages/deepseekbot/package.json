@@ -5,11 +5,13 @@
   "description": "DeepSeekBot bundle: BotHarness core + web client, installed as one profile layer",
   "bin": {
     "botharness-profile": "./dist/profile-cli.mjs",
-    "deepseekbot": "./dist/deepseekbot.mjs"
+    "deepseekbot": "./dist/deepseekbot.mjs",
+    "deepseekbot-zoom-setup": "./dist/desktop-zoom-setup.mjs"
   },
   "files": [
     "dist",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "desktop-theme"
   ],
   "type": "module",
   "dependencies": {
@@ -19,13 +21,11 @@
     "@botharness/ui": "link:../client"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh": "0.2.1-rc.2"
+    "@deepseek-ai/dsh": "0.2.1-rc.3"
   },
-  "peerDependencies": {
-    "@deepseek-ai/dsh": ">=0.2.0-rc.2 <0.3.0-0 || >=0.2.1-0 <0.3.0-0"
-  },
+  "peerDependencies": {},
   "engines": {
-    "dsh": ">=0.2.0-rc.2 <0.3.0-0",
+    "dsh": ">=0.2.0-0",
     "node": ">=22"
   },
   "dsh": {

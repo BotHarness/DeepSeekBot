@@ -5,7 +5,7 @@ import { Platform, Pressable, View, type ViewInstance } from 'react-native';
 import type { DesignTheme } from '../design/theme';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { SheetGrabber } from './sheet-grabber';
 
 export function sheetScreenOptions(theme: DesignTheme, full = false) {
@@ -28,16 +28,23 @@ export function SheetScreen({
   onMount?: RefCallback<ViewInstance>;
   onClose?: () => void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const router = useRouter();
+  const close = onClose ?? (() => router.back());
   return (
-    <View ref={onMount} style={{ flex: 1, backgroundColor: theme.overlay.fill }}>
+    <View
+      ref={onMount}
+      collapsable={false}
+      onAccessibilityEscape={close}
+      style={{ flex: 1, backgroundColor: theme.overlay.fill }}
+    >
       {Platform.OS === 'android' ? (
         <Pressable
           testID="sheet-screen-handle"
           accessibilityRole="button"
           accessibilityLabel={t.close}
-          onPress={onClose ?? (() => router.back())}
+          onPress={close}
           style={{
             alignItems: 'center',
             justifyContent: 'center',

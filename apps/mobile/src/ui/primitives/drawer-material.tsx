@@ -21,3 +21,11 @@ export function DrawerMaterial({ rounded = false }: { rounded?: boolean; glassPa
     />
   );
 }
+
+export function useLiquidGlass(): boolean {
+  return false;
+}
+
+export const SidebarMaterial: (props: { cornerRadius: number }) => null = () => null;
+
+export const EdgeMaterial: (props: { edge: 'top' | 'bottom' }) => null = () => null;

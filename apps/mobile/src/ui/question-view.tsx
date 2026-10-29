@@ -1,4 +1,5 @@
-import { Text, TextInput } from './primitives/system-text';
+import { Text } from './primitives/system-text';
+import { TextField } from './primitives/text-field';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, View, type ViewInstance } from 'react-native';
 
@@ -23,7 +24,7 @@ import {
 import { useMounted } from './mounted';
 import { KeyboardFormScroll } from './primitives/keyboard-form';
 import { haptic } from './haptics';
-import { t } from './strings';
+import { useStrings, t } from './strings';
 import { useTheme } from './theme';
 
 export interface QuestionPort {
@@ -56,29 +57,43 @@ export function QuestionView({
   botName: string;
   listed?: boolean;
 }) {
+  const t = useStrings();
   const theme = useTheme();
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const [drafts, setDrafts] = useState<Record<string, QuestionDraft>>({});
   const own = useRef(false);
+  const current = useRef({ port, pending: false, active: false });
+  if (current.current.port !== port) current.current = { port, pending: false, active: false };
+  const submission = current.current;
 
   const load = useCallback(async () => {
     setPhase({ kind: 'loading' });
     try {
       const request = await port.load();
+      if (!submission.active || current.current !== submission) return;
       const notice = settledNotice(request.status);
       setPhase({ kind: 'ready', request, ...(notice === undefined ? {} : { notice }) });
     } catch (error) {
+      if (!submission.active || current.current !== submission) return;
       setPhase({ kind: 'failed', error: errorText(error) });
     }
-  }, [port]);
+  }, [port, submission]);
 
-  const seen = useRef<boolean | undefined>(undefined);
+  const seen = useRef<{ port: QuestionPort; listed: boolean } | undefined>(undefined);
   const mount = useMounted<ViewInstance>(() => {
-    const first = seen.current === undefined;
-    const dropped = seen.current === true && !listed;
-    seen.current = listed;
-    if (first || (dropped && !own.current)) void load();
-  }, [load, listed]);
+    submission.active = true;
+    const changed = seen.current?.port !== port;
+    const dropped = seen.current?.listed === true && !listed;
+    seen.current = { port, listed };
+    if (changed) {
+      own.current = false;
+      setDrafts({});
+    }
+    if (changed || (dropped && !own.current)) void load();
+    return () => {
+      submission.active = false;
+    };
+  }, [load, listed, port, submission]);
 
   if (phase.kind !== 'ready')
     return (
@@ -98,12 +113,21 @@ export function QuestionView({
     setDrafts((current) => ({ ...current, [question.id]: next }));
 
   const submit = async () => {
-    if (answer === undefined) return;
-    haptic('submit');
+    if (
+      answer === undefined ||
+      !pending ||
+      submission.pending ||
+      !submission.active ||
+      current.current !== submission
+    )
+      return;
+    submission.pending = true;
     own.current = true;
     setPhase({ kind: 'ready', request, busy: true });
     try {
       const result = await port.answer(answer);
+      if (!submission.active || current.current !== submission) return;
+      if (result === 'accepted') haptic('submit');
       setPhase({
         kind: 'ready',
         request: { ...request, status: result === 'expired' ? 'expired' : 'decided' },
@@ -111,6 +135,8 @@ export function QuestionView({
           result === 'accepted' ? { tone: 'success', text: t.answered } : settledNotice(result)!,
       });
     } catch (error) {
+      if (!submission.active || current.current !== submission) return;
+      submission.pending = false;
       own.current = false;
       setPhase({
         kind: 'ready',
@@ -178,24 +204,14 @@ export function QuestionView({
                   </Pressable>
                 );
               })}
-              <TextInput
+              <TextField
                 accessibilityLabel={`${t.otherAnswer}: ${question.question}`}
+                label={t.otherAnswer}
                 placeholder={t.otherAnswer}
-                placeholderTextColor={theme.inkSoft}
                 editable={pending && phase.busy !== true}
                 multiline
                 value={draft.custom}
                 onChangeText={(text) => update(question, typeCustom(question, draft, text))}
-                style={{
-                  color: theme.ink,
-                  borderColor: theme.border,
-                  borderWidth: 1,
-                  borderRadius: 12,
-                  padding: 12,
-                  minHeight: 48,
-                  fontSize: 16,
-                  backgroundColor: theme.surface,
-                }}
               />
             </View>
           );

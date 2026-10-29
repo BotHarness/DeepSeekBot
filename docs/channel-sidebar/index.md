@@ -2,7 +2,7 @@
 
 The **Channel sidebar** is the right-hand column in **Bot mode**. It follows the selected chat: a PersonaBot DM shows that Bot’s own resources; a local group shows the group’s members. Configuration for the chat lives in **Channel settings**. Opening a native DSH Session takes you to a different, Session-scoped interface.
 
-These pages use DSH **0.2.0-rc.1** and the public **deepseekbot** package. First complete [installation](/docs/installation) and [API and Bot model setup](/docs/model-setup).
+These pages apply to the public **deepseekbot** package on DSH **0.2.1-rc.2** (screenshots were captured on DSH **0.2.0-rc.1**). First complete [installation](/docs/installation) and [API and Bot model setup](/docs/model-setup).
 
 ## Open the sidebar
 
@@ -44,4 +44,4 @@ These pages use DSH **0.2.0-rc.1** and the public **deepseekbot** package. First
 
 Bot-only entries do not appear in a group; group management does not appear in a Bot DM. The Bot Inbox entry is conditional on having records or a loading/error state. **Schedules** is hidden by default; turn it on in the **+ Views** menu. A tab may also be hidden there (or an entry through **Edit sidebar** in the narrow overlay). Model, Workspace Grants, Wake policy, External identities, External connectors and Group management are in Channel settings, not the sidebar.
 
-Optional plugins can contribute further entries. The public npm package does not include the Browser or Computer packages: their absence is expected. When those packages are installed and available, follow [Share a browser tab](/docs/daily-browser) or [Computer export and migration](/docs/computer-export) for their separate prerequisites and procedures. Connecting an IM application is a separate setup flow; after that, External identities and External connectors manage this Bot’s use of it.
+Optional plugins (such as `@botharness/vrm-companion`) can contribute further entries. The public `deepseekbot` npm package bundles Browser and Computer (`@botharness/browser` and `@botharness/computer`), while per-Bot Browser and Computer access stays off until enabled; follow [Share a browser tab](/docs/daily-browser) or [Computer export and migration](/docs/computer-export) for their separate driver/container prerequisites and procedures. Connecting an IM application is a separate setup flow; after that, External identities and External connectors manage this Bot’s use of it.

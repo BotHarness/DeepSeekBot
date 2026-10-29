@@ -292,6 +292,8 @@ describe('channel create modal', () => {
     await render(createElement(CreateChannelModal, { t, onCancel: () => undefined, onCreate }));
 
     expect(buttonNamed('创建').disabled).toBe(true);
+    await typeInto(fieldNamed('频道名称'), '\u200b\u200d');
+    expect(buttonNamed('创建').disabled).toBe(true);
     await typeInto(fieldNamed('频道名称'), '周报');
     await click(buttonNamed('创建'));
 

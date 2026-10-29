@@ -8,7 +8,12 @@ import {
   type ConnectionReason,
   type ActivationStep,
   type ChannelKind,
+  type BotOperationKind,
+  type BotOperationPhase,
+  type BotOperationOutcome,
+  type BotOperationReason,
   type EventProperties,
+  type FeatureEventName,
   type PairingMethod,
   type PairingOutcome,
   type PairingReason,
@@ -171,7 +176,7 @@ export function createMobileTelemetry(options: TelemetryOptions) {
     )
       return;
     steps.add(step);
-    if (!capture('mobile_activation_step', { step, channel_kind }, foregroundSession))
+    if (!capture('onboarding:activation_step_complete', { step, channel_kind }, foregroundSession))
       steps.delete(step);
   }
   function foreground(next: boolean, count: number): void {
@@ -193,7 +198,7 @@ export function createMobileTelemetry(options: TelemetryOptions) {
     }
     backgroundAt = undefined;
     session = options.uuid();
-    capture('mobile_app_opened', {
+    capture('app:app_open', {
       launch_kind: everOpened ? 'resume' : 'cold',
       paired_host_count_bucket: count === 0 ? '0' : count === 1 ? '1' : '2plus',
     });
@@ -281,12 +286,12 @@ export function createMobileTelemetry(options: TelemetryOptions) {
       const start = options.monotonic();
       const attempt_id = options.uuid();
       let finished = false;
-      capture('mobile_pairing_started', { method, attempt_id });
+      capture('pairing:attempt_start', { method, attempt_id });
       return {
         finish(outcome: PairingOutcome, reason: PairingReason = 'none') {
           if (finished || !allowed || current !== generation) return;
           finished = true;
-          capture('mobile_pairing_result', {
+          capture('pairing:attempt_complete', {
             method,
             attempt_id,
             outcome,
@@ -297,6 +302,36 @@ export function createMobileTelemetry(options: TelemetryOptions) {
       };
     },
     isActive: () => active,
+    feature<E extends FeatureEventName>(event: E, properties: EventProperties[E]): void {
+      if (active) capture(event, properties);
+    },
+    botOperation(kind: BotOperationKind, phase: BotOperationPhase) {
+      const current = generation;
+      const fromSession = session;
+      const start = options.monotonic();
+      const attempt_id = options.uuid();
+      const allowed =
+        active && capture('bot_library:create_attempt_start', { kind, phase, attempt_id });
+      let finished = false;
+      return {
+        finish(outcome: BotOperationOutcome, reason: BotOperationReason = 'none') {
+          if (finished || !allowed || current !== generation || disposed) return;
+          finished = true;
+          capture(
+            'bot_library:create_attempt_complete',
+            {
+              kind,
+              phase,
+              attempt_id,
+              outcome,
+              reason,
+              duration_bucket: durationBucket(options.monotonic() - start),
+            },
+            fromSession,
+          );
+        },
+      };
+    },
     onBackground(listener: () => void) {
       backgroundListeners.add(listener);
       return () => {
@@ -313,7 +348,7 @@ export function createMobileTelemetry(options: TelemetryOptions) {
         finish(outcome: ConnectionOutcome, retries = 0, reason: ConnectionReason = 'none') {
           if (finished || !allowed || current !== generation) return;
           finished = true;
-          capture('mobile_connection_result', {
+          capture('connection:attempt_complete', {
             trigger,
             outcome,
             reason,

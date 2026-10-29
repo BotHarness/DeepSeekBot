@@ -94,19 +94,27 @@ export class FakeChannel {
 }
 
 export class FakeHost {
-  readonly hostId = 'host-1';
+  constructor(readonly hostId = 'host-1') {}
   readonly credential = 'device-1.secret-1';
   offer = 'offer-1';
   revoked = false;
   up = true;
   olderHost = false;
+  deviceSnapshot: unknown;
   private sockets = new Set<Socket>();
   readonly requests: string[] = [];
   readonly unreachable = new Set<string>();
   readonly answers = new Map<string, (args: Record<string, unknown>) => unknown>();
   readonly calls: Array<{ method: string; args: Record<string, unknown> }> = [];
   readonly channels = new Map<string, FakeChannel>();
-  readonly methods = new Map<string, (args: Record<string, unknown>) => unknown>();
+  readonly methods = new Map<string, (args: Record<string, unknown>) => unknown>([
+    [
+      'settings/describe',
+      () => ({
+        namespaces: [{ ns: 'botharness-client', value: { sortMode: 'updated', sortModes: {} } }],
+      }),
+    ],
+  ]);
   readonly failing = new Set<string>();
   readonly uploads: Array<{ name: string; type: string; text: string }> = [];
 
@@ -144,8 +152,11 @@ export class FakeHost {
       if (parsed.pathname === '/botharness-device/api/botharness/attachment/upload') {
         if (this.failing.has('upload')) throw new TypeError('Network request failed');
         const name = parsed.searchParams.get('name') ?? '';
-        const text = await (init.body as Blob).text();
-        this.uploads.push({ name, type: init.headers?.['content-type'] ?? '', text });
+        const body = init.body as Blob;
+        const text = await body.text();
+        this.uploads.push({ name, type: body.type, text });
+        if (body.type !== 'application/octet-stream')
+          return response(502, '{"code":"host-session-unavailable"}');
         return response(
           200,
           JSON.stringify({
@@ -158,6 +169,12 @@ export class FakeHost {
           }),
         );
       }
+      if (parsed.pathname === '/botharness-device/api/computer/status') return response(404, '{}');
+      if (parsed.pathname === '/botharness-device/api/botharness/devices')
+        return response(
+          this.deviceSnapshot === undefined ? 404 : 200,
+          JSON.stringify(this.deviceSnapshot ?? {}),
+        );
       const method = parsed.pathname.replace(
         /^\/botharness-device\/api\/(?:botharness\/)?/u,
         '',
@@ -186,7 +203,11 @@ export class FakeHost {
         } catch (error) {
           result = {
             ok: false,
-            error: { code: 'invalid-input', message: (error as Error).message, details: {} },
+            error: {
+              code: (error as { code?: string }).code ?? 'invalid-input',
+              message: (error as Error).message,
+              details: {},
+            },
           };
         }
         return response(
@@ -348,6 +369,13 @@ export class FakeHost {
     for (const entry of this.sockets) {
       const streamId = entry.streams.get(endpoint);
       if (streamId !== undefined) this.emit(entry, streamId, value);
+    }
+  }
+
+  endFollower(endpoint: 'botharness/followRoster' | 'botharness/followChannel'): void {
+    for (const entry of this.sockets) {
+      const streamId = entry.streams.get(endpoint);
+      if (streamId !== undefined) entry.events.message(JSON.stringify({ type: 'end', streamId }));
     }
   }
 

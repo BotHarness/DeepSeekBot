@@ -5,28 +5,31 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import semver from 'semver';
 import { readComposedReleaseLedgers } from './change-fragments.mjs';
+import {
+  cloudflaredOptionalDependencies,
+  fetchCloudflaredAssets,
+  stageCloudflaredPackages,
+} from './cloudflared-packages.mjs';
 import { providerRuntimeDigest } from './dev-im-provider.mjs';
 import { pnpmCommand } from './dev-package-manager.mjs';
 
-export const productDsh = '0.2.1-rc.2';
-export const productDshRange = '>=0.2.0-rc.2 <0.3.0-0';
-export const productDshPeerRange = `${productDshRange} || >=0.2.1-0 <0.3.0-0`;
+export const productDsh = '0.2.1-rc.3';
+export { productDshRange } from './dsh-compatibility.mjs';
 export const providerDshRange = '>=0.2.0-0';
-export const providerDshPeerRange = `${providerDshRange} || >=0.2.1-0`;
-export const productDshVersions = Object.freeze(['0.2.0-rc.2', productDsh]);
+export const productDshVersions = Object.freeze(['0.2.0-rc.2', '0.2.1-rc.2', productDsh]);
 
 export const productImProvider = Object.freeze({
   name: '@botharness/im-provider',
-  version: '4.32.0-botharness.21',
+  version: '4.32.0-botharness.23',
   sourceManifestSha256: '3331e8f771a91abf396eb4e7ed5c0acc4c3b504cdccc7d715e37062708384cc2',
   sourceLockSha256: '3476c34c7d4515000d2617beaf2568b2a794b60de9b350cd8eafb7a2bf21adef',
   upstream: Object.freeze({
     package: '@xmanrui/dsh-im',
     packageVersion: '4.32.0',
-    source: 'beaed4a6dabb583654d28fb09298716267039b4a',
+    source: '7505ce6fcda26c02810781fde9d4da81dab28a68',
     dsh: '0.2.0-rc.2',
-    runtimeFiles: 421,
-    runtimeSha256: '42e1140e67ba2f74122db3d49bb2c8aece239b7d75f9564ce713a8a491902706',
+    runtimeFiles: 424,
+    runtimeSha256: 'a4429580ebf70b08e19394cea97d7d0db9b86b06e1c92f294a28144378537d46',
   }),
 });
 
@@ -43,10 +46,11 @@ export function productManifest(manifest, version) {
       directory: 'packages/deepseekbot',
     },
     description:
-      'DeepSeekBot (DSB): the open-source Grok Bot alternative for DeepSeek Harness. PersonaBots with their own identity, Git Memory, Groups and Lark, Slack, Discord, QQ and WeChat identities. Not the same project as DS Bot (ds-bot).',
-    homepage: 'https://deepseekbot.app/en/',
+      'Tobs (formerly DeepSeekBot): Team of bots, with persistent identity and memory on DeepSeek Harness. Legacy package and commands remain supported.',
+    homepage: 'https://tobs.app/en/',
     bugs: { url: 'https://github.com/BotHarness/BotHarness/issues' },
     keywords: [
+      'tobs',
       'deepseekbot',
       'dsb',
       'deepseek-bot',
@@ -74,8 +78,12 @@ export function productManifest(manifest, version) {
       '@botharness/ui': version,
       [productImProvider.name]: productImProvider.version,
     },
+    optionalDependencies: {
+      ...manifest.optionalDependencies,
+      ...cloudflaredOptionalDependencies(version),
+    },
     dsh: { ...manifest.dsh, bundle: { patch: './cordis.im.patch.yml' } },
-    files: ['dist', 'cordis.im.patch.yml', 'README.md', 'LICENSE'],
+    files: ['dist', 'desktop-theme', 'cordis.im.patch.yml', 'README.md', 'LICENSE'],
   };
 }
 
@@ -146,12 +154,9 @@ export function providerManifest(original) {
     ],
     engines: { node: '>=22', dsh: providerDshRange },
     peerDependencies: Object.fromEntries(
-      Object.entries(manifest.peerDependencies ?? {}).map(([name, range]) => [
-        name,
-        name === '@deepseek-ai/dsh' || name.startsWith('@deepseek-ai/dsh-')
-          ? providerDshPeerRange
-          : range,
-      ]),
+      Object.entries(manifest.peerDependencies ?? {}).filter(
+        ([name]) => name !== '@deepseek-ai/dsh' && !name.startsWith('@deepseek-ai/dsh-'),
+      ),
     ),
     dsh: {
       ...manifest.dsh,
@@ -247,7 +252,13 @@ export function stageProvider(source, target, repoRoot) {
   return output;
 }
 
-export function packProduct({ repoRoot, outputDirectory, providerSource, version }) {
+export function packProduct({
+  repoRoot,
+  outputDirectory,
+  providerSource,
+  version,
+  cloudflaredAssets,
+}) {
   const productRelease = productManifest(
     JSON.parse(readFileSync(join(repoRoot, 'packages/deepseekbot/package.json'), 'utf8')),
     version,
@@ -290,33 +301,92 @@ export function packProduct({ repoRoot, outputDirectory, providerSource, version
   const provider = join(staging, 'im-provider');
   const providerRuntime = stageProvider(providerSource, provider, repoRoot);
   packageDirectories.push(provider);
+  const platformDirectories = stageCloudflaredPackages({
+    repoRoot,
+    assetsDirectory: cloudflaredAssets,
+    staging,
+    version,
+  });
   const product = join(staging, 'deepseekbot');
   mkdirSync(product);
   const source = join(repoRoot, 'packages/deepseekbot');
   writeJson(join(product, 'package.json'), productRelease);
-  copyAvailable(source, product, ['dist', 'cordis.im.patch.yml', 'README.md']);
+  copyAvailable(source, product, ['dist', 'desktop-theme', 'cordis.im.patch.yml', 'README.md']);
+  cpSync(join(repoRoot, 'README.en.md'), join(product, 'README.md'));
   cpSync(join(repoRoot, 'LICENSE'), join(product, 'LICENSE'));
   packageDirectories.push(product);
-  for (const directory of packageDirectories) {
+  const tobs = join(staging, 'tobs');
+  mkdirSync(tobs);
+  writeJson(join(tobs, 'package.json'), tobsManifest(productRelease));
+  copyAvailable(join(repoRoot, 'packages/tobs'), tobs, ['src']);
+  cpSync(join(repoRoot, 'README.en.md'), join(tobs, 'README.md'));
+  const launcher = join(tobs, 'src/tobs.mjs');
+  writeFileSync(launcher, `#!/usr/bin/env node\n${readFileSync(launcher, 'utf8')}`);
+  copyAvailable(source, tobs, ['cordis.im.patch.yml', 'desktop-theme']);
+  mkdirSync(join(tobs, 'dist'), { recursive: true });
+  cpSync(join(source, 'dist/theme-schema.mjs'), join(tobs, 'dist/theme-schema.mjs'));
+  cpSync(join(repoRoot, 'LICENSE'), join(tobs, 'LICENSE'));
+  packageDirectories.push(tobs);
+  const pack = (directory, { preserveModes = false } = {}) => {
     const manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'));
-    const [command, args] = pnpmCommand(['pack', '--pack-destination', output]);
-    run(command, args, { cwd: directory });
+    if (preserveModes)
+      run('npm', ['pack', '--pack-destination', output, '--ignore-scripts'], {
+        cwd: directory,
+        shell: process.platform === 'win32',
+      });
+    else {
+      const [command, args] = pnpmCommand(['pack', '--pack-destination', output]);
+      run(command, args, { cwd: directory });
+    }
     const filename = `${manifest.name.replace(/^@/, '').replace('/', '-')}-${manifest.version}.tgz`;
     const bytes = readFileSync(join(output, filename));
-    artifacts.push({
+    return {
       name: manifest.name,
       version: manifest.version,
       filename,
       integrity: `sha512-${createHash('sha512').update(bytes).digest('base64')}`,
-    });
-  }
+    };
+  };
+  for (const directory of packageDirectories) artifacts.push(pack(directory));
+  const platformArtifacts = platformDirectories.map((directory) =>
+    pack(directory, { preserveModes: true }),
+  );
   writeJson(join(output, 'artifacts.json'), {
     productVersion: version,
     dsh: productDsh,
     providerRuntime,
     artifacts,
+    platformArtifacts,
   });
-  return artifacts;
+  return [...artifacts, ...platformArtifacts];
+}
+
+export function tobsManifest(product) {
+  return {
+    name: '@botharness/tobs',
+    version: product.version,
+    type: 'module',
+    description: 'Tobs — Team of bots with persistent memory, delegation and messaging.',
+    license: 'MIT',
+    homepage: product.homepage,
+    repository: { ...product.repository, directory: 'packages/tobs' },
+    bugs: product.bugs,
+    keywords: product.keywords,
+    publishConfig: { access: 'public' },
+    bin: { tobs: './src/tobs.mjs' },
+    files: [
+      'src',
+      'dist/theme-schema.mjs',
+      'desktop-theme',
+      'cordis.im.patch.yml',
+      'README.md',
+      'LICENSE',
+    ],
+    dependencies: { ...product.dependencies, deepseekbot: product.version },
+    peerDependencies: product.peerDependencies,
+    engines: product.engines,
+    dsh: product.dsh,
+  };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -324,6 +394,11 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   for (let i = 2; i < process.argv.length; i += 2) values.set(process.argv[i], process.argv[i + 1]);
   for (const key of ['--output', '--provider-source', '--version'])
     if (!values.get(key)) throw new Error(`Required argument: ${key}`);
+  const cloudflaredAssets = await fetchCloudflaredAssets({
+    directory: resolve(
+      values.get('--cloudflared-assets') ?? join(values.get('--output'), 'cloudflared-assets'),
+    ),
+  });
   console.log(
     JSON.stringify(
       packProduct({
@@ -331,6 +406,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
         outputDirectory: values.get('--output'),
         providerSource: resolve(values.get('--provider-source')),
         version: values.get('--version'),
+        cloudflaredAssets,
       }),
       null,
       2,

@@ -11,12 +11,13 @@ import {
   type FloatingBounds,
   type FloatingPoint,
 } from './floating-position';
-import { t } from './strings';
+import { useStrings } from './strings';
 import { useTheme } from './theme';
 
 let remembered: FloatingPoint | undefined;
 
 export function FloatingExit({ onExit }: { onExit(): void }) {
+  const t = useStrings();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();

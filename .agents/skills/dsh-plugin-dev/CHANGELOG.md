@@ -10,6 +10,36 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
+- Synchronized downstream Tobs installation guidance after verified 1.5.2 publication; the independent Skill version and DSH provenance are unchanged ([#2777](https://github.com/BotHarness/DeepSeekBot/issues/2777)).
+
+- Prepared the downstream Tobs 1.5.2 release ledger; the independently versioned DSH Skill and its verified DSH provenance are unchanged ([#2777](https://github.com/BotHarness/DeepSeekBot/issues/2777)).
+
+- Documented downstream default desktop zoom activation and legacy opt-in cleanup; DSH/Cordis Context and Skill behavior are unchanged ([#2775](https://github.com/BotHarness/DeepSeekBot/issues/2775)).
+
+- Documented Electron desktop ASAR filesystem behavior and the separate physical-file installer verification required for runtime reuse ([#2761](https://github.com/BotHarness/DeepSeekBot/issues/2761)).
+
+- Synchronized downstream installation guides with the verified Tobs 1.5.1 packages and distinguished the new command from its compatibility entry; DSH/Cordis Context and Skill behavior are unchanged ([#2751](https://github.com/BotHarness/DeepSeekBot/issues/2751)).
+
+- Updated the downstream approval guide and verification journey for explicit standing management/device authorizations; DSH/Cordis Context and Skill behavior are unchanged ([#2730](https://github.com/BotHarness/DeepSeekBot/issues/2730)).
+
+- Documented Profile path/argument refusal and macOS/Linux detached preparation descendant tracking, with explicit Windows and environment-inheritance limits ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
+
+- Documented persisted preparation/Host process ownership, repeated shutdown scans and independent Windows Homes ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
+
+- Documented Home-wide runtime ownership, failed-start cleanup and skipping an already-native Go fix ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
+
+- Corrected downstream verifier runtime reporting and removed leftover artifact/desktop-QA release-label gates; Go patches follow the installed adapter version ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
+
+- Removed downstream development-launch rc allowlists; documented native Host admission and protocol-based optional zoom checks ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)). DSH Context and Skill version remain unchanged.
+
+- Updated the [local development guide](../dsh-dev/SKILL.md) for the rc.3 development pin and preserved separate Desktop zoom and Provider qualification; DSH/Cordis Context and Skill behavior are unchanged ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
+
+- Added the downstream [Windows-to-Android Local Computer video journey](../verify-deepseekbot/features/local-computer-video.md), with separate source, native presentation and Human gates; runtime qualification remains pending and DSH/Cordis Context is unchanged ([#2558](https://github.com/BotHarness/DeepSeekBot/issues/2558)).
+- Documented native question answerer precedence in the [local development guide](../dsh-dev/SKILL.md), verified on DSH `0.2.1-rc.2`; DSH/Cordis Context and Skill behavior are unchanged ([#2590](https://github.com/BotHarness/DeepSeekBot/issues/2590)).
+
+- Updated the [downstream Panel guide](../../../docs/panel-plugin.md) and real-Web verification journey for view-local rendering, native dialog transitions and resource ownership; DSH/Cordis Context and Skill behavior are unchanged ([#2222](https://github.com/BotHarness/DeepSeekBot/issues/2222)).
+- Recorded Windows Desktop candidate activation, executable and platform identification, physical-key driver limits and immutable Provider provenance in the [local development guide](../dsh-dev/SKILL.md), with the [native verification journey](../verify-deepseekbot/features/desktop-window-zoom.md); DSH/Cordis Context and Decision Tree remain unchanged ([#2270](https://github.com/BotHarness/DeepSeekBot/issues/2270)).
+
 - Recorded rc.2 shortcut-definition readiness and archived Session navigation qualification in the [local development guide](../dsh-dev/SKILL.md), verified through real Web upgrade and Session navigation; DSH/Cordis Context and Skill behavior remain unchanged ([#2034](https://github.com/BotHarness/DeepSeekBot/issues/2034)).
 
 - Recorded production-factory option forwarding and fresh native receiver qualification in the [local development guide](../dsh-dev/SKILL.md), verified with a DSH `0.2.0-rc.2` Host and the immutable dsh-im ordinary-text candidate; DSH/Cordis Context and Skill behavior remain unchanged ([#1155](https://github.com/BotHarness/DeepSeekBot/issues/1155)).

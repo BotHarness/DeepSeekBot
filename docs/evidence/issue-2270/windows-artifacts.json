@@ -1,0 +1,161 @@
+{
+  "date": "2026-10-20",
+  "timezone": "Asia/Tokyo",
+  "baseSha": "55c88483002ee10a87a6be262c37c327643a0bee",
+  "implementationSha": "b27a0cee2ea91f6be09a4830f2f59551ea4a81ab",
+  "qualification": "incomplete; Draft only; Windows and Linux issue remains open",
+  "environment": {
+    "caption": "Microsoft Windows 11 专业版",
+    "displayVersion": "25H2",
+    "version": "10.0.26200",
+    "build": "26200.9457",
+    "architecture": "x64",
+    "devicePixelRatio": 1.1399999856948853,
+    "dpiQualification": "only observed current scale; 100/125/150/200 and cross-monitor not tested",
+    "desktopFileVersion": "0.2.1-rc.2",
+    "desktopProductVersion": "0.2.1.0",
+    "hostBootRelease": "0.2.1-rc.2",
+    "shellPlatform": "win32",
+    "shortcutPlatform": "windows",
+    "node": "24.21.0",
+    "pnpm": "12.4.2"
+  },
+  "officialDesktop": {
+    "installerBytes": 289385456,
+    "installerSha512Base64": "39POl5osl9PKMqrPXQA52dh/bCV0Z02vOV9cTjOJDHE6gsJwp5bv7lfgB3mVWAKspX7a/w1iTi+8Listdhq45g==",
+    "executableSha256": "9c789407850773ce7d914a3ec0476852bf1ceea69789d8ccf4e39be953f4bf52",
+    "asarSha256": "47874618bf5b3011fcaac10cd4c85f69da333e70d4f99b921207c78d0999512a",
+    "upstreamOrAsarModified": false
+  },
+  "installed": {
+    "candidate": 1,
+    "clientPackageVersion": "0.0.0-qa.2270.1",
+    "clientSha256": "5cdfd27bd124c9b755dd2ad7477ca7f2b4de8f8c0ac1ed85d55c6dfacb40a07f",
+    "themeCompatibility": {
+      "adapterVersion": 1,
+      "sourceVersion": "0.2.1-rc.2",
+      "clientBefore": "f9915fb53d5f156e75291e63be66c80e607a82bfd03c7d583e0a12ebef5a6cb8",
+      "clientAfter": "a0da419a8523f737bbec8363bc192424bace1ce4b48b7f7b5bc375d83397b324",
+      "hostBefore": "1adf59906ab10e91765d96f3e42268b0b7669f921c4baf4021a3057894cf3000",
+      "sourceModified": false,
+      "platforms": ["macos", "windows"],
+      "changes": ["lease-owned font shortcut handoff", "portable product-owned schema module"]
+    },
+    "themeClientSha256": "a0da419a8523f737bbec8363bc192424bace1ce4b48b7f7b5bc375d83397b324",
+    "themeHostSha256": "7cd79c52ac02366fe0bce05c34eb9b1de4f487c7352d45c43502efbbdbbf0eba"
+  },
+  "candidates": [
+    {
+      "candidate": 1,
+      "source": "pre-commit working tree based on 55c88483002ee10a87a6be262c37c327643a0bee; exact dirty tree not retained as a commit",
+      "nativeStatus": "partial observations only",
+      "productVersion": "0.0.0-qa.2270.1",
+      "dsh": "0.2.1-rc.2",
+      "providerRuntime": {
+        "runtimeFiles": 422,
+        "runtimeSha256": "302dfdcca0d36f93fe02098d13764ba4eccd11ce324ffb0c415c3f971a7d0275"
+      },
+      "artifacts": [
+        {
+          "name": "@botharness/core",
+          "version": "0.0.0-qa.2270.1",
+          "filename": "botharness-core-0.0.0-qa.2270.1.tgz",
+          "integrity": "sha512-ljV80/NmbbkZDzA5vlqFyxRApoJyFJKo4IbWLbTFq1PIw33XMRXDhql3m3CqSrM3TJ0WGwzakJtnPz3HejsNNw==",
+          "sha256": "ad056dece3de4d61e76f983644834cf3590113d0aadfffc292b5f368aa79b7eb"
+        },
+        {
+          "name": "@botharness/ui",
+          "version": "0.0.0-qa.2270.1",
+          "filename": "botharness-ui-0.0.0-qa.2270.1.tgz",
+          "integrity": "sha512-T386zarl9UAfMpOB8F2S2Ep/4RI6Pzv5Ny4lSwwHM+XHP8Cx8NlqYNHQcQthVxjpCOaSggRHWv9t0NyfBOVevg==",
+          "sha256": "f3eacf286e39223eed203940b6de31b912f2f6e6a38c3e4b93f3f654974b1c6f"
+        },
+        {
+          "name": "@botharness/browser",
+          "version": "0.0.0-qa.2270.1",
+          "filename": "botharness-browser-0.0.0-qa.2270.1.tgz",
+          "integrity": "sha512-EDE9kzdG40fKY7I1DumJVsISUS2Deck24pVttodar1D72qUfSHr/QyE/tXVyQOufdZ+jsYYPWIl18pmOnz6dEQ==",
+          "sha256": "f90b03571b1db954c9eb7f8f9c25d6ed6d04b1a319af27fea064a41b29975a9a"
+        },
+        {
+          "name": "@botharness/computer",
+          "version": "0.0.0-qa.2270.1",
+          "filename": "botharness-computer-0.0.0-qa.2270.1.tgz",
+          "integrity": "sha512-Ln9WVfjYQ4NvLDOCMJZJPxJ8v9GBezZGlQZZFNl9TGq2KIxGdiltIzMgrylxZf+madBBXkC6Rgq9uh0PPYkDsQ==",
+          "sha256": "49915c349d799f840371be2134d858ffcc6c97b08d893c398a6b3d5e3ae2314a"
+        },
+        {
+          "name": "@botharness/im-provider",
+          "version": "4.32.0-botharness.21",
+          "filename": "botharness-im-provider-4.32.0-botharness.21.tgz",
+          "integrity": "sha512-7FqHt1er/sVN4L8l663SYxoscynGjyuwYTCw8zppxekBiAAZjxETQe8vkiRVht53Uvg/e6cLicz8AfFTcW8a7w==",
+          "sha256": "71732cbb0f059cb7f120c1e48774c18097c671d98f6e903aed67ff138a14aa82"
+        },
+        {
+          "name": "deepseekbot",
+          "version": "0.0.0-qa.2270.1",
+          "filename": "deepseekbot-0.0.0-qa.2270.1.tgz",
+          "integrity": "sha512-e9vTrpB93O22FQkTVHVeQR4zJdZ0NYEALd24REO7QVTWwu3cRZ+1zA3e0FTlaZNQf8Rw8quYR8BbFLarDN1HLA==",
+          "sha256": "2bc2f47d273f6e388caade483677353e2ab789a1acdf20623f15e3f9cb830eaa"
+        }
+      ],
+      "manifestSha256": "9d1c9bed7e488b7a71dfd56605ce66e028c3296ae8c962de14c7ca196ab6aa21"
+    },
+    {
+      "candidate": 2,
+      "source": "b27a0cee2ea91f6be09a4830f2f59551ea4a81ab",
+      "nativeStatus": "built and packaged; not installed or native-tested",
+      "productVersion": "0.0.0-qa.2270.2",
+      "dsh": "0.2.1-rc.2",
+      "providerRuntime": {
+        "runtimeFiles": 422,
+        "runtimeSha256": "302dfdcca0d36f93fe02098d13764ba4eccd11ce324ffb0c415c3f971a7d0275"
+      },
+      "artifacts": [
+        {
+          "name": "@botharness/core",
+          "version": "0.0.0-qa.2270.2",
+          "filename": "botharness-core-0.0.0-qa.2270.2.tgz",
+          "integrity": "sha512-3I0jejV+dRTf+yFO3fVHadbQyUQAbd++JlYXWXy1EDrFJhVCjf0PXJbye2graGLm61iN5CAP8+1U6pneLpan+w==",
+          "sha256": "be6846e150bd8497616a375e3e1585d02c05de30885b50c4f7084c36063c2562"
+        },
+        {
+          "name": "@botharness/ui",
+          "version": "0.0.0-qa.2270.2",
+          "filename": "botharness-ui-0.0.0-qa.2270.2.tgz",
+          "integrity": "sha512-qB6dTBj8r0OVDwrciB8L6d4qSfYo0zR49P5ppKO82ZTgAO39MAfKiJy7ZPHq1t0NhbgzaEpTYyGEVHztP/fR7Q==",
+          "sha256": "4f4d0e55c5e332f15b6b6e0f63524e6c0dec3e011c0a87a7decc280235f97304"
+        },
+        {
+          "name": "@botharness/browser",
+          "version": "0.0.0-qa.2270.2",
+          "filename": "botharness-browser-0.0.0-qa.2270.2.tgz",
+          "integrity": "sha512-bc0q61VPVVLFdHHSb77kStg6rhRUhN3Gp6Ofo75A9bsREqh2k93cwofGohzZb+YJPX5E/8DPJK1oWhQdzjohmQ==",
+          "sha256": "8e2554bc8ea498c1950b1673d8ce59ee3946a9d98f4657610f343d10c78db71d"
+        },
+        {
+          "name": "@botharness/computer",
+          "version": "0.0.0-qa.2270.2",
+          "filename": "botharness-computer-0.0.0-qa.2270.2.tgz",
+          "integrity": "sha512-Jg8e2jhOdVA9J6Xy9tzutzLD8ft3B+1r6BTKwanmirNFXZNwtQFyMu/QWikugCHmBpUfFpHoQa0AxVbJWISLCQ==",
+          "sha256": "1d6ff8b81bbf2328a1f9a60d8a5ca792d7522cbf26860279c15abbe43ec892e6"
+        },
+        {
+          "name": "@botharness/im-provider",
+          "version": "4.32.0-botharness.21",
+          "filename": "botharness-im-provider-4.32.0-botharness.21.tgz",
+          "integrity": "sha512-7FqHt1er/sVN4L8l663SYxoscynGjyuwYTCw8zppxekBiAAZjxETQe8vkiRVht53Uvg/e6cLicz8AfFTcW8a7w==",
+          "sha256": "71732cbb0f059cb7f120c1e48774c18097c671d98f6e903aed67ff138a14aa82"
+        },
+        {
+          "name": "deepseekbot",
+          "version": "0.0.0-qa.2270.2",
+          "filename": "deepseekbot-0.0.0-qa.2270.2.tgz",
+          "integrity": "sha512-Cp/OnM3ARLaWWIpM9uK7DYBZ5ksCp7T4F7MNgGi3LaKpBArqzaQjsuchSbLGlcrPQ0NHNJWhKPprtoFHlfdclg==",
+          "sha256": "aaac0a307e6ac5a8eed140dee77e8003c2eeb5a1f69ea8a8b6c02a9f4b464b7a"
+        }
+      ],
+      "manifestSha256": "e108a50f1770140158b077836214106fd274000856af20bd47f7064dd6781045"
+    }
+  ]
+}

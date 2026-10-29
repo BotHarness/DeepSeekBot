@@ -1,0 +1,121 @@
+import { createActivityApns } from './activity-apns.js';
+import { createAccessTokenVerifier, workosKeys } from './auth.js';
+import { createCloudflareApi } from './cloudflare.js';
+import type { D1Database } from './d1.js';
+import { createRelay, hmac } from './relay.js';
+
+export interface ConnectRelayEnv {
+  ACTIVITY_APNS_TEAM_ID?: string;
+  ACTIVITY_APNS_KEY_ID?: string;
+  ACTIVITY_APNS_PRIVATE_KEY?: string;
+  ACTIVITY_APNS_BUNDLE_IDENTIFIER?: string;
+  ACTIVITY_APNS_ENVIRONMENT?: string;
+  CONNECT_DB: D1Database;
+  WORKOS_CLIENT_ID?: string;
+  CLOUDFLARE_API_TOKEN?: string;
+  CLOUDFLARE_ACCOUNT_ID?: string;
+  CLOUDFLARE_ZONE_ID?: string;
+  CONNECT_ZONE?: string;
+  ALLOWED_USERS?: string;
+  MAX_HOSTS?: string;
+  MAX_TUNNELS?: string;
+  CONNECT_LIMIT?: { limit(options: { key: string }): Promise<{ success: boolean }> };
+  RECLAIM_AFTER_MINUTES?: string;
+  CONNECT_HOST_KEY?: string;
+  WORKOS_API_KEY?: string;
+  MARKET?: { fetch: typeof fetch };
+}
+
+export const MARKETPLACE_ORIGIN = 'https://market.botharness.ai';
+
+export function marketplaceAuthorDeleter(fetcher: typeof fetch) {
+  return async (accessToken: string): Promise<void> => {
+    const response = await fetcher(`${MARKETPLACE_ORIGIN}/v1/me`, {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) throw new Error(`marketplace ${response.status}`);
+  };
+}
+
+export function workosUserDeleter(apiKey: string, fetcher: typeof fetch = fetch) {
+  return async (account: string): Promise<void> => {
+    const response = await fetcher(
+      `https://api.workos.com/user_management/users/${encodeURIComponent(account)}`,
+      { method: 'DELETE', headers: { authorization: `Bearer ${apiKey}` } },
+    );
+    if (!response.ok && response.status !== 404) throw new Error(`workos ${response.status}`);
+  };
+}
+
+function positive(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+let cached: { env: ConnectRelayEnv; relay: ReturnType<typeof createRelay> } | undefined;
+
+export function relayForEnv(env: ConnectRelayEnv): ReturnType<typeof createRelay> | undefined {
+  if (cached?.env === env) return cached.relay;
+  const clientId = env.WORKOS_CLIENT_ID;
+  const token = env.CLOUDFLARE_API_TOKEN;
+  const accountId = env.CLOUDFLARE_ACCOUNT_ID;
+  const zoneId = env.CLOUDFLARE_ZONE_ID;
+  if (!clientId || !token || !accountId || !zoneId) return undefined;
+  const hostSecret = env.CONNECT_HOST_KEY;
+  const limiter = env.CONNECT_LIMIT;
+  const apiKey = env.WORKOS_API_KEY;
+  const relay = createRelay({
+    db: env.CONNECT_DB,
+    activitySender: createActivityApns({
+      ...(env.ACTIVITY_APNS_TEAM_ID ? { teamId: env.ACTIVITY_APNS_TEAM_ID } : {}),
+      ...(env.ACTIVITY_APNS_KEY_ID ? { keyId: env.ACTIVITY_APNS_KEY_ID } : {}),
+      ...(env.ACTIVITY_APNS_PRIVATE_KEY ? { privateKey: env.ACTIVITY_APNS_PRIVATE_KEY } : {}),
+      ...(env.ACTIVITY_APNS_BUNDLE_IDENTIFIER
+        ? { bundleIdentifier: env.ACTIVITY_APNS_BUNDLE_IDENTIFIER }
+        : {}),
+      ...(env.ACTIVITY_APNS_ENVIRONMENT ? { environment: env.ACTIVITY_APNS_ENVIRONMENT } : {}),
+    }),
+    verifier: createAccessTokenVerifier({ clientId, keys: workosKeys(clientId) }),
+    tunnels: createCloudflareApi({ token, accountId, zoneId }),
+    clientId,
+    zone: env.CONNECT_ZONE ?? 'deepseekbot.dev',
+    allowedUsers: (env.ALLOWED_USERS ?? '')
+      .split(',')
+      .map((user) => user.trim())
+      .filter(Boolean),
+    maxHosts: positive(env.MAX_HOSTS, 5),
+    maxTunnels: positive(env.MAX_TUNNELS, 900),
+    reclaimAfterMs: positive(env.RECLAIM_AFTER_MINUTES, 5) * 60 * 1000,
+    ...(limiter === undefined
+      ? {}
+      : { limit: async (account: string) => (await limiter.limit({ key: account })).success }),
+    ...(apiKey ? { deleteUser: workosUserDeleter(apiKey) } : {}),
+    deleteMarketplaceAuthor: marketplaceAuthorDeleter(
+      env.MARKET === undefined ? fetch : env.MARKET.fetch.bind(env.MARKET),
+    ),
+    ...(hostSecret ? { hostKey: (hostId: string) => hmac(hostSecret, `host:${hostId}`) } : {}),
+  });
+  cached = { env, relay };
+  return relay;
+}
+
+export default {
+  async fetch(request: Request, env: ConnectRelayEnv): Promise<Response> {
+    const relay = relayForEnv(env);
+    if (relay === undefined)
+      return new Response(JSON.stringify({ error: { code: 'relay-unconfigured' } }), {
+        status: 503,
+        headers: { 'content-type': 'application/json; charset=utf-8' },
+      });
+    return relay.fetch(request);
+  },
+  scheduled(
+    _controller: { cron: string },
+    env: ConnectRelayEnv,
+    context: { waitUntil(promise: Promise<unknown>): void },
+  ): void {
+    const relay = relayForEnv(env);
+    if (relay !== undefined) context.waitUntil(relay.reclaim());
+  },
+};

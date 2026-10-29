@@ -1,6 +1,6 @@
-import { TextInput } from '../primitives/system-text';
+import { TextField } from '../primitives/text-field';
 import { useRef, useState, type ComponentType, type ReactNode } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { View } from 'react-native';
 
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import type { KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
@@ -16,15 +16,13 @@ import {
   type Routines,
 } from '../../host/routines';
 import type { BotScheduleFiring, BotScheduleSummary } from '../../host/wire';
-import { useDesignTheme } from '../design/theme';
-import { edge, radius, space } from '../design/tokens';
+import { space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { Chip } from '../primitives/chip';
-import { ChevronRightIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import type { RoutineTarget } from '../../host/routines';
 import { firingText, routineDetail, when } from './routine-text';
 import {
@@ -37,6 +35,7 @@ import {
   SheetNote,
   SHEET_GROUP,
 } from './sheet';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 const HISTORY = 5;
 const PREVIEW = 5;
@@ -60,30 +59,16 @@ function Field({
   keyboard?: 'default' | 'number-pad' | 'numbers-and-punctuation';
   onChange(text: string): void;
 }) {
-  const theme = useDesignTheme();
   return (
-    <TextInput
+    <TextField
       accessibilityLabel={label}
       value={value}
       placeholder={placeholder}
-      placeholderTextColor={theme.color.subtle}
       multiline={multiline}
       keyboardType={keyboard}
       autoCorrect={!multiline ? false : undefined}
       onChangeText={onChange}
-      style={{
-        marginHorizontal: space.x5,
-        minHeight: multiline ? theme.touch * 2 : theme.touch,
-        color: theme.color.fg,
-        fontSize: theme.type.body.size,
-        textAlignVertical: multiline ? 'top' : 'center',
-        borderColor: theme.layer.field.edge,
-        borderWidth: edge.hairline,
-        borderRadius: radius.md,
-        paddingHorizontal: space.x4,
-        paddingVertical: space.x3,
-        backgroundColor: theme.layer.field.fill,
-      }}
+      style={{ marginHorizontal: space.x5 }}
     />
   );
 }
@@ -116,7 +101,7 @@ function ListRows<T>({
     return (
       <SettingsGroupItem first last on={SHEET_GROUP}>
         <View style={{ padding: space.x4, alignItems: 'flex-start' }}>
-          <ActivityIndicator />
+          <LoadingIndicator />
         </View>
       </SettingsGroupItem>
     );
@@ -170,6 +155,7 @@ function RoutineEditor({
   preview: Loadable<string[]> | undefined;
   onChange(patch: Partial<RoutineForm>): void;
 }) {
+  const t = useStrings();
   const problem = routineProblem(form);
   return (
     <>
@@ -278,7 +264,6 @@ export function RoutineSheet({
   routines,
   onChanged,
   onClose,
-  onOpenFullClient,
 }: {
   page?: ComponentType<SheetPageProps> | undefined;
   initialMode?: 'detail' | 'edit';
@@ -288,9 +273,8 @@ export function RoutineSheet({
   routines: Routines;
   onChanged(): void;
   onClose(): void;
-  onOpenFullClient(): void;
 }) {
-  const theme = useDesignTheme();
+  const t = useStrings();
   const [routine, setRoutine] = useState<BotScheduleSummary | undefined>(
     target.kind === 'open' ? target.routine : undefined,
   );
@@ -477,7 +461,6 @@ export function RoutineSheet({
     );
 
   const editable = routineFormOf(routine) !== undefined;
-  const chevron = <ChevronRightIcon color={theme.color.muted} size={theme.type.title.line} />;
   return (
     <Sheet
       page={page}
@@ -548,33 +531,36 @@ export function RoutineSheet({
           })}
         />
         <View style={{ height: space.x5 }} />
-        <SettingsGroupItem first last={false} on={SHEET_GROUP}>
-          <SettingsRow
-            title={t.routineEdit}
-            trailing={chevron}
-            on={SHEET_GROUP}
-            onPress={
-              busy !== undefined
-                ? undefined
-                : editable
-                  ? () => {
-                      if (onEdit !== undefined) {
-                        onEdit();
-                        return;
+        {editable ? (
+          <SettingsGroupItem first last={false} on={SHEET_GROUP}>
+            <SettingsRow
+              title={t.routineEdit}
+              accessibilityLabel={t.routineEdit}
+              control={{ kind: 'chevron' }}
+              on={SHEET_GROUP}
+              onPress={
+                busy !== undefined
+                  ? undefined
+                  : editable
+                    ? () => {
+                        if (onEdit !== undefined) {
+                          onEdit();
+                          return;
+                        }
+                        const next = routineFormOf(routine)!;
+                        latest.current = next;
+                        setForm(next);
+                        setError(undefined);
+                        setNotice(undefined);
+                        setMode('edit');
+                        refreshPreview(next, 0);
                       }
-                      const next = routineFormOf(routine)!;
-                      latest.current = next;
-                      setForm(next);
-                      setError(undefined);
-                      setNotice(undefined);
-                      setMode('edit');
-                      refreshPreview(next, 0);
-                    }
-                  : onOpenFullClient
-            }
-          />
-        </SettingsGroupItem>
-        <SettingsGroupItem first={false} last on={SHEET_GROUP}>
+                    : undefined
+              }
+            />
+          </SettingsGroupItem>
+        ) : null}
+        <SettingsGroupItem first={!editable} last on={SHEET_GROUP}>
           <SettingsRow
             title={t.routineDelete}
             tone="danger"

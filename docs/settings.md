@@ -1,6 +1,6 @@
 # Settings guide
 
-This guide covers non-IM settings in the public **deepseekbot** package on DSH **0.2.0-rc.1**: where to open them, what each field does, and when changes apply. Complete [installation](/docs/installation) and [API / Bot model setup](/docs/model-setup) first. Slack and Lark account/connection fields remain in their connection guides. Screenshots show the verified Chinese UI.
+This guide covers non-IM settings in the public **deepseekbot** package on DSH **0.2.1-rc.2**: where to open them, what each field does, and when changes apply. Complete [installation](/docs/installation) and [API / Bot model setup](/docs/model-setup) first. Slack and Lark account/connection fields remain in their connection guides. Screenshots show the verified Chinese UI.
 
 ## Find the right settings page
 
@@ -39,16 +39,20 @@ and SHA-256. Hashes establish integrity rather than source authenticity. Restore
 trusted installed local command, substituting your file and a directory that does not exist:
 
 ```text
-botharness-profile restore --file "environment.botharness-backup" --new-home "new-environment"
+tobs profile-backup-restore --file "environment.botharness-backup" --new-home "new-environment" --confirm
 ```
 
-For a source checkout, use `node scripts/profile-restore.mjs` with the same arguments. No Host is
-started by restore. Launch the new home using trusted DSH **0.2.0-rc.1** and the matching BotHarness
+For a source checkout, the legacy `node scripts/profile-restore.mjs restore --file <file> --new-home <directory>` entry remains available. No Host is
+started by restore. Launch the new home using a compatible trusted DSH installation and the matching BotHarness
 Bundle; development checkouts use `node scripts/dev-instance.mjs --home <new-home> --port <port>`.
 The launcher creates native Profile composition from the trusted pinned CLI rather than loading
 executable configuration from the backup. Live Settings cannot choose a destination or replace
 its own environment. Existing targets are refused, and the staging database uses the existing
 Profile Writer Lease before validation/migration and publication.
+
+DSH release labels record where a backup came from; compatibility depends on the archive format,
+database generation and required data contracts. Historical v1 backups remain readable. New v2
+exports require an updated Tobs reader; unsupported future formats or schemas require an upgrade.
 
 The restored environment starts in **Disaster Restore** posture: Bots paused; account bindings,
 provider triggers, Service Grants, saved tool approvals and schedules suspended; Workspaces need
@@ -123,6 +127,34 @@ These are native DSH settings. Initial values below were observed in a clean RC1
 
 The lower “External platform defaults” area belongs to IM intake/identity settings; see [Lark / Feishu](/docs/lark-connection), [Slack](/docs/slack-connection), and Discord. Each platform has independent defaults and revisions. Profile identities and group intake policies can inherit these values or retain custom choices; restoring inheritance uses the current platform defaults. Discord ordinary intake still requires Message Content Intent and verified delivery; changing defaults does not grant either.
 
+## Appearance and wallpaper
+
+Open **Bot settings → Appearance** (⌘, on macOS or Ctrl+, elsewhere opens Bot settings in Bot mode). Everything on this page is saved on this device only; the Web client and the Desktop app keep separate copies, and the DSH theme is not changed.
+
+| Field                | Options                                                          | Effect                                                                                                                                                                               |
+| -------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Theme                | Light, dark or system                                            | Bot mode's own theme.                                                                                                                                                                |
+| Palette and Primary  | Classic Blue, Mist Purple, Forest Green, Warm Amber; any Primary | Chosen separately for light and dark mode.                                                                                                                                           |
+| Panel header / body  | Background color, opacity, background blur                       | Applies to every panel in the current mode. Text and message bubbles keep their own colors.                                                                                          |
+| Wallpaper library    | Up to 24 images (20 MB each) or silent videos (100 MB each)      | Click **Add wallpaper** or drop several files. Pick one, or **None**. **Adjust crop** sets position and zoom. The first wallpaper makes untuned panels see-through.                  |
+| Switch automatically | Off, every 1, 5, 15 or 30 minutes, every hour; **Shuffle**       | Rotates through the library. Videos loop without sound and pause in the background; if playback fails, the saved poster shows with the reason.                                       |
+| Appearance recovery  | **Clear panel settings**, **Restore defaults…**                  | Clear removes per-panel settings in the current mode. Restore defaults asks first, then resets both modes and empties the wallpaper library. Bots, data and layout are not affected. |
+
+To style one panel, open its header menu → **Appearance settings**. Each field can follow the global value or be set for that panel, and **Reset this panel** removes its own settings. The `deepseekbot` appearance and wallpaper commands target one open Client; see the [CLI guide](bot-cli.md#device-local-deepseekbot-appearance).
+
+## Context compaction
+
+A Bot's main session (its Orchestrator Session) grows with every turn. Compaction replaces the long history with a summary so the next message re-reads less.
+
+- **Compact now:** type `/compact` in the Bot's DM composer, send `/compact` (or `/压缩`) in an IM DM, or run `deepseekbot bot-compact <bot-id>`. The result shows tokens before and after. It is refused while the Bot is working; stop the turn or wait.
+- **Compact idle conversations early:** **Bot settings → Models & execution**, on by default. When a Bot has been quiet for half of its model's prompt-cache lifetime (never before 15 minutes; DeepSeek models assume 2 hours until observed), the Host compacts the session while the cache is still warm, which costs less than compacting a cold session later. Nothing shows in the chat; each run appears in the Bot's activity. Details and per-model overrides are in the [CLI guide](bot-cli.md#idle-compaction).
+
+If a turn still fails because the context is full, the failed-turn notice says so; retry with a smaller request.
+
+## Quick search and shortcuts
+
+Press **Alt+K** (Option+K on macOS) in Bot mode to search Bots, groups, Channels and individual Bot settings rows; Ctrl+K or ⌘K also works where the browser passes it through. Chinese names match by full pinyin or initials. Choosing a settings result opens its page with the row highlighted. Press `?` or Ctrl/⌘+/ for the full shortcut list, and change shortcuts in **Bot settings → Keyboard shortcuts**.
+
 ## Create a Bot and edit its Profile
 
 Use “Create your first PersonaBot” in Bot mode or the list's New menu.
@@ -191,16 +223,22 @@ For a first task, choose one specific directory, retain default permissions, and
 
 DeepSeekBot sends anonymous usage statistics from the DSH Host by default; Bot mode explains this once in a notice the first time it opens. Events are tied only to a random install ID stored in `$DSH_HOME/botharness/telemetry.json`:
 
-- `plugin_started`: plugin version, DSH version, operating system and architecture.
-- `bot_created`, `bot_archived`, `bot_deleted`, `marketplace_bot_installed` and `avatar_edited`: only that the action happened.
-- `connector_enabled`: only the connector type (`feishu`, `lark`, `slack`, `discord`, `weixin` or `other`).
-- `daily_usage`: at most once a day, the number of PersonaBots, the number of new Sessions and messages since the previous summary, and that window's length in whole hours. No event is sent per message.
+Event names follow the [tracking plan](telemetry-events.md), which lists every event and property.
+
+- `app:host_start`: plugin version, DSH version, operating system and architecture.
+- `app:active_day_start`: at most once a local day, the first time Bot mode opens or a Human or IM message arrives, with only which of those it was and the surface (`desktop_app`, `browser` or `im`). `app:bot_mode_enter` records each Bot mode entry with its surface.
+- `bot_library:bot_create`, `bot_library:bot_archive`, `bot_library:bot_delete`, `bot_profile:avatar_update` and `bot_profile:banner_update`: only that the action happened.
+- Market: `marketplace:bot_install` and `marketplace:bot_open` (`entry`, where the Bot was opened: `list`, `hot`, `new`, `rising` or `digest`; `marketplace:bot_open` also says whether the detail or the install step opened); `marketplace:section_view` and `marketplace:digest_view` (only that the Hot, New and Rising rows or the daily picks were shown); `marketplace:digest_open` (whether it was opened from the panel or the archive); and `marketplace:digest_archive_open`. No Bot names, listing IDs or search text are included.
+- `im:connector_enable`: only the connector type (`feishu`, `lark`, `slack`, `discord`, `weixin` or `other`).
+- First-entry intro and tutorial: `onboarding:intro_view`; `onboarding:intro_step_view` (step name); `onboarding:intro_dismiss` (step and whether Skip or Close was used); `onboarding:intro_complete` (which starter prompt was picked, not its text); `onboarding:theme_update` (only `scheme`, `preset`, `layout` or `wallpaper`); `onboarding:model_save` (only whether the Advanced task model was used); `onboarding:community_link_click` (`github`, `discord` or `qq`); and `onboarding:tutorial_start`, `_pause`, `_skip`, `_resume`, `_restart` and `_complete`. No model names, wallpaper files or typed text are included.
+- Feature use, each with the surface (`desktop_app` or `browser`) and only the kind of action: `search:switcher_open` and `search:result_open` (`channel`, `message` or `setting`); `layout:mode_select` (`simple` or `advanced`; `app:bot_mode_enter` also carries the layout); `viewer:subpanel_open` (`browser` or `computer`); `activity:inbox_open`, `activity:approval_submit` (`allow_once`, `allow_always` or `reject`), `activity:question_submit`, `activity:grant_request_submit`, `activity:inbox_reply_send` (`message` or `assignment`), `activity:inbox_item_dismiss` and `activity:inbox_item_snooze`; `model:plan_update` (how the plan changed); `remote_host:host_pair_complete` (`success`, `refused` or `failed`) and `remote_host:conversation_open`. The Host also sends `connect:sign_in_start` and `connect:sign_in_complete` (`success`, `denied` or `expired`), and `tob:delegation_send` when Tob messages a colleague. No search text, model names, tool names, folders or message content are included.
+- `app:usage_report`: at most once a day, the number of PersonaBots, the number of new Sessions and messages since the previous summary, and that window's length in whole hours. No event is sent per message.
 - `$exception`: when the Host hits an unhandled error in BotHarness code, the error type and its stack's functions and line numbers, with each file reduced to its package-relative name (such as `@botharness/core/dist/index.mjs`) or just its file name. Errors without a BotHarness frame are dropped. The report is saved on the device and sent on the next start; the error message is never included.
 
 Names, Persona or Memory content, conversations, prompts, tool arguments, repository URLs, connector accounts or workspaces, your file paths, credentials and IP addresses are never sent. To turn it off, open **Bot settings** and switch off **Anonymous usage statistics**; it takes effect at once without a restart, queued events are dropped, and the choice is saved in the same `telemetry.json` so it survives restarts. Switching it back on resumes without a restart. Deployments can force it off with `telemetry: false` on the BotHarness core plugin (see Advanced parameters below) or by starting DSH with `DO_NOT_TRACK=1` or `BOTHARNESS_TELEMETRY=0`; the switch is then shown off and disabled with a note naming the setting. Details: [privacy](https://deepseekbot.botharness.ai/en/privacy) and [source](https://github.com/BotHarness/BotHarness/tree/main/packages/core/src/telemetry).
 
 ## Advanced parameters and optional capabilities
 
-The public npm package composes Core, Client, and the qualified IM Provider. Browser/Computer development capabilities do not become available merely by following the npm installation steps. The generated [Core configuration reference](/dev/reference/config) covers `enabled`, `agentPreset` (session tool preset, default standard), `activityDetailConsumers` (trusted Host plugins allowed to read activity details, initially empty), and `telemetry` (anonymous usage statistics, default on). Optional Browser target, driver, path, headless, and idle-stop fields are defined in [Browser configuration](https://github.com/BotHarness/BotHarness/blob/main/packages/browser/src/index.ts); Computer target, desktop resources, export directory, and action authorization fields are defined in [Computer configuration](https://github.com/BotHarness/BotHarness/blob/main/packages/computer/src/index.ts). Existing operational guides cover [daily browser sharing](/docs/daily-browser) and [Computer export/transfer](/docs/computer-export).
+The public npm package **`deepseekbot`** bundles Core, Client, Browser, Computer, and the qualified IM Provider; IM accounts start disconnected and per-Bot Browser/Computer Access stays off until you enable it for a Bot. The generated [Core configuration reference](/dev/reference/config) covers `enabled`, `agentPreset` (session tool preset, default standard), `activityDetailConsumers` (trusted Host plugins allowed to read activity details, initially empty), and `telemetry` (anonymous usage statistics, default on). Browser target, driver, path, headless, and idle-stop fields are defined in [Browser configuration](https://github.com/BotHarness/BotHarness/blob/main/packages/browser/src/index.ts); Computer target, desktop resources, export directory, and action authorization fields are defined in [Computer configuration](https://github.com/BotHarness/BotHarness/blob/main/packages/computer/src/index.ts). Operational guides cover [daily browser sharing](/docs/daily-browser) and [Computer export/transfer](/docs/computer-export).
 
 Check the installed version, then inspect the relevant plugin under **Settings → Built-in plugins** for its details/parameters. Deployment fields without a form are configured through Profile/Patch layers as described by the [official DSH documentation](https://deepseek-harness.github.io/deepseek-harness/develop/basic/publish). The website's development reference can be newer than the npm release; optional capabilities there are not a claim about what this package includes.

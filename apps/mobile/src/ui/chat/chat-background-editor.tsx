@@ -12,7 +12,7 @@ import { Button } from '../primitives/button';
 import { PercentageSlider } from '../primitives/percentage-slider';
 import { Text } from '../primitives/text';
 import { Segmented } from '../primitives/segmented';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { backgroundOverflow } from './background-position';
 import { BackgroundPreview } from './background-preview';
 
@@ -33,6 +33,7 @@ export function ChatBackgroundEditor({
   onDone(): void;
   onCancel(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const state = useSyncExternalStore(edit.subscribe, edit.getSnapshot);
   const [pickError, setPickError] = useState(false);
@@ -66,17 +67,23 @@ export function ChatBackgroundEditor({
         </Text>
         {scoped ? (
           <Text variant="meta" tone="muted">
-            {state.choice === undefined ? t.chatBackground.inherited : t.chatBackground.override}
+            {state.choice === undefined
+              ? t.chatBackground.inherited(
+                  {
+                    default: t.chatBackground.theme,
+                    color: t.chatBackground.solid,
+                    image: t.chatBackground.image,
+                  }[inherited.kind],
+                )
+              : t.chatBackground.override}
           </Text>
         ) : null}
         <Segmented
           label={t.chatBackground.type}
-          value={state.choice?.kind ?? 'default'}
+          value={state.choice?.kind ?? 'inherit'}
           options={[
-            {
-              value: 'default',
-              label: scoped ? t.chatBackground.useDefault : t.chatBackground.theme,
-            },
+            ...(scoped ? [{ value: 'inherit' as const, label: t.chatBackground.useDefault }] : []),
+            { value: 'default', label: t.chatBackground.theme },
             { value: 'color', label: t.chatBackground.solid },
             { value: 'image', label: t.chatBackground.image },
           ]}
@@ -87,9 +94,9 @@ export function ChatBackgroundEditor({
               edit.choose(
                 kind === 'color'
                   ? { kind: 'color', color: backgroundColors[0] }
-                  : scoped
-                    ? undefined
-                    : { kind: 'default' },
+                  : kind === 'default'
+                    ? { kind: 'default' }
+                    : undefined,
               );
           }}
         />
@@ -198,24 +205,31 @@ export function ChatBackgroundEditor({
             {t.chatBackground.failed}
           </Text>
         ) : null}
-        <Button
-          label={t.done}
-          tone="primary"
-          busy={busy}
-          onPress={() => {
-            void edit
-              .save()
-              .then(onDone)
-              .catch(() => {});
-          }}
-        />
-        <Button label={t.cancel} disabled={busy} onPress={onCancel} />
+        <View style={{ flexDirection: 'row', gap: space.x3 }}>
+          <View style={{ flex: 1 }}>
+            <Button label={t.cancel} disabled={busy} onPress={onCancel} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button
+              label={t.done}
+              tone="primary"
+              busy={busy}
+              onPress={() => {
+                void edit
+                  .save()
+                  .then(onDone)
+                  .catch(() => {});
+              }}
+            />
+          </View>
+        </View>
       </View>
     </View>
   );
 }
 
 function PreviewMessages() {
+  const t = useStrings();
   const theme = useDesignTheme();
   return (
     <>

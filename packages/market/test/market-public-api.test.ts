@@ -13,15 +13,21 @@ const ENTRY_SHAPE = {
   tags: expect.any(Array),
   roles: expect.any(Array),
   bio: expect.any(String),
+  bioGenerated: false,
   banner: null,
+  avatar: null,
   description: expect.any(String),
   topics: expect.any(Array),
   stars: expect.any(Number),
+  installs: expect.any(Number),
   pushedAt: expect.any(String),
+  createdAt: expect.any(String),
   htmlUrl: expect.any(String),
   cloneUrl: expect.any(String),
   defaultBranch: expect.any(String),
   headCommit: { sha: expect.any(String), committedAt: expect.any(String) },
+  source: 'github',
+  author: null,
 };
 
 async function listedMarket() {
@@ -67,10 +73,18 @@ describe('public read API contract', () => {
       string,
       unknown
     >;
-    expect(Object.keys(detail).sort()).toEqual(['bot', 'commitSha', 'readme']);
+    expect(Object.keys(detail).sort()).toEqual([
+      'bot',
+      'commitSha',
+      'readme',
+      'readmeLanguage',
+      'readmeLanguages',
+    ]);
     expect(detail).toEqual({
       bot: { ...ENTRY_SHAPE, name: 'reader' },
       readme: '# reader',
+      readmeLanguage: null,
+      readmeLanguages: [],
       commitSha: expect.stringMatching(/^[0-9a-f]{40}$/u),
     });
   });
@@ -91,6 +105,7 @@ describe('public read API contract', () => {
       'https://evil.example',
       'https://deepseekbot.botharness.ai.evil.example',
       'https://deepseekbot.app.evil.example',
+      'https://tobs.app.evil.example',
       'http://deepseekbot.app',
       'null',
     ]) {

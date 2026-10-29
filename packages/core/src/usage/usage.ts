@@ -12,6 +12,7 @@ import {
   type OperationalDatabaseModulePort,
   type OperationalDatabaseOwner,
 } from '../database/owner.js';
+import type { IdleCompactionRecord } from '../runtime/idle-compaction.js';
 import type { SessionOwnership } from '../sessions/ownership.js';
 import type { DshSessionEvent } from '../sessions/source.js';
 
@@ -61,6 +62,10 @@ export interface UsageProjection {
 
   primeSession(sessionId: string, events: readonly DshSessionEvent[]): void;
 
+  latestRoute(
+    sessionId: string,
+  ): { provider: string; model: string; reasoningEffort?: string } | undefined;
+
   rebuild(
     sessionIds: readonly string[],
     readLog: DshUsageSessionLogReader,
@@ -80,6 +85,10 @@ export interface UsageProjection {
   overview(period: UsageOverviewPeriod, after?: string): UsageOverviewResult;
 
   purgeBot(botSlug: string, removeFiles?: () => void): void;
+
+  recordIdleCompaction(record: IdleCompactionRecord): void;
+
+  idleCompactions(botSlug: string, sinceIso: string): IdleCompactionRecord[];
 }
 
 interface UsageDailyDbRow {
@@ -188,6 +197,7 @@ function reportedBuckets(event: DshSessionEvent): {
 interface UsageRoute {
   provider: string;
   model: string;
+  reasoningEffort?: string;
 }
 
 function routeOf(value: unknown): UsageRoute | undefined {
@@ -196,7 +206,13 @@ function routeOf(value: unknown): UsageRoute | undefined {
     record['provider'].length > 0 &&
     typeof record['model'] === 'string' &&
     record['model'].length > 0
-    ? { provider: record['provider'], model: record['model'] }
+    ? {
+        provider: record['provider'],
+        model: record['model'],
+        ...(typeof record['reasoningEffort'] === 'string' && record['reasoningEffort'].length > 0
+          ? { reasoningEffort: record['reasoningEffort'] }
+          : {}),
+      }
     : undefined;
 }
 
@@ -468,6 +484,24 @@ export function createUsageProjection(options: {
     primeSession(sessionId, events) {
       for (const event of events) observe(sessionId, event);
     },
+    latestRoute(sessionId) {
+      const ordered = [...(routes.get(sessionId) ?? [])].sort(([a], [b]) => a - b);
+      const resolved = ordered.at(-1)?.[1];
+      if (resolved === undefined) return undefined;
+      const effort =
+        resolved.reasoningEffort ??
+        ordered.findLast(
+          ([, route]) =>
+            route.provider === resolved.provider &&
+            route.model === resolved.model &&
+            route.reasoningEffort !== undefined,
+        )?.[1].reasoningEffort;
+      return {
+        provider: resolved.provider,
+        model: resolved.model,
+        ...(effort === undefined ? {} : { reasoningEffort: effort }),
+      };
+    },
     handleSessionEvent(sessionId, event) {
       const route = observe(sessionId, event);
       if (event.type !== 'assistant/message' && event.type !== 'assistant/attempt') return;
@@ -560,11 +594,73 @@ export function createUsageProjection(options: {
           connection.prepare('DELETE FROM usage_daily WHERE bot_slug = ?').run(botSlug);
           connection.prepare('DELETE FROM usage_receipts WHERE bot_slug = ?').run(botSlug);
           connection.prepare('DELETE FROM usage_legacy_baselines WHERE bot_slug = ?').run(botSlug);
+          connection.prepare('DELETE FROM usage_idle_compactions WHERE bot_slug = ?').run(botSlug);
           removeFiles?.();
         },
         ['usage'],
       );
       baselineByBot.delete(botSlug);
+    },
+    recordIdleCompaction(record) {
+      database.transaction(
+        (connection) => {
+          connection
+            .prepare(
+              `INSERT INTO usage_idle_compactions
+                 (bot_slug, at, provider, model, idle_gap_ms, cache_lifetime_ms, cache_lifetime_source,
+                  tokens_before, tokens_after, outcome, error, input_tokens, cache_read_tokens, output_tokens)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            )
+            .run(
+              record.botSlug,
+              record.at,
+              record.provider,
+              record.model,
+              Math.round(record.idleGapMs),
+              Math.round(record.cacheLifetimeMs),
+              record.cacheLifetimeSource,
+              record.tokensBefore,
+              record.tokensAfter,
+              record.outcome,
+              record.error ?? null,
+              record.inputTokens,
+              record.cacheReadTokens,
+              record.outputTokens,
+            );
+        },
+        ['usage'],
+      );
+    },
+    idleCompactions(botSlug, sinceIso) {
+      const rows = database.read((connection) =>
+        connection
+          .prepare(
+            `SELECT bot_slug, at, provider, model, idle_gap_ms, cache_lifetime_ms, cache_lifetime_source,
+                    tokens_before, tokens_after, outcome, error, input_tokens, cache_read_tokens, output_tokens
+               FROM usage_idle_compactions
+              WHERE bot_slug = ? AND at >= ?
+              ORDER BY at`,
+          )
+          .all(botSlug, sinceIso),
+      ) as Array<Record<string, unknown>>;
+      return rows.map((row) => ({
+        botSlug: row['bot_slug'] as string,
+        at: row['at'] as string,
+        provider: row['provider'] as string,
+        model: row['model'] as string,
+        idleGapMs: row['idle_gap_ms'] as number,
+        cacheLifetimeMs: row['cache_lifetime_ms'] as number,
+        cacheLifetimeSource: row[
+          'cache_lifetime_source'
+        ] as IdleCompactionRecord['cacheLifetimeSource'],
+        tokensBefore: row['tokens_before'] as number,
+        tokensAfter: (row['tokens_after'] as number | null) ?? null,
+        outcome: row['outcome'] as IdleCompactionRecord['outcome'],
+        ...(typeof row['error'] === 'string' ? { error: row['error'] } : {}),
+        inputTokens: (row['input_tokens'] as number | null) ?? null,
+        cacheReadTokens: (row['cache_read_tokens'] as number | null) ?? null,
+        outputTokens: (row['output_tokens'] as number | null) ?? null,
+      }));
     },
     activity(botSlug, sinceIso) {
       const sinceDay = usageLocalDay(Date.parse(sinceIso));

@@ -2,7 +2,13 @@ import { Text } from './primitives/system-text';
 import { useCallback, useRef, useState } from 'react';
 import { Platform, ScrollView, View, type ViewInstance } from 'react-native';
 
-import { readableInput, type ApprovalRequest, type DecisionResult } from '../host/requests';
+import {
+  readableInput,
+  type ApprovalChoice,
+  type ApprovalRequest,
+  type DecisionResult,
+} from '../host/requests';
+import { alwaysNote, executionNote, expiryLabel, riskNote } from './approval-note';
 import {
   ActionButton,
   errorText,
@@ -13,14 +19,14 @@ import {
 } from './request-parts';
 import { useMounted } from './mounted';
 import { haptic } from './haptics';
-import { t } from './strings';
+import { useStrings, t } from './strings';
 import { useTheme } from './theme';
 
 const MONO = Platform.select({ ios: 'Menlo', default: 'monospace' });
 
 export interface ApprovalPort {
   load(): Promise<ApprovalRequest>;
-  decide(outcome: 'allowed-once' | 'rejected'): Promise<DecisionResult>;
+  decide(outcome: ApprovalChoice): Promise<DecisionResult>;
 }
 
 type Phase =
@@ -29,7 +35,7 @@ type Phase =
   | {
       kind: 'ready';
       request: ApprovalRequest;
-      busy?: 'allowed-once' | 'rejected';
+      busy?: ApprovalChoice;
       notice?: { tone: NoticeTone; text: string };
     };
 
@@ -55,28 +61,39 @@ export function ApprovalView({
   botName: string;
   listed?: boolean;
 }) {
+  const t = useStrings();
   const theme = useTheme();
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const own = useRef(false);
+  const current = useRef({ port, pending: false, active: false });
+  if (current.current.port !== port) current.current = { port, pending: false, active: false };
+  const submission = current.current;
 
   const load = useCallback(async () => {
     setPhase({ kind: 'loading' });
     try {
       const request = await port.load();
+      if (!submission.active || current.current !== submission) return;
       const notice = settledNotice(request);
       setPhase({ kind: 'ready', request, ...(notice === undefined ? {} : { notice }) });
     } catch (error) {
+      if (!submission.active || current.current !== submission) return;
       setPhase({ kind: 'failed', error: errorText(error) });
     }
-  }, [port]);
+  }, [port, submission]);
 
-  const seen = useRef<boolean | undefined>(undefined);
+  const seen = useRef<{ port: ApprovalPort; listed: boolean } | undefined>(undefined);
   const mount = useMounted<ViewInstance>(() => {
-    const first = seen.current === undefined;
-    const dropped = seen.current === true && !listed;
-    seen.current = listed;
-    if (first || (dropped && !own.current)) void load();
-  }, [load, listed]);
+    submission.active = true;
+    const changed = seen.current?.port !== port;
+    const dropped = seen.current?.listed === true && !listed;
+    seen.current = { port, listed };
+    if (changed) own.current = false;
+    if (changed || (dropped && !own.current)) void load();
+    return () => {
+      submission.active = false;
+    };
+  }, [load, listed, port, submission]);
 
   if (phase.kind !== 'ready')
     return (
@@ -90,13 +107,22 @@ export function ApprovalView({
     );
 
   const { request } = phase;
-  const decide = async (outcome: 'allowed-once' | 'rejected') => {
+  const decide = async (outcome: ApprovalChoice) => {
+    if (
+      submission.pending ||
+      !submission.active ||
+      current.current !== submission ||
+      request.status !== 'pending'
+    )
+      return;
+    submission.pending = true;
     own.current = true;
-    haptic(outcome === 'rejected' ? 'deny' : 'approve');
     setPhase({ kind: 'ready', request, busy: outcome });
     try {
       const result = await port.decide(outcome);
+      if (!submission.active || current.current !== submission) return;
       if (result === 'accepted') {
+        haptic(outcome === 'rejected' ? 'deny' : 'approve');
         setPhase({
           kind: 'ready',
           request: { ...request, status: 'decided', outcome },
@@ -107,8 +133,11 @@ export function ApprovalView({
       const now = await port
         .load()
         .catch(() => ({ ...request, status: result }) as ApprovalRequest);
+      if (!submission.active || current.current !== submission) return;
       setPhase({ kind: 'ready', request: now, notice: settledNotice({ ...now, status: result })! });
     } catch (error) {
+      if (!submission.active || current.current !== submission) return;
+      submission.pending = false;
       own.current = false;
       setPhase({
         kind: 'ready',
@@ -165,19 +194,38 @@ export function ApprovalView({
           <Notice tone={phase.notice.tone}>{phase.notice.text}</Notice>
         )}
         {request.status === 'pending' ? (
-          <View style={{ flexDirection: 'row', gap: 12 }}>
+          <View style={{ gap: 12 }}>
+            {[
+              expiryLabel(request.expiresAt, Date.now()),
+              executionNote(request),
+              riskNote(request.toolName),
+              alwaysNote(request),
+            ].map((note) =>
+              note === undefined ? null : (
+                <Text key={note} style={{ color: theme.inkSoft, fontSize: 13 }}>
+                  {note}
+                </Text>
+              ),
+            )}
+            <ActionButton
+              label={t.allowOnce}
+              disabled={phase.busy !== undefined}
+              busy={phase.busy === 'allowed-once'}
+              onPress={() => void decide('allowed-once')}
+            />
+            <ActionButton
+              label={t.alwaysAllow}
+              tone="secondary"
+              disabled={phase.busy !== undefined || !request.allowAlways}
+              busy={phase.busy === 'allowed-always-tool'}
+              onPress={() => void decide('allowed-always-tool')}
+            />
             <ActionButton
               label={t.reject}
               tone="danger"
               disabled={phase.busy !== undefined}
               busy={phase.busy === 'rejected'}
               onPress={() => void decide('rejected')}
-            />
-            <ActionButton
-              label={t.allowOnce}
-              disabled={phase.busy !== undefined}
-              busy={phase.busy === 'allowed-once'}
-              onPress={() => void decide('allowed-once')}
             />
           </View>
         ) : null}

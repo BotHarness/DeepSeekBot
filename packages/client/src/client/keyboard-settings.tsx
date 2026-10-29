@@ -113,7 +113,7 @@ export function KeyboardSettings({
   };
   const panels = catalog.filter(
     (row) =>
-      row.id.startsWith('botharness.panel.') &&
+      (row.id.startsWith('botharness.panel.') || row.id.startsWith('botharness.zoom.')) &&
       [row.label, ...row.keys]
         .join(' ')
         .toLocaleLowerCase()
@@ -140,7 +140,7 @@ export function KeyboardSettings({
       />
       {error ? <p role="alert">{error}</p> : null}
       {panels.length ? (
-        <SettingsSection title={t('workspace.shortcutSearch')}>
+        <SettingsSection title={t('shortcuts.title')}>
           {panels.map((row) => (
             <SettingsRow
               key={row.id}

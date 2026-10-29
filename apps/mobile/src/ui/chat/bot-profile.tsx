@@ -1,42 +1,79 @@
-import { useCallback, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, SectionList, View } from 'react-native';
+import { ReadFailure } from '../primitives/read-failure';
+import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { FlatList, Pressable, View, type ViewInstance } from 'react-native';
 
 import {
-  memoryEntries,
+  unpinnedEntries,
   type BotProfile,
   type MemoryEntry,
+  type PinnedMemory,
+  type ProfileAssignment,
   type ProfilePart,
 } from '../../host/bot-profile';
 import type { RosterBot, RosterChannel } from '../../host/client';
+import type { MemoryChange, MemoryChangesPage } from '../../host/memory-changes';
 import type { BotScheduleSummary, ProfileActivity } from '../../host/wire';
+import { botBanner } from '../../marketplace/artwork';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
-import { edge, radius, space } from '../design/tokens';
-import { useFocusEffect } from 'expo-router';
+import { edge, memoryGrid, profileShell, radius, rowGlyph, space } from '../design/tokens';
+import { profileTabPaths, profileTabSymbols } from '../design/profile-tab-icons';
+import { useProfileFocusEffect } from './profile-visibility';
+import { SettingsHeading, SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
+import { useMounted } from '../mounted';
+import type { IconTabOption } from '../primitives/icon-tabs';
 import { useSheetContent } from '../primitives/sheet-content';
+import { HeaderIconButton, type HeaderIcon } from '../shell/header-icon-button';
 import {
-  ActivityIcon,
-  BrowserIcon,
   ChevronRightIcon,
-  ComputerIcon,
-  MessageIcon,
-  PlusIcon,
+  ClockIcon,
+  FolderIcon,
+  MembersIcon,
+  MemoryIcon,
+  SettingsIcon,
+  WorkIcon,
 } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 import { ActivityGlance } from './activity-glance';
+import { AssignmentActivityIcon } from './assignment-marks';
 import { botStateTone } from './bot-tone';
-import { MemoryEntryRow } from './memory-browser';
-import { routineDetail } from './routine-text';
-
-const AVATAR = 72;
-const ICON = 22;
-const COLLAPSED_LINES = 6;
-const LONG_TEXT = 280;
+import {
+  MemoryGridRow,
+  MemoryPinnedCards,
+  memoryGridRows,
+  useMemoryColumns,
+} from './memory-browser';
+import {
+  NewRoutineButton,
+  RoutineGroupCard,
+  routineGroups,
+  type RoutineChanges,
+  type RoutineGroup,
+} from './profile-routines';
+import { LoadingIndicator } from '../primitives/loading-indicator';
+import { Button } from '../primitives/button';
+import { Segmented } from '../primitives/segmented';
+import { memoryChangeTime, useMemoryChanges, type MemoryChanges } from './memory-changes';
+import {
+  AvatarSettings,
+  EditableAvatar,
+  useAvatarEditor,
+  type AvatarActions,
+} from './avatar-editor';
+import { ProfileShell, type ProfileRow as ShellRow, type ProfileTabBody } from './profile-shell';
+import {
+  openingTab,
+  profileTabs,
+  type ProfileTab,
+  type ProfileTabMemory,
+  type RememberedProfileKind,
+} from './profile-tabs';
+import { ProfileHero } from './profile-hero';
 
 export const PROFILE_SECTIONS = [
+  'work',
   'activity',
-  'identity',
   'memory',
   'routines',
   'channels',
@@ -45,11 +82,14 @@ export const PROFILE_SECTIONS = [
 export type ProfileSection = (typeof PROFILE_SECTIONS)[number];
 
 type RowBody =
-  | { kind: 'text'; label?: string; body: string }
   | { kind: 'item'; title: string; detail?: string }
-  | { kind: 'entry'; entry: MemoryEntry }
-  | { kind: 'routine'; routine: BotScheduleSummary }
-  | { kind: 'new-routine' }
+  | { kind: 'pinned'; pinned: PinnedMemory[] }
+  | { kind: 'grid'; entries: MemoryEntry[]; columns: number; lead: boolean }
+  | { kind: 'commit'; change: MemoryChange }
+  | { kind: 'more'; busy: boolean }
+  | { kind: 'routine-group'; group: RoutineGroup; routines: BotScheduleSummary[] }
+  | { kind: 'assignment'; assignment: ProfileAssignment }
+  | { kind: 'day'; label: string }
   | { kind: 'activity'; activity: ProfileActivity }
   | { kind: 'note'; text: string }
   | { kind: 'failed'; error: string }
@@ -57,23 +97,28 @@ type RowBody =
 
 type Row = RowBody & { key: string; first: boolean; last: boolean };
 
+type MemoryView = 'files' | 'changes';
+
 export interface BotProfileActions {
-  onMessage(): void;
   onComputer?(): void;
   onBrowser?(): void;
   onNotifications(): void;
   onOpenMemory(entry: MemoryEntry): void;
+  onOpenMemoryChange?(change: MemoryChange): void;
   onOpenRoutine?(routine: BotScheduleSummary): void;
+  onOpenAssignment?(assignment: ProfileAssignment): void;
   onNewRoutine?(): void;
+  routines?: RoutineChanges;
   onOpenActivity(): void;
+  onClose(): void;
 }
 
 function frame(section: ProfileSection, bodies: RowBody[]): Row[] {
   return bodies.map((body, index) => ({
     ...body,
     key: `${section}:${index}`,
-    first: index === 0,
-    last: index === bodies.length - 1,
+    first: index === 0 || bodies[index - 1]?.kind === 'day',
+    last: index === bodies.length - 1 || bodies[index + 1]?.kind === 'day',
   }));
 }
 
@@ -91,37 +136,124 @@ function partRows<T>(
   ];
 }
 
+function localDay(iso: string): string {
+  const at = new Date(iso);
+  return Number.isNaN(at.getTime()) ? '' : at.toDateString();
+}
+
+function dayRows<T>(
+  items: readonly T[],
+  at: (item: T) => string,
+  body: (item: T) => RowBody,
+  now: Date,
+): RowBody[] {
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const label = (iso: string) => {
+    const day = localDay(iso);
+    if (day === now.toDateString()) return t.usageToday;
+    if (day === yesterday.toDateString()) return t.yesterday;
+    const at = new Date(iso);
+    return Number.isNaN(at.getTime())
+      ? ''
+      : at.toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          ...(at.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+        });
+  };
+  const rows: RowBody[] = [];
+  let previous: string | undefined;
+  for (const item of items) {
+    const day = localDay(at(item));
+    if (day !== previous) rows.push({ kind: 'day', label: label(at(item)) });
+    previous = day;
+    rows.push(body(item));
+  }
+  return rows;
+}
+
+export function workRowBodies(assignments: readonly ProfileAssignment[], now = new Date()) {
+  return dayRows(
+    assignments,
+    (assignment) => assignment.updatedAt,
+    (assignment) => ({ kind: 'assignment', assignment }),
+    now,
+  );
+}
+
+export function memoryChangeRows(
+  changes: MemoryChanges,
+  now = new Date(),
+  empty = t.memoryChangesEmpty,
+): Row[] {
+  if (!changes.loaded)
+    return frame(
+      'memory',
+      changes.error === undefined
+        ? [{ kind: 'loading' }]
+        : [{ kind: 'failed', error: changes.error }],
+    );
+  return frame('memory', [
+    ...(changes.commits.length === 0
+      ? [{ kind: 'note' as const, text: empty }]
+      : dayRows(
+          changes.commits,
+          (change) => change.authoredAt,
+          (change) => ({ kind: 'commit', change }),
+          now,
+        )),
+    ...(changes.error === undefined ? [] : [{ kind: 'failed' as const, error: changes.error }]),
+    ...(changes.hasMore ? [{ kind: 'more' as const, busy: changes.busy }] : []),
+  ]);
+}
+
+export function assignmentRows(part: ProfilePart<ProfileAssignment[]> | undefined): Row[] {
+  return frame(
+    'work',
+    partRows(part, 'work', (work) => workRowBodies(work)),
+  );
+}
+
 export function profileRows(
   profile: BotProfile | undefined,
   channels: RosterChannel[],
-  addRoutine = false,
+  columns = 3,
 ): Record<ProfileSection, Row[]> {
   return {
+    work: assignmentRows(profile?.work),
     activity: frame(
       'activity',
       partRows(profile?.activity, 'activity', (activity) => [{ kind: 'activity', activity }]),
     ),
-    identity: frame(
-      'identity',
-      partRows(profile?.identity, 'identity', (soul) =>
-        soul === undefined ? [] : [{ kind: 'text', body: soul }],
-      ),
-    ),
     memory: frame(
       'memory',
-      partRows(profile?.memory, 'memory', (memory) =>
-        memoryEntries(memory.files, '').map((entry) => ({
-          kind: 'entry',
-          entry,
-        })),
+      partRows(profile?.memory, 'memory', (memory): RowBody[] =>
+        memory.status === 'unavailable'
+          ? [{ kind: 'note', text: t.memoryNotAttached }]
+          : [
+              { kind: 'pinned', pinned: memory.pinned },
+              ...(memory.files.length === 0
+                ? [{ kind: 'note' as const, text: t.profileEmpty.memory }]
+                : memoryGridRows(unpinnedEntries(memory.files, memory.pinned), columns).map(
+                    (entries, index): RowBody => ({
+                      kind: 'grid',
+                      entries,
+                      columns,
+                      lead: index === 0,
+                    }),
+                  )),
+            ],
       ),
     ),
     routines: frame(
       'routines',
       partRows(profile?.routines, 'routines', (routines) =>
-        routines.map((routine) => ({ kind: 'routine', routine })),
-      ).concat(
-        addRoutine && profile?.routines?.status === 'ready' ? [{ kind: 'new-routine' }] : [],
+        routineGroups(routines).map(({ group, routines }) => ({
+          kind: 'routine-group',
+          group,
+          routines,
+        })),
       ),
     ),
     channels: frame(
@@ -147,133 +279,99 @@ export function profileRows(
   };
 }
 
-function ProfileAction({
+const TAB_GLYPHS: Record<ProfileTab, typeof WorkIcon> = {
+  work: WorkIcon,
+  memory: MemoryIcon,
+  files: FolderIcon,
+  routines: ClockIcon,
+  settings: SettingsIcon,
+  members: MembersIcon,
+};
+
+export function profileTabOptions(tabs: readonly ProfileTab[]): IconTabOption<ProfileTab>[] {
+  return tabs.map((tab) => {
+    const Glyph = TAB_GLYPHS[tab];
+    return {
+      value: tab,
+      label: t.profileTabs[tab],
+      symbol: profileTabSymbols[tab],
+      path: profileTabPaths[tab],
+      glyph: (color, size) => <Glyph color={color} size={size} />,
+    };
+  });
+}
+
+function RoundAction({
   label,
+  testID,
   icon,
   onPress,
 }: {
   label: string;
-  icon: (color: string) => ReactNode;
+  testID: string;
+  icon: HeaderIcon;
   onPress(): void;
 }) {
-  const theme = useDesignTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        flex: 1,
-        minHeight: theme.touch,
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: space.x2,
-        paddingVertical: space.x4,
-        borderRadius: radius.md,
-        backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
-      })}
-    >
-      {icon(theme.color.fg)}
-      <Text variant="meta" strong numberOfLines={1}>
-        {label}
-      </Text>
-    </Pressable>
-  );
+  return <HeaderIconButton icon={icon} label={label} testID={testID} onPress={onPress} />;
 }
 
-function ProfileHeader({
+function BotIdentity({
   bot,
   actions,
-  settings,
+  avatar,
 }: {
   bot: RosterBot;
   actions: BotProfileActions;
-  settings: ReactNode;
+  avatar: ReturnType<typeof useAvatarEditor>;
 }) {
+  const t = useStrings();
   return (
-    <View style={{ alignItems: 'center', gap: space.x3, paddingBottom: space.x5 }}>
-      <BotAvatar bot={bot} size={AVATAR} />
-      <View style={{ alignItems: 'center', gap: space.x1 }}>
-        <Text accessibilityRole="header" variant="display" numberOfLines={2}>
-          {bot.displayName}
-        </Text>
-        <Text variant="meta" tone={botStateTone(bot)}>
-          {[bot.paused ? t.paused : t.state[bot.state], ...bot.roles].join(' · ')}
-        </Text>
-      </View>
+    <ProfileHero
+      banner={{ source: botBanner(bot), headers: bot.bannerHeaders }}
+      name={bot.displayName}
+      avatar={
+        <EditableAvatar editor={avatar} corner={radius.round} testID="bot-avatar-change">
+          <BotAvatar bot={bot} size={profileShell.avatar} />
+        </EditableAvatar>
+      }
+    >
+      <Text pointerEvents="none" variant="meta" tone={botStateTone(bot)}>
+        {[bot.paused ? t.paused : t.state[bot.state], ...bot.roles].join(' · ')}
+      </Text>
       {bot.description === undefined || bot.description.trim() === '' ? null : (
-        <Text tone="muted" style={{ textAlign: 'center' }}>
+        <Text pointerEvents="none" tone="muted" numberOfLines={3} style={{ textAlign: 'center' }}>
           {bot.description}
         </Text>
       )}
-      <View
-        style={{
-          flexDirection: 'row',
-          alignSelf: 'stretch',
-          gap: space.x3,
-          paddingTop: space.x3,
-        }}
-      >
-        <ProfileAction
-          label={t.profileMessage}
-          icon={(color) => <MessageIcon color={color} size={ICON} />}
-          onPress={actions.onMessage}
-        />
-        {actions.onBrowser === undefined ? null : (
-          <ProfileAction
-            label={t.profileBrowser}
-            icon={(color) => <BrowserIcon color={color} size={ICON} />}
-            onPress={actions.onBrowser}
-          />
-        )}
-        {actions.onComputer === undefined ? null : (
-          <ProfileAction
-            label={t.profileComputer}
-            icon={(color) => <ComputerIcon color={color} size={ICON} />}
-            onPress={actions.onComputer}
-          />
-        )}
-        <ProfileAction
-          label={t.profileNotifications}
-          icon={(color) => <ActivityIcon color={color} size={ICON} />}
-          onPress={actions.onNotifications}
-        />
-      </View>
-      {settings === undefined ? null : (
-        <View style={{ alignSelf: 'stretch', paddingTop: space.x3 }}>{settings}</View>
+      {actions.onBrowser === undefined && actions.onComputer === undefined ? null : (
+        <View
+          pointerEvents="box-none"
+          style={{ flexDirection: 'row', gap: space.x4, paddingTop: space.x1 }}
+        >
+          {actions.onBrowser === undefined ? null : (
+            <RoundAction
+              label={t.profileBrowser}
+              testID="profile-browser"
+              icon="browser"
+              onPress={actions.onBrowser}
+            />
+          )}
+          {actions.onComputer === undefined ? null : (
+            <RoundAction
+              label={t.profileComputer}
+              testID="profile-computer"
+              icon="computer"
+              onPress={actions.onComputer}
+            />
+          )}
+        </View>
       )}
-    </View>
+    </ProfileHero>
   );
 }
 
-function ProfileRow({
-  bot,
-  row,
-  expanded,
-  onToggle,
-  onRetry,
-  actions,
-}: {
-  bot: RosterBot;
-  row: Row;
-  expanded: boolean;
-  onToggle(): void;
-  onRetry(): void;
-  actions: BotProfileActions;
-}) {
-  const theme = useDesignTheme();
-  if (row.kind === 'activity')
-    return <ActivityGlance bot={bot} activity={row.activity} onOpen={actions.onOpenActivity} />;
-  if (row.kind === 'entry')
-    return (
-      <MemoryEntryRow
-        entry={row.entry}
-        first={row.first}
-        last={row.last}
-        onOpen={actions.onOpenMemory}
-      />
-    );
-  const shape = {
+function rowShape(theme: ReturnType<typeof useDesignTheme>, row: Row) {
+  return {
     backgroundColor: theme.layer.raised.fill,
     paddingHorizontal: space.x5,
     paddingVertical: space.x4,
@@ -285,68 +383,92 @@ function ProfileRow({
     borderBottomColor: theme.color.divider,
     gap: space.x2,
   };
-  if (row.kind === 'routine') {
-    const { routine } = row;
-    const open = actions.onOpenRoutine;
-    const detail = routineDetail(routine);
+}
+
+export type WorkRow = Row;
+
+export function WorkListRow({
+  row,
+  onRetry,
+  onOpen,
+}: {
+  row: Row;
+  onRetry(): void;
+  onOpen?: ((assignment: ProfileAssignment) => void) | undefined;
+}) {
+  const t = useStrings();
+  const theme = useDesignTheme();
+  if (row.kind === 'day')
+    return (
+      <Text
+        variant="meta"
+        tone="muted"
+        strong
+        style={{
+          paddingTop: row.key.endsWith(':0') ? 0 : space.x4,
+          paddingBottom: space.x2,
+        }}
+      >
+        {row.label}
+      </Text>
+    );
+  const shape = rowShape(theme, row);
+  if (row.kind === 'assignment') {
+    const { assignment } = row;
+    const time = new Date(assignment.updatedAt).toLocaleTimeString(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+    const state = t.profileAssignmentState[assignment.activity];
+    const description = assignment.description?.trim() ?? '';
     return (
       <Pressable
-        accessibilityRole={open === undefined ? undefined : 'button'}
-        accessibilityLabel={
-          open === undefined ? undefined : `${t.routineOpen(routine.title)}, ${detail}`
+        testID={`profile-assignment-${assignment.sessionId}`}
+        accessibilityRole={onOpen === undefined ? undefined : 'button'}
+        accessibilityLabel={[assignment.title, state, description, time]
+          .filter((part) => part !== '')
+          .join(', ')}
+        accessibilityHint={
+          onOpen === undefined ? undefined : t.profileAssignmentOpen(assignment.title)
         }
-        disabled={open === undefined}
-        onPress={() => open?.(routine)}
+        disabled={onOpen === undefined}
+        onPress={() => onOpen?.(assignment)}
         style={({ pressed }) => [
           shape,
           {
             flexDirection: 'row',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             gap: space.x3,
             minHeight: theme.touch,
             backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
           },
         ]}
       >
-        <View style={{ flex: 1, gap: space.x1 }}>
-          <Text numberOfLines={1} tone={routine.enabled ? 'fg' : 'muted'}>
-            {routine.title}
-          </Text>
-          <Text variant="meta" tone="muted" numberOfLines={2}>
-            {detail}
-          </Text>
+        <View style={{ paddingTop: (theme.type.body.line - rowGlyph.size) / 2 }}>
+          <AssignmentActivityIcon activity={assignment.activity} size={rowGlyph.size} />
         </View>
-        {open === undefined ? null : (
-          <ChevronRightIcon color={theme.color.muted} size={theme.type.title.line} />
-        )}
+        <View style={{ flex: 1, gap: space.x1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.x3 }}>
+            <Text numberOfLines={theme.largeText ? undefined : 2} style={{ flex: 1 }}>
+              {assignment.title}
+            </Text>
+            <Text variant="meta" tone="muted">
+              {time}
+            </Text>
+          </View>
+          {description === '' ? null : (
+            <Text variant="meta" tone="muted" numberOfLines={theme.largeText ? undefined : 2}>
+              {description}
+            </Text>
+          )}
+        </View>
       </Pressable>
     );
   }
-  if (row.kind === 'new-routine')
-    return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t.routineNew}
-        onPress={actions.onNewRoutine}
-        style={({ pressed }) => [
-          shape,
-          {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: space.x3,
-            minHeight: theme.touch,
-            backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
-          },
-        ]}
-      >
-        <PlusIcon color={theme.color.fg} size={theme.type.title.line} />
-        <Text>{t.routineNew}</Text>
-      </Pressable>
-    );
   if (row.kind === 'loading')
     return (
       <View style={[shape, { flexDirection: 'row', alignItems: 'center', gap: space.x3 }]}>
-        <ActivityIndicator />
+        <LoadingIndicator />
         <Text variant="meta" tone="muted">
           {t.profileLoading}
         </Text>
@@ -355,21 +477,7 @@ function ProfileRow({
   if (row.kind === 'failed')
     return (
       <View style={shape}>
-        <Text variant="meta" tone="danger">{`${t.profileFailed} ${row.error}`}</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t.tryAgain}
-          onPress={onRetry}
-          style={{
-            minHeight: theme.touch,
-            justifyContent: 'center',
-            alignSelf: 'flex-start',
-          }}
-        >
-          <Text tone="accent" strong>
-            {t.tryAgain}
-          </Text>
-        </Pressable>
+        <ReadFailure title={t.profileFailed} detail={row.error} onRetry={onRetry} />
       </View>
     );
   if (row.kind === 'note')
@@ -377,6 +485,102 @@ function ProfileRow({
       <View style={shape}>
         <Text tone="muted">{row.text}</Text>
       </View>
+    );
+  return null;
+}
+
+function ProfileRow({
+  bot,
+  row,
+  onRetry,
+  onMore,
+  actions,
+}: {
+  bot: RosterBot;
+  row: Row;
+  onRetry(): void;
+  onMore?: (() => void) | undefined;
+  actions: BotProfileActions;
+}) {
+  const theme = useDesignTheme();
+  if (row.kind === 'activity')
+    return <ActivityGlance bot={bot} activity={row.activity} onOpen={actions.onOpenActivity} />;
+  if (row.kind === 'pinned')
+    return <MemoryPinnedCards pinned={row.pinned} onOpen={actions.onOpenMemory} />;
+  if (row.kind === 'grid')
+    return (
+      <View style={{ paddingTop: row.lead ? space.x5 : memoryGrid.gap }}>
+        <MemoryGridRow entries={row.entries} columns={row.columns} onOpen={actions.onOpenMemory} />
+      </View>
+    );
+  if (
+    row.kind === 'day' ||
+    row.kind === 'assignment' ||
+    row.kind === 'loading' ||
+    row.kind === 'failed' ||
+    row.kind === 'note'
+  )
+    return <WorkListRow row={row} onRetry={onRetry} onOpen={actions.onOpenAssignment} />;
+  const shape = rowShape(theme, row);
+  if (row.kind === 'commit') {
+    const { change } = row;
+    const time = memoryChangeTime(change.authoredAt);
+    const status = change.status === 'accepted' ? '' : t.memoryChangeStatus[change.status];
+    return (
+      <Pressable
+        testID={`memory-change-${change.sha}`}
+        accessibilityRole="button"
+        accessibilityLabel={[change.subject, status, time].filter((part) => part !== '').join(', ')}
+        accessibilityHint={t.memoryChangeOpen}
+        disabled={actions.onOpenMemoryChange === undefined}
+        onPress={() => actions.onOpenMemoryChange?.(change)}
+        style={({ pressed }) => [
+          shape,
+          {
+            minHeight: theme.touch,
+            gap: space.x1,
+            backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
+          },
+        ]}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.x3 }}>
+          <Text numberOfLines={2} style={{ flex: 1 }}>
+            {change.subject}
+          </Text>
+          <Text variant="meta" tone="muted">
+            {time}
+          </Text>
+        </View>
+        {status === '' ? null : (
+          <Text variant="meta" tone="warning">
+            {status}
+          </Text>
+        )}
+      </Pressable>
+    );
+  }
+  if (row.kind === 'more')
+    return (
+      <View style={{ paddingTop: space.x3, alignItems: 'center' }}>
+        <Button
+          label={t.memoryChangesMore}
+          variant="text"
+          testID="memory-changes-more"
+          busy={row.busy}
+          onPress={() => onMore?.()}
+        />
+      </View>
+    );
+  if (row.kind === 'routine-group')
+    return (
+      <RoutineGroupCard
+        group={row.group}
+        routines={row.routines}
+        first={row.first}
+        changes={actions.routines}
+        onOpen={actions.onOpenRoutine}
+        onChanged={onRetry}
+      />
     );
   if (row.kind === 'item')
     return (
@@ -389,55 +593,53 @@ function ProfileRow({
         )}
       </View>
     );
-  const long = row.body.length > LONG_TEXT || row.body.split('\n').length > COLLAPSED_LINES;
-  return (
-    <View style={shape}>
-      {row.label === undefined ? null : (
-        <Text variant="meta" tone="muted" strong>
-          {row.label}
-        </Text>
-      )}
-      <Text selectable numberOfLines={long && !expanded ? COLLAPSED_LINES : undefined}>
-        {row.body}
-      </Text>
-      {long ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={expanded ? t.showLess : t.showMore}
-          onPress={onToggle}
-          style={{
-            minHeight: theme.touch,
-            justifyContent: 'center',
-            alignSelf: 'flex-start',
-          }}
-        >
-          <Text tone="accent" strong>
-            {expanded ? t.showLess : t.showMore}
-          </Text>
-        </Pressable>
-      ) : null}
-    </View>
-  );
+  return null;
 }
 
-export function BotProfileSheet({
+export function useRememberedProfileTab(
+  memory: ProfileTabMemory,
+  tabs: readonly ProfileTab[],
+  kind: RememberedProfileKind = 'bot',
+) {
+  const remembered = useSyncExternalStore(memory.subscribe, () => memory.get(kind));
+  return [openingTab(tabs, remembered), (next: ProfileTab) => memory.remember(kind, next)] as const;
+}
+
+export function BotProfilePage({
   bot,
   channels,
   load,
-  actions: given,
+  actions,
   settings,
+  permissions,
+  workActions,
+  files,
+  memoryChanges,
   initialProfile,
+  avatar,
+  tabMemory,
 }: {
   bot: RosterBot;
   channels: RosterChannel[];
   load: () => Promise<BotProfile>;
   actions: BotProfileActions;
   settings?: ReactNode;
+  permissions?: ReactNode;
+  workActions?: ReactNode;
+  files?: ((active: boolean, render: (body: ProfileTabBody) => ReactNode) => ReactNode) | undefined;
+  memoryChanges?: ((offset: number) => Promise<MemoryChangesPage>) | undefined;
   initialProfile?: BotProfile | undefined;
+  avatar: AvatarActions;
+  tabMemory: ProfileTabMemory;
 }) {
+  const t = useStrings();
+  const theme = useDesignTheme();
+  const avatarEditor = useAvatarEditor(avatar);
   const [profile, setProfile] = useState(initialProfile);
   const content = useSheetContent();
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const columns = useMemoryColumns();
+  const tabs = profileTabs('bot');
+  const [tab, setTab] = useRememberedProfileTab(tabMemory, tabs);
   const read = useCallback(() => {
     let live = true;
     void load().then((value) => {
@@ -447,65 +649,196 @@ export function BotProfileSheet({
       live = false;
     };
   }, [load]);
-  useFocusEffect(read);
-  const actions = given;
-  const rows = profileRows(
-    content.ready ? profile : undefined,
-    channels,
-    given.onNewRoutine !== undefined,
+  useProfileFocusEffect(read);
+  const rows = profileRows(content.ready ? profile : undefined, channels, columns);
+  const [memoryView, setMemoryView] = useState<MemoryView>('files');
+  const changes = useMemoryChanges(memoryChanges);
+  const attached =
+    memoryChanges !== undefined &&
+    profile?.memory.status === 'ready' &&
+    profile.memory.value.status === 'attached';
+  const showChanges = attached && memoryView === 'changes';
+  const rowOf = (row: Row): ShellRow => ({
+    key: row.key,
+    render: () => <ProfileRow bot={bot} row={row} onRetry={read} actions={actions} />,
+  });
+  const changeRowOf = (row: Row): ShellRow => ({
+    key: `changes:${row.key}`,
+    render: () => (
+      <ProfileRow
+        bot={bot}
+        row={row}
+        onRetry={changes.reload}
+        onMore={changes.more}
+        actions={actions}
+      />
+    ),
+  });
+  const node = (key: string, render: () => ReactNode): ShellRow => ({
+    key,
+    render,
+  });
+  const section = (key: string, child: ReactNode) =>
+    node(key, () => <View style={{ paddingTop: space.x5 }}>{child}</View>);
+  const settingsHeading = (key: string, title: string) =>
+    node(`${key}:heading`, () => (
+      <View style={{ paddingTop: space.x5, paddingBottom: space.x2 }}>
+        <SettingsHeading>{title}</SettingsHeading>
+      </View>
+    ));
+  const bodies: Record<Exclude<ProfileTab, 'files' | 'members'>, ProfileTabBody> = {
+    work: {
+      rows: [
+        ...(workActions === undefined ? [] : [node('work:actions', () => workActions)]),
+        ...rows.work.map(rowOf),
+      ],
+    },
+    memory: {
+      rows: [
+        ...(attached
+          ? [
+              node('memory:views', () => (
+                <View testID="memory-views" style={{ paddingBottom: space.x5 }}>
+                  <Segmented<MemoryView>
+                    label={t.memoryViews}
+                    options={[
+                      { value: 'files', label: t.memoryViewFiles },
+                      { value: 'changes', label: t.memoryViewChanges },
+                    ]}
+                    value={memoryView}
+                    onChange={(next) => {
+                      setMemoryView(next);
+                      if (next === 'changes') changes.reload();
+                    }}
+                  />
+                </View>
+              )),
+            ]
+          : []),
+        ...(showChanges
+          ? memoryChangeRows(changes.state).map(changeRowOf)
+          : rows.memory.map(rowOf)),
+      ],
+    },
+    routines: {
+      ...(actions.onNewRoutine === undefined
+        ? {}
+        : { action: <NewRoutineButton onPress={actions.onNewRoutine} /> }),
+      rows: rows.routines.map(rowOf),
+    },
+    settings: {
+      rows: [
+        ...rows.activity.map(rowOf),
+        ...(permissions === undefined
+          ? []
+          : [
+              settingsHeading('settings:permissions', t.approvals.permissions),
+              node('settings:permissions:rows', () => permissions),
+            ]),
+        ...(content.ready && settings !== undefined
+          ? [section('settings:panel', settings)]
+          : [
+              node('settings:bot', () => (
+                <View style={{ paddingTop: space.x5 }}>
+                  <SettingsHeading>{t.profileSettingsBot}</SettingsHeading>
+                </View>
+              )),
+            ]),
+        ...(content.ready && settings !== undefined
+          ? []
+          : [
+              section(
+                'settings:notifications',
+                <SettingsSection on="raised">
+                  <SettingsRow
+                    on="raised"
+                    testID="profile-notifications"
+                    title={t.profileNotifications}
+                    trailing={
+                      <ChevronRightIcon color={theme.color.muted} size={theme.type.body.line} />
+                    }
+                    onPress={actions.onNotifications}
+                  />
+                </SettingsSection>,
+              ),
+            ]),
+        section(
+          'settings:avatar',
+          <AvatarSettings
+            on="raised"
+            editor={avatarEditor}
+            hasAvatar={bot.avatarUrl !== undefined}
+            portrait={<BotAvatar bot={bot} size={32} ring={false} corner={radius.sm} />}
+            testID="bot-avatar-settings"
+          />,
+        ),
+        settingsHeading('channels', t.profileSection.channels),
+        ...rows.channels.map(rowOf),
+        settingsHeading('files', t.profileSection.files),
+        ...rows.files.map(rowOf),
+      ],
+    },
+  };
+  const shell = (filesBody: ProfileTabBody) => (
+    <ProfileShell
+      identity={<BotIdentity bot={bot} actions={actions} avatar={avatarEditor} />}
+      tabs={tabs}
+      options={profileTabOptions(tabs)}
+      tab={tab}
+      onTab={setTab}
+      body={(page) => (page === 'files' || page === 'members' ? filesBody : bodies[page])}
+      onClose={actions.onClose}
+    />
   );
-  const sections = PROFILE_SECTIONS.map((section) => ({
-    section,
-    data: rows[section],
-  }));
-
   return (
     <View ref={content.mount} style={{ flex: 1 }}>
-      <SectionList
-        sections={sections}
+      {files === undefined
+        ? shell({
+            rows: [
+              node('files:none', () => (
+                <Text testID="profile-files-none" tone="muted">
+                  {t.channelFiles.empty}
+                </Text>
+              )),
+            ],
+          })
+        : files(tab === 'files', shell)}
+    </View>
+  );
+}
+
+export function MemoryFileChanges({
+  bot,
+  load,
+  onOpen,
+}: {
+  bot: RosterBot;
+  load: (offset: number) => Promise<MemoryChangesPage>;
+  onOpen(change: MemoryChange): void;
+}) {
+  const changes = useMemoryChanges(load);
+  const mount = useMounted<ViewInstance>(() => changes.reload(), [load]);
+  const actions: BotProfileActions = {
+    onNotifications: () => undefined,
+    onOpenMemory: () => undefined,
+    onOpenActivity: () => undefined,
+    onClose: () => undefined,
+    onOpenMemoryChange: onOpen,
+  };
+  return (
+    <View ref={mount} style={{ flex: 1 }}>
+      <FlatList
+        testID="memory-file-history"
+        data={memoryChangeRows(changes.state, new Date(), t.memoryHistoryEmpty)}
         keyExtractor={(row) => row.key}
-        stickySectionHeadersEnabled={false}
-        nestedScrollEnabled
-        initialNumToRender={3}
-        maxToRenderPerBatch={3}
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: space.x5, paddingTop: space.x6 }}
-        ListHeaderComponent={
-          <ProfileHeader
-            bot={bot}
-            actions={actions}
-            settings={content.ready ? settings : undefined}
-          />
-        }
-        renderSectionHeader={({ section }) => (
-          <Text
-            accessibilityRole="header"
-            variant="meta"
-            tone="muted"
-            strong
-            style={{
-              paddingHorizontal: space.x5,
-              paddingTop: space.x5,
-              paddingBottom: space.x3,
-            }}
-          >
-            {t.profileSection[section.section]}
-          </Text>
-        )}
+        contentContainerStyle={{ padding: space.x5 }}
         renderItem={({ item }) => (
           <ProfileRow
             bot={bot}
             row={item}
-            expanded={expanded.has(item.key)}
-            onRetry={read}
+            onRetry={changes.reload}
+            onMore={changes.more}
             actions={actions}
-            onToggle={() =>
-              setExpanded((current) => {
-                const next = new Set(current);
-                if (!next.delete(item.key)) next.add(item.key);
-                return next;
-              })
-            }
           />
         )}
       />

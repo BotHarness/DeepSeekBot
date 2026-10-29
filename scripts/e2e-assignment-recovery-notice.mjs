@@ -52,7 +52,8 @@ const sourceProof = (i) =>
 const assignmentProof = (a) => ({
   sessionId: a.sessionId,
   activity: a.activity,
-  purpose: a.purpose,
+  title: a.title,
+  description: a.description,
   latestReport: a.latestReport,
   permission: { grantId: a.permission.grantId, workspaceId: a.permission.workspaceId },
   ...(a.continuityKey === undefined ? {} : { continuityKey: a.continuityKey }),
@@ -79,7 +80,7 @@ if (phase === 'prepare') {
     await rpc('create', {
       displayName: 'Recovery notice QA ' + stamp,
       persona:
-        'Follow the Human exactly. Create only the one requested Assignment, with continuity key active-crash-direction. Never approve tools, run Shell in the Orchestrator, create subagents or edit files. After creation channel_send ACTIVE_CREATED then end. On a Host recovery Lifecycle Notice, channel_send RECOVERY_NOTICE_SEEN exactly once and end. Never resume, retry or replace an Assignment.',
+        'Follow the Human exactly. Create only the one requested Assignment, with continuity key active-crash-direction. Never approve tools, run Shell in the Orchestrator, create subagents or edit files. After creation bot_send_message ACTIVE_CREATED then end. On a Host recovery Lifecycle Notice, bot_send_message RECOVERY_NOTICE_SEEN exactly once and end. Never resume, retry or replace an Assignment.',
     })
   ).bot;
   await rpc('modelPresetApply', { slug: bot.slug, presetId: preset.id });
@@ -98,7 +99,7 @@ if (phase === 'prepare') {
       grant.id +
       ' and continuity key active-crash-direction. Purpose: Active Assignment crash QA. It must FIRST invoke report_to_orchestrator exactly once with state progress, summary ' +
       JSON.stringify(marker) +
-      ', expects_reply false. Then invoke native Shell with only command sleep 1 and description Recovery notice QA timer, omitting sandbox_permissions and justification. Wait for Human approval. Do not report completed, stop, use files or perform any other tool. After creating it channel_send ACTIVE_CREATED and end without waiting.',
+      ', expects_reply false. Then invoke native Shell with only command sleep 1 and description Recovery notice QA timer, omitting sandbox_permissions and justification. Wait for Human approval. Do not report completed, stop, use files or perform any other tool. After creating it bot_send_message ACTIVE_CREATED and end without waiting.',
   });
   scene.sessionId = (
     await waitFor(

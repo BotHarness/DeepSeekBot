@@ -6,6 +6,7 @@ node_modules/
 dist/
 coverage/
 packages/client/lib/
+packages/vrm-companion/lib/
 packages/core/cli/
 apps/docs/public/slides/
 apps/docs/src/content/docs/docs/file-open.mdx
@@ -17,6 +18,7 @@ apps/docs/src/content/docs-zh/docs/lark-connection.mdx
 *.tsbuildinfo
 
 # env / secrets
+.secrets/
 .env
 .env.*
 !.env.example
@@ -74,6 +76,8 @@ apps/docs/src/content/docs/docs/update-deepseekbot.mdx
 apps/docs/src/content/docs-zh/docs/update-deepseekbot.mdx
 apps/docs/src/content/docs/docs/vps-qq-tutorial.mdx
 apps/docs/src/content/docs-zh/docs/vps-qq-tutorial.mdx
+apps/docs/src/content/docs/docs/mobile-pairing.mdx
+apps/docs/src/content/docs-zh/docs/mobile-pairing.mdx
 
 # Generated Channel sidebar guide chapter
 /apps/docs/src/content/docs/docs/channel-sidebar/
@@ -82,3 +86,6 @@ apps/docs/src/content/docs-zh/docs/vps-qq-tutorial.mdx
 # PR Lens writes its previews here. They are rebuilt on demand.
 .pr-lens/
 .agents/skills/eas-workflows/scripts/.cache/
+
+packages/deepseekbot/desktop-theme/
+apps/mobile/modules/**/android/build/

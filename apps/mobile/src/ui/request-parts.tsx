@@ -1,9 +1,12 @@
+import { ReadFailure } from './primitives/read-failure';
+import { space } from './design/tokens';
 import { Text } from './primitives/system-text';
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
-import { t } from './strings';
+import { useStrings } from './strings';
 import { useTheme } from './theme';
+import { LoadingIndicator } from './primitives/loading-indicator';
 
 export type NoticeTone = 'success' | 'warning' | 'danger';
 
@@ -68,7 +71,7 @@ export function ActionButton({
       })}
     >
       {busy ? (
-        <ActivityIndicator color={ink} />
+        <LoadingIndicator size="control" color={ink} />
       ) : (
         <Text style={{ color: ink, fontSize: 16, fontWeight: '600' }}>{label}</Text>
       )}
@@ -79,18 +82,16 @@ export function ActionButton({
 export function Loading() {
   return (
     <View style={{ padding: 32, alignItems: 'center' }}>
-      <ActivityIndicator />
+      <LoadingIndicator />
     </View>
   );
 }
 
 export function LoadFailed({ error, onRetry }: { error: string; onRetry: () => void }) {
+  const t = useStrings();
   return (
-    <View style={{ padding: 16, gap: 12 }}>
-      <Notice tone="danger">{`${t.loadFailed} ${error}`}</Notice>
-      <View style={{ flexDirection: 'row' }}>
-        <ActionButton label={t.tryAgain} tone="secondary" onPress={onRetry} />
-      </View>
+    <View style={{ padding: space.x5 }}>
+      <ReadFailure title={t.loadFailed} detail={error} onRetry={onRetry} />
     </View>
   );
 }

@@ -1,25 +1,9 @@
 import { relativeTime } from '@deepseek-ai/dsh-client-ui-primitives';
 
-export type BotState = 'thinking' | 'working' | 'waiting' | 'blocked' | 'idle';
-
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
 
 export function ungroupedLabel(t: BotHarnessTranslate = zhTranslate): string {
   return t('roster.ungrouped');
-}
-
-export function toBotState(value: string | undefined): BotState {
-  return value === 'thinking' ||
-    value === 'working' ||
-    value === 'waiting' ||
-    value === 'blocked' ||
-    value === 'idle'
-    ? value
-    : 'idle';
-}
-
-export function needsYou(state: BotState): boolean {
-  return state === 'waiting' || state === 'blocked';
 }
 
 export function formatRelativeTime(

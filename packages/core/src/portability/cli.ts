@@ -55,7 +55,7 @@ export async function runProfileRestoreCli(argv: readonly string[]): Promise<voi
             home: receipt.destinationHome,
             state: 'stopped',
             mode: receipt.mode,
-            next: 'Launch this DSH_HOME with trusted pinned DSH 0.2.0-rc.1 and BotHarness. Open Bot-mode Settings to authorize the target model and explicitly activate one Bot.',
+            next: 'Launch this DSH_HOME with a compatible trusted Tobs installation. Open Bot-mode Settings to review readiness, authorize the target model and explicitly activate one Bot.',
           },
           null,
           2,

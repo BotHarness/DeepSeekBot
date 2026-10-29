@@ -1,3 +1,5 @@
+import { parseMarketplaceLanguage, type MarketplaceLanguage } from './language.js';
+
 export const BOT_DESCRIPTOR_PATH = '.botharness/bot.json';
 export const MAX_DESCRIPTOR_BYTES = 16_384;
 export const MAX_DESCRIPTOR_NAME_LENGTH = 60;
@@ -13,6 +15,11 @@ export type BotDescriptorPrimaryColor =
   | { mode: 'automatic'; fallback?: string }
   | { mode: 'custom'; color: string; fallback?: string };
 
+export interface BotDescriptorLocalization {
+  name?: string;
+  bio?: string;
+}
+
 export interface BotDescriptor {
   name?: string;
   tags?: string[];
@@ -20,6 +27,7 @@ export interface BotDescriptor {
   avatar?: BotDescriptorAvatar;
   banner?: BotDescriptorBanner;
   primaryColor?: BotDescriptorPrimaryColor;
+  i18n?: Partial<Record<MarketplaceLanguage, BotDescriptorLocalization>>;
 }
 
 const IMAGE_PATH = /\.(png|jpe?g|webp)$/iu;
@@ -112,7 +120,45 @@ function parseBio(value: unknown): string | undefined | false {
   return [...bio].length > MAX_DESCRIPTOR_BIO_LENGTH ? false : bio;
 }
 
-export function parseBotDescriptor(text: string): BotDescriptor | undefined {
+function parseName(value: unknown): string | undefined | false {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || [...trimmed].length > MAX_DESCRIPTOR_NAME_LENGTH) return false;
+  return trimmed;
+}
+
+function parseI18n(
+  value: unknown,
+  strict: boolean,
+): Partial<Record<MarketplaceLanguage, BotDescriptorLocalization>> | undefined | false {
+  if (value === undefined) return undefined;
+  const source = record(value);
+  if (source === undefined) return false;
+  const i18n: Partial<Record<MarketplaceLanguage, BotDescriptorLocalization>> = {};
+  for (const [key, entry] of Object.entries(source)) {
+    const fields = record(entry);
+    if (fields === undefined) {
+      if (strict) return false;
+      continue;
+    }
+    const name = parseName(fields['name']);
+    const bio = parseBio(fields['bio']);
+    if (strict && (name === false || bio === false)) return false;
+    const language = parseMarketplaceLanguage(key);
+    if (language === undefined || i18n[language] !== undefined) continue;
+    const localization: BotDescriptorLocalization = {};
+    if (name !== undefined && name !== false) localization.name = name;
+    if (bio !== undefined && bio !== false && bio.length > 0) localization.bio = bio;
+    if (Object.keys(localization).length > 0) i18n[language] = localization;
+  }
+  return Object.keys(i18n).length === 0 ? undefined : i18n;
+}
+
+export function parseBotDescriptor(
+  text: string,
+  options: { strict?: boolean } = {},
+): BotDescriptor | undefined {
   if (new TextEncoder().encode(text).length > MAX_DESCRIPTOR_BYTES) return undefined;
   let parsed: unknown;
   try {
@@ -123,29 +169,27 @@ export function parseBotDescriptor(text: string): BotDescriptor | undefined {
   const source = record(parsed);
   if (source === undefined) return undefined;
   const descriptor: BotDescriptor = {};
-  const name = source['name'];
-  if (name !== undefined) {
-    if (typeof name !== 'string') return undefined;
-    const trimmed = name.trim();
-    if (trimmed.length === 0 || [...trimmed].length > MAX_DESCRIPTOR_NAME_LENGTH) return undefined;
-    descriptor.name = trimmed;
-  }
+  const name = parseName(source['name']);
+  if (name !== undefined && name !== false) descriptor.name = name;
   const tags = parseTags(source['tags']);
   const roles = parseTags(source['roles']);
-  if (tags === false || roles === false) return undefined;
-  const effective = tags ?? roles;
-  if (effective !== undefined && effective.length > 0) descriptor.tags = effective;
+  const effective = tags === false || tags === undefined ? roles : tags;
+  if (effective !== undefined && effective !== false && effective.length > 0)
+    descriptor.tags = effective;
   const bio = parseBio(source['bio']);
-  if (bio === false) return undefined;
-  if (bio !== undefined && bio.length > 0) descriptor.bio = bio;
+  if (bio !== undefined && bio !== false && bio.length > 0) descriptor.bio = bio;
   const avatar = parseAvatar(source['avatar']);
-  if (avatar === false) return undefined;
-  if (avatar !== undefined) descriptor.avatar = avatar;
+  if (avatar !== undefined && avatar !== false) descriptor.avatar = avatar;
   const banner = parseBanner(source['banner']);
-  if (banner === false) return undefined;
-  if (banner !== undefined) descriptor.banner = banner;
+  if (banner !== undefined && banner !== false) descriptor.banner = banner;
   const primaryColor = parsePrimaryColor(source['primaryColor']);
-  if (primaryColor === false) return undefined;
-  if (primaryColor !== undefined) descriptor.primaryColor = primaryColor;
+  if (primaryColor !== undefined && primaryColor !== false) descriptor.primaryColor = primaryColor;
+  const i18n = parseI18n(source['i18n'], options.strict === true);
+  if (i18n !== undefined && i18n !== false) descriptor.i18n = i18n;
+  if (
+    options.strict === true &&
+    [name, tags, roles, bio, avatar, banner, primaryColor, i18n].includes(false)
+  )
+    return undefined;
   return descriptor;
 }

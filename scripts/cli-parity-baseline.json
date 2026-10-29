@@ -1,5 +1,6 @@
 {
   "bridge": {
+    "telemetryEvent": "UI-only: anonymous usage event the Web Client asks the Host to send; nothing for a CLI user to drive",
     "channelAllBotPreview": "UI-only: Web composer preview of who an @all mention would wake",
     "channelReadPosition": "UI-only: Web unread divider position for one viewer",
     "composerIdentity": "UI-only: names the identity the Web composer shows; send already posts as the Host owner",
@@ -11,18 +12,13 @@
     "/api/computer/diagnostics/viewer": "UI-only: the Web Client's Computer viewer reports its own connection events here; an agent reads them with computer-diagnostics"
   },
   "tools": {
-    "ask_secret": "Opens a private input card that resumes the calling Bot turn; the ask-secret-* commands cover the Human side.",
     "ask_user_question": "DSH native question card that pauses the calling Agent turn; user-question-status and user-question-answer cover the Human side.",
-    "bot_subagent": "Starts a child DSH Agent from the calling Bot's running Agent; there is no parent Agent outside a Bot turn.",
-    "bot_subagent_fork": "Forks a child DSH Agent from the calling Bot's completed turns; there is no parent Agent outside a Bot turn.",
     "channel_read_image": "Returns the image to the calling model as input; with no model there is nothing to receive it. channel_read and channel_attachment_save cover the file.",
     "create_assignment": "Starts an Assignment owned by the Source Event of the calling Bot turn; reach it through send and inspect it with bot-trace.",
-    "list_bot_subagent_models": "Reads the delegation routes of the calling Agent's Subagent tools and is registered only on a running Agent.",
     "list_subagent_models": "Reads the delegation routes of the calling Agent's Subagent tools and is registered only on a running Agent.",
     "memory_continue_from_commit": "Coordinates the Memory working tree with the running Orchestrator turn; the Human Memory commands cover it (#1693).",
     "memory_switch_branch": "Coordinates the Memory working tree with the running Orchestrator turn; the Human Memory commands cover it (#1693).",
     "report_to_orchestrator": "Assignment-turn tool whose report identity is the running Assignment Turn.",
-    "request_workspace_grant": "The Human decision on its card resumes the requesting Orchestrator Session; grant-create grants the folder without the model.",
     "secret_mcp_disconnect": "Stops MCP servers attached to the calling Agent; bound to a running Agent.",
     "send_assignment_request": "Its report returns to the calling Orchestrator Session, which only exists during a Bot turn.",
     "subagent": "DSH native Subagent spawned from the calling Agent; there is no parent Agent outside a Bot turn.",

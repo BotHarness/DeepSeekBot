@@ -12,8 +12,3 @@ export function botStateTone(bot: RosterBot): ColorRole {
 export function botBusy(bot: RosterBot): boolean {
   return !bot.paused && (bot.state === 'thinking' || bot.state === 'working');
 }
-
-export function botDotTone(bot: RosterBot): ColorRole {
-  if (!bot.paused && bot.state === 'idle') return 'success';
-  return botStateTone(bot);
-}

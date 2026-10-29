@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconSearchOutlineRegular: () => null,
+  IconSettingsOutlineRegular: () => null,
   Input: (props: Record<string, unknown>) =>
     createElement('input', {
       role: props['role'],
@@ -177,13 +178,13 @@ describe('quick switcher dialog', () => {
     expect(html).toContain('data-avatar="Ada"');
     expect(html.indexOf('Launch Plan')).toBeLessThan(html.indexOf('Ada'));
     expect(html.match(/aria-selected="true"/g)).toHaveLength(1);
-    expect(html).toContain('Ctrl+K');
+    expect(html).toContain('Alt+K');
     expect(html).not.toContain('Old launch notes');
   });
 
   it('shows the platform shortcut and Chinese copy', () => {
     const html = render([], true, zhTranslate);
-    expect(html).toContain('⌘K');
+    expect(html).toContain('⌥K');
     expect(html).toContain('还没有会话');
   });
 });

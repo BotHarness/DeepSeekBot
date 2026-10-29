@@ -2,15 +2,16 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { View } from 'react-native';
 
 import { useHostSession } from '../src/host/host-session';
-import { forgetImage, hostLooks, pickLookImage, useHostLook } from '../src/host/native-host-look';
+import { hostLooks, useHostLook } from '../src/host/native-host-look';
 import { useDesignTheme } from '../src/ui/design/theme';
 import { space } from '../src/ui/design/tokens';
 import { Notice } from '../src/ui/request-parts';
 import { HostLookEditor } from '../src/ui/shell/host-look-editor';
-import { t } from '../src/ui/strings';
+import { useStrings } from '../src/ui/strings';
 import { SheetScreen } from '../src/ui/primitives/sheet-screen';
 
 export default function HostLookScreen() {
+  const t = useStrings();
   const router = useRouter();
   const params = useLocalSearchParams<{ hostId?: string }>();
   const theme = useDesignTheme();
@@ -30,18 +31,14 @@ export default function HostLookScreen() {
   return (
     <SheetScreen>
       <HostLookEditor
+        key={hostId}
         hostName={host.hostName}
         look={look}
         actions={{
-          onChange(next) {
-            const before = hostLooks.look(hostId);
-            hostLooks.set(hostId, next);
-            if (before.avatar.kind === 'image' && before.avatar !== next.avatar)
-              forgetImage(before.avatar.uri);
-            if (before.banner.kind === 'image' && before.banner !== next.banner)
-              forgetImage(before.banner.uri);
+          onSave: async (next) => {
+            await hostLooks.refresh();
+            await hostLooks.update(hostId, () => next);
           },
-          onPickImage: (slot) => pickLookImage(hostId, slot),
           onClose: () => router.back(),
         }}
       />

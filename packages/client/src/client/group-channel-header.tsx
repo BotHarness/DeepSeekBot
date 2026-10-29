@@ -1,6 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { IconChevronDownOutlineRegular, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconChevronDownOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 import {
   PersonaBotFacepile,
   personaBotPresentationSummary,
@@ -111,6 +112,7 @@ export function GroupChannelHeader({
   onOpenActivity,
   onToggleProfile,
   menu,
+  status,
 }: {
   channel: ChannelSummary;
   title: string;
@@ -120,6 +122,7 @@ export function GroupChannelHeader({
   onOpenActivity(): void;
   onToggleProfile(): void;
   menu?: ChannelMenuTrigger | undefined;
+  status?: ReactNode;
 }): ReactElement {
   return (
     <span className="bh-channel-island bh-group-channel-header">
@@ -177,6 +180,7 @@ export function GroupChannelHeader({
         <ConversationTitle>{title}</ConversationTitle>
         {menu === undefined ? null : <ChannelMenuCaret attention={menu.attention} />}
       </button>
+      {status}
     </span>
   );
 }

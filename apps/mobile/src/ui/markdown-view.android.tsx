@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { Linking, View, useWindowDimensions } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { EnrichedMarkdownText, type LinkPressEvent } from 'react-native-enriched-markdown';
@@ -13,7 +13,7 @@ import { useMarkdownViewport } from './markdown-viewport';
 import { createMarkdownWindow } from './markdown-window';
 
 const flags = { latexMath: false } as const;
-const openLink = ({ url }: LinkPressEvent) => void Linking.openURL(url).catch(() => undefined);
+const openLink = (url: string) => void Linking.openURL(url).catch(() => undefined);
 
 const MarkdownBlockView = memo(function MarkdownBlockView({
   block,
@@ -21,15 +21,18 @@ const MarkdownBlockView = memo(function MarkdownBlockView({
   selectable,
   trailing,
   streaming,
+  onOpenLink,
 }: {
   block: MarkdownBlock;
   color: string;
   selectable: boolean;
   trailing: boolean;
   streaming: boolean;
+  onOpenLink: (url: string) => void;
 }) {
   const theme = useDesignTheme();
   const style = useMemo(() => markdownStyle(theme, color), [theme, color]);
+  const linkPressed = useCallback(({ url }: LinkPressEvent) => onOpenLink(url), [onOpenLink]);
   const { markdown, tokens } = useMemo(
     () => markdownBlockContent(block, streaming),
     [block, streaming],
@@ -37,7 +40,13 @@ const MarkdownBlockView = memo(function MarkdownBlockView({
   if (textMarkdownSupported(tokens))
     return (
       <View style={{ marginBottom: trailing ? space.x3 : 0 }}>
-        <MarkdownText tokens={tokens} color={color} selectable={selectable} reveal={streaming} />
+        <MarkdownText
+          tokens={tokens}
+          color={color}
+          selectable={selectable}
+          reveal={streaming}
+          onOpenLink={onOpenLink}
+        />
       </View>
     );
   return (
@@ -49,7 +58,7 @@ const MarkdownBlockView = memo(function MarkdownBlockView({
       md4cFlags={flags}
       allowTrailingMargin={trailing}
       enableTaskListItemToggle={false}
-      onLinkPress={openLink}
+      onLinkPress={linkPressed}
     />
   );
 });
@@ -59,6 +68,7 @@ type MarkdownProps = {
   color?: string;
   selectable?: boolean;
   streaming?: boolean;
+  onOpenLink?: (url: string) => void;
 };
 
 export const MarkdownView = memo(function MarkdownView(props: MarkdownProps) {
@@ -71,6 +81,7 @@ const MarkdownDocument = memo(function MarkdownDocument({
   color,
   selectable = true,
   streaming = false,
+  onOpenLink = openLink,
 }: MarkdownProps) {
   const theme = useDesignTheme();
   const parse = useMemo(() => createMarkdownBlocks(), []);
@@ -90,6 +101,7 @@ const MarkdownDocument = memo(function MarkdownDocument({
             selectable={selectable}
             trailing={index < blocks.length - 1}
             streaming={streaming && index === blocks.length - 1}
+            onOpenLink={onOpenLink}
           />
         ))}
       </View>
@@ -128,6 +140,7 @@ const MarkdownDocument = memo(function MarkdownDocument({
               selectable={selectable}
               trailing={part.index < blocks.length - 1}
               streaming={streaming && part.index === blocks.length - 1}
+              onOpenLink={onOpenLink}
             />
           </View>
         ),

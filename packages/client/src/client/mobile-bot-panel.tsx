@@ -19,6 +19,7 @@ import { InboxIcon } from './inbox-icon.js';
 import { OnboardingLauncher } from './onboarding-checklist-view.js';
 import { BotIcon } from './bot-icon.js';
 import { hooked } from './ds/hooked.js';
+import type { QuickSwitcherSettings } from './quick-switcher.js';
 import { border, color, radius, space } from './ds/tokens.stylex.js';
 
 const TOUCH = '44px';
@@ -149,6 +150,7 @@ type MobileBotPanelProps = Parameters<typeof BotPanel>[0] & {
   useBotModePrefs: SnapshotSelectorHook<BotModePrefsSnapshot>;
   exitBotMode(): void;
   openBotSettings(): void;
+  quickSwitcherSettings?: QuickSwitcherSettings | undefined;
   setSortMode(mode: BotModeSortMode): void;
   setSectionSortMode(sectionId: string, mode: BotModeSortMode | undefined): void;
 };
@@ -256,6 +258,7 @@ function MobileNavigation(props: MobileBotPanelProps): ReactElement {
             companion={companion}
             useBotModePrefs={useBotModePrefs}
             channelSidebar={props.channelSidebar}
+            quickSwitcherSettings={props.quickSwitcherSettings}
             setSortMode={props.setSortMode}
             setSectionSortMode={props.setSectionSortMode}
             t={t}
@@ -266,7 +269,11 @@ function MobileNavigation(props: MobileBotPanelProps): ReactElement {
         <BotPanel {...props} onMobileBack={showList} />
       </div>
       {page === 'conversation' ? null : (
-        <nav {...hooked('bh-mobile-nav', styles.nav)} aria-label={t('mobile.navigation')}>
+        <nav
+          {...hooked('bh-mobile-nav', styles.nav)}
+          aria-label={t('mobile.navigation')}
+          data-companion-avoid
+        >
           <button
             type="button"
             {...stylex.props(

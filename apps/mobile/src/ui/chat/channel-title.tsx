@@ -1,36 +1,56 @@
-import { SourceName } from './source-name';
-import { Pressable } from 'react-native';
+import { HeaderTitleButton } from './header-title-button';
+import { ConnectionProgress } from '../primitives/connection-progress';
 
-import type { RosterChannel } from '../../host/client';
-import { frosted, useDesignTheme } from '../design/theme';
-import { edge, radius, space } from '../design/tokens';
+import type { RosterBot, RosterChannel } from '../../host/client';
+import { useDesignTheme } from '../design/theme';
+import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
+import { titleChipFill } from './header-chrome';
+import { barLabelStyle } from './native-header';
 import { GroupMark } from './group-mark';
+import { WorkingStatus, workingLabel } from './working-status';
 
 const MARK = 28;
 
 export function ChannelTitle({
   channel,
   fallback,
+  connectionLabel,
+  working = [],
   onPress,
 }: {
   channel: RosterChannel | undefined;
   fallback: string;
+  working?: readonly RosterBot[];
+  connectionLabel?: string | undefined;
   onPress(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const name = channel?.name ?? fallback;
   const members = channel === undefined ? undefined : t.members(channel.memberCount);
-  return (
-    <Pressable
+  const chip = (press: () => void) => (
+    <HeaderTitleButton
+      testID="channel-details-chip"
       accessibilityRole="button"
-      accessibilityLabel={members === undefined ? name : `${name}, ${members}`}
+      accessibilityLabel={[
+        name,
+        members,
+        connectionLabel,
+        working.length
+          ? `${working.map((bot) => bot.displayName).join(', ')}: ${workingLabel(working)}`
+          : undefined,
+      ]
+        .filter(Boolean)
+        .join(', ')}
+      accessibilityState={{ busy: connectionLabel !== undefined }}
       accessibilityHint={t.groupInfoHint}
       disabled={channel === undefined}
-      onPress={onPress}
+      onPress={press}
       style={({ pressed }) => ({
-        maxWidth: '100%',
+        flexShrink: 1,
+        width: '100%',
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x3,
@@ -38,18 +58,16 @@ export function ChannelTitle({
         paddingLeft: (theme.touch - MARK) / 2,
         paddingRight: theme.touch / 2,
         borderRadius: radius.round,
-        borderWidth: edge.hairline,
-        borderColor: theme.layer.raised.edge,
-        backgroundColor: pressed ? theme.layer.raised.pressed : frosted(theme.layer.raised.fill),
+        ...titleChipFill(theme, pressed),
       })}
     >
       <GroupMark avatar={channel?.avatar} size={MARK} corner={radius.round} />
-      <SourceName name={name} source="computer" />
-      {members === undefined ? null : (
-        <Text variant="meta" tone="muted" numberOfLines={1}>
-          {members}
-        </Text>
-      )}
-    </Pressable>
+      <Text strong numberOfLines={1} style={[{ flex: 1, minWidth: 0 }, barLabelStyle]}>
+        {name}
+      </Text>
+      <ConnectionProgress active={connectionLabel !== undefined} />
+      <WorkingStatus bots={working} />
+    </HeaderTitleButton>
   );
+  return chip(onPress);
 }

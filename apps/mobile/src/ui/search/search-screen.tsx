@@ -1,6 +1,6 @@
 import { Stack, router, useIsFocused, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Keyboard, Pressable, View } from 'react-native';
+import { FlatList, Keyboard, Pressable, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { retainedSearch, useRetainedSearch } from '../../host/native-retained-search';
 import { hostSession } from '../../host/host-session';
@@ -10,13 +10,15 @@ import { SearchField } from '../primitives/search-field';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { useFloatingTabInset } from '../shell/floating-tab-inset';
-import { t } from '../strings';
+import { useStrings } from '../strings';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 type Row =
   | { kind: 'heading'; label: string; key: string }
   | { kind: 'hit'; hit: SearchHit; key: string };
 
 export function SearchScreen() {
+  const t = useStrings();
   const snapshot = useRetainedSearch();
   const theme = useDesignTheme();
   const bottom = useFloatingTabInset();
@@ -172,7 +174,7 @@ export function SearchScreen() {
           onContentSizeChange={restore}
           ListEmptyComponent={
             snapshot.status === 'loading' ? (
-              <ActivityIndicator />
+              <LoadingIndicator />
             ) : (
               <Text tone="muted">{snapshot.query ? t.localSearch.empty : t.localSearch.start}</Text>
             )
@@ -184,6 +186,7 @@ export function SearchScreen() {
               </Text>
             ) : (
               <Pressable
+                testID={`search-result-${item.hit.key}`}
                 accessibilityRole="button"
                 onPress={() => void open(item.hit)}
                 style={({ pressed }) => ({

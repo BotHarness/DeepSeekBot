@@ -1,6 +1,11 @@
 import { useSourceDraft } from '../../host/native-source-drafts';
 import { cloudDraftKey } from '../../host/source-drafts';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import {
+  router,
+  useFocusEffect,
+  useLocalSearchParams,
+  useNavigationContainerRef,
+} from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { FlatList, View, type ScrollViewProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,9 +23,10 @@ import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { Text } from '../primitives/text';
-import { TextInput } from '../primitives/system-text';
-import { t } from '../strings';
+import { TextField } from '../primitives/text-field';
+import { useStrings } from '../strings';
 import { CloudChannelName } from './channel-name';
+import { ensureCloudChannelParent, navigateCloudChannel } from '../shell/cloud-channel-navigation';
 
 function ChannelFormScroll({
   actionLines = 2,
@@ -45,7 +51,9 @@ function renderGuestChannelFormScroll(props: ScrollViewProps) {
 }
 
 export function CloudChannelsScreen() {
+  const t = useStrings();
   const snapshot = useCloudSnapshot();
+  const navigation = useNavigationContainerRef();
   const { instanceId, organizationId, guest, channelId, accountScope } = useLocalSearchParams<{
     accountScope?: string;
     instanceId: string;
@@ -53,24 +61,38 @@ export function CloudChannelsScreen() {
     guest?: string;
     channelId?: string;
   }>();
-  if (
-    accountScope &&
-    accountScope !== cloudViewScope(snapshot.rows.find((r) => r.config.instanceId === instanceId))
-  )
-    return <Text>{t.cloudSourceChanged}</Text>;
+  const currentScope = cloudViewScope(
+    snapshot.rows.find((r) => r.config.instanceId === instanceId),
+  );
+  useFocusEffect(
+    useCallback(() => {
+      if (!snapshot.ready || (accountScope && accountScope !== currentScope)) return;
+      ensureCloudChannelParent(navigation, {
+        instanceId,
+        organizationId: organizationId ?? '',
+        guest: guest === 'true',
+        accountScope: accountScope ?? currentScope,
+        ...(channelId ? { channelId } : {}),
+      });
+    }, [
+      navigation,
+      snapshot.ready,
+      instanceId,
+      organizationId,
+      guest,
+      channelId,
+      accountScope,
+      currentScope,
+    ]),
+  );
+  if (accountScope && accountScope !== currentScope) return <Text>{t.cloudSourceChanged}</Text>;
   return (
     <ChannelWorkspace
-      key={JSON.stringify([
-        instanceId,
-        organizationId,
-        guest,
-        channelId,
-        cloudViewScope(snapshot.rows.find((row) => row.config.instanceId === instanceId)),
-      ])}
+      key={JSON.stringify([instanceId, organizationId, guest === 'true', channelId, currentScope])}
       instanceId={instanceId}
       organizationId={organizationId ?? ''}
       guest={guest === 'true'}
-      initialChannelId={channelId}
+      channelId={channelId}
     />
   );
 }
@@ -78,13 +100,15 @@ function ChannelWorkspace({
   instanceId,
   organizationId,
   guest,
-  initialChannelId,
+  channelId,
 }: {
   instanceId: string;
   organizationId: string;
   guest: boolean;
-  initialChannelId?: string | undefined;
+  channelId?: string | undefined;
 }) {
+  const t = useStrings();
+  const navigation = useNavigationContainerRef();
   const snapshot = useCloudSnapshot(),
     theme = useDesignTheme(),
     insets = useSafeAreaInsets();
@@ -92,40 +116,31 @@ function ChannelWorkspace({
   const allowed = !!row?.hasSession && !!row.sessionUserId;
   const [channels, setChannels] = useState<CloudChannel[]>();
   const [channelCursor, setChannelCursor] = useState<string | null>(null);
-  const [selected, setSelected] = useState<CloudChannel>();
+  const [channel, setChannel] = useState<CloudChannel>();
   const [messages, setMessages] = useState<CloudMessage[]>();
   const [cursor, setCursor] = useState(0),
     [more, setMore] = useState(false);
   const [name, setName] = useState('');
   const [draft, setDraft] = useSourceDraft(
-    cloudDraftKey(
-      cloudViewScope(row),
-      organizationId,
-      selected?.channelId ?? initialChannelId ?? '',
-    ),
+    cloudDraftKey(cloudViewScope(row), organizationId, channelId ?? ''),
   );
   const [working, setWorking] = useState(false),
     [error, setError] = useState<string>(),
     [notice, setNotice] = useState<string>();
   const busy = working || snapshot.busy;
-  const cacheScope = cloudDraftKey(cloudViewScope(row), organizationId, initialChannelId ?? '');
+  const cacheScope = cloudDraftKey(cloudViewScope(row), organizationId, channelId ?? '');
   const loadedHistory = useRef(false);
-  const attemptedChannelId = useRef(initialChannelId);
+  const attemptedChannelId = useRef(channelId);
   const messageWindow = useRef<CloudMessage[]>([]);
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      if (initialChannelId && allowed)
+      if (channelId && allowed)
         void readCloudMessages(cacheScope).then((cached) => {
-          if (
-            !active ||
-            loadedHistory.current ||
-            !cached ||
-            cached.channel.channelId !== initialChannelId
-          )
+          if (!active || loadedHistory.current || !cached || cached.channel.channelId !== channelId)
             return;
           messageWindow.current = cached.messages;
-          setSelected(cached.channel);
+          setChannel(cached.channel);
           setMessages(cached.messages);
           setCursor(cached.messages.at(-1)?.sequence ?? 0);
           setMore(cached.hasMore);
@@ -133,29 +148,32 @@ function ChannelWorkspace({
       return () => {
         active = false;
       };
-    }, [cacheScope, initialChannelId, allowed]),
+    }, [cacheScope, channelId, allowed]),
   );
   const opened = useRef(false);
+  useFocusEffect(
+    useCallback(
+      () => () => {
+        opened.current = false;
+      },
+      [],
+    ),
+  );
   useFocusEffect(
     useCallback(() => {
       if (!snapshot.ready || snapshot.busy || opened.current) return;
       opened.current = true;
       void run(async () => {
-        if (!initialChannelId) {
+        if (!channelId) {
           if (!row?.identity) await cloudClient.whoami(instanceId);
           await reload();
           return;
         }
-        const channel = await cloudClient.openChannel(
-          instanceId,
-          organizationId,
-          initialChannelId,
-          guest,
-        );
+        const channel = await cloudClient.openChannel(instanceId, organizationId, channelId, guest);
         await history(channel);
-        setSelected(channel);
+        setChannel(channel);
       });
-    }, [initialChannelId, instanceId, organizationId, guest, snapshot.ready, snapshot.busy]),
+    }, [channelId, instanceId, organizationId, guest, snapshot.ready, snapshot.busy]),
   );
   const pending = row?.pendingChannelAction;
   const pendingHere = (
@@ -168,7 +186,7 @@ function ChannelWorkspace({
   const pendingCreate = pendingHere?.kind === 'channel.create' ? pendingHere : undefined;
   const pendingSend =
     pendingHere?.kind === (guest ? 'guest.send' : 'message.send') &&
-    pendingHere.channelId === selected?.channelId
+    pendingHere.channelId === channel?.channelId
       ? pendingHere
       : undefined;
   const box = {
@@ -190,7 +208,7 @@ function ChannelWorkspace({
         messageWindow.current = [];
         setChannels(undefined);
         setChannelCursor(null);
-        setSelected(undefined);
+        setChannel(undefined);
         setMessages(undefined);
         setCursor(0);
         setMore(false);
@@ -254,7 +272,7 @@ function ChannelWorkspace({
         paddingBottom: insets.bottom + space.x6,
         gap: space.x5,
       }}
-      data={allowed ? (selected ? (messages ?? []) : (channels ?? [])) : []}
+      data={allowed ? (channelId ? (messages ?? []) : (channels ?? [])) : []}
       keyExtractor={(item) => ('sequence' in item ? 'message-' + item.sequence : item.channelId)}
       ListHeaderComponent={
         <View style={{ gap: space.x4 }}>
@@ -269,7 +287,16 @@ function ChannelWorkspace({
             </Text>
           )}
           {!!notice && <Text accessibilityLiveRegion="polite">{notice}</Text>}
-          {!!initialChannelId && !selected && (
+          {!!channelId && (
+            <Button
+              label={t.back}
+              testID="cloud-channel-back"
+              onPress={() =>
+                navigation.dispatch({ type: 'GO_BACK', target: navigation.getRootState().key })
+              }
+            />
+          )}
+          {!!channelId && !channel && (
             <Button
               label={t.cloudChannels.open}
               disabled={busy}
@@ -278,20 +305,20 @@ function ChannelWorkspace({
                   const channel = await cloudClient.openChannel(
                     instanceId,
                     organizationId,
-                    initialChannelId,
+                    channelId,
                     guest,
                   );
                   await history(channel);
-                  setSelected(channel);
+                  setChannel(channel);
                 })
               }
             />
           )}
           {!allowed ? (
             <Text>{t.cloudChannels.selectWorkspace}</Text>
-          ) : selected ? (
+          ) : channel ? (
             <>
-              <CloudChannelName name={selected.name} />
+              <CloudChannelName name={channel.name} />
               {guest && <Text>{t.cloudGuests.hint}</Text>}
               {!guest && (
                 <Button
@@ -303,8 +330,8 @@ function ChannelWorkspace({
                       params: {
                         instanceId,
                         organizationId,
-                        channelId: selected.channelId,
-                        channelName: selected.name,
+                        channelId: channel.channelId,
+                        channelName: channel.name,
                       },
                     })
                   }
@@ -320,33 +347,22 @@ function ChannelWorkspace({
                       params: {
                         instanceId,
                         organizationId,
-                        channelId: selected.channelId,
-                        channelName: selected.name,
+                        channelId: channel.channelId,
+                        channelName: channel.name,
                       },
                     })
                   }
                 />
               )}
               <Button
-                label={t.cloudChannels.back}
-                disabled={busy}
-                onPress={() => {
-                  setSelected(undefined);
-                  setMessages(undefined);
-                  setNotice(undefined);
-                }}
-              />
-              <Button
                 label={t.cloudChannels.reloadMessages}
                 disabled={busy}
-                onPress={() => void run(() => history(selected))}
+                onPress={() => void run(() => history(channel))}
               />
               <View style={box}>
-                <TextInput
+                <TextField
                   accessibilityLabel={t.cloudChannels.message}
                   placeholder={t.cloudChannels.message}
-                  placeholderTextColor={theme.color.subtle}
-                  style={{ color: theme.color.fg }}
                   multiline
                   maxLength={4000}
                   value={pendingSend?.value ?? draft}
@@ -361,28 +377,26 @@ function ChannelWorkspace({
                     void run(async () => {
                       const result = await cloudClient.sendMessage(
                         instanceId,
-                        guest ? selected.organizationId! : organizationId,
-                        selected.channelId,
+                        guest ? channel.organizationId! : organizationId,
+                        channel.channelId,
                         pendingSend?.value ?? draft,
                         guest,
                       );
                       setDraft('');
                       setNotice(t.cloudChannels.committed + ' ' + result.sequence);
-                      await history(selected);
+                      await history(channel);
                     })
                   }
                 />
               </View>
             </>
-          ) : (
+          ) : !channelId ? (
             <>
               {!guest && row.organization?.role === 'owner' && (
                 <View style={box}>
-                  <TextInput
+                  <TextField
                     accessibilityLabel={t.cloudChannels.name}
                     placeholder={t.cloudChannels.name}
-                    placeholderTextColor={theme.color.subtle}
-                    style={{ color: theme.color.fg }}
                     value={pendingCreate?.value ?? name}
                     maxLength={80}
                     editable={!busy && !pendingCreate}
@@ -412,7 +426,7 @@ function ChannelWorkspace({
                 onPress={() => void run(() => reload())}
               />
             </>
-          )}
+          ) : null}
           {!!pending && !pendingHere && <Text>{t.cloudChannels.pendingElsewhere}</Text>}
           {busy && <Text accessibilityRole="progressbar">{t.cloud.working}</Text>}
         </View>
@@ -435,10 +449,12 @@ function ChannelWorkspace({
               label={t.cloudChannels.open + ': ' + item.name}
               disabled={busy}
               onPress={() =>
-                void run(async () => {
-                  setSelected(item);
-                  setMessages(undefined);
-                  await history(item);
+                navigateCloudChannel(navigation, {
+                  instanceId,
+                  organizationId,
+                  guest,
+                  accountScope: cloudViewScope(row),
+                  channelId: item.channelId,
                 })
               }
             />
@@ -446,9 +462,9 @@ function ChannelWorkspace({
         )
       }
       ListEmptyComponent={
-        allowed && !busy && (selected ? messages : channels) ? (
+        allowed && !busy && (channelId ? messages : channels) ? (
           <Text>
-            {selected
+            {channelId
               ? t.cloudChannels.noMessages
               : guest
                 ? t.cloudGuests.empty
@@ -457,12 +473,12 @@ function ChannelWorkspace({
         ) : undefined
       }
       ListFooterComponent={
-        allowed && (selected ? more : channelCursor) ? (
+        allowed && (channelId ? channel && more : channelCursor) ? (
           <Button
             label={t.cloudOrganizations.more}
             disabled={busy}
             onPress={() =>
-              void run(() => (selected ? history(selected, cursor) : reload(channelCursor!)))
+              void run(() => (channel ? history(channel, cursor) : reload(channelCursor!)))
             }
           />
         ) : undefined

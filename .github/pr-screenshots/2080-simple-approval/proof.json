@@ -1,0 +1,100 @@
+{
+  "sourceCommit": "953a77d09b255637e3e016e5e36ece6efcf93fb2",
+  "sourceDirty": false,
+  "mainCommit": "64315272e5247993e2c5569513703d24c2032b49",
+  "nativeVersion": "0.2.1-rc.2",
+  "platform": "Windows",
+  "model": "opencode-go/deepseek-v4.1-flash",
+  "status": "pass-feature-cases",
+  "actions": ["Allow once", "Always allow", "Reject"],
+  "console": [],
+  "qualification": {
+    "continuousJourney": "Reached all ordinary cases; timed out waiting for model to issue the management call",
+    "isolatedManagementCase": "Fresh Bot on same clean build: real native call, Web disabled-middle card, Human rejection, native denied, zero Grants",
+    "priorContinuousPassSource": "a84f9dd12ac9b890d8a748ca77db3502b4ecdffc"
+  },
+  "changedInputWithoutCard": true,
+  "otherToolStillAsks": true,
+  "revocationAndCliOnce": true,
+  "fullAccessOrdinaryWithoutCard": true,
+  "fullAccessHumanOnlyCard": true,
+  "rule": {
+    "kind": "tool",
+    "toolName": "pwsh",
+    "revokedAfterTest": true
+  },
+  "nativeCalls": [
+    {
+      "name": "pwsh",
+      "callId": "call_00_gwzsewtt8szsyeb1eridj4fu",
+      "args": {
+        "description": "Verify the approval action choices",
+        "command": "Write-Output 'APPROVAL_SIMPLE_ONE'",
+        "sandbox_permissions": "danger-full-access",
+        "justification": "May I run this harmless marker to verify the approval buttons?"
+      },
+      "outcome": "ok",
+      "result": "APPROVAL_SIMPLE_ONE\r\n",
+      "approval": "allowed-once"
+    },
+    {
+      "name": "pwsh",
+      "callId": "call_00_supk9fun0akc44i8qw7vz7x1",
+      "args": {
+        "command": "Write-Output 'APPROVAL_SIMPLE_TWO'",
+        "description": "Verify the approval action choices",
+        "justification": "May I run this harmless marker to verify the approval buttons?",
+        "sandbox_permissions": "danger-full-access"
+      },
+      "outcome": "ok",
+      "result": "APPROVAL_SIMPLE_TWO\r\n",
+      "approval": "allowed-once"
+    },
+    {
+      "name": "bot_create",
+      "callId": "call_00_j6wk0wx10zkwdv3fyefb0bdn",
+      "args": {
+        "display_name": "2080 Pending Creation",
+        "description": "Synthetic QA creation, reject this request"
+      },
+      "outcome": "denied",
+      "result": "Error: Human approval was rejected",
+      "approval": "rejected"
+    },
+    {
+      "name": "pwsh",
+      "callId": "call_00_l4mpnku531us8xiy4r10yqs7",
+      "args": {
+        "command": "Write-Output 'APPROVAL_SIMPLE_REVOKED'",
+        "description": "Verify the approval action choices",
+        "justification": "May I run this harmless marker to verify the approval buttons?",
+        "sandbox_permissions": "danger-full-access"
+      },
+      "outcome": "ok",
+      "result": "APPROVAL_SIMPLE_REVOKED\r\n",
+      "approval": "allowed-once"
+    },
+    {
+      "name": "pwsh",
+      "callId": "call_00_mf7bi86kqpeqt8kgl4kxl9zl",
+      "args": {
+        "command": "Write-Output 'APPROVAL_SIMPLE_FULL'",
+        "description": "Verify the approval action choices"
+      },
+      "outcome": "ok",
+      "result": "APPROVAL_SIMPLE_FULL\r\n"
+    },
+    {
+      "name": "pwsh",
+      "callId": "call_00_eeefw5ilu3swe857mxn1hko4",
+      "args": {
+        "command": "deepseekbot grant-write-set synthetic-unavailable --grant synthetic-unavailable --enabled",
+        "description": "Exercise the permission-management approval card"
+      },
+      "outcome": "denied",
+      "result": "Error: Human approval was rejected",
+      "approval": "rejected"
+    }
+  ],
+  "observedModeTransitionRefusal": "The early continuous drive changed Full Access while the Bot was finishing Inbox work; an old-mode inbox_resolve was refused. The runner now waits for a settled turn before changing mode."
+}

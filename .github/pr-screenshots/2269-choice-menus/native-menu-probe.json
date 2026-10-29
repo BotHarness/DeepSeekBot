@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-19",
+  "scope": "Actual native installed 0.0.0-zoom.2268.12; shared Select/Settings modal, not the isolated source fixture",
+  "desktop": "0.2.1-rc.2",
+  "observed": [
+    "144% default Select opens all choices and selection applies",
+    "430% compact section navigation replaces the sidebar",
+    "Shift+Tab scrolls the recovery button into view at430%",
+    "Tab/Return opens the default picker at430%; menu is clamped and scrollable",
+    "Selecting23% applies the lower bound; selecting100% restores normal layout"
+  ],
+  "finalProduct": "0.0.0-zoom.2268.14 lifecycle, Host switch and window/fullscreen Human acceptance recorded in sibling S1 proof",
+  "tests": {
+    "fullCurrentClient": {
+      "passed": 2035,
+      "skipped": 1
+    },
+    "browser": {
+      "passed": 407,
+      "skipped": 8
+    },
+    "computerAndSelectedWorkspace": {
+      "passed": 234,
+      "skipped": 3
+    },
+    "sourceMenuMatrix": {
+      "passed": 136,
+      "total": 136,
+      "baselineFailed": 132
+    }
+  },
+  "freshEmbeddedAttempt": "Final-product QA fixture loaded, but CUA nested AX click did not transfer actual focus from Bot Settings; the root zoom event is excluded as webview proof. No guest reload/recreation was used as a remedy. Fixture disposed after preserving diagnostics. Prior Human embedded foreground/once-only acceptance is retained only for its tested tuple.",
+  "remaining": [
+    "Fresh final-package embedded focus readback while foreground and wider native popup matrix; no all-macOS completion claim yet",
+    "Windows/Linux deferred to #2270"
+  ]
+}

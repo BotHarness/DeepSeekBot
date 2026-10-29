@@ -1,6 +1,6 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, FlatList, Keyboard, View } from 'react-native';
+import { FlatList, Keyboard, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 
 import { applyModelPreset, errorText, sameModel, type ModelRoute } from '../../host/bot-settings';
@@ -19,17 +19,16 @@ import {
   type ModelScope,
   type ModelSettingsState,
 } from '../../host/model-settings';
-import { useDesignTheme } from '../design/theme';
-import { radius, space } from '../design/tokens';
+import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { renderKeyboardFormScroll } from '../primitives/keyboard-form';
 import { SearchField } from '../primitives/search-field';
 import { SettingsGroupItem, SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { SheetPage } from '../primitives/sheet-page';
-import { TextInput } from '../primitives/system-text';
-import { CheckIcon } from '../shell/icons';
-import { t } from '../strings';
+import { TextField } from '../primitives/text-field';
+import { useStrings, t } from '../strings';
 import { SHEET_GROUP, SheetCallout, SheetFailed, SheetLoading, SheetNote } from './sheet';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 function useModels(client: HostClient, scope: ModelScope) {
   const key = modelScopeKey(scope);
@@ -122,8 +121,8 @@ function ModelsView({
   scope: ModelScope;
   picker?: ModelField | undefined;
 }) {
+  const t = useStrings();
   const router = useRouter();
-  const theme = useDesignTheme();
   const models = useModels(client, scope);
   const [query, setQuery] = useState('');
   const [name, setName] = useState<string>();
@@ -210,10 +209,8 @@ function ModelsView({
                 on={SHEET_GROUP}
                 title={item.name}
                 selected={(current?.reasoningEffort ?? '') === item.id}
-                trailing={
-                  (current?.reasoningEffort ?? '') === item.id ? (
-                    <CheckIcon color={theme.color.fg} size={theme.type.title.line} />
-                  ) : undefined
+                control={
+                  (current?.reasoningEffort ?? '') === item.id ? { kind: 'check' } : undefined
                 }
                 onPress={
                   models.busy || current === undefined
@@ -241,7 +238,7 @@ function ModelsView({
           onChangeText={setQuery}
         />
         {banner}
-        {models.busy ? <ActivityIndicator /> : null}
+        {models.busy ? <LoadingIndicator /> : null}
         <FlatList
           style={{ flex: 1 }}
           data={entries}
@@ -277,11 +274,7 @@ function ModelsView({
                   }
                   tone={usable ? 'fg' : 'muted'}
                   selected={selected}
-                  trailing={
-                    selected ? (
-                      <CheckIcon color={theme.color.fg} size={theme.type.title.line} />
-                    ) : undefined
-                  }
+                  control={selected ? { kind: 'check' } : undefined}
                   onPress={
                     models.busy || (!usable && !(picker === 'allowed' && selected)) || required
                       ? undefined
@@ -323,7 +316,7 @@ function ModelsView({
             : t.modelSettings.botHint}
       </SheetNote>
       {banner}
-      {models.busy ? <ActivityIndicator /> : null}
+      {models.busy ? <LoadingIndicator /> : null}
       <View style={{ paddingHorizontal: space.x5 }}>
         <SettingsSection
           title={scope.kind === 'global' ? t.modelSettings.global : t.modelSettings.title}
@@ -389,7 +382,7 @@ function ModelsView({
         </SettingsSection>
       </View>
       <View style={{ paddingHorizontal: space.x5, gap: space.x3 }}>
-        <TextInput
+        <TextField
           value={name ?? value.preset?.name ?? ''}
           onChangeText={(next) => {
             setName(next);
@@ -397,15 +390,6 @@ function ModelsView({
           }}
           accessibilityLabel={t.modelSettings.name}
           placeholder={t.modelSettings.name}
-          placeholderTextColor={theme.color.subtle}
-          style={{
-            color: theme.color.fg,
-            backgroundColor: theme.layer.raised.fill,
-            minHeight: theme.touch,
-            paddingHorizontal: space.x4,
-            borderRadius: radius.md,
-            fontSize: theme.type.body.size,
-          }}
         />
         <Button
           label={showPreset ? t.modelSettings.rename : t.modelSettings.create}
@@ -477,6 +461,7 @@ export function ModelSettingsScreen({
   kind: ModelScope['kind'];
   pick?: boolean;
 }) {
+  const t = useStrings();
   const {
     slug = '',
     id = '',

@@ -6,6 +6,9 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: (props: { children?: ReactNode; disabled?: boolean; onClick?: () => void }) =>
     createElement('button', { disabled: props.disabled, onClick: props.onClick }, props.children),
+  Tooltip: (props: { children?: ReactNode }) => props.children,
+  IconCloseOutlineRegular: () => null,
+  IconDownloadOutlineRegular: () => null,
   Tag: (props: { tone?: string; children?: ReactNode }) =>
     createElement('span', { 'data-tone': props.tone }, props.children),
   MarkdownText: (props: { text: string }) =>
@@ -401,11 +404,11 @@ describe('release notes views', () => {
     const view = await render(createElement(ReleaseNotesAnnouncement, { controller, t }));
     try {
       const dialog = view.host.querySelector('[role="dialog"]');
-      expect(dialog?.querySelector('h1')?.textContent).toBe('DeepSeekBot 1.0.1 更新内容');
+      expect(dialog?.querySelector('h1')?.textContent).toBe('Tobs 1.0.1 更新内容');
       expect(dialog?.textContent).toContain('摘要 1.0.1');
       expect(dialog?.querySelector('summary')?.textContent).toBe('v1.0.12026-10-06当前版本12 项');
       expect(dialog?.querySelector('p')?.textContent).toBe(
-        '欢迎使用 DeepSeekBot，这是当前版本带来的内容。',
+        '欢迎使用 Tobs，这是当前版本带来的内容。',
       );
       expect(dialog?.querySelector('details')?.hasAttribute('open')).toBe(true);
       const chips = dialog?.querySelectorAll('[data-release-section="Added"] [data-tone]');
@@ -417,7 +420,7 @@ describe('release notes views', () => {
         .find((button) => button.textContent === '去官网查看')
         ?.click();
       expect(open).toHaveBeenCalledWith(
-        'https://deepseekbot.botharness.ai/changelog/',
+        'https://tobs.app/changelog/',
         '_blank',
         'noopener,noreferrer',
       );
@@ -463,7 +466,7 @@ describe('release notes views', () => {
         notes?.click();
       });
       const dialog = view.host.querySelector('[role="dialog"]');
-      expect(dialog?.querySelector('h1')?.textContent).toBe('DeepSeekBot 1.1.0 更新内容');
+      expect(dialog?.querySelector('h1')?.textContent).toBe('Tobs 1.1.0 更新内容');
       expect(dialog?.textContent).toContain('新增 1.1.0 #0');
       expect(dialog?.querySelector('summary')?.textContent).toContain('最新');
       const versions = dialog?.querySelectorAll('details');
@@ -662,6 +665,95 @@ it('serializes installed notes before the pending restart modal', async () => {
     await act(async () => controller.dismiss());
     expect(view.host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
     expect(view.host.textContent).toContain('1.4.0');
+  } finally {
+    view.unmount();
+  }
+});
+
+it('reloads once the Plugin Manager applies the update in place', async () => {
+  let hostVersion = '1.0.1';
+  const call = vi.fn<BridgeCall>(async (endpoint) => {
+    if (endpoint === 'releaseInfo')
+      return {
+        ok: true,
+        value: {
+          version: hostVersion,
+          identity: { kind: 'release', version: hostVersion },
+          releases: [],
+        },
+      };
+    if (endpoint === 'releaseInstall') {
+      hostVersion = '1.1.0';
+      return {
+        ok: true,
+        value: {
+          status: 'installed',
+          current: '1.0.1',
+          installed: '1.1.0',
+          restartable: false,
+          applied: true,
+        },
+      };
+    }
+    throw new Error(`unexpected ${endpoint}`);
+  });
+  const reload = vi.fn();
+  const controller = new ReleaseNotesController(call, memoryStorage(), {
+    wait: async () => {},
+    reload,
+  });
+  await controller.start();
+  await controller.install('1.1.0');
+  expect(reload).toHaveBeenCalledTimes(1);
+  expect(controller.source.getSnapshot().update.status).not.toBe('restart-required');
+});
+
+it('keeps the upgrade notice short and says in one line why an install failed', async () => {
+  const backend = bridge(
+    '1.0.1',
+    () => [],
+    {
+      status: 'available',
+      current: '1.0.1',
+      latest: '1.1.0',
+      releases: [],
+      installable: true,
+      compatibility: { status: 'compatible', dshVersion: '0.2.1' },
+    },
+    {
+      status: 'failed',
+      reason: 'failed',
+      diagnostic: 'Progress: resolved 3\nERR_PNPM_LOCKED profile is locked',
+    },
+  );
+  const controller = new ReleaseNotesController(
+    async (endpoint, payload) => {
+      const result = await backend(endpoint, payload);
+      return endpoint === 'releaseInfo' && result.ok
+        ? { ok: true, value: { ...(result.value as object), profileId: 'profile-a' } }
+        : result;
+    },
+    memoryStorage({ [RELEASE_NOTES_SEEN_KEY]: '1.0.1' }),
+  );
+  await controller.enter();
+  const view = await render(createElement(ReleaseNotesAnnouncement, { controller, t }));
+  try {
+    const dialog = () => document.body.querySelector('[role="dialog"]');
+    expect(dialog()?.textContent).toContain('Tobs 1.1.0 可升级');
+    expect(dialog()?.textContent).not.toContain('兼容当前 DSH');
+    expect(dialog()?.textContent).not.toContain('直接在这里安装');
+    const icon = dialog()?.querySelector<HTMLButtonElement>('[data-release-notice-install]');
+    expect(icon?.getAttribute('aria-label')).toBe('立即更新');
+    await act(async () => {
+      icon?.click();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(dialog()?.querySelector('[role="alert"]')?.textContent).toBe(
+      '更新失败：ERR_PNPM_LOCKED profile is locked',
+    );
+    expect(dialog()?.querySelector('code')?.textContent).toBe(releaseUpdateCommand('1.1.0'));
   } finally {
     view.unmount();
   }

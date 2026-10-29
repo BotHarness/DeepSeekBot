@@ -1,7 +1,7 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Keyboard, Linking, View } from 'react-native';
+import { FlatList, Keyboard, Linking, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cloudError, configurationChanges, parseCloudQr } from '../../cloud/client';
 import { connectionKey, type InstanceConfig } from '../../cloud/instance-contract';
@@ -11,8 +11,10 @@ import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { ConnectionNameField } from '../primitives/connection-name-field';
 import { Text } from '../primitives/text';
-import { TextInput } from '../primitives/system-text';
-import { t } from '../strings';
+import { TextField } from '../primitives/text-field';
+import { useStrings, t } from '../strings';
+import { confirmDestructive } from '../primitives/app-dialog';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 function errorMessage(code: string) {
   if (code === 'INSTANCE_CONFIG_CHANGED') return t.cloud.changed;
@@ -26,6 +28,7 @@ function errorMessage(code: string) {
   return `${t.cloud.error} ${code}`;
 }
 export function CloudServicesScreen() {
+  const t = useStrings();
   const snapshot = useCloudSnapshot();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
@@ -41,11 +44,17 @@ export function CloudServicesScreen() {
   const scanned = useRef(false);
   const [pasting, setPasting] = useState(false);
   const [configurationText, setConfigurationText] = useState('');
-  const [candidate, setCandidate] = useState<{ raw: string; config: InstanceConfig }>();
+  const [candidate, setCandidate] = useState<{
+    raw: string;
+    config: InstanceConfig;
+  }>();
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [connectionName, setConnectionName] = useState('');
-  const [editingName, setEditingName] = useState<{ id: string; value: string }>();
+  const [editingName, setEditingName] = useState<{
+    id: string;
+    value: string;
+  }>();
   const old =
     candidate && snapshot.rows.find((row) => row.config.instanceId === candidate.config.instanceId);
   const replacement =
@@ -105,7 +114,7 @@ export function CloudServicesScreen() {
           {!snapshot.ready && <Text>{snapshot.error ? t.cloud.blocked : t.cloud.loading}</Text>}
           {snapshot.busy && (
             <View accessibilityRole="progressbar" accessibilityLabel={t.cloud.working}>
-              <ActivityIndicator />
+              <LoadingIndicator />
               <Text>{t.cloud.working}</Text>
             </View>
           )}
@@ -137,25 +146,16 @@ export function CloudServicesScreen() {
           {pasting && (
             <View style={box}>
               <Text>{t.cloud.pasteHint}</Text>
-              <TextInput
+              <TextField
                 value={configurationText}
                 onChangeText={setConfigurationText}
                 accessibilityLabel={t.cloud.configurationText}
                 placeholder={t.cloud.configurationText}
-                placeholderTextColor={theme.color.subtle}
                 autoCapitalize="none"
                 autoCorrect={false}
                 multiline
                 maxLength={4097}
                 editable={!snapshot.busy}
-                style={{
-                  minHeight: theme.touch,
-                  padding: space.x4,
-                  borderRadius: radius.md,
-                  backgroundColor: theme.color.base,
-                  color: theme.color.fg,
-                  fontSize: theme.type.body.size,
-                }}
               />
               <Button
                 label={t.cloud.reviewConfig}
@@ -333,12 +333,19 @@ export function CloudServicesScreen() {
               />
               <Button
                 label={t.cloud.logout}
+                tone="danger"
                 disabled={snapshot.busy}
                 onPress={() =>
-                  void run(async () => {
-                    const result = await cloudClient.logout(item.config.instanceId);
-                    setNotice(result.remoteRevoked ? t.cloud.loggedOut : t.cloud.localOnly);
-                  })
+                  confirmDestructive(
+                    t.confirmAction(t.cloud.logout),
+                    t.cloud.logoutDetail,
+                    t.cloud.logout,
+                    () =>
+                      run(async () => {
+                        const result = await cloudClient.logout(item.config.instanceId);
+                        setNotice(result.remoteRevoked ? t.cloud.loggedOut : t.cloud.localOnly);
+                      }),
+                  )
                 }
               />
             </>

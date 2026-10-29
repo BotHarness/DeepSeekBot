@@ -260,12 +260,12 @@ async function main() {
     const botSend = (args) =>
       call(hostOrigin, 'botToolRun', {
         slug: bot.slug,
-        tool: 'channel_send',
+        tool: 'bot_send_message',
         args: { channel_id: channel.id, ...args },
       });
     for (let index = 1; index <= 30; index += 1)
       await botSend({ body: `History line ${index}: the build log entry for step ${index}.` });
-    steps.push('the Bot posted 30 messages in its DM through its own channel_send');
+    steps.push('the Bot posted 30 messages in its DM through its own bot_send_message');
 
     await page.locator(`::-p-text(${displayName})`).click();
     await page.waitForSelector(`[placeholder="Message ${displayName}"]`, { timeout: 30_000 });

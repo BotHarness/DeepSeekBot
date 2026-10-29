@@ -1,0 +1,29 @@
+{
+  "source": "12bd9a597497af96a85101b441c10d168296d3a5",
+  "action": "Native UI scroll and click Reset from +8",
+  "snapshot": {
+    "document": {
+      "version": 1,
+      "revision": "fe99178a-c128-43c3-a337-b28b435c968f",
+      "defaultLevel": 0,
+      "primaryLevel": 0
+    },
+    "appliedLevel": 0,
+    "visibility": "visible",
+    "error": null
+  },
+  "smallReset": {
+    "action": "Native UI click Reset from -8",
+    "snapshot": {
+      "document": {
+        "version": 1,
+        "revision": "da2c77ed-8801-49db-b1aa-02915f5299d1",
+        "defaultLevel": 0,
+        "primaryLevel": 0
+      },
+      "appliedLevel": 0,
+      "visibility": "visible",
+      "error": null
+    }
+  }
+}

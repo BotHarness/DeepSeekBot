@@ -13,6 +13,7 @@ import { companionRequests } from '../src/client/companion-requests.js';
 import { BotModePrefs } from '../src/client/bot-mode-prefs.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  IconRefreshOutlineRegular: () => null,
   Button: ({ children, variant: _variant, ...props }: { children: ReactNode; variant?: string }) =>
     createElement('button', props, children),
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),

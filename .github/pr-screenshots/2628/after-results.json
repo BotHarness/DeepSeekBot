@@ -1,0 +1,146 @@
+[
+  {
+    "label": "candidate-0-light-default",
+    "height": 42,
+    "minimum": 40,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "candidate-0-light-intermediate",
+    "height": 63.333335876464844,
+    "minimum": 51,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "candidate-0-light-maximum",
+    "height": 94.66666412353516,
+    "minimum": 71,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "candidate-0-dark-default",
+    "height": 42,
+    "minimum": 40,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "candidate-0-dark-intermediate",
+    "height": 63.333335876464844,
+    "minimum": 51,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "candidate-0-dark-maximum",
+    "height": 94.66666412353516,
+    "minimum": 71,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "candidate-1-light-default",
+    "height": 42,
+    "minimum": 40,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "candidate-1-light-intermediate",
+    "height": 63.333335876464844,
+    "minimum": 51,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "candidate-1-light-maximum",
+    "height": 94.66666412353516,
+    "minimum": 71,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "candidate-1-dark-default",
+    "height": 42,
+    "minimum": 40,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "candidate-1-dark-intermediate",
+    "height": 63.333335876464844,
+    "minimum": 51,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "candidate-1-dark-maximum",
+    "height": 94.66666412353516,
+    "minimum": 71,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "candidate-2-light-default",
+    "height": 42,
+    "minimum": 40,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "candidate-2-light-intermediate",
+    "height": 63.333335876464844,
+    "minimum": 51,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "candidate-2-light-maximum",
+    "height": 94.66666412353516,
+    "minimum": 71,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "candidate-2-dark-default",
+    "height": 42,
+    "minimum": 40,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "candidate-2-dark-intermediate",
+    "height": 63.333335876464844,
+    "minimum": 51,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "candidate-2-dark-maximum",
+    "height": 94.66666412353516,
+    "minimum": 71,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  }
+]

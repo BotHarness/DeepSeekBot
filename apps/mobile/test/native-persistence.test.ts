@@ -176,9 +176,10 @@ describe('native persistence across SDK upgrades', () => {
     cache.write('a', { entries: [], hasOlder: true });
     const saved = new Map(disk.files);
     disk.fail = true;
-    expect(() =>
-      first.hostLooks.set('a', { ...first.hostLooks.look('a'), name: 'Unsaved' }),
-    ).not.toThrow();
+    await expect(
+      first.hostLooks.update('a', (look) => ({ ...look, name: 'Unsaved' })),
+    ).rejects.toThrow('host-look-storage-failed');
+    expect(first.hostLooks.look('a').name).toBe('Saved');
     expect(() => first.sectionCollapse.toggle('a', 'work')).not.toThrow();
     expect(() => first.dmActivityPreferences.setHidden('a', 'ada', 'posts', false)).not.toThrow();
     expect(() => cache.write('a', { entries: [], hasOlder: false })).not.toThrow();
@@ -189,6 +190,10 @@ describe('native persistence across SDK upgrades', () => {
     expect(restarted.hostLooks.look('a').name).toBe('Saved');
     expect([...restarted.sectionCollapse.collapsed('a')]).toEqual(['work']);
     expect(restarted.dmActivityPreferences.hidden('a', 'ada')).toEqual(['posts']);
+    await first.hostLooks.refresh();
+    await first.hostLooks.update('a', (look) => ({ ...look, name: 'Retried' }));
+    expect(first.hostLooks.look('a').name).toBe('Retried');
+    expect(snapshot('documents/deepseekbot-host-looks.json').a.name).toBe('Retried');
   });
 });
 
@@ -221,4 +226,49 @@ it('invalidates all adapters and late reads for one target without invalidating 
   expect(await retainedCache.list(source)).toHaveLength(1);
   off();
   offOther();
+});
+
+it('blocks native Host look writes after a failed read and recovers explicitly without changing the setter contract', async () => {
+  const path = 'documents/deepseekbot-host-looks.json';
+  disk.files.set(path, '{invalid');
+  const { hostLooks } = await import('../src/host/native-host-look');
+  await expect(hostLooks.ready).resolves.toBeUndefined();
+  expect(hostLooks.error()).toBe('host-look-storage-read-failed');
+  expect(() => hostLooks.set('b', { ...hostLooks.look('b'), name: 'Unsafe' })).not.toThrow();
+  expect(disk.files.get(path)).toBe('{invalid');
+  await expect(hostLooks.read('b')).rejects.toThrow('host-look-storage-read-failed');
+  disk.files.set(path, JSON.stringify({ a: { name: 'Preserved' } }));
+  await hostLooks.refresh();
+  expect(hostLooks.set('b', { ...hostLooks.look('b'), name: 'Recovered' })).toBeUndefined();
+  expect(snapshot(path).a.name).toBe('Preserved');
+  expect(snapshot(path).b.name).toBe('Recovered');
+  const known = hostLooks.look('b');
+  disk.files.set(path, '{broken again');
+  await expect(hostLooks.refresh()).rejects.toThrow('host-look-storage-read-failed');
+  expect(hostLooks.look('b')).toBe(known);
+  hostLooks.set('b', { ...known, name: 'Unsafe again' });
+  expect(disk.files.get(path)).toBe('{broken again');
+});
+
+it('prunes a disbanded group from identity-qualified caches and invalidates every adapter without touching another target or Host', async () => {
+  const { retainedCache, pruneHostConversationCache } = await import('../src/host/native-cache');
+  const source = { hostId: 'computer-a', deviceId: 'phone' };
+  const target = { kind: 'channel' as const, id: 'gone', name: 'Gone group' };
+  const cache = retainedCache.conversation(source, () => target);
+  const retained = retainedCache.conversation(source, () => target);
+  const invalidated = vi.fn();
+  const off = retained.onInvalidated!(invalidated);
+  cache.write('', { entries: [], hasOlder: false });
+  const other = { ...target, id: 'kept' };
+  retainedCache.conversation(source, () => other).write('', { entries: [], hasOlder: true });
+  const secondHost = { ...source, hostId: 'computer-b' };
+  retainedCache.conversation(secondHost, () => target).write('', { entries: [], hasOlder: true });
+  pruneHostConversationCache(source.hostId, (key) => key === 'channel:gone');
+  expect(invalidated).toHaveBeenCalledOnce();
+  expect(await retainedCache.read(source, target)).toBeUndefined();
+  cache.write('', { entries: [], hasOlder: true });
+  expect(await retainedCache.read(source, target)).toBeUndefined();
+  expect((await retainedCache.list(source)).map((record) => record.target.id)).toEqual(['kept']);
+  expect(await retainedCache.list(secondHost)).toHaveLength(1);
+  off();
 });

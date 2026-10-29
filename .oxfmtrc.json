@@ -14,10 +14,13 @@
     "agent",
     "apps/docs",
     "apps/presentations/CLAUDE.md",
+    "apps/mobile/modules/local-computer-video/android/src/main/assets/local-computer-video",
     "reference",
     ".scratch",
     "packages/computer/lib",
     "packages/browser/lib",
+    "packages/vrm-companion/assets",
+    "packages/vrm-companion/lib",
     "scripts/source-policy-baseline.json"
   ]
 }

@@ -182,6 +182,24 @@ describe('Tob native Shell scoped CLI leases', () => {
     expect(f.capture).toHaveBeenCalledTimes(1);
     expect(f.specs).toEqual([spec, spec, spec]);
   });
+  it('lets a Tob CLI call wait for its approval card instead of the default deadline', async () => {
+    const f = fixture();
+    const resolve = vi.spyOn(f.shell, 'resolve');
+    await f.run(execution(), async () => {
+      f.wrapped.resolve({ command: 'cat x | deepseekbot create --name A' });
+      f.wrapped.resolve({ command: 'deepseekbot list', timeoutMs: 900_000 });
+      f.wrapped.resolve({ command: 'echo deepseekbot-notes', timeoutMs: 1000 });
+    });
+    expect(resolve.mock.calls.map(([request]) => request.timeoutMs)).toEqual([
+      600_000, 900_000, 1000,
+    ]);
+    const ordinary = fixture(false);
+    const ordinaryResolve = vi.spyOn(ordinary.shell, 'resolve');
+    await ordinary.run(execution(), async () => {
+      ordinary.wrapped.resolve({ command: 'deepseekbot create --name A' });
+    });
+    expect(ordinaryResolve.mock.calls[0]![0].timeoutMs).toBeUndefined();
+  });
   it('injects a temporary CLI shim with actual invocation context and closes before result delivery', async () => {
     const f = fixture();
     const call = execution();

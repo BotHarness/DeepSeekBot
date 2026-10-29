@@ -1,10 +1,7 @@
+import { Menu } from './appearance-primitives.js';
 import { useState, type ReactElement } from 'react';
-import {
-  Button,
-  IconRightUpOutlineRegular,
-  Menu,
-  Tooltip,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, IconRightUpOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 import { PersonaBotAvatar } from './avatar.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { BotSummary, ChannelSummary, HumanAttentionItem } from './store.js';
@@ -16,12 +13,17 @@ export function HumanInboxSourceButton({
   channels,
   t,
   onClick,
+  localIdentity = true,
 }: {
   item: HumanAttentionItem;
-  bots: readonly BotSummary[];
-  channels: readonly ChannelSummary[];
+  bots: readonly Pick<
+    BotSummary,
+    'slug' | 'displayName' | 'avatar' | 'appearance' | 'avatarSeed'
+  >[];
+  channels: readonly Pick<ChannelSummary, 'id' | 'type' | 'name' | 'avatar'>[];
   t: BotHarnessTranslate;
   onClick: () => void;
+  localIdentity?: boolean;
 }): ReactElement {
   const channel = channels.find((value) => value.id === item.channelId);
   const bot = bots.find((value) => value.slug === item.botSlug);
@@ -51,6 +53,7 @@ export function HumanInboxSourceButton({
           </span>
         ) : (
           <PersonaBotAvatar
+            preview={!localIdentity}
             personaBotId={item.botSlug}
             name={name}
             src={bot?.avatar}

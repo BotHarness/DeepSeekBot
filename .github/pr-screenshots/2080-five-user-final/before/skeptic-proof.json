@@ -1,0 +1,35 @@
+{
+  "instance": "ax2080-skeptic",
+  "calls": [
+    {
+      "name": "pwsh",
+      "outcome": "ok",
+      "result": "SKEPTIC_ONCE_2080\r\n",
+      "approval": "allowed-once"
+    },
+    {
+      "name": "pwsh",
+      "outcome": "ok",
+      "result": "SKEPTIC_FULL_2080\r\n",
+      "approval": null
+    },
+    {
+      "name": "pwsh",
+      "outcome": "denied",
+      "result": "Error: Human approval was rejected",
+      "approval": "rejected"
+    }
+  ],
+  "requestCount": 2,
+  "decisions": [
+    {
+      "requestMessageId": "1fe93073-9508-4701-9eab-413355292660",
+      "outcome": "rejected"
+    },
+    {
+      "requestMessageId": "9655dbe4-3470-41a9-ab7a-0b090f0168d0",
+      "outcome": "allowed-once"
+    }
+  ],
+  "rules": []
+}

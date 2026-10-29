@@ -1,0 +1,16 @@
+{
+  "independentClientUnchanged": true,
+  "modeClearScope": true,
+  "confirmationCancel": true,
+  "preferenceFailurePreserves": true,
+  "partialMediaFailureAndRetry": true,
+  "imageReset": true,
+  "videoAndPreviewCleanup": true,
+  "uncommittedPreviewCleanup": true,
+  "cliConfirmationAndTarget": true,
+  "layoutUnchanged": true,
+  "botsUnchanged": true,
+  "dshUnchanged": true,
+  "reloadAndReentry": true,
+  "errors": []
+}

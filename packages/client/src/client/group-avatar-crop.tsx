@@ -9,11 +9,13 @@ const OUTPUT_SIZE = 128;
 
 export function GroupAvatarCropModal({
   file,
+  title,
   t,
   onClose,
   onSave,
 }: {
   file: File;
+  title?: string;
   t: BotHarnessTranslate;
   onClose: () => void;
   onSave: (avatar: string) => Promise<boolean>;
@@ -92,7 +94,7 @@ export function GroupAvatarCropModal({
   };
   return (
     <FormDialog
-      title={t('group.avatarCrop.title')}
+      title={title ?? t('group.avatarCrop.title')}
       description={t('group.avatarCrop.description')}
       labels={{ close: t('common.close'), cancel: t('common.cancel') }}
       submitLabel={t('group.avatarCrop.save')}

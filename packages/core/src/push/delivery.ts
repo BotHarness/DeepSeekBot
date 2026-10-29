@@ -19,6 +19,7 @@ const RECEIPT_DELAY_MS = 15 * 60 * 1000;
 const MAX_PENDING_RECEIPTS = 1_000;
 const BATCH = 100;
 const TOKEN = /^Expo(?:nent)?PushToken\[[A-Za-z0-9_-]{8,128}\]$/u;
+const MAX_QUIET_CHANNELS = 500;
 
 export interface PushCandidate {
   id: string;
@@ -46,7 +47,15 @@ export interface PushData {
   botSlug?: string;
   channelId?: string;
   messageId?: string;
+  sender?: string;
+  group?: string;
+  text?: string;
+  title?: string;
+  message?: string;
+  categoryId?: string;
+  badge?: number;
   test?: true;
+  deviceId?: string;
 }
 
 export interface ExpoMessage {
@@ -54,11 +63,12 @@ export interface ExpoMessage {
   title?: string;
   body?: string;
   sound?: 'default';
-  badge: number;
+  badge?: number;
   data: PushData;
   priority?: 'high';
   channelId?: string;
   categoryId?: string;
+  mutableContent?: true;
 }
 
 export type ExpoTicket =
@@ -88,7 +98,7 @@ export type PushEvent =
   | {
       phase: 'sent';
       deviceId: string;
-      kind: PushKind | 'badge' | 'test';
+      kind: PushKind | 'badge' | 'test' | 'device-paired';
       outcome: 'ok' | 'error';
       code?: string;
     }
@@ -101,18 +111,24 @@ export type TestResult = 'sent' | 'not-registered' | 'failed';
 
 export interface PushSettings {
   registered: boolean;
+  enabled: boolean;
   preferences: PushPreferences;
+  quietChannelIds: string[];
 }
+
+export type QuietResult = PushSettings | { registered: false } | { invalid: true };
 
 export interface PushDelivery {
   register(
     deviceId: string,
-    input: { token: unknown; platform: unknown; locale?: unknown },
+    input: { token: unknown; platform: unknown; locale?: unknown; render?: unknown },
   ): RegisterResult;
   unregister(deviceId: string): boolean;
   settings(deviceId: string): PushSettings;
-  setPreferences(deviceId: string, input: unknown): PushSettings;
+  setPreferences(deviceId: string, input: unknown, enabled?: unknown): PushSettings;
+  setQuiet(deviceId: string, input: { channelId: unknown; quiet: unknown }): QuietResult;
   test(deviceId: string): Promise<TestResult>;
+  announcePaired(device: { id: string; name: string }): Promise<void>;
   reconcile(): Promise<void>;
   checkReceipts(): Promise<void>;
 }
@@ -136,13 +152,40 @@ interface DeviceRow {
   registered_at: string;
   locale: string | null;
   badge: number | null;
+  render: string | null;
+}
+
+function stored(json: string | undefined): Record<string, unknown> {
+  try {
+    const value: unknown = JSON.parse(json ?? '{}');
+    return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function enabledOf(json: string | undefined): boolean {
+  return stored(json)['enabled'] !== false;
+}
+
+function quietOf(json: string | undefined): string[] {
+  const value = stored(json)['quiet'];
+  return Array.isArray(value)
+    ? value.filter((id): id is string => typeof id === 'string' && id !== '')
+    : [];
+}
+
+function settingsOf(current: DeviceRow | undefined): PushSettings {
+  return {
+    registered: current !== undefined,
+    enabled: enabledOf(current?.preferences_json),
+    preferences: preferencesOf(current?.preferences_json),
+    quietChannelIds: quietOf(current?.preferences_json),
+  };
 }
 
 function preferencesOf(json: string | undefined): PushPreferences {
-  let value: Record<string, unknown> = {};
-  try {
-    value = JSON.parse(json ?? '{}') as Record<string, unknown>;
-  } catch {}
+  const value = stored(json);
   return Object.fromEntries(
     PUSH_KINDS.map((kind) => [
       kind,
@@ -198,6 +241,22 @@ const TEST: Record<PushLocale, { title: string; body: (host: string) => string }
   zh: { title: '通知已开启', body: (host) => `来自 ${host}。` },
 };
 
+export const DEVICE_PAIRED_CATEGORY = 'device-paired';
+
+const PAIRED: Record<
+  PushLocale,
+  { title: string; body: (device: string, host: string) => string }
+> = {
+  en: {
+    title: 'New device paired',
+    body: (device, host) => `${device} can now use ${host}. Not you? Remove it.`,
+  },
+  zh: {
+    title: '有新设备配对',
+    body: (device, host) => `${device} 现在可以使用 ${host}。不是你？请移除它。`,
+  },
+};
+
 function localeOf(value: unknown): PushLocale {
   return value === 'zh' ? 'zh' : 'en';
 }
@@ -206,18 +265,20 @@ function text(
   candidate: PushCandidate,
   bot: string,
   locale: PushLocale,
-): { title: string; body: string } {
+): { title: string; body: string; message: string } {
   const key = candidate.attentionKind === 'channel-mention' ? 'channel-mention' : candidate.kind;
-  const lead = LEADS[locale][key](candidate.channelName === undefined ? undefined : bot);
-  const body =
+  const compose = (lead: string): string =>
     candidate.preview === undefined
       ? lead
       : lead === ''
         ? candidate.preview
         : `${lead}${SEPARATOR[locale]}${candidate.preview}`;
+  const body = compose(LEADS[locale][key](candidate.channelName === undefined ? undefined : bot));
+  const message = compose(LEADS[locale][key](undefined));
   return {
     title: candidate.channelName === undefined ? bot : `#${candidate.channelName}`,
     body: body === '' ? TITLES[locale][key](bot) : body,
+    message: message === '' ? TITLES[locale][key](bot) : message,
   };
 }
 
@@ -240,16 +301,54 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
           | undefined,
     );
 
+  const preferenceCopy = (deviceId: string): string | undefined =>
+    database.read(
+      (db) =>
+        (
+          db
+            .prepare(
+              'SELECT preferences_json FROM device_notification_preferences WHERE device_id = ?',
+            )
+            .get(deviceId) as { preferences_json: string } | undefined
+        )?.preferences_json,
+    );
+
+  const settings = (deviceId: string): PushSettings => {
+    const current = row(deviceId);
+    const copy = preferenceCopy(deviceId);
+    return {
+      ...settingsOf(current),
+      preferences: preferencesOf(copy ?? current?.preferences_json),
+    };
+  };
+
   const drop = (deviceId: string): boolean =>
     database.transaction(
       (db) => {
         db.prepare('DELETE FROM push_sent WHERE device_id = ?').run(deviceId);
+        db.prepare('DELETE FROM device_notification_preferences WHERE device_id = ?').run(deviceId);
         return Number(
           db.prepare('DELETE FROM push_devices WHERE device_id = ?').run(deviceId).changes,
         );
       },
       ['push'],
     ) > 0;
+
+  const save = (current: DeviceRow, patch: Record<string, unknown>): PushSettings => {
+    const next = { ...stored(current.preferences_json), ...patch };
+    database.transaction(
+      (db) =>
+        db
+          .prepare('UPDATE push_devices SET preferences_json = ? WHERE device_id = ?')
+          .run(JSON.stringify(next), current.device_id),
+      ['push'],
+    );
+    record({ phase: 'preferences', deviceId: current.device_id });
+    return {
+      ...settingsOf({ ...current, preferences_json: JSON.stringify(next) }),
+      preferences: preferencesOf(preferenceCopy(current.device_id) ?? JSON.stringify(next)),
+    };
+  };
 
   const dropToken = (deviceId: string, code: 'device-revoked' | 'device-not-registered'): void => {
     if (drop(deviceId)) record({ phase: 'token-dropped', deviceId, code });
@@ -258,7 +357,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
   const deliver = async (
     device: DeviceRow,
     messages: ExpoMessage[],
-    kinds: Array<PushKind | 'badge' | 'test'>,
+    kinds: Array<PushKind | 'badge' | 'test' | 'device-paired'>,
   ): Promise<boolean> => {
     for (let start = 0; start < messages.length; start += BATCH) {
       const batch = messages.slice(start, start + BATCH);
@@ -311,7 +410,11 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         dropToken(device.device_id, 'device-revoked');
         continue;
       }
-      const preferences = preferencesOf(device.preferences_json);
+      const preferences = preferencesOf(
+        preferenceCopy(device.device_id) ?? device.preferences_json,
+      );
+      const enabled = enabledOf(device.preferences_json);
+      const quiet = new Set(quietOf(device.preferences_json));
       const registeredAt = Date.parse(device.registered_at);
       const seen = new Set(
         database.read((db) =>
@@ -337,16 +440,17 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         },
         ['push'],
       );
-      const notify = fresh.filter((item) => preferences[item.kind]);
-      const messages: ExpoMessage[] = notify.map((item) => ({
-        to: device.token,
-        ...text(item, source.botName(item.botSlug) ?? item.botSlug, localeOf(device.locale)),
-        sound: 'default',
-        badge,
-        priority: 'high',
-        channelId: 'requests',
-        ...(item.categoryId === undefined ? {} : { categoryId: item.categoryId }),
-        data: {
+      if (!enabled) continue;
+      const notify = fresh.filter(
+        (item) =>
+          preferences[item.kind] &&
+          !(item.kind === 'reply' && item.channelId !== undefined && quiet.has(item.channelId)),
+      );
+      const messages: ExpoMessage[] = notify.map((item) => {
+        const sender = source.botName(item.botSlug) ?? item.botSlug;
+        const { message, ...shown } = text(item, sender, localeOf(device.locale));
+        const drawn = device.platform === 'android' && device.render === 'app';
+        const data: PushData = {
           v: 1,
           hostId,
           itemId: item.id,
@@ -354,8 +458,34 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
           botSlug: item.botSlug,
           ...(item.channelId === undefined ? {} : { channelId: item.channelId }),
           ...(item.messageId === undefined ? {} : { messageId: item.messageId }),
-        },
-      }));
+          sender,
+          ...(item.channelName === undefined ? {} : { group: item.channelName }),
+          text: message,
+        };
+        if (drawn)
+          return {
+            to: device.token,
+            priority: 'high',
+            data: {
+              ...data,
+              title: shown.title,
+              message: shown.body,
+              badge,
+              ...(item.categoryId === undefined ? {} : { categoryId: item.categoryId }),
+            },
+          };
+        return {
+          to: device.token,
+          ...shown,
+          sound: 'default',
+          badge,
+          priority: 'high',
+          channelId: 'requests',
+          ...(item.categoryId === undefined ? {} : { categoryId: item.categoryId }),
+          mutableContent: true,
+          data,
+        };
+      });
       const kinds: Array<PushKind | 'badge'> = notify.map((item) => item.kind);
       if (messages.length === 0 && device.badge !== badge) {
         messages.push({ to: device.token, badge, data: { v: 1, hostId } });
@@ -382,6 +512,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         return { ok: false, code: 'push-token-invalid' };
       const { token, platform } = input;
       const locale = localeOf(input.locale);
+      const render = input.render === 'app' ? 'app' : null;
       database.transaction(
         (db) => {
           for (const other of db
@@ -391,11 +522,20 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
             db.prepare('DELETE FROM push_devices WHERE device_id = ?').run(other.device_id);
           }
           db.prepare(
-            `INSERT INTO push_devices (device_id, token, platform, locale, preferences_json, registered_at)
-           VALUES (?, ?, ?, ?, ?, ?)
+            `INSERT INTO push_devices (device_id, token, platform, locale, preferences_json, registered_at, render)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (device_id) DO UPDATE SET
-             token = excluded.token, platform = excluded.platform, locale = excluded.locale`,
-          ).run(deviceId, token, platform, locale, JSON.stringify(DEFAULT_PUSH_PREFERENCES), iso());
+             token = excluded.token, platform = excluded.platform, locale = excluded.locale,
+             render = excluded.render`,
+          ).run(
+            deviceId,
+            token,
+            platform,
+            locale,
+            JSON.stringify(DEFAULT_PUSH_PREFERENCES),
+            iso(),
+            render,
+          );
         },
         ['push'],
       );
@@ -410,18 +550,12 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
     },
 
     settings(deviceId) {
-      const current = row(deviceId);
-      return {
-        registered: current !== undefined,
-        preferences: preferencesOf(current?.preferences_json),
-      };
+      return settings(deviceId);
     },
 
-    setPreferences(deviceId, input) {
+    setPreferences(deviceId, input, enabled) {
       const current = row(deviceId);
-      if (current === undefined)
-        return { registered: false, preferences: preferencesOf(undefined) };
-      const next = preferencesOf(current.preferences_json);
+      const next = settings(deviceId).preferences;
       const patch = typeof input === 'object' && input !== null ? input : {};
       for (const kind of PUSH_KINDS) {
         const value = (patch as Record<string, unknown>)[kind];
@@ -430,12 +564,30 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
       database.transaction(
         (db) =>
           db
-            .prepare('UPDATE push_devices SET preferences_json = ? WHERE device_id = ?')
-            .run(JSON.stringify(next), deviceId),
+            .prepare(
+              'INSERT INTO device_notification_preferences (device_id, preferences_json) VALUES (?, ?) ON CONFLICT (device_id) DO UPDATE SET preferences_json = excluded.preferences_json',
+            )
+            .run(deviceId, JSON.stringify(next)),
         ['push'],
       );
-      record({ phase: 'preferences', deviceId });
-      return { registered: true, preferences: next };
+      if (current !== undefined && typeof enabled === 'boolean') save(current, { enabled });
+      else record({ phase: 'preferences', deviceId });
+      return settings(deviceId);
+    },
+
+    setQuiet(deviceId, input) {
+      if (
+        typeof input.channelId !== 'string' ||
+        input.channelId.trim() === '' ||
+        typeof input.quiet !== 'boolean'
+      )
+        return { invalid: true };
+      const current = row(deviceId);
+      if (current === undefined) return { registered: false };
+      const channelId = input.channelId.trim();
+      const quiet = quietOf(current.preferences_json).filter((id) => id !== channelId);
+      if (input.quiet) quiet.push(channelId);
+      return save(current, { quiet: quiet.slice(-MAX_QUIET_CHANNELS) });
     },
 
     async test(deviceId) {
@@ -460,6 +612,40 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         ['test'],
       );
       return ok ? 'sent' : 'failed';
+    },
+
+    async announcePaired(device) {
+      const host = options.host();
+      const badge = source.pending().badge;
+      const devices = database.read(
+        (db) => db.prepare('SELECT * FROM push_devices').all() as unknown as DeviceRow[],
+      );
+      for (const current of devices) {
+        if (
+          current.device_id === device.id ||
+          !enabledOf(current.preferences_json) ||
+          !options.deviceActive(current.device_id)
+        )
+          continue;
+        const text = PAIRED[localeOf(current.locale)];
+        await deliver(
+          current,
+          [
+            {
+              to: current.token,
+              title: text.title,
+              body: text.body(device.name, host.name),
+              sound: 'default',
+              badge,
+              priority: 'high',
+              channelId: 'requests',
+              categoryId: DEVICE_PAIRED_CATEGORY,
+              data: { v: 1, hostId: host.id, kind: DEVICE_PAIRED_CATEGORY, deviceId: device.id },
+            },
+          ],
+          ['device-paired'],
+        );
+      }
     },
 
     reconcile() {

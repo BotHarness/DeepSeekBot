@@ -5,7 +5,10 @@ import type {
   RosterView,
   TopOrderEntry,
 } from '../../host/client';
+import { approvalSummaryTool } from '../../host/requests';
+import { DEFAULT_ROSTER_SORTING } from '../../host/roster-sorting';
 import type { HumanAttentionItem } from '../../host/wire';
+import { t } from '../strings';
 
 interface Attention {
   needsYou: number;
@@ -14,12 +17,79 @@ interface Attention {
 }
 
 export type Conversation =
-  | ({ kind: 'bot'; key: string; bot: RosterBot; at?: string } & Attention)
-  | ({ kind: 'channel'; key: string; channel: RosterChannel; at?: string } & Attention);
+  | ({ kind: 'bot'; key: string; bot: RosterBot; at?: string; createdAt?: string } & Attention)
+  | ({
+      kind: 'channel';
+      key: string;
+      channel: RosterChannel;
+      at?: string;
+      createdAt?: string;
+    } & Attention);
 
 export type UnreadCounts = Readonly<Record<string, number>>;
 
 export type CountBadgeState = { tone: 'needs-you' | 'unread' | 'muted'; count: number } | undefined;
+
+export type RowStatus =
+  | 'needs-you'
+  | 'blocked'
+  | 'working'
+  | 'paused'
+  | 'done-unread'
+  | 'done'
+  | 'none';
+
+export const DONE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+export function rowStatus(row: Conversation, now: Date): RowStatus {
+  if (row.kind !== 'bot') return 'none';
+  const { bot } = row;
+  if (row.needsYou > 0 || bot.state === 'waiting') return 'needs-you';
+  if (bot.state === 'blocked') return 'blocked';
+  if (bot.state === 'thinking' || bot.state === 'working') return 'working';
+  if (bot.paused) return 'paused';
+  const author = bot.previewAuthor;
+  if (author?.kind !== 'bot' || author.slug !== bot.slug) return 'none';
+  if (row.unread > 0) return 'done-unread';
+  const at = Date.parse(bot.previewAt ?? '');
+  return Number.isFinite(at) && now.getTime() - at < DONE_WINDOW_MS ? 'done' : 'none';
+}
+
+export function previewText(
+  preview: string | undefined,
+  copy: Pick<typeof t, 'noMessagesYet' | 'approvalPreview'> = t,
+): string {
+  if (preview === undefined || preview === '') return copy.noMessagesYet;
+  const tool = approvalSummaryTool(preview);
+  return tool === undefined ? preview : copy.approvalPreview(tool);
+}
+
+export function rowLabel(
+  row: Conversation,
+  title: string,
+  status: RowStatus,
+  preview: string,
+): string {
+  const spoken =
+    status === 'none' ||
+    t.rowStatus[status] === preview ||
+    (status === 'needs-you' && row.needsYou > 0)
+      ? undefined
+      : t.rowStatus[status];
+  return [
+    title,
+    spoken,
+    row.needsYou > 0 ? t.needsYouCount(row.needsYou) : undefined,
+    row.unread > 0
+      ? row.muted
+        ? t.mutedUnread(row.unread)
+        : t.unreadCount(row.unread)
+      : undefined,
+    preview === '' ? undefined : preview,
+  ]
+    .filter((part) => part !== undefined)
+    .join(', ');
+}
 
 export function countBadge(attention: Attention): CountBadgeState {
   if (attention.needsYou > 0) return { tone: 'needs-you', count: attention.needsYou };
@@ -40,20 +110,29 @@ export function conversations(
   roster: RosterView | undefined,
   action: HumanAttentionItem[],
   unread: UnreadCounts = {},
+  quiet: readonly string[] = [],
 ): Conversation[] {
   if (roster === undefined) return [];
   const hidden = new Set(roster.arrangement?.hidden);
-  const muted = new Set(roster.arrangement?.muted);
+  const muted = new Set([...(roster.arrangement?.muted ?? []), ...quiet]);
   const attention = (channelId: string | undefined, needsYou: number): Attention => ({
     needsYou,
     unread: channelId === undefined ? 0 : (unread[channelId] ?? 0),
     muted: channelId !== undefined && muted.has(channelId),
   });
+  const channelCreatedAt = new Map(
+    roster.activityChannels?.map((channel) => [channel.id, channel.createdAt]),
+  );
+  const creationTime = (channelId: string | undefined): { createdAt?: string } => {
+    const createdAt = channelId === undefined ? undefined : channelCreatedAt.get(channelId);
+    return createdAt === undefined ? {} : { createdAt };
+  };
   const rows: Conversation[] = [
     ...roster.bots.map((bot): Conversation => ({
       kind: 'bot',
       key: `bot:${bot.slug}`,
       bot,
+      ...creationTime(bot.dmChannelId),
       ...(bot.previewAt === undefined ? {} : { at: bot.previewAt }),
       ...attention(bot.dmChannelId, needsYouFor(bot, action)),
     })),
@@ -61,6 +140,7 @@ export function conversations(
       kind: 'channel',
       key: `channel:${channel.id}`,
       channel,
+      ...creationTime(channel.id),
       ...(channel.previewAt === undefined ? {} : { at: channel.previewAt }),
       ...attention(channel.id, action.filter((item) => item.channelId === channel.id).length),
     })),
@@ -136,11 +216,35 @@ export function chatList(
   action: HumanAttentionItem[],
   collapsed: ReadonlySet<string> = new Set(),
   unread: UnreadCounts = {},
+  quiet: readonly string[] = [],
 ): ChatListItem[] {
-  const rows = conversations(roster, action, unread);
+  const rows = conversations(roster, action, unread, quiet);
   const arrangement = roster?.arrangement;
   const flat = rows.map((row): ChatListItem => ({ kind: 'row', key: row.key, row }));
-  if (arrangement === undefined || arrangement.sections.length === 0) return flat;
+  if (arrangement === undefined) return flat;
+  const sorting = roster?.sorting ?? DEFAULT_ROSTER_SORTING;
+  const channels = new Map(roster?.activityChannels?.map((channel) => [channel.id, channel]));
+  const recency = (row: Conversation): number => {
+    const channel = channels.get(channelIdOf(row) ?? '');
+    const at = Date.parse(channel?.latestMessage?.at ?? (row.at || channel?.updatedAt) ?? '');
+    return Number.isNaN(at) ? Number.NEGATIVE_INFINITY : at;
+  };
+  const byRecency = (a: Conversation, b: Conversation): number => {
+    const left = recency(a);
+    const right = recency(b);
+    const aId = channelIdOf(a) ?? a.key;
+    const bId = channelIdOf(b) ?? b.key;
+    return left !== right ? right - left : aId === bId ? 0 : aId < bId ? -1 : 1;
+  };
+  const orderScope = (scope: string, source: Conversation[], manual: readonly string[]) => {
+    if ((sorting.sortModes[scope] ?? sorting.sortMode) === 'updated') return source.sort(byRecency);
+    const positions = new Map(manual.map((id, index) => [id, index]));
+    const position = (row: Conversation) =>
+      positions.get(channelIdOf(row) ?? row.key) ??
+      (row.kind === 'bot' ? positions.get(row.bot.slug) : undefined) ??
+      manual.length;
+    return source.sort((a, b) => position(a) - position(b));
+  };
 
   const byId = new Map<string, Conversation>();
   for (const row of rows) byId.set(channelIdOf(row) ?? row.key, row);
@@ -159,21 +263,48 @@ export function chatList(
   const inSection = new Map(
     arrangement.sections.map((section) => [
       section.id,
-      rows.filter((row) => {
-        const id = channelIdOf(row);
-        return !taken.has(row.key) && id !== undefined && section.channelIds.includes(id);
-      }),
+      orderScope(
+        section.id,
+        rows.filter((row) => {
+          const id = channelIdOf(row);
+          return !taken.has(row.key) && id !== undefined && section.channelIds.includes(id);
+        }),
+        section.channelIds,
+      ),
     ]),
+  );
+  const sourceOrder = new Map(
+    [
+      ...new Set([
+        ...(roster?.activityChannels?.map((channel) => channel.id) ?? []),
+        ...(roster?.bots.map((bot) => bot.dmChannelId ?? `bot:${bot.slug}`) ?? []),
+        ...(roster?.channels.map((channel) => channel.id) ?? []),
+      ]),
+    ].map((id, index) => [id, index]),
   );
   const loose = rows
     .filter((row) => !taken.has(row.key) && !sectioned.has(channelIdOf(row) ?? ''))
+    .sort(
+      (a, b) =>
+        (sourceOrder.get(channelIdOf(a) ?? a.key) ?? 0) -
+        (sourceOrder.get(channelIdOf(b) ?? b.key) ?? 0),
+    )
     .map((row) => channelIdOf(row) ?? row.key);
   const names = new Map(arrangement.sections.map((section) => [section.id, section.name]));
 
   const items: ChatListItem[] =
     pinned.length === 0
       ? []
-      : sectionItem(PINNED_SECTION, undefined, pinned.sort(byLatest), collapsed);
+      : sectionItem(
+          PINNED_SECTION,
+          undefined,
+          orderScope(
+            PINNED_SECTION,
+            pinned,
+            pinned.map((row) => channelIdOf(row) ?? row.key),
+          ),
+          collapsed,
+        );
   for (const entry of topEntries(arrangement, loose)) {
     if (entry.kind === 'section')
       items.push(
@@ -184,14 +315,17 @@ export function chatList(
       if (row !== undefined) items.push({ kind: 'row', key: row.key, row });
     }
   }
-  return newestFirstWithinRuns(items);
+  return sorting.sortMode === 'manual' ? items : newestFirstWithinRuns(items, byRecency);
 }
 
-function newestFirstWithinRuns(items: ChatListItem[]): ChatListItem[] {
+function newestFirstWithinRuns(
+  items: ChatListItem[],
+  compare: (a: Conversation, b: Conversation) => number,
+): ChatListItem[] {
   const ordered: ChatListItem[] = [];
   let run: Conversation[] = [];
   const flush = (): void => {
-    for (const row of run.sort(byLatest)) ordered.push({ kind: 'row', key: row.key, row });
+    for (const row of run.sort(compare)) ordered.push({ kind: 'row', key: row.key, row });
     run = [];
   };
   for (const item of items) {
@@ -233,13 +367,27 @@ export function searchConversations(
     .map(({ row }) => row);
 }
 
-export function shortTime(iso: string | undefined, now: Date, locale?: string): string {
+export function shortTime(
+  iso: string | undefined,
+  now: Date,
+  locale?: string,
+  yesterday: string = t.yesterday,
+): string {
   if (iso === undefined) return '';
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return '';
-  const sameDay = at.toDateString() === now.toDateString();
+  const startOfDay = (value: Date) =>
+    new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+  const days = Math.round((startOfDay(now) - startOfDay(at)) / 86_400_000);
+  if (days === 1) return yesterday;
   return new Intl.DateTimeFormat(
     locale,
-    sameDay ? { hour: 'numeric', minute: '2-digit' } : { month: 'numeric', day: 'numeric' },
+    days <= 0
+      ? { hour: 'numeric', minute: '2-digit' }
+      : days < 7
+        ? { weekday: 'short' }
+        : at.getFullYear() === now.getFullYear()
+          ? { month: 'numeric', day: 'numeric' }
+          : { year: 'numeric', month: 'numeric', day: 'numeric' },
   ).format(at);
 }

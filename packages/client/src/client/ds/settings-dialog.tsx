@@ -1,9 +1,9 @@
-import { useState, useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
+import { PointerMenu, type MenuPoint } from './pointer-menu.js';
+import { useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
   IconChevronDownOutlineRegular,
   IconCloseOutlineRegular,
-  Menu,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { Modal } from '../modal.js';
@@ -18,18 +18,28 @@ function narrowQuery(): MediaQueryList | undefined {
 function subscribeNarrow(listener: () => void): () => void {
   const query = narrowQuery();
   query?.addEventListener('change', listener);
+  const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(listener) : undefined;
+  if (typeof document !== 'undefined' && document.body) resize?.observe(document.body);
   return () => {
     query?.removeEventListener('change', listener);
+    resize?.disconnect();
   };
 }
 
 function isNarrow(): boolean {
+  if (typeof document !== 'undefined' && document.body.clientWidth > 0)
+    return document.body.clientWidth <= 648;
   return narrowQuery()?.matches ?? false;
 }
 
 export function useNarrowSettings(): boolean {
   return useSyncExternalStore(subscribeNarrow, isNarrow, () => false);
 }
+
+const VIEWPORT_CSS = `body > :has(> .bh-settings-dialog) {
+  padding: max(calc(${space.x6} / var(--bh-window-zoom, 1)), calc(var(--dsh-frame-overlay-top, ${space.x6}) / var(--bh-window-zoom, 1))) calc(${space.x6} / var(--bh-window-zoom, 1));
+}
+.bh-settings-dialog input[type="file"] { min-width: 0; max-width: 100%; }`;
 
 const styles = stylex.create({
   dialog: {
@@ -92,6 +102,12 @@ const styles = stylex.create({
     outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
     outlineOffset: '-2px',
   },
+  navIcon: {
+    flexShrink: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   navLabel: {
     flexGrow: 1,
     minWidth: 0,
@@ -115,6 +131,7 @@ const styles = stylex.create({
   content: {
     flexGrow: 1,
     minWidth: 0,
+    minHeight: 0,
     display: 'flex',
     flexDirection: 'column',
   },
@@ -184,6 +201,8 @@ const styles = stylex.create({
     outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
   },
   body: {
+    containerType: 'inline-size',
+    containerName: 'bh-settings',
     flexGrow: 1,
     minHeight: 0,
     paddingTop: space.x2,
@@ -200,6 +219,7 @@ const styles = stylex.create({
 export interface SettingsDialogSection {
   readonly id: string;
   readonly label: string;
+  readonly icon?: ReactNode;
   readonly attention?: boolean;
 }
 
@@ -230,6 +250,81 @@ function AttentionDot({ label }: { readonly label: string | undefined }): ReactE
   return <span role="img" aria-label={label} {...stylex.props(styles.dot)} />;
 }
 
+function SectionPicker({
+  sections,
+  activeId,
+  labels,
+  onSelect,
+}: Pick<SettingsDialogProps, 'sections' | 'activeId' | 'labels' | 'onSelect'>): ReactElement {
+  const [pickerPoint, setPickerPoint] = useState<MenuPoint>();
+  const pickerTrigger = useRef<HTMLButtonElement>(null);
+  const closePicker = () => {
+    setPickerPoint(undefined);
+    const trigger = pickerTrigger.current;
+    const closingMenu = document.activeElement?.closest('[data-pointer-menu]');
+    queueMicrotask(() => {
+      const activeElement = document.activeElement;
+      if (
+        trigger?.isConnected &&
+        (activeElement === document.body ||
+          (activeElement !== null && closingMenu?.contains(activeElement)))
+      )
+        trigger.focus({ preventScroll: true });
+    });
+  };
+  const active = sections.find((section) => section.id === activeId);
+  return (
+    <>
+      <button
+        ref={pickerTrigger}
+        type="button"
+        aria-label={labels.picker(active?.label ?? '')}
+        aria-haspopup="menu"
+        aria-expanded={pickerPoint !== undefined}
+        data-modal-autofocus=""
+        onClick={(event) => {
+          if (pickerPoint) closePicker();
+          else {
+            const rect = event.currentTarget.getBoundingClientRect();
+            setPickerPoint({ x: rect.left, y: rect.bottom });
+          }
+        }}
+        {...stylex.props(styles.picker)}
+      >
+        {active?.label}
+        <IconChevronDownOutlineRegular size={12} />
+      </button>
+      {pickerPoint ? (
+        <PointerMenu
+          point={pickerPoint}
+          container={pickerTrigger.current?.closest('[role="dialog"]') ?? document.body}
+          autoFocus
+          anchor={<span aria-hidden="true" />}
+          items={sections.map((section) => ({
+            id: section.id,
+            icon: section.icon,
+            label:
+              section.attention === true ? (
+                <span {...stylex.props(styles.dotLabel)}>
+                  {section.label}
+                  <AttentionDot label={labels.attention} />
+                </span>
+              ) : (
+                section.label
+              ),
+          }))}
+          selectedId={active?.id}
+          onSelect={(id) => {
+            closePicker();
+            onSelect(id);
+          }}
+          onClose={closePicker}
+        />
+      ) : null}
+    </>
+  );
+}
+
 export function SettingsDialog({
   title,
   navTitle,
@@ -246,15 +341,18 @@ export function SettingsDialog({
   children,
 }: SettingsDialogProps): ReactElement {
   const narrow = useNarrowSettings();
-  const [pickerOpen, setPickerOpen] = useState(false);
   const active = sections.find((section) => section.id === activeId);
   const close = (): void => {
-    setPickerOpen(false);
     onClose();
   };
-  const dialogClass = [className, stylex.props(styles.dialog).className].filter(Boolean).join(' ');
+  const dialogClass = ['bh-settings-dialog', className, stylex.props(styles.dialog).className]
+    .filter(Boolean)
+    .join(' ');
   return (
     <Modal open headless onClose={close} title={title} className={dialogClass}>
+      <style data-plugin="@botharness/ui" data-plugin-css="@botharness/ui/settings-viewport">
+        {VIEWPORT_CSS}
+      </style>
       {narrow ? null : (
         <nav aria-label={labels.nav} {...stylex.props(styles.nav)}>
           {navTitle === undefined ? null : <div {...stylex.props(styles.navTitle)}>{navTitle}</div>}
@@ -274,6 +372,11 @@ export function SettingsDialog({
                   }}
                   {...stylex.props(styles.navCell)}
                 >
+                  {section.icon === undefined ? null : (
+                    <span aria-hidden="true" {...stylex.props(styles.navIcon)}>
+                      {section.icon}
+                    </span>
+                  )}
                   <span {...stylex.props(styles.navLabel)}>{section.label}</span>
                   {section.attention === true ? <AttentionDot label={labels.attention} /> : null}
                 </button>
@@ -293,46 +396,11 @@ export function SettingsDialog({
         ) : null}
         <div {...stylex.props(styles.header, narrow && styles.headerNarrow)}>
           {narrow ? (
-            <Menu
-              open={pickerOpen}
-              portal
-              align="start"
-              items={sections.map((section) => ({
-                id: section.id,
-                label:
-                  section.attention === true ? (
-                    <span {...stylex.props(styles.dotLabel)}>
-                      {section.label}
-                      <AttentionDot label={labels.attention} />
-                    </span>
-                  ) : (
-                    section.label
-                  ),
-              }))}
-              selectedId={active?.id}
-              onSelect={(id) => {
-                setPickerOpen(false);
-                onSelect(id);
-              }}
-              onClose={() => {
-                setPickerOpen(false);
-              }}
-              anchor={
-                <button
-                  type="button"
-                  aria-label={labels.picker(active?.label ?? '')}
-                  aria-haspopup="menu"
-                  aria-expanded={pickerOpen}
-                  data-modal-autofocus=""
-                  onClick={() => {
-                    setPickerOpen((value) => !value);
-                  }}
-                  {...stylex.props(styles.picker)}
-                >
-                  {active?.label}
-                  <IconChevronDownOutlineRegular size={12} />
-                </button>
-              }
+            <SectionPicker
+              sections={sections}
+              activeId={activeId}
+              labels={labels}
+              onSelect={onSelect}
             />
           ) : (
             <h2 {...stylex.props(styles.title)}>{active?.label}</h2>

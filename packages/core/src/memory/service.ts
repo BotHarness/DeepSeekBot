@@ -29,6 +29,8 @@ export interface MemoryService extends MemoryAcceptance, ReturnType<typeof creat
 
   refreshPersonaAfterCompaction(botSlug: string, sessionId: string): { refreshed: boolean };
 
+  personaPending?(sessionId: string): boolean;
+
   memoryDirFor(sessionId: string | undefined): string | undefined;
 
   repositoryFor(sessionId: string | undefined): MemoryRepositoryInspection | undefined;
@@ -122,6 +124,13 @@ export function createMemoryService(options: MemoryServiceOptions): MemoryServic
     return { refreshed: true };
   };
 
+  const personaPending = (sessionId: string): boolean => {
+    const recorded = ownership.personaSnapshot(sessionId);
+    const store = storeForSession(sessionId);
+    if (recorded === undefined || store === undefined) return false;
+    return recorded.body !== store.standingPrompt(limitsForSession(sessionId));
+  };
+
   return {
     sourceReferences: (ids) => requireAcceptance().sourceReferences(ids),
     ...createMemoryFiles(registry),
@@ -146,7 +155,7 @@ export function createMemoryService(options: MemoryServiceOptions): MemoryServic
       requireAcceptance().imageFile(botSlug, path, source, revision),
     history: (botSlug, limit) => requireAcceptance().history(botSlug, limit),
     diff: (botSlug, sha) => requireAcceptance().diff(botSlug, sha),
-    gitGraph: (botSlug, offset) => requireAcceptance().gitGraph(botSlug, offset),
+    gitGraph: (botSlug, offset, path) => requireAcceptance().gitGraph(botSlug, offset, path),
     gitCommitDiff: (botSlug, sha) => requireAcceptance().gitCommitDiff(botSlug, sha),
     workingChanges: (botSlug) => requireAcceptance().workingChanges(botSlug),
     workingDiff: (botSlug, path, kind) => requireAcceptance().workingDiff(botSlug, path, kind),
@@ -168,6 +177,7 @@ export function createMemoryService(options: MemoryServiceOptions): MemoryServic
     },
     personaForSession,
     refreshPersonaAfterCompaction,
+    personaPending,
     storeForSession,
     storeForAgent: (agent) => storeForSession(agent?.session?.id),
   };

@@ -11,6 +11,7 @@ import {
 import {
   messagePreview,
   messageGraphemeBoundaries,
+  plainMarkdown,
 } from '../../../core/src/channels/message-preview.js';
 import {
   isAvatarAppearance,
@@ -410,7 +411,7 @@ export class WindowCompanion {
         return;
       this.seen.push(companionMessageIdentity(value['channelId'], value['messageId']));
       if (this.seen.length > this.state.capacity.retention * 4) this.seen.shift();
-      const body = messagePreview(value['body']);
+      const body = messagePreview(plainMarkdown(value['body']));
       const boundaries = messageGraphemeBoundaries(body);
       const card: CompanionCard = {
         generation: this.generation,

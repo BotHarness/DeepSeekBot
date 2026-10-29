@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react';
-import { Image } from 'expo-image';
+import { ResourceImage as Image } from '../primitives/resource-image';
 import { Modal, Pressable, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
+  Easing,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -13,11 +14,12 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { MessageAttachment } from '../../host/conversation';
+import { decelerateCurve, spring } from '../design/motion';
 import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { CloseIcon, ShareIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import {
   clampTo,
   dismissDirection,
@@ -29,7 +31,7 @@ import {
   type Zoom,
 } from './zoom-math';
 
-const SPRING = { damping: 20, stiffness: 220 };
+const SPRING = spring.release;
 const TAP_SLOP = 10;
 
 function RoundButton({
@@ -73,6 +75,7 @@ function ZoomableImage({
   onClose(): void;
   onShare(attachment: MessageAttachment): Promise<void>;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const frame = useWindowDimensions();
@@ -144,9 +147,13 @@ function ZoomableImage({
       }
       const direction = dismissDirection(dismiss.value, event.velocityY);
       if (direction !== 0) {
-        dismiss.value = withTiming(direction * frame.height, { duration: 180 }, (finished) => {
-          if (finished === true) runOnJS(onClose)();
-        });
+        dismiss.value = withTiming(
+          direction * frame.height,
+          { duration: 180, easing: Easing.bezier(...decelerateCurve) },
+          (finished) => {
+            if (finished === true) runOnJS(onClose)();
+          },
+        );
       } else dismiss.value = withSpring(0, SPRING);
     });
 

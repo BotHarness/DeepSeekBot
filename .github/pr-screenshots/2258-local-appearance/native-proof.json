@@ -1,0 +1,37 @@
+{
+  "origin": "dsh-app://app/",
+  "platform": "darwin",
+  "before": {
+    "version": 1,
+    "revision": "725f8839-20a7-4fe7-9b1e-e5ebc31349dd",
+    "preference": "light",
+    "modes": {
+      "light": {
+        "preset": "mist-purple"
+      },
+      "dark": {
+        "preset": "mist-purple",
+        "primary": "#b19af0"
+      }
+    }
+  },
+  "after": {
+    "version": 1,
+    "revision": "725f8839-20a7-4fe7-9b1e-e5ebc31349dd",
+    "preference": "light",
+    "modes": {
+      "light": {
+        "preset": "mist-purple"
+      },
+      "dark": {
+        "preset": "mist-purple",
+        "primary": "#b19af0"
+      }
+    }
+  },
+  "native": {
+    "mode": true,
+    "style": "--dsh-content-font-size: 14px; --dsh-code-font-size: 11px; --dsh-terminal-font-size: 13px;"
+  },
+  "errors": []
+}

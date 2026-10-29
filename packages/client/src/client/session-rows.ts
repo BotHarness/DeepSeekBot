@@ -12,6 +12,7 @@ export interface PersonaBotSessionRow {
   role: OwnedSessionSummary['role'];
   assignmentAccessMode?: OwnedSessionSummary['assignmentAccessMode'];
   title: string;
+  description?: string;
   cwd: string | undefined;
   updatedAt: number;
   status: 'running' | 'stopping' | 'attention' | 'stopped' | 'idle' | 'unavailable';
@@ -19,6 +20,8 @@ export interface PersonaBotSessionRow {
   needs?: AssignmentNeed;
   archived?: true;
   triageOpenCount?: number;
+  modelRoute?: { provider: string; model: string; reasoningEffort?: string };
+  subagentCount?: number;
 }
 
 export type AssignmentNeed = 'approval' | 'error' | 'waiting-human' | 'blocked' | 'failed';
@@ -84,7 +87,13 @@ export function personaBotSessionRows(
         ...(item.role === 'assignment' && item.assignmentAccessMode !== undefined
           ? { assignmentAccessMode: item.assignmentAccessMode }
           : {}),
-        title: native?.displayTitle || item.assignmentPurpose || item.sessionId,
+        title:
+          (item.role === 'assignment' ? item.assignmentTitle : undefined) ||
+          native?.displayTitle ||
+          item.sessionId,
+        ...(item.role === 'assignment' && item.assignmentDescription
+          ? { description: item.assignmentDescription }
+          : {}),
         cwd: native?.cwd ?? item.cwdReference,
         updatedAt: native?.updatedAt ?? Date.parse(item.createdAt),
         status,
@@ -94,6 +103,10 @@ export function personaBotSessionRows(
         ...(item.triageOpenCount === undefined || status !== 'running'
           ? {}
           : { triageOpenCount: item.triageOpenCount }),
+        ...((item.modelRoute ?? item.assignmentModelRoute) === undefined
+          ? {}
+          : { modelRoute: (item.modelRoute ?? item.assignmentModelRoute)! }),
+        ...(item.subagentCount === undefined ? {} : { subagentCount: item.subagentCount }),
       },
     ];
   });

@@ -73,6 +73,8 @@ export interface SessionOwnership {
 
   descendantsOf(sessionId: string): SessionOwnershipRecord[];
 
+  subagentCounts(sessionIds: readonly string[]): Map<string, number>;
+
   repair(input: SessionOwnershipRepair): SessionOwnershipRecord;
   repairRevision(sessionId: string): number;
 
@@ -81,6 +83,10 @@ export interface SessionOwnership {
   recordPersonaSnapshot(sessionId: string, body: string, at: string): SessionPersonaSnapshot;
 
   refreshPersonaSnapshot(sessionId: string, body: string, at: string): SessionPersonaSnapshot;
+
+  promptSnapshot(sessionId: string): string | undefined;
+
+  writePromptSnapshot(sessionId: string, body: string, replace: boolean): string;
 
   list(): SessionOwnershipRecord[];
 }
@@ -260,6 +266,29 @@ export function createSessionOwnership(database: OperationalDatabaseModulePort):
       ) as unknown as OwnershipRow[];
       return rows.map(toRecord);
     },
+    subagentCounts(sessionIds) {
+      const counts = new Map<string, number>();
+      if (sessionIds.length === 0) return counts;
+      const rows = database.read((connection) =>
+        connection
+          .prepare(
+            `WITH RECURSIVE tree(root_id, session_id) AS (
+               SELECT parent_session_id, session_id FROM session_ownership
+                WHERE parent_session_id IN (SELECT value FROM json_each(?))
+               UNION
+               SELECT tree.root_id, owned.session_id FROM session_ownership owned
+                 JOIN tree ON owned.parent_session_id = tree.session_id
+             )
+             SELECT tree.root_id AS root_id, COUNT(*) AS count FROM tree
+               JOIN session_ownership owned ON owned.session_id = tree.session_id
+              WHERE owned.provenance = 'subagent'
+              GROUP BY tree.root_id`,
+          )
+          .all(JSON.stringify(sessionIds)),
+      ) as unknown as Array<{ root_id: string; count: number }>;
+      for (const row of rows) counts.set(row.root_id, Number(row.count));
+      return counts;
+    },
     repair(input) {
       const existing = resolve(input.sessionId);
       if (existing === undefined) {
@@ -283,13 +312,15 @@ export function createSessionOwnership(database: OperationalDatabaseModulePort):
                     SET bot_slug = ?, root_role = ?, provenance = 'repair',
                         cwd_reference = COALESCE(?, cwd_reference),
                         persona_snapshot = CASE WHEN bot_slug = ? THEN persona_snapshot END,
-                        persona_snapshot_at = CASE WHEN bot_slug = ? THEN persona_snapshot_at END
+                        persona_snapshot_at = CASE WHEN bot_slug = ? THEN persona_snapshot_at END,
+                        prompt_snapshot = CASE WHEN bot_slug = ? THEN prompt_snapshot END
                   WHERE session_id = ?`,
               )
               .run(
                 input.botSlug,
                 input.rootRole,
                 input.cwdReference ?? null,
+                input.botSlug,
                 input.botSlug,
                 input.botSlug,
                 input.sessionId,
@@ -306,6 +337,44 @@ export function createSessionOwnership(database: OperationalDatabaseModulePort):
     },
     repairRevision(sessionId) {
       return repairRevisions.get(sessionId) ?? 0;
+    },
+    promptSnapshot(sessionId) {
+      return database.read(
+        (connection) =>
+          (
+            connection
+              .prepare('SELECT prompt_snapshot FROM session_ownership WHERE session_id = ?')
+              .get(sessionId) as { prompt_snapshot: string | null } | undefined
+          )?.prompt_snapshot ?? undefined,
+      );
+    },
+    writePromptSnapshot(sessionId, body, replace) {
+      try {
+        return database.transaction(
+          (connection) => {
+            if (readRow(connection, sessionId) === undefined) {
+              throw new SessionOwnershipError(`Unknown Session ownership: ${sessionId}`);
+            }
+            connection
+              .prepare(
+                replace
+                  ? 'UPDATE session_ownership SET prompt_snapshot = ? WHERE session_id = ?'
+                  : 'UPDATE session_ownership SET prompt_snapshot = ? WHERE session_id = ? AND prompt_snapshot IS NULL',
+              )
+              .run(body, sessionId);
+            const row = connection
+              .prepare('SELECT prompt_snapshot FROM session_ownership WHERE session_id = ?')
+              .get(sessionId) as { prompt_snapshot: string | null } | undefined;
+            if (row?.prompt_snapshot == null) {
+              throw new Error(`Prompt snapshot write failed: ${sessionId}`);
+            }
+            return row.prompt_snapshot;
+          },
+          ['session-ownership'],
+        );
+      } catch (error) {
+        return rethrowDomainError(error);
+      }
     },
     personaSnapshot(sessionId) {
       return database.read((connection) => readPersonaSnapshot(connection, sessionId));

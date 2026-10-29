@@ -1,0 +1,50 @@
+[
+  {
+    "scale": 1,
+    "theme": "light",
+    "nativeMenuTextHeight": 72,
+    "backgroundRGB": [244, 244, 244],
+    "menuAndCreationReturn": "pass",
+    "capture": "fab-fixed-10-light-20261027T155837267Z.png"
+  },
+  {
+    "scale": 1,
+    "theme": "dark",
+    "nativeMenuTextHeight": 72,
+    "backgroundRGB": [17, 17, 19],
+    "menuAndCreationReturn": "pass",
+    "capture": "fab-fixed-10-dark-20261027T155903986Z.png"
+  },
+  {
+    "scale": 1.3,
+    "theme": "light",
+    "nativeMenuTextHeight": 91,
+    "backgroundRGB": [244, 244, 244],
+    "menuAndCreationReturn": "pass",
+    "capture": "fab-fixed-13-light-20261027T155936010Z.png"
+  },
+  {
+    "scale": 1.3,
+    "theme": "dark",
+    "nativeMenuTextHeight": 91,
+    "backgroundRGB": [17, 17, 19],
+    "menuAndCreationReturn": "pass",
+    "capture": "fab-fixed-13-dark-20261027T160002710Z.png"
+  },
+  {
+    "scale": 2,
+    "theme": "light",
+    "nativeMenuTextHeight": 126,
+    "backgroundRGB": [244, 244, 244],
+    "menuAndCreationReturn": "pass",
+    "capture": "fab-fixed-20-light-20261027T160033171Z.png"
+  },
+  {
+    "scale": 2,
+    "theme": "dark",
+    "nativeMenuTextHeight": 126,
+    "backgroundRGB": [17, 17, 19],
+    "menuAndCreationReturn": "pass",
+    "capture": "fab-fixed-20-dark-20261027T160059571Z.png"
+  }
+]

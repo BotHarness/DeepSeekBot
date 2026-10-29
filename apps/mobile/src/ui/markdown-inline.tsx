@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { Linking } from 'react-native';
 
 import type { DesignTheme } from './design/theme';
+import { messageColors } from './design/controls';
 import { InlineText } from './primitives/text';
 import { FadingText } from './primitives/fading-text';
 
@@ -15,6 +16,7 @@ export function renderMarkdownInline(
   openLink: (url: string) => void = (url: string) =>
     void Linking.openURL(url).catch(() => undefined),
 ): ReactNode[] {
+  const link = messageColors(theme).link;
   const last = entries.findLastIndex((token) => token.type !== 'br');
   const textNode = (text: string, key: number) =>
     reveal && key === last ? <FadingText key={key} text={text} color={color} /> : text;
@@ -70,14 +72,14 @@ export function renderMarkdownInline(
         <InlineText
           key={index}
           accessibilityRole="link"
-          style={{ color: theme.color.accent, textDecorationLine: 'underline' }}
+          style={{ color: link, textDecorationLine: 'underline' }}
           onPress={() => openLink(decodeHTML(token.href))}
         >
           {renderMarkdownInline(
             token.tokens ?? [],
             theme,
             reveal && index === last,
-            theme.color.accent,
+            link,
             openLink,
           )}
         </InlineText>
