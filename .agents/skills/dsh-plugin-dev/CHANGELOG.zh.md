@@ -9,6 +9,8 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
+- 在验证 1.6.0 发布后同步下游 Tobs 安装指南；独立 Skill 版本与 DSH 来源不变（[#3195](https://github.com/BotHarness/DeepSeekBot/issues/3195)）。
+
 - 准备下游 Tobs 1.6.0 发布记录；独立版本的 DSH Skill 及其已验证 DSH 来源不变（[#3195](https://github.com/BotHarness/DeepSeekBot/issues/3195)）。
 
 - 在验证 1.5.2 发布后同步下游 Tobs 安装指南；独立 Skill 版本与 DSH 来源不变（[#2777](https://github.com/BotHarness/DeepSeekBot/issues/2777)）。
