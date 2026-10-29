@@ -1,5 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';
+import { Platform } from 'react-native';
 
 import { accountProfile } from '../../../src/account/native-account-profile';
 import { useHostSession } from '../../../src/host/host-session';
@@ -18,12 +19,13 @@ import { useStrings } from '../../../src/ui/strings';
 import { SettingsView } from '../../../src/ui/settings-view';
 import { AccountProfileRow } from '../../../src/ui/shell/account-profile-row';
 import { useChromeScroll } from '../../../src/ui/shell/scroll-chrome';
+import { SettingsTabPage } from '../../../src/ui/shell/settings-tab-page';
 
 export default function SettingsScreen() {
   const t = useStrings();
   const router = useRouter();
   const { saved, client } = useHostSession();
-  useChromeScroll(true, true);
+  const onScroll = useChromeScroll(true, Platform.OS !== 'android');
   useFocusEffect(
     useCallback(() => {
       void accountProfile.refresh();
@@ -34,33 +36,35 @@ export default function SettingsScreen() {
     [client],
   );
   return (
-    <SettingsView
-      profile={<AccountProfileRow onPress={() => router.push('/settings/profile')} />}
-      statistics={<StatisticsSettings />}
-      messageDisplay={<MessageDisplaySetting />}
-      activityCount={<ActivityCountLink />}
-      hapticFeedback={<HapticFeedbackSetting />}
-      deliveryReceipts={<DeliveryReceiptSetting />}
-      chatBackground={
-        <SettingsRow
-          on={SHEET_GROUP}
-          title={t.chatBackground.global}
-          icon="background"
-          disclosure
-          onPress={() => router.push('/settings/chat-background')}
-        />
-      }
-      key={saved?.hostId}
-      loadUsage={usage}
-      version={appBuildLabel(currentAppBuild())}
-      actions={{
-        onUsage: () => router.push('/settings/usage'),
-        onAppIcon: () => router.push('/settings/app-icon'),
-        onNotifications: () => router.push('/settings/notifications'),
-        onStorage: () => router.push('/settings/storage'),
-        onModels: () => router.push('/settings/models'),
-        onCopyVersion: copyMessage,
-      }}
-    />
+    <SettingsTabPage onScroll={onScroll}>
+      <SettingsView
+        profile={<AccountProfileRow onPress={() => router.push('/settings/profile')} />}
+        statistics={<StatisticsSettings />}
+        messageDisplay={<MessageDisplaySetting />}
+        activityCount={<ActivityCountLink />}
+        hapticFeedback={<HapticFeedbackSetting />}
+        deliveryReceipts={<DeliveryReceiptSetting />}
+        chatBackground={
+          <SettingsRow
+            on={SHEET_GROUP}
+            title={t.chatBackground.global}
+            icon="background"
+            disclosure
+            onPress={() => router.push('/settings/chat-background')}
+          />
+        }
+        key={saved?.hostId}
+        loadUsage={usage}
+        version={appBuildLabel(currentAppBuild())}
+        actions={{
+          onUsage: () => router.push('/settings/usage'),
+          onAppIcon: () => router.push('/settings/app-icon'),
+          onNotifications: () => router.push('/settings/notifications'),
+          onStorage: () => router.push('/settings/storage'),
+          onModels: () => router.push('/settings/models'),
+          onCopyVersion: copyMessage,
+        }}
+      />
+    </SettingsTabPage>
   );
 }
