@@ -3,6 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { View } from 'react-native';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { t } from '../src/ui/strings';
 import { StackRouter } from '../node_modules/expo-router/build/react-navigation/routers/StackRouter.js';
 import type { CloudRow } from '../src/cloud/client';
 import { publicInstance, MOBILE_REDIRECT_URI } from '../src/cloud/instance-contract';
@@ -305,7 +306,7 @@ it('the iOS workspace page draws its own title and lists environments as native 
   document.body.append(page);
   const panel = createRoot(page);
   await act(async () => panel.render(<WorkspacePanel page active />));
-  expect(page.querySelector('[role="header"]')?.textContent).toBe('Workspaces');
+  expect(page.querySelector('[role="header"]')?.textContent).toBe(t.workspaces);
   expect(page.querySelector('[data-testid="workspace-pair"]')).not.toBeNull();
   expect(page.querySelector('[data-testid="drawer-all"]')).not.toBeNull();
   await act(async () =>
