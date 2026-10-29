@@ -88,7 +88,11 @@ export class OnboardingController {
       this.update({
         receipt,
         error: undefined,
-        guideOpen: justCompleted || receipt.tutorial !== 'active' ? false : this.state.guideOpen,
+        guideOpen:
+          (justCompleted && !(receipt.journey && !receipt.journey.done)) ||
+          receipt.tutorial !== 'active'
+            ? false
+            : this.state.guideOpen,
         checklistOpen: receipt.tutorial !== 'active' ? false : opening || this.state.checklistOpen,
       });
       if (receipt.journey) {

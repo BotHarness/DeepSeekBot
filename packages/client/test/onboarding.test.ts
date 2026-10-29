@@ -347,6 +347,16 @@ it('v2 leaving Bot mode mid-tips pauses the journey instead of finishing it', as
   expect(finishes(actions)).toBe(0);
 });
 
+it('v2 keeps the layout tips open when the first task completes mid-tips', async () => {
+  const { actions, controller } = harness(true);
+  actions.onboarding.mockResolvedValue(journeyReceipt);
+  await controller.enter();
+  await controller.startTour();
+  actions.onboarding.mockResolvedValue({ ...journeyReceipt, completed: true });
+  await controller.refresh();
+  expect(controller.getSnapshot().guideOpen).toBe(true);
+});
+
 it('v2 explicit replay resets only local tips while continue retains them', async () => {
   const { actions, controller } = harness(true);
   actions.onboarding.mockResolvedValue({
