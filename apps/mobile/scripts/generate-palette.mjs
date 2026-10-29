@@ -30,6 +30,7 @@ export const ROLES = {
   surface: 'alias-bg-module-platform',
   field: 'alias-bg-layer-1',
   sheet: 'alias-bg-layer-2',
+  modal: 'alias-bg-layer-2',
   elevated: 'alias-button-elevated-fill',
   base: 'alias-bg-base',
   well: 'alias-bg-base',
