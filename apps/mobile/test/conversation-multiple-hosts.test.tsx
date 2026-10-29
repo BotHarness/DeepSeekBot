@@ -92,11 +92,14 @@ vi.mock('expo-router', () => ({
           options.headerLeft?.() ??
           null}
         {typeof options.headerTitle === 'function' ? options.headerTitle() : null}
-        {options.unstable_headerRightItems?.().map((item) => (
-          <button key={item.label} type="button" disabled={item.disabled} onClick={item.onPress}>
-            {item.label}
-          </button>
-        )) ?? options.headerRight?.()}
+        {options
+          .unstable_headerRightItems?.()
+          .filter((item) => item.label !== undefined)
+          .map((item) => (
+            <button key={item.label} type="button" disabled={item.disabled} onClick={item.onPress}>
+              {item.label}
+            </button>
+          )) ?? options.headerRight?.()}
       </header>
     ),
   },

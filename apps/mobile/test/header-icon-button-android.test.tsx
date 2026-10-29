@@ -88,6 +88,7 @@ for (const name of [
   'computer',
   'do-not-touch',
   'tob-mode',
+  'more-vert',
 ]) {
   const path = requireAsset.resolve(`../assets/header/${name}.xml`);
   const asset = new Module(path);
@@ -112,24 +113,32 @@ async function render(node: ReactNode) {
   };
 }
 
-it('renders a Compose icon button with a native Material symbol and its label', async () => {
-  const onPress = vi.fn();
-  const view = await render(
-    <HeaderIconButton icon="edit" label="Edit notes" testID="memory-edit" onPress={onPress} />,
-  );
-  const button = view.button();
-  expect(button.dataset['kind']).toBe('icon-button');
-  expect(button.getAttribute('aria-label')).toBe('Edit notes');
-  expect(button.dataset['testid']).toBe('memory-edit');
-  expect(button.hasAttribute('aria-pressed')).toBe(false);
-  const icon = button.querySelector('i')!;
-  expect(icon.dataset['source']).toBe('edit');
-  expect(Number(icon.dataset['size'])).toBe(materialIconButton.iconSize);
-  expect(view.host.querySelector('svg')).toBeNull();
-  await act(async () => button.click());
-  expect(onPress).toHaveBeenCalledOnce();
-  view.dispose();
-});
+it.each(['edit', 'more'] as const)(
+  'renders the %s Compose icon button with its label',
+  async (iconName) => {
+    const onPress = vi.fn();
+    const view = await render(
+      <HeaderIconButton
+        icon={iconName}
+        label="Edit notes"
+        testID="memory-edit"
+        onPress={onPress}
+      />,
+    );
+    const button = view.button();
+    expect(button.dataset['kind']).toBe('icon-button');
+    expect(button.getAttribute('aria-label')).toBe('Edit notes');
+    expect(button.dataset['testid']).toBe('memory-edit');
+    expect(button.hasAttribute('aria-pressed')).toBe(false);
+    const icon = button.querySelector('i')!;
+    expect(icon.dataset['source']).toBe(iconName === 'more' ? 'more-vert' : 'edit');
+    expect(Number(icon.dataset['size'])).toBe(materialIconButton.iconSize);
+    expect(view.host.querySelector('svg')).toBeNull();
+    await act(async () => button.click());
+    expect(onPress).toHaveBeenCalledOnce();
+    view.dispose();
+  },
+);
 
 it('reserves the 48dp touch target around the 40dp Compose container', async () => {
   const view = await render(<HeaderIconButton icon="add" label="New" onPress={() => {}} />);

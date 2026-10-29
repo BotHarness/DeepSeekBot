@@ -14,6 +14,7 @@ import { glassPress } from '../design/tokens';
 import { HeaderBackButton } from '../chat/header-chrome';
 import { glassHeader, headerIslands } from '../chat/header-kind';
 import { useStrings } from '../strings';
+import type { NativePageHeaderProps } from './native-page-navigation';
 
 export function NativePageNavigation({ children }: { children: ReactNode }) {
   const id = useId();
@@ -48,15 +49,7 @@ export function NativePageNavigation({ children }: { children: ReactNode }) {
   );
 }
 
-export function NativePageHeader({
-  title,
-  onBack,
-  backID,
-}: {
-  title?: ReactNode;
-  onBack(): void;
-  backID: string;
-}) {
+export function NativePageHeader({ title, onBack, backID, action }: NativePageHeaderProps) {
   const theme = useDesignTheme();
   const t = useStrings();
   const items: HeaderBarButtonItem[] = headerIslands
@@ -83,6 +76,23 @@ export function NativePageHeader({
       hideBackButton
       color={theme.color.fg}
       headerLeftBarButtonItems={items}
+      headerRightBarButtonItems={
+        action === undefined
+          ? []
+          : [
+              { type: 'spacing', spacing: glassPress.gap },
+              {
+                type: 'button',
+                index: 0,
+                title: '',
+                icon: { type: 'sfSymbol', name: 'ellipsis' },
+                identifier: action.testID,
+                accessibilityLabel: action.label,
+                onPress: action.onPress,
+                sharesBackground: false,
+              },
+            ]
+      }
     >
       {headerIslands ? (
         <ScreenStackHeaderLeftView>

@@ -115,11 +115,14 @@ vi.mock('expo-router', () => ({
           options.headerLeft?.() ??
           null}
         <aside data-testid="trailing-header">
-          {options.unstable_headerRightItems?.().map((item) => (
-            <button key={item.label} type="button" onClick={item.onPress}>
-              {item.label}
-            </button>
-          )) ?? options.headerRight?.()}
+          {options
+            .unstable_headerRightItems?.()
+            .filter((item) => item.label !== undefined)
+            .map((item) => (
+              <button key={item.label} type="button" onClick={item.onPress}>
+                {item.label}
+              </button>
+            )) ?? options.headerRight?.()}
         </aside>
       </header>
     ),
@@ -647,7 +650,7 @@ it('retries source paging only after a new history boundary or an explicit repea
   expect(navigation.loadOlder).toHaveBeenCalledTimes(3);
 });
 
-it.each(['ios', 'android'])('keeps the %s chat trailing header empty', async (os) => {
+it.each(['ios', 'android'])('shows the %s native Profile entry', async (os) => {
   const previousOS = Platform.OS;
   Object.assign(Platform, { OS: os });
   try {
@@ -664,7 +667,18 @@ it.each(['ios', 'android'])('keeps the %s chat trailing header empty', async (os
       },
     ];
     const view = await render({ kind: 'dm', slug: 'ada' });
-    expect(view.querySelector('[data-testid="trailing-header"]')!.childElementCount).toBe(0);
+    const button =
+      os === 'ios'
+        ? view.querySelector<HTMLButtonElement>('[data-testid="trailing-header"] button')
+        : view.querySelector<HTMLButtonElement>('[data-testid="chat-profile-button"]');
+    expect(button).not.toBeNull();
+    await act(async () => button!.click());
+    if (os === 'ios') {
+      expect(profileHistory.state.routes.at(-1)).toMatchObject({
+        name: 'bot/[slug]',
+        params: { slug: 'ada', hostId: 'computer_a' },
+      });
+    }
     expect(view.querySelector('header')!.textContent).not.toContain(t.channelFiles.title);
     expect(view.querySelector('header')!.textContent).not.toContain(t.lockScreen.track);
   } finally {

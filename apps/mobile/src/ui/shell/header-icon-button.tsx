@@ -12,6 +12,7 @@ import {
   HandBackIcon,
   PencilIcon,
   PlusIcon,
+  MoreIcon,
   SettingsIcon,
   TobModeIcon,
 } from './icons';
@@ -28,7 +29,8 @@ export type HeaderIcon =
   | 'browser'
   | 'computer'
   | 'hand-back'
-  | 'tob';
+  | 'tob'
+  | 'more';
 
 export type HeaderIconButtonProps = {
   icon: HeaderIcon;
@@ -39,6 +41,7 @@ export type HeaderIconButtonProps = {
 };
 
 const glyphs = {
+  more: { Glyph: MoreIcon, size: (theme) => theme.type.title.size },
   back: { Glyph: ChevronLeftIcon, size: (theme) => theme.type.title.line },
   close: { Glyph: CloseIcon, size: (theme) => theme.type.title.line },
   clear: { Glyph: CloseIcon, size: (theme) => theme.type.title.size },

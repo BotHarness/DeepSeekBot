@@ -92,6 +92,7 @@ import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
 import { WorkingStatus } from './working-status';
 import { ChatTitle } from './chat-title';
+import { HeaderIconButton } from '../shell/header-icon-button';
 import { Composer, type ComposerInput } from './composer';
 import { GroupUnavailable } from './group-unavailable';
 import { DraftSaveNotice } from './draft-save-notice';
@@ -1279,13 +1280,27 @@ function ChatConversation({
       onPress={openProfile}
     />
   );
+  const canOpenProfile = saved !== undefined && !hostRefused && !missing && selected === undefined;
+  const profileButton = canOpenProfile ? (
+    <HeaderIconButton
+      icon="more"
+      label={t.openProfile}
+      testID="chat-profile-button"
+      onPress={openProfile}
+    />
+  ) : null;
   const ios = Platform.OS === 'ios';
+  const headerGap = glassPress.gap;
+  const titleWidth = Math.max(
+    0,
+    windowWidth - insets.left - insets.right - (theme.touch + space.x5 + headerGap) * 2,
+  );
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
   const titleItem = (
     <View
       style={{
-        width: dm || botDm ? undefined : windowWidth - (theme.touch + space.x5) * 2,
-        maxWidth: windowWidth - (theme.touch + space.x5) * 2,
+        width: titleWidth,
+        maxWidth: titleWidth,
       }}
     >
       {title}
@@ -1359,7 +1374,19 @@ function ChatConversation({
                   title: '',
                   headerTitle: '',
                   headerBackVisible: canGoBack && !headerIslands,
-                  unstable_headerRightItems: () => [],
+                  unstable_headerRightItems: () =>
+                    canOpenProfile
+                      ? [
+                          { type: 'spacing' as const, spacing: headerGap },
+                          {
+                            type: 'button' as const,
+                            label: t.openProfile,
+                            identifier: 'chat-profile-button',
+                            icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
+                            onPress: openProfile,
+                          },
+                        ]
+                      : [],
                   unstable_headerLeftItems: () => [
                     ...(headerIslands
                       ? [{ type: 'custom' as const, element: back }]
@@ -1376,13 +1403,13 @@ function ChatConversation({
                               onPress: leave,
                             },
                           ]),
-                    { type: 'spacing' as const, spacing: glassPress.gap },
+                    { type: 'spacing' as const, spacing: headerGap },
                     { type: 'custom' as const, element: titleItem },
                   ],
                 }
               : {
                   headerTitleAlign: 'left' as const,
-                  headerRight: () => null,
+                  headerRight: () => profileButton,
                   headerTitle: () => (
                     <View
                       key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
@@ -1810,11 +1837,12 @@ function ChatConversation({
               paddingHorizontal: space.x4,
               flexDirection: 'row',
               alignItems: 'center',
-              gap: space.x3,
+              gap: headerGap,
             }}
           >
             {back}
-            {titleItem}
+            <View style={{ flex: 1, minWidth: 0 }}>{title}</View>
+            {profileButton}
           </View>
         ) : null}
       </EndSheet>
@@ -1873,7 +1901,16 @@ function ChatConversation({
         onShareText={shareText}
       />
       {paging === undefined ? null : (
-        <NativePageHeader title={titleItem} onBack={leave} backID="chat-page-back" />
+        <NativePageHeader
+          title={titleItem}
+          onBack={leave}
+          backID="chat-page-back"
+          action={
+            canOpenProfile
+              ? { label: t.openProfile, testID: 'chat-profile-button', onPress: openProfile }
+              : undefined
+          }
+        />
       )}
     </>
   );
