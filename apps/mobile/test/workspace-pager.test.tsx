@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, useContext, useState, type ReactNode } from 'react';
+import { act, useContext, useRef, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -82,17 +82,35 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 function Chats() {
   const [draft, setDraft] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const setPaging = useContext(ChatsPagingContext);
   const mount = useMounted<HTMLDivElement>(() => {
-    setPaging?.(draft === '');
-  }, [draft, setPaging]);
+    setPaging?.(!searchOpen && !focused && draft === '');
+  }, [draft, searchOpen, focused, setPaging]);
   return (
     <div ref={mount} data-testid="chat-list">
       <input
+        ref={inputRef}
         aria-label="Search chats"
+        onFocus={() => {
+          setSearchOpen(true);
+          setFocused(true);
+        }}
+        onBlur={() => setFocused(false)}
         value={draft}
         onInput={(e) => setDraft(e.currentTarget.value)}
       />
+      <button
+        onClick={() => {
+          inputRef.current?.blur();
+          setSearchOpen(false);
+          setDraft('');
+        }}
+      >
+        Close search
+      </button>
       <span>Environment A</span>
       <nav>Chats / Activity / Settings</nav>
     </div>
@@ -172,14 +190,14 @@ describe('retained iOS workspace pages', () => {
     expect(element.querySelector('input')).toBe(input);
   });
 
-  it('pauses gestures without removing the retained chat while search has text', async () => {
+  it('keeps paging paused for an empty focused search until explicitly closed', async () => {
     native.hasChat = true;
     await render();
     const input = element.querySelector('input');
     if (!input) throw new Error('Search did not mount');
     expect(native.pageLimit).toBe(3);
     expect(native.scrollEnabled).toBe(true);
-    input.focus();
+    await act(async () => input.focus());
     await act(async () => {
       input.value = 'Tob';
       input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -192,7 +210,14 @@ describe('retained iOS workspace pages', () => {
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
     expect(native.pageLimit).toBe(3);
+    expect(native.scrollEnabled).toBe(false);
+    expect(document.activeElement).toBe(input);
+    const close = element.querySelector('button');
+    if (!close) throw new Error('Close search missing');
+    await act(async () => close.click());
+    expect(native.pageLimit).toBe(3);
     expect(native.scrollEnabled).toBe(true);
+    expect(document.activeElement).not.toBe(input);
   });
 
   it('releases the native page controller when its shell unmounts', async () => {
