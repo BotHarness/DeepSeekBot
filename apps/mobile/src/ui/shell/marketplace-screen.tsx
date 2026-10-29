@@ -298,6 +298,16 @@ const MarketplaceCatalogue = memo(function MarketplaceCatalogue({
                     onPress={() => void resource.more()}
                   />
                 </View>
+              ) : state.value?.nextCursor ? (
+                <Button
+                  testID="marketplace-more"
+                  label={t.marketplace.more}
+                  disabled={state.busy}
+                  onPress={() => {
+                    pagingIntent.current = null;
+                    void resource.more();
+                  }}
+                />
               ) : (
                 <></>
               )
