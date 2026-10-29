@@ -434,21 +434,6 @@ export const zh = {
   'onboarding.short.group': '创建一个群聊',
   'onboarding.short.groupHint': '{name} 已就绪。先和它打个招呼，再请总管把它加入新群聊。',
   'onboarding.short.groupPrompt': '帮我创建一个叫「学习小组」的群聊，把刚刚创建的 {name} 加进去。',
-  'onboarding.short.botPrompt.engineer':
-    '帮我创建一个叫「代码审查员」的 Bot，帮我审代码、指出风险和漏掉的测试。',
-  'onboarding.short.botPrompt.creator':
-    '帮我创建一个叫「选题编辑」的 Bot，帮我找选题、改稿和起标题。',
-  'onboarding.short.botPrompt.operator':
-    '帮我创建一个叫「周报助手」的 Bot，帮我整理每周进展、起草周报。',
-  'onboarding.short.botPrompt.learner': '帮我创建一个叫「学习助手」的 Bot，帮助我制定学习计划。',
-  'onboarding.short.groupPrompt.engineer':
-    '帮我创建一个叫「技术小队」的群聊，把刚刚创建的 {name} 加进去。',
-  'onboarding.short.groupPrompt.creator':
-    '帮我创建一个叫「内容工作室」的群聊，把刚刚创建的 {name} 加进去。',
-  'onboarding.short.groupPrompt.operator':
-    '帮我创建一个叫「产品小组」的群聊，把刚刚创建的 {name} 加进去。',
-  'onboarding.short.groupPrompt.learner':
-    '帮我创建一个叫「学习小组」的群聊，把刚刚创建的 {name} 加进去。',
   'onboarding.short.chat': '进入对话',
   'onboarding.short.chatHint': '现在试一下：在频道列表里打开总管对话。草稿会保留。',
   'onboarding.short.configure': '配置模型',
@@ -4845,22 +4830,6 @@ export const en = {
   'onboarding.short.groupHint':
     '{name} is ready. Say hi to it first, then ask your steward to add it to a group.',
   'onboarding.short.groupPrompt':
-    'Create a group called “Study group” with the {name} Bot you just created.',
-  'onboarding.short.botPrompt.engineer':
-    'Create a Bot called “Code Reviewer” that reviews my code and points out risks and missing tests.',
-  'onboarding.short.botPrompt.creator':
-    'Create a Bot called “Topic Editor” that helps me find topics, edit drafts and write titles.',
-  'onboarding.short.botPrompt.operator':
-    'Create a Bot called “Weekly Report Helper” that tracks my weekly progress and drafts my reports.',
-  'onboarding.short.botPrompt.learner':
-    'Create a Bot called “Study Buddy” that helps me make a study plan.',
-  'onboarding.short.groupPrompt.engineer':
-    'Create a group called “Tech squad” with the {name} Bot you just created.',
-  'onboarding.short.groupPrompt.creator':
-    'Create a group called “Content studio” with the {name} Bot you just created.',
-  'onboarding.short.groupPrompt.operator':
-    'Create a group called “Product team” with the {name} Bot you just created.',
-  'onboarding.short.groupPrompt.learner':
     'Create a group called “Study group” with the {name} Bot you just created.',
   'onboarding.short.chat': 'Start chatting',
   'onboarding.short.chatHint':

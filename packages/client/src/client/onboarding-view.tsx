@@ -508,6 +508,13 @@ export function OnboardingOverlay({
         (!receipt.journey || document.querySelector('[data-workspace-enabled]') !== null)
       )
         void controller.refresh(undefined, 'start', undefined, true);
+      else if (
+        receipt?.journey &&
+        !receipt.journey.done &&
+        (receipt.tutorial === 'active' || receipt.tutorial === 'paused') &&
+        !controller.getSnapshot().guideOpen
+      )
+        void controller.refresh(undefined, 'finish');
     });
   const mount = useMountedResource<HTMLSpanElement>(() => {
     let active = true;

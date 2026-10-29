@@ -207,8 +207,6 @@ export function createBotOnboarding(options: {
       selected === undefined
         ? undefined
         : channels.getOrCreateDm(selected.slug, selected.displayName);
-    if (action === 'finish' && (!state.journey_bot || !state.journey_group))
-      throw new Error('onboarding-creation-incomplete');
     database.transaction((db) => {
       const completed =
         state!.completed_message_id === null

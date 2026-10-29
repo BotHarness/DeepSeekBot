@@ -323,46 +323,28 @@ const journeyReceipt: OnboardingSnapshot = {
 };
 const finishes = (actions: ReturnType<typeof harness>['actions']) =>
   actions.onboarding.mock.calls.filter((call) => (call as unknown[])[1] === 'finish').length;
-const land = (channelId: string, error?: string) => {
-  store.select({ kind: 'channel', channelId });
-  store.setConversation({ status: 'ready', error });
-};
-
-it('v2 finishes step 5 only after the layout tips, when the Human lands in the Tob DM', async () => {
+it('v2 finishes the journey when the layout tips end, without a created Bot or group', async () => {
   const { actions, controller } = harness(true);
-  actions.onboarding.mockResolvedValue(journeyReceipt);
+  actions.onboarding.mockResolvedValue({
+    ...receipt,
+    tutorial: 'active',
+    journey: { version: 2, done: false },
+  });
   await controller.enter();
-  const stop = controller.watchTobLanding();
-  land('dm-ada');
-  await Promise.resolve();
-  expect(finishes(actions)).toBe(0);
-  land('group');
   controller.finishTour();
-  await Promise.resolve();
-  expect(finishes(actions)).toBe(0);
-  land('dm-ada');
   await vi.waitFor(() => expect(finishes(actions)).toBe(1));
-  expect(actions.openChannel).not.toHaveBeenCalled();
-  expect(controller.getSnapshot().checklistOpen).toBe(false);
-  store.setConversation({ sending: true });
-  await Promise.resolve();
-  expect(finishes(actions)).toBe(1);
-  stop();
-  land('group');
-  land('dm-ada');
-  await Promise.resolve();
-  expect(finishes(actions)).toBe(1);
+  expect(controller.getSnapshot()).toMatchObject({ guideOpen: false, layoutComplete: true });
 });
 
-it('v2 finishes at once when the layout tips end inside the Tob DM', async () => {
+it('v2 closing the layout tips also finishes instead of pausing', async () => {
   const { actions, controller } = harness(true);
   actions.onboarding.mockResolvedValue(journeyReceipt);
   await controller.enter();
-  land('dm-ada');
-  const stop = controller.watchTobLanding();
-  controller.finishTour();
+  await controller.startTour();
+  expect(controller.getSnapshot().guideOpen).toBe(true);
+  controller.pauseGuide();
   await vi.waitFor(() => expect(finishes(actions)).toBe(1));
-  stop();
+  expect(actions.onboarding).not.toHaveBeenCalledWith(undefined, 'pause');
 });
 
 it('v2 explicit replay resets only local tips while continue retains them', async () => {
@@ -383,34 +365,6 @@ it('v2 explicit replay resets only local tips while continue retains them', asyn
   });
   expect(localStorage.getItem('botharness/onboarding/layout-v2/qa')).toBeNull();
 });
-it('v2 does not finish in another Channel or a Tob DM that failed to load', async () => {
-  const { actions, controller } = harness(true);
-  actions.onboarding.mockResolvedValue(journeyReceipt);
-  await controller.enter();
-  controller.finishTour();
-  const stop = controller.watchTobLanding();
-  land('group');
-  land('dm-ada', 'offline');
-  await Promise.resolve();
-  expect(finishes(actions)).toBe(0);
-  stop();
-});
-it.each(['simple', 'advanced'] as const)(
-  'v2 %s step 5 finishes when the Human reaches the Tob DM',
-  async (mode) => {
-    const { actions, controller } = harness(true);
-    actions.onboarding.mockResolvedValue(journeyReceipt);
-    await controller.enter();
-    controller.attachLayout(mode, { setMode: vi.fn() });
-    controller.finishTour();
-    const stop = controller.watchTobLanding();
-    land('dm-ada');
-    await vi.waitFor(() =>
-      expect(actions.onboarding).toHaveBeenLastCalledWith(undefined, 'finish'),
-    );
-    stop();
-  },
-);
 it('v2 layout choice follows the attached Layout mode owner', async () => {
   const { actions, controller } = harness(true);
   actions.onboarding.mockResolvedValue(journeyReceipt);

@@ -7,11 +7,7 @@ import { store } from './store.js';
 import { invalidateModelPlan } from './model-plan-store.js';
 import type { WindowCompanions } from './window-companions.js';
 import type { LayoutMode } from './layout-mode.js';
-import {
-  ONBOARDING_PERSONAS,
-  type OnboardingFeature,
-  type OnboardingPersona,
-} from './onboarding-personas.js';
+import type { OnboardingFeature, OnboardingPersona } from './onboarding-personas.js';
 import {
   loadChecklistEvidence,
   type ChecklistEvidence,
@@ -170,16 +166,6 @@ export class OnboardingController {
       this.actions.telemetryEvent?.(event, properties);
     } catch {}
   }
-  persona(): OnboardingPersona | undefined {
-    const receipt = this.state.receipt;
-    if (!receipt) return undefined;
-    try {
-      const value = localStorage.getItem(personaKey(receipt.profileId));
-      return ONBOARDING_PERSONAS.find((persona) => persona === value);
-    } catch {
-      return undefined;
-    }
-  }
   hideIntro(hidden: boolean): void {
     if (this.state.intro) this.update({ intro: { ...this.state.intro, hidden } });
   }
@@ -194,15 +180,14 @@ export class OnboardingController {
     if (!receipt) return;
     try {
       localStorage.setItem(introKey(receipt.profileId), '1');
-      if (outcome && 'persona' in outcome && outcome.persona)
-        localStorage.setItem(personaKey(receipt.profileId), outcome.persona);
     } catch {}
     if (
       receipt.tutorial === 'not-started' &&
       document.querySelector('[data-workspace-enabled]') !== null
-    )
+    ) {
       await this.refresh(undefined, 'start', undefined, true);
-    else this.revealTob?.();
+      if (this.state.receipt?.tutorial === 'active') this.update({ guideOpen: true });
+    } else this.revealTob?.();
   }
   private revealTob: (() => void) | undefined;
   attachTobConversation(reveal: () => void): () => void {
@@ -382,52 +367,19 @@ export class OnboardingController {
         );
       } catch {}
       this.update({ guideOpen: false, checklistOpen: false, layoutComplete: true });
+      if (!this.state.receipt.journey.done) void this.refresh(undefined, 'finish');
       return;
     }
     this.update({ guideOpen: false, checklistOpen: this.state.receipt?.tutorial === 'active' });
   }
-  private landing: string | undefined;
-  async finishInTobConversation(): Promise<void> {
-    const receipt = this.state.receipt;
-    const { selection, conversation } = store.getSnapshot();
-    const here =
-      selection?.kind === 'channel' &&
-      selection.channelId === receipt?.channelId &&
-      conversation.status === 'ready' &&
-      !conversation.error
-        ? selection.channelId
-        : undefined;
-    if (here === undefined) this.landing = undefined;
-    if (
-      here === undefined ||
-      this.landing === here ||
-      !this.state.layoutComplete ||
-      receipt?.tutorial !== 'active' ||
-      receipt.journey?.done ||
-      !receipt.journey?.botSlug ||
-      !receipt.journey.groupChannelId
-    )
-      return;
-    this.landing = here;
-    await this.refresh(undefined, 'finish');
-  }
-  watchTobLanding(): () => void {
-    const check = (): void => void this.finishInTobConversation();
-    const stopStore = store.subscribe(check);
-    const stopSelf = this.subscribe(check);
-    check();
-    return () => {
-      stopStore();
-      stopSelf();
-    };
-  }
   pauseGuide(): void {
     const wasOpen = this.state.guideOpen;
+    if (wasOpen && this.state.receipt?.journey) return this.finishTour();
     this.update({ guideOpen: false });
     if (wasOpen && this.state.receipt?.tutorial === 'active') void this.refresh(undefined, 'pause');
   }
   prepareSend(channelId: string, slug: string, body: string): boolean | Promise<boolean> {
-    this.pauseGuide();
+    if (!this.state.receipt?.journey) this.pauseGuide();
     if (!this.state.receipt || this.state.receipt.completed) return true;
     return this.inspectSend(channelId, slug, body).catch((error: unknown) => {
       this.savePending({ channelId, slug, body });
@@ -538,9 +490,7 @@ export class OnboardingController {
 function introKey(profileId: string): string {
   return `botharness/onboarding/intro-v1/${profileId}`;
 }
-function personaKey(profileId: string): string {
-  return `botharness/onboarding/persona-v1/${profileId}`;
-}
+
 const controllers = new WeakMap<BridgeActions, OnboardingController>();
 export const INTRO_STEPS = ['welcome', 'theme', 'model', 'community', 'start'] as const;
 export type IntroStartOutcome =

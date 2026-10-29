@@ -1224,7 +1224,7 @@ the same message ID, including after another restart. Inspection cannot include
 
 ## Desktop onboarding
 
-`deepseekbot onboarding` reads the Profile journey and actual Bot/group result references. Use `--action start|pause|skip|continue|restart|finish` to change tutorial lifecycle. `finish` refuses before actual Bot/group creation. Restart preserves resources, approvals, layouts and history. Layout tip completion stays on the current Client; this command does not operate the UI or mark provider execution successful.
+`deepseekbot onboarding` reads the Profile journey and actual Bot/group result references. Use `--action start|pause|skip|continue|restart|finish` to change tutorial lifecycle. `finish` no longer needs a created Bot or group: the intro's persona templates and interview create them through Tob when the person asks. Restart preserves resources, approvals, layouts and history. Layout tip completion stays on the current Client; this command does not operate the UI or mark provider execution successful.
 
 ### Version-bound Memory images
 
