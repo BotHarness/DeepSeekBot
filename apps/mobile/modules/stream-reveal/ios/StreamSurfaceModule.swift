@@ -7,7 +7,7 @@ public final class StreamSurfaceModule: Module {
     View(StreamSurfaceView.self) {
       Prop("active") { (view: StreamSurfaceView, value: Bool) in view.active = value }
       Prop("surfaceColor") { (view: StreamSurfaceView, value: UIColor) in
-        view.background.fillColor = value.cgColor
+        view.setSurfaceColor(value)
       }
       Prop("corners") { (view: StreamSurfaceView, value: [Double]) in view.corners = value }
       Prop("duration") { (view: StreamSurfaceView, value: Double) in view.duration = value }

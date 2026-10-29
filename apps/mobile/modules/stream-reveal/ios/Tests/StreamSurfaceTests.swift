@@ -17,6 +17,7 @@ final class StreamSurfaceTests: XCTestCase {
     view.active = false
     view.sync()
     XCTAssertTrue(child.superview === view.surface)
+    XCTAssertTrue(view.surface.layer.sublayers?.first === view.background)
     XCTAssertEqual(child.frame, CGRect(x: 12, y: 10, width: 60, height: 70))
     XCTAssertNil(view.surface.layer.mask)
     XCTAssertEqual(view.background.path?.boundingBox, CGRect(x: 0, y: 0, width: 100, height: 100))

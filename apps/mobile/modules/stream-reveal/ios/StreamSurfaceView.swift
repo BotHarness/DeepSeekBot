@@ -33,6 +33,7 @@ final class StreamSurfaceView: ExpoView {
   // Fabric retains each child's final frame; only its parent clipping layer animates.
   override func mountChildComponentView(_ childComponentView: UIView, index: Int) {
     surface.insertSubview(childComponentView, at: index)
+    surface.layer.insertSublayer(background, at: 0)
   }
 
   override func unmountChildComponentView(_ childComponentView: UIView, index: Int) {
@@ -50,6 +51,13 @@ final class StreamSurfaceView: ExpoView {
     boundary.removeAllAnimations()
     previousBounds = .zero
     sync()
+  }
+
+  func setSurfaceColor(_ color: UIColor) {
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    background.fillColor = color.cgColor
+    CATransaction.commit()
   }
 
   func sync() {
