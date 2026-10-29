@@ -1,7 +1,6 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, Keyboard, Platform, View, type ViewInstance } from 'react-native';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MarketplaceSort } from '../../../../../packages/core/src/marketplace/client';
 import { marketplace, useCatalogueResource } from '../../marketplace/native-catalogue';
@@ -10,13 +9,10 @@ import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { MarketplaceDiscovery } from './marketplace-discovery';
-import { SearchField } from '../primitives/search-field';
-import { HeaderCircleButton } from '../chat/header-chrome';
 import { PullToRefresh } from '../primitives/pull-to-refresh';
 import { Text } from '../primitives/text';
 import { HeaderIconButton } from './header-icon-button';
-import { HeaderGlyph } from './header-glyph';
-import { CloseIcon, CheckIcon } from './icons';
+import { HeaderSearch } from './header-search';
 import { useDesignTheme } from '../design/theme';
 import { haptic } from '../haptics';
 import { useStrings, locale } from '../strings';
@@ -37,7 +33,6 @@ export function MarketplaceScreen() {
   const [topic, setTopic] = useState('');
   const [choosingTopic, setChoosingTopic] = useState(false);
   const insets = useSafeAreaInsets();
-  const [searchHeight, setSearchHeight] = useState(theme.touch + space.x5 * 2 + insets.bottom);
   const ios = Platform.OS === 'ios';
   const target = marketplaceTarget({ entry, hostId });
   const home = query === '' && topic === '';
@@ -53,6 +48,15 @@ export function MarketplaceScreen() {
     if (next === query) void resource.refresh();
     else setQuery(next);
   };
+  const openSearch = () => {
+    haptic('selection');
+    setSearching(true);
+  };
+  const closeSearch = () => {
+    setSearching(false);
+    setSearch('');
+    setQuery('');
+  };
   const openFilters = () => {
     haptic('menu');
     Keyboard.dismiss();
@@ -62,7 +66,7 @@ export function MarketplaceScreen() {
     <View ref={mounted} style={{ flex: 1, backgroundColor: theme.color.base }}>
       <Stack.Screen
         options={
-          ios
+          ios && !searching
             ? {
                 title: '',
                 headerTitle: '',
@@ -85,6 +89,13 @@ export function MarketplaceScreen() {
                 unstable_headerRightItems: () => [
                   {
                     type: 'button',
+                    label: t.marketplace.search,
+                    identifier: 'marketplace-search-button',
+                    icon: { type: 'sfSymbol', name: 'magnifyingglass' },
+                    onPress: openSearch,
+                  },
+                  {
+                    type: 'button',
                     label: t.marketplace.topics,
                     identifier: 'marketplace-filter-button',
                     icon: { type: 'sfSymbol', name: 'line.3.horizontal.decrease' },
@@ -95,7 +106,7 @@ export function MarketplaceScreen() {
             : { title: t.marketplace.title, headerShown: false }
         }
       />
-      {!ios ? (
+      {!ios || searching ? (
         <View
           style={{
             paddingTop: insets.top + space.x2,
@@ -106,22 +117,42 @@ export function MarketplaceScreen() {
             gap: space.x2,
           }}
         >
-          <HeaderIconButton
-            icon="back"
-            label={t.back}
-            testID="marketplace-back"
-            onPress={() => router.back()}
-          />
-          <Text variant="title" strong accessibilityRole="header" style={{ flex: 1 }}>
-            {t.marketplace.title}
-          </Text>
-          <HeaderIconButton
-            icon="filter"
-            label={t.marketplace.topics}
-            testID="marketplace-filter-button"
-            selected={topic !== ''}
-            onPress={openFilters}
-          />
+          {searching ? (
+            <HeaderSearch
+              testID="marketplace-search"
+              maxLength={100}
+              value={search}
+              placeholder={t.marketplace.search}
+              onChangeText={setSearch}
+              onSubmitEditing={searchNow}
+              onClose={closeSearch}
+            />
+          ) : (
+            <>
+              <HeaderIconButton
+                icon="back"
+                label={t.back}
+                testID="marketplace-back"
+                onPress={() => router.back()}
+              />
+              <Text variant="title" strong accessibilityRole="header" style={{ flex: 1 }}>
+                {t.marketplace.title}
+              </Text>
+              <HeaderIconButton
+                icon="search"
+                label={t.marketplace.search}
+                testID="marketplace-search-button"
+                onPress={openSearch}
+              />
+              <HeaderIconButton
+                icon="filter"
+                label={t.marketplace.topics}
+                testID="marketplace-filter-button"
+                selected={topic !== ''}
+                onPress={openFilters}
+              />
+            </>
+          )}
         </View>
       ) : null}
       <PullToRefresh
@@ -139,7 +170,7 @@ export function MarketplaceScreen() {
             keyboardDismissMode="on-drag"
             contentContainerStyle={{
               padding: space.x5,
-              paddingBottom: searchHeight + space.x5,
+              paddingBottom: insets.bottom + space.x5,
               gap: space.x4,
             }}
             ListHeaderComponent={
@@ -200,79 +231,6 @@ export function MarketplaceScreen() {
           />
         )}
       </PullToRefresh>
-      <KeyboardAvoidingView
-        behavior="padding"
-        pointerEvents="box-none"
-        style={{
-          position: 'absolute',
-          top: 0,
-          bottom: 0,
-          left: 0,
-          right: 0,
-          justifyContent: 'flex-end',
-        }}
-      >
-        <View
-          pointerEvents="box-none"
-          onLayout={(event) => setSearchHeight(event.nativeEvent.layout.height)}
-          style={{
-            paddingHorizontal: space.x5,
-            paddingTop: space.x3,
-            paddingBottom: Math.max(insets.bottom, space.x3),
-            gap: space.x2,
-          }}
-        >
-          {searching ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
-              <View style={{ flex: 1 }}>
-                <SearchField
-                  floating
-                  autoFocus
-                  inset={0}
-                  testID="marketplace-search"
-                  maxLength={100}
-                  placeholder={t.marketplace.search}
-                  value={search}
-                  onChangeText={setSearch}
-                  onSubmitEditing={searchNow}
-                />
-              </View>
-              <HeaderCircleButton
-                label={t.marketplace.search}
-                testID="marketplace-search-submit"
-                onPress={() => searchNow()}
-              >
-                <CheckIcon color={theme.color.fg} size={theme.type.title.line} />
-              </HeaderCircleButton>
-              <HeaderCircleButton
-                label={t.closeSearch}
-                testID="marketplace-search-close"
-                onPress={() => {
-                  Keyboard.dismiss();
-                  setSearching(false);
-                  setSearch('');
-                  setQuery('');
-                }}
-              >
-                <CloseIcon color={theme.color.fg} size={theme.type.title.line} />
-              </HeaderCircleButton>
-            </View>
-          ) : (
-            <View style={{ alignSelf: 'flex-end' }}>
-              <HeaderCircleButton
-                label={t.marketplace.search}
-                testID="marketplace-search-button"
-                onPress={() => {
-                  haptic('selection');
-                  setSearching(true);
-                }}
-              >
-                <HeaderGlyph icon="search" active={false} />
-              </HeaderCircleButton>
-            </View>
-          )}
-        </View>
-      </KeyboardAvoidingView>
       {choosingTopic ? (
         <MarketplaceTopics
           value={topic}

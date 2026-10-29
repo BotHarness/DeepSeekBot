@@ -12,15 +12,21 @@ import { holdBack } from './back-owner';
 export type HeaderSearchProps = {
   value: string;
   placeholder: string;
+  testID?: string;
+  maxLength?: number;
   onChangeText(text: string): void;
-  onFocusChange(focused: boolean): void;
+  onSubmitEditing?(text: string): void;
+  onFocusChange?(focused: boolean): void;
   onClose(): void;
 };
 
 export function HeaderSearch({
   value,
   placeholder,
+  testID,
+  maxLength,
   onChangeText,
+  onSubmitEditing,
   onFocusChange,
   onClose,
 }: HeaderSearchProps) {
@@ -52,11 +58,14 @@ export function HeaderSearch({
           floating
           autoFocus
           inset={0}
+          {...(testID === undefined ? {} : { testID })}
+          {...(maxLength === undefined ? {} : { maxLength })}
+          {...(onSubmitEditing ? { onSubmitEditing } : {})}
           value={value}
           placeholder={placeholder}
           onChangeText={onChangeText}
-          onFocus={() => onFocusChange(true)}
-          onBlur={() => onFocusChange(false)}
+          onFocus={() => onFocusChange?.(true)}
+          onBlur={() => onFocusChange?.(false)}
           trailing={
             !android ? (
               <NavigationAction close size={theme.touch} label={t.closeSearch} onPress={close} />
