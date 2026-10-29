@@ -9,7 +9,7 @@ for (const step of ['duration', 'springify', 'mass', 'damping', 'stiffness', 're
 const FlatList = (props: {
   data: Array<{ key: string }>;
   keyExtractor(row: unknown): string;
-  renderItem(info: { item: unknown }): ReactNode;
+  renderItem(info: { item: unknown; index: number }): ReactNode;
   ListHeaderComponent?: ReactNode;
   ListFooterComponent?: ReactNode;
   ListEmptyComponent?: ReactNode;
@@ -25,8 +25,12 @@ const FlatList = (props: {
     },
     props.ListHeaderComponent ?? null,
     props.data.length === 0 ? (props.ListEmptyComponent ?? null) : null,
-    ...props.data.map((row) =>
-      createElement(Fragment, { key: props.keyExtractor(row) }, props.renderItem({ item: row })),
+    ...props.data.map((row, index) =>
+      createElement(
+        Fragment,
+        { key: props.keyExtractor(row) },
+        props.renderItem({ item: row, index }),
+      ),
     ),
     props.ListFooterComponent ?? null,
   );

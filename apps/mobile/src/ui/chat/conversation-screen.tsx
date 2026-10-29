@@ -529,6 +529,36 @@ function ChatConversation({
     { message: string; request: string | undefined; index: number } | undefined
   >(undefined);
   const retryFocus = useRef<() => void>(() => undefined);
+  const focusMeasurementFrame = useRef<number | undefined>(undefined);
+  const focusMeasurements = useRef(new Map<string, { index: number; height: number }>());
+  const cancelFocusMeasurement = useCallback(() => {
+    if (focusMeasurementFrame.current !== undefined)
+      cancelAnimationFrame(focusMeasurementFrame.current);
+    focusMeasurementFrame.current = undefined;
+  }, []);
+  useLayoutEffect(() => cancelFocusMeasurement, [cancelFocusMeasurement]);
+  const measuredFocusCell = useCallback(
+    (key: string, index: number, height: number) => {
+      if (
+        !focused ||
+        focus === undefined ||
+        focusCancelled.current ||
+        !focusNeedsLayout.current ||
+        height <= 0
+      )
+        return;
+      const previous = focusMeasurements.current.get(key);
+      if (previous !== undefined && previous.index === index && previous.height === height) return;
+      focusMeasurements.current.set(key, { index, height });
+      if (focusMeasurementFrame.current !== undefined) return;
+      focusMeasurementFrame.current = requestAnimationFrame(() => {
+        focusMeasurementFrame.current = undefined;
+        focusNeedsLayout.current = false;
+        retryFocus.current();
+      });
+    },
+    [focused, focus],
+  );
   const onFocusViewabilityChange = useCallback(() => {
     focusNeedsLayout.current = false;
     retryFocus.current();
@@ -774,9 +804,15 @@ function ChatConversation({
 
   useLayoutEffect(() => {
     retryFocus.current = jump;
-    if (!focused) return;
+    if (!focused) {
+      cancelFocusMeasurement();
+      focusNeedsLayout.current = false;
+      return;
+    }
     const previous = focusIntent.current;
     if (previous.message !== focus || previous.request !== focusRequest) {
+      cancelFocusMeasurement();
+      focusMeasurements.current.clear();
       focusIntent.current = { request: focusRequest, message: focus };
       jumped.current = undefined;
       focusPage.current = undefined;
@@ -786,7 +822,7 @@ function ChatConversation({
       focusAttempt.current = undefined;
     }
     jump();
-  }, [focused, focus, focusRequest, jump]);
+  }, [focused, focus, focusRequest, jump, cancelFocusMeasurement]);
 
   const membersKey = channel === undefined ? undefined : `${channel.id}:${channel.members.join()}`;
   const mentionQuery = dm ? undefined : activeMentionQuery(draft, caret, mentions);
@@ -969,7 +1005,7 @@ function ChatConversation({
   );
 
   const renderItem = useCallback(
-    ({ item }: { item: Row }) => {
+    ({ item, index }: { item: Row; index: number }) => {
       if (item.kind === 'draft')
         return conversation === undefined ? null : (
           <PlaybackBubble
@@ -997,6 +1033,10 @@ function ChatConversation({
           onOpen={item.message.card === undefined ? undefined : openActions}
         >
           <View
+            testID={item.message.id === focus ? 'focused-message' : `chat-cell-${item.key}`}
+            onLayout={(event) =>
+              measuredFocusCell(`cell:${item.key}`, index, event.nativeEvent.layout.height)
+            }
             style={{
               backgroundColor: item.message.id === focus ? theme.color.accentTint : 'transparent',
             }}
@@ -1145,6 +1185,9 @@ function ChatConversation({
       dm,
       playback,
       focused,
+      measuredFocusCell,
+      focus,
+      snapshot.status,
       conversation,
       client,
       slug,
@@ -1707,6 +1750,10 @@ function ChatConversation({
                         : {})}
                       onStartReachedThreshold={0.5}
                       {...latest.listProps}
+                      onLayout={(event) => {
+                        latest.listProps.onLayout(event);
+                        measuredFocusCell('viewport', -1, event.nativeEvent.layout.height);
+                      }}
                       onScrollBeginDrag={(event: ScrollEvent) => {
                         focusCancelled.current = true;
                         focusAttempt.current = undefined;
