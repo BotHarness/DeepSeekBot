@@ -580,9 +580,6 @@ it('records only successful new scoped creation results and retains them through
       started,
     );
     expect((await core.onboarding.enter()).journey?.botSlug).toBeUndefined();
-    await expect(core.onboarding.enter(undefined, 'finish')).rejects.toThrow(
-      'onboarding-creation-incomplete',
-    );
     const created = core.creations.create({ displayName: 'Study' }, 'study-operation');
     core.onboarding.recordCreation(
       'create',

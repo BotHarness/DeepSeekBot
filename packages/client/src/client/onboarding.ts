@@ -8,6 +8,12 @@ import { invalidateModelPlan } from './model-plan-store.js';
 import type { WindowCompanions } from './window-companions.js';
 import type { LayoutMode } from './layout-mode.js';
 import {
+  ONBOARDING_PERSONAS,
+  type OnboardingFeature,
+  type OnboardingPersona,
+  type PersonaDetail,
+} from './onboarding-personas.js';
+import {
   loadChecklistEvidence,
   type ChecklistEvidence,
   type ChecklistTarget,
@@ -82,7 +88,11 @@ export class OnboardingController {
       this.update({
         receipt,
         error: undefined,
-        guideOpen: justCompleted || receipt.tutorial !== 'active' ? false : this.state.guideOpen,
+        guideOpen:
+          (justCompleted && !(receipt.journey && !receipt.journey.done)) ||
+          receipt.tutorial !== 'active'
+            ? false
+            : this.state.guideOpen,
         checklistOpen: receipt.tutorial !== 'active' ? false : opening || this.state.checklistOpen,
       });
       if (receipt.journey) {
@@ -174,8 +184,14 @@ export class OnboardingController {
     if (!intro) return;
     this.update({ intro: undefined });
     const step = INTRO_STEPS[intro.step] ?? INTRO_STEPS[0];
-    if (outcome && 'starter' in outcome) this.introEvent('onboarding:intro_complete', outcome);
-    else this.introEvent('onboarding:intro_dismiss', { step, via: outcome?.via ?? 'close' });
+    if (outcome && 'starter' in outcome) {
+      const { personas = [], details = [], ...rest } = outcome;
+      this.introEvent('onboarding:intro_complete', {
+        ...rest,
+        ...Object.fromEntries(ONBOARDING_PERSONAS.map((id) => [`is_${id}`, personas.includes(id)])),
+        has_detail: details.length > 0,
+      });
+    } else this.introEvent('onboarding:intro_dismiss', { step, via: outcome?.via ?? 'close' });
     if (!receipt) return;
     try {
       localStorage.setItem(introKey(receipt.profileId), '1');
@@ -183,9 +199,10 @@ export class OnboardingController {
     if (
       receipt.tutorial === 'not-started' &&
       document.querySelector('[data-workspace-enabled]') !== null
-    )
+    ) {
       await this.refresh(undefined, 'start', undefined, true);
-    else this.revealTob?.();
+      if (this.state.receipt?.tutorial === 'active') this.update({ guideOpen: true });
+    } else this.revealTob?.();
   }
   private revealTob: (() => void) | undefined;
   attachTobConversation(reveal: () => void): () => void {
@@ -365,44 +382,10 @@ export class OnboardingController {
         );
       } catch {}
       this.update({ guideOpen: false, checklistOpen: false, layoutComplete: true });
+      if (!this.state.receipt.journey.done) void this.refresh(undefined, 'finish');
       return;
     }
     this.update({ guideOpen: false, checklistOpen: this.state.receipt?.tutorial === 'active' });
-  }
-  private landing: string | undefined;
-  async finishInTobConversation(): Promise<void> {
-    const receipt = this.state.receipt;
-    const { selection, conversation } = store.getSnapshot();
-    const here =
-      selection?.kind === 'channel' &&
-      selection.channelId === receipt?.channelId &&
-      conversation.status === 'ready' &&
-      !conversation.error
-        ? selection.channelId
-        : undefined;
-    if (here === undefined) this.landing = undefined;
-    if (
-      here === undefined ||
-      this.landing === here ||
-      !this.state.layoutComplete ||
-      receipt?.tutorial !== 'active' ||
-      receipt.journey?.done ||
-      !receipt.journey?.botSlug ||
-      !receipt.journey.groupChannelId
-    )
-      return;
-    this.landing = here;
-    await this.refresh(undefined, 'finish');
-  }
-  watchTobLanding(): () => void {
-    const check = (): void => void this.finishInTobConversation();
-    const stopStore = store.subscribe(check);
-    const stopSelf = this.subscribe(check);
-    check();
-    return () => {
-      stopStore();
-      stopSelf();
-    };
   }
   pauseGuide(): void {
     const wasOpen = this.state.guideOpen;
@@ -410,7 +393,7 @@ export class OnboardingController {
     if (wasOpen && this.state.receipt?.tutorial === 'active') void this.refresh(undefined, 'pause');
   }
   prepareSend(channelId: string, slug: string, body: string): boolean | Promise<boolean> {
-    this.pauseGuide();
+    if (!this.state.receipt?.journey) this.pauseGuide();
     if (!this.state.receipt || this.state.receipt.completed) return true;
     return this.inspectSend(channelId, slug, body).catch((error: unknown) => {
       this.savePending({ channelId, slug, body });
@@ -521,10 +504,20 @@ export class OnboardingController {
 function introKey(profileId: string): string {
   return `botharness/onboarding/intro-v1/${profileId}`;
 }
+
 const controllers = new WeakMap<BridgeActions, OnboardingController>();
 export const INTRO_STEPS = ['welcome', 'theme', 'model', 'community', 'start'] as const;
-export type IntroStarter = 'botPrompt' | 'firstRequest' | 'exampleRequest' | 'own';
-export type IntroOutcome = { via: 'skip' | 'close' } | { starter: IntroStarter };
+type IntroProfile = {
+  personas?: readonly OnboardingPersona[];
+  details?: readonly PersonaDetail[];
+};
+export type IntroStartOutcome = IntroProfile &
+  (
+    | { starter: 'persona'; persona: OnboardingPersona; feature: OnboardingFeature }
+    | { starter: 'interview' }
+    | { starter: 'own' }
+  );
+export type IntroOutcome = { via: 'skip' | 'close' } | IntroStartOutcome;
 
 export function onboardingFor(actions: BridgeActions): OnboardingController {
   let controller = controllers.get(actions);

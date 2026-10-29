@@ -127,7 +127,6 @@ export function Workspace({
         return tob;
       };
       const detachGuide = onboarding.attachTobConversation(() => void openTob().catch(() => {}));
-      const stopLanding = onboarding.watchTobLanding();
       const stopRequests = receiveTobMessages(
         (body) =>
           void openTob()
@@ -140,7 +139,6 @@ export function Workspace({
       setEnabled(true);
       return () => {
         stopRequests();
-        stopLanding();
         detachGuide();
         unregisterMessages();
         unregister();

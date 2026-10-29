@@ -495,8 +495,9 @@ export function OnboardingOverlay({
   const controller = onboardingFor(actions);
   controller.attachCompanion(companion);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-  const enter = (): Promise<void> =>
+  const enter = (live: () => boolean = () => true): Promise<void> =>
     controller.enter(companion).then(() => {
+      if (!live()) return;
       void controller.refreshEvidence();
       const receipt = controller.getSnapshot().receipt;
       if (controller.introPending()) {
@@ -508,6 +509,13 @@ export function OnboardingOverlay({
         (!receipt.journey || document.querySelector('[data-workspace-enabled]') !== null)
       )
         void controller.refresh(undefined, 'start', undefined, true);
+      else if (
+        receipt?.journey &&
+        !receipt.journey.done &&
+        (receipt.tutorial === 'active' || receipt.tutorial === 'paused') &&
+        !controller.getSnapshot().guideOpen
+      )
+        void controller.startTour();
     });
   const mount = useMountedResource<HTMLSpanElement>(() => {
     let active = true;
@@ -515,7 +523,7 @@ export function OnboardingOverlay({
     markBotModeEntered();
     actions.telemetryEvent('app:bot_mode_enter', { layout: readLayoutMode().mode });
     const returned = takeSessionsTourReturn();
-    void enter().then(() => {
+    void enter(() => active).then(() => {
       if (active && returned && !controller.getSnapshot().receipt?.journey)
         controller.openChecklist();
     });
@@ -572,6 +580,10 @@ export function OnboardingOverlay({
         nextLabel: t('onboarding.tour.next'),
         doneLabel: t(state.receipt?.journey ? 'onboarding.tour.next' : 'onboarding.tour.done'),
         onClosed: () => {
+          if (controller.getSnapshot().receipt?.journey) controller.finishTour();
+          else controller.pauseGuide();
+        },
+        onInterrupted: () => {
           controller.pauseGuide();
         },
         onFinished: () => {

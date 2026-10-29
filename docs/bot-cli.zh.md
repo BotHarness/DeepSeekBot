@@ -1195,7 +1195,7 @@ Host 重启后先检查草稿、重新读取群聊，再通过同一个
 
 ## Desktop 新手引导
 
-`deepseekbot onboarding` 读取 Profile 引导及实际 Bot／群聊结果引用。`--action start|pause|skip|continue|restart|finish` 控制生命周期；未实际创建 Bot 与群聊时 finish 拒绝。重新开始保留资源、审批、布局和历史。布局教学完成记录属于当前 Client；CLI 不操作界面，也不把模型配置视为执行成功。
+`deepseekbot onboarding` 读取 Profile 引导及实际 Bot／群聊结果引用。`--action start|pause|skip|continue|restart|finish` 控制生命周期；finish 不再要求已实际创建 Bot 与群聊：引导的身份模板和采访会在用户需要时由托布创建。重新开始保留资源、审批、布局和历史。布局教学完成记录属于当前 Client；CLI 不操作界面，也不把模型配置视为执行成功。
 
 ### 绑定版本的 Memory PNG 图片
 

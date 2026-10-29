@@ -10,7 +10,6 @@ import { Note } from './ds/note.js';
 import { border, color, dialog, radius, size, space, text } from './ds/tokens.stylex.js';
 import { Modal } from './modal.js';
 import { ModelPicker } from './model-picker.js';
-import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { openModelsSettingsAndReturn } from './bot-settings-open.js';
 import type { Appearance, AppearancePatch } from './appearance.js';
 import { AppearanceMaterialSettings } from './appearance-material-settings.js';
@@ -28,7 +27,22 @@ import { COMMUNITY, cachedGithubStars, fetchGithubStars, formatStars } from './c
 import { requestTobMessage } from './tob-requests.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
-import { INTRO_STEPS, onboardingFor, type IntroStarter } from './onboarding.js';
+import {
+  INTRO_STEPS,
+  onboardingFor,
+  type IntroOutcome,
+  type IntroStartOutcome,
+} from './onboarding.js';
+import {
+  ONBOARDING_PERSONAS,
+  PERSONA_DETAILS,
+  PERSONA_TEMPLATES,
+  browserTimeZone,
+  type OnboardingFeature,
+  type OnboardingPersona,
+  type PersonaDetail,
+  type PersonaPrompt,
+} from './onboarding-personas.js';
 import { invalidateInheritedModelPlans } from './model-plan-store.js';
 
 export { INTRO_STEPS };
@@ -40,11 +54,14 @@ const REVIEWS: readonly BotHarnessKey[] = [
   'intro.reviews.details',
 ];
 
-const STARTERS: readonly { key: BotHarnessKey; id: IntroStarter }[] = [
-  { key: 'onboarding.short.botPrompt', id: 'botPrompt' },
-  { key: 'onboarding.firstRequest', id: 'firstRequest' },
-  { key: 'onboarding.exampleRequest', id: 'exampleRequest' },
-];
+const FEATURE_ICONS: Readonly<Record<OnboardingFeature, string>> = {
+  bot: 'bot',
+  group: 'users',
+  schedule: 'alarm-clock',
+  browser: 'globe',
+  memory: 'brain',
+  im: 'plug',
+};
 
 const styles = stylex.create({
   dialog: {
@@ -194,9 +211,7 @@ const styles = stylex.create({
     margin: 0,
     padding: space.x4,
     borderRadius: radius.lg,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.divider,
+    backgroundColor: color.surface,
     color: color.fg,
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
@@ -207,9 +222,7 @@ const styles = stylex.create({
     gap: space.x3,
     padding: space.x4,
     borderRadius: radius.lg,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.divider,
+    backgroundColor: color.surface,
   },
   advancedSummary: {
     display: 'flex',
@@ -238,10 +251,9 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: space.x4,
     padding: space.x4,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: { default: color.border, ':hover': color.borderStrong },
+    borderWidth: 0,
     borderRadius: radius.lg,
+    backgroundColor: { default: color.surface, ':hover': color.hover },
     color: color.fg,
     textDecoration: 'none',
     outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
@@ -254,7 +266,7 @@ const styles = stylex.create({
     width: size.nav,
     height: size.nav,
     borderRadius: radius.md,
-    backgroundColor: color.surface,
+    backgroundColor: color.modal,
     color: color.fg,
   },
   linkText: { display: 'flex', flexDirection: 'column', flexGrow: 1, minWidth: 0 },
@@ -267,7 +279,7 @@ const styles = stylex.create({
     paddingInline: space.x4,
     height: size.icon,
     borderRadius: radius.sm,
-    backgroundColor: color.surface,
+    backgroundColor: color.modal,
     color: color.fg,
     fontWeight: text.strong,
     whiteSpace: 'nowrap',
@@ -279,8 +291,47 @@ const styles = stylex.create({
     width: '100%',
     maxWidth: '560px',
   },
+  personas: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+    gap: space.x3,
+  },
+  wide: { maxWidth: 'none' },
+  persona: { height: '100%', alignItems: 'flex-start' },
+  interviewIcon: { backgroundColor: color.accent, color: color.onAccent },
+  personaActions: { display: 'flex', justifyContent: 'center', gap: space.x3 },
+  chosen: { backgroundColor: { default: color.accentTint, ':hover': color.accentTint } },
+  chosenIcon: { backgroundColor: color.accent, color: color.onAccent },
+  chosenChip: {
+    backgroundColor: { default: color.accent, ':hover': color.accent },
+    color: color.onAccent,
+  },
+  details: { display: 'flex', flexDirection: 'column', gap: space.x2 },
+  chips: { display: 'flex', flexWrap: 'wrap', gap: space.x2 },
+  chip: {
+    paddingBlock: space.x1,
+    paddingInline: space.x3,
+    borderWidth: 0,
+    borderRadius: radius.sm,
+    backgroundColor: { default: color.surface, ':hover': color.hover },
+    color: color.fg,
+    fontFamily: 'inherit',
+    fontSize: text.metaSize,
+    lineHeight: text.bodyLine,
+    cursor: 'pointer',
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+  },
+  still: { backgroundColor: { default: color.surface, ':hover': color.surface } },
+  soft: {
+    borderWidth: 0,
+    backgroundColor: { default: color.surface, ':hover': color.hover },
+    color: color.fg,
+  },
+  full: { width: '100%' },
+  onCard: { backgroundColor: { default: color.modal, ':hover': color.hover } },
+  strong: { color: color.fg, fontWeight: text.strong },
+  meta: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
   starter: {
-    backgroundColor: { default: 'transparent', ':hover': color.hover },
     fontFamily: 'inherit',
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
@@ -308,6 +359,11 @@ export function BotIntro({
   const intro = state.intro;
   const [model, setModel] = useState<{ save(): Promise<boolean> }>();
   const [busy, setBusy] = useState(false);
+  const startPicks = useState<StartPicks>(NO_PICKS);
+  const close = (outcome?: IntroOutcome): Promise<void> => {
+    startPicks[1](NO_PICKS);
+    return controller.closeIntro(outcome);
+  };
   if (!intro) return null;
   const step = INTRO_STEPS[intro.step] ?? 'welcome';
   const last = intro.step === INTRO_STEPS.length - 1;
@@ -325,7 +381,7 @@ export function BotIntro({
       open={!intro.hidden}
       headless
       title={t('intro.title')}
-      onClose={() => void controller.closeIntro({ via: 'close' })}
+      onClose={() => void close({ via: 'close' })}
       backdropBlur={!clear}
       className={
         (stylex.props(styles.dialog).className ?? '') + (clear ? ' bh-intro-see-through' : '')
@@ -358,7 +414,7 @@ export function BotIntro({
         <IconButton
           aria-label={t('common.close')}
           size="icon"
-          onClick={() => void controller.closeIntro({ via: 'close' })}
+          onClick={() => void close({ via: 'close' })}
         >
           <ChannelSidebarIcon name="x" size={16} />
         </IconButton>
@@ -398,8 +454,15 @@ export function BotIntro({
         {step === 'start' ? (
           <StartStep
             t={t}
-            pick={(starter, body) =>
-              void controller.closeIntro({ starter }).then(() => {
+            picks={startPicks}
+            track={({ persona, detail }) =>
+              controller.introEvent(
+                detail ? 'onboarding:persona_detail_select' : 'onboarding:persona_select',
+                detail ? { persona, detail } : { persona },
+              )
+            }
+            pick={(outcome, body) =>
+              void close(outcome).then(() => {
                 if (body !== undefined) requestTobMessage(body);
               })
             }
@@ -414,16 +477,17 @@ export function BotIntro({
           })}
         </span>
         {last ? null : (
-          <Button
-            variant="ghost"
-            disabled={busy}
-            onClick={() => void controller.closeIntro({ via: 'skip' })}
-          >
+          <Button variant="ghost" disabled={busy} onClick={() => void close({ via: 'skip' })}>
             {t('intro.skip')}
           </Button>
         )}
         {intro.step > 0 ? (
-          <Button variant="outline" disabled={busy} onClick={() => void go(intro.step - 1)}>
+          <Button
+            variant="outline"
+            disabled={busy}
+            onClick={() => void go(intro.step - 1)}
+            {...stylex.props(styles.soft)}
+          >
             {t('intro.back')}
           </Button>
         ) : null}
@@ -730,24 +794,30 @@ function ModelStep({
         </details>
       ) : null}
       {!loaded ? <p role="status">{t('modelPreset.loading')}</p> : null}
-      <SidebarCardList label={t('failure.openModels')}>
-        <SidebarCardRow
-          icon="settings"
-          title={t('failure.openModels')}
-          meta={
-            selected?.credential || (loaded && models.length === 0)
+      <button
+        type="button"
+        onClick={() => {
+          hide(true);
+          openModelsSettingsAndReturn(() => {
+            hide(false);
+            void load();
+          });
+        }}
+        {...stylex.props(styles.link, styles.starter, styles.full)}
+      >
+        <span {...stylex.props(styles.linkIcon)}>
+          <ChannelSidebarIcon name="settings" size={18} />
+        </span>
+        <span {...stylex.props(styles.linkText)}>
+          <span {...stylex.props(styles.strong)}>{t('failure.openModels')}</span>
+          <span {...stylex.props(styles.meta)}>
+            {selected?.credential || (loaded && models.length === 0)
               ? t('onboarding.keyHint')
-              : t('onboarding.providerSettingsHint')
-          }
-          onClick={() => {
-            hide(true);
-            openModelsSettingsAndReturn(() => {
-              hide(false);
-              void load();
-            });
-          }}
-        />
-      </SidebarCardList>
+              : t('onboarding.providerSettingsHint')}
+          </span>
+        </span>
+        <ChannelSidebarIcon name="chevron-right" size={16} />
+      </button>
       {error ? (
         <p role="alert" className="bh-error">
           {error}
@@ -823,7 +893,7 @@ function CommunityStep({
         </span>
         <ChannelSidebarIcon name="external-link" size={16} />
       </a>
-      <div {...stylex.props(styles.link)} data-community="qq">
+      <div {...stylex.props(styles.link, styles.still)} data-community="qq">
         <span {...stylex.props(styles.linkIcon)}>
           <CommunityIcon name="qq" />
         </span>
@@ -836,6 +906,7 @@ function CommunityStep({
         <Button
           variant="outline"
           size="sm"
+          {...stylex.props(styles.soft, styles.onCard)}
           onClick={() => {
             track('qq');
             void navigator.clipboard
@@ -852,39 +923,229 @@ function CommunityStep({
   );
 }
 
+type StartPicks = {
+  chosen: readonly OnboardingPersona[];
+  details: readonly PersonaDetail[];
+  tasks: boolean;
+};
+const NO_PICKS: StartPicks = { chosen: [], details: [], tasks: false };
+
 function StartStep({
   t,
+  picks,
   pick,
+  track,
 }: {
   t: BotHarnessTranslate;
-  pick(starter: IntroStarter, body?: string): void;
+  picks: readonly [StartPicks, (next: StartPicks) => void];
+  pick(outcome: IntroStartOutcome, body?: string): void;
+  track(choice: { persona: OnboardingPersona; detail?: PersonaDetail }): void;
 }): ReactElement {
+  const [{ chosen, details, tasks }, setPicks] = picks;
+  const setChosen = (next: readonly OnboardingPersona[]) => setPicks({ ...picks[0], chosen: next });
+  const setDetails = (next: readonly PersonaDetail[]) => setPicks({ ...picks[0], details: next });
+  const setTasks = (next: boolean) => setPicks({ ...picks[0], tasks: next });
+  const [timeZone] = useState(browserTimeZone);
+  const personas = ONBOARDING_PERSONAS.filter((id) => chosen.includes(id));
+  const profile = (): Pick<IntroStartOutcome, 'personas' | 'details'> => ({
+    personas,
+    details: details.filter((detail) =>
+      personas.some((id) => (PERSONA_DETAILS[id] as readonly string[]).includes(detail)),
+    ),
+  });
+  const about = (): string => {
+    if (personas.length === 0) return '';
+    const list = personas.map((id) => {
+      const picked = PERSONA_DETAILS[id].filter((detail) => details.includes(detail));
+      const name = t(`intro.persona.${id}.name`);
+      return picked.length === 0
+        ? name
+        : t('intro.persona.aboutDetail', {
+            persona: name,
+            details: picked
+              .map((detail) => t(`intro.persona.${id}.detail.${detail}` as BotHarnessKey))
+              .join(t('intro.persona.aboutJoin')),
+          });
+    });
+    return t('intro.persona.about', { list: list.join(t('intro.persona.aboutJoin')) });
+  };
+  const own = (
+    <Button variant="ghost" onClick={() => pick({ starter: 'own', ...profile() })}>
+      {t('intro.start.own')}
+    </Button>
+  );
+  if (tasks && personas.length > 0) {
+    const body = (persona: OnboardingPersona, prompt: PersonaPrompt): string => {
+      const text = about() + t(`intro.persona.${persona}.${prompt.id}.body` as BotHarnessKey);
+      if (prompt.feature !== 'schedule') return text;
+      return (
+        text +
+        (timeZone ? t('intro.persona.timeZone', { timeZone }) : t('intro.persona.timeZoneUnknown'))
+      );
+    };
+    return (
+      <div {...stylex.props(styles.section)} data-intro-persona={personas.join(' ')}>
+        <div {...stylex.props(styles.heroCopy)}>
+          <h2 {...stylex.props(styles.title)}>
+            {personas.length === 1
+              ? t('intro.persona.promptsTitle', {
+                  persona: t(`intro.persona.${personas[0]!}.name`),
+                })
+              : t('intro.persona.tasksTitle')}
+          </h2>
+          <p {...stylex.props(styles.copy)}>{t('intro.persona.promptsHint')}</p>
+        </div>
+        <div
+          {...stylex.props(styles.starters, styles.wide)}
+          role="list"
+          aria-label={t('home.starters')}
+        >
+          {personas.flatMap((persona) =>
+            PERSONA_TEMPLATES[persona].prompts.map((prompt) => (
+              <div
+                key={`${persona}.${prompt.id}`}
+                role="listitem"
+                {...stylex.props(styles.starterItem)}
+              >
+                <button
+                  type="button"
+                  data-persona-prompt={prompt.id}
+                  onClick={() =>
+                    pick(
+                      { starter: 'persona', persona, feature: prompt.feature, ...profile() },
+                      body(persona, prompt),
+                    )
+                  }
+                  {...stylex.props(styles.link, styles.starter)}
+                >
+                  <span {...stylex.props(styles.linkIcon)}>
+                    <ChannelSidebarIcon name={FEATURE_ICONS[prompt.feature]} size={18} />
+                  </span>
+                  <span {...stylex.props(styles.linkText)}>
+                    <span {...stylex.props(styles.strong)}>
+                      {t(`intro.persona.${persona}.${prompt.id}.title` as BotHarnessKey)}
+                    </span>
+                    <span {...stylex.props(styles.meta)}>
+                      {personas.length === 1
+                        ? t(`intro.feature.${prompt.feature}`)
+                        : `${t(`intro.feature.${prompt.feature}`)} · ${t(`intro.persona.${persona}.name`)}`}
+                    </span>
+                  </span>
+                  <ChannelSidebarIcon name="chevron-right" size={16} />
+                </button>
+              </div>
+            )),
+          )}
+        </div>
+        <div {...stylex.props(styles.personaActions)}>
+          <Button variant="ghost" onClick={() => setTasks(false)}>
+            {t('intro.persona.change')}
+          </Button>
+          {own}
+        </div>
+      </div>
+    );
+  }
   return (
-    <div {...stylex.props(styles.hero)}>
-      <BotIcon icon="mascot" size={96} />
+    <div {...stylex.props(styles.section)}>
       <div {...stylex.props(styles.heroCopy)}>
         <h2 {...stylex.props(styles.title)}>{t('intro.start.title')}</h2>
         <p {...stylex.props(styles.copy)}>{t('intro.start.hint')}</p>
       </div>
-      <div {...stylex.props(styles.starters)} role="list" aria-label={t('home.starters')}>
-        {STARTERS.map(({ key, id }) => (
-          <div key={key} role="listitem" {...stylex.props(styles.starterItem)}>
+      <div {...stylex.props(styles.personas)} role="group" aria-label={t('intro.persona.label')}>
+        {ONBOARDING_PERSONAS.map((id) => {
+          const on = chosen.includes(id);
+          return (
             <button
+              key={id}
               type="button"
-              onClick={() => pick(id, t(key))}
-              {...stylex.props(styles.link, styles.starter)}
+              data-persona={id}
+              aria-pressed={on}
+              onClick={() => {
+                if (!on) track({ persona: id });
+                setChosen(on ? chosen.filter((other) => other !== id) : [...chosen, id]);
+              }}
+              {...stylex.props(styles.link, styles.starter, styles.persona, on && styles.chosen)}
             >
-              <span {...stylex.props(styles.linkIcon)}>
-                <ChannelSidebarIcon name="messages-circle" size={18} />
+              <span {...stylex.props(styles.linkIcon, on && styles.chosenIcon)}>
+                <ChannelSidebarIcon name={on ? 'check' : PERSONA_TEMPLATES[id].icon} size={18} />
               </span>
-              <span {...stylex.props(styles.linkText)}>{t(key)}</span>
+              <span {...stylex.props(styles.linkText)}>
+                <span {...stylex.props(styles.strong)}>{t(`intro.persona.${id}.name`)}</span>
+                <span {...stylex.props(styles.meta)}>{t(`intro.persona.${id}.hint`)}</span>
+              </span>
             </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      <Button variant="ghost" onClick={() => pick('own')}>
-        {t('intro.start.own')}
-      </Button>
+      {personas.map((id) => (
+        <div
+          key={id}
+          role="group"
+          aria-label={t('intro.persona.details', { persona: t(`intro.persona.${id}.name`) })}
+          data-persona-details={id}
+          {...stylex.props(styles.details)}
+        >
+          <span {...stylex.props(styles.meta)}>
+            {t('intro.persona.details', { persona: t(`intro.persona.${id}.name`) })}
+          </span>
+          <div {...stylex.props(styles.chips)}>
+            {PERSONA_DETAILS[id].map((detail: PersonaDetail) => {
+              const on = details.includes(detail);
+              return (
+                <button
+                  key={detail}
+                  type="button"
+                  data-persona-detail={detail}
+                  aria-pressed={on}
+                  onClick={() => {
+                    if (!on) track({ persona: id, detail });
+                    setDetails(
+                      on ? details.filter((other) => other !== detail) : [...details, detail],
+                    );
+                  }}
+                  {...stylex.props(styles.chip, on && styles.chosenChip)}
+                >
+                  {t(`intro.persona.${id}.detail.${detail}` as BotHarnessKey)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      <button
+        type="button"
+        data-intro-interview
+        onClick={() =>
+          pick(
+            { starter: 'interview', ...profile() },
+            about() +
+              t('intro.interview.body') +
+              (timeZone ? t('intro.interview.timeZone', { timeZone }) : ''),
+          )
+        }
+        {...stylex.props(styles.link, styles.starter)}
+      >
+        <span {...stylex.props(styles.linkIcon, styles.interviewIcon)}>
+          <ChannelSidebarIcon name="messages-square" size={18} />
+        </span>
+        <span {...stylex.props(styles.linkText)}>
+          <span {...stylex.props(styles.strong)}>{t('intro.interview.title')}</span>
+          <span {...stylex.props(styles.meta)}>{t('intro.interview.hint')}</span>
+        </span>
+        <ChannelSidebarIcon name="chevron-right" size={16} />
+      </button>
+      <div {...stylex.props(styles.personaActions)}>
+        {own}
+        <Button
+          variant="primary"
+          disabled={personas.length === 0}
+          data-intro-persona-next
+          onClick={() => setTasks(true)}
+        >
+          {t('intro.persona.next')}
+        </Button>
+      </div>
     </div>
   );
 }
