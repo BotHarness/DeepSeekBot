@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, useState, type ReactNode } from 'react';
+import { act, useContext, useEffect, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -8,6 +8,8 @@ const native = vi.hoisted(() => ({
   reduced: false,
   selected: (_page: number) => {},
   scrollEnabled: false,
+  pageLimit: 0,
+  hasChat: false,
   setPage: vi.fn(),
   setPageWithoutAnimation: vi.fn(),
 }));
@@ -19,7 +21,7 @@ vi.mock('../src/ui/shell/recent-chats', () => ({
   lastChat: () => undefined,
 }));
 vi.mock('../src/ui/chat/conversation-page-pair', () => ({
-  useConversationPagePair: () => undefined,
+  useConversationPagePair: () => (native.hasChat ? { chat: null, profile: null } : undefined),
 }));
 vi.mock('react-native', async () => {
   const { createElement } = await import('react');
@@ -42,6 +44,7 @@ vi.mock('react-native-pager-view', async () => {
         props: {
           children?: ReactNode;
           scrollEnabled: boolean;
+          pageLimit: number;
           onPageSelected(event: { nativeEvent: { position: number } }): void;
         },
         ref,
@@ -51,6 +54,7 @@ vi.mock('react-native-pager-view', async () => {
           setPageWithoutAnimation: native.setPageWithoutAnimation,
         }));
         native.scrollEnabled = props.scrollEnabled;
+        native.pageLimit = props.pageLimit;
         native.selected = (position) => props.onPageSelected({ nativeEvent: { position } });
         return createElement('div', null, props.children);
       },
@@ -71,10 +75,16 @@ vi.mock('../src/ui/shell/host-drawer', async () => {
 const { WorkspacePager } = await import('../src/ui/shell/workspace-pager.ios');
 const { openWorkspacePage, closeWorkspacePage } = await import('../src/ui/shell/workspace-paging');
 
+const { ChatsPagingContext } = await import('../src/ui/shell/chats-paging');
+
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 function Chats() {
   const [draft, setDraft] = useState('');
+  const setPaging = useContext(ChatsPagingContext);
+  useEffect(() => {
+    setPaging?.(draft === '');
+  }, [draft, setPaging]);
   return (
     <div data-testid="chat-list">
       <input
@@ -95,6 +105,7 @@ describe('retained iOS workspace pages', () => {
   beforeEach(() => {
     native.segments = ['(tabs)', '(home)'];
     native.reduced = false;
+    native.hasChat = false;
     native.setPage.mockClear();
     native.setPageWithoutAnimation.mockClear();
     element = document.createElement('div');
@@ -158,6 +169,29 @@ describe('retained iOS workspace pages', () => {
     await render();
     expect(native.scrollEnabled).toBe(false);
     expect(element.querySelector('input')).toBe(input);
+  });
+
+  it('pauses gestures without removing the retained chat while search has text', async () => {
+    native.hasChat = true;
+    await render();
+    const input = element.querySelector('input');
+    if (!input) throw new Error('Search did not mount');
+    expect(native.pageLimit).toBe(3);
+    expect(native.scrollEnabled).toBe(true);
+    input.focus();
+    await act(async () => {
+      input.value = 'Tob';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(native.pageLimit).toBe(3);
+    expect(native.scrollEnabled).toBe(false);
+    expect(document.activeElement).toBe(input);
+    await act(async () => {
+      input.value = '';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(native.pageLimit).toBe(3);
+    expect(native.scrollEnabled).toBe(true);
   });
 
   it('releases the native page controller when its shell unmounts', async () => {

@@ -305,10 +305,10 @@ index 0000000000000000000000000000000000000000..b68abd16f1a9d63eef1e4c9945f877a1
 +    pages = next
 +    guard !pages.isEmpty else { return }
 +    let index = min(max(props.currentPage, 0), pages.count - 1)
-+    if viewControllers?.first !== pages[index] {
++    if changed || selected != index {
 +      setViewControllers([pages[index]], direction: index < selected ? .reverse : .forward, animated: false)
++      finish(index)
 +    }
-+    if changed || selected != index { finish(index) }
 +  }
 +
 +  func move(to index: Int, animated: Bool) {
