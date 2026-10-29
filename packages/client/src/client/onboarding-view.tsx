@@ -495,8 +495,9 @@ export function OnboardingOverlay({
   const controller = onboardingFor(actions);
   controller.attachCompanion(companion);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-  const enter = (): Promise<void> =>
+  const enter = (live: () => boolean = () => true): Promise<void> =>
     controller.enter(companion).then(() => {
+      if (!live()) return;
       void controller.refreshEvidence();
       const receipt = controller.getSnapshot().receipt;
       if (controller.introPending()) {
@@ -522,7 +523,7 @@ export function OnboardingOverlay({
     markBotModeEntered();
     actions.telemetryEvent('app:bot_mode_enter', { layout: readLayoutMode().mode });
     const returned = takeSessionsTourReturn();
-    void enter().then(() => {
+    void enter(() => active).then(() => {
       if (active && returned && !controller.getSnapshot().receipt?.journey)
         controller.openChecklist();
     });
@@ -581,6 +582,9 @@ export function OnboardingOverlay({
         onClosed: () => {
           if (controller.getSnapshot().receipt?.journey) controller.finishTour();
           else controller.pauseGuide();
+        },
+        onInterrupted: () => {
+          controller.pauseGuide();
         },
         onFinished: () => {
           controller.finishTour();
