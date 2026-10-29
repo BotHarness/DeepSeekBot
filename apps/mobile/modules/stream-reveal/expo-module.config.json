@@ -1,9 +1,17 @@
 {
-  "platforms": ["android"],
+  "platforms": [
+    "android",
+    "apple"
+  ],
   "android": {
     "modules": [
       "expo.modules.streamreveal.StreamRevealModule",
       "expo.modules.streamreveal.StreamSurfaceModule"
+    ]
+  },
+  "apple": {
+    "modules": [
+      "StreamSurfaceModule"
     ]
   }
 }
