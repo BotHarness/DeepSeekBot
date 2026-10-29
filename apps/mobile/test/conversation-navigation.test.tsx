@@ -306,7 +306,9 @@ vi.mock('../src/ui/chat/channel-title', () => ({
   ),
 }));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null, BotPortrait: () => null }));
-vi.mock('../src/ui/chat/composer', () => ({ Composer: () => null }));
+vi.mock('../src/ui/chat/composer', () => ({
+  Composer: () => <div data-testid="composer-input" />,
+}));
 vi.mock('../src/ui/chat/image-viewer', () => ({ ImageViewer: () => null }));
 vi.mock('../src/ui/chat/jump-to-latest', () => ({ JumpToLatest: () => null }));
 vi.mock('../src/ui/chat/pull-to-compose-hint', () => ({ PullToComposeHint: () => null }));
@@ -1087,7 +1089,7 @@ describe('missing conversation navigation', () => {
       name: 'Channel',
       place: { kind: 'channel', channelId: 'gone' },
       route: '/channel/gone',
-      notice: t.noChannel,
+      notice: t.groupUnavailableTitle,
     },
   ];
 
@@ -1336,9 +1338,33 @@ describe('disbanded group presentation', () => {
   it('does not show loading for an authoritatively missing group', async () => {
     state.conversation.status = 'opening';
     const view = await render({ kind: 'channel', channelId: 'gone' });
-    expect(view.textContent).toContain(t.noChannel);
+    expect(view.textContent).toContain(t.groupUnavailableTitle);
+    expect(view.querySelector('[data-testid="group-unavailable"]')).not.toBeNull();
+    expect(view.querySelector('[data-testid="composer-input"]')).toBeNull();
     expect(view.querySelector('[data-testid="message-skeleton"]')).toBeNull();
     expect(view.querySelector('[data-testid="channel-title"]')?.textContent).toBe(t.groupInfo);
+  });
+  it('retains cached conversation controls until reconnect confirms absence', async () => {
+    state.host.roster.channels = [
+      { id: 'cached', name: 'Offline group', members: [], memberCount: 0 },
+    ];
+    Object.assign(state.host.connection, { status: 'unreachable' });
+    state.conversation.fromCache = true;
+    const view = await render({ kind: 'channel', channelId: 'cached' });
+    expect(view.textContent).toContain(t.offline);
+    expect(view.querySelector('[data-testid="group-unavailable"]')).toBeNull();
+    expect(view.querySelector('[data-testid="composer-input"]')).not.toBeNull();
+    state.host.roster.channels = [];
+    Object.assign(state.host.connection, { status: 'connected' });
+    state.conversation.fromCache = false;
+    await act(async () =>
+      root!.render(
+        <ConversationScreen place={{ kind: 'channel', channelId: 'cached' }} focus={undefined} />,
+      ),
+    );
+    expect(view.textContent).not.toContain(t.offline);
+    expect(view.textContent).toContain(t.groupUnavailableTitle);
+    expect(view.querySelector('[data-testid="composer-input"]')).toBeNull();
   });
   it('keeps the last group name after disband without leaking it to another Host', async () => {
     const place: ChatPlace = { kind: 'channel', channelId: 'group-a' };
