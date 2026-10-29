@@ -3,8 +3,21 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
+const chrome = vi.hoisted(() => ({ progress: 0 }));
+type NativeStyle = { marginTop?: number; transform?: Array<{ translateY: number }> };
+function view({ children, style }: { children?: ReactNode; style?: NativeStyle | NativeStyle[] }) {
+  const flat = Object.assign({}, ...(Array.isArray(style) ? style : [style]));
+  return createElement(
+    'div',
+    {
+      'data-offset': (flat.marginTop ?? 0) + (flat.transform?.[0]?.translateY ?? 0),
+    },
+    children,
+  );
+}
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
+  View: view,
   Platform: { OS: 'android', select: (options: { android?: unknown }) => options.android },
 }));
 vi.mock('react-native-reanimated', async () => {
@@ -13,6 +26,7 @@ vi.mock('react-native-reanimated', async () => {
     ...shim,
     default: {
       ...shim.default,
+      View: view,
       ScrollView: (props: { onScroll?: unknown; children?: ReactNode; testID?: string }) =>
         createElement(
           'div',
@@ -32,7 +46,7 @@ vi.mock('expo-router', () => ({ Stack: { Screen: () => null } }));
 vi.mock('../src/ui/shell/scroll-chrome', () => ({
   CollapsingToolbar: ({ children }: { children: ReactNode }) =>
     createElement('div', { 'data-testid': 'collapsing' }, children),
-  useChromeProgress: () => ({ value: 0, get: () => 0 }),
+  useChromeProgress: () => ({ value: chrome.progress, get: () => chrome.progress }),
 }));
 vi.mock('../src/ui/shell/floating-tab-inset', () => ({ useFloatingTabInset: () => 0 }));
 
@@ -43,9 +57,39 @@ import { t } from '../src/ui/strings';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;
 afterEach(() => {
+  chrome.progress = 0;
   act(() => root?.unmount());
   root = undefined;
   document.body.innerHTML = '';
+});
+
+it('keeps the scrolling viewport stationary while chrome hides and shows', () => {
+  const host = document.createElement('div');
+  root = createRoot(host);
+  const render = () =>
+    root?.render(
+      <SettingsTabPage onScroll={() => {}}>
+        <SettingsForm testID="settings-form">
+          <span>row</span>
+        </SettingsForm>
+      </SettingsTabPage>,
+    );
+  act(render);
+  const offset = () => {
+    let node = host.querySelector('[data-testid="settings-form"]')?.parentElement;
+    let y = 0;
+    while (node && node !== host) {
+      y += Number(node.getAttribute('data-offset') ?? 0);
+      node = node.parentElement;
+    }
+    return y;
+  };
+  const initial = offset();
+  for (const progress of [0.5, 1, 0.5, 0]) {
+    chrome.progress = progress;
+    act(render);
+    expect(offset()).toBe(initial);
+  }
 });
 
 it('puts the Settings title in a collapsing bar and wires the form scroll to it', () => {

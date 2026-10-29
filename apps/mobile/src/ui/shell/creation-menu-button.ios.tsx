@@ -5,6 +5,7 @@ import type { CreationMenuButtonProps } from './creation-menu-button';
 const symbols = {
   bot: 'person',
   zip: 'doc.zipper',
+  import: 'square.and.arrow.down',
   marketplace: 'globe',
   git: 'point.3.connected.trianglepath.dotted',
   channel: 'bubble.left.and.bubble.right',
@@ -17,7 +18,9 @@ export function CreationMenuButton(props: CreationMenuButtonProps) {
     id: `creation-${item.key}`,
     label: item.label,
     symbol: symbols[item.action],
-    run: () => props.onPick(item.action, item.target),
+    run: () => {
+      if (item.action !== 'import') props.onPick(item.action, item.target);
+    },
     ...(item.children ? { children: item.children.map(convert) } : {}),
   });
   return (

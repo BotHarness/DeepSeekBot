@@ -33,14 +33,17 @@ export function CreationPanel({
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
-  const { choosing, setChoosing, actions, choices, pick } = useCreationMenu({
-    scope,
-    targets,
-    onPick,
-  });
+  const { choosing, setChoosing, importing, setImporting, actions, choices, pick } =
+    useCreationMenu({
+      scope,
+      targets,
+      onPick,
+    });
+  const back = () =>
+    importing ? setImporting(false) : choosing ? setChoosing(undefined) : onClose();
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={{ flex: 1 }} accessibilityViewIsModal onAccessibilityEscape={onClose}>
+    <Modal visible transparent animationType="fade" onRequestClose={back}>
+      <View style={{ flex: 1 }} accessibilityViewIsModal onAccessibilityEscape={back}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t.close}
@@ -120,7 +123,7 @@ export function CreationPanel({
                         ? ChatsIcon
                         : action === 'bot'
                           ? PersonIcon
-                          : action === 'zip'
+                          : action === 'zip' || action === 'import'
                             ? FileIcon
                             : action === 'git'
                               ? GitCommitIcon
@@ -140,6 +143,13 @@ export function CreationPanel({
                   })}
                 </View>
 
+                {importing && (
+                  <CreationMenuRow
+                    label={t.back}
+                    disabled={busy}
+                    onPress={() => setImporting(false)}
+                  />
+                )}
                 {actions.length === 0 && <Text>{t.noCreationTargets}</Text>}
               </ScrollView>
             )}

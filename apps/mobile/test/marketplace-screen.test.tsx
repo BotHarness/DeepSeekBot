@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, createElement, useLayoutEffect, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import type { ScrollViewProps } from 'react-native';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createBotCreationController, type CreationRecord } from '../src/host/bot-creation';
 
@@ -15,6 +16,10 @@ const fixture = vi.hoisted(() => {
     push: vi.fn(),
     openURL: vi.fn(async () => {}),
     link: 'docs/setup.md',
+    imageRenders: 0,
+    listEvents: {} as Pick<ScrollViewProps, 'onScrollBeginDrag' | 'onScroll'> & {
+      onEndReached?: () => void;
+    },
   };
 });
 vi.mock('react-native', async () => {
@@ -54,11 +59,16 @@ vi.mock('react-native', async () => {
     FlatList: (
       props: Parameters<typeof shim.FlatList>[0] & {
         renderScrollComponent?: (props: { children: ReactNode }) => ReactNode;
+        onScrollBeginDrag?: ScrollViewProps['onScrollBeginDrag'];
+        onScroll?: ScrollViewProps['onScroll'];
+        onEndReached?: () => void;
       },
-    ) =>
-      props.renderScrollComponent
+    ) => {
+      if (props.testID === 'marketplace-list') fixture.listEvents = props;
+      return props.renderScrollComponent
         ? props.renderScrollComponent({ children: shim.FlatList(props) })
-        : shim.FlatList(props),
+        : shim.FlatList(props);
+    },
   };
 });
 vi.mock('react-native-keyboard-controller', () => ({
@@ -68,8 +78,10 @@ vi.mock('react-native-keyboard-controller', () => ({
     createElement('div', { 'data-keyboard-form': true }, children),
 }));
 vi.mock('expo-image', () => ({
-  Image: ({ testID, source }: { testID?: string; source: { uri: string } }) =>
-    createElement('img', { 'data-testid': testID, src: source.uri, alt: '' }),
+  Image: ({ testID, source }: { testID?: string; source: { uri: string } }) => {
+    fixture.imageRenders++;
+    return createElement('img', { 'data-testid': testID, src: source.uri, alt: '' });
+  },
 }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('react-native-safe-area-context', () => ({
@@ -160,6 +172,8 @@ beforeEach(() => {
   fixture.fontScale = 1;
   fixture.platform = 'web';
   fixture.params = { entry: 'all' };
+  fixture.listEvents = {};
+  fixture.imageRenders = 0;
   fixture.fetch.mockImplementation(async (url) => {
     const path = new URL(String(url)).pathname;
     return Response.json(
@@ -367,4 +381,129 @@ it('submits the native text when its last edit has not reached React state', asy
       ([url]) => new URL(String(url)).searchParams.get('q') === 'native submit complete',
     ),
   ).toBe(true);
+});
+
+it('pages only after a scroll, coalesces end events and retries a failed page explicitly', async () => {
+  const catalogueCalls: string[] = [];
+  let finishPage!: (response: Response) => void;
+  fixture.fetch.mockImplementation(async (url) => {
+    const request = new URL(String(url));
+    if (request.pathname !== '/v1/bots') return Response.json({ topics: [] });
+    catalogueCalls.push(request.search);
+    if (!request.searchParams.has('cursor'))
+      return Response.json({ bots: [{ ...bot, id: 'page-one' }], nextCursor: 'page-two' });
+    return new Promise<Response>((resolve) => {
+      finishPage = resolve;
+    });
+  });
+  await act(async () => root.render(<MarketplaceScreen />));
+  const firstPageCalls = catalogueCalls.length;
+  await act(async () => fixture.listEvents.onEndReached?.());
+  expect(catalogueCalls).toHaveLength(firstPageCalls);
+  const scroll = {
+    nativeEvent: {
+      contentOffset: { x: 0, y: 500 },
+      contentSize: { width: 390, height: 1000 },
+      layoutMeasurement: { width: 390, height: 600 },
+      contentInset: { top: 0, bottom: 0, left: 0, right: 0 },
+      zoomScale: 1,
+    },
+  };
+  await act(async () => {
+    fixture.listEvents.onScrollBeginDrag?.(
+      scroll as Parameters<NonNullable<ScrollViewProps['onScrollBeginDrag']>>[0],
+    );
+    fixture.listEvents.onEndReached?.();
+    fixture.listEvents.onEndReached?.();
+  });
+  expect(catalogueCalls).toHaveLength(firstPageCalls + 1);
+  expect(element.querySelector('[data-testid="marketplace-page-loading"]')).not.toBeNull();
+  await act(async () => finishPage(Response.json({}, { status: 503 })));
+  expect(element.querySelector('[data-testid="marketplace-bot-page-one"]')).not.toBeNull();
+  await act(async () => {
+    fixture.listEvents.onScrollBeginDrag?.(
+      scroll as Parameters<NonNullable<ScrollViewProps['onScrollBeginDrag']>>[0],
+    );
+    fixture.listEvents.onEndReached?.();
+  });
+  expect(catalogueCalls).toHaveLength(firstPageCalls + 1);
+  await act(async () =>
+    element.querySelector<HTMLButtonElement>('[data-testid="marketplace-page-retry"]')!.click(),
+  );
+  expect(catalogueCalls).toHaveLength(firstPageCalls + 2);
+  expect(catalogueCalls.at(-1)).toBe(catalogueCalls.at(-2));
+  await act(async () =>
+    finishPage(
+      Response.json({
+        bots: [
+          { ...bot, id: 'page-one' },
+          { ...bot, id: 'page-two' },
+        ],
+        nextCursor: 'page-three',
+      }),
+    ),
+  );
+  expect(element.querySelectorAll('[data-testid="marketplace-bot-page-one"]')).toHaveLength(1);
+  expect(element.querySelector('[data-testid="marketplace-bot-page-two"]')).not.toBeNull();
+  await act(async () => fixture.listEvents.onEndReached?.());
+  expect(catalogueCalls).toHaveLength(firstPageCalls + 2);
+  await act(async () =>
+    fixture.listEvents.onScrollBeginDrag?.(
+      scroll as Parameters<NonNullable<ScrollViewProps['onScrollBeginDrag']>>[0],
+    ),
+  );
+  expect(catalogueCalls).toHaveLength(firstPageCalls + 3);
+  await act(async () => finishPage(Response.json({ bots: [{ ...bot, id: 'page-three' }] })));
+  await act(async () => {
+    fixture.listEvents.onScrollBeginDrag?.(
+      scroll as Parameters<NonNullable<ScrollViewProps['onScrollBeginDrag']>>[0],
+    );
+    fixture.listEvents.onEndReached?.();
+  });
+  expect(catalogueCalls).toHaveLength(firstPageCalls + 3);
+});
+
+it('keeps loaded catalogue artwork out of search-open and draft-edit renders', async () => {
+  await act(async () => root.render(<MarketplaceScreen />));
+  const row = element.querySelector('[data-testid="marketplace-bot-screen-writer"]');
+  const rendered = fixture.imageRenders;
+  await act(async () => button(t.marketplace.search).click());
+  expect(fixture.imageRenders).toBe(rendered);
+  const input = element.querySelector<HTMLTextAreaElement>('[data-testid="marketplace-search"]')!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+      input,
+      'writer',
+    );
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  expect(fixture.imageRenders).toBe(rendered);
+  expect(element.querySelector('[data-testid="marketplace-bot-screen-writer"]')).toBe(row);
+  await act(async () => button(t.closeSearch).click());
+  expect(fixture.imageRenders).toBe(rendered);
+});
+
+it('loads another page through the accessible action without a touch scroll', async () => {
+  const requests: string[] = [];
+  fixture.fetch.mockImplementation(async (url) => {
+    const request = new URL(String(url));
+    if (request.pathname !== '/v1/bots') return Response.json({ topics: [] });
+    requests.push(request.search);
+    return Response.json(
+      request.searchParams.has('cursor')
+        ? { bots: [{ ...bot, id: 'accessible-second' }] }
+        : { bots: [{ ...bot, id: 'accessible-first' }], nextCursor: 'accessible-next' },
+    );
+  });
+  await act(async () => root.render(<MarketplaceScreen />));
+  const more = element.querySelector<HTMLButtonElement>('[data-testid="marketplace-more"]');
+  expect(more).not.toBeNull();
+  expect(more?.getAttribute('aria-label') ?? more?.textContent).toBe(t.marketplace.more);
+  const before = requests.length;
+  await act(async () => more!.click());
+  expect(requests).toHaveLength(before + 1);
+  expect(requests.at(-1)).toContain('cursor=accessible-next');
+  expect(element.querySelector('[data-testid="marketplace-bot-accessible-first"]')).not.toBeNull();
+  expect(element.querySelector('[data-testid="marketplace-bot-accessible-second"]')).not.toBeNull();
+  expect(element.querySelector('[data-testid="marketplace-more"]')).toBeNull();
 });

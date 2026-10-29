@@ -166,6 +166,9 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
     }
   }
   fun setOpen(value: Boolean) {
+    // A settled native gesture is echoed through the JS prop. Reapplying HIDDEN
+    // after predictive Back would start a second slide from the old layout position.
+    if (drawerCommand(value, requestedOpen) == DrawerCommand.None) return
     requestedOpen = value
     if (value) reportOpening()
     post { behavior.state = if (requestedOpen) SideSheetBehavior.STATE_EXPANDED else SideSheetBehavior.STATE_HIDDEN }

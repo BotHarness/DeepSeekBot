@@ -109,17 +109,16 @@ it('opens the native FAB menu and closes it before going to the scoped destinati
     [t.botCreation.fromGit, 'git'],
   ]) {
     click(t.createHere);
-    expect(items()).toEqual([
-      t.botCreation.blank,
-      t.botCreation.fromZip,
-      t.marketplace.browse,
-      t.botCreation.fromGit,
-    ]);
+    expect(items()).toEqual([t.botCreation.blank, t.botCreation.importBot, t.marketplace.browse]);
     expect(
       [...host.querySelectorAll('[data-menu-item]')].every((item) =>
         item.getAttribute('data-path'),
       ),
     ).toBe(true);
+    if (action === 'zip' || action === 'git') {
+      click(t.botCreation.importBot);
+      expect(items()).toEqual([t.back, t.botCreation.fromZip, t.botCreation.fromGit]);
+    }
     click(label!);
     expect(host.querySelector('section')?.getAttribute('data-expanded')).toBe('false');
     expect(pick).toHaveBeenLastCalledWith(action, expect.objectContaining({ hostId: 'mac' }));
@@ -156,4 +155,45 @@ it('blocks the toggle while preparation is pending', () => {
   click(t.createHere);
   expect(host.querySelector('section')?.getAttribute('data-expanded')).toBe('false');
   expect(haptic).not.toHaveBeenCalled();
+});
+
+it('returns from the import choices before closing on system Back without selecting a source', () => {
+  render();
+  click(t.createHere);
+  click(t.botCreation.importBot);
+  expect(items()).toEqual([t.back, t.botCreation.fromZip, t.botCreation.fromGit]);
+  expect(pick).not.toHaveBeenCalled();
+  act(() => void back.handlers[0]!());
+  expect(host.querySelector('section')?.getAttribute('data-expanded')).toBe('true');
+  expect(items()).toContain(t.botCreation.importBot);
+  expect(items()).not.toContain(t.botCreation.fromZip);
+  act(() => void back.handlers[0]!());
+  expect(host.querySelector('section')?.getAttribute('data-expanded')).toBe('false');
+  expect(pick).not.toHaveBeenCalled();
+});
+
+it('returns through the submenu Back row and cancels through Close without importing', () => {
+  render();
+  click(t.createHere);
+  click(t.botCreation.importBot);
+  click(t.back);
+  expect(items()).toContain(t.botCreation.importBot);
+  click(t.botCreation.importBot);
+  click(t.close);
+  expect(pick).not.toHaveBeenCalled();
+  click(t.createHere);
+  expect(items()).toContain(t.botCreation.importBot);
+});
+
+it('keeps All import choices destination-free until the existing import flow chooses a Computer', () => {
+  render();
+  for (const [label, action] of [
+    [t.botCreation.fromZip, 'zip'],
+    [t.botCreation.fromGit, 'git'],
+  ]) {
+    click(t.createHere);
+    click(t.botCreation.importBot);
+    click(label!);
+    expect(pick).toHaveBeenLastCalledWith(action, undefined);
+  }
 });
