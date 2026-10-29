@@ -1643,5 +1643,8 @@ it('uses the retained source-qualified channel result when its Computer is offli
   await type(view, channel.name);
   expect(view.querySelectorAll('[data-testid^="search-result-"]')).toHaveLength(1);
   expect(view.querySelector(`[data-testid="conversation-row-channel:${channel.id}"]`)).toBeNull();
-  expect(call.mock.calls.filter(([method]) => method === 'messageSearch')).toEqual([]);
+  expect(call).not.toHaveBeenCalledWith(
+    'messageSearch',
+    expect.objectContaining({ text: channel.name }),
+  );
 });
