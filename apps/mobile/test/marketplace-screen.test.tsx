@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, createElement, useLayoutEffect, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import type { ScrollViewProps } from 'react-native';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createBotCreationController, type CreationRecord } from '../src/host/bot-creation';
 
@@ -15,6 +16,9 @@ const fixture = vi.hoisted(() => {
     push: vi.fn(),
     openURL: vi.fn(async () => {}),
     link: 'docs/setup.md',
+    listEvents: {} as Pick<ScrollViewProps, 'onScrollBeginDrag' | 'onScroll'> & {
+      onEndReached?: () => void;
+    },
   };
 });
 vi.mock('react-native', async () => {
@@ -54,11 +58,16 @@ vi.mock('react-native', async () => {
     FlatList: (
       props: Parameters<typeof shim.FlatList>[0] & {
         renderScrollComponent?: (props: { children: ReactNode }) => ReactNode;
+        onScrollBeginDrag?: ScrollViewProps['onScrollBeginDrag'];
+        onScroll?: ScrollViewProps['onScroll'];
+        onEndReached?: () => void;
       },
-    ) =>
-      props.renderScrollComponent
+    ) => {
+      if (props.testID === 'marketplace-list') fixture.listEvents = props;
+      return props.renderScrollComponent
         ? props.renderScrollComponent({ children: shim.FlatList(props) })
-        : shim.FlatList(props),
+        : shim.FlatList(props);
+    },
   };
 });
 vi.mock('react-native-keyboard-controller', () => ({
@@ -160,6 +169,7 @@ beforeEach(() => {
   fixture.fontScale = 1;
   fixture.platform = 'web';
   fixture.params = { entry: 'all' };
+  fixture.listEvents = {};
   fixture.fetch.mockImplementation(async (url) => {
     const path = new URL(String(url)).pathname;
     return Response.json(
@@ -367,4 +377,69 @@ it('submits the native text when its last edit has not reached React state', asy
       ([url]) => new URL(String(url)).searchParams.get('q') === 'native submit complete',
     ),
   ).toBe(true);
+});
+
+it('pages only after a scroll, coalesces end events and retries a failed page explicitly', async () => {
+  const catalogueCalls: string[] = [];
+  let finishPage!: (response: Response) => void;
+  fixture.fetch.mockImplementation(async (url) => {
+    const request = new URL(String(url));
+    if (request.pathname !== '/v1/bots') return Response.json({ topics: [] });
+    catalogueCalls.push(request.search);
+    if (!request.searchParams.has('cursor'))
+      return Response.json({ bots: [{ ...bot, id: 'page-one' }], nextCursor: 'page-two' });
+    return new Promise<Response>((resolve) => {
+      finishPage = resolve;
+    });
+  });
+  await act(async () => root.render(<MarketplaceScreen />));
+  const firstPageCalls = catalogueCalls.length;
+  await act(async () => fixture.listEvents.onEndReached?.());
+  expect(catalogueCalls).toHaveLength(firstPageCalls);
+  const scroll = {
+    nativeEvent: {
+      contentOffset: { x: 0, y: 500 },
+      contentSize: { width: 390, height: 1000 },
+      layoutMeasurement: { width: 390, height: 600 },
+      contentInset: { top: 0, bottom: 0, left: 0, right: 0 },
+      zoomScale: 1,
+    },
+  };
+  await act(async () => {
+    fixture.listEvents.onScrollBeginDrag?.(
+      scroll as Parameters<NonNullable<ScrollViewProps['onScrollBeginDrag']>>[0],
+    );
+    fixture.listEvents.onEndReached?.();
+    fixture.listEvents.onEndReached?.();
+  });
+  expect(catalogueCalls).toHaveLength(firstPageCalls + 1);
+  expect(element.querySelector('[data-testid="marketplace-page-loading"]')).not.toBeNull();
+  await act(async () => finishPage(Response.json({}, { status: 503 })));
+  expect(element.querySelector('[data-testid="marketplace-bot-page-one"]')).not.toBeNull();
+  await act(async () => {
+    fixture.listEvents.onScrollBeginDrag?.(
+      scroll as Parameters<NonNullable<ScrollViewProps['onScrollBeginDrag']>>[0],
+    );
+    fixture.listEvents.onEndReached?.();
+  });
+  expect(catalogueCalls).toHaveLength(firstPageCalls + 1);
+  await act(async () =>
+    element.querySelector<HTMLButtonElement>('[data-testid="marketplace-page-retry"]')!.click(),
+  );
+  expect(catalogueCalls).toHaveLength(firstPageCalls + 2);
+  expect(catalogueCalls.at(-1)).toBe(catalogueCalls.at(-2));
+  await act(async () =>
+    finishPage(
+      Response.json({
+        bots: [
+          { ...bot, id: 'page-one' },
+          { ...bot, id: 'page-two' },
+        ],
+      }),
+    ),
+  );
+  expect(element.querySelectorAll('[data-testid="marketplace-bot-page-one"]')).toHaveLength(1);
+  expect(element.querySelector('[data-testid="marketplace-bot-page-two"]')).not.toBeNull();
+  await act(async () => fixture.listEvents.onEndReached?.());
+  expect(catalogueCalls).toHaveLength(firstPageCalls + 2);
 });

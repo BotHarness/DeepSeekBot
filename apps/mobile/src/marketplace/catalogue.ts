@@ -17,6 +17,7 @@ export interface CatalogueSnapshot<T> {
   busy: boolean;
   value?: T;
   error?: string;
+  operation?: 'refresh' | 'more';
 }
 
 export interface CatalogueResource<T> {
@@ -37,12 +38,16 @@ function resource<T>(load: () => Promise<MarketplaceResult<T>>) {
     snapshot = next;
     for (const listener of listeners) listener();
   };
-  const run = (request: () => Promise<MarketplaceResult<T>>): Promise<void> => {
+  const run = (
+    request: () => Promise<MarketplaceResult<T>>,
+    operation: 'refresh' | 'more' = 'refresh',
+  ): Promise<void> => {
     if (pending) return pending;
     publish({
       ...snapshot,
       status: snapshot.value === undefined ? 'loading' : 'ready',
       busy: true,
+      operation,
     });
     pending = Promise.resolve()
       .then(request)
@@ -165,7 +170,7 @@ export function createMobileMarketplace(
                 }),
               ];
               return { ok: true, value: { ...result.value, bots } };
-            });
+            }, 'more');
           },
         };
       });
