@@ -300,7 +300,11 @@ vi.mock('../src/ui/chat/grant-request-card', () => ({ GrantRequestCard: () => nu
 vi.mock('../src/ui/chat/private-input-card', () => ({ PrivateInputCard: () => null }));
 vi.mock('../src/ui/chat/activity-row', () => ({ ActivityRow: () => null }));
 vi.mock('../src/ui/chat/question-card', () => ({ QuestionCard: () => null }));
-vi.mock('../src/ui/chat/channel-title', () => ({ ChannelTitle: () => null }));
+vi.mock('../src/ui/chat/channel-title', () => ({
+  ChannelTitle: ({ channel, fallback }: { channel?: RosterChannel; fallback: string }) => (
+    <span data-testid="channel-title">{channel?.name ?? fallback}</span>
+  ),
+}));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null, BotPortrait: () => null }));
 vi.mock('../src/ui/chat/composer', () => ({ Composer: () => null }));
 vi.mock('../src/ui/chat/image-viewer', () => ({ ImageViewer: () => null }));
@@ -710,8 +714,11 @@ it('shows delivery receipts on bubbles only after the setting turns them on', as
 });
 
 it('shows a message-shaped skeleton only while an empty history is opening', async () => {
+  state.host.roster.channels = [
+    { id: 'group-a', name: 'Review group', members: [], memberCount: 0 },
+  ];
   state.conversation.status = 'opening';
-  const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+  const place: ChatPlace = { kind: 'channel', channelId: 'group-a' };
   const view = await render(place);
   expect(view.querySelector('[data-testid="message-skeleton"]')).not.toBeNull();
   state.conversation.status = 'live';
@@ -1316,4 +1323,45 @@ it('closes an inline deleted conversation through its recovery action', async ()
   } finally {
     Object.assign(Platform, { OS: os });
   }
+});
+
+describe('disbanded group presentation', () => {
+  const os = Platform.OS;
+  beforeEach(() => {
+    Object.assign(Platform, { OS: 'ios' });
+  });
+  afterEach(() => {
+    Object.assign(Platform, { OS: os });
+  });
+  it('does not show loading for an authoritatively missing group', async () => {
+    state.conversation.status = 'opening';
+    const view = await render({ kind: 'channel', channelId: 'gone' });
+    expect(view.textContent).toContain(t.noChannel);
+    expect(view.querySelector('[data-testid="message-skeleton"]')).toBeNull();
+    expect(view.querySelector('[data-testid="channel-title"]')?.textContent).toBe(t.groupInfo);
+  });
+  it('keeps the last group name after disband without leaking it to another Host', async () => {
+    const place: ChatPlace = { kind: 'channel', channelId: 'group-a' };
+    state.host.roster.channels = [
+      { id: 'group-a', name: 'Review group', members: [], memberCount: 0 },
+    ];
+    const view = await render(place);
+    state.host.roster.channels = [];
+    state.conversation.status = 'opening';
+    await act(async () => root!.render(<ConversationScreen place={place} focus={undefined} />));
+    expect(view.querySelector('[data-testid="channel-title"]')?.textContent).toBe('Review group');
+    expect(view.querySelector('[data-testid="message-skeleton"]')).toBeNull();
+    state.hostId = 'computer_b';
+    await act(async () => root!.render(<ConversationScreen place={place} focus={undefined} />));
+    expect(view.textContent).toContain(t.sourceChanged);
+    expect(view.textContent).not.toContain('Review group');
+  });
+  it('still shows loading for an existing group opening its history', async () => {
+    state.host.roster.channels = [
+      { id: 'group-a', name: 'Review group', members: [], memberCount: 0 },
+    ];
+    state.conversation.status = 'opening';
+    const view = await render({ kind: 'channel', channelId: 'group-a' });
+    expect(view.querySelector('[data-testid="message-skeleton"]')).not.toBeNull();
+  });
 });
