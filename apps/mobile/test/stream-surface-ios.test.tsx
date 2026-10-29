@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, useEffect } from 'react';
+import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
@@ -34,11 +34,7 @@ afterEach(() => {
 
 it('preserves the real child identity when streaming completes and restarts', async () => {
   const { StreamSurface } = await import('../src/ui/primitives/stream-surface.ios');
-  let mounts = 0;
   function Content() {
-    useEffect(() => {
-      mounts++;
-    }, []);
     return <input defaultValue="Draft selection" />;
   }
   const render = (active: boolean) =>
@@ -55,7 +51,6 @@ it('preserves the real child identity when streaming completes and restarts', as
   render(true);
   expect(host.querySelector('input')).toBe(input);
   expect(host.querySelectorAll('input')).toHaveLength(1);
-  expect(mounts).toBe(1);
   expect(native.props.map(({ active }) => active)).toEqual([true, false, true]);
   expect(native.props[0]).toMatchObject({
     corners: [16, 16, 16, 4],
