@@ -75,7 +75,7 @@ export function ChannelTitle({
       >
         {name}
       </Text>
-      <ConnectionProgress active={connectionLabel !== undefined} />
+      <ConnectionProgress active={connectionLabel !== undefined} label={connectionLabel} />
       <WorkingStatus bots={working} />
     </HeaderTitleButton>
   );

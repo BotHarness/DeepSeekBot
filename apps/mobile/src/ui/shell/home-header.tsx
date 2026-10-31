@@ -134,7 +134,7 @@ export function HomeHeader({
               >
                 {environment.title}
               </Text>
-              <ConnectionProgress active={connectionLabel !== undefined} />
+              <ConnectionProgress active={connectionLabel !== undefined} label={connectionLabel} />
               {onWorkspaces ? null : (
                 <ChevronDownIcon color={theme.color.muted} size={theme.type.body.line} />
               )}
