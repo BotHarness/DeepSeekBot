@@ -4,6 +4,7 @@ import { hostname as osHostname } from 'node:os';
 import { createServer, type AddressInfo } from 'node:net';
 
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
+import { z } from 'zod';
 
 import type { DeviceConnect } from './connect.js';
 
@@ -53,40 +54,36 @@ export interface ConnectAccount {
   close(): Promise<void>;
 }
 
-interface AccountRecord {
-  relay: string;
-  clientId: string;
-  refreshToken: string;
-  email?: string;
-  hostId?: string;
-  account?: string;
-  relayKey?: string;
-}
+const relaySchema = z.string().url().brand<'ConnectRelay'>();
+const clientIdSchema = z
+  .string()
+  .regex(/^client_[A-Za-z0-9]+$/u)
+  .brand<'ConnectClientId'>();
+const hostIdSchema = z.string().min(1).brand<'ConnectHostId'>();
+const registrationSchema = z.object({
+  kind: z.literal('registration').default('registration'),
+  relay: relaySchema,
+  clientId: clientIdSchema,
+  hostId: hostIdSchema,
+});
+const sessionSchema = registrationSchema.omit({ hostId: true }).extend({
+  kind: z.literal('session').default('session'),
+  refreshToken: z.string(),
+  email: z.string().optional(),
+  hostId: hostIdSchema.optional(),
+  account: z.string().optional(),
+  relayKey: z.string().optional(),
+});
+const storedAccountSchema = z.union([sessionSchema, registrationSchema]);
+const hostListSchema = z.object({ hosts: z.array(z.object({ id: hostIdSchema })) });
+type AccountRecord = z.infer<typeof sessionSchema>;
+type StoredAccount = z.infer<typeof storedAccountSchema>;
+type ConnectClientId = z.infer<typeof clientIdSchema>;
 
 class AccountError extends Error {
   constructor(readonly issue: AccountIssue) {
     super(issue);
   }
-}
-
-function parseRecord(payload: unknown): AccountRecord | undefined {
-  if (typeof payload !== 'object' || payload === null) return undefined;
-  const value = payload as Record<string, unknown>;
-  if (
-    typeof value['relay'] !== 'string' ||
-    typeof value['clientId'] !== 'string' ||
-    typeof value['refreshToken'] !== 'string'
-  )
-    return undefined;
-  return {
-    relay: value['relay'],
-    clientId: value['clientId'],
-    refreshToken: value['refreshToken'],
-    ...(typeof value['email'] === 'string' ? { email: value['email'] } : {}),
-    ...(typeof value['hostId'] === 'string' ? { hostId: value['hostId'] } : {}),
-    ...(typeof value['account'] === 'string' ? { account: value['account'] } : {}),
-    ...(typeof value['relayKey'] === 'string' ? { relayKey: value['relayKey'] } : {}),
-  };
 }
 
 export function freeLoopbackPort(): Promise<number> {
@@ -119,11 +116,12 @@ export function createConnectAccount(options: {
   record?: (phase: string, detail?: string) => void;
 }): ConnectAccount {
   const key = credentialKey('botharness-core', 'connect-account');
-  const relay = (
-    options.relay ??
-    process.env['DEEPSEEKBOT_CONNECT_RELAY'] ??
-    CONNECT_RELAY
-  ).replace(/\/+$/u, '');
+  const relay = relaySchema.parse(
+    (options.relay ?? process.env['DEEPSEEKBOT_CONNECT_RELAY'] ?? CONNECT_RELAY).replace(
+      /\/+$/u,
+      '',
+    ),
+  );
   const fetcher = options.fetch ?? fetch;
   const hostName = options.hostName ?? osHostname;
   const freePort = options.freePort ?? freeLoopbackPort;
@@ -134,6 +132,7 @@ export function createConnectAccount(options: {
   let attempt = 0;
   let watch: ReturnType<typeof setInterval> | undefined;
   let cached: string | undefined;
+  let canResumeSession = true;
   let queue: Promise<unknown> = Promise.resolve();
 
   const serial = <T>(work: () => Promise<T>): Promise<T> => {
@@ -148,17 +147,24 @@ export function createConnectAccount(options: {
     return provider;
   };
 
-  const read = async (): Promise<AccountRecord | undefined> => {
+  const readStored = async (): Promise<StoredAccount | undefined> => {
     try {
       const stored = await native().readRecord(key);
-      return stored?.kind === 'grant' ? parseRecord(stored.payload) : undefined;
+      return stored?.kind === 'grant'
+        ? storedAccountSchema.safeParse(stored.payload).data
+        : undefined;
     } catch (error) {
       if (error instanceof AccountError) throw error;
       throw new AccountError('credential-unavailable');
     }
   };
 
-  const save = async (next: AccountRecord): Promise<void> => {
+  const read = async (): Promise<AccountRecord | undefined> => {
+    const current = await readStored();
+    return current?.kind === 'session' ? current : undefined;
+  };
+
+  const save = async (next: StoredAccount): Promise<void> => {
     try {
       await native().modifyRecord(key, async () => ({ kind: 'grant', payload: { ...next } }));
     } catch {
@@ -219,17 +225,17 @@ export function createConnectAccount(options: {
     return { status: response.status, body: parsed };
   };
 
-  const clientId = async (): Promise<string> => {
+  const clientId = async (): Promise<ConnectClientId> => {
     const { status: code, body } = await relayCall('GET', '/v1/config');
+    const parsed = clientIdSchema.safeParse(body['clientId']);
     if (
       code !== 200 ||
-      typeof body['clientId'] !== 'string' ||
-      !/^client_[A-Za-z0-9]+$/u.test(body['clientId']) ||
+      !parsed.success ||
       body['deviceAuthorizationEndpoint'] !== DEVICE_ENDPOINT ||
       body['tokenEndpoint'] !== TOKEN_ENDPOINT
     )
       throw new AccountError('relay-unavailable');
-    return body['clientId'];
+    return parsed.data;
   };
 
   const refresh = async (current: AccountRecord): Promise<string> => {
@@ -280,11 +286,11 @@ export function createConnectAccount(options: {
     const reply = await relayCall('POST', '/v1/hosts', access, {
       name: hostName().slice(0, 64) || 'Tobs',
     });
-    const id = (reply.body['host'] as { id?: unknown } | undefined)?.id;
-    if (reply.status !== 201 || typeof id !== 'string') throw new AccountError('relay-unavailable');
-    current.hostId = id;
+    const host = z.object({ id: hostIdSchema }).safeParse(reply.body['host']);
+    if (reply.status !== 201 || !host.success) throw new AccountError('relay-unavailable');
+    current.hostId = host.data.id;
     await save(current);
-    record('linked', `host=${id}`);
+    record('linked', `host=${host.data.id}`);
   };
 
   const fail = (error: unknown, current?: AccountRecord): void => {
@@ -298,14 +304,32 @@ export function createConnectAccount(options: {
     record('account-error', `issue=${issue}`);
   };
 
+  const retireSession = async (current: StoredAccount | undefined): Promise<void> => {
+    canResumeSession = false;
+    cached = undefined;
+    await connect.disable();
+    if (current?.hostId !== undefined) {
+      await save({
+        kind: 'registration',
+        relay: current.relay,
+        clientId: current.clientId,
+        hostId: current.hostId,
+      });
+    } else {
+      try {
+        await native().deleteRecord(key);
+      } catch {
+        throw new AccountError('credential-unavailable');
+      }
+    }
+  };
+
   const revoke = async (error: unknown, current?: AccountRecord): Promise<void> => {
     fail(error, current);
     if (!(error instanceof AccountError) || error.issue !== 'session-expired') return;
     attempt += 1;
-    cached = undefined;
-    await connect.disable();
     try {
-      await native().deleteRecord(key);
+      await retireSession(current);
     } catch {
       record('revoke-failed');
       return;
@@ -355,6 +379,7 @@ export function createConnectAccount(options: {
 
   const sync = (): Promise<void> =>
     serial(async () => {
+      if (!canResumeSession) return;
       let current: AccountRecord | undefined;
       try {
         current = await read();
@@ -393,7 +418,7 @@ export function createConnectAccount(options: {
 
   const poll = async (
     run: number,
-    id: string,
+    id: ConnectClientId,
     deviceCode: string,
     interval: number,
     expires: number,
@@ -436,12 +461,35 @@ export function createConnectAccount(options: {
       }
       const email = (reply.body['user'] as { email?: unknown } | undefined)?.email;
       try {
-        await save({
-          relay,
-          clientId: id,
-          refreshToken,
-          ...(typeof email === 'string' ? { email } : {}),
+        const saved = await serial(async () => {
+          if (run !== attempt) return false;
+          const previous = await readStored();
+          if (run !== attempt) return false;
+          await retireSession(previous);
+          if (run !== attempt) return false;
+          const current: AccountRecord = {
+            kind: 'session',
+            relay,
+            clientId: id,
+            refreshToken,
+            ...(typeof email === 'string' ? { email } : {}),
+          };
+          if (previous?.relay === relay && previous.clientId === id && previous.hostId) {
+            const access = reply.body['access_token'];
+            if (typeof access !== 'string') throw new AccountError('session-expired');
+            const listed = await relayCall('GET', '/v1/hosts', access);
+            const hosts = hostListSchema.safeParse(listed.body);
+            if (listed.status !== 200 || !hosts.success)
+              throw new AccountError('relay-unavailable');
+            if (hosts.data.hosts.some((host) => host.id === previous.hostId))
+              current.hostId = previous.hostId;
+          }
+          if (run !== attempt) return false;
+          await save(current);
+          canResumeSession = true;
+          return true;
         });
+        if (!saved || run !== attempt) return;
       } catch (saveError) {
         fail(saveError);
         return;
@@ -471,6 +519,7 @@ export function createConnectAccount(options: {
     signature: string | undefined,
   ): Promise<OfferVerification> => {
     let current: AccountRecord | undefined;
+    if (status.state !== 'signed-in') return { ok: false };
     try {
       current = await read();
     } catch {
@@ -576,7 +625,7 @@ export function createConnectAccount(options: {
       if (options.credentials() === undefined) return { ok: false, code: 'credential-unavailable' };
       attempt += 1;
       const run = attempt;
-      let id: string;
+      let id: ConnectClientId;
       let reply: Awaited<ReturnType<typeof post>>;
       try {
         id = await clientId();
