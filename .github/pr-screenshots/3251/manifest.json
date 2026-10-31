@@ -21,5 +21,11 @@
     "state": "Automatically discovered colleague; authenticated DM and reply; Human DM reports acknowledgement",
     "file": "after.png",
     "consoleIssues": 0
+  },
+  "profile": {
+    "consoleIssues": 0,
+    "state": "Read-only remote DM and current public facts",
+    "sha256": "cd7d3c809b4f591a8f608e12276fd1fbce394a32c27a7029591a62e826d713d4",
+    "file": "profile.png"
   }
 }
