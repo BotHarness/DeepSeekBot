@@ -12,6 +12,7 @@ import {
 } from './cloudflared-packages.mjs';
 import { providerRuntimeDigest } from './dev-im-provider.mjs';
 import { pnpmCommand } from './dev-package-manager.mjs';
+import { qqOrdinaryMediaSource } from './product-provider/qq-ordinary-media.mjs';
 
 export const productDsh = '0.2.1-rc.3';
 export { productDshRange } from './dsh-compatibility.mjs';
@@ -20,7 +21,7 @@ export const productDshVersions = Object.freeze(['0.2.0-rc.2', '0.2.1-rc.2', pro
 
 export const productImProvider = Object.freeze({
   name: '@botharness/im-provider',
-  version: '4.32.0-botharness.23',
+  version: '4.32.0-botharness.24',
   sourceManifestSha256: '3331e8f771a91abf396eb4e7ed5c0acc4c3b504cdccc7d715e37062708384cc2',
   sourceLockSha256: '3476c34c7d4515000d2617beaf2568b2a794b60de9b350cd8eafb7a2bf21adef',
   upstream: Object.freeze({
@@ -180,6 +181,8 @@ export function stageProvider(source, target, repoRoot) {
     'README.en.md',
     'THIRD_PARTY_NOTICES.md',
   ]);
+  const qqConsumerPath = join(target, 'src/channels/qq/external-consumer.mjs');
+  writeFileSync(qqConsumerPath, qqOrdinaryMediaSource(readFileSync(qqConsumerPath, 'utf8')));
   writeJson(
     join(target, 'package.json'),
     providerManifest(JSON.parse(readFileSync(join(source, 'package.json'), 'utf8'))),
@@ -238,16 +241,18 @@ export function stageProvider(source, target, repoRoot) {
     sourceManifestSha256: productImProvider.sourceManifestSha256,
     sourceLockSha256: productImProvider.sourceLockSha256,
     managedSources: Object.fromEntries(
-      ['update-rpc.mjs', 'update-policy.mjs', 'update-panel.js'].map((name) => [
-        name,
-        createHash('sha256')
-          .update(readFileSync(join(repoRoot, 'scripts/product-provider', name)))
-          .digest('hex'),
-      ]),
+      ['update-rpc.mjs', 'update-policy.mjs', 'update-panel.js', 'qq-ordinary-media.mjs'].map(
+        (name) => [
+          name,
+          createHash('sha256')
+            .update(readFileSync(join(repoRoot, 'scripts/product-provider', name)))
+            .digest('hex'),
+        ],
+      ),
     ),
     upstreamReleased: false,
     derivation:
-      'First-party package/client identity and product-managed updates; transport contracts unchanged',
+      'First-party package/client identity, product-managed updates and checked ordinary QQ image/file retention; native transport and send authority unchanged',
   });
   return output;
 }

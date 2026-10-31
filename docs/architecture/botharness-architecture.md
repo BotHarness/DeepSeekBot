@@ -988,6 +988,10 @@ Slack external-only reports (#863) use the same canonical Outbox as Lark: an exp
 
 ### 已资格验证平台的默认行为
 
+[ADR-0275](../adr/0275-qq-ordinary-media-retains-negotiated-attachments.md) explicitly extends QQ's former ordinary-text-only slice to negotiated supported direct image/file attachments. The Provider retains private tickets; Core's existing group, sender, identity/Grant, intake and collection fences still govern canonical Source Event persistence. Mentions-only, disabled capabilities, unsupported formats, ordinary quotes/voice and passive reply authority are unchanged. The immutable `.23` input is transformed and rebuilt as candidate `.24`, with reviewed source changes and managed-source provenance; no second attachment authority is introduced. Synthetic regression evidence is not native QQ qualification.
+
+[ADR-0275](../adr/0275-qq-ordinary-media-retains-negotiated-attachments.md) 明确把 QQ 此前仅限普通文字的切片扩展到已协商能力的受支持直接图片／文件。Provider 保留私有票据；Core 既有群、作者、身份／Grant、接收边界及收集策略仍决定 canonical Source Event 的持久化。仅提及、能力禁用、不支持格式、普通引用／语音及被动回复权限不变。不可变 `.23` 输入经可审查的源码变换重建为 `.24` 候选，并记录 managed-source 来源；不增加第二附件权威。合成回归证据不等于 QQ 实网验收。
+
 [#1156](https://github.com/BotHarness/BotHarness/issues/1156) qualifies two QQ applications through the existing independent binding and Channel Bridge model. Each app-scoped conversation is explicitly mapped; neither matching text nor a shared local Channel equates external locators or lends passive reply proof. The canonical Source Event projects its receiving app reference/name into QQ Channel source labels and details, and Group Profile activity retains app identity. These optional presentation fields add no store or sending authority; earlier projections remain readable. Native acceptance receipts and observed Provider Echo remain distinct capabilities.
 
 Native own Echo remains unqualified: accepted send receipts and visible original-group replies do not establish a platform callback of the responding App's own message. The current dual-App slice is partial #1156 delivery.
