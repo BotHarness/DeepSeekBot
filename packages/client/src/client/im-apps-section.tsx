@@ -118,11 +118,21 @@ export function ImAppsSection({
   t,
 }: PropsLocale<'botharness'> &
   InjectFace<{ imApps: ImAppsFace; store: ClientStore }>): ReactElement {
-  const bots = useStoreSlice(store, (state) => state.bots, sameBotNames);
+  const bots = useStoreSlice(
+    store,
+    (state) => state.bots.filter((bot) => !bot.deleted),
+    sameBotNames,
+  );
+  const bindableBots = useStoreSlice(
+    store,
+    (state) => state.bots.filter((bot) => !bot.deleted && !bot.paused),
+    sameBotNames,
+  );
   const [notice] = useState(() => imApps.takeNotice());
   const [loaded, setLoaded] = useState<Loaded>({ status: 'loading' });
   const [dialog, setDialog] = useState<Dialog>();
   const [botSlug, setBotSlug] = useState('');
+  const hasSelectedBot = bindableBots.some((bot) => bot.slug === botSlug);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const reload = async (): Promise<void> => {
@@ -180,7 +190,7 @@ export function ImAppsSection({
           disabled={busy}
           value={botSlug}
           onSelect={setBotSlug}
-          options={bots.map((bot) => ({ value: bot.slug, label: bot.displayName }))}
+          options={bindableBots.map((bot) => ({ value: bot.slug, label: bot.displayName }))}
         />
       )}
     </Field>
@@ -288,7 +298,7 @@ export function ImAppsSection({
           title={t('imApps.bindFor', { app: dialog.app.name })}
           labels={labels}
           submitLabel={t('imApps.bind')}
-          submitDisabled={botSlug === ''}
+          submitDisabled={!hasSelectedBot}
           busy={busy}
           error={error}
           onCancel={dismiss}
@@ -337,7 +347,7 @@ export function ImAppsSection({
           description={t('imApps.createHint')}
           labels={labels}
           submitLabel={t('imApps.next')}
-          submitDisabled={botSlug === ''}
+          submitDisabled={!hasSelectedBot}
           error={error}
           onCancel={dismiss}
           onSubmit={() => {

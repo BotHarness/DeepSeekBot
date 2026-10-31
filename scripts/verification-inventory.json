@@ -683,6 +683,22 @@
       "gap": null
     },
     {
+      "id": "native.settings.handoff",
+      "label": "Open native Models from Bot mode and restore navigation after Settings closes",
+      "source": "packages/client/src/client/bot-settings-open.ts",
+      "task": 3222,
+      "guide": ".agents/skills/verify-deepseekbot/features/settings-handoff.md",
+      "gap": null
+    },
+    {
+      "id": "im.apps.bot-eligibility",
+      "label": "Create or bind an IM app using only live unpaused Bots and invalidate deleted selections",
+      "source": "packages/client/src/client/im-apps-section.tsx",
+      "task": 3220,
+      "guide": ".agents/skills/verify-deepseekbot/features/settings-handoff.md",
+      "gap": null
+    },
+    {
       "id": "orchestrator-model-switch",
       "label": "Orchestrator-only quick model switching with Assignment inheritance",
       "source": "packages/client/src/client/dm-composer-context.tsx",
