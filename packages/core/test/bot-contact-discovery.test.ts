@@ -164,7 +164,7 @@ describe('Orchestrator bounded contact discovery', () => {
         const contacts = [];
         let cursor: string | undefined;
         do {
-          const page = run.channels.contacts(cursor === undefined ? {} : { cursor });
+          const page = await run.channels.contacts(cursor === undefined ? {} : { cursor });
           expect(JSON.stringify(page).length).toBeLessThanOrEqual(12_000);
           expect(page.contacts.length).toBeLessThanOrEqual(20);
           for (const contact of page.contacts) {
@@ -190,7 +190,7 @@ describe('Orchestrator bounded contact discovery', () => {
   it('searches beyond previews, binds continuation to normalized filters and returns bounded detail', async () => {
     let checked = false;
     await exercise(25, async (run, core) => {
-      const first = run.channels.contacts({ query: ' SAME DISPLAY NAME ', limit: 3 });
+      const first = await run.channels.contacts({ query: ' SAME DISPLAY NAME ', limit: 3 });
       expect(first.contacts.map((contact) => contact.botId)).toEqual([
         'colleague-001',
         'colleague-002',
@@ -202,31 +202,33 @@ describe('Orchestrator bounded contact discovery', () => {
           cursor: first.nextCursor!,
         }),
       ).toThrow('invalid cursor');
-      const second = run.channels.contacts({
+      const second = await run.channels.contacts({
         query: 'same display name',
         cursor: first.nextCursor!,
         limit: 5,
       });
       expect(second.contacts[0]?.botId).toBe('colleague-004');
-      expect(() => run.channels.contacts({ query: 'First', cursor: first.nextCursor! })).toThrow(
-        'invalid cursor',
-      );
-      expect(() => run.channels.contacts({ cursor: 'broken' })).toThrow('invalid cursor');
+      await expect(
+        run.channels.contacts({ query: 'First', cursor: first.nextCursor! }),
+      ).rejects.toThrow('invalid cursor');
+      await expect(run.channels.contacts({ cursor: 'broken' })).rejects.toThrow('invalid cursor');
       for (const limit of [0, 51, 1.5, NaN, Infinity])
-        expect(() => run.channels.contacts({ limit })).toThrow('integer from 1 to 50');
-      expect(() => run.channels.contacts({ query: 'x'.repeat(201) })).toThrow('200 characters');
-      const result = run.channels.contacts({ query: 'needle-24' });
+        await expect(run.channels.contacts({ limit })).rejects.toThrow('integer from 1 to 50');
+      await expect(run.channels.contacts({ query: 'x'.repeat(201) })).rejects.toThrow(
+        '200 characters',
+      );
+      const result = await run.channels.contacts({ query: 'needle-24' });
       expect(result.contacts.map((contact) => contact.botId)).toEqual(['colleague-024']);
       expect(result.contacts[0]?.description).not.toContain('needle-24');
-      const detail = run.channels.contacts({ botId: 'colleague-024' });
+      const detail = await run.channels.contacts({ botId: 'colleague-024' });
       expect(detail.contacts[0]?.description?.length).toBe(1_000);
       expect(detail.contacts[0]?.descriptionTruncated).toBe(true);
       expect(JSON.stringify(detail).length).toBeLessThanOrEqual(12_000);
-      expect(() => run.channels.contacts({ botId: 'colleague-024', limit: 1 })).toThrow(
+      await expect(run.channels.contacts({ botId: 'colleague-024', limit: 1 })).rejects.toThrow(
         'cannot be combined',
       );
       for (const botId of ['owner', 'paused', 'removed', 'missing'])
-        expect(() => run.channels.contacts({ botId })).toThrow('active colleague');
+        await expect(run.channels.contacts({ botId })).rejects.toThrow('active colleague');
       checked = true;
     });
     expect(checked).toBe(true);
@@ -248,7 +250,7 @@ describe('Orchestrator bounded contact discovery', () => {
       const seen: string[] = [];
       let cursor: string | undefined;
       do {
-        const page = run.channels.contacts({
+        const page = await run.channels.contacts({
           limit: 50,
           ...(cursor === undefined ? {} : { cursor }),
         });
@@ -266,7 +268,7 @@ describe('Orchestrator bounded contact discovery', () => {
       expect(new Set(seen).size).toBe(25);
       expect(seen).toHaveLength(25);
       expect(
-        JSON.stringify(run.channels.contacts({ botId: 'colleague-024' })).length,
+        JSON.stringify(await run.channels.contacts({ botId: 'colleague-024' })).length,
       ).toBeLessThanOrEqual(12_000);
       checked = true;
     });
@@ -276,8 +278,8 @@ describe('Orchestrator bounded contact discovery', () => {
   it('uses a later-page ID for real DM, invitation and mention consumers and rejects a newly stale recipient', async () => {
     let checked = false;
     await exercise(25, async (run, core) => {
-      const first = run.channels.contacts();
-      const later = run.channels.contacts({ cursor: first.nextCursor! });
+      const first = await run.channels.contacts();
+      const later = await run.channels.contacts({ cursor: first.nextCursor! });
       const contact = later.contacts.find((contact) => contact.botId === 'colleague-024')!;
       expect(contact).toBeDefined();
       const sent = await run.channels.sendToBot({
@@ -312,7 +314,9 @@ describe('Orchestrator bounded contact discovery', () => {
       });
       expect(core.channels.readMessages(group.id)[0]?.mentions?.[0]?.botSlug).toBe(contact.botId);
       core.registry.setPaused(contact.botId, true);
-      expect(() => run.channels.contacts({ botId: contact.botId })).toThrow('active colleague');
+      await expect(run.channels.contacts({ botId: contact.botId })).rejects.toThrow(
+        'active colleague',
+      );
       await expect(
         run.channels.sendToBot({ botSlug: contact.botId, body: 'Must not commit' }),
       ).rejects.toThrow('active PersonaBot');

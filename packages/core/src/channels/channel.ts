@@ -72,7 +72,26 @@ export interface ChannelRecord {
   updatedAt: string;
 }
 
+export interface BotNetworkMembership {
+  kind: 'tailnet';
+  localNodeId: string;
+  remoteNodeId: string;
+}
+
+export function isBotNetworkMembership(value: unknown): value is BotNetworkMembership {
+  if (typeof value !== 'object' || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return (
+    record['kind'] === 'tailnet' &&
+    typeof record['localNodeId'] === 'string' &&
+    /^[a-zA-Z0-9_-]{1,128}$/u.test(record['localNodeId']) &&
+    typeof record['remoteNodeId'] === 'string' &&
+    /^[a-zA-Z0-9_-]{1,128}$/u.test(record['remoteNodeId'])
+  );
+}
+
 export interface RemoteBotParticipant {
+  membership?: BotNetworkMembership;
   hostKey?: string;
   hostId: string;
   botSlug: string;
@@ -89,6 +108,8 @@ export function remoteBotDmRecord(
     !isValidSlug(remoteBot.botSlug) ||
     !/^[a-zA-Z0-9_-]{1,128}$/u.test(remoteBot.hostId) ||
     remoteBot.displayName.length > 128 ||
+    (remoteBot.membership !== undefined &&
+      (!isBotNetworkMembership(remoteBot.membership) || remoteBot.hostKey === undefined)) ||
     (remoteBot.hostKey !== undefined && !/^[0-9a-f]{64}$/u.test(remoteBot.hostKey))
   )
     throw new Error('Invalid remote Bot participant');
@@ -105,6 +126,7 @@ export function remoteBotDmRecord(
       botSlug: remoteBot.botSlug,
       displayName: remoteBot.displayName,
       ...(remoteBot.hostKey === undefined ? {} : { hostKey: remoteBot.hostKey }),
+      ...(remoteBot.membership === undefined ? {} : { membership: { ...remoteBot.membership } }),
     },
     createdAt: at,
     updatedAt: at,
@@ -518,6 +540,8 @@ export function isChannelRecord(value: unknown, id: string): value is ChannelRec
       !isValidSlug(peer['botSlug']) ||
       typeof peer['displayName'] !== 'string' ||
       peer['displayName'].length > 128 ||
+      (peer['membership'] !== undefined &&
+        (!isBotNetworkMembership(peer['membership']) || peer['hostKey'] === undefined)) ||
       (peer['hostKey'] !== undefined &&
         (typeof peer['hostKey'] !== 'string' || !/^[0-9a-f]{64}$/u.test(peer['hostKey'])))
     )

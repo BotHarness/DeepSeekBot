@@ -78,7 +78,7 @@ const reportRun: OrchestratorAgentRun = {
   inbox: '',
   channels: {
     ...groupTools,
-    contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+    contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
     sendToBot: async () => {
       throw new Error('unexpected Bot DM');
     },
@@ -1126,7 +1126,7 @@ describe('DSH Bot Agent adapter', () => {
         message: 'Continue A',
         channels: {
           ...groupTools,
-          contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+          contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
           sendToBot: async () => {
             throw new Error('unexpected Bot DM');
           },
@@ -1212,7 +1212,7 @@ describe('DSH Bot Agent adapter', () => {
         message: 'Continue A',
         channels: {
           ...groupTools,
-          contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+          contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
           sendToBot: async () => {
             throw new Error('unexpected Bot DM');
           },
@@ -1443,7 +1443,7 @@ describe('DSH Bot Agent adapter', () => {
             lastActor: { kind: 'bot', botSlug: 'ada' },
           };
         },
-        contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+        contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
         sendToBot: async () => {
           throw new Error('unexpected Bot DM');
         },
@@ -1556,7 +1556,7 @@ describe('DSH Bot Agent adapter', () => {
       inbox: '',
       channels: {
         ...groupTools,
-        contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+        contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
         sendToBot: async () => {
           throw new Error('unexpected Bot DM');
         },
@@ -1633,7 +1633,7 @@ describe('DSH Bot Agent adapter', () => {
       message: '你好',
       channels: {
         ...groupTools,
-        contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+        contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
         sendToBot: async () => {
           throw new Error('unexpected Bot DM');
         },
@@ -1728,7 +1728,7 @@ describe('DSH Bot Agent adapter', () => {
         message: '你好',
         channels: {
           ...groupTools,
-          contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+          contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
           sendToBot: async () => {
             throw new Error('unexpected Bot DM');
           },
@@ -1844,7 +1844,7 @@ describe('DSH Bot Agent adapter', () => {
             },
           ],
         }),
-        contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+        contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
         sendToBot: async () => {
           throw new Error('unexpected Bot DM');
         },
@@ -1925,7 +1925,7 @@ describe('DSH Bot Agent adapter', () => {
       } as unknown as NonNullable<OrchestratorAgentRun['externalMessaging']>,
       channels: {
         ...groupTools,
-        contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+        contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
         sendToBot: async () => {
           throw new Error('unexpected Bot DM');
         },
@@ -1999,7 +1999,7 @@ describe('DSH Bot Agent adapter', () => {
         message: '请核对发布状态',
         channels: {
           ...groupTools,
-          contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+          contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
           sendToBot: async () => {
             throw new Error('unexpected Bot DM');
           },
@@ -2051,7 +2051,7 @@ describe('DSH Bot Agent adapter', () => {
       message,
       channels: {
         ...groupTools,
-        contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+        contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
         sendToBot: async () => {
           throw new Error('unexpected Bot DM');
         },
@@ -2216,7 +2216,7 @@ describe('DSH Bot Agent adapter', () => {
       message: '请核对发布状态',
       channels: {
         ...groupTools,
-        contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+        contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
         sendToBot: async () => {
           throw new Error('unexpected Bot DM');
         },
@@ -2312,7 +2312,7 @@ describe('DSH Bot Agent adapter', () => {
             },
           ],
         }),
-        contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+        contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
         sendToBot: async () => {
           throw new Error('unexpected Bot DM');
         },
@@ -2891,7 +2891,7 @@ describe('DSH Bot Agent adapter', () => {
                     ],
             };
           },
-          contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+          contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
           sendToBot: async () => {
             throw new Error('unexpected Bot DM');
           },
@@ -3195,7 +3195,7 @@ it('routes external Tools through the active owning Orchestrator without a local
     },
     channels: {
       ...groupTools,
-      contacts: () => ({ outputLimit: 12000, contacts: [] }),
+      contacts: async () => ({ outputLimit: 12000, contacts: [] }),
       sendToBot: async () => {
         throw new Error('unexpected DM');
       },
@@ -3360,7 +3360,7 @@ describe('Bot Schedule Tools', () => {
       },
       channels: {
         ...groupTools,
-        contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+        contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
         sendToBot: async () => {
           throw new Error('unexpected Bot DM');
         },
@@ -3504,7 +3504,7 @@ describe('Assignment Directory Tools', () => {
       inbox: '',
       channels: {
         ...groupTools,
-        contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+        contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
         sendToBot: async () => {
           throw new Error('unexpected Bot DM');
         },

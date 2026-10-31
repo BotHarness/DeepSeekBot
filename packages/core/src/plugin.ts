@@ -1430,6 +1430,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const core = createCore({
     botNetwork: {
       contacts: () => botNetwork?.contacts() ?? [],
+      availability: (hostId, botSlug) =>
+        botNetwork?.availability?.(hostId, botSlug) ?? 'unavailable',
+      refresh: async () => {
+        await botNetwork?.refresh?.();
+      },
+      membership: (hostId) => botNetwork?.membership?.(hostId) ?? Promise.resolve('unavailable'),
       send: (hostId, message) =>
         botNetwork === undefined
           ? Promise.reject(new BotNetworkDeliveryError('unable-to-deliver'))
@@ -1523,6 +1529,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       channels: core.channels,
       admitBotDmMessage: (channelId, messageId) =>
         core.runtime.admitBotDmMessage(channelId, messageId),
+      withdrawNetworkMembership: (hostId) => core.runtime.withdrawNetworkMembership(hostId),
       available: (port) => {
         botNetwork = port;
       },

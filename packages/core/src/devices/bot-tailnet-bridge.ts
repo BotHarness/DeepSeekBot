@@ -9,7 +9,9 @@ import {
 import { createServer, request, type IncomingMessage, type Server } from 'node:http';
 import { z } from 'zod';
 import { createBotTailnet, type BotTailnet, type TailnetMember } from './bot-tailnet.js';
+import type { TailnetChange } from './bot-tailnet-watch.js';
 import type { NetworkBotContact } from '../runtime/bot-contact-discovery.js';
+import type { BotNetworkMembership } from '../channels/channel.js';
 import type { BotNetworkPort, NetworkBotMessage } from '../runtime/bot-network.js';
 import { BotNetworkDeliveryError as DeliveryError } from '../runtime/bot-network.js';
 
@@ -82,6 +84,7 @@ function exchange(
   localAddress: string,
   path: string,
   payload?: { senderHost: string; senderPort: number; body: unknown; committing?: boolean },
+  signal?: AbortSignal,
 ): Promise<unknown> {
   return new Promise((resolve, reject) => {
     let connected = false;
@@ -95,6 +98,10 @@ function exchange(
         method: body === undefined ? 'GET' : 'POST',
         agent: false,
         timeout: 5000,
+        signal:
+          signal === undefined
+            ? AbortSignal.timeout(5000)
+            : AbortSignal.any([signal, AbortSignal.timeout(5000)]),
         headers:
           payload === undefined
             ? {}
@@ -145,7 +152,9 @@ export function createTailnetBotBridge(options: {
   hostId: string;
   key(): Promise<Uint8Array>;
   knownKey?(hostId: string): string | undefined;
-  trustKey?(hostId: string, publicKey: string): void;
+  trustKey?(hostId: string, publicKey: string, membership?: BotNetworkMembership): void;
+  knownMemberships?(): readonly { hostId: string; membership: BotNetworkMembership }[];
+  withdrawn?(hostId: string): Promise<void>;
   directory(): readonly NetworkBotContact[];
   receive(sender: NetworkBotContact, message: NetworkBotMessage): Promise<void>;
   tailnet?: BotTailnet;
@@ -187,9 +196,116 @@ export function createTailnetBotBridge(options: {
   let port: number | undefined;
   let timer: ReturnType<typeof setInterval> | undefined;
   let discovering: Promise<void> | undefined;
+  let discoveryCancellation: AbortController | undefined;
+  let refreshing: Promise<void> | undefined;
+  let refreshRevision = 0;
   let closed = false;
+  let lastSnapshot: Awaited<ReturnType<BotTailnet['snapshot']>> | undefined;
+  const membershipChanges = new Map<string, Promise<void>>();
+  const observedWithdrawn = new Set<string>();
+  const observedPending = new Map<string, Promise<void>>();
+  let stopWatching: (() => void | Promise<void>) | undefined;
 
-  async function directory(member: TailnetMember, targetPort: number) {
+  function retireObserved(host: string): Promise<void> {
+    const pending = observedPending.get(host);
+    if (pending !== undefined) return pending;
+    if (!observedWithdrawn.has(host)) return Promise.resolve();
+    const work = Promise.resolve()
+      .then(async () => {
+        if (closed) return;
+        await options.withdrawn?.(host);
+        observedWithdrawn.delete(host);
+      })
+      .finally(() => {
+        observedPending.delete(host);
+      });
+    observedPending.set(host, work);
+    return work;
+  }
+
+  function observe(change: TailnetChange) {
+    if (closed) return;
+    const hosts = new Set(
+      memberships()
+        .filter(
+          ({ membership }) =>
+            change.removedNodeIds.includes(membership.remoteNodeId) ||
+            (change.selfNodeId !== undefined && change.selfNodeId !== membership.localNodeId),
+        )
+        .map(({ hostId }) => hostId),
+    );
+    for (const host of hosts) {
+      observedWithdrawn.add(host);
+      routes.delete(host);
+      void retireObserved(host).catch(() =>
+        options.record?.({
+          phase: 'withdrawal-refused',
+          durationMs: 0,
+          code: 'network-withdrawal-unavailable',
+        }),
+      );
+    }
+  }
+
+  function memberships() {
+    return options.knownMemberships?.() ?? [];
+  }
+
+  function membershipIn(host: string, current: Awaited<ReturnType<BotTailnet['snapshot']>>) {
+    const known = memberships().filter((item) => item.hostId === host);
+    if (known.length === 0) return 'unavailable' as const;
+    const members = [current.self, ...current.peers, ...(current.offlinePeers ?? [])];
+    return known.some(
+      ({ membership }) =>
+        membership.localNodeId === current.self.nodeId &&
+        members.some((peer) => peer.nodeId === membership.remoteNodeId),
+    )
+      ? ('member' as const)
+      : ('withdrawn' as const);
+  }
+
+  function authenticatedMembership(peer: TailnetMember): BotNetworkMembership {
+    if (!self) throw new DeliveryError('unable-to-deliver');
+    return { kind: 'tailnet', localNodeId: self.nodeId, remoteNodeId: peer.nodeId };
+  }
+
+  async function trustMembership(
+    host: string,
+    key: string,
+    peer: TailnetMember,
+    deferInitialPin = false,
+  ) {
+    const membership = authenticatedMembership(peer);
+    const prior = membershipChanges.get(host) ?? Promise.resolve();
+    const change = prior
+      .catch(() => undefined)
+      .then(async () => {
+        await retireObserved(host);
+        checkKey(host, key);
+        const previousMemberships = memberships().filter((known) => known.hostId === host);
+        if (
+          (options.knownKey?.(host) !== undefined && previousMemberships.length === 0) ||
+          previousMemberships.some(
+            (known) =>
+              known.membership.localNodeId !== membership.localNodeId ||
+              known.membership.remoteNodeId !== membership.remoteNodeId,
+          )
+        )
+          await options.withdrawn?.(host);
+        if (closed || self?.nodeId !== membership.localNodeId)
+          throw new DeliveryError('network-denied');
+        if (!deferInitialPin) options.trustKey?.(host, key, membership);
+      });
+    membershipChanges.set(host, change);
+    try {
+      await change;
+      return membership;
+    } finally {
+      if (membershipChanges.get(host) === change) membershipChanges.delete(host);
+    }
+  }
+
+  async function directory(member: TailnetMember, targetPort: number, signal?: AbortSignal) {
     if (!self) throw new DeliveryError('unable-to-deliver');
     let offset = 0;
     let owner: string | undefined;
@@ -202,6 +318,8 @@ export function createTailnetBotBridge(options: {
           targetPort,
           self.address,
           `${ROOT}/contacts?offset=${offset}`,
+          undefined,
+          signal,
         ),
       );
       if (owner !== undefined && (page.hostId !== owner || page.publicKey !== identity))
@@ -225,24 +343,261 @@ export function createTailnetBotBridge(options: {
     throw new Error('network-closed');
   }
 
-  async function discoverNow() {
+  async function closeListener() {
+    routes.clear();
+    for (const pending of handshakes.values()) {
+      clearTimeout(pending.expiry);
+      pending.noise.close();
+    }
+    handshakes.clear();
+    const current = server;
+    server = undefined;
+    port = undefined;
+    current?.closeAllConnections();
+    if (current) await new Promise<void>((resolve) => current.close(() => resolve()));
+  }
+
+  async function listen(nextSelf: TailnetMember) {
+    if (closed) return;
+    if (server && self?.nodeId === nextSelf.nodeId && self.address === nextSelf.address) return;
+    await closeListener();
+    self = nextSelf;
+    await ownPublicKey();
+    if (closed) return;
+    for (const candidate of ports) {
+      const listener = createServer(
+        { maxHeaderSize: 4096, requestTimeout: 5000, headersTimeout: 5000 },
+        async (incoming, response) => {
+          const started = Date.now();
+          let admissionStarted = false;
+          let stage = 'peer';
+          let transport: NoiseTransport | undefined;
+          let activeHandshake: NoiseXk | undefined;
+          try {
+            if (
+              closed ||
+              server !== listener ||
+              incoming.headers.origin ||
+              incoming.headers.authorization ||
+              incoming.headers.cookie
+            )
+              throw new Error('network-peer-denied');
+            const peer = await tailnet.admit(incoming.socket.remoteAddress ?? '');
+            const match = /^\/botharness-bots\/v1\/contacts\?offset=(\d{1,4})$/u.exec(
+              incoming.url ?? '',
+            );
+            if (incoming.method === 'GET' && match) {
+              const offset = Number(match[1]);
+              const bots = options.directory();
+              response.writeHead(200, {
+                'content-type': 'application/json',
+                'cache-control': 'no-store',
+              });
+              response.end(
+                JSON.stringify(
+                  pageSchema.parse({
+                    hostId: options.hostId,
+                    publicKey: await ownPublicKey(),
+                    contacts: bots.slice(offset, offset + 50),
+                    ...(bots.length > offset + 50 ? { next: offset + 50 } : {}),
+                  }),
+                ),
+              );
+              return;
+            }
+            if (
+              incoming.method !== 'POST' ||
+              ![`${ROOT}/handshake`, `${ROOT}/messages`].includes(incoming.url ?? '')
+            )
+              throw new Error('network-method-denied');
+            const senderHost = hostId.parse(incoming.headers['x-bot-host']);
+            const senderPort = Number(incoming.headers['x-bot-port']);
+            if (!ports.includes(senderPort)) throw new Error('network-peer-denied');
+            stage = 'sender';
+            if (incoming.url === `${ROOT}/handshake`) {
+              const flight = flightSchema.parse(
+                ((await readBody(incoming)) as { flight?: unknown })?.flight,
+              );
+              if (handshakes.size >= 32) throw new Error('network-handshake-capacity');
+              const origin = await directory(peer, senderPort);
+              if (origin.hostId !== senderHost) throw new Error('network-sender-denied');
+              activeHandshake = await botNetworkHandshake({
+                role: 'responder',
+                key: options.key,
+                senderHost,
+                receiverHost: options.hostId,
+              });
+              activeHandshake.read(Buffer.from(flight, 'base64'));
+              const reply = activeHandshake.write();
+              if (closed || server !== listener || handshakes.size >= 32)
+                throw new Error('network-handshake-capacity');
+              const session = randomBytes(24).toString('hex');
+              const noise = activeHandshake;
+              const expiry = setTimeout(() => {
+                handshakes.delete(session);
+                noise.close();
+              }, 30_000);
+              expiry.unref();
+              handshakes.set(session, {
+                noise,
+                peer,
+                senderHost,
+                senderPort,
+                publicKey: origin.publicKey,
+                expiry,
+              });
+              activeHandshake = undefined;
+              response.writeHead(200, {
+                'content-type': 'application/json',
+                'cache-control': 'no-store',
+              });
+              response.end(
+                JSON.stringify({ session, flight: Buffer.from(reply).toString('base64') }),
+              );
+              return;
+            }
+            stage = 'sealed-message';
+            const sealed = sealedSchema.parse(await readBody(incoming));
+            const pending = handshakes.get(sealed.session);
+            if (
+              !pending ||
+              pending.peer.nodeId !== peer.nodeId ||
+              pending.peer.address !== peer.address ||
+              pending.senderHost !== senderHost ||
+              pending.senderPort !== senderPort
+            )
+              throw new Error('network-handshake-unavailable');
+            handshakes.delete(sealed.session);
+            clearTimeout(pending.expiry);
+            activeHandshake = pending.noise;
+            stage = 'decrypt';
+            activeHandshake.read(Buffer.from(sealed.flight, 'base64'));
+            transport = finishBotHandshake(activeHandshake, pending.publicKey);
+            stage = 'message-schema';
+            const input = messageSchema.parse(decodeBotPayload(transport, sealed.frames));
+            stage = 'sender-directory';
+            const origin = await directory(peer, senderPort);
+            const sender = origin.contacts.find((bot) => bot.botSlug === input.senderBotSlug);
+            if (origin.hostId !== senderHost || origin.publicKey !== pending.publicKey || !sender)
+              throw new Error('network-sender-denied');
+            checkKey(senderHost, pending.publicKey);
+            if ((await tailnet.admit(incoming.socket.remoteAddress ?? '')).nodeId !== peer.nodeId)
+              throw new Error('network-peer-denied');
+            if (closed || server !== listener) throw new Error('network-closed');
+            stage = 'membership';
+            const initialRelationship =
+              options.knownKey?.(senderHost) === undefined &&
+              !memberships().some((known) => known.hostId === senderHost);
+            const membership = await trustMembership(
+              senderHost,
+              pending.publicKey,
+              peer,
+              initialRelationship,
+            );
+            if (closed || server !== listener) throw new Error('network-closed');
+            if ((await tailnet.admit(incoming.socket.remoteAddress ?? '')).nodeId !== peer.nodeId)
+              throw new Error('network-peer-denied');
+            if (closed || server !== listener) throw new Error('network-closed');
+            admissionStarted = true;
+            stage = 'admission';
+            await options.receive(
+              {
+                ...sender,
+                hostKey: pending.publicKey,
+                membership,
+              },
+              input,
+            );
+            if (initialRelationship) options.trustKey?.(senderHost, pending.publicKey, membership);
+            options.record?.({ phase: 'received', durationMs: Date.now() - started });
+            response.writeHead(200, {
+              'content-type': 'application/json',
+              'cache-control': 'no-store',
+            });
+            response.end(
+              JSON.stringify({ frames: encodeBotPayload(transport, { accepted: input.id }) }),
+            );
+          } catch {
+            options.record?.({
+              phase: 'receive-refused',
+              stage,
+              durationMs: Date.now() - started,
+              code: admissionStarted ? 'delivery-unknown' : 'network-denied',
+            });
+            incoming.resume();
+            if (!response.headersSent)
+              response.writeHead(admissionStarted ? 500 : 403, {
+                'content-type': 'application/json',
+              });
+            response.end(
+              JSON.stringify({ code: admissionStarted ? 'delivery-unknown' : 'network-denied' }),
+            );
+          } finally {
+            activeHandshake?.close();
+            transport?.close();
+          }
+        },
+      );
+      listener.maxConnections = 32;
+      listener.on('connection', (socket) => socket.setTimeout(10_000, () => socket.destroy()));
+      try {
+        await new Promise<void>((resolve, reject) => {
+          listener.once('error', reject);
+          listener.listen(candidate, self!.address, () => {
+            listener.removeListener('error', reject);
+            resolve();
+          });
+        });
+        listener.on('error', () => {
+          routes.clear();
+          options.record?.({
+            phase: 'listener-error',
+            durationMs: 0,
+            code: 'network-listener-unavailable',
+          });
+        });
+        if (closed) {
+          listener.closeAllConnections();
+          listener.close();
+          return;
+        }
+        server = listener;
+        port = candidate;
+        break;
+      } catch (error) {
+        listener.close();
+        if ((error as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw error;
+      }
+    }
+    if (!server) throw new Error('network-listener-unavailable');
+  }
+
+  async function discoverNow(signal: AbortSignal) {
     const started = Date.now();
+    lastSnapshot = undefined;
     try {
       const current = await tailnet.snapshot();
-      if (!self || current.self.nodeId !== self.nodeId || current.self.address !== self.address)
-        throw new Error('tailnet-changed');
+      if (signal.aborted || closed) return;
+      lastSnapshot = current;
+      for (const host of new Set(memberships().map((item) => item.hostId))) {
+        await retireObserved(host);
+        if (membershipIn(host, current) === 'withdrawn') await options.withdrawn?.(host);
+      }
+      await listen(current.self);
+      if (closed) return;
       const targets = [current.self, ...current.peers]
+        .slice(0, 65)
         .flatMap((member) => ports.map((targetPort) => ({ member, targetPort })))
         .filter((target) => target.member.address !== self!.address || target.targetPort !== port);
       const found = new Map<string, Route>();
       const collisions = new Set<string>();
       let index = 0;
       await Promise.all(
-        Array.from({ length: Math.min(8, targets.length) }, async () => {
-          while (index < targets.length && !closed) {
+        Array.from({ length: Math.min(64, targets.length) }, async () => {
+          while (index < targets.length && !closed && !signal.aborted) {
             const target = targets[index++]!;
             try {
-              const result = await directory(target.member, target.targetPort);
+              const result = await directory(target.member, target.targetPort, signal);
               if (result.hostId === options.hostId || found.has(result.hostId)) {
                 collisions.add(result.hostId);
                 continue;
@@ -256,10 +611,12 @@ export function createTailnetBotBridge(options: {
           }
         }),
       );
+      if (signal.aborted || closed) return;
       routes.clear();
       if (!closed) for (const [id, route] of found) if (!collisions.has(id)) routes.set(id, route);
       options.record?.({ phase: 'discovery', durationMs: Date.now() - started });
     } catch {
+      if (signal.aborted || closed) return;
       routes.clear();
       options.record?.({
         phase: 'discovery-refused',
@@ -271,200 +628,78 @@ export function createTailnetBotBridge(options: {
 
   const bridge = {
     contacts: () => [...routes.values()].flatMap((route) => route.contacts),
-    async discover() {
-      discovering ??= discoverNow().finally(() => {
-        discovering = undefined;
+    availability(host: string, botSlug: string) {
+      if (observedWithdrawn.has(host)) return 'withdrawn' as const;
+      if (!lastSnapshot || closed) return 'unavailable' as const;
+      if (membershipIn(host, lastSnapshot) === 'withdrawn') return 'withdrawn' as const;
+      const route = routes.get(host);
+      if (
+        !route ||
+        ![lastSnapshot.self, ...lastSnapshot.peers].some(
+          (member) =>
+            member.nodeId === route.member.nodeId && member.address === route.member.address,
+        )
+      )
+        return 'unavailable' as const;
+      return route.contacts.some((contact) => contact.botSlug === botSlug)
+        ? ('available' as const)
+        : ('bot-unavailable' as const);
+    },
+    async refresh() {
+      ++refreshRevision;
+      discoveryCancellation?.abort();
+      refreshing ??= (async () => {
+        await discovering;
+        while (!closed) {
+          const revision = refreshRevision;
+          await bridge.discover();
+          if (revision === refreshRevision) break;
+        }
+      })().finally(() => {
+        refreshing = undefined;
       });
+      await refreshing;
+    },
+    async membership(host: string) {
+      try {
+        await retireObserved(host);
+        const state = membershipIn(host, await tailnet.snapshot());
+        if (state === 'withdrawn') await options.withdrawn?.(host);
+        return state;
+      } catch {
+        return observedWithdrawn.has(host) ? ('withdrawn' as const) : ('unavailable' as const);
+      }
+    },
+    async discover() {
+      if (closed) return;
+      if (discovering === undefined) {
+        discoveryCancellation = new AbortController();
+        discovering = discoverNow(discoveryCancellation.signal).finally(() => {
+          discovering = undefined;
+          discoveryCancellation = undefined;
+        });
+      }
       await discovering;
     },
     async start() {
-      if (server || closed) return;
-      self = (await tailnet.snapshot()).self;
-      await ownPublicKey();
       if (closed) return;
-      for (const candidate of ports) {
-        const listener = createServer(
-          { maxHeaderSize: 4096, requestTimeout: 5000, headersTimeout: 5000 },
-          async (incoming, response) => {
-            const started = Date.now();
-            let admissionStarted = false;
-            let stage = 'peer';
-            let transport: NoiseTransport | undefined;
-            let activeHandshake: NoiseXk | undefined;
-            try {
-              if (
-                closed ||
-                incoming.headers.origin ||
-                incoming.headers.authorization ||
-                incoming.headers.cookie
-              )
-                throw new Error('network-peer-denied');
-              const peer = await tailnet.admit(incoming.socket.remoteAddress ?? '');
-              const match = /^\/botharness-bots\/v1\/contacts\?offset=(\d{1,4})$/u.exec(
-                incoming.url ?? '',
-              );
-              if (incoming.method === 'GET' && match) {
-                const offset = Number(match[1]);
-                const bots = options.directory();
-                response.writeHead(200, {
-                  'content-type': 'application/json',
-                  'cache-control': 'no-store',
-                });
-                response.end(
-                  JSON.stringify(
-                    pageSchema.parse({
-                      hostId: options.hostId,
-                      publicKey: await ownPublicKey(),
-                      contacts: bots.slice(offset, offset + 50),
-                      ...(bots.length > offset + 50 ? { next: offset + 50 } : {}),
-                    }),
-                  ),
-                );
-                return;
-              }
-              if (
-                incoming.method !== 'POST' ||
-                ![`${ROOT}/handshake`, `${ROOT}/messages`].includes(incoming.url ?? '')
-              )
-                throw new Error('network-method-denied');
-              const senderHost = hostId.parse(incoming.headers['x-bot-host']);
-              const senderPort = Number(incoming.headers['x-bot-port']);
-              if (!ports.includes(senderPort)) throw new Error('network-peer-denied');
-              stage = 'sender';
-              if (incoming.url === `${ROOT}/handshake`) {
-                const flight = flightSchema.parse(
-                  ((await readBody(incoming)) as { flight?: unknown })?.flight,
-                );
-                if (handshakes.size >= 32) throw new Error('network-handshake-capacity');
-                const origin = await directory(peer, senderPort);
-                if (origin.hostId !== senderHost) throw new Error('network-sender-denied');
-                activeHandshake = await botNetworkHandshake({
-                  role: 'responder',
-                  key: options.key,
-                  senderHost,
-                  receiverHost: options.hostId,
-                });
-                activeHandshake.read(Buffer.from(flight, 'base64'));
-                const reply = activeHandshake.write();
-                if (closed || handshakes.size >= 32) throw new Error('network-handshake-capacity');
-                const session = randomBytes(24).toString('hex');
-                const noise = activeHandshake;
-                const expiry = setTimeout(() => {
-                  handshakes.delete(session);
-                  noise.close();
-                }, 30_000);
-                expiry.unref();
-                handshakes.set(session, {
-                  noise,
-                  peer,
-                  senderHost,
-                  senderPort,
-                  publicKey: origin.publicKey,
-                  expiry,
-                });
-                activeHandshake = undefined;
-                response.writeHead(200, {
-                  'content-type': 'application/json',
-                  'cache-control': 'no-store',
-                });
-                response.end(
-                  JSON.stringify({ session, flight: Buffer.from(reply).toString('base64') }),
-                );
-                return;
-              }
-              const sealed = sealedSchema.parse(await readBody(incoming));
-              const pending = handshakes.get(sealed.session);
-              if (
-                !pending ||
-                pending.peer.nodeId !== peer.nodeId ||
-                pending.peer.address !== peer.address ||
-                pending.senderHost !== senderHost ||
-                pending.senderPort !== senderPort
-              )
-                throw new Error('network-handshake-unavailable');
-              handshakes.delete(sealed.session);
-              clearTimeout(pending.expiry);
-              activeHandshake = pending.noise;
-              activeHandshake.read(Buffer.from(sealed.flight, 'base64'));
-              transport = finishBotHandshake(activeHandshake, pending.publicKey);
-              const input = messageSchema.parse(decodeBotPayload(transport, sealed.frames));
-              const origin = await directory(peer, senderPort);
-              const sender = origin.contacts.find((bot) => bot.botSlug === input.senderBotSlug);
-              if (origin.hostId !== senderHost || origin.publicKey !== pending.publicKey || !sender)
-                throw new Error('network-sender-denied');
-              checkKey(senderHost, pending.publicKey);
-              if ((await tailnet.admit(incoming.socket.remoteAddress ?? '')).nodeId !== peer.nodeId)
-                throw new Error('network-peer-denied');
-              if (closed) throw new Error('network-closed');
-              admissionStarted = true;
-              stage = 'admission';
-              await options.receive({ ...sender, hostKey: pending.publicKey }, input);
-              options.record?.({ phase: 'received', durationMs: Date.now() - started });
-              response.writeHead(200, {
-                'content-type': 'application/json',
-                'cache-control': 'no-store',
-              });
-              response.end(
-                JSON.stringify({ frames: encodeBotPayload(transport, { accepted: input.id }) }),
-              );
-            } catch {
-              options.record?.({
-                phase: 'receive-refused',
-                stage,
-                durationMs: Date.now() - started,
-                code: admissionStarted ? 'delivery-unknown' : 'network-denied',
-              });
-              incoming.resume();
-              if (!response.headersSent)
-                response.writeHead(admissionStarted ? 500 : 403, {
-                  'content-type': 'application/json',
-                });
-              response.end(
-                JSON.stringify({ code: admissionStarted ? 'delivery-unknown' : 'network-denied' }),
-              );
-            } finally {
-              activeHandshake?.close();
-              transport?.close();
-            }
-          },
-        );
-        listener.maxConnections = 32;
-        listener.on('connection', (socket) => socket.setTimeout(10_000, () => socket.destroy()));
-        try {
-          await new Promise<void>((resolve, reject) => {
-            listener.once('error', reject);
-            listener.listen(candidate, self!.address, () => {
-              listener.removeListener('error', reject);
-              resolve();
-            });
-          });
-          listener.on('error', () => {
-            routes.clear();
-            options.record?.({
-              phase: 'listener-error',
-              durationMs: 0,
-              code: 'network-listener-unavailable',
-            });
-          });
-          if (closed) {
-            listener.closeAllConnections();
-            listener.close();
-            return;
-          }
-          server = listener;
-          port = candidate;
-          break;
-        } catch (error) {
-          listener.close();
-          if ((error as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw error;
-        }
+      if (stopWatching === undefined && tailnet.watch !== undefined) {
+        stopWatching = tailnet.watch(observe, (code) => {
+          stopWatching = undefined;
+          options.record?.({ phase: 'watch-stopped', durationMs: 0, code });
+        });
+        options.record?.({ phase: 'watch-started', durationMs: 0 });
       }
-      if (!server) throw new Error('network-listener-unavailable');
-      timer = setInterval(() => {
+      await bridge.discover();
+      if (closed) return;
+      if (!server)
+        throw new Error(
+          lastSnapshot === undefined ? 'tailnet-unavailable' : 'network-listener-unavailable',
+        );
+      timer ??= setInterval(() => {
         void bridge.discover();
       }, 30_000);
       timer.unref();
-      await bridge.discover();
     },
     async send(targetHost: string, input: NetworkBotMessage) {
       const started = Date.now();
@@ -475,12 +710,14 @@ export function createTailnetBotBridge(options: {
         const route = routes.get(targetHost);
         if (!route || !self || port === undefined || closed)
           throw new DeliveryError('unable-to-deliver');
+        const local = self;
+        const localPort = port;
         const current = await tailnet.snapshot();
         if (current.offlinePeers?.some((peer) => peer.nodeId === route.member.nodeId))
           throw new DeliveryError('unable-to-deliver');
         if (
-          current.self.nodeId !== self.nodeId ||
-          current.self.address !== self.address ||
+          current.self.nodeId !== local.nodeId ||
+          current.self.address !== local.address ||
           ![current.self, ...current.peers].some(
             (peer) => peer.nodeId === route.member.nodeId && peer.address === route.member.address,
           )
@@ -502,9 +739,9 @@ export function createTailnetBotBridge(options: {
           remotePublicKey: target.publicKey,
         });
         const first = handshakeReplySchema.parse(
-          await exchange(route.member.address, route.port, self.address, `${ROOT}/handshake`, {
+          await exchange(route.member.address, route.port, local.address, `${ROOT}/handshake`, {
             senderHost: options.hostId,
-            senderPort: port,
+            senderPort: localPort,
             body: { flight: Buffer.from(noise.write()).toString('base64') },
           }),
         );
@@ -512,7 +749,19 @@ export function createTailnetBotBridge(options: {
         const flight = Buffer.from(noise.write()).toString('base64');
         transport = finishBotHandshake(noise, target.publicKey);
         checkKey(targetHost, target.publicKey);
-        options.trustKey?.(targetHost, target.publicKey);
+        await trustMembership(targetHost, target.publicKey, route.member);
+        const latest = await tailnet.snapshot();
+        if (
+          closed ||
+          self !== local ||
+          port !== localPort ||
+          latest.self.nodeId !== local.nodeId ||
+          latest.self.address !== local.address ||
+          ![latest.self, ...latest.peers].some(
+            (peer) => peer.nodeId === route.member.nodeId && peer.address === route.member.address,
+          )
+        )
+          throw new DeliveryError('network-denied');
         const body = {
           session: first.session,
           flight,
@@ -523,11 +772,11 @@ export function createTailnetBotBridge(options: {
         const envelope = await exchange(
           route.member.address,
           route.port,
-          self.address,
+          local.address,
           `${ROOT}/messages`,
           {
             senderHost: options.hostId,
-            senderPort: port,
+            senderPort: localPort,
             body,
             committing: true,
           },
@@ -557,17 +806,13 @@ export function createTailnetBotBridge(options: {
     },
     async close() {
       closed = true;
+      discoveryCancellation?.abort();
       clearInterval(timer);
-      routes.clear();
-      for (const pending of handshakes.values()) {
-        clearTimeout(pending.expiry);
-        pending.noise.close();
-      }
-      handshakes.clear();
-      const current = server;
-      server = undefined;
-      current?.closeAllConnections();
-      if (current) await new Promise<void>((resolve) => current.close(() => resolve()));
+      await stopWatching?.();
+      stopWatching = undefined;
+      await Promise.allSettled(observedPending.values());
+      await Promise.allSettled([discovering, refreshing]);
+      await closeListener();
     },
   };
   return bridge;

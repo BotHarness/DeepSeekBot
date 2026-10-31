@@ -2031,6 +2031,10 @@ export const zh = {
   'networkContact.platform': '平台',
   'networkContact.capabilities': '能力',
   'networkContact.unavailable': '暂无信息',
+  'networkContact.available': '可联系',
+  'networkContact.unreachable': '暂时无法连接',
+  'networkContact.withdrawn': '已退出协作网络',
+  'networkContact.botUnavailable': 'Bot 不可联系',
 
   'message.authorCard.message': '私聊',
   'message.authorCard.profile': '资料',
@@ -6550,6 +6554,10 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'networkContact.platform': 'Platform',
   'networkContact.capabilities': 'Capabilities',
   'networkContact.unavailable': 'Unavailable',
+  'networkContact.available': 'Available',
+  'networkContact.unreachable': 'Unreachable',
+  'networkContact.withdrawn': 'Outside collaboration network',
+  'networkContact.botUnavailable': 'Bot unavailable',
 
   'message.authorCard.message': 'Message',
   'message.authorCard.profile': 'Profile',

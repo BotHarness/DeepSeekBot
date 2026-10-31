@@ -9,6 +9,9 @@ A Human sends a message in a Bot's DM, the Bot runs a session on its configured 
 - `explicit-send` uses `bot_send_message` for local text, with a trusted reply Source Event or explicit proactive Channel.
 - `turn-conclusion` permits `end_turn` only after a committed send and successful requested Inbox resolution; a question can leave its source open, and a later Human message still starts work.
 - `reply` commits the Bot's answer to the DM timeline.
+- `network-contact-lifecycle` refreshes a colleague's public facts and availability in the CLI and read-only remote DM.
+- `network-scope-withdrawal` cancels unstarted relationship work, preserves history and prevents reconnection from reviving it.
+- `network-third-colleague` preserves the causal chain and wake limit when a Bot explicitly contacts another eligible Host.
 
 ## How to get to it (user POV)
 
@@ -47,3 +50,12 @@ Use two isolated Hosts with active Bots in the same verified tailnet. Run them o
 6. Restart each task Host with its existing profile. Accepted history survives; there is no executable outgoing queue. Correlate the two timelines, Inbox admissions, direct/tool traces and bounded bridge lifecycle records. Never publish login URLs, tailnet addresses or unrelated conversations.
 
 Discovery refresh is asynchronous. If a newly created colleague is not yet listed, inspect the bridge listener and discovery diagnostics before repeating a mutation. Ordinary contacts polling must never resend a message.
+
+### Colleague and scope lifecycle
+
+1. Create a new uniquely named Bot on the owned recipient Host. The next `list_bot_contacts` query must show its new identity. Update its public description and confirm the next query and author card show the new facts. Preserve `null` for unknown device facts; do not infer a capability from its description.
+2. Archive that Bot after obtaining its contact result. A send using the stale identifier must be refused. Unarchive, query again, then delete through the existing confirmed Bot deletion path. The old identifier must still refuse sends. Create a same-name replacement and verify that its new identity and DM have no inherited messages or receipts; the original conversation remains inspectable.
+3. In the remote DM, inspect the read-only footer and author card in light and dark themes. Correlate their availability label with `channels[].remoteAvailability`: available, unavailable, withdrawn, or bot-unavailable. Stop only the owned recipient Host to prove temporary unavailability; no local work may be canceled merely because the route disappeared. Restart it and confirm no failed-send marker appears later.
+4. Use an isolated membership authority for removal tests. Never remove a shared production device from its tailnet to simulate this state. The regression in `packages/core/test/bot-tailnet-bridge.test.ts` injects removal/rejoin events into the actual bridge, while `network-bot-runtime.test.ts` verifies the existing Inbox owner: accepted/unstarted work is canceled, started work can finish but cannot reply, and reopening the same database does not resurrect canceled work. Keep this injected evidence distinct from real-device route-loss evidence. The native subscription must also successfully observe the installed daemon's initial status and close on disposal.
+5. Run `packages/core/test/network-lifecycle.test.ts` for the model-free public tool path across three real HTTP/Noise bridges and separate Core owners. Require explicit third-colleague contact, unchanged root/parent/hop facts, no transitive admission across the injected network scopes, and no recipient wake at hop 33. This qualifies the owner/transport integration, not a three-physical-device deployment.
+6. Correlate the live journey with `watch-started`, any coded watcher failures, discovery and send lifecycle records. Native notification payloads, keys, addresses and unrelated device data must stay out of published evidence. A failed watcher or an unavailable query is not proof of membership withdrawal.

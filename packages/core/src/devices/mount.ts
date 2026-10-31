@@ -120,6 +120,7 @@ export function mountDevicePairing(
       registry: PersonaBotRegistry;
       channels: ChannelStore;
       admitBotDmMessage(channelId: string, messageId: string): void;
+      withdrawNetworkMembership(hostId: string): Promise<void>;
       available(port: BotNetworkPort | undefined): void;
     };
   },
@@ -182,11 +183,23 @@ export function mountDevicePairing(
         hostId: host.id,
         key: identity.key,
         knownKey: (id) => owners.channels.remoteHostKey?.(id),
-        trustKey: (id, key) => {
+        trustKey: (id, key, membership) => {
           if (!owners.channels.trustRemoteHostKey)
             throw new Error('network-key-storage-unavailable');
-          owners.channels.trustRemoteHostKey(id, key);
+          owners.channels.trustRemoteHostKey(id, key, membership);
         },
+        knownMemberships: () =>
+          owners.channels.list().flatMap((channel) =>
+            channel.remoteBot?.membership === undefined
+              ? []
+              : [
+                  {
+                    hostId: channel.remoteBot.hostId,
+                    membership: channel.remoteBot.membership,
+                  },
+                ],
+          ),
+        withdrawn: (hostId) => owners.withdrawNetworkMembership(hostId),
         directory: () =>
           owners.registry
             .list()
@@ -248,7 +261,7 @@ export function mountDevicePairing(
       return () => {
         clearInterval(retryListener);
         owners.available(undefined);
-        void bridge.close();
+        return bridge.close();
       };
     }, 'botharness: online Bot collaboration bridge');
   }

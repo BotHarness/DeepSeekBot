@@ -345,7 +345,11 @@ export interface ChannelStore {
     name: string,
   ): ChannelRecord | undefined;
   remoteHostKey?(hostId: string): string | undefined;
-  trustRemoteHostKey?(hostId: string, key: string): void;
+  trustRemoteHostKey?(
+    hostId: string,
+    key: string,
+    membership?: RemoteBotParticipant['membership'],
+  ): void;
   getOrCreateRemoteBotDm(localBotSlug: string, remote: RemoteBotParticipant): ChannelRecord;
   createGroup(input: CreateChannelGroupInput): ChannelRecord;
 

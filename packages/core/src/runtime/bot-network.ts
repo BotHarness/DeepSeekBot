@@ -13,8 +13,13 @@ export interface NetworkBotMessage {
   causation: BotMessageCausation;
 }
 
+export type NetworkBotAvailability = 'available' | 'unavailable' | 'withdrawn' | 'bot-unavailable';
+
 export interface BotNetworkPort {
+  availability?(hostId: string, botSlug: string): NetworkBotAvailability;
+  refresh?(): Promise<void>;
   contacts(): readonly NetworkBotContact[];
+  membership?(hostId: string): Promise<'member' | 'withdrawn' | 'unavailable'>;
   send(hostId: string, message: NetworkBotMessage): Promise<void>;
 }
 
@@ -65,6 +70,7 @@ export async function receiveNetworkBotDm(
     botSlug: sender.botSlug,
     displayName: sender.displayName.slice(0, 128),
     ...(sender.hostKey === undefined ? {} : { hostKey: sender.hostKey }),
+    ...(sender.membership === undefined ? {} : { membership: sender.membership }),
   });
   const result = await owners.channels.appendMessageOnce(channel.id, message);
   if (result.status === 'missing' || result.status === 'conflict')

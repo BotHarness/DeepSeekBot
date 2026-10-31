@@ -573,6 +573,7 @@ export interface ProfileSessionUsage {
 }
 
 export interface ChannelListItem extends ChannelRecord {
+  remoteAvailability?: import('../runtime/bot-network.js').NetworkBotAvailability;
   remoteContact?: BotContact;
   humanMembers?: Array<{ humanId: string; displayName: string }>;
   humanNickname?: string | null;
@@ -750,7 +751,7 @@ export interface BridgeMethods {
   ): BridgeResult<{ reply?: ChannelMessage; attachments: Array<ChannelAttachmentRef | null> }>;
   humanNameSet(payload: unknown): BridgeResult<LocalHumanIdentity>;
   channelHumanNameSet(payload: unknown): BridgeResult<{ channel: ChannelListItem }>;
-  channels(payload: unknown): BridgeResult<{ channels: ChannelListItem[] }>;
+  channels(payload: unknown): Promise<BridgeResult<{ channels: ChannelListItem[] }>>;
   channelDm(payload: unknown): BridgeResult<{ channel: ChannelRecord }>;
   channelGet(payload: unknown): BridgeResult<ChannelManagementResult>;
   channelCreate(
@@ -1859,6 +1860,15 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     return {
       ...channel,
       humanMembers: deps.channels.listHumanMembers(channel.id),
+      ...(channel.remoteBot === undefined
+        ? {}
+        : {
+            remoteAvailability:
+              deps.runtime?.networkBotAvailability?.(
+                channel.remoteBot.hostId,
+                channel.remoteBot.botSlug,
+              ) ?? 'unavailable',
+          }),
       ...(remoteContact === undefined ? {} : { remoteContact }),
       ...(humanNickname === undefined ? {} : { humanNickname }),
     };
@@ -4830,7 +4840,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return invalidInput(error instanceof Error ? error.message : String(error));
       }
     },
-    channels() {
+    async channels() {
+      if (deps.channels.list().some((channel) => channel.remoteBot !== undefined))
+        await deps.runtime?.refreshBotContacts?.();
       for (const bot of deps.registry.list()) {
         deps.channels.getOrCreateDm(bot.slug, bot.displayName);
       }

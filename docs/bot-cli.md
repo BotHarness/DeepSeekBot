@@ -603,6 +603,12 @@ printf '{"bot_id":"<contact-botId>","body":"Please investigate this iOS bug."}' 
 
 Remote text DMs enter the receiving Bot's ordinary Inbox. Acceptance is not reading or completion. Offline sends cannot be delivered; an interrupted acknowledgement can leave delivery unknown. The bridge does not queue outgoing messages, retry them or replay them after reconnection. Inspect existing Channel history before deciding on a new action.
 
+Each contact query refreshes public facts, including newly created Bots and changed descriptions or capabilities. Archiving or deleting a Bot also prevents sends from stale contact results. A same-name replacement has a different `botId` and its own conversation history. `channels` refreshes remote conversation facts and returns `remoteAvailability`: `available`, `unavailable` (no current route), `withdrawn` (outside the collaboration scope), or `bot-unavailable` (the reachable Host no longer advertises that Bot). These states do not describe the remote Bot's private work.
+
+Legacy remote DM history without authenticated network membership remains readable. On upgrade, unstarted work from those legacy relationships is retired with a provenance-unavailable reason; a later authenticated contact does not replay it. Already-started local work keeps its existing permissions.
+
+Confirmed scope withdrawal cancels accepted work that has not started; returning online or restarting the Host does not revive it. Started work may finish locally, but its reply still requires current eligibility. Explicitly contacting a third colleague preserves the causal chain and the 32-hop wake limit; one Host's contacts do not grant another Host access to them.
+
 Network refusals use `unable-to-deliver` when the destination cannot be reached, `network-denied` when network membership or Host identity checks fail, and `delivery-unknown` when acceptance may have happened without an authenticated acknowledgement. These codes do not authorize an automatic retry. Remote `botId` values are opaque: reuse the contact's returned identifier. The first authenticated exchange pins the remote Host key in existing Channel metadata; a later key change is refused. `channels` and `channel-messages` expose accepted history through the same Host owner used by the read-only remote DM view.
 
 Unified Channel and external IM messaging is available through the same runner:

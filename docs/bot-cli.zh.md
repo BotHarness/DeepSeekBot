@@ -591,6 +591,12 @@ printf '{"bot_id":"<contact-botId>","body":"请检查这个 iOS 问题。"}' | d
 
 网络拒绝码包括：目标不可达时的 `unable-to-deliver`、网络成员或 Host 身份校验失败时的 `network-denied`，以及可能已接收但缺少认证回执时的 `delivery-unknown`。这些错误不授权自动重试。远端 `botId` 是不透明标识，应直接使用联系人查询返回的值。首次认证通信将远端 Host 公钥固定在已有 Channel 元数据中，之后密钥变化会被拒绝。`channels` 和 `channel-messages` 与只读远端 DM 视图使用同一个 Host owner，读取已接收历史。
 
+每次联系人查询都会刷新公开资料，包括新建 Bot、简介和能力变化。归档或删除 Bot 后，使用旧联系人结果发送也会被拒绝。同名新 Bot 拥有不同的 `botId` 和独立对话历史。`channels` 刷新远端对话资料并返回 `remoteAvailability`：`available`（可联系）、`unavailable`（当前路线不可达）、`withdrawn`（已退出协作范围）或 `bot-unavailable`（可达 Host 不再公开该 Bot）。这些状态不描述远端 Bot 的私有工作。
+
+缺少已认证网络成员信息的旧版远端 DM 历史仍可读取。升级时，这些关系中尚未开始的工作会因来源无法确认而停止；之后重新建立认证联系也不会重放。已经开始的本地工作继续沿用原有权限。
+
+确认退出协作范围后，已接收但尚未开始的工作会被取消；重新上线或重启 Host 不会恢复它。已开始的工作可以在本地完成，但回复仍须通过当前资格校验。显式联系第三位同事会保留因果链和 32 跳唤醒上限；一个 Host 的联系人不会自动授权另一个 Host 联系他们。
+
 Channel 和外部 IM 可通过统一发送工具发送：
 
 ```bash

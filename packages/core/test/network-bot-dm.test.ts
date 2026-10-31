@@ -1,9 +1,41 @@
 import { expect, it } from 'vitest';
 import { join } from 'node:path';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
-import { attachOperationalModule } from '../src/database/owner.js';
+import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
+import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTestRegistry, registryDatabase } from './registry-fixture.js';
-import { createTempRoot } from './helpers.js';
+import { createTempRoot, trackTestOwner } from './helpers.js';
+
+it('retains authenticated network membership with the remote Channel across owner restart', () => {
+  const root = createTempRoot('network-membership-');
+  let owner = registryDatabase(root);
+  let registry = createTestRegistry({ rootDir: join(root, 'bots'), database: owner });
+  registry.create({ slug: 'local', displayName: 'Local' });
+  const open = () =>
+    createSqliteChannelStore({
+      rootDir: join(root, 'channels'),
+      database: attachOperationalModule(owner, 'channels'),
+      isBotActive: (slug) => registry.get(slug) !== undefined,
+    });
+  const membership = {
+    kind: 'tailnet' as const,
+    localNodeId: 'local-node',
+    remoteNodeId: 'peer-node',
+  };
+  const channel = open().getOrCreateRemoteBotDm('local', {
+    hostId: 'peer',
+    botSlug: 'remote',
+    displayName: 'Remote',
+    hostKey: 'a'.repeat(64),
+    membership,
+  });
+  owner.close();
+  owner = trackTestOwner(
+    mountOperationalDatabase({ dshHome: root, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+  );
+  registry = createTestRegistry({ rootDir: join(root, 'bots'), database: owner });
+  expect(open().get(channel.id)?.remoteBot?.membership).toEqual(membership);
+});
 
 it('commits a remote Bot DM to the existing Channel and recipient Inbox exactly once', async () => {
   const root = createTempRoot('network-bot-dm-');

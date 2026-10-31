@@ -31,7 +31,9 @@ describe('Bot-to-Bot DM tracer', () => {
       agents: adapter(async (run) => {
         runs.push(run.bot.slug + ':' + run.inboundChannelId);
         if (run.bot.slug === 'ada' && run.inboundChannelId === 'dm-ada') {
-          const contact = run.channels.contacts().contacts.find((item) => item.botId === 'bea');
+          const contact = (await run.channels.contacts()).contacts.find(
+            (item) => item.botId === 'bea',
+          );
           expect(contact?.displayName).toBe('Bea');
           const first = await run.channels.sendToBot({
             botSlug: 'bea',
