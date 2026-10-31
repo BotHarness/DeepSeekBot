@@ -439,7 +439,6 @@ describe('Connect account lifecycle', () => {
     try {
       await account.signIn();
       await settle(account);
-      const original = [...credentials.records.values()];
       options.onList = async () => {
         checking.resolve();
         await proceed.promise;
@@ -449,8 +448,14 @@ describe('Connect account lifecycle', () => {
       const closing = account.close();
       proceed.resolve();
       await closing;
-      expect([...credentials.records.values()]).toEqual(original);
+      expect([...credentials.records.values()]).toEqual([
+        {
+          kind: 'grant',
+          payload: { kind: 'registration', relay: RELAY, clientId: CLIENT, hostId: 'hstudioaaaaa' },
+        },
+      ]);
       expect(tunnel.enabled).toHaveLength(1);
+      expect(tunnel.connect.status()).toEqual({ state: 'off' });
     } finally {
       proceed.resolve();
       await account.close();
@@ -637,13 +642,14 @@ describe('Connect account lifecycle', () => {
     { listStatus: 200, listBody: { hosts: [null] } },
   ])
     it(`does not create a registration when ownership cannot be verified (${JSON.stringify(failure)})`, async () => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
       const options: Parameters<typeof fakeServices>[0] = { pending: 0 };
       const services = fakeServices(options);
-      const { account } = setup(services);
+      const { account, credentials, tunnel } = setup(services);
       try {
         await account.signIn();
         await settle(account);
-        Object.assign(options, failure);
+        Object.assign(options, failure, { userId: 'user_bob', hostId: 'hstudiobbbbb' });
         await account.signIn();
         await settle(account);
         expect(account.status()).toMatchObject({
@@ -656,8 +662,41 @@ describe('Connect account lifecycle', () => {
           ),
         ).toHaveLength(1);
         expect(await account.accessToken()).toBeUndefined();
+        expect(tunnel.connect.status()).toEqual({ state: 'off' });
+        expect([...credentials.records.values()]).toEqual([
+          {
+            kind: 'grant',
+            payload: {
+              kind: 'registration',
+              relay: RELAY,
+              clientId: CLIENT,
+              hostId: 'hstudioaaaaa',
+            },
+          },
+        ]);
+        const body = JSON.stringify({
+          hostId: 'hstudioaaaaa',
+          account: 'user_alice',
+          verifierHash: Buffer.alloc(32, 3).toString('base64url'),
+          issuedAt: new Date().toISOString(),
+        });
+        const signature = createHmac('sha256', RELAY_KEY).update(body).digest('base64url');
+        expect(await account.verifyOffer(body, signature)).toEqual({ ok: false });
+        delete options.listBody;
+        options.listStatus = 200;
+        const failedStatus = account.status();
+        const count = services.calls.length;
+        await vi.advanceTimersByTimeAsync(120_000);
+        await account.start();
+        expect(account.status()).toEqual(failedStatus);
+        expect(services.calls).toHaveLength(count);
+        await account.signIn();
+        await settle(account);
+        expect(account.status()).toMatchObject({ state: 'signed-in', hostId: 'hstudiobbbbb' });
+        expect(services.calls.some((call) => call.method === 'DELETE')).toBe(false);
       } finally {
         await account.close();
+        vi.useRealTimers();
       }
     });
 

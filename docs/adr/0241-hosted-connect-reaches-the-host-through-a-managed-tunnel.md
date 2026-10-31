@@ -77,6 +77,8 @@ The Host's existing account credential record retains a registration reference a
 
 The payload distinguishes authenticated `session` from reference-only `registration`; legacy records without that discriminator are normalized when read. Both variants stay inside the same credential grant, and a reference-only record cannot supply an access token or signer.
 
+Once a new device authorization succeeds, the owner retires the prior live session before checking registration ownership: it disables the tunnel, clears cached access and persisted session/signing material, and keeps only the reference. An ownership-query failure requires another explicit sign-in; the watcher must not restore the prior account. A successfully saved new session re-enables ordinary tunnel-recovery retries. Offer verification also requires the owner to be signed in.
+
 ## Amendment — confirmed phone account actions (2026-10-23, #2603)
 
 The phone account session and per-Host device credentials remain separate authorities. Both Sign out and Delete account require a native confirmation describing their different effects; opening or cancelling the dialog does not mutate either authority. Confirmation is bound to the current local sign-in instance and expires when the account page changes or the operation becomes busy.

@@ -132,6 +132,7 @@ export function createConnectAccount(options: {
   let attempt = 0;
   let watch: ReturnType<typeof setInterval> | undefined;
   let cached: string | undefined;
+  let canResumeSession = true;
   let queue: Promise<unknown> = Promise.resolve();
 
   const serial = <T>(work: () => Promise<T>): Promise<T> => {
@@ -303,21 +304,32 @@ export function createConnectAccount(options: {
     record('account-error', `issue=${issue}`);
   };
 
+  const retireSession = async (current: StoredAccount | undefined): Promise<void> => {
+    canResumeSession = false;
+    cached = undefined;
+    await connect.disable();
+    if (current?.hostId !== undefined) {
+      await save({
+        kind: 'registration',
+        relay: current.relay,
+        clientId: current.clientId,
+        hostId: current.hostId,
+      });
+    } else {
+      try {
+        await native().deleteRecord(key);
+      } catch {
+        throw new AccountError('credential-unavailable');
+      }
+    }
+  };
+
   const revoke = async (error: unknown, current?: AccountRecord): Promise<void> => {
     fail(error, current);
     if (!(error instanceof AccountError) || error.issue !== 'session-expired') return;
     attempt += 1;
-    cached = undefined;
-    await connect.disable();
     try {
-      if (current?.hostId !== undefined)
-        await save({
-          kind: 'registration',
-          relay: current.relay,
-          clientId: current.clientId,
-          hostId: current.hostId,
-        });
-      else await native().deleteRecord(key);
+      await retireSession(current);
     } catch {
       record('revoke-failed');
       return;
@@ -367,6 +379,7 @@ export function createConnectAccount(options: {
 
   const sync = (): Promise<void> =>
     serial(async () => {
+      if (!canResumeSession) return;
       let current: AccountRecord | undefined;
       try {
         current = await read();
@@ -451,6 +464,9 @@ export function createConnectAccount(options: {
         const saved = await serial(async () => {
           if (run !== attempt) return false;
           const previous = await readStored();
+          if (run !== attempt) return false;
+          await retireSession(previous);
+          if (run !== attempt) return false;
           const current: AccountRecord = {
             kind: 'session',
             relay,
@@ -469,12 +485,11 @@ export function createConnectAccount(options: {
               current.hostId = previous.hostId;
           }
           if (run !== attempt) return false;
-          if (current.hostId === undefined) await connect.disable();
-          cached = undefined;
           await save(current);
+          canResumeSession = true;
           return true;
         });
-        if (!saved) return;
+        if (!saved || run !== attempt) return;
       } catch (saveError) {
         fail(saveError);
         return;
@@ -504,6 +519,7 @@ export function createConnectAccount(options: {
     signature: string | undefined,
   ): Promise<OfferVerification> => {
     let current: AccountRecord | undefined;
+    if (status.state !== 'signed-in') return { ok: false };
     try {
       current = await read();
     } catch {
