@@ -7,6 +7,7 @@ import type { SavedHost } from '../src/host/hosts';
 
 const clipboard = vi.hoisted(() => ({ setStringAsync: vi.fn(async () => true) }));
 const testRoute = vi.hoisted(() => vi.fn(async () => true));
+const navigation = vi.hoisted(() => ({ back: vi.fn(), push: vi.fn() }));
 const connection = vi.hoisted(() => {
   const host: SavedHost = {
     hostId: 'mac',
@@ -21,7 +22,7 @@ const connection = vi.hoisted(() => {
 vi.mock('expo-router', () => ({
   useFocusEffect: () => {},
   useLocalSearchParams: () => ({ hostId: 'mac' }),
-  useRouter: () => ({ back() {}, push() {} }),
+  useRouter: () => navigation,
 }));
 vi.mock('expo-clipboard', () => clipboard);
 vi.mock('../src/ui/chat/sheet', () => ({ SHEET_GROUP: 'raised' }));
@@ -152,6 +153,50 @@ it('keeps the explicitly pinned encrypted SSH loopback route visible and testabl
     await act(async () => root.unmount());
   }
 });
+
+it('identifies an active Tailscale IP as a remote address instead of this device', async () => {
+  connection.snapshot = {
+    connection: { status: 'connected', route: 'https://100.64.0.2' },
+    routes: [{ url: 'https://100.64.0.2', status: 'verified' }],
+  };
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(<HostConnectionScreen />));
+    expect(host.textContent).toContain('TailscaleIn usehttps://100.64.0.2');
+    expect(host.textContent).not.toContain('This device');
+  } finally {
+    await act(async () => root.unmount());
+  }
+});
+
+it.each([
+  { routes: [] },
+  { routes: [{ url: 'https://studio.deepseekbot.dev', status: 'unchecked' as const }] },
+])(
+  'explains an active cached loopback and keeps address recovery available with other routes %j',
+  async ({ routes }) => {
+    connection.snapshot = {
+      connection: { status: 'connected', route: 'http://127.0.0.1:50490' },
+      routes: [{ url: 'http://127.0.0.1:50490', status: 'verified' }, ...routes],
+    };
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    try {
+      await act(async () => root.render(<HostConnectionScreen />));
+      expect(host.textContent).not.toContain('127.0.0.1');
+      expect(host.textContent).not.toContain('This device');
+      expect(host.textContent).toContain('Connected through a local-only address');
+      expect(host.textContent).not.toContain('In use');
+      const scan = host.querySelector<HTMLElement>('[data-testid="connection-scan-update"]');
+      if (!scan) throw new Error('missing address recovery action');
+      await act(async () => scan.click());
+      expect(navigation.push).toHaveBeenCalledWith('/pair/tailscale');
+    } finally {
+      await act(async () => root.unmount());
+    }
+  },
+);
 
 it('groups each route as a settings section with native copy and test rows', async () => {
   const host = document.createElement('div');

@@ -4,7 +4,7 @@ import * as Clipboard from 'expo-clipboard';
 import { createHostClient } from '../src/host/client';
 import { useHostSession, useHostSnapshot } from '../src/host/host-session';
 import { nativeCarrier } from '../src/host/native-carrier';
-import { isConnectRoute, isLanRoute, isLoopbackRoute } from '../src/host/route';
+import { isConnectRoute, isLanRoute, isLoopbackRoute, isTailscaleRoute } from '../src/host/route';
 import { SHEET_GROUP } from '../src/ui/chat/sheet';
 import { space } from '../src/ui/design/tokens';
 import { SheetHeader } from '../src/ui/primitives/sheet-header';
@@ -49,6 +49,10 @@ export default function HostConnectionScreen() {
     host?.routes.map((url) => ({ url, status: 'unchecked' as const })) ??
     []
   ).filter(({ url }) => host?.encryption?.loopback === 'encrypted' || !isLoopbackRoute(url));
+  const hiddenActiveLoopback =
+    host?.encryption?.loopback !== 'encrypted' &&
+    snapshot.connection.status === 'connected' &&
+    isLoopbackRoute(snapshot.connection.route);
   const header = (
     <SheetHeader
       title={copy.title}
@@ -59,15 +63,23 @@ export default function HostConnectionScreen() {
   return (
     <SheetScreen onMount={mount}>
       <SettingsForm header={header} testID="host-connection">
-        {host && routes.length > 0 ? null : (
+        {host && (routes.length > 0 || hiddenActiveLoopback) ? null : (
           <SettingsFormItem>
             <Text tone="muted" style={{ paddingHorizontal: space.x5 }}>
               {host ? copy.automatic : t.hostLookMissing}
             </Text>
           </SettingsFormItem>
         )}
-        {host && snapshot.connection.status !== 'connected' ? (
+        {host && (snapshot.connection.status !== 'connected' || hiddenActiveLoopback) ? (
           <SettingsSection on={SHEET_GROUP}>
+            {hiddenActiveLoopback ? (
+              <SettingsRow
+                on={SHEET_GROUP}
+                icon="computer"
+                title={copy.localActive}
+                detail={copy.localActiveHint}
+              />
+            ) : null}
             <SettingsRow
               on={SHEET_GROUP}
               icon="qr"
@@ -86,11 +98,11 @@ export default function HostConnectionScreen() {
             ? ([copy.lan, 'lan'] as const)
             : isConnectRoute(url)
               ? (['Connect', 'encrypted'] as const)
-              : new URL(url).hostname.endsWith('.ts.net')
+              : isTailscaleRoute(url)
                 ? (['Tailscale', 'encrypted'] as const)
                 : isLoopbackRoute(url)
                   ? ([copy.ssh, 'encrypted'] as const)
-                  : ([copy.local, 'computer'] as const);
+                  : ([copy.address, 'computer'] as const);
           return (
             <SettingsSection
               key={url}
