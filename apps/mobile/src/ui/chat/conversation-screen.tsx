@@ -1351,8 +1351,9 @@ function ChatConversation({
                             ? t.messageFocusUnavailable
                             : undefined;
 
-  const listTop = notice === undefined ? headerPadding : 0;
-  const topFade = notice !== undefined ? 0 : floatingHeader ? headerPadding : headerOverlap;
+  const listTop = !android && notice === undefined ? headerPadding : 0;
+  const topFade =
+    android || notice !== undefined ? 0 : floatingHeader ? headerPadding : headerOverlap;
   const composerCover = Math.max(0, composerHeight - space.x3 - space.x2);
   const fadeColor = background.kind === 'color' ? background.color : theme.color.base;
 
@@ -1627,7 +1628,10 @@ function ChatConversation({
               travel={profileTravel}
               onOpen={swipeProfile}
             >
-              <Animated.View style={{ flex: 1 }} onLayout={latest.onViewportLayout}>
+              <Animated.View
+                style={{ flex: 1, marginTop: android && notice === undefined ? headerPadding : 0 }}
+                onLayout={latest.onViewportLayout}
+              >
                 <MarkdownViewportContext.Provider value={markdownViewport}>
                   <SpeakerStageContext.Provider value={dm ? undefined : stage}>
                     <Animated.FlatList
@@ -1712,27 +1716,15 @@ function ChatConversation({
                       keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
                       keyboardShouldPersistTaps="handled"
                       ListHeaderComponent={
-                        snapshot.loadingOlder ? (
-                          <View
-                            style={{
-                              padding: space.x4,
-                              alignItems: 'center',
-                              gap: space.x2,
-                            }}
-                          >
-                            <LoadingIndicator />
-                            <Text variant="meta" tone="muted">
-                              {t.olderLoading}
-                            </Text>
-                          </View>
-                        ) : snapshot.olderError ? (
+                        snapshot.loadingOlder || snapshot.olderError ? (
                           <View style={{ padding: space.x4, gap: space.x2 }}>
                             <Text variant="meta" tone="muted" accessibilityLiveRegion="polite">
-                              {t.olderLoadFailed}
+                              {snapshot.loadingOlder ? t.olderLoading : t.olderLoadFailed}
                             </Text>
                             <Button
                               label={t.retry}
                               variant="text"
+                              busy={snapshot.loadingOlder}
                               testID="history-retry"
                               onPress={() => void conversation?.loadOlder()}
                             />

@@ -2,6 +2,7 @@
 import { interfacePreferences } from '../src/ui/interface-preferences';
 import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { StyleSheet } from 'react-native';
 import type {
   FlatListProps,
   LayoutChangeEvent,
@@ -747,5 +748,65 @@ it('reveals Android history when the final positioning event follows the previou
   } finally {
     act(() => root.unmount());
     container.remove();
+  }
+});
+it('keeps Android history content coordinates unchanged across connection notices', () => {
+  state.os = 'android';
+  state.host.roster.bots = [
+    {
+      slug: 'ada',
+      displayName: 'Ada',
+      state: 'idle',
+      description: '',
+      roles: [],
+      computerAccess: false,
+      browserAccess: false,
+      paused: false,
+    },
+  ];
+  stream.publish({ loadingOlder: false, olderError: true, hasOlder: true, drafts: [] });
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const render = () =>
+    act(() =>
+      root.render(<ConversationScreen place={{ kind: 'dm', slug: 'ada' }} focus={undefined} />),
+    );
+  try {
+    render();
+    const padding = StyleSheet.flatten(native.list!.contentContainerStyle)?.paddingTop;
+    state.host.connection.status = 'unreachable';
+    render();
+    expect(StyleSheet.flatten(native.list!.contentContainerStyle)?.paddingTop).toBe(padding);
+    expect(container.querySelector('[data-testid="history-retry"]')).not.toBeNull();
+    state.host.connection.status = 'connected';
+    render();
+    expect(StyleSheet.flatten(native.list!.contentContainerStyle)?.paddingTop).toBe(padding);
+  } finally {
+    state.host.connection.status = 'connected';
+    act(() => root.unmount());
+    stream.publish({ loadingOlder: false, olderError: false, hasOlder: false });
+  }
+});
+
+it('keeps the history status and retry control mounted from loading through failure', () => {
+  state.os = 'android';
+  stream.publish({ loadingOlder: true, olderError: false, hasOlder: true, drafts: [] });
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  try {
+    act(() =>
+      root.render(<ConversationScreen place={{ kind: 'dm', slug: 'ada' }} focus={undefined} />),
+    );
+    const retry = container.querySelector<HTMLButtonElement>('[data-testid="history-retry"]');
+    expect(retry).not.toBeNull();
+    expect(retry!.disabled).toBe(true);
+    const status = retry!.parentElement;
+    act(() => stream.publish({ loadingOlder: false, olderError: true }));
+    expect(container.querySelector('[data-testid="history-retry"]')).toBe(retry);
+    expect(retry!.parentElement).toBe(status);
+    expect(retry!.disabled).toBe(false);
+  } finally {
+    act(() => root.unmount());
+    stream.publish({ loadingOlder: false, olderError: false, hasOlder: false });
   }
 });
