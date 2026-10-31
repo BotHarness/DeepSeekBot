@@ -238,6 +238,23 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function sameBotFaces(left: readonly BotSummary[], right: readonly BotSummary[]): boolean {
+  return (
+    left.length === right.length &&
+    left.every((bot, index) => {
+      const other = right[index];
+      return (
+        other !== undefined &&
+        bot.slug === other.slug &&
+        bot.displayName === other.displayName &&
+        bot.avatar === other.avatar &&
+        bot.appearance === other.appearance &&
+        bot.avatarSeed === other.avatarSeed
+      );
+    })
+  );
+}
+
 function mergeWork(
   previous: Readonly<Record<string, TaskBoardWorkState>>,
   next: Readonly<Record<string, TaskBoardWorkState>>,
@@ -279,7 +296,7 @@ export function TaskBoardPanel({
   const channelType = useClientStore(
     (state) => state.channels.find((channel) => channel.id === channelId)?.type ?? 'dm',
   );
-  const bots = useClientStore((state) => state.bots);
+  const bots = useClientStore((state) => state.bots, sameBotFaces);
   const [load, setLoad] = useState<Load>({ status: 'loading', assignments: [] });
   const [work, setWork] = useState<Readonly<Record<string, TaskBoardWorkState>>>({});
   const [dialog, setDialog] = useState<AssignmentCard>();

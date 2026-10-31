@@ -197,3 +197,102 @@ it('keeps the last cards and offers a retry when the read fails', async () => {
   await act(async () => root.unmount());
   vi.unstubAllGlobals();
 });
+
+const WORK = {
+  title: 'Implement the panel',
+  description: 'do the thing',
+  activity: 'working' as const,
+  rounds: [],
+  lanes: [
+    {
+      role: 'main' as const,
+      index: 0,
+      sessionId: 'session-working',
+      state: 'running' as const,
+      entries: [
+        {
+          status: 'running' as const,
+          kind: 'execute',
+          tool: 'shell',
+          at: '2026-10-31T11:00:00.000Z',
+        },
+      ],
+      omitted: 0,
+    },
+  ],
+  omittedSubagents: 0,
+  omittedRounds: 0,
+};
+
+async function paintPanel(
+  node: HTMLElement,
+  actions: BridgeActions,
+): Promise<{ root: ReturnType<typeof createRoot> }> {
+  const root = createRoot(node);
+  await act(async () => {
+    root.render(
+      createElement(TaskBoardPanel, {
+        channelId: 'chan-1',
+        scope: 'channel',
+        botSlug: undefined,
+        actions,
+        t,
+      }),
+    );
+  });
+  await act(async () => undefined);
+  return { root };
+}
+
+it('reads the channel once per round and only fetches steps for work rows', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  vi.useFakeTimers();
+  const assignments = vi.fn(async () => [
+    ASSIGNMENT,
+    { ...ASSIGNMENT, sessionId: 'session-idle', activity: 'idle' as const },
+    { ...ASSIGNMENT, sessionId: 'session-stopped', activity: 'stopped' as const },
+  ]);
+  const work = vi.fn(async () => WORK);
+  const host = document.createElement('div');
+  const { root } = await paintPanel(
+    host,
+    panelActions({ channelAssignments: assignments, assignmentWork: work }),
+  );
+  expect(assignments).toHaveBeenCalledTimes(1);
+  expect(work).toHaveBeenCalledTimes(1);
+  expect(work.mock.calls[0]).toEqual(['ada', 'session-working']);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(10_000);
+  });
+  expect(assignments).toHaveBeenCalledTimes(2);
+  expect(work).toHaveBeenCalledTimes(2);
+  expect(work.mock.calls).toEqual([
+    ['ada', 'session-working'],
+    ['ada', 'session-working'],
+  ]);
+  await act(async () => root.unmount());
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+it('stops polling after two failed rounds in a row', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  vi.useFakeTimers();
+  const read = vi.fn(async () => {
+    throw new Error('bridge refused');
+  });
+  const host = document.createElement('div');
+  const { root } = await paintPanel(host, panelActions({ channelAssignments: read }));
+  expect(read).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(10_000);
+  });
+  expect(read).toHaveBeenCalledTimes(2);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(30_000);
+  });
+  expect(read).toHaveBeenCalledTimes(2);
+  await act(async () => root.unmount());
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
