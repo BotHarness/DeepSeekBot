@@ -448,12 +448,92 @@ describe('bridge methods', () => {
     expect((await methods.sessionSubagents({ slug: 'ada', sessionId: 'sub-1' })).ok).toBe(false);
     expect((await methods.sessionSubagents({ slug: 'ada', sessionId: 'nope' })).ok).toBe(false);
     expect((await methods.sessionSubagents({ slug: 'ada' })).ok).toBe(false);
+    expect((await methods.assignmentTimeline({ slug: 'ada', sessionId: 'sub-1' })).ok).toBe(false);
     expect((await methods.assignmentTimeline({ slug: 'ada', sessionId: 'nope' })).ok).toBe(false);
     expect((await methods.assignmentTimeline({ slug: 'ada' })).ok).toBe(false);
     expect((await methods.assignmentTimeline({ slug: 'nobody', sessionId: 'asg-1' })).ok).toBe(
       false,
     );
   });
+  it('serves a root Session timeline while refusing other owners', async () => {
+    const read = vi.fn(async (sessionId: string) => ({
+      events: [
+        {
+          type: 'tool/call',
+          seq: 1,
+          time: 1,
+          data: { turn: 1, callId: `${sessionId}-c1`, name: 'bash', arguments: '{"command":"ls"}' },
+        },
+      ],
+      inheritedEventCount: 0,
+    }));
+    const ownership = createTestOwnership({
+      'root-ada': { botSlug: 'ada', rootRole: 'orchestrator' },
+      'root-other': { botSlug: 'outsider', rootRole: 'orchestrator' },
+    });
+    const { registry, methods } = setup(
+      [],
+      ['ada'],
+      () =>
+        ({
+          getAssignment: () => undefined,
+          whenIdle: async () => undefined,
+          close: async () => undefined,
+        }) as unknown as BotRuntime,
+      ownership,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      read,
+    );
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    const root = await methods.assignmentTimeline({ slug: 'ada', sessionId: 'root-ada' });
+    expect(root).toMatchObject({
+      ok: true,
+      value: {
+        assignment: {
+          sessionId: 'root-ada',
+          botSlug: 'ada',
+          title: '',
+          description: '',
+          activity: 'idle',
+          createdAt: '2026-09-19T00:00:00.000Z',
+          updatedAt: '2026-09-19T00:00:00.000Z',
+        },
+        lanes: [{ role: 'main', index: 0, sessionId: 'root-ada' }],
+      },
+    });
+    expect(JSON.stringify(root)).not.toContain('latestReport');
+    const otherRoot = await methods.assignmentTimeline({ slug: 'ada', sessionId: 'root-other' });
+    expect(otherRoot.ok === false ? otherRoot.error.code : '').toBe('not-found');
+    const unknown = await methods.assignmentTimeline({ slug: 'ada', sessionId: 'root-none' });
+    expect(unknown.ok === false ? unknown.error.code : '').toBe('not-found');
+    const withoutReader = setup(
+      [],
+      ['ada'],
+      () =>
+        ({
+          getAssignment: () => undefined,
+          whenIdle: async () => undefined,
+          close: async () => undefined,
+        }) as unknown as BotRuntime,
+      createTestOwnership({ 'root-no-reader': { botSlug: 'ada', rootRole: 'orchestrator' } }),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    );
+    withoutReader.registry.create({ slug: 'ada', displayName: 'Ada' });
+    const unreadable = await withoutReader.methods.assignmentTimeline({
+      slug: 'ada',
+      sessionId: 'root-no-reader',
+    });
+    expect(unreadable.ok === false ? unreadable.error.code : '').toBe('storage-unavailable');
+  });
+
   it("reads a Bot's recent turn input from its own Session log only", async () => {
     const ownership = createTestOwnership({
       'session-ada': { botSlug: 'ada', rootRole: 'orchestrator' },

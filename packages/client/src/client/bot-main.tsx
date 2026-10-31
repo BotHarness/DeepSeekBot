@@ -141,6 +141,7 @@ import {
 import { ChannelSidebar, useChannelSidebar } from './channel-sidebar-view.js';
 import { ChannelDock, useChannelDockActive } from './channel-dock.js';
 import { dockPanelsFromEntries, type DockPanelChannel, type DockPanelHost } from './dock-panels.js';
+import { TaskBoardHeaderAction } from './task-board-entry.js';
 import { MemoryCommitView } from './memory-commit-view.js';
 import { MemoryFileView, MemoryWorkingView } from './memory-current-view.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
@@ -3513,6 +3514,13 @@ function ConversationView({
                         : {}),
                       actions: (
                         <>
+                          {channelId !== undefined && (
+                            <TaskBoardHeaderAction
+                              channelId={channelId}
+                              dockPanels={dockPanels}
+                              t={t}
+                            />
+                          )}
                           {hasChannelSettings && (
                             <Tooltip
                               label={t('channelSettings.open')}

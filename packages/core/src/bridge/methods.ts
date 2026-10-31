@@ -6709,8 +6709,23 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (slug === undefined) return invalidInput('slug is required');
       if (sessionId === undefined) return invalidInput('sessionId is required');
       if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
-      const assignment = deps.runtime?.getAssignment(slug, sessionId);
-      if (assignment === undefined) return unknownAssignment(sessionId);
+      const known = deps.runtime?.getAssignment(slug, sessionId);
+      let resolved = known;
+      if (resolved === undefined) {
+        const owner = deps.ownership.resolve(sessionId);
+        if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+          return unknownAssignment(sessionId);
+        resolved = {
+          sessionId,
+          botSlug: slug,
+          title: '',
+          description: '',
+          activity: 'idle',
+          createdAt: owner.createdAt,
+          updatedAt: owner.createdAt,
+          sourceEventId: '',
+        };
+      }
       const read = deps.readUsageSessionLog;
       if (read === undefined) return unavailable();
       const [main, subagents] = await Promise.all([
@@ -6722,7 +6737,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         subagents,
         describe: (id, name, args) => deps.describeToolCall?.(id, name, args),
       });
-      return { ok: true, value: { assignment, ...timeline } };
+      return { ok: true, value: { assignment: resolved, ...timeline } };
     },
     async sessionSubagents(payload) {
       const source = asObject(payload);

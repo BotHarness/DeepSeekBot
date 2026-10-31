@@ -20,6 +20,7 @@ These pages apply to the public **deepseekbot** package on DSH **0.2.1-rc.2** (s
 | [Memory files](/docs/channel-sidebar/memory-files)                 | Browse the current repository tree and read a file in the center.                                      |
 | [Memory evolution](/docs/channel-sidebar/memory-evolution)         | Inspect uncommitted changes, Git history, branches and recovery checkpoints.                           |
 | [Sessions](/docs/channel-sidebar/sessions)                         | Open this Bot’s Orchestrator and Assignment Sessions in DSH.                                           |
+| [Task board](/docs/channel-sidebar/task-board)                     | Follow the live progress of this chat’s Assignments, step by step.                                     |
 | [Bot Inbox](/docs/channel-sidebar/bot-inbox)                       | Inspect source messages and Assignment reports that the Bot has received.                              |
 | [Workspace Grants](/docs/channel-sidebar/workspaces) ¹             | Review and explicitly authorize the Host folders available to this Bot.                                |
 | [Schedules](/docs/channel-sidebar/schedules)                       | Wake this Bot on a cadence, run a schedule now, and lock it from Bot edits.                            |
@@ -29,12 +30,13 @@ These pages apply to the public **deepseekbot** package on DSH **0.2.1-rc.2** (s
 | [External connectors](/docs/channel-sidebar/external-connectors) ¹ | Edit and pause conversations synced into a Channel; advanced saved send targets.                       |
 | [Secrets](/docs/channel-sidebar/private-accounts) ¹                | See, replace and remove the API keys and other secrets this Bot asked you for, without showing values. |
 
-| In a local group                                                   | What you can do                                                         |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------- |
-| [Work](/docs/channel-sidebar/groups#see-the-groups-work)           | See the Assignments this group asked for and open their Sessions.       |
-| [Members and group management](/docs/channel-sidebar/groups) ¹     | Inspect members, invite a Bot, handle join requests and edit the group. |
-| [Wake policy](/docs/channel-sidebar/wake-policy) ¹                 | Choose, per member Bot, how ordinary messages in this group wake it.    |
-| [External connectors](/docs/channel-sidebar/external-connectors) ¹ | Connect, edit and pause external conversations synced into this group.  |
+| In a local group                                                   | What you can do                                                          |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| [Work](/docs/channel-sidebar/groups#see-the-groups-work)           | See the Assignments this group asked for and open their Sessions.        |
+| [Task board](/docs/channel-sidebar/task-board)                     | Follow the live progress of this group’s Assignments, one group per Bot. |
+| [Members and group management](/docs/channel-sidebar/groups) ¹     | Inspect members, invite a Bot, handle join requests and edit the group.  |
+| [Wake policy](/docs/channel-sidebar/wake-policy) ¹                 | Choose, per member Bot, how ordinary messages in this group wake it.     |
+| [External connectors](/docs/channel-sidebar/external-connectors) ¹ | Connect, edit and pause external conversations synced into this group.   |
 
 ¹ A **Channel settings** section, not a sidebar entry. Open it from the chat header’s **···** menu → **Channel settings…**. In a group, Members stays in the sidebar; Group management is in Channel settings.
 
