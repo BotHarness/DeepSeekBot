@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="blueprint" data-mode="auto" data-style="80">
+<html lang="zh-CN" data-theme="paper" data-mode="auto" data-style="80">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -753,20 +753,19 @@ html[data-theme="paper"] .am-md table { font-family: var(--font-sans); }
 </style>
 </head>
 <body>
-<div class="am-toolbar" data-am-root-lang="zh-CN" data-am-root-theme="blueprint" data-am-root-mode="auto" data-am-root-style="80">
-<label class="am-pick">主题<select data-am="theme"><option value="blueprint" selected>图纸</option><option value="shadcn">卡片</option><option value="paper">纸张</option></select></label>
+<div class="am-toolbar" data-am-root-lang="zh-CN" data-am-root-theme="paper" data-am-root-mode="auto" data-am-root-style="80">
+<label class="am-pick">主题<select data-am="theme"><option value="blueprint">图纸</option><option value="shadcn">卡片</option><option value="paper" selected>纸张</option></select></label>
 <label class="am-pick">明暗<select data-am="mode"><option value="auto" selected>跟随系统</option><option value="light">亮</option><option value="dark">暗</option></select></label>
 <button class="am-btn am-btn--reply" type="button" data-am="reply" data-ui="{&quot;button&quot;:&quot;回复&quot;,&quot;comment&quot;:&quot;评论&quot;,&quot;commentHint&quot;:&quot;对这个面板的意见&quot;,&quot;title&quot;:&quot;你的回复&quot;,&quot;hint&quot;:&quot;复制后粘贴到对话里。&quot;,&quot;copy&quot;:&quot;复制回复&quot;,&quot;close&quot;:&quot;关闭&quot;,&quot;suggested&quot;:&quot;建议&quot;,&quot;empty&quot;:&quot;先选择选项，或在面板上写评论。&quot;,&quot;decisions&quot;:&quot;决定&quot;,&quot;comments&quot;:&quot;评论&quot;,&quot;confirmed&quot;:&quot;确认了建议&quot;,&quot;untouched&quot;:&quot;未作答，保留建议&quot;,&quot;was&quot;:&quot;原为&quot;,&quot;typed&quot;:&quot;以 \&quot;&gt;\&quot; 开头的行是读者输入的文字。&quot;,&quot;done&quot;:&quot;已复制 ✓&quot;,&quot;remarks&quot;:&quot;标注&quot;,&quot;kinds&quot;:{&quot;suggestion&quot;:&quot;建议&quot;,&quot;keep&quot;:&quot;保留&quot;,&quot;question&quot;:&quot;疑问&quot;,&quot;concern&quot;:&quot;关注&quot;}}">回复</button>
 <button class="am-btn am-btn--remark" type="button" data-am="remark" data-ui="{&quot;button&quot;:&quot;标注&quot;,&quot;hint&quot;:&quot;批注（可选）&quot;,&quot;save&quot;:&quot;保存&quot;,&quot;remove&quot;:&quot;删除&quot;,&quot;section&quot;:&quot;标注&quot;,&quot;kinds&quot;:{&quot;suggestion&quot;:&quot;建议&quot;,&quot;keep&quot;:&quot;保留&quot;,&quot;question&quot;:&quot;疑问&quot;,&quot;concern&quot;:&quot;关注&quot;}}">标注</button>
 <button class="am-btn" type="button" data-am="copy" data-done="已复制 ✓">复制源稿</button>
 </div>
-<main class="am-sheet">
+<main class="am-doc">
 <header class="am-head"><h1>Bot 同事变化与退网处理</h1><p class="am-sub">第二切片 · 在线通信与已有 Inbox 的协作边界</p><div class="am-head-meta"><span><b>base</b>81f6716691cd2f456c5e288dfad6f6c2a34995c8</span><span><b>head</b>3beddfe7f37eafd584934aff054c4dc5793f1b5f</span><span><b>date</b>2026-11-01</span><span><b>pr</b>3273</span></div><div class="am-intro am-md"><div class="am-md"><p>同事资料变化后，下一次查询获取新资料。退网会终止尚未开始的关系工作，历史仍可查看。</p>
 </div></div></header>
-<div class="am-frame">
-<div class="am-ruler am-ruler--top" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span></div><div class="am-ruler am-ruler--bottom" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span></div><div class="am-ruler am-ruler--left" aria-hidden="true"><span>A</span><span>B</span><span>C</span><span>D</span></div><div class="am-ruler am-ruler--right" aria-hidden="true"><span>A</span><span>B</span><span>C</span><span>D</span></div>
-<div class="am-grid" style="--cols: 2">
-<section class="am-panel am-span-wide" id="panel-A" style="grid-column: span 2">
+<div class="am-doc-layout">
+<nav class="am-toc" aria-label="目录"><a href="#panel-A">A · 用户看到什么</a><a href="#panel-B">B · 由谁负责</a><a href="#panel-C">C · 哪些工作继续</a><a href="#panel-D">D · 关键实现与审查点</a><a href="#panel-E">E · 已有证据与边界</a><a href="#panel-F">F · 性能对比与限制</a></nav><div class="am-doc-body">
+<section class="am-panel" id="panel-A">
 <header class="am-panel-head"><span class="am-panel-id">A</span><h2>用户看到什么</h2></header>
 <div class="am-panel-body"><div class="am-md"><div class="am-table-wrap"><table>
 <thead>
@@ -799,7 +798,7 @@ html[data-theme="paper"] .am-md table { font-family: var(--font-sans); }
 <p>第一切片已提供跨设备 DM。本次补齐身份、资料和协作范围变化后的行为。</p>
 </div></div>
 </section>
-<section class="am-panel am-span-wide" id="panel-B" style="grid-column: span 2">
+<section class="am-panel" id="panel-B">
 <header class="am-panel-head"><span class="am-panel-id">B</span><h2>由谁负责</h2></header>
 <div class="am-panel-body"><figure class="am-diagram am-flow"><svg viewBox="0 0 1137 171" width="1137" height="171" role="img" aria-label="流程图：原生网络通知、设备通信桥、Channel、BotRuntime、Bot Inbox、本地执行、Client" xmlns="http://www.w3.org/2000/svg"><defs><marker id="am1-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="am-arrow" d="M0,0 L10,5 L0,10 z"/></marker></defs><g></g><g><g data-step="0"><path class="am-edge" d="M120,68.5 L146,68.5 Q172,68.5 198,68.5 L224,68.5" marker-end="url(#am1-arrow)"/><g class="am-edge-label"><rect x="144" y="59.5" width="56" height="18" rx="3"/><text x="172" y="68.5" text-anchor="middle" dominant-baseline="central">成员变化</text></g></g><g data-step="1"><path class="am-edge" d="M304.7,86 L357,112.8 Q409.3,139.5 460.6,139.5 L512,139.5" marker-end="url(#am1-arrow)"/><g class="am-edge-label"><rect x="341" y="130.5" width="136.5" height="18" rx="3"/><text x="409.3" y="139.5" text-anchor="middle" dominant-baseline="central">已认证的主机与成员绑定</text></g></g><g data-step="2"><path class="am-edge" d="M317,68.5 L363.1,68.5 Q409.3,68.5 455.4,68.5 L501.5,68.5" marker-end="url(#am1-arrow)"/><g class="am-edge-label"><rect x="369.8" y="59.5" width="79" height="18" rx="3"/><text x="409.3" y="68.5" text-anchor="middle" dominant-baseline="central">通知关系撤销</text></g></g><g data-step="3"><path class="am-edge" d="M600,68.5 L643.2,68.5 Q686.5,68.5 729.7,68.5 L773,68.5" marker-end="url(#am1-arrow)"/><g class="am-edge-label"><rect x="624" y="59.5" width="125" height="18" rx="3"/><text x="686.5" y="68.5" text-anchor="middle" dominant-baseline="central">退休未开始的准入记录</text></g></g><g data-step="4"><path class="am-edge" d="M858.4,68.5 L904.5,68.5 Q950.7,68.5 996.8,60.6 L1042.9,52.6" marker-end="url(#am1-arrow)"/><g class="am-edge-label"><rect x="882.4" y="59.5" width="136.5" height="18" rx="3"/><text x="950.7" y="68.5" text-anchor="middle" dominant-baseline="central">已开始工作按原权限完成</text></g></g><g data-step="5"><path class="am-edge" d="M1042.9,38.9 L996.8,30.9 Q950.7,23 883.2,23 Q815.7,23 751.1,23 Q686.5,23 618.6,23 Q550.7,23 480,23 Q409.3,23 363.1,38.1 L317,53.3" marker-end="url(#am1-arrow)"/><g class="am-edge-label"><rect x="641.2" y="14" width="90.5" height="18" rx="3"/><text x="686.5" y="23" text-anchor="middle" dominant-baseline="central">回复前再次检查</text></g></g><g data-step="6"><path class="am-edge" d="M589.4,139.5 L637.9,139.5 Q686.5,139.5 735.1,139.5 L783.7,139.5" marker-end="url(#am1-arrow)"/><g class="am-edge-label"><rect x="629.7" y="130.5" width="113.5" height="18" rx="3"/><text x="686.5" y="139.5" text-anchor="middle" dominant-baseline="central">历史与当前可达状态</text></g></g></g><g><g class="am-node am-node--rect" data-key="原生网络通知" data-step="0"><rect class="am-node-shape" x="14" y="51" width="106" height="35" rx="3"/><text x="67" y="68.5" text-anchor="middle" dominant-baseline="central">原生网络通知</text></g><g class="am-node am-node--rect" data-key="设备通信桥" data-step="0"><rect class="am-node-shape" x="224" y="51" width="93" height="35" rx="3"/><text x="270.5" y="68.5" text-anchor="middle" dominant-baseline="central">设备通信桥</text></g><g class="am-node am-node--rect" data-key="Channel" data-step="1"><rect class="am-node-shape" x="512" y="122" width="77.4" height="35" rx="3"/><text x="550.7" y="139.5" text-anchor="middle" dominant-baseline="central">Channel</text></g><g class="am-node am-node--rect" data-key="BotRuntime" data-step="2"><rect class="am-node-shape" x="501.5" y="51" width="98.5" height="35" rx="3"/><text x="550.7" y="68.5" text-anchor="middle" dominant-baseline="central">BotRuntime</text></g><g class="am-node am-node--rect" data-key="Bot Inbox" data-step="3"><rect class="am-node-shape" x="773" y="51" width="85.5" height="35" rx="3"/><text x="815.7" y="68.5" text-anchor="middle" dominant-baseline="central">Bot Inbox</text></g><g class="am-node am-node--rect" data-key="本地执行" data-step="4"><rect class="am-node-shape" x="1042.9" y="28.3" width="80" height="35" rx="3"/><text x="1082.9" y="45.8" text-anchor="middle" dominant-baseline="central">本地执行</text></g><g class="am-node am-node--rect" data-key="Client" data-step="6"><rect class="am-node-shape" x="783.7" y="122" width="64" height="35" rx="3"/><text x="815.7" y="139.5" text-anchor="middle" dominant-baseline="central">Client</text></g></g></svg></figure>
 <div class="am-md"><p>Channel 保存身份绑定和历史。Bot Inbox 继续拥有工作准入状态。
@@ -849,19 +848,50 @@ html[data-theme="paper"] .am-md table { font-family: var(--font-sans); }
 <p>并发查询取消旧的发现扫描，等待最新扫描结果。首次认证消息仍通过正常 Channel 创建保存绑定。</p>
 </div></div>
 </section>
-<section class="am-panel am-span-wide" id="panel-E" style="grid-column: span 2">
+<section class="am-panel" id="panel-E">
 <header class="am-panel-head"><span class="am-panel-id">E</span><h2>已有证据与边界</h2></header>
 <div class="am-panel-body"><div class="am-md"><p>真实 Windows 与 Linux 隔离 Host 完成 DM 往返、资料更新、归档、断线重连和同名替换。
 双方历史具有相同消息标识；重连后未出现补发。</p>
 <p>两个真实 HTTP/Noise 通信桥与 Core 实例覆盖退网前后工作阶段。
 测试注入成员变化，不移除共享 tailnet 上的真实设备。
 三 Host 测试覆盖显式第三方联系、独立资格和 32 跳唤醒限制。</p>
-<p>针对性测试、构建、类型和仓库规范检查通过。全量测试仍有失败，不能宣称全部通过。
-性能对比尚在运行，完成后补充结果。
+<p>当前 head 的 CI 通过：受影响测试 5060 项通过、5 项跳过，构建、类型、规范、文档和默认性能检查通过。</p>
+<p>本地早期全量运行有失败，不作为最终 head 的合格证据。真实导航验收通过。</p>
+<p>当前代码在 Windows 与 internal 的 Linux 隔离 Host 再次完成唯一 PING/PONG；双方消息 ID 一致。
 准备阶段改为等待实际分页进度，保留 30 秒超时上限。
 原先两次固定等待误判保留在失败证据中。桌面壳和原生移动端不在本轮验证范围。</p>
 <p>internal 的既有 DSH 与 1.6.0 插件保持原配置和运行状态。
-跨设备临时凭据已清理。本页是评审说明，不代表合并或发布。</p>
+两端隔离测试服务已停止，远端临时密钥已删除。本页是评审说明，不代表合并或发布。</p>
+</div></div>
+</section>
+<section class="am-panel" id="panel-F">
+<header class="am-panel-head"><span class="am-panel-id">F</span><h2>性能对比与限制</h2></header>
+<div class="am-panel-body"><div class="am-md"><p>同一份 600 条历史、1440×900 视口、15 秒窗口，每侧各 3 次静止与动画测量。</p>
+<div class="am-table-wrap"><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>基线忙碌率中位数（范围）</th>
+<th>当前忙碌率中位数（范围）</th>
+<th>输入 p95 中位数</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>静止</td>
+<td>0.9%（0.7–1.1）</td>
+<td>0.7%（0.7–0.7）</td>
+<td>两侧 16 ms</td>
+</tr>
+<tr>
+<td>动画</td>
+<td>12.4%（12.1–14.4）</td>
+<td>11.8%（11.3–16.5）</td>
+<td>两侧 24 ms</td>
+</tr>
+</tbody></table></div>
+<p>12 次均加载 600 条、挂载 11 条、堆 43 MB；滚动跳变、空隙、空白和页面错误均为零。
+一次当前动画测量 16.5% 超过严格 15% 阈值，保留为失败；不能用中位数解释或抹去它。默认验收门槛通过，严格计时并非全通过。</p>
+<p>基线使用 81f6716691cd；两侧使用同一份 3beddfe7f37e 测量脚本。当前性能构建的包源码等同 d12eefb，至最终 head 的包源码差异为空；未留存其内嵌构建戳。资料卡与跨设备复验使用最终 head 的新构建，双方文件摘要一致。</p>
 </div></div>
 </section>
 </div>
@@ -882,12 +912,13 @@ html[data-theme="paper"] .am-md table { font-family: var(--font-sans); }
 <div class="am-lightbox-canvas am-diagram"></div>
 </div>
 </div>
-<footer class="am-colophon">Generated by <a href="https://github.com/QingYunA/answer-me-with-html" target="_blank" rel="noopener">Answer me with HTML</a> 0.5.0 · 2026-11-01 07:28 · <a href="https://github.com/QingYunA/answer-me-with-html" target="_blank" rel="noopener">★ Star on GitHub</a></footer>
+<footer class="am-colophon">Generated by <a href="https://github.com/QingYunA/answer-me-with-html" target="_blank" rel="noopener">Answer me with HTML</a> 0.5.0 · 2026-11-01 08:21 · <a href="https://github.com/QingYunA/answer-me-with-html" target="_blank" rel="noopener">★ Star on GitHub</a></footer>
 <textarea id="am-source" hidden readonly aria-hidden="true">---
 title: Bot 同事变化与退网处理
 subtitle: 第二切片 · 在线通信与已有 Inbox 的协作边界
 lang: zh
-cols: 2
+template: doc
+theme: paper
 base: 81f6716691cd2f456c5e288dfad6f6c2a34995c8
 head: 3beddfe7f37eafd584934aff054c4dc5793f1b5f
 date: 2026-11-01
@@ -952,13 +983,30 @@ Channel 保存身份绑定和历史。Bot Inbox 继续拥有工作准入状态�
 测试注入成员变化，不移除共享 tailnet 上的真实设备。
 三 Host 测试覆盖显式第三方联系、独立资格和 32 跳唤醒限制。
 
-针对性测试、构建、类型和仓库规范检查通过。全量测试仍有失败，不能宣称全部通过。
-性能对比尚在运行，完成后补充结果。
+当前 head 的 CI 通过：受影响测试 5060 项通过、5 项跳过，构建、类型、规范、文档和默认性能检查通过。
+
+本地早期全量运行有失败，不作为最终 head 的合格证据。真实导航验收通过。
+
+当前代码在 Windows 与 internal 的 Linux 隔离 Host 再次完成唯一 PING/PONG；双方消息 ID 一致。
 准备阶段改为等待实际分页进度，保留 30 秒超时上限。
 原先两次固定等待误判保留在失败证据中。桌面壳和原生移动端不在本轮验证范围。
 
 internal 的既有 DSH 与 1.6.0 插件保持原配置和运行状态。
-跨设备临时凭据已清理。本页是评审说明，不代表合并或发布。
+两端隔离测试服务已停止，远端临时密钥已删除。本页是评审说明，不代表合并或发布。
+
+## F 性能对比与限制
+
+同一份 600 条历史、1440×900 视口、15 秒窗口，每侧各 3 次静止与动画测量。
+
+| 场景 | 基线忙碌率中位数（范围） | 当前忙碌率中位数（范围） | 输入 p95 中位数 |
+| --- | --- | --- | --- |
+| 静止 | 0.9%（0.7–1.1） | 0.7%（0.7–0.7） | 两侧 16 ms |
+| 动画 | 12.4%（12.1–14.4） | 11.8%（11.3–16.5） | 两侧 24 ms |
+
+12 次均加载 600 条、挂载 11 条、堆 43 MB；滚动跳变、空隙、空白和页面错误均为零。
+一次当前动画测量 16.5% 超过严格 15% 阈值，保留为失败；不能用中位数解释或抹去它。默认验收门槛通过，严格计时并非全通过。
+
+基线使用 81f6716691cd；两侧使用同一份 3beddfe7f37e 测量脚本。当前性能构建的包源码等同 d12eefb，至最终 head 的包源码差异为空；未留存其内嵌构建戳。资料卡与跨设备复验使用最终 head 的新构建，双方文件摘要一致。
 </textarea>
 <script>
 (() => {
