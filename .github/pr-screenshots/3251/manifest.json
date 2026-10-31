@@ -9,7 +9,7 @@
   "locale": "en",
   "theme": "light",
   "platform": "Windows Web Client",
-  "network": "Two isolated Hosts on one Windows device; real cross-device acceptance pending",
+  "network": "Original captures: two Hosts on Windows. Additional cross-device captures: Windows and separate Linux device; acceptance passed.",
   "before": {
     "state": "No remote colleague found; no message sent",
     "sha256": "102ad8b159b8ec79a42db15afc6905936db56445743b6224361e739450098a1e",
@@ -27,5 +27,21 @@
     "state": "Read-only remote DM and current public facts",
     "sha256": "cd7d3c809b4f591a8f608e12276fd1fbce394a32c27a7029591a62e826d713d4",
     "file": "profile.png"
+  },
+  "crossDevice": {
+    "runtimeSource": "81f6716691cd2f456c5e288dfad6f6c2a34995c8",
+    "sender": "Windows",
+    "receiver": "Linux",
+    "consoleIssues": 0,
+    "captures": [
+      {
+        "file": "cross.png",
+        "sha256": "f7bba92b3a83722485b8b7c8c9195503ede6ea22a358bc187fa3b518067fd9a4"
+      },
+      {
+        "file": "linux.png",
+        "sha256": "a170d3b4d002eabc743e9ac76b836c0ebe9491ec6c0f3ea3bbd68df1ca9e1b0a"
+      }
+    ]
   }
 }
