@@ -690,3 +690,37 @@ describe('main session card', () => {
     expect(model.groups[0]?.assignments[0]?.kind).toBeUndefined();
   });
 });
+
+describe('main session progress', () => {
+  it('promotes a main session to working when a step is running', () => {
+    const assignment = assignmentExecutionOf(
+      { sessionId: 'orch', role: 'orchestrator', createdAt: at(30) },
+      'ada',
+      { displayTitle: 'Tob', updatedAt: NOW, running: false },
+    );
+    const model = board({
+      channelType: 'dm',
+      assignments: assignment === undefined ? [] : [assignment],
+      work: { orch: { work: work([step('read', 'done'), step('execute', 'running')]) } },
+    });
+    const card = model.groups[0]?.assignments[0];
+    expect(card?.section).toBe('working');
+    expect(card?.activity).toBe('working');
+    expect(card?.progress).toEqual({ done: 1, total: 2, omitted: 0, running: 1 });
+    expect(card?.steps).toHaveLength(2);
+  });
+
+  it('keeps a main session idle when no step runs and native says idle', () => {
+    const assignment = assignmentExecutionOf(
+      { sessionId: 'orch', role: 'orchestrator', createdAt: at(30) },
+      'ada',
+      { displayTitle: 'Tob', updatedAt: NOW, running: false },
+    );
+    const model = board({
+      channelType: 'dm',
+      assignments: assignment === undefined ? [] : [assignment],
+      work: { orch: { work: work([step('read', 'done')]) } },
+    });
+    expect(model.groups[0]?.assignments[0]?.section).toBe('idle');
+  });
+});

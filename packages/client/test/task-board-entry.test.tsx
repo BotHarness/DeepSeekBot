@@ -249,6 +249,7 @@ it('reads a direct message through its own sessions and keeps the main session c
   const readSessions = vi.fn(async () => [ORCHESTRATOR, WORKING, ARCHIVED, WAITING]);
   const channelAssignments = vi.fn(async () => []);
   const openSession = vi.fn(async () => undefined);
+  const assignmentWork = vi.fn(async (_slug: string, _sessionId: string) => WORK);
   const nativeSnapshot = {
     ids: ['session-orchestrator'],
     byId: {
@@ -267,7 +268,7 @@ it('reads a direct message through its own sessions and keeps the main session c
         channelId: 'dm-1',
         botSlug: 'ada',
         scope: 'channel',
-        actions: panelActions({ readSessions, channelAssignments, openSession }),
+        actions: panelActions({ readSessions, channelAssignments, openSession, assignmentWork }),
         t,
         nativeSessions,
       }),
@@ -281,16 +282,16 @@ it('reads a direct message through its own sessions and keeps the main session c
   expect(main).not.toBeNull();
   expect(main?.textContent).toContain('托布');
   expect(main?.querySelector('[data-task-board-orchestrator]')).not.toBeNull();
-  expect(main?.querySelector('[role="progressbar"]')).toBeNull();
+  expect(main?.querySelector('[role="progressbar"]')).not.toBeNull();
   expect(host.querySelector('[data-task-board-card="session-archived"]')).not.toBeNull();
   expect(host.textContent).not.toContain('taskBoard.error');
-  await act(async () => main?.querySelector<HTMLElement>('button')?.click());
-  await act(async () => undefined);
   await act(async () => {
     (main as HTMLElement | null)?.click();
   });
   await act(async () => undefined);
-  expect(openSession).toHaveBeenCalledWith('session-orchestrator');
+  expect(
+    assignmentWork.mock.calls.filter((call) => call[1] === 'session-orchestrator').length,
+  ).toBeGreaterThanOrEqual(2);
   await act(async () => root.unmount());
   vi.unstubAllGlobals();
 });

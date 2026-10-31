@@ -211,13 +211,18 @@ function stepsOf(
 }
 
 function cardOf(assignment: TaskBoardAssignment, input: TaskBoardInput): AssignmentCard {
+  const state = input.work?.[assignment.sessionId];
+  const lane = mainLaneOf(state?.work);
+  const activity =
+    assignment.kind === 'orchestrator' &&
+    lane?.entries.some((entry) => entry.status === 'running') === true
+      ? 'working'
+      : assignment.activity;
   const placement = assignmentPlacement(
-    assignment.activity,
+    activity,
     assignment.reportState ?? assignment.latestReport?.state,
     assignment,
   );
-  const state = input.work?.[assignment.sessionId];
-  const lane = mainLaneOf(state?.work);
   const progress = progressOf(lane);
   const currentStep = currentStepOf(lane);
   const steps = stepsOf(lane, input.prefs?.showDoneSteps ?? true);
@@ -234,7 +239,7 @@ function cardOf(assignment: TaskBoardAssignment, input: TaskBoardInput): Assignm
     botSlug: assignment.botSlug,
     title: assignment.title,
     description: assignment.description,
-    activity: assignment.activity,
+    activity,
     section: placement.section,
     createdAt: assignment.createdAt,
     updatedAt,

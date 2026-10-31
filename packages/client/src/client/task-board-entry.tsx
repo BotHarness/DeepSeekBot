@@ -268,10 +268,7 @@ function workTargets(model: TaskBoardModel): AssignmentCard[] {
   return model.groups
     .filter((group) => !group.collapsed)
     .flatMap((group) => group.assignments)
-    .filter(
-      (card) =>
-        needsWork(card.section) && card.unavailable !== true && card.kind !== 'orchestrator',
-    );
+    .filter((card) => needsWork(card.section) && card.unavailable !== true);
 }
 
 type Load =
@@ -501,13 +498,7 @@ export function TaskBoardPanel({
                 prefs.setBotCollapsed(group.botSlug, !group.collapsed);
                 setAttempt((count) => count + 1);
               }}
-              onOpen={(card) => {
-                if (card.kind === 'orchestrator') {
-                  void actions.openSession(card.sessionId);
-                  return;
-                }
-                setDialog(card);
-              }}
+              onOpen={setDialog}
             />
           ))
         )}
