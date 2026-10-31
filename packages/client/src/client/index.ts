@@ -60,6 +60,7 @@ import {
 import { subscribeBotColorScheme, readBotColorScheme } from './bot-color-scheme.js';
 import { botIconMarkup } from './bot-icon.js';
 import { installBotNavIcon } from './bot-icon-nav.js';
+import { nativeSettingsNavigation } from './bot-settings-open.js';
 import {
   BOT_SETTINGS_SECTIONS,
   BotSettings,
@@ -1207,6 +1208,7 @@ export function apply(ctx: ClientContext): void {
     ),
   );
 
+  ctx.effect(() => () => nativeSettingsNavigation.close());
   registerModeShadow(
     ctx,
     'sidebar',
@@ -1233,8 +1235,15 @@ export function apply(ctx: ClientContext): void {
       ),
     store,
     {
-      enabled: botModeSidebarViewport,
-      subscribe: subscribeBotModeSidebarViewport,
+      enabled: () => botModeSidebarViewport() && !nativeSettingsNavigation.getSnapshot(),
+      subscribe: (listener) => {
+        const viewport = subscribeBotModeSidebarViewport(listener);
+        const navigation = nativeSettingsNavigation.subscribe(listener);
+        return () => {
+          viewport();
+          navigation();
+        };
+      },
     },
   );
   registerModeShadow(

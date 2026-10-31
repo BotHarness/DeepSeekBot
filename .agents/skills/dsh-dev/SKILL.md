@@ -189,6 +189,8 @@ When a DSH-side bug or trap is diagnosed, **record it here (or in the playbook) 
 
 | 51 | A new BotHarness-owned Tool is registered but omitted from the execution policy | The real Orchestrator pauses on a Human approval card for an own-Inbox read, although the Tool contract test passes | `grant-execution.ts` classifies checked application-owned Tools through `BOT_TOOL_NAMES`; registration alone does not exempt a name from generic operation approval. Add only the Host-scoped Tool whose own authority checks are implemented, cover `requiresHumanToolApproval`, then build/restart the exact owned Host and verify a fresh real model call. Preserve the first approval card rather than approving it to hide the omission (#1278). |
 
+| 52 | Native Settings navigation clicks an unrelated dialog trigger | Onboarding opens the mobile app popup or returns without a model editor | Do not select the first `button[aria-haspopup="dialog"]`. In RC2, native Settings may be an Account menu item whose hidden shortcut contributes to `textContent`; match its accessible label, excluding `aria-hidden` content. A whole-sidebar Bot mode shadow must yield while the native settings shell is needed, then restore on close, timeout or cancellation without switching the main panel. Verify the actual Models page (`Add model provider`), not a generic `Models` label also present in onboarding (#3222). |
+
 ## Reference
 
 For opted-in AX Go launches on Windows, stage the reviewed adapter patch inside the isolated

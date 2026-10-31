@@ -56,11 +56,12 @@ import {
 } from '../memory/soul.js';
 import type { TelemetryEventName } from '../telemetry/events.js';
 import type { TelemetryCapture } from '../telemetry/service.js';
-import type {
-  AssignmentModelOption,
-  ModelPreset,
-  ModelRoute,
-  PersonaBotModelPlan,
+import {
+  isPersonaBotModelPlan,
+  type AssignmentModelOption,
+  type ModelPreset,
+  type ModelRoute,
+  type PersonaBotModelPlan,
 } from '../models/presets.js';
 import { parsePromptLimitValues, type PromptLimitValues } from '../prompts/prompt-limits.js';
 import { parsePromptPartOverrides, type PromptPartOverrides } from '../prompts/prompt-presets.js';
@@ -306,6 +307,22 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       !isBotPrimaryColor(parsed.primaryColor)
     )
       delete (parsed as { primaryColor?: unknown }).primaryColor;
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'modelPlan' in parsed &&
+      !isPersonaBotModelPlan(parsed.modelPlan)
+    )
+      delete parsed.modelPlan;
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'modelPlanRevision' in parsed &&
+      (typeof parsed.modelPlanRevision !== 'number' ||
+        !Number.isSafeInteger(parsed.modelPlanRevision) ||
+        parsed.modelPlanRevision < 0)
+    )
+      delete parsed.modelPlanRevision;
     if (!isPersonaBotRecord(parsed, slug)) throw new Error('Invalid PersonaBot Registry record');
     return recordSnapshot(parsed);
   };
@@ -317,6 +334,9 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     });
   };
   const write = (record: PersonaBotRecord): void => {
+    const slug = record.slug;
+    if (!isPersonaBotRecord(record, slug))
+      throw new Error(`Refusing to persist an invalid PersonaBot Registry record: ${slug}`);
     port.transaction(
       (database) => {
         database

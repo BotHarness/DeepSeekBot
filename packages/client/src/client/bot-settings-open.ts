@@ -1,37 +1,123 @@
-import { findBotNavCell } from './bot-icon-nav.js';
+const SETTINGS_LABELS = ['设置', 'Settings'];
+const ACCOUNT_LABELS = ['账号菜单', 'Account menu'];
+const MODEL_LABELS = ['模型', 'Models'];
+const IM_LABELS = ['IM机器人', 'IM Bots'];
+const SETTLE_TIMEOUT_MS = 10000;
 
-const TRIGGER_SELECTOR = 'button[aria-haspopup="dialog"]';
+let nativeSettingsVisible = false;
+let activeNavigation: (() => void) | undefined;
+const listeners = new Set<() => void>();
 
-const SETTLE_TIMEOUT_MS = 2000;
+export const nativeSettingsNavigation = {
+  getSnapshot: (): boolean => nativeSettingsVisible,
+  close: (): void => activeNavigation?.(),
+  subscribe(listener: () => void): () => void {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  },
+};
 
-function openSettingsSection(labels: () => readonly string[], doc?: Document): void {
-  const target = doc ?? (typeof document === 'undefined' ? undefined : document);
-  if (target === undefined) return;
+function showNativeSettings(visible: boolean): void {
+  if (nativeSettingsVisible === visible) return;
+  nativeSettingsVisible = visible;
+  for (const listener of listeners) listener();
+}
 
-  const trigger = target.querySelector(TRIGGER_SELECTOR) as HTMLElement | null;
-  if (trigger !== null && trigger.getAttribute('aria-expanded') !== 'true') {
-    trigger.click();
+function controlText(node: Node): string {
+  if (node instanceof Element) {
+    if (node.getAttribute('aria-hidden') === 'true') return '';
+    const label = node.getAttribute('aria-label');
+    if (label !== null) return label;
   }
+  return node.childNodes.length === 0
+    ? (node.textContent ?? '')
+    : [...node.childNodes].map(controlText).join('');
+}
 
-  const selectSection = (): boolean => {
-    const cell = findBotNavCell(target, labels());
-    if (cell === undefined) return false;
-    cell.click();
-    return true;
+function namedControl(root: ParentNode, labels: readonly string[]): HTMLElement | undefined {
+  return [...root.querySelectorAll<HTMLElement>('button, [role="menuitem"]')].find((control) =>
+    labels.some((label) => controlText(control).trim().toLowerCase() === label.toLowerCase()),
+  );
+}
+
+function openSettingsSection(
+  doc: Document,
+  labels: readonly string[],
+  select: (dialog: HTMLElement, nav: HTMLElement) => boolean,
+  callbacks: {
+    ready?: (dialog: HTMLElement) => void;
+    unavailable?: () => void;
+    returned?: () => void;
+  } = {},
+): () => void {
+  activeNavigation?.();
+  let stopped = false;
+  let selected = false;
+  let accountOpened = false;
+  let settingsOpened = false;
+  let dialog: HTMLElement | undefined;
+  const stop = (): void => {
+    if (stopped) return;
+    stopped = true;
+    observer.disconnect();
+    clearTimeout(timer);
+    if (activeNavigation === stop) {
+      activeNavigation = undefined;
+      showNativeSettings(false);
+    }
   };
-
-  if (selectSection()) return;
-
-  const observer =
-    typeof MutationObserver === 'undefined' ? undefined : new MutationObserver(selectSection);
-  observer?.observe(target.body, { childList: true, subtree: true });
-  setTimeout(() => {
-    observer?.disconnect();
+  const inspect = (): void => {
+    if (stopped) return;
+    if (dialog !== undefined && !dialog.isConnected) {
+      stop();
+      callbacks.returned?.();
+      return;
+    }
+    if (selected) return;
+    dialog ??= [...doc.querySelectorAll<HTMLElement>('[role="dialog"]')].find(
+      (candidate) => namedControl(candidate, labels) !== undefined,
+    );
+    if (dialog !== undefined) {
+      const nav = namedControl(dialog, labels);
+      if (nav !== undefined && select(dialog, nav)) {
+        selected = true;
+        clearTimeout(timer);
+        callbacks.ready?.(dialog);
+      }
+      return;
+    }
+    const settings = namedControl(doc, SETTINGS_LABELS);
+    if (settings !== undefined && !settingsOpened) {
+      settingsOpened = true;
+      settings.click();
+      return;
+    }
+    const account = namedControl(doc, ACCOUNT_LABELS);
+    if (account !== undefined && !accountOpened) {
+      accountOpened = true;
+      if (account.getAttribute('aria-expanded') !== 'true') account.click();
+    }
+  };
+  const observer = new MutationObserver(inspect);
+  observer.observe(doc.body, { childList: true, subtree: true });
+  const timer = setTimeout(() => {
+    stop();
+    callbacks.unavailable?.();
   }, SETTLE_TIMEOUT_MS);
+  activeNavigation = stop;
+  showNativeSettings(true);
+  inspect();
+  return stop;
+}
+
+function selectModels(_dialog: HTMLElement, nav: HTMLElement): boolean {
+  nav.click();
+  return true;
 }
 
 export function openModelsSettings(doc?: Document): void {
-  openSettingsSection(() => ['模型', 'Models'], doc);
+  const target = doc ?? (typeof document === 'undefined' ? undefined : document);
+  if (target !== undefined) openSettingsSection(target, MODEL_LABELS, selectModels);
 }
 
 export function openImSettings(
@@ -40,50 +126,23 @@ export function openImSettings(
   unavailable: () => void = () => {},
   selectFeishu = true,
 ): () => void {
-  let disposed = false;
-  let selected = false;
-  const inspect = () => {
-    if (disposed) return;
-    const dialog = [...doc.querySelectorAll('[role="dialog"]')].find((d) =>
-      [...d.querySelectorAll('button')].some((b) =>
-        /^(IM机器人|IM Bots)$/i.test(b.textContent?.trim() ?? ''),
-      ),
-    );
-    if (!dialog) return;
-    const nav = [...dialog.querySelectorAll('button')].find((b) =>
-      /^(IM机器人|IM Bots)$/i.test(b.textContent?.trim() ?? ''),
-    );
-    if (!selected) {
-      selected = true;
-      nav?.click();
-      queueMicrotask(inspect);
-      return;
-    }
-    const platform = [...dialog.querySelectorAll('button')].find((b) =>
-      ['飞书', 'Feishu', 'Lark / Feishu'].includes(b.textContent?.trim() ?? ''),
-    );
-    if (selectFeishu && !platform) return;
-    disposed = true;
-    observer.disconnect();
-    clearTimeout(timer);
-    if (selectFeishu) platform?.click();
-    ready(dialog);
-  };
-  const observer = new MutationObserver(inspect);
-  observer.observe(doc.body, { childList: true, subtree: true });
-  const timer = setTimeout(() => {
-    disposed = true;
-    observer.disconnect();
-    unavailable();
-  }, 10000);
-  const trigger = doc.querySelector<HTMLElement>(TRIGGER_SELECTOR);
-  if (trigger?.getAttribute('aria-expanded') !== 'true') trigger?.click();
-  inspect();
-  return () => {
-    disposed = true;
-    clearTimeout(timer);
-    observer.disconnect();
-  };
+  let navSelected = false;
+  return openSettingsSection(
+    doc,
+    IM_LABELS,
+    (dialog, nav) => {
+      if (!navSelected) {
+        navSelected = true;
+        nav.click();
+      }
+      if (!selectFeishu) return true;
+      const platform = namedControl(dialog, ['飞书', 'Feishu', 'Lark / Feishu']);
+      if (platform === undefined) return false;
+      platform.click();
+      return true;
+    },
+    { ready, unavailable },
+  );
 }
 
 export function openExternalBindingSettings(
@@ -91,63 +150,20 @@ export function openExternalBindingSettings(
   returned: () => void,
   unavailable: () => void,
 ): () => void {
-  let active = true;
-  let watcher: MutationObserver | undefined;
-  const stop = openImSettings(
+  return openSettingsSection(
     doc,
-    (dialog) => {
-      watcher = new MutationObserver(() => {
-        if (!active || dialog.isConnected) return;
-        active = false;
-        watcher?.disconnect();
-        returned();
-      });
-      watcher.observe(doc.body, { childList: true, subtree: true });
+    IM_LABELS,
+    (_dialog, nav) => {
+      nav.click();
+      return true;
     },
-    () => {
-      if (!active) return;
-      active = false;
-      unavailable();
-    },
-    false,
+    { returned, unavailable },
   );
-  return () => {
-    active = false;
-    stop();
-    watcher?.disconnect();
-  };
 }
 
 export function openModelsSettingsAndReturn(returned: () => void): () => void {
-  let stopped = false;
-  let dialog: Element | undefined;
-  const finish = () => {
-    if (stopped) return;
-    stopped = true;
-    observer.disconnect();
-    clearTimeout(timer);
-    returned();
-  };
-  const inspect = () => {
-    if (stopped) return;
-    if (!dialog)
-      dialog = [...document.querySelectorAll('[role="dialog"]')].find((node) =>
-        [...node.querySelectorAll('button')].some((button) =>
-          ['模型', 'Models'].includes(button.textContent?.trim() ?? ''),
-        ),
-      );
-    else if (!dialog.isConnected) finish();
-  };
-  const observer = new MutationObserver(inspect);
-  observer.observe(document.body, { childList: true, subtree: true });
-  const timer = setTimeout(() => {
-    if (!dialog) finish();
-  }, 10000);
-  openModelsSettings();
-  inspect();
-  return () => {
-    stopped = true;
-    observer.disconnect();
-    clearTimeout(timer);
-  };
+  return openSettingsSection(document, MODEL_LABELS, selectModels, {
+    returned,
+    unavailable: returned,
+  });
 }
