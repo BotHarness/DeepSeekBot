@@ -732,6 +732,59 @@ describe('Connect relay phone offers', () => {
 });
 
 describe('Cloudflare API client', () => {
+  it.each([
+    { stage: 'connections', path: '/accounts/acct/cfd_tunnel/target/connections' },
+    { stage: 'tunnel', path: '/accounts/acct/cfd_tunnel/target' },
+    { stage: 'dns', path: '/zones/zone/dns_records/target' },
+  ])(
+    'preserves a $stage deletion failure and permits retry for the same resource',
+    async ({ stage, path }) => {
+      let upstreamStatus = 503;
+      const requests: string[] = [];
+      const api = createCloudflareApi({
+        token: 'cf-token',
+        accountId: 'acct',
+        zoneId: 'zone',
+        fetcher: async (input, init) => {
+          const requestPath = new URL(String(input)).pathname.replace('/client/v4', '');
+          requests.push(`${init?.method} ${requestPath}`);
+          const status = requestPath === path ? upstreamStatus : 200;
+          return Response.json({ success: status === 200, result: null }, { status });
+        },
+      });
+      const remove = () =>
+        stage === 'dns' ? api.deleteRecord('target') : api.deleteTunnel('target');
+      await expect(remove()).rejects.toMatchObject({ status: 503 });
+      const expected =
+        stage === 'dns'
+          ? ['DELETE /zones/zone/dns_records/target']
+          : stage === 'connections'
+            ? ['DELETE /accounts/acct/cfd_tunnel/target/connections']
+            : [
+                'DELETE /accounts/acct/cfd_tunnel/target/connections',
+                'DELETE /accounts/acct/cfd_tunnel/target',
+              ];
+      expect(requests).toEqual(expected);
+
+      upstreamStatus = 200;
+      requests.length = 0;
+      await expect(remove()).resolves.toBeUndefined();
+      expect(requests).toEqual(
+        stage === 'dns'
+          ? ['DELETE /zones/zone/dns_records/target']
+          : [
+              'DELETE /accounts/acct/cfd_tunnel/target/connections',
+              'DELETE /accounts/acct/cfd_tunnel/target',
+            ],
+      );
+
+      upstreamStatus = 404;
+      requests.length = 0;
+      await expect(remove()).resolves.toBeUndefined();
+      expect(requests).toEqual(expected);
+    },
+  );
+
   it('lists the tunnels in pages and reports when it stopped early', async () => {
     const urls: string[] = [];
     const pages = { total: 2 };
