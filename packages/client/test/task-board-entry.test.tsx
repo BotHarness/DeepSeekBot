@@ -26,10 +26,12 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
 import type { BridgeActions } from '../src/client/actions.js';
 import type { DockPanelHost } from '../src/client/dock-panels.js';
 import type { ConfigStorage } from '../src/client/roster-config.js';
+import { store, type ChannelSummary, type OwnedSessionSummary } from '../src/client/store.js';
 import { TaskBoardHeaderAction, TaskBoardPanel } from '../src/client/task-board-entry.js';
 import { createTaskBoardPrefs, type TaskBoardPrefs } from '../src/client/task-board-prefs.js';
 
 const t = (key: string): string => key;
+const AT = '2026-10-31T10:00:00.000Z';
 
 function memoryStorage(): ConfigStorage {
   const values = new Map<string, string>();
@@ -56,147 +58,67 @@ function tracedPrefs(): { prefs: TaskBoardPrefs; log: string[] } {
   };
 }
 
-function recorder(): { dock: Pick<DockPanelHost, 'open' | 'close' | 'isOpen'>; log: string[] } {
-  const log: string[] = [];
+function recorder(log: string[]): Pick<DockPanelHost, 'open' | 'close' | 'isOpen'> {
   return {
-    log,
-    dock: {
-      open: (id) => {
-        log.push(`open:${id}`);
-      },
-      close: (id) => {
-        log.push(`close:${id}`);
-      },
-      isOpen: () => false,
+    open: (id) => {
+      log.push(`open:${id}`);
     },
+    close: (id) => {
+      log.push(`close:${id}`);
+    },
+    isOpen: () => false,
   };
 }
 
-const ASSIGNMENT = {
-  sessionId: 'session-1',
-  botSlug: 'ada',
-  title: 'Implement the panel',
-  description: 'do the thing',
-  activity: 'working' as const,
-  createdAt: '2026-10-31T10:00:00.000Z',
-  updatedAt: '2026-10-31T11:00:00.000Z',
+const GROUP_CHANNEL: ChannelSummary = {
+  id: 'chan-group',
+  type: 'group',
+  name: 'Team',
+  members: ['ada'],
+  createdAt: AT,
+  updatedAt: AT,
 };
 
-function panelActions(
-  overrides: Partial<Pick<BridgeActions, 'channelAssignments' | 'assignmentWork'>> = {},
-): BridgeActions {
-  return {
-    channelAssignments: vi.fn(async () => []),
-    openSession: vi.fn(async () => undefined),
-    ...overrides,
-  } as unknown as BridgeActions;
-}
+const WORKING: OwnedSessionSummary = {
+  sessionId: 'session-working',
+  role: 'assignment',
+  createdAt: AT,
+  assignmentActivity: 'working',
+  assignmentTitle: 'Implement the panel',
+  assignmentDescription: 'do the thing',
+};
 
-it('keeps per channel open state and forces the dock to match on every channel switch', async () => {
-  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
-  const { prefs, log: prefsLog } = tracedPrefs();
-  const { dock, log: dockLog } = recorder();
-  const host = document.createElement('div');
-  const root = createRoot(host);
-  const paint = async (channelId: string): Promise<void> => {
-    await act(async () => {
-      root.render(createElement(TaskBoardHeaderAction, { channelId, dockPanels: dock, t, prefs }));
-    });
-  };
-  await paint('a');
-  expect(dockLog).toEqual(['close:task-board']);
-  const button = host.querySelector('button');
-  await act(async () => button?.click());
-  expect(prefsLog).toEqual(['setOpen:a:true']);
-  expect(dockLog).toEqual(['close:task-board', 'open:task-board']);
-  expect(prefs.isOpen('a')).toBe(true);
-  await paint('b');
-  expect(dockLog).toEqual(['close:task-board', 'open:task-board', 'close:task-board']);
-  expect(prefs.isOpen('b')).toBe(false);
-  expect(dockLog.filter((entry) => entry === 'open:task-board')).toHaveLength(1);
-  await paint('a');
-  expect(dockLog).toEqual([
-    'close:task-board',
-    'open:task-board',
-    'close:task-board',
-    'open:task-board',
-  ]);
-  expect(prefs.isOpen('a')).toBe(true);
-  await act(async () => root.unmount());
-  vi.unstubAllGlobals();
-});
+const IDLE: OwnedSessionSummary = {
+  sessionId: 'session-idle',
+  role: 'assignment',
+  createdAt: AT,
+  assignmentActivity: 'idle',
+  assignmentTitle: 'Polish the panel',
+};
 
-it('shows the cards a channel already has and the empty state when it has none', async () => {
-  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
-  const filled = document.createElement('div');
-  const filledRoot = createRoot(filled);
-  const actions = panelActions({ channelAssignments: vi.fn(async () => [ASSIGNMENT]) });
-  await act(async () => {
-    filledRoot.render(
-      createElement(TaskBoardPanel, {
-        channelId: 'chan-1',
-        scope: 'channel',
-        botSlug: undefined,
-        actions,
-        t,
-      }),
-    );
-  });
-  await act(async () => undefined);
-  expect(filled.querySelector('[data-task-board-card="session-1"]')?.textContent).toContain(
-    'Implement the panel',
-  );
-  await act(async () => filledRoot.unmount());
-  const empty = document.createElement('div');
-  const emptyRoot = createRoot(empty);
-  await act(async () => {
-    emptyRoot.render(
-      createElement(TaskBoardPanel, {
-        channelId: 'chan-1',
-        scope: 'channel',
-        botSlug: undefined,
-        actions: panelActions(),
-        t,
-      }),
-    );
-  });
-  await act(async () => undefined);
-  expect(empty.textContent).toContain('taskBoard.empty');
-  await act(async () => emptyRoot.unmount());
-  vi.unstubAllGlobals();
-});
+const ARCHIVED: OwnedSessionSummary = {
+  sessionId: 'session-archived',
+  role: 'assignment',
+  createdAt: AT,
+  assignmentActivity: 'idle',
+  assignmentArchived: true,
+  assignmentTitle: 'Old work',
+};
 
-it('keeps the last cards and offers a retry when the read fails', async () => {
-  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
-  const read = vi.fn(async () => {
-    throw new Error('bridge refused');
-  });
-  const host = document.createElement('div');
-  const root = createRoot(host);
-  await act(async () => {
-    root.render(
-      createElement(TaskBoardPanel, {
-        channelId: 'chan-1',
-        scope: 'channel',
-        botSlug: undefined,
-        actions: panelActions({ channelAssignments: read }),
-        t,
-      }),
-    );
-  });
-  await act(async () => undefined);
-  const alert = host.querySelector('[role="alert"]');
-  expect(alert?.textContent).toContain('taskBoard.error');
-  expect(read).toHaveBeenCalledTimes(1);
-  const retry = [...host.querySelectorAll('button')].find((item) =>
-    item.textContent?.includes('taskBoard.retry'),
-  );
-  await act(async () => retry?.click());
-  await act(async () => undefined);
-  expect(read).toHaveBeenCalledTimes(2);
-  await act(async () => root.unmount());
-  vi.unstubAllGlobals();
-});
+const ORCHESTRATOR: OwnedSessionSummary = {
+  sessionId: 'session-orchestrator',
+  role: 'orchestrator',
+  createdAt: AT,
+};
+
+const WAITING: OwnedSessionSummary = {
+  sessionId: 'session-waiting',
+  role: 'assignment',
+  createdAt: AT,
+  assignmentActivity: 'idle',
+  assignmentExecutionWait: 'waiting-human',
+  assignmentTitle: 'Needs approval',
+};
 
 const WORK = {
   title: 'Implement the panel',
@@ -224,51 +146,213 @@ const WORK = {
   omittedRounds: 0,
 };
 
+function panelActions(
+  overrides: Partial<
+    Pick<BridgeActions, 'channelAssignments' | 'assignmentWork' | 'readSessions'>
+  > = {},
+): BridgeActions {
+  return {
+    channelAssignments: vi.fn(async () => []),
+    readSessions: vi.fn(async () => []),
+    openSession: vi.fn(async () => undefined),
+    ...overrides,
+  } as unknown as BridgeActions;
+}
+
 async function paintPanel(
   node: HTMLElement,
   actions: BridgeActions,
-): Promise<{ root: ReturnType<typeof createRoot> }> {
+  channelId: string,
+  botSlug: string | undefined,
+): Promise<ReturnType<typeof createRoot>> {
   const root = createRoot(node);
   await act(async () => {
     root.render(
-      createElement(TaskBoardPanel, {
-        channelId: 'chan-1',
-        scope: 'channel',
-        botSlug: undefined,
-        actions,
-        t,
-      }),
+      createElement(TaskBoardPanel, { channelId, botSlug, scope: 'channel', actions, t }),
     );
   });
   await act(async () => undefined);
-  return { root };
+  return root;
 }
 
-it('reads the channel once per round and only fetches steps for work rows', async () => {
+it('keeps per channel open state and forces the dock to match on every channel switch', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const { prefs, log: prefsLog } = tracedPrefs();
+  const dockLog: string[] = [];
+  const dock = recorder(dockLog);
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  const paint = async (channelId: string): Promise<void> => {
+    await act(async () => {
+      root.render(createElement(TaskBoardHeaderAction, { channelId, dockPanels: dock, t, prefs }));
+    });
+  };
+  await paint('a');
+  expect(dockLog).toEqual(['close:task-board']);
+  await act(async () => host.querySelector('button')?.click());
+  expect(prefsLog).toEqual(['setOpen:a:true']);
+  expect(dockLog).toEqual(['close:task-board', 'open:task-board']);
+  expect(prefs.isOpen('a')).toBe(true);
+  await paint('b');
+  expect(dockLog).toEqual(['close:task-board', 'open:task-board', 'close:task-board']);
+  expect(prefs.isOpen('b')).toBe(false);
+  await paint('b');
+  expect(dockLog.filter((entry) => entry === 'open:task-board')).toHaveLength(1);
+  await paint('a');
+  expect(dockLog).toEqual([
+    'close:task-board',
+    'open:task-board',
+    'close:task-board',
+    'open:task-board',
+  ]);
+  await act(async () => root.unmount());
+  vi.unstubAllGlobals();
+});
+
+it('closes on the second click and never reopens itself on a later render', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const { prefs } = tracedPrefs();
+  const dockLog: string[] = [];
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  const paint = async (dock: Pick<DockPanelHost, 'open' | 'close' | 'isOpen'>): Promise<void> => {
+    await act(async () => {
+      root.render(
+        createElement(TaskBoardHeaderAction, {
+          channelId: 'a',
+          dockPanels: dock,
+          t,
+          prefs,
+        }),
+      );
+    });
+  };
+  await paint(recorder(dockLog));
+  expect(dockLog).toEqual(['close:task-board']);
+  await act(async () => host.querySelector('button')?.click());
+  expect(dockLog).toEqual(['close:task-board', 'open:task-board']);
+  expect(host.querySelector('button')?.getAttribute('aria-pressed')).toBe('true');
+  await act(async () => host.querySelector('button')?.click());
+  expect(dockLog).toEqual(['close:task-board', 'open:task-board', 'close:task-board']);
+  expect(host.querySelector('button')?.getAttribute('aria-pressed')).toBe('false');
+  expect(prefs.isOpen('a')).toBe(false);
+  await paint(recorder(dockLog));
+  await paint(recorder(dockLog));
+  expect(dockLog).toEqual(['close:task-board', 'open:task-board', 'close:task-board']);
+  await act(async () => root.unmount());
+  vi.unstubAllGlobals();
+});
+
+it('reads a direct message through its own sessions and skips the Orchestrator row', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const readSessions = vi.fn(async () => [ORCHESTRATOR, WORKING, ARCHIVED, WAITING]);
+  const channelAssignments = vi.fn(async () => []);
+  const host = document.createElement('div');
+  const root = await paintPanel(
+    host,
+    panelActions({ readSessions, channelAssignments }),
+    'dm-1',
+    'ada',
+  );
+  expect(readSessions).toHaveBeenCalledWith('ada');
+  expect(channelAssignments).not.toHaveBeenCalled();
+  expect(host.querySelector('[data-task-board-card="session-working"]')).not.toBeNull();
+  expect(host.querySelector('[data-task-board-card="session-orchestrator"]')).toBeNull();
+  expect(host.querySelector('[data-task-board-card="session-archived"]')).not.toBeNull();
+  expect(host.textContent).not.toContain('taskBoard.error');
+  await act(async () => root.unmount());
+  vi.unstubAllGlobals();
+});
+
+it('reads a group through the channel assignments bridge', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  store.setRoster([], [GROUP_CHANNEL]);
+  const readSessions = vi.fn(async () => []);
+  const channelAssignments = vi.fn(async () => [
+    {
+      sessionId: 'group-1',
+      botSlug: 'ada',
+      title: 'Group work',
+      description: 'group thing',
+      activity: 'working' as const,
+      createdAt: AT,
+      updatedAt: AT,
+    },
+  ]);
+  const host = document.createElement('div');
+  const root = await paintPanel(
+    host,
+    panelActions({ readSessions, channelAssignments }),
+    'chan-group',
+    undefined,
+  );
+  expect(channelAssignments).toHaveBeenCalledWith('chan-group');
+  expect(readSessions).not.toHaveBeenCalled();
+  expect(host.querySelector('[data-task-board-group="ada"]')).not.toBeNull();
+  expect(host.querySelector('[data-task-board-card="group-1"]')).toBeNull();
+  await act(async () =>
+    host.querySelector<HTMLElement>('[data-task-board-group-toggle="ada"]')?.click(),
+  );
+  await act(async () => undefined);
+  expect(host.querySelector('[data-task-board-card="group-1"]')?.textContent).toContain(
+    'Group work',
+  );
+  await act(async () => root.unmount());
+  store.setRoster([], []);
+  vi.unstubAllGlobals();
+});
+
+it('shows the empty state and offers a retry when the read fails', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const read = vi.fn(async () => {
+    throw new Error('bridge refused');
+  });
+  const empty = document.createElement('div');
+  const emptyRoot = await paintPanel(
+    empty,
+    panelActions({ readSessions: vi.fn(async () => []) }),
+    'dm-empty',
+    'ada',
+  );
+  expect(empty.textContent).toContain('taskBoard.empty');
+  await act(async () => emptyRoot.unmount());
+  const host = document.createElement('div');
+  const root = await paintPanel(host, panelActions({ readSessions: read }), 'dm-1', 'ada');
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain('taskBoard.error');
+  expect(read).toHaveBeenCalledTimes(1);
+  const retry = [...host.querySelectorAll('button')].find((item) =>
+    item.textContent?.includes('taskBoard.retry'),
+  );
+  await act(async () => retry?.click());
+  await act(async () => undefined);
+  expect(read).toHaveBeenCalledTimes(2);
+  await act(async () => root.unmount());
+  vi.unstubAllGlobals();
+});
+
+it('reads the source once per round and only fetches steps for work rows', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.useFakeTimers();
-  const assignments = vi.fn(async () => [
-    ASSIGNMENT,
-    { ...ASSIGNMENT, sessionId: 'session-idle', activity: 'idle' as const },
-    { ...ASSIGNMENT, sessionId: 'session-stopped', activity: 'stopped' as const },
-  ]);
+  const readSessions = vi.fn(async () => [WORKING, IDLE, ARCHIVED]);
   const work = vi.fn(async () => WORK);
   const host = document.createElement('div');
-  const { root } = await paintPanel(
+  const root = await paintPanel(
     host,
-    panelActions({ channelAssignments: assignments, assignmentWork: work }),
+    panelActions({ readSessions, assignmentWork: work }),
+    'dm-1',
+    'ada',
   );
-  expect(assignments).toHaveBeenCalledTimes(1);
+  expect(readSessions).toHaveBeenCalledTimes(1);
   expect(work).toHaveBeenCalledTimes(1);
-  expect(work.mock.calls[0]).toEqual(['ada', 'session-1']);
+  expect(work.mock.calls[0]).toEqual(['ada', 'session-working']);
   await act(async () => {
     await vi.advanceTimersByTimeAsync(10_000);
   });
-  expect(assignments).toHaveBeenCalledTimes(2);
+  expect(readSessions).toHaveBeenCalledTimes(2);
   expect(work).toHaveBeenCalledTimes(2);
   expect(work.mock.calls).toEqual([
-    ['ada', 'session-1'],
-    ['ada', 'session-1'],
+    ['ada', 'session-working'],
+    ['ada', 'session-working'],
   ]);
   await act(async () => root.unmount());
   vi.useRealTimers();
@@ -282,7 +366,7 @@ it('stops polling after two failed rounds in a row', async () => {
     throw new Error('bridge refused');
   });
   const host = document.createElement('div');
-  const { root } = await paintPanel(host, panelActions({ channelAssignments: read }));
+  const root = await paintPanel(host, panelActions({ readSessions: read }), 'dm-1', 'ada');
   expect(read).toHaveBeenCalledTimes(1);
   await act(async () => {
     await vi.advanceTimersByTimeAsync(10_000);

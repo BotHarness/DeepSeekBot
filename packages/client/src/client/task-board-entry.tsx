@@ -1,8 +1,7 @@
-import { useState, useSyncExternalStore, type ReactElement } from 'react';
+import { useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives';
 
-import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import type { DockPanelHost } from './dock-panels.js';
 import type { NativeSessionCatalog } from './sessions-entry.js';
@@ -19,11 +18,13 @@ import { formatRelativeTime } from './labels.js';
 import { useMountedResource } from './mounted-resource.js';
 import { SidebarViewMenu } from './sidebar-view-menu.js';
 import {
+  assignmentExecutionOf,
   buildTaskBoard,
   needsWork,
   taskBoardPhase,
   type AssignmentCard,
   type BotGroup,
+  type TaskBoardAssignment,
   type TaskBoardModel,
   type TaskBoardWorkState,
 } from './task-board-model.js';
@@ -270,12 +271,13 @@ function workTargets(model: TaskBoardModel): AssignmentCard[] {
 }
 
 type Load =
-  | { status: 'loading'; assignments: readonly ChannelAssignmentSummary[] }
-  | { status: 'ready'; assignments: readonly ChannelAssignmentSummary[] }
-  | { status: 'error'; assignments: readonly ChannelAssignmentSummary[]; error: string };
+  | { status: 'loading'; assignments: readonly TaskBoardAssignment[] }
+  | { status: 'ready'; assignments: readonly TaskBoardAssignment[] }
+  | { status: 'error'; assignments: readonly TaskBoardAssignment[]; error: string };
 
 export function TaskBoardPanel({
   channelId,
+  botSlug,
   actions,
   t,
   nativeSessions,
@@ -351,7 +353,15 @@ export function TaskBoardPanel({
     const round = async (): Promise<void> => {
       if (document.visibilityState !== 'visible') return;
       try {
-        const assignments = await actions.channelAssignments(channelId);
+        const assignments =
+          channelType === 'dm'
+            ? botSlug === undefined
+              ? []
+              : (await actions.readSessions(botSlug)).flatMap((row) => {
+                  const assignment = assignmentExecutionOf(row, botSlug);
+                  return assignment === undefined ? [] : [assignment];
+                })
+            : await actions.channelAssignments(channelId);
         if (!live) return;
         failures = 0;
         setLoad({ status: 'ready', assignments });
@@ -716,12 +726,16 @@ export function TaskBoardHeaderAction({
   prefs?: TaskBoardPrefs;
 }): ReactElement {
   const snapshot = useSyncExternalStore(prefs.subscribe, prefs.getSnapshot, prefs.getSnapshot);
-  const open = snapshot.openByChannel[channelId] === true;
+  const hostRef = useRef(dockPanels);
+  hostRef.current = dockPanels;
+  const hostAvailable = dockPanels !== undefined;
   const align = useMountedResource<HTMLSpanElement>(() => {
-    if (dockPanels === undefined) return;
-    if (open) dockPanels.open('task-board');
-    else dockPanels.close('task-board');
-  }, [channelId, dockPanels]);
+    const host = hostRef.current;
+    if (host === undefined) return;
+    if (prefs.getSnapshot().openByChannel[channelId] === true) host.open('task-board');
+    else host.close('task-board');
+  }, [channelId, prefs, hostAvailable]);
+  const open = snapshot.openByChannel[channelId] === true;
   const label = t(open ? 'taskBoard.close' : 'taskBoard.open');
   return (
     <span ref={align} data-task-board-header="">

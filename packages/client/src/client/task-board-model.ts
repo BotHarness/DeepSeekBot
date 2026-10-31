@@ -4,7 +4,7 @@ import type {
 } from '../../../core/src/runtime/bot-runtime.js';
 import type { AssignmentWork, AssignmentWorkLane, AssignmentWorkStep } from './bridge.js';
 import type { AssignmentNeed, AssignmentSection } from './session-rows.js';
-import type { BotSummary } from './store.js';
+import type { BotSummary, OwnedSessionSummary } from './store.js';
 
 export const TASK_BOARD_MAX_CARDS = 200;
 export const TASK_BOARD_MAX_STEPS = 40;
@@ -79,7 +79,7 @@ export interface TaskBoardViewPrefs {
 export interface TaskBoardInput {
   channelId: string;
   channelType: TaskBoardChannelType;
-  assignments: readonly ChannelAssignmentSummary[];
+  assignments: readonly TaskBoardAssignment[];
   bots: readonly BotSummary[];
   now: number;
   stale?: boolean;
@@ -97,16 +97,48 @@ export function needsWork(section: AssignmentSection): boolean {
   return section === 'working' || section === 'needs-input';
 }
 
+export interface TaskBoardAssignment extends ChannelAssignmentSummary {
+  reportState?: AssignmentReportState;
+  executionWait?: NonNullable<OwnedSessionSummary['assignmentExecutionWait']>;
+  archived?: boolean;
+}
+
 export function assignmentPlacement(
   activity: ChannelAssignmentSummary['activity'],
   reportState: AssignmentReportState | undefined,
+  state?: Pick<TaskBoardAssignment, 'executionWait' | 'archived'>,
 ): { section: AssignmentSection; needs?: AssignmentNeed } {
-  if (activity === 'stopped') return { section: 'resolved' };
+  if (state?.archived === true || activity === 'stopped') return { section: 'resolved' };
+  if (state?.executionWait === 'waiting-human')
+    return { section: 'needs-input', needs: 'approval' };
   if (activity === 'working' || activity === 'stopping') return { section: 'working' };
   if (activity === 'error') return { section: 'needs-input', needs: 'error' };
   if (reportState === 'waiting-human' || reportState === 'blocked' || reportState === 'failed')
     return { section: 'needs-input', needs: reportState };
   return { section: 'idle' };
+}
+
+export function assignmentExecutionOf(
+  row: OwnedSessionSummary,
+  botSlug: string,
+): TaskBoardAssignment | undefined {
+  if (row.role !== 'assignment') return undefined;
+  const modelRoute = row.assignmentModelRoute;
+  return {
+    sessionId: row.sessionId,
+    botSlug,
+    title: row.assignmentTitle ?? row.sessionId,
+    description: row.assignmentDescription ?? '',
+    activity: row.assignmentActivity ?? 'idle',
+    createdAt: row.createdAt,
+    updatedAt: '',
+    ...(row.assignmentReportState === undefined ? {} : { reportState: row.assignmentReportState }),
+    ...(modelRoute === undefined ? {} : { modelRoute }),
+    ...(row.assignmentExecutionWait === undefined
+      ? {}
+      : { executionWait: row.assignmentExecutionWait }),
+    ...(row.assignmentArchived === true ? { archived: true } : {}),
+  };
 }
 
 export function taskBoardPhase(
@@ -160,13 +192,21 @@ function stepsOf(
   return visible.length === 0 ? undefined : visible.map(stepViewOf);
 }
 
-function cardOf(assignment: ChannelAssignmentSummary, input: TaskBoardInput): AssignmentCard {
-  const placement = assignmentPlacement(assignment.activity, assignment.latestReport?.state);
+function cardOf(assignment: TaskBoardAssignment, input: TaskBoardInput): AssignmentCard {
+  const placement = assignmentPlacement(
+    assignment.activity,
+    assignment.reportState ?? assignment.latestReport?.state,
+    assignment,
+  );
   const state = input.work?.[assignment.sessionId];
   const lane = mainLaneOf(state?.work);
   const progress = progressOf(lane);
   const currentStep = currentStepOf(lane);
   const steps = stepsOf(lane, input.prefs?.showDoneSteps ?? true);
+  const updatedAt =
+    assignment.updatedAt === ''
+      ? (lane?.entries.at(-1)?.at ?? assignment.createdAt)
+      : assignment.updatedAt;
   const unavailable =
     input.availableSessionIds !== undefined && !input.availableSessionIds.has(assignment.sessionId);
   return {
@@ -177,7 +217,7 @@ function cardOf(assignment: ChannelAssignmentSummary, input: TaskBoardInput): As
     activity: assignment.activity,
     section: placement.section,
     createdAt: assignment.createdAt,
-    updatedAt: assignment.updatedAt,
+    updatedAt,
     ...(placement.needs === undefined ? {} : { needs: placement.needs }),
     ...(assignment.latestReport === undefined ? {} : { latestReport: assignment.latestReport }),
     ...(assignment.modelRoute === undefined ? {} : { modelRoute: assignment.modelRoute }),

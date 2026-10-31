@@ -3,10 +3,11 @@ import { describe, expect, it } from 'vitest';
 import type { ChannelAssignmentSummary } from '../../core/src/runtime/bot-runtime.js';
 import type { AssignmentWork, AssignmentWorkStep } from '../src/client/bridge.js';
 import type { ConfigStorage } from '../src/client/roster-config.js';
-import type { BotSummary } from '../src/client/store.js';
+import type { BotSummary, OwnedSessionSummary } from '../src/client/store.js';
 import {
   TASK_BOARD_MAX_CARDS,
   TASK_BOARD_MAX_STEPS,
+  assignmentExecutionOf,
   assignmentPlacement,
   buildTaskBoard,
   needsWork,
@@ -567,5 +568,64 @@ describe('prefs persistence', () => {
     stop();
     prefs.setOpen('chan-a', false);
     expect(changes).toBe(2);
+  });
+});
+
+describe('direct message rows', () => {
+  const row = (
+    overrides: Partial<OwnedSessionSummary> & { sessionId: string },
+  ): OwnedSessionSummary => ({
+    role: 'assignment',
+    createdAt: at(30),
+    ...overrides,
+  });
+
+  it('maps an owned session onto a card and drops the Orchestrator row', () => {
+    const assignment = assignmentExecutionOf(
+      row({ sessionId: 's1', assignmentTitle: 'Do it', assignmentActivity: 'working' }),
+      'ada',
+    );
+    expect(assignment).toMatchObject({
+      sessionId: 's1',
+      botSlug: 'ada',
+      title: 'Do it',
+      activity: 'working',
+    });
+    expect(
+      assignmentExecutionOf(row({ sessionId: 'o1', role: 'orchestrator' }), 'ada'),
+    ).toBeUndefined();
+  });
+
+  it('reaches the approval and archived placements only this source can express', () => {
+    expect(assignmentPlacement('idle', undefined, { executionWait: 'waiting-human' })).toEqual({
+      section: 'needs-input',
+      needs: 'approval',
+    });
+    expect(assignmentPlacement('idle', undefined, { archived: true })).toEqual({
+      section: 'resolved',
+    });
+    expect(assignmentPlacement('working', undefined, { archived: true })).toEqual({
+      section: 'resolved',
+    });
+    expect(assignmentPlacement('idle', undefined, { executionWait: 'waiting-capacity' })).toEqual({
+      section: 'idle',
+    });
+  });
+
+  it('falls back to the newest step time when the row carries no updated time', () => {
+    const assignment = assignmentExecutionOf(
+      row({ sessionId: 's1', assignmentActivity: 'working' }),
+      'ada',
+    );
+    const model = board({
+      channelType: 'dm',
+      assignments: assignment === undefined ? [] : [assignment],
+      work: {
+        s1: {
+          work: work([step('read', 'done'), step('execute', 'running', { at: at(4) })]),
+        },
+      },
+    });
+    expect(model.groups[0]?.assignments[0]?.updatedAt).toBe(at(4));
   });
 });
