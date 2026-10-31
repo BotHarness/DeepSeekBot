@@ -463,6 +463,47 @@ describe('DM conversation', () => {
     expect(reactable(live.messages[1]!)).toBe(false);
   });
 
+  it('opens live history while a cache read never completes', async () => {
+    const host = new FakeHost();
+    seed(host.channel(DM), 2);
+    const target = open(host, {
+      cache: {
+        read: () => new Promise(() => {}),
+        write: () => {},
+      },
+    });
+    const live = await until(target, (s) => s.status === 'live');
+    expect(ids(live)).toEqual(['human-1', 'bot-2']);
+    expect(live.fromCache).toBe(false);
+  });
+
+  it.each([false, true])(
+    'does not resurrect stale cached messages after an empty live page (interrupted: %s)',
+    async (interrupted) => {
+      const staleHost = new FakeHost();
+      seed(staleHost.channel(DM), 2);
+      const stale = staleHost.channel(DM).page(2, undefined, 2)!;
+      let release: (value: CachedConversation) => void = () => {};
+      const pending = new Promise<CachedConversation>((resolve) => {
+        release = resolve;
+      });
+      const host = new FakeHost();
+      host.channel(DM);
+      const target = open(host, {
+        cache: { read: () => pending, write: () => {} },
+      });
+      await until(target, (s) => s.status === 'live');
+      if (interrupted) {
+        host.kill();
+        await until(target, (s) => s.status === 'interrupted');
+      }
+      release({ entries: stale.entries, hasOlder: false });
+      await pending;
+      await Promise.resolve();
+      expect(target.getSnapshot().messages).toEqual([]);
+      expect(target.getSnapshot().fromCache).toBe(false);
+    },
+  );
   it('shows the cached page at once, then reconciles it with the Host window', async () => {
     const host = new FakeHost();
     const channel = host.channel(DM);

@@ -489,6 +489,7 @@ export function createConversation(options: ConversationOptions): Conversation {
   let foreground = false;
   let acceptedSend: SendObservation | undefined;
   let session = 0;
+  let openedSession: number | undefined;
   let unfollow: (() => void) | undefined;
   let frames: Promise<void> = Promise.resolve();
   const presented = new WeakMap<JournalEntry, ConversationMessage>();
@@ -717,6 +718,7 @@ export function createConversation(options: ConversationOptions): Conversation {
   const applyFrame = async (frame: ChannelLiveFrame, current: number): Promise<void> => {
     if (current !== session) return;
     if (frame.type === 'opened') {
+      openedSession = current;
       await advance(frame.cursor, frame.page);
       if (current !== session) return;
       fromCache = false;
@@ -886,7 +888,7 @@ export function createConversation(options: ConversationOptions): Conversation {
           ? undefined
           : options.cache?.read(cacheKey).catch(() => undefined)) ?? Promise.resolve(undefined);
       void cached.then((value) => {
-        if (current !== session) return;
+        if (current !== session || openedSession === current) return;
         if (value !== undefined && window.length === 0 && value.entries.length > 0) {
           window = [];
           merge(value.entries);
@@ -894,8 +896,8 @@ export function createConversation(options: ConversationOptions): Conversation {
           fromCache = true;
           publish();
         }
-        return open(current);
       });
+      void open(current);
     },
     stop() {
       running = false;
