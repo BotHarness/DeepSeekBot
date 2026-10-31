@@ -1708,7 +1708,7 @@ function ChatConversation({
                         focusNeedsLayout.current = false;
                         jump();
                       }}
-                      scrollEventThrottle={32}
+                      scrollEventThrottle={Platform.OS === 'android' && !latest.ready ? 16 : 32}
                       keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
                       keyboardShouldPersistTaps="handled"
                       ListHeaderComponent={

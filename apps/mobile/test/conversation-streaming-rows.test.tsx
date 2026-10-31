@@ -707,3 +707,45 @@ it('keeps a known-empty DM visible when the first message arrives from another c
     act(() => root.unmount());
   }
 });
+
+it('reveals Android history when the final positioning event follows the previous one by 18ms', () => {
+  state.os = 'android';
+  stream.publish({
+    messages: [stream.history('latest', 'Latest visible message', 'human')],
+    drafts: [],
+  });
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  const scrollEvent = (offset: number, content: number): NativeSyntheticEvent<NativeScrollEvent> =>
+    ({
+      nativeEvent: {
+        contentOffset: { x: 0, y: offset },
+        contentSize: { width: 390, height: content },
+        layoutMeasurement: { width: 390, height: 904 },
+        velocity: { x: 0, y: 0 },
+        contentInset: { top: 0, bottom: 0, left: 0, right: 0 },
+        zoomScale: 1,
+      },
+    }) as NativeSyntheticEvent<NativeScrollEvent>;
+  try {
+    act(() =>
+      root.render(<ConversationScreen place={{ kind: 'dm', slug: 'ada' }} focus={undefined} />),
+    );
+    act(() => {
+      native.list?.onLayout?.({ nativeEvent: { layout: { height: 904 } } } as LayoutChangeEvent);
+      native.list?.onContentSizeChange?.(390, 9204.6669921875);
+      native.list?.onScroll?.(scrollEvent(8300.6669921875, 9204.6669921875));
+      native.list?.onContentSizeChange?.(390, 9302.6669921875);
+      if ((native.list?.scrollEventThrottle ?? 0) < 18)
+        native.list?.onScroll?.(scrollEvent(8398.6669921875, 9302.6669921875));
+    });
+    flushFrames();
+    expect(native.list?.style).toMatchObject({ opacity: 1 });
+    expect(container.querySelector('[data-testid="history-loading-retry"]')).toBeNull();
+    expect(native.list?.scrollEventThrottle).toBe(32);
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
