@@ -1,10 +1,12 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createPersonaBotRegistry } from '../src/bots/registry.js';
 import type { PersonaBotRecord } from '../src/bots/persona-bot.js';
 import { deriveAvatarAppearance } from '../src/bots/avatar-snapshot.js';
+import { readSoulBody } from '../src/memory/soul.js';
 import { DEFAULT_ILLUSTRATED_RECIPE } from '../src/bots/avatar-appearance.js';
 import {
   attachOperationalModule,
@@ -73,6 +75,161 @@ afterEach(() => {
   for (const home of homes.splice(0)) rmSync(home, { recursive: true, force: true });
 });
 describe('Registry database authority', () => {
+  it.each([
+    {},
+    { modelPlan: { provider: 'test', model: 'test' } },
+    { modelPlan: null },
+    { modelPlan: [] },
+    { modelPlan: 'invalid' },
+    { modelPlan: { ...legacy.modelPlan, revision: 0 } },
+    { modelPlan: { ...legacy.modelPlan, orchestrator: null } },
+    { modelPlan: { ...legacy.modelPlan, assignmentModels: [{}] } },
+    { modelPlanRevision: -1 },
+    { modelPlanRevision: 1.5 },
+    { modelPlanRevision: '139' },
+    { modelPlanRevision: null },
+    { modelPlanRevision: Number.MAX_SAFE_INTEGER + 1 },
+    { modelPlan: null, modelPlanRevision: -1 },
+  ])('loads a minimal direct-SQL record through the registry constructor: %j', (damage) => {
+    const setup = fixture();
+    const owner = mount(setup.home);
+    createPersonaBotRegistry({ rootDir: setup.rootDir, database: owner });
+    owner.close();
+    const identity = {
+      slug: 'minimal',
+      displayName: 'Minimal',
+      createdAt: '2026-10-30',
+      workspaces: [],
+    };
+    const original = JSON.stringify({ ...identity, ...damage });
+    const external = new DatabaseSync(owner.databasePath);
+    try {
+      external
+        .prepare('INSERT INTO persona_bots (slug, body) VALUES (?, ?)')
+        .run(identity.slug, original);
+    } finally {
+      external.close();
+    }
+    const next = mount(setup.home);
+    const registry = createPersonaBotRegistry({ rootDir: setup.rootDir, database: next });
+    expect(registry.list()).toEqual([identity]);
+    const port = attachOperationalModule(next, 'test');
+    expect(
+      port.read(
+        (db) =>
+          db.prepare('SELECT body FROM persona_bots WHERE slug = ?').get(identity.slug)?.['body'],
+      ),
+    ).toBe(original);
+  });
+
+  it.each([{ modelPlan: route, modelPlanRevision: 139 }, { modelPlanRevision: -1 }])(
+    'starts Core after direct-SQL model damage without losing either Bot: %j',
+    async (damage) => {
+      const setup = fixture();
+      writeFileSync(setup.file, JSON.stringify(legacy));
+      const owner = mount(setup.home);
+      const registry = createPersonaBotRegistry({ rootDir: setup.rootDir, database: owner });
+      expect(registry.create({ slug: 'healthy', displayName: 'Healthy' }).ok).toBe(true);
+      const healthy = registry.get('healthy');
+      owner.close();
+      const external = new DatabaseSync(owner.databasePath);
+      try {
+        external
+          .prepare('UPDATE persona_bots SET body = ? WHERE slug = ?')
+          .run(JSON.stringify({ ...legacy, ...damage }), legacy.slug);
+      } finally {
+        external.close();
+      }
+      const core = createCore({ dshHome: setup.home });
+      try {
+        expect(core.operationalDatabase.mode).toBe('ready');
+        expect(core.registry.list().map((record) => record.slug)).toEqual(['existing', 'healthy']);
+        expect(core.registry.get('healthy')).toEqual(healthy);
+        const expected = { ...legacy };
+        const expectedRevision = 'modelPlan' in damage ? 139 : 2;
+        if ('modelPlan' in damage) {
+          delete expected.modelPlan;
+          expected.modelPlanRevision = 139;
+        }
+        expect(core.registry.get(legacy.slug)).toMatchObject(expected);
+        expect(core.registry.get(legacy.slug)?.modelPlan).toEqual(expected.modelPlan);
+        expect(core.registry.get(legacy.slug)?.modelPlanRevision).toBe(expected.modelPlanRevision);
+        expect(core.registry.customizeModelPlan(legacy.slug, route, expectedRevision - 1).ok).toBe(
+          false,
+        );
+        expect(core.registry.customizeModelPlan(legacy.slug, route, expectedRevision).ok).toBe(
+          true,
+        );
+        expect(core.registry.get(legacy.slug)?.modelPlan?.revision).toBe(expectedRevision + 1);
+        expect(core.registry.get('healthy')).toEqual(healthy);
+        expect(readSoulBody(join(setup.directory, 'memory'))?.body).toBe('# Handwritten Soul\n');
+      } finally {
+        await core.runtime.close();
+        core.live.close();
+        core.externalMessaging.close();
+        core.operationalDatabase.close();
+      }
+      const reopened = createPersonaBotRegistry({
+        rootDir: setup.rootDir,
+        database: mount(setup.home),
+      });
+      expect(reopened.get(legacy.slug)?.modelPlan?.orchestrator).toEqual(route);
+      expect(reopened.get('healthy')).toEqual(healthy);
+    },
+  );
+
+  it.each([-1, 1.5, '2', null, Number.MAX_SAFE_INTEGER + 1])(
+    'retains a valid plan when the legacy revision watermark is invalid: %j',
+    (modelPlanRevision) => {
+      const setup = fixture();
+      writeFileSync(setup.file, JSON.stringify({ ...legacy, modelPlanRevision }));
+      const registry = createPersonaBotRegistry({
+        rootDir: setup.rootDir,
+        database: mount(setup.home),
+      });
+      expect(registry.get(legacy.slug)).toEqual(legacy);
+      expect(registry.customizeModelPlan(legacy.slug, route, 0).ok).toBe(false);
+      expect(registry.customizeModelPlan(legacy.slug, route, 2).ok).toBe(true);
+    },
+  );
+
+  it('imports damaged optional model settings once, retaining the identity, legacy model and valid watermark', () => {
+    const setup = fixture();
+    const original = JSON.stringify({
+      ...legacy,
+      model: 'legacy-model',
+      modelPlan: route,
+      modelPlanRevision: 139,
+    });
+    writeFileSync(setup.file, original);
+    const owner = mount(setup.home);
+    const registry = createPersonaBotRegistry({ rootDir: setup.rootDir, database: owner });
+    const expected = { ...legacy, model: 'legacy-model', modelPlanRevision: 139 };
+    delete expected.modelPlan;
+    expect(registry.get(legacy.slug)).toEqual(expected);
+    expect(readFileSync(setup.file, 'utf8')).toBe(original);
+    writeFileSync(setup.file, JSON.stringify(legacy));
+    owner.close();
+    expect(
+      createPersonaBotRegistry({ rootDir: setup.rootDir, database: mount(setup.home) }).get(
+        legacy.slug,
+      ),
+    ).toEqual(expected);
+  });
+
+  it('rejects invalid sanctioned model writes before changing the persisted record', () => {
+    const setup = fixture();
+    writeFileSync(setup.file, JSON.stringify(legacy));
+    const registry = createPersonaBotRegistry({
+      rootDir: setup.rootDir,
+      database: mount(setup.home),
+    });
+    expect(() =>
+      registry.customizeModelPlan(legacy.slug, { provider: '', model: 'invalid' }, 2),
+    ).toThrow('Refusing to persist an invalid PersonaBot Registry record');
+    expect(registry.get(legacy.slug)).toEqual(legacy);
+  });
+
   it('imports validated identity/appearance/access/independent plan once, excludes unknown fields and preserves Soul', () => {
     const f = fixture();
     const original = JSON.stringify({
@@ -142,7 +299,6 @@ describe('Registry database authority', () => {
     '{broken',
     JSON.stringify({ ...legacy, slug: 'different' }),
     JSON.stringify({ ...legacy, paused: 'yes' }),
-    JSON.stringify({ ...legacy, modelPlan: { ...legacy.modelPlan, revision: 0 } }),
   ])(
     'rejects invalid input without a partial registry/marker and retries after repair',
     (invalid) => {
