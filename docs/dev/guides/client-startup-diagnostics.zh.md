@@ -44,3 +44,40 @@ pnpm exec vitest run packages/client/test/native-startup-repro.test.ts
 测试加载实际安装的官方浏览器 artifact。在注册 root、取得渲染树、撤销注册后通过真实 React DOM 渲染，可精确触发原生 `RootOutlet` 的 `renderSlot('root') before any 'root' registration (boot order)`；从未注册就直接调用 `renderSlot` 会触发另一条同步 guard，不能混淆。实际 `UiConversation.binding` 读取不存在的 Session 可触发第二条错误。源码中 locale 的 `refreshViews` 按 Session ID 遍历 tracked bindings，是待查生命周期候选，未证明原 QA 的实际因果。
 
 这些最小 guard 复现不证明原 Profile 的触发动作或上游缺陷。谁撤销 root、locale 与 Session 销毁的真实时序仍未确定；未 patch 上游，也未削弱 guard。验收与剩余范围见 [#1184](https://github.com/BotHarness/DeepSeekBot/issues/1184)。
+
+## 单独诊断原生移动端 Chats
+
+上面的浏览器 collector 不观察 Expo App。不能用 `shell-ready`、所有者 `/api` 成功或空 roster 证明手机聊天已加载。
+
+看到**聊天未能加载，再试一次。**时，先保留首次失败，再重试：
+
+1. 分别记录手机版本／build、原生安装包源码和已加载 JavaScript 源码。在私有 QA 索引记录桌面产品版本及实际 Host 身份。TestFlight 安装清单、复用开发壳与当前源码是不同证据。
+2. 记录选中的电脑、连接阶段和实际活动路线，对外分享前脱敏地址及设备标识。`device-probe` 返回 `remote` 不等于正在使用 Connect，也涵盖其他非 LAN 路线。读取手机实际连接详情；Simulator 能访问 Mac loopback 不证明实机 Wi-Fi 正常。
+3. 在失败设备上记录 Wi-Fi、Tailscale 状态及本地网络权限，先不改变它们。无法读取的项目明确标为缺失。保留首次失败前，不重置权限、重新配对、重启 Host 或替换 App。
+4. 关联首个失败阶段：选路探测 `list`，实时连接等待 roster/activity baseline，首次 roster 加载读取 `list`、`channels`、`rosterGet` 和 `settings/describe`。只保留方法／阶段名、有界状态及错误码和先后顺序。现有主页提示与连接 telemetry 不能指出失败方法，需要受支持的设备／调试取证路径。不能从健康 Host 的响应猜测，也不能转发原始 RPC body、凭据、错误或聊天内容。
+5. 保留首次失败后，执行一次显式**重试**，再单独验证恢复，分别记录结果。已有 roster 的不可用提示不同，不能混入首次加载失败。缺失的实机检查不能从模拟器推断通过。
+
+**缺失的采集能力：**本次调查尚未核验适用于受影响 TestFlight build 的方法级原生 trace 工具或采集命令。这项能力与失败手机的访问权限同样属于缺失输入。上面的清单不是已经可运行的原生 trace collector。关联阶段前，需要确定获授权且受支持的工具，检查其脱敏输出，并在既有私有 [QA 任务证据索引](../../agents/qa-evidence.md) 中记录版本、准确命令与限制。首次失败和后续重试保存在该索引中，不另建产品存储，也不能用浏览器报告填补这一缺口。
+
+通过既有 owner／UI 接口执行确定性的对照：
+
+```bash
+pnpm exec vitest run apps/mobile/test/home-search.test.tsx \
+  -t 'diagnoses initial|keeps All quiet and retries|uses refresh copy'
+pnpm exec vitest run apps/mobile/test/host-client.test.ts \
+  -t 'older Host refuses|revokes this phone|does not know this phone|fails a generation'
+```
+
+Home 用例分别让一个初始化方法发生传输失败，断言 roster 未加载时的通用提示，再只解除该失败，操作真实重试动作。它们通过合成 Tailscale 路线，在录制响应的 `FakeHost` 上运行实际 Host client 和 Home 组件，不覆盖原生 LAN／Noise、真实 tailnet 或 Connect。配套 client 用例区分可选 `rosterGet` 方法拒绝、设备拒绝和实时流失败。没有为了让对照通过而改变产品 fallback 或鉴权规则。
+
+独立授权的 CLI 检查可用 `device-probe --device-file <private-pairing.json>`，通过既有设备 owner 读取 Host Feed。成功只证明该 CLI 设备已鉴权并取得 roster，不证明原手机的权限、渲染或首次失败方法。新配对遵循 [CLI 指南](../../bot-cli.zh.md) 的可信文件／指纹批准流程，不复制其他 Host 的 grant，也不打印配对文件。
+
+### #3231 的有界结果
+
+原始 iOS 26+／桌面 1.6.0 故障仍然**未复现**，不是已修复。受控用例证明同一提示可以有多个原因，并未选出其中一个。
+
+2026-10-31 的隔离测试使用核验完整性的官方 1.6.0 产品包及 DSH 0.2.1-rc.3，不是用户 Profile，也未操作 Electron 窗口。复用的 iOS 27 开发 App 能通过真实 LAN／Connect 加载会话和真实回复，但原生与 JavaScript 精确源码未核实。停止自己的 Host 后出现相同提示，恢复后正常，这只是离线负对照。短等待冷启动截图里出现过 skeleton，不能算完成加载通过。
+
+后续核实候选 JavaScript 的测试，在复用 SDK58 壳上通过真实 LAN 取得空 roster，原生源码仍未核实。这些结果不验收用户的 TestFlight build 15、实机 Wi-Fi／AP、本地网络权限或原始失败 Profile。设备面板未暴露实机。绑定的 Simulator 驱动查询 alert 失败，按提示重试仍失败后，已停止原生操作，未切换其他驱动绕过。
+
+下一项决定性输入是原始受影响手机／build 与当前 Host 的首次失败，并通过受支持路径记录活动路线及失败阶段。在此之前，不削弱加密、不忽略初始化错误，也不把 `settings/describe` 认作根因。未完成取证留在 [#3231](https://github.com/BotHarness/DeepSeekBot/issues/3231)，注册复用和 loopback 展示属于另外的调查。

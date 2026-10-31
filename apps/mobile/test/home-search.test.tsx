@@ -625,6 +625,38 @@ describe('Search in the Chats header', () => {
     });
     expect(view.textContent).not.toContain(t.hostListLoadFailed);
   });
+  it.each(['list', 'channels', 'rosterGet', 'settings/describe'])(
+    'diagnoses initial %s transport failure without treating the generic Chats error as a root cause',
+    async (method) => {
+      const transport = new FakeHost();
+      transport.failing.add(method);
+      const route = 'https://studio.tailnet-example.ts.net';
+      const client = createHostClient({
+        routes: [route],
+        credential: transport.credential,
+        carrier: transport.carrier,
+        backoff: () => 60_000,
+      });
+      hostState.live = client;
+      client.start();
+      await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('unreachable'));
+      expect(client.getSnapshot().roster).toBeUndefined();
+      expect(transport.calls.map((request) => request.method)).toContain(method);
+      const view = await home();
+      await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
+      expect(view.textContent).toContain(t.hostListLoadFailed);
+      expect(view.textContent).not.toContain(t.hostListUnavailable);
+      expect(view.textContent).not.toContain(t.cloudChannels.empty);
+      transport.failing.delete(method);
+      await act(async () =>
+        view.querySelector<HTMLButtonElement>('[data-testid="chat-list-retry"]')!.click(),
+      );
+      await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'));
+      expect(client.getSnapshot().connection.route).toBe(route);
+      expect(client.getSnapshot().roster?.bots.length).toBeGreaterThan(0);
+      expect(view.textContent).not.toContain(t.hostListLoadFailed);
+    },
+  );
   it('uses refresh copy only when the failed Computer still has a loaded list', async () => {
     const transport = new FakeHost();
     const client = createHostClient({
