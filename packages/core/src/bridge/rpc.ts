@@ -1918,6 +1918,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     tool: string,
     args?: Record<string, unknown>,
     sessionId?: string,
+    sourceEventId?: string,
   ): Promise<{ slug: string; tool: string; sessionId: 'direct'; result: unknown }> {
     return unwrapAsync(
       this.methods.botToolRun({
@@ -1925,6 +1926,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         tool,
         ...(args === undefined ? {} : { args }),
         ...(sessionId === undefined ? {} : { sessionId }),
+        ...(sourceEventId === undefined ? {} : { sourceEventId }),
       }),
     );
   }

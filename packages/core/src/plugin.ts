@@ -1,3 +1,4 @@
+import { BotNetworkDeliveryError } from './runtime/bot-network.js';
 import type { AssignmentReportContent } from './runtime/assignment-report.js';
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from './window-zoom/control.js';
 import { compactUnknownContext, contextCapacity } from './runtime/context-window.js';
@@ -541,6 +542,7 @@ type BotAgentSetup = (
 
 export function createCore(
   options: {
+    botNetwork?: import('./runtime/bot-network.js').BotNetworkPort;
     dshHome?: string;
     companionProfileDir?: string | undefined;
     warn?: (message: string) => void;
@@ -1002,6 +1004,7 @@ export function createCore(
     ownership,
   });
   runtime = createBotRuntime({
+    ...(options.botNetwork === undefined ? {} : { botNetwork: options.botNetwork }),
     onTobDelegation: () => options.capture?.('tob:delegation_send', { surface: 'bot_tool' }),
     promptText: (slug) => {
       const sessionId = runtime?.currentOrchestratorSessionId?.(slug);
@@ -1423,7 +1426,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let toolApproval: ChannelToolApproval | undefined;
   let privateInputs: PrivateInputs | undefined;
   let imCommandServices: import('./messaging/im-commands.js').ImCommandServices | undefined;
+  let botNetwork: import('./runtime/bot-network.js').BotNetworkPort | undefined;
   const core = createCore({
+    botNetwork: {
+      contacts: () => botNetwork?.contacts() ?? [],
+      send: (hostId, message) =>
+        botNetwork === undefined
+          ? Promise.reject(new BotNetworkDeliveryError('unable-to-deliver'))
+          : botNetwork.send(hostId, message),
+    },
     dshHome,
     triageContinuation: true,
     companionProfileDir: (ctx.get('profileContext') as { dir: string } | undefined)?.dir,
@@ -1507,6 +1518,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   let connectAccount: ConnectAccount | undefined;
   mountDevicePairing(ctx, {
+    botNetwork: {
+      registry: core.registry,
+      channels: core.channels,
+      admitBotDmMessage: (channelId, messageId) =>
+        core.runtime.admitBotDmMessage(channelId, messageId),
+      available: (port) => {
+        botNetwork = port;
+      },
+    },
     telemetry,
     onAccount: (account) => {
       connectAccount = account;

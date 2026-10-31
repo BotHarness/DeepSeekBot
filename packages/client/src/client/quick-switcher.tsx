@@ -312,6 +312,8 @@ export function QuickSwitcher({
         return t('main.author.system');
       case 'bot':
         return bots.get(message.author.slug)?.displayName ?? message.author.slug;
+      case 'remote-bot':
+        return message.author.slug;
       case 'bridged':
         return message.author.source;
     }

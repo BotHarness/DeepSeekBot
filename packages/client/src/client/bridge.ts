@@ -709,6 +709,45 @@ export function parseChannelRecord(value: unknown): ChannelSummary | undefined {
   if (type !== 'dm' && type !== 'group') return undefined;
   if (typeof name !== 'string') return undefined;
   const botSlug = record['botSlug'];
+  const remote = asRecord(record['remoteBot']);
+  const remoteBot =
+    remote !== undefined &&
+    typeof remote['hostId'] === 'string' &&
+    /^[a-zA-Z0-9_-]{1,128}$/u.test(remote['hostId']) &&
+    typeof remote['botSlug'] === 'string' &&
+    typeof remote['displayName'] === 'string'
+      ? { hostId: remote['hostId'], botSlug: remote['botSlug'], displayName: remote['displayName'] }
+      : undefined;
+  if (
+    record['remoteBot'] !== undefined &&
+    (remoteBot === undefined ||
+      type !== 'dm' ||
+      botSlug !== undefined ||
+      stringArray(record['members']).length !== 1)
+  )
+    return undefined;
+  const contact = asRecord(record['remoteContact']);
+  const device = asRecord(contact?.['device']);
+  const remoteContact =
+    remoteBot !== undefined &&
+    contact?.['hostId'] === remoteBot.hostId &&
+    contact['botSlug'] === remoteBot.botSlug &&
+    typeof contact['displayName'] === 'string' &&
+    device !== undefined
+      ? {
+          hostId: remoteBot.hostId,
+          botSlug: remoteBot.botSlug,
+          displayName: contact['displayName'],
+          ...(typeof contact['description'] === 'string'
+            ? { description: contact['description'] }
+            : {}),
+          device: {
+            model: typeof device['model'] === 'string' ? device['model'] : null,
+            platform: typeof device['platform'] === 'string' ? device['platform'] : null,
+          },
+          capabilities: stringArray(contact['capabilities']),
+        }
+      : undefined;
   const createdAt = record['createdAt'];
   const updatedAt = record['updatedAt'];
   const latestMessage = parseChannelMessage(record['latestMessage']);
@@ -822,6 +861,8 @@ export function parseChannelRecord(value: unknown): ChannelSummary | undefined {
     createdAt: typeof createdAt === 'string' ? createdAt : '',
     updatedAt: typeof updatedAt === 'string' ? updatedAt : '',
     ...(typeof botSlug === 'string' ? { botSlug } : {}),
+    ...(remoteBot === undefined ? {} : { remoteBot }),
+    ...(remoteContact === undefined ? {} : { remoteContact }),
     ...(typeof record['ownerBotSlug'] === 'string' ? { ownerBotSlug: record['ownerBotSlug'] } : {}),
     ...(invitations === undefined ? {} : { invitations }),
     ...(joinRequests === undefined ? {} : { joinRequests }),
@@ -850,6 +891,13 @@ function parseAuthor(value: unknown): ChannelAuthor | undefined {
     case 'bot':
       return typeof record['slug'] === 'string' && record['slug'].length > 0
         ? { kind: 'bot', slug: record['slug'] }
+        : undefined;
+    case 'remote-bot':
+      return typeof record['hostId'] === 'string' &&
+        /^[a-zA-Z0-9_-]{1,128}$/u.test(record['hostId']) &&
+        typeof record['slug'] === 'string' &&
+        record['slug'].length > 0
+        ? { kind: 'remote-bot', hostId: record['hostId'], slug: record['slug'] }
         : undefined;
     case 'bridged':
       return typeof record['source'] === 'string' && record['source'].length > 0

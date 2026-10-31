@@ -34,3 +34,16 @@ For the explicit-send slice, correlate the visible reply with `bot-trace`: requi
 `end_turn: true` against an ordinary send: the former must finish without a redundant final model
 request. Send a fresh Human message afterward and verify another reply. The direct path is
 `bot-tool <slug> bot_send_message --args-stdin`; verify its actual message in the same DM.
+
+## Cross-Host Bot DM (Tailscale)
+
+Use two isolated Hosts with active Bots in the same verified tailnet. Run them on separate devices for cross-device acceptance; two profiles on one machine only qualify the Host bridge. Do not enter peer addresses or pair individual Bots. Keep the test Hosts, source events and evidence separate from ordinary conversations.
+
+1. Through `bot-tool <caller> list_bot_contacts --args-stdin`, find the remote colleague. Verify distinct Host/Bot identity, public description, actual device platform/model and capability facts; missing values remain unavailable. No private Memory, SOUL, local path or management credential belongs in this result.
+2. Send a Human DM asking the caller to find the iOS colleague and request a unique acknowledgement. Inspect `bot-trace` for the explicit contact lookup and committed `bot_send_message`, then inspect both Hosts' Channel timelines and recipient Inbox. Receiver acceptance alone is not observation or completion.
+3. Open the originating Human DM, follow its message trace into the remote Bot DM, and inspect the request and reply. The conversation stays read-only for the Human. Hover or focus the remote author's name to inspect its public profile, device and capabilities; it must not offer local Bot management or a Human DM action. Capture both themes and inspect the actual screenshots and console.
+4. Separately run `bot-tool <caller> bot_send_message --cause-event <real-admitted-source> --args-stdin` with the discovered `bot_id` and text `body`. The CLI runs the production tool directly. Verify committed history and the direct trace without attributing a model's later reply to the direct runner. Missing or another Bot's cause must fail.
+5. Stop only the owned recipient Host and try a new uniquely marked send. Expect unable-to-deliver, then restart that same profile: no delayed send may appear. Use the bridge fault-injection test for a lost acknowledgement after acceptance: the result is delivery-unknown, accepted history remains once, and restart/discovery must not replay it. Record that injection separately from live-device evidence.
+6. Restart each task Host with its existing profile. Accepted history survives; there is no executable outgoing queue. Correlate the two timelines, Inbox admissions, direct/tool traces and bounded bridge lifecycle records. Never publish login URLs, tailnet addresses or unrelated conversations.
+
+Discovery refresh is asynchronous. If a newly created colleague is not yet listed, inspect the bridge listener and discovery diagnostics before repeating a mutation. Ordinary contacts polling must never resend a message.

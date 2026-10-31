@@ -120,7 +120,7 @@ import { StreamReplies } from './stream-replies.js';
 import { useMessageArrivals } from './message-arrivals.js';
 import { MessageCopyAction } from './message-copy-action.js';
 import { MessageAuthorHoverCard, messageAuthorCardModel } from './message-author-card.js';
-import { isBotDmChannel, isHumanReadOnlyDmChannel } from './channel-kind.js';
+import { botDmTitle, isBotDmChannel, isHumanReadOnlyDmChannel } from './channel-kind.js';
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
 import { toolApprovalReplyPreview } from './approval-text.js';
 import type { NativeSessionCatalog } from './sessions-entry.js';
@@ -268,6 +268,7 @@ function authorLabel(
   bots: readonly BotSummary[],
   t: BotHarnessTranslate,
   humanName = 'Human',
+  remoteBot?: ChannelSummary['remoteBot'],
 ): string {
   switch (message.author.kind) {
     case 'human':
@@ -276,6 +277,11 @@ function authorLabel(
       return t('main.author.system');
     case 'bot':
       return memberName(bots, message.author.slug);
+    case 'remote-bot':
+      return remoteBot?.hostId === message.author.hostId &&
+        remoteBot.botSlug === message.author.slug
+        ? remoteBot.displayName
+        : message.author.slug;
     case 'bridged':
       return message.author.source;
   }
@@ -559,6 +565,8 @@ const MessageGroupView = memo(function MessageGroupView({
   bots,
   focusMessageId,
   currentDmBotSlug,
+  remoteBot,
+  remoteContact,
   onContextMenu,
   onAvatarMenu,
   onOpenInbox,
@@ -582,6 +590,8 @@ const MessageGroupView = memo(function MessageGroupView({
   channelId?: string | undefined;
   focusMessageId?: string | undefined;
   currentDmBotSlug?: string | undefined;
+  remoteBot?: ChannelSummary['remoteBot'] | undefined;
+  remoteContact?: ChannelSummary['remoteContact'] | undefined;
   bots: readonly BotSummary[];
   onContextMenu(message: ChannelMessage, x: number, y: number): void;
   onAvatarMenu?: ((botSlug: string, x: number, y: number) => void) | undefined;
@@ -640,15 +650,19 @@ const MessageGroupView = memo(function MessageGroupView({
         nativeTitle={false}
       />
     );
-  const authorName = welcomeBot?.displayName ?? authorLabel(first, bots, t, humanName);
+  const authorName = welcomeBot?.displayName ?? authorLabel(first, bots, t, humanName, remoteBot);
   const authorCard =
-    first.bridgeOrigin !== undefined
-      ? undefined
-      : displayBot !== undefined
-        ? messageAuthorCardModel({ kind: 'bot', bot: displayBot }, currentDmBotSlug, t)
-        : human
-          ? messageAuthorCardModel({ kind: 'human', name: authorName }, currentDmBotSlug, t)
-          : undefined;
+    author.kind === 'remote-bot' &&
+    remoteBot?.hostId === author.hostId &&
+    remoteBot.botSlug === author.slug
+      ? { kind: 'remote-bot' as const, peer: remoteBot, contact: remoteContact }
+      : first.bridgeOrigin !== undefined
+        ? undefined
+        : displayBot !== undefined
+          ? messageAuthorCardModel({ kind: 'bot', bot: displayBot }, currentDmBotSlug, t)
+          : human
+            ? messageAuthorCardModel({ kind: 'human', name: authorName }, currentDmBotSlug, t)
+            : undefined;
   const withAuthorCard = (anchor: ReactElement): ReactElement =>
     authorCard === undefined ? (
       anchor
@@ -733,6 +747,13 @@ const MessageGroupView = memo(function MessageGroupView({
               <span
                 className="bh-bubble-author"
                 ref={surface.probe}
+                {...(author.kind === 'remote-bot'
+                  ? {
+                      role: 'group',
+                      tabIndex: 0,
+                      'aria-label': t('message.authorCard.label', { name: authorName }),
+                    }
+                  : {})}
                 data-bot-name-color={nameColor}
                 style={nameColor === undefined ? undefined : { color: nameColor }}
               >
@@ -1395,7 +1416,7 @@ function ConversationView({
   const title =
     channel?.type === 'dm'
       ? botDm
-        ? channel.members.map((slug) => memberName(state.bots, slug)).join(' ↔ ')
+        ? botDmTitle(channel, state.bots)
         : (bot?.displayName ??
           state.bots.find((candidate) => candidate.slug === channel.botSlug)?.displayName ??
           channel.name)
@@ -3075,6 +3096,8 @@ function ConversationView({
                           arrivals={arrivals}
                           reading={reading}
                           channelId={channelId}
+                          remoteBot={channel?.remoteBot}
+                          remoteContact={channel?.remoteContact}
                           actions={actions}
                           gallery={imageGallery.gallery}
                           nativeChatT={nativeChatT}

@@ -594,6 +594,17 @@ printf '{"channel_id":"dm-<bot-id>","body":"direct hello"}' | deepseekbot bot-to
 deepseekbot bot-trace <bot-id> --session direct --turns 5
 ```
 
+For a colleague on an online Host in the same Tailscale tailnet, query `list_bot_contacts` first. Remote contacts retain a distinct `botId`, `hostId`, owning device facts, capability facts and public description. Unavailable device facts are `null`.
+
+```bash
+deepseekbot bot-tool <bot-id> list_bot_contacts
+printf '{"bot_id":"<contact-botId>","body":"Please investigate this iOS bug."}' | deepseekbot bot-tool <bot-id> bot_send_message --cause-event <owned-source-event-id> --args-stdin
+```
+
+Remote text DMs enter the receiving Bot's ordinary Inbox. Acceptance is not reading or completion. Offline sends cannot be delivered; an interrupted acknowledgement can leave delivery unknown. The bridge does not queue outgoing messages, retry them or replay them after reconnection. Inspect existing Channel history before deciding on a new action.
+
+Network refusals use `unable-to-deliver` when the destination cannot be reached, `network-denied` when network membership or Host identity checks fail, and `delivery-unknown` when acceptance may have happened without an authenticated acknowledgement. These codes do not authorize an automatic retry. Remote `botId` values are opaque: reuse the contact's returned identifier. The first authenticated exchange pins the remote Host key in existing Channel metadata; a later key change is refused. `channels` and `channel-messages` expose accepted history through the same Host owner used by the read-only remote DM view.
+
 Unified Channel and external IM messaging is available through the same runner:
 
 ```bash
@@ -619,7 +630,7 @@ reaction references. It is available through `bot-tool` as well. The model sees 
 Proactive colleague text uses `bot_id`; reachable external posting uses `binding_id` with
 `conversation_id`. These target forms are exclusive with the other destination fields.
 
-`bot-tools` lists the tools the runner can call with their input schemas. `bot-tool` reads the arguments as a JSON object on stdin and runs the same tool code a Bot turn runs, with the tool's own argument validation, membership and permission checks; it returns `{slug, tool, sessionId: "direct", result}`. There is no inbound Channel, so pass `channel_id` where a turn would default to it. A direct read does not mark Inbox items as seen, and a Bot-to-Bot send is refused because it has no Source Event to carry Bot causation. Failures exit non-zero with a code: `tool-not-direct` for a tool that only works inside a Bot turn (starting or waiting on an Assignment, question cards, Memory branch switches, workspace grant requests, images for the model), `invalid-args`, `unknown-bot`, `bot-paused`, or `tool-failed` with the tool's own message. Each call is kept in the Host's recent direct-call log, which `bot-trace --session direct` returns; it lasts until the Host restarts.
+`bot-tools` lists the tools the runner can call with their input schemas. `bot-tool` reads the arguments as a JSON object on stdin and runs the same tool code a Bot turn runs, with the tool's own argument validation, membership and permission checks; it returns `{slug, tool, sessionId: "direct", result}`. There is no inbound Channel, so pass `channel_id` where a turn would default to it. A direct read does not mark Inbox items as seen. A Bot-to-Bot send requires `--cause-event <source-event-id>` naming a real Source Event admitted to this Bot; the Host checks admission ownership, current Channel membership and the source-effect fence. A missing cause still fails, and another Bot's source returns `source-unavailable`. The flag supplies causation separately from the tool's single destination. Failures exit non-zero with a code: `tool-not-direct` for a tool that only works inside a Bot turn (starting or waiting on an Assignment, question cards, Memory branch switches, workspace grant requests, images for the model), `invalid-args`, `unknown-bot`, `bot-paused`, or `tool-failed` with the tool's own message. Each call is kept in the Host's recent direct-call log, which `bot-trace --session direct` returns; it lasts until the Host restarts.
 
 Use `bot-tool <bot-id> inspect_assignment --args-stdin` with `{"session_id":"<assignment-session-id>","report_offset":0}` to select the latest accepted report without a model. Continue with `{"session_id":"<assignment-session-id>","report_offset":2000,"report_source_event_id":"<reportPage.reportSourceEventId>"}`, using the returned `reportPage.nextOffset` rather than assuming a page size. Each page contains at most 2,000 Unicode code points. The report identity pins this read even if a newer report arrives or the Host restarts; omit it at offset 0 to start reading the latest report. A nonzero offset without identity is refused with `REPORT_ID_REQUIRED`; old callers must restart at offset 0 and retain the returned identity. This identity is the Report Source Event, not the Assignment's originating `sourceEventId`.
 
