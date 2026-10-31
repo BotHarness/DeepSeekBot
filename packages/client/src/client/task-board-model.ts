@@ -8,6 +8,7 @@ import type { BotSummary, OwnedSessionSummary } from './store.js';
 
 export const TASK_BOARD_MAX_CARDS = 200;
 export const TASK_BOARD_MAX_STEPS = 40;
+export const TASK_BOARD_VISIBLE_STEPS = 7;
 
 export type TaskBoardChannelType = 'dm' | 'group';
 
@@ -41,6 +42,7 @@ export interface AssignmentCard {
   progress?: TaskBoardProgress;
   currentStep?: StepView;
   steps?: StepView[];
+  stepsTotal?: number;
   unavailable?: boolean;
   workError?: string;
   kind?: 'orchestrator';
@@ -203,11 +205,15 @@ function currentStepOf(lane: AssignmentWorkLane | undefined): StepView | undefin
 function stepsOf(
   lane: AssignmentWorkLane | undefined,
   showDoneSteps: boolean,
-): StepView[] | undefined {
+): { steps: StepView[]; total: number } | undefined {
   if (lane === undefined || lane.entries.length === 0) return undefined;
   const recent = lane.entries.slice(-TASK_BOARD_MAX_STEPS);
   const visible = showDoneSteps ? recent : recent.filter((entry) => entry.status !== 'done');
-  return visible.length === 0 ? undefined : visible.map(stepViewOf);
+  if (visible.length === 0) return undefined;
+  return {
+    steps: visible.slice(-TASK_BOARD_VISIBLE_STEPS).map(stepViewOf),
+    total: visible.length,
+  };
 }
 
 function cardOf(assignment: TaskBoardAssignment, input: TaskBoardInput): AssignmentCard {
@@ -225,7 +231,7 @@ function cardOf(assignment: TaskBoardAssignment, input: TaskBoardInput): Assignm
   );
   const progress = progressOf(lane);
   const currentStep = currentStepOf(lane);
-  const steps = stepsOf(lane, input.prefs?.showDoneSteps ?? true);
+  const stepsView = stepsOf(lane, input.prefs?.showDoneSteps ?? true);
   const updatedAt =
     assignment.updatedAt === ''
       ? (lane?.entries.at(-1)?.at ?? assignment.createdAt)
@@ -249,7 +255,7 @@ function cardOf(assignment: TaskBoardAssignment, input: TaskBoardInput): Assignm
     ...(assignment.modelRoute === undefined ? {} : { modelRoute: assignment.modelRoute }),
     ...(progress === undefined ? {} : { progress }),
     ...(currentStep === undefined ? {} : { currentStep }),
-    ...(steps === undefined ? {} : { steps }),
+    ...(stepsView === undefined ? {} : { steps: stepsView.steps, stepsTotal: stepsView.total }),
     ...(unavailable ? { unavailable: true } : {}),
     ...(state?.error === undefined ? {} : { workError: state.error }),
   };

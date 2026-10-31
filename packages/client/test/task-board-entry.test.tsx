@@ -169,7 +169,14 @@ async function paintPanel(
   const root = createRoot(node);
   await act(async () => {
     root.render(
-      createElement(TaskBoardPanel, { channelId, botSlug, scope: 'channel', actions, t }),
+      createElement(TaskBoardPanel, {
+        channelId,
+        botSlug,
+        scope: 'channel',
+        actions,
+        t,
+        prefs: createTaskBoardPrefs(memoryStorage()),
+      }),
     );
   });
   await act(async () => undefined);
@@ -271,6 +278,7 @@ it('reads a direct message through its own sessions and keeps the main session c
         actions: panelActions({ readSessions, channelAssignments, openSession, assignmentWork }),
         t,
         nativeSessions,
+        prefs: createTaskBoardPrefs(memoryStorage()),
       }),
     );
   });
@@ -285,9 +293,9 @@ it('reads a direct message through its own sessions and keeps the main session c
   expect(main?.querySelector('[role="progressbar"]')).not.toBeNull();
   expect(host.querySelector('[data-task-board-card="session-archived"]')).not.toBeNull();
   expect(host.textContent).not.toContain('taskBoard.error');
-  await act(async () => {
-    (main as HTMLElement | null)?.click();
-  });
+  const workButton = main?.querySelector<HTMLElement>('[data-task-board-work]');
+  expect(workButton).not.toBeNull();
+  await act(async () => workButton?.click());
   await act(async () => undefined);
   expect(
     assignmentWork.mock.calls.filter((call) => call[1] === 'session-orchestrator').length,
@@ -426,6 +434,112 @@ it('stops polling after two failed rounds in a row', async () => {
     await vi.advanceTimersByTimeAsync(30_000);
   });
   expect(read).toHaveBeenCalledTimes(2);
+  await act(async () => root.unmount());
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+it('keeps steps collapsed until the card head is clicked', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  const nativeSnapshot = {
+    ids: ['session-working'],
+    byId: {
+      'session-working': { displayTitle: 'Work', updatedAt: NOW_MS, running: true },
+    },
+  };
+  const readWork = vi.fn(async (_slug: string, _sessionId: string) => WORK);
+  const actions = panelActions({
+    readSessions: vi.fn(async () => [WORKING]),
+    assignmentWork: readWork,
+  });
+  await act(async () => {
+    root.render(
+      createElement(TaskBoardPanel, {
+        channelId: 'dm-1',
+        botSlug: 'ada',
+        scope: 'channel',
+        actions,
+        t,
+        nativeSessions: { subscribe: () => () => undefined, getSnapshot: () => nativeSnapshot },
+        prefs: createTaskBoardPrefs(memoryStorage()),
+      }),
+    );
+  });
+  await act(async () => undefined);
+  const toggle = host.querySelector<HTMLElement>('[data-task-board-card-toggle="session-working"]');
+  expect(toggle).not.toBeNull();
+  expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+  expect(host.querySelector('[data-task-board-steps="session-working"]')).toBeNull();
+  await act(async () => toggle?.click());
+  await act(async () => undefined);
+
+  expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+  expect(host.querySelector('[data-task-board-steps="session-working"]')).not.toBeNull();
+  await act(async () => toggle?.click());
+  await act(async () => undefined);
+
+  expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+  expect(host.querySelector('[data-task-board-steps="session-working"]')).toBeNull();
+  const work = host.querySelector<HTMLElement>('[data-task-board-work]');
+  await act(async () => work?.click());
+  await act(async () => undefined);
+  expect(
+    readWork.mock.calls.filter((call) => call[1] === 'session-working').length,
+  ).toBeGreaterThanOrEqual(2);
+  expect(host.querySelector('[data-task-board-steps="session-working"]')).toBeNull();
+  await act(async () => root.unmount());
+  vi.unstubAllGlobals();
+});
+
+it('does not fetch steps for a settled card until it is expanded', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const readWork = vi.fn(async (_slug: string, _sessionId: string) => WORK);
+  const host = document.createElement('div');
+  const root = await paintPanel(
+    host,
+    panelActions({ readSessions: vi.fn(async () => [ARCHIVED]), assignmentWork: readWork }),
+    'dm-1',
+    'ada',
+  );
+  expect(readWork).not.toHaveBeenCalled();
+  const toggle = host.querySelector<HTMLElement>(
+    '[data-task-board-card-toggle="session-archived"]',
+  );
+  expect(toggle).not.toBeNull();
+  expect(host.querySelector('[data-task-board-steps="session-archived"]')).toBeNull();
+  await act(async () => toggle?.click());
+  await act(async () => undefined);
+  expect(readWork.mock.calls.filter((call) => call[1] === 'session-archived')).toHaveLength(1);
+  expect(host.querySelector('[data-task-board-steps="session-archived"]')).not.toBeNull();
+  await act(async () => root.unmount());
+  vi.unstubAllGlobals();
+});
+
+it('does not fetch again once a settled card is collapsed', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  vi.useFakeTimers();
+  const readWork = vi.fn(async (_slug: string, _sessionId: string) => WORK);
+  const host = document.createElement('div');
+  const root = await paintPanel(
+    host,
+    panelActions({ readSessions: vi.fn(async () => [ARCHIVED]), assignmentWork: readWork }),
+    'dm-1',
+    'ada',
+  );
+  const toggle = host.querySelector<HTMLElement>(
+    '[data-task-board-card-toggle="session-archived"]',
+  );
+  await act(async () => toggle?.click());
+  await act(async () => undefined);
+  expect(readWork.mock.calls.filter((call) => call[1] === 'session-archived')).toHaveLength(1);
+  await act(async () => toggle?.click());
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(30_000);
+  });
+  expect(host.querySelector('[data-task-board-steps="session-archived"]')).toBeNull();
+  expect(readWork.mock.calls.filter((call) => call[1] === 'session-archived')).toHaveLength(1);
   await act(async () => root.unmount());
   vi.useRealTimers();
   vi.unstubAllGlobals();

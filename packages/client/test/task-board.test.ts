@@ -7,6 +7,7 @@ import type { BotSummary, OwnedSessionSummary } from '../src/client/store.js';
 import {
   TASK_BOARD_MAX_CARDS,
   TASK_BOARD_MAX_STEPS,
+  TASK_BOARD_VISIBLE_STEPS,
   assignmentExecutionOf,
   assignmentPlacement,
   buildTaskBoard,
@@ -279,7 +280,7 @@ describe('current step', () => {
     expect(card?.currentStep?.tool).toBe('execute');
   });
 
-  it('keeps only the most recent steps of a long lane', () => {
+  it('keeps parsing up to the lane cap but renders only the newest seven', () => {
     const entries = Array.from({ length: TASK_BOARD_MAX_STEPS + 5 }, (_, index) =>
       step(`tool-${String(index)}`, 'done'),
     );
@@ -287,10 +288,11 @@ describe('current step', () => {
       assignments: [assignment({ sessionId: 's1' })],
       work: { s1: { work: work(entries) } },
     });
-    const steps = model.groups[0]?.assignments[0]?.steps;
-    expect(steps).toHaveLength(TASK_BOARD_MAX_STEPS);
-    expect(steps?.[0]?.tool).toBe('tool-5');
-    expect(steps?.at(-1)?.tool).toBe(`tool-${String(TASK_BOARD_MAX_STEPS + 4)}`);
+    const card = model.groups[0]?.assignments[0];
+    expect(card?.steps).toHaveLength(TASK_BOARD_VISIBLE_STEPS);
+    expect(card?.stepsTotal).toBe(TASK_BOARD_MAX_STEPS);
+    expect(card?.progress?.total).toBe(TASK_BOARD_MAX_STEPS + 5);
+    expect(card?.steps?.at(-1)?.tool).toBe(`tool-${String(TASK_BOARD_MAX_STEPS + 4)}`);
   });
 });
 
@@ -722,5 +724,48 @@ describe('main session progress', () => {
       work: { orch: { work: work([step('read', 'done')]) } },
     });
     expect(model.groups[0]?.assignments[0]?.section).toBe('idle');
+  });
+});
+
+describe('visible step limit', () => {
+  const many = (count: number, status: 'done' | 'running' = 'running') =>
+    Array.from({ length: count }, (_, index) =>
+      step(`tool-${String(index)}`, status, { at: at(count - index) }),
+    );
+
+  it('renders only the newest seven steps and keeps the full total', () => {
+    const model = board({
+      assignments: [assignment({ sessionId: 's1' })],
+      work: { s1: { work: work(many(10)) } },
+    });
+    const card = model.groups[0]?.assignments[0];
+    expect(card?.steps).toHaveLength(7);
+    expect(card?.stepsTotal).toBe(10);
+    expect(card?.steps?.[0]?.tool).toBe('tool-3');
+    expect(card?.steps?.at(-1)?.tool).toBe('tool-9');
+    expect(card?.progress?.total).toBe(10);
+  });
+
+  it('renders every step and no truncation total when the lane is short', () => {
+    const model = board({
+      assignments: [assignment({ sessionId: 's1' })],
+      work: { s1: { work: work(many(5)) } },
+    });
+    const card = model.groups[0]?.assignments[0];
+    expect(card?.steps).toHaveLength(5);
+    expect(card?.stepsTotal).toBe(5);
+  });
+
+  it('filters finished steps before taking the newest seven', () => {
+    const lane = [...many(4, 'done'), ...many(6, 'running')];
+    const model = board({
+      assignments: [assignment({ sessionId: 's1' })],
+      prefs: { showDoneSteps: false },
+      work: { s1: { work: work(lane) } },
+    });
+    const card = model.groups[0]?.assignments[0];
+    expect(card?.steps).toHaveLength(6);
+    expect(card?.stepsTotal).toBe(6);
+    expect(card?.steps?.every((item) => item.status !== 'done')).toBe(true);
   });
 });

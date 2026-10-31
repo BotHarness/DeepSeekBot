@@ -140,6 +140,18 @@ const styles = stylex.create({
     textAlign: 'start',
     cursor: 'pointer',
   },
+  cardWrap: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x1,
+    minWidth: 0,
+  },
+  cardHeadRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: space.x1,
+    minWidth: 0,
+  },
   cardHead: {
     display: 'flex',
     alignItems: 'center',
@@ -264,11 +276,14 @@ function mergeWork(
   return { ...previous, ...next };
 }
 
-function workTargets(model: TaskBoardModel): AssignmentCard[] {
+function workTargets(model: TaskBoardModel, expanded: ReadonlySet<string>): AssignmentCard[] {
   return model.groups
     .filter((group) => !group.collapsed)
     .flatMap((group) => group.assignments)
-    .filter((card) => needsWork(card.section) && card.unavailable !== true);
+    .filter(
+      (card) =>
+        card.unavailable !== true && (needsWork(card.section) || expanded.has(card.sessionId)),
+    );
 }
 
 type Load =
@@ -304,6 +319,10 @@ export function TaskBoardPanel({
   const [work, setWork] = useState<Readonly<Record<string, TaskBoardWorkState>>>({});
   const [dialog, setDialog] = useState<AssignmentCard>();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [stepsOpen, setStepsOpen] = useState<ReadonlySet<string>>(() => new Set());
+  const stepsRef = useRef<ReadonlySet<string>>(stepsOpen);
+  stepsRef.current = stepsOpen;
+  const collectRef = useRef<((targets: readonly AssignmentCard[]) => void) | undefined>(undefined);
   const signature = native.ids.map((id) => `${id}:${native.byId[id]?.running === true}`).join('|');
   const [attempt, setAttempt] = useState(0);
   const viewPrefs = {
@@ -378,7 +397,7 @@ export function TaskBoardPanel({
           now: Date.now(),
           prefs: prefs.viewPrefs(),
         });
-        await collect(workTargets(provisional));
+        await collect(workTargets(provisional, stepsRef.current));
       } catch (error: unknown) {
         if (!live) return;
         failures += 1;
@@ -393,12 +412,16 @@ export function TaskBoardPanel({
         }
       }
     };
+    collectRef.current = (targets) => {
+      void collect(targets);
+    };
     void round();
     timer = window.setInterval(() => {
       void round();
     }, POLL_MS);
     return () => {
       live = false;
+      collectRef.current = undefined;
       if (timer !== undefined) window.clearInterval(timer);
     };
   }, [actions, channelId, channelType, revision, signature, attempt, prefs]);
@@ -494,6 +517,22 @@ export function TaskBoardPanel({
               bots={bots}
               now={now}
               t={t}
+              stepsOpen={stepsOpen}
+              onToggleSteps={(sessionId) => {
+                const opening = !stepsOpen.has(sessionId);
+                setStepsOpen((current) => {
+                  const next = new Set(current);
+                  if (opening) next.add(sessionId);
+                  else next.delete(sessionId);
+                  return next;
+                });
+                if (!opening || work[sessionId] !== undefined) return;
+                const card = model.groups
+                  .flatMap((group) => group.assignments)
+                  .find((item) => item.sessionId === sessionId);
+                if (card === undefined || card.unavailable === true) return;
+                collectRef.current?.([card]);
+              }}
               onToggle={() => {
                 prefs.setBotCollapsed(group.botSlug, !group.collapsed);
                 setAttempt((count) => count + 1);
@@ -523,14 +562,18 @@ function TaskBoardGroupView({
   bots,
   now,
   t,
+  stepsOpen,
   onToggle,
+  onToggleSteps,
   onOpen,
 }: {
   group: BotGroup;
   bots: readonly BotSummary[];
   now: number;
   t: ChannelSidebarEntryProps['t'];
+  stepsOpen: ReadonlySet<string>;
   onToggle(): void;
+  onToggleSteps(sessionId: string): void;
   onOpen(card: AssignmentCard): void;
 }): ReactElement {
   const bot = bots.find((candidate) => candidate.slug === group.botSlug);
@@ -569,7 +612,9 @@ function TaskBoardGroupView({
               card={card}
               now={now}
               t={t}
-              onOpen={() => onOpen(card)}
+              open={stepsOpen.has(card.sessionId)}
+              onToggleSteps={() => onToggleSteps(card.sessionId)}
+              onOpenWork={() => onOpen(card)}
             />
           ))}
     </section>
@@ -580,92 +625,112 @@ function TaskBoardCardView({
   card,
   now,
   t,
-  onOpen,
+  open,
+  onToggleSteps,
+  onOpenWork,
 }: {
   card: AssignmentCard;
   now: number;
   t: ChannelSidebarEntryProps['t'];
-  onOpen(): void;
+  open: boolean;
+  onToggleSteps(): void;
+  onOpenWork(): void;
 }): ReactElement {
   const progress = card.progress;
   return (
-    <>
-      <button
-        type="button"
-        data-task-board-card={card.sessionId}
-        onClick={onOpen}
-        {...stylex.props(styles.card)}
-      >
-        <span {...stylex.props(styles.cardHead)}>
-          <span {...stylex.props(styles.cardTitle)}>
-            {card.title === '' ? t('activity.source.orchestrator') : card.title}
-          </span>
-          {card.kind === 'orchestrator' ? (
-            <span data-task-board-orchestrator="" {...stylex.props(styles.chip, styles.chipIdle)}>
-              {t('activity.source.orchestrator')}
+    <div data-task-board-card={card.sessionId} {...stylex.props(styles.cardWrap)}>
+      <div {...stylex.props(styles.cardHeadRow)}>
+        <button
+          type="button"
+          data-task-board-card-toggle={card.sessionId}
+          aria-expanded={open}
+          onClick={onToggleSteps}
+          {...stylex.props(styles.card)}
+        >
+          <span {...stylex.props(styles.cardHead)}>
+            <span {...stylex.props(styles.cardTitle)}>
+              {card.title === '' ? t('activity.source.orchestrator') : card.title}
             </span>
-          ) : null}
-          <span
-            data-task-board-chip={card.section}
-            {...stylex.props(
-              styles.chip,
-              card.section === 'working' && styles.chipWorking,
-              card.section === 'needs-input' && styles.chipNeeds,
-              card.section === 'idle' && styles.chipIdle,
-              card.section === 'resolved' && styles.chipResolved,
-            )}
-          >
-            {t(SECTION_KEY[card.section])}
+            {card.kind === 'orchestrator' ? (
+              <span data-task-board-orchestrator="" {...stylex.props(styles.chip, styles.chipIdle)}>
+                {t('activity.source.orchestrator')}
+              </span>
+            ) : null}
+            <span
+              data-task-board-chip={card.section}
+              {...stylex.props(
+                styles.chip,
+                card.section === 'working' && styles.chipWorking,
+                card.section === 'needs-input' && styles.chipNeeds,
+                card.section === 'idle' && styles.chipIdle,
+                card.section === 'resolved' && styles.chipResolved,
+              )}
+            >
+              {t(SECTION_KEY[card.section])}
+            </span>
           </span>
-        </span>
-        {progress === undefined ? null : (
-          <>
+          {progress === undefined ? null : (
+            <>
+              <span {...stylex.props(styles.meta)}>
+                <span {...stylex.props(styles.metaText)}>
+                  {t('taskBoard.progress', { done: progress.done, total: progress.total })}
+                </span>
+              </span>
+              <span
+                role="progressbar"
+                aria-label={t('taskBoard.progress', { done: progress.done, total: progress.total })}
+                aria-valuenow={progress.done}
+                aria-valuemin={0}
+                aria-valuemax={progress.total}
+                {...stylex.props(styles.track)}
+              >
+                <span
+                  {...stylex.props(styles.fill)}
+                  style={{
+                    width: `${String(Math.round((progress.done / progress.total) * 100))}%`,
+                  }}
+                />
+              </span>
+            </>
+          )}
+          {card.currentStep === undefined ? null : (
             <span {...stylex.props(styles.meta)}>
               <span {...stylex.props(styles.metaText)}>
-                {t('taskBoard.progress', { done: progress.done, total: progress.total })}
+                {card.currentStep.detail ?? card.currentStep.tool}
               </span>
             </span>
-            <span
-              role="progressbar"
-              aria-label={t('taskBoard.progress', { done: progress.done, total: progress.total })}
-              aria-valuenow={progress.done}
-              aria-valuemin={0}
-              aria-valuemax={progress.total}
-              {...stylex.props(styles.track)}
-            >
-              <span
-                {...stylex.props(styles.fill)}
-                style={{ width: `${String(Math.round((progress.done / progress.total) * 100))}%` }}
-              />
+          )}
+          {card.unavailable === true ? (
+            <span {...stylex.props(styles.meta)}>
+              <span {...stylex.props(styles.metaText)}>{t('taskBoard.unavailable')}</span>
             </span>
-          </>
-        )}
-        {card.currentStep === undefined ? null : (
+          ) : null}
+          {card.workError === undefined ? null : (
+            <span {...stylex.props(styles.meta)}>
+              <span {...stylex.props(styles.metaText)}>
+                {t('taskBoard.workError', { error: card.workError })}
+              </span>
+            </span>
+          )}
           <span {...stylex.props(styles.meta)}>
             <span {...stylex.props(styles.metaText)}>
-              {card.currentStep.detail ?? card.currentStep.tool}
+              {formatRelativeTime(Date.parse(card.updatedAt), now, t)}
             </span>
           </span>
-        )}
-        {card.unavailable === true ? (
-          <span {...stylex.props(styles.meta)}>
-            <span {...stylex.props(styles.metaText)}>{t('taskBoard.unavailable')}</span>
-          </span>
-        ) : null}
-        {card.workError === undefined ? null : (
-          <span {...stylex.props(styles.meta)}>
-            <span {...stylex.props(styles.metaText)}>
-              {t('taskBoard.workError', { error: card.workError })}
-            </span>
-          </span>
-        )}
-        <span {...stylex.props(styles.meta)}>
-          <span {...stylex.props(styles.metaText)}>
-            {formatRelativeTime(Date.parse(card.updatedAt), now, t)}
-          </span>
-        </span>
-      </button>
-      {card.steps === undefined ? null : (
+        </button>
+        <Tooltip label={t('assignmentWork.tooltip')} side="top" portal delayMs={400}>
+          <IconButton
+            size="inline"
+            data-task-board-work=""
+            aria-label={t('assignmentWork.open', { title: card.title })}
+            aria-haspopup="dialog"
+            onClick={onOpenWork}
+          >
+            <ChannelSidebarIcon name="panel-right" size={14} />
+          </IconButton>
+        </Tooltip>
+      </div>
+      {!open || card.steps === undefined ? null : (
         <ol data-task-board-steps={card.sessionId} {...stylex.props(styles.steps)}>
           {card.steps.map((step, index) => (
             <li
@@ -693,7 +758,19 @@ function TaskBoardCardView({
           ))}
         </ol>
       )}
-    </>
+      {card.steps === undefined ||
+      card.stepsTotal === undefined ||
+      card.stepsTotal <= card.steps.length ? null : (
+        <span data-task-board-steps-truncated="" {...stylex.props(styles.meta)}>
+          <span {...stylex.props(styles.metaText)}>
+            {t('taskBoard.stepsTruncated', {
+              visible: card.steps.length,
+              total: card.stepsTotal,
+            })}
+          </span>
+        </span>
+      )}
+    </div>
   );
 }
 
