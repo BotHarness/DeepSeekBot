@@ -14,6 +14,7 @@ import {
   type BridgeMethodsDeps,
 } from '../src/bridge/methods.js';
 import { BRIDGE_NAMESPACE, BRIDGE_SERVICE_KEY, registerBridge } from '../src/bridge/rpc.js';
+import { MARKETPLACE_INSTALL_SOURCES } from '../src/marketplace/client.js';
 
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { createChannelStore } from '../src/channels/store.js';
@@ -76,6 +77,33 @@ function parameterNames(method: (...args: never[]) => unknown): string[] {
 }
 
 describe('bridge typert service', () => {
+  it.each([...MARKETPLACE_INSTALL_SOURCES, undefined])(
+    'admits and forwards the Marketplace install source %s through the gateway facade',
+    async (source) => {
+      const { service, methods } = setup();
+      const install = vi.spyOn(methods, 'marketplaceInstall').mockResolvedValue({
+        ok: false,
+        error: { code: 'review-required', message: 'Review is required' },
+      });
+
+      expect(parameterNames(service.marketplaceInstall)).toEqual([
+        'id',
+        'reviewId',
+        'operationKey',
+        'source',
+      ]);
+      await expect(
+        service.marketplaceInstall('R_fixture', 'review-fixture', 'install-fixture', source),
+      ).rejects.toMatchObject({ code: 'review-required' });
+      expect(install).toHaveBeenCalledWith({
+        id: 'R_fixture',
+        reviewId: 'review-fixture',
+        operationKey: 'install-fixture',
+        source,
+      });
+    },
+  );
+
   it('refuses workspace authorization without an authenticated Owner invocation', () => {
     const { service, methods } = setup();
     const approve = vi.spyOn(methods, 'grantRequestApprove');
