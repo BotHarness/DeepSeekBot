@@ -260,6 +260,7 @@ describe('Connect account sign-in', () => {
     expect(tunnel.enabled).toEqual([{ hostname: 'hstudioaaaaa.deepseekbot.dev', token: TOKEN }]);
     const stored = [...credentials.records.values()][0] as { payload: Record<string, unknown> };
     expect(stored.payload).toEqual({
+      kind: 'session',
       relay: RELAY,
       clientId: CLIENT,
       refreshToken: 'refresh-1',
@@ -537,6 +538,7 @@ describe('Connect account lifecycle', () => {
           {
             kind: 'grant',
             payload: {
+              kind: 'session',
               relay: RELAY,
               clientId: CLIENT,
               refreshToken: 'refresh-2',
@@ -705,7 +707,10 @@ describe('Connect account lifecycle', () => {
     await account.start();
     expect(account.status()).toMatchObject({ state: 'error', issue: 'session-expired' });
     expect([...credentials.records.values()]).toEqual([
-      { kind: 'grant', payload: { relay: RELAY, clientId: CLIENT, hostId: 'hstudioaaaaa' } },
+      {
+        kind: 'grant',
+        payload: { kind: 'registration', relay: RELAY, clientId: CLIENT, hostId: 'hstudioaaaaa' },
+      },
     ]);
     await account.close();
 
@@ -754,7 +759,7 @@ describe('Connect account deletion', () => {
       expect([...credentials.records.values()]).toEqual([
         {
           kind: 'grant',
-          payload: { relay: RELAY, clientId: CLIENT, hostId: 'hstudioaaaaa' },
+          payload: { kind: 'registration', relay: RELAY, clientId: CLIENT, hostId: 'hstudioaaaaa' },
         },
       ]);
       await account.close();

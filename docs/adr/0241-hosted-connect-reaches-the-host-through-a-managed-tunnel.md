@@ -75,6 +75,8 @@ One isolated Host and the iOS Simulator, against a test Cloudflare account and a
 
 The Host's existing account credential record retains a registration reference across session expiry, without refresh/access tokens, email or signing material. Explicit Host sign-out still removes that record. Re-login may reuse the reference only for the same relay origin and OAuth client, after the new authenticated session's account-scoped relay Host list confirms ownership. Email and computer names are not identity evidence. An unavailable or malformed ownership response refuses recovery rather than creating another computer. A missing/deleted registration takes the existing creation path; old account and tunnel signing fields are never copied into the new session. The relay remains the account/registration authority, and Device Pairing remains independent. This does not introduce a second registration store or authorize deletion of historical computers.
 
+The payload distinguishes authenticated `session` from reference-only `registration`; legacy records without that discriminator are normalized when read. Both variants stay inside the same credential grant, and a reference-only record cannot supply an access token or signer.
+
 ## Amendment — confirmed phone account actions (2026-10-23, #2603)
 
 The phone account session and per-Host device credentials remain separate authorities. Both Sign out and Delete account require a native confirmation describing their different effects; opening or cancelling the dialog does not mutate either authority. Confirmation is bound to the current local sign-in instance and expires when the account page changes or the operation becomes busy.
