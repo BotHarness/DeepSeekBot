@@ -649,7 +649,7 @@ it('keeps a first DM visible through send, working, streaming and commit, then r
 
     act(() => native.list?.onContentSizeChange?.(390, 1100));
     flushFrames();
-    expect(native.scrollToOffset).toHaveBeenLastCalledWith({ offset: 300, animated: false });
+    expect(native.scrollToOffset).toHaveBeenLastCalledWith({ offset: 300, animated: true });
     native.scrollToOffset.mockClear();
     act(() => {
       native.list?.onScrollBeginDrag?.(scrollEvent(300, 1100));
@@ -672,7 +672,7 @@ it('keeps a first DM visible through send, working, streaming and commit, then r
     expect(native.list?.maintainVisibleContentPosition).toBeUndefined();
     act(() => native.list?.onContentSizeChange?.(390, 1500));
     flushFrames();
-    expect(native.scrollToOffset).toHaveBeenLastCalledWith({ offset: 700, animated: false });
+    expect(native.scrollToOffset).toHaveBeenLastCalledWith({ offset: 700, animated: true });
   } finally {
     act(() => root.unmount());
     container.remove();
