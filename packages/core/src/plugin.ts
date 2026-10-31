@@ -1,4 +1,5 @@
 import { BotNetworkDeliveryError } from './runtime/bot-network.js';
+import type { AssignmentReportContent } from './runtime/assignment-report.js';
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from './window-zoom/control.js';
 import { compactUnknownContext, contextCapacity } from './runtime/context-window.js';
 import { messageText, systemPromptFromLog } from './runtime/prompt-inspection.js';
@@ -555,6 +556,7 @@ export function createCore(
       sessionId: string,
       acceptedSummary: string,
       offset: number,
+      content?: AssignmentReportContent,
     ) => Promise<AssignmentReportPage>;
     workspaces?: () => DshWorkspaceLookup | undefined;
     ensureTobWorkspace?: (path: string) => Promise<{ id: string }>;
@@ -1472,10 +1474,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       if (query === undefined) throw new Error('DSH Session Query is unavailable');
       return readBoundedAssignmentTail(query, sessionId);
     },
-    readAssignmentReportPage: async (sessionId, acceptedSummary, offset) => {
+    readAssignmentReportPage: async (sessionId, acceptedSummary, offset, content) => {
       const query = ctx.get('sessionQuery') as unknown as AssignmentSessionQuery | undefined;
       if (query === undefined) throw new Error('DSH Session Query is unavailable');
-      return readAssignmentReportPage(query, sessionId, acceptedSummary, offset);
+      return readAssignmentReportPage(query, sessionId, acceptedSummary, offset, content);
     },
     ensureTobWorkspace: async (path) => {
       const owner = ctx.get('workspaceRegistry') as unknown as

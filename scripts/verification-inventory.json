@@ -4,6 +4,13 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "assignment-report-continuation",
+      "label": "Accepted Assignment Report identity, continuation, restart and refusals",
+      "source": "packages/core/src/runtime/assignment-report-reader.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/assignment-report-continuation.md",
+      "task": 3245
+    },
+    {
       "id": "profile.backup-compatibility",
       "label": "Export across compatible DSH versions and restore historical Profile Backups into a cold Profile",
       "source": "packages/core/src/portability/package.ts",
