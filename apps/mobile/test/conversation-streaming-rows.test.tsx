@@ -606,7 +606,7 @@ it('keeps a first DM visible through send, working, streaming and commit, then r
     flushFrames();
     visible();
     expect(native.scrollToOffset).toHaveBeenLastCalledWith({ offset: -80, animated: false });
-    expect(native.list?.maintainVisibleContentPosition).toBeUndefined();
+    expect(native.list?.maintainVisibleContentPosition).toEqual({ minIndexForVisible: 0 });
 
     const press = (label: string) =>
       act(() => {
@@ -635,7 +635,7 @@ it('keeps a first DM visible through send, working, streaming and commit, then r
     expect(rows()).toEqual(['first-human', 'draft:first']);
     expect(container.querySelector('[data-testid="draft:first"]')?.textContent).toBe('42');
     visible();
-    expect(native.list?.maintainVisibleContentPosition).toBeUndefined();
+    expect(native.list?.maintainVisibleContentPosition).toEqual({ minIndexForVisible: 1 });
 
     const reply = stream.history('first-reply', '42', 'bot');
     act(() => stream.publish({ messages: [human, reply], drafts: [] }));
@@ -656,7 +656,13 @@ it('keeps a first DM visible through send, working, streaming and commit, then r
       native.list?.onScroll?.(scrollEvent(100, 1100));
       native.list?.onScrollEndDrag?.(scrollEvent(100, 1100));
     });
-    expect(native.list?.maintainVisibleContentPosition).toEqual({ minIndexForVisible: 0 });
+    const anchorIndex = native.list!.maintainVisibleContentPosition!.minIndexForVisible;
+    const anchorKey = native.list!.keyExtractor!(native.list!.data![anchorIndex], anchorIndex);
+    const older = stream.history('older-human', 'Earlier in the same minute', 'human');
+    act(() => stream.publish({ messages: [older, human, reply] }));
+    const prependedKeys = Array.from(native.list!.data!).map(native.list!.keyExtractor!);
+    expect(prependedKeys).toContain(anchorKey);
+    expect(anchorKey).toBe(human.id);
     act(() =>
       stream.publish({ messages: [human, reply, stream.history('later', 'Later reply', 'bot')] }),
     );
@@ -669,7 +675,7 @@ it('keeps a first DM visible through send, working, streaming and commit, then r
       native.list?.onScrollBeginDrag?.(scrollEvent(100, 1400));
       native.list?.onScrollEndDrag?.(scrollEvent(600, 1400));
     });
-    expect(native.list?.maintainVisibleContentPosition).toBeUndefined();
+    expect(native.list?.maintainVisibleContentPosition).toEqual({ minIndexForVisible: 1 });
     act(() => native.list?.onContentSizeChange?.(390, 1500));
     flushFrames();
     expect(native.scrollToOffset).toHaveBeenLastCalledWith({ offset: 700, animated: true });
@@ -695,7 +701,7 @@ it('keeps a known-empty DM visible when the first message arrives from another c
     act(() => stream.publish({ messages: [stream.history('remote-human', 'Hello', 'human')] }));
     expect(native.list?.style).toMatchObject({ opacity: 1 });
     expect(container.querySelector('[data-testid="remote-human"]')?.textContent).toBe('Hello');
-    expect(native.list?.maintainVisibleContentPosition).toBeUndefined();
+    expect(native.list?.maintainVisibleContentPosition).toEqual({ minIndexForVisible: 1 });
     expect(stream.conversation.send).not.toHaveBeenCalled();
   } finally {
     act(() => root.unmount());

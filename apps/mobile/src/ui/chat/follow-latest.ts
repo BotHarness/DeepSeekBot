@@ -41,8 +41,6 @@ export function unseenSince(
 
 type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
 
-const KEEP_VISIBLE = { minIndexForVisible: 0 };
-
 export function useFollowLatest<Row>(
   list: RefObject<FlatList<Row> | null>,
   messages: readonly ConversationMessage[],
@@ -50,6 +48,7 @@ export function useFollowLatest<Row>(
   start = 0,
   empty = false,
   animateGrowth = false,
+  minIndexForVisible = 0,
 ) {
   const [following, setFollowing] = useState(true);
   const [away, setAway] = useState(false);
@@ -313,7 +312,7 @@ export function useFollowLatest<Row>(
       onMomentumScrollEnd,
       onContentSizeChange,
       onLayout,
-      maintainVisibleContentPosition: following ? undefined : KEEP_VISIBLE,
+      maintainVisibleContentPosition: { minIndexForVisible },
     },
   };
 }
