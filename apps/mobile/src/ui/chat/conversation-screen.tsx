@@ -593,7 +593,6 @@ function ChatConversation({
     playback?.setFollowing,
     headerOverlap,
     snapshot.status === 'live' && visible.length === 0,
-    // The leading time separator can disappear when earlier history joins its group.
     chronological[0]?.kind === 'separator' ? 1 : 0,
   );
   const { composerHeight, viewportHeight, viewportLayout } = latest;
