@@ -4,7 +4,7 @@ import * as Clipboard from 'expo-clipboard';
 import { createHostClient } from '../src/host/client';
 import { useHostSession, useHostSnapshot } from '../src/host/host-session';
 import { nativeCarrier } from '../src/host/native-carrier';
-import { isConnectRoute, isLanRoute } from '../src/host/route';
+import { isConnectRoute, isLanRoute, isLoopbackRoute } from '../src/host/route';
 import { SHEET_GROUP } from '../src/ui/chat/sheet';
 import { space } from '../src/ui/design/tokens';
 import { SheetHeader } from '../src/ui/primitives/sheet-header';
@@ -44,8 +44,11 @@ export default function HostConnectionScreen() {
     setCopied(url);
     copiedTimer.current = setTimeout(() => setCopied(undefined), 1500);
   };
-  const routes =
-    snapshot.routes ?? host?.routes.map((url) => ({ url, status: 'unchecked' as const })) ?? [];
+  const routes = (
+    snapshot.routes ??
+    host?.routes.map((url) => ({ url, status: 'unchecked' as const })) ??
+    []
+  ).filter(({ url }) => host?.encryption?.loopback === 'encrypted' || !isLoopbackRoute(url));
   const header = (
     <SheetHeader
       title={copy.title}
@@ -85,7 +88,9 @@ export default function HostConnectionScreen() {
               ? (['Connect', 'encrypted'] as const)
               : new URL(url).hostname.endsWith('.ts.net')
                 ? (['Tailscale', 'encrypted'] as const)
-                : ([copy.local, 'computer'] as const);
+                : isLoopbackRoute(url)
+                  ? ([copy.ssh, 'encrypted'] as const)
+                  : ([copy.local, 'computer'] as const);
           return (
             <SettingsSection
               key={url}

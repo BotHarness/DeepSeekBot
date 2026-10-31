@@ -59,9 +59,7 @@ export function isLanRoute(route: string): boolean {
   }
 }
 
-export function isEncryptedRoute(route: string, encryption?: { loopback?: 'encrypted' }): boolean {
-  if (isConnectRoute(route) || isLanRoute(route)) return true;
-  if (encryption?.loopback !== 'encrypted') return false;
+export function isLoopbackRoute(route: string): boolean {
   try {
     const hostname = new URL(route).hostname;
     return (
@@ -70,4 +68,9 @@ export function isEncryptedRoute(route: string, encryption?: { loopback?: 'encry
   } catch {
     return false;
   }
+}
+
+export function isEncryptedRoute(route: string, encryption?: { loopback?: 'encrypted' }): boolean {
+  if (isConnectRoute(route) || isLanRoute(route)) return true;
+  return encryption?.loopback === 'encrypted' && isLoopbackRoute(route);
 }
