@@ -1,19 +1,19 @@
 <!-- deepseekbot-readme-status:v1 -->
 # DeepSeekBot repository status / 仓库状态
 
-Last successful update / 最后成功更新: **2026-10-31T05:52:34Z**
+Last successful update / 最后成功更新: **2026-10-31T12:41:52Z**
 
 | Metric / 指标 | Value / 数值 |
 | --- | ---: |
-| Stars | 428 |
-| Forks | 28 |
-| Open issues / 未关闭问题 | 291 |
-| Open PRs / 未关闭 PR | 13 |
-| Closed PRs in 30 days / 30 天内关闭 PR | 1357 |
-| Commits in 30 days / 30 天内提交 | 2518 |
+| Stars | 447 |
+| Forks | 29 |
+| Open issues / 未关闭问题 | 304 |
+| Open PRs / 未关闭 PR | 14 |
+| Closed PRs in 30 days / 30 天内关闭 PR | 1338 |
+| Commits in 30 days / 30 天内提交 | 2499 |
 | Latest stable release / 最新稳定版本 | v1.6.0 |
 
-Window / 统计窗口（UTC）: 2026-10-01T05:52:34Z → 2026-10-31T05:52:34Z (inclusive / 含边界).
+Window / 统计窗口（UTC）: 2026-10-01T12:41:52Z → 2026-10-31T12:41:52Z (inclusive / 含边界).
 
 Closed PRs include merged PRs, using GitHub's current closed state and closed_at date; issues are counted separately. Commits use committer dates across all history reachable from the default branch, including merge and bot commits. These are activity counts, not unique changes or a productivity measure. GitHub search can lag behind recent events.
 
