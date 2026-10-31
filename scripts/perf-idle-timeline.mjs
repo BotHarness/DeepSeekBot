@@ -280,15 +280,16 @@ try {
       await page.$eval('.bh-chat-body', (node) => {
         node.scrollTop = 0;
       });
-      await sleep(500);
+      await page.waitForFunction(
+        (previous) =>
+          Number(document.querySelector('.bh-chat-body')?.dataset.loadedMessages ?? 0) > previous,
+        { timeout: 30_000 },
+        mounted,
+      );
       const now = await page.$eval('.bh-chat-body', (node) =>
         Number(node.dataset.loadedMessages ?? node.querySelectorAll('[data-message-id]').length),
       );
       if (now >= fixture.messageIds.length) break;
-      if (now === mounted && attempt > 2)
-        throw new Error(
-          `Loaded ${now} of ${fixture.messageIds.length} messages before measurement`,
-        );
       mounted = now;
     }
     await page.$eval('.bh-chat-body', (node) => {
