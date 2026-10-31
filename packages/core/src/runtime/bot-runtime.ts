@@ -2670,7 +2670,7 @@ class BotRuntimeImplementation implements BotRuntime {
           FROM inbox_admissions a
           JOIN source_events e ON e.source_event_id = a.source_event_id
          WHERE a.bot_slug = ? AND a.reason = 'group-ordinary' AND e.channel_id IS NOT NULL
-           AND NOT EXISTS (SELECT 1 FROM messaging_source_paths rp WHERE rp.source_event_id = e.source_event_id)
+           AND NOT EXISTS (SELECT 1 FROM messaging_bridge_sources rp WHERE rp.source_event_id = e.source_event_id)
            AND a.wake_count IS NOT NULL AND a.observed_at IS NULL
            AND a.attempt_state IN ('pending', 'retryable') AND e.channel_id = ?
          GROUP BY a.wake_policy_revision, a.source_policy_revision, a.external_default_revision, a.external_thread_policy_revision,
@@ -2840,7 +2840,7 @@ class BotRuntimeImplementation implements BotRuntime {
             FROM inbox_admissions a
             JOIN source_events e ON e.source_event_id = a.source_event_id
            WHERE a.bot_slug = ? AND a.reason = 'group-ordinary' AND e.channel_id IS NOT NULL
-           AND NOT EXISTS (SELECT 1 FROM messaging_source_paths rp WHERE rp.source_event_id = e.source_event_id)
+           AND NOT EXISTS (SELECT 1 FROM messaging_bridge_sources rp WHERE rp.source_event_id = e.source_event_id)
              AND a.wake_count IS NOT NULL AND a.observed_at IS NULL
              AND a.attempt_state IN ('pending', 'retryable') AND e.channel_id IS NOT NULL
            ORDER BY e.channel_id
@@ -3116,7 +3116,7 @@ class BotRuntimeImplementation implements BotRuntime {
           FROM inbox_admissions a
           JOIN source_events e ON e.source_event_id = a.source_event_id
          WHERE a.bot_slug = ? AND a.reason = 'group-ordinary' AND e.channel_id IS NOT NULL
-           AND NOT EXISTS (SELECT 1 FROM messaging_source_paths rp WHERE rp.source_event_id = e.source_event_id)
+           AND NOT EXISTS (SELECT 1 FROM messaging_bridge_sources rp WHERE rp.source_event_id = e.source_event_id)
            AND a.wake_count IS NOT NULL AND a.observed_at IS NULL
            AND a.attempt_state IN ('pending', 'retryable')
          GROUP BY e.channel_id, a.wake_policy_revision, a.source_policy_revision, default_revision, thread_revision, thread_scope
@@ -3155,7 +3155,7 @@ class BotRuntimeImplementation implements BotRuntime {
             FROM inbox_admissions a
             JOIN source_events e ON e.source_event_id = a.source_event_id
            WHERE a.bot_slug = ? AND a.reason = 'group-ordinary' AND e.channel_id IS NOT NULL
-           AND NOT EXISTS (SELECT 1 FROM messaging_source_paths rp WHERE rp.source_event_id = e.source_event_id)
+           AND NOT EXISTS (SELECT 1 FROM messaging_bridge_sources rp WHERE rp.source_event_id = e.source_event_id)
              AND a.wake_count IS NOT NULL AND a.observed_at IS NULL
              AND a.attempt_state IN ('pending', 'retryable')
              AND e.channel_id = ? AND a.wake_policy_revision = ?
@@ -3246,7 +3246,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const base = `
       FROM inbox_admissions a JOIN source_events e ON e.source_event_id = a.source_event_id
      WHERE a.bot_slug = ? AND a.reason = 'group-ordinary' AND e.channel_id IS NOT NULL
-           AND NOT EXISTS (SELECT 1 FROM messaging_source_paths rp WHERE rp.source_event_id = e.source_event_id)
+           AND NOT EXISTS (SELECT 1 FROM messaging_bridge_sources rp WHERE rp.source_event_id = e.source_event_id)
        AND (a.wake_mode IN ('all', 'digest', 'mentions') OR (a.wake_mode = 'silent' AND a.source_policy_wake_mode = 'context'))
        AND a.attempt_state IN ('pending', 'retryable') AND e.channel_id = ?`;
     const total = database.prepare(`SELECT COUNT(*) AS count ${base}`).get(botSlug, channelId) as {
@@ -8311,39 +8311,10 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #scheduleExternalDigest(botSlug: string): void {
-    const rows = this.#database.read((db) =>
-      db
-        .prepare(`
-      SELECT MIN(e.created_at) AS first_at, MIN(a.wake_count) AS wake_count,
-        MIN(a.wake_interval_ms) AS wake_interval_ms, COUNT(*) AS pending_count,
-        MIN(e.source_event_id) AS anchor
-      FROM source_events e JOIN inbox_admissions a USING(source_event_id)
-      JOIN messaging_grants g ON g.id = json_extract(e.payload_json, '$.external.grantId')
-      LEFT JOIN messaging_thread_policy_revisions tp ON tp.grant_id = g.id
-        AND tp.thread_id = json_extract(e.payload_json, '$.external.event.reply.threadId')
-        AND tp.revision = a.external_thread_policy_revision
-      WHERE a.bot_slug = ? AND e.source_kind = 'bridge-message' AND e.channel_id IS NULL
-        AND NOT EXISTS (SELECT 1 FROM messaging_source_paths rp WHERE rp.source_event_id = e.source_event_id) AND a.reason = 'group-ordinary'
-        AND a.wake_count IS NOT NULL AND a.attempt_state = 'pending' AND a.observed_at IS NULL
-        AND g.revoked_at IS NULL AND json_extract(g.body, '$.receiveScope') IS NOT NULL
-        AND json_extract(g.body, '$.suspendedReason') IS NULL
-        AND g.revision = json_extract(e.payload_json, '$.external.grantRevision')
-      GROUP BY g.id, a.wake_policy_revision, a.source_policy_revision, a.external_default_revision, CASE WHEN json_extract(tp.body, '$.mode') = 'follow' THEN tp.thread_id ELSE '' END, CASE WHEN json_extract(tp.body, '$.mode') = 'follow' THEN tp.revision ELSE 0 END`)
-        .all(botSlug),
-    ) as Array<{
-      first_at: string;
-      wake_count: number;
-      wake_interval_ms: number;
-      pending_count: number;
-      anchor: string;
-    }>;
     this.#armDigest(
       botSlug,
       `external:${botSlug}`,
-      [
-        ...rows.filter((row) => this.#externalMessaging?.inbound.available(botSlug, row.anchor)),
-        ...(this.#externalMessaging?.inbound.pendingPaths(botSlug, this.#now()).digests ?? []),
-      ],
+      this.#externalMessaging?.inbound.pendingExternal(botSlug, this.#now()).digests ?? [],
       () => this.#scheduleExternalDigest(botSlug),
     );
   }
@@ -8352,51 +8323,10 @@ class BotRuntimeImplementation implements BotRuntime {
     botSlug: string,
     includeContext = false,
   ): Array<{ source_event_id: string; body: string; created_at: string; attempt_state: string }> {
-    const legacy = this.#database.read((db) =>
-      db
-        .prepare(`WITH pending AS (
-      SELECT e.source_event_id, e.body, e.created_at, a.attempt_state, a.reason, a.wake_mode, a.source_policy_wake_mode,
-        a.wake_count, a.wake_interval_ms, g.id AS grant_id,
-        SUM(CASE WHEN a.reason = 'group-ordinary' THEN 1 ELSE 0 END) OVER policy AS pending_count,
-        MIN(CASE WHEN a.reason = 'group-ordinary' THEN e.created_at END) OVER policy AS first_at,
-        MAX(CASE WHEN a.reason = 'group-mention' THEN 1 ELSE 0 END) OVER (PARTITION BY g.id, CASE WHEN json_extract(tp.body, '$.mode') = 'follow' THEN tp.thread_id ELSE '' END) AS has_mention
-      FROM source_events e JOIN inbox_admissions a USING(source_event_id)
-      JOIN messaging_grants g ON g.id = json_extract(e.payload_json, '$.external.grantId')
-      LEFT JOIN messaging_thread_policy_revisions tp ON tp.grant_id = g.id
-        AND tp.thread_id = json_extract(e.payload_json, '$.external.event.reply.threadId')
-        AND tp.revision = a.external_thread_policy_revision
-      WHERE g.revoked_at IS NULL AND json_extract(g.body, '$.receiveScope') IS NOT NULL
-        AND json_extract(g.body, '$.suspendedReason') IS NULL
-        AND g.revision = json_extract(e.payload_json, '$.external.grantRevision')
-        AND a.bot_slug = ? AND e.source_kind = 'bridge-message'
-        AND NOT EXISTS (SELECT 1 FROM messaging_source_paths rp WHERE rp.source_event_id = e.source_event_id)
-        AND (a.reason != 'group-ordinary' OR e.channel_id IS NULL)
-        AND a.attempt_state IN ('pending', 'retryable') AND a.observed_at IS NULL
-      WINDOW policy AS (PARTITION BY g.id, a.wake_policy_revision, a.source_policy_revision, a.external_default_revision, a.reason, a.wake_mode, CASE WHEN json_extract(tp.body, '$.mode') = 'follow' THEN tp.thread_id ELSE '' END, CASE WHEN json_extract(tp.body, '$.mode') = 'follow' THEN tp.revision ELSE 0 END)
-    ) SELECT source_event_id, body, created_at, attempt_state FROM pending
-      WHERE (reason = 'group-mention' AND wake_mode IS NOT 'silent') OR (reason = 'human-dm' AND wake_mode = 'all') OR (reason = 'group-ordinary' AND (
-        wake_mode = 'all' OR (wake_mode = 'digest' AND (pending_count >= wake_count OR
-          (julianday(?) - julianday(first_at)) * 86400000 >= wake_interval_ms)) OR
-        (? = 1 AND has_mention = 1 AND (wake_mode IN ('digest', 'mentions') OR (wake_mode = 'silent' AND source_policy_wake_mode = 'context')))))
-      ORDER BY CASE WHEN reason = 'group-mention' THEN 0 ELSE 1 END, created_at, source_event_id LIMIT 20
-    `)
-        .all(botSlug, this.#now().toISOString(), includeContext ? 1 : 0),
-    ) as Array<{
-      source_event_id: string;
-      body: string;
-      created_at: string;
-      attempt_state: string;
-    }>;
-    const routed =
-      this.#externalMessaging?.inbound.pendingPaths(botSlug, this.#now(), includeContext).ready ??
-      [];
-    return [...legacy, ...routed]
-      .sort(
-        (a, b) =>
-          a.created_at.localeCompare(b.created_at) ||
-          a.source_event_id.localeCompare(b.source_event_id),
-      )
-      .slice(0, 20);
+    return (
+      this.#externalMessaging?.inbound.pendingExternal(botSlug, this.#now(), includeContext)
+        .ready ?? []
+    );
   }
 
   #collectInbox(botSlug: string): { units: InboxUnit[]; eventIds: string[] } {

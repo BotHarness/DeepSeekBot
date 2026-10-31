@@ -1389,3 +1389,11 @@ Cloud Channel list and detail locations use the existing Expo root Stack, with `
 ### Message color and delivery presentation
 
 Web and native message adapters share the pure bubble fill/ink and readable-text calculations in the Client color module. Stored Bot Primary Color and Client-local appearance sources remain unchanged. Fill and text uses derive separate display colors against their owning surface; native Markdown links use the Bot bubble background, and Web conversation groups observe their own rendered background rather than another panel's probe. Message bodies stay opaque through delivery transitions. Human sends remain visually quiet for three seconds; delayed feedback and failure affordances occupy the horizontal side of the bubble without inserting a new vertical row. Native attempt time survives virtualization and resets on retry. Contrast matrices and delivery lifecycle tests exercise these adapter contracts.
+
+### Messaging external readiness and retained history (ADR-0276)
+
+应用定义的 Messaging `inbound.pendingExternal` 统一给出外部消息的 ready Sources 与摘要分组；Runtime 负责定时器、退避、排队、上下文预算、执行前的当前权限复核和 Inbox 结算。Channel/member harvest 保留原有归属。
+
+默认 DM／提及仍会创建隐式 Conversation entry。新的直接外部 Admission 与 Source 同事务保存 `kind: grant` 接收证据，显式 Bridge 保存 `kind: bridge`；两者使用既有不可变接收证据表，策略仍以 Admission 快照为准。默认接收不依赖可选 Channel 同步的开关，也不因此获得 Channel 历史或管理权限。既有 Channel 成员接收继续使用 Channel placement/member-policy 事实。
+
+历史无路径记录只读适配保存下来的 Source、Admission 和策略版本，不根据当前配置回填 route 或 intakeAfter。保留既有两阶段 top-20、提及上下文范围及 pending/retryable 摘要差异。Runtime 通过只读 `messaging_bridge_sources` 投影识别 Bridge Sources，不解释证据格式。Schema generation 113 新增该投影和查询索引，并阻止旧版 Bridge-only 读取器打开新格式；不改写历史。降级需升级前备份，恢复时仍保持接收暂停与未完成任务待修复。见 [ADR-0276](../adr/0276-messaging-owns-external-readiness-and-reception-evidence.md)。
