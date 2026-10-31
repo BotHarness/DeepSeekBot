@@ -260,15 +260,15 @@ it('reads the channel once per round and only fetches steps for work rows', asyn
   );
   expect(assignments).toHaveBeenCalledTimes(1);
   expect(work).toHaveBeenCalledTimes(1);
-  expect(work.mock.calls[0]).toEqual(['ada', 'session-working']);
+  expect(work.mock.calls[0]).toEqual(['ada', 'session-1']);
   await act(async () => {
     await vi.advanceTimersByTimeAsync(10_000);
   });
   expect(assignments).toHaveBeenCalledTimes(2);
   expect(work).toHaveBeenCalledTimes(2);
   expect(work.mock.calls).toEqual([
-    ['ada', 'session-working'],
-    ['ada', 'session-working'],
+    ['ada', 'session-1'],
+    ['ada', 'session-1'],
   ]);
   await act(async () => root.unmount());
   vi.useRealTimers();

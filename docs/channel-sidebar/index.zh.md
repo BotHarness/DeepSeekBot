@@ -20,6 +20,7 @@
 | [记忆文件](/zh/docs/channel-sidebar/memory-files)            | 浏览当前仓库文件树，在中间区域读取文件。                                      |
 | [记忆演化](/zh/docs/channel-sidebar/memory-evolution)        | 查看未提交改动、Git 历史、分支与恢复检查点。                                  |
 | [会话](/zh/docs/channel-sidebar/sessions)                    | 在 DSH 中打开这个 Bot 的 Orchestrator 与 Assignment Session。                 |
+| [任务看板](/zh/docs/channel-sidebar/task-board)              | 按步骤跟进当前聊天里 Assignment 的实时进度。                                  |
 | [Bot 收件箱](/zh/docs/channel-sidebar/bot-inbox)             | 检查 Bot 收到的来源消息与任务报告。                                           |
 | [工作区授权](/zh/docs/channel-sidebar/workspaces) ¹          | 查看并明确授权这个 Bot 可以使用的 Host 文件夹。                               |
 | [定时任务](/zh/docs/channel-sidebar/schedules)               | 按频率唤醒这个 Bot、立即运行某个任务，并锁定以防 Bot 修改。                   |
@@ -32,6 +33,7 @@
 | 本地群聊中的项目                                             | 可以做什么                                        |
 | ------------------------------------------------------------ | ------------------------------------------------- |
 | [工作](/zh/docs/channel-sidebar/groups#查看群里的工作)       | 查看这个群让 Bot 做的任务并打开对应会话。         |
+| [任务看板](/zh/docs/channel-sidebar/task-board)              | 按 Bot 分组跟进这个群里 Assignment 的实时进度。   |
 | [成员与群管理](/zh/docs/channel-sidebar/groups) ¹            | 查看成员、邀请 Bot、处理入群申请和编辑群信息。    |
 | [唤醒策略](/zh/docs/channel-sidebar/wake-policy) ¹           | 为每个成员 Bot 选择这个群里的普通消息如何唤醒它。 |
 | [外部连接器](/zh/docs/channel-sidebar/external-connectors) ¹ | 接入、编辑和暂停同步进这个群的外部会话。          |

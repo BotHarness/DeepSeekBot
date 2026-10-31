@@ -320,9 +320,6 @@ export function TaskBoardPanel({
     work,
     prefs: viewPrefs,
   });
-  const wanted = workTargets(model)
-    .map((card) => card.sessionId)
-    .join(',');
   const mount = useMountedResource<HTMLDivElement>(() => {
     let live = true;
     let timer: number | undefined;
@@ -389,7 +386,7 @@ export function TaskBoardPanel({
       live = false;
       if (timer !== undefined) window.clearInterval(timer);
     };
-  }, [actions, channelId, channelType, revision, signature, wanted, attempt, prefs]);
+  }, [actions, channelId, channelType, revision, signature, attempt, prefs]);
   const phase = taskBoardPhase(load.status, model.groups.length);
   const now = Date.now();
   return (
@@ -482,7 +479,10 @@ export function TaskBoardPanel({
               bots={bots}
               now={now}
               t={t}
-              onToggle={() => prefs.setBotCollapsed(group.botSlug, !group.collapsed)}
+              onToggle={() => {
+                prefs.setBotCollapsed(group.botSlug, !group.collapsed);
+                setAttempt((count) => count + 1);
+              }}
               onOpen={setDialog}
             />
           ))
