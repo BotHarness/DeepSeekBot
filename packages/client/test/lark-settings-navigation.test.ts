@@ -11,6 +11,7 @@ it('waits for native settings and selects the actual IM and Feishu controls', as
   vi.useFakeTimers();
   const trigger = document.createElement('button');
   trigger.setAttribute('aria-haspopup', 'dialog');
+  trigger.setAttribute('aria-label', 'Settings');
   document.body.append(trigger);
   const selected = vi.fn();
   trigger.onclick = () => {
@@ -61,6 +62,7 @@ it.each([false, true])(
   async (cancelled) => {
     const trigger = document.createElement('button');
     trigger.setAttribute('aria-haspopup', 'dialog');
+    trigger.setAttribute('aria-label', 'Settings');
     const dialog = document.createElement('div');
     dialog.setAttribute('role', 'dialog');
     const nav = document.createElement('button');

@@ -683,6 +683,14 @@
       "gap": null
     },
     {
+      "id": "native.settings.handoff",
+      "label": "Open native Models from Bot mode and restore navigation after Settings closes",
+      "source": "packages/client/src/client/bot-settings-open.ts",
+      "task": 3222,
+      "guide": ".agents/skills/verify-deepseekbot/features/native-settings-handoff.md",
+      "gap": "Current rc.3 opening verified; close/return, Home and failure-card runtime paths and native Desktop QA pending."
+    },
+    {
       "id": "orchestrator-model-switch",
       "label": "Orchestrator-only quick model switching with Assignment inheritance",
       "source": "packages/client/src/client/dm-composer-context.tsx",

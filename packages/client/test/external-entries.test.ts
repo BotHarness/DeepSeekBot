@@ -299,6 +299,7 @@ it('returns from QR settings to the retained bind dialog with newly paired and o
   const store = { ...actions, messagingSnapshot };
   const trigger = document.createElement('button');
   trigger.setAttribute('aria-haspopup', 'dialog');
+  trigger.setAttribute('aria-label', 'Settings');
   document.body.prepend(trigger);
   const settings = document.createElement('div');
   settings.setAttribute('role', 'dialog');
@@ -448,6 +449,7 @@ it('releases the settings return watcher when the Bot sidebar unmounts', async (
   const messagingSnapshot = vi.fn(async () => initial);
   const trigger = document.createElement('button');
   trigger.setAttribute('aria-haspopup', 'dialog');
+  trigger.setAttribute('aria-label', 'Settings');
   const settings = document.createElement('div');
   settings.setAttribute('role', 'dialog');
   const nav = document.createElement('button');
