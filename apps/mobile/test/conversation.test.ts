@@ -206,8 +206,15 @@ describe('DM conversation', () => {
       seed(channel, 25);
       const target = open(host);
       await until(target, (snapshot) => snapshot.status === 'live');
-      const oldGate = Promise.withResolvers<void>();
-      const newGate = Promise.withResolvers<void>();
+      const gate = () => {
+        let resolve!: () => void;
+        const promise = new Promise<void>((done) => {
+          resolve = done;
+        });
+        return { promise, resolve };
+      };
+      const oldGate = gate();
+      const newGate = gate();
       let requests = 0;
       host.methods.set('channelJournalPage', async () => {
         const old = ++requests === 1;
