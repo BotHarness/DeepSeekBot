@@ -165,6 +165,30 @@ describe('Channel viewport through the Android keyboard adapter', () => {
       expect(view.scrollToOffset).toHaveBeenCalledTimes(1);
     },
   );
+  it.each([false, true])(
+    'uses the motion preference for explicit return to latest (reduced: %s)',
+    (reduced) => {
+      native.reducedMotion = reduced;
+      const view = mount();
+      act(() => view.current.hold());
+      act(() => view.current.jumpToLatest());
+      expect(view.current.away).toBe(false);
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 1200, animated: !reduced });
+    },
+  );
+  it.each([false, true])(
+    'uses the motion preference when settling near the bottom (reduced: %s)',
+    (reduced) => {
+      native.reducedMotion = reduced;
+      const view = mount();
+      act(() => {
+        view.current.listProps.onScrollBeginDrag();
+        view.current.listProps.onScrollEndDrag(scroll(1180));
+      });
+      expect(view.current.away).toBe(false);
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 1200, animated: !reduced });
+    },
+  );
   it('respects Reduce Motion for new message growth', () => {
     native.reducedMotion = true;
     const view = mount();

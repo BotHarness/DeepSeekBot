@@ -47,7 +47,7 @@ export function useFollowLatest<Row>(
   onFollowingChange?: (following: boolean) => void,
   start = 0,
   empty = false,
-  animateGrowth = false,
+  animateScroll = false,
   minIndexForVisible = 0,
 ) {
   const [following, setFollowing] = useState(true);
@@ -108,9 +108,9 @@ export function useFollowLatest<Row>(
     (animated: boolean) => {
       if (keyboardMoving.current) return;
       const offset = latestOffset(metrics.current, startInset.current);
-      list.current?.scrollToOffset({ offset, animated });
+      list.current?.scrollToOffset({ offset, animated: animated && animateScroll });
     },
-    [list],
+    [list, animateScroll],
   );
 
   const hold = useCallback(() => {
@@ -250,16 +250,16 @@ export function useFollowLatest<Row>(
     (_width: number, height: number) => {
       const previous = reportedContent.current;
       reportedContent.current = height;
-      if (animateGrowth && previous === height && settled.current) return;
+      if (animateScroll && previous === height && settled.current) return;
       if (metrics.current.content !== height) {
         metrics.current = { ...metrics.current, content: height };
         sizes.current += 1;
         attempts.current = 0;
         setCanRetry(false);
       }
-      pin(animateGrowth && settled.current && height > previous);
+      pin(animateScroll && settled.current && height > previous);
     },
-    [pin, animateGrowth],
+    [pin, animateScroll],
   );
 
   const onLayout = useCallback(

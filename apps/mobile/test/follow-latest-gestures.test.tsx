@@ -60,7 +60,7 @@ function mount(
   messages: readonly ConversationMessage[] = [],
   start = 0,
   empty = false,
-  animateGrowth = false,
+  animateScroll = false,
 ) {
   const following = vi.fn();
   const scrollToOffset = vi.fn();
@@ -73,7 +73,7 @@ function mount(
       following,
       start,
       known && rows.length === 0,
-      animateGrowth,
+      animateScroll,
     );
     return null;
   }
@@ -150,7 +150,7 @@ describe('history-reading gesture ownership', () => {
     act(() => view.current.listProps.onScrollBeginDrag());
     act(() => view.current.jumpToLatest());
     expect(view.following.mock.calls).toEqual([[false], [true], [false], [true]]);
-    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END, animated: true });
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END, animated: false });
     view.unmount();
   });
 
@@ -159,7 +159,7 @@ describe('history-reading gesture ownership', () => {
     act(() => view.current.listProps.onScrollBeginDrag());
     act(() => view.current.listProps.onScrollEndDrag(event(30)));
     expect(view.current.away).toBe(false);
-    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END, animated: true });
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END, animated: false });
     view.unmount();
   });
 });
@@ -206,7 +206,7 @@ describe('following a growing conversation', () => {
     expect(view.current.unseen).toBe(2);
     act(() => view.current.listProps.onContentSizeChange(0, CONTENT + 200));
     act(() => view.current.jumpToLatest());
-    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END + 200, animated: true });
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END + 200, animated: false });
     expect(view.current.away).toBe(false);
     expect(view.current.unseen).toBe(0);
     view.unmount();
@@ -643,7 +643,7 @@ describe('native keyboard and reading-position coordination', () => {
     expect(view.current.away).toBe(true);
     expect(view.scrollToOffset).not.toHaveBeenCalled();
     act(() => view.current.jumpToLatest());
-    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 1600, animated: true });
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 1600, animated: false });
     view.unmount();
   });
 });
