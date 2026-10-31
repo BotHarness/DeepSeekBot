@@ -474,6 +474,90 @@ describe('Connect relay tunnels', () => {
     expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body['hosts']).toEqual([]);
   });
 
+  it.each(['tunnel', 'dns'])(
+    'retries a Host deletion after a %s failure without deleting other Hosts',
+    async (stage) => {
+      const { call, tunnels } = await setup();
+      const target = '/v1/hosts/haaaaaaaaaaab';
+      for (const { account, name, id } of [
+        { account: 'user_alice', name: 'Target', id: 'haaaaaaaaaaab' },
+        { account: 'user_alice', name: 'Keep same account', id: 'haaaaaaaaaaac' },
+        { account: 'user_bob', name: 'Keep other account', id: 'haaaaaaaaaaad' },
+      ]) {
+        await call('POST', '/v1/hosts', { as: account, body: { name } });
+        expect(
+          (
+            await call('POST', `/v1/hosts/${id}/tunnel`, {
+              as: account,
+              body: { originPort: 41001 },
+            })
+          ).status,
+        ).toBe(200);
+      }
+      const aliceBefore = await call('GET', '/v1/hosts', { as: 'user_alice' });
+      const bobBefore = await call('GET', '/v1/hosts', { as: 'user_bob' });
+      const deleteTunnel = tunnels.deleteTunnel.bind(tunnels);
+      const deleteRecord = tunnels.deleteRecord.bind(tunnels);
+      let unavailable = true;
+      tunnels.deleteTunnel = async (tunnelId) => {
+        if (unavailable && stage === 'tunnel') throw new Error('synthetic tunnel failure');
+        await deleteTunnel(tunnelId);
+      };
+      tunnels.deleteRecord = async (recordId) => {
+        if (unavailable && stage === 'dns') throw new Error('synthetic DNS failure');
+        await deleteRecord(recordId);
+      };
+
+      expect(await call('DELETE', target, { as: 'user_alice' })).toEqual({
+        status: 502,
+        body: { error: { code: 'upstream-unavailable' } },
+      });
+      expect(await call('GET', '/v1/hosts', { as: 'user_alice' })).toEqual(aliceBefore);
+      expect(await call('GET', '/v1/hosts', { as: 'user_bob' })).toEqual(bobBefore);
+      expect(tunnels.tunnels.has('tunnel-1')).toBe(stage === 'tunnel');
+      expect(tunnels.records.size).toBe(3);
+
+      unavailable = false;
+      expect(await call('DELETE', target, { as: 'user_alice' })).toEqual({
+        status: 200,
+        body: { deleted: true },
+      });
+      expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body.hosts).toEqual([
+        aliceBefore.body.hosts[1],
+      ]);
+      expect(await call('GET', '/v1/hosts', { as: 'user_bob' })).toEqual(bobBefore);
+      expect([...tunnels.tunnels.keys()]).toEqual(['tunnel-2', 'tunnel-3']);
+      expect([...tunnels.records.values()].map((record) => record.target)).toEqual([
+        'tunnel-2.cfargotunnel.com',
+        'tunnel-3.cfargotunnel.com',
+      ]);
+      const deleteCalls = tunnels.deleteCalls;
+      expect((await call('DELETE', target, { as: 'user_alice' })).status).toBe(404);
+      expect(tunnels.deleteCalls).toBe(deleteCalls);
+      expect(tunnels.tunnels.size).toBe(2);
+      expect(tunnels.records.size).toBe(2);
+    },
+  );
+
+  it('refuses missing, expired and other-account deletion grants without changing resources', async () => {
+    const { call, tunnels, tokenFor } = await setup();
+    const target = '/v1/hosts/haaaaaaaaaaab';
+    await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Target' } });
+    await call('POST', `${target}/tunnel`, {
+      as: 'user_alice',
+      body: { originPort: 41001 },
+    });
+    const before = await call('GET', '/v1/hosts', { as: 'user_alice' });
+    const expired = await tokenFor('user_alice', { exp: 0 });
+    expect((await call('DELETE', target)).status).toBe(401);
+    expect((await call('DELETE', target, { token: expired })).status).toBe(401);
+    expect((await call('DELETE', target, { as: 'user_bob' })).status).toBe(404);
+    expect(await call('GET', '/v1/hosts', { as: 'user_alice' })).toEqual(before);
+    expect(tunnels.deleteCalls).toBe(0);
+    expect(tunnels.tunnels.size).toBe(1);
+    expect(tunnels.records.size).toBe(1);
+  });
+
   it('caps reclaim attempts when the upstream deletes fail', async () => {
     const accounts = ['user_a', 'user_b', 'user_c', 'user_d'];
     const { call, relay, tunnels, advance } = await setup(accounts);
