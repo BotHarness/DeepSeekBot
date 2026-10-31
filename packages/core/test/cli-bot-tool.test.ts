@@ -57,6 +57,26 @@ async function invoke(argv: string[], url: string, stdin = '') {
 }
 
 describe('Harness Bot tool runner commands', () => {
+  it('passes explicit Source Event causation separately from Bot tool arguments', async () => {
+    const live = await host(() => ({ ok: true, value: { result: 'accepted' } }));
+    const result = await invoke(
+      ['bot-tool', 'ada', 'bot_send_message', '--cause-event', 'source-owned', '--args-stdin'],
+      live.url,
+      JSON.stringify({ bot_id: 'remote:host:ios', body: 'Check iOS' }),
+    );
+    expect(result.code).toBe(0);
+    expect(live.calls).toEqual([
+      {
+        method: 'botToolRun',
+        args: {
+          slug: 'ada',
+          tool: 'bot_send_message',
+          sourceEventId: 'source-owned',
+          args: { bot_id: 'remote:host:ios', body: 'Check iOS' },
+        },
+      },
+    ]);
+  });
   it('names the Assignment parent of a Subagent tool with --session', async () => {
     const live = await host(() => ({
       ok: true,

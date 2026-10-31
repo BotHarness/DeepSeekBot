@@ -1,3 +1,4 @@
+import { BotNetworkDeliveryError } from '../src/runtime/bot-network.js';
 import { seededBannerRecipe } from '@botharness/pixel-banner';
 import { createTestRosterStore } from './roster-fixture.js';
 import { createTestRegistry } from './registry-fixture.js';
@@ -504,6 +505,7 @@ describe('bridge methods', () => {
   });
   it('lists and runs direct Bot tools through the runtime and traces them as session direct', async () => {
     const run = vi.fn(async (_slug: string, tool: string) => {
+      if (tool === 'network_send') throw new BotNetworkDeliveryError('delivery-unknown');
       if (tool === 'create_assignment')
         throw new DirectBotToolError('tool-not-direct', 'create_assignment cannot run');
       if (tool === 'bot_send_message') throw new Error('bot_send_message: no Channel');
@@ -545,6 +547,7 @@ describe('bridge methods', () => {
       { limit: 1 },
       expect.any(AbortSignal),
       undefined,
+      undefined,
     );
     await methods.botToolRun({
       slug: 'ada',
@@ -558,6 +561,7 @@ describe('bridge methods', () => {
       {},
       expect.any(AbortSignal),
       'assign-1',
+      undefined,
     );
     expect(
       await methods.botToolRun({ slug: 'ada', tool: 'bot_subagent', sessionId: 7 }),
@@ -569,6 +573,10 @@ describe('bridge methods', () => {
     expect(await methods.botToolRun({ slug: 'ada', tool: 'bot_send_message' })).toEqual({
       ok: false,
       error: { code: 'tool-failed', message: 'bot_send_message: no Channel' },
+    });
+    expect(await methods.botToolRun({ slug: 'ada', tool: 'network_send' })).toMatchObject({
+      ok: false,
+      error: { code: 'delivery-unknown' },
     });
     expect((await methods.botToolRun({ slug: 'ada', tool: 'x', args: [] })).ok).toBe(false);
     expect((await methods.botToolRun({ slug: 'nobody', tool: 'channel_list' })).ok).toBe(false);
@@ -3364,4 +3372,36 @@ it('logs why storage cleanup failed instead of hiding it behind storage-unavaila
   expect(warn).toHaveBeenCalledWith(
     'Storage cleanup preview is unavailable: Managed files contain a link',
   );
+});
+
+it('projects current network contact facts without persisting them in the Channel', () => {
+  const contact = {
+    botId: 'remote:mac:ios',
+    hostId: 'mac',
+    botSlug: 'ios',
+    displayName: 'iOS',
+    device: { model: null, platform: 'darwin' },
+    capabilities: [],
+  };
+  const botContacts = vi.fn(() => ({ outputLimit: 12000, contacts: [contact] }));
+  const { channels, methods } = setup([], [], () => ({ botContacts }) as unknown as BotRuntime);
+  vi.spyOn(channels, 'list').mockReturnValue([
+    {
+      id: 'remote-dm',
+      type: 'dm',
+      name: 'iOS',
+      members: ['caller'],
+      remoteBot: { hostId: 'mac', botSlug: 'ios', displayName: 'iOS' },
+      createdAt: '',
+      updatedAt: '',
+    },
+  ]);
+  expect(methods.channels({})).toMatchObject({
+    ok: true,
+    value: { channels: [{ remoteContact: contact }] },
+  });
+  expect(botContacts).toHaveBeenCalledWith('caller', { botId: 'remote:mac:ios' });
+  botContacts.mockReturnValue({ outputLimit: 12000, contacts: [] });
+  const result = methods.channels({});
+  expect(result.ok && result.value.channels[0]).not.toHaveProperty('remoteContact');
 });

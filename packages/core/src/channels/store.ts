@@ -26,6 +26,7 @@ import {
 import { atomicWriteFile } from '../fs/atomic-write.js';
 import {
   botDmChannelId,
+  type RemoteBotParticipant,
   dmChannelId,
   groupChannelIdBase,
   isBotDmChannel,
@@ -343,6 +344,9 @@ export interface ChannelStore {
     secondBotSlug: string,
     name: string,
   ): ChannelRecord | undefined;
+  remoteHostKey?(hostId: string): string | undefined;
+  trustRemoteHostKey?(hostId: string, key: string): void;
+  getOrCreateRemoteBotDm(localBotSlug: string, remote: RemoteBotParticipant): ChannelRecord;
   createGroup(input: CreateChannelGroupInput): ChannelRecord;
 
   inviteGroupBot(input: {
@@ -812,6 +816,9 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       };
       write(record);
       return record;
+    },
+    getOrCreateRemoteBotDm() {
+      throw new Error('Remote Bot DMs require the operational database');
     },
     getOrCreateBotDm(firstBotSlug, secondBotSlug, name) {
       if (

@@ -1,5 +1,13 @@
 # BotHarness 架构与数据流
 
+**跨 Host Bot DM（已确认目标，按切片实现）**
+
+[#3250](https://github.com/BotHarness/DeepSeekBot/issues/3250) 与 [ADR-0276](../adr/0276-cross-host-bot-dms-use-online-communication-without-outgoing-queues.md) 确定 Bot Collaboration Network：同一已验证 Tailscale tailnet 或 Tob Connect 账号内的 Host 自动发现彼此及全部活跃 Bot，普通 LAN 需明确加入范围。联系人查询返回所属设备、实际能力与公开简介，发起 Bot 自行选择同事；application-defined 设备通信桥扩展现有发消息入口，将消息交给接收 Host 原有 Channel、Source Event 与 Bot Inbox owners。执行继续使用接收 Bot 的权限、审批与 Assignment，不共享私有 Memory 或增设中央调度器。
+
+通信只在目标在线且网络可用时尝试：确定不可达返回无法送达，发送后丢失确认返回结果未知；不建立或复用持久待送队列，不自动重试，不在重连、上线或重启后补发，包括回复。Bot 按用户设定决定后续行动。已接收的 DM 历史和 Inbox 仍按现有语义保存与恢复，去重不构成补发机制。正式退出协作范围后阻止新收发和尚未开始的关系内工作；已开始的工作可按本地权限完成，但不向离开的对方回传结果。临时断网不等同于成员资格撤销。
+
+首个 Tailscale 切片由现有 device owner 持有窄目录／消息监听器，只绑定 Tailscale 地址，读取当前 daemon 成员事实并以实际 socket 来源执行 whois 校验。目录不构成发送授权；消息与确认复用既有 Host Noise 密钥和 XK 握手，证明对方持钥后才准入。首次联系在已验证 tailnet 内采用首次信任，公钥保存于现有 remote Channel participant，并按 Host 跨 Channel 原子检查后续一致性。不接收 Human 管理凭证或转发任意 API。Host 身份复用既有 pairing owner，路由只在内存中存在。Channel 保留 Host-qualified remote participant 与 remote author，Inbox 仅准入实际本地 Bot；发起端在远端认证确认后追加已接收历史。Client 通过现有 Channel 查询投影公开联系人资料，不复制远端 Bot、Memory 或管理状态。实现与验证见 [#3251](https://github.com/BotHarness/DeepSeekBot/issues/3251)，范围撤销与其他路线仍由后续切片交付。
+
 应用品牌为 Tobs（托布，Team of bots／Thousands of Bots），框架保留 BotHarness。官网域迁至 `tobs.app`；`go.tobs.app` 与旧短链域共享现有 Worker 和 D1，后台经 `ADMIN_ORIGIN` 留在原 Access 保护域。市场与统计服务接纳新官网来源；设备连接域、应用身份及既有安装入口保持兼容。见 [ADR-0248](../adr/0248-tobs-rebrands-the-product-while-preserving-existing-entry-points.md) 与 [迁移方案](../proposals/tobs-brand-migration.md)。
 
 #2080 第一条切片让 Web 请求卡与在线 CLI 共用 application-defined Workspace 请求批准命令。Grant owner 在 Channel owner 的现有提交事务内写入读写权限，规范决议与 Inbox Admission 同时提交；成功读回后再沿原运行时处理原任务。新目录与旧只读升级均需 Human 明确确认，不由 Client 串联多个独立成功动作。Orchestrator 与 Assignment 的原生文件写入都检查当前 Grant 写权限；Assignment 仍只使用其原 Grant 和单 cwd。普通目录设置、移动端交互和完整重启恢复矩阵仍按后续切片交付，不能从本次 Web/CLI 路径推定已完成。见 [ADR-0238](../adr/0238-workspace-request-approval-commits-write-authority-with-the-channel-decision.md)。

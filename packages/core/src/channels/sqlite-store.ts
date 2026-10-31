@@ -39,6 +39,7 @@ import {
 } from '../attachments/ref.js';
 import {
   botDmChannelId,
+  remoteBotDmRecord,
   dmChannelId,
   isBotDmChannel,
   MAX_BOT_HOPS,
@@ -255,7 +256,7 @@ function sameIntent(left: ChannelMessage, right: ChannelMessage): boolean {
 function sourceKind(message: ChannelMessage): string {
   return message.author.kind === 'human'
     ? 'human-message'
-    : message.author.kind === 'bot'
+    : message.author.kind === 'bot' || message.author.kind === 'remote-bot'
       ? 'bot-message'
       : 'system-message';
 }
@@ -380,6 +381,24 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     } catch (error) {
       options.warn?.('Channel record notification failed: ' + String(error));
     }
+  };
+
+  const remoteHostKey = (db: DatabaseSync, host: string): string | undefined => {
+    const rows = db
+      .prepare(`SELECT DISTINCT json_extract(record_json, '$.remoteBot.hostKey') AS host_key
+      FROM channel_records WHERE json_extract(record_json, '$.remoteBot.hostId') = ?
+      AND json_extract(record_json, '$.remoteBot.hostKey') IS NOT NULL`)
+      .all(host);
+    if (rows.length > 1) throw new Error('network-host-key-conflict');
+    const key = rows[0]?.host_key;
+    if (key !== undefined && (typeof key !== 'string' || !/^[0-9a-f]{64}$/u.test(key)))
+      throw new Error('network-host-key-invalid');
+    return key;
+  };
+  const assertHostKey = (db: DatabaseSync, host: string, key: string): void => {
+    if (!/^[0-9a-f]{64}$/u.test(key)) throw new Error('network-host-key-invalid');
+    const known = remoteHostKey(db, host);
+    if (known !== undefined && known !== key) throw new Error('network-host-key-conflict');
   };
 
   const writeRecord = (record: ChannelRecord): void => {
@@ -815,9 +834,18 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       message.botCausation === undefined
     )
       throw new Error('Bot Group mentions require trusted causation');
-    const botDm = isBotDmChannel(channel) && senderSlug !== undefined;
+    const remoteSender = message.author.kind === 'remote-bot';
+    if (
+      message.author.kind === 'remote-bot' &&
+      (channel.remoteBot?.hostId !== message.author.hostId ||
+        channel.remoteBot?.botSlug !== message.author.slug ||
+        !isBotDmChannel(channel))
+    )
+      throw new Error('Remote Bot does not own this DM');
+    const botDm = isBotDmChannel(channel) && (senderSlug !== undefined || remoteSender);
     if (
       isBotDmChannel(channel) &&
+      !remoteSender &&
       (senderSlug === undefined || !channel.members.includes(senderSlug))
     )
       throw new Error('Only a Bot DM participant may author this Channel');
@@ -825,7 +853,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       throw new Error('Bot DM send requires trusted causation');
     const senderDm =
       botDm && senderSlug !== undefined ? readRecord(dmChannelId(senderSlug)) : undefined;
-    if (botDm && (senderDm?.type !== 'dm' || senderDm.botSlug !== senderSlug))
+    if (botDm && !remoteSender && (senderDm?.type !== 'dm' || senderDm.botSlug !== senderSlug))
       throw new Error('Sender Human DM is unavailable for the Bot action notice');
     const cause =
       botDm && senderSlug !== undefined && message.botCausation !== undefined
@@ -833,18 +861,29 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         : undefined;
     const noticeChannel = !botDm || cause === 'target' ? undefined : (cause ?? senderDm);
     const recipient = botDm ? channel.members.find((slug) => slug !== senderSlug) : undefined;
-    if (botDm && recipient === undefined) throw new Error('Bot DM has no recipient');
+    if (botDm && recipient === undefined && channel.remoteBot === undefined)
+      throw new Error('Bot DM has no recipient');
     const durable = rawMessage(message);
     const revision = previous.length + 1;
     const sourceEventId = randomUUID();
     const action: ChannelMessage | undefined =
-      noticeChannel !== undefined && recipient !== undefined && senderSlug !== undefined
+      noticeChannel !== undefined &&
+      (recipient !== undefined || channel.remoteBot !== undefined) &&
+      senderSlug !== undefined
         ? {
             id: `bot-dm-action-${durable.id}`,
             at: durable.at,
             author: { kind: 'bot', slug: senderSlug },
             body: '',
-            botDmAction: { channelId: id, messageId: durable.id, recipientBotSlug: recipient },
+            ...(channel.remoteBot !== undefined
+              ? { botChannelPost: { channelId: id, messageId: durable.id } }
+              : {
+                  botDmAction: {
+                    channelId: id,
+                    messageId: durable.id,
+                    recipientBotSlug: recipient!,
+                  },
+                }),
           }
         : undefined;
     const actionRevision =
@@ -1386,6 +1425,66 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       };
       writeRecord(record);
       return record;
+    },
+    remoteHostKey(host) {
+      return database.read((db) => remoteHostKey(db, host));
+    },
+    trustRemoteHostKey(host, key) {
+      database.transaction(
+        (db) => {
+          assertHostKey(db, host, key);
+          const result = db
+            .prepare(`UPDATE channel_records
+          SET record_json = json_set(record_json, '$.remoteBot.hostKey', ?)
+          WHERE json_extract(record_json, '$.remoteBot.hostId') = ?`)
+            .run(key, host);
+          if (result.changes === 0) throw new Error('network-channel-required');
+        },
+        ['channel'],
+      );
+      publishRecordChanged();
+    },
+    getOrCreateRemoteBotDm(localBotSlug, remote) {
+      const candidate = remoteBotDmRecord(localBotSlug, remote, now().toISOString());
+      if (!isBotActive(localBotSlug)) throw new Error('Remote Bot DM recipient is not active');
+      const result = database.transaction(
+        (db) => {
+          if (remote.hostKey !== undefined) assertHostKey(db, remote.hostId, remote.hostKey);
+          const row = db
+            .prepare('SELECT record_json FROM channel_records WHERE channel_id = ?')
+            .get(candidate.id);
+          const existing =
+            typeof row?.record_json === 'string'
+              ? parseRecord(row.record_json, candidate.id)
+              : undefined;
+          if (
+            existing !== undefined &&
+            existing.deletedAt === undefined &&
+            (existing.remoteBot?.hostId !== remote.hostId ||
+              existing.remoteBot.botSlug !== remote.botSlug ||
+              existing.members.length !== 1 ||
+              existing.members[0] !== localBotSlug ||
+              !isBotDmChannel(existing))
+          )
+            throw new Error('Remote Bot DM identity collision');
+          const record =
+            existing?.deletedAt === undefined && existing !== undefined ? existing : candidate;
+          const key = remote.hostKey ?? remoteHostKey(db, remote.hostId);
+          const updated =
+            key === undefined
+              ? record
+              : { ...record, remoteBot: { ...record.remoteBot!, hostKey: key } };
+          db.prepare(`INSERT INTO channel_records (channel_id, record_json) VALUES (?, ?)
+          ON CONFLICT(channel_id) DO UPDATE SET record_json = excluded.record_json`).run(
+            updated.id,
+            JSON.stringify(updated),
+          );
+          return updated;
+        },
+        ['channel'],
+      );
+      publishRecordChanged();
+      return result;
     },
     getOrCreateBotDm(firstBotSlug, secondBotSlug, name) {
       if (

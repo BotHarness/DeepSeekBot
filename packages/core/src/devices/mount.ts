@@ -7,7 +7,11 @@ import type { Context } from '@deepseek-ai/cordis';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
 import { createDeviceLan } from './lan.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { hostname } from 'node:os';
+import { hostname, platform } from 'node:os';
+import { createTailnetBotBridge } from './bot-tailnet-bridge.js';
+import { receiveNetworkBotDm, type BotNetworkPort } from '../runtime/bot-network.js';
+import type { PersonaBotRegistry } from '../bots/registry.js';
+import type { ChannelStore } from '../channels/store.js';
 import { join } from 'node:path';
 import type { Duplex } from 'node:stream';
 import type { LocalVideoOwner } from '../../../computer/src/local-video-contract.js';
@@ -112,6 +116,12 @@ export function mountDevicePairing(
     packageAnchors?: readonly string[];
     onAccount?: (account: ConnectAccount | undefined) => void;
     telemetry?: Pick<TelemetryService, 'capture'>;
+    botNetwork?: {
+      registry: PersonaBotRegistry;
+      channels: ChannelStore;
+      admitBotDmMessage(channelId: string, messageId: string): void;
+      available(port: BotNetworkPort | undefined): void;
+    };
   },
 ): void {
   if (options.database.mode !== 'ready') return undefined;
@@ -162,6 +172,86 @@ export function mountDevicePairing(
           ctx.logger.warn(`push phase=announce-failed error=${String(error)}`),
         ),
   });
+  const identity = createNoiseIdentity(options.credentials ?? (() => undefined));
+  ctx.effect(() => () => identity.close(), 'botharness: Host encryption identity');
+  if (options.botNetwork !== undefined) {
+    const owners = options.botNetwork;
+    ctx.effect(() => {
+      const host = pairing.host();
+      const bridge = createTailnetBotBridge({
+        hostId: host.id,
+        key: identity.key,
+        knownKey: (id) => owners.channels.remoteHostKey?.(id),
+        trustKey: (id, key) => {
+          if (!owners.channels.trustRemoteHostKey)
+            throw new Error('network-key-storage-unavailable');
+          owners.channels.trustRemoteHostKey(id, key);
+        },
+        directory: () =>
+          owners.registry
+            .list()
+            .filter((bot) => bot.paused !== true)
+            .map((bot) => ({
+              hostId: host.id,
+              botSlug: bot.slug,
+              displayName: bot.displayName.slice(0, 128),
+              ...(bot.description === undefined
+                ? {}
+                : { description: bot.description.slice(0, 1000) }),
+              device: { model: null, platform: platform() },
+              capabilities: [
+                ...(bot.computerAccess === true && ctx.get('botharnessComputer') !== undefined
+                  ? ['computer']
+                  : []),
+                ...(bot.browserAccess === true && ctx.get('botharnessBrowserTools') !== undefined
+                  ? ['browser']
+                  : []),
+              ],
+            })),
+        receive: (sender, message) => receiveNetworkBotDm(owners, sender, message),
+        record: (event) =>
+          write(
+            'bot-network',
+            event.phase,
+            JSON.stringify({ module: 'bot-network', initiator: 'host', ...event }),
+          ),
+      });
+      owners.available(bridge);
+      let starting: Promise<void> | undefined;
+      const start = () => {
+        const started = Date.now();
+        starting ??= bridge
+          .start()
+          .catch(() => {
+            write(
+              'bot-network',
+              'start-refused',
+              JSON.stringify({
+                module: 'bot-network',
+                initiator: 'host',
+                phase: 'start-refused',
+                code: 'tailnet-unavailable',
+                durationMs: Date.now() - started,
+              }),
+            );
+          })
+          .finally(() => {
+            starting = undefined;
+          });
+        return starting;
+      };
+      const retryListener = setInterval(() => {
+        void start();
+      }, 30_000);
+      retryListener.unref();
+      void start();
+      return () => {
+        clearInterval(retryListener);
+        owners.available(undefined);
+        void bridge.close();
+      };
+    }, 'botharness: online Bot collaboration bridge');
+  }
   if (options.push !== undefined) {
     const watched = options.push;
     const delivery = createPushDelivery({
@@ -203,7 +293,6 @@ export function mountDevicePairing(
   ctx.inject(['connection', 'webServer'], (webCtx) => {
     const connection = (webCtx as unknown as { connection: ConnectionLike }).connection;
     const webServer = (webCtx as unknown as { webServer: WebServerLike }).webServer;
-    const identity = createNoiseIdentity(options.credentials ?? (() => undefined));
     const lanKey = credentialKey('botharness-core', 'device-lan');
     const lan = createDeviceLan({
       read: async () => {
@@ -268,7 +357,6 @@ export function mountDevicePairing(
     webCtx.effect(
       () => () => {
         encrypted.close();
-        identity.close();
       },
       'botharness: encrypted device channels',
     );

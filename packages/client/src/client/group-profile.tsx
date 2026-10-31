@@ -43,6 +43,8 @@ function authorName(
   switch (entry.author.kind) {
     case 'bot':
       return botNames.get(entry.author.slug) ?? entry.author.slug;
+    case 'remote-bot':
+      return entry.author.slug;
     case 'human':
       return t('groupProfile.human');
     case 'bridged':

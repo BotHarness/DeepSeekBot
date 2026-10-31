@@ -781,6 +781,10 @@ _Avoid_: private chat, PM
 A DM Channel whose two participants are PersonaBots. A message from one Bot is a Source Event in that Channel and may enter the other Bot's Inbox; the Human's read-only inspection is separate from Channel membership.
 _Avoid_: peer relay bus, copied inbox conversation
 
+**Bot Collaboration Network**:
+In the agreed cross-Host design target, the membership scope within which active PersonaBots discover colleagues and communicate through Bot-to-Bot DMs, including across Hosts. It establishes contact eligibility, while each receiving Bot retains its own execution permissions and private Memory.
+_Avoid_: shared Memory, global Orchestrator, network route
+
 **Thread**:
 A sub-conversation opened by replying to a message inside a Chat or a Channel.
 _Avoid_: topic, sub-chat, channel

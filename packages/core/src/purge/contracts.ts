@@ -11,6 +11,7 @@ export const purgeFactSchema = z
     author: z.discriminatedUnion('kind', [
       z.object({ kind: z.literal('human') }).strict(),
       z.object({ kind: z.literal('bot'), slug: identity }).strict(),
+      z.object({ kind: z.literal('remote-bot'), hostId: identity, slug: identity }).strict(),
       z.object({ kind: z.literal('bridged'), source: identity }).strict(),
       z.object({ kind: z.literal('system') }).strict(),
     ]),

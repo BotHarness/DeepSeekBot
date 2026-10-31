@@ -28,7 +28,11 @@ function notWoken(message: ChannelMessage, targets: readonly string[]) {
   const reason =
     (message.botCausation?.hop ?? 0) > MAX_BOT_HOPS ? 'collaboration-hop-limit' : 'not-admitted';
   return [...new Set(targets)]
-    .filter((botSlug) => !woken.has(botSlug))
+    .filter(
+      (botSlug) =>
+        !woken.has(botSlug) &&
+        (reason === 'collaboration-hop-limit' || !botSlug.startsWith('remote:')),
+    )
     .map((botId) => ({ botId, reason }));
 }
 

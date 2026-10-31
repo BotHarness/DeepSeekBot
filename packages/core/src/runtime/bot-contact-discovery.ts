@@ -19,6 +19,56 @@ export interface BotContact {
   displayNameTruncated?: true;
   description?: string;
   descriptionTruncated?: true;
+  hostId?: string;
+  botSlug?: string;
+  device?: { model: string | null; platform: string | null };
+  capabilities?: string[];
+}
+
+export interface NetworkBotContact {
+  hostKey?: string;
+  hostId: string;
+  botSlug: string;
+  displayName: string;
+  description?: string;
+  device: { model: string | null; platform: string | null };
+  capabilities: readonly string[];
+}
+
+export function networkBotId(hostId: string, botSlug: string): string {
+  if (!/^[a-zA-Z0-9_-]{1,128}$/u.test(hostId) || !isValidSlug(botSlug))
+    throw new Error('Invalid remote Bot identity');
+  return `remote:${hostId}:${botSlug}`;
+}
+
+function validContactId(id: string): boolean {
+  if (isValidSlug(id)) return true;
+  const parts = id.split(':');
+  if (parts.length !== 3 || parts[0] !== 'remote') return false;
+  try {
+    return networkBotId(parts[1]!, parts[2]!) === id;
+  } catch {
+    return false;
+  }
+}
+
+function projectNetwork(bot: NetworkBotContact, descriptionLimit: number): BotContact {
+  const text = (value: string | null) => (value === null ? null : value.slice(0, 128));
+  return {
+    botId: networkBotId(bot.hostId, bot.botSlug),
+    hostId: bot.hostId,
+    botSlug: bot.botSlug,
+    displayName: bot.displayName.slice(0, 128),
+    ...(bot.displayName.length > 128 ? { displayNameTruncated: true } : {}),
+    ...(bot.description === undefined
+      ? {}
+      : {
+          description: bot.description.slice(0, descriptionLimit),
+          ...(bot.description.length > descriptionLimit ? { descriptionTruncated: true } : {}),
+        }),
+    device: { model: text(bot.device.model), platform: text(bot.device.platform) },
+    capabilities: [...new Set(bot.capabilities)].slice(0, 8).map((value) => value.slice(0, 48)),
+  };
 }
 
 export interface BotContactPage {
@@ -45,10 +95,16 @@ export function discoverBotContacts(
   registry: PersonaBotRegistry,
   ownerBotId: string,
   input: BotContactQuery = {},
+  networkContacts: readonly NetworkBotContact[] = [],
 ): BotContactPage {
   if (input.botId !== undefined) {
     if (input.query !== undefined || input.cursor !== undefined || input.limit !== undefined)
       throw new Error('list_bot_contacts: bot_id detail cannot be combined with page arguments');
+    const remote = networkContacts.find(
+      (bot) => networkBotId(bot.hostId, bot.botSlug) === input.botId,
+    );
+    if (remote !== undefined)
+      return { outputLimit: BOT_CONTACT_OUTPUT_LIMIT, contacts: [projectNetwork(remote, 1_000)] };
     const bot = registry.get(input.botId);
     if (bot === undefined || bot.slug === ownerBotId || bot.paused === true)
       throw new Error('list_bot_contacts: bot_id must identify an active colleague');
@@ -76,7 +132,7 @@ export function discoverBotContacts(
         decoded.filter !== filter ||
         !('afterId' in decoded) ||
         typeof decoded.afterId !== 'string' ||
-        !isValidSlug(decoded.afterId)
+        !validContactId(decoded.afterId)
       )
         throw new Error('invalid');
       afterId = decoded.afterId;
@@ -84,7 +140,7 @@ export function discoverBotContacts(
       throw new Error('list_bot_contacts: invalid cursor; restart with unchanged query');
     }
   }
-  const matching = registry
+  const local = registry
     .list()
     .filter((bot) => bot.slug !== ownerBotId && bot.paused !== true)
     .filter(
@@ -94,8 +150,24 @@ export function discoverBotContacts(
           value.toLowerCase().includes(query),
         ),
     )
-    .filter((bot) => afterId === undefined || bot.slug > afterId)
-    .sort((left, right) => (left.slug < right.slug ? -1 : left.slug > right.slug ? 1 : 0));
+    .map((bot) => project(bot, 160));
+  const remote = networkContacts
+    .filter(
+      (bot) =>
+        query === '' ||
+        [
+          bot.botSlug,
+          bot.displayName,
+          bot.description ?? '',
+          bot.device.model ?? '',
+          bot.device.platform ?? '',
+          ...bot.capabilities,
+        ].some((value) => value.toLowerCase().includes(query)),
+    )
+    .map((bot) => projectNetwork(bot, 160));
+  const matching = [...new Map([...local, ...remote].map((bot) => [bot.botId, bot])).values()]
+    .filter((bot) => afterId === undefined || bot.botId > afterId)
+    .sort((left, right) => (left.botId < right.botId ? -1 : left.botId > right.botId ? 1 : 0));
   const contacts: BotContact[] = [];
   const frame = (next: boolean): BotContactPage => ({
     outputLimit: BOT_CONTACT_OUTPUT_LIMIT,
@@ -109,7 +181,7 @@ export function discoverBotContacts(
       : {}),
   });
   for (const bot of matching.slice(0, limit)) {
-    contacts.push(project(bot, 160));
+    contacts.push(bot);
     if (
       JSON.stringify(frame(contacts.length < matching.length)).length > BOT_CONTACT_OUTPUT_LIMIT
     ) {
