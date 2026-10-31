@@ -133,6 +133,27 @@ function end() {
 }
 
 describe('Channel viewport through the Android keyboard adapter', () => {
+  it.each([904, 770.333])(
+    'keeps measured geometry when a delayed scroll reports layout %s during recovery',
+    (staleLayout) => {
+      const view = mount();
+      act(() => {
+        view.current.listProps.onContentSizeChange(0, 9960.333);
+        view.current.listProps.onLayout({
+          nativeEvent: { layout: { height: 904 } },
+        } as LayoutChangeEvent);
+        view.current.listProps.onScroll({
+          nativeEvent: {
+            contentOffset: { y: 8959 },
+            contentSize: { height: 9863 },
+            layoutMeasurement: { height: staleLayout },
+          },
+        } as NativeSyntheticEvent<NativeScrollEvent>);
+      });
+      flush();
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 9056.333, animated: true });
+    },
+  );
   it.each(['human', 'bot'] as const)(
     'smoothly follows a new %s message without a streaming draft',
     (author) => {

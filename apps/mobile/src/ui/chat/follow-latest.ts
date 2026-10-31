@@ -92,11 +92,11 @@ export function useFollowLatest<Row>(
     metrics.current = {
       ...metrics.current,
       content:
-        !settled.current && metrics.current.content > 0
+        metrics.current.content > 0
           ? metrics.current.content
           : (native.contentSize?.height ?? metrics.current.content),
       layout:
-        !settled.current && metrics.current.layout > 0
+        metrics.current.layout > 0
           ? metrics.current.layout
           : (native.layoutMeasurement?.height ?? metrics.current.layout),
       offset: native.contentOffset.y,
