@@ -755,7 +755,7 @@ describe('Cloudflare API client', () => {
       const remove = () =>
         stage === 'dns' ? api.deleteRecord('target') : api.deleteTunnel('target');
       await expect(remove()).rejects.toMatchObject({ status: 503 });
-      const expected =
+      const expectedRequestsUntilFailure =
         stage === 'dns'
           ? ['DELETE /zones/zone/dns_records/target']
           : stage === 'connections'
@@ -764,7 +764,7 @@ describe('Cloudflare API client', () => {
                 'DELETE /accounts/acct/cfd_tunnel/target/connections',
                 'DELETE /accounts/acct/cfd_tunnel/target',
               ];
-      expect(requests).toEqual(expected);
+      expect(requests).toEqual(expectedRequestsUntilFailure);
 
       upstreamStatus = 200;
       requests.length = 0;
@@ -781,7 +781,7 @@ describe('Cloudflare API client', () => {
       upstreamStatus = 404;
       requests.length = 0;
       await expect(remove()).resolves.toBeUndefined();
-      expect(requests).toEqual(expected);
+      expect(requests).toEqual(expectedRequestsUntilFailure);
     },
   );
 
