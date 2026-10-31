@@ -43,6 +43,7 @@ export interface AssignmentCard {
   currentStep?: StepView;
   steps?: StepView[];
   stepsTotal?: number;
+  workLoaded?: boolean;
   unavailable?: boolean;
   workError?: string;
   kind?: 'orchestrator';
@@ -256,6 +257,7 @@ function cardOf(assignment: TaskBoardAssignment, input: TaskBoardInput): Assignm
     ...(progress === undefined ? {} : { progress }),
     ...(currentStep === undefined ? {} : { currentStep }),
     ...(stepsView === undefined ? {} : { steps: stepsView.steps, stepsTotal: stepsView.total }),
+    ...(state?.work === undefined ? {} : { workLoaded: true }),
     ...(unavailable ? { unavailable: true } : {}),
     ...(state?.error === undefined ? {} : { workError: state.error }),
   };

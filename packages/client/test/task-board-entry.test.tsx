@@ -24,6 +24,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
 });
 
 import type { BridgeActions } from '../src/client/actions.js';
+import type { AssignmentWork } from '../src/client/bridge.js';
 import type { DockPanelHost } from '../src/client/dock-panels.js';
 import type { ConfigStorage } from '../src/client/roster-config.js';
 import { store, type ChannelSummary, type OwnedSessionSummary } from '../src/client/store.js';
@@ -542,5 +543,52 @@ it('does not fetch again once a settled card is collapsed', async () => {
   expect(readWork.mock.calls.filter((call) => call[1] === 'session-archived')).toHaveLength(1);
   await act(async () => root.unmount());
   vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+it('shows the no-step hint only after an empty read completes, never while loading', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const emptyWork: AssignmentWork = {
+    ...WORK,
+    lanes: [
+      {
+        role: 'main',
+        index: 0,
+        sessionId: 'session-archived',
+        state: 'running',
+        entries: [],
+        omitted: 0,
+      },
+    ],
+  };
+  let release: (value: AssignmentWork) => void = () => undefined;
+  const readWork = vi.fn(
+    () =>
+      new Promise<AssignmentWork>((resolve) => {
+        release = resolve;
+      }),
+  );
+  const host = document.createElement('div');
+  const root = await paintPanel(
+    host,
+    panelActions({ readSessions: vi.fn(async () => [ARCHIVED]), assignmentWork: readWork }),
+    'dm-1',
+    'ada',
+  );
+  const toggle = host.querySelector<HTMLElement>(
+    '[data-task-board-card-toggle="session-archived"]',
+  );
+  await act(async () => toggle?.click());
+  await act(async () => undefined);
+  expect(host.querySelector('[data-task-board-no-steps]')).toBeNull();
+  await act(async () => release(emptyWork));
+  await act(async () => undefined);
+  const hint = host.querySelector('[data-task-board-no-steps]');
+  expect(hint).not.toBeNull();
+  expect(hint?.textContent).toBe('assignmentWork.noSteps');
+  await act(async () => toggle?.click());
+  await act(async () => undefined);
+  expect(host.querySelector('[data-task-board-no-steps]')).toBeNull();
+  await act(async () => root.unmount());
   vi.unstubAllGlobals();
 });

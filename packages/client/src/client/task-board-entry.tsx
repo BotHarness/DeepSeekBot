@@ -758,6 +758,11 @@ function TaskBoardCardView({
           ))}
         </ol>
       )}
+      {!open || card.steps !== undefined || card.workLoaded !== true ? null : (
+        <span data-task-board-no-steps="" {...stylex.props(styles.meta)}>
+          <span {...stylex.props(styles.metaText)}>{t('assignmentWork.noSteps')}</span>
+        </span>
+      )}
       {card.steps === undefined ||
       card.stepsTotal === undefined ||
       card.stepsTotal <= card.steps.length ? null : (
