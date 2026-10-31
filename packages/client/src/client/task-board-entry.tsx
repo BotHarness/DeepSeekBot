@@ -10,6 +10,7 @@ import type { BotSummary } from './store.js';
 import { AssignmentWorkDialog } from './assignment-work.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { TASK_BOARD_PANEL } from './channel-dock-layout.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { IconButton } from './ds/icon-button.js';
 import { Tooltip } from './ds/tooltip.js';
@@ -732,8 +733,8 @@ export function TaskBoardHeaderAction({
   const align = useMountedResource<HTMLSpanElement>(() => {
     const host = hostRef.current;
     if (host === undefined) return;
-    if (prefs.getSnapshot().openByChannel[channelId] === true) host.open('task-board');
-    else host.close('task-board');
+    if (prefs.getSnapshot().openByChannel[channelId] === true) host.open(TASK_BOARD_PANEL);
+    else host.close(TASK_BOARD_PANEL);
   }, [channelId, prefs, hostAvailable]);
   const open = snapshot.openByChannel[channelId] === true;
   const label = t(open ? 'taskBoard.close' : 'taskBoard.open');
@@ -749,8 +750,8 @@ export function TaskBoardHeaderAction({
             const next = !open;
             prefs.setOpen(channelId, next);
             if (dockPanels === undefined) return;
-            if (next) dockPanels.open('task-board');
-            else dockPanels.close('task-board');
+            if (next) dockPanels.open(TASK_BOARD_PANEL);
+            else dockPanels.close(TASK_BOARD_PANEL);
           }}
         >
           <ChannelSidebarIcon name="list-checks" size={16} />

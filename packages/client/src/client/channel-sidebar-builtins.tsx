@@ -20,6 +20,7 @@ import { BotPromptSettingsEntry } from './prompt-preset-settings.js';
 import { modelPlanOf, rememberModelPlan, subscribeModelPlans } from './model-plan-store.js';
 import type { ModelPlanStateView, ModelPlanView } from './bridge.js';
 import { AssignmentConcurrencySetting } from './assignment-concurrency-setting.js';
+import { TASK_BOARD_PANEL } from './channel-dock-layout.js';
 import { channelSettings } from './channel-settings-state.js';
 import { useMountedResource } from './mounted-resource.js';
 import { WakePolicyBadge, WakePolicyEntry } from './wake-policy-entry.js';
@@ -1279,7 +1280,7 @@ export function createChannelSidebarBuiltins(
       headerAction: SessionsHeader,
     },
     {
-      id: 'task-board',
+      id: TASK_BOARD_PANEL,
       icon: 'list-checks',
       label: t('entry.taskBoard'),
       order: 12,
