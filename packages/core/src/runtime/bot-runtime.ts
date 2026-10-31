@@ -1,5 +1,10 @@
 import { SessionRecoveryError, type SessionRecoveryAction } from './session-recovery.js';
 import {
+  prepareAssignmentReport,
+  parseReportContent,
+  type AssignmentReportContent,
+} from './assignment-report.js';
+import {
   GroupReplySourceRevoked,
   GroupSendReview,
   SendReviewRequired,
@@ -157,10 +162,6 @@ export type AssignmentReportState =
   | 'waiting-human'
   | 'failed';
 export type AssignmentRequestMode = 'next-step' | 'next-turn';
-
-const MAX_INLINE_REPORT_BYTES = 2048;
-const MAX_REPORT_BYTES = 1_048_576;
-const REPORT_PREVIEW_CHARACTERS = 400;
 
 export interface AssignmentReportInput {
   state: AssignmentReportState;
@@ -860,6 +861,7 @@ export interface BotRuntimeOptions {
     sessionId: string,
     acceptedSummary: string,
     offset: number,
+    content?: AssignmentReportContent,
   ) => Promise<AssignmentReportPage>;
 
   workspaceRoot?: string;
@@ -5270,11 +5272,27 @@ class BotRuntimeImplementation implements BotRuntime {
       reportPage: async (sessionId, acceptedSummary, offset) => {
         const assignment = this.getAssignment(bot.slug, sessionId);
         if (assignment === undefined) throw new Error(`Unknown Assignment Session: ${sessionId}`);
-        if (assignment.latestReport?.summary !== acceptedSummary)
+        const acceptedReport = assignment.latestReport;
+        if (acceptedReport === undefined || acceptedReport.summary !== acceptedSummary)
           throw new Error('Assignment report changed; inspect it again');
         if (this.#readAssignmentReportPage === undefined)
           throw new Error('DSH Session Query is unavailable');
-        return this.#readAssignmentReportPage(sessionId, acceptedSummary, offset);
+        const content = this.#database.read((database) => {
+          const row = database
+            .prepare(`SELECT source_event_id, payload_json FROM source_events
+            WHERE source_kind = 'assignment-report' AND bot_slug = ? AND assignment_session_id = ?
+              AND body = ? AND created_at = ? ORDER BY rowid DESC LIMIT 1`)
+            .get(bot.slug, sessionId, acceptedSummary, acceptedReport.at);
+          if (row === undefined) throw new Error('Accepted Assignment report is unavailable');
+          if (
+            typeof row.source_event_id !== 'string' ||
+            (row.payload_json !== null && typeof row.payload_json !== 'string')
+          )
+            throw new Error('Invalid Assignment report record');
+          requireSourceContent(database, row.source_event_id);
+          return parseReportContent(row.payload_json);
+        });
+        return this.#readAssignmentReportPage(sessionId, acceptedSummary, offset, content);
       },
       request: (input) => {
         if (sourceEventId !== undefined)
@@ -8157,18 +8175,9 @@ class BotRuntimeImplementation implements BotRuntime {
       assignment.activity === 'stopped'
     )
       throw new Error(`Assignment Session ${sessionId} is unavailable or stopping`);
-    const byteLength = Buffer.byteLength(content, 'utf8');
-    if (byteLength > MAX_REPORT_BYTES)
-      throw new Error(`Assignment report exceeds ${MAX_REPORT_BYTES} bytes`);
-    let summary = content;
-    if (byteLength > MAX_INLINE_REPORT_BYTES) {
-      if (this.#saveReportSpill === undefined)
-        throw new Error('Assignment report spill storage is unavailable');
-      const spill = await this.#saveReportSpill({ sessionId, content });
-      const preview = Array.from(content).slice(0, REPORT_PREVIEW_CHARACTERS).join('');
-      const digest = createHash('sha256').update(content).digest('hex');
-      summary = `${preview}…\n[Full report: ${spill.bytes} bytes; sha256: ${digest}; locator: ${spill.locator}; ${spill.retrievalHint}]`;
-    }
+    const preparation = prepareAssignmentReport(sessionId, content, this.#saveReportSpill);
+    const prepared = preparation instanceof Promise ? await preparation : preparation;
+    const { summary } = prepared;
     const at = this.#now().toISOString();
     const expectsReply = input.expectsReply === true;
     const report: AssignmentReport = {
@@ -8242,6 +8251,7 @@ class BotRuntimeImplementation implements BotRuntime {
               author: { kind: 'bot', slug: botSlug },
               assignmentReport: {
                 state: input.state,
+                content: prepared.content,
                 ...(execution === undefined ? {} : { turn: execution.turn }),
               },
             }),

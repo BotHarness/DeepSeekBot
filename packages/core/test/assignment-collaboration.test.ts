@@ -1,3 +1,4 @@
+import type { AssignmentReportContent } from '../src/runtime/assignment-report.js';
 import { createTestRegistry, registryDatabase } from './registry-fixture.js';
 import { AssignmentInboxAcceptanceUncertainError } from '../src/runtime/assignment-delivery.js';
 import { join, dirname } from 'node:path';
@@ -137,6 +138,7 @@ async function setup(
       sessionId: string,
       acceptedSummary: string,
       offset: number,
+      content?: AssignmentReportContent,
     ) => Promise<{
       text: string;
       offset: number;
@@ -1370,6 +1372,26 @@ describe('Assignment collaboration', () => {
   it('spills an oversized report before admitting its bounded Inbox summary', async () => {
     const saved: Array<{ sessionId: string; content: string }> = [];
     const { runtime, agents, owner, admit, close } = await setup({
+      readAssignmentReportPage: (sessionId, summary, offset, content) =>
+        readAssignmentReportPage(
+          {
+            listEvents: async () => [],
+            filterEvents: async () => [{ seq: 1 }],
+            readEvent: async () => ({
+              target: {
+                type: 'tool/call',
+                data: {
+                  name: 'report_to_orchestrator',
+                  arguments: JSON.stringify({ summary: saved[0]!.content }),
+                },
+              },
+            }),
+          },
+          sessionId,
+          summary,
+          offset,
+          content,
+        ),
       saveReportSpill: async (input) => {
         saved.push(input);
         return {
@@ -1397,34 +1419,25 @@ describe('Assignment collaboration', () => {
       expect(summary).toContain('/private/spill/report.txt');
       expect(summary).toMatch(/sha256: [0-9a-f]{64}/u);
       expect(summary).not.toContain('FINAL-MARKER');
-      const page = await readAssignmentReportPage(
-        {
-          listEvents: async () => [],
-          filterEvents: async () => [{ seq: 1 }],
-          readEvent: async () => ({
-            target: {
-              type: 'tool/call',
-              data: {
-                name: 'report_to_orchestrator',
-                arguments: JSON.stringify({ summary: saved[0]!.content }),
-              },
-            },
-          }),
-        },
-        created.assignment.sessionId,
-        summary!,
-        1_000,
-      );
+      const page = await agents.access!.reportPage!(created.assignment.sessionId, summary!, 1_000);
       expect(page.text).toContain('FINAL-MARKER');
       expect(page.sourceEventBytes).toBeGreaterThan(Buffer.byteLength(content));
       expect(agents.inboxTurns[0]).toContain('/private/spill/report.txt');
       expect(agents.inboxTurns[0]).not.toContain('FINAL-MARKER');
       const source = attachOperationalModule(owner, 'spill-test').read((database) =>
         database
-          .prepare("SELECT body FROM source_events WHERE source_kind = 'assignment-report'")
+          .prepare(
+            "SELECT body, payload_json FROM source_events WHERE source_kind = 'assignment-report'",
+          )
           .get(),
-      ) as { body: string };
+      ) as { body: string; payload_json: string };
       expect(source.body).toBe(summary);
+      expect(JSON.parse(source.payload_json).assignmentReport.content).toMatchObject({
+        version: 1,
+        bytes: Buffer.byteLength(content),
+        sha256: expect.any(String),
+        spill: { locator: '/private/spill/report.txt', retrievalHint: 'Use read on this locator.' },
+      });
       await agents.access!.stop(created.assignment.sessionId);
       await expect(
         agents.started[0]!.run.report({ state: 'completed', summary: content }),
@@ -1498,11 +1511,97 @@ describe('Assignment collaboration', () => {
         'Unknown Assignment Session',
       );
       expect(readAssignmentReportPage).toHaveBeenCalledTimes(1);
-      expect(readAssignmentReportPage).toHaveBeenCalledWith(sessionId, 'first page', 0);
+      expect(readAssignmentReportPage).toHaveBeenCalledWith(
+        sessionId,
+        'first page',
+        0,
+        expect.objectContaining({ version: 1, bytes: 10, sha256: expect.any(String) }),
+      );
     } finally {
       await close();
     }
   });
+
+  it.each([null, '{}', '{"assignmentReport":{"state":"completed"}}'])(
+    'reads historic report payload %s through the owned Runtime path',
+    async (payload) => {
+      const raw = '  历史报告😀  ';
+      const readPage = vi.fn(
+        (sessionId: string, summary: string, offset: number, content?: AssignmentReportContent) =>
+          readAssignmentReportPage(
+            {
+              listEvents: async () => [],
+              filterEvents: async () => [{ seq: 1 }],
+              readEvent: async () => ({
+                target: {
+                  type: 'tool/call',
+                  data: {
+                    name: 'report_to_orchestrator',
+                    arguments: JSON.stringify({ summary: raw }),
+                  },
+                },
+              }),
+            },
+            sessionId,
+            summary,
+            offset,
+            content,
+          ),
+      );
+      const { agents, owner, admit, close } = await setup({ readAssignmentReportPage: readPage });
+      try {
+        await admit('Start', 'human-legacy-report');
+        const created = agents.access!.create({
+          grantId: TEST_GRANT_ID,
+          title: 'Legacy research',
+          description: 'Read a historical report',
+        });
+        if (created.outcome !== 'created') throw new Error('create failed');
+        await agents.started[0]!.run.report({ state: 'completed', summary: raw });
+        const database = attachOperationalModule(owner, 'legacy-report-fixture');
+        database.transaction(
+          (db) =>
+            db
+              .prepare(
+                "UPDATE source_events SET payload_json = ? WHERE source_kind = 'assignment-report'",
+              )
+              .run(payload),
+          ['source-event'],
+        );
+        await expect(
+          agents.access!.reportPage?.(created.assignment.sessionId, raw.trim(), 0),
+        ).resolves.toMatchObject({ text: raw.trim() });
+        database.transaction(
+          (db) =>
+            db
+              .prepare(
+                "UPDATE source_events SET payload_json = ? WHERE source_kind = 'assignment-report'",
+              )
+              .run('{"assignmentReport":{"content":null}}'),
+          ['source-event'],
+        );
+        await expect(
+          agents.access!.reportPage?.(created.assignment.sessionId, raw.trim(), 0),
+        ).rejects.toThrow();
+        expect(readPage).toHaveBeenCalledTimes(1);
+        database.transaction(
+          (db) =>
+            db
+              .prepare(
+                "INSERT INTO messaging_purge_facts SELECT source_event_id, 'dm-ada', source_event_id, created_at, '{}' FROM source_events WHERE source_kind = 'assignment-report'",
+              )
+              .run(),
+          ['source-event'],
+        );
+        await expect(
+          agents.access!.reportPage?.(created.assignment.sessionId, raw.trim(), 0),
+        ).rejects.toThrow('purged');
+        expect(readPage).toHaveBeenCalledTimes(1);
+      } finally {
+        await close();
+      }
+    },
+  );
 
   it('projects a Bot Grant request until a committed Grant-linked reply and keeps legacy text pending', async () => {
     const home = createTempRoot('botharness-grant-attention-');
