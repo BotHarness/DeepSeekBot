@@ -46,7 +46,7 @@ vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 
 vi.mock('../src/ui/chat/header-chrome', () => ({ titleChipFill: () => ({}) }));
 vi.mock('../src/ui/chat/native-header', () => ({ barLabelProps: {}, barLabelStyle: {} }));
-vi.mock('../src/ui/primitives/connection-progress', () => ({ ConnectionProgress: () => null }));
+vi.mock('../src/ui/primitives/loading-indicator', () => ({ LoadingIndicator: () => null }));
 vi.mock('../src/ui/chat/group-mark', () => ({ GroupMark: () => null }));
 
 const { WorkingStatus, workingLabel } = await import('../src/ui/chat/working-status');
@@ -121,4 +121,32 @@ describe('working status', () => {
       t.state.thinking,
     );
   });
+});
+
+it('shows reconnecting text in DM and group headers and removes it after recovery', () => {
+  const dm = renderToStaticMarkup(
+    <ChatTitle
+      bot={{ ...mika, state: 'idle' }}
+      fallback="missing"
+      connectionLabel={t.reconnecting}
+      onPress={() => {}}
+    />,
+  );
+  expect(dm).toContain(`>${t.reconnecting}<`);
+  expect(dm).toContain('>Mika<');
+  const group = renderToStaticMarkup(
+    <ChannelTitle
+      channel={undefined}
+      fallback="QA group"
+      working={[]}
+      connectionLabel={t.reconnecting}
+      onPress={() => {}}
+    />,
+  );
+  expect(group).toContain(`>${t.reconnecting}<`);
+  expect(group).toContain('>QA group<');
+  const recovered = renderToStaticMarkup(
+    <ChatTitle bot={{ ...mika, state: 'idle' }} fallback="missing" onPress={() => {}} />,
+  );
+  expect(recovered).not.toContain(t.reconnecting);
 });

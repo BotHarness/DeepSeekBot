@@ -1224,7 +1224,7 @@ function ChatConversation({
       <Text {...barLabelProps} strong numberOfLines={1} style={[{ flexShrink: 1 }, barLabelStyle]}>
         {botDmName}
       </Text>
-      <ConnectionProgress active={connectionLabel !== undefined} />
+      <ConnectionProgress active={connectionLabel !== undefined} label={connectionLabel} />
       <WorkingStatus bots={working} />
     </HeaderTitleButton>
   );
