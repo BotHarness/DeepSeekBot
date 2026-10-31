@@ -2569,7 +2569,9 @@ const GRANT_RECEPTION_EVIDENCE_MIGRATION: SchemaMigration = {
   description: 'Fence grant-backed reception evidence from older Bridge-only readers',
   migrate(database) {
     database.exec(`CREATE INDEX messaging_paths_authority
-      ON messaging_source_paths(bot_slug, source_event_id, json_extract(body, '$.kind'));`);
+      ON messaging_source_paths(bot_slug, source_event_id, json_extract(body, '$.kind'));
+      CREATE VIEW messaging_bridge_sources AS SELECT DISTINCT source_event_id
+        FROM messaging_source_paths WHERE json_extract(body, '$.kind') IS NOT 'grant';`);
   },
 };
 

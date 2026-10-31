@@ -2670,7 +2670,7 @@ class BotRuntimeImplementation implements BotRuntime {
           FROM inbox_admissions a
           JOIN source_events e ON e.source_event_id = a.source_event_id
          WHERE a.bot_slug = ? AND a.reason = 'group-ordinary' AND e.channel_id IS NOT NULL
-           AND NOT EXISTS (SELECT 1 FROM messaging_source_paths rp WHERE rp.source_event_id = e.source_event_id AND json_extract(rp.body, '$.kind') IS NOT 'grant')
+           AND NOT EXISTS (SELECT 1 FROM messaging_bridge_sources rp WHERE rp.source_event_id = e.source_event_id)
            AND a.wake_count IS NOT NULL AND a.observed_at IS NULL
            AND a.attempt_state IN ('pending', 'retryable') AND e.channel_id = ?
          GROUP BY a.wake_policy_revision, a.source_policy_revision, a.external_default_revision, a.external_thread_policy_revision,
@@ -2840,7 +2840,7 @@ class BotRuntimeImplementation implements BotRuntime {
             FROM inbox_admissions a
             JOIN source_events e ON e.source_event_id = a.source_event_id
            WHERE a.bot_slug = ? AND a.reason = 'group-ordinary' AND e.channel_id IS NOT NULL
-           AND NOT EXISTS (SELECT 1 FROM messaging_source_paths rp WHERE rp.source_event_id = e.source_event_id AND json_extract(rp.body, '$.kind') IS NOT 'grant')
+           AND NOT EXISTS (SELECT 1 FROM messaging_bridge_sources rp WHERE rp.source_event_id = e.source_event_id)
              AND a.wake_count IS NOT NULL AND a.observed_at IS NULL
              AND a.attempt_state IN ('pending', 'retryable') AND e.channel_id IS NOT NULL
            ORDER BY e.channel_id
@@ -3116,7 +3116,7 @@ class BotRuntimeImplementation implements BotRuntime {
           FROM inbox_admissions a
           JOIN source_events e ON e.source_event_id = a.source_event_id
          WHERE a.bot_slug = ? AND a.reason = 'group-ordinary' AND e.channel_id IS NOT NULL
-           AND NOT EXISTS (SELECT 1 FROM messaging_source_paths rp WHERE rp.source_event_id = e.source_event_id AND json_extract(rp.body, '$.kind') IS NOT 'grant')
+           AND NOT EXISTS (SELECT 1 FROM messaging_bridge_sources rp WHERE rp.source_event_id = e.source_event_id)
            AND a.wake_count IS NOT NULL AND a.observed_at IS NULL
            AND a.attempt_state IN ('pending', 'retryable')
          GROUP BY e.channel_id, a.wake_policy_revision, a.source_policy_revision, default_revision, thread_revision, thread_scope
@@ -3155,7 +3155,7 @@ class BotRuntimeImplementation implements BotRuntime {
             FROM inbox_admissions a
             JOIN source_events e ON e.source_event_id = a.source_event_id
            WHERE a.bot_slug = ? AND a.reason = 'group-ordinary' AND e.channel_id IS NOT NULL
-           AND NOT EXISTS (SELECT 1 FROM messaging_source_paths rp WHERE rp.source_event_id = e.source_event_id AND json_extract(rp.body, '$.kind') IS NOT 'grant')
+           AND NOT EXISTS (SELECT 1 FROM messaging_bridge_sources rp WHERE rp.source_event_id = e.source_event_id)
              AND a.wake_count IS NOT NULL AND a.observed_at IS NULL
              AND a.attempt_state IN ('pending', 'retryable')
              AND e.channel_id = ? AND a.wake_policy_revision = ?
@@ -3246,7 +3246,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const base = `
       FROM inbox_admissions a JOIN source_events e ON e.source_event_id = a.source_event_id
      WHERE a.bot_slug = ? AND a.reason = 'group-ordinary' AND e.channel_id IS NOT NULL
-           AND NOT EXISTS (SELECT 1 FROM messaging_source_paths rp WHERE rp.source_event_id = e.source_event_id AND json_extract(rp.body, '$.kind') IS NOT 'grant')
+           AND NOT EXISTS (SELECT 1 FROM messaging_bridge_sources rp WHERE rp.source_event_id = e.source_event_id)
        AND (a.wake_mode IN ('all', 'digest', 'mentions') OR (a.wake_mode = 'silent' AND a.source_policy_wake_mode = 'context'))
        AND a.attempt_state IN ('pending', 'retryable') AND e.channel_id = ?`;
     const total = database.prepare(`SELECT COUNT(*) AS count ${base}`).get(botSlug, channelId) as {

@@ -27,7 +27,7 @@ export function pendingExternalReception(
         AND tp.revision = a.external_thread_policy_revision
       WHERE a.bot_slug = ? AND e.source_kind = 'bridge-message' AND e.channel_id IS NULL
         AND (EXISTS (SELECT 1 FROM messaging_source_paths gp WHERE gp.source_event_id = e.source_event_id AND gp.bot_slug = a.bot_slug AND json_extract(gp.body, '$.kind') = 'grant')
-          OR NOT EXISTS (SELECT 1 FROM messaging_source_paths rp WHERE rp.source_event_id = e.source_event_id AND json_extract(rp.body, '$.kind') IS NOT 'grant')) AND a.reason = 'group-ordinary'
+          OR NOT EXISTS (SELECT 1 FROM messaging_bridge_sources rp WHERE rp.source_event_id = e.source_event_id)) AND a.reason = 'group-ordinary'
         AND a.wake_count IS NOT NULL AND a.attempt_state = 'pending' AND a.observed_at IS NULL
         AND g.revoked_at IS NULL AND json_extract(g.body, '$.receiveScope') IS NOT NULL
         AND json_extract(g.body, '$.suspendedReason') IS NULL
@@ -51,7 +51,7 @@ export function pendingExternalReception(
         AND g.revision = json_extract(e.payload_json, '$.external.grantRevision')
         AND a.bot_slug = ? AND e.source_kind = 'bridge-message'
         AND (EXISTS (SELECT 1 FROM messaging_source_paths gp WHERE gp.source_event_id = e.source_event_id AND gp.bot_slug = a.bot_slug AND json_extract(gp.body, '$.kind') = 'grant')
-          OR NOT EXISTS (SELECT 1 FROM messaging_source_paths rp WHERE rp.source_event_id = e.source_event_id AND json_extract(rp.body, '$.kind') IS NOT 'grant'))
+          OR NOT EXISTS (SELECT 1 FROM messaging_bridge_sources rp WHERE rp.source_event_id = e.source_event_id))
         AND (a.reason != 'group-ordinary' OR e.channel_id IS NULL)
         AND a.attempt_state IN ('pending', 'retryable') AND a.observed_at IS NULL
       WINDOW policy AS (PARTITION BY g.id, a.wake_policy_revision, a.source_policy_revision, a.external_default_revision, a.reason, a.wake_mode, CASE WHEN json_extract(tp.body, '$.mode') = 'follow' THEN tp.thread_id ELSE '' END, CASE WHEN json_extract(tp.body, '$.mode') = 'follow' THEN tp.revision ELSE 0 END)

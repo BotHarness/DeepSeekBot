@@ -44,7 +44,9 @@ Grant-backed timers count pending rows; readiness also sees retryable rows. Brid
 retain their own retryable behavior. This change does not harmonize those policies or change
 lexicographic versus chronological timer anchors.
 
-Schema generation 113 adds an authority lookup index and fences older Bridge-only readers.
+A read-only `messaging_bridge_sources` view hides the evidence discriminator from Runtime's Channel harvest. It is derived from the same immutable evidence, not a second queue.
+
+Schema generation 113 adds that view and an authority lookup index, and fences older Bridge-only readers.
 It performs no historical backfill. Downgrade requires the pre-upgrade Profile backup;
 reverting code alone does not make the upgraded Profile writable by an older Host. Restore
 continues to suspend external reception and mark unfinished work for repair; purge remains
