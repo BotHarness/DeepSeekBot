@@ -1419,7 +1419,15 @@ describe('Assignment collaboration', () => {
       expect(summary).toContain('/private/spill/report.txt');
       expect(summary).toMatch(/sha256: [0-9a-f]{64}/u);
       expect(summary).not.toContain('FINAL-MARKER');
-      const page = await agents.access!.reportPage!(created.assignment.sessionId, summary!, 1_000);
+      const first = await agents.access!.reportPage!({
+        sessionId: created.assignment.sessionId,
+        offset: 0,
+      });
+      const page = await agents.access!.reportPage!({
+        sessionId: created.assignment.sessionId,
+        offset: 1_000,
+        reportSourceEventId: first.reportSourceEventId,
+      });
       expect(page.text).toContain('FINAL-MARKER');
       expect(page.sourceEventBytes).toBeGreaterThan(Buffer.byteLength(content));
       expect(agents.inboxTurns[0]).toContain('/private/spill/report.txt');
@@ -1479,7 +1487,70 @@ describe('Assignment collaboration', () => {
     }
   });
 
-  it('only pages the latest accepted report from an owned Assignment', async () => {
+  it('keeps a report read on A when B arrives between pages', async () => {
+    const bodies: string[] = [];
+    const { agents, admit, close } = await setup({
+      saveReportSpill: async ({ content }) => ({
+        locator: 'opaque-report',
+        bytes: Buffer.byteLength(content),
+        retrievalHint: 'Session Query',
+      }),
+      readAssignmentReportPage: (sessionId, summary, offset, content) =>
+        readAssignmentReportPage(
+          {
+            listEvents: async () => [],
+            filterEvents: async () => bodies.map((_, seq) => ({ seq })),
+            readEvent: async ({ seq }) => ({
+              target: {
+                type: 'tool/call',
+                data: {
+                  name: 'report_to_orchestrator',
+                  arguments: JSON.stringify({ summary: bodies[seq] }),
+                },
+              },
+            }),
+          },
+          sessionId,
+          summary,
+          offset,
+          content,
+        ),
+    });
+    try {
+      await admit('Start', 'human-pinned-report');
+      const created = agents.access!.create({
+        title: 'Report',
+        description: 'Read consistently',
+        grantId: TEST_GRANT_ID,
+      });
+      if (created.outcome !== 'created') throw new Error('create failed');
+      const sessionId = created.assignment.sessionId;
+      const run = agents.started[0]!.run;
+      const a = 'A😀'.repeat(1500);
+      bodies.push(a);
+      await run.report({ state: 'progress', summary: a });
+      const first = await agents.access!.reportPage!({ sessionId, offset: 0 });
+      bodies.push('B😀'.repeat(1500));
+      await run.report({ state: 'progress', summary: bodies[1]! });
+      const second = await agents.access!.reportPage!({
+        sessionId,
+        offset: first.nextOffset!,
+        reportSourceEventId: first.reportSourceEventId,
+      });
+      expect(first.text + second.text).toBe(a);
+      expect(second.reportSourceEventId).toBe(first.reportSourceEventId);
+      const latest = await agents.access!.reportPage!({ sessionId, offset: 0 });
+      expect(latest.reportSourceEventId).not.toBe(first.reportSourceEventId);
+      expect(latest.text).toBe(Array.from(bodies[1]!).slice(0, 2000).join(''));
+      await expect(
+        agents.access!.reportPage!({ sessionId, offset: first.nextOffset! }),
+      ).rejects.toThrow('REPORT_ID_REQUIRED');
+    } finally {
+      await close();
+    }
+  });
+
+  it('only pages accepted reports from the specified owned Assignment', async () => {
     const readAssignmentReportPage = vi.fn(async () => ({
       text: 'first page',
       offset: 0,
@@ -1501,15 +1572,37 @@ describe('Assignment collaboration', () => {
       if (created.outcome !== 'created') throw new Error('create failed');
       const sessionId = created.assignment.sessionId;
       await agents.started[0]!.run.report({ state: 'completed', summary: 'first page' });
-      await expect(agents.access!.reportPage?.(sessionId, 'first page', 0)).resolves.toMatchObject({
-        text: 'first page',
+      const page = await agents.access!.reportPage!({ sessionId, offset: 0 });
+      expect(page.text).toBe('first page');
+      const other = agents.access!.create({
+        title: 'Other',
+        description: 'Other report',
+        grantId: TEST_GRANT_ID,
       });
-      await expect(agents.access!.reportPage?.(sessionId, 'stale page', 0)).rejects.toThrow(
-        'Assignment report changed',
-      );
-      await expect(agents.access!.reportPage?.('foreign-session', 'first page', 0)).rejects.toThrow(
-        'Unknown Assignment Session',
-      );
+      if (other.outcome !== 'created') throw new Error('create failed');
+      await expect(
+        agents.access!.reportPage!({
+          sessionId: other.assignment.sessionId,
+          offset: 0,
+          reportSourceEventId: page.reportSourceEventId,
+        }),
+      ).rejects.toThrow('REPORT_UNAVAILABLE');
+      await expect(
+        agents.access!.reportPage!({ sessionId: other.assignment.sessionId, offset: 0 }),
+      ).rejects.toThrow('REPORT_UNAVAILABLE');
+      await expect(
+        agents.access!.reportPage!({
+          sessionId,
+          offset: -1,
+          reportSourceEventId: page.reportSourceEventId,
+        }),
+      ).rejects.toThrow('Invalid report offset');
+      await expect(
+        agents.access!.reportPage?.({ sessionId, offset: 0, reportSourceEventId: 'unknown' }),
+      ).rejects.toThrow('REPORT_UNAVAILABLE');
+      await expect(
+        agents.access!.reportPage?.({ sessionId: 'foreign-session', offset: 0 }),
+      ).rejects.toThrow('Unknown Assignment Session');
       expect(readAssignmentReportPage).toHaveBeenCalledTimes(1);
       expect(readAssignmentReportPage).toHaveBeenCalledWith(
         sessionId,
@@ -1517,6 +1610,56 @@ describe('Assignment collaboration', () => {
         0,
         expect.objectContaining({ version: 1, bytes: 10, sha256: expect.any(String) }),
       );
+    } finally {
+      await close();
+    }
+  });
+
+  it('withholds a report purged during the native read and refuses subsequent reads', async () => {
+    let purge = () => {};
+    const readPage = vi.fn(async () => {
+      purge();
+      return {
+        text: 'private body',
+        offset: 0,
+        totalCharacters: 12,
+        matchedEvents: 1,
+        readCount: 1,
+        sourceEventBytes: 12,
+        returnedCharacters: 12,
+        estimatedTokens: 3,
+      };
+    });
+    const { agents, owner, admit, close } = await setup({ readAssignmentReportPage: readPage });
+    try {
+      await admit('Start', 'human-purge-read');
+      const created = agents.access!.create({
+        title: 'Report',
+        description: 'Purge race',
+        grantId: TEST_GRANT_ID,
+      });
+      if (created.outcome !== 'created') throw new Error('create failed');
+      await agents.started[0]!.run.report({ state: 'progress', summary: 'private body' });
+      const id = sourceEvents(owner).find(
+        (source) => source.source_kind === 'assignment-report',
+      )!.source_event_id;
+      purge = () =>
+        attachOperationalModule(owner, 'purge-read-test').transaction(
+          (db) => {
+            db.prepare(
+              "INSERT INTO messaging_purge_facts SELECT source_event_id, 'dm-ada', source_event_id, created_at, '{}' FROM source_events WHERE source_event_id = ?",
+            ).run(id);
+          },
+          ['source-event'],
+        );
+      const request = {
+        sessionId: created.assignment.sessionId,
+        offset: 0,
+        reportSourceEventId: id,
+      };
+      await expect(agents.access!.reportPage!(request)).rejects.toThrow('purged');
+      await expect(agents.access!.reportPage!(request)).rejects.toThrow('purged');
+      expect(readPage).toHaveBeenCalledTimes(1);
     } finally {
       await close();
     }
@@ -1569,7 +1712,7 @@ describe('Assignment collaboration', () => {
           ['source-event'],
         );
         await expect(
-          agents.access!.reportPage?.(created.assignment.sessionId, raw.trim(), 0),
+          agents.access!.reportPage?.({ sessionId: created.assignment.sessionId, offset: 0 }),
         ).resolves.toMatchObject({ text: raw.trim() });
         database.transaction(
           (db) =>
@@ -1581,7 +1724,7 @@ describe('Assignment collaboration', () => {
           ['source-event'],
         );
         await expect(
-          agents.access!.reportPage?.(created.assignment.sessionId, raw.trim(), 0),
+          agents.access!.reportPage?.({ sessionId: created.assignment.sessionId, offset: 0 }),
         ).rejects.toThrow();
         expect(readPage).toHaveBeenCalledTimes(1);
         database.transaction(
@@ -1594,7 +1737,7 @@ describe('Assignment collaboration', () => {
           ['source-event'],
         );
         await expect(
-          agents.access!.reportPage?.(created.assignment.sessionId, raw.trim(), 0),
+          agents.access!.reportPage?.({ sessionId: created.assignment.sessionId, offset: 0 }),
         ).rejects.toThrow('purged');
         expect(readPage).toHaveBeenCalledTimes(1);
       } finally {

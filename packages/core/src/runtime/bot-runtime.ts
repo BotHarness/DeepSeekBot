@@ -1,9 +1,10 @@
 import { SessionRecoveryError, type SessionRecoveryAction } from './session-recovery.js';
+import { prepareAssignmentReport, type AssignmentReportContent } from './assignment-report.js';
 import {
-  prepareAssignmentReport,
-  parseReportContent,
-  type AssignmentReportContent,
-} from './assignment-report.js';
+  readAcceptedAssignmentReport,
+  type AssignmentReportRead,
+  type AcceptedAssignmentReportPage,
+} from './assignment-report-reader.js';
 import {
   GroupReplySourceRevoked,
   GroupSendReview,
@@ -297,11 +298,7 @@ export interface OrchestratorAssignmentAccess {
   list(): AssignmentSummary[];
   inspect(sessionId: string): AssignmentDetail | undefined;
   tail?(sessionId: string): Promise<AssignmentEventTail>;
-  reportPage?(
-    sessionId: string,
-    acceptedSummary: string,
-    offset: number,
-  ): Promise<AssignmentReportPage>;
+  reportPage?(request: AssignmentReportRead): Promise<AcceptedAssignmentReportPage>;
   request(input: {
     sessionId: string;
     mode: AssignmentRequestMode;
@@ -5269,31 +5266,13 @@ class BotRuntimeImplementation implements BotRuntime {
           throw new Error('DSH Session Query is unavailable');
         return this.#readAssignmentTail(sessionId);
       },
-      reportPage: async (sessionId, acceptedSummary, offset) => {
-        const assignment = this.getAssignment(bot.slug, sessionId);
-        if (assignment === undefined) throw new Error(`Unknown Assignment Session: ${sessionId}`);
-        const acceptedReport = assignment.latestReport;
-        if (acceptedReport === undefined || acceptedReport.summary !== acceptedSummary)
-          throw new Error('Assignment report changed; inspect it again');
-        if (this.#readAssignmentReportPage === undefined)
-          throw new Error('DSH Session Query is unavailable');
-        const content = this.#database.read((database) => {
-          const row = database
-            .prepare(`SELECT source_event_id, payload_json FROM source_events
-            WHERE source_kind = 'assignment-report' AND bot_slug = ? AND assignment_session_id = ?
-              AND body = ? AND created_at = ? ORDER BY rowid DESC LIMIT 1`)
-            .get(bot.slug, sessionId, acceptedSummary, acceptedReport.at);
-          if (row === undefined) throw new Error('Accepted Assignment report is unavailable');
-          if (
-            typeof row.source_event_id !== 'string' ||
-            (row.payload_json !== null && typeof row.payload_json !== 'string')
-          )
-            throw new Error('Invalid Assignment report record');
-          requireSourceContent(database, row.source_event_id);
-          return parseReportContent(row.payload_json);
-        });
-        return this.#readAssignmentReportPage(sessionId, acceptedSummary, offset, content);
-      },
+      reportPage: (request) =>
+        readAcceptedAssignmentReport(
+          this.#database,
+          this.#readAssignmentReportPage,
+          bot.slug,
+          request,
+        ),
       request: (input) => {
         if (sourceEventId !== undefined)
           this.#database.read((db) => requireSourceEffects(db, sourceEventId, bot.slug));

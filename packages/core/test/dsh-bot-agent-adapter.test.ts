@@ -111,6 +111,70 @@ const reportRun: OrchestratorAgentRun = {
 };
 
 describe('direct Subagent execution', () => {
+  it('passes the report identity through the direct inspect tool without selecting latest text', async () => {
+    const reportPage = vi.fn(async () => ({
+      reportSourceEventId: 'report-a',
+      text: 'A remainder',
+      offset: 2000,
+      totalCharacters: 2011,
+      matchedEvents: 2,
+      readCount: 2,
+      sourceEventBytes: 5000,
+      returnedCharacters: 11,
+      estimatedTokens: 3,
+    }));
+    const adapter = createDshBotAgentAdapter({
+      agents: new FakeAgentHost(),
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+    });
+    const run = {
+      ...reportRun,
+      assignments: {
+        ...reportRun.assignments,
+        inspect: () => ({
+          ...ASSIGNMENT,
+          botSlug: BOT.slug,
+          sourceEventId: 'assignment-origin',
+          latestReport: { state: 'progress' as const, summary: 'B', at: BOT.createdAt },
+        }),
+        reportPage,
+      },
+    };
+    try {
+      const result = await adapter.runDirectTool!(
+        run,
+        'inspect_assignment',
+        {
+          session_id: ASSIGNMENT.sessionId,
+          report_offset: 2000,
+          report_source_event_id: 'report-a',
+        },
+        new AbortController().signal,
+      );
+      expect(reportPage).toHaveBeenCalledWith({
+        sessionId: ASSIGNMENT.sessionId,
+        offset: 2000,
+        reportSourceEventId: 'report-a',
+      });
+      expect(result).toMatchObject({
+        reportPage: { reportSourceEventId: 'report-a', text: 'A remainder' },
+      });
+      await expect(
+        adapter.runDirectTool!(
+          run,
+          'inspect_assignment',
+          {
+            session_id: ASSIGNMENT.sessionId,
+            report_source_event_id: 'report-a',
+          },
+          new AbortController().signal,
+        ),
+      ).rejects.toThrow('REPORT_OFFSET_REQUIRED');
+    } finally {
+      await adapter.close();
+    }
+  });
+
   it.each(['secret_cli', 'secret_http', 'protected_cli', 'secret_mcp_connect', 'ask_secret'])(
     'executes %s through the live parent tool pipeline without a model turn',
     async (name) => {

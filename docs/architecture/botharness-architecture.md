@@ -640,7 +640,7 @@ Human 在 Bot 模式设置中将此 Profile 级上限调整为 1–32。DSH 原�
 
 Assignment Report 的续读校验信息以带版本的正文元数据保存在既有 Source Event payload：规范化正文的 UTF-8 字节数、SHA-256，以及超长报告的 opaque Spill locator 和 Provider 提示。展示摘要不再承担新报告的机器协议；Host 核验所属 Bot、最新已接受报告与 Source 内容可用性后，才将元数据交给有界 Session Query 读取。旧记录仍走显式 footer 兼容路径，损坏的新元数据拒绝读取，不退回文案猜测。保存、匹配与分页预算集中在 Report module；全文权威和数据库 schema 不变（ADR-0059、#3245）。
 
-报告超过 2 KiB 时，Assignment Runtime 在提交 Inbox Admission 前把完整文本交给 DSH Spill Service 保存，并只将前缀预览、字节数、不透明 locator 与 provider 的检索提示写入 Assignment Directory、Source Event 和 Bot Inbox；单份报告上限为 1 MiB。Orchestrator 的 `inspect_assignment` 可通过 DSH Session Query 读取该事项最近四条原生日志事件（最多 12,000 个字符），也可指定 `report_offset` 从已接收报告的原生 `tool/call` 事件每次读取至多 2,000 个字符，并通过 `nextOffset` 继续；两种读取均先核实事项归属，返回查询条数、实际读取量与估算 token 成本。Spill Service 仅负责保存且 locator 对消费者不透明；Orchestrator 即使不能直接读取本地 Spill 路径，也能通过 Session Query 找回该报告，不额外建立一份全文报告数据库。
+报告超过 2 KiB 时，Assignment Runtime 在提交 Inbox Admission 前把完整文本交给 DSH Spill Service 保存，并只将前缀预览、字节数、不透明 locator 与 provider 的检索提示写入 Assignment Directory、Source Event 和 Bot Inbox；单份报告上限为 1 MiB。Orchestrator 的 `inspect_assignment` 可通过 DSH Session Query 读取该事项最近四条原生日志事件（最多 12,000 个字符），也可指定 `report_offset` 从已接收报告的原生 `tool/call` 事件每次读取至多 2,000 个字符，并携带 `reportPage.reportSourceEventId` 与 `nextOffset` 继续。应用定义的已接受报告读取 module 集中负责选择、归属、正文可用性及续读：首次偏移 0 且不带身份时选择最新报告，后续页固定同一报告，新报告到达或 Host 重启不改变该选择；非零偏移缺少报告身份时拒绝并要求重新开始，原正文不可用时不回退到最新报告。全文仍通过 DSH Session Query adapter 获取，异步读取后再次核查删除状态；两种读取均先核实事项归属，返回查询条数、实际读取量与估算 token 成本。Spill Service 仅负责保存且 locator 对消费者不透明；Orchestrator 即使不能直接读取本地 Spill 路径，也能通过 Session Query 找回该报告，不额外建立一份全文报告数据库。
 
 Agent 可自行选择发送内联报告，或先写入其工作区文件并报告路径；超长内联报告由 Host 自动处理，不触发额外提问。
 
