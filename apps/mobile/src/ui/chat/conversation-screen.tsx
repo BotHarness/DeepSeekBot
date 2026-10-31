@@ -593,7 +593,6 @@ function ChatConversation({
     playback?.setFollowing,
     headerOverlap,
     snapshot.status === 'live' && visible.length === 0,
-    shownDrafts.length > 0,
   );
   const { composerHeight, viewportHeight, viewportLayout } = latest;
   const stage = useMemo(

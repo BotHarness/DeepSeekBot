@@ -13,6 +13,7 @@ const native = vi.hoisted(() => ({
   handlers: undefined as undefined | { onStart(): void; onEnd(event: { height: number }): void },
   inset: undefined as undefined | ((value: { bottom: number }) => void),
   lift: '',
+  reducedMotion: false,
   queue: [] as Array<() => void>,
 }));
 vi.mock('react-native', () => import('./react-native-shim'));
@@ -25,7 +26,7 @@ vi.mock('react-native-worklets', () => ({
     native.queue.push(() => callback(...args)),
 }));
 vi.mock('react-native-reanimated', () => ({
-  useReducedMotion: () => false,
+  useReducedMotion: () => native.reducedMotion,
   useSharedValue: (value: number | boolean) => useRef({ value }).current,
   useAnimatedReaction: () => undefined,
   useAnimatedStyle: (compute: () => unknown) => compute(),
@@ -78,6 +79,7 @@ function flush() {
   });
 }
 beforeEach(() => {
+  native.reducedMotion = false;
   native.queue = [];
   frames = new Map();
   let id = 0;
@@ -95,8 +97,8 @@ function mount() {
   const scrollToOffset = vi.fn();
   const list = { current: { scrollToOffset } as unknown as FlatList<unknown> };
   let current!: ReturnType<typeof useChannelViewport<unknown>>;
-  function Probe() {
-    current = useChannelViewport(list, rows, undefined, 0, false);
+  function Probe({ messages = rows }: { messages?: ConversationMessage[] }) {
+    current = useChannelViewport(list, messages, undefined, 0, false);
     return current.renderScrollComponent?.({}) ?? null;
   }
   root = createRoot(document.createElement('div'));
@@ -114,6 +116,11 @@ function mount() {
       return current;
     },
     scrollToOffset,
+    append(author: ConversationMessage['author']) {
+      act(() => root!.render(<Probe messages={[...rows, { ...rows[0]!, id: 'new', author }]} />));
+      act(() => current.listProps.onContentSizeChange(0, 2100));
+      flush();
+    },
   };
 }
 function start() {
@@ -126,6 +133,30 @@ function end() {
 }
 
 describe('Channel viewport through the Android keyboard adapter', () => {
+  it.each(['human', 'bot'] as const)(
+    'smoothly follows a new %s message without a streaming draft',
+    (author) => {
+      const view = mount();
+      view.append(author);
+      expect(view.scrollToOffset.mock.calls).toEqual([[{ offset: 1300, animated: true }]]);
+      act(() => view.current.listProps.onContentSizeChange(0, 2100));
+      flush();
+      expect(view.scrollToOffset).toHaveBeenCalledTimes(1);
+    },
+  );
+  it('respects Reduce Motion for new message growth', () => {
+    native.reducedMotion = true;
+    const view = mount();
+    view.append('bot');
+    expect(view.scrollToOffset.mock.calls).toEqual([[{ offset: 1300, animated: false }]]);
+  });
+  it('keeps new completed messages from pulling a reader out of history', () => {
+    const view = mount();
+    act(() => view.current.hold());
+    view.append('bot');
+    expect(view.scrollToOffset).not.toHaveBeenCalled();
+    expect(view.current.unseen).toBe(1);
+  });
   it('hides keyboard coordination from the screen interface', () => {
     const view = mount();
     expect(view.current).not.toHaveProperty('keyboard');
