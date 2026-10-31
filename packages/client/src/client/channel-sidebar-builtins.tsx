@@ -43,6 +43,7 @@ import type {
 import { formatRelativeTime } from './labels.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { MemoryEntry } from './memory-entry.js';
+import { TaskBoardPanel, TaskBoardViewMenu } from './task-board-entry.js';
 import { MemoryRecovery } from './memory-recovery.js';
 import { cachedMemory, invalidateMemory } from './memory-read-cache.js';
 import { MemoryFilesEntry } from './memory-files-entry.js';
@@ -1184,6 +1185,10 @@ export function createChannelSidebarBuiltins(
     );
   }
 
+  function TaskBoardWithNative(props: ChannelSidebarEntryProps): ReactElement {
+    return <TaskBoardPanel {...props} nativeSessions={nativeSessions} />;
+  }
+
   function WorkspaceGrantsWithPrefs(props: ChannelSidebarEntryProps): ReactElement {
     const developerMode = useSyncExternalStore(
       prefs?.source.subscribe ?? inactiveSubscribe,
@@ -1272,6 +1277,16 @@ export function createChannelSidebarBuiltins(
       scope: 'both',
       component: SessionsWithNative,
       headerAction: SessionsHeader,
+    },
+    {
+      id: 'task-board',
+      icon: 'list-checks',
+      label: t('entry.taskBoard'),
+      order: 12,
+      scope: 'both',
+      component: TaskBoardWithNative,
+      headerAction: TaskBoardViewMenu,
+      headerLabel: t('entry.taskBoard'),
     },
     {
       id: 'bot-inbox',
