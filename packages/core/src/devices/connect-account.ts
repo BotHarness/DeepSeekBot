@@ -63,6 +63,23 @@ interface AccountRecord {
   relayKey?: string;
 }
 
+type AccountRegistration = Pick<AccountRecord, 'relay' | 'clientId'> & { hostId: string };
+
+function parseRegistration(payload: unknown): AccountRegistration | undefined {
+  if (
+    typeof payload !== 'object' ||
+    payload === null ||
+    !('relay' in payload) ||
+    typeof payload.relay !== 'string' ||
+    !('clientId' in payload) ||
+    typeof payload.clientId !== 'string' ||
+    !('hostId' in payload) ||
+    typeof payload.hostId !== 'string'
+  )
+    return undefined;
+  return { relay: payload.relay, clientId: payload.clientId, hostId: payload.hostId };
+}
+
 class AccountError extends Error {
   constructor(readonly issue: AccountIssue) {
     super(issue);
@@ -148,17 +165,19 @@ export function createConnectAccount(options: {
     return provider;
   };
 
-  const read = async (): Promise<AccountRecord | undefined> => {
+  const readStored = async (): Promise<unknown> => {
     try {
       const stored = await native().readRecord(key);
-      return stored?.kind === 'grant' ? parseRecord(stored.payload) : undefined;
+      return stored?.kind === 'grant' ? stored.payload : undefined;
     } catch (error) {
       if (error instanceof AccountError) throw error;
       throw new AccountError('credential-unavailable');
     }
   };
 
-  const save = async (next: AccountRecord): Promise<void> => {
+  const read = async (): Promise<AccountRecord | undefined> => parseRecord(await readStored());
+
+  const save = async (next: AccountRecord | AccountRegistration): Promise<void> => {
     try {
       await native().modifyRecord(key, async () => ({ kind: 'grant', payload: { ...next } }));
     } catch {
@@ -305,7 +324,9 @@ export function createConnectAccount(options: {
     cached = undefined;
     await connect.disable();
     try {
-      await native().deleteRecord(key);
+      if (current?.hostId !== undefined)
+        await save({ relay: current.relay, clientId: current.clientId, hostId: current.hostId });
+      else await native().deleteRecord(key);
     } catch {
       record('revoke-failed');
       return;
@@ -436,12 +457,41 @@ export function createConnectAccount(options: {
       }
       const email = (reply.body['user'] as { email?: unknown } | undefined)?.email;
       try {
-        await save({
-          relay,
-          clientId: id,
-          refreshToken,
-          ...(typeof email === 'string' ? { email } : {}),
+        const saved = await serial(async () => {
+          if (run !== attempt) return false;
+          const previous = parseRegistration(await readStored());
+          const current: AccountRecord = {
+            relay,
+            clientId: id,
+            refreshToken,
+            ...(typeof email === 'string' ? { email } : {}),
+          };
+          if (previous?.relay === relay && previous.clientId === id && previous.hostId) {
+            const access = reply.body['access_token'];
+            if (typeof access !== 'string') throw new AccountError('session-expired');
+            const listed = await relayCall('GET', '/v1/hosts', access);
+            const hosts = listed.body['hosts'];
+            if (listed.status !== 200 || !Array.isArray(hosts))
+              throw new AccountError('relay-unavailable');
+            const hostIds = hosts.map((host: unknown) => {
+              if (
+                typeof host !== 'object' ||
+                host === null ||
+                !('id' in host) ||
+                typeof host.id !== 'string'
+              )
+                throw new AccountError('relay-unavailable');
+              return host.id;
+            });
+            if (hostIds.includes(previous.hostId)) current.hostId = previous.hostId;
+          }
+          if (run !== attempt) return false;
+          if (current.hostId === undefined) await connect.disable();
+          cached = undefined;
+          await save(current);
+          return true;
         });
+        if (!saved) return;
       } catch (saveError) {
         fail(saveError);
         return;
