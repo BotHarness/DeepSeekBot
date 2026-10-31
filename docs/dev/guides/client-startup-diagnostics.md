@@ -31,6 +31,41 @@ Keep the launch file private: it includes the local login token. The reader auth
 4. Build a repeatable failing test at the responsible seam, change one variable, rebuild/restart only the exact owned Host, and explicitly reload the browser. Preserve the first failure and every retry's result. Do not swallow exceptions, automatically reload indefinitely, or mutate a paired Profile to get a green result.
 5. Finish when the original regression is green, a fresh real DOM shows the intended behavior, and the current console has no unexplained new error. If a native/platform cause cannot be fixed here, hand off its pinned source location, smallest runnable reproduction and unresolved attribution instead of claiming recovery as a fix.
 
+## Diagnose native mobile Chats separately
+
+The browser collector above does not observe the Expo app. Do not use `shell-ready`, an owner `/api` response or an empty roster as proof that a phone loaded Chats.
+
+For **Could not load chats. Try again.**, preserve the first failure before retrying:
+
+1. Record the mobile version/build, native binary source and loaded JavaScript source separately. Record the desktop product version and serving Host identity in the private QA index. An installed TestFlight build, a reused development shell and a source checkout are different evidence.
+2. Record the selected computer, connection phase and actual active route. Redact addresses and device identifiers before sharing. A `device-probe` result of `remote` is not proof of Connect: it also covers other non-LAN routes. Inspect the phone's actual connection details; Simulator access to Mac loopback does not qualify physical Wi-Fi.
+3. On the failing device, record Wi-Fi membership, Tailscale state and local-network permission without changing them first. Mark unavailable observations explicitly. Do not reset permissions, re-pair, restart the Host or replace the app before retaining the failure.
+4. Correlate the first failing stage: route selection probes `list`; the live connection waits for roster/activity baselines; initial roster loading reads `list`, `channels`, `rosterGet` and `settings/describe`. Record method/stage names, bounded status/error codes and order only. The generic Home message and current connection telemetry do not identify the failing method; that attribution requires a supported device/debug capture. Do not infer it from a healthy Host or forward raw RPC bodies, credentials, errors or conversation content.
+5. After retaining the first failure, test one explicit **Retry**, then a separate recovery. Keep each outcome. An already loaded roster uses a different unavailable-state message; do not combine it with first-load failure. Do not infer missing physical checks from a Simulator.
+
+Run deterministic controls through the existing owner/UI seams:
+
+```bash
+pnpm exec vitest run apps/mobile/test/home-search.test.tsx \
+  -t 'diagnoses initial|keeps All quiet and retries|uses refresh copy'
+pnpm exec vitest run apps/mobile/test/host-client.test.ts \
+  -t 'older Host refuses|revokes this phone|does not know this phone|fails a generation'
+```
+
+The Home cases inject transport failure into each initial method, assert the generic error with no loaded roster, remove only that failure and operate the real Retry action. They use the actual Host client and Home component with a recorded-response `FakeHost` over a synthetic Tailscale route; they do not exercise native LAN/Noise, a real tailnet or Connect. The client controls distinguish optional `rosterGet` method refusal, device refusal and live-stream failure. No product fallback or authentication rule changes to make these controls pass.
+
+For an independently authorized CLI check, `device-probe --device-file <private-pairing.json>` reads the Host Feed through the existing device owner. Success proves that CLI device's authenticated roster, not the original phone's permissions, rendering or first failing method. Create any new pairing through the trusted-file/fingerprint procedure in [the CLI guide](../../bot-cli.md); never copy another Host's grant or print the pairing file.
+
+### Bounded result for #3231
+
+The original iOS 26+ / desktop 1.6.0 failure remains **not reproduced**, not fixed. The controlled cases establish that the same message has several possible causes; they do not select one.
+
+The October 31, 2026 isolated run used integrity-checked official 1.6.0 product packages with DSH 0.2.1-rc.3, not the user's Profile or an exercised Electron window. A reused iOS 27 development app loaded actual LAN and Connect conversations and a real reply. Its exact native/JavaScript source was unverified. A stopped task Host produced the same message as an offline negative control, then recovered. Short cold-start snapshots with skeletons did not establish completed-load passes.
+
+A later source-qualified JavaScript run verified an empty roster over actual LAN on a reused SDK58 shell; native source was still unverified. These results do not qualify the user's TestFlight build 15, physical Wi-Fi/AP behavior, local-network permission or original failing Profile. The device panel did not expose the physical phone. The bound Simulator driver's alert lookup and prescribed retry failed; native driving stopped rather than switching drivers.
+
+The next decisive input is the first failed attempt from the exact affected phone/build and its current Host, with active route and failing stage recorded through a supported capture path. Until then, do not weaken encryption, ignore initialization errors or attribute the failure to `settings/describe`. Track the unresolved capture in [#3231](https://github.com/BotHarness/DeepSeekBot/issues/3231); registration reuse and loopback display are separate investigations.
+
 ## Capture and ownership
 
 The Host owns the application-defined `client-diagnostics` collector. Its Cordis Fiber installs a native `webServer.tapIndex` transform before the first script, so failures before the BotHarness Client imports can be observed. The browser observes `error` (including resource failures), `unhandledrejection`, and `console.error`; recognized native warning codes retain their order. Console calls still reach the original console. It never calls `preventDefault` or reloads the document.
