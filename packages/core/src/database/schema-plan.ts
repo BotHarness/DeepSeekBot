@@ -2563,6 +2563,16 @@ const MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION: SchemaMigration = {
   },
 };
 
+const GRANT_RECEPTION_EVIDENCE_MIGRATION: SchemaMigration = {
+  generation: 113,
+  module: 'messaging',
+  description: 'Fence grant-backed reception evidence from older Bridge-only readers',
+  migrate(database) {
+    database.exec(`CREATE INDEX messaging_paths_authority
+      ON messaging_source_paths(bot_slug, source_event_id, json_extract(body, '$.kind'));`);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2675,4 +2685,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   TOOL_RULE_AUTO_APPROVAL_COUNT_MIGRATION,
   REQUEST_ASSIGNMENT_LINK_MIGRATION,
   MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION,
+  GRANT_RECEPTION_EVIDENCE_MIGRATION,
 ]);
