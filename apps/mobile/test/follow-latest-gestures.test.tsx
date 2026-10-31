@@ -593,15 +593,19 @@ describe('following a growing conversation', () => {
     view.unmount();
   });
 
-  it('holds the visible rows in place only while the Human reads history', () => {
+  it('keeps the native anchor configured across follow and history transitions', () => {
     const view = mount([message('a', 'bot')]);
-    expect(view.current.listProps.maintainVisibleContentPosition).toBeUndefined();
+    expect(view.current.listProps.maintainVisibleContentPosition).toEqual({
+      minIndexForVisible: 0,
+    });
     act(() => view.current.listProps.onScrollBeginDrag());
     expect(view.current.listProps.maintainVisibleContentPosition).toEqual({
       minIndexForVisible: 0,
     });
     act(() => view.current.jumpToLatest());
-    expect(view.current.listProps.maintainVisibleContentPosition).toBeUndefined();
+    expect(view.current.listProps.maintainVisibleContentPosition).toEqual({
+      minIndexForVisible: 0,
+    });
     view.unmount();
   });
 });

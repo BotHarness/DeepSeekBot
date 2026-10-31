@@ -312,7 +312,8 @@ export function useFollowLatest<Row>(
       onMomentumScrollEnd,
       onContentSizeChange,
       onLayout,
-      maintainVisibleContentPosition: following ? undefined : { minIndexForVisible },
+      // Keep the virtual list's first tracked key stable before the first history gesture.
+      maintainVisibleContentPosition: { minIndexForVisible },
     },
   };
 }
