@@ -57,6 +57,8 @@ pnpm exec vitest run packages/client/test/native-startup-repro.test.ts
 4. 关联首个失败阶段：选路探测 `list`，实时连接等待 roster/activity baseline，首次 roster 加载读取 `list`、`channels`、`rosterGet` 和 `settings/describe`。只保留方法／阶段名、有界状态及错误码和先后顺序。现有主页提示与连接 telemetry 不能指出失败方法，需要受支持的设备／调试取证路径。不能从健康 Host 的响应猜测，也不能转发原始 RPC body、凭据、错误或聊天内容。
 5. 保留首次失败后，执行一次显式**重试**，再单独验证恢复，分别记录结果。已有 roster 的不可用提示不同，不能混入首次加载失败。缺失的实机检查不能从模拟器推断通过。
 
+**缺失的采集能力：**本次调查尚未核验适用于受影响 TestFlight build 的方法级原生 trace 工具或采集命令。这项能力与失败手机的访问权限同样属于缺失输入。上面的清单不是已经可运行的原生 trace collector。关联阶段前，需要确定获授权且受支持的工具，检查其脱敏输出，并在既有私有 [QA 任务证据索引](../../agents/qa-evidence.md) 中记录版本、准确命令与限制。首次失败和后续重试保存在该索引中，不另建产品存储，也不能用浏览器报告填补这一缺口。
+
 通过既有 owner／UI 接口执行确定性的对照：
 
 ```bash

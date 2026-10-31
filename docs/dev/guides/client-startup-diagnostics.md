@@ -43,6 +43,8 @@ For **Could not load chats. Try again.**, preserve the first failure before retr
 4. Correlate the first failing stage: route selection probes `list`; the live connection waits for roster/activity baselines; initial roster loading reads `list`, `channels`, `rosterGet` and `settings/describe`. Record method/stage names, bounded status/error codes and order only. The generic Home message and current connection telemetry do not identify the failing method; that attribution requires a supported device/debug capture. Do not infer it from a healthy Host or forward raw RPC bodies, credentials, errors or conversation content.
 5. After retaining the first failure, test one explicit **Retry**, then a separate recovery. Keep each outcome. An already loaded roster uses a different unavailable-state message; do not combine it with first-load failure. Do not infer missing physical checks from a Simulator.
 
+**Missing capture capability:** this investigation has not qualified a method-level native trace tool or collection command for the affected TestFlight build. That capability is a missing input alongside access to the failing phone. The checklist above is not an operational native trace collector. Before stage attribution, identify an authorized supported tool, verify its redacted output and record its version, exact command and limitations in the existing private [QA task evidence index](../../agents/qa-evidence.md). Keep the first attempt and later retries there; do not create another product store or replace this gap with a browser report.
+
 Run deterministic controls through the existing owner/UI seams:
 
 ```bash
