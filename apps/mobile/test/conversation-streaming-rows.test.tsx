@@ -649,14 +649,20 @@ it('keeps a first DM visible through send, working, streaming and commit, then r
 
     act(() => native.list?.onContentSizeChange?.(390, 1100));
     flushFrames();
-    expect(native.scrollToOffset).toHaveBeenLastCalledWith({ offset: 300, animated: false });
+    expect(native.scrollToOffset).toHaveBeenLastCalledWith({ offset: 300, animated: true });
     native.scrollToOffset.mockClear();
     act(() => {
       native.list?.onScrollBeginDrag?.(scrollEvent(300, 1100));
       native.list?.onScroll?.(scrollEvent(100, 1100));
       native.list?.onScrollEndDrag?.(scrollEvent(100, 1100));
     });
-    expect(native.list?.maintainVisibleContentPosition).toEqual({ minIndexForVisible: 0 });
+    const anchorIndex = native.list!.maintainVisibleContentPosition!.minIndexForVisible;
+    const anchorKey = native.list!.keyExtractor!(native.list!.data![anchorIndex], anchorIndex);
+    const older = stream.history('older-human', 'Earlier in the same minute', 'human');
+    act(() => stream.publish({ messages: [older, human, reply] }));
+    const prependedKeys = Array.from(native.list!.data!).map(native.list!.keyExtractor!);
+    expect(prependedKeys).toContain(anchorKey);
+    expect(anchorKey).toBe(human.id);
     act(() =>
       stream.publish({ messages: [human, reply, stream.history('later', 'Later reply', 'bot')] }),
     );
@@ -672,7 +678,7 @@ it('keeps a first DM visible through send, working, streaming and commit, then r
     expect(native.list?.maintainVisibleContentPosition).toBeUndefined();
     act(() => native.list?.onContentSizeChange?.(390, 1500));
     flushFrames();
-    expect(native.scrollToOffset).toHaveBeenLastCalledWith({ offset: 700, animated: false });
+    expect(native.scrollToOffset).toHaveBeenLastCalledWith({ offset: 700, animated: true });
   } finally {
     act(() => root.unmount());
     container.remove();
