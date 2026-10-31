@@ -339,7 +339,7 @@ describe('release composition', () => {
       '@botharness/computer': '0.0.0-test.823',
       '@botharness/core': '0.0.0-test.823',
       '@botharness/ui': '0.0.0-test.823',
-      '@botharness/im-provider': '4.32.0-botharness.23',
+      '@botharness/im-provider': '4.32.0-botharness.24',
     });
     expect(release.optionalDependencies).toEqual(
       Object.fromEntries(cloudflaredPackageNames.map((name) => [name, '0.0.0-test.823'])),

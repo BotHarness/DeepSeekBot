@@ -20,7 +20,7 @@ afterEach(async () => {
 });
 
 const policy = { collection: 'all', wake: 'digest', count: 2, intervalSeconds: 60 } as const;
-async function fixture(proactive = true) {
+async function fixture(proactive = true, media = false) {
   const fingerprint = 'a'.repeat(64);
   const home = createTempRoot('qq-ordinary-');
   type Consumer = Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1];
@@ -33,6 +33,7 @@ async function fixture(proactive = true) {
     replyContextVersion: 1,
     replyReceiptVersion: 1,
     replyFenceVersion: 1,
+    ...(media ? { fileVersion: 1 as const } : {}),
     listBots: async () => [{ botId: 'own-app', channel: 'qq' }],
     listTargets: async () => [
       { targetId: 'qa-group', kind: 'group', name: 'QQ QA', route: { groupOpenId: 'own-group' } },
@@ -50,6 +51,16 @@ async function fixture(proactive = true) {
         'reply-context-checked',
         'reply-receipt-checked',
         'reply-fence-checked',
+        ...(media
+          ? [
+              'source-image-checked',
+              'reply-image-fence-checked',
+              'source-file-checked',
+              'reply-file-checked',
+              'source-generic-file-checked',
+              'reply-file-fence-checked',
+            ]
+          : []),
         ...(proactive
           ? ['proactive-text-checked', 'proactive-receipt-checked', 'proactive-fence-checked']
           : []),
@@ -57,12 +68,24 @@ async function fixture(proactive = true) {
     }),
     consumeInbound: async (_account, input) => {
       expect(input.ordinaryText).toBe(true);
+      if (media) {
+        expect(input.sourceImages).toBe(true);
+        expect(input.sourceFiles).toBe(true);
+      }
       consumer = input;
       return () => {
         if (consumer === input) consumer = undefined;
       };
     },
     qualifyReplyChecked: async (_account, route) => route,
+    ...(media
+      ? {
+          readSourceFile: async () =>
+            (async function* () {
+              yield new Uint8Array([1]);
+            })(),
+        }
+      : {}),
     replyChecked: vi.fn(async () => {
       throw Object.assign(new Error('Ordinary collection cannot create a QQ source reply'), {
         code: 'capability-unavailable',
@@ -221,6 +244,69 @@ it('QQ ordinary permission evidence does not collect or wake until the conversat
   expect(fx.transport.sendChecked).not.toHaveBeenCalled();
   expect(fx.logs.filter((entry) => entry.includes('ordinary-delivery-verified'))).toHaveLength(1);
 });
+
+it.each(['image/png', 'application/octet-stream'])(
+  'retains ordinary QQ %s in canonical storage only while the authorized group collects all',
+  async (mediaType) => {
+    const fx = await fixture(false, true);
+    const receive = async (messageId: string, conversationId = 'own-group') => {
+      const event: MessagingInboundEvent = {
+        ...fx.event(messageId),
+        conversation: { kind: 'group', id: conversationId },
+        reply: { messageId, conversationId, actorId: 'member' },
+        attachments: [
+          {
+            id: 'b'.repeat(64),
+            messageId,
+            resourceKey: 'private-selector',
+            name: 'sample',
+            mediaType,
+          },
+        ],
+        contentParts: [{ kind: 'attachment', id: 'b'.repeat(64) }],
+      };
+      await fx.consumer.onEvent(event, { signal: fx.consumer.signal });
+      await fx.idle();
+      return event;
+    };
+    await receive('probe');
+    expect(
+      fx.query("SELECT * FROM source_events WHERE source_kind = 'bridge-message'"),
+    ).toHaveLength(0);
+    await fx.core.externalMessaging.inbound.setPolicy('ada', fx.grant.id, policy, {
+      kind: 'human',
+    });
+    const event = await receive('retained');
+    const sources = fx.query(
+      "SELECT source_event_id FROM source_events WHERE source_kind = 'bridge-message'",
+    );
+    expect(sources).toHaveLength(1);
+    const source = sources[0];
+    if (!source) throw new Error('Missing canonical QQ Source Event');
+    expect(
+      fx.core.externalMessaging.inbound.read('ada', String(source['source_event_id'])).event,
+    ).toMatchObject({
+      attachments: event.attachments,
+      contentParts: event.contentParts,
+      mentionedAccount: false,
+      actor: event.actor,
+      conversation: event.conversation,
+    });
+    await receive('other-group', 'unapproved-group');
+    await fx.core.externalMessaging.inbound.setPolicy(
+      'ada',
+      fx.grant.id,
+      { ...policy, collection: 'mentions' },
+      { kind: 'human' },
+    );
+    await receive('disabled');
+    expect(
+      fx.query("SELECT * FROM source_events WHERE source_kind = 'bridge-message'"),
+    ).toHaveLength(1);
+    expect(fx.transport.replyChecked).not.toHaveBeenCalled();
+    expect(fx.transport.sendChecked).not.toHaveBeenCalled();
+  },
+);
 
 it.each([true, false])(
   'QQ count harvest understands local sources and posting remains independent: proactive=%s',
