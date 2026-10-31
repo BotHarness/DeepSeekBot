@@ -32,6 +32,7 @@ import { createTaskBoardPrefs, type TaskBoardPrefs } from '../src/client/task-bo
 
 const t = (key: string): string => key;
 const AT = '2026-10-31T10:00:00.000Z';
+const NOW_MS = Date.parse(AT);
 
 function memoryStorage(): ConfigStorage {
   const values = new Map<string, string>();
@@ -148,7 +149,7 @@ const WORK = {
 
 function panelActions(
   overrides: Partial<
-    Pick<BridgeActions, 'channelAssignments' | 'assignmentWork' | 'readSessions'>
+    Pick<BridgeActions, 'channelAssignments' | 'assignmentWork' | 'readSessions' | 'openSession'>
   > = {},
 ): BridgeActions {
   return {
@@ -243,23 +244,71 @@ it('closes on the second click and never reopens itself on a later render', asyn
   vi.unstubAllGlobals();
 });
 
-it('reads a direct message through its own sessions and skips the Orchestrator row', async () => {
+it('reads a direct message through its own sessions and keeps the main session card', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const readSessions = vi.fn(async () => [ORCHESTRATOR, WORKING, ARCHIVED, WAITING]);
   const channelAssignments = vi.fn(async () => []);
+  const openSession = vi.fn(async () => undefined);
+  const nativeSnapshot = {
+    ids: ['session-orchestrator'],
+    byId: {
+      'session-orchestrator': { displayTitle: '托布', updatedAt: NOW_MS, running: true },
+    },
+  };
+  const nativeSessions = {
+    subscribe: () => () => undefined,
+    getSnapshot: () => nativeSnapshot,
+  };
   const host = document.createElement('div');
-  const root = await paintPanel(
-    host,
-    panelActions({ readSessions, channelAssignments }),
-    'dm-1',
-    'ada',
-  );
+  const root = createRoot(host);
+  await act(async () => {
+    root.render(
+      createElement(TaskBoardPanel, {
+        channelId: 'dm-1',
+        botSlug: 'ada',
+        scope: 'channel',
+        actions: panelActions({ readSessions, channelAssignments, openSession }),
+        t,
+        nativeSessions,
+      }),
+    );
+  });
+  await act(async () => undefined);
   expect(readSessions).toHaveBeenCalledWith('ada');
   expect(channelAssignments).not.toHaveBeenCalled();
   expect(host.querySelector('[data-task-board-card="session-working"]')).not.toBeNull();
-  expect(host.querySelector('[data-task-board-card="session-orchestrator"]')).toBeNull();
+  const main = host.querySelector('[data-task-board-card="session-orchestrator"]');
+  expect(main).not.toBeNull();
+  expect(main?.textContent).toContain('托布');
+  expect(main?.querySelector('[data-task-board-orchestrator]')).not.toBeNull();
+  expect(main?.querySelector('[role="progressbar"]')).toBeNull();
   expect(host.querySelector('[data-task-board-card="session-archived"]')).not.toBeNull();
   expect(host.textContent).not.toContain('taskBoard.error');
+  await act(async () => main?.querySelector<HTMLElement>('button')?.click());
+  await act(async () => undefined);
+  await act(async () => {
+    (main as HTMLElement | null)?.click();
+  });
+  await act(async () => undefined);
+  expect(openSession).toHaveBeenCalledWith('session-orchestrator');
+  await act(async () => root.unmount());
+  vi.unstubAllGlobals();
+});
+
+it('falls back to the createdAt of an unreachable main session', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const host = document.createElement('div');
+  const root = await paintPanel(
+    host,
+    panelActions({ readSessions: vi.fn(async () => [ORCHESTRATOR]) }),
+    'dm-1',
+    'ada',
+  );
+  const main = host.querySelector('[data-task-board-card="session-orchestrator"]');
+  expect(main).not.toBeNull();
+  expect(main?.textContent).toContain('activity.source.orchestrator');
+  expect(main?.querySelector('[data-task-board-orchestrator]')).not.toBeNull();
+  expect(main?.textContent).toContain('taskBoard.unavailable');
   await act(async () => root.unmount());
   vi.unstubAllGlobals();
 });

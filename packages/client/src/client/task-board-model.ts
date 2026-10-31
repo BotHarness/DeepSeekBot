@@ -3,7 +3,7 @@ import type {
   ChannelAssignmentSummary,
 } from '../../../core/src/runtime/bot-runtime.js';
 import type { AssignmentWork, AssignmentWorkLane, AssignmentWorkStep } from './bridge.js';
-import type { AssignmentNeed, AssignmentSection } from './session-rows.js';
+import type { AssignmentNeed, AssignmentSection, NativeSessionSummary } from './session-rows.js';
 import type { BotSummary, OwnedSessionSummary } from './store.js';
 
 export const TASK_BOARD_MAX_CARDS = 200;
@@ -43,6 +43,7 @@ export interface AssignmentCard {
   steps?: StepView[];
   unavailable?: boolean;
   workError?: string;
+  kind?: 'orchestrator';
 }
 
 export interface BotGroup {
@@ -101,6 +102,8 @@ export interface TaskBoardAssignment extends ChannelAssignmentSummary {
   reportState?: AssignmentReportState;
   executionWait?: NonNullable<OwnedSessionSummary['assignmentExecutionWait']>;
   archived?: boolean;
+  kind?: 'orchestrator';
+  unavailable?: boolean;
 }
 
 export function assignmentPlacement(
@@ -121,8 +124,23 @@ export function assignmentPlacement(
 export function assignmentExecutionOf(
   row: OwnedSessionSummary,
   botSlug: string,
+  native?: NativeSessionSummary,
 ): TaskBoardAssignment | undefined {
-  if (row.role !== 'assignment') return undefined;
+  if (row.role === 'orchestrator') {
+    const updatedAt =
+      native === undefined ? row.createdAt : new Date(native.updatedAt).toISOString();
+    return {
+      sessionId: row.sessionId,
+      botSlug,
+      title: native?.displayTitle ?? '',
+      description: '',
+      activity: native?.running === true ? 'working' : 'idle',
+      createdAt: row.createdAt,
+      updatedAt,
+      kind: 'orchestrator',
+      ...(native === undefined ? { unavailable: true } : {}),
+    };
+  }
   const modelRoute = row.assignmentModelRoute;
   return {
     sessionId: row.sessionId,
@@ -208,7 +226,9 @@ function cardOf(assignment: TaskBoardAssignment, input: TaskBoardInput): Assignm
       ? (lane?.entries.at(-1)?.at ?? assignment.createdAt)
       : assignment.updatedAt;
   const unavailable =
-    input.availableSessionIds !== undefined && !input.availableSessionIds.has(assignment.sessionId);
+    assignment.unavailable === true ||
+    (input.availableSessionIds !== undefined &&
+      !input.availableSessionIds.has(assignment.sessionId));
   return {
     sessionId: assignment.sessionId,
     botSlug: assignment.botSlug,
@@ -218,6 +238,7 @@ function cardOf(assignment: TaskBoardAssignment, input: TaskBoardInput): Assignm
     section: placement.section,
     createdAt: assignment.createdAt,
     updatedAt,
+    ...(assignment.kind === undefined ? {} : { kind: assignment.kind }),
     ...(placement.needs === undefined ? {} : { needs: placement.needs }),
     ...(assignment.latestReport === undefined ? {} : { latestReport: assignment.latestReport }),
     ...(assignment.modelRoute === undefined ? {} : { modelRoute: assignment.modelRoute }),

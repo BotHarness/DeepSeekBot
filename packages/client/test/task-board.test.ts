@@ -580,7 +580,7 @@ describe('direct message rows', () => {
     ...overrides,
   });
 
-  it('maps an owned session onto a card and drops the Orchestrator row', () => {
+  it('maps an owned session onto a card and keeps the Orchestrator apart', () => {
     const assignment = assignmentExecutionOf(
       row({ sessionId: 's1', assignmentTitle: 'Do it', assignmentActivity: 'working' }),
       'ada',
@@ -591,9 +591,10 @@ describe('direct message rows', () => {
       title: 'Do it',
       activity: 'working',
     });
+    expect(assignment?.kind).toBeUndefined();
     expect(
       assignmentExecutionOf(row({ sessionId: 'o1', role: 'orchestrator' }), 'ada'),
-    ).toBeUndefined();
+    ).toMatchObject({ sessionId: 'o1', kind: 'orchestrator' });
   });
 
   it('reaches the approval and archived placements only this source can express', () => {
@@ -627,5 +628,65 @@ describe('direct message rows', () => {
       },
     });
     expect(model.groups[0]?.assignments[0]?.updatedAt).toBe(at(4));
+  });
+});
+
+describe('main session card', () => {
+  const row: OwnedSessionSummary = {
+    sessionId: 'orch',
+    role: 'orchestrator',
+    createdAt: at(30),
+  };
+
+  it('maps a running main session onto a synthetic card without steps', () => {
+    const assignment = assignmentExecutionOf(row, 'ada', {
+      displayTitle: 'Tob',
+      updatedAt: NOW - 60_000,
+      running: true,
+    });
+    const model = board({
+      channelType: 'dm',
+      assignments: assignment === undefined ? [] : [assignment],
+    });
+    const card = model.groups[0]?.assignments[0];
+    expect(card?.kind).toBe('orchestrator');
+    expect(card?.title).toBe('Tob');
+    expect(card?.section).toBe('working');
+    expect(card?.progress).toBeUndefined();
+    expect(card?.currentStep).toBeUndefined();
+    expect(card?.steps).toBeUndefined();
+    expect(card?.updatedAt).toBe(new Date(NOW - 60_000).toISOString());
+    expect(card?.unavailable).toBeUndefined();
+  });
+
+  it('maps an idle main session onto the idle section', () => {
+    const assignment = assignmentExecutionOf(row, 'ada', {
+      displayTitle: 'Tob',
+      updatedAt: NOW,
+      running: false,
+    });
+    const model = board({
+      channelType: 'dm',
+      assignments: assignment === undefined ? [] : [assignment],
+    });
+    expect(model.groups[0]?.assignments[0]?.section).toBe('idle');
+  });
+
+  it('falls back to the creation time and reports it unreachable without a native row', () => {
+    const assignment = assignmentExecutionOf(row, 'ada');
+    const model = board({
+      channelType: 'dm',
+      assignments: assignment === undefined ? [] : [assignment],
+    });
+    const card = model.groups[0]?.assignments[0];
+    expect(card?.title).toBe('');
+    expect(card?.updatedAt).toBe(at(30));
+    expect(card?.unavailable).toBe(true);
+    expect(card?.kind).toBe('orchestrator');
+  });
+
+  it('never labels a card from the group bridge as a main session', () => {
+    const model = board({ assignments: [assignment({ sessionId: 'g1' })] });
+    expect(model.groups[0]?.assignments[0]?.kind).toBeUndefined();
   });
 });

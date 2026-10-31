@@ -268,7 +268,10 @@ function workTargets(model: TaskBoardModel): AssignmentCard[] {
   return model.groups
     .filter((group) => !group.collapsed)
     .flatMap((group) => group.assignments)
-    .filter((card) => needsWork(card.section) && card.unavailable !== true);
+    .filter(
+      (card) =>
+        needsWork(card.section) && card.unavailable !== true && card.kind !== 'orchestrator',
+    );
 }
 
 type Load =
@@ -359,7 +362,11 @@ export function TaskBoardPanel({
             ? botSlug === undefined
               ? []
               : (await actions.readSessions(botSlug)).flatMap((row) => {
-                  const assignment = assignmentExecutionOf(row, botSlug);
+                  const assignment = assignmentExecutionOf(
+                    row,
+                    botSlug,
+                    native.byId[row.sessionId],
+                  );
                   return assignment === undefined ? [] : [assignment];
                 })
             : await actions.channelAssignments(channelId);
@@ -494,7 +501,13 @@ export function TaskBoardPanel({
                 prefs.setBotCollapsed(group.botSlug, !group.collapsed);
                 setAttempt((count) => count + 1);
               }}
-              onOpen={setDialog}
+              onOpen={(card) => {
+                if (card.kind === 'orchestrator') {
+                  void actions.openSession(card.sessionId);
+                  return;
+                }
+                setDialog(card);
+              }}
             />
           ))
         )}
@@ -593,7 +606,14 @@ function TaskBoardCardView({
         {...stylex.props(styles.card)}
       >
         <span {...stylex.props(styles.cardHead)}>
-          <span {...stylex.props(styles.cardTitle)}>{card.title}</span>
+          <span {...stylex.props(styles.cardTitle)}>
+            {card.title === '' ? t('activity.source.orchestrator') : card.title}
+          </span>
+          {card.kind === 'orchestrator' ? (
+            <span data-task-board-orchestrator="" {...stylex.props(styles.chip, styles.chipIdle)}>
+              {t('activity.source.orchestrator')}
+            </span>
+          ) : null}
           <span
             data-task-board-chip={card.section}
             {...stylex.props(
