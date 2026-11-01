@@ -13,6 +13,7 @@ export function useChannelViewport<Row>(
   start: number,
   empty: boolean,
   minIndexForVisible = 0,
+  inverted = false,
 ) {
   const reducedMotion = useReducedMotion();
   const latest = useFollowLatest(
@@ -23,6 +24,7 @@ export function useChannelViewport<Row>(
     empty,
     !reducedMotion,
     minIndexForVisible,
+    inverted,
   );
   const overlayStyle = useChatOverlayStyle();
   const renderScrollComponent = useChatScrollAdapter(latest.keyboard, latest.away);

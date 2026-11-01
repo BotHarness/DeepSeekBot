@@ -18,11 +18,17 @@ export function atLatest(distance: number): boolean {
   return distance <= LATEST_SLOP;
 }
 
-export function distanceFromLatest(metrics: ListMetrics): number {
+export function distanceFromLatest(metrics: ListMetrics, inverted = false): number {
+  if (inverted) return metrics.offset;
   return metrics.content + (metrics.inset ?? 0) - metrics.layout - metrics.offset;
 }
 
-export function latestOffset(metrics: Omit<ListMetrics, 'offset'>, start: number): number {
+export function latestOffset(
+  metrics: Omit<ListMetrics, 'offset'>,
+  start: number,
+  inverted = false,
+): number {
+  if (inverted) return 0;
   return Math.max(0 - start, metrics.content + (metrics.inset ?? 0) - metrics.layout);
 }
 
@@ -49,6 +55,7 @@ export function useFollowLatest<Row>(
   empty = false,
   animateScroll = false,
   minIndexForVisible = 0,
+  inverted = false,
 ) {
   const [following, setFollowing] = useState(true);
   const [away, setAway] = useState(false);
@@ -87,30 +94,33 @@ export function useFollowLatest<Row>(
     [],
   );
 
-  const measureEvent = useCallback((event: ScrollEvent): number => {
-    const native = event.nativeEvent;
-    metrics.current = {
-      ...metrics.current,
-      content:
-        metrics.current.content > 0
-          ? metrics.current.content
-          : (native.contentSize?.height ?? metrics.current.content),
-      layout:
-        metrics.current.layout > 0
-          ? metrics.current.layout
-          : (native.layoutMeasurement?.height ?? metrics.current.layout),
-      offset: native.contentOffset.y,
-    };
-    return distanceFromLatest(metrics.current);
-  }, []);
+  const measureEvent = useCallback(
+    (event: ScrollEvent): number => {
+      const native = event.nativeEvent;
+      metrics.current = {
+        ...metrics.current,
+        content:
+          metrics.current.content > 0
+            ? metrics.current.content
+            : (native.contentSize?.height ?? metrics.current.content),
+        layout:
+          metrics.current.layout > 0
+            ? metrics.current.layout
+            : (native.layoutMeasurement?.height ?? metrics.current.layout),
+        offset: native.contentOffset.y,
+      };
+      return distanceFromLatest(metrics.current, inverted);
+    },
+    [inverted],
+  );
 
   const scrollToLatest = useCallback(
     (animated: boolean) => {
       if (keyboardMoving.current) return;
-      const offset = latestOffset(metrics.current, startInset.current);
+      const offset = latestOffset(metrics.current, startInset.current, inverted);
       list.current?.scrollToOffset({ offset, animated: animated && animateScroll });
     },
-    [list, animateScroll],
+    [list, animateScroll, inverted],
   );
 
   const hold = useCallback(() => {
@@ -133,39 +143,42 @@ export function useFollowLatest<Row>(
     setAway(false);
   }, [onFollowingChange]);
 
-  const confirm = useCallback((version: number) => {
-    if (confirmation.current !== undefined) cancelAnimationFrame(confirmation.current);
-    const check = (stable: number) => {
-      confirmation.current = requestAnimationFrame(() => {
-        confirmation.current = undefined;
-        if (
-          settled.current ||
-          version !== sizes.current ||
-          version === 0 ||
-          metrics.current.content <= 0 ||
-          !hasRows.current
-        )
-          return;
-        attempts.current += 1;
-        const target = latestOffset(metrics.current, startInset.current);
-        const fits =
-          metrics.current.content + (metrics.current.inset ?? 0) + startInset.current <=
-            metrics.current.layout + 1 &&
-          metrics.current.offset >= target &&
-          metrics.current.offset <= 0;
-        const positioned =
-          metrics.current.layout > 0 && (fits || Math.abs(metrics.current.offset - target) <= 1);
-        if (positioned && stable + 1 >= STABLE_FRAMES) {
-          settled.current = true;
-          setCanRetry(false);
-          setReady(true);
-        } else if (attempts.current >= SETTLE_FRAMES) {
-          setCanRetry(true);
-        } else check(positioned ? stable + 1 : 0);
-      });
-    };
-    check(0);
-  }, []);
+  const confirm = useCallback(
+    (version: number) => {
+      if (confirmation.current !== undefined) cancelAnimationFrame(confirmation.current);
+      const check = (stable: number) => {
+        confirmation.current = requestAnimationFrame(() => {
+          confirmation.current = undefined;
+          if (
+            settled.current ||
+            version !== sizes.current ||
+            version === 0 ||
+            metrics.current.content <= 0 ||
+            !hasRows.current
+          )
+            return;
+          attempts.current += 1;
+          const target = latestOffset(metrics.current, startInset.current, inverted);
+          const fits =
+            metrics.current.content + (metrics.current.inset ?? 0) + startInset.current <=
+              metrics.current.layout + 1 &&
+            metrics.current.offset >= target &&
+            metrics.current.offset <= 0;
+          const positioned =
+            metrics.current.layout > 0 && (fits || Math.abs(metrics.current.offset - target) <= 1);
+          if (positioned && stable + 1 >= STABLE_FRAMES) {
+            settled.current = true;
+            setCanRetry(false);
+            setReady(true);
+          } else if (attempts.current >= SETTLE_FRAMES) {
+            setCanRetry(true);
+          } else check(positioned ? stable + 1 : 0);
+        });
+      };
+      check(0);
+    },
+    [inverted],
+  );
 
   const pin = useCallback(
     (animated = false) => {
@@ -211,13 +224,15 @@ export function useFollowLatest<Row>(
       measureEvent(event);
       if (
         !settled.current &&
-        Math.abs(metrics.current.offset - latestOffset(metrics.current, startInset.current)) <= 1
+        Math.abs(
+          metrics.current.offset - latestOffset(metrics.current, startInset.current, inverted),
+        ) <= 1
       ) {
         attempts.current = 0;
         confirm(sizes.current);
       }
     },
-    [measureEvent, confirm],
+    [measureEvent, confirm, inverted],
   );
 
   const onScrollBeginDrag = useCallback(() => {

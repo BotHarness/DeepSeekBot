@@ -44,6 +44,7 @@ function ChatScroll({
   return (
     <KeyboardChatScrollView
       {...props}
+      inverted
       ref={ref}
       automaticallyAdjustContentInsets={false}
       contentInsetAdjustmentBehavior="never"
