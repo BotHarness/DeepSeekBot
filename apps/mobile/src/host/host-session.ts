@@ -476,6 +476,52 @@ export interface DmTarget {
 }
 
 const conversations = new WeakMap<HostClient, Map<string, Conversation>>();
+const preparedConversations = new WeakMap<
+  HostClient,
+  { conversation: Conversation; release(): void }
+>();
+
+function releasePreparedConversation(client: HostClient, conversation?: Conversation): void {
+  const prepared = preparedConversations.get(client);
+  if (prepared && (conversation === undefined || prepared.conversation === conversation))
+    prepared.release();
+}
+
+export function prepareConversation(
+  client: HostClient,
+  hostId: string,
+  target: { channelId: string; bot?: DmTarget },
+): void {
+  if (sessions.get(hostId)?.host.client !== client) return;
+  const roster = client.getSnapshot().roster;
+  const { channelId, bot } = target;
+  const available = bot
+    ? roster?.bots.some((entry) => entry.slug === bot.slug && entry.dmChannelId === channelId)
+    : roster?.channels.some((entry) => entry.id === channelId) ||
+      roster?.activityChannels?.some((entry) => entry.id === channelId);
+  if (!available) return;
+  releasePreparedConversation(client);
+  const conversation = conversationFor(
+    client,
+    bot?.slug ?? `channel:${channelId}`,
+    bot
+      ? {
+          botSlug: bot.slug,
+          ...(bot.displayName === undefined ? {} : { displayName: bot.displayName }),
+          channelId,
+        }
+      : { channelId, cacheKey: `channel:${channelId}` },
+  );
+  const off = conversation.subscribe(() => {});
+  const release = () => {
+    if (preparedConversations.get(client)?.release !== release) return;
+    preparedConversations.delete(client);
+    clearTimeout(timeout);
+    off();
+  };
+  const timeout = setTimeout(release, 2_000);
+  preparedConversations.set(client, { conversation, release });
+}
 
 function conversationFor(
   client: HostClient,
@@ -516,6 +562,7 @@ function conversationFor(
   const conversation: Conversation = {
     ...inner,
     stop() {
+      releasePreparedConversation(client, conversation);
       clearTimeout(idle);
       offRetained?.();
       offRetained = undefined;
@@ -529,6 +576,7 @@ function conversationFor(
       offRetained = undefined;
       inner.start();
       const off = inner.subscribe(listener);
+      releasePreparedConversation(client, conversation);
       return () => {
         off();
         watchers -= 1;
