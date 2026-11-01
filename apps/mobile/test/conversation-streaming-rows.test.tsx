@@ -365,7 +365,8 @@ vi.mock('../src/ui/chat/clipboard-image', () => ({
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('../src/ui/chat/message-actions', () => ({ MessageActions: () => null }));
 vi.mock('../src/ui/chat/message-bubble', async () => {
-  const { memo, useCallback, useSyncExternalStore } = await import('react');
+  const { memo, useCallback, useContext, useSyncExternalStore } = await import('react');
+  const { MarkdownViewportContext } = await import('../src/ui/markdown-viewport');
   return {
     PlaybackBubble: memo(function PlaybackBubble({
       queueKey,
@@ -380,7 +381,12 @@ vi.mock('../src/ui/chat/message-bubble', async () => {
         [queueKey],
       );
       const text = useSyncExternalStore(subscribe, () => stream.playback.getBubble(queueKey));
-      return <span data-testid={queueKey}>{text ?? message?.body}</span>;
+      const viewport = useContext(MarkdownViewportContext);
+      return (
+        <span data-testid={queueKey} data-markdown-inverted={viewport?.inverted === true}>
+          {text ?? message?.body}
+        </span>
+      );
     }),
   };
 });
@@ -746,6 +752,9 @@ it('keeps Android latest history visible when content grows before another scrol
     expect(container.querySelector('[data-testid="history-loading-retry"]')).toBeNull();
     expect(native.list?.scrollEventThrottle).toBe(32);
     expect(native.list?.inverted).toBe(true);
+    expect(
+      container.querySelector('[data-testid="latest"]')?.getAttribute('data-markdown-inverted'),
+    ).toBe('true');
     expect(native.list?.maintainVisibleContentPosition).toEqual({ minIndexForVisible: 0 });
   } finally {
     act(() => root.unmount());

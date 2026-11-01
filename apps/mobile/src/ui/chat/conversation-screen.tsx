@@ -644,6 +644,7 @@ function ChatConversation({
       content,
       layout: viewportLayout,
       active: focused,
+      inverted: android,
     }),
     [scroll, viewport, content, viewportLayout, focused, android],
   );
