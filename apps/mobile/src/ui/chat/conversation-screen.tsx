@@ -1351,6 +1351,54 @@ function ChatConversation({
                             ? t.messageFocusUnavailable
                             : undefined;
 
+  const noticeView =
+    notice === undefined ? null : (
+      <View
+        style={{
+          marginTop: android ? 0 : headerOverlap + headerPadding,
+          backgroundColor: theme.color.warningSoft,
+          paddingHorizontal: space.x5,
+          paddingVertical: space.x3,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: space.x4,
+        }}
+      >
+        <Text accessibilityLiveRegion="polite" variant="meta" tone="warning" style={{ flex: 1 }}>
+          {notice}
+        </Text>
+        {hostRefused ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/pair')}
+            hitSlop={space.x3}
+          >
+            <Text variant="meta" tone="accent" strong>
+              {t.pairAgain}
+            </Text>
+          </Pressable>
+        ) : host.connection.status === 'unreachable' ? (
+          <Pressable
+            testID="chat-connection-retry"
+            accessibilityRole="button"
+            accessibilityLabel={t.retry}
+            onPress={() => client?.retryNow()}
+            hitSlop={space.x3}
+          >
+            <Text variant="meta" tone="accent" strong>
+              {t.retry}
+            </Text>
+          </Pressable>
+        ) : notice === t.noBot || notice === t.noChannel ? (
+          <Pressable accessibilityRole="button" onPress={backToChats} hitSlop={space.x3}>
+            <Text variant="meta" tone="accent" strong>
+              {t.backToChats}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
+
   const listTop = !android && notice === undefined ? headerPadding : 0;
   const topFade =
     android || notice !== undefined ? 0 : floatingHeader ? headerPadding : headerOverlap;
@@ -1473,144 +1521,97 @@ function ChatConversation({
           }
           onComposerLayout={latest.onComposerLayout}
           composer={
-            missingGroup ? null : selected !== undefined ? (
-              <SelectionBar
-                count={selected.length}
-                onCancel={() => setPicked(undefined)}
-                onCopy={() => copyMessage(selectionText(selected, visible))}
-                onScreenshot={() =>
-                  setImageSelection({
-                    scope: selectionScope,
-                    messages: visible.filter((m) => selected.includes(m.id)),
-                  })
-                }
-              />
-            ) : botDm ? (
-              <View style={{ padding: space.x5, alignItems: 'center' }}>
-                <Text variant="meta" tone="muted">
-                  {t.activityRow.botDm}
-                </Text>
-              </View>
-            ) : (
-              <Composer
-                value={draft}
-                placeholder={
-                  bot !== undefined
-                    ? t.messageBot(bot.displayName)
-                    : channel !== undefined
-                      ? t.messageBot(`#${channel.name}`)
-                      : t.messagePlaceholder
-                }
-                disabled={
-                  conversation === undefined ||
-                  host.connection.status !== 'connected' ||
-                  !draftPersistence.loaded ||
-                  draftPersistence.failed
-                }
-                files={files}
-                canAttach={files.length < MAX_PICKED}
-                dictation={dictation.state.status}
-                canDictate={conversation !== undefined}
-                onChange={edit}
-                selection={selection}
-                onSelection={(next) => {
-                  setSelection(undefined);
-                  setCaret(next);
-                }}
-                above={
-                  <>
-                    {replyTarget === undefined ? null : (
-                      <ReplyBar
-                        message={replyTarget}
-                        botName={botName}
-                        onCancel={() => setReplying(undefined)}
-                      />
-                    )}
-                    {draftPersistence.failed ? (
-                      <DraftSaveNotice busy={retryingDraft} onRetry={() => void retryDraft()} />
-                    ) : null}
-                    {candidates.length > 0 ? (
-                      <MentionSuggestions candidates={candidates} onChoose={mention} />
-                    ) : clipboard.offered ? (
-                      <ClipboardImageOffer
-                        onUnreadable={clipboard.used}
-                        onPaste={(data) => {
-                          clipboard.used();
-                          setAttachError(false);
-                          setFiles((current) =>
-                            [...current, fromClipboardImage(data)].slice(0, MAX_PICKED),
-                          );
-                        }}
-                      />
-                    ) : null}
-                  </>
-                }
-                onSend={send}
-                onPick={pick}
-                onRemove={(id) => setFiles((current) => current.filter((file) => file.id !== id))}
-                onDictate={() => {
-                  setAttachError(false);
-                  dictation.start();
-                }}
-                onStopDictation={dictation.stop}
-                onCancelDictation={dictation.cancel}
-                inputRef={composerInput}
-                onFocusChange={setTyping}
-              />
-            )
+            <>
+              {android ? noticeView : null}
+              {missingGroup ? null : selected !== undefined ? (
+                <SelectionBar
+                  count={selected.length}
+                  onCancel={() => setPicked(undefined)}
+                  onCopy={() => copyMessage(selectionText(selected, visible))}
+                  onScreenshot={() =>
+                    setImageSelection({
+                      scope: selectionScope,
+                      messages: visible.filter((m) => selected.includes(m.id)),
+                    })
+                  }
+                />
+              ) : botDm ? (
+                <View style={{ padding: space.x5, alignItems: 'center' }}>
+                  <Text variant="meta" tone="muted">
+                    {t.activityRow.botDm}
+                  </Text>
+                </View>
+              ) : (
+                <Composer
+                  value={draft}
+                  placeholder={
+                    bot !== undefined
+                      ? t.messageBot(bot.displayName)
+                      : channel !== undefined
+                        ? t.messageBot(`#${channel.name}`)
+                        : t.messagePlaceholder
+                  }
+                  disabled={
+                    conversation === undefined ||
+                    host.connection.status !== 'connected' ||
+                    !draftPersistence.loaded ||
+                    draftPersistence.failed
+                  }
+                  files={files}
+                  canAttach={files.length < MAX_PICKED}
+                  dictation={dictation.state.status}
+                  canDictate={conversation !== undefined}
+                  onChange={edit}
+                  selection={selection}
+                  onSelection={(next) => {
+                    setSelection(undefined);
+                    setCaret(next);
+                  }}
+                  above={
+                    <>
+                      {replyTarget === undefined ? null : (
+                        <ReplyBar
+                          message={replyTarget}
+                          botName={botName}
+                          onCancel={() => setReplying(undefined)}
+                        />
+                      )}
+                      {draftPersistence.failed ? (
+                        <DraftSaveNotice busy={retryingDraft} onRetry={() => void retryDraft()} />
+                      ) : null}
+                      {candidates.length > 0 ? (
+                        <MentionSuggestions candidates={candidates} onChoose={mention} />
+                      ) : clipboard.offered ? (
+                        <ClipboardImageOffer
+                          onUnreadable={clipboard.used}
+                          onPaste={(data) => {
+                            clipboard.used();
+                            setAttachError(false);
+                            setFiles((current) =>
+                              [...current, fromClipboardImage(data)].slice(0, MAX_PICKED),
+                            );
+                          }}
+                        />
+                      ) : null}
+                    </>
+                  }
+                  onSend={send}
+                  onPick={pick}
+                  onRemove={(id) => setFiles((current) => current.filter((file) => file.id !== id))}
+                  onDictate={() => {
+                    setAttachError(false);
+                    dictation.start();
+                  }}
+                  onStopDictation={dictation.stop}
+                  onCancelDictation={dictation.cancel}
+                  inputRef={composerInput}
+                  onFocusChange={setTyping}
+                />
+              )}
+            </>
           }
         >
-          {notice === undefined ? null : (
-            <View
-              style={{
-                marginTop: headerOverlap + headerPadding,
-                backgroundColor: theme.color.warningSoft,
-                paddingHorizontal: space.x5,
-                paddingVertical: space.x3,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: space.x4,
-              }}
-            >
-              <Text
-                accessibilityLiveRegion="polite"
-                variant="meta"
-                tone="warning"
-                style={{ flex: 1 }}
-              >
-                {notice}
-              </Text>
-              {hostRefused ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => router.push('/pair')}
-                  hitSlop={space.x3}
-                >
-                  <Text variant="meta" tone="accent" strong>
-                    {t.pairAgain}
-                  </Text>
-                </Pressable>
-              ) : host.connection.status === 'unreachable' ? (
-                <Pressable
-                  testID="chat-connection-retry"
-                  accessibilityRole="button"
-                  accessibilityLabel={t.retry}
-                  onPress={() => client?.retryNow()}
-                  hitSlop={space.x3}
-                >
-                  <Text variant="meta" tone="accent" strong>
-                    {t.retry}
-                  </Text>
-                </Pressable>
-              ) : notice === t.noBot || notice === t.noChannel ? (
-                <Pressable accessibilityRole="button" onPress={backToChats} hitSlop={space.x3}>
-                  <Text variant="meta" tone="accent" strong>
-                    {t.backToChats}
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
-          )}
+          {android ? null : noticeView}
           {missingGroup ? (
             <View
               style={{
@@ -1629,7 +1630,7 @@ function ChatConversation({
               onOpen={swipeProfile}
             >
               <Animated.View
-                style={{ flex: 1, marginTop: android && notice === undefined ? headerPadding : 0 }}
+                style={{ flex: 1, marginTop: android ? headerPadding : 0 }}
                 onLayout={latest.onViewportLayout}
               >
                 <MarkdownViewportContext.Provider value={markdownViewport}>
