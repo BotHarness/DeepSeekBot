@@ -73,3 +73,5 @@ Use two task-owned isolated Hosts and an isolated relay/database with Bot regist
 5. Exercise an expired account token and a recipient paused after discovery. The former can refresh only the rejected control-plane request; the latter returns an authenticated refusal. Neither sends another message automatically. Keep fake authority/unit evidence distinct from real WorkOS, relay, tunnel and cross-device evidence.
 
 Qualification remains incomplete until the real cloud route, model reply and visible Client path above have passed on the PR head. A signed-out Host smoke test or passing injected-authority tests alone is insufficient.
+
+Connect qualification must traverse the real cloudflared loopback origin, not only the Host handler. Verify the exact Bot handshake/request POST paths are reachable while Human authorization headers, cookies, query variants and Bot-path WebSocket upgrades remain refused.

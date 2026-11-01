@@ -4,6 +4,7 @@ import { expect, it } from 'vitest';
 import { BotNetworkDeliveryError } from '../src/runtime/bot-network.js';
 import { createConnectBotNetwork } from '../src/devices/connect-bot-network.js';
 import { createBotConnectChannel } from '../src/devices/bot-connect-channel.js';
+import { createGatewayOrigin } from '../src/devices/connect.js';
 import { noisePublicKey } from '../src/devices/noise/xk.js';
 
 it.each(['success', 'lost-ack', 'withdrawn', 'sender-signed-out', 'refused', 'forged-refusal'])(
@@ -92,8 +93,12 @@ it.each(['success', 'lost-ack', 'withdrawn', 'sender-signed-out', 'refused', 'fo
     });
     const server = createServer((req, res) => void receiver.handle(req, res));
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const address = server.address();
-    if (!address || typeof address === 'string') throw new Error('test-listener');
+    const hostAddress = server.address();
+    if (!hostAddress || typeof hostAddress === 'string') throw new Error('test-listener');
+    const origin = createGatewayOrigin(() => hostAddress.port);
+    await new Promise<void>((resolve) => origin.listen(0, '127.0.0.1', resolve));
+    const address = origin.address();
+    if (!address || typeof address === 'string') throw new Error('test-origin');
     const wire: string[] = [];
     const sender = createBotConnectChannel({
       hostId: hosts[0]!.hostId,
@@ -121,6 +126,33 @@ it.each(['success', 'lost-ack', 'withdrawn', 'sender-signed-out', 'refused', 'fo
       },
     });
     try {
+      if (scenario === 'success') {
+        for (const headers of [
+          { authorization: 'Bearer human-owner' },
+          { cookie: 'owner=human' },
+        ]) {
+          const denied = await fetch(
+            `http://127.0.0.1:${address.port}/botharness-device/bots/v1/handshake`,
+            { method: 'POST', headers, body: '{}' },
+          );
+          expect(denied.status).toBe(404);
+          await denied.body?.cancel();
+        }
+        for (const path of [
+          '/botharness-device/bots/v1/handshake?admin=true',
+          '/botharness-device/bots/v1/request/extra',
+          '/botharness-device/bots/v1/admin',
+          '/api/botharness/devices',
+        ]) {
+          const denied = await fetch(`http://127.0.0.1:${address.port}${path}`, {
+            method: 'POST',
+            body: '{}',
+          });
+          expect(denied.status).toBe(404);
+          await denied.body?.cancel();
+        }
+        expect(received).toBe(0);
+      }
       const result = sender.request(
         {
           ...hosts[1]!,
@@ -174,6 +206,8 @@ it.each(['success', 'lost-ack', 'withdrawn', 'sender-signed-out', 'refused', 'fo
     } finally {
       sender.close();
       receiver.close();
+      origin.closeAllConnections();
+      await new Promise<void>((resolve) => origin.close(() => resolve()));
       server.closeAllConnections();
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
