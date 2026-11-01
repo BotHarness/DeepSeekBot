@@ -703,6 +703,81 @@ it('keeps native keyboard ownership even when streaming growth is animated', () 
 });
 
 describe('latest-first Android list', () => {
+  it('reveals measured latest-first content after positioning without waiting for older-row sizes', () => {
+    const view = mount([message('latest', 'bot')], 0, false, true, true);
+    try {
+      act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+      flushFrames();
+      expect(view.current.ready).toBe(false);
+      act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
+      act(() => {
+        for (const callback of frames.splice(0)) callback();
+      });
+      expect(view.current.ready).toBe(false);
+      act(() => {
+        for (const callback of frames.splice(0)) callback();
+      });
+      expect(view.current.ready).toBe(true);
+      expect(view.current.canRetry).toBe(false);
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 0, animated: false });
+      act(() => view.current.listProps.onContentSizeChange(0, CONTENT + 900));
+      flushFrames();
+      expect(view.current.ready).toBe(true);
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 0, animated: true });
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('does not reveal an inverted viewport away from zero and recovers after retry', () => {
+    const view = mount([message('latest', 'bot')], 0, false, true, true);
+    try {
+      act(() => {
+        view.current.listProps.onLayout(layout(LAYOUT));
+        view.current.listProps.onContentSizeChange(0, CONTENT);
+        view.current.listProps.onScroll(event(END - 180));
+      });
+      flushFrames();
+      expect(view.current.ready).toBe(false);
+      expect(view.current.canRetry).toBe(true);
+      act(() => {
+        view.current.retry();
+        view.current.listProps.onScroll(event(END));
+      });
+      flushFrames();
+      expect(view.current.ready).toBe(true);
+      expect(view.current.canRetry).toBe(false);
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('waits for keyboard handoff before revealing an initial inverted viewport', () => {
+    const view = mount([message('latest', 'bot')], 0, false, true, true);
+    try {
+      act(() => {
+        view.current.listProps.onLayout(layout(LAYOUT));
+        view.current.listProps.onContentSizeChange(0, CONTENT);
+      });
+      act(() => {
+        for (const callback of frames.splice(0)) callback();
+      });
+      act(() => view.current.keyboard.onStart());
+      flushFrames();
+      expect(view.current.ready).toBe(false);
+      act(() => {
+        view.current.keyboard.onInsetChange({ bottom: 300 });
+        view.current.listProps.onLayout(layout(LAYOUT - 300));
+        view.current.keyboard.onEnd();
+      });
+      flushFrames();
+      expect(view.current.ready).toBe(true);
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 0, animated: false });
+    } finally {
+      view.unmount();
+    }
+  });
+
   it('positions at zero without measuring all older rows', () => {
     const view = mount([message('latest', 'bot')], 0, false, true, true);
     act(() => {

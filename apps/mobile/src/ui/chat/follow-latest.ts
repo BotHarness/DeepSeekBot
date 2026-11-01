@@ -166,7 +166,7 @@ export function useFollowLatest<Row>(
             metrics.current.offset <= 0;
           const positioned =
             metrics.current.layout > 0 && (fits || Math.abs(metrics.current.offset - target) <= 1);
-          if (positioned && stable + 1 >= STABLE_FRAMES) {
+          if (positioned && (inverted || stable + 1 >= STABLE_FRAMES)) {
             settled.current = true;
             setCanRetry(false);
             setReady(true);
