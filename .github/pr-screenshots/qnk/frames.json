@@ -1,0 +1,20 @@
+[
+  {
+    "version": "before",
+    "block": "noise-release-a3",
+    "trial": 3,
+    "frame": 683,
+    "pts": 23.5485,
+    "msAfterStart": 1111.8559999999995,
+    "crop": "remove status, Host search header and system gesture bar"
+  },
+  {
+    "version": "after",
+    "block": "noise-release-b1",
+    "trial": 3,
+    "frame": 698,
+    "pts": 23.432211,
+    "msAfterStart": 1147.1669999999997,
+    "crop": "remove status, Host search header and system gesture bar"
+  }
+]
