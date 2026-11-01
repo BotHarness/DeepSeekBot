@@ -631,6 +631,7 @@ function ChatConversation({
     else leaveScreen(router);
   }, [router, closePresentation, paging]);
   const pull = usePullToCompose({
+    inverted: android,
     enabled: composable || stackRoot,
     threshold: pullToCompose.threshold,
     flick: Platform.OS === 'android' ? pullToCompose.flick : undefined,
