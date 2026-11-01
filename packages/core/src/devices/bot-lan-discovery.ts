@@ -22,9 +22,22 @@ interface DatagramPort {
   send(packet: Uint8Array): void;
   close(): void;
 }
+type DiscoveryFailureCode =
+  | 'lan-identity-unavailable'
+  | 'lan-advertisement-invalid'
+  | 'lan-interface-unavailable'
+  | 'lan-bind-failed'
+  | 'lan-multicast-setup-failed'
+  | 'lan-socket-failed'
+  | 'lan-send-failed';
+class DiscoveryFailure extends Error {
+  constructor(readonly code: DiscoveryFailureCode) {
+    super(code);
+  }
+}
 type OpenPort = (
   receive: (packet: Uint8Array, address: string) => void,
-  failed: () => void,
+  failed: (code?: DiscoveryFailureCode) => void,
 ) => Promise<DatagramPort>;
 
 const openMulticast: OpenPort = (receive, failed) =>
@@ -41,10 +54,10 @@ const openMulticast: OpenPort = (receive, failed) =>
         return;
       }
     };
-    socket.on('error', (error) => {
+    socket.on('error', () => {
       close();
-      if (listening) failed();
-      else reject(error);
+      if (listening) failed('lan-socket-failed');
+      else reject(new DiscoveryFailure('lan-bind-failed'));
     });
     socket.on('message', (packet, remote) => {
       if (!closed) receive(packet, remote.address);
@@ -60,24 +73,49 @@ const openMulticast: OpenPort = (receive, failed) =>
               )
               .map((entry) => entry.address) ?? [],
         );
-        if (!addresses.length) throw new Error('lan-interface-unavailable');
-        for (const address of new Set(addresses)) socket.addMembership(GROUP, address);
+        if (!addresses.length) throw new DiscoveryFailure('lan-interface-unavailable');
+        const interfaces = [...new Set(addresses)];
+        for (const address of interfaces) socket.addMembership(GROUP, address);
         socket.setMulticastTTL(1);
         socket.setMulticastLoopback(true);
         socket.unref();
         listening = true;
+        let sending = false;
         resolve({
           send(packet) {
-            if (closed) return;
-            socket.send(packet, PORT, GROUP, (error) => {
-              if (error && !closed) failed();
-            });
+            if (closed || sending) return;
+            sending = true;
+            const next = (index: number) => {
+              const address = interfaces[index];
+              if (closed || address === undefined) {
+                sending = false;
+                return;
+              }
+              try {
+                socket.setMulticastInterface(address);
+                socket.send(packet, PORT, GROUP, (error) => {
+                  if (closed) return;
+                  if (error) {
+                    sending = false;
+                    failed('lan-send-failed');
+                  } else next(index + 1);
+                });
+              } catch {
+                sending = false;
+                failed('lan-send-failed');
+              }
+            };
+            next(0);
           },
           close,
         });
       } catch (error) {
         close();
-        reject(error);
+        reject(
+          error instanceof DiscoveryFailure
+            ? error
+            : new DiscoveryFailure('lan-multicast-setup-failed'),
+        );
       }
     });
   });
@@ -89,6 +127,7 @@ export function createLanBotDiscovery(options: {
   record?(event: {
     phase: 'lan-discovery-started' | 'lan-discovery-stopped' | 'lan-discovery-failed';
     durationMs: number;
+    code?: DiscoveryFailureCode;
   }): void;
 }) {
   const now = options.now ?? Date.now;
@@ -99,6 +138,7 @@ export function createLanBotDiscovery(options: {
   let closed = false;
   let starting: Promise<void> | undefined;
   let state: 'off' | 'listening' | 'error' = 'off';
+  let startedAt = 0;
   function prune() {
     const instant = now();
     for (const [id, candidate] of observed) if (candidate.expires <= instant) observed.delete(id);
@@ -110,11 +150,15 @@ export function createLanBotDiscovery(options: {
     transport = undefined;
     observed.clear();
   }
-  function failed() {
+  function failed(code: DiscoveryFailureCode = 'lan-socket-failed') {
     if (closed || state === 'error') return;
     state = 'error';
     stop();
-    options.record?.({ phase: 'lan-discovery-failed', durationMs: 0 });
+    options.record?.({
+      phase: 'lan-discovery-failed',
+      durationMs: Math.round(performance.now() - startedAt),
+      code,
+    });
   }
   function receive(bytes: Uint8Array, address: string) {
     if (closed || state !== 'listening' || bytes.byteLength > 1024 || !isLanAddress(address))
@@ -140,8 +184,11 @@ export function createLanBotDiscovery(options: {
       if (closed) return Promise.resolve();
       starting ??= (async () => {
         const started = performance.now();
+        startedAt = started;
+        let failureCode: DiscoveryFailureCode = 'lan-identity-unavailable';
         try {
           self = await options.identity();
+          failureCode = 'lan-advertisement-invalid';
           const packet = Buffer.from(
             JSON.stringify(
               announcement.parse({ ...self, protocol: 'botharness-lan-bots-v1', port }),
@@ -149,6 +196,7 @@ export function createLanBotDiscovery(options: {
           );
           if (packet.byteLength > 1024) throw new Error('lan-advertisement-too-large');
           if (closed) return;
+          failureCode = 'lan-bind-failed';
           const opened = await (options.open ?? openMulticast)(receive, failed);
           if (closed || state === 'error') {
             opened.close();
@@ -157,6 +205,7 @@ export function createLanBotDiscovery(options: {
           transport = opened;
           state = 'listening';
           opened.send(packet);
+          if (state !== 'listening' || closed) return;
           timer = setInterval(() => {
             prune();
             transport?.send(packet);
@@ -166,8 +215,8 @@ export function createLanBotDiscovery(options: {
             phase: 'lan-discovery-started',
             durationMs: Math.round(performance.now() - started),
           });
-        } catch {
-          failed();
+        } catch (error) {
+          failed(error instanceof DiscoveryFailure ? error.code : failureCode);
         }
       })();
       return starting;

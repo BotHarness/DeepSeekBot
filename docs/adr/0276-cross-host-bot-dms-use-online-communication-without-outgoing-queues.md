@@ -13,6 +13,8 @@ Temporary loss of connectivity affects communication, not existing local authori
 
 ## Explicit ordinary-LAN admission
 
+Discovery joins every eligible private IPv4 interface and sends each advertisement over those interfaces in sequence, waiting for each datagram callback before changing the multicast egress. A slow advertisement is not queued again by the next timer tick. Lifecycle diagnostics distinguish identity, advertisement, interface, bind, multicast setup, socket and send failures with bounded codes and elapsed time; raw network errors and interface addresses are not logged.
+
 The existing default-off LAN listener also owns a bounded IPv4 multicast discovery socket and the narrow `/botharness-device/lan-bots/v1` Noise endpoint. Advertisements contain only the Profile Host identity, public key, name and listener port. A candidate address comes from the received datagram, not a claimed URL. Candidates expire and conflicting keys suppress discovery; advertisements never grant authority or expose the Bot directory.
 
 Each Host's authenticated Human approves the other Host's exact key after comparing its full fingerprint. Both approvals are required for LAN contact queries and DMs. The application-defined `bot-lan` module persists only these approvals in the existing Operational Database. Every new admission receives an epoch; the Channel owner retains both authenticated epochs beside the remote Host key. Revoking an approval invalidates that scope, including after restart, and re-admission cannot revive its prior epoch. A changed advertised key leaves the prior approval separately visible and revocable. Disabling the listener is temporary unavailability, not revocation.
