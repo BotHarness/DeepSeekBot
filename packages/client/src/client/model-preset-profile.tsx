@@ -182,10 +182,12 @@ export function ModelPresetProfile({
   slug,
   actions,
   t,
+  onClose,
 }: {
   slug: string;
   actions: BridgeActions;
   t: BotHarnessTranslate;
+  onClose?: (() => void) | undefined;
 }): ReactElement {
   const [catalog, setCatalog] = useState<ModelCatalogEntryView[]>();
   const [presets, setPresets] = useState<ModelPresetView[]>([]);
@@ -195,10 +197,12 @@ export function ModelPresetProfile({
   const [planLoadError, setPlanLoadError] = useState(false);
   const planRequest = useRef(0);
   const [draft, setDraft] = useState<ModelDraft>();
+  const [initialDraft, setInitialDraft] = useState<ModelDraft>();
   const [presetName, setPresetName] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(onClose !== undefined);
+  const [selectionMode, setSelectionMode] = useState('models');
   const [modeSwitched, setModeSwitched] = useState(false);
 
   const acceptPlan = (
@@ -230,7 +234,8 @@ export function ModelPresetProfile({
         },
       );
     };
-    read();
+    if (onClose === undefined) read();
+    else void load();
     const unsubscribe = subscribeModelPlans(() => {
       if (modelPlanOf(slug) === undefined) read();
     });
@@ -256,8 +261,7 @@ export function ModelPresetProfile({
       setRepair(state.repair);
       setCatalog(models);
       setPresets(saved);
-      setDraft((previous) => {
-        if (previous !== undefined) return previous;
+      const initial = (() => {
         if (current !== undefined) return draftOf(current, current.sourcePresetId);
         const usable = models.filter((entry) => entry.credential === undefined);
         const first =
@@ -266,8 +270,10 @@ export function ModelPresetProfile({
           ) ?? usable[0];
         if (first === undefined) return undefined;
         const route = { provider: first.provider, model: first.model };
-        return draftOf({ orchestrator: route, assignmentDefault: route }, '');
-      });
+        return draftOf({ orchestrator: route }, '');
+      })();
+      setInitialDraft(initial);
+      setDraft((previous) => previous ?? initial);
       setPlanLoadError(false);
     } catch (failure) {
       if (planRequest.current === request) setError(errorMessage(failure));
@@ -293,6 +299,7 @@ export function ModelPresetProfile({
     setPresetName(undefined);
     setError(undefined);
     setModeSwitched(false);
+    setSelectionMode('models');
     setEditorOpen(true);
     void load();
   };
@@ -309,6 +316,14 @@ export function ModelPresetProfile({
     inCatalog(draft.orchestrator.key) &&
     (draft.assignment.key === '' || inCatalog(draft.assignment.key)) &&
     !busy;
+  const canApply =
+    canSave && (plan !== undefined || JSON.stringify(draft) !== JSON.stringify(initialDraft));
+
+  const closeEditor = (): void => {
+    if (busy) return;
+    setEditorOpen(false);
+    onClose?.();
+  };
 
   const finish = (applied: ModelPlanView): void => {
     planRequest.current += 1;
@@ -317,10 +332,11 @@ export function ModelPresetProfile({
     setRevision(applied.revision);
     setRepair(undefined);
     setEditorOpen(false);
+    onClose?.();
   };
 
   const save = async (): Promise<void> => {
-    if (!canSave || draft === undefined) return;
+    if (!canApply || draft === undefined) return;
     setBusy(true);
     setError(undefined);
     try {
@@ -385,11 +401,15 @@ export function ModelPresetProfile({
             ),
       disabled: entry.credential !== undefined,
     }));
-  const presetOptions: ComboboxOption[] = presets.map((preset) => ({
-    value: preset.id,
-    label: preset.name,
-    hint: routeLabel(preset.orchestrator, t('modelPreset.providerDefault')),
-  }));
+  const presetRouteLabel = (route: ModelRouteView): string =>
+    routeLabel(
+      {
+        ...route,
+        model:
+          catalog?.find((entry) => modelKey(entry) === modelKey(route))?.modelName ?? route.model,
+      },
+      t('modelPreset.providerDefault'),
+    );
   const currentPreset = presets.find((preset) => preset.id === draft?.presetId);
 
   const messages = (
@@ -647,164 +667,205 @@ export function ModelPresetProfile({
       role="region"
       aria-label={t('modelPreset.title')}
     >
-      <div className="bh-onboarding-actions">
-        <span className="bh-note">
-          {t(plan === undefined ? 'onboarding.inheritHint' : 'onboarding.fixed')}
-        </span>
-        {plan !== undefined || repair !== undefined ? (
-          <Button
-            variant="outline"
-            disabled={busy}
-            onClick={() => {
-              setBusy(true);
-              void actions
-                .inheritModel(slug, plan?.revision ?? revision)
-                .then(
-                  (result) => {
-                    planRequest.current += 1;
-                    invalidateModelPlan(slug);
-                    setPlan(undefined);
-                    setRevision(result.revision);
-                    setRepair(undefined);
-                  },
-                  (failure) => setError(errorMessage(failure)),
+      {onClose === undefined && (
+        <>
+          <div className="bh-onboarding-actions">
+            <span className="bh-note">
+              {t(plan === undefined ? 'onboarding.inheritHint' : 'onboarding.fixed')}
+            </span>
+            {plan !== undefined || repair !== undefined ? (
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => {
+                  setBusy(true);
+                  void actions
+                    .inheritModel(slug, plan?.revision ?? revision)
+                    .then(
+                      (result) => {
+                        planRequest.current += 1;
+                        invalidateModelPlan(slug);
+                        setPlan(undefined);
+                        setRevision(result.revision);
+                        setRepair(undefined);
+                      },
+                      (failure) => setError(errorMessage(failure)),
+                    )
+                    .finally(() => setBusy(false));
+                }}
+              >
+                {t('onboarding.inherit')}
+              </Button>
+            ) : null}
+          </div>
+          <SidebarCardList label={t('modelPreset.title')}>
+            <SidebarCardRow
+              icon="bot"
+              title={t('modelPreset.title')}
+              chips={
+                presetLabel === undefined && extraAllowed <= 0 ? undefined : (
+                  <>
+                    {presetLabel === undefined ? null : <Tag tone="neutral">{presetLabel}</Tag>}
+                    {extraAllowed > 0 ? (
+                      <Tag tone="quiet">
+                        {t('modelPreset.moreAllowed', { count: extraAllowed })}
+                      </Tag>
+                    ) : null}
+                  </>
                 )
-                .finally(() => setBusy(false));
-            }}
-          >
-            {t('onboarding.inherit')}
-          </Button>
-        ) : null}
-      </div>
-      <SidebarCardList label={t('modelPreset.title')}>
-        <SidebarCardRow
-          icon="bot"
-          title={t('modelPreset.title')}
-          chips={
-            presetLabel === undefined && extraAllowed <= 0 ? undefined : (
-              <>
-                {presetLabel === undefined ? null : <Tag tone="neutral">{presetLabel}</Tag>}
-                {extraAllowed > 0 ? (
-                  <Tag tone="quiet">{t('modelPreset.moreAllowed', { count: extraAllowed })}</Tag>
-                ) : null}
-              </>
-            )
-          }
-          meta={
-            plan === undefined || repair !== undefined || hasPlanError ? (
-              summary
-            ) : (
-              <>
-                <span className="bh-card-meta-line">
-                  {t('modelPreset.orchestrator')} · {summary}
-                </span>
-                <span className="bh-card-meta-line">
-                  {t('modelPreset.assignment')} ·{' '}
-                  {plan.assignmentDefault === undefined
-                    ? t('onboarding.inherit')
-                    : routeLabel(plan.assignmentDefault, t('modelPreset.providerDefault'))}
-                </span>
-              </>
-            )
-          }
-          onClick={openEditor}
-          dialog
-        />
-      </SidebarCardList>
+              }
+              meta={
+                plan === undefined || repair !== undefined || hasPlanError ? (
+                  summary
+                ) : (
+                  <>
+                    <span className="bh-card-meta-line">
+                      {t('modelPreset.orchestrator')} · {summary}
+                    </span>
+                    <span className="bh-card-meta-line">
+                      {t('modelPreset.assignment')} ·{' '}
+                      {plan.assignmentDefault === undefined
+                        ? t('onboarding.inherit')
+                        : routeLabel(plan.assignmentDefault, t('modelPreset.providerDefault'))}
+                    </span>
+                  </>
+                )
+              }
+              onClick={openEditor}
+              dialog
+            />
+          </SidebarCardList>
+        </>
+      )}
       {editorOpen ? null : messages}
       {editorOpen && (
         <PanelDialog
           size="medium"
           scroll
-          onClose={() => setEditorOpen(false)}
+          onClose={closeEditor}
           closeLabel={t('common.close')}
           title={t('modelPreset.title')}
           secondary={
-            <Button
-              variant="ghost"
-              disabled={!canSave || draft?.assignment.key === '' || presetName !== undefined}
-              onClick={() => setPresetName('')}
-            >
-              {t('modelPreset.saveAs')}
-            </Button>
+            selectionMode === 'models' ? (
+              <Button
+                variant="ghost"
+                disabled={!canSave || draft?.assignment.key === '' || presetName !== undefined}
+                onClick={() => setPresetName('')}
+              >
+                {t('modelPreset.saveAs')}
+              </Button>
+            ) : undefined
           }
           actions={
             <>
-              <Button variant="outline" disabled={busy} onClick={() => setEditorOpen(false)}>
+              <Button variant="outline" disabled={busy} onClick={closeEditor}>
                 {t('common.cancel')}
               </Button>
-              <Button variant="primary" disabled={!canSave} onClick={() => void save()}>
+              <Button
+                variant="primary"
+                disabled={!canApply || (selectionMode === 'presets' && !currentPreset)}
+                onClick={() => void save()}
+              >
                 {t('modelPreset.save')}
               </Button>
             </>
           }
         >
+          <SegmentedControl
+            id="bh-model-selection-mode"
+            value={selectionMode}
+            options={[
+              { value: 'models', label: t('modelPreset.specificModels') },
+              { value: 'presets', label: t('modelPreset.presets') },
+            ]}
+            onChange={setSelectionMode}
+            label={t('modelPreset.selectionMode')}
+            disabled={busy}
+          />
           {catalog === undefined ? (
             <Note>{t('modelPreset.loading')}</Note>
           ) : catalog.length === 0 || draft === undefined ? (
             <Note>{t('modelPreset.emptyCatalog')}</Note>
           ) : (
             <>
-              {presets.length > 0 && (
+              {selectionMode === 'presets' ? (
                 <div data-model-preset-source="" {...stylex.props(styles.source)}>
-                  <Combobox
-                    value={draft.presetId}
-                    options={presetOptions}
-                    onSelect={(id) => {
-                      const preset = presets.find((item) => item.id === id);
-                      if (preset !== undefined) setDraft(draftOf(preset, preset.id));
-                    }}
-                    label={t('modelPreset.fromPreset')}
-                    toggleLabel={t('modelPreset.showPresets')}
-                    placeholder={t('modelPreset.fromPreset')}
-                    emptyLabel={t('modelPreset.noMatch')}
-                    disabled={busy}
-                  />
+                  <SidebarCardList label={t('modelPreset.presets')}>
+                    {presets.map((preset) => (
+                      <SidebarCardRow
+                        key={preset.id}
+                        title={preset.name}
+                        selection={{ checked: draft.presetId === preset.id }}
+                        meta={
+                          <>
+                            <span className="bh-card-meta-line">
+                              {t('modelPreset.orchestrator')} ·{' '}
+                              {presetRouteLabel(preset.orchestrator)}
+                            </span>
+                            <span className="bh-card-meta-line">
+                              {t('modelPreset.assignment')} ·{' '}
+                              {presetRouteLabel(preset.assignmentDefault)}
+                            </span>
+                          </>
+                        }
+                        disabled={busy}
+                        onClick={() => setDraft(draftOf(preset, preset.id))}
+                      />
+                    ))}
+                  </SidebarCardList>
                   <Note>
                     {currentPreset === undefined
                       ? t('modelPreset.noPreset')
                       : t('modelPreset.usingPreset', { name: currentPreset.name })}
                   </Note>
+                  {presets.length === 0 && <Note>{t('modelPreset.emptyPresets')}</Note>}
                 </div>
-              )}
-              <ModelPicker
-                title={t('modelPreset.orchestrator')}
-                hint={t('modelPreset.orchestratorHint')}
-                choice={draft.orchestrator}
-                catalog={catalog}
-                options={modelOptions}
-                onChange={(orchestrator) => edit({ orchestrator })}
-                disabled={busy}
-                t={t}
-              />
-              {taskEditor}
-              {presetName !== undefined && (
-                <div {...stylex.props(styles.savePreset)}>
-                  <span {...stylex.props(styles.grow)}>
-                    <Input
-                      aria-label={t('modelPreset.name')}
-                      placeholder={t('modelPreset.name')}
-                      value={presetName}
-                      maxLength={100}
-                      autoFocus
-                      onChange={(event) => setPresetName(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' && !event.nativeEvent.isComposing)
-                          void saveAsPreset();
-                      }}
-                    />
-                  </span>
-                  <Button
-                    variant="outline"
-                    disabled={!canSave || presetName.trim() === ''}
-                    onClick={() => void saveAsPreset()}
-                  >
-                    {t('modelPreset.savePreset')}
-                  </Button>
-                  <Button variant="ghost" disabled={busy} onClick={() => setPresetName(undefined)}>
-                    {t('common.cancel')}
-                  </Button>
-                </div>
+              ) : (
+                <>
+                  <ModelPicker
+                    title={t('modelPreset.orchestrator')}
+                    hint={t('modelPreset.orchestratorHint')}
+                    choice={draft.orchestrator}
+                    catalog={catalog}
+                    options={modelOptions}
+                    onChange={(orchestrator) => edit({ orchestrator })}
+                    disabled={busy}
+                    t={t}
+                  />
+                  {taskEditor}
+                  {presetName !== undefined && (
+                    <div {...stylex.props(styles.savePreset)}>
+                      <span {...stylex.props(styles.grow)}>
+                        <Input
+                          aria-label={t('modelPreset.name')}
+                          placeholder={t('modelPreset.name')}
+                          value={presetName}
+                          maxLength={100}
+                          autoFocus
+                          onChange={(event) => setPresetName(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' && !event.nativeEvent.isComposing)
+                              void saveAsPreset();
+                          }}
+                        />
+                      </span>
+                      <Button
+                        variant="outline"
+                        disabled={!canSave || presetName.trim() === ''}
+                        onClick={() => void saveAsPreset()}
+                      >
+                        {t('modelPreset.savePreset')}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={() => setPresetName(undefined)}
+                      >
+                        {t('common.cancel')}
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}

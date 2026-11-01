@@ -386,13 +386,15 @@ describe('Remote preset name commits through the source Host owner', () => {
   });
 });
 
-async function render(actions: BridgeActions): Promise<HTMLDivElement> {
+async function render(actions: BridgeActions, onClose?: () => void): Promise<HTMLDivElement> {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
   await act(async () =>
-    root!.render(createElement(ModelPresetProfile, { slug: 'ada', actions, t: translate })),
+    root!.render(
+      createElement(ModelPresetProfile, { slug: 'ada', actions, t: translate, onClose }),
+    ),
   );
   return container;
 }
@@ -450,6 +452,157 @@ function presetPlan(preset: ModelPresetView, revision: number): ModelPlanView {
 }
 
 describe('Model entry', () => {
+  it('opens the composer editor directly and cancels without writing either model', async () => {
+    const onClose = vi.fn();
+    const setModelPlan = vi.fn();
+    const applyModelPreset = vi.fn();
+    await render(
+      {
+        modelPlanState: vi.fn(async () => ({})),
+        modelCatalog: vi.fn(async () => ({ models: catalog })),
+        modelPresets: vi.fn(async () => []),
+        setModelPlan,
+        applyModelPreset,
+      } as unknown as BridgeActions,
+      onClose,
+    );
+    expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+    expect(document.querySelector('.bh-model-entry > .bh-card-list')).toBeNull();
+    expect(combobox('Main model').value).toBe('Flash');
+    expect(combobox('Task model').value).toBe('Inherit global');
+    await choose('Task model', 'pro', 'Pro');
+    await act(async () => button('Cancel').click());
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(setModelPlan).not.toHaveBeenCalled();
+    expect(applyModelPreset).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('explains an empty preset list and preserves the model draft when switching back', async () => {
+    await render(
+      {
+        modelPlanState: vi.fn(async () => ({})),
+        modelCatalog: vi.fn(async () => ({ models: catalog })),
+        modelPresets: vi.fn(async () => []),
+      } as unknown as BridgeActions,
+      vi.fn(),
+    );
+    await choose('Task model', 'pro', 'Pro');
+    await act(async () => button('Choose preset').click());
+    expect(document.body.textContent).toContain('No presets yet');
+    expect(document.querySelector('input[aria-label="Main model"]')).toBeNull();
+    expect(button('Save').disabled).toBe(true);
+    await act(async () => button('Specific models').click());
+    expect(combobox('Main model').value).toBe('Flash');
+    expect(combobox('Task model').value).toBe('Pro');
+    expect(button('Save').disabled).toBe(false);
+  });
+
+  it('does not materialize an inherited plan when the composer saves without edits', async () => {
+    const customizeModelPlan = vi.fn();
+    const setModelPlan = vi.fn();
+    const applyModelPreset = vi.fn();
+    await render(
+      {
+        modelPlanState: vi.fn(async () => ({ revision: 3 })),
+        modelCatalog: vi.fn(async () => ({ models: catalog })),
+        modelPresets: vi.fn(async () => []),
+        customizeModelPlan,
+        setModelPlan,
+        applyModelPreset,
+      } as unknown as BridgeActions,
+      vi.fn(),
+    );
+    expect(combobox('Main model').value).toBe('Flash');
+    expect(combobox('Task model').value).toBe('Inherit global');
+    expect(button('Save').disabled).toBe(true);
+    await act(async () => button('Save').click());
+    expect(customizeModelPlan).not.toHaveBeenCalled();
+    expect(setModelPlan).not.toHaveBeenCalled();
+    expect(applyModelPreset).not.toHaveBeenCalled();
+  });
+
+  it('keeps tasks inherited after a composer main-only edit without a plan', async () => {
+    const orchestrator = { provider: 'deepseek', model: 'pro' };
+    const customizeModelPlan = vi.fn(async () => ({
+      revision: 4,
+      sourcePresetId: '',
+      sourcePresetName: '',
+      appliedAt: '',
+      orchestrator,
+    }));
+    const setModelPlan = vi.fn();
+    await render(
+      {
+        modelPlanState: vi.fn(async () => ({ revision: 3 })),
+        modelCatalog: vi.fn(async () => ({ models: catalog })),
+        modelPresets: vi.fn(async () => []),
+        customizeModelPlan,
+        setModelPlan,
+      } as unknown as BridgeActions,
+      vi.fn(),
+    );
+    await choose('Main model', 'pro', 'Pro');
+    expect(combobox('Task model').value).toBe('Inherit global');
+    await act(async () => button('Save').click());
+    expect(customizeModelPlan).toHaveBeenCalledExactlyOnceWith('ada', orchestrator, 3);
+    expect(setModelPlan).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('saves a task-only edit from the composer without changing the main model', async () => {
+    const plan: ModelPlanView = {
+      revision: 4,
+      sourcePresetId: '',
+      sourcePresetName: '',
+      appliedAt: '',
+      orchestrator: { provider: 'deepseek', model: 'flash', reasoningEffort: 'high' },
+      assignmentDefault: { provider: 'deepseek', model: 'flash' },
+    };
+    const onClose = vi.fn();
+    const setModelPlan = vi.fn(async () => ({ ...plan, revision: 5 }));
+    await render(
+      {
+        modelPlanState: vi.fn(async () => ({ plan })),
+        modelCatalog: vi.fn(async () => ({ models: catalog })),
+        modelPresets: vi.fn(async () => []),
+        setModelPlan,
+      } as unknown as BridgeActions,
+      onClose,
+    );
+    await choose('Task model', 'pro', 'Pro');
+    await act(async () => button('Save').click());
+    expect(setModelPlan).toHaveBeenCalledExactlyOnceWith(
+      'ada',
+      4,
+      plan.orchestrator,
+      { provider: 'deepseek', model: 'pro' },
+      [{ provider: 'deepseek', model: 'pro', allowedEfforts: [''], defaultEffort: '' }],
+    );
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('keeps the editor and draft open after a rejected save', async () => {
+    const onClose = vi.fn();
+    await render(
+      {
+        modelPlanState: vi.fn(async () => ({})),
+        modelCatalog: vi.fn(async () => ({ models: catalog })),
+        modelPresets: vi.fn(async () => []),
+        setModelPlan: vi.fn(async () => {
+          throw new Error('Revision conflict');
+        }),
+      } as unknown as BridgeActions,
+      onClose,
+    );
+    await choose('Task model', 'pro', 'Pro');
+    await act(async () => button('Save').click());
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain('Revision conflict');
+    expect(combobox('Task model').value).toBe('Pro');
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('explains an ambiguous legacy model before the editor opens', async () => {
     const host = await render({
       modelPlanState: vi.fn(async () => ({
@@ -551,7 +704,7 @@ describe('Model entry', () => {
     await openEditor(document.body);
 
     expect(combobox('Main model').value).toBe('Kimi K2');
-    expect(combobox('Task model').value).toBe('Kimi K2');
+    expect(combobox('Task model').value).toBe('Inherit global');
     await act(async () => combobox('Main model').focus());
     await act(async () => {
       const input = combobox('Main model');
@@ -565,6 +718,8 @@ describe('Model entry', () => {
       ['ProDeepSeek · needs an API key', true],
     ]);
 
+    expect(button('Save').disabled).toBe(true);
+    await choose('Task model', 'k2', 'Kimi K2');
     await act(async () => button('Save').click());
     expect(setModelPlan).toHaveBeenCalledWith(
       'ada',
@@ -625,10 +780,19 @@ describe('Model entry', () => {
     expect(cards(host)).toContain('Daily');
 
     await openEditor(host);
+    expect(combobox('Main model').value).toBe('Flash');
+    expect(combobox('Task model').value).toBe('Pro');
+    expect(document.querySelector('[data-model-preset-source]')).toBeNull();
+    await act(async () => button('Choose preset').click());
     expect(document.querySelector('[data-model-preset-source]')?.textContent).toContain(
       'Using preset “Daily”',
     );
-    await choose('Fill from a preset', 'dee', 'Deep');
+    const deep = [
+      ...document.querySelectorAll<HTMLButtonElement>('[data-model-preset-source] button'),
+    ].find((candidate) => candidate.querySelector('.bh-card-title')?.textContent === 'Deep')!;
+    expect(deep.textContent).toContain('Main model · Flash · high');
+    expect(deep.textContent).toContain('Task model · Pro');
+    await act(async () => deep.click());
     expect(document.querySelector('[data-model-preset-source]')?.textContent).toContain(
       'Using preset “Deep”',
     );
@@ -644,9 +808,12 @@ describe('Model entry', () => {
         .querySelector<HTMLButtonElement>('[aria-label="Main model · Reasoning effort"] button')!
         .click(),
     );
+    await act(async () => button('Choose preset').click());
     expect(document.querySelector('[data-model-preset-source]')?.textContent).toContain(
       'No preset',
     );
+    expect(button('Save').disabled).toBe(true);
+    await act(async () => button('Specific models').click());
     await act(async () => button('Save').click());
     expect(setModelPlan).toHaveBeenCalledWith(
       'ada',
