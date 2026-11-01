@@ -645,7 +645,7 @@ function ChatConversation({
       layout: viewportLayout,
       active: focused,
     }),
-    [scroll, viewport, content, viewportLayout, focused],
+    [scroll, viewport, content, viewportLayout, focused, android],
   );
   const readMount = useMarkRead(
     client,
