@@ -469,7 +469,7 @@ describe('Model entry', () => {
     expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
     expect(document.querySelector('.bh-model-entry > .bh-card-list')).toBeNull();
     expect(combobox('Main model').value).toBe('Flash');
-    expect(combobox('Task model').value).toBe('Flash');
+    expect(combobox('Task model').value).toBe('Inherit global');
     await choose('Task model', 'pro', 'Pro');
     await act(async () => button('Cancel').click());
     expect(onClose).toHaveBeenCalledOnce();
@@ -496,6 +496,58 @@ describe('Model entry', () => {
     expect(combobox('Main model').value).toBe('Flash');
     expect(combobox('Task model').value).toBe('Pro');
     expect(button('Save').disabled).toBe(false);
+  });
+
+  it('does not materialize an inherited plan when the composer saves without edits', async () => {
+    const customizeModelPlan = vi.fn();
+    const setModelPlan = vi.fn();
+    const applyModelPreset = vi.fn();
+    await render(
+      {
+        modelPlanState: vi.fn(async () => ({ revision: 3 })),
+        modelCatalog: vi.fn(async () => ({ models: catalog })),
+        modelPresets: vi.fn(async () => []),
+        customizeModelPlan,
+        setModelPlan,
+        applyModelPreset,
+      } as unknown as BridgeActions,
+      vi.fn(),
+    );
+    expect(combobox('Main model').value).toBe('Flash');
+    expect(combobox('Task model').value).toBe('Inherit global');
+    expect(button('Save').disabled).toBe(true);
+    await act(async () => button('Save').click());
+    expect(customizeModelPlan).not.toHaveBeenCalled();
+    expect(setModelPlan).not.toHaveBeenCalled();
+    expect(applyModelPreset).not.toHaveBeenCalled();
+  });
+
+  it('keeps tasks inherited after a composer main-only edit without a plan', async () => {
+    const orchestrator = { provider: 'deepseek', model: 'pro' };
+    const customizeModelPlan = vi.fn(async () => ({
+      revision: 4,
+      sourcePresetId: '',
+      sourcePresetName: '',
+      appliedAt: '',
+      orchestrator,
+    }));
+    const setModelPlan = vi.fn();
+    await render(
+      {
+        modelPlanState: vi.fn(async () => ({ revision: 3 })),
+        modelCatalog: vi.fn(async () => ({ models: catalog })),
+        modelPresets: vi.fn(async () => []),
+        customizeModelPlan,
+        setModelPlan,
+      } as unknown as BridgeActions,
+      vi.fn(),
+    );
+    await choose('Main model', 'pro', 'Pro');
+    expect(combobox('Task model').value).toBe('Inherit global');
+    await act(async () => button('Save').click());
+    expect(customizeModelPlan).toHaveBeenCalledExactlyOnceWith('ada', orchestrator, 3);
+    expect(setModelPlan).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
   it('saves a task-only edit from the composer without changing the main model', async () => {
@@ -652,7 +704,7 @@ describe('Model entry', () => {
     await openEditor(document.body);
 
     expect(combobox('Main model').value).toBe('Kimi K2');
-    expect(combobox('Task model').value).toBe('Kimi K2');
+    expect(combobox('Task model').value).toBe('Inherit global');
     await act(async () => combobox('Main model').focus());
     await act(async () => {
       const input = combobox('Main model');
@@ -666,6 +718,8 @@ describe('Model entry', () => {
       ['ProDeepSeek · needs an API key', true],
     ]);
 
+    expect(button('Save').disabled).toBe(true);
+    await choose('Task model', 'k2', 'Kimi K2');
     await act(async () => button('Save').click());
     expect(setModelPlan).toHaveBeenCalledWith(
       'ada',

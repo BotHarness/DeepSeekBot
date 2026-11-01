@@ -197,6 +197,7 @@ export function ModelPresetProfile({
   const [planLoadError, setPlanLoadError] = useState(false);
   const planRequest = useRef(0);
   const [draft, setDraft] = useState<ModelDraft>();
+  const [initialDraft, setInitialDraft] = useState<ModelDraft>();
   const [presetName, setPresetName] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -260,8 +261,7 @@ export function ModelPresetProfile({
       setRepair(state.repair);
       setCatalog(models);
       setPresets(saved);
-      setDraft((previous) => {
-        if (previous !== undefined) return previous;
+      const initial = (() => {
         if (current !== undefined) return draftOf(current, current.sourcePresetId);
         const usable = models.filter((entry) => entry.credential === undefined);
         const first =
@@ -270,8 +270,10 @@ export function ModelPresetProfile({
           ) ?? usable[0];
         if (first === undefined) return undefined;
         const route = { provider: first.provider, model: first.model };
-        return draftOf({ orchestrator: route, assignmentDefault: route }, '');
-      });
+        return draftOf({ orchestrator: route }, '');
+      })();
+      setInitialDraft(initial);
+      setDraft((previous) => previous ?? initial);
       setPlanLoadError(false);
     } catch (failure) {
       if (planRequest.current === request) setError(errorMessage(failure));
@@ -314,6 +316,8 @@ export function ModelPresetProfile({
     inCatalog(draft.orchestrator.key) &&
     (draft.assignment.key === '' || inCatalog(draft.assignment.key)) &&
     !busy;
+  const canApply =
+    canSave && (plan !== undefined || JSON.stringify(draft) !== JSON.stringify(initialDraft));
 
   const closeEditor = (): void => {
     if (busy) return;
@@ -332,7 +336,7 @@ export function ModelPresetProfile({
   };
 
   const save = async (): Promise<void> => {
-    if (!canSave || draft === undefined) return;
+    if (!canApply || draft === undefined) return;
     setBusy(true);
     setError(undefined);
     try {
@@ -759,7 +763,7 @@ export function ModelPresetProfile({
               </Button>
               <Button
                 variant="primary"
-                disabled={!canSave || (selectionMode === 'presets' && !currentPreset)}
+                disabled={!canApply || (selectionMode === 'presets' && !currentPreset)}
                 onClick={() => void save()}
               >
                 {t('modelPreset.save')}
