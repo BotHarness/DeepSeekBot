@@ -30,6 +30,36 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe('Panel scrollbar activity', () => {
+  it('keeps one visible activity through sustained scroll without rewriting inline opacity', () => {
+    const node = scroller();
+    const writes = vi.spyOn(node.style, 'setProperty');
+    const removals = vi.spyOn(node.style, 'removeProperty');
+    for (let index = 0; index < 30; index++) {
+      scroll(node);
+      vi.advanceTimersByTime(10);
+    }
+    expect(writes).toHaveBeenCalledTimes(1);
+    expect(removals).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(1);
+    vi.advanceTimersByTime(PANEL_SCROLLBAR_IDLE_MS - 11);
+    expect(opacity(node)).toBe(1);
+    vi.advanceTimersByTime(PANEL_SCROLLBAR_FADE_MS + 32);
+    expect(opacity(node)).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it('restores the original inline value after repeated scrolls and fade interruption', () => {
+    const node = scroller();
+    node.style.setProperty(property, '0.25', 'important');
+    scroll(node);
+    vi.advanceTimersByTime(PANEL_SCROLLBAR_IDLE_MS + 100);
+    expect(opacity(node)).toBeLessThan(1);
+    scroll(node);
+    scroll(node);
+    expect(opacity(node)).toBe(1);
+    release();
+    expect(node.style.getPropertyValue(property)).toBe('0.25');
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it('shows only the scrolling surface, then fades independently of nested and sibling surfaces', () => {
     const first = scroller();
     const nested = scroller(first);

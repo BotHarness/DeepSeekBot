@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { PersonaBotAvatar } from '../src/client/avatar.js';
 
-it('keeps CSS-owned BotUI motion stable across rerenders, swaps presets and removes it at idle', async () => {
+it('keeps a static state marker across rerenders and removes it at idle', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const frames = vi.fn();
   vi.stubGlobal('requestAnimationFrame', frames);
@@ -26,16 +26,23 @@ it('keeps CSS-owned BotUI motion stable across rerenders, swaps presets and remo
   };
   try {
     await render('thinking');
-    const matrix = container.querySelector('.botui-dot-matrix');
-    expect(matrix?.getAttribute('data-preset')).toBe('spiral');
-    expect(matrix?.children).toHaveLength(9);
+    const marker = container.querySelector('.bh-avatar-indicator');
+    expect(marker).not.toBeNull();
     await render('thinking', 'Renamed Ada');
-    expect(container.querySelector('.botui-dot-matrix')).toBe(matrix);
-    await render('working');
-    expect(container.querySelector('.botui-dot-matrix')?.getAttribute('data-preset')).toBe('morph');
-    expect(container.querySelector('.bh-avatar-indicator')).toBeNull();
+    expect(container.querySelector('.bh-avatar-indicator')).toBe(marker);
+    expect(container.querySelector('[role="img"]')?.getAttribute('aria-label')).toContain(
+      'Renamed Ada',
+    );
+    const figure = container.querySelector('.bh-avatar-media-composed img');
+    const identity = figure?.getAttribute('src');
+    await render('working', 'Renamed Ada');
+    expect(container.querySelector('.bh-avatar-indicator')).toBe(marker);
+    expect(container.querySelector('.bh-avatar-media-composed img')).toBe(figure);
+    expect(figure?.getAttribute('src')).toBe(identity);
+    expect(container.querySelector('.botui-dot-matrix')).toBeNull();
     await render('idle');
     expect(container.querySelector('.botui-dot-matrix')).toBeNull();
+    expect(container.querySelector('.bh-avatar-indicator')).toBeNull();
     expect(container.querySelector('.bh-avatar-attention')?.textContent).toBe('2');
     expect(frames).not.toHaveBeenCalled();
   } finally {

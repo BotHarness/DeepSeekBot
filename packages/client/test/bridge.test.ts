@@ -1043,6 +1043,132 @@ describe('bridge actions', () => {
     expect(clientStore.getSnapshot().conversation.unreadAfterMessageId).toBe('m3');
   });
 
+  it.each([
+    ['group-channel', true],
+    ['group-channel', false],
+    ['dm-channel', true],
+    ['dm-channel', false],
+    ['bot', true],
+    ['bot', false],
+  ] as const)(
+    'does not fetch an abandoned %s timeline after a late read position (anchor=%s)',
+    async (opener, hasAnchor) => {
+      const target = opener === 'group-channel' ? GROUP.id : DM.id;
+      const destination = target === GROUP.id ? DM.id : GROUP.id;
+      let releaseRead: ((value: Record<string, unknown>) => void) | undefined;
+      const pendingRead = new Promise<Record<string, unknown>>((resolve) => {
+        releaseRead = resolve;
+      });
+      const timelineRequests: Array<Record<string, unknown>> = [];
+      const readPosition = vi.fn((payload: Record<string, unknown>) =>
+        payload['channelId'] === target ? pendingRead : {},
+      );
+      const { clientStore, actions } = setup({
+        channelReadPosition: readPosition,
+        channelTimeline: (payload) => {
+          timelineRequests.push(payload);
+          return {
+            revision: 0,
+            page: {
+              entries: [],
+              olderCursor: null,
+              newerCursor: null,
+              hasOlder: false,
+              hasNewer: false,
+            },
+          };
+        },
+      });
+      await actions.load();
+      const abandoned = opener === 'bot' ? actions.openBot('ada') : actions.openChannel(target);
+      await vi.waitFor(() => expect(readPosition).toHaveBeenCalledWith({ channelId: target }));
+      await actions.openChannel(destination);
+      const visible = clientStore.getSnapshot().conversation;
+      expect(visible.status).toBe('ready');
+      expect(releaseRead).toBeDefined();
+      releaseRead?.(hasAnchor ? { position: { messageId: 'old-read' } } : {});
+      await abandoned;
+      expect(timelineRequests.map((request) => request['channelId'])).toEqual([destination]);
+      expect(clientStore.getSnapshot().conversation).toBe(visible);
+    },
+  );
+
+  it('does not fetch latest after an abandoned opening anchor expires', async () => {
+    let rejectAnchor: ((reason: unknown) => void) | undefined;
+    const pendingAnchor = new Promise<unknown>((_resolve, reject) => {
+      rejectAnchor = reject;
+    });
+    const requests: Array<Record<string, unknown>> = [];
+    const { actions, clientStore } = setup({
+      channelReadPosition: ({ channelId }) =>
+        channelId === GROUP.id ? { position: { messageId: 'expired' } } : {},
+      channelTimeline: (payload) => {
+        requests.push(payload);
+        return payload['channelId'] === GROUP.id && payload['direction'] === 'around'
+          ? pendingAnchor
+          : {
+              revision: 0,
+              page: {
+                entries: [],
+                olderCursor: null,
+                newerCursor: null,
+                hasOlder: false,
+                hasNewer: false,
+              },
+            };
+      },
+    });
+    await actions.load();
+    const abandoned = actions.openChannel(GROUP.id);
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    await actions.openChannel(DM.id);
+    const visible = clientStore.getSnapshot().conversation;
+    expect(rejectAnchor).toBeDefined();
+    rejectAnchor?.(new BridgeCallError('invalid-input', 'expired anchor'));
+    await abandoned;
+    expect(requests).toEqual([
+      { channelId: GROUP.id, direction: 'around', around: 'expired' },
+      { channelId: DM.id },
+    ]);
+    expect(clientStore.getSnapshot().conversation).toBe(visible);
+  });
+
+  it('distinguishes the first opening from a later opening of the same Channel in an ABA switch', async () => {
+    let releaseRead: ((value: Record<string, unknown>) => void) | undefined;
+    const pendingRead = new Promise<Record<string, unknown>>((resolve) => {
+      releaseRead = resolve;
+    });
+    let targetReads = 0;
+    const requests: Array<Record<string, unknown>> = [];
+    const { clientStore, actions } = setup({
+      channelReadPosition: ({ channelId }) =>
+        channelId === GROUP.id && ++targetReads === 1 ? pendingRead : {},
+      channelTimeline: (payload) => {
+        requests.push(payload);
+        return {
+          revision: 0,
+          page: {
+            entries: [],
+            olderCursor: null,
+            newerCursor: null,
+            hasOlder: false,
+            hasNewer: false,
+          },
+        };
+      },
+    });
+    await actions.load();
+    const first = actions.openChannel(GROUP.id);
+    await actions.openChannel(DM.id);
+    await actions.openChannel(GROUP.id);
+    const visible = clientStore.getSnapshot().conversation;
+    expect(releaseRead).toBeDefined();
+    releaseRead?.({ position: { messageId: 'old-read' } });
+    await first;
+    expect(requests.map((request) => request['channelId'])).toEqual([DM.id, GROUP.id]);
+    expect(clientStore.getSnapshot().conversation).toBe(visible);
+  });
+
   it('falls back to latest for an expired anchor and sends explicit read marks', async () => {
     const marked: Array<Record<string, unknown>> = [];
     const { clientStore, actions } = setup({
