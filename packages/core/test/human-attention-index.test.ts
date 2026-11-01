@@ -17,33 +17,54 @@ const indexes = [
 ];
 
 describe('Human attention candidate indexes', () => {
-  it('upgrades generation 112 without rewriting canonical history and refuses older writers', () => {
-    const dshHome = createTempRoot('attention-index-upgrade-');
-    const priorPlan = defineSchemaPlan(
-      BOT_HARNESS_SCHEMA_PLAN.migrations.filter((migration) => migration.generation <= 112),
-    );
-    const prior = trackTestOwner(mountOperationalDatabase({ dshHome, schemaPlan: priorPlan }));
-    const database = attachOperationalModule(prior, 'attention-index-upgrade');
-    database.transaction((connection) => {
-      const event = connection.prepare(`INSERT INTO source_events
+  it.each([112, 113])(
+    'upgrades generation %i without rewriting canonical history and refuses older writers',
+    (generation) => {
+      const dshHome = createTempRoot('attention-index-upgrade-');
+      const priorPlan = defineSchemaPlan(
+        BOT_HARNESS_SCHEMA_PLAN.migrations.filter(
+          (migration) => migration.generation <= generation,
+        ),
+      );
+      const prior = trackTestOwner(mountOperationalDatabase({ dshHome, schemaPlan: priorPlan }));
+      const database = attachOperationalModule(prior, 'attention-index-upgrade');
+      database.transaction((connection) => {
+        const event = connection.prepare(`INSERT INTO source_events
         (source_event_id, source_kind, channel_id, message_id, body, created_at, payload_json)
         VALUES (?, 'bot-message', 'unplaced-history', ?, ?, ?, ?)`);
-      for (let index = 0; index < 2000; index++) {
-        const id = `unplaced-${index}`;
-        event.run(
-          id,
-          id,
-          'Retained historical content',
-          '2026-11-01T00:00:00.000Z',
-          JSON.stringify({
-            author: { kind: 'bot', slug: 'ada' },
-            ...(index % 100 === 0 ? { grantRequest: true } : {}),
-          }),
+        for (let index = 0; index < 2000; index++) {
+          const id = `unplaced-${index}`;
+          event.run(
+            id,
+            id,
+            'Retained historical content',
+            '2026-11-01T00:00:00.000Z',
+            JSON.stringify({
+              author: { kind: 'bot', slug: 'ada' },
+              ...(index % 100 === 0 ? { grantRequest: true } : {}),
+            }),
+          );
+        }
+      });
+      const facts = () =>
+        database.read((connection) =>
+          createHash('sha256')
+            .update(
+              JSON.stringify(
+                connection.prepare('SELECT * FROM source_events ORDER BY source_event_id').all(),
+              ),
+            )
+            .digest('hex'),
         );
-      }
-    });
-    const facts = () =>
-      database.read((connection) =>
+      const before = facts();
+      prior.close();
+      const upgraded = trackTestOwner(
+        mountOperationalDatabase({ dshHome, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+      );
+      expect(upgraded.mode).toBe('ready');
+      expect(upgraded.generation).toBe(114);
+      const current = attachOperationalModule(upgraded, 'attention-index-upgrade');
+      const after = current.read((connection) =>
         createHash('sha256')
           .update(
             JSON.stringify(
@@ -52,47 +73,31 @@ describe('Human attention candidate indexes', () => {
           )
           .digest('hex'),
       );
-    const before = facts();
-    prior.close();
-    const upgraded = trackTestOwner(
-      mountOperationalDatabase({ dshHome, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
-    );
-    expect(upgraded.mode).toBe('ready');
-    expect(upgraded.generation).toBe(113);
-    const current = attachOperationalModule(upgraded, 'attention-index-upgrade');
-    const after = current.read((connection) =>
-      createHash('sha256')
-        .update(
-          JSON.stringify(
-            connection.prepare('SELECT * FROM source_events ORDER BY source_event_id').all(),
-          ),
-        )
-        .digest('hex'),
-    );
-    expect(after).toBe(before);
-    expect(
-      current.read((connection) =>
-        connection
-          .prepare(
-            "SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'source_events_attention_%' ORDER BY name",
-          )
-          .all()
-          .map((row) => row.name),
-      ),
-    ).toEqual([...indexes].sort());
-    expect(
-      current.read((connection) => connection.prepare('PRAGMA integrity_check').get()),
-    ).toEqual({
-      integrity_check: 'ok',
-    });
-    expect(
-      current.read((connection) => connection.prepare('PRAGMA foreign_key_check').all()),
-    ).toEqual([]);
-    upgraded.close();
-    const older = trackTestOwner(mountOperationalDatabase({ dshHome, schemaPlan: priorPlan }));
-    expect(older.mode).toBe('recovery');
-    expect(older.diagnostics().recovery?.code).toBe('upgrade-required');
-  });
+      expect(after).toBe(before);
+      expect(
+        current.read((connection) =>
+          connection
+            .prepare(
+              "SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'source_events_attention_%' ORDER BY name",
+            )
+            .all()
+            .map((row) => row.name),
+        ),
+      ).toEqual([...indexes].sort());
+      expect(
+        current.read((connection) => connection.prepare('PRAGMA integrity_check').get()),
+      ).toEqual({
+        integrity_check: 'ok',
+      });
+      expect(
+        current.read((connection) => connection.prepare('PRAGMA foreign_key_check').all()),
+      ).toEqual([]);
+      upgraded.close();
+      const older = trackTestOwner(mountOperationalDatabase({ dshHome, schemaPlan: priorPlan }));
+      expect(older.mode).toBe('recovery');
+      expect(older.diagnostics().recovery?.code).toBe('upgrade-required');
+    },
+  );
 
   it('uses selective candidates rather than scanning placements for an empty action list', () => {
     const dshHome = createTempRoot('attention-index-plan-');

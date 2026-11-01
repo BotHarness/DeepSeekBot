@@ -71,5 +71,7 @@ DSH still materializes an individual Session read; this PR does not establish a 
 
 ## Verification and resource ownership
 
+The delivery branch is based on the updated main branch. Its existing generation 113 migration remains intact; attention indexes use generation 114. Upgrade tests cover both generations 112 and 113, preserving canonical rows and checking integrity and refusal of older writers. This database compatibility fence is not a simple binary downgrade: recovery requires a forward-compatible fix or restoration of a pre-upgrade backup.
+
 Historical browser/Host processes were task-owned and stopped; ports were released and evidence retained. This PR preparation does not restart the paused continuous-performance goal or modify shared QA Hosts/generated builds.
-Focused source tests and static checks are reported in the PR with their actual results; they do not substitute for browser, installed Desktop or Human acceptance.
+Delivery verification on the updated-main worktree passed 18 focused test files / 275 tests, and a separate broader Channel/attention/usage/budget batch passed 34 files / 262 tests. These batches overlap and are not added into a total. Root TypeScript checking, scoped formatting/lint, Release Ledger, CLI parity, feature-map and source-policy checks passed. Lint retains existing unused-variable/control-regex warnings. The sparse-checkout CI-plan CLI cannot validate omitted asset directories; full CI planning and docs/mobile/build checks remain CI gates. These checks do not substitute for browser, installed Desktop or Human acceptance.
