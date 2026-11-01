@@ -6,7 +6,6 @@ import { WINDOW_COMPANION_CSS } from './window-companion-styles.js';
 import { COMBOBOX_CSS } from './combobox.js';
 import { CHANNEL_DOCK_CSS } from './channel-dock-styles.js';
 import { GENERATED_FILES_CSS } from './generated-files-styles.js';
-import { keyframesFor } from '@botharness/botui-core';
 import { DEEPSEEKBOT_TRANSPARENT_DATA_URI } from './bot-icon-assets.js';
 import { ACTIVITY_INBOX_CSS } from './activity-inbox-styles.js';
 import { MOBILE_APPS_CSS } from './mobile-apps-styles.js';
@@ -859,21 +858,6 @@ span:has(> [data-session-schedule-mark]) > .bh-native-session-owner {
 .bh-avatar-media-image img {
   object-fit: cover;
 }
-.bh-persona-avatar[data-media='blob'][data-effect='thinking-dots'] .bh-avatar-media {
-  animation: bh-avatar-breathe 1300ms var(--ds-ease-in-out) infinite;
-}
-.bh-persona-avatar[data-media='blob'][data-effect='generic-working'] .bh-avatar-media {
-  animation: bh-avatar-work 1500ms var(--ds-ease-in-out) infinite;
-}
-.bh-persona-avatar[data-media='blob'][data-effect='searching'] .bh-avatar-media {
-  animation: bh-avatar-search 1250ms var(--ds-ease-in-out) infinite;
-}
-.bh-persona-avatar[data-media='blob'][data-effect='coding'] .bh-avatar-media {
-  animation: bh-avatar-code 1000ms var(--ds-ease-in-out) infinite;
-}
-.bh-persona-avatar[data-media='blob'][data-effect='executing'] .bh-avatar-media {
-  animation: bh-avatar-execute 900ms var(--ds-ease-in-out) infinite;
-}
 .bh-avatar-attention,
 .bh-avatar-information {
   position: absolute;
@@ -906,30 +890,21 @@ span:has(> [data-session-schedule-mark]) > .bh-native-session-owner {
   position: absolute;
   right: -2px;
   bottom: -2px;
-  width: 8px;
-  height: 8px;
-  border: ${border.hairline} solid var(--dsw-alias-bg-base);
-  border-radius: 999px;
-  background: var(--dsw-alias-state-business-primary);
-}
-.bh-persona-avatar[data-state='waiting'] .bh-avatar-indicator {
-  background: var(--dsw-alias-state-warn-primary);
-}
-.bh-persona-avatar[data-state='blocked'] .bh-avatar-indicator {
-  background: var(--dsw-alias-state-error-primary);
-}
-.bh-avatar-botui {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 16px;
   height: 16px;
+  border: ${border.hairline} solid var(--dsw-alias-bg-base);
   border-radius: ${radius.xs};
   color: ${color.accentText};
   background: var(--dsw-alias-bg-base);
-  pointer-events: none;
+}
+.bh-persona-avatar[data-state='waiting'] .bh-avatar-indicator {
+  color: var(--dsw-alias-state-warn-primary);
+}
+.bh-persona-avatar[data-state='blocked'] .bh-avatar-indicator {
+  color: var(--dsw-alias-state-error-primary);
 }
 .bh-persona-avatar svg[data-pixel-cover]:not([data-avatar-speaking]) .bh-illustrated-head,
 .bh-persona-avatar svg[data-pixel-cover]:not([data-avatar-speaking]) .bh-illustrated-body,
@@ -947,7 +922,6 @@ html[data-botharness-activity='stale'] .bh-row-status * {
   animation-play-state: paused !important;
 }
 html[data-botharness-activity='stale'] .bh-row-status,
-html[data-botharness-activity='stale'] .bh-avatar-botui,
 html[data-botharness-activity='stale'] .bh-avatar-indicator {
   opacity: 0.45;
   filter: grayscale(1);
@@ -1014,8 +988,7 @@ html[data-botharness-activity='stale'] .bh-avatar-indicator {
 }
 .bh-row-status .bh-avatar-attention,
 .bh-row-status .bh-avatar-information,
-.bh-row-status .bh-avatar-indicator,
-.bh-row-status .bh-avatar-botui {
+.bh-row-status .bh-avatar-indicator {
   position: static;
 }
 .bh-row-status .bh-avatar-attention,
@@ -1024,29 +997,11 @@ html[data-botharness-activity='stale'] .bh-avatar-indicator {
   height: 16px;
   line-height: ${text.metaLine};
 }
-.bh-row-status .bh-avatar-botui {
-  background: transparent;
-}
 .bh-row-status[data-state='waiting'] .bh-avatar-indicator {
-  background: var(--dsw-alias-state-warn-primary);
+  color: var(--dsw-alias-state-warn-primary);
 }
 .bh-row-status[data-state='blocked'] .bh-avatar-indicator {
-  background: var(--dsw-alias-state-error-primary);
-}
-.bh-avatar-botui .botui-dot-matrix {
-  display: grid;
-  place-content: center;
-  contain: layout paint;
-}
-.bh-avatar-botui .botui-dot-matrix > i {
-  display: block;
-  background: currentColor;
-  transform-origin: center;
-  -webkit-mask: var(--botui-mask) center / calc(var(--botui-fill, 1) * 100%) no-repeat;
-  mask: var(--botui-mask) center / calc(var(--botui-fill, 1) * 100%) no-repeat;
-  scale: var(--botui-s-min, 0.5);
-  animation: var(--botui-anim) var(--botui-cycle) linear infinite;
-  animation-delay: calc(var(--botui-o, 0) * var(--botui-seed) * var(--botui-cycle));
+  color: var(--dsw-alias-state-error-primary);
 }
 .bh-avatar-facepile {
   display: inline-flex;
@@ -1073,64 +1028,6 @@ html[data-botharness-activity='stale'] .bh-avatar-indicator {
   color: var(--dsw-alias-label-secondary);
   font-size: 9px;
   font-weight: ${text.strong};
-}
-@keyframes bh-avatar-breathe {
-  0%,
-  100% {
-    transform: scale(0.98);
-  }
-  50% {
-    transform: scale(1.035);
-  }
-}
-@keyframes bh-avatar-work {
-  0%,
-  100% {
-    transform: translateY(0) rotate(0deg);
-  }
-  38% {
-    transform: translateY(-2%) rotate(-1.5deg);
-  }
-  70% {
-    transform: translateY(1%) rotate(1deg);
-  }
-}
-@keyframes bh-avatar-search {
-  0%,
-  100% {
-    transform: translateX(-2%);
-  }
-  50% {
-    transform: translateX(2%);
-  }
-}
-@keyframes bh-avatar-code {
-  0%,
-  100% {
-    transform: scaleY(0.98);
-  }
-  50% {
-    transform: scaleY(1.035);
-  }
-}
-@keyframes bh-avatar-execute {
-  0%,
-  100% {
-    transform: rotate(-1.5deg);
-  }
-  50% {
-    transform: rotate(1.5deg);
-  }
-}
-${keyframesFor('spiral')}
-${keyframesFor('morph')}
-html[data-botharness-motion='reduce'] .bh-avatar-media,
-html[data-botharness-motion='reduce'] .bh-avatar-botui i {
-  animation: none !important;
-}
-html[data-botharness-motion='reduce'] .bh-avatar-botui i {
-  opacity: calc(0.16 + 0.84 * (1 - var(--botui-o, 0)));
-  scale: 1;
 }
 
 
@@ -3421,7 +3318,6 @@ button.bh-profile-heat-cell:focus-visible {
 }
 .bh-profile-avatar-button .bh-persona-avatar {
   filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--dsw-alias-label-primary) 18%, transparent));
-  transition: filter 120ms ease;
 }
 .bh-profile-avatar-button:not(:disabled):hover .bh-persona-avatar,
 .bh-profile-avatar-button:focus-visible .bh-persona-avatar {

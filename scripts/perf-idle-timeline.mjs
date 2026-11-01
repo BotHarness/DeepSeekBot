@@ -168,7 +168,13 @@ async function rpc(method, args = {}) {
 
 async function dismissOverlays() {
   for (let index = 0; index < 6; index++) {
-    for (const label of ['Continue', 'Configure later', 'Skip tutorial', 'Skip']) {
+    for (const label of [
+      'Continue',
+      'Configure later',
+      'Skip tutorial',
+      'Skip',
+      'Don’t show again',
+    ]) {
       const button = await page.$(`::-p-aria(${label})`);
       if (button && (await button.isVisible().catch(() => false)))
         await button.click().catch(() => {});

@@ -86,6 +86,108 @@ import { zhTranslate } from '../src/client/locale.js';
 import { store, type ChannelMessage } from '../src/client/store.js';
 import { WindowCompanions } from '../src/client/window-companions.js';
 import { inertSubmissionActions } from './inert-submissions.js';
+import * as messageAuthorCards from '../src/client/message-author-card.js';
+
+it('keeps settled message groups mounted without rerendering their author cards during drafts', async () => {
+  const previous = store.getSnapshot();
+  const bot = {
+    slug: 'stream-isolation',
+    displayName: 'Stream isolation',
+    roles: [],
+    aggregateState: 'idle',
+    workspaces: [],
+    createdAt: '2026-10-24T00:00:00.000Z',
+  };
+  const channel = {
+    id: 'group-stream-isolation',
+    type: 'group' as const,
+    name: 'Stream isolation',
+    members: [bot.slug],
+    createdAt: bot.createdAt,
+    updatedAt: bot.createdAt,
+  };
+  const committed: ChannelMessage = {
+    id: 'settled-human',
+    at: bot.createdAt,
+    author: { kind: 'human' },
+    body: 'History stays available',
+  };
+  const actions = {
+    profileActivity: async () => ({
+      slug: bot.slug,
+      modelUsageStatus: 'ready',
+      modelUsageRows: [],
+    }),
+    modelPlanState: async () => ({}),
+    modelCatalog: async () => ({ models: [] }),
+    listWorkspaceGrants: async () => [],
+    botSourcePolicies: async () => [],
+    allBotPreview: async () => ({ recipients: [], excluded: [] }),
+    listWorkspaceOptions: async () => [],
+    markRead: async () => undefined,
+    ...inertSubmissionActions,
+  } as unknown as BridgeActions;
+  const prefs = new BotModePrefs();
+  prefs.setStreamReplies(true);
+  const authorCards = vi.spyOn(messageAuthorCards, 'messageAuthorCardModel');
+  const humanRenders = () =>
+    authorCards.mock.calls.filter(([author]) => author.kind === 'human').length;
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  store.setRoster([bot], [channel]);
+  store.select({ kind: 'channel', channelId: channel.id });
+  store.setConversation({ status: 'ready', channel, messages: [committed], drafts: [] });
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () =>
+      root.render(createElement(BotMain, { prefs, actions, channelSidebar: sidebarRegistry() })),
+    );
+    const settled = container.querySelector('[data-message-id="settled-human"]');
+    expect(settled).not.toBeNull();
+    const initialRenders = humanRenders();
+    expect(initialRenders).toBeGreaterThan(0);
+    for (let revision = 1; revision <= 10; revision++) {
+      await act(async () =>
+        store.setConversation({
+          drafts: [
+            {
+              channelId: channel.id,
+              draftId: 'streaming-draft',
+              attemptId: 'attempt',
+              revision,
+              botSlug: bot.slug,
+              body: 'x'.repeat(revision),
+            },
+          ],
+          draftRevision: revision,
+        }),
+      );
+      expect(container.querySelector('[data-message-id="settled-human"]')).toBe(settled);
+      expect(container.querySelector('[data-message-id="streaming-draft"]')).not.toBeNull();
+    }
+    expect(humanRenders()).toBe(initialRenders);
+    await act(async () => prefs.setStreamReplies(false));
+    expect(container.querySelector('[data-message-id="streaming-draft"]')).toBeNull();
+    expect(container.querySelector('[data-message-id="settled-human"]')).toBe(settled);
+    await act(async () => prefs.setStreamReplies(true));
+    expect(container.querySelector('[data-message-id="streaming-draft"]')).not.toBeNull();
+    expect(humanRenders()).toBe(initialRenders);
+    await act(async () =>
+      store.setConversation({ messages: [{ ...committed, body: 'History changed' }], drafts: [] }),
+    );
+    expect(humanRenders()).toBeGreaterThan(initialRenders);
+    expect(container.querySelector('[data-message-id="streaming-draft"]')).toBeNull();
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    authorCards.mockRestore();
+    prefs.dispose();
+    store.setRoster(previous.bots, previous.channels);
+    store.select(previous.selection);
+    store.setConversation(previous.conversation);
+  }
+});
 
 describe('Channel read position candidates', () => {
   it('does not resolve a Grant request from a pending or failed local echo', () => {

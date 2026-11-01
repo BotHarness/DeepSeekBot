@@ -344,6 +344,38 @@ describe('Usage projection', () => {
 });
 
 describe('Usage rebuild races', () => {
+  it('extracts usage before reading another session without exposing partial counters', async () => {
+    const { usage } = usageProjection({
+      'session-1': { botSlug: 'ada', rootRole: 'orchestrator' },
+      'session-2': { botSlug: 'ada', rootRole: 'orchestrator' },
+    });
+    const first = event('assistant/message', TURN_END);
+    let firstProjected = false;
+    let projectedBeforeNextRead = false;
+    const report = await usage.rebuild(['session-1', 'session-2'], async (sessionId) => {
+      if (sessionId === 'session-2') {
+        projectedBeforeNextRead = firstProjected;
+        expect(usage.activity('ada', SINCE)).toEqual([]);
+        return { events: [event('assistant/message', TURN_END)], inheritedEventCount: 0 };
+      }
+      return {
+        events: [
+          {
+            ...first,
+            get data() {
+              firstProjected = true;
+              return first.data;
+            },
+          },
+        ],
+        inheritedEventCount: 0,
+      };
+    });
+    expect(projectedBeforeNextRead).toBe(true);
+    expect(report).toEqual({ folded: 2, failed: 0 });
+    expect(usage.activity('ada', SINCE)[0]?.totalTokens).toBe(310);
+  });
+
   function feedTurn(
     usage: ReturnType<typeof createUsageProjection>,
     sessionId: string,

@@ -1516,8 +1516,9 @@ export function createActions(
       clientStore.setHumanInbox({ status: 'error', error: errorMessage(error) });
     }
   };
-  const loadOpeningTimeline = async (channelId: string) => {
+  const loadOpeningTimeline = async (channelId: string, active: ConversationSelection) => {
     const anchor = await loadReadPosition(call, channelId);
+    if (currentSelection() !== active) return;
     if (anchor !== undefined) {
       try {
         const opened = await loadTimelinePage(call, channelId, {
@@ -1537,6 +1538,7 @@ export function createActions(
         if (!(error instanceof BridgeCallError) || error.code !== 'invalid-input') throw error;
       }
     }
+    if (currentSelection() !== active) return;
     return {
       ...(await loadTimelinePage(call, channelId)),
       focusMessageId: undefined,
@@ -1605,14 +1607,16 @@ export function createActions(
       sending: false,
     });
     try {
-      const { page, revision, focusMessageId, unreadAfterMessageId } =
+      const opened =
         sourcePage === undefined
-          ? await loadOpeningTimeline(channelId)
+          ? await loadOpeningTimeline(channelId, active)
           : {
               ...sourcePage,
               focusMessageId: messageId,
               unreadAfterMessageId: undefined,
             };
+      if (opened === undefined) return;
+      const { page, revision, focusMessageId, unreadAfterMessageId } = opened;
       const failures = remainingFailures(channelId, page.entries);
       const messages = page.hasNewer ? page.entries : [...page.entries, ...failures];
       if (currentSelection() !== active) return;
@@ -2079,9 +2083,9 @@ export function createActions(
             error: undefined,
           });
         }
-        const { page, revision, focusMessageId, unreadAfterMessageId } = await loadOpeningTimeline(
-          channel.id,
-        );
+        const opened = await loadOpeningTimeline(channel.id, active);
+        if (opened === undefined) return;
+        const { page, revision, focusMessageId, unreadAfterMessageId } = opened;
         const messages = page.entries;
         if (currentSelection() !== active) return;
         const listedChannel = clientStore

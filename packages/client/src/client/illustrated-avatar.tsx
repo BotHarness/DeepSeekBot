@@ -144,18 +144,7 @@ const blinkFrames = (blinkAt: number, count: number): Keyframe[] =>
     easing: 'steps(1, end)',
   }));
 
-export function IllustratedAvatar({
-  personaBotId,
-  recipe,
-  state,
-  effect,
-  size,
-  symbol,
-  surface = 'portrait',
-  still = false,
-  mouth = 'saved',
-  facing,
-}: {
+interface IllustratedAvatarProps {
   personaBotId: string;
   recipe: AvatarRecipe;
   state: PersonaBotActivityState;
@@ -166,7 +155,72 @@ export function IllustratedAvatar({
   surface?: 'portrait' | 'companion' | undefined;
   still?: boolean | undefined;
   facing?: 'front' | 'left' | 'right' | undefined;
-}): ReactElement {
+}
+
+export function IllustratedAvatar(props: IllustratedAvatarProps): ReactElement {
+  return props.surface === 'companion' && !props.still ? (
+    <AnimatedIllustratedAvatar {...props} />
+  ) : (
+    <StaticIllustratedAvatar {...props} />
+  );
+}
+
+function StaticIllustratedAvatar({
+  recipe,
+  facing,
+  surface = 'portrait',
+}: IllustratedAvatarProps): ReactElement {
+  const markup = useMemo(
+    () =>
+      avatarSvg(
+        facing !== undefined && recipe.family === 'illustrated' && recipe.pose !== facing
+          ? { ...recipe, pose: facing }
+          : recipe,
+        { surface },
+      ),
+    [recipe, facing, surface],
+  );
+  const source = useMemo(
+    () =>
+      surface === 'portrait'
+        ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`
+        : undefined,
+    [markup, surface],
+  );
+  if (surface === 'portrait') {
+    return (
+      <span className="bh-avatar-media bh-avatar-media-composed">
+        <img
+          src={source}
+          alt=""
+          aria-hidden="true"
+          decoding="async"
+          style={{ imageRendering: recipe.family === 'illustrated' ? 'pixelated' : 'auto' }}
+        />
+      </span>
+    );
+  }
+  return (
+    <span
+      className="bh-avatar-media bh-avatar-media-composed"
+      data-avatar-mouth-state={surface === 'companion' ? 'saved' : undefined}
+      dangerouslySetInnerHTML={{ __html: markup }}
+    />
+  );
+}
+
+function AnimatedIllustratedAvatar({
+  personaBotId,
+  recipe,
+  state,
+  effect,
+  size,
+  symbol,
+  surface = 'portrait',
+  still = false,
+  mouth = 'saved',
+  facing,
+}: IllustratedAvatarProps): ReactElement {
   const blinkTiming = useMemo(() => {
     const random = seededRandom(`botharness-blink:${personaBotId}`);
     return { duration: 4400 + random() * 1600, phase: random() * 0.75 };

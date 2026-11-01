@@ -69,14 +69,14 @@ it('exposes a live companion anchor through Avatar ownership and clears it on re
   document.body.append(node);
   const root = createRoot(node);
   const anchorRef = vi.fn();
-  const render = (surface: 'portrait' | 'companion') =>
+  const render = (surface: 'portrait' | 'companion', still = false) =>
     root.render(
       createElement(PersonaBotAvatar, {
         personaBotId: 'ada',
         name: 'Ada',
         size: 96,
-        src: '/image',
         surface,
+        still,
         anchorRef,
       }),
     );
@@ -85,6 +85,12 @@ it('exposes a live companion anchor through Avatar ownership and clears it on re
     expect(anchorRef).not.toHaveBeenCalled();
     await act(() => render('companion'));
     expect(anchorRef.mock.calls.at(-1)![0]?.read).toBeTypeOf('function');
+    const movingAnchor = anchorRef.mock.calls.at(-1)![0];
+    await act(() => render('companion', true));
+    expect(anchorRef.mock.calls.at(-1)![0]).not.toBe(movingAnchor);
+    const stillAnchor = anchorRef.mock.calls.at(-1)![0];
+    await act(() => render('companion'));
+    expect(anchorRef.mock.calls.at(-1)![0]).not.toBe(stillAnchor);
     await act(() => render('portrait'));
     expect(anchorRef).toHaveBeenLastCalledWith(undefined);
     await act(() => render('companion'));

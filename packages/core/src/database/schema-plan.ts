@@ -2563,6 +2563,31 @@ const MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION: SchemaMigration = {
   },
 };
 
+const HUMAN_ATTENTION_CANDIDATE_INDEX_MIGRATION: SchemaMigration = {
+  generation: 113,
+  module: 'messaging',
+  description: 'Index canonical pending attention candidates without scanning ordinary history',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX source_events_attention_question ON source_events (message_id, source_event_id)
+        WHERE source_kind = 'bot-message'
+          AND json_extract(payload_json, '$.userQuestionRequest') IS NOT NULL;
+      CREATE INDEX source_events_attention_approval ON source_events (message_id, source_event_id)
+        WHERE source_kind = 'bot-message'
+          AND json_extract(payload_json, '$.toolApprovalRequest') IS NOT NULL;
+      CREATE INDEX source_events_attention_private ON source_events (message_id, source_event_id)
+        WHERE source_kind = 'bot-message'
+          AND json_extract(payload_json, '$.privateInputRequest') IS NOT NULL;
+      CREATE INDEX source_events_attention_grant ON source_events (message_id, source_event_id)
+        WHERE source_kind = 'bot-message'
+          AND json_extract(payload_json, '$.grantRequest') = 1;
+      CREATE INDEX source_events_attention_rejection ON source_events (message_id, source_event_id)
+        WHERE source_kind = 'system-message'
+          AND json_extract(payload_json, '$.toolAutoApproval.outcome') = 'rejected';
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2675,4 +2700,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   TOOL_RULE_AUTO_APPROVAL_COUNT_MIGRATION,
   REQUEST_ASSIGNMENT_LINK_MIGRATION,
   MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION,
+  HUMAN_ATTENTION_CANDIDATE_INDEX_MIGRATION,
 ]);
