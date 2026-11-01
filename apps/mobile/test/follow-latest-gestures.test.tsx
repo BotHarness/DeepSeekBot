@@ -702,7 +702,7 @@ it('keeps native keyboard ownership even when streaming growth is animated', () 
   }
 });
 
-describe('latest-origin prototype', () => {
+describe('latest-first Android list', () => {
   it('positions at zero without measuring all older rows', () => {
     const view = mount([message('latest', 'bot')], 0, false, true, true);
     act(() => {
