@@ -7,7 +7,7 @@ import {
   type Ref,
   type ReactElement,
 } from 'react';
-import { Button, Toast } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Toast } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import type {
   ModelCatalogView,
@@ -45,8 +45,6 @@ import { DmComposerUsagePopover } from './dm-composer-usage.js';
 import { BotPromptViewer, type BotPromptView } from './bot-prompt-viewer.js';
 import { ComposerContextBar, type ComposerFooterHandle } from './composer-context-bar.js';
 import { ChipButton } from './ds/chip-button.js';
-import { ModelPicker } from './model-picker.js';
-import { Note } from './ds/note.js';
 
 const subscribeUnavailable = (): (() => void) => () => {};
 const unavailableSnapshot = () => undefined;
@@ -75,7 +73,7 @@ export function useDmComposerContext({
   const footerSettings = useRef<ComposerFooterHandle>(null);
   const [panel, setPanel] = useScopedState<{
     slug: string;
-    kind: 'model' | 'model-settings' | 'workspace';
+    kind: 'model' | 'workspace';
   }>(channelId);
   const plan = useSyncExternalStore(
     subscribeModelPlans,
@@ -167,7 +165,7 @@ export function useDmComposerContext({
   const selected = companion?.get(bot.slug) !== undefined;
   const ready = companionState?.ready === true;
   const slug = bot.slug;
-  const open = (kind: 'model' | 'model-settings' | 'workspace') => setPanel({ slug, kind });
+  const open = (kind: 'model' | 'workspace') => setPanel({ slug, kind });
   const route = plan?.orchestrator ?? data?.inheritedRoute;
   const defaultEffort = t('modelPreset.providerDefault');
   const applyModelRoute = (route: ModelRouteView): void => {
@@ -267,8 +265,6 @@ export function useDmComposerContext({
           models={catalog?.models ?? []}
           modelStatus={modelStatus}
           route={route}
-          modelBusy={modelBusy}
-          applyModelRoute={applyModelRoute}
         />
         {modelError === undefined ? null : (
           <Toast
@@ -299,8 +295,6 @@ function DmComposerContextView({
   models,
   modelStatus,
   route,
-  modelBusy,
-  applyModelRoute,
 }: {
   footerSettings?: Ref<ComposerFooterHandle>;
   bot: BotSummary;
@@ -311,14 +305,12 @@ function DmComposerContextView({
   t: BotHarnessTranslate;
   onUsage(): void;
   avgPerf?: AveragePerfView | undefined;
-  onOpen(kind: 'model' | 'model-settings' | 'workspace'): void;
-  panel: 'model' | 'model-settings' | 'workspace' | undefined;
+  onOpen(kind: 'model' | 'workspace'): void;
+  panel: 'model' | 'workspace' | undefined;
   onClose(): void;
   models: readonly ModelCatalogEntryView[];
   modelStatus: 'loading' | 'ready' | 'unavailable';
   route: ModelRouteView | undefined;
-  modelBusy: boolean;
-  applyModelRoute(route: ModelRouteView): void;
 }): ReactElement {
   const [grants, setGrants] = useState<WorkspaceGrantView[]>();
   const [grantError, setGrantError] = useState(false);
@@ -499,74 +491,33 @@ function DmComposerContextView({
           onClose={() => setInspect(undefined)}
         />
       ) : null}
-      {panel === undefined ? null : (
+      {panel === 'model' ? (
+        <ModelPresetProfile
+          key={bot.slug}
+          slug={bot.slug}
+          actions={actions}
+          t={t}
+          onClose={onClose}
+        />
+      ) : panel === 'workspace' ? (
         <PanelDialog
           size="medium"
           fill
-          title={`${t(panel === 'model' ? 'composerModel.title' : panel === 'model-settings' ? 'entry.model' : 'entry.workspaceGrants')} · ${bot.displayName}`}
+          title={`${t('entry.workspaceGrants')} · ${bot.displayName}`}
           closeLabel={t('approval.cancel')}
           onClose={onClose}
         >
-          {panel === 'model' ? (
-            <>
-              <ModelPicker
-                title={t('composerModel.title')}
-                hint={t('composerModel.scope')}
-                choice={{
-                  key: route === undefined ? '' : JSON.stringify([route.provider, route.model]),
-                  effort: route?.reasoningEffort ?? '',
-                }}
-                catalog={models}
-                options={models
-                  .filter((entry) => entry.credential === undefined)
-                  .map((entry) => ({
-                    value: JSON.stringify([entry.provider, entry.model]),
-                    label: entry.modelName,
-                    hint: entry.providerName,
-                  }))}
-                onChange={(choice) => {
-                  const entry = models.find(
-                    (entry) => JSON.stringify([entry.provider, entry.model]) === choice.key,
-                  );
-                  if (entry === undefined) return;
-                  const same = route?.provider === entry.provider && route.model === entry.model;
-                  const effort = same
-                    ? choice.effort
-                    : botModelChoices(
-                        route,
-                        { models: [entry] },
-                        t('modelPreset.providerDefault'),
-                        '',
-                      )[0]?.route.reasoningEffort;
-                  applyModelRoute({
-                    provider: entry.provider,
-                    model: entry.model,
-                    ...(effort ? { reasoningEffort: effort } : {}),
-                  });
-                }}
-                disabled={modelBusy || modelStatus !== 'ready'}
-                t={t}
-              />
-              <Note>{t('composerModel.nextTurn')}</Note>
-              <Button variant="ghost" onClick={() => onOpen('model-settings')}>
-                {t('composerModel.taskSettings')}
-              </Button>
-            </>
-          ) : panel === 'model-settings' ? (
-            <ModelPresetProfile slug={bot.slug} actions={actions} t={t} />
-          ) : (
-            <WorkspaceGrantsEntry
-              scope="personabot"
-              channelId={channelId}
-              botSlug={bot.slug}
-              botName={bot.displayName}
-              actions={actions}
-              t={t}
-              composerOnly
-            />
-          )}
+          <WorkspaceGrantsEntry
+            scope="personabot"
+            channelId={channelId}
+            botSlug={bot.slug}
+            botName={bot.displayName}
+            actions={actions}
+            t={t}
+            composerOnly
+          />
         </PanelDialog>
-      )}
+      ) : null}
     </>
   );
 }

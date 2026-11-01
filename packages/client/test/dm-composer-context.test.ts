@@ -101,7 +101,8 @@ it('refreshes mounted inherited footers after a successful global model save wit
 
 vi.mock('../src/client/profile-cards-builtins.js', () => ({ PROFILE_ACTIVITY_WEEKS: 26 }));
 vi.mock('../src/client/model-preset-profile.js', () => ({
-  ModelPresetProfile: ({ slug }: { slug: string }) => createElement('div', null, `model:${slug}`),
+  ModelPresetProfile: ({ slug, onClose }: { slug: string; onClose?: () => void }) =>
+    createElement('div', { role: onClose ? 'dialog' : undefined }, `model:${slug}`),
 }));
 vi.mock('../src/client/workspace-grants-entry.js', () => ({
   WorkspaceGrantsEntry: ({ botSlug }: { botSlug: string }) =>
@@ -194,9 +195,8 @@ it('keeps model, workspace and usage actions available across mobile and desktop
     await act(async () =>
       host.querySelector<HTMLButtonElement>('[data-composer-context] button')!.click(),
     );
-    expect(host.querySelector('[role="dialog"]')!.textContent).toContain(
-      '仅此 Bot 的 Orchestrator',
-    );
+    expect(host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+    expect(host.querySelector('[role="dialog"]')!.textContent).toContain('model:footer-mobile');
     await resize(false);
     expect(host.querySelectorAll('[data-composer-context] button')).toHaveLength(3);
     expect(host.querySelector('[data-composer-context-leading]')!.textContent).toContain(
@@ -264,9 +264,7 @@ it('shows the full catalog model name for inherited and custom routes and keeps 
     expect(model().getAttribute('aria-label')).not.toContain('继承全局');
     expect(model().getAttribute('aria-label')).not.toContain('DeepSeek Provider');
     await act(async () => model().click());
-    expect(host.querySelector('[role="dialog"]')!.textContent).toContain(
-      '仅此 Bot 的 Orchestrator',
-    );
+    expect(host.querySelector('[role="dialog"]')!.textContent).toContain(`model:${bot.slug}`);
     await act(async () =>
       rememberModelPlan(bot.slug, {
         revision: 3,
@@ -394,9 +392,7 @@ it('shares header pin, restores preferences, rejects unavailable and old targets
     expect(host.textContent).toContain('qa-selected');
     expect(modelPlanState).toHaveBeenCalledTimes(2);
     await click('[data-action="model"]');
-    expect(host.querySelector('[role="dialog"]')!.textContent).toContain(
-      '仅此 Bot 的 Orchestrator',
-    );
+    expect(host.querySelector('[role="dialog"]')!.textContent).toContain(`model:${bot.slug}`);
     bot = grace;
     await render();
     expect(host.querySelector('[role="dialog"]')).toBeNull();
