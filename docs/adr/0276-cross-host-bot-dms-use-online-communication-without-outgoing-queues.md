@@ -41,6 +41,8 @@ The shared Bot network capability chooses a currently available route before tra
 
 ## Delivery status
 
+Each explicit send refreshes the registered route providers before selecting a route. If the remote identifier is absent from the process-local contact cache, the existing Runtime queries the current directory before resolving it; a cached address never supplies membership authority. This permits a new request after all routes have temporarily disappeared without requiring a separate contact-list call. Selection still invokes exactly one provider's message operation. Neither a failed operation nor an unknown acknowledgement starts another route or persists an outgoing intent. The same Host/Bot Channel identity and accepted history survive route changes and restart. Combined-route runtime qualification belongs to #3254.
+
 This ADR records the confirmed target. Implementation and runtime qualification of the first route belong to [#3251](https://github.com/BotHarness/DeepSeekBot/issues/3251), and membership/colleague lifecycle qualification to [#3252](https://github.com/BotHarness/DeepSeekBot/issues/3252). Connect, route continuity and explicit LAN admission remain dependent slices. Test evidence for one route does not prove those other routes or replace live Host acceptance.
 
 ## Connect account transport

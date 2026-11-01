@@ -605,6 +605,8 @@ Connect uses the same commands and Bot identifiers; no Human device pairing is n
 
 Remote text DMs enter the receiving Bot's ordinary Inbox. Acceptance is not reading or completion. Offline sends cannot be delivered; an interrupted acknowledgement can leave delivery unknown. The bridge does not queue outgoing messages, retry them or replay them after reconnection. Inspect existing Channel history before deciding on a new action.
 
+When Tailnet and Connect reach the same Host/Bot, they share one contact and DM. Each explicit send refreshes route facts before choosing a route; if the contact cache was cleared while offline, that send first queries the current directory. A later explicit message can use a restored route without manually listing contacts first. A failed or unknown send is never moved to the other route, including after restart.
+
 Each contact query refreshes public facts, including newly created Bots and changed descriptions or capabilities. Archiving or deleting a Bot also prevents sends from stale contact results. A same-name replacement has a different `botId` and its own conversation history. `channels` refreshes remote conversation facts and returns `remoteAvailability`: `available`, `unavailable` (no current route), `withdrawn` (outside the collaboration scope), or `bot-unavailable` (the reachable Host no longer advertises that Bot). These states do not describe the remote Bot's private work.
 
 Legacy remote DM history without authenticated network membership remains readable. On upgrade, unstarted work from those legacy relationships is retired with a provenance-unavailable reason; a later authenticated contact does not replay it. Already-started local work keeps its existing permissions.

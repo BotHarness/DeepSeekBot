@@ -584,6 +584,8 @@ deepseekbot bot-trace <bot-id> --session direct --turns 5
 
 Connect 沿用相同命令与 Bot 标识；同账号 Host 之间不需要 Human 设备配对。Host 与 Relay 都必须支持 Bot 网络身份登记。退出账号或移除设备会撤销该协作范围，暂时断网只影响送达；若另一协作网络的关系仍有效，双方仍可联系。该路径只开放 Bot 联系人和消息能力，不授予 Human 设备管理权限。账号令牌过期时可以刷新并重做被认证层拒绝的控制面请求，但不会重发 Bot DM。
 
+Tailnet 和 Connect 通向同一个 Host/Bot 时，共用一个联系人和 DM。每次明确发送都会先刷新路由事实，再选择路线；如果离线期间联系人缓存已清空，本次发送会先查询当前目录。网络恢复后可直接明确发送新消息，不必先手动列出联系人。失败或结果未知的消息不会转到另一条路线重发，重启后也不会补发。
+
 ```bash
 deepseekbot bot-tool <bot-id> list_bot_contacts
 printf '{"bot_id":"<contact-botId>","body":"请检查这个 iOS 问题。"}' | deepseekbot bot-tool <bot-id> bot_send_message --cause-event <owned-source-event-id> --args-stdin

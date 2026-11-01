@@ -10,6 +10,7 @@ A Human sends a message in a Bot's DM, the Bot runs a session on its configured 
 - `turn-conclusion` permits `end_turn` only after a committed send and successful requested Inbox resolution; a question can leave its source open, and a later Human message still starts work.
 - `reply` commits the Bot's answer to the DM timeline.
 - `network-connect-dm` discovers and contacts same-account online Hosts through Connect without Tailscale or Human device pairing.
+- `network-route-continuity` preserves one colleague and DM when an explicit new send changes between Tailnet and Connect, without replaying failed or unknown sends.
 - `network-contact-lifecycle` refreshes a colleague's public facts and availability in the CLI and read-only remote DM.
 - `network-scope-withdrawal` cancels unstarted relationship work, preserves history and prevents reconnection from reviving it.
 - `network-third-colleague` preserves the causal chain and wake limit when a Bot explicitly contacts another eligible Host.
@@ -62,7 +63,17 @@ Discovery refresh is asynchronous. If a newly created colleague is not yet liste
 6. Correlate the live journey with `watch-started`, any coded watcher failures, discovery and send lifecycle records. Native notification payloads, keys, addresses and unrelated device data must stay out of published evidence. A failed watcher or an unavailable query is not proof of membership withdrawal.
 
 
-## Cross-Host Bot DM (Connect)
+## Cross-Host Bot DM (dual-route continuity)
+
+Use two task-owned Hosts with both verified Tailnet and Connect routes. Query contacts through the CLI and inspect the existing read-only DM in the Client: require one stable colleague identity, public profile and conversation even when names match. Do not change a production device's memberships to create a failure.
+
+1. Send and receive over Tailnet, then make only that task-owned route unavailable. Send a new uniquely marked message without manually querying contacts first; require Connect diagnostics and both messages in the same canonical Channel and visible DM.
+2. After a real Connect receiver commit, drop its acknowledgement and make Tailnet available. Require `delivery-unknown`, one receiver message, no fabricated sender success and no alternate send. A later explicit message may use Tailnet in the same DM.
+3. Make both task routes unavailable. A new send must fail. Restore one route and explicitly send a different message, then restart both isolated Profiles. The failed marker must remain absent; accepted history and Channel identity must remain. No outgoing message may appear merely from reconnecting or restarting.
+4. Remove one eligible collaboration scope while the other remains valid, then remove both. One valid scope preserves contact eligibility; no valid scope refuses new contacts/sends. Keep injected authority evidence separate from actual-device connectivity evidence.
+5. Run `packages/core/test/bot-network-continuity.test.ts` for the real Core, HTTP/Noise and direct Bot-tool regression. Its external membership authorities are injected; passing it does not qualify real WorkOS, Tailscale or Cloudflare. Keep same-name identity and public-profile checks from the contact-lifecycle journey.
+
+## Cross-Host Bot DM (Connect-only)
 
 Use two task-owned isolated Hosts and an isolated relay/database with Bot registration support. Sign both Hosts into the same verified Connect account, retain their normal model/Workspace permissions, and make Tailscale unavailable to these test Hosts. Never unlink or reconfigure a shared production device to simulate withdrawal.
 

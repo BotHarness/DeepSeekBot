@@ -4,6 +4,8 @@ Connect Bot transport is mounted beside the existing Human device gateway at `/b
 
 **跨 Host Bot DM（已确认目标，按切片实现）**
 
+双路由连续性复用同一个 application-defined Bot network capability：每次明确发送前刷新各 Provider 的目录与可达事实，然后只选择一个 Provider 发送。若断网已清空联系人缓存，Runtime 先查询当前目录再解析远端标识；地址缓存不提供成员权限。路线变化不改变 Host/Bot 身份、Channel 或已接收历史，失败或未知结果不会触发另一路线发送。组合路线的真实双设备验证由 [#3254](https://github.com/BotHarness/DeepSeekBot/issues/3254) 跟踪。
+
 [#3250](https://github.com/BotHarness/DeepSeekBot/issues/3250) 与 [ADR-0276](../adr/0276-cross-host-bot-dms-use-online-communication-without-outgoing-queues.md) 确定 Bot Collaboration Network：同一已验证 Tailscale tailnet 或 Tob Connect 账号内的 Host 自动发现彼此及全部活跃 Bot，普通 LAN 需明确加入范围。联系人查询返回所属设备、实际能力与公开简介，发起 Bot 自行选择同事；application-defined 设备通信桥扩展现有发消息入口，将消息交给接收 Host 原有 Channel、Source Event 与 Bot Inbox owners。执行继续使用接收 Bot 的权限、审批与 Assignment，不共享私有 Memory 或增设中央调度器。
 
 通信只在目标在线且网络可用时尝试：确定不可达返回无法送达，发送后丢失确认返回结果未知；不建立或复用持久待送队列，不自动重试，不在重连、上线或重启后补发，包括回复。Bot 按用户设定决定后续行动。已接收的 DM 历史和 Inbox 仍按现有语义保存与恢复，去重不构成补发机制。正式退出协作范围后阻止新收发和尚未开始的关系内工作；已开始的工作可按本地权限完成，但不向离开的对方回传结果。临时断网不等同于成员资格撤销。

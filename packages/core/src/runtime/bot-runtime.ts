@@ -6328,7 +6328,11 @@ class BotRuntimeImplementation implements BotRuntime {
         if (input.botSlug.startsWith('remote:')) {
           if (input.replyTo !== undefined)
             throw new Error('Remote Bot DMs currently support text without quoted replies');
-          const contact = this.botContacts(botSlug, { botId: input.botSlug }).contacts[0];
+          let contact = this.botContacts(botSlug, { botId: input.botSlug }).contacts[0];
+          if (contact === undefined) {
+            await this.refreshBotContacts();
+            contact = this.botContacts(botSlug, { botId: input.botSlug }).contacts[0];
+          }
           if (contact?.hostId === undefined || contact.botSlug === undefined)
             throw new BotNetworkDeliveryError('unable-to-deliver');
           const channel = this.#channels.getOrCreateRemoteBotDm(botSlug, {
