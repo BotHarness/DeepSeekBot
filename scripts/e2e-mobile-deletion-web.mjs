@@ -20,7 +20,7 @@ const name = process.argv[2] ?? 'mobile-delete';
 const paths = verifyPaths(name);
 const instance = JSON.parse(readFileSync(paths.instance, 'utf8'));
 const host = new URL(instance.url).origin;
-const evidence = join(root, '.github/pr-screenshots/2783');
+const evidence = join(root, '.humanlayer/tasks/2783');
 mkdirSync(evidence, { recursive: true });
 mkdirSync(paths.evidence, { recursive: true });
 const before = join(root, '.humanlayer/tasks/mobile-delete/before-web');

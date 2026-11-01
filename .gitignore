@@ -1,5 +1,5 @@
 # dependencies
-node_modules/
+node_modules
 .pnpm-store/
 
 # build output
@@ -41,6 +41,13 @@ tmp/
 
 # local agent/tool drafts (PR descriptions etc.; GitHub is the source of truth)
 .humanlayer/
+.github/pr-screenshots/
+.github/pr-assets/
+docs/assets/pr/
+docs/evidence/
+docs/qa/
+docs/research/evidence/
+*.r2.json
 
 # logs
 *.log
