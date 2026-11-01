@@ -128,8 +128,6 @@ it('restores blocks on the last return scroll event even while Fabric still meas
 });
 
 it('restores visible markdown from newest-first coordinates after a return scroll', async () => {
-  // The native content/document frames can still belong to offset 1000 while
-  // the final scroll event has already returned to offset zero.
   native.frames = [
     { pageY: 0, height: 800 },
     { pageY: -3200, height: 5000 },
