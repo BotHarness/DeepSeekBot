@@ -45,6 +45,8 @@ request. Send a fresh Human message afterward and verify another reply. The dire
 
 Use two isolated Profiles with distinct Host identities. Two Profiles on one machine qualify the Host/runtime path; acceptance on two physical LAN devices must be recorded separately. Leave existing services and shared device QA resources untouched.
 
+Isolate other authorized Bot routes in the test processes before asserting that an unapproved LAN peer has no contacts. Existing Tailnet or Connect approval legitimately permits contacts independently of LAN. Confirm the accepted Channel records `membership.kind: lan` rather than inferring the route from a successful reply.
+
 1. Run `device-lan enable --confirm` on both Hosts, or use Bot settings → Connections → Manage → Enable local access. In LAN Bot collaboration, verify nearby Host names are marked not allowed. `bot-lan list` must show `discovered: true`, `admitted: false`; neither a discovery advertisement nor Human device pairing can reveal private Bot contacts or send a Bot DM.
 2. Open **Show identity fingerprint** on each Host. Compare full Host IDs and fingerprints, then choose **Review and allow** for the intended peer and confirm the matching identity. Repeat on the other Host; one-sided approval is insufficient. CLI parity is `bot-lan admit <host-id> <public-key> --confirm`. A wrong key or a candidate changed during review must refuse without granting access. The `approval` projection preserves the old approved identity when a different key is advertised, so its access remains revocable.
 3. Query `bot-tool <caller> list_bot_contacts`, then drive the existing Human DM request → explicit Bot send → receiving Inbox → Bot reply path described below. Require the remote Channel's membership provenance to be `lan`, both real transcripts and Inbox facts, the stable colleague identity, and a read-only Human conversation. Do not count a Tailnet or Connect route as LAN proof.
@@ -52,6 +54,8 @@ Use two isolated Profiles with distinct Host identities. Two Profiles on one mac
 5. Stop only the task-owned peer, try a uniquely marked send, then restart the same Profile. Check no queued send or deferred reply appears. Keep timeout/unknown-result fault injection separate from live evidence. Close discovery with `device-lan disable`, stop verified owned PIDs/children, and confirm listener release.
 
 Capture real light/dark before/after UI and console output. Use `--click "Show identity fingerprint"` for the disclosure: `--click-text` targets buttons/links, not native summary elements. On a fresh Profile, dismiss **Welcome to Tobs** with **Skip** before settings; wait for LAN Bot collaboration data instead of capturing the initial loading state.
+
+For history inspection, explicitly select the caller's Channel row, then open its Bot DM trace. Dismiss a visible internal tutorial through its own Skip button; do not assume the window companion is clickable or a tutorial is always present. Require **Bot-to-Bot DM · read-only**, the two original message IDs in the canonical timeline, and no Human composer. A matching ACK in the caller's ordinary Human DM is not proof that the remote conversation opened.
 
 ## Cross-Host Bot DM (Tailscale)
 
