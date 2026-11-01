@@ -214,7 +214,9 @@ describe('client styles', () => {
   it('uses the shared product motion boundary instead of component media queries', () => {
     expect(source).not.toContain('prefers-reduced-motion');
     expect(source).not.toContain(".bh-persona-avatar[data-active='true']::before");
-    expect(source).toContain("html[data-botharness-motion='reduce'] .bh-avatar-media");
+    expect(source).not.toMatch(/@keyframes bh-avatar-(breathe|work|search|code|execute)\b/);
+    expect(source).not.toContain('.bh-avatar-botui');
+    expect(source).not.toContain('--botui-anim');
     expect(source).toContain("html[data-botharness-motion='full'] .bh-motion-preview-sample i");
   });
 

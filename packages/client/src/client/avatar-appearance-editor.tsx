@@ -851,7 +851,7 @@ export function AvatarAppearanceEditor({
             <>
               <h3 className="bh-avatar-editor-title">
                 <span>{t('profile.avatar.designTitle')}</span>
-                <PersonaBotStatusBadges state={state} attention={bot.attention} />
+                <PersonaBotStatusBadges state={state} attention={bot.attention} t={t} />
               </h3>
               <p>{t('profile.avatar.designDescription')}</p>
             </>

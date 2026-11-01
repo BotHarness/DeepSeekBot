@@ -66,10 +66,14 @@ export function createContentRedactions() {
     conversation(value: ConversationState): ConversationState {
       if (value.channel === undefined) return value;
       const channelId = value.channel.id;
+      const nextChannel = channel(value.channel);
+      const messages = value.messages.map((item) => message(channelId, item));
+      const unchanged = messages.every((item, index) => item === value.messages[index]);
+      if (nextChannel === value.channel && unchanged) return value;
       return {
         ...value,
-        channel: channel(value.channel),
-        messages: value.messages.map((item) => message(channelId, item)),
+        channel: nextChannel,
+        messages: unchanged ? value.messages : messages,
       };
     },
     botInbox(value: BotInboxState): BotInboxState {

@@ -1,0 +1,94 @@
+{
+  "at": "2026-11-01T01:33:07.952Z",
+  "browser": "Chrome/153.0.8010.36",
+  "headless": false,
+  "allTrialsForegroundAtStartAndEnd": true,
+  "displayMode": "CoreGraphics CGDisplayCopyDisplayMode: 1470 x 956 logical, 2940 x 1912 pixels, 60.0 Hz; observed separately from trials",
+  "frameLimitFlags": [],
+  "sourceFactorySha256": {
+    "A-original": "b36dd9bc25a082d18c6b1251a7074bd4d8fe60992be1b5e59003780044271514",
+    "N-current": "47f470fbde87171ea63c46896bde07447aeb2fd52a9d107d91423f3f58348911"
+  },
+  "fixtureDigest": "9c371a4c3c2204198bc9bd91cc0e1d3aa02fdf2d50b408c3525fa2e919809b27",
+  "nonTargetBundleSha256": "29434b0c5f1f3b1b47d5f02391370b07d69ab46d02aed462d317464858044cf0",
+  "wholeFactoryABNotSingleChangeAttribution": true,
+  "physicalMouseWheelVerified": false,
+  "physical120HzVerified": false,
+  "rows": [
+    {
+      "variant": "A-original",
+      "speed": 8000,
+      "normalRuns": 3,
+      "separateCorrectnessRuns": 3,
+      "idleCadenceMedianMs": {
+        "median": 16.69999999999891,
+        "min": 16.69999999999891,
+        "max": 16.700000000000728,
+        "values": [16.69999999999891, 16.700000000000728, 16.69999999999891]
+      },
+      "frameP95Ms": {
+        "median": 216.8000000000011,
+        "min": 167.09999999999854,
+        "max": 234.39999999999964,
+        "values": [234.39999999999964, 167.09999999999854, 216.8000000000011]
+      },
+      "longestFrameMs": {
+        "median": 250,
+        "min": 232.89999999999964,
+        "max": 315.7000000000007,
+        "values": [315.7000000000007, 250, 232.89999999999964]
+      },
+      "cumulativeTaskMs": {
+        "median": 3104.365,
+        "min": 2879.7710000000006,
+        "max": 3207.7169999999996,
+        "values": [3104.365, 2879.7710000000006, 3207.7169999999996]
+      },
+      "sampledVisibleGaps": 0,
+      "sampledEmptyViewports": 0,
+      "sampledFrames": 89,
+      "orderFailures": 0,
+      "duplicateFailures": 0,
+      "maxPostGestureAnchorDriftPx": 0,
+      "lostPostGestureAnchors": 0
+    },
+    {
+      "variant": "N-current",
+      "speed": 8000,
+      "normalRuns": 3,
+      "separateCorrectnessRuns": 3,
+      "idleCadenceMedianMs": {
+        "median": 16.699999999999818,
+        "min": 16.699999999999818,
+        "max": 16.699999999999818,
+        "values": [16.699999999999818, 16.699999999999818, 16.699999999999818]
+      },
+      "frameP95Ms": {
+        "median": 31.299999999999272,
+        "min": 17.699999999999818,
+        "max": 32.5,
+        "values": [17.699999999999818, 32.5, 31.299999999999272]
+      },
+      "longestFrameMs": {
+        "median": 66.60000000000036,
+        "min": 33.69999999999982,
+        "max": 150.29999999999927,
+        "values": [150.29999999999927, 33.69999999999982, 66.60000000000036]
+      },
+      "cumulativeTaskMs": {
+        "median": 1327.6380000000001,
+        "min": 1324.8709999999999,
+        "max": 1342.026,
+        "values": [1327.6380000000001, 1342.026, 1324.8709999999999]
+      },
+      "sampledVisibleGaps": 0,
+      "sampledEmptyViewports": 0,
+      "sampledFrames": 426,
+      "orderFailures": 0,
+      "duplicateFailures": 0,
+      "maxPostGestureAnchorDriftPx": 0,
+      "lostPostGestureAnchors": 0
+    }
+  ],
+  "finalCombinedHeadMeasurement": false
+}
