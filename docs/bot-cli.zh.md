@@ -580,7 +580,9 @@ printf '{"channel_id":"dm-<bot-id>","body":"direct hello"}' | deepseekbot bot-to
 deepseekbot bot-trace <bot-id> --session direct --turns 5
 ```
 
-联系同一 Tailscale tailnet 中在线 Host 上的 Bot 时，先查询 `list_bot_contacts`。远端联系人保留独立的 `botId`、`hostId`、所属设备信息、可用能力和公开简介；无法取得的设备信息为 `null`。
+联系同一已验证 Tailscale tailnet 或已登录同一 Connect 账号的在线 Host 上的 Bot 时，先查询 `list_bot_contacts`。远端联系人保留独立的 `botId`、`hostId`、所属设备信息、可用能力和公开简介；无法取得的设备信息为 `null`。
+
+Connect 沿用相同命令与 Bot 标识；同账号 Host 之间不需要 Human 设备配对。Host 与 Relay 都必须支持 Bot 网络身份登记。退出账号或移除设备会撤销该协作范围，暂时断网只影响送达；若另一协作网络的关系仍有效，双方仍可联系。该路径只开放 Bot 联系人和消息能力，不授予 Human 设备管理权限。账号令牌过期时可以刷新并重做被认证层拒绝的控制面请求，但不会重发 Bot DM。
 
 ```bash
 deepseekbot bot-tool <bot-id> list_bot_contacts

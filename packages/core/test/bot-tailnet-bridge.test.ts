@@ -305,6 +305,10 @@ it.each(['changed', 'legacy'])(
               ],
         withdrawn: async () => {
           await Promise.resolve();
+          if (relationship !== 'legacy') lifecycle.push(`withdraw-${index}`);
+        },
+        unbound: async () => {
+          await Promise.resolve();
           lifecycle.push(`withdraw-${index}`);
         },
         trustKey: (host, key, membership) => {
@@ -312,6 +316,7 @@ it.each(['changed', 'legacy'])(
           if (known && known !== key) throw new Error('network-host-key-conflict');
           pins[index]!.set(host, key);
           if (membership !== undefined) {
+            if (membership.kind !== 'tailnet') throw new Error('Expected tailnet binding');
             bindings[index] = membership;
             hasBinding[index] = true;
           }

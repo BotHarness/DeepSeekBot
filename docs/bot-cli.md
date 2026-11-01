@@ -594,12 +594,14 @@ printf '{"channel_id":"dm-<bot-id>","body":"direct hello"}' | deepseekbot bot-to
 deepseekbot bot-trace <bot-id> --session direct --turns 5
 ```
 
-For a colleague on an online Host in the same Tailscale tailnet, query `list_bot_contacts` first. Remote contacts retain a distinct `botId`, `hostId`, owning device facts, capability facts and public description. Unavailable device facts are `null`.
+For a colleague on an online Host in the same verified Tailscale tailnet or signed-in Connect account, query `list_bot_contacts` first. Remote contacts retain a distinct `botId`, `hostId`, owning device facts, capability facts and public description. Unavailable device facts are `null`.
 
 ```bash
 deepseekbot bot-tool <bot-id> list_bot_contacts
 printf '{"bot_id":"<contact-botId>","body":"Please investigate this iOS bug."}' | deepseekbot bot-tool <bot-id> bot_send_message --cause-event <owned-source-event-id> --args-stdin
 ```
+
+Connect uses the same commands and Bot identifiers; no Human device pairing is needed between account-owned Hosts. The Host and relay must both support Bot network registration. Account sign-out or removal withdraws that scope; temporary route loss only makes delivery unavailable. A peer reachable through another still-valid collaboration scope remains eligible. This path grants only Bot contact/message access, not Human device management. Refreshing an expired account token can repeat a rejected control-plane request, but never a Bot DM.
 
 Remote text DMs enter the receiving Bot's ordinary Inbox. Acceptance is not reading or completion. Offline sends cannot be delivered; an interrupted acknowledgement can leave delivery unknown. The bridge does not queue outgoing messages, retry them or replay them after reconnection. Inspect existing Channel history before deciding on a new action.
 

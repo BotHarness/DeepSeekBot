@@ -9,6 +9,7 @@ A Human sends a message in a Bot's DM, the Bot runs a session on its configured 
 - `explicit-send` uses `bot_send_message` for local text, with a trusted reply Source Event or explicit proactive Channel.
 - `turn-conclusion` permits `end_turn` only after a committed send and successful requested Inbox resolution; a question can leave its source open, and a later Human message still starts work.
 - `reply` commits the Bot's answer to the DM timeline.
+- `network-connect-dm` discovers and contacts same-account online Hosts through Connect without Tailscale or Human device pairing.
 - `network-contact-lifecycle` refreshes a colleague's public facts and availability in the CLI and read-only remote DM.
 - `network-scope-withdrawal` cancels unstarted relationship work, preserves history and prevents reconnection from reviving it.
 - `network-third-colleague` preserves the causal chain and wake limit when a Bot explicitly contacts another eligible Host.
@@ -59,3 +60,16 @@ Discovery refresh is asynchronous. If a newly created colleague is not yet liste
 4. Use an isolated membership authority for removal tests. Never remove a shared production device from its tailnet to simulate this state. The regression in `packages/core/test/bot-tailnet-bridge.test.ts` injects removal/rejoin events into the actual bridge, while `network-bot-runtime.test.ts` verifies the existing Inbox owner: accepted/unstarted work is canceled, started work can finish but cannot reply, and reopening the same database does not resurrect canceled work. Keep this injected evidence distinct from real-device route-loss evidence. The native subscription must also successfully observe the installed daemon's initial status and close on disposal.
 5. Run `packages/core/test/network-lifecycle.test.ts` for the model-free public tool path across three real HTTP/Noise bridges and separate Core owners. Require explicit third-colleague contact, unchanged root/parent/hop facts, no transitive admission across the injected network scopes, and no recipient wake at hop 33. This qualifies the owner/transport integration, not a three-physical-device deployment.
 6. Correlate the live journey with `watch-started`, any coded watcher failures, discovery and send lifecycle records. Native notification payloads, keys, addresses and unrelated device data must stay out of published evidence. A failed watcher or an unavailable query is not proof of membership withdrawal.
+
+
+## Cross-Host Bot DM (Connect)
+
+Use two task-owned isolated Hosts and an isolated relay/database with Bot registration support. Sign both Hosts into the same verified Connect account, retain their normal model/Workspace permissions, and make Tailscale unavailable to these test Hosts. Never unlink or reconfigure a shared production device to simulate withdrawal.
+
+1. Query `bot-tool <bot> list_bot_contacts` on each Host. Require the other Host's active Bots, stable identity, public description and actual capability projection without per-Bot approval or Human Device pairing. Correlate the result with Connect bridge diagnostics; a tailnet-only result does not qualify this journey.
+2. With an owned Human Source Event, send a uniquely marked DM using `bot_send_message`. Require canonical receiver Source Event, Channel placement and Inbox Admission, then a real model reply with the same conversation/cause chain. Inspect both timelines through CLI and the read-only Client; capture light/dark evidence and public author facts.
+3. Stop only the task-owned recipient Host. A fresh send must report inability to deliver; reconnect and restart both profiles and verify it never appears later. Record the controlled lost-ack test separately: `connect-network-inbox.test.ts` covers `delivery-unknown`, receiver acceptance once, no fabricated sender success and no restart replay using real Core/HTTP/Noise with an injected account authority.
+4. In the isolated account, remove the peer registration or sign out. Accepted unstarted work must be retired; already-started local work keeps its permissions but cannot reply through the withdrawn scope. If another verified scope remains valid, it preserves eligibility. Rejoining must not revive canceled work.
+5. Exercise an expired account token and a recipient paused after discovery. The former can refresh only the rejected control-plane request; the latter returns an authenticated refusal. Neither sends another message automatically. Keep fake authority/unit evidence distinct from real WorkOS, relay, tunnel and cross-device evidence.
+
+Qualification remains incomplete until the real cloud route, model reply and visible Client path above have passed on the PR head. A signed-out Host smoke test or passing injected-authority tests alone is insufficient.
