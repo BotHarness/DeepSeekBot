@@ -712,6 +712,16 @@ deepseekbot compaction-threshold-set <ratio|default|keep> <headroom-tokens|defau
 
 DSH 在 Session 上下文达到“上下文窗口 × `ratio`”与“窗口 − 线路输出上限 − `headroom-tokens`”中较小者时自动压缩。`compaction-threshold-set` 修改这两个值，对本机所有 Bot 从下一步开始生效：比例 0.5–0.95（默认 0.8），余量 8192–262144 token（默认 65536）。`default` 恢复某一项默认值，`keep` 保持不变，例如 `compaction-threshold-set 0.7 keep` 只改比例。空闲压缩使用同一阈值。如果余量加上输出上限超过某个模型的上下文窗口，这个余量对该模型过大：DSH 会记录警告并跳过它的压力压缩，没有声明窗口的模型则继续使用默认余量。`idle-compaction` 在 `threshold` 下返回两者，以及 `ratioSet`/`headroomSet` 和取值范围。
 
+### 局域网 Bot 协作
+
+独立的 `approval` 字段保留之前批准的身份，即使附近 Host 广播了不同公钥；没有有效本机批准时为 `null`。旧批准仍可明确撤销，新广播的公钥不会自动替换它。
+
+在两台 Host 上分别运行 `deepseekbot device-lan enable --confirm`，启用现有加密 LAN 入口，再运行 `deepseekbot bot-lan list`。结果包含本机公开身份、附近候选主机、完整公钥指纹，以及独立的 `discovered`、`admitted`、`identityChanged` 字段。`admitted` 只表示本机已批准该准确公钥；两台 Host 必须互相批准，才能查询 Bot 联系人或发送 DM。设备名和发现广播不授予任何权限。
+
+将候选的 Host ID 和完整指纹与对方自己的 `bot-lan list` 输出逐位核对，再在两端分别运行 `deepseekbot bot-lan admit <host-id> <公钥> --confirm`。公钥可作为命令参数。准入后，所有活跃 Bot 沿用现有联系人和消息工具。撤销本机批准使用 `deepseekbot bot-lan revoke <host-id> --confirm`；已批准的主机离线时也可撤销。
+
+每条命令只返回一个 JSON 文档。拒绝码包括 `confirm-required`、`network-host-invalid`、`network-admission-invalid`、`network-candidate-unavailable`、`network-identity-changed`、`network-admission-limit`、`network-admission-unavailable`。管理入口为经过认证的 `GET`/`POST /api/botharness/devices/lan-bots`，公开 LAN 监听器不提供这个管理入口。发现使用有界的 IPv4 多播广播，30 秒未收到广播的候选会过期。不保存待发消息，不自动重发，也不在重连后回放。关闭 `device-lan` 会关闭 LAN 入口和发现，保留显式准入记录。
+
 ### 加密局域网手机连接
 
 无需模型的设备侧验收使用 `device-pair --link-file <可信私有链接文件> --out <新私有配对.json> --confirm`，执行与手机相同的加密注册。等待批准时，配对进程向标准错误输出一条 `device-key-confirmation-required` JSON 状态，只包含本端公钥指纹。在另一个 CLI 进程将其与 `devices.pendingKeys[].fingerprint` 完整逐位比较，再用 `device-approve-key` 批准该条目的准确公钥；不得只按设备名或列表位置批准。最终标准输出只有 Host/设备 ID 和输出路径，密钥及凭据只写入新私有文件。之后用 `device-probe --device-file <私有配对.json>` 通过手机连接模块读取真实 Host Feed，只报告路由类型与列表数量，不发送 DM，也不需要模型。配对链接和凭据不得放入命令参数。

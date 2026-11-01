@@ -134,7 +134,7 @@ it('commits a remote Bot DM to the existing Channel and recipient Inbox exactly 
   expect(channels.message(dm.id, 'hop-limit')?.body).toBe(message.body);
 });
 
-it('keeps one remote conversation and both verified network bindings across route changes and restart', () => {
+it('keeps one remote conversation and three verified network bindings across route changes and restart', () => {
   const root = createTempRoot('network-scopes-');
   let owner = registryDatabase(root);
   const registry = createTestRegistry({ rootDir: join(root, 'bots'), database: owner });
@@ -163,8 +163,18 @@ it('keeps one remote conversation and both verified network bindings across rout
   const second = store.getOrCreateRemoteBotDm('local', { ...remote, membership: connect });
   expect(second.id).toBe(first.id);
   expect(second.remoteBot?.membership).toEqual({ kind: 'scopes', scopes: [tailnet, connect] });
+  const lan = {
+    kind: 'lan' as const,
+    localAdmissionId: '1'.repeat(32),
+    remoteAdmissionId: '2'.repeat(32),
+  };
+  const third = store.getOrCreateRemoteBotDm('local', { ...remote, membership: lan });
+  expect(third.id).toBe(first.id);
+  expect(third.remoteBot?.membership).toEqual({ kind: 'scopes', scopes: [tailnet, connect, lan] });
   const changedTailnet = { ...tailnet, remoteNodeId: 'new-mac-node' };
   store.trustRemoteHostKey!('mac-host', remote.hostKey, changedTailnet);
+  const readmittedLan = { ...lan, localAdmissionId: '3'.repeat(32) };
+  store.trustRemoteHostKey!('mac-host', remote.hostKey, readmittedLan);
   owner.close();
   owner = trackTestOwner(
     mountOperationalDatabase({ dshHome: root, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
@@ -173,7 +183,7 @@ it('keeps one remote conversation and both verified network bindings across rout
   expect(open().get(first.id)?.remoteBot).toMatchObject({
     hostId: 'mac-host',
     hostKey: remote.hostKey,
-    membership: { kind: 'scopes', scopes: [changedTailnet, connect] },
+    membership: { kind: 'scopes', scopes: [changedTailnet, connect, readmittedLan] },
   });
 });
 
