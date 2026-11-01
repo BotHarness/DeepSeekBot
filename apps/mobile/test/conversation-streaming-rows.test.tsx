@@ -709,7 +709,7 @@ it('keeps a known-empty DM visible when the first message arrives from another c
   }
 });
 
-it('reveals Android history when the final positioning event follows the previous one by 18ms', () => {
+it('keeps Android latest history visible when content grows before another scroll event', () => {
   state.os = 'android';
   stream.publish({
     messages: [stream.history('latest', 'Latest visible message', 'human')],
@@ -736,15 +736,17 @@ it('reveals Android history when the final positioning event follows the previou
     act(() => {
       native.list?.onLayout?.({ nativeEvent: { layout: { height: 904 } } } as LayoutChangeEvent);
       native.list?.onContentSizeChange?.(390, 9204.6669921875);
-      native.list?.onScroll?.(scrollEvent(8300.6669921875, 9204.6669921875));
+      native.list?.onScroll?.(scrollEvent(0, 9204.6669921875));
       native.list?.onContentSizeChange?.(390, 9302.6669921875);
       if ((native.list?.scrollEventThrottle ?? 0) < 18)
-        native.list?.onScroll?.(scrollEvent(8398.6669921875, 9302.6669921875));
+        native.list?.onScroll?.(scrollEvent(0, 9302.6669921875));
     });
     flushFrames();
     expect(native.list?.style).toMatchObject({ opacity: 1 });
     expect(container.querySelector('[data-testid="history-loading-retry"]')).toBeNull();
     expect(native.list?.scrollEventThrottle).toBe(32);
+    expect(native.list?.inverted).toBe(true);
+    expect(native.list?.maintainVisibleContentPosition).toEqual({ minIndexForVisible: 0 });
   } finally {
     act(() => root.unmount());
     container.remove();
