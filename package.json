@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit && pnpm --filter @botharness/mobile typecheck",
-    "lint": "oxlint && node scripts/check-source-policy.mjs && pnpm changelog:check && node scripts/check-adr-numbers.mjs && node scripts/check-cli-parity.mjs && node scripts/check-feature-map.mjs && node scripts/sync-bot-preset.mjs --check && node scripts/ci-plan.mjs --check && pnpm install:check",
+    "lint": "oxlint && node scripts/check-source-policy.mjs && node scripts/check-pr-evidence.mjs && pnpm changelog:check && node scripts/check-adr-numbers.mjs && node scripts/check-cli-parity.mjs && node scripts/check-feature-map.mjs && node scripts/sync-bot-preset.mjs --check && node scripts/ci-plan.mjs --check && pnpm install:check",
     "lint:fix": "oxlint --fix",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
@@ -27,6 +27,8 @@
     "dev": "pnpm --filter docs exec portless",
     "dev:instance": "node scripts/dev-instance.mjs",
     "verify:app": "node scripts/verify-app.mjs",
+    "evidence:publish": "node scripts/pr-evidence.mjs",
+    "evidence:check": "node scripts/check-pr-evidence.mjs",
     "e2e:smoke": "node scripts/e2e-personabot-create.mjs --with-dm",
     "dev:client": "tsdown --config tsdown.client.config.ts --config-loader unrun --watch",
     "slides:dev": "pnpm --filter @botharness/presentations dev",

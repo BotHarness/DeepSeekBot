@@ -220,7 +220,9 @@ for final release checks; existing runner output locations remain intact.
   model, provider returned 429"). It embeds light and dark screenshots where the step asked for
   them.
 - **Redact before you post.** Crop or blur the tailnet hostname, the computer name, home folder
-  paths, tokens and any personal content. Screenshots are embedded from the evidence branch.
+  paths, tokens and any personal content. Publish reviewed screenshots to Cloudflare R2 using
+  `pnpm evidence:publish` and embed the returned immutable URLs; never commit them to an evidence
+  branch. Follow the retention/cleanup rules in [QA evidence](qa-evidence.md).
 - **Human QA.** When the Human checks an item by hand, the comment says
   `Human QA passed (<name>, <time>Z)` and the automated pass for that item is skipped.
 - **Summary.** The runner sends the queue owner one line per PR with the result and the comment

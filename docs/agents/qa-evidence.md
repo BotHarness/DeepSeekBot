@@ -1,10 +1,12 @@
-# Local QA evidence and release archives
+# QA evidence staging and release archives
 
 Use this convention when capturing development screenshots or recordings, handing native QA
 between machines, or retaining images for a release. macOS owns iOS Simulator/iPhone checks;
 Windows owns Android emulator/phone checks. Follow each machine's
 [iOS queue](device-qa.md) or [Android queue](android-device-qa.md) before operating resources.
-An archive does not allocate a device or authorize a release.
+An archive does not allocate a device or authorize a release. New public PR evidence belongs in
+Cloudflare R2, not Git or permanent local media archives; follow
+[PR visual evidence](pr-ui-visual-evidence.md) for publishing and cleanup.
 
 ## Save where the Human can find it
 
@@ -60,7 +62,7 @@ reply; retain the corresponding interaction/recording/readback. iOS evidence nev
 Android, and a development binary does not qualify a store binary.
 
 Before sharing, inspect every selected frame for status-bar details, real computer/account names,
-paths, keyboard suggestions and unrelated personal content. Keep originals local and produce
+paths, keyboard suggestions and unrelated personal content. Keep originals private while active and produce
 separate redacted copies. For full-frame showcase images, prepare synthetic names/data and a
 privacy-safe status bar before capture; preserve the original resolution and disclose any
 redaction. Generated artwork is presentation material, not runtime QA evidence.
@@ -103,10 +105,14 @@ profiles, credentials, app sandboxes, dependencies or native build folders into 
 
 ## Publish selected evidence
 
-For PRs, use reviewed derivatives and the commit-pinned image format in
-[UI/UX PR visual evidence](pr-ui-visual-evidence.md); the queue may publish its assigned evidence
-branch. Record the public URL and read it back to confirm that it renders. A local path is a
-local inspection link, not proof that a GitHub reviewer can open the image.
+For PRs, publish reviewed derivatives to Cloudflare R2 through `pnpm evidence:publish` and use
+the content-addressed image format in [UI/UX PR visual evidence](pr-ui-visual-evidence.md).
+Neither the task nor the queue commits media to an evidence branch. Record the public URL,
+source/build identity and hash, verify readback, and check that the image renders in GitHub.
+Delete disposable published copies after verification and ordinary originals after merge when
+no QA/release hold remains. Keep only the small index/receipts locally. A local path is not proof
+that a GitHub reviewer can open the image. Already-merged legacy PR evidence may be retired
+without migrating old links; active/shared QA and explicitly held release archives are excluded.
 
 For release notes or store material, select from the accepted archive, check the intended
 audience and attach only the approved public derivatives. Image retention does not authorize
