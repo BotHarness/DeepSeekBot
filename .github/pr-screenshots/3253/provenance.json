@@ -9,11 +9,12 @@
   "before": "S2 base code against a closed copy of the S3 QA conversation fixture, with Tailscale unavailable; not evidence that S2 created Connect messages. Prior entry resolves as unavailable Channel.",
   "after": "S3 source-equivalent built artifacts; same conversation fixture; actual Cloudflare/WorkOS discovery. Runtime build preceded final commit; six core artifacts match across Windows/Linux by SHA256.",
   "consoleIssues": 0,
-  "html": "Desktop 1440px and narrow 390px visually inspected; no horizontal document overflow at narrow width.",
+  "html": "Prior-head page was visually inspected at 1440px and 390px. Refreshed page passed generation checks with zero warnings; browser reinspection is pending because the task space no longer exists.",
   "hashes": {
     "before.png": "ddabbe022af52fe09531275a66bcbb396ca85524b7ce6d1e4af643bcbbf559af",
     "after.png": "3a06f179deba19cd4bb3643d2ee54eaad0e42d5e54e39866ba1bd677f8b520d2",
     "dm.png": "aefbf9ef918f850fa3c3d49a00b692cfc70e8a82bad8d3ced4cb0f8025487ef2",
     "card.png": "083ce1d6157271bed6983147babc90240a27e01f199f8a1e7f685f6b4edb5dc0"
-  }
+  },
+  "explainerHead": "825c5ef08811ed865e463a70dbbda38e982e05fa"
 }
