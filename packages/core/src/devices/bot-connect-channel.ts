@@ -20,6 +20,7 @@ export function createBotConnectChannel(options: {
   key(): Promise<Uint8Array>;
   account: Pick<ReturnType<typeof createConnectBotNetwork>, 'grant' | 'verify' | 'membership'>;
   receive(peer: AuthenticatedConnectBotPeer, payload: unknown): Promise<unknown>;
+  authorize?(payload?: unknown): void;
   record?(event: { phase: string; durationMs: number; code?: string }): void;
   fetch?: typeof fetch;
 }) {

@@ -103,3 +103,9 @@ Use two task-owned isolated Hosts and an isolated relay/database with Bot regist
 Qualification remains incomplete until the real cloud route, model reply and visible Client path above have passed on the PR head. A signed-out Host smoke test or passing injected-authority tests alone is insufficient.
 
 Connect qualification must traverse the real cloudflared loopback origin, not only the Host handler. Verify the exact Bot handshake/request POST paths are reachable while Human authorization headers, cookies, query variants and Bot-path WebSocket upgrades remain refused.
+
+## Cross-Host participation controls
+
+On two task-owned Hosts, open Settings → Devices → Bot network. Verify the default-on Host switch and each Bot switch in light and dark themes. Compare `bot-network list` with the rendered choices. Disable a Bot: remote contacts disappear and an explicit send to the cached identity or existing DM refuses in both directions; a sibling Bot and local Bot/Human conversations remain available. Disable the Host and verify all its Bots disappear while Human device access continues. Saved Bot choices remain visible. Restart the same Profile and confirm those choices persist. Re-enable the Host: previously disabled Bots remain off. Enable one and send a fresh marker; failed markers must remain absent. Accepted Inbox work is not canceled by these switches.
+
+Use `bot-network enable|disable [bot-slug] --confirm` for matching online CLI operations. Direct `bot-tool` calls use the unchanged tool definitions and current participation checks. Correlate canonical history and Inbox state with the visible result. Run `packages/core/test/bot-network-participation.test.ts`, `bot-lan-discovery.test.ts` and the participation case in `bot-network-continuity.test.ts`; injected transport authorities do not qualify a real tailnet or Connect deployment.

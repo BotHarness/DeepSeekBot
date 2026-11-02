@@ -22,96 +22,109 @@ function agents(run: (turn: OrchestratorAgentRun) => Promise<void>): BotAgentAda
   };
 }
 
-it('lets started work finish locally while refusing its reply to a withdrawn peer', async () => {
-  let release!: () => void;
-  const blocked = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  let membership: 'member' | 'withdrawn' = 'member';
-  let started = false;
-  let finished = false;
-  let runs = 0;
-  let sendAttempts = 0;
-  const failures: unknown[] = [];
-  const contact = {
-    hostId: 'departing',
-    hostKey: 'a'.repeat(64),
-    membership: { kind: 'tailnet' as const, localNodeId: 'local', remoteNodeId: 'peer' },
-    botSlug: 'sender',
-    displayName: 'Sender',
-    device: { model: null, platform: 'linux' },
-    capabilities: [],
-  };
-  const core = createCore({
-    dshHome: createTempRoot('network-started-'),
-    botNetwork: {
-      contacts: () => [contact],
-      membership: async () => membership,
-      async send() {
-        sendAttempts++;
-        if (membership === 'withdrawn') throw new BotNetworkDeliveryError('network-denied');
+it.each(['withdrawn', 'participation-off'] as const)(
+  'lets started work finish locally while refusing its reply when %s',
+  async (state) => {
+    let release!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let membership: 'member' | 'withdrawn' = 'member';
+    let started = false;
+    let finished = false;
+    let runs = 0;
+    let sendAttempts = 0;
+    const failures: unknown[] = [];
+    const contact = {
+      hostId: 'departing',
+      hostKey: 'a'.repeat(64),
+      membership: { kind: 'tailnet' as const, localNodeId: 'local', remoteNodeId: 'peer' },
+      botSlug: 'sender',
+      displayName: 'Sender',
+      device: { model: null, platform: 'linux' },
+      capabilities: [],
+    };
+    const core = createCore({
+      dshHome: createTempRoot('network-started-'),
+      botNetwork: {
+        contacts: () => [contact],
+        membership: async () => membership,
+        async send() {
+          sendAttempts++;
+          if (membership === 'withdrawn') throw new BotNetworkDeliveryError('network-denied');
+        },
       },
-    },
-    agents: agents(async (run) => {
-      runs++;
-      started = true;
-      await blocked;
-      try {
-        await expect(
-          run.channels.sendToBot({
-            botSlug: 'remote:departing:sender',
-            body: 'Completed locally',
-          }),
-        ).rejects.toThrow('network-denied');
-        finished = true;
-      } catch (error) {
-        failures.push(error);
+      agents: agents(async (run) => {
+        runs++;
+        started = true;
+        await blocked;
+        try {
+          await expect(
+            run.channels.sendToBot({
+              botSlug: 'remote:departing:sender',
+              body: 'Completed locally',
+            }),
+          ).rejects.toThrow(state === 'participation-off' ? 'network-disabled' : 'network-denied');
+          finished = true;
+        } catch (error) {
+          failures.push(error);
+        }
+      }),
+    });
+    try {
+      core.registry.create({ slug: 'receiver', displayName: 'Receiver' });
+      await receiveNetworkBotDm(
+        {
+          registry: core.registry,
+          channels: core.channels,
+          admitBotDmMessage: (channel, message) => core.runtime.admitBotDmMessage(channel, message),
+        },
+        contact,
+        {
+          id: 'started-remote',
+          at: new Date().toISOString(),
+          senderBotSlug: 'sender',
+          recipientBotSlug: 'receiver',
+          body: 'Start this work',
+          causation: { rootSourceEventId: 'root', parentSourceEventId: 'parent', hop: 1 },
+        },
+      );
+      await expect.poll(() => started).toBe(true);
+      if (state === 'participation-off') core.networkParticipation.set({ enabled: false });
+      else {
+        membership = 'withdrawn';
+        await core.runtime.withdrawNetworkMembership('departing');
       }
-    }),
-  });
-  try {
-    core.registry.create({ slug: 'receiver', displayName: 'Receiver' });
-    await receiveNetworkBotDm(
-      {
-        registry: core.registry,
-        channels: core.channels,
-        admitBotDmMessage: (channel, message) => core.runtime.admitBotDmMessage(channel, message),
-      },
-      contact,
-      {
-        id: 'started-remote',
-        at: new Date().toISOString(),
-        senderBotSlug: 'sender',
-        recipientBotSlug: 'receiver',
-        body: 'Start this work',
-        causation: { rootSourceEventId: 'root', parentSourceEventId: 'parent', hop: 1 },
-      },
-    );
-    await expect.poll(() => started).toBe(true);
-    membership = 'withdrawn';
-    await core.runtime.withdrawNetworkMembership('departing');
-    release();
-    await core.runtime.whenIdle();
-    expect(failures).toEqual([]);
-    expect(finished).toBe(true);
-    expect(sendAttempts).toBe(1);
-    const remote = core.channels.list().find((channel) => channel.remoteBot)!;
-    expect(core.channels.readMessages(remote.id).map((message) => message.body)).toEqual([
-      'Start this work',
-    ]);
-    membership = 'member';
-    core.runtime.admitBotDmMessage(remote.id, 'started-remote');
-    await core.runtime.whenIdle();
-    expect(runs).toBe(1);
-    expect(sendAttempts).toBe(1);
-  } finally {
-    release();
-    await core.runtime.close();
-    core.operationalDatabase.close();
-  }
-}, 60_000);
+      release();
+      await core.runtime.whenIdle();
+      expect(failures).toEqual([]);
+      expect(finished).toBe(true);
+      expect(sendAttempts).toBe(state === 'participation-off' ? 0 : 1);
+      const remote = core.channels.list().find((channel) => channel.remoteBot)!;
+      expect(core.channels.readMessages(remote.id).map((message) => message.body)).toEqual([
+        'Start this work',
+      ]);
+      membership = 'member';
+      core.runtime.admitBotDmMessage(remote.id, 'started-remote');
+      await core.runtime.whenIdle();
+      expect(runs).toBe(1);
+      expect(sendAttempts).toBe(state === 'participation-off' ? 0 : 1);
+    } finally {
+      release();
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  },
+  60_000,
+);
 
-it.each(['withdrawn', 'unavailable', 'returned-before-start', 'legacy-unverified'] as const)(
+it.each([
+  'withdrawn',
+  'unavailable',
+  'returned-before-start',
+  'legacy-unverified',
+  'participation-off',
+] as const)(
   'handles accepted remote work when collaboration becomes %s',
   async (state) => {
     let release!: () => void;
@@ -187,9 +200,10 @@ it.each(['withdrawn', 'unavailable', 'returned-before-start', 'legacy-unverified
       membership =
         state === 'returned-before-start'
           ? 'withdrawn'
-          : state === 'legacy-unverified'
+          : state === 'legacy-unverified' || state === 'participation-off'
             ? 'member'
             : state;
+      if (state === 'participation-off') core.networkParticipation.set({ enabled: false });
       if (state === 'returned-before-start') {
         await core.runtime.withdrawNetworkMembership('departing');
         membership = 'member';
@@ -197,7 +211,10 @@ it.each(['withdrawn', 'unavailable', 'returned-before-start', 'legacy-unverified
       release();
       await core.runtime.whenIdle();
       const remote = core.channels.list().find((channel) => channel.remoteBot)!;
-      const expectedTurns = state === 'unavailable' ? ['dm-receiver', remote.id] : ['dm-receiver'];
+      const expectedTurns =
+        state === 'unavailable' || state === 'participation-off'
+          ? ['dm-receiver', remote.id]
+          : ['dm-receiver'];
       expect(turns).toEqual(expectedTurns);
       expect(core.channels.readMessages(remote.id).map((message) => message.body)).toEqual([
         'Work that has not started',

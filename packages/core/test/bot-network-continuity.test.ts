@@ -81,6 +81,7 @@ async function dualRouteHosts(saved?: { homes: string[]; keys: Buffer[] }) {
       if (!core.registry.get('bot'))
         core.registry.create({ slug: 'bot', displayName: 'Developer' });
       const common = {
+        participation: core.networkParticipation,
         hostId: node.nodeId,
         key: async () => Uint8Array.from(keys[index]!),
         knownKey: (host: string) => core.channels.remoteHostKey!(host),
@@ -97,7 +98,7 @@ async function dualRouteHosts(saved?: { homes: string[]; keys: Buffer[] }) {
         directory: () =>
           core.registry
             .list()
-            .filter((bot) => !bot.paused)
+            .filter((bot) => !bot.paused && core.networkParticipation.enabled(bot.slug))
             .map((bot) => ({
               hostId: node.nodeId,
               botSlug: bot.slug,
@@ -113,6 +114,7 @@ async function dualRouteHosts(saved?: { homes: string[]; keys: Buffer[] }) {
           await receiveNetworkBotDm(
             {
               registry: core.registry,
+              participation: core.networkParticipation,
               channels: core.channels,
               admitBotDmMessage: (channel, id) => core.runtime.admitBotDmMessage(channel, id),
             },
@@ -245,6 +247,48 @@ async function explicitSender(core: ReturnType<typeof createCore>, rootId = 'roo
       source,
     );
 }
+
+it('cuts off both routes and an existing DM while keeping accepted work and local contacts', async () => {
+  const f = await dualRouteHosts();
+  try {
+    const left = f.cores[0]!;
+    const right = f.cores[1]!;
+    left.registry.create({ slug: 'local', displayName: 'Local colleague' });
+    const send = await explicitSender(left);
+    await send('ACCEPTED');
+    const remoteDm = right.channels.list().find((channel) => channel.remoteBot)!;
+    left.networkParticipation.set({ botSlug: 'bot', enabled: false });
+    const contacts = await left.runtime.runDirectBotTool!(
+      'bot',
+      'list_bot_contacts',
+      {},
+      new AbortController().signal,
+    );
+    expect(contacts.result).toMatchObject({
+      contacts: [expect.objectContaining({ botId: 'local' })],
+    });
+    await expect(send('SENDER-OFF')).rejects.toMatchObject({ code: 'network-disabled' });
+    left.networkParticipation.set({ botSlug: 'bot', enabled: true });
+    right.networkParticipation.set({ enabled: false });
+    await expect(send('HOST-OFF')).rejects.toThrow();
+    expect(right.channels.readMessages(remoteDm.id).map((message) => message.body)).toEqual([
+      'ACCEPTED',
+    ]);
+    right.networkParticipation.set({ botSlug: 'bot', enabled: false });
+    right.networkParticipation.set({ enabled: true });
+    await expect(send('BOT-STILL-OFF')).rejects.toThrow();
+    right.networkParticipation.set({ botSlug: 'bot', enabled: true });
+    f.setTailnetOnline(false);
+    await send('FRESH');
+    expect(f.delivered).toEqual(['tailnet:ACCEPTED', 'connect:FRESH']);
+    expect(right.channels.readMessages(remoteDm.id).map((message) => message.body)).toEqual([
+      'FRESH',
+      'ACCEPTED',
+    ]);
+  } finally {
+    await f.close();
+  }
+}, 120_000);
 
 it('keeps one DM when a new explicit send follows loss of the previously selected route', async () => {
   const f = await dualRouteHosts();

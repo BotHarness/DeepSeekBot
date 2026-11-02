@@ -848,6 +848,7 @@ export interface BotRuntimeOptions {
   readTurnProgress?: (sessionId: string) => Promise<SessionFailureProgress | undefined>;
   autoContinueDelaysMs?: readonly number[];
   botNetwork?: import('./bot-network.js').BotNetworkPort;
+  networkParticipation?: import('../devices/bot-network-participation.js').BotNetworkParticipation;
   onTobDelegation?: () => void;
   promptText?: (botSlug: string) => PromptText;
   promptLimits?: (botSlug: string) => PromptLimits;
@@ -1429,6 +1430,9 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #orchestratorCwd: ((bot: PersonaBotRecord) => string | undefined) | undefined;
   readonly #registry: PersonaBotRegistry;
   readonly #botNetwork: import('./bot-network.js').BotNetworkPort | undefined;
+  readonly #networkParticipation:
+    | import('../devices/bot-network-participation.js').BotNetworkParticipation
+    | undefined;
   readonly #createBotId: () => string;
   readonly #channels: ChannelStore;
   readonly groupSendReview: GroupSendReview;
@@ -1520,6 +1524,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#sessionArchived = options.sessionArchived;
     this.#registry = options.registry;
     this.#botNetwork = options.botNetwork;
+    this.#networkParticipation = options.networkParticipation;
     this.#requireExecution = options.requireExecution;
     this.#channels = options.channels;
     this.groupSendReview = new GroupSendReview(
@@ -4529,7 +4534,10 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   botContacts(botSlug: string, query?: BotContactQuery): BotContactPage {
-    const contacts = this.#botNetwork?.contacts() ?? [];
+    const contacts =
+      this.#networkParticipation?.enabled(botSlug) === false
+        ? []
+        : (this.#botNetwork?.contacts() ?? []);
     if (
       query?.botId?.startsWith('remote:') &&
       !contacts.some((contact) => networkBotId(contact.hostId, contact.botSlug) === query.botId)
@@ -6597,8 +6605,8 @@ class BotRuntimeImplementation implements BotRuntime {
         };
       },
       contacts: async (input) => {
-        await this.refreshBotContacts();
-        return discoverBotContacts(this.#registry, botSlug, input, this.#botNetwork?.contacts());
+        if (this.#networkParticipation?.enabled(botSlug) !== false) await this.refreshBotContacts();
+        return this.botContacts(botSlug, input);
       },
       createGroup: (name) => {
         requireOrdinaryGroupActor();
@@ -6805,6 +6813,7 @@ class BotRuntimeImplementation implements BotRuntime {
       createBot: (input) => this.#createBot(botSlug, sourceEventId, beforeSend, input),
       sendToBot: async (input) => {
         if (input.botSlug.startsWith('remote:')) {
+          this.#networkParticipation?.require(botSlug);
           if (input.replyTo !== undefined)
             throw new Error('Remote Bot DMs currently support text without quoted replies');
           let contact = this.botContacts(botSlug, { botId: input.botSlug }).contacts[0];
@@ -7851,6 +7860,7 @@ class BotRuntimeImplementation implements BotRuntime {
     deliveryKey?: string;
   }): Promise<{ channelId: string; message: ChannelMessage }> {
     const { channel, botSlug } = input;
+    this.#networkParticipation?.require(botSlug);
     const peer = channel.remoteBot;
     const sender = this.#registry.get(botSlug);
     if (

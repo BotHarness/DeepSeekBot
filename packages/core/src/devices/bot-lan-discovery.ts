@@ -137,6 +137,7 @@ export function createLanBotDiscovery(options: {
   let timer: ReturnType<typeof setInterval> | undefined;
   let closed = false;
   let starting: Promise<void> | undefined;
+  let generation = 0;
   let state: 'off' | 'listening' | 'error' = 'off';
   let startedAt = 0;
   function prune() {
@@ -182,6 +183,7 @@ export function createLanBotDiscovery(options: {
     status: () => state,
     start(port: number): Promise<void> {
       if (closed) return Promise.resolve();
+      const revision = generation;
       starting ??= (async () => {
         const started = performance.now();
         startedAt = started;
@@ -195,10 +197,17 @@ export function createLanBotDiscovery(options: {
             ),
           );
           if (packet.byteLength > 1024) throw new Error('lan-advertisement-too-large');
-          if (closed) return;
+          if (closed || revision !== generation) return;
           failureCode = 'lan-bind-failed';
-          const opened = await (options.open ?? openMulticast)(receive, failed);
-          if (closed || state === 'error') {
+          const opened = await (options.open ?? openMulticast)(
+            (bytes, address) => {
+              if (revision === generation) receive(bytes, address);
+            },
+            (code) => {
+              if (revision === generation) failed(code);
+            },
+          );
+          if (closed || revision !== generation || state === 'error') {
             opened.close();
             return;
           }
@@ -216,10 +225,18 @@ export function createLanBotDiscovery(options: {
             durationMs: Math.round(performance.now() - started),
           });
         } catch (error) {
-          failed(error instanceof DiscoveryFailure ? error.code : failureCode);
+          if (revision === generation)
+            failed(error instanceof DiscoveryFailure ? error.code : failureCode);
         }
       })();
       return starting;
+    },
+    pause() {
+      generation++;
+      starting = undefined;
+      state = 'off';
+      stop();
+      options.record?.({ phase: 'lan-discovery-stopped', durationMs: 0 });
     },
     candidates(): readonly LanBotPeer[] {
       if (closed || state !== 'listening') return [];

@@ -3,6 +3,7 @@ import type { NetworkBotContact } from './bot-contact-discovery.js';
 import { isChannelMessage } from '../channels/channel.js';
 import type { ChannelStore } from '../channels/store.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
+import type { BotNetworkParticipation } from '../devices/bot-network-participation.js';
 
 export interface NetworkBotMessage {
   id: string;
@@ -24,7 +25,9 @@ export interface BotNetworkPort {
 }
 
 export class BotNetworkDeliveryError extends Error {
-  constructor(readonly code: 'unable-to-deliver' | 'delivery-unknown' | 'network-denied') {
+  constructor(
+    readonly code: 'unable-to-deliver' | 'delivery-unknown' | 'network-denied' | 'network-disabled',
+  ) {
     super(code);
   }
 }
@@ -46,12 +49,14 @@ export function receivedNetworkMessage(hostId: string, message: NetworkBotMessag
 export async function receiveNetworkBotDm(
   owners: {
     registry: PersonaBotRegistry;
+    participation?: BotNetworkParticipation;
     channels: ChannelStore;
     admitBotDmMessage(channelId: string, messageId: string): void;
   },
   sender: NetworkBotContact,
   input: NetworkBotMessage,
 ): Promise<void> {
+  owners.participation?.require(input.recipientBotSlug);
   if (sender.botSlug !== input.senderBotSlug) throw new Error('network-sender-mismatch');
   const recipient = owners.registry.get(input.recipientBotSlug);
   if (recipient === undefined || recipient.paused === true)
@@ -72,7 +77,16 @@ export async function receiveNetworkBotDm(
     ...(sender.hostKey === undefined ? {} : { hostKey: sender.hostKey }),
     ...(sender.membership === undefined ? {} : { membership: sender.membership }),
   });
-  const result = await owners.channels.appendMessageOnce(channel.id, message);
+  const result = await owners.channels.appendMessageOnce(
+    channel.id,
+    message,
+    undefined,
+    undefined,
+    () => {
+      owners.participation?.require(input.recipientBotSlug);
+      return true;
+    },
+  );
   if (result.status === 'missing' || result.status === 'conflict')
     throw new Error(`network-message-${result.status}`);
   owners.admitBotDmMessage(channel.id, message.id);

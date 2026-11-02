@@ -16,6 +16,7 @@ const inputSchema = z.discriminatedUnion('kind', [
 ]);
 
 export function createConnectBotBridge(options: {
+  participation?: import('./bot-network-participation.js').BotNetworkParticipation;
   hostId: string;
   key(): Promise<Uint8Array>;
   account: ReturnType<typeof createConnectBotNetwork>;
@@ -56,6 +57,12 @@ export function createConnectBotBridge(options: {
     if (known !== undefined && known !== key) throw new BotNetworkDeliveryError('network-denied');
   }
   const channel = createBotConnectChannel({
+    authorize(payload) {
+      const input = payload === undefined ? undefined : inputSchema.parse(payload);
+      options.participation?.require(
+        input?.kind === 'message' ? input.message.senderBotSlug : undefined,
+      );
+    },
     hostId: options.hostId,
     key: options.key,
     account: options.account,
@@ -69,6 +76,7 @@ export function createConnectBotBridge(options: {
       const input = parsed.data;
       if (input.kind === 'contacts') {
         const identity = await own();
+        options.participation?.require();
         const bots = options.directory();
         return pageSchema.parse({
           ...identity,
@@ -188,7 +196,9 @@ export function createConnectBotBridge(options: {
         await options.withdrawn?.(hostId);
       } else if (state === 'member') withdrawn.delete(hostId);
     }
-    await options.account.register(await own());
+    const identity = await own();
+    if (!current()) return;
+    await options.account.register(identity, () => options.participation?.require());
     if (!current()) return;
     const peers = await options.account.peers();
     if (!current()) return;
@@ -229,6 +239,7 @@ export function createConnectBotBridge(options: {
     handle: channel.handle,
     membership,
     contacts(): readonly NetworkBotContact[] {
+      if (options.participation?.enabled() === false) return [];
       return [...routes.values()].flatMap((route) => route.contacts);
     },
     availability(hostId: string, botSlug: string) {
@@ -242,10 +253,11 @@ export function createConnectBotBridge(options: {
           : ('bot-unavailable' as const);
     },
     async refresh(background = false) {
-      if (closed) return;
+      if (closed || options.participation?.enabled() === false) return;
       if (!background || refreshing === undefined) {
         const generation = ++refreshGeneration;
-        const current = () => !closed && generation === refreshGeneration;
+        const current = () =>
+          !closed && generation === refreshGeneration && options.participation?.enabled() !== false;
         const started = Date.now();
         refreshing = refreshNow(current)
           .then((phase) =>
@@ -263,7 +275,7 @@ export function createConnectBotBridge(options: {
             });
           })
           .finally(() => {
-            if (current()) refreshing = undefined;
+            if (generation === refreshGeneration) refreshing = undefined;
           });
       }
       await refreshing;
@@ -272,6 +284,7 @@ export function createConnectBotBridge(options: {
     async send(hostId: string, message: NetworkBotMessage) {
       const started = Date.now();
       try {
+        options.participation?.require(message.senderBotSlug);
         const route = routes.get(hostId);
         if (closed || !route) throw new BotNetworkDeliveryError('unable-to-deliver');
         checkKey(hostId, route.peer.publicKey);

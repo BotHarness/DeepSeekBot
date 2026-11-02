@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { expect, it } from 'vitest';
+import { BotNetworkDeliveryError } from '../src/runtime/bot-network.js';
 import { createConnectBotNetwork } from '../src/devices/connect-bot-network.js';
 
 it('accepts a recipient-bound Bot proof only while both account registrations remain current', async () => {
@@ -444,5 +445,42 @@ it.each(['refresh', 'sign-out'])(
     else await expect(network.peers()).rejects.toMatchObject({ code: 'network-denied' });
     expect(refreshed).toBe(1);
     expect(calls).toBe(scenario === 'refresh' ? 2 : 1);
+  },
+);
+
+it.each(['session', 'directory', 'refresh'] as const)(
+  'does not dispatch registration after participation changes during %s',
+  async (boundary) => {
+    let enabled = true;
+    let calls = 0;
+    const network = createConnectBotNetwork({
+      session: async () => {
+        if (boundary === 'session') enabled = false;
+        return {
+          relay: 'https://relay.test',
+          accountId: 'qa',
+          localId: 'haaaaaaaaaaaa',
+          relayKey: 'test',
+          accessToken: 'test',
+          current: () => true,
+          refresh: async () => {
+            enabled = false;
+            return 'fresh-test';
+          },
+        };
+      },
+      fetch: async () => {
+        calls++;
+        if (boundary === 'refresh') return new Response(null, { status: 401 });
+        enabled = false;
+        return Response.json({ hosts: [{ id: 'haaaaaaaaaaaa', hostname: 'local.example.test' }] });
+      },
+    });
+    await expect(
+      network.register({ hostId: 'local', publicKey: 'a'.repeat(64) }, () => {
+        if (!enabled) throw new BotNetworkDeliveryError('network-disabled');
+      }),
+    ).rejects.toMatchObject({ code: 'network-disabled' });
+    expect(calls).toBe(boundary === 'session' ? 0 : 1);
   },
 );

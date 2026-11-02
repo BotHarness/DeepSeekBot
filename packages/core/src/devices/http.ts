@@ -1,4 +1,8 @@
 import type { EncryptionIdentity } from './noise-identity.js';
+import type {
+  BotNetworkParticipation,
+  BotNetworkParticipationSnapshot,
+} from './bot-network-participation.js';
 import type { LanBotControl, LanBotSnapshot } from './bot-lan-control.js';
 import { hostId } from './bot-network-wire.js';
 import { encode } from 'uqr';
@@ -33,6 +37,7 @@ export interface PairingPayload {
 }
 
 export interface DevicesSnapshot {
+  botNetwork?: BotNetworkParticipationSnapshot;
   lanBots?: LanBotSnapshot;
   lan?: LanStatus;
   host: HostIdentity;
@@ -115,6 +120,7 @@ export function createDevicesHttp(options: {
   account?: ConnectAccount;
   lan?: DeviceLan;
   lanBots?: LanBotControl;
+  participation?: BotNetworkParticipation;
 }): (request: Request) => Promise<Response> {
   const { pairing, connect, account } = options;
   return async (request) => {
@@ -123,6 +129,7 @@ export function createDevicesHttp(options: {
       return json({ pendingKeys: pairing.pendingKeys() });
     if (request.method === 'GET' && path === DEVICES_PATH) {
       const snapshot: DevicesSnapshot = {
+        ...(options.participation ? { botNetwork: options.participation.snapshot() } : {}),
         ...(options.lan ? { lan: options.lan.status() } : {}),
         ...(options.lanBots ? { lanBots: await options.lanBots.snapshot() } : {}),
         host: pairing.host(),
@@ -222,6 +229,35 @@ export function createDevicesHttp(options: {
         },
         409,
       );
+    }
+    if (path === `${DEVICES_PATH}/bot-network` && options.participation) {
+      if (request.method === 'GET') return json(options.participation.snapshot());
+      if (request.method !== 'POST') return json({ code: 'method-not-allowed' }, 405);
+      const input = await body(request);
+      if (input['confirm'] !== true) return json({ code: 'confirm-required' }, 400);
+      if (
+        typeof input['enabled'] !== 'boolean' ||
+        (input['botSlug'] !== undefined && typeof input['botSlug'] !== 'string')
+      )
+        return json({ code: 'network-setting-invalid' }, 400);
+      try {
+        return json(
+          options.participation.set({
+            enabled: input['enabled'],
+            ...(typeof input['botSlug'] === 'string' ? { botSlug: input['botSlug'] } : {}),
+          }),
+        );
+      } catch (error) {
+        return json(
+          {
+            code:
+              error instanceof Error && error.message === 'network-bot-not-found'
+                ? 'network-bot-not-found'
+                : 'network-setting-unavailable',
+          },
+          409,
+        );
+      }
     }
     if (path === `${DEVICES_PATH}/lan-bots` && options.lanBots) {
       if (request.method === 'GET') return json(await options.lanBots.snapshot());

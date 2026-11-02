@@ -2632,6 +2632,17 @@ const QUESTION_MESSAGING_MIGRATION: SchemaMigration = {
   },
 };
 
+const BOT_NETWORK_PARTICIPATION_MIGRATION: SchemaMigration = {
+  generation: 117,
+  module: 'bot-network-participation',
+  description: 'Persist Owner-controlled Host and Bot network participation',
+  migrate(database) {
+    database.exec(`CREATE TABLE bot_network_participation (
+      scope TEXT PRIMARY KEY, enabled INTEGER NOT NULL CHECK(enabled IN (0, 1))
+    )`);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2748,4 +2759,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   HUMAN_ATTENTION_CANDIDATE_INDEX_MIGRATION,
   BOT_LAN_ADMISSION_MIGRATION,
   QUESTION_MESSAGING_MIGRATION,
+  BOT_NETWORK_PARTICIPATION_MIGRATION,
 ]);

@@ -1,4 +1,5 @@
 import { createConnectBotBridge } from './bot-connect-bridge.js';
+import type { BotNetworkParticipation } from './bot-network-participation.js';
 import { BOT_CONNECT_PATH } from './bot-connect-channel.js';
 import { createLanBotBridge } from './bot-lan-bridge.js';
 import { createLanBotDiscovery } from './bot-lan-discovery.js';
@@ -120,6 +121,7 @@ export function mountDevicePairing(
   ctx: Context,
   options: {
     database: OperationalDatabaseOwner;
+    participation?: BotNetworkParticipation;
     dshHome: string;
     push?: DevicePushOptions;
     requestStatus?: (channelId: string, messageId: string) => ChannelSendStatus | undefined;
@@ -187,15 +189,28 @@ export function mountDevicePairing(
   const identity = createNoiseIdentity(options.credentials ?? (() => undefined));
   ctx.effect(() => () => identity.close(), 'botharness: Host encryption identity');
   const botNetworks = createBotNetworkRoutes({
+    ...(options.participation === undefined ? {} : { participation: options.participation }),
     withdrawn: async (hostId) => options.botNetwork?.withdrawNetworkMembership(hostId),
   });
+  const receiveBotMessage = (
+    sender: Parameters<typeof receiveNetworkBotDm>[1],
+    message: Parameters<typeof receiveNetworkBotDm>[2],
+  ) => {
+    const owners = options.botNetwork;
+    if (!owners) throw new BotNetworkDeliveryError('network-denied');
+    return receiveNetworkBotDm(
+      { ...owners, ...(options.participation ? { participation: options.participation } : {}) },
+      sender,
+      message,
+    );
+  };
   const localBotDirectory = () => {
     const owners = options.botNetwork;
     if (owners === undefined) return [];
     const host = pairing.host();
     return owners.registry
       .list()
-      .filter((bot) => bot.paused !== true)
+      .filter((bot) => bot.paused !== true && options.participation?.enabled(bot.slug) !== false)
       .map((bot) => ({
         hostId: host.id,
         botSlug: bot.slug,
@@ -221,6 +236,7 @@ export function mountDevicePairing(
     ctx.effect(() => {
       const host = pairing.host();
       const bridge = createTailnetBotBridge({
+        ...(options.participation ? { participation: options.participation } : {}),
         hostId: host.id,
         key: identity.key,
         knownKey: (id) => owners.channels.remoteHostKey?.(id),
@@ -243,7 +259,7 @@ export function mountDevicePairing(
         withdrawn: (hostId) => botNetworks.observeWithdrawal(hostId),
         unbound: (hostId) => owners.withdrawNetworkMembership(hostId),
         directory: localBotDirectory,
-        receive: (sender, message) => receiveNetworkBotDm(owners, sender, message),
+        receive: receiveBotMessage,
         record: (event) =>
           write(
             'bot-network',
@@ -280,7 +296,12 @@ export function mountDevicePairing(
       }, 30_000);
       retryListener.unref();
       void start();
+      const unsubscribe = options.database.subscribe(({ module }) => {
+        if (module === 'bot-network-participation')
+          void bridge.reconcileParticipation().catch(() => undefined);
+      });
       return () => {
+        unsubscribe();
         clearInterval(retryListener);
         detach();
         return bridge.close();
@@ -410,6 +431,7 @@ export function mountDevicePairing(
               });
               lanDiscovery = discovery;
               const bridge = createLanBotBridge({
+                ...(options.participation ? { participation: options.participation } : {}),
                 hostId: host.id,
                 key: identity.key,
                 peers: discovery.candidates,
@@ -434,7 +456,7 @@ export function mountDevicePairing(
                 withdrawn: (id) => botNetworks.observeWithdrawal(id),
                 unbound: (id) => owners.withdrawNetworkMembership(id),
                 directory: localBotDirectory,
-                receive: (sender, message) => receiveNetworkBotDm(owners, sender, message),
+                receive: receiveBotMessage,
                 record,
               });
               lanBridge = bridge;
@@ -442,7 +464,7 @@ export function mountDevicePairing(
               let pending = false;
               let closed = false;
               const refresh = () => {
-                if (closed || pending) return;
+                if (closed || pending || options.participation?.enabled() === false) return;
                 pending = true;
                 void bridge
                   .refresh(true)
@@ -451,10 +473,26 @@ export function mountDevicePairing(
                     pending = false;
                   });
               };
+              let listeningPort: number | undefined;
+              const reconcile = async () => {
+                if (closed || listeningPort === undefined) return;
+                if (options.participation?.enabled() === false) discovery.pause();
+                else {
+                  await discovery.start(listeningPort);
+                  refresh();
+                }
+              };
+              const unsubscribe = options.database.subscribe(({ module }) => {
+                if (module === 'bot-network-participation')
+                  void reconcile().catch(() =>
+                    record({ phase: 'lan-refresh-failed', durationMs: 0 }),
+                  );
+              });
               return {
                 handle: bridge.handle,
                 async start(port: number) {
-                  await discovery.start(port);
+                  listeningPort = port;
+                  await reconcile();
                   if (closed) return;
                   refresh();
                   sweep = setInterval(refresh, 10_000);
@@ -464,6 +502,7 @@ export function mountDevicePairing(
                   if (closed) return;
                   closed = true;
                   clearInterval(sweep);
+                  unsubscribe();
                   bridge.close();
                   discovery.close();
                   if (lanDiscovery === discovery) lanDiscovery = undefined;
@@ -554,11 +593,12 @@ export function mountDevicePairing(
     if (options.botNetwork !== undefined) {
       const owners = options.botNetwork;
       connectBots = createConnectBotBridge({
+        ...(options.participation ? { participation: options.participation } : {}),
         hostId: pairing.host().id,
         key: identity.key,
         account: account.botNetwork,
         directory: localBotDirectory,
-        receive: (sender, message) => receiveNetworkBotDm(owners, sender, message),
+        receive: receiveBotMessage,
         knownKey: (id) => owners.channels.remoteHostKey?.(id),
         trustKey: (id, key, membership) => {
           if (!owners.channels.trustRemoteHostKey)
@@ -714,6 +754,7 @@ export function mountDevicePairing(
       return { ...status, routes: [...others, tunnel, ...loopback] };
     };
     const http = createDevicesHttp({
+      ...(options.participation ? { participation: options.participation } : {}),
       pairing,
       encryption,
       routes,
@@ -740,6 +781,7 @@ export function mountDevicePairing(
       [`${DEVICES_PATH}/connect`, ['POST']],
       [`${DEVICES_PATH}/lan`, ['POST']],
       [`${DEVICES_PATH}/lan-bots`, ['GET', 'POST']],
+      [`${DEVICES_PATH}/bot-network`, ['GET', 'POST']],
     ] as const)
       webCtx.effect(
         () =>
