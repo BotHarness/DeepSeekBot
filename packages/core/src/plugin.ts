@@ -1806,17 +1806,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     engine.config = Object.freeze({ ...compactionBaseConfig, thresholdRatio, headroomTokens });
   };
   installNativeSubagentWake(ctx, core.runtime);
-  ctx.on(
-    'agent/pre-step',
-    (_input, next) => {
-      applyCompactionPolicy();
-      return next();
-    },
-    { global: true, prepend: true },
-  );
+  applyCompactionPolicy();
   ctx.on(
     'agent/pre-step',
     async ({ agent, signal }, next) => {
+      applyCompactionPolicy();
       if (isApprovalReviewSession(agent.session.id))
         return reviewing.has(agent.session.id) ? next() : { kind: 'reject' };
       try {
