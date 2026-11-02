@@ -191,6 +191,8 @@ When a DSH-side bug or trap is diagnosed, **record it here (or in the playbook) 
 
 | 52 | Native Settings navigation clicks an unrelated dialog trigger | Onboarding opens the mobile app popup or returns without a model editor | Do not select the first `button[aria-haspopup="dialog"]`. In RC2, native Settings may be an Account menu item whose hidden shortcut contributes to `textContent`; match its accessible label, excluding `aria-hidden` content. A whole-sidebar Bot mode shadow must yield while the native settings shell is needed, then restore on close, timeout or cancellation without switching the main panel. Verify the actual Models page (`Add model provider`), not a generic `Models` label also present in onboarding (#3222). |
 
+| 53 | A gateway concurrency refusal ends the Bot turn without retry | Concurrent Bot turns on a serial local model fail at once with `PI_AI_ERROR: Concurrency limit exceeded for user, please retry later`, while one DSH chat queues and succeeds | Native `llm-pi-ai` classifies failures by text; a refusal without `429` or `rate limit` falls to non-retryable `PI_AI_ERROR`, so `dsh-llm-retry` never runs. The reviewed pnpm patch maps concurrency-limit, too-many-requests and server-busy text to `RATE_LIMIT`, which the default normal policy retries five times with 0.5–10 s backoff. A serial model with long replies may need a larger provider `retryPolicy` (`maxRetries`, `backoff.maxDelayMs`, or `mode: always`). Requalify before changing DSH version or removing the patch (#3300). |
+
 ## Reference
 
 For opted-in AX Go launches on Windows, stage the reviewed adapter patch inside the isolated

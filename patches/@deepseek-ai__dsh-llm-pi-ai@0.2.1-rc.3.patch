@@ -1,7 +1,16 @@
 diff --git a/lib/index.js b/lib/index.js
+index 4b1e5adba9a0834c5d55185944b4056abbef8ab1..e65dbef7bd39fbb751a27dcee42eb9388811edc7 100644
 --- a/lib/index.js
 +++ b/lib/index.js
-@@ -1986,7 +1986,10 @@
+@@ -1449,6 +1449,7 @@ function classifyPiAiError(message) {
+ 	if (/\b(?:401|403)\b/.test(message)) return "AUTH";
+ 	if (isQuotaExceededError(message)) return QUOTA_EXCEEDED_CODE;
+ 	if (/\b429\b|rate.?limit/i.test(message)) return "RATE_LIMIT";
++	if (/concurren(?:cy|t)[\w\s]{0,24}(?:limit|exceed)|too many (?:concurrent )?requests|server (?:is )?(?:busy|overloaded)/i.test(message)) return "RATE_LIMIT";
+ 	if (/\b413\b|failed to buffer the request body:\s*length limit exceeded|payload too large|request body too large/i.test(message)) return "INVALID_REQUEST";
+ 	if (/\b400\b|invalid.?request/i.test(message)) return "INVALID_REQUEST";
+ 	if (/\b5\d\d\b/.test(message)) return "SERVER";
+@@ -1986,7 +1987,10 @@ var PiAiAdapter = class extends LlmAdapter {
  					...options.maxTokens === void 0 ? {} : { maxTokens: options.maxTokens },
  					...options.sessionId === void 0 ? {} : { sessionId: String(options.sessionId) },
  					signal: watchdog.signal,

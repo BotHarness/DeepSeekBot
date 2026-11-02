@@ -101,7 +101,9 @@ describe('AX native OpenCode Go reuse', () => {
       .filter((line) => line.startsWith(' ') || line.startsWith('-'))
       .map((line) => line.slice(1))
       .join('\n');
-    expect(goSessionPatch('prefix\n' + original)).toContain('@@ -2,7 +2,10 @@');
+    const relocated = goSessionPatch('prefix\n' + original);
+    expect(relocated).toContain('@@ -2,6 +2,7 @@');
+    expect(relocated).toContain('@@ -8,7 +9,10 @@');
     expect(() => goSessionPatch('changed upstream')).toThrow('request shape');
     expect(() => goSessionPatch(original + '\n' + original)).toThrow('request shape');
   });
