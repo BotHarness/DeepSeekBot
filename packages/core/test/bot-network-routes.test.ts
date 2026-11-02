@@ -6,6 +6,40 @@ import {
   type NetworkBotMessage,
 } from '../src/runtime/bot-network.js';
 
+it('preserves a colleague while any of three scopes remains eligible and retires only after the last scope withdraws', async () => {
+  const withdrawals: string[] = [];
+  const states: Array<'member' | 'withdrawn' | 'unavailable'> = ['member', 'member', 'member'];
+  const routes = createBotNetworkRoutes({
+    withdrawn: async (host) => {
+      withdrawals.push(host);
+    },
+  });
+  for (const index of [0, 1, 2]) {
+    routes.attach({
+      contacts: () => [],
+      membership: async () => states[index]!,
+      async send() {
+        throw new Error('Membership observation must not send');
+      },
+    });
+  }
+  states[2] = 'withdrawn';
+  await routes.observeWithdrawal('colleague');
+  expect(withdrawals).toEqual([]);
+  states[0] = 'unavailable';
+  await routes.observeWithdrawal('colleague');
+  expect(withdrawals).toEqual([]);
+  expect(await routes.membership?.('colleague')).toBe('member');
+  states[1] = 'withdrawn';
+  await routes.observeWithdrawal('colleague');
+  expect(withdrawals).toEqual(['colleague']);
+  expect(await routes.membership?.('colleague')).toBe('withdrawn');
+  states.fill('unavailable');
+  await routes.observeWithdrawal('colleague');
+  expect(withdrawals).toEqual(['colleague']);
+  expect(await routes.membership?.('colleague')).toBe('unavailable');
+});
+
 it('selects an available route before sending but never resends an unknown delivery over another network', async () => {
   const sent: string[] = [];
   const message: NetworkBotMessage = {

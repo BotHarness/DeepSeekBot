@@ -11,6 +11,16 @@ Communication requires an online reachable device. Definite unavailability is a 
 
 Temporary loss of connectivity affects communication, not existing local authority. Actual withdrawal from the collaboration scope prevents new communication and not-yet-started work from that relationship. Already-started work may finish under local permissions but cannot send results to the departed counterpart. Existing processing states and causal hop guards continue across Hosts. Routes do not create new Bot identities or grant general Human device-management access.
 
+## Explicit ordinary-LAN admission
+
+Discovery joins every eligible private IPv4 interface and sends each advertisement over those interfaces in sequence, waiting for each datagram callback before changing the multicast egress. A slow advertisement is not queued again by the next timer tick. Lifecycle diagnostics distinguish identity, advertisement, interface, bind, multicast setup, socket and send failures with bounded codes and elapsed time; raw network errors and interface addresses are not logged.
+
+The existing default-off LAN listener also owns a bounded IPv4 multicast discovery socket and the narrow `/botharness-device/lan-bots/v1` Noise endpoint. Advertisements contain only the Profile Host identity, public key, name and listener port. A candidate address comes from the received datagram, not a claimed URL. Candidates expire and conflicting keys suppress discovery; advertisements never grant authority or expose the Bot directory.
+
+Each Host's authenticated Human approves the other Host's exact key after comparing its full fingerprint. Both approvals are required for LAN contact queries and DMs. The application-defined `bot-lan` module persists only these approvals in the existing Operational Database. Every new admission receives an epoch; the Channel owner retains both authenticated epochs beside the remote Host key. Revoking an approval invalidates that scope, including after restart, and re-admission cannot revive its prior epoch. A changed advertised key leaves the prior approval separately visible and revocable. Disabling the listener is temporary unavailability, not revocation.
+
+LAN and Connect reuse the bounded Noise HTTP channel with separate authentication callbacks and paths. LAN remains a provider of the existing Bot network capability: other verified scopes can preserve the same relationship, and no failed send tries another route. The shared membership owner handles withdrawal and pending-work cancellation. CLI and Client management use the authenticated Host API; the LAN listener cannot invoke that operator API. Listener disposal closes discovery, timers and pending channel state. Actual multi-device multicast reachability is a separate qualification from same-machine Host tests, tracked in [#3255](https://github.com/BotHarness/DeepSeekBot/issues/3255).
+
 ## Why
 
 Bots need to choose useful colleagues by device and responsibility, while follow-up behavior remains controlled by their users. A durable outgoing queue would turn an unavailable send into a future external action without a fresh Bot decision. Provider paths with durable Outbox recovery must not lend their retry semantics to this bridge. A central dispatcher, copied private Session relay or additional Memory authority would obscure existing ownership boundaries.

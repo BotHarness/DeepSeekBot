@@ -10,6 +10,7 @@ A Human sends a message in a Bot's DM, the Bot runs a session on its configured 
 - `turn-conclusion` permits `end_turn` only after a committed send and successful requested Inbox resolution; a question can leave its source open, and a later Human message still starts work.
 - `reply` commits the Bot's answer to the DM timeline.
 - `network-connect-dm` discovers and contacts same-account online Hosts through Connect without Tailscale or Human device pairing.
+- `network-lan-admission` discovers nearby Host identities, requires bilateral exact-key Human approval, and carries Bot DMs over the existing LAN entry and Inbox.
 - `network-route-continuity` preserves one colleague and DM when an explicit new send changes between Tailnet and Connect, without replaying failed or unknown sends.
 - `network-contact-lifecycle` refreshes a colleague's public facts and availability in the CLI and read-only remote DM.
 - `network-scope-withdrawal` cancels unstarted relationship work, preserves history and prevents reconnection from reviving it.
@@ -39,6 +40,22 @@ For the explicit-send slice, correlate the visible reply with `bot-trace`: requi
 `end_turn: true` against an ordinary send: the former must finish without a redundant final model
 request. Send a fresh Human message afterward and verify another reply. The direct path is
 `bot-tool <slug> bot_send_message --args-stdin`; verify its actual message in the same DM.
+
+## Explicit LAN admission and Bot DM
+
+Use two isolated Profiles with distinct Host identities. Two Profiles on one machine qualify the Host/runtime path; acceptance on two physical LAN devices must be recorded separately. Leave existing services and shared device QA resources untouched.
+
+Isolate other authorized Bot routes in the test processes before asserting that an unapproved LAN peer has no contacts. Existing Tailnet or Connect approval legitimately permits contacts independently of LAN. Confirm the accepted Channel records `membership.kind: lan` rather than inferring the route from a successful reply.
+
+1. Run `device-lan enable --confirm` on both Hosts, or use Bot settings → Connections → Manage → Enable local access. In LAN Bot collaboration, verify nearby Host names are marked not allowed. `bot-lan list` must show `discovered: true`, `admitted: false`; neither a discovery advertisement nor Human device pairing can reveal private Bot contacts or send a Bot DM.
+2. Open **Show identity fingerprint** on each Host. Compare full Host IDs and fingerprints, then choose **Review and allow** for the intended peer and confirm the matching identity. Repeat on the other Host; one-sided approval is insufficient. CLI parity is `bot-lan admit <host-id> <public-key> --confirm`. A wrong key or a candidate changed during review must refuse without granting access. The `approval` projection preserves the old approved identity when a different key is advertised, so its access remains revocable.
+3. Query `bot-tool <caller> list_bot_contacts`, then drive the existing Human DM request → explicit Bot send → receiving Inbox → Bot reply path described below. Require the remote Channel's membership provenance to be `lan`, both real transcripts and Inbox facts, the stable colleague identity, and a read-only Human conversation. Do not count a Tailnet or Connect route as LAN proof.
+4. From Connections, revoke the peer and require its local approval to disappear in `bot-lan list`. A new send must refuse; old accepted history stays visible. An offline previously approved Host must still offer revocation. If its advertised key changes, show the old approved fingerprint when revoking. Use `bot-lan revoke <host-id> --confirm` for the equivalent CLI operation. Confirm an independent still-valid network scope continues to authorize its own route.
+5. Stop only the task-owned peer, try a uniquely marked send, then restart the same Profile. Check no queued send or deferred reply appears. Keep timeout/unknown-result fault injection separate from live evidence. Close discovery with `device-lan disable`, stop verified owned PIDs/children, and confirm listener release.
+
+Capture real light/dark before/after UI and console output. Use `--click "Show identity fingerprint"` for the disclosure: `--click-text` targets buttons/links, not native summary elements. On a fresh Profile, dismiss **Welcome to Tobs** with **Skip** before settings; wait for LAN Bot collaboration data instead of capturing the initial loading state.
+
+For history inspection, explicitly select the caller's Channel row, then open its Bot DM trace. Dismiss a visible internal tutorial through its own Skip button; do not assume the window companion is clickable or a tutorial is always present. Require **Bot-to-Bot DM · read-only**, the two original message IDs in the canonical timeline, and no Human composer. A matching ACK in the caller's ordinary Human DM is not proof that the remote conversation opened.
 
 ## Cross-Host Bot DM (Tailscale)
 

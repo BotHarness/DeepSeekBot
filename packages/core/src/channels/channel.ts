@@ -85,7 +85,13 @@ export interface ConnectBotMembership {
   remoteHostId: string;
 }
 
-export type BotNetworkScope = TailnetBotMembership | ConnectBotMembership;
+export interface LanBotMembership {
+  kind: 'lan';
+  localAdmissionId: string;
+  remoteAdmissionId: string;
+}
+
+export type BotNetworkScope = TailnetBotMembership | ConnectBotMembership | LanBotMembership;
 export type BotNetworkMembership = BotNetworkScope | { kind: 'scopes'; scopes: BotNetworkScope[] };
 
 function isBotNetworkScope(value: unknown): value is BotNetworkScope {
@@ -95,7 +101,9 @@ function isBotNetworkScope(value: unknown): value is BotNetworkScope {
     typeof record[field] === 'string' && /^[a-zA-Z0-9_-]{1,128}$/u.test(record[field]);
   return record['kind'] === 'tailnet'
     ? id('localNodeId') && id('remoteNodeId')
-    : record['kind'] === 'connect' && id('accountId') && id('localHostId') && id('remoteHostId');
+    : record['kind'] === 'connect'
+      ? id('accountId') && id('localHostId') && id('remoteHostId')
+      : record['kind'] === 'lan' && id('localAdmissionId') && id('remoteAdmissionId');
 }
 
 export function isBotNetworkMembership(value: unknown): value is BotNetworkMembership {
@@ -106,9 +114,10 @@ export function isBotNetworkMembership(value: unknown): value is BotNetworkMembe
   return (
     record['kind'] === 'scopes' &&
     Array.isArray(scopes) &&
-    scopes.length === 2 &&
+    scopes.length >= 2 &&
+    scopes.length <= 3 &&
     scopes.every(isBotNetworkScope) &&
-    new Set(scopes.map((scope) => scope.kind)).size === 2
+    new Set(scopes.map((scope) => scope.kind)).size === scopes.length
   );
 }
 
