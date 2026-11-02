@@ -1408,7 +1408,7 @@ interface PendingAutoContinue {
 
 type DmContinuation =
   | { kind: 'failure'; code?: string; autoAttempts: number }
-  | { kind: 'host-restart' };
+  | { kind: 'host-restart'; autoAttempts: number };
 
 function continuationNote(continuation: DmContinuation): string {
   const cause =
@@ -1594,8 +1594,11 @@ class BotRuntimeImplementation implements BotRuntime {
         const channel = this.#channels.get(row.channel_id);
         const botSlug = channel?.type === 'dm' ? channel.botSlug : undefined;
         if (botSlug === undefined) continue;
+        const failure = this.#channels.latestMessage(row.channel_id)?.sessionFailure;
         void this.#continueDmTurn(botSlug, row.channel_id, row.message_id, {
           kind: 'host-restart',
+          autoAttempts:
+            failure?.requestMessageId === row.message_id ? (failure.autoContinue?.attempt ?? 0) : 0,
         })?.catch(() => undefined);
       }
       this.#rearmAutoContinues();
@@ -4989,7 +4992,7 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#setObserved(collected.eventIds, null, bot.slug);
       this.#markSourceEventFailed(claim.sourceEventId);
       const code = sessionFailureDetails(error).code;
-      const autoAttempts = continuation?.kind === 'failure' ? continuation.autoAttempts : 0;
+      const autoAttempts = continuation?.autoAttempts ?? 0;
       const delayMs = this.#autoContinueDelaysMs[autoAttempts];
       const autoContinue =
         code !== undefined &&
