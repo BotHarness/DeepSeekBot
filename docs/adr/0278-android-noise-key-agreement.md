@@ -1,4 +1,4 @@
-# ADR-0277: Android selects its Noise key-agreement implementation
+# ADR-0278: Android selects its Noise key-agreement implementation
 
 - Status: Proposed; Android performance measured, review and broader qualification pending
 - Date: 2026-11-01
