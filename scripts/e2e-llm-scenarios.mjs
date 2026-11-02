@@ -141,15 +141,30 @@ export const SCENARIOS = [
         const refused = (await sendCalls()).find((call) => call.isError);
         throw refused ? new Error(`no reply; bot_send_message refused: ${refused.result}`) : error;
       }
-      const filled = (await sendCalls()).filter(
-        (call) => call.arguments.channel_id === '' && Array.isArray(call.arguments.attachments),
-      );
-      if (filled.length === 0)
+      const [first] = await sendCalls();
+      const expected = {
+        attachments: [],
+        binding_id: '',
+        bot_id: '',
+        channel_id: '',
+        conversation_id: '',
+        draft_id: '',
+        grant_id: '',
+        observation_id: '',
+        mention_bot_ids: [],
+        mention_human_ids: [],
+        recover: false,
+        resolve_inbox_ids: [],
+        freshness_override: { draftVersion: 0, reason: '' },
+      };
+      const missing = Object.entries(expected)
+        .filter(([key, value]) => JSON.stringify(first?.arguments?.[key]) !== JSON.stringify(value))
+        .map(([key]) => key);
+      if (missing.length > 0)
         throw new Error(
-          'the model did not send the schema-filled empty fields; nothing was tested',
+          `the first bot_send_message call did not send the empty fields (${missing.join(', ')}); nothing was tested`,
         );
-      if (filled[0].isError)
-        throw new Error(`the schema-filled call was refused: ${filled[0].result}`);
+      if (first.isError) throw new Error(`the schema-filled call was refused: ${first.result}`);
     },
   },
   {
@@ -810,36 +825,31 @@ async function sessionSnapshot(instance, sessionId) {
   const socket = new WebSocket(`${origin.replace(/^http/u, 'ws')}/api/remote.mux`, {
     headers: { cookie: cookieFor(instance.home) },
   });
+  let timeout;
   try {
-    await new Promise((done, fail) => {
-      socket.once('open', done);
-      socket.once('error', fail);
-    });
     return await new Promise((done, fail) => {
-      const timeout = setTimeout(() => fail(new Error('Session snapshot timed out')), 20_000);
+      timeout = setTimeout(() => fail(new Error('Session snapshot timed out')), 20_000);
+      socket.once('error', fail);
+      socket.once('open', () =>
+        socket.send(
+          JSON.stringify({
+            type: 'open',
+            streamId: crypto.randomUUID(),
+            endpoint: 'session/follow',
+            payload: {
+              args: { request: { address: { kind: 'session', sessionId }, maxMessages: 100 } },
+            },
+          }),
+        ),
+      );
       socket.on('message', (raw) => {
         const frame = JSON.parse(String(raw));
-        if (frame.type === 'error') {
-          clearTimeout(timeout);
-          fail(new Error(JSON.stringify(frame.error)));
-        }
-        if (frame.type === 'item' && frame.value.type === 'snapshot') {
-          clearTimeout(timeout);
-          done(frame.value);
-        }
+        if (frame.type === 'error') fail(new Error(JSON.stringify(frame.error)));
+        if (frame.type === 'item' && frame.value.type === 'snapshot') done(frame.value);
       });
-      socket.send(
-        JSON.stringify({
-          type: 'open',
-          streamId: crypto.randomUUID(),
-          endpoint: 'session/follow',
-          payload: {
-            args: { request: { address: { kind: 'session', sessionId }, maxMessages: 100 } },
-          },
-        }),
-      );
     });
   } finally {
+    clearTimeout(timeout);
     socket.terminate();
   }
 }
