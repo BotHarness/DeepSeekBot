@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -6,7 +6,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runDiagnosticLogCommand } from '../src/bots/cli-diagnostic-logs.js';
 import { CliLiveError } from '../src/bots/cli-live-error.js';
 import { readZip } from '../src/bots/zip-archive.js';
-import { openLogDatabase } from '../src/logs/log-db.js';
+import { DatabaseSync } from 'node:sqlite';
+
+import { LOG_DB_FILENAME, openLogDatabase } from '../src/logs/log-db.js';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -150,6 +152,31 @@ describe('diagnostic log CLI', () => {
       ),
     ).rejects.toMatchObject({ code: 'not-found' });
     expect(connect).not.toHaveBeenCalled();
+  });
+
+  it('leaves a log with an unsupported schema untouched and says it cannot read it', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'diagnostic-home-'));
+    dirs.push(home);
+    const dir = join(home, 'botharness');
+    const database = openLogDatabase({ dir });
+    database.write({ plugin: 'client', owner: 'profile-shared', kind: 'error', detail: '{}' });
+    database.close();
+    const raw = new DatabaseSync(join(dir, LOG_DB_FILENAME));
+    raw.exec('UPDATE log_schema SET version = 999 WHERE singleton = 1');
+    raw.close();
+    const before = statSync(join(dir, LOG_DB_FILENAME)).size;
+    await expect(
+      runDiagnosticLogCommand(
+        'diagnostic-logs-export',
+        { out: join(home, 'z.zip'), home, offline: true },
+        io() as never,
+        vi.fn() as unknown as Connect,
+      ),
+    ).rejects.toMatchObject({ code: 'log-unreadable' });
+    const check = new DatabaseSync(join(dir, LOG_DB_FILENAME), { readOnly: true });
+    expect(check.prepare('SELECT COUNT(*) AS n FROM log_entries').get()).toMatchObject({ n: 1 });
+    check.close();
+    expect(statSync(join(dir, LOG_DB_FILENAME)).size).toBe(before);
   });
 
   it('refuses bad flags before connecting', async () => {

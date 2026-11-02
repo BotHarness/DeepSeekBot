@@ -6,6 +6,7 @@ import {
   exportDiagnosticLogOffline,
 } from '../diagnostics/diagnostic-log.js';
 import { resolveDshHome } from '../im/config-store.js';
+import { LogDatabaseUnreadableError } from '../logs/log-db.js';
 import { installedRelease } from '../release/service.js';
 import { installedDshVersion } from '../telemetry/service.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
@@ -47,21 +48,31 @@ function exportOffline(
 ) {
   const dshHome = values.home?.trim() || io.env['DSH_HOME']?.trim() || resolveDshHome(io.env);
   const dshVersion = installedDshVersion();
-  const exported = exportDiagnosticLogOffline({
-    dshHome,
-    hours,
-    homes: [
-      { path: dshHome, label: '$DSH_HOME' },
-      { path: homedir(), label: '~' },
-    ],
-    environment: {
-      version: installedRelease(import.meta.url).version(),
-      ...(dshVersion === undefined ? {} : { dshVersion }),
-      platform: process.platform,
-      arch: process.arch,
-      node: process.version,
-    },
-  });
+  let exported: ReturnType<typeof exportDiagnosticLogOffline>;
+  try {
+    exported = exportDiagnosticLogOffline({
+      dshHome,
+      hours,
+      homes: [
+        { path: dshHome, label: '$DSH_HOME' },
+        { path: homedir(), label: '~' },
+      ],
+      environment: {
+        version: installedRelease(import.meta.url).version(),
+        ...(dshVersion === undefined ? {} : { dshVersion }),
+        platform: process.platform,
+        arch: process.arch,
+        node: process.version,
+      },
+    });
+  } catch (error) {
+    if (error instanceof LogDatabaseUnreadableError)
+      throw new CliLiveError(
+        'log-unreadable',
+        `The diagnostic log could not be read (${error.message}); it was left unchanged.`,
+      );
+    throw error;
+  }
   if (exported === undefined)
     throw new CliLiveError(
       'not-found',

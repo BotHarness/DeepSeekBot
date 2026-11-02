@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  diagnosticEventRow,
   diagnosticEventRecorder,
   diagnosticLogView,
   hostLogExporter,
 } from '../src/diagnostics/diagnostic-log.js';
 import { createTurnLog } from '../src/diagnostics/turn-log.js';
-import type { LogEntryInput } from '../src/logs/log-db.js';
+import { LOG_DETAIL_MAX_CHARS, type LogEntryInput } from '../src/logs/log-db.js';
 
 function harness() {
   const rows: LogEntryInput[] = [];
@@ -143,5 +144,15 @@ describe('structured Host events', () => {
       fields: { state: 'provider-accepted', durationMs: 420 },
     });
     expect(views[1]).toMatchObject({ level: 'warn', fields: { path: '~/x' } });
+  });
+
+  it('keeps a structured row parseable when its fields would overflow the detail limit', () => {
+    const fields = Object.fromEntries(
+      Array.from({ length: 24 }, (_, index) => [`f${index}`, '"'.repeat(300)]),
+    );
+    const row = diagnosticEventRow('bot-turn', 'completed', { ...fields, durationMs: 9 }, {});
+    expect(row?.detail.length).toBeLessThanOrEqual(LOG_DETAIL_MAX_CHARS);
+    const view = diagnosticLogView({ id: 1, ts: 0, ...row! });
+    expect(view.fields).toMatchObject({ f0: expect.any(String) });
   });
 });

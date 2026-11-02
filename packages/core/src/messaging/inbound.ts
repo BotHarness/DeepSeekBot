@@ -1022,7 +1022,8 @@ export function createInboundMessaging(options: {
               },
               ['source-event', 'channel', 'bot-inbox'],
             );
-            if (id) {
+            if (!id) return skip('not-admitted');
+            {
               await mirrorDm(latest, id);
               options.onAdmissionCommitted?.(value.botSlug, id);
               for (const commit of placed) {

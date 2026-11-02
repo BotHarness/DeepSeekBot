@@ -3377,6 +3377,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       agentAdapter.forgetAgent(agent);
       userQuestions.cancelSession(agent.session.id);
       idleCompaction.forget(agent.session.id);
+      turnLog.forget(agent.session.id);
       activity.handleSessionDisposed(agent.session.id);
       core.messagePerf.clear(agent.session.id);
     },

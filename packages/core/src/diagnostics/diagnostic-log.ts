@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { writeZip } from '../bots/zip-archive.js';
 import {
   LOG_DB_FILENAME,
+  LOG_DETAIL_MAX_CHARS,
   openLogDatabase,
   type LogDatabase,
   type LogEntry,
@@ -301,6 +302,21 @@ export function diagnosticEventRow(
     else continue;
     count += 1;
   }
+  let detail = JSON.stringify(clean);
+  while (detail.length > LOG_DETAIL_MAX_CHARS) {
+    let longest: string | undefined;
+    for (const [key, value] of Object.entries(clean))
+      if (
+        typeof value === 'string' &&
+        (longest === undefined || value.length > (clean[longest] as string).length)
+      )
+        longest = key;
+    if (longest === undefined) return;
+    const text = clean[longest] as string;
+    if (text.length <= 16) delete clean[longest];
+    else clean[longest] = text.slice(0, Math.floor(text.length / 2));
+    detail = JSON.stringify(clean);
+  }
   const bot =
     options.bot !== undefined && /^[\w.-]{1,64}$/u.test(options.bot) ? options.bot : undefined;
   return {
@@ -308,7 +324,7 @@ export function diagnosticEventRow(
     plugin: source,
     owner: bot === undefined ? 'profile-shared' : `bot:${bot}`,
     kind: phase,
-    detail: JSON.stringify(clean),
+    detail,
     payload: JSON.stringify({ level: options.level ?? eventLevel(phase, clean) }),
     ...(bot === undefined ? {} : { bot }),
   };
@@ -563,7 +579,7 @@ export function exportDiagnosticLogOffline(options: {
 }): { archive: Buffer; manifest: Record<string, unknown> } | undefined {
   const dir = join(options.dshHome, 'botharness');
   if (!existsSync(join(dir, LOG_DB_FILENAME))) return;
-  const database = openLogDatabase({ dir });
+  const database = openLogDatabase({ dir, readOnly: true });
   try {
     return buildDiagnosticExport(database, {
       hours: options.hours,
