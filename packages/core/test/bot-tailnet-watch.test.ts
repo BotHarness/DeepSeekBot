@@ -74,8 +74,6 @@ it('does not finish disposal until its owned subprocess has exited', async () =>
   }
 });
 
-// macOS installs can put a two-line `/bin/sh` wrapper named `tailscale` on PATH that runs
-// the real binary as a child (no `exec`). Disposal must stop that child too and finish.
 it.skipIf(process.platform === 'win32')(
   'stops a wrapper-launched watcher and the process it started when disposed',
   async () => {

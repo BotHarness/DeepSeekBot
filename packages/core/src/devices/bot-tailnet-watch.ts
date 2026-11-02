@@ -74,12 +74,6 @@ export function createTailnetNotificationReader(changed: (change: TailnetChange)
   };
 }
 
-/**
- * Starts a long-running external command in its own process group (POSIX), so that
- * stopping it also stops anything it started. Some installs put a `/bin/sh` wrapper
- * named `tailscale` on PATH that runs the real binary as a child instead of `exec`ing
- * it; signalling only the wrapper would leave the real watcher running with our pipe.
- */
 export function spawnOwnedProcess(file: string, args: readonly string[]): ChildProcess {
   return spawn(file, [...args], {
     stdio: ['ignore', 'pipe', 'ignore'],
@@ -88,7 +82,6 @@ export function spawnOwnedProcess(file: string, args: readonly string[]): ChildP
   });
 }
 
-/** Signals the child's whole process group when it leads one, otherwise just the child. */
 export function stopOwnedProcess(child: ChildProcess): void {
   if (child.pid === undefined) return;
   if (process.platform !== 'win32') {
@@ -96,7 +89,8 @@ export function stopOwnedProcess(child: ChildProcess): void {
       process.kill(-child.pid, 'SIGTERM');
       return;
     } catch {
-      // Not a group leader (an injected child) or already gone: fall back to the child.
+      child.kill();
+      return;
     }
   }
   child.kill();
@@ -130,8 +124,6 @@ export function watchTailnet(
   const launch = (index: number) => {
     const process = startProcess(binaries[index]!);
     exits.push(new Promise<void>((resolve) => process.once('close', () => resolve())));
-    // A descendant that outlives the child can keep stdout open, which would hold back
-    // 'close' (and so disposal) indefinitely; once the child itself has exited, drop it.
     process.once('exit', () => process.stdout?.destroy());
     child = process;
     const read = createTailnetNotificationReader(changed);

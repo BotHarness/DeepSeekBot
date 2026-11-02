@@ -15,12 +15,6 @@ async function canListen(address: string): Promise<boolean> {
   }
 }
 
-/**
- * Real-bridge tailnet tests give each simulated Host its own loopback address, because the
- * bridge identifies a peer by its source address. Linux routes all of 127.0.0.0/8 to `lo`;
- * macOS only has 127.0.0.1 unless aliases are added (`sudo ifconfig lo0 alias 127.0.0.N`),
- * so those tests skip there instead of failing with `network-listener-unavailable`.
- */
 export async function loopbackAliasesAvailable(addresses: readonly string[]): Promise<boolean> {
   const results = await Promise.all(addresses.map(canListen));
   const missing = addresses.filter((_, index) => !results[index]);
