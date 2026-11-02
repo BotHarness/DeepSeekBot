@@ -141,8 +141,15 @@ export const SCENARIOS = [
         const refused = (await sendCalls()).find((call) => call.isError);
         throw refused ? new Error(`no reply; bot_send_message refused: ${refused.result}`) : error;
       }
-      const [first] = await sendCalls();
+      const first = await ctx.waitFor(
+        'a recorded result for the first bot_send_message call',
+        async () => {
+          const [call] = await sendCalls();
+          return call?.hasResult ? call : undefined;
+        },
+      );
       const expected = {
+        body: '42',
         attachments: [],
         binding_id: '',
         bot_id: '',
@@ -925,7 +932,12 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
     async toolCalls(key) {
       const { sessions } = await call('sessions', { slug: slugs[key] });
       const calls = [];
-      for (const { sessionId } of sessions) {
+      const ordered = [...sessions].sort(
+        (a, b) =>
+          String(a.createdAt).localeCompare(String(b.createdAt)) ||
+          a.sessionId.localeCompare(b.sessionId),
+      );
+      for (const { sessionId } of ordered) {
         const events = (await sessionSnapshot(instance, sessionId)).records.map(
           (record) => record.event,
         );
@@ -944,6 +956,7 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
           calls.push({
             name: event.data.name,
             arguments: args,
+            hasResult: result !== undefined,
             isError: result?.isError === true,
             result: (result?.content ?? []).map((part) => part.text ?? '').join(''),
           });
