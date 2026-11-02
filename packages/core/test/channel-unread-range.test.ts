@@ -125,4 +125,32 @@ describe('Channel unread revision ranges', () => {
     channels.deleteGroup(group.id);
     expect(query.unreadByChannel()).toEqual([]);
   });
+
+  it('does not count Channel notices beside eligible unread messages', async () => {
+    const dshHome = createTempRoot('channel-unread-notice-');
+    const owner = trackTestOwner(
+      mountOperationalDatabase({ dshHome, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+    );
+    const database = attachOperationalModule(owner, 'channel-unread-notice');
+    const channels = createSqliteChannelStore({ database, rootDir: dshHome });
+    const group = channels.createGroup({ name: 'Team', members: ['ada'] });
+    const dm = channels.getOrCreateDm('ada', 'Ada')!;
+    await channels.appendMessage(dm.id, {
+      id: 'bot-channel-post-notice',
+      at: '2026-11-02T00:00:00Z',
+      author: { kind: 'bot', slug: 'ada' },
+      body: '',
+      botChannelPost: { channelId: group.id, messageId: 'posted-in-team' },
+    });
+    await channels.appendMessage(dm.id, {
+      id: 'bot-message',
+      at: '2026-11-02T00:00:01Z',
+      author: { kind: 'bot', slug: 'ada' },
+      body: 'Eligible reply',
+    });
+    const query = createHumanAttentionQuery(database);
+    expect(query.unreadByChannel()).toEqual([{ channelId: dm.id, unreadCount: 1 }]);
+    await channels.markRead(dm.id, 'bot-message');
+    expect(query.unreadByChannel()).toEqual([]);
+  });
 });
