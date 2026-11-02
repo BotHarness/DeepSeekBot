@@ -782,6 +782,10 @@ _避免使用_：peer relay bus、copied inbox conversation
 在已确认的跨 Host 设计目标中，活跃 PersonaBot 发现同事并通过 Bot-to-Bot DM 沟通的成员范围，可跨越多个 Host。它建立联系资格；每个接收 Bot 仍保留自己的执行权限和私有 Memory。
 _避免使用_：共享 Memory、全局 Orchestrator、网络路线
 
+**Bot Network Participation**：
+由 Owner 控制、同时受所属 Host 与 Bot 自身参与选择约束的资格，决定 PersonaBot 是否可被发现并主动或被动参与跨 Host Bot 通信。它独立于网络可达性、已认证网络成员资格与执行权限。
+_避免使用_：在线状态、仅发现开关、Channel membership
+
 **Thread**：
 通过回复 Chat 或 Channel 中某条 message 而开启的 sub-conversation。
 _避免使用_：topic、sub-chat、channel
