@@ -454,7 +454,13 @@ export interface ChannelMessage {
   clearedAttachments?: ChannelClearedAttachment[];
   bridgeMedia?: {
     voice?: Pick<import('../messaging/provider.js').MessagingVoice, 'transcript' | 'durationMs'>;
-    items: { id: string; kind: 'image' | 'file' | 'audio'; name: string; sizeBytes?: number }[];
+    video?: { attachmentId: string; durationMs?: number; posterAttachmentId?: string };
+    items: {
+      id: string;
+      kind: 'image' | 'file' | 'audio' | 'video';
+      name: string;
+      sizeBytes?: number;
+    }[];
     parts?: import('../messaging/provider.js').MessagingContentPart[];
   };
   bridgeOrigin?: {

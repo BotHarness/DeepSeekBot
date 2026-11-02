@@ -64,18 +64,17 @@ export function bridgeChannel(
 export function bridgeAttachmentKind(
   source: ExternalSource,
   attachment: MessagingAttachment,
-): 'image' | 'audio' | 'file' | undefined {
+): 'image' | 'audio' | 'file' | 'video' | undefined {
   if (attachment.mediaType?.startsWith('image/')) return 'image';
   if (source.platform === 'qq') {
     if (source.event.voice && attachment.mediaType === 'audio/unknown') return 'audio';
     if (attachment.mediaType === 'application/octet-stream') return 'file';
   }
-  if (
-    source.platform === 'feishu' &&
-    attachment.mediaType === undefined &&
-    source.event.reply.parentId === attachment.messageId
-  )
-    return 'file';
+  if (source.platform === 'feishu' && source.event.reply.parentId === attachment.messageId) {
+    if (attachment.mediaType === undefined) return 'file';
+    if (source.event.video?.itemId === attachment.id && attachment.mediaType === 'video/unknown')
+      return 'video';
+  }
   return undefined;
 }
 
@@ -103,6 +102,19 @@ export function projectBridgeMessage(
       source.event.attachments?.some((item) => bridgeAttachmentKind(source, item) !== undefined))
       ? {
           bridgeMedia: {
+            ...(source.platform === 'feishu' && source.event.video
+              ? {
+                  video: {
+                    attachmentId: source.event.video.itemId!,
+                    ...(source.event.video.durationMs === undefined
+                      ? {}
+                      : { durationMs: source.event.video.durationMs }),
+                    ...(source.event.video.posterAttachmentId === undefined
+                      ? {}
+                      : { posterAttachmentId: source.event.video.posterAttachmentId }),
+                  },
+                }
+              : {}),
             items: (source.event.attachments ?? []).flatMap((item) => {
               const kind = bridgeAttachmentKind(source, item);
               return kind === undefined

@@ -62,6 +62,8 @@ export interface MessagingVideo {
   itemId?: string;
   reportedSizeBytes?: number;
   playLength?: number;
+  durationMs?: number;
+  posterAttachmentId?: string;
 }
 
 export interface MessagingQuote {

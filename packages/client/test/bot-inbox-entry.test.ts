@@ -730,6 +730,136 @@ it('loads checked images into their message bubble on open, retries refusals and
   }
 });
 
+it('opening a Lark video source does not acquire the video or cover before an explicit original download', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const previous = store.getSnapshot().botInbox;
+  const videoId = 'a'.repeat(64);
+  const coverId = 'b'.repeat(64);
+  store.setBotInbox({
+    status: 'ready',
+    items: [
+      {
+        ...item,
+        sourceKind: 'bridge-message',
+        externalOrigin: {
+          platform: 'feishu',
+          accountName: 'Lark QA',
+          conversationName: 'Group',
+          conversationId: 'group',
+          senderId: 'human',
+        },
+      },
+    ],
+  });
+  const source: ExternalSource = {
+    id: item.id,
+    body: 'Please inspect the quoted video',
+    platform: 'feishu',
+    accountName: 'Lark QA',
+    conversationName: 'Group',
+    at: item.createdAt,
+    grantId: 'grant',
+    grantRevision: 1,
+    event: {
+      version: 1,
+      channel: 'feishu',
+      botId: 'bot',
+      fingerprint: 'c'.repeat(64),
+      eventId: 'event',
+      messageId: 'mention',
+      actor: { kind: 'user', id: 'human' },
+      conversation: { kind: 'group', id: 'group' },
+      mentions: [],
+      mentionedAccount: true,
+      at: item.createdAt,
+      reply: {
+        messageId: 'mention',
+        conversationId: 'group',
+        actorId: 'human',
+        parentId: 'parent-video',
+      },
+      video: { itemId: videoId, durationMs: 6000, posterAttachmentId: coverId },
+      replay: { kind: 'provider-redelivery', resumeCursor: false, gapPossible: true },
+      attachments: [
+        {
+          id: videoId,
+          messageId: 'parent-video',
+          name: 'clip.mp4',
+          resourceKey: 'native-video',
+          mediaType: 'video/unknown',
+        },
+        {
+          id: coverId,
+          messageId: 'parent-video',
+          name: 'video-cover',
+          resourceKey: 'native-cover',
+          mediaType: 'image/unknown',
+        },
+      ],
+    },
+  };
+  const fetchMedia = vi.fn(async (_url: string, _request?: RequestInit) => ({
+    ok: true,
+    blob: async () => new Blob(['original'], { type: 'video/mp4' }),
+  }));
+  vi.stubGlobal('fetch', fetchMedia);
+  const originalCreate = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
+  const originalRevoke = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL');
+  Object.defineProperty(URL, 'createObjectURL', {
+    configurable: true,
+    value: () => 'blob:original',
+  });
+  Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: () => {} });
+  const clicked = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    const entry = createChannelSidebarBuiltins(zhTranslate).find(
+      (entry) => entry.id === 'bot-inbox',
+    )!;
+    await act(async () =>
+      root.render(
+        createElement(ChannelSidebarEntrySection, {
+          entry,
+          expanded: true,
+          onToggle: () => {},
+          entryProps: {
+            scope: 'personabot',
+            channelId: 'dm-ada',
+            botSlug: 'ada',
+            actions: { messagingSource: async () => source } as unknown as BridgeActions,
+            t: zhTranslate,
+          },
+        }),
+      ),
+    );
+    await act(async () => container.querySelector<HTMLButtonElement>('.bh-inbox-item')!.click());
+    expect(container.textContent).toContain('Please inspect the quoted video');
+    expect(fetchMedia).not.toHaveBeenCalled();
+    expect(container.querySelector('video')).toBeNull();
+    expect(container.querySelector('.bh-external-message-text img')).toBeNull();
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('.bh-external-source-file button')!.click(),
+    );
+    expect(fetchMedia).toHaveBeenCalledTimes(1);
+    expect(fetchMedia.mock.calls[0]?.[0]).toBe(
+      './api/botharness/attachment?slug=ada&sourceEventId=source-1&attachmentId=' + videoId,
+    );
+    expect(clicked).toHaveBeenCalledTimes(1);
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    store.setBotInbox(previous);
+    clicked.mockRestore();
+    vi.unstubAllGlobals();
+    if (originalCreate) Object.defineProperty(URL, 'createObjectURL', originalCreate);
+    else Reflect.deleteProperty(URL, 'createObjectURL');
+    if (originalRevoke) Object.defineProperty(URL, 'revokeObjectURL', originalRevoke);
+    else Reflect.deleteProperty(URL, 'revokeObjectURL');
+  }
+});
+
 it('loads checked video into its bubble without autoplay, retries refusals and preserves captions', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const previous = store.getSnapshot().botInbox;

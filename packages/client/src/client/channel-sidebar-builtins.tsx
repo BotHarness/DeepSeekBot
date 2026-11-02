@@ -220,6 +220,16 @@ function MembersBadge(): ReactElement {
   return <Tag tone="neutral">{count}</Tag>;
 }
 
+function sourcePreviewKind(
+  source: ExternalSource,
+  file: { mediaType?: string },
+): 'image' | 'video' | undefined {
+  if (source.platform === 'feishu' && source.event.video) return;
+  if (file.mediaType?.startsWith('image/')) return 'image';
+  if (source.event.video && file.mediaType?.startsWith('video/')) return 'video';
+  return;
+}
+
 export function BotInboxItemRow({
   item,
   source,
@@ -378,8 +388,8 @@ export function BotInboxItemRow({
         setExternal(source);
         for (const file of source.event.attachments ?? []) {
           if (request !== externalRequest.current) return;
-          if (file.mediaType?.startsWith('image/')) await download(file.id, file.name, true);
-          else if (source.event.video && file.mediaType?.startsWith('video/'))
+          if (sourcePreviewKind(source, file) === 'image') await download(file.id, file.name, true);
+          else if (sourcePreviewKind(source, file) === 'video')
             await download(file.id, file.name, 'video');
         }
       } catch {
@@ -396,10 +406,11 @@ export function BotInboxItemRow({
     await actions.openAround(item.sourceChannelId, item.sourceMessageId);
   };
   const imageAttachments =
-    external?.event.attachments?.filter((file) => file.mediaType?.startsWith('image/')) ?? [];
-  const videoAttachments = external?.event.video
-    ? (external.event.attachments?.filter((file) => file.mediaType?.startsWith('video/')) ?? [])
-    : [];
+    external?.event.attachments?.filter((file) => sourcePreviewKind(external, file) === 'image') ??
+    [];
+  const videoAttachments =
+    external?.event.attachments?.filter((file) => sourcePreviewKind(external, file) === 'video') ??
+    [];
   const unavailable = !memoryChange && !item.sourceAvailable;
   const chips = [
     marker === undefined ? null : (
