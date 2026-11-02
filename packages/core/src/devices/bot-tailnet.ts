@@ -1,11 +1,13 @@
 import { execFile } from 'node:child_process';
 import { isIP } from 'node:net';
+import { watchTailnet } from './bot-tailnet-watch.js';
 
 export interface TailnetMember {
   nodeId: string;
   address: string;
 }
 export interface BotTailnet {
+  watch?: typeof watchTailnet;
   snapshot(): Promise<{
     self: TailnetMember;
     peers: TailnetMember[];
@@ -64,6 +66,7 @@ export function createBotTailnet(run: (args: string[]) => Promise<unknown> = com
         !name.endsWith(`.${suffix}`) ||
         name.slice(0, -(suffix.length + 1)).includes('.') ||
         typeof peer['ID'] !== 'string' ||
+        peer['InNetworkMap'] === false ||
         peer['Online'] !== online ||
         (peer['AltSharerUserID'] !== undefined && peer['AltSharerUserID'] !== 0)
       )
@@ -82,21 +85,18 @@ export function createBotTailnet(run: (args: string[]) => Promise<unknown> = com
     if (self === undefined) throw new Error('tailnet-unavailable');
     return {
       self,
-      offlinePeers: Object.values(record(status['Peer']))
-        .flatMap((peer) => {
-          const found = member(peer, false);
-          return found ? [found] : [];
-        })
-        .slice(0, 64),
-      peers: Object.values(record(status['Peer']))
-        .flatMap((peer) => {
-          const found = member(peer);
-          return found ? [found] : [];
-        })
-        .slice(0, 64),
+      offlinePeers: Object.values(record(status['Peer'])).flatMap((peer) => {
+        const found = member(peer, false);
+        return found ? [found] : [];
+      }),
+      peers: Object.values(record(status['Peer'])).flatMap((peer) => {
+        const found = member(peer);
+        return found ? [found] : [];
+      }),
     };
   }
   return {
+    ...(run === command ? { watch: watchTailnet } : {}),
     snapshot,
     async admit(rawAddress) {
       const address = rawAddress.replace(/^::ffff:/u, '');

@@ -1646,6 +1646,7 @@ describe('bridge methods', () => {
         wakes.push(channelId + ':' + messageId);
       },
       admitBotDmMessage() {},
+      async withdrawNetworkMembership() {},
       admitGroupInvitation() {},
       admitDmMessage: () => ({ admitted: true as const, settled: Promise.resolve() }),
       listAssignments: () => [],
@@ -1707,6 +1708,7 @@ describe('bridge methods', () => {
     const { channels, attachments, methods } = setup([], ['ada'], () => ({
       admitGroupMessage() {},
       admitBotDmMessage() {},
+      async withdrawNetworkMembership() {},
       admitGroupInvitation() {},
       admitDmMessage(input) {
         admitted.push(input.body);
@@ -1771,6 +1773,7 @@ describe('bridge methods', () => {
     const { channels, methods } = setup([], ['ada'], () => ({
       admitGroupMessage() {},
       admitBotDmMessage() {},
+      async withdrawNetworkMembership() {},
       admitGroupInvitation() {},
       admitDmMessage() {
         admissions += 1;
@@ -2240,7 +2243,7 @@ describe('bridge methods', () => {
     const { methods, registry } = setup();
     methods.create({ slug: 'ada', displayName: 'Ada' });
 
-    expect(methods.channels({})).toEqual({
+    expect(await methods.channels({})).toEqual({
       ok: true,
       value: {
         channels: [
@@ -2268,7 +2271,7 @@ describe('bridge methods', () => {
     expect(again.ok && again.value.channel.name).toBe('Ada');
 
     await methods.channelSend({ channelId: 'dm-ada', body: '最新进展' });
-    const dmList = methods.channels({});
+    const dmList = await methods.channels({});
     expect(dmList.ok && dmList.value.channels[0]?.latestMessage?.body).toBe('最新进展');
 
     const group = methods.channelCreate({ name: 'Design Team', members: ['ada', 'bob'] });
@@ -2292,7 +2295,7 @@ describe('bridge methods', () => {
     });
     expect(renamedDm.ok && renamedDm.value.bot?.displayName).toBe('Ada Lovelace');
     expect(registry.get('ada')?.displayName).toBe('Ada Lovelace');
-    const listed = methods.channels({});
+    const listed = await methods.channels({});
     expect(listed.ok && listed.value.channels.map((channel) => channel.id)).toEqual([
       'group-design-team',
       'dm-ada',
@@ -2436,6 +2439,7 @@ describe('bridge methods', () => {
     const { methods } = setup([], ['ada'], (channels) => ({
       admitGroupMessage() {},
       admitBotDmMessage() {},
+      async withdrawNetworkMembership() {},
       admitGroupInvitation() {},
       admitDmMessage(input) {
         handled.push(input);
@@ -2543,6 +2547,7 @@ describe('bridge methods', () => {
     const { methods } = setup([], ['ada'], (channels) => ({
       admitGroupMessage() {},
       admitBotDmMessage() {},
+      async withdrawNetworkMembership() {},
       admitGroupInvitation() {},
       admitDmMessage(input) {
         admitted.push(input.body);
@@ -2593,6 +2598,7 @@ describe('bridge methods', () => {
     const { methods, registry, channels } = setup([], ['ada'], () => ({
       admitGroupMessage() {},
       admitBotDmMessage() {},
+      async withdrawNetworkMembership() {},
       admitGroupInvitation() {},
       admitDmMessage: () => ({ admitted: false as const, reason: 'archived-bot' as const }),
       listAssignments: () => [],
@@ -2617,6 +2623,7 @@ describe('bridge methods', () => {
     const { methods, channels } = setup([], ['ada'], () => ({
       admitGroupMessage() {},
       admitBotDmMessage() {},
+      async withdrawNetworkMembership() {},
       admitGroupInvitation() {},
       admitDmMessage: () => ({ admitted: false as const, reason: 'runtime-closed' as const }),
       listAssignments: () => [],
@@ -2732,6 +2739,7 @@ describe('bridge methods', () => {
       () => ({
         admitGroupMessage() {},
         admitBotDmMessage() {},
+        async withdrawNetworkMembership() {},
         admitGroupInvitation() {},
         admitDmMessage: () => ({ admitted: true as const, settled: Promise.resolve() }),
         listAssignments: () =>
@@ -3374,7 +3382,7 @@ it('logs why storage cleanup failed instead of hiding it behind storage-unavaila
   );
 });
 
-it('projects current network contact facts without persisting them in the Channel', () => {
+it('projects current network contact facts without persisting them in the Channel', async () => {
   const contact = {
     botId: 'remote:mac:ios',
     hostId: 'mac',
@@ -3384,7 +3392,13 @@ it('projects current network contact facts without persisting them in the Channe
     capabilities: [],
   };
   const botContacts = vi.fn(() => ({ outputLimit: 12000, contacts: [contact] }));
-  const { channels, methods } = setup([], [], () => ({ botContacts }) as unknown as BotRuntime);
+  const refreshBotContacts = vi.fn(async () => {});
+  const networkBotAvailability = vi.fn(() => 'available');
+  const { channels, methods } = setup(
+    [],
+    [],
+    () => ({ botContacts, refreshBotContacts, networkBotAvailability }) as unknown as BotRuntime,
+  );
   vi.spyOn(channels, 'list').mockReturnValue([
     {
       id: 'remote-dm',
@@ -3396,12 +3410,16 @@ it('projects current network contact facts without persisting them in the Channe
       updatedAt: '',
     },
   ]);
-  expect(methods.channels({})).toMatchObject({
+  expect(await methods.channels({})).toMatchObject({
     ok: true,
-    value: { channels: [{ remoteContact: contact }] },
+    value: { channels: [{ remoteContact: contact, remoteAvailability: 'available' }] },
   });
   expect(botContacts).toHaveBeenCalledWith('caller', { botId: 'remote:mac:ios' });
+  expect(refreshBotContacts).toHaveBeenCalledOnce();
+  expect(networkBotAvailability).toHaveBeenCalledWith('mac', 'ios');
   botContacts.mockReturnValue({ outputLimit: 12000, contacts: [] });
-  const result = methods.channels({});
+  networkBotAvailability.mockReturnValue('withdrawn');
+  const result = await methods.channels({});
   expect(result.ok && result.value.channels[0]).not.toHaveProperty('remoteContact');
+  expect(result.ok && result.value.channels[0]?.remoteAvailability).toBe('withdrawn');
 });

@@ -1,12 +1,22 @@
 # BotHarness 架构与数据流
 
+普通 LAN Bot 协作由现有 device LAN 生命周期管理：有界 IPv4 多播只广播 Host 公开身份和监听端口；候选地址取自报文来源，不授予权限。两端 Human 核对完整指纹后分别批准准确公钥，`bot-lan` 模块在现有 Operational Database 保存批准记录和每次准入的独立标识。Noise 证明身份后才开放 Bot 目录和 DM，Channel owner 保存双方准入标识并沿用 Source Event、Inbox 与共享成员退出处理。撤销会使旧准入失效，关闭监听仅表示暂时不可达。Client 与 CLI 共用经过认证的管理 API；公开 LAN 入口只承载受限的 Bot 加密协议。LAN 与 Connect 复用有界 Noise HTTP channel，并各自提供授权校验；共享 Bot network capability 选择一次发送路线，不增加补发队列。设计依据见 [ADR-0276](../adr/0276-cross-host-bot-dms-use-online-communication-without-outgoing-queues.md)，跨物理设备 LAN 验收与同机双 Host 测试分别记录于 [#3255](https://github.com/BotHarness/DeepSeekBot/issues/3255)。
+
+Connect Bot transport is mounted beside the existing Human device gateway at `/botharness-device/bots/v1`. The cloudflared loopback origin forwards only POSTs to its exact `/handshake` and `/request` paths; cookies, authorization headers, query variants and Bot-path upgrades remain refused. `ConnectAccount` owns credential access, account registration and short-lived recipient-bound grants; the relay stores only account/Host identity metadata. The limited channel proves registered keys with Noise XK, rechecks membership before contact/message handling, and hands accepted DMs to the existing Channel/Source Event/Inbox owners. The shared network capability selects one route before a send and never retries via another route. Cached grants contain no message intents. Encrypted peer refusals are definite; lost or unauthenticated acknowledgements remain unknown. Real cloud/cross-device qualification remains tracked by [#3253](https://github.com/BotHarness/DeepSeekBot/issues/3253); see [ADR-0276](../adr/0276-cross-host-bot-dms-use-online-communication-without-outgoing-queues.md).
+
 **跨 Host Bot DM（已确认目标，按切片实现）**
+
+双路由连续性复用同一个 application-defined Bot network capability：每次明确发送前刷新各 Provider 的目录与可达事实，然后只选择一个 Provider 发送。若断网已清空联系人缓存，Runtime 先查询当前目录再解析远端标识；地址缓存不提供成员权限。路线变化不改变 Host/Bot 身份、Channel 或已接收历史，失败或未知结果不会触发另一路线发送。组合路线的真实双设备验证由 [#3254](https://github.com/BotHarness/DeepSeekBot/issues/3254) 跟踪。
 
 [#3250](https://github.com/BotHarness/DeepSeekBot/issues/3250) 与 [ADR-0276](../adr/0276-cross-host-bot-dms-use-online-communication-without-outgoing-queues.md) 确定 Bot Collaboration Network：同一已验证 Tailscale tailnet 或 Tob Connect 账号内的 Host 自动发现彼此及全部活跃 Bot，普通 LAN 需明确加入范围。联系人查询返回所属设备、实际能力与公开简介，发起 Bot 自行选择同事；application-defined 设备通信桥扩展现有发消息入口，将消息交给接收 Host 原有 Channel、Source Event 与 Bot Inbox owners。执行继续使用接收 Bot 的权限、审批与 Assignment，不共享私有 Memory 或增设中央调度器。
 
 通信只在目标在线且网络可用时尝试：确定不可达返回无法送达，发送后丢失确认返回结果未知；不建立或复用持久待送队列，不自动重试，不在重连、上线或重启后补发，包括回复。Bot 按用户设定决定后续行动。已接收的 DM 历史和 Inbox 仍按现有语义保存与恢复，去重不构成补发机制。正式退出协作范围后阻止新收发和尚未开始的关系内工作；已开始的工作可按本地权限完成，但不向离开的对方回传结果。临时断网不等同于成员资格撤销。
 
 首个 Tailscale 切片由现有 device owner 持有窄目录／消息监听器，只绑定 Tailscale 地址，读取当前 daemon 成员事实并以实际 socket 来源执行 whois 校验。目录不构成发送授权；消息与确认复用既有 Host Noise 密钥和 XK 握手，证明对方持钥后才准入。首次联系在已验证 tailnet 内采用首次信任，公钥保存于现有 remote Channel participant，并按 Host 跨 Channel 原子检查后续一致性。不接收 Human 管理凭证或转发任意 API。Host 身份复用既有 pairing owner，路由只在内存中存在。Channel 保留 Host-qualified remote participant 与 remote author，Inbox 仅准入实际本地 Bot；发起端在远端认证确认后追加已接收历史。Client 通过现有 Channel 查询投影公开联系人资料，不复制远端 Bot、Memory 或管理状态。实现与验证见 [#3251](https://github.com/BotHarness/DeepSeekBot/issues/3251)，范围撤销与其他路线仍由后续切片交付。
+
+[#3252](https://github.com/BotHarness/DeepSeekBot/issues/3252) 将关系生命周期接回原有 owners：remote Channel participant 保存认证过的本机／对端 tailnet 稳定节点标识；device bridge 订阅有界的原生成员通知，即使下一次查询已显示重新加入，也先将已观察到的退出交给 BotRuntime。BotRuntime 取消原有 Inbox 中未观察、未开始副作用的待办，保留 Source Event、历史及 Human 查看路径；关系替换先完成旧待办取消，再更新 Host 绑定。临时离线不触发撤销，已开始的工作继续受本地权限控制，回复须重新验证当前成员与 Bot 资格。设备地址变化只重建该通信监听器；原生监听随 owner 关闭，失败只记录稳定拒绝码，不记录原始网络通知。公开资料每次查询刷新，既有 Client 与 CLI 投影可联系、不可达、退出范围及 Bot 不可联系状态。跨设备验收状态以该 issue 和 PR 证据为准，不从模块测试推定全部路线完成。
+
+[#3253](https://github.com/BotHarness/DeepSeekBot/issues/3253) 的共享入口沿用同一 Bot Host 身份、Noise key 与 remote Channel：认证来源可同时保存 tailnet 节点绑定及 Connect 账号／两端注册标识，更新一种来源不覆盖另一种。退出单个范围时，先以无撤销副作用的查询检查其他已认证范围，再决定是否取消关系待办；缺少来源的旧待办仍须先终止。发送前选择可用路线，开始投递后不换路重发。此结构与模块回归不代表 Connect 认证或真实通信已验收，完整结果由该切片 PR 记录。
 
 应用品牌为 Tobs（托布，Team of bots／Thousands of Bots），框架保留 BotHarness。官网域迁至 `tobs.app`；`go.tobs.app` 与旧短链域共享现有 Worker 和 D1，后台经 `ADMIN_ORIGIN` 留在原 Access 保护域。市场与统计服务接纳新官网来源；设备连接域、应用身份及既有安装入口保持兼容。见 [ADR-0248](../adr/0248-tobs-rebrands-the-product-while-preserving-existing-entry-points.md) 与 [迁移方案](../proposals/tobs-brand-migration.md)。
 

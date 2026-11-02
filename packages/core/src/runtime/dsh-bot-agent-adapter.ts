@@ -2785,7 +2785,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           if (active?.role !== 'orchestrator')
             throw new Error('list_bot_contacts: Orchestrator run is unavailable');
           return JSON.stringify(
-            active.run.channels.contacts({
+            await active.run.channels.contacts({
               ...(args.query === undefined ? {} : { query: args.query }),
               ...(args.limit === undefined ? {} : { limit: args.limit }),
               ...(args.cursor === undefined ? {} : { cursor: args.cursor }),

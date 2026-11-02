@@ -727,6 +727,13 @@ export function parseChannelRecord(value: unknown): ChannelSummary | undefined {
   )
     return undefined;
   const contact = asRecord(record['remoteContact']);
+  const availability = record['remoteAvailability'];
+  const remoteAvailability =
+    availability === 'available' ||
+    availability === 'withdrawn' ||
+    availability === 'bot-unavailable'
+      ? availability
+      : 'unavailable';
   const device = asRecord(contact?.['device']);
   const remoteContact =
     remoteBot !== undefined &&
@@ -863,6 +870,7 @@ export function parseChannelRecord(value: unknown): ChannelSummary | undefined {
     ...(typeof botSlug === 'string' ? { botSlug } : {}),
     ...(remoteBot === undefined ? {} : { remoteBot }),
     ...(remoteContact === undefined ? {} : { remoteContact }),
+    ...(remoteBot === undefined ? {} : { remoteAvailability }),
     ...(typeof record['ownerBotSlug'] === 'string' ? { ownerBotSlug: record['ownerBotSlug'] } : {}),
     ...(invitations === undefined ? {} : { invitations }),
     ...(joinRequests === undefined ? {} : { joinRequests }),

@@ -580,7 +580,11 @@ printf '{"channel_id":"dm-<bot-id>","body":"direct hello"}' | deepseekbot bot-to
 deepseekbot bot-trace <bot-id> --session direct --turns 5
 ```
 
-联系同一 Tailscale tailnet 中在线 Host 上的 Bot 时，先查询 `list_bot_contacts`。远端联系人保留独立的 `botId`、`hostId`、所属设备信息、可用能力和公开简介；无法取得的设备信息为 `null`。
+联系同一已验证 Tailscale tailnet 或已登录同一 Connect 账号的在线 Host 上的 Bot 时，先查询 `list_bot_contacts`。远端联系人保留独立的 `botId`、`hostId`、所属设备信息、可用能力和公开简介；无法取得的设备信息为 `null`。
+
+Connect 沿用相同命令与 Bot 标识；同账号 Host 之间不需要 Human 设备配对。Host 与 Relay 都必须支持 Bot 网络身份登记。退出账号或移除设备会撤销该协作范围，暂时断网只影响送达；若另一协作网络的关系仍有效，双方仍可联系。该路径只开放 Bot 联系人和消息能力，不授予 Human 设备管理权限。账号令牌过期时可以刷新并重做被认证层拒绝的控制面请求，但不会重发 Bot DM。
+
+Tailnet 和 Connect 通向同一个 Host/Bot 时，共用一个联系人和 DM。每次明确发送都会先刷新路由事实，再选择路线；如果离线期间联系人缓存已清空，本次发送会先查询当前目录。网络恢复后可直接明确发送新消息，不必先手动列出联系人。失败或结果未知的消息不会转到另一条路线重发，重启后也不会补发。
 
 ```bash
 deepseekbot bot-tool <bot-id> list_bot_contacts
@@ -590,6 +594,12 @@ printf '{"bot_id":"<contact-botId>","body":"请检查这个 iOS 问题。"}' | d
 远端文字 DM 进入接收 Bot 的普通 Inbox。接收不代表已读或完成；离线时无法送达，确认中断时可能结果不确定。设备桥不保存待发送队列、不自动重试，也不在重连后补发。决定下一步前先检查已有 Channel 历史。
 
 网络拒绝码包括：目标不可达时的 `unable-to-deliver`、网络成员或 Host 身份校验失败时的 `network-denied`，以及可能已接收但缺少认证回执时的 `delivery-unknown`。这些错误不授权自动重试。远端 `botId` 是不透明标识，应直接使用联系人查询返回的值。首次认证通信将远端 Host 公钥固定在已有 Channel 元数据中，之后密钥变化会被拒绝。`channels` 和 `channel-messages` 与只读远端 DM 视图使用同一个 Host owner，读取已接收历史。
+
+每次联系人查询都会刷新公开资料，包括新建 Bot、简介和能力变化。归档或删除 Bot 后，使用旧联系人结果发送也会被拒绝。同名新 Bot 拥有不同的 `botId` 和独立对话历史。`channels` 刷新远端对话资料并返回 `remoteAvailability`：`available`（可联系）、`unavailable`（当前路线不可达）、`withdrawn`（已退出协作范围）或 `bot-unavailable`（可达 Host 不再公开该 Bot）。这些状态不描述远端 Bot 的私有工作。
+
+缺少已认证网络成员信息的旧版远端 DM 历史仍可读取。升级时，这些关系中尚未开始的工作会因来源无法确认而停止；之后重新建立认证联系也不会重放。已经开始的本地工作继续沿用原有权限。
+
+确认退出协作范围后，已接收但尚未开始的工作会被取消；重新上线或重启 Host 不会恢复它。已开始的工作可以在本地完成，但回复仍须通过当前资格校验。显式联系第三位同事会保留因果链和 32 跳唤醒上限；一个 Host 的联系人不会自动授权另一个 Host 联系他们。
 
 Channel 和外部 IM 可通过统一发送工具发送：
 
@@ -701,6 +711,16 @@ deepseekbot compaction-threshold-set <ratio|default|keep> <headroom-tokens|defau
 三个命令都返回 `{enabled, settingReadable, minimumIdleSeconds, scheduled, routes}`。每条线路列出 `cacheLifetimeSeconds`、来源 `source` 和 `compactAfterSeconds`（跳过时为 `null`）。缓存寿命依次取自这里为该线路设置的值（`setting`）、模型目录（`catalog`，Anthropic 的短档）、观测到的请求前空闲间隔中仍大部分命中缓存的最长值（`observed`；命中的间隔不会缩短默认值，更长的未命中间隔会把它封顶），或 DeepSeek 线路的 2 小时（`default`）；其它没有任何信息的线路为 `unknown` 并跳过，寿命不足 15 分钟的也跳过。`idle-compaction-cache-set ... auto` 删除该线路的设置值。每次执行都记录在 `deepseekbot bot-activity-history <bot-id>` 的 `idleCompactions` 中，包含线路、空闲时长、压缩前后 token 数，以及压缩请求的输入、缓存读取和输出 token。拒绝时带错误码：`usage`（缺少 `on`/`off`、`<provider>/<model>` 或整数秒）和 `invalid-input`。
 
 DSH 在 Session 上下文达到“上下文窗口 × `ratio`”与“窗口 − 线路输出上限 − `headroom-tokens`”中较小者时自动压缩。`compaction-threshold-set` 修改这两个值，对本机所有 Bot 从下一步开始生效：比例 0.5–0.95（默认 0.8），余量 8192–262144 token（默认 65536）。`default` 恢复某一项默认值，`keep` 保持不变，例如 `compaction-threshold-set 0.7 keep` 只改比例。空闲压缩使用同一阈值。如果余量加上输出上限超过某个模型的上下文窗口，这个余量对该模型过大：DSH 会记录警告并跳过它的压力压缩，没有声明窗口的模型则继续使用默认余量。`idle-compaction` 在 `threshold` 下返回两者，以及 `ratioSet`/`headroomSet` 和取值范围。
+
+### 局域网 Bot 协作
+
+独立的 `approval` 字段保留之前批准的身份，即使附近 Host 广播了不同公钥；没有有效本机批准时为 `null`。旧批准仍可明确撤销，新广播的公钥不会自动替换它。
+
+在两台 Host 上分别运行 `deepseekbot device-lan enable --confirm`，启用现有加密 LAN 入口，再运行 `deepseekbot bot-lan list`。结果包含本机公开身份、附近候选主机、完整公钥指纹，以及独立的 `discovered`、`admitted`、`identityChanged` 字段。`admitted` 只表示本机已批准该准确公钥；两台 Host 必须互相批准，才能查询 Bot 联系人或发送 DM。设备名和发现广播不授予任何权限。
+
+将候选的 Host ID 和完整指纹与对方自己的 `bot-lan list` 输出逐位核对，再在两端分别运行 `deepseekbot bot-lan admit <host-id> <公钥> --confirm`。公钥可作为命令参数。准入后，所有活跃 Bot 沿用现有联系人和消息工具。撤销本机批准使用 `deepseekbot bot-lan revoke <host-id> --confirm`；已批准的主机离线时也可撤销。
+
+每条命令只返回一个 JSON 文档。拒绝码包括 `confirm-required`、`network-host-invalid`、`network-admission-invalid`、`network-candidate-unavailable`、`network-identity-changed`、`network-admission-limit`、`network-admission-unavailable`。管理入口为经过认证的 `GET`/`POST /api/botharness/devices/lan-bots`，公开 LAN 监听器不提供这个管理入口。发现使用有界的 IPv4 多播广播，30 秒未收到广播的候选会过期。不保存待发消息，不自动重发，也不在重连后回放。关闭 `device-lan` 会关闭 LAN 入口和发现，保留显式准入记录。
 
 ### 加密局域网手机连接
 

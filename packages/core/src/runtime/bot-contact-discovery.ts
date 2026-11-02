@@ -26,6 +26,7 @@ export interface BotContact {
 }
 
 export interface NetworkBotContact {
+  membership?: import('../channels/channel.js').BotNetworkMembership;
   hostKey?: string;
   hostId: string;
   botSlug: string;

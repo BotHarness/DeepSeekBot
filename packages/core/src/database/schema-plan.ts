@@ -2563,6 +2563,24 @@ const MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION: SchemaMigration = {
   },
 };
 
+const BOT_LAN_ADMISSION_MIGRATION: SchemaMigration = {
+  generation: 113,
+  module: 'bot-lan',
+  description: 'Record explicit Host-key-bound LAN Bot collaboration admissions',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE bot_lan_admissions (
+        host_id TEXT PRIMARY KEY,
+        public_key TEXT NOT NULL,
+        admission_id TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        admitted_at TEXT NOT NULL,
+        revoked_at TEXT
+      );
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2675,4 +2693,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   TOOL_RULE_AUTO_APPROVAL_COUNT_MIGRATION,
   REQUEST_ASSIGNMENT_LINK_MIGRATION,
   MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION,
+  BOT_LAN_ADMISSION_MIGRATION,
 ]);

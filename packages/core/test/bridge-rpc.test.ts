@@ -1146,10 +1146,10 @@ describe('bridge typert service', () => {
     const renamed = service.channelRename('dm-ada', 'Ada Lovelace');
     expect(renamed.channel.name).toBe('Ada Lovelace');
     expect(renamed.bot?.displayName).toBe('Ada Lovelace');
-    expect(service.channels().channels.map((channel) => channel.id)).toEqual(['dm-ada']);
+    expect((await service.channels()).channels.map((channel) => channel.id)).toEqual(['dm-ada']);
     const sent = await service.channelSend('dm-ada', 'hello');
     expect(sent.message.body).toBe('hello');
-    expect(service.channels().channels[0]?.latestMessage?.body).toBe('hello');
+    expect((await service.channels()).channels[0]?.latestMessage?.body).toBe('hello');
     expect(service.channelMessages('dm-ada').messages[0]?.body).toBe('hello');
     expect(service.assignments('ada').assignments).toEqual([]);
     expect(service.sessions('ada').sessions).toEqual([]);

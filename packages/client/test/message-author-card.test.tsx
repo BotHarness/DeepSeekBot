@@ -246,3 +246,28 @@ it('shows a remote Bot public profile without local profile or message controls'
   expect(html).not.toContain('<button');
   expect(html).not.toContain('data-state="working"');
 });
+
+it.each([
+  ['available', 'Available'],
+  ['unavailable', 'Unreachable'],
+  ['withdrawn', 'Outside collaboration network'],
+  ['bot-unavailable', 'Bot unavailable'],
+] as const)(
+  'shows the remote contact state %s without implying a local Bot was deleted',
+  (availability, label) => {
+    const html = renderToStaticMarkup(
+      createElement(MessageAuthorCardContent, {
+        model: {
+          kind: 'remote-bot',
+          peer: { hostId: 'peer', botSlug: 'bot', displayName: 'Colleague' },
+          contact: undefined,
+          availability,
+        },
+        t: enTranslate,
+      }),
+    );
+    expect(html).toContain(label);
+    expect(html).toContain('Colleague');
+    expect(html).not.toContain('<button');
+  },
+);

@@ -7,6 +7,8 @@ import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { Callout } from './ds/callout.js';
+import { LanBotSettings } from './lan-bot-settings.js';
+import type { LanBotSnapshot } from '../../../core/src/devices/bot-lan-control.js';
 import { ChoiceButton } from './ds/choice-button.js';
 import { Note } from './ds/note.js';
 import { Tooltip } from './ds/tooltip.js';
@@ -56,6 +58,7 @@ interface ConnectStatus {
 }
 
 interface DevicesSnapshot {
+  lanBots?: LanBotSnapshot;
   lan?: { state: 'off' | 'listening' | 'error'; issue?: string };
   host: { id: string; name: string };
   devices: PairedDevice[];
@@ -983,6 +986,14 @@ export function PairedDevicesSettings({
         </SettingsSection>
       ) : null}
       {section === 'devices' && manage && snapshot?.connect?.account ? connectControls : null}
+      {section === 'devices' && manage && snapshot?.lanBots ? (
+        <LanBotSettings
+          t={t}
+          snapshot={snapshot.lanBots}
+          fresh={freshSnapshot && busy === undefined}
+          onChanged={() => void load()}
+        />
+      ) : null}
       {section === 'connect' ? connectControls : null}
       {section === 'devices' ? (
         <SettingsSection title={t('devices.list.title')}>

@@ -1244,8 +1244,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.botPrimaryColorSet({ channelId, primaryColor }));
   }
 
-  channels(): { channels: ChannelListItem[] } {
-    return unwrap(this.methods.channels({}));
+  async channels(): Promise<{ channels: ChannelListItem[] }> {
+    return unwrap(await this.methods.channels({}));
   }
 
   channelDm(slug: string, displayName?: string): { channel: ChannelRecord } {

@@ -37,6 +37,7 @@ it('requires daemon-verified membership in this tailnet and a matching whois nod
             },
             lan: { ...peer, ID: 'lan', TailscaleIPs: ['192.168.1.5'] },
             offline: { ...peer, ID: 'offline', Online: false, TailscaleIPs: ['100.64.0.6'] },
+            removed: { ...peer, ID: 'removed', InNetworkMap: false, TailscaleIPs: ['100.64.0.7'] },
           },
         },
   );
@@ -46,7 +47,7 @@ it('requires daemon-verified membership in this tailnet and a matching whois nod
   ]);
   await expect(tailnet.admit('100.64.0.6')).rejects.toThrow('tailnet-peer-denied');
   expect(await tailnet.admit('100.64.0.2')).toEqual({ nodeId: 'node-b', address: '100.64.0.2' });
-  for (const address of ['100.64.0.3', '100.64.0.4', '192.168.1.5', '127.0.0.1'])
+  for (const address of ['100.64.0.3', '100.64.0.4', '100.64.0.7', '192.168.1.5', '127.0.0.1'])
     await expect(tailnet.admit(address)).rejects.toThrow('tailnet-peer-denied');
   whois = 'different-node';
   await expect(tailnet.admit('100.64.0.2')).rejects.toThrow('tailnet-peer-denied');

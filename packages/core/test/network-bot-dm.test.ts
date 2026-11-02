@@ -1,9 +1,42 @@
 import { expect, it } from 'vitest';
+import { isBotNetworkMembership } from '../src/channels/channel.js';
 import { join } from 'node:path';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
-import { attachOperationalModule } from '../src/database/owner.js';
+import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
+import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTestRegistry, registryDatabase } from './registry-fixture.js';
-import { createTempRoot } from './helpers.js';
+import { createTempRoot, trackTestOwner } from './helpers.js';
+
+it('retains authenticated network membership with the remote Channel across owner restart', () => {
+  const root = createTempRoot('network-membership-');
+  let owner = registryDatabase(root);
+  let registry = createTestRegistry({ rootDir: join(root, 'bots'), database: owner });
+  registry.create({ slug: 'local', displayName: 'Local' });
+  const open = () =>
+    createSqliteChannelStore({
+      rootDir: join(root, 'channels'),
+      database: attachOperationalModule(owner, 'channels'),
+      isBotActive: (slug) => registry.get(slug) !== undefined,
+    });
+  const membership = {
+    kind: 'tailnet' as const,
+    localNodeId: 'local-node',
+    remoteNodeId: 'peer-node',
+  };
+  const channel = open().getOrCreateRemoteBotDm('local', {
+    hostId: 'peer',
+    botSlug: 'remote',
+    displayName: 'Remote',
+    hostKey: 'a'.repeat(64),
+    membership,
+  });
+  owner.close();
+  owner = trackTestOwner(
+    mountOperationalDatabase({ dshHome: root, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+  );
+  registry = createTestRegistry({ rootDir: join(root, 'bots'), database: owner });
+  expect(open().get(channel.id)?.remoteBot?.membership).toEqual(membership);
+});
 
 it('commits a remote Bot DM to the existing Channel and recipient Inbox exactly once', async () => {
   const root = createTempRoot('network-bot-dm-');
@@ -99,4 +132,76 @@ it('commits a remote Bot DM to the existing Channel and recipient Inbox exactly 
   });
   expect(channels.message(dm.id, 'hop-limit')?.deliveries).toBeUndefined();
   expect(channels.message(dm.id, 'hop-limit')?.body).toBe(message.body);
+});
+
+it('keeps one remote conversation and three verified network bindings across route changes and restart', () => {
+  const root = createTempRoot('network-scopes-');
+  let owner = registryDatabase(root);
+  const registry = createTestRegistry({ rootDir: join(root, 'bots'), database: owner });
+  registry.create({ slug: 'local', displayName: 'Local' });
+  const open = () =>
+    createSqliteChannelStore({
+      rootDir: join(root, 'channels'),
+      database: attachOperationalModule(owner, 'channels'),
+      isBotActive: () => true,
+    });
+  const remote = {
+    hostId: 'mac-host',
+    botSlug: 'ios',
+    displayName: 'iOS',
+    hostKey: 'a'.repeat(64),
+  };
+  const tailnet = { kind: 'tailnet' as const, localNodeId: 'local-node', remoteNodeId: 'mac-node' };
+  const connect = {
+    kind: 'connect' as const,
+    accountId: 'user_qa',
+    localHostId: 'hlocal',
+    remoteHostId: 'hmac',
+  };
+  const store = open();
+  const first = store.getOrCreateRemoteBotDm('local', { ...remote, membership: tailnet });
+  const second = store.getOrCreateRemoteBotDm('local', { ...remote, membership: connect });
+  expect(second.id).toBe(first.id);
+  expect(second.remoteBot?.membership).toEqual({ kind: 'scopes', scopes: [tailnet, connect] });
+  const lan = {
+    kind: 'lan' as const,
+    localAdmissionId: '1'.repeat(32),
+    remoteAdmissionId: '2'.repeat(32),
+  };
+  const third = store.getOrCreateRemoteBotDm('local', { ...remote, membership: lan });
+  expect(third.id).toBe(first.id);
+  expect(third.remoteBot?.membership).toEqual({ kind: 'scopes', scopes: [tailnet, connect, lan] });
+  const changedTailnet = { ...tailnet, remoteNodeId: 'new-mac-node' };
+  store.trustRemoteHostKey!('mac-host', remote.hostKey, changedTailnet);
+  const readmittedLan = { ...lan, localAdmissionId: '3'.repeat(32) };
+  store.trustRemoteHostKey!('mac-host', remote.hostKey, readmittedLan);
+  owner.close();
+  owner = trackTestOwner(
+    mountOperationalDatabase({ dshHome: root, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+  );
+  expect(open().list()).toHaveLength(1);
+  expect(open().get(first.id)?.remoteBot).toMatchObject({
+    hostId: 'mac-host',
+    hostKey: remote.hostKey,
+    membership: { kind: 'scopes', scopes: [changedTailnet, connect, readmittedLan] },
+  });
+});
+
+it('rejects incomplete, duplicate or nested collaboration scope provenance', () => {
+  const tailnet = { kind: 'tailnet', localNodeId: 'local', remoteNodeId: 'peer' };
+  const connect = {
+    kind: 'connect',
+    accountId: 'user_qa',
+    localHostId: 'local',
+    remoteHostId: 'peer',
+  };
+  expect(isBotNetworkMembership(tailnet)).toBe(true);
+  expect(isBotNetworkMembership(connect)).toBe(true);
+  for (const invalid of [
+    { ...connect, accountId: '' },
+    { ...connect, remoteHostId: undefined },
+    { kind: 'scopes', scopes: [tailnet, tailnet] },
+    { kind: 'scopes', scopes: [tailnet, { kind: 'scopes', scopes: [tailnet, connect] }] },
+  ])
+    expect(isBotNetworkMembership(invalid)).toBe(false);
 });

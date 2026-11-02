@@ -17,12 +17,29 @@ import type { BotSummary, ChannelSummary } from './store.js';
 
 export const MESSAGE_AUTHOR_CARD_DELAY_MS = 350;
 
+export function networkContactAvailabilityLabel(
+  availability: ChannelSummary['remoteAvailability'],
+  t: BotHarnessTranslate,
+): string {
+  switch (availability) {
+    case 'available':
+      return t('networkContact.available');
+    case 'withdrawn':
+      return t('networkContact.withdrawn');
+    case 'bot-unavailable':
+      return t('networkContact.botUnavailable');
+    default:
+      return t('networkContact.unreachable');
+  }
+}
+
 export type MessageAuthorCardModel =
   | { kind: 'human'; name: string }
   | {
       kind: 'remote-bot';
       peer: NonNullable<ChannelSummary['remoteBot']>;
       contact: ChannelSummary['remoteContact'];
+      availability?: ChannelSummary['remoteAvailability'];
     }
   | {
       kind: 'bot';
@@ -82,6 +99,7 @@ export function MessageAuthorCardContent({
   if (model.kind === 'remote-bot') {
     const unavailable = t('networkContact.unavailable');
     const fields = [
+      [t('message.authorCard.status'), networkContactAvailabilityLabel(model.availability, t)],
       [t('networkContact.host'), model.peer.hostId],
       [t('networkContact.bot'), model.peer.botSlug],
       [t('networkContact.model'), model.contact?.device.model ?? unavailable],

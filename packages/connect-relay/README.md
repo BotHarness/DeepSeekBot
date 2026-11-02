@@ -18,7 +18,17 @@ Every route except `/v1/config` takes `Authorization: Bearer <WorkOS access toke
 
 Every account signed in to TOB's WorkOS environment may use the relay, up to `MAX_HOSTS` Hosts each. Setting the optional `ALLOWED_USERS` secret (comma-separated WorkOS user IDs) restricts it to those accounts, and others answer `403 account-not-allowed`; a bad, expired or foreign token answers `401 unauthorized`.
 
-Two limits keep open sign-up inside Cloudflare's quota. A Host whose tunnel would push the relay past `MAX_TUNNELS` live tunnels answers `503 relay-full`, and a `POST` beyond the `CONNECT_LIMIT` rate answers `429 rate-limited`. That rate (20 per account per minute) is approximate: Cloudflare counts it per location and its counters are eventually consistent, so it slows churn rather than enforcing an exact quota. `DELETE` is never limited, so a Host can always unlink.
+Two limits keep open sign-up inside Cloudflare's quota. A Host whose tunnel would push the relay past `MAX_TUNNELS` live tunnels answers `503 relay-full`, and a `POST` beyond the `CONNECT_LIMIT` rate answers `429 rate-limited`. Human operations use an account key; Bot identity/grant operations use a separate account-and-owned-Host key after the ownership check. Both keys have a configured rate of 20 per minute. The rate is approximate: Cloudflare counts it per location and its counters are eventually consistent, so it slows churn rather than enforcing an exact quota. `DELETE` is never limited, so a Host can always unlink.
+
+## Bot collaboration control plane
+
+`POST /v1/hosts/{id}/bot-network` registers `{ hostId, publicKey, issuedAt, proof }` for a Host already owned by the authenticated account. `hostId` is the existing stable Bot Host identity, not the Connect registration ID. The proof is base64url HMAC-SHA256 with that registration's `relayKey` over the exact JSON object `{ purpose: "bot-network-registration-v1", connectHostId: id, hostId, publicKey, issuedAt }` in that property order. The request is limited to 4096 bytes and the timestamp must be within 60 seconds. The identity/key pair is immutable for a registration; another registration in the same account cannot claim the same identity. A successful repeat is idempotent. The response is `{ host }`; `GET /v1/hosts` adds `botNetwork: { hostId, publicKey }` only for registered identities.
+
+`POST /v1/hosts/{id}/bot-network/grant` takes `{ recipientId, issuedAt, nonce, proof }`. The sender proves its registration key over `{ purpose: "bot-network-grant-v1", connectHostId: id, recipientId, issuedAt, nonce }`. Both registrations must currently exist in the verified account and have Bot identities. The reply is `{ grant: { payload, signature } }`, where `payload` is the JSON string `{ purpose: "bot-network-peer-v1", account, sender: { id, hostId, publicKey }, recipient: { id, hostId, publicKey }, issuedAt, nonce }`; `signature` is HMAC-SHA256 with the recipient registration's key. The nonce is 32–128 safe identifier characters. These are Bot capability proofs, never Human pairing offers or management credentials.
+
+Receivers must verify the signature, purpose, intended recipient, account and freshness, recheck current account registrations before admission, and require the sender's Noise key proof. A signed grant alone is not proof of current membership after unlink. This control plane stores only Host identity metadata alongside existing Host links, not Bot directories, message bodies, transcripts or pending sends. No production transport qualification is implied by control-plane unit tests.
+
+Refusals include `invalid-bot-identity` / `invalid-bot-peer` (400), `bot-host-proof-invalid` (403), `host-not-found` (404), `bot-host-unregistered` / `bot-host-identity-conflict` (409), and `bot-network-unavailable` (503). Existing account authorization applies. Bot identity/grant POSTs use the owned Host rate budget, preserving the Human account budget. Grant caching on the Host reduces control-plane traffic; cached grants still require current registration membership and Noise proof for each message.
 
 ## Reclamation
 
@@ -41,7 +51,7 @@ Each run lists the account's tunnels once (100 per page, at most 10 pages) and a
 | `CONNECT_ZONE`          | var    | Tunnel zone, `deepseekbot.dev`                                                                                                                                   |
 | `MAX_HOSTS`             | var    | Hosts per account, `5`                                                                                                                                           |
 | `MAX_TUNNELS`           | var    | Live tunnels across all accounts, `900` (Cloudflare allows 1,000)                                                                                                |
-| `CONNECT_LIMIT`         | limit  | Approximate per-location rate limit on `POST`, keyed by account; unbound: no limit                                                                               |
+| `CONNECT_LIMIT`         | limit  | Approximate per-location rate limit on `POST`, keyed by account for Human operations, and account + owned Host for Bot credentials; unbound: no limit            |
 | `RECLAIM_AFTER_MINUTES` | var    | Offline minutes before a tunnel is deleted, `5`                                                                                                                  |
 
 Without the four secrets every route answers `503 relay-unconfigured`. The Worker is served at `connect.botharness.ai`, never on a subdomain of the tunnel zone.

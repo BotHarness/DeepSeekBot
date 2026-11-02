@@ -15,6 +15,7 @@ export interface RelayOptions {
   maxTunnels: number;
   reclaimAfterMs: number;
   limit?: (account: string) => Promise<boolean>;
+  limitBot?: (account: string, hostId: string) => Promise<boolean>;
   deleteUser?: (account: string) => Promise<void>;
   deleteMarketplaceAuthor?: (accessToken: string) => Promise<void>;
   hostKey?: (hostId: string) => Promise<string>;
@@ -32,6 +33,8 @@ interface HostRow {
   tunnel_created_at: string | null;
   dns_record_id: string | null;
   origin_port: number | null;
+  bot_host_id: string | null;
+  bot_public_key: string | null;
 }
 
 const HOST_ID = /^h[a-z2-7]{12}$/u;
@@ -60,6 +63,22 @@ export async function hmac(key: string, message: string): Promise<string> {
   return base64Url(await crypto.subtle.sign('HMAC', imported, new TextEncoder().encode(message)));
 }
 
+async function verifyBotProof(key: string, proof: unknown, statement: string): Promise<boolean> {
+  if (typeof proof !== 'string' || !/^[A-Za-z0-9_-]{43}$/u.test(proof)) return false;
+  const imported = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(key),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['verify'],
+  );
+  const signature = Uint8Array.from(
+    atob(proof.replaceAll('-', '+').replaceAll('_', '/') + '='),
+    (c) => c.charCodeAt(0),
+  );
+  return crypto.subtle.verify('HMAC', imported, signature, new TextEncoder().encode(statement));
+}
+
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -71,9 +90,36 @@ function failure(status: number, code: string): Response {
   return json(status, { error: { code } });
 }
 
-async function readBody(request: Request): Promise<Record<string, unknown> | undefined> {
+async function readBody(
+  request: Request,
+  limit?: number,
+): Promise<Record<string, unknown> | undefined> {
   try {
-    const body: unknown = await request.json();
+    let body: unknown;
+    if (limit === undefined) body = await request.json();
+    else {
+      const reader = request.body?.getReader();
+      if (reader === undefined) return undefined;
+      const decoder = new TextDecoder();
+      let text = '';
+      let size = 0;
+      try {
+        for (;;) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          size += chunk.value.byteLength;
+          if (size > limit) {
+            await reader.cancel();
+            return undefined;
+          }
+          text += decoder.decode(chunk.value, { stream: true });
+        }
+        text += decoder.decode();
+      } finally {
+        reader.releaseLock();
+      }
+      body = JSON.parse(text);
+    }
     return typeof body === 'object' && body !== null && !Array.isArray(body)
       ? (body as Record<string, unknown>)
       : undefined;
@@ -117,6 +163,11 @@ export function createRelay(options: RelayOptions) {
     hostname: hostname(row.id),
     createdAt: row.created_at,
     tunnel: row.tunnel_id !== null,
+    ...(row.bot_host_id == null || row.bot_public_key == null
+      ? {}
+      : {
+          botNetwork: { hostId: row.bot_host_id, publicKey: row.bot_public_key },
+        }),
   });
 
   const owned = (id: string, account: string) =>
@@ -178,6 +229,112 @@ export function createRelay(options: RelayOptions) {
         ? {}
         : { account: current.account, relayKey: await options.hostKey(current.id) }),
     };
+  };
+
+  const registerBotNetwork = async (row: HostRow, request: Request) => {
+    if (options.hostKey === undefined) return failure(503, 'bot-network-unavailable');
+    const body = await readBody(request, 4096);
+    const { hostId, publicKey, issuedAt, proof } = body ?? {};
+    if (
+      typeof hostId !== 'string' ||
+      !/^[a-zA-Z0-9_-]{1,128}$/u.test(hostId) ||
+      typeof publicKey !== 'string' ||
+      !/^[a-f0-9]{64}$/u.test(publicKey) ||
+      typeof issuedAt !== 'string' ||
+      issuedAt.length > 40
+    )
+      return failure(400, 'invalid-bot-identity');
+    if (
+      typeof proof !== 'string' ||
+      !/^[A-Za-z0-9_-]{43}$/u.test(proof) ||
+      !(Math.abs(now().getTime() - Date.parse(issuedAt)) <= 60_000)
+    )
+      return failure(403, 'bot-host-proof-invalid');
+    const statement = JSON.stringify({
+      purpose: 'bot-network-registration-v1',
+      connectHostId: row.id,
+      hostId,
+      publicKey,
+      issuedAt,
+    });
+    if (!(await verifyBotProof(await options.hostKey(row.id), proof, statement)))
+      return failure(403, 'bot-host-proof-invalid');
+    if (row.bot_host_id != null && (row.bot_host_id !== hostId || row.bot_public_key !== publicKey))
+      return failure(409, 'bot-host-identity-conflict');
+    const duplicate = await db
+      .prepare('SELECT id FROM hosts WHERE account = ? AND bot_host_id = ? AND id != ?')
+      .bind(row.account, hostId, row.id)
+      .first();
+    if (duplicate !== null) return failure(409, 'bot-host-identity-conflict');
+    try {
+      const updated = changes(
+        await db
+          .prepare(`UPDATE hosts SET bot_host_id = ?, bot_public_key = ?
+        WHERE id = ? AND account = ? AND (bot_host_id IS NULL OR (bot_host_id = ? AND bot_public_key = ?))`)
+          .bind(hostId, publicKey, row.id, row.account, hostId, publicKey)
+          .run(),
+      );
+      if (updated === 0) return failure(409, 'bot-host-identity-conflict');
+    } catch {
+      const conflict = await db
+        .prepare('SELECT id FROM hosts WHERE account = ? AND bot_host_id = ? AND id != ?')
+        .bind(row.account, hostId, row.id)
+        .first();
+      return conflict === null
+        ? failure(503, 'bot-network-unavailable')
+        : failure(409, 'bot-host-identity-conflict');
+    }
+    const registered = await owned(row.id, row.account);
+    return registered === null
+      ? failure(404, 'host-not-found')
+      : json(200, { host: view(registered) });
+  };
+
+  const botNetworkGrant = async (sender: HostRow, request: Request) => {
+    if (options.hostKey === undefined) return failure(503, 'bot-network-unavailable');
+    if (sender.bot_host_id == null || sender.bot_public_key == null)
+      return failure(409, 'bot-host-unregistered');
+    const { recipientId, issuedAt, nonce, proof } = (await readBody(request, 4096)) ?? {};
+    if (
+      typeof recipientId !== 'string' ||
+      !HOST_ID.test(recipientId) ||
+      typeof issuedAt !== 'string' ||
+      issuedAt.length > 40 ||
+      typeof nonce !== 'string' ||
+      !/^[a-zA-Z0-9_-]{32,128}$/u.test(nonce)
+    )
+      return failure(400, 'invalid-bot-peer');
+    const statement = JSON.stringify({
+      purpose: 'bot-network-grant-v1',
+      connectHostId: sender.id,
+      recipientId,
+      issuedAt,
+      nonce,
+    });
+    if (
+      !(Math.abs(now().getTime() - Date.parse(issuedAt)) <= 60_000) ||
+      !(await verifyBotProof(await options.hostKey(sender.id), proof, statement))
+    )
+      return failure(403, 'bot-host-proof-invalid');
+    const recipient = await owned(recipientId, sender.account);
+    if (recipient === null || recipient.bot_host_id == null || recipient.bot_public_key == null)
+      return failure(404, 'host-not-found');
+    const identity = (row: HostRow) => ({
+      id: row.id,
+      hostId: row.bot_host_id,
+      publicKey: row.bot_public_key,
+    });
+    const payload = JSON.stringify({
+      purpose: 'bot-network-peer-v1',
+      account: sender.account,
+      sender: identity(sender),
+      recipient: identity(recipient),
+      issuedAt: now().toISOString(),
+      nonce,
+    });
+    return json(200, {
+      grant: { payload, signature: await hmac(await options.hostKey(recipient.id), payload) },
+    });
   };
 
   const unlink = async (row: HostRow) => {
@@ -275,7 +432,15 @@ export function createRelay(options: RelayOptions) {
         .first()) !== null
     )
       return failure(401, 'unauthorized');
-    if (request.method === 'POST' && options.limit !== undefined && !(await options.limit(account)))
+    const botCredential =
+      options.limitBot !== undefined &&
+      /^\/v1\/hosts\/h[a-z2-7]{12}\/bot-network(?:\/grant)?$/u.test(new URL(request.url).pathname);
+    if (
+      request.method === 'POST' &&
+      !botCredential &&
+      options.limit !== undefined &&
+      !(await options.limit(account))
+    )
       return failure(429, 'rate-limited');
     return account;
   };
@@ -291,9 +456,10 @@ export function createRelay(options: RelayOptions) {
         zone: options.zone,
       });
     }
-    const hostMatch = /^\/v1\/hosts\/([^/]+)(\/tunnel|\/offer|\/live-activity)?$/u.exec(
-      url.pathname,
-    );
+    const hostMatch =
+      /^\/v1\/hosts\/([^/]+)(\/tunnel|\/offer|\/live-activity|\/bot-network(?:\/grant)?)?$/u.exec(
+        url.pathname,
+      );
     if (url.pathname !== '/v1/hosts' && url.pathname !== '/v1/account' && hostMatch === null)
       return failure(404, 'not-found');
     const account = await authorized(request);
@@ -340,6 +506,23 @@ export function createRelay(options: RelayOptions) {
     const id = hostMatch?.[1] ?? '';
     const row = HOST_ID.test(id) ? await owned(id, account) : null;
     if (row === null) return failure(404, 'host-not-found');
+    if (
+      request.method === 'POST' &&
+      (hostMatch?.[2] === '/bot-network' || hostMatch?.[2] === '/bot-network/grant') &&
+      options.limitBot !== undefined &&
+      !(await options.limitBot(account, row.id))
+    )
+      return failure(429, 'rate-limited');
+
+    if (hostMatch?.[2] === '/bot-network/grant') {
+      if (request.method !== 'POST') return failure(405, 'method-not-allowed');
+      return botNetworkGrant(row, request);
+    }
+
+    if (hostMatch?.[2] === '/bot-network') {
+      if (request.method !== 'POST') return failure(405, 'method-not-allowed');
+      return registerBotNetwork(row, request);
+    }
 
     if (hostMatch?.[2] === '/live-activity') return activity(id, row.name, request);
 

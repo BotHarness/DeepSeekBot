@@ -22,6 +22,7 @@ it('keeps a remote Bot conversation in the existing Human read-only DM surface',
     remoteBot: { hostId: 'host_a', botSlug: 'ios', displayName: 'iOS colleague' },
   });
   expect(channel?.remoteBot?.hostId).toBe('host_a');
+  expect(channel?.remoteAvailability).toBe('unavailable');
   expect(isHumanReadOnlyDmChannel(channel)).toBe(true);
   expect(botDmTitle(channel!, [])).toBe('caller ↔ iOS colleague');
   expect(
@@ -29,6 +30,40 @@ it('keeps a remote Bot conversation in the existing Human read-only DM surface',
       String(args?.name),
     ),
   ).toBe('iOS colleague');
+});
+
+it.each(['available', 'unavailable', 'withdrawn', 'bot-unavailable'] as const)(
+  'retains the Host contact state %s without removing conversation history',
+  (remoteAvailability) => {
+    const channel = parseChannelRecord({
+      id: 'dm-remote-test',
+      type: 'dm',
+      name: 'Colleague',
+      members: ['caller'],
+      remoteBot: { hostId: 'peer', botSlug: 'ios', displayName: 'Colleague' },
+      remoteAvailability,
+    });
+    expect(channel?.remoteAvailability).toBe(remoteAvailability);
+    expect(channel?.id).toBe('dm-remote-test');
+    expect(isHumanReadOnlyDmChannel(channel)).toBe(true);
+  },
+);
+
+it('does not treat unknown wire state as permission to contact a remote Bot', () => {
+  const record = {
+    id: 'dm-remote-test',
+    type: 'dm',
+    name: 'Colleague',
+    members: ['caller'],
+    remoteAvailability: 'working',
+  };
+  expect(
+    parseChannelRecord({
+      ...record,
+      remoteBot: { hostId: 'peer', botSlug: 'ios', displayName: 'Colleague' },
+    })?.remoteAvailability,
+  ).toBe('unavailable');
+  expect(parseChannelRecord(record)?.remoteAvailability).toBeUndefined();
 });
 
 it('projects only matching public remote contact facts into the conversation', () => {

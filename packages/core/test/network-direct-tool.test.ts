@@ -5,6 +5,58 @@ import type { NetworkBotMessage } from '../src/runtime/bot-network.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { createTempRoot } from './helpers.js';
 
+it('refreshes remote public facts on every direct contact query, including removal', async () => {
+  let published = [
+    {
+      hostId: 'peer',
+      botSlug: 'colleague',
+      displayName: 'Colleague',
+      description: 'iOS development',
+      device: { model: null, platform: 'darwin' },
+      capabilities: [],
+    },
+  ];
+  let cached: typeof published = [];
+  const core = createCore({
+    dshHome: createTempRoot('network-fresh-contacts-'),
+    agents: createDshBotAgentAdapter({
+      agents: new FakeAgentHost({ kind: 'completed' }),
+      orchestratorCwd: () => '/memory',
+      ensureWorkspace: () => undefined,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+    }),
+    botNetwork: {
+      contacts: () => cached,
+      async refresh() {
+        cached = published;
+      },
+      async send() {},
+    },
+  });
+  try {
+    core.registry.create({ slug: 'caller', displayName: 'Caller' });
+    const query = () =>
+      core.runtime.runDirectBotTool!(
+        'caller',
+        'list_bot_contacts',
+        {},
+        new AbortController().signal,
+      );
+    expect((await query()).result).toMatchObject({
+      contacts: [{ description: 'iOS development' }],
+    });
+    published = [{ ...published[0]!, description: 'iOS bug investigation' }];
+    expect((await query()).result).toMatchObject({
+      contacts: [{ description: 'iOS bug investigation' }],
+    });
+    published = [];
+    expect((await query()).result).toMatchObject({ contacts: [] });
+  } finally {
+    await core.runtime.close();
+    core.operationalDatabase.close();
+  }
+}, 60_000);
+
 it('requires an owned admitted Source Event for a model-free remote Bot send', async () => {
   const host = new FakeAgentHost({ kind: 'completed' });
   const sent: NetworkBotMessage[] = [];

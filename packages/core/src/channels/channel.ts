@@ -72,7 +72,74 @@ export interface ChannelRecord {
   updatedAt: string;
 }
 
+export interface TailnetBotMembership {
+  kind: 'tailnet';
+  localNodeId: string;
+  remoteNodeId: string;
+}
+
+export interface ConnectBotMembership {
+  kind: 'connect';
+  accountId: string;
+  localHostId: string;
+  remoteHostId: string;
+}
+
+export interface LanBotMembership {
+  kind: 'lan';
+  localAdmissionId: string;
+  remoteAdmissionId: string;
+}
+
+export type BotNetworkScope = TailnetBotMembership | ConnectBotMembership | LanBotMembership;
+export type BotNetworkMembership = BotNetworkScope | { kind: 'scopes'; scopes: BotNetworkScope[] };
+
+function isBotNetworkScope(value: unknown): value is BotNetworkScope {
+  if (typeof value !== 'object' || value === null) return false;
+  const record = value as Record<string, unknown>;
+  const id = (field: string) =>
+    typeof record[field] === 'string' && /^[a-zA-Z0-9_-]{1,128}$/u.test(record[field]);
+  return record['kind'] === 'tailnet'
+    ? id('localNodeId') && id('remoteNodeId')
+    : record['kind'] === 'connect'
+      ? id('accountId') && id('localHostId') && id('remoteHostId')
+      : record['kind'] === 'lan' && id('localAdmissionId') && id('remoteAdmissionId');
+}
+
+export function isBotNetworkMembership(value: unknown): value is BotNetworkMembership {
+  if (isBotNetworkScope(value)) return true;
+  if (typeof value !== 'object' || value === null) return false;
+  const record = value as Record<string, unknown>;
+  const scopes = record['scopes'];
+  return (
+    record['kind'] === 'scopes' &&
+    Array.isArray(scopes) &&
+    scopes.length >= 2 &&
+    scopes.length <= 3 &&
+    scopes.every(isBotNetworkScope) &&
+    new Set(scopes.map((scope) => scope.kind)).size === scopes.length
+  );
+}
+
+export function botNetworkScopes(membership: BotNetworkMembership): readonly BotNetworkScope[] {
+  return membership.kind === 'scopes' ? membership.scopes : [membership];
+}
+
+export function mergeBotNetworkMembership(
+  previous: BotNetworkMembership | undefined,
+  next: BotNetworkMembership,
+): BotNetworkMembership {
+  const scopes = new Map<BotNetworkScope['kind'], BotNetworkScope>();
+  for (const scope of previous === undefined ? [] : botNetworkScopes(previous))
+    scopes.set(scope.kind, scope);
+  for (const scope of botNetworkScopes(next)) scopes.set(scope.kind, scope);
+  return scopes.size === 1
+    ? [...scopes.values()][0]!
+    : { kind: 'scopes', scopes: [...scopes.values()] };
+}
+
 export interface RemoteBotParticipant {
+  membership?: BotNetworkMembership;
   hostKey?: string;
   hostId: string;
   botSlug: string;
@@ -89,6 +156,8 @@ export function remoteBotDmRecord(
     !isValidSlug(remoteBot.botSlug) ||
     !/^[a-zA-Z0-9_-]{1,128}$/u.test(remoteBot.hostId) ||
     remoteBot.displayName.length > 128 ||
+    (remoteBot.membership !== undefined &&
+      (!isBotNetworkMembership(remoteBot.membership) || remoteBot.hostKey === undefined)) ||
     (remoteBot.hostKey !== undefined && !/^[0-9a-f]{64}$/u.test(remoteBot.hostKey))
   )
     throw new Error('Invalid remote Bot participant');
@@ -105,6 +174,7 @@ export function remoteBotDmRecord(
       botSlug: remoteBot.botSlug,
       displayName: remoteBot.displayName,
       ...(remoteBot.hostKey === undefined ? {} : { hostKey: remoteBot.hostKey }),
+      ...(remoteBot.membership === undefined ? {} : { membership: { ...remoteBot.membership } }),
     },
     createdAt: at,
     updatedAt: at,
@@ -518,6 +588,8 @@ export function isChannelRecord(value: unknown, id: string): value is ChannelRec
       !isValidSlug(peer['botSlug']) ||
       typeof peer['displayName'] !== 'string' ||
       peer['displayName'].length > 128 ||
+      (peer['membership'] !== undefined &&
+        (!isBotNetworkMembership(peer['membership']) || peer['hostKey'] === undefined)) ||
       (peer['hostKey'] !== undefined &&
         (typeof peer['hostKey'] !== 'string' || !/^[0-9a-f]{64}$/u.test(peer['hostKey'])))
     )
