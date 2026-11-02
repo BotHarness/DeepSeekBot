@@ -491,6 +491,7 @@ export interface DiagnosticLogHttpOptions {
   homes: ReadonlyArray<{ path: string; label: string }>;
   now?: () => number;
   log?: (message: string) => void;
+  onClientEntries?: (session: string, entries: readonly ClientLogEntry[]) => void;
 }
 
 const HEADERS = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' };
@@ -685,6 +686,7 @@ export function createDiagnosticLogHttp(options: DiagnosticLogHttpOptions) {
             }),
           );
         writer.write(rows);
+        options.onClientEntries?.(batch.session, batch.entries.slice(0, granted));
         return Response.json({ ok: true, accepted: granted }, { headers: HEADERS });
       }
       if (request.method !== 'GET') return new Response(null, { status: 405, headers: HEADERS });
@@ -752,6 +754,7 @@ export function mountDiagnosticLog(
     dshHome: string;
     homes: ReadonlyArray<{ path: string; label: string }>;
     environment: () => DiagnosticLogEnvironment;
+    onClientEntries?: (session: string, entries: readonly ClientLogEntry[]) => void;
   },
 ): DiagnosticEvents {
   let database: LogDatabase | undefined;
@@ -806,6 +809,9 @@ export function mountDiagnosticLog(
       environment: options.environment(),
       homes: options.homes,
       log: (message) => child.logger.info(message),
+      ...(options.onClientEntries === undefined
+        ? {}
+        : { onClientEntries: options.onClientEntries }),
     });
     for (const [path, methods] of DIAGNOSTIC_LOG_ROUTES)
       child.effect(
