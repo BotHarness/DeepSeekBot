@@ -10,7 +10,7 @@ import {
 import { clientLog, DIAGNOSTIC_LOGS_ENDPOINT, logClient } from './diagnostic-log.js';
 import { EmptyState } from './ds/empty-state.js';
 import { PanelDialog } from './ds/panel-dialog.js';
-import { color, radius, space, text } from './ds/tokens.stylex.js';
+import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 
@@ -82,7 +82,7 @@ const styles = stylex.create({
     alignItems: 'baseline',
     paddingBlock: space.x2,
     paddingInline: space.x4,
-    borderBottomWidth: '1px',
+    borderBottomWidth: border.hairline,
     borderBottomStyle: 'solid',
     borderBottomColor: color.divider,
     fontSize: text.metaSize,
