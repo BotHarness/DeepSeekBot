@@ -3703,8 +3703,9 @@ export async function loadTimelinePage(
 export async function loadReadPosition(
   call: BridgeCall,
   channelId: string,
+  signal?: AbortSignal,
 ): Promise<string | undefined> {
-  const value = asRecord(await unwrap(call, 'channelReadPosition', { channelId }));
+  const value = asRecord(await unwrap(call, 'channelReadPosition', { channelId }, signal));
   const position = value?.['position'];
   if (position === undefined) return undefined;
   const messageId = asRecord(position)?.['messageId'];

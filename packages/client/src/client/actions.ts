@@ -1517,33 +1517,44 @@ export function createActions(
     }
   };
   const loadOpeningTimeline = async (channelId: string, active: ConversationSelection) => {
-    const anchor = await loadReadPosition(call, channelId);
-    if (currentSelection() !== active) return;
-    if (anchor !== undefined) {
-      try {
-        const opened = await loadTimelinePage(call, channelId, {
-          direction: 'around',
-          around: anchor,
-        });
-        return {
-          ...opened,
-          focusMessageId: undefined,
-          unreadAfterMessageId: unreadAfterAnchor(
-            opened.page.entries,
-            anchor,
-            opened.page.hasNewer,
-          ),
-        };
-      } catch (error) {
-        if (!(error instanceof BridgeCallError) || error.code !== 'invalid-input') throw error;
+    const controller = new AbortController();
+    const unsubscribe = clientStore.subscribe(() => {
+      if (currentSelection() !== active) controller.abort();
+    });
+    try {
+      if (currentSelection() !== active) return;
+      const anchor = await loadReadPosition(call, channelId, controller.signal);
+      if (currentSelection() !== active) return;
+      if (anchor !== undefined) {
+        try {
+          const opened = await loadTimelinePage(
+            call,
+            channelId,
+            { direction: 'around', around: anchor },
+            controller.signal,
+          );
+          return {
+            ...opened,
+            focusMessageId: undefined,
+            unreadAfterMessageId: unreadAfterAnchor(
+              opened.page.entries,
+              anchor,
+              opened.page.hasNewer,
+            ),
+          };
+        } catch (error) {
+          if (!(error instanceof BridgeCallError) || error.code !== 'invalid-input') throw error;
+        }
       }
+      if (currentSelection() !== active) return;
+      return {
+        ...(await loadTimelinePage(call, channelId, {}, controller.signal)),
+        focusMessageId: undefined,
+        unreadAfterMessageId: undefined,
+      };
+    } finally {
+      unsubscribe();
     }
-    if (currentSelection() !== active) return;
-    return {
-      ...(await loadTimelinePage(call, channelId)),
-      focusMessageId: undefined,
-      unreadAfterMessageId: undefined,
-    };
   };
   const refreshUnreadDivider = async (
     channelId: string,
