@@ -48,6 +48,9 @@ const styles = stylex.create({
     overflow: 'hidden',
     textOverflow: 'ellipsis',
   },
+  collapsedLabel: {
+    display: { default: 'block', '@container composer-footer (max-width: 480px)': 'none' },
+  },
   wrapLabel: {
     overflow: 'visible',
     overflowWrap: 'anywhere',
@@ -62,12 +65,13 @@ export interface ChipButtonProps extends Omit<
   readonly icon?: ReactNode;
   readonly label: ReactNode;
   readonly wrap?: boolean;
+  readonly collapseLabel?: boolean;
   readonly trailing?: boolean;
   readonly [data: `data-${string}`]: string | boolean | undefined;
 }
 
 export const ChipButton = forwardRef<HTMLButtonElement, ChipButtonProps>(function ChipButton(
-  { icon, label, wrap = false, trailing = false, type = 'button', ...rest },
+  { icon, label, wrap = false, collapseLabel = false, trailing = false, type = 'button', ...rest },
   ref,
 ) {
   return (
@@ -75,6 +79,10 @@ export const ChipButton = forwardRef<HTMLButtonElement, ChipButtonProps>(functio
       ref={ref}
       type={type}
       {...rest}
+      aria-label={
+        rest['aria-label'] ?? (collapseLabel && typeof label === 'string' ? label : undefined)
+      }
+      title={rest.title ?? (collapseLabel && typeof label === 'string' ? label : undefined)}
       {...stylex.props(styles.chip, wrap && styles.wrap, trailing && styles.trailing)}
     >
       {icon === undefined ? null : (
@@ -82,7 +90,15 @@ export const ChipButton = forwardRef<HTMLButtonElement, ChipButtonProps>(functio
           {icon}
         </span>
       )}
-      <span {...stylex.props(styles.label, wrap && styles.wrapLabel)}>{label}</span>
+      <span
+        {...stylex.props(
+          styles.label,
+          wrap && styles.wrapLabel,
+          collapseLabel && icon !== undefined && styles.collapsedLabel,
+        )}
+      >
+        {label}
+      </span>
     </button>
   );
 });

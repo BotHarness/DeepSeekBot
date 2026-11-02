@@ -1,0 +1,99 @@
+{
+  "manifestSource": "fbc7585145c86d05f09513442e92926c22b2f967",
+  "desktopRuntimeSource": "7f94eefc2",
+  "artifacts": {
+    "productVersion": "1.4.0",
+    "dsh": "0.2.1-rc.2",
+    "providerRuntime": {
+      "runtimeFiles": 422,
+      "runtimeSha256": "302dfdcca0d36f93fe02098d13764ba4eccd11ce324ffb0c415c3f971a7d0275"
+    },
+    "artifacts": [
+      {
+        "name": "@botharness/core",
+        "version": "1.4.0",
+        "filename": "botharness-core-1.4.0.tgz",
+        "integrity": "sha512-x/Pb0sQ6N/1Z92Y5gR1JheUbcPYM+ZqFR+lCUhSdvsE6qbRPAZg+bcf7cCkWcvjYi+a90tiIizAj6VAZa3r9+A=="
+      },
+      {
+        "name": "@botharness/ui",
+        "version": "1.4.0",
+        "filename": "botharness-ui-1.4.0.tgz",
+        "integrity": "sha512-XZLnT5/V6jhg0O3V3OAGH2BZQ9uVzA4hAqElyCeHo626d52Jf49Ff3Tnh4pV8VXI37nXMMwSZGTdApEEQcA9XQ=="
+      },
+      {
+        "name": "@botharness/browser",
+        "version": "1.4.0",
+        "filename": "botharness-browser-1.4.0.tgz",
+        "integrity": "sha512-NgQNltOGbHYv9OXuQbX/rFvsImgRTbqSZGRBi27AJT/CGar5R5DqDV4lanWF+QeE30pZTGOe8chhvJdXkb5img=="
+      },
+      {
+        "name": "@botharness/computer",
+        "version": "1.4.0",
+        "filename": "botharness-computer-1.4.0.tgz",
+        "integrity": "sha512-ELNcrsRyA1JlrPpJYaWpXYM9M14j0hr3+OWBznqFnFcTbfQaP5JlxN4CVh/yQt8/tEmrZFwsTIjOKvbR82VnKw=="
+      },
+      {
+        "name": "@botharness/im-provider",
+        "version": "4.32.0-botharness.21",
+        "filename": "botharness-im-provider-4.32.0-botharness.21.tgz",
+        "integrity": "sha512-7FqHt1er/sVN4L8l663SYxoscynGjyuwYTCw8zppxekBiAAZjxETQe8vkiRVht53Uvg/e6cLicz8AfFTcW8a7w=="
+      },
+      {
+        "name": "deepseekbot",
+        "version": "1.4.0",
+        "filename": "deepseekbot-1.4.0.tgz",
+        "integrity": "sha512-rbm9yGIYIkKh/GHwEBhZBudUO9z0tQSJTRqS0HebW3RmC9SRrCR2P3LN6fXXDf+ARy0HBFXaAcvIWHdB+xndcg=="
+      }
+    ]
+  },
+  "freshInstall": {
+    "productVersion": "1.4.0",
+    "node": "v24.21.0",
+    "platform": "darwin",
+    "scope": "Fresh Profile, no pre-approved builds: one install step, Host boot, Bot and DM creation, restart persistence. Browser, model and IM delivery are separate gates.",
+    "rows": [
+      {
+        "dsh": "0.2.0-rc.2",
+        "state": "passed"
+      },
+      {
+        "dsh": "0.2.1-rc.2",
+        "state": "passed"
+      }
+    ]
+  },
+  "comparisonWithDesktopArtifacts": [
+    {
+      "package": "botharness-browser-1.4.0.tgz",
+      "changedFiles": [],
+      "runtimeIdentical": true
+    },
+    {
+      "package": "botharness-computer-1.4.0.tgz",
+      "changedFiles": [],
+      "runtimeIdentical": true
+    },
+    {
+      "package": "botharness-core-1.4.0.tgz",
+      "changedFiles": ["package/package.json"],
+      "runtimeIdentical": true
+    },
+    {
+      "package": "botharness-im-provider-4.32.0-botharness.21.tgz",
+      "changedFiles": [],
+      "runtimeIdentical": true
+    },
+    {
+      "package": "botharness-ui-1.4.0.tgz",
+      "changedFiles": ["package/package.json"],
+      "runtimeIdentical": true
+    },
+    {
+      "package": "deepseekbot-1.4.0.tgz",
+      "changedFiles": ["package/package.json"],
+      "runtimeIdentical": true
+    }
+  ],
+  "limits": "Native macOS journeys use byte-identical runtime from the preceding artifact set. Final metadata was qualified through fresh installation on both released versions. No publication or future runtime qualification."
+}

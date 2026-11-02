@@ -30,7 +30,7 @@ describe('revisioned safe tool presentation', () => {
       }),
     );
     expect(snapshot?.bots[0]?.activity).toEqual(activity);
-    const store = createStore();
+    const store = createStore({ smoothActivity: false });
     store.setRoster([bot], []);
     store.applyActivity(snapshot!);
     store.setRoster([bot], []);

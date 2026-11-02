@@ -1,0 +1,31 @@
+{
+  "instance": "ax2080-literal",
+  "calls": [
+    {
+      "name": "pwsh",
+      "outcome": "ok",
+      "result": "QA_LITERAL_2080_A\r\n",
+      "approval": "allowed-once"
+    },
+    {
+      "name": "pwsh",
+      "outcome": "ok",
+      "result": "QA_LITERAL_2080_B\r\n",
+      "approval": "allowed-once"
+    }
+  ],
+  "requestCount": 1,
+  "decisions": [
+    {
+      "requestMessageId": "3c48b9d2-c946-4fbf-aea8-2d056002e95c",
+      "outcome": "allowed-always-tool"
+    }
+  ],
+  "rules": [
+    {
+      "kind": "tool",
+      "toolName": "pwsh",
+      "role": "orchestrator"
+    }
+  ]
+}

@@ -113,6 +113,7 @@ export interface DshImOutboundService {
       sourceVideos?: boolean;
       sourceQuotes?: boolean;
       ordinaryText?: boolean;
+      directMessages?: boolean;
       onAction?(event: unknown, context: { signal: AbortSignal }): Promise<MessagingApprovalAck>;
       onEcho?(event: unknown, context: { signal: AbortSignal }): Promise<{ accepted: true }>;
       onEvent(event: unknown, context: { signal: AbortSignal }): Promise<{ accepted: true }>;
@@ -179,7 +180,7 @@ const inboundSchema = z
     eventId: identifier,
     messageId: identifier,
     actor: z
-      .object({ kind: z.literal('user'), id: identifier, name: identifier.optional() })
+      .object({ kind: z.enum(['user', 'bot']), id: identifier, name: identifier.optional() })
       .strict()
       .transform(({ name, ...actor }) => ({ ...actor, ...(name === undefined ? {} : { name }) })),
     conversation: z
@@ -307,6 +308,12 @@ const inboundSchema = z
     {
       message: 'Invalid voice source',
     },
+  )
+  .refine(
+    (event) =>
+      event.actor.kind === 'user' ||
+      (event.conversation.kind === 'group' && event.mentionedAccount),
+    { message: 'Bot senders are accepted only when they mention this account in a group' },
   );
 
 function isLarkVideo(event: z.infer<typeof inboundSchema>, images: boolean): boolean {
@@ -435,7 +442,7 @@ export function createDshImProvider(
       name: info.account.name ?? ref,
       fingerprint: info.account.fingerprint,
       connected: info.connected,
-      ...(platform === 'qq'
+      ...(['qq', 'weixin'].includes(platform)
         ? {
             postSupported:
               host.receiptVersion === 1 &&
@@ -814,12 +821,15 @@ export function createDshImProvider(
               platform === 'feishu' &&
               sourceFiles &&
               info.capabilities.includes('source-video-checked');
+            const qqDirect =
+              platform === 'qq' && info.capabilities.includes('direct-message-consumer');
             return host.consumeInbound!(input.accountRef, {
               expectedFingerprint: input.fingerprint,
               signal: input.signal,
               ...(info.capabilities.includes('ordinary-text-consumer')
                 ? { ordinaryText: true }
                 : {}),
+              ...(qqDirect ? { directMessages: true } : {}),
               ...(sourceFiles ? { sourceFiles: true } : {}),
               ...(sourceImages ? { sourceImages: true } : {}),
               ...(platform === 'weixin' && info.capabilities.includes('source-quote-checked')
@@ -975,7 +985,8 @@ export function createDshImProvider(
                 if (
                   parsed.channel !== platform ||
                   (platform === 'qq' &&
-                    (parsed.conversation.kind !== 'group' ||
+                    ((parsed.conversation.kind !== 'group' &&
+                      !(qqDirect && parsed.conversation.kind === 'dm')) ||
                       parsed.reply.threadId !== undefined ||
                       parsed.reply.rootId !== undefined ||
                       parsed.reply.parentId !== undefined ||
@@ -1457,7 +1468,7 @@ export function createDshImProvider(
     ...((platform === 'feishu' ||
       platform === 'slack' ||
       platform === 'qq' ||
-      (platform === 'weixin' && host.postFenceVersion === 1)) &&
+      platform === 'weixin') &&
     host.receiptVersion === 1
       ? {
           async post(input: Parameters<NonNullable<MessagingProvider['post']>>[0]) {
@@ -1467,7 +1478,10 @@ export function createDshImProvider(
               throw new MessagingProviderError('account-changed', 'not-started');
             if (!info.capabilities.includes('proactive-receipt-checked'))
               throw new MessagingProviderError('capability-unavailable', 'not-started');
-            if (platform === 'qq' && !info.capabilities.includes('proactive-text-checked'))
+            if (
+              (platform === 'qq' || platform === 'weixin') &&
+              !info.capabilities.includes('proactive-text-checked')
+            )
               throw new MessagingProviderError('capability-unavailable', 'not-started');
             if (
               (platform === 'weixin' || platform === 'qq') &&

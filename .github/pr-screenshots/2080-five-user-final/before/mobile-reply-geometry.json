@@ -1,0 +1,56 @@
+{
+  "viewport": { "w": 375, "h": 667, "dpr": 1 },
+  "texts": [
+    {
+      "text": "收到，我马上用 pwsh 执行 Write-Output 'MOBILE_2080_ONCE_OK'，并显式请求 danger-full-access，所以会弹一次真实审批卡片。只执行这条输出命令，不读写任何文件。你批准后我把工具的实际输出回给你。",
+      "rect": {
+        "x": 64,
+        "y": -14.5,
+        "width": 231,
+        "height": 163,
+        "top": -14.5,
+        "right": 295,
+        "bottom": 148.5,
+        "left": 64
+      }
+    },
+    {
+      "text": "MOBILE_2080_ONCE_OK",
+      "rect": {
+        "x": 64,
+        "y": 450.5,
+        "width": 231,
+        "height": 24,
+        "top": 450.5,
+        "right": 295,
+        "bottom": 474.5,
+        "left": 64
+      }
+    },
+    {
+      "text": "退出正常，无额外输出；全程未读取或修改任何文件。",
+      "rect": {
+        "x": 64,
+        "y": 490.5,
+        "width": 231,
+        "height": 48,
+        "top": 490.5,
+        "right": 295,
+        "bottom": 538.5,
+        "left": 64
+      }
+    }
+  ],
+  "companion": [
+    {
+      "x": 161.65179443359375,
+      "y": 459,
+      "width": 96,
+      "height": 96,
+      "top": 459,
+      "right": 257.65179443359375,
+      "bottom": 555,
+      "left": 161.65179443359375
+    }
+  ]
+}

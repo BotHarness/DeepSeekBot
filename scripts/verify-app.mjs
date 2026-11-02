@@ -1,5 +1,7 @@
 #!/usr/bin/env node
+import { assertDshVersion } from './dsh-compatibility.mjs';
 import { spawnSync } from 'node:child_process';
+import { diagnosticVerdict, readClientDiagnostics } from './dev-client-diagnostics.mjs';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { createServer } from 'node:net';
@@ -14,8 +16,9 @@ export const usage = `Usage: node scripts/verify-app.mjs <command> [--name <inst
 Drive an isolated DeepSeekBot instance the way a user does and keep the evidence.
 
 Commands:
-  launch [--port <n>] [--build]   Start an isolated DSH Host through dev-instance.mjs.
+  launch [--port <n>] [--build] [--dsh-version <version>]   Start an isolated DSH Host through dev-instance.mjs.
   doctor                          Check that the recorded instance is ours, alive and authenticated.
+  observe                         Save Host health and browser-reported Client diagnostics as JSON.
   rpc <namespace/method> [json]   Call one authenticated /api method with JSON args.
   shot <label> [shot options]     Open the Web Client, act, then save a screenshot and ARIA snapshot.
   stop                            Stop the recorded Host and delete its temporary DSH_HOME.
@@ -70,6 +73,9 @@ export function parseVerifyArgs(argv) {
         options.name = value();
         if (!/^[a-z0-9][a-z0-9-]*$/u.test(options.name))
           throw new Error('--name must be lowercase letters, digits and dashes');
+        break;
+      case '--dsh-version':
+        options.dshVersion = assertDshVersion(value());
         break;
       case '--port':
         options.port = Number(value());
@@ -149,7 +155,9 @@ export function verifyPaths(name, root = repoRoot) {
   };
 }
 
-function cookieFor(home) {
+export function cookieFor(home) {
+  const canonical = join(home, '.botharness-auth.cookie');
+  if (existsSync(canonical)) return readFileSync(canonical, 'utf8').split(';')[0];
   const jar = join(tmpdir(), `dsh-${basename(home).replace(/[^a-zA-Z0-9-]/gu, '-')}.cookies`);
   if (!existsSync(jar)) throw new Error(`no login cookie at ${jar}; relaunch the instance`);
   return readFileSync(jar, 'utf8').split(';')[0];
@@ -188,6 +196,7 @@ export async function rpc(instance, endpoint, args = {}) {
     signal: AbortSignal.timeout(60_000),
     headers: {
       'content-type': 'application/json',
+      connection: 'close',
       cookie: cookieFor(instance.home),
     },
     body: JSON.stringify({
@@ -217,6 +226,7 @@ async function launch(options, paths) {
   const port = options.port ?? (await freePort());
   const args = ['scripts/dev-instance.mjs', '--home', paths.home, '--port', String(port), '--json'];
   if (options.build) args.push('--build');
+  if (options.dshVersion) args.push('--dsh-version', options.dshVersion);
   const result = spawnSync(process.execPath, args, {
     cwd: repoRoot,
     encoding: 'utf8',
@@ -245,19 +255,31 @@ async function launch(options, paths) {
   };
 }
 
+export function inspectInstanceRuntime(instance) {
+  try {
+    if (typeof instance.runtime !== 'string')
+      throw Error('Runtime path was not recorded; relaunch to verify its version');
+    const version = JSON.parse(
+      readFileSync(join(instance.runtime, 'node_modules/@deepseek-ai/dsh/package.json'), 'utf8'),
+    ).version;
+    assertDshVersion(version);
+    return {
+      dshVersion: version,
+      dshVersionSupported: true,
+      dshVersionMatches: version === instance.dshVersion,
+    };
+  } catch (error) {
+    return { dshVersionSupported: false, dshVersionMatches: false, dshVersionError: error.message };
+  }
+}
+
 async function doctor(paths) {
   const instance = readInstance(paths);
-  const expected = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')).devDependencies[
-    '@deepseek-ai/dsh'
-  ];
   const checks = {
     pidAlive: alive(instance.pid),
     worktree: instance.worktree === repoRoot,
+    ...inspectInstanceRuntime(instance),
   };
-  checks.dshVersion = JSON.parse(
-    readFileSync(join(repoRoot, 'node_modules', '@deepseek-ai', 'dsh', 'package.json'), 'utf8'),
-  ).version;
-  checks.dshVersionMatches = checks.dshVersion === expected;
   try {
     const bots = await rpc(instance, 'botharness/list');
     checks.authenticatedApi = true;
@@ -268,8 +290,46 @@ async function doctor(paths) {
   }
   checks.model = instance.secret;
   checks.ok =
-    checks.pidAlive && checks.worktree && checks.dshVersionMatches && checks.authenticatedApi;
+    checks.pidAlive &&
+    checks.worktree &&
+    checks.dshVersionSupported &&
+    checks.dshVersionMatches &&
+    checks.authenticatedApi;
   return checks;
+}
+
+export async function collectObservation({ health, diagnostics }) {
+  const [hostResult, clientResult] = await Promise.allSettled([health(), diagnostics()]);
+  const host =
+    hostResult.status === 'fulfilled'
+      ? hostResult.value
+      : { ok: false, reason: 'health-check-unavailable' };
+  const client =
+    clientResult.status === 'fulfilled'
+      ? { ...diagnosticVerdict(clientResult.value), report: clientResult.value }
+      : { state: 'unavailable', exitCode: 2, reason: 'client-diagnostics-unavailable' };
+  const exitCode = !host.ok ? 1 : client.exitCode;
+  return {
+    version: 1,
+    observedAt: new Date().toISOString(),
+    state: exitCode === 0 ? 'shell-observed' : exitCode === 1 ? 'failed' : 'incomplete',
+    exitCode,
+    host,
+    client,
+    verification: 'unverified: drive the feature, inspect visible evidence and canonical state',
+  };
+}
+
+async function observe(paths) {
+  const instance = readInstance(paths);
+  const result = await collectObservation({
+    health: () => doctor(paths),
+    diagnostics: () => readClientDiagnostics(instance),
+  });
+  mkdirSync(paths.evidence, { recursive: true });
+  const evidence = join(paths.evidence, `observe-${result.observedAt.replace(/[:.]/gu, '-')}.json`);
+  writeFileSync(evidence, `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600 });
+  return { ...result, evidence };
 }
 
 function loadPuppeteer() {
@@ -338,6 +398,10 @@ async function shot(options, paths) {
   try {
     page = await browser.newPage();
     await page.setExtraHTTPHeaders({ 'accept-language': lang });
+    await page.evaluateOnNewDocument((language) => {
+      Object.defineProperty(navigator, 'language', { get: () => language });
+      Object.defineProperty(navigator, 'languages', { get: () => [language] });
+    }, lang);
     await page.setViewport({
       width: options.width,
       height: options.height,
@@ -354,13 +418,14 @@ async function shot(options, paths) {
     await page.waitForFunction(
       () =>
         [...document.querySelectorAll('button')].some((node) =>
-          ['Settings', '设置'].includes(node.textContent?.trim() ?? ''),
+          ['Settings', '设置', 'More', '更多'].includes(node.textContent?.trim() ?? ''),
         ),
       { timeout: 30_000 },
     );
     if (!options.keepOverlays) await dismissOverlays(page);
     if (options.botMode) {
-      if ((await page.$('.bh-root.bh-main')) === null) await page.locator(aria('Bot mode')).click();
+      if ((await page.$('.bh-root.bh-main')) === null)
+        await page.locator(aria(options.locale === 'zh' ? 'Bot 模式' : 'Bot mode')).click();
       await page.waitForSelector('.bh-root.bh-main', { timeout: 30_000 });
       steps.push('entered Bot mode');
       await new Promise((done) => setTimeout(done, 1500));
@@ -477,6 +542,9 @@ async function main() {
     case 'doctor':
       result = await doctor(paths);
       break;
+    case 'observe':
+      result = await observe(paths);
+      break;
     case 'rpc': {
       const [endpoint, json] = options.positional;
       if (!endpoint?.includes('/')) throw new Error('rpc needs <namespace/method>');
@@ -495,6 +563,7 @@ async function main() {
   }
   console.log(JSON.stringify(result, null, 2));
   if (options.command === 'doctor' && !result.ok) process.exit(1);
+  if (options.command === 'observe') process.exitCode = result.exitCode;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

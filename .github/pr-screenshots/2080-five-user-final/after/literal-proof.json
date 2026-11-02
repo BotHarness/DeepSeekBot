@@ -1,0 +1,31 @@
+{
+  "source": "3dbbba7073e1565e289c80ffcf6414bc696d3333",
+  "requestCount": 1,
+  "decisions": [
+    {
+      "requestMessageId": "50a07f13-dc02-41c2-886b-62fb5848e8a4",
+      "outcome": "allowed-always-tool"
+    }
+  ],
+  "rules": [
+    {
+      "kind": "tool",
+      "toolName": "pwsh",
+      "role": "orchestrator"
+    }
+  ],
+  "calls": [
+    {
+      "name": "pwsh",
+      "outcome": "ok",
+      "result": "LITERAL_FINAL_2080_A\r\n",
+      "approval": "allowed-once"
+    },
+    {
+      "name": "pwsh",
+      "outcome": "ok",
+      "result": "LITERAL_FINAL_2080_B\r\n",
+      "approval": "allowed-once"
+    }
+  ]
+}

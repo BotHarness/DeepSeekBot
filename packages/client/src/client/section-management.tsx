@@ -8,6 +8,7 @@ import {
   type MenuItem,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 
+import { hasVisibleText } from '../../../core/src/channels/message-preview.js';
 import { errorMessage } from './bridge.js';
 import { ungroupedLabel } from './labels.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -72,6 +73,8 @@ export function sectionMenuItems(
 export const UNGROUPED_MOVE_TARGET = 'ungrouped';
 
 export const NEW_SECTION_MOVE_TARGET = 'new-section';
+
+const CHANNEL_NAME_MAX = 200;
 function checkedTargetLabel(text: string): ReactElement {
   return (
     <span className="bh-move-checked">
@@ -281,7 +284,7 @@ export function CreateChannelModal({
       }
       labels={dialogLabels(t)}
       submitLabel={t('common.create')}
-      submitDisabled={trimmed.length === 0}
+      submitDisabled={!hasVisibleText(trimmed)}
       busy={creating}
       error={error === undefined ? undefined : t('create.failed', { error })}
       onCancel={onCancel}
@@ -292,6 +295,7 @@ export function CreateChannelModal({
         placeholder={t('channel.name.placeholder')}
         value={draft}
         onChange={setDraft}
+        maxLength={CHANNEL_NAME_MAX}
         initialFocus
       />
     </FormDialog>

@@ -1,5 +1,6 @@
+import { ReadFailure } from '../primitives/read-failure';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View, type ScrollViewInstance } from 'react-native';
 
 import {
   ACTIVITY_WINDOWS,
@@ -9,6 +10,7 @@ import {
   type ActivityDetail,
   type ActivityWindow,
   type ModelUsage,
+  type UsageBucket,
 } from '../../host/bot-activity';
 import type { RosterBot } from '../../host/client';
 import { compactTokenCount, dayLabel, weekdayLabel } from '../../host/usage-days';
@@ -23,8 +25,9 @@ import { DayHeat } from '../primitives/day-heat';
 import { Segmented } from '../primitives/segmented';
 import { Text } from '../primitives/text';
 import { ChevronLeftIcon, ChevronRightIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 import { tokenTotalText } from './activity-glance';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 const ICON = 20;
 
@@ -66,7 +69,7 @@ function Card({ children }: { children: ReactNode }) {
         paddingHorizontal: space.x5,
         paddingVertical: space.x4,
         borderRadius: radius.md,
-        backgroundColor: theme.layer.sheet.fill,
+        backgroundColor: theme.layer.raised.fill,
       }}
     >
       {children}
@@ -105,11 +108,18 @@ function barLabel(detail: ActivityDetail, day: string): string | undefined {
   return detail.buckets.length <= 7 ? weekdayLabel(day) : undefined;
 }
 
+function bucketLabel(detail: ActivityDetail, bucket: UsageBucket): string {
+  if (bucket.first === bucket.last)
+    return detail.buckets.length <= 7 ? weekdayLabel(bucket.first) : dayLabel(bucket.first);
+  return `${dayLabel(bucket.first)} – ${dayLabel(bucket.last)}`;
+}
+
 function nullableCount(value: number | null): string {
   return value === null ? t.activityUnknown : compactTokenCount(value);
 }
 
 function ModelRow({ model, last }: { model: ModelUsage; last: boolean }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   return (
     <View
@@ -141,8 +151,9 @@ function ModelRow({ model, last }: { model: ModelUsage; last: boolean }) {
 }
 
 function TokenCard({ detail, range }: { detail: ActivityDetail; range: string }) {
+  const t = useStrings();
   const theme = useDesignTheme();
-  const tones = seriesTones(theme, 3, theme.layer.sheet.fill);
+  const tones = seriesTones(theme, 3, theme.layer.raised.fill);
   const total = tokenTotalText(detail.total, false);
   const read = detail.split.cached + detail.split.uncached;
   const label = t.activityTokens(total);
@@ -157,9 +168,17 @@ function TokenCard({ detail, range }: { detail: ActivityDetail; range: string })
             segments: [bucket.split.cached, bucket.split.uncached, bucket.split.output],
             label: barLabel(detail, bucket.first),
           }))}
+          read={(index) => {
+            const bucket = detail.buckets[index]!;
+            const { cached, uncached, output } = bucket.split;
+            return {
+              label: bucketLabel(detail, bucket),
+              value: t.activityTokens(compactTokenCount(cached + uncached + output)),
+            };
+          }}
           colors={tones}
           height={chart.plot}
-          empty={theme.layer.sheet.inset}
+          empty={theme.layer.raised.inset}
           accessibilityLabel={t.activityChart(t.activityTokensLabel, range, label)}
         />
         <View style={{ gap: space.x3 }}>
@@ -187,16 +206,18 @@ function TokenCard({ detail, range }: { detail: ActivityDetail; range: string })
             )}
           </Text>
         )}
-        {detail.total.status === 'partial' || detail.total.status === 'unknown' ? (
-          <View
-            style={{
-              padding: space.x4,
-              borderRadius: radius.sm,
-              backgroundColor: theme.color.warningSoft,
-            }}
-          >
-            <Text variant="meta">{t.activityPartial}</Text>
-          </View>
+        {detail.total.status === 'partial' ||
+        detail.total.status === 'unknown' ||
+        detail.models.some(
+          (model) =>
+            model.input === null ||
+            model.output === null ||
+            model.cacheRead === null ||
+            model.cacheWrite === null,
+        ) ? (
+          <Text variant="meta" tone="muted">
+            {t.usagePartial}
+          </Text>
         ) : null}
       </Card>
       {detail.models.length === 0 ? null : (
@@ -214,6 +235,7 @@ function TokenCard({ detail, range }: { detail: ActivityDetail; range: string })
 }
 
 function EventsCard({ detail, range }: { detail: ActivityDetail; range: string }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const total = t.activityCount(detail.events);
   return (
@@ -227,9 +249,16 @@ function EventsCard({ detail, range }: { detail: ActivityDetail; range: string }
             segments: [bucket.events],
             label: barLabel(detail, bucket.first),
           }))}
+          read={(index) => {
+            const bucket = detail.buckets[index]!;
+            return {
+              label: bucketLabel(detail, bucket),
+              value: t.activityCount(bucket.events),
+            };
+          }}
           colors={[theme.color.accent]}
           height={chart.spark}
-          empty={theme.layer.sheet.inset}
+          empty={theme.layer.raised.inset}
           accessibilityLabel={t.activityChart(t.activityEvents, range, total)}
         />
         {detail.reasons.length === 0 ? (
@@ -261,6 +290,7 @@ function EventsCard({ detail, range }: { detail: ActivityDetail; range: string }
 }
 
 function MemoryCard({ detail, range }: { detail: ActivityDetail; range: string }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const total = t.activityCount(detail.commits);
   return (
@@ -272,7 +302,7 @@ function MemoryCard({ detail, range }: { detail: ActivityDetail; range: string }
           first={detail.first}
           last={detail.last}
           counts={detail.commitDays}
-          tones={heatTones(theme, theme.layer.sheet.fill, theme.layer.sheet.inset)}
+          tones={heatTones(theme, theme.layer.raised.fill, theme.layer.raised.inset)}
           accessibilityLabel={t.activityChart(t.activityMemory, range, total)}
         />
         {detail.commits === 0 ? <Text tone="muted">{t.activityEmpty}</Text> : null}
@@ -322,6 +352,7 @@ function Detail({
   activity: ProfileActivity;
   onQuery(query: ActivityQuery): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const detail = activityDetail(activity);
   const range = t.activityRange(dayLabel(detail.first), dayLabel(detail.last));
@@ -361,6 +392,7 @@ export function ActivityDetailView({
   bot: RosterBot;
   load: (query: ActivityQuery) => Promise<ProfileActivity>;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [query, setQuery] = useState<ActivityQuery>({
     weeks: ACTIVITY_WINDOWS[0],
@@ -387,12 +419,12 @@ export function ActivityDetailView({
     },
     [load],
   );
-  const mount = useMounted<ScrollView>(() => read({ weeks: ACTIVITY_WINDOWS[0] }), [read]);
+  const mount = useMounted<ScrollViewInstance>(() => read({ weeks: ACTIVITY_WINDOWS[0] }), [read]);
   return (
     <AccentProvider accent={botColor(bot)}>
       <ScrollView
         ref={mount}
-        style={{ flex: 1, backgroundColor: theme.color.surface }}
+        style={{ flex: 1, backgroundColor: theme.overlay.fill }}
         contentContainerStyle={{ padding: space.x5, gap: space.x3 }}
       >
         <Segmented
@@ -408,25 +440,11 @@ export function ActivityDetailView({
           <Detail activity={state.value} onQuery={read} />
         ) : state.status === 'loading' ? (
           <View style={{ padding: space.x6, alignItems: 'center' }}>
-            <ActivityIndicator />
+            <LoadingIndicator />
           </View>
         ) : (
           <View style={{ gap: space.x3, paddingTop: space.x3 }}>
-            <Text variant="meta" tone="danger">{`${t.profileFailed} ${state.error}`}</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t.tryAgain}
-              onPress={() => read(query)}
-              style={{
-                minHeight: theme.touch,
-                justifyContent: 'center',
-                alignSelf: 'flex-start',
-              }}
-            >
-              <Text tone="accent" strong>
-                {t.tryAgain}
-              </Text>
-            </Pressable>
+            <ReadFailure title={t.profileFailed} detail={state.error} onRetry={() => read(query)} />
           </View>
         )}
       </ScrollView>

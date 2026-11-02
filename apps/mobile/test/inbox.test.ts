@@ -8,15 +8,19 @@ import {
   decideApproval,
   loadApproval,
   loadQuestion,
+  approvalSummaryTool,
   previewInput,
   readableInput,
   requestRef,
+  secretCommand,
   toggleOption,
   typeCustom,
   type RequestRef,
 } from '../src/host/requests';
 import type { HumanAttentionItem, QuestionItem } from '../src/host/wire';
+import { t } from '../src/ui/strings';
 import { FakeHost } from './fake-host';
+import { messageHref, unreadHref } from '../src/host/push';
 import hostWire from './fixtures/host-wire.json';
 import inboxWire from './fixtures/inbox-wire.json';
 
@@ -92,7 +96,182 @@ const ready = (target: Inbox) =>
   });
 
 describe('Human Inbox', () => {
-  it('lists unresolved actions, then mentions and replies, then handled history', async () => {
+  it('pages the filtered Activity query and recovers from a continuation failure', async () => {
+    const fake = host();
+    fake.answers.delete('humanAttention');
+    const next = { ...approvalItem, id: 'next' };
+    fake.methods.set('humanAttention', (args) => ({
+      queryVersion: 1,
+      items: args['cursor'] ? [approvalItem, next] : [approvalItem],
+      ...(args['cursor'] ? {} : { nextCursor: 'page-two' }),
+    }));
+    inbox = createInbox(connect(fake), {
+      activity: true,
+      section: 'replies',
+      botSlug: 'ada',
+      channelId: 'team',
+      search: 'budget',
+      unreadOnly: true,
+    });
+    await ready(inbox);
+    expect(fake.calls.find((call) => call.method === 'humanAttention')?.args).toEqual({
+      category: 'replies',
+      limit: 30,
+      botSlug: 'ada',
+      channelId: 'team',
+      search: 'budget',
+      unreadOnly: true,
+      sort: 'mentions-first',
+      queryVersion: 1,
+    });
+    expect(fake.calls.filter((call) => call.method === 'humanAttention')).toHaveLength(1);
+    fake.failing.add('humanAttention');
+    await inbox.loadMore!('replies');
+    expect((await ready(inbox)).stale).toBeTruthy();
+    expect((await ready(inbox)).sections.replies).toHaveLength(1);
+    fake.failing.delete('humanAttention');
+    await inbox.loadMore!('replies');
+    const loaded = await ready(inbox);
+    expect(loaded.sections.replies.map((item) => item.id)).toEqual([approvalItem.id, 'next']);
+    expect(loaded.cursors?.replies).toBeUndefined();
+    expect(loaded.stale).toBeUndefined();
+  });
+
+  it('refuses partial Activity results from an older Host and retries after an update', async () => {
+    const fake = host();
+    inbox = createInbox(connect(fake), { activity: true });
+    const error = await until(() =>
+      inbox!.getSnapshot().status === 'error' ? inbox!.getSnapshot() : undefined,
+    );
+    expect(error).toMatchObject({
+      status: 'error',
+      error: t.activityUpdateHost,
+    });
+    fake.answers.set('humanAttention', () => ({ ok: true, value: { queryVersion: 1, items: [] } }));
+    await inbox.refresh();
+    expect((await ready(inbox)).sections.action).toEqual([]);
+  });
+
+  it('puts the newest pending request first by default', async () => {
+    const fake = host();
+    fake.answers.delete('humanAttention');
+    fake.methods.set('humanAttention', () => ({ queryVersion: 1, items: [] }));
+    inbox = createInbox(connect(fake), { activity: true });
+    await ready(inbox);
+    const sorts = Object.fromEntries(
+      fake.calls
+        .filter((call) => call.method === 'humanAttention')
+        .map((call) => [call.args['category'], call.args['sort']]),
+    );
+    expect(sorts).toEqual({ action: 'newest', replies: 'mentions-first', unread: undefined });
+  });
+
+  it('reads cleared items across categories and refuses a Host that cannot list them', async () => {
+    const fake = host();
+    fake.answers.delete('humanAttention');
+    let supported = false;
+    fake.methods.set('humanAttention', (args) => ({
+      queryVersion: 1,
+      items: [],
+      ...(supported && args['dismissed'] === true ? { dismissed: true } : {}),
+    }));
+    inbox = createInbox(connect(fake), { activity: true, section: 'cleared' });
+    const error = await until(() =>
+      inbox!.getSnapshot().status === 'error' ? inbox!.getSnapshot() : undefined,
+    );
+    expect(error).toMatchObject({ error: t.activityUpdateHost });
+    supported = true;
+    fake.calls.length = 0;
+    await inbox.refresh();
+    await ready(inbox);
+    const calls = fake.calls.filter((call) => call.method === 'humanAttention');
+    expect(calls.map((call) => call.args['category'])).toEqual(['action', 'replies', 'unread']);
+    expect(calls.every((call) => call.args['dismissed'] === true)).toBe(true);
+  });
+
+  it('lets explicit chronological sorting replace mention priority without fetching history', async () => {
+    const fake = host();
+    fake.answers.delete('humanAttention');
+    fake.methods.set('humanAttention', () => ({ queryVersion: 1, items: [] }));
+    inbox = createInbox(connect(fake), { activity: true, sort: 'oldest' });
+    await ready(inbox);
+    const calls = fake.calls.filter((call) => call.method === 'humanAttention');
+    expect(calls.map((call) => call.args['category'])).toEqual(['action', 'replies', 'unread']);
+    expect(calls.every((call) => call.args['sort'] === 'oldest')).toBe(true);
+  });
+
+  it('asks the Host to filter a mixed conversation before calculating its unread summary', async () => {
+    const fake = host();
+    fake.answers.set('humanAttention', (args) => ({
+      ok: true,
+      value: {
+        items:
+          args['category'] === 'unread' && args['botSlug'] === 'ada'
+            ? [
+                {
+                  ...approvalItem,
+                  category: 'unread',
+                  kind: 'channel-unread',
+                  id: 'unread:team',
+                  unreadCount: 2,
+                },
+              ]
+            : [],
+      },
+    }));
+    inbox = createInbox(connect(fake), { botSlug: 'ada' });
+    expect((await ready(inbox)).sections.unread).toMatchObject([
+      { id: 'unread:team', unreadCount: 2 },
+    ]);
+  });
+  it('opens an unread summary in its known DM or Group instead of a generic detail page', () => {
+    const item = { kind: 'channel-unread', botSlug: 'ada', channelId: 'dm-ada' };
+    expect(unreadHref(item, () => 'dm-ada')).toEqual({
+      pathname: '/dm/[slug]',
+      params: { slug: 'ada' },
+    });
+    expect(
+      unreadHref(
+        { ...item, channelId: 'team' },
+        () => 'dm-ada',
+        (id) => id === 'team',
+      ),
+    ).toEqual({ pathname: '/channel/[id]', params: { id: 'team' } });
+    expect(unreadHref({ ...item, channelId: 'removed' }, () => 'dm-ada')).toBeUndefined();
+  });
+  it('opens an interrupted message at that message in its DM or Group', () => {
+    const item = { botSlug: 'ada', channelId: 'dm-ada', messageId: 'm9' };
+    expect(messageHref(item, () => 'dm-ada')).toEqual({
+      pathname: '/dm/[slug]',
+      params: { slug: 'ada', focus: 'm9' },
+    });
+    expect(messageHref({ botSlug: 'ada' }, () => 'dm-ada')).toBeUndefined();
+  });
+  it('loads other unread conversations from the owning attention projection', async () => {
+    const fake = host();
+    const unread = {
+      ...approvalItem,
+      id: 'unread:group-team',
+      category: 'unread',
+      kind: 'channel-unread',
+      channelId: 'group-team',
+      channelName: 'Team',
+      summary: 'The remaining conversation',
+      unreadCount: 10,
+    };
+    fake.answers.set('humanAttention', (args) =>
+      args['category'] === 'unread'
+        ? { ok: true, value: { items: [unread] } }
+        : recorded(
+            args['category'] === 'action' ? 'humanAttention.action' : 'humanAttention.replies',
+          ),
+    );
+    inbox = createInbox(connect(fake));
+    expect((await ready(inbox)).sections.unread).toEqual([unread]);
+    expect(inbox.find(unread.id)).toEqual(unread);
+  });
+
+  it('loads action, personal-message, unread and history categories', async () => {
     const fake = host();
     inbox = createInbox(connect(fake));
     const snapshot = await ready(inbox);
@@ -101,8 +280,7 @@ describe('Human Inbox', () => {
     expect(snapshot.sections.handled.length).toBeGreaterThan(0);
     expect(snapshot.sections.handled.every((item) => item.category === 'handled')).toBe(true);
     expect(actionCount(snapshot)).toBe(1);
-    const asked = fake.requests.filter((line) => line.endsWith('/humanAttention'));
-    expect(asked).toHaveLength(3);
+    expect(snapshot.sections.unread).toEqual([]);
   });
 
   it('drops an item resolved elsewhere when the live stream reports the change', async () => {
@@ -181,6 +359,26 @@ describe('Tool approval', () => {
       label: 'query',
       value: 'weather',
     });
+  });
+
+  it('previews a secret command as the program and its arguments, not the account', () => {
+    const input = JSON.stringify({
+      account: 'GitHub personal access token',
+      references: ['ref-1'],
+      program: 'gh',
+      args: ['api', 'repos/a b', "it's"],
+      env: [{ name: 'GH_TOKEN', value: 'ref-1' }],
+    });
+    expect(secretCommand('secret_cli', input)).toBe(`gh api 'repos/a b' 'it'\\''s'`);
+    expect(secretCommand('secret_cli', JSON.stringify({ program: 'gh' }))).toBe('gh');
+    expect(secretCommand('bash', input)).toBeUndefined();
+    expect(secretCommand('secret_cli', JSON.stringify({ account: 'x' }))).toBeUndefined();
+  });
+
+  it('reads the tool out of the Host’s stored approval line', () => {
+    expect(approvalSummaryTool('请求批准执行 bash')).toBe('bash');
+    expect(approvalSummaryTool('Something else')).toBeUndefined();
+    expect(approvalSummaryTool('请求批准执行 ')).toBeUndefined();
   });
 
   it('allows once, and a second decision reports the first one won', async () => {

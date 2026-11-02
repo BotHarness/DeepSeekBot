@@ -1,6 +1,9 @@
-import { useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Keyboard, ScrollView, TextInput, View } from 'react-native';
+import { TextField } from '../primitives/text-field';
+import { useRef, useState, type ComponentType, type ReactNode } from 'react';
+import { View } from 'react-native';
 
+import { KeyboardFormScroll } from '../primitives/keyboard-form';
+import type { KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
 import { errorText, type Loadable } from '../../host/bot-settings';
 import {
   newRoutineForm,
@@ -13,19 +16,18 @@ import {
   type Routines,
 } from '../../host/routines';
 import type { BotScheduleFiring, BotScheduleSummary } from '../../host/wire';
-import { useDesignTheme } from '../design/theme';
-import { edge, radius, space } from '../design/tokens';
+import { space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
-import { Chip } from '../shell/activity-filters';
-import { ChevronRightIcon } from '../shell/icons';
-import { t } from '../strings';
-import type { RoutineTarget } from './bot-profile';
+import { Chip } from '../primitives/chip';
+import { useStrings } from '../strings';
+import type { RoutineTarget } from '../../host/routines';
 import { firingText, routineDetail, when } from './routine-text';
 import {
   Sheet,
+  type SheetPageProps,
   SheetActions,
   SheetCallout,
   SheetFooter,
@@ -33,6 +35,7 @@ import {
   SheetNote,
   SHEET_GROUP,
 } from './sheet';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 const HISTORY = 5;
 const PREVIEW = 5;
@@ -47,7 +50,6 @@ function Field({
   placeholder,
   multiline = false,
   keyboard = 'default',
-  onFocus,
   onChange,
 }: {
   label: string;
@@ -55,34 +57,18 @@ function Field({
   placeholder?: string;
   multiline?: boolean;
   keyboard?: 'default' | 'number-pad' | 'numbers-and-punctuation';
-  onFocus?: () => void;
   onChange(text: string): void;
 }) {
-  const theme = useDesignTheme();
   return (
-    <TextInput
+    <TextField
       accessibilityLabel={label}
       value={value}
       placeholder={placeholder}
-      placeholderTextColor={theme.color.subtle}
       multiline={multiline}
       keyboardType={keyboard}
       autoCorrect={!multiline ? false : undefined}
       onChangeText={onChange}
-      onFocus={onFocus}
-      style={{
-        marginHorizontal: space.x5,
-        minHeight: multiline ? theme.touch * 2 : theme.touch,
-        color: theme.color.fg,
-        fontSize: theme.type.body.size,
-        textAlignVertical: multiline ? 'top' : 'center',
-        borderColor: theme.layer.field.edge,
-        borderWidth: edge.hairline,
-        borderRadius: radius.md,
-        paddingHorizontal: space.x4,
-        paddingVertical: space.x3,
-        backgroundColor: theme.layer.field.fill,
-      }}
+      style={{ marginHorizontal: space.x5 }}
     />
   );
 }
@@ -115,7 +101,7 @@ function ListRows<T>({
     return (
       <SettingsGroupItem first last on={SHEET_GROUP}>
         <View style={{ padding: space.x4, alignItems: 'flex-start' }}>
-          <ActivityIndicator />
+          <LoadingIndicator />
         </View>
       </SettingsGroupItem>
     );
@@ -163,14 +149,13 @@ function useDebounced() {
 function RoutineEditor({
   form,
   preview,
-  onScheduleFocus,
   onChange,
 }: {
   form: RoutineForm;
   preview: Loadable<string[]> | undefined;
-  onScheduleFocus(): void;
   onChange(patch: Partial<RoutineForm>): void;
 }) {
+  const t = useStrings();
   const problem = routineProblem(form);
   return (
     <>
@@ -207,7 +192,6 @@ function RoutineEditor({
             label={t.routineHours}
             value={form.hours}
             keyboard="number-pad"
-            onFocus={onScheduleFocus}
             onChange={(hours) => onChange({ hours })}
           />
         </>
@@ -219,7 +203,6 @@ function RoutineEditor({
             value={form.time}
             placeholder="09:00"
             keyboard="numbers-and-punctuation"
-            onFocus={onScheduleFocus}
             onChange={(time) => onChange({ time })}
           />
         </>
@@ -273,25 +256,31 @@ function RoutineEditor({
 }
 
 export function RoutineSheet({
+  page,
+  initialMode,
+  onEdit,
   botName,
   target,
   routines,
   onChanged,
   onClose,
-  onOpenFullClient,
 }: {
+  page?: ComponentType<SheetPageProps> | undefined;
+  initialMode?: 'detail' | 'edit';
+  onEdit?: () => void;
   botName: string;
   target: RoutineTarget;
   routines: Routines;
   onChanged(): void;
   onClose(): void;
-  onOpenFullClient(): void;
 }) {
-  const theme = useDesignTheme();
+  const t = useStrings();
   const [routine, setRoutine] = useState<BotScheduleSummary | undefined>(
     target.kind === 'open' ? target.routine : undefined,
   );
-  const [mode, setMode] = useState<Mode>(target.kind === 'new' ? 'edit' : 'detail');
+  const [mode, setMode] = useState<Mode>(
+    initialMode ?? (target.kind === 'new' ? 'edit' : 'detail'),
+  );
   const [form, setForm] = useState<RoutineForm>(() =>
     target.kind === 'open' ? (routineFormOf(target.routine) ?? newRoutineForm()) : newRoutineForm(),
   );
@@ -302,7 +291,6 @@ export function RoutineSheet({
   const [notice, setNotice] = useState<string>();
   const debounce = useDebounced();
   const latest = useRef(form);
-  const scroller = useRef<ScrollView>(undefined);
 
   const loadHistory = (id: string) =>
     void routines.history(id).then(
@@ -340,17 +328,7 @@ export function RoutineSheet({
     }, delay);
   };
 
-  const showPreview = () => {
-    scroller.current?.scrollToEnd();
-    if (Keyboard.isVisible()) return;
-    const shown = Keyboard.addListener('keyboardDidShow', () => {
-      shown.remove();
-      scroller.current?.scrollToEnd();
-    });
-  };
-
-  const mount = useMounted<ScrollView>((node) => {
-    scroller.current = node;
+  const mount = useMounted<KeyboardAwareScrollViewRef>(() => {
     if (target.kind === 'open') loadHistory(target.routine.id);
     else refreshPreview(form, 0);
   }, []);
@@ -397,25 +375,21 @@ export function RoutineSheet({
           onClose();
           return;
         }
-        setMode('detail');
+        if (initialMode === 'edit') onClose();
+        else setMode('detail');
       });
     const title = routine === undefined ? t.routineNew : t.routineEditTitle;
     return (
-      <Sheet visible label={title} title={title} subtitle={botName} onClose={close}>
-        <ScrollView
+      <Sheet page={page} visible label={title} title={title} subtitle={botName} onClose={close}>
+        <KeyboardFormScroll
+          nestedScrollEnabled
           ref={mount}
-          automaticallyAdjustKeyboardInsets
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           contentContainerStyle={{ paddingBottom: space.x3 }}
         >
           {status}
-          <RoutineEditor
-            form={form}
-            preview={preview}
-            onScheduleFocus={showPreview}
-            onChange={change}
-          />
+          <RoutineEditor form={form} preview={preview} onChange={change} />
           <SheetActions>
             <Button
               label={t.cancel}
@@ -423,6 +397,10 @@ export function RoutineSheet({
               disabled={busy !== undefined}
               onPress={() => {
                 if (routine === undefined) {
+                  onClose();
+                  return;
+                }
+                if (initialMode === 'edit') {
                   onClose();
                   return;
                 }
@@ -439,7 +417,7 @@ export function RoutineSheet({
               onPress={save}
             />
           </SheetActions>
-        </ScrollView>
+        </KeyboardFormScroll>
       </Sheet>
     );
   }
@@ -449,6 +427,7 @@ export function RoutineSheet({
   if (mode === 'delete')
     return (
       <Sheet
+        page={page}
         visible
         label={t.routineDeleteConfirm(routine.title)}
         title={t.routineDeleteConfirm(routine.title)}
@@ -482,16 +461,20 @@ export function RoutineSheet({
     );
 
   const editable = routineFormOf(routine) !== undefined;
-  const chevron = <ChevronRightIcon color={theme.color.muted} size={theme.type.title.line} />;
   return (
     <Sheet
+      page={page}
       visible
       label={routine.title}
       title={routine.title}
       subtitle={routineDetail(routine)}
       onClose={close}
     >
-      <ScrollView ref={mount} contentContainerStyle={{ paddingBottom: space.x3 }}>
+      <KeyboardFormScroll
+        nestedScrollEnabled
+        ref={mount}
+        contentContainerStyle={{ paddingBottom: space.x3 }}
+      >
         {status}
         <View style={{ flexDirection: 'row', gap: space.x3, paddingHorizontal: space.x5 }}>
           <View style={{ flex: 1 }}>
@@ -548,29 +531,36 @@ export function RoutineSheet({
           })}
         />
         <View style={{ height: space.x5 }} />
-        <SettingsGroupItem first last={false} on={SHEET_GROUP}>
-          <SettingsRow
-            title={t.routineEdit}
-            trailing={chevron}
-            on={SHEET_GROUP}
-            onPress={
-              busy !== undefined
-                ? undefined
-                : editable
-                  ? () => {
-                      const next = routineFormOf(routine)!;
-                      latest.current = next;
-                      setForm(next);
-                      setError(undefined);
-                      setNotice(undefined);
-                      setMode('edit');
-                      refreshPreview(next, 0);
-                    }
-                  : onOpenFullClient
-            }
-          />
-        </SettingsGroupItem>
-        <SettingsGroupItem first={false} last on={SHEET_GROUP}>
+        {editable ? (
+          <SettingsGroupItem first last={false} on={SHEET_GROUP}>
+            <SettingsRow
+              title={t.routineEdit}
+              accessibilityLabel={t.routineEdit}
+              control={{ kind: 'chevron' }}
+              on={SHEET_GROUP}
+              onPress={
+                busy !== undefined
+                  ? undefined
+                  : editable
+                    ? () => {
+                        if (onEdit !== undefined) {
+                          onEdit();
+                          return;
+                        }
+                        const next = routineFormOf(routine)!;
+                        latest.current = next;
+                        setForm(next);
+                        setError(undefined);
+                        setNotice(undefined);
+                        setMode('edit');
+                        refreshPreview(next, 0);
+                      }
+                    : undefined
+              }
+            />
+          </SettingsGroupItem>
+        ) : null}
+        <SettingsGroupItem first={!editable} last on={SHEET_GROUP}>
           <SettingsRow
             title={t.routineDelete}
             tone="danger"
@@ -584,7 +574,7 @@ export function RoutineSheet({
           />
         </SettingsGroupItem>
         {editable ? null : <SheetFooter>{t.routineAdvanced}</SheetFooter>}
-      </ScrollView>
+      </KeyboardFormScroll>
     </Sheet>
   );
 }

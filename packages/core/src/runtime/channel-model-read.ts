@@ -26,6 +26,7 @@ export function projectModelMessage(view: ChannelMessageView) {
 export function boundModelPage(
   page: { messages: ChannelMessageView[]; nextCursor?: string },
   cursorAfter: (count: number) => string | undefined,
+  reserve: (included: ChannelMessageView[]) => number = () => 0,
 ): { output: string; included: ChannelMessageView[] } {
   const projected = page.messages.map(projectModelMessage);
   for (let count = projected.length; count >= 0; count -= 1) {
@@ -50,7 +51,7 @@ export function boundModelPage(
             },
           }),
     });
-    if (output.length <= CHANNEL_READ_OUTPUT_LIMIT)
+    if (output.length + reserve(page.messages.slice(0, count)) <= CHANNEL_READ_OUTPUT_LIMIT)
       return { output, included: page.messages.slice(0, count) };
   }
   throw new Error('channel_read: continuation metadata exceeds output budget');
@@ -59,6 +60,7 @@ export function boundModelPage(
 export function readModelContent(
   view: ChannelMessageView,
   cursor?: string,
+  reserve = 0,
 ): { output: string; hash: string; start: number; end: number; total: number } {
   const content = JSON.stringify(projectModelMessage(view));
   const hash = createHash('sha256').update(content).digest('hex');
@@ -100,7 +102,7 @@ export function readModelContent(
       complete: end === content.length,
       consumption: 'Only the complete ordered content read in this turn joins its consumption set.',
     });
-  if (frame(content.length).length <= CHANNEL_READ_OUTPUT_LIMIT)
+  if (frame(content.length).length + reserve <= CHANNEL_READ_OUTPUT_LIMIT)
     return {
       output: frame(content.length),
       hash,
@@ -113,7 +115,7 @@ export function readModelContent(
   let end = start;
   while (low <= high) {
     const middle = Math.floor((low + high) / 2);
-    if (frame(middle).length <= CHANNEL_READ_OUTPUT_LIMIT) {
+    if (frame(middle).length + reserve <= CHANNEL_READ_OUTPUT_LIMIT) {
       end = middle;
       low = middle + 1;
     } else high = middle - 1;

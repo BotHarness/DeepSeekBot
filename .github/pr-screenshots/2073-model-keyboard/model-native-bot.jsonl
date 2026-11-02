@@ -1,0 +1,11 @@
+{"event":"capture","name":"bot-plan-before"}
+{"event":"native-save-preset-retains-policy-and-note"}
+{"event":"bot-applied-shared-preset"}
+{"event":"capture","name":"search-opencode"}
+{"event":"assignment-default-retains-other-choice"}
+{"event":"assignment-allowlist-add-remove"}
+{"event":"capture","name":"search-opencode"}
+{"event":"orchestrator-preserves-assignment-policy"}
+{"event":"capture","name":"bot-plan-after"}
+{"event":"capture","name":"bot-inherited"}
+{"event":"inherit-global"}

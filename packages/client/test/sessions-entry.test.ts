@@ -23,6 +23,7 @@ import {
   sessionViewPreferenceSnapshot,
   updateSessionViewPreference,
 } from '../src/client/session-view-prefs.js';
+import { setSessionTarget } from '../src/client/session-target.js';
 import { store } from '../src/client/store.js';
 
 afterEach(() => localStorage.clear());
@@ -67,7 +68,7 @@ it('pins the Orchestrator on top and groups Assignments by needs input, working,
         role: 'assignment',
         createdAt: '2026-10-01T00:00:00Z',
         assignmentArchived: true,
-        assignmentPurpose: 'Ship the release notes',
+        assignmentTitle: 'Ship the release notes',
       },
     ],
   });
@@ -173,6 +174,164 @@ it('pins the Orchestrator on top and groups Assignments by needs input, working,
     await act(async () => idle.querySelector<HTMLButtonElement>('[data-group-heading]')!.click());
     expect(sessionViewPreferenceSnapshot('sessions-qa').collapsedSections).toEqual(['idle']);
     expect(container.querySelector('[data-section="idle"] .bh-card-list')).toBeNull();
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    store.setSessions(previous);
+  }
+});
+
+it('switches a Group from channel assignments to an explicit Bot without changing the conversation or accepting a stale response', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const previous = store.getSnapshot();
+  const channel = {
+    id: 'group-scope-qa',
+    type: 'group' as const,
+    name: 'Scope QA',
+    members: ['scope-ada', 'scope-bob'],
+    createdAt: '2026-01-01',
+    updatedAt: '2026-01-01',
+  };
+  const bots = ['scope-ada', 'scope-bob'].map((slug) => ({
+    ...previous.bots[0],
+    slug,
+    displayName: slug,
+  }));
+  store.setRoster(bots as typeof previous.bots, [...previous.channels, channel]);
+  store.setConversation({ channel });
+  let finishAda: ((value: unknown[]) => void) | undefined;
+  const actions = {
+    channelAssignments: vi.fn(async () => []),
+    readSessions: vi.fn((slug: string) =>
+      slug === 'scope-ada'
+        ? new Promise((resolve) => {
+            finishAda = resolve;
+          })
+        : Promise.resolve([
+            { sessionId: 'bob-session', role: 'orchestrator', createdAt: '2026-01-01' },
+          ]),
+    ),
+    openSession: vi.fn(),
+  } as unknown as BridgeActions;
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const props = {
+    channelId: channel.id,
+    scope: 'channel' as const,
+    botSlug: undefined,
+    t: zhTranslate,
+    actions,
+    nativeSessions: catalog({
+      'bob-session': { displayTitle: 'Bob only', updatedAt: 1, running: false },
+      'ada-session': { displayTitle: 'Late Ada', updatedAt: 1, running: false },
+    }),
+  };
+  try {
+    await act(async () => root.render(createElement(SessionsEntry, props)));
+    expect(actions.channelAssignments).toHaveBeenCalledWith(channel.id);
+    await act(async () => setSessionTarget(channel.id, 'scope-ada'));
+    await act(async () => setSessionTarget(channel.id, 'scope-bob'));
+    expect(host.textContent).toContain('Bob only');
+    await act(async () =>
+      finishAda!([{ sessionId: 'ada-session', role: 'orchestrator', createdAt: '2026-01-01' }]),
+    );
+    expect(host.textContent).not.toContain('Late Ada');
+    expect(store.getSnapshot().conversation.channel?.id).toBe(channel.id);
+    await act(async () => host.querySelector<HTMLButtonElement>('.bh-card-main')!.click());
+    expect(actions.openSession).toHaveBeenCalledWith('bob-session');
+    await act(async () =>
+      store.setConversation({ channel: { ...channel, members: ['scope-ada'] } }),
+    );
+    expect(host.textContent).not.toContain('Bob only');
+    expect(JSON.parse(localStorage.getItem('botharness/session-targets.v1')!)[channel.id]).toBe('');
+    await act(async () => store.setConversation({ channel }));
+    expect(host.textContent).not.toContain('Bob only');
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
+    store.setRoster(previous.bots, previous.channels);
+    store.setConversation(previous.conversation);
+  }
+});
+
+it('lists the Subagents an Orchestrator started under its row, with their model', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const previous = store.getSnapshot().sessions;
+  store.setSessions({
+    status: 'ready',
+    items: [
+      {
+        sessionId: 'orc',
+        role: 'orchestrator',
+        createdAt: '2026-10-01T00:00:00Z',
+        subagentCount: 1,
+        modelRoute: { provider: 'deepseek', model: 'deepseek-v4-pro', reasoningEffort: 'high' },
+      },
+      {
+        sessionId: 'a-1',
+        role: 'assignment',
+        createdAt: '2026-10-01T00:00:00Z',
+        modelRoute: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+      },
+    ],
+  });
+  const sessionSubagents = vi.fn(async () => ({
+    omitted: 0,
+    subagents: [
+      {
+        sessionId: 'orc-sub',
+        index: 1,
+        title: 'Summarize the thread',
+        route: { provider: 'deepseek', model: 'deepseek-v4', reasoningEffort: 'medium' },
+        state: 'running' as const,
+        toolCount: 1,
+      },
+    ],
+  }));
+  const openSession = vi.fn();
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () =>
+      root.render(
+        createElement(SessionsEntry, {
+          scope: 'personabot',
+          channelId: 'dm-ada',
+          botSlug: 'subagent-qa',
+          actions: {
+            refreshSessions: vi.fn(async () => undefined),
+            sessionSubagents,
+            openSession,
+          } as unknown as BridgeActions,
+          t: zhTranslate,
+          nativeSessions: catalog({
+            orc: { displayTitle: 'Main', updatedAt: 1, running: true },
+            'a-1': { displayTitle: 'Build', updatedAt: 2, running: false },
+            'orc-sub': { displayTitle: 'Summarize the thread', updatedAt: 3, running: true },
+          }),
+        } as ChannelSidebarEntryProps & { nativeSessions: NativeSessionCatalog }),
+      ),
+    );
+    const toggles = container.querySelectorAll<HTMLButtonElement>(
+      '[data-session-subagents-toggle]',
+    );
+    expect(toggles).toHaveLength(1);
+    const work = [...container.querySelectorAll('[data-assignment-work-open]')];
+    expect(work.map((button) => button.getAttribute('aria-label'))).toEqual([
+      zhTranslate('assignmentWork.open', { title: 'Build' }),
+    ]);
+    expect(container.textContent).toContain('deepseek/deepseek-v4-pro · high');
+    expect(container.textContent).toContain('opencode-go/deepseek-v4.1-flash');
+    expect(sessionSubagents).not.toHaveBeenCalled();
+    await act(async () => toggles[0]!.click());
+    expect(sessionSubagents).toHaveBeenCalledWith('subagent-qa', 'orc');
+    const list = container.querySelector('[data-session-subagents="orc"]')!;
+    expect(list.textContent).toContain('Summarize the thread');
+    expect(list.textContent).toContain('deepseek/deepseek-v4 · medium');
+    await act(async () => list.querySelector<HTMLButtonElement>('.bh-card-main')!.click());
+    expect(openSession).toHaveBeenCalledWith('orc-sub');
   } finally {
     await act(async () => root.unmount());
     container.remove();

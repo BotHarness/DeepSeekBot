@@ -1021,6 +1021,9 @@ it('drags inside the shell, lands on the floor without opening DM, persists keyb
     expect(surface.dataset['motion']).toBe('drag');
     await act(() => {
       pointer('pointerup', 400, 400);
+    });
+    await act(() => vi.advanceTimersByTimeAsync(50));
+    await act(() => {
       character.click();
     });
     expect(Number.parseFloat(companionPosition(surface).bottom)).toBe(lifted);
@@ -1118,7 +1121,10 @@ it('drags inside the shell, lands on the floor without opening DM, persists keyb
     expect(companionPosition(surface).bottom).toBe('0px');
     await act(() => vi.runOnlyPendingTimers());
     delete document.documentElement.dataset['botharnessMotion'];
-    await act(() => character.click());
+    await act(() => {
+      character.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      character.click();
+    });
     expect(openDm).toHaveBeenCalledExactlyOnceWith('ada');
     await act(() => {
       owner.configure({ activity: false });
@@ -1341,5 +1347,87 @@ it('draws the companion bubble and controls from design-system styles by role an
     companion.dispose();
     node.remove();
     vi.unstubAllGlobals();
+  }
+});
+
+it('keeps the avatar above the composer status and follows its disappearing inset', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  document.documentElement.dataset['botharnessMotion'] = 'reduce';
+  const frames = new Map<number, FrameRequestCallback>();
+  let frameId = 0;
+  let now = performance.now();
+  const clock = vi.spyOn(performance, 'now').mockImplementation(() => now);
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    frames.set(++frameId, callback);
+    return frameId;
+  });
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
+  const obstacle = document.createElement('div');
+  obstacle.setAttribute('data-companion-avoid', '');
+  obstacle.style.setProperty('--bh-companion-avoid-inset', '34px');
+  document.body.append(obstacle);
+  const stage = new DOMRect(0, 0, 375, 667);
+  const measurement = vi
+    .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+    .mockImplementation(function (this: HTMLElement) {
+      return this === obstacle ? new DOMRect(8, 559, 359, 92) : stage;
+    });
+  const events = new EventTarget();
+  const companion = new WindowCompanion({
+    context: async () => ({ profileId: 'status-clearance' }),
+    source: () => ({ addEventListener: events.addEventListener.bind(events), close() {} }),
+  });
+  await companion.start();
+  companion.select('ada');
+  companion.configure({ walking: false });
+  events.dispatchEvent(
+    new MessageEvent('companion/baseline', {
+      data: JSON.stringify({
+        profileId: 'status-clearance',
+        bot: { slug: 'ada', name: 'Ada', paused: false },
+        activity: { generation: 'host', revision: 0, bots: [] },
+      }),
+    }),
+  );
+  const node = document.createElement('div');
+  document.body.append(node);
+  const root = createRoot(node);
+  const frame = () => {
+    now += 300;
+    const due = [...frames.values()];
+    frames.clear();
+    for (const callback of due) callback(now);
+  };
+  const bottom = () =>
+    Number.parseFloat(companionPosition(node.querySelector<HTMLElement>('.bh-companion')!).bottom);
+  try {
+    await act(() =>
+      root.render(
+        createElement(WindowCompanionView, {
+          companion,
+          openDm() {},
+          openAttention() {},
+          openChannel() {},
+          t: zhTranslate,
+        }),
+      ),
+    );
+    await act(frame);
+    expect(bottom()).toBe(146);
+    obstacle.style.setProperty('--bh-companion-avoid-inset', '0px');
+    await act(frame);
+    expect(bottom()).toBe(112);
+    obstacle.remove();
+    await act(frame);
+    expect(bottom()).toBe(0);
+  } finally {
+    await act(() => root.unmount());
+    companion.dispose();
+    node.remove();
+    obstacle.remove();
+    measurement.mockRestore();
+    clock.mockRestore();
+    vi.unstubAllGlobals();
+    delete document.documentElement.dataset['botharnessMotion'];
   }
 });

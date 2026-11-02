@@ -195,6 +195,44 @@ describe('Channel settings', () => {
     expect(host.querySelector('[data-body]')?.getAttribute('data-body')).toBe('wake-policy');
   });
 
+  it('stays closed for a deleted Bot', () => {
+    const registry = createChannelSidebarRegistry();
+    registry.register(entry('model', 1, { surface: 'settings', label: '模型' }));
+    const controller = new ChannelSettings();
+    const base = dmState();
+    const render = (deleted: boolean) =>
+      act(() =>
+        root.render(
+          createElement(ChannelSettingsDialog, {
+            registry,
+            state: {
+              ...base,
+              bots: [
+                {
+                  slug: 'ada',
+                  displayName: 'Ada',
+                  roles: [],
+                  aggregateState: 'idle',
+                  workspaces: [],
+                  createdAt: '2026-10-01T00:00:00.000Z',
+                  ...(deleted ? { deleted: true, paused: true } : {}),
+                },
+              ],
+            } as ClientState,
+            actions: {} as BridgeActions,
+            t: zhTranslate,
+            controller,
+            prefs,
+          }),
+        ),
+      );
+    render(false);
+    act(() => controller.open('model'));
+    expect(host.querySelector('[data-body="model"]')).not.toBeNull();
+    render(true);
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+  });
+
   it('marks the sections that report attention and clears them when the channel goes away', () => {
     const registry = createChannelSidebarRegistry();
     let failing = true;

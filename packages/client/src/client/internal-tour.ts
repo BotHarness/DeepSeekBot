@@ -22,6 +22,7 @@ export interface InternalTourOptions {
   doneIcon?: 'done' | 'next';
   progress?: { offset: number; total?: number };
   onClosed(): void;
+  onInterrupted?(): void;
   onFinished(): void;
   onSkip(): void;
 }
@@ -102,6 +103,7 @@ export function startInternalTour(
     if (timer !== undefined) clearTimeout(timer);
     timer = undefined;
   };
+  const interrupted = (): void => (options.onInterrupted ?? options.onClosed)();
   const attempt = (allowPartial: boolean): void => {
     if (started) return;
     if (!allowPartial && doc.querySelector(first.selector) === null) return;
@@ -109,7 +111,7 @@ export function startInternalTour(
     if (steps.length === 0) {
       if (allowPartial) {
         stopWaiting();
-        options.onClosed();
+        interrupted();
       }
       return;
     }
@@ -218,7 +220,7 @@ export function startInternalTour(
         (node) => !node.classList.contains('driver-popover') && node.getClientRects().length > 0,
       );
       if (dialog === undefined) return;
-      options.onClosed();
+      interrupted();
       tour?.destroy();
     });
     dialogs.observe(doc.body, { childList: true, subtree: true });

@@ -125,6 +125,10 @@ export function companionRequests(value: unknown, botSlug: string): CompanionReq
         cwd: item['cwd'],
         input: item['input'],
         expiresAt: item['expiresAt'],
+        ...(typeof item['allowAlways'] === 'boolean' ? { allowAlways: item['allowAlways'] } : {}),
+        ...(['operation', 'web-only', 'each-use'].includes(String(item['externalDecision']))
+          ? { externalDecision: item['externalDecision'] as 'operation' | 'web-only' | 'each-use' }
+          : {}),
       },
     ];
   });

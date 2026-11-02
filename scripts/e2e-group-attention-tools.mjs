@@ -91,7 +91,7 @@ if (!dm?.id || !group?.id) throw new Error('Fixture Channels were not created');
 const firstMarker = `BOT-POLICY-${stamp}`;
 await rpc('channelSend', {
   channelId: dm.id,
-  body: `请使用 group_attention_get 读取群 ${group.name}（Channel ID ${group.id}）里你自己的提醒设置，然后用 group_attention_set 将它改为 mentions。最后用 channel_send 在当前私聊回复 ${firstMarker}、新模式和 revision。`,
+  body: `请使用 group_attention_get 读取群 ${group.name}（Channel ID ${group.id}）里你自己的提醒设置，然后用 group_attention_set 将它改为 mentions。最后用 bot_send_message 在当前私聊回复 ${firstMarker}、新模式和 revision。`,
 });
 await waitFor(async () => {
   const policy = (await groupRecord(group.id))?.wakePolicies?.[bot.slug];
@@ -137,7 +137,7 @@ await rpc('channelGroupWakeSet', {
 const secondMarker = `HUMAN-POLICY-${stamp}`;
 await rpc('channelSend', {
   channelId: dm.id,
-  body: `请用 group_attention_get 重新读取群 ${group.name}（Channel ID ${group.id}）中你自己的提醒设置，再用 channel_send 在当前私聊回复 ${secondMarker}、模式、revision 和最后编辑者。请不要修改设置。`,
+  body: `请用 group_attention_get 重新读取群 ${group.name}（Channel ID ${group.id}）中你自己的提醒设置，再用 bot_send_message 在当前私聊回复 ${secondMarker}、模式、revision 和最后编辑者。请不要修改设置。`,
 });
 const secondReply = await botReply(dm.id, secondMarker);
 const latest = (await groupRecord(group.id))?.wakePolicies?.[bot.slug];

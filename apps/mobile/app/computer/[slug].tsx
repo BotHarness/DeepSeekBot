@@ -1,14 +1,9 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { HostScope } from '../../src/host/host-scope';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { TextInput } from '../../src/ui/primitives/system-text';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import {
-  ActivityIndicator,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  TextInput,
-  View,
-} from 'react-native';
+import { Keyboard, Pressable, View, type ViewInstance, type TextInputInstance } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,23 +26,36 @@ import {
   ComputerMousePad,
   type ComputerTool,
 } from '../../src/ui/chat/computer-controls';
-import { buttonColors } from '../../src/ui/design/controls';
 import { radius, space } from '../../src/ui/design/tokens';
 import { useDesignTheme } from '../../src/ui/design/theme';
 import { Button } from '../../src/ui/primitives/button';
 import { Text } from '../../src/ui/primitives/text';
-import { CloseIcon, HandBackIcon } from '../../src/ui/shell/icons';
+import { viewerHeaderOptions } from '../../src/ui/shell/viewer-header';
 import { useMounted } from '../../src/ui/mounted';
-import { t } from '../../src/ui/strings';
+import { recordFeature } from '../../src/telemetry/features';
+import { useStrings } from '../../src/ui/strings';
+import { LoadingIndicator } from '../../src/ui/primitives/loading-indicator';
+import { LocalComputerScreen } from '../../src/ui/chat/local-computer-screen';
 
 const idle: ComputerViewerState = { status: 'loading', control: false };
 
 export default function ComputerScreen() {
-  const { slug } = useLocalSearchParams<{ slug: string }>();
+  const { hostId } = useLocalSearchParams<{ hostId?: string }>();
+  return (
+    <HostScope value={hostId}>
+      <LocalComputerScreen Legacy={LegacyComputerScreen} />
+    </HostScope>
+  );
+}
+
+function LegacyComputerScreen() {
+  const t = useStrings();
+  const { slug, hostId } = useLocalSearchParams<{ slug: string; hostId?: string }>();
+
   const router = useRouter();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
-  const { client } = useHostSession();
+  const { client } = useHostSession(hostId);
   const snapshot = useHostSnapshot(client);
   const bot = snapshot.roster?.bots.find((entry) => entry.slug === slug);
   const viewer = useMemo(
@@ -60,7 +68,7 @@ export default function ComputerScreen() {
   );
   const [mode, setMode] = useState<BrowserTouchMode>('trackpad');
   const [tool, setTool] = useState<ComputerTool>('mouse');
-  const keyboard = useRef<TextInput>(null);
+  const keyboard = useRef<TextInputInstance>(null);
   const typed = useRef('');
   const resetField = () => {
     keyboard.current?.clear();
@@ -92,8 +100,9 @@ export default function ComputerScreen() {
     setTool(next);
   };
 
-  const mount = useMounted<View>(() => {
+  const mount = useMounted<ViewInstance>(() => {
     viewer?.start();
+    recordFeature('viewer:subpanel_open', { panel: 'computer' });
     const hidden = Keyboard.addListener('keyboardDidHide', () =>
       setTool((current) => (current === 'keyboard' ? 'mouse' : current)),
     );
@@ -114,85 +123,29 @@ export default function ComputerScreen() {
         : undefined;
   const live = !revoked && state.frame !== undefined && message === undefined;
   const driving = live && state.control;
-  const control = buttonColors(theme, 'secondary', 'canvas');
-
-  const onAccent = buttonColors(theme, 'primary', 'canvas');
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.layer.canvas.fill }}>
-      <View
-        style={{
-          paddingTop: insets.top + space.x3,
-          paddingHorizontal: space.x5,
-          paddingBottom: space.x3,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: space.x4,
-        }}
-      >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t.computerClose}
-          onPress={close}
-          hitSlop={space.x3}
-          style={({ pressed }) => ({
-            width: theme.touch,
-            height: theme.touch,
-            borderRadius: radius.round,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: pressed ? control.pressed : control.fill,
-          })}
-        >
-          <CloseIcon color={control.label} size={theme.touch / 2} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text variant="title" numberOfLines={1}>
-            {t.computerTitle(bot?.displayName ?? slug ?? '')}
-          </Text>
-          <View
-            accessibilityLiveRegion="polite"
-            style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}
-          >
-            {!live ? null : (
-              <View
-                style={{
-                  width: space.x3,
-                  height: space.x3,
-                  borderRadius: radius.round,
-                  backgroundColor: driving ? theme.color.accent : theme.color.success,
-                }}
-              />
-            )}
-            <Text variant="meta" tone={driving ? 'accent' : 'muted'} numberOfLines={1}>
-              {live ? (driving ? t.computerYouDriving : t.computerWatching) : ' '}
-            </Text>
-          </View>
-        </View>
-        {!driving ? null : (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t.computerHandBack}
-            onPress={() => void viewer?.setControl(false)}
-            hitSlop={space.x3}
-            style={({ pressed }) => ({
-              width: theme.touch,
-              height: theme.touch,
-              borderRadius: radius.round,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: pressed ? onAccent.pressed : onAccent.fill,
-            })}
-          >
-            <HandBackIcon color={onAccent.label} size={theme.touch / 2} />
-          </Pressable>
-        )}
-      </View>
-
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <Stack.Screen
+        options={viewerHeaderOptions({
+          theme,
+          title: t.computerTitle(bot?.displayName ?? slug ?? ''),
+          status: live ? (driving ? t.computerYouDriving : t.computerWatching) : '',
+          driving,
+          closeLabel: t.computerClose,
+          onClose: close,
+          action: driving
+            ? {
+                key: 'hand-back',
+                label: t.computerHandBack,
+                symbol: { type: 'sfSymbol', name: 'hand.raised.slash' },
+                icon: 'hand-back',
+                onPress: () => void viewer?.setControl(false),
+              }
+            : undefined,
+        })}
+      />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <View ref={mount} style={{ flex: 1 }}>
           {live ? (
             <BrowserStage
@@ -215,7 +168,7 @@ export default function ComputerScreen() {
             >
               {message === undefined ? (
                 <>
-                  <ActivityIndicator color={theme.color.muted} />
+                  <LoadingIndicator color={theme.color.muted} />
                   <Text tone="muted" style={{ marginTop: space.x4 }}>
                     {t.computerLoading}
                   </Text>

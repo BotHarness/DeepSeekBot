@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, SectionList, View } from 'react-native';
+import { Pressable, SectionList, View, type ViewInstance } from 'react-native';
 
 import type { RosterBot } from '../host/client';
 import { MethodRefused } from '../host/client';
@@ -25,9 +25,9 @@ import { SettingsGroupItem, SettingsRow, SettingsSection } from './primitives/se
 import { Text } from './primitives/text';
 import { DayBars } from './primitives/day-bars';
 import { dayLabel } from '../host/usage-days';
-import { ChevronRightIcon } from './shell/icons';
 import { tokenAmount, UsageBars, useLoaded, type Loaded } from './shell/usage-card';
-import { t } from './strings';
+import { useStrings, t } from './strings';
+import { LoadingIndicator } from './primitives/loading-indicator';
 
 const AVATAR = 28;
 const SPARK_WIDTH = space.x6 * 3;
@@ -96,6 +96,7 @@ function UsageSummary({
   onPeriod(period: UsagePeriod): void;
   extended: boolean;
 }) {
+  const t = useStrings();
   const usage = forPeriod(state, period).value;
   const week = usage === undefined ? undefined : usageWeek(usage);
   const [picked, setPicked] = useState<number>();
@@ -165,16 +166,13 @@ function UsageSummary({
       </View>
       {usage === undefined ? null : (
         <View style={{ paddingHorizontal: space.x5 }}>
-          <SettingsSection title={t.usageKinds}>
+          <SettingsSection on="raised" title={t.usageKinds}>
             {USAGE_SPLIT.map((kind) => (
               <SettingsRow
+                on="raised"
                 key={kind}
                 title={t.usageKind[kind]}
-                trailing={
-                  <Text tone="muted" style={{ fontVariant: ['tabular-nums'] }}>
-                    {tokenAmount(usage.totals[kind])}
-                  </Text>
-                }
+                control={{ kind: 'value', text: tokenAmount(usage.totals[kind]) }}
               />
             ))}
           </SettingsSection>
@@ -193,6 +191,7 @@ function UsageRow({
   roster: readonly RosterBot[];
   onOpenBot(slug: string): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   if (row.kind === 'more')
     return (
@@ -212,7 +211,7 @@ function UsageRow({
           paddingHorizontal: space.x5,
         }}
       >
-        <ActivityIndicator />
+        <LoadingIndicator />
         <Text variant="meta" tone="muted">
           {t.profileLoading}
         </Text>
@@ -242,6 +241,7 @@ function UsageRow({
     const share = usageShare(bot.totalTokens, row.total);
     body = (
       <SettingsRow
+        on="raised"
         title={bot.displayName}
         {...(!bot.current
           ? { detail: t.usageRemoved }
@@ -251,12 +251,11 @@ function UsageRow({
         leading={
           current === undefined ? undefined : <BotAvatar bot={current} size={AVATAR} ring={false} />
         }
-        trailing={
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
-            <Text tone="muted">{tokenAmount(bot.totalTokens, bot.partial === true)}</Text>
-            {bot.current ? <ChevronRightIcon color={theme.color.muted} size={space.x5} /> : null}
-          </View>
-        }
+        control={{
+          kind: 'value',
+          text: tokenAmount(bot.totalTokens, bot.partial === true),
+          chevron: bot.current,
+        }}
         onPress={bot.current ? () => onOpenBot(bot.slug) : undefined}
       />
     );
@@ -264,6 +263,7 @@ function UsageRow({
     const { bot } = row;
     body = (
       <SettingsRow
+        on="raised"
         title={bot.displayName}
         detail={bot.state === 'ready' ? t.memoryChanges(bot.total) : t.memoryUnavailable}
         trailing={
@@ -283,7 +283,7 @@ function UsageRow({
     );
   }
   return (
-    <SettingsGroupItem first={row.first} last={row.last}>
+    <SettingsGroupItem on="raised" first={row.first} last={row.last}>
       {body}
     </SettingsGroupItem>
   );
@@ -298,6 +298,7 @@ export function UsageView({
   roster: readonly RosterBot[];
   onOpenBot(slug: string): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [period, setPeriod] = useState<UsagePeriod>('week');
   const [extendedSource, setExtendedSource] = useState<UsageSources>();
@@ -335,8 +336,8 @@ export function UsageView({
     [sources, selectedPeriod],
   );
   const loadMemory = useMemo(() => () => sources.loadMemory(), [sources]);
-  const usage = useLoaded<OverviewUsage, View>(loadUsage);
-  const memory = useLoaded<OverviewMemory, View>(loadMemory);
+  const usage = useLoaded<OverviewUsage, ViewInstance>(loadUsage);
+  const memory = useLoaded<OverviewMemory, ViewInstance>(loadMemory);
   const current = forPeriod(usage.state, selectedPeriod);
 
   const sections = [
@@ -389,9 +390,10 @@ export function UsageView({
   ];
 
   return (
-    <View ref={usage.mount} style={{ flex: 1, backgroundColor: theme.color.surface }}>
+    <View ref={usage.mount} style={{ flex: 1, backgroundColor: theme.overlay.fill }}>
       <View ref={memory.mount} style={{ flex: 1 }}>
         <SectionList
+          nestedScrollEnabled
           ref={capability}
           sections={sections}
           keyExtractor={(row) => row.key}

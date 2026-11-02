@@ -1,3 +1,4 @@
+import { isChannelNotice } from '../../../core/src/channels/channel-notice.js';
 import {
   subscribeMessagingDefaults,
   openSharedChannel,
@@ -12,7 +13,7 @@ import {
   type JournalPage,
 } from './bridge.js';
 import type { BridgeActions } from './actions.js';
-import type { ChannelDraft, ClientStore } from './store.js';
+import type { ChannelDraft, ChannelMessage, ClientStore } from './store.js';
 
 const EVENT_NAME = 'channel/message';
 const ADMISSION_EVENT = 'channel/admission';
@@ -629,16 +630,62 @@ export function mountRosterLive(
     if (timer !== undefined) clearTimeout(timer);
     timer = setTimeout(refresh, 60);
   };
+  let latestTimer: ReturnType<typeof setTimeout> | undefined;
+  const pendingLatest = new Map<
+    string,
+    { message: ChannelMessage; activity: Map<string, number> }
+  >();
+  const clearLatest = (): void => {
+    clearTimeout(latestTimer);
+    latestTimer = undefined;
+    pendingLatest.clear();
+  };
+  const flushLatest = (): void => {
+    latestTimer = undefined;
+    if (disposed || store.getSnapshot().mode !== 'bot') return clearLatest();
+    const state = store.getSnapshot();
+    const bots = new Map(state.bots.map((bot) => [bot.slug, bot]));
+    let changed = false;
+    const channels = state.channels.map((channel) => {
+      const pending = pendingLatest.get(channel.id);
+      if (!pending) return channel;
+      for (const [slug, at] of pending.activity) {
+        const bot = bots.get(slug);
+        if (bot && at > (bot.lastActivityAt ?? 0)) {
+          bots.set(slug, { ...bot, lastActivityAt: at });
+          changed = true;
+        }
+      }
+      const previous = channel.latestMessage;
+      const message = pending.message;
+      if (previous?.id === message.id || (previous !== undefined && previous.at > message.at))
+        return channel;
+      changed = true;
+      return { ...channel, updatedAt: message.at, latestMessage: message };
+    });
+    pendingLatest.clear();
+    if (changed) store.setRosterPreviews([...bots.values()], channels);
+  };
   const applyLatest = (value: unknown): void => {
     if (typeof value !== 'object' || value === null) return;
     const { channelId, message: raw } = value as Record<string, unknown>;
     const message = parseChannelMessage(raw);
     if (typeof channelId !== 'string' || message === undefined) return;
-    const channel = store.getSnapshot().channels.find((item) => item.id === channelId);
-    const previous = channel?.latestMessage;
-    if (channel === undefined || previous?.id === message.id) return;
-    if (previous !== undefined && previous.at > message.at) return;
-    store.upsertChannel({ ...channel, updatedAt: message.at, latestMessage: message });
+    if (!store.getSnapshot().channels.some((item) => item.id === channelId)) return;
+    const pending = pendingLatest.get(channelId) ?? {
+      message,
+      activity: new Map<string, number>(),
+    };
+    if (pending.message.at <= message.at) pending.message = message;
+    if (message.author.kind === 'bot' && !isChannelNotice(message)) {
+      const at = Date.parse(message.at);
+      if (Number.isFinite(at)) {
+        const slug = message.author.slug;
+        pending.activity.set(slug, Math.max(at, pending.activity.get(slug) ?? 0));
+      }
+    }
+    pendingLatest.set(channelId, pending);
+    latestTimer ??= setTimeout(flushLatest, 25);
   };
   const onDragStart = (): void => {
     dragging = true;
@@ -679,6 +726,7 @@ export function mountRosterLive(
         );
       return;
     }
+    clearLatest();
     stopSource?.();
     stopSource = undefined;
     if (timer !== undefined) clearTimeout(timer);
@@ -697,6 +745,7 @@ export function mountRosterLive(
   return () => {
     disposed = true;
     unsubscribe();
+    clearLatest();
     stopSource?.();
     if (timer !== undefined) clearTimeout(timer);
     refreshController?.abort();

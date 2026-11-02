@@ -1,0 +1,33 @@
+Page: ai.botharness.deepseekbot.dev
+App: ai.botharness.deepseekbot.dev
+Snapshot: 27 visible nodes
+Simulator AX snapshot inapplicable (system-surface-host-lingering); used XCTest, which read app content: the system surface host process was still running but no longer presenting.
+@e1 [application] "DeepSeekBot Dev"
+@e2 [other] "gearshape.fill"
+@e3 [image] "gearshape.fill"
+@e4 [navigation-bar] "Back"
+@e5 [button] "Back"
+@e6 [text] "Cloud services"
+@e7 [button] "Workspaces"
+@e8 [other] "tob-instance-uat"
+@e9 [scroll-area] "Import the UAT configuration supplied by your deployer. Cloud sign-in is separate from pairing a computer." [scrollable]
+  [content below scroll-area hidden]
+@e10 [other] [same label as parent]
+@e11 [button] "Scan configuration"
+@e12 [button] "Paste configuration"
+@e13 [text] "https://tob-service-uat.yangmufeng233.workers.dev"
+@e14 [text] "UAT"
+@e15 [text] "Signed out"
+@e16 [button] "Sign in"
+@e17 [other] "Workspaces"
+@e18 [button] "Close workspaces"
+@e19 [scroll-area] "Computers" [scrollable]
+  [content below scroll-area hidden]
+@e20 [other] "Computers"
+@e21 [text] "Cloud workspaces"
+@e22 [button] "tob-service-uat.yangmufeng233.workers.dev · Sign in to continue"
+@e23 [button] "Join with invitation"
+@e24 [button] "Create workspace"
+@e25 [button] "Pair a new computer"
+@e26 [button] "Cloud services"
+@e27 [button] "Notifications"

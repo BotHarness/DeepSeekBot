@@ -1,0 +1,57 @@
+[
+  {
+    "view": "dark-time",
+    "before": {
+      "canvas": "rgb(21, 21, 23)",
+      "panel": "color(srgb 0.101176 0.101765 0.109608)"
+    },
+    "after": {
+      "canvas": "rgb(21, 21, 23)",
+      "panel": "color(srgb 0.101176 0.101765 0.109608)"
+    }
+  },
+  {
+    "view": "light-time",
+    "before": {
+      "canvas": "rgb(255, 255, 255)",
+      "panel": "color(srgb 0.994118 0.994706 0.995294)"
+    },
+    "after": {
+      "canvas": "rgb(245, 246, 247)",
+      "panel": "color(srgb 0.994118 0.994706 0.995294)"
+    }
+  },
+  {
+    "view": "dark-source",
+    "before": {
+      "canvas": "rgb(21, 21, 23)",
+      "panel": "color(srgb 0.101176 0.101765 0.109608)"
+    },
+    "after": {
+      "canvas": "rgb(21, 21, 23)",
+      "panel": "color(srgb 0.101176 0.101765 0.109608)"
+    }
+  },
+  {
+    "view": "light-source",
+    "before": {
+      "canvas": "rgb(255, 255, 255)",
+      "panel": "color(srgb 0.994118 0.994706 0.995294)"
+    },
+    "after": {
+      "canvas": "rgb(245, 246, 247)",
+      "panel": "color(srgb 0.994118 0.994706 0.995294)"
+    }
+  },
+  {
+    "view": "compact-workspace",
+    "before": {
+      "canvas": "rgb(255, 255, 255)",
+      "panel": "color(srgb 0.994118 0.994706 0.995294)"
+    },
+    "after": {
+      "canvas": "rgb(245, 246, 247)",
+      "panel": "color(srgb 0.994118 0.994706 0.995294)"
+    }
+  }
+]

@@ -1,5 +1,7 @@
 import { isBotDmChannel } from './channel-kind.js';
+import { en, zh } from './locale.js';
 import { recencyTime } from './roster-order.js';
+import { normalizeSearchText, searchTextMatches, searchTextScore } from './search-match.js';
 import type { BotSummary, ChannelSummary } from './store.js';
 
 export interface QuickSwitcherEntry {
@@ -13,6 +15,13 @@ export interface QuickSwitcherEntry {
 
 export const QUICK_SWITCHER_RECENT_LIMIT = 20;
 export const QUICK_SWITCHER_RESULT_LIMIT = 50;
+
+const GROUP_KEYWORDS = [
+  'group',
+  en['quickSwitcher.kind.group'],
+  zh['quickSwitcher.kind.group'],
+] as const;
+const BOT_KEYWORDS = ['bot', en['quickSwitcher.kind.bot'], zh['quickSwitcher.kind.bot']] as const;
 
 export function quickSwitcherEntries(
   channels: readonly ChannelSummary[],
@@ -28,7 +37,7 @@ export function quickSwitcherEntries(
       entries.push({
         channel,
         name: channel.name,
-        keywords: [],
+        keywords: GROUP_KEYWORDS,
         hidden: hidden.has(channel.id),
         recency,
       });
@@ -41,34 +50,25 @@ export function quickSwitcherEntries(
         channel,
         bot,
         name: bot.displayName,
-        keywords: [bot.slug, ...bot.roles],
+        keywords: [bot.slug, ...bot.roles, ...BOT_KEYWORDS],
         hidden: hidden.has(channel.id),
         recency,
       });
       continue;
     }
     if (isBotDmChannel(channel)) {
-      entries.push({ channel, name: channel.name, keywords: [], hidden: true, recency });
+      entries.push({ channel, name: channel.name, keywords: BOT_KEYWORDS, hidden: true, recency });
     }
   }
   return entries;
 }
 
-export function normalizeQuickSwitcherText(value: string): string {
-  return value.normalize('NFKC').toLocaleLowerCase().trim();
-}
-
-const WORD_BOUNDARY = /[\s\-_./·・]/u;
+export const normalizeQuickSwitcherText = normalizeSearchText;
 
 export function quickSwitcherScore(entry: QuickSwitcherEntry, query: string): number | undefined {
-  const name = normalizeQuickSwitcherText(entry.name);
-  if (name === query) return 0;
-  if (name.startsWith(query)) return 1;
-  const index = name.indexOf(query);
-  if (index > 0) return WORD_BOUNDARY.test(name[index - 1] ?? '') ? 2 : 3;
-  return entry.keywords.some((keyword) => normalizeQuickSwitcherText(keyword).includes(query))
-    ? 4
-    : undefined;
+  const score = searchTextScore(entry.name, query);
+  if (score !== undefined) return score;
+  return entry.keywords.some((keyword) => searchTextMatches(keyword, query)) ? 6 : undefined;
 }
 
 export function rankQuickSwitcher(

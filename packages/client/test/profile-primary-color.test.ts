@@ -10,6 +10,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
     ...dialogPrimitives(),
     Tooltip: ({ children }: PropsWithChildren) => children,
     IconCloseOutlineRegular: stub,
+    IconEditOutlineRegular: stub,
     IconEllipsisOutlineRegular: stub,
     IconTrashOutlineRegular: stub,
     IconShareOutlineRegular: stub,

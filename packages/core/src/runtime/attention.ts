@@ -34,6 +34,7 @@ export const SNOOZED_SQL = `(a.snoozed_until IS NOT NULL AND NOT EXISTS (
   SELECT 1 FROM inbox_admissions later_admission
     JOIN source_events later ON later.source_event_id = later_admission.source_event_id
    WHERE later_admission.bot_slug = a.bot_slug
+     AND later_admission.observed_at IS NOT NULL
      AND later.created_at > a.snoozed_at
      AND later.source_event_id <> a.source_event_id
      AND ${conversationSql('later')} = ${conversationSql('e')}))`;
@@ -69,7 +70,7 @@ export interface BotAttentionItem {
   sourceChannelName?: string;
   sourceMessageId?: string;
   assignmentSessionId?: string;
-  assignmentPurpose?: string;
+  assignmentTitle?: string;
   assignmentReportState?: 'progress' | 'completed' | 'blocked' | 'waiting-human' | 'failed';
   assignmentTurn?: number;
   relatedReportSourceEventId?: string;
@@ -120,7 +121,7 @@ interface AttentionRow {
   placed_message_id: string | null;
   assignment_session_id: string | null;
   available_assignment_session_id: string | null;
-  assignment_purpose: string | null;
+  assignment_title: string | null;
   assignment_report_state: string | null;
   assignment_turn: number | null;
   related_report_source_event_id: string | null;
@@ -173,7 +174,7 @@ export function createBotAttentionQuery(
                  e.message_id, p.message_id AS placed_message_id,
                  e.assignment_session_id,
                  assignment.session_id AS available_assignment_session_id,
-                 assignment.purpose AS assignment_purpose,
+                 assignment.title AS assignment_title,
                  json_extract(e.payload_json, '$.assignmentReport.state') AS assignment_report_state,
                  COALESCE(json_extract(e.payload_json, '$.assignmentReport.turn'), json_extract(e.payload_json, '$.assignmentLifecycle.turn')) AS assignment_turn,
                  json_extract(e.payload_json, '$.assignmentLifecycle.reportSourceEventId') AS related_report_source_event_id,
@@ -260,7 +261,7 @@ export function createBotAttentionQuery(
           ...(row.assignment_session_id === null
             ? {}
             : { assignmentSessionId: row.assignment_session_id }),
-          ...(row.assignment_purpose === null ? {} : { assignmentPurpose: row.assignment_purpose }),
+          ...(row.assignment_title === null ? {} : { assignmentTitle: row.assignment_title }),
           ...(row.assignment_report_state === 'progress' ||
           row.assignment_report_state === 'completed' ||
           row.assignment_report_state === 'blocked' ||

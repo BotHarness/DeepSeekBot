@@ -1,0 +1,102 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+coverage/
+packages/client/lib/
+packages/core/cli/
+apps/docs/public/slides/
+apps/docs/src/content/docs/docs/file-open.mdx
+apps/docs/src/content/docs-zh/docs/file-open.mdx
+apps/docs/src/content/docs/docs/daily-browser.mdx
+apps/docs/src/content/docs-zh/docs/daily-browser.mdx
+apps/docs/src/content/docs/docs/lark-connection.mdx
+apps/docs/src/content/docs-zh/docs/lark-connection.mdx
+*.tsbuildinfo
+
+# env / secrets
+.secrets/
+.env
+.env.*
+!.env.example
+vps.local.env
+.dev.vars
+*.pem
+*.key
+
+# reference repos (read-only checkouts for research; never committed)
+reference/
+.release-provider/
+
+# local state (sessions, memory, caches)
+.cache/
+tmp/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.db
+
+# local agent/tool drafts (PR descriptions etc.; GitHub is the source of truth)
+.humanlayer/
+
+# logs
+*.log
+npm-debug.log*
+
+# editors / OS
+.DS_Store
+.idea/
+.vscode/
+
+# generated user guides
+apps/docs/src/content/docs/docs/installation.mdx
+apps/docs/src/content/docs-zh/docs/installation.mdx
+apps/docs/src/content/docs/docs/slack-connection.mdx
+apps/docs/src/content/docs-zh/docs/slack-connection.mdx
+apps/docs/src/content/docs/docs/qq-connection.mdx
+apps/docs/src/content/docs-zh/docs/qq-connection.mdx
+apps/docs/src/content/docs/docs/wechat-connection.mdx
+apps/docs/src/content/docs-zh/docs/wechat-connection.mdx
+apps/docs/src/content/docs/docs/model-setup.mdx
+apps/docs/src/content/docs-zh/docs/model-setup.mdx
+apps/docs/src/content/docs/docs/settings.mdx
+apps/docs/src/content/docs-zh/docs/settings.mdx
+apps/docs/src/content/docs/docs/soul-and-core-memory.mdx
+apps/docs/src/content/docs-zh/docs/soul-and-core-memory.mdx
+apps/docs/src/content/docs/docs/bot-zip.mdx
+apps/docs/src/content/docs-zh/docs/bot-zip.mdx
+apps/docs/src/content/docs/docs/bot-cli.mdx
+apps/docs/src/content/docs-zh/docs/bot-cli.mdx
+apps/docs/src/content/docs/docs/share-bot.mdx
+apps/docs/src/content/docs-zh/docs/share-bot.mdx
+apps/docs/src/content/docs/docs/update-deepseekbot.mdx
+apps/docs/src/content/docs-zh/docs/update-deepseekbot.mdx
+apps/docs/src/content/docs/docs/vps-qq-tutorial.mdx
+apps/docs/src/content/docs-zh/docs/vps-qq-tutorial.mdx
+
+# Generated Channel sidebar guide chapter
+/apps/docs/src/content/docs/docs/channel-sidebar/
+/apps/docs/src/content/docs-zh/docs/channel-sidebar/
+
+# PR Lens writes its previews here. They are rebuilt on demand.
+.pr-lens/
+.agents/skills/eas-workflows/scripts/.cache/
+
+packages/deepseekbot/desktop-theme/
+
+# EAS Build uploads: only apps/mobile and the workspace root are needed
+/.git/
+/docs/
+/.github/
+/.agents/
+/.claude/
+/.humanlayer/
+/apps/docs/
+/apps/presentations/
+/design/
+/prototype/
+/dsh_research/
+/changes/
+/agent/

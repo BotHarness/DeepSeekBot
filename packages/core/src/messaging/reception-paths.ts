@@ -3,7 +3,47 @@ import { bridgeChannel } from './channel-target.js';
 import { channelBridgeRoutes, type ChannelBridgeRoute } from './channel-bridge.js';
 import type { MessagingGrant } from './outbound.js';
 
+export interface GrantReception {
+  kind: 'grant';
+  grantId: string;
+  grantRevision: number;
+}
+
+export function recordGrantReception(
+  db: DatabaseSync,
+  sourceEventId: string,
+  botSlug: string,
+): void {
+  const source = db
+    .prepare(`SELECT json_extract(payload_json, '$.external.grantId') AS grantId,
+    json_extract(payload_json, '$.external.grantRevision') AS grantRevision
+    FROM source_events WHERE source_event_id = ?`)
+    .get(sourceEventId) as { grantId: string; grantRevision: number };
+  const evidence: GrantReception = { kind: 'grant', ...source };
+  db.prepare(`INSERT INTO messaging_source_paths
+    (source_event_id, bot_slug, grant_id, route_id, channel_id, body) VALUES (?, ?, ?, ?, NULL, ?)`).run(
+    sourceEventId,
+    botSlug,
+    source.grantId,
+    `grant:${source.grantId}`,
+    JSON.stringify(evidence),
+  );
+}
+
+export function grantReception(
+  db: DatabaseSync,
+  sourceEventId: string,
+  botSlug: string,
+): GrantReception | undefined {
+  const row = db
+    .prepare(`SELECT body FROM messaging_source_paths
+    WHERE source_event_id = ? AND bot_slug = ? AND json_extract(body, '$.kind') = 'grant'`)
+    .get(sourceEventId, botSlug) as { body: string } | undefined;
+  return row ? (JSON.parse(row.body) as GrantReception) : undefined;
+}
+
 export interface ReceptionPath {
+  kind?: 'bridge';
   routeId: string;
   name: string;
   channelName?: string;
@@ -42,6 +82,7 @@ export function recordReceptionPath(
 ): void {
   const path: ReceptionPath = {
     ...policy,
+    kind: 'bridge',
     routeId: route.id,
     name: route.name,
     ...(route.channelId
@@ -73,7 +114,7 @@ export function currentReceptionPaths(
   const rows = db
     .prepare(`SELECT p.body, g.body AS grant_body FROM messaging_source_paths p
     JOIN messaging_grants g ON g.id = p.grant_id
-    WHERE p.source_event_id = ? AND p.bot_slug = ?`)
+    WHERE p.source_event_id = ? AND p.bot_slug = ? AND json_extract(p.body, '$.kind') IS NOT 'grant'`)
     .all(sourceEventId, botSlug) as { body: string; grant_body: string }[];
   return rows.flatMap((row) => {
     const path = JSON.parse(row.body) as ReceptionPath;
@@ -127,7 +168,8 @@ export function pendingReceptionPaths(
     .prepare(`SELECT DISTINCT e.source_event_id, e.body, e.created_at, a.attempt_state
     FROM messaging_source_paths p JOIN source_events e USING(source_event_id)
     JOIN inbox_admissions a ON a.source_event_id = p.source_event_id AND a.bot_slug = p.bot_slug
-    WHERE p.bot_slug = ? AND a.attempt_state IN ('pending', 'retryable') AND a.observed_at IS NULL
+    WHERE p.bot_slug = ? AND json_extract(p.body, '$.kind') IS NOT 'grant'
+      AND a.attempt_state IN ('pending', 'retryable') AND a.observed_at IS NULL
     ORDER BY e.created_at, e.source_event_id`)
     .all(botSlug) as unknown as ReceptionPathPending[];
   const groups = new Map<string, { paths: ReceptionPath; rows: ReceptionPathPending[] }>();

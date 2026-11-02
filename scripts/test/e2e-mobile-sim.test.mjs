@@ -1,9 +1,14 @@
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   BUNDLE_ID,
   DEVICE_NAME,
   derivedDataFolder,
   missingTools,
+  nativeFingerprint,
   parseArgs,
   pickSimulator,
   pushPayload,
@@ -12,6 +17,33 @@ import {
 } from '../e2e-mobile-sim.mjs';
 
 describe('iOS Simulator phone journey', () => {
+  it('invalidates the cached native app when its displayed version changes', async () => {
+    const project = mkdtempSync(join(tmpdir(), 'mobile-fingerprint-'));
+    try {
+      writeFileSync(
+        join(project, 'package.json'),
+        JSON.stringify({ name: 'fingerprint-test', version: '1.0.0' }),
+      );
+      symlinkSync(
+        fileURLToPath(new URL('../../apps/mobile/node_modules', import.meta.url)),
+        join(project, 'node_modules'),
+        'dir',
+      );
+      const config = (version) =>
+        writeFileSync(
+          join(project, 'app.json'),
+          JSON.stringify({ expo: { name: 'Fingerprint test', slug: 'fingerprint-test', version } }),
+        );
+      config('1.0.0');
+      const original = await nativeFingerprint(project);
+      expect(await nativeFingerprint(project)).toBe(original);
+      config('1.0.1');
+      expect(await nativeFingerprint(project)).not.toBe(original);
+    } finally {
+      rmSync(project, { recursive: true, force: true });
+    }
+  }, 30_000);
+
   it('reads its flags', () => {
     expect(parseArgs([])).toEqual({
       app: undefined,
@@ -78,10 +110,13 @@ describe('iOS Simulator phone journey', () => {
       host: { id: 'host-1', name: 'MacBook' },
       routes: ['http://127.0.0.1:3080'],
       offer: 'secret-offer',
+      expiresAt: '2099-01-01T00:00:00.000Z',
+      encryption: { protocol: 'connect-noise-xk-v1', publicKey: 'a'.repeat(64) },
     };
     const link = `deepseekbot://pair?p=${Buffer.from(JSON.stringify(payload)).toString('base64url')}`;
     const renamed = renamePairingLink(link, 'Mac A');
     expect(renamed.hostId).toBe('host-1');
+    expect(new URL(renamed.link).protocol).toBe('deepseekbot-dev:');
     const decoded = JSON.parse(
       Buffer.from(new URL(renamed.link).searchParams.get('p'), 'base64url').toString('utf8'),
     );
@@ -141,10 +176,12 @@ describe('iOS Simulator phone journey', () => {
   it('finds the DerivedData folder of a built app so it can be removed', () => {
     expect(
       derivedDataFolder(
-        '/Users/me/Library/Developer/Xcode/DerivedData/DeepSeekBotDev-abc/Build/Products/Debug-iphonesimulator/DeepSeekBotDev.app',
+        join(
+          '/Users/me/Library/Developer/Xcode/DerivedData/DeepSeekBotDev-abc/Build/Products/Debug-iphonesimulator/DeepSeekBotDev.app',
+        ),
       ),
-    ).toBe('/Users/me/Library/Developer/Xcode/DerivedData/DeepSeekBotDev-abc');
-    expect(derivedDataFolder('/tmp/DeepSeekBotDev.app')).toBeUndefined();
-    expect(derivedDataFolder('/tmp/DerivedData/DeepSeekBotDev.app')).toBeUndefined();
+    ).toBe(join('/Users/me/Library/Developer/Xcode/DerivedData/DeepSeekBotDev-abc'));
+    expect(derivedDataFolder(join('/tmp/DeepSeekBotDev.app'))).toBeUndefined();
+    expect(derivedDataFolder(join('/tmp/DerivedData/DeepSeekBotDev.app'))).toBeUndefined();
   });
 });

@@ -49,7 +49,7 @@ export function OnboardingLauncher({
 }): ReactElement | null {
   const controller = onboardingFor(actions);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-  if (state.receipt === undefined) return null;
+  if (state.receipt === undefined || state.receipt.journey) return null;
   const total = CHECKLIST_ITEMS.length;
   const done = checklistDone(state.evidence);
   const label = t('onboarding.launcher.progress', { done: String(done), total: String(total) });
@@ -182,7 +182,12 @@ export function OnboardingChecklist({
     },
     [controller],
   );
-  if (!state.checklistOpen || state.receipt === undefined || typeof document === 'undefined')
+  if (
+    state.receipt?.journey ||
+    !state.checklistOpen ||
+    state.receipt === undefined ||
+    typeof document === 'undefined'
+  )
     return null;
   const evidence = state.evidence;
   const completed = state.receipt.completed;

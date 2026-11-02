@@ -43,6 +43,7 @@ export interface AttachmentStore {
     load(): Promise<AsyncIterable<Uint8Array>>;
   }): Promise<ChannelAttachmentRef>;
   current(ref: ChannelAttachmentRef): ChannelAttachmentRef;
+  contentVersion(ref: ChannelAttachmentRef): string;
   acquired(uploadId: string): ChannelAttachmentRef | undefined;
   fileTarget(fileId: string): { path: string; relativePath: string; kind: 'file' };
   has(ref: ChannelAttachmentRef): boolean;
@@ -206,6 +207,13 @@ export function createAttachmentStore(options: {
       return ref.fileId === undefined
         ? inspect(rootDir, ref.hash, ref.name)
         : real.current(ref.fileId);
+    },
+    contentVersion(ref) {
+      if (purged.has(ref.fileId ?? ref.hash))
+        throw new ChannelAttachmentError('Attachment content was purged', 'not-found');
+      if (ref.fileId !== undefined) return real.contentVersion(ref.fileId);
+      inspect(rootDir, ref.hash, ref.name);
+      return ref.hash;
     },
     has(ref) {
       try {

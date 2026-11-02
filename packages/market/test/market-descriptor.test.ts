@@ -46,8 +46,31 @@ describe('bot.json descriptor', () => {
     ['a non-image file', '{"avatar":{"image":"avatar.svg"}}'],
     ['both recipe and image', '{"avatar":{"recipe":{},"image":"a.png"}}'],
     ['an oversized file', JSON.stringify({ name: 'a', pad: 'x'.repeat(MAX_DESCRIPTOR_BYTES) })],
+  ])('rejects %s in strict mode', (_, text) => {
+    expect(parseBotDescriptor(text, { strict: true })).toBeUndefined();
+  });
+
+  it.each([
+    ['not JSON', '{name:'],
+    ['an array', '[]'],
+    ['an oversized file', JSON.stringify({ name: 'a', pad: 'x'.repeat(MAX_DESCRIPTOR_BYTES) })],
   ])('rejects %s', (_, text) => {
     expect(parseBotDescriptor(text)).toBeUndefined();
+  });
+
+  it('drops an invalid field and keeps the others', () => {
+    expect(
+      parseBotDescriptor(
+        JSON.stringify({
+          name: 'x'.repeat(61),
+          bio: 'x'.repeat(161),
+          tags: ['ok', 1],
+          roles: ['legacy'],
+          avatar: { image: '../secret.png' },
+          banner: { recipe: { scene: 'sea', seed: 7 } },
+        }),
+      ),
+    ).toEqual({ tags: ['legacy'], banner: { recipe: { scene: 'sea', seed: 7 } } });
   });
 });
 
@@ -98,6 +121,34 @@ describe('Marketplace Worker presentation', () => {
       image: `https://raw.githubusercontent.com/${upload.owner}/upload/${banners[1]?.headCommit?.sha}/.botharness/banner.png`,
     });
     expect(banners[2]?.banner).toBeNull();
+  });
+
+  it('serves an avatar recipe as is and an avatar image as a raw URL at the indexed commit', async () => {
+    const market = createMarket();
+    const recipe = { family: 'illustrated', species: 'cat' };
+    const drawn = fakeRepository({
+      name: 'drawn',
+      descriptor: JSON.stringify({ avatar: { recipe } }),
+    });
+    const photo = fakeRepository({
+      name: 'photo',
+      descriptor: JSON.stringify({ avatar: { image: '.botharness/avatar.png' } }),
+    });
+    const none = fakeRepository({ name: 'none' });
+    for (const repository of [drawn, photo, none]) market.publish(repository);
+
+    const bots = [];
+    for (const repository of [drawn, photo, none]) {
+      const body = (await (await submit(market, repository.htmlUrl)).json()) as {
+        bot: { avatar: unknown; headCommit: { sha: string } | null };
+      };
+      bots.push(body.bot);
+    }
+    expect(bots[0]?.avatar).toEqual({ recipe });
+    expect(bots[1]?.avatar).toEqual({
+      image: `https://raw.githubusercontent.com/${photo.owner}/photo/${bots[1]?.headCommit?.sha}/.botharness/avatar.png`,
+    });
+    expect(bots[2]?.avatar).toBeNull();
   });
 
   it('falls back to legacy roles and the GitHub description', async () => {

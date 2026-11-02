@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { Context } from '@deepseek-ai/cordis';
 import type {
   Agent,
@@ -29,6 +30,8 @@ export interface FakeSession {
 }
 
 export interface FakeAgentHostHooks {
+  sendMessage?: boolean;
+  messageChannel?: string;
   assignmentTurnEnd?: TurnEndReason;
   onTurn?(session: FakeSession, tools: readonly ToolDefinition[]): Promise<void>;
   onAgentCreated?(agent: unknown): void;
@@ -58,6 +61,7 @@ export class FakeAgentHost implements DshAgentHost {
   readonly createOptions: CreateAgentOptions[] = [];
   readonly resumeOptions: ResumeAgentOptions[] = [];
   readonly disposed: string[] = [];
+  readonly disposedByDsh: string[] = [];
   readonly scopes = new Map<string, FakeScope>();
   readonly sessions: FakeSession[] = [];
   readonly received = new Map<string, UserMessage[]>();
@@ -66,8 +70,28 @@ export class FakeAgentHost implements DshAgentHost {
   readonly #cwdBySession = new Map<string, string | undefined>();
   readonly #live = new Map<string, Agent>();
 
+  disposeFromDsh(sessionId: string): Agent {
+    const agent = this.#live.get(sessionId);
+    if (agent === undefined) throw new Error(`No live Agent for ${sessionId}`);
+    this.#live.delete(sessionId);
+    this.disposedByDsh.push(sessionId);
+    const dead = agent as unknown as Record<string, unknown>;
+    const refuse = () => {
+      throw new Error(
+        `agent "${sessionId}" cannot read inbox state: its projection registration is not active`,
+      );
+    };
+    dead.followup = refuse;
+    dead.steer = refuse;
+    return agent;
+  }
+
   get(id: string): Agent | undefined {
     return this.#live.get(String(id));
+  }
+
+  list(): Agent[] {
+    return [...this.#live.values()];
   }
 
   async selectedModel(sessionId: string): Promise<unknown> {
@@ -188,6 +212,7 @@ export class FakeAgentHost implements DshAgentHost {
         return () => void scope.listeners.delete(event);
       },
       tools: {
+        get: (name: string) => scope.tools.find((tool) => tool.name === name),
         schemas: (viewingAgent: unknown) =>
           viewingAgent === undefined
             ? []
@@ -216,9 +241,15 @@ export class FakeAgentHost implements DshAgentHost {
         },
       },
       systemPrompt: {
-        section: (section: { name: string; text: string }) => {
-          scope.sections.push(section);
-          return () => void scope.sections.splice(scope.sections.indexOf(section), 1);
+        section: (section: { name: string; text: string | ((context: object) => string) }) => {
+          const entry = {
+            name: section.name,
+            get text() {
+              return typeof section.text === 'function' ? section.text({}) : section.text;
+            },
+          };
+          scope.sections.push(entry);
+          return () => void scope.sections.splice(scope.sections.indexOf(entry), 1);
         },
       },
     };
@@ -248,11 +279,18 @@ export class FakeAgentHost implements DshAgentHost {
     const createAssignment = scope.tools.find((tool) => tool.name === 'create_assignment');
     if (createAssignment !== undefined) {
       await createAssignment.execute(
-        { purpose: '核对发布状态', grant_id: 'grant-1' },
+        { title: '核对发布状态', description: '核对发布状态', grant_id: 'grant-1' },
         {} as ToolRunContext,
       );
-      const channelSend = scope.tools.find((tool) => tool.name === 'channel_send');
-      await channelSend?.execute({ body: '发布状态已经核对完成。' }, {} as ToolRunContext);
+      const channelSend = scope.tools.find((tool) => tool.name === 'bot_send_message');
+      if (this.hooks.sendMessage)
+        await channelSend?.execute(
+          { channel_id: this.hooks.messageChannel ?? 'dm-test', body: '发布状态已经核对完成。' },
+          {
+            callId: randomUUID(),
+            signal: new AbortController().signal,
+          } as ToolRunContext,
+        );
       messages.push(
         createAssistantMessage({
           content: [{ type: 'text', text: 'private Orchestrator final' }],

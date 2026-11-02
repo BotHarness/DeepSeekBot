@@ -36,7 +36,7 @@ export function botPreset(standard) {
   body = replaceOnce(
     body,
     '        id: standard\n',
-    `        id: ${BOT_PRESET_ID}\n        name: DeepSeekBot\n        description: '${BOT_PRESET_DESCRIPTION}'\n`,
+    `        id: ${BOT_PRESET_ID}\n        name: Tobs\n        description: '${BOT_PRESET_DESCRIPTION}'\n`,
   );
   body = replaceOnce(body, '        order: 1\n', '        order: 5\n');
   const ask = "            name: '@deepseek-ai/dsh-tool-ask-user'\n";
@@ -49,6 +49,18 @@ export function botPreset(standard) {
     const row = `              - id: ${id}\n                name: '@deepseek-ai/dsh-tool-subagent'\n`;
     body = replaceOnce(body, row, `${row}                disabled: true\n`);
   }
+  body = body.replace(
+    "name: '@deepseek-ai/dsh-tool-subagent-control'",
+    "name: 'deepseekbot/dist/subagent-control.mjs'",
+  );
+  body = body.replace(
+    / {14}- id: tool-subagent-list-agents\n {16}name: '@deepseek-ai\/dsh-tool-subagent-control\/list-agents'\n/g,
+    '',
+  );
+  body = body.replace(
+    /^ {10}- id: (?:time-context|tool-schedule)\n(?: {12,}[^\n]*(?:\n|$)|[ \t]*\n)*/gm,
+    '',
+  );
   return body;
 }
 

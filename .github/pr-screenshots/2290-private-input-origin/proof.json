@@ -1,0 +1,44 @@
+{
+  "issue": 2290,
+  "checkedAt": "2026-10-19",
+  "base": "b0e35529c7197402e79820d2ca737b392caec9ff",
+  "implementation": "7f4aaadd7a5de33a6210a008196bdd09e54cc067",
+  "synthetic": true,
+  "before": {
+    "phase": "baseline",
+    "synthetic": true,
+    "origin": {
+      "acceptedSources": 2,
+      "selectedLive": [true, true],
+      "automatic": "Select one live accepted IM source_event_id for private input"
+    },
+    "secretCli": {
+      "execution": {
+        "refused": "Select one live accepted IM source_event_id for private input"
+      },
+      "approval": "allowed-once"
+    },
+    "visibleReply": "QA-2290-REFUSED"
+  },
+  "after": {
+    "phase": "candidate",
+    "synthetic": true,
+    "origin": {
+      "acceptedSources": 2,
+      "selectedLive": [true, true],
+      "automatic": "local"
+    },
+    "secretCli": {
+      "execution": {
+        "consumer": "command-v1",
+        "successful": true,
+        "exitCode": 0
+      },
+      "approval": "allowed-once"
+    },
+    "visibleReply": "QA-2290-OK"
+  },
+  "candidateConsoleIssues": 0,
+  "integratedMain": "33334b22cb7d9e79f667b171d089c71df2dc572a",
+  "integratedSource": "2c1c9142c3bf8eb7831302ec03d910ab90c4851c"
+}

@@ -14,6 +14,35 @@ describe('early real Client diagnostic observer', () => {
       }
     ).__BOTHARNESS_CLIENT_DIAGNOSTICS__;
 
+  it.each(['remote-notification-show-refused', 'remote-notification-forget-persistence-failed'])(
+    'records only fixed redacted notification failure code %s through the existing diagnostic stream',
+    async (code) => {
+      vi.useFakeTimers();
+      const diagnostics = createClientDiagnostics();
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url, options) => diagnostics.fetch(new Request('http://localhost' + url, options))),
+      );
+      installClientObserver(window);
+      window.dispatchEvent(
+        new CustomEvent('botharness:notification-diagnostic', { detail: 'private payload' }),
+      );
+      window.dispatchEvent(
+        new CustomEvent('botharness:notification-diagnostic', {
+          detail: code,
+        }),
+      );
+      await vi.advanceTimersByTimeAsync(300);
+      const report = await (
+        await diagnostics.fetch(new Request('http://localhost/api/botharness/client-diagnostics'))
+      ).json();
+      expect(report.attempts[0].events).toContainEqual(
+        expect.objectContaining({ code, source: 'lifecycle' }),
+      );
+      expect(JSON.stringify(report)).not.toContain('private payload');
+      expect(report.attempts[0].firstFailure).toBeUndefined();
+    },
+  );
   it('retains a late shell observation when its first report follows a warning flood', async () => {
     vi.useFakeTimers();
     const diagnostics = createClientDiagnostics();
@@ -122,6 +151,56 @@ describe('early real Client diagnostic observer', () => {
     expect(JSON.stringify(observer().snapshot())).not.toContain('secret');
     await vi.advanceTimersByTimeAsync(10000);
     expect(observer().snapshot().state).toBe('failed');
+  });
+
+  it('keeps the shell ready when Bot mode replaces the native sidebar and when it exits', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 30,
+      height: 30,
+    } as DOMRect);
+    installClientObserver(window);
+    for (const html of [
+      '<button><span class="bh-panel-glyph"></span></button>',
+      '<div class="bh-root bh-main">Bot mode</div>',
+      '<button><span class="bh-panel-glyph"></span></button>',
+    ]) {
+      document.body.innerHTML = html;
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(300);
+      expect(observer().snapshot()).toMatchObject({ state: 'shell-ready' });
+      expect(observer().snapshot().firstFailure).toBeUndefined();
+    }
+    document.body.innerHTML = '<div class="bh-root">Window Companion</div>';
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(observer().snapshot()).toMatchObject({
+      state: 'failed',
+      firstFailure: { code: 'shell-lost' },
+    });
+  });
+
+  it('requires a visible Bot mode main surface after the boot screen is gone', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
+    installClientObserver(window);
+    document.body.innerHTML = '<div class="bh-root bh-main"></div>';
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(observer().snapshot().state).toBe('starting');
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 30,
+      height: 30,
+    } as DOMRect);
+    document.body.insertAdjacentHTML('beforeend', '<div data-dsh-boot></div>');
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(observer().snapshot().state).toBe('starting');
+    document.querySelector('[data-dsh-boot]')!.remove();
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(observer().snapshot().state).toBe('shell-ready');
   });
 
   it('preserves first failure and bounds a flood, with finite delivery retries and cleanup', async () => {

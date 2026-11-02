@@ -1,20 +1,26 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo } from 'react';
 
-import { loadMemoryFile, loadMemoryFiles } from '../../../src/host/bot-profile';
+import { loadMemoryFile, loadMemoryFiles, memoryRouteParams } from '../../../src/host/bot-profile';
+import { nativeMemoryPreview } from '../../../src/host/native-memory-preview';
 import { useHostSession, useHostSnapshot } from '../../../src/host/host-session';
-import { MemoryFileView, MemoryFolderView } from '../../../src/ui/chat/memory-browser';
-import { t } from '../../../src/ui/strings';
+import { MemoryFolderView } from '../../../src/ui/chat/memory-browser';
+import { saveMemoryFile } from '../../../src/host/memory-edit';
+import { MemoryFileScreen } from '../../../src/ui/chat/memory-file-screen';
+import { useStrings } from '../../../src/ui/strings';
 
 export default function MemoryScreen() {
+  const t = useStrings();
   const {
     slug,
     path = '',
     kind,
+    role,
   } = useLocalSearchParams<{
     slug: string;
     path?: string;
     kind?: 'folder' | 'file';
+    role?: string;
   }>();
   const router = useRouter();
   const { client } = useHostSession();
@@ -35,10 +41,25 @@ export default function MemoryScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title }} />
+      {kind === 'file' ? null : <Stack.Screen options={{ title }} />}
       {kind === 'file' ? (
         loadFile === undefined ? null : (
-          <MemoryFileView load={loadFile} />
+          <MemoryFileScreen
+            key={`${slug}:${path}`}
+            title={title}
+            load={loadFile}
+            save={(body, expectedHead) =>
+              saveMemoryFile(client!, bot!, { path, body, expectedHead })
+            }
+            preview={{ client: client!, io: nativeMemoryPreview, slug, path }}
+            role={role === 'soul' || role === 'coreMemory' ? role : undefined}
+            onHistory={() =>
+              router.push({
+                pathname: '/bot/[slug]/memory-history',
+                params: { slug: slug ?? '', path, name: title },
+              })
+            }
+          />
         )
       ) : loadFiles === undefined ? null : (
         <MemoryFolderView
@@ -47,7 +68,7 @@ export default function MemoryScreen() {
           onOpen={(entry) =>
             router.push({
               pathname: '/bot/[slug]/memory',
-              params: { slug: slug ?? '', path: entry.path, kind: entry.kind },
+              params: memoryRouteParams(slug ?? '', entry),
             })
           }
         />

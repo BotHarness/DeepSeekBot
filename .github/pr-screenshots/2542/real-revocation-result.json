@@ -1,0 +1,9 @@
+{
+  "head": "683b0cbe9c0f158e80929601f59a312ff5f9c4bf",
+  "realCloudflare": true,
+  "revokedClientRefused": true,
+  "notificationCallbackRefused": true,
+  "canonicalPending": true,
+  "noRawClientRequests": true,
+  "noFallbackRequests": true
+}

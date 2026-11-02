@@ -48,6 +48,17 @@ export const dialog = stylex.defineConsts({
   wide: 'min(1060px, calc(100vw - 32px))',
 });
 
+export const actionColor = stylex.defineConsts({
+  secondary:
+    'color-mix(in srgb, var(--dsw-alias-label-primary) 8%, var(--dsw-alias-bg-module-platform))',
+  hover:
+    'color-mix(in srgb, var(--dsw-alias-label-primary) 13%, var(--dsw-alias-bg-module-platform))',
+  danger:
+    'color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, var(--dsw-alias-bg-module-platform))',
+  dangerLabel:
+    'color-mix(in srgb, var(--dsw-alias-state-error-primary) 65%, var(--dsw-alias-label-primary))',
+});
+
 export const color = stylex.defineConsts({
   fg: 'var(--dsw-alias-label-primary)',
   muted: 'var(--dsw-alias-label-secondary)',
@@ -59,6 +70,7 @@ export const color = stylex.defineConsts({
   selected: 'var(--dsw-alias-interactive-bg-active)',
   navSelected: 'var(--dsw-specific-sidebar-nav-item-active)',
   accent: 'var(--dsw-alias-state-business-primary)',
+  accentText: 'var(--dsw-alias-link)',
   onAccent: 'var(--dsw-alias-label-primary-foreground)',
   danger: 'var(--dsw-alias-state-error-primary)',
   onDanger: 'var(--dsw-alias-label-primary-foreground)',
@@ -71,6 +83,7 @@ export const color = stylex.defineConsts({
   surface: 'var(--dsw-alias-bg-module-platform)',
   elevated: 'var(--dsw-alias-button-elevated-fill)',
   base: 'var(--dsw-alias-bg-base)',
+  modal: 'var(--dsw-alias-bg-layer-2)',
   well: 'var(--dsw-alias-bg-base)',
   accentTint: 'var(--dsw-alias-state-business-tertiary)',
 });

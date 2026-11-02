@@ -1,0 +1,9 @@
+{
+  "scenario": "wrong-verifier",
+  "authorizeS256": true,
+  "nativeCallbackRedirect": true,
+  "tokenRequests": 1,
+  "publicClient": true,
+  "verifierMatchesChallenge": true,
+  "exchangeStatus": 400
+}

@@ -144,3 +144,8 @@ test('compact evidence drops private model data and refuses truncated snapshots'
   snapshot.hasMore = true;
   assert.throws(() => compactTimedQuestion(snapshot), /whole bounded/u);
 });
+
+test('accepts the current sending name in a derived fixture without rewriting retained evidence', () => {
+  const proof = JSON.parse(JSON.stringify(load()).replaceAll('channel_send', 'bot_send_message'));
+  assert.deepEqual(checkTimedQuestion(proof), proof.verdict);
+});

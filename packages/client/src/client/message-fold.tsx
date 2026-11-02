@@ -1,4 +1,4 @@
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
@@ -9,7 +9,38 @@ import type { ChannelMessage } from './store.js';
 export const MESSAGE_FOLD_THRESHOLD_PX = 480;
 export const MESSAGE_FOLD_HEIGHT_PX = 300;
 
+export const AutoCollapseMessages = createContext(false);
+
 const expanded = new Set<string>();
+
+const sizeListeners = new Map<Element, () => void>();
+let sizeObserver: ResizeObserver | undefined;
+
+function observeSizes(targets: readonly Element[], listener: () => void): () => void {
+  if (typeof ResizeObserver === 'undefined') return () => {};
+  sizeObserver ??= new ResizeObserver((entries) => {
+    const due = new Set<() => void>();
+    for (const entry of entries) {
+      const notify = sizeListeners.get(entry.target);
+      if (notify) due.add(notify);
+    }
+    for (const notify of due) notify();
+  });
+  for (const target of targets) {
+    sizeListeners.set(target, listener);
+    sizeObserver.observe(target);
+  }
+  return () => {
+    for (const target of targets) {
+      if (sizeListeners.get(target) !== listener) continue;
+      sizeListeners.delete(target);
+      sizeObserver?.unobserve(target);
+    }
+    if (sizeListeners.size > 0) return;
+    sizeObserver?.disconnect();
+    sizeObserver = undefined;
+  };
+}
 
 export function messageFolds(height: number): boolean {
   return height > MESSAGE_FOLD_THRESHOLD_PX;
@@ -55,7 +86,7 @@ const styles = stylex.create({
 
 export function MessageFold({
   messageId,
-  enabled,
+  enabled: eligible,
   t,
   children,
 }: {
@@ -64,6 +95,7 @@ export function MessageFold({
   t: BotHarnessTranslate;
   children: ReactNode;
 }): ReactElement {
+  const enabled = useContext(AutoCollapseMessages) && eligible;
   const [long, setLong] = useState(false);
   const [open, setOpen] = useState(() => expanded.has(messageId));
   const measure = useMountedResource<HTMLDivElement>(
@@ -74,11 +106,7 @@ export function MessageFold({
       }
       const update = (): void => setLong(messageFolds(element.scrollHeight));
       update();
-      if (typeof ResizeObserver === 'undefined') return;
-      const observer = new ResizeObserver(update);
-      observer.observe(element);
-      for (const child of Array.from(element.children)) observer.observe(child);
-      return () => observer.disconnect();
+      return observeSizes([element, ...Array.from(element.children)], update);
     },
     [enabled],
   );

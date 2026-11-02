@@ -88,7 +88,9 @@ describe('Bot model from the composer', () => {
       'GPT-5',
     ]);
     expect(model.models[2]?.credential).toBe('missing');
-    expect(model.presets).toEqual([{ id: 'fast', name: 'Fast', orchestrator: flash }]);
+    expect(model.presets).toEqual([
+      { id: 'fast', name: 'Fast', revision: 1, orchestrator: flash, assignmentDefault: flash },
+    ]);
     expect(currentModel(model).name).toBe('DeepSeek V4 Pro');
     expect(modelLabel({ status: 'ready', value: model })).toBe('DeepSeek V4 Pro');
   });
@@ -124,7 +126,7 @@ describe('Bot model from the composer', () => {
 
   it('switches the main model and keeps the Assignment models of the current plan', async () => {
     const fake = new FakeHost();
-    fake.methods.set('modelPlanSet', (args) => ({
+    fake.methods.set('modelPlanCustomize', (args) => ({
       plan: { ...plan, revision: 5, orchestrator: args['orchestrator'] },
     }));
     const model = {
@@ -138,13 +140,11 @@ describe('Bot model from the composer', () => {
 
     expect(calls(fake)).toEqual([
       [
-        'modelPlanSet',
+        'modelPlanCustomize',
         {
           slug,
           expectedRevision: 4,
           orchestrator: flash,
-          assignmentDefault: flash,
-          assignmentModels: plan.assignmentModels,
         },
       ],
     ]);
@@ -155,21 +155,21 @@ describe('Bot model from the composer', () => {
     expect(fake.calls[0]?.args['orchestrator']).toEqual({ ...pro, reasoningEffort: 'high' });
   });
 
-  it('starts a plan from the chosen model when the Bot inherits the default', async () => {
+  it('customizes only the Orchestrator when the Bot inherits the default', async () => {
     const fake = new FakeHost();
-    fake.methods.set('modelPlanSet', (args) => ({ plan: { ...plan, ...args, revision: 3 } }));
+    fake.methods.set('modelPlanCustomize', (args) => ({
+      plan: { revision: 3, orchestrator: args['orchestrator'] },
+    }));
 
     await chooseModel(client(fake), slug, { revision: 2, models: [], presets: [] }, pro);
 
     expect(calls(fake)).toEqual([
       [
-        'modelPlanSet',
+        'modelPlanCustomize',
         {
           slug,
           expectedRevision: 2,
           orchestrator: pro,
-          assignmentDefault: pro,
-          assignmentModels: [{ ...pro, allowedEfforts: [''], defaultEffort: '' }],
         },
       ],
     ]);
@@ -276,6 +276,61 @@ describe('Bot workspace from the composer', () => {
 
     expect(folderBrowsingUnavailable(failure)).toBe(true);
     expect(folderBrowsingUnavailable(new Error('other'))).toBe(false);
+  });
+
+  it('lists folders through BotHarness once DSH uses the system chooser', async () => {
+    const fake = new FakeHost();
+    fake.answers.set('directoryPicker/list', () => ({
+      ok: false,
+      error: { code: 'directory-picker/unavailable', message: 'No folder browser' },
+    }));
+    fake.methods.set('folderBrowse', (args) => {
+      if (args['path'] === 'D:\\missing') throw new Error('gone');
+      return {
+        path: args['path'] ?? 'C:\\Users\\ada',
+        crumbs: [{ name: 'C:\\', path: 'C:\\' }],
+        entries: [{ name: 'code', path: 'C:\\Users\\ada\\code' }],
+        truncated: false,
+        roots: [
+          { name: 'ada', path: 'C:\\Users\\ada' },
+          { name: 'D:\\', path: 'D:\\' },
+        ],
+      };
+    });
+    const host = client(fake);
+
+    const home = await listHostFolders(host);
+    const drive = await listHostFolders(host, 'D:\\');
+
+    expect(home.entries.map((entry) => entry.name)).toEqual(['code']);
+    expect(home.roots.map((entry) => entry.path)).toEqual(['C:\\Users\\ada', 'D:\\']);
+    expect(drive.path).toBe('D:\\');
+    expect(calls(fake)).toEqual([
+      ['folderBrowse', {}],
+      ['folderBrowse', { path: 'D:\\' }],
+    ]);
+    expect(fake.requests).toContain(`POST ${ROUTE}/botharness-device/api/botharness/folderBrowse`);
+    expect(
+      await listHostFolders(host, 'D:\\missing').catch((error: unknown) => error),
+    ).toMatchObject({
+      code: 'invalid-input',
+    });
+  });
+
+  it('keeps the system chooser refusal when the computer is too old to list folders', async () => {
+    const fake = new FakeHost();
+    fake.answers.set('directoryPicker/list', () => ({
+      ok: false,
+      error: { code: 'directory-picker/unavailable', message: 'No folder browser' },
+    }));
+    fake.answers.set('folderBrowse', () => ({
+      ok: false,
+      error: { code: 'unknown-method', message: 'folderBrowse is not a method' },
+    }));
+
+    const failure = await listHostFolders(client(fake)).catch((error: unknown) => error);
+
+    expect(folderBrowsingUnavailable(failure)).toBe(true);
   });
 
   it('resolves a folder before the confirmation, then grants it', async () => {

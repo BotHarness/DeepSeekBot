@@ -125,7 +125,7 @@ try {
       await rpc('create', {
         displayName: 'Launch Planner QA',
         persona:
-          'You coordinate a product launch. Reply concisely to the source Channel with channel_send. Never create assignments. When asked about launch readiness, say the launch plan is ready for Human review, with documentation and release checks remaining.',
+          'You coordinate a product launch. Reply concisely to the source Channel with bot_send_message. Never create assignments. When asked about launch readiness, say the launch plan is ready for Human review, with documentation and release checks remaining.',
       })
     ).bot;
     const group = (await rpc('channelCreate', { name: 'Launch review QA', members: [bot.slug] }))
@@ -165,7 +165,7 @@ try {
       body:
         'Reply in this private Channel ' +
         dm.id +
-        ' using channel_send: give a short launch review checklist.',
+        ' using bot_send_message: give a short launch review checklist.',
     });
     const dmSource = await waitBot(dm.id);
     const item = (await rpc('humanAttention', { category: 'unread' })).items.find(

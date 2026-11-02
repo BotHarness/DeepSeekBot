@@ -71,6 +71,7 @@ function staticValue(expression, bindings, seen = new Set()) {
     );
   }
   if (ts.isIdentifier(value)) {
+    if (value.text === 'undefined' && !bindings.has(value.text)) return undefined;
     if (seen.has(value.text)) throw new Error(`docs reference: circular binding ${value.text}`);
     const initializer = bindings.get(value.text);
     if (!initializer) throw new Error(`docs reference: unresolved binding ${value.text}`);

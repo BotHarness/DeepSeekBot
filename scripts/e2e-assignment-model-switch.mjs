@@ -119,7 +119,7 @@ const grant = (
 
 await rpc('channelSend', {
   channelId: `dm-${bot.slug}`,
-  body: `QA step 1: call create_assignment with active grant ${grant.id}, continuity key ${key}, omit all model fields. Purpose: call report_to_orchestrator with state completed and exact summary PHASE_ONE. Then call channel_send here to confirm the Assignment Session id.`,
+  body: `QA step 1: call create_assignment with active grant ${grant.id}, continuity key ${key}, omit all model fields. Purpose: call report_to_orchestrator with state completed and exact summary PHASE_ONE. Then call bot_send_message here to confirm the Assignment Session id.`,
 });
 const first = await assignment(bot.slug, key);
 if (JSON.stringify(first.modelRoute) !== JSON.stringify(flashRoute))
@@ -141,7 +141,7 @@ if (JSON.stringify((await assignment(bot.slug, key)).modelRoute) !== JSON.string
 
 await rpc('channelSend', {
   channelId: `dm-${bot.slug}`,
-  body: `QA step 2: inspect_assignment ${first.sessionId}; its CURRENT route must still be ${flashRoute.provider}/${flashRoute.model}/low while the NEW Assignment default is ${proRoute.provider}/${proRoute.model}/off. Then call send_assignment_request for ${first.sessionId} with text "Call report_to_orchestrator state completed summary PHASE_TWO", OMIT provider/model/effort. Afterward call channel_send here reporting both routes.`,
+  body: `QA step 2: inspect_assignment ${first.sessionId}; its CURRENT route must still be ${flashRoute.provider}/${flashRoute.model}/low while the NEW Assignment default is ${proRoute.provider}/${proRoute.model}/off. Then call send_assignment_request for ${first.sessionId} with text "Call report_to_orchestrator state completed summary PHASE_TWO", OMIT provider/model/effort. Afterward call bot_send_message here reporting both routes.`,
 });
 await report(bot.slug, key, 'PHASE_TWO');
 if (JSON.stringify((await assignment(bot.slug, key)).modelRoute) !== JSON.stringify(flashRoute))
@@ -150,7 +150,7 @@ const retainedUsed = await sessionRoute(first.sessionId, flashRoute);
 
 await rpc('channelSend', {
   channelId: `dm-${bot.slug}`,
-  body: `QA step 3: call send_assignment_request for ${first.sessionId} with text "Do not run", provider ${flashRoute.provider}, model ${flashRoute.model}, reasoning_effort low. This route is no longer permitted by the CURRENT Bot plan; report the rejection with channel_send here. Do not retry with a different model yet.`,
+  body: `QA step 3: call send_assignment_request for ${first.sessionId} with text "Do not run", provider ${flashRoute.provider}, model ${flashRoute.model}, reasoning_effort low. This route is no longer permitted by the CURRENT Bot plan; report the rejection with bot_send_message here. Do not retry with a different model yet.`,
 });
 await until(
   'rejection message',
@@ -166,7 +166,7 @@ if (JSON.stringify((await assignment(bot.slug, key)).modelRoute) !== JSON.string
 
 await rpc('channelSend', {
   channelId: `dm-${bot.slug}`,
-  body: `QA step 4: call list_assignment_models, then call send_assignment_request for existing Session ${first.sessionId}, text "Call report_to_orchestrator state completed summary PHASE_THREE", provider ${proRoute.provider}, model ${proRoute.model}, reasoning_effort off. Then call channel_send here with the switched route.`,
+  body: `QA step 4: call list_assignment_models, then call send_assignment_request for existing Session ${first.sessionId}, text "Call report_to_orchestrator state completed summary PHASE_THREE", provider ${proRoute.provider}, model ${proRoute.model}, reasoning_effort off. Then call bot_send_message here with the switched route.`,
 });
 const switched = await report(bot.slug, key, 'PHASE_THREE');
 if (JSON.stringify(switched.modelRoute) !== JSON.stringify(proRoute))

@@ -44,7 +44,7 @@ const preset = (
 await rpc('modelPresetApply', { slug: bot.slug, presetId: preset.id });
 await rpc('channelSend', {
   channelId,
-  body: 'Call channel_send in this DM with exactly USAGE_ROUTE_CONFIRMED. Do not do anything else.',
+  body: 'Call bot_send_message in this DM with exactly USAGE_ROUTE_CONFIRMED. Do not do anything else.',
 });
 let activity;
 let confirmed = false;
@@ -164,10 +164,10 @@ try {
     }
   }
   await page.click(`.bh-root [data-channel-id="${channelId}"]`);
-  await page.waitForSelector('.bh-channel-island[aria-haspopup="dialog"]');
+  await page.waitForSelector('.bh-channel-island');
   await page.click('.bh-channel-island');
-  await page.waitForSelector('.bh-profile-expand');
-  await page.$eval('.bh-profile-expand', (button) => button.click());
+  await page.locator('::-p-aria(View profile)').click();
+  await page.waitForSelector('.bh-profile-view');
   await page.waitForSelector('.bh-profile-view');
   await page.waitForFunction(
     (name) =>

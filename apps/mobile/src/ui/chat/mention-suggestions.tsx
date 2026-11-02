@@ -3,8 +3,10 @@ import { Pressable, View } from 'react-native';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
+import { useLiquidGlass } from '../primitives/drawer-material';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
+import { ComposerFieldMaterial } from './composer-chrome';
 import type { MentionCandidate } from './mention-draft';
 
 const AVATAR = 24;
@@ -17,21 +19,29 @@ export function MentionSuggestions({
   candidates: readonly MentionCandidate[];
   onChoose(candidate: MentionCandidate): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
+  const glass = useLiquidGlass();
+  const corner = glass ? radius.xl : radius.lg;
   if (candidates.length === 0) return null;
   return (
     <View
       accessibilityLabel={t.mentionSuggestions}
       style={{
         marginBottom: space.x2,
-        paddingVertical: space.x1,
-        borderRadius: radius.lg,
-        borderWidth: edge.hairline,
-        borderColor: theme.layer.sheet.edge,
-        backgroundColor: theme.layer.sheet.fill,
+        paddingVertical: glass ? space.x3 : space.x1,
+        borderRadius: corner,
         overflow: 'hidden',
+        ...(glass
+          ? {}
+          : {
+              borderWidth: edge.hairline,
+              borderColor: theme.layer.sheet.edge,
+              backgroundColor: theme.layer.sheet.fill,
+            }),
       }}
     >
+      {glass ? <ComposerFieldMaterial cornerRadius={corner} /> : null}
       {candidates.map((candidate) => {
         const name = candidate.kind === 'bot' ? candidate.bot.displayName : candidate.label;
         const detail =
@@ -50,7 +60,7 @@ export function MentionSuggestions({
               flexDirection: 'row',
               alignItems: 'center',
               gap: space.x3,
-              paddingHorizontal: space.x4,
+              paddingHorizontal: glass ? space.x5 : space.x4,
               backgroundColor: pressed ? theme.layer.sheet.pressed : undefined,
             })}
           >

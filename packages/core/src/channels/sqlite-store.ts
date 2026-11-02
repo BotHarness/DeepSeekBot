@@ -2,6 +2,7 @@ import { allBotPreview, assertAllBotPreview, type AllBotPreview } from './all-bo
 import { projectBridgeMessage } from '../messaging/channel-target.js';
 import type { ExternalSource } from '../messaging/inbound.js';
 import { isChannelNotice, notChannelNoticeSql } from './channel-notice.js';
+import { toolApprovalHistoryEntry, type ToolApprovalHistoryEntry } from './approval-history.js';
 import {
   createLegacyAttachmentMigration,
   type RetainedAttachmentMessage,
@@ -38,6 +39,9 @@ import {
 } from '../attachments/ref.js';
 import {
   botDmChannelId,
+  remoteBotDmRecord,
+  isBotNetworkMembership,
+  mergeBotNetworkMembership,
   dmChannelId,
   isBotDmChannel,
   MAX_BOT_HOPS,
@@ -73,6 +77,9 @@ import {
   MAX_MESSAGE_PAGE,
   pageChannelJournal,
   pageChannelTimeline,
+  timelineCursorAnchor,
+  type ChannelTimelinePage,
+  type ChannelTimelineRequest,
 } from './timeline.js';
 
 interface SqliteChannelStoreOptions extends ChannelStoreOptions {
@@ -85,6 +92,7 @@ interface SqliteChannelStoreOptions extends ChannelStoreOptions {
 
 interface PlacementRow {
   message_id: string;
+  created_at: string;
   revision: number;
   source_event_id: string;
   payload_json: string;
@@ -111,10 +119,62 @@ function parseRecord(value: string, id: string): ChannelRecord | undefined {
   }
 }
 
+const SHORT_SEARCH_MAX = 200;
+const SNIPPET_BEFORE = 24;
+const SNIPPET_LENGTH = 120;
+
+function messageSearchCursorDecode(value: string): {
+  at: string;
+  channelId: string;
+  messageId: string;
+  seen: number;
+} {
+  try {
+    if (value.length > 1024) throw new Error();
+    const decoded: unknown = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
+    const cursor = decoded as Record<string, unknown>;
+    if (
+      typeof decoded === 'object' &&
+      decoded !== null &&
+      typeof cursor['at'] === 'string' &&
+      typeof cursor['channelId'] === 'string' &&
+      typeof cursor['messageId'] === 'string' &&
+      Number.isSafeInteger(cursor['seen']) &&
+      Number(cursor['seen']) >= 0
+    )
+      return {
+        at: cursor['at'],
+        channelId: cursor['channelId'],
+        messageId: cursor['messageId'],
+        seen: Number(cursor['seen']),
+      };
+  } catch {}
+  throw new Error('message_search: invalid cursor');
+}
+
+export function searchSnippet(text: string, needle: string): string {
+  const chars = Array.from(text.replace(/\s+/gu, ' ').trim());
+  const lower = chars.map((char) => char.toLowerCase());
+  const target = Array.from(needle).map((char) => char.toLowerCase());
+  let match = 0;
+  for (let index = 0; index + target.length <= lower.length; index += 1) {
+    if (target.every((char, offset) => lower[index + offset] === char)) {
+      match = index;
+      break;
+    }
+  }
+  const start = Math.max(0, Math.min(match - SNIPPET_BEFORE, chars.length - SNIPPET_LENGTH));
+  const end = Math.min(chars.length, start + SNIPPET_LENGTH);
+  return (
+    (start > 0 ? '…' : '') + chars.slice(start, end).join('') + (end < chars.length ? '…' : '')
+  );
+}
+
 function parseMessage(
   value: string,
   body?: string,
   messageId?: string,
+  channelId?: string,
 ): ChannelMessage | undefined {
   try {
     const parsed: unknown = JSON.parse(value);
@@ -124,7 +184,7 @@ function parseMessage(
         : undefined;
     const payload =
       external && body !== undefined
-        ? projectBridgeMessage(external, body)
+        ? projectBridgeMessage(external, body, channelId)
         : body === undefined
           ? parsed
           : { ...(parsed as object), body };
@@ -201,7 +261,7 @@ function sameIntent(left: ChannelMessage, right: ChannelMessage): boolean {
 function sourceKind(message: ChannelMessage): string {
   return message.author.kind === 'human'
     ? 'human-message'
-    : message.author.kind === 'bot'
+    : message.author.kind === 'bot' || message.author.kind === 'remote-bot'
       ? 'bot-message'
       : 'system-message';
 }
@@ -271,6 +331,13 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
   };
   const isBotActive = options.isBotActive ?? (() => true);
   let lowerRegistered = false;
+  const registerLower = (db: DatabaseSync): void => {
+    if (lowerRegistered) return;
+    db.function('botharness_unicode_lower', { deterministic: true }, (value: unknown) =>
+      typeof value === 'string' ? value.toLowerCase() : '',
+    );
+    lowerRegistered = true;
+  };
   const retainedAttachments = (): RetainedAttachmentMessage[] => {
     const rows = database.read((db) =>
       db.prepare('SELECT source_event_id, payload_json, body FROM source_events').all(),
@@ -319,6 +386,24 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     } catch (error) {
       options.warn?.('Channel record notification failed: ' + String(error));
     }
+  };
+
+  const remoteHostKey = (db: DatabaseSync, host: string): string | undefined => {
+    const rows = db
+      .prepare(`SELECT DISTINCT json_extract(record_json, '$.remoteBot.hostKey') AS host_key
+      FROM channel_records WHERE json_extract(record_json, '$.remoteBot.hostId') = ?
+      AND json_extract(record_json, '$.remoteBot.hostKey') IS NOT NULL`)
+      .all(host);
+    if (rows.length > 1) throw new Error('network-host-key-conflict');
+    const key = rows[0]?.host_key;
+    if (key !== undefined && (typeof key !== 'string' || !/^[0-9a-f]{64}$/u.test(key)))
+      throw new Error('network-host-key-invalid');
+    return key;
+  };
+  const assertHostKey = (db: DatabaseSync, host: string, key: string): void => {
+    if (!/^[0-9a-f]{64}$/u.test(key)) throw new Error('network-host-key-invalid');
+    const known = remoteHostKey(db, host);
+    if (known !== undefined && known !== key) throw new Error('network-host-key-conflict');
   };
 
   const writeRecord = (record: ChannelRecord): void => {
@@ -371,8 +456,10 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
   let reactionTable = false;
   const channelReactions = (
     channelId: string,
-    messageId?: string,
+    messageIds?: string | readonly string[],
   ): Map<string, ChannelReaction[]> => {
+    const selected = typeof messageIds === 'string' ? [messageIds] : messageIds;
+    if (selected?.length === 0) return new Map();
     reactionTable ||= database.read(
       (db) =>
         db
@@ -390,10 +477,10 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
                     WHERE f.channel_id = r.channel_id AND f.message_id = r.message_id
                       AND f.emoji = r.emoji) AS first_at
              FROM channel_reactions r
-            WHERE r.channel_id = ?${messageId === undefined ? '' : ' AND r.message_id = ?'}
+            WHERE r.channel_id = ?${selected === undefined ? '' : ` AND r.message_id IN (${selected.map(() => '?').join(', ')})`}
             ORDER BY r.message_id, first_at, r.emoji, r.reacted_at, r.actor_kind, r.actor_id`,
         )
-        .all(...(messageId === undefined ? [channelId] : [channelId, messageId])),
+        .all(channelId, ...(selected ?? [])),
     ) as unknown as Array<{
       message_id: string;
       emoji: string;
@@ -483,7 +570,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         .get(id, messageId),
     ) as { payload_json: string; body: string } | undefined;
     const message =
-      row === undefined ? undefined : parseMessage(row.payload_json, row.body, messageId);
+      row === undefined ? undefined : parseMessage(row.payload_json, row.body, messageId, id);
     if (message === undefined || message.author.kind === 'system' || isChannelNotice(message))
       return undefined;
     if (active) {
@@ -558,12 +645,52 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     return recipients.length === 0 ? undefined : recipients;
   };
 
+  const projectMessageAttachments = (
+    sourceEventId: string,
+    message: ChannelMessage,
+  ): ChannelMessage =>
+    projectAttachmentFiles(
+      attachmentMigration.project(sourceEventId, message),
+      options.attachments,
+    );
+
+  const placementMessage = (
+    row: Pick<PlacementRow, 'payload_json' | 'body' | 'message_id' | 'created_at'>,
+    id: string,
+  ): ChannelMessage =>
+    parseMessage(row.payload_json, row.body, row.message_id, id) ?? {
+      id: row.message_id,
+      at: row.created_at,
+      author: { kind: 'system' },
+      body: 'This message was written by a newer version and cannot be shown.',
+    };
+
+  const projectPlacement = (
+    row: PlacementRow,
+    id: string,
+    members: ReturnType<typeof humanMembers>,
+    reactionsById: ReadonlyMap<string, ChannelReaction[]>,
+  ): ChannelMessage => {
+    const message = attachmentMigration.project(row.source_event_id, placementMessage(row, id));
+    const deliveries = admissionStatuses(row.source_event_id);
+    const humanReceipts = humanReceiptsFor(message, row.revision, members);
+    const reactions = reactionsById.get(row.message_id);
+    return {
+      ...message,
+      ...noticeOrigin(message, row, id),
+      channelRevision: row.revision,
+      ...(deliveries === undefined ? {} : { deliveries }),
+      ...(humanReceipts === undefined ? {} : { humanReceipts }),
+      ...(reactions === undefined ? {} : { reactions }),
+    };
+  };
+
   const allMessages = (id: string): ChannelMessage[] => {
     if (!isValidChannelId(id)) return [];
     const rows = database.read((db) =>
       db
         .prepare(`
-      SELECT p.revision, p.source_event_id, p.message_id, e.payload_json, e.body,
+      SELECT p.revision, p.source_event_id, p.message_id, e.payload_json, e.body, e.created_at,
              e.channel_id AS home_channel_id
         FROM channel_placements p
         JOIN source_events e ON e.source_event_id = p.source_event_id
@@ -573,24 +700,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     ) as unknown as PlacementRow[];
     const members = humanMembers(id);
     const reactionsById = channelReactions(id);
-    return rows.flatMap((row) => {
-      const original = parseMessage(row.payload_json, row.body, row.message_id);
-      if (original === undefined) return [];
-      const message = attachmentMigration.project(row.source_event_id, original);
-      const deliveries = admissionStatuses(row.source_event_id);
-      const humanReceipts = humanReceiptsFor(message, row.revision, members);
-      const reactions = reactionsById.get(row.message_id);
-      return [
-        {
-          ...message,
-          ...noticeOrigin(message, row, id),
-          channelRevision: row.revision,
-          ...(deliveries === undefined ? {} : { deliveries }),
-          ...(humanReceipts === undefined ? {} : { humanReceipts }),
-          ...(reactions === undefined ? {} : { reactions }),
-        },
-      ];
-    });
+    return rows.map((row) => projectPlacement(row, id, members, reactionsById));
   };
 
   const projectPostPreview = (message: ChannelMessage): ChannelMessage => {
@@ -630,6 +740,161 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       options.attachments,
     );
 
+  const timelinePage = (
+    id: string,
+    request: ChannelTimelineRequest = {},
+    visibleFrom = 0,
+    members?: ReturnType<typeof humanMembers>,
+  ): ChannelTimelinePage | undefined => {
+    if (!isValidChannelId(id)) return pageChannelTimeline(id, [], request);
+    const limit = Math.max(1, Math.min(request.limit ?? DEFAULT_MESSAGE_PAGE, MAX_MESSAGE_PAGE));
+    const older = Math.max(0, Math.min(request.olderLimit ?? 20, MAX_MESSAGE_PAGE));
+    const newer = Math.max(0, Math.min(request.newerLimit ?? 20, MAX_MESSAGE_PAGE));
+    if ((request.direction === 'around' ? [older, newer] : [limit]).some(Number.isNaN))
+      return undefined;
+    let anchor: PlacementRow | undefined;
+    if (
+      request.direction === 'around' ||
+      request.direction === 'older' ||
+      request.direction === 'newer'
+    ) {
+      const cursor =
+        request.direction === 'around' || request.cursor === undefined
+          ? undefined
+          : timelineCursorAnchor(id, request.cursor);
+      const anchorId = request.direction === 'around' ? request.around : cursor?.id;
+      if (anchorId === undefined) return undefined;
+      anchor = database.read((db) =>
+        db
+          .prepare(`
+        SELECT p.revision, p.source_event_id, p.message_id, e.payload_json, e.body, e.created_at,
+               e.channel_id AS home_channel_id
+          FROM channel_placements p
+          JOIN source_events e ON e.source_event_id = p.source_event_id
+         WHERE p.channel_id = ? AND p.message_id = ? AND p.revision >= ?
+      `)
+          .get(id, anchorId, visibleFrom),
+      ) as PlacementRow | undefined;
+      if (
+        anchor === undefined ||
+        (cursor !== undefined && placementMessage(anchor, id).at !== cursor.at)
+      )
+        return undefined;
+    }
+    const readSide = (direction: 'older' | 'newer', count: number): PlacementRow[] =>
+      database.read((db) =>
+        db
+          .prepare(`
+        SELECT p.revision, p.source_event_id, p.message_id, e.payload_json, e.body, e.created_at,
+               e.channel_id AS home_channel_id
+          FROM channel_placements p
+          JOIN source_events e ON e.source_event_id = p.source_event_id
+         WHERE p.channel_id = ? AND p.revision >= ?
+           ${anchor === undefined ? '' : `AND p.revision ${direction === 'older' ? '<' : '>'} ?`}
+         ORDER BY p.revision ${direction === 'older' ? 'DESC' : 'ASC'} LIMIT ?
+      `)
+          .all(
+            id,
+            visibleFrom,
+            ...(anchor === undefined ? [] : [anchor.revision]),
+            Math.ceil(count) + 1,
+          ),
+      ) as unknown as PlacementRow[];
+    const rows =
+      anchor === undefined
+        ? readSide('older', limit).reverse()
+        : request.direction === 'older'
+          ? [...readSide('older', limit).reverse(), anchor]
+          : request.direction === 'newer'
+            ? [anchor, ...readSide('newer', limit)]
+            : [...readSide('older', older).reverse(), anchor, ...readSide('newer', newer)];
+    const page = pageChannelTimeline(
+      id,
+      rows.map((row) => placementMessage(row, id)),
+      request,
+    );
+    if (page === undefined || page.entries.length === 0) return page;
+    const selectedIds = new Set(page.entries.map((message) => message.id));
+    const reactions = channelReactions(id, [...selectedIds]);
+    const recipients = members ?? humanMembers(id);
+    const selected = rows
+      .filter((row) => selectedIds.has(row.message_id))
+      .map((row) => projectPlacement(row, id, recipients, reactions));
+    const dependencies = [...selected];
+    const replyIds = [
+      ...new Set(
+        selected.flatMap((message) =>
+          message.replyTo === undefined || selectedIds.has(message.replyTo)
+            ? []
+            : [message.replyTo],
+        ),
+      ),
+    ];
+    if (replyIds.length > 0) {
+      const replies = database.read((db) =>
+        db
+          .prepare(`
+        SELECT p.revision, p.source_event_id, p.message_id, e.payload_json, e.body, e.created_at,
+               e.channel_id AS home_channel_id
+          FROM channel_placements p
+          JOIN source_events e ON e.source_event_id = p.source_event_id
+         WHERE p.channel_id = ? AND p.revision >= ?
+           AND p.message_id IN (${replyIds.map(() => '?').join(', ')})
+      `)
+          .all(id, visibleFrom, ...replyIds),
+      ) as unknown as PlacementRow[];
+      dependencies.push(
+        ...replies.map((row) =>
+          attachmentMigration.project(row.source_event_id, placementMessage(row, id)),
+        ),
+      );
+    }
+    const grantIds = selected
+      .filter((message) => message.grantRequest)
+      .map((message) => message.id);
+    if (grantIds.length > 0) {
+      dependencies.push(
+        ...database.read((db) => {
+          const resolved = new Map<string, ChannelMessage>();
+          for (const row of db
+            .prepare(`
+          SELECT p.message_id, e.payload_json, e.body
+            FROM channel_placements p
+            JOIN source_events e ON e.source_event_id = p.source_event_id
+           WHERE p.channel_id = ? AND p.revision >= ?
+             AND CASE WHEN json_valid(e.payload_json) THEN
+               json_extract(e.payload_json, '$.author.kind') = 'human'
+               AND json_extract(e.payload_json, '$.replyTo') = json_extract(e.payload_json, '$.grantRequestResolution.requestMessageId')
+               AND json_extract(e.payload_json, '$.grantRequestResolution.requestMessageId') IN (${grantIds.map(() => '?').join(', ')})
+             ELSE 0 END
+        `)
+            .iterate(id, visibleFrom, ...grantIds)) {
+            const candidate = row as unknown as Pick<
+              PlacementRow,
+              'message_id' | 'payload_json' | 'body'
+            >;
+            const message = parseMessage(
+              candidate.payload_json,
+              candidate.body,
+              candidate.message_id,
+              id,
+            );
+            const requestId = message?.grantRequestResolution?.requestMessageId;
+            if (
+              message !== undefined &&
+              requestId !== undefined &&
+              isGrantRequestResolved([message], requestId)
+            )
+              resolved.set(requestId, message);
+            if (resolved.size === grantIds.length) break;
+          }
+          return [...resolved.values()];
+        }),
+      );
+    }
+    return { ...page, entries: selected.map((message) => project(dependencies, message)) };
+  };
+
   const revisionOf = (id: string): number => {
     if (!isValidChannelId(id)) return 0;
     const row = database.read((db) =>
@@ -648,7 +913,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     once: boolean,
     preview?: AllBotPreview,
     origin?: ChannelMessageOrigin,
-    canCommit?: () => boolean,
+    canCommit?: (database?: DatabaseSync) => boolean,
   ) => {
     const channel = readRecord(id);
     if (channel === undefined) return once ? { status: 'missing' as const } : undefined;
@@ -736,9 +1001,18 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       message.botCausation === undefined
     )
       throw new Error('Bot Group mentions require trusted causation');
-    const botDm = isBotDmChannel(channel) && senderSlug !== undefined;
+    const remoteSender = message.author.kind === 'remote-bot';
+    if (
+      message.author.kind === 'remote-bot' &&
+      (channel.remoteBot?.hostId !== message.author.hostId ||
+        channel.remoteBot?.botSlug !== message.author.slug ||
+        !isBotDmChannel(channel))
+    )
+      throw new Error('Remote Bot does not own this DM');
+    const botDm = isBotDmChannel(channel) && (senderSlug !== undefined || remoteSender);
     if (
       isBotDmChannel(channel) &&
+      !remoteSender &&
       (senderSlug === undefined || !channel.members.includes(senderSlug))
     )
       throw new Error('Only a Bot DM participant may author this Channel');
@@ -746,7 +1020,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       throw new Error('Bot DM send requires trusted causation');
     const senderDm =
       botDm && senderSlug !== undefined ? readRecord(dmChannelId(senderSlug)) : undefined;
-    if (botDm && (senderDm?.type !== 'dm' || senderDm.botSlug !== senderSlug))
+    if (botDm && !remoteSender && (senderDm?.type !== 'dm' || senderDm.botSlug !== senderSlug))
       throw new Error('Sender Human DM is unavailable for the Bot action notice');
     const cause =
       botDm && senderSlug !== undefined && message.botCausation !== undefined
@@ -754,18 +1028,29 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         : undefined;
     const noticeChannel = !botDm || cause === 'target' ? undefined : (cause ?? senderDm);
     const recipient = botDm ? channel.members.find((slug) => slug !== senderSlug) : undefined;
-    if (botDm && recipient === undefined) throw new Error('Bot DM has no recipient');
+    if (botDm && recipient === undefined && channel.remoteBot === undefined)
+      throw new Error('Bot DM has no recipient');
     const durable = rawMessage(message);
     const revision = previous.length + 1;
     const sourceEventId = randomUUID();
     const action: ChannelMessage | undefined =
-      noticeChannel !== undefined && recipient !== undefined && senderSlug !== undefined
+      noticeChannel !== undefined &&
+      (recipient !== undefined || channel.remoteBot !== undefined) &&
+      senderSlug !== undefined
         ? {
             id: `bot-dm-action-${durable.id}`,
             at: durable.at,
             author: { kind: 'bot', slug: senderSlug },
             body: '',
-            botDmAction: { channelId: id, messageId: durable.id, recipientBotSlug: recipient },
+            ...(channel.remoteBot !== undefined
+              ? { botChannelPost: { channelId: id, messageId: durable.id } }
+              : {
+                  botDmAction: {
+                    channelId: id,
+                    messageId: durable.id,
+                    recipientBotSlug: recipient!,
+                  },
+                }),
           }
         : undefined;
     const actionRevision =
@@ -796,7 +1081,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     try {
       database.transaction(
         (db) => {
-          if (canCommit?.() === false) {
+          if (canCommit?.(db) === false) {
             refused = true;
             return;
           }
@@ -868,21 +1153,6 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
               origin.sessionId,
               durable.author.slug,
             );
-          const botAlreadyAdmitted = (
-            targetSlug: string,
-            rootId: string,
-            fromBotSlug?: string,
-          ): boolean =>
-            db
-              .prepare(`
-              SELECT 1 FROM inbox_admissions a
-              JOIN source_events e ON e.source_event_id = a.source_event_id
-              WHERE a.bot_slug = ? AND e.source_kind = 'bot-message'
-                AND json_extract(e.payload_json, '$.botCausation.rootSourceEventId') = ?
-                AND (? IS NULL OR (e.bot_slug = ? AND a.reason != 'group-ordinary'))
-              LIMIT 1
-            `)
-              .get(targetSlug, rootId, fromBotSlug ?? null, fromBotSlug ?? null) !== undefined;
           const candidateRecipients =
             durable.privateInputResolution !== undefined
               ? []
@@ -910,21 +1180,12 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
                     durable.botCausation !== undefined &&
                     durable.botCausation.hop <= MAX_BOT_HOPS
                   ? [...new Set(mentions.map((item) => item.botSlug))]
-                      .filter(
-                        (targetSlug) =>
-                          targetSlug !== senderSlug &&
-                          !botAlreadyAdmitted(
-                            targetSlug,
-                            durable.botCausation!.rootSourceEventId,
-                            senderSlug,
-                          ),
-                      )
+                      .filter((targetSlug) => targetSlug !== senderSlug)
                       .map((botSlug) => ({ botSlug, reason: 'group-mention' }))
                   : botDm &&
                       recipient !== undefined &&
                       durable.botCausation !== undefined &&
-                      durable.botCausation.hop <= MAX_BOT_HOPS &&
-                      !botAlreadyAdmitted(recipient, durable.botCausation.rootSourceEventId)
+                      durable.botCausation.hop <= MAX_BOT_HOPS
                     ? [{ botSlug: recipient, reason: 'bot-dm' }]
                     : [];
           const recipients = candidateRecipients.filter((item) => isBotActive(item.botSlug));
@@ -942,12 +1203,6 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
                   const sourceRule = sourcePolicy.resolveIn(db, botSlug, 'group-ordinary');
                   const policy =
                     channel.wakePolicies?.[botSlug] ?? defaultGroupWakePolicy(sourceRule);
-                  if (
-                    durable.author.kind === 'bot' &&
-                    durable.botCausation !== undefined &&
-                    botAlreadyAdmitted(botSlug, durable.botCausation.rootSourceEventId)
-                  )
-                    return [];
                   return [{ botSlug, policy, sourceRule }];
                 })
               : [];
@@ -1338,6 +1593,99 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       writeRecord(record);
       return record;
     },
+    remoteHostKey(host) {
+      return database.read((db) => remoteHostKey(db, host));
+    },
+    trustRemoteHostKey(host, key, membership) {
+      if (membership !== undefined && !isBotNetworkMembership(membership))
+        throw new Error('network-membership-invalid');
+      database.transaction(
+        (db) => {
+          assertHostKey(db, host, key);
+          const result = db
+            .prepare(`UPDATE channel_records
+          SET record_json = json_set(record_json, '$.remoteBot.hostKey', ?)
+          WHERE json_extract(record_json, '$.remoteBot.hostId') = ?`)
+            .run(key, host);
+          if (result.changes === 0) throw new Error('network-channel-required');
+          if (membership !== undefined) {
+            const rows = db
+              .prepare(`SELECT channel_id, record_json FROM channel_records
+              WHERE json_extract(record_json, '$.remoteBot.hostId') = ?`)
+              .all(host);
+            for (const row of rows) {
+              if (typeof row.channel_id !== 'string' || typeof row.record_json !== 'string')
+                throw new Error('network-channel-invalid');
+              const record = parseRecord(row.record_json, row.channel_id);
+              if (record?.remoteBot === undefined) throw new Error('network-channel-invalid');
+              const merged = mergeBotNetworkMembership(record.remoteBot.membership, membership);
+              db.prepare(`UPDATE channel_records SET record_json = json_set(record_json,
+                '$.remoteBot.membership', json(?)) WHERE channel_id = ?`).run(
+                JSON.stringify(merged),
+                row.channel_id,
+              );
+            }
+          }
+        },
+        ['channel'],
+      );
+      publishRecordChanged();
+    },
+    getOrCreateRemoteBotDm(localBotSlug, remote) {
+      const candidate = remoteBotDmRecord(localBotSlug, remote, now().toISOString());
+      if (!isBotActive(localBotSlug)) throw new Error('Remote Bot DM recipient is not active');
+      const result = database.transaction(
+        (db) => {
+          if (remote.hostKey !== undefined) assertHostKey(db, remote.hostId, remote.hostKey);
+          const row = db
+            .prepare('SELECT record_json FROM channel_records WHERE channel_id = ?')
+            .get(candidate.id);
+          const existing =
+            typeof row?.record_json === 'string'
+              ? parseRecord(row.record_json, candidate.id)
+              : undefined;
+          if (
+            existing !== undefined &&
+            existing.deletedAt === undefined &&
+            (existing.remoteBot?.hostId !== remote.hostId ||
+              existing.remoteBot.botSlug !== remote.botSlug ||
+              existing.members.length !== 1 ||
+              existing.members[0] !== localBotSlug ||
+              !isBotDmChannel(existing))
+          )
+            throw new Error('Remote Bot DM identity collision');
+          const record =
+            existing?.deletedAt === undefined && existing !== undefined ? existing : candidate;
+          const key = remote.hostKey ?? remoteHostKey(db, remote.hostId);
+          const pinned =
+            key === undefined
+              ? record
+              : { ...record, remoteBot: { ...record.remoteBot!, hostKey: key } };
+          const updated =
+            remote.membership === undefined
+              ? pinned
+              : {
+                  ...pinned,
+                  remoteBot: {
+                    ...pinned.remoteBot!,
+                    membership: mergeBotNetworkMembership(
+                      pinned.remoteBot?.membership,
+                      remote.membership,
+                    ),
+                  },
+                };
+          db.prepare(`INSERT INTO channel_records (channel_id, record_json) VALUES (?, ?)
+          ON CONFLICT(channel_id) DO UPDATE SET record_json = excluded.record_json`).run(
+            updated.id,
+            JSON.stringify(updated),
+          );
+          return updated;
+        },
+        ['channel'],
+      );
+      publishRecordChanged();
+      return result;
+    },
     getOrCreateBotDm(firstBotSlug, secondBotSlug, name) {
       if (
         !isValidSlug(firstBotSlug) ||
@@ -1371,9 +1719,18 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     },
     createGroup(input) {
       const base = groupChannelIdBase(input.name);
-      let id = base;
+      let id = input.id ?? base;
+      if (
+        input.id !== undefined &&
+        (!isValidChannelId(id) ||
+          database.read((db) =>
+            db.prepare('SELECT 1 FROM channel_records WHERE channel_id = ?').get(id),
+          ) !== undefined)
+      )
+        throw new Error('Group Channel identity is unavailable');
       for (
         let suffix = 2;
+        input.id === undefined &&
         database.read((db) =>
           db.prepare('SELECT 1 FROM channel_records WHERE channel_id = ?').get(id),
         ) !== undefined;
@@ -1422,10 +1779,16 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       if (existing !== undefined) return existing;
       if (channel.members.includes(input.targetBotSlug))
         throw new Error('Invitee is already a Group member');
+      if (
+        input.invitationId !== undefined &&
+        (!/^group-invite-[a-f0-9-]+$/u.test(input.invitationId) ||
+          channel.invitations?.some((item) => item.id === input.invitationId))
+      )
+        throw new Error('Group invitation identity is unavailable');
       const autoAccept = options.autoAcceptGroupInvitations?.() === true;
       const timestamp = now().toISOString();
       const invitation: GroupInvitation = {
-        id: 'group-invite-' + randomUUID(),
+        id: input.invitationId ?? 'group-invite-' + randomUUID(),
         targetBotSlug: input.targetBotSlug,
         targetBotCreatedAt: input.targetBotCreatedAt,
         ...(invitedByHuman
@@ -1655,7 +2018,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         status +
         '. ' +
         (input.accept
-          ? 'You may now use channel_read and channel_send there.'
+          ? 'You may now use channel_read and bot_send_message there.'
           : 'You are not a member of that Group.');
       database.transaction(
         (db) => {
@@ -1790,9 +2153,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         throw new Error('Group member not found');
       const policy =
         channel.wakePolicies?.[botSlug] ??
-        database.transaction((db) =>
-          defaultGroupWakePolicy(sourcePolicy.resolveIn(db, botSlug, 'group-ordinary')),
-        );
+        defaultGroupWakePolicy(sourcePolicy.readGroupOrdinary(botSlug));
       const audit = database.read((db) =>
         db
           .prepare(`
@@ -2186,23 +2547,14 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       if (channel?.type !== 'group') throw new Error('Group Channel not found');
       const timestamp = now().toISOString();
       const deleted: ChannelRecord = {
-        ...channel,
+        id: channel.id,
+        type: channel.type,
+        name: channel.name,
         members: [],
-        invitations: (channel.invitations ?? []).map((item) =>
-          item.status === 'pending'
-            ? { ...item, status: 'cancelled', respondedAt: timestamp }
-            : item,
-        ),
-        joinRequests: (channel.joinRequests ?? []).map((item) =>
-          item.status === 'pending'
-            ? { ...item, status: 'cancelled', decidedAt: timestamp, decidedBy: 'human' }
-            : item,
-        ),
         deletedAt: timestamp,
+        createdAt: channel.createdAt,
         updatedAt: timestamp,
       };
-      delete deleted.ownerBotSlug;
-      delete deleted.wakePolicies;
       database.transaction(
         (db) => {
           db.prepare('UPDATE channel_records SET record_json = ? WHERE channel_id = ?').run(
@@ -2280,12 +2632,90 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       return row?.message_id;
     },
     latestMessage(id) {
-      const messages = allMessages(id);
-      const latest = messages.findLast((message) => !isChannelNotice(message));
-      return latest === undefined ? undefined : project(messages, latest);
+      if (!isValidChannelId(id)) return undefined;
+      const latest = database.read((db) => {
+        for (const row of db
+          .prepare(`
+          SELECT p.revision, p.source_event_id, p.message_id, e.payload_json, e.body, e.created_at,
+                 e.channel_id AS home_channel_id
+            FROM channel_placements p
+            JOIN source_events e ON e.source_event_id = p.source_event_id
+           WHERE p.channel_id = ? ORDER BY p.revision DESC
+        `)
+          .iterate(id)) {
+          const placement = row as unknown as PlacementRow;
+          if (!isChannelNotice(placementMessage(placement, id))) return placement;
+        }
+        return undefined;
+      });
+      if (latest === undefined) return undefined;
+      const message = projectPlacement(
+        latest,
+        id,
+        humanMembers(id),
+        channelReactions(id, latest.message_id),
+      );
+      const dependencies = [message];
+      const replyTo = message.replyTo;
+      if (replyTo !== undefined) {
+        const target = database.read((db) =>
+          db
+            .prepare(`
+          SELECT p.message_id, e.payload_json, e.body, e.created_at
+            FROM channel_placements p
+            JOIN source_events e ON e.source_event_id = p.source_event_id
+           WHERE p.channel_id = ? AND p.message_id = ?
+        `)
+            .get(id, replyTo),
+        ) as Pick<PlacementRow, 'message_id' | 'payload_json' | 'body' | 'created_at'> | undefined;
+        if (target !== undefined) dependencies.push(placementMessage(target, id));
+      }
+      if (message.grantRequest) {
+        const resolution = database.read((db) => {
+          for (const row of db
+            .prepare(`
+            SELECT p.message_id, e.payload_json, e.body
+              FROM channel_placements p
+              JOIN source_events e ON e.source_event_id = p.source_event_id
+             WHERE p.channel_id = ?
+               AND CASE WHEN json_valid(e.payload_json) THEN
+                 json_extract(e.payload_json, '$.author.kind') = 'human'
+                 AND json_extract(e.payload_json, '$.replyTo') = ?
+                 AND json_extract(e.payload_json, '$.grantRequestResolution.requestMessageId') = ?
+               ELSE 0 END
+          `)
+            .iterate(id, message.id, message.id)) {
+            const candidate = row as unknown as Pick<
+              PlacementRow,
+              'message_id' | 'payload_json' | 'body'
+            >;
+            const parsed = parseMessage(
+              candidate.payload_json,
+              candidate.body,
+              candidate.message_id,
+              id,
+            );
+            if (parsed !== undefined && isGrantRequestResolved([parsed], message.id)) return parsed;
+          }
+          return undefined;
+        });
+        if (resolution !== undefined) dependencies.push(resolution);
+      }
+      return project(dependencies, message);
     },
     hasMessage(id, messageId) {
-      return allMessages(id).some((message) => message.id === messageId);
+      if (!isValidChannelId(id)) return false;
+      return (
+        database.read((db) =>
+          db
+            .prepare(`
+              SELECT 1 FROM channel_placements p
+              JOIN source_events e ON e.source_event_id = p.source_event_id
+              WHERE p.channel_id = ? AND p.message_id = ?
+            `)
+            .get(id, messageId),
+        ) !== undefined
+      );
     },
     message(id, messageId) {
       const messages = allMessages(id);
@@ -2299,13 +2729,21 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       return database.read((db) => {
         const request = db
           .prepare(`
-          SELECT e.source_event_id, a.attempt_state
+          SELECT e.source_event_id, e.created_at, a.attempt_state, a.resolved_at, a.resolution, a.handled_at, a.observed_at
           FROM source_events e
           JOIN inbox_admissions a ON a.source_event_id = e.source_event_id AND a.bot_slug = ?
           WHERE e.channel_id = ? AND e.message_id = ? AND e.source_kind = 'human-message'
         `)
           .get(botSlug, id, messageId) as
-          | { source_event_id: string; attempt_state: string }
+          | {
+              source_event_id: string;
+              created_at: string;
+              attempt_state: string;
+              resolved_at: string | null;
+              resolution: string | null;
+              handled_at: string | null;
+              observed_at: string | null;
+            }
           | undefined;
         if (!request) return undefined;
         const rows = db
@@ -2323,7 +2761,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           'payload_json' | 'body' | 'message_id'
         >[];
         const replies = rows.flatMap((row) => {
-          const message = parseMessage(row.payload_json, row.body, row.message_id);
+          const message = parseMessage(row.payload_json, row.body, row.message_id, id);
           return message &&
             !isChannelNotice(message) &&
             !message.toolApprovalRequest &&
@@ -2333,7 +2771,36 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             ? [message]
             : [];
         });
-        return { sourceEventId: request.source_event_id, state: request.attempt_state, replies };
+        const assignment = db
+          .prepare(`
+          SELECT link.session_id FROM request_assignments link
+          JOIN assignments a ON a.session_id = link.session_id AND a.bot_slug = ?
+          WHERE link.request_source_event_id = ?
+          ORDER BY link.linked_at DESC, link.rowid DESC LIMIT 1
+        `)
+          .get(botSlug, request.source_event_id) as { session_id: string } | undefined;
+        const completed = request.resolved_at !== null && request.resolution === 'done';
+        const ignored = request.resolved_at !== null && request.resolution === 'ignored';
+        const uncertain = ['needs-repair', 'retryable'].includes(request.attempt_state);
+        return {
+          sourceEventId: request.source_event_id,
+          state: request.attempt_state,
+          progress: {
+            state: completed ? 'completed' : ignored || uncertain ? 'unknown' : 'working',
+            terminal: completed || ignored,
+            updatedAt: [
+              request.resolved_at,
+              request.handled_at,
+              request.observed_at,
+            ].reduce<string>(
+              (latest, value) =>
+                value !== null && Date.parse(value) > Date.parse(latest) ? value : latest,
+              request.created_at,
+            ),
+          },
+          replies,
+          ...(assignment === undefined ? {} : { assignmentId: assignment.session_id }),
+        };
       });
     },
     observeOutput(id, messageId) {
@@ -2353,7 +2820,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             position: number;
           })
         | undefined;
-      const message = row && parseMessage(row.payload_json, row.body, row.message_id);
+      const message = row && parseMessage(row.payload_json, row.body, row.message_id, id);
       if (!row || !message || message.id !== messageId) return undefined;
       const member = humanMembers(id).find((entry) => entry.human_id === LOCAL_HUMAN_ID);
       return {
@@ -2376,6 +2843,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     },
     assertAttachmentRefs,
     migrateAttachments: (signal) => attachmentMigration.migrate(signal),
+    projectMessageAttachments,
     attachmentReference(channelId, messageId, identity) {
       if (readRecord(channelId) === undefined) return undefined;
       const row = database.read((db) =>
@@ -2481,6 +2949,19 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       if (channel === undefined) throw new Error('Group Channel not found');
       return allBotPreview(channel, isBotActive, options.botDisplayName ?? (() => undefined));
     },
+    grantRequestResolution(channelId, requestMessageId) {
+      const row = database.read((db) =>
+        db
+          .prepare(`SELECT e.payload_json, e.source_event_id
+        FROM source_events e JOIN channel_placements p ON p.source_event_id = e.source_event_id
+        WHERE p.channel_id = ? AND json_extract(e.payload_json, '$.grantRequestResolution.requestMessageId') = ?
+        LIMIT 1`)
+          .get(channelId, requestMessageId),
+      ) as { payload_json: string } | undefined;
+      if (!row) return undefined;
+      const payload = JSON.parse(row.payload_json) as ChannelMessage;
+      return allMessages(channelId).find((message) => message.id === payload.id);
+    },
     async appendMessageOnce(id, message, preview, origin, canCommit) {
       const result = append(id, message, true, preview, origin, canCommit);
       return result ?? { status: 'missing' };
@@ -2559,12 +3040,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         values.push(query.to / 86_400_000 + 2_440_587.5);
       }
       const rows = database.read((db) => {
-        if (!lowerRegistered) {
-          db.function('botharness_unicode_lower', { deterministic: true }, (value: unknown) =>
-            typeof value === 'string' ? value.toLowerCase() : '',
-          );
-          lowerRegistered = true;
-        }
+        registerLower(db);
         return db
           .prepare(`
           SELECT p.revision, p.source_event_id, p.message_id, e.payload_json, e.body,
@@ -2579,7 +3055,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       const members = humanMembers(id);
       const reactionsById = channelReactions(id);
       const selected = rows.slice(0, query.limit).flatMap((row) => {
-        const original = parseMessage(row.payload_json, row.body, row.message_id);
+        const original = parseMessage(row.payload_json, row.body, row.message_id, id);
         if (original === undefined) return [];
         const message = attachmentMigration.project(row.source_event_id, original);
         const deliveries = admissionStatuses(row.source_event_id);
@@ -2615,7 +3091,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             .all(id, ...replyIds),
         ) as unknown as Array<Pick<PlacementRow, 'message_id' | 'payload_json' | 'body'>>;
         for (const row of replies) {
-          const message = parseMessage(row.payload_json, row.body, row.message_id);
+          const message = parseMessage(row.payload_json, row.body, row.message_id, id);
           if (message !== undefined) byId.set(message.id, message);
         }
       }
@@ -2637,14 +3113,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       };
     },
     readTimeline(id, request) {
-      const messages = allMessages(id);
-      const page = pageChannelTimeline(id, messages, request);
-      return page === undefined
-        ? undefined
-        : {
-            ...page,
-            entries: page.entries.map((message) => project(messages, message)),
-          };
+      return timelinePage(id, request);
     },
     searchHumanMessages(id, request) {
       const channel = readRecord(id);
@@ -2656,18 +3125,113 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         visibleFrom: member?.visible_from_revision ?? 0,
       });
     },
+    searchAllHumanMessages(request) {
+      const text = request.text.trim();
+      const length = Array.from(text).length;
+      if (length === 0 || length > 200)
+        throw new Error('message_search: text must be 1 to 200 characters');
+      if (!Number.isSafeInteger(request.limit) || request.limit < 1 || request.limit > 50)
+        throw new Error('message_search: limit must be an integer from 1 to 50');
+      const cursor =
+        request.cursor === undefined ? undefined : messageSearchCursorDecode(request.cursor);
+      const indexed = length >= 3;
+      const seen = cursor?.seen ?? 0;
+      const limit = indexed ? request.limit : Math.min(request.limit, SHORT_SEARCH_MAX - seen);
+      const needle = text.toLowerCase();
+      const where = [
+        "json_extract(c.record_json, '$.deletedAt') IS NULL",
+        `((json_extract(c.record_json, '$.type') = 'dm'
+            AND json_extract(c.record_json, '$.botSlug') IS NOT NULL)
+          OR (json_extract(c.record_json, '$.type') = 'group'
+            AND m.human_id IS NOT NULL AND p.revision >= m.visible_from_revision))`,
+        notChannelNoticeSql('e.payload_json'),
+        'p.channel_id NOT IN (SELECT value FROM json_each(?))',
+      ];
+      const values: Array<string | number> = [
+        LOCAL_HUMAN_ID,
+        JSON.stringify(request.excludeChannelIds ?? []),
+      ];
+      if (cursor !== undefined) {
+        where.push(
+          '(e.created_at < ? OR (e.created_at = ? AND (p.channel_id < ? OR (p.channel_id = ? AND p.message_id < ?))))',
+        );
+        values.push(cursor.at, cursor.at, cursor.channelId, cursor.channelId, cursor.messageId);
+      }
+      if (indexed) {
+        where.push('inbox_history_fts MATCH ?');
+        values.push('"' + text.replaceAll('"', '""') + '"');
+      } else {
+        where.push('instr(botharness_unicode_lower(d.search_text), ?) > 0');
+        values.push(needle);
+      }
+      const rows =
+        limit <= 0
+          ? []
+          : (database.read((db) => {
+              registerLower(db);
+              return db
+                .prepare(`
+          SELECT p.channel_id, p.message_id, p.source_event_id, e.payload_json, e.body,
+                 e.created_at, d.search_text
+            FROM channel_placements p
+            JOIN source_events e ON e.source_event_id = p.source_event_id
+            JOIN inbox_history_documents d ON d.rowid = e.rowid
+            ${indexed ? 'JOIN inbox_history_fts ON inbox_history_fts.rowid = e.rowid' : ''}
+            JOIN channel_records c ON c.channel_id = p.channel_id
+            LEFT JOIN channel_human_members m ON m.channel_id = p.channel_id
+              AND m.human_id = ? AND m.left_at IS NULL
+           WHERE ${where.join(' AND ')}
+           ORDER BY e.created_at DESC, p.channel_id DESC, p.message_id DESC
+           LIMIT ?
+        `)
+                .all(...values, limit + 1);
+            }) as unknown as Array<{
+              channel_id: string;
+              message_id: string;
+              source_event_id: string;
+              payload_json: string;
+              body: string;
+              created_at: string;
+              search_text: string;
+            }>);
+      const page = rows.slice(0, limit);
+      const hits = page.flatMap((row) => {
+        const original = parseMessage(row.payload_json, row.body, row.message_id, row.channel_id);
+        if (original === undefined) return [];
+        return [
+          {
+            channelId: row.channel_id,
+            message: projectMessageAttachments(row.source_event_id, original),
+            snippet: searchSnippet(row.search_text, needle),
+          },
+        ];
+      });
+      const last = page.at(-1);
+      return {
+        hits,
+        ...(rows.length <= limit ||
+        last === undefined ||
+        (!indexed && seen + page.length >= SHORT_SEARCH_MAX)
+          ? {}
+          : {
+              nextCursor: Buffer.from(
+                JSON.stringify({
+                  at: last.created_at,
+                  channelId: last.channel_id,
+                  messageId: last.message_id,
+                  seen: seen + page.length,
+                }),
+              ).toString('base64url'),
+            }),
+      };
+    },
     readHumanTimeline(id, request) {
       const channel = readRecord(id);
       if (channel === undefined) return undefined;
-      const member = humanMembers(id).find((entry) => entry.human_id === LOCAL_HUMAN_ID);
+      const members = humanMembers(id);
+      const member = members.find((entry) => entry.human_id === LOCAL_HUMAN_ID);
       if (channel.type === 'group' && member === undefined) return undefined;
-      const messages = allMessages(id).filter(
-        (message) => (message.channelRevision ?? 0) >= (member?.visible_from_revision ?? 0),
-      );
-      const page = pageChannelTimeline(id, messages, request);
-      return page === undefined
-        ? undefined
-        : { ...page, entries: page.entries.map((message) => project(messages, message)) };
+      return timelinePage(id, request, member?.visible_from_revision ?? 0, members);
     },
     readHumanJournalPage(id, request) {
       const channel = readRecord(id);
@@ -2693,6 +3257,95 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     admissionChanged(channelId, messageId) {
       const message = this.message(channelId, messageId);
       if (message !== undefined) options.onAdmissionChanged?.(channelId, messageId, message);
+    },
+    latestBotActivity() {
+      const rows = database.read((db) =>
+        db
+          .prepare(`
+        SELECT json_extract(e.payload_json, '$.author.slug') AS slug,
+               MAX(unixepoch(e.created_at, 'subsec') * 1000) AS at
+          FROM channel_placements p
+          JOIN source_events e ON e.source_event_id = p.source_event_id
+          JOIN channel_records c ON c.channel_id = p.channel_id
+          LEFT JOIN channel_human_members m ON m.channel_id = p.channel_id
+            AND m.human_id = ? AND m.left_at IS NULL
+         WHERE json_extract(c.record_json, '$.deletedAt') IS NULL
+           AND json_extract(e.payload_json, '$.author.kind') = 'bot'
+           AND ${notChannelNoticeSql('e.payload_json')}
+           AND ((json_extract(c.record_json, '$.type') = 'dm'
+                 AND json_extract(c.record_json, '$.botSlug') IS NOT NULL)
+             OR (json_extract(c.record_json, '$.type') = 'group'
+                 AND m.human_id IS NOT NULL AND p.revision >= m.visible_from_revision))
+         GROUP BY slug
+      `)
+          .all(LOCAL_HUMAN_ID),
+      ) as Array<{ slug: string; at: number }>;
+      return new Map(
+        rows.filter((row) => Number.isFinite(row.at)).map((row) => [row.slug, row.at]),
+      );
+    },
+    toolApprovalHistory(botSlug, page) {
+      if (!isValidSlug(botSlug)) return [];
+      const after = page.after;
+      const rows = database.read((db) =>
+        db
+          .prepare(`
+        SELECT p.channel_id,
+               p.message_id AS decision_id, d.payload_json AS decision_json, d.body AS decision_body,
+               rp.message_id AS request_id, r.payload_json AS request_json, r.body AS request_body
+          FROM channel_placements p
+          JOIN source_events d ON d.source_event_id = p.source_event_id
+          JOIN channel_records c ON c.channel_id = p.channel_id
+          JOIN channel_placements rp ON rp.channel_id = p.channel_id
+            AND rp.message_id = json_extract(d.payload_json, '$.toolApprovalDecision.requestMessageId')
+          JOIN source_events r ON r.source_event_id = rp.source_event_id
+         WHERE json_extract(c.record_json, '$.deletedAt') IS NULL
+           AND json_extract(r.payload_json, '$.author.kind') = 'bot'
+           AND json_extract(r.payload_json, '$.author.slug') = ?
+           AND (? IS NULL
+             OR json_extract(d.payload_json, '$.at') < ?
+             OR (json_extract(d.payload_json, '$.at') = ? AND p.message_id < ?))
+         ORDER BY json_extract(d.payload_json, '$.at') DESC, p.message_id DESC
+         LIMIT ?
+      `)
+          .all(
+            botSlug,
+            after?.decidedAt ?? null,
+            after?.decidedAt ?? null,
+            after?.decidedAt ?? null,
+            after?.decisionMessageId ?? null,
+            page.limit,
+          ),
+      ) as Array<{
+        channel_id: string;
+        decision_id: string;
+        decision_json: string;
+        decision_body: string;
+        request_id: string;
+        request_json: string;
+        request_body: string;
+      }>;
+      const entries: ToolApprovalHistoryEntry[] = [];
+      for (const row of rows) {
+        const decision = parseMessage(
+          row.decision_json,
+          row.decision_body,
+          row.decision_id,
+          row.channel_id,
+        );
+        const request = parseMessage(
+          row.request_json,
+          row.request_body,
+          row.request_id,
+          row.channel_id,
+        );
+        const entry =
+          decision === undefined || request === undefined
+            ? undefined
+            : toolApprovalHistoryEntry(row.channel_id, decision, request, botSlug);
+        if (entry !== undefined) entries.push(entry);
+      }
+      return entries;
     },
     humanMessageCounts(from, to) {
       const rows = database.read((db) =>

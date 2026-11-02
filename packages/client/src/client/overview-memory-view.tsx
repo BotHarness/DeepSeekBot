@@ -74,7 +74,7 @@ export function OverviewMemoryView({
   actions,
   t,
 }: {
-  actions: BridgeActions;
+  actions: Pick<BridgeActions, 'overviewMemory'> & Partial<Pick<BridgeActions, 'openBot'>>;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [value, setValue] = useState<OverviewMemory>();
@@ -211,15 +211,17 @@ export function OverviewMemoryView({
                     {t('overviewMemory.unavailable')}
                   </span>
                 )}
-                <button
-                  type="button"
-                  className="bh-profile-pin"
-                  aria-label={`${t('profile.open')}: ${bot.displayName}`}
-                  title={`${t('profile.open')}: ${bot.displayName}`}
-                  onClick={() => void actions.openBot(bot.slug, 'profile')}
-                >
-                  <IconRightUpOutlineRegular size={16} />
-                </button>
+                {actions.openBot === undefined ? null : (
+                  <button
+                    type="button"
+                    className="bh-profile-pin"
+                    aria-label={`${t('profile.open')}: ${bot.displayName}`}
+                    title={`${t('profile.open')}: ${bot.displayName}`}
+                    onClick={() => void actions.openBot?.(bot.slug, 'profile')}
+                  >
+                    <IconRightUpOutlineRegular size={16} />
+                  </button>
+                )}
               </li>
             ))}
           </ul>

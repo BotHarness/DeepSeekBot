@@ -175,3 +175,9 @@ export function useConversationDraft<Key extends keyof ComposerDraft>(
   };
   return [value, update];
 }
+
+export function appendConversationDraft(scope: string, text: string): void {
+  const manager = owner();
+  const current = manager.read(scope).draft.text;
+  manager.update(scope, { text: current.trim().length === 0 ? text : `${current}\n\n${text}` });
+}

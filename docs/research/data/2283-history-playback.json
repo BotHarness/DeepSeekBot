@@ -1,0 +1,340 @@
+{
+  "baseline": "d53e03aebaab42d541294f48eae1341cd3de1ad6",
+  "runtimeCandidate": "554e28a00c1f7c0e58d611c2b408421e8d235f70",
+  "visual": [
+    {
+      "label": "visual-a-10-light",
+      "arm": "a",
+      "font": "1.0",
+      "theme": "light",
+      "target": "AX_HISTORY_0230",
+      "placeholders": 22,
+      "focused": true,
+      "build": {
+        "buildSource": "e25c404674f99a18559847493018d8ba782ebce0",
+        "runtimeEquivalentTo": "d53e03aebaab42d541294f48eae1341cd3de1ad6",
+        "sha256": "2e3eea34dbe8c5710471ceee59a76b61d69d13c65c4624d9a48420df8d2175f6",
+        "arm": "baseline",
+        "instrumented": false
+      },
+      "targetInAccessibilityTree": false,
+      "exactTargetCenteringQualified": false
+    },
+    {
+      "label": "visual-a-10-dark",
+      "arm": "a",
+      "font": "1.0",
+      "theme": "dark",
+      "target": "AX_HISTORY_0230",
+      "placeholders": 22,
+      "focused": true,
+      "build": {
+        "buildSource": "e25c404674f99a18559847493018d8ba782ebce0",
+        "runtimeEquivalentTo": "d53e03aebaab42d541294f48eae1341cd3de1ad6",
+        "sha256": "2e3eea34dbe8c5710471ceee59a76b61d69d13c65c4624d9a48420df8d2175f6",
+        "arm": "baseline",
+        "instrumented": false
+      },
+      "targetInAccessibilityTree": false,
+      "exactTargetCenteringQualified": false
+    },
+    {
+      "label": "visual-a-13-light",
+      "arm": "a",
+      "font": "1.3",
+      "theme": "light",
+      "target": "AX_HISTORY_0230",
+      "placeholders": 20,
+      "focused": true,
+      "build": {
+        "buildSource": "e25c404674f99a18559847493018d8ba782ebce0",
+        "runtimeEquivalentTo": "d53e03aebaab42d541294f48eae1341cd3de1ad6",
+        "sha256": "2e3eea34dbe8c5710471ceee59a76b61d69d13c65c4624d9a48420df8d2175f6",
+        "arm": "baseline",
+        "instrumented": false
+      },
+      "targetInAccessibilityTree": false,
+      "exactTargetCenteringQualified": false
+    },
+    {
+      "label": "visual-a-13-dark",
+      "arm": "a",
+      "font": "1.3",
+      "theme": "dark",
+      "target": "AX_HISTORY_0230",
+      "placeholders": 20,
+      "focused": true,
+      "build": {
+        "buildSource": "e25c404674f99a18559847493018d8ba782ebce0",
+        "runtimeEquivalentTo": "d53e03aebaab42d541294f48eae1341cd3de1ad6",
+        "sha256": "2e3eea34dbe8c5710471ceee59a76b61d69d13c65c4624d9a48420df8d2175f6",
+        "arm": "baseline",
+        "instrumented": false
+      },
+      "targetInAccessibilityTree": false,
+      "exactTargetCenteringQualified": false
+    },
+    {
+      "label": "visual-a-20-light",
+      "arm": "a",
+      "font": "2.0",
+      "theme": "light",
+      "target": "AX_HISTORY_0230",
+      "placeholders": 17,
+      "focused": true,
+      "build": {
+        "buildSource": "e25c404674f99a18559847493018d8ba782ebce0",
+        "runtimeEquivalentTo": "d53e03aebaab42d541294f48eae1341cd3de1ad6",
+        "sha256": "2e3eea34dbe8c5710471ceee59a76b61d69d13c65c4624d9a48420df8d2175f6",
+        "arm": "baseline",
+        "instrumented": false
+      },
+      "targetInAccessibilityTree": false,
+      "exactTargetCenteringQualified": false
+    },
+    {
+      "label": "visual-a-20-dark",
+      "arm": "a",
+      "font": "2.0",
+      "theme": "dark",
+      "target": "AX_HISTORY_0230",
+      "placeholders": 16,
+      "focused": true,
+      "build": {
+        "buildSource": "e25c404674f99a18559847493018d8ba782ebce0",
+        "runtimeEquivalentTo": "d53e03aebaab42d541294f48eae1341cd3de1ad6",
+        "sha256": "2e3eea34dbe8c5710471ceee59a76b61d69d13c65c4624d9a48420df8d2175f6",
+        "arm": "baseline",
+        "instrumented": false
+      },
+      "targetInAccessibilityTree": false,
+      "exactTargetCenteringQualified": false
+    },
+    {
+      "label": "visual-b-10-light",
+      "arm": "b",
+      "font": "1.0",
+      "theme": "light",
+      "target": "AX_HISTORY_0230",
+      "placeholders": 0,
+      "focused": true,
+      "build": {
+        "sha256": "f5fb8e9e9333712c9e480195c1dac420cc6ab4e463bfc88c45d199bd92a7d592",
+        "arm": "candidate",
+        "buildSource": "554e28a00c1f7c0e58d611c2b408421e8d235f70",
+        "qaCommit": "579dbd2439f87d3fd9921bec48112de7a4256aaa",
+        "instrumented": false
+      },
+      "targetInAccessibilityTree": true,
+      "exactTargetCenteringQualified": false
+    },
+    {
+      "label": "visual-b-10-dark",
+      "arm": "b",
+      "font": "1.0",
+      "theme": "dark",
+      "target": "AX_HISTORY_0230",
+      "placeholders": 0,
+      "focused": true,
+      "build": {
+        "sha256": "f5fb8e9e9333712c9e480195c1dac420cc6ab4e463bfc88c45d199bd92a7d592",
+        "arm": "candidate",
+        "buildSource": "554e28a00c1f7c0e58d611c2b408421e8d235f70",
+        "qaCommit": "579dbd2439f87d3fd9921bec48112de7a4256aaa",
+        "instrumented": false
+      },
+      "targetInAccessibilityTree": true,
+      "exactTargetCenteringQualified": false
+    },
+    {
+      "label": "visual-b-13-light",
+      "arm": "b",
+      "font": "1.3",
+      "theme": "light",
+      "target": "AX_HISTORY_0230",
+      "placeholders": 0,
+      "focused": true,
+      "build": {
+        "sha256": "f5fb8e9e9333712c9e480195c1dac420cc6ab4e463bfc88c45d199bd92a7d592",
+        "arm": "candidate",
+        "buildSource": "554e28a00c1f7c0e58d611c2b408421e8d235f70",
+        "qaCommit": "579dbd2439f87d3fd9921bec48112de7a4256aaa",
+        "instrumented": false
+      },
+      "targetInAccessibilityTree": true,
+      "exactTargetCenteringQualified": false
+    },
+    {
+      "label": "visual-b-13-dark",
+      "arm": "b",
+      "font": "1.3",
+      "theme": "dark",
+      "target": "AX_HISTORY_0230",
+      "placeholders": 0,
+      "focused": true,
+      "build": {
+        "sha256": "f5fb8e9e9333712c9e480195c1dac420cc6ab4e463bfc88c45d199bd92a7d592",
+        "arm": "candidate",
+        "buildSource": "554e28a00c1f7c0e58d611c2b408421e8d235f70",
+        "qaCommit": "579dbd2439f87d3fd9921bec48112de7a4256aaa",
+        "instrumented": false
+      },
+      "targetInAccessibilityTree": false,
+      "exactTargetCenteringQualified": false
+    },
+    {
+      "label": "visual-b-20-light",
+      "arm": "b",
+      "font": "2.0",
+      "theme": "light",
+      "target": "AX_HISTORY_0230",
+      "placeholders": 0,
+      "focused": true,
+      "build": {
+        "sha256": "f5fb8e9e9333712c9e480195c1dac420cc6ab4e463bfc88c45d199bd92a7d592",
+        "arm": "candidate",
+        "buildSource": "554e28a00c1f7c0e58d611c2b408421e8d235f70",
+        "qaCommit": "579dbd2439f87d3fd9921bec48112de7a4256aaa",
+        "instrumented": false
+      },
+      "targetInAccessibilityTree": true,
+      "exactTargetCenteringQualified": false
+    },
+    {
+      "label": "visual-b-20-dark",
+      "arm": "b",
+      "font": "2.0",
+      "theme": "dark",
+      "target": "AX_HISTORY_0230",
+      "placeholders": 0,
+      "focused": true,
+      "build": {
+        "sha256": "f5fb8e9e9333712c9e480195c1dac420cc6ab4e463bfc88c45d199bd92a7d592",
+        "arm": "candidate",
+        "buildSource": "554e28a00c1f7c0e58d611c2b408421e8d235f70",
+        "qaCommit": "579dbd2439f87d3fd9921bec48112de7a4256aaa",
+        "instrumented": false
+      },
+      "targetInAccessibilityTree": true,
+      "exactTargetCenteringQualified": false
+    }
+  ],
+  "completion": [
+    {
+      "label": "completion-a2-plain",
+      "content": "plain",
+      "build": {
+        "buildSource": "e25c404674f99a18559847493018d8ba782ebce0",
+        "runtimeEquivalentTo": "d53e03aebaab42d541294f48eae1341cd3de1ad6",
+        "sha256": "2e3eea34dbe8c5710471ceee59a76b61d69d13c65c4624d9a48420df8d2175f6",
+        "arm": "baseline",
+        "instrumented": false
+      },
+      "utf16": 19221,
+      "sha256": "43b16706b3a550aaf34e698df19faaf0ccb229f7d53f483a1715651b7ba1b9b4",
+      "canonicalExact": true,
+      "visibleComplete": true,
+      "completionIntervalMs": [34737, 36780],
+      "actual120": true,
+      "cliExit": 0
+    },
+    {
+      "label": "completion-a-prose",
+      "content": "prose",
+      "build": {
+        "buildSource": "e25c404674f99a18559847493018d8ba782ebce0",
+        "runtimeEquivalentTo": "d53e03aebaab42d541294f48eae1341cd3de1ad6",
+        "sha256": "2e3eea34dbe8c5710471ceee59a76b61d69d13c65c4624d9a48420df8d2175f6",
+        "arm": "baseline",
+        "instrumented": false
+      },
+      "utf16": 21492,
+      "sha256": "3d23c3787bbc76feedea35df8d9cda90d26b0911861cea0c6fd25eaf5b518e4a",
+      "canonicalExact": true,
+      "visibleComplete": true,
+      "completionIntervalMs": [40241, 42252],
+      "actual120": true,
+      "cliExit": 0
+    },
+    {
+      "label": "completion-b-plain",
+      "content": "plain",
+      "build": {
+        "sha256": "f5fb8e9e9333712c9e480195c1dac420cc6ab4e463bfc88c45d199bd92a7d592",
+        "arm": "candidate",
+        "buildSource": "554e28a00c1f7c0e58d611c2b408421e8d235f70",
+        "qaCommit": "579dbd2439f87d3fd9921bec48112de7a4256aaa",
+        "instrumented": false
+      },
+      "utf16": 19221,
+      "sha256": "43b16706b3a550aaf34e698df19faaf0ccb229f7d53f483a1715651b7ba1b9b4",
+      "canonicalExact": true,
+      "visibleComplete": true,
+      "completionIntervalMs": [34188, 36244],
+      "actual120": true,
+      "cliExit": 0
+    },
+    {
+      "label": "completion-b-prose",
+      "content": "prose",
+      "build": {
+        "sha256": "f5fb8e9e9333712c9e480195c1dac420cc6ab4e463bfc88c45d199bd92a7d592",
+        "arm": "candidate",
+        "buildSource": "554e28a00c1f7c0e58d611c2b408421e8d235f70",
+        "qaCommit": "579dbd2439f87d3fd9921bec48112de7a4256aaa",
+        "instrumented": false
+      },
+      "utf16": 21492,
+      "sha256": "3d23c3787bbc76feedea35df8d9cda90d26b0911861cea0c6fd25eaf5b518e4a",
+      "canonicalExact": true,
+      "visibleComplete": true,
+      "completionIntervalMs": [40224, 42226],
+      "actual120": true,
+      "cliExit": 0
+    }
+  ],
+  "paging": [
+    {
+      "label": "paging-start",
+      "markers": [300, 299, 298, 297, 296, 295],
+      "ellipsis": 0
+    },
+    {
+      "label": "paging-6",
+      "markers": [241, 240, 239, 238, 237, 236, 235],
+      "ellipsis": 0
+    },
+    {
+      "label": "paging-12",
+      "markers": [182, 181, 180, 179, 178, 177, 176],
+      "ellipsis": 0
+    },
+    {
+      "label": "paging-18",
+      "markers": [121, 120, 119, 118, 117, 116, 115],
+      "ellipsis": 0
+    },
+    {
+      "label": "paging-24",
+      "markers": [63, 62, 61, 60, 59, 58, 57, 56],
+      "ellipsis": 0
+    },
+    {
+      "label": "paging-idle",
+      "markers": [63, 62, 61, 60, 59, 58, 57, 56],
+      "ellipsis": 0
+    },
+    {
+      "label": "paging-return",
+      "markers": [300, 299, 298, 297, 296, 295],
+      "ellipsis": 0
+    }
+  ],
+  "limits": [
+    "No FPS improvement or 120-FPS qualification",
+    "Baseline and candidate share returned-table blank region tracked in #2284",
+    "Focus target location is approximate; accessibility presence is not proof of exact positioning",
+    "Completion controls are single matched behavioral runs, not statistical performance trials",
+    "iOS native untested"
+  ]
+}

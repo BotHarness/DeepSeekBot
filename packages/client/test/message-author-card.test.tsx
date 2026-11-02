@@ -215,3 +215,59 @@ describe('PersonaBotAvatar nativeTitle', () => {
     expect(untitled).toContain('aria-label=');
   });
 });
+
+it('shows a remote Bot public profile without local profile or message controls', () => {
+  const html = renderToStaticMarkup(
+    createElement(MessageAuthorCardContent, {
+      model: {
+        kind: 'remote-bot',
+        peer: { hostId: 'mac-host', botSlug: 'ios', displayName: 'iOS colleague' },
+        contact: {
+          hostId: 'mac-host',
+          botSlug: 'ios',
+          displayName: 'iOS specialist',
+          description: 'Investigates iOS bugs',
+          device: { model: null, platform: 'darwin' },
+          capabilities: ['browser'],
+        },
+      },
+      t: enTranslate,
+    }),
+  );
+  for (const fact of [
+    'iOS specialist',
+    'mac-host',
+    'darwin',
+    'browser',
+    'Investigates iOS bugs',
+    'Unavailable',
+  ])
+    expect(html).toContain(fact);
+  expect(html).not.toContain('<button');
+  expect(html).not.toContain('data-state="working"');
+});
+
+it.each([
+  ['available', 'Available'],
+  ['unavailable', 'Unreachable'],
+  ['withdrawn', 'Outside collaboration network'],
+  ['bot-unavailable', 'Bot unavailable'],
+] as const)(
+  'shows the remote contact state %s without implying a local Bot was deleted',
+  (availability, label) => {
+    const html = renderToStaticMarkup(
+      createElement(MessageAuthorCardContent, {
+        model: {
+          kind: 'remote-bot',
+          peer: { hostId: 'peer', botSlug: 'bot', displayName: 'Colleague' },
+          contact: undefined,
+          availability,
+        },
+        t: enTranslate,
+      }),
+    );
+    expect(html).toContain(label);
+    expect(html).toContain('Colleague');
+    expect(html).not.toContain('<button');
+  },
+);

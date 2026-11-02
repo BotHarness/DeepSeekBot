@@ -3,8 +3,8 @@ import { useRef, useState, type ReactElement } from 'react';
 import {
   IconCheckOutlineRegular,
   IconCopyOutlineRegular,
-  Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 
 import { IconButton } from './ds/icon-button.js';
 import type { BotHarnessTranslate } from './locale.js';

@@ -1,4 +1,5 @@
-import { useRef, useState, type DragEvent, type ReactElement } from 'react';
+import { useScopedState, useScopedRef } from './scoped-state.js';
+import { type DragEvent, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import { IconPaperclipOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -48,9 +49,10 @@ export function draggedFiles(event: Pick<DragEvent<HTMLElement>, 'dataTransfer'>
 export function useConversationFileDrop(
   enabled: boolean,
   onFiles: (files: File[]) => void,
+  scope?: string,
 ): { active: boolean; handlers: ConversationFileDropHandlers } {
-  const [active, setActive] = useState(false);
-  const depth = useRef(0);
+  const [active, setActive] = useScopedState(scope, false);
+  const depth = useScopedRef(scope, 0);
   const reset = (): void => {
     depth.current = 0;
     setActive(false);

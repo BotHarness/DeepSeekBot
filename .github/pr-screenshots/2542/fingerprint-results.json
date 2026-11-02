@@ -1,0 +1,112 @@
+{
+  "baseline": "cb65e435e76f14c435a462863ebd3a3e374104cf",
+  "runtime": {
+    "ios": "27.0",
+    "expo": "58.0.17",
+    "reactNative": "0.88.0",
+    "reusedSimulator": true,
+    "reusedNativeBuild": true,
+    "newSimulator": false,
+    "erased": false
+  },
+  "sourceSha256": {
+    "apps/mobile/src/ui/shell/use-pairing.ts": "9394d06daf59a3170806a5246b6353c9fa527b23d4480f92bc540fe7e3dd1dbc",
+    "apps/mobile/src/ui/shell/pairing-verification.tsx": "9bed2430df78627ff0e0dbf06babf462bdda841ca7dc050910c7207d185c7029",
+    "apps/mobile/src/ui/primitives/pairing-actions.tsx": "7f153c02c13dda25474d0f1fea24150cb14a9aca29ade68ca603345bf4d6b41c",
+    "apps/mobile/src/ui/primitives/pairing-actions.ios.tsx": "54782371c9ece22f4d7c13d98f276440e2d0b71bfb51eea8f9b3e9192a58f61c",
+    "apps/mobile/app/pair/account.tsx": "b6c033e1a1c9463c36ebfaf5811d2e77f94e4167af4ba669ab6721522a81b243",
+    "apps/mobile/app/pair/tailscale.tsx": "0b77379cf8c90c5a8db490c30e082ba1c5fd869272b91ba37eb9911d04fbcf87",
+    "apps/mobile/src/ui/strings.ts": "3885488557f1526f8573d3d0c41c5ad5a028214d094bc9099fde9667c2b9a74f"
+  },
+  "cases": [
+    {
+      "theme": "light",
+      "textSize": "large",
+      "completeHostFingerprintCompared": true,
+      "completeDeviceFingerprintApproved": true,
+      "settingsOpenedAndClosed": true,
+      "activityOpened": true,
+      "returnedToChats": true,
+      "sameAppProcess": true,
+      "coldRestartAfterPairing": false,
+      "noSheetError": true
+    },
+    {
+      "theme": "dark",
+      "textSize": "large",
+      "completeHostFingerprintCompared": true,
+      "completeDeviceFingerprintApproved": true,
+      "settingsOpenedAndClosed": true,
+      "activityOpened": true,
+      "returnedToChats": true,
+      "sameAppProcess": true,
+      "coldRestartAfterPairing": false,
+      "noSheetError": true
+    },
+    {
+      "theme": "light",
+      "textSize": "accessibility-medium",
+      "completeHostFingerprintCompared": true,
+      "completeDeviceFingerprintApproved": true,
+      "settingsOpenedAndClosed": true,
+      "activityOpened": true,
+      "returnedToChats": true,
+      "sameAppProcess": true,
+      "coldRestartAfterPairing": false,
+      "noSheetError": true
+    },
+    {
+      "theme": "dark",
+      "textSize": "accessibility-medium",
+      "completeHostFingerprintCompared": true,
+      "completeDeviceFingerprintApproved": true,
+      "settingsOpenedAndClosed": true,
+      "activityOpened": true,
+      "returnedToChats": true,
+      "sameAppProcess": true,
+      "coldRestartAfterPairing": false,
+      "noSheetError": true
+    },
+    {
+      "theme": "light",
+      "textSize": "accessibility-extra-extra-extra-large",
+      "completeHostFingerprintCompared": true,
+      "completeDeviceFingerprintApproved": true,
+      "settingsOpenedAndClosed": true,
+      "activityOpened": true,
+      "returnedToChats": true,
+      "sameAppProcess": true,
+      "coldRestartAfterPairing": false,
+      "noSheetError": true
+    },
+    {
+      "theme": "dark",
+      "textSize": "accessibility-extra-extra-extra-large",
+      "completeHostFingerprintCompared": true,
+      "completeDeviceFingerprintApproved": true,
+      "settingsOpenedAndClosed": true,
+      "activityOpened": true,
+      "returnedToChats": true,
+      "sameAppProcess": true,
+      "coldRestartAfterPairing": false,
+      "noSheetError": true
+    }
+  ],
+  "refusals": {
+    "detailsNoTrust": true,
+    "mismatchNoChannel": true,
+    "backCancelsConfirmation": true,
+    "freshInvitationAfterCancel": true,
+    "fallbackRequests": 0,
+    "pendingApprovalCancelAtMaximumText": true,
+    "pendingCancelSameProcess": true
+  },
+  "wire": {
+    "outerEntries": 822,
+    "upgrades": 18,
+    "channelPathOnly": true,
+    "noCredentialHeaders": true,
+    "fallbackRequests": 0,
+    "scope": "Pairing and navigation only; no new password submission in this follow-up."
+  }
+}

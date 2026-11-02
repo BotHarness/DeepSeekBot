@@ -27,6 +27,7 @@ import type { AggregatedState as HostState } from '../../../packages/core/src/st
 import type {
   ActivityLiveFrame,
   AggregatedState,
+  BotInboxPage,
   BotScheduleFiring,
   BotScheduleSummary,
   MemoryFile,
@@ -96,4 +97,5 @@ export type WireContract = [
   Assert<Accepts<OverviewUsage, Value<'overviewUsage'>>>,
   Assert<Accepts<OverviewMemory, Value<'overviewMemory'>>>,
   Assert<Accepts<ProfileActivity, Value<'profileActivity'>>>,
+  Assert<Accepts<BotInboxPage, Value<'botAttention'>>>,
 ];

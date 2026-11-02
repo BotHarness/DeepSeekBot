@@ -52,11 +52,11 @@
 
 [#1157](https://github.com/BotHarness/BotHarness/issues/1157) 候选沿用仅提及接收路径，增加 PNG、JPEG、GIF 和 WebP。发送一条带说明和图片的新 @ 消息；已同步会话通过共用预览在原 Channel 消息中展示图片。仅 Inbox 接收不要求 Channel 落点，打开预览也不会唤醒 Bot。
 
-实际视觉理解要求当前调用 Session 的模型支持图片。Bot 可用 `bridge_attachment_save` 保存获授权的独立工作副本，通过原生 `read_image` 读图，再用 `channel_attachment_import` 导入选定结果，交由 `bridge_reply_file` 回复。下载或预览成功不代表模型理解；不支持图片的模型必须说明无法查看。
+实际视觉理解要求当前调用 Session 的模型支持图片。Bot 可用 `bridge_attachment_save` 保存获授权的独立工作副本，通过原生 `read_image` 读图，再用 `channel_attachment_import` 导入选定结果，交由 `bot_send_message` 回复。下载或预览成功不代表模型理解；不支持图片的模型必须说明无法查看。
 
 图片沿用 25 MiB 上限。QQ 私有下载地址和上传票据留在 Provider，公开来源仅保留安全元数据和附件关联。说明在前的展示保留附件数组顺序，不声称还原 QQ 原生图文穿插位置；引用及不支持的复合载荷仍排除。重启保留 canonical 来源元数据和已获取预览，但无法重建尚未获取的私有下载票据或已失效回复证明。
 
-回复前先选择结果类型：每个 Bot／来源的文字和图片共用一个持久回复意图。需要图片结果时，先用 `bridge_reply_file` 发图，单独的解释发到本地 DM。重复相同请求返回已保存结果，更改已结算回复的载荷会被拒绝。
+使用 `bot_send_message` 和可信 source_event_id 回复。图片使用一个导入附件和空正文；有用的文字说明可另发到同一来源。每条消息独立标识，结果未知时查询已有 Outbox，不作为新调用盲目重发。
 
 图片结果使用接收应用在原群发送。上传与最终单次消息发送分开，上传后重新检查授权。原生消息回执记录 Provider 接受，unknown 不自动重发。真实 QQ／模型／Client 图片资格在 #1157 记录，不能由候选契约推定。
 
@@ -66,7 +66,7 @@
 
 已同步 Channel 使用现有文件卡片，提供“下载到此设备”。每次请求重新检查 Channel 成员、来源落点、接收身份和会话授权；按需获取到 canonical AttachmentStore，限制 25 MiB，并强制作为文件下载。Inbox-only 接收复用同一来源，无须 Channel 落点。
 
-Bot 通过 `bridge_attachment_save` 将独立副本保存到当前允许写入的 Workspace Grant，处理副本，用 `channel_attachment_import` 导入选定结果，再通过 `bridge_reply_file` 回复。原始文件保持不变。每个 Bot／来源仅有一个持久回复意图，应先选文件输出，单独解释发本地 DM。
+Bot 通过 `bridge_attachment_save` 将独立副本保存到当前允许写入的 Workspace Grant，处理副本，用 `channel_attachment_import` 导入选定结果，再通过 `bot_send_message` 回复。原始文件保持不变。文件回复传入一个导入附件和空正文；必要的解释仍回复同一来源，不改道本地 DM。
 
 原生文件输出先以 `file_type=4` 上传但不发送，再核验当前授权，最后只向原群 POST 一次。原生回执表示 Provider 接受；unknown 不自动重试。原生音频／视频输出不属于此文件切片。
 
@@ -78,7 +78,7 @@ Bot 通过 `bridge_attachment_save` 将独立副本保存到当前允许写入�
 
 #1154 源码候选为已授权的保存 QQ 群目标启用受检主动文字发送。当前 Provider 不提供 QQ 群发现，因此沿用保存目标的授权，收到一次提及不会产生主动发送权限。发送时仍检查当前应用身份、目标、会话屏蔽、最终授权和共享每小时限额。
 
-任务超过 QQ 的五分钟回复窗口后，`bridge_reply` 将 `reply-window-expired` 记录为失败，并把结果保留在 Outbox。需要回传该任务结果时，Bot 可查询 `bridge_targets`，选择属于自己应用且对应原群的 `canPost` 目标，再用一个独立且稳定的 request ID 显式调用 `bridge_post`。没有匹配目标或平台权限时，保留本地结果。回复或主动发送的结果不确定时，都不能另建发送；重启后检查同一请求不会重发。
+任务超过 QQ 的五分钟回复窗口后，`bot_send_message` 将 `reply-window-expired` 记录为失败，并把结果保留在 Outbox。需要回传该任务结果时，Bot 可查询 `bridge_targets`，选择属于自己应用且对应原群的 `canPost` 目标，再以该明确授权的 grant_id 显式调用 `bot_send_message`。没有匹配目标或平台权限时，保留本地结果。回复或主动发送的结果不确定时，都不能另建发送；重启后检查同一请求不会重发。
 
 保存目标的 Web 发送操作沿用相同受检发送与原生回执。Provider 接受和在 QQ 中看到结果是两个事实。真实延迟任务、拒绝分支和当前包验收仍记录在 [#1154](https://github.com/BotHarness/DeepSeekBot/issues/1154)；普通群观察与主动参与另归 [#1155](https://github.com/BotHarness/DeepSeekBot/issues/1155)。
 
@@ -104,7 +104,7 @@ QQ 没有向这个 consumer 提供群历史接口或持久恢复游标，断线�
 
 [#1155](https://github.com/BotHarness/DeepSeekBot/issues/1155) 开发候选从 Provider 的 QQ 独占受检消费者转交普通文字。收集仍默认只收 @。软件能力不证明应用具备全量权限：必须有一条真实、非 @ 的新原生群事件到达当前接收器，现有 Client 才能为这个会话开启**所有消息**。只收 @ 模式下的探测提供当前投递证明，其普通内容不会进入 canonical 收集或唤醒 Bot。
 
-保存的收集偏好与当前接收器证据分别显示。显式开启后，符合条件的普通文字保留成员、群及消息归属，进入现有本地 Inbox／Channel 路径。Observation 与条数／时间聚合可以独立于直接提及唤醒 Bot，但不要求逐条回复。主动参与使用独立授权的同 App 主动发送路径。本片不包含普通媒体或 QQ 远程群历史。
+保存的收集偏好与当前接收器证据分别显示。显式开启后，符合条件的普通消息保留成员、群及消息归属，进入现有本地 Inbox／Channel 路径。#3221 候选明确把此前仅限文字的切片扩展到直接携带的受支持图片和文件，前提是连接器已协商对应附件能力。仅提及收集仍排除普通消息；能力禁用或格式不支持时仍不可读。普通引用媒体、语音和 QQ 远程群历史保持不变。Observation 与条数／时间聚合可以独立于直接提及唤醒 Bot，但不要求逐条回复。主动参与使用独立授权的同 App 主动发送路径；接收普通媒体不授予被动回复权限。此次扩展尚未完成 QQ 实网验收。
 
 切回只收 @ 会停止后续普通收集。屏蔽、停用或失去接收器沿用现有门禁；重连保存有效偏好，当前投递证据则需重新取得。屏蔽接收期间的旧事件不会证明重新允许会话后的资格，也不会补造缺失历史。此候选的真实 QQ 事件、Client 开启收集、理解及主动参与验收仍待完成。
 

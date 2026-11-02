@@ -1,0 +1,1 @@
+Preliminary Expo Web body preview,1280x720,Chinese/light. Neutral read-only synthetic sections; no real Host. Before55a8954a1282; AfterthisPR. Actual source components rendered through temporary fixture, removed before commit. Web omits native header toolbar and substitutes native row/divider implementations; native geometry and integration require postmerge QA.

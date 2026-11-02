@@ -1,0 +1,66 @@
+{
+  "canonical": {
+    "id": "unread:dm-bot-67f2bab7380d4bbfa81153a252cc6d76",
+    "category": "unread",
+    "kind": "channel-unread",
+    "createdAt": "2026-10-18T19:21:26.510Z",
+    "channelId": "dm-bot-67f2bab7380d4bbfa81153a252cc6d76",
+    "channelName": "Activity QA",
+    "botSlug": "bot-67f2bab7380d4bbfa81153a252cc6d76",
+    "summary": "ACTIVITY_LIVE_2230_READY",
+    "messageId": "3633e53c-33f5-4861-9778-c15060e50fc2",
+    "sourceEventId": "38e2c9f3-9b4c-4a68-a870-44e7f2c868b1",
+    "unreadCount": 1
+  },
+  "offline": {
+    "id": "unread:dm-bot-67f2bab7380d4bbfa81153a252cc6d76",
+    "category": "unread",
+    "kind": "channel-unread",
+    "createdAt": "2026-10-18T19:21:29.059Z",
+    "channelId": "dm-bot-67f2bab7380d4bbfa81153a252cc6d76",
+    "channelName": "Activity QA",
+    "botSlug": "bot-67f2bab7380d4bbfa81153a252cc6d76",
+    "summary": "ACTIVITY_RECONNECTED_2230",
+    "messageId": "127fd7d9-a97b-47f8-9567-5a32906ba2e6",
+    "sourceEventId": "80de5b8d-0591-4c91-bc56-967f6f4275c1",
+    "unreadCount": 1
+  },
+  "question": {
+    "id": "join:group-join-f8c7aa63-b917-4003-a1b1-0f1b08ca000e",
+    "category": "action",
+    "kind": "group-join-request",
+    "createdAt": "2026-10-18T19:21:32.147Z",
+    "channelId": "group-activity-qa-group",
+    "channelName": "Activity QA Group",
+    "botSlug": "bot-4c23de563eb54866a9c36a43b0dfb2a0",
+    "summary": "",
+    "requestId": "group-join-f8c7aa63-b917-4003-a1b1-0f1b08ca000e"
+  },
+  "cli": {
+    "seconds": 5,
+    "invalidations": 6,
+    "initial": {
+      "items": [
+        {
+          "id": "join:group-join-f8c7aa63-b917-4003-a1b1-0f1b08ca000e",
+          "category": "action",
+          "kind": "group-join-request",
+          "createdAt": "2026-10-18T19:21:32.147Z",
+          "channelId": "group-activity-qa-group",
+          "channelName": "Activity QA Group",
+          "botSlug": "bot-4c23de563eb54866a9c36a43b0dfb2a0",
+          "summary": "",
+          "requestId": "group-join-f8c7aa63-b917-4003-a1b1-0f1b08ca000e"
+        }
+      ]
+    },
+    "current": {
+      "items": []
+    }
+  },
+  "modelReplyMs": 2465,
+  "uiAfterCanonicalMs": 3,
+  "healthyIdleQueries": 0,
+  "sockets": ["/api/remote.mux", "/api/remote.mux"],
+  "errors": []
+}

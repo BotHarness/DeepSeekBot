@@ -1,0 +1,72 @@
+{
+  "name": "timeline",
+  "fixture": "600 seeded messages, 1440x900 headless Chromium, whole history loaded, view at the latest message",
+  "always": [
+    { "metric": "pageErrors", "kind": "structure", "max": 0, "why": "No uncaught page errors" },
+    {
+      "metric": "loadedMessages",
+      "kind": "structure",
+      "min": "seeded",
+      "why": "The whole history loaded before measuring"
+    },
+    {
+      "metric": "mountedMessages",
+      "kind": "structure",
+      "max": 40,
+      "why": "Far message groups stay unmounted (#2915)"
+    },
+    {
+      "metric": "timelineGaps",
+      "kind": "structure",
+      "min": 1,
+      "why": "The timeline window is active"
+    },
+    {
+      "metric": "nodes",
+      "kind": "structure",
+      "max": 20000,
+      "why": "DOM size drives per-frame and per-render cost"
+    },
+    { "metric": "heapMB", "kind": "structure", "max": 70, "why": "Heap drives GC pauses" },
+    {
+      "metric": "scroll.jumps",
+      "kind": "structure",
+      "max": 0,
+      "why": "Scrolling never moves the message being read"
+    },
+    {
+      "metric": "scroll.gapsInView",
+      "kind": "structure",
+      "max": 0,
+      "why": "No blank spacer inside the viewport"
+    },
+    {
+      "metric": "scroll.emptyInView",
+      "kind": "structure",
+      "max": 0,
+      "why": "No zero-height block inside the viewport"
+    },
+    {
+      "metric": "typing.p95",
+      "kind": "timing",
+      "max": 50,
+      "why": "Typing stays under about three frames"
+    }
+  ],
+  "idle": [
+    {
+      "metric": "mainThreadBusyPct",
+      "kind": "timing",
+      "max": 5,
+      "why": "An idle open conversation costs almost nothing (#2413)"
+    }
+  ],
+  "animate": [
+    {
+      "metric": "mainThreadBusyPct",
+      "kind": "timing",
+      "max": 15,
+      "why": "One running animation does not re-style the whole timeline (#2901)"
+    }
+  ]
+}

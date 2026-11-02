@@ -10,7 +10,39 @@ const captured = vi.hoisted(() => ({
     items: readonly Record<string, unknown>[];
     selectedId?: string | undefined;
     onSelect?: (id: string) => void;
+    point?: { x: number; y: number };
   }>,
+  uploads: [] as Array<{ initialSlug?: string | undefined; onListed: () => void }>,
+  avatarEditors: [] as Array<{
+    bot: { slug: string };
+    channelId: string;
+    onSave(channelId: string, recipe: unknown): Promise<boolean>;
+  }>,
+}));
+
+vi.mock('../src/client/avatar-appearance-editor.js', () => ({
+  AvatarAppearanceEditor: (props: (typeof captured.avatarEditors)[number]) => {
+    captured.avatarEditors.push(props);
+    return null;
+  },
+}));
+
+vi.mock('../src/client/market-upload.js', () => ({
+  MarketUploadDialog: (props: { initialSlug?: string | undefined; onListed: () => void }) => {
+    captured.uploads.push(props);
+    return null;
+  },
+}));
+
+vi.mock('../src/client/ds/pointer-menu.js', () => ({
+  PointerMenu: (props: {
+    point: { x: number; y: number };
+    items: readonly Record<string, unknown>[];
+    onSelect?: (id: string) => void;
+  }) => {
+    captured.menus.push({ ...props, open: true });
+    return null;
+  },
 }));
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
@@ -18,6 +50,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   const icon = (name: string) => (props: { className?: string }) =>
     createElement('span', { 'data-icon': name, className: props.className });
   return {
+    MarkdownText: ({ text }: { text: string }) => createElement('span', null, text),
     Button: (props: { children?: ReactNode; disabled?: boolean }) =>
       createElement('button', { disabled: props.disabled }, props.children),
     IconAgentPresetOutlineRegular: icon('IconAgentPresetOutlineRegular'),
@@ -50,7 +83,10 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
       captured.menus.push(props);
       return props.anchor as never;
     },
-    Modal: stub,
+    Modal: (props: { open: boolean; title: string; children?: ReactNode }) =>
+      props.open
+        ? createElement('div', { role: 'dialog', 'aria-label': props.title }, props.children)
+        : null,
     StateDot: stub,
     Tag: (props: { children?: ReactNode }) => createElement('span', null, props.children),
     Tooltip: (props: { children?: unknown }) => (props.children ?? null) as never,
@@ -64,6 +100,7 @@ import { UNGROUPED_MOVE_TARGET } from '../src/client/section-management.js';
 import type { BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
 import { PINNED_SORT_SCOPE_ID } from '../src/bot-mode-settings.js';
 import { zh, zhTranslate } from '../src/client/locale.js';
+import { formatChannelListTime } from '../src/client/channel-row-status.js';
 import type { RosterConfig } from '../src/client/roster-config.js';
 import type { RosterSection, RosterSnapshot } from '../src/client/roster.js';
 import { store } from '../src/client/store.js';
@@ -114,6 +151,9 @@ const NO_INSTALL = { installable: false, install: { phase: 'idle' as const } };
 
 function stubActions(): BridgeActions {
   return {
+    humanIdentity: vi.fn(),
+    tobHome: vi.fn(),
+    sendHome: vi.fn(),
     channelHistory: vi.fn(),
     channelHistorySources: vi.fn(),
     channelPurgePreview: vi.fn(),
@@ -121,8 +161,14 @@ function stubActions(): BridgeActions {
     onboarding: vi.fn(),
     onboardingModel: vi.fn(),
     inheritModel: vi.fn(),
+    telemetryEvent: vi.fn(),
     retryMessage: vi.fn(),
     stopBot: vi.fn(),
+    botContext: vi.fn(),
+    botSystemPrompt: vi.fn(),
+    botTurnInput: vi.fn(),
+    newBotSession: vi.fn(),
+    compactBot: vi.fn(),
     validateComposerDraft: vi.fn(),
     deletionPreview: vi.fn(),
     deletionConfirm: vi.fn(),
@@ -139,8 +185,45 @@ function stubActions(): BridgeActions {
       throw new Error('unexpected Overview usage');
     }),
     marketplaceList: vi.fn(async () => ({ bots: [] })),
+    marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
+    marketplaceAuthorSave: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceAuthorAvatarSet: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceUploadPlan: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceUpload: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceInstallReview: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceMine: vi.fn(async () => []),
+    marketplaceDelete: vi.fn(async () => {}),
+    shareDraftStart: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    shareDraftGet: vi.fn(async () => undefined),
+    shareDraftDiscard: vi.fn(async () => undefined),
+    shareDraftExport: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceInstall: vi.fn(async () => {
+      throw new Error('unused');
+    }),
     marketplaceTopics: vi.fn(async () => []),
+    marketplaceSections: vi.fn(async () => []),
+    marketplaceDigests: vi.fn(async () => []),
+    marketplaceDigest: vi.fn(async () => {
+      throw new Error('digest-not-found');
+    }),
     marketplaceDetail: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceFile: vi.fn(async () => {
       throw new Error('unused');
     }),
     marketplaceSubmit: vi.fn(async () => {
@@ -250,8 +333,7 @@ function stubActions(): BridgeActions {
     refreshBotInbox: vi.fn(async () => undefined),
     openActivityCenter: vi.fn(async () => undefined),
     attachActivityCenterPanel: vi.fn(() => () => undefined),
-    refreshOverview: vi.fn(async () => undefined),
-    humanActionPage: vi.fn(async () => ({ items: [] })),
+    activityPage: vi.fn(),
     openHumanInbox: vi.fn(async () => undefined),
     refreshHumanInboxStatus: vi.fn(async () => undefined),
     refreshHumanInbox: vi.fn(async () => undefined),
@@ -259,6 +341,7 @@ function stubActions(): BridgeActions {
     loadMoreHumanInbox: vi.fn(async () => undefined),
     ignoreHumanReport: vi.fn(async () => undefined),
     loadMoreBotInbox: vi.fn(async () => undefined),
+    botInboxPage: vi.fn(async () => ({ items: [] })),
     openChannel: vi.fn(async () => undefined),
     openChannelAtMessage: vi.fn(async () => undefined),
     dismissHumanInbox: vi.fn(async () => undefined),
@@ -287,6 +370,7 @@ function stubActions(): BridgeActions {
     applyChannelTail: vi.fn(),
     dismissFailedMessage: vi.fn(() => false),
     openSession: vi.fn(() => undefined),
+    readSessions: vi.fn(async () => []),
     refreshSessions: vi.fn(async () => undefined),
     setSessionArchived: vi.fn(async () => undefined),
     messageAttachmentTarget: vi.fn(async () => ({
@@ -504,6 +588,7 @@ function stubActions(): BridgeActions {
     moveToFlat: vi.fn(async () => true),
     ensureChannelPins: vi.fn(async () => true),
     ensureFlatTopOrder: vi.fn(async () => true),
+    averageReplyPerf: vi.fn(async () => undefined),
   };
 }
 
@@ -531,6 +616,9 @@ let prefs: BotModePrefsSnapshot = {
   motionPreference: 'system',
   botIcon: 'mascot' as const,
   sendKey: 'enter' as const,
+  autoCollapseMessages: false,
+  showDeliveryReceipts: false,
+  streamReplies: false,
   autoAcceptGroupInvites: true,
   assignmentConcurrencyLimit: 3,
   developerMode: false,
@@ -601,6 +689,9 @@ beforeEach(() => {
     motionPreference: 'system',
     botIcon: 'mascot' as const,
     sendKey: 'enter' as const,
+    autoCollapseMessages: false,
+    showDeliveryReceipts: false,
+    streamReplies: false,
     autoAcceptGroupInvites: true,
     assignmentConcurrencyLimit: 3,
     developerMode: false,
@@ -647,10 +738,7 @@ describe('bot sidebar rows', () => {
       const time = titleRow.querySelector('time')!;
       expect(time.getAttribute('datetime')).toBe(latestAt);
       expect(time.textContent).toBe(
-        new Date(latestAt).toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
+        formatChannelListTime(Date.parse(latestAt), Date.now(), zhTranslate),
       );
       expect(titleRow.lastElementChild).toBe(time);
       expect(time.getAttribute('title')).toBe(new Date(latestAt).toLocaleString());
@@ -728,6 +816,98 @@ describe('bot sidebar rows', () => {
       await act(() => root.unmount());
       node.remove();
       companion.dispose();
+    }
+  });
+
+  it('opens Marketplace upload for the right-clicked Bot from its DM context menu', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    store.setRoster([BOT], [DM_CHANNEL]);
+    const open = vi.fn();
+    captured.uploads.length = 0;
+    const node = document.createElement('div');
+    document.body.append(node);
+    const root = createRoot(node);
+    try {
+      await act(() =>
+        root.render(
+          createElement(BotSidebar, {
+            wide: true,
+            actions: stubActions(),
+            useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+              selector(prefs)) as never,
+            setSortMode,
+            setSectionSortMode,
+            dockPanels: { open } as never,
+            t: zhTranslate,
+          }),
+        ),
+      );
+      await act(() =>
+        node
+          .querySelector('[data-channel-id="dm-atlas"]')!
+          .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+      );
+      expect(
+        menuWithItem('share-market').items.find((item) => item['id'] === 'share-market')?.['label'],
+      ).toBe('分享到市场');
+      await act(() => menuWithItem('share-market').onSelect!('share-market'));
+      expect(captured.uploads.at(-1)?.initialSlug).toBe('atlas');
+      captured.uploads.at(-1)?.onListed();
+      expect(open).toHaveBeenCalledWith('bot-market');
+    } finally {
+      await act(() => root.unmount());
+      node.remove();
+    }
+  });
+
+  it('changes a Bot avatar from its DM context menu through the Profile avatar editor', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    store.setRoster([BOT], [DM_CHANNEL]);
+    captured.avatarEditors.length = 0;
+    const actions = stubActions();
+    const node = document.createElement('div');
+    document.body.append(node);
+    const root = createRoot(node);
+    try {
+      await act(() =>
+        root.render(
+          createElement(BotSidebar, {
+            wide: true,
+            actions,
+            useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+              selector(prefs)) as never,
+            setSortMode,
+            setSectionSortMode,
+            t: zhTranslate,
+          }),
+        ),
+      );
+      await act(() =>
+        node
+          .querySelector('[data-channel-id="dm-atlas"]')!
+          .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+      );
+      const menu = menuWithItem('change-avatar');
+      const ids = menu.items.filter((item) => item['type'] === undefined).map((item) => item['id']);
+      expect(ids.slice(0, 2)).toEqual(['profile', 'change-avatar']);
+      expect(menu.items.find((item) => item['id'] === 'change-avatar')).toMatchObject({
+        label: '修改头像…',
+      });
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+      await act(() => menu.onSelect!('change-avatar'));
+      const dialog = document.querySelector('[role="dialog"]');
+      expect(dialog?.getAttribute('aria-label')).toBe(zhTranslate('profile.avatar.section'));
+      const editor = captured.avatarEditors.at(-1)!;
+      expect(editor.bot.slug).toBe('atlas');
+      expect(editor.channelId).toBe('dm-atlas');
+      const recipe = { version: 1 };
+      await act(async () => {
+        await editor.onSave('dm-atlas', recipe);
+      });
+      expect(actions.setBotAppearance).toHaveBeenCalledWith('dm-atlas', recipe);
+    } finally {
+      await act(() => root.unmount());
+      node.remove();
     }
   });
 
@@ -868,7 +1048,7 @@ describe('bot sidebar rows', () => {
 
   it('shows each conversation unread count on its row, pinned card and rail icon', () => {
     store.setRoster(
-      [BOT],
+      [{ ...BOT, aggregateState: 'idle' }],
       [
         {
           ...DM_CHANNEL,
@@ -885,7 +1065,10 @@ describe('bot sidebar rows', () => {
     store.setHumanInbox({ channelUnread: { [DM_CHANNEL.id]: 3 } });
     const wide = renderSidebar();
     expect(wide).toContain('bh-has-unread');
-    expect(wide).toMatch(/<span class="bh-unread-count" aria-label="3 条未读">3<\/span>/u);
+    expect(wide).toMatch(
+      /<span class="bh-row-avatar">.*?<span class="bh-unread-count bh-unread-corner" aria-label="3 条未读">3<\/span><\/span>/u,
+    );
+    expect(wide).toContain('data-status="done-unread"');
     store.setHumanInbox({ channelUnread: { [DM_CHANNEL.id]: 120 } });
     expect(renderSidebar(false)).toContain('>99+</span>');
   });
@@ -897,7 +1080,7 @@ describe('bot sidebar rows', () => {
     const markup = renderSidebar();
     expect(markup).toContain('bh-muted');
     expect(markup).toContain('aria-label="已免打扰"');
-    expect(markup).toContain('bh-unread-count bh-unread-count-muted');
+    expect(markup).toContain('bh-unread-count bh-unread-corner bh-unread-count-muted');
   });
 
   it('shows recent activity for a bodyless latest DM message', () => {
@@ -1064,6 +1247,22 @@ describe('bot sidebar rows', () => {
     const rail = renderSidebar(false);
     expect(rail).not.toContain('Atlas');
     expect(rail).not.toContain('散装渠道');
+  });
+
+  it('moves a deleted Bot DM out of the roster, pin grid, and collapsed rail', () => {
+    store.setRoster([{ ...BOT, deleted: true, paused: true }], [DM_CHANNEL, FLAT_CHANNEL]);
+    setRoster({
+      pins: [DM_CHANNEL.id],
+      topOrder: [{ kind: 'channel', id: FLAT_CHANNEL.id }],
+    });
+
+    const wide = renderSidebar();
+    expect(wide).not.toContain('Atlas');
+    expect(wide).toContain('散装渠道');
+
+    const rail = renderSidebar(false);
+    expect(rail).not.toContain('Atlas');
+    expect(rail).toContain('散装渠道');
   });
 
   it('renders a PersonaBot DM inside a section with the same channel drag lifecycle', () => {
@@ -1279,6 +1478,9 @@ describe('bot sidebar rows', () => {
       motionPreference: 'system',
       botIcon: 'mascot' as const,
       sendKey: 'enter' as const,
+      autoCollapseMessages: false,
+      showDeliveryReceipts: false,
+      streamReplies: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
       developerMode: false,
@@ -1334,6 +1536,9 @@ describe('bot sidebar rows', () => {
       motionPreference: 'system',
       botIcon: 'mascot' as const,
       sendKey: 'enter' as const,
+      autoCollapseMessages: false,
+      showDeliveryReceipts: false,
+      streamReplies: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
       developerMode: false,
@@ -1426,6 +1631,9 @@ describe('bot sidebar rows', () => {
       motionPreference: 'system',
       botIcon: 'mascot' as const,
       sendKey: 'enter' as const,
+      autoCollapseMessages: false,
+      showDeliveryReceipts: false,
+      streamReplies: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
       developerMode: false,
@@ -1444,6 +1652,9 @@ describe('bot sidebar rows', () => {
       motionPreference: 'system',
       botIcon: 'mascot' as const,
       sendKey: 'enter' as const,
+      autoCollapseMessages: false,
+      showDeliveryReceipts: false,
+      streamReplies: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
       developerMode: false,
@@ -1478,6 +1689,9 @@ describe('bot sidebar rows', () => {
       motionPreference: 'system',
       botIcon: 'mascot' as const,
       sendKey: 'enter' as const,
+      autoCollapseMessages: false,
+      showDeliveryReceipts: false,
+      streamReplies: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
       developerMode: false,
@@ -1497,6 +1711,9 @@ describe('bot sidebar rows', () => {
       motionPreference: 'system',
       botIcon: 'mascot' as const,
       sendKey: 'enter' as const,
+      autoCollapseMessages: false,
+      showDeliveryReceipts: false,
+      streamReplies: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
       developerMode: false,
@@ -1549,6 +1766,26 @@ describe('bot sidebar rows', () => {
     expect(markup).toContain('空分组');
     expect(markup).not.toContain('bh-empty-drop');
     expect(markup).not.toContain('bh-drop-scope');
+  });
+
+  it('anchors a Channel menu at viewport coordinates and exposes localized profile navigation', () => {
+    const profileAction = vi.fn();
+    renderToStaticMarkup(
+      createElement(ChannelMoveMenu, {
+        menu: { channelId: DM_CHANNEL.id, x: 140, y: 180 },
+        sections: [],
+        currentSectionId: undefined,
+        t: zhTranslate,
+        profileAction,
+        onPick: vi.fn(),
+        onClose: vi.fn(),
+      }),
+    );
+    const menu = captured.menus.at(-1)!;
+    expect(menu.point).toMatchObject({ x: 140, y: 180 });
+    expect(menu.items[0]).toMatchObject({ id: 'profile', label: '查看资料' });
+    menu.onSelect?.('profile');
+    expect(profileAction).toHaveBeenCalledOnce();
   });
 
   it('renders the 移动到 menu from every section plus 未分组 and maps picks to scopes', () => {
@@ -1813,6 +2050,7 @@ describe('bot sidebar rows', () => {
 
   it('gives every Channel menu row an icon and offers Delete Bot last as a danger row', () => {
     const share = vi.fn();
+    const market = vi.fn();
     const companion = vi.fn();
     const remove = vi.fn();
     renderToStaticMarkup(
@@ -1823,6 +2061,7 @@ describe('bot sidebar rows', () => {
         t: zhTranslate as never,
         companionAction: { label: '显示为窗口伙伴', run: companion },
         shareAction: { label: '分享', run: share },
+        marketAction: market,
         deleteAction: { label: '删除 Bot', run: remove },
         onPick: vi.fn(),
         onClose: vi.fn(),
@@ -1835,6 +2074,7 @@ describe('bot sidebar rows', () => {
     expect(rows.map((item) => item['id'])).toEqual([
       'companion',
       'share',
+      'share-market',
       'pin',
       'move',
       'rename',
@@ -1843,6 +2083,9 @@ describe('bot sidebar rows', () => {
     ]);
     for (const row of rows) expect(row['icon']).toBeDefined();
     expect(rows.at(-1)?.['danger']).toBe(true);
+    expect(rows.find((row) => row['id'] === 'share-market')?.['label']).toBe('分享到市场');
+    menu.onSelect?.('share-market');
+    expect(market).toHaveBeenCalledOnce();
     menu.onSelect?.('delete');
     expect(remove).toHaveBeenCalledOnce();
   });
@@ -1859,7 +2102,12 @@ describe('bot sidebar rows', () => {
         t: zhTranslate as never,
         settingsAction: { attention: true, run: openSettings },
         nicknameAction: editNickname,
-        dmActions: { hidden: ['memory'], toggle },
+        dmActions: {
+          hidden: ['memory'],
+          toggle,
+          memoryDisplay: 'compact',
+          setMemoryDisplay: vi.fn(),
+        },
         onPick: vi.fn(),
         onClose: vi.fn(),
       }),
@@ -1883,7 +2131,12 @@ describe('bot sidebar rows', () => {
     const dmRow = menu.items.find((item) => item['id'] === 'dm-actions') as
       | { submenu?: readonly { id: string }[] }
       | undefined;
-    expect(dmRow?.submenu?.map((item) => item.id)).toEqual(['dm:posts', 'dm:memory']);
+    expect(dmRow?.submenu?.map((item) => item.id)).toEqual([
+      'dm:posts',
+      'dm:memory',
+      'dm:memory-display:compact',
+      'dm:memory-display:detailed',
+    ]);
     menu.onSelect?.('settings');
     expect(openSettings).toHaveBeenCalledOnce();
     menu.onSelect?.('nickname');
@@ -1928,23 +2181,27 @@ it('announces pending approvals in the Rail button while preserving working exec
   }
 });
 
-it('shows the contact row status beside the name instead of on the avatar', () => {
+it('shows one status glyph at the end of the preview line instead of avatar badges', () => {
   store.setRoster([BOT], [DM_CHANNEL]);
   store.applyActivity({
     generation: 'row-status-host',
     revision: 1,
     bots: [{ slug: BOT.slug, state: 'working', attention: { approvalCount: 3 } }],
   });
+  setRoster({ sections: [section('s1', '工作流', [DM_CHANNEL.id])] });
   try {
     const markup = renderSidebar();
     const row = markup.slice(markup.indexOf('class="bh-contact'));
     const avatar = row.slice(0, row.indexOf('class="bh-body"'));
-    const top = row.slice(row.indexOf('class="bh-top"'), row.indexOf('class="bh-msg"'));
+    const top = row.slice(row.indexOf('class="bh-top"'), row.indexOf('class="bh-bottom"'));
+    const bottom = row.slice(row.indexOf('class="bh-bottom"'), row.indexOf('</button>'));
     expect(avatar).not.toContain('bh-avatar-attention');
     expect(avatar).not.toContain('bh-avatar-botui');
-    expect(top).toContain('class="bh-row-status" data-state="working"');
-    expect(top).toContain('data-approval-count="3"');
-    expect(top).toContain('bh-avatar-botui');
+    expect(top).not.toContain('bh-avatar-botui');
+    expect(top).not.toContain('bh-row-glyph');
+    expect(bottom).toContain('class="bh-row-glyph" data-status="needs-you"');
+    expect(bottom).toContain('aria-label="正在等待你"');
+    expect(markup).toContain('<span class="bh-section-needs">1 个需要你</span>');
   } finally {
     store.applyActivity({
       generation: 'row-status-host',

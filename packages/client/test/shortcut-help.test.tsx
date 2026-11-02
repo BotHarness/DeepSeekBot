@@ -43,8 +43,11 @@ describe('shortcut list', () => {
     expect(row('bot-mode')?.textContent).toBe('Enter or leave Bot modeAlt`');
     expect(row('help')?.textContent).toBe('Show keyboard shortcuts?orCtrl/');
     expect(row('recall')?.textContent).toContain('When the composer is empty');
-    expect(row('quick-switcher')?.textContent).toBe('Quick switcherCtrlK');
+    expect(row('quick-switcher')?.textContent).toBe(
+      'Search conversations, messages and settingsAltK',
+    );
     expect(row('search')?.textContent).toBe('Search this conversationCtrlF');
+    expect(row('settings')?.textContent).toBe('Open Bot settingsCtrl,');
     expect(row('unread-next')?.textContent).toBe(
       'Next unread conversationSkips muted conversationsAlt⇧↓',
     );
@@ -110,7 +113,7 @@ describe('shortcut list', () => {
     expect(
       host.querySelector<HTMLElement>('[data-shortcut="send"] [data-shortcut-locked]')?.dataset
         .tooltip,
-    ).toBe("Can't be changed here; switch it in Bot settings › General › Send messages");
+    ).toBe("Can't be changed here; switch it in Bot settings › Messaging › Send messages");
     expect(change().dataset.tooltip).toBe('Change');
     expect(change().textContent).toBe('');
 
@@ -118,9 +121,9 @@ describe('shortcut list', () => {
     expect(recorder()?.textContent).toBe('Press new keys, Esc to cancel');
     press({ key: 'Control', code: 'ControlLeft', ctrlKey: true });
     expect(recorder()).not.toBeNull();
-    press({ key: 'k', code: 'KeyK', ctrlKey: true });
+    press({ key: 'k', code: 'KeyK', altKey: true });
     expect(row().querySelector('[role="alert"]')?.textContent).toBe(
-      'Already used by “Quick switcher”',
+      'Already used by “Search conversations, messages and settings”',
     );
     press({ key: 'j', code: 'KeyJ' });
     expect(row().querySelector('[role="alert"]')?.textContent).toBe('Include Ctrl or Alt');
@@ -174,4 +177,77 @@ describe('shortcut list', () => {
     help.close();
     expect(changes).toBe(2);
   });
+});
+
+it('waits for native recording acknowledgement and releases interception after saving', async () => {
+  let acknowledge!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    acknowledge = resolve;
+  });
+  const recording = vi.fn((active: boolean) => (active ? pending : Promise.resolve()));
+  const bindings = new ShortcutBindings(undefined, () => false);
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  act(() =>
+    root.render(
+      createElement(ShortcutHelpList, {
+        t,
+        apple: false,
+        shortcutBindings: bindings,
+        nativeShortcuts: { recording },
+      }),
+    ),
+  );
+  act(() => host.querySelector<HTMLButtonElement>('[data-shortcut="bot-mode"] button')!.click());
+  const press = () =>
+    act(() =>
+      host.querySelector('[data-shortcut-recorder]')!.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'b',
+          code: 'KeyB',
+          ctrlKey: true,
+          shiftKey: true,
+          bubbles: true,
+        }),
+      ),
+    );
+  press();
+  expect(bindings.isCustom('bot-mode')).toBe(false);
+  await act(async () => {
+    acknowledge();
+    await pending;
+  });
+  press();
+  expect(bindings.isCustom('bot-mode')).toBe(true);
+  expect(recording.mock.calls.map((call) => call[0])).toEqual([true, false]);
+  act(() => root.unmount());
+  host.remove();
+});
+
+it('refuses recording when the native shell cannot acknowledge interception', async () => {
+  const recording = vi.fn(async (active: boolean) => {
+    if (active) throw new Error('unavailable');
+  });
+  const bindings = new ShortcutBindings(undefined, () => false);
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  act(() =>
+    root.render(
+      createElement(ShortcutHelpList, {
+        t,
+        shortcutBindings: bindings,
+        nativeShortcuts: { recording },
+      }),
+    ),
+  );
+  await act(async () => {
+    host.querySelector<HTMLButtonElement>('[data-shortcut="bot-mode"] button')!.click();
+  });
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain('Could not save');
+  expect(host.querySelector('[data-shortcut-recorder]')).toBeNull();
+  expect(bindings.isCustom('bot-mode')).toBe(false);
+  act(() => root.unmount());
+  host.remove();
 });

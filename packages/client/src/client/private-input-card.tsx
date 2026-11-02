@@ -1,12 +1,11 @@
+import { ActionButton } from './ds/action-button.js';
+import { MethodRefused } from '../../../../apps/mobile/src/host/client.js';
+import { isConnectRoute } from '../../../../apps/mobile/src/host/route.js';
+import { BridgeCallError } from './bridge.js';
+import { useMessageHost } from './message-host.js';
 import { useId, useRef, useState, type ReactElement } from 'react';
 import { useMountedResource } from './mounted-resource.js';
-import {
-  Button,
-  Input,
-  Tag,
-  IconCheckOutlineRegular,
-  IconCloseOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { Input, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { store, type ChannelMessage } from './store.js';
@@ -28,10 +27,19 @@ export function PrivateInputCard({
   t,
 }: {
   message: ChannelMessage;
-  actions: BridgeActions;
+  actions: Pick<
+    BridgeActions,
+    | 'privateInputStatus'
+    | 'privateInputSubmit'
+    | 'privateInputCancel'
+    | 'privateAccountStatus'
+    | 'privateInputReplace'
+    | 'privateAccountRevoke'
+  >;
   channelId?: string | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const host = useMessageHost();
   const request = message.privateInputRequest!;
   const channelId =
     sourceChannelId ?? 'dm-' + (message.author.kind === 'bot' ? message.author.slug : '');
@@ -41,6 +49,13 @@ export function PrivateInputCard({
   const [status, setStatus] = useState<PrivateInputStatus | 'loading'>('loading');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
+  const [routeRefused, setRouteRefused] = useState(false);
+  const connectBlocked =
+    (host !== undefined &&
+      (host.client.secretInputAllowed?.() === false ||
+        (host.client.secretInputAllowed === undefined &&
+          isConnectRoute(host.client.resource('/').uri)))) ||
+    routeRefused;
   const [retry, setRetry] = useState(0);
   const mount = useMountedResource<HTMLFormElement>(
     (node) => {
@@ -96,9 +111,12 @@ export function PrivateInputCard({
   const settle = async (cancel: boolean): Promise<void> => {
     if (
       disabled ||
+      (!cancel && connectBlocked) ||
       submitting.current ||
       mounted.current?.active !== true ||
-      store.getSnapshot().conversation.channel?.id !== channelId
+      (host === undefined
+        ? store.getSnapshot().conversation.channel?.id !== channelId
+        : !host.current(channelId))
     )
       return;
     const lease = mounted.current;
@@ -119,7 +137,12 @@ export function PrivateInputCard({
         if (current !== 'pending') lease.terminal = current;
         setStatus(current);
       }
-    } catch {
+    } catch (failure) {
+      if (
+        (failure instanceof BridgeCallError || failure instanceof MethodRefused) &&
+        failure.code === 'secret-route-refused'
+      )
+        setRouteRefused(true);
       if (lease.active && lease.terminal === undefined) {
         setError(true);
         setRetry((value) => value + 1);
@@ -158,7 +181,12 @@ export function PrivateInputCard({
         {t('privateInput.account')}: {request.account}
       </div>
       <div className="bh-question-prompt">{request.purpose}</div>
-      {status === 'pending' ? (
+      {connectBlocked ? (
+        <div role="status" className="bh-note">
+          {t('privateInput.connectRefused')}
+        </div>
+      ) : null}
+      {status === 'pending' && !connectBlocked ? (
         request.fields.map((field) => (
           <div className="bh-question-item" key={field.id}>
             <label htmlFor={id + field.id}>
@@ -172,11 +200,11 @@ export function PrivateInputCard({
               required={field.required}
               maxLength={16384}
               autoComplete="new-password"
-              disabled={disabled}
+              disabled={disabled || connectBlocked}
             />
           </div>
         ))
-      ) : status === 'configured' ? null : (
+      ) : status === 'configured' || (status === 'pending' && connectBlocked) ? null : (
         <div role="status" className="bh-note">
           {status === 'loading'
             ? t('approval.loading')
@@ -187,38 +215,40 @@ export function PrivateInputCard({
       )}
       {status === 'pending' ? (
         <div className="bh-private-input-actions bh-message-card-actions">
-          <Button
+          <ActionButton
+            icon="check"
             type="submit"
-            variant="primary"
+            tone="primary"
             size="sm"
-            icon={<IconCheckOutlineRegular size={14} />}
-            disabled={disabled}
+            busy={busy}
+            disabled={disabled || connectBlocked}
           >
-            {busy ? t('approval.loading') : t('privateInput.submit')}
-          </Button>
-          <Button
+            {t('privateInput.submit')}
+          </ActionButton>
+          <ActionButton
+            icon="x"
             type="button"
-            variant="toolbar"
+
             size="sm"
-            icon={<IconCloseOutlineRegular size={14} />}
             disabled={disabled}
             onClick={() => void settle(true)}
           >
             {t('privateInput.cancel')}
-          </Button>
+          </ActionButton>
         </div>
       ) : null}
-      {error ? (
+      {error && !routeRefused ? (
         <div className="bh-error" role="alert">
           {t('privateInput.error')}{' '}
-          <Button
+          <ActionButton
+            icon="refresh"
             type="button"
-            variant="primary"
+            tone="primary"
             size="sm"
             onClick={() => setRetry((value) => value + 1)}
           >
             {t('question.retry')}
-          </Button>
+          </ActionButton>
         </div>
       ) : null}
       {status === 'configured' && actions.privateAccountStatus !== undefined ? (

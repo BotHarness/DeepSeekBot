@@ -1,0 +1,144 @@
+{
+  "results": [
+    {
+      "name": "01-light-purple",
+      "config": {
+        "version": 1,
+        "revision": "fa20e9ba-2df0-4038-a5e8-4c9383421467",
+        "preference": "light",
+        "modes": {
+          "light": {
+            "preset": "mist-purple"
+          },
+          "dark": {
+            "preset": "classic-blue"
+          }
+        }
+      },
+      "styles": {
+        "native": "#151517",
+        "nativeMode": true,
+        "ownedMode": "light"
+      }
+    },
+    {
+      "name": "02-dark-blue",
+      "config": {
+        "version": 1,
+        "revision": "d48256ac-0228-48c4-ad24-4812e1abddc5",
+        "preference": "dark",
+        "modes": {
+          "light": {
+            "preset": "mist-purple"
+          },
+          "dark": {
+            "preset": "classic-blue"
+          }
+        }
+      },
+      "styles": {
+        "native": "#151517",
+        "nativeMode": true,
+        "ownedMode": "dark"
+      }
+    },
+    {
+      "name": "03-reloaded",
+      "config": {
+        "version": 1,
+        "revision": "d48256ac-0228-48c4-ad24-4812e1abddc5",
+        "preference": "dark",
+        "modes": {
+          "light": {
+            "preset": "mist-purple"
+          },
+          "dark": {
+            "preset": "classic-blue"
+          }
+        }
+      },
+      "styles": {
+        "native": "#151517",
+        "nativeMode": true,
+        "ownedMode": "dark"
+      }
+    },
+    {
+      "name": "04-cli-readback",
+      "config": {
+        "version": 1,
+        "revision": "f31e18e5-5bdb-4539-be43-7b9da4486e6e",
+        "preference": "light",
+        "modes": {
+          "light": {
+            "preset": "mist-purple",
+            "primary": "#26805a"
+          },
+          "dark": {
+            "preset": "classic-blue"
+          }
+        }
+      },
+      "styles": {
+        "native": "#151517",
+        "nativeMode": true,
+        "ownedMode": "light"
+      }
+    },
+    {
+      "name": "05-reentered",
+      "config": {
+        "version": 1,
+        "revision": "ae1b6b27-52e8-4a3e-8bb5-cf588c1d6555",
+        "preference": "light",
+        "modes": {
+          "light": {
+            "preset": "mist-purple"
+          },
+          "dark": {
+            "preset": "classic-blue"
+          }
+        }
+      },
+      "styles": {
+        "native": "#151517",
+        "nativeMode": true,
+        "ownedMode": "light"
+      }
+    },
+    {
+      "name": "06-system-dark",
+      "config": {
+        "version": 1,
+        "revision": "a8f26c9f-e2a3-4827-81e5-0e47d35c25f0",
+        "preference": "system",
+        "modes": {
+          "light": {
+            "preset": "mist-purple"
+          },
+          "dark": {
+            "preset": "classic-blue"
+          }
+        }
+      },
+      "styles": {
+        "native": "#151517",
+        "nativeMode": true,
+        "ownedMode": "dark"
+      }
+    }
+  ],
+  "checks": [
+    "separate mode palettes",
+    "owned modal/menu",
+    "reload",
+    "explicit CLI target",
+    "other browser isolation",
+    "revision conflict",
+    "stale target",
+    "DSH unchanged",
+    "exit/re-entry",
+    "system changes"
+  ],
+  "errors": []
+}

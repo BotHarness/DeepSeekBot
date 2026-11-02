@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="zh-CN">
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Computer 输入测试</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111827;
+      --panel: #1f2937;
+      --line: #526179;
+      --text: #f3f4f6;
+      --accent: #93c5fd;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font:
+        18px/1.5 system-ui,
+        sans-serif;
+    }
+    header {
+      padding: 20px 28px;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--line);
+    }
+    h1 {
+      font-size: 26px;
+      margin: 0;
+    }
+    h2 {
+      font-size: 22px;
+      margin: 0 0 12px;
+    }
+    p {
+      margin: 8px 0;
+      color: #cbd5e1;
+    }
+    main {
+      padding: 24px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 20px;
+    }
+    section {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+      min-width: 0;
+    }
+    button,
+    input,
+    textarea {
+      font: inherit;
+      color: inherit;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: var(--bg);
+    }
+    button {
+      cursor: pointer;
+      min-height: 48px;
+    }
+    button:active {
+      background: #1d4ed8;
+    }
+    input,
+    textarea {
+      width: 100%;
+    }
+    label {
+      display: block;
+      margin: 12px 0;
+    }
+    output {
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+    }
+    .scroll {
+      overflow: auto;
+      overscroll-behavior: contain;
+      border: 2px solid var(--accent);
+      border-radius: 8px;
+      height: 240px;
+      scroll-behavior: auto;
+    }
+    #horizontal {
+      overflow-y: hidden;
+    }
+    #horizontal .content {
+      display: flex;
+      width: 2400px;
+      height: 100%;
+    }
+    .tile {
+      display: grid;
+      place-content: center;
+      border: 1px solid var(--line);
+      font-size: 30px;
+      min-width: 240px;
+      background: linear-gradient(135deg, #243d5a, #263244);
+    }
+    #vertical .tile {
+      height: 110px;
+    }
+    #grid .content {
+      width: 1800px;
+      height: 1000px;
+      display: grid;
+      grid-template-columns: repeat(6, 300px);
+      grid-template-rows: repeat(5, 200px);
+    }
+    #grid .tile {
+      font-size: 24px;
+    }
+    .wide {
+      grid-column: 1/-1;
+    }
+    .buttons {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    :focus-visible {
+      outline: 3px solid #fbbf24;
+      outline-offset: 3px;
+    }
+    textarea {
+      min-height: 120px;
+    }
+  </style>
+  <header>
+    <h1>Computer 输入测试</h1>
+    <button id="fullscreen">全屏</button><button id="reset">重置滚动</button
+    ><output id="clicks">左键 0 · 右键 0</output>
+  </header>
+  <main>
+    <section>
+      <h2>横向滚动</h2>
+      <p>把光标放进蓝框，再向左右滚动。</p>
+      <output id="horizontal-position">X 0 · Y 0</output>
+      <div class="scroll" id="horizontal" tabindex="0" aria-label="横向滚动测试区">
+        <div class="content"></div>
+      </div>
+    </section>
+    <section>
+      <h2>纵向滚动</h2>
+      <p>把光标放进蓝框，再向上下滚动。</p>
+      <output id="vertical-position">X 0 · Y 0</output>
+      <div class="scroll" id="vertical" tabindex="0" aria-label="纵向滚动测试区">
+        <div class="content"></div>
+      </div>
+    </section>
+    <section>
+      <h2>二维滚动</h2>
+      <p>同一块画布可以水平、垂直或斜向移动。</p>
+      <output id="grid-position">X 0 · Y 0</output>
+      <div class="scroll" id="grid" tabindex="0" aria-label="二维滚动测试区">
+        <div class="content"></div>
+      </div>
+    </section>
+    <section>
+      <h2>键盘与点击</h2>
+      <label
+        >普通文本<input
+          id="plain"
+          autocomplete="off"
+          placeholder="中文候选、英文、替换与退格" /></label
+      ><label
+        >多行文本<textarea
+          id="multiline"
+          placeholder="输入多行内容，试试 Tab 与 Enter"
+        ></textarea></label
+      ><label
+        >测试密码<input
+          id="password"
+          type="password"
+          autocomplete="off"
+          placeholder="仅使用测试文本" /></label
+      ><output id="password-length">密码长度 0</output>
+      <div class="buttons">
+        <button id="target">点击测试</button><button id="clear">清空字段</button>
+      </div>
+      <p>字段仅保留在此页内存中；刷新即清空。</p>
+    </section>
+  </main>
+  <script>
+    for (const [id, count] of [
+      ['horizontal', 10],
+      ['vertical', 20],
+      ['grid', 30],
+    ]) {
+      const box = document.getElementById(id),
+        content = box.firstElementChild;
+      for (let i = 0; i < count; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'tile';
+        cell.textContent =
+          id === 'grid'
+            ? 'R' + (Math.floor(i / 6) + 1) + ' / C' + ((i % 6) + 1)
+            : String(i + 1).padStart(2, '0');
+        content.append(cell);
+      }
+      box.addEventListener('scroll', () => {
+        document.getElementById(id + '-position').textContent =
+          'X ' + Math.round(box.scrollLeft) + ' · Y ' + Math.round(box.scrollTop);
+      });
+    }
+    let left = 0,
+      right = 0;
+    const target = document.getElementById('target');
+    const show = () =>
+      (document.getElementById('clicks').textContent = '左键 ' + left + ' · 右键 ' + right);
+    target.addEventListener('click', () => {
+      left++;
+      show();
+    });
+    target.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      right++;
+      show();
+    });
+    document.getElementById('reset').onclick = () =>
+      document.querySelectorAll('.scroll').forEach((e) => e.scrollTo(0, 0));
+    document.getElementById('fullscreen').onclick = () =>
+      document.documentElement.requestFullscreen();
+    document.getElementById('password').oninput = (e) =>
+      (document.getElementById('password-length').textContent =
+        '密码长度 ' + [...e.target.value].length);
+    document.getElementById('clear').onclick = () => {
+      document.querySelectorAll('input,textarea').forEach((e) => (e.value = ''));
+      document.getElementById('password-length').textContent = '密码长度 0';
+    };
+  </script>
+</html>

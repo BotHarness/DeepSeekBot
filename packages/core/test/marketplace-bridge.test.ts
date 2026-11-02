@@ -8,6 +8,7 @@ import { createChannelStore } from '../src/channels/store.js';
 import { solveChallenge } from '../src/marketplace/altcha.js';
 import {
   createMarketplaceClient,
+  parseMarketplaceDigests,
   parseMarketplacePage,
   type MarketplaceClient,
 } from '../src/marketplace/client.js';
@@ -112,8 +113,18 @@ describe('Bot Marketplace bridge', () => {
     const market = createMarket();
     const methods = methodsWith(marketClient(market));
     for (const repository of [
-      fakeRepository({ name: 'reader', stars: 40, topics: ['botharness-bot', 'research'] }),
-      fakeRepository({ name: 'writer', stars: 5, description: 'Drafts essays' }),
+      fakeRepository({
+        name: 'reader',
+        stars: 40,
+        topics: ['botharness-bot', 'research'],
+        createdAt: '2025-01-01T00:00:00Z',
+      }),
+      fakeRepository({
+        name: 'writer',
+        stars: 5,
+        description: 'Drafts essays',
+        createdAt: '2026-06-01T00:00:00Z',
+      }),
     ]) {
       market.publish(repository);
       await submitThrough(methods, repository.htmlUrl);
@@ -123,6 +134,16 @@ describe('Bot Marketplace bridge', () => {
       ok: true,
       value: { bots: [{ fullName: 'alice/reader' }, { fullName: 'alice/writer' }] },
     });
+    expect(await methods.marketplaceList({ sort: 'created' })).toMatchObject({
+      ok: true,
+      value: {
+        bots: [
+          { fullName: 'alice/writer', createdAt: '2026-06-01T00:00:00Z' },
+          { fullName: 'alice/reader', createdAt: '2025-01-01T00:00:00Z' },
+        ],
+      },
+    });
+    expect(await methods.marketplaceList({ sort: 'newest' })).toMatchObject({ ok: false });
     expect(await methods.marketplaceList({ q: ' essays ' })).toMatchObject({
       ok: true,
       value: { bots: [{ fullName: 'alice/writer' }] },
@@ -140,6 +161,113 @@ describe('Bot Marketplace bridge', () => {
     });
   });
 
+  it('reads the Hot, New and Rising rows from the latest daily snapshot', async () => {
+    const market = createMarket();
+    const repository = fakeRepository();
+    market.publish(repository);
+    const methods = methodsWith(marketClient(market));
+    await submitThrough(methods, repository.htmlUrl);
+    market.sqlite
+      .prepare('INSERT INTO install_receipts (bot_id, host_hash, created_at) VALUES (?, ?, ?)')
+      .run(repository.nodeId, 'host-hash', market.clock.value.getTime() - 3_600_000);
+    expect(await methods.marketplaceSections({})).toEqual({
+      ok: true,
+      value: {
+        sections: [
+          { section: 'hot', day: null, entries: [] },
+          { section: 'new', day: null, entries: [] },
+          { section: 'rising', day: null, entries: [] },
+        ],
+      },
+    });
+
+    await market.daily();
+    const sections = await methods.marketplaceSections({ lang: 'zh' });
+    expect(sections).toMatchObject({
+      ok: true,
+      value: {
+        sections: [
+          {
+            section: 'hot',
+            day: '2026-10-05',
+            entries: [{ bot: { id: repository.nodeId }, score: 1 }],
+          },
+          { section: 'new', entries: [{ bot: { id: repository.nodeId }, score: 0 }] },
+          { section: 'rising', entries: [] },
+        ],
+      },
+    });
+    expect(await methods.marketplaceSections({ lang: 'fr' })).toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input' },
+    });
+  });
+
+  it('reads the latest Marketplace Digest, a past day and the archive', async () => {
+    const market = createMarket();
+    const repository = fakeRepository({
+      descriptor: JSON.stringify({ banner: { recipe: { scene: 'sea', seed: 7 } } }),
+    });
+    market.publish(repository);
+    const methods = methodsWith(marketClient(market));
+    await submitThrough(methods, repository.htmlUrl);
+    expect(await methods.marketplaceDigest({})).toMatchObject({
+      ok: false,
+      error: { code: 'digest-not-found' },
+    });
+    market.sqlite
+      .prepare(
+        'INSERT INTO digests (day, lang, title, lede, sections, model, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      )
+      .run(
+        '2026-10-05',
+        'zh',
+        '今天值得一试',
+        '一位写作伙伴。',
+        JSON.stringify([{ heading: '写作', body: '它陪你写文章。', bot: repository.nodeId }]),
+        'big-free',
+        0,
+      );
+
+    expect(await methods.marketplaceDigests({ lang: 'zh' })).toEqual({
+      ok: true,
+      value: {
+        digests: [
+          {
+            day: '2026-10-05',
+            lang: 'zh',
+            title: '今天值得一试',
+            lede: '一位写作伙伴。',
+            picks: [
+              {
+                id: repository.nodeId,
+                displayName: 'helper-bot',
+                banner: { recipe: { scene: 'sea', seed: 7 } },
+                avatar: null,
+              },
+            ],
+          },
+        ],
+      },
+    });
+    for (const payload of [{ lang: 'zh' }, { day: '2026-10-05', lang: 'en' }]) {
+      expect(await methods.marketplaceDigest(payload)).toMatchObject({
+        ok: true,
+        value: {
+          digest: {
+            day: '2026-10-05',
+            lang: 'zh',
+            sections: [{ heading: '写作', bot: { id: repository.nodeId } }],
+          },
+        },
+      });
+    }
+    expect(await methods.marketplaceDigest({ day: 'today' })).toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input' },
+    });
+  });
+
   it('loads a listed entry detail with its prepared README', async () => {
     const market = createMarket();
     const repository = fakeRepository({ readme: '![shot](shot.png)' });
@@ -152,6 +280,7 @@ describe('Bot Marketplace bridge', () => {
       value: {
         bot: expect.objectContaining({ fullName: 'alice/helper-bot' }),
         readme: `![shot](<https://raw.githubusercontent.com/alice/helper-bot/${repository.head?.sha}/shot.png>)`,
+        readmeLanguage: null,
         commitSha: repository.head?.sha,
       },
     });
@@ -163,6 +292,53 @@ describe('Bot Marketplace bridge', () => {
       ok: false,
       error: { code: 'invalid-input' },
     });
+  });
+
+  it('asks the Worker for listings and READMEs in the reader’s language', async () => {
+    const market = createMarket();
+    const repository = fakeRepository({
+      readme: '# Orion',
+      files: { 'README.zh-CN.md': '# 猎户' },
+      descriptor: JSON.stringify({
+        name: 'Orion',
+        bio: 'Tells you what is in tonight’s sky.',
+        i18n: { zh: { name: '猎户', bio: '告诉你今晚能看到什么。' } },
+      }),
+    });
+    market.publish(repository);
+    const methods = methodsWith(marketClient(market));
+    await submitThrough(methods, repository.htmlUrl);
+
+    expect(await methods.marketplaceList({ lang: 'zh' })).toMatchObject({
+      ok: true,
+      value: {
+        bots: [
+          {
+            displayName: '猎户',
+            description: '告诉你今晚能看到什么。',
+            descriptionGenerated: false,
+          },
+        ],
+      },
+    });
+    expect(await methods.marketplaceList({})).toMatchObject({
+      value: {
+        bots: [{ displayName: 'Orion', description: 'Tells you what is in tonight’s sky.' }],
+      },
+    });
+    expect(await methods.marketplaceDetail({ id: repository.nodeId, lang: 'zh' })).toMatchObject({
+      ok: true,
+      value: { readme: '# 猎户', readmeLanguage: 'zh' },
+    });
+    expect(await methods.marketplaceDetail({ id: repository.nodeId, lang: 'en' })).toMatchObject({
+      value: { readme: '# Orion', readmeLanguage: null },
+    });
+    for (const call of [
+      methods.marketplaceList({ lang: 'fr' }),
+      methods.marketplaceDetail({ id: repository.nodeId, lang: 'zh-CN' }),
+    ]) {
+      expect(await call).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+    }
   });
 
   it('forwards a solved challenge with a report and the Worker challenge refusals', async () => {
@@ -278,5 +454,35 @@ describe('Marketplace banner', () => {
       null,
       null,
     ]);
+  });
+});
+
+describe('Digest Picks', () => {
+  it('keeps upload art only under the pick files base', () => {
+    const image = 'https://market.test/v1/bots/U_1/files/.botharness/banner.png';
+    const digest = (pick: Record<string, unknown>) =>
+      parseMarketplaceDigests({
+        digests: [{ day: '2026-10-05', lang: 'en', title: 'Today', lede: 'Picks.', picks: [pick] }],
+      })?.[0]?.picks[0];
+    const art = { id: 'U_1', displayName: 'Helper', banner: { image }, avatar: { image } };
+    expect(digest({ ...art, filesBase: 'https://market.test/v1/bots/U_1/files/' })).toEqual({
+      id: 'U_1',
+      displayName: 'Helper',
+      banner: { image },
+      avatar: { image },
+    });
+    for (const filesBase of [
+      undefined,
+      null,
+      'http://market.test/v1/bots/U_1/files/',
+      'https://market.test/v1/bots/U_2/files/',
+      'https://market.test/v1/bots/U_1',
+    ])
+      expect(digest({ ...art, filesBase })).toMatchObject({ banner: null, avatar: null });
+    expect(
+      parseMarketplaceDigests({
+        digests: [{ day: '2026-10-05', lang: 'en', title: 'Today', lede: 'Picks.' }],
+      })?.[0]?.picks,
+    ).toEqual([]);
   });
 });

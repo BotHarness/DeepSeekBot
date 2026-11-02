@@ -1,4 +1,8 @@
-# Shared device QA (iOS Simulator and iPhone)
+# Shared device QA
+
+On **Windows 11**, use [Windows Android QA](android-device-qa.md) for the shared emulator,
+physical Android phone, batch queue and scrcpy capture helper. Windows has its own queue and
+one runner across both Android lanes. The rest of this page describes the **Mac/iOS** lane.
 
 Native checks for `apps/mobile` run on one Mac that several coding agents share (Claude Code,
 Codex, or anything else). That Mac has one QA Simulator, one physical iPhone, one QA Host and a
@@ -6,6 +10,10 @@ disk budget of about 20 GB. Read this before you boot a Simulator, build the app
 or touch the phone. The tools themselves (`e2e-mobile-sim.mjs`, agent-device, Maestro,
 `rn-profile.mjs`) are documented in [`apps/mobile/README.md`](../../apps/mobile/README.md) and
 [`apps/mobile/AGENTS.md`](../../apps/mobile/AGENTS.md). This page covers how agents share them.
+
+For iOS performance diagnosis or tuning, follow [iOS performance verification](ios-performance.md)
+within the authorized device window. Simulator diagnostics do not qualify physical Release FPS;
+retain valid workload, profiling and matched A/B evidence separately from visual captures.
 
 ## Shared resources
 
@@ -58,7 +66,8 @@ not one run per PR.
 5. **Report.** See [Reporting results](#reporting-results). A failure is fixed in its PR and
    rides the next batch.
 
-Android items are marked untested: the Mac has no Android device.
+Android items go to the Windows queue; a Mac batch marks them untested until the Android
+runner records its separate result.
 
 ## Branches and worktrees
 
@@ -145,7 +154,7 @@ agent's Host.
 - **Pairing:** a pairing offer is one-time and lasts 5 minutes. Make it the way
   `scripts/e2e-device-pairing.mjs` does, or in the Web Client under Bot settings → Devices →
   Pair a phone. A Simulator pairs over the loopback route: open the link with
-  `xcrun simctl openurl <udid> '<deepseekbot://pair?p=…>'`. A physical phone needs a Tailscale
+  `xcrun simctl openurl <udid> '<deepseekbot-dev://pair?p=…>'`. A physical phone needs a Tailscale
   HTTPS route (see below). Never redeem an offer meant for the Human.
 
 ## Physical iPhone
@@ -157,7 +166,9 @@ disk, Host and build folders.
   `tailscale serve --bg 39100`. It replaces whatever the Mac serves on 443, so save
   `tailscale serve status --json` first and note the command that restores the old target. Then
   make an offer whose routes include the `https://<machine>.<tailnet>.ts.net` origin, and turn
-  the link into a QR code for the Human to scan.
+  the link into a QR code for the Human to scan. For the Dev app, scan inside its pairing screen
+  or use a `deepseekbot-dev://pair?p=…` link; external public `deepseekbot://` links belong to
+  the store app. Preserve the encoded payload when changing the prefix.
 - **Build.** The phone runs a Release build of the batch branch, made in the batch worktree:
 
   ```bash
@@ -199,13 +210,19 @@ Some steps only the Human can do. Ask once, with the exact command or action and
 
 ## Reporting results
 
+Save and index captures using [local QA evidence and release archives](qa-evidence.md).
+macOS/iOS and Windows/Android keep separate platform results and share the frozen acceptance SHA
+for final release checks; existing runner output locations remain intact.
+
 - **One comment per PR**, posted by the runner with `gh` from the Mac. It gives the PR head SHA
   and the batch branch commit it ran on. It gives pass, fail or untested for each step, with the
   reason for anything untested (for example "Android untested", "no second Host", or "needs a
   model, provider returned 429"). It embeds light and dark screenshots where the step asked for
   them.
 - **Redact before you post.** Crop or blur the tailnet hostname, the computer name, home folder
-  paths, tokens and any personal content. Screenshots are embedded from the evidence branch.
+  paths, tokens and any personal content. Publish reviewed screenshots to Cloudflare R2 using
+  `pnpm evidence:publish` and embed the returned immutable URLs; never commit them to an evidence
+  branch. Follow the retention/cleanup rules in [QA evidence](qa-evidence.md).
 - **Human QA.** When the Human checks an item by hand, the comment says
   `Human QA passed (<name>, <time>Z)` and the automated pass for that item is skipped.
 - **Summary.** The runner sends the queue owner one line per PR with the result and the comment

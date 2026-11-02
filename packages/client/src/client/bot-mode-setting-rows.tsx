@@ -51,6 +51,7 @@ const SEND_KEY_OPTIONS: readonly {
   newline: readonly ShortcutKey[];
 }[] = [
   { id: 'enter', send: ['Enter'], newline: ['Shift', 'Enter'] },
+  { id: 'shift-enter', send: ['Shift', 'Enter'], newline: ['Enter'] },
   { id: 'mod-enter', send: ['Mod', 'Enter'], newline: ['Enter'] },
 ];
 
@@ -268,6 +269,69 @@ export function SendKeySetting({
           onChange={(id) => {
             if (isBotModeSendKey(id)) setSendKey(id);
           }}
+        />
+      }
+    />
+  );
+}
+
+export function AutoCollapseMessagesSetting({
+  t,
+  useBotModePrefs,
+  setAutoCollapseMessages,
+}: BotModeSettingRowProps): ReactElement {
+  const enabled = useBotModePrefs((value) => value.autoCollapseMessages);
+  return (
+    <SettingsRow
+      title={t('messageFold.row.title')}
+      description={t('messageFold.row.description')}
+      control={
+        <Switch
+          checked={enabled}
+          onChange={setAutoCollapseMessages}
+          label={t('messageFold.row.title')}
+        />
+      }
+    />
+  );
+}
+
+export function DeliveryReceiptsSetting({
+  t,
+  useBotModePrefs,
+  setShowDeliveryReceipts,
+}: BotModeSettingRowProps): ReactElement {
+  const enabled = useBotModePrefs((value) => value.showDeliveryReceipts);
+  return (
+    <SettingsRow
+      title={t('message.delivery.row.title')}
+      description={t('message.delivery.row.description')}
+      control={
+        <Switch
+          checked={enabled}
+          onChange={setShowDeliveryReceipts}
+          label={t('message.delivery.row.title')}
+        />
+      }
+    />
+  );
+}
+
+export function StreamRepliesSetting({
+  t,
+  useBotModePrefs,
+  setStreamReplies,
+}: BotModeSettingRowProps): ReactElement {
+  const enabled = useBotModePrefs((value) => value.streamReplies);
+  return (
+    <SettingsRow
+      title={t('message.stream.row.title')}
+      description={t('message.stream.row.description')}
+      control={
+        <Switch
+          checked={enabled}
+          onChange={setStreamReplies}
+          label={t('message.stream.row.title')}
         />
       }
     />

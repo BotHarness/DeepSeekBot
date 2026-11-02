@@ -8,7 +8,7 @@ for the initial Lark qualification and Human QA evidence. [#868](https://github.
 
 ## What the product installs
 
-One `deepseekbot` product Bundle composes Core, Client and a pinned,
+One `deepseekbot` product Bundle composes Core, Client, Browser, Computer and a pinned,
 independently versioned `@botharness/im-provider`. The Provider is maintained from
 [dsh-im](https://github.com/xmanrui/dsh-im) and ships its upstream license and
 provenance. Users of the qualified product do not separately install a Git fork,
@@ -26,7 +26,7 @@ prove Bot receipt. First-time guided setup is the separate #824 tracer. Personal
 ## Maintainer: build the distribution artifacts
 
 Use Node ≥22 and the repository's pnpm version. The product targets DSH
-`0.2.0-rc.2`; its Provider provenance records that qualified Host separately. The Provider revision below is
+`0.2.1-rc.2`; its Provider provenance records that qualified Host separately. The Provider revision below is
 the one whose manifest, lockfile and runtime digests match `productImProvider` in
 `scripts/product-artifacts.mjs`; when that record changes, update this revision with it.
 Keep the Provider input outside the product workspace. Its immutable input
@@ -35,7 +35,7 @@ fails before packing.
 
 ```bash
 git clone https://github.com/DoodleBears/dsh-im.git /tmp/bh-im-source
-git -C /tmp/bh-im-source checkout beaed4a6dabb583654d28fb09298716267039b4a
+git -C /tmp/bh-im-source checkout 7505ce6fcda26c02810781fde9d4da81dab28a68
 npm ci --prefix /tmp/bh-im-source --ignore-scripts --no-audit --no-fund
 pnpm install --frozen-lockfile
 pnpm build

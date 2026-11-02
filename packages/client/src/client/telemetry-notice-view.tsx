@@ -123,7 +123,9 @@ export function TelemetryNotice({
     <>
       <span ref={mount} hidden aria-hidden="true" />
       <TelemetryNoticeDialog
-        open={snapshot.open && release?.announcement === undefined}
+        open={
+          snapshot.open && release?.announcement === undefined && release?.updateNotice !== true
+        }
         onClose={() => {
           controller.dismiss();
         }}

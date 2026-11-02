@@ -66,7 +66,7 @@ describe('links client', () => {
       platform: 'x',
       media: 'post',
     });
-    expect(link.shortUrl).toBe('https://go.botharness.ai/ph-x-post');
+    expect(link.shortUrl).toBe('https://go.tobs.app/ph-x-post');
     await harness.request('/ph-x-post');
     expect((await client.links({ campaign: 'ph-launch' }))[0]?.clicks).toBe(1);
     expect((await client.linkClicks('ph-x-post', 7)).total).toBe(1);
@@ -137,9 +137,9 @@ describe('bh-links', () => {
       'en',
     ]);
     expect(created.code).toBe(0);
-    expect(created.stdout).toContain('short URL:  https://go.botharness.ai/ph-x-post');
+    expect(created.stdout).toContain('short URL:  https://go.tobs.app/ph-x-post');
     expect(created.stdout).toContain(
-      'target:     https://deepseekbot.botharness.ai/en/docs/overview/?utm_campaign=ph-launch&utm_source=x&utm_medium=post&utm_content=ph-x-post',
+      'target:     https://tobs.app/en/docs/overview/?utm_campaign=ph-launch&utm_source=x&utm_medium=post&utm_content=ph-x-post',
     );
 
     await harness.request('/ph-x-post');
@@ -147,8 +147,8 @@ describe('bh-links', () => {
     const listed = await cli(['list']);
     expect(listed).toMatchObject({ code: 0, stderr: '' });
     expect(listed.stdout.split('\n')).toEqual([
-      'SLUG       SHORT URL                           CAMPAIGN   PLATFORM  MEDIA  CLICKS',
-      'ph-x-post  https://go.botharness.ai/ph-x-post  ph-launch  x         post   2',
+      'SLUG       SHORT URL                      CAMPAIGN   PLATFORM  MEDIA  CLICKS',
+      'ph-x-post  https://go.tobs.app/ph-x-post  ph-launch  x         post   2',
     ]);
 
     const json = await cli(['links', 'list', '--campaign', 'ph-launch', '--json']);
@@ -204,7 +204,7 @@ describe('bh-links', () => {
     expect(saved).toMatchObject({ code: 0 });
     expect(saved.stdout).not.toContain(token);
     const file = configPath({ HOME: directory });
-    expect((await stat(file)).mode & 0o777).toBe(0o600);
+    if (process.platform !== 'win32') expect((await stat(file)).mode & 0o777).toBe(0o600);
     expect(JSON.parse(await readFile(file, 'utf8'))).toEqual({ token, url: ORIGIN });
     const listed = await cli(['list'], { BH_LINKS_TOKEN: '', BH_LINKS_URL: '' });
     expect(listed).toMatchObject({ code: 0, stdout: 'No links.' });
@@ -233,7 +233,7 @@ describe('configuration', () => {
       await resolveConfig({ ...env, BH_LINKS_TOKEN: 'bhl_env', BH_LINKS_URL: 'https://x.test' }),
     ).toMatchObject({ url: 'https://x.test', token: 'bhl_env', tokenSource: 'env' });
     expect(configPath({ HOME: directory, XDG_CONFIG_HOME: '/xdg' })).toBe(
-      '/xdg/botharness/links.json',
+      join('/xdg', 'botharness', 'links.json'),
     );
   });
 });

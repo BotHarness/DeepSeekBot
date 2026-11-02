@@ -1,0 +1,2469 @@
+{
+  "version": 1,
+  "auditedBase": "1d1f8ac0cfeb26a8f3bf3a04550e6b92cee52bd9",
+  "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
+  "behaviors": [
+    {
+      "id": "assignment-report-continuation",
+      "label": "Accepted Assignment Report identity, continuation, restart and refusals",
+      "source": "packages/core/src/runtime/assignment-report-reader.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/assignment-report-continuation.md",
+      "task": 3245
+    },
+    {
+      "id": "profile.backup-compatibility",
+      "label": "Export across compatible DSH versions and restore historical Profile Backups into a cold Profile",
+      "source": "packages/core/src/portability/package.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/profile-backup.md",
+      "task": 2794,
+      "gap": "Runtime qualification records actual exercised Hosts; release-label matrix tests alone do not qualify Desktop provenance or future DSH releases."
+    },
+    {
+      "id": "phone.quiet-qol",
+      "label": "Quiet send and connection feedback, stable chat loading, native Bot creation and Cloud opening",
+      "source": "apps/mobile/src/ui/chat/conversation-screen.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-qol.md",
+      "task": 2802,
+      "gap": "Controlled owner/transport tests do not establish iOS or Android layout, initial history position, accessibility or native creation acceptance; run the queued device journeys."
+    },
+    {
+      "id": "phone.multiple-hosts.chats",
+      "label": "Combine online paired Hosts in Chats and Activity with source-bound actions",
+      "source": "apps/mobile/src/host/host-session.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-multiple-hosts.md",
+      "task": 2782,
+      "gap": "Screen and transport regression coverage; Android/iOS native two-Host, background notification and visual qualification pending."
+    },
+    {
+      "id": "phone.workspace-navigation",
+      "label": "Reset explicit workspace history and prune invalid account routes while retaining tab roots",
+      "source": "apps/mobile/src/ui/shell/workspace-navigation.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-workspace-navigation.md",
+      "task": 2800,
+      "gap": "Mounted drawer and installed navigator regressions do not qualify native Back gestures or accessibility; shared-device acceptance remains pending."
+    },
+    {
+      "id": "phone.bot-rename",
+      "label": "Rename a Bot from its mobile profile while retaining its stable identity and appearance",
+      "source": "apps/mobile/src/host/bot-name.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-channel-avatars.md",
+      "task": 2780,
+      "gap": "Expo rename/readback evidence does not qualify native soft-keyboard clearance or large-text acceptance."
+    },
+    {
+      "id": "phone.bot-avatar",
+      "label": "Edit a Bot portrait from its DM profile and resolve a new DM for background settings",
+      "source": "apps/mobile/src/host/bot-avatar.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-channel-avatars.md",
+      "task": 2780,
+      "gap": "Expo screenshots and Host persistence do not qualify native photo selection/crop, local background storage, Back or large text."
+    },
+    {
+      "id": "phone.channel-avatar",
+      "label": "Choose group/Bot avatars separately from phone-local chat backgrounds",
+      "source": "apps/mobile/src/ui/chat/group-info.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-channel-avatars.md",
+      "task": 2780,
+      "gap": "Expo Web picker and Host persistence evidence does not qualify iOS or Android native photo selection; run the shared-device journey separately."
+    },
+    {
+      "id": "phone.interface-preferences",
+      "label": "Phone-local language and appearance choices preserve the active chat and draft",
+      "source": "apps/mobile/src/ui/interface-preferences.ts",
+      "task": 2702,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-interface.md"
+    },
+    {
+      "id": "phone.zip-bot-import",
+      "label": "Retain a selected Zip, upload bounded chunks and recover the original imported Bot and DM",
+      "source": "apps/mobile/src/host/native-zip-import-file.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2637,
+      "gap": "Host/CLI restart proof and deterministic file/transport tests do not establish native picker, foreground, keyboard or device-disconnect behavior."
+    },
+    {
+      "id": "phone.marketplace-bot-import",
+      "label": "Browse the public native Marketplace before selecting a Host and import its reviewed source",
+      "source": "apps/mobile/app/marketplace.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2636,
+      "gap": "Public catalogue API proof does not establish native rendering, keyboard behavior or successful import; Android/iOS require the shared device journey."
+    },
+    {
+      "id": "phone.blank-bot-creation",
+      "label": "Create a blank Bot on an explicit paired Host and recover the original Bot and DM",
+      "source": "apps/mobile/app/(bot-creation)/create-bot.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2629,
+      "gap": "Native Android/iOS interaction remains separate from the passing PR2632 Host/CLI path; source tests do not establish native acceptance."
+    },
+    {
+      "id": "phone.git-bot-import",
+      "label": "Import a pinned Git source on a chosen paired Host and recover the same Bot and DM",
+      "source": "apps/mobile/app/(bot-creation)/create-bot.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2635,
+      "gap": "Record the Git import Host/CLI path and Android/iOS interaction at their exact candidate; inherited blank-creation evidence does not qualify import."
+    },
+    {
+      "id": "phone.local-computer-video",
+      "label": "Watch a Windows Local Computer on Android, explicitly take control, release and resume Bots",
+      "source": "apps/mobile/src/ui/chat/local-computer-screen.android.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/local-computer-video.md",
+      "task": 2558,
+      "gap": "Windows helper capture, Android native rendering, physical LAN interaction and Human qualification remain unverified; source checks do not establish runtime acceptance."
+    },
+    {
+      "id": "phone.pinned-list",
+      "label": "Browse Remote Host sections and full Pinned conversation rows, collapse and search without changing arrangement",
+      "source": "apps/mobile/app/(tabs)/(home)/index.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-pinned-list.md",
+      "task": 2571,
+      "gap": "Centralized test center owns native iOS/Android width/text/appearance, interaction and screenshot qualification; Human visual feedback gates Organize/drag siblings."
+    },
+    {
+      "id": "phone.chat-row-actions",
+      "label": "Swipe or open the menu to pin, mute, assign or create a Host section",
+      "source": "apps/mobile/src/ui/chat/conversation-section-sheet.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-chat-row-actions.md",
+      "task": 2519,
+      "gap": "Native iPhone and Android gestures, menus, keyboard, screen readers and light/dark large-text qualification await the shared-device queues."
+    },
+    {
+      "id": "marketplace.browse",
+      "label": "Browse flat Bot cards with banners, topic filters and remembered sorting",
+      "source": "packages/client/src/client/market-panel.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/marketplace.md",
+      "task": 2568,
+      "gap": "Web Panel light/dark and reload verified; production Worker deployment and native Desktop qualification remain separate."
+    },
+    {
+      "id": "marketplace.install-review",
+      "label": "Tob reviews a Marketplace listing's staged files before install; the Human continues or goes back",
+      "source": "packages/core/src/marketplace/install-review.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/marketplace.md",
+      "task": 3063,
+      "gap": "Real-model CLI journey against a local Marketplace; the production Worker and GitHub clone path are covered by unit tests only."
+    },
+    {
+      "id": "phone.drawer-views",
+      "label": "Choose All or one Host from the phone drawer with Android Host accent",
+      "source": "apps/mobile/src/ui/shell/host-drawer.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-drawer-views.md",
+      "task": 2518,
+      "gap": "Native iOS and Android light/dark/large-text qualification requires the shared device queues. All covers the current Host and cloud workspaces only."
+    },
+    {
+      "id": "browser.remote-hosts",
+      "label": "Pair Remote Hosts, retain browser pairings across the Host Feed rename and open their conversations",
+      "source": "packages/client/src/client/remote-hosts.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/remote-hosts.md",
+      "task": 2500,
+      "gap": "Two isolated local Hosts qualify the browser path; DSH Desktop, physical tailnet machines and remote image/card rendering remain unqualified."
+    },
+    {
+      "id": "connect.encrypted-channel",
+      "label": "Pair exact device keys and carry Connect messages, resources and private input through Noise XK",
+      "source": "packages/core/src/devices/encrypted-gateway.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/connect-channel.md",
+      "task": 2542,
+      "gap": "Real Cloudflare network, iOS/Android and Human acceptance remain separate gates; browser/Node local-origin capture is not native proof."
+    },
+    {
+      "id": "desktop.approval.three-actions",
+      "label": "Remember only the current tool through three actions and keep Full Access permission management Human-only",
+      "source": "packages/core/src/workspaces/tool-approval.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/tool-approval-simple.md",
+      "task": 2080,
+      "gap": "Web/online CLI first slice; native mobile, IM new-rule authority and all Provider/recovery variants remain later qualification."
+    },
+    {
+      "id": "desktop.grants.request-write-continue",
+      "label": "Approve persistent workspace write authority and continue the original native-file task",
+      "source": "packages/core/src/workspaces/grant-requests.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/workspace-request-write.md",
+      "task": 2080,
+      "gap": "Mobile, full restart recovery and arbitrary native Provider isolation remain subsequent slices."
+    },
+    {
+      "id": "messaging.im-dm-commands",
+      "label": "Handle whole-text IM DM commands with current authority and canonical Outbox replies",
+      "source": "packages/core/src/messaging/im-commands.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/im-dm-commands.md",
+      "task": 2005,
+      "gap": "Controlled-Provider and isolated-Host paths do not establish a fresh native WeChat command exchange."
+    },
+    {
+      "id": "desktop.sessions.bot-folders",
+      "label": "Group native Sessions under DeepSeekBot and Bot-avatar subgroups without changing execution directories",
+      "source": "packages/client/src/client/bot-session-folders.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/bot-session-folders.md",
+      "task": 1997,
+      "gap": null
+    },
+    {
+      "id": "desktop.sessions.unified",
+      "label": "Follow Channel scope in one Sessions panel and migrate legacy Work layouts and shortcuts",
+      "source": "packages/client/src/client/sessions-entry.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/bot-mode-dock.md",
+      "task": 2034,
+      "gap": null
+    },
+    {
+      "id": "desktop.activity-center.idle-personabot",
+      "label": "Historical Overview idle PersonaBot (presentation retired by #2026)",
+      "source": "packages/client/src/client/activity-center-panel.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/activity-center-idle.md",
+      "task": 1972,
+      "gap": "The Overview entry and Show idle Bots control were removed by #2026. The retained recipe and script document historical behavior and cannot qualify current Activity Center UI."
+    },
+    {
+      "id": "desktop.bot-mode.entry",
+      "label": "Enter/exit Bot mode and see default Bot, welcome and tutorial",
+      "source": "packages/client/src/client/bot-sidebar.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/bot-mode.md",
+      "task": 1967,
+      "gap": null
+    },
+    {
+      "id": "desktop.bot-mode.dock",
+      "label": "Open/close/split panels, persist layout and adapt at narrow widths",
+      "source": "packages/client/src/client/channel-dock.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/bot-mode-dock.md",
+      "task": 1967,
+      "gap": null
+    },
+    {
+      "id": "desktop.bot-mode.restore",
+      "label": "Restore last mode and selected Channel",
+      "source": "packages/client/src/client/last-view.ts",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.dm.reply",
+      "label": "Send Human DM and observe committed Bot reply and Session",
+      "source": "packages/core/src/channels/output.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/bot-dm-reply.md",
+      "task": 1967,
+      "gap": null
+    },
+    {
+      "id": "desktop.group.mention",
+      "label": "Mention a colleague by ID/name and wake it once",
+      "source": "packages/core/src/channels/bot-mention-text.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/bot-group-mention.md",
+      "task": 1967,
+      "gap": null
+    },
+    {
+      "id": "desktop.timeline.read-position",
+      "label": "Read anchor, new-message divider and kept scroll position",
+      "source": "packages/client/src/client/channel-selection.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/conversation-timeline.md",
+      "task": 1967,
+      "gap": null
+    },
+    {
+      "id": "desktop.timeline.messages",
+      "label": "Fold long messages, own timestamps, image gallery, reactions and search",
+      "source": "packages/client/src/client/message-image-gallery.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/conversation-timeline.md",
+      "task": 1967,
+      "gap": null
+    },
+    {
+      "id": "desktop.personabot.create",
+      "label": "Create PersonaBot, Memory and DM; retain identity after restart",
+      "source": "packages/core/src/bots/registry.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/personabot-create.md",
+      "task": 1967,
+      "gap": null
+    },
+    {
+      "id": "desktop.personabot.memory-location",
+      "label": "Choose or move Memory repository; new Session uses its location",
+      "source": "packages/core/src/bots/memory-move.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/personabot-create.md",
+      "task": 1975,
+      "gap": null
+    },
+    {
+      "id": "desktop.personabot.bot-create",
+      "label": "Bot requests another PersonaBot through normal approval",
+      "source": "packages/client/src/client/persona-bot-create.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/personabot-create.md",
+      "task": 1967,
+      "gap": null
+    },
+    {
+      "id": "desktop.bot.stop",
+      "label": "Stop current DM/Group turn; refuse idle stop",
+      "source": "packages/client/src/client/dm-actions.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/bot-stop.md",
+      "task": 1967,
+      "gap": null
+    },
+    {
+      "id": "desktop.approval.templates",
+      "label": "Create/edit/select approval templates and inspect reviewer decisions and guard",
+      "source": "packages/core/src/workspaces/approval-templates.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/approval-templates.md",
+      "task": 1967,
+      "gap": null
+    },
+    {
+      "id": "desktop.data.reset",
+      "label": "Preview, confirm twice and clear all BotHarness data, then restart fresh",
+      "source": "packages/client/src/client/data-reset-settings.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/data-reset.md",
+      "task": 2426,
+      "gap": null
+    },
+    {
+      "id": "desktop.storage.cleanup",
+      "label": "See storage used, preview and clear old chat media by chat, age and type, and delete old messages by chat and age",
+      "source": "packages/client/src/client/storage-settings.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/storage-cleanup.md",
+      "task": 2430,
+      "gap": null
+    },
+    {
+      "id": "desktop.release.identity",
+      "label": "About and CLI show the actual source-build identity",
+      "source": "packages/client/src/client/bot-settings.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/release-identity.md",
+      "task": 1980,
+      "gap": null
+    },
+    {
+      "id": "phone.pairing",
+      "label": "Pair once, list devices, restart and revoke device streams",
+      "source": "packages/client/src/client/pairing-settings.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-pairing.md",
+      "task": 1967,
+      "gap": null
+    },
+    {
+      "id": "phone.android-interactions",
+      "label": "Android profile/settings content scrolls before dismissal and chat composer follows keyboard frames",
+      "source": "apps/mobile/src/ui/primitives/keyboard-frame.android.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-android-interactions.md",
+      "task": 2021,
+      "gap": null
+    },
+    {
+      "id": "phone.notifications",
+      "label": "Switch Host, configure notifications and route simulated push; physical delivery separate",
+      "source": "apps/mobile/src/host/push-routing.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-notifications.md",
+      "task": 1967,
+      "gap": null
+    },
+    {
+      "id": "phone.browser",
+      "label": "View Browser frame, take over, input and handle revocation",
+      "source": "apps/mobile/src/host/browser-viewer.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-browser.md",
+      "task": 1976,
+      "gap": null
+    },
+    {
+      "id": "phone.usage",
+      "label": "Read usage totals, ranges, breakdowns and Memory changes",
+      "source": "apps/mobile/src/ui/chat/bot-profile.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-usage.md",
+      "task": 1967,
+      "gap": null
+    },
+    {
+      "id": "phone.routines",
+      "label": "Inspect, run, pause, delete and author supported routines",
+      "source": "apps/mobile/src/host/routines.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-routines.md",
+      "task": 1967,
+      "gap": null
+    },
+    {
+      "id": "phone.activity.rows",
+      "label": "Render DM/group activity, full details and explicit menu navigation; local DM filters",
+      "source": "apps/mobile/src/ui/chat/activity-row.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-activity.md",
+      "task": 1919,
+      "gap": null
+    },
+    {
+      "id": "phone.activity.inbox",
+      "label": "Read current native Inbox and handle existing requests",
+      "source": "apps/mobile/src/host/inbox.ts",
+      "guide": null,
+      "task": 1954,
+      "gap": "Current main Inbox only. The unmerged #1954 redesign and its later options semantics are excluded from the implemented denominator; native requalification and complete map belong to #1954."
+    },
+    {
+      "id": "desktop.activity.overview",
+      "label": "Show action totals, active Sessions and restart without historical executions",
+      "source": "packages/client/src/client/activity-center-panel.tsx",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.activity.live",
+      "label": "Show Host working/idle, concurrent sources and reconnect recovery",
+      "source": "packages/client/src/client/activity-live.ts",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.activity.tool-details",
+      "label": "Open actual tool details and native Session; respect reduced motion",
+      "source": "packages/client/src/client/source-policy.tsx",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.activity.metrics",
+      "label": "Show Channel activity, priority, usage and Memory summaries without altering read state",
+      "source": "packages/client/src/client/overview-memory-view.tsx",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.inbox.requests",
+      "label": "Act on tool approval, question, grant or Assignment reply; preserve independent requests",
+      "source": "packages/client/src/client/human-inbox-view.tsx",
+      "guide": null,
+      "task": 1974,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.inbox.messages",
+      "label": "Read mentions/replies, navigate exact source and preserve reply draft",
+      "source": "packages/client/src/client/human-inbox-reply.tsx",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.grants",
+      "label": "Grant/revoke workspace access and observe attention",
+      "source": "packages/core/src/workspaces/grants.ts",
+      "guide": null,
+      "task": 1974,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.memory.read-restore",
+      "label": "Disposable Memory historical read, descendant restore and stale-head refusal",
+      "source": "packages/client/src/client/memory-recovery.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/memory-restore.md",
+      "task": 1975,
+      "gap": null
+    },
+    {
+      "id": "desktop.assignment.lifecycle",
+      "label": "Observe reports, waits, stop, crash/restart and repair without duplicate execution",
+      "source": "packages/core/src/runtime/assignment-approval-capacity.ts",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.model.routing",
+      "label": "Select model plans and preserve or explicitly switch Assignment/subagent route",
+      "source": "packages/client/src/client/model-plan-store.ts",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.usage",
+      "label": "Inspect model/period totals, retained usage and Profile heatmap",
+      "source": "packages/client/src/client/model-usage-breakdown.tsx",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.group.attention",
+      "label": "Set Group wake policy, harvest backlog and explicitly read silent Channels",
+      "source": "packages/client/src/client/wake-policy-entry.tsx",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.group.manage",
+      "label": "Create/manage Group identity, membership, join requests and profile",
+      "source": "packages/client/src/client/group-management-settings.tsx",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.group.activity",
+      "label": "Render Group avatars/header/activity and completion ordering",
+      "source": "packages/client/src/client/group-channel-header.tsx",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.roster",
+      "label": "Pin/reorder/move/hide Channels, previews and hidden-Channel search",
+      "source": "packages/client/src/client/roster.ts",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.composer",
+      "label": "Edit/send/retry without losing drafts; stable multiline height",
+      "source": "packages/client/src/client/composer-draft-store.ts",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.reply.navigation",
+      "label": "Reply to an old message and return from Session to its Channel",
+      "source": "packages/client/src/client/channel-refs.ts",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.channel.purge",
+      "label": "Preview/cancel/confirm purge and retain unselected/shared attachments",
+      "source": "packages/core/src/channels/store.ts",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.attachments",
+      "label": "Upload/open/copy/download real attachment bytes and observe missing files",
+      "source": "packages/client/src/client/host-file-actions.ts",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.workspace.files",
+      "label": "Open/reveal/copy authorized workspace targets through native handoff",
+      "source": "packages/client/src/client/host-file-actions.ts",
+      "guide": null,
+      "task": 1974,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.identity.names",
+      "label": "Set Human and per-Channel names without changing authorship",
+      "source": "packages/client/src/client/human-name-settings.tsx",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.browser.lifecycle",
+      "label": "Broader Browser lifecycle: profile isolation/reset, pause/takeover/resume and alternate targets",
+      "source": "packages/core/src/bots/cli-browser-computer.ts",
+      "guide": null,
+      "task": 1976,
+      "gap": "The separate default local open/observe/stop row does not qualify profile isolation/reset, takeover/resume or alternate targets."
+    },
+    {
+      "id": "desktop.browser.tools",
+      "label": "Navigate/read/click/type/scroll/upload with stale-target refusals and redacted audit",
+      "source": "packages/core/src/bots/cli-browser-computer.ts",
+      "guide": null,
+      "task": 1976,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.computer.lifecycle",
+      "label": "Enable/stop Computer and export/restore container state",
+      "source": "packages/core/src/bots/cli-browser-computer.ts",
+      "guide": null,
+      "task": 1977,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "desktop.computer.native",
+      "label": "Observe real local Computer image/input and explicit driver failures",
+      "source": "packages/core/src/bots/cli-browser-computer.ts",
+      "guide": null,
+      "task": 1977,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "phone.full-client",
+      "label": "Open paired full Client and revoke access without revoking operator",
+      "source": "apps/mobile/src/host/client.ts",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "phone.viewers",
+      "label": "Read paired Browser/Computer viewers with isolation and revocation",
+      "source": "apps/mobile/src/host/computer-viewer.ts",
+      "guide": null,
+      "task": 1977,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "phone.timeline",
+      "label": "Mobile follow-latest, reactions, previews and working state",
+      "source": "apps/mobile/src/ui/chat/conversation-screen.tsx",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "phone.group.info",
+      "label": "Read and operate mobile Group information",
+      "source": "apps/mobile/src/host/group-channel.ts",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "cli.send-receipt",
+      "label": "Send through CLI and correlate resumed receipt with committed model reply",
+      "source": "packages/core/src/bots/cli-channels.ts",
+      "guide": null,
+      "task": 1967,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "product.fresh-install",
+      "label": "Install exact artifacts into fresh Profile and retain created Bot after restart",
+      "source": "scripts/e2e-fresh-profile-install.mjs",
+      "guide": null,
+      "task": 1980,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "im.lark.delivery",
+      "label": "Connect Lark and correlate visible reply with Source Event, Admission and Outbox",
+      "source": "packages/client/src/client/im-apps-section.tsx",
+      "guide": null,
+      "task": 1978,
+      "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
+    },
+    {
+      "id": "im.conversation.mirroring",
+      "label": "Independently opt in to IM conversation mirroring and local DM forwarding on the exact Binding",
+      "source": "packages/core/src/messaging/dm-controls.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/im-conversation-mirroring.md",
+      "task": 1983,
+      "gap": null
+    },
+    {
+      "id": "desktop.grants.temporary-read-revoke",
+      "label": "Authorize one temporary Workspace, read through direct attachment import, explicitly revoke and refuse the same read",
+      "source": "packages/core/src/workspaces/grants.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/workspace-grant.md",
+      "task": 1974,
+      "gap": null
+    },
+    {
+      "id": "desktop.browser.open-observe-stop",
+      "label": "Default local Browser: one fixture tab, observation, stop and Access-off refusal",
+      "source": "packages/browser/src/client/index.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/browser-lifecycle.md",
+      "task": 1976,
+      "gap": null
+    },
+    {
+      "id": "desktop.composer.footer",
+      "label": "Customize footer visibility, order and alignment; opt into bounded reply speed",
+      "source": "packages/client/src/client/composer-context-bar.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/composer-footer.md",
+      "task": 1958,
+      "gap": null
+    },
+    {
+      "id": "native.settings.handoff",
+      "label": "Open native Models from Bot mode and restore navigation after Settings closes",
+      "source": "packages/client/src/client/bot-settings-open.ts",
+      "task": 3222,
+      "guide": ".agents/skills/verify-deepseekbot/features/native-settings-handoff.md",
+      "gap": "Current rc.3 opening verified; close/return, Home and failure-card runtime paths and native Desktop QA pending."
+    },
+    {
+      "id": "orchestrator-model-switch",
+      "label": "Orchestrator-only quick model switching with Assignment inheritance",
+      "source": "packages/client/src/client/dm-composer-context.tsx",
+      "task": 2000,
+      "guide": ".agents/skills/verify-deepseekbot/features/orchestrator-model-switch.md"
+    },
+    {
+      "id": "desktop.activity-center.inline-tool-approval",
+      "label": "Decide Tool approvals inline on the full page and Dock, with below-card context and retry",
+      "source": "packages/client/src/client/activity-approval.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/activity-inline-approval.md",
+      "task": 2026,
+      "gap": null
+    },
+    {
+      "id": "desktop.tob.home",
+      "label": "Open the protected Tob DM (Channel list or Home shortcut), Settings model setup and approved global concurrency change",
+      "source": "packages/client/src/client/workspace-shortcuts.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/tob-home.md",
+      "task": 2082,
+      "gap": null
+    },
+    {
+      "id": "desktop.group.send-review",
+      "label": "Hold stale Group replies and revise or drop with full paired history review",
+      "source": "packages/core/src/channels/send-review.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/group-send-review.md",
+      "task": 2053,
+      "gap": null
+    },
+    {
+      "id": "phone.chat-backgrounds",
+      "label": "Device-local chat backgrounds and transactional native editor",
+      "source": "apps/mobile/src/host/chat-background.ts",
+      "task": 2118,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-chat-backgrounds.md"
+    },
+    {
+      "id": "cloud.host.connections",
+      "label": "Import a cloud Agent into an explicit Host, bind a PersonaBot and preserve source identity on replay",
+      "source": "packages/core/src/cloud/provider.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/cloud-host-connections.md",
+      "task": 2155,
+      "gap": null
+    },
+    {
+      "id": "memory.diff-wrap",
+      "label": "Read working and commit diffs with compact gutters and default-on switchable wrapping",
+      "source": "packages/client/src/client/memory-reader-parts.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/memory-diffs.md",
+      "task": 2213,
+      "gap": null
+    },
+    {
+      "id": "desktop.memory.png-preview",
+      "label": "Read and compare version-bound Memory PNG images with real Web decoding and CLI export",
+      "source": "packages/client/src/client/memory-image-view.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/memory-images.md",
+      "task": 2214,
+      "gap": "Standalone PNG slice only; Markdown has its own catalogue row. Other local formats and native mobile remain in #2214."
+    },
+    {
+      "id": "desktop.memory.markdown-preview",
+      "label": "Read rendered Markdown and source, compare version-local PNG references with explicit remote-image loading",
+      "source": "packages/client/src/client/memory-markdown-view.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/memory-images.md",
+      "task": 2214,
+      "gap": "Web Markdown and local PNG only; editor/file-card previews, other local formats and native mobile remain in #2214."
+    },
+    {
+      "id": "desktop.memory.image-formats",
+      "label": "Read and compare original JPEG/GIF/WebP/static SVG bytes with genuine decode, animation and CLI export",
+      "source": "packages/core/src/media/image-format.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/memory-images.md",
+      "task": 2214,
+      "gap": "Native decoding/sharing remains queued; SVG is the bounded static subset, editor/file-card/mobile diff paths remain #2214."
+    },
+    {
+      "id": "desktop.vrm-companion",
+      "label": "Native VRM Panel follows live Activity and committed DM output with independent fixed-Bot instances",
+      "source": "packages/vrm-companion/src/client/index.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/vrm-companion.md",
+      "task": 2222,
+      "gap": "Human acceptance and native Desktop qualification remain separate from isolated Web evidence."
+    },
+    {
+      "id": "desktop.window-zoom",
+      "label": "Set and restore device-local primary-window zoom through Settings and exact-target CLI",
+      "source": "packages/client/src/client/window-zoom.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/desktop-window-zoom.md",
+      "task": 2268,
+      "gap": "Explicitly opted-in macOS0.2.1-rc.2 product composition qualified on representative input/popup/native guest paths; unknown versions/arbitrary pages are not qualified. Windows/Linux remain S3. CI and unmerged PR delivery are separate from runtime evidence."
+    },
+    {
+      "id": "client.global-search",
+      "label": "Open global search with Alt/Option+K and find conversations and Bot settings by pinyin or English",
+      "source": "packages/client/src/client/quick-switcher.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/global-search.md",
+      "task": 2360,
+      "gap": "Headless Web capture covers the search path; the native Desktop key path needs Human QA on macOS and Windows."
+    },
+    {
+      "id": "desktop.local-appearance",
+      "label": "Save independent device-local DeepSeekBot mode, palettes and Primary with explicit Client CLI control",
+      "source": "packages/client/src/client/appearance-settings.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/local-appearance.md",
+      "task": 2258,
+      "gap": "Native restart and different-Host restore require the task-owned Desktop procedure; Human QA is separate."
+    },
+    {
+      "id": "desktop.global-materials",
+      "label": "Adjust global Header/Body materials through UI and targeted CLI with actual backdrop blur",
+      "source": "packages/client/src/client/appearance-material-settings.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/global-materials.md",
+      "task": 2259,
+      "gap": "Native restart uses the task-owned Desktop procedure; Human QA is separate."
+    },
+    {
+      "id": "desktop.panel-appearance",
+      "label": "Edit one functional Panel from its Header context menu with local persistence and per-property inheritance",
+      "source": "packages/client/src/client/appearance-panel-settings.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/panel-appearance.md",
+      "task": 2260,
+      "gap": "Task-owned macOS restart follows the feature procedure; Human QA is separate."
+    },
+    {
+      "id": "desktop.image-wallpaper",
+      "label": "Save a device-local image wallpaper through preview/crop and targeted CLI with atomic replacement",
+      "source": "packages/client/src/client/wallpaper-settings.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/image-wallpaper.md",
+      "task": 2262,
+      "gap": "Native restart and different-Host restore require the task-owned Desktop procedure; Human QA is separate."
+    },
+    {
+      "id": "desktop.video-wallpaper",
+      "label": "Save and play local video wallpaper with background pause and poster recovery",
+      "source": "packages/client/src/client/wallpaper-settings.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/video-wallpaper.md",
+      "task": 2263,
+      "gap": "Actual codecs and native minimize/restart require the task-owned runtime; Human QA remains separate."
+    },
+    {
+      "id": "desktop.appearance-recovery",
+      "label": "Clear current-mode overrides or confirm full local appearance/media reset with truthful retry",
+      "source": "packages/client/src/client/appearance-recovery-settings.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/appearance-recovery.md",
+      "task": 2264,
+      "gap": "Native restart follows the task-owned Desktop procedure; Windows and Human QA remain separate."
+    },
+    {
+      "id": "credentials.private-input-origin",
+      "label": "Consume local credentials in mixed local and accepted IM turns with native approval",
+      "source": "packages/core/src/runtime/bot-runtime.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/private-input-origin.md",
+      "task": 2290,
+      "gap": "Controlled Provider; real external delivery and GitHub authentication are not qualified."
+    },
+    {
+      "id": "phone.composer",
+      "label": "Native message composer layout, editing and attachment actions",
+      "source": "apps/mobile/src/ui/chat/composer.tsx",
+      "task": 2566,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-composer.md"
+    },
+    {
+      "id": "phone.channel-files",
+      "label": "Browse Channel history files, preview/share and return to the original message",
+      "source": "apps/mobile/src/ui/chat/channel-files-screen.tsx",
+      "task": 2819,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-channel-files.md",
+      "gap": "Transport and native-share boundary tests do not qualify iOS/Android rendering, system-sheet delivery or Human acceptance; both platforms need queued native checks."
+    },
+    {
+      "id": "phone.haptic-feedback",
+      "label": "Immediate press feedback, semantic haptics and device-local feedback preference",
+      "source": "apps/mobile/src/ui/haptics.ts",
+      "task": 2624,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-haptic-feedback.md",
+      "gap": "Source tests do not qualify native interaction or Human tactile acceptance; both platforms require queued native and physical-device checks."
+    },
+    {
+      "id": "host.ssh-tunnel",
+      "label": "Computer SSH tunnel to a pinned Linux Host",
+      "source": "packages/core/src/devices/ssh-tunnel.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/ssh-host.md",
+      "task": 2607
+    },
+    {
+      "id": "product.command-compatibility",
+      "label": "Install and uninstall Tobs and legacy CLI independently with matching behavior",
+      "source": "scripts/e2e-tobs-commands.mjs",
+      "guide": null,
+      "task": 2722,
+      "gap": "Package command qualification only; Host persistence and native mobile identity require separate journeys."
+    },
+    {
+      "id": "bot.subagent-presets",
+      "label": "Independent Subagents choose explicit, configured or current system preset; forks inherit; direct CLI uses live parent",
+      "source": "packages/core/src/runtime/subagent-model-tools.ts",
+      "task": 2435,
+      "guide": ".agents/skills/verify-deepseekbot/features/subagent-presets.md"
+    },
+    {
+      "id": "phone.deletion",
+      "label": "Review and delete Bots, dissolve groups and remove sections from mobile long press",
+      "source": "apps/mobile/src/ui/chat/deletion-sheet.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-deletion.md",
+      "task": 2783,
+      "gap": "Expo Web with an isolated Host; iOS/Android native menus and large-text acceptance pending."
+    }
+  ],
+  "scripts": [
+    {
+      "path": "scripts/e2e-zip-import-proof.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.zip-bot-import"],
+      "reason": "Imported helper of e2e-personabot-create.mjs, not a standalone launcher: same archive after upload restart and duplicate chunk, CLI preview/import/status, discarded accepted reply and same Bot/DM after import restart.",
+      "task": 2637,
+      "sha256": "8a2b6e3604d177e402376191a3a259f490964c572d5324573b484b6be8858ca4"
+    },
+    {
+      "path": "scripts/e2e-tool-approval-simple.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.approval.three-actions"],
+      "reason": "Task-owned isolated Windows Host; real native pwsh requests, Web Always allow, changed inputs, other-tool/CLI/revoke checks and rememberable permission management under Full Access. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification. #2847 adds multi-IM refusal, model-guided rebinding and direct CLI native approval; same credential journey, synthetic inputs only.",
+      "task": 2730,
+      "sha256": "69f0c60976b84a85c22874c93e4238329f78caa210511b9426963cfb7fb780a9"
+    },
+    {
+      "path": "scripts/e2e-workspace-request-write.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.grants.request-write-continue"],
+      "reason": "Task-owned isolated Host and temporary folder; real Web confirmation, authoritative Grant readback, native Orchestrator/Assignment file writes and same-task reply. No mobile or full recovery claim. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 2080,
+      "sha256": "aa435da3a89bb89b952a282326e438c656864ee34561783c6b16105d7ce91963"
+    },
+    {
+      "path": "scripts/e2e-bot-session-folders.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.sessions.bot-folders"],
+      "reason": "Prepared isolated Host with explicit Bot-owned roots; verifies product icon, Bot avatars, independent folding, reload, native navigation and retained cwd, with optional owned-Host restart.",
+      "task": 1997,
+      "sha256": "df0d4696321bab94ea2364c4c32b768fef20104757d2321bd68e73fdc87bb46b"
+    },
+    {
+      "path": "scripts/e2e-activity-entry.mjs",
+      "category": "needs-repair",
+      "behaviors": ["desktop.activity.overview"],
+      "reason": "Old #679 hover/chip entry selectors timed out behind onboarding in the retained audit; adapt to current pinned Activity Center card before use.",
+      "task": 1967,
+      "sha256": "b1cc4a72cf8a6d815f88ebf92da094ace958290bb5242f0255b21300ba9fe4b8"
+    },
+    {
+      "path": "scripts/e2e-activity-idle.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.activity-center.idle-personabot"],
+      "reason": "Own verify-app instance, public create/activity/attention CLI, accessible card actions, immutable attempt and visual receipt.",
+      "task": 1972,
+      "sha256": "24706d308ee4d019d81249368013b2367ae81248d10386a8449af9df449b4f5e"
+    },
+    {
+      "path": "scripts/e2e-activity-overview.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.activity.overview"],
+      "reason": "#541 modes expect a prepared launcher log and fixtures; checks counts, Session navigation, cold restart and layout, not just idle.",
+      "task": 1967,
+      "sha256": "05034197e09eb8d4f83d0a103939eb57deb793a8d7589b9587d07b1277398aba"
+    },
+    {
+      "path": "scripts/e2e-activity-recovery.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.activity.live"],
+      "reason": "Requires real model and cookie profile; deliberately refuses activity streams to compare polling/reconnect with visible sidebar and composer. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "d54e46c551bf914d541d72f3fc8c4e8cfe417ad59fcae67a3590a48276a17045"
+    },
+    {
+      "path": "scripts/e2e-all-bot-mention.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.group.mention"],
+      "reason": "#542 prepared scene and real models; checks picker names, two replies, silent exclusion and stale membership refusal. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. R2 policy re-audit: only the default capture location moved to ignored staging; assertions and classification unchanged, journey not rerun. This hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "3ec9987d8227137f46ea8af68e23c80d974179043d9f8d9d18cd8b8e645c57e6"
+    },
+    {
+      "path": "scripts/e2e-approval-capacity-proof.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.assignment.lifecycle"],
+      "reason": "Imported proof validator for approval-capacity; asserts native original/competing tool order and grant revocation, not a launchable journey. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "b23a05bc07513a9d28d5032e40f26828015865d589f9a5c00ca91256f711fbb2"
+    },
+    {
+      "path": "scripts/e2e-approval-capacity.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.assignment.lifecycle", "desktop.inbox.requests"],
+      "reason": "#1037 task-owned workspace, live model and limit=1; real approval UI and competing native command effects; changes settings. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "2bc74784f083f465057da155dea91c6d81fd70ae9a3807e45d98128c7a3d0794"
+    },
+    {
+      "path": "scripts/e2e-assignment-active-crash.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.assignment.lifecycle"],
+      "reason": "Multi-phase real-model fixture needs deliberate task Host interruption; verifies one retained active Report and interrupted Turn. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification. #2906 re-audit: assignment proof reads title and description instead of purpose (ADR-0262); classification unchanged.",
+      "task": 1967,
+      "sha256": "d71ef5e2d2fb60e23c94fe6a9310942652340de33134f0afec89be1bbe22e45d"
+    },
+    {
+      "path": "scripts/e2e-assignment-attention.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.assignment.lifecycle", "desktop.activity.live"],
+      "reason": "#123 stored scene and live model; compares Assignment waiting-Human attention with Overview and answered revision. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "294c0829b0406933ec2290dfd3e03fdb4efe6ce1ea78f2c4fc88bc15d2f4c61f"
+    },
+    {
+      "path": "scripts/e2e-assignment-escalation.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.assignment.lifecycle"],
+      "reason": "#194 prepare/pending/verify/answered phases; exact Assignment Session resumes from Human answer and reports once. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "a2059d6c14afb9acf0fd2de3f0479bd50b08d4442143bdbc3863e45d01e43268"
+    },
+    {
+      "path": "scripts/e2e-assignment-failed-report.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.assignment.lifecycle"],
+      "reason": "Prepare/restart/verify with private state; validates failed Report exposure and no duplicate Assignment after restart. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "fe6860f4091e21bc504901de88e8a3b1963ab36f047cd94bd1e99252bec1ef55"
+    },
+    {
+      "path": "scripts/e2e-assignment-harvest-proof.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.assignment.lifecycle"],
+      "reason": "Imported assertion helper: three Report source identities, one Inbox harvest and one batch handling; no Host launch.",
+      "task": 1967,
+      "sha256": "337994f26a86da0a8d9d0f00ef9c31ccf9bb0a93deffb5f4594c03f264fc0d37"
+    },
+    {
+      "path": "scripts/e2e-assignment-model-switch.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.model.routing"],
+      "reason": "Needs two live catalog routes and workspace; checks explicit route switch and rejected/preset changes preserving existing Assignment. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "4f16946a32b535b07b46aa64c78f5a0f467d0a0d091674358dd1698dbedcf3b3"
+    },
+    {
+      "path": "scripts/e2e-assignment-native-cancel.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.assignment.lifecycle"],
+      "reason": "Prepare/baseline/cancelled/restart phases require actual native cancellation; compares retained facts and Turn counts. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "120160f6f19e55f7c1e7ef743b3dced3cf8f5f1a1250c13cc5c8f7dc68da2c40"
+    },
+    {
+      "path": "scripts/e2e-assignment-native-error.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.assignment.lifecycle"],
+      "reason": "Prepare/baseline/failed/restart phases require native failure; verifies terminal notice, continuity removal and no replay. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "113162ac05df442d866ec286b042e562ce265f4872588d1cd6255a0f06d8f501"
+    },
+    {
+      "path": "scripts/e2e-assignment-observed-restart.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.assignment.lifecycle"],
+      "reason": "#194 stored scene and real model; observes Report then restarts task Host to verify same idle Assignment and one tool call. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "feefdbb0003e234de884186de3b655d5290132f20d8cb6211296f887863dd107"
+    },
+    {
+      "path": "scripts/e2e-assignment-probe.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.assignment.lifecycle"],
+      "reason": "Shared imported RPC/nativeSnapshot/capture helper; assertions support callers and are not a standalone user path.",
+      "task": 1967,
+      "sha256": "72798ebe3cd51cac3315fa8f31d98fecff1b7d917eb1fca19fe56ec54729fe7d"
+    },
+    {
+      "path": "scripts/e2e-assignment-recovery-notice.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.assignment.lifecycle"],
+      "reason": "Private multi-phase state and restarted Host; checks recovery notice headers and original Report rather than replay. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification. #2906 re-audit: assignment proof reads title and description instead of purpose (ADR-0262); classification unchanged.",
+      "task": 1967,
+      "sha256": "4814165d989c8bf848e9c30aaa63bfa7c98c529991848855bde359ae06039bd7"
+    },
+    {
+      "path": "scripts/e2e-assignment-repair-severity.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.assignment.lifecycle"],
+      "reason": "Needs prior repair scene; introduces weaker report then restarts, checking severity retention and single exposure. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "77efdd39b368fd9701b3399dd73014f610b0908ffb87be92e7062879f0ac73c8"
+    },
+    {
+      "path": "scripts/e2e-assignment-report-harvest.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.assignment.lifecycle"],
+      "reason": "#194 real-model prepare/complete/verify/capture; three actual Report calls with one Assignment and independent sources. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "a882d59f92f6704ed701b1ee540022b22a2e9c3ee7801d9c601bcf9e1a6459fc"
+    },
+    {
+      "path": "scripts/e2e-assignment-report-proof.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.assignment.lifecycle"],
+      "reason": "Imported assertion helper requiring native Report result before DM completion; no launch or current evidence by itself.",
+      "task": 1967,
+      "sha256": "f9d67a952bb8b86553f3f6f40aafea8a5a8a8f08aae1ddf5e625af01b283e6a1"
+    },
+    {
+      "path": "scripts/e2e-assignment-report-restart.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.assignment.lifecycle"],
+      "reason": "#194 pending Reports survive task Host restart, then Human DM harvests them in the original Orchestrator. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "f64fadb6e84d899037d60e1ed763b43e65eae8218c192fc780c0cb72ff1c893b"
+    },
+    {
+      "path": "scripts/e2e-assignment-restart-proof.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.assignment.lifecycle"],
+      "reason": "Imported proof validator: two distinct original Reports and one delivery across restart, not an executable journey.",
+      "task": 1967,
+      "sha256": "4cda2be386d254fdcfa9525aede499a271b5409bd3eb5de9d101686901c90449"
+    },
+    {
+      "path": "scripts/e2e-assignment-stop-recovery.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.assignment.lifecycle"],
+      "reason": "#81 prepared grant/model fixture; native stop_assignment and shell result checked across stop/restart phases. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "2b946937f69f8513558d26b740faf774f6e0f3cacac1ef889405a1f449b29a8c"
+    },
+    {
+      "path": "scripts/e2e-assignment-terminal-notice.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.assignment.lifecycle"],
+      "reason": "#194 multi-phase live execution; terminal Notice is retained, exposed and handled exactly once after restart. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "05fcf8e6efe659f95ec331846fada64e2440aae5b66aa25de3fc56f350d31dd9"
+    },
+    {
+      "path": "scripts/e2e-assignment-wait.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.assignment.lifecycle", "desktop.activity.live"],
+      "reason": "#123 pending native approval and real model; Assignment source replaces then restores Orchestrator presentation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "b893234e0828e5acc05fad69db21e7b3cc5e85f649726c3b0e254d6499a63947"
+    },
+    {
+      "path": "scripts/e2e-attention-presets.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.group.attention"],
+      "reason": "Port/home and actual model replies; all/mention/silent/digest policies, pending context and persisted restart checks.",
+      "task": 1967,
+      "sha256": "fbbea2e1405e228640a845ab6f72fdd3779a1d7d14c96c049c1c421204ba1215"
+    },
+    {
+      "path": "scripts/e2e-bot-last-view.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.bot-mode.restore"],
+      "reason": "Authenticated browser with its own localStorage; saves selected Channel and native/Bot mode across reload.",
+      "task": 1967,
+      "sha256": "bcc0ddcd5315e49f601122acb505cdd8eb86e2a9bea860ef2efeb40f2ba8e5b5"
+    },
+    {
+      "path": "scripts/e2e-bot-mode-sidebar.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.bot-mode.entry"],
+      "reason": "Private launcher JSON; real browser enters/exits Bot mode and checks sidebar ownership and page errors.",
+      "task": 1967,
+      "sha256": "9c506b8a3c4d497b0759cb2ef59d760199a58634465f97c54eb1a64e1ea25398"
+    },
+    {
+      "path": "scripts/e2e-browser-access.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.browser.lifecycle"],
+      "reason": "Task fixture server and phase state; live model navigates, stops, revokes access and restarts with independent Computer access. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1976,
+      "sha256": "4a15fcc889075ac80efaa0c366cdef133be0008cb2e794191939172e25066e3f"
+    },
+    {
+      "path": "scripts/e2e-browser-closed-tab.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.browser.tools"],
+      "reason": "Served counter fixture and retained Session; closed target refusal preserves original tab and permits one confirmed retry.",
+      "task": 1976,
+      "sha256": "a0d688492488ca3c64d0b1c80af794d1a6e329c4f265434213764e5db5262f30"
+    },
+    {
+      "path": "scripts/e2e-browser-container.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.browser.lifecycle"],
+      "reason": "Needs explicitly named task-owned container, fixture server and model; verifies query/open effects only at authorized phase. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1976,
+      "sha256": "8496d954fe23e98c2e9cacaa83ec7b7366c37ad3f38803e53fef40f5fccd18ea"
+    },
+    {
+      "path": "scripts/e2e-browser-editability.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.browser.tools"],
+      "reason": "Prepared live Session and local DOM fixture; five noneditable targets refuse while one editable target succeeds without tab loss.",
+      "task": 1976,
+      "sha256": "8b7dcefb38b90942b59ada1b537031212b7a83e2cf32aa53317cb2908a8497a4"
+    },
+    {
+      "path": "scripts/e2e-browser-entry.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.browser.lifecycle"],
+      "reason": "Three-tab task scene and separately collected UI results; verifies Browser entry/focus without replacing ongoing work. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1976,
+      "sha256": "8369dae71f49e9229fd4915c1dc58efee02a933a9c49ef9cdb03b81cd2659824"
+    },
+    {
+      "path": "scripts/e2e-browser-interaction.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.browser.tools"],
+      "reason": "Local fixture server, model and phase state; probes input timeout and focus preservation with screenshot evidence. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1976,
+      "sha256": "79496ba4b644ef435c0e63d619e5f91b21a8afa62e08255290e71fd9abf5777a"
+    },
+    {
+      "path": "scripts/e2e-browser-keyboard.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.browser.tools"],
+      "reason": "Prepared live Session; six keyboard operations check one coded refusal and retained focus/tab with redacted audit.",
+      "task": 1976,
+      "sha256": "fd70f45c2366250c615887b2d19d3aa4642bbef668f9cf6e941adbb6e2a18e54"
+    },
+    {
+      "path": "scripts/e2e-browser-lifecycle.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.browser.open-observe-stop"],
+      "task": 2012,
+      "reason": "One disposable Bot on an isolated Host; deterministic loopback fixture; real panel lifecycle and same-owner CLI/direct tools; cold start must pass without reconnect; no model.",
+      "sha256": "f2ecf326adba03de7c862189de7ac24e751b760319168de1ebb02fc6fa5b5e7c"
+    },
+    {
+      "path": "scripts/e2e-browser-multitab.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.browser.lifecycle"],
+      "reason": "Two Bots and local fixture server; checks tab/focus isolation and separate screenshots, not model delivery alone. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1976,
+      "sha256": "8b296c8392bf24e0456af3068b785c92c1df024d8421fb0af94094931526b061"
+    },
+    {
+      "path": "scripts/e2e-browser-navigation.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.browser.tools"],
+      "reason": "Local retry counter, retained Session and before/after modes; navigation error must preserve original target and one retry effect.",
+      "task": 1976,
+      "sha256": "ba8e2518c26e4a214660fb553eb842edf1b96d37f48d7a011b298d5ee53ba8cd"
+    },
+    {
+      "path": "scripts/e2e-browser-observation.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.browser.tools"],
+      "reason": "Local fixture plus paused live Browser; tests read/screenshot refusal and resumed frame with same scoped Session. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1976,
+      "sha256": "e31b999a4f3fdbd89dd342eb147b25c361bafda38461b05c3a978ced3694a772"
+    },
+    {
+      "path": "scripts/e2e-browser-profile-names.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.browser.lifecycle"],
+      "reason": "Prepared work.v2 profile and counter; profile naming preserves existing tab/work and one confirmed action.",
+      "task": 1976,
+      "sha256": "42f2d592ad35dfaa7a6d2ea9731cf83ac24eb60b25d6654d9f835e46e8a2d85b"
+    },
+    {
+      "path": "scripts/e2e-browser-profile-reset.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.browser.lifecycle"],
+      "reason": "Requires Human/native Browser Profile change between phases; compares reset and return with peer Browser isolation.",
+      "task": 1976,
+      "sha256": "fe266af6e798ce1762af08507d76c4625cb3d7745b24ecb9aba9c73262b4ccc3"
+    },
+    {
+      "path": "scripts/e2e-browser-profiles.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.browser.lifecycle"],
+      "reason": "Shared/work account fixture, model and separate UI proof; verifies profile persistence and login isolation across idle/resume. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1976,
+      "sha256": "14af2c1c9960a67b1f1ae2266a9a7686f0e75a034997bc8e2f303429183706d0"
+    },
+    {
+      "path": "scripts/e2e-browser-refusal-audit.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.browser.tools"],
+      "reason": "Task fixture and paused Browser; checks refusal counts, missing resume observation, zero early effects and private text exclusion.",
+      "task": 1976,
+      "sha256": "16dd2f4cd1c2386cf79b92e52dd14629cae1484011e4903211d58fec55b58ef6"
+    },
+    {
+      "path": "scripts/e2e-browser-resume-observation.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.browser.lifecycle"],
+      "reason": "Human edits local fixture during takeover; resume requires fresh read and confirms updated value exactly once.",
+      "task": 1976,
+      "sha256": "5554b7d12f82944535f01b636a1f3178627d45a881e6d648f0c7169951fee195"
+    },
+    {
+      "path": "scripts/e2e-browser-screenshot-upload.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.browser.tools"],
+      "reason": "Task-owned screenshot files and upload fixture; actual image attachment plus bounded retention, no unrelated files. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1976,
+      "sha256": "ea646184d43a096d2e86920b4aad31adc0f0237313a79881b2cf88d072ad69a6"
+    },
+    {
+      "path": "scripts/e2e-browser-scroll.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.browser.tools"],
+      "reason": "Prepared scroll fixture and live Session; verifies scroll/refusal audit, original tab and single completion. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1976,
+      "sha256": "e1b9865b26246905640116adf3f1ee366782a62b5d392c0290070448e61ecdab"
+    },
+    {
+      "path": "scripts/e2e-browser-upload-target.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.browser.tools"],
+      "reason": "Prepared upload fixture and live Session; one invalid target refuses and one valid target succeeds, focus retained. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1976,
+      "sha256": "10728c3f340aa009c66fd323b5a62772dbd7a93712f759d251c1c3f4f8701717"
+    },
+    {
+      "path": "scripts/e2e-browser-upload.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.browser.tools"],
+      "reason": "Task assets and local upload server; two accepted/two rejected uploads with actual receipts and path/content-redacted audit. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1976,
+      "sha256": "d4062ac4b3840c3cf2862fd56ed328e6522183055bccec4d7395358ae9595a13"
+    },
+    {
+      "path": "scripts/e2e-channel-activity.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.activity.metrics"],
+      "reason": "#703 prepared task Host; compares daily Human/Bot counts and late arrivals without changing Human attention. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "0a7b595c0c6f4930a9a49450ad3dc3f2444e67cba272be17e08de53bd8b8c4ca"
+    },
+    {
+      "path": "scripts/e2e-channel-image-read.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.dm.reply", "desktop.attachments"],
+      "reason": "Authenticated browser uploads generated image; requires vision-capable real model reply containing IMAGE-Z9. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "3b626f3f042ad6f0a64b4728a30ac712257672e9196a4555c0fdd9de895f9a5e"
+    },
+    {
+      "path": "scripts/e2e-channel-multiselect.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.roster"],
+      "reason": "Browser fixture manipulates pins/sections/hide; expects six batch requests and persistent membership changes.",
+      "task": 1967,
+      "sha256": "a8c2fba90d6675fcd36f9adbba82337cf36acd89a2f1c658a3525edf8d7f0f89"
+    },
+    {
+      "path": "scripts/e2e-channel-purge-completion.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.channel.purge"],
+      "reason": "Destructive only in guarded #897 disposable Profile; uploads shared/exclusive files, interrupts cleanup and requires restart.",
+      "task": 1967,
+      "sha256": "32ddeaa756cb715582a58ba094b7386430023c1500cfc549e870926896161eb6"
+    },
+    {
+      "path": "scripts/e2e-channel-purge.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.channel.purge"],
+      "reason": "Guarded #897 disposable Profile; real send/delete/history preview/cancel/confirm removes selected content only.",
+      "task": 1967,
+      "sha256": "7af36bcd68a3aa89d9863c17df9083a258c5f06abb155271014990b1df3a2af4"
+    },
+    {
+      "path": "scripts/e2e-channel-reply.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.reply.navigation"],
+      "reason": "Authenticated browser with old-message fixture; reply action navigates around old source and returns latest correctly.",
+      "task": 1967,
+      "sha256": "c8296d73dc44732dac2f3d526872031b33068e306b8caec3a8c1006176240642"
+    },
+    {
+      "path": "scripts/e2e-channel-send-failure.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.composer"],
+      "reason": "Intercepts send failure in task browser; retry attempts and failed-bubble edits must preserve existing draft.",
+      "task": 1967,
+      "sha256": "7e5d921df01a78826127468572812a6f7768284c4ff73ed815ba1595b507214f"
+    },
+    {
+      "path": "scripts/e2e-channel-session-return.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.reply.navigation"],
+      "reason": "Task Host and real model-created Sessions; verifies return control labels the owning Channel.",
+      "task": 1967,
+      "sha256": "8efb73af8ed238b1f3275c89c5e651283acc5b278e6370ed7d2401cf90fdea9f"
+    },
+    {
+      "path": "scripts/e2e-cli-live.mjs",
+      "category": "historical-regression",
+      "behaviors": ["cli.send-receipt"],
+      "reason": "Private launcher and explicit QA Bot; repeated real-model send/send-status checks same receipt and no auth in output. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "262e4aaaefb4181c8cb9a0612955ba637ceefd204ee33ec10588804a83fe4393"
+    },
+    {
+      "path": "scripts/e2e-client-interactions.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.composer", "desktop.group.manage"],
+      "reason": "Task cookie profile; checks draft persistence, composer clearing, invite controls and Client errors across Channel changes.",
+      "task": 1967,
+      "sha256": "e770745c5c2f4cd6127c4016b8cc02f12f6183b3ab022cc10c83f22edbfcce3d"
+    },
+    {
+      "path": "scripts/e2e-client-reads.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.memory.read-restore", "desktop.group.manage"],
+      "reason": "Seeds Memory save and Channels through public RPC; browser cache/read checks and group deletion, not safe-restore proof.",
+      "task": 1975,
+      "sha256": "123beef134bdae7f8167a9225522faed611ecdb7ae69ad313f53113850ef4945"
+    },
+    {
+      "path": "scripts/e2e-composer-regression.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.composer"],
+      "reason": "Task Channel; measures Shift+Enter two-line height and wrap oscillation in browser, no model proof.",
+      "task": 1967,
+      "sha256": "624e79ca79cb17b964370b7ae9fec8f08d0b6de32ede7b7d10da22c467686465"
+    },
+    {
+      "path": "scripts/e2e-computer-header.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.computer.lifecycle"],
+      "reason": "Prepared Computer with separate UI result file; checks Access on/off header and actual stopped state.",
+      "task": 1977,
+      "sha256": "bfd0a4efda98bb5357a372f3d6ba9a4107ee7a536feced5f2fa4548b0df734fa"
+    },
+    {
+      "path": "scripts/e2e-computer-settings.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.computer.lifecycle"],
+      "reason": "Task volume/archive and UI proof required; export/restore bytes and coded refusals; native system picker remains Human QA.",
+      "task": 1977,
+      "sha256": "6661bd465031f07117ca6bbbe40ac8d5c23efb142a6e8cc49d41572643b7068a"
+    },
+    {
+      "path": "scripts/e2e-concurrent-activity.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.activity.live"],
+      "reason": "#123 real concurrent native tools and approval; sorted references, active-tool count and restored idle presentation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "e85b9f092a1918435a3b0f05742b78d045d8e709351e9ffedb3eb665117b2211"
+    },
+    {
+      "path": "scripts/e2e-daily-control.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.browser.lifecycle"],
+      "reason": "#766 local editing fixture plus model; Human takeover, resume and returned navigation cannot cause forbidden write. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1976,
+      "sha256": "f549a79e38fe8660d86c68e865d524d22c42908b01a39f37bfbd51179bebe836"
+    },
+    {
+      "path": "scripts/e2e-device-full-client.mjs",
+      "category": "historical-regression",
+      "behaviors": ["phone.full-client"],
+      "reason": "Task paired device and browser; DM full-client composer, revoked stream closure, device401 and unaffected operator200.",
+      "task": 1967,
+      "sha256": "8e175b1e54f68e283b315b373e143f8927fe0f1839f3f8f4583e90141c17842e"
+    },
+    {
+      "path": "scripts/e2e-device-pairing.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.pairing"],
+      "reason": "Task home/port; pairing API one-use/revocation/stream proof and log-redaction checks; no native UI claim.",
+      "task": 1967,
+      "sha256": "11b5335dd05a7817cc077a8eae19ab7fb1492172dad2d0be11df21209fe9c87b"
+    },
+    {
+      "path": "scripts/e2e-device-viewers.mjs",
+      "category": "historical-regression",
+      "behaviors": ["phone.viewers"],
+      "reason": "Regular-user browser and task Browser/Computer; paired viewer filesystem isolation and revoke closes mux/frames.",
+      "task": 1977,
+      "sha256": "62153d852a44c8b6d7d2d95ddade3255928a60985f0fd2b909b17c560e773e21"
+    },
+    {
+      "path": "scripts/e2e-dm-activity.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.activity.live"],
+      "reason": "Real model/tool approval with optional steering; tracks same Host/sidebar/composer working-to-idle frames. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "9acd768fd7e5a5a3180545d0aed1f5af9365cdd106d23fb675e280b43c214a4f"
+    },
+    {
+      "path": "scripts/e2e-dm-scroll.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.timeline.read-position"],
+      "reason": "Real model reply and expanding activity footer; asserts scroll geometry in light/dark, prepared task profile. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "4ea51928ece47020f6efe63023344895464703eac6c38cb7bf13b8c60147d0d1"
+    },
+    {
+      "path": "scripts/e2e-filtered-usage.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.usage"],
+      "reason": "Existing execution fixture Bot required; browser period/model/child filtering agrees with Profile usage reads.",
+      "task": 1967,
+      "sha256": "1a41b06be4aa8e3107c74868efb0e99bb9dd87017955fc2b3b15702566bbf2c9"
+    },
+    {
+      "path": "scripts/e2e-fresh-profile-install.mjs",
+      "category": "historical-regression",
+      "behaviors": ["product.fresh-install"],
+      "reason": "Exact artifacts through both Bundles; published 1.4.1 upgrade and removal/replacement preserve Bot configuration, DM history and SOUL/MEMORY across restart; shared CLI writes/refusals; no Client check. Scoped Tobs package identity is @botharness/tobs; the executable stays tobs.",
+      "task": 2744,
+      "sha256": "da6396ff22fa9240e0b5b3b3196ceb6c518142508fa10f0cf79af23a24ff943d"
+    },
+    {
+      "path": "scripts/e2e-grant-attention.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.grants", "desktop.activity.live"],
+      "reason": "#123 model-created grant request; verifies pending/dismissed attention and Overview revisions, not full revoke journey. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1974,
+      "sha256": "c46d486943b71d381e6864eb41213cd1ff10cfad22a1f3f1e957ef78ecf3c0c0"
+    },
+    {
+      "path": "scripts/e2e-group-activity.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.group.activity"],
+      "reason": "Task group and live model; measures header/profile state and overflow against Host activity snapshot. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "9eec5112103ac1eaaf48382f27a41e0939f7198d07a3e4f2411a41404fdfc504"
+    },
+    {
+      "path": "scripts/e2e-group-assignment-activity.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.group.activity", "desktop.assignment.lifecycle"],
+      "reason": "#124 real native timer and Group reply; layout and successful Assignment result precede committed completion. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "0066ac880f4a642f9b7e3011479d0ef6184e8b021b4f7bcad52c06578d5cd1aa"
+    },
+    {
+      "path": "scripts/e2e-group-assignment-proof.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.group.activity"],
+      "reason": "Imported timing validator: one exact native command and successful result before Group completion; no browser run.",
+      "task": 1967,
+      "sha256": "3e0093d040ca0a26f9d9630bfd0286649c65715337328e76a67e826350d840a1"
+    },
+    {
+      "path": "scripts/e2e-group-attention-tools.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.group.attention"],
+      "reason": "Port/home real-model fixture; Bot wake-policy tools, Human override and restart durability. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "288e1ad1532bed23d23b82ec5ad4123a2a77fb467671bbf9948b32dc8ba31dec"
+    },
+    {
+      "path": "scripts/e2e-group-backlog.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.group.attention"],
+      "reason": "Port/home live model; pending backlog selection supplies oldest/nearby context and leaves unselected messages pending. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "05fc9626439a5f8bac268ba295a1e4606cdfc37d58584668cdc556c252cc5447"
+    },
+    {
+      "path": "scripts/e2e-group-context.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.group.attention"],
+      "reason": "Port/home live model; ordinary mentions-mode traffic stays pending until actual mention supplies context.",
+      "task": 1967,
+      "sha256": "2c689595f52b38565f89e24ca9ea8e51d67ab4a27373017ecfdb8411fda76f22"
+    },
+    {
+      "path": "scripts/e2e-group-header-activity.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.group.activity"],
+      "reason": "Two-line wrapper sets header mode and imports group-activity; count separately as file, not as independent behavior proof.",
+      "task": 1967,
+      "sha256": "9b179b2aab3f289a76c7a2d71ae1ca1531b4e5023ad6abb17e94debc220a8074"
+    },
+    {
+      "path": "scripts/e2e-group-management.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.group.manage"],
+      "reason": "Task cookie profile with optional restart/join phases; group name/avatar, membership decisions and refresh persistence.",
+      "task": 1967,
+      "sha256": "7bd3d2a01baef1419390ef8b0836ed1d52116de51e8e46e334a85995595d2256"
+    },
+    {
+      "path": "scripts/e2e-group-motion-matrix.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.group.activity"],
+      "reason": "#124 live tool and model; full/reduced motion matrix, overflow and completion ordering in Group header/profile. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "ed7ee00349fef9e95b7f237bb2e58ffe48dd6b7ad9d70ad701da757696f5230e"
+    },
+    {
+      "path": "scripts/e2e-group-motion-proof.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.group.activity"],
+      "reason": "Imported validator for Group motion/header/profile avatar states; requires caller observations, no standalone execution.",
+      "task": 1967,
+      "sha256": "378f03dc5f86ad0601d882ca32a76faac1e6d83047309d71e8fe3b94b9c5e4fb"
+    },
+    {
+      "path": "scripts/e2e-group-profile.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.group.manage"],
+      "reason": "Task Group messages; aggregate counts and heatmap, reject DM misuse and render Group identity.",
+      "task": 1967,
+      "sha256": "4be71ce14cb8c48e223699c5d971a75f4305440bd789c16e6a49284b7af541bb"
+    },
+    {
+      "path": "scripts/e2e-group-shell-proof.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.group.activity"],
+      "reason": "Imported validator for exact ten-message timeline, custom/fallback avatars and narrow overflow.",
+      "task": 1967,
+      "sha256": "393e63595c16552a4d388fc903676f950d3833419f078f7bdd24ece3c37edb60"
+    },
+    {
+      "path": "scripts/e2e-group-shell.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.group.activity"],
+      "reason": "#124 prepared live Group/model fixture; verifies source timeline, avatar ownership and narrow layout. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "569cd998328030dae76aa79e0198bc903bca8e7a87580c1d3555ea5316db56e9"
+    },
+    {
+      "path": "scripts/e2e-harvest.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.group.attention"],
+      "reason": "Own isolated Host and real model; digest must emit exactly one reply. Prior model timeout is historical failure, not current pass or proven script defect.",
+      "task": 1967,
+      "sha256": "387a1d628654f74a922fe879e9cc20a98f3b71ea5fb35ae301a8c0d1339fb56e"
+    },
+    {
+      "path": "scripts/e2e-hidden-channel-search.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.roster"],
+      "reason": "Prepared hidden/deleted Channels and delayed reads; cancellation/replacement must not apply stale search results.",
+      "task": 1967,
+      "sha256": "0855675f53ce3841c9df10f4cbb1de4828dad5d889b99ff3653164d93a37009c"
+    },
+    {
+      "path": "scripts/e2e-human-channel-names.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.identity.names"],
+      "reason": "#622 prepared scene and real model; separate DM/Group aliases and stable local-human identity in replies. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "ca1e038b943d8de51e72bbd41806bc4ebe2d5e87d28af11d9b6269914ecb5970"
+    },
+    {
+      "path": "scripts/e2e-human-inbox-list.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.inbox.requests"],
+      "reason": "#687 owner-seeded fixture with execution forbidden; filters/keyboard/details/actions checked against source, not model execution.",
+      "task": 1974,
+      "sha256": "4ff352dd456366120312b70cb6a37490d2414593a42c35be0a02d440b4fb098a"
+    },
+    {
+      "path": "scripts/e2e-human-inbox-reply.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.inbox.messages"],
+      "reason": "#547 prepared sources and real model; exact Group/DM reply correlation and drafts survive failed navigation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "c1b08f7cedcc15a14853690e5de26a99833013f63b90ba66d4503f3eacf44a92"
+    },
+    {
+      "path": "scripts/e2e-human-mentions.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.inbox.messages"],
+      "reason": "#549 source fixture, personal attention and second identity; filtered mentions and exact reply target. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "f77995e61dc11ff904df12900963116bccb2ce133884b637dfdecf7ab4be004a"
+    },
+    {
+      "path": "scripts/e2e-human-names.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.identity.names"],
+      "reason": "#621 prepared scene; changes Human display name while preserving message authors, mentions, attention and default fallback. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "081523eefd05645cafd3611a45c6b7acbbcbfc3ac9d3429beb0e965153af8d44"
+    },
+    {
+      "path": "scripts/e2e-human-personal-replies.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.inbox.messages"],
+      "reason": "#548 prepared reply source; exact read-state and Human response identity, with actual browser target. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "73fc5d9576ceb0795ea1f08949990e9bab60324b4509988f036a7e23369eee24"
+    },
+    {
+      "path": "scripts/e2e-inbox-grant-assignment.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.inbox.requests", "desktop.grants"],
+      "reason": "#552 live grant/Assignment fixture; approval and replies resume exact Session, preserve independent requests and stale refusal. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1974,
+      "sha256": "4511fc271e8863d1d2b7127add9f9cfab6cba68fde7b79997bd335de5939bb49"
+    },
+    {
+      "path": "scripts/e2e-activity-live.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.activity-center.inline-tool-approval"],
+      "reason": "Task-local real browser: idle and slow-read stability, live cross-Channel message and request arrivals, read/source identity, actual WebSocket reconnect, snooze expiry, group-join decision and bounded CLI watch. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 2230,
+      "sha256": "5dd881a4de566a563a76f4901963b1c17d6fbb6f6ad8727ff9d70f524ce1deee"
+    },
+    {
+      "path": "scripts/e2e-inbox-tool-approval.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.activity-center.inline-tool-approval"],
+      "reason": "Task-owned isolated Host with two real pending native requests; validates exact harmless marker commands, page failed-response retry/allow/native file effect, Dock reject, context, focus safety, canonical audit and light/dark evidence. Does not qualify other request kinds or multi-window stale UI.",
+      "task": 2026,
+      "sha256": "6145ee06184f09742dc846febda0d6615da9bc4f4a81fab2de1e984979b20268"
+    },
+    {
+      "path": "scripts/e2e-informational-attention.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.activity.live"],
+      "reason": "#123 prepared grant/model fixture; informational attention persists without work and clears only through ignore.",
+      "task": 1967,
+      "sha256": "dfb80c1f3afa25802b819557818efe6b4f9b2961fa4169a68f7ec22a09d70e94"
+    },
+    {
+      "path": "scripts/e2e-lark-provider-contract.mjs",
+      "category": "needs-repair",
+      "behaviors": ["im.lark.delivery"],
+      "reason": "Injectable dshIm probe, not standalone journey; pins rc.1/provider revision in reports and sends checked replies. Requalify current provider metadata and authorized receiver; provider receipt cannot prove PersonaBot/visible IM delivery.",
+      "task": 1978,
+      "sha256": "97a5bdbec53537520a529cc2db50f0f75d4682f1fd61740a1f8c8380d49c474c"
+    },
+    {
+      "path": "scripts/e2e-local-computer-idle.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.computer.native"],
+      "reason": "Requires task native fixture PID/marker/baseline; raw driver screenshot hashes and Access-off state, explicit native permissions needed. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1977,
+      "sha256": "0de557e0329dbbf9d463259a02c4012a5ebfeb3800c5659d37f70a25da51f540"
+    },
+    {
+      "path": "scripts/e2e-local-computer-screenshot.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.computer.native"],
+      "reason": "Native fixture PID and model; captures real image/readback, induces driver failure and checks Access-off Turn; no shared device implied. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1977,
+      "sha256": "0202f03deec1f87cdbc5a2221a072b7b50cf11752a8a6ea2c4d248f5c392e8f8"
+    },
+    {
+      "path": "scripts/e2e-memory-restore.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.memory.read-restore"],
+      "reason": "Own isolated Host; two owner-saved versions, real Web/CLI read, descendant restore and stale-head refusal; immutable evidence; retains Memory.",
+      "task": 1975,
+      "sha256": "dfe816b10b04620373e7cbbb33926462bc6bf67914a71d2fc23c75d3bf0aaef8"
+    },
+    {
+      "path": "scripts/e2e-message-inline-actions.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.timeline.messages"],
+      "reason": "Private pre-existing message fixture; hover/touch inline actions and timestamps checked with viewport bounds.",
+      "task": 1967,
+      "sha256": "2443aefb4b2b995e2e29d81f8b486a1f89d3b7e7e714ce4f6eb9f56a6c5ac62e"
+    },
+    {
+      "path": "scripts/e2e-mobile-browser-web.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.browser"],
+      "reason": "Own isolated Host and Expo Web export; frame/takeover input checks in browser, no native-device proof.",
+      "task": 1976,
+      "sha256": "014810503926fe7e38217f6cc522aa6fcbee8dd2eb36142e096d72787d66b5ef"
+    },
+    {
+      "path": "scripts/e2e-mobile-activity-swipe-web.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.activity.rows"],
+      "reason": "Own task Host and Expo Web export; Activity swipe clear/snooze/undo, Cleared restore and an interrupted message (seeded in the Host database) in browser with a real model turn, no native gesture acceptance.",
+      "task": 1954,
+      "sha256": "d7b2a9d6aaf6848681085220c8d1116a56f20f94e9d14df3c86f32d7dbdd0793"
+    },
+    {
+      "path": "scripts/e2e-mobile-follow-latest-web.mjs",
+      "category": "historical-regression",
+      "behaviors": ["phone.timeline"],
+      "reason": "Own task Host and Expo Web export; mobile scroll/follow behavior only, not native gesture acceptance. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "ba0ae84b06abc7c184256779df7333a9debd2238658466e9c8d42c2959bd3ab3"
+    },
+    {
+      "path": "scripts/e2e-mobile-group-info-web.mjs",
+      "category": "historical-regression",
+      "behaviors": ["phone.group.info"],
+      "reason": "Own task Host and Expo Web export; prepared Group info and controls in browser, no native acceptance.",
+      "task": 1967,
+      "sha256": "0256a8e0c1b836cd066cdb61d64b8ce85468a56acca1e75f3be7ff1f736938ba"
+    },
+    {
+      "path": "scripts/e2e-mobile-pairing-web.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.pairing"],
+      "reason": "Own task Host and Expo Web export (English locale); broken-link refusal, pair/reload/revoke UI in browser, native/physical pairing separate.",
+      "task": 1967,
+      "sha256": "c617612575367537186f0d75d03bbfdced91264cc22f4ce0dd59d052fde9c7b6"
+    },
+    {
+      "path": "scripts/e2e-mobile-reactions-web.mjs",
+      "category": "historical-regression",
+      "behaviors": ["phone.timeline"],
+      "reason": "Own task Host and Expo Web export with seeded messages; reactions/long-press details in Web, not native touch proof. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "d176c820fe449a263eb7aab55ac63f91039c6fead4ff7515fabcb930bf753102"
+    },
+    {
+      "path": "scripts/e2e-mobile-routines-web.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.routines"],
+      "reason": "Own task Host and Expo Web export; verifies routine mutation/history, explicit selected routine IDs and preview dates against the Host. Drives visible controls after return completes, pins selector locale and formats expected dates in the browser; uses the Windows package-manager adapter. Uses the current Tailscale pairing chooser and captures settings/full-client removal; waits for advanced-routine history to settle before matched theme captures. Native gestures and scheduler/model execution are separate.",
+      "task": 2028,
+      "sha256": "3903a64308e151ccce70afbef53bcc90fa528117b7d081f2093d82b586acbb39"
+    },
+    {
+      "path": "scripts/e2e-mobile-android-interactions.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.android-interactions"],
+      "reason": "Matching Windows Android lease only: profile/settings content-first scroll and handle gestures, dark-theme 30fps composer motion, and focused form/input action clearance against a real soft IME. Form mode accepts prepared sheets and refuses hidden/floating keyboards; it does not submit drafts. Scroll selection excludes the dimmed chat. Prepared QA surface and native build required; FFmpeg for motion only; no model or iOS claim.",
+      "task": 2028,
+      "sha256": "d35b879777ac522e4ba66a218a53f287c36e78258dd252edae43fd5b0a2000dc"
+    },
+    {
+      "path": "scripts/e2e-mobile-pair-android.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.pairing"],
+      "reason": "Queued Windows Android lease only: real IME geometry and, after Human QR/paste pairing, isolated Host device facts plus visible roster across app restart; does not prove Host restart, revoke or notification delivery.",
+      "task": 2021,
+      "sha256": "281deb822273ba865e6a151ff70ce1040e0ee025185020fb26d301cf100cf9da"
+    },
+    {
+      "path": "scripts/e2e-mobile-sim.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.pairing", "phone.notifications"],
+      "reason": "Shared-device queue only: creates its own Simulator/Metro/two Hosts, resets evidence directory; simulated push is not APNs/FCM; approval model phase optional. SDK 58 cache uses strict native fingerprints, including app-version fields; unit fingerprint checks are not device evidence. Dev-only pairing launches use deepseekbot-dev; coexistence and store routing require the separate native variant checklist (#2322).",
+      "task": 2020,
+      "sha256": "7d93f96202df240bc8e022b49cad8bf61ead88eafe935c163ff7f4ae4d1bcc9c"
+    },
+    {
+      "path": "scripts/e2e-mobile-usage-web.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.usage"],
+      "reason": "Own task Host and Expo Web export; real model usage fixture and visible totals; not native-device evidence.",
+      "task": 1967,
+      "sha256": "8f4c330494a2645f477b22141b77266c00ce8ef31144409c0160e22668eda251"
+    },
+    {
+      "path": "scripts/e2e-mobile-folder-browse-web.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.grants.request-write-continue"],
+      "reason": "Own task Host and Expo Web export; real model folder request, system-chooser refusal simulated at the phone proxy, phone browses Host folders and grants one; not native-device evidence.",
+      "task": 2080,
+      "sha256": "3493bdbcf12a110cd430f61d598a632d930989d020d48a12f0a2e4a8e93c1c62"
+    },
+    {
+      "path": "scripts/e2e-mobile-working-web.mjs",
+      "category": "historical-regression",
+      "behaviors": ["phone.timeline"],
+      "reason": "Own task Host and Expo Web export; prepared working-state presentation in Web, not native lifecycle qualification. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "b4f23ed573b575b51d9cf41611d90336e0a29a2976ac8b4128066c5db01a03ff"
+    },
+    {
+      "path": "scripts/e2e-model-usage.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.usage", "desktop.model.routing"],
+      "reason": "Real model selection and native usage compared with Profile totals and theme/refresh; requires usable catalog route. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "7b0d19b63b6d2ccd81a266fb09878017f80945a3b45400224d05c25f5dc9329f"
+    },
+    {
+      "path": "scripts/e2e-orchestrator-activity.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.activity.live"],
+      "reason": "Real model/native shell and approval; execution/source ownership and idle attention checked through public snapshots. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "55fa26fc3e12420f66b95fee812ea0c054a433d1bfd1b1667d51dd2f22621a74"
+    },
+    {
+      "path": "scripts/e2e-orchestrator-reply-delivery.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.dm.reply"],
+      "reason": "Loopback Host, explicit models/scenarios and image/question fixtures; matrix of committed real-model replies, not full IM. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "4425f1a9c3781ca907ac4c7d17df8e869773c7ce52a12c8b1da551084ea6c162"
+    },
+    {
+      "path": "scripts/e2e-output-committed.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.dm.reply"],
+      "reason": "#125 event probe requires owned Sessions; actual channel_send and one frozen already-committed output event across phases. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "0805f2ec4085538cdbf8c44aa10dfefbe49ef91a3a72bb7370038c5531d3dc5b"
+    },
+    {
+      "path": "scripts/e2e-overview-memory.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.activity.metrics", "desktop.memory.read-restore"],
+      "reason": "#716 real Memory Git fixtures include dirty/unavailable; read-only counts, exact daily detail and Profile navigation.",
+      "task": 1975,
+      "sha256": "990d563d6f043f07c5506470e860976cb5fe73ad54369601cfab8f46550dc494"
+    },
+    {
+      "path": "scripts/e2e-overview-priority.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.activity.metrics", "desktop.inbox.requests"],
+      "reason": "#705 stored scene; stacked chart and collapse persist; mark-all-read leaves requests and later unread message intact. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "8cfe76ad9d4d6bb4bc592cf744f48aca5ccb2d4e53057b9623c7ae1716ffea92"
+    },
+    {
+      "path": "scripts/e2e-overview-usage.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.activity.metrics", "desktop.usage"],
+      "reason": "#709 actual model usage and Profile/Overview totals; range/chart/navigation plus subsequent usage, prepared launcher. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "0649cbe8fdd3178c05a520772d41712d9f7a619bee1fe46dfcdff3630dbbc539"
+    },
+    {
+      "path": "scripts/e2e-personabot-create.mjs",
+      "category": "mapped",
+      "behaviors": [
+        "desktop.personabot.create",
+        "phone.blank-bot-creation",
+        "phone.git-bot-import",
+        "phone.zip-bot-import"
+      ],
+      "reason": "Own isolated Host with shared DSH API-floor admission instead of SDK equality; Workspace/Memory/DM restart persistence, blank lookup and CLI retry, pinned Git preview/create/readback, changed-source refusal, Zip upload and import restart recovery with the same Bot/DM. The smoke discards accepted replies; native UI and injected disconnects require separate qualification. Optional DM commits Human message only, not Bot response. Restart now waits for both HTTP shutdown and actual process exit; Linux zombie state is treated as exited (#2713).",
+      "task": 2713,
+      "sha256": "d4a34ec8a567c8bf1fb3c9be0d8adb1f2c6e98bcec266c8cbf5082f4b85f4e05"
+    },
+    {
+      "path": "scripts/e2e-profile-heatmap-tooltip.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.usage"],
+      "reason": "Prepared task profile; browser hover tooltip geometry/screenshot only, not model or full usage qualification.",
+      "task": 1967,
+      "sha256": "44262146478902c348881ebbd88af4e640d13b83d1f08973c013501c38cd4ed1"
+    },
+    {
+      "path": "scripts/e2e-question-attention.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.inbox.requests", "desktop.activity.live"],
+      "reason": "#123 real model asks formal question; offline read, answer/cancel and Host attention revision compared. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "ad470a81bd82b797dc2f4920ccf852fc9cef6d6610518284209cd132a719341a"
+    },
+    {
+      "path": "scripts/e2e-rail-avatar-badge.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.roster", "desktop.activity.live"],
+      "reason": "Existing pending native approval fixture; avatar motion/reduced motion, badge clipping and pin restoration.",
+      "task": 1967,
+      "sha256": "fe9b40a0302e91d56daf47b4885313b878ca8bd50007a4e0fca4f0b0991bfbf3"
+    },
+    {
+      "path": "scripts/e2e-real-attachment-files.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.attachments"],
+      "reason": "Task real picker/editor fixture on macOS; upload/copy/download bytes, external save and restart/missing destination phases. R2 policy re-audit: only the default capture location moved to ignored staging; assertions and classification unchanged, journey not rerun.",
+      "task": 1967,
+      "sha256": "3a5180e8e05dc02190270843571348ae6e8dabb81de0b4da4d529fe99e4643a7"
+    },
+    {
+      "path": "scripts/e2e-retained-usage.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.usage"],
+      "reason": "Prepared real execution Bot and source logs; temporarily removes/restores owned logs to verify retained usage projection.",
+      "task": 1967,
+      "sha256": "ca929e7b343afddc54d4937b50bd2a11f983bdc2eee99014cc7ad57db9b87f3f"
+    },
+    {
+      "path": "scripts/e2e-roster-live.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.roster"],
+      "reason": "Authenticated two-browser roster fixture; drag/pin positions synchronize, leaves created task Bots for profile cleanup.",
+      "task": 1967,
+      "sha256": "c2798288830b846d244761da258b9e99498a83e7adebba1564d758387fbf98cc"
+    },
+    {
+      "path": "scripts/e2e-safe-tool-activity.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.activity.tool-details"],
+      "reason": "Real native tool/model and optional reconnected Bot; checks safe summary, disclosure, exact Session title/events and layout. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "1be5ba72dc363a6f8203b8411d1580aafc803da442bcdca77421718d7f79cb3b"
+    },
+    {
+      "path": "scripts/e2e-sidebar-preview.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.roster"],
+      "reason": "Private DM/Group fixture; durable latest-message previews, avatar and drag styles in desktop/narrow widths.",
+      "task": 1967,
+      "sha256": "0b52c4271a5c6326d070d380be22e8b6c18f0706a05d6c380a06be06e26b2fdf"
+    },
+    {
+      "path": "scripts/e2e-silent-channel-read.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.group.attention"],
+      "reason": "Real model and silent Group; explicit Channel read supplies exact latest content without automatic wake. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "964878300b7b11a3dd54a5b31d97a3b3a356dcc0ac92769e6429efa7b692c3ee"
+    },
+    {
+      "path": "scripts/e2e-subagent-routing.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.model.routing"],
+      "reason": "Two live catalog routes and task workspace; inherited/denied/fallback child routes checked against native Session ownership. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 1967,
+      "sha256": "426de32eb3795d7be639fddfa85d51616a7639cafd7c0344a439ef7649a20bc4"
+    },
+    {
+      "path": "scripts/e2e-tool-detail-capability.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.activity.tool-details"],
+      "reason": "Wrapper runs safe-tool-activity then checks Host Consumer proof file; no independent standalone evidence without that fixture.",
+      "task": 1967,
+      "sha256": "669d963dda8f440e9ba6ae4b6b96b4d51692b8432a88d1eb475ebfe81ebb1d8c"
+    },
+    {
+      "path": "scripts/e2e-web-stop.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.bot.stop"],
+      "reason": "verify-app task instance; actual thinking/working Stop button by accessible name and keyboard, real model required.",
+      "task": 1967,
+      "sha256": "f818e3f5fe308e3503d34e3a0a091ac0255cf1ba60d551b1ad790cd5d376f2ca"
+    },
+    {
+      "path": "scripts/e2e-workspace-file-actions.mjs",
+      "category": "historical-regression",
+      "behaviors": ["desktop.workspace.files"],
+      "reason": "Private launcher/fixture and installed macOS apps; public target guards and browser actions; dispatch alone does not prove native window.",
+      "task": 1974,
+      "sha256": "22b1dbd5e85b6429fac6f9d27a561b016fe4267a9d29e2f73757c5e3bb733622"
+    },
+    {
+      "path": "scripts/e2e-workspace-grant.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.grants.temporary-read-revoke"],
+      "reason": "Dedicated temporary sample outside Host data; actual Web Grant authorization, direct attachment-import read, explicit CLI revocation, same-read denial and before/after visible evidence. No model/native file tool/Shell security claim.",
+      "task": 1974,
+      "sha256": "eedc6f54d818cf732e4537965fde803a20a1375e5375f308c60e3f09abed4d03"
+    },
+    {
+      "path": "scripts/e2e-bot-mode-exit.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.bot-mode.entry"],
+      "reason": "Real isolated Web Client: permanent bottom return, original logo, pointer and keyboard activation, last-mode restoration, moved-rail layout and unsent draft preservation, short window and narrow/wide transitions. Localized light/dark screenshots; no model or native Desktop claim.",
+      "task": 2289,
+      "sha256": "666c5a940eed71f111bbaf5d619fc86ddb072804026efac129a8f3a1f6bd2d62"
+    },
+    {
+      "path": "scripts/e2e-panel-workspace.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.bot-mode.entry", "desktop.bot-mode.dock"],
+      "reason": "Runs qualified Web/macOS workspace movement, spacing, shortcut routing, persistence and exit restoration against a real isolated Client. Profile navigation now uses the Messages header avatar and name, with no separate profile button and the Subpanel column toggle as the last header control; no floating chip is expected (#2042). Layout persistence now expects v4; Sessions-specific controls are qualified by the nested journey.",
+      "task": 2049,
+      "sha256": "27aeb93c4f272f561ce0ec841d3817ebac573fa0ea2bbc9bc06c20524e2cd122"
+    },
+    {
+      "path": "scripts/e2e-unified-sessions.mjs",
+      "category": "superseded",
+      "behaviors": ["desktop.sessions.unified", "desktop.bot-mode.dock"],
+      "reason": "Historical flat Sessions journey; replaced by the Messages-owned Sessions slice. Existing scope and shortcut unit tests remain active.",
+      "task": 2049,
+      "sha256": "e957a7921820ac79a58a3fd200f8f9501e29e6bc6ea29b55705694f02d86e9b5",
+      "replacement": "scripts/e2e-channel-sessions.mjs"
+    },
+    {
+      "path": "scripts/e2e-unified-sessions-desktop.mjs",
+      "category": "superseded",
+      "behaviors": ["desktop.sessions.unified", "desktop.bot-mode.dock"],
+      "reason": "Historical flat Sessions journey; replaced by the Messages-owned Sessions slice. Existing scope and shortcut unit tests remain active.",
+      "task": 2049,
+      "sha256": "8c0887eb84b21d0a6b1f2ad725555ce409c5bd0c940630a4bdaa17d7c69efc90",
+      "replacement": "scripts/e2e-channel-sessions-desktop.mjs"
+    },
+    {
+      "path": "scripts/e2e-channel-sessions.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.sessions.unified", "desktop.bot-mode.dock"],
+      "reason": "Real Web old-layout upgrade, same Assignment navigation, nested drag/resize, stable content, per-Channel persistence and native shortcut catalog customization.",
+      "task": 2049,
+      "sha256": "47a783d03f8a622c30f48b9a7f136ee58a02a5681903b376f7b1a5481b80785b"
+    },
+    {
+      "path": "scripts/e2e-channel-sessions-desktop.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.sessions.unified", "desktop.bot-mode.dock"],
+      "reason": "Task-owned macOS dsh-app window with Electron input dispatch for parent/child default and custom shortcuts, reload and Group exclusions.",
+      "task": 2049,
+      "sha256": "5f0146f8cd1ef6c29f7ed59494d22269b442e98532c7ef92912c97ad7ef15460"
+    },
+    {
+      "path": "scripts/e2e-bot-subpanels.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.bot-mode.dock"],
+      "reason": "Real v4 upgrade, three Bot-specific nested panels, per-Channel persistence, stable resizing/drag, context menu and native shortcut catalog.",
+      "task": 2067,
+      "sha256": "f05b410aef7948c1c04636939a3c847dec04451f0c81ba89638d72f13b0339a4"
+    },
+    {
+      "path": "scripts/e2e-browser-computer-subpanels.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.bot-mode.dock"],
+      "reason": "Real v5 Browser/Computer upgrade, stable Bot subpanels, per-Channel state, Group exclusion and shortcuts.",
+      "task": 2069,
+      "sha256": "cf0e8a8bf6e11527b9752df3edc1c4a4537b90b588edfe3765194f3d7321f26a"
+    },
+    {
+      "path": "scripts/e2e-panel-size-persistence.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.bot-mode.dock"],
+      "reason": "Actual global width/height and child ratios across repeated toggles, closed refresh and parent recovery.",
+      "task": 2071,
+      "sha256": "745b8be62c9f4a699bfbcd3d8e9653939bc70da9a0eece7999683b231226463d"
+    },
+    {
+      "path": "scripts/e2e-panel-resize-stability.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.bot-mode.dock"],
+      "reason": "Continuous pointer-held global resize must not snap back; Channel split placement remains fixed across narrow widths on Web and macOS.",
+      "task": 2074,
+      "sha256": "5fb02975e38188c0e2597490f19e323386636df5de18ca5b5bd9b6f134c51a5d"
+    },
+    {
+      "path": "scripts/e2e-nested-channel-panels.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.bot-mode.dock"],
+      "reason": "Nested sibling drops, narrow headers, stable content, per-Channel topology, reload and shortcut recovery on Web and macOS.",
+      "task": 2076,
+      "sha256": "b4c12797d82402e181762bd864acfc4b35a927161f090c2b096af31f26f2d0b9"
+    },
+    {
+      "path": "scripts/e2e-tob-home.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.tob.home"],
+      "reason": "Home model configuration, canonical identity, native Shell CLI discovery/read/write and structured approval/deny/stale through the shared Web/native UI. #3089 re-audit: Home removed; configure uses Bot settings › Models, composer and requests use Tob Mode, and the layout phase proves the v8-with-Home to v9 migration, backup, switch slot and default/custom shortcut. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list, and the layout phase proves no Tob switch and that the default/custom Home shortcut opens the Tob DM. Classification unchanged.",
+      "task": 3092,
+      "sha256": "245ecfc859d40454440557fc658725f03fb701ed91b8de29dc7654dae7615336"
+    },
+    {
+      "path": "scripts/e2e-tob-model-runtime.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.tob.home"],
+      "reason": "Scoped CLI model/runtime discovery and actual Tob approval, denial, stale refusal and settings UI persistence in Web and native Desktop. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list. Classification unchanged.",
+      "task": 3092,
+      "sha256": "4645ad3a5786d6948570509bc8344baf6cb2329bed3fb27e6ebc7940c9dc3e1d"
+    },
+    {
+      "path": "scripts/e2e-tob-bot-management.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.tob.home"],
+      "reason": "Natural Tob creation, profile and optional model changes through rendered approval, completed native Shell turns, canonical identity/Memory/DM replay, deny/protected refusals and separate restart readback on Web and Desktop. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list. Classification unchanged.",
+      "task": 3092,
+      "sha256": "e49b6571082e5c32f92824c749cfb4d78d5cd5dcf90c3c682d8b5c3dad7925ae"
+    },
+    {
+      "path": "scripts/e2e-install-review.mjs",
+      "category": "mapped",
+      "behaviors": ["marketplace.install-review"],
+      "reason": "Real model: a local Marketplace serves a Bot with a planted exfiltration/injection comment and a clean Bot to an isolated Host; asserts the planted file is flagged, the clean Bot is not, a review creates no Bot and --review --confirm installs.",
+      "task": 3063,
+      "sha256": "b90f665d540d7cfb6a916a9e7022eee8697ffec79407d377ea0168e37f1dc3de"
+    },
+    {
+      "path": "scripts/e2e-llm-scenarios.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.dm.reply", "desktop.group.mention"],
+      "reason": "Real model DM/mention scenarios; exact committed DM oracle rejects failure cards; retain full histories and unknown usage for paired send-review evaluation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification. #2872 re-audit: adds review-rounds (repeated Bot-to-Bot mention wakes) and long-task-reports (receipt, progress and result timing against Memory file writes around a one-minute step) and department-task (four Bots in an all-messages Group start, collaborate to a final plan and go quiet); classification unchanged. #3060 re-audit: adds tob-share-draft-secret (Tob reviews a Share Draft in its DM, asks about a planted key with ask_user_question, drops it on the answer, and the source Memory repository stays unchanged); tolerates messages without an author.",
+      "task": 3060,
+      "sha256": "c75e11e1c5328910b6425d865c766cb5b068261fe97c667da048a18845e419bd"
+    },
+    {
+      "path": "scripts/e2e-tob-channel-management.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.tob.home"],
+      "reason": "Natural Tob Group creation and invitation through rendered approval, default automatic acceptance and visible Members; optional invitee-decision opt-out, denial, protected identity and receipt replay/conflict, plus separate same-Profile restart on Web/macOS. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list. Classification unchanged.",
+      "task": 3092,
+      "sha256": "9b542ad7c4a3f73d7b7dd79cbf94536ab233a09651d11e35cab844b66680bcc3"
+    },
+    {
+      "path": "scripts/e2e-tob-delegation.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.tob.home"],
+      "reason": "Real-model Tob Delegation through the API: a fitting seeded colleague gets exactly one Bot-to-Bot DM message without a Human question first, the action notice shows in the Tob DM and Tob reports the colleague's answer; with no fitting colleague nothing is sent and no Bot is created.",
+      "task": 3086,
+      "sha256": "199146e93a430a5e75a08ca7e326350469e338d5bfc99b4553332674dfa2c1b6"
+    },
+    {
+      "path": "scripts/e2e-group-send-review.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.group.send-review"],
+      "reason": "Task-owned isolated paired pilot with whole Group/DM history, silent cancellation, revoked-source continuation check, explicit Inbox completion, versioned multi-turn ingest supplement and complete usage; Human acceptance remains separate. Native export also includes inbox_snooze arguments/results for bounded review and deferred-resume assessment (#2055). #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 2053,
+      "sha256": "795715f31d9989c039c68dfc22a72d2e614a6c5c8b13345c79bc0e55ee3d8cf6"
+    },
+    {
+      "path": "scripts/e2e-group-peer-review.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.group.send-review"],
+      "reason": "Real two-Bot peer-answer triplets with accepted Bi and original B0, full histories and all-Bot usage; missed race windows and Human acceptance remain explicit.",
+      "task": 2054,
+      "sha256": "f39b2cdc6af7be38ee79867702c22a3947bb961a38346afdaf9ed3167f4719d7"
+    },
+    {
+      "path": "scripts/e2e-tob-group-settings.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.tob.home"],
+      "reason": "Natural Tob Group rename, member attention and removal through rendered approval, denial and stale refusal; independent avatar clearing, canonical readback and actual settings/Members UI, plus same-Profile restart on Web/macOS. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list. Classification unchanged.",
+      "task": 3092,
+      "sha256": "c318e2ccc7bd23ca155479db8e5f4e6e4afb5aa476c9c761722028a820ebb893"
+    },
+    {
+      "path": "scripts/e2e-tob-group-decisions.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.tob.home"],
+      "reason": "Natural Tob pending-invitation cancellation and join acceptance/decline through rendered approval, denial and concurrent stale refusal; actual ordinary-Bot selected-Group join preconditions, canonical decision history and Members UI, terminal refusal and Web/macOS restart. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list. Classification unchanged.",
+      "task": 3092,
+      "sha256": "e74a39e4791e496074e77120323711b1f7cc31256160ac5923e192d9519965f3"
+    },
+    {
+      "path": "scripts/e2e-group-busy-review.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.group.send-review"],
+      "reason": "Real DSH busy-Group triplets with full records and all-Bot costs. v3 bounds outcome time and waits for original, observed and snoozed canonical Inbox responsibility before early settlement; preserves frozen older cohorts, unknown future cost and separate semantic judgment. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 2055,
+      "sha256": "fc67fab47d8be6e580dd0346c3c738b96caab11b3927e2bd75c696c9d21ccc74"
+    },
+    {
+      "path": "scripts/e2e-group-responsibility.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.group.send-review"],
+      "reason": "Read-only isolated Profile helper for Group episode completion. Counts all unresolved observed/snoozed Admissions plus the acting original across Channels, excludes unopened silent peer copies, bounds evidence not totals, refuses missing canonical facts.",
+      "task": 2055,
+      "sha256": "03b1f454483c43716fd11e784dee3ffaf08d3b1fc4cea2a15d1ca6ca325de5eb"
+    },
+    {
+      "path": "scripts/e2e-memory-diff-wrap.mjs",
+      "category": "mapped",
+      "behaviors": ["memory.diff-wrap"],
+      "reason": "Isolated synthetic Memory repository; real Client checks both diff entry points, wrap/scroll switching, five-digit gutters, narrow panes, light/dark themes and browser errors. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged.",
+      "task": 3089,
+      "sha256": "51ff7e018f008ef2542336b59b0a4fa9638ab2abafd40c011b1368efb35db004"
+    },
+    {
+      "path": "scripts/e2e-activity-approve-sync.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.activity-center.inline-tool-approval"],
+      "reason": "Real native bash Allow once from Activity and conversation with independent browser observers, canonical decision identity and native file effect. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 2230,
+      "sha256": "db6fcaaaf55eda5877f0ea481bc91276276aa806e83927f00dd45ccda8cc22f6"
+    },
+    {
+      "path": "scripts/e2e-activity-load.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.activity-center.inline-tool-approval"],
+      "reason": "Sequential main/candidate real Host load: 24 silent Groups, public direct channel_send, three 240-message rounds, query/coalescing/latency/long-task/heap and idle-recovery evidence. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 2230,
+      "sha256": "07a97a0743b998e206f73d5d9500fe872f1674917a7206a2db8ed8e0d5b50e7a"
+    },
+    {
+      "path": "scripts/e2e-memory-images.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.memory.png-preview"],
+      "reason": "Task-owned isolated Host, synthetic Git fixture, current/working/history Web decode and image exports with unauthenticated-route refusal. #3092 re-audit: Simple keeps Messages open without a Messages switch; the step clicks it only when present. Classification unchanged.",
+      "task": 3092,
+      "sha256": "c296b85e45009f92dc0c61884ea41800c93486d8fee56ff1b04c5a0d6615e8e9"
+    },
+    {
+      "path": "scripts/e2e-memory-markdown.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.memory.markdown-preview"],
+      "reason": "Task-owned isolated Git/Host fixture; real Markdown rendering and image decode, source/line toggles, historical/index/local bytes, explicit intercepted external load, missing/stale/anonymous refusal and narrow layout. #3092 re-audit: Simple keeps Messages open without a Messages switch; the step clicks it only when present. Classification unchanged.",
+      "task": 3092,
+      "sha256": "a1a02122ef5d04cae90d1e2ac7d6cda7e276c49af4cc0bb1e29eeb73a47f2d01"
+    },
+    {
+      "path": "scripts/e2e-memory-formats.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.memory.image-formats"],
+      "reason": "Matched main/candidate current/Markdown/working/history/narrow images, genuine pixels and animation advancement, version/MIME original-byte exports and rejected SVG external-resource loads. #3092 re-audit: Simple keeps Messages open without a Messages switch; the step clicks it only when present. Classification unchanged.",
+      "task": 3092,
+      "sha256": "affcb7bc549c5bb4e7c6ebff4f5e25e1f783e890d4056a5ae099ca5a41d29a5b"
+    },
+    {
+      "path": "scripts/e2e-vrm-companion.mjs",
+      "sha256": "38fb73a5d34efe8fffc4135b9ef845b3a78ffba97249711bf101060b1559449d",
+      "category": "mapped",
+      "reason": "Isolated real Host journey for VRM loading (opting past the headless software-renderer notice), live speech, fixed bindings, refresh, Group gating and renderer disposal; native CLI uninstall/reinstall requires a task-owned Host restart. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged.",
+      "task": 3089,
+      "behaviors": ["desktop.vrm-companion"]
+    },
+    {
+      "path": "scripts/e2e-desktop-zoom-launch.mjs",
+      "sha256": "01b194480a51560a5d896b47fdcdd805de9d9f6e9092eac4d1ab8600ee72ab33",
+      "category": "mapped",
+      "reason": "Release labels are recorded as evidence rather than launch/cleanup gates; platform, ownership and actual protocol checks remain. Audited isolated native launcher with explicit closed-Desktop package setup and a bounded wait for fresh process-bound CLI metadata; package install, readiness and native acceptance remain separate.",
+      "task": 2713,
+      "behaviors": ["desktop.window-zoom"]
+    },
+    {
+      "path": "scripts/e2e-dock-zoom.mjs",
+      "sha256": "959a96ba4108d84ac3e7af98221de235079125f81413b56f870b669951d79b86",
+      "category": "mapped",
+      "reason": "Real pinned Dockview dependency fixture for zoomed persistent overlay allocation and horizontal/vertical splitter movement; not a DSH/native acceptance journey.",
+      "task": 2268,
+      "behaviors": ["desktop.window-zoom"]
+    },
+    {
+      "path": "scripts/e2e-workspace-chrome.mjs",
+      "sha256": "cb3a9da48097f1640eb4f231aa2e49bfc890209fed08e1cc66398c209723f0b8",
+      "category": "mapped",
+      "reason": "Audited production corner CSS across 204 zoom/gap/rail/platform/fullscreen cases on Windows after using a portable file URL for Vite; excludes native caption pixel qualification.",
+      "task": 2270,
+      "behaviors": ["desktop.window-zoom"]
+    },
+    {
+      "path": "scripts/e2e-local-appearance.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.local-appearance"],
+      "reason": "Runs actual scoped theme controls, local persistence and explicit Client-targeted CLI against an isolated Host; no model call.",
+      "task": 2258,
+      "sha256": "3c537cae092c4ffbfc2f4138e92a541ed9f6249ae0032abf55c45e6e27c33d39"
+    },
+    {
+      "path": "scripts/e2e-global-materials.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.global-materials"],
+      "reason": "Real mode/material UI and CLI, reload, native isolation and controlled background pixel proof of blur. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged.",
+      "task": 3089,
+      "sha256": "ecc2ec3fb6b8df39cc21cfdc996823f8b81cc99b046faa9d0a78d84b2f50692f"
+    },
+    {
+      "path": "scripts/e2e-panel-appearance.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.panel-appearance"],
+      "reason": "Real Header menus, UI/CLI overrides, follow global, modes, close/reopen, content switch, reload and scoped reset. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Simple keeps Messages beside the Side column; the journey reopens the Channel list before selecting a Bot and skips Close Messages where Simple offers none. Classification unchanged.",
+      "task": 3092,
+      "sha256": "6c48e126ff46fa220e749999ddef1cc7e21baaf943cbf82c68f64fa13a697dde"
+    },
+    {
+      "path": "scripts/e2e-nested-appearance.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.panel-appearance"],
+      "reason": "Real nested Header menus, shared Memory detail identity, independent contribution lifetime and live Browser viewer without content recoloring.",
+      "task": 2261,
+      "sha256": "68862553fe530c0ca95c0515726a2c6e2fa907b0c173895694e140434593d93d"
+    },
+    {
+      "path": "scripts/e2e-image-wallpaper.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.image-wallpaper"],
+      "reason": "Real upload/crop, original-byte persistence, resize, failure preservation, DSH isolation and directed CLI.",
+      "task": 2262,
+      "sha256": "bcb665331b74fcd5b8a70401373f155039c76ae45cb56300eb98dad76b10fe45"
+    },
+    {
+      "path": "scripts/e2e-video-wallpaper.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.video-wallpaper"],
+      "reason": "Actual loop frames, background pause/resume, decode error and saved poster restoration, explicit Client CLI and exit cleanup.",
+      "task": 2263,
+      "sha256": "fe7db6af55ee97f67c27aa7f123329f745251af8b333d0df31e1bc10a058601e"
+    },
+    {
+      "path": "scripts/e2e-appearance-recovery.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.appearance-recovery"],
+      "reason": "Real current-mode clear, confirmed image/video reset, failure preservation/partial retry, preview cleanup, CLI and independent Client isolation.",
+      "task": 2264,
+      "sha256": "cf63aed0226320827a79779565d51888a5a618f9f6dcf9734ba002423d9132b4"
+    },
+    {
+      "path": "scripts/e2e-message-history-mask.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.appearance-recovery"],
+      "reason": "Human QA alpha-mask regression: committed Channel history, edge/center pixels, custom Panel colors and wallpaper, composer input, reload and task-owned Desktop. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged.",
+      "task": 3089,
+      "sha256": "c19df69e293b6987d90c681ac63a17576b582eb2bc824320da005922e6b98844"
+    },
+    {
+      "path": "scripts/e2e-private-input-origin.mjs",
+      "category": "mapped",
+      "behaviors": ["credentials.private-input-origin"],
+      "reason": "Isolated Host, visible DM composer, synthetic private input, native approval and actual Tool result with two live accepted IM sources; no production receiver or credential. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged.",
+      "task": 3089,
+      "sha256": "e4724d10c8af9f37c6805beadecf97271c39f27dbfd53947c8fb1c673d04510b"
+    },
+    {
+      "path": "scripts/e2e-desktop-zoom-windows.mjs",
+      "sha256": "ce7697d6a8dc0a516c9a3f92144fa2164f789ba8e1263e545a558737e51d287b",
+      "category": "mapped",
+      "reason": "Release labels are recorded as evidence rather than launch/cleanup gates; platform, ownership and actual protocol checks remain. Audited explicit same-root Windows native lifecycle: exact executable/user-data/PID and loopback listener checks, immutable package checks, closed-app setup and fresh per-boot metadata. Readiness does not qualify keyboard, guests, DPI or Human QA.",
+      "task": 2713,
+      "behaviors": ["desktop.window-zoom"]
+    },
+    {
+      "path": "scripts/e2e-tobs-commands.mjs",
+      "category": "historical-regression",
+      "behaviors": ["product.command-compatibility"],
+      "reason": "Installs verified local release archives through a loopback registry; checks global coexistence, independent removal, exit codes and npm exec on Windows and Linux; no live Host check. Scoped Tobs package identity is @botharness/tobs; the executable stays tobs.",
+      "task": 2744,
+      "sha256": "5c4c77f6b560105b4d307fa26ce2a2fc89f406424c140137ee045a5883400064"
+    },
+    {
+      "path": "scripts/e2e-phone-recovery.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.pairing"],
+      "reason": "Real isolated Host and LAN offer; browser-scoped status/offer faults and route-set invalidation with cropped light/dark base/candidate evidence. OS VPN and physical-phone switching remain native QA. #2793: re-audited Connections → Manage selectors and generic Connect a device label; fault-injection boundaries unchanged.",
+      "task": 2731,
+      "sha256": "df679869173191f5bd7381e2fbed2135c077bb191675786e62dc29a372d686d9"
+    },
+    {
+      "path": "scripts/e2e-timeline-navigation.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.timeline.read-position", "desktop.timeline.messages"],
+      "reason": "Task-owned isolated Host; real direct Bot tool seeds 260 messages and 140 unread. Browser verifies read-anchor opening, bounded cursor paging and idle edges, ordinary history return button, live count, multiline composer without sending, actual themes, read-complete reopen and paged jump to latest; closes its browser in finally. Caller owns Host cleanup. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 2748,
+      "sha256": "ee8785b8e2b9d8631d9aebf9d209af76c1d762e101f88363785fe3b65670bf24"
+    },
+    {
+      "path": "scripts/e2e-mobile-deletion-web.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.deletion"],
+      "reason": "Real paired-device requests through Expo Web against a task-owned Host; checks Bot Memory retention/erasure, Tob, sections and ADR-0274 Group Disband. Open-screen and native acceptance remain separate; the updated assertions await a live run in #3170. R2 policy re-audit: only the default capture location moved to ignored staging; assertions and classification unchanged, journey not rerun.",
+      "task": 3171,
+      "sha256": "f442cda964a711520e4180ff85cffa72a585c16403dfb23e1c60f573946d64fb"
+    },
+    {
+      "path": "scripts/e2e-mobile-chat-resume.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.composer"],
+      "reason": "Assigned physical iOS QA session only; existing Dev QA chat, actual SpringBoard background then resume without relaunch, known message visibility, composer geometry, draft retention, same Dev PID and an unchanged nonempty static message pixel region, excluding clocks/carets (AX coordinates may change space on resume). Requires caller-owned session/cleanup and screenshot review for real keyboard presence. No build, pairing or message send; no Simulator/Android/performance claim. Native regression goes red on the #2933 keyboard-open blank pane.",
+      "task": 2933,
+      "sha256": "4288d4ea35c14e25b09c4d4be42927db4a580c45e8151f4f9fd569ec9bebccfc"
+    }
+  ],
+  "native": [
+    {
+      "task": 1919,
+      "scope": "Current phone-activity map; latest 12pt spacing captures. Earlier menu navigation remains separate historical evidence.",
+      "sourceCommit": "94a4bc24cfe33b3878354f917f3842b1dcd13003",
+      "evidenceCommit": "1d19610c2f57ef2168cf4c5019c52868832393cf",
+      "device": "iOS 26.0 Simulator, English, 1206x2622; integrated batch aa8d57b5cd0dc9446d43624fce8a60fcc362e8f6",
+      "url": "https://github.com/BotHarness/DeepSeekBot/blob/1d19610c2f57ef2168cf4c5019c52868832393cf/.github/pr-screenshots/mobile-activity/README.md",
+      "unverified": "Current report commit; actual touch long-press timing (coordinate driver failed), long overflow, large text, Android, physical phone and Human QA."
+    },
+    {
+      "task": 1954,
+      "scope": "Active separate PR #1966; redesign is not on this report baseline. Last published platform-control captures predate immediate-options/status-bar follow-up claim 6215487418.",
+      "sourceCommit": "0febc32a8d6b96da396331a125f10ec2c3bcebee",
+      "evidenceCommit": "dc1eb522d3d6432a16d32cfba22882e10e3a4644",
+      "device": "Shared iOS Simulator with compatible installed binary; 14 native light/dark captures reported, latest-main integration not qualified",
+      "url": "https://github.com/BotHarness/DeepSeekBot/issues/1954#issuecomment-6214834295",
+      "unverified": "Current main/report source, latest status-bar/immediate-options follow-up, Android, physical device, accessibility, full native lifecycle and Human QA."
+    }
+  ]
+}

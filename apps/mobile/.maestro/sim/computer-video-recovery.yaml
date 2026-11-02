@@ -1,0 +1,20 @@
+# Assigned iOS Simulator, Chinese locale, existing disposable pairing and running
+# local Computer. COMPUTER_LINK is the non-secret /computer/<bot-slug> deep link.
+# Dismiss notification permission and first-run notices before this flow.
+# Simulator has no presentation receipt: expect bounded unavailability, not control.
+appId: ai.botharness.deepseekbot.dev
+---
+- openLink: '${COMPUTER_LINK}'
+- extendedWaitUntil:
+    visible: '视频不可用.*'
+    timeout: 40000
+- tapOn: '更多电脑操作'
+- assertVisible: '重新连接视频'
+- takeScreenshot: computer-recovery-menu
+- tapOn: '重新连接视频'
+- assertVisible: '等待实时画面'
+- takeScreenshot: computer-reconnecting
+- tapOn: '退出 Computer'
+- assertNotVisible: '退出 Computer'
+- assertVisible: '聊天'
+- takeScreenshot: computer-after-exit

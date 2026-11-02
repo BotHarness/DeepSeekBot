@@ -36,7 +36,7 @@ try {
   await page.evaluate(() => document.querySelector('.bh-root [data-channel-id^="dm-"]')?.click());
   await page.waitForSelector('.bh-channel-island');
   await page.waitForFunction(
-    () => document.querySelector('.bh-channel-island')?.getAttribute('aria-haspopup') === 'dialog',
+    () => document.querySelector('.bh-channel-island')?.getAttribute('aria-haspopup') === 'menu',
   );
 
   async function measure(scope, which, interaction) {
@@ -77,10 +77,7 @@ try {
   }
 
   await page.evaluate(() => document.querySelector('.bh-channel-island')?.click());
-  await page.waitForSelector('.bh-profile-popover .bh-profile-heat-grid');
-  const compactHover = await measure('.bh-profile-popover', 'last', 'hover');
-  const compactFocus = await measure('.bh-profile-popover', 'first', 'focus');
-  await page.evaluate(() => document.querySelector('.bh-profile-expand')?.click());
+  await page.locator('::-p-aria(View profile)').click();
   await page.waitForSelector('.bh-profile-view .bh-profile-heat-grid');
   const fullHover = await measure('.bh-profile-view', 'last', 'hover');
   const fullFocus = await measure('.bh-profile-view', 'first', 'focus');
@@ -90,7 +87,7 @@ try {
   }
   await page.setViewport({ width: 880, height: 900 });
   const narrowHover = await measure('.bh-profile-view', 'last', 'hover');
-  console.log(JSON.stringify({ compactHover, compactFocus, fullHover, fullFocus, narrowHover }));
+  console.log(JSON.stringify({ fullHover, fullFocus, narrowHover }));
 } finally {
   await browser.close();
 }

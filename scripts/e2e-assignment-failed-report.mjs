@@ -65,7 +65,7 @@ if (phase === 'prepare') {
     await rpc('create', {
       displayName: 'Failed result QA ' + stamp,
       persona:
-        'Follow the Human exactly. Create only one requested Assignment. Never run Shell, approve tools, edit files or create subagents. After creation channel_send FAILED_CREATED and end. When its failed Report arrives, channel_send FAILED_REPORT_SEEN and end. Do not claim task success, retry work, create replacement work or resume the Assignment. Distinguish semantic task failure from a native Turn ending normally.',
+        'Follow the Human exactly. Create only one requested Assignment. Never run Shell, approve tools, edit files or create subagents. After creation bot_send_message FAILED_CREATED and end. When its failed Report arrives, bot_send_message FAILED_REPORT_SEEN and end. Do not claim task success, retry work, create replacement work or resume the Assignment. Distinguish semantic task failure from a native Turn ending normally.',
     })
   ).bot;
   await rpc('modelPresetApply', { slug: bot.slug, presetId: preset.id });
@@ -84,7 +84,7 @@ if (phase === 'prepare') {
       grant.id +
       '. Purpose: Failed semantic result QA. Its only task is to demonstrate that a required synthetic input was not supplied. It must invoke report_to_orchestrator exactly once with state failed, summary ' +
       JSON.stringify(marker) +
-      ', expects_reply false, then end normally. Do not use files, Shell, subagents or other tools, retry, or send completed Reports. After creating it channel_send FAILED_CREATED and end. When the failed Report arrives channel_send FAILED_REPORT_SEEN and end without starting further work.',
+      ', expects_reply false, then end normally. Do not use files, Shell, subagents or other tools, retry, or send completed Reports. After creating it bot_send_message FAILED_CREATED and end. When the failed Report arrives bot_send_message FAILED_REPORT_SEEN and end without starting further work.',
   });
   scene.sessionId = (
     await waitFor(

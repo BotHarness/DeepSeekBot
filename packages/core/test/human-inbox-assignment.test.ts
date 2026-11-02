@@ -52,8 +52,9 @@ describe('Human Inbox addressed Assignment response', () => {
       await methods.channelSend({ channelId: dm.id, body: 'Start research' });
       await core.runtime.whenIdle();
       const created = orchestrator!.assignments.create({
+        title: 'Assignment',
         grantId: grant.id,
-        purpose: 'Choose a launch channel',
+        description: 'Choose a launch channel',
       });
       if (created.outcome !== 'created') throw new Error('Assignment missing');
       const sessionId = created.assignment.sessionId;
@@ -81,7 +82,7 @@ describe('Human Inbox addressed Assignment response', () => {
         value: {
           context: {
             sessionId,
-            purpose: 'Choose a launch channel',
+            description: 'Choose a launch channel',
             canReply: true,
             reports: [
               { summary: 'Canary or stable?' },
@@ -95,8 +96,9 @@ describe('Human Inbox addressed Assignment response', () => {
         methods.humanAssignmentContext({ slug: 'bea', sessionId, sourceEventId }),
       ).toMatchObject({ ok: false });
       const stopped = orchestrator!.assignments.create({
+        title: 'Assignment',
         grantId: grant.id,
-        purpose: 'Stopped review',
+        description: 'Stopped review',
       });
       if (stopped.outcome !== 'created') throw new Error('Assignment missing');
       const stoppedRun = runs.at(-1)!;

@@ -385,6 +385,7 @@ export function createTypedLive(
           },
           update: (frame) => {
             if (frame.type === 'changed') handlers.changed();
+            else if (frame.type === 'attention') handlers.attention?.();
             else if (frame.type === 'latest')
               handlers.latest({ channelId: frame.channelId, message: frame.message });
             else if (frame.type === 'purged') handlers.purged(frame.placements);

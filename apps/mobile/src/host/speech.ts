@@ -1,5 +1,6 @@
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { useRef, useState } from 'react';
+import { Platform } from 'react-native';
 
 import {
   dictate,
@@ -58,7 +59,7 @@ export function useDictation(onText: (text: string) => void) {
           lang: speechLang(Intl.DateTimeFormat().resolvedOptions().locale),
           interimResults: true,
           addsPunctuation: true,
-          continuous: false,
+          continuous: Platform.OS === 'ios',
         });
       })
       .catch(() => apply({ kind: 'refused', reason: 'unavailable' }));

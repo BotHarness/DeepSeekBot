@@ -5,6 +5,8 @@ Date: 2026-09-20
 
 # One database owns all BotHarness operational state
 
+> Amended by [ADR-0258](0258-foreign-key-orphans-do-not-block-the-operational-database.md): foreign key orphans left by an outside writer no longer put the profile into recovery mode; page integrity failures still do.
+
 Each DSH profile has one BotHarness-owned SQLite database at `$DSH_HOME/botharness/botharness.db`. It is the physical home for all BotHarness operational state: the local PersonaBot registry and archive state, bindings and access policy, roster arrangement, Channel and Membership facts, explicit Session ownership references, Source Events and revisions, Inbox Admissions and Attention Decisions, Messaging Policies, provider account references, Service Grants, Outbox and audit facts, and export/backup metadata.
 
 One physical database does not mean one shallow module. PersonaBot Registry, Roster, Session Ownership, Messaging, Attention, Authorization, and Export remain deep modules with small command/query interfaces and explicit table ownership. Callers never receive a generic SQL/repository interface or compose transactions themselves. Before opening the database for operational use, a Host-lifetime database owner obtains one operating-system-backed **Profile Writer Lease**; a second Host using the same profile fails with `profile-in-use` and may expose read-only diagnostics, but cannot run PersonaBots or mutate operational state. SQLite lock errors are not the ownership protocol.

@@ -1,0 +1,85 @@
+{
+  "expected": {
+    "version": 1,
+    "revision": "b13b141c-c75f-473d-91dd-e1c5f9d7609b",
+    "preference": "light",
+    "modes": {
+      "light": {
+        "preset": "classic-blue",
+        "panels": {
+          "dock:bh:channel-body": {
+            "header": {
+              "opacity": 42,
+              "color": "#e0c1ed",
+              "blur": 9
+            },
+            "body": {
+              "color": "#d5e9f1",
+              "opacity": 70,
+              "blur": 8
+            }
+          },
+          "dock:bh:home": {
+            "header": {
+              "color": "#e7d7b2"
+            },
+            "body": {
+              "color": "#f4dfb5",
+              "opacity": 82,
+              "blur": 4
+            }
+          }
+        }
+      },
+      "dark": {
+        "preset": "classic-blue",
+        "panels": {
+          "dock:bh:channel-body": {
+            "body": {
+              "color": "#283d4b",
+              "opacity": 90
+            }
+          }
+        }
+      }
+    }
+  },
+  "reset": {
+    "version": 1,
+    "revision": "62710b1c-1994-4e78-b881-4894b36354f3",
+    "preference": "light",
+    "modes": {
+      "light": {
+        "preset": "classic-blue",
+        "panels": {
+          "dock:bh:home": {
+            "header": {
+              "color": "#e7d7b2"
+            },
+            "body": {
+              "color": "#f4dfb5",
+              "opacity": 82,
+              "blur": 4
+            }
+          }
+        }
+      },
+      "dark": {
+        "preset": "classic-blue",
+        "panels": {
+          "dock:bh:channel-body": {
+            "body": {
+              "color": "#283d4b",
+              "opacity": 90
+            }
+          }
+        }
+      }
+    }
+  },
+  "native": {
+    "mode": true,
+    "style": "--dsh-content-font-size: 14px; --dsh-code-font-size: 11px; --dsh-terminal-font-size: 13px;"
+  },
+  "errors": []
+}

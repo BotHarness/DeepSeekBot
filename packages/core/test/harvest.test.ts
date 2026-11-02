@@ -432,7 +432,7 @@ describe('turn-time harvest', () => {
       expect(runs).toHaveLength(1);
       const message = runs[0]?.message ?? '';
       expect(message).not.toContain('[Bot Inbox harvest]');
-      expect(message.startsWith('[Bot Inbox: direct Group mention')).toBe(true);
+      expect(message).toMatch(/^Source Event ID: [^\n]+\n\[Bot Inbox: direct Group mention/);
     } finally {
       await core.runtime.close();
       core.operationalDatabase.close();

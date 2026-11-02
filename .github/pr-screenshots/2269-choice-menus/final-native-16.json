@@ -1,0 +1,186 @@
+{
+  "date": "2026-10-19",
+  "artifact": "0.0.0-zoom.2268.16",
+  "desktop": "0.2.1-rc.2",
+  "implementationCommit": "b6275fc3af28f6b20dae34d9c7a35bc958303316",
+  "clientSha256": "ad8ab96aab325d093c8d4c0fcfa82e8f4c46d81f046a5d2879b2ac2e21bd2848",
+  "install": "Closed-app package transaction in the same retained native Profile/user-data; preference Patch bytes unchanged. Staged Client and tarball Client bytes both match the completed source build.",
+  "discardedLocalPackage": ".15 was staged while a build cleaned Client output; missing Client bytes were caught before installation. It was never installed. Fresh .16 was packed only after build completion and checked byte-for-byte.",
+  "tooltipBefore": {
+    "artifact": "0.0.0-zoom.2268.14",
+    "zoom": 1.44,
+    "trigger": {
+      "left": 659.0078125,
+      "right": 705.078125,
+      "bottom": 149.734375
+    },
+    "bubble": {
+      "left": 906.5390625,
+      "right": 1057.7421875,
+      "top": 227.1328125
+    },
+    "screenshot": "native-tooltip-before-144.png"
+  },
+  "tooltipAfter144": {
+    "bounds": {
+      "w": 1261,
+      "h": 820
+    },
+    "zoom": "1.44",
+    "active": "<button type=\"button\" class=\"_button_1rv3m_2 _ghost_1rv3m_45 _md_1rv3m_23\" aria-label=\"修改全局用户名\" style=\"padding-inline: 2px;\"><span class=\"bhx193iq5w bhxb3r6kr bhxlyipyv bhxuxw1ft\">朋友</span></button>",
+    "triggerRect": {
+      "x": 659.0078125,
+      "y": 97.8984375,
+      "width": 46.0703125,
+      "height": 51.8359375,
+      "top": 97.8984375,
+      "right": 705.078125,
+      "bottom": 149.734375,
+      "left": 659.0078125
+    },
+    "tooltips": [
+      {
+        "text": "修改全局用户名",
+        "rect": {
+          "x": 606.44140625,
+          "y": 157.7340087890625,
+          "width": 151.203125,
+          "height": 37.421875,
+          "top": 157.7340087890625,
+          "right": 757.64453125,
+          "bottom": 195.1558837890625,
+          "left": 606.44140625
+        },
+        "position": "fixed",
+        "visibility": "visible"
+      }
+    ]
+  },
+  "tooltipAfter120": {
+    "bounds": {
+      "w": 1261,
+      "h": 820
+    },
+    "zoom": "1.2",
+    "active": "<button type=\"button\" class=\"_button_1rv3m_2 _ghost_1rv3m_45 _md_1rv3m_23\" aria-label=\"修改全局用户名\" style=\"padding-inline: 2px;\"><span class=\"bhx193iq5w bhxb3r6kr bhxlyipyv bhxuxw1ft\">朋友</span></button>",
+    "triggerRect": {
+      "x": 618.7890625,
+      "y": 81.5859375,
+      "width": 38.3984375,
+      "height": 43.1953125,
+      "top": 81.5859375,
+      "right": 657.1875,
+      "bottom": 124.78125,
+      "left": 618.7890625
+    },
+    "tooltips": [
+      {
+        "text": "修改全局用户名",
+        "rect": {
+          "x": 574.98828125,
+          "y": 132.781005859375,
+          "width": 126,
+          "height": 31.1875,
+          "top": 132.781005859375,
+          "right": 700.98828125,
+          "bottom": 163.968505859375,
+          "left": 574.98828125
+        },
+        "position": "fixed",
+        "visibility": "visible"
+      }
+    ]
+  },
+  "tooltipNativeInteraction": "Native keyboard focus opens the corrected bubble at144%; Cmd+- changes to120%, retains the named trigger focus and dismisses the transient bubble. Tab/Shift+Tab reopens it correctly at120%. Returned to144% without changing the draft. Native retention of the transient bubble across the shortcut is not claimed; retained pinned-bubble zoom is a separate source-primitive check.",
+  "tooltipScreenshot": "native-tooltip-after-144.png",
+  "hiddenCreate": {
+    "before": {
+      "visibility": "hidden",
+      "w": 1261,
+      "h": 820,
+      "zoom": "1.44"
+    },
+    "created": {
+      "createdVisibility": "hidden"
+    },
+    "hidden": {
+      "visibility": "hidden",
+      "w": 1261,
+      "h": 820,
+      "zoom": "1.44",
+      "created": "hidden"
+    }
+  },
+  "restored": {
+    "visibility": "hidden",
+    "zoom": "1.44",
+    "trace": [
+      {
+        "event": "dom-ready",
+        "visibility": "hidden"
+      },
+      {
+        "event": "dom-ready",
+        "visibility": "hidden"
+      }
+    ],
+    "main": "保 asd留 A",
+    "sameOrigin": "保留 Basd",
+    "guest": {
+      "id": 2,
+      "url": "http://127.0.0.1:39458/zoom-fixture.html",
+      "zoom": 1,
+      "rect": {
+        "x": 807.859375,
+        "y": 641.5546875,
+        "width": 374.3984375,
+        "height": 144,
+        "top": 641.5546875,
+        "right": 1182.2578125,
+        "bottom": 785.5546875,
+        "left": 807.859375
+      },
+      "state": {
+        "value": "保留输入 asd",
+        "focus": "INPUT",
+        "hasFocus": false,
+        "visibility": "visible"
+      }
+    }
+  },
+  "human": "Human performed yellow-button minimize/restore and answered 可以 to whether the RGB ruler and input displayed normally; actual native pixels independently show both.",
+  "rendering": "Two initial dom-ready events were observed, both while hidden. Full-window screenshot after ordinary restore shows native guest RGB ruler/input, root144%, guest zoom1 and loaded fixture URL. No reload, fullscreen or replacement recovery was used. A pre-restoration guest-id measurement was not captured; no stronger before/after id claim is made for this row.",
+  "screenshot": "final-hidden-created-restored-16.png",
+  "cleanup": "Task fixture disposed using its owned release; same formal native Profile remains at144%; original unsent draft and ui-theme font15 retained.",
+  "sourceChecks": {
+    "client": {
+      "passed": 2037,
+      "skipped": 1,
+      "failed": 0
+    },
+    "selectCases": 136,
+    "tooltipCases": 204,
+    "retainedPinnedZoomChanges": 36,
+    "baselineTooltipFailures": 192,
+    "baselineTooltipCases": 204,
+    "focused": 4,
+    "types": "passed",
+    "build": "passed",
+    "format": "passed"
+  },
+  "retainedFailures": [
+    "An initial full Client run had one avatar-editor timeout under concurrent build load; the failed file passed17 tests alone and the full rerun passed2037/1skip. No test was disabled.",
+    "The final .16 cached native Log contains a native /plugins/events network failure; the .14 passive sequence records automatic recovery. Neither complete cohort is labeled console-error-free."
+  ],
+  "ciBlocker": {
+    "run": 39262480596,
+    "job": 118093522485,
+    "reason": "Mobile Expo doctor: @expo/ui58.0.20 expects~58.0.21, expo58.0.14 expects~58.0.15, expo-image58.0.15 expects~58.0.16, expo-router58.0.23 expects~58.0.24. No mobile dependencies changed in this PR; no check skipped."
+  },
+  "limits": [
+    "Earlier physical plain Equal and IME records retain their tested composition scope; no synthesized Equal is relabeled physical plain Equal.",
+    "Earlier .14 actual main/iframe/webview once-only focus evidence and font/Host/installer lifecycle are retained; only Tooltip geometry/observer ownership changed for .16.",
+    "Representative native guest/tooltip/button paths do not qualify arbitrary third-party pages/programmatic tooltip triggers or other versions.",
+    "Windows/Linux remain #2270; all new PRs remain Draft/unmerged."
+  ]
+}

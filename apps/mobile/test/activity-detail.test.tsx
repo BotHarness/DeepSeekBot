@@ -3,8 +3,17 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
+
 vi.mock('react-native', () => import('./react-native-shim'));
-vi.mock('../src/ui/shell/icons', () => ({
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
+vi.mock('react-native-worklets', () => ({
+  scheduleOnRN: <A extends unknown[]>(callback: (...args: A) => void, ...args: A) =>
+    callback(...args),
+}));
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
   ChevronLeftIcon: () => null,
   ChevronRightIcon: () => null,
 }));
@@ -14,6 +23,8 @@ import { shiftDay } from '../src/host/usage-days';
 import type { ProfileActivity } from '../src/host/wire';
 import { ActivityDetailView, type ActivityQuery } from '../src/ui/chat/activity-detail';
 import { heatLevel, heatWeeks } from '../src/ui/primitives/day-heat';
+import { chartSummary, peakBar } from '../src/ui/primitives/day-bars';
+import { weekdayLabel } from '../src/host/usage-days';
 import { t } from '../src/ui/strings';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -98,7 +109,7 @@ describe('Bot Activity screen', () => {
     expect(text).toContain('deepseek-v4');
     expect(text).toContain(t.activityReason['group-mention']);
     expect(text).toContain(t.activityCount(2));
-    expect(text).not.toContain(t.activityPartial);
+    expect(text).not.toContain(t.usagePartial);
     expect(button(view, t.activityLater).disabled).toBe(true);
     expect(button(view, t.activityWindow[1]!).getAttribute('aria-selected')).toBe('true');
   });
@@ -110,8 +121,8 @@ describe('Bot Activity screen', () => {
     await act(async () => button(view, t.activityWindow[4]!).click());
     await act(async () => undefined);
     expect(load).toHaveBeenLastCalledWith({ weeks: 4 });
-    expect(view.textContent).toContain(t.activityTokens(t.activityPartialCount('4,000')));
-    expect(view.textContent).toContain(t.activityPartial);
+    expect(view.textContent).toContain(t.activityTokens('4,000'));
+    expect(view.textContent).toContain(t.usagePartial);
 
     await act(async () => button(view, t.activityEarlier).click());
     await act(async () => undefined);
@@ -134,9 +145,38 @@ describe('Bot Activity screen', () => {
         }}
       />,
     );
-    expect(view.textContent).toContain(`${t.profileFailed} The Host did not answer in time.`);
+    expect(view.textContent).toContain(t.profileFailed);
+    expect(view.textContent).not.toContain('The Host did not answer in time.');
+    await act(async () =>
+      [...view.querySelectorAll<HTMLButtonElement>('button')]
+        .find((button) => button.textContent === t.details)!
+        .click(),
+    );
+    expect(view.textContent).toContain('The Host did not answer in time.');
     await act(async () => button(view, t.tryAgain).click());
     await act(async () => undefined);
     expect(view.textContent).toContain('deepseek-v4');
+  });
+
+  it('reads each bar and names the busiest one for screen readers', async () => {
+    const bars = [0, 3, 9, 4].map((value, index) => ({ key: String(index), segments: [value] }));
+    expect(peakBar(bars)).toBe(2);
+    expect(peakBar([{ key: '0', segments: [0] }])).toBeUndefined();
+    expect(
+      chartSummary('Events', bars, (index) => ({ label: `d${index}`, value: '' }), t.chartPeak),
+    ).toBe(t.chartPeak('Events', 'd2'));
+
+    const view = await render(
+      <ActivityDetailView bot={bot} load={async (query) => answer(query)} />,
+    );
+    const charts = [...view.querySelectorAll('[role="adjustable"]')];
+    expect(charts).toHaveLength(2);
+    const day = weekdayLabel(TODAY);
+    expect(charts[1]!.getAttribute('aria-label')).toContain(t.chartPeak('', day).trim());
+    expect(charts[1]!.textContent).not.toContain(t.activityCount(1));
+    await act(async () =>
+      charts[1]!.querySelector<HTMLButtonElement>(`[data-testid="day-bar-${TODAY}"]`)!.click(),
+    );
+    expect(charts[1]!.textContent).toContain(t.activityCount(1));
   });
 });

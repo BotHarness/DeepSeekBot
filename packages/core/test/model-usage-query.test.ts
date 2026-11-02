@@ -156,7 +156,7 @@ describe('observed model usage through the Profile query', () => {
   });
 
   it('does not accept a total that contradicts the reported buckets', () => {
-    const { methods, dm, fold } = setup();
+    const { methods, dm, fold, usage, time } = setup();
     fold({ inputTokens: 100, outputTokens: 40, cacheReadTokens: 10, totalTokens: 10 });
     const result = methods.profileActivity({ channelId: dm.id });
     if (!result.ok) throw new Error(result.error.message);
@@ -165,7 +165,14 @@ describe('observed model usage through the Profile query', () => {
       outputTokens: 40,
       cacheReadTokens: 10,
       cacheWriteTokens: null,
-      totalTokens: null,
+      totalTokens: 150,
+      partial: true,
+    });
+    const day = usageLocalDay(time);
+    expect(usage.query('ada', { start: day, end: day })).toMatchObject({
+      periodTotal: null,
+      allTimeTotal: null,
+      rows: [expect.objectContaining({ totalTokens: null, cacheWriteTokens: null })],
     });
   });
 
@@ -475,8 +482,8 @@ describe('observed model usage through the Profile query', () => {
     ]);
   });
 
-  it('marks invalid explicit provider counts unknown without replacing them with a computed total', () => {
-    const { methods, dm, fold } = setup();
+  it('keeps invalid totals unknown in strict queries while Profile retains the reported lower bound', () => {
+    const { methods, dm, fold, usage, time } = setup();
     fold({
       inputTokens: 100,
       outputTokens: 40,
@@ -486,7 +493,17 @@ describe('observed model usage through the Profile query', () => {
     });
     const result = methods.profileActivity({ channelId: dm.id });
     if (!result.ok) throw new Error(result.error.message);
-    expect(result.value.modelUsageRows[0]).toMatchObject({ totalTokens: null, inputTokens: 100 });
+    expect(result.value.modelUsageRows[0]).toMatchObject({
+      totalTokens: 155,
+      inputTokens: 100,
+      partial: true,
+    });
+    const day = usageLocalDay(time);
+    expect(usage.query('ada', { start: day, end: day })).toMatchObject({
+      periodTotal: null,
+      allTimeTotal: null,
+      rows: [expect.objectContaining({ totalTokens: null, inputTokens: 100 })],
+    });
   });
 
   it('rejects a non-DM channel rather than exposing other usage', () => {

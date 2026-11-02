@@ -4,6 +4,12 @@
 
 > One-click update and restart ship in the releases after DeepSeekBot 1.0.2. If you are on 1.0.2 or earlier, update once by hand as described under "Update by hand" below; after that, Settings does it for you.
 
+## Automatic compatible-update notices
+
+The update-notice change in [#2173](https://github.com/BotHarness/DeepSeekBot/issues/2173) checks for compatible releases when you enter Bot mode. The modal distinguishes your running DeepSeekBot version, your DSH version and the exact offered version. It waits for onboarding and installed-version release notes. Dismissing a target suppresses its automatic notice in that local Profile; **Bot settings → About** still offers it, and a newer target can notify again. Offline or incomplete checks never mean “up to date”.
+
+Published 1.3.1 and older Clients do not gain this code when a new npm version appears. Use their existing **Bot settings → DeepSeekBot version → Check for updates**, or the manual command below, for the first transition. Unpublished 1.4.0 test metadata is not evidence that 1.4.0 is available. DSH Desktop's own update badge refers to DSH, not DeepSeekBot.
+
 ## Check your version
 
 Open **Settings → Bot settings** and scroll to **DeepSeekBot version**. It shows the running version. **Check for updates** queries npm again, and **Changelog** opens the [changelog](https://deepseekbot.botharness.ai/en/changelog/) on the website.
@@ -51,9 +57,15 @@ If there is no **Update now** button, or the one-click update fails, run this in
 dsh plugin --profile web add deepseekbot@<version>
 ```
 
-Replace `<version>` with the version to install, for example `deepseekbot@1.0.3`. The update card in Settings shows the full command ready to copy. Then restart DSH: for the web app, press Ctrl+C in its terminal and run the same `dsh web` command again, keeping any options you started it with, such as `--port`; for the desktop app, quit it completely and open it again.
+Replace `<version>` with the version to install. The update card in Settings shows the full command ready to copy; the [installation guide](https://tobs.app/en/docs/installation/) also provides the current verified package. Then restart DSH: for the web app, press Ctrl+C in its terminal and run the same `dsh web` command again, keeping any options you started it with, such as `--port`; for the desktop app, quit it completely and open it again.
 
 The DSH Plugins page cannot upgrade an installed plugin yet. To update the desktop app by hand, use the same command with `web` replaced by the desktop profile name: the folder name under `profiles/` in the DSH data directory (`~/.dsh` by default).
+
+On DSH 0.2.1, **Update now** in DeepSeekBot 1.4.1 and earlier reports that the update failed: the DSH Plugin Manager refuses to overwrite an installed package. Later versions upgrade in place from the npm package tarball, and the page reloads without a restart. While you are on 1.4.1 or earlier, update once by hand with the command in this section; for the desktop app, fully quit DSH first and use the `desktop` profile.
+
+## Update other BotHarness plugins
+
+Other BotHarness plugins, such as VRM Companion, are listed under **Bot settings → Plugins** with their installed version. When a newer version works with your DSH, the row shows **Update now**. Some updates load right away and the page reloads by itself. Others need a restart: the page says so, with a **Restart now** button when DSH can restart itself (the web app); otherwise restart it as described above. If this DSH cannot install the update from the page, or the install fails, the row shows the terminal command for updating by hand instead, for example `dsh plugin --profile web add @botharness/vrm-companion@<version>`.
 
 ## Troubleshooting
 

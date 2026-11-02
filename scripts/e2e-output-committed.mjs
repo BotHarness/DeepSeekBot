@@ -114,7 +114,7 @@ if (phase === 'send') {
     await rpc('create', {
       displayName: 'Output QA ' + stamp,
       persona:
-        'Use channel_send only to send exactly the strings requested by the Human, to the specified Channel. Do not add any other messages or acknowledgements. Never use other tools, delegate or modify files.',
+        'Use bot_send_message only to send exactly the strings requested by the Human, to the specified Channel. Do not add any other messages or acknowledgements. Never use other tools, delegate or modify files.',
     })
   ).bot;
   await rpc('modelPresetApply', { slug: bot.slug, presetId: preset.id });
@@ -133,7 +133,7 @@ if (phase === 'send') {
   await rpc('channelSend', {
     channelId: dm.id,
     body:
-      'Use channel_send to send exactly "DM output verified" to this DM, then exactly "Group output verified" to Channel ' +
+      'Use bot_send_message to send exactly "DM output verified" to this DM, then exactly "Group output verified" to Channel ' +
       group.id +
       '. Send no other messages.',
   });
@@ -149,12 +149,12 @@ if (phase === 'send') {
   assert.equal(initial.filtered.length, 1);
   await rpc('channelSend', {
     channelId: dm.id,
-    body: 'Use channel_send to send exactly "dispose neutral listener" to this DM. Send no other messages.',
+    body: 'Use bot_send_message to send exactly "dispose neutral listener" to this DM. Send no other messages.',
   });
   await waitFor(() => readProof().consumerDisposed, 'Consumer Fiber disposed');
   await rpc('channelSend', {
     channelId: dm.id,
-    body: 'Use channel_send to send exactly "cleanup proof" to this DM. Send no other messages.',
+    body: 'Use bot_send_message to send exactly "cleanup proof" to this DM. Send no other messages.',
   });
   await waitFor(
     () => readProof().events.some((row) => row.event.content.body === 'cleanup proof'),
@@ -169,7 +169,10 @@ if (phase === 'send') {
   assert.equal(new Set(proof.events.map((row) => row.event.messageId)).size, 4);
   const snapshot = await nativeSnapshot(proof.events[0].event.sessionId);
   const nativeText = JSON.stringify(snapshot);
-  assert.ok(nativeText.includes('channel_send'), 'native Session has actual channel_send calls');
+  assert.ok(
+    nativeText.includes('bot_send_message'),
+    'native Session has actual bot_send_message calls',
+  );
   proof.nativeChannelSend = true;
   writeFileSync(resolve(evidence, 'before-restart-proof.json'), JSON.stringify(proof, null, 2));
   console.log(
@@ -196,7 +199,7 @@ if (phase === 'send') {
     );
   await rpc('channelSend', {
     channelId: scene.dm,
-    body: 'Use channel_send to send exactly "restart output verified" to this DM. Send no other messages.',
+    body: 'Use bot_send_message to send exactly "restart output verified" to this DM. Send no other messages.',
   });
   await waitFor(
     () => readProof().events.some((row) => row.event.content.body === 'restart output verified'),

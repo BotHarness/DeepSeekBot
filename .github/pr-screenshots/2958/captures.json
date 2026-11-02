@@ -1,0 +1,216 @@
+{
+  "environment": "Physical POCO 24069PC21G, Android 16, zh-CN, 1220×2712, density 480",
+  "beforeBuild": "Development client, loaded baseline JavaScript; native controls rendered on phone",
+  "afterBuild": "Non-debuggable development-ID Release; SHA256 3014fccfa7dbf4ee150f072ddb5ef2fa4362e4bfc6364541b482fa416a3ae027",
+  "pairs": [
+    {
+      "page": "identity",
+      "fontScale": 1,
+      "theme": "light",
+      "before": {
+        "file": "b-i-10-l.png",
+        "source": "1cc640dd2cc9af76c3c3ff1885f6b64d593699ef",
+        "time": "2026-10-27T09:29:53.6713043Z",
+        "sha256": "67ff0e56d2490aac5b75d1b33b6afe8d57da128db87eece153c151dcce0df36f",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      },
+      "after": {
+        "file": "a-i-10-l.png",
+        "source": "b7ade24bcd5a3fa4c5cd3ca0ca8c67194a158462",
+        "time": "2026-10-27T11:17:26.2026239Z",
+        "sha256": "ad5577927acdcda522dabfe6030bcfc88783c0324857e6809a789b0027fb78da",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      }
+    },
+    {
+      "page": "persona",
+      "fontScale": 1,
+      "theme": "light",
+      "before": {
+        "file": "b-p-10-l.png",
+        "source": "1cc640dd2cc9af76c3c3ff1885f6b64d593699ef",
+        "time": "2026-10-27T09:30:02.8721587Z",
+        "sha256": "d63344c3174305257811b7ee96310b5766c83cff86ac5fd08885276c964598a2",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      },
+      "after": {
+        "file": "a-p-10-l.png",
+        "source": "b7ade24bcd5a3fa4c5cd3ca0ca8c67194a158462",
+        "time": "2026-10-27T11:17:35.0424586Z",
+        "sha256": "d710c004fdb5cfa2f7adc7e7b1daece3a364181d9d58c40698785ae9642e2564",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      }
+    },
+    {
+      "page": "persona",
+      "fontScale": 1,
+      "theme": "dark",
+      "before": {
+        "file": "b-p-10-d.png",
+        "source": "1cc640dd2cc9af76c3c3ff1885f6b64d593699ef",
+        "time": "2026-10-27T09:30:49.2410824Z",
+        "sha256": "674383f1647e4e17d2cff1b40141e7e3d597df407284992fc68eeb11df9e313a",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      },
+      "after": {
+        "file": "a-p-10-d.png",
+        "source": "b7ade24bcd5a3fa4c5cd3ca0ca8c67194a158462",
+        "time": "2026-10-27T11:17:13.9767416Z",
+        "sha256": "87a1e24ea24913f3fc684a5ec536d42dccee86724591b82448ebb34ca79d9adc",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      }
+    },
+    {
+      "page": "identity",
+      "fontScale": 1.3,
+      "theme": "light",
+      "before": {
+        "file": "b-i-13-l.png",
+        "source": "1cc640dd2cc9af76c3c3ff1885f6b64d593699ef",
+        "time": "2026-10-27T09:35:09.1206546Z",
+        "sha256": "1e64b7cd5cb498c4777436b06a8ff08f1ecdcebe1397f3056cae93e49e7cbb90",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      },
+      "after": {
+        "file": "a-i-13-l.png",
+        "source": "b7ade24bcd5a3fa4c5cd3ca0ca8c67194a158462",
+        "time": "2026-10-27T11:18:10.0375684Z",
+        "sha256": "cfed9f85aaf04d7d32b2c9908d0ed1330976ac075a5e77dc95f03d15f5a9a00f",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      }
+    },
+    {
+      "page": "persona",
+      "fontScale": 1.3,
+      "theme": "light",
+      "before": {
+        "file": "b-p-13-l.png",
+        "source": "1cc640dd2cc9af76c3c3ff1885f6b64d593699ef",
+        "time": "2026-10-27T09:35:18.5091201Z",
+        "sha256": "5537446235ae06d7e7d8f921382dd0f32528bab032a3fc03e7d549eca4d90244",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      },
+      "after": {
+        "file": "a-p-13-l.png",
+        "source": "b7ade24bcd5a3fa4c5cd3ca0ca8c67194a158462",
+        "time": "2026-10-27T11:18:18.9438175Z",
+        "sha256": "17db8a077d0ba4b7eb236867fee6d13ea16ce712415d8b59d9bf58c122d60a9a",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      }
+    },
+    {
+      "page": "identity",
+      "fontScale": 1.3,
+      "theme": "dark",
+      "before": {
+        "file": "b-i-13-d.png",
+        "source": "1cc640dd2cc9af76c3c3ff1885f6b64d593699ef",
+        "time": "2026-10-27T09:34:41.2443259Z",
+        "sha256": "124d9d655889083d2b58113c8fdba01df9d98de2fa7d817579ce90a84794da03",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      },
+      "after": {
+        "file": "a-i-13-d.png",
+        "source": "b7ade24bcd5a3fa4c5cd3ca0ca8c67194a158462",
+        "time": "2026-10-27T11:17:48.6304334Z",
+        "sha256": "08d67c71c4516cfac31074f1210324998a1e58ec907f130f7e6b40e7745f99b2",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      }
+    },
+    {
+      "page": "persona",
+      "fontScale": 1.3,
+      "theme": "dark",
+      "before": {
+        "file": "b-p-13-d.png",
+        "source": "1cc640dd2cc9af76c3c3ff1885f6b64d593699ef",
+        "time": "2026-10-27T09:34:50.6046739Z",
+        "sha256": "39f24a053fc67086be0d15580945cd55b86000c381185e2d7fef68e09adfa557",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      },
+      "after": {
+        "file": "a-p-13-d.png",
+        "source": "b7ade24bcd5a3fa4c5cd3ca0ca8c67194a158462",
+        "time": "2026-10-27T11:17:57.7000918Z",
+        "sha256": "9e61e705625d93a0c90687fbb6ac3afe57b1afa26242159ec13a05612446abdd",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      }
+    },
+    {
+      "page": "identity",
+      "fontScale": 2,
+      "theme": "light",
+      "before": {
+        "file": "b-i-20-l.png",
+        "source": "1cc640dd2cc9af76c3c3ff1885f6b64d593699ef",
+        "time": "2026-10-27T09:36:06.2095291Z",
+        "sha256": "3074128de6f8475fe28a6ba3523bc05b553cbc5640c17bfbca6f3a9bf4e20e21",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      },
+      "after": {
+        "file": "a-i-20-l.png",
+        "source": "b7ade24bcd5a3fa4c5cd3ca0ca8c67194a158462",
+        "time": "2026-10-27T11:18:53.3767091Z",
+        "sha256": "7745f277c69d431cc0ccb7e5f3ca34ac67420241a6f37c28f8db4ea0e198fdd0",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      }
+    },
+    {
+      "page": "persona",
+      "fontScale": 2,
+      "theme": "light",
+      "before": {
+        "file": "b-p-20-l.png",
+        "source": "1cc640dd2cc9af76c3c3ff1885f6b64d593699ef",
+        "time": "2026-10-27T09:36:15.8450706Z",
+        "sha256": "0133563fe533637f86a6185b5990fb07ea04799218e56baa3f134c3742da2077",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      },
+      "after": {
+        "file": "a-p-20-l.png",
+        "source": "b7ade24bcd5a3fa4c5cd3ca0ca8c67194a158462",
+        "time": "2026-10-27T11:19:02.7654220Z",
+        "sha256": "4db3ea8dc5f4d94f13fe299e0200ac0ed35b442a82129929f0acb4450aadcfbf",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      }
+    },
+    {
+      "page": "identity",
+      "fontScale": 2,
+      "theme": "dark",
+      "before": {
+        "file": "b-i-20-d.png",
+        "source": "1cc640dd2cc9af76c3c3ff1885f6b64d593699ef",
+        "time": "2026-10-27T09:35:37.8198415Z",
+        "sha256": "1b81c56b637e142f9ac4613315710ce9f98202e6e6b5264b07d0b29887b1e3d5",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      },
+      "after": {
+        "file": "a-i-20-d.png",
+        "source": "b7ade24bcd5a3fa4c5cd3ca0ca8c67194a158462",
+        "time": "2026-10-27T11:18:31.7576195Z",
+        "sha256": "0199cc06d3beaec20639872238fb63203b1f55d4634b09994647aa1dba063705",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      }
+    },
+    {
+      "page": "persona",
+      "fontScale": 2,
+      "theme": "dark",
+      "before": {
+        "file": "b-p-20-d.png",
+        "source": "1cc640dd2cc9af76c3c3ff1885f6b64d593699ef",
+        "time": "2026-10-27T09:35:47.2279702Z",
+        "sha256": "3c562473b12b9379862445c58e70f7040852036a6a75f9af6c64c0b1c049ffd0",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      },
+      "after": {
+        "file": "a-p-20-d.png",
+        "source": "b7ade24bcd5a3fa4c5cd3ca0ca8c67194a158462",
+        "time": "2026-10-27T11:18:40.7004317Z",
+        "sha256": "226d8401b66ff115b36f0fe3a527da306456902859815196abe64e4664536863",
+        "processing": "Status bar cropped; resized proportionally; UI unchanged."
+      }
+    }
+  ]
+}

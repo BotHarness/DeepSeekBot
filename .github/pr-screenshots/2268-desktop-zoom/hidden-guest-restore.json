@@ -1,0 +1,120 @@
+{
+  "sourceCommit": "24cfc1b1f9a7d1d2c5aabf03c3c961c28ca41483",
+  "status": "ready",
+  "createdVisibility": "hidden",
+  "resizedHidden": true,
+  "initialViewport": [1261, 820],
+  "initialZoom": "1",
+  "baseline": {
+    "id": 2,
+    "zoom": 1,
+    "inside": {
+      "value": "保留输入",
+      "ruler": 100
+    },
+    "viewport": [1261, 820],
+    "createdVisibility": "hidden"
+  },
+  "final": {
+    "id": 2,
+    "zoom": 1,
+    "inside": {
+      "value": "保留输入",
+      "ruler": 100
+    },
+    "viewport": [1261, 820],
+    "windowZoom": "1"
+  },
+  "events": [
+    {
+      "event": "visibility",
+      "visibility": "visible",
+      "time": 1525331
+    },
+    {
+      "event": "foreground-frame",
+      "visibility": "visible",
+      "time": 1525354.2000000477,
+      "viewport": [1261, 820],
+      "zoom": "1"
+    },
+    {
+      "event": "visibility",
+      "visibility": "hidden",
+      "time": 1553531.8000001907
+    },
+    {
+      "event": "guest-resized-hidden",
+      "visibility": "hidden",
+      "time": 1554459.100000143
+    },
+    {
+      "event": "guest-ready",
+      "visibility": "hidden",
+      "time": 1554459.100000143,
+      "id": 2
+    },
+    {
+      "event": "visibility",
+      "visibility": "visible",
+      "time": 1564054.5
+    },
+    {
+      "event": "foreground-frame",
+      "visibility": "visible",
+      "time": 1564072.7000000477,
+      "viewport": [1261, 820],
+      "zoom": "1"
+    },
+    {
+      "event": "visibility",
+      "visibility": "hidden",
+      "time": 1567765.2000000477
+    },
+    {
+      "event": "visibility",
+      "visibility": "visible",
+      "time": 1570106.600000143
+    },
+    {
+      "event": "foreground-frame",
+      "visibility": "visible",
+      "time": 1570120.8000001907,
+      "viewport": [1261, 820],
+      "zoom": "1"
+    },
+    {
+      "event": "visibility",
+      "visibility": "hidden",
+      "time": 1571582.100000143
+    }
+  ],
+  "navigation": [
+    {
+      "event": "navigate",
+      "visibility": "hidden",
+      "location": "initial-lease"
+    },
+    {
+      "event": "navigate",
+      "visibility": "hidden",
+      "location": "local-fixture"
+    }
+  ],
+  "domReady": [
+    {
+      "event": "dom-ready",
+      "visibility": "hidden"
+    },
+    {
+      "event": "dom-ready",
+      "visibility": "hidden"
+    }
+  ],
+  "failures": [],
+  "sameGuest": true,
+  "inputRetained": true,
+  "nativeZoomUnchanged": true,
+  "windowGeometryUnchanged": true,
+  "humanQA": "色条和输入都正常显示"
+}

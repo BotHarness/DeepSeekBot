@@ -59,11 +59,12 @@ export function ModelPicker({
         label={title}
         toggleLabel={t('modelPreset.showModels')}
         placeholder={
-          entry === undefined ? t('modelPreset.routeUnavailable') : t('modelPreset.chooseModel')
+          options.find((option) => option.value === choice.key)?.label ??
+          (entry === undefined ? t('modelPreset.routeUnavailable') : t('modelPreset.chooseModel'))
         }
         emptyLabel={t('modelPreset.noMatch')}
         disabled={disabled}
-        invalid={entry === undefined}
+        invalid={entry === undefined && !options.some((option) => option.value === choice.key)}
       />
       {entry !== undefined && efforts.length > 1 && (
         <div className="bh-model-picker-effort">

@@ -1,0 +1,41 @@
+{
+  "runtimeSha": "416ac3bec6f5ce095220feb84f09538ea7e748db",
+  "cloudRuntimeSha": "3eeed5b05782276b1a02cc2412dd04ab0ec60bca",
+  "environment": "UAT",
+  "wakeBoundary": {
+    "runtime": "416ac3bec",
+    "explicitOrdinaryImmediate": true,
+    "localGroupWakeAll": true,
+    "plainAndDeniedRequestVisibleInLocalGroup": true,
+    "modelTurnUnchanged": true,
+    "cursor": 7,
+    "policyRestoration": "restored"
+  },
+  "localRemoval": {
+    "cursor": 7,
+    "credentialRemoved": true,
+    "sequence": 8,
+    "disabledCursorStable": true,
+    "restoredWithEmptyPolicy": true,
+    "resumedHistory": true
+  },
+  "checkpointReplay": {
+    "runtime": "416ac3bec6f5ce095220feb84f09538ea7e748db",
+    "fault": "own Host SIGKILL immediately before cursor update, external Node preload",
+    "interrupted": {
+      "sources": 1,
+      "admissions": 1,
+      "cursor": 8
+    },
+    "recovered": {
+      "sources": 1,
+      "admissions": 1,
+      "cursor": 9
+    },
+    "modelTurnUnchanged": true,
+    "policyRestoration": "restored",
+    "cleanupCorrection": "invalid --inherit on messaging-group-policy corrected to documented stdin inheritance"
+  },
+  "scope": "Two isolated real DSH Hosts; no bounded work executor or model forwarding yet",
+  "sourceCI": "https://github.com/BotHarness/DeepSeekBot/actions/runs/39093482065"
+}

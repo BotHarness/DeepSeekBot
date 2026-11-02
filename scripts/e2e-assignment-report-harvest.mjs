@@ -63,7 +63,7 @@ if (phase === 'prepare') {
     await rpc('create', {
       displayName: 'Report harvest QA ' + stamp,
       persona:
-        'Follow the Human exactly. Use only the requested single Assignment. Never use Shell in the Orchestrator, approve tools, modify files or create subagents. After creation send only REPORT_BATCH_CREATED via channel_send and end. When the completed Assignment Report arrives send only REPORT_BATCH_DONE via channel_send, then end. Do not send progress summaries to the Channel, and do not send completion before the completed Report.',
+        'Follow the Human exactly. Use only the requested single Assignment. Never use Shell in the Orchestrator, approve tools, modify files or create subagents. After creation send only REPORT_BATCH_CREATED via bot_send_message and end. When the completed Assignment Report arrives send only REPORT_BATCH_DONE via bot_send_message, then end. Do not send progress summaries to the Channel, and do not send completion before the completed Report.',
     })
   ).bot;
   await rpc('modelPresetApply', { slug: bot.slug, presetId: preset.id });
@@ -86,7 +86,7 @@ if (phase === 'prepare') {
     body:
       'Create exactly one Assignment using grant_id ' +
       grant.id +
-      ' with purpose: Report harvest acceptance. Assignment must first call report_to_orchestrator state progress summary REPORT_PROGRESS_ONE, then call it again state progress summary REPORT_PROGRESS_TWO; next invoke native Shell exactly once with command node -e "setTimeout(() => {}, 1000)" and description "Report harvest QA timer", awaiting Human approval; ONLY after the timer succeeds call report_to_orchestrator state completed summary REPORT_BATCH_DONE. No files, subagents or extra Reports. After creation you must send only REPORT_BATCH_CREATED via channel_send and end. Wait for the completed Report before sending REPORT_BATCH_DONE. Never approve tools or use Shell yourself.',
+      ' with purpose: Report harvest acceptance. Assignment must first call report_to_orchestrator state progress summary REPORT_PROGRESS_ONE, then call it again state progress summary REPORT_PROGRESS_TWO; next invoke native Shell exactly once with command node -e "setTimeout(() => {}, 1000)" and description "Report harvest QA timer", awaiting Human approval; ONLY after the timer succeeds call report_to_orchestrator state completed summary REPORT_BATCH_DONE. No files, subagents or extra Reports. After creation you must send only REPORT_BATCH_CREATED via bot_send_message and end. Wait for the completed Report before sending REPORT_BATCH_DONE. Never approve tools or use Shell yourself.',
   });
   scene.sessionId = (
     await waitFor(async () => (await assignmentRows())[0], 'owned Assignment')

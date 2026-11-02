@@ -1,0 +1,590 @@
+{
+  "source": "a13e23d791e7eb065a4c25a188f45326023b98be",
+  "nativeBuildSource": "43bf7b4a000566ff97316e61e48cb54979d2f582",
+  "device": "iPhone18ProMax Simulator",
+  "os": "iOS27",
+  "locale": "zh-Hans",
+  "capturePolicy": "Native screenshots or unscaled video frames; opaque privacy masks only; originals retained privately. Theme-transition frames excluded when settled replacements exist.",
+  "captures": [
+    {
+      "file": "ios-A1-light.png",
+      "sourceCapture": "ios-A1-clean-light.png",
+      "sourceSHA256": "8eb4b3bf587f973fcc3533eb0fd3911949a73378cf24e235a8a50eeb83c85ce6",
+      "sha256": "39a35dd4c8e59e01d5fc9dcfe778ff7aa556d4d1e6ed9db64f510af44cba12dd",
+      "pixels": [440, 956],
+      "redactions": [[74, 172, 262, 201]],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-A1-dark.png",
+      "sourceCapture": "ios-A1-clean-dark.png",
+      "sourceSHA256": "96d4e82fd5b804a86a641162772ec2bea8d11082d908d0f80406bcab08ba8fc1",
+      "sha256": "14769541651cbafd3c3442276a1f3c43ed8b921aaf27b6fd3db6a90d39d267a4",
+      "pixels": [440, 956],
+      "redactions": [[74, 172, 262, 201]],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-A2-light.png",
+      "sourceCapture": "ios-A2-clean-light.png",
+      "sourceSHA256": "103d6956a0d8cb051a19ceba44e84a088657147547f18acc82ee21f3c90ead2f",
+      "sha256": "7baecbce185ae7122359b35967b380504baf39023c5606112746548e9c67bc8b",
+      "pixels": [440, 956],
+      "redactions": [[74, 172, 262, 201]],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-A2-dark.png",
+      "sourceCapture": "ios-A2-clean-dark.png",
+      "sourceSHA256": "164f651fc2807f86d5a187fbe7704c1ac96e5152401cdb416d87819e6b9713c9",
+      "sha256": "5ad574dd604a4fd15d8dfe9eeb5b70683aa61edc3b14940ed3590a4a7da362cb",
+      "pixels": [440, 956],
+      "redactions": [[74, 172, 262, 201]],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-A3-light.png",
+      "sourceCapture": "ios-A3-clean-light.png",
+      "sourceSHA256": "1f45257b4f29f4a88e3fb350fbacc4ea7adfca0267195c400790cee94212d684",
+      "sha256": "a22699e120af401f8be8e1e50c92b0bd49d2d9dbd8c10502471e8a9d1dbe5d6e",
+      "pixels": [440, 956],
+      "redactions": [[74, 172, 262, 201]],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-A3-dark.png",
+      "sourceCapture": "ios-A3-clean-dark.png",
+      "sourceSHA256": "dbc66eab8f509e91f2d674ed1b79b95c0c09647e2b0b261e3d1455e4cfe86ef2",
+      "sha256": "ce02cb85c272fea431121c32f077460672b5e1e0069a9bcf64b3c45c49911457",
+      "pixels": [440, 956],
+      "redactions": [[74, 172, 262, 201]],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B1-light.png",
+      "sourceCapture": "settled-B1-light.png",
+      "sourceSHA256": "e1ab3bf2db3211732e3f2ffce0aebb30944c59aa0e3acf38bad8c2c9b59cde91",
+      "sha256": "a277df6682bc27b208af254c93f63cb3a3831146479f6cc0a5f4383ee5963645",
+      "pixels": [440, 956],
+      "redactions": [
+        [29, 199, 374, 227],
+        [29, 258, 374, 286],
+        [29, 317, 374, 345]
+      ],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B1-dark.png",
+      "sourceCapture": "settled-B1-dark.png",
+      "sourceSHA256": "eba3f3ee29dbd6ab8311f19cc12fb841b0b66f48346bd8941b0d710b55c5ab49",
+      "sha256": "d4cea5abbf4f7929df4137e2b08f65af38528666cfea32f4ed33aa261324448d",
+      "pixels": [440, 956],
+      "redactions": [
+        [29, 199, 374, 227],
+        [29, 258, 374, 286],
+        [29, 317, 374, 345]
+      ],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B4-light.png",
+      "sourceCapture": "settled-B4-keyboard-light.png",
+      "sourceSHA256": "0829fda5d6bab0d1300d6a9d81b517b43d254a9d86d556ed09aa92acc84bb075",
+      "sha256": "26a7fbabc3a5ea61d1a1868033d507731e5655636d3754c270e33d180d70a109",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B4-dark.png",
+      "sourceCapture": "settled-B4-keyboard-dark.png",
+      "sourceSHA256": "288ecdeecdc0083e28f9dc49edb517cc8db1498f882ed596e48da7305321bbba",
+      "sha256": "d74f96553903851e234915c8831305ddc78bfc05653657d28dc1437720ff7061",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B6-light.png",
+      "sourceCapture": "settled-B6-light.png",
+      "sourceSHA256": "94df15ec9049ecbe0f72570ad7c9fee7828b9dc10a8c5634dbbf7b39ae441be1",
+      "sha256": "a115a516a32e3d57a2999c49a014e1b30973e399d504e7501f8cc8df16614ec3",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B6-dark.png",
+      "sourceCapture": "settled-B6-dark.png",
+      "sourceSHA256": "490f8825486de52c3a36ad6926bccbe8d3e57007ade44e33a83e0e251222b592",
+      "sha256": "8752c7d305ffb85d771170a8cacf8aa9cf9d3358d677cdcbc71e4395334e78ff",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B6-max-light.png",
+      "sourceCapture": "settled-B6-max-light.png",
+      "sourceSHA256": "338d9821f227c400c97d826cb471dcd3598182abc627ac7b219ab57691269c65",
+      "sha256": "cf19a24df0ba18d053ca88d3090d64319ffb3b0b12dcecdafb3d9d62b5a8b180",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B6-max-dark.png",
+      "sourceCapture": "settled-B6-max-dark.png",
+      "sourceSHA256": "98b374a0c9b32c0c61d5d009d8d03eb6de4d84aa32bdab098b101d699cfd15e6",
+      "sha256": "a96292b9bd7b25fcaf385f3305147082c198a0538bc26158797a864158f8c589",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B8-light.png",
+      "sourceCapture": "ios-B8-light.png",
+      "sourceSHA256": "65d5e1e712e2876c6c6651a2a23821363f239d9867010f4584dcf62cb3cf51e7",
+      "sha256": "135db710ec6ecfcf806aaa50494c85d430f0b21a5866ae2c6a362c68bb6a1e5b",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B8-dark.png",
+      "sourceCapture": "ios-B8-dark.png",
+      "sourceSHA256": "d9d13112c42a09219599faaf4342a182f274d6c455823f3a292a41096cbd5284",
+      "sha256": "f61d456ba08b9a60d94c0f24aa3a40651b6bcc5f80f68c28ad35f5cbeb0c1d21",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B9-error-light.png",
+      "sourceCapture": "ios-B9-error-light.png",
+      "sourceSHA256": "1bb5f2bd2710e4e522b546a328dbbb899d8cd9e84c24a6e088cfe6a9c543e0a6",
+      "sha256": "75fda0b1e8cd401c64ec7d33a89d1c2079791c9780ae9233f0adb30a64f84163",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B9-error-dark.png",
+      "sourceCapture": "ios-B9-error-dark.png",
+      "sourceSHA256": "48e159a520899e291332b8371f5726cd89e58bbf7a474610429bbeb613706904",
+      "sha256": "780bb4931ecbeee69f7ed80d7d0a3b1eddb99287cbdd5fcb00e76d7655346298",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-C1-light.png",
+      "sourceCapture": "settled-C1-light.png",
+      "sourceSHA256": "3dd8c3f8812b27a5e5ce5d8ae936783fac58da414b839bd33b766f0bd500db96",
+      "sha256": "328739271094abcea478acfd3cd1da9c50fa3f8a4d8930a3e723e13b422fa048",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-C1-dark.png",
+      "sourceCapture": "settled-C1-dark.png",
+      "sourceSHA256": "6b84998ef70a66ed029c790cdb1b1684b3cea2b151b83a968965a67dc281222a",
+      "sha256": "7fa4e5271be68b1574533f79c3513acd53300b663d33e311746eef00310be4f7",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-C3-light.png",
+      "sourceCapture": "settled-C3-light.png",
+      "sourceSHA256": "1bba0dce4fc066db623d7ce6e784a8dfca21118540f71ebe5c434d83927eb4a5",
+      "sha256": "603a9b443f0aad243f4ce68daa32dea9b0962ddf6551190d49746b89f84ca8ba",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-C3-dark.png",
+      "sourceCapture": "settled-C3-dark.png",
+      "sourceSHA256": "0a1b1d6de969f0f6ee1043b136435b686b0304e5997eaf708603d72c5624c289",
+      "sha256": "1e051c1abb9fc404216d6df465b6d0ecf02b8dd0b93cd939624d4d4f0ba94768",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-C4-light.png",
+      "sourceCapture": "settled-C4-light.png",
+      "sourceSHA256": "3ce2353f1fa96cb175c8707879c5aa409f10d79dd27c32938e6d0c11ee175c17",
+      "sha256": "f34150b86c4e3710a0e8400bb7a2be94cdd880944bc96f36de3881e04898222e",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-C4-dark.png",
+      "sourceCapture": "settled-C4-dark.png",
+      "sourceSHA256": "41066ea6077405275ba8981f0c538f66baa7e19d8f99e6b4dc410a755b5c05c0",
+      "sha256": "ae2c539579afeafe990bec74da842b13180919ca9bfbc9c1059e4eaeb4d1535f",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-C4-final-light.png",
+      "sourceCapture": "settled-C4-final-light.png",
+      "sourceSHA256": "928179708fa7298ee51e932707622dfa764144ab3dd9a969a90d20fdd370baa5",
+      "sha256": "b064ccfc91c1690fc1b352d52ce468e3163e0dd156bb2ee4692e679829711e7e",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-C4-final-dark.png",
+      "sourceCapture": "settled-C4-final-dark.png",
+      "sourceSHA256": "f57d8d91ceac83744e02fbcb26b730a9176ba25eb0fde3e0ea9497fa0b26ee25",
+      "sha256": "77b72f7d89405977e68a7420f59b7e5ea83f34a0c2b110458d47c639aeb6c4be",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-D1-light.png",
+      "sourceCapture": "settled-D1-light.png",
+      "sourceSHA256": "8a3cb3e20b0de71ee15513c642441d89f5b2c9aea2729b4515fcf6ef8d0444a6",
+      "sha256": "948b738df251fa0f42d69d993599f3824c53968c72315689b6a127365eb19040",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-D1-dark.png",
+      "sourceCapture": "settled-D1-dark.png",
+      "sourceSHA256": "7bb9503afaa8c31cdd4a430e023f76943b70946d4adc965c7730cc0cf64dbcb5",
+      "sha256": "1059b3f417ba13ee03a0fef0423f17bcf226650a396256cb5131d0021b6731bc",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-D1-picker-light.png",
+      "sourceCapture": "ios-D1-picker-light.png",
+      "sourceSHA256": "2ff8362b0f4a55df44ceb0a4bd16bcba710633d8793a5478b1032f51e61f0ab8",
+      "sha256": "e6342deadca3db46a10f5270f197108dde4a64acfc350f057fa3a04c3d969f38",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-D1-picker-dark.png",
+      "sourceCapture": "ios-D1-picker-dark.png",
+      "sourceSHA256": "3ad100769ea9f610fa728f9d1cbf3dd6d688dbfca2c6ad751d3afc6dd6d3b65a",
+      "sha256": "2181720d8adca8c2e8735df230fe5f96ef2a78bed244a4d6b17f6480cdd591aa",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-D2-name-light.png",
+      "sourceCapture": "settled-D2-name-light.png",
+      "sourceSHA256": "adb680e099d2a6805369d6073d082a6eb05f5f6a75b3a9b7e27e74b2aa023350",
+      "sha256": "c09a8548f10506d92f0790612ce86d1f9f81ebb348028d6d8225c5c882eb3811",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-D2-name-dark.png",
+      "sourceCapture": "settled-D2-name-dark.png",
+      "sourceSHA256": "df8ceb6b18d86ed68b5c109c0d61875e7207bd4afd70eac2df1bcca6de681a4e",
+      "sha256": "c173d8a326fae294674b2c559cfa74bb34f790544202bf14bbf1d03e526bfd98",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-D2-details-light.png",
+      "sourceCapture": "settled-D2-details-light.png",
+      "sourceSHA256": "9fd2746acc3decd4d45255ca88dfe8188cfba126e72589cdccbd3b20e9ce1398",
+      "sha256": "1774460b226c409a3bc34b7212c5e703430d142fa2f7920dd43037dc47f01621",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-D2-details-dark.png",
+      "sourceCapture": "settled-D2-details-dark.png",
+      "sourceSHA256": "6d9ae9a17c124ad4d193aca2b665554da9dbdf0986a0636f0c2a2e12903d55fb",
+      "sha256": "693246306803eab7ac26e586610400b29dd1766c2181677d26a1d5f59def46bc",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-E1-light.png",
+      "sourceCapture": "settled-E1-light.png",
+      "sourceSHA256": "85ac5a477cac543fe0d6efed60bb8651d8eab14cb593b63939e7b1ed4a63ed16",
+      "sha256": "2a3f76a1da47a67ec1b748fa577d71638de481b80b34ef60f1b804585b72fec9",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-E1-dark.png",
+      "sourceCapture": "settled-E1-dark.png",
+      "sourceSHA256": "3eef05a509de1f4d79caff0077dd66fa39c6afc48c82c72ba4de632e3baf3638",
+      "sha256": "6dc00169b7b2b6226b35ebf7d6c24dfa49b88c589128c3833bda7a8a7fbb58e4",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B2-light.png",
+      "sourceCapture": "ios-B2-light.png",
+      "sourceSHA256": "599de8b01bc3d88a3db66718c2597ae73b755dc568813f77334eeea957e997be",
+      "sha256": "a1d26bc05f40c0d96704e841523753f8bc4cf3ca9bd23358489a4ae4acccab7c",
+      "pixels": [440, 956],
+      "redactions": [
+        [29, 199, 374, 227],
+        [29, 258, 374, 286],
+        [29, 317, 374, 345]
+      ],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B2-dark.png",
+      "sourceCapture": "ios-B2-dark.png",
+      "sourceSHA256": "fd5e20ab97b10ffa0ca57e034d81c84daa855bb16540690c9c53324138e16763",
+      "sha256": "7afdeeb0a9bf2fa18c5f2fd4889af85c0a2d1c3f2a6899b54128b993cda9e10b",
+      "pixels": [440, 956],
+      "redactions": [
+        [29, 199, 374, 227],
+        [29, 258, 374, 286],
+        [29, 317, 374, 345]
+      ],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B2-offline-light.png",
+      "sourceCapture": "ios-B2-offline-light.png",
+      "sourceSHA256": "59844e9b31dde23c654071ba86e26cda329eea5e3f0c586d6aa4bebe5a2ddf39",
+      "sha256": "7866a3871b91d4d0b8de918439073d66348f04969e169ae192376aa99301952c",
+      "pixels": [440, 956],
+      "redactions": [
+        [29, 199, 374, 227],
+        [29, 258, 374, 286],
+        [29, 317, 374, 345]
+      ],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B2-offline-dark.png",
+      "sourceCapture": "ios-B2-offline-dark.png",
+      "sourceSHA256": "64d8277f70af57ddcb32a03b3de8cc37de357cd6444581510be74860ce761581",
+      "sha256": "0487be64758efd0d01090114e4b0a98ec509c5ade93efcf4cc14de8fac906c78",
+      "pixels": [440, 956],
+      "redactions": [
+        [29, 199, 374, 227],
+        [29, 258, 374, 286],
+        [29, 317, 374, 345]
+      ],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B2-max-light.png",
+      "sourceCapture": "B2-max-bottom-light.png",
+      "sourceSHA256": "97850991e2c6a63f399c9d22ce75210149d1a4ab40602cf9762cb6ae07b0ffbe",
+      "sha256": "408230d49d721897e21e943531472dee1447449c7eaaf88f89fa3e1b40be6a8c",
+      "pixels": [440, 956],
+      "redactions": [
+        [29, 116, 415, 184],
+        [29, 250, 415, 390]
+      ],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B2-max-dark.png",
+      "sourceCapture": "theme-dark-settled.png",
+      "sourceSHA256": "ae25bebd5cf7921fa6c2281386da1b87b0b71d9821d530d7ca183608ddfe375c",
+      "sha256": "5cd747e924731210b390ac784c35ea018e2885e61d2300d41332ec8d1c0ac400",
+      "pixels": [440, 956],
+      "redactions": [
+        [29, 116, 415, 184],
+        [29, 250, 415, 390]
+      ],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B3-light.png",
+      "sourceCapture": "ios-B3-light.png",
+      "sourceSHA256": "69fca0873b986bf2ba5248c4c3f8cfb92965cfe05fe1aeaa9a9e68d2fc7307e3",
+      "sha256": "d3bbc6a940c18ce56739ff2e4b78d6a8f4c08a7de51d22b79c89f9b8253fb4c1",
+      "pixels": [440, 956],
+      "redactions": [
+        [29, 199, 374, 227],
+        [29, 258, 374, 286],
+        [29, 317, 374, 345]
+      ],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B3-dark.png",
+      "sourceCapture": "ios-B3-dark.png",
+      "sourceSHA256": "2573c6a6ba338f9ee1fe1e70f91336bddefd4968fac8720919ee676e34efae63",
+      "sha256": "c1627ea44fff26a7ddf6e413c7faee672401fd7443f409296cc2f1b90428bebf",
+      "pixels": [440, 956],
+      "redactions": [
+        [29, 199, 374, 227],
+        [29, 258, 374, 286],
+        [29, 317, 374, 345]
+      ],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B3-return-dark.png",
+      "sourceCapture": "B3-save-returned-home-dark.png",
+      "sourceSHA256": "3532d9a9a5ba11c6eb3ef0f035c7000f3fa15bc8af6285b340ee10f16169be82",
+      "sha256": "0c5c1fe15e79472fed206c84b44f2d0cb243acb3955e4cdca8e6a2ecc689f50b",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B5-light.png",
+      "sourceCapture": "settled-B4-keyboard-light.png",
+      "sourceSHA256": "0829fda5d6bab0d1300d6a9d81b517b43d254a9d86d556ed09aa92acc84bb075",
+      "sha256": "26a7fbabc3a5ea61d1a1868033d507731e5655636d3754c270e33d180d70a109",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B9-slow-dark.png",
+      "sourceCapture": "ios-B9-slow-dark.png",
+      "sourceSHA256": "4e04b01af72a435a5846be171f409a1adf574353807e8acec2ca30723d188258",
+      "sha256": "36d3cec7f1008ba62113e23ef65770c6974e06bf65025f370827b3b8df7011b0",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-B10-dark.png",
+      "sourceCapture": "B10-photo-profile-confirmed-dark.png",
+      "sourceSHA256": "bc4a73888cc7f3b125fda6b86fae94b27d882892742c3b78738d144bdf4c45db",
+      "sha256": "3c58cf62900ee4782e237de131f9ff1f741fec62b6faa7dcc4523c5198760cba",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-C2-dark.png",
+      "sourceCapture": "C2-check-dark.png",
+      "sourceSHA256": "d56c8ddc29da1d665be466e116372ec3d0523e864a365ab609a5f309d73b4dad",
+      "sha256": "3905b00c6787b56f7cf87a4bae25fdaaa9cb512820de4b835f62b4934b1d414e",
+      "pixels": [1320, 2868],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-C2-light.png",
+      "sourceCapture": "settled-C2-light.png",
+      "sourceSHA256": "b810ba41cc92c94b450fbfa2648dd7bfca830123a50c932f710d6531851d962a",
+      "sha256": "522bd0bfacfc122d560a75fe830ef732ab493ae590c60fc11d2e52e4beae907b",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-D2-dark.png",
+      "sourceCapture": "ios-D2-dark.png",
+      "sourceSHA256": "e653eae7027ac551c212a62f22eb658735088541eb7918a482700906a500b91e",
+      "sha256": "841fc000009ba27d9494e0def0622346ad2fedb77449763ec5d73a9d2ae889bd",
+      "pixels": [1320, 2868],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-D2-light.png",
+      "sourceCapture": "settled-D2-light.png",
+      "sourceSHA256": "40d975e36312ddc1ce3489c360c14c218bc631796e3e891b06f11b5b868ad535",
+      "sha256": "38830cd7cce08090e1070a405854dede7f78531610b6eb66cd5e06f91409c26a",
+      "pixels": [1320, 2868],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-dm-dark.png",
+      "sourceCapture": "B8-created-dm-dark.png",
+      "sourceSHA256": "5e3616dedd39181265538504c1f7c51220500c81e34e014f47df148fe872451c",
+      "sha256": "2803c264cd5b01276aa475748b8717e29ae8b39a054cc9011e904c98e515f1f1",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-A1-before-light.png",
+      "sourceCapture": "A1-before-light.png",
+      "sourceSHA256": "233459aea258eeee4776550e0ecc057e8fb13aa9e6ca8820d626679ca1fa1bde",
+      "sha256": "bacd21cfe555e65187536be63b47a9325227f8276ccfa2450d01a9073c4c1cb7",
+      "pixels": [1320, 2868],
+      "redactions": [[222, 516, 786, 603]],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-A1-blank-hit-light.png",
+      "sourceCapture": "A1-blank-hit-light.png",
+      "sourceSHA256": "ea711cc83ec8aaebbd6087a7fe5f653374af4f9594f5a0b2b2ae099458c0646a",
+      "sha256": "60625e18e16f5830308f75525d59b3ea732580e163bfba4423d38a36d279e595",
+      "pixels": [1320, 2868],
+      "redactions": [[222, 516, 786, 603]],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-A1-name-hit-light.png",
+      "sourceCapture": "A1-name-hit-light.png",
+      "sourceSHA256": "1d9bfc4af0d0a78b89a82914bb520f985938c5c011111e56cb2f73fe2ea5a8f8",
+      "sha256": "c558f0dd9459c8dcbc7d6cdd05a65ebcc59ba7630a6f9f1f34a1f4999c6f5d13",
+      "pixels": [1320, 2868],
+      "redactions": [[222, 516, 786, 603]],
+      "outsideMasksUnchanged": true
+    },
+    {
+      "file": "ios-D2-first-name-dark.png",
+      "sourceCapture": "ios-D2-name-dark.png",
+      "sourceSHA256": "1f531ed244aabda2c3ff4b6632bdd50795c36a3a6cf51a68bf636b27d15a8e56",
+      "sha256": "49a36f91b55d2357076cf309205a22e1a51d06d6b8bcb44f1f3a6e2a0c082058",
+      "pixels": [440, 956],
+      "redactions": [],
+      "outsideMasksUnchanged": true
+    }
+  ],
+  "videoFrameNotes": {
+    "A1-before-light.png": {
+      "recording": "A-row-hit-area.mp4",
+      "frameIndex": 0,
+      "ptsSeconds": 0
+    },
+    "A1-blank-hit-light.png": {
+      "recording": "A-row-hit-area.mp4",
+      "frameIndex": 3,
+      "ptsSeconds": 2.665
+    },
+    "A1-name-hit-light.png": {
+      "recording": "A-row-hit-area.mp4",
+      "frameIndex": 4,
+      "ptsSeconds": 3.553333
+    },
+    "C2-check-dark.png": {
+      "recording": "C2-preflight.mp4",
+      "requestedSeekSeconds": 1.6
+    },
+    "ios-D2-dark.png": {
+      "recording": "D2-upload.mp4",
+      "requestedSeekSeconds": 1.08
+    },
+    "settled-D2-light.png": {
+      "recording": "D2-upload-light.mp4",
+      "requestedSeekSeconds": 1.04
+    }
+  }
+}

@@ -22,7 +22,6 @@ async function fixture() {
   const transport: DshImOutboundService = {
     contractVersion: 1,
     receiptVersion: 1,
-    postFenceVersion: 1,
     listBots: async () => [{ botId: 'wechat-own', channel: 'weixin' }],
     listTargets: async () => [
       { targetId: 'owner', name: 'Paired owner', kind: 'user', route: { toUserId: 'owner' } },
@@ -164,7 +163,7 @@ it.each([
   expect(calls).toBe(1);
 });
 
-it('WeChat rejects a borrowed correspondence or falsely native receipt and hides unfenced capability', async () => {
+it('WeChat rejects a borrowed correspondence or falsely native receipt', async () => {
   const { core, transport, grant } = await fixture();
   for (const [requestId, receipt] of [
     [
@@ -183,7 +182,28 @@ it('WeChat rejects a borrowed correspondence or falsely native receipt and hides
       'unknown-outcome',
     );
   }
-  expect(
-    createDshImProvider({ ...transport, postFenceVersion: undefined }, 'weixin')!.post,
-  ).toBeUndefined();
 });
+
+it.each(['proactive-text-checked', 'proactive-receipt-checked', 'proactive-fence-checked'])(
+  'a WeChat account without %s stays unavailable even with the legacy global fence version',
+  async (missing) => {
+    const { core, transport, grant } = await fixture();
+    transport.postFenceVersion = 1;
+    const describe = transport.describeBot;
+    transport.describeBot = async (ref) => {
+      const info = await describe(ref);
+      return { ...info, capabilities: info.capabilities.filter((cap) => cap !== missing) };
+    };
+    core.externalMessaging.register(createDshImProvider(transport, 'weixin')!);
+    expect((await core.externalMessaging.snapshot('ada')).grants[0]?.canPost).toBe(false);
+    const pending = core.externalMessaging.post('ada', grant.id, 'unqualified_1988', 'Result');
+    if (missing === 'proactive-text-checked')
+      await expect(pending).rejects.toThrow('provider-incompatible');
+    else
+      await expect(pending).resolves.toMatchObject({
+        state: 'failed',
+        reason: 'capability-unavailable',
+      });
+    expect(transport.sendChecked).not.toHaveBeenCalled();
+  },
+);

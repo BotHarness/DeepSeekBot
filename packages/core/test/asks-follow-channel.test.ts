@@ -131,10 +131,6 @@ describe('asks follow the Channel the task came from', () => {
       ).toEqual({ ok: true, value: { accepted: true } });
       expect(await outcome).toBe('allowed-once');
 
-      expect(core.runtime.askNotice?.(run.sessionId, 'bash')).toContain(
-        `send one short channel_send to Group "Team" (channel_id "${group.id}")`,
-      );
-      expect(core.runtime.askNotice?.(run.sessionId, 'bash')).toBeUndefined();
       const grant = await run.channels.requestGrant('Need the handoff folder');
       expect(core.channels.message(group.id, grant.id)?.grantRequest).toBe(true);
       expect(
@@ -169,8 +165,8 @@ describe('asks follow the Channel the task came from', () => {
   });
 });
 
-describe('the first approval card of a turn waits for a word in the Channel', () => {
-  it('returns one notice until the Bot has spoken, and none after it has', async () => {
+describe('approval routing does not require a preliminary Channel message', () => {
+  it('routes approval requests to the originating DM without a preliminary notice', async () => {
     let ready!: (run: OrchestratorAgentRun) => void;
     let release!: () => void;
     const started = new Promise<OrchestratorAgentRun>((resolve) => {
@@ -208,12 +204,7 @@ describe('the first approval card of a turn waits for a word in the Channel', ()
         body: 'Check the time',
       });
       const run = await started;
-      const first = core.runtime.askNotice?.(run.sessionId, 'bash');
-      expect(first).toContain(
-        `send one short channel_send to your Human DM (channel_id "${dm.id}")`,
-      );
-      expect(first).toContain('Then call bash again with the same arguments');
-      expect(core.runtime.askNotice?.(run.sessionId, 'bash')).toBeUndefined();
+      expect(core.runtime.askChannel?.(run.sessionId)).toBe(dm.id);
     } finally {
       release();
       await core.runtime.close();
@@ -221,7 +212,7 @@ describe('the first approval card of a turn waits for a word in the Channel', ()
     }
   });
 
-  it('asks for no notice once the Bot has already spoken in the Channel this turn', async () => {
+  it('keeps approval routing after the Bot has spoken', async () => {
     let ready!: (run: OrchestratorAgentRun) => void;
     let release!: () => void;
     const started = new Promise<OrchestratorAgentRun>((resolve) => {
@@ -260,7 +251,6 @@ describe('the first approval card of a turn waits for a word in the Channel', ()
       });
       const run = await started;
       await run.channels.send({ body: 'I will run date; please approve it.' });
-      expect(core.runtime.askNotice?.(run.sessionId, 'bash')).toBeUndefined();
     } finally {
       release();
       await core.runtime.close();

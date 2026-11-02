@@ -4,10 +4,47 @@ A DeepSeek Harness plugin layer that gives LLM agents a persistent product ident
 
 ## Language
 
+### Product naming
+
+**Tobs / 托布**:
+The application product previously named DeepSeekBot; its English name is Tobs and its Chinese name is 托布. The name means “Team of bots” and also evokes “Thousands of Bots” and is distinct from Tob, the built-in Steward Bot.
+_Avoid_: 拖布, Tob (when referring to the product)
+
+**BotHarness**:
+The framework behind Tobs; its name remains BotHarness when the application adopts the Tobs brand.
+_Avoid_: Tobs (when referring to the framework)
+
+### Product releases
+
+**Product Release Version**:
+The single release identity of the computer-side DeepSeekBot product and its co-released components. It is distinct from the independently versioned DSH runtime, Provider, tools/skills and mobile app.
+_Avoid_: desktop-only version, npm-only version, unqualified Version
+
+**Development Build Identity**:
+The identity and source state of an unreleased DeepSeekBot build. It is not a Product Release Version or proof that a release artifact has been qualified.
+_Avoid_: installed release, latest version, 0.0.0 release
+
 ### PersonaBots
+
+**Steward Bot**:
+A persistent local PersonaBot with its own Memory and read access to the Human's Bot and Channel content, helping the Human manage those identities and application settings under existing approval rules. It is the Human's single point of contact: it creates and manages other Bots, delegates a request to the best-suited colleague through a Bot-to-Bot DM, inspects their progress, surfaces attention items and reports results back in its Human DM. Its management role does not itself grant authority to approve other Bots' actions. Conversational handling of a pending approval is a future scoped workflow through the existing approval owner, carrying the Human's explicit decision rather than a blanket self-approval right.
+_Avoid_: global Orchestrator, Home panel, dashboard
+
+**Tob**:
+The built-in local Steward Bot, with a persistent identity distinct from any ordinary DeepSeek Bot; its name reverses “Bot” and also stands for “Thousands of Bot.” Tob cannot be deleted or archived, while its Soul and Memory remain editable and portable without transferring its local management authority. Management uses the DeepSeekBot CLI through native Shell; the Host grants only explicitly supported operations for the current accepted Human DM execution and retains ownership, approval and revision checks. This role is not unrestricted CLI or administrator access.
+_Avoid_: Home panel, global Orchestrator
+
+**Tob Mode**:
+On mobile, the Tob DM's normal chat detail screen opened by pulling and holding on Chats, sliding in from the top. Only the entry and animation differ from tapping the Tob row; it is the same Tob DM and history, never a second conversation or screen. The pull always targets a Tob, falling back to the most recently used computer Environment's Tob. Desktop has no Tob Mode: the former Home panel is removed, and hiding the Side column in Simple layout mode gives a focused conversation with any Channel.
+_Avoid_: Home, Home panel, Tob chat, 拖布模式, personal agent mode
+
+**Tob Delegation**:
+Tob handing a Human's request to the colleague PersonaBot it judges best suited, as an ordinary message in their Bot-to-Bot DM, then reporting the colleague's result back in its Human DM. Tob sends without asking the Human first; the Human sees each send as an action notice. It carries no approval authority: the colleague's own approvals still go to the Human.
+_Avoid_: dispatch, routing, Assignment (an Assignment is a Bot's own Session, not another Bot)
 
 **PersonaBot**:
 A first-class bot entity owned by the Host: a durable identity with a Git-backed Memory Repository that spans Sessions, Chats, and Workspaces and can hold several Sessions at once. Its Soul is optional content within Memory, not the identity itself.
+Visible UI text calls it **Bot**; see [UI copy](docs/agents/ui-copy.md).
 _Avoid_: bot (bare), agent, assistant, robot
 
 **Archived PersonaBot**:
@@ -91,7 +128,7 @@ A reusable, deployment-local Human-authored model plan for PersonaBots: one Orch
 _Avoid_: DSH Agent preset, SoulSnapshot
 
 **PersonaBot Model Plan**:
-The PersonaBot-local snapshot of a Model Preset or Human custom choices that governs its Orchestrator route and future Assignment model selections. It is operational configuration, not Soul or Memory.
+The PersonaBot-local snapshot of a Model Preset or Human custom choices that governs its Orchestrator route and future Assignment model selections. Its Assignment policy may remain inherited from the global model while its Orchestrator is customized independently. It is operational configuration, not Soul or Memory.
 _Avoid_: Soul, DSH Agent preset, model usage
 
 ### Support and execution
@@ -124,6 +161,14 @@ _Avoid_: binding, workspace mapping, cwd inference, session membership
 A Human-meaningful continuing line of activity that a PersonaBot's Orchestrator chooses to advance independently. It has no separate durable identity or lifecycle; its canonical runtime identity is the DSH Session id of its Assignment Session.
 _Avoid_: Work, work item, task entity, job entity, worker
 
+**Assignment Title**:
+The short Human-readable name of an Assignment, chosen by its Orchestrator when it creates the Assignment Session, which lets the Human recognize the line of work in a list at a glance.
+_Avoid_: purpose, task name, prompt, Continuity Key
+
+**Assignment Description**:
+The one- or two-sentence statement of what an Assignment sets out to do, chosen by its Orchestrator alongside the Assignment Title. It is neither the instructions sent to the Assignment Session nor a report of outcomes.
+_Avoid_: purpose (historical), prompt, Assignment Request, Assignment Report
+
 **Assignment Session**:
 A PersonaBot-owned independent root Session that executes exactly one Assignment in exactly one working directory in v1, created and managed by its Orchestrator without requiring the Human to open another Conversation. A PersonaBot may have several at once, and a DSH Subagent never counts as one.
 _Avoid_: Work Session, Worker Session, Executor Session, task Session, child Session
@@ -133,7 +178,7 @@ The DSH Agent executing inside one Assignment Session. It reports only to its Pe
 _Avoid_: worker, PersonaBot, Orchestrator, Assignment Session
 
 **Assignment Directory**:
-The PersonaBot-scoped durable read model through which its current Orchestrator explicitly lists and addresses owned Assignment Sessions, including purpose, Continuity Key, Workspace, DSH-derived activity/last-run facts, dependencies, latest semantic report, and aggregate descendant activity. It keeps execution facts separate from reported outcomes, is rebuilt from Session Ownership and DSH facts, and is queried when needed rather than injected wholesale into every turn. Listings use filtered, ordered, opaque-cursor pagination with text search, hide Archived Assignments by default, and never flatten DSH Subagents into top-level Assignment rows.
+The PersonaBot-scoped durable read model through which its current Orchestrator explicitly lists and addresses owned Assignment Sessions, including Assignment Title and Assignment Description, Continuity Key, Workspace, DSH-derived activity/last-run facts, dependencies, latest semantic report, and aggregate descendant activity. It keeps execution facts separate from reported outcomes, is rebuilt from Session Ownership and DSH facts, and is queried when needed rather than injected wholesale into every turn. Listings use filtered, ordered, opaque-cursor pagination with text search, search Assignment Titles and Descriptions among other text, hide Archived Assignments by default, and never flatten DSH Subagents into top-level Assignment rows.
 _Avoid_: task list, AgentHandle map, cwd scan, Orchestrator memory
 
 **Archived Assignment**:
@@ -181,7 +226,7 @@ A revocable instruction, explicitly saved by the Web Human or a currently author
 _Avoid_: Workspace Grant, provider Service Grant, sandbox preset, inferred command similarity
 
 **Approval Template**:
-A Profile-wide, Human-written Markdown policy that says which tool approvals may be allowed, refused or sent to the Human. A PersonaBot selects one or none; selecting, clearing or editing a template in use always needs a Human approval card (ADR-0207).
+A Profile-wide, Human-written Markdown policy that says which tool approvals may be allowed, refused or sent to the Human. A PersonaBot selects one or none; selecting, clearing or editing a template in use needs a Human decision or an explicitly saved Tool Approval Rule in the dedicated management scope (ADR-0249).
 _Avoid_: approval mode, auto mode, Tool Approval Rule
 
 **Approval Reviewer**:
@@ -201,12 +246,16 @@ Handing responsibility to a PersonaBot from a Chat or the Roster. Its Orchestrat
 _Avoid_: direct Session creation, task entity, job entity
 
 **Binding**:
-A PersonaBot's connection to a surface it takes part in — a Channel, a Chat, the sidebar, or a renderer.
+A PersonaBot's connection to a surface it takes part in — a Channel, a Chat, a Panel, or a renderer.
 _Avoid_: integration, connector, channel binding
 
 **Orchestrator Session**:
 The PersonaBot's long-lived dispatch root Session: at most one is active, consuming the Bot Inbox and deciding replies, dispatch, and new Assignment Sessions. Its working directory is always the PersonaBot's Memory Repository; it is the PersonaBot's social voice, not a Human-managed Conversation or an Assignment row. Ordinary Session output remains execution history; only an explicit Channel messaging command authorized from trusted Session ownership and Channel membership speaks to a Human-facing Channel.
 _Avoid_: main agent, brain, supervisor
+
+**Idle Compaction**:
+Host-initiated DSH compaction of an Orchestrator Session after it has been idle (no running turn, no pending Bot Inbox Admission) for part of its model route's estimated prompt-cache lifetime, so the long history is condensed while it can still be read at the cache-hit price. It never starts a Bot turn and never speaks in a Channel.
+_Avoid_: auto-compact, background summary, cache warming
 
 **Developer Mode**:
 A Human-owned Bot-mode preference that reveals diagnostics surfaces (operational log views, verbose states) otherwise hidden by default. It gates Human visibility only — never agent capability: an agent with shell access can always reach the same underlying data, so Developer Mode must never be described or relied upon as a read boundary.
@@ -231,7 +280,7 @@ The Provider registered on DSH's computer-use seam that supplies the observation
 _Avoid_: driver, backend, computer provider
 
 **Takeover**:
-A human session on a Computer that pauses every PersonaBot acting there and disables model-facing screenshots for its duration. It is initiated from one Bot Screen but always applies to the whole Computer.
+A Human's exclusive control of a Computer, initiated from a Bot Screen but applying to the whole Computer and pausing every PersonaBot's actions and model-facing screenshots there. Watching grants no control; releasing control leaves the Bots paused until the Human explicitly resumes them.
 _Avoid_: handoff, screen sharing, per-bot takeover
 
 **Computer Export**:
@@ -255,7 +304,7 @@ The per-PersonaBot opt-in, off by default, that makes the Computer tools and the
 _Avoid_: permission, grant, feature flag, developer mode
 
 **Computer Authorization**:
-The once-per-session Human approval before a PersonaBot's first action on the Computer; a profile-level auto-allow setting can skip asking. Access decides whether the tools exist; Authorization decides whether they may run.
+The authority to run Computer tools after Access makes them available. A Human may approve the Session once or save a revocable Tool Approval Rule for one tool and the current target, reusable across Sessions. Saved rules authorize each execution without creating a Session-wide grant; revocation or a changed target restores prompting. A profile-level auto-allow setting can skip asking.
 _Avoid_: takeover, consent dialog, per-action approval
 
 **Computer Audit**:
@@ -277,7 +326,7 @@ The per-PersonaBot opt-in, off by default, that makes the Bot Browser tools and 
 _Avoid_: permission, grant, feature flag, extension toggle
 
 **Browser Authorization**:
-The once-per-session Human approval before a PersonaBot's first action on the Bot Browser; a profile-level auto-allow setting can skip asking. Access decides whether the tools exist; Authorization decides whether they may run.
+The authority to run Bot Browser tools after Access makes them available. A Human may approve the Session once or save a revocable Tool Approval Rule for one tool, Browser Profile and target, reusable across Sessions. Saved rules authorize each execution without creating a Session-wide grant; revocation or a changed target restores prompting. A profile-level auto-allow setting can skip asking.
 _Avoid_: Browser Access, consent dialog, per-action approval
 
 **Browser Pause**:
@@ -365,12 +414,40 @@ An inactive imported reference describing a provider account or authority the Hu
 _Avoid_: credential, Service Grant, automatic reconnect
 
 **Bot Marketplace**:
-The hosted catalog the harness opens to browse, search and install shareable Bots. It lists only Indexed Repositories; there are no accounts or uploaded Bots (ADR-0131, ADR-0135).
+The hosted catalog the harness opens to browse, search and install shareable Bots. It lists two kinds of entry side by side: Indexed Repositories and Uploaded Bots (ADR-0131, ADR-0267).
 _Avoid_: store, hub, Soul registry
 
 **Indexed Repository**:
 A public GitHub repository carrying the `botharness-bot` topic that the Bot Marketplace lists by reference and refreshes on a schedule. Installing it creates a fresh PersonaBot from its Git URL; it is not a SoulSnapshot, Listing or Version.
 _Avoid_: submission, Listing, SoulSnapshot, mirror
+
+**Uploaded Bot**:
+A Bot Marketplace entry whose Memory files a signed-in author uploaded, with no Git history. The author can replace all of its files or delete it outright; there are no versions. Installing it creates a fresh PersonaBot with one initial commit, and later replacements never reach installed copies.
+_Avoid_: Listing, Version, SoulSnapshot, publication
+
+**Share Draft**:
+A sanitized copy of one PersonaBot's Memory files that Tob prepares with the Human, file by file, before an upload; the source Memory is never changed, and only a Share Draft is uploaded.
+_Avoid_: export, snapshot, redacted Memory
+
+**Install Receipt**:
+The one count a Host reports to the Bot Marketplace after an install completes, keyed by a random marketplace-only Host identifier so each Host counts once per entry.
+_Avoid_: download, clone count, Telemetry event
+
+**Marketplace Digest**:
+The Bot Marketplace's dated daily article about recent Bots, with embedded Bot cards that install in one tap; past digests stay readable.
+_Avoid_: newsletter, push notification, blog post
+
+**Digest Pick**:
+A Bot that a Marketplace Digest names in one of its sections. A pick that later leaves the Bot Marketplace keeps its text in the digest but loses its card.
+_Avoid_: featured Bot, editor's pick, sponsored Bot
+
+**Digest Cover**:
+The picture that stands for one Marketplace Digest, assembled from its listed Digest Picks' banners and avatars in a layout chosen by how many there are; with no listed pick it falls back to a pixel banner derived from the date.
+_Avoid_: thumbnail, hero image, generated image
+
+**Marketplace Ranking**:
+One of the Bot Marketplace's three daily lists of listed Bots: Hot (most installs in the last seven days), New (first seen in the last seven days) and Rising (the largest growth in installs over the week before). All three are recomputed once a day and read from that day's snapshot.
+_Avoid_: section, shelf, chart, leaderboard
 
 **Bot Zip**:
 A `.zip` of one PersonaBot's Memory files, with its `.botharness/bot.json` descriptor and avatar, that a Human exports and hands to someone else; importing it creates a fresh PersonaBot. It holds files only unless the whole Bot is exported with Git history. It never holds identity, Sessions, bindings or credentials (ADR-0135).
@@ -389,8 +466,16 @@ A human-named tag pointing at one immutable SoulSnapshot digest under a Listing.
 _Avoid_: release, build, revision
 
 **Handle**:
-An account's unique public identifier, used as the namespace of its Listings; never the account's email.
+Historical (Soul registry): an account's unique public identifier used as the namespace of its Listings. Uploaded Bots use an Author ID instead.
 _Avoid_: username, account id
+
+**Author ID**:
+The short, never-changing identifier the Bot Marketplace assigns to an uploading account, shown beside its free display name so same-named authors stay distinct; never the account's email.
+_Avoid_: handle, username, account email
+
+**Account Profile**:
+The display name and optional photo of one Connect account, kept by the Bot Marketplace with its Author ID. The Human edits it from Settings on any client, and Uploaded Bots show it as their author; the email is never part of it.
+_Avoid_: Human display name, user profile, author account
 
 **Bot set**:
 A named group of Listings meant to be imported together.
@@ -401,7 +486,7 @@ Historical (retired with PersonaBot Export): materializing a PersonaBot Export. 
 _Avoid_: database dump, live clone, publish
 
 **Import**:
-Creating a new PersonaBot from a shared Memory Git repository (Git URL or Bot Marketplace install); always a copy, with imported operational authorities disabled until explicitly rebound or reauthorized.
+Creating a new PersonaBot from a shared Memory Git repository (Git URL or Bot Marketplace install) or a Bot Zip; always a copy, with imported operational authorities disabled until explicitly rebound or reauthorized.
 _Avoid_: install, clone, pull, restore
 
 **Publish**:
@@ -463,19 +548,27 @@ A Channel omitted from expanded and collapsed roster navigation by a Human prese
 _Avoid_: deleted Channel, archived Channel, muted Channel, Content Purge
 
 **Channel Deletion**:
-The Human-confirmed end of a Channel’s active membership and routing while retaining its history and causal attribution. It is distinct from reversible hiding and separately confirmed Content Purge.
+The Human-confirmed end of a Channel’s active membership and routing while retaining its history and causal attribution. It is distinct from reversible hiding and separately confirmed Content Purge. For a local group, Channel Deletion is Group Disband.
 _Avoid_: Hidden Channel, Content Purge, provider conversation deletion
 
+**Group Disband**:
+The Human-confirmed, irreversible deletion of a local group: it ends membership and routing and removes the group's own messages and files, keeping only the group's identity as a deleted marker. Content shared with other Channels, Bot Memory and Workspace files are untouched.
+_Avoid_: dissolve, archive, leave group, Hidden Channel
+
 **Channel section**:
-A user-created, collapsible grouping of Channels in the bot-mode sidebar. Local display arrangement, not part of a Soul.
+A user-created, collapsible grouping of Channels in the Channel list panel. Its membership and order belong to the owning Host's display arrangement, not to a Soul.
 _Avoid_: folder, category, group
 
+**Pinned section (置顶分区)**:
+A built-in presentation of a Host's pinned Channels, separate from user-created Channel-section membership. Pinning preserves a Channel's original section membership while displaying it only in the Pinned section; unpinning restores its ordinary placement.
+_Avoid_: copied Channel, user-created section, device-local pin store
+
 **Section order (区块顺序)**:
-The relative order of Channel sections in the bot-mode sidebar: creation order by default, user-arranged afterwards. Ungrouped Channels may occupy top-level positions between sections without becoming sections.
+The relative order of Channel sections in the Channel list panel: creation order by default, user-arranged afterwards. Ungrouped Channels may occupy top-level positions between sections without becoming sections.
 _Avoid_: priority, layout order
 
 **Sort mode (排序模式)**:
-How a sidebar scope orders its rows: `auto` (newest message first), `manual` (the user's frozen order), or `inherit` (follow the global default).
+How the Roster or one Channel section orders its rows: `auto` (newest message first), `manual` (the user's frozen order), or `inherit` (follow the global default).
 _Avoid_: ordering, sort preference, sorter
 
 **未分组 (Ungrouped)**:
@@ -631,11 +724,13 @@ One Orchestrator turn that consumes a bounded, fair selection from the ready att
 _Avoid_: per-event queue, wake storm, batch (bare)
 
 **Activity Center**:
-The Human's Bot-mode entry for cross-PersonaBot and cross-Channel work, with an operational Overview and a personal Human Inbox. It summarizes existing facts without becoming another authority for messages, usage, or Session activity.
+The Human's Bot-mode entry for cross-PersonaBot and cross-Channel attention, opening directly into the personal Human Inbox. The page and Dock share inline Tool approval cards; operational statistics are outside this entry (#2026). It summarizes existing facts without becoming another authority for messages, usage, or Session activity.
 _Avoid_: Human Inbox (for the whole entry), dashboard list
 
+The Activity control-rail indicator has an independent browser/Host-local display scope. Hiding or narrowing it does not change the Human Inbox query, actual unread state, or pending Human requests.
+
 **Human Inbox**:
-The personal attention view inside Activity Center: unresolved Human actions, mentions and replies, unread Channel activity, informational updates, and handled history. It references the owning facts without copying Channel content or flattening every Bot Inbox event into Human work.
+The personal attention view inside Activity Center: unresolved Human actions, mentions and replies, unread Channel activity, informational updates, and handled history. It references the owning facts without copying Channel content or flattening every Bot Inbox event into Human work. Human-muted Channels contribute neither message attention (including mentions and replies) nor global unread reminders; their read positions and explicit Human action requests remain intact.
 _Avoid_: notifications, Bot Inbox, dashboard list
 
 **Channel Attention**:
@@ -672,6 +767,8 @@ _Avoid_: caller-supplied author, transport metadata (bare)
 
 ### Chats and replies
 
+**IM conversation mirror** is an opt-in local presentation of one bound external private conversation. It reuses canonical content without another Inbox Admission or wake. **Local DM forwarding** is an independent opt-in external send path through the same Binding and authorized conversation. Both default off; they do not grant reception or proactive-send permissions. See ADR-0217.
+
 **Chat**:
 A Feishu/Lark conversation — group or p2p — that a PersonaBot takes part in, identified by `chat_id`.
 _Avoid_: room, channel, group (when p2p is meant too)
@@ -684,6 +781,10 @@ _Avoid_: private chat, PM
 A DM Channel whose two participants are PersonaBots. A message from one Bot is a Source Event in that Channel and may enter the other Bot's Inbox; the Human's read-only inspection is separate from Channel membership.
 _Avoid_: peer relay bus, copied inbox conversation
 
+**Bot Collaboration Network**:
+In the agreed cross-Host design target, the membership scope within which active PersonaBots discover colleagues and communicate through Bot-to-Bot DMs, including across Hosts. It establishes contact eligibility, while each receiving Bot retains its own execution permissions and private Memory.
+_Avoid_: shared Memory, global Orchestrator, network route
+
 **Thread**:
 A sub-conversation opened by replying to a message inside a Chat or a Channel.
 _Avoid_: topic, sub-chat, channel
@@ -693,6 +794,10 @@ Where a PersonaBot's answer lands: under the triggering message in the Chat (roo
 _Avoid_: reply mode, answer position, visibility
 
 ### Host and setup
+
+**Environment**:
+The user-facing name for one paired Host as the mobile app lists, adds, and chooses it (Chinese: 环境); a PersonaBot is created in exactly one Environment.
+_Avoid_: computer, 电脑, machine, device (Computer already names a PersonaBot's work surface)
 
 **PersonaBot registry**:
 The Host module that owns PersonaBot definitions, archive state, bindings, and Session ownership; its operational records live in the BotHarness operational database while Soul content remains in files.
@@ -783,51 +888,107 @@ Managed Restore performed without proving the old profile is deactivated; restor
 _Avoid_: Profile Transfer, clone, ordinary restore
 
 **Roster**:
-The bot-mode sidebar list of PersonaBots and Channels, with their state.
-_Avoid_: dashboard, bot list
-
-**App Sidebar**:
-The left column of the client. Outside Bot mode it is DSH-native; in desktop Bot mode (960 px and wider) BotHarness replaces it with its own Bot mode sidebar (a DeepSeekBot header whose logo turns into Exit Bot mode on hover, Activity Center, Roster, Bot settings) while DSH still sizes, resizes and collapses the column, and other plugins' left-column contributions are hidden until Bot mode ends (ADR-0203). It is named to distinguish it from the Channel sidebar on the right.
-_Avoid_: left sidebar, main sidebar, navigation
-
-**Channel sidebar**:
-The right-side region of the Bot mode panel, scoped to the currently selected Channel: a group Channel shows its membership entries, and a PersonaBot DM shows that PersonaBot's own entries such as Sessions, Memory and its Bot Inbox. On desktop it shows Channel sidebar tabs; on narrow layouts it is a stack of collapsible entries. Operational configuration is not shown here; it lives in Channel settings. It is not the DSH session-scoped native right column.
-_Avoid_: PersonaBot navigation, right panel, session panel, inspector, workbench
-
-**Channel body**:
-The center region of the Bot mode panel: the selected Channel's header, primary content, and composer. A DM renders its Chat here.
-_Avoid_: main pane, conversation view, chat panel
-
-**Channel sidebar entry**:
-One registered item of a Channel sidebar: a stable id, label, order, scope, and a renderer that may display information, offer controls, or both. On desktop it renders inside a Channel sidebar tab; on narrow layouts it collapses on its own. An entry registered as a settings surface is a Channel settings section instead. An unavailable entry is absent rather than a placeholder.
-_Avoid_: widget, card, tab, destination, Channel section
-
-**Channel sidebar tab**:
-One icon tab of the desktop Channel sidebar, grouping one or more Channel sidebar entries (Sessions holds Sessions and Bot Inbox; Memory holds Memory files and Memory evolution). An entry that names no registered tab is its own tab. A tab with two visible entries splits into top and bottom panes. The Human orders and hides tabs from the + Views menu; those are browser-local presentation preferences.
-_Avoid_: view, page, rail item
+The list of PersonaBots and Channels with their state, presented in the Channel list panel; it is content, not a fixed navigation region.
+_Avoid_: sidebar roster, dashboard, bot list
 
 **Bot mode layout**:
-The desktop Bot mode `main` area (960 px and wider), beside the App Sidebar: one dockable layout in which the Human drags, docks, resizes, closes and reopens Dock panels. Each panel stands alone: panels are never tabbed together, and there is exactly one Channel body, saved per browser with a Reset (proposed, ADR-0203). Narrow layouts and phones keep the responsive layout.
+The desktop Bot mode arrangement of a Global workspace and the active Channel's workspace inside its unique Messages panel. Closing a Global panel or Channel subpanel preserves its saved size proportions; reopening and refreshing restore them against the current workspace dimensions. The Human can move and resize panels within their owning workspace; panels do not form tabs or float outside it. Qualified Web/macOS shells release the native sidebar allocation; narrow layouts and unqualified shells retain their responsive fallback.
 _Avoid_: workbench, panel layout, dock
 
-**Dock panel**:
-One registered unit of the Bot mode layout: a stable id, title, icon, scope (`channel` panels follow the active Channel, `global` panels do not), a default position and a renderer. The Channel body and every Channel sidebar entry are Dock panels; the App Sidebar is not one and stays outside the layout; other plugins register more through the `dockPanels` Service. A Dock panel is a UI Consumer only; a plugin's data lives in its own Service and Provider (proposed, ADR-0203).
-_Avoid_: widget, view, pane, DSH main panel
+**Layout mode**:
+The Human's device-local choice of how the desktop Bot mode layout behaves: **Simple** or **Advanced**. Simple always shows the Messages panel, with Channel subpanels stacked in its Subpanel column, and the Workspace Control Rail chooses what the Side column shows; Advanced is the freely arranged two-level workspace. Each mode keeps its own arrangement, so switching never rewrites the other; Simple is the default for new Humans.
+_Avoid_: Bot mode, DSB mode, simple view, expert mode
+
+**Side column**:
+In Simple layout mode, the optional column between the Workspace Control Rail and the Messages panel that shows one Global panel, such as Channel list, Activity Center or Marketplace. Selecting a rail switch shows that panel there; selecting the switch that is already shown hides the column, leaving only the rail and Messages. Its width is shared by every panel it shows.
+_Avoid_: sidebar, left panel, App Sidebar, primary side bar
+
+**Subpanel column**:
+In Simple layout mode, the collapsible right-hand column inside the Messages panel that lists the active Channel's available subpanels in a fixed vertical order. Each subpanel can be collapsed, and the column scrolls; collapsing only removes presentation, never stopping a running Browser, Computer or Session.
+_Avoid_: Channel sidebar, right sidebar, inspector
+
+The following layout terms describe the agreed target in [#2048](https://github.com/BotHarness/DeepSeekBot/issues/2048) and ADR-0221. Sessions is delivered in [#2049](https://github.com/BotHarness/DeepSeekBot/issues/2049), with Memory files, Memory evolution and Schedules added in [#2067](https://github.com/BotHarness/DeepSeekBot/issues/2067). Browser control and Computer control join the same Bot-only workspace in [#2069](https://github.com/BotHarness/DeepSeekBot/issues/2069). Transient files, Inbox and Members are not yet unified with persisted subpanel layout.
+
+**Global workspace**:
+The outer presentation space of Bot mode, containing the Workspace Control Rail, global Panels such as Channel list and Activity Center, and the unique Messages panel. Global panels remain meaningful independently of the active Channel. This is a UI arrangement, not a DSH Workspace, execution environment or permission boundary.
+_Avoid_: App Sidebar, global Channel, root Channel
+
+**Workspace Control Rail**:
+The unique, nonclosable, full-height control Panel of the Global workspace. Its top control exits DSB mode, its reorderable switches control global panels and Messages, and Bot Settings sits at the bottom. The grip above Settings appears on hover or keyboard focus and moves the entire rail among outer columns. The rail uses the same rounded surface as other panels. Channel subpanel switches belong in the Messages header; layout preferences belong in Bot Settings.
+_Avoid_: panel control, panel control sidebar, App Sidebar, Channel list
+
+**Panel**:
+An independently identifiable unit of the Bot workspace with a named purpose and scope, whose placement and size belong to its owning workspace. Content Panels present data without owning its authority; the Workspace Control Rail is the special full-height control Panel.
+_Avoid_: Dock panel, widget, view, pane, sidebar, DSH main panel
+
+The following Panel categories name the agreed authoring target from the [Panel plugin design discussion](docs/research/2026-10-19-panel-plugin-design-discussion.md); they do not assert that external authoring or fixed-Bot binding is already implemented.
+
+**Global Panel**:
+A Panel with a purpose independent of the active Channel and without a required binding to one PersonaBot or Channel, such as the Profile-wide Task Kanban.
+_Avoid_: global Channel, all-Bot permission
+
+**Bot-bound Panel**:
+A Panel whose subject is one PersonaBot, such as a Bot's 3D companion. Within Messages it follows the PersonaBot DM and is absent from Group Channels; an explicitly bound Global-workspace instance retains its selected Bot independently of Channel selection.
+_Avoid_: fixed Panel, fixed-position Panel, Bot-only Channel subpanel
+
+**Channel-bound Panel**:
+A Panel whose subject is one Channel and whose use can apply to both PersonaBot DM Channels and Group Channels, such as Channel files. It normally follows the current Channel in the Channel workspace; an explicitly bound instance identifies its selected Channel independently of placement.
+_Avoid_: Bot-bound Panel, DM-only Panel
+
+**Group-channel-bound Panel**:
+A Channel-bound Panel whose use requires a Group Channel, such as group membership. Group-only applicability restricts the eligible Channel, rather than introducing a different binding mechanism.
+_Avoid_: group-member Bot Panel, Group-only permission
+
+**Task**:
+In the Panel Plugin authoring target (ADR-0234, T2 #2223; implementation pending), a Task is a persistent work item shared within one Profile, with stable identity, title, description, status and latest progress managed by Humans and Bots. It is distinct from a Session-local plan or Assignment Session; changing a Task does not itself start execution.
+_Avoid_: Session plan, Assignment Session, automatic execution job
+
+**Panel header**:
+The title and action area of a content Panel, containing its icon, name and Panel-specific actions. It belongs to that Panel wherever the Panel is placed. The content-sized icon-and-name title handle closes the Panel on click and moves it on drag; Channel identity, tabs and action controls are outside that handle. In macOS Desktop, unused header space moves the native window.
+_Avoid_: sidebar tab, Channel header (when referring to the Panel's own title bar)
+
+**Panel content**:
+The area of a content Panel that presents its information and interactions beneath the Panel header, including any empty, loading or error state. An internal split or detail view is a Channel subpanel only when it has its own identity in the owning workspace.
+_Avoid_: Channel body, sidebar entry, main pane
+
+**Panel scope**:
+In the existing layout, the context that determines a Panel's owning workspace and displayed information. The agreed authoring target separates workspace placement from Bot or Channel binding; neither placement, binding nor visibility grants access or changes ownership of the underlying domain data.
+_Avoid_: left/right scope, sidebar scope
+
+**Channel list panel**:
+The global content Panel containing the Roster and its search, list options and creation actions; selecting an item chooses the active Channel. Viewing a PersonaBot's profile from this Panel opens the corresponding Profile view in the Messages panel and opens that Panel if it was closed.
+_Avoid_: App Sidebar, Bot sidebar, left sidebar, Roster panel
+
+**Messages panel**:
+The unique outer Panel that hosts the active Channel workspace. Its header identifies the Channel and controls available Channel subpanels. Right-clicking the header manages which subpanel switches appear, using an icon, label and trailing checkbox; hiding a switch also closes its subpanel. There is no separate management button. Hiding Messages hides the entire Channel workspace while preserving its child visibility and geometry preferences; it does not stop execution or revoke access.
+_Avoid_: Channel body, chat sidebar, message list (when referring to the whole panel)
+
+**Channel workspace**:
+The inner presentation space owned by Messages for the active Channel, containing message content and that Channel's available subpanels. Each Channel retains its own arrangement, size ratios and visibility preferences. Subpanel placement is fixed by the Human: resizing Messages never changes a left/right split into an above/below split, or restricts its available docking sides. Subpanels can split any other leaf on its left, right, top or bottom, forming a persistent nested split tree; hiding a leaf does not discard its split or ratios. This is the second and final workspace level; its children cannot dock into the Global workspace. It does not create a second Channel selection or data authority.
+_Avoid_: Channel sidebar, nested global workspace, DSH Workspace
+
+**Channel subpanel**:
+A Panel within a Channel workspace, opened from the Messages header and visible only while its parent is visible. Availability follows the active Channel and existing access checks. Sessions applies to both PersonaBot DMs and Groups; members applies to Groups. Memory files, Memory evolution, Schedules, Browser control, Computer control and PersonaBot Profile are Bot-only surfaces and have no entry in Group Channels, even when Sessions is explicitly inspecting a member Bot. Group Profile remains available. Showing or hiding a subpanel changes presentation, not execution or permission.
+_Avoid_: Channel sidebar entry, global panel (for Channel-bound content), tab
+
+**Legacy layout terms**:
+App Sidebar, Channel body, Channel sidebar, Channel sidebar entry and Channel sidebar tab are retired names for the former fixed-region layout. Use Workspace Control Rail and Channel list panel for the former App Sidebar roles, Messages panel for Channel body, and each named Channel subpanel or internal view for former Channel sidebar content; settings content is a Channel settings section.
+_Avoid_: treating historical sidebar names as current Panel categories
 
 **Channel settings**:
-The per-Channel modal for operational configuration of the current Channel: in a PersonaBot DM its Wake Policy, external identities and External connectors; in a group its Wake Policy, External connectors and Group management. It opens from the Channel sidebar gear menu and the Channel header's "···" menu, and is organised into Channel settings sections.
+The per-Channel modal for operational configuration such as Wake Policy, external identities, External connectors and Group management, organised into Channel settings sections. It is available through the Channel menu in the Messages panel on desktop; narrow layouts use the Channel list menu.
 _Avoid_: Bot Settings, Profile settings, sidebar settings
 
 **Channel settings section**:
-One section of Channel settings: a Channel sidebar entry registered with the settings surface, so it never renders in the Channel sidebar itself.
+One coherent group of per-Channel configuration inside Channel settings; it is part of that modal, not a workspace Panel.
 _Avoid_: settings tab, settings entry
 
 **PersonaBot Profile**:
-The per-PersonaBot surface for its shareable identity and its read-only activity: the identity travels with the PersonaBot when it is shared (Display name, Avatar, Profile Banner, Bot Tags, Bot Bio), and the activity is token usage derived from its owned Sessions, event activity from its Bot Inbox Admissions, and Memory commit activity. Operational configuration such as its Model Plan, Wake Policy, external identities, Bridges and approvals is never part of it; that lives in the Channel sidebar and Channel settings. It appears compactly as a Profile popover from the PersonaBot's avatar in a DM header, and expands into a Profile view in the Channel body.
+The per-PersonaBot surface for its shareable identity and its read-only activity: the identity travels with the PersonaBot when it is shared (Display name, Avatar, Profile Banner, Bot Tags, Bot Bio), and the activity is token usage derived from its owned Sessions, event activity from its Bot Inbox Admissions, and Memory commit activity. Operational configuration such as its Model Plan, Wake Policy, external identities, Bridges and approvals is never part of it; that belongs in Channel settings or the relevant operational Panel. View profile in the DM header or Channel list opens the Profile view directly in the Messages panel; the Channel-list entry opens Messages if it is closed.
 _Avoid_: account, dashboard, bot page, profile (bare), settings page
 
 **Group Profile**:
-The per-Group Channel surface for the Group's name and avatar and its activity from committed Channel messages. It shows message counts by day and by author, distinguishing Human and PersonaBot authors; Group configuration such as member Wake Policy and Bridges lives in Channel settings. The Group header opens its popover and expanded Channel-body view; DM Channels have only their PersonaBot Profile.
+The per-Group Channel surface for the Group's name and avatar and its activity from committed Channel messages. It shows message counts by day and by author, distinguishing Human and PersonaBot authors; Group configuration such as member Wake Policy and Bridges lives in Channel settings. The Group header opens its Profile view in the Messages panel directly; DM Channels have only their PersonaBot Profile.
 _Avoid_: PersonaBot token usage, Group management sidebar, DM Channel Profile
 
 **Approver**:
@@ -839,28 +1000,56 @@ An IM conversation, private or group, chosen from the PersonaBot's External conn
 _Avoid_: approver, notification channel, webhook
 
 **Profile popover**:
-The compact form of a PersonaBot or Group Profile, anchored to the avatar in the Channel body header. It shows only the Profile Cards the Human pinned for that scope and offers entry into the Profile view.
+Retired presentation from ADR-0085: the compact avatar-anchored preview and its pinned-card preferences are no longer used. View profile opens the Profile view directly (#2017).
 _Avoid_: menu, dropdown, tooltip, card stack
 
 **Profile view**:
-The expanded form of a PersonaBot or Group Profile. It occupies the Channel body and temporarily replaces the Chat's history and composer; leaving it returns the Channel body to the Chat, and it changes nothing in the Channel sidebar.
-_Avoid_: panel, page, tab, inspector, settings
+The detail view of a PersonaBot or Group Profile inside the Messages panel, temporarily replacing the conversation's history and composer. Returning to Chat restores those contents without changing other Panels.
+_Avoid_: standalone Panel, workspace tab, inspector, settings
 
 **Profile Card**:
-One registered component of a PersonaBot or Group Profile: a stable id, label, order, scope, visibility rule, and compact and full renderers that may display information, offer controls, or both. A Human may pin a Profile Card to the corresponding Profile popover.
-_Avoid_: widget, tile, gadget, Channel sidebar entry
+One registered component of a PersonaBot or Group Profile: a stable id, label, order, scope, visibility rule, and compact and full renderers that may display information, offer controls, or both. Available cards appear in the Profile view; they are not pinned to a separate preview.
+_Avoid_: widget, tile, gadget, Panel
 
 **Client bridge**:
 The RPC surface through which the Web Client reads PersonaBots and invokes separate mutation commands without sharing Host services.
 _Avoid_: remote, IPC, gateway
 
+**This Host**:
+The Host that serves the client page the Human is using (本机). A phone app has no This Host.
+_Avoid_: local computer, this computer, local machine
+
+**Remote Host**:
+A Host that a client reaches through device pairing rather than one that serves it (远程). Every Host a phone uses is a Remote Host; for a browser on Host A, Host B is a Remote Host.
+_Avoid_: Computer, other computer, machine, server, peer
+
+**Paired Device**:
+A client, a phone app or one browser profile on one origin, holding its own revocable credential from one Host. It reads and acts on that Host but never hosts PersonaBots or relays another Host.
+_Avoid_: phone (for all devices), session, Host
+
+**Host Feed**:
+The whole live state one Host serves to one admitted client: roster, avatars, activity, unread state, Human Inbox and conversations. Every client reads every Host, This Host included, through the same Host Feed; new state to sync is a new part of the Host Feed.
+_Avoid_: sync, mirror, replica, bridge state
+
+**Device Notification Preference**:
+Which kinds of Human Inbox item one Paired Device wants to be alerted about from one Host. The device owns and stores it; the Host keeps a copy only to decide what to send that device.
+_Avoid_: Host notification setting, push settings, mute (for a Channel)
+
 **Bot Settings**:
-The BotHarness-owned modal (Bot 设置) for profile-wide BotHarness configuration, organised into Bot Settings sections in its own sidebar. Configuration of one PersonaBot or one Channel never lives here; that is Channel settings or a Channel sidebar entry. DSH's own settings modal is called DSH settings; its Bot 设置 item only points into Bot Settings, while App credentials remain in DSH settings.
+The BotHarness-owned modal (Bot 设置) for profile-wide BotHarness configuration, organised into Bot Settings sections in its own sidebar. Configuration of one PersonaBot or one Channel never lives here; that belongs in Channel settings or the relevant operational Panel. DSH's own settings modal is called DSH settings; its Bot 设置 item only points into Bot Settings, while App credentials remain in DSH settings.
 _Avoid_: Settings UI, settings page, preferences, admin panel, dashboard, web console
 
 **Bot Settings section**:
 One sidebar destination of Bot Settings: a stable id, label, order, and a renderer for one coherent group of profile-wide settings.
-_Avoid_: tab, page, settings item, Channel sidebar entry
+_Avoid_: tab, page, settings item, Panel
+
+**Prompt Part**:
+One named piece of behavior text in a Bot's system prompt or per-turn templates, such as how to report progress, that a Human may rewrite. The tool, delivery and Inbox contracts around it are not Prompt Parts and stay fixed (ADR-0263).
+_Avoid_: prompt section (a DSH system prompt section holds several parts plus fixed contract text), template
+
+**Prompt Preset**:
+A named set of Prompt Part texts in the Profile. Each part resolves per Bot from the Bot's own override, its chosen preset, the global preset, then the built-in text. A running Session keeps the texts it started with until compaction or a new Session.
+_Avoid_: system prompt preset, Model Preset (which chooses models), persona
 
 **Access policy**:
 The per-PersonaBot list of users and chats allowed to reach it.
@@ -872,9 +1061,23 @@ _Avoid_: secret, API key, token
 
 ### Telemetry and campaigns
 
+**Message Feedback**:
+Under ADR-0256, a Human-initiated evaluation anchored to one Channel message. Only good/bad rating, optional tags and a redacted short comment go to PostHog with a random reference and version. Conversation and execution diagnostics remain a separate local download for the Human to share manually. It is independent of anonymous Telemetry.
+_Avoid_: Telemetry, multi-message export, automatic error reporting
+
+**Mobile Telemetry**:
+Application-defined, default-on optional statistics from the Expo app, separate from Host telemetry. It observes coarse pairing, live connection and first-chat results; it owns no product authority and never carries conversation content or domain identifiers (ADR-0214).
+
+**Mobile Install ID**:
+A random statistics-only UUID saved on the phone while statistics are enabled. It is independent of Host Install ID, paired-device identity, Human accounts and site visitors. Opt-out clears it and the unsent queue; re-enabling creates a new one. OS app-data restoration may restore the saved preference and identifier.
+
 **Telemetry**:
-Anonymous product usage events the Host sends to the project's analytics service, on by default and turned off by plugin config `telemetry: false`, `DO_NOT_TRACK=1` or `BOTHARNESS_TELEMETRY=0`. It never carries names, Memory, conversation content, paths or IP addresses (ADR-0132).
+Anonymous product usage events the Host sends to the project's analytics service, on by default and turned off by plugin config `telemetry: false`, `DO_NOT_TRACK=1` or `BOTHARNESS_TELEMETRY=0`. It never carries names, Memory, conversation content, paths or IP addresses (ADR-0132). Every event is registered in the tracking plan and named `category:object_action`, with `source` `host` (ADR-0270).
 _Avoid_: tracking, analytics SDK, crash reporter
+
+**Active Day**:
+A Host-local day on which an installation was used: the first Bot mode entry, Human message or IM message sends `app:active_day_start` once (ADR-0270). DAU, WAU and MAU count installations with an Active Day; a Host that is only online does not count.
+_Avoid_: online day, daily usage
 
 **Install ID**:
 A random identifier generated on a plugin installation's first start and attached to its Telemetry. It identifies the installation, never a Human, and is never linked to a site visitor.
@@ -887,3 +1090,103 @@ _Avoid_: ad, promotion
 **Campaign Link**:
 A short link on `go.botharness.ai` for one post or video in a Campaign, carrying its platform and media type; resolving it redirects to the product site with UTM parameters and counts the click.
 _Avoid_: short URL, UTM link, referral link
+
+### Sessions panel
+
+The single Sessions surface (`sessions`, TextQuote icon) for inspecting existing Sessions; in the two-level target it is a Channel subpanel inside Messages (ADR-0221). In a PersonaBot DM its scope is that Bot. In a Group Channel its default scope is **Current channel**: Assignments whose original Source Event belongs to that Group, across responsible Bots. The Human can explicitly select an accessible member Bot to inspect that Bot's owned Orchestrator and Assignment Sessions without changing the active conversation. Scope is a per-Channel local view preference, separate from history and workspace grouping. It does not create Assignments, send requests, or change execution. The former Work panel is retired; Activity Center still owns Human attention and approval. See ADR-0220.
+
+Default-following Sessions headers omit a redundant scope label. Group scope choices live in the existing view-options menu; only an explicit member-Bot override shows `Bot · name` in the header.
+
+### Native UI components
+
+The iOS workspace switcher uses application-defined retained navigation pages backed by UIKit `UIPageViewController` through an opt-in `PagerView` backend; Workspaces is left of the complete Chats tab shell, followed by the last chat and its profile. Android retains its navigation drawer. See `apps/mobile/DESIGN.md` → iOS workspace panel.
+
+Interface talk names the platform's own component, not a description of how it looks. Android names come from the [Material 3 glossary](https://m3.material.io/foundations/glossary) and the [Material 3 components](https://m3.material.io/components) index; their code names come from [Compose Material 3](https://developer.android.com/reference/kotlin/androidx/compose/material3/package-summary). Apple publishes no glossary page; its counterpart is the [HIG Components](https://developer.apple.com/design/human-interface-guidelines/components) index (Content, Layout and organization, Menus and actions, Navigation and search, Presentation, Selection and input, Status, System experiences), with code names from [SwiftUI](https://developer.apple.com/documentation/swiftui) and [UIKit](https://developer.apple.com/documentation/uikit) and prose spelling from the [Apple Style Guide](https://support.apple.com/guide/applestyleguide/welcome/web). Which component a screen uses, and the token layers it reads, are decided in `apps/mobile/DESIGN.md`, [#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002) and ADR-0266.
+
+**Component term**:
+The exact name a platform's design system gives a component: the Material 3 name on Android, the HIG name on iOS, written in English in both languages of this glossary. Code uses the API name (`ModalBottomSheet`, `.sheet`), prose uses the design name (modal bottom sheet, sheet).
+_Avoid_: popup, popover (unless it is an iOS popover), modal, overlay, panel, drawer (alone), dropdown (alone), the bottom thing, 弹窗, 弹框, 浮层, 下拉框
+
+**Counterpart**:
+A component on the other platform that does the same job, listed in the table below. Counterparts share a job, not a look or an API: each side keeps its platform's default appearance and behaviour. A job with no counterpart says so instead of borrowing the other platform's component.
+_Avoid_: equivalent, same component, iOS version of
+
+**Native component**:
+A component drawn by the platform's own toolkit (Compose Material 3, SwiftUI or UIKit), reached through native navigation, `@expo/ui` or a local Expo module.
+_Avoid_: native-looking view, RN look-alike (for a native component)
+
+**Look-alike**:
+A React Native view drawn to imitate a native component. It is migration debt, not a choice (#3002).
+_Avoid_: native component, custom component
+
+**Custom surface**:
+App-owned UI for a job no native component does, kept only with its reason written in `DESIGN.md`: message bubbles, streaming text reveal, the Computer video canvas and its remote keyboard, and the iOS tab island (ADR-0235).
+_Avoid_: look-alike (for a recorded custom surface)
+
+**Navigation bar**:
+Two different components. On Android, the Material 3 navigation bar is the bottom row of top-level destinations (iOS counterpart: tab bar). On iOS, the navigation bar is the top bar with the title, Back and toolbar items (Android counterpart: top app bar). Always say which platform's navigation bar is meant.
+_Avoid_: bottom bar, header (in platform discussion), nav bar (without the platform)
+
+**Expo UI `Host`**:
+The `@expo/ui` view that hosts Compose or SwiftUI content inside React Native and carries its theme (`seedColor`, `colorScheme`). It is unrelated to the product **Host**; always write it as Expo UI `Host` or `<Host>`.
+_Avoid_: Host (alone, for the Expo UI view)
+
+**Platform design language**:
+Material 3 with its Expressive update on Android; Liquid Glass on iOS 26 and later. Their token vocabularies are the platform layers of ADR-0266: Material colour roles (`useMaterialRoles()`) and type styles (`materialType`) on Android; semantic system colours (`systemColors`), Dynamic Type text styles (`systemType`) and the tint on iOS. Icons are Material Symbols on Android and SF Symbols on iOS.
+_Avoid_: Material You (for anything but dynamic colour), glassmorphism, frosted glass, iOS style on Android, Material style on iOS
+
+Counterparts by job. The Android column uses Material 3 names, the iOS column HIG names; code names follow in each API column. "—" means the platform has no component for that job.
+
+| Job                                                 | Android (Material 3)                                                 | Compose                                                                         | iOS (HIG)                                                                              | SwiftUI · UIKit                                                                                                    |
+| --------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Title and actions for the current screen            | Top app bar (small, center-aligned, medium/large flexible)           | `TopAppBar`, `CenterAlignedTopAppBar`, `MediumFlexibleTopAppBar`                | Navigation bar (HIG Toolbars)                                                          | `NavigationStack` + `.toolbar`, `.navigationTitle` · `UINavigationBar`                                             |
+| Switch top-level destinations on a phone            | Navigation bar                                                       | `NavigationBar`, `NavigationBarItem`                                            | Tab bar                                                                                | `TabView` · `UITabBarController`                                                                                   |
+| Destinations on a wider window                      | Navigation rail (expanded rail replaces the drawer in M3 Expressive) | `NavigationRail`, `WideNavigationRail`                                          | Sidebar                                                                                | `NavigationSplitView` · `UISplitViewController`                                                                    |
+| Reveal a panel beside the content                   | Navigation drawer (dismissible or modal)                             | `DismissibleNavigationDrawer`, `ModalNavigationDrawer`                          | — (Mail pattern: the panel is the stack root, revealed by the interactive pop gesture) | `NavigationStack` root · `interactiveContentPopGestureRecognizer`                                                  |
+| Frequent actions for the current page               | Toolbar (docked or floating)                                         | `HorizontalFloatingToolbar`, `FlexibleBottomAppBar`                             | Toolbar                                                                                | `ToolbarItem(placement: .bottomBar)` · `UIToolbar`                                                                 |
+| One primary creation action                         | FAB, extended FAB                                                    | `FloatingActionButton`, `ExtendedFloatingActionButton`                          | — (a toolbar item)                                                                     | `ToolbarItem`                                                                                                      |
+| Several related creation actions                    | FAB menu                                                             | `FloatingActionButtonMenu`                                                      | Pull-down button                                                                       | `Menu`                                                                                                             |
+| Contextual filters beside the current content       | Modal side sheet                                                     | Native modal side-sheet container                                               | Inspector (adapts to Sheet on compact iPhone)                                          | `.inspector(isPresented:content:)`                                                                                 |
+| Scoped task above the current context               | Modal bottom sheet                                                   | `ModalBottomSheet`                                                              | Sheet (form sheet, page sheet, with detents)                                           | `.sheet` + `.presentationDetents` · `UISheetPresentationController`                                                |
+| Supplementary content beside the screen content     | Standard bottom sheet                                                | `BottomSheetScaffold`                                                           | Sheet without a modal dimming view (largest undimmed detent)                           | `.presentationBackgroundInteraction`                                                                               |
+| Full-screen task                                    | Full-screen dialog                                                   | `Dialog` (full-screen properties)                                               | Full-screen modal                                                                      | `.fullScreenCover` · `UIModalPresentationStyle.fullScreen`                                                         |
+| Important prompt or confirmation                    | Dialog (basic dialog)                                                | `AlertDialog`                                                                   | Alert                                                                                  | `.alert` · `UIAlertController(.alert)`                                                                             |
+| Choices in response to something the person did     | Menu, or a modal bottom sheet of actions                             | `DropdownMenu`, `ModalBottomSheet`                                              | Action sheet                                                                           | `.confirmationDialog` · `UIAlertController(.actionSheet)`                                                          |
+| Commands from a button or ⋮ / ⋯                     | Menu (dropdown menu)                                                 | `DropdownMenu`, `DropdownMenuItem`                                              | Pull-down button (⋯ More)                                                              | `Menu` · `UIButton.menu` + `showsMenuAsPrimaryAction`                                                              |
+| Actions for one item, on long press                 | Menu anchored to the item                                            | `DropdownMenu`                                                                  | Context menu                                                                           | `.contextMenu` · `UIContextMenuInteraction`                                                                        |
+| Pick one value, shown in place                      | Exposed dropdown menu                                                | `ExposedDropdownMenuBox`                                                        | Pop-up button                                                                          | `Picker` + `.pickerStyle(.menu)` · `UIButton.changesSelectionAsPrimaryAction`                                      |
+| A main action with related alternatives             | Split button                                                         | `SplitButtonLayout`                                                             | Pull-down button with a primary action                                                 | `Menu(primaryAction:)`                                                                                             |
+| Switch 2–5 peer views or options in content         | Button group (segmented button is legacy)                            | `ButtonGroup`, `ToggleButton`, `SingleChoiceSegmentedButtonRow`                 | Segmented control                                                                      | `Picker` + `.pickerStyle(.segmented)` · `UISegmentedControl`                                                       |
+| Organize content across views within a screen       | Tabs (primary, secondary)                                            | `PrimaryTabRow`, `SecondaryTabRow`, `Tab`                                       | Segmented control (tab views are macOS)                                                | `Picker` + `.pickerStyle(.segmented)` · `UISegmentedControl`                                                       |
+| An action                                           | Button: filled, filled tonal, outlined, elevated, text               | `Button`, `FilledTonalButton`, `OutlinedButton`, `ElevatedButton`, `TextButton` | Button: bordered prominent, bordered, borderless; glass prominent and glass on iOS 26  | `.buttonStyle(.borderedProminent / .bordered / .borderless / .glassProminent / .glass)` · `UIButton.Configuration` |
+| An icon-only action                                 | Icon button (standard, filled, tonal, outlined)                      | `IconButton`, `FilledIconButton`, `FilledTonalIconButton`, `OutlinedIconButton` | Button with an SF Symbol (toolbar item in bars)                                        | `Button` + `Image(systemName:)` · `UIBarButtonItem`                                                                |
+| An icon-only action that shows on or off            | Icon toggle button (standard, filled, outlined)                      | `IconToggleButton`, `FilledIconToggleButton`, `OutlinedIconToggleButton`        | Button with an SF Symbol and the selected trait                                        | `Button` + `.accessibilityAddTraits(.isSelected)`                                                                  |
+| Filter content                                      | Filter chip                                                          | `FilterChip`                                                                    | Toggle (button style)                                                                  | `Toggle` + `.toggleStyle(.button)`                                                                                 |
+| Suggested or contextual action, or an entered value | Assist, suggestion and input chips                                   | `AssistChip`, `SuggestionChip`, `InputChip`                                     | — (search tokens for search scopes)                                                    | `.searchable(text:tokens:)`                                                                                        |
+| Turn one setting on or off                          | Switch                                                               | `Switch`                                                                        | Toggle (switch style)                                                                  | `Toggle` · `UISwitch`                                                                                              |
+| Choose one of a set in a list                       | Radio button                                                         | `RadioButton`                                                                   | List rows with a checkmark (inline picker)                                             | `Picker` + `.pickerStyle(.inline)` · `UITableViewCell.accessoryType = .checkmark`                                  |
+| Choose several of a set                             | Checkbox                                                             | `Checkbox`, `TriStateCheckbox`                                                  | List rows with a checkmark (checkboxes are macOS)                                      | `List(selection:)` · `.checkmark` accessory                                                                        |
+| Choose from a range                                 | Slider                                                               | `Slider`, `RangeSlider`                                                         | Slider                                                                                 | `Slider` · `UISlider`                                                                                              |
+| Enter text                                          | Text field (filled, outlined)                                        | `TextField`, `OutlinedTextField`, `SecureTextField`                             | Text field; text view for long multiline text                                          | `TextField`, `SecureField`, `TextEditor` · `UITextField`, `UITextView`                                             |
+| Search                                              | Search (search bar, search view)                                     | `SearchBar`, `DockedSearchBar`, `ExpandedFullScreenSearchBar`                   | Search field                                                                           | `.searchable` · `UISearchController`                                                                               |
+| Pick a date or time                                 | Date picker, time picker                                             | `DatePicker`, `DatePickerDialog`, `TimePicker`                                  | Picker (date picker: compact, wheels, graphical)                                       | `DatePicker` · `UIDatePicker`                                                                                      |
+| Rows of related content or settings                 | List (list items, one- to three-line)                                | `ListItem`, `LazyColumn`                                                        | Lists and tables (inset grouped for settings)                                          | `List`, `Form`, `Section` · `UICollectionView` list, `UITableView`                                                 |
+| One subject's content and actions                   | Card (elevated, filled, outlined)                                    | `Card`, `ElevatedCard`, `OutlinedCard`                                          | — (a section of an inset grouped list)                                                 | `Section`                                                                                                          |
+| Separate groups                                     | Divider                                                              | `HorizontalDivider`                                                             | Separator                                                                              | `Divider` · list row separators                                                                                    |
+| A count or status on an icon                        | Badge                                                                | `Badge`, `BadgedBox`                                                            | Badge (on tab bar items and app icons)                                                 | `.badge` · `UITabBarItem.badgeValue`                                                                               |
+| Short wait                                          | Loading indicator                                                    | `LoadingIndicator`                                                              | Progress indicator (activity indicator, indeterminate)                                 | `ProgressView()` · `UIActivityIndicatorView`                                                                       |
+| Known progress                                      | Progress indicator (linear, circular)                                | `LinearProgressIndicator`, `CircularProgressIndicator`                          | Progress indicator (progress bar)                                                      | `ProgressView(value:)` · `UIProgressView`                                                                          |
+| Refresh a list                                      | Pull to refresh                                                      | `PullToRefreshBox`                                                              | Refresh control                                                                        | `.refreshable` · `UIRefreshControl`                                                                                |
+| Brief message about an app process                  | Snackbar                                                             | `Snackbar`, `SnackbarHost`                                                      | —                                                                                      | —                                                                                                                  |
+| Label or hint for an element                        | Tooltip                                                              | `TooltipBox`, `PlainTooltip`                                                    | — on iPhone (help tags are macOS and iPadOS pointer)                                   | —                                                                                                                  |
+| Scroll through a set of items horizontally          | Carousel                                                             | `HorizontalMultiBrowseCarousel`                                                 | Collection; page control for ordered pages                                             | `ScrollView(.horizontal)`, `TabView` + `.tabViewStyle(.page)` · `UICollectionView`, `UIPageControl`                |
+| Go back                                             | System Back and predictive back; top app bar navigation icon         | `BackHandler`, `PredictiveBackHandler`                                          | Back button and the interactive pop (edge or content swipe)                            | `NavigationStack` · `UINavigationController`                                                                       |
+
+How this app pairs them today (`apps/mobile/DESIGN.md`, #3002):
+
+- Buttons: primary → filled ↔ bordered prominent (glass prominent on iOS 26); secondary and tonal → filled tonal ↔ bordered (glass); text → text button ↔ borderless; danger → filled with the Material error colours ↔ the destructive role.
+- Sheets: Android `ModalBottomSheet` ↔ iOS form sheet with detents (`presentation: 'formSheet'` through Expo Router, or SwiftUI `BottomSheet` in `@expo/ui`).
+- The Chats "-1 screen": Android `DismissibleNavigationDrawer` ↔ iOS retained navigation pages, Workspaces beside the complete Chats tab shell (`UIPageViewController` through `PagerView`).
+- Top-level navigation: Android navigation bar with a creation FAB ↔ the iOS tab island with its **+** (a custom surface, ADR-0235).
+- Activity and workspace tabs: Android primary tabs (`PrimaryTabRow`).
+- Settings screens: Android segmented list of list items ↔ iOS inset grouped list (SwiftUI `Form` with `Section`, `Label`, `Toggle`, menu `Picker`, `LabeledContent`), through `SettingsForm`.

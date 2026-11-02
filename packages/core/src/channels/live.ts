@@ -18,6 +18,7 @@ export const CHANNEL_DRAFT_SETTLED_EVENT = 'channel/draft-settled';
 export const CHANNEL_DRAFT_ABANDONED_EVENT = 'channel/draft-abandoned';
 export const ROSTER_CHANGED_EVENT = 'roster/changed';
 export const ROSTER_LATEST_EVENT = 'roster/latest';
+export const HUMAN_ATTENTION_CHANGED_EVENT = 'human-attention/changed';
 export const CONTENT_PURGED_EVENT = 'content/purged';
 
 export interface PublishedDraft extends ChannelDraft {
@@ -57,6 +58,7 @@ interface Subscriber {
 export type RosterLiveFrame =
   | { type: 'baseline'; placements: PurgedPlacement[] }
   | { type: 'changed' }
+  | { type: 'attention' }
   | { type: 'latest'; channelId: string; message: ChannelMessage }
   | { type: 'purged'; placements: PurgedPlacement[] };
 
@@ -228,6 +230,7 @@ export function createChannelLiveHub(
   channels: ChannelStore,
   activity?: ActivitySource,
   redactions?: () => PurgedPlacement[],
+  watchAttention?: (changed: () => void) => () => void,
 ): ChannelLiveHub {
   const subscribers = new Map<string, Set<Subscriber>>();
   const drafts = new Map<string, Map<string, PublishedDraft>>();
@@ -305,12 +308,16 @@ export function createChannelLiveHub(
     });
   };
   interface RosterSubscriber {
+    attention(): void;
     push(): void;
     latest(channelId: string, message: ChannelMessage): void;
     purge(placements: PurgedPlacement[]): void;
     close(): void;
   }
   const rosterSubscribers = new Set<RosterSubscriber>();
+  const offAttention = watchAttention?.(() => {
+    for (const subscriber of rosterSubscribers) subscriber.attention();
+  });
   const openRoster = (includeActivity = false): Response => {
     const encoder = new TextEncoder();
     let subscriber: RosterSubscriber | undefined;
@@ -351,6 +358,20 @@ export function createChannelLiveHub(
                     `event: ${CONTENT_PURGED_EVENT}\ndata: ${JSON.stringify({ placements: placements.slice(offset, offset + 100) })}\n\n`,
                   ),
                 );
+            } catch {
+              this.close();
+            }
+          },
+          attention() {
+            if (ended) return;
+            if ((controller.desiredSize ?? 0) <= -64) {
+              this.close();
+              return;
+            }
+            try {
+              controller.enqueue(
+                encoder.encode(`event: ${HUMAN_ATTENTION_CHANGED_EVENT}\ndata: {}\n\n`),
+              );
             } catch {
               this.close();
             }
@@ -422,6 +443,11 @@ export function createChannelLiveHub(
     let ended = signal.aborted;
     let wake: (() => void) | undefined;
     const subscriber: RosterSubscriber = {
+      attention() {
+        if (ended) return;
+        if (!queue.some((frame) => frame.type === 'attention')) queue.push({ type: 'attention' });
+        wake?.();
+      },
       purge(placements) {
         if (ended) return;
         queue.push({ type: 'purged', placements });
@@ -745,6 +771,7 @@ export function createChannelLiveHub(
         for (const subscriber of rosterSubscribers)
           subscriber.latest(commit.channelId, commit.message);
       if (commit.message.author.kind !== 'bot') return;
+      if (!isChannelNotice(commit.message)) this.publishRosterCommitted();
       const botSlug = commit.message.author.slug;
       const candidates = [...(drafts.get(commit.channelId)?.values() ?? [])].filter(
         (draft) => draft.botSlug === botSlug,
@@ -821,6 +848,7 @@ export function createChannelLiveHub(
       for (const subscriber of rosterSubscribers) subscriber.purge(placements);
     },
     close() {
+      offAttention?.();
       drafts.clear();
       for (const group of subscribers.values()) {
         for (const subscriber of group) subscriber.close();

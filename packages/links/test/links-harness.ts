@@ -4,7 +4,7 @@ import type { D1Database, D1PreparedStatement, D1Value } from '../src/d1.js';
 import { app, type LinksEnv } from '../src/worker.js';
 
 export const BOOTSTRAP = 'bootstrap-secret-0123456789abcdefghijklmnop';
-export const ORIGIN = 'https://go.botharness.ai';
+export const ORIGIN = 'https://go.tobs.app';
 
 export function createLocalD1(): { db: D1Database; sqlite: DatabaseSync } {
   const sqlite = new DatabaseSync(':memory:');
@@ -67,6 +67,7 @@ export function createHarness(overrides: Partial<LinksEnv> = {}) {
       body?: unknown;
       userAgent?: string;
       headers?: Record<string, string>;
+      origin?: string;
     } = {},
   ) => {
     const headers: Record<string, string> = { ...init.headers };
@@ -76,7 +77,7 @@ export function createHarness(overrides: Partial<LinksEnv> = {}) {
     }
     if (init.userAgent !== undefined) headers['user-agent'] = init.userAgent;
     const response = await app.request(
-      `${ORIGIN}${path}`,
+      `${init.origin ?? ORIGIN}${path}`,
       {
         method: init.method ?? 'GET',
         headers,

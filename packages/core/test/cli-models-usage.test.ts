@@ -197,14 +197,61 @@ describe('Model commands', () => {
         .error.code,
     ).toBe('usage');
     expect(live.calls).toEqual([
+      { method: 'modelPlan', args: { slug: 'ada' } },
       {
         method: 'modelPlanCustomize',
-        args: { slug: 'ada', orchestrator: route('reasoner', 'high') },
+        args: { slug: 'ada', orchestrator: route('reasoner', 'high'), expectedRevision: 3 },
       },
       { method: 'modelPlan', args: { slug: 'ada' } },
       {
         method: 'modelPlanInherit',
         args: { slug: 'ada', expectedRevision: 3 },
+      },
+    ]);
+  });
+
+  it('creates a complete preset through the online command without discarding Assignment choices', async () => {
+    const live = await host((_method, args) => ({
+      ok: true,
+      value: { preset: { id: 'p', ...args } },
+    }));
+    const choices = [
+      {
+        provider: 'deepseek',
+        model: 'flash',
+        allowedEfforts: ['', 'high'],
+        defaultEffort: '',
+        note: 'Keep this note',
+      },
+    ];
+    const result = await invoke(
+      [
+        'model-preset-create',
+        '--name',
+        'Daily',
+        '--orchestrator-provider',
+        'deepseek',
+        '--orchestrator-model',
+        'reasoner',
+        '--assignment-provider',
+        'deepseek',
+        '--assignment-model',
+        'flash',
+        '--plan-stdin',
+      ],
+      live.url,
+      JSON.stringify({ assignmentModels: choices }),
+    );
+    expect(result.code).toBe(0);
+    expect(live.calls).toEqual([
+      {
+        method: 'modelPresetCreate',
+        args: {
+          name: 'Daily',
+          orchestrator: { provider: 'deepseek', model: 'reasoner' },
+          assignmentDefault: { provider: 'deepseek', model: 'flash' },
+          assignmentModels: choices,
+        },
       },
     ]);
   });
@@ -350,4 +397,81 @@ describe('Usage and activity commands', () => {
       { method: 'groupProfileActivity', args: { channelId: 'group-1' } },
     ]);
   });
+});
+
+it('configures the Home native default with its actual revision and reasoning effort', async () => {
+  const live = await host((method) => ({
+    ok: true,
+    value: method === 'modelCatalog' ? { defaultRevision: 7 } : { revision: 8 },
+  }));
+  const result = await invoke(
+    [
+      'home-model-set',
+      '--provider',
+      'deepseek',
+      '--model',
+      'test-model',
+      '--orchestrator-effort',
+      'high',
+    ],
+    live.url,
+  );
+  expect(result.code).toBe(0);
+  expect(live.calls).toEqual([
+    { method: 'modelCatalog', args: {} },
+    {
+      method: 'onboardingModel',
+      args: {
+        expectedRevision: 0,
+        expectedDefaultRevision: 7,
+        route: { provider: 'deepseek', model: 'test-model', reasoningEffort: 'high' },
+        globalDefault: true,
+      },
+    },
+  ]);
+  expect((await invoke(['home-model-set'], live.url)).json.error.code).toBe('usage');
+});
+it('forwards explicit native default and preset target revisions', async () => {
+  const live = await host(() => ({ ok: true, value: { revision: 9 } }));
+  expect(
+    (
+      await invoke(
+        ['home-model-set', '--provider', 'deepseek', '--model', 'test', '--expected-revision', '8'],
+        live.url,
+      )
+    ).code,
+  ).toBe(0);
+  expect(live.calls[0]).toMatchObject({
+    method: 'onboardingModel',
+    args: { expectedDefaultRevision: 8 },
+  });
+  expect(
+    (
+      await invoke(
+        [
+          'model-preset-apply',
+          'one',
+          '--preset',
+          'preset-1',
+          '--expected-revision',
+          '2',
+          '--preset-revision',
+          '4',
+        ],
+        live.url,
+      )
+    ).code,
+  ).toBe(0);
+  expect(live.calls[1]).toEqual({
+    method: 'modelPresetApply',
+    args: { slug: 'one', presetId: 'preset-1', expectedRevision: 2, expectedPresetRevision: 4 },
+  });
+  expect(
+    (
+      await invoke(
+        ['model-preset-apply', 'one', '--preset', 'preset-1', '--preset-revision', '-1'],
+        live.url,
+      )
+    ).json.error.code,
+  ).toBe('usage');
 });

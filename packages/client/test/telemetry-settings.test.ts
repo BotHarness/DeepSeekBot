@@ -89,7 +89,7 @@ describe('TelemetrySettings', () => {
     const view = await render(call);
     expect(view.host.textContent).toContain('匿名使用统计');
     const link = view.host.querySelector('a');
-    expect(link?.getAttribute('href')).toBe('https://deepseekbot.botharness.ai/privacy');
+    expect(link?.getAttribute('href')).toBe('https://tobs.app/privacy/');
     expect(view.toggle().checked).toBe(true);
     expect(view.toggle().disabled).toBe(false);
 
@@ -122,9 +122,7 @@ describe('TelemetrySettings', () => {
     expect(view.host.querySelector(`[data-telemetry-lock="${lockedBy}"]`)?.textContent).toContain(
       note,
     );
-    expect(view.host.querySelector('a')?.getAttribute('href')).toBe(
-      'https://deepseekbot.botharness.ai/en/privacy',
-    );
+    expect(view.host.querySelector('a')?.getAttribute('href')).toBe('https://tobs.app/en/privacy/');
     view.unmount();
   });
 

@@ -25,7 +25,7 @@ const styles = stylex.create({
   },
   link: {
     alignSelf: 'flex-start',
-    color: color.accent,
+    color: color.accentText,
     textUnderlineOffset: '3px',
   },
   qr: {

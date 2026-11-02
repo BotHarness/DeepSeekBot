@@ -107,6 +107,54 @@ describe('Stopping a working PersonaBot', () => {
     }
   });
 
+  it('stops the turn a disbanded group started and tells the Bot why next time', async () => {
+    const fake = stoppableAgents();
+    const core = createCore({ dshHome: createTempRoot('bh-turn-disband-'), agents: fake.agents });
+    const bridge = createBridgeMethods({ ...core });
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      const group = core.channels.createGroup({ name: 'Trip', members: ['ada'] });
+      expect(
+        bridge.channelGroupWakeSet({
+          channelId: group.id,
+          botSlug: 'ada',
+          mode: 'all',
+          count: 5,
+          intervalSeconds: 30,
+        }),
+      ).toMatchObject({ ok: true });
+      await bridge.channelSend({
+        channelId: group.id,
+        messageId: 'human-00000000-0000-4000-8000-000000000003',
+        body: 'Plan the whole trip',
+      });
+      await fake.running();
+
+      expect(bridge.channelGroupDelete({ channelId: group.id })).toMatchObject({
+        ok: true,
+        value: { deleted: true },
+      });
+      await core.runtime.whenIdle();
+
+      fake.rearm();
+      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+      await bridge.channelSend({
+        channelId: dm.id,
+        messageId: 'human-00000000-0000-4000-8000-000000000004',
+        body: 'Just say hi',
+      });
+      await fake.running();
+      fake.finish();
+      await core.runtime.whenIdle();
+      expect(fake.messages.at(-1)).toContain('[Host: the Human disbanded the group');
+      expect(fake.messages.at(-1)).not.toContain('stopped your previous turn');
+    } finally {
+      fake.finish();
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
   it('refuses a Channel the Bot is not in and an unknown Bot', async () => {
     const fake = stoppableAgents();
     const core = createCore({

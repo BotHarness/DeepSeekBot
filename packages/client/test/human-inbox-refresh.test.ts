@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createActions } from '../src/client/actions.js';
 import type { BridgeCall } from '../src/client/bridge.js';
@@ -329,4 +329,37 @@ describe('Human Inbox pagination refresh', () => {
     expect(clientStore.getSnapshot().humanInbox.category).toBe('info');
     expect(clientStore.getSnapshot().humanInbox.items).toEqual([]);
   });
+});
+
+it('refreshes the entry status when a committed roster mute changes without opening Activity', async () => {
+  const clientStore = createStore();
+  let muted: string[] = [];
+  const call: BridgeCall = async (endpoint, payload) => {
+    if (endpoint === 'rosterGet')
+      return { ok: true, value: { pins: [], hidden: [], muted, sections: [] } };
+    if (endpoint === 'channels') return { ok: true, value: { channels: [] } };
+    if (endpoint === 'list') return { ok: true, value: { bots: [] } };
+    if (endpoint === 'composerIdentity') return { ok: true, value: { displayName: 'Human' } };
+    if (endpoint === 'humanAttentionStatus')
+      return { ok: true, value: { unreadCount: muted.length ? 1 : 4, hasAction: true } };
+    if (endpoint === 'channelUnreadCounts')
+      return { ok: true, value: { channels: [{ channelId: 'quiet', unreadCount: 3 }] } };
+    if (endpoint === 'channelMuteSet') {
+      muted = payload.muted ? ['quiet'] : [];
+      return { ok: true, value: { muted } };
+    }
+    throw new Error('Unexpected endpoint: ' + endpoint);
+  };
+  const actions = createActions(call, clientStore);
+  await actions.refreshHumanInboxStatus();
+  expect(clientStore.getSnapshot().humanInbox.unreadCount).toBe(4);
+  expect(await actions.setChannelMuted('quiet', true)).toBe(true);
+  await vi.waitFor(() => expect(clientStore.getSnapshot().humanInbox.unreadCount).toBe(1));
+  expect(clientStore.getSnapshot().humanInbox).toMatchObject({
+    hasAction: true,
+    channelUnread: { quiet: 3 },
+  });
+  muted = [];
+  await actions.refreshRoster();
+  await vi.waitFor(() => expect(clientStore.getSnapshot().humanInbox.unreadCount).toBe(4));
 });

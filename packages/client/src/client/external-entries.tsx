@@ -4,7 +4,7 @@ import { ReachablePostDialog } from './reachable-post.js';
 import type { MessagingIdentityView } from '../../../core/src/messaging/identity.js';
 
 import { ApprovalSettings } from './approval-settings.js';
-import { useClientState } from './bot-sidebar.js';
+import { sameBotNames, useClientStore } from './use-client-store.js';
 import { ChannelBridgeAttention, ChannelBridgeList } from './channel-bridge-list.js';
 import type { ChannelSettingsAttentionProps, ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { PanelDialog } from './ds/panel-dialog.js';
@@ -24,9 +24,12 @@ function IdentitiesForBot({
   t: ChannelSidebarEntryProps['t'];
 }): ReactElement {
   const { snapshot, failed, refresh, mount } = useMessagingSnapshot(slug, actions);
-  const state = useClientState();
-  const dm = state.channels.find((c) => c.type === 'dm' && c.botSlug === slug);
-  const bot = state.bots.find((b) => b.slug === slug);
+  const dm = useClientStore((state) =>
+    state.channels.find((c) => c.type === 'dm' && c.botSlug === slug),
+  );
+  const bots = useClientStore((state) => state.bots, sameBotNames);
+  const composerIdentity = useClientStore((state) => state.composerIdentity);
+  const bot = bots.find((b) => b.slug === slug);
   const syncChannels = [
     ...(dm ? [{ id: dm.id, name: t('bridge.dmTarget', { name: bot?.displayName ?? slug }) }] : []),
     ...(snapshot?.channelTargets ?? []),
@@ -73,12 +76,12 @@ function IdentitiesForBot({
           slug={slug}
           identity={postIdentity}
           recoveryScope={
-            state.composerIdentity === undefined
+            composerIdentity === undefined
               ? undefined
               : JSON.stringify([
-                  state.composerIdentity.hostId,
-                  state.composerIdentity.profileId,
-                  state.composerIdentity.humanId,
+                  composerIdentity.hostId,
+                  composerIdentity.profileId,
+                  composerIdentity.humanId,
                 ])
           }
           actions={actions}
@@ -134,7 +137,7 @@ function IdentitiesForBot({
           }
           await refresh();
         }}
-        botName={(owner) => state.bots.find((item) => item.slug === owner)?.displayName ?? owner}
+        botName={(owner) => bots.find((item) => item.slug === owner)?.displayName ?? owner}
       />
       <SidebarCardList label={t('pairing.title')}>
         <SidebarCardRow
@@ -258,16 +261,19 @@ export function ExternalConnectorsEntry({
   actions,
   t,
 }: ChannelSidebarEntryProps): ReactElement {
-  const state = useClientState();
+  const botName = useClientStore(
+    (state) => state.bots.find((item) => item.slug === botSlug)?.displayName,
+  );
+  const channelName = useClientStore(
+    (state) => state.channels.find((item) => item.id === channelId)?.name,
+  );
   if (botSlug === undefined) return <></>;
-  const bot = state.bots.find((item) => item.slug === botSlug);
-  const channel = state.channels.find((item) => item.id === channelId);
   return (
     <ChannelBridgeList
       key={`${botSlug}:${channelId}`}
       channelId={channelId}
-      channelName={channel?.name ?? bot?.displayName ?? botSlug}
-      botNames={new Map([[botSlug, bot?.displayName ?? botSlug]])}
+      channelName={channelName ?? botName ?? botSlug}
+      botNames={new Map([[botSlug, botName ?? botSlug]])}
       actions={actions}
       t={t}
     >

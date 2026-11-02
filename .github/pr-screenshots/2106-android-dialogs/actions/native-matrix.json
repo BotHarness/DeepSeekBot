@@ -1,0 +1,387 @@
+{
+  "source": "f960d6e1b6baf61b85a99f273fce85666e48c34d",
+  "records": [
+    {
+      "mode": "dark",
+      "font": 1,
+      "create": {
+        "panel": [78, 1083, 1142, 1707],
+        "buttons": [
+          {
+            "label": "新建 PersonaBot",
+            "bounds": [156, 1291, 1064, 1447]
+          },
+          {
+            "label": "新建频道",
+            "bounds": [156, 1473, 1064, 1629]
+          }
+        ]
+      },
+      "menu": {
+        "panel": [78, 1083, 1142, 1707],
+        "buttons": [
+          {
+            "label": "自定义",
+            "bounds": [156, 1291, 1064, 1447]
+          },
+          {
+            "label": "取消配对",
+            "bounds": [156, 1473, 1064, 1629]
+          }
+        ]
+      },
+      "confirmation": {
+        "panel": [78, 1083, 1142, 1707],
+        "buttons": [
+          {
+            "label": "取消",
+            "bounds": [156, 1473, 597, 1629]
+          },
+          {
+            "label": "取消配对",
+            "bounds": [623, 1473, 1064, 1629]
+          }
+        ]
+      },
+      "cancelRetainsPairing": true
+    },
+    {
+      "mode": "dark",
+      "font": 1.3,
+      "create": {
+        "panel": [78, 1079, 1142, 1711],
+        "buttons": [
+          {
+            "label": "新建 PersonaBot",
+            "bounds": [156, 1295, 1064, 1451]
+          },
+          {
+            "label": "新建频道",
+            "bounds": [156, 1477, 1064, 1633]
+          }
+        ]
+      },
+      "menu": {
+        "panel": [78, 1079, 1142, 1711],
+        "buttons": [
+          {
+            "label": "自定义",
+            "bounds": [156, 1295, 1064, 1451]
+          },
+          {
+            "label": "取消配对",
+            "bounds": [156, 1477, 1064, 1633]
+          }
+        ]
+      },
+      "confirmation": {
+        "panel": [78, 1029, 1142, 1762],
+        "buttons": [
+          {
+            "label": "取消",
+            "bounds": [156, 1528, 597, 1684]
+          },
+          {
+            "label": "取消配对",
+            "bounds": [623, 1528, 1064, 1684]
+          }
+        ]
+      },
+      "cancelRetainsPairing": true
+    },
+    {
+      "mode": "dark",
+      "font": 2,
+      "create": {
+        "panel": [78, 1057, 1142, 1734],
+        "buttons": [
+          {
+            "label": "新建 PersonaBot",
+            "bounds": [156, 1304, 1064, 1467]
+          },
+          {
+            "label": "新建频道",
+            "bounds": [156, 1493, 1064, 1656]
+          }
+        ]
+      },
+      "menu": {
+        "panel": [78, 1057, 1142, 1734],
+        "buttons": [
+          {
+            "label": "自定义",
+            "bounds": [156, 1304, 1064, 1467]
+          },
+          {
+            "label": "取消配对",
+            "bounds": [156, 1493, 1064, 1656]
+          }
+        ]
+      },
+      "confirmation": {
+        "panel": [78, 806, 1142, 1985],
+        "buttons": [
+          {
+            "label": "取消",
+            "bounds": [156, 1555, 1064, 1718]
+          },
+          {
+            "label": "取消配对",
+            "bounds": [156, 1744, 1064, 1907]
+          }
+        ]
+      },
+      "cancelRetainsPairing": true
+    },
+    {
+      "mode": "light",
+      "font": 1,
+      "create": {
+        "panel": [78, 1083, 1142, 1707],
+        "buttons": [
+          {
+            "label": "新建 PersonaBot",
+            "bounds": [156, 1291, 1064, 1447]
+          },
+          {
+            "label": "新建频道",
+            "bounds": [156, 1473, 1064, 1629]
+          }
+        ]
+      },
+      "menu": {
+        "panel": [78, 1083, 1142, 1707],
+        "buttons": [
+          {
+            "label": "自定义",
+            "bounds": [156, 1291, 1064, 1447]
+          },
+          {
+            "label": "取消配对",
+            "bounds": [156, 1473, 1064, 1629]
+          }
+        ]
+      },
+      "confirmation": {
+        "panel": [78, 1083, 1142, 1707],
+        "buttons": [
+          {
+            "label": "取消",
+            "bounds": [156, 1473, 597, 1629]
+          },
+          {
+            "label": "取消配对",
+            "bounds": [623, 1473, 1064, 1629]
+          }
+        ]
+      },
+      "cancelRetainsPairing": true
+    },
+    {
+      "mode": "light",
+      "font": 1.3,
+      "create": {
+        "panel": [78, 1079, 1142, 1711],
+        "buttons": [
+          {
+            "label": "新建 PersonaBot",
+            "bounds": [156, 1295, 1064, 1451]
+          },
+          {
+            "label": "新建频道",
+            "bounds": [156, 1477, 1064, 1633]
+          }
+        ]
+      },
+      "menu": {
+        "panel": [78, 1079, 1142, 1711],
+        "buttons": [
+          {
+            "label": "自定义",
+            "bounds": [156, 1295, 1064, 1451]
+          },
+          {
+            "label": "取消配对",
+            "bounds": [156, 1477, 1064, 1633]
+          }
+        ]
+      },
+      "confirmation": {
+        "panel": [78, 1029, 1142, 1762],
+        "buttons": [
+          {
+            "label": "取消",
+            "bounds": [156, 1528, 597, 1684]
+          },
+          {
+            "label": "取消配对",
+            "bounds": [623, 1528, 1064, 1684]
+          }
+        ]
+      },
+      "cancelRetainsPairing": true
+    },
+    {
+      "mode": "light",
+      "font": 2,
+      "create": {
+        "panel": [78, 1057, 1142, 1734],
+        "buttons": [
+          {
+            "label": "新建 PersonaBot",
+            "bounds": [156, 1304, 1064, 1467]
+          },
+          {
+            "label": "新建频道",
+            "bounds": [156, 1493, 1064, 1656]
+          }
+        ]
+      },
+      "menu": {
+        "panel": [78, 1057, 1142, 1734],
+        "buttons": [
+          {
+            "label": "自定义",
+            "bounds": [156, 1304, 1064, 1467]
+          },
+          {
+            "label": "取消配对",
+            "bounds": [156, 1493, 1064, 1656]
+          }
+        ]
+      },
+      "confirmation": {
+        "panel": [78, 806, 1142, 1985],
+        "buttons": [
+          {
+            "label": "取消",
+            "bounds": [156, 1555, 1064, 1718]
+          },
+          {
+            "label": "取消配对",
+            "bounds": [156, 1744, 1064, 1907]
+          }
+        ]
+      },
+      "cancelRetainsPairing": true
+    }
+  ],
+  "viewport": [1220, 2712],
+  "crop": [0, 650, 1220, 1500],
+  "checks": [
+    {
+      "mode": "dark",
+      "font": 1.0,
+      "kind": "create",
+      "noRedundantCancel": true
+    },
+    {
+      "mode": "dark",
+      "font": 1.0,
+      "kind": "menu",
+      "noRedundantCancel": true
+    },
+    {
+      "mode": "dark",
+      "font": 1.0,
+      "kind": "unpair",
+      "noRedundantCancel": false
+    },
+    {
+      "mode": "dark",
+      "font": 1.3,
+      "kind": "create",
+      "noRedundantCancel": true
+    },
+    {
+      "mode": "dark",
+      "font": 1.3,
+      "kind": "menu",
+      "noRedundantCancel": true
+    },
+    {
+      "mode": "dark",
+      "font": 1.3,
+      "kind": "unpair",
+      "noRedundantCancel": false
+    },
+    {
+      "mode": "dark",
+      "font": 2.0,
+      "kind": "create",
+      "noRedundantCancel": true
+    },
+    {
+      "mode": "dark",
+      "font": 2.0,
+      "kind": "menu",
+      "noRedundantCancel": true
+    },
+    {
+      "mode": "dark",
+      "font": 2.0,
+      "kind": "unpair",
+      "noRedundantCancel": false
+    },
+    {
+      "mode": "light",
+      "font": 1.0,
+      "kind": "create",
+      "noRedundantCancel": true
+    },
+    {
+      "mode": "light",
+      "font": 1.0,
+      "kind": "menu",
+      "noRedundantCancel": true
+    },
+    {
+      "mode": "light",
+      "font": 1.0,
+      "kind": "unpair",
+      "noRedundantCancel": false
+    },
+    {
+      "mode": "light",
+      "font": 1.3,
+      "kind": "create",
+      "noRedundantCancel": true
+    },
+    {
+      "mode": "light",
+      "font": 1.3,
+      "kind": "menu",
+      "noRedundantCancel": true
+    },
+    {
+      "mode": "light",
+      "font": 1.3,
+      "kind": "unpair",
+      "noRedundantCancel": false
+    },
+    {
+      "mode": "light",
+      "font": 2.0,
+      "kind": "create",
+      "noRedundantCancel": true
+    },
+    {
+      "mode": "light",
+      "font": 2.0,
+      "kind": "menu",
+      "noRedundantCancel": true
+    },
+    {
+      "mode": "light",
+      "font": 2.0,
+      "kind": "unpair",
+      "noRedundantCancel": false
+    }
+  ],
+  "limits": [
+    "Android16 SDK58 Debug client",
+    "iOS and TalkBack unrun",
+    "no shared unpair/disband submitted",
+    "earlier captures and videos retain earlier visual identities"
+  ]
+}

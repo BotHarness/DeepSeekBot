@@ -107,6 +107,7 @@ function harness(tutorial: OnboardingSnapshot['tutorial'], completed = false) {
     })),
     messagingSnapshot: vi.fn(async () => ({ accounts: [], grants: [], intents: [] })),
     botSchedules: vi.fn(async () => [] as unknown[]),
+    telemetryEvent: vi.fn(),
   };
   const bridge = actions as unknown as BridgeActions;
   const render = async () => {

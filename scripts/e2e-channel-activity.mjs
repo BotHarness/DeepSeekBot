@@ -152,7 +152,7 @@ try {
             await rpc('create', {
               displayName: name,
               persona:
-                'Reply exactly CHANNEL_READY using channel_send once; no tools or Assignments.',
+                'Reply exactly CHANNEL_READY using bot_send_message once; no tools or Assignments.',
             })
           ).bot,
       );

@@ -89,7 +89,7 @@ const waitReply = async (channelId, humanId) => {
     if (reply) return reply;
     await delay(3000);
   }
-  throw new Error('Live Bot did not commit the requested reply_to');
+  throw new Error('Live Bot did not commit the requested source-addressed reply');
 };
 try {
   await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
@@ -104,7 +104,7 @@ try {
       const bot = (
         await rpc('create', {
           displayName: name,
-          persona: `You coordinate ${role}. For each explicit Human request, call channel_send in the inbound Channel with reply_to set to the Human Message ID. Reply in one concise sentence. Never create Assignments. If Human simply acknowledges your update, finish without sending another message.`,
+          persona: `You coordinate ${role}. For each explicit Human request, call bot_send_message in the inbound Channel with the trusted source_event_id of the Human request. Reply in one concise sentence. Never create Assignments. If Human simply acknowledges your update, finish without sending another message.`,
         })
       ).bot;
       const group = (await rpc('channelCreate', { name: channelName, members: [bot.slug] }))

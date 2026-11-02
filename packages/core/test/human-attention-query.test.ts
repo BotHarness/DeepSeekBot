@@ -18,6 +18,183 @@ function adapter(): BotAgentAdapter {
 }
 
 describe('Human attention projection', () => {
+  it('discovers notifications past 30 old mentions and includes paginated ordinary DM replies', async () => {
+    const core = createCore({
+      dshHome: createTempRoot('notification-discovery-'),
+      agents: adapter(),
+    });
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+      await core.channels.appendMessage(group.id, {
+        id: 'human',
+        at: '2026-10-01T00:00:00Z',
+        author: { kind: 'human' },
+        body: 'Review',
+      });
+      for (let i = 0; i < 35; i++)
+        await core.channels.appendMessage(group.id, {
+          id: `mention-${i}`,
+          at: '2026-10-01T00:01:00Z',
+          author: { kind: 'bot', slug: 'ada' },
+          body: '@Human review',
+          botCausation: { rootSourceEventId: 'root', parentSourceEventId: 'parent', hop: 1 },
+          humanMentions: [{ humanId: 'local-human', label: 'Human', start: 0, end: 6 }],
+          replyTo: 'human',
+        });
+      await core.channels.appendMessage(group.id, {
+        id: 'new-reply',
+        at: '2026-10-01T00:02:00Z',
+        author: { kind: 'bot', slug: 'ada' },
+        body: 'Ready',
+        replyTo: 'human',
+      });
+      for (let i = 0; i < 4; i++)
+        await core.channels.appendMessage(dm.id, {
+          id: `dm-${i}`,
+          at: '2026-10-01T00:03:00Z',
+          author: { kind: 'bot', slug: 'ada' },
+          body: 'Ordinary DM',
+        });
+      expect(
+        core.humanAttention
+          .list({ category: 'replies', sort: 'mentions-first', limit: 30 })
+          .items.some((item) => item.messageId === 'new-reply'),
+      ).toBe(false);
+      const methods = createBridgeMethods({ ...core });
+      const found: string[] = [];
+      let cursor: string | undefined;
+      do {
+        const page = await methods.humanAttention({
+          notifications: true,
+          limit: 3,
+          ...(cursor ? { cursor } : {}),
+        });
+        if (!page.ok) throw new Error('notification-query-refused');
+        expect(page.value.notificationVersion).toBe(1);
+        found.push(...page.value.items.map((item) => item.messageId!));
+        cursor = page.value.nextCursor;
+      } while (cursor);
+      expect(found).toHaveLength(40);
+      expect(new Set(found).size).toBe(40);
+      expect(found).toContain('new-reply');
+      expect(found).toContain('dm-0');
+      expect(found).toContain('dm-3');
+      expect(
+        await methods.humanAttention({ notifications: true, cursor: 'invalid' }),
+      ).toMatchObject({ ok: false });
+      expect(
+        await methods.humanAttention({ notifications: true, sort: 'mentions-first' }),
+      ).toMatchObject({ ok: false });
+    } finally {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+  it('pages mention priority across replies and applies unread-only before pagination', async () => {
+    const core = createCore({ dshHome: createTempRoot('activity-sort-'), agents: adapter() });
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+      await core.channels.appendMessage(group.id, {
+        id: 'human',
+        at: '2026-10-01T00:00:00Z',
+        author: { kind: 'human' },
+        body: 'Review',
+      });
+      await core.channels.appendMessage(group.id, {
+        id: 'mention',
+        at: '2026-10-01T00:01:00Z',
+        author: { kind: 'bot', slug: 'ada' },
+        body: '@Human review',
+        botCausation: { rootSourceEventId: 'root', parentSourceEventId: 'parent', hop: 1 },
+        humanMentions: [{ humanId: 'local-human', label: 'Human', start: 0, end: 6 }],
+        replyTo: 'human',
+      });
+      await core.channels.appendMessage(group.id, {
+        id: 'reply',
+        at: '2026-10-01T00:02:00Z',
+        author: { kind: 'bot', slug: 'ada' },
+        body: 'Review done',
+        replyTo: 'human',
+      });
+      const first = core.humanAttention.list({
+        category: 'replies',
+        sort: 'mentions-first',
+        limit: 1,
+      });
+      expect(first.items.map((x) => x.messageId)).toEqual(['mention']);
+      const second = core.humanAttention.list({
+        category: 'replies',
+        sort: 'mentions-first',
+        limit: 1,
+        cursor: first.nextCursor!,
+      });
+      expect(second.items.map((x) => x.messageId)).toEqual(['reply']);
+      expect(second.nextCursor).toBeUndefined();
+      expect(
+        core.humanAttention
+          .list({ category: 'replies', sort: 'newest' })
+          .items.map((x) => x.messageId),
+      ).toEqual(['reply', 'mention']);
+      expect(() =>
+        core.humanAttention.list({
+          category: 'replies',
+          sort: 'mentions-first',
+          search: 'done',
+          cursor: first.nextCursor!,
+        }),
+      ).toThrow('cursor is invalid');
+      await core.channels.markRead(group.id, 'mention');
+      expect(
+        core.humanAttention
+          .list({ category: 'replies', unreadOnly: true })
+          .items.map((x) => x.messageId),
+      ).toEqual(['reply']);
+    } finally {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
+  it('searches eligible messages before grouping and pagination, with bound query cursors', async () => {
+    const core = createCore({ dshHome: createTempRoot('activity-search-'), agents: adapter() });
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      const group = core.channels.createGroup({ name: 'Design', members: ['ada'] });
+      for (let i = 0; i < 35; i += 1)
+        await core.channels.appendMessage(group.id, {
+          id: `search-${i}`,
+          at: new Date(Date.UTC(2026, 9, 1, 0, 0, i)).toISOString(),
+          author: { kind: 'bot', slug: 'ada' },
+          body: i === 0 ? 'Needle budget ÉTUDE ПРОЕКТ' : 'Routine update',
+        });
+      const methods = createBridgeMethods({ ...core });
+      for (const search of ['ÉTUDE', 'étude', 'ПРОЕКТ', 'проект'])
+        expect(core.humanAttention.list({ category: 'unread', search }).items).toMatchObject([
+          { messageId: 'search-0' },
+        ]);
+      expect(
+        methods.humanAttention({ category: 'unread', search: 'needle', limit: 1 }),
+      ).toMatchObject({
+        ok: true,
+        value: { items: [{ messageId: 'search-0', unreadCount: 1 }] },
+      });
+      expect(methods.humanAttention({ category: 'unread', search: "' OR 1=1 --" })).toMatchObject({
+        ok: true,
+        value: { items: [] },
+      });
+      expect(methods.humanAttention({ category: 'unread', search: 'missing' })).toMatchObject({
+        ok: true,
+        value: { items: [] },
+      });
+    } finally {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
   it('filters unread by Bot before choosing the Channel count and source anchor', async () => {
     const core = createCore({
       dshHome: createTempRoot('botharness-human-unread-bot-'),
@@ -213,11 +390,11 @@ describe('Human attention projection', () => {
       const second = core.humanAttention.list({
         category: 'unread',
         limit: 1,
-        cursor: first.nextCursor!,
+        cursor: first.nextCursor!!,
       });
       expect(second.items[0]?.id).not.toBe(first.items[0]?.id);
       expect(() =>
-        core.humanAttention.list({ category: 'action', cursor: first.nextCursor! }),
+        core.humanAttention.list({ category: 'action', cursor: first.nextCursor!! }),
       ).toThrow('Human attention cursor is invalid for these filters');
       expect(
         core.humanAttention.list({ category: 'unread', channelId: 'group-other' }).items,

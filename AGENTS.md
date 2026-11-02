@@ -21,7 +21,7 @@ pnpm build
 
 Toolchain: pnpm 12.4.2 · Node ≥22 (`.node-version` = v24.21.0) · TypeScript 7 · oxlint · oxfmt · vitest · tsdown.
 In WSL, use the fnm node and `corepack pnpm` — Windows pnpm cannot create symlinks on WSL paths.
-Local DSH development uses the worktree's pinned `0.2.0-rc.2` CLI through `node scripts/dev-instance.mjs --home <isolated-DSH_HOME> --port <n> [--worktree <path>] [--build]`; the launcher links the local Bundle, verifies the authenticated `/api`, and rejects a mismatched CLI. Run `pnpm dev:client` for automatic Client builds; append `?botharness-dev-reload=1` in the Web tab for a full-page refresh when the RC publishes a rebuilt Client event. Host changes use `pnpm build`, stop the launcher's exact PID, then restart the same isolated Profile. Details: `docs/client-bridge.md` §7. Agents boot an isolated, verified instance with the helper; it injects a shared machine-local `DEEPSEEK_API_KEY` when available (env > `~/.config/botharness/dev.env` > Keychain `botharness-deepseek`) and prints the local login URL. DSH may also use that profile's `$DSH_HOME/.credentials.yaml`; `node scripts/dev-secret.mjs check` reports only the shared injection source. Verify model usability with a real DM reply before declaring a key missing. Secrets stay machine-local and never enter the repo.
+Local DSH development uses the worktree's pinned `0.2.1-rc.3` CLI through `node scripts/dev-instance.mjs --home <isolated-DSH_HOME> --port <n> [--worktree <path>] [--build]`; the launcher links the local Bundle, verifies the authenticated `/api`, and accepts DSH 0.2.0 and later prereleases independently of the build pin; use `--dsh-version <version>` to test another release. Run `pnpm dev:client` for automatic Client builds; append `?botharness-dev-reload=1` in the Web tab for a full-page refresh when the RC publishes a rebuilt Client event. Host changes use `pnpm build`, stop the launcher's exact PID, then restart the same isolated Profile. Details: `docs/client-bridge.md` §7. Agents boot an isolated, verified instance with the helper; it injects a shared machine-local `DEEPSEEK_API_KEY` when available (env > `~/.config/botharness/dev.env` > Keychain `botharness-deepseek`) and prints the local login URL. DSH may also use that profile's `$DSH_HOME/.credentials.yaml`; `node scripts/dev-secret.mjs check` reports only the shared injection source. Verify model usability with a real DM reply before declaring a key missing. Secrets stay machine-local and never enter the repo.
 For all future AX-launched isolated profiles to use the same DeepSeek key without re-entry, run `node scripts/dev-secret.mjs adopt-profile --home <existing-DSH_HOME>` once. This copies only the DeepSeek reference into a private machine-local file (0600); it never copies the full profile credential store or commits a secret. See `docs/client-bridge.md` §7. Direct `dsh web` launches outside the AX helper still need an inherited environment key or their own profile credential.
 
 AX default model setup and credential reuse: follow `docs/agents/ax-model.md` for the machine-local `opencode-go` opt-in, local hidden-input setup, per-launch credential override and real DM verification. `dev-instance.mjs` applies the selected native model only to its own launched Host.
@@ -36,7 +36,8 @@ AX default model setup and credential reuse: follow `docs/agents/ax-model.md` fo
 - Docs site: Nimbus in `apps/docs` — content is generated from repo sources by `scripts/sync-docs.mjs` (never edit generated files); sections are `/docs` (user guides), `/dsh` (stable DSH/Cordis Context + Decision Tree, generated from `dsh-plugin-dev`) and `/dev` (BotHarness Design / verified Guides / code-generated Reference / ADR). Design is normative target state; Reference is current implementation fact. English is primary at the root; maintained Chinese counterparts live under `/zh/**`. Every docs page exposes a clean `.md` sibling; the legacy `/index.md` form remains compatible. The landing page uses **coss ui** (`src/components/coss/`, brand tokens in `design/tokens.css`); docs pages use Nimbus UI.
 - Diagrams: edit `docs/architecture/diagrams/*.mmd`, run `pnpm diagrams`, and commit the rendered light/dark SVGs (`rendered/*.svg`); the architecture page embeds those committed SVGs via the `<Diagram>` component, while the runtime mermaid loader remains for ad-hoc `mermaid` fences in hand-authored content.
 - OG cards: `apps/docs/src/pages/og/**` renders at build time with CanvasKit; Chinese titles use the committed Noto Sans SC subset. After editing Chinese page copy, run `pnpm og:font` (needs network) to regenerate `apps/docs/public/fonts/NotoSansSC-Bold.og-subset.otf`.
-- Installed agent skills are third-party files under `.agents/skills/` — do not reformat them (locked by hash in `skills-lock.json`). First-party skills live in the same tree and are ours to edit — `dsh-plugin-dev` (stable DSH/Cordis Context and Decision Tree), `dsh-dev`, `dsh-ui`, and `verify-deepseekbot` (all symlinked into `.claude/skills/`, not in the lock file).
+- Installed agent skills are third-party files under `.agents/skills/` — do not reformat them (locked by hash in `skills-lock.json`). First-party skills live in the same tree and are ours to edit — `dsh-plugin-dev` (stable DSH/Cordis Context and Decision Tree), `dsh-dev`, `dsh-ui`, `verify-deepseekbot`, `ios-hig`, `android-material` and `promo-pv` (Tobs promo videos and motion marketing assets) (all symlinked into `.claude/skills/`, not in the lock file).
+- poteto's pstack (`cursor/plugins`, Claude Code harness copy under `harness/pstack/claude-code/`) is vendored the same way: its skills sit in `.agents/skills/` and the lock file, its guide and Claude Code adapter in `.agents/docs/` (`.claude/docs` links there so the skills' `../../docs/` paths resolve), and its `poteto-agent` and `comment-sicko` subagents in `.claude/agents/`. Matt Pocock's `tdd` and `teach` keep their names; pstack's versions are renamed to `pstack-tdd` and `pstack-teach` (the only local edit, so they are left out of the lock file), and pstack links to `tdd`/`teach` resolve to Matt's.
 - Local docs dev: `pnpm dev` (portless from `apps/docs` → https://docs.botharness.localhost; no-sudo variant `PORTLESS_PORT=8788 PORTLESS_HTTPS=0`) or `pnpm docs:dev` (http://localhost:4321); `syncDocs()` runs at Astro config load, so plain `astro dev`/`astro build` also works.
 - Mobile app: Expo workspace in `apps/mobile`; its mobile-only rules and the Expo, EAS and React Native skills to load live in its own `AGENTS.md`.
 - Presentations: open-slide workspace in `apps/presentations` (one deck per `slides/<id>/`, authoring rules in its own `AGENTS.md`); iterate with `pnpm slides:dev`, embed into the docs site at `/slides/` with `pnpm slides:build` (`scripts/sync-slides.mjs`, output `apps/docs/public/slides/` is generated — never edit or commit it). `pnpm docs:build` rebuilds the embed automatically.
@@ -47,6 +48,10 @@ Agent-facing debugging is a first-class concern. A plugin that owns long-running
 
 WSL egress fallback: if a task-local DSH Host cannot reach a provider while Windows can, follow [the AX restricted-relay runbook](docs/agents/ax-wsl-network.md) for standing authorization, isolation, live-model proof, and lifecycle.
 
+### Verification resource cleanup (AX)
+
+Before launching a task-owned Host, watcher, preview, browser driver or tunnel, and before finishing or handing off that task, follow [verification resource cleanup](docs/agents/ax-resource-cleanup.md). Record ownership at launch; finish by verifying owned processes have exited and ports are released, or record an explicit retained-environment handoff. Preserve source changes and evidence, stop processes before removing their Profile/worktree, and retain shared E2E/QA resources under their queue owner's control.
+
 ### CLI parity (AX)
 
 Every feature must be operable and testable by an agent through the `deepseekbot` CLI, without the Web UI and without the model. A change that adds or changes a Host bridge method, a Host `/api/...` route, or a Harness Bot tool ships the matching CLI command in the same PR:
@@ -56,6 +61,12 @@ Every feature must be operable and testable by an agent through the `deepseekbot
 - Tests for the command, an entry in `docs/bot-cli.md` and `docs/bot-cli.zh.md`, and a real run against a live Host.
 
 `pnpm lint` runs `scripts/check-cli-parity.mjs`: a new bridge method, route or Bot tool without a CLI command fails unless `scripts/cli-parity-baseline.json` records an issue or an exemption reason for it. The baseline only shrinks — covering an entry means deleting it, and the check fails while a covered entry remains. Remaining gaps are tracked in [#1690](https://github.com/BotHarness/DeepSeekBot/issues/1690).
+
+### Performance observation and verification (AX)
+
+Every new feature and dependency introduction includes a performance-impact assessment and a regression guard for its affected hot path, including Host/CLI work; document a justified no-runtime-impact exemption for docs-only changes. Follow [performance observation and verification](docs/agents/ax-performance.md): profile before fixing, isolate suspects with controlled component ablations (for example avatar off, Markdown off, both off), then narrow the costly subsystem rather than shipping the diagnostic bypass. A/B identical fixtures and frozen source/runtime identities with at least three interleaved runs per side (five for package selection); retain failures and report median, range and correctness alongside timings. New-feature baselines compare the existing journey before/after and separately budget the added work. Do not infer end-to-end wins from parser or query microbenchmarks.
+
+For timeline/rendering changes, use real foreground headed-browser scrolling at the display's actual refresh rate: first guarantee smooth 60 Hz where 120 Hz cannot be tested. Measure opening latency separately from frame pacing; rAF cadence alone does not prove presented FPS. Keep scroll correctness at zero jumps and gaps, put the base-versus-change table in the PR, and distinguish browser, installed native and Human acceptance. `scripts/perf-budgets/timeline.json` is the Web timeline regression guard; the `perf-budget` CI job fails on its structure budgets. Other hot paths need their own applicable guard. Budgets only tighten; raising one needs the Human's approval.
 
 ### IM browser QA (AX)
 
@@ -77,7 +88,15 @@ The dev VPS lives on the Human's Tailscale tailnet. Per-machine values (SSH host
 
 ### Shared device QA (AX)
 
-Native checks for `apps/mobile` share one Mac, one QA Simulator, one physical iPhone and one QA Host among all coding agents. Before you boot a Simulator, build the app, start a Host or touch the phone, follow [shared device QA](docs/agents/device-qa.md): submit to the Simulator queue instead of running your own, batch on a local `qa/batch-<n>` branch, use the dedicated QA Host, ask the Human for the steps only they can do, and report redacted results on each PR.
+Native checks for `apps/mobile` share devices and QA Hosts among coding agents. Before booting an emulator/Simulator, building the app, starting a Host or touching a phone, follow [shared device QA](docs/agents/device-qa.md): choose the Mac/iOS or Windows/Android queue, submit to its owner-cut batch, use the dedicated QA Host, and report redacted results. Windows emulator and USB-phone checks use the shared `android-qa.ps1` lease and scrcpy capture workflow.
+
+### QA evidence (AX)
+
+Before capturing development screenshots or recordings, handing off macOS/iOS or Windows/Android QA, or retaining release images, follow [local QA evidence and release archives](docs/agents/qa-evidence.md). Keep an indexed task folder in the machine's main checkout and preserve accepted evidence by release and SHA; platform queues still own devices and capture tooling.
+
+### Machine-local secrets (AX)
+
+Files that device QA and store builds need but git must never hold (Firebase `google-services.json`, FCM and Play keys) live in the gitignored `.secrets/` folder of each machine's main checkout; every worktree resolves to the same folder. Read [machine-local secrets](docs/agents/device-secrets.md) for the file list, how the app finds them, local push builds and clean-clone EAS builds.
 
 ### SEO research and tracking (AX)
 
@@ -121,7 +140,7 @@ verified.
 
 When creating or updating a PR, use the `visual-pr` skill to write the description: one-sentence "why", `/show-me`-style change outline, saved under `.humanlayer/tasks/` and applied with `gh pr edit --body-file`.
 For every PR, follow [merge-risk classification](docs/agents/pr-merge-risk.md) and summarize reversibility, blast radius, and review focus in one `Special things to note` bullet.
-For every PR that changes visible UI or user interactions, embed GitHub-rendered before/after screenshots in the PR `Change outline` and verify they render; follow [UI/UX PR visual evidence](docs/agents/pr-ui-visual-evidence.md) for capture, exceptions and the required `<img src=".../raw/<sha>/...">` reference format.
+For every PR that changes visible UI or user interactions, embed before/after screenshots in the PR `Change outline` and verify they render; follow [UI/UX PR visual evidence](docs/agents/pr-ui-visual-evidence.md). **All new PR screenshots, recordings and other review artifacts go to Cloudflare R2, never Git, Git LFS or a Git evidence branch.** Reuse `botharness-media` at `https://media.botharness.ai/pr/` through `pnpm evidence:publish`; publish only privacy-reviewed derivatives, retain source/build provenance and verify public readback. Keep each image URL at 150 characters or fewer and read the PR body back after every write. Local capture folders are temporary staging, not an archive; remove uploaded derivatives after verified readback and disposable originals when the PR is merged and no QA/release hold remains. Existing merged PR images need not be migrated or preserved merely to keep old PR links working. Product assets, maintained documentation illustrations and necessary test fixtures remain valid Git content. `pnpm evidence:check` and CI reject new or modified artifacts in legacy evidence directories; do not force-add ignored evidence or move it elsewhere to bypass the policy.
 
 Pull requests run only the tests their diff can reach; see [CI test plan](docs/agents/development-scripts.md#ci-test-plan) for the rules and `node scripts/ci-plan.mjs --base origin/main` to preview them. Add the `ci:full` label to force a full run on a risky change. When a PR adds a kind of file or test input that the plan misses, update `RULES` in `scripts/ci-plan.mjs` in the same PR; `pnpm lint` fails until it does.
 
@@ -135,11 +154,23 @@ Single-context layout: root `CONTEXT.md` + `docs/adr/` (extended lazily by the d
 
 ### UI guidelines
 
+Every new or changed Web, desktop or mobile interface follows [UI design](docs/agents/ui-design.md) ([中文](docs/agents/ui-design.zh.md)): communicate through layout, icons and interaction; keep descriptive prose secondary. Apply its review gate alongside the platform-specific rules.
+
+**Name the component.** When discussing, planning, reviewing or implementing UI (issues, PRs, commits, code comments, chat), name the concrete component by its platform term from `CONTEXT.md` → Native UI components: the Material 3 name on Android, the HIG name on iOS, and the API name (Compose, SwiftUI, UIKit, `@expo/ui`) when you mean code. Say "Android `ModalBottomSheet`" or "iOS pull-down button", not "popup", "弹窗", "drawer", "dropdown" or "the bottom thing". When a change covers both platforms, name both sides of the pair (Android `ModalBottomSheet` ↔ iOS form sheet). If a job has no counterpart, say so and name the custom surface recorded in `apps/mobile/DESIGN.md`. A component missing from the table is added to `CONTEXT.md` and `CONTEXT.zh.md` in the same change.
+
 Building or changing in-harness UI follows the `dsh-ui` skill: DSH tokens (central alias table, no inline hex), `ui-primitives`, the native inset contract, and the measure-the-shell workflow (ADR-0028). For net-new UI, the skill's `references/design-references.md` names the external precedents (coss.com/ui, Beautiful UI, shadcn/ui, Lucide) — patterns to adapt rather than dependencies, except vendored Lucide glyphs (ADR-0032).
+
+### Motion
+
+Animation is part of the product's feel. Any new or changed animation on web, desktop or mobile follows Emil Kowalski's skills (third-party, locked in `skills-lock.json`): `animate` to build web motion, `animate-expo` for React Native and Expo, `review-animations` before you ship it, `improve-animations` to audit existing motion, `animation-performance` for dropped frames, and `emil-design-eng` / `animation-vocabulary` for the shared rules and words. They decide whether something animates, which properties and its reduced-motion behavior. On mobile the platform decides the curve: iOS uses SwiftUI's springs and Android uses Material 3 Expressive springs, through the `spring` roles in `apps/mobile/src/ui/design/motion.ts` (ADR-0264). Extend the repo's motion tokens instead of adding parallel curves.
+
+### UI copy
+
+Visible text on web, desktop and mobile follows [UI copy](docs/agents/ui-copy.md): call a PersonaBot "Bot" in the UI, and keep hints, captions and errors short and plain in both English and Chinese. `PersonaBot` stays the term in code and developer docs.
 
 ### Verify behavior
 
-Before claiming a feature or fix works, reproducing a bug in the running app, or capturing PR screenshots, follow the `verify-deepseekbot` skill: it launches an isolated Host, drives the Web Client by accessible name, and keeps screenshots, ARIA snapshots and console output as evidence. Its feature map names each mapped feature's user path and the observable result that proves it; update the map in the same change when the app moves.
+Before claiming a feature or fix works, reproducing a bug in the running app, or capturing PR screenshots, follow the `verify-deepseekbot` skill: it launches an isolated Host, drives the Web Client by accessible name, and keeps screenshots, ARIA snapshots and console output as evidence. Its feature map names each mapped feature's user path and the observable result that proves it; update the map in the same change when the app moves. `node scripts/check-feature-map.mjs` (in lint) checks map references; run the touched journey to verify behavior. For a failed or surprising drive, use `verify-app observe` and the skill’s observation guide before retrying.
 
 ### DSH development
 

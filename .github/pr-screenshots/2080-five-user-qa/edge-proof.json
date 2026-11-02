@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-20",
+  "hostProfile": "ax2080-copy",
+  "hostSource": "c1f31e530c9f5cabac96290a3a8707a2c9891155",
+  "browser": "Edge",
+  "realModel": true,
+  "calls": [
+    {
+      "tool": "pwsh",
+      "outcome": "ok",
+      "outputMarker": "QA_ONCE_2080_A"
+    },
+    {
+      "tool": "pwsh",
+      "outcome": "ok",
+      "outputMarker": "QA_ALWAYS_2080_B"
+    },
+    {
+      "tool": "pwsh",
+      "outcome": "ok",
+      "outputMarker": "QA_REMEMBERED_2080_C"
+    }
+  ],
+  "decisions": ["allowed-always-tool", "allowed-once"],
+  "activeToolRules": [
+    {
+      "kind": "tool",
+      "toolName": "pwsh"
+    }
+  ],
+  "limits": "Parent-driven continuation. Host predates recovery fixes; shared Client was rebuilt, so this is not exact-head after-fix qualification. No five-user pass claim."
+}

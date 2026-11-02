@@ -17,6 +17,6 @@ try {
   process.stdout.write(
     `${JSON.stringify({ error: { code: 'internal-error', message: 'The command failed before producing a result.' } }, null, 2)}\n`,
   );
-  process.stderr.write(`deepseekbot: ${error instanceof Error ? error.message : String(error)}\n`);
+  process.stderr.write(`tobs: ${error instanceof Error ? error.message : String(error)}\n`);
   process.exitCode = 1;
 }

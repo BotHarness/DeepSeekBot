@@ -1,0 +1,364 @@
+{
+  "codec": "WebM VP9, no audio",
+  "loops": 2,
+  "samples": [
+    {
+      "time": 0.043322,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 5
+    },
+    {
+      "time": 0.148085,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 8
+    },
+    {
+      "time": 0.252988,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 10
+    },
+    {
+      "time": 0.358154,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 13
+    },
+    {
+      "time": 0.462041,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 15
+    },
+    {
+      "time": 0.569286,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 18
+    },
+    {
+      "time": 0.673668,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 20
+    },
+    {
+      "time": 0.777831,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 23
+    },
+    {
+      "time": 0.884851,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 26
+    },
+    {
+      "time": 0.989495,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 28
+    },
+    {
+      "time": 1.093505,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 30
+    },
+    {
+      "time": 1.198091,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 33
+    },
+    {
+      "time": 1.302315,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 36
+    },
+    {
+      "time": 1.406784,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 36
+    },
+    {
+      "time": 0.00431,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 40
+    },
+    {
+      "time": 0.111295,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 43
+    },
+    {
+      "time": 0.217071,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 46
+    },
+    {
+      "time": 0.321955,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 48
+    },
+    {
+      "time": 0.42549,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 50
+    },
+    {
+      "time": 0.530238,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 53
+    },
+    {
+      "time": 0.635448,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 56
+    },
+    {
+      "time": 0.741273,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 58
+    },
+    {
+      "time": 0.846907,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 61
+    },
+    {
+      "time": 0.952228,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 63
+    },
+    {
+      "time": 1.057462,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 66
+    },
+    {
+      "time": 1.162231,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 68
+    },
+    {
+      "time": 1.267545,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 71
+    },
+    {
+      "time": 1.371034,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 72
+    },
+    {
+      "time": 1.477235,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 72
+    },
+    {
+      "time": 0.075778,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 78
+    },
+    {
+      "time": 0.180272,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 80
+    },
+    {
+      "time": 0.2858,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 83
+    },
+    {
+      "time": 0.392125,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 86
+    },
+    {
+      "time": 0.496282,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 88
+    },
+    {
+      "time": 0.602232,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 90
+    },
+    {
+      "time": 0.707619,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 93
+    },
+    {
+      "time": 0.811669,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 96
+    },
+    {
+      "time": 0.914725,
+      "paused": false,
+      "muted": true,
+      "loop": true,
+      "controls": false,
+      "hidden": false,
+      "frames": 98
+    }
+  ],
+  "minimized": {
+    "time": 0.095272,
+    "paused": true,
+    "muted": true,
+    "loop": true,
+    "controls": false,
+    "hidden": false,
+    "frames": 114
+  },
+  "resumed": true,
+  "failure": {
+    "state": "poster",
+    "reason": "wallpaper-playback-error-4"
+  },
+  "posterDecoded": true,
+  "errors": []
+}

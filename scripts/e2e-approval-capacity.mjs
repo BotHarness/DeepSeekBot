@@ -119,7 +119,7 @@ try {
     await rpc('create', {
       displayName: `Approval capacity ${mode}`,
       persona:
-        'Follow Human instructions precisely. Create only the requested Assignment. Never wait_for_assignment or poll it unless explicitly requested. End your dispatch Turn after channel_send. Reply to unrelated requests normally. Do not retry rejected tools. Relay completed Assignment Reports through channel_send.',
+        'Follow Human instructions precisely. Create only the requested Assignment. Never wait_for_assignment or poll it unless explicitly requested. End your dispatch Turn after bot_send_message. Reply to unrelated requests normally. Do not retry rejected tools. Relay completed Assignment Reports through bot_send_message.',
     })
   ).bot;
   scene = { bot, channelId: (await rpc('channelDm', { slug: bot.slug })).channel.id };
@@ -182,13 +182,13 @@ try {
   }
   await page.waitForSelector(`[data-channel-id="${scene.channelId}"]`);
   await page.click(`[data-channel-id="${scene.channelId}"]`);
-  await send('Reply using channel_send with exactly CAPACITY_BASELINE. Use no other tools.');
+  await send('Reply using bot_send_message with exactly CAPACITY_BASELINE. Use no other tools.');
   mark('model-baseline', await waitFor(() => reply('CAPACITY_BASELINE'), 'live DM reply'));
   const originalCommand = `node -e "require('fs').writeFileSync('original.effect','ORIGINAL_1037');console.log('ORIGINAL_1037')"`;
   const competitorCommand = `node -e "require('fs').writeFileSync('competitor.started','COMPETITOR_1037');setTimeout(()=>{console.log('COMPETITOR_1037')},45000)"`;
   const tool = process.platform === 'win32' ? 'pwsh' : 'bash';
   await send(
-    `Create exactly one Assignment using Grant ${grant.id}, key original-1037. Purpose: call native ${tool} exactly once with command ${JSON.stringify(originalCommand)}. Await Human approval and actual result, then report_to_orchestrator state completed with summary containing ORIGINAL_1037 and actual stdout; report failed on error. No retry. Orchestrator: channel_send ORIGINAL_DISPATCHED and end your Turn immediately after create_assignment. Do not wait or inspect.`,
+    `Create exactly one Assignment using Grant ${grant.id}, key original-1037. Purpose: call native ${tool} exactly once with command ${JSON.stringify(originalCommand)}. Await Human approval and actual result, then report_to_orchestrator state completed with summary containing ORIGINAL_1037 and actual stdout; report failed on error. No retry. Orchestrator: bot_send_message ORIGINAL_DISPATCHED and end your Turn immediately after create_assignment. Do not wait or inspect.`,
   );
   const original = await waitFor(
     async () =>
@@ -202,14 +202,14 @@ try {
   assert.equal(existsSync(resolve(workspacePath, 'original.effect')), false);
   mark('effect-before', false);
   await send(
-    'Unrelated conversation: channel_send exactly UNRELATED_1037 now. Do not approve or cancel the pending operation.',
+    'Unrelated conversation: bot_send_message exactly UNRELATED_1037 now. Do not approve or cancel the pending operation.',
   );
   mark(
     'unrelated-reply',
     await waitFor(() => reply('UNRELATED_1037'), 'unrelated live model reply'),
   );
   await send(
-    `Create exactly one OTHER Assignment using Grant ${grant.id}, key competitor-1037. Purpose: call native ${tool} once with command ${JSON.stringify(competitorCommand)}, await actual result then report_to_orchestrator completed COMPETITOR_1037 plus actual stdout, failed on error, no retry. Orchestrator: if created channel_send COMPETITOR_DISPATCHED; if capacity refused channel_send CAPACITY_REFUSED. Then end your Turn. Do not wait or inspect.`,
+    `Create exactly one OTHER Assignment using Grant ${grant.id}, key competitor-1037. Purpose: call native ${tool} once with command ${JSON.stringify(competitorCommand)}, await actual result then report_to_orchestrator completed COMPETITOR_1037 plus actual stdout, failed on error, no retry. Orchestrator: if created bot_send_message COMPETITOR_DISPATCHED; if capacity refused bot_send_message CAPACITY_REFUSED. Then end your Turn. Do not wait or inspect.`,
   );
   if (mode === 'baseline') {
     mark(

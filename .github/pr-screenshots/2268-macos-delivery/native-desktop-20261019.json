@@ -1,0 +1,76 @@
+{
+  "date": "2026-10-19",
+  "scope": "Real macOS Desktop and actual installed tarballs; integrated S1/S2 Client, no upstream or installed-app modification",
+  "productVersion": "0.0.0-zoom.2268.14",
+  "builtFromStackHead": "fc23e4f164b79f486b6599069298bd6878187a4e",
+  "desktopVersion": "0.2.1-rc.2",
+  "hostClientBootVersion": "0.2.1-rc.2",
+  "themeClientSha256": "b64a243f1f2a808101cf30354d2ff7674ce1957ccb49878b34e405b5c14831e1",
+  "nativeInstallation": {
+    "ordinaryBundleInstall": "Native PluginManager successfully installed actual 0.0.0-zoom.2268.12, not a source symlink",
+    "finalTarballUpgrade": "Closed-app package transaction installed 0.0.0-zoom.2268.14 in the same Profile",
+    "enable": "Executed installed final product setup bin with explicit application and closed target Desktop; changed true, runtimeVerified false",
+    "runningRefusal": "desktop-zoom-setup-desktop-running; no package write",
+    "disable": "Removed only owned dependency/link; cold Desktop boot had no compatibility marker and no root zoom style; saved zoom document retained",
+    "reEnable": "Installed final product setup bin succeeded; fresh native process loaded compatibility and restored current level1/default0",
+    "settings": "Original ui-theme namespace; native UI changed font14 to15 while disabled, then enabled Desktop retained15/code11/terminal13/system; zoom shortcuts left these unchanged"
+  },
+  "sameDeviceHostSwitch": {
+    "path": "Native Host A -> separate Native Host B -> Native Host A, never concurrent; identical existing browser user-data",
+    "authentication": "Each native Host matched its own companion Profile identity; credentials and canonical Host data were not copied",
+    "zoomFactors": ["1.44", "1.44", "1.44"],
+    "sameStoredDocumentAndRevision": true,
+    "limit": "Restart-based switch of two native local Hosts; no in-window remote-Host picker or remote shell tuple qualified"
+  },
+  "finalCLI": {
+    "target": "Explicit sole connected desktop primary Client",
+    "beforeLevel": 2,
+    "resetLevel": 0,
+    "setLevel": 2,
+    "defaultLevel": 0,
+    "outcome": "Actual installed CLI -> native Host -> Client owner -> readback"
+  },
+  "nativeInputAndPresentation": {
+    "draft": "Synthetic Chinese/English composer draft retained across actual zoom actions",
+    "fontSize": 15,
+    "ordinaryEqual": "Prior physical Human plain Cmd+= acceptance remains the ordinary-key proof; CUA Equal may carry Shift",
+    "IME": "Human explicitly accepted real Chinese candidate/draft/zoom preservation in this task; no claim that synthetic composition proves IME",
+    "consoleObservation": "No warning/error/pageerror recorded during the observed final-package input segment; not an all-startup log audit",
+    "wallpaperWindowMode": "Whole native window inspected at83%/144%; full content viewport and themed panel headers",
+    "fullscreen": "Human accepted final package in windowed and fullscreen modes: wallpaper fills, no top/corner white base, panels and zoom settings normal",
+    "observedPercentLabels": [83, 100, 120, 144]
+  },
+  "failuresPreserved": [
+    "Managed Desktop CLI rejects the desktop Profile",
+    "Native installBundle rejects copied shipped-theme metadata as not-bundle, including staging-only empty Bundle experiment",
+    "pnpm remove rejected --ignore-scripts; generic --config.ignore-scripts=true succeeded after unchanged state inspection",
+    "Host B fixture initially retained source-Profile absolute links; corrected only copied task-owned QA/theme links before launch"
+  ],
+  "tests": {
+    "focusedFinal": {
+      "files": 9,
+      "passed": 66
+    },
+    "wallpaperSourceChromium": 34,
+    "lint": "passed after launcher inventory audit",
+    "format": "passed",
+    "types": "passed",
+    "build": "passed",
+    "fullClient": {
+      "filesPassed": 269,
+      "filesSkipped": 1,
+      "testsPassed": 2035,
+      "testsSkipped": 1
+    }
+  },
+  "remaining": [
+    "S2 broader independent embedded-page/native-popup matrix remains tracked in #2269",
+    "Windows/Linux deferred to #2270; no platform claim"
+  ],
+  "screenshots": ["native-window-144.png"],
+  "humanQA": {
+    "result": "passed",
+    "scope": "Final actual packed macOS windowed/fullscreen wallpaper, header/corner, panels and zoom Settings; real IME accepted earlier in this task",
+    "humanResponse": "都正常"
+  }
+}

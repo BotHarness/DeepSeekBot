@@ -1,0 +1,77 @@
+{
+  "width": 375,
+  "height": 667,
+  "card": {
+    "x": 64,
+    "y": 151,
+    "width": 231,
+    "height": 242,
+    "top": 151,
+    "right": 295,
+    "bottom": 393,
+    "left": 64
+  },
+  "avatar": {
+    "x": 92.35359954833984,
+    "y": 425,
+    "width": 96.00000762939453,
+    "height": 96,
+    "top": 425,
+    "right": 188.35360717773438,
+    "bottom": 521,
+    "left": 92.35359954833984
+  },
+  "status": {
+    "x": 8,
+    "y": 525,
+    "width": 359,
+    "height": 28,
+    "top": 525,
+    "right": 367,
+    "bottom": 553,
+    "left": 8
+  },
+  "cardAboveAvatar": true,
+  "avatarAboveStatus": true,
+  "buttons": [
+    {
+      "text": "允许这次",
+      "rect": {
+        "x": 64,
+        "y": 269,
+        "width": 231,
+        "height": 36,
+        "top": 269,
+        "right": 295,
+        "bottom": 305,
+        "left": 64
+      }
+    },
+    {
+      "text": "始终允许",
+      "rect": {
+        "x": 64,
+        "y": 313,
+        "width": 231,
+        "height": 36,
+        "top": 313,
+        "right": 295,
+        "bottom": 349,
+        "left": 64
+      }
+    },
+    {
+      "text": "拒绝",
+      "rect": {
+        "x": 64,
+        "y": 357,
+        "width": 231,
+        "height": 36,
+        "top": 357,
+        "right": 295,
+        "bottom": 393,
+        "left": 64
+      }
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "issue": 2214,
+  "baseSourceSha": "0f458c7a3d1684e8d071127647aa66c85d3b2898",
+  "productSourceSha": "b67eaed049c72b3c603f7059ba080056cd802146",
+  "evidenceCommitScope": "Following commit refreshes only review captures/metadata after synchronizing main; product sources match productSourceSha.",
+  "checks": {
+    "lint": "passed",
+    "format": "passed",
+    "typecheck": "passed",
+    "focusedTests": 107,
+    "build": "passed"
+  },
+  "runtime": {
+    "result": "pass",
+    "metadataAndByteExports": [
+      {
+        "label": "current",
+        "source": "worktree",
+        "revision": "5e24a2657bc82c4cf045d04f6d38bf0a5ec1c8d52da18f83a406863857464410"
+      },
+      {
+        "label": "working-before",
+        "source": "aa40989d834a17f69af0b06463f7784dc0a2691c",
+        "revision": "d827eb144f8efb8a6ee68e6649403baf645cab41f382c1007afde48670ef588b"
+      },
+      {
+        "label": "working-after",
+        "source": "worktree",
+        "revision": "5e24a2657bc82c4cf045d04f6d38bf0a5ec1c8d52da18f83a406863857464410"
+      },
+      {
+        "label": "history-before",
+        "source": "09462251c4173c91706ce5d650399db56441f0df",
+        "revision": "31449c997aa7d1b397708e4f7843529e4721c44e94c8bb8f8ba6ba90618fbe2e"
+      },
+      {
+        "label": "history-after",
+        "source": "aa40989d834a17f69af0b06463f7784dc0a2691c",
+        "revision": "d827eb144f8efb8a6ee68e6649403baf645cab41f382c1007afde48670ef588b"
+      },
+      {
+        "label": "staged-before",
+        "source": "aa40989d834a17f69af0b06463f7784dc0a2691c",
+        "revision": "d827eb144f8efb8a6ee68e6649403baf645cab41f382c1007afde48670ef588b"
+      },
+      {
+        "label": "staged-after",
+        "source": "index",
+        "revision": "31449c997aa7d1b397708e4f7843529e4721c44e94c8bb8f8ba6ba90618fbe2e"
+      },
+      {
+        "label": "unstaged-before",
+        "source": "index",
+        "revision": "31449c997aa7d1b397708e4f7843529e4721c44e94c8bb8f8ba6ba90618fbe2e"
+      },
+      {
+        "label": "unstaged-after",
+        "source": "worktree",
+        "revision": "5e24a2657bc82c4cf045d04f6d38bf0a5ec1c8d52da18f83a406863857464410"
+      }
+    ],
+    "staleContentRefusal": "memory-image-stale",
+    "unauthenticatedStatus": 401,
+    "browser": "Chrome/153.0.8010.36",
+    "pageErrors": []
+  },
+  "narrowLayout": [
+    {
+      "x": 29,
+      "y": 122,
+      "width": 642,
+      "height": 419.125
+    },
+    {
+      "x": 29,
+      "y": 557.125,
+      "width": 642,
+      "height": 419.125
+    }
+  ],
+  "limits": {
+    "humanQA": "pending",
+    "native": "not in Web slice",
+    "merge": "not authorized",
+    "remainingScope": "Other image formats, Markdown, editor/file cards and mobile remain in #2214."
+  },
+  "screenshots": {
+    "after-current-dark.png": "8fe1c6e4482bbe0828630e4643943d9ae0c0121c308dbe06b6fa0104ebdd73a5",
+    "after-current-light.png": "8acb3af932573cff267381918ca593010a3604d2f0cf9ffbff86d19496abfb7a",
+    "after-enlarged.png": "3f350250c96a9ccb5fa7a5f62df37867761505cf6f1a07ecedf865d10c955600",
+    "after-history-dark.png": "aca9aaeca77f731834826dbe39077c763bb811e8a607055abe230618006f5378",
+    "after-working-dark.png": "e65669fe68f9a5d5753f2b6b98e4ae6e02d6196e88d65e18c0e63bc49fae7954",
+    "after-working-narrow.png": "265804990af06299f338dc1ab9d13df91f45b77cee6a6159b33e7f874469aaf5",
+    "before-current-dark.png": "eb1fb855c2eca44bd94e3864a26c5895fb89f42bd971b556d86f37cd3d45913c",
+    "before-current-light.png": "d375788a97081ada7b74c2d7e40f40429f03d75199e906b0ca73d9df255ae8f8",
+    "before-history-dark.png": "ed88ec8d65ba6418023cebdf2ce24330bd7ed83807eff289a645f047cb22fbc8",
+    "before-working-dark.png": "77878aa12e6a8c12405fca67fdab76ec07ffc7e568390cd2f187f168903adf5f",
+    "before-working-narrow.png": "ef3318ce824e69776c44b291a03475359a8f8e9b99ecb3cd5055f5965741d7a0"
+  }
+}

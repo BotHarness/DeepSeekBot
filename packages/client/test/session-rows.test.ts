@@ -55,6 +55,26 @@ describe('PersonaBot Session projection', () => {
     expect(rows[1]?.cwd).toBe('/projects/a');
   });
 
+  it('names an Assignment row by its Assignment Title before the native Session title', () => {
+    const titled = owned.map((item) =>
+      item.sessionId === 'active' || item.sessionId === 'missing'
+        ? {
+            ...item,
+            assignmentTitle: item.sessionId === 'active' ? 'Fix Safari export' : 'Audit exports',
+            assignmentDescription: 'Make the export button work in Safari.',
+          }
+        : item,
+    );
+    const rows = personaBotSessionRows(titled, native, 'current');
+    expect(rows.map((row) => [row.sessionId, row.title])).toEqual([
+      ['orchestrator', 'Plan the release'],
+      ['active', 'Fix Safari export'],
+      ['missing', 'Audit exports'],
+    ]);
+    expect(rows[1]?.description).toBe('Make the export button work in Safari.');
+    expect(rows[0]?.description).toBeUndefined();
+  });
+
   it('keeps idle Assignments in the current view so the Idle section shows them', () => {
     const idle = [
       ...owned,

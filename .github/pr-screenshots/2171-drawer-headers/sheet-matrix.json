@@ -1,0 +1,38 @@
+[
+  {
+    "kind": "sheet",
+    "size": "large",
+    "theme": "light",
+    "closeAccessible": true
+  },
+  {
+    "kind": "sheet",
+    "size": "large",
+    "theme": "dark",
+    "closeAccessible": true
+  },
+  {
+    "kind": "sheet",
+    "size": "extra-extra-extra-large",
+    "theme": "light",
+    "closeAccessible": true
+  },
+  {
+    "kind": "sheet",
+    "size": "extra-extra-extra-large",
+    "theme": "dark",
+    "closeAccessible": true
+  },
+  {
+    "kind": "sheet",
+    "size": "accessibility-extra-extra-extra-large",
+    "theme": "light",
+    "closeAccessible": true
+  },
+  {
+    "kind": "sheet",
+    "size": "accessibility-extra-extra-extra-large",
+    "theme": "dark",
+    "closeAccessible": true
+  }
+]

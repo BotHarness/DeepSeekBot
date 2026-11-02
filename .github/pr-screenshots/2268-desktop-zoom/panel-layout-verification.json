@@ -1,0 +1,651 @@
+{
+  "clientSource": "8ebe0277c8b8190dc1e563277f83c54ee0eaa431",
+  "platform": "macOS / DSH 0.2.1-rc.2",
+  "comparison": "Same Client source, original versus repository-patched Dockview 8.4.1 dependency. Same reused window, locale, theme and test data; no DSH restart. The before build temporarily bypassed the dependency patch only. Each hot replacement can round persisted split sizes by less than one pixel.",
+  "before": {
+    "zoom": "0.833333",
+    "visibility": "visible",
+    "viewport": [1261, 820],
+    "panels": [
+      {
+        "id": "bh:channels",
+        "actual": {
+          "x": 43.1328125,
+          "y": 28.328125,
+          "width": 262.7265625,
+          "height": 652.7734375,
+          "right": 305.859375,
+          "bottom": 681.1015625
+        },
+        "expected": {
+          "x": 51.1015625,
+          "y": 33.328125,
+          "width": 315.2734375,
+          "height": 783.328125,
+          "right": 366.375,
+          "bottom": 816.65625
+        },
+        "outside": {
+          "left": 7.96875,
+          "right": 0,
+          "top": 5,
+          "bottom": 0
+        },
+        "home": false
+      },
+      {
+        "id": "bh:home",
+        "actual": {
+          "x": 308.640625,
+          "y": 28.328125,
+          "width": 739.8046875,
+          "height": 652.7734375,
+          "right": 1048.4453125,
+          "bottom": 681.1015625
+        },
+        "expected": {
+          "x": 369.7109375,
+          "y": 33.328125,
+          "width": 887.7734375,
+          "height": 783.328125,
+          "right": 1257.484375,
+          "bottom": 816.65625
+        },
+        "outside": {
+          "left": 61.0703125,
+          "right": 0,
+          "top": 5,
+          "bottom": 0
+        },
+        "home": true
+      }
+    ],
+    "verdict": "FAIL",
+    "failures": ["bh:channels", "bh:home"]
+  },
+  "after": {
+    "zoom": "0.833333",
+    "visibility": "visible",
+    "viewport": [1261, 820],
+    "panels": [
+      {
+        "id": "bh:channels",
+        "actual": {
+          "x": 51.1015625,
+          "y": 33.328125,
+          "width": 314.4375,
+          "height": 783.328125,
+          "right": 365.5390625,
+          "bottom": 816.65625
+        },
+        "expected": {
+          "x": 51.1015625,
+          "y": 33.328125,
+          "width": 314.4375,
+          "height": 783.328125,
+          "right": 365.5390625,
+          "bottom": 816.65625
+        },
+        "outside": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0
+        },
+        "home": false
+      },
+      {
+        "id": "bh:home",
+        "actual": {
+          "x": 368.8828125,
+          "y": 33.328125,
+          "width": 888.609375,
+          "height": 783.328125,
+          "right": 1257.4921875,
+          "bottom": 816.65625
+        },
+        "expected": {
+          "x": 368.8828125,
+          "y": 33.328125,
+          "width": 888.609375,
+          "height": 783.328125,
+          "right": 1257.4921875,
+          "bottom": 816.65625
+        },
+        "outside": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0
+        },
+        "home": true
+      }
+    ],
+    "verdict": "PASS",
+    "failures": []
+  },
+  "nativeCases": [
+    {
+      "visibility": "visible",
+      "level": -1,
+      "defaultLevel": 0,
+      "rootZoom": "0.833333",
+      "viewport": [1261, 820],
+      "panels": [
+        {
+          "id": "bh:channels",
+          "expected": {
+            "x": 51.1015625,
+            "y": 33.328125,
+            "width": 314.4375,
+            "height": 783.328125,
+            "right": 365.5390625,
+            "bottom": 816.65625
+          },
+          "actual": {
+            "x": 51.1015625,
+            "y": 33.328125,
+            "width": 314.4375,
+            "height": 783.328125,
+            "right": 365.5390625,
+            "bottom": 816.65625
+          },
+          "difference": 0,
+          "retained": true
+        },
+        {
+          "id": "bh:home",
+          "expected": {
+            "x": 368.8828125,
+            "y": 33.328125,
+            "width": 888.609375,
+            "height": 783.328125,
+            "right": 1257.4921875,
+            "bottom": 816.65625
+          },
+          "actual": {
+            "x": 368.8828125,
+            "y": 33.328125,
+            "width": 888.609375,
+            "height": 783.328125,
+            "right": 1257.4921875,
+            "bottom": 816.65625
+          },
+          "difference": 0,
+          "retained": true
+        }
+      ],
+      "fonts": ["14px", "11px", "13px"],
+      "draft": "ZOOM S1 retained draft",
+      "guest": {
+        "zoom": 1,
+        "input": "保留输入",
+        "identityRetained": true
+      },
+      "main": "保留 A",
+      "local": "保留 B",
+      "cross": "保留输入",
+      "passed": true
+    },
+    {
+      "visibility": "visible",
+      "level": 0,
+      "defaultLevel": 0,
+      "rootZoom": "1",
+      "viewport": [1261, 820],
+      "panels": [
+        {
+          "id": "bh:channels",
+          "expected": {
+            "x": 61.328125,
+            "y": 40,
+            "width": 313.328125,
+            "height": 776,
+            "right": 374.65625,
+            "bottom": 816
+          },
+          "actual": {
+            "x": 61.328125,
+            "y": 40,
+            "width": 313.328125,
+            "height": 776,
+            "right": 374.65625,
+            "bottom": 816
+          },
+          "difference": 0,
+          "retained": true
+        },
+        {
+          "id": "bh:home",
+          "expected": {
+            "x": 378.6640625,
+            "y": 40,
+            "width": 878.328125,
+            "height": 776,
+            "right": 1256.9921875,
+            "bottom": 816
+          },
+          "actual": {
+            "x": 378.6640625,
+            "y": 40,
+            "width": 878.328125,
+            "height": 776,
+            "right": 1256.9921875,
+            "bottom": 816
+          },
+          "difference": 0,
+          "retained": true
+        }
+      ],
+      "fonts": ["14px", "11px", "13px"],
+      "draft": "ZOOM S1 retained draft",
+      "guest": {
+        "zoom": 1,
+        "input": "保留输入",
+        "identityRetained": true
+      },
+      "main": "保留 A",
+      "local": "保留 B",
+      "cross": "保留输入",
+      "passed": true
+    },
+    {
+      "visibility": "visible",
+      "level": 1,
+      "defaultLevel": 0,
+      "rootZoom": "1.2",
+      "viewport": [1261, 820],
+      "panels": [
+        {
+          "id": "bh:channels",
+          "expected": {
+            "x": 73.59375,
+            "y": 47.9921875,
+            "width": 312.3984375,
+            "height": 766.8046875,
+            "right": 385.9921875,
+            "bottom": 814.796875
+          },
+          "actual": {
+            "x": 73.59375,
+            "y": 47.9921875,
+            "width": 312.3984375,
+            "height": 766.8046875,
+            "right": 385.9921875,
+            "bottom": 814.796875
+          },
+          "difference": 0,
+          "retained": true
+        },
+        {
+          "id": "bh:home",
+          "expected": {
+            "x": 390.796875,
+            "y": 47.9921875,
+            "width": 865.59375,
+            "height": 766.8046875,
+            "right": 1256.390625,
+            "bottom": 814.796875
+          },
+          "actual": {
+            "x": 390.796875,
+            "y": 47.9921875,
+            "width": 865.59375,
+            "height": 766.8046875,
+            "right": 1256.390625,
+            "bottom": 814.796875
+          },
+          "difference": 0,
+          "retained": true
+        }
+      ],
+      "fonts": ["14px", "11px", "13px"],
+      "draft": "ZOOM S1 retained draft",
+      "guest": {
+        "zoom": 1,
+        "input": "保留输入",
+        "identityRetained": true
+      },
+      "main": "保留 A",
+      "local": "保留 B",
+      "cross": "保留输入",
+      "passed": true
+    },
+    {
+      "visibility": "visible",
+      "level": 1,
+      "defaultLevel": 0,
+      "rootZoom": "1.2",
+      "viewport": [1261, 820],
+      "panels": [
+        {
+          "id": "bh:channels",
+          "expected": {
+            "x": 73.59375,
+            "y": 47.9921875,
+            "width": 372.3984375,
+            "height": 766.8046875,
+            "right": 445.9921875,
+            "bottom": 814.796875
+          },
+          "actual": {
+            "x": 73.59375,
+            "y": 47.9921875,
+            "width": 372.3984375,
+            "height": 766.8046875,
+            "right": 445.9921875,
+            "bottom": 814.796875
+          },
+          "difference": 0,
+          "retained": true
+        },
+        {
+          "id": "bh:home",
+          "expected": {
+            "x": 450.796875,
+            "y": 47.9921875,
+            "width": 805.59375,
+            "height": 766.8046875,
+            "right": 1256.390625,
+            "bottom": 814.796875
+          },
+          "actual": {
+            "x": 450.796875,
+            "y": 47.9921875,
+            "width": 805.59375,
+            "height": 766.8046875,
+            "right": 1256.390625,
+            "bottom": 814.796875
+          },
+          "difference": 0,
+          "retained": true
+        }
+      ],
+      "fonts": ["14px", "11px", "13px"],
+      "draft": "ZOOM S1 retained draft",
+      "guest": {
+        "zoom": 1,
+        "input": "保留输入",
+        "identityRetained": true
+      },
+      "main": "保留 A",
+      "local": "保留 B",
+      "cross": "保留输入",
+      "passed": true
+    },
+    {
+      "visibility": "visible",
+      "level": 2,
+      "defaultLevel": 0,
+      "rootZoom": "1.44",
+      "viewport": [1261, 820],
+      "panels": [
+        {
+          "id": "bh:channels",
+          "expected": {
+            "x": 88.3125,
+            "y": 57.59375,
+            "width": 311.515625,
+            "height": 756,
+            "right": 399.828125,
+            "bottom": 813.59375
+          },
+          "actual": {
+            "x": 88.3125,
+            "y": 57.59375,
+            "width": 311.515625,
+            "height": 756,
+            "right": 399.828125,
+            "bottom": 813.59375
+          },
+          "difference": 0,
+          "retained": true
+        },
+        {
+          "id": "bh:home",
+          "expected": {
+            "x": 405.59375,
+            "y": 57.59375,
+            "width": 850.078125,
+            "height": 756,
+            "right": 1255.671875,
+            "bottom": 813.59375
+          },
+          "actual": {
+            "x": 405.59375,
+            "y": 57.59375,
+            "width": 850.078125,
+            "height": 756,
+            "right": 1255.671875,
+            "bottom": 813.59375
+          },
+          "difference": 0,
+          "retained": true
+        }
+      ],
+      "fonts": ["14px", "11px", "13px"],
+      "draft": "ZOOM S1 retained draft",
+      "guest": {
+        "zoom": 1,
+        "input": "保留输入",
+        "identityRetained": true
+      },
+      "main": "保留 A",
+      "local": "保留 B",
+      "cross": "保留输入",
+      "passed": true
+    },
+    {
+      "visibility": "visible",
+      "level": 8,
+      "defaultLevel": 0,
+      "rootZoom": "4.29982",
+      "viewport": [1261, 820],
+      "panels": [
+        {
+          "id": "bh:channels",
+          "expected": {
+            "x": 263.7109375,
+            "y": 171.984375,
+            "width": 418.5078125,
+            "height": 632.0703125,
+            "right": 682.21875,
+            "bottom": 804.0546875
+          },
+          "actual": {
+            "x": 263.7109375,
+            "y": 171.984375,
+            "width": 418.5078125,
+            "height": 632.0703125,
+            "right": 682.21875,
+            "bottom": 804.0546875
+          },
+          "difference": 0,
+          "retained": true
+        },
+        {
+          "id": "bh:home",
+          "expected": {
+            "x": 699.4296875,
+            "y": 171.984375,
+            "width": 543.203125,
+            "height": 632.0703125,
+            "right": 1242.6328125,
+            "bottom": 804.0546875
+          },
+          "actual": {
+            "x": 699.4296875,
+            "y": 171.984375,
+            "width": 543.203125,
+            "height": 632.0703125,
+            "right": 1242.6328125,
+            "bottom": 804.0546875
+          },
+          "difference": 0,
+          "retained": true
+        }
+      ],
+      "fonts": ["14px", "11px", "13px"],
+      "draft": "ZOOM S1 retained draft",
+      "guest": {
+        "zoom": 1,
+        "input": "保留输入",
+        "identityRetained": true
+      },
+      "main": "保留 A",
+      "local": "保留 B",
+      "cross": "保留输入",
+      "passed": true
+    },
+    {
+      "visibility": "visible",
+      "level": -8,
+      "defaultLevel": 0,
+      "rootZoom": "0.232568",
+      "viewport": [1261, 820],
+      "panels": [
+        {
+          "id": "bh:channels",
+          "expected": {
+            "x": 14.2578125,
+            "y": 9.296875,
+            "width": 316.828125,
+            "height": 809.8046875,
+            "right": 331.0859375,
+            "bottom": 819.1015625
+          },
+          "actual": {
+            "x": 14.2578125,
+            "y": 9.296875,
+            "width": 316.828125,
+            "height": 809.8046875,
+            "right": 331.0859375,
+            "bottom": 819.1015625
+          },
+          "difference": 0,
+          "retained": true
+        },
+        {
+          "id": "bh:home",
+          "expected": {
+            "x": 332.0234375,
+            "y": 9.296875,
+            "width": 928.0234375,
+            "height": 809.8046875,
+            "right": 1260.046875,
+            "bottom": 819.1015625
+          },
+          "actual": {
+            "x": 332.0234375,
+            "y": 9.296875,
+            "width": 928.0234375,
+            "height": 809.8046875,
+            "right": 1260.046875,
+            "bottom": 819.1015625
+          },
+          "difference": 0,
+          "retained": true
+        }
+      ],
+      "fonts": ["14px", "11px", "13px"],
+      "draft": "ZOOM S1 retained draft",
+      "guest": {
+        "zoom": 1,
+        "input": "保留输入",
+        "identityRetained": true
+      },
+      "main": "保留 A",
+      "local": "保留 B",
+      "cross": "保留输入",
+      "passed": true
+    },
+    {
+      "visibility": "visible",
+      "level": -1,
+      "defaultLevel": 0,
+      "rootZoom": "0.833333",
+      "viewport": [1261, 820],
+      "panels": [
+        {
+          "id": "bh:channels",
+          "expected": {
+            "x": 51.1015625,
+            "y": 33.328125,
+            "width": 313.609375,
+            "height": 783.328125,
+            "right": 364.7109375,
+            "bottom": 816.65625
+          },
+          "actual": {
+            "x": 51.1015625,
+            "y": 33.328125,
+            "width": 313.609375,
+            "height": 783.328125,
+            "right": 364.7109375,
+            "bottom": 816.65625
+          },
+          "difference": 0,
+          "retained": true
+        },
+        {
+          "id": "bh:home",
+          "expected": {
+            "x": 368.046875,
+            "y": 33.328125,
+            "width": 889.4375,
+            "height": 783.328125,
+            "right": 1257.484375,
+            "bottom": 816.65625
+          },
+          "actual": {
+            "x": 368.046875,
+            "y": 33.328125,
+            "width": 889.4375,
+            "height": 783.328125,
+            "right": 1257.484375,
+            "bottom": 816.65625
+          },
+          "difference": 0,
+          "retained": true
+        }
+      ],
+      "fonts": ["14px", "11px", "13px"],
+      "draft": "ZOOM S1 retained draft",
+      "guest": {
+        "zoom": 1,
+        "input": "保留输入",
+        "identityRetained": true
+      },
+      "main": "保留 A",
+      "local": "保留 B",
+      "cross": "保留输入",
+      "passed": true
+    }
+  ],
+  "nativeSplitterChecks": [
+    {
+      "level": -1,
+      "pointerDelta": 60,
+      "panelDelta": 60
+    },
+    {
+      "level": 1,
+      "pointerDelta": 60,
+      "panelDelta": 60
+    }
+  ],
+  "browserRegression": {
+    "cases": 25,
+    "distinctZoomLevels": 17,
+    "panelsPerLayout": 3,
+    "splitterAxes": ["horizontal", "vertical"],
+    "failures": []
+  },
+  "limits": [
+    "Native geometry measured at 1261x820; narrow native windows and other panel combinations remain unverified.",
+    "The new native matrix used shifted plus and ordinary minus; the earlier eight physical plain-key events were captured on aeb70b4, not this Client build.",
+    "One ordinary foreground restoration of the existing guest painted at unchanged window geometry; hidden guest creation, repeated recovery and process restart remain open.",
+    "The previously saved CLI HTTP endpoint was unreachable in this run; historical live CLI results are not a fresh check.",
+    "No merge, release, Windows/Linux or S2/S3 acceptance."
+  ]
+}

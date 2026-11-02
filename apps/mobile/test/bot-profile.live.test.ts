@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { loadBotProfile } from '../src/host/bot-profile';
+import { loadBotProfile, pinnedMemory } from '../src/host/bot-profile';
 import { createHostClient } from '../src/host/client';
 import type { MemoryFile, MemorySnapshot } from '../src/host/wire';
 import { pairWithLiveHost } from './live-pairing';
@@ -43,8 +43,19 @@ describe.skipIf(live === undefined)('Bot profile against a live isolated Host', 
     const snapshot = await web<{ snapshot: MemorySnapshot }>('memorySnapshot', { channelId });
     const soul = await web<{ file?: MemoryFile }>('memoryFile', { channelId, path: 'SOUL.md' });
     expect(soul.file?.body.trim()).toContain('Standing rules:');
-    expect(profile.identity).toEqual({ status: 'ready', value: soul.file?.body.trim() });
-    expect(profile.memory).toEqual({ status: 'ready', value: { files: snapshot.snapshot.files } });
+    expect(profile.memory).toEqual({
+      status: 'ready',
+      value: {
+        status: 'attached',
+        files: snapshot.snapshot.files,
+        pinned: pinnedMemory(snapshot.snapshot),
+      },
+    });
+    expect(
+      profile.memory.status === 'ready' &&
+        profile.memory.value.status === 'attached' &&
+        profile.memory.value.pinned[0],
+    ).toEqual({ role: 'soul', path: 'SOUL.md', present: true });
     expect(profile.routines).toEqual({ status: 'ready', value: [] });
     expect(profile.files).toEqual({ status: 'ready', value: [] });
   }, 60_000);

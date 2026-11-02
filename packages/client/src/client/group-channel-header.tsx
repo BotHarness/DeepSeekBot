@@ -1,6 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { IconChevronDownOutlineRegular, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconChevronDownOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 import {
   PersonaBotFacepile,
   personaBotPresentationSummary,
@@ -10,8 +11,6 @@ import { ChannelAttentionDot } from './channel-options.js';
 import type { ChannelMenuTrigger } from './human-channel-name.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { ChannelSummary } from './store.js';
-import { CompanionPin } from './window-companions-view.js';
-import type { WindowCompanions } from './window-companions.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 
 const styles = stylex.create({
@@ -112,8 +111,8 @@ export function GroupChannelHeader({
   t,
   onOpenActivity,
   onToggleProfile,
-  companion,
   menu,
+  status,
 }: {
   channel: ChannelSummary;
   title: string;
@@ -122,8 +121,8 @@ export function GroupChannelHeader({
   t: BotHarnessTranslate;
   onOpenActivity(): void;
   onToggleProfile(): void;
-  companion?: WindowCompanions | undefined;
   menu?: ChannelMenuTrigger | undefined;
+  status?: ReactNode;
 }): ReactElement {
   return (
     <span className="bh-channel-island bh-group-channel-header">
@@ -149,21 +148,12 @@ export function GroupChannelHeader({
                   type="button"
                   className="bh-avatar-facepile-button"
                   aria-label={label}
-                  aria-haspopup="dialog"
                   aria-expanded={expanded}
                   onClick={onOpenActivity}
                 >
                   {avatar}
                 </button>
               </Tooltip>
-              {companion ? (
-                <CompanionPin
-                  companion={companion}
-                  botId={item.personaBotId}
-                  name={item.name}
-                  t={t}
-                />
-              ) : null}
             </span>
           );
         }}
@@ -174,7 +164,6 @@ export function GroupChannelHeader({
         {...stylex.props(styles.name, menu !== undefined && styles.nameWithCaret)}
         {...(menu === undefined
           ? {
-              'aria-haspopup': 'dialog' as const,
               'aria-expanded': expanded,
               'aria-label': t('groupProfile.openAvatar', { name: channel.name }),
               onClick: onToggleProfile,
@@ -191,6 +180,7 @@ export function GroupChannelHeader({
         <ConversationTitle>{title}</ConversationTitle>
         {menu === undefined ? null : <ChannelMenuCaret attention={menu.attention} />}
       </button>
+      {status}
     </span>
   );
 }

@@ -1,0 +1,23 @@
+Page: com.apple.Preferences
+App: com.apple.Preferences
+Snapshot: 18 visible nodes
+Simulator AX snapshot inapplicable (system-surface-host-lingering); used XCTest, which read app content: the system surface host process was still running but no longer presenting.
+@e1 [application] "Settings"
+@e2 [navigation-bar] "Back"
+@e3 [button] "Back"
+@e4 [text] "Display & Text Size"
+@e5 [table] "Bold Text"
+  [content below table hidden]
+@e6 [switch] "Bold Text" [unchecked]
+@e7 [cell] "Larger Text, On"
+@e8 [switch] "Button Shapes" [unchecked]
+@e9 [switch] "On/Off Labels" [unchecked]
+@e10 [link] "What's new in Display & Text Size…"
+@e11 [switch] "Reduce Transparency" [unchecked]
+@e12 [other] "Improve contrast by reducing transparency and blurs on some backgrounds to increase legibility."
+@e13 [switch] "Increase Contrast" [unchecked]
+@e14 [other] "Increase color contrast between app foreground and background colors."
+@e15 [switch] "Differentiate Without Color" [unchecked]
+@e16 [other] "Replaces user interface items that rely solely on color to convey information with alternatives."
+@e17 [switch] "Prefer Horizontal Text" [unchecked]
+@e18 [other] "Prefer horizontal text in languages that support vertical text."

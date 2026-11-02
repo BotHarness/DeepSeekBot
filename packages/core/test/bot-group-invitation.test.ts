@@ -292,6 +292,7 @@ describe('Bot Group invitation tracer', () => {
 
         ownership: core.ownership,
         roster: core.roster,
+        contentPurge: core.contentPurge,
       });
       expect(
         methods.channelGroupInviteCancel({
@@ -311,12 +312,23 @@ describe('Bot Group invitation tracer', () => {
       expect(
         methods.channelRename({ channelId: group.id, name: 'Renamed by Human' }),
       ).toMatchObject({ ok: true, value: { channel: { name: 'Renamed by Human' } } });
-      expect(methods.channelGroupDelete({ channelId: group.id })).toEqual({
+      const disbanded = methods.channelGroupDelete({ channelId: group.id });
+      expect(disbanded).toEqual({
         ok: true,
-        value: { deleted: true },
+        value: { deleted: true, messages: expect.any(Number) },
       });
+      expect(disbanded.ok && disbanded.value.messages).toBeGreaterThan(0);
+      expect(core.contentPurge.history()).toEqual([]);
       expect(core.channels.get(group.id)).toBeUndefined();
       expect(methods.channelMessages({ channelId: group.id })).toMatchObject({ ok: false });
+      const leftover = core.channels.createGroup({ name: 'Leftover', members: [] });
+      core.channels.deleteGroup(leftover.id);
+      expect(core.contentPurge.history()).toMatchObject([{ id: leftover.id }]);
+      expect(methods.channelGroupDelete({ channelId: leftover.id })).toEqual({
+        ok: true,
+        value: { deleted: true, messages: 0 },
+      });
+      expect(core.contentPurge.history()).toEqual([]);
       expect(core.channels.list().some((channel) => channel.id === group.id)).toBe(false);
     } finally {
       await core.runtime.close();

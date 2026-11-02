@@ -120,7 +120,7 @@ Assignment Session 是一条独立工作线对应的 root DSH Session。它的 D
 **Assignment Directory** 是 durable read model，基于 Session Ownership 加上 DSH event、projection 与 cold-query fact 构建。它暴露：
 
 ```text
-canonical Session id、purpose、Continuity Key、Workspace
+canonical Session id、Assignment Title 与 Assignment Description（ADR-0262）、Continuity Key、Workspace
 requested model/dependencies
 DSH-derived activity 与 lastRun
 latest semantic Assignment Report

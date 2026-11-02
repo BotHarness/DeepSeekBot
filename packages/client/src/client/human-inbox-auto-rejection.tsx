@@ -25,7 +25,7 @@ export function AllowAutoRejectionButton({
   onError,
 }: {
   item: HumanAttentionItem;
-  actions: BridgeActions;
+  actions: Pick<BridgeActions, 'allowAutoRejectionOnce'>;
   t: BotHarnessTranslate;
   onDone?: () => void;
   onError: () => void;

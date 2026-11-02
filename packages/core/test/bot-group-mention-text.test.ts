@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ChannelMessage } from '../src/channels/channel.js';
+import { MAX_BOT_HOPS, type ChannelMessage } from '../src/channels/channel.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createCore } from '../src/plugin.js';
 import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
@@ -294,7 +294,7 @@ describe('Bot-to-Bot mention wakes within one Human kickoff', () => {
     expect(mentionWakes(result.wakes, 'nexus', 'aura')).toHaveLength(1);
   });
 
-  it('still wakes a colleague its earlier unmentioned message in the same exchange reached', async () => {
+  it('wakes a colleague for each message that mentions it in the same exchange', async () => {
     const result = await groupScenario({
       bots: [NEXUS, ATLAS, AURA],
       kickoff: ['aura'],
@@ -321,10 +321,10 @@ describe('Bot-to-Bot mention wakes within one Human kickoff', () => {
       result.admissions.filter(
         (admission) => admission.bot_slug === 'atlas' && admission.reason === 'group-mention',
       ),
-    ).toHaveLength(1);
+    ).toHaveLength(2);
   });
 
-  it('still stops two Bots that keep mentioning each other', async () => {
+  it('stops two Bots that keep mentioning each other at the hop limit', async () => {
     const pingPong =
       (other: string): Script =>
       async (run, groupId) => {
@@ -338,8 +338,11 @@ describe('Bot-to-Bot mention wakes within one Human kickoff', () => {
       kickoff: ['ping'],
       scripts: { ping: pingPong('Pong'), pong: pingPong('Ping') },
     });
-    expect(result.wakes.map((wake) => wake.bot)).toEqual(['ping', 'pong', 'ping']);
-    expect(result.byAuthor('ping')).toHaveLength(2);
-    expect(result.byAuthor('pong')).toHaveLength(1);
-  });
+    expect(result.wakes.map((wake) => wake.bot)).toEqual([
+      'ping',
+      ...Array.from({ length: MAX_BOT_HOPS }, (_, hop) => (hop % 2 === 0 ? 'pong' : 'ping')),
+    ]);
+    expect(result.byAuthor('ping')).toHaveLength(MAX_BOT_HOPS / 2 + 1);
+    expect(result.byAuthor('pong')).toHaveLength(MAX_BOT_HOPS / 2);
+  }, 45_000);
 });

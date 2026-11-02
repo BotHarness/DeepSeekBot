@@ -167,7 +167,8 @@ describe('localization coverage', () => {
         t: tEn,
       }),
     );
-    expect(markup).toContain('Talk to a Bot');
-    expect(markup).toContain('Pick a Bot or channel on the left to start');
+    expect(markup).toContain('role="status"');
+    expect(markup).toContain('No Bots yet');
+    expect(markup).not.toContain('main.welcome.empty');
   });
 });

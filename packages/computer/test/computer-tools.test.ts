@@ -236,6 +236,32 @@ describe('curated catalog and audit redaction', () => {
 });
 
 describe('per-PersonaBot registration and authorization', () => {
+  it('keeps a standing approval on its exact execution and rechecks revocation', async () => {
+    const h = harness({ access: true, running: true });
+    h.created({ agent });
+    const tool = h.state.definitions.get('computer_click')!;
+    const call = Object.assign(execution('computer_click'), { token: Symbol('approved-call') });
+    let active = true;
+    const release = h.provider.authorizeCall(call.token, () => active);
+    try {
+      await expect(tool.execute({ pid: 7, x: 1, y: 2 }, call)).resolves.toBeDefined();
+      expect(h.provider.needsAuthorization('session-a')).toBe(true);
+      await expect(
+        h.state.definitions
+          .get('computer_type_text')!
+          .execute({ pid: 7, text: 'hello' }, execution('computer_type_text')),
+      ).rejects.toThrow('not authorized');
+      active = false;
+      await expect(tool.execute({ pid: 7, x: 1, y: 2 }, call)).rejects.toThrow('not authorized');
+      active = true;
+      release();
+      await expect(tool.execute({ pid: 7, x: 1, y: 2 }, call)).rejects.toThrow('not authorized');
+    } finally {
+      release();
+      await h.provider.dispose();
+    }
+  });
+
   it('registers nothing while Computer Access is off', async () => {
     const h = harness({ access: false, running: true });
     h.created({ agent });
@@ -480,6 +506,26 @@ describe('per-PersonaBot registration and authorization', () => {
     await expect(running).rejects.toThrow('Computer Pause is active');
     await draining;
     expect(drained).toBe(true);
+  });
+
+  it('refuses a drain timeout while the admitted native call is still running', async () => {
+    const h = harness({ access: true, running: true });
+    let finish: (() => void) | undefined;
+    vi.mocked(h.driver.call).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () =>
+            resolve({ content: [{ type: 'image', data: 'private', mimeType: 'image/png' }] });
+        }),
+    );
+    const running = h.provider.runDirect('bot-a', 'click', { pid: 7 });
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    h.setPaused(true);
+    const withheld = expect(running).rejects.toThrow('Computer Pause is active');
+    await expect(h.provider.drain(1)).rejects.toThrow('did not drain');
+    finish?.();
+    await withheld;
+    await h.provider.drain(5_000);
   });
 
   it('runs without a grant when the profile auto-allows', async () => {

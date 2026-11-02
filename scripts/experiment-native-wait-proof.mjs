@@ -143,10 +143,10 @@ export function checkNativeWait({
   const unrelated = orchestrator.events.find(
     (e) =>
       e.type === 'tool/call' &&
-      e.data.name === 'channel_send' &&
+      ['bot_send_message', 'channel_send'].includes(e.data.name) &&
       JSON.parse(e.data.arguments).body === 'UNRELATED_REPLY_1036',
   );
-  assert.ok(unrelated, 'actual model-originated unrelated channel_send');
+  assert.ok(unrelated, 'actual model-originated unrelated bot_send_message');
   const model = orchestrator.events.find(
     (e) =>
       e.type === 'assistant/message' &&

@@ -168,7 +168,7 @@ if (mode === '--serve') {
     await api('browserAccessSet', { slug: bot.slug, enabled: true });
     await api('channelSend', {
       channelId: dm.id,
-      body: `本地 QA：只用 browser_open 打开 ${fixture}/page，然后 browser_observe，channel_send 回复标题和搜索框。不输入，不点击。`,
+      body: `本地 QA：只用 browser_open 打开 ${fixture}/page，然后 browser_observe，bot_send_message 回复标题和搜索框。不输入，不点击。`,
     });
     const sessionId = await until(
       async () =>
@@ -191,7 +191,7 @@ if (mode === '--serve') {
       const results = resultsOf(rows);
       success(results, 'browser_open');
       success(results, 'browser_observe');
-      success(results, 'channel_send');
+      success(results, 'bot_send_message');
       const observed = await native(state, 'browser_observe');
       assert.equal(observed.isError, false);
       const ref = textOf(observed).match(/^(e\S+) (?:input|textbox) Search$/mu)?.[1];
@@ -205,12 +205,12 @@ if (mode === '--serve') {
       assert.ok(['ready', 'searched', 'probed', 'completed'].includes(state.phase));
       const rows = await model(
         state,
-        `QA 复验：用 browser_open 打开 ${fixture}/page，然后 browser_observe，channel_send 回复标题。只打开和观察，不搜索、不点击。`,
+        `QA 复验：用 browser_open 打开 ${fixture}/page，然后 browser_observe，bot_send_message 回复标题。只打开和观察，不搜索、不点击。`,
       );
       const results = resultsOf(rows);
       success(results, 'browser_open');
       success(results, 'browser_observe');
-      success(results, 'channel_send');
+      success(results, 'bot_send_message');
       const observed = await native(state, 'browser_observe');
       assert.equal(observed.isError, false);
       const ref = textOf(observed).match(/^(e\S+) (?:input|textbox) Search$/mu)?.[1];
@@ -230,7 +230,7 @@ if (mode === '--serve') {
       const priorCounter = await counter();
       const rows = await model(
         state,
-        '在当前网站搜索 aurora，并打开第一条结果 Aurora field notes。先 browser_observe，用 browser_type 输入，browser_press_key Enter 提交，再 browser_observe，然后 browser_click 第一条结果，再 browser_wait ms=100，browser_scroll down amount=600，最后 browser_observe 和 browser_screenshot。不要通过 browser_open 直接打开结果。用 channel_send 回复实际标题、结果标记和完成情况。',
+        '在当前网站搜索 aurora，并打开第一条结果 Aurora field notes。先 browser_observe，用 browser_type 输入，browser_press_key Enter 提交，再 browser_observe，然后 browser_click 第一条结果，再 browser_wait ms=100，browser_scroll down amount=600，最后 browser_observe 和 browser_screenshot。不要通过 browser_open 直接打开结果。用 bot_send_message 回复实际标题、结果标记和完成情况。',
       );
       const results = resultsOf(rows);
       for (const name of [
@@ -241,7 +241,7 @@ if (mode === '--serve') {
         'browser_wait',
         'browser_scroll',
         'browser_screenshot',
-        'channel_send',
+        'bot_send_message',
       ])
         success(results, name);
       assert.ok(success(results, 'browser_observe').seq < success(results, 'browser_type').seq);
@@ -276,7 +276,7 @@ if (mode === '--serve') {
       assert.equal(state.phase, before ? 'searched' : 'probed');
       const rows = await model(
         state,
-        `只用 browser_open 打开 ${fixture}/page，再 browser_observe，再 browser_click 点击 Never settle 恰好一次。这是持续加载的 QA fixture，不重试、不另行导航。最后 channel_send 回复该 browser_click 工具的实际结果：成功就说明成功，若超时要引用超时毫秒数并说明应先观察。不要把加载中的页面误认为已完成。`,
+        `只用 browser_open 打开 ${fixture}/page，再 browser_observe，再 browser_click 点击 Never settle 恰好一次。这是持续加载的 QA fixture，不重试、不另行导航。最后 bot_send_message 回复该 browser_click 工具的实际结果：成功就说明成功，若超时要引用超时毫秒数并说明应先观察。不要把加载中的页面误认为已完成。`,
       );
       const results = resultsOf(rows);
       const clicks = results.filter((row) => row.call?.name === 'browser_click');
@@ -284,7 +284,7 @@ if (mode === '--serve') {
       assert.equal(clicks[0].message.isError, !before);
       if (!before)
         assert.match(textOf(clicks[0].message), /did not settle within 15000ms.*browser_observe/);
-      const reply = success(results, 'channel_send');
+      const reply = success(results, 'bot_send_message');
       const args =
         typeof reply.call.arguments === 'string'
           ? JSON.parse(reply.call.arguments)
@@ -350,12 +350,12 @@ if (mode === '--serve') {
       );
       const rows = await model(
         state,
-        'QA 完成，请 browser_observe 确认当前第一条结果，browser_screenshot，然后 channel_send 回复真实标题和 INTERACTION-FIRST-RESULT 标记。不要再搜索或点击。',
+        'QA 完成，请 browser_observe 确认当前第一条结果，browser_screenshot，然后 bot_send_message 回复真实标题和 INTERACTION-FIRST-RESULT 标记。不要再搜索或点击。',
       );
       const results = resultsOf(rows);
       success(results, 'browser_observe');
       success(results, 'browser_screenshot');
-      success(results, 'channel_send');
+      success(results, 'bot_send_message');
       const view = await frame(state.slug);
       assert.equal(view.focused, state.target);
       assert.equal(view.tabs.length, 1);

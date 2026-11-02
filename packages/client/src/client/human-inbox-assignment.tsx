@@ -1,3 +1,4 @@
+import { ActionButton } from './ds/action-button.js';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useRef, useState, type ReactElement } from 'react';
 import type { BridgeActions } from './actions.js';
@@ -185,7 +186,9 @@ export function HumanInboxAssignment({
         </p>
       ) : (
         <>
-          <h3 className="bh-human-inbox-purpose is-collapsed">{context!.purpose}</h3>
+          <h3 className="bh-human-inbox-purpose is-collapsed" title={context!.description}>
+            {context!.title}
+          </h3>
           <div className="bh-human-inbox-context-window">
             <HumanInboxContextEdge
               direction="older"
@@ -242,22 +245,22 @@ export function HumanInboxAssignment({
         </>
       )}
       <div className="bh-human-inbox-reply-actions">
-        <Button
+        <ActionButton
           size="sm"
-          variant="outline"
+          icon="terminal"
           type="button"
           onClick={() => void navigate(() => actions.openSession(sessionId))}
         >
           {t('humanInbox.assignment.session')}
-        </Button>
-        <Button
+        </ActionButton>
+        <ActionButton
           size="sm"
-          variant="outline"
+          icon="message-square"
           type="button"
           onClick={() => void navigate(() => actions.openBot(source.botSlug))}
         >
           {t('humanInbox.assignment.dm')}
-        </Button>
+        </ActionButton>
       </div>
       {failed && target !== undefined ? (
         <p role="alert">{t('humanInbox.reply.unavailable')}</p>
@@ -268,16 +271,16 @@ export function HumanInboxAssignment({
           <strong>{t('humanInbox.assignment.sent')}</strong>
           <p>{reply.body}</p>
           <p>{t('humanInbox.assignment.forwarding')}</p>
-          <Button
+          <ActionButton
             size="sm"
-            variant="outline"
+            icon="external-link"
             type="button"
             onClick={() =>
               void navigate(() => actions.openChannelAtMessage('dm-' + source.botSlug, reply.id))
             }
           >
             {t('humanInbox.open')}
-          </Button>
+          </ActionButton>
         </div>
       ) : (
         <form

@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-18",
+  "batch": 22,
+  "before": "d2529feb520ace2d773db6ac0966dc265887bdc5",
+  "runtime": "bfb5cc4ec9b5b3029bebd7d544905efa6d2dcd4b",
+  "native": "494a20f1eb4f0666a2c90bc3c758af4e7ff5f46b",
+  "uat": "bf6d896e813457382cd2bb2e7c74b22c03ba01ca",
+  "ci": 39104178457,
+  "viewport": [402, 874],
+  "syntheticTestSession": true,
+  "hostedAuthKitClaim": false,
+  "nativePassed": [
+    "header opens shared root drawer",
+    "member selection lists four organization channels",
+    "guest organization lists one authorized channel",
+    "actual native token has no guest-organization membership and sibling access denied",
+    "refresh rotates token and preserves unsent draft",
+    "cold directory restores; Check session separately verifies live identity",
+    "reopening after grant revocation removes guest organization",
+    "logout clears directory; A fixture after restart shows owner identities instead of B member or guest identities",
+    "both mobile sessions remote-revoked; latest refresh denied; other baseline sessions retained"
+  ],
+  "matrix": [
+    {
+      "size": "large",
+      "theme": "light",
+      "cloudServicesReachable": true,
+      "createWorkspaceVisibleAfterScroll": true
+    },
+    {
+      "size": "large",
+      "theme": "dark",
+      "cloudServicesReachable": true,
+      "createWorkspaceVisibleAfterScroll": true
+    },
+    {
+      "size": "extra-extra-extra-large",
+      "theme": "light",
+      "cloudServicesReachable": true,
+      "createWorkspaceVisibleAfterScroll": true
+    },
+    {
+      "size": "extra-extra-extra-large",
+      "theme": "dark",
+      "cloudServicesReachable": true,
+      "createWorkspaceVisibleAfterScroll": true
+    },
+    {
+      "size": "accessibility-extra-extra-extra-large",
+      "theme": "light",
+      "cloudServicesReachable": true,
+      "createWorkspaceVisibleAfterScroll": true
+    },
+    {
+      "size": "accessibility-extra-extra-extra-large",
+      "theme": "dark",
+      "cloudServicesReachable": true,
+      "createWorkspaceVisibleAfterScroll": true
+    }
+  ],
+  "nativeUntested": [
+    "computer selection: no computer saved in this simulator; no new pairing added",
+    "pagination, injected errors/retry and exact cancelled-request ordering: source tests only",
+    "in-place account replacement without fixture restart",
+    "Android",
+    "physical camera",
+    "Human and VoiceOver acceptance",
+    "new-instance Hosted AuthKit continuation",
+    "native sender share and QR generation/save"
+  ],
+  "cleanup": {
+    "ownGuestGrantRevoked": true,
+    "temporarySessionsDeletedAfterRevocationProof": true,
+    "largeLightRestored": true,
+    "ownDriverAndMetroStopped": true,
+    "nativeBuildInstallErase": false,
+    "prodTouched": false,
+    "merged": false
+  }
+}

@@ -58,7 +58,7 @@ try {
       'send',
       values.bot,
       '--body',
-      `Reply through channel_send with exactly ${marker}.`,
+      `Reply through bot_send_message with exactly ${marker}.`,
       '--message-id',
       messageId,
       '--timeout',

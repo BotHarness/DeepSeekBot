@@ -15,6 +15,10 @@ interface LoadedEntry {
 }
 
 const requireFromTest = createRequire(import.meta.url);
+const { JSDOM } = requireFromTest('jsdom');
+const browserDom = new JSDOM('<!doctype html><html><body></body></html>', {
+  url: 'http://localhost',
+});
 const tempDir = mkdtempSync(join(tmpdir(), 'botharness-client-bundle-'));
 
 const BASELINE_MODULES = new Set([
@@ -50,6 +54,10 @@ function baselineModuleStub(id: string): Record<string, unknown> {
         const listeners = new Set<() => void>();
         return {
           getSnapshot: () => snapshot,
+          set(next: Record<string, unknown>) {
+            snapshot = next;
+            for (const listener of listeners) listener();
+          },
           subscribe(listener: () => void) {
             listeners.add(listener);
             return () => {
@@ -90,16 +98,27 @@ beforeAll(async () => {
   await build({ ...clientBundleOptions, config: false, outDir: tempDir });
   bundleCode = readFileSync(join(tempDir, 'client.js'), 'utf8');
   const sandbox = {
-    window: {
+    document: browserDom.window.document,
+    MutationObserver: browserDom.window.MutationObserver,
+    ResizeObserver: class {
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    },
+    window: Object.assign(browserDom.window, {
       matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
-      location: { hash: '' },
       __ModuleLoader__: {
         load: (loaded: LoadedEntry) => {
           entry = loaded;
         },
       },
-    },
+    }),
     fetch: globalThis.fetch,
+    setTimeout: browserDom.window.setTimeout.bind(browserDom.window),
+    clearTimeout: browserDom.window.clearTimeout.bind(browserDom.window),
+    setInterval: browserDom.window.setInterval.bind(browserDom.window),
+    clearInterval: browserDom.window.clearInterval.bind(browserDom.window),
+    queueMicrotask,
     TextEncoder,
     TextDecoder,
     AbortController,
@@ -112,12 +131,14 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(() => {
+  browserDom.window.close();
   rmSync(tempDir, { recursive: true, force: true });
 });
 
 describe('@botharness/ui browser bundle', () => {
   it('does not defer Node environment reads to browser interactions', () => {
     expect(bundleCode).not.toMatch(/\bprocess\.env\b/);
+    expect(bundleCode).not.toMatch(/require\(["']node:/);
   });
   it('self-registers with the lazy-CJS module-loader contract', () => {
     const loaded = loadedEntry();
@@ -170,10 +191,12 @@ describe('@botharness/ui browser bundle', () => {
     expect(plugin['name']).toBe('botharness-client');
     expect(plugin['inject']).toEqual([
       'slots',
+      'shortcuts',
       'connection',
       'inputTriggers',
       'layout',
       'locale',
+      'theme',
       'sessions',
       'uiWorkspace',
       'workspaces',
@@ -190,6 +213,11 @@ describe('@botharness/ui browser bundle', () => {
     }[] = [];
     const sources: unknown[] = [];
     const scoped = {
+      shortcuts: {
+        register: () => () => undefined,
+        config: { getSnapshot: () => ({ status: 'loading' }), subscribe: () => () => undefined },
+        catalog: { getSnapshot: () => [], subscribe: () => () => undefined },
+      },
       slots: {
         inject: (_name: string, callback: () => unknown) => callback(),
         register: (spec: {
@@ -243,6 +271,12 @@ describe('@botharness/ui browser bundle', () => {
     expect(registered).toEqual([
       {
         name: 'shell.overlay',
+        id: 'botharness-bot-session-folders',
+        locale: 'botharness',
+        inject: expect.any(Function),
+      },
+      {
+        name: 'shell.overlay',
         id: 'botharness-window-companion',
         locale: 'botharness',
         inject: expect.any(Function),
@@ -253,12 +287,6 @@ describe('@botharness/ui browser bundle', () => {
         locale: 'botharness',
         inject: expect.any(Function),
         children: { 'botharness.settings.section': { kind: 'list', scope: 'root' } },
-      },
-      {
-        name: 'shell.overlay',
-        id: 'botharness-shortcut-help',
-        locale: 'botharness',
-        inject: expect.any(Function),
       },
       {
         name: 'sidebar.panellist',

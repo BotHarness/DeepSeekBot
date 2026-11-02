@@ -59,7 +59,7 @@ function fixture(mode = 'candidate') {
           type: 'tool/call',
           time: 22,
           data: {
-            name: 'channel_send',
+            name: 'bot_send_message',
             callId: 'final',
             turn: 3,
             step: 1,
@@ -80,7 +80,7 @@ function fixture(mode = 'candidate') {
           type: 'tool/call',
           time: 4,
           data: {
-            name: 'channel_send',
+            name: 'bot_send_message',
             callId: 'send',
             turn: 2,
             step: 1,

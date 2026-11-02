@@ -28,7 +28,7 @@ import type {
   ToolApprovalRuleView,
   AssignmentAccessPresetView,
 } from './bridge.js';
-import { errorMessage } from './bridge.js';
+import { BridgeCallError, errorMessage } from './bridge.js';
 import { isAbsoluteHostPath } from './persona-bot-create.js';
 import { MemoryFileActionButton, MemoryFileOpenButton } from './memory-file-actions.js';
 import { WorkspaceFileOpenButton, WorkspaceFilePathButton } from './workspace-file-actions.js';
@@ -336,6 +336,58 @@ const browserStyles = stylex.create({
   checkbox: { margin: 0, accentColor: color.accent },
 });
 
+export interface FolderBrowserActions {
+  listHostFolders(
+    path?: string,
+    signal?: AbortSignal,
+    offset?: number,
+  ): Promise<Omit<HostDirectoryListing, 'home'>>;
+}
+
+type FolderBrowserListing = Omit<HostDirectoryListing, 'home'> & { home?: string };
+
+const FOLDER_CACHE_MS = 15_000;
+const FOLDER_PREFETCH_DELAY_MS = 150;
+const FOLDER_SLOW_MS = 800;
+const folderCaches = new WeakMap<
+  FolderBrowserActions,
+  Map<string, { at: number; listing: FolderBrowserListing }>
+>();
+
+function folderCache(actions: FolderBrowserActions) {
+  let cache = folderCaches.get(actions);
+  if (cache === undefined) {
+    cache = new Map();
+    folderCaches.set(actions, cache);
+  }
+  return cache;
+}
+
+function cachedFolder(
+  actions: FolderBrowserActions,
+  path: string,
+): FolderBrowserListing | undefined {
+  const hit = folderCache(actions).get(path);
+  return hit !== undefined && Date.now() - hit.at < FOLDER_CACHE_MS ? hit.listing : undefined;
+}
+
+function rememberFolder(
+  actions: FolderBrowserActions,
+  requested: string,
+  listing: FolderBrowserListing,
+): void {
+  const cache = folderCache(actions);
+  const entry = { at: Date.now(), listing };
+  cache.set(requested, entry);
+  cache.set(listing.path, entry);
+}
+
+export function folderBrowseError(cause: unknown, t: ChannelSidebarEntryProps['t']): string {
+  return cause instanceof BridgeCallError && cause.code === 'folder-browse/timeout'
+    ? t('grant.browseTimeout')
+    : errorMessage(cause);
+}
+
 export function FolderBrowser({
   initial,
   actions,
@@ -344,45 +396,120 @@ export function FolderBrowser({
   busy,
   t,
 }: {
-  initial: HostDirectoryListing;
-  actions: ChannelSidebarEntryProps['actions'];
+  initial: FolderBrowserListing;
+  actions: FolderBrowserActions;
   onCancel: () => void;
   onChoose: (path: string) => void;
   busy: boolean;
   t: ChannelSidebarEntryProps['t'];
 }): ReactElement {
   const [listing, setListing] = useState(initial);
+  const [location, setLocation] = useState(initial.path);
   const [loading, setLoading] = useState(false);
+  const [slow, setSlow] = useState(false);
+  const [more, setMore] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [showHidden, setShowHidden] = useState(false);
   const request = useRef<AbortController | undefined>();
+  const prefetch = useRef<{ timer?: number; path?: string; inFlight: boolean }>({
+    inFlight: false,
+  });
 
   const abortOnUnmount = useMountedResource<HTMLDivElement>(
-    () => () => request.current?.abort(),
+    () => () => {
+      request.current?.abort();
+      window.clearTimeout(prefetch.current.timer);
+    },
     [],
   );
 
   const navigate = (path: string): void => {
     if (busy) return;
     request.current?.abort();
+    setError(undefined);
+    setMore(false);
+    const cached = cachedFolder(actions, path);
+    if (cached !== undefined) {
+      request.current = undefined;
+      setListing(cached);
+      setLocation(cached.path);
+      setLoading(false);
+      setSlow(false);
+      return;
+    }
     const controller = new AbortController();
     request.current = controller;
     setLoading(true);
-    setError(undefined);
+    setSlow(false);
+    const slowTimer = window.setTimeout(() => {
+      if (!controller.signal.aborted) setSlow(true);
+    }, FOLDER_SLOW_MS);
     void actions
       .listHostFolders(path, controller.signal)
       .then(
         (next) => {
-          if (!controller.signal.aborted) setListing(next);
+          rememberFolder(actions, path, next);
+          if (!controller.signal.aborted) {
+            setListing(next);
+            setLocation(next.path);
+          }
         },
         (cause: unknown) => {
-          if (!controller.signal.aborted) setError(errorMessage(cause));
+          if (!controller.signal.aborted) setError(folderBrowseError(cause, t));
         },
       )
       .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
+        window.clearTimeout(slowTimer);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+          setSlow(false);
+        }
       });
   };
+
+  const showMore = (): void => {
+    const offset = listing.nextOffset;
+    if (busy || loading || more || offset === undefined) return;
+    const controller = new AbortController();
+    request.current = controller;
+    setMore(true);
+    setError(undefined);
+    void actions
+      .listHostFolders(listing.path, controller.signal, offset)
+      .then(
+        (next) => {
+          if (controller.signal.aborted || next.path !== listing.path) return;
+          const merged = { ...next, entries: [...listing.entries, ...next.entries] };
+          rememberFolder(actions, listing.path, merged);
+          setListing(merged);
+        },
+        (cause: unknown) => {
+          if (!controller.signal.aborted) setError(folderBrowseError(cause, t));
+        },
+      )
+      .finally(() => {
+        if (!controller.signal.aborted) setMore(false);
+      });
+  };
+
+  const warm = (path: string): void => {
+    window.clearTimeout(prefetch.current.timer);
+    if (busy || cachedFolder(actions, path) !== undefined) return;
+    prefetch.current.timer = window.setTimeout(() => {
+      if (prefetch.current.inFlight) return;
+      prefetch.current.inFlight = true;
+      void actions
+        .listHostFolders(path)
+        .then(
+          (next) => rememberFolder(actions, path, next),
+          () => undefined,
+        )
+        .finally(() => {
+          prefetch.current.inFlight = false;
+        });
+    }, FOLDER_PREFETCH_DELAY_MS);
+  };
+  const cool = (): void => window.clearTimeout(prefetch.current.timer);
 
   return (
     <PanelDialog
@@ -401,7 +528,7 @@ export function FolderBrowser({
           </Button>
           <Button
             variant="primary"
-            disabled={busy || loading}
+            disabled={busy || loading || location.trim() !== listing.path || error !== undefined}
             onClick={() => onChoose(listing.path)}
           >
             {t('grant.authorize')}
@@ -409,8 +536,46 @@ export function FolderBrowser({
         </>
       }
     >
+      <div role="group" aria-label={t('grant.browseRoots')} {...stylex.props(browserStyles.crumbs)}>
+        {(listing.roots ?? []).map((root) => (
+          <Button
+            key={root.path}
+            variant="outline"
+            data-folder-browser-root={root.path}
+            aria-label={t('grant.browseRoot', {
+              name: root.path === listing.home ? t('grant.browseHome') : root.name,
+            })}
+            disabled={busy}
+            onClick={() => navigate(root.path)}
+          >
+            {root.path === listing.home ? t('grant.browseHome') : root.name}
+          </Button>
+        ))}
+      </div>
+      <SettingsRow title={t('grant.browseLocation')} description={t('grant.browsePathHelp')}>
+        <Input
+          type="text"
+          aria-label={t('grant.pathLabel')}
+          value={location}
+          disabled={busy}
+          onChange={(event) => setLocation(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              if (isAbsoluteHostPath(location.trim())) navigate(location.trim());
+            }
+          }}
+        />
+        <Button
+          variant="outline"
+          disabled={busy || !isAbsoluteHostPath(location.trim())}
+          onClick={() => navigate(location.trim())}
+        >
+          {t('grant.browseGo')}
+        </Button>
+      </SettingsRow>
       <div
-        aria-label={t('grant.browseLocation')}
+        aria-label={t('grant.browseBreadcrumbs')}
         ref={abortOnUnmount}
         {...stylex.props(browserStyles.crumbs)}
       >
@@ -420,7 +585,7 @@ export function FolderBrowser({
             key={crumb.path}
             data-folder-browser-crumb=""
             aria-current={index === listing.crumbs.length - 1 ? 'location' : undefined}
-            disabled={busy || loading}
+            disabled={busy}
             onClick={() => navigate(crumb.path)}
             {...stylex.props(
               browserStyles.crumb,
@@ -431,7 +596,12 @@ export function FolderBrowser({
           </button>
         ))}
       </div>
-      <div role="list" aria-label={t('grant.browseFolders')} {...stylex.props(browserStyles.list)}>
+      <div
+        role="list"
+        aria-label={t('grant.browseFolders')}
+        aria-busy={loading}
+        {...stylex.props(browserStyles.list)}
+      >
         {listing.entries
           .filter((entry) => showHidden || !entry.hidden)
           .map((entry) => (
@@ -440,8 +610,12 @@ export function FolderBrowser({
               role="listitem"
               key={entry.path}
               data-folder-browser-item=""
-              disabled={busy || loading}
+              disabled={busy}
               onClick={() => navigate(entry.path)}
+              onPointerEnter={() => warm(entry.path)}
+              onPointerLeave={cool}
+              onFocus={() => warm(entry.path)}
+              onBlur={cool}
               {...stylex.props(browserStyles.item)}
             >
               <IconFolderOpenOutlineRegular size={16} />
@@ -453,9 +627,24 @@ export function FolderBrowser({
             <Note>{t('grant.browseEmpty')}</Note>
           </div>
         ) : null}
+        {listing.nextOffset === undefined ? null : (
+          <div {...stylex.props(browserStyles.empty)}>
+            <Button
+              variant="ghost"
+              data-folder-browser-more=""
+              disabled={busy || loading || more}
+              onClick={showMore}
+            >
+              {t('grant.browseMore')}
+            </Button>
+          </div>
+        )}
       </div>
-      {listing.truncated ? <Note>{t('grant.browseTruncated')}</Note> : null}
-      {loading ? <LoadingSkeleton kind="sidebar" label={t('grant.loading')} /> : null}
+      {listing.truncated && listing.nextOffset === undefined ? (
+        <Note>{t('grant.browseTruncated')}</Note>
+      ) : null}
+      {loading || more ? <LoadingSkeleton kind="sidebar" label={t('grant.loading')} /> : null}
+      {slow ? <Note>{t('grant.browseSlow')}</Note> : null}
       {error === undefined ? null : <Note tone="danger">{error}</Note>}
       <label {...stylex.props(browserStyles.hidden)}>
         <input
@@ -661,29 +850,30 @@ export function WorkspaceGrantsEntry({
     if (botSlug === undefined || busy !== undefined) return;
     setBusy('folder-picker');
     setError(undefined);
+    const pickNatively = async (): Promise<void> => {
+      try {
+        if (composerOnly) {
+          const path = await actions.pickWorkspaceFolder();
+          if (path !== null && activeSlug.current === botSlug) setPendingGrant({ path });
+        } else {
+          const grant = await actions.addWorkspaceFolder(botSlug);
+          if (grant !== undefined) showGrant(await writableByDefault(grant));
+          await refresh(botSlug);
+        }
+      } catch (nativeCause) {
+        if (activeSlug.current === botSlug) setError(errorMessage(nativeCause));
+      }
+    };
     void (async () => {
       try {
         const listing = await actions.listHostFolders();
         if (activeSlug.current !== botSlug) return;
-        setBrowserListing(listing);
+        if (listing.nativePicker === true) await pickNatively();
+        else setBrowserListing(listing);
       } catch (cause) {
         if (activeSlug.current !== botSlug) return;
-        if (pickerUnavailable(cause)) {
-          try {
-            if (composerOnly) {
-              const path = await actions.pickWorkspaceFolder();
-              if (path !== null && activeSlug.current === botSlug) setPendingGrant({ path });
-            } else {
-              const grant = await actions.addWorkspaceFolder(botSlug);
-              if (grant !== undefined) showGrant(await writableByDefault(grant));
-              await refresh(botSlug);
-            }
-          } catch (nativeCause) {
-            if (activeSlug.current === botSlug) setError(errorMessage(nativeCause));
-          }
-        } else {
-          setError(errorMessage(cause));
-        }
+        if (pickerUnavailable(cause)) await pickNatively();
+        else setError(folderBrowseError(cause, t));
       } finally {
         if (activeSlug.current === botSlug) setBusy(undefined);
       }
@@ -703,7 +893,7 @@ export function WorkspaceGrantsEntry({
           if (activeSlug.current === botSlug) setPendingGrant({ path: resolved.path });
         },
         (cause: unknown) => {
-          if (activeSlug.current === botSlug) setError(errorMessage(cause));
+          if (activeSlug.current === botSlug) setError(folderBrowseError(cause, t));
         },
       )
       .finally(() => {
@@ -1264,11 +1454,13 @@ export function WorkspaceGrantsEntry({
               <div key={rule.id} className="bh-workspace-folder-row">
                 <div className="bh-workspace-folder-main">
                   <span className="bh-workspace-folder-toggle">
-                    {rule.kind === 'exact'
-                      ? t('approval.exactRule', { tool: rule.toolName })
-                      : rule.kind === 'secret-cli'
-                        ? t('approval.secretCliRule', secretCliRuleLabel(rule.input))
-                        : t('approval.allRule')}
+                    {rule.kind === 'tool'
+                      ? t('approval.toolRule', { tool: rule.toolName })
+                      : rule.kind === 'exact'
+                        ? t('approval.exactRule', { tool: rule.toolName })
+                        : rule.kind === 'secret-cli'
+                          ? t('approval.secretCliRule', secretCliRuleLabel(rule.input))
+                          : t('approval.allRule')}
                     {' · '}
                     {rule.role === 'assignment'
                       ? t('approval.assignment')
@@ -1300,7 +1492,7 @@ export function WorkspaceGrantsEntry({
                       {t('approval.externalCreator', { actor: rule.externalCreator.actorId })}
                     </div>
                   ) : null}
-                  {rule.kind !== 'all-opaque' ? (
+                  {rule.kind !== 'all-opaque' && rule.kind !== 'tool' ? (
                     <pre className="bh-tool-approval-input">{rule.input}</pre>
                   ) : null}
                 </details>
@@ -1419,31 +1611,30 @@ export function WorkspaceFolderPicker({
     if (busy || disabled) return;
     setBusy(true);
     setError(undefined);
+    const pickNatively = async (): Promise<void> => {
+      try {
+        const path = await actions.pickWorkspaceFolder();
+        if (active.current && path !== null) {
+          const resolved = await withWorkspaceActionDeadline(
+            actions.resolveWorkspaceFolder(path),
+            t('grant.loadTimeout'),
+          );
+          if (active.current) onChoose(resolved.path);
+        }
+      } catch (nativeCause) {
+        if (active.current) setError(errorMessage(nativeCause));
+      }
+    };
     void withWorkspaceActionDeadline(actions.listHostFolders(), t('grant.loadTimeout'))
-      .then((value) => {
-        if (active.current) setListing(value);
+      .then(async (value) => {
+        if (!active.current) return;
+        if (value.nativePicker === true) await pickNatively();
+        else setListing(value);
       })
       .catch(async (cause: unknown) => {
         if (!active.current) return;
-        if (!pickerUnavailable(cause)) {
-          setError(errorMessage(cause));
-          return;
-        }
-        try {
-          const path = await withWorkspaceActionDeadline(
-            actions.pickWorkspaceFolder(),
-            t('grant.loadTimeout'),
-          );
-          if (active.current && path !== null) {
-            const resolved = await withWorkspaceActionDeadline(
-              actions.resolveWorkspaceFolder(path),
-              t('grant.loadTimeout'),
-            );
-            if (active.current) onChoose(resolved.path);
-          }
-        } catch (nativeCause) {
-          if (active.current) setError(errorMessage(nativeCause));
-        }
+        if (pickerUnavailable(cause)) await pickNatively();
+        else setError(folderBrowseError(cause, t));
       })
       .finally(() => {
         if (active.current) setBusy(false);

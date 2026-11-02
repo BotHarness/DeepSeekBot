@@ -1,5 +1,9 @@
+import { approveWorkspaceGrantRequest } from './bridge.js';
+import type { ClientTelemetryEventName } from '../../../core/src/telemetry/events.js';
+import { telemetrySurface } from './telemetry-surface.js';
 import type { PixelBannerRecipe } from '@botharness/pixel-banner';
 import { onboardingFor } from './onboarding.js';
+import { loadAveragePerf, type AveragePerfView } from './message-perf.js';
 import { invalidateInheritedModelPlans } from './model-plan-store.js';
 import type { ProviderAppSetup } from './provider-app-setup.js';
 import type { OnboardingSnapshot, TutorialAction } from '../../../core/src/onboarding/types.js';
@@ -16,7 +20,12 @@ import type {
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
 import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
 import { unreadAfterAnchor } from './timeline-position.js';
-import { reactToChannelMessage, searchChannelMessages } from './bridge.js';
+import {
+  reactToChannelMessage,
+  searchAllMessages,
+  searchChannelMessages,
+  type MessageSearchPage,
+} from './bridge.js';
 import { toggledReactions } from './message-reactions-model.js';
 import {
   gitInstalling,
@@ -36,13 +45,27 @@ import type { GroupMemberWakePolicy } from '../../../core/src/channels/channel.j
 import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import { parsePrivateAccountList, type PrivateAccountList } from './private-accounts.js';
 import type {
+  MarketplaceAuthoredBot,
+  MarketplaceAuthorAccount,
   MarketplaceDetail,
   MarketplaceEntry,
+  MarketplaceFileView,
   MarketplacePage,
   MarketplaceQuery,
+  MarketplaceDigest,
+  MarketplaceDigestSummary,
+  MarketplaceSection,
   MarketplaceTopic,
+  MarketplaceInstallSource,
 } from '../../../core/src/marketplace/client.js';
 import type { AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
+import type {
+  MarketplaceAccount,
+  UploadPlan,
+} from '../../../core/src/marketplace/uploaded-bots.js';
+import type { ShareDraftView } from '../../../core/src/marketplace/share-draft.js';
+import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
+import type { InstallReviewResult } from '../../../core/src/marketplace/install-review.js';
 import { loadAllBotPreview } from './bridge.js';
 import { loadComposerIdentity, validateComposerDraft } from './bridge.js';
 import type { AllBotPreview, AllBotMention } from '../../../core/src/channels/all-bot-mention.js';
@@ -60,13 +83,7 @@ import type {
   MessagingIdentityInput,
 } from '../../../core/src/messaging/identity.js';
 import type { ChannelActivityToday } from '../../../core/src/channels/activity-today.js';
-import type { HumanAttentionPage, HumanInboxState } from './store.js';
-import {
-  readActivityCenterTab,
-  writeActivityCenterTab,
-  type ActivityCenterTab,
-} from './last-view.js';
-import { defaultStorage, type ConfigStorage } from './roster-config.js';
+import type { BotAttentionPage, HumanAttentionPage, HumanInboxState } from './store.js';
 import type { GroupReceptionInput } from '../../../core/src/messaging/group-policy.js';
 import type { MessagingConversationInput } from '../../../core/src/messaging/conversations.js';
 import { publishWorkspaceGrantChange } from './workspace-grant-events.js';
@@ -100,6 +117,8 @@ import {
   readMessagingSource,
   loadMessageAttachmentTarget,
   loadChannelMediaTarget,
+  parseBotCompactResult,
+  type BotCompactResult,
 } from './bridge.js';
 import {
   applyRosterBatch,
@@ -109,6 +128,7 @@ import {
   inviteGroupBot,
   setGroupAvatar as setGroupAvatarViaBridge,
   setChannelHumanName,
+  loadHumanIdentity,
   setBotAvatar as setBotAvatarViaBridge,
   setBotBanner as setBotBannerViaBridge,
   updateBotProfile as updateBotProfileViaBridge,
@@ -127,6 +147,10 @@ import {
   setGroupWakePolicy,
   loadGroupWakePolicies,
   loadChannelAssignments,
+  loadSessionSubagents,
+  loadAssignmentWork,
+  type SessionSubagent,
+  type AssignmentWork,
   deleteGroupChannel,
   createPersonaBot,
   type CreatedBot,
@@ -138,6 +162,7 @@ import {
   createRosterSection,
   errorMessage,
   loadWorkspaceOptions,
+  loadHostFolders,
   loadWorkspaceGrants,
   loadToolApprovalRules,
   loadApprovalTemplates,
@@ -162,11 +187,13 @@ import {
   type ToolApprovalExecutionState,
   decideToolApproval,
   loadUserQuestionStatus,
+  loadPrivateInputStatus,
+  submitPrivateInput,
+  cancelPrivateInput,
   answerUserQuestion,
   type WorkspaceOption,
   type WorkspaceGrantView,
   loadBotAttention,
-  loadActivityOverview,
   loadChannelActivityToday,
   loadHumanAttention,
   loadHumanAttentionStatus,
@@ -198,11 +225,19 @@ import {
   loadOverviewMemory,
   loadOverviewUsage,
   loadMarketplaceDetail,
+  loadMarketplaceFile,
   loadMarketplacePage,
   loadMarketplaceTopics,
+  loadMarketplaceSections,
+  loadMarketplaceDigests,
+  loadMarketplaceDigest,
   submitMarketplaceRepository,
   loadMarketplaceChallenge,
   reportMarketplaceBot,
+  installMarketplaceBot,
+  reviewMarketplaceInstall,
+  loadMyMarketplaceUploads,
+  uploadMarketplaceBot,
   type UsageFilter,
   type UsageQueryResult,
   loadGroupProfileActivity,
@@ -303,6 +338,7 @@ import type {
   ChannelMessage,
   ChannelSummary,
   ClientStore,
+  OwnedSessionSummary,
   ConversationSelection,
   HumanAttentionItem,
   HumanInboxCategory,
@@ -332,9 +368,24 @@ export interface HostDirectoryListing {
   crumbs: { name: string; path: string; hidden: boolean }[];
   entries: { name: string; path: string; hidden: boolean }[];
   truncated: boolean;
+  nextOffset?: number;
+  roots?: { name: string; path: string; hidden: boolean }[];
+  nativePicker?: boolean;
 }
 
 export interface BridgeActions {
+  humanIdentity(signal?: AbortSignal): Promise<import('./bridge.js').LocalHumanIdentity>;
+  tobHome(): Promise<
+    import('../../../core/src/tob/service.js').TobHome & {
+      attention?: { unreadCount: number; hasAction: boolean };
+    }
+  >;
+  sendHome(
+    channelId: string,
+    body: string,
+    messageId: string,
+    attachments?: ChannelAttachmentRef[],
+  ): Promise<void>;
   validateComposerDraft(
     channelId: string,
     attachments: ChannelAttachmentRef[],
@@ -348,8 +399,65 @@ export interface BridgeActions {
     globalDefault: boolean,
   ): Promise<{ revision: number }>;
   inheritModel(slug: string, expectedRevision: number): Promise<{ revision: number }>;
-  retryMessage(channelId: string, messageId: string): Promise<void>;
+  telemetryEvent(
+    event: ClientTelemetryEventName,
+    properties?: Record<string, string | boolean>,
+  ): void;
+  retryMessage(
+    channelId: string,
+    messageId: string,
+    recovery?: { action: 'compact' | 'new-session'; failureMessageId: string },
+  ): Promise<void>;
   stopBot(channelId: string, botSlug: string): Promise<'stopped' | 'not-working'>;
+  compactBot(botSlug: string): Promise<BotCompactResult>;
+  newBotSession(botSlug: string): Promise<void>;
+  botContext(
+    botSlug: string,
+  ): Promise<import('../../../core/src/runtime/context-window.js').BotContextWindow>;
+  botSystemPrompt(
+    botSlug: string,
+  ): Promise<import('../../../core/src/runtime/prompt-inspection.js').BotSystemPromptView>;
+  promptParts?(): Promise<{
+    parts: import('../../../core/src/bridge/methods.js').PromptPartView[];
+    limits: import('../../../core/src/bridge/methods.js').PromptLimitView[];
+  }>;
+  promptPresets?(): Promise<{
+    presets: import('../../../core/src/prompts/prompt-presets.js').PromptPreset[];
+    globalPresetId: string | null;
+  }>;
+  promptPresetCreate?(
+    name: string,
+    parts: Record<string, string | null>,
+    limits?: Record<string, number | null>,
+  ): Promise<{ preset: import('../../../core/src/prompts/prompt-presets.js').PromptPreset }>;
+  promptPresetUpdate?(
+    id: string,
+    change: {
+      name?: string;
+      parts?: Record<string, string | null>;
+      limits?: Record<string, number | null>;
+      expectedRevision?: number;
+    },
+  ): Promise<{ preset: import('../../../core/src/prompts/prompt-presets.js').PromptPreset }>;
+  promptPresetDelete?(id: string): Promise<{ id: string; clearedBots: string[] }>;
+  promptGlobalSet?(presetId: string | null): Promise<{ presetId: string | null }>;
+  botPrompt?(slug: string): Promise<import('../../../core/src/bridge/methods.js').BotPromptView>;
+  botPromptSet?(
+    slug: string,
+    change: {
+      presetId?: string | null;
+      parts?: Record<string, string | null>;
+      limits?: Record<string, number | null>;
+    },
+  ): Promise<import('../../../core/src/bridge/methods.js').BotPromptView>;
+  botTurnInput(
+    botSlug: string,
+    turns?: number,
+  ): Promise<{
+    slug: string;
+    sessionId: string;
+    turns: import('../../../core/src/runtime/prompt-inspection.js').TurnInputView[];
+  }>;
 
   channelBridges(channelId: string): Promise<ChannelBridgeSnapshot>;
   channelBridge(channelId: string, input: ChannelBridgeInput): Promise<void>;
@@ -436,7 +544,11 @@ export interface BridgeActions {
     assignmentDefault: ModelRouteView,
   ): Promise<ModelPresetView>;
   applyModelPreset(slug: string, presetId: string): Promise<ModelPlanView>;
-  customizeModelPlan(slug: string, orchestrator: ModelRouteView): Promise<ModelPlanView>;
+  customizeModelPlan(
+    slug: string,
+    orchestrator: ModelRouteView,
+    expectedRevision?: number,
+  ): Promise<ModelPlanView>;
   setStandingLimits(slug: string, limits: StandingLimitsView): Promise<BotSummary>;
   setModelPlanAssignments(
     slug: string,
@@ -451,7 +563,11 @@ export interface BridgeActions {
     assignmentDefault: ModelRouteView,
     assignmentModels: AssignmentModelOptionView[],
   ): Promise<ModelPlanView>;
-  listHostFolders(path?: string, signal?: AbortSignal): Promise<HostDirectoryListing>;
+  listHostFolders(
+    path?: string,
+    signal?: AbortSignal,
+    offset?: number,
+  ): Promise<HostDirectoryListing>;
   pickWorkspaceFolder(): Promise<string | null>;
   addWorkspaceFolder(slug: string): Promise<WorkspaceGrantView | undefined>;
   authorizeWorkspacePath(slug: string, path: string): Promise<WorkspaceGrantView>;
@@ -477,12 +593,15 @@ export interface BridgeActions {
   refreshRoster(signal?: AbortSignal): Promise<void>;
   refreshGit(signal?: AbortSignal): Promise<void>;
   installGit(): Promise<void>;
-  openBot(slug: string, view?: 'profile'): Promise<void>;
+  openBot(slug: string, view?: 'profile' | 'inbox'): Promise<void>;
   refreshBotInbox(slug: string): Promise<void>;
-  openActivityCenter(view?: ActivityCenterTab): Promise<void>;
+  openActivityCenter(): Promise<void>;
   attachActivityCenterPanel(): () => void;
-  refreshOverview(): Promise<void>;
-  humanActionPage(botSlug: string, cursor?: string): Promise<HumanAttentionPage>;
+  activityPage(
+    category: HumanInboxCategory,
+    filters: HumanInboxFilters & { search?: string; mentionsFirst?: boolean },
+    cursor?: string,
+  ): Promise<HumanAttentionPage>;
   openHumanInbox(): Promise<void>;
   refreshHumanInboxStatus(): Promise<void>;
   refreshHumanInbox(category?: HumanInboxCategory, background?: boolean): Promise<void>;
@@ -498,8 +617,10 @@ export interface BridgeActions {
   ): Promise<TimelinePage>;
   ignoreHumanReport(sourceEventId: string): Promise<void>;
   loadMoreBotInbox(slug: string): Promise<void>;
+  botInboxPage(slug: string, cursor?: string): Promise<BotAttentionPage>;
   openChannel(channelId: string): Promise<void>;
   openChannelAtMessage(channelId: string, messageId: string): Promise<void>;
+  averageReplyPerf(channelId: string, signal?: AbortSignal): Promise<AveragePerfView | undefined>;
   humanInboxContext(
     channelId: string,
     messageId: string,
@@ -548,6 +669,7 @@ export interface BridgeActions {
     text: string,
     cursor?: string,
   ): Promise<{ messages: ChannelMessage[]; nextCursor?: string }>;
+  searchMessages?(text: string, cursor?: string): Promise<MessageSearchPage>;
   markChannelRead(channelId: string): Promise<void>;
   refreshChannelMessages(channelId: string): Promise<void>;
   applyChannelTail(
@@ -557,6 +679,7 @@ export interface BridgeActions {
   dismissFailedMessage(channelId: string, messageId: string): boolean;
   openSession(sessionId: string): void;
   refreshSessions(slug: string): Promise<void>;
+  readSessions(slug: string): Promise<OwnedSessionSummary[]>;
   setSessionArchived(slug: string, sessionId: string, archived: boolean): Promise<void>;
   messageAttachmentTarget(
     channelId: string,
@@ -592,7 +715,17 @@ export interface BridgeActions {
   memoryFile(
     channelId: string,
     path: string,
-  ): Promise<{ path: string; body: string; head: string; binary?: boolean } | undefined>;
+  ): Promise<
+    | {
+        path: string;
+        body: string;
+        head: string;
+        binary?: boolean;
+        image?: import('./bridge.js').MemoryImage;
+        markdown?: import('./bridge.js').MemoryMarkdown;
+      }
+    | undefined
+  >;
   memoryHistory(channelId: string): Promise<MemoryAcceptedCommit[]>;
   memoryDiff(channelId: string, sha: string): Promise<string>;
   memoryGitGraph(channelId: string, offset: number): Promise<MemoryGitGraph>;
@@ -723,7 +856,12 @@ export interface BridgeActions {
   decideToolApproval(
     channelId: string,
     messageId: string,
-    outcome: 'allowed-once' | 'allowed-always-exact' | 'allowed-always-all' | 'rejected',
+    outcome:
+      | 'allowed-once'
+      | 'allowed-always-tool'
+      | 'allowed-always-exact'
+      | 'allowed-always-all'
+      | 'rejected',
   ): Promise<void>;
   userQuestionStatus(
     channelId: string,
@@ -769,7 +907,35 @@ export interface BridgeActions {
   marketplaceSubmit(url: string, altcha: string): Promise<MarketplaceEntry>;
   marketplaceReport(id: string, altcha: string, reason?: string): Promise<void>;
   marketplaceTopics(): Promise<MarketplaceTopic[]>;
-  marketplaceDetail(id: string): Promise<MarketplaceDetail>;
+  marketplaceSections(lang?: MarketplaceLanguage): Promise<MarketplaceSection[]>;
+  marketplaceDigests(lang?: MarketplaceLanguage): Promise<MarketplaceDigestSummary[]>;
+  marketplaceDigest(day?: string, lang?: MarketplaceLanguage): Promise<MarketplaceDigest>;
+  marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail>;
+  marketplaceFile(id: string, path: string): Promise<MarketplaceFileView>;
+  marketplaceAccount(): Promise<MarketplaceAccount>;
+  marketplaceAuthorSave(
+    displayName: string,
+    acceptTerms: boolean,
+  ): Promise<MarketplaceAuthorAccount>;
+  marketplaceAuthorAvatarSet(avatar: string | null): Promise<MarketplaceAuthorAccount>;
+  marketplaceUploadPlan(slug: string): Promise<UploadPlan>;
+  marketplaceUpload(
+    slug: string,
+    presentation: { displayName: string; bio?: string; tags?: string[]; replaces?: string },
+  ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }>;
+  marketplaceMine(lang?: MarketplaceLanguage): Promise<MarketplaceAuthoredBot[]>;
+  marketplaceDelete(id: string): Promise<void>;
+  shareDraftStart(slug: string): Promise<ShareDraftView>;
+  shareDraftGet(slug: string): Promise<ShareDraftView | undefined>;
+  shareDraftDiscard(slug: string): Promise<void>;
+  shareDraftExport(slug: string): Promise<{ path: string; files: number }>;
+  marketplaceInstallReview(id: string, lang?: MarketplaceLanguage): Promise<InstallReviewResult>;
+  marketplaceInstall(
+    id: string,
+    reviewId: string,
+    sectionId?: string,
+    source?: MarketplaceInstallSource,
+  ): Promise<BotSummary>;
   createGroup(name: string, sectionId?: string): Promise<ChannelSummary | undefined>;
   renameChannel(channelId: string, name: string): Promise<boolean>;
   setHumanNickname(channelId: string, nickname: string | null): Promise<boolean>;
@@ -820,6 +986,11 @@ export interface BridgeActions {
   removeGroupMember(channelId: string, botSlug: string): Promise<boolean>;
   groupWakePolicies(channelId: string): Promise<GroupMemberWakePolicy[]>;
   channelAssignments(channelId: string): Promise<ChannelAssignmentSummary[]>;
+  sessionSubagents?(
+    slug: string,
+    sessionId: string,
+  ): Promise<{ subagents: SessionSubagent[]; omitted: number }>;
+  assignmentWork?(slug: string, sessionId: string): Promise<AssignmentWork>;
   setGroupWakePolicy(
     channelId: string,
     botSlug: string,
@@ -913,26 +1084,33 @@ function mergeLatestWindow(
   return { messages, keptPrefix: overlap >= 0 || continues };
 }
 
+const APPROVAL_DECISIONS = {
+  'allowed-once': 'allow_once',
+  'allowed-always-tool': 'allow_always',
+  'allowed-always-exact': 'allow_always',
+  'allowed-always-all': 'allow_always',
+  rejected: 'reject',
+} as const;
+
+async function recorded<T>(work: Promise<T>, record: () => void): Promise<T> {
+  const value = await work;
+  record();
+  return value;
+}
+
 export function createActions(
   call: BridgeCall,
   clientStore: ClientStore,
   folderAccess?: {
     pickDirectory(): Promise<string | null>;
-    listDirectory?(path?: string, signal?: AbortSignal): Promise<HostDirectoryListing>;
     createWorkspace(input: { path: string }): Promise<{ workspaceId: string }>;
     openSession?(sessionId: string): void;
     nativeFiles?: NativeHostFiles;
     fileOpenPreferences?: FileOpenPreferences;
     submissions?: ComposerSubmissionStore;
   },
-  navigationStorage: ConfigStorage | undefined = defaultStorage(),
 ): BridgeActions {
   clientStore.setComposerIdentity(undefined);
-  let activityTab = readActivityCenterTab(navigationStorage) ?? 'overview';
-  const rememberActivityTab = (view: ActivityCenterTab): void => {
-    activityTab = view;
-    writeActivityCenterTab(navigationStorage, view);
-  };
   let openingFile = false;
   const fileOpenPreferences =
     folderAccess?.fileOpenPreferences ?? createFileOpenPreferences({ storage: undefined });
@@ -1108,6 +1286,7 @@ export function createActions(
     }
     if (rosterResult.status === 'fulfilled') {
       const snapshot = rosterResult.value;
+      const previousMuted = clientStore.getSnapshot().roster.muted;
       clientStore.setRosterState({
         pins: snapshot.pins,
         hidden: snapshot.hidden,
@@ -1116,6 +1295,8 @@ export function createActions(
         topOrder: snapshot.topOrder,
         readOnly: false,
       });
+      if (!sameIds([...previousMuted].sort(), [...snapshot.muted].sort()))
+        void refreshHumanInboxStatus();
     } else if (
       rosterResult.reason instanceof BridgeCallError &&
       rosterResult.reason.code === 'storage-unavailable'
@@ -1225,34 +1406,18 @@ export function createActions(
     const selection = currentSelection();
     return selection?.kind === 'inbox' ? selection : activityPanelScope;
   };
-  const overviewScope = (): object | undefined => {
-    const selection = currentSelection();
-    if (selection?.kind !== 'inbox') return activityPanelScope;
-    return selection.view === 'overview' ? selection : undefined;
-  };
-  let overviewSeq = 0;
-  const refreshOverview = async (): Promise<void> => {
-    const scope = overviewScope();
-    if (scope === undefined) return;
-    const seq = ++overviewSeq;
-    if (clientStore.getSnapshot().overview.status === 'idle')
-      clientStore.setOverview({ status: 'loading', error: undefined });
-    try {
-      const value = await loadActivityOverview(call);
-      if (seq !== overviewSeq || overviewScope() !== scope) return;
-      clientStore.setOverview({ status: 'ready', value, error: undefined });
-    } catch (error) {
-      if (seq !== overviewSeq || overviewScope() !== scope) return;
-      clientStore.setOverview({ status: 'error', error: errorMessage(error) });
-    }
-  };
   let humanInboxHeadSeq = 0;
   let humanInboxPageSeq = 0;
   let humanInboxPagesPending = 0;
   let humanInboxScopeVersion = 0;
   let humanInboxStatusSeq = 0;
   const loadInboxStatus = async (): Promise<
-    Partial<Pick<HumanInboxState, 'unreadCount' | 'hasAction' | 'channelUnread'>>
+    Partial<
+      Pick<
+        HumanInboxState,
+        'unreadCount' | 'hasAction' | 'channelUnread' | 'messageCounts' | 'attentionStatus'
+      >
+    >
   > => {
     const [status, channelUnread] = await Promise.allSettled([
       loadHumanAttentionStatus(call),
@@ -1261,6 +1426,7 @@ export function createActions(
     if (status.status === 'rejected') throw status.reason;
     return {
       ...status.value,
+      attentionStatus: 'ready',
       ...(channelUnread.status === 'fulfilled' ? { channelUnread: channelUnread.value } : {}),
     };
   };
@@ -1270,6 +1436,8 @@ export function createActions(
       const status = await loadInboxStatus();
       if (requestSeq === humanInboxStatusSeq) clientStore.setHumanInbox(status);
     } catch {
+      if (requestSeq === humanInboxStatusSeq)
+        clientStore.setHumanInbox({ attentionStatus: 'error' });
       return;
     }
   };
@@ -1348,32 +1516,45 @@ export function createActions(
       clientStore.setHumanInbox({ status: 'error', error: errorMessage(error) });
     }
   };
-  const loadOpeningTimeline = async (channelId: string) => {
-    const anchor = await loadReadPosition(call, channelId);
-    if (anchor !== undefined) {
-      try {
-        const opened = await loadTimelinePage(call, channelId, {
-          direction: 'around',
-          around: anchor,
-        });
-        return {
-          ...opened,
-          focusMessageId: undefined,
-          unreadAfterMessageId: unreadAfterAnchor(
-            opened.page.entries,
-            anchor,
-            opened.page.hasNewer,
-          ),
-        };
-      } catch (error) {
-        if (!(error instanceof BridgeCallError) || error.code !== 'invalid-input') throw error;
+  const loadOpeningTimeline = async (channelId: string, active: ConversationSelection) => {
+    const controller = new AbortController();
+    const unsubscribe = clientStore.subscribe(() => {
+      if (currentSelection() !== active) controller.abort();
+    });
+    try {
+      if (currentSelection() !== active) return;
+      const anchor = await loadReadPosition(call, channelId, controller.signal);
+      if (currentSelection() !== active) return;
+      if (anchor !== undefined) {
+        try {
+          const opened = await loadTimelinePage(
+            call,
+            channelId,
+            { direction: 'around', around: anchor },
+            controller.signal,
+          );
+          return {
+            ...opened,
+            focusMessageId: undefined,
+            unreadAfterMessageId: unreadAfterAnchor(
+              opened.page.entries,
+              anchor,
+              opened.page.hasNewer,
+            ),
+          };
+        } catch (error) {
+          if (!(error instanceof BridgeCallError) || error.code !== 'invalid-input') throw error;
+        }
       }
+      if (currentSelection() !== active) return;
+      return {
+        ...(await loadTimelinePage(call, channelId, {}, controller.signal)),
+        focusMessageId: undefined,
+        unreadAfterMessageId: undefined,
+      };
+    } finally {
+      unsubscribe();
     }
-    return {
-      ...(await loadTimelinePage(call, channelId)),
-      focusMessageId: undefined,
-      unreadAfterMessageId: undefined,
-    };
   };
   const refreshUnreadDivider = async (
     channelId: string,
@@ -1437,14 +1618,16 @@ export function createActions(
       sending: false,
     });
     try {
-      const { page, revision, focusMessageId, unreadAfterMessageId } =
+      const opened =
         sourcePage === undefined
-          ? await loadOpeningTimeline(channelId)
+          ? await loadOpeningTimeline(channelId, active)
           : {
               ...sourcePage,
               focusMessageId: messageId,
               unreadAfterMessageId: undefined,
             };
+      if (opened === undefined) return;
+      const { page, revision, focusMessageId, unreadAfterMessageId } = opened;
       const failures = remainingFailures(channelId, page.entries);
       const messages = page.hasNewer ? page.entries : [...page.entries, ...failures];
       if (currentSelection() !== active) return;
@@ -1524,6 +1707,22 @@ export function createActions(
     return result.value as T;
   };
   const actions: BridgeActions = {
+    tobHome: () => invoke('tobHome', {}),
+    humanIdentity: (signal) => loadHumanIdentity(call, signal),
+    async sendHome(channelId, body, messageId, attachments) {
+      const message = await sendChannelMessage(
+        call,
+        channelId,
+        body,
+        undefined,
+        attachments,
+        messageId,
+      );
+      if (message.id !== messageId || message.body !== body || message.author.kind !== 'human')
+        throw new Error('Home message could not be confirmed');
+      await actions.load();
+      await openChannelById(channelId);
+    },
     onboarding: (slug, action) => invoke('onboarding', { slug, action }),
     onboardingModel: async (slug, expectedRevision, route, globalDefault) => {
       const result = await invoke<{ revision: number }>('onboardingModel', {
@@ -1536,10 +1735,54 @@ export function createActions(
       return result;
     },
     inheritModel: (slug, expectedRevision) =>
-      invoke('modelPlanInherit', { slug, expectedRevision }),
-    async retryMessage(channelId, messageId) {
-      await invoke('channelRetry', { channelId, messageId });
+      recorded(invoke('modelPlanInherit', { slug, expectedRevision }), () =>
+        actions.telemetryEvent('model:plan_update', { via: 'inherit' }),
+      ),
+    telemetryEvent: (event, properties = {}) => {
+      void invoke('telemetryEvent', {
+        event,
+        properties: { ...properties, surface: telemetrySurface() },
+      }).catch(() => {});
+    },
+    async botContext(botSlug) {
+      return invoke('botContext', { slug: botSlug });
+    },
+    async botSystemPrompt(botSlug) {
+      return invoke('botSystemPrompt', { slug: botSlug });
+    },
+    promptParts: () => invoke('promptParts', {}),
+    promptPresets: () => invoke('promptPresets', {}),
+    promptPresetCreate: (name, parts, limits) =>
+      invoke('promptPresetCreate', { name, parts, ...(limits === undefined ? {} : { limits }) }),
+    promptPresetUpdate: (id, change) => invoke('promptPresetUpdate', { id, ...change }),
+    promptPresetDelete: (id) => invoke('promptPresetDelete', { id }),
+    promptGlobalSet: (presetId) => invoke('promptGlobalSet', { presetId }),
+    botPrompt: (slug) => invoke('botPrompt', { slug }),
+    botPromptSet: (slug, change) => invoke('botPromptSet', { slug, ...change }),
+    async botTurnInput(botSlug, turns = 1) {
+      return invoke('botTurnInput', { slug: botSlug, turns });
+    },
+    async newBotSession(botSlug) {
+      await invoke('botNewSession', { slug: botSlug });
+    },
+    async retryMessage(channelId, messageId, recovery) {
+      await invoke('channelRetry', {
+        channelId,
+        messageId,
+        ...(recovery
+          ? { recovery: recovery.action, failureMessageId: recovery.failureMessageId }
+          : {}),
+      });
       await actions.refreshChannelMessages(channelId);
+    },
+    async compactBot(botSlug) {
+      try {
+        return parseBotCompactResult(await invoke('botCompact', { slug: botSlug }));
+      } catch (error) {
+        if (error instanceof BridgeCallError && error.code === 'bot-busy')
+          return { outcome: 'busy', tokensBefore: null, tokensAfter: null };
+        throw error;
+      }
     },
     async stopBot(channelId, botSlug) {
       try {
@@ -1559,18 +1802,33 @@ export function createActions(
       createModelPreset(call, name, orchestrator, assignmentDefault, assignmentModels),
     updateModelPreset: (id, expectedRevision, name, orchestrator, assignmentDefault) =>
       updateModelPreset(call, id, expectedRevision, name, orchestrator, assignmentDefault),
-    applyModelPreset: (slug, presetId) => applyModelPreset(call, slug, presetId),
-    customizeModelPlan: (slug, orchestrator) => customizeModelPlan(call, slug, orchestrator),
+    applyModelPreset: (slug, presetId) =>
+      recorded(applyModelPreset(call, slug, presetId), () =>
+        actions.telemetryEvent('model:plan_update', { via: 'preset' }),
+      ),
+    customizeModelPlan: (slug, orchestrator, expectedRevision) =>
+      recorded(customizeModelPlan(call, slug, orchestrator, expectedRevision), () =>
+        actions.telemetryEvent('model:plan_update', { via: 'custom' }),
+      ),
     setStandingLimits: (slug, limits) => setStandingLimits(call, slug, limits),
     setModelPlanAssignments: (slug, expectedRevision, assignmentDefault, assignmentModels) =>
-      setModelPlanAssignments(call, slug, expectedRevision, assignmentDefault, assignmentModels),
+      recorded(
+        setModelPlanAssignments(call, slug, expectedRevision, assignmentDefault, assignmentModels),
+        () => actions.telemetryEvent('model:plan_update', { via: 'assignments' }),
+      ),
     setModelPlan: (slug, expectedRevision, orchestrator, assignmentDefault, assignmentModels) =>
-      setModelPlan(call, slug, expectedRevision, orchestrator, assignmentDefault, assignmentModels),
-    listHostFolders(path, signal) {
-      if (folderAccess?.listDirectory === undefined)
-        throw new Error('DSH folder browser is unavailable');
-      return folderAccess.listDirectory(path, signal);
-    },
+      recorded(
+        setModelPlan(
+          call,
+          slug,
+          expectedRevision,
+          orchestrator,
+          assignmentDefault,
+          assignmentModels,
+        ),
+        () => actions.telemetryEvent('model:plan_update', { via: 'plan' }),
+      ),
+    listHostFolders: (path, signal, offset) => loadHostFolders(call, path, signal, offset),
     async addWorkspaceFolder(slug) {
       if (folderAccess === undefined) throw new Error('DSH folder picker is unavailable');
       const path = await folderAccess.pickDirectory();
@@ -1623,24 +1881,11 @@ export function createActions(
     revokeToolApprovalRule: (slug, id) => revokeToolApprovalRule(call, slug, id),
     toolApprovalStatus: (channelId, messageId) =>
       loadToolApprovalStatus(call, channelId, messageId),
-    privateInputStatus: async (channelId, messageId) => {
-      const result = await call('privateInputStatus', { channelId, messageId });
-      if (!result.ok) throw new Error('Private input status is unavailable');
-      const status = (result.value as { status?: unknown }).status;
-      if (!['pending', 'configured', 'cancelled', 'expired'].includes(String(status)))
-        throw new Error('Private input status is invalid');
-      return status as import('../../../core/src/credentials/contracts.js').PrivateInputStatus;
-    },
-    privateInputSubmit: async (channelId, messageId, values) => {
-      const result = await call('privateInputSubmit', { channelId, messageId, values });
-      if (!result.ok || (result.value as { accepted?: unknown }).accepted !== true)
-        throw new Error('Private input was not accepted');
-    },
-    privateInputCancel: async (channelId, messageId) => {
-      const result = await call('privateInputCancel', { channelId, messageId });
-      if (!result.ok || (result.value as { accepted?: unknown }).accepted !== true)
-        throw new Error('Private input cancellation was not accepted');
-    },
+    privateInputStatus: (channelId, messageId) =>
+      loadPrivateInputStatus(call, channelId, messageId),
+    privateInputSubmit: (channelId, messageId, values) =>
+      submitPrivateInput(call, channelId, messageId, values),
+    privateInputCancel: (channelId, messageId) => cancelPrivateInput(call, channelId, messageId),
     privateAccountStatus: async (channelId, messageId) => {
       const result = await call('privateAccountStatus', { channelId, messageId });
       if (!result.ok) throw new Error('Private account status is unavailable');
@@ -1701,22 +1946,31 @@ export function createActions(
     toolApprovalExecutionState: (channelId, messageId) =>
       loadToolApprovalExecutionState(call, channelId, messageId),
     decideToolApproval: (channelId, messageId, outcome) =>
-      settleNativeInboxAction(
-        'tool-approval',
-        channelId,
-        messageId,
-        () => decideToolApproval(call, channelId, messageId, outcome),
-        () => loadToolApprovalStatus(call, channelId, messageId),
+      recorded(
+        settleNativeInboxAction(
+          'tool-approval',
+          channelId,
+          messageId,
+          () => decideToolApproval(call, channelId, messageId, outcome),
+          () => loadToolApprovalStatus(call, channelId, messageId),
+        ),
+        () =>
+          actions.telemetryEvent('activity:approval_submit', {
+            decision: APPROVAL_DECISIONS[outcome],
+          }),
       ),
     userQuestionStatus: (channelId, messageId) =>
       loadUserQuestionStatus(call, channelId, messageId),
     answerUserQuestion: (channelId, messageId, answers) =>
-      settleNativeInboxAction(
-        'user-question',
-        channelId,
-        messageId,
-        () => answerUserQuestion(call, channelId, messageId, answers),
-        () => loadUserQuestionStatus(call, channelId, messageId),
+      recorded(
+        settleNativeInboxAction(
+          'user-question',
+          channelId,
+          messageId,
+          () => answerUserQuestion(call, channelId, messageId, answers),
+          () => loadUserQuestionStatus(call, channelId, messageId),
+        ),
+        () => actions.telemetryEvent('activity:question_submit'),
       ),
     async load(signal) {
       clientStore.setRosterStatus('loading', undefined);
@@ -1793,6 +2047,13 @@ export function createActions(
         kind: 'bot',
         slug,
         ...(view === 'profile' ? { profile: true } : {}),
+        ...(view === 'inbox'
+          ? {
+              inboxRequest:
+                (snapshot.selection?.kind === 'bot' ? (snapshot.selection.inboxRequest ?? 0) : 0) +
+                1,
+            }
+          : {}),
       };
       clientStore.select(selection);
       const active = currentSelection();
@@ -1833,9 +2094,9 @@ export function createActions(
             error: undefined,
           });
         }
-        const { page, revision, focusMessageId, unreadAfterMessageId } = await loadOpeningTimeline(
-          channel.id,
-        );
+        const opened = await loadOpeningTimeline(channel.id, active);
+        if (opened === undefined) return;
+        const { page, revision, focusMessageId, unreadAfterMessageId } = opened;
         const messages = page.entries;
         if (currentSelection() !== active) return;
         const listedChannel = clientStore
@@ -1884,13 +2145,8 @@ export function createActions(
         return Promise.resolve();
       return loadBotInboxFor(slug, selection, cursor);
     },
-    openActivityCenter(view) {
-      const tab = view ?? activityTab;
-      if (tab === 'inbox') return actions.openHumanInbox();
-      rememberActivityTab('overview');
-      clientStore.select({ kind: 'inbox', view: 'overview' });
-      void refreshHumanInboxStatus();
-      return refreshOverview();
+    openActivityCenter() {
+      return actions.openHumanInbox();
     },
     attachActivityCenterPanel() {
       const scope = {};
@@ -1902,16 +2158,12 @@ export function createActions(
         humanInboxScopeVersion += 1;
       };
     },
-    refreshOverview,
-    humanActionPage: (botSlug, cursor) =>
-      loadHumanAttention(call, 'action', 50, cursor, {
-        botSlug,
-        channelId: undefined,
-        sort: 'oldest',
-      }),
+    botInboxPage: (slug, cursor) => loadBotAttention(call, slug, 50, cursor),
+    activityPage: (category, filters, cursor) =>
+      loadHumanAttention(call, category, 50, cursor, filters),
     openHumanInbox() {
-      rememberActivityTab('inbox');
       clientStore.select({ kind: 'inbox' });
+      actions.telemetryEvent('activity:inbox_open');
       void refreshHumanInboxStatus();
       const scope = humanInboxScope();
       if (scope === undefined) return Promise.resolve();
@@ -1989,6 +2241,7 @@ export function createActions(
     },
     async dismissHumanInbox(item) {
       await dismissHumanInboxItem(call, item.id, item.sourceEventId ?? '');
+      actions.telemetryEvent('activity:inbox_item_dismiss');
       humanInboxScopeVersion += 1;
       humanInboxHeadSeq += 1;
       humanInboxPageSeq += 1;
@@ -2013,8 +2266,16 @@ export function createActions(
         throw new Error('Source message is no longer available');
       return page;
     },
+    averageReplyPerf(channelId, signal) {
+      return loadAveragePerf(async (request) => {
+        signal?.throwIfAborted();
+        const { page } = await loadTimelinePage(call, channelId, request, signal);
+        return page;
+      });
+    },
     async snoozeHumanInbox(item, until) {
       await snoozeHumanInboxItem(call, item.id, item.sourceEventId ?? '', until);
+      actions.telemetryEvent('activity:inbox_item_snooze');
       humanInboxScopeVersion += 1;
       humanInboxHeadSeq += 1;
       humanInboxPageSeq += 1;
@@ -2081,13 +2342,14 @@ export function createActions(
         message.author.kind !== 'human'
       )
         throw new Error('Channel reply could not be confirmed');
+      actions.telemetryEvent('activity:inbox_reply_send', { target: 'message' });
       return message;
     },
     pickWorkspaceFolder() {
       if (folderAccess === undefined) throw new Error('DSH folder picker is unavailable');
       return folderAccess.pickDirectory();
     },
-    async resolveWorkspaceGrantRequest(slug, messageId, path, body, sourceChannelId) {
+    async resolveWorkspaceGrantRequest(slug, messageId, path, _body, sourceChannelId) {
       const channelId = sourceChannelId ?? 'dm-' + slug;
       const readRequest = async () => {
         const messages = await actions.humanInboxContext(channelId, messageId);
@@ -2106,35 +2368,21 @@ export function createActions(
             request.author.slug !== slug
           )
             throw new Error('Workspace request is no longer pending for this Bot');
-          const grant = await actions.authorizeWorkspacePath(slug, path);
-          publishWorkspaceGrantChange(slug);
-          const resolution = { requestMessageId: messageId, grantId: grant.id };
-          const clientMessageId = 'human-' + crypto.randomUUID();
-          const text = body(grant.workspaceTitle);
-          const reply = await sendChannelMessage(
+          if (folderAccess === undefined)
+            throw new Error('DSH Workspace controller is unavailable');
+          const workspace = await folderAccess.createWorkspace({ path });
+          await approveWorkspaceGrantRequest(
             call,
+            slug,
             channelId,
-            text,
             messageId,
-            undefined,
-            clientMessageId,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            resolution,
+            workspace.workspaceId,
           );
-          if (
-            reply.id !== clientMessageId ||
-            reply.author.kind !== 'human' ||
-            reply.replyTo !== messageId ||
-            reply.grantRequestResolution?.grantId !== grant.id ||
-            reply.grantRequestResolution.requestMessageId !== messageId
-          )
-            throw new Error('Workspace reply could not be confirmed');
+          publishWorkspaceGrantChange(slug);
         },
         async () => ((await readRequest())?.grantRequestResolved === true ? 'expired' : 'pending'),
       );
+      actions.telemetryEvent('activity:grant_request_submit');
     },
     async markAllRead() {
       try {
@@ -2180,6 +2428,9 @@ export function createActions(
     },
     searchChannel(channelId, text, cursor) {
       return searchChannelMessages(call, channelId, text, cursor);
+    },
+    searchMessages(text, cursor) {
+      return searchAllMessages(call, text, cursor);
     },
     async markChannelRead(channelId) {
       const messageId = clientStore
@@ -2228,6 +2479,7 @@ export function createActions(
           message.assignmentReply.sourceEventId !== sourceEventId
         )
           throw new Error('Assignment response could not be confirmed');
+        actions.telemetryEvent('activity:inbox_reply_send', { target: 'assignment' });
         return message;
       } finally {
         await Promise.allSettled([
@@ -2593,7 +2845,36 @@ export function createActions(
     marketplaceSubmit: (url, altcha) => submitMarketplaceRepository(call, url, altcha),
     marketplaceReport: (id, altcha, reason) => reportMarketplaceBot(call, id, altcha, reason),
     marketplaceTopics: () => loadMarketplaceTopics(call),
-    marketplaceDetail: (id) => loadMarketplaceDetail(call, id),
+    marketplaceSections: (lang) => loadMarketplaceSections(call, lang),
+    marketplaceDigests: (lang) => loadMarketplaceDigests(call, lang),
+    marketplaceDigest: (day, lang) => loadMarketplaceDigest(call, day, lang),
+    marketplaceDetail: (id, lang) => loadMarketplaceDetail(call, id, lang),
+    marketplaceFile: (id, path) => loadMarketplaceFile(call, id, path),
+    marketplaceAccount: () => invoke('marketplaceAccount', {}),
+    marketplaceAuthorSave: (displayName, acceptTerms) =>
+      invoke('marketplaceAuthorSave', { displayName, acceptTerms }),
+    marketplaceAuthorAvatarSet: (avatar) => invoke('marketplaceAuthorAvatarSet', { avatar }),
+    marketplaceUploadPlan: (slug) => invoke('marketplaceUploadPlan', { slug }),
+    marketplaceUpload: (slug, presentation) => uploadMarketplaceBot(call, slug, presentation),
+    marketplaceMine: (lang) => loadMyMarketplaceUploads(call, lang),
+    async marketplaceDelete(id) {
+      await invoke('marketplaceDelete', { id });
+    },
+    shareDraftStart: (slug) => invoke('shareDraftStart', { slug }),
+    async shareDraftGet(slug) {
+      const result = await call('shareDraftGet', { slug });
+      if (result.ok) return result.value as ShareDraftView;
+      if (result.error.code === 'share-draft-not-found') return undefined;
+      throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
+    },
+    async shareDraftDiscard(slug) {
+      await invoke('shareDraftDiscard', { slug });
+    },
+    shareDraftExport: (slug) => invoke('shareDraftExport', { slug }),
+    marketplaceInstallReview: (id, lang) => reviewMarketplaceInstall(call, id, lang),
+    async marketplaceInstall(id, reviewId, sectionId, source) {
+      return openCreatedBot(await installMarketplaceBot(call, id, reviewId, source), sectionId);
+    },
     profileUsage: (channelId, filter) => loadProfileUsage(call, channelId, filter),
     channelActivityToday: () => loadChannelActivityToday(call),
     groupProfileActivity: (channelId) => loadGroupProfileActivity(call, channelId),
@@ -2662,6 +2943,7 @@ export function createActions(
         throw new Error('DSH Session navigation is unavailable');
       folderAccess.openSession(sessionId);
     },
+    readSessions: (slug) => loadSessions(call, slug),
     async refreshSessions(slug) {
       const selection = currentSelection();
       if (selection === undefined || selectedBotSlug(selection) !== slug) return;
@@ -3213,6 +3495,12 @@ export function createActions(
     },
     channelAssignments(channelId) {
       return loadChannelAssignments(call, channelId);
+    },
+    sessionSubagents(slug, sessionId) {
+      return loadSessionSubagents(call, slug, sessionId);
+    },
+    assignmentWork(slug, sessionId) {
+      return loadAssignmentWork(call, slug, sessionId);
     },
     groupWakePolicies(channelId) {
       return loadGroupWakePolicies(call, channelId);

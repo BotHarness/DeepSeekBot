@@ -64,6 +64,7 @@ function fixture(
     review?: (request: ApprovalReviewRequest) => Promise<ApprovalReview>;
     template?: string;
     rules?: ToolApprovalRuleStore;
+    fullAccess?: () => boolean;
   } = {},
 ) {
   const messages: ChannelMessage[] = [];
@@ -108,12 +109,46 @@ function fixture(
     undefined,
     undefined,
     auto,
+    options.fullAccess,
   );
   const execution = (args: Record<string, unknown> = { todos: [] }, name = 'todo_write') =>
     ({ agent, name, callId: 'call-1', arguments: args, token: Symbol('call') }) as ToolExecution;
   const ask = (name = 'todo_write') => broker.ask({ agent, toolName: name, callId: 'call-1' });
   return { broker, messages, review, log, execution, ask };
 }
+
+describe('Full Access approval composition', () => {
+  it('answers ordinary calls without a card and rechecks Full Access before execution', async () => {
+    let enabled = true;
+    const state = fixture({ fullAccess: () => enabled });
+    state.broker.track(state.execution());
+    expect(await state.ask()).toBe('allowed-once');
+    expect(state.messages).toEqual([]);
+    expect(state.review).not.toHaveBeenCalled();
+    expect(state.broker.validAfterDecision(state.execution().agent!, 'call-1')).toBe(true);
+    enabled = false;
+    expect(state.broker.validAfterDecision(state.execution().agent!, 'call-1')).toBe(false);
+  });
+
+  it('offers saving permission approvals under Full Access without asking the model reviewer', async () => {
+    const state = fixture({ fullAccess: () => true });
+    state.broker.track(
+      state.execution(
+        { command: 'deepseekbot grant-write-set ada --grant project --enabled' },
+        'bash',
+      ),
+    );
+    const answer = state.ask('bash');
+    await vi.waitFor(() => expect(state.messages).toHaveLength(1));
+    const request = state.messages[0]!;
+    expect(request.toolApprovalRequest?.allowAlways).toBe(true);
+    expect(state.review).not.toHaveBeenCalled();
+    expect(await state.broker.decide(botSlug, request.id, 'allowed-always-tool')).toBe(false);
+    expect(await state.broker.decide(botSlug, request.id, 'allowed-always-exact')).toBe(false);
+    expect(await state.broker.decide(botSlug, request.id, 'allowed-once')).toBe(true);
+    expect(await answer).toBe('allowed-once');
+  });
+});
 
 describe('Approval Templates', () => {
   it('ships a cautious and a get-the-work-done template as read-only Markdown', () => {
@@ -148,6 +183,28 @@ describe('Approval Templates', () => {
     ).toBe(true);
     expect(requiresHumanToolApproval('bash', { command: 'pnpm test' })).toBe(false);
   });
+
+  it('makes a Shell upload to the Bot Marketplace need Human approval', () => {
+    expect(
+      requiresHumanToolApproval('bash', {
+        command: 'deepseekbot marketplace-upload bot-1 --name Helper',
+      }),
+    ).toBe(true);
+    expect(
+      requiresHumanToolApproval('bash', { command: 'deepseekbot marketplace-install U_abc' }),
+    ).toBe(false);
+  });
+
+  it('makes deleting an Uploaded Bot from the Shell need Human approval', () => {
+    expect(
+      requiresHumanToolApproval('bash', {
+        command: 'deepseekbot marketplace-delete U_abc --confirm',
+      }),
+    ).toBe(true);
+    expect(requiresHumanToolApproval('bash', { command: 'deepseekbot marketplace-mine' })).toBe(
+      false,
+    );
+  });
 });
 
 describe('Approval Reviewer input', () => {
@@ -164,6 +221,16 @@ describe('Approval Reviewer input', () => {
     expect(prompt).toContain('do not send anything yet');
     expect(prompt).not.toContain('IGNORE YOUR TEMPLATE');
     expect(prompt).not.toContain('web page says');
+  });
+
+  it("applies the Bot's excerpt limits", () => {
+    const excerpt = approvalSessionExcerpt(events, undefined, {
+      humanMessages: 1,
+      humanMessageChars: 4,
+      toolCalls: 1,
+    });
+    expect(excerpt.humanMessages).toEqual(['Plan …[truncated]']);
+    expect(excerpt.toolCalls).toEqual([{ name: 'todo_write', input: '{"todos":[]}' }]);
   });
 
   it('parses one clear outcome and rejects anything else', () => {
@@ -404,20 +471,28 @@ describe('Approval Reviewer in the tool approval gate', () => {
     expect(await answer).toBe('allowed-once');
   });
 
-  it('never lets the reviewer or a saved rule answer a change to the Bot policy', async () => {
-    const rules = { match: vi.fn(() => ({ id: 'rule' })) } as unknown as ToolApprovalRuleStore;
-    const state = fixture({ rules });
-    state.broker.track(
-      state.execution({ command: 'deepseekbot approval-template-set ada off' }, 'bash'),
-    );
-    expect(state.broker.willPrompt(state.execution().agent!, 'call-1')).toBe(true);
-    const answer = state.ask('bash');
-    await vi.waitFor(() => expect(state.messages).toHaveLength(1));
-    expect(state.review).not.toHaveBeenCalled();
-    expect(state.messages[0]!.toolApprovalRequest?.toolName).toBe('bash');
-    await state.broker.decide(botSlug, state.messages[0]!.id, 'rejected');
-    expect(await answer).toBe('rejected');
-  });
+  it.each([
+    'deepseekbot approval-template-set ada off',
+    'deepseekbot grant-request-approve ada --channel dm-ada --request req --workspace project --confirm',
+    'deepseekbot grant-write-set ada grant --enabled true',
+    '{"method":"grantRequestApprove"}',
+  ])(
+    'asks the Human to opt in to policy or Grant approvals without using the model: %s',
+    async (command) => {
+      const match = vi.fn(() => undefined);
+      const rules = { match } as unknown as ToolApprovalRuleStore;
+      const state = fixture({ rules });
+      state.broker.track(state.execution({ command }, 'bash'));
+      expect(state.broker.willPrompt(state.execution().agent!, 'call-1')).toBe(true);
+      const answer = state.ask('bash');
+      await vi.waitFor(() => expect(state.messages).toHaveLength(1));
+      expect(state.review).not.toHaveBeenCalled();
+      expect(match).toHaveBeenCalledWith(expect.objectContaining({ explicitOnly: true }));
+      expect(state.messages[0]!.toolApprovalRequest?.toolName).toBe('bash');
+      await state.broker.decide(botSlug, state.messages[0]!.id, 'rejected');
+      expect(await answer).toBe('rejected');
+    },
+  );
 
   const secretArgs = {
     account: 'github',

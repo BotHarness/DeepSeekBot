@@ -191,7 +191,7 @@ if (mode === '--serve') {
       const extra = key === 'a' ? `再 browser_tabs action=open 打开 ${fixture}/a/spare；` : '';
       await api('channelSend', {
         channelId: dm.id,
-        body: `本地多标签 QA：browser_open 打开 ${fixture}/${key}/home；browser_tabs action=open 打开 ${fixture}/${key}/work；${extra}browser_tabs action=list，再 select 标题与 URL 都匹配 work 页的 targetId（不要选 home 页），标题 Background Bot ${key.toUpperCase()} work，browser_observe，channel_send 回复实际标签列表和当前标题。只打开、选择、观察，不输入、不点击。`,
+        body: `本地多标签 QA：browser_open 打开 ${fixture}/${key}/home；browser_tabs action=open 打开 ${fixture}/${key}/work；${extra}browser_tabs action=list，再 select 标题与 URL 都匹配 work 页的 targetId（不要选 home 页），标题 Background Bot ${key.toUpperCase()} work，browser_observe，bot_send_message 回复实际标签列表和当前标题。只打开、选择、观察，不输入、不点击。`,
       });
       const sessionId = await until(
         async () =>
@@ -234,12 +234,12 @@ if (mode === '--serve') {
         state.bots.map((bot) =>
           model(
             bot,
-            `本地 QA 恢复准备：先 browser_open 打开 ${fixture}/${bot.key}/home，再 browser_tabs list，然后用 browser_tabs close 关闭列表中你自己的所有已有标签；browser_open 打开 ${fixture}/${bot.key}/home；browser_tabs open 打开 ${fixture}/${bot.key}/work；${bot.key === 'a' ? `browser_tabs open 打开 ${fixture}/a/spare；` : ''}browser_tabs list；选择 URL 完全等于 ${fixture}/${bot.key}/work 的 targetId（绝对不要选择 /home），browser_observe 确认 Background Bot ${bot.key.toUpperCase()} work，再 channel_send 回复当前 URL 和标题。不要输入或点击。`,
+            `本地 QA 恢复准备：先 browser_open 打开 ${fixture}/${bot.key}/home，再 browser_tabs list，然后用 browser_tabs close 关闭列表中你自己的所有已有标签；browser_open 打开 ${fixture}/${bot.key}/home；browser_tabs open 打开 ${fixture}/${bot.key}/work；${bot.key === 'a' ? `browser_tabs open 打开 ${fixture}/a/spare；` : ''}browser_tabs list；选择 URL 完全等于 ${fixture}/${bot.key}/work 的 targetId（绝对不要选择 /home），browser_observe 确认 Background Bot ${bot.key.toUpperCase()} work，再 bot_send_message 回复当前 URL 和标题。不要输入或点击。`,
           ),
         ),
       );
       for (const run of runs)
-        for (const name of ['browser_open', 'browser_tabs', 'browser_observe', 'channel_send'])
+        for (const name of ['browser_open', 'browser_tabs', 'browser_observe', 'bot_send_message'])
           successful(run.rows, name);
       save({ ...state, phase: 'approval' });
       console.log('Real model setup restored; run --ready to assert the selected work tabs.');
@@ -252,7 +252,12 @@ if (mode === '--serve') {
             (rows) => rows.some((e) => e.type === 'turn/end'),
             'Real model setup incomplete',
           );
-          for (const name of ['browser_open', 'browser_tabs', 'browser_observe', 'channel_send'])
+          for (const name of [
+            'browser_open',
+            'browser_tabs',
+            'browser_observe',
+            'bot_send_message',
+          ])
             successful(rows, name);
           const v = await view(bot);
           assert.equal(v.tabs.length, bot.key === 'a' ? 3 : 2);
@@ -312,7 +317,7 @@ if (mode === '--serve') {
         state.bots.map((bot) =>
           model(
             bot,
-            `在当前后台工作页完成任务：browser_observe，browser_type 输入 Task token 为 BOT-${bot.key.toUpperCase()}，browser_click 点击 Complete task，browser_wait ms=500，browser_observe 确认 Completed: 1，然后 channel_send 回复实际完成数量和 token。不要切换、打开或关闭标签。`,
+            `在当前后台工作页完成任务：browser_observe，browser_type 输入 Task token 为 BOT-${bot.key.toUpperCase()}，browser_click 点击 Complete task，browser_wait ms=500，browser_observe 确认 Completed: 1，然后 bot_send_message 回复实际完成数量和 token。不要切换、打开或关闭标签。`,
           ),
         ),
       );
@@ -322,7 +327,7 @@ if (mode === '--serve') {
           'browser_type',
           'browser_click',
           'browser_wait',
-          'channel_send',
+          'bot_send_message',
         ])
           successful(r.rows, name);
       assert.ok(
@@ -352,14 +357,14 @@ if (mode === '--serve') {
       assert.match(text(closed), /tab is gone.*browser_tabs.*browser_open/s);
       const recovered = await model(
         a,
-        `Human 已关闭刚才当前标签。用 browser_tabs action=open 新开 ${fixture}/a/recovered，再 browser_observe，输入 Task token 为 RECOVERED-A，点击 Complete task，browser_wait ms=500，再观察并 channel_send 回复实际 Completed: 2 和 token。`,
+        `Human 已关闭刚才当前标签。用 browser_tabs action=open 新开 ${fixture}/a/recovered，再 browser_observe，输入 Task token 为 RECOVERED-A，点击 Complete task，browser_wait ms=500，再观察并 bot_send_message 回复实际 Completed: 2 和 token。`,
       );
       for (const name of [
         'browser_tabs',
         'browser_observe',
         'browser_type',
         'browser_click',
-        'channel_send',
+        'bot_send_message',
       ])
         successful(recovered.rows, name);
       const v = await view(a);
@@ -440,10 +445,15 @@ if (mode === '--serve') {
       const rows = (
         await model(
           a,
-          `browser_tabs action=open 打开 ${fixture}/a/recovered，再 browser_observe，browser_screenshot，channel_send 回复实际 Completed: 2 和 RECOVERED-A。不要再次输入或点击。`,
+          `browser_tabs action=open 打开 ${fixture}/a/recovered，再 browser_observe，browser_screenshot，bot_send_message 回复实际 Completed: 2 和 RECOVERED-A。不要再次输入或点击。`,
         )
       ).rows;
-      for (const name of ['browser_tabs', 'browser_observe', 'browser_screenshot', 'channel_send'])
+      for (const name of [
+        'browser_tabs',
+        'browser_observe',
+        'browser_screenshot',
+        'bot_send_message',
+      ])
         successful(rows, name);
       const all = await native(a, 'browser_tabs', { action: 'list' });
       assert.equal(all.isError, false);

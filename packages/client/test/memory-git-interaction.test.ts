@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   const stub = () => null;
   return {
+    Toast: stub,
     IconCodeOutlineRegular: () => null,
     HoverCard: ({ anchor }: { anchor: unknown }) => anchor,
     Button: ({
@@ -53,6 +54,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconPaperclipOutlineRegular: stub,
     IconPlusOutline16: stub,
     IconRefreshOutlineRegular: stub,
+    IconWrapLinesOutlineRegular: stub,
     IconSearchOutline16: stub,
     IconSendOutline16: stub,
     IconSendOutlineRegular: stub,
@@ -126,6 +128,7 @@ import { zhTranslate } from '../src/client/locale.js';
 import { MemoryEntry } from '../src/client/memory-entry.js';
 import { MemoryFilesEntry } from '../src/client/memory-files-entry.js';
 import { MemoryRecovery } from '../src/client/memory-recovery.js';
+import { MemoryFileView, MemoryWorkingView } from '../src/client/memory-current-view.js';
 import { MemoryCommitView } from '../src/client/memory-commit-view.js';
 import { inertSubmissionActions } from './inert-submissions.js';
 
@@ -573,11 +576,11 @@ describe('Memory Git graph sidebar', () => {
       );
     });
     expect(
-      Array.from(container.querySelectorAll('[role="menuitem"]')).map((item) => item.textContent),
+      Array.from(document.querySelectorAll('[role="menuitem"]')).map((item) => item.textContent),
     ).toContain('给这个版本起名');
-    const item = Array.from(
-      container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'),
-    ).find((button) => button.textContent === '从这里新建并切换分支');
+    const item = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(
+      (button) => button.textContent === '从这里新建并切换分支',
+    );
     expect(item).not.toBeUndefined();
     await act(async () => item?.click());
     const input = container.querySelector<HTMLInputElement>('#bh-memory-new-branch');
@@ -1263,7 +1266,7 @@ describe('Memory Git graph sidebar', () => {
     });
     expect(evolution?.querySelector('[role="menu"]')?.textContent).toContain('Git');
     await act(async () => {
-      Array.from(container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
+      Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
         .find((item) => item.textContent === 'Git')
         ?.click();
     });
@@ -1273,7 +1276,7 @@ describe('Memory Git graph sidebar', () => {
       if (evolution?.querySelector('[role="menu"]') === null) terminology().click();
     });
     await act(async () => {
-      Array.from(container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
+      Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
         .find((item) => item.textContent === '记忆')
         ?.click();
     });
@@ -1368,3 +1371,147 @@ describe('Memory Git graph sidebar', () => {
     });
   });
 });
+
+for (const view of ['working', 'commit'] as const) {
+  it(`defaults ${view} diffs to wrapping and toggles all files without reloading`, async () => {
+    const diff = 'diff --git a/note.txt b/note.txt\n@@ -1 +1 @@\n-old\n+' + 'long text '.repeat(80);
+    const detail = {
+      sha: SHA,
+      subject: 'Long lines',
+      files: [
+        { path: 'note.txt', status: 'M' },
+        { path: 'other.txt', status: 'A' },
+      ],
+      diff: diff + '\ndiff --git a/other.txt b/other.txt\n@@ -0,0 +1 @@\n+second',
+    };
+    const actions = {
+      memoryWorkingDiff: vi
+        .fn()
+        .mockResolvedValue({ path: 'note.txt', status: 'M', diff, binary: false }),
+      memoryGitCommitDiff: vi.fn().mockResolvedValue(detail),
+    } as unknown as BridgeActions;
+    await act(async () =>
+      root.render(
+        view === 'commit'
+          ? createElement(MemoryCommitView, {
+              actions,
+              channelId: 'dm-wrap',
+              sha: SHA,
+              onClose: vi.fn(),
+              t: zhTranslate,
+            })
+          : createElement(MemoryWorkingView, {
+              actions,
+              channelId: 'dm-wrap',
+              change: { path: 'note.txt', kind: 'unstaged', status: 'M' },
+              onClose: vi.fn(),
+              t: zhTranslate,
+            }),
+      ),
+    );
+    const tables = () => [...container.querySelectorAll('.bh-memory-diff-table')];
+    const toggle = container.querySelector<HTMLButtonElement>('button[aria-label="自动换行"]');
+    expect(toggle).not.toBeNull();
+    expect(toggle?.getAttribute('aria-pressed')).toBe('true');
+    expect(tables()).toHaveLength(view === 'commit' ? 2 : 1);
+    expect(tables().every((table) => table.getAttribute('data-wrap') === 'true')).toBe(true);
+    const before = container.querySelector('.bh-memory-diff-content')?.textContent;
+    await act(async () => toggle?.click());
+    expect(toggle?.getAttribute('aria-pressed')).toBe('false');
+    expect(tables().every((table) => table.getAttribute('data-wrap') === 'false')).toBe(true);
+    expect(container.querySelector('.bh-memory-diff-content')?.textContent).toBe(before);
+    await act(async () => toggle?.click());
+    expect(tables().every((table) => table.getAttribute('data-wrap') === 'true')).toBe(true);
+    expect(
+      view === 'commit' ? actions.memoryGitCommitDiff : actions.memoryWorkingDiff,
+    ).toHaveBeenCalledTimes(1);
+  });
+}
+
+for (const view of ['file', 'working', 'commit'] as const) {
+  it(`reads rendered Markdown with a source toggle in ${view} while diffs default to lines`, async () => {
+    const before = {
+      source: SHA,
+      revision: 'b'.repeat(64),
+      status: 'ready',
+      body: '# Before\n\n**Old text**',
+    };
+    const after = {
+      source: 'worktree',
+      revision: 'c'.repeat(64),
+      status: 'ready',
+      body: '# After\n\n**New text**',
+    };
+    const diff = 'diff --git a/note.md b/note.md\n@@ -1 +1 @@\n-# Before\n+# After';
+    const actions = {
+      memoryFile: vi
+        .fn()
+        .mockResolvedValue({ path: 'note.md', head: SHA, body: after.body, markdown: after }),
+      memoryWorkingDiff: vi.fn().mockResolvedValue({
+        path: 'note.md',
+        kind: 'current',
+        status: 'M',
+        diff,
+        binary: false,
+        markdown: { before, after },
+      }),
+      memoryGitCommitDiff: vi.fn().mockResolvedValue({
+        sha: SHA,
+        subject: 'Illustrated note',
+        files: [{ path: 'note.md', status: 'M', markdown: { before, after } }],
+        diff,
+      }),
+    } as unknown as BridgeActions;
+    const common = {
+      actions,
+      channelId: 'dm-markdown',
+      botSlug: 'atlas',
+      onClose: vi.fn(),
+      t: zhTranslate,
+    };
+    await act(async () =>
+      root.render(
+        view === 'file'
+          ? createElement(MemoryFileView, { ...common, path: 'note.md' })
+          : view === 'working'
+            ? createElement(MemoryWorkingView, {
+                ...common,
+                change: { path: 'note.md', kind: 'current', status: 'M' },
+              })
+            : createElement(MemoryCommitView, { ...common, sha: SHA }),
+      ),
+    );
+    const clickText = async (text: string) =>
+      act(async () =>
+        [...container.querySelectorAll<HTMLButtonElement>('button')]
+          .find((b) => b.textContent === text)!
+          .click(),
+      );
+    expect(container.querySelectorAll('.bh-memory-markdown h1')).toHaveLength(
+      view === 'file' ? 1 : 0,
+    );
+    if (view === 'file') {
+      await clickText('查看源码');
+      expect(container.querySelector('pre')?.textContent).toBe(after.body);
+      expect(container.querySelector('.bh-memory-markdown')).toBeNull();
+      await clickText('渲染预览');
+      expect(container.querySelector('strong')?.textContent).toContain('note.md');
+    } else {
+      expect(container.querySelector('.bh-memory-diff-table')).not.toBeNull();
+      await clickText('渲染预览');
+      expect(
+        [...container.querySelectorAll('.bh-memory-markdown h1')].map((e) => e.textContent),
+      ).toEqual(['Before', 'After']);
+      await clickText('逐行对比');
+      expect(container.querySelector('.bh-memory-diff-table')).not.toBeNull();
+      expect(container.querySelector('.bh-memory-markdown')).toBeNull();
+    }
+    expect(
+      view === 'file'
+        ? actions.memoryFile
+        : view === 'working'
+          ? actions.memoryWorkingDiff
+          : actions.memoryGitCommitDiff,
+    ).toHaveBeenCalledTimes(1);
+  });
+}

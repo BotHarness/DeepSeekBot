@@ -1,0 +1,210 @@
+{
+  "global": {
+    "background": "color(srgb 0.992157 0.996078 0.996078)",
+    "blur": "blur(0px)",
+    "opacity": "1"
+  },
+  "details": {
+    "background": "color(srgb 0.913725 0.878431 0.968627 / 0.85)",
+    "blur": "blur(0px)",
+    "opacity": "1"
+  },
+  "saved": {
+    "dock:bh:channel-body": {
+      "header": {
+        "color": "#9fd8a8"
+      },
+      "body": {
+        "color": "#a9dcb1",
+        "opacity": 100
+      }
+    },
+    "dock:memory-files": {
+      "body": {
+        "opacity": 64,
+        "color": "#f8e1bc",
+        "blur": 7
+      },
+      "header": {
+        "color": "#f2d2a8",
+        "blur": 4
+      }
+    },
+    "dock:memory-details": {
+      "header": {
+        "color": "#d3c8f0"
+      },
+      "body": {
+        "color": "#e9e0f7",
+        "opacity": 85
+      }
+    },
+    "dock:appearance-qa:sample": {
+      "header": {
+        "color": "#b8dce6"
+      },
+      "body": {
+        "color": "#c5dfe8",
+        "opacity": 30,
+        "blur": 5
+      }
+    },
+    "dock:botharness-browser": {
+      "header": {
+        "color": "#c9d4f2"
+      },
+      "body": {
+        "color": "#e3e7f7",
+        "opacity": 25,
+        "blur": 5
+      }
+    },
+    "dock:botharness-computer": {
+      "header": {
+        "color": "#edc9bf"
+      },
+      "body": {
+        "color": "#f5e0d8",
+        "opacity": 75,
+        "blur": 4
+      }
+    }
+  },
+  "targets": {
+    "targets": [
+      {
+        "id": "dock:activity-center",
+        "label": "Activity Center"
+      },
+      {
+        "id": "dock:bh:channels",
+        "label": "Channels"
+      },
+      {
+        "id": "dock:appearance-qa:control",
+        "label": "Independent appearance control"
+      },
+      {
+        "id": "dock:appearance-qa:sample",
+        "label": "Independent appearance sample"
+      },
+      {
+        "id": "dock:bh:channel-body",
+        "label": "Messages"
+      },
+      {
+        "id": "dock:memory-files",
+        "label": "Memory files"
+      },
+      {
+        "id": "dock:memory-evolution",
+        "label": "Memory evolution"
+      },
+      {
+        "id": "dock:members",
+        "label": "Members"
+      },
+      {
+        "id": "dock:sessions",
+        "label": "Sessions"
+      },
+      {
+        "id": "dock:bot-inbox",
+        "label": "Bot Inbox"
+      },
+      {
+        "id": "dock:schedules",
+        "label": "Schedules"
+      },
+      {
+        "id": "dock:botharness-computer",
+        "label": "Computer"
+      },
+      {
+        "id": "dock:botharness-browser",
+        "label": "Browser"
+      },
+      {
+        "id": "dock:bh:home",
+        "label": "Home"
+      },
+      {
+        "id": "dock:memory-details",
+        "label": "Memory details"
+      },
+      {
+        "id": "dock:generated-files",
+        "label": "Channel files"
+      }
+    ],
+    "snapshot": {
+      "config": {
+        "version": 1,
+        "revision": "09dddc80-5a97-4345-9b24-9bdd8a163ac2",
+        "preference": "light",
+        "modes": {
+          "light": {
+            "preset": "classic-blue",
+            "panels": {
+              "dock:memory-files": {
+                "body": {
+                  "opacity": 64,
+                  "color": "#f8e1bc",
+                  "blur": 7
+                },
+                "header": {
+                  "color": "#f2d2a8",
+                  "blur": 4
+                }
+              },
+              "dock:memory-details": {
+                "header": {
+                  "color": "#d3c8f0"
+                },
+                "body": {
+                  "color": "#e9e0f7",
+                  "opacity": 85
+                }
+              },
+              "dock:appearance-qa:sample": {
+                "header": {
+                  "color": "#b8dce6"
+                },
+                "body": {
+                  "color": "#c5dfe8",
+                  "opacity": 30,
+                  "blur": 5
+                }
+              },
+              "dock:botharness-browser": {
+                "header": {
+                  "color": "#c9d4f2"
+                },
+                "body": {
+                  "color": "#e3e7f7",
+                  "opacity": 25,
+                  "blur": 5
+                }
+              },
+              "dock:botharness-computer": {
+                "header": {
+                  "color": "#edc9bf"
+                },
+                "body": {
+                  "color": "#f5e0d8",
+                  "opacity": 75,
+                  "blur": 4
+                }
+              }
+            }
+          },
+          "dark": {
+            "preset": "classic-blue"
+          }
+        }
+      },
+      "mode": "light"
+    }
+  },
+  "errors": []
+}

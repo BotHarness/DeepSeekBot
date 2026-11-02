@@ -152,7 +152,7 @@ try {
   });
   await page.mouse.click(avatarPoint.x, avatarPoint.y);
   try {
-    await page.waitForSelector('.bh-profile-popover', { timeout: 10_000 });
+    await page.waitForSelector('.bh-profile-view', { timeout: 10_000 });
   } catch (error) {
     console.log(
       JSON.stringify(
@@ -164,10 +164,9 @@ try {
     );
     throw error;
   }
-  if (!(await page.$('.bh-profile-popover .bh-profile-heat-grid'))) {
-    throw new Error('Group Profile popover has no pinned message heatmap');
+  if (!(await page.$('.bh-profile-view .bh-profile-heat-grid'))) {
+    throw new Error('Group Profile view has no message heatmap');
   }
-  await page.click('.bh-profile-expand');
   await page.waitForSelector('.bh-profile-view .bh-group-profile-authors');
   const profileText = await page.$eval('.bh-profile-view', (node) => node.textContent ?? '');
   if (!profileText.includes(group.name) || !profileText.includes('2')) {
@@ -177,10 +176,6 @@ try {
   if (screenshot) {
     mkdirSync(dirname(screenshot), { recursive: true });
     await page.screenshot({ path: screenshot });
-  }
-  const memberPin = '.bh-profile-cards > .bh-profile-card:nth-child(2) .bh-profile-pin';
-  if ((await page.$eval(memberPin, (button) => button.getAttribute('aria-pressed'))) !== 'true') {
-    await page.click(memberPin);
   }
   await page.click('.bh-profile-back');
   try {
@@ -197,19 +192,9 @@ try {
     );
     throw error;
   }
-  await page.click('.bh-channel-island');
-  await page.waitForFunction(
-    () => document.querySelectorAll('.bh-profile-popover-cards .bh-profile-card').length === 2,
-  );
-  const popoverScreenshot = screenshot?.replace(/\.png$/u, '-popover.png');
-  if (popoverScreenshot) await page.screenshot({ path: popoverScreenshot });
-  await page.click('.bh-channel-island');
   await page.click(`.bh-root [data-channel-id="${dm.channel.id}"]`);
   await page.waitForFunction(() =>
-    document
-      .querySelector('.bh-channel-island')
-      ?.getAttribute('aria-label')
-      ?.includes('PersonaBot Profile'),
+    document.querySelector('.bh-channel-island')?.getAttribute('aria-label')?.includes('chat menu'),
   );
   console.log(
     JSON.stringify({

@@ -1,0 +1,42 @@
+diff --git a/ios/AppDelegate.swift b/ios/AppDelegate.swift
+index 37558e006b606eae26e2e5be6e44afee93590547..19676d60e95b8014a3668239f91397686130d2a7 100644
+--- a/ios/AppDelegate.swift
++++ b/ios/AppDelegate.swift
+@@ -17,6 +17,9 @@ public class ExpoQuickActionsAppDelegate: ExpoAppDelegateSubscriber {
+   }
+ 
+   public func application(_ application: UIApplication, performActionFor shortcutItem: UIApplicationShortcutItem, completionHandler: @escaping (Bool) -> Void) {
++    if !observingQuickActions && initialAction == nil {
++      initialAction = shortcutItem
++    }
+     NotificationCenter.default.post(name: Notification.Name(onQuickAction), object: shortcutItem)
+     completionHandler(true)
+   }
+diff --git a/ios/ExpoQuickActionsModule.swift b/ios/ExpoQuickActionsModule.swift
+index 252da492ce374eef886d574a2c38af242de6d6c3..d8aaca1b03330a5adf5fd4c9d972c8806084d6a6 100644
+--- a/ios/ExpoQuickActionsModule.swift
++++ b/ios/ExpoQuickActionsModule.swift
+@@ -72,6 +72,7 @@ func toActionObject(item: UIApplicationShortcutItem?) -> ActionObject? {
+ }
+ 
+ var initialAction: UIApplicationShortcutItem?
++var observingQuickActions = false
+ 
+ public class ExpoQuickActionsModule: Module {
+     
+@@ -103,6 +104,7 @@ public class ExpoQuickActionsModule: Module {
+         Events(onQuickAction)
+         
+         OnStartObserving {
++            observingQuickActions = true
+             NotificationCenter.default.addObserver(
+                 self,
+                 selector: #selector(self.quickActionListener),
+@@ -112,6 +114,7 @@ public class ExpoQuickActionsModule: Module {
+         }
+         
+         OnStopObserving {
++            observingQuickActions = false
+             NotificationCenter.default.removeObserver(
+                 self,
+                 name: Notification.Name(onQuickAction),

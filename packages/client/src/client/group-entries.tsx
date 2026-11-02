@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 
-import { useClientState } from './bot-sidebar.js';
+import { sameBotNames, useClientStore } from './use-client-store.js';
 import { ChannelBridgeAttention, ChannelBridgeList } from './channel-bridge-list.js';
 import type { ChannelSettingsAttentionProps, ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { ConversationIngestRows } from './conversation-ingest-list.js';
@@ -12,8 +12,8 @@ function groupChannel(state: ClientState, channelId: string) {
   return channel?.type === 'group' ? channel : undefined;
 }
 
-function botNames(state: ClientState): ReadonlyMap<string, string> {
-  return new Map(state.bots.map((bot) => [bot.slug, bot.displayName]));
+function botNames(bots: ClientState['bots']): ReadonlyMap<string, string> {
+  return new Map(bots.map((bot) => [bot.slug, bot.displayName]));
 }
 
 export function isGroupConversation(state: ClientState): boolean {
@@ -25,14 +25,14 @@ export function GroupWakePolicyEntry({
   actions,
   t,
 }: ChannelSidebarEntryProps): ReactElement {
-  const state = useClientState();
-  const channel = groupChannel(state, channelId);
+  const channel = useClientStore((state) => groupChannel(state, channelId));
+  const bots = useClientStore((state) => state.bots, sameBotNames);
   if (channel === undefined) return <></>;
   return (
     <GroupWakePolicyList
       key={channel.id}
       channel={channel}
-      botNames={botNames(state)}
+      botNames={botNames(bots)}
       actions={actions}
       t={t}
     />
@@ -52,10 +52,10 @@ export function GroupConnectorsEntry({
   actions,
   t,
 }: ChannelSidebarEntryProps): ReactElement {
-  const state = useClientState();
-  const channel = groupChannel(state, channelId);
+  const channel = useClientStore((state) => groupChannel(state, channelId));
+  const bots = useClientStore((state) => state.bots, sameBotNames);
   if (channel === undefined) return <></>;
-  const names = botNames(state);
+  const names = botNames(bots);
   return (
     <ChannelBridgeList
       key={channel.id}

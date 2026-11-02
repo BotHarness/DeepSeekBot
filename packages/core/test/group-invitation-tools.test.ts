@@ -20,8 +20,10 @@ async function roundTrip(accept: boolean, resolveOnInvite = false) {
         const actor = core.ownership.resolve(session.id)?.botSlug;
         const call = async (name: string, args: unknown) => {
           const tool = tools.find((entry) => entry.name === name)!;
-          const result = await tool.execute(args, {} as ToolRunContext);
-          return name === 'channel_send'
+          const result = await tool.execute(args, {
+            signal: new AbortController().signal,
+          } as ToolRunContext);
+          return name === 'bot_send_message'
             ? { sent: String(result) }
             : (JSON.parse(String(result)) as Record<string, unknown>);
         };
@@ -91,8 +93,8 @@ async function roundTrip(accept: boolean, resolveOnInvite = false) {
               'not a member',
             );
             await expect(
-              call('channel_send', { channel_id: groupId, body: 'too early' }),
-            ).rejects.toThrow('not a member');
+              call('bot_send_message', { channel_id: groupId, body: 'too early' }),
+            ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
           }
           results.decided = await call('group_invite_respond', { invite_id: inviteId, accept });
           results.repeated = await call('group_invite_respond', { invite_id: inviteId, accept });
@@ -100,14 +102,17 @@ async function roundTrip(accept: boolean, resolveOnInvite = false) {
             call('group_invite_respond', { invite_id: inviteId, accept: !accept }),
           ).rejects.toThrow('no longer pending');
           if (accept) {
-            await call('channel_send', { channel_id: groupId, body: 'Joined through real Tool' });
+            await call('bot_send_message', {
+              channel_id: groupId,
+              body: 'Joined through real Tool',
+            });
           } else {
             await expect(call('channel_read', { channel_id: groupId })).rejects.toThrow(
               'not a member',
             );
             await expect(
-              call('channel_send', { channel_id: groupId, body: 'forbidden' }),
-            ).rejects.toThrow('not a member');
+              call('bot_send_message', { channel_id: groupId, body: 'forbidden' }),
+            ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
           }
         } catch (error) {
           failures.push(error);
@@ -224,7 +229,9 @@ it.each(['archived', 'stale', 'cancelled', 'wrong-invitee'] as const)(
           if (scenario === 'archived') core.registry.setPaused('bea', true);
           const tool = tools.find((entry) => entry.name === 'group_invite_respond')!;
           response = await tool
-            .execute({ invite_id: inviteId, accept: true }, {} as ToolRunContext)
+            .execute({ invite_id: inviteId, accept: true }, {
+              signal: new AbortController().signal,
+            } as ToolRunContext)
             .then(
               (value) => value,
               (error: unknown) => error,

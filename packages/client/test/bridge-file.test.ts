@@ -237,7 +237,7 @@ it.each([true, false])(
       expect(commands.target).toHaveBeenCalledWith('channel', 'file');
       expect(commands.open).not.toHaveBeenCalled();
       await act(async () =>
-        [...container.querySelectorAll('button')]
+        [...document.querySelectorAll<HTMLButtonElement>('[data-pointer-menu] button')]
           .find((button) => button.textContent?.includes('用 Editor 打开'))!
           .click(),
       );

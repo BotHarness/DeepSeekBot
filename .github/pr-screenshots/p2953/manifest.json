@@ -1,0 +1,164 @@
+{
+  "source": "30acef24138103a325ba972f0341477ee34e728b",
+  "captures": [
+    {
+      "file": "p-prof-l.png",
+      "original": "ph-computer-retry.private.png",
+      "size": [1125, 2436],
+      "sha256": "edf795f1e5295d3919170e17de1f337d886dd706483186a27fa85267ba53cd29",
+      "processing": "none; original capture bytes"
+    },
+    {
+      "file": "p-prof-d.png",
+      "original": "ph-profile-en-dark.png",
+      "size": [1125, 2436],
+      "sha256": "14d85d9b31e02f836c6d68f7aad5ba0ec8a605e492ac0af8cf38fa0c1b6c0233",
+      "processing": "none; original capture bytes"
+    },
+    {
+      "file": "p-group-l.png",
+      "original": "ph-group-profile-en-light.png",
+      "size": [1125, 2436],
+      "sha256": "3c5fcd96555a9fd9a6233e9b4015d49408554191e7778574721346d258177b19",
+      "processing": "none; original capture bytes"
+    },
+    {
+      "file": "p-long-l.png",
+      "original": "ph-long-profile-en-light.png",
+      "size": [1125, 2436],
+      "sha256": "eb1a3a64726d4ec428dfa5a20f9e7669a332e1726d8d643cc99cdea2f43783a9",
+      "processing": "none; original capture bytes"
+    },
+    {
+      "file": "p-set-l.png",
+      "original": "ph-settings-en-light.png",
+      "size": [1125, 2436],
+      "sha256": "b7f4d905c37d87458f8e4cc8a0633b0000cc97b092bafaff4122e79d4f7050ee",
+      "processing": "none; original capture bytes"
+    },
+    {
+      "file": "p-set-d.png",
+      "original": "ph-settings-en-dark.png",
+      "size": [1125, 2436],
+      "sha256": "2b3c7e0604767abc22089ff8342db6a89b9358c0d8921adbb51214c64bc6de28",
+      "processing": "none; original capture bytes"
+    },
+    {
+      "file": "p-menu-l.png",
+      "original": "ph-appearance-en-light.png",
+      "size": [1125, 2436],
+      "sha256": "61e5aaa92d46b727afb0553d578edd889fbf6af5d7e4a7884e28a308dfd07fad",
+      "processing": "none; original capture bytes"
+    },
+    {
+      "file": "p-chart-l.png",
+      "original": "ph-chart-selected-en-light.png",
+      "size": [1125, 2436],
+      "sha256": "aeb1c040b7bc62b0fd49658eedd5098dfe6a6fa553cf609f294643175dddda2a",
+      "processing": "none; original capture bytes"
+    },
+    {
+      "file": "p-create-l.png",
+      "original": "ph-create-menu-en-light.png",
+      "size": [1125, 2436],
+      "sha256": "e4efe5ba1ae3db65a683a2081603d60215ef2b2993e6bcb697bf54317502ad3c",
+      "processing": "none; original capture bytes"
+    },
+    {
+      "file": "p-filter-l.png",
+      "original": "ph-filter-en-light.png",
+      "size": [1125, 2436],
+      "sha256": "cb150094f7ef865b42662d8c128b855b01cfa48ce263b5ddac48e0b679595c97",
+      "processing": "none; original capture bytes"
+    },
+    {
+      "file": "p-browser-l.png",
+      "original": "ph-browser-settled-en-light.png",
+      "size": [1125, 2436],
+      "sha256": "d02b267a53cb919a75127baa89a0c5760943b2e3feadec2757e3adefa25931e8",
+      "processing": "none; original capture bytes"
+    },
+    {
+      "file": "s-prof-l.png",
+      "original": "sim-profile-settings-zh-light.png",
+      "size": [440, 956],
+      "sha256": "f59c5d0dfd6aa7eb3f846c300d0b1e7fb04bd35214ef9a581bf6fe21c977490c",
+      "processing": "none; original capture bytes"
+    },
+    {
+      "file": "s-set-d.png",
+      "original": "sim-settings-en-dark.png",
+      "size": [440, 956],
+      "sha256": "1895311bcd7943440b40807da7877c838e67b3ca3be615c9c1dbf66741bc3549",
+      "processing": "none; original capture bytes"
+    },
+    {
+      "file": "s-filter-d.png",
+      "original": "sim-filter-popup-en-dark.png",
+      "size": [440, 956],
+      "sha256": "c92606d3a9d4f924fe8ced67601ee8281fa750eef7db652e1d9bb65ebaabf7bc",
+      "processing": "none; original capture bytes"
+    },
+    {
+      "file": "s-create-d.png",
+      "original": "sim-create-en-dark.png",
+      "size": [440, 956],
+      "sha256": "2ca13709daed122d1d45a6484ddd95a577e98b590f165356f54e98d9ffea8fd8",
+      "processing": "none; original capture bytes"
+    },
+    {
+      "file": "s-long-d.png",
+      "original": "sim-long-en-dark.png",
+      "size": [440, 956],
+      "sha256": "2b151e8feb8588387bd8df2b2b32191f082a2111e6e6f5ee6f0225368953c019",
+      "processing": "none; original capture bytes"
+    },
+    {
+      "file": "s-long-mid.png",
+      "original": "sim-long-mid-en-dark.png",
+      "size": [440, 956],
+      "sha256": "68d656e44fb8cb5825e2377d4c342e1c07ea15b38786fd28364c2db4c1de204a",
+      "processing": "none; original capture bytes"
+    },
+    {
+      "file": "s-long-max.png",
+      "original": "sim-long-max-en-dark.png",
+      "size": [440, 956],
+      "sha256": "379142056e8b0c46feacd823d506a6a8f893eb1bc3473cee66c47a21fa0e6a84",
+      "processing": "none; original capture bytes"
+    },
+    {
+      "file": "s-host-d.png",
+      "original": "sim-host-longpress-en-dark.private.png",
+      "processing": "crop [16,382,280,620]; opaque mask of private route only [35,33,248,54] in crop; no UI redraw",
+      "size": [264, 238],
+      "sha256": "d582879603007881d539efe1c107e043958b3036279d85e2eedcddc65df8d7ab"
+    },
+    {
+      "file": "p-view.png",
+      "original": "ph-computer-watching.private.png",
+      "processing": "opaque mask [0,276,1124,1943] of private macOS desktop; header and controls unchanged",
+      "size": [1125, 2436],
+      "sha256": "28ecc0b57ab5288512ad33624ab9eaccde0c721005a684f7ded1d3927bcdb3f4"
+    },
+    {
+      "file": "p-control.png",
+      "original": "ph-computer-driving.private.png",
+      "processing": "opaque mask [0,276,1124,1943] of private macOS desktop; header and controls unchanged",
+      "size": [1125, 2436],
+      "sha256": "c5f79a1ff547ac96bdf1f6ce21ffa702176b2bb5f639d3f1a067dea17493e507"
+    },
+    {
+      "file": "chart.mp4",
+      "original": "phone-chart-selected-pan.mp4",
+      "processing": "original video bytes; only isolated QA content",
+      "sha256": "8192f4d16b35e30fc2d9759e9e827c895bf814196f9bb3ec1b26c33e399b8f8c"
+    },
+    {
+      "file": "zoom.mp4",
+      "original": "sim-profile.mp4",
+      "processing": "original video bytes; only isolated QA content",
+      "sha256": "f3c547e7bdb0fe47f4a9bf5c90ad3cb3c4e57f973613ab8ff162f1a5f847b0e2"
+    }
+  ]
+}

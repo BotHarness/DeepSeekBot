@@ -5,7 +5,14 @@ const SEPARATOR_MS = 30 * 60 * 1000;
 
 export type ChatRow =
   | { kind: 'separator'; key: string; at: string }
-  | { kind: 'message'; key: string; message: ConversationMessage; first: boolean; last: boolean };
+  | {
+      kind: 'message';
+      key: string;
+      message: ConversationMessage;
+      first: boolean;
+      last: boolean;
+      activityCount?: number;
+    };
 
 function time(iso: string): number {
   const value = Date.parse(iso);
@@ -19,6 +26,26 @@ export function chatRows(
   const rows: ChatRow[] = [];
   let previous: ConversationMessage | undefined;
   for (const message of messages) {
+    const before = rows.at(-1);
+    if (
+      message.activity?.kind === 'channel-post' &&
+      previous?.activity?.kind === 'channel-post' &&
+      previous.bot === message.bot &&
+      previous.activity.channelId === message.activity.channelId &&
+      Number.isFinite(Date.parse(previous.at)) &&
+      Number.isFinite(Date.parse(message.at)) &&
+      new Date(previous.at).toDateString() === new Date(message.at).toDateString() &&
+      before?.kind === 'message'
+    ) {
+      rows[rows.length - 1] = {
+        ...before,
+        key: message.id,
+        message,
+        activityCount: (before.activityCount ?? 1) + 1,
+      };
+      previous = message;
+      continue;
+    }
     const gap = previous === undefined ? Infinity : time(message.at) - time(previous.at);
     const separated = gap >= SEPARATOR_MS;
     if (separated) rows.push({ kind: 'separator', key: `at:${message.id}`, at: message.at });
@@ -27,11 +54,12 @@ export function chatRows(
       !separated &&
       !standalone(previous) &&
       !standalone(message) &&
+      previous.activity === undefined &&
+      message.activity === undefined &&
       message.author !== 'system' &&
       previous.author === message.author &&
       previous.bot === message.bot &&
       gap < GROUP_MS;
-    const before = rows.at(-1);
     if (joins && before?.kind === 'message') before.last = false;
     rows.push({ kind: 'message', key: message.id, message, first: !joins, last: true });
     previous = message;

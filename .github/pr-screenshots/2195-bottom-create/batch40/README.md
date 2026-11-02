@@ -1,0 +1,9 @@
+# Batch 40 — backdrop repair and retained button failure
+
+UAT Simulator source `79dd1e554dfb136b584a04c9ae10a64687836ab6`, CI `39159555412` SUCCESS. Same installed native494a, 402×874pt, English and existing Computer fixtures/local alias as Batch38. No app restart during theme/font matrix. Photos/recording predate the subsequent native-button presentation repair.
+
+The backdrop now follows live light→dark→light. Default native Chats/Activity, plus/menu/close worked; screenshots cover default/intermediate/maximum light/dark and return to light. The default dark screenshot looks correct, but repeated transitions at intermediate/maximum expose the **selected native button** retaining a bright material. `final-intermediate-dark-nav.png` and `final-max-dark-nav.png` are failure evidence, not passing dark-theme results. Full native acceptance remains open.
+
+Tabs remain one line with icon/ellipsis; left-aligned rows and fixed action circle remain visible. Largest text wraps within words. Native AX still exposes nested buttons; no VoiceOver certification. Some driver refs refused motion or returned a 3-node AX tree after font/modal changes: one fresh-ref retry / screenshot-grounded fixed Close/action taps recovered, without invoking callbacks directly.
+
+Restored exact original app Cloud/Hosts and byte-identical stopped Documents2/Preferences1. Revoked only this run's new Host device; prior channel/device states unchanged. Original light/large/ReduceTransparencyfalse restored/unchanged; transparency toggle deferred on the discovered failure. Own driver/Metro closed, QA original branch and three untracked docs restored, lane explicitly released. No Cloud authentication/session/resource/message writes, models, phone, native install/build, Prod or merge. Simulator clipboard was not touched; prior Batch39 empty-item metadata caveat remains outside this run.

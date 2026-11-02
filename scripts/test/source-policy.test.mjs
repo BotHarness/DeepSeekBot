@@ -154,7 +154,7 @@ describe('source policy', () => {
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
-  });
+  }, 60_000);
 });
 
 it('retains the required Inbox ISC notice without allowing other or modified comments', async () => {

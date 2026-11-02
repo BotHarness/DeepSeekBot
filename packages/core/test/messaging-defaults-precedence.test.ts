@@ -89,3 +89,51 @@ it('restores Channel inheritance through the owning store without losing prior a
     core.operationalDatabase.close();
   }
 });
+
+it("keeps a Bot's explicit only-direct-mention default as a ceiling a Channel cannot raise", () => {
+  const defaults: MessagingDefaults<'qq'> = {
+    platform: 'qq',
+    collection: 'all',
+    wake: 'immediate',
+    count: 5,
+    intervalSeconds: 30,
+    identityEnabled: true,
+    revision: 1,
+    changedAt: '',
+  };
+  const channel: ChannelRecord = {
+    id: 'qq-group',
+    type: 'group',
+    name: 'QQ group',
+    members: ['loud', 'quiet'],
+    createdAt: '',
+    updatedAt: '',
+    wakePolicies: {
+      loud: { mode: 'all', count: 1, intervalSeconds: 0, revision: 2 },
+      quiet: { mode: 'silent', count: 1, intervalSeconds: 0, revision: 3 },
+    },
+  };
+  const mentionsOnly: BotSourcePolicy = {
+    sourceClass: 'group-ordinary',
+    admission: 'admit',
+    wake: 'mentions',
+    delivery: 'turn',
+    revision: 5,
+    lastActor: { kind: 'human' },
+    changedAt: '',
+    overrideActive: true,
+    recentWakeCount: 0,
+  };
+  expect(externalMemberWake(channel, 'loud', mentionsOnly, defaults)).toMatchObject({
+    policy: { mode: 'mentions' },
+    origin: 'bot',
+  });
+  expect(externalMemberWake(channel, 'quiet', mentionsOnly, defaults)).toMatchObject({
+    policy: { mode: 'silent', revision: 3 },
+    origin: 'channel',
+  });
+  expect(
+    externalMemberWake(channel, 'loud', { ...mentionsOnly, overrideActive: false }, defaults).policy
+      .mode,
+  ).toBe('all');
+});

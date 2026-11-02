@@ -26,7 +26,9 @@ export function HumanInboxReply({
   bots,
   humanMembers = [],
   onClose,
+  contextOnly = false,
 }: {
+  contextOnly?: boolean;
   source: HumanAttentionItem;
   actions: BridgeActions;
   t: BotHarnessTranslate;
@@ -59,8 +61,8 @@ export function HumanInboxReply({
   const [sendError, setSendError] = useState(false);
   const [sent, setSent] = useState<ChannelMessage>();
   const [page, setPage] = useState<TimelinePage>();
-  const [olderShown, setOlderShown] = useState(0);
-  const [newerShown, setNewerShown] = useState(0);
+  const [olderShown, setOlderShown] = useState(contextOnly ? 2 : 0);
+  const [newerShown, setNewerShown] = useState(contextOnly ? 2 : 0);
   const [edgeBusy, setEdgeBusy] = useState<'older' | 'newer'>();
   const [edgeError, setEdgeError] = useState(false);
   const edgePending = useRef(false);
@@ -231,13 +233,19 @@ export function HumanInboxReply({
     <section className="bh-human-inbox-reply" ref={mount} aria-label={title}>
       <div className="bh-human-inbox-reply-header">
         <h2>{title}</h2>
-        <HumanInboxDismiss
-          source={source}
-          actions={actions}
-          t={t}
-          disabled={sending}
-          onClose={onClose}
-        />
+        {contextOnly ? (
+          <Button size="sm" onClick={onClose}>
+            {t('common.close')}
+          </Button>
+        ) : (
+          <HumanInboxDismiss
+            source={source}
+            actions={actions}
+            t={t}
+            disabled={sending}
+            onClose={onClose}
+          />
+        )}
       </div>
       {target === undefined ? (
         <p role={contextError ? 'alert' : 'status'}>
@@ -327,7 +335,7 @@ export function HumanInboxReply({
                         <p>{toolApprovalReplyPreview(message, message.replyToPreview.body, t)}</p>
                       </blockquote>
                     ) : null}
-                    {isNativeAction && message.id === messageId ? (
+                    {isNativeAction && message.id === messageId && !contextOnly ? (
                       <ChannelMessageBody
                         message={message}
                         channelId={channelId}

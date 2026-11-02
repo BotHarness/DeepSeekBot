@@ -62,8 +62,8 @@ if (mode === '--prepare') {
     await api('computerAccessSet', { slug: state.slug, enabled: true });
     const body =
       mode === '--capture'
-        ? `Local screenshot QA. Only observe the task-owned process pid=${pid}, window titled BotHarness Local Screenshot QA. Call computer_list_windows with only that pid, then computer_get_window_state for its matching window_id with include_accessibility_tree:true and include_screenshot:true. Do not capture the desktop or other apps, use Shell/Browser, or send input. Read the six-character code beside the blue circle from the actual image and send channel_send beginning VISUAL_QA: followed by that code. The code is absent from Accessibility. If no image is available, report the actual failure instead of guessing. Wait for native approval.`
-        : `Local screenshot failure QA. Call computer_get_window_state exactly once with pid=${pid},window_id:99999999,include_accessibility_tree:true,include_screenshot:true. This deliberately absent task-window ID tests failure only. Do not list other windows, retry, use Shell/Browser or send input. Send channel_send beginning CAPTURE_FAILURE_QA: with the actual failed result; never claim success.`;
+        ? `Local screenshot QA. Only observe the task-owned process pid=${pid}, window titled BotHarness Local Screenshot QA. Call computer_list_windows with only that pid, then computer_get_window_state for its matching window_id with include_accessibility_tree:true and include_screenshot:true. Do not capture the desktop or other apps, use Shell/Browser, or send input. Read the six-character code beside the blue circle from the actual image and send bot_send_message beginning VISUAL_QA: followed by that code. The code is absent from Accessibility. If no image is available, report the actual failure instead of guessing. Wait for native approval.`
+        : `Local screenshot failure QA. Call computer_get_window_state exactly once with pid=${pid},window_id:99999999,include_accessibility_tree:true,include_screenshot:true. This deliberately absent task-window ID tests failure only. Do not list other windows, retry, use Shell/Browser or send input. Send bot_send_message beginning CAPTURE_FAILURE_QA: with the actual failed result; never claim success.`;
     await api('channelSend', { channelId: state.channelId, body });
     console.log(
       'Real model Turn started; approve only its task-window call through the native card.',
@@ -72,7 +72,7 @@ if (mode === '--prepare') {
     await api('computerAccessSet', { slug: state.slug, enabled: false });
     await api('channelSend', {
       channelId: state.channelId,
-      body: 'Local screenshot QA has ended and Computer Access is off. Do not call Computer, Shell or Browser. Reply with channel_send: ACCESS_OFF_QA: Computer Access is off.',
+      body: 'Local screenshot QA has ended and Computer Access is off. Do not call Computer, Shell or Browser. Reply with bot_send_message: ACCESS_OFF_QA: Computer Access is off.',
     });
     console.log('Temporary Access disabled; wait for the real revocation reply, then verify.');
   } else {
@@ -101,7 +101,8 @@ if (mode === '--prepare') {
     const reply = (prefix) =>
       calls.findLast(
         (r) =>
-          r.data.name === 'channel_send' && JSON.parse(r.data.arguments).body.startsWith(prefix),
+          r.data.name === 'bot_send_message' &&
+          JSON.parse(r.data.arguments).body.startsWith(prefix),
       );
     const captureReply = reply('VISUAL_QA:');
     assert.ok(captureReply);
@@ -109,7 +110,7 @@ if (mode === '--prepare') {
     const capture = calls.filter((r) => r.data.turn === captureReply.data.turn);
     assert.deepEqual(
       capture.map((r) => r.data.name),
-      ['computer_list_windows', 'computer_get_window_state', 'channel_send'],
+      ['computer_list_windows', 'computer_get_window_state', 'bot_send_message'],
     );
     for (const call of capture)
       assert.equal(results.get(call.data.callId)?.data.message.isError, false);
@@ -138,7 +139,7 @@ if (mode === '--prepare') {
     const failed = calls.filter((r) => r.data.turn === failureReply.data.turn);
     assert.deepEqual(
       failed.map((r) => r.data.name),
-      ['computer_get_window_state', 'channel_send'],
+      ['computer_get_window_state', 'bot_send_message'],
     );
     assert.deepEqual(JSON.parse(failed[0].data.arguments), {
       include_accessibility_tree: true,
@@ -155,7 +156,7 @@ if (mode === '--prepare') {
     const revokedCalls = calls.filter((r) => r.data.turn === revokedReply.data.turn);
     assert.deepEqual(
       revokedCalls.map((r) => r.data.name),
-      ['channel_send'],
+      ['bot_send_message'],
     );
     for (const turn of [captureReply.data.turn, failureReply.data.turn, revokedReply.data.turn])
       assert.ok(events.some((r) => r.type === 'turn/end' && r.data.turn === turn));

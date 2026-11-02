@@ -13,12 +13,16 @@ vi.mock('../src/runtimes.js', () => ({
 
 import { apply, DEFAULT_CONFIG, type BrowserConfig } from '../src/index.js';
 import { BrowserProvisionError } from '../src/runtime/provision.js';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 interface BrowserHostService {
   resetBot?(slug: string): void;
   executionSignal(sessionId: string): AbortSignal | undefined;
   needsAuthorization(sessionId: string): boolean;
   authorizationScope(sessionId?: string): string;
+  approvalScope(sessionId: string): string;
   markAuthorized(sessionId: string, scope?: string): boolean;
   reconcileBot(slug: string): Promise<void>;
 }
@@ -40,7 +44,7 @@ async function setup(
   autoAllowActions = true,
   target: BrowserConfig['target'] = 'local',
 ) {
-  vi.stubEnv('DSH_HOME', '');
+  vi.stubEnv('DSH_HOME', mkdtempSync(join(tmpdir(), 'browser-host-test-')));
   const ctx = new Context();
   contexts.push(ctx);
   const profiles = new Map([
@@ -55,32 +59,39 @@ async function setup(
     | undefined;
   const opened: { slug: string; profile: string; reuse: string | undefined }[] = [];
   const captureScreenshot = vi.fn(async () => ({ mimeType: 'image/png', data: 'frame' }));
+  const openWindow = vi.fn(async (slug: string) => ({
+    tabId: `${slug}-default`,
+    url: 'about:blank',
+    title: 'Work',
+  }));
   const stopAll = vi.fn(async () => undefined);
   const stop = vi.fn(async (_slug: string) => undefined);
   const closeIdle = vi.fn(async () => undefined);
   const ensureFailure: { error?: unknown } = {};
+  const runtimeFor = (slug: string) => ({
+    ensure: async () => {
+      if ('error' in ensureFailure) throw ensureFailure.error;
+    },
+    open: async (url: string, reuse: string | undefined) => {
+      const profile = profiles.get(slug) ?? '';
+      opened.push({ slug, profile, reuse });
+      return { tabId: `${slug}-${profile || 'default'}`, url, title: 'Work' };
+    },
+    click: async (tabId: string) => ({ tabId, url: 'https://example.com', title: 'Work' }),
+    clickAt: async (tabId: string) => ({ tabId, url: 'https://example.com', title: 'Work' }),
+    openWindow: () => openWindow(slug),
+    listTabs: async () =>
+      [...profiles].map(([owner, profile]) => ({
+        targetId: `${owner}-${profile || 'default'}`,
+        url: 'https://example.com',
+        title: 'Work',
+      })),
+    isRunning: () => true,
+    captureScreenshot,
+  });
+  const runtimes = new Map([...profiles.keys()].map((slug) => [slug, runtimeFor(slug)]));
   mocks.runtimes.mockReturnValue({
-    for: (slug: string) => ({
-      ensure: async () => {
-        if ('error' in ensureFailure) throw ensureFailure.error;
-      },
-      open: async (url: string, reuse: string | undefined) => {
-        const profile = profiles.get(slug) ?? '';
-        opened.push({ slug, profile, reuse });
-        return { tabId: `${slug}-${profile || 'default'}`, url, title: 'Work' };
-      },
-      click: async (tabId: string) => ({ tabId, url: 'https://example.com', title: 'Work' }),
-      clickAt: async (tabId: string) => ({ tabId, url: 'https://example.com', title: 'Work' }),
-      openWindow: async () => ({ tabId: `${slug}-default`, url: 'about:blank', title: 'Work' }),
-      listTabs: async () =>
-        [...profiles].map(([owner, profile]) => ({
-          targetId: `${owner}-${profile || 'default'}`,
-          url: 'https://example.com',
-          title: 'Work',
-        })),
-      isRunning: () => true,
-      captureScreenshot,
-    }),
+    for: (slug: string) => runtimes.get(slug),
     profileOf: (slug: string) => profiles.get(slug) ?? '',
     installProgress: () => undefined,
     touch: () => undefined,
@@ -157,11 +168,52 @@ async function setup(
     stop,
     closeIdle,
     captureScreenshot,
+    openWindow,
     ensureFailure,
   };
 }
 
 describe('published Browser Host service', () => {
+  it('binds standing approvals to the selected Browser Profile across Sessions', async () => {
+    const h = await setup();
+    const original = h.service.approvalScope('bot-a');
+    expect(h.service.approvalScope('bot-b')).toBe(original);
+    h.profiles.set('bot-a', 'different-profile');
+    expect(h.service.approvalScope('bot-a')).not.toBe(original);
+    expect(h.service.approvalScope('bot-b')).toBe(original);
+  });
+
+  it('does not publish the local viewer while the Human window has no owned current tab', async () => {
+    const h = await setup();
+    let finish!: () => void;
+    h.openWindow.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      return { tabId: 'bot-a-default', url: 'about:blank', title: 'Work' };
+    });
+    const opening = h.routes.get('/api/browser/open')!.fetch(
+      new Request('http://localhost/api/browser/open', {
+        method: 'POST',
+        body: JSON.stringify({ slug: 'bot-a' }),
+      }),
+    );
+    await vi.waitFor(() => expect(h.openWindow).toHaveBeenCalledOnce());
+    const pending = await h.observation('bot-a');
+    const prematureFrame = await h.routes
+      .get('/api/browser/frame')!
+      .fetch(new Request('http://localhost/api/browser/frame?slug=bot-a'));
+    expect(prematureFrame.status).toBe(404);
+    expect(await prematureFrame.json()).toEqual({ ok: false, error: 'no browser tab' });
+    finish();
+    expect((await opening).status).toBe(200);
+    expect(await h.observation('bot-a')).toMatchObject({
+      focused: 'bot-a-default',
+      viewerUrl: '/botharness-browser/viewer/local/?slug=bot-a',
+    });
+    expect(pending).toMatchObject({ running: true, focused: null, viewerUrl: null });
+  });
+
   it('serves the live frame and paused Human input to native viewers through Host routes', async () => {
     const h = await setup();
     await h.open('bot-a');

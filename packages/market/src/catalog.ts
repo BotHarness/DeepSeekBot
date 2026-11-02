@@ -1,7 +1,15 @@
 import type { D1Database } from './d1.js';
 import { BOT_TOPIC, parseRepositoryUrl, type GitHubClient } from './github.js';
+import {
+  localizedPresentation,
+  localizedReadme,
+  readmeLanguages,
+  type MarketplaceLanguage,
+} from './localization.js';
 import { prepareReadme } from './readme.js';
 import { createRepositoryStore, isEligible, type RepositoryRow } from './repositories.js';
+import { summarizeFiles, type FileSummary } from './upload-files.js';
+import type { UploadedFile } from './uploads.js';
 
 export interface MarketplaceEntry {
   id: string;
@@ -12,15 +20,29 @@ export interface MarketplaceEntry {
   tags: string[];
   roles: string[];
   bio: string | null;
+  bioGenerated: boolean;
   banner: MarketplaceBanner | null;
+  avatar: MarketplaceAvatar | null;
   description: string | null;
   topics: string[];
   stars: number;
+  installs: number;
   pushedAt: string;
+  createdAt: string;
   htmlUrl: string;
   cloneUrl: string;
   defaultBranch: string;
   headCommit: { sha: string; committedAt: string } | null;
+  source: MarketplaceSource;
+  author: MarketplaceAuthor | null;
+}
+
+export type MarketplaceSource = 'github' | 'upload';
+
+export interface MarketplaceAuthor {
+  name: string;
+  id: string;
+  avatar: string | null;
 }
 
 export type MarketplaceBanner = { recipe: { scene: string; seed: number } } | { image: string };
@@ -36,6 +58,22 @@ function parseBanner(value: string | null): MarketplaceBanner | null {
       typeof recipe['seed'] === 'number'
     ) {
       return { recipe: { scene: recipe['scene'], seed: recipe['seed'] } };
+    }
+    return typeof parsed['image'] === 'string' ? { image: parsed['image'] } : null;
+  } catch {
+    return null;
+  }
+}
+
+export type MarketplaceAvatar = { recipe: Record<string, unknown> } | { image: string };
+
+function parseAvatar(value: string | null): MarketplaceAvatar | null {
+  if (value === null) return null;
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    const recipe = parsed['recipe'];
+    if (typeof recipe === 'object' && recipe !== null && !Array.isArray(recipe)) {
+      return { recipe: recipe as Record<string, unknown> };
     }
     return typeof parsed['image'] === 'string' ? { image: parsed['image'] } : null;
   } catch {
@@ -75,23 +113,28 @@ function stringList(value: string): string[] {
   }
 }
 
-function entryFromRow(row: RepositoryRow): MarketplaceEntry {
+export function entryFromRow(row: RepositoryRow, language?: MarketplaceLanguage): MarketplaceEntry {
   const topics = stringList(row.topics).filter((topic) => topic !== BOT_TOPIC);
   const tags = stringList(row.roles);
+  const presentation = localizedPresentation(row, language);
   return {
     id: row.node_id,
     owner: row.owner,
     name: row.name,
     fullName: `${row.owner}/${row.name}`,
-    displayName: row.display_name,
+    displayName: presentation.displayName,
     tags,
     roles: tags,
-    bio: row.bio ?? row.description,
+    bio: presentation.bio,
+    bioGenerated: presentation.bioGenerated,
     banner: parseBanner(row.banner),
+    avatar: parseAvatar(row.avatar),
     description: row.description,
     topics,
     stars: row.stars,
+    installs: row.installs,
     pushedAt: row.pushed_at,
+    createdAt: row.created_at,
     htmlUrl: row.html_url,
     cloneUrl: row.clone_url,
     defaultBranch: row.default_branch,
@@ -99,17 +142,23 @@ function entryFromRow(row: RepositoryRow): MarketplaceEntry {
       row.head_sha !== null && row.head_committed_at !== null
         ? { sha: row.head_sha, committedAt: row.head_committed_at }
         : null,
+    source: row.source,
+    author:
+      row.source === 'upload' && row.author_id !== null
+        ? { name: row.owner, id: row.author_id, avatar: row.author_avatar ?? null }
+        : null,
   };
 }
 
-export type BrowseSort = 'updated' | 'stars';
+export type BrowseSort = 'updated' | 'created' | 'stars';
 
 export const SEARCH_RESULT_LIMIT = 200;
 export const MAX_QUERY_LENGTH = 100;
 
 export type Cursor =
   | { mode: 'updated'; key: string; nodeId: string }
-  | { mode: 'stars'; key: number; nodeId: string }
+  | { mode: 'created'; key: string; nodeId: string }
+  | { mode: 'stars'; key: number; pushedAt: string; createdAt: string; nodeId: string }
   | { mode: 'search'; offset: number };
 
 export function encodeCursor(cursor: Cursor): string {
@@ -117,7 +166,9 @@ export function encodeCursor(cursor: Cursor): string {
     JSON.stringify(
       cursor.mode === 'search'
         ? [cursor.mode, cursor.offset]
-        : [cursor.mode, cursor.key, cursor.nodeId],
+        : cursor.mode === 'stars'
+          ? [cursor.mode, cursor.key, cursor.pushedAt, cursor.createdAt, cursor.nodeId]
+          : [cursor.mode, cursor.key, cursor.nodeId],
     ),
   );
 }
@@ -130,6 +181,21 @@ export function decodeCursor(cursor: string): Cursor | undefined {
     return undefined;
   }
   if (!Array.isArray(parsed)) return undefined;
+  if (parsed[0] === 'stars') {
+    const [mode, key, pushedAt, createdAt, nodeId] = parsed as unknown[];
+    if (
+      parsed.length === 5 &&
+      mode === 'stars' &&
+      typeof key === 'number' &&
+      Number.isSafeInteger(key) &&
+      key >= 0 &&
+      typeof pushedAt === 'string' &&
+      typeof createdAt === 'string' &&
+      typeof nodeId === 'string'
+    )
+      return { mode, key, pushedAt, createdAt, nodeId };
+    return undefined;
+  }
   const [mode, key, nodeId] = parsed as unknown[];
   if (
     mode === 'search' &&
@@ -140,8 +206,9 @@ export function decodeCursor(cursor: string): Cursor | undefined {
     return { mode, offset: key as number };
   }
   if (parsed.length !== 3 || typeof nodeId !== 'string') return undefined;
-  if (mode === 'updated' && typeof key === 'string') return { mode, key, nodeId };
-  if (mode === 'stars' && Number.isSafeInteger(key)) return { mode, key: key as number, nodeId };
+  if ((mode === 'updated' || mode === 'created') && typeof key === 'string') {
+    return { mode, key, nodeId };
+  }
   return undefined;
 }
 
@@ -151,6 +218,8 @@ export interface ListOptions {
   sort?: BrowseSort;
   query?: string;
   topic?: string;
+  language?: MarketplaceLanguage;
+  includeUploads?: boolean;
 }
 
 export interface TopicCount {
@@ -165,12 +234,24 @@ function ftsQuery(terms: readonly string[]): string {
 export interface MarketplaceDetail {
   bot: MarketplaceEntry;
   readme: string | null;
+  readmeLanguage: MarketplaceLanguage | null;
+  readmeLanguages: MarketplaceLanguage[];
   commitSha: string | null;
+  files?: UploadedFile[];
+  fileSummary?: FileSummary;
+}
+
+export interface AuthoredBot {
+  bot: MarketplaceEntry;
+  files: number;
+  bytes: number;
+  blocked: boolean;
 }
 
 export interface Catalog {
   submit(url: string): Promise<SubmissionResult>;
-  detail(id: string): Promise<MarketplaceDetail | undefined>;
+  authored(account: string, language?: MarketplaceLanguage): Promise<AuthoredBot[]>;
+  detail(id: string, language?: MarketplaceLanguage): Promise<MarketplaceDetail | undefined>;
   list(options: ListOptions): Promise<MarketplacePage | undefined>;
   topics(): Promise<TopicCount[]>;
 }
@@ -179,10 +260,16 @@ export function createCatalog(deps: {
   db: D1Database;
   github: GitHubClient;
   now: () => Date;
+  uploadedFiles?: (id: string) => Promise<UploadedFile[]>;
 }): Catalog {
   const { db, github } = deps;
 
   const store = createRepositoryStore(deps);
+
+  const uploadedFiles = async (id: string) => {
+    const files = (await deps.uploadedFiles?.(id)) ?? [];
+    return { files, fileSummary: summarizeFiles(files) };
+  };
 
   return {
     async submit(url) {
@@ -221,6 +308,7 @@ export function createCatalog(deps: {
 
     async list(options) {
       const limit = Math.min(Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+      const toEntry = (row: RepositoryRow) => entryFromRow(row, options.language);
       const sort = options.sort ?? 'updated';
       const query = options.query?.trim() ?? '';
       const cursor = options.cursor === undefined ? undefined : decodeCursor(options.cursor);
@@ -231,6 +319,7 @@ export function createCatalog(deps: {
           : ` AND (EXISTS (SELECT 1 FROM json_each(r.topics) WHERE value = ?)
                    OR EXISTS (SELECT 1 FROM json_each(r.roles) WHERE value = ?))`;
       const topicValues = options.topic === undefined ? [] : [options.topic, options.topic];
+      const sourceClause = options.includeUploads === true ? '' : " AND r.source = 'github'";
 
       if (query.length > 0) {
         if (cursor !== undefined && cursor.mode !== 'search') return undefined;
@@ -243,18 +332,18 @@ export function createCatalog(deps: {
               .prepare(
                 `SELECT r.* FROM indexed_repositories_fts f
                  JOIN indexed_repositories r ON r.rowid = f.rowid
-                 WHERE indexed_repositories_fts MATCH ? AND r.visibility = 'listed'${topicClause}
-                 ORDER BY bm25(indexed_repositories_fts, 10.0, 4.0, 4.0, 1.0, 4.0), r.node_id
+                 WHERE indexed_repositories_fts MATCH ? AND r.visibility = 'listed'${sourceClause}${topicClause}
+                 ORDER BY bm25(indexed_repositories_fts, 10.0, 4.0, 4.0, 1.0, 4.0, 2.0), r.node_id
                  LIMIT ? OFFSET ?`,
               )
               .bind(ftsQuery(terms), ...topicValues, take + 1, offset)
           : db
               .prepare(
                 `SELECT r.* FROM indexed_repositories r
-                 WHERE r.visibility = 'listed'${terms
+                 WHERE r.visibility = 'listed'${sourceClause}${terms
                    .map(
                      () =>
-                       " AND instr(lower(r.name || ' ' || coalesce(r.description, '') || ' ' || r.topics || ' ' || r.roles || ' ' || coalesce(r.readme, '')), lower(?)) > 0",
+                       " AND instr(lower(r.name || ' ' || coalesce(r.description, '') || ' ' || r.topics || ' ' || r.roles || ' ' || coalesce(r.readme, '') || ' ' || coalesce(r.search_text, '')), lower(?)) > 0",
                    )
                    .join('')}${topicClause}
                  ORDER BY r.stars DESC, r.node_id DESC
@@ -262,7 +351,7 @@ export function createCatalog(deps: {
               )
               .bind(...terms, ...topicValues, take + 1, offset);
         const { results } = await statement.all<RepositoryRow>();
-        const bots = results.slice(0, take).map(entryFromRow);
+        const bots = results.slice(0, take).map(toEntry);
         const next = offset + take;
         return results.length > take && next < SEARCH_RESULT_LIMIT
           ? { bots, nextCursor: encodeCursor({ mode: 'search', offset: next }) }
@@ -270,43 +359,97 @@ export function createCatalog(deps: {
       }
 
       if (cursor !== undefined && cursor.mode !== sort) return undefined;
-      const column = sort === 'stars' ? 'r.stars' : 'r.pushed_at';
+      const column =
+        sort === 'stars' ? 'r.stars' : sort === 'created' ? 'r.created_at' : 'r.pushed_at';
       const after =
-        cursor === undefined ? '' : ` AND (${column} < ? OR (${column} = ? AND r.node_id < ?))`;
-      const afterValues = cursor === undefined ? [] : [cursor.key, cursor.key, cursor.nodeId];
+        cursor === undefined
+          ? ''
+          : cursor.mode === 'stars'
+            ? ' AND (r.stars, r.pushed_at, r.created_at, r.node_id) < (?, ?, ?, ?)'
+            : ` AND (${column} < ? OR (${column} = ? AND r.node_id < ?))`;
+      const afterValues =
+        cursor === undefined
+          ? []
+          : cursor.mode === 'stars'
+            ? [cursor.key, cursor.pushedAt, cursor.createdAt, cursor.nodeId]
+            : [cursor.key, cursor.key, cursor.nodeId];
+      const order =
+        sort === 'stars'
+          ? 'r.stars DESC, r.pushed_at DESC, r.created_at DESC, r.node_id DESC'
+          : `${column} DESC, r.node_id DESC`;
       const { results } = await db
         .prepare(
           `SELECT r.* FROM indexed_repositories r
-           WHERE r.visibility = 'listed'${topicClause}${after}
-           ORDER BY ${column} DESC, r.node_id DESC
+           WHERE r.visibility = 'listed'${sourceClause}${topicClause}${after}
+           ORDER BY ${order}
            LIMIT ?`,
         )
         .bind(...topicValues, ...afterValues, limit + 1)
         .all<RepositoryRow>();
       const page = results.slice(0, limit);
       const last = page.at(-1);
-      if (results.length <= limit || last === undefined) return { bots: page.map(entryFromRow) };
+      if (results.length <= limit || last === undefined) return { bots: page.map(toEntry) };
       return {
-        bots: page.map(entryFromRow),
+        bots: page.map(toEntry),
         nextCursor: encodeCursor(
           sort === 'stars'
-            ? { mode: 'stars', key: last.stars, nodeId: last.node_id }
-            : { mode: 'updated', key: last.pushed_at, nodeId: last.node_id },
+            ? {
+                mode: 'stars',
+                key: last.stars,
+                pushedAt: last.pushed_at,
+                createdAt: last.created_at,
+                nodeId: last.node_id,
+              }
+            : sort === 'created'
+              ? { mode: 'created', key: last.created_at, nodeId: last.node_id }
+              : { mode: 'updated', key: last.pushed_at, nodeId: last.node_id },
         ),
       };
     },
 
-    async detail(id) {
+    async authored(account, language) {
+      const { results } = await db
+        .prepare(
+          `SELECT r.*,
+             (SELECT count(*) FROM uploaded_files f
+              WHERE f.bot_id = COALESCE(r.files_id, r.node_id) AND f.stored = 1) AS file_count,
+             (SELECT COALESCE(sum(f.size), 0) FROM uploaded_files f
+              WHERE f.bot_id = COALESCE(r.files_id, r.node_id) AND f.stored = 1) AS file_bytes
+           FROM indexed_repositories r
+           WHERE r.author_account = ? AND r.source = 'upload'
+           ORDER BY r.pushed_at DESC, r.node_id DESC`,
+        )
+        .bind(account)
+        .all<RepositoryRow & { file_count: number; file_bytes: number }>();
+      return results.map((row) => ({
+        bot: entryFromRow(row, language),
+        files: row.file_count,
+        bytes: row.file_bytes,
+        blocked: row.visibility !== 'listed',
+      }));
+    },
+
+    async detail(id, language) {
       const row = await store.find(id);
       if (row === null || row.visibility !== 'listed') return undefined;
       const ref = row.head_sha ?? row.default_branch;
+      const readme = localizedReadme(row, language);
+      const uploaded = row.source === 'upload';
       return {
-        bot: entryFromRow(row),
+        bot: entryFromRow(row, language),
         readme:
-          row.readme === null
+          readme.markdown === null
             ? null
-            : prepareReadme(row.readme, { owner: row.owner, name: row.name, ref }),
+            : prepareReadme(readme.markdown, {
+                owner: row.owner,
+                name: row.name,
+                ref,
+                ...(uploaded ? { filesBase: `${row.html_url}/files` } : {}),
+              }),
+        readmeLanguage: readme.language,
+        readmeLanguages: readmeLanguages(row),
         commitSha: row.head_sha,
+        ...(uploaded ? await uploadedFiles(row.node_id) : {}),
       };
     },
 

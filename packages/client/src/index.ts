@@ -1,6 +1,7 @@
 import type { Context, Volatile } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-settings';
 import Schema from '@deepseek-ai/schemastery';
+import { stampReleaseComponent } from '../../core/src/release/component.js';
 
 import {
   BOT_MODE_ICONS,
@@ -24,6 +25,7 @@ import {
 } from './bot-mode-settings.js';
 
 export const name = 'botharness-client';
+stampReleaseComponent(apply, import.meta.url);
 
 export interface Config {
   assignmentConcurrencyLimit: Volatile<number>;
@@ -34,6 +36,9 @@ export interface Config {
   botIcon: Volatile<BotModeIcon>;
   motionPreference: Volatile<BotModeMotionPreference>;
   sendKey: Volatile<BotModeSendKey>;
+  autoCollapseMessages: Volatile<boolean>;
+  showDeliveryReceipts: Volatile<boolean>;
+  streamReplies: Volatile<boolean>;
   sortMode: Volatile<BotModeSortMode>;
   sortModes: Volatile<Record<string, BotModeSortMode>>;
 }
@@ -47,6 +52,9 @@ export const Config: Schema<Partial<BotModeSettings>, Config> = Schema.object({
     .volatile(),
   autoAcceptGroupInvites: Schema.boolean().default(DEFAULT_BOT_MODE_GROUP_AUTO_ACCEPT).volatile(),
   developerMode: Schema.boolean().default(DEFAULT_BOT_MODE_DEVELOPER).volatile(),
+  autoCollapseMessages: Schema.boolean().default(false).volatile(),
+  showDeliveryReceipts: Schema.boolean().default(false).volatile(),
+  streamReplies: Schema.boolean().default(false).volatile(),
   showBotSessions: Schema.boolean().default(DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS).volatile(),
   showApprovalReviewSessions: Schema.boolean()
     .default(DEFAULT_BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS)

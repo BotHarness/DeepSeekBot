@@ -224,14 +224,14 @@ if (mode === '--serve') {
           account +
           '，点击 Sign in；再 browser_observe 确认 Signed in as: ' +
           account +
-          '，channel_send 回复实际结果。这只是本地合成登录，无真实凭据。',
+          '，bot_send_message 回复实际结果。这只是本地合成登录，无真实凭据。',
       );
       for (const name of [
         'browser_open',
         'browser_observe',
         'browser_type',
         'browser_click',
-        'channel_send',
+        'bot_send_message',
       ])
         successful(rows, name);
       observed(rows, 'Signed in as: none');
@@ -265,7 +265,7 @@ if (mode === '--serve') {
         'browser_observe',
         'browser_type',
         'browser_click',
-        'channel_send',
+        'bot_send_message',
       ])
         successful(rows, name);
       observed(rows, 'Signed in as: none');
@@ -284,9 +284,9 @@ if (mode === '--serve') {
         bots.c,
         '本地共享 profile QA：browser_open 打开 ' +
           fixture +
-          '/account；browser_observe 确认 Signed in as: shared，channel_send 回复结果。不要点击或输入；不要重新登录。',
+          '/account；browser_observe 确认 Signed in as: shared，bot_send_message 回复结果。不要点击或输入；不要重新登录。',
       );
-      for (const name of ['browser_open', 'browser_observe', 'channel_send'])
+      for (const name of ['browser_open', 'browser_observe', 'bot_send_message'])
         successful(rows, name);
       assert.equal(
         rows.some(
@@ -335,14 +335,14 @@ if (mode === '--serve') {
             (key === 'a' ? 'work' : 'shared') +
             '；输入 Task token 为 ' +
             key.toUpperCase() +
-            '-PARALLEL；点击 Complete parallel task；两个页面各自计数一次，只有两边都提交服务器才返回；观察 Completed: 1（每页不会变成 2），必要时重复 browser_observe；channel_send 回复实际账号和完成结果。不要切换 profile。';
+            '-PARALLEL；点击 Complete parallel task；两个页面各自计数一次，只有两边都提交服务器才返回；观察 Completed: 1（每页不会变成 2），必要时重复 browser_observe；bot_send_message 回复实际账号和完成结果。不要切换 profile。';
           const rows = await model(bots[key], body);
           for (const name of [
             'browser_tabs',
             'browser_observe',
             'browser_type',
             'browser_click',
-            'channel_send',
+            'bot_send_message',
           ])
             successful(rows, name);
           observed(rows, 'Completed: 1');
@@ -371,10 +371,10 @@ if (mode === '--serve') {
       assert.equal(state.phase, 'parallel');
       const rows = await model(
         bots.b,
-        '澄清本地夹具：A 与 B 页面各自计数一次，服务器收到两边提交才返回，所以每页 Completed: 1 已证明双侧任务完成，不会变成 2。请 browser_observe 复核当前 B 页面 Signed in as: shared 和 Completed: 1，channel_send 简短回复实际结果；不要点击或输入。',
+        '澄清本地夹具：A 与 B 页面各自计数一次，服务器收到两边提交才返回，所以每页 Completed: 1 已证明双侧任务完成，不会变成 2。请 browser_observe 复核当前 B 页面 Signed in as: shared 和 Completed: 1，bot_send_message 简短回复实际结果；不要点击或输入。',
       );
       successful(rows, 'browser_observe');
-      successful(rows, 'channel_send');
+      successful(rows, 'bot_send_message');
       observed(rows, 'Completed: 1');
       assert.equal((await server()).receipts.length, 2);
       save(state);
@@ -418,9 +418,9 @@ if (mode === '--serve') {
         bots.a,
         '本地 profile 重启 QA：browser_open 打开 ' +
           fixture +
-          '/account，browser_observe 确认 Signed in as: work；channel_send 回复实际结果。不要重新登录，不要点击或输入。',
+          '/account，browser_observe 确认 Signed in as: work；bot_send_message 回复实际结果。不要重新登录，不要点击或输入。',
       );
-      for (const name of ['browser_open', 'browser_observe', 'channel_send'])
+      for (const name of ['browser_open', 'browser_observe', 'bot_send_message'])
         successful(rows, name);
       observed(rows, 'Signed in as: work');
       assert.equal((await server()).logins.length, 2);

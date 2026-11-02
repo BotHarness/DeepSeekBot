@@ -24,6 +24,7 @@ interface DraftRun {
   channelId: string;
   botSlug: string;
   canAccess(channelId: string): boolean;
+  replyChannel?(sourceEventId: string): string | undefined;
   currentAttemptId: string | undefined;
   attempts: Map<string, DraftAttempt>;
 }
@@ -111,7 +112,10 @@ export class ChannelDraftTracker {
     this.#publish = publish;
   }
 
-  begin(sessionId: string, input: Pick<DraftRun, 'channelId' | 'botSlug' | 'canAccess'>): void {
+  begin(
+    sessionId: string,
+    input: Pick<DraftRun, 'channelId' | 'botSlug' | 'canAccess' | 'replyChannel'>,
+  ): void {
     this.end(sessionId);
     this.#runs.set(sessionId, { ...input, currentAttemptId: undefined, attempts: new Map() });
   }
@@ -146,7 +150,7 @@ export class ChannelDraftTracker {
     attempt.nextIndex += 1;
     attempt.assembler.push(frame.chunk);
     for (const block of attempt.assembler.blocks()) {
-      if (block.type !== 'tool-call' || block.name !== 'channel_send') continue;
+      if (block.type !== 'tool-call' || block.name !== 'bot_send_message') continue;
       this.#acceptCall(run, attempt, frame.attemptId, block.id, block.arguments);
     }
   }
@@ -181,6 +185,18 @@ export class ChannelDraftTracker {
     match.attempt.calls.delete(match.draftId);
   }
 
+  discard(sessionId: string, channelId: string): void {
+    const run = this.#runs.get(sessionId);
+    if (!run) return;
+    for (const [attemptId, attempt] of run.attempts) {
+      for (const [draftId, call] of attempt.calls) {
+        if (call.published?.channelId !== channelId) continue;
+        this.#publish({ type: 'abandoned', channelId, draftId, attemptId, reason: 'interrupted' });
+        attempt.calls.delete(draftId);
+      }
+    }
+  }
+
   end(sessionId: string): void {
     const run = this.#runs.get(sessionId);
     if (run === undefined) return;
@@ -210,7 +226,12 @@ export class ChannelDraftTracker {
     }
     const body = partialBody(args);
     if (body === undefined || body.length === 0) return;
-    const channelId = explicitChannelId(args) ?? run.channelId;
+    const source = stringField(args, 'source_event_id');
+    const channelId = source?.complete ? run.replyChannel?.(source.value) : explicitChannelId(args);
+    if (channelId === undefined) {
+      this.#abandonCall(call, 'retargeted');
+      return;
+    }
     if (!run.canAccess(channelId)) {
       this.#abandonCall(call, 'retargeted');
       return;

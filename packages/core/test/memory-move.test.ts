@@ -9,7 +9,7 @@ import { inspectMemoryRepository } from '../src/memory/repository.js';
 import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
 
-async function fixture(options: { refuseArchive?: boolean } = {}) {
+async function fixture(options: { refuseArchive?: boolean; unsaved?: boolean } = {}) {
   const home = createTempRoot('botharness-memory-move-');
   const archived = new Set<string>();
   const calls: string[] = [];
@@ -36,6 +36,11 @@ async function fixture(options: { refuseArchive?: boolean } = {}) {
     sessionArchive: () => ({
       async archiveSession(id) {
         calls.push(`archive:${id}`);
+        if (options.unsaved === true) {
+          const error = new Error(`cannot archive session '${id}': no such session`);
+          error.name = 'WorkspaceUnknownSessionError';
+          throw error;
+        }
         if (options.refuseArchive === true) {
           const error = new Error('running');
           error.name = 'WorkspaceActiveSessionError';
@@ -211,6 +216,26 @@ describe('Memory move', () => {
       expect(inspectMemoryRepository({ memoryDir: before }).state).toBe('ready');
       expect(existsSync(join(location, 'ada'))).toBe(false);
       expect(f.calls).toEqual([`archive:${first}`, `release:${first}`, `unarchive:${first}`]);
+    } finally {
+      await f.close();
+    }
+  });
+
+  it('moves Memory when the main session was claimed but never saved', async () => {
+    const f = await fixture({ unsaved: true });
+    try {
+      await f.send();
+      const first = f.runs[0]!.sessionId;
+      const location = createTempRoot('botharness-memory-move-target-');
+      await expect(f.methods.memoryMove({ slug: 'ada', location })).resolves.toEqual({
+        ok: true,
+        value: { memoryDir: join(location, 'ada'), moved: true },
+      });
+      await f.send();
+      expect(f.runs[1]!.sessionId).not.toBe(first);
+      expect(f.core.ownership.resolve(f.runs[1]!.sessionId)?.cwdReference).toBe(
+        join(location, 'ada'),
+      );
     } finally {
       await f.close();
     }

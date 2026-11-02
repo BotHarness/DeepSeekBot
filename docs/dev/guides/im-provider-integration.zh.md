@@ -136,7 +136,7 @@ Slack 公开频道 QA App 的 Bot scopes 为 `app_mentions:read`、`chat:write`�
 
 真实频道及已有公开 thread 的 @ 消息已贯通一条 canonical Source Event／Inbox Admission、既有 Orchestrator 模型和一条独立原生读回的本身份原位置回复。后续有界检查覆盖身份暂停／恢复、Grant 撤销、真实 Provider Service 丢失／恢复、独占 consumer 冲突、来源编辑，以及发送中的身份／Grant／Provider 丢失。恢复后的新频道和原 thread 模型回复均通过；旧中断请求没有自动重发。Provider 在发送中丢失仍保留 `unknown-outcome`，不能因原生读回未见回复就改称确定未发送。
 
-Human 后续明确要求代理直接完成 E2E 验收，取消本人操作与人工 QA 等待条件。代理通过既有 Profile 界面解绑并重新绑定同一已认证账号、授权同一目标、开启仅 @ 收件。随后在真实 Discord 输入框发送的新频道与已有 thread 提及，各产生一次 canonical Admission、一次模型 `bridge_reply` Intent 和一条独立原生读回的本 Bot 原位置回复。这是代理操作界面的验收，不声称 Human 亲自完成了设置。后续真实 Gateway 恢复在 `RESUMED` 前重发同一原生消息 ID，仍只有一次 Admission、一次模型 Intent 和一条原生回复。重连期间的一条真实提及没有补收；移除全部临时观察器并恢复原 Profile 后，新模型回复通过。原生 HTTP 401／404 与已注册 Service 的错误指纹拒绝也已检查，受控输入与完整模型／绑定路径明确区分。后续经授权删除一条真实来源，发现旧 Host 的适配器把确定的 `source-not-found` 误转为结果未知。本次修复保留 `source-not-found` 与 `reply-permission-denied` 的失败状态，旧未知请求保持原样。重启修复后的 Host 后，真实模型在发送权限不足时明确失败；精确恢复全部原权限后，一条新消息收到本 Bot 的原位置回复。修复后的原生 preflight 对实际已删除来源在发送前拒绝。Human 另行确认删除新准备的一条来源后，修复后的真实模型读取保留的原始历史并只回复一次：单个 Intent 明确失败为 `source-not-found`，无回执、无原生回复。随后一条新原生来源收到本 Bot 的原频道唯一回复。随后，两个经原生 API 检查的真实 App／Bot 身份对均连接成功；交叉账号指纹的 Host 绑定命令在 canonical 写入前以 `rebind-required` 拒绝。这验证身份对边界，不声称 Token 互换或分别修改 App／user 字段。Human 创建第二个 QA 服务器并安装原 QA Bot 后，原生检查确认成员身份和回复权限，但该服务器没有 BotHarness Grant：真实提及使已消费 Gateway 计数增加一次，全部 canonical 记录保持一致，原生回复为零。原频道的新模型回复随后通过；最终为 41 条 Admission／36 条 Intent，原授权和历史结果保持一致。Human 最新保存的 Boundary Token 有效；刷新同一账号原先存储的旧凭证后，两个 QA 连接恢复，授权未变。验证页分别记录此前 Host revision 与重新构建的修复后运行版本。
+Human 后续明确要求代理直接完成 E2E 验收，取消本人操作与人工 QA 等待条件。代理通过既有 Profile 界面解绑并重新绑定同一已认证账号、授权同一目标、开启仅 @ 收件。随后在真实 Discord 输入框发送的新频道与已有 thread 提及，各产生一次 canonical Admission、一次模型 `bot_send_message` Intent 和一条独立原生读回的本 Bot 原位置回复。这是代理操作界面的验收，不声称 Human 亲自完成了设置。后续真实 Gateway 恢复在 `RESUMED` 前重发同一原生消息 ID，仍只有一次 Admission、一次模型 Intent 和一条原生回复。重连期间的一条真实提及没有补收；移除全部临时观察器并恢复原 Profile 后，新模型回复通过。原生 HTTP 401／404 与已注册 Service 的错误指纹拒绝也已检查，受控输入与完整模型／绑定路径明确区分。后续经授权删除一条真实来源，发现旧 Host 的适配器把确定的 `source-not-found` 误转为结果未知。本次修复保留 `source-not-found` 与 `reply-permission-denied` 的失败状态，旧未知请求保持原样。重启修复后的 Host 后，真实模型在发送权限不足时明确失败；精确恢复全部原权限后，一条新消息收到本 Bot 的原位置回复。修复后的原生 preflight 对实际已删除来源在发送前拒绝。Human 另行确认删除新准备的一条来源后，修复后的真实模型读取保留的原始历史并只回复一次：单个 Intent 明确失败为 `source-not-found`，无回执、无原生回复。随后一条新原生来源收到本 Bot 的原频道唯一回复。随后，两个经原生 API 检查的真实 App／Bot 身份对均连接成功；交叉账号指纹的 Host 绑定命令在 canonical 写入前以 `rebind-required` 拒绝。这验证身份对边界，不声称 Token 互换或分别修改 App／user 字段。Human 创建第二个 QA 服务器并安装原 QA Bot 后，原生检查确认成员身份和回复权限，但该服务器没有 BotHarness Grant：真实提及使已消费 Gateway 计数增加一次，全部 canonical 记录保持一致，原生回复为零。原频道的新模型回复随后通过；最终为 41 条 Admission／36 条 Intent，原授权和历史结果保持一致。Human 最新保存的 Boundary Token 有效；刷新同一账号原先存储的旧凭证后，两个 QA 连接恢复，授权未变。验证页分别记录此前 Host revision 与重新构建的修复后运行版本。
 
 见[当前验证范围及历史首片检查点](../verification/discord-855-mention-reply.md)和 [#876 的成对 UI 证据](../../evidence/issue-855-messaging-refresh/README.md)。[ADR-0128](../../adr/0128-discord-checked-replies-preserve-native-child-channel-routing.md) 记录父会话／原生子频道映射。已验证的产品 Provider 和 Discord 其他能力表行保持不变。
 
@@ -144,9 +144,9 @@ Human 后续明确要求代理直接完成 E2E 验收，取消本人操作与人
 
 ## 仅在外部发布报告与原话题追问
 
-Bot 显式调用 `bridge_post`，使用自己的已授权 Grant 和稳定 request ID。既有 Outbox 保存报告原文及真实回执；报告不会产生 Channel placement 或自己的 Inbox Admission。重启后仍可通过 `bridge_outbox` 查询。相同 request ID 不会重发已接受或结果不明的意图；结果不明时先核对，不能换 ID 自动重试。
+Bot 显式调用 `bot_send_message`，使用自己的明确授权 grant_id。既有 Outbox 保存报告原文及真实回执；报告不会产生 Channel placement 或自己的 Inbox Admission。重启后仍可通过 `bridge_outbox` 查询。查询已有 Outbox intent 不会重发已接受或结果不明的消息；结果不明时先核对，不能换 ID 自动重试。
 
-本次 Slack 切片使用既有 `chat:write`，向已加入的公开频道发送纯文本根消息。Provider 在一次不重试的请求前重新核对已认证 Bot 身份、独占 Consumer lease、公开频道成员资格及取消状态。回执使用 Slack 的 `channel` 与 `ts`；后续被收件的 Human 回复通过 `thread_ts`／root ID，在同一 Bot 身份、fingerprint 和频道范围内关联 Outbox 报告。不伪造 Lark 的 `parentId`。追问仍遵守连接器与唤醒策略，发报告不会自动跟进话题；Bot 显式调用 `bridge_reply` 时留在原生话题里。
+本次 Slack 切片使用既有 `chat:write`，向已加入的公开频道发送纯文本根消息。Provider 在一次不重试的请求前重新核对已认证 Bot 身份、独占 Consumer lease、公开频道成员资格及取消状态。回执使用 Slack 的 `channel` 与 `ts`；后续被收件的 Human 回复通过 `thread_ts`／root ID，在同一 Bot 身份、fingerprint 和频道范围内关联 Outbox 报告。不伪造 Lark 的 `parentId`。追问仍遵守连接器与唤醒策略，发报告不会自动跟进话题；Bot 显式调用 `bot_send_message` 时留在原生话题里。
 
 这项验证没有增加晨报调度器、DM／私密频道发送、富文本 blocks 或自己发言的 echo 补全。自己的 Socket 消息仍不进入收件。固定 fork 的可选契约不依赖上游合并；通用 checked 回执扩展可在此切片审查后贡献上游。
 
@@ -174,7 +174,7 @@ Bot 显式调用 `bridge_post`，使用自己的已授权 Grant 和稳定 reques
 
 微信 #905 候选增加默认关闭的 `source-voice-transcript-checked` 能力和 `sourceVoiceTranscripts` Consumer 选项。单个已完成的原生语音项沿用现有 Source Event 和 Inbox；Provider 必须保留扫码者、账号指纹、原生消息 ID 与原私聊续接能力。`voice.transcript` 标记 `platform` 或 `unavailable`，可选原生语音项 ID 和时长作为来源信息保留。Client 和模型必须区分平台转写与 Bot 生成内容；同一来源的语音元数据发生变化属于冲突，不能覆盖已提交证据。
 
-原生 `voice_item.text` 可缺失。不得暗中用 ASR 补齐、从附带说明伪造转写、暴露媒体密钥，或在没有独立 checked 音频能力时提供播放器／下载。缺失转写必须明确呈现。未完成／生成中的消息及多项歧义消息不会由此候选收件。首次真实测试提供了平台转写和 7,377 毫秒时长，但沿用的 QA Session 保留上一轮不回复指令；该次仅证明收件，不能证明回复送达。新 QA Session 中的第二条原生语音提供 5,180 毫秒时长，真实 DeepSeek Flash 模型调用 `bridge_read` 与 `bridge_reply`，自身身份 Outbox 被平台接受，Human 确认在原微信私聊收到“蓝色灯塔37”。浅色／深色截图呈现同一来源。这证明 checked 平台转写路径，不是 BotHarness 自行识别音频。
+原生 `voice_item.text` 可缺失。不得暗中用 ASR 补齐、从附带说明伪造转写、暴露媒体密钥，或在没有独立 checked 音频能力时提供播放器／下载。缺失转写必须明确呈现。未完成／生成中的消息及多项歧义消息不会由此候选收件。首次真实测试提供了平台转写和 7,377 毫秒时长，但沿用的 QA Session 保留上一轮不回复指令；该次仅证明收件，不能证明回复送达。新 QA Session 中的第二条原生语音提供 5,180 毫秒时长，真实 DeepSeek Flash 模型调用 `bridge_read` 与 `bot_send_message`，自身身份 Outbox 被平台接受，Human 确认在原微信私聊收到“蓝色灯塔37”。浅色／深色截图呈现同一来源。这证明 checked 平台转写路径，不是 BotHarness 自行识别音频。
 
 ## 受检查的原生视频（#907）
 

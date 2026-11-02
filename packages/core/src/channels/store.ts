@@ -1,3 +1,11 @@
+import { isChannelNotice } from './channel-notice.js';
+import {
+  compareToolApprovalHistory,
+  toolApprovalHistoryEntry,
+  type ToolApprovalHistoryEntry,
+  type ToolApprovalHistoryPosition,
+} from './approval-history.js';
+import type { DatabaseSync } from 'node:sqlite';
 import { allBotPreview, assertAllBotPreview, type AllBotPreview } from './all-bot-mention.js';
 import type { AttachmentMigrationResult } from '../attachments/legacy-migration.js';
 import { projectAttachmentFiles } from '../attachments/message-files.js';
@@ -18,8 +26,10 @@ import {
 import { atomicWriteFile } from '../fs/atomic-write.js';
 import {
   botDmChannelId,
+  type RemoteBotParticipant,
   dmChannelId,
   groupChannelIdBase,
+  isBotDmChannel,
   isChannelMessage,
   isChannelRecord,
   isGroupAvatar,
@@ -68,10 +78,18 @@ export interface ChannelMessageOrigin {
   sourceEventId?: string;
 }
 
+export interface ChannelRequestProgress {
+  state: 'working' | 'completed' | 'failed' | 'unknown';
+  terminal: boolean;
+  updatedAt: string;
+}
+
 export interface ChannelSendStatus {
   sourceEventId: string;
   state: string;
+  progress: ChannelRequestProgress;
   replies: ChannelMessage[];
+  assignmentId?: string;
 }
 
 export interface ChannelMessageCommit {
@@ -112,6 +130,24 @@ export interface ChannelMessageQueryOptions {
 
 export interface ChannelMessageQueryPage {
   messages: ChannelMessage[];
+  nextCursor?: string;
+}
+
+export interface HumanMessageSearchRequest {
+  text: string;
+  limit: number;
+  cursor?: string;
+  excludeChannelIds?: readonly string[];
+}
+
+export interface HumanMessageSearchHit {
+  channelId: string;
+  message: ChannelMessage;
+  snippet: string;
+}
+
+export interface HumanMessageSearchPage {
+  hits: HumanMessageSearchHit[];
   nextCursor?: string;
 }
 
@@ -268,6 +304,7 @@ export function queryChannelMessages(
 }
 
 export interface CreateChannelGroupInput {
+  id?: string;
   name: string;
   members: string[];
   ownerBotSlug?: string;
@@ -295,6 +332,7 @@ export interface ChannelStore {
 
   referencedAttachmentHashes(): ReadonlySet<string>;
   migrateAttachments?(signal?: AbortSignal): Promise<AttachmentMigrationResult>;
+  projectMessageAttachments?(sourceEventId: string, message: ChannelMessage): ChannelMessage;
   attachmentReference?(
     channelId: string,
     messageId: string,
@@ -306,9 +344,17 @@ export interface ChannelStore {
     secondBotSlug: string,
     name: string,
   ): ChannelRecord | undefined;
+  remoteHostKey?(hostId: string): string | undefined;
+  trustRemoteHostKey?(
+    hostId: string,
+    key: string,
+    membership?: RemoteBotParticipant['membership'],
+  ): void;
+  getOrCreateRemoteBotDm(localBotSlug: string, remote: RemoteBotParticipant): ChannelRecord;
   createGroup(input: CreateChannelGroupInput): ChannelRecord;
 
   inviteGroupBot(input: {
+    invitationId?: string;
     channelId: string;
     inviterBotSlug?: string;
     inviterHuman?: true;
@@ -380,12 +426,13 @@ export interface ChannelStore {
   }): ChannelMessage | undefined;
   rename(id: string, name: string): ChannelRecord | undefined;
   previewAllBotMention(id: string): AllBotPreview;
+  grantRequestResolution?(channelId: string, requestMessageId: string): ChannelMessage | undefined;
   appendMessageOnce(
     id: string,
     message: ChannelMessage,
     preview?: AllBotPreview,
     origin?: ChannelMessageOrigin,
-    canCommit?: () => boolean,
+    canCommit?: (database?: DatabaseSync) => boolean,
   ): Promise<ChannelAppendOnceResult>;
   readPosition(id: string): ChannelReadPosition | undefined;
   markRead(id: string, messageId: string): Promise<ChannelReadPosition | undefined>;
@@ -413,6 +460,7 @@ export interface ChannelStore {
     id: string,
     options: Pick<ChannelMessageQueryOptions, 'text' | 'cursor' | 'limit'>,
   ): ChannelMessageQueryPage | undefined;
+  searchAllHumanMessages?(request: HumanMessageSearchRequest): HumanMessageSearchPage;
   readTimeline(id: string, request?: ChannelTimelineRequest): ChannelTimelinePage | undefined;
   readHumanTimeline(id: string, request?: ChannelTimelineRequest): ChannelTimelinePage | undefined;
   readHumanJournalPage(id: string, request: ChannelJournalRequest): ChannelJournalPage | undefined;
@@ -420,6 +468,7 @@ export interface ChannelStore {
   messagesAfter(id: string, revision: number): ChannelMessageCommit[] | undefined;
   admissionChanged?(channelId: string, messageId: string): void;
 
+  latestBotActivity?(): ReadonlyMap<string, number>;
   humanMessageCounts?(
     from: string,
     to: string,
@@ -429,6 +478,10 @@ export interface ChannelStore {
     count: number;
   }>;
   admissionActivity?(botSlug: string, sinceIso: string): Array<{ at: string; reason: string }>;
+  toolApprovalHistory?(
+    botSlug: string,
+    page: { after?: ToolApprovalHistoryPosition; limit: number },
+  ): ToolApprovalHistoryEntry[];
 }
 
 export interface ChannelOutputObservation {
@@ -768,6 +821,9 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       write(record);
       return record;
     },
+    getOrCreateRemoteBotDm() {
+      throw new Error('Remote Bot DMs require the operational database');
+    },
     getOrCreateBotDm(firstBotSlug, secondBotSlug, name) {
       if (
         !isValidSlug(firstBotSlug) ||
@@ -800,7 +856,9 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       return record;
     },
     createGroup(input) {
-      const id = nextGroupId(input.name);
+      const id = input.id ?? nextGroupId(input.name);
+      if (!isValidChannelId(id) || read(id) !== undefined)
+        throw new Error('Group Channel identity is unavailable');
       const name = input.name.trim();
       const timestamp = now().toISOString();
       const record: ChannelRecord = {
@@ -908,6 +966,11 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
         options.botDisplayName ?? (() => undefined),
       );
     },
+    grantRequestResolution(channelId, requestMessageId) {
+      return this.readMessages(channelId).find(
+        (message) => message.grantRequestResolution?.requestMessageId === requestMessageId,
+      );
+    },
     appendMessageOnce(id, message, preview, origin, canCommit) {
       return enqueue(id, () => {
         const record = read(id);
@@ -979,6 +1042,41 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
         .slice(Math.max(0, end - limit), end)
         .reverse()
         .map((message) => projectReply(message, byId));
+    },
+    latestBotActivity() {
+      const result = new Map<string, number>();
+      for (const channel of this.list()) {
+        if (isBotDmChannel(channel) || channel.deletedAt) continue;
+        for (const message of readValidMessages(channel.id)) {
+          if (message.author.kind !== 'bot' || isChannelNotice(message)) continue;
+          const at = Date.parse(message.at);
+          if (Number.isFinite(at))
+            result.set(message.author.slug, Math.max(result.get(message.author.slug) ?? 0, at));
+        }
+      }
+      return result;
+    },
+    toolApprovalHistory(botSlug, page) {
+      const entries: ToolApprovalHistoryEntry[] = [];
+      for (const channel of this.list()) {
+        if (channel.deletedAt) continue;
+        const messages = readValidMessages(channel.id);
+        const byId = new Map(messages.map((message) => [message.id, message]));
+        for (const message of messages) {
+          const requestId = message.toolApprovalDecision?.requestMessageId;
+          const request = requestId === undefined ? undefined : byId.get(requestId);
+          const entry =
+            request === undefined
+              ? undefined
+              : toolApprovalHistoryEntry(channel.id, message, request, botSlug);
+          if (
+            entry !== undefined &&
+            (page.after === undefined || compareToolApprovalHistory(page.after, entry) < 0)
+          )
+            entries.push(entry);
+        }
+      }
+      return entries.sort(compareToolApprovalHistory).slice(0, page.limit);
     },
     queryMessages(id, queryOptions) {
       const messages = readValidMessages(id);

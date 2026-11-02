@@ -1,6 +1,8 @@
-import { useCallback, useMemo, useState, type ReactElement } from 'react';
-import { buildCss, presetForState, resolveOptions } from '@botharness/botui-core';
+import { useMemo, useState, type ReactElement } from 'react';
 import { attentionCount } from './activity-attention.js';
+import { BotIcon } from './bot-icon.js';
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { useTobBot, useTobDefaultIcon } from './tob-presentation.js';
 
 import type {
   PersonaBotAttention,
@@ -42,6 +44,7 @@ export type PersonaBotActivityEffect =
 
 export interface PersonaBotAvatarProps {
   personaBotId: string;
+  preview?: boolean | undefined;
   name: string;
   size: number;
   src?: string | undefined;
@@ -245,39 +248,14 @@ function AvatarMedia({
   return <BlobatarMedia seed={personaBotId || name} />;
 }
 
-function BotUIActivityIndicator({ state }: { state: 'thinking' | 'working' }): ReactElement {
-  const mount = useCallback(
-    (element: HTMLSpanElement | null) => {
-      if (element === null) return;
-      const matrix = buildCss(
-        resolveOptions({
-          preset: presetForState(state),
-          renderer: 'css',
-          size: 12,
-          cols: 3,
-          rows: 3,
-          silhouette: 'square',
-          dot: 'circle',
-          dotSize: 1,
-          gapX: 0.15,
-          gapY: 0.15,
-          grow: 0,
-          color: 'inherit',
-        }),
-      );
-      element.replaceChildren(...(matrix === null ? [] : [matrix]));
-    },
-    [state],
-  );
-  return (
-    <span ref={mount} className="bh-avatar-botui" data-botui-state={state} aria-hidden="true" />
-  );
-}
-
 function ActivityIndicator({ state }: { state: PersonaBotActivityState }): ReactElement | null {
   if (state === 'idle') return null;
-  if (state === 'thinking' || state === 'working') return <BotUIActivityIndicator state={state} />;
-  return <span className="bh-avatar-indicator" aria-hidden="true" />;
+  const glyphs = { thinking: 'brain', working: 'cpu', waiting: 'alarm-clock', blocked: 'ban' };
+  return (
+    <span className="bh-avatar-indicator" data-activity-state={state} aria-hidden="true">
+      <ChannelSidebarIcon name={glyphs[state]} size={12} />
+    </span>
+  );
 }
 
 function AttentionBadge({
@@ -315,7 +293,8 @@ function AttentionBadge({
 export function PersonaBotStatusBadges({
   state = 'idle',
   attention,
-}: Pick<PersonaBotAvatarProps, 'state' | 'attention'>): ReactElement | null {
+  t = zhTranslate,
+}: Pick<PersonaBotAvatarProps, 'state' | 'attention' | 't'>): ReactElement | null {
   const indicator = <ActivityIndicator state={state} />;
   const badge = <AttentionBadge attention={attention} />;
   if (
@@ -324,7 +303,12 @@ export function PersonaBotStatusBadges({
   )
     return null;
   return (
-    <span className="bh-row-status" data-state={state}>
+    <span
+      className="bh-row-status"
+      data-state={state}
+      role="img"
+      aria-label={personaBotPresentationSummary(state, undefined, attention, t)}
+    >
       {indicator}
       {badge}
     </span>
@@ -340,11 +324,12 @@ const EFFECT_ACTIVITY: Record<string, Pick<PersonaBotToolActivity, 'toolKind'>> 
 
 export function PersonaBotAvatar({
   personaBotId,
-  name,
+  preview = false,
+  name: inputName,
   size,
-  src,
-  appearance,
-  avatarSeed,
+  src: inputSrc,
+  appearance: inputAppearance,
+  avatarSeed: inputAvatarSeed,
   state = 'idle',
   effect,
   activity,
@@ -359,6 +344,12 @@ export function PersonaBotAvatar({
   nativeTitle = true,
   t = zhTranslate,
 }: PersonaBotAvatarProps): ReactElement {
+  const tobIcon = useTobDefaultIcon(preview ? undefined : personaBotId);
+  const tob = useTobBot(preview ? undefined : personaBotId);
+  const name = tob?.displayName ?? inputName;
+  const src = tob ? tob.avatar : inputSrc;
+  const appearance = tob ? tob.appearance : inputAppearance;
+  const avatarSeed = tob ? tob.avatarSeed : inputAvatarSeed;
   const resolvedEffect =
     effect ?? (state === 'working' ? activity?.effect : undefined) ?? defaultActivityEffect(state);
   const summary = personaBotPresentationSummary(state, activity, attention, t);
@@ -371,7 +362,7 @@ export function PersonaBotAvatar({
         : undefined,
     [seeded, name, personaBotId, avatarSeed],
   );
-  const mediaKind = composed ? 'composed' : seeded ? 'seeded' : 'image';
+  const mediaKind = tobIcon ? 'system' : composed ? 'composed' : seeded ? 'seeded' : 'image';
   const active = !still && (state === 'thinking' || state === 'working');
   const classes = ['bh-persona-avatar', className].filter(Boolean).join(' ');
   const anchorMount = useMountedResource<HTMLSpanElement>(
@@ -380,7 +371,7 @@ export function PersonaBotAvatar({
       anchorRef(createAvatarAnchor(node));
       return () => anchorRef(undefined);
     },
-    [anchorRef, appearance, seededRecipe, src, size, state, surface, facing],
+    [anchorRef, appearance, seededRecipe, src, size, state, surface, facing, still],
   );
 
   return (
@@ -397,7 +388,9 @@ export function PersonaBotAvatar({
       role="img"
       aria-label={t('avatar.label', { name, activity: summary })}
     >
-      {composed || seededRecipe ? (
+      {tobIcon ? (
+        <BotIcon icon={tobIcon} size={size} />
+      ) : composed || seededRecipe ? (
         <IllustratedAvatar
           personaBotId={personaBotId}
           recipe={composed ? appearance.recipe : seededRecipe!}

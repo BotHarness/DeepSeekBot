@@ -10,6 +10,7 @@ import type { D1Database } from './d1.js';
 export interface ProtectionLimits {
   submitPerHour: number;
   reportPerHour: number;
+  installPerHour: number;
   repositoryCooldownMs: number;
   elevatedAfter: number;
   highAfter: number;
@@ -18,6 +19,7 @@ export interface ProtectionLimits {
 export const DEFAULT_LIMITS: ProtectionLimits = {
   submitPerHour: 10,
   reportPerHour: 20,
+  installPerHour: 60,
   repositoryCooldownMs: 5 * 60_000,
   elevatedAfter: 5,
   highAfter: 20,
@@ -32,7 +34,7 @@ export type ChallengeRefusal =
   | 'challenge-expired'
   | 'challenge-replayed';
 
-export type LimitedAction = 'submit' | 'report';
+export type LimitedAction = 'submit' | 'report' | 'install';
 
 export interface Protection {
   source(request: Request): Promise<string>;
@@ -118,7 +120,12 @@ export function createProtection(deps: {
 
     async allow(source, action) {
       const at = deps.now().getTime();
-      const limit = action === 'submit' ? limits.submitPerHour : limits.reportPerHour;
+      const limit =
+        action === 'submit'
+          ? limits.submitPerHour
+          : action === 'report'
+            ? limits.reportPerHour
+            : limits.installPerHour;
       if ((await count(source, action, at - HOUR_MS)) >= limit) return false;
       await record(source, action, at);
       return true;

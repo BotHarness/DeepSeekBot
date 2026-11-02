@@ -1,3 +1,4 @@
+import { ActionButton } from './ds/action-button.js';
 import {
   useId,
   useRef,
@@ -6,7 +7,6 @@ import {
   type MouseEvent,
   type ReactElement,
 } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import { errorMessage, type ToolApprovalExecutionState } from './bridge.js';
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -14,7 +14,6 @@ import { store, type ChannelMessage } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
 import { WORKSPACE_GRANTS_CHANGED } from './workspace-grant-events.js';
 import type { CompanionRequestTarget } from './companion-requests.js';
-import { channelSettings } from './channel-settings-state.js';
 import { approvalCountdown } from './approval-countdown.js';
 import { ApprovalInput } from './approval-input.js';
 import { approvalSummary } from './approval-diff.js';
@@ -27,12 +26,20 @@ export function ToolApprovalCard({
   t,
   companionTarget,
   channelId: sourceChannelId,
+  surface = 'chat',
+  hostScoped = false,
 }: {
+  surface?: 'chat' | 'activity';
   message: ChannelMessage;
-  actions: BridgeActions;
+  actions: Pick<
+    BridgeActions,
+    'toolApprovalStatus' | 'toolApprovalState' | 'toolApprovalExecutionState' | 'decideToolApproval'
+  >;
+  hostScoped?: boolean;
   channelId?: string | undefined;
   decision?:
     | 'allowed-once'
+    | 'allowed-always-tool'
     | 'allowed-always-exact'
     | 'allowed-always-all'
     | 'rejected'
@@ -42,7 +49,7 @@ export function ToolApprovalCard({
 }): ReactElement {
   const request = message.toolApprovalRequest!;
   const secretCli = request.toolName === 'secret_cli';
-  const eachUse = secretCli || request.toolName === 'secret_mcp_connect';
+  const canAlwaysAllow = request.allowAlways ?? false;
   const [acceptedDecision, setAcceptedDecision] = useState<typeof decision>();
   const effectiveDecision = decision ?? acceptedDecision;
   const botSlug = message.author.kind === 'bot' ? message.author.slug : undefined;
@@ -51,7 +58,7 @@ export function ToolApprovalCard({
     'loading' | 'pending' | 'expired' | 'decided' | 'unavailable'
   >(decision === undefined ? 'loading' : 'decided');
   const [busy, setBusy] = useState(false);
-  const [confirmAll, setConfirmAll] = useState(false);
+  const [busyChoice, setBusyChoice] = useState<typeof decision>();
   const [open, setOpen] = useState(false);
   const detailsId = useId();
   const [error, setError] = useState<string | undefined>();
@@ -80,7 +87,10 @@ export function ToolApprovalCard({
     if (botSlug === undefined) return;
     let active = true;
     let poll: ReturnType<typeof setTimeout> | undefined;
-    if (companionTarget && effectiveDecision === undefined) setStatus('loading');
+    if (effectiveDecision === undefined) {
+      setStatus('loading');
+      setError(undefined);
+    }
     const refreshExecution = (): void => {
       if (request.role !== 'assignment' || actions.toolApprovalExecutionState === undefined) return;
       void actions.toolApprovalExecutionState(cardChannelId, message.id).then(
@@ -121,7 +131,7 @@ export function ToolApprovalCard({
           }
         },
         () => {
-          if (active) setStatus(companionTarget ? 'unavailable' : 'expired');
+          if (active) setStatus('unavailable');
         },
       );
     };
@@ -137,7 +147,16 @@ export function ToolApprovalCard({
       clearTimeout(poll);
       window.removeEventListener(WORKSPACE_GRANTS_CHANGED, onGrantChanged);
     };
-  }, [actions, botSlug, effectiveDecision, message.id, request.role, companionTarget?.live, retry]);
+  }, [
+    actions,
+    botSlug,
+    effectiveDecision,
+    message.id,
+    request.role,
+    companionTarget?.live,
+    retry,
+    surface,
+  ]);
   const countdown =
     status === 'pending' && effectiveDecision === undefined && expiresAt !== undefined
       ? approvalCountdown(expiresAt, now)
@@ -159,23 +178,31 @@ export function ToolApprovalCard({
   const actionable = status === 'pending' && effectiveDecision === undefined;
   const focusMount = useMountedResource<HTMLDivElement>(
     (node) => {
-      if (companionTarget !== undefined) return;
+      if (companionTarget !== undefined || surface === 'activity') return;
       const active = document.activeElement;
       if (active === null || active === document.body)
         node.closest<HTMLElement>('.bh-tool-approval-card')?.focus({ preventScroll: true });
     },
-    [companionTarget],
+    [companionTarget, surface],
   );
   const decide = (
-    outcome: 'allowed-once' | 'allowed-always-exact' | 'allowed-always-all' | 'rejected',
+    outcome:
+      | 'allowed-once'
+      | 'allowed-always-tool'
+      | 'allowed-always-exact'
+      | 'allowed-always-all'
+      | 'rejected',
   ): void => {
     if (botSlug === undefined || submitting.current || status !== 'pending') return;
     if (companionTarget && !qualified()) return;
     setBusy(true);
+    setBusyChoice(outcome);
     setError(undefined);
     const channelId = cardChannelId;
     if (
+      !hostScoped &&
       !companionTarget &&
+      surface !== 'activity' &&
       store.getSnapshot().selection?.kind !== 'inbox' &&
       store.getSnapshot().conversation.channel?.id !== channelId
     ) {
@@ -185,9 +212,9 @@ export function ToolApprovalCard({
     }
     submitting.current = true;
     const submit = async (): Promise<void> => {
-      if (companionTarget) {
+      if (companionTarget || surface === 'activity') {
         const current = await actions.toolApprovalStatus(channelId, message.id);
-        if (!mounted.current || !qualified()) return;
+        if (!mounted.current || (companionTarget !== undefined && !qualified())) return;
         if (current !== 'pending') {
           setStatus(current);
           return;
@@ -211,7 +238,7 @@ export function ToolApprovalCard({
             },
             () => {
               if (!mounted.current) return;
-              setStatus(companionTarget ? 'unavailable' : 'expired');
+              setStatus('unavailable');
               setError(errorMessage(cause));
             },
           );
@@ -224,24 +251,17 @@ export function ToolApprovalCard({
   };
   const disabled = busy || (companionTarget !== undefined && !qualified());
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (surface === 'activity') return;
     if (event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return;
     const target = event.target as HTMLElement;
     if (target.closest('input, textarea, select, [contenteditable="true"]') !== null) return;
     if (!actionable) return;
     const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-    if (confirmAll) {
-      if (key !== 'Escape') return;
-      event.preventDefault();
-      event.stopPropagation();
-      setConfirmAll(false);
-      event.currentTarget.focus({ preventScroll: true });
-      return;
-    }
     if (disabled) return;
     const onCard = target === event.currentTarget;
     if (key === 'y' || (key === 'Enter' && onCard)) decide('allowed-once');
     else if (key === 'n' || key === 'Escape') decide('rejected');
-    else if (key === 'a' && !eachUse) setConfirmAll(true);
+    else if (key === 'a' && canAlwaysAllow) decide('allowed-always-tool');
     else return;
     event.preventDefault();
     event.stopPropagation();
@@ -249,7 +269,10 @@ export function ToolApprovalCard({
   const compact = companionTarget !== undefined;
   const size = compact ? 'sm' : 'md';
   const summary = approvalSummary(request.toolName, request.input);
-  const botCreate = request.toolName === 'bot_create' ? botCreateArgs(request.input) : undefined;
+  const botCreate =
+    request.toolName === 'bot_create' || request.toolName === 'deepseekbot create'
+      ? botCreateArgs(request.input)
+      : undefined;
   const category = t(
     botCreate !== undefined
       ? 'approval.category.bot'
@@ -293,7 +316,7 @@ export function ToolApprovalCard({
         : effectiveDecision === 'allowed-once'
           ? 'allowed'
           : 'remembered'
-      : status === 'expired' || (status === 'unavailable' && companionTarget === undefined)
+      : status === 'expired'
         ? 'expired'
         : undefined;
   const details = open ? (
@@ -321,7 +344,7 @@ export function ToolApprovalCard({
         {t(
           request.toolName === 'channel_attachment_open'
             ? 'approval.originalRisk'
-            : request.toolName === 'bot_create'
+            : botCreate !== undefined
               ? 'approval.botCreateRisk'
               : request.toolName === 'secret_cli'
                 ? 'approval.secretCliRisk'
@@ -352,7 +375,11 @@ export function ToolApprovalCard({
       tabIndex={actionable ? 0 : undefined}
       aria-label={actionable ? t('approval.requestTitle') : undefined}
       aria-keyshortcuts={
-        actionable ? (eachUse ? 'Y Enter N Escape' : 'Y Enter N Escape A') : undefined
+        actionable && surface !== 'activity'
+          ? canAlwaysAllow
+            ? 'Y Enter N Escape A'
+            : 'Y Enter N Escape'
+          : undefined
       }
       data-open={(settled === undefined && open) || undefined}
       onKeyDown={onKeyDown}
@@ -416,7 +443,12 @@ export function ToolApprovalCard({
             {preview}
           </button>
           {botCreate === undefined ? null : (
-            <BotCreateApprovalPreview args={botCreate} preview={request.botCreatePreview} t={t} />
+            <BotCreateApprovalPreview
+              args={botCreate}
+              preview={request.botCreatePreview}
+              compact={compact && !open}
+              t={t}
+            />
           )}
           {details}
         </>
@@ -434,120 +466,73 @@ export function ToolApprovalCard({
           )}
         </div>
       ) : null}
-      {settled === undefined && status === 'pending' && !confirmAll && secretCli ? (
-        <div className="bh-note">{t('approval.allowKindRisk')}</div>
+      {settled === undefined && status === 'pending' ? (
+        <div className="bh-note">
+          {canAlwaysAllow
+            ? t(
+                secretCli
+                  ? 'approval.allowKindRisk'
+                  : request.toolName === 'secret_mcp_connect'
+                    ? 'approval.alwaysServiceScope'
+                    : 'approval.alwaysToolScope',
+                { tool: request.toolName },
+              )
+            : t('approval.alwaysUnavailable')}
+        </div>
       ) : null}
-      {settled !== undefined ? null : status === 'pending' && !confirmAll ? (
+      {settled !== undefined ? null : status === 'pending' ? (
         <div
           ref={focusMount}
           className="bh-tool-approval-actions bh-message-card-actions"
           data-stack
         >
-          <Button
-            variant="primary"
+          <ActionButton
+            icon="check"
+            tone="primary"
             size={size}
-            className="bh-request-primary"
             disabled={disabled}
+            busy={busy && busyChoice === 'allowed-once'}
             onClick={() => decide('allowed-once')}
           >
             {t('approval.allowOnce')}
-          </Button>
-          <Button
-            variant="outline"
+          </ActionButton>
+          <ActionButton
+            icon="shield-check"
+
             size={size}
-            className="bh-request-secondary"
-            disabled={disabled}
-            onClick={() => decide('allowed-always-exact')}
+            disabled={disabled || !canAlwaysAllow}
+            busy={busy && busyChoice === 'allowed-always-tool'}
+            onClick={() => decide('allowed-always-tool')}
           >
-            {t(
-              request.toolName === 'secret_mcp_connect'
-                ? 'approval.allowAndRemember'
-                : secretCli
-                  ? 'approval.allowKind'
-                  : 'approval.allowExact',
-            )}
-          </Button>
-          {eachUse ? null : (
-            <Button
-              variant="outline"
-              size={size}
-              className="bh-request-secondary"
-              disabled={disabled}
-              onClick={() => setConfirmAll(true)}
-            >
-              {t('approval.allowAll')}
-            </Button>
-          )}
-          <Button
-            variant="outline"
+            {t('approval.allowAlways')}
+          </ActionButton>
+          <ActionButton
+            icon="x"
+
             size={size}
-            className="bh-request-danger"
+            tone="danger"
             disabled={disabled}
+            busy={busy && busyChoice === 'rejected'}
             onClick={() => decide('rejected')}
           >
             {t('approval.reject')}
-          </Button>
+          </ActionButton>
         </div>
       ) : status === 'loading' || status === 'unavailable' ? (
         <div role="status" className="bh-note">
           {t(status === 'loading' ? 'approval.loading' : 'companion.requestUnavailable')}
         </div>
       ) : null}
-      {status === 'pending' &&
-      effectiveDecision === undefined &&
-      !confirmAll &&
-      !eachUse &&
-      companionTarget === undefined &&
-      request.role === 'orchestrator' &&
-      cardChannelId === 'dm-' + botSlug ? (
-        <button
-          type="button"
-          className="bh-request-link"
-          onClick={() => channelSettings.open('workspace-grants')}
-        >
-          {t('approval.fullAccessEntry')}
-        </button>
-      ) : null}
-      {companionTarget && status === 'unavailable' ? (
+      {status === 'unavailable' ? (
         <div className="bh-message-card-actions">
-          <Button
-            variant="outline"
-            disabled={!qualified()}
+          <ActionButton
+            icon="refresh"
+
+            disabled={companionTarget !== undefined && !qualified()}
             onClick={() => setRetry((value) => value + 1)}
           >
             {t('companion.retryRequest')}
-          </Button>
-        </div>
-      ) : null}
-      {confirmAll && status === 'pending' ? (
-        <div className="bh-message-card-actions">
-          <div
-            className="bh-tool-approval-confirm"
-            role="group"
-            aria-label={t('approval.allowAll')}
-          >
-            <div className="bh-note">{t('approval.allowAllRisk')}</div>
-            <div className="bh-tool-approval-actions bh-message-card-actions">
-              <Button
-                variant="primary"
-                size={size}
-                className="bh-request-primary"
-                disabled={disabled}
-                onClick={() => decide('allowed-always-all')}
-              >
-                {t('approval.confirmAll')}
-              </Button>
-              <Button
-                variant="outline"
-                size={size}
-                className="bh-request-secondary"
-                disabled={busy}
-                onClick={() => setConfirmAll(false)}
-              >
-                {t('approval.cancel')}
-              </Button>
-            </div>
-          </div>
+          </ActionButton>
         </div>
       ) : null}
       {error === undefined ? null : (

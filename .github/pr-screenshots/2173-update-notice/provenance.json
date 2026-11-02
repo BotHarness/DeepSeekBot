@@ -1,0 +1,30 @@
+{
+  "runtimeSource": "26ac68fc5678d378eb93e62fe6af2946386fc8a7",
+  "reviewCodeHead": "970b4379c6fbcc63dd54895e8da2cde8e3c918a5",
+  "base": "648c1202c44f5a5e82ce22596682934745705cef",
+  "baselineEvidenceCommit": "58676fae77fe1cde951c0b8a61ec5288fc5e37a3",
+  "capture": "native macOS Desktop only; CUA accessibility and screenshots; no browser automation",
+  "date": "2026-10-18",
+  "files": {
+    "README.md": "392a4cf2dc96ab0ad1a139eed85e4859a95c155c3e7d46ee7e060b6321579b08",
+    "before-published-121.png": "ce2295f4cb57835fedd2cc940e8a656805646c24b0cb25bb4ef02fca62be08ce",
+    "candidate-140-020-dark-zh.png": "1cc68761ea51f67d47f63bd401ed52325cf87a69bdd377ee89ada3a901228322",
+    "candidate-140-021-dark-zh.png": "590b0e14e5c9ea8dd816a3c88589d771db42202b8066c3e9300989eed1133e0e",
+    "candidate-constrained-021.png": "6c9cfaf5a6e3075246438b06752d3309ee8898809e1921ea574d33e1bb0f827d",
+    "candidate-new-target-021-light-en.png": "9135da5309d073c4ddb3b01d0f166b106e97b62416232ab3dbeacefd0cae350a",
+    "dismiss-restart-020.png": "4b9fbd4c43790ce26358d03d45c0a26a5bb590b4ae139a0a6d8e8941596a97c6",
+    "draft-after-check.png": "9ce2a76512653eb39ec72e5a05294d977926c1c67ab0cb011e806139f53aa4a3",
+    "draft-before-check.png": "a6999a91f0b1a7881f607c9ce6405fe267019bc85048eeb82d2200c5265b98a0",
+    "incompatible-021-light-en.png": "f28dc60ddeba552656ab4c1aaec702dc4b1af291383cbb3f326fd5a9f02793e7",
+    "incompatible-cli.json": "728d16f73ea0f6cc3e3236aa6fba41643bb62e5cb6c6d9fd786cbf227eb2dd0d",
+    "native-install-pending-020.png": "20d13091f3a8118d3bf526327b07de06d4c761c2d85a4cc09738b64899b7df18",
+    "native-installed-131.png": "bf1163317e8654dcedefcfa1424754dcdcb088c2086b88d50e537fb0ccde6a11",
+    "offline-cli.json": "d3379877f1a8d1d4abc8ff760c70e3d3c43549cf4d8586571050f359dec0272f",
+    "offline-settings-021.png": "88f423c526a9665e65d3c701c1bc4fa7ea521dcbfd251db047e13bc503b8f1c6",
+    "online-131-020-dark.png": "008b165074f9dfacf31540951b20ca47cb14c91e8cf96f7daf81481e2c9d102d",
+    "qa-artifacts-4.json": "dd38e6c252eb0d6ca47e09bb6277d9cb39c929458d5e110f5574865b0d711ae2",
+    "qa-artifacts-5.json": "845c5a82a118c565cb07e0cdb1551249e8b5c79ef542569249c3fb1b7e50b7c5",
+    "recovered-cli.json": "533dabb3b104f974afff521a41893d12879b6ccba25b838a2a95ebdcb8e22469",
+    "settings-020.png": "401cf1e0cbdce118a468b6279508cbbdb4830337f62fef0d86c1e2396d90dafa"
+  }
+}

@@ -1,0 +1,3 @@
+- insert:
+    - id: appearance-qa
+      name: '@botharness/appearance-qa'

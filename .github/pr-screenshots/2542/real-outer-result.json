@@ -1,0 +1,13 @@
+{
+  "head": "683b0cbe9c0f158e80929601f59a312ff5f9c4bf",
+  "captureSha256": "09be7416f261dc4afefc5f438cd7802281ea8d386c1f966081c52c5896c86c06",
+  "entries": 1466,
+  "upgrades": 39,
+  "credentialHeadersAbsent": true,
+  "fixedChannelPath": true,
+  "syntheticSecretAbsent": true,
+  "base64SecretAbsent": true,
+  "methodNamesAbsent": true,
+  "fallbackRequests": 0,
+  "throughRealCloudflare": true
+}

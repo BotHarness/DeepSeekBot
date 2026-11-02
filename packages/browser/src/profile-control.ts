@@ -104,6 +104,9 @@ export function createProfileControl(options: {
     get revision() {
       return revision;
     },
+    authorizationIdentity(): string {
+      return binding === undefined ? 'unpaired' : hash(JSON.stringify(binding));
+    },
     async pair(): Promise<{ code: string; expiresAt: number }> {
       await ready;
       if (disposed || !options.enabled()) throw new Error('Select Chrome Profile control first');

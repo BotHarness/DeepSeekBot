@@ -130,12 +130,12 @@ describe('Select', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
     act(() => trigger.click());
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
-    const options = [...host.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')];
+    const options = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')];
     expect(options.map((option) => option.getAttribute('aria-checked'))).toEqual(['true', 'false']);
     act(() => options[0]!.click());
     expect(onChange).not.toHaveBeenCalled();
     act(() => trigger.click());
-    act(() => host.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')[1]!.click());
+    act(() => document.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')[1]!.click());
     expect(onChange).toHaveBeenCalledWith('manual');
   });
 

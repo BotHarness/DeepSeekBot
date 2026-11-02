@@ -81,6 +81,7 @@ it('consumes a baseline then increments through the Gateway snapshot stream', as
   const handlers = {
     baseline: vi.fn(),
     changed: vi.fn(),
+    attention: vi.fn(),
     latest: vi.fn(),
     purged: vi.fn(),
     interrupted: vi.fn(),
@@ -89,6 +90,7 @@ it('consumes a baseline then increments through the Gateway snapshot stream', as
   const placements = [{ sourceEventId: 'source', channelId: 'channel', messageId: 'message' }];
   roster.push({ type: 'baseline', placements });
   roster.push({ type: 'changed' });
+  roster.push({ type: 'attention' });
   const message = {
     id: 'm1',
     at: '2026-10-13T00:00:00.000Z',
@@ -100,6 +102,7 @@ it('consumes a baseline then increments through the Gateway snapshot stream', as
   await settle();
   expect(handlers.baseline).toHaveBeenCalledWith(placements);
   expect(handlers.changed).toHaveBeenCalledTimes(1);
+  expect(handlers.attention).toHaveBeenCalledTimes(1);
   expect(handlers.latest).toHaveBeenCalledWith({ channelId: 'channel', message });
   expect(handlers.purged).toHaveBeenCalledWith(placements);
   stop();

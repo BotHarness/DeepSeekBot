@@ -1,3 +1,5 @@
+import { PointerMenu } from './ds/pointer-menu.js';
+import { PanelEmptyState } from './ds/empty-state.js';
 import {
   Fragment,
   useRef,
@@ -7,7 +9,7 @@ import {
   type MouseEvent,
   type ReactElement,
 } from 'react';
-import { Button, Input, Menu } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type {
   MemoryGitGraph,
@@ -610,7 +612,7 @@ function MemoryEntryForScope({
           )}
           {showFiles &&
             (snapshot.files.length === 0 ? (
-              <div className="bh-note">{t('memory.empty')}</div>
+              <PanelEmptyState icon="brain">{t('memory.empty')}</PanelEmptyState>
             ) : (
               <div className="bh-memory-files">
                 {snapshot.files.map((item) => (
@@ -718,14 +720,12 @@ function MemoryEntryForScope({
               </div>
             )}
             {commitMenu === undefined ? null : (
-              <span className="bh-menu-anchor" style={{ left: commitMenu.x, top: commitMenu.y }}>
-                <Menu
-                  open
-                  portal
+              <span hidden>
+                <PointerMenu
+                  point={commitMenu}
                   dense
                   autoFocus
                   anchor={<span ref={commitMenuAnchor} aria-hidden="true" />}
-                  getAnchorRect={() => commitMenuAnchor.current?.getBoundingClientRect() ?? null}
                   items={[
                     ...(commitMenu.sha === graph.head
                       ? []
@@ -765,7 +765,7 @@ function MemoryEntryForScope({
                 aria-label={t('memory.view.branches')}
               >
                 {graph.branches.length === 0 ? (
-                  <div className="bh-note">{t('memory.branches.empty')}</div>
+                  <PanelEmptyState icon="git-branch">{t('memory.branches.empty')}</PanelEmptyState>
                 ) : (
                   graph.branches.map((branch) => {
                     const open = openBranch === branch;
@@ -844,7 +844,7 @@ function MemoryEntryForScope({
                     <LoadingSkeleton kind="sidebar" label={t('memory.loading')} />
                   ) : null
                 ) : versions.length === 0 ? (
-                  <div className="bh-note">{t('memory.versions.empty')}</div>
+                  <PanelEmptyState icon="git-branch">{t('memory.versions.empty')}</PanelEmptyState>
                 ) : (
                   versions.map((version) => {
                     const open = openVersion === version.tag;

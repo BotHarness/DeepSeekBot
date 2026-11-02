@@ -1,0 +1,95 @@
+// @vitest-environment jsdom
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, expect, it, vi } from 'vitest';
+vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('../src/cloud/available', () => ({ cloudAvailable: true }));
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, Rect: () => null }));
+vi.mock('../src/ui/primitives/drawer-material', () => ({ DrawerMaterial: () => null }));
+import { CreationPanel } from '../src/ui/shell/creation-panel';
+import { creationTargets } from '../src/host/creation-targets';
+import { computerEnvironmentKey } from '../src/host/conversation-environments';
+import { t } from '../src/ui/strings';
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+let root: Root;
+let host: HTMLElement;
+const pick = vi.fn(),
+  close = vi.fn();
+afterEach(() => {
+  act(() => root?.unmount());
+  host?.remove();
+  pick.mockReset();
+  close.mockReset();
+});
+async function render(scope = 'all') {
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+  await act(async () =>
+    root.render(
+      <CreationPanel
+        scope={scope}
+        targets={creationTargets({ hostId: 'mac', name: 'Mac' }, [])}
+        bottom={20}
+        size={64}
+        busy={false}
+        onClose={close}
+        onPick={pick}
+      />,
+    ),
+  );
+}
+async function click(label: string) {
+  const button = [...host.querySelectorAll('button')].find(
+    (b) => b.getAttribute('aria-label') === label,
+  );
+  expect(button, label).toBeDefined();
+  await act(async () => button!.click());
+}
+it('asks All to choose a target even when only one Computer is available', async () => {
+  await render();
+  await click(t.newChannel);
+  expect(pick).not.toHaveBeenCalled();
+  await click('Mac');
+  expect(pick).toHaveBeenCalledWith('channel', expect.objectContaining({ hostId: 'mac' }));
+});
+it('offers only Computer actions in its selected scope', async () => {
+  await render(computerEnvironmentKey('mac'));
+  expect(host.textContent).not.toContain(t.cloudJoin.title);
+  await click(t.botCreation.blank);
+  expect(pick).toHaveBeenCalledWith('bot', expect.objectContaining({ hostId: 'mac' }));
+});
+it('opens the native Bot form from All without silently choosing its active Computer', async () => {
+  await render();
+  await click(t.botCreation.blank);
+  expect(pick).toHaveBeenCalledWith('bot', undefined);
+});
+it('dismisses without selecting a background destination', async () => {
+  await render();
+  await click(t.close);
+  expect(close).toHaveBeenCalledOnce();
+  expect(pick).not.toHaveBeenCalled();
+});
+it('joins directly without inventing a Computer target', async () => {
+  await render();
+  await click(t.cloudJoin.title);
+  expect(pick).toHaveBeenCalledWith('join');
+});
+
+it('groups import sources and carries only the selected Computer', async () => {
+  await render(computerEnvironmentKey('mac'));
+  for (const [label, action] of [
+    [t.botCreation.blank, 'bot'],
+    [t.botCreation.fromZip, 'zip'],
+    [t.marketplace.browse, 'marketplace'],
+    [t.botCreation.fromGit, 'git'],
+  ]) {
+    if (action === 'zip' || action === 'git') await click(t.botCreation.importBot);
+    await click(label!);
+    if (action === 'zip' || action === 'git') await click(t.back);
+    expect(pick).toHaveBeenLastCalledWith(action, expect.objectContaining({ hostId: 'mac' }));
+  }
+});

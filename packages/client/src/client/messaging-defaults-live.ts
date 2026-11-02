@@ -2,6 +2,15 @@ import type { PurgedPlacement } from '../../../core/src/purge/contracts.js';
 import { parseContentRedactions } from './content-redactions.js';
 
 const listeners = new Set<() => void>();
+const attentionListeners = new Map<() => void, (healthy: boolean) => void>();
+let rosterHealthy = false;
+const attentionHealth = (healthy: boolean): void => {
+  rosterHealthy = healthy;
+  for (const health of attentionListeners.values()) health(healthy);
+};
+const attentionChanged = (): void => {
+  for (const changed of attentionListeners.keys()) changed();
+};
 const purgeListeners = new Set<(placements: PurgedPlacement[]) => void>();
 const latestListeners = new Set<(value: unknown) => void>();
 const redactions = new Map<string, PurgedPlacement>();
@@ -13,6 +22,7 @@ export interface TypedLive {
   roster(handlers: {
     baseline(placements: PurgedPlacement[]): void;
     changed(): void;
+    attention?(): void;
     latest(value: unknown): void;
     purged(placements: PurgedPlacement[]): void;
     interrupted(): void;
@@ -53,21 +63,28 @@ function publishLatest(value: unknown): void {
 
 function syncTyped(): void {
   if (typed === undefined) return;
-  if (listeners.size && stopRoster === undefined)
+  if ((listeners.size || attentionListeners.size) && stopRoster === undefined)
     stopRoster = typed.roster({
       baseline(placements) {
         redactions.clear();
         recordPurged(placements);
         notify();
+        attentionHealth(true);
+        attentionChanged();
       },
-      changed: () => notify(),
+      changed: () => {
+        notify();
+        attentionChanged();
+      },
+      attention: attentionChanged,
       latest: publishLatest,
       purged: recordPurged,
-      interrupted: () => undefined,
+      interrupted: () => attentionHealth(false),
     });
-  else if (!listeners.size && stopRoster !== undefined) {
+  else if (!listeners.size && !attentionListeners.size && stopRoster !== undefined) {
     stopRoster();
     stopRoster = undefined;
+    rosterHealthy = false;
     redactions.clear();
   }
   const wanted = [...consumers].some((consumer) => consumer.channelUrl === undefined);
@@ -91,13 +108,18 @@ function syncTyped(): void {
 
 function releaseUnusedSource(): void {
   syncTyped();
-  if (typed === undefined ? listeners.size || consumers.size : channelConsumer !== undefined)
+  if (
+    typed === undefined
+      ? listeners.size || attentionListeners.size || consumers.size
+      : channelConsumer !== undefined
+  )
     return;
   source?.close();
   source = undefined;
   sourceUrl = undefined;
   if (typed !== undefined) return;
   activityBaseline = undefined;
+  rosterHealthy = false;
   redactions.clear();
 }
 
@@ -132,7 +154,7 @@ class SharedSource extends EventTarget implements ActivityEventSource {
     consumers.delete(this);
     if (channelConsumer === this) channelConsumer = undefined;
     releaseUnusedSource();
-    if (listeners.size || consumers.size) {
+    if (listeners.size || attentionListeners.size || consumers.size) {
       try {
         ensureSource();
       } catch {
@@ -164,11 +186,19 @@ function ensureSource(): void {
   activityBaseline = undefined;
   source = next;
   sourceUrl = url;
+  attentionHealth(false);
   next.addEventListener('roster/changed', () => {
     if (source === next) notify();
   });
   next.addEventListener('open', () => {
-    if (source === next) notify();
+    if (source === next) {
+      notify();
+      attentionHealth(true);
+      attentionChanged();
+    }
+  });
+  next.addEventListener('human-attention/changed', () => {
+    if (source === next) attentionChanged();
   });
   next.addEventListener('roster/latest', (event) => {
     if (source !== next || !(event instanceof MessageEvent) || typeof event.data !== 'string')
@@ -209,6 +239,7 @@ function ensureSource(): void {
   }
   next.addEventListener('error', () => {
     if (source !== next) return;
+    attentionHealth(false);
     activityBaseline = undefined;
     if (next.readyState === 2) {
       source = undefined;
@@ -230,9 +261,10 @@ export function installTypedLive(next: TypedLive): () => void {
     stopActivity?.();
     stopActivity = undefined;
     typed = value;
+    attentionHealth(false);
     activityBaseline = undefined;
     sourceUrl = undefined;
-    if (listeners.size || consumers.size) ensureSource();
+    if (listeners.size || attentionListeners.size || consumers.size) ensureSource();
     else releaseUnusedSource();
     for (const consumer of [...consumers]) consumer.publish('error', undefined, 0);
   };
@@ -304,5 +336,49 @@ export function subscribeMessagingDefaults(
     if (onPurge) purgeListeners.delete(onPurge);
     if (onLatest) latestListeners.delete(onLatest);
     releaseUnusedSource();
+  };
+}
+
+export function subscribeHumanAttention(
+  changed: () => void,
+  health: (healthy: boolean) => void,
+): () => void {
+  attentionListeners.set(changed, health);
+  health(rosterHealthy);
+  try {
+    ensureSource();
+  } catch {
+    health(false);
+  }
+  return () => {
+    attentionListeners.delete(changed);
+    releaseUnusedSource();
+  };
+}
+
+export function observeHumanAttention(refresh: () => void): () => void {
+  let disposed = false;
+  let pending: ReturnType<typeof setTimeout> | undefined;
+  let recovery: ReturnType<typeof setInterval> | undefined;
+  let lastHealth: boolean | undefined;
+  const invalidate = (): void => {
+    if (disposed || pending !== undefined) return;
+    pending = setTimeout(() => {
+      pending = undefined;
+      if (!disposed) refresh();
+    }, 25);
+  };
+  const stop = subscribeHumanAttention(invalidate, (healthy) => {
+    if (lastHealth === healthy) return;
+    lastHealth = healthy;
+    clearInterval(recovery);
+    recovery = healthy ? undefined : setInterval(invalidate, 10_000);
+  });
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    clearTimeout(pending);
+    clearInterval(recovery);
+    stop();
   };
 }

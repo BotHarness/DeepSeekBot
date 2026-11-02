@@ -1,0 +1,14 @@
+{
+  "sameApplicationDifferentHost": true,
+  "bytesCropPosterRestored": true,
+  "playing": {
+    "time": 0.476138,
+    "paused": false,
+    "muted": true,
+    "loop": true,
+    "controls": false,
+    "hidden": false,
+    "frames": 88
+  },
+  "errors": []
+}

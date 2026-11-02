@@ -1,3 +1,4 @@
+import { ActionButton } from './ds/action-button.js';
 import { useContext, useId, useRef, useState, type ReactElement } from 'react';
 import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
 import { errorMessage } from './bridge.js';
@@ -16,9 +17,11 @@ export function UserQuestionCard({
   t,
   companionTarget,
   channelId: sourceChannelId,
+  hostScoped = false,
 }: {
   message: ChannelMessage;
-  actions: BridgeActions;
+  actions: Pick<BridgeActions, 'userQuestionStatus' | 'answerUserQuestion'>;
+  hostScoped?: boolean;
   channelId?: string | undefined;
   resolution?: 'answered' | 'cancelled' | undefined;
   t: BotHarnessTranslate;
@@ -102,6 +105,7 @@ export function UserQuestionCard({
     if (companionTarget && !qualified()) return;
     const channelId = cardChannelId;
     if (
+      !hostScoped &&
       !companionTarget &&
       store.getSnapshot().selection?.kind !== 'inbox' &&
       store.getSnapshot().conversation.channel?.id !== channelId
@@ -317,25 +321,26 @@ export function UserQuestionCard({
         showSubmit || showToggle ? (
           <div className="bh-message-card-actions">
             {showSubmit ? (
-              <Button
-                variant="primary"
+              <ActionButton
+                icon="check"
+                tone="primary"
                 size={compact ? 'sm' : 'md'}
-                className="bh-request-primary"
+                busy={busy}
                 disabled={disabled}
                 onClick={() => submit()}
               >
                 {t('question.submit')}
-              </Button>
+              </ActionButton>
             ) : null}
             {showToggle ? (
-              <Button
-                variant="ghost"
+              <ActionButton
+                icon="info"
                 size="sm"
                 aria-expanded={expanded}
                 onClick={() => setExpanded((current) => !current)}
               >
                 {t('companion.details')}
-              </Button>
+              </ActionButton>
             ) : null}
           </div>
         ) : null
@@ -344,13 +349,14 @@ export function UserQuestionCard({
           {statusError ? (
             <>
               {t('question.statusUnavailable')}
-              <Button
-                variant="outline"
+              <ActionButton
+                icon="refresh"
+
                 disabled={companionTarget !== undefined && !qualified()}
                 onClick={() => setStatusRetry((current) => current + 1)}
               >
                 {t('question.retry')}
-              </Button>
+              </ActionButton>
             </>
           ) : (
             t('approval.loading')

@@ -273,7 +273,7 @@ describe('Bot Group mention tracer', () => {
     }
   });
 
-  it('recovers pending Group admissions after restart and suppresses repeat and over-limit bot hops', async () => {
+  it('recovers pending Group admissions after restart, wakes every round and suppresses over-limit bot hops', async () => {
     const home = createTempRoot('botharness-bot-group-restart-');
     const first = createCore({ dshHome: home });
     first.registry.create({ slug: 'ada', displayName: 'Ada' });
@@ -327,8 +327,10 @@ describe('Bot Group mention tracer', () => {
       resumed.runtime.admitGroupMessage(group.id, 'bot-repeat');
       resumed.runtime.admitGroupMessage(group.id, 'bot-over-limit');
       await resumed.runtime.whenIdle();
-      expect(runs).toEqual(['bea']);
-      expect(resumed.channels.message(group.id, 'bot-repeat')?.deliveries).toBeUndefined();
+      expect(runs).toEqual(['bea', 'bea']);
+      expect(resumed.channels.message(group.id, 'bot-repeat')?.deliveries).toEqual([
+        { botSlug: 'bea', state: 'handled' },
+      ]);
       expect(resumed.channels.message(group.id, 'bot-over-limit')?.deliveries).toBeUndefined();
       await expect(
         resumed.channels.appendMessageOnce(group.id, {

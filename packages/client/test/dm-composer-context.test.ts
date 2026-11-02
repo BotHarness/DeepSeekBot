@@ -11,7 +11,6 @@ import { CompanionPin } from '../src/client/window-companions-view.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { rememberModelPlan } from '../src/client/model-plan-store.js';
 import { publishWorkspaceGrantChange } from '../src/client/workspace-grant-events.js';
-import { MOBILE_BOT_QUERY } from '../src/client/mobile-viewport.js';
 
 it('refreshes mounted inherited footers after a successful global model save without changing fixed models', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -102,13 +101,20 @@ it('refreshes mounted inherited footers after a successful global model save wit
 
 vi.mock('../src/client/profile-cards-builtins.js', () => ({ PROFILE_ACTIVITY_WEEKS: 26 }));
 vi.mock('../src/client/model-preset-profile.js', () => ({
-  ModelPresetProfile: ({ slug }: { slug: string }) => createElement('div', null, `model:${slug}`),
+  ModelPresetProfile: ({ slug, onClose }: { slug: string; onClose?: () => void }) =>
+    createElement('div', { role: onClose ? 'dialog' : undefined }, `model:${slug}`),
 }));
 vi.mock('../src/client/workspace-grants-entry.js', () => ({
   WorkspaceGrantsEntry: ({ botSlug }: { botSlug: string }) =>
     createElement('div', null, `workspace:${botSlug}`),
 }));
+vi.mock('../src/client/model-picker.js', () => ({
+  ModelPicker: ({ title, hint }: { title: string; hint: string }) =>
+    createElement('div', null, title, hint),
+}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  Button: ({ children, onClick }: { children: ReactNode; onClick(): void }) =>
+    createElement('button', { onClick }, children),
   IconPinFillRegular: () => null,
   IconPinOutlineRegular: () => null,
   IconCloseOutlineRegular: () => null,
@@ -127,7 +133,7 @@ const ada: BotSummary = {
 };
 const grace = { ...ada, slug: 'composer-grace', displayName: 'Grace' };
 
-it('keeps only the model in mobile layouts and restores desktop workspace and usage actions', async () => {
+it('keeps model, workspace and usage actions available across mobile and desktop layouts', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   let mobile = false;
   const listeners = new Set<() => void>();
@@ -180,14 +186,17 @@ it('keeps only the model in mobile layouts and restores desktop workspace and us
     );
     expect(document.body.querySelector('.bh-composer-usage-popover')).not.toBeNull();
     await resize(true);
-    expect(matchMedia).toHaveBeenCalledWith(MOBILE_BOT_QUERY);
-    expect(host.querySelectorAll('[data-composer-context] button')).toHaveLength(1);
-    expect(host.querySelector('[data-composer-context]')!.textContent).toBe('DeepSeek-V41-Flash');
-    expect(document.body.querySelector('.bh-composer-usage-popover')).toBeNull();
+    expect(host.querySelectorAll('[data-composer-context] button')).toHaveLength(3);
+    expect(host.querySelector('[data-composer-chip="workspace"]')).not.toBeNull();
+    expect(document.body.querySelector('.bh-composer-usage-popover')).not.toBeNull();
+    await act(async () =>
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
+    );
     await act(async () =>
       host.querySelector<HTMLButtonElement>('[data-composer-context] button')!.click(),
     );
-    expect(host.querySelector('[role="dialog"]')!.textContent).toContain(`model:${bot.slug}`);
+    expect(host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+    expect(host.querySelector('[role="dialog"]')!.textContent).toContain('model:footer-mobile');
     await resize(false);
     expect(host.querySelectorAll('[data-composer-context] button')).toHaveLength(3);
     expect(host.querySelector('[data-composer-context-leading]')!.textContent).toContain(
@@ -383,7 +392,7 @@ it('shares header pin, restores preferences, rejects unavailable and old targets
     expect(host.textContent).toContain('qa-selected');
     expect(modelPlanState).toHaveBeenCalledTimes(2);
     await click('[data-action="model"]');
-    expect(host.querySelector('[role="dialog"]')!.textContent).toContain(ada.slug);
+    expect(host.querySelector('[role="dialog"]')!.textContent).toContain(`model:${bot.slug}`);
     bot = grace;
     await render();
     expect(host.querySelector('[role="dialog"]')).toBeNull();
@@ -456,6 +465,13 @@ it('uses compact icon labels and a left context/right usage split, with keyboard
     modelCatalog: async () => ({ models: [] }),
     listWorkspaceGrants: async () => [],
     profileSessionUsage,
+    botContext: async () => ({
+      sessionId: 'orch',
+      usedTokens: 28039,
+      contextWindow: 1000000,
+      capacitySource: 'model',
+      thresholdTokens: 800000,
+    }),
   } as unknown as BridgeActions;
   const details = vi.fn();
   function Harness() {
@@ -502,7 +518,7 @@ it('uses compact icon labels and a left context/right usage split, with keyboard
     expect(host.querySelector('[data-composer-context-leading]')!.textContent).toContain(
       '0 个工作区',
     );
-    expect(host.querySelector('[data-composer-chip="usage"]')!.textContent).toBe('1.3M');
+    expect(host.querySelector('[data-composer-chip="usage"]')!.textContent).toBe('28K / 1M');
     expect(host.querySelectorAll('[data-composer-context] button svg')).toHaveLength(3);
     await clickUsage();
     expect(details).not.toHaveBeenCalled();
@@ -548,7 +564,7 @@ it('uses compact icon labels and a left context/right usage split, with keyboard
         meter.getAttribute('aria-valuenow'),
       ),
     ).toEqual(['75', '25']);
-    expect(popover.querySelectorAll('.bh-composer-usage-caption')).toHaveLength(0);
+    expect(popover.textContent).toContain('当前用量为估算');
     expect(popover.querySelector('.bh-composer-usage-footer > button')?.textContent).toContain(
       '查看详细用量',
     );

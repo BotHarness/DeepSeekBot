@@ -1,0 +1,39 @@
+{
+  "issue": 2174,
+  "pr": 2175,
+  "source": "6292fbf41123bc583f813116e349ac2788e3871a",
+  "baseSource": "e8472aab4a0e22c0404f99a44d6831dcfe5d0988",
+  "baseBatch": "bfbcc648fa789ed551c2249b1a392f9341128f04",
+  "afterBatch": "06c92fc78b71643f6cdd74d42d50913ea92d640a",
+  "main": "648c1202c44f5a5e82ce22596682934745705cef",
+  "native": "494a20f1eb4f0666a2c90bc3c758af4e7ff5f46b",
+  "viewport": "402x874",
+  "locale": "English",
+  "environment": "shared iOS 26 Simulator, retained QA computer and signed-out public UAT configuration",
+  "passed": [
+    "Computers/Cloud selected tabs and separate directories",
+    "one Add target with decorative icons",
+    "Add close returns to selected tab",
+    "Add opens existing invitation page",
+    "Add opens existing pairing page",
+    "normal text light/dark actual screenshots",
+    "maximum text wraps; Add opens, chooser scrolls, close works"
+  ],
+  "unverified": [
+    "Android native",
+    "physical phone",
+    "Human/VoiceOver",
+    "new login or invitation acceptance",
+    "full large-text matrix and all footer actions",
+    "Reduce Transparency toggle in this run"
+  ],
+  "observation": "After opening Pair (native modal) and following a cloud-services deep link, Workspaces did not visibly overlay the native modal. A cold reopen to the normal cloud-services route restored the working drawer. This route is not marked passed; regression origin not established.",
+  "cleanup": [
+    "driver closed",
+    "own Metro stopped; 8091 free",
+    "qa/batch-24 restored at main648c1202c",
+    "light/large restored",
+    "three original untracked QA documents retained",
+    "no account, pairing or Host writes; no Prod or merge"
+  ]
+}

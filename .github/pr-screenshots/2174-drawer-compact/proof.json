@@ -1,0 +1,47 @@
+{
+  "issue": 2174,
+  "pr": 2175,
+  "source": "dc15ffd3a7003ef0c0f4110f834f02f15a990e6c",
+  "integrated": "1376b50b1f8358d9d9b22c89e55901fb5a141d24",
+  "native": "494a20f1eb4f0666a2c90bc3c758af4e7ff5f46b",
+  "beforeSource": "59fc97fd7bada6d54cbae1feacc4d93d032e4c82",
+  "beforeIntegrated": "9a73f9c21440235d8caa6fdc9f7d65d5dc6dfde0",
+  "namingSource": "f2d0f4af3ebeecfe5df9f25d2bc1a3636340531d",
+  "namingIntegrated": "9e77d9810ad642388ed8ac8bcd9a4b9725f181c0",
+  "viewport": "402x874",
+  "locale": "en",
+  "fixture": "empty Computer directory and signed-out public UAT cloud service",
+  "passed": [
+    "Computers/Cloud tab selection and independent contextual Add destinations",
+    "fixed Notifications footer in both tabs; cloud management only in Cloud",
+    "default/intermediate/maximum Dynamic Type in light/dark",
+    "maximum text middle-list swipe exposes the address while Notifications rect remains unchanged",
+    "left-swipe dismissal",
+    "local cloud name save and cold-start persistence; exact original name restored and cold-read back",
+    "computer optional name input; no pairing redeemed"
+  ],
+  "footerRectAtMax": {
+    "x": 0,
+    "y": 757.6666717529297,
+    "width": 342,
+    "height": 78.33331298828125
+  },
+  "unverified": [
+    "Android native and physical phone",
+    "VoiceOver and Human acceptance",
+    "signed-in organization/member/guest rendering on this revision",
+    "real computer pairing with name persistence",
+    "full keyboard/text-size matrix and every footer destination",
+    "Reduce Transparency toggle"
+  ],
+  "knownCaveat": "Opening cloud-services from the native Pair modal can hide the root drawer; normal cold-open path works. Regression origin is not established; full navigation acceptance is not claimed.",
+  "correction": "Native review at f2d0 found duplicate footer in backdrop. dc15 removed only that duplicate; all final drawer layout screenshots and contextual Add actions were recaptured. Naming code is unchanged.",
+  "comparisonLimit": "Before/after use the same viewport, theme, locale and drawer fixture. The exposed underlying route differs (pairing vs invitation), so comparison is limited to the drawer.",
+  "cleanup": [
+    "original UAT display name restored and cold-read back",
+    "driver closed; own Metro stopped",
+    "qa/batch-24 and original three untracked documents preserved",
+    "light/large and original locale restored; task clipboard cleared",
+    "no account/Host/Prod writes, pairing redemption, native build or merge"
+  ]
+}

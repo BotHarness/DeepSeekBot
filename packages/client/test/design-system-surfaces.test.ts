@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconChevronDownOutlineRegular: () => null,
+  Modal: ({ children, title }: { children: ReactNode; title: string }) =>
+    createElement('section', { role: 'dialog', 'aria-label': title }, children),
   Tooltip: ({ children }: { children: ReactNode }) => children,
 }));
 
@@ -88,6 +90,53 @@ describe('design-system surfaces', () => {
     act(() => head.click());
     expect(onToggle).toHaveBeenCalledTimes(1);
     expect(button('Settings')).toBeDefined();
+  });
+
+  it('keeps channel identity and actions outside the close/drag title handle', () => {
+    const onHide = vi.fn();
+    const onAction = vi.fn();
+    render(
+      createElement(PanelHeader, {
+        label: 'Messages',
+        hideLabel: 'Close Messages',
+        onHide,
+        context: createElement('span', null, 'Ada'),
+        badge: createElement('span', null, '3'),
+        action: createElement('button', { onClick: onAction }, 'Settings'),
+      }),
+    );
+    const title = button('Close Messages');
+    expect(title.textContent).toBe('Messages');
+    expect(title.draggable).toBe(true);
+    act(() => host.querySelector<HTMLElement>('[data-panel-context]')!.click());
+    act(() => host.querySelector<HTMLElement>('[data-panel-badge]')!.click());
+    act(() => button('Settings').click());
+    expect(onAction).toHaveBeenCalledOnce();
+    expect(onHide).not.toHaveBeenCalled();
+    act(() => title.click());
+    expect(onHide).toHaveBeenCalledOnce();
+  });
+
+  it('keeps tab and settings clicks separate from a closable Panel title', () => {
+    const onHide = vi.fn();
+    const onTab = vi.fn();
+    const onSettings = vi.fn();
+    render(
+      createElement(PanelHeader, {
+        label: 'Memory',
+        hideLabel: 'Close Memory',
+        onHide,
+        tabs: createElement('button', { role: 'tab', onClick: onTab }, 'Versions'),
+        action: createElement('button', { onClick: onSettings }, 'Settings'),
+      }),
+    );
+    act(() => button('Versions').click());
+    act(() => button('Settings').click());
+    expect(onTab).toHaveBeenCalledOnce();
+    expect(onSettings).toHaveBeenCalledOnce();
+    expect(onHide).not.toHaveBeenCalled();
+    act(() => button('Close Memory').click());
+    expect(onHide).toHaveBeenCalledOnce();
   });
 
   it('renders a static header without a toggle', () => {

@@ -1,0 +1,15 @@
+# Three-action approval evidence (#2080 / #2316)
+
+Captured 2026-10-20 on Windows with DSH 0.2.1-rc.2, a real opted-in OpenCode Go / deepseek-v4.1-flash model and an isolated task-owned Profile. English, 1440 × 1100, matched light/dark themes and the same synthetic PowerShell marker behavior. Full images are unaltered browser captures; `-card` images are browser element crops. No login token or real credential appears.
+
+- Before: clean `b018929ede0aadd3fd350241bdad911c2d90bff4`, four legacy actions and the Full Access shortcut. Existing native pwsh request was captured without answering it, then rejected through the normal Owner command.
+- After: clean production source `953a77d09b255637e3e016e5e36ece6efcf93fb2` (latest main `64315272e5247993e2c5569513703d24c2032b49` integrated), three actions and a current-tool scope disclosure. Real Web **Always allow** created a `tool` rule. Native pwsh produced the actual marker. Changed arguments succeeded without another card, another tool still asked, and CLI revocation restored asking.
+- Human-only: the same latest-main source in a fresh synthetic Bot, explicit Full Access already on. A synthetic `grant-write-set` command still requested Human approval. **Always allow** is disabled with a reason. Reject produced a native denied result; the synthetic target cannot change a real authorization. The first automated guard capture clipped the bottom action; it is retained privately. These replacement captures scroll the native card fully into view before capturing. The verification runner includes that framing correction.
+
+`proof.json` retains sanitized canonical assertions and bounded native tool results. Full Channel messages, ARIA, diagnostics and logs remain in the private task evidence directory. The model response alone was not treated as execution proof: each marker also required a successful native tool trace.
+
+Reproduce: `node scripts/verify-app.mjs launch --name ax2080-simple`, doctor, then `node scripts/e2e-tool-approval-simple.mjs --name ax2080-simple`. Use `BOTHARNESS_AX_MODEL=deepseek-v4.1-flash` as the documented per-launch override if the machine's saved model is absent from the pinned catalog.
+
+Pending Human acceptance; no merge. Native mobile UI and IM new-rule creation are outside this Web tracer bullet. Companion and Activity reuse is covered by focused component tests; only the Channel surface is shown in these captures.
+
+The earlier full continuous run on clean `a84f9dd12` passed every step. The latest-main continuous run passed all ordinary cases, then the model stayed thinking without issuing the management call until the three-minute wait expired. Doctor/observation and the failed report remain private; this is not reported as a full continuous pass. The management case was then qualified separately on the same clean latest-main build, through the actual model/native card and normal rejection. An earlier mode transition while the Bot was tidying Inbox work caused a stale-mode refusal, so the runner now waits for the native turn to settle before changing Full Access. No production guard was weakened or timeout increased.

@@ -1,7 +1,8 @@
 import type { ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { border, color, radius, space, text } from './tokens.stylex.js';
+import { ChannelSidebarIcon } from '../channel-sidebar-icon.js';
+import { border, color, radius, size, space, text } from './tokens.stylex.js';
 
 const styles = stylex.create({
   root: {
@@ -18,6 +19,19 @@ const styles = stylex.create({
     borderRadius: radius.md,
     textAlign: 'center',
   },
+  panel: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexGrow: 1,
+    gap: space.x4,
+    padding: space.x5,
+    boxSizing: 'border-box',
+    textAlign: 'center',
+    color: color.muted,
+  },
+  icon: { width: size.nav, height: size.nav, flexShrink: 0, color: color.subtle },
   title: {
     margin: 0,
     color: color.fg,
@@ -52,6 +66,26 @@ export function EmptyState({
         <p {...stylex.props(styles.description)}>{description}</p>
       )}
       {action}
+    </div>
+  );
+}
+
+export function PanelEmptyState({
+  icon,
+  children,
+  action,
+}: {
+  readonly icon?: string | undefined;
+  readonly children: ReactNode;
+  readonly action?: ReactNode;
+}): ReactElement {
+  return (
+    <div role="status" data-panel-empty="" {...stylex.props(styles.panel)}>
+      <span aria-hidden="true" {...stylex.props(styles.icon)}>
+        <ChannelSidebarIcon name={icon} size="100%" />
+      </span>
+      <p {...stylex.props(styles.description)}>{children}</p>
+      {action === undefined ? null : <div data-panel-empty-action="">{action}</div>}
     </div>
   );
 }

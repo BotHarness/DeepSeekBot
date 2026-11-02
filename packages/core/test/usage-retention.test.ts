@@ -95,6 +95,42 @@ it('retains missing histories across restarts and never recounts restored or lat
   expect(Object.keys(receipts[0]!)).toEqual(['fingerprint', 'bot_slug']);
 });
 
+it('rolls back the entire reconciliation after projecting multiple sessions', async () => {
+  let failCommit = false;
+  const home = createTempRoot('botharness-rebuild-rollback-');
+  const database = trackTestOwner(
+    mountOperationalDatabase({
+      dshHome: home,
+      schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+      faultInjector: ({ stage }) => {
+        if (failCommit && stage === 'before-commit') throw new Error('rebuild commit failed');
+      },
+    }),
+  );
+  const ownership = createSessionOwnership(attachOperationalModule(database, 'session-ownership'));
+  claim(ownership, 'first-session');
+  claim(ownership, 'second-session');
+  const usage = createUsageProjection({ ownership, database });
+  const readLog = async () => ({ events: [settlement(1)], inheritedEventCount: 0 });
+  failCommit = true;
+  await expect(usage.rebuild(['first-session', 'second-session'], readLog)).rejects.toThrow(
+    'Operational commit for usage failed',
+  );
+  database.close();
+  const recovered = open(home);
+  expect(recovered.usage.activity('ada', SINCE)).toEqual([]);
+  expect(
+    attachOperationalModule(recovered.database, 'usage').read((connection) =>
+      connection.prepare('SELECT COUNT(*) AS count FROM usage_receipts').get(),
+    ),
+  ).toEqual({ count: 0 });
+  expect(await recovered.usage.rebuild(['first-session', 'second-session'], readLog)).toEqual({
+    folded: 2,
+    failed: 0,
+  });
+  expect(recovered.usage.activity('ada', SINCE)[0]?.totalTokens).toBe(340);
+});
+
 it('commits the receipt and counters together, allowing a failed write to be retried', () => {
   const home = createTempRoot('botharness-retention-rollback-');
   let fail = false;

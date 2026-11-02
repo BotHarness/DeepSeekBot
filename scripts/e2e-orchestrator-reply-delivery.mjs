@@ -301,8 +301,8 @@ for (const selection of requested) {
       const contentMatches =
         !scenario.marker || replies.some((message) => message.body.includes(scenario.marker));
       const delivered = scenario.silent
-        ? replies.length === 0 && !tools.includes('channel_send')
-        : replies.length === 1 && tools.filter((name) => name === 'channel_send').length === 1;
+        ? replies.length === 0 && !tools.includes('bot_send_message')
+        : replies.length === 1 && tools.filter((name) => name === 'bot_send_message').length === 1;
       const pass =
         settled &&
         completed &&

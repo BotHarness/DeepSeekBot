@@ -48,10 +48,11 @@ export function createContentRedactions() {
       };
     return matches(channelId, value.replyTo) ? { ...value, replyToPreview: null } : value;
   };
-  const channel = (value: ChannelSummary): ChannelSummary =>
-    value.latestMessage === undefined
-      ? value
-      : { ...value, latestMessage: message(value.id, value.latestMessage) };
+  const channel = (value: ChannelSummary): ChannelSummary => {
+    if (value.latestMessage === undefined) return value;
+    const latestMessage = message(value.id, value.latestMessage);
+    return latestMessage === value.latestMessage ? value : { ...value, latestMessage };
+  };
   return {
     accept(values: readonly PurgedPlacement[]): void {
       for (const value of values) {
@@ -65,10 +66,14 @@ export function createContentRedactions() {
     conversation(value: ConversationState): ConversationState {
       if (value.channel === undefined) return value;
       const channelId = value.channel.id;
+      const nextChannel = channel(value.channel);
+      const messages = value.messages.map((item) => message(channelId, item));
+      const unchanged = messages.every((item, index) => item === value.messages[index]);
+      if (nextChannel === value.channel && unchanged) return value;
       return {
         ...value,
-        channel: channel(value.channel),
-        messages: value.messages.map((item) => message(channelId, item)),
+        channel: nextChannel,
+        messages: unchanged ? value.messages : messages,
       };
     },
     botInbox(value: BotInboxState): BotInboxState {

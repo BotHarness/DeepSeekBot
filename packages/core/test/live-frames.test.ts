@@ -108,6 +108,34 @@ describe('live frames on the native stream carrier', () => {
     expect((await ended).done).toBe(true);
   });
 
+  it('retains a canonical roster refresh when a slow reader coalesces a Bot reply into a Human preview', async () => {
+    const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }));
+    hubs.push(hub);
+    const abort = new AbortController();
+    const frames = hub.followRoster(abort.signal)[Symbol.asyncIterator]();
+    await frames.next();
+    hub.publishCommitted({
+      channelId: 'a',
+      revision: 1,
+      message: {
+        id: 'bot',
+        at: '2026-10-18T00:00:00Z',
+        author: { kind: 'bot', slug: 'ada' },
+        body: 'Done',
+      },
+    });
+    const human = {
+      id: 'human',
+      at: '2026-10-18T00:00:01Z',
+      author: { kind: 'human' as const },
+      body: 'Thanks',
+    };
+    hub.publishCommitted({ channelId: 'a', revision: 2, message: human });
+    expect((await frames.next()).value).toEqual({ type: 'changed' });
+    expect((await frames.next()).value).toEqual({ type: 'latest', channelId: 'a', message: human });
+    abort.abort();
+  });
+
   it("carries each Channel's latest non-notice message on the roster, newest per Channel", async () => {
     const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }));
     hubs.push(hub);
@@ -289,7 +317,11 @@ describe('live frames on the native stream carrier', () => {
     const tracker = new ChannelDraftTracker((event) => hub.publishDraft(event));
     tracker.begin('orchestrator-ada', { channelId: dm.id, botSlug: 'ada', canAccess: () => true });
     const reply = 'The quick brown fox, 你好。'.repeat(80);
-    const fragments = ['{"body":"', ...reply.match(/.{1,3}/gsu)!, '"}'];
+    const fragments = [
+      `{"channel_id":${JSON.stringify(dm.id)},"body":"`,
+      ...reply.match(/.{1,3}/gsu)!,
+      '"}',
+    ];
     for (const [index, fragment] of fragments.entries())
       tracker.accept('orchestrator-ada', {
         type: 'chunk',
@@ -301,7 +333,7 @@ describe('live frames on the native stream carrier', () => {
           type: 'tool-call-delta',
           index: 0,
           id: 'call-1',
-          name: 'channel_send',
+          name: 'bot_send_message',
           argumentsDelta: fragment,
         },
       } as AssistantStreamFrame);
@@ -430,4 +462,37 @@ describe('live frames on the native stream carrier', () => {
       followCompanion(open, 'x'.repeat(200), '', new AbortController().signal).next(),
     ).rejects.toMatchObject({ code: 'invalid' });
   });
+});
+
+it('multiplexes attention invalidations on both roster carriers and bounds a slow typed reader', async () => {
+  let changed!: () => void;
+  let released = 0;
+  const hub = createChannelLiveHub(
+    createChannelStore({ rootDir: root() }),
+    undefined,
+    undefined,
+    (notify) => {
+      changed = notify;
+      return () => {
+        released++;
+      };
+    },
+  );
+  hubs.push(hub);
+  const abort = new AbortController();
+  const typed = hub.followRoster(abort.signal)[Symbol.asyncIterator]();
+  const sse = openLiveFrames((request) => hub.open(request), 'scope=roster', '', abort.signal);
+  await typed.next();
+  await sse.next();
+  changed();
+  expect((await typed.next()).value).toEqual({ type: 'attention' });
+  expect((await sse.next()).value).toEqual({ event: 'human-attention/changed', data: '{}' });
+  for (let i = 0; i < 10; i++) changed();
+  expect((await typed.next()).value).toEqual({ type: 'attention' });
+  const pending = typed.next();
+  abort.abort();
+  expect((await pending).done).toBe(true);
+  await sse.return(undefined);
+  hub.close();
+  expect(released).toBe(1);
 });

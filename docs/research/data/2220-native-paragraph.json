@@ -1,0 +1,1888 @@
+{
+  "issue": 2220,
+  "baseline": "0f458c7a3d1684e8d071127647aa66c85d3b2898",
+  "nativeImplementation": "e547ad313c6b11b14dadae72d67fc9bcc290dbbb",
+  "integratedHead": "f724966ce9b6bdb7b092b5866759d363d35ad5ae",
+  "plain": {
+    "rows": [
+      {
+        "label": "final-plain-1-a",
+        "arm": "control",
+        "draw": 27252.8,
+        "measure": 9985.9,
+        "uiEarly": 55.797,
+        "uiLate": 101.537,
+        "presentEarly": 57.94,
+        "presentLate": 107.884,
+        "presentLateAverage": 85.225,
+        "js": 21.814,
+        "observed": 50842,
+        "pss": 332055,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "textSlices": [
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 1306,
+            "total_ms": 27252.8,
+            "max_ms": 67.02
+          },
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 607,
+            "total_ms": 9985.9,
+            "max_ms": 35.15
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 608,
+            "total_ms": 9884.3,
+            "max_ms": 34.46
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 604,
+            "total_ms": 6901.3,
+            "max_ms": 23.13
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 607,
+            "total_ms": 796.6,
+            "max_ms": 3
+          }
+        ],
+        "traceErrors": "",
+        "thermalStatus": 0
+      },
+      {
+        "label": "final-plain-2-b",
+        "arm": "candidate",
+        "draw": 13499.6,
+        "measure": 7.3,
+        "uiEarly": 28.398,
+        "uiLate": 85.856,
+        "presentEarly": 33.164,
+        "presentLate": 99.577,
+        "presentLateAverage": 26.06,
+        "js": 23.557000000000002,
+        "observed": 52574,
+        "pss": 355033,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "textSlices": [
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 608,
+            "total_ms": 14333.1,
+            "max_ms": 95.95
+          },
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 2343,
+            "total_ms": 13499.6,
+            "max_ms": 53.05
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 608,
+            "total_ms": 10097.8,
+            "max_ms": 64.49
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 605,
+            "total_ms": 9007.6,
+            "max_ms": 69.16
+          },
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 607,
+            "total_ms": 7.3,
+            "max_ms": 0.92
+          }
+        ],
+        "traceErrors": "",
+        "thermalStatus": 0
+      },
+      {
+        "label": "final-plain-3-b",
+        "arm": "candidate",
+        "draw": 13083.2,
+        "measure": 14597.3,
+        "uiEarly": 28.994,
+        "uiLate": 93.301,
+        "presentEarly": 33.179,
+        "presentLate": 107.911,
+        "presentLateAverage": 27.275,
+        "js": 24.689999999999998,
+        "observed": 52587,
+        "pss": 346624,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "textSlices": [
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 607,
+            "total_ms": 14597.3,
+            "max_ms": 101.06
+          },
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 2290,
+            "total_ms": 13083.2,
+            "max_ms": 47.46
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 611,
+            "total_ms": 10856.5,
+            "max_ms": 68.37
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 605,
+            "total_ms": 9784.8,
+            "max_ms": 69.45
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 609,
+            "total_ms": 806.8,
+            "max_ms": 3.12
+          }
+        ],
+        "traceErrors": "",
+        "thermalStatus": 0
+      },
+      {
+        "label": "final-plain-4-a",
+        "arm": "control",
+        "draw": 28221.3,
+        "measure": 9908.9,
+        "uiEarly": 60.52,
+        "uiLate": 105.348,
+        "presentEarly": 58.095,
+        "presentLate": 107.933,
+        "presentLateAverage": 87.999,
+        "js": 21.368000000000002,
+        "observed": 50909,
+        "pss": 332724,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "textSlices": [
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 1248,
+            "total_ms": 28221.3,
+            "max_ms": 84.58
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 611,
+            "total_ms": 9982.8,
+            "max_ms": 36.27
+          },
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 607,
+            "total_ms": 9908.9,
+            "max_ms": 33.26
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 605,
+            "total_ms": 6902.5,
+            "max_ms": 23.62
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 609,
+            "total_ms": 756.5,
+            "max_ms": 2.72
+          }
+        ],
+        "traceErrors": "",
+        "thermalStatus": 0
+      },
+      {
+        "label": "final-plain-5-a",
+        "arm": "control",
+        "draw": 28356.1,
+        "measure": 10124.1,
+        "uiEarly": 60.667,
+        "uiLate": 105.463,
+        "presentEarly": 58.134,
+        "presentLate": 107.99,
+        "presentLateAverage": 88.315,
+        "js": 21.271,
+        "observed": 50991,
+        "pss": 338348,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "textSlices": [
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 1217,
+            "total_ms": 28356.1,
+            "max_ms": 73.38
+          },
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 608,
+            "total_ms": 10124.1,
+            "max_ms": 33.24
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 610,
+            "total_ms": 10016.8,
+            "max_ms": 36.06
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 604,
+            "total_ms": 7016,
+            "max_ms": 23.43
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 608,
+            "total_ms": 774,
+            "max_ms": 2.91
+          }
+        ],
+        "traceErrors": "",
+        "thermalStatus": 0
+      },
+      {
+        "label": "final-plain-6-b",
+        "arm": "candidate",
+        "draw": 13680.2,
+        "measure": 14062.7,
+        "uiEarly": 28.589,
+        "uiLate": 90.877,
+        "presentEarly": 33.189,
+        "presentLate": 107.886,
+        "presentLateAverage": 26.581,
+        "js": 24.087,
+        "observed": 52124,
+        "pss": 346025,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "textSlices": [
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 607,
+            "total_ms": 14062.7,
+            "max_ms": 97.39
+          },
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 2314,
+            "total_ms": 13680.2,
+            "max_ms": 53.18
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 611,
+            "total_ms": 10450.5,
+            "max_ms": 64.66
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 605,
+            "total_ms": 9445.2,
+            "max_ms": 69.38
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 609,
+            "total_ms": 795.8,
+            "max_ms": 2.71
+          }
+        ],
+        "traceErrors": "",
+        "thermalStatus": 0
+      }
+    ],
+    "medians": {
+      "control": {
+        "draw": 28221.3,
+        "measure": 9985.9,
+        "uiEarly": 60.52,
+        "uiLate": 105.348,
+        "presentEarly": 58.095,
+        "presentLate": 107.933,
+        "presentLateAverage": 87.999,
+        "js": 21.368000000000002,
+        "observed": 50909,
+        "pss": 332724
+      },
+      "candidate": {
+        "draw": 13499.6,
+        "measure": 14062.7,
+        "uiEarly": 28.589,
+        "uiLate": 90.877,
+        "presentEarly": 33.179,
+        "presentLate": 107.886,
+        "presentLateAverage": 26.581,
+        "js": 24.087,
+        "observed": 52574,
+        "pss": 346624
+      }
+    }
+  },
+  "prose": {
+    "rows": [
+      {
+        "label": "final-prose-1-a",
+        "arm": "control",
+        "draw": 5994.4,
+        "measure": 481.3,
+        "uiEarly": 5.978,
+        "uiLate": 5.431,
+        "presentEarly": 8.417,
+        "presentLate": 8.418,
+        "presentLateAverage": 8.307,
+        "js": 20.313,
+        "observed": 56590,
+        "pss": 326497,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "textSlices": [
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 5536,
+            "total_ms": 5994.4,
+            "max_ms": 6.02
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 13631,
+            "total_ms": 1478.6,
+            "max_ms": 2.45
+          },
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 1108,
+            "total_ms": 481.3,
+            "max_ms": 1.79
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 905,
+            "total_ms": 269.8,
+            "max_ms": 1.01
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 1313,
+            "total_ms": 262.5,
+            "max_ms": 1.52
+          }
+        ],
+        "traceErrors": "",
+        "thermalStatus": 0
+      },
+      {
+        "label": "final-prose-2-b",
+        "arm": "candidate",
+        "draw": 6037.3,
+        "measure": 464.5,
+        "uiEarly": 6.117,
+        "uiLate": 5.673,
+        "presentEarly": 8.425,
+        "presentLate": 8.418,
+        "presentLateAverage": 8.311,
+        "js": 19.936999999999998,
+        "observed": 56533,
+        "pss": 315942,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "textSlices": [
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 5542,
+            "total_ms": 6037.3,
+            "max_ms": 4.97
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 13574,
+            "total_ms": 1468.8,
+            "max_ms": 1.95
+          },
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 1107,
+            "total_ms": 464.5,
+            "max_ms": 2.11
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 1313,
+            "total_ms": 280.2,
+            "max_ms": 2.09
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 903,
+            "total_ms": 267.7,
+            "max_ms": 1.65
+          }
+        ],
+        "traceErrors": "",
+        "thermalStatus": 0
+      },
+      {
+        "label": "final-prose-3-b",
+        "arm": "candidate",
+        "draw": 5748.2,
+        "measure": 451.5,
+        "uiEarly": 5.679,
+        "uiLate": 5.548,
+        "presentEarly": 8.353,
+        "presentLate": 8.403,
+        "presentLateAverage": 8.315,
+        "js": 20.593,
+        "observed": 56454,
+        "pss": 323655,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "textSlices": [
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 5533,
+            "total_ms": 5748.2,
+            "max_ms": 8.61
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 13621,
+            "total_ms": 1526.3,
+            "max_ms": 2.15
+          },
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 1107,
+            "total_ms": 451.5,
+            "max_ms": 1.59
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 905,
+            "total_ms": 259.4,
+            "max_ms": 1.33
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 1312,
+            "total_ms": 258.6,
+            "max_ms": 1.44
+          }
+        ],
+        "traceErrors": "",
+        "thermalStatus": 0
+      },
+      {
+        "label": "final-prose-4-a",
+        "arm": "control",
+        "draw": 6049.6,
+        "measure": 485.6,
+        "uiEarly": 6.037,
+        "uiLate": 5.776,
+        "presentEarly": 8.424,
+        "presentLate": 8.406,
+        "presentLateAverage": 8.311,
+        "js": 20.178,
+        "observed": 56206,
+        "pss": 310856,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "textSlices": [
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 5538,
+            "total_ms": 6049.6,
+            "max_ms": 8.43
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 13588,
+            "total_ms": 1466.8,
+            "max_ms": 2.18
+          },
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 1107,
+            "total_ms": 485.6,
+            "max_ms": 1.49
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 1313,
+            "total_ms": 276.8,
+            "max_ms": 2.18
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 903,
+            "total_ms": 274.1,
+            "max_ms": 1.12
+          }
+        ],
+        "traceErrors": "",
+        "thermalStatus": 0
+      },
+      {
+        "label": "final-prose-5-a",
+        "arm": "control",
+        "draw": 5894.5,
+        "measure": 460.7,
+        "uiEarly": 5.827,
+        "uiLate": 7.527,
+        "presentEarly": 8.422,
+        "presentLate": 8.399,
+        "presentLateAverage": 8.311,
+        "js": 20.668,
+        "observed": 56322,
+        "pss": 320456,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "textSlices": [
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 5538,
+            "total_ms": 5894.5,
+            "max_ms": 6.48
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 13646,
+            "total_ms": 1529.2,
+            "max_ms": 3.13
+          },
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 1107,
+            "total_ms": 460.7,
+            "max_ms": 1.79
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 903,
+            "total_ms": 264.6,
+            "max_ms": 1.6
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 1313,
+            "total_ms": 263.2,
+            "max_ms": 1.35
+          }
+        ],
+        "traceErrors": "",
+        "thermalStatus": 0
+      },
+      {
+        "label": "final-prose-6-b",
+        "arm": "candidate",
+        "draw": 5997.4,
+        "measure": 476.9,
+        "uiEarly": 6.094,
+        "uiLate": 5.523,
+        "presentEarly": 8.426,
+        "presentLate": 8.417,
+        "presentLateAverage": 8.307,
+        "js": 20.130000000000003,
+        "observed": 56269,
+        "pss": 326566,
+        "canonical": true,
+        "visible": true,
+        "actual120": true,
+        "textSlices": [
+          {
+            "name": "ReactTextView.onDraw",
+            "calls": 5531,
+            "total_ms": 5997.4,
+            "max_ms": 4.6
+          },
+          {
+            "name": "Constructing StaticLayout",
+            "calls": 13601,
+            "total_ms": 1465.8,
+            "max_ms": 1.32
+          },
+          {
+            "name": "ReactTextView.onMeasure",
+            "calls": 1107,
+            "total_ms": 476.9,
+            "max_ms": 1.6
+          },
+          {
+            "name": "Generating StaticLayout For DynamicLayout",
+            "calls": 903,
+            "total_ms": 272.9,
+            "max_ms": 1.31
+          },
+          {
+            "name": "ReactTextView.setText(ReactTextUpdate)",
+            "calls": 1312,
+            "total_ms": 271.1,
+            "max_ms": 1.32
+          }
+        ],
+        "traceErrors": "",
+        "thermalStatus": 0
+      }
+    ],
+    "medians": {
+      "control": {
+        "draw": 5994.4,
+        "measure": 481.3,
+        "uiEarly": 5.978,
+        "uiLate": 5.776,
+        "presentEarly": 8.422,
+        "presentLate": 8.406,
+        "presentLateAverage": 8.311,
+        "js": 20.313,
+        "observed": 56322,
+        "pss": 320456
+      },
+      "candidate": {
+        "draw": 5997.4,
+        "measure": 464.5,
+        "uiEarly": 6.094,
+        "uiLate": 5.548,
+        "presentEarly": 8.425,
+        "presentLate": 8.417,
+        "presentLateAverage": 8.311,
+        "js": 20.130000000000003,
+        "observed": 56454,
+        "pss": 323655
+      }
+    }
+  },
+  "reviewFollowup": {
+    "head": "9879ff7a2a26aab9f24ecbb005fc205dfddad717",
+    "apkSha256": "BE939E5442C6F8FAD10069877E6AD7F63C19D8F09074EC0EF66E6D3F53928820",
+    "change": "Normal-composition fallback for nonzero wrapper scroll offsets; native regression covers fallback and re-entry.",
+    "nativeTests": 13,
+    "measuredAbbaabBinaryUnchanged": false,
+    "performanceProvenance": "ABBAAB remains attributed to nativeImplementation, not this follow-up."
+  },
+  "semanticMatrix": [
+    {
+      "label": "visual-a-12-light",
+      "fontScale": "1.0",
+      "night": "no",
+      "canonicalBotRepliesDuringPause": 0,
+      "canonicalComplete": true,
+      "visibleComplete": true,
+      "finalBodyCheckAfterReopen": true,
+      "cliExit": 0
+    },
+    {
+      "label": "visual-a-10-dark",
+      "fontScale": "1.0",
+      "night": "yes",
+      "canonicalBotRepliesDuringPause": 0,
+      "canonicalComplete": true,
+      "visibleComplete": true,
+      "finalBodyCheckAfterReopen": true,
+      "cliExit": 0
+    },
+    {
+      "label": "visual-a-13-light",
+      "fontScale": "1.3",
+      "night": "no",
+      "canonicalBotRepliesDuringPause": 0,
+      "canonicalComplete": true,
+      "visibleComplete": true,
+      "finalBodyCheckAfterReopen": true,
+      "cliExit": 0
+    },
+    {
+      "label": "visual-a-13-dark-clean",
+      "fontScale": "1.3",
+      "night": "yes",
+      "canonicalBotRepliesDuringPause": 0,
+      "canonicalComplete": true,
+      "visibleComplete": true,
+      "finalBodyCheckAfterReopen": true,
+      "cliExit": 0
+    },
+    {
+      "label": "visual-a-20-light",
+      "fontScale": "2.0",
+      "night": "no",
+      "canonicalBotRepliesDuringPause": 0,
+      "canonicalComplete": true,
+      "visibleComplete": true,
+      "finalBodyCheckAfterReopen": true,
+      "cliExit": 0
+    },
+    {
+      "label": "visual-a-20-dark",
+      "fontScale": "2.0",
+      "night": "yes",
+      "canonicalBotRepliesDuringPause": 0,
+      "canonicalComplete": true,
+      "visibleComplete": true,
+      "finalBodyCheckAfterReopen": true,
+      "cliExit": 0
+    },
+    {
+      "label": "visual-b-12-light",
+      "fontScale": "1.0",
+      "night": "no",
+      "canonicalBotRepliesDuringPause": 0,
+      "canonicalComplete": true,
+      "visibleComplete": true,
+      "finalBodyCheckAfterReopen": true,
+      "cliExit": 0
+    },
+    {
+      "label": "visual-b-10-dark",
+      "fontScale": "1.0",
+      "night": "yes",
+      "canonicalBotRepliesDuringPause": 0,
+      "canonicalComplete": true,
+      "visibleComplete": true,
+      "finalBodyCheckAfterReopen": true,
+      "cliExit": 0
+    },
+    {
+      "label": "visual-b-13-light",
+      "fontScale": "1.3",
+      "night": "no",
+      "canonicalBotRepliesDuringPause": 0,
+      "canonicalComplete": true,
+      "visibleComplete": true,
+      "finalBodyCheckAfterReopen": true,
+      "cliExit": 0
+    },
+    {
+      "label": "visual-b-13-dark",
+      "fontScale": "1.3",
+      "night": "yes",
+      "canonicalBotRepliesDuringPause": 0,
+      "canonicalComplete": true,
+      "visibleComplete": true,
+      "finalBodyCheckAfterReopen": true,
+      "cliExit": 0
+    },
+    {
+      "label": "visual-b-20-light",
+      "fontScale": "2.0",
+      "night": "no",
+      "canonicalBotRepliesDuringPause": 0,
+      "canonicalComplete": true,
+      "visibleComplete": true,
+      "finalBodyCheckAfterReopen": true,
+      "cliExit": 0
+    },
+    {
+      "label": "visual-b-20-dark",
+      "fontScale": "2.0",
+      "night": "yes",
+      "canonicalBotRepliesDuringPause": 0,
+      "canonicalComplete": true,
+      "visibleComplete": true,
+      "finalBodyCheckAfterReopen": true,
+      "cliExit": 0
+    }
+  ],
+  "interactions": {
+    "longPressMenu": true,
+    "dismissMenu": true,
+    "historyScrollOutsideText": true,
+    "returnToLatest": true,
+    "activeViewportScrollAndReturn": true,
+    "linkDispatch": "Android external-app consent dialog reached; dismissed without permission change",
+    "inlineSelectionHandles": "not offered by the existing selectable=false chat body"
+  },
+  "integrationSmoke": [
+    {
+      "label": "integration-plain",
+      "nativeHead": "9879ff7a2a26aab9f24ecbb005fc205dfddad717",
+      "apkSha256": "BE939E5442C6F8FAD10069877E6AD7F63C19D8F09074EC0EF66E6D3F53928820",
+      "canonicalComplete": true,
+      "visibleComplete": true,
+      "canonicalLength": 19221,
+      "actual120": true,
+      "reopenedForFinalCheck": false
+    },
+    {
+      "label": "integration-rich",
+      "nativeHead": "9879ff7a2a26aab9f24ecbb005fc205dfddad717",
+      "apkSha256": "BE939E5442C6F8FAD10069877E6AD7F63C19D8F09074EC0EF66E6D3F53928820",
+      "canonicalComplete": true,
+      "visibleComplete": true,
+      "canonicalLength": 4504,
+      "actual120": true,
+      "reopenedForFinalCheck": false
+    }
+  ],
+  "completionFollowup": {
+    "method": "matched screen-capture/PC-OCR, nominal 1.5-second cadence from producer+10s; complete visible final marker, not fully settled fade opacity",
+    "rows": [
+      {
+        "label": "completion-plain-1-a",
+        "arm": "control",
+        "intervalMs": [50381, 52885],
+        "samples": [
+          {
+            "index": 0,
+            "captureStartedMs": 10007,
+            "captureEndedMs": 10604,
+            "complete": false
+          },
+          {
+            "index": 1,
+            "captureStartedMs": 11512,
+            "captureEndedMs": 12059,
+            "complete": false
+          },
+          {
+            "index": 2,
+            "captureStartedMs": 13026,
+            "captureEndedMs": 13628,
+            "complete": false
+          },
+          {
+            "index": 3,
+            "captureStartedMs": 14688,
+            "captureEndedMs": 15237,
+            "complete": false
+          },
+          {
+            "index": 4,
+            "captureStartedMs": 16216,
+            "captureEndedMs": 16749,
+            "complete": false
+          },
+          {
+            "index": 5,
+            "captureStartedMs": 17728,
+            "captureEndedMs": 18269,
+            "complete": false
+          },
+          {
+            "index": 6,
+            "captureStartedMs": 19678,
+            "captureEndedMs": 20226,
+            "complete": false
+          },
+          {
+            "index": 7,
+            "captureStartedMs": 21190,
+            "captureEndedMs": 21761,
+            "complete": false
+          },
+          {
+            "index": 8,
+            "captureStartedMs": 22719,
+            "captureEndedMs": 23290,
+            "complete": false
+          },
+          {
+            "index": 9,
+            "captureStartedMs": 24234,
+            "captureEndedMs": 24824,
+            "complete": false
+          },
+          {
+            "index": 10,
+            "captureStartedMs": 25747,
+            "captureEndedMs": 26352,
+            "complete": false
+          },
+          {
+            "index": 11,
+            "captureStartedMs": 27250,
+            "captureEndedMs": 27868,
+            "complete": false
+          },
+          {
+            "index": 12,
+            "captureStartedMs": 28765,
+            "captureEndedMs": 29395,
+            "complete": false
+          },
+          {
+            "index": 13,
+            "captureStartedMs": 30277,
+            "captureEndedMs": 30952,
+            "complete": false
+          },
+          {
+            "index": 14,
+            "captureStartedMs": 31779,
+            "captureEndedMs": 32434,
+            "complete": false
+          },
+          {
+            "index": 15,
+            "captureStartedMs": 33291,
+            "captureEndedMs": 33970,
+            "complete": false
+          },
+          {
+            "index": 16,
+            "captureStartedMs": 35463,
+            "captureEndedMs": 36221,
+            "complete": false
+          },
+          {
+            "index": 17,
+            "captureStartedMs": 37676,
+            "captureEndedMs": 38365,
+            "complete": false
+          },
+          {
+            "index": 18,
+            "captureStartedMs": 39825,
+            "captureEndedMs": 40494,
+            "complete": false
+          },
+          {
+            "index": 19,
+            "captureStartedMs": 41534,
+            "captureEndedMs": 42226,
+            "complete": false
+          },
+          {
+            "index": 20,
+            "captureStartedMs": 43266,
+            "captureEndedMs": 43932,
+            "complete": false
+          },
+          {
+            "index": 21,
+            "captureStartedMs": 44898,
+            "captureEndedMs": 45567,
+            "complete": false
+          },
+          {
+            "index": 22,
+            "captureStartedMs": 46461,
+            "captureEndedMs": 47133,
+            "complete": false
+          },
+          {
+            "index": 23,
+            "captureStartedMs": 48544,
+            "captureEndedMs": 49223,
+            "complete": false
+          },
+          {
+            "index": 24,
+            "captureStartedMs": 50381,
+            "captureEndedMs": 51166,
+            "complete": false
+          },
+          {
+            "index": 25,
+            "captureStartedMs": 52211,
+            "captureEndedMs": 52885,
+            "complete": true
+          }
+        ],
+        "canonicalComplete": true,
+        "canonicalLength": 19221,
+        "actual120": true,
+        "thermalStatus": [0, 0],
+        "boundaryFramesVisuallyChecked": true
+      },
+      {
+        "label": "completion-plain-2-b",
+        "arm": "candidate",
+        "intervalMs": [44272, 46401],
+        "samples": [
+          {
+            "index": 0,
+            "captureStartedMs": 10010,
+            "captureEndedMs": 10589,
+            "complete": false
+          },
+          {
+            "index": 1,
+            "captureStartedMs": 11518,
+            "captureEndedMs": 12118,
+            "complete": false
+          },
+          {
+            "index": 2,
+            "captureStartedMs": 13020,
+            "captureEndedMs": 13591,
+            "complete": false
+          },
+          {
+            "index": 3,
+            "captureStartedMs": 14531,
+            "captureEndedMs": 15116,
+            "complete": false
+          },
+          {
+            "index": 4,
+            "captureStartedMs": 16035,
+            "captureEndedMs": 16613,
+            "complete": false
+          },
+          {
+            "index": 5,
+            "captureStartedMs": 17544,
+            "captureEndedMs": 18136,
+            "complete": false
+          },
+          {
+            "index": 6,
+            "captureStartedMs": 19050,
+            "captureEndedMs": 19696,
+            "complete": false
+          },
+          {
+            "index": 7,
+            "captureStartedMs": 20564,
+            "captureEndedMs": 21147,
+            "complete": false
+          },
+          {
+            "index": 8,
+            "captureStartedMs": 22076,
+            "captureEndedMs": 22695,
+            "complete": false
+          },
+          {
+            "index": 9,
+            "captureStartedMs": 23582,
+            "captureEndedMs": 24188,
+            "complete": false
+          },
+          {
+            "index": 10,
+            "captureStartedMs": 25340,
+            "captureEndedMs": 25982,
+            "complete": false
+          },
+          {
+            "index": 11,
+            "captureStartedMs": 27020,
+            "captureEndedMs": 27626,
+            "complete": false
+          },
+          {
+            "index": 12,
+            "captureStartedMs": 28914,
+            "captureEndedMs": 29528,
+            "complete": false
+          },
+          {
+            "index": 13,
+            "captureStartedMs": 30429,
+            "captureEndedMs": 31045,
+            "complete": false
+          },
+          {
+            "index": 14,
+            "captureStartedMs": 31938,
+            "captureEndedMs": 32570,
+            "complete": false
+          },
+          {
+            "index": 15,
+            "captureStartedMs": 33438,
+            "captureEndedMs": 34105,
+            "complete": false
+          },
+          {
+            "index": 16,
+            "captureStartedMs": 34953,
+            "captureEndedMs": 35596,
+            "complete": false
+          },
+          {
+            "index": 17,
+            "captureStartedMs": 36468,
+            "captureEndedMs": 37150,
+            "complete": false
+          },
+          {
+            "index": 18,
+            "captureStartedMs": 37968,
+            "captureEndedMs": 38640,
+            "complete": false
+          },
+          {
+            "index": 19,
+            "captureStartedMs": 39606,
+            "captureEndedMs": 40223,
+            "complete": false
+          },
+          {
+            "index": 20,
+            "captureStartedMs": 41119,
+            "captureEndedMs": 41748,
+            "complete": false
+          },
+          {
+            "index": 21,
+            "captureStartedMs": 42708,
+            "captureEndedMs": 43353,
+            "complete": false
+          },
+          {
+            "index": 22,
+            "captureStartedMs": 44272,
+            "captureEndedMs": 44890,
+            "complete": false
+          },
+          {
+            "index": 23,
+            "captureStartedMs": 45781,
+            "captureEndedMs": 46401,
+            "complete": true
+          }
+        ],
+        "canonicalComplete": true,
+        "canonicalLength": 19221,
+        "actual120": true,
+        "thermalStatus": [0, 0],
+        "boundaryFramesVisuallyChecked": true
+      },
+      {
+        "label": "completion-plain-3-b",
+        "arm": "candidate",
+        "intervalMs": [47955, 50093],
+        "samples": [
+          {
+            "index": 0,
+            "captureStartedMs": 10007,
+            "captureEndedMs": 10694,
+            "complete": false
+          },
+          {
+            "index": 1,
+            "captureStartedMs": 11530,
+            "captureEndedMs": 12286,
+            "complete": false
+          },
+          {
+            "index": 2,
+            "captureStartedMs": 13037,
+            "captureEndedMs": 13757,
+            "complete": false
+          },
+          {
+            "index": 3,
+            "captureStartedMs": 14549,
+            "captureEndedMs": 15257,
+            "complete": false
+          },
+          {
+            "index": 4,
+            "captureStartedMs": 16060,
+            "captureEndedMs": 16775,
+            "complete": false
+          },
+          {
+            "index": 5,
+            "captureStartedMs": 17589,
+            "captureEndedMs": 18288,
+            "complete": false
+          },
+          {
+            "index": 6,
+            "captureStartedMs": 19091,
+            "captureEndedMs": 19762,
+            "complete": false
+          },
+          {
+            "index": 7,
+            "captureStartedMs": 20603,
+            "captureEndedMs": 21300,
+            "complete": false
+          },
+          {
+            "index": 8,
+            "captureStartedMs": 22114,
+            "captureEndedMs": 22806,
+            "complete": false
+          },
+          {
+            "index": 9,
+            "captureStartedMs": 23627,
+            "captureEndedMs": 24325,
+            "complete": false
+          },
+          {
+            "index": 10,
+            "captureStartedMs": 25139,
+            "captureEndedMs": 25818,
+            "complete": false
+          },
+          {
+            "index": 11,
+            "captureStartedMs": 26651,
+            "captureEndedMs": 27339,
+            "complete": false
+          },
+          {
+            "index": 12,
+            "captureStartedMs": 28159,
+            "captureEndedMs": 28859,
+            "complete": false
+          },
+          {
+            "index": 13,
+            "captureStartedMs": 29664,
+            "captureEndedMs": 30367,
+            "complete": false
+          },
+          {
+            "index": 14,
+            "captureStartedMs": 31313,
+            "captureEndedMs": 31983,
+            "complete": false
+          },
+          {
+            "index": 15,
+            "captureStartedMs": 32854,
+            "captureEndedMs": 33521,
+            "complete": false
+          },
+          {
+            "index": 16,
+            "captureStartedMs": 34396,
+            "captureEndedMs": 35084,
+            "complete": false
+          },
+          {
+            "index": 17,
+            "captureStartedMs": 35907,
+            "captureEndedMs": 36565,
+            "complete": false
+          },
+          {
+            "index": 18,
+            "captureStartedMs": 37412,
+            "captureEndedMs": 38069,
+            "complete": false
+          },
+          {
+            "index": 19,
+            "captureStartedMs": 38923,
+            "captureEndedMs": 39672,
+            "complete": false
+          },
+          {
+            "index": 20,
+            "captureStartedMs": 40425,
+            "captureEndedMs": 41100,
+            "complete": false
+          },
+          {
+            "index": 21,
+            "captureStartedMs": 41931,
+            "captureEndedMs": 42561,
+            "complete": false
+          },
+          {
+            "index": 22,
+            "captureStartedMs": 43437,
+            "captureEndedMs": 44052,
+            "complete": false
+          },
+          {
+            "index": 23,
+            "captureStartedMs": 44938,
+            "captureEndedMs": 45548,
+            "complete": false
+          },
+          {
+            "index": 24,
+            "captureStartedMs": 46448,
+            "captureEndedMs": 47069,
+            "complete": false
+          },
+          {
+            "index": 25,
+            "captureStartedMs": 47955,
+            "captureEndedMs": 48583,
+            "complete": false
+          },
+          {
+            "index": 26,
+            "captureStartedMs": 49459,
+            "captureEndedMs": 50093,
+            "complete": true
+          }
+        ],
+        "canonicalComplete": true,
+        "canonicalLength": 19221,
+        "actual120": true,
+        "thermalStatus": [0, 0],
+        "boundaryFramesVisuallyChecked": true
+      },
+      {
+        "label": "completion-plain-4-a",
+        "arm": "control",
+        "intervalMs": [47862, 50508],
+        "samples": [
+          {
+            "index": 0,
+            "captureStartedMs": 10003,
+            "captureEndedMs": 10682,
+            "complete": false
+          },
+          {
+            "index": 1,
+            "captureStartedMs": 11588,
+            "captureEndedMs": 12271,
+            "complete": false
+          },
+          {
+            "index": 2,
+            "captureStartedMs": 13099,
+            "captureEndedMs": 13763,
+            "complete": false
+          },
+          {
+            "index": 3,
+            "captureStartedMs": 14644,
+            "captureEndedMs": 15324,
+            "complete": false
+          },
+          {
+            "index": 4,
+            "captureStartedMs": 16159,
+            "captureEndedMs": 16810,
+            "complete": false
+          },
+          {
+            "index": 5,
+            "captureStartedMs": 17667,
+            "captureEndedMs": 18301,
+            "complete": false
+          },
+          {
+            "index": 6,
+            "captureStartedMs": 19179,
+            "captureEndedMs": 19798,
+            "complete": false
+          },
+          {
+            "index": 7,
+            "captureStartedMs": 20690,
+            "captureEndedMs": 21290,
+            "complete": false
+          },
+          {
+            "index": 8,
+            "captureStartedMs": 22194,
+            "captureEndedMs": 22782,
+            "complete": false
+          },
+          {
+            "index": 9,
+            "captureStartedMs": 23704,
+            "captureEndedMs": 24286,
+            "complete": false
+          },
+          {
+            "index": 10,
+            "captureStartedMs": 25204,
+            "captureEndedMs": 25754,
+            "complete": false
+          },
+          {
+            "index": 11,
+            "captureStartedMs": 26714,
+            "captureEndedMs": 27262,
+            "complete": false
+          },
+          {
+            "index": 12,
+            "captureStartedMs": 28227,
+            "captureEndedMs": 28803,
+            "complete": false
+          },
+          {
+            "index": 13,
+            "captureStartedMs": 29728,
+            "captureEndedMs": 30278,
+            "complete": false
+          },
+          {
+            "index": 14,
+            "captureStartedMs": 31232,
+            "captureEndedMs": 31798,
+            "complete": false
+          },
+          {
+            "index": 15,
+            "captureStartedMs": 32743,
+            "captureEndedMs": 33341,
+            "complete": false
+          },
+          {
+            "index": 16,
+            "captureStartedMs": 34256,
+            "captureEndedMs": 34848,
+            "complete": false
+          },
+          {
+            "index": 17,
+            "captureStartedMs": 35769,
+            "captureEndedMs": 36396,
+            "complete": false
+          },
+          {
+            "index": 18,
+            "captureStartedMs": 37280,
+            "captureEndedMs": 37917,
+            "complete": false
+          },
+          {
+            "index": 19,
+            "captureStartedMs": 38791,
+            "captureEndedMs": 39462,
+            "complete": false
+          },
+          {
+            "index": 20,
+            "captureStartedMs": 40302,
+            "captureEndedMs": 40962,
+            "complete": false
+          },
+          {
+            "index": 21,
+            "captureStartedMs": 41814,
+            "captureEndedMs": 42461,
+            "complete": false
+          },
+          {
+            "index": 22,
+            "captureStartedMs": 43330,
+            "captureEndedMs": 43986,
+            "complete": false
+          },
+          {
+            "index": 23,
+            "captureStartedMs": 44842,
+            "captureEndedMs": 45509,
+            "complete": false
+          },
+          {
+            "index": 24,
+            "captureStartedMs": 46356,
+            "captureEndedMs": 47014,
+            "complete": false
+          },
+          {
+            "index": 25,
+            "captureStartedMs": 47862,
+            "captureEndedMs": 48539,
+            "complete": false
+          },
+          {
+            "index": 26,
+            "captureStartedMs": 49849,
+            "captureEndedMs": 50508,
+            "complete": true
+          }
+        ],
+        "canonicalComplete": true,
+        "canonicalLength": 19221,
+        "actual120": true,
+        "thermalStatus": [0, 0],
+        "boundaryFramesVisuallyChecked": true
+      },
+      {
+        "label": "completion-plain-5-a",
+        "arm": "control",
+        "intervalMs": [50864, 52933],
+        "samples": [
+          {
+            "index": 0,
+            "captureStartedMs": 10001,
+            "captureEndedMs": 10689,
+            "complete": false
+          },
+          {
+            "index": 1,
+            "captureStartedMs": 11586,
+            "captureEndedMs": 12237,
+            "complete": false
+          },
+          {
+            "index": 2,
+            "captureStartedMs": 13088,
+            "captureEndedMs": 13740,
+            "complete": false
+          },
+          {
+            "index": 3,
+            "captureStartedMs": 14588,
+            "captureEndedMs": 15262,
+            "complete": false
+          },
+          {
+            "index": 4,
+            "captureStartedMs": 16100,
+            "captureEndedMs": 16740,
+            "complete": false
+          },
+          {
+            "index": 5,
+            "captureStartedMs": 17614,
+            "captureEndedMs": 18215,
+            "complete": false
+          },
+          {
+            "index": 6,
+            "captureStartedMs": 19127,
+            "captureEndedMs": 19729,
+            "complete": false
+          },
+          {
+            "index": 7,
+            "captureStartedMs": 20631,
+            "captureEndedMs": 21228,
+            "complete": false
+          },
+          {
+            "index": 8,
+            "captureStartedMs": 22179,
+            "captureEndedMs": 22763,
+            "complete": false
+          },
+          {
+            "index": 9,
+            "captureStartedMs": 23691,
+            "captureEndedMs": 24282,
+            "complete": false
+          },
+          {
+            "index": 10,
+            "captureStartedMs": 25193,
+            "captureEndedMs": 25788,
+            "complete": false
+          },
+          {
+            "index": 11,
+            "captureStartedMs": 26700,
+            "captureEndedMs": 27319,
+            "complete": false
+          },
+          {
+            "index": 12,
+            "captureStartedMs": 28213,
+            "captureEndedMs": 28862,
+            "complete": false
+          },
+          {
+            "index": 13,
+            "captureStartedMs": 29721,
+            "captureEndedMs": 30390,
+            "complete": false
+          },
+          {
+            "index": 14,
+            "captureStartedMs": 31231,
+            "captureEndedMs": 31889,
+            "complete": false
+          },
+          {
+            "index": 15,
+            "captureStartedMs": 32741,
+            "captureEndedMs": 33418,
+            "complete": false
+          },
+          {
+            "index": 16,
+            "captureStartedMs": 34243,
+            "captureEndedMs": 34915,
+            "complete": false
+          },
+          {
+            "index": 17,
+            "captureStartedMs": 35755,
+            "captureEndedMs": 36419,
+            "complete": false
+          },
+          {
+            "index": 18,
+            "captureStartedMs": 37267,
+            "captureEndedMs": 37917,
+            "complete": false
+          },
+          {
+            "index": 19,
+            "captureStartedMs": 38782,
+            "captureEndedMs": 39444,
+            "complete": false
+          },
+          {
+            "index": 20,
+            "captureStartedMs": 40291,
+            "captureEndedMs": 41006,
+            "complete": false
+          },
+          {
+            "index": 21,
+            "captureStartedMs": 41790,
+            "captureEndedMs": 42460,
+            "complete": false
+          },
+          {
+            "index": 22,
+            "captureStartedMs": 43306,
+            "captureEndedMs": 43954,
+            "complete": false
+          },
+          {
+            "index": 23,
+            "captureStartedMs": 44815,
+            "captureEndedMs": 45459,
+            "complete": false
+          },
+          {
+            "index": 24,
+            "captureStartedMs": 46327,
+            "captureEndedMs": 46931,
+            "complete": false
+          },
+          {
+            "index": 25,
+            "captureStartedMs": 47838,
+            "captureEndedMs": 48435,
+            "complete": false
+          },
+          {
+            "index": 26,
+            "captureStartedMs": 49352,
+            "captureEndedMs": 49918,
+            "complete": false
+          },
+          {
+            "index": 27,
+            "captureStartedMs": 50864,
+            "captureEndedMs": 51446,
+            "complete": false
+          },
+          {
+            "index": 28,
+            "captureStartedMs": 52378,
+            "captureEndedMs": 52933,
+            "complete": true
+          }
+        ],
+        "canonicalComplete": true,
+        "canonicalLength": 19221,
+        "actual120": true,
+        "thermalStatus": [0, 0],
+        "boundaryFramesVisuallyChecked": true
+      },
+      {
+        "label": "completion-plain-6-b",
+        "arm": "candidate",
+        "intervalMs": [49263, 51432],
+        "samples": [
+          {
+            "index": 0,
+            "captureStartedMs": 10004,
+            "captureEndedMs": 10649,
+            "complete": false
+          },
+          {
+            "index": 1,
+            "captureStartedMs": 11516,
+            "captureEndedMs": 12159,
+            "complete": false
+          },
+          {
+            "index": 2,
+            "captureStartedMs": 13027,
+            "captureEndedMs": 13674,
+            "complete": false
+          },
+          {
+            "index": 3,
+            "captureStartedMs": 14542,
+            "captureEndedMs": 15216,
+            "complete": false
+          },
+          {
+            "index": 4,
+            "captureStartedMs": 16054,
+            "captureEndedMs": 16733,
+            "complete": false
+          },
+          {
+            "index": 5,
+            "captureStartedMs": 17564,
+            "captureEndedMs": 18302,
+            "complete": false
+          },
+          {
+            "index": 6,
+            "captureStartedMs": 19077,
+            "captureEndedMs": 19762,
+            "complete": false
+          },
+          {
+            "index": 7,
+            "captureStartedMs": 20579,
+            "captureEndedMs": 21268,
+            "complete": false
+          },
+          {
+            "index": 8,
+            "captureStartedMs": 22093,
+            "captureEndedMs": 22769,
+            "complete": false
+          },
+          {
+            "index": 9,
+            "captureStartedMs": 23604,
+            "captureEndedMs": 24313,
+            "complete": false
+          },
+          {
+            "index": 10,
+            "captureStartedMs": 25106,
+            "captureEndedMs": 25790,
+            "complete": false
+          },
+          {
+            "index": 11,
+            "captureStartedMs": 26612,
+            "captureEndedMs": 27298,
+            "complete": false
+          },
+          {
+            "index": 12,
+            "captureStartedMs": 28119,
+            "captureEndedMs": 28791,
+            "complete": false
+          },
+          {
+            "index": 13,
+            "captureStartedMs": 29624,
+            "captureEndedMs": 30330,
+            "complete": false
+          },
+          {
+            "index": 14,
+            "captureStartedMs": 31175,
+            "captureEndedMs": 31863,
+            "complete": false
+          },
+          {
+            "index": 15,
+            "captureStartedMs": 32675,
+            "captureEndedMs": 33349,
+            "complete": false
+          },
+          {
+            "index": 16,
+            "captureStartedMs": 34175,
+            "captureEndedMs": 34845,
+            "complete": false
+          },
+          {
+            "index": 17,
+            "captureStartedMs": 35675,
+            "captureEndedMs": 36333,
+            "complete": false
+          },
+          {
+            "index": 18,
+            "captureStartedMs": 37189,
+            "captureEndedMs": 37857,
+            "complete": false
+          },
+          {
+            "index": 19,
+            "captureStartedMs": 38689,
+            "captureEndedMs": 39388,
+            "complete": false
+          },
+          {
+            "index": 20,
+            "captureStartedMs": 40203,
+            "captureEndedMs": 40877,
+            "complete": false
+          },
+          {
+            "index": 21,
+            "captureStartedMs": 41716,
+            "captureEndedMs": 42391,
+            "complete": false
+          },
+          {
+            "index": 22,
+            "captureStartedMs": 43228,
+            "captureEndedMs": 43889,
+            "complete": false
+          },
+          {
+            "index": 23,
+            "captureStartedMs": 44737,
+            "captureEndedMs": 45421,
+            "complete": false
+          },
+          {
+            "index": 24,
+            "captureStartedMs": 46246,
+            "captureEndedMs": 46929,
+            "complete": false
+          },
+          {
+            "index": 25,
+            "captureStartedMs": 47749,
+            "captureEndedMs": 48409,
+            "complete": false
+          },
+          {
+            "index": 26,
+            "captureStartedMs": 49263,
+            "captureEndedMs": 49951,
+            "complete": false
+          },
+          {
+            "index": 27,
+            "captureStartedMs": 50774,
+            "captureEndedMs": 51432,
+            "complete": true
+          }
+        ],
+        "canonicalComplete": true,
+        "canonicalLength": 19221,
+        "actual120": true,
+        "thermalStatus": [0, 0],
+        "boundaryFramesVisuallyChecked": true
+      }
+    ],
+    "medianControlIntervalMs": [50381, 52885],
+    "medianCandidateIntervalMs": [47955, 50093],
+    "conservativeMedianRatio": 0.9942835592782994,
+    "threshold": 1.1,
+    "passed": true,
+    "apkProvenance": "same baseline-main and viewport-final binaries as Perfetto ABBAAB; no screenshot polling in the Perfetto trials"
+  }
+}

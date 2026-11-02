@@ -150,6 +150,15 @@ describe('Session ownership', () => {
       'subagent',
     ]);
     expect(ownership.descendantsOf('subagent')).toEqual([]);
+    ownership.claim({ sessionId: 'other', botSlug: 'ada', rootRole: 'assignment', at: AT });
+    expect([...ownership.subagentCounts(['root', 'other', 'fork'])]).toEqual(
+      expect.arrayContaining([
+        ['root', 1],
+        ['fork', 1],
+      ]),
+    );
+    expect(ownership.subagentCounts(['root', 'other', 'fork']).has('other')).toBe(false);
+    expect(ownership.subagentCounts([]).size).toBe(0);
     expect(ownership.resolve('subagent')).toMatchObject({
       provenance: 'subagent',
       parentSessionId: 'fork',

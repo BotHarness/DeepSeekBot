@@ -1,0 +1,11 @@
+{
+  "target": "local",
+  "provider": "local",
+  "probe": {
+    "available": true
+  },
+  "status": {
+    "state": "stopped"
+  },
+  "exportDir": ""
+}

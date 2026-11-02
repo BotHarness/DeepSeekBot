@@ -105,6 +105,140 @@ async function invoke(argv: string[], url: string) {
 }
 
 describe('Agent Browser and Computer commands', () => {
+  it('uses the Local video owner command with private SDP output and no image request', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'bh-video-'));
+    dirs.push(dir);
+    const offer = { type: 'offer', sdp: 'private-signaling-data' };
+    const live = await host(() => ({
+      json: {
+        ok: true,
+        state: {
+          runtimeId: 'runtime-1',
+          paused: false,
+          controller: false,
+          offer,
+        },
+      },
+    }));
+    const file = join(dir, 'offer.json');
+    const opened = await invoke(['computer-video', 'open', '--out', file], live.url);
+    expect(opened.code).toBe(0);
+    expect(opened.json.state.offer).toBeUndefined();
+    expect(JSON.stringify(opened.json)).not.toContain(offer.sdp);
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(offer);
+    expect(live.calls).toEqual([
+      { method: 'POST', path: '/api/computer/video', body: { kind: 'open' } },
+    ]);
+  });
+
+  it('sends horizontal scrolling through the existing authenticated video input command', async () => {
+    const live = await host(() => ({ json: { ok: true } }));
+    const input = {
+      binding: { runtimeId: 'r', viewerId: 'v', attemptId: 'a', computerId: 'local' },
+      generation: 7,
+      sequence: 1,
+      input: { kind: 'scroll', direction: 'right', amount: 2, x: 40, y: 50 },
+    };
+    expect(
+      (
+        await invokeWithStdin(
+          ['computer-video', 'input', '--args-stdin'],
+          live.url,
+          JSON.stringify(input),
+        )
+      ).code,
+    ).toBe(0);
+    expect(live.calls).toEqual([
+      { method: 'POST', path: '/api/computer/video', body: { kind: 'input', ...input } },
+    ]);
+  });
+
+  it('sends continuous scrolling and its explicit stop through the existing authenticated video input command', async () => {
+    const live = await host(() => ({ json: { ok: true } }));
+    const input = {
+      binding: { runtimeId: 'r', viewerId: 'v', attemptId: 'a', computerId: 'local' },
+      generation: 7,
+      sequence: 1,
+      input: { kind: 'scroll-motion', vx: 0, vy: -200, x: 40, y: 50 },
+    };
+    expect(
+      (
+        await invokeWithStdin(
+          ['computer-video', 'input', '--args-stdin'],
+          live.url,
+          JSON.stringify(input),
+        )
+      ).code,
+    ).toBe(0);
+    await invokeWithStdin(
+      ['computer-video', 'input', '--args-stdin'],
+      live.url,
+      JSON.stringify({ ...input, sequence: 2, input: { ...input.input, vx: 0, vy: 0 } }),
+    );
+    expect(live.calls).toEqual([
+      { method: 'POST', path: '/api/computer/video', body: { kind: 'input', ...input } },
+      {
+        method: 'POST',
+        path: '/api/computer/video',
+        body: { kind: 'input', ...input, sequence: 2, input: { ...input.input, vx: 0, vy: 0 } },
+      },
+    ]);
+  });
+
+  it('never repeats an unknown video input and preserves its coded refusal', async () => {
+    const live = await host(() => ({
+      status: 409,
+      json: {
+        ok: false,
+        code: 'input-result-unknown',
+        error: 'The input result is unknown.',
+      },
+    }));
+    const result = await invokeWithStdin(
+      ['computer-video', 'input', '--args-stdin'],
+      live.url,
+      JSON.stringify({
+        binding: { runtimeId: 'r', viewerId: 'v', attemptId: 'a', computerId: 'local' },
+        generation: 7,
+        sequence: 1,
+        input: { kind: 'click', x: 1, y: 2 },
+      }),
+    );
+    expect(result.code).not.toBe(0);
+    expect(JSON.stringify(result.json)).toContain('input-result-unknown');
+    expect(live.calls).toHaveLength(1);
+    expect(live.calls[0]!.path).toBe('/api/computer/video');
+  });
+
+  it('requires force confirmation and supports explicit resume without media', async () => {
+    const live = await host(() => ({
+      json: { ok: true, state: { paused: false, controller: false } },
+    }));
+    expect(
+      (
+        await invokeWithStdin(
+          ['computer-video', 'takeover', '--args-stdin'],
+          live.url,
+          '{"force":true}',
+        )
+      ).code,
+    ).not.toBe(0);
+    expect(live.calls).toHaveLength(0);
+    expect(
+      (
+        await invokeWithStdin(
+          ['computer-video', 'resume', '--args-stdin'],
+          live.url,
+          '{"runtimeId":"current-runtime"}',
+        )
+      ).code,
+    ).toBe(0);
+    expect(live.calls[0]).toMatchObject({
+      path: '/api/computer/video',
+      body: { kind: 'resume', runtimeId: 'current-runtime' },
+    });
+  });
+
   it('opens a Bot browser, saves one frame, and takes over and releases it', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'bh-frame-'));
     dirs.push(dir);

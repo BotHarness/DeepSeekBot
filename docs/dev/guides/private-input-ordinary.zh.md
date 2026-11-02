@@ -14,6 +14,8 @@
 
 每个使用方都需要 Human 执行审批。审批卡上只有引用和占位符，没有值。`secret_cli` 卡片提供“批准一次”“总是允许此类”和“拒绝”。“此类”指程序名、账号和这组环境变量名，参数不算在内。“总是允许”会为这个 Bot 和角色保存一条可撤销的 `secret-cli` 规则，之后同类调用无论参数如何都不再出卡片；换了程序、账号或变量名会出新卡片。精确规则和全部不透明规则都不覆盖 `secret_cli`（[ADR-0191](../../adr/0191-a-bot-runs-a-command-line-tool-with-owner-secrets-per-approved-call.md)、[ADR-0208](../../adr/0208-secret-cli-can-be-always-allowed-per-program-and-account.md)）。
 
+本地 DM 或 Group 交互中，即使同一轮混入 IM 请求，也可以复用已配置账号；本地工作省略 `source_event_id`。IM 工作需要选择来源时，先用 `ask_secret` 选择当前已接受的来源，再调用 `secret_cli` 等消费工具；`secret_cli` 本身没有来源选择参数。同一轮两条 IM 来源选择了同一账号时仍拒绝歧义；来源撤销后，本轮继续拒绝。历史消息不提供当前交互权限。
+
 ## 密钥靠什么保护
 
 - 值保存在 DSH 原生凭据存储中，绑定到发起请求的 Bot 和账号，其他 Bot 无法使用。

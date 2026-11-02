@@ -1,0 +1,16 @@
+{
+  "results": [
+    "Real mention, mute/unmute and mark-read converge in two windows via the integrated live path; raw read position is preserved during mute.",
+    "Indicator scope and panel filters remain independent; same-origin windows still synchronize.",
+    "Injected status failure becomes unknown on a real invalidation; Off wins; a subsequent real invalidation recovers without adding polling."
+  ],
+  "finalStatus": {
+    "unreadCount": 4,
+    "hasAction": false,
+    "messageCounts": {
+      "replies": 0,
+      "other": 4
+    }
+  },
+  "errors": []
+}

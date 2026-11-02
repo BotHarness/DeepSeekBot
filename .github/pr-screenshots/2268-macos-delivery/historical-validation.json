@@ -1,0 +1,137 @@
+{
+  "status": "superseded; grouped composition broke native ui-theme Settings identity",
+  "record": {
+    "sourceCommit": "a4ceea164c30208e68787286a38331d8442e2478",
+    "date": "2026-10-19",
+    "freshProfile": {
+      "productVersion": "0.0.0-zoom.2268.1",
+      "node": "v24.21.0",
+      "platform": "darwin",
+      "scope": "Fresh Profile, no pre-approved builds: one install step, Host boot, Bot and DM creation, restart persistence. Browser, model and IM delivery are separate gates.",
+      "rows": [
+        {
+          "dsh": "0.2.0-rc.2",
+          "state": "passed"
+        },
+        {
+          "dsh": "0.2.1-rc.2",
+          "state": "passed"
+        }
+      ]
+    },
+    "portablePayload": {
+      "scope": "Actual product tarball, extracted outside the workspace; direct Host import without node_modules",
+      "apply": "function",
+      "config": "function",
+      "themeIdentity": "@deepseek-ai/dsh-client-ui-theme",
+      "version": "0.2.1-rc.2",
+      "license": "MIT",
+      "types": 4,
+      "schemaRelative": true,
+      "machinePathPresent": false,
+      "clientCompatibility": true
+    },
+    "lifecycle": {
+      "scope": "Actual tarballs, one task Profile, reinstall after remove, local-version upgrade and rollback; Host graph and canonical Bot identity, no Browser/native input qualification",
+      "rows": [
+        {
+          "label": "reinstall",
+          "version": "0.0.0-zoom.2268.1",
+          "themeCount": 1,
+          "compatibilityMarker": true,
+          "botCount": 1,
+          "sameBotIdentity": true
+        },
+        {
+          "label": "upgrade",
+          "version": "0.0.0-zoom.2268.2",
+          "themeCount": 1,
+          "compatibilityMarker": true,
+          "botCount": 1,
+          "identities": "29628c7373c29355873451ba3bf524c0d1a3a4e9b5e9791bf60e070b5751481d",
+          "sameBotIdentity": true
+        },
+        {
+          "label": "rollback",
+          "version": "0.0.0-zoom.2268.1",
+          "themeCount": 1,
+          "compatibilityMarker": true,
+          "botCount": 1,
+          "identities": "29628c7373c29355873451ba3bf524c0d1a3a4e9b5e9791bf60e070b5751481d",
+          "sameBotIdentity": true
+        }
+      ]
+    },
+    "nativeComposition": {
+      "scope": "Existing isolated Desktop using ordinary product Bundle patches and linked worktree members; no task-specific theme dependency/override; packed native install is a separate pending gate",
+      "release": {
+        "version": "0.2.1-rc.2",
+        "commit": "332895e"
+      },
+      "themeIds": ["@deepseek-ai/dsh-client-ui-theme"],
+      "compatibilityVersion": 1
+    },
+    "nativeInput": {
+      "method": "CUA native keyboard delivery to the existing macOS 0.2.1-rc.2 window",
+      "steps": {
+        "before": {
+          "level": 0,
+          "defaultLevel": 0,
+          "revision": "25abd294-8b89-44d8-b008-7836e1157794",
+          "rootZoom": "1"
+        },
+        "conflictRecording": {
+          "level": 0,
+          "defaultLevel": 0,
+          "revision": "25abd294-8b89-44d8-b008-7836e1157794",
+          "rootZoom": "1"
+        },
+        "customBindingSaved": {
+          "level": 0,
+          "defaultLevel": 0,
+          "revision": "25abd294-8b89-44d8-b008-7836e1157794",
+          "rootZoom": "1"
+        },
+        "customBindingExecuted": {
+          "level": 1,
+          "defaultLevel": 0,
+          "revision": "c22f2878-bbe3-4ea2-b790-b0b05f7fd363",
+          "rootZoom": "1.2"
+        }
+      },
+      "observed": "Recording Cmd+- refused as an occupied binding without a zoom revision; a temporary custom chord then increased exactly one level in a real composer while retaining its synthetic draft. Default binding restored through Settings.",
+      "limits": "This record does not prove ordinary Cmd+=, real IME composition or manual font-token preservation; earlier ordinary-key evidence remains in #2245."
+    },
+    "uninstall": {
+      "packageDependencyPresent": false,
+      "bundleEnabled": false,
+      "packageLinkPresent": false,
+      "nativeGraphThemeCount": 1,
+      "compatibilityMarker": false,
+      "scope": "Task-owned packaged Profile, explicit Bundle disable followed by native dsh plugin remove; normal Host boot afterward"
+    },
+    "gates": {
+      "passed": [
+        "55 focused tests",
+        "lint",
+        "format check",
+        "root and mobile types",
+        "actual tarball portability",
+        "fresh install/Bot/DM/restart on both supported Host releases",
+        "packed reinstall/upgrade/rollback with retained Bot identity",
+        "native recording/custom-binding behavior"
+      ],
+      "pending": [
+        "native packed installation in preserved user-data",
+        "same-device Host switch",
+        "real macOS IME feedback",
+        "wider S2 popups and embedded-page matrix",
+        "Human QA for new wallpaper/chrome fixes"
+      ],
+      "blocked": [
+        "Fresh-product Web UI: in-app browser denied the local origin; not retried through another browser or CDP"
+      ],
+      "fullSourceSuite": "7441 passed, 24 skipped; source-policy and group-self-leave exceeded the 15-second limit under full-suite load. Focused rechecks recorded separately. Both focused rechecks passed: source-policy 10 tests (4.47s), group-self-leave 10 tests (7.56s)."
+    }
+  }
+}

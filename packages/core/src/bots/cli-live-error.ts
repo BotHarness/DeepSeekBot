@@ -1,6 +1,7 @@
 import type { BotCreateStep } from './bot-create-cli.js';
 
 export class CliLiveError extends Error {
+  operation?: string;
   constructor(
     readonly code: string,
     message: string,
@@ -10,6 +11,11 @@ export class CliLiveError extends Error {
       bot?: { id: string; name: string };
       steps: BotCreateStep[];
       outcome: 'created' | 'not-created' | 'unknown';
+      operation?: {
+        operationKey: string;
+        status: 'created' | 'not-created' | 'unknown';
+        botSlug?: string;
+      };
     },
   ) {
     super(message);

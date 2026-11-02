@@ -1,0 +1,48 @@
+{
+  "runtime": "f02c2423bce02c264548193ac738013f4eac83ab",
+  "service": "3eeed5b05782276b1a02cc2412dd04ab0ec60bca",
+  "nativeModelTools": {
+    "a": ["inspect", "forward"],
+    "b": ["inspect", "execute"]
+  },
+  "sameCloudChannel": true,
+  "originalHumanAndDeadlinePreserved": true,
+  "canonicalMessages": [
+    {
+      "sequence": 13,
+      "kind": "work_request",
+      "authorType": "human"
+    },
+    {
+      "sequence": 14,
+      "kind": "work_request",
+      "authorType": "agent"
+    },
+    {
+      "sequence": 15,
+      "kind": "work_result",
+      "authorType": "agent"
+    }
+  ],
+  "counts": {
+    "a": {
+      "state": "forwarded",
+      "execution_count": 0
+    },
+    "b": {
+      "state": "finished",
+      "execution_count": 1
+    }
+  },
+  "afterBothHostRestarts": {
+    "sameForwardedChild": true,
+    "bAdditionalExecutions": 0,
+    "extraCloudMessages": 0
+  },
+  "firstFailures": [
+    "Denied request with mention-only reception did not create a source; fixed test precondition.",
+    "A initially executed instead of forwarding; fresh request after explicit owner DM used configured dispatcher role."
+  ],
+  "scope": "Two isolated local DSH Hosts via real UAT; not physical hardware diversity or a fresh phone run.",
+  "policiesRestored": true
+}
