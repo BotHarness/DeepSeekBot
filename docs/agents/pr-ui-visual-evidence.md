@@ -74,6 +74,22 @@ credentials, pairing links, serials, private paths, account details, HARs or unr
    least-privilege credential; never put credentials in argv, the repository or the PR. There
    is no fallback to Git, a Git evidence branch, LFS, a local-only link or an expiring signed URL.
 
+   In a cloud agent session (Claude Code on the web and similar), Wrangler reads
+   `CLOUDFLARE_API_TOKEN` from the environment; the account ID is fixed in `scripts/pr-evidence.mjs`.
+   Ask the Human to create a custom Cloudflare API token with **Account → Workers R2 Storage →
+   Edit** on account `332e72d480d7cb3e60ee671d3ca0cad0`, with an expiry, and to add it as an
+   environment variable of the cloud environment. `wrangler r2 object put --remote` uses this
+   account-level permission, so the token also reaches the account's other R2 buckets; keep its
+   expiry short. Never ask for the token in chat.
+   Only a new session picks it up. Before capturing, confirm it is active without putting it in an
+   argument list; the command exits non-zero for an invalid or inactive token:
+
+   ```bash
+   printf 'header = "Authorization: Bearer %s"\n' "$CLOUDFLARE_API_TOKEN" |
+     curl -fsS -K - https://api.cloudflare.com/client/v4/user/tokens/verify |
+     grep -q '"status":"active"'
+   ```
+
 3. The uploader sets the media type and immutable cache metadata, then downloads the public
    URL and checks its media type, byte count and SHA-256. Only after success does it write
    `<file>.r2.json` and honor `--remove-local`. An upload/readback failure retains the local
@@ -102,6 +118,7 @@ Reference the exact URL returned by the uploader:
 - **Keep every image URL at 150 characters or fewer.** When a body or comment is written through the GitHub MCP tools (`create_pull_request`, `update_pull_request`, `add_issue_comment`, `update_issue_comment`), longer URLs come back wrapped in backticks (``src="`https://…`"``), and GitHub then shows the tag as text instead of the image. In #2402, URLs of 150–151 characters survived and URLs of 162 characters or more were wrapped every time, whatever the host or position in the body.
 - The key is `pr/<source-sha12>/<full-content-sha256>.<extension>`. A new image gets a new key; never overwrite a key with different bytes. Keep the full source SHA in the receipt/index. Source identity, content identity and native/build acceptance are separate facts.
 - Use the public HTTPS R2 custom-domain URL, without a query string or expiry. Do not use GitHub raw/blob URLs, branch URLs, local paths or Markdown `![alt](url)` syntax for new PR images. Put each `<img>` on its own line with a blank line before and after it.
+- Some cloud agent environments filter image embeds in every GitHub write, whichever client makes it. In #3318 the GitHub MCP tools and `gh api` both stored `<img>` as `` `&lt;img …&gt;` `` and stripped the `!` from `![alt](url)`, even with URLs well under 150 characters. When the read-back shows that, replace each image with a plain link, `[Before: …](https://media.botharness.ai/pr/…)`, say in the body that inline images were blocked, and tell the Human: adding a `!` before each link on GitHub embeds it. Do not try other ways around the filter.
 - After every write, read the body or comment back (`pull_request_read` `get`, `issue_read` `get_comments`, or `gh pr view --json body`) and confirm every `src="…"` is a bare URL with no backticks. Spot-check that one URL returns `200 image/png`, for example `curl -sIL -o /dev/null -w '%{http_code} %{content_type}' <url>`. A PR with broken images is not ready for review.
 
 ## Retention, legacy files and enforcement
