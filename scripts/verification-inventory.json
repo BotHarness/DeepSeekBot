@@ -978,9 +978,9 @@
       "path": "scripts/e2e-all-bot-mention.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.group.mention"],
-      "reason": "#542 prepared scene and real models; checks picker names, two replies, silent exclusion and stale membership refusal. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "#542 prepared scene and real models; checks picker names, two replies, silent exclusion and stale membership refusal. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. R2 policy re-audit: only the default capture location moved to ignored staging; assertions and classification unchanged, journey not rerun. This hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "66b68f4d5b2d4f38cacabb0ef81a9f79a124ee018f3c79476bb7fc11f510f8d1"
+      "sha256": "3ec9987d8227137f46ea8af68e23c80d974179043d9f8d9d18cd8b8e645c57e6"
     },
     {
       "path": "scripts/e2e-approval-capacity-proof.mjs",
@@ -1967,9 +1967,9 @@
       "path": "scripts/e2e-real-attachment-files.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.attachments"],
-      "reason": "Task real picker/editor fixture on macOS; upload/copy/download bytes, external save and restart/missing destination phases.",
+      "reason": "Task real picker/editor fixture on macOS; upload/copy/download bytes, external save and restart/missing destination phases. R2 policy re-audit: only the default capture location moved to ignored staging; assertions and classification unchanged, journey not rerun.",
       "task": 1967,
-      "sha256": "23014c80e581f3b57e3de746c5c445e1945fee935aaa56d8a10220fd589d75a7"
+      "sha256": "3a5180e8e05dc02190270843571348ae6e8dabb81de0b4da4d529fe99e4643a7"
     },
     {
       "path": "scripts/e2e-retained-usage.mjs",
@@ -2433,9 +2433,9 @@
       "path": "scripts/e2e-mobile-deletion-web.mjs",
       "category": "mapped",
       "behaviors": ["phone.deletion"],
-      "reason": "Real paired-device requests through Expo Web against a task-owned Host; checks Bot Memory retention/erasure, Tob, sections and ADR-0274 Group Disband. Open-screen and native acceptance remain separate; the updated assertions await a live run in #3170.",
+      "reason": "Real paired-device requests through Expo Web against a task-owned Host; checks Bot Memory retention/erasure, Tob, sections and ADR-0274 Group Disband. Open-screen and native acceptance remain separate; the updated assertions await a live run in #3170. R2 policy re-audit: only the default capture location moved to ignored staging; assertions and classification unchanged, journey not rerun.",
       "task": 3171,
-      "sha256": "c1b9e779fe1c0c5f005aeb3139dd88f79fe7439ab7d7e34a4e7d92048e40611f"
+      "sha256": "f442cda964a711520e4180ff85cffa72a585c16403dfb23e1c60f573946d64fb"
     },
     {
       "path": "scripts/e2e-mobile-chat-resume.mjs",

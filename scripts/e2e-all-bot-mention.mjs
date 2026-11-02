@@ -12,7 +12,11 @@ const port = Number(process.env.BH_ALL_BOT_QA_PORT ?? 32025);
 const home = resolve(process.env.BH_ALL_BOT_QA_HOME ?? resolve(tmpdir(), 'bh-542-all-bot'));
 const out = process.env.BH_ALL_BOT_QA_OUT
   ? resolve(process.env.BH_ALL_BOT_QA_OUT)
-  : resolve(repo, 'docs/assets/pr/542-all-bot-mention', mode === 'before' ? 'before' : 'evidence');
+  : resolve(
+      repo,
+      '.humanlayer/tasks/542-all-bot-mention',
+      mode === 'before' ? 'before' : 'evidence',
+    );
 mkdirSync(out, { recursive: true });
 const url = readFileSync(resolve(tmpdir(), `dsh-${basename(home)}-${port}.log`), 'utf8').match(
   /http:\/\/127\.0\.0\.1:\d+\/\?token=[A-Za-z0-9._-]+/u,

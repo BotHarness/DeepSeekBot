@@ -200,6 +200,26 @@ interface UsageRoute {
   reasoningEffort?: string;
 }
 
+interface UsageFoldEvent {
+  seq: number;
+  time: number;
+  source: UsageRoute | undefined;
+  buckets: ReturnType<typeof reportedBuckets>;
+}
+
+function projectUsageEvent(event: DshSessionEvent): UsageFoldEvent | undefined {
+  if (event.type !== 'assistant/message' && event.type !== 'assistant/attempt') return undefined;
+  if (event.surfaceOp !== undefined && event.surfaceOp !== 'append') return undefined;
+  if (event.seq === undefined || !Number.isSafeInteger(event.seq) || event.seq < 0)
+    return undefined;
+  return {
+    seq: event.seq,
+    time: event.time,
+    source: routeOf(recordOf(recordOf(event.data)?.['message'])?.['source']),
+    buckets: reportedBuckets(event),
+  };
+}
+
 function routeOf(value: unknown): UsageRoute | undefined {
   const record = recordOf(value);
   return typeof record?.['provider'] === 'string' &&
@@ -245,7 +265,7 @@ export function createUsageProjection(options: {
   let rebuilding = false;
   let reconciliationFailed = false;
   let reconciledAt: string | null = null;
-  const queuedEvents: Array<{ sessionId: string; event: DshSessionEvent; route?: UsageRoute }> = [];
+  const queuedEvents: Array<{ sessionId: string; event: UsageFoldEvent; route?: UsageRoute }> = [];
 
   const upsert = (
     connection: DatabaseSync,
@@ -302,13 +322,10 @@ export function createUsageProjection(options: {
 
   const foldEvent = (
     sessionId: string,
-    event: DshSessionEvent,
+    event: UsageFoldEvent,
     route: UsageRoute | undefined,
     connection: DatabaseSync,
   ): boolean => {
-    if (event.type !== 'assistant/message' && event.type !== 'assistant/attempt') return false;
-    if (event.surfaceOp !== undefined && event.surfaceOp !== 'append') return false;
-    if (event.seq === undefined || !Number.isSafeInteger(event.seq) || event.seq < 0) return false;
     const owner = ownership.resolve(sessionId);
     if (owner === undefined) return false;
     let root = owner;
@@ -343,8 +360,7 @@ export function createUsageProjection(options: {
     if (receipt.changes === 0) return false;
     const baseline = baselineByBot.get(owner.botSlug);
     if (baseline !== undefined && event.time <= baseline) return false;
-    const source = routeOf(recordOf(recordOf(event.data)?.['message'])?.['source']);
-    const actual = source ?? route ?? { provider: 'unknown', model: 'unknown' };
+    const actual = event.source ?? route ?? { provider: 'unknown', model: 'unknown' };
     upsert(
       connection,
       owner.botSlug,
@@ -352,7 +368,7 @@ export function createUsageProjection(options: {
       purposeOf(owner),
       actual.provider,
       actual.model,
-      reportedBuckets(event),
+      event.buckets,
     );
     return true;
   };
@@ -382,7 +398,7 @@ export function createUsageProjection(options: {
 
   const writeLive = (
     sessionId: string,
-    event: DshSessionEvent,
+    event: UsageFoldEvent,
     route: UsageRoute | undefined,
   ): void => {
     database.transaction((connection) => foldEvent(sessionId, event, route, connection), ['usage']);
@@ -504,12 +520,17 @@ export function createUsageProjection(options: {
     },
     handleSessionEvent(sessionId, event) {
       const route = observe(sessionId, event);
-      if (event.type !== 'assistant/message' && event.type !== 'assistant/attempt') return;
+      const projected = projectUsageEvent(event);
+      if (projected === undefined) return;
       if (rebuilding) {
-        queuedEvents.push({ sessionId, event, ...(route === undefined ? {} : { route }) });
+        queuedEvents.push({
+          sessionId,
+          event: projected,
+          ...(route === undefined ? {} : { route }),
+        });
         return;
       }
-      writeLive(sessionId, event, route);
+      writeLive(sessionId, projected, route);
     },
     async rebuild(sessionIds, readLog) {
       if (rebuilding) throw new Error('Usage reconciliation already running');
@@ -518,25 +539,38 @@ export function createUsageProjection(options: {
       let folded = 0;
       let failed = 0;
       try {
-        const logs = new Map<string, DshUsageSessionLog>();
+        const logs = new Map<
+          string,
+          Array<{ event: UsageFoldEvent; route: UsageRoute | undefined }>
+        >();
         for (const sessionId of sessionIds) {
           if (ownership.resolve(sessionId) === undefined) continue;
+          let log: DshUsageSessionLog | undefined;
           try {
-            const log = await readLog(sessionId);
-            if (log === undefined) failed += 1;
-            else logs.set(sessionId, log);
+            log = await readLog(sessionId);
           } catch {
             failed += 1;
+            continue;
           }
+          if (log === undefined) {
+            failed += 1;
+            continue;
+          }
+          const projected: Array<{ event: UsageFoldEvent; route: UsageRoute | undefined }> = [];
+          let route: UsageRoute | undefined;
+          for (let index = 0; index < log.events.length; index += 1) {
+            const event = log.events[index]!;
+            route = requestRoute(event) ?? route;
+            if (index < log.inheritedEventCount) continue;
+            const usageEvent = projectUsageEvent(event);
+            if (usageEvent !== undefined) projected.push({ event: usageEvent, route });
+          }
+          logs.set(sessionId, projected);
         }
         database.transaction(
           (connection) => {
-            for (const [sessionId, log] of logs) {
-              let route: UsageRoute | undefined;
-              for (let index = 0; index < log.events.length; index += 1) {
-                const event = log.events[index]!;
-                route = requestRoute(event) ?? route;
-                if (index < log.inheritedEventCount) continue;
+            for (const [sessionId, events] of logs) {
+              for (const { event, route } of events) {
                 if (foldEvent(sessionId, event, route, connection)) folded += 1;
               }
             }

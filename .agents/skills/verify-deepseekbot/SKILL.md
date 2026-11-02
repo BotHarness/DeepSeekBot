@@ -85,7 +85,7 @@ its device result is recorded.
 
 `shot` writes `<label>.png`, `<label>.aria.txt` and `<label>.console.txt` to `.humanlayer/verify/<n>/evidence/`, and `<label>.failure.png` plus `<label>.failure.aria.txt` when a step fails. Its JSON output lists every step it performed.
 
-A proof has three parts: the user action, the visible result, and the canonical state behind it (a timeline entry, a persisted Bot, a Git Memory HEAD). A successful API call alone does not prove rendering, and a screenshot alone does not prove persistence. Read the console file: a page error during the journey is a finding even when the screenshot looks right. PR screenshots follow `docs/agents/pr-ui-visual-evidence.md`.
+A proof has three parts: the user action, the visible result, and the canonical state behind it (a timeline entry, a persisted Bot, a Git Memory HEAD). A successful API call alone does not prove rendering, and a screenshot alone does not prove persistence. Read the console file: a page error during the journey is a finding even when the screenshot looks right. PR screenshots follow `docs/agents/pr-ui-visual-evidence.md`: publish reviewed derivatives to Cloudflare R2 using `pnpm evidence:publish`, never commit evidence media to Git or an evidence branch, and remove disposable local copies only after successful publication and verified public readback, and only when no active QA/release hold remains. Merging a PR does not replace either prerequisite; disposable originals additionally wait until merge. Keep URLs, hashes and provenance in the small task index.
 
 ## Cleanup
 

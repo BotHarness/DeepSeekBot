@@ -31,8 +31,11 @@ it('renders the same pixel recipe as a transparent companion while retaining the
   };
   try {
     await act(() => root.render(createElement(PersonaBotAvatar, props)));
-    expect(node.querySelector('svg > rect[width="32"]')).not.toBeNull();
-    const head = node.querySelector('.bh-illustrated-head')!.innerHTML;
+    const source = node.querySelector('img')!.getAttribute('src')!;
+    const portrait = document.createElement('div');
+    portrait.innerHTML = decodeURIComponent(source.slice(source.indexOf(',') + 1));
+    expect(portrait.querySelector('svg > rect[width="32"]')).not.toBeNull();
+    const head = portrait.querySelector('.bh-illustrated-head')!.innerHTML;
     await act(() =>
       root.render(createElement(PersonaBotAvatar, { ...props, surface: 'companion' })),
     );
@@ -81,6 +84,7 @@ it('keeps same-Bot SVG instances independent and releases mounted animation reso
     name: 'Ada',
     size: 160,
     state: 'working' as const,
+    surface: 'companion' as const,
     effect: 'coding' as const,
     appearance: { recipe: DEFAULT_ILLUSTRATED_RECIPE, revision: 'a'.repeat(64) },
     attention: { approvalCount: 1 },
@@ -144,6 +148,7 @@ it('keeps an idle small avatar still while the large avatar only blinks', async 
     personaBotId: 'ada',
     name: 'Ada',
     state: 'idle' as const,
+    surface: 'companion' as const,
     appearance: { recipe: DEFAULT_ILLUSTRATED_RECIPE, revision: 'a'.repeat(64) },
   };
   try {
@@ -184,6 +189,7 @@ it('loops the gaze only on the large working avatar and keeps waiting avatars st
     personaBotId: 'ada',
     name: 'Ada',
     appearance: { recipe: DEFAULT_ILLUSTRATED_RECIPE, revision: 'a'.repeat(64) },
+    surface: 'companion' as const,
   };
   const classes = () => loops.map((loop) => loop.target.getAttribute('class'));
   try {
@@ -262,6 +268,7 @@ it('turns the large thinking avatar through noise-scheduled yaw frames and keeps
     personaBotId: 'ada',
     name: 'Ada',
     state: 'thinking' as const,
+    surface: 'companion' as const,
     appearance: { recipe: DEFAULT_ILLUSTRATED_RECIPE, revision: 'a'.repeat(64) },
   };
   try {
@@ -325,6 +332,7 @@ it('morphs line strokes into tool symbols, holds each briefly, returns to the fa
           personaBotId: 'ada',
           name: 'Ada',
           appearance: { recipe: DEFAULT_LINE_RECIPE, revision: 'a'.repeat(64) },
+          surface: 'companion',
           size: 160,
           state,
           ...(toolName
@@ -430,6 +438,7 @@ it('morphs the whole pixel Avatar between tool symbols, holds each briefly and s
           appearance: { recipe: DEFAULT_ILLUSTRATED_RECIPE, revision: 'a'.repeat(64) },
           size: 160,
           state,
+          surface: 'companion',
           ...(toolName
             ? {
                 activity: {
@@ -520,7 +529,7 @@ it('keeps an Avatar scrolled out of view still across updates and resumes motion
     },
   );
   const scroll = (isIntersecting: boolean) =>
-    act(async () => observers.at(-1)!([{ isIntersecting }]));
+    act(async () => observers.forEach((observe) => observe([{ isIntersecting }])));
   const render = (toolName: string) =>
     act(async () =>
       root.render(
@@ -530,6 +539,7 @@ it('keeps an Avatar scrolled out of view still across updates and resumes motion
           appearance: { recipe: DEFAULT_ILLUSTRATED_RECIPE, revision: 'a'.repeat(64) },
           size: 40,
           state: 'working',
+          surface: 'companion',
           activity: {
             effect: 'generic-working' as const,
             toolKind: 'other' as const,
@@ -639,6 +649,7 @@ it('fences resolved obsolete animations when motion policy changes before their 
           name: 'Ada',
           size: 96,
           appearance: { recipe: DEFAULT_ILLUSTRATED_RECIPE, revision: 'a'.repeat(64) },
+          surface: 'companion',
         }),
       ),
     );

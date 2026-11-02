@@ -2,7 +2,11 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { PersonaBotAvatar, PersonaBotFacepile } from '../src/client/avatar.js';
+import {
+  PersonaBotAvatar,
+  PersonaBotFacepile,
+  PersonaBotStatusBadges,
+} from '../src/client/avatar.js';
 import { personaBotActivity } from '../src/client/persona-activity.js';
 import type { BotSummary, ConversationState, ConversationSelection } from '../src/client/store.js';
 
@@ -40,7 +44,19 @@ const SENDING_CONVERSATION: ConversationState = {
 const ADA_SELECTION: ConversationSelection = { kind: 'bot', slug: 'ada' };
 
 describe('PersonaBotAvatar', () => {
-  it('renders a BotUI thinking marker from the shared Host state', () => {
+  it('gives standalone static status badges a truthful accessible summary', () => {
+    const markup = renderToStaticMarkup(
+      createElement(PersonaBotStatusBadges, {
+        state: 'blocked',
+        attention: { approvalCount: 3 },
+      }),
+    );
+    expect(markup).toContain('role="img"');
+    expect(markup).toContain('aria-label="工作受阻 · 3 个工具待审批"');
+    expect(markup).toContain('data-activity-state="blocked"');
+    expect(markup).not.toContain('botui-dot-matrix');
+  });
+  it('renders a static thinking marker from the shared Host state', () => {
     const markup = renderToStaticMarkup(
       createElement(PersonaBotAvatar, {
         personaBotId: 'ada',
@@ -53,9 +69,10 @@ describe('PersonaBotAvatar', () => {
     expect(markup).toContain('data-state="thinking"');
     expect(markup).toContain('data-effect="thinking-dots"');
     expect(markup).toContain('data-media="seeded"');
-    expect(markup).toContain('class="bh-illustrated-head"');
-    expect(markup).toContain('data-botui-state="thinking"');
-    expect(markup).not.toContain('bh-avatar-indicator');
+    expect(markup).toContain('data:image/svg+xml;charset=utf-8,');
+    expect(markup).not.toContain('class="bh-illustrated-head"');
+    expect(markup).not.toContain('data-botui-state');
+    expect(markup).toContain('bh-avatar-indicator');
   });
 
   it('keeps custom image media still while the shared activity frame stays active', () => {

@@ -238,6 +238,8 @@ Usage 是 application-defined 的保留统计：从 DSH durable SessionEvent 中
 
 Usage generation 40 在同一 Operational Database 事务中写入匿名 HMAC 去重凭据与日增量；校准只补记未见调用，不清空保留汇总。凭据不保留原始 Session 标识或逐调用内容。旧汇总迁移为 Bot 级时间基线，升级前无法确认的补计明确留诊断；新调用持久幂等。归档保留用量；Registry Purge 清理汇总、凭据与基线，当前 Bot 创建身份与可信根 ownership 防止旧 Session 重新填入。
 
+启动校准逐个读取 Session，在请求下一个 Session 前将调用事件缩为序号、时间、实际 source、请求路由与已报告 token 分项，不跨读取保留正文、工具结果或流式 chunk。等待期间到达的实时调用也只排队同样的最小投影；校准结束时仍在同一个 Operational Database 事务中折叠历史与排队调用，保留 ownership 校验、继承前缀、凭据去重和失败回滚。此约束不等于 DSH Session Persistence 的单次读取或 Session Query 快照已具备字节级内存上限；单个超大日志仍需独立验证（#3248）。
+
 首个可运行切片（#499）扩展现有 26 周有界 `profileActivity` 查询，返回实际 provider／model 的日用量、可为未知的报告分项，以及即使某缓存分项缺失仍可确定的 provider 总量。Profile 按 Host 本地日期查看用量，与允许调用的 Model Plan 独立。逐调用切片（#503）独立结算每条追加的 Assistant 调用事件，成功调用使用实际 source，失败调用使用已记录的请求路由；Profile 区分可信 ownership 对应的 Orchestrator、Assignment 和子代理。Session 序号去重实时通知与重放快照，消息替换不产生新用量。Session 删除后的保留统计仍由 #502 完成。 Profile 在现有 26 周公开查询范围内，以一个有界时间选择联动每日用量、实际 provider/model 用量构成和缓存比例图，默认最近 7 天。模型／提供商切换按选中的实际模型 ID 或提供商 ID 汇总，不在行内嵌套另一维度；Host 原始行和折叠的执行详情保留两个标识。模型／提供商行紧凑地显示选中维度的名称与报告总量；图表悬浮提示展示总输入（未缓存输入加缓存读写）、缓存读/输入及输出/报告总量的比例；缺失分项或零分母的比例保持未知。执行类别默认折叠于详细信息（#592）。
 
 筛选查询 `profileUsage`（#507）由 Usage 深模块拥有，经 Typert/API Gateway 提供：真实且非未来的日期最多覆盖 182 天；模型／提供商与执行类别条件同时作用于每日记录与累计汇总，累计值仅忽略日期。Profile 默认近七天，执行类别筛选位于折叠详细信息中；首次打开、改变筛选或手动刷新时查询，不轮询或按时间自动过期，同条件刷新失败明确标为过期，旧条件迟到的响应不会覆盖新筛选。响应包含查询／核对时间、正常／核对中／降级状态、可空未知用量，以及显式明细／选项上限（2,000 行／每维度 1,000 个实际选项）；总量完整，截断图表隐藏。Session 来源是否可用不决定保留统计是否存在（#502）。
@@ -1356,6 +1358,14 @@ Native private input uses masked fields and the existing credential owner; value
 
 [ADR-0244](../adr/0244-connect-encrypts-device-traffic-against-pinned-host-keys.md) is approved. Its implementation, protocol vectors, runtime evidence, native acceptance, independent security review and deployment are separate gates; a green source test is not proof of a real phone through Cloudflare. The [Track A audit](../research/2026-10-22-connect-secret-safety-audit.md) remains historical evidence for the interim refusal.
 
+### Host Connect re-login
+
+The application-defined Connect account owner keeps the local registration reference in its existing Credentials Provider record. Re-login reuses that Host ID only when the relay origin and OAuth client match and the newly authorized session's account-scoped Host list includes it. It never matches computers by name or email, and obtains tunnel/signing material afresh. Session expiry disables the tunnel and removes all session tokens, email and signing material while retaining only relay, client ID and Host ID for a later ownership check; explicit Host sign-out removes the record. This reference grants neither account access nor Device Pairing approval. Missing registrations follow the existing registration path; an unavailable or malformed ownership response fails closed without creating another computer. See the [ADR-0241 recovery amendment](../adr/0241-hosted-connect-reaches-the-host-through-a-managed-tunnel.md#amendment--host-registration-recovery-2026-11-01-3229).
+
+应用定义的 Connect 账号 owner 仅在原有 Credentials Provider 记录中保留本机注册引用。重登必须匹配 relay 与 OAuth client，并由新授权会话的账号级 Host 列表确认归属，不能按名称或邮箱匹配；隧道与签名材料重新取得。会话过期后停用隧道并清除令牌、邮箱及签名材料，仅保留 relay、client ID 和 Host ID 供后续验证，显式退出则移除记录。此引用不授予账号访问或设备配对权限；注册已不存在时沿用原有注册流程，归属查询失败或响应无效时拒绝额外注册。
+
+Once a new device authorization succeeds, the owner retires the old live session before ownership lookup. A failed lookup leaves only the registration reference, refuses offers and cannot resume the prior account through the background watcher. Another explicit sign-in is required. 新设备授权成功后先停用旧会话，再查询注册归属；查询失败仅保留注册引用，拒绝配对 offer，后台不能恢复旧账号，必须显式重新登录。
+
 ### Mobile Connect account actions
 
 The application-defined mobile account session and saved Host credentials remain separate. Native Sign out/Delete confirmations bind to the current sign-in instance. Only newly recorded account-mediated pairings carry trusted issuer/relay/client/subject provenance; manual and legacy unknown-source records are preserved. Confirmed Sign out removes owned phone connections and the local account session. Delete also invokes the existing account-wide Connect unlink and WorkOS deletion, without deleting remote Host files, Bots or chats. Account action markers and a pending-cleanup journal in the existing SecureStore records preserve recovery across partial failures; they are not transactional rollback. Observed remote success enables a local retry even when the completion-marker write fails; after restart, an unknown result offers separately confirmed local-only cleanup, with remote deletion explicitly unresolved. Required local storage failures retain the cleanup journal. See the [ADR-0241 account-action amendment](../adr/0241-hosted-connect-reaches-the-host-through-a-managed-tunnel.md#amendment--confirmed-phone-account-actions-2026-10-23-2603).
@@ -1407,3 +1417,11 @@ Cloud Channel list and detail locations use the existing Expo root Stack, with `
 ### Message color and delivery presentation
 
 Web and native message adapters share the pure bubble fill/ink and readable-text calculations in the Client color module. Stored Bot Primary Color and Client-local appearance sources remain unchanged. Fill and text uses derive separate display colors against their owning surface; native Markdown links use the Bot bubble background, and Web conversation groups observe their own rendered background rather than another panel's probe. Message bodies stay opaque through delivery transitions. Human sends remain visually quiet for three seconds; delayed feedback and failure affordances occupy the horizontal side of the bubble without inserting a new vertical row. Native attempt time survives virtualization and resets on retry. Contrast matrices and delivery lifecycle tests exercise these adapter contracts.
+
+### Messaging external readiness and retained history (ADR-0276)
+
+应用定义的 Messaging `inbound.pendingExternal` 统一给出外部消息的 ready Sources 与摘要分组；Runtime 负责定时器、退避、排队、上下文预算、执行前的当前权限复核和 Inbox 结算。Channel/member harvest 保留原有归属。
+
+默认 DM／提及仍会创建隐式 Conversation entry。新的直接外部 Admission 与 Source 同事务保存 `kind: grant` 接收证据，显式 Bridge 保存 `kind: bridge`；两者使用既有不可变接收证据表，策略仍以 Admission 快照为准。默认接收不依赖可选 Channel 同步的开关，也不因此获得 Channel 历史或管理权限。既有 Channel 成员接收继续使用 Channel placement/member-policy 事实。
+
+历史无路径记录只读适配保存下来的 Source、Admission 和策略版本，不根据当前配置回填 route 或 intakeAfter。保留既有两阶段 top-20、提及上下文范围及 pending/retryable 摘要差异。Runtime 通过只读 `messaging_bridge_sources` 投影识别 Bridge Sources，不解释证据格式。Schema generation 113 新增该投影和查询索引，并阻止旧版 Bridge-only 读取器打开新格式；不改写历史。降级需升级前备份，恢复时仍保持接收暂停与未完成任务待修复。见 [ADR-0276](../adr/0276-messaging-owns-external-readiness-and-reception-evidence.md)。

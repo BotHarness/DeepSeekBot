@@ -179,6 +179,10 @@ it('refreshes push routes after authenticated address recovery', async () => {
   const routes = ['https://replacement.example.ts.net:8443'];
   await hostSession.updateRoutes('old', 'cred-old', routes);
   expect(syncPush).toHaveBeenLastCalledWith([{ ...host('old'), routes }, host('new')]);
+  expect(parseSavedHosts(secure.get('deepseekbot.hosts.v3'))).toEqual({
+    hosts: [{ ...host('old'), routes }, host('new')],
+    current: 'new',
+  });
 });
 
 it('allocates a selection revision synchronously for both an already-selected and a queued Host', async () => {

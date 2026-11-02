@@ -1,6 +1,13 @@
 import { isLanAddress } from '../../../../packages/core/src/devices/lan-address';
 export type RouteCheck = { ok: true; origin: string } | { ok: false; reason: string };
 
+const isLoopbackHostname = (hostname: string): boolean =>
+  hostname === 'localhost' || hostname === '[::1]' || /^127\.\d+\.\d+\.\d+$/u.test(hostname);
+
+const isTailscaleHostname = (hostname: string): boolean =>
+  hostname.endsWith('.ts.net') ||
+  /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+$/u.test(hostname);
+
 export function checkRoute(input: string): RouteCheck {
   let url: URL;
   try {
@@ -12,9 +19,8 @@ export function checkRoute(input: string): RouteCheck {
     };
   }
   const name = url.hostname;
-  const loopback = name === 'localhost' || name === '[::1]' || /^127\.\d+\.\d+\.\d+$/u.test(name);
-  const tailnet =
-    name.endsWith('.ts.net') || /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+$/u.test(name);
+  const loopback = isLoopbackHostname(name);
+  const tailnet = isTailscaleHostname(name);
   const connect = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.deepseekbot\.dev$/u.test(name);
   const allowed =
     (isLanAddress(name) && url.protocol === 'http:' && url.port !== '') ||
@@ -59,15 +65,23 @@ export function isLanRoute(route: string): boolean {
   }
 }
 
-export function isEncryptedRoute(route: string, encryption?: { loopback?: 'encrypted' }): boolean {
-  if (isConnectRoute(route) || isLanRoute(route)) return true;
-  if (encryption?.loopback !== 'encrypted') return false;
+export function isLoopbackRoute(route: string): boolean {
   try {
-    const hostname = new URL(route).hostname;
-    return (
-      hostname === 'localhost' || hostname === '[::1]' || /^127\.\d+\.\d+\.\d+$/u.test(hostname)
-    );
+    return isLoopbackHostname(new URL(route).hostname);
   } catch {
     return false;
   }
+}
+
+export function isTailscaleRoute(route: string): boolean {
+  try {
+    return isTailscaleHostname(new URL(route).hostname);
+  } catch {
+    return false;
+  }
+}
+
+export function isEncryptedRoute(route: string, encryption?: { loopback?: 'encrypted' }): boolean {
+  if (isConnectRoute(route) || isLanRoute(route)) return true;
+  return encryption?.loopback === 'encrypted' && isLoopbackRoute(route);
 }

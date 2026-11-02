@@ -1371,11 +1371,14 @@ function ConversationView({
   const messages = conversation.messages;
   const timelineDrafts =
     conversation.timeline.hasNewer || !streamReplies ? undefined : conversation.drafts;
+  const visibleMessages = useMemo(
+    () => visibleDmMessages(messages, hiddenActions),
+    [messages, hiddenActions],
+  );
   const displayMessages = useMemo<readonly ChannelMessage[]>(() => {
-    const visible = visibleDmMessages(messages, hiddenActions);
-    if (timelineDrafts === undefined || timelineDrafts.length === 0) return visible;
+    if (timelineDrafts === undefined || timelineDrafts.length === 0) return visibleMessages;
     return [
-      ...visible,
+      ...visibleMessages,
       ...timelineDrafts.map((item) => ({
         id: item.draftId,
         at: '',
@@ -1384,12 +1387,12 @@ function ConversationView({
         streaming: true,
       })),
     ];
-  }, [messages, hiddenActions, timelineDrafts]);
+  }, [visibleMessages, timelineDrafts]);
   const timelineDecisions = useMemo(
     () => ({
-      resolvedGrantRequests: resolvedGrantRequestIds(displayMessages),
+      resolvedGrantRequests: resolvedGrantRequestIds(visibleMessages),
       toolApprovalDecisions: new Map(
-        displayMessages
+        visibleMessages
           .filter((item) => item.toolApprovalDecision !== undefined)
           .map((item) => [
             item.toolApprovalDecision!.requestMessageId,
@@ -1397,7 +1400,7 @@ function ConversationView({
           ]),
       ),
       userQuestionResolutions: new Map(
-        displayMessages
+        visibleMessages
           .filter((item) => item.userQuestionResolution !== undefined)
           .map((item) => [
             item.userQuestionResolution!.requestMessageId,
@@ -1405,7 +1408,7 @@ function ConversationView({
           ]),
       ),
     }),
-    [displayMessages],
+    [visibleMessages],
   );
   const reading = useMemo(() => readingBots(messages), [messages]);
   const selection = state.selection;
@@ -2134,9 +2137,19 @@ function ConversationView({
     [],
   );
   const unreadAfter = conversation.unreadAfterMessageId;
+  const committedGroups = useMemo(
+    () => groupChannelMessages(visibleMessages, unreadAfter),
+    [visibleMessages, unreadAfter],
+  );
   const messageGroups = useMemo(
-    () => groupChannelMessages(displayMessages, unreadAfter),
-    [displayMessages, unreadAfter],
+    () =>
+      displayMessages === visibleMessages
+        ? committedGroups
+        : [
+            ...committedGroups,
+            ...groupChannelMessages(displayMessages.slice(visibleMessages.length)),
+          ],
+    [committedGroups, displayMessages, visibleMessages],
   );
   const arrivalIds = useMemo(
     () =>

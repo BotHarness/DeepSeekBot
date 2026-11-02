@@ -2563,8 +2563,45 @@ const MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION: SchemaMigration = {
   },
 };
 
-const BOT_LAN_ADMISSION_MIGRATION: SchemaMigration = {
+const GRANT_RECEPTION_EVIDENCE_MIGRATION: SchemaMigration = {
   generation: 113,
+  module: 'messaging',
+  description: 'Fence grant-backed reception evidence from older Bridge-only readers',
+  migrate(database) {
+    database.exec(`CREATE INDEX messaging_paths_authority
+      ON messaging_source_paths(bot_slug, source_event_id, json_extract(body, '$.kind'));
+      CREATE VIEW messaging_bridge_sources AS SELECT DISTINCT source_event_id
+        FROM messaging_source_paths WHERE json_extract(body, '$.kind') IS NOT 'grant';`);
+  },
+};
+
+const HUMAN_ATTENTION_CANDIDATE_INDEX_MIGRATION: SchemaMigration = {
+  generation: 114,
+  module: 'messaging',
+  description: 'Index canonical pending attention candidates without scanning ordinary history',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX source_events_attention_question ON source_events (message_id, source_event_id)
+        WHERE source_kind = 'bot-message'
+          AND json_extract(payload_json, '$.userQuestionRequest') IS NOT NULL;
+      CREATE INDEX source_events_attention_approval ON source_events (message_id, source_event_id)
+        WHERE source_kind = 'bot-message'
+          AND json_extract(payload_json, '$.toolApprovalRequest') IS NOT NULL;
+      CREATE INDEX source_events_attention_private ON source_events (message_id, source_event_id)
+        WHERE source_kind = 'bot-message'
+          AND json_extract(payload_json, '$.privateInputRequest') IS NOT NULL;
+      CREATE INDEX source_events_attention_grant ON source_events (message_id, source_event_id)
+        WHERE source_kind = 'bot-message'
+          AND json_extract(payload_json, '$.grantRequest') = 1;
+      CREATE INDEX source_events_attention_rejection ON source_events (message_id, source_event_id)
+        WHERE source_kind = 'system-message'
+          AND json_extract(payload_json, '$.toolAutoApproval.outcome') = 'rejected';
+    `);
+  },
+};
+
+const BOT_LAN_ADMISSION_MIGRATION: SchemaMigration = {
+  generation: 115,
   module: 'bot-lan',
   description: 'Record explicit Host-key-bound LAN Bot collaboration admissions',
   migrate(database) {
@@ -2693,5 +2730,7 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   TOOL_RULE_AUTO_APPROVAL_COUNT_MIGRATION,
   REQUEST_ASSIGNMENT_LINK_MIGRATION,
   MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION,
+  GRANT_RECEPTION_EVIDENCE_MIGRATION,
+  HUMAN_ATTENTION_CANDIDATE_INDEX_MIGRATION,
   BOT_LAN_ADMISSION_MIGRATION,
 ]);

@@ -26,3 +26,19 @@ Preconditions: an isolated Host passes `doctor`, with a qualified WeChat identit
 - Each `shot` opens a fresh browser; repeat the complete settings navigation. Use the actual connector row name from the last ARIA file.
 - Off/on starts a new opt-in period; it does not backfill history. Turning off does not recall already sent IM messages or erase existing local history. Content purge is a separate operation.
 - Keep Profile credentials and login URLs out of published evidence. Simulated QA is not real WeChat or Human QA.
+
+
+## Reception ownership regression (#3261)
+
+A default DM or addressed group mention must retain its Inbox Admission when optional Channel
+sync stops. New direct intake records grant-backed reception, independently of Bridge evidence.
+Read historical no-path Sources without backfilling routes; deleting a route must not create a
+fallback receiver. The automated historical fixture also preserves the two-stage top-20 and
+pending/retryable digest distinctions.
+
+Use an isolated Host with `scripts/fixtures/messaging-readiness.mjs` as a controlled Provider;
+its local command file accepts prepare, ordinary, query and mention actions for a QA Bot.
+Send one ordinary message (no run), then a second (one digest), inspect the Inbox and native Bot
+trace through the CLI, and send a mention to verify an actual model reply. This qualifies the
+Host/Provider/Runtime seam, not production IM delivery. Preserve the report and stop the owned
+Host after verification.

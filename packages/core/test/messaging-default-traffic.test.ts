@@ -1004,6 +1004,9 @@ it('a bound Lark app admits a DM to the Inbox with no saved target and replies i
     { origin: 'implicit', kind: 'dm', conversation: 'oc_owner', revoked_at: null },
   ]);
   expect(fx.admissions()).toEqual([{ reason: 'human-dm', messageId: 'om-1' }]);
+  expect(
+    fx.core.externalMessaging.inbound.read('ada', fx.sourceId('om-1')).reception,
+  ).toMatchObject({ kind: 'grant' });
   expect(fx.runs).toHaveLength(1);
   expect(fx.runs[0]!.inbox).toContain('hello 1');
   await fx.core.externalMessaging.reply('ada', fx.sourceId('om-1'), 'Hi from Ada');
@@ -1953,6 +1956,12 @@ it('QQ Channel sync rejects a Human DM and preserves Inbox-only history when a G
     enabled: false,
   });
   await fx.receive(later('qq-inbox-only'));
+  expect(
+    fx.core.externalMessaging.inbound.read('ada', fx.sourceId('om-qq-inbox-only')).reception,
+  ).toMatchObject({ kind: 'grant' });
+  expect(fx.core.externalMessaging.inbound.available('ada', fx.sourceId('om-qq-inbox-only'))).toBe(
+    true,
+  );
   expect(fx.core.channels.readMessages(room.id).map((message) => message.body)).toEqual([
     'hello qq-synced',
   ]);

@@ -3,13 +3,17 @@ export const PANEL_SCROLLBAR_FADE_MS = 200;
 const opacityProperty = '--bh-panel-scrollbar-opacity';
 
 export function mountPanelScrollbars(root: HTMLElement): () => void {
-  const active = new Map<HTMLElement, () => void>();
+  const active = new Map<HTMLElement, { show(): void; finish(): void }>();
   root.setAttribute('data-panel-scrollbars', '');
   const onScroll = (event: Event) => {
     const node = event.target;
     if (!(node instanceof HTMLElement) || !root.contains(node)) return;
+    const activity = active.get(node);
+    if (activity !== undefined) {
+      activity.show();
+      return;
+    }
     if (node.scrollHeight <= node.clientHeight && node.scrollWidth <= node.clientWidth) return;
-    active.get(node)?.();
     const previous = node.style.getPropertyValue(opacityProperty);
     const priority = node.style.getPropertyPriority(opacityProperty);
     let frame: number | undefined;
@@ -21,9 +25,7 @@ export function mountPanelScrollbars(root: HTMLElement): () => void {
       else node.style.removeProperty(opacityProperty);
       active.delete(node);
     };
-    active.set(node, finish);
-    node.style.setProperty(opacityProperty, '1');
-    timer = window.setTimeout(() => {
+    const hide = () => {
       if (root.ownerDocument.documentElement.dataset['botharnessMotion'] === 'reduce') {
         finish();
         return;
@@ -39,12 +41,22 @@ export function mountPanelScrollbars(root: HTMLElement): () => void {
         frame = window.requestAnimationFrame(fade);
       };
       frame = window.requestAnimationFrame(fade);
-    }, PANEL_SCROLLBAR_IDLE_MS);
+    };
+    const show = () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
+      frame = undefined;
+      if (node.style.getPropertyValue(opacityProperty) !== '1')
+        node.style.setProperty(opacityProperty, '1');
+      timer = window.setTimeout(hide, PANEL_SCROLLBAR_IDLE_MS);
+    };
+    active.set(node, { show, finish });
+    show();
   };
   root.addEventListener('scroll', onScroll, true);
   return () => {
     root.removeEventListener('scroll', onScroll, true);
-    for (const finish of active.values()) finish();
+    for (const activity of active.values()) activity.finish();
     root.removeAttribute('data-panel-scrollbars');
   };
 }

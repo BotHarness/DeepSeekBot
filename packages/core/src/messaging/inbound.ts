@@ -1,3 +1,4 @@
+import { pendingExternalReception } from './external-reception.js';
 import { effectiveDmControls } from './dm-controls.js';
 import { sourceContentPurged } from '../purge/fence.js';
 import {
@@ -35,8 +36,10 @@ import { recordLocalReception } from './reception-history.js';
 import { readMessagingIdentity } from './identity.js';
 import {
   currentReceptionPaths,
+  grantReception,
+  recordGrantReception,
+  type GrantReception,
   recordReceptionPath,
-  pendingReceptionPaths,
   type ReceptionPath,
 } from './reception-paths.js';
 import {
@@ -169,6 +172,7 @@ export interface ExternalSource {
   bridgeRevision?: number;
   localChannelId?: string;
   receptionPaths?: ReceptionPath[];
+  reception?: GrantReception;
   report?: RelatedReport;
   contextReads?: ExternalContextRead[];
   contextMessages?: ExternalContextResult['messages'];
@@ -209,11 +213,11 @@ export interface InboundMessaging {
   ordinaryDelivery(grantId: string): 'verified' | 'unverified';
   status(grantId: string): 'off' | 'connecting' | 'receiving' | 'unavailable';
   available(botSlug: string, sourceEventId: string, context?: boolean): boolean;
-  pendingPaths(
+  pendingExternal(
     botSlug: string,
     now: Date,
     context?: boolean,
-  ): ReturnType<typeof pendingReceptionPaths>;
+  ): ReturnType<typeof pendingExternalReception>;
   sourceSignal(botSlug: string, sourceEventId: string): AbortSignal;
   read(botSlug: string, sourceEventId: string): ExternalSource;
   readShared(botSlug: string, sourceEventId: string): ExternalSource;
@@ -500,17 +504,20 @@ export function createInboundMessaging(options: {
   const admitDirect = (db: DatabaseSync, value: MessagingGrant, event: MessagingInboundEvent) => {
     const sourceEventId = persistSource(db, value, event);
     const policy = options.sourcePolicy.resolveIn(db, value.botSlug, 'human-dm');
-    db.prepare(`INSERT OR IGNORE INTO inbox_admissions
+    const admission = db
+      .prepare(`INSERT OR IGNORE INTO inbox_admissions
     (source_event_id, bot_slug, reason, source_policy_revision, source_policy_wake_mode,
-     wake_policy_revision, wake_mode) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
-      sourceEventId,
-      value.botSlug,
-      'human-dm',
-      policy.revision,
-      value.muted ? 'silent' : policy.wake,
-      policy.revision,
-      value.muted ? 'silent' : policy.wake === 'immediate' ? 'all' : policy.wake,
-    );
+     wake_policy_revision, wake_mode) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .run(
+        sourceEventId,
+        value.botSlug,
+        'human-dm',
+        policy.revision,
+        value.muted ? 'silent' : policy.wake,
+        policy.revision,
+        value.muted ? 'silent' : policy.wake === 'immediate' ? 'all' : policy.wake,
+      );
+    if (admission.changes) recordGrantReception(db, sourceEventId, value.botSlug);
     return sourceEventId;
   };
   const admitMention = (db: DatabaseSync, value: MessagingGrant, event: MessagingInboundEvent) => {
@@ -520,20 +527,23 @@ export function createInboundMessaging(options: {
       : undefined;
     const sourceEventId = persistSource(db, value, event);
     const policy = options.sourcePolicy.resolveIn(db, value.botSlug, 'group-mention');
-    db.prepare(`INSERT OR IGNORE INTO inbox_admissions
+    const admission = db
+      .prepare(`INSERT OR IGNORE INTO inbox_admissions
     (source_event_id, bot_slug, reason, source_policy_revision, source_policy_wake_mode,
      wake_policy_revision, wake_mode, external_thread_policy_revision, external_default_revision)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-      sourceEventId,
-      value.botSlug,
-      'group-mention',
-      policy.revision,
-      value.muted ? 'silent' : policy.wake,
-      reception.revision,
-      value.muted ? 'silent' : policy.wake === 'immediate' ? 'all' : policy.wake,
-      thread?.revision ?? null,
-      reception.defaultRevision ?? null,
-    );
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(
+        sourceEventId,
+        value.botSlug,
+        'group-mention',
+        policy.revision,
+        value.muted ? 'silent' : policy.wake,
+        reception.revision,
+        value.muted ? 'silent' : policy.wake === 'immediate' ? 'all' : policy.wake,
+        thread?.revision ?? null,
+        reception.defaultRevision ?? null,
+      );
+    if (admission.changes) recordGrantReception(db, sourceEventId, value.botSlug);
     return sourceEventId;
   };
   const conversationEntries = (
@@ -1063,30 +1073,33 @@ export function createInboundMessaging(options: {
                 reception.inheritance !== 'custom' && !thread?.wake && policy.overrideActive
                   ? (policy.digestIntervalSeconds ?? ordinary.intervalSeconds)
                   : ordinary.intervalSeconds;
-              db.prepare(`INSERT OR IGNORE INTO inbox_admissions
+              const admission = db
+                .prepare(`INSERT OR IGNORE INTO inbox_admissions
               (source_event_id, bot_slug, reason, source_policy_revision, source_policy_wake_mode,
                wake_policy_revision, wake_mode, wake_count, wake_interval_ms, external_thread_policy_revision, external_default_revision)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-                id,
-                value.botSlug,
-                reason,
-                policy.revision,
-                wake,
-                reception.revision,
-                passive ? 'silent' : wake === 'immediate' ? 'all' : wake,
-                !event.mentionedAccount && (wake === 'immediate' || wake === 'digest')
-                  ? wake === 'immediate'
-                    ? 1
-                    : count
-                  : null,
-                !event.mentionedAccount && (wake === 'immediate' || wake === 'digest')
-                  ? wake === 'immediate'
-                    ? 0
-                    : seconds * 1000
-                  : null,
-                thread?.revision ?? null,
-                reception.defaultRevision ?? null,
-              );
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+                .run(
+                  id,
+                  value.botSlug,
+                  reason,
+                  policy.revision,
+                  wake,
+                  reception.revision,
+                  passive ? 'silent' : wake === 'immediate' ? 'all' : wake,
+                  !event.mentionedAccount && (wake === 'immediate' || wake === 'digest')
+                    ? wake === 'immediate'
+                      ? 1
+                      : count
+                    : null,
+                  !event.mentionedAccount && (wake === 'immediate' || wake === 'digest')
+                    ? wake === 'immediate'
+                      ? 0
+                      : seconds * 1000
+                    : null,
+                  thread?.revision ?? null,
+                  reception.defaultRevision ?? null,
+                );
+              if (admission.changes) recordGrantReception(db, id, value.botSlug);
               return id;
             },
             ['source-event', 'channel', 'bot-inbox'],
@@ -1208,15 +1221,21 @@ export function createInboundMessaging(options: {
     const retained = (JSON.parse(row.payload_json) as { external: ExternalSource }).external;
     if (retained.ingestId) throw new MessagingError('source-unavailable');
     const routed = database.read((db) =>
-      db.prepare('SELECT 1 FROM messaging_source_paths WHERE source_event_id = ?').get(id),
+      db
+        .prepare(
+          "SELECT 1 FROM messaging_source_paths WHERE source_event_id = ? AND json_extract(body, '$.kind') IS NOT 'grant'",
+        )
+        .get(id),
     );
     const paths = database.read((db) =>
       currentReceptionPaths(db, botSlug, id, undefined, 'history'),
     );
-    if (routed && !paths.length) throw new MessagingError('source-unavailable');
-    if (!routed && grant(retained.grantId).botSlug !== botSlug)
+    const reception = database.read((db) => grantReception(db, id, botSlug));
+    const grantBacked = !!reception || !routed;
+    if (!grantBacked && !paths.length) throw new MessagingError('source-unavailable');
+    if (grantBacked && grant(retained.grantId).botSlug !== botSlug)
       throw new MessagingError('source-unavailable');
-    if (!routed && retained.localChannelId)
+    if (grantBacked && retained.localChannelId)
       database.read((db) => bridgeChannel(db, retained.localChannelId!, botSlug));
     const ownsContext = grant(retained.grantId).botSlug === botSlug;
     const { contextReads, ...sharedSource } = retained;
@@ -1281,7 +1300,8 @@ export function createInboundMessaging(options: {
       ...(contextMessages.length === 0 ? {} : { contextMessages }),
       ...sharedSource,
       ...(ownsContext && contextReads ? { contextReads } : {}),
-      ...(routed
+      ...(reception ? { reception } : {}),
+      ...(!grantBacked
         ? {
             receptionPaths: paths,
             ...(paths.find((path) => path.channelId)?.channelId
@@ -1327,7 +1347,12 @@ export function createInboundMessaging(options: {
         !(retained.platform === 'weixin' && retained.event.conversation.kind === 'dm'))
     )
       throw new MessagingError('source-unavailable');
-    const { contextReads: _reads, receptionPaths: _paths, ...shared } = retained;
+    const {
+      contextReads: _reads,
+      receptionPaths: _paths,
+      reception: _reception,
+      ...shared
+    } = retained;
     return { ...shared, body: row.body, localChannelId: channelId };
   };
   const controls = new Map<
@@ -2901,8 +2926,17 @@ export function createInboundMessaging(options: {
       if (valid(value)) return 'receiving';
       return lease && !lease.controller.signal.aborted ? 'connecting' : 'unavailable';
     },
-    pendingPaths(botSlug, now, context = false) {
-      return database.read((db) => pendingReceptionPaths(db, botSlug, now, valid, context));
+    pendingExternal(botSlug, now, context = false) {
+      return database.read((db) =>
+        pendingExternalReception(
+          db,
+          botSlug,
+          now,
+          valid,
+          (id) => service.available(botSlug, id),
+          context,
+        ),
+      );
     },
     endChannel(channelId) {
       transaction(
@@ -2939,6 +2973,7 @@ export function createInboundMessaging(options: {
               AND p.bot_slug = a.bot_slug AND p.channel_id = ?)`)
             .all(channelId)) {
             if (
+              grantReception(db, String(row.source_event_id), String(row.bot_slug)) ||
               currentReceptionPaths(
                 db,
                 String(row.bot_slug),
