@@ -2793,8 +2793,13 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const messageId = asNonBlank(source, 'messageId');
       const recovery = source['recovery'];
       const failureMessageId = asNonBlank(source, 'failureMessageId');
-      if (recovery !== undefined && recovery !== 'compact' && recovery !== 'new-session')
-        return invalidInput('recovery must be compact or new-session');
+      if (
+        recovery !== undefined &&
+        recovery !== 'continue' &&
+        recovery !== 'compact' &&
+        recovery !== 'new-session'
+      )
+        return invalidInput('recovery must be continue, compact or new-session');
       if (!channelId || !messageId || !deps.runtime?.retryDmMessage)
         return invalidInput('Original message is required');
       try {
@@ -2898,7 +2903,13 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         channel.type === 'group' ? !channel.members.includes(botSlug) : channel.botSlug !== botSlug
       )
         return invalidInput(`${bot.displayName} is not in this Channel`);
-      const stopped = await deps.runtime?.stopTurn?.(botSlug);
+      const autoContinueFor = asNonBlank(source, 'autoContinueFor');
+      if (source['autoContinueFor'] !== undefined && autoContinueFor === undefined)
+        return invalidInput('autoContinueFor must be a message id');
+      const stopped = await deps.runtime?.stopTurn?.(
+        botSlug,
+        autoContinueFor === undefined ? undefined : { autoContinueFor, channelId },
+      );
       if (stopped === undefined)
         return {
           ok: false,

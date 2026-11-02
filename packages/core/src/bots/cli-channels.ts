@@ -29,7 +29,10 @@ export const CHANNEL_OPTIONS = {
 } as const;
 
 export const CHANNEL_COMMANDS = [
-  { command: 'channel', description: 'read a group Channel and its current fingerprint' },
+  {
+    command: 'channel',
+    description: 'read a group Channel and its current fingerprint',
+  },
   {
     command: 'channel-media-target',
     description: 'acquire authorized source media and resolve its Host file target',
@@ -38,24 +41,39 @@ export const CHANNEL_COMMANDS = [
     command: 'channel-media-download',
     description: 'download authorized source media to a new local --out file',
   },
-  { command: 'channel-rename', description: 'rename a Channel; renaming a Bot DM renames the Bot' },
+  {
+    command: 'channel-rename',
+    description: 'rename a Channel; renaming a Bot DM renames the Bot',
+  },
   {
     command: 'group-avatar-set',
     description: 'set a group avatar from a PNG, JPEG or WebP file, or clear it',
   },
   { command: 'group-invite', description: 'invite a Bot into a group Channel' },
-  { command: 'group-invite-cancel', description: 'cancel a pending group invitation' },
+  {
+    command: 'group-invite-cancel',
+    description: 'cancel a pending group invitation',
+  },
   {
     command: 'group-join-decide',
     description: "accept or decline a Bot's request to join a group",
   },
-  { command: 'group-member-remove', description: 'remove a Bot from a group Channel' },
+  {
+    command: 'group-member-remove',
+    description: 'remove a Bot from a group Channel',
+  },
   {
     command: 'group-send-review',
     description: 'read Group send review; --accept enables and --off disables it',
   },
-  { command: 'group-wake-policies', description: "read each group member's wake policy" },
-  { command: 'group-wake-set', description: "set or reset one group member's wake policy" },
+  {
+    command: 'group-wake-policies',
+    description: "read each group member's wake policy",
+  },
+  {
+    command: 'group-wake-set',
+    description: "set or reset one group member's wake policy",
+  },
   {
     command: 'group-delete',
     description: 'disband a group and delete its messages; needs --confirm',
@@ -64,7 +82,10 @@ export const CHANNEL_COMMANDS = [
     command: 'channel-history',
     description: 'list deleted groups whose history can still be purged',
   },
-  { command: 'channel-history-sources', description: "page a Channel's purgeable Source Events" },
+  {
+    command: 'channel-history-sources',
+    description: "page a Channel's purgeable Source Events",
+  },
   {
     command: 'channel-journal',
     description: "page a Channel's message journal through a revision",
@@ -73,24 +94,39 @@ export const CHANNEL_COMMANDS = [
     command: 'channel-timeline',
     description: "page a Channel's Human timeline by cursor or anchor",
   },
-  { command: 'channel-mark-read', description: 'mark a Channel read through one message' },
+  {
+    command: 'channel-mark-read',
+    description: 'mark a Channel read through one message',
+  },
   { command: 'channel-mark-all-read', description: 'mark every Channel read' },
   {
     command: 'channel-react',
     description: 'add or remove your emoji reaction on one Channel message',
   },
-  { command: 'channel-search', description: "search a Channel's messages, newest first" },
+  {
+    command: 'channel-search',
+    description: "search a Channel's messages, newest first",
+  },
   {
     command: 'message-search',
     description: 'search messages across every Channel you can see, newest first',
   },
-  { command: 'channel-unread', description: 'list unread message counts per Channel' },
+  {
+    command: 'channel-unread',
+    description: 'list unread message counts per Channel',
+  },
   {
     command: 'channel-mute',
     description: 'mute a Channel so it stays out of unread badges, or unmute it with --off',
   },
-  { command: 'channel-retry', description: 'retry a failed Bot reply to a Human DM message' },
-  { command: 'channel-bot-stop', description: "stop a working Bot's current turn in a Channel" },
+  {
+    command: 'channel-retry',
+    description: 'retry or continue a failed Bot reply to a Human DM message',
+  },
+  {
+    command: 'channel-bot-stop',
+    description: "stop a working Bot's current turn in a Channel",
+  },
   {
     command: 'channel-purge-preview',
     description: 'preview what purging Source Events removes and get its confirmation token',
@@ -116,6 +152,7 @@ interface ChannelValues {
   limit?: string;
   'message-id'?: string;
   'failure-message-id'?: string;
+  'auto-continue-for'?: string;
   recovery?: string;
   'confirmation-stdin'?: boolean;
   'avatar-file'?: string;
@@ -403,8 +440,12 @@ export async function runChannelCommand(
       method = 'channelRetry';
       args.messageId = required(values['message-id'], '--message-id');
       if (values.recovery !== undefined) {
-        if (values.recovery !== 'compact' && values.recovery !== 'new-session')
-          usage('--recovery must be compact or new-session');
+        if (
+          values.recovery !== 'continue' &&
+          values.recovery !== 'compact' &&
+          values.recovery !== 'new-session'
+        )
+          usage('--recovery must be continue, compact or new-session');
         args.recovery = values.recovery;
         args.failureMessageId = required(values['failure-message-id'], '--failure-message-id');
       }
@@ -412,6 +453,8 @@ export async function runChannelCommand(
     case 'channel-bot-stop':
       method = 'channelBotStop';
       args.botSlug = required(values.bot, '--bot');
+      if (values['auto-continue-for'] !== undefined)
+        args.autoContinueFor = required(values['auto-continue-for'], '--auto-continue-for');
       break;
     case 'channel-purge-preview':
     case 'channel-purge-confirm': {

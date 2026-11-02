@@ -298,13 +298,19 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   followRoster(signal: AbortSignal): AsyncIterable<RosterLiveFrame> {
     if (this.live === undefined)
-      throw toRemoteError({ code: 'unavailable', message: 'Live stream is unavailable' });
+      throw toRemoteError({
+        code: 'unavailable',
+        message: 'Live stream is unavailable',
+      });
     return this.live.followRoster(signal);
   }
 
   async *followActivity(signal: AbortSignal): AsyncGenerator<ActivityLiveFrame> {
     if (this.live === undefined)
-      throw toRemoteError({ code: 'unavailable', message: 'Live stream is unavailable' });
+      throw toRemoteError({
+        code: 'unavailable',
+        message: 'Live stream is unavailable',
+      });
     try {
       yield* this.live.followActivity(signal);
     } catch (error) {
@@ -322,7 +328,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
   ): ChannelJournalPage {
     const page = this.live?.journalPage(channelId, { through, before, limit });
     if (page === undefined)
-      throw toRemoteError({ code: 'not-found', message: 'Channel journal page is unavailable' });
+      throw toRemoteError({
+        code: 'not-found',
+        message: 'Channel journal page is unavailable',
+      });
     return page;
   }
 
@@ -333,7 +342,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     signal: AbortSignal,
   ): AsyncGenerator<ChannelLiveFrame> {
     if (this.live === undefined)
-      throw toRemoteError({ code: 'unavailable', message: 'Live stream is unavailable' });
+      throw toRemoteError({
+        code: 'unavailable',
+        message: 'Live stream is unavailable',
+      });
     try {
       yield* this.live.followChannel(channelId, limit, signal, drafts ?? 'full');
     } catch (error) {
@@ -349,7 +361,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     signal: AbortSignal,
   ): AsyncGenerator<CompanionLiveFrame> {
     if (this.live === undefined)
-      throw toRemoteError({ code: 'unavailable', message: 'Live stream is unavailable' });
+      throw toRemoteError({
+        code: 'unavailable',
+        message: 'Live stream is unavailable',
+      });
     try {
       yield* this.live.followCompanion(resume, lastEventId, signal);
     } catch (error) {
@@ -361,7 +376,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   privateInputStatus(channelId: string, messageId: string): { status: PrivateInputStatus } {
     this.requirePrivateOwner();
-    return { status: this.privateInputs?.status(channelId, messageId) ?? 'expired' };
+    return {
+      status: this.privateInputs?.status(channelId, messageId) ?? 'expired',
+    };
   }
 
   async privateInputSubmit(
@@ -371,13 +388,20 @@ export class BotharnessBridgeService extends TypertRemoteService {
   ): Promise<{ accepted: boolean }> {
     this.requirePrivateOwner();
     return {
-      accepted: (await this.privateInputs?.submit(true, { channelId, messageId, values })) ?? false,
+      accepted:
+        (await this.privateInputs?.submit(true, {
+          channelId,
+          messageId,
+          values,
+        })) ?? false,
     };
   }
 
   async privateInputCancel(channelId: string, messageId: string): Promise<{ accepted: boolean }> {
     this.requirePrivateOwner();
-    return { accepted: (await this.privateInputs?.cancel(true, channelId, messageId)) ?? false };
+    return {
+      accepted: (await this.privateInputs?.cancel(true, channelId, messageId)) ?? false,
+    };
   }
 
   async privateAccountStatus(channelId: string, messageId: string) {
@@ -506,9 +530,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
   ): Promise<{ updated: true }> {
     return unwrapAsync(this.methods.approvalRoute({ slug, pairingId, expectedRevision }));
   }
-  approvalTest(
-    slug: string,
-  ): Promise<{ delivery: import('../messaging/approval-messaging.js').ApprovalDelivery }> {
+  approvalTest(slug: string): Promise<{
+    delivery: import('../messaging/approval-messaging.js').ApprovalDelivery;
+  }> {
     return unwrapAsync(this.methods.approvalTest({ slug }));
   }
   questionRetry(slug: string, id: string): Promise<{ updated: true }> {
@@ -517,7 +541,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
   approvalRetry(
     slug: string,
     id: string,
-  ): Promise<{ delivery: import('../messaging/approval-messaging.js').ApprovalDelivery }> {
+  ): Promise<{
+    delivery: import('../messaging/approval-messaging.js').ApprovalDelivery;
+  }> {
     return unwrapAsync(this.methods.approvalRetry({ slug, id }));
   }
   failureAlertsSet(
@@ -527,15 +553,17 @@ export class BotharnessBridgeService extends TypertRemoteService {
   ): Promise<{ updated: true }> {
     return unwrapAsync(this.methods.failureAlertsSet({ slug, enabled, expectedRevision }));
   }
-  failureAlertsTest(
-    slug: string,
-  ): Promise<{ delivery: import('../messaging/failure-alerts.js').FailureAlertDelivery }> {
+  failureAlertsTest(slug: string): Promise<{
+    delivery: import('../messaging/failure-alerts.js').FailureAlertDelivery;
+  }> {
     return unwrapAsync(this.methods.failureAlertsTest({ slug }));
   }
   failureAlertsRetry(
     slug: string,
     id: string,
-  ): Promise<{ delivery: import('../messaging/failure-alerts.js').FailureAlertDelivery }> {
+  ): Promise<{
+    delivery: import('../messaging/failure-alerts.js').FailureAlertDelivery;
+  }> {
     return unwrapAsync(this.methods.failureAlertsRetry({ slug, id }));
   }
   pairingReview(slug: string, input: PairingReviewInput): Promise<{ pairing: PairingRequest }> {
@@ -568,7 +596,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     cursor?: string,
   ): Promise<import('../messaging/provider.js').MessagingReachablePage> {
     return unwrapAsync(
-      this.methods.messagingReachable({ slug, bindingId, ...(cursor ? { cursor } : {}) }),
+      this.methods.messagingReachable({
+        slug,
+        bindingId,
+        ...(cursor ? { cursor } : {}),
+      }),
     );
   }
   messagingPostRequest(
@@ -579,7 +611,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     text: string,
   ): Promise<{ intent: OutboxIntent | null }> {
     return unwrapAsync(
-      this.methods.messagingPostRequest({ slug, bindingId, conversationId, requestId, text }),
+      this.methods.messagingPostRequest({
+        slug,
+        bindingId,
+        conversationId,
+        requestId,
+        text,
+      }),
     );
   }
   messagingPostConversation(
@@ -590,7 +628,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     text: string,
   ): Promise<{ intent: OutboxIntent }> {
     return unwrapAsync(
-      this.methods.messagingPostConversation({ slug, bindingId, conversationId, requestId, text }),
+      this.methods.messagingPostConversation({
+        slug,
+        bindingId,
+        conversationId,
+        requestId,
+        text,
+      }),
     );
   }
   messagingPostLimit(
@@ -600,7 +644,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
     limit: number | null,
   ): Promise<{ identity: MessagingIdentity }> {
     return unwrapAsync(
-      this.methods.messagingPostLimit({ slug, bindingId, expectedRevision, limit }),
+      this.methods.messagingPostLimit({
+        slug,
+        bindingId,
+        expectedRevision,
+        limit,
+      }),
     );
   }
   messagingTargets(
@@ -678,11 +727,16 @@ export class BotharnessBridgeService extends TypertRemoteService {
   channelRetry(
     channelId: string,
     messageId: string,
-    recovery?: 'compact' | 'new-session',
+    recovery?: 'continue' | 'compact' | 'new-session',
     failureMessageId?: string,
   ): Promise<{ accepted: true }> {
     return unwrapAsync(
-      this.methods.channelRetry({ channelId, messageId, recovery, failureMessageId }),
+      this.methods.channelRetry({
+        channelId,
+        messageId,
+        recovery,
+        failureMessageId,
+      }),
     );
   }
   botNewSession(slug: string): Promise<{ started: true }> {
@@ -720,8 +774,17 @@ export class BotharnessBridgeService extends TypertRemoteService {
   channelBotStop(
     channelId: string,
     botSlug: string,
-  ): Promise<{ stopped: { botSlug: string; sessionId: string; messageId: string } }> {
-    return unwrapAsync(this.methods.channelBotStop({ channelId, botSlug }));
+    autoContinueFor?: string,
+  ): Promise<{
+    stopped: { botSlug: string; sessionId: string; messageId: string };
+  }> {
+    return unwrapAsync(
+      this.methods.channelBotStop({
+        channelId,
+        botSlug,
+        ...(autoContinueFor === undefined ? {} : { autoContinueFor }),
+      }),
+    );
   }
   modelCatalog(): Promise<{
     models: ModelCatalogEntry[];
@@ -778,7 +841,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
     expectedPresetRevision?: number,
   ): Promise<{ plan: PersonaBotModelPlan }> {
     return unwrapAsync(
-      this.methods.modelPresetApply({ slug, presetId, expectedRevision, expectedPresetRevision }),
+      this.methods.modelPresetApply({
+        slug,
+        presetId,
+        expectedRevision,
+        expectedPresetRevision,
+      }),
     );
   }
 
@@ -852,7 +920,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     memoryLocation?: string,
     coreMemory?: string,
     operationKey?: string,
-  ): { bot: PersonaBotDetail; channelId?: string; receipt?: BotCreationReceipt } {
+  ): {
+    bot: PersonaBotDetail;
+    channelId?: string;
+    receipt?: BotCreationReceipt;
+  } {
     return unwrap(
       this.methods.create({
         displayName,
@@ -936,7 +1008,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     dataBase64: string,
   ): BotZipUploadStatus {
     return unwrap(
-      this.methods.zipUploadChunk({ uploadKey, sha256, sizeBytes, offset, dataBase64 }),
+      this.methods.zipUploadChunk({
+        uploadKey,
+        sha256,
+        sizeBytes,
+        offset,
+        dataBase64,
+      }),
     );
   }
 
@@ -952,7 +1030,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     description?: string,
   ): { receipt: BotCreationReceipt | null } {
     return unwrap(
-      this.methods.zipImportLookup({ operationKey, sha256, displayName, roles, description }),
+      this.methods.zipImportLookup({
+        operationKey,
+        sha256,
+        displayName,
+        roles,
+        description,
+      }),
     );
   }
 
@@ -964,7 +1048,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     displayName: string,
     roles?: string[],
     description?: string,
-  ): Promise<{ bot: PersonaBotDetail; channelId: string; receipt?: BotCreationReceipt }> {
+  ): Promise<{
+    bot: PersonaBotDetail;
+    channelId: string;
+    receipt?: BotCreationReceipt;
+  }> {
     return unwrapAsync(
       this.methods.zipImport({
         operationKey,
@@ -1151,7 +1239,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
-  approvalTemplateDelete(name: string): { template: { name: string }; clearedBots: string[] } {
+  approvalTemplateDelete(name: string): {
+    template: { name: string };
+    clearedBots: string[];
+  } {
     return unwrap(this.methods.approvalTemplateDelete({ name }));
   }
 
@@ -1302,7 +1393,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
     expectedChannel?: string,
   ): { channel: ChannelRecord } | ChannelManagementResult {
     return unwrap(
-      this.methods.channelGroupInvite({ channelId, botSlug, operationKey, expectedChannel }),
+      this.methods.channelGroupInvite({
+        channelId,
+        botSlug,
+        operationKey,
+        expectedChannel,
+      }),
     );
   }
 
@@ -1354,7 +1450,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.channelGroupSendReview({ channelId, enabled }));
   }
 
-  channelGroupWakePolicies(channelId: string): { members: GroupMemberWakePolicy[] } {
+  channelGroupWakePolicies(channelId: string): {
+    members: GroupMemberWakePolicy[];
+  } {
     return unwrap(this.methods.channelGroupWakePolicies({ channelId }));
   }
 
@@ -1674,7 +1772,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
   humanAttentionStatus(messageCounts?: boolean): HumanAttentionStatus {
     return unwrap(this.methods.humanAttentionStatus({ messageCounts }));
   }
-  channelUnreadCounts(): { channels: Array<{ channelId: string; unreadCount: number }> } {
+  channelUnreadCounts(): {
+    channels: Array<{ channelId: string; unreadCount: number }>;
+  } {
     return unwrap(this.methods.channelUnreadCounts({}));
   }
   humanAssignmentContext(
@@ -1710,11 +1810,20 @@ export class BotharnessBridgeService extends TypertRemoteService {
     cursor?: string,
   ): { assignments: AssignmentSummary[]; nextCursor?: string } {
     return unwrap(
-      this.methods.assignments({ slug, query, activity, includeArchived, limit, cursor }),
+      this.methods.assignments({
+        slug,
+        query,
+        activity,
+        includeArchived,
+        limit,
+        cursor,
+      }),
     );
   }
 
-  channelAssignments(channelId: string): { assignments: ChannelAssignmentSummary[] } {
+  channelAssignments(channelId: string): {
+    assignments: ChannelAssignmentSummary[];
+  } {
     return unwrap(this.methods.channelAssignments({ channelId }));
   }
 
@@ -1745,7 +1854,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.sessionSubagents({ slug, sessionId }));
   }
 
-  workspaceOptions(): { workspaces: { id: string; path: string; title: string }[] } {
+  workspaceOptions(): {
+    workspaces: { id: string; path: string; title: string }[];
+  } {
     return unwrap(this.methods.workspaceOptions({}));
   }
 
@@ -1754,7 +1865,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     sourceEventId: string,
     attachmentId: string,
   ): Promise<{ target: MemoryFileTarget }> {
-    return unwrapAsync(this.methods.channelMediaTarget({ channelId, sourceEventId, attachmentId }));
+    return unwrapAsync(
+      this.methods.channelMediaTarget({
+        channelId,
+        sourceEventId,
+        attachmentId,
+      }),
+    );
   }
 
   messageAttachmentTarget(
@@ -1791,7 +1908,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     scope?: { channelId: string; path: string },
   ): Promise<{ grant: WorkspaceGrant; created?: boolean }> {
     return unwrapAsync(
-      this.methods.grantCreate({ slug, workspaceId, ...(scope === undefined ? {} : { scope }) }),
+      this.methods.grantCreate({
+        slug,
+        workspaceId,
+        ...(scope === undefined ? {} : { scope }),
+      }),
     );
   }
 
@@ -1922,7 +2043,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
     args?: Record<string, unknown>,
     sessionId?: string,
     sourceEventId?: string,
-  ): Promise<{ slug: string; tool: string; sessionId: 'direct'; result: unknown }> {
+  ): Promise<{
+    slug: string;
+    tool: string;
+    sessionId: 'direct';
+    result: unknown;
+  }> {
     return unwrapAsync(
       this.methods.botToolRun({
         slug,
@@ -2008,7 +2134,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.memoryWorkingDiff({ channelId, path, kind }));
   }
 
-  memoryRecoveryHistory(channelId: string): { checkpoints: MemoryRecoveryCheckpoint[] } {
+  memoryRecoveryHistory(channelId: string): {
+    checkpoints: MemoryRecoveryCheckpoint[];
+  } {
     return unwrap(this.methods.memoryRecoveryHistory({ channelId }));
   }
 
@@ -2020,7 +2148,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     checkpoint: MemoryRecoveryCheckpoint;
     archivePath: string;
   } {
-    return unwrap(this.methods.memoryRestore({ channelId, checkpointId, expectedCurrentId }));
+    return unwrap(
+      this.methods.memoryRestore({
+        channelId,
+        checkpointId,
+        expectedCurrentId,
+      }),
+    );
   }
 
   memoryRestoreCommit(
@@ -2036,7 +2170,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     saved: MemoryRecoveryCheckpoint;
   } {
     return unwrap(
-      this.methods.memoryRestoreCommit({ channelId, sha, expectedHead, restoreId, name }),
+      this.methods.memoryRestoreCommit({
+        channelId,
+        sha,
+        expectedHead,
+        restoreId,
+        name,
+      }),
     );
   }
 
@@ -2166,7 +2306,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     reason?: string,
   ): Promise<{ received: true }> {
     return unwrapAsync(
-      this.methods.marketplaceReport({ id, altcha, ...(reason === undefined ? {} : { reason }) }),
+      this.methods.marketplaceReport({
+        id,
+        altcha,
+        ...(reason === undefined ? {} : { reason }),
+      }),
     );
   }
 
@@ -2232,7 +2376,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
     tags?: string[],
     replaces?: string,
   ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }> {
-    return unwrapAsync(this.methods.marketplaceUpload({ slug, displayName, bio, tags, replaces }));
+    return unwrapAsync(
+      this.methods.marketplaceUpload({
+        slug,
+        displayName,
+        bio,
+        tags,
+        replaces,
+      }),
+    );
   }
 
   async marketplaceMine(lang?: MarketplaceLanguage): Promise<{ bots: MarketplaceAuthoredBot[] }> {

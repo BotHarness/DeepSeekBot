@@ -1,5 +1,9 @@
 import { expect, it, vi } from 'vitest';
-import { sessionFailure, createFailureMaintenance } from '../src/host/session-failure';
+import {
+  sessionFailure,
+  createFailureContinuation,
+  createFailureMaintenance,
+} from '../src/host/session-failure';
 
 it('preserves failure identity for recovery without interpreting max-tokens as overflow', () => {
   const failure = sessionFailure({
@@ -37,4 +41,42 @@ it('runs DM maintenance without submitting the failed message again', async () =
   await group.run('compact');
   expect(group.getSnapshot().notice).toBe('unavailable');
   expect(call).toHaveBeenCalledTimes(2);
+});
+
+it('parses where the turn stopped and continues it through channelRetry', async () => {
+  const failure = sessionFailure({
+    role: 'orchestrator',
+    sessionId: 's',
+    requestMessageId: 'm',
+    code: 'TRANSPORT',
+    detail: 'socket hang up',
+    progress: { completedSteps: 2, lastTool: 'bash' },
+    autoContinue: {
+      attempt: 1,
+      maxAttempts: 2,
+      at: '2026-11-02T00:01:00.000Z',
+    },
+  })!;
+  expect(failure.progress).toEqual({ completedSteps: 2, lastTool: 'bash' });
+  expect(failure.autoContinue).toEqual({
+    attempt: 1,
+    maxAttempts: 2,
+    at: '2026-11-02T00:01:00.000Z',
+  });
+  const call = vi.fn(async () => ({ accepted: true }));
+  const card = createFailureContinuation({ call }, 'dm-ada', 'failure-1', failure);
+  await card.continueTurn();
+  expect(call).toHaveBeenLastCalledWith('channelRetry', {
+    channelId: 'dm-ada',
+    messageId: 'm',
+    recovery: 'continue',
+    failureMessageId: 'failure-1',
+  });
+  const waiting = createFailureContinuation({ call }, 'dm-ada', 'failure-2', failure);
+  await waiting.cancelAuto();
+  expect(call).toHaveBeenLastCalledWith('channelBotStop', {
+    channelId: 'dm-ada',
+    botSlug: 'ada',
+    autoContinueFor: 'm',
+  });
 });

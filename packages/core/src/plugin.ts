@@ -297,6 +297,8 @@ import {
   type AssignmentReportPage,
 } from './runtime/assignment-tail.js';
 import type { DshSessionEvent, DshSessionStore } from './sessions/source.js';
+import { turnProgress } from './bots/tool-trace.js';
+import type { SessionFailureProgress } from './channels/channel.js';
 import {
   createBotStateTracker,
   personaBotActivitySnapshot,
@@ -573,6 +575,8 @@ export function createCore(
       content: string;
     }) => Promise<{ locator: string; bytes: number; retrievalHint: string }>;
     readAssignmentTail?: (sessionId: string) => Promise<AssignmentEventTail>;
+    readTurnProgress?: (sessionId: string) => Promise<SessionFailureProgress | undefined>;
+    autoContinueDelaysMs?: readonly number[];
     readAssignmentReportPage?: (
       sessionId: string,
       acceptedSummary: string,
@@ -1026,6 +1030,12 @@ export function createCore(
   });
   runtime = createBotRuntime({
     ...(options.botNetwork === undefined ? {} : { botNetwork: options.botNetwork }),
+    ...(options.readTurnProgress === undefined
+      ? {}
+      : { readTurnProgress: options.readTurnProgress }),
+    ...(options.autoContinueDelaysMs === undefined
+      ? {}
+      : { autoContinueDelaysMs: options.autoContinueDelaysMs }),
     onTobDelegation: () => options.capture?.('tob:delegation_send', { surface: 'bot_tool' }),
     promptText: (slug) => {
       const sessionId = runtime?.currentOrchestratorSessionId?.(slug);
@@ -1517,6 +1527,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       const query = ctx.get('sessionQuery') as unknown as AssignmentSessionQuery | undefined;
       if (query === undefined) throw new Error('DSH Session Query is unavailable');
       return readBoundedAssignmentTail(query, sessionId);
+    },
+    readTurnProgress: async (sessionId) => {
+      const query = ctx.get('sessionQuery') as unknown as
+        | { readSession(id: string): Promise<{ events: readonly DshSessionEvent[] }> }
+        | undefined;
+      if (query === undefined) return undefined;
+      return turnProgress((await query.readSession(sessionId)).events);
     },
     readAssignmentReportPage: async (sessionId, acceptedSummary, offset, content) => {
       const query = ctx.get('sessionQuery') as unknown as AssignmentSessionQuery | undefined;

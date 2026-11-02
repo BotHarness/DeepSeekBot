@@ -164,6 +164,7 @@ function stubActions(): BridgeActions {
     telemetryEvent: vi.fn(),
     retryMessage: vi.fn(),
     stopBot: vi.fn(),
+    cancelAutoContinue: vi.fn(async () => undefined),
     botContext: vi.fn(),
     botSystemPrompt: vi.fn(),
     botTurnInput: vi.fn(),

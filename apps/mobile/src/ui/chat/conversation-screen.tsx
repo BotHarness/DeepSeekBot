@@ -41,6 +41,7 @@ import {
 import { ChatBackground } from './chat-background';
 import type { HostClient } from '../../host/client';
 import { visibleDmActivity } from '../../host/dm-activity';
+import { latestTurnMessageId } from '../../host/session-failure';
 import { useHiddenDmActivity } from '../../host/native-dm-activity';
 import { useMessageDisplay } from '../../host/native-message-display';
 import { useDeliveryReceiptPreferences } from '../../host/native-delivery-receipts';
@@ -551,6 +552,7 @@ function ChatConversation({
     const shown = snapshot.messages.filter(shownInChat);
     return dm ? visibleDmActivity(shown, hiddenActivity) : shown;
   }, [snapshot.messages, dm, hiddenActivity]);
+  const latestMessageId = latestTurnMessageId(snapshot.messages);
   const chronological = useMemo(
     () =>
       chatRows(
@@ -1075,6 +1077,7 @@ function ChatConversation({
             channelId={activeChannel}
             messageId={item.message.id}
             failure={item.message.sessionFailure}
+            latest={item.message.id === latestMessageId}
             onReport={
               saved
                 ? () =>
@@ -1146,6 +1149,7 @@ function ChatConversation({
       playback,
       focused,
       conversation,
+      latestMessageId,
       client,
       slug,
       inbox,

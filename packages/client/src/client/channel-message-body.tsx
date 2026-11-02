@@ -1,5 +1,12 @@
 import { ActionButton, ActionGroup } from './ds/action-button.js';
 import { useSessionMaintenance, sessionMaintenanceText } from './session-maintenance.js';
+import {
+  turnContinuationText,
+  useIsLatestMessage,
+  useNow,
+  useTurnContinuation,
+} from './turn-continuation.js';
+import { autoContinueSeconds } from '../shared/turn-continuation.js';
 import { MessageFeedbackDialog } from './message-feedback.js';
 import { useMessageHost } from './message-host.js';
 import { BridgeAudio } from './bridge-audio.js';
@@ -126,7 +133,24 @@ function SessionFailureNotice({
     channelId,
     failure.role === 'orchestrator' ? botSlug : undefined,
   );
-  const busy = maintenance.pending !== undefined;
+  const continuation = useTurnContinuation(actions, {
+    channelId,
+    failureMessageId: message.id,
+    botSlug,
+    role: failure.role,
+    requestMessageId: failure.requestMessageId,
+  });
+  const latest = useIsLatestMessage(channelId, message.id);
+  const waiting =
+    continuation.available &&
+    latest &&
+    !continuation.settled &&
+    !continuation.cancelled &&
+    failure.autoContinue !== undefined;
+  const now = useNow(waiting);
+  const seconds = waiting ? autoContinueSeconds(failure.autoContinue, now) : undefined;
+  const progress = failure.progress;
+  const busy = maintenance.pending !== undefined || continuation.pending !== undefined;
   const canRecover = maintenance.available;
   const recover = maintenance.run;
   const title = nativeChatT?.('message.turnError') ?? t('failure.title');
@@ -157,6 +181,31 @@ function SessionFailureNotice({
           {t('failure.assignmentContext', { context: failure.context })}
         </div>
       )}
+      {progress === undefined ||
+      progress.completedSteps + (progress.lastTool ? 1 : 0) === 0 ? null : (
+        <div className="bh-session-failure-context">
+          {progress.lastTool === undefined
+            ? t('failure.progressNoTool', {
+                steps: String(progress.completedSteps),
+              })
+            : t('failure.progress', {
+                steps: String(progress.completedSteps),
+                tool: progress.lastTool,
+              })}
+          {progress.unknownTools === undefined
+            ? null
+            : ` · ${t('failure.unknownTools', { tools: progress.unknownTools.join(', ') })}`}
+        </div>
+      )}
+      {seconds === undefined || failure.autoContinue === undefined ? null : (
+        <div className="bh-session-failure-context">
+          {t('failure.autoContinue', {
+            seconds: String(seconds),
+            attempt: String(failure.autoContinue.attempt),
+            max: String(failure.autoContinue.maxAttempts),
+          })}
+        </div>
+      )}
       <details className="bh-session-failure-details">
         <summary>{t('failure.details')}</summary>
         <div>
@@ -170,6 +219,28 @@ function SessionFailureNotice({
         <code>{failure.sessionId}</code>
       </details>
       <ActionGroup>
+        {continuation.available && !continuation.settled ? (
+          <ActionButton
+            icon="refresh"
+            tone="primary"
+            title={t('failure.continueHint')}
+            disabled={busy}
+            busy={continuation.pending === 'continue'}
+            onClick={() => void continuation.continueTurn()}
+          >
+            {t('failure.continue')}
+          </ActionButton>
+        ) : null}
+        {seconds === undefined ? null : (
+          <ActionButton
+            icon="x"
+            disabled={busy}
+            busy={continuation.pending === 'cancel'}
+            onClick={() => void continuation.cancelAuto()}
+          >
+            {t('failure.autoContinueCancel')}
+          </ActionButton>
+        )}
         {canRecover ? (
           <>
             <ActionButton
@@ -203,6 +274,9 @@ function SessionFailureNotice({
       </ActionGroup>
       {maintenance.notice ? (
         <p role="status">{sessionMaintenanceText(maintenance.notice, t)}</p>
+      ) : null}
+      {continuation.notice ? (
+        <p role="status">{turnContinuationText(continuation.notice, t)}</p>
       ) : null}
       {reportOpen && channelId ? (
         <MessageFeedbackDialog

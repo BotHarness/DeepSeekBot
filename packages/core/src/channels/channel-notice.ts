@@ -9,10 +9,18 @@ const CHANNEL_NOTICE_FIELDS = [
   'toolAutoApprovalPause',
 ] as const;
 
-export function isChannelNotice(
-  message: Pick<ChannelMessage, (typeof CHANNEL_NOTICE_FIELDS)[number]>,
-): boolean {
+type ChannelNoticeShape = Partial<
+  Record<keyof Pick<ChannelMessage, (typeof CHANNEL_NOTICE_FIELDS)[number]>, unknown>
+>;
+
+export function isChannelNotice(message: ChannelNoticeShape): boolean {
   return CHANNEL_NOTICE_FIELDS.some((field) => message[field] !== undefined);
+}
+
+export function latestTurnMessageId(
+  messages: readonly (ChannelNoticeShape & { id: string })[],
+): string | undefined {
+  return messages.findLast((message) => !isChannelNotice(message))?.id;
 }
 
 export function notChannelNoticeSql(payloadColumn: string): string {

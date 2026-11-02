@@ -1,3 +1,4 @@
+import { parseFailureAutoContinue, parseFailureProgress } from '../shared/turn-continuation.js';
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
 import { clientLog } from './diagnostic-log.js';
 import { parseToolApprovalActor } from '../../../core/src/workspaces/tool-approval-actor.js';
@@ -1161,6 +1162,10 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       ...(typeof failure['status'] === 'number' ? { status: failure['status'] } : {}),
       ...(typeof failure['context'] === 'string' ? { context: failure['context'] } : {}),
     };
+    const progress = parseFailureProgress(failure['progress']);
+    if (progress !== undefined) sessionFailure.progress = progress;
+    const autoContinue = parseFailureAutoContinue(failure['autoContinue']);
+    if (autoContinue !== undefined) sessionFailure.autoContinue = autoContinue;
   }
   let memberDeparture: ChannelMessage['memberDeparture'];
   let turnStop: ChannelMessage['turnStop'];
