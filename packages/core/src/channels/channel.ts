@@ -930,6 +930,11 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
     if (typeof questionResolution !== 'object' || questionResolution === null) return false;
     const resolution = questionResolution as Record<string, unknown>;
     if (
+      resolution['actor'] !== undefined &&
+      (resolution['state'] !== 'answered' || !parseToolApprovalActor(resolution['actor']))
+    )
+      return false;
+    if (
       typeof resolution['requestMessageId'] !== 'string' ||
       message['replyTo'] !== resolution['requestMessageId'] ||
       (resolution['state'] !== 'answered' && resolution['state'] !== 'cancelled') ||

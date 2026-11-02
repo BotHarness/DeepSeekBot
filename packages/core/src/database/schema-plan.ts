@@ -2618,6 +2618,20 @@ const BOT_LAN_ADMISSION_MIGRATION: SchemaMigration = {
   },
 };
 
+const QUESTION_MESSAGING_MIGRATION: SchemaMigration = {
+  generation: 116,
+  module: 'messaging',
+  description: 'Retain checked native question notification references and receipts',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE messaging_question_deliveries (
+        id TEXT PRIMARY KEY, bot_slug TEXT NOT NULL, body TEXT NOT NULL CHECK(json_valid(body))
+      );
+      CREATE INDEX messaging_question_deliveries_bot ON messaging_question_deliveries(bot_slug);
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2733,4 +2747,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   GRANT_RECEPTION_EVIDENCE_MIGRATION,
   HUMAN_ATTENTION_CANDIDATE_INDEX_MIGRATION,
   BOT_LAN_ADMISSION_MIGRATION,
+  QUESTION_MESSAGING_MIGRATION,
 ]);

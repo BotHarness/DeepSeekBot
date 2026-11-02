@@ -18,6 +18,11 @@ import { externalPermissionGroups, type ExternalPermissionGroup } from './permis
 import { behaviorPermissions, type BehaviorPermission } from './behavior-permissions.js';
 import { createPairingCards } from './pairing-cards.js';
 import {
+  createQuestionMessaging,
+  type QuestionDelivery,
+  type QuestionMessaging,
+} from './question-messaging.js';
+import {
   createMessagingDirectory,
   type MessagingDirectoryQuery,
   type MessagingDirectoryPage,
@@ -236,6 +241,7 @@ export type MessagingApp = MessagingAccount & {
 };
 
 export interface MessagingSnapshot {
+  questions?: QuestionDelivery[];
   permissionGroups?: ExternalPermissionGroup[];
   behaviorPermissions?: BehaviorPermission[];
   senderPolicy?: SenderPolicy;
@@ -281,6 +287,7 @@ export interface MessagingSnapshot {
 }
 
 export interface OutboundMessaging {
+  questions: QuestionMessaging;
   privateInputReplyAuthority(
     botSlug: string,
     sourceEventId: string,
@@ -1103,7 +1110,18 @@ export function createOutboundMessaging(options: {
     ...(options.now === undefined ? {} : { now: options.now }),
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
+  const questions = createQuestionMessaging({
+    database,
+    pairing,
+    approvals,
+    provider: (id) => provider(id).provider,
+    isBotActive: options.isBotActive,
+    ...(options.recover === undefined ? {} : { recover: options.recover }),
+    ...(options.warn ? { warn: options.warn } : {}),
+  });
   const inbound = createInboundMessaging({
+    onQuestionAction: (providerId, event, signal) => questions.action(providerId, event, signal),
+    onQuestionText: (providerId, event, signal) => questions.text(providerId, event, signal),
     onApprovalAction: (providerId, event, signal) =>
       event.kind === 'pairing'
         ? pairingCards.action(providerId, event, signal)
@@ -1384,6 +1402,7 @@ export function createOutboundMessaging(options: {
   }
 
   const service: OutboundMessaging = {
+    questions,
     privateInputReplyAuthority(botSlug, sourceEventId, authority) {
       const key = privateReplyKey(botSlug, sourceEventId);
       let authorities = privateReplies.get(key);
@@ -2582,6 +2601,7 @@ export function createOutboundMessaging(options: {
         senderPolicy: database.read((db) => readSenderPolicy(db, botSlug)),
         pairings: pairing.list(botSlug),
         approvals: approvals.snapshot(botSlug),
+        questions: questions.snapshot(botSlug),
         failureAlerts: failureAlerts.snapshot(botSlug),
         pairingReceivers: identities
           .filter((i) => ['feishu', 'slack'].includes(i.platform) && !i.revokedAt)
@@ -3323,6 +3343,7 @@ export function createOutboundMessaging(options: {
       } finally {
         closed = true;
         approvals.close();
+        questions.close();
         failureAlerts.close();
         pairingCards.close();
         feedback.close();

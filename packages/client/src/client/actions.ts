@@ -36,6 +36,7 @@ import {
   setApprovalRoute,
   testApprovalRoute,
   retryApprovalNotification,
+  retryQuestionNotification,
   setFailureAlerts,
   testFailureAlerts,
   retryFailureAlerts,
@@ -475,6 +476,7 @@ export interface BridgeActions {
   approvalRoute(slug: string, pairingId: string | null, expectedRevision: number): Promise<void>;
   approvalTest(slug: string): Promise<void>;
   approvalRetry(slug: string, id: string): Promise<void>;
+  questionRetry(slug: string, id: string): Promise<void>;
   failureAlertsSet(slug: string, enabled: boolean, expectedRevision: number): Promise<void>;
   failureAlertsTest(slug: string): Promise<void>;
   failureAlertsRetry(slug: string, id: string): Promise<void>;
@@ -2894,6 +2896,7 @@ export function createActions(
       setApprovalRoute(call, slug, pairingId, expectedRevision),
     approvalTest: (slug) => testApprovalRoute(call, slug),
     approvalRetry: (slug, id) => retryApprovalNotification(call, slug, id),
+    questionRetry: (slug, id) => retryQuestionNotification(call, slug, id),
     failureAlertsSet: (slug, enabled, expectedRevision) =>
       setFailureAlerts(call, slug, enabled, expectedRevision),
     failureAlertsTest: (slug) => testFailureAlerts(call, slug),

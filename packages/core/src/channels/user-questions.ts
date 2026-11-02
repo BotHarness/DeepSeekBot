@@ -12,6 +12,7 @@ import type {
 import { dmChannelId, type ChannelMessage } from './channel.js';
 import type { ChannelStore } from './store.js';
 import type { SessionOwnership } from '../sessions/ownership.js';
+import type { ToolApprovalActor } from '../workspaces/tool-approval.js';
 
 export interface ChannelQuestionRequest {
   sessionId: string;
@@ -51,6 +52,7 @@ export interface ChannelQuestionResolution {
   requestMessageId: string;
   state: 'answered' | 'cancelled';
   answers?: AskUserQuestionAnswerItem[];
+  actor?: ToolApprovalActor;
 }
 
 export interface ChannelQuestionNotice extends ChannelQuestionRequest {
@@ -113,6 +115,9 @@ export class ChannelUserQuestions {
   readonly #changed: (slug: string, count: number) => void;
   readonly #pending = new Map<string, Pending>();
   readonly #listeners = new Set<() => void>();
+  readonly #observers = new Set<
+    (notice: ChannelQuestionNotice, status: 'pending' | 'answered' | 'cancelled') => void
+  >();
   readonly #timed: TimedQuestionPort | undefined;
   readonly #askChannel: ((sessionId: string) => string | undefined) | undefined;
 
@@ -223,6 +228,8 @@ export class ChannelUserQuestions {
         pending.committed = true;
         if (this.status(pending.botSlug, message.id) === 'pending')
           this.#publishAttention(pending.botSlug);
+        if (this.#pending.get(message.id) === pending)
+          this.#observe(message.id, pending, 'pending');
       }
       return await answer;
     } finally {
@@ -276,6 +283,19 @@ export class ChannelUserQuestions {
     };
   }
 
+  observe(
+    listener: (notice: ChannelQuestionNotice, status: 'pending' | 'answered' | 'cancelled') => void,
+  ): () => void {
+    this.#observers.add(listener);
+    return () => {
+      this.#observers.delete(listener);
+    };
+  }
+
+  pending(botSlug: string, messageId: string): ChannelQuestionNotice | undefined {
+    return this.requests(botSlug).find((notice) => notice.messageId === messageId);
+  }
+
   activeSessionIds(): string[] {
     return this.activeMessageIds().flatMap((id) => {
       const pending = this.#pending.get(id);
@@ -318,17 +338,26 @@ export class ChannelUserQuestions {
     botSlug: string,
     messageId: string,
     answer: AskUserQuestionAnswer,
+    external?: { actor: ToolApprovalActor; authorized(): boolean },
   ): Promise<boolean> {
     const pending = this.#pending.get(messageId);
     if (
       pending === undefined ||
       pending.botSlug !== botSlug ||
       pending.deciding ||
-      pending.submitted
+      pending.submitted ||
+      (external !== undefined && !pending.committed)
     )
       return false;
+    if (external && !external.authorized()) return false;
     if (!this.#holds(messageId, pending)) return false;
     if (!validAnswer(pending.questions, answer)) return false;
+    if (
+      this.#channels
+        .readMessages(pending.channelId)
+        .some((message) => message.userQuestionResolution?.requestMessageId === messageId)
+    )
+      return false;
     pending.deciding = true;
     try {
       if (pending.deferred && pending.callId !== undefined) {
@@ -383,15 +412,21 @@ export class ChannelUserQuestions {
           requestMessageId: messageId,
           state: 'answered',
           answers: answer.answers,
+          ...(external ? { actor: external.actor } : {}),
         },
       };
-      if ((await this.#channels.appendMessage(pending.channelId, decision)) === undefined)
+      if (
+        (await this.#channels.appendMessage(pending.channelId, decision, undefined, () =>
+          external ? this.#pending.get(messageId) === pending && external.authorized() : true,
+        )) === undefined
+      )
         return false;
       if (this.#pending.get(messageId) !== pending || pending.signal?.aborted) return false;
       this.#pending.delete(messageId);
       this.#publishAttention(pending.botSlug);
       pending.signal?.removeEventListener('abort', pending.abort);
       pending.resolve(answer);
+      this.#observe(messageId, pending, 'answered');
       return true;
     } finally {
       pending.deciding = false;
@@ -400,6 +435,35 @@ export class ChannelUserQuestions {
           this.#warn('user-question-reconciliation-failed'),
         );
     }
+  }
+
+  reconcile(botSlug: string, messageId: string): boolean {
+    const pending = this.#pending.get(messageId);
+    if (
+      !pending?.committed ||
+      pending.deciding ||
+      pending.deferred ||
+      pending.botSlug !== botSlug ||
+      this.status(botSlug, messageId, pending.channelId) !== 'pending'
+    )
+      return false;
+    const resolution = this.#channels
+      .readMessages(pending.channelId)
+      .find(
+        (message) => message.userQuestionResolution?.requestMessageId === messageId,
+      )?.userQuestionResolution;
+    if (
+      resolution?.state !== 'answered' ||
+      !resolution.answers ||
+      !validAnswer(pending.questions, { answers: resolution.answers })
+    )
+      return false;
+    this.#pending.delete(messageId);
+    this.#publishAttention(botSlug);
+    pending.signal?.removeEventListener('abort', pending.abort);
+    pending.resolve({ answers: resolution.answers });
+    this.#observe(messageId, pending, 'answered');
+    return true;
   }
 
   cancelSession(sessionId: string): void {
@@ -568,6 +632,31 @@ export class ChannelUserQuestions {
     return true;
   }
 
+  #observe(
+    messageId: string,
+    pending: Pending,
+    status: 'pending' | 'answered' | 'cancelled',
+  ): void {
+    for (const listener of this.#observers) {
+      try {
+        listener(
+          {
+            botSlug: pending.botSlug,
+            channelId: pending.channelId,
+            ...(pending.groupName === undefined ? {} : { groupName: pending.groupName }),
+            messageId,
+            sessionId: pending.sessionId,
+            ...(pending.callId === undefined ? {} : { callId: pending.callId }),
+            questions: pending.questions,
+          },
+          status,
+        );
+      } catch {
+        this.#warn('user-question-notification-failed');
+      }
+    }
+  }
+
   cancelChannel(channelId: string): void {
     for (const [messageId, pending] of this.#pending)
       if (pending.channelId === channelId) this.#cancel(messageId, false);
@@ -596,6 +685,7 @@ export class ChannelUserQuestions {
       (saved) => {
         if (saved === undefined)
           this.#warn(`botharness.channel_question.cancel_append_failed request=${messageId}`);
+        else this.#observe(messageId, pending, 'cancelled');
       },
       () => this.#warn(`botharness.channel_question.cancel_append_failed request=${messageId}`),
     );

@@ -348,7 +348,7 @@ private-origin check is retained; a group pairing does not create a management d
 Removing a capability or revoking/reassigning the person refuses delayed decisions. If
 reassignment invalidates the route, explicitly select/save its new current destination again.
 Legacy `/pair` management grants remain independent and do not enable ordinary chat by themselves.
-Native Questions, group execution-approval destinations and pairing-code issuance are separate work.
+Group execution-approval destinations and pairing-code issuance are separate work. A management DM with the **Answer formal questions** capability receives native questions as a private form and can also answer with a quoted reply or `/answer <reference> <text>`; the original session accepts one answer, and an unconfirmed submission is never replayed ([#1031](https://github.com/BotHarness/DeepSeekBot/issues/1031)). Qualification is recorded in [the verification note](dev/verification/lark-1031-native-questions.md).
 
 This slice supports Lark private **Allow once** and **Reject** cards through a qualified Provider. The #1033 source candidate adds the separately confirmed exact-rule path below. Group execution approvals, native question forms and non-blocking native waits are separate slices. The released dsh-im package number alone does not imply card capability; an unavailable Provider remains unavailable.
 

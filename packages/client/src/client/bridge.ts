@@ -5947,6 +5947,14 @@ export async function retryApprovalNotification(
   await unwrap(call, 'approvalRetry', { slug, id });
 }
 
+export async function retryQuestionNotification(
+  call: BridgeCall,
+  slug: string,
+  id: string,
+): Promise<void> {
+  await unwrap(call, 'questionRetry', { slug, id });
+}
+
 export async function setFailureAlerts(
   call: BridgeCall,
   slug: string,
