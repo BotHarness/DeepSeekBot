@@ -1,5 +1,6 @@
 import {
   activeMentionQuery,
+  quoteMention,
   rebaseMentions,
   selectMention,
   type MentionQuery,
@@ -9,7 +10,13 @@ import type { RosterBot } from '../../host/client';
 import type { MessageTags } from '../../host/conversation';
 import type { WireAllBotPreview } from '../../host/wire';
 
-export { activeMentionQuery, rebaseMentions, type MentionQuery, type SelectedMention };
+export {
+  activeMentionQuery,
+  quoteMention,
+  rebaseMentions,
+  type MentionQuery,
+  type SelectedMention,
+};
 
 export type MentionCandidate =
   | { kind: 'bot'; bot: RosterBot }

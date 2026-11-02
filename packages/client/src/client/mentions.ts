@@ -101,6 +101,18 @@ export function appendMention(
   );
 }
 
+export function quoteMention(
+  value: string,
+  mentions: readonly SelectedMention[],
+  botSlug: string,
+  label: string,
+): { value: string; mentions: SelectedMention[]; caret: number } {
+  if (mentions.some((item) => item.botSlug === botSlug))
+    return { value, mentions: [...mentions], caret: value.length };
+  const selected = selectMention(value, mentions, { start: 0, end: 0, query: '' }, botSlug, label);
+  return { ...selected, caret: selected.value.length };
+}
+
 export function mentionRuns(
   value: string,
   mentions: readonly SelectedMention[],
