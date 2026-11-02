@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { reportInvariant } from './diagnostic-log.js';
 import { flushSync } from 'react-dom';
 
 const KEEP_RENDERED_VIEWPORTS = 1.5;
@@ -122,7 +123,7 @@ export function useTimelineWindow(
       nearKeys(order, heights.current, range.current.top, range.current.bottom).size === 0
     ) {
       reported.current = true;
-      console.warn('botharness: timeline window lost its rendered groups', {
+      reportInvariant('timeline-window-lost-groups', 'timeline window lost its rendered groups', {
         groups: order.length,
         measured: order.filter((key) => heights.current.has(key)).length,
         rendered: nodes.current.size,

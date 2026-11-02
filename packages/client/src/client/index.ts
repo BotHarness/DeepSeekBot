@@ -1,5 +1,8 @@
 import { CHANNEL_BODY_PANEL, readChannelDock, writeChannelDock } from './channel-dock-layout.js';
 import { createBotPresentation } from './bot-presentation.js';
+import { disposeClientLog, installClientLog } from './diagnostic-log.js';
+import { watchClientLogState } from './diagnostic-log-state.js';
+import { telemetrySurface } from './telemetry-surface.js';
 import { mountWindowZoomControl } from './window-zoom-control.js';
 import { mountWindowZoom, type ZoomCompatibility } from './window-zoom-mount.js';
 import { Wallpaper } from './wallpaper.js';
@@ -208,6 +211,15 @@ export function installStyles(): () => void {
 
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => clearConversationDrafts);
+  ctx.effect(() => {
+    if (typeof window === 'undefined') return () => {};
+    installClientLog({ window, surface: telemetrySurface() });
+    const offStore = watchClientLogState(store);
+    return () => {
+      offStore();
+      disposeClientLog();
+    };
+  }, 'botharness: always-on local diagnostic log');
   const storage = defaultStorage();
   const wallpaper = new Wallpaper(
     createWallpaperStore(typeof indexedDB === 'undefined' ? undefined : indexedDB),

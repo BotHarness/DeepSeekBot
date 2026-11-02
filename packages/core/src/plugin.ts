@@ -130,6 +130,7 @@ import { homedir } from 'node:os';
 import type { BotAgentSetupInfo } from './runtime/dsh-bot-agent-adapter.js';
 import { registerBridge } from './bridge/rpc.js';
 import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
+import { mountDiagnosticLog } from './diagnostics/diagnostic-log.js';
 import { mountDevicePairing } from './devices/mount.js';
 import { humanInboxPushSource } from './push/source.js';
 import { createMarketplaceClient } from './marketplace/client.js';
@@ -1199,6 +1200,23 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const dshHome = resolveDshHome();
   applyPendingDataReset({ dshHome, home: homedir(), log: (message) => ctx.logger.info(message) });
   mountClientDiagnostics(ctx, dshHome);
+  mountDiagnosticLog(ctx, {
+    dshHome,
+    homes: [
+      { path: dshHome, label: '$DSH_HOME' },
+      { path: homedir(), label: '~' },
+    ],
+    environment: () => {
+      const dshVersion = installedDshVersion();
+      return {
+        version: runningRelease.version,
+        ...(dshVersion === undefined ? {} : { dshVersion }),
+        platform: process.platform,
+        arch: process.arch,
+        node: process.version,
+      };
+    },
+  });
   const release = installedRelease(import.meta.url);
   const telemetryChoice = telemetryDecision(config.telemetry);
   const telemetryDir = join(dshHome, 'botharness');

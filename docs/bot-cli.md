@@ -1561,6 +1561,18 @@ Export consumes the current preview token and refuses to overwrite a file. Resto
 
 Historical v1 archives remain readable. New v2 archives record Host and resolved DSH tools versions independently; `null` means unavailable provenance. Compatibility follows data contracts and schema migration, not an exact DSH release. An older reader must be upgraded to read an unsupported newer format. `format-upgrade-required`, `upgrade-required` and `dependency-incompatible` identify unsupported data interpretation; `core-contract-invalid` requires a complete backup with a valid required core declaration; `package-invalid` identifies failed validation. `source-unavailable` means the source database must be repaired before export. Existing preview expiry, integrity, cancellation and destination checks still apply.
 
+### Diagnostic logs
+
+Tobs keeps an always-on local diagnostic log in `$DSH_HOME/botharness/logs.db` (30 days, 50 000 rows): Client action and navigation breadcrumbs, uncaught errors and console warnings, UI invariant violations, long frames and slow Host calls, plus Host warnings and BotHarness lifecycle lines. It never records typed text, message bodies or file contents, and nothing leaves the device. The Workspace Control Rail's **Diagnostic logs** button shows the last 24 hours and exports the same ZIP as the CLI.
+
+```bash
+deepseekbot diagnostic-logs [--kind all|error|perf|action] [--since <ms>] [--limit 1-1000]
+deepseekbot diagnostic-logs-export --out logs.zip [--hours 1-168]
+printf '%s' '{"version":1,"session":"agent-qa-0001","entries":[{"ts":1780000000000,"category":"action","level":"info","code":"click","fields":{"label":"Send"}}]}' | deepseekbot diagnostic-log-record
+```
+
+`diagnostic-logs` returns newest entries first (`source`, `category`, `level`, `code`, `session`, `fields`). The export ZIP holds `manifest.json` (range, versions, counts, redaction hits), `logs.jsonl` and a readable `timeline.txt`; home paths, tokens, secrets and emails are replaced, and the file is created exclusively. `diagnostic-log-record` writes Client entries the way the Web Client does, for agent QA; refusals are `invalid-report`, `report-too-large`, `rate-limited` (600 entries per minute) and `persistence-unavailable`.
+
 ### Message feedback (#2811)
 
 Single-message feedback is separate from automatic telemetry. The Host owner prepares one frozen,
