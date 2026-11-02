@@ -12,7 +12,7 @@ import { store } from './store.js';
 const unavailableOwner = {};
 
 export function useTurnContinuation(
-  actions: Pick<BridgeActions, 'retryMessage' | 'stopBot'> | undefined,
+  actions: Pick<BridgeActions, 'retryMessage' | 'cancelAutoContinue'> | undefined,
   input: Parameters<typeof turnContinuationFor>[1],
 ) {
   const { channelId, failureMessageId, botSlug, role, requestMessageId } = input;
@@ -33,7 +33,8 @@ export function useTurnContinuation(
               action: 'continue',
               failureMessageId: failure,
             }),
-          stop: (channel, slug) => actions!.stopBot(channel, slug),
+          cancelAuto: (channel, slug, messageId) =>
+            actions!.cancelAutoContinue(channel, slug, messageId),
         },
       ),
     [actions, channelId, failureMessageId, botSlug, role, requestMessageId],
@@ -50,6 +51,7 @@ export function useIsLatestMessage(channelId: string | undefined, messageId: str
     return (
       channelId !== undefined &&
       conversation.channel?.id === channelId &&
+      !conversation.timeline.hasNewer &&
       conversation.messages.at(-1)?.id === messageId
     );
   };

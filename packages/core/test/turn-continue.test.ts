@@ -55,7 +55,11 @@ async function fixture(
         archived.delete(id);
       },
     }),
-    workspaces: () => ({ get: () => undefined, list: () => [], archivedSessionIds: [...archived] }),
+    workspaces: () => ({
+      get: () => undefined,
+      list: () => [],
+      archivedSessionIds: [...archived],
+    }),
   });
   cores.push(core);
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
@@ -67,7 +71,11 @@ async function fixture(
       author: { kind: 'human' },
       body,
     });
-    const admission = core.runtime.admitDmMessage({ channelId: dm.id, messageId: id, body });
+    const admission = core.runtime.admitDmMessage({
+      channelId: dm.id,
+      messageId: id,
+      body,
+    });
     if (!admission.admitted) throw new Error(admission.reason);
     await admission.settled.catch(() => undefined);
     await core.runtime.whenIdle();
@@ -75,7 +83,14 @@ async function fixture(
   await send('human-request', 'Migrate the whole repo');
   const failures = () =>
     core.channels.readMessages(dm.id).filter((message) => message.sessionFailure !== undefined);
-  return { core, dm, runs, send, failures, methods: createBridgeMethods({ ...core }) };
+  return {
+    core,
+    dm,
+    runs,
+    send,
+    failures,
+    methods: createBridgeMethods({ ...core }),
+  };
 }
 
 function attemptState(core: BotHarnessCore, messageId: string): string | undefined {
@@ -164,7 +179,15 @@ it('Stop cancels a waiting automatic continuation and a new Human message replac
     throw new Error('RATE_LIMIT: slow down');
   }, [30, 30]);
   const sessionId = stopped.runs[0]!.sessionId;
-  await expect(stopped.core.runtime.stopTurn!('ada')).resolves.toEqual({ sessionId });
+  await expect(
+    stopped.core.runtime.stopTurn!('ada', { autoContinueFor: 'human-other' }),
+  ).resolves.toBeUndefined();
+  await expect(
+    stopped.core.runtime.stopTurn!('ada', { autoContinueFor: 'human-request' }),
+  ).resolves.toEqual({ sessionId });
+  await expect(
+    stopped.core.runtime.stopTurn!('ada', { autoContinueFor: 'human-request' }),
+  ).resolves.toBeUndefined();
   await expect(stopped.core.runtime.stopTurn!('ada')).resolves.toBeUndefined();
   await settle(80);
   expect(stopped.runs).toHaveLength(1);
@@ -215,7 +238,11 @@ it('re-arms a waiting automatic continuation after the Host restarts', async () 
     requestAssignment: () => ({ delivery: 'steer' as const }),
     close: async () => {},
   });
-  const first = createCore({ dshHome: home, autoContinueDelaysMs: [60_000], agents: agents(true) });
+  const first = createCore({
+    dshHome: home,
+    autoContinueDelaysMs: [60_000],
+    agents: agents(true),
+  });
   first.registry.create({ slug: 'ada', displayName: 'Ada' });
   const dm = first.channels.getOrCreateDm('ada', 'Ada')!;
   await first.channels.appendMessage(dm.id, {
@@ -235,9 +262,15 @@ it('re-arms a waiting automatic continuation after the Host restarts', async () 
   await first.runtime.close();
   first.operationalDatabase.close();
 
-  const second = createCore({ dshHome: home, autoContinueDelaysMs: [1], agents: agents(false) });
+  const second = createCore({
+    dshHome: home,
+    autoContinueDelaysMs: [1],
+    agents: agents(false),
+  });
   cores.push(second);
-  await expect(second.runtime.stopTurn!('ada')).resolves.toEqual({ sessionId: sessions[0] });
+  await expect(second.runtime.stopTurn!('ada')).resolves.toEqual({
+    sessionId: sessions[0],
+  });
   await expect(second.runtime.stopTurn!('ada')).resolves.toBeUndefined();
   expect(sessions).toHaveLength(1);
 });

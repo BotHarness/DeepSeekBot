@@ -417,7 +417,7 @@ const en = {
     progress: (steps: number, tool: string) => `${steps} steps done, stopped at ${tool}`,
     progressNoTool: (steps: number) => `${steps} steps done`,
     unknownTools: (tools: string) =>
-      `Unknown outcome: ${tools}. The Bot checks these before continuing.`,
+      `Unknown outcome: ${tools}. Continuing asks the Bot to check these first.`,
     autoContinue: (seconds: number, attempt: number, max: number) =>
       `Continuing automatically in ${seconds}s (${attempt}/${max})`,
     autoContinueCancel: 'Cancel auto-continue',
@@ -2508,7 +2508,7 @@ const zh: typeof en = {
     continue: '继续',
     progress: (steps: number, tool: string) => `已完成 ${steps} 步，停在 ${tool}`,
     progressNoTool: (steps: number) => `已完成 ${steps} 步`,
-    unknownTools: (tools: string) => `结果未知：${tools}。Bot 继续前会先检查`,
+    unknownTools: (tools: string) => `结果未知：${tools}。继续时会提醒 Bot 先检查`,
     autoContinue: (seconds: number, attempt: number, max: number) =>
       `${seconds} 秒后自动继续（${attempt}/${max}）`,
     autoContinueCancel: '取消自动继续',

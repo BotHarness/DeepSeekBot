@@ -16,7 +16,7 @@ Continue reuses the existing Source Event and orchestrator Session. The Host cla
 
 Continue is offered on the orchestrator failure card in the Bot's own DM through `channelRetry` with `recovery: continue` and the existing `deepseekbot channel-retry` command. It is refused when the Bot's Session was replaced or the Bot is busy. Restart in a fresh Session keeps the existing new-session and compact recoveries.
 
-Failures with `TRANSPORT`, `TIMEOUT`, `SERVER`, `RATE_LIMIT` or `EMPTY_RESPONSE` continue automatically after 60 and then 180 seconds, after DSH's own request retries are spent. The schedule is written on the failure card as `autoContinue`; the timer is process-local. Stop (`channelBotStop`) cancels it, and a new Human message in that DM replaces it. Authentication, quota, credential, context-window and refusal failures never continue by themselves. Turns interrupted by a Host restart continue on start-up in the same way, also after side effects.
+Failures with `TRANSPORT`, `TIMEOUT`, `SERVER`, `RATE_LIMIT` or `EMPTY_RESPONSE` continue automatically after 60 and then 180 seconds, after DSH's own request retries are spent. The schedule is written on the failure card as `autoContinue`; the timer is process-local. Cancel on the card sends `channelBotStop` with `autoContinueFor` set to the request message, which cancels only that waiting continuation and never stops a running turn; a plain Stop also cancels it, and a new Human turn in that DM replaces it. Authentication, quota, credential, context-window and refusal failures never continue by themselves. Turns interrupted by a Host restart continue on start-up in the same way, also after side effects.
 
 The failure card records `progress` read from the native Session log: completed tool calls, the last tool and tools without a result.
 
@@ -24,4 +24,4 @@ When #3316 integrates DSH goals, Continue on a Session with a disarmed goal resu
 
 ## Consequences
 
-Long tasks resume without replaying finished work, and a restart no longer silently drops turns that had side effects. A tool that was in flight can still have run once; the model is told to verify it rather than the Host guessing. A pending automatic continuation is lost if the Host restarts during the wait, but the restart path continues interrupted turns, not failed ones, so the Human continues those from the card. Groups and Assignment Sessions keep their current recovery until a later slice.
+Long tasks resume without replaying finished work, and a restart no longer silently drops turns that had side effects. A tool that was in flight can still have run once; the model is told to verify it rather than the Host guessing. A pending automatic continuation survives a Host restart: start-up re-arms it from the newest failure card in the DM when that card's Session is still current, so it runs without Human action. Groups and Assignment Sessions keep their current recovery until a later slice.

@@ -52,12 +52,13 @@ export type TurnContinuationNotice = 'busy' | 'changed' | 'unavailable' | 'faile
 
 export interface TurnContinuationPort {
   continueTurn(channelId: string, messageId: string, failureMessageId: string): Promise<unknown>;
-  stop(channelId: string, botSlug: string): Promise<unknown>;
+  cancelAuto(channelId: string, botSlug: string, requestMessageId: string): Promise<unknown>;
 }
 
 export interface TurnContinuationState {
   pending: 'continue' | 'cancel' | undefined;
   settled: boolean;
+  cancelled: boolean;
   notice: TurnContinuationNotice | undefined;
 }
 
@@ -65,7 +66,8 @@ function noticeFor(error: unknown): TurnContinuationNotice {
   const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
   if (code === 'bot-busy') return 'busy';
   if (code === 'session-changed') return 'changed';
-  if (code === 'retry-unavailable' || code === 'recovery-unavailable') return 'unavailable';
+  if (code === 'retry-unavailable' || code === 'recovery-unavailable' || code === 'not-working')
+    return 'unavailable';
   return 'failed';
 }
 
@@ -85,7 +87,12 @@ export function createTurnContinuation(
     !!botSlug &&
     !!requestMessageId &&
     channelId === `dm-${botSlug}`;
-  let state: TurnContinuationState = { pending: undefined, settled: false, notice: undefined };
+  let state: TurnContinuationState = {
+    pending: undefined,
+    settled: false,
+    cancelled: false,
+    notice: undefined,
+  };
   const listeners = new Set<() => void>();
   const publish = (next: TurnContinuationState) => {
     state = next;
@@ -95,16 +102,25 @@ export function createTurnContinuation(
     if (state.pending !== undefined || !available) return;
     publish({ ...state, pending: kind, notice: undefined });
     try {
-      if (kind === 'continue')
+      if (kind === 'continue') {
         await port.continueTurn(channelId!, requestMessageId!, failureMessageId);
-      else await port.stop(channelId!, botSlug!);
-      publish({
-        pending: undefined,
-        settled: true,
-        notice: kind === 'cancel' ? 'cancelled' : undefined,
-      });
+        publish({
+          ...state,
+          pending: undefined,
+          settled: true,
+          notice: undefined,
+        });
+      } else {
+        await port.cancelAuto(channelId!, botSlug!, requestMessageId!);
+        publish({
+          ...state,
+          pending: undefined,
+          cancelled: true,
+          notice: 'cancelled',
+        });
+      }
     } catch (error) {
-      publish({ pending: undefined, settled: state.settled, notice: noticeFor(error) });
+      publish({ ...state, pending: undefined, notice: noticeFor(error) });
     }
   };
   return {
@@ -163,7 +179,7 @@ export function subscribeSeconds(listener: () => void): () => void {
 }
 
 export function readSeconds(): number {
-  return secondTimer === undefined ? Date.now() : secondNow;
+  return secondTimer === undefined ? Math.floor(Date.now() / 1000) * 1000 : secondNow;
 }
 
 export function subscribeNever(): () => void {

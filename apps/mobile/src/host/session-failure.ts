@@ -55,7 +55,9 @@ function withParsed<K extends string, V>(key: K, value: V | undefined): { [P in 
 }
 
 export function createFailureContinuation(
-  client: { call(method: string, args: Record<string, unknown>): Promise<unknown> },
+  client: {
+    call(method: string, args: Record<string, unknown>): Promise<unknown>;
+  },
   channelId: string,
   failureMessageId: string,
   failure: SessionFailure,
@@ -78,13 +80,20 @@ export function createFailureContinuation(
           recovery: 'continue',
           failureMessageId: failureId,
         }),
-      stop: (channel, botSlug) => client.call('channelBotStop', { channelId: channel, botSlug }),
+      cancelAuto: (channel, botSlug, messageId) =>
+        client.call('channelBotStop', {
+          channelId: channel,
+          botSlug,
+          autoContinueFor: messageId,
+        }),
     },
   );
 }
 
 export function createFailureMaintenance(
-  client: { call(method: string, args: Record<string, unknown>): Promise<unknown> },
+  client: {
+    call(method: string, args: Record<string, unknown>): Promise<unknown>;
+  },
   channelId: string,
   failure: SessionFailure,
 ) {

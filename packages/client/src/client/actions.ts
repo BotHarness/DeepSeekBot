@@ -390,7 +390,10 @@ export interface BridgeActions {
     channelId: string,
     attachments: ChannelAttachmentRef[],
     replyTo?: string,
-  ): Promise<{ reply?: ChannelMessage; attachments: Array<ChannelAttachmentRef | null> }>;
+  ): Promise<{
+    reply?: ChannelMessage;
+    attachments: Array<ChannelAttachmentRef | null>;
+  }>;
   onboarding(slug?: string, action?: TutorialAction): Promise<OnboardingSnapshot>;
   onboardingModel(
     slug: string | undefined,
@@ -406,9 +409,13 @@ export interface BridgeActions {
   retryMessage(
     channelId: string,
     messageId: string,
-    recovery?: { action: 'continue' | 'compact' | 'new-session'; failureMessageId: string },
+    recovery?: {
+      action: 'continue' | 'compact' | 'new-session';
+      failureMessageId: string;
+    },
   ): Promise<void>;
   stopBot(channelId: string, botSlug: string): Promise<'stopped' | 'not-working'>;
+  cancelAutoContinue(channelId: string, botSlug: string, requestMessageId: string): Promise<void>;
   compactBot(botSlug: string): Promise<BotCompactResult>;
   newBotSession(botSlug: string): Promise<void>;
   botContext(
@@ -429,7 +436,9 @@ export interface BridgeActions {
     name: string,
     parts: Record<string, string | null>,
     limits?: Record<string, number | null>,
-  ): Promise<{ preset: import('../../../core/src/prompts/prompt-presets.js').PromptPreset }>;
+  ): Promise<{
+    preset: import('../../../core/src/prompts/prompt-presets.js').PromptPreset;
+  }>;
   promptPresetUpdate?(
     id: string,
     change: {
@@ -438,7 +447,9 @@ export interface BridgeActions {
       limits?: Record<string, number | null>;
       expectedRevision?: number;
     },
-  ): Promise<{ preset: import('../../../core/src/prompts/prompt-presets.js').PromptPreset }>;
+  ): Promise<{
+    preset: import('../../../core/src/prompts/prompt-presets.js').PromptPreset;
+  }>;
   promptPresetDelete?(id: string): Promise<{ id: string; clearedBots: string[] }>;
   promptGlobalSet?(presetId: string | null): Promise<{ presetId: string | null }>;
   botPrompt?(slug: string): Promise<import('../../../core/src/bridge/methods.js').BotPromptView>;
@@ -674,7 +685,11 @@ export interface BridgeActions {
   refreshChannelMessages(channelId: string): Promise<void>;
   applyChannelTail(
     channelId: string,
-    page: { entries: ChannelMessage[]; olderCursor: string | null; hasOlder: boolean },
+    page: {
+      entries: ChannelMessage[];
+      olderCursor: string | null;
+      hasOlder: boolean;
+    },
   ): void;
   dismissFailedMessage(channelId: string, messageId: string): boolean;
   openSession(sessionId: string): void;
@@ -698,10 +713,10 @@ export interface BridgeActions {
     choice: HostFileOpen,
   ): Promise<void>;
   messageAttachmentDownload(channelId: string, messageId: string, fileId: string): Promise<void>;
-  bridgeFileCommands?(
-    sourceEventId: string,
-  ):
-    | (import('./host-file-menu.js').HostFileCommands & { available(): Promise<boolean> })
+  bridgeFileCommands?(sourceEventId: string):
+    | (import('./host-file-menu.js').HostFileCommands & {
+        available(): Promise<boolean>;
+      })
     | undefined;
   workspaceFileTarget(slug: string, grantId: string): Promise<HostFileTarget>;
   workspaceFileApplications(slug: string, grantId: string): Promise<HostFileOptions>;
@@ -921,7 +936,12 @@ export interface BridgeActions {
   marketplaceUploadPlan(slug: string): Promise<UploadPlan>;
   marketplaceUpload(
     slug: string,
-    presentation: { displayName: string; bio?: string; tags?: string[]; replaces?: string },
+    presentation: {
+      displayName: string;
+      bio?: string;
+      tags?: string[];
+      replaces?: string;
+    },
   ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }>;
   marketplaceMine(lang?: MarketplaceLanguage): Promise<MarketplaceAuthoredBot[]>;
   marketplaceDelete(id: string): Promise<void>;
@@ -1510,10 +1530,18 @@ export function createActions(
             ...prior,
             ...canonicalItems.filter((item) => !prior.some((seen) => seen.id === item.id)),
           ];
-      clientStore.setHumanInbox({ status: 'ready', items, nextCursor, error: undefined });
+      clientStore.setHumanInbox({
+        status: 'ready',
+        items,
+        nextCursor,
+        error: undefined,
+      });
     } catch (error) {
       if (!isCurrent() || clientStore.getSnapshot().humanInbox.category !== category) return;
-      clientStore.setHumanInbox({ status: 'error', error: errorMessage(error) });
+      clientStore.setHumanInbox({
+        status: 'error',
+        error: errorMessage(error),
+      });
     }
   };
   const loadOpeningTimeline = async (channelId: string, active: ConversationSelection) => {
@@ -1588,10 +1616,15 @@ export function createActions(
     const sourcePage =
       messageId === undefined
         ? undefined
-        : await loadTimelinePage(call, channelId, { direction: 'around', around: messageId });
+        : await loadTimelinePage(call, channelId, {
+            direction: 'around',
+            around: messageId,
+          });
     if (sourcePage !== undefined && currentSelection() !== requestedFrom) return;
     const selection: ConversationSelection = { kind: 'channel', channelId };
-    clientStore.select(selection, { deferConversation: messageId !== undefined });
+    clientStore.select(selection, {
+      deferConversation: messageId !== undefined,
+    });
     const active = currentSelection();
     if (active === undefined) return;
     if (messageId === undefined && clientStore.getSnapshot().conversation.status === 'ready') {
@@ -1644,7 +1677,11 @@ export function createActions(
       });
     } catch (error) {
       if (currentSelection() !== active) return;
-      clientStore.setConversation({ status: 'error', error: errorMessage(error), sending: false });
+      clientStore.setConversation({
+        status: 'error',
+        error: errorMessage(error),
+        sending: false,
+      });
     }
     if (channel.type === 'dm' && channel.botSlug !== undefined) {
       await loadSessionsFor(channel.botSlug, active);
@@ -1753,7 +1790,11 @@ export function createActions(
     promptParts: () => invoke('promptParts', {}),
     promptPresets: () => invoke('promptPresets', {}),
     promptPresetCreate: (name, parts, limits) =>
-      invoke('promptPresetCreate', { name, parts, ...(limits === undefined ? {} : { limits }) }),
+      invoke('promptPresetCreate', {
+        name,
+        parts,
+        ...(limits === undefined ? {} : { limits }),
+      }),
     promptPresetUpdate: (id, change) => invoke('promptPresetUpdate', { id, ...change }),
     promptPresetDelete: (id) => invoke('promptPresetDelete', { id }),
     promptGlobalSet: (presetId) => invoke('promptGlobalSet', { presetId }),
@@ -1770,7 +1811,10 @@ export function createActions(
         channelId,
         messageId,
         ...(recovery
-          ? { recovery: recovery.action, failureMessageId: recovery.failureMessageId }
+          ? {
+              recovery: recovery.action,
+              failureMessageId: recovery.failureMessageId,
+            }
           : {}),
       });
       await actions.refreshChannelMessages(channelId);
@@ -1793,6 +1837,14 @@ export function createActions(
       }
       await actions.refreshChannelMessages(channelId).catch(() => undefined);
       return 'stopped';
+    },
+    async cancelAutoContinue(channelId, botSlug, requestMessageId) {
+      await invoke('channelBotStop', {
+        channelId,
+        botSlug,
+        autoContinueFor: requestMessageId,
+      });
+      await actions.refreshChannelMessages(channelId).catch(() => undefined);
     },
     modelCatalog: () => loadModelCatalog(call),
     modelPresets: () => loadModelPresets(call),
@@ -1887,7 +1939,10 @@ export function createActions(
       submitPrivateInput(call, channelId, messageId, values),
     privateInputCancel: (channelId, messageId) => cancelPrivateInput(call, channelId, messageId),
     privateAccountStatus: async (channelId, messageId) => {
-      const result = await call('privateAccountStatus', { channelId, messageId });
+      const result = await call('privateAccountStatus', {
+        channelId,
+        messageId,
+      });
       if (!result.ok) throw new Error('Private account status is unavailable');
       const value =
         result.value as import('../../../core/src/credentials/contracts.js').PrivateAccountStatus;
@@ -1905,7 +1960,10 @@ export function createActions(
       return value;
     },
     privateInputReplace: async (channelId, messageId) => {
-      const result = await call('privateInputReplace', { channelId, messageId });
+      const result = await call('privateInputReplace', {
+        channelId,
+        messageId,
+      });
       const replacement = result.ok
         ? (result.value as { messageId?: unknown }).messageId
         : undefined;
@@ -1919,7 +1977,11 @@ export function createActions(
       return parsePrivateAccountList(result.value);
     },
     privateMcpServerEnable: async (slug, serverName, enabled) => {
-      const result = await call('privateMcpServerEnable', { slug, serverName, enabled });
+      const result = await call('privateMcpServerEnable', {
+        slug,
+        serverName,
+        enabled,
+      });
       if (!result.ok) throw new Error('MCP server setting is unavailable');
       return (result.value as { accepted?: unknown }).accepted === true;
     },
@@ -1929,7 +1991,10 @@ export function createActions(
       return (result.value as { removed?: unknown }).removed === true;
     },
     privateAccountRevoke: async (channelId, messageId) => {
-      const result = await call('privateAccountRevoke', { channelId, messageId });
+      const result = await call('privateAccountRevoke', {
+        channelId,
+        messageId,
+      });
       if (!result.ok) throw new Error('Private account revocation is unavailable');
       const value =
         result.value as import('../../../core/src/credentials/contracts.js').PrivateRevocationResult;
@@ -1995,7 +2060,11 @@ export function createActions(
       return (result.value as { preview: PersonaBotDeletionPreview }).preview;
     },
     async deletionConfirm(slug, token, eraseMemory) {
-      const result = await call('deletionConfirm', { slug, token, eraseMemory });
+      const result = await call('deletionConfirm', {
+        slug,
+        token,
+        eraseMemory,
+      });
       if (!result.ok) throw new Error(result.error.message);
       await refreshRoster();
       return (result.value as { deletion: PersonaBotDeletion }).deletion;
@@ -2011,7 +2080,10 @@ export function createActions(
       if (!result.ok) throw new Error(result.error.message);
       const target = (result.value as { target: HostFileTarget }).target;
       return (
-        folderAccess?.nativeFiles?.applications(target) ?? { available: false, applications: [] }
+        folderAccess?.nativeFiles?.applications(target) ?? {
+          available: false,
+          applications: [],
+        }
       );
     },
     async deletionFolderOpen(slug, choice) {
@@ -2108,7 +2180,11 @@ export function createActions(
             ? listedChannel
             : latestMessage === undefined
               ? (listedChannel ?? channel)
-              : { ...(listedChannel ?? channel), updatedAt: latestMessage.at, latestMessage };
+              : {
+                  ...(listedChannel ?? channel),
+                  updatedAt: latestMessage.at,
+                  latestMessage,
+                };
         clientStore.upsertChannel(projectedChannel);
         clientStore.setConversation({
           status: 'ready',
@@ -2342,7 +2418,9 @@ export function createActions(
         message.author.kind !== 'human'
       )
         throw new Error('Channel reply could not be confirmed');
-      actions.telemetryEvent('activity:inbox_reply_send', { target: 'message' });
+      actions.telemetryEvent('activity:inbox_reply_send', {
+        target: 'message',
+      });
       return message;
     },
     pickWorkspaceFolder() {
@@ -2479,7 +2557,9 @@ export function createActions(
           message.assignmentReply.sourceEventId !== sourceEventId
         )
           throw new Error('Assignment response could not be confirmed');
-        actions.telemetryEvent('activity:inbox_reply_send', { target: 'assignment' });
+        actions.telemetryEvent('activity:inbox_reply_send', {
+          target: 'assignment',
+        });
         return message;
       } finally {
         await Promise.allSettled([
@@ -2512,7 +2592,11 @@ export function createActions(
         const latest = clientStore.getSnapshot();
         if (latest.conversation.channel?.id !== channelId) return;
         clientStore.setConversation({
-          timeline: { ...latest.conversation.timeline, loadingOlder: false, olderError },
+          timeline: {
+            ...latest.conversation.timeline,
+            loadingOlder: false,
+            olderError,
+          },
         });
         return;
       }
@@ -2756,7 +2840,10 @@ export function createActions(
     async messageAttachmentApplications(channelId, messageId, fileId) {
       const target = await loadMessageAttachmentTarget(call, channelId, messageId, fileId);
       return (
-        folderAccess?.nativeFiles?.applications(target) ?? { available: false, applications: [] }
+        folderAccess?.nativeFiles?.applications(target) ?? {
+          available: false,
+          applications: [],
+        }
       );
     },
     async messageAttachmentOpen(channelId, messageId, fileId, choice) {
@@ -2785,7 +2872,10 @@ export function createActions(
     async workspaceFileApplications(slug, grantId) {
       const target = await loadWorkspaceFileTarget(call, slug, grantId);
       return (
-        folderAccess?.nativeFiles?.applications(target) ?? { available: false, applications: [] }
+        folderAccess?.nativeFiles?.applications(target) ?? {
+          available: false,
+          applications: [],
+        }
       );
     },
     async workspaceFileOpen(slug, grantId, choice) {
@@ -2805,7 +2895,10 @@ export function createActions(
     async memoryFileApplications(slug, path) {
       const target = await loadMemoryFileTarget(call, slug, path);
       return (
-        folderAccess?.nativeFiles?.applications(target) ?? { available: false, applications: [] }
+        folderAccess?.nativeFiles?.applications(target) ?? {
+          available: false,
+          applications: [],
+        }
       );
     },
     async memoryFileOpen(slug, path, choice) {
@@ -3376,14 +3469,18 @@ export function createActions(
       try {
         return await importLibraryPartsViaBridge(call, data);
       } catch (error) {
-        return { error: error instanceof Error ? error.message : String(error) };
+        return {
+          error: error instanceof Error ? error.message : String(error),
+        };
       }
     },
     async importLibraryImage(data, slot, colors, name) {
       try {
         return await importLibraryImageViaBridge(call, data, slot, colors, name);
       } catch (error) {
-        return { error: error instanceof Error ? error.message : String(error) };
+        return {
+          error: error instanceof Error ? error.message : String(error),
+        };
       }
     },
     async addLibraryPart(part, name, parent) {
@@ -3531,12 +3628,19 @@ export function createActions(
       return result.value as { sources: PurgeSource[]; before?: string };
     },
     async channelPurgePreview(channelId, sourceEventIds) {
-      const result = await call('channelPurgePreview', { channelId, sourceEventIds });
+      const result = await call('channelPurgePreview', {
+        channelId,
+        sourceEventIds,
+      });
       if (!result.ok) throw new Error(result.error.message);
       return result.value as PurgePreview;
     },
     async channelPurgeConfirm(channelId, sourceEventIds, token) {
-      const result = await call('channelPurgeConfirm', { channelId, sourceEventIds, token });
+      const result = await call('channelPurgeConfirm', {
+        channelId,
+        sourceEventIds,
+        token,
+      });
       if (!result.ok) throw new Error(result.error.message);
       return result.value as { accepted: number; cleanupPending?: number };
     },

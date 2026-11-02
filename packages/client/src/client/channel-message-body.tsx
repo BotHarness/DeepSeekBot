@@ -141,7 +141,11 @@ function SessionFailureNotice({
   });
   const latest = useIsLatestMessage(channelId, message.id);
   const waiting =
-    continuation.available && latest && !continuation.settled && failure.autoContinue !== undefined;
+    continuation.available &&
+    latest &&
+    !continuation.settled &&
+    !continuation.cancelled &&
+    failure.autoContinue !== undefined;
   const now = useNow(waiting);
   const seconds = waiting ? autoContinueSeconds(failure.autoContinue, now) : undefined;
   const progress = failure.progress;
@@ -180,7 +184,9 @@ function SessionFailureNotice({
       progress.completedSteps + (progress.lastTool ? 1 : 0) === 0 ? null : (
         <div className="bh-session-failure-context">
           {progress.lastTool === undefined
-            ? t('failure.progressNoTool', { steps: String(progress.completedSteps) })
+            ? t('failure.progressNoTool', {
+                steps: String(progress.completedSteps),
+              })
             : t('failure.progress', {
                 steps: String(progress.completedSteps),
                 tool: progress.lastTool,

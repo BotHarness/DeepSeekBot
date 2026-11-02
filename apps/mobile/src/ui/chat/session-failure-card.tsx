@@ -49,7 +49,11 @@ export function SessionFailureCard({
     continuation.getSnapshot,
   );
   const waiting =
-    continuation.available && latest && !continued.settled && failure.autoContinue !== undefined;
+    continuation.available &&
+    latest &&
+    !continued.settled &&
+    !continued.cancelled &&
+    failure.autoContinue !== undefined;
   const now = useSyncExternalStore(
     waiting ? subscribeSeconds : subscribeNever,
     readSeconds,

@@ -51,7 +51,11 @@ it('parses where the turn stopped and continues it through channelRetry', async 
     code: 'TRANSPORT',
     detail: 'socket hang up',
     progress: { completedSteps: 2, lastTool: 'bash' },
-    autoContinue: { attempt: 1, maxAttempts: 2, at: '2026-11-02T00:01:00.000Z' },
+    autoContinue: {
+      attempt: 1,
+      maxAttempts: 2,
+      at: '2026-11-02T00:01:00.000Z',
+    },
   })!;
   expect(failure.progress).toEqual({ completedSteps: 2, lastTool: 'bash' });
   expect(failure.autoContinue).toEqual({
@@ -70,5 +74,9 @@ it('parses where the turn stopped and continues it through channelRetry', async 
   });
   const waiting = createFailureContinuation({ call }, 'dm-ada', 'failure-2', failure);
   await waiting.cancelAuto();
-  expect(call).toHaveBeenLastCalledWith('channelBotStop', { channelId: 'dm-ada', botSlug: 'ada' });
+  expect(call).toHaveBeenLastCalledWith('channelBotStop', {
+    channelId: 'dm-ada',
+    botSlug: 'ada',
+    autoContinueFor: 'm',
+  });
 });
