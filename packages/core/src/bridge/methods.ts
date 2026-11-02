@@ -3044,9 +3044,11 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       )
         return invalidInput(`${bot.displayName} is not in this Channel`);
       const autoContinueFor = asNonBlank(source, 'autoContinueFor');
+      if (source['autoContinueFor'] !== undefined && autoContinueFor === undefined)
+        return invalidInput('autoContinueFor must be a message id');
       const stopped = await deps.runtime?.stopTurn?.(
         botSlug,
-        autoContinueFor === undefined ? undefined : { autoContinueFor },
+        autoContinueFor === undefined ? undefined : { autoContinueFor, channelId },
       );
       if (stopped === undefined)
         return {

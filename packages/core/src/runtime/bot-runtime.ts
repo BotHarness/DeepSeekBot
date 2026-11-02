@@ -837,7 +837,7 @@ export interface BotRuntime {
   stopBot?(botSlug: string): Promise<void>;
   stopTurn?(
     botSlug: string,
-    scope?: { autoContinueFor?: string },
+    scope?: { autoContinueFor: string; channelId: string },
   ): Promise<{ sessionId: string } | undefined>;
   endGroup?(channelId: string): Promise<void>;
   whenIdle(): Promise<void>;
@@ -4836,11 +4836,16 @@ class BotRuntimeImplementation implements BotRuntime {
 
   async stopTurn(
     botSlug: string,
-    scope?: { autoContinueFor?: string },
+    scope?: { autoContinueFor: string; channelId: string },
   ): Promise<{ sessionId: string } | undefined> {
-    if (scope?.autoContinueFor !== undefined) {
+    if (scope !== undefined) {
       const pending = this.#autoContinues.get(botSlug);
-      if (this.#closed || pending?.messageId !== scope.autoContinueFor) return undefined;
+      if (
+        this.#closed ||
+        pending?.messageId !== scope.autoContinueFor ||
+        pending.channelId !== scope.channelId
+      )
+        return undefined;
       this.#cancelAutoContinue(botSlug);
       return { sessionId: pending.sessionId };
     }

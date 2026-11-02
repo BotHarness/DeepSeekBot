@@ -182,6 +182,9 @@ describe('Stopping a working PersonaBot', () => {
         ok: false,
         error: { code: 'invalid-input' },
       });
+      expect(
+        await bridge.channelBotStop({ channelId: dm.id, botSlug: 'ada', autoContinueFor: '  ' }),
+      ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
     } finally {
       await core.runtime.close();
       core.operationalDatabase.close();

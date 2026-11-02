@@ -179,15 +179,15 @@ it('Stop cancels a waiting automatic continuation and a new Human message replac
     throw new Error('RATE_LIMIT: slow down');
   }, [30, 30]);
   const sessionId = stopped.runs[0]!.sessionId;
-  await expect(
-    stopped.core.runtime.stopTurn!('ada', { autoContinueFor: 'human-other' }),
-  ).resolves.toBeUndefined();
-  await expect(
-    stopped.core.runtime.stopTurn!('ada', { autoContinueFor: 'human-request' }),
-  ).resolves.toEqual({ sessionId });
-  await expect(
-    stopped.core.runtime.stopTurn!('ada', { autoContinueFor: 'human-request' }),
-  ).resolves.toBeUndefined();
+  const dmId = stopped.dm.id;
+  for (const scope of [
+    { autoContinueFor: 'human-other', channelId: dmId },
+    { autoContinueFor: 'human-request', channelId: 'group-elsewhere' },
+  ])
+    await expect(stopped.core.runtime.stopTurn!('ada', scope)).resolves.toBeUndefined();
+  const scope = { autoContinueFor: 'human-request', channelId: dmId };
+  await expect(stopped.core.runtime.stopTurn!('ada', scope)).resolves.toEqual({ sessionId });
+  await expect(stopped.core.runtime.stopTurn!('ada', scope)).resolves.toBeUndefined();
   await expect(stopped.core.runtime.stopTurn!('ada')).resolves.toBeUndefined();
   await settle(80);
   expect(stopped.runs).toHaveLength(1);
