@@ -1,10 +1,11 @@
-import { createServer, type IncomingMessage } from 'node:http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { networkInterfaces } from 'node:os';
 import type { AddressInfo, Socket } from 'node:net';
 import type { Duplex } from 'node:stream';
 import { phoneRoute, type PhoneRoute } from './routes.js';
 import { CONNECT_CHANNEL_PATH } from './noise/channel.js';
 import { isLanAddress } from './lan-address.js';
+import { BOT_LAN_PATH } from './bot-lan-bridge.js';
 
 export interface LanStatus {
   state: 'off' | 'listening' | 'error';
@@ -18,11 +19,17 @@ interface Gateway {
   upgrade(request: IncomingMessage, socket: Duplex, head: Buffer): void;
   close(): void;
 }
+interface LanBotEndpoint {
+  start(port: number): Promise<void>;
+  handle(request: IncomingMessage, response: ServerResponse): Promise<void>;
+  close(): void;
+}
 
 export function createDeviceLan(options: {
   read(): Promise<number | undefined>;
   write(port: number | undefined): Promise<void>;
   gateway(): Gateway;
+  collaboration?(): LanBotEndpoint;
   addresses?: () => string[];
   log?: (event: {
     initiator: 'startup' | 'operator' | 'shutdown' | 'listener';
@@ -33,7 +40,12 @@ export function createDeviceLan(options: {
 }) {
   let status: LanStatus = { state: 'off' };
   let current:
-    | { server: ReturnType<typeof createServer>; gateway: Gateway; sockets: Set<Duplex> }
+    | {
+        server: ReturnType<typeof createServer>;
+        gateway: Gateway;
+        sockets: Set<Duplex>;
+        collaboration: LanBotEndpoint | undefined;
+      }
     | undefined;
   let disposed = false;
   let tail = Promise.resolve();
@@ -68,16 +80,22 @@ export function createDeviceLan(options: {
     status = { state: 'off' };
     if (!previous) return;
     previous.gateway.close();
+    previous.collaboration?.close();
     for (const socket of previous.sockets) socket.destroy();
     await new Promise<void>((resolve) => previous.server.close(() => resolve()));
   }
   async function listen(port: number): Promise<LanResult> {
     if (disposed) return { ok: false, code: 'lan-listen-failed' };
     const gateway = options.gateway();
+    const collaboration = options.collaboration?.();
     const sockets = new Set<Duplex>();
     const server = createServer(
       { maxHeaderSize: 8192, requestTimeout: 5000, headersTimeout: 5000 },
       (request, response) => {
+        if (collaboration && request.url?.startsWith(`${BOT_LAN_PATH}/`)) {
+          void collaboration.handle(request, response).catch(() => response.destroy());
+          return;
+        }
         request.resume();
         response.writeHead(404, {
           'content-type': 'application/json',
@@ -113,7 +131,7 @@ export function createDeviceLan(options: {
       (socket as Socket).setTimeout(0);
       gateway.upgrade(request, socket, head);
     });
-    current = { server, gateway, sockets };
+    current = { server, gateway, sockets, collaboration };
     try {
       await new Promise<void>((resolve, reject) => {
         server.once('error', reject);
@@ -130,6 +148,7 @@ export function createDeviceLan(options: {
         });
       });
       status = { state: 'listening', port: (server.address() as AddressInfo).port };
+      await collaboration?.start(status.port!);
       return { ok: true, status: { ...status } };
     } catch {
       await stop();

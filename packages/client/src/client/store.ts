@@ -55,6 +55,7 @@ export interface ChannelHumanMember {
 }
 
 export interface ChannelSummary {
+  remoteAvailability?: 'available' | 'unavailable' | 'withdrawn' | 'bot-unavailable';
   humanMembers?: ChannelHumanMember[];
   humanNickname?: string | null;
   id: string;
@@ -63,6 +64,15 @@ export interface ChannelSummary {
   avatar?: string;
   members: string[];
   botSlug?: string;
+  remoteBot?: { hostId: string; botSlug: string; displayName: string };
+  remoteContact?: {
+    hostId: string;
+    botSlug: string;
+    displayName: string;
+    description?: string;
+    device: { model: string | null; platform: string | null };
+    capabilities: string[];
+  };
   ownerBotSlug?: string;
   wakePolicies?: Record<
     string,
@@ -98,6 +108,7 @@ export interface ChannelSummary {
 export type ChannelAuthor =
   | { kind: 'human' }
   | { kind: 'bot'; slug: string }
+  | { kind: 'remote-bot'; hostId: string; slug: string }
   | { kind: 'bridged'; source: string }
   | { kind: 'system' };
 

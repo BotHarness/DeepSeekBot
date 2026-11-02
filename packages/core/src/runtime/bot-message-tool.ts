@@ -28,7 +28,11 @@ function notWoken(message: ChannelMessage, targets: readonly string[]) {
   const reason =
     (message.botCausation?.hop ?? 0) > MAX_BOT_HOPS ? 'collaboration-hop-limit' : 'not-admitted';
   return [...new Set(targets)]
-    .filter((botSlug) => !woken.has(botSlug))
+    .filter(
+      (botSlug) =>
+        !woken.has(botSlug) &&
+        (reason === 'collaboration-hop-limit' || !botSlug.startsWith('remote:')),
+    )
     .map((botId) => ({ botId, reason }));
 }
 
@@ -42,7 +46,7 @@ export function createBotMessageTool(
   return defineTool({
     name: 'bot_send_message',
     description:
-      'Explicitly send a text message to a Channel or external IM. Reply using a trusted source_event_id, or proactively name channel_id, bot_id, grant_id, or binding_id plus conversation_id; provide exactly one destination. Decide whether a message is useful: answer quick tasks directly, report meaningful changes, ask necessary questions, and respect silence. Ordinary assistant text is private. end_turn ends only this turn after delivery and requested Inbox resolution succeed; a question can end the turn without resolving unfinished work. Group sends retain draft review: use the returned observation and draft identifiers to revise or recover a held send. Unknown external delivery never resolves Inbox or ends the turn.',
+      'Explicitly send a text message to a Channel or external IM. Reply using a trusted source_event_id, or proactively name channel_id, bot_id, grant_id, or binding_id plus conversation_id; provide exactly one destination. Decide whether a message is useful: answer quick tasks directly, report meaningful changes, ask necessary questions, and respect silence. Ordinary assistant text is private. end_turn ends only this turn after delivery and requested Inbox resolution succeed; a question can end the turn without resolving unfinished work. Group sends retain draft review: use the returned observation and draft identifiers to revise or recover a held send. Unknown external delivery never resolves Inbox or ends the turn. For a remote Bot DM, delivery-unknown means the receiver may already have accepted it: inspect existing history and report uncertainty; never resend automatically or switch destinations to retry. unable-to-deliver and network-denied are refusals, not instructions to retry; follow the explicit Human policy for any later attempt.',
     parameters: {
       source_event_id: {
         type: 'string',

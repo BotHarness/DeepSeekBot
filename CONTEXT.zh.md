@@ -778,6 +778,10 @@ _避免使用_：private chat、PM
 两个参与者都是 PersonaBot 的 DM Channel。一个 Bot 发出的消息是该 Channel 中的 Source Event，可以进入另一个 Bot 的 Inbox；Human 的只读查看独立于 Channel membership。
 _避免使用_：peer relay bus、copied inbox conversation
 
+**Bot Collaboration Network**：
+在已确认的跨 Host 设计目标中，活跃 PersonaBot 发现同事并通过 Bot-to-Bot DM 沟通的成员范围，可跨越多个 Host。它建立联系资格；每个接收 Bot 仍保留自己的执行权限和私有 Memory。
+_避免使用_：共享 Memory、全局 Orchestrator、网络路线
+
 **Thread**：
 通过回复 Chat 或 Channel 中某条 message 而开启的 sub-conversation。
 _避免使用_：topic、sub-chat、channel

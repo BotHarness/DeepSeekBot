@@ -130,6 +130,8 @@ describe('hosted Connect route', () => {
     await new Promise<void>((done) => origin.listen(0, '127.0.0.1', done));
     const base = `http://127.0.0.1:${(origin.address() as AddressInfo).port}`;
     for (const path of [
+      '/botharness-device/bots/v1/handshake',
+      '/botharness-device/bots/v1/request',
       '/botharness-device/api/computer/video',
       '/botharness-device/web/api/computer/video',
       '/botharness-device/api/computer/%76ideo?command=input',

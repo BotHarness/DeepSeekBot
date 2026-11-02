@@ -1,3 +1,4 @@
+import { BotNetworkDeliveryError } from '../src/runtime/bot-network.js';
 import { seededBannerRecipe } from '@botharness/pixel-banner';
 import { createTestRosterStore } from './roster-fixture.js';
 import { createTestRegistry } from './registry-fixture.js';
@@ -504,6 +505,7 @@ describe('bridge methods', () => {
   });
   it('lists and runs direct Bot tools through the runtime and traces them as session direct', async () => {
     const run = vi.fn(async (_slug: string, tool: string) => {
+      if (tool === 'network_send') throw new BotNetworkDeliveryError('delivery-unknown');
       if (tool === 'create_assignment')
         throw new DirectBotToolError('tool-not-direct', 'create_assignment cannot run');
       if (tool === 'bot_send_message') throw new Error('bot_send_message: no Channel');
@@ -545,6 +547,7 @@ describe('bridge methods', () => {
       { limit: 1 },
       expect.any(AbortSignal),
       undefined,
+      undefined,
     );
     await methods.botToolRun({
       slug: 'ada',
@@ -558,6 +561,7 @@ describe('bridge methods', () => {
       {},
       expect.any(AbortSignal),
       'assign-1',
+      undefined,
     );
     expect(
       await methods.botToolRun({ slug: 'ada', tool: 'bot_subagent', sessionId: 7 }),
@@ -569,6 +573,10 @@ describe('bridge methods', () => {
     expect(await methods.botToolRun({ slug: 'ada', tool: 'bot_send_message' })).toEqual({
       ok: false,
       error: { code: 'tool-failed', message: 'bot_send_message: no Channel' },
+    });
+    expect(await methods.botToolRun({ slug: 'ada', tool: 'network_send' })).toMatchObject({
+      ok: false,
+      error: { code: 'delivery-unknown' },
     });
     expect((await methods.botToolRun({ slug: 'ada', tool: 'x', args: [] })).ok).toBe(false);
     expect((await methods.botToolRun({ slug: 'nobody', tool: 'channel_list' })).ok).toBe(false);
@@ -1638,6 +1646,7 @@ describe('bridge methods', () => {
         wakes.push(channelId + ':' + messageId);
       },
       admitBotDmMessage() {},
+      async withdrawNetworkMembership() {},
       admitGroupInvitation() {},
       admitDmMessage: () => ({ admitted: true as const, settled: Promise.resolve() }),
       listAssignments: () => [],
@@ -1699,6 +1708,7 @@ describe('bridge methods', () => {
     const { channels, attachments, methods } = setup([], ['ada'], () => ({
       admitGroupMessage() {},
       admitBotDmMessage() {},
+      async withdrawNetworkMembership() {},
       admitGroupInvitation() {},
       admitDmMessage(input) {
         admitted.push(input.body);
@@ -1763,6 +1773,7 @@ describe('bridge methods', () => {
     const { channels, methods } = setup([], ['ada'], () => ({
       admitGroupMessage() {},
       admitBotDmMessage() {},
+      async withdrawNetworkMembership() {},
       admitGroupInvitation() {},
       admitDmMessage() {
         admissions += 1;
@@ -2232,7 +2243,7 @@ describe('bridge methods', () => {
     const { methods, registry } = setup();
     methods.create({ slug: 'ada', displayName: 'Ada' });
 
-    expect(methods.channels({})).toEqual({
+    expect(await methods.channels({})).toEqual({
       ok: true,
       value: {
         channels: [
@@ -2260,7 +2271,7 @@ describe('bridge methods', () => {
     expect(again.ok && again.value.channel.name).toBe('Ada');
 
     await methods.channelSend({ channelId: 'dm-ada', body: '最新进展' });
-    const dmList = methods.channels({});
+    const dmList = await methods.channels({});
     expect(dmList.ok && dmList.value.channels[0]?.latestMessage?.body).toBe('最新进展');
 
     const group = methods.channelCreate({ name: 'Design Team', members: ['ada', 'bob'] });
@@ -2284,7 +2295,7 @@ describe('bridge methods', () => {
     });
     expect(renamedDm.ok && renamedDm.value.bot?.displayName).toBe('Ada Lovelace');
     expect(registry.get('ada')?.displayName).toBe('Ada Lovelace');
-    const listed = methods.channels({});
+    const listed = await methods.channels({});
     expect(listed.ok && listed.value.channels.map((channel) => channel.id)).toEqual([
       'group-design-team',
       'dm-ada',
@@ -2428,6 +2439,7 @@ describe('bridge methods', () => {
     const { methods } = setup([], ['ada'], (channels) => ({
       admitGroupMessage() {},
       admitBotDmMessage() {},
+      async withdrawNetworkMembership() {},
       admitGroupInvitation() {},
       admitDmMessage(input) {
         handled.push(input);
@@ -2535,6 +2547,7 @@ describe('bridge methods', () => {
     const { methods } = setup([], ['ada'], (channels) => ({
       admitGroupMessage() {},
       admitBotDmMessage() {},
+      async withdrawNetworkMembership() {},
       admitGroupInvitation() {},
       admitDmMessage(input) {
         admitted.push(input.body);
@@ -2585,6 +2598,7 @@ describe('bridge methods', () => {
     const { methods, registry, channels } = setup([], ['ada'], () => ({
       admitGroupMessage() {},
       admitBotDmMessage() {},
+      async withdrawNetworkMembership() {},
       admitGroupInvitation() {},
       admitDmMessage: () => ({ admitted: false as const, reason: 'archived-bot' as const }),
       listAssignments: () => [],
@@ -2609,6 +2623,7 @@ describe('bridge methods', () => {
     const { methods, channels } = setup([], ['ada'], () => ({
       admitGroupMessage() {},
       admitBotDmMessage() {},
+      async withdrawNetworkMembership() {},
       admitGroupInvitation() {},
       admitDmMessage: () => ({ admitted: false as const, reason: 'runtime-closed' as const }),
       listAssignments: () => [],
@@ -2724,6 +2739,7 @@ describe('bridge methods', () => {
       () => ({
         admitGroupMessage() {},
         admitBotDmMessage() {},
+        async withdrawNetworkMembership() {},
         admitGroupInvitation() {},
         admitDmMessage: () => ({ admitted: true as const, settled: Promise.resolve() }),
         listAssignments: () =>
@@ -3364,4 +3380,46 @@ it('logs why storage cleanup failed instead of hiding it behind storage-unavaila
   expect(warn).toHaveBeenCalledWith(
     'Storage cleanup preview is unavailable: Managed files contain a link',
   );
+});
+
+it('projects current network contact facts without persisting them in the Channel', async () => {
+  const contact = {
+    botId: 'remote:mac:ios',
+    hostId: 'mac',
+    botSlug: 'ios',
+    displayName: 'iOS',
+    device: { model: null, platform: 'darwin' },
+    capabilities: [],
+  };
+  const botContacts = vi.fn(() => ({ outputLimit: 12000, contacts: [contact] }));
+  const refreshBotContacts = vi.fn(async () => {});
+  const networkBotAvailability = vi.fn(() => 'available');
+  const { channels, methods } = setup(
+    [],
+    [],
+    () => ({ botContacts, refreshBotContacts, networkBotAvailability }) as unknown as BotRuntime,
+  );
+  vi.spyOn(channels, 'list').mockReturnValue([
+    {
+      id: 'remote-dm',
+      type: 'dm',
+      name: 'iOS',
+      members: ['caller'],
+      remoteBot: { hostId: 'mac', botSlug: 'ios', displayName: 'iOS' },
+      createdAt: '',
+      updatedAt: '',
+    },
+  ]);
+  expect(await methods.channels({})).toMatchObject({
+    ok: true,
+    value: { channels: [{ remoteContact: contact, remoteAvailability: 'available' }] },
+  });
+  expect(botContacts).toHaveBeenCalledWith('caller', { botId: 'remote:mac:ios' });
+  expect(refreshBotContacts).toHaveBeenCalledOnce();
+  expect(networkBotAvailability).toHaveBeenCalledWith('mac', 'ios');
+  botContacts.mockReturnValue({ outputLimit: 12000, contacts: [] });
+  networkBotAvailability.mockReturnValue('withdrawn');
+  const result = await methods.channels({});
+  expect(result.ok && result.value.channels[0]).not.toHaveProperty('remoteContact');
+  expect(result.ok && result.value.channels[0]?.remoteAvailability).toBe('withdrawn');
 });

@@ -208,6 +208,7 @@ export const LIVE_OPTIONS = {
   conversation: { type: 'string' },
   out: { type: 'string' },
   'args-stdin': { type: 'boolean' },
+  'cause-event': { type: 'string' },
   session: { type: 'string' },
   turns: { type: 'string' },
   offset: { type: 'string' },
@@ -526,6 +527,7 @@ interface LiveValues
   conversation?: string;
   out?: string;
   'args-stdin'?: boolean;
+  'cause-event'?: string;
   session?: string;
   turns?: string;
   offset?: string;

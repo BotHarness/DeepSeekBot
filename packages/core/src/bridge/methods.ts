@@ -1,3 +1,5 @@
+import { networkBotId, type BotContact } from '../runtime/bot-contact-discovery.js';
+import { BotNetworkDeliveryError } from '../runtime/bot-network.js';
 import { join } from 'node:path';
 import { createBotImports, type BotImportsService } from '../bots/imports.js';
 import { SessionRecoveryError } from '../runtime/session-recovery.js';
@@ -571,6 +573,8 @@ export interface ProfileSessionUsage {
 }
 
 export interface ChannelListItem extends ChannelRecord {
+  remoteAvailability?: import('../runtime/bot-network.js').NetworkBotAvailability;
+  remoteContact?: BotContact;
   humanMembers?: Array<{ humanId: string; displayName: string }>;
   humanNickname?: string | null;
   latestMessage?: ChannelMessage;
@@ -747,7 +751,7 @@ export interface BridgeMethods {
   ): BridgeResult<{ reply?: ChannelMessage; attachments: Array<ChannelAttachmentRef | null> }>;
   humanNameSet(payload: unknown): BridgeResult<LocalHumanIdentity>;
   channelHumanNameSet(payload: unknown): BridgeResult<{ channel: ChannelListItem }>;
-  channels(payload: unknown): BridgeResult<{ channels: ChannelListItem[] }>;
+  channels(payload: unknown): Promise<BridgeResult<{ channels: ChannelListItem[] }>>;
   channelDm(payload: unknown): BridgeResult<{ channel: ChannelRecord }>;
   channelGet(payload: unknown): BridgeResult<ChannelManagementResult>;
   channelCreate(
@@ -1847,9 +1851,25 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
   };
   const channelView = (channel: ChannelRecord): ChannelListItem => {
     const humanNickname = deps.channels.humanNickname(channel.id);
+    const remoteContact =
+      channel.remoteBot === undefined || channel.members[0] === undefined
+        ? undefined
+        : deps.runtime?.botContacts?.(channel.members[0], {
+            botId: networkBotId(channel.remoteBot.hostId, channel.remoteBot.botSlug),
+          }).contacts[0];
     return {
       ...channel,
       humanMembers: deps.channels.listHumanMembers(channel.id),
+      ...(channel.remoteBot === undefined
+        ? {}
+        : {
+            remoteAvailability:
+              deps.runtime?.networkBotAvailability?.(
+                channel.remoteBot.hostId,
+                channel.remoteBot.botSlug,
+              ) ?? 'unavailable',
+          }),
+      ...(remoteContact === undefined ? {} : { remoteContact }),
       ...(humanNickname === undefined ? {} : { humanNickname }),
     };
   };
@@ -4820,7 +4840,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return invalidInput(error instanceof Error ? error.message : String(error));
       }
     },
-    channels() {
+    async channels() {
+      if (deps.channels.list().some((channel) => channel.remoteBot !== undefined))
+        await deps.runtime?.refreshBotContacts?.();
       for (const bot of deps.registry.list()) {
         deps.channels.getOrCreateDm(bot.slug, bot.displayName);
       }
@@ -7381,6 +7403,14 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (session !== undefined && (typeof session !== 'string' || session.trim() === ''))
         return invalidInput('sessionId must be a Session id');
       if (deps.runtime?.runDirectBotTool === undefined) return directToolsUnavailable();
+      const sourceEventId = source['sourceEventId'];
+      if (
+        sourceEventId !== undefined &&
+        (typeof sourceEventId !== 'string' ||
+          sourceEventId.length === 0 ||
+          sourceEventId.length > 128)
+      )
+        return invalidInput('sourceEventId must identify an admitted Source Event');
       try {
         const run = await deps.runtime.runDirectBotTool(
           slug,
@@ -7388,6 +7418,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           args as Record<string, unknown>,
           AbortSignal.timeout(DIRECT_TOOL_TIMEOUT_MS),
           session?.trim(),
+          sourceEventId,
         );
         return { ok: true, value: { slug, ...run } };
       } catch (error) {
@@ -7395,7 +7426,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           ok: false,
           error: {
             code:
-              error instanceof DirectBotToolError || error instanceof TobError
+              error instanceof DirectBotToolError ||
+              error instanceof TobError ||
+              error instanceof BotNetworkDeliveryError
                 ? error.code
                 : 'tool-failed',
             message: error instanceof Error ? error.message : String(error),

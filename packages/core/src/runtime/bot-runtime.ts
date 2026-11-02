@@ -1,3 +1,4 @@
+import { BotNetworkDeliveryError } from './bot-network.js';
 import { SessionRecoveryError, type SessionRecoveryAction } from './session-recovery.js';
 import { prepareAssignmentReport, type AssignmentReportContent } from './assignment-report.js';
 import {
@@ -118,6 +119,8 @@ import {
 } from './channel-model-read.js';
 import {
   discoverBotContacts,
+  networkBotId,
+  BOT_CONTACT_OUTPUT_LIMIT,
   type BotContactQuery,
   type BotContactPage,
 } from './bot-contact-discovery.js';
@@ -555,7 +558,7 @@ export interface OrchestratorChannelAccess {
     signal?: AbortSignal;
   }): Promise<{ ref: ChannelAttachmentRef; data: Uint8Array }>;
   requestGrant(reason: string, channelId?: string): Promise<ChannelMessage>;
-  contacts(input?: BotContactQuery): BotContactPage;
+  contacts(input?: BotContactQuery): Promise<BotContactPage>;
   createGroup(name: string): ChannelRecord;
   inviteGroup(input: { channelId: string; targetBotSlug: string }): GroupInvitation;
   requestGroupJoin?(input: { channelId: string }): GroupJoinRequest;
@@ -713,6 +716,12 @@ export interface TobCliAuthority {
 }
 
 export interface BotRuntime {
+  networkBotAvailability?(
+    hostId: string,
+    botSlug: string,
+  ): import('./bot-network.js').NetworkBotAvailability;
+  refreshBotContacts?(): Promise<void>;
+  botContacts?(botSlug: string, query?: BotContactQuery): BotContactPage;
   groupSendReview?: GroupSendReview;
   botCreatePreview?(botSlug: string, args: unknown): BotCreatePreview | undefined;
   captureTobCliAuthority?(sessionId: string): TobCliAuthority;
@@ -774,6 +783,7 @@ export interface BotRuntime {
   retryGroupMessageAdmission?(channelId: string, messageId: string): void;
 
   admitBotDmMessage(channelId: string, messageId: string): void;
+  withdrawNetworkMembership(hostId: string): Promise<void>;
 
   admitGroupInvitation(targetDmChannelId: string, invitationId: string): void;
   admitGroupJoinRequest?(ownerDmChannelId: string, requestId: string): void;
@@ -793,6 +803,7 @@ export interface BotRuntime {
     args: Record<string, unknown>,
     signal: AbortSignal,
     parentSessionId?: string,
+    sourceEventId?: string,
   ): Promise<{ tool: string; sessionId: 'direct'; result: unknown }>;
   triageOpenCount?(botSlug: string): number | undefined;
   listChannelAssignments?(channelId: string): ChannelAssignmentSummary[];
@@ -815,6 +826,7 @@ export interface BotRuntime {
 }
 
 export interface BotRuntimeOptions {
+  botNetwork?: import('./bot-network.js').BotNetworkPort;
   onTobDelegation?: () => void;
   promptText?: (botSlug: string) => PromptText;
   promptLimits?: (botSlug: string) => PromptLimits;
@@ -1352,6 +1364,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #workspaceRoot: string | undefined;
   readonly #orchestratorCwd: ((bot: PersonaBotRecord) => string | undefined) | undefined;
   readonly #registry: PersonaBotRegistry;
+  readonly #botNetwork: import('./bot-network.js').BotNetworkPort | undefined;
   readonly #createBotId: () => string;
   readonly #channels: ChannelStore;
   readonly groupSendReview: GroupSendReview;
@@ -1439,6 +1452,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#orchestratorCwd = options.orchestratorCwd;
     this.#sessionArchived = options.sessionArchived;
     this.#registry = options.registry;
+    this.#botNetwork = options.botNetwork;
     this.#requireExecution = options.requireExecution;
     this.#channels = options.channels;
     this.groupSendReview = new GroupSendReview(
@@ -1963,6 +1977,11 @@ class BotRuntimeImplementation implements BotRuntime {
 
   admitBotDmMessage(channelId: string, messageId: string): void {
     this.#admitChannelMessage(channelId, messageId, 'bot-dm');
+  }
+
+  async withdrawNetworkMembership(hostId: string): Promise<void> {
+    for (const bot of this.#registry.list())
+      await this.#retireWithdrawnNetworkAdmissions(bot.slug, hostId);
   }
 
   admitGroupInvitation(targetDmChannelId: string, invitationId: string): void {
@@ -2852,6 +2871,8 @@ class BotRuntimeImplementation implements BotRuntime {
 
   async #runHarvestTurn(botSlug: string): Promise<void> {
     if (this.#closed) return;
+    await this.#retireWithdrawnNetworkAdmissions(botSlug);
+    if (this.#closed) return;
     const bot = this.#registry.get(botSlug);
     if (bot === undefined || bot.paused === true) return;
     const collected = this.#collectInbox(botSlug);
@@ -3468,8 +3489,12 @@ class BotRuntimeImplementation implements BotRuntime {
       return '[Bot Inbox: Group join decision]\n' + body;
     if (messageId.startsWith('group-join-') && message === undefined)
       return '[Bot Inbox: Group join request]\n' + body;
-    if (channel !== undefined && isBotDmChannel(channel) && message?.author.kind === 'bot')
-      return `[Bot Inbox: direct message from PersonaBot ${message.author.slug}]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${body}\n${this.#promptText(botSlug)('bot-dm-hint')}`;
+    if (
+      channel !== undefined &&
+      isBotDmChannel(channel) &&
+      (message?.author.kind === 'bot' || message?.author.kind === 'remote-bot')
+    )
+      return `[Bot Inbox: direct message from PersonaBot ${message.author.slug}${message.author.kind === 'remote-bot' ? ` on Host ${message.author.hostId}` : ''}]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${body}\n${this.#promptText(botSlug)('bot-dm-hint')}`;
     if (message?.author.kind === 'human' && message.toolAutoApprovalOverride !== undefined) {
       const target = message.toolAutoApprovalOverride;
       const input =
@@ -4019,6 +4044,7 @@ class BotRuntimeImplementation implements BotRuntime {
     args: Record<string, unknown>,
     signal: AbortSignal,
     parentSessionId?: string,
+    sourceEventId?: string,
   ): Promise<{ tool: string; sessionId: 'direct'; result: unknown }> {
     if (this.#closed) throw new DirectBotToolError('runtime-closed', 'BotRuntime is closed');
     const bot = this.#registry.get(botSlug);
@@ -4054,16 +4080,35 @@ class BotRuntimeImplementation implements BotRuntime {
       typeof args.channel_id === 'string'
         ? this.#requireMembership(botSlug, args.channel_id)
         : undefined;
-    const directSource =
-      directChannel === undefined
-        ? undefined
-        : this.#database.read((db) =>
-            db
-              .prepare(
-                'SELECT source_event_id FROM channel_placements WHERE channel_id = ? ORDER BY revision DESC LIMIT 1',
-              )
-              .get(directChannel.id),
+    if (sourceEventId !== undefined) {
+      this.#database.read((db) => {
+        const source = db
+          .prepare(`SELECT e.channel_id FROM source_events e
+          JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
+          WHERE e.source_event_id = ? AND a.bot_slug = ?`)
+          .get(sourceEventId, botSlug);
+        if (source === undefined)
+          throw new DirectBotToolError(
+            'source-unavailable',
+            'Source Event is not admitted to this Bot',
           );
+        requireSourceEffects(db, sourceEventId, botSlug);
+        if (typeof source.channel_id === 'string')
+          this.#requireMembership(botSlug, source.channel_id);
+      });
+    }
+    const directSource =
+      sourceEventId !== undefined
+        ? { source_event_id: sourceEventId }
+        : directChannel === undefined
+          ? undefined
+          : this.#database.read((db) =>
+              db
+                .prepare(
+                  'SELECT source_event_id FROM channel_placements WHERE channel_id = ? ORDER BY revision DESC LIMIT 1',
+                )
+                .get(directChannel.id),
+            );
     const run: OrchestratorAgentRun = {
       sessionId,
       resume: false,
@@ -4143,6 +4188,27 @@ class BotRuntimeImplementation implements BotRuntime {
         ),
       );
     });
+  }
+
+  async refreshBotContacts(): Promise<void> {
+    await this.#botNetwork?.refresh?.();
+  }
+
+  networkBotAvailability(
+    hostId: string,
+    botSlug: string,
+  ): import('./bot-network.js').NetworkBotAvailability {
+    return this.#botNetwork?.availability?.(hostId, botSlug) ?? 'unavailable';
+  }
+
+  botContacts(botSlug: string, query?: BotContactQuery): BotContactPage {
+    const contacts = this.#botNetwork?.contacts() ?? [];
+    if (
+      query?.botId?.startsWith('remote:') &&
+      !contacts.some((contact) => networkBotId(contact.hostId, contact.botSlug) === query.botId)
+    )
+      return { outputLimit: BOT_CONTACT_OUTPUT_LIMIT, contacts: [] };
+    return discoverBotContacts(this.#registry, botSlug, query, contacts);
   }
 
   listAssignments(botSlug: string): AssignmentSummary[] {
@@ -5584,6 +5650,64 @@ class BotRuntimeImplementation implements BotRuntime {
     return interruptedDms;
   }
 
+  async #retireWithdrawnNetworkAdmissions(botSlug: string, withdrawnHost?: string): Promise<void> {
+    const membership = this.#botNetwork?.membership;
+    if (membership === undefined && withdrawnHost === undefined) return;
+    const pending = this.#database.read((database) =>
+      database
+        .prepare(`
+        SELECT a.source_event_id, e.channel_id, e.message_id
+          FROM inbox_admissions a JOIN source_events e USING (source_event_id)
+         WHERE a.bot_slug = ? AND a.reason = 'bot-dm'
+           AND a.attempt_state IN ('pending', 'retryable')
+           AND a.observed_at IS NULL AND a.side_effect_started_at IS NULL
+           AND a.ignored_at IS NULL
+      `)
+        .all(botSlug),
+    ) as Array<{ source_event_id: string; channel_id: string; message_id: string }>;
+    const hosts = new Map<string, boolean>();
+    for (const row of pending) {
+      const peer = this.#channels.get(row.channel_id)?.remoteBot;
+      if (peer === undefined) continue;
+      if (withdrawnHost !== undefined && peer.hostId !== withdrawnHost) continue;
+      const unverified = peer.membership === undefined;
+      if (!unverified && !hosts.has(peer.hostId)) {
+        const state =
+          withdrawnHost === peer.hostId
+            ? 'withdrawn'
+            : await membership!(peer.hostId).catch(() => 'unavailable');
+        hosts.set(peer.hostId, state === 'withdrawn');
+      }
+      if ((!unverified && !hosts.get(peer.hostId)) || this.#closed) continue;
+      const at = this.#now().toISOString();
+      this.#database.transaction(
+        (database) => {
+          database
+            .prepare(`
+          UPDATE inbox_admissions
+             SET attempt_state = 'handled', handled_at = ?, ignored_at = ?,
+                 snoozed_until = NULL, wake_count = NULL, wake_interval_ms = NULL,
+                 last_error = ?
+           WHERE source_event_id = ? AND bot_slug = ?
+             AND attempt_state IN ('pending', 'retryable')
+             AND observed_at IS NULL AND side_effect_started_at IS NULL AND ignored_at IS NULL
+        `)
+            .run(
+              at,
+              at,
+              unverified
+                ? 'Bot collaboration provenance unavailable before execution'
+                : 'Bot collaboration membership withdrawn before execution',
+              row.source_event_id,
+              botSlug,
+            );
+        },
+        ['bot-inbox'],
+      );
+      this.#channels.admissionChanged?.(row.channel_id, row.message_id);
+    }
+  }
+
   #retireRevokedGroupRetries(): void {
     const retries = this.#database.read((database) =>
       database
@@ -5997,7 +6121,10 @@ class BotRuntimeImplementation implements BotRuntime {
               }),
         };
       },
-      contacts: (input) => discoverBotContacts(this.#registry, botSlug, input),
+      contacts: async (input) => {
+        await this.refreshBotContacts();
+        return discoverBotContacts(this.#registry, botSlug, input, this.#botNetwork?.contacts());
+      },
       createGroup: (name) => {
         requireOrdinaryGroupActor();
         const sender = this.#registry.get(botSlug);
@@ -6198,6 +6325,31 @@ class BotRuntimeImplementation implements BotRuntime {
       },
       createBot: (input) => this.#createBot(botSlug, sourceEventId, beforeSend, input),
       sendToBot: async (input) => {
+        if (input.botSlug.startsWith('remote:')) {
+          if (input.replyTo !== undefined)
+            throw new Error('Remote Bot DMs currently support text without quoted replies');
+          let contact = this.botContacts(botSlug, { botId: input.botSlug }).contacts[0];
+          if (contact === undefined) {
+            await this.refreshBotContacts();
+            contact = this.botContacts(botSlug, { botId: input.botSlug }).contacts[0];
+          }
+          if (contact?.hostId === undefined || contact.botSlug === undefined)
+            throw new BotNetworkDeliveryError('unable-to-deliver');
+          const channel = this.#channels.getOrCreateRemoteBotDm(botSlug, {
+            hostId: contact.hostId,
+            botSlug: contact.botSlug,
+            displayName: contact.displayName,
+          });
+          return this.#sendNetworkBotDm({
+            botSlug,
+            channel,
+            sessionId,
+            sourceEventId,
+            body: input.body,
+            beforeSend,
+            ...(input.deliveryKey === undefined ? {} : { deliveryKey: input.deliveryKey }),
+          });
+        }
         const sender = this.#registry.get(botSlug);
         const target = this.#registry.get(input.botSlug);
         if (
@@ -6619,6 +6771,27 @@ class BotRuntimeImplementation implements BotRuntime {
         if (input.mentionHumanIds?.length && channel.type !== 'group')
           throw new Error('Human mentions require a Group Channel');
         if (isBotDmChannel(channel)) {
+          if (channel.remoteBot !== undefined) {
+            if (
+              input.attachments?.length ||
+              (input.replyTo !== undefined && input.replySourceEventId === undefined)
+            )
+              throw new Error('Remote Bot DMs currently support text without quoted replies');
+            return (
+              await this.#sendNetworkBotDm({
+                botSlug,
+                channel,
+                sessionId,
+                sourceEventId:
+                  input.replySourceEventId ??
+                  this.#turnSourceIn(botSlug, channel.id, readAdmissions) ??
+                  sourceEventId,
+                body: input.body,
+                beforeSend,
+                ...(input.deliveryKey === undefined ? {} : { deliveryKey: input.deliveryKey }),
+              })
+            ).message;
+          }
           const recipientBotSlug = channel.members.find((slug) => slug !== botSlug);
           if (recipientBotSlug === undefined) throw new Error('Bot DM has no recipient');
           const sent = await this.#sendBotDm({
@@ -7168,6 +7341,70 @@ class BotRuntimeImplementation implements BotRuntime {
       return refuse('the image file cannot be read');
     }
     return personaBotAvatarFromBytes(bytes) ?? refuse('the image must be a PNG, JPEG or WebP file');
+  }
+
+  async #sendNetworkBotDm(input: {
+    botSlug: string;
+    channel: ChannelRecord;
+    sessionId: string;
+    sourceEventId: string | undefined;
+    body: string;
+    beforeSend: () => void;
+    deliveryKey?: string;
+  }): Promise<{ channelId: string; message: ChannelMessage }> {
+    const { channel, botSlug } = input;
+    const peer = channel.remoteBot;
+    const sender = this.#registry.get(botSlug);
+    if (
+      this.#botNetwork === undefined ||
+      peer === undefined ||
+      !this.#isMember(botSlug, channel) ||
+      sender === undefined ||
+      sender.paused === true
+    )
+      throw new Error('Remote Bot DM is unavailable');
+    if (!input.body.trim()) throw new Error('Bot DM message requires a body');
+    const causation = this.#botCausation(input.sourceEventId);
+    const message: ChannelMessage = {
+      id: this.#deliveryMessageId(input.sessionId, input.deliveryKey),
+      at: this.#now().toISOString(),
+      author: { kind: 'bot', slug: botSlug },
+      body: input.body,
+      botCausation: causation,
+    };
+    const accepted = this.#channels.message(channel.id, message.id);
+    if (accepted !== undefined) {
+      if (
+        accepted.author.kind !== 'bot' ||
+        accepted.author.slug !== botSlug ||
+        accepted.body !== message.body ||
+        JSON.stringify(accepted.botCausation) !== JSON.stringify(causation)
+      )
+        throw new Error('Bot DM delivery key has different content');
+      return { channelId: channel.id, message: accepted };
+    }
+    input.beforeSend();
+    await this.#botNetwork.send(peer.hostId, {
+      id: message.id,
+      at: message.at,
+      senderBotSlug: botSlug,
+      recipientBotSlug: peer.botSlug,
+      body: input.body,
+      causation,
+    });
+    try {
+      if (this.#channels.getOrCreateDm(botSlug, sender.displayName) === undefined)
+        throw new Error('Sender Human DM is unavailable');
+      const result = await this.#channels.appendMessageOnce(channel.id, message, undefined, {
+        sessionId: input.sessionId,
+        ...(input.sourceEventId === undefined ? {} : { sourceEventId: input.sourceEventId }),
+      });
+      if (result.status === 'missing' || result.status === 'conflict')
+        throw new Error(result.status);
+      return { channelId: channel.id, message: result.message };
+    } catch {
+      throw new BotNetworkDeliveryError('delivery-unknown');
+    }
   }
 
   async #sendBotDm(input: {

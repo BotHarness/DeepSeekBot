@@ -1,4 +1,5 @@
 import { CONNECT_CHANNEL_PATH } from './noise/channel.js';
+import { BOT_CONNECT_PATH } from './bot-connect-channel.js';
 import { spawn as spawnProcess } from 'node:child_process';
 import {
   createServer,
@@ -147,8 +148,12 @@ export function createGatewayOrigin(port: () => number): GatewayOrigin {
   const upgraded = new Set<Duplex>();
   const server = createServer((request, response) => {
     stampConnectRoute(request);
+    const botRequest =
+      request.method === 'POST' &&
+      (request.url === `${BOT_CONNECT_PATH}/handshake` ||
+        request.url === `${BOT_CONNECT_PATH}/request`);
     if (
-      request.url !== CONNECT_CHANNEL_PATH ||
+      (request.url !== CONNECT_CHANNEL_PATH && !botRequest) ||
       request.headers.authorization ||
       request.headers.cookie
     ) {
