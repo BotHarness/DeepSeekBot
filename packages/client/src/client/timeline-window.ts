@@ -86,6 +86,12 @@ export function useTimelineWindow(
   const latestKeys = useRef(keys);
   latestKeys.current = keys;
   const frame = useRef<number | undefined>(undefined);
+  const range = useRef<{ keys: ReadonlySet<string>; top: number; bottom: number }>({
+    keys: new Set(),
+    top: -Infinity,
+    bottom: Infinity,
+  });
+  const reported = useRef(false);
   const [view, setView] = useState<{ seen: ReadonlySet<string>; top: number; bottom: number }>(
     () => ({ seen: new Set(), top: -Infinity, bottom: Infinity }),
   );
@@ -109,6 +115,25 @@ export function useTimelineWindow(
     const top = element.scrollTop - origin - keep;
     const bottom = element.scrollTop - origin + element.clientHeight + keep;
     const next = nearKeys(order, heights.current, top, bottom);
+    if (
+      !reported.current &&
+      order.length > 0 &&
+      order.every((key) => range.current.keys.has(key)) &&
+      nearKeys(order, heights.current, range.current.top, range.current.bottom).size === 0
+    ) {
+      reported.current = true;
+      console.warn('botharness: timeline window lost its rendered groups', {
+        groups: order.length,
+        measured: order.filter((key) => heights.current.has(key)).length,
+        rendered: nodes.current.size,
+        previous: { top: range.current.top, bottom: range.current.bottom },
+        next: { top, bottom },
+        scrollTop: element.scrollTop,
+        scrollHeight: element.scrollHeight,
+        clientHeight: element.clientHeight,
+      });
+    }
+    range.current = { keys: new Set(order), top, bottom };
     setView((current) =>
       sameKeys(windowKeys(order, heights.current, current.top, current.bottom), next) &&
       sameKeys(current.seen, new Set(order))
