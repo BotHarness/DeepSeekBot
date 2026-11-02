@@ -477,3 +477,25 @@ it("a group's louder custom wake cannot override a Bot's only-direct-mention set
   expect(fx.runs).toHaveLength(1);
   expect(fx.runs[0]?.inbox).toContain('direct-request');
 });
+
+it('records each inbound QQ event as handled or skipped with a reason, without its text', async () => {
+  const fx = await fixture();
+  await fx.receive('permission-probe');
+  await fx.receive('direct-request', true);
+  const traces = fx.logs
+    .filter(
+      (entry) => entry.includes('"messaging-inbound"') && !entry.includes('ordinary-delivery'),
+    )
+    .map((entry) => JSON.parse(entry) as Record<string, unknown>)
+    .filter((trace) => typeof trace['mentioned'] === 'boolean');
+  expect(traces.map((trace) => [trace['phase'], trace['mentioned']])).toEqual([
+    ['skipped', false],
+    ['handled', true],
+  ]);
+  expect(traces[0]).toMatchObject({
+    platform: 'qq',
+    conversation: 'group',
+    reason: 'not-admitted',
+  });
+  expect(JSON.stringify(traces)).not.toMatch(/permission-probe|direct-request/u);
+});

@@ -197,6 +197,7 @@ export const LIVE_OPTIONS = {
   'values-stdin': { type: 'boolean' },
   since: { type: 'string' },
   hours: { type: 'string' },
+  offline: { type: 'boolean' },
   workspace: { type: 'string' },
   mode: { type: 'string' },
   scope: { type: 'string' },
@@ -513,6 +514,8 @@ interface LiveValues
   outcome?: string;
   since?: string;
   hours?: string;
+  offline?: boolean;
+  home?: string;
   workspace?: string;
   limit?: string;
   before?: string;
