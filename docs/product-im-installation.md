@@ -35,14 +35,14 @@ fails before packing.
 
 ```bash
 git clone https://github.com/DoodleBears/dsh-im.git /tmp/bh-im-source
-git -C /tmp/bh-im-source checkout 7505ce6fcda26c02810781fde9d4da81dab28a68
+git -C /tmp/bh-im-source checkout 518314f6cf495aea093c0a93b0107de25b66e60d
 npm ci --prefix /tmp/bh-im-source --ignore-scripts --no-audit --no-fund
 pnpm install --frozen-lockfile
 pnpm build
 node scripts/product-artifacts.mjs \
   --provider-source /tmp/bh-im-source \
   --output /tmp/bh-product-artifacts \
-  --version 1.3.0-test.1155.1
+  --version 1.3.0-test.1615.1
 ```
 
 Choose a fresh output directory. `artifacts.json` records the six actual tarballs,
