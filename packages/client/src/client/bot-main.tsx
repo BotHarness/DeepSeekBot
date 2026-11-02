@@ -90,7 +90,7 @@ import {
   useComposerRecovery,
 } from './conversation-draft.js';
 import { insertAttachmentReferences, removeAttachmentReferences } from './attachment-refs.js';
-import { appendMention, rebaseMentions } from './mentions.js';
+import { appendMention, quoteMention, rebaseMentions } from './mentions.js';
 import { AtSignIcon } from './at-sign-icon.js';
 import { rebaseChannelRefs } from './channel-refs.js';
 import { channelHumanName, humanLabel } from './actor-names.js';
@@ -2094,6 +2094,31 @@ function ConversationView({
     setRestoreBlocked(false);
     setRestoreFocusSignal((value) => value + 1);
   };
+  const quoteMessage = (message: ChannelMessage): void => {
+    const author = message.author;
+    const member =
+      channel?.type === 'group' && author.kind === 'bot'
+        ? channelBots.find(
+            (candidate) =>
+              candidate.slug === author.slug &&
+              candidate.deleted !== true &&
+              candidate.paused !== true,
+          )
+        : undefined;
+    if (member === undefined) {
+      setReplyTarget(message);
+      return;
+    }
+    const next = quoteMention(draft, mentionTokens, member.slug, member.displayName);
+    recovery.update({
+      reply: message,
+      text: next.value,
+      mentions: next.mentions,
+      channelRefs: rebaseChannelRefs(draft, next.value, channelRefTokens),
+    });
+    setRestoreFocusSignal((value) => value + 1);
+  };
+
   const timelineHandlers = {
     contextMenu: (message: ChannelMessage, x: number, y: number) => {
       setAvatarMenu(undefined);
@@ -2103,7 +2128,7 @@ function ConversationView({
       setMessageMenu(undefined);
       setAvatarMenu({ botSlug, x, y });
     },
-    reply: (message: ChannelMessage) => setReplyTarget(message),
+    reply: (message: ChannelMessage) => quoteMessage(message),
     react: (message: ChannelMessage, emoji: string, active: boolean) =>
       reactToMessage?.(message, emoji, active),
     jumpReply: (messageId: string) => {
@@ -3412,7 +3437,7 @@ function ConversationView({
               {...(reactToMessage === undefined || !reactableMessage(messageMenu.message)
                 ? {}
                 : { onReact: setReactionMenu })}
-              onReply={(message) => setReplyTarget(message)}
+              onReply={quoteMessage}
               onFeedback={(message) => setFeedbackMessage(message.id)}
               {...(messageSelection === undefined ? {} : { onSelect: messageSelection.begin })}
               onClose={() => {

@@ -126,6 +126,7 @@ import {
   activeMentionQuery,
   chooseMention,
   mentionCandidates,
+  quoteMention,
   rebaseMentions,
   submittedMessage,
   type MentionCandidate,
@@ -616,12 +617,28 @@ function ChatConversation({
     jumpToLatest();
     composerInput.current?.focus();
   }, [jumpToLatest]);
+  const quoteDraft = useRef({ draft, mentions, members, dm });
+  useLayoutEffect(() => {
+    quoteDraft.current = { draft, mentions, members, dm };
+  }, [draft, mentions, members, dm]);
   const startReply = useCallback(
     (message: ConversationMessage) => {
       setReplying({ scope: selectionScope, message });
+      const current = quoteDraft.current;
+      const member =
+        current.dm || message.author !== 'bot'
+          ? undefined
+          : current.members.find((entry) => entry.slug === message.bot && !entry.paused);
+      if (member !== undefined) {
+        const next = quoteMention(current.draft, current.mentions, member.slug, member.displayName);
+        if (next.value !== current.draft) setDraft(next.value);
+        setMentions(next.mentions);
+        setCaret(next.caret);
+        setSelection({ start: next.caret, end: next.caret });
+      }
       composerInput.current?.focus();
     },
-    [selectionScope],
+    [selectionScope, setDraft],
   );
   const stackRoot = useStackRoot();
   const closePresentation = presentation?.onClose;
