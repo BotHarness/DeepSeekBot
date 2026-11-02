@@ -79,6 +79,8 @@ export function useFollowLatest<Row>(
   const frame = useRef<number | undefined>(undefined);
   const confirmation = useRef<number | undefined>(undefined);
   const sizes = useRef(0);
+  const hasContent = useRef(false);
+  const hasLayout = useRef(false);
   const settled = useRef(false);
   const attempts = useRef(0);
   useLayoutEffect(() => {
@@ -99,14 +101,12 @@ export function useFollowLatest<Row>(
       const native = event.nativeEvent;
       metrics.current = {
         ...metrics.current,
-        content:
-          metrics.current.content > 0
-            ? metrics.current.content
-            : (native.contentSize?.height ?? metrics.current.content),
-        layout:
-          metrics.current.layout > 0
-            ? metrics.current.layout
-            : (native.layoutMeasurement?.height ?? metrics.current.layout),
+        content: hasContent.current
+          ? metrics.current.content
+          : (native.contentSize?.height ?? metrics.current.content),
+        layout: hasLayout.current
+          ? metrics.current.layout
+          : (native.layoutMeasurement?.height ?? metrics.current.layout),
         offset: native.contentOffset.y,
       };
       return distanceFromLatest(metrics.current, inverted);
@@ -263,6 +263,7 @@ export function useFollowLatest<Row>(
 
   const onContentSizeChange = useCallback(
     (_width: number, height: number) => {
+      hasContent.current = true;
       const previous = reportedContent.current;
       reportedContent.current = height;
       if (animateScroll && previous === height && settled.current) return;
@@ -279,6 +280,7 @@ export function useFollowLatest<Row>(
 
   const onLayout = useCallback(
     (event: LayoutChangeEvent) => {
+      hasLayout.current = true;
       const height = event.nativeEvent.layout.height;
       if (metrics.current.layout !== height) {
         metrics.current = { ...metrics.current, layout: height };
