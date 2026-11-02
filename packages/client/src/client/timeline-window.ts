@@ -47,6 +47,22 @@ export function nearKeys(
   return near;
 }
 
+export function windowKeys(
+  keys: readonly string[],
+  heights: ReadonlyMap<string, number>,
+  top: number,
+  bottom: number,
+): Set<string> {
+  const near = nearKeys(keys, heights, top, bottom);
+  if (near.size > 0) return near;
+  let total = 0;
+  for (const key of keys) total += heights.get(key) ?? 0;
+  if (total === 0 || (top < total && bottom > 0)) return near;
+  const span = Math.min(Math.max(1, bottom - top), total);
+  const start = top >= total ? total - span : 0;
+  return nearKeys(keys, heights, start, start + span);
+}
+
 function sameKeys(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
   if (left.size !== right.size) return false;
   for (const key of left) if (!right.has(key)) return false;
@@ -70,8 +86,14 @@ export function useTimelineWindow(
   const latestKeys = useRef(keys);
   latestKeys.current = keys;
   const frame = useRef<number | undefined>(undefined);
-  const [view, setView] = useState<{ near: ReadonlySet<string>; seen: ReadonlySet<string> }>(
-    () => ({ near: new Set(), seen: new Set() }),
+  const range = useRef<{ keys: ReadonlySet<string>; top: number; bottom: number }>({
+    keys: new Set(),
+    top: -Infinity,
+    bottom: Infinity,
+  });
+  const reported = useRef(false);
+  const [view, setView] = useState<{ seen: ReadonlySet<string>; top: number; bottom: number }>(
+    () => ({ seen: new Set(), top: -Infinity, bottom: Infinity }),
   );
 
   const update = useCallback(() => {
@@ -90,16 +112,33 @@ export function useTimelineWindow(
     }
     if (origin === undefined) return;
     const keep = element.clientHeight * KEEP_RENDERED_VIEWPORTS;
-    const next = nearKeys(
-      order,
-      heights.current,
-      element.scrollTop - origin - keep,
-      element.scrollTop - origin + element.clientHeight + keep,
-    );
+    const top = element.scrollTop - origin - keep;
+    const bottom = element.scrollTop - origin + element.clientHeight + keep;
+    const next = nearKeys(order, heights.current, top, bottom);
+    if (
+      !reported.current &&
+      order.length > 0 &&
+      order.every((key) => range.current.keys.has(key)) &&
+      nearKeys(order, heights.current, range.current.top, range.current.bottom).size === 0
+    ) {
+      reported.current = true;
+      console.warn('botharness: timeline window lost its rendered groups', {
+        groups: order.length,
+        measured: order.filter((key) => heights.current.has(key)).length,
+        rendered: nodes.current.size,
+        previous: { top: range.current.top, bottom: range.current.bottom },
+        next: { top, bottom },
+        scrollTop: element.scrollTop,
+        scrollHeight: element.scrollHeight,
+        clientHeight: element.clientHeight,
+      });
+    }
+    range.current = { keys: new Set(order), top, bottom };
     setView((current) =>
-      sameKeys(current.near, next) && sameKeys(current.seen, new Set(order))
+      sameKeys(windowKeys(order, heights.current, current.top, current.bottom), next) &&
+      sameKeys(current.seen, new Set(order))
         ? current
-        : { near: next, seen: new Set(order) },
+        : { seen: new Set(order), top, bottom },
     );
   }, []);
 
@@ -177,11 +216,12 @@ export function useTimelineWindow(
   for (const key of [...heights.current.keys()]) if (!known.has(key)) heights.current.delete(key);
   for (const key of [...refs.current.keys()]) if (!known.has(key)) refs.current.delete(key);
 
+  const near = windowKeys(keys, heights.current, view.top, view.bottom);
   return {
     runs: timelineRuns(
       keys,
       heights.current,
-      (key) => !view.seen.has(key) || view.near.has(key) || pinned.has(key),
+      (key) => !view.seen.has(key) || near.has(key) || pinned.has(key),
     ),
     blockRef,
     rootRef,
