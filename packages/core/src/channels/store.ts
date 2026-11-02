@@ -453,6 +453,7 @@ export interface ChannelStore {
     id: string,
     message: ChannelMessage,
     origin?: ChannelMessageOrigin,
+    beforeCommit?: () => boolean,
   ): Promise<ChannelMessage | undefined>;
   readMessages(id: string, options?: ChannelReadOptions): ChannelMessage[];
   queryMessages(id: string, options?: ChannelMessageQueryOptions): ChannelMessageQueryPage;
@@ -922,7 +923,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       write(renamed);
       return renamed;
     },
-    appendMessage(id, message, origin) {
+    appendMessage(id, message, origin, beforeCommit) {
       return enqueue(id, () => {
         const record = read(id);
         if (record === undefined) return undefined;
@@ -935,6 +936,7 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
         }
         assertAttachmentRefs(message.attachments ?? []);
         assertGrantRequestReply(record, message, priorMessages);
+        if (beforeCommit && !beforeCommit()) return undefined;
         const durableMessage = { ...message };
         delete durableMessage.grantRequestResolved;
         delete durableMessage.replyToPreview;

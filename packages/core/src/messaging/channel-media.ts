@@ -8,6 +8,7 @@ import { MessagingError, type MessagingProvider } from './provider.js';
 import { readMessagingIdentity } from './identity.js';
 import { bridgeAttachmentKind, bridgeChannel, humanBridgeChannel } from './channel-target.js';
 import { channelBridgeRoutes } from './channel-bridge.js';
+import { channelIngests } from './conversation-ingest.js';
 import { sourceMediaUploadId } from './media-identity.js';
 
 interface MediaRequest {
@@ -45,12 +46,25 @@ function authority(db: DatabaseSync, input: MediaRequest, active: (slug: string)
       }
     }
   }
+  const ingested = channelIngests(db, input.channelId).some(
+    (ingest) =>
+      ingest.enabled &&
+      ingest.accountRef === source.event.botId &&
+      ingest.fingerprint === source.event.fingerprint &&
+      ingest.conversation.kind === source.event.conversation.kind &&
+      ingest.conversation.id === source.event.conversation.id,
+  );
+  if (!rows.length && ingested) {
+    const row = db.prepare('SELECT body FROM messaging_grants WHERE id = ?').get(source.grantId) as
+      | { body: string }
+      | undefined;
+    if (row) rows.push({ body: row.body, route_id: source.grantId });
+  }
   const candidates = rows.flatMap((row) => {
     const grant = JSON.parse(row.body) as MessagingGrant;
     const route = channelBridgeRoutes(grant).find((item) => item.id === row.route_id);
     if (
-      !route ||
-      route.channelId !== input.channelId ||
+      ((!route || route.channelId !== input.channelId) && !ingested) ||
       grant.revokedAt ||
       grant.suspendedReason ||
       !grant.receiveScope ||
@@ -77,7 +91,7 @@ function authority(db: DatabaseSync, input: MediaRequest, active: (slug: string)
       if (!(error instanceof MessagingError)) throw error;
       return [];
     }
-    return [{ grant, enabled: route.enabled }];
+    return [{ grant, enabled: ingested || route!.enabled }];
   });
   if (!candidates.length) throw new MessagingError('source-unavailable');
   return { source, attachment, candidates };
@@ -228,7 +242,8 @@ export function createChannelMediaAccess(options: {
         );
       }
       validate();
-      if (input.representation === 'playback') {
+      const video = bridgeAttachmentKind(initial.source, initial.attachment) === 'video';
+      if (input.representation === 'playback' && !video) {
         if (
           !initial.source.event.voice ||
           initial.attachment.mediaType !== 'audio/unknown' ||
@@ -252,8 +267,9 @@ export function createChannelMediaAccess(options: {
         throw new ChannelAttachmentError('Attachment exceeds limit', 'too-large');
       }
       if (
-        initial.attachment.mediaType?.startsWith('image/') &&
-        !['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(downloaded.ref.mime)
+        (initial.attachment.mediaType?.startsWith('image/') &&
+          !['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(downloaded.ref.mime)) ||
+        (input.representation === 'playback' && video && downloaded.ref.mime !== 'video/mp4')
       ) {
         await downloaded.body.cancel();
         throw new MessagingError('media-format-unsupported');

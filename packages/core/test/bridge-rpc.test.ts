@@ -625,6 +625,7 @@ describe('bridge typert service', () => {
       'approvalRoute',
       'approvalTest',
       'approvalRetry',
+      'questionRetry',
       'failureAlertsSet',
       'failureAlertsTest',
       'failureAlertsRetry',

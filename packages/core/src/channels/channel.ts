@@ -468,7 +468,13 @@ export interface ChannelMessage {
   clearedAttachments?: ChannelClearedAttachment[];
   bridgeMedia?: {
     voice?: Pick<import('../messaging/provider.js').MessagingVoice, 'transcript' | 'durationMs'>;
-    items: { id: string; kind: 'image' | 'file' | 'audio'; name: string; sizeBytes?: number }[];
+    video?: { attachmentId: string; durationMs?: number; posterAttachmentId?: string };
+    items: {
+      id: string;
+      kind: 'image' | 'file' | 'audio' | 'video';
+      name: string;
+      sizeBytes?: number;
+    }[];
     parts?: import('../messaging/provider.js').MessagingContentPart[];
   };
   bridgeOrigin?: {
@@ -976,6 +982,11 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
   if (questionResolution !== undefined) {
     if (typeof questionResolution !== 'object' || questionResolution === null) return false;
     const resolution = questionResolution as Record<string, unknown>;
+    if (
+      resolution['actor'] !== undefined &&
+      (resolution['state'] !== 'answered' || !parseToolApprovalActor(resolution['actor']))
+    )
+      return false;
     if (
       typeof resolution['requestMessageId'] !== 'string' ||
       message['replyTo'] !== resolution['requestMessageId'] ||

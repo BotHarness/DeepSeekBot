@@ -239,9 +239,22 @@ export interface InboundMessaging {
 }
 
 export function createInboundMessaging(options: {
+  onQuestionAction?(
+    providerId: string,
+    event: import('./provider.js').MessagingQuestionAction,
+    signal: AbortSignal,
+  ): Promise<import('./provider.js').MessagingApprovalAck>;
+  onQuestionText?(
+    providerId: string,
+    event: MessagingInboundEvent,
+    signal: AbortSignal,
+  ): Promise<boolean>;
   onApprovalAction?(
     providerId: string,
-    event: import('./provider.js').MessagingCardAction,
+    event: Exclude<
+      import('./provider.js').MessagingCardAction,
+      import('./provider.js').MessagingQuestionAction
+    >,
     signal: AbortSignal,
   ): Promise<import('./provider.js').MessagingApprovalAck>;
   database: OperationalDatabaseModulePort;
@@ -1833,6 +1846,7 @@ export function createInboundMessaging(options: {
     event: MessagingInboundEvent,
     signal: AbortSignal,
   ) => {
+    if (await options.onQuestionText?.(provider.id, event, signal)) return true;
     if (!options.pairing || !chatPairingApplies(event) || provider.id !== `dsh-im/${event.channel}`)
       return false;
     signal.throwIfAborted();
@@ -2215,8 +2229,13 @@ export function createInboundMessaging(options: {
                 async (event, signal) =>
                   (await controlIntake(provider, event, signal)) ||
                   (await commandIntake(provider, event, signal)),
-                options.onApprovalAction
-                  ? (event, signal) => options.onApprovalAction!(provider.id, event, signal)
+                options.onApprovalAction || options.onQuestionAction
+                  ? (event, signal) =>
+                      event.action === 'answer'
+                        ? (options.onQuestionAction?.(provider.id, event, signal) ??
+                          Promise.resolve({ accepted: true as const, status: 'refused' as const }))
+                        : (options.onApprovalAction?.(provider.id, event, signal) ??
+                          Promise.resolve({ accepted: true as const, status: 'refused' as const }))
                   : undefined,
               ),
             }

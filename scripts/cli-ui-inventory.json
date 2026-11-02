@@ -433,6 +433,15 @@
       "issue": "#1690"
     },
     {
+      "id": "diagnostic-logs",
+      "description": "Always-on local diagnostic log: Client ingest, filtered readback and redacted ZIP export.",
+      "scope": "Host",
+      "surfaces": [
+        "route:packages/core/src/diagnostics/diagnostic-log.ts:path in DIAGNOSTIC_LOG_ROUTES"
+      ],
+      "commands": ["diagnostic-logs", "diagnostic-logs-export", "diagnostic-log-record"]
+    },
+    {
       "id": "bot-transfer",
       "description": "Bot Zip export and file-list inspection lack direct CLI; create --from-zip already covers import.",
       "scope": "Host",

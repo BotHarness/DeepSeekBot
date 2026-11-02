@@ -164,7 +164,7 @@ Usage:
   tobs channels [--home <dsh-home>]
   tobs channel-messages <channel> [--limit <n>] [--before <id>] [--home <dsh-home>]
   tobs channel-media-target <channel> --source-event <id> --attachment <id>
-  tobs channel-media-download <channel> --source-event <id> --attachment <id> --out <path>
+  tobs channel-media-download <channel> --source-event <id> --attachment <id> --out <path> [--representation playback]
   tobs grants <id> [--home <dsh-home>]
   tobs grant-revoke <id> --grant <grant> [--home <dsh-home>]   online: add --confirm
   tobs grant-write-set <id> --grant <grant> (--enabled | --disabled) [--home <dsh-home>]

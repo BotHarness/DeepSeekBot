@@ -205,6 +205,7 @@ deepseekbot group-create "Skill Lab" [--member <bot-id> ...] [--operation-key <s
 deepseekbot channel-rename <channel> --name "Skill Lab" [--expected-channel <channelFingerprint>]
 deepseekbot channel-media-target <channel> --source-event <source-event-id> --attachment <attachment-id>
 deepseekbot channel-media-download <channel> --source-event <source-event-id> --attachment <attachment-id> --out ./original.csv
+deepseekbot channel-media-download <channel> --source-event <source-event-id> --attachment <video-id> --representation playback --out ./playback.mp4
 deepseekbot group-avatar-set <channel> --avatar-file ./avatar.png [--expected-channel <channelFingerprint>]
 deepseekbot group-avatar-set <channel> --clear [--expected-channel <channelFingerprint>]
 deepseekbot group-invite <channel> --bot <bot-id> [--operation-key <stable-key>] [--expected-channel <channelFingerprint>]
@@ -279,6 +280,8 @@ Renaming a Bot DM renames that Bot, as in the Web UI. `group-avatar-set` reads a
 `group-delete` and `channel-purge-confirm` cannot be undone and need `--confirm`. `group-delete` disbands the group and deletes its messages and files that no other conversation shares; it returns `{"deleted": true, "messages": n}`, plus `cleanupPending` while file cleanup retries and `retained` when some messages could not be read for deletion (the group then stays in `channel-history`, and running `group-delete` again retries it). `channel-history` lists groups disbanded before that change, and groups whose deletion did not finish, whose content can still be purged. Purging works in two steps like the history page: `channel-purge-preview` lists the messages, Bot admissions, files and effects the chosen Source Events would remove and returns a short-lived `token`; `channel-purge-confirm` reads `{"token": …}` from stdin for the same Source Events and fails coded when the scope changed. Pick Source Events from `channel-history-sources`, which pages with the `before` cursor it returns.
 
 `channel-media-target` acquires checked source media through current Human Channel authorization and returns its canonical Host file target. `channel-media-download` uses the same authenticated attachment route as the card, writes the original bytes to a new local `--out` file and returns size, MIME and SHA-256 in its JSON result. It refuses an existing output instead of overwriting it. Both commands use `channel + source-event + attachment` without a Bot selector or model call; source revocation remains a coded refusal. The default bound is 25 MiB.
+
+Use `--representation playback` on `channel-media-download` to request the same explicit preparation as the Channel player. For the #1023 Lark parent-video candidate this serves an original whose bytes identify MP4; it does not transcode or validate browser decoding. Omitting the flag always keeps original-download semantics. Unsupported formats return a coded refusal, and the original remains separately downloadable. Real native and installed-product qualification is recorded in [the candidate checkpoint](dev/verification/lark-1023-channel-video.md).
 
 Busy Groups allow an initial hold and at most two rechecks. `budget.exhausted` returns
 `requires-review`, `draftVersion` and choices; new source messages do not reset the existing
@@ -401,6 +404,8 @@ deepseekbot approval-routes <bot-id>
 deepseekbot approval-route <bot-id> --pairing <pairing-id|none>
 deepseekbot approval-test <bot-id>
 deepseekbot approval-retry <bot-id> --delivery <delivery-id>
+deepseekbot question-deliveries <bot-id>
+deepseekbot question-retry <bot-id> --delivery <delivery-id>
 deepseekbot failure-alerts <bot-id>
 deepseekbot failure-alerts-set <bot-id> --enabled
 deepseekbot failure-alerts-test <bot-id>
@@ -1556,6 +1561,18 @@ tobs profile-backup-restore --file environment.botharness-backup --new-home new-
 Export consumes the current preview token and refuses to overwrite a file. Restore runs **locally and offline**, requires a new target directory, and leaves the Profile stopped. Omit `--host` and `--token-file` for restore. Start the target with a compatible trusted Tobs installation before querying `profile-backup-recovery`. Restored Bots remain cold; `profile-backup-authorize <bot> --confirm` authorizes the chosen target model, and `profile-backup-activate <bot> --confirm --acknowledge-risk` explicitly accepts possible duplicate source execution. These operations do not restore external account authority.
 
 Historical v1 archives remain readable. New v2 archives record Host and resolved DSH tools versions independently; `null` means unavailable provenance. Compatibility follows data contracts and schema migration, not an exact DSH release. An older reader must be upgraded to read an unsupported newer format. `format-upgrade-required`, `upgrade-required` and `dependency-incompatible` identify unsupported data interpretation; `core-contract-invalid` requires a complete backup with a valid required core declaration; `package-invalid` identifies failed validation. `source-unavailable` means the source database must be repaired before export. Existing preview expiry, integrity, cancellation and destination checks still apply.
+
+### Diagnostic logs
+
+Tobs keeps an always-on local diagnostic log in `$DSH_HOME/botharness/logs.db` (30 days, 50 000 rows): Client action and navigation breadcrumbs, uncaught errors and console warnings, UI invariant violations, long frames and slow Host calls, plus Host warnings and BotHarness lifecycle lines. It never records typed text, message bodies or file contents, and nothing leaves the device. The Workspace Control Rail's **Diagnostic logs** button shows the last 24 hours and exports the same ZIP as the CLI.
+
+```bash
+deepseekbot diagnostic-logs [--kind all|error|perf|action] [--since <ms>] [--limit 1-1000]
+deepseekbot diagnostic-logs-export --out logs.zip [--hours 1-168]
+printf '%s' '{"version":1,"session":"agent-qa-0001","entries":[{"ts":1780000000000,"category":"action","level":"info","code":"click","fields":{"label":"Send"}}]}' | deepseekbot diagnostic-log-record
+```
+
+`diagnostic-logs` returns newest entries first (`source`, `category`, `level`, `code`, `session`, `fields`). The export ZIP holds `manifest.json` (range, versions, counts, redaction hits), `logs.jsonl` and a readable `timeline.txt`; home paths, tokens, secrets and emails are replaced, and the file is created exclusively. `diagnostic-log-record` writes Client entries the way the Web Client does, for agent QA; refusals are `invalid-report`, `report-too-large`, `rate-limited` (600 entries per minute) and `persistence-unavailable`.
 
 ### Message feedback (#2811)
 

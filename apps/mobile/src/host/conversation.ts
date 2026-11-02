@@ -394,25 +394,27 @@ export function attachmentsOf(
     };
   });
   const sourceEventId = message.bridgeOrigin?.sourceEventId;
-  const bridged = (message.bridgeMedia?.items ?? []).map((item): MessageAttachment => ({
-    key: `${message.id}:bridge:${item.id}`,
-    identity: `${sourceEventId ?? message.id}:bridge:${item.id}`,
-    kind: item.kind,
-    name: item.name,
-    ...(item.sizeBytes === undefined ? {} : { size: item.sizeBytes }),
-    ...(sourceEventId === undefined
-      ? {}
-      : {
-          source: resolve(
-            attachmentPath({
-              channelId: entry.channelId,
-              sourceEventId,
-              attachmentId: item.id,
-            }),
-          ),
-        }),
-    local: false,
-  }));
+  const bridged = (message.bridgeMedia?.items ?? [])
+    .filter((item) => item.id !== message.bridgeMedia?.video?.posterAttachmentId)
+    .map((item): MessageAttachment => ({
+      key: `${message.id}:bridge:${item.id}`,
+      identity: `${sourceEventId ?? message.id}:bridge:${item.id}`,
+      kind: item.kind === 'video' ? 'file' : item.kind,
+      name: item.name,
+      ...(item.sizeBytes === undefined ? {} : { size: item.sizeBytes }),
+      ...(sourceEventId === undefined
+        ? {}
+        : {
+            source: resolve(
+              attachmentPath({
+                channelId: entry.channelId,
+                sourceEventId,
+                attachmentId: item.id,
+              }),
+            ),
+          }),
+      local: false,
+    }));
   const cleared = (message.clearedAttachments ?? []).map((item, index): MessageAttachment => ({
     key: `${message.id}:cleared:${index}`,
     kind: 'file',
