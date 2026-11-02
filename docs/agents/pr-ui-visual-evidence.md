@@ -76,11 +76,19 @@ credentials, pairing links, serials, private paths, account details, HARs or unr
 
    In a cloud agent session (Claude Code on the web and similar), Wrangler reads
    `CLOUDFLARE_API_TOKEN` from the environment; the account ID is fixed in `scripts/pr-evidence.mjs`.
-   Ask the Human to create a custom Cloudflare API token with only **Account → Workers R2
-   Storage → Edit** on account `332e72d480d7cb3e60ee671d3ca0cad0`, with an expiry, and to add it as
-   an environment variable of the cloud environment. Never ask for the token in chat. Only a new
-   session picks it up. Confirm it before capturing with
-   `curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify`.
+   Ask the Human to create a custom Cloudflare API token with **Account → Workers R2 Storage →
+   Edit** on account `332e72d480d7cb3e60ee671d3ca0cad0`, with an expiry, and to add it as an
+   environment variable of the cloud environment. `wrangler r2 object put --remote` uses this
+   account-level permission, so the token also reaches the account's other R2 buckets; keep its
+   expiry short. Never ask for the token in chat.
+   Only a new session picks it up. Before capturing, confirm it is active without putting it in an
+   argument list; the command exits non-zero for an invalid or inactive token:
+
+   ```bash
+   printf 'header = "Authorization: Bearer %s"\n' "$CLOUDFLARE_API_TOKEN" |
+     curl -fsS -K - https://api.cloudflare.com/client/v4/user/tokens/verify |
+     grep -q '"status":"active"'
+   ```
 
 3. The uploader sets the media type and immutable cache metadata, then downloads the public
    URL and checks its media type, byte count and SHA-256. Only after success does it write
