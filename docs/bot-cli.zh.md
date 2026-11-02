@@ -232,7 +232,7 @@ deepseekbot channel-purge-preview <channel> --source-event <id> | jq '{token}' \
   | deepseekbot channel-purge-confirm <channel> --source-event <id> --confirm --confirmation-stdin
 ```
 
-`bot_send_message` 仅在确认送达后，结清 `resolve_inbox_ids` 中显式选择的同一个 `source_event_id`。`channel_action` 的 `action: "drop"` 可指定 1–200 个已观察且完成的事项，并保护未完成责任。两者都需要明确目标，不再回退到入站 Channel。检查 `inboxResolution`，失败时用 `inbox_resolve` 修复，不重发消息。CLI `bot-tool <bot> <tool> --args-stdin` 使用相同合同。
+`bot_send_message` 仅在确认送达后，结清 `resolve_inbox_ids` 中显式选择的同一个 `source_event_id`。`channel_action` 的 `action: "drop"` 可指定 1–200 个已观察且完成的事项，并保护未完成责任。两者都需要明确目标，不再回退到入站 Channel。检查 `inboxResolution`，失败时用 `inbox_resolve` 修复，不重发消息。CLI `bot-tool <bot> <tool> --args-stdin` 使用相同合同。空的可选字段（`""`、`[]`、`false` 或归零的 `freshness_override`）视为未提供，因此只需恰好一个非空目标；`destination-required` 错误会列出实际收到的目标字段。
 
 若本轮发起来源是启用复核的 Group，成员资格被撤销后不能把回复改道其他 Channel；`bot_send_message` 返回 `refused`，reason 为 `group-reply-source-revoked`。后续独立私聊请求不受影响。
 

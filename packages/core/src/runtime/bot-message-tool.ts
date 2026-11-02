@@ -36,6 +36,51 @@ function notWoken(message: ChannelMessage, targets: readonly string[]) {
     .map((botId) => ({ botId, reason }));
 }
 
+const DESTINATION_FIELDS = [
+  'source_event_id',
+  'channel_id',
+  'grant_id',
+  'bot_id',
+  'binding_id',
+] as const;
+
+const OPTIONAL_FIELDS = [
+  ...DESTINATION_FIELDS,
+  'conversation_id',
+  'observation_id',
+  'draft_id',
+  'recover',
+  'attachments',
+  'mention_bot_ids',
+  'mention_human_ids',
+  'freshness_override',
+  'resolve_inbox_ids',
+] as const;
+
+function isEmptyOption(value: unknown): boolean {
+  if (value === undefined || value === null || value === false) return true;
+  if (typeof value === 'string') return value.trim() === '';
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === 'object') {
+    const override = value as { draftVersion?: unknown; reason?: unknown };
+    return (
+      Object.keys(value).every((key) => key === 'draftVersion' || key === 'reason') &&
+      (override.draftVersion === undefined ||
+        override.draftVersion === null ||
+        override.draftVersion === 0) &&
+      isEmptyOption(override.reason)
+    );
+  }
+  return false;
+}
+
+function withoutEmptyOptions<T extends object>(args: T): T {
+  const normalized = { ...args } as Record<string, unknown>;
+  for (const field of OPTIONAL_FIELDS)
+    if (isEmptyOption(normalized[field])) delete normalized[field];
+  return normalized as unknown as T;
+}
+
 export function createBotMessageTool(
   current: () => OrchestratorAgentRun,
   drafts?: {
@@ -130,17 +175,15 @@ export function createBotMessageTool(
       schema: { type: 'string' },
       render: (_args, value) => [{ type: 'text', text: value }],
     },
-    execute: async (args, exec) => {
+    execute: async (rawArgs, exec) => {
       const run = current();
       exec.signal.throwIfAborted();
-      if (
-        [args.source_event_id, args.channel_id, args.grant_id, args.bot_id, args.binding_id].filter(
-          (id) => id !== undefined,
-        ).length !== 1
-      )
+      const args = withoutEmptyOptions(rawArgs);
+      const destinations = DESTINATION_FIELDS.filter((field) => args[field] !== undefined);
+      if (destinations.length !== 1)
         throw new BotMessageError(
           'destination-required',
-          'Choose exactly one trusted reply source or explicit destination.',
+          `Choose exactly one trusted reply source or explicit destination (got: ${destinations.join(', ') || 'none'}).`,
         );
       if ((args.binding_id === undefined) !== (args.conversation_id === undefined))
         throw new BotMessageError(

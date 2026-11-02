@@ -237,7 +237,7 @@ deepseekbot channel-purge-preview <channel> --source-event <id> | jq '{token}' \
   | deepseekbot channel-purge-confirm <channel> --source-event <id> --confirm --confirmation-stdin
 ```
 
-`bot_send_message` resolves only its explicit `source_event_id` when selected in `resolve_inbox_ids`, after confirmed delivery. `channel_action` with `action: "drop"` accepts 1–200 observed completed IDs and preserves protected unfinished work. Both require explicit destinations; no inbound fallback. Inspect `inboxResolution`: repair failed cleanup with `inbox_resolve`, never resend a committed message. The direct `bot-tool <bot> <tool> --args-stdin` uses the same contract.
+`bot_send_message` resolves only its explicit `source_event_id` when selected in `resolve_inbox_ids`, after confirmed delivery. `channel_action` with `action: "drop"` accepts 1–200 observed completed IDs and preserves protected unfinished work. Both require explicit destinations; no inbound fallback. Inspect `inboxResolution`: repair failed cleanup with `inbox_resolve`, never resend a committed message. The direct `bot-tool <bot> <tool> --args-stdin` uses the same contract. Empty optional fields (`""`, `[]`, `false`, or a zeroed `freshness_override`) count as absent, so exactly one non-empty destination is required; the `destination-required` error names the destination fields it received.
 
 If membership in the initiating opted-in Group is revoked, this run cannot redirect its reply to another Channel. `bot_send_message` returns `refused` with reason `group-reply-source-revoked`. A later independent DM is unaffected.
 

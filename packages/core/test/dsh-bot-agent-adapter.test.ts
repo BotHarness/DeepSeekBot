@@ -568,10 +568,19 @@ describe('explicit Inbox completion with messaging tools', () => {
   it('rejects malformed completion IDs before delivery', async () => {
     await fixture(async (run, call) => {
       const send = vi.spyOn(run.channels, 'send');
-      await expect(call({ body: 'Answer', resolve_inbox_ids: [] })).rejects.toThrow(
-        'explicitly referenced reply source',
-      );
+      for (const ids of [['other'], ['request', 'other']])
+        await expect(call({ body: 'Answer', resolve_inbox_ids: ids })).rejects.toThrow(
+          'explicitly referenced reply source',
+        );
       expect(send).not.toHaveBeenCalled();
+    });
+  });
+  it('treats an empty completion list as no resolution request (#3296)', async () => {
+    await fixture(async (_run, call) => {
+      expect(await call({ body: 'Answer', resolve_inbox_ids: [] })).toMatchObject({
+        status: 'committed',
+        inboxResolution: { outcome: 'not-requested' },
+      });
     });
   });
   it('rejects yielding without a drop or observed handle before any side effect', async () => {
