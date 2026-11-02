@@ -10,7 +10,10 @@ describe('Channel unread revision ranges', () => {
   it('seeks the unread range instead of scanning retained placements, including when all read', async () => {
     const dshHome = createTempRoot('channel-unread-range-');
     const owner = trackTestOwner(
-      mountOperationalDatabase({ dshHome, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+      mountOperationalDatabase({
+        dshHome,
+        schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+      }),
     );
     const database = attachOperationalModule(owner, 'channel-unread-range');
     const channels = createSqliteChannelStore({ database, rootDir: dshHome });
@@ -73,7 +76,9 @@ describe('Channel unread revision ranges', () => {
       },
     };
     const query = createHumanAttentionQuery(observed);
-    expect(await channels.markRead(channel.id, 'history-1999')).toMatchObject({ revision: 1999 });
+    expect(await channels.markRead(channel.id, 'history-1999')).toMatchObject({
+      revision: 1999,
+    });
     expect(query.unreadByChannel()).toEqual([{ channelId: channel.id, unreadCount: 1 }]);
     expect(plans.some((detail) => /SEARCH p .*channel_id=\? AND revision>\?/.test(detail))).toBe(
       true,
@@ -91,7 +96,10 @@ describe('Channel unread revision ranges', () => {
   it('intersects read and membership floors and excludes departed or deleted Channels', async () => {
     const dshHome = createTempRoot('channel-unread-visibility-');
     const owner = trackTestOwner(
-      mountOperationalDatabase({ dshHome, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+      mountOperationalDatabase({
+        dshHome,
+        schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+      }),
     );
     const database = attachOperationalModule(owner, 'channel-unread-visibility');
     const channels = createSqliteChannelStore({ database, rootDir: dshHome });
@@ -123,6 +131,36 @@ describe('Channel unread revision ranges', () => {
     membership(5, null);
     expect(query.unreadByChannel()).toEqual([{ channelId: group.id, unreadCount: 1 }]);
     channels.deleteGroup(group.id);
+    expect(query.unreadByChannel()).toEqual([]);
+  });
+  it('does not count Channel notices beside eligible unread messages', async () => {
+    const dshHome = createTempRoot('channel-unread-notice-');
+    const owner = trackTestOwner(
+      mountOperationalDatabase({
+        dshHome,
+        schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+      }),
+    );
+    const database = attachOperationalModule(owner, 'channel-unread-notice');
+    const channels = createSqliteChannelStore({ database, rootDir: dshHome });
+    const group = channels.createGroup({ name: 'Team', members: ['ada'] });
+    const dm = channels.getOrCreateDm('ada', 'Ada')!;
+    await channels.appendMessage(dm.id, {
+      id: 'bot-channel-post-notice',
+      at: '2026-11-02T00:00:00Z',
+      author: { kind: 'bot', slug: 'ada' },
+      body: '',
+      botChannelPost: { channelId: group.id, messageId: 'posted-in-team' },
+    });
+    await channels.appendMessage(dm.id, {
+      id: 'bot-message',
+      at: '2026-11-02T00:00:01Z',
+      author: { kind: 'bot', slug: 'ada' },
+      body: 'Eligible reply',
+    });
+    const query = createHumanAttentionQuery(database);
+    expect(query.unreadByChannel()).toEqual([{ channelId: dm.id, unreadCount: 1 }]);
+    await channels.markRead(dm.id, 'bot-message');
     expect(query.unreadByChannel()).toEqual([]);
   });
 });
