@@ -244,7 +244,7 @@ export function openLogDatabase(options: OpenLogDatabaseOptions): LogDatabase {
     database.prepare('DELETE FROM log_entries WHERE ts < ?').run(at - maxAgeMs);
     database
       .prepare(
-        'DELETE FROM log_entries WHERE id NOT IN (SELECT id FROM log_entries ORDER BY ts DESC, id DESC LIMIT ?)',
+        'DELETE FROM log_entries WHERE id NOT IN (SELECT id FROM log_entries ORDER BY id DESC LIMIT ?)',
       )
       .run(maxRows);
   };

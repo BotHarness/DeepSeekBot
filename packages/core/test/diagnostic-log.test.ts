@@ -300,6 +300,23 @@ describe('logs.db batch writes', () => {
     expect(database.range(0, 10).map((row) => row.detail)).toEqual(['n3', 'n4', 'n5']);
   });
 
+  it('evicts by arrival order so a fast client clock cannot push out newer rows', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'diagnostic-log-'));
+    dirs.push(dir);
+    const database = openLogDatabase({ dir, maxRows: 2 });
+    databases.push(database);
+    const row = (ts: number, detail: string) => ({
+      ts,
+      plugin: 'client',
+      owner: 'profile-shared' as const,
+      kind: 'client.action',
+      detail,
+    });
+    database.writeMany([row(Date.now() + 3_600_000, 'ahead')]);
+    database.writeMany([row(Date.now(), 'a'), row(Date.now(), 'b')]);
+    expect(database.query().map((entry) => entry.detail)).toEqual(['b', 'a']);
+  });
+
   it('exports more rows than one list page holds', () => {
     const dir = mkdtempSync(join(tmpdir(), 'diagnostic-log-'));
     dirs.push(dir);
