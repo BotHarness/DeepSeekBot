@@ -28,6 +28,7 @@ it('requires bilateral Host admission before encrypted contacts and a DM reach t
   const withdrawals: string[] = [];
   let rightRequests = 0;
   let holdHandshake: (() => Promise<void>) | undefined;
+  let holdAuthentication: (() => Promise<void>) | undefined;
   try {
     for (const [index, peer] of peers.entries()) {
       const network = createBotNetworkRoutes();
@@ -52,7 +53,14 @@ it('requires bilateral Host admission before encrypted contacts and a DM reach t
       const bridge = createLanBotBridge({
         participation: core.networkParticipation,
         hostId: peer.hostId,
-        key: async () => Uint8Array.from(keys[index]!),
+        key: async () => {
+          if (index === 1) {
+            const hold = holdAuthentication;
+            holdAuthentication = undefined;
+            await hold?.();
+          }
+          return Uint8Array.from(keys[index]!);
+        },
         peers: () => (discoverable ? [other] : []),
         admission: membership,
         knownKey: (host) => core.channels.remoteHostKey!(host),
@@ -205,7 +213,7 @@ it('requires bilateral Host admission before encrypted contacts and a DM reach t
     const handshakeReleased = new Promise<void>((resolve) => {
       resumeHandshake = resolve;
     });
-    holdHandshake = async () => {
+    holdAuthentication = async () => {
       reachedCutoff();
       await handshakeReleased;
     };

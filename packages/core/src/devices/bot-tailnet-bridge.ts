@@ -175,6 +175,7 @@ export function createTailnetBotBridge(options: {
   let discoveryCancellation: AbortController | undefined;
   let refreshing: Promise<void> | undefined;
   let refreshRevision = 0;
+  let reconciling: Promise<void> = Promise.resolve();
   let closed = false;
   let lastSnapshot: Awaited<ReturnType<BotTailnet['snapshot']>> | undefined;
   const membershipChanges = new Map<string, Promise<void>>();
@@ -624,28 +625,35 @@ export function createTailnetBotBridge(options: {
       options.participation?.enabled() === false
         ? []
         : [...routes.values()].flatMap((route) => route.contacts),
-    async reconcileParticipation(): Promise<void> {
-      const started = Date.now();
-      const enabled = options.participation?.enabled() !== false;
-      try {
-        if (enabled) await bridge.start();
-        else {
-          discoveryCancellation?.abort();
-          await discovering;
-          await closeListener();
-        }
-        options.record?.({
-          phase: enabled ? 'participation-enabled' : 'participation-disabled',
-          durationMs: Date.now() - started,
+    reconcileParticipation(): Promise<void> {
+      reconciling = reconciling
+        .catch(() => undefined)
+        .then(async () => {
+          if (closed) return;
+          const started = Date.now();
+          const enabled = options.participation?.enabled() !== false;
+          try {
+            if (enabled) await bridge.start();
+            else {
+              discoveryCancellation?.abort();
+              await discovering;
+              await closeListener();
+            }
+            if ((options.participation?.enabled() !== false) === enabled)
+              options.record?.({
+                phase: enabled ? 'participation-enabled' : 'participation-disabled',
+                durationMs: Date.now() - started,
+              });
+          } catch (error) {
+            options.record?.({
+              phase: 'participation-reconcile-refused',
+              durationMs: Date.now() - started,
+              code: 'network-unavailable',
+            });
+            throw error;
+          }
         });
-      } catch (error) {
-        options.record?.({
-          phase: 'participation-reconcile-refused',
-          durationMs: Date.now() - started,
-          code: 'network-unavailable',
-        });
-        throw error;
-      }
+      return reconciling;
     },
     availability(host: string, botSlug: string) {
       if (observedWithdrawn.has(host)) return 'withdrawn' as const;
@@ -711,7 +719,12 @@ export function createTailnetBotBridge(options: {
     },
     async start(): Promise<void> {
       if (closed) return;
-      if (options.participation?.enabled() === false) return bridge.reconcileParticipation();
+      if (options.participation?.enabled() === false) {
+        discoveryCancellation?.abort();
+        await discovering;
+        await closeListener();
+        return;
+      }
       if (stopWatching === undefined && tailnet.watch !== undefined) {
         stopWatching = tailnet.watch(observe, (code) => {
           stopWatching = undefined;
@@ -842,7 +855,7 @@ export function createTailnetBotBridge(options: {
       await stopWatching?.();
       stopWatching = undefined;
       await Promise.allSettled(observedPending.values());
-      await Promise.allSettled([discovering, refreshing]);
+      await Promise.allSettled([discovering, refreshing, reconciling]);
       await closeListener();
     },
   };
