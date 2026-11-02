@@ -46,3 +46,15 @@ T3 reported an attached signed-in Lark tab, but reading it timed out. The requir
 After browser recovery, verify the Human account and designated QA2 group, inspect receiver ownership, prepare an automatic stop guard and coordinate the bounded window before binding. Upload a uniquely marked synthetic video through the native **Image & video** UI, quote that actual message and select the Bot from the native @ menu. Match the visible request/reply, Source Event, exact parent resource, Admission and Outbox facts. Verify zero managed media before preparation; then compare original bytes and hashes, manually play and check advancing decoded frames, pause/seek, refresh/restart and authority lifecycle. Capture matched light/dark before/after and a short recording. A missing cover is an observed metadata condition only when the native response actually omits it.
 
 Native Lark intake, real playback, fresh installed-product E2E, live CLI execution, screenshots/recording and first-slice Human feedback remain pending. A successful API response alone will not close these gates. #1023 stays open; audio and other native shapes must not be expanded before the first working slice is reviewed.
+
+## Native qualification — 2026-11-03 JST
+
+An isolated Host on DSH `0.2.1-rc.3` ran Provider `fdbba5a95dcf2731f623b01ceaeae50ed7c532f2` with the dedicated `BotHarness Lark QA1` app, in a new QA group with only the test account and the Bot. A 5-second synthetic H.264 MP4 was sent as a native `media` message through the Bot API, so the parent's sender was the Bot. A real Human reply in the Lark web client quoted it and mentioned the Bot.
+
+- Intake recorded `durationMs: 5000`, the video item and the cover as attachments, with no download before an explicit action. The Bot replied once in Lark.
+- `channel-media-download`, with and without `--representation playback`, returned the exact bytes (`0f9b888b…`), MIME `video/mp4`. The cover downloaded as the original PNG.
+- The Web Client made no attachment request before **Prepare video**. After it, Chromium played the video with advancing time, 34 decoded frames, a seek to 0:04 and no media error, in light and dark.
+
+This run found and fixed one defect: a Channel connected with `channel-connect` could not reach any source media, because media authority only knew the older bridge routes. Authority now also accepts an enabled ingest for the exact account and conversation.
+
+A video uploaded by a Human through Lark's own **Image & video** UI was not exercised, because the browser tool cannot upload files. Audio remains out of scope, so #1023 stays open.

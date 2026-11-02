@@ -1,3 +1,4 @@
+import { writeIngest } from '../src/messaging/conversation-ingest.js';
 import { rmSync } from 'node:fs';
 import { setImmediate as tick } from 'node:timers/promises';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -358,6 +359,69 @@ it('video playback follows stop-before-acquire, stopped cache and identity revoc
   });
   await expect(second.playback()).rejects.toThrow('source-unavailable');
   expect(second.download).toHaveBeenCalledTimes(1);
+});
+
+it('a connected conversation grants Channel media only while its ingest is enabled', async () => {
+  const fx = await fixture(false, false, false, true);
+  const database = attachOperationalModule(fx.core.operationalDatabase, 'media-test');
+  const ingestFor = (connected: string) =>
+    database.read((db) => {
+      const { payload_json } = db
+        .prepare('SELECT payload_json FROM source_events WHERE source_event_id = ?')
+        .get(fx.sourceEventId) as { payload_json: string };
+      const { event, grantId } = (
+        JSON.parse(payload_json) as {
+          external: {
+            grantId: string;
+            event: {
+              botId: string;
+              fingerprint: string;
+              conversation: { kind: 'dm' | 'group'; id: string };
+            };
+          };
+        }
+      ).external;
+      return {
+        grantId,
+        value: {
+          id: 'ingest-1',
+          channelId: connected,
+          providerId: 'dsh-im/feishu',
+          accountRef: event.botId,
+          fingerprint: event.fingerprint,
+          platform: 'feishu',
+          accountName: 'QA',
+          conversation: { ...event.conversation, name: 'QA' },
+          revision: 1,
+          enabled: true,
+          intakeAfter: new Date(0).toISOString(),
+          wake: { mode: 'mentions' as const, count: 1, intervalSeconds: 0 },
+          createdAt: new Date(0).toISOString(),
+        },
+      };
+    });
+  const created = createBridgeMethods({ ...fx.core }).channelCreate({
+    name: 'Connected',
+    members: ['ada'],
+  });
+  if (!created.ok) throw new Error(created.error.message);
+  const connected = created.value.channel.id;
+  database.transaction((db) => {
+    db.prepare(
+      'INSERT INTO channel_placements (channel_id, revision, source_event_id, message_id) VALUES (?, 1, ?, ?)',
+    ).run(connected, fx.sourceEventId, fx.sourceEventId);
+  });
+  const ingest = ingestFor(connected);
+  await expect(fx.read(fx.attachment.id, connected)).rejects.toMatchObject({
+    code: 'source-unavailable',
+  });
+  database.transaction((db) => writeIngest(db, ingest.value));
+  const result = await fx.read(fx.attachment.id, connected);
+  expect(Buffer.from(await new Response(result.body).arrayBuffer())).toEqual(fx.bytes);
+  database.transaction((db) => writeIngest(db, { ...ingest.value, enabled: false, revision: 2 }));
+  await expect(fx.read(fx.attachment.id, connected)).rejects.toMatchObject({
+    code: 'source-unavailable',
+  });
 });
 
 it('requires the Lark video capability instead of borrowing file or image qualification', async () => {
