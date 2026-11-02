@@ -374,7 +374,6 @@ const DM_CARD_FIELDS = [
   'grantRequest',
 ];
 
-const CHANNEL_ATTENTION_CTE = channelAttentionCte(false);
 const INBOX_CHANNEL_ATTENTION_CTE = channelAttentionCte(true);
 
 function decodeCursor(value: string, filters: string): Cursor {
@@ -1101,10 +1100,34 @@ SELECT 'handled:' || request.source_event_id AS id,
       return database.read((db) =>
         (
           db
-            .prepare(`${CHANNEL_ATTENTION_CTE}
-        SELECT channel_id, count(DISTINCT source_event_id) AS unread_count
-          FROM visible_unread GROUP BY channel_id ORDER BY channel_id
-      `)
+            .prepare(`WITH eligible AS (
+          SELECT c.channel_id, json_extract(c.record_json, '$.type') AS type,
+                 coalesce(r.revision, 0) AS read_revision,
+                 m.visible_from_revision AS visible_from
+            FROM channel_records c
+            LEFT JOIN channel_read_positions r
+              ON r.channel_id = c.channel_id AND r.human_id = ?
+            LEFT JOIN channel_human_members m
+              ON m.channel_id = c.channel_id AND m.human_id = ?
+           WHERE json_extract(c.record_json, '$.deletedAt') IS NULL
+             AND ((json_extract(c.record_json, '$.type') = 'dm'
+                   AND json_extract(c.record_json, '$.botSlug') IS NOT NULL)
+               OR (json_extract(c.record_json, '$.type') = 'group'
+                   AND m.left_at IS NULL AND m.visible_from_revision IS NOT NULL))
+        ), counts AS MATERIALIZED (
+          SELECT eligible.channel_id, (
+            SELECT count(DISTINCT p.source_event_id)
+              FROM channel_placements p
+              JOIN source_events e ON e.source_event_id = p.source_event_id
+             WHERE p.channel_id = eligible.channel_id
+               AND p.revision > eligible.read_revision
+               AND (eligible.type = 'dm' OR p.revision >= eligible.visible_from)
+               AND json_extract(e.payload_json, '$.author.kind') != 'human'
+               AND ${notChannelNoticeSql('e.payload_json')}
+          ) AS unread_count FROM eligible
+        )
+        SELECT channel_id, unread_count FROM counts
+         WHERE unread_count > 0 ORDER BY channel_id`)
             .all(LOCAL_HUMAN_ID, LOCAL_HUMAN_ID) as { channel_id: string; unread_count: number }[]
         ).map((row) => ({ channelId: row.channel_id, unreadCount: row.unread_count })),
       );
