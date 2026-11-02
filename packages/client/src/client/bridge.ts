@@ -1,4 +1,5 @@
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
+import { clientLog } from './diagnostic-log.js';
 import { parseToolApprovalActor } from '../../../core/src/workspaces/tool-approval-actor.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
@@ -585,7 +586,12 @@ export function createBridgeCall(ctx: ClientContext): BridgeCall {
         error: { code: 'unavailable', message: 'Connection RPC is not available', details: {} },
       };
     }
-    return rpc.call('/api', `botharness/${endpoint}`, { args: remoteArgs(payload) }, signal);
+    const run = () =>
+      rpc.call('/api', `botharness/${endpoint}`, { args: remoteArgs(payload) }, signal);
+    const recorder = clientLog();
+    return recorder === undefined
+      ? run()
+      : recorder.timeRpc(endpoint, run, (result) => (result.ok ? undefined : result.error.code));
   };
 }
 

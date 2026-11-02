@@ -24,6 +24,7 @@ import {
   runBrowserNotifications,
 } from './cli-browser-notifications.js';
 import { FEEDBACK_COMMANDS, runFeedbackCommand } from './cli-feedback.js';
+import { DIAGNOSTIC_LOG_COMMANDS, runDiagnosticLogCommand } from './cli-diagnostic-logs.js';
 import { APPEARANCE_COMMANDS, APPEARANCE_OPTIONS, runAppearanceCommand } from './cli-appearance.js';
 import { prepareCloud, prepareCloudWork } from './cli-cloud.js';
 import { randomUUID } from 'node:crypto';
@@ -195,6 +196,7 @@ export const LIVE_OPTIONS = {
   'answer-stdin': { type: 'boolean' },
   'values-stdin': { type: 'boolean' },
   since: { type: 'string' },
+  hours: { type: 'string' },
   workspace: { type: 'string' },
   mode: { type: 'string' },
   scope: { type: 'string' },
@@ -277,6 +279,7 @@ export const LIVE_COMMANDS = [
       'read capability or prepare/register/stop/status one device Lock Screen status (--device-file, --activity-stdin)',
   },
   ...FEEDBACK_COMMANDS,
+  ...DIAGNOSTIC_LOG_COMMANDS,
   ...WINDOW_ZOOM_COMMANDS,
   ...PHONE_ROUTE_COMMANDS,
   ...DEVICES_COMMANDS,
@@ -509,6 +512,7 @@ interface LiveValues
   'values-stdin'?: boolean;
   outcome?: string;
   since?: string;
+  hours?: string;
   workspace?: string;
   limit?: string;
   before?: string;
@@ -848,6 +852,10 @@ export async function runLiveCli(
   if (command === 'phone-notifications') return runPhoneNotifications(rest, values, io);
   if (BROWSER_NOTIFICATION_COMMANDS.some((entry) => entry.command === command))
     return runBrowserNotifications(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (DIAGNOSTIC_LOG_COMMANDS.some((entry) => entry.command === command))
+    return runDiagnosticLogCommand(command, values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
   if (FEEDBACK_COMMANDS.some((entry) => entry.command === command))
