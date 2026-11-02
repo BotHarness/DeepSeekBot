@@ -1568,11 +1568,11 @@ Tobs keeps an always-on local diagnostic log in `$DSH_HOME/botharness/logs.db` (
 
 ```bash
 deepseekbot diagnostic-logs [--kind all|error|perf|action] [--since <ms>] [--limit 1-1000]
-deepseekbot diagnostic-logs-export --out logs.zip [--hours 1-168]
+deepseekbot diagnostic-logs-export --out logs.zip [--hours 1-168] [--offline] [--home <DSH_HOME>]
 printf '%s' '{"version":1,"session":"agent-qa-0001","entries":[{"ts":1780000000000,"category":"action","level":"info","code":"click","fields":{"label":"Send"}}]}' | deepseekbot diagnostic-log-record
 ```
 
-`diagnostic-logs` returns newest entries first (`source`, `category`, `level`, `code`, `session`, `fields`). The export ZIP holds `manifest.json` (range, versions, counts, redaction hits), `logs.jsonl` and a readable `timeline.txt`; home paths, tokens, secrets and emails are replaced, and the file is created exclusively. `diagnostic-log-record` writes Client entries the way the Web Client does, for agent QA; refusals are `invalid-report`, `report-too-large`, `rate-limited` (600 entries per minute) and `persistence-unavailable`.
+`diagnostic-logs` returns newest entries first (`source`, `category`, `level`, `code`, `session`, `fields`). The export ZIP holds `manifest.json` (range, versions, counts, redaction hits), `logs.jsonl` and a readable `timeline.txt`; home paths, tokens, secrets and emails are replaced, and the file is created exclusively. When the Host cannot be reached, cannot log in, or the plugin did not load, `diagnostic-logs-export` reads `$DSH_HOME/botharness/logs.db` directly and builds the same redacted ZIP; `--offline` skips the Host, `--home` points at another DSH home, and the result reports `source: "offline"` with the `fallback` reason. Besides Client entries, the log holds one `bot-turn` row per Bot turn (model, first-token and total time, steps, tool calls and errors, outcome; no message text), one `messaging-inbound` row per IM event (`handled`, `skipped` with a reason, or `refused`), and the Host's structured `{"event","phase"}` lines such as `messaging-outbox` as fielded rows. `diagnostic-log-record` writes Client entries the way the Web Client does, for agent QA; refusals are `invalid-report`, `report-too-large`, `rate-limited` (600 entries per minute) and `persistence-unavailable`.
 
 ### Message feedback (#2811)
 

@@ -671,6 +671,51 @@ export function createInboundMessaging(options: {
       },
     };
   };
+  const traceInbound =
+    (
+      value: MessagingGrant,
+      handle: (
+        event: MessagingInboundEvent,
+        signal: AbortSignal,
+        skip: (reason: string) => { accepted: true },
+      ) => Promise<{ accepted: true }>,
+    ) =>
+    async (event: MessagingInboundEvent, signal: AbortSignal): Promise<{ accepted: true }> => {
+      const began = Date.now();
+      let skipped: string | undefined;
+      const skip = (reason: string) => {
+        skipped = reason;
+        return { accepted: true as const };
+      };
+      const trace = (phase: string, extra: Record<string, unknown>) => {
+        try {
+          options.warn?.(
+            JSON.stringify({
+              event: 'messaging-inbound',
+              phase,
+              platform: event.channel,
+              conversation: event.conversation.kind,
+              mentioned: event.mentionedAccount,
+              grantId: value.id,
+              durationMs: Date.now() - began,
+              ...extra,
+            }),
+          );
+        } catch {}
+      };
+      try {
+        const result = await handle(event, signal, skip);
+        trace(skipped === undefined ? 'handled' : 'skipped', {
+          ...(skipped === undefined ? {} : { reason: skipped }),
+        });
+        return result;
+      } catch (error) {
+        trace('refused', {
+          reason: error instanceof MessagingError ? error.code : 'internal-error',
+        });
+        throw error;
+      }
+    };
   const start = async (value: MessagingGrant, attempt = 0, replyOnly = false) => {
     stop(value.id);
     const entry = providers.get(value.providerId);
@@ -744,7 +789,7 @@ export function createInboundMessaging(options: {
           );
           return { accepted: true };
         },
-        onEvent: async (event, signal) => {
+        onEvent: traceInbound(value, async (event, signal, skip) => {
           signal.throwIfAborted();
           lease.controller.signal.throwIfAborted();
           const latest = grant(value.id);
@@ -763,17 +808,17 @@ export function createInboundMessaging(options: {
             throw new MessagingError('untrusted-source');
           const identity = database.read((db) => readMessagingIdentity(db, value.bindingId));
           if (identity.receiveAfter && Date.parse(event.at) < Date.parse(identity.receiveAfter))
-            return { accepted: true };
-          if (!latest.receiveScope) return { accepted: true };
+            return skip('before-identity-receive-after');
+          if (!latest.receiveScope) return skip('no-receive-scope');
           if (
             event.conversation.kind !== latest.receiveScope.kind ||
             event.conversation.id !== value.receiveScope!.conversationId
           )
-            return { accepted: true };
+            return skip('other-conversation');
           if (!database.read((db) => senderContextAllowed(db, value.botSlug, event)))
-            return { accepted: true };
+            return skip('sender-not-allowed');
           if (latest.receiveAfter && Date.parse(event.at) < Date.parse(latest.receiveAfter))
-            return { accepted: true };
+            return skip('before-grant-receive-after');
           if (event.conversation.kind === 'dm' && !latest.bridgeRoutes) {
             if (latest.receiveTargetChannelId || latest.channelBridge || latest.bridgeRoutes)
               throw new MessagingError('capability-unavailable');
@@ -977,7 +1022,8 @@ export function createInboundMessaging(options: {
               },
               ['source-event', 'channel', 'bot-inbox'],
             );
-            if (id) {
+            if (!id) return skip('not-admitted');
+            {
               await mirrorDm(latest, id);
               options.onAdmissionCommitted?.(value.botSlug, id);
               for (const commit of placed) {
@@ -1005,7 +1051,7 @@ export function createInboundMessaging(options: {
             (latest.channelBridge?.intakeAfter !== undefined &&
               Date.parse(event.at) < Date.parse(latest.channelBridge.intakeAfter))
           )
-            return { accepted: true };
+            return skip('channel-bridge-closed');
           if (ordinaryThreadReply(event))
             lease.ordinaryThreads.set(event.reply.threadId!, event.reply.rootId!);
           let placement: ChannelMessageCommit | undefined;
@@ -1117,7 +1163,7 @@ export function createInboundMessaging(options: {
             },
             ['source-event', 'channel', 'bot-inbox'],
           );
-          if (id === undefined) return { accepted: true };
+          if (id === undefined) return skip('not-admitted');
           options.onAdmissionCommitted?.(value.botSlug, id);
           if (placement) {
             try {
@@ -1135,7 +1181,7 @@ export function createInboundMessaging(options: {
             }
           });
           return { accepted: true };
-        },
+        }),
       });
       if (closed || leases.get(value.id) !== lease || lease.controller.signal.aborted) {
         dispose();

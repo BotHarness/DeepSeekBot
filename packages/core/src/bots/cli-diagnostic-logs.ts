@@ -1,4 +1,14 @@
 import { existsSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+
+import {
+  DIAGNOSTIC_LOG_LIMITS,
+  exportDiagnosticLogOffline,
+} from '../diagnostics/diagnostic-log.js';
+import { resolveDshHome } from '../im/config-store.js';
+import { LogDatabaseUnreadableError } from '../logs/log-db.js';
+import { installedRelease } from '../release/service.js';
+import { installedDshVersion } from '../telemetry/service.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import type { connectLiveHost } from './cli-live.js';
 import { CliLiveError } from './cli-live-error.js';
@@ -11,7 +21,8 @@ export const DIAGNOSTIC_LOG_COMMANDS = [
   },
   {
     command: 'diagnostic-logs-export',
-    description: 'export the local diagnostic log as a redacted ZIP; --out required, --hours 1-168',
+    description:
+      'export the local diagnostic log as a redacted ZIP; --out required, --hours 1-168; reads logs.db directly with --offline or when the Host is unavailable',
   },
   {
     command: 'diagnostic-log-record',
@@ -20,10 +31,76 @@ export const DIAGNOSTIC_LOG_COMMANDS = [
 ] as const;
 
 const FILTERS = new Set(['all', 'error', 'perf', 'action']);
+const OFFLINE_FALLBACK = new Set([
+  'host-unreachable',
+  'host-unauthorized',
+  'host-refused',
+  'host-protocol-error',
+  'not-found',
+]);
+
+function exportOffline(
+  out: string,
+  hours: number,
+  values: { home?: string },
+  io: BotCreateCliIo,
+  fallback: string | undefined,
+) {
+  const dshHome = values.home?.trim() || io.env['DSH_HOME']?.trim() || resolveDshHome(io.env);
+  const dshVersion = installedDshVersion();
+  let exported: ReturnType<typeof exportDiagnosticLogOffline>;
+  try {
+    exported = exportDiagnosticLogOffline({
+      dshHome,
+      hours,
+      homes: [
+        { path: dshHome, label: '$DSH_HOME' },
+        { path: homedir(), label: '~' },
+      ],
+      environment: {
+        version: installedRelease(import.meta.url).version(),
+        ...(dshVersion === undefined ? {} : { dshVersion }),
+        platform: process.platform,
+        arch: process.arch,
+        node: process.version,
+      },
+    });
+  } catch (error) {
+    if (error instanceof LogDatabaseUnreadableError)
+      throw new CliLiveError(
+        'log-unreadable',
+        `The diagnostic log could not be read (${error.message}); it was left unchanged.`,
+      );
+    throw error;
+  }
+  if (exported === undefined)
+    throw new CliLiveError(
+      'not-found',
+      'No diagnostic log was found under DSH_HOME; pass --home with the DSH home folder.',
+    );
+  writeFileSync(out, exported.archive, { flag: 'wx', mode: 0o600 });
+  return {
+    saved: true,
+    path: out,
+    bytes: exported.archive.byteLength,
+    entries: Number(exported.manifest['entries'] ?? 0),
+    source: 'offline',
+    ...(fallback === undefined ? {} : { fallback }),
+  };
+}
 
 export async function runDiagnosticLogCommand(
   command: string,
-  values: { out?: string; since?: string; limit?: string; kind?: string; hours?: string },
+  values: {
+    out?: string;
+    since?: string;
+    limit?: string;
+    kind?: string;
+    hours?: string;
+    offline?: boolean;
+    home?: string;
+    host?: string;
+  },
   io: BotCreateCliIo,
   connect: () => Promise<Awaited<ReturnType<typeof connectLiveHost>>>,
 ): Promise<unknown> {
@@ -53,22 +130,35 @@ export async function runDiagnosticLogCommand(
     if (existsSync(values.out))
       throw new CliLiveError('usage', 'The --out file already exists; choose a new path.');
     const query = new URLSearchParams();
+    let hours: number = DIAGNOSTIC_LOG_LIMITS.exportDefaultHours;
     if (values.hours !== undefined) {
-      const hours = Number(values.hours);
+      hours = Number(values.hours);
       if (!Number.isFinite(hours) || hours <= 0 || hours > 168)
         throw new CliLiveError('usage', '--hours must be between 0 and 168.');
       query.set('hours', String(hours));
     }
-    const host = await connect();
-    const { bytes, response } = await host.http(
-      `/api/botharness/diagnostic-logs/export${query.size ? `?${query}` : ''}`,
-    );
+    if (values.offline === true) return exportOffline(values.out, hours, values, io, undefined);
+    if (!values.host && !io.env['DEEPSEEKBOT_HOST'])
+      return exportOffline(values.out, hours, values, io, 'host-not-configured');
+    let response: Response;
+    let bytes: Uint8Array;
+    try {
+      const host = await connect();
+      ({ bytes, response } = await host.http(
+        `/api/botharness/diagnostic-logs/export${query.size ? `?${query}` : ''}`,
+      ));
+    } catch (error) {
+      if (error instanceof CliLiveError && OFFLINE_FALLBACK.has(error.code))
+        return exportOffline(values.out, hours, values, io, error.code);
+      throw error;
+    }
     writeFileSync(values.out, bytes, { flag: 'wx', mode: 0o600 });
     return {
       saved: true,
       path: values.out,
       bytes: bytes.byteLength,
       entries: Number(response.headers.get('x-diagnostic-log-entries') ?? 0),
+      source: 'host',
     };
   }
   let input: Record<string, unknown>;

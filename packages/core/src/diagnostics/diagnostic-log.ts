@@ -1,8 +1,11 @@
 import { Logger, type Context, type Message } from '@deepseek-ai/cordis';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { writeZip } from '../bots/zip-archive.js';
 import {
+  LOG_DB_FILENAME,
+  LOG_DETAIL_MAX_CHARS,
   openLogDatabase,
   type LogDatabase,
   type LogEntry,
@@ -46,6 +49,7 @@ export const DIAGNOSTIC_LOG_LIMITS = {
   hostText: 1000,
   entriesPerMinute: 600,
   hostEntriesPerMinute: 300,
+  eventEntriesPerMinute: 600,
   listDefault: 300,
   listMax: 1000,
   exportDefaultHours: 24,
@@ -252,6 +256,108 @@ export function createDiagnosticLogWriter(
 
 export type DiagnosticLogWriter = ReturnType<typeof createDiagnosticLogWriter>;
 
+const EVENT_SOURCE = /^[a-z][a-z0-9-]{1,47}$/u;
+const EVENT_PHASE = /^[a-z][a-z0-9.-]{0,63}$/u;
+const EVENT_TROUBLE =
+  /refused|failed|error|unavailable|unknown|revoked|timeout|interrupted|aborted/u;
+
+export type DiagnosticEventFields = Record<string, string | number | boolean | null | undefined>;
+
+export interface DiagnosticEvents {
+  record(
+    source: string,
+    phase: string,
+    fields: DiagnosticEventFields,
+    options?: { bot?: string; level?: 'info' | 'warn' },
+  ): void;
+}
+
+function eventLevel(phase: string, fields: Record<string, DiagnosticFieldValue>): 'info' | 'warn' {
+  const signals = [phase, fields['state'], fields['outcome'], fields['reason'], fields['code']];
+  return signals.some((value) => typeof value === 'string' && EVENT_TROUBLE.test(value))
+    ? 'warn'
+    : 'info';
+}
+
+export function diagnosticEventRow(
+  source: string,
+  phase: string,
+  fields: DiagnosticEventFields,
+  options: { bot?: string; level?: 'info' | 'warn'; ts?: number; home?: string } = {},
+): LogEntryInput | undefined {
+  if (!EVENT_SOURCE.test(source) || !EVENT_PHASE.test(phase)) return;
+  const clean: Record<string, DiagnosticFieldValue> = {};
+  let count = 0;
+  for (const [key, raw] of Object.entries(fields)) {
+    if (count >= DIAGNOSTIC_LOG_LIMITS.fieldsPerEntry) break;
+    if (!KEY.test(key) || key === 'event' || key === 'phase') continue;
+    if (typeof raw === 'string')
+      clean[key] = scrubHomePaths(
+        raw.slice(0, DIAGNOSTIC_LOG_LIMITS.fieldText * 2),
+        options.home,
+      ).slice(0, DIAGNOSTIC_LOG_LIMITS.fieldText);
+    else if (typeof raw === 'number' && Number.isFinite(raw))
+      clean[key] = Math.round(raw * 1000) / 1000;
+    else if (typeof raw === 'boolean' || raw === null) clean[key] = raw;
+    else continue;
+    count += 1;
+  }
+  let detail = JSON.stringify(clean);
+  while (detail.length > LOG_DETAIL_MAX_CHARS) {
+    let longest: string | undefined;
+    for (const [key, value] of Object.entries(clean))
+      if (
+        typeof value === 'string' &&
+        (longest === undefined || value.length > (clean[longest] as string).length)
+      )
+        longest = key;
+    if (longest === undefined) return;
+    const text = clean[longest] as string;
+    if (text.length <= 16) delete clean[longest];
+    else clean[longest] = text.slice(0, Math.floor(text.length / 2));
+    detail = JSON.stringify(clean);
+  }
+  const bot =
+    options.bot !== undefined && /^[\w.-]{1,64}$/u.test(options.bot) ? options.bot : undefined;
+  return {
+    ...(options.ts === undefined ? {} : { ts: options.ts }),
+    plugin: source,
+    owner: bot === undefined ? 'profile-shared' : `bot:${bot}`,
+    kind: phase,
+    detail,
+    payload: JSON.stringify({ level: options.level ?? eventLevel(phase, clean) }),
+    ...(bot === undefined ? {} : { bot }),
+  };
+}
+
+function structuredEvent(message: Message, home: string | undefined): LogEntryInput | undefined {
+  const [first] = message.args;
+  if (message.args.length !== 1 || typeof first !== 'string' || !first.startsWith('{')) return;
+  let value: Record<string, unknown> | undefined;
+  try {
+    value = record(JSON.parse(first));
+  } catch {
+    return;
+  }
+  if (value === undefined) return;
+  const { event, phase } = value;
+  if (typeof event !== 'string' || typeof phase !== 'string') return;
+  const fields: DiagnosticEventFields = {};
+  for (const [key, raw] of Object.entries(value))
+    if (
+      typeof raw === 'string' ||
+      typeof raw === 'number' ||
+      typeof raw === 'boolean' ||
+      raw === null
+    )
+      fields[key] = raw;
+  return diagnosticEventRow(event, phase, fields, {
+    ts: message.ts,
+    ...(home === undefined ? {} : { home }),
+    ...(message.type === 'error' ? { level: 'warn' as const } : {}),
+  });
+}
+
 export function hostLogExporter(
   write: (rows: LogEntryInput[]) => void,
   options: { now?: () => number; home?: string } = {},
@@ -268,6 +374,11 @@ export function hostLogExporter(
       if (budget.take(1) === 0) return;
       busy = true;
       try {
+        const structured = structuredEvent(message, options.home);
+        if (structured !== undefined) {
+          write([structured]);
+          return;
+        }
         let text: string;
         try {
           text = Logger.format(exporter, message);
@@ -432,6 +543,56 @@ function timelineLine(view: DiagnosticLogView): string {
     .join('  ');
 }
 
+export function buildDiagnosticExport(
+  database: Pick<LogDatabase, 'range'>,
+  options: {
+    hours: number;
+    now: () => number;
+    environment: DiagnosticLogEnvironment;
+    homes: ReadonlyArray<{ path: string; label: string }>;
+    exportedBy?: 'host' | 'cli-offline';
+  },
+): { archive: Buffer; manifest: Record<string, unknown>; until: number } {
+  const until = options.now();
+  const since = until - options.hours * 3_600_000;
+  const rows = database
+    .range(since, DIAGNOSTIC_LOG_LIMITS.exportMaxRows + 1)
+    .filter((row) => row.ts <= until);
+  const truncated = rows.length > DIAGNOSTIC_LOG_LIMITS.exportMaxRows;
+  const built = diagnosticLogArchive(truncated ? rows.slice(1) : rows, {
+    since,
+    until,
+    environment: options.environment,
+    homes: options.homes,
+    truncated,
+    exportedBy: options.exportedBy ?? 'host',
+  });
+  return { ...built, until };
+}
+
+export function exportDiagnosticLogOffline(options: {
+  dshHome: string;
+  hours: number;
+  environment: DiagnosticLogEnvironment;
+  homes: ReadonlyArray<{ path: string; label: string }>;
+  now?: () => number;
+}): { archive: Buffer; manifest: Record<string, unknown> } | undefined {
+  const dir = join(options.dshHome, 'botharness');
+  if (!existsSync(join(dir, LOG_DB_FILENAME))) return;
+  const database = openLogDatabase({ dir, readOnly: true });
+  try {
+    return buildDiagnosticExport(database, {
+      hours: options.hours,
+      now: options.now ?? Date.now,
+      environment: options.environment,
+      homes: options.homes,
+      exportedBy: 'cli-offline',
+    });
+  } finally {
+    database.close();
+  }
+}
+
 export function diagnosticLogArchive(
   rows: readonly LogEntry[],
   options: {
@@ -440,6 +601,7 @@ export function diagnosticLogArchive(
     environment: DiagnosticLogEnvironment;
     homes: ReadonlyArray<{ path: string; label: string }>;
     truncated: boolean;
+    exportedBy?: 'host' | 'cli-offline';
   },
 ): { archive: Buffer; manifest: Record<string, unknown> } {
   const redactor = createDiagnosticRedactor({ homes: options.homes });
@@ -455,6 +617,7 @@ export function diagnosticLogArchive(
     format: DIAGNOSTIC_LOG_FORMAT,
     version: DIAGNOSTIC_LOG_VERSION,
     exportedAt: new Date(options.until).toISOString(),
+    exportedBy: options.exportedBy ?? 'host',
     range: {
       start: new Date(options.since).toISOString(),
       end: new Date(options.until).toISOString(),
@@ -558,18 +721,11 @@ export function createDiagnosticLogHttp(options: DiagnosticLogHttpOptions) {
       if (url.pathname !== DIAGNOSTIC_LOGS_EXPORT_PATH)
         return new Response(null, { status: 404, headers: HEADERS });
       const hours = hoursOf(url.searchParams.get('hours'));
-      const until = now();
-      const since = until - hours * 3_600_000;
-      const rows = database
-        .range(since, DIAGNOSTIC_LOG_LIMITS.exportMaxRows + 1)
-        .filter((row) => row.ts <= until);
-      const truncated = rows.length > DIAGNOSTIC_LOG_LIMITS.exportMaxRows;
-      const { archive, manifest } = diagnosticLogArchive(truncated ? rows.slice(1) : rows, {
-        since,
-        until,
+      const { archive, manifest, until } = buildDiagnosticExport(database, {
+        hours,
+        now,
         environment: options.environment,
         homes: options.homes,
-        truncated,
       });
       const stamp = new Date(until).toISOString().replace(/[:.]/gu, '-').slice(0, 19);
       options.log?.(
@@ -597,9 +753,11 @@ export function mountDiagnosticLog(
     homes: ReadonlyArray<{ path: string; label: string }>;
     environment: () => DiagnosticLogEnvironment;
   },
-): void {
+): DiagnosticEvents {
   let database: LogDatabase | undefined;
   let writer: DiagnosticLogWriter | undefined;
+  const home = options.homes.find((entry) => entry.label === '~')?.path;
+  const events = diagnosticEventRecorder((rows) => writer?.write(rows), { home });
   ctx.effect(() => {
     try {
       database = openLogDatabase({ dir: join(options.dshHome, 'botharness') });
@@ -616,7 +774,6 @@ export function mountDiagnosticLog(
         console.warn('botharness: diagnostic-logs phase=write-failed');
       },
     });
-    const home = options.homes.find((entry) => entry.label === '~')?.path;
     const offExporter = (
       ctx.logger as unknown as { exporter(exporter: unknown): () => void }
     ).exporter(hostLogExporter((rows) => writer?.write(rows), home === undefined ? {} : { home }));
@@ -656,4 +813,24 @@ export function mountDiagnosticLog(
         'botharness: diagnostic log ' + path,
       );
   });
+  return events;
+}
+
+export function diagnosticEventRecorder(
+  write: (rows: LogEntryInput[]) => void,
+  options: { home?: string | undefined; now?: () => number } = {},
+): DiagnosticEvents {
+  const budget = minuteBudget(DIAGNOSTIC_LOG_LIMITS.eventEntriesPerMinute, options.now ?? Date.now);
+  return {
+    record(source, phase, fields, recordOptions = {}) {
+      try {
+        const row = diagnosticEventRow(source, phase, fields, {
+          ...recordOptions,
+          ts: (options.now ?? Date.now)(),
+          ...(options.home === undefined ? {} : { home: options.home }),
+        });
+        if (row !== undefined && budget.take(1) > 0) write([row]);
+      } catch {}
+    },
+  };
 }

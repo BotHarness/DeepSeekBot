@@ -55,7 +55,11 @@ export interface OpenLogDatabaseOptions {
   readonly maxAgeMs?: number;
 
   readonly migrations?: readonly LogMigration[];
+
+  readonly readOnly?: boolean;
 }
+
+export class LogDatabaseUnreadableError extends Error {}
 
 export interface LogDatabase {
   write(entry: LogEntryInput): void;
@@ -188,7 +192,25 @@ export function openLogDatabase(options: OpenLogDatabaseOptions): LogDatabase {
     return true;
   };
 
+  const openReadOnly = (): DatabaseSync => {
+    let database: DatabaseSync;
+    try {
+      database = new DatabaseSync(path, { readOnly: true });
+    } catch (error) {
+      throw new LogDatabaseUnreadableError('logs.db cannot be opened', { cause: error });
+    }
+    const version = readVersion(database);
+    if (version === LOG_DB_VERSION) return database;
+    database.close();
+    throw new LogDatabaseUnreadableError(
+      version === undefined
+        ? 'logs.db schema is unreadable'
+        : `logs.db schema ${version} is not supported`,
+    );
+  };
+
   const openOrRebuild = (): DatabaseSync => {
+    if (options.readOnly === true) return openReadOnly();
     try {
       if (!existsSync(path)) return rebuildEmpty();
       const database = new DatabaseSync(path);
@@ -267,6 +289,7 @@ export function openLogDatabase(options: OpenLogDatabaseOptions): LogDatabase {
 
   return {
     write(entry: LogEntryInput): void {
+      if (options.readOnly === true) throw new LogDatabaseUnreadableError('logs.db is read-only');
       try {
         if (!existsSync(path)) swap(openOrRebuild());
         writeRow(entry);
@@ -277,6 +300,7 @@ export function openLogDatabase(options: OpenLogDatabaseOptions): LogDatabase {
     },
     writeMany(entries: readonly LogEntryInput[]): void {
       if (entries.length === 0) return;
+      if (options.readOnly === true) throw new LogDatabaseUnreadableError('logs.db is read-only');
       try {
         if (!existsSync(path)) swap(openOrRebuild());
         writeRows(entries);
@@ -365,7 +389,9 @@ export function openLogDatabase(options: OpenLogDatabaseOptions): LogDatabase {
         ...(row.trace_id === null ? {} : { traceId: row.trace_id }),
         ...(row.payload === null ? {} : { payload: row.payload }),
       }));
-    } catch {
+    } catch (error) {
+      if (options.readOnly === true)
+        throw new LogDatabaseUnreadableError('logs.db entries are unreadable', { cause: error });
       return [];
     }
   }
