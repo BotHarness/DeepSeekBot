@@ -46,6 +46,7 @@ const inputSchema = z.discriminatedUnion('kind', [
 ]);
 
 export function createLanBotBridge(options: {
+  participation?: import('./bot-network-participation.js').BotNetworkParticipation;
   hostId: string;
   key(): Promise<Uint8Array>;
   peers(): readonly LanBotPeer[];
@@ -103,6 +104,12 @@ export function createLanBotBridge(options: {
     return { hostId: options.hostId, publicKey };
   }
   const channel = createBotPeerChannel<ScopedPeer, AdmittedPeer, z.infer<typeof authorization>>({
+    authorize(payload) {
+      const input = payload === undefined ? undefined : inputSchema.parse(payload);
+      options.participation?.require(
+        input?.kind === 'message' ? input.message.senderBotSlug : undefined,
+      );
+    },
     hostId: options.hostId,
     key: options.key,
     path: BOT_LAN_PATH,
@@ -148,9 +155,11 @@ export function createLanBotBridge(options: {
       }
       current(peer);
       if (input.kind === 'contacts') {
+        const identity = await own();
+        options.participation?.require();
         const bots = options.directory();
         return page.parse({
-          ...(await own()),
+          ...identity,
           admissionId: peer.membership.localAdmissionId,
           contacts: bots.slice(input.offset, input.offset + 50),
           ...(bots.length > input.offset + 50 ? { next: input.offset + 50 } : {}),
@@ -241,6 +250,7 @@ export function createLanBotBridge(options: {
     handle: channel.handle,
     membership,
     contacts(): readonly NetworkBotContact[] {
+      if (options.participation?.enabled() === false) return [];
       return [...routes.values()].flatMap((route) => {
         try {
           current(route.peer);
@@ -258,7 +268,7 @@ export function createLanBotBridge(options: {
           : ('unavailable' as const);
     },
     async refresh(background = false) {
-      if (closed) return;
+      if (closed || options.participation?.enabled() === false) return;
       if (!background || refreshing === undefined) {
         const revision = ++generation;
         const started = performance.now();
@@ -342,6 +352,7 @@ export function createLanBotBridge(options: {
       while (!closed && refreshing !== undefined) await refreshing;
     },
     async send(host: string, message: NetworkBotMessage) {
+      options.participation?.require(message.senderBotSlug);
       const route = routes.get(host);
       if (!route || closed) throw new BotNetworkDeliveryError('unable-to-deliver');
       current(route.peer);

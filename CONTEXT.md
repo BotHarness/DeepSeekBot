@@ -785,6 +785,10 @@ _Avoid_: peer relay bus, copied inbox conversation
 In the agreed cross-Host design target, the membership scope within which active PersonaBots discover colleagues and communicate through Bot-to-Bot DMs, including across Hosts. It establishes contact eligibility, while each receiving Bot retains its own execution permissions and private Memory.
 _Avoid_: shared Memory, global Orchestrator, network route
 
+**Bot Network Participation**:
+The Owner-controlled eligibility of a PersonaBot to be discovered and to initiate or receive cross-Host Bot communication, constrained by both its Host and its own participation choice. It is distinct from network reachability, authenticated network membership and execution authority.
+_Avoid_: online status, discoverability-only setting, Channel membership
+
 **Thread**:
 A sub-conversation opened by replying to a message inside a Chat or a Channel.
 _Avoid_: topic, sub-chat, channel

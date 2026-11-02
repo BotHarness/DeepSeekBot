@@ -5,6 +5,42 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
+it('pauses advertising during an in-flight start and can resume without a stale advertisement', async () => {
+  let release = () => {};
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let opening = () => {};
+  const opened = new Promise<void>((resolve) => {
+    opening = resolve;
+  });
+  const send = vi.fn();
+  const close = vi.fn();
+  const discovery = createLanBotDiscovery({
+    identity: async () => ({ hostId: 'local', publicKey: '11'.repeat(32), name: 'Local' }),
+    open: async () => {
+      opening();
+      await pending;
+      return { send, close };
+    },
+  });
+  try {
+    const start = discovery.start(17001);
+    await opened;
+    discovery.pause();
+    release();
+    await start;
+    expect(send).not.toHaveBeenCalled();
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(discovery.status()).toBe('off');
+    await discovery.start(17001);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(discovery.status()).toBe('listening');
+  } finally {
+    discovery.close();
+  }
+});
+
 it('closes a socket that finishes opening after its listener was stopped', async () => {
   let release = () => {};
   const pending = new Promise<void>((resolve) => {

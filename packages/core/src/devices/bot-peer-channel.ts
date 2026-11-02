@@ -78,6 +78,7 @@ export function createBotPeerChannel<
   grant(identity: BotPeerIdentity, peer: Peer): Promise<Grant>;
   verify(identity: BotPeerIdentity, grant: Grant): Promise<Verified>;
   current(peer: Peer): Promise<boolean>;
+  authorize?(payload?: unknown): void;
   receive(peer: Verified, payload: unknown): Promise<unknown>;
   record?(event: { phase: string; durationMs: number; code?: string }): void;
   fetch?: typeof fetch;
@@ -134,6 +135,7 @@ export function createBotPeerChannel<
       let transport: NoiseTransport | undefined;
       let dispatched = false;
       try {
+        options.authorize?.(payload);
         if (closed) throw new BotNetworkDeliveryError('unable-to-deliver');
         const identity = await own();
         const authorization = await options.grant(identity, peer);
@@ -144,6 +146,7 @@ export function createBotPeerChannel<
           receiverHost: peer.hostId,
           remotePublicKey: peer.publicKey,
         });
+        options.authorize?.(payload);
         const handshake = reply.parse(
           await exchange(peer, 'handshake', {
             grant: authorization,
@@ -155,6 +158,7 @@ export function createBotPeerChannel<
         transport = finishBotHandshake(noise, peer.publicKey);
         const frames = encodeBotPayload(transport, payload);
         if (!(await options.current(peer))) throw new BotNetworkDeliveryError('network-denied');
+        options.authorize?.(payload);
         if (closed) throw new BotNetworkDeliveryError('unable-to-deliver');
         dispatched = true;
         const response = await exchange(peer, 'request', {
@@ -203,6 +207,7 @@ export function createBotPeerChannel<
       let transport: NoiseTransport | undefined;
       let admitted = false;
       try {
+        options.authorize?.();
         if (
           closed ||
           request.method !== 'POST' ||
@@ -225,6 +230,7 @@ export function createBotPeerChannel<
           });
           noise.read(Buffer.from(input.flight, 'base64'));
           const flight = Buffer.from(noise.write()).toString('base64');
+          options.authorize?.();
           if (closed || pending.size >= 32) throw new Error('network-handshake-capacity');
           const session = randomBytes(24).toString('hex');
           const held = noise;
@@ -249,6 +255,7 @@ export function createBotPeerChannel<
         transport = finishBotHandshake(noise, held.peer.publicKey);
         const payload = decodeBotPayload(transport, input.frames);
         const peer = await options.verify(identity, held.grant);
+        options.authorize?.();
         if (closed || peer.hostId !== held.peer.hostId || peer.publicKey !== held.peer.publicKey)
           throw new Error('network-peer-denied');
         admitted = true;
@@ -274,7 +281,7 @@ export function createBotPeerChannel<
           !response.headersSent &&
           transport !== undefined &&
           error instanceof BotNetworkDeliveryError &&
-          error.code === 'network-denied'
+          (error.code === 'network-denied' || error.code === 'network-disabled')
         ) {
           respond(response, 200, {
             frames: encodeBotPayload(transport, { refused: 'network-denied' }),

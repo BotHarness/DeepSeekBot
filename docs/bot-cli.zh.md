@@ -1559,3 +1559,9 @@ printf '%s' '{"token":"<preview-token>","feedback":{"rating":"bad","tags":["no-r
 Bot 已有存活的 Orchestrator Agent 后，`bot-tools` 也会列出其注册的 `ask_secret`、`protected_cli`、`secret_http`、`secret_cli` 和 `secret_mcp_connect`。用 `bot-tool <bot-id> <tool> --args-stdin` 调用，参数 JSON 从 stdin 传入；不要把原值或引用放进命令行参数。执行复用已有 Agent 的原生工具与审批链，不调用模型、不创建新的来源；没有存活的工具注册时拒绝。命令可等待执行审批，由通常的审批命令或 Web 卡片处理。直接调用与原生诊断轨迹都省略私密工具参数和结果。
 
 同轮存在多条 IM 请求时，先用原账号和字段声明调用 `ask_secret`，并传入正在处理的那条已接受请求的精确 `source_event_id`，再消费引用。已配置账号会复用原值，不新建卡片，也不要求 Web 通知地址。Web 与 Schedule 复用不传来源选择器。`private-source-required` 给出这条恢复路径；`private-source-invalid`、`private-source-unavailable`、`private-source-ambiguous`、`private-source-revoked`、`private-account-unavailable` 分别区分其他拒绝原因。不要重复原样调用、选择历史来源，或把 Host 拒绝当成远端故障。同账号来源冲突需要新一轮；撤销检查始终保留。
+
+### Bot 网络参与
+
+`deepseekbot bot-network list` 查看 Host 总开关、各 Bot 保存的选择和实际参与状态，两级默认开启。`deepseekbot bot-network disable --confirm` 停止此 Host 的跨 Host Bot 发现及双向消息；`enable --confirm` 恢复参与。命令后加 Bot slug 只修改该 Bot，例如 `deepseekbot bot-network disable developer --confirm`。
+
+Owner 接口为 `GET`/`POST /api/botharness/devices/bot-network`。写入格式为 `{ "enabled": false, "botSlug": "developer", "confirm": true }`，省略 `botSlug` 即修改 Host。缺少确认、非法值和不存在的 Bot 均拒绝且不改设置。同 Host 消息和 Human 设备访问不受影响。Host 关闭保留各 Bot 的选择；已接收的工作继续执行，但无法跨关闭的边界回复。重新开启不补发失败消息。Connect 保留已注册的 Host 身份以维持成员关系，实时 Bot 目录和消息接收仍会关闭。工具定义保持稳定，每次执行检查当前设置；本地拒绝码为 `network-disabled`。

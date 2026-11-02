@@ -1,4 +1,5 @@
 import { BotNetworkDeliveryError } from './runtime/bot-network.js';
+import { createBotNetworkParticipation } from './devices/bot-network-participation.js';
 import type { AssignmentReportContent } from './runtime/assignment-report.js';
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from './window-zoom/control.js';
 import {
@@ -464,6 +465,7 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
 });
 
 export interface BotHarnessCore {
+  networkParticipation: ReturnType<typeof createBotNetworkParticipation>;
   prompts: PromptSettings;
   profileRecovery: ProfileRecovery;
   rootDir: string;
@@ -690,6 +692,10 @@ export function createCore(
     backfillBotDescriptors(registry, options.warn);
     migrateLegacySouls(registry, options.warn);
   }
+  const networkParticipation = createBotNetworkParticipation({
+    database: attachOperationalModule(operationalDatabase, 'bot-network-participation'),
+    registry,
+  });
   const states = createBotStateTracker();
   const attachments = createAttachmentStore({
     rootDir: join(dshHome, 'botharness', 'attachments'),
@@ -1030,6 +1036,7 @@ export function createCore(
     ownership,
   });
   runtime = createBotRuntime({
+    networkParticipation,
     ...(options.botNetwork === undefined ? {} : { botNetwork: options.botNetwork }),
     ...(options.readTurnProgress === undefined
       ? {}
@@ -1178,6 +1185,7 @@ export function createCore(
     },
     contributeBotAgentSetup,
     runBotAgentSetups,
+    networkParticipation,
     hostTools,
     states,
     ownership,
@@ -1580,6 +1588,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   let connectAccount: ConnectAccount | undefined;
   mountDevicePairing(ctx, {
+    participation: core.networkParticipation,
     botNetwork: {
       registry: core.registry,
       channels: core.channels,

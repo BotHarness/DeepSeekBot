@@ -104,7 +104,9 @@ export function createConnectBotNetwork(options: {
     current: ConnectBotSession,
     url: string,
     init: RequestInit,
+    authorize?: () => void,
   ): Promise<Response> {
+    authorize?.();
     const response = await fetcher(url, { ...init, redirect: 'error' });
     if (response.status !== 401 || current.refresh === undefined) return response;
     await response.body?.cancel();
@@ -113,6 +115,7 @@ export function createConnectBotNetwork(options: {
     if (token === undefined || !current.current()) return new Response(null, { status: 401 });
     const headers = new Headers(init.headers);
     headers.set('authorization', `Bearer ${token}`);
+    authorize?.();
     return fetcher(url, { ...init, headers, redirect: 'error' });
   }
   const grants = new Map<
@@ -153,8 +156,10 @@ export function createConnectBotNetwork(options: {
         return options.revoked?.() ? 'withdrawn' : 'unavailable';
       }
     },
-    async register(own: ConnectBotIdentity): Promise<ConnectBotPeer> {
+    async register(own: ConnectBotIdentity, authorize?: () => void): Promise<ConnectBotPeer> {
+      authorize?.();
       const current = await options.session();
+      authorize?.();
       const refuse = () => new BotNetworkDeliveryError('network-denied');
       if (
         !current?.current() ||
@@ -164,11 +169,17 @@ export function createConnectBotNetwork(options: {
         throw refuse();
       let initial: Response;
       try {
-        initial = await accountFetch(current, `${current.relay}/v1/hosts`, {
-          headers: { authorization: `Bearer ${current.accessToken}` },
-          signal: AbortSignal.timeout(5000),
-        });
-      } catch {
+        initial = await accountFetch(
+          current,
+          `${current.relay}/v1/hosts`,
+          {
+            headers: { authorization: `Bearer ${current.accessToken}` },
+            signal: AbortSignal.timeout(5000),
+          },
+          authorize,
+        );
+      } catch (error) {
+        if (error instanceof BotNetworkDeliveryError) throw error;
         throw new BotNetworkDeliveryError('unable-to-deliver');
       }
       if (initial.status === 401 || initial.status === 403) throw refuse();
@@ -209,19 +220,27 @@ export function createConnectBotNetwork(options: {
             body: JSON.stringify({ ...own, issuedAt, proof }),
             signal: AbortSignal.timeout(5000),
           },
+          authorize,
         );
         await response.body?.cancel();
-      } catch {
+      } catch (error) {
+        if (error instanceof BotNetworkDeliveryError) throw error;
         throw new BotNetworkDeliveryError('unable-to-deliver');
       }
       if ([401, 403, 404, 409].includes(response.status) || !current.current()) throw refuse();
       if (!response.ok) throw new BotNetworkDeliveryError('unable-to-deliver');
       try {
-        response = await accountFetch(current, `${current.relay}/v1/hosts`, {
-          headers: { authorization: `Bearer ${current.accessToken}` },
-          signal: AbortSignal.timeout(5000),
-        });
-      } catch {
+        response = await accountFetch(
+          current,
+          `${current.relay}/v1/hosts`,
+          {
+            headers: { authorization: `Bearer ${current.accessToken}` },
+            signal: AbortSignal.timeout(5000),
+          },
+          authorize,
+        );
+      } catch (error) {
+        if (error instanceof BotNetworkDeliveryError) throw error;
         throw new BotNetworkDeliveryError('unable-to-deliver');
       }
       if (response.status === 401 || response.status === 403) throw refuse();

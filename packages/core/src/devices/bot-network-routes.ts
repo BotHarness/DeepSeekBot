@@ -1,9 +1,11 @@
 import type { NetworkBotContact } from '../runtime/bot-contact-discovery.js';
+import type { BotNetworkParticipation } from './bot-network-participation.js';
 import { BotNetworkDeliveryError, type BotNetworkPort } from '../runtime/bot-network.js';
 
 export function createBotNetworkRoutes(
   options: {
     withdrawn?(hostId: string): Promise<void>;
+    participation?: BotNetworkParticipation;
   } = {},
 ): BotNetworkPort & {
   observeWithdrawal(hostId: string): Promise<void>;
@@ -11,6 +13,7 @@ export function createBotNetworkRoutes(
 } {
   const providers = new Set<BotNetworkPort>();
   async function refresh() {
+    if (options.participation?.enabled() === false) return;
     await Promise.all([...providers].map((provider) => provider.refresh?.()));
   }
   function conflictingHosts() {
@@ -47,6 +50,7 @@ export function createBotNetworkRoutes(
     refresh,
     membership,
     availability(hostId, botSlug) {
+      if (options.participation?.enabled() === false) return 'unavailable';
       if (conflictingHosts().has(hostId)) return 'unavailable';
       const states = [...providers].map((provider) => provider.availability?.(hostId, botSlug));
       if (states.includes('available')) return 'available';
@@ -54,6 +58,7 @@ export function createBotNetworkRoutes(
       return states.includes('withdrawn') ? 'withdrawn' : 'unavailable';
     },
     contacts() {
+      if (options.participation?.enabled() === false) return [];
       const conflicts = conflictingHosts();
       const contacts = new Map<string, NetworkBotContact>();
       for (const provider of providers) {
@@ -66,7 +71,9 @@ export function createBotNetworkRoutes(
       return [...contacts.values()];
     },
     async send(hostId, message) {
+      options.participation?.require(message.senderBotSlug);
       await refresh();
+      options.participation?.require(message.senderBotSlug);
       if (conflictingHosts().has(hostId)) throw new BotNetworkDeliveryError('network-denied');
       const provider = [...providers].find(
         (candidate) =>

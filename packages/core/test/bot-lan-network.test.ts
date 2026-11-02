@@ -28,6 +28,7 @@ it('requires bilateral Host admission before encrypted contacts and a DM reach t
   const withdrawals: string[] = [];
   let rightRequests = 0;
   let holdHandshake: (() => Promise<void>) | undefined;
+  let holdAuthentication: (() => Promise<void>) | undefined;
   try {
     for (const [index, peer] of peers.entries()) {
       const network = createBotNetworkRoutes();
@@ -50,8 +51,16 @@ it('requires bilateral Host admission before encrypted contacts and a DM reach t
       });
       admissions.push(membership);
       const bridge = createLanBotBridge({
+        participation: core.networkParticipation,
         hostId: peer.hostId,
-        key: async () => Uint8Array.from(keys[index]!),
+        key: async () => {
+          if (index === 1) {
+            const hold = holdAuthentication;
+            holdAuthentication = undefined;
+            await hold?.();
+          }
+          return Uint8Array.from(keys[index]!);
+        },
         peers: () => (discoverable ? [other] : []),
         admission: membership,
         knownKey: (host) => core.channels.remoteHostKey!(host),
@@ -81,6 +90,7 @@ it('requires bilateral Host admission before encrypted contacts and a DM reach t
           receiveNetworkBotDm(
             {
               registry: core.registry,
+              participation: core.networkParticipation,
               channels: core.channels,
               admitBotDmMessage: (channel, id) => core.runtime.admitBotDmMessage(channel, id),
             },
@@ -195,6 +205,43 @@ it('requires bilateral Host admission before encrypted contacts and a DM reach t
         core.channels.readMessages(conversations[0]!.id).map((message) => message.body),
       ).toEqual(['I will inspect it on macOS', 'Inspect the iOS bug']);
     }
+    let reachedCutoff = () => {};
+    let resumeHandshake = () => {};
+    const atHandshake = new Promise<void>((resolve) => {
+      reachedCutoff = resolve;
+    });
+    const handshakeReleased = new Promise<void>((resolve) => {
+      resumeHandshake = resolve;
+    });
+    holdAuthentication = async () => {
+      reachedCutoff();
+      await handshakeReleased;
+    };
+    const refused = expect(
+      bridges[0]!.send('right', {
+        id: 'cutoff-race',
+        at: new Date().toISOString(),
+        senderBotSlug: 'bot',
+        recipientBotSlug: 'bot',
+        body: 'CUTOFF_RACE',
+        causation: {
+          rootSourceEventId: 'human-request',
+          parentSourceEventId: 'human-request',
+          hop: 1,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'network-denied' });
+    await atHandshake;
+    cores[1]!.networkParticipation.set({ enabled: false });
+    resumeHandshake();
+    await refused;
+    expect(cores[1]!.channels.readMessages(channel!.id)).toHaveLength(2);
+    expect(
+      cores[1]!.inboxHistory.list('bot', { channelId: channel!.id, query: 'CUTOFF_RACE' }).items,
+    ).toHaveLength(0);
+    expect(withdrawals).toEqual([]);
+    cores[1]!.networkParticipation.set({ enabled: true });
+    expect(await bridges[0]!.membership('right')).toBe('member');
     discoverable = false;
     expect(await bridges[0]!.membership('right')).toBe('unavailable');
     expect(withdrawals).toEqual([]);
@@ -230,4 +277,4 @@ it('requires bilateral Host admission before encrypted contacts and a DM reach t
       core.operationalDatabase.close();
     }
   }
-});
+}, 60_000);

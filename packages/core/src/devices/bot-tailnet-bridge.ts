@@ -117,6 +117,7 @@ interface Route {
 }
 
 export function createTailnetBotBridge(options: {
+  participation?: import('./bot-network-participation.js').BotNetworkParticipation;
   hostId: string;
   key(): Promise<Uint8Array>;
   knownKey?(hostId: string): string | undefined;
@@ -133,6 +134,7 @@ export function createTailnetBotBridge(options: {
   start(): Promise<void>;
   discover(): Promise<void>;
   close(): Promise<void>;
+  reconcileParticipation(): Promise<void>;
   probeMembership(hostId: string): Promise<'member' | 'withdrawn' | 'unavailable'>;
 } {
   const tailnet = options.tailnet ?? createBotTailnet();
@@ -173,6 +175,7 @@ export function createTailnetBotBridge(options: {
   let discoveryCancellation: AbortController | undefined;
   let refreshing: Promise<void> | undefined;
   let refreshRevision = 0;
+  let reconciling: Promise<void> = Promise.resolve();
   let closed = false;
   let lastSnapshot: Awaited<ReturnType<BotTailnet['snapshot']>> | undefined;
   const membershipChanges = new Map<string, Promise<void>>();
@@ -356,6 +359,7 @@ export function createTailnetBotBridge(options: {
           let transport: NoiseTransport | undefined;
           let activeHandshake: NoiseXk | undefined;
           try {
+            options.participation?.require();
             if (
               closed ||
               server !== listener ||
@@ -365,11 +369,14 @@ export function createTailnetBotBridge(options: {
             )
               throw new Error('network-peer-denied');
             const peer = await tailnet.admit(incoming.socket.remoteAddress ?? '');
+            options.participation?.require();
             const match = /^\/botharness-bots\/v1\/contacts\?offset=(\d{1,4})$/u.exec(
               incoming.url ?? '',
             );
             if (incoming.method === 'GET' && match) {
               const offset = Number(match[1]);
+              const publicKey = await ownPublicKey();
+              options.participation?.require();
               const bots = options.directory();
               response.writeHead(200, {
                 'content-type': 'application/json',
@@ -379,7 +386,7 @@ export function createTailnetBotBridge(options: {
                 JSON.stringify(
                   pageSchema.parse({
                     hostId: options.hostId,
-                    publicKey: await ownPublicKey(),
+                    publicKey,
                     contacts: bots.slice(offset, offset + 50),
                     ...(bots.length > offset + 50 ? { next: offset + 50 } : {}),
                   }),
@@ -480,8 +487,9 @@ export function createTailnetBotBridge(options: {
             if ((await tailnet.admit(incoming.socket.remoteAddress ?? '')).nodeId !== peer.nodeId)
               throw new Error('network-peer-denied');
             if (closed || server !== listener) throw new Error('network-closed');
-            admissionStarted = true;
             stage = 'admission';
+            options.participation?.require(input.recipientBotSlug);
+            admissionStarted = true;
             await options.receive(
               {
                 ...sender,
@@ -538,7 +546,7 @@ export function createTailnetBotBridge(options: {
             code: 'network-listener-unavailable',
           });
         });
-        if (closed) {
+        if (closed || options.participation?.enabled() === false) {
           listener.closeAllConnections();
           listener.close();
           return;
@@ -555,18 +563,22 @@ export function createTailnetBotBridge(options: {
   }
 
   async function discoverNow(signal: AbortSignal) {
+    if (options.participation?.enabled() === false) {
+      await closeListener();
+      return;
+    }
     const started = Date.now();
     lastSnapshot = undefined;
     try {
       const current = await tailnet.snapshot();
-      if (signal.aborted || closed) return;
+      if (signal.aborted || closed || options.participation?.enabled() === false) return;
       lastSnapshot = current;
       for (const host of new Set(memberships().map((item) => item.hostId))) {
         await retireObserved(host);
         if (membershipIn(host, current) === 'withdrawn') await options.withdrawn?.(host);
       }
       await listen(current.self);
-      if (closed) return;
+      if (closed || options.participation?.enabled() === false) return;
       const targets = [current.self, ...current.peers]
         .slice(0, 65)
         .flatMap((member) => ports.map((targetPort) => ({ member, targetPort })))
@@ -609,7 +621,40 @@ export function createTailnetBotBridge(options: {
   }
 
   const bridge = {
-    contacts: () => [...routes.values()].flatMap((route) => route.contacts),
+    contacts: () =>
+      options.participation?.enabled() === false
+        ? []
+        : [...routes.values()].flatMap((route) => route.contacts),
+    reconcileParticipation(): Promise<void> {
+      reconciling = reconciling
+        .catch(() => undefined)
+        .then(async () => {
+          if (closed) return;
+          const started = Date.now();
+          const enabled = options.participation?.enabled() !== false;
+          try {
+            if (enabled) await bridge.start();
+            else {
+              discoveryCancellation?.abort();
+              await discovering;
+              await closeListener();
+            }
+            if ((options.participation?.enabled() !== false) === enabled)
+              options.record?.({
+                phase: enabled ? 'participation-enabled' : 'participation-disabled',
+                durationMs: Date.now() - started,
+              });
+          } catch (error) {
+            options.record?.({
+              phase: 'participation-reconcile-refused',
+              durationMs: Date.now() - started,
+              code: 'network-unavailable',
+            });
+            throw error;
+          }
+        });
+      return reconciling;
+    },
     availability(host: string, botSlug: string) {
       if (observedWithdrawn.has(host)) return 'withdrawn' as const;
       if (!lastSnapshot || closed) return 'unavailable' as const;
@@ -672,8 +717,14 @@ export function createTailnetBotBridge(options: {
       }
       await discovering;
     },
-    async start() {
+    async start(): Promise<void> {
       if (closed) return;
+      if (options.participation?.enabled() === false) {
+        discoveryCancellation?.abort();
+        await discovering;
+        await closeListener();
+        return;
+      }
       if (stopWatching === undefined && tailnet.watch !== undefined) {
         stopWatching = tailnet.watch(observe, (code) => {
           stopWatching = undefined;
@@ -698,6 +749,7 @@ export function createTailnetBotBridge(options: {
       let transport: NoiseTransport | undefined;
       let committing = false;
       try {
+        options.participation?.require(input.senderBotSlug);
         const route = routes.get(targetHost);
         if (!route || !self || port === undefined || closed)
           throw new DeliveryError('unable-to-deliver');
@@ -759,6 +811,7 @@ export function createTailnetBotBridge(options: {
           frames: encodeBotPayload(transport, message),
         };
         if (closed) throw new DeliveryError('unable-to-deliver');
+        options.participation?.require(input.senderBotSlug);
         committing = true;
         const envelope = await exchange(
           route.member.address,
@@ -802,7 +855,7 @@ export function createTailnetBotBridge(options: {
       await stopWatching?.();
       stopWatching = undefined;
       await Promise.allSettled(observedPending.values());
-      await Promise.allSettled([discovering, refreshing]);
+      await Promise.allSettled([discovering, refreshing, reconciling]);
       await closeListener();
     },
   };

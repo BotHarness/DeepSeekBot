@@ -5,6 +5,11 @@ import { noiseFingerprint } from '../devices/noise/xk.js';
 
 export const DEVICES_COMMANDS = [
   {
+    command: 'bot-network',
+    description:
+      'list participation; enable or disable [bot-slug] with --confirm (omit bot-slug for this Host)',
+  },
+  {
     command: 'bot-lan',
     description:
       'list nearby Hosts; admit <host-id> <public-key> or revoke <host-id> with --confirm',
@@ -58,6 +63,40 @@ export async function runDevicesCommand(
     writeFileSync(path, `${text}\n`, { flag: 'wx', mode: 0o600 }),
   exists: (path: string) => boolean = existsSync,
 ): Promise<unknown> {
+  if (command === 'bot-network') {
+    const [action, botSlug] = rest;
+    if (
+      values.out !== undefined ||
+      (action === 'list'
+        ? rest.length !== 1
+        : !['enable', 'disable'].includes(action ?? '') || rest.length < 1 || rest.length > 2)
+    )
+      throw new CliLiveError(
+        'usage',
+        'bot-network takes list, enable [bot-slug] --confirm, or disable [bot-slug] --confirm.',
+      );
+    if (action !== 'list' && values.confirm !== true)
+      throw new CliLiveError(
+        'confirm-required',
+        'Change Bot network participation with --confirm.',
+      );
+    const host = await connect();
+    const response = await host.http(
+      `${DEVICES}/bot-network`,
+      action === 'list'
+        ? undefined
+        : {
+            enabled: action === 'enable',
+            ...(botSlug === undefined ? {} : { botSlug }),
+            confirm: true,
+          },
+    );
+    try {
+      const parsed: unknown = JSON.parse(new TextDecoder().decode(response.bytes));
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    } catch {}
+    throw new CliLiveError('host-protocol-error', 'The Host did not return a JSON object.');
+  }
   if (command === 'bot-lan') {
     const [action, hostId, publicKey] = rest;
     const valid =
