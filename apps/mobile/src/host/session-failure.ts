@@ -6,6 +6,7 @@ import {
   type SessionFailureAutoContinue,
   type SessionFailureProgress,
 } from '../../../../packages/client/src/shared/turn-continuation';
+export { latestTurnMessageId } from '../../../../packages/core/src/channels/channel-notice';
 export interface SessionFailure {
   role: 'orchestrator' | 'assignment';
   sessionId: string;

@@ -1,4 +1,5 @@
 import { expect, it, vi } from 'vitest';
+import { latestTurnMessageId } from '../../core/src/channels/channel-notice.js';
 import {
   autoContinueSeconds,
   createTurnContinuation,
@@ -122,4 +123,12 @@ it('parses progress and automatic continuation and counts down whole seconds', (
   expect(autoContinueSeconds(auto, start)).toBe(60);
   expect(autoContinueSeconds(auto, Date.parse(auto!.at))).toBeUndefined();
   expect(autoContinueSeconds(undefined, start)).toBeUndefined();
+});
+
+it('keeps a failure card current when only a channel notice follows it', () => {
+  const failure = { id: 'failure-1' };
+  const notice = { id: 'notice-1', memoryCommit: { sha: 'abc' } };
+  expect(latestTurnMessageId([{ id: 'human-1' }, failure, notice])).toBe('failure-1');
+  expect(latestTurnMessageId([failure, notice, { id: 'human-2' }])).toBe('human-2');
+  expect(latestTurnMessageId([notice])).toBeUndefined();
 });

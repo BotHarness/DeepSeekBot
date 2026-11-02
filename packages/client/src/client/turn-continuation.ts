@@ -1,4 +1,5 @@
 import { useMemo, useSyncExternalStore } from 'react';
+import { latestTurnMessageId } from '../../../core/src/channels/channel-notice.js';
 import {
   readSeconds,
   subscribeNever,
@@ -52,7 +53,7 @@ export function useIsLatestMessage(channelId: string | undefined, messageId: str
       channelId !== undefined &&
       conversation.channel?.id === channelId &&
       !conversation.timeline.hasNewer &&
-      conversation.messages.at(-1)?.id === messageId
+      latestTurnMessageId(conversation.messages) === messageId
     );
   };
   return useSyncExternalStore(store.subscribe, latest, latest);

@@ -198,7 +198,7 @@ function SessionFailureNotice({
         </div>
       )}
       {seconds === undefined || failure.autoContinue === undefined ? null : (
-        <div className="bh-session-failure-context" role="status">
+        <div className="bh-session-failure-context">
           {t('failure.autoContinue', {
             seconds: String(seconds),
             attempt: String(failure.autoContinue.attempt),
