@@ -163,6 +163,20 @@ describe('quoteMention', () => {
     ]);
   });
 
+  it('keeps the next mention when the quoted mention is deleted', () => {
+    const quoted = quoteMention(
+      '@Bea hi',
+      [{ botSlug: 'bea', label: 'Bea', start: 0, end: 4 }],
+      'ada',
+      'Ada',
+    );
+    expect(deleteSelectedMention(quoted.value, quoted.mentions, 5, 5, 'Backspace')).toEqual({
+      value: '@Bea hi',
+      mentions: [{ botSlug: 'bea', label: 'Bea', start: 0, end: 4 }],
+      caret: 0,
+    });
+  });
+
   it('leaves a draft that already mentions the quoted Bot alone', () => {
     const mentions = [{ botSlug: 'ada', label: 'Ada', start: 3, end: 7 }];
     expect(quoteMention('hi @Ada ', mentions, 'ada', 'Ada')).toEqual({
