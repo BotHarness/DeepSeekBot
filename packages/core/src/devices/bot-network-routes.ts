@@ -10,6 +10,9 @@ export function createBotNetworkRoutes(
   attach(provider: BotNetworkPort): () => void;
 } {
   const providers = new Set<BotNetworkPort>();
+  async function refresh() {
+    await Promise.all([...providers].map((provider) => provider.refresh?.()));
+  }
   function conflictingHosts() {
     const keys = new Map<string, string>();
     const conflicts = new Set<string>();
@@ -41,9 +44,7 @@ export function createBotNetworkRoutes(
         providers.delete(provider);
       };
     },
-    async refresh() {
-      await Promise.all([...providers].map((provider) => provider.refresh?.()));
-    },
+    refresh,
     membership,
     availability(hostId, botSlug) {
       if (conflictingHosts().has(hostId)) return 'unavailable';
@@ -65,6 +66,7 @@ export function createBotNetworkRoutes(
       return [...contacts.values()];
     },
     async send(hostId, message) {
+      await refresh();
       if (conflictingHosts().has(hostId)) throw new BotNetworkDeliveryError('network-denied');
       const provider = [...providers].find(
         (candidate) =>
