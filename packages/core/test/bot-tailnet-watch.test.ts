@@ -1,6 +1,35 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { spawn } from 'node:child_process';
 import { createTailnetNotificationReader, watchTailnet } from '../src/devices/bot-tailnet-watch.js';
+
+it.each(['immediate', 'after-error'] as const)(
+  'never signals a subprocess that failed to start when disposed %s',
+  async (timing) => {
+    const child = spawn(`${process.execPath}.botharness-missing`, [], {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      windowsHide: true,
+    });
+    const kill = vi.spyOn(child, 'kill').mockReturnValue(false);
+    const closed = new Promise<void>((resolve) => child.once('close', () => resolve()));
+    const stopped = vi.fn();
+    const stop = watchTailnet(
+      () => {},
+      stopped,
+      () => child,
+    );
+    try {
+      if (timing === 'after-error') await closed;
+      await stop();
+      await closed;
+      expect(kill).not.toHaveBeenCalled();
+      if (timing === 'after-error')
+        expect(stopped).toHaveBeenCalledWith('tailnet-watch-unavailable');
+      else expect(stopped).not.toHaveBeenCalled();
+    } finally {
+      kill.mockRestore();
+    }
+  },
+);
 
 it('does not finish disposal until its owned subprocess has exited', async () => {
   const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {

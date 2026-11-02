@@ -89,7 +89,12 @@ export function relayForEnv(env: ConnectRelayEnv): ReturnType<typeof createRelay
     reclaimAfterMs: positive(env.RECLAIM_AFTER_MINUTES, 5) * 60 * 1000,
     ...(limiter === undefined
       ? {}
-      : { limit: async (account: string) => (await limiter.limit({ key: account })).success }),
+      : {
+          limit: async (account: string) => (await limiter.limit({ key: account })).success,
+          limitBot: async (account: string, hostId: string) =>
+            (await limiter.limit({ key: JSON.stringify(['bot-network', account, hostId]) }))
+              .success,
+        }),
     ...(apiKey ? { deleteUser: workosUserDeleter(apiKey) } : {}),
     deleteMarketplaceAuthor: marketplaceAuthorDeleter(
       env.MARKET === undefined ? fetch : env.MARKET.fetch.bind(env.MARKET),

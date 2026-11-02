@@ -1,4 +1,6 @@
 import type { EncryptionIdentity } from './noise-identity.js';
+import type { LanBotControl, LanBotSnapshot } from './bot-lan-control.js';
+import { hostId } from './bot-network-wire.js';
 import { encode } from 'uqr';
 import type { DeviceLan, LanStatus } from './lan.js';
 
@@ -31,6 +33,7 @@ export interface PairingPayload {
 }
 
 export interface DevicesSnapshot {
+  lanBots?: LanBotSnapshot;
   lan?: LanStatus;
   host: HostIdentity;
   devices: PairedDevice[];
@@ -111,6 +114,7 @@ export function createDevicesHttp(options: {
   connect?: DeviceConnect;
   account?: ConnectAccount;
   lan?: DeviceLan;
+  lanBots?: LanBotControl;
 }): (request: Request) => Promise<Response> {
   const { pairing, connect, account } = options;
   return async (request) => {
@@ -120,6 +124,7 @@ export function createDevicesHttp(options: {
     if (request.method === 'GET' && path === DEVICES_PATH) {
       const snapshot: DevicesSnapshot = {
         ...(options.lan ? { lan: options.lan.status() } : {}),
+        ...(options.lanBots ? { lanBots: await options.lanBots.snapshot() } : {}),
         host: pairing.host(),
         devices: pairing.list(),
         pendingKeys: pairing.pendingKeys(),
@@ -217,6 +222,37 @@ export function createDevicesHttp(options: {
         },
         409,
       );
+    }
+    if (path === `${DEVICES_PATH}/lan-bots` && options.lanBots) {
+      if (request.method === 'GET') return json(await options.lanBots.snapshot());
+      if (request.method !== 'POST') return json({ code: 'method-not-allowed' }, 405);
+      const input = await body(request);
+      if (input['confirm'] !== true) return json({ code: 'confirm-required' }, 400);
+      const host = hostId.safeParse(input['hostId']);
+      if (!host.success) return json({ code: 'network-host-invalid' }, 400);
+      try {
+        if (input['action'] === 'revoke') return json(await options.lanBots.revoke(host.data));
+        if (
+          input['action'] !== 'admit' ||
+          typeof input['publicKey'] !== 'string' ||
+          !/^[a-f0-9]{64}$/u.test(input['publicKey'])
+        )
+          return json({ code: 'network-admission-invalid' }, 400);
+        return json(
+          await options.lanBots.admit({ hostId: host.data, publicKey: input['publicKey'] }),
+        );
+      } catch (error) {
+        const code =
+          error instanceof Error &&
+          [
+            'network-candidate-unavailable',
+            'network-identity-changed',
+            'network-admission-limit',
+          ].includes(error.message)
+            ? error.message
+            : 'network-admission-unavailable';
+        return json({ code }, 409);
+      }
     }
     if (request.method === 'POST' && path === `${DEVICES_PATH}/lan` && options.lan) {
       const input = await body(request);

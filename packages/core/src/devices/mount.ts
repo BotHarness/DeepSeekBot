@@ -1,3 +1,9 @@
+import { createConnectBotBridge } from './bot-connect-bridge.js';
+import { BOT_CONNECT_PATH } from './bot-connect-channel.js';
+import { createLanBotBridge } from './bot-lan-bridge.js';
+import { createLanBotDiscovery } from './bot-lan-discovery.js';
+import { createLanBotMembership } from './bot-lan-membership.js';
+import { createLanBotControl } from './bot-lan-control.js';
 import { createActivityDelivery, type ActivityDelivery } from '../live-activity/delivery.js';
 import type { ChannelSendStatus } from '../channels/store.js';
 import { createNoiseIdentity } from './noise-identity.js';
@@ -9,7 +15,12 @@ import { createDeviceLan } from './lan.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { hostname, platform } from 'node:os';
 import { createTailnetBotBridge } from './bot-tailnet-bridge.js';
-import { receiveNetworkBotDm, type BotNetworkPort } from '../runtime/bot-network.js';
+import { createBotNetworkRoutes } from './bot-network-routes.js';
+import {
+  receiveNetworkBotDm,
+  BotNetworkDeliveryError,
+  type BotNetworkPort,
+} from '../runtime/bot-network.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { ChannelStore } from '../channels/store.js';
 import { join } from 'node:path';
@@ -175,8 +186,38 @@ export function mountDevicePairing(
   });
   const identity = createNoiseIdentity(options.credentials ?? (() => undefined));
   ctx.effect(() => () => identity.close(), 'botharness: Host encryption identity');
+  const botNetworks = createBotNetworkRoutes({
+    withdrawn: async (hostId) => options.botNetwork?.withdrawNetworkMembership(hostId),
+  });
+  const localBotDirectory = () => {
+    const owners = options.botNetwork;
+    if (owners === undefined) return [];
+    const host = pairing.host();
+    return owners.registry
+      .list()
+      .filter((bot) => bot.paused !== true)
+      .map((bot) => ({
+        hostId: host.id,
+        botSlug: bot.slug,
+        displayName: bot.displayName.slice(0, 128),
+        ...(bot.description === undefined ? {} : { description: bot.description.slice(0, 1000) }),
+        device: { model: null, platform: platform() },
+        capabilities: [
+          ...(bot.computerAccess === true && ctx.get('botharnessComputer') !== undefined
+            ? ['computer']
+            : []),
+          ...(bot.browserAccess === true && ctx.get('botharnessBrowserTools') !== undefined
+            ? ['browser']
+            : []),
+        ],
+      }));
+  };
   if (options.botNetwork !== undefined) {
     const owners = options.botNetwork;
+    ctx.effect(() => {
+      owners.available(botNetworks);
+      return () => owners.available(undefined);
+    }, 'botharness: Bot network capability');
     ctx.effect(() => {
       const host = pairing.host();
       const bridge = createTailnetBotBridge({
@@ -199,28 +240,9 @@ export function mountDevicePairing(
                   },
                 ],
           ),
-        withdrawn: (hostId) => owners.withdrawNetworkMembership(hostId),
-        directory: () =>
-          owners.registry
-            .list()
-            .filter((bot) => bot.paused !== true)
-            .map((bot) => ({
-              hostId: host.id,
-              botSlug: bot.slug,
-              displayName: bot.displayName.slice(0, 128),
-              ...(bot.description === undefined
-                ? {}
-                : { description: bot.description.slice(0, 1000) }),
-              device: { model: null, platform: platform() },
-              capabilities: [
-                ...(bot.computerAccess === true && ctx.get('botharnessComputer') !== undefined
-                  ? ['computer']
-                  : []),
-                ...(bot.browserAccess === true && ctx.get('botharnessBrowserTools') !== undefined
-                  ? ['browser']
-                  : []),
-              ],
-            })),
+        withdrawn: (hostId) => botNetworks.observeWithdrawal(hostId),
+        unbound: (hostId) => owners.withdrawNetworkMembership(hostId),
+        directory: localBotDirectory,
         receive: (sender, message) => receiveNetworkBotDm(owners, sender, message),
         record: (event) =>
           write(
@@ -229,7 +251,7 @@ export function mountDevicePairing(
             JSON.stringify({ module: 'bot-network', initiator: 'host', ...event }),
           ),
       });
-      owners.available(bridge);
+      const detach = botNetworks.attach({ ...bridge, membership: bridge.probeMembership });
       let starting: Promise<void> | undefined;
       const start = () => {
         const started = Date.now();
@@ -260,7 +282,7 @@ export function mountDevicePairing(
       void start();
       return () => {
         clearInterval(retryListener);
-        owners.available(undefined);
+        detach();
         return bridge.close();
       };
     }, 'botharness: online Bot collaboration bridge');
@@ -307,6 +329,34 @@ export function mountDevicePairing(
     const connection = (webCtx as unknown as { connection: ConnectionLike }).connection;
     const webServer = (webCtx as unknown as { webServer: WebServerLike }).webServer;
     const lanKey = credentialKey('botharness-core', 'device-lan');
+    let lanDiscovery: ReturnType<typeof createLanBotDiscovery> | undefined;
+    let lanBridge: ReturnType<typeof createLanBotBridge> | undefined;
+    const lanMembership = createLanBotMembership({
+      database: attachOperationalModule(options.database, 'bot-lan'),
+      candidate: (id) => lanDiscovery?.candidates().find((candidate) => candidate.hostId === id),
+      knownKey: (id) => options.botNetwork?.channels.remoteHostKey?.(id),
+    });
+    if (options.botNetwork)
+      webCtx.effect(
+        () =>
+          botNetworks.attach({
+            contacts: () => lanBridge?.contacts() ?? [],
+            refresh: async () => {
+              await lanBridge?.refresh();
+            },
+            availability: (host, bot) => lanBridge?.availability(host, bot) ?? 'unavailable',
+            membership: async (host) => {
+              if (lanBridge) return lanBridge.membership(host);
+              const record = lanMembership.get(host);
+              return record && record.revokedAt !== null ? 'withdrawn' : 'unavailable';
+            },
+            send: async (host, message) => {
+              if (!lanBridge) throw new BotNetworkDeliveryError('unable-to-deliver');
+              await lanBridge.send(host, message);
+            },
+          }),
+        'botharness: LAN Bot network capability',
+      );
     const lan = createDeviceLan({
       read: async () => {
         const credentials = options.credentials?.();
@@ -338,9 +388,110 @@ export function mountDevicePairing(
             localVideoCommand(videoOwner(), { deviceId }, command, signal),
           log: (phase) => write('device-lan', phase, `device-lan phase=${phase}`),
         }),
+      ...(options.botNetwork === undefined
+        ? {}
+        : {
+            collaboration: () => {
+              const owners = options.botNetwork!;
+              const host = pairing.host();
+              const record = (event: { phase: string; durationMs: number; code?: string }) =>
+                write(
+                  'bot-network',
+                  event.phase,
+                  JSON.stringify({ module: 'bot-network', initiator: 'host', ...event }),
+                );
+              const discovery = createLanBotDiscovery({
+                identity: async () => ({
+                  hostId: host.id,
+                  name: host.name.slice(0, 128),
+                  publicKey: (await identity.publicIdentity()).publicKey,
+                }),
+                record,
+              });
+              lanDiscovery = discovery;
+              const bridge = createLanBotBridge({
+                hostId: host.id,
+                key: identity.key,
+                peers: discovery.candidates,
+                admission: lanMembership,
+                knownKey: (id) => owners.channels.remoteHostKey?.(id),
+                trustKey: (id, key, membership) => {
+                  if (!owners.channels.trustRemoteHostKey)
+                    throw new Error('network-key-storage-unavailable');
+                  owners.channels.trustRemoteHostKey(id, key, membership);
+                },
+                knownMemberships: () =>
+                  owners.channels.list().flatMap((channel) =>
+                    channel.remoteBot?.membership
+                      ? [
+                          {
+                            hostId: channel.remoteBot.hostId,
+                            membership: channel.remoteBot.membership,
+                          },
+                        ]
+                      : [],
+                  ),
+                withdrawn: (id) => botNetworks.observeWithdrawal(id),
+                unbound: (id) => owners.withdrawNetworkMembership(id),
+                directory: localBotDirectory,
+                receive: (sender, message) => receiveNetworkBotDm(owners, sender, message),
+                record,
+              });
+              lanBridge = bridge;
+              let sweep: ReturnType<typeof setInterval> | undefined;
+              let pending = false;
+              let closed = false;
+              const refresh = () => {
+                if (closed || pending) return;
+                pending = true;
+                void bridge
+                  .refresh(true)
+                  .catch(() => record({ phase: 'lan-refresh-failed', durationMs: 0 }))
+                  .finally(() => {
+                    pending = false;
+                  });
+              };
+              return {
+                handle: bridge.handle,
+                async start(port: number) {
+                  await discovery.start(port);
+                  if (closed) return;
+                  refresh();
+                  sweep = setInterval(refresh, 10_000);
+                  sweep.unref();
+                },
+                close() {
+                  if (closed) return;
+                  closed = true;
+                  clearInterval(sweep);
+                  bridge.close();
+                  discovery.close();
+                  if (lanDiscovery === discovery) lanDiscovery = undefined;
+                  if (lanBridge === bridge) lanBridge = undefined;
+                },
+              };
+            },
+          }),
       log: (event) =>
         write('device-lan', event.phase, JSON.stringify({ module: 'device-lan', ...event })),
     });
+    const lanBots =
+      options.botNetwork === undefined
+        ? undefined
+        : createLanBotControl({
+            membership: lanMembership,
+            candidates: () => lanDiscovery?.candidates() ?? [],
+            state: () => lanDiscovery?.status() ?? 'off',
+            identity: async () => ({
+              hostId: pairing.host().id,
+              name: pairing.host().name,
+              publicKey: (await identity.publicIdentity()).publicKey,
+            }),
+            changed: async (host) => {
+              await lanBridge?.refresh();
+              await botNetworks.observeWithdrawal(host);
+            },
+          });
     webCtx.effect(() => {
       void lan.start();
       return () => {
@@ -399,6 +550,69 @@ export function mountDevicePairing(
         recordConnectTelemetry(options.telemetry, phase);
       },
     });
+    let connectBots: ReturnType<typeof createConnectBotBridge> | undefined;
+    if (options.botNetwork !== undefined) {
+      const owners = options.botNetwork;
+      connectBots = createConnectBotBridge({
+        hostId: pairing.host().id,
+        key: identity.key,
+        account: account.botNetwork,
+        directory: localBotDirectory,
+        receive: (sender, message) => receiveNetworkBotDm(owners, sender, message),
+        knownKey: (id) => owners.channels.remoteHostKey?.(id),
+        trustKey: (id, key, membership) => {
+          if (!owners.channels.trustRemoteHostKey)
+            throw new Error('network-key-storage-unavailable');
+          owners.channels.trustRemoteHostKey(id, key, membership);
+        },
+        knownMemberships: () =>
+          owners.channels.list().flatMap((channel) =>
+            channel.remoteBot?.membership === undefined
+              ? []
+              : [
+                  {
+                    hostId: channel.remoteBot.hostId,
+                    membership: channel.remoteBot.membership,
+                  },
+                ],
+          ),
+        withdrawn: (hostId) => botNetworks.observeWithdrawal(hostId),
+        unbound: (hostId) => owners.withdrawNetworkMembership(hostId),
+        record: (event) =>
+          write(
+            'bot-network',
+            event.phase,
+            JSON.stringify({ module: 'bot-network', initiator: 'host', ...event }),
+          ),
+      });
+      const bridge = connectBots;
+      webCtx.effect(() => {
+        const detach = botNetworks.attach(bridge);
+        const refresh = () => {
+          const started = Date.now();
+          void bridge.refresh(true).catch(() =>
+            write(
+              'bot-network',
+              'connect-refresh-refused',
+              JSON.stringify({
+                module: 'bot-network',
+                initiator: 'host',
+                phase: 'connect-refresh-refused',
+                code: 'connect-unavailable',
+                durationMs: Date.now() - started,
+              }),
+            ),
+          );
+        };
+        const timer = setInterval(refresh, 60_000);
+        timer.unref();
+        return () => {
+          clearInterval(timer);
+          detach();
+          bridge.close();
+        };
+      }, 'botharness: Connect Bot network');
+    }
     if (options.requestStatus) {
       activity = createActivityDelivery({
         database: attachOperationalModule(options.database, 'live-activity'),
@@ -444,7 +658,22 @@ export function mountDevicePairing(
       }, 'botharness: Live Activity delivery');
     }
     webCtx.effect(() => {
-      void connect.start().then(() => account.start());
+      void connect
+        .start()
+        .then(() => account.start())
+        .then(() => connectBots?.refresh(true))
+        .catch(() => {
+          write(
+            'bot-network',
+            'connect-start-refused',
+            JSON.stringify({
+              module: 'bot-network',
+              initiator: 'host',
+              phase: 'connect-start-refused',
+              code: 'connect-unavailable',
+            }),
+          );
+        });
       options.onAccount?.(account);
       return () => {
         options.onAccount?.(undefined);
@@ -491,6 +720,7 @@ export function mountDevicePairing(
       connect,
       account,
       lan,
+      ...(lanBots ? { lanBots } : {}),
       publish: async () => {
         await publishingReady;
         return publishing.enable();
@@ -509,6 +739,7 @@ export function mountDevicePairing(
       [`${DEVICES_PATH}/revoke`, ['POST']],
       [`${DEVICES_PATH}/connect`, ['POST']],
       [`${DEVICES_PATH}/lan`, ['POST']],
+      [`${DEVICES_PATH}/lan-bots`, ['GET', 'POST']],
     ] as const)
       webCtx.effect(
         () =>
@@ -548,6 +779,15 @@ export function mountDevicePairing(
           kind: 'prefix',
           path: DEVICE_GATEWAY_PREFIX,
           handler: async (request, response) => {
+            if (request.url?.startsWith(`${BOT_CONNECT_PATH}/`)) {
+              if (connectBots === undefined) {
+                response.writeHead(503);
+                response.end();
+                return;
+              }
+              await connectBots.handle(request, response);
+              return;
+            }
             if (request.url === CONNECT_CHANNEL_PATH) {
               if (request.method !== 'GET') {
                 response.writeHead(405);

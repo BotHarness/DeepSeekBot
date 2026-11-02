@@ -1,3 +1,4 @@
+import { createConnectBotNetwork } from './connect-bot-network.js';
 import type { ActivityProvider } from '../live-activity/contract.js';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { hostname as osHostname } from 'node:os';
@@ -43,6 +44,7 @@ export type AccountResult =
 export type OfferVerification = { ok: true; verifierHash: string; name?: string } | { ok: false };
 
 export interface ConnectAccount {
+  botNetwork: ReturnType<typeof createConnectBotNetwork>;
   activity: ActivityProvider;
   status(): AccountStatus;
   verifyOffer(body: string, signature: string | undefined): Promise<OfferVerification>;
@@ -134,6 +136,7 @@ export function createConnectAccount(options: {
   let attempt = 0;
   let watch: ReturnType<typeof setInterval> | undefined;
   let cached: string | undefined;
+  let botNetworkClosed = false;
   let queue: Promise<unknown> = Promise.resolve();
 
   const serial = <T>(work: () => Promise<T>): Promise<T> => {
@@ -538,7 +541,59 @@ export function createConnectAccount(options: {
         return { status: 503, body: {} };
       }
     });
+  const botNetwork = createConnectBotNetwork({
+    fetch: fetcher,
+    revoked: () =>
+      status.state === 'signed-out' ||
+      (status.state === 'error' && status.issue === 'session-expired'),
+    session: () =>
+      serial(async () => {
+        if (botNetworkClosed || status.state !== 'signed-in') return undefined;
+        const generation = attempt;
+        try {
+          const stored = await read();
+          if (!stored?.hostId || !stored.account || !stored.relayKey) return undefined;
+          const accessToken = cached ?? (await refresh(stored));
+          const localId = stored.hostId;
+          return {
+            relay,
+            accountId: stored.account,
+            localId,
+            relayKey: stored.relayKey,
+            accessToken,
+            refresh: () =>
+              serial(async () => {
+                if (
+                  botNetworkClosed ||
+                  attempt !== generation ||
+                  status.state !== 'signed-in' ||
+                  status.hostId !== localId
+                )
+                  return undefined;
+                try {
+                  const latest = await read();
+                  if (!latest || latest.hostId !== localId || latest.account !== stored.account)
+                    return undefined;
+                  return await refresh(latest);
+                } catch (error) {
+                  if (error instanceof AccountError && error.issue === 'session-expired')
+                    await revoke(error, stored);
+                  return undefined;
+                }
+              }),
+            current: () =>
+              !botNetworkClosed &&
+              attempt === generation &&
+              status.state === 'signed-in' &&
+              status.hostId === localId,
+          };
+        } catch {
+          return undefined;
+        }
+      }),
+  });
   return {
+    botNetwork,
     activity: {
       async capability(signal) {
         const result = await activityCall(undefined, signal);
@@ -636,6 +691,7 @@ export function createConnectAccount(options: {
         return { ok: true, status: { ...status } };
       }),
     async close() {
+      botNetworkClosed = true;
       attempt += 1;
       clearInterval(watch);
       watch = undefined;

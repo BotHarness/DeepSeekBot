@@ -4,10 +4,15 @@ import { CliLiveError } from './cli-live-error.js';
 import { noiseFingerprint } from '../devices/noise/xk.js';
 
 export const DEVICES_COMMANDS = [
+  {
+    command: 'bot-lan',
+    description:
+      'list nearby Hosts; admit <host-id> <public-key> or revoke <host-id> with --confirm',
+  },
   { command: 'device-requests', description: 'list pending exact-key device approval requests' },
   {
     command: 'device-lan',
-    description: 'enable --confirm or disable encrypted phone access on the local network',
+    description: 'enable --confirm or disable encrypted LAN access and nearby Host discovery',
   },
   {
     command: 'device-approve-key',
@@ -53,6 +58,46 @@ export async function runDevicesCommand(
     writeFileSync(path, `${text}\n`, { flag: 'wx', mode: 0o600 }),
   exists: (path: string) => boolean = existsSync,
 ): Promise<unknown> {
+  if (command === 'bot-lan') {
+    const [action, hostId, publicKey] = rest;
+    const valid =
+      action === 'list'
+        ? rest.length === 1
+        : action === 'revoke'
+          ? rest.length === 2
+          : action === 'admit' && rest.length === 3 && /^[a-f0-9]{64}$/u.test(publicKey ?? '');
+    if (
+      !valid ||
+      values.out !== undefined ||
+      (action !== 'list' && !/^[a-zA-Z0-9_-]{1,128}$/u.test(hostId ?? ''))
+    )
+      throw new CliLiveError(
+        'usage',
+        'bot-lan takes list, admit <host-id> <public-key> --confirm, or revoke <host-id> --confirm.',
+      );
+    if (action !== 'list' && values.confirm !== true)
+      throw new CliLiveError(
+        'confirm-required',
+        'Compare the Host identity before changing LAN Bot access. Pass --confirm.',
+      );
+    const host = await connect();
+    const response = await host.http(
+      `${DEVICES}/lan-bots`,
+      action === 'list'
+        ? undefined
+        : {
+            action,
+            hostId,
+            ...(action === 'admit' ? { publicKey } : {}),
+            confirm: true,
+          },
+    );
+    try {
+      const parsed: unknown = JSON.parse(new TextDecoder().decode(response.bytes));
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    } catch {}
+    throw new CliLiveError('host-protocol-error', 'The Host did not return a JSON object.');
+  }
   const takes =
     command === 'device-approve-key'
       ? 2
@@ -76,7 +121,7 @@ export async function runDevicesCommand(
     if (rest[0] === 'enable' && values.confirm !== true)
       throw new CliLiveError(
         'confirm-required',
-        'LAN access opens an encrypted phone entry on this network. Pass --confirm.',
+        'LAN access opens an encrypted device entry and advertises this Host nearby. Pass --confirm.',
       );
   }
   if (command === 'device-offer') {
@@ -140,6 +185,7 @@ export async function runDevicesCommand(
       ...(pendingKeys === undefined ? {} : { pendingKeys }),
       routes: snapshot['routes'],
       ...(snapshot['lan'] === undefined ? {} : { lan: snapshot['lan'] }),
+      ...(snapshot['lanBots'] === undefined ? {} : { lanBots: snapshot['lanBots'] }),
     };
   }
   if (command === 'device-lan')

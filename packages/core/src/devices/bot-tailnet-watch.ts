@@ -94,7 +94,7 @@ export function watchTailnet(
   const fail = (code: 'tailnet-watch-unavailable' | 'tailnet-watch-invalid') => {
     if (closed) return;
     closed = true;
-    child?.kill();
+    if (child?.pid !== undefined) child.kill();
     void Promise.all(exits).then(() => stopped(code));
   };
   const launch = (index: number) => {
@@ -123,7 +123,7 @@ export function watchTailnet(
   launch(0);
   return async () => {
     closed = true;
-    child?.kill();
+    if (child?.pid !== undefined) child.kill();
     await Promise.all(exits);
   };
 }

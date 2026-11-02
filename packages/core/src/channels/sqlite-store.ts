@@ -41,6 +41,7 @@ import {
   botDmChannelId,
   remoteBotDmRecord,
   isBotNetworkMembership,
+  mergeBotNetworkMembership,
   dmChannelId,
   isBotDmChannel,
   MAX_BOT_HOPS,
@@ -1442,13 +1443,24 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           WHERE json_extract(record_json, '$.remoteBot.hostId') = ?`)
             .run(key, host);
           if (result.changes === 0) throw new Error('network-channel-required');
-          if (membership !== undefined)
-            db.prepare(`UPDATE channel_records
-              SET record_json = json_set(record_json, '$.remoteBot.membership', json(?))
-              WHERE json_extract(record_json, '$.remoteBot.hostId') = ?`).run(
-              JSON.stringify(membership),
-              host,
-            );
+          if (membership !== undefined) {
+            const rows = db
+              .prepare(`SELECT channel_id, record_json FROM channel_records
+              WHERE json_extract(record_json, '$.remoteBot.hostId') = ?`)
+              .all(host);
+            for (const row of rows) {
+              if (typeof row.channel_id !== 'string' || typeof row.record_json !== 'string')
+                throw new Error('network-channel-invalid');
+              const record = parseRecord(row.record_json, row.channel_id);
+              if (record?.remoteBot === undefined) throw new Error('network-channel-invalid');
+              const merged = mergeBotNetworkMembership(record.remoteBot.membership, membership);
+              db.prepare(`UPDATE channel_records SET record_json = json_set(record_json,
+                '$.remoteBot.membership', json(?)) WHERE channel_id = ?`).run(
+                JSON.stringify(merged),
+                row.channel_id,
+              );
+            }
+          }
         },
         ['channel'],
       );
@@ -1489,7 +1501,13 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
               ? pinned
               : {
                   ...pinned,
-                  remoteBot: { ...pinned.remoteBot!, membership: { ...remote.membership } },
+                  remoteBot: {
+                    ...pinned.remoteBot!,
+                    membership: mergeBotNetworkMembership(
+                      pinned.remoteBot?.membership,
+                      remote.membership,
+                    ),
+                  },
                 };
           db.prepare(`INSERT INTO channel_records (channel_id, record_json) VALUES (?, ?)
           ON CONFLICT(channel_id) DO UPDATE SET record_json = excluded.record_json`).run(

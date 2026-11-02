@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto';
+import { credentialKey } from '@deepseek-ai/dsh-credentials';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -486,4 +487,62 @@ describe('connect sign-in CLI', () => {
       runConnectCommand('connect-status', [], { wait: true }, {}, async () => ({ http })),
     ).rejects.toMatchObject({ code: 'usage' });
   });
+});
+
+it('uses the account credential owner for Bot verification and rejects it after sign-out', async () => {
+  const services = fakeServices();
+  const credentials = memoryCredentials();
+  const receiver = { id: 'hbbbbbbbbbbbb', hostId: 'local-host', publicKey: 'b'.repeat(64) };
+  const sender = { id: 'haaaaaaaaaaaa', hostId: 'remote-host', publicKey: 'a'.repeat(64) };
+  services.hosts.add(receiver.id);
+  credentials.records.set(credentialKey('botharness-core', 'connect-account'), {
+    kind: 'grant',
+    payload: {
+      relay: RELAY,
+      clientId: CLIENT,
+      refreshToken: 'refresh-0',
+      hostId: receiver.id,
+      account: 'user_alice',
+      relayKey: RELAY_KEY,
+    },
+  });
+  const account = createConnectAccount({
+    credentials: () => credentials.provider,
+    connect: fakeConnect().connect,
+    relay: RELAY,
+    freePort: async () => 41001,
+    fetch: async (input, init) => {
+      if (String(input) === `${RELAY}/v1/hosts` && (init?.method ?? 'GET') === 'GET')
+        return Response.json({
+          hosts: [receiver, sender].map((peer) => ({
+            id: peer.id,
+            hostname: `${peer.id}.deepseekbot.dev`,
+            botNetwork: { hostId: peer.hostId, publicKey: peer.publicKey },
+          })),
+        });
+      return services.fetcher(input, init);
+    },
+  });
+  try {
+    await account.start();
+    const payload = JSON.stringify({
+      purpose: 'bot-network-peer-v1',
+      account: 'user_alice',
+      sender,
+      recipient: receiver,
+      issuedAt: new Date().toISOString(),
+      nonce: 'n'.repeat(32),
+    });
+    const grant = {
+      payload,
+      signature: createHmac('sha256', RELAY_KEY).update(payload).digest('base64url'),
+    };
+    expect(await account.botNetwork.verify(receiver, grant)).toMatchObject(sender);
+    await account.signOut();
+    await expect(account.botNetwork.verify(receiver, grant)).rejects.toMatchObject({
+      code: 'network-denied',
+    });
+  } finally {
+    await account.close();
+  }
 });

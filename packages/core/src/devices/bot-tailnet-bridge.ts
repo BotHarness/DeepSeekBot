@@ -8,17 +8,21 @@ import {
 } from './bot-network-noise.js';
 import { createServer, request, type IncomingMessage, type Server } from 'node:http';
 import { z } from 'zod';
+import { hostId, pageSchema, messageSchema } from './bot-network-wire.js';
 import { createBotTailnet, type BotTailnet, type TailnetMember } from './bot-tailnet.js';
 import type { TailnetChange } from './bot-tailnet-watch.js';
 import type { NetworkBotContact } from '../runtime/bot-contact-discovery.js';
-import type { BotNetworkMembership } from '../channels/channel.js';
+import {
+  botNetworkScopes,
+  type BotNetworkMembership,
+  type TailnetBotMembership,
+} from '../channels/channel.js';
 import type { BotNetworkPort, NetworkBotMessage } from '../runtime/bot-network.js';
 import { BotNetworkDeliveryError as DeliveryError } from '../runtime/bot-network.js';
 
 const ROOT = '/botharness-bots/v1';
 const PORTS = [43191, 43192, 43193, 43194, 43195, 43196, 43197, 43198];
 const LIMIT = 192 * 1024;
-const keySchema = z.string().regex(/^[0-9a-f]{64}$/u);
 const flightSchema = z
   .string()
   .min(1)
@@ -29,42 +33,6 @@ const handshakeReplySchema = z.object({
   flight: flightSchema,
 });
 const sealedSchema = handshakeReplySchema.extend({ frames: z.array(z.string()).min(1).max(3) });
-const hostId = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/u);
-const slug = z
-  .string()
-  .max(64)
-  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
-const contactSchema = z.object({
-  hostId,
-  botSlug: slug,
-  displayName: z.string().max(128),
-  description: z.string().max(1000).optional(),
-  device: z.object({
-    model: z.string().max(128).nullable(),
-    platform: z.string().max(128).nullable(),
-  }),
-  capabilities: z.array(z.string().max(48)).max(8),
-});
-const pageSchema = z.object({
-  hostId,
-  publicKey: keySchema,
-  contacts: z.array(contactSchema).max(50),
-  next: z.number().int().positive().optional(),
-});
-const messageSchema = z
-  .object({
-    id: z.string().min(1).max(128),
-    at: z.iso.datetime(),
-    senderBotSlug: slug,
-    recipientBotSlug: slug,
-    body: z.string().min(1).max(20_000),
-    causation: z.object({
-      rootSourceEventId: z.string().min(1).max(128),
-      parentSourceEventId: z.string().min(1).max(128),
-      hop: z.number().int().positive().max(1000),
-    }),
-  })
-  .strict();
 
 async function readBody(message: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
@@ -155,12 +123,18 @@ export function createTailnetBotBridge(options: {
   trustKey?(hostId: string, publicKey: string, membership?: BotNetworkMembership): void;
   knownMemberships?(): readonly { hostId: string; membership: BotNetworkMembership }[];
   withdrawn?(hostId: string): Promise<void>;
+  unbound?(hostId: string): Promise<void>;
   directory(): readonly NetworkBotContact[];
   receive(sender: NetworkBotContact, message: NetworkBotMessage): Promise<void>;
   tailnet?: BotTailnet;
   ports?: readonly number[];
   record?: (event: { phase: string; durationMs: number; code?: string; stage?: string }) => void;
-}): BotNetworkPort & { start(): Promise<void>; discover(): Promise<void>; close(): Promise<void> } {
+}): BotNetworkPort & {
+  start(): Promise<void>;
+  discover(): Promise<void>;
+  close(): Promise<void>;
+  probeMembership(hostId: string): Promise<'member' | 'withdrawn' | 'unavailable'>;
+} {
   const tailnet = options.tailnet ?? createBotTailnet();
   const ports = options.ports ?? PORTS;
   const routes = new Map<string, Route>();
@@ -248,7 +222,11 @@ export function createTailnetBotBridge(options: {
   }
 
   function memberships() {
-    return options.knownMemberships?.() ?? [];
+    return (options.knownMemberships?.() ?? []).flatMap(({ hostId, membership }) =>
+      botNetworkScopes(membership)
+        .filter((scope): scope is TailnetBotMembership => scope.kind === 'tailnet')
+        .map((scope) => ({ hostId, membership: scope })),
+    );
   }
 
   function membershipIn(host: string, current: Awaited<ReturnType<BotTailnet['snapshot']>>) {
@@ -264,7 +242,7 @@ export function createTailnetBotBridge(options: {
       : ('withdrawn' as const);
   }
 
-  function authenticatedMembership(peer: TailnetMember): BotNetworkMembership {
+  function authenticatedMembership(peer: TailnetMember): TailnetBotMembership {
     if (!self) throw new DeliveryError('unable-to-deliver');
     return { kind: 'tailnet', localNodeId: self.nodeId, remoteNodeId: peer.nodeId };
   }
@@ -284,7 +262,11 @@ export function createTailnetBotBridge(options: {
         checkKey(host, key);
         const previousMemberships = memberships().filter((known) => known.hostId === host);
         if (
-          (options.knownKey?.(host) !== undefined && previousMemberships.length === 0) ||
+          options.knownKey?.(host) !== undefined &&
+          !(options.knownMemberships?.() ?? []).some((known) => known.hostId === host)
+        )
+          await (options.unbound ?? options.withdrawn)?.(host);
+        else if (
           previousMemberships.some(
             (known) =>
               known.membership.localNodeId !== membership.localNodeId ||
@@ -659,6 +641,15 @@ export function createTailnetBotBridge(options: {
         refreshing = undefined;
       });
       await refreshing;
+    },
+    async probeMembership(host: string) {
+      if (closed) return 'unavailable' as const;
+      if (observedWithdrawn.has(host)) return 'withdrawn' as const;
+      try {
+        return membershipIn(host, await tailnet.snapshot());
+      } catch {
+        return 'unavailable' as const;
+      }
     },
     async membership(host: string) {
       try {
