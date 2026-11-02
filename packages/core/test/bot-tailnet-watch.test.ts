@@ -1,6 +1,22 @@
 import { expect, it, vi } from 'vitest';
 import { spawn } from 'node:child_process';
-import { createTailnetNotificationReader, watchTailnet } from '../src/devices/bot-tailnet-watch.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  createTailnetNotificationReader,
+  spawnOwnedProcess,
+  watchTailnet,
+} from '../src/devices/bot-tailnet-watch.js';
+import { createTempRoot } from './helpers.js';
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 it.each(['immediate', 'after-error'] as const)(
   'never signals a subprocess that failed to start when disposed %s',
@@ -57,6 +73,37 @@ it('does not finish disposal until its owned subprocess has exited', async () =>
     }
   }
 });
+
+// macOS installs can put a two-line `/bin/sh` wrapper named `tailscale` on PATH that runs
+// the real binary as a child (no `exec`). Disposal must stop that child too and finish.
+it.skipIf(process.platform === 'win32')(
+  'stops a wrapper-launched watcher and the process it started when disposed',
+  async () => {
+    const pidFile = join(createTempRoot('botharness-tailnet-wrapper-'), 'inner.pid');
+    const inner = `require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); setInterval(() => {}, 1000);`;
+    const wrapper = `"${process.execPath}" -e "${inner.replaceAll('"', '\\"')}"\nexit $?`;
+    const stop = watchTailnet(
+      () => {},
+      () => {},
+      () => spawnOwnedProcess('/bin/sh', ['-c', wrapper]),
+    );
+    let innerPid: number | undefined;
+    try {
+      await vi.waitFor(
+        () => {
+          innerPid = Number(readFileSync(pidFile, 'utf8'));
+          expect(innerPid).toBeGreaterThan(0);
+        },
+        { timeout: 5000 },
+      );
+      await stop();
+      await vi.waitFor(() => expect(alive(innerPid!)).toBe(false), { timeout: 5000 });
+    } finally {
+      if (innerPid !== undefined && alive(innerPid)) process.kill(innerPid, 'SIGKILL');
+    }
+  },
+  10_000,
+);
 
 it('retains a removal followed by re-addition in the same native stream chunk', () => {
   const changes: unknown[] = [];
