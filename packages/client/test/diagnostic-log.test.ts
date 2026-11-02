@@ -175,6 +175,31 @@ describe('Client diagnostic recorder', () => {
     expect(responses[0]?.bodyUsed).toBe(true);
   });
 
+  it('splits a burst of large entries into requests under the Host body limit', async () => {
+    const { recorder, sent } = harness();
+    const bodies: number[] = [];
+    for (let index = 0; index < 99; index += 1)
+      recorder.record(
+        'error',
+        `burst-${index}`,
+        Object.fromEntries(
+          Array.from({ length: 20 }, (_, n) => [`f${n}`, `${index}`.padEnd(300, 'x')]),
+        ),
+        'error',
+      );
+    while (sent.reduce((total, batch) => total + batch.entries.length, 0) < 100) {
+      const before = sent.length;
+      await recorder.flush();
+      if (sent.length === before) break;
+    }
+    for (const batch of sent) bodies.push(JSON.stringify(batch).length);
+    expect(sent.length).toBeGreaterThan(1);
+    expect(Math.max(...bodies)).toBeLessThan(64 * 1024);
+    expect(
+      sent.flatMap((batch) => batch.entries).filter((entry) => entry.code.startsWith('burst-')),
+    ).toHaveLength(99);
+  });
+
   it('keeps entries for retry when the Host is unreachable', async () => {
     const send = vi
       .fn()

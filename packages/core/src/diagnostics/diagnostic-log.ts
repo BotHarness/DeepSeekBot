@@ -560,7 +560,9 @@ export function createDiagnosticLogHttp(options: DiagnosticLogHttpOptions) {
       const hours = hoursOf(url.searchParams.get('hours'));
       const until = now();
       const since = until - hours * 3_600_000;
-      const rows = database.range(since, DIAGNOSTIC_LOG_LIMITS.exportMaxRows + 1);
+      const rows = database
+        .range(since, DIAGNOSTIC_LOG_LIMITS.exportMaxRows + 1)
+        .filter((row) => row.ts <= until);
       const truncated = rows.length > DIAGNOSTIC_LOG_LIMITS.exportMaxRows;
       const { archive, manifest } = diagnosticLogArchive(truncated ? rows.slice(1) : rows, {
         since,

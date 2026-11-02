@@ -23,6 +23,7 @@ interface ClientLogEntry {
 
 const MAX_PENDING = 400;
 const MAX_BATCH = 100;
+const MAX_BATCH_CHARS = 48 * 1024;
 const FLUSH_MS = 3000;
 const URGENT_FLUSH_MS = 250;
 const MAX_TEXT = 300;
@@ -94,6 +95,17 @@ function consoleText(args: readonly unknown[]): { message: string; fields: Clien
     } else if (Object.keys(fields).length === 0) fields = clientLogFields(arg);
   }
   return { message: text(message), fields };
+}
+
+function batchSize(entries: readonly ClientLogEntry[]): number {
+  let chars = 0;
+  let count = 0;
+  for (const entry of entries) {
+    chars += JSON.stringify(entry).length + 1;
+    if (count > 0 && (count >= MAX_BATCH || chars > MAX_BATCH_CHARS)) break;
+    count += 1;
+  }
+  return count;
 }
 
 function roleOf(element: Element): string {
@@ -215,7 +227,7 @@ export function createClientLogRecorder(options: ClientLogRecorderOptions = {}):
       if (pending.length === 0) return;
     }
     if (pending.length === 0) return;
-    const entries = pending.slice(0, MAX_BATCH);
+    const entries = pending.slice(0, batchSize(pending));
     pending = pending.slice(entries.length);
     const lost = dropped;
     dropped = 0;
@@ -229,7 +241,11 @@ export function createClientLogRecorder(options: ClientLogRecorderOptions = {}):
           keepalive,
         });
         await response.text().catch(() => '');
-        if (!response.ok && response.status !== 400 && response.status !== 413)
+        if (
+          !response.ok &&
+          response.status !== 400 &&
+          !(response.status === 413 && entries.length === 1)
+        )
           throw new Error(`diagnostic log refused: ${response.status}`);
         failures = 0;
       } catch {

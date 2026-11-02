@@ -211,6 +211,22 @@ describe('diagnostic log export', () => {
     expect(byName.get('timeline.txt')).toMatch(/client\.navigation\s+select\s+kind="channel"/u);
   });
 
+  it('leaves entries dated after the export out of the archive', async () => {
+    const { http, now } = harness();
+    await http(
+      post({
+        version: 1,
+        session: SESSION,
+        entries: [
+          entry(now() - 1000, 'action', 'click'),
+          entry(now() + 3_600_000, 'action', 'later'),
+        ],
+      }),
+    );
+    const response = await http(get(`${DIAGNOSTIC_LOGS_EXPORT_PATH}?hours=1`));
+    expect(response.headers.get('x-diagnostic-log-entries')).toBe('1');
+  });
+
   it('refuses an out-of-range window', async () => {
     const { http } = harness();
     expect((await http(get(`${DIAGNOSTIC_LOGS_EXPORT_PATH}?hours=999`))).status).toBe(400);
