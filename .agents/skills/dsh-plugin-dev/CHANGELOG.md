@@ -10,6 +10,8 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
+- Prepared the downstream Tobs 1.6.1 release ledger; the independently versioned DSH Skill and its verified DSH provenance are unchanged ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
 - Synchronized downstream Tobs installation guidance after verified 1.6.0 publication; the independent Skill version and DSH provenance are unchanged ([#3195](https://github.com/BotHarness/DeepSeekBot/issues/3195)).
 
 - Prepared the downstream Tobs 1.6.0 release ledger; the independently versioned DSH Skill and its verified DSH provenance are unchanged ([#3195](https://github.com/BotHarness/DeepSeekBot/issues/3195)).
