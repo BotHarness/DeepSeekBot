@@ -171,6 +171,38 @@ describe('Grant policy for native DSH file tools', () => {
   });
 });
 
+describe('Native write into missing parent directories (#3289)', () => {
+  it('authorizes nested writes inside the workspace and keeps escapes refused', () => {
+    const f = fixture();
+    for (const path of ['probe/missing/child/file.md', '探针/不存在的子目录/深层探针.md']) {
+      expect(f.gate(f.orchestrator, 'write', { file_path: path, content: 'x' })).toBeUndefined();
+      expect(f.gate(f.orchestrator, 'edit', { file_path: path })).toBeUndefined();
+      expect(nativeExecutionRoot(f.core, f.orchestrator, 'write', { file_path: path })).toBe(
+        f.memory,
+      );
+    }
+    expect(
+      f.gate(f.orchestrator, 'write', { file_path: join(f.memory, 'a', 'b', 'c.md') }),
+    ).toBeUndefined();
+    f.allowWrite(true);
+    expect(
+      f.gate(f.oldAssignment, 'write', { file_path: 'docs/new/notes.md', content: 'x' }),
+    ).toBeUndefined();
+    expect(f.gate(f.oldAssignment, 'write', { file_path: 'escape/missing/new.txt' })).toMatch(
+      /outside/,
+    );
+    expect(f.gate(f.oldAssignment, 'write', { file_path: '../outside/missing/new.txt' })).toMatch(
+      /outside/,
+    );
+    expect(f.gate(f.oldAssignment, 'write', { file_path: 'dangling/child/new.txt' })).toMatch(
+      /outside|resolved|directory/,
+    );
+    expect(f.gate(f.oldAssignment, 'write', { file_path: 'project.txt/child.txt' })).toMatch(
+      /resolved|directory/,
+    );
+  });
+});
+
 describe('Orchestrator execution root selection', () => {
   it('uses exactly one current writable root, preserving relative Memory paths and revocation', () => {
     const f = fixture();

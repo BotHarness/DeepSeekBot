@@ -25,22 +25,34 @@ function within(root: string, target: string): boolean {
   return tail === '' || (tail !== '..' && !tail.startsWith('..' + sep) && !isAbsolute(tail));
 }
 
+function missingEntry(path: string): boolean {
+  try {
+    lstatSync(path);
+    return false;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'ENOENT';
+  }
+}
+
 function canonicalTarget(path: string): string | undefined {
   try {
     return realpathSync(path);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined;
+  }
+  const missing: string[] = [];
+  let current = path;
+  while (true) {
+    if (!missingEntry(current)) return undefined;
+    missing.unshift(basename(current));
+    const parent = dirname(current);
+    if (parent === current) return undefined;
     try {
-      lstatSync(path);
-      return undefined;
-    } catch (leafError) {
-      if ((leafError as NodeJS.ErrnoException).code !== 'ENOENT') return undefined;
+      return join(realpathSync(parent), ...missing);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return undefined;
     }
-    try {
-      return join(realpathSync(dirname(path)), basename(path));
-    } catch {
-      return undefined;
-    }
+    current = parent;
   }
 }
 

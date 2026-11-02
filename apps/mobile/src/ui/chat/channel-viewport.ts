@@ -12,7 +12,8 @@ export function useChannelViewport<Row>(
   onFollowingChange: ((following: boolean) => void) | undefined,
   start: number,
   empty: boolean,
-  streaming = false,
+  minIndexForVisible = 0,
+  inverted = false,
 ) {
   const reducedMotion = useReducedMotion();
   const latest = useFollowLatest(
@@ -21,7 +22,9 @@ export function useChannelViewport<Row>(
     onFollowingChange,
     start,
     empty,
-    streaming && !reducedMotion,
+    !reducedMotion,
+    minIndexForVisible,
+    inverted,
   );
   const overlayStyle = useChatOverlayStyle();
   const renderScrollComponent = useChatScrollAdapter(latest.keyboard, latest.away);

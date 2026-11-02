@@ -1,5 +1,5 @@
 import { bytesToHex, hexToBytes, concatBytes, utf8ToBytes } from '@noble/hashes/utils.js';
-import { NoiseXk, NOISE_PROTOCOL, type NoiseTransport } from './xk.js';
+import { NoiseXk, NOISE_PROTOCOL, type NoiseTransport, type NoiseKeyAgreement } from './xk.js';
 
 export const CONNECT_PROTOCOL = 'connect-noise-xk-v1';
 export const CONNECT_CHANNEL_PATH = '/botharness-device/channel';
@@ -35,6 +35,7 @@ export class ConnectChannel {
     ephemeralKey: Uint8Array;
     hostKey: Uint8Array;
     route?: 'connect' | 'lan';
+    keyAgreement?: NoiseKeyAgreement;
   }) {
     this.role = options.role;
     this.noise = new NoiseXk({

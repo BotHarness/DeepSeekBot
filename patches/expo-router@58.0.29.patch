@@ -1,0 +1,57 @@
+diff --git a/build/ExpoRoot.js b/build/ExpoRoot.js
+index 16d2be77b70c22a06a881853092ffaf80d0aed07..8611afc508e211cabcfbbd742d760dfdfd6beea2 100644
+--- a/build/ExpoRoot.js
++++ b/build/ExpoRoot.js
+@@ -35,6 +35,7 @@ const _constants = require("./constants");
+ const _useDomComponentNavigation = require("./domComponents/useDomComponentNavigation");
+ const _NavigationContainer = require("./fork/NavigationContainer");
+ const _navigationRef = require("./global-state/navigationRef");
++const _navigationRefBinding = require("./global-state/navigationRefBinding");
+ const _removalPrevention = require("./global-state/removalPrevention");
+ const _routerConfigContext = require("./global-state/routerConfigContext");
+ const _routingQueueContext = require("./global-state/routingQueueContext");
+@@ -140,6 +141,7 @@ function ContextNavigator({ context, location: initialLocation = initialUrl, wra
+         }
+         return undefined;
+     }, []);
++    const navigationBinding = (0, _react().useMemo)(() => (0, _navigationRefBinding.createNavigationRefBinding)(_navigationRef.navigationRef), []);
+     const { routerConfig, rootComponent } = (0, _useStore.useRouterConfig)(context, linking, serverUrl);
+     const { linking: linkingConfig, routeNode } = routerConfig;
+     (0, _useDomComponentNavigation.useDomComponentNavigation)();
+@@ -160,7 +162,7 @@ function ContextNavigator({ context, location: initialLocation = initialUrl, wra
+         value: routerConfig,
+         children: /*#__PURE__*/ (0, _jsxruntime().jsx)(_removalPrevention.RemovalPreventionProvider, {
+             children: /*#__PURE__*/ (0, _jsxruntime().jsx)(_NavigationContainer.NavigationContainer, {
+-                ref: _navigationRef.navigationRef,
++                ref: navigationBinding,
+                 linking: linkingConfig,
+                 children: /*#__PURE__*/ (0, _jsxruntime().jsx)(WrapperComponent, {
+                     children: /*#__PURE__*/ (0, _jsxruntime().jsx)(Content, {
+diff --git a/build/global-state/navigationRefBinding.d.ts b/build/global-state/navigationRefBinding.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..53af356db854edf59599d5f0ef029db402cc1ae3
+--- /dev/null
++++ b/build/global-state/navigationRefBinding.d.ts
+@@ -0,0 +1 @@
++export declare function createNavigationRefBinding<T>(ref: { current: T | null }): (navigation: T | null) => void;
+diff --git a/build/global-state/navigationRefBinding.js b/build/global-state/navigationRefBinding.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..135719184e85295b4ce3907d11b5982de0bf430f
+--- /dev/null
++++ b/build/global-state/navigationRefBinding.js
+@@ -0,0 +1,15 @@
++"use strict";
++Object.defineProperty(exports, "__esModule", { value: true });
++exports.createNavigationRefBinding = createNavigationRefBinding;
++function createNavigationRefBinding(ref) {
++  let owned = null;
++  return (navigation) => {
++    if (navigation !== null) {
++      owned = navigation;
++      ref.current = navigation;
++    } else {
++      if (ref.current === owned) ref.current = null;
++      owned = null;
++    }
++  };
++}

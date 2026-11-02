@@ -77,6 +77,70 @@ describe('explicit local Bot messages', { timeout: 60_000 }, () => {
     }
   });
 
+  it('treats schema-filled empty optional fields as absent (#3296)', async () => {
+    const f = await fixture();
+    try {
+      const source = await f.send('Reply please', async (run) => {
+        const tool = createBotMessageTool(() => run);
+        const context = {
+          callId: ToolCallId('filled'),
+          signal: new AbortController().signal,
+          concludeTurn: () => {},
+        } as ToolRunContext;
+        const args = {
+          source_event_id: run.triage!.current()[0],
+          body: '测试',
+          attachments: [],
+          binding_id: '',
+          bot_id: '',
+          channel_id: '',
+          conversation_id: '',
+          draft_id: '',
+          grant_id: '',
+          observation_id: '',
+          mention_bot_ids: [],
+          mention_human_ids: [],
+          recover: false,
+          resolve_inbox_ids: [],
+          freshness_override: { draftVersion: 0, reason: '' },
+        };
+        const result = receipt(await tool.execute(args, context));
+        expect(result).toMatchObject({ status: 'committed' });
+        expect(f.core.channels.readMessages(f.dm.id).some((m) => m.id === result.messageId)).toBe(
+          true,
+        );
+      });
+      expect(f.state(source)).toBe('open');
+    } finally {
+      await f.close();
+    }
+  });
+
+  it('names the conflicting destination fields when more than one is supplied', async () => {
+    const f = await fixture();
+    try {
+      await f.send('Reply please', async (run) => {
+        const tool = createBotMessageTool(() => run);
+        const context = {
+          callId: ToolCallId('conflict'),
+          signal: new AbortController().signal,
+          concludeTurn: () => {},
+        } as ToolRunContext;
+        await expect(
+          tool.execute(
+            { source_event_id: run.triage!.current()[0], channel_id: f.dm.id, body: 'x' },
+            context,
+          ),
+        ).rejects.toThrow(/got: source_event_id, channel_id/);
+        await expect(
+          tool.execute({ channel_id: '', grant_id: '  ', body: 'x' }, context),
+        ).rejects.toThrow(/got: none/);
+      });
+    } finally {
+      await f.close();
+    }
+  });
+
   it('keeps the delivered receipt and continues when Inbox storage refuses cleanup', async () => {
     const f = await fixture();
     const database = attachOperationalModule(f.core.operationalDatabase, 'message-storage-fault');

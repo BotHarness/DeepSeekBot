@@ -22,6 +22,25 @@ function platformOS(): PlatformOS {
 
 const AppearanceContext = createContext<Appearance>({});
 
+const resolvedAppearances = new WeakMap<
+  Appearance,
+  { scheme: ColorScheme; accent: string | undefined; os: PlatformOS; theme: DesignTheme }
+>();
+
+function sharedTheme(
+  owner: Appearance,
+  effective: Appearance,
+  system: ColorScheme,
+  os: PlatformOS,
+): DesignTheme {
+  const scheme = effective.scheme === 'system' ? system : (effective.scheme ?? system);
+  const previous = resolvedAppearances.get(owner);
+  if (previous?.scheme === scheme && previous.accent === effective.accent && previous.os === os)
+    return previous.theme;
+  const theme = resolveTheme(system, effective, os);
+  resolvedAppearances.set(owner, { scheme, accent: effective.accent, os, theme });
+  return theme;
+}
 const subscribeFontScale = (changed: () => void) => {
   const subscription = Dimensions.addEventListener('change', changed);
   return () => subscription.remove();
@@ -68,11 +87,11 @@ export function useDesignTheme(): DesignTheme {
   const fontScale = useSyncExternalStore(subscribeFontScale, fontScaleSnapshot, fontScaleSnapshot);
   return useMemo(
     () => ({
-      ...resolveTheme(system, effective, platformOS()),
+      ...sharedTheme(appearance, effective, system, platformOS()),
       fontScale,
       largeText: fontScale > 1.3,
     }),
-    [system, effective, fontScale],
+    [appearance, system, effective, fontScale],
   );
 }
 

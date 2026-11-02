@@ -477,7 +477,7 @@ export function createConversation(options: ConversationOptions): Conversation {
   let channelId = options.channelId;
   let window: JournalEntry[] = [];
   let hasOlder = false;
-  let loadingOlder = false;
+  let loadingOlderSession: number | undefined;
   let olderError = false;
   let fromCache = false;
   let status: ConversationStatus = 'opening';
@@ -491,6 +491,7 @@ export function createConversation(options: ConversationOptions): Conversation {
   let foreground = false;
   let acceptedSend: SendObservation | undefined;
   let session = 0;
+  let openedSession: number | undefined;
   let unfollow: (() => void) | undefined;
   let frames: Promise<void> = Promise.resolve();
   const presented = new WeakMap<JournalEntry, ConversationMessage>();
@@ -507,7 +508,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       messages: withMessages ? (messages = buildMessages()) : messages,
       drafts: [...drafts.values()],
       hasOlder,
-      loadingOlder,
+      loadingOlder: loadingOlderSession === session,
       ...(olderError ? { olderError: true } : {}),
       fromCache,
     };
@@ -719,6 +720,7 @@ export function createConversation(options: ConversationOptions): Conversation {
   const applyFrame = async (frame: ChannelLiveFrame, current: number): Promise<void> => {
     if (current !== session) return;
     if (frame.type === 'opened') {
+      openedSession = current;
       await advance(frame.cursor, frame.page);
       if (current !== session) return;
       fromCache = false;
@@ -888,7 +890,7 @@ export function createConversation(options: ConversationOptions): Conversation {
           ? undefined
           : options.cache?.read(cacheKey).catch(() => undefined)) ?? Promise.resolve(undefined);
       void cached.then((value) => {
-        if (current !== session) return;
+        if (current !== session || openedSession === current) return;
         if (value !== undefined && window.length === 0 && value.entries.length > 0) {
           window = [];
           merge(value.entries);
@@ -896,8 +898,8 @@ export function createConversation(options: ConversationOptions): Conversation {
           fromCache = true;
           publish();
         }
-        return open(current);
       });
+      void open(current);
     },
     stop() {
       running = false;
@@ -910,11 +912,11 @@ export function createConversation(options: ConversationOptions): Conversation {
       draftTimer = undefined;
     },
     async loadOlder() {
-      if (loadingOlder || !hasOlder || window.length === 0 || fromCache) return;
+      if (loadingOlderSession === session || !hasOlder || window.length === 0 || fromCache) return;
       if (status !== 'live') return;
       const current = session;
       const before = first();
-      loadingOlder = true;
+      loadingOlderSession = current;
       olderError = false;
       publish();
       try {
@@ -929,8 +931,10 @@ export function createConversation(options: ConversationOptions): Conversation {
       } catch {
         if (current === session) olderError = true;
       } finally {
-        loadingOlder = false;
-        publish();
+        if (loadingOlderSession === current) {
+          loadingOlderSession = undefined;
+          publish();
+        }
       }
     },
     send(body, files = [], tags = {}) {
