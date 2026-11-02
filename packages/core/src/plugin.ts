@@ -1,7 +1,12 @@
 import { BotNetworkDeliveryError } from './runtime/bot-network.js';
 import type { AssignmentReportContent } from './runtime/assignment-report.js';
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from './window-zoom/control.js';
-import { compactUnknownContext, contextCapacity } from './runtime/context-window.js';
+import {
+  compactUnknownContext,
+  contextCapacity,
+  createTargetCompaction,
+  type PricedSurface,
+} from './runtime/context-window.js';
 import { messageText, systemPromptFromLog } from './runtime/prompt-inspection.js';
 
 import { createWindowZoomSetup, WINDOW_ZOOM_SETUP_PATH } from './window-zoom/setup.js';
@@ -90,8 +95,8 @@ import { createHash } from 'node:crypto';
 import { createCompanionFeed, COMPANION_PATH, type CompanionFeed } from './companions/feed.js';
 
 import type { Context } from '@deepseek-ai/cordis';
-import { assembleContextFor } from '@deepseek-ai/dsh-agent';
-import type {} from '@deepseek-ai/dsh-session';
+import { assembleContextFor, type Agent } from '@deepseek-ai/dsh-agent';
+import type { SessionSeq } from '@deepseek-ai/dsh-session';
 import { renderContextSections, renderPrompt } from '@deepseek-ai/dsh-system-prompt';
 import type {} from '@deepseek-ai/dsh-tools';
 import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-approval';
@@ -344,6 +349,21 @@ export const inject = [
 export const PERSONA_SECTION_ORDER = 10400;
 
 const COMPACTION_END_EVENT: string = 'compaction/end';
+
+interface PressureCompactionEngine {
+  config?: Record<string, unknown>;
+  compactIfNeeded?(
+    agent: Agent,
+    trigger: 'pressure' | 'context-overflow',
+    signal: AbortSignal,
+  ): Promise<unknown>;
+  compactRegion?(
+    start: SessionSeq,
+    end: SessionSeq,
+    agent: Agent,
+    signal: AbortSignal,
+  ): Promise<unknown>;
+}
 
 export interface CompactionRefreshSink {
   ownership: { resolve(sessionId: string): { botSlug: string } | undefined };
@@ -1721,10 +1741,60 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     };
   };
   let compactionBaseConfig: Record<string, unknown> | undefined;
+  const targetCompactionEngines = new WeakSet<object>();
+  const installTargetCompaction = (engine: PressureCompactionEngine): void => {
+    if (targetCompactionEngines.has(engine)) return;
+    const original = engine.compactIfNeeded;
+    if (typeof original !== 'function' || typeof engine.compactRegion !== 'function') return;
+    targetCompactionEngines.add(engine);
+    const fallback = original.bind(engine);
+    const compactToTarget = createTargetCompaction({
+      measure: (session) =>
+        (ctx.get('tokenMeter') as unknown as { measure(session: unknown): PricedSurface }).measure(
+          session,
+        ),
+      prune: (session) =>
+        (
+          ctx.get('toolResultPruner') as unknown as
+            | { pruneSession(session: unknown): void }
+            | undefined
+        )?.pruneSession(session),
+      compactRegion: (start, end, agent, signal) =>
+        engine.compactRegion!(start, end, agent, signal),
+      log: (level, event) => ctx.logger[level](`context-compaction ${JSON.stringify(event)}`),
+    });
+    engine.compactIfNeeded = async (agent, trigger, signal) => {
+      if (trigger !== 'pressure' || core.ownership.resolve(agent.session.id) === undefined)
+        return fallback(agent, trigger, signal);
+      const route = agent.session.requestHeader()?.config;
+      if (route === undefined || ctx.get('tokenMeter') === undefined)
+        return fallback(agent, trigger, signal);
+      const info = await ctx.llm.resolveModelInfo(route.provider, route.model, signal);
+      const contextWindow = info.context?.contextWindow;
+      if (contextWindow === undefined) return fallback(agent, trigger, signal);
+      const modelPolicies = (compactionBaseConfig ?? engine.config)?.['modelPolicies'];
+      const threshold = compactionThresholdTokens(
+        {
+          ...(Array.isArray(modelPolicies)
+            ? {
+                modelPolicies: modelPolicies as NonNullable<
+                  CompactionThresholdPolicy['modelPolicies']
+                >,
+              }
+            : {}),
+          ...compactionPolicy(),
+        },
+        route,
+        contextWindow,
+        route.maxTokens ?? info.defaultMaxTokens ?? 0,
+      );
+      if (threshold <= 0) return fallback(agent, trigger, signal);
+      return compactToTarget(agent, threshold, signal);
+    };
+  };
   const applyCompactionPolicy = (): void => {
-    const engine = ctx.get('compaction') as unknown as
-      | { config?: Record<string, unknown> }
-      | undefined;
+    const engine = ctx.get('compaction') as unknown as PressureCompactionEngine | undefined;
+    if (engine !== undefined) installTargetCompaction(engine);
     const config = engine?.config;
     if (engine === undefined || typeof config !== 'object' || !('thresholdRatio' in config)) return;
     compactionBaseConfig ??= config;
@@ -1736,6 +1806,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     engine.config = Object.freeze({ ...compactionBaseConfig, thresholdRatio, headroomTokens });
   };
   installNativeSubagentWake(ctx, core.runtime);
+  applyCompactionPolicy();
   ctx.on(
     'agent/pre-step',
     async ({ agent, signal }, next) => {
