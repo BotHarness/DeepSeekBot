@@ -179,6 +179,24 @@ describe('diagnostic log CLI', () => {
     expect(statSync(join(dir, LOG_DB_FILENAME)).size).toBe(before);
   });
 
+  it('says the log is unreadable when its entries table is gone', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'diagnostic-home-'));
+    dirs.push(home);
+    const dir = join(home, 'botharness');
+    openLogDatabase({ dir }).close();
+    const raw = new DatabaseSync(join(dir, LOG_DB_FILENAME));
+    raw.exec('DROP TABLE log_entries');
+    raw.close();
+    await expect(
+      runDiagnosticLogCommand(
+        'diagnostic-logs-export',
+        { out: join(home, 'w.zip'), home, offline: true },
+        io() as never,
+        vi.fn() as unknown as Connect,
+      ),
+    ).rejects.toMatchObject({ code: 'log-unreadable' });
+  });
+
   it('refuses bad flags before connecting', async () => {
     const connect = vi.fn() as unknown as Connect;
     for (const [command, values] of [

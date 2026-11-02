@@ -389,7 +389,9 @@ export function openLogDatabase(options: OpenLogDatabaseOptions): LogDatabase {
         ...(row.trace_id === null ? {} : { traceId: row.trace_id }),
         ...(row.payload === null ? {} : { payload: row.payload }),
       }));
-    } catch {
+    } catch (error) {
+      if (options.readOnly === true)
+        throw new LogDatabaseUnreadableError('logs.db entries are unreadable', { cause: error });
       return [];
     }
   }
