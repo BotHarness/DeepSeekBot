@@ -174,11 +174,11 @@ describe('following a growing conversation', () => {
       act(() => view.current.listProps.onLayout(layout(LAYOUT)));
       act(() => view.current.listProps.onScroll(event(0)));
       act(() => view.current.jumpToLatest());
-      expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END, animated: true });
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END, animated: false });
       act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
       act(() => view.current.listProps.onScroll(event(0, 0, CONTENT + 200)));
       act(() => view.current.jumpToLatest());
-      expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END, animated: true });
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END, animated: false });
     } finally {
       view.unmount();
     }
@@ -251,7 +251,7 @@ describe('following a growing conversation', () => {
     expect(view.scrollToOffset).not.toHaveBeenCalled();
     expect(view.current.away).toBe(true);
     act(() => view.current.jumpToLatest());
-    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END + 79, animated: true });
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END + 79, animated: false });
     view.unmount();
   });
 
