@@ -1,0 +1,319 @@
+import type {
+  AssignmentReportState,
+  ChannelAssignmentSummary,
+} from '../../../core/src/runtime/bot-runtime.js';
+import type { AssignmentWork, AssignmentWorkLane, AssignmentWorkStep } from './bridge.js';
+import type { AssignmentNeed, AssignmentSection, NativeSessionSummary } from './session-rows.js';
+import type { BotSummary, OwnedSessionSummary } from './store.js';
+
+export const TASK_BOARD_MAX_CARDS = 200;
+export const TASK_BOARD_MAX_STEPS = 40;
+export const TASK_BOARD_VISIBLE_STEPS = 7;
+
+export type TaskBoardChannelType = 'dm' | 'group';
+
+export interface StepView {
+  status: AssignmentWorkStep['status'];
+  tool: string;
+  detail?: string;
+  at: string;
+  round?: number;
+}
+
+export interface TaskBoardProgress {
+  done: number;
+  total: number;
+  omitted: number;
+  running: number;
+}
+
+export interface AssignmentCard {
+  sessionId: string;
+  botSlug: string;
+  title: string;
+  description: string;
+  activity: ChannelAssignmentSummary['activity'];
+  section: AssignmentSection;
+  needs?: AssignmentNeed;
+  createdAt: string;
+  updatedAt: string;
+  latestReport?: NonNullable<ChannelAssignmentSummary['latestReport']>;
+  modelRoute?: NonNullable<ChannelAssignmentSummary['modelRoute']>;
+  progress?: TaskBoardProgress;
+  currentStep?: StepView;
+  steps?: StepView[];
+  stepsTotal?: number;
+  workLoaded?: boolean;
+  unavailable?: boolean;
+  workError?: string;
+  kind?: 'orchestrator';
+}
+
+export interface BotGroup {
+  botSlug: string;
+  displayName: string;
+  avatar?: string;
+  collapsed: boolean;
+  assignments: AssignmentCard[];
+}
+
+export interface TaskBoardModel {
+  channelId: string;
+  channelType: TaskBoardChannelType;
+  loadedAt: number;
+  stale: boolean;
+  truncated: boolean;
+  groups: BotGroup[];
+}
+
+export type TaskBoardPhase = 'loading' | 'error' | 'empty' | 'ready';
+
+export interface TaskBoardWorkState {
+  work?: AssignmentWork;
+  error?: string;
+}
+
+export interface TaskBoardViewPrefs {
+  collapsedBots?: Readonly<Record<string, boolean>>;
+  showDoneSteps?: boolean;
+  autoExpandWorking?: boolean;
+  onlyWorking?: boolean;
+}
+
+export interface TaskBoardInput {
+  channelId: string;
+  channelType: TaskBoardChannelType;
+  assignments: readonly TaskBoardAssignment[];
+  bots: readonly BotSummary[];
+  now: number;
+  stale?: boolean;
+  availableSessionIds?: ReadonlySet<string>;
+  work?: Readonly<Record<string, TaskBoardWorkState>>;
+  prefs?: TaskBoardViewPrefs;
+}
+
+function timeOf(value: string): number {
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+export function needsWork(section: AssignmentSection): boolean {
+  return section === 'working' || section === 'needs-input';
+}
+
+export interface TaskBoardAssignment extends ChannelAssignmentSummary {
+  reportState?: AssignmentReportState;
+  executionWait?: NonNullable<OwnedSessionSummary['assignmentExecutionWait']>;
+  archived?: boolean;
+  kind?: 'orchestrator';
+  unavailable?: boolean;
+}
+
+export function assignmentPlacement(
+  activity: ChannelAssignmentSummary['activity'],
+  reportState: AssignmentReportState | undefined,
+  state?: Pick<TaskBoardAssignment, 'executionWait' | 'archived'>,
+): { section: AssignmentSection; needs?: AssignmentNeed } {
+  if (state?.archived === true || activity === 'stopped') return { section: 'resolved' };
+  if (state?.executionWait === 'waiting-human')
+    return { section: 'needs-input', needs: 'approval' };
+  if (activity === 'working' || activity === 'stopping') return { section: 'working' };
+  if (activity === 'error') return { section: 'needs-input', needs: 'error' };
+  if (reportState === 'waiting-human' || reportState === 'blocked' || reportState === 'failed')
+    return { section: 'needs-input', needs: reportState };
+  return { section: 'idle' };
+}
+
+export function assignmentExecutionOf(
+  row: OwnedSessionSummary,
+  botSlug: string,
+  native?: NativeSessionSummary,
+): TaskBoardAssignment | undefined {
+  if (row.role === 'orchestrator') {
+    const updatedAt =
+      native === undefined ? row.createdAt : new Date(native.updatedAt).toISOString();
+    return {
+      sessionId: row.sessionId,
+      botSlug,
+      title: native?.displayTitle ?? '',
+      description: '',
+      activity: native?.running === true ? 'working' : 'idle',
+      createdAt: row.createdAt,
+      updatedAt,
+      kind: 'orchestrator',
+      ...(native === undefined ? { unavailable: true } : {}),
+    };
+  }
+  const modelRoute = row.assignmentModelRoute;
+  return {
+    sessionId: row.sessionId,
+    botSlug,
+    title: row.assignmentTitle ?? row.sessionId,
+    description: row.assignmentDescription ?? '',
+    activity: row.assignmentActivity ?? 'idle',
+    createdAt: row.createdAt,
+    updatedAt: '',
+    ...(row.assignmentReportState === undefined ? {} : { reportState: row.assignmentReportState }),
+    ...(modelRoute === undefined ? {} : { modelRoute }),
+    ...(row.assignmentExecutionWait === undefined
+      ? {}
+      : { executionWait: row.assignmentExecutionWait }),
+    ...(row.assignmentArchived === true ? { archived: true } : {}),
+  };
+}
+
+export function taskBoardPhase(
+  status: 'loading' | 'ready' | 'error',
+  cardCount: number,
+): TaskBoardPhase {
+  if (status === 'loading') return 'loading';
+  if (status === 'error') return cardCount === 0 ? 'error' : 'ready';
+  return cardCount === 0 ? 'empty' : 'ready';
+}
+
+function mainLaneOf(work: AssignmentWork | undefined): AssignmentWorkLane | undefined {
+  return work?.lanes.find((lane) => lane.role === 'main');
+}
+
+function stepViewOf(step: AssignmentWorkStep): StepView {
+  return {
+    status: step.status,
+    tool: step.tool,
+    at: step.at,
+    ...(step.detail === undefined ? {} : { detail: step.detail }),
+    ...(step.round === undefined ? {} : { round: step.round }),
+  };
+}
+
+function progressOf(lane: AssignmentWorkLane | undefined): TaskBoardProgress | undefined {
+  if (lane === undefined || lane.entries.length === 0) return undefined;
+  let done = 0;
+  let running = 0;
+  for (const entry of lane.entries) {
+    if (entry.status === 'running') running += 1;
+    else done += 1;
+  }
+  return { done, total: lane.entries.length, omitted: lane.omitted, running };
+}
+
+function currentStepOf(lane: AssignmentWorkLane | undefined): StepView | undefined {
+  if (lane === undefined || lane.entries.length === 0) return undefined;
+  const running = lane.entries.findLast((entry) => entry.status === 'running');
+  const picked = running ?? lane.entries.at(-1);
+  return picked === undefined ? undefined : stepViewOf(picked);
+}
+
+function stepsOf(
+  lane: AssignmentWorkLane | undefined,
+  showDoneSteps: boolean,
+): { steps: StepView[]; total: number } | undefined {
+  if (lane === undefined || lane.entries.length === 0) return undefined;
+  const recent = lane.entries.slice(-TASK_BOARD_MAX_STEPS);
+  const visible = showDoneSteps ? recent : recent.filter((entry) => entry.status !== 'done');
+  if (visible.length === 0) return undefined;
+  return {
+    steps: visible.slice(-TASK_BOARD_VISIBLE_STEPS).map(stepViewOf),
+    total: visible.length,
+  };
+}
+
+function cardOf(assignment: TaskBoardAssignment, input: TaskBoardInput): AssignmentCard {
+  const state = input.work?.[assignment.sessionId];
+  const lane = mainLaneOf(state?.work);
+  const activity =
+    assignment.kind === 'orchestrator' &&
+    lane?.entries.some((entry) => entry.status === 'running') === true
+      ? 'working'
+      : assignment.activity;
+  const placement = assignmentPlacement(
+    activity,
+    assignment.reportState ?? assignment.latestReport?.state,
+    assignment,
+  );
+  const progress = progressOf(lane);
+  const currentStep = currentStepOf(lane);
+  const stepsView = stepsOf(lane, input.prefs?.showDoneSteps ?? true);
+  const updatedAt =
+    assignment.updatedAt === ''
+      ? (lane?.entries.at(-1)?.at ?? assignment.createdAt)
+      : assignment.updatedAt;
+  const unavailable =
+    assignment.unavailable === true ||
+    (input.availableSessionIds !== undefined &&
+      !input.availableSessionIds.has(assignment.sessionId));
+  return {
+    sessionId: assignment.sessionId,
+    botSlug: assignment.botSlug,
+    title: assignment.title,
+    description: assignment.description,
+    activity,
+    section: placement.section,
+    createdAt: assignment.createdAt,
+    updatedAt,
+    ...(assignment.kind === undefined ? {} : { kind: assignment.kind }),
+    ...(placement.needs === undefined ? {} : { needs: placement.needs }),
+    ...(assignment.latestReport === undefined ? {} : { latestReport: assignment.latestReport }),
+    ...(assignment.modelRoute === undefined ? {} : { modelRoute: assignment.modelRoute }),
+    ...(progress === undefined ? {} : { progress }),
+    ...(currentStep === undefined ? {} : { currentStep }),
+    ...(stepsView === undefined ? {} : { steps: stepsView.steps, stepsTotal: stepsView.total }),
+    ...(state?.work === undefined ? {} : { workLoaded: true }),
+    ...(unavailable ? { unavailable: true } : {}),
+    ...(state?.error === undefined ? {} : { workError: state.error }),
+  };
+}
+
+function newestTimeOf(cards: readonly AssignmentCard[]): number {
+  const newest = cards[0];
+  return newest === undefined ? 0 : timeOf(newest.updatedAt);
+}
+
+function groupsOf(cards: readonly AssignmentCard[], input: TaskBoardInput): BotGroup[] {
+  const bySlug = new Map<string, AssignmentCard[]>();
+  for (const card of cards) {
+    const existing = bySlug.get(card.botSlug);
+    if (existing === undefined) bySlug.set(card.botSlug, [card]);
+    else existing.push(card);
+  }
+  const bots = new Map(input.bots.map((bot) => [bot.slug, bot]));
+  const autoExpand = input.prefs?.autoExpandWorking ?? false;
+  const groups = [...bySlug].map(([botSlug, assignments]) => {
+    const bot = bots.get(botSlug);
+    const remembered = input.prefs?.collapsedBots?.[botSlug];
+    const active = autoExpand && assignments.some((card) => needsWork(card.section));
+    const collapsed = active ? false : (remembered ?? input.channelType === 'group');
+    return {
+      botSlug,
+      displayName: bot?.displayName ?? botSlug,
+      ...(bot?.avatar === undefined ? {} : { avatar: bot.avatar }),
+      collapsed,
+      assignments,
+    };
+  });
+  return groups.sort(
+    (left, right) =>
+      newestTimeOf(right.assignments) - newestTimeOf(left.assignments) ||
+      left.botSlug.localeCompare(right.botSlug),
+  );
+}
+
+export function buildTaskBoard(input: TaskBoardInput): TaskBoardModel {
+  const onlyWorking = input.prefs?.onlyWorking ?? false;
+  const cards = input.assignments
+    .map((assignment) => cardOf(assignment, input))
+    .filter((card) => !onlyWorking || needsWork(card.section))
+    .sort(
+      (left, right) =>
+        timeOf(right.updatedAt) - timeOf(left.updatedAt) ||
+        left.sessionId.localeCompare(right.sessionId),
+    );
+  const truncated = cards.length > TASK_BOARD_MAX_CARDS;
+  return {
+    channelId: input.channelId,
+    channelType: input.channelType,
+    loadedAt: input.now,
+    stale: input.stale === true,
+    truncated,
+    groups: groupsOf(truncated ? cards.slice(0, TASK_BOARD_MAX_CARDS) : cards, input),
+  };
+}

@@ -55,6 +55,7 @@ import {
   DEFAULT_WORKSPACE_GAP,
   CHANNEL_DOCK_QUERY,
   CHANNEL_ENTRY_COMPONENT,
+  TASK_BOARD_PANEL,
   clearChannelDock,
   DEFAULT_DOCK_PANELS,
   pruneChannelDock,
@@ -1530,7 +1531,10 @@ export function ChannelDock({
         restoreEntryPanel(
           target,
           panel,
-          { neighbor: CHANNEL_BODY_PANEL, direction: 'left' },
+          {
+            neighbor: CHANNEL_BODY_PANEL,
+            direction: id === TASK_BOARD_PANEL ? 'right' : 'left',
+          },
           gapRef.current,
         );
     }
@@ -1833,6 +1837,7 @@ export function ChannelDock({
     if (isSimple() && !inColumn(panelId)) {
       if (api && panelId === simpleRef.current.sideColumn) {
         showSimpleView(api, null);
+        if (panelId === TASK_BOARD_PANEL) api.getPanel(panelId)?.api.close();
         api.getPanel(CHANNEL_BODY_PANEL)?.api.setActive();
         save(api);
       }

@@ -169,6 +169,21 @@ export const PAGES = [
     },
   },
   {
+    slug: 'docs/channel-sidebar/task-board',
+    order: 20,
+    en: {
+      source: 'docs/channel-sidebar/task-board.md',
+      title: 'Task board',
+      description:
+        'Follow the live progress of a chat\\u2019s Assignments, step by step, in a read-only panel.',
+    },
+    zh: {
+      source: 'docs/channel-sidebar/task-board.zh.md',
+      title: '任务看板',
+      description: '在只读面板里按步骤跟进当前聊天 Assignment 的实时进度。',
+    },
+  },
+  {
     slug: 'docs/channel-sidebar/bot-inbox',
     order: 4,
     en: {

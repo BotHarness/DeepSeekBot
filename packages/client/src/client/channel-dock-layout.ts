@@ -22,6 +22,7 @@ export const CHANNEL_BODY_PANEL = 'bh:channel-body';
 export const CHANNEL_DOCK_QUERY = '(min-width: 961px)';
 export const CHANNEL_BODY_COMPONENT = 'channel-body';
 export const CHANNEL_ENTRY_COMPONENT = 'channel-entry';
+export const TASK_BOARD_PANEL = 'task-board';
 const RETIRED_RAIL_IDS: readonly string[] = [HOME_SLOT, 'bh:tob-mode'];
 export const DEFAULT_DOCK_PANELS = ['sessions'] as const;
 export { BOT_WORKSPACE_PANELS, CHANNEL_WORKSPACE_PANELS } from './channel-split-layout.js';
