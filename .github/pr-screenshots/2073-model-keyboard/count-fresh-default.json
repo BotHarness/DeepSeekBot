@@ -1,0 +1,30 @@
+{
+  "original": ["approvals", "questions", "privateInput", "otherActions"],
+  "fresh": [
+    {
+      "label": "工具审批",
+      "checked": "true"
+    },
+    {
+      "label": "等待回答的正式问答",
+      "checked": "true"
+    },
+    {
+      "label": "私密输入请求",
+      "checked": "true"
+    },
+    {
+      "label": "其他需要你处理的请求",
+      "checked": "true"
+    },
+    {
+      "label": "未读提及与回复",
+      "checked": "false"
+    },
+    {
+      "label": "其他未读会话",
+      "checked": "false"
+    }
+  ],
+  "pass": true
+}

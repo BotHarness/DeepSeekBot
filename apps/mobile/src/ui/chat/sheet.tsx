@@ -1,138 +1,81 @@
-import type { ReactNode } from 'react';
-import { ActivityIndicator, Modal, Pressable, View, useWindowDimensions } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { ComponentType, ReactNode } from 'react';
+import { View } from 'react-native';
 
 import type { LayerName } from '../design/layers';
 import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
-import { CloseIcon } from '../shell/icons';
-import { t } from '../strings';
+import { DrawerHeader } from '../primitives/drawer-header';
+import { useStrings } from '../strings';
+import { LoadingIndicator } from '../primitives/loading-indicator';
+import { SheetFrame } from './sheet-frame';
 
 export const SHEET_GROUP: LayerName = 'raised';
 
-function Grabber() {
-  const theme = useDesignTheme();
-  return (
-    <View
-      style={{
-        alignSelf: 'center',
-        width: space.x6 + space.x3,
-        height: space.x2,
-        borderRadius: radius.round,
-        backgroundColor: theme.layer.canvas.selected,
-        marginBottom: space.x3,
-      }}
-    />
-  );
-}
-
-function CloseButton({ onPress }: { onPress(): void }) {
-  const theme = useDesignTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={t.close}
-      onPress={onPress}
-      hitSlop={space.x3}
-      style={({ pressed }) => ({
-        width: theme.type.title.line + space.x4,
-        height: theme.type.title.line + space.x4,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: radius.round,
-        backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
-      })}
-    >
-      <CloseIcon color={theme.color.muted} size={theme.type.meta.line} />
-    </Pressable>
-  );
+export interface SheetPageProps {
+  title?: string;
+  subtitle?: string;
+  children: ReactNode;
 }
 
 export function Sheet({
+  page: Page,
   visible,
   label,
   title,
   subtitle,
   onClose,
+  onDismissed,
   children,
+  avoidKeyboard = false,
+  animationType = 'fade',
 }: {
+  page?: ComponentType<SheetPageProps> | undefined;
   visible: boolean;
   label: string;
   title?: string;
   subtitle?: string;
   onClose(): void;
+  onDismissed?: (() => void) | undefined;
   children: ReactNode;
+  avoidKeyboard?: boolean;
+  animationType?: 'none' | 'slide' | 'fade';
 }) {
-  const theme = useDesignTheme();
-  const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
+  if (Page !== undefined)
+    return visible ? (
+      <Page
+        {...(title === undefined ? {} : { title })}
+        {...(subtitle === undefined ? {} : { subtitle })}
+      >
+        {children}
+      </Page>
+    ) : null;
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      {visible ? (
+    <SheetFrame
+      visible={visible}
+      label={label}
+      onClose={onClose}
+      onDismissed={onDismissed}
+      avoidKeyboard={avoidKeyboard}
+      animationType={animationType}
+    >
+      {title === undefined ? null : (
         <View
           style={{
-            flex: 1,
-            justifyContent: 'flex-end',
-            backgroundColor: theme.scrim,
+            paddingHorizontal: space.x5,
+            paddingBottom: space.x4,
           }}
         >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={t.cancel}
-            onPress={onClose}
-            style={{
-              position: 'absolute',
-              top: 0,
-              right: 0,
-              bottom: 0,
-              left: 0,
-            }}
+          <DrawerHeader
+            title={title}
+            {...(subtitle === undefined ? {} : { subtitle })}
+            onClose={onClose}
           />
-          <View
-            accessibilityViewIsModal
-            accessibilityLabel={label}
-            onAccessibilityEscape={onClose}
-            style={{
-              maxHeight: height - insets.top - theme.touch,
-              backgroundColor: theme.layer.canvas.fill,
-              borderTopLeftRadius: radius.lg,
-              borderTopRightRadius: radius.lg,
-              paddingTop: space.x3,
-              paddingBottom: Math.max(insets.bottom, space.x5),
-              overflow: 'hidden',
-            }}
-          >
-            <Grabber />
-            {title === undefined ? null : (
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: space.x4,
-                  paddingHorizontal: space.x5,
-                  paddingBottom: space.x4,
-                }}
-              >
-                <View style={{ flex: 1, gap: space.x1 }}>
-                  <Text variant="title" strong accessibilityRole="header" numberOfLines={1}>
-                    {title}
-                  </Text>
-                  {subtitle === undefined ? null : (
-                    <Text variant="meta" tone="muted" numberOfLines={2}>
-                      {subtitle}
-                    </Text>
-                  )}
-                </View>
-                <CloseButton onPress={onClose} />
-              </View>
-            )}
-            {children}
-          </View>
         </View>
-      ) : null}
-    </Modal>
+      )}
+      {children}
+    </SheetFrame>
   );
 }
 
@@ -208,7 +151,7 @@ export function SheetFooter({ children }: { children: string }) {
 export function SheetLoading() {
   return (
     <View style={{ padding: space.x6, alignItems: 'center' }}>
-      <ActivityIndicator />
+      <LoadingIndicator />
     </View>
   );
 }
@@ -222,6 +165,7 @@ export function SheetFailed({
   onRetry(): void;
   on?: LayerName;
 }) {
+  const t = useStrings();
   return (
     <View style={{ gap: space.x3, padding: space.x5, alignItems: 'flex-start' }}>
       <Text tone="danger">{message}</Text>
@@ -231,10 +175,11 @@ export function SheetFailed({
 }
 
 export function SheetActions({ children }: { children: ReactNode }) {
+  const theme = useDesignTheme();
   return (
     <View
       style={{
-        flexDirection: 'row',
+        flexDirection: theme.largeText ? 'column' : 'row',
         justifyContent: 'flex-end',
         gap: space.x3,
         paddingHorizontal: space.x5,

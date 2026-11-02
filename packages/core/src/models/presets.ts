@@ -35,7 +35,7 @@ export interface PersonaBotModelPlan {
   sourcePresetId: string;
   sourcePresetName: string;
   orchestrator: ModelRoute;
-  assignmentDefault: ModelRoute;
+  assignmentDefault?: ModelRoute;
   assignmentModels?: AssignmentModelOption[];
   appliedAt: string;
 }
@@ -112,6 +112,7 @@ export function isAssignmentModelOption(value: unknown): value is AssignmentMode
 export function assignmentModelsOf(
   plan: Pick<PersonaBotModelPlan, 'assignmentDefault' | 'assignmentModels'>,
 ): AssignmentModelOption[] {
+  if (plan.assignmentDefault === undefined) return [];
   return (
     plan.assignmentModels ?? [
       {
@@ -147,11 +148,17 @@ export function validateAssignmentModels(
     throw new Error('Assignment default must match one model and its default effort');
 }
 
+export function selectAssignmentRoute(plan: PersonaBotModelPlan, requested: ModelRoute): ModelRoute;
 export function selectAssignmentRoute(
   plan: PersonaBotModelPlan,
   requested?: ModelRoute,
-): ModelRoute {
-  if (requested === undefined) return { ...plan.assignmentDefault };
+): ModelRoute | undefined;
+export function selectAssignmentRoute(
+  plan: PersonaBotModelPlan,
+  requested?: ModelRoute,
+): ModelRoute | undefined {
+  if (requested === undefined)
+    return plan.assignmentDefault === undefined ? undefined : { ...plan.assignmentDefault };
   const option = assignmentModelsOf(plan).find(
     (candidate) => candidate.provider === requested.provider && candidate.model === requested.model,
   );
@@ -179,9 +186,11 @@ export function isPersonaBotModelPlan(value: unknown): value is PersonaBotModelP
     typeof plan['sourcePresetName'] === 'string' &&
     typeof plan['appliedAt'] === 'string' &&
     isModelRoute(plan['orchestrator']) &&
-    isModelRoute(plan['assignmentDefault']) &&
-    (plan['assignmentModels'] === undefined ||
-      isAssignmentModelsForDefault(plan['assignmentDefault'], plan['assignmentModels']))
+    (plan['assignmentDefault'] === undefined
+      ? plan['assignmentModels'] === undefined
+      : isModelRoute(plan['assignmentDefault']) &&
+        (plan['assignmentModels'] === undefined ||
+          isAssignmentModelsForDefault(plan['assignmentDefault'], plan['assignmentModels'])))
   );
 }
 

@@ -1,0 +1,166 @@
+{
+  "styles": {
+    "bh:channel-body": [
+      {
+        "background": "color(srgb 0.878431 0.756863 0.929412 / 0.42)",
+        "blur": "blur(9px)",
+        "opacity": "1"
+      },
+      {
+        "background": "color(srgb 0.835294 0.913725 0.945098 / 0.7)",
+        "blur": "blur(8px)",
+        "opacity": "1"
+      }
+    ],
+    "bh:home": [
+      {
+        "background": "color(srgb 0.905882 0.843137 0.698039)",
+        "blur": "blur(0px)",
+        "opacity": "1"
+      },
+      {
+        "background": "color(srgb 0.956863 0.87451 0.709804 / 0.82)",
+        "blur": "blur(4px)",
+        "opacity": "1"
+      }
+    ]
+  },
+  "targets": [
+    {
+      "id": "dock:activity-center",
+      "label": "Activity Center"
+    },
+    {
+      "id": "dock:bh:channels",
+      "label": "Channels"
+    },
+    {
+      "id": "dock:bh:channel-body",
+      "label": "Messages"
+    },
+    {
+      "id": "dock:memory-files",
+      "label": "Memory files"
+    },
+    {
+      "id": "dock:memory-evolution",
+      "label": "Memory evolution"
+    },
+    {
+      "id": "dock:members",
+      "label": "Members"
+    },
+    {
+      "id": "dock:sessions",
+      "label": "Sessions"
+    },
+    {
+      "id": "dock:bot-inbox",
+      "label": "Bot Inbox"
+    },
+    {
+      "id": "dock:schedules",
+      "label": "Schedules"
+    },
+    {
+      "id": "dock:botharness-computer",
+      "label": "Computer"
+    },
+    {
+      "id": "dock:botharness-browser",
+      "label": "Browser"
+    },
+    {
+      "id": "dock:bh:home",
+      "label": "Home"
+    }
+  ],
+  "saved": {
+    "version": 1,
+    "revision": "5a3a9247-1f4f-40c1-b7be-da5600a89b5c",
+    "preference": "light",
+    "modes": {
+      "light": {
+        "preset": "forest-green",
+        "panels": {
+          "dock:bh:channel-body": {
+            "header": {
+              "color": "#e0c1ed",
+              "blur": 9
+            },
+            "body": {
+              "color": "#d5e9f1",
+              "opacity": 70,
+              "blur": 8
+            }
+          },
+          "dock:bh:home": {
+            "header": {
+              "color": "#e7d7b2"
+            },
+            "body": {
+              "color": "#f4dfb5",
+              "opacity": 82,
+              "blur": 4
+            }
+          }
+        },
+        "materials": {
+          "header": {}
+        }
+      },
+      "dark": {
+        "preset": "classic-blue",
+        "panels": {
+          "dock:bh:channel-body": {
+            "body": {
+              "color": "#283d4b",
+              "opacity": 90
+            }
+          }
+        }
+      }
+    }
+  },
+  "reset": {
+    "version": 1,
+    "revision": "f28dde51-3f47-4eb8-81d8-2ee5e2c8362e",
+    "preference": "light",
+    "modes": {
+      "light": {
+        "preset": "forest-green",
+        "panels": {
+          "dock:bh:home": {
+            "header": {
+              "color": "#e7d7b2"
+            },
+            "body": {
+              "color": "#f4dfb5",
+              "opacity": 82,
+              "blur": 4
+            }
+          }
+        },
+        "materials": {
+          "header": {}
+        }
+      },
+      "dark": {
+        "preset": "classic-blue",
+        "panels": {
+          "dock:bh:channel-body": {
+            "body": {
+              "color": "#283d4b",
+              "opacity": 90
+            }
+          }
+        }
+      }
+    }
+  },
+  "native": {
+    "mode": true,
+    "style": "--dsh-content-font-size: 14px; --dsh-code-font-size: 11px; --dsh-terminal-font-size: 13px;"
+  },
+  "errors": []
+}

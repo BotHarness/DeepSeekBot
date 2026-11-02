@@ -1,5 +1,4 @@
 import type { BridgeActions } from './actions.js';
-import { channelSidebarPrefs, channelSidebarScopeKey } from './channel-sidebar-prefs.js';
 import type { HumanAttentionItem } from './store.js';
 
 type SourceActions = Pick<
@@ -11,10 +10,7 @@ export async function openRepairBotInbox(
   actions: SourceActions,
   item: HumanAttentionItem,
 ): Promise<void> {
-  const scopeKey = channelSidebarScopeKey('personabot', '', item.botSlug);
-  channelSidebarPrefs.setSidebarCollapsed(scopeKey, false);
-  channelSidebarPrefs.setEntryExpanded(scopeKey, 'bot-inbox', true);
-  await actions.openBot(item.botSlug);
+  await actions.openBot(item.botSlug, 'inbox');
 }
 
 export async function openHumanAttentionSource(

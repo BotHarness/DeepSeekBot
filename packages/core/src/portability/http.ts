@@ -48,9 +48,16 @@ export function createProfileBackupHttp(
   const preview = () => profileBackupPreview(source);
   return async (request: Request): Promise<Response> => {
     let stage: string | undefined;
+    const action = new URL(request.url).pathname.slice(PROFILE_BACKUP_PATH.length);
+    const operation =
+      action === ''
+        ? request.method === 'GET'
+          ? 'preview'
+          : 'export'
+        : ['/inspect', '/recovery', '/authorize', '/activate'].includes(action)
+          ? action.slice(1)
+          : 'request';
     try {
-      const url = new URL(request.url);
-      const action = url.pathname.slice(PROFILE_BACKUP_PATH.length);
       if (request.method === 'GET' && action === '/recovery')
         return Response.json(await recovery.status(catalog), { headers });
       if (request.method === 'GET' && action === '') {
@@ -134,11 +141,14 @@ export function createProfileBackupHttp(
         : error instanceof ProfileBackupError
           ? error.code
           : 'operation-failed';
-      source.log?.(`profile-backup initiator=human phase=refused reason=${code}`);
+      source.log?.(
+        `profile-backup initiator=human operation=${operation} phase=refused reason=${code}`,
+      );
       return Response.json(
         {
           error: {
             code,
+            operation,
             message:
               error instanceof ProfileBackupError
                 ? error.message

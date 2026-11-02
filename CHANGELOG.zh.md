@@ -6,7 +6,984 @@
 
 ## [Unreleased]
 
-1.3.1 之后暂无变化。
+1.6.1 之后暂无变更。
+
+## [1.6.1] - 2026-11-02
+
+Tobs 新增 Bot 网络：同一 Tailscale 网络、同一 Connect 账号，或经双方批准的局域网电脑之间，Bot 可以互相发现并私聊；长对话和切换聊天明显更流畅（头像改为静态图片、历史按需加载）；随附 cloudflared 安全更新。
+
+升级会把本地数据迁移到新的数据库结构，之后 Tobs 1.6.0 无法再打开；如可能需要降级，请先备份。
+
+移动端条目描述独立版本应用的变化；本次 npm 发布不发布或验收 Android/iOS 安装包。
+
+### Fixed
+
+- 修复 iOS 大字号聊天标题超出导航胶囊的问题，窄屏下保留返回和资料入口；仅紧凑导航标题限制最大字号，资料页文字仍按系统字号缩放（[#3158](https://github.com/BotHarness/DeepSeekBot/issues/3158)）。
+
+- 修复 Android Activity 筛选面板预测性返回时的遮罩动画，并在再次滑动打开前恢复面板隐藏位置（[#3203](https://github.com/BotHarness/DeepSeekBot/issues/3203)）。
+
+- 修复 Android Activity 筛选侧栏通过系统返回关闭后再次闪现的问题，并保留预测返回手势取消行为（[#3203](https://github.com/BotHarness/DeepSeekBot/issues/3203)）。
+
+- Android 设置页的顶部栏与底部导航隐藏时，滚动视口保持固定，避免视口移动反过来干扰滚动方向判断（[#3204](https://github.com/BotHarness/DeepSeekBot/issues/3204)）。
+
+- Android 聊天列表的下拉手势启动后，手指轻微横移不会再取消下拉，短列表没有原生滚动事件时也适用；下拉启动前仍保留横向手势判断（[#3205](https://github.com/BotHarness/DeepSeekBot/issues/3205)）。
+
+- 打开市场搜索或编辑搜索草稿时保留已加载的卡片与图片，避免键盘输入期间重复渲染目录内容（[#3207](https://github.com/BotHarness/DeepSeekBot/issues/3207)）。
+
+- 修复非法可选模型计划或修订号导致 Bot 注册表无法启动的问题。读取时忽略不可用字段而不丢弃 Bot，保留有效计划、旧模型选择和修订号；注册表写入会拒绝非法记录，但无法阻止外部 SQL 修改（[#3213](https://github.com/BotHarness/DeepSeekBot/issues/3213)）。
+
+- 切换聊天后，过期的读位置响应不再触发多余的消息加载，快速切回同一聊天也能正确区分；保留当前聊天的未读定位及锚点失效回退（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- 检查待回答问题、审批、私密输入、授权和被拒绝的工具请求时，使用选择性历史索引，不再反复扫描普通聊天消息（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- 读取最新消息、未读位置和历史分页时，只水合当前消息窗口及其可见的回复、授权依赖，不再逐条处理整个 Channel 的历史；保留阅读边界和消息元数据，减少长历史的加载开销（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- 流式回复校验来源消息时不再加载 Channel 的完整历史和消息元数据，减少 Bot 在长对话中生成回复时的 Host 开销（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- 面板滚动条在连续滚动时复用同一次显示状态，避免反复恢复和重写行内样式；保留各滚动区域独立淡出及减少动态效果设置（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- 聊天侧栏预览不再为查找最新消息而逐条投影完整历史，保留回复引用、未读回执、表情回应和已迁移附件（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- Bot 回复流式更新时不再反复重建未变化的历史消息分组和决策信息，保留内容清除校验与未读定位（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- QQ 群开启收集全部消息后，接收连接器具备对应附件能力时，普通消息中的受支持图片和文件不再只剩占位文本。仅提及收集、不支持的格式及回复权限保持不变（[#3221](https://github.com/BotHarness/DeepSeekBot/issues/3221)）。
+
+- 修复模型配置误弹手机 App 浮层而未打开原生模型设置的问题；Bot 模式现在通过真正的设置入口跳转，关闭设置后恢复侧栏（[#3222](https://github.com/BotHarness/BotHarness/issues/3222)）。
+
+- 重新登录 Connect 后，若新授权账号仍拥有本机注册，则复用该注册，即使电脑数量已达上限也不额外注册；切换账号时隔离注册与签名凭据（[#3229](https://github.com/BotHarness/DeepSeekBot/issues/3229)）。
+
+- 手机连接详情不再将远程电脑的 localhost 地址显示为“本机”，正确识别 Tailscale IP，并在旧的本地地址仍被使用时提供扫码恢复入口；已固定密钥的加密 SSH 隧道仍可查看和测试（[#3230](https://github.com/BotHarness/DeepSeekBot/issues/3230)）。
+
+- Assignment Report 续读核验持久化正文元数据，不再依赖展示文案；新报告到达后仍继续读取原报告。后续页必须携带返回的报告 Source Event ID，旧的仅偏移调用需从偏移 0 重新开始。历史报告保留兼容读取路径（[#3245](https://github.com/BotHarness/DeepSeekBot/issues/3245)）。
+
+- 启动用量校准在读取会话之间仅保留 token 统计和模型路由元数据，不再保留完整对话正文，减少内存压力，同时保留原子更新和实时事件去重（[#3248](https://github.com/BotHarness/DeepSeekBot/issues/3248)）。
+
+- Tailscale 监听进程未能启动时，不再尝试向其发送终止信号；Host 关闭时仍会等待已启动的监听进程退出（[#3253](https://github.com/BotHarness/DeepSeekBot/issues/3253)）。
+
+- 每次明确发送跨设备 Bot 私聊前刷新路由，Tailnet 或 Connect 不可用及恢复后仍延续同一会话；失败和结果未知的消息不会经另一条路线或在重启后补发（[#3254](https://github.com/BotHarness/DeepSeekBot/issues/3254)）。
+
+- 减少切换聊天时频道列表重复格式化时间的开销，保留本地化日期和本地时区行为（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- 切换聊天时取消过期的频道初次已读位置和消息窗口请求，同时保留未读定位与失效锚点回退（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- 通过索引查询各频道尚未读过的消息范围，避免重复扫描已读历史，减少切换聊天时的后台查询开销（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- 避免纯聊天更新反复渲染原生侧栏及其频道列表，同时保持收件箱徽标和频道选择实时更新（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+### Documentation
+
+- 将安装指南与 README 版本亮点更新为已验证的 Tobs 1.6.0 发布版（[#3195](https://github.com/BotHarness/DeepSeekBot/issues/3195)）。
+
+- 补充原生移动端聊天加载取证路径与可复放的初始化失败对照，明确区分尚未定位的原始 iOS 故障和健康模拟器检查（[#3231](https://github.com/BotHarness/DeepSeekBot/issues/3231)）。
+
+### Security
+
+- 将 Connect 随附的 cloudflared 更新至 2026.10.6，覆盖 Cloudflare eMudhra 证书安全通知要求的 macOS 二进制修复；现有隧道进程需要另行重启才能使用新版程序（[#3199](https://github.com/BotHarness/DeepSeekBot/issues/3199)）。
+
+### Changed
+
+- 移除移动端随滚动隐藏页头、底部导航和创建按钮的效果，Profile 页头也保持显示（[#3204](https://github.com/BotHarness/DeepSeekBot/issues/3204)）。
+
+- Bot 市场在滚动接近底部时自动加载下一页；加载失败时保留已显示的 Bot，并提供重试入口，避免重复请求（[#3208](https://github.com/BotHarness/DeepSeekBot/issues/3208)）。
+
+- 精简移动端创建菜单为「创建 Bot」「导入 Bot」「创建频道」和「Bot市场」；ZIP 与 Git 合并到「导入 Bot」子菜单，保留原有目标电脑选择和恢复流程（[#3209](https://github.com/BotHarness/DeepSeekBot/issues/3209)）。
+
+- 贡献者规范现要求新功能评估性能影响，通过受控组件消融定位瓶颈，并在采用渲染包前完成可复现的 A/B 对比；浏览器与原生验收分别记录（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- 普通界面中的生成式 Bot 头像改为静态图片，减少渲染开销；工作状态由静态标记表达，切换 Channel 时不再创建头像动画资源；窗口挂件保留独立动画路径（[#3226](https://github.com/BotHarness/DeepSeekBot/issues/3226)）。
+
+- 跨 Host Bot 对话现在会刷新同事的可联系状态，并保留替换后的独立身份；退出协作范围会取消尚未开始的工作，重连不会恢复这些工作，已有对话历史仍可查看（[#3252](https://github.com/BotHarness/DeepSeekBot/issues/3252)）。
+
+- Messaging 统一负责外部 Inbox 消息的就绪判断，并分别记录默认接收与可选 Bridge 路由。历史消息保留原有策略，不补写路由；升级后的 Profile 需要新版读取器，降级需恢复升级前备份（[#3261](https://github.com/BotHarness/DeepSeekBot/issues/3261)，[ADR-0276](../docs/adr/0276-messaging-owns-external-readiness-and-reception-evidence.md)）。
+
+- 消息输入框的模型按钮直接打开主模型和执行模型设置；在同一对话框内切换到预设列表，可查看预设名称及主／执行模型组合，不再逐层打开对话框（[#3266](https://github.com/BotHarness/DeepSeekBot/issues/3266)）。
+
+### Added
+
+- Bot 可以发现同一 Tailscale tailnet 内在线主机上的同事，查询公开设备与能力信息，通过现有 Inbox 收发文字私信，并从发起聊天打开对话。离线时发送失败，不建立待发送队列或自动补发（[#3251](https://github.com/BotHarness/DeepSeekBot/issues/3251)）。
+
+- 新增同一 Connect 账号下在线 Host 之间的 Bot 发现与加密私聊，复用现有联系人、Inbox、CLI 和只读会话历史，不引入发件队列或自动重试（[#3253](https://github.com/BotHarness/DeepSeekBot/issues/3253)）。
+
+- 在连接设置或 CLI 中发现附近 Host，核对并批准准确身份后开展局域网 Bot 协作。双方批准后，活跃 Bot 可查询同事并沿用现有 Inbox 交换私聊；离线消息不会排队或自动补发（[#3255](https://github.com/BotHarness/DeepSeekBot/issues/3255)）。
+
+## [1.6.0] - 2026-10-29
+
+Tobs 新增简洁布局模式、支持上传和安装前审核的 Bot 市场、按 Orchestrator 轮次查看 Assignment 工作、QQ 私聊以及飞书和 Discord 中的 Bot 互相 @，并修复了大量桌面端和移动端问题。
+
+移动端条目描述独立版本应用的变化；本次 npm 发布不发布或验收 Android/iOS 安装包。
+
+### Fixed
+
+- 协调 Android 聊天滚动与原生键盘，保留历史消息虚拟化和阅读位置，并让“返回最新”正确计算键盘占位（[#1806](https://github.com/BotHarness/DeepSeekBot/issues/1806)）。
+
+- 修复无法读取的已存 Channel 消息阻止新消息发送的问题：这些消息现在显示为占位消息，新消息仍可正常发送（[#1956](https://github.com/BotHarness/DeepSeekBot/issues/1956)）。
+
+- 长对话在屏幕上有动画时的 CPU 占用大幅下降。离视口较远的消息组现在跳过样式、布局和绘制，同时保留原有高度，组内头像也不再追踪可见性；600 条消息加一个持续动画时，空闲主线程占用从约 25% 降到约 14%（[#2413](https://github.com/BotHarness/DeepSeekBot/issues/2413)）。
+
+- 长对话里在 Bot 模式下打字不再卡顿。此前每按一个键都会重渲染时间线上的所有消息，并为每个消息组重新计算 Bot 名字颜色、重建审批查找表；600 条消息时按键事件到显示的中位数约 270 毫秒。现在未变化的消息会被跳过，中位数约 50 毫秒（[#2413](https://github.com/BotHarness/DeepSeekBot/issues/2413)）。
+
+- 长对话的内存和 CPU 占用进一步下降。离视口较远的消息组不再挂载，用等高占位保留原有高度，滚动不会跳动。加载 600 条消息时，页面只挂载约 11 条，堆内存从约 93 MB 降到约 42 MB，有一个持续动画时空闲主线程占用从约 13% 降到约 10%（[#2413](https://github.com/BotHarness/DeepSeekBot/issues/2413)）。
+
+- iOS 和 Android 的群聊、Bot 私聊资料页现在都将“更换头像”和“聊天背景”分开；点击大头像或下方设置行即可选图，并支持取消、移除和失败重试。Bot 资料页也可修改名称，新 Bot 尚未缓存私聊 ID 时也能打开背景设置（[#2780](https://github.com/BotHarness/DeepSeekBot/issues/2780)）。
+
+- 修复移动端“全部环境”仅显示一台已配对电脑的问题：聊天列表现在汇总在线电脑，保留一个可折叠的置顶分组，汇总动态及角标，并让聊天、审批、回答和通知跳转始终使用各自来源环境（[#2782](https://github.com/BotHarness/DeepSeekBot/issues/2782)）。
+
+- 修复“全部环境”中群或 Bot 资料页因路由所属电脑与外层环境不同而被误拦截的问题；群通知设置保留来源环境，同时消除聊天分组标题传递 React 保留 key 的警告（[#2782](https://github.com/BotHarness/DeepSeekBot/issues/2782)）。
+
+- 修复安装 Tobs 1.5.2 后桌面端外观（浅色/深色）、字号与字体选择立即回滚、重启后丢失的问题：Bundle 不再替换原生主题行，设置可以正常保存。桌面整窗缩放恢复为通过 `deepseekbot-zoom-setup enable` 启用（[#2788](https://github.com/BotHarness/DeepSeekBot/issues/2788)）。
+
+- 修复完整环境备份被 DSH 精确版本检查阻断的问题。新备份记录真实运行时来源，继续支持读取历史 v1 备份，设置页区分需要升级与文件损坏，按导出和导入组织操作，详细恢复说明按需展开。旧安装读取新 v2 备份前需先升级 Tobs（[#2790](https://github.com/BotHarness/DeepSeekBot/issues/2790)，[#2794](https://github.com/BotHarness/DeepSeekBot/issues/2794)）。
+
+- 长消息现在默认完整展开；可在 Bot 设置 → 消息中开启“自动折叠长消息”（[#2797](https://github.com/BotHarness/BotHarness/issues/2797)）。
+
+- 修复手机端“处理中断”详情无法打开 Bot 间会话的问题。通知和中断详情入口会复用同一 Host 已有的会话页，为新目标保留返回路径，并提示原消息不可用或连接异常（[#2798](https://github.com/BotHarness/DeepSeekBot/issues/2798)）。
+
+- 修复手机端资料页“发消息”误回到上一页的问题。会话列表、动态和会话内入口统一按来源打开目标会话，已有会话会直接返回，不再堆叠重复页面（[#2799](https://github.com/BotHarness/DeepSeekBot/issues/2799)）。
+
+- 手机端成功切换工作区后会清除旧详情页和弹层的返回历史，同时保留现有聊天与动态根页面。切换失败保留当前页面；账号更换或取消配对后，返回操作不再恢复旧身份的页面（[#2800](https://github.com/BotHarness/DeepSeekBot/issues/2800)）。
+
+- 云端会话详情现在使用手机原生导航记录：系统返回与页内返回一致，直达链接有可返回的频道列表，重复进入会复用同一账号范围的详情页并保留未发送草稿（[#2801](https://github.com/BotHarness/DeepSeekBot/issues/2801)）。
+
+- 移动端会话加载历史时显示骨架屏，较长历史待最新消息就位后再显示；加载更早消息失败时可重试，已加载的消息仍会保留（[#2806](https://github.com/BotHarness/BotHarness/issues/2806)）。
+
+- 修复 Android 外接键盘 Enter 确认输入法组合文字时可能误发消息的问题，包括输入法稍后回送按键或换行的情况；切换输入框会清除前一个输入框待处理的发送按键（[#2820](https://github.com/BotHarness/DeepSeekBot/issues/2820)）。
+
+- 修复 iOS 和 iPadOS 上 Command+Return 误发组合文字，以及输入焦点离开后旧快捷键仍可发送的问题；下一次正常快捷键仍只发送一次（[#2820](https://github.com/BotHarness/DeepSeekBot/issues/2820)）。
+
+- 修复手机端读取草稿失败后，新输入可能覆盖其他会话已保存草稿的问题；保存失败时保留可编辑内容，并提供重试，成功保存后才能发送（[#2820](https://github.com/BotHarness/DeepSeekBot/issues/2820)）。
+
+- 为缺少 React DevTools 钩子的移动端生产 JavaScript 增加显式 JS 采样模式，明确区分不可用的 React 指标与 CPU、JS 帧采样（[#2820](https://github.com/BotHarness/DeepSeekBot/issues/2820)）。
+
+- 修复移动端切换聊天后待发送消息消失、首次定位旧消息失效，以及 iOS 创建 Bot 页面在辅助大字号下的布局问题（[#2837](https://github.com/BotHarness/DeepSeekBot/issues/2837)）。
+
+- 多条 IM 请求共用一轮时，凭据工具现在会说明如何选择当前请求，并区分来源与账号拒绝；复用已配置账号不再要求 Web 通知地址。Bot CLI 可不经模型调用同一套已注册工具及审批检查（[#2847](https://github.com/BotHarness/DeepSeekBot/issues/2847)）。
+
+- 数据库被应用外的工具修改、留下缺少上级记录的行时，现在可以正常打开，不会再因为 `integrity-failed` 让所有 Bot 消失。如果数据库确实损坏，错误信息会写明 SQLite 发现的具体问题（[#2849](https://github.com/BotHarness/DeepSeekBot/issues/2849)）。
+
+- Bot 市场面板在窄列中不再截断排序切换。最新创建、最近更新和最多 Star 放不下一行时，面板改为显示包含相同选项的排序菜单（[#2865](https://github.com/BotHarness/DeepSeekBot/issues/2865)）。
+
+- Bot 用 @ 把工作退回给同事时，每一轮都会唤醒对方，而不只是第一次；「全部消息都唤醒」群里的 Bot 也会收到并可回应同事的每条消息，Bot 之间多轮返工和部门式协作不再停住等人来戳；协作跳数上限从 8 提高到 32，只用于拦截失控循环。若同事仍无法被唤醒，发送方会得到提示并说明当前进展。Bot 处理较长任务时也会先确认收到、在关键节点汇报进度，最后给出结果或明确状态（[#2872](https://github.com/BotHarness/DeepSeekBot/issues/2872)）。
+
+- 改善 Web 与手机端自定义主题下的链接和消息文字可读性；发送前三秒不显示提示，慢发送和失败状态放在气泡旁，不增加纵向标签行（[#2875](https://github.com/BotHarness/DeepSeekBot/issues/2875)）。
+
+- 会话名称使用环境图标和时间之外的剩余标题宽度，避免 Android 时间被省略（[#2890](https://github.com/BotHarness/DeepSeekBot/issues/2890)）。
+
+- Bot 的普通群消息设为“仅直接 @ 唤醒”或静默后，单群或频道的设置不会再让它被普通消息唤醒；这些设置仍可让它更安静（[#2897](https://github.com/BotHarness/DeepSeekBot/issues/2897)）。
+
+- 内置 IM Provider 升级到 `4.32.0-botharness.23`，包含 QQ 修复。DSH 0.2.1 上的 Bot 可以重新创建会话，不再报 `INTERNAL_UNKNOWN`（[#2896](https://github.com/BotHarness/DeepSeekBot/issues/2896)）。QQ 的引用、图片和图文混合消息不再丢失（[#2895](https://github.com/BotHarness/DeepSeekBot/issues/2895)）。QQ 群内并发回复遇到 429 会重试（[#2897](https://github.com/BotHarness/DeepSeekBot/issues/2897)）。迟到的 QQ 结果会以被动回复送达（[#2868](https://github.com/BotHarness/DeepSeekBot/issues/2868)）。Bot 模式可以收到 QQ 私聊（[#2918](https://github.com/BotHarness/DeepSeekBot/issues/2918)）。
+
+- 飞书 Bot 模式中使用 Markdown 的回复改为原生 Markdown 卡片发送，加粗、标题、列表和表格不再显示原始符号。纯文本回复和 @ 他人的回复仍按文本发送（[#2792](https://github.com/BotHarness/DeepSeekBot/issues/2792)）。
+
+- 移动端聊天列表中，新建 Bot 私聊和群聊在尚无消息时显示频道创建时间，收到消息后显示最新消息时间，并保持原有排序（[#2920](https://github.com/BotHarness/DeepSeekBot/issues/2920)）。
+
+- Bot 和群聊的工作列表在系统大字号下完整换行显示 Assignment 标题与描述，不再限制为两行（[#2921](https://github.com/BotHarness/DeepSeekBot/issues/2921)）。
+
+- 创建或导入 Bot 时添加环境，完成自定义后会返回当前创建流程，并保留草稿和步骤（[#2922](https://github.com/BotHarness/DeepSeekBot/issues/2922)）。
+
+- 修复 Android 创建菜单在配对切换、页面尚未连接窗口时测量 Compose 内容导致的原生错误（[#2922](https://github.com/BotHarness/DeepSeekBot/issues/2922)）。
+
+- 修复新版源码 DSH 上 Bot 启动时报“tool-subagent-list-agents: never started”的问题，同时兼容仍使用独立列表插件的 Host（[#2932](https://github.com/BotHarness/DeepSeekBot/issues/2932)）。
+
+- 修复 iOS 键盘展开时退到后台再返回后聊天空白的问题，保留草稿和既有配对（[#2933](https://github.com/BotHarness/BotHarness/issues/2933)）。
+
+- 修复原生分步操作栏的模块循环引用，避免移动端打开 Bot 创建和环境选择时失败（[#2945](https://github.com/BotHarness/DeepSeekBot/issues/2945)）。
+
+- Android 上勾选和保存图标按钮在处理中显示的转圈不再超出按钮、被切掉一块；电脑屏幕页的左右键按钮也在滚动区两侧均匀对齐（[#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)）。
+
+- 新建 Bot 导入流程不再把上一笔已完成 Bot 的名称、简介或标签带入首次预览；请求结束后清除上传进度（[#2954](https://github.com/BotHarness/DeepSeekBot/issues/2954)、[#2922](https://github.com/BotHarness/DeepSeekBot/issues/2922)）。
+
+- 当 Bot 的记忆目录和聊天会话的工作目录指向同一位置、只是写法不同（例如家目录经过符号链接，或 `DSH_HOME` 换了写法）时，Bot 会正常回复。以前 Host 按字符串比较这两个路径，每条消息都会失败，只能新开会话才能恢复。如果聊天会话确实运行在另一个目录（例如配置目录被搬走之后），Host 现在会自动为 Bot 换一个新会话，而不是让每条消息都失败（[#2990](https://github.com/BotHarness/DeepSeekBot/issues/2990)）。
+
+- 当 Bot 的第一轮在 Session 落盘之前就失败（例如模型路由错误）时，“新会话”和移动 Memory 现在可以正常工作。此前两者在最需要它们的状态下都只报通用错误。对这种 Session 执行压缩并重试，现在会说明没有可压缩的内容，并引导使用“新会话”（[#2992](https://github.com/BotHarness/DeepSeekBot/issues/2992)）。
+
+- 从环境备份恢复的 Bot，在 Bot 资料里更换模型预设或自定义模型后，会继续正常回复。以前恢复流程会一直比对激活时授权的模型，激活后任何模型修改都会让每条消息因激活错误而失败，「压缩后重试」也同样失败。现在激活 Bot 即完成恢复，Host 在每个回合前仍会检查模型是否可用。恢复后尚未激活的 Bot，错误信息会提示前往「设置 → 环境备份」，点击「授权模型」，再点击「激活 Bot」（[#2993](https://github.com/BotHarness/DeepSeekBot/issues/2993)）。
+
+- DSH 重载插件或释放 Bot 的 Agent 后，Bot 能重新回复，不再让之后每条消息都失败或卡住（[#2994](https://github.com/BotHarness/DeepSeekBot/issues/2994)）。
+
+- 「停止」现在能让卡在 Agent 启动之前的 Bot 恢复。准备这一轮（检查模型路由时会列出服务商的模型，或恢复会话）如果一直没有返回，Bot 看起来是空闲的、没有停止按钮，命令行里的停止也会卡住，之后每条消息都排在它后面，只能重启 Host。现在 Bot 准备期间显示为「思考中」，「停止」会结束这次准备，准备超过两分钟会带着明确的提示失败，下一条消息可以正常运行（[#2995](https://github.com/BotHarness/DeepSeekBot/issues/2995)）。
+
+- iPhone 上通过原生常驻页面，右滑打开工作区、左滑返回聊天列表。聊天列表和底部导航栏整体移动；仅查看工作区会保留当前环境、搜索和滚动位置，不再重新创建聊天列表（[#3017](https://github.com/BotHarness/DeepSeekBot/issues/3017)）。
+
+- iPhone 上可以从聊天列表左滑进入上次聊天，再左滑进入资料页。原生常驻页面保留原来的透明页头、左侧返回键，并稍微延长顶部渐隐；原生资料标题按钮避免点击时误滚回顶部，资料子页面始终保留明确的电脑来源（[#3109](https://github.com/BotHarness/DeepSeekBot/issues/3109)）。
+
+- Android 创建或导入 Bot 忙碌时忽略迟到的标签输入和提交事件，保留待输入草稿与统一原生标签编辑器（[#3027](https://github.com/BotHarness/DeepSeekBot/issues/3027)）。
+
+- 修复 iOS 图表跨日期拖动时的选择状态，避免未开始拖动就清除轻点选中的提示，并让大字号图表提示完整显示数值（[#3032](https://github.com/BotHarness/DeepSeekBot/issues/3032)）。
+
+- 减少编辑期间无关的创建 Bot 表单重绘和后台刷新，并避免固定 Android 菜单锚点随键盘边距反复布局（[#3043](https://github.com/BotHarness/DeepSeekBot/issues/3043)）。
+
+- Android 上聊天列表搜索结果现在显示每个会话自己的头像，并与列表一样是圆角矩形，不再是带首字母的彩色圆。动态页的行改成和聊天列表一样：左边是圆角矩形头像，第一行是名称、电脑图标和时间，第二行是动态内容，不再显示未读数和转圈的状态环；群聊未读显示群头像，而不是最后发言的 Bot（[#3054](https://github.com/BotHarness/DeepSeekBot/pull/3054)）。
+
+- 分享到 Bot 市场的 Bot 会保留主人设置的头像：画了自定义部件、超出 `bot.json` 上限的头像改为以图片加配方的形式携带，市场卡片显示分享的头像而不是按名字生成的头像，导入后也会还原该头像；`bot.json` 中单个字段不合法（如翻译简介过长）时不再连带丢掉名称、头像和 banner（[#3056](https://github.com/BotHarness/DeepSeekBot/pull/3056)）。
+
+- 修复 Android 原生标签控件的选择事件重名可能导致应用无法打开的问题（[#3081](https://github.com/BotHarness/DeepSeekBot/issues/3081)）。
+
+- 统一了 iOS 上手机端 sheet 的配色和 header：设置和配对重新以原生 form sheet 打开，每个 sheet 页面共用同一个紧凑 header（sheet 底色，关闭或返回），工作详情的标题不再和滚动内容叠在一起（[#3112](https://github.com/BotHarness/DeepSeekBot/pull/3112)）。
+
+- 保留移动端 Bot 与群资料页已加载的标签内容，让正文跟随左右拖动并可在中途拖回，同时保留共用的折叠头部（[#3127](https://github.com/BotHarness/DeepSeekBot/issues/3127)）。
+
+- 修复无工具请求开启声明序列后，下一轮恢复工具却因全部工具被延迟加载而反复报 HTTP 400 的问题；已有受影响会话可继续运行，无需清空历史（[#3137](https://github.com/BotHarness/DeepSeekBot/issues/3137)）。
+
+- Android 底部面板的原生拖动条区域与正文使用统一底色（[#3146](https://github.com/BotHarness/DeepSeekBot/issues/3146)）。
+
+- 修复 iOS「解散群聊」等危险操作按钮显示普通蓝色的问题，改用危险操作颜色（[#3170](https://github.com/BotHarness/DeepSeekBot/issues/3170)）。
+
+- 修复在其他设备解散群聊后，手机上已打开的会话仍保留消息的问题；页面现在会释放会话并显示群聊已不存在，不再残留加载骨架或显示原始群 ID（[#3171](https://github.com/BotHarness/DeepSeekBot/issues/3171)）。
+
+- 修复 iOS 活动页退出搜索时页头跳动的问题，同时保持大字号下的布局稳定（[#3172](https://github.com/BotHarness/DeepSeekBot/issues/3172)）。
+
+- Android 上并排的按钮重新显示：新建例行任务的“创建”“取消”、群聊加入申请和邀请的“同意”“拒绝”“取消”、多选消息时的“复制”“截图”“取消”，以及记忆保存冲突后的“继续编辑”“放弃”。带着未保存草稿离开记忆文件时，确认“放弃”后会直接返回，不再重复弹出确认框（[#3148](https://github.com/BotHarness/DeepSeekBot/pull/3148)、[#3113](https://github.com/BotHarness/DeepSeekBot/issues/3113)、[#3108](https://github.com/BotHarness/DeepSeekBot/issues/3108)）。
+
+- 任务（Assignment）不会再卡在每个请求都报「Assignment Session permission mode differs from its snapshot」。如果 DSH 已经自行运行着这个任务的会话（例如 Host 重启之后），而会话的权限模式或审批策略在 Host 之外被改过，Host 会拒绝接管，之后每个请求和每一步都会同样失败。现在 Host 在接管时和每一步开始前，都会先把会话恢复到任务创建时的权限快照，再做校验。工作区授权被撤销或路径不符时仍会照旧拒绝（[#2991](https://github.com/BotHarness/DeepSeekBot/issues/2991)）。
+
+- Bot 不会再卡在每条消息都回复「Orchestrator Session permission differs from this PersonaBot's access setting」。如果 DSH 已经自行恢复了 Bot 的聊天会话（例如 Host 重启之后），而这个会话上次运行后「完全访问」开关被切换过，Host 会在把会话权限对齐到开关之前就拒绝接管，之后每条消息以及「压缩后重试」都会同样失败。现在 Host 会先把会话对齐到开关，再做校验，与每一步开始前的处理一致（[#2985](https://github.com/BotHarness/DeepSeekBot/pull/2985)）。
+
+- 授权文件夹时，即使电脑上有断开的网络盘或很慢的磁盘，目录选择器也不会再卡住几分钟。Host 现在在单独的进程里读取文件夹，限时 5 秒：卡住的磁盘会显示"这个文件夹没有响应"，不会让整个 Host 停住；磁盘标签直接读系统盘符表，不打开任何磁盘。某个文件夹读得慢时，仍可点击其他磁盘或文件夹。刚打开过的文件夹会立即重新显示，文件夹特别多时可以点"显示更多"，在运行 DSH 的电脑上桌面端会直接打开系统文件夹对话框（[#2934](https://github.com/BotHarness/DeepSeekBot/issues/2934)）。
+
+- iOS 26 及以上，按下聊天顶部的标题 chip 时改为在玻璃内变暗，不再出现一块灰底；chip 和返回按钮之间留了小间距，两块玻璃不再粘在一起（[#3107](https://github.com/BotHarness/DeepSeekBot/pull/3107)）。
+
+- iOS Bot、群聊和双 Bot 资料页在系统「减弱动态效果」开启时使用淡入淡出，并响应应用运行期间的设置变化；普通页面推入保持不变，iOS27 边缘返回仍待 [#3109](https://github.com/BotHarness/DeepSeekBot/issues/3109) 排查修复（[#3104](https://github.com/BotHarness/DeepSeekBot/issues/3104)）。
+
+- 事项明确区分内部报告提交方式与只做文字分析的工具限制，避免要求 Markdown 最终回复时把结果留在私有会话正文；未提交报告仍会明确失败（[#3102](https://github.com/BotHarness/DeepSeekBot/issues/3102)）。
+
+- iOS 上进入并离开 Tob 模式后，打开聊天列表搜索会保留输入焦点，不再立即关闭搜索框（[#3117](https://github.com/BotHarness/DeepSeekBot/pull/3117)）。
+
+- 在线环境的聊天列表在打开搜索、切换焦点或查看环境时保持挂载，保留滚动位置（[#3117](https://github.com/BotHarness/DeepSeekBot/pull/3117)）。
+
+- iOS 上，Bot 的 Routine 列表和收件箱里的每一行重新占满整行宽度，标题过长时以省略号截断，不再缩成文字宽度、右侧留出空白（[#3100](https://github.com/BotHarness/DeepSeekBot/pull/3100)）。
+
+- iOS 上从设置或通知页回到工作区面板时，**工作区**标题不再消失；面板里的**配对新电脑**按钮和环境列表改用与设置页相同的原生列表行（[#3123](https://github.com/BotHarness/DeepSeekBot/pull/3123)）。
+
+- 已经登录但市场服务不接受这次登录时，「个人资料」和上传 Bot 现在会直接说明，并且可以重试。之前「个人资料」会让你再登录一次，但重新登录也没用（[#3165](https://github.com/BotHarness/DeepSeekBot/pull/3165)）。
+
+- 操作菜单和长按菜单（例如 iOS 工作区面板里电脑的 ··· 菜单）不再出现蓝色图标，图标和文字颜色也不再不一致：普通选项在浅色模式下是黑色、深色模式下是白色，取消配对、删除等危险选项为红色（[#3128](https://github.com/BotHarness/DeepSeekBot/pull/3128)）。
+
+- iOS 的聊天页在加载中或还没有配对电脑时，顶部不再出现 "index" 大标题（[#3132](https://github.com/BotHarness/DeepSeekBot/pull/3132)）。
+
+- 在 iOS 上，“设置”标签页的大标题现在会随滚动收进导航栏，和系统“设置”App 一样。之前大标题一直保持原样，列表从它下面滑过（[#3178](https://github.com/BotHarness/DeepSeekBot/pull/3178)）。
+
+- 在现有压缩能力上补充 Web 和手机端失败恢复：使用不同底色的图标文字按钮压缩上下文或开启新的 Orchestrator Session，不重发消息。未知模型容量按明确标注的 200K 估算；Web 输入框显示当前上下文占用／容量、详细用量与私聊维护操作；错误上报仅上传所选轮次的脱敏输入与工具调用（[#2329](https://github.com/BotHarness/BotHarness/pull/2329)、[#2335](https://github.com/BotHarness/BotHarness/pull/2335)）。
+
+- 统一审批、提问、授权与读取失败的图标文字操作，Session 维护在多个入口间共享忙碌状态和结果；Bot 模式设置中的小按钮与恢复外观操作使用独立底色（[#2851](https://github.com/BotHarness/DeepSeekBot/pull/2851)）。
+
+- iPhone 上打开聊天的资料页时，聊天不再先滚到顶部；两端资料页的返回按钮不再贴着 banner（[#3107](https://github.com/BotHarness/DeepSeekBot/pull/3107)）。
+
+- 桌面端「个人资料」里点登录，现在会直接在这里开始登录、显示要确认的代码，确认后就显示你的资料。之前按钮会跳到「连接」页，而登录入口藏在「管理」里面（[#3160](https://github.com/BotHarness/DeepSeekBot/pull/3160)）。
+
+- Bot 上次使用的模型被删除（Provider 被删或改名）后，只要选一个可用的模型预设，它就会在同一个会话里带着原有上下文继续回复。此前 Host 仍按已删除的模型估算上下文，每条消息都以 `NO_ADAPTER` 失败，只有新开会话才能恢复（[#2988](https://github.com/BotHarness/DeepSeekBot/issues/2988)）。
+
+- 当某个 Bot 的 Memory 文件夹里有软链接、socket 等特殊文件、缺少 Git 元数据或文件夹已不存在时，存储清理的「预览清理」不再报「操作失败，请重试」。预览会跳过这些条目，同时仍保留 Memory 文本里引用到的附件；清理步骤真的失败时，Host 日志会记下具体原因（[#2882](https://github.com/BotHarness/DeepSeekBot/issues/2882)）。
+
+- 完全访问现在也覆盖 Bot 分派出去的 Subagent。此前 Host 会把每个 Orchestrator Subagent 改回 Bot Memory 内的 `workspace-write`，开启完全访问后，分派出去的修改在 Memory 之外会被拒绝或落进 Memory，且没有任何说明。完全访问 Assignment 的 Subagent 也不再被原生文件工具限制在 Grant 内（[#2870](https://github.com/BotHarness/DeepSeekBot/issues/2870)）。
+
+- Tob 私聊输入框上方的新手引导卡片不再贴住面板两侧边缘，现在与下方输入框左右对齐（[#3103](https://github.com/BotHarness/DeepSeekBot/pull/3103)）。
+
+- Host 在 Bot 这一轮开始前拒绝运行时（例如聊天会话的工作目录不是 Bot 的 Memory 目录、会话权限与 Bot 的访问设置不一致、事项的工作区授权已撤销），聊天里的失败提示现在会说明是哪项检查拒绝了它以及怎么修复（例如「开启新会话」），不再只显示「Agent turn ended without completion: blocked」（[#2989](https://github.com/BotHarness/DeepSeekBot/issues/2989)）。
+
+### Changed
+
+- 将移动端 Bot 活动提示移至聊天顶部：私聊在头像旁显示当前状态，群聊显示最多三个活动 Bot 头像，不再占用消息列表空间（[#1806](https://github.com/BotHarness/DeepSeekBot/issues/1806)）。
+
+- 流式内容增高后使用原生滚动跟随，避免相同尺寸回调打断动画；保留翻阅历史和原生键盘运动的原有规则（[#1806](https://github.com/BotHarness/DeepSeekBot/issues/1806)）。
+
+- Android 流式气泡使用统一的原生绘制边界平滑展开背景与文字，不对消息列表逐帧重新布局，并遵循减少动态效果设置（[#1806](https://github.com/BotHarness/DeepSeekBot/issues/1806)）。
+
+- Orchestrator 不再启动 DSH Subagent，改用 `create_assignment` 委派；只有 Assignment 保留 `bot_subagent` 和 `bot_subagent_fork`。`deepseekbot bot-tool` 通过 `--session` 指定 Assignment 来运行这些工具（[#1961](https://github.com/BotHarness/DeepSeekBot/issues/1961)）。
+
+- 会话和群聊 Work 面板里的 Orchestrator 与 Assignment 行会显示该会话最近实际使用的模型；尚未运行时显示配置的模型。Subagent 只有一次工具调用时英文显示 "1 tool call"（[#1961](https://github.com/BotHarness/DeepSeekBot/issues/1961)）。
+
+- 聊天列表仅在“所有环境”显示环境名称，单个环境保留图标；汇总列表的环境名称更早省略，为会话名称留出更多空间（[#2782](https://github.com/BotHarness/DeepSeekBot/issues/2782)）。
+
+- 移动端汇总活动显示环境彩色图标，聊天列表将环境名放在首行图标旁，新配对环境自动优先使用不同图标和颜色（[#2782](https://github.com/BotHarness/DeepSeekBot/issues/2782)）。
+
+- 修复点击会话及切换工作区时错误指向 Expo 包装导航层、页面没有跳转的问题（[#2782](https://github.com/BotHarness/DeepSeekBot/issues/2782)）。
+
+- 移动端新增环境后自动选中该环境，并打开名称、图标和颜色设置面板。修改仅在面板内预览，点击保存后才生效；返回会放弃未保存的修改（[#2782](https://github.com/BotHarness/DeepSeekBot/issues/2782)）。
+
+- 改善手机连接设置：支持托管 Tailscale 发布、自动学习地址与恢复优先路线，拆出独立 Connect 设置，并在手机端提供已保存地址详情（[#2784](https://github.com/BotHarness/DeepSeekBot/issues/2784)）。
+
+- 将设备与 Connect 设置合并为「连接」，加入局域网配对引导与身份确认，以简短说明和即时提示解释各连接方式的加密与数据流转，并支持通过 CLI 将远端接入指定浏览器客户端、验证 Host Feed 可读（[#2793](https://github.com/BotHarness/DeepSeekBot/issues/2793)）。
+
+- 移动端发出的消息保持正常外观，不再显示“正在发送”；等待超过三秒才变淡，重试重新计时，发送失败仍可明确重试（[#2803](https://github.com/BotHarness/DeepSeekBot/issues/2803)）。
+
+- 移动端会话列表和聊天顶部在头像与名字所在 Chip 的名字右侧显示连接进度，重连时不再显示横幅，连接失败仍保留恢复操作。([#2804](https://github.com/BotHarness/BotHarness/issues/2804))
+
+- 会话列表首次加载显示骨架，刷新时保留已有会话；加载失败时提供重试，不再误显示为空列表。首次加载失败时不再声称正在显示上次的列表。([#2805](https://github.com/BotHarness/BotHarness/issues/2805))
+
+- 移动端创建 Bot 时会显示清晰的进度，完成后直接进入正常聊天，不再出现额外的模型横幅。简短表单收起了可选详情，iOS 操作按钮也与现有 Android 控件一样采用原生组件（[#2807](https://github.com/BotHarness/DeepSeekBot/issues/2807)）。
+
+- Git、Marketplace 和 Zip 导入现在共用移动端创建进度页，检查来源时会显示明确状态，导入过程中不再提前出现重试提示。可选的模型说明保持收起，来源恢复与打开导入的 Bot 继续沿用已有的操作记录（[#2808](https://github.com/BotHarness/DeepSeekBot/issues/2808)）。
+
+- Cloud 会话目录刷新时，已加载的会话仍可打开；当前行显示进度，新点击或账户切换会阻止过期跳转，访问失败可重试。([#2809](https://github.com/BotHarness/BotHarness/issues/2809))
+
+- 移动端聊天页右上角保持留空；点击顶部身份 Chip 可进入频道文件，iOS 锁屏活动入口移至 Bot 资料页（[#2857](https://github.com/BotHarness/DeepSeekBot/issues/2857)）。
+
+- 桌面端 Bot mode 工作区中，没有保存过位置的消息、活动中心、Home 和插件面板，现在以整列高度打开（消息在频道列表右侧、活动中心在消息右侧、Home 在最右），不再把其他面板切成上下两行（[#2859](https://github.com/BotHarness/DeepSeekBot/issues/2859)）。
+
+- 桌面端 Bot 回复改为写完整后再显示，写作期间由会话顶部 header 显示 Bot 在做什么。如需逐字查看，可在**设置 → 消息 → 逐字显示 Bot 回复**开启（或通过 `deepseekbot settings-set botharness-client` 设置 `streamReplies`）。新消息出现时有缩放入场动画；群聊里换人发言时，头像和名字随第一条消息一起入场，同一 Bot 连发时头像会滑到最新一条旁边而不是跳过去；正在阅读提示和 reaction chip 出现时缩放入场，消失时缩小淡出。Bot 工作状态从消息列表底部移到顶部 header，不再让列表跳动：Bot 私聊用它替换 Bot 名称，群聊在群名后显示最多三个正在工作的 Bot 叠放头像和状态。消息输入框上方的状态栏随之移除（[#2871](https://github.com/BotHarness/DeepSeekBot/issues/2871)）。
+
+- 频道消息现在会显示哪些 Bot 正在阅读。Bot 的 LLM 回合读到某条消息时，气泡下角会出现叠放的小头像（最新的在前，最多 3 个），回合结束即消失，类似"正在输入"。Reaction 改为悬浮在气泡另一侧下角，不再单独占一行；气泡对侧留白更小，尾角更收敛。每位收件人的投递与已读状态改为叠放头像，默认隐藏，可在 设置 → 消息 → 显示收件与已读状态 中开启（[#2871](https://github.com/BotHarness/DeepSeekBot/issues/2871)）。
+
+- 手机端新消息（包括自己发的）、正在阅读提示和 reaction chip 出现时都会有缩放入场动画，后两者消失时也会缩小淡出。群聊里换人发言时头像和名字随第一条消息入场，同一 Bot 连发时头像滑到最新一条旁边而不是跳过去。单行消息显示为全圆角的胶囊形状。回复默认改为完整后再显示，流式显示仍可在消息显示设置中开启（[#2871](https://github.com/BotHarness/DeepSeekBot/issues/2871)）。
+
+- 手机端消息现在会在 Bot 回合进行中显示哪些 Bot 正在阅读：气泡下角叠放小头像，回合结束即消失。Reaction 改为悬浮在气泡另一侧下角，不再单独占一行；气泡更宽、相连的圆角更柔和；可选的投递状态改用叠放的 Bot 头像代替饼图（[#2871](https://github.com/BotHarness/DeepSeekBot/issues/2871)）。
+
+- 移动端：记忆变化的详情页改成代码评审式的 diff。每个文件有可折叠、吸顶的文件头并显示 +/− 行数；每行显示行号、绿/红色改动条和底色，并高亮具体改动的词（[#2904](https://github.com/BotHarness/DeepSeekBot/issues/2904)）。
+
+- 手机端 Bot 资料改为从聊天标题胶囊打开的全屏页面，顶部是资料横幅，下方用原生图标分段切换工作、记忆、文件、定时和设置，并记住上次的分段；Bot 与 Bot 的私信打开同一页面，只显示共享文件（[#2905](https://github.com/BotHarness/DeepSeekBot/issues/2905)）。
+
+- 委派任务现在带有 Bot 选定的简短标题和一两句话的描述。网页会话侧栏、群组工作和 Inbox 显示标题，Bot 的搜索同时匹配标题和描述，新增的 `deepseekbot assignments` 与 `assignment` 命令可以列出、搜索和查看它们；已有委派任务的原有文字保留为描述，标题取自其开头（[#2906](https://github.com/BotHarness/DeepSeekBot/issues/2906)）。
+
+- 手机端 Bot 资料页的记忆分页把 `SOUL.md` 和 `MEMORY.md` 置顶为两张卡片，打开时附带“关于这个文件”的说明；其余记忆文件和文件夹以文件夹网格显示；电脑上没有记忆服务时会明确说明（[#2908](https://github.com/BotHarness/DeepSeekBot/issues/2908)）。
+
+- 手机端 Bot 资料的定时分段按每天、每周、一次性和其他分组显示例行任务及下次运行时间，新增 + 按钮新建任务；左滑一行可立即运行、暂停或恢复，删除前会先确认（[#2910](https://github.com/BotHarness/DeepSeekBot/issues/2910)）。
+
+- 手机端 Bot 资料的设置分段新增“权限”分组：工作区授权（从 Bot 分组移来），以及“电脑和浏览器使用权”页面，用原生开关控制 Bot 能否使用浏览器和电脑。资料页上的浏览器和电脑按钮随开关显示或隐藏（[#2912](https://github.com/BotHarness/DeepSeekBot/issues/2912)）。
+
+- 手机端点按群聊标题现在打开与 Bot 资料页同一外壳的全屏群聊资料页，包含成员（邀请、移除和入群申请）、文件（媒体与文件）、工作（群聊的 Assignment 及相同的详情页）和设置（名称、照片、聊天背景、通知，最后是解散）。上次选择的标签页与 Bot 资料页分开记住（[#2914](https://github.com/BotHarness/DeepSeekBot/issues/2914)）。
+
+- 为 iOS 流式气泡加入背景与文字同步裁剪展开，保留列表最终布局并支持减少动态效果；需要新原生构建，真机验收单独跟踪（[#2942](https://github.com/BotHarness/DeepSeekBot/issues/2942)）。
+
+- Android 上长按或点按打开的菜单，改为在手指按下的位置弹出 Material 3 Expressive 下拉菜单，不再从底部弹出面板。没有最近一次触摸时（例如用 TalkBack 打开），仍然使用底部面板（[#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)）。
+
+- Android 聊天页的顶部改成 Material 3 Expressive 搜索栏：左侧是工作区菜单的胶囊搜索框，点开后展开成原生全屏搜索，先显示最近的会话，输入时实时显示结果（[#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)）。
+
+- Android 上在聊天列表任意位置向右滑即可打开工作区抽屉；列表跟着手指移动并被推到一侧，和 Material 3 的可收起抽屉一样（[#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)）。
+
+- Android 聊天页右下角的创建按钮改为系统的 Material 3 Expressive FAB 菜单：加号变成关闭按钮，各个操作以胶囊按钮的形式在它上方展开。选择新建 Channel 时，菜单原地换成可选的位置，第一项是「返回」（[#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)）。
+
+- Android 上，Bot、私聊和群资料页改为从底部升起的全高面板，向下拖动即可回到聊天，不再显示左上角 ✕；读屏时顶部把手就是关闭按钮（[#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)）。
+
+- Bot 活动图表可以逐柱查看：iOS 上按住横向拖动，Android 上点按柱子，即可看到数值。读屏会说出最忙的一天，并可逐根朗读（[#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)）。
+
+- Bot、私聊和群资料页的头部更紧凑：头像居中压在 banner 上，名字只在头像下沿的 chip 里显示一次，下面的设置更靠上（[#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)）。
+
+- iOS 上 Bot、群聊和频道的资料页改为可下拉收起的 sheet，不再是带关闭按钮的全屏页面。滚动时吸顶的图标标签栏去掉了外层圆角条，改为在控件本身加一层柔和阴影；Bot 设置页里的各个分组也统一成同样的标题和卡片样式（[#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)）。
+
+- Memory 文件页在「编辑」旁新增「复制全文」和「修改记录」：Android 上是 Expressive 分体按钮，iOS 上是 ⋯ 菜单。修改记录只列出改过这个文件的提交，`deepseekbot memory-graph --path <file>` 返回同样的列表（[#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)）。
+
+- iOS 菜单改为遵循 Apple 的弹出按钮和下拉按钮规范：语言和外观在当前值后显示上下箭头，选项只用文字；动态页的「筛选与排序」改为下拉菜单，并和搜索合在一个玻璃胶囊里；长按电脑或动态行改为弹出上下文菜单，不再用底部操作表（[#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)）。
+
+- 远程浏览器查看页，以及电脑无法推流时使用的 Computer 查看页，改用系统导航栏：左侧是关闭，标题里是查看页名称和当前由谁操作，「交还控制」成为栏按钮（[#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)）。
+
+- 移动端文案按平台习惯调整：iOS 的按钮、菜单和标题使用 Title Case；中文动词 iOS 写「轻点」、Android 写「点按」；提示和错误去掉「请」，直接说明哪里失败、下一步做什么（[#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)）。
+
+- 移动端动效改为各平台原生手感：iOS 使用 SwiftUI 弹簧，Android 使用 Material 3 Expressive 弹簧（[#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)）。
+
+- Android 上，在 App 首屏使用返回手势时，现在会显示系统的预测性返回桌面预览（[#2953](https://github.com/BotHarness/DeepSeekBot/issues/2953)）。
+
+- Android Bot 创建流程保留常驻 Material 顶栏、实时头像/名称及进度动画，仅横向切换步骤内容；采用原生输入框，底部操作随键盘移动并保持表单布局稳定（[#2958](https://github.com/BotHarness/DeepSeekBot/issues/2958)）。
+
+- Android 上全应用的按钮改为原生 Material 3 按钮：主操作为实心按钮，其他为色调按钮，原来的文字按钮保持文字按钮，危险操作为红色。按钮图标改用 Material 符号，处理中时按钮内显示系统进度指示器（[#3005](https://github.com/BotHarness/DeepSeekBot/issues/3005)）。
+
+- Android 上聊天、动态、市场、Bot 资料、记忆文件以及浏览器和电脑查看器的页头图标按钮改为 Material 3 图标按钮，使用 Material Symbols 图标和 48dp 触控区域，生效中的筛选和搜索显示 Material 选中样式（[#3006](https://github.com/BotHarness/DeepSeekBot/issues/3006)）。
+
+- iOS 上，设置页、应用图标和活动计数页面改为系统表单：分组、分隔线、开关、菜单和行高与系统「设置」一致，并随动态字体放大（[#3011](https://github.com/BotHarness/DeepSeekBot/issues/3011)）。
+
+- Android 上的表单和编辑页输入框改用 Material 3 填充式文本框，带浮动标签，与创建 Bot 流程一致（[#3012](https://github.com/BotHarness/DeepSeekBot/issues/3012)）。
+
+- 动态页现在只有「待你处理」和「与你有关」两个标签，去掉了「其他未读」，因为未读会话在聊天列表里已经能看到。有内容的标签显示小圆点而不是数字：「待你处理」是黄点，「与你有关」是蓝点（[#3013](https://github.com/BotHarness/DeepSeekBot/issues/3013)）。
+
+- Android 上，动态页的标签和工作区抽屉的「电脑 / 云端」标签改用 Material 3 主标签栏（Primary tab row）及其原生指示条；标签文字随系统字号放大，TalkBack 会读出每个标签的完整名称和选中状态（[#3013](https://github.com/BotHarness/DeepSeekBot/issues/3013)）。
+
+- Android 上的未读数和待处理数改为 Material 3 徽标（Activity 标签图标上也显示徽标），审批、提问等操作卡片改为 Material 3 卡片，卡片内的选项、输入框和按钮均为原生控件（[#3014](https://github.com/BotHarness/DeepSeekBot/issues/3014)）。
+
+- iPhone 上的 Chats 现在叠在「工作区」页面之上，就像「邮件」的收件箱叠在邮箱列表之上。在 Chats 任意位置右滑（iOS 26）、从左边缘右滑，或点 Chats 标题，即可回到工作区，选择全部、某台电脑或某个云端工作区（[#3017](https://github.com/BotHarness/DeepSeekBot/issues/3017)）。
+
+- Android 上应用的底部面板（工作区、模型、例行任务、删除、送达、文件夹等）现在以 Material 3 模态底部面板打开：拖动、遮罩、返回键和预测性返回由系统处理，面板按内容自适应高度，输入框和它的操作按钮保持在键盘上方，较长的内容先在面板内滚动，到顶后再拖动面板（[#3018](https://github.com/BotHarness/DeepSeekBot/issues/3018)）。
+
+- iOS 上应用的面板（工作区、模型、例行任务、删除、送达、文件夹等）现在以 iOS 原生面板打开：抓手、调整高度、下滑关闭以及 iOS 26 上的 Liquid Glass 由系统提供。内容较少的面板以半屏高度打开，内容较多或带输入框的面板以全屏高度打开；输入框和它的操作按钮保持在键盘上方，较长的内容先在面板内滚动，到顶后再拖动面板（[#3019](https://github.com/BotHarness/DeepSeekBot/issues/3019)）。
+
+- Android 上 Bot 资料页的图标标签、聊天列表的新建按钮及其菜单、各处搜索框、聊天列表搜索栏和记忆文件的编辑按钮，现在与旁边的开关、标签等原生控件一样，使用由主题色生成的 Material 配色（[#3021](https://github.com/BotHarness/DeepSeekBot/issues/3021)）。
+
+- 匿名使用统计新增市场热门、新上架、上升最快三排和每日精选的使用情况：何时显示、何时打开，以及 Bot 是从列表、某一排还是每日精选打开或安装的。不发送 Bot 名称或条目 ID（[#3066](https://github.com/BotHarness/DeepSeekBot/issues/3066)）。
+
+- 移动端创建 Bot 时，修改名字会保留已选头像；新增「捏人」页面，使用桌面端同一套风格、部件、颜色和比例配方（[#3075](https://github.com/BotHarness/DeepSeekBot/issues/3075)）。
+
+- 简单布局中，消息面板现在始终显示，左侧栏决定旁边的侧列显示什么：频道列表、活动中心、市场或其他全局面板。再次点击当前按钮即可收起侧列，用法类似编辑器的活动栏。所有项目共用一个可拖拽宽度，选择会被记住，原有的简单视图会自动沿用（旧记录保留为本地备份）。高级布局不变（[#3092](https://github.com/BotHarness/DeepSeekBot/pull/3092)）。
+
+- 移动端创建 Bot 时，将名字与头像、人设指令、简介与标签分开编辑，说明系统提示词的内容边界，并支持回车添加、点击删除标签（[#3095](https://github.com/BotHarness/DeepSeekBot/issues/3095)）。
+
+- 手机应用的商店版本现在发送设置里说明的可选匿名使用统计，默认开启，可用一个开关关闭（[#3130](https://github.com/BotHarness/DeepSeekBot/pull/3130)）。
+
+- Bot 市场面板改为发现首页：每日精选一行的封面由当天入选的 Bot 拼成，热门以竖版海报展示，新上架和上升最快以紧凑卡片展示并可"查看全部"；每日精选文章、往期精选和 Bot 详情都在面板内打开，用返回键逐页回退，不再弹窗（[#3147](https://github.com/BotHarness/DeepSeekBot/pull/3147)）。
+
+- iOS 和 Android 上的 Bot 市场改为发现首页：今天的每日精选卡片，封面由入选的 Bot 拼成；热门以竖版海报展示，可直接导入；新上架和上升最快各显示三行紧凑卡片，并可"查看全部"。每日精选文章、往期精选和完整榜单都在新页面打开；搜索或选择主题时只显示结果（[#3144](https://github.com/BotHarness/DeepSeekBot/issues/3144)）。
+
+- iOS 和 Android 上的 Bot 市场搜索改为从顶部标题栏打开，与 Chats 的搜索方式一致，不再使用底部的悬浮按钮（[#3144](https://github.com/BotHarness/DeepSeekBot/issues/3144)）。
+
+- 移动端构建同步到 Expo SDK 58 要求的 React Native 补丁版本（[#3175](https://github.com/BotHarness/DeepSeekBot/pull/3175)）。
+
+- Android 聊天列表可跟手拖入预加载的会话，覆盖底部导航与创建按钮；优先打开最近的可用电脑会话，没有记录时打开第一条，取消拖动不会标记已读（[#3146](https://github.com/BotHarness/DeepSeekBot/issues/3146)）。
+
+- Android 聊天可跟手拖入真实资料页并在松手前拖回；Activity 筛选使用颜色统一的原生侧边面板，列表合并为一列并默认优先显示待处理事项，分类与时间排序统一放入筛选（[#3146](https://github.com/BotHarness/DeepSeekBot/issues/3146)）。
+
+- 通知设置采用 iOS 和 Android 原生设置控件，移除常驻成功提示，仅在需要时显示权限或发送反馈（[#3150](https://github.com/BotHarness/DeepSeekBot/issues/3150)）。
+
+- 解散群聊现在就是删除。确认一次即删除群里没有被其他会话共享的消息和文件，只保留已删除标记，且无法撤销。由该群触发的 Bot 回合会停止，待处理的审批和提问会取消，该群发起的 Assignment 会继续完成并把报告发到 Bot 私聊，手机也会清掉缓存。Bot 记忆和工作区文件保留。之前已解散的群仍在“已结束频道历史”中（[#3164](https://github.com/BotHarness/DeepSeekBot/pull/3164)）。
+
+- 手机上的群聊解散后，现在显示居中的原生空状态和返回聊天列表按钮，不再保留黄色提示条和已禁用的输入框（[#3170](https://github.com/BotHarness/DeepSeekBot/issues/3170)）。
+
+- iOS 活动筛选改用原生 Inspector，在 iPhone 上以 Sheet 展示，集中提供单一活动列表的分类、排序和来源筛选（[#3174](https://github.com/BotHarness/DeepSeekBot/issues/3174)）。
+
+- Android 构建现在开启系统预测返回回调；手势进度支持仍取决于当前原生组件，并不覆盖所有应用内页面切换（[#3181](https://github.com/BotHarness/DeepSeekBot/issues/3181)）。
+
+- 引导最后一步改为起步身份模板（工程师、自媒体人、产品 / 运营、学生 / 研究者，可多选并选细分方向）：每个身份提供三个展示不同 Bot 能力的起步任务；也可以选「采访我」，由托布问几个问题后推荐要创建的 Bot、群聊和定时任务。托布输入框上方的引导卡片已移除，布局教学改为引导结束后直接弹出（[#3187](https://github.com/BotHarness/DeepSeekBot/pull/3187)）。
+
+- Android 环境抽屉改用原生 Material 列表行和添加按钮，保留环境状态、未读数量和管理操作（[#3188](https://github.com/BotHarness/DeepSeekBot/issues/3188)）。
+
+- 在 Android 上，“设置”标签页的顶栏现在会随向下滚动收起、向上滚动重新出现，与“聊天”“动态”一致（[#3176](https://github.com/BotHarness/DeepSeekBot/pull/3176)）。
+
+- Android 上的设置行改为 Material 3 列表项：前置图标、开关、勾选和箭头都是原生控件，开关行点击整行任意位置即可切换。TalkBack 把每一行作为一个整体朗读，包含名称、角色和状态（[#3010](https://github.com/BotHarness/DeepSeekBot/issues/3010)）。
+
+- Bot 设置里的“模型”合并成一行，同时显示主模型和执行模型，不再是两行点进去却是同一个编辑界面（[#3033](https://github.com/BotHarness/DeepSeekBot/issues/3033)）。
+
+- Bot 的聊天会话和任务（Assignment）无论从哪里进入（新建、恢复、Host 从 DSH 接管、原生唤醒），现在都经过同一个准入步骤：先修复会话的权限，再做校验。接管时只检查会话是否属于对应的 Bot 角色，所以被拒绝的一轮总会把原因和修复方法带到聊天里。开启了“完全访问”的 Bot 在恢复或被接管时，会话不会再在第一步之前被临时切回仅工作区权限（[#2997](https://github.com/BotHarness/DeepSeekBot/issues/2997)）。
+
+- 在 iOS 和 Android 的 Chats 列表上左滑，会像点击一样把上次进入的聊天从右侧推进来（参考 Slack），回到刚才那个 Bot 或 Channel 只需一滑；右滑仍然打开环境切换。会话行不再支持左右滑，置顶、分组、免打扰和标为已读都保留在长按菜单里（[#3055](https://github.com/BotHarness/DeepSeekBot/pull/3055)）。
+
+- iOS 上应用里的按钮改为系统自带的 SwiftUI 按钮：主操作使用醒目描边样式，其余操作使用描边样式，在 iOS 26 上变为 Liquid Glass（开启“降低透明度”时除外）。删除类操作使用系统的破坏性样式，忙碌时显示系统加载指示，图标改用 SF Symbols，文字随动态字体放大（[#3008](https://github.com/BotHarness/DeepSeekBot/issues/3008)）。
+
+- iOS 上的筛选标签（消息反馈标签、例行任务周期、Marketplace 主题）改为系统切换按钮，列表选择（Marketplace 主题、Bot 选择器）改为与「设置」一样带尾部勾号的整行选项，聊天背景滑杆改为系统滑杆，外观、按压和 VoiceOver 朗读都与 iOS 一致（[#3009](https://github.com/BotHarness/DeepSeekBot/issues/3009)）。
+
+- 设置页各行样式统一：App 图标、活动数字和默认聊天背景不再显示为强调色的标题和图标，界面分组的每一行都有图标，消息显示合并为一行，像外观一样点开菜单选择（[#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002)）。
+
+- 设置页不再显示连接状态、电脑和取消配对，电脑统一在环境抽屉里管理。iOS 上设置页每一行的图标尺寸一致，语言、外观等菜单的当前值改为灰色，不再用强调色（[#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002)）。
+
+- iPhone 上 Chats 左侧的环境面板改为整页：面板上不显示底部 tab bar，“所有环境”叠放显示已配对的电脑，左下角是头像，右下角是通知，左滑回到 Chats（[#3107](https://github.com/BotHarness/DeepSeekBot/pull/3107)）。
+
+- 移动端反馈采用 iOS 原生与 Android Material 3 控件，将评价与本地诊断分组，按需展开文件详情。[#2811](https://github.com/BotHarness/DeepSeekBot/issues/2811)
+
+- 消息反馈仅向 PostHog 发送评分、标签与短评。诊断包下载到本地，由用户自行发送，无需专用反馈存储或域名（[#2811](https://github.com/BotHarness/DeepSeekBot/issues/2811)）。
+
+- 桌面端点击「消息」面板标题里的 Bot 头像和名称即可打开它的资料页；单独的资料按钮已移除，子面板栏按钮移到标题栏最右侧（[#3103](https://github.com/BotHarness/DeepSeekBot/pull/3103)）。
+
+- 在频道列表中右键点击 Bot，选择「修改头像…」即可直接编辑头像，无需先打开资料页。资料页中，头像直接叠在横幅上，鼠标悬停或键盘聚焦时会变暗并显示铅笔图标（[#3103](https://github.com/BotHarness/DeepSeekBot/pull/3103)）。
+
+- 头像对话框中，「设计像素头像」和「上传图片」改为上下排列、可直接点击的整行选项，下方另有红色的「移除头像」按钮（[#3103](https://github.com/BotHarness/DeepSeekBot/pull/3103)）。
+
+- 在 iOS 和 Android 上通过 Tobs Connect 账号添加环境时，改为统一的原生选择列表：点整行即可选中并显示对勾，不再有单独的复选框。已添加的环境会标明且不可再选。添加按钮固定在底部并显示已选数量；配对时每一行显示自己的进度和结果，只有需要核对验证码时才进入验证界面（[#2923](https://github.com/BotHarness/DeepSeekBot/issues/2923)）。
+
+- 移动端「连接详情」改用原生设置列表：iOS 使用 SwiftUI Form，Android 使用 Material 3 列表项。每条地址分组显示，并按类型配 Wi-Fi、锁或电脑图标，「复制地址」和「测试连接」带图标，正在使用的地址带勾选标记，自动更新说明放在分组底部（[#3121](https://github.com/BotHarness/DeepSeekBot/pull/3121)）。
+
+- 移动端会话列表放大名称并采用常规字重，同时增大最新消息预览；预览使用次级灰色，时间保持较小字号（[#2890](https://github.com/BotHarness/DeepSeekBot/issues/2890)）。
+
+- 移动端 Bot 和 Channel 会话没有消息时，列表统一显示本地化的“暂无消息”提示（[#2892](https://github.com/BotHarness/DeepSeekBot/issues/2892)）。
+
+- 在 iOS 和 Android 上从 Git 链接导入 Bot 改为分步：环境、Git 链接、名字和头像、简介和标签。点下一步时会在所选环境上检查链接，出错会停在这一步，名字默认取仓库名（[#2926](https://github.com/BotHarness/DeepSeekBot/issues/2926)）。
+
+- 移动端工作区列表的长按菜单里，「连接详情」改用单独的网络图标，「显示这台电脑」改名为「显示这个工作区」（[#3138](https://github.com/BotHarness/DeepSeekBot/pull/3138)）。
+
+- 移动端的配对方式里，「使用同一 Wi-Fi」现在显示 Wi-Fi 图标，「使用 Tailscale」显示锁图标，不再两项都用扫码图标（[#3119](https://github.com/BotHarness/DeepSeekBot/pull/3119)）。
+
+- 移动端配对页文字更少。选择配对方式的页面去掉了长篇的「配对前的准备」，每种方式只保留一行说明，下方注明电脑需要安装什么，并提供教程链接。扫码页改用菜单路径（设置 › 连接 › 添加连接 › 让设备连接本机 › 局域网或 Tailscale）显示电脑上要点哪里，与电脑端当前的界面一致（[#3133](https://github.com/BotHarness/DeepSeekBot/pull/3133)）。
+
+- 在 iOS 和 Android 上，底部栏的“设置”改为与“聊天”“动态”一样的独立标签页，不再以弹层覆盖当前页面。其中的各个页面（账户、用量、模型、通知、存储等）以完整页面打开，可返回（[#3156](https://github.com/BotHarness/DeepSeekBot/pull/3156)）。
+
+- 在 iOS 和 Android 上创建 Bot 改为分步进行：先从列表里选环境，再起名字，最后填写人设和简介。底部固定栏显示「下一步 · 1/3」和圆形返回按钮，左滑或 Android 返回键回到上一步，✕ 退出并保留草稿。只有一个环境、从某个环境进入或上次用过的环境会被预先选中，离线环境不可选；没有环境时可以直接添加。创建时按钮内显示原生加载，环境响应慢时会提示，出错时停在最后一步并可重试，完成后直接打开新 Bot（[#2924](https://github.com/BotHarness/DeepSeekBot/issues/2924)）。
+
+- 在 iOS 和 Android 上从 Zip 文件导入 Bot 改为先选环境，再到文件这一步（显示大小、可重新选择、显示上传进度），然后是名字和头像，最后是从压缩包预填的简介和标签。从市场导入改为：环境、名字和头像、确认（显示来源，来源有变化时可刷新）（[#2928](https://github.com/BotHarness/DeepSeekBot/issues/2928)）。
+
+- 聊天以外的动效与聊天气泡统一手感：桌宠的对话气泡和待回答问题从 92% 大小快速展开，不再从一半大小弹出并回弹，选项也去掉了回弹；切换模型模式、在动态里处理掉的审批卡片离场使用同一条快速缓出曲线，离场更快一点。插件市场卡片只在鼠标悬停时轻微抬起，触屏不再误触发。在应用里开启**减少动效**后，会话列表重新排序时不再滑动，顶部控件只淡入淡出不再位移，记忆差异和更新说明的展开箭头直接切换。手机端 Bot 资料页打开和切换标签使用与聊天相同的缓出曲线，看图时滑走的图片立即离开而不是先慢后快，撤销提示条的出现和消失也更快（[#2944](https://github.com/BotHarness/DeepSeekBot/pull/2944)）。
+
+- 手机端 Bot 和群组资料页的各个分段不再在内容上方重复显示分段名称，选中的图标分段已经说明了当前位置；定时分段的 **+** 按钮旁仍显示名称（[#2904](https://github.com/BotHarness/DeepSeekBot/issues/2904)）。
+
+- 手机端 Bot 和群组资料页滚动时，吸顶的标签栏不再带阴影；整条与页面同色的背景已经把它和下方内容分开（[#3124](https://github.com/BotHarness/DeepSeekBot/pull/3124)）。
+
+- 手机端在 Chats 左滑、在聊天里左滑时，最近的聊天或资料页会跟着手指从右侧滑入，滑得不够远就退回去（[#3107](https://github.com/BotHarness/DeepSeekBot/pull/3107)）。
+
+- 匿名使用统计改为遵循同一份 tracking plan：所有事件统一命名为 `category:object_action`，列在 [tracking plan](docs/telemetry-events.md) 中，未登记的事件会被 Host 拒绝。新增每天最多一次的 `app:active_day_start`，只统计 Human 真正使用 DeepSeekBot 的日子。首次进入引导和市场事件此前只要带了详情就会丢失，现在会连同详情一起送达（[#3126](https://github.com/BotHarness/DeepSeekBot/pull/3126)）。
+
+- 手机上在 Tob 模式里从最新消息继续上拉，现在会返回聊天列表，而不是拉起键盘，正好撤回把 Tob 拉下来的那一下。其他聊天上拉仍然拉起键盘（[#3155](https://github.com/BotHarness/DeepSeekBot/pull/3155)、[#3090](https://github.com/BotHarness/DeepSeekBot/issues/3090)）。
+
+### Added
+
+- `assignment-timeline` 把 Assignment 按轮次拆分：创建它的那次请求，以及之后 Orchestrator 每次追加的请求，每轮附指令摘要。MAIN 步骤和 Subagent 都标注所属轮次（[#1961](https://github.com/BotHarness/DeepSeekBot/issues/1961)）。
+
+- Sessions 面板和群组 Work 面板中的 Assignment 行新增“执行过程”按钮。它按轮次展示这个 Assignment 的执行：Orchestrator 创建它时和每次追加请求时的指示、这一轮的 MAIN 步骤，以及这一轮开出的 Subagent 和它们的模型、状态。手机上的 Assignment 改为从底部拉起的 sheet，时间线同样按轮次分组（[#1961](https://github.com/BotHarness/DeepSeekBot/issues/1961)）。
+
+- 会话面板和群聊的 Work 面板会显示每个 Orchestrator 或 Assignment 会话派出了几个 DSH Subagent。展开一行可以看到每个 Subagent 的状态，以及它实际使用的模型和推理强度；Assignment 行也会显示创建时选定的模型。聊天列表保持不变。`deepseekbot session-subagents` 可读取同一列表，`assignment-timeline` 的 lane 也带上了模型和状态（[#1961](https://github.com/BotHarness/DeepSeekBot/issues/1961)）。
+
+- Expo 应用的长按菜单新增删除 Bot、解散群聊和删除分区，均需确认；默认保留历史与记忆，删除分区时保留其中会话（[#2783](https://github.com/BotHarness/DeepSeekBot/issues/2783)）。
+
+- 新增 iPhone 单项请求锁屏跟踪入口，仅跟踪此手机发起的请求，不显示请求内容，支持过期状态和返回原电脑私聊。该能力需要新版原生 App 与已配置的 Connect 投递服务；真实后台送达与终态失败投影仍待验证和完善（[#2815](https://github.com/BotHarness/DeepSeekBot/issues/2815)）。
+
+- 移动端新增“会话文件”入口，可分页查找历史文件、预览图片、通过系统分享并返回原消息，复用现有会话附件与访问权限（[#2819](https://github.com/BotHarness/DeepSeekBot/issues/2819)）。
+
+- 首次进入时的介绍弹窗中，「外观」一步在颜色模式和主题色旁边新增了布局模式（简单 / 高级）选择，并附小示意图。选择后立即生效，与 Bot 设置 › 界面设置中的开关一致（[#2858](https://github.com/BotHarness/DeepSeekBot/issues/2858)）。
+
+- 桌面端 Bot mode 新增简单布局模式，并作为新用户的默认模式：Control Rail 上每个按钮显示一个完整视图（Home、活动中心、消息或插件面板），消息视图左侧是频道列表、右侧是对话。可在 Bot 设置 → 外观中切换简单与高级模式；两种模式各自保存布局，已有用户保持原来的高级布局（[#2860](https://github.com/BotHarness/DeepSeekBot/issues/2860)）。
+
+- 简单布局模式下，消息标题栏的一个按钮可以在右侧打开子面板栏。栏内按固定顺序列出当前频道的子面板（Sessions、记忆文件、记忆演化、定时任务、浏览器、电脑、成员、频道文件、Bot 收件箱和 Bot 插件面板）；每个子面板点标题即可折叠，高度可调，整栏可滚动并可调宽度。折叠浏览器或电脑只隐藏界面，Bot 仍在继续工作。面板快捷键会打开子面板栏并定位到对应子面板（[#2861](https://github.com/BotHarness/DeepSeekBot/issues/2861)）。
+
+- 桌面端引导的第 4 步会先请你选择布局模式，默认选中「简单」。选择立即生效，随后的布局提示与所选模式对应，之后也可以在 Bot 设置 › 界面设置里切换。简单模式下，最后一步改为点击左侧栏的「消息」进入托布私信；高级模式下仍是点击首页标题（[#2862](https://github.com/BotHarness/DeepSeekBot/issues/2862)）。
+
+- 桌面端 Bot 设置 → 通用新增「启用 / 关闭窗口缩放」：退出应用后在后台运行同一设置命令并自动重新打开应用；CLI 可用 `deepseekbot window-zoom-setup-status|enable|disable|cancel` 操作（[#2864](https://github.com/BotHarness/DeepSeekBot/pull/2864)）。
+
+- 消息的收件状态现在会把被 @ 却没有进入收件箱的 Bot 标为“未收到”。在状态卡片里点击某个 Bot，即可查看它的收件记录，这条消息对应的条目会带标签并显示忽略原因（[#2871](https://github.com/BotHarness/DeepSeekBot/issues/2871)）。
+
+- 手机端可在设置中打开“投递状态”（默认关闭），打开后发给 Bot 的消息旁会显示投递状态小饼图，被 @ 却没收到消息的 Bot 也会标出来。点开可查看每个 Bot 的状态，再点某个 Bot 即可查看它的收件记录，这条消息对应的条目会带标签（[#2871](https://github.com/BotHarness/DeepSeekBot/issues/2871)）。
+
+- 飞书和 Discord 群里，其他 Bot 明确 @ 你的 Bot 时现在会唤醒它，你的 Bot 也能在原消息上回复；没有 @ 它的其他 Bot 消息仍然忽略。Bot 会知道发送者是 Bot；同一会话一小时内连续 16 次被 Bot @ 后，之后的 Bot 消息只作为上下文保留，直到有 Human 在该会话发言（[#2872](https://github.com/BotHarness/DeepSeekBot/issues/2872)）。
+
+- 移动端：Bot 资料页的记忆标签新增 **文件 / 变化** 切换。变化按天列出记忆的每次提交，点开可以看到改动了哪些文件以及逐行 diff。记忆里的文件和文件夹改为对齐的卡片，标明是文件夹（含项数）还是文件；编辑文件时整页都是可滚动的文本，不再是带框的输入框（[#2904](https://github.com/BotHarness/DeepSeekBot/issues/2904)）。
+
+- 手机端 Bot 资料的工作分段按最近活动日期列出每个 Assignment 的标题和描述，点开后是只读详情：状态、最新汇报，以及按 MAIN / SUBAGENT 分组、只含公开摘要的步骤时间线；`deepseekbot assignment-timeline` 可读取同一时间线（[#2907](https://github.com/BotHarness/DeepSeekBot/issues/2907)）。
+
+- iOS 和 Android 的 Bot 资料页“文件”标签现在把私聊中共享的内容分为**媒体**（三列图片网格，点按打开图片查看器）和**文件**（显示类型标识、名称、日期和大小的列表）。Bot 与 Bot 的私聊资料页也使用相同视图（[#2909](https://github.com/BotHarness/DeepSeekBot/issues/2909)）。
+
+- 手机 Bot 资料页新增“设置 → 权限”：审批记录列出你对该 Bot 审批请求的答复，始终允许规则显示每条规则自动批准的次数并可撤销。`deepseekbot tool-approval-history` 读取同一份记录，`tool-approval-rules` 现在返回 `autoApprovedCount`（[#2911](https://github.com/BotHarness/DeepSeekBot/issues/2911)）。
+
+- 可以在手机端 Bot 资料页编辑它的记忆文件，包括 `SOUL.md` 和 `MEMORY.md`：保存时会确认记忆没有被改动；如果 Bot 同时改了，手机会显示它的版本并保留你的草稿（[#2913](https://github.com/BotHarness/DeepSeekBot/issues/2913)）。
+
+- 在 Bot 私聊的上下文弹层里，可以查看 Bot 当前会话使用的 System Prompt（按分段展开；有新版本等待新会话或压缩生效时标为“待生效”），以及最近一轮的完整输入，包括 Inbox 内容和回复提醒是怎样拼进去的；旁边的 info 按钮说明底层逻辑。同样的视图也可通过 `deepseekbot bot-system-prompt` 和 `deepseekbot bot-turn-input` 获取（[#2931](https://github.com/BotHarness/DeepSeekBot/pull/2931)）。
+
+- Prompt Preset：可以把 Bot 的 System Prompt 和每轮模板里的行为文字（比如怎样汇报进度、怎样回应 Group 里的 @）改写成具名预设。可以给所有 Bot 选一个全局预设，再让某个 Bot 叠加另一个预设或自己的改动。工具和投递规则保持不变。改动在 Bot 的下一个会话或下一次压缩时生效。也可通过 `deepseekbot prompt-presets`、`prompt-preset-create`、`bot-prompt` 等命令使用（[#2931](https://github.com/BotHarness/DeepSeekBot/pull/2931)）。
+
+- “设置 → 模型与运行”可以调整所有 Bot 自动压缩上下文的时机：占上下文窗口的比例，以及预留的 token 余量。也可通过 `deepseekbot compaction-threshold-set` 设置（[#2931](https://github.com/BotHarness/DeepSeekBot/pull/2931)）。
+
+- 点按锁屏实时活动时，若该请求创建或推进了某个任务（Assignment），现在会直接打开 Bot 资料里的该任务详情，冷启动也一样；其他请求仍打开聊天。`deepseekbot send-status` 和 `deepseekbot device-activity status` 会给出同一 `assignmentId`（[#2943](https://github.com/BotHarness/DeepSeekBot/issues/2943)）。
+
+- Alt+K 现在除了会话名称和设置，还能搜索你可见的所有 Bot 私聊和群聊里的消息。匹配的消息显示在「消息」分组下，带会话、发送者、高亮片段和发送时间；回车打开会话并定位到那条消息。两个字的中文词也能搜到，附件文件名也会被搜索，已隐藏的会话不参与搜索。移动端 Chats 搜索同样列出所有已连接电脑上的匹配消息，点按后打开聊天并定位到该消息。Agent 可用 `deepseekbot message-search --query <text>`（[#3057](https://github.com/BotHarness/DeepSeekBot/pull/3057)）。
+
+- 无需 GitHub 仓库即可把 Bot 直接上传到 Bot Marketplace：用 Connect 登录，首次设置作者名，即可发布 Bot 的 Memory 文件；任何人都能把上架的 Bot 安装为全新 Bot，仅含一次初始提交。CLI 新增 `marketplace-upload`（由 Bot 运行时需要人类批准）和 `marketplace-install`（[#3059](https://github.com/BotHarness/DeepSeekBot/issues/3059)）。
+
+- 让 Tob 帮你分享 Bot：在 Bot 资料页点 **分享到市场**，Tob 会把 Bot 的文件复制成分享草稿，和你逐个文件检查，看起来涉及隐私的内容问你保留、改写还是删掉。Bot 的 Memory 不会被改动，上传到 Tobs 市场或推送到你的 GitHub 都只读检查过的草稿，不带 Git 历史。原来让 Bot 自己推送到 GitHub 的提示词已移除。CLI 新增 `share-draft-start`、`share-draft-show`、`share-draft-file`、`share-draft-decide`、`share-draft-finish`、`share-draft-export` 和 `share-draft-discard`（[#3060](https://github.com/BotHarness/DeepSeekBot/issues/3060)）。
+
+- 在市场面板的**我上传的**里管理上传的 Bot：用某个 Bot 当前的记忆整体替换文件来更新，或连同文件和计数一起删除。已安装的副本保持不变，作者替换文件后会显示**作者已更新**。注销 Connect 账号会一并删除它上传的 Bot。CLI 新增 `marketplace-mine`、`marketplace-delete`（由 Bot 运行时需要人类批准）和 `marketplace-upload --replaces`（[#3061](https://github.com/BotHarness/DeepSeekBot/issues/3061)）。
+
+- 从 Bot 市场安装 Bot 前，Tob 会先检查它的文件（GitHub 条目和上传的 Bot 都会）：安装这一步列出发现的指令注入、把数据发到外部的指令和脚本，在你确认继续之前不会创建任何东西。Tob 没法检查时（没有模型或出错），这一步会说明，你仍可以选择安装。`marketplace-install` 先输出检查结果，再用 `--review <id> --confirm` 安装（[#3063](https://github.com/BotHarness/DeepSeekBot/issues/3063)）。
+
+- Bot Marketplace 里上传的 Bot 详情页会按类型显示文件分布（Markdown、文本、数据、脚本和图片各自的数量和大小），点开任意文本文件即可直接阅读：Markdown 像 README 一样渲染，脚本和其他文本以纯文本显示，脚本始终带标记。CLI 新增 `marketplace-file`（[#3064](https://github.com/BotHarness/DeepSeekBot/issues/3064)）。
+
+- 市场面板顶部新增三行 Bot：热门（近 7 天安装最多）、新上架（近 7 天收录）和上升最快（安装增长最快），每天更新，卡片可一键安装。CLI 新增 `marketplace-sections`（[#3065](https://github.com/BotHarness/DeepSeekBot/issues/3065)）。
+
+- 市场面板顶部新增每日精选：每天一篇短文，根据条目介绍和文件挑选几位热门、新上架和上升最快的 Bot，每段下面附有可一键安装的卡片；往期精选按日期列出。CLI 新增 `marketplace-digest` 和 `marketplace-digests`（[#3066](https://github.com/BotHarness/DeepSeekBot/issues/3066)）。
+
+- Tob 现在会把自己答不了的请求交给简介最匹配的同事 Bot：直接在两者的 Bot 私聊里发出，不先征求确认，拿到同事的结果后在 Tob 私聊里回报给你。每次发送都会显示为操作提示；没有合适的 Bot 时，Tob 会如实说明并提议新建一个。审批仍由你决定（[#3086](https://github.com/BotHarness/DeepSeekBot/issues/3086)）。
+
+- 手机上，聊天页顶栏的「Tob 模式」按钮会打开你的 Tob 私聊——和点 Tob 那一行打开的是同一个聊天——它从顶部滑下盖住聊天列表。按返回，或在 iPhone 上从左边缘轻扫，它会向上收回。它打开所选电脑的 Tob；在「全部」或云端视图下，打开最近使用的电脑的 Tob。开启「减弱动态效果」时，它直接出现，不滑动（[#3088](https://github.com/BotHarness/DeepSeekBot/issues/3088)）。
+
+- 移动端聊天页右上角新增原生三点按钮，与点击头像、向左滑动一样打开资料页（[#3191](https://github.com/BotHarness/DeepSeekBot/issues/3191)）。
+
+- 已登录的账号有了个人资料：名字和头像，不用先上传 Bot 也能设置。手机设置页最上方是你的个人资料，可以在这里换头像、改名字；市场会在你上传的 Bot 上显示它们，`deepseekbot marketplace-author-avatar` 也能在命令行里设置头像。上传条款改为在第一次上传时接受，不再在创建资料时接受（[#3115](https://github.com/BotHarness/DeepSeekBot/pull/3115)）。
+
+- 手机端在聊天里左滑打开资料页（资料页改为从右侧推入，带返回按钮），在消息上右滑即可引用回复；CLI 用 `deepseekbot send --reply-to` 发同样的回复（[#3105](https://github.com/BotHarness/DeepSeekBot/pull/3105)）。
+
+- Control Rail 新增「手机 App」按钮。首次会提示 iOS 和 Android 测试版，点开后列出获取方式：iPhone 通过 TestFlight 安装，Android 内测通过 Discord 或 QQ 群申请（[#3192](https://github.com/BotHarness/DeepSeekBot/pull/3192)）。
+
+- 桌面端 Bot 设置最上方新增「个人资料」：登录后可以更换头像、修改名字（会显示在你分享的 Bot 上），也能看到自己的 ID 和邮箱。市场里上传的 Bot 会在作者名前显示作者头像（[#3120](https://github.com/BotHarness/DeepSeekBot/pull/3120)）。
+
+- 手机支持从已保存的单条消息进入反馈，检查材料并获取提交回执。桌面与手机多选提供复制和截图，与诊断上报分开；点击引用的回复仍可跳转到原消息（[#2811](https://github.com/BotHarness/DeepSeekBot/issues/2811)）。
+
+- 桌面端支持对单条消息选择“好／不好”、问题标签和简短评价；可检查附近消息与执行材料，下载同一份快照，或提交至已配置的私有接收服务并获得回执（[#2811](https://github.com/BotHarness/DeepSeekBot/issues/2811)）。
+
+- 在 iOS 和 Android 上创建 Bot 时，起名字这一步会显示一个大头像，可以「换一个」或「从相册选择」。Bot 创建完成后立即套用你选的头像；如果套用失败，Bot 仍会创建，应用会提示你（[#2925](https://github.com/BotHarness/DeepSeekBot/issues/2925)）。
+
+- 从 Chats 顶部下拉并松手，进入当前或最近电脑的 Tob，支持阈值反馈、阈值内取消和已保存的触感偏好；保留顶部入口及 Tob 不可用时的刷新回退（[#3090](https://github.com/BotHarness/DeepSeekBot/issues/3090)）。
+
+- Tob 模式实时遵循“减弱动态效果”设置，无需重启应用（[#3117](https://github.com/BotHarness/DeepSeekBot/pull/3117)）。
+
+- Bot 模式的 QQ Bot 在所连 dsh-im 支持时可以接收私聊：每个私聊作为私信会话进入，回复会发回给发送者（[#2900](https://github.com/BotHarness/DeepSeekBot/pull/2900)）。
+
+- 匿名使用统计现在能看到电脑端和手机端最近新功能的使用情况：快速搜索、布局模式、活动中心的审批、回答和回复、模型方案更换、远程 Host 配对、浏览器和电脑查看器、Connect 登录和 Tob 委派；手机端还包括在通知里审批、分享到对话和 Tob 模式。只发送操作类型（[#3129](https://github.com/BotHarness/DeepSeekBot/pull/3129)）。
+
+### Documentation
+
+- 将安装指南与 README 版本亮点更新为已验证的 Tobs 1.5.2 发布版（[#2777](https://github.com/BotHarness/DeepSeekBot/issues/2777)）。
+
+- 明确 iOS AX 性能调优规范：验证回放有效性，区分 Simulator 诊断与真机 Release 验收，保留匹配的前后采集，并明确 FPS 结论的证据边界（[#2942](https://github.com/BotHarness/DeepSeekBot/issues/2942)）。
+
+- 在产品术语表中加入规范的 Material 3 与 Apple HIG 组件术语，并把职能相同的 Android 与 iOS 组件一一对应（[#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002)）。
+
+### Removed
+
+- 桌面 Bot 模式工作区不再提供「首页」面板。原快捷键（⌘⌥⇧H / Ctrl+Alt+Shift+H，Linux 桌面端为 Ctrl+Alt+Shift+O；自定义快捷键继续有效）改为在消息中打开托布私聊；已保存的简单和高级布局会移除首页，其他面板保持原位（旧布局保留为本地备份）；新手引导的最后一步改为进入托布私聊即完成。跨 Bot 概览继续由活动中心提供，默认模型仍在 Bot 设置 › 模型与运行中设置（[#3089](https://github.com/BotHarness/DeepSeekBot/issues/3089)）。
+
+## [1.5.2] - 2026-10-25
+
+Tobs 默认启用原生桌面窗口缩放，并改进 Windows 和 macOS 的 Computer 运行时复用与安装错误恢复。
+
+移动端条目描述独立版本应用的变化；本次 npm 发布不发布或验收 Android/iOS 安装包。
+
+### Documentation
+
+- 将安装指南更新为已验证的 Tobs 1.5.1 发布包，说明新的 `tobs` 命令与保留的 `deepseekbot` 兼容入口（[#2751](https://github.com/BotHarness/DeepSeekBot/issues/2751)）。
+
+### Fixed
+
+- 修复 macOS 上 DSH 桌面应用将录屏运行时归档误当成虚拟目录的问题，使已校验的安装可以复用而不再重复下载；进入校验与安装阶段后清除下载进度，并以本地化错误提示引导用户打开缺失的 macOS 权限设置（[#2761](https://github.com/BotHarness/DeepSeekBot/issues/2761)）。
+
+- 修复移动端从市场导入 Bot 在创建前被拒绝的问题，将来源检查与导入合并为一个操作，并移除 iOS 和 Android 首页导航下方的继续创建入口（[#2768](https://github.com/BotHarness/DeepSeekBot/issues/2768)）。
+
+- 修复 Windows 桌面应用拒绝复用已校验的录屏组件并暴露 ASAR 清理错误的问题；安装完成后可复用组件，校验与安装时清除下载进度，并显示本地化错误提示（[#2771](https://github.com/BotHarness/DeepSeekBot/issues/2771)）。
+
+- 修复 Android 分区弹层缺少标题、关闭、新建分区、返回及创建操作的问题，可以创建新分区并将聊天加入其中（[#2773](https://github.com/BotHarness/DeepSeekBot/issues/2773)）。
+
+### Changed
+
+- macOS 和 Windows 原生桌面随 Tobs Bundle 默认加载整窗口缩放，无需额外启用命令；浏览器缩放与原生字体偏好保持独立（[#2775](https://github.com/BotHarness/DeepSeekBot/issues/2775)）。
+
+## [1.5.1] - 2026-10-25
+
+Tobs 使用带作用域的 npm 包并保留兼容的 deepseekbot 入口，统一 Bot 显式发送，修复后台 Subagent 汇报和安装后的 CLI 启动。
+
+移动端条目记录独立版本应用的源码和宣传图变化；本次 npm 发布不发布或验收 iOS、Android 安装包。用户在关闭 #2435 后指定发布 1.5.1；下列条目仅描述已实现行为，不代表已支持通用的逐条消息重试与恢复。
+
+### Added
+
+- 新增 Channel 和外部 IM 的统一显式发送入口，由模型按需汇报，可在发送成功后选择结清 Inbox 和结束当前回合，保留群聊草稿审查，并支持外部回复逐条去重（[#2435](https://github.com/BotHarness/DeepSeekBot/issues/2435)）。
+
+### Removed
+
+- 移除模型和直接 CLI 目录中的旧 Bot 发送工具，统一使用 `bot_send_message` 发送、`channel_action` 操作草稿和表情。审批请求不再强制先发说明再重试，由模型判断何时需要解释（[#2435](https://github.com/BotHarness/DeepSeekBot/issues/2435)）。
+
+### Changed
+
+- 独立 Bot Subagent 依次使用允许的显式原生 preset、配置的子 Agent 默认值或当前 DSH 系统默认值；fork 继续继承父级。直接 CLI 调用复用现有父 Agent 的工具执行链，无存活父 Agent 时明确拒绝（[#2435](https://github.com/BotHarness/DeepSeekBot/issues/2435)）。
+
+- iOS 中文应用名称、权限说明和宣传图统一使用“托布 Tobs”，英文名称保持“Tobs”（[#2725](https://github.com/BotHarness/DeepSeekBot/issues/2725)）。
+
+- 中文 iOS 宣传图改用保持宽高比的原始截图，放大标题并保留完整手机框（[#2725](https://github.com/BotHarness/DeepSeekBot/issues/2725)）。
+
+### Fixed
+
+- Mac 桌面组件临时目录清理失败时，保留原始安装错误或取消结果；对暂时性清理故障有限重试，并单独记录诊断（[#2761](https://github.com/BotHarness/DeepSeekBot/issues/2761)）。
+
+- 后台 Subagent 回报可恢复空闲 Bot，使用当前模型显式发送结果；长时间运行的直接 Subagent 调用不再遮蔽后续用户回合的停止与追加指令（[#2435](https://github.com/BotHarness/DeepSeekBot/issues/2435)）。
+
+- npm 拒绝无作用域包名后，Tobs 改用 `@botharness/tobs` 发布，保留 `tobs` 命令和继续支持的 `deepseekbot` 兼容包；npm README 与 GitHub 产品介绍保持一致（[#2744](https://github.com/BotHarness/DeepSeekBot/issues/2744)）。
+
+- 修复桌面会话回到底部按钮：离开最新消息时在输入框上方右侧显示不透明图标，悬停、按住时改变颜色，有新消息时显示数量徽标，到底后隐藏（[#2748](https://github.com/BotHarness/DeepSeekBot/issues/2748)）。
+
+- 打包 `deepseekbot` 时保留 core CLI 入口为外部依赖，避免已有 core 构建产物被再次内联后破坏依赖资源路径，确保安装后的 CLI 正常启动（[#2436](https://github.com/BotHarness/DeepSeekBot/pull/2436)）。
+
+### Documentation
+
+- 补充 Tailscale 桌面远控的前提、步骤与具体构建的 macOS/iOS 验收范围，明确 Connect 限制及 Windows/Android 待验收项（[#2562](https://github.com/BotHarness/DeepSeekBot/issues/2562)）。
+
+## [1.5.0] - 2026-10-24
+
+产品以 Tobs（托布）作为主要名称和 npm 命令，同时保留 deepseekbot 兼容入口；Connect 与 Remote Hosts 连接手机和电脑，Storage 管理保留数据，并改进聊天、插件更新及手机端操作的可靠性。
+
+下列手机端条目描述独立版本的移动 Beta；本次 npm 发布不发布手机 App，也不代表尚未执行的 iOS 或商店验收已通过。
+
+### Added
+
+- **Tobs Connect** 让手机不装 Tailscale 也能连到电脑：在设置 → 设备或用 `deepseekbot connect-sign-in` 让 Host 登录 托布账号后，Host 通过随 DeepSeekBot 一起安装的固定版本 `cloudflared`（或下载一次并核对 SHA-256）只在 `*.deepseekbot.dev` 上公开设备网关。所有登录账号都能关联最多 5 台电脑，手机登录同一账号后点一下即可配对，不用扫码；在手机上**删除账号**会解除所有电脑的关联并删除账号（[#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)、[#2470](https://github.com/BotHarness/DeepSeekBot/issues/2470)、[#2410](https://github.com/BotHarness/DeepSeekBot/issues/2410)）。
+- 有设备和电脑配对后，其他已配对的手机会收到通知，点**移除**即可撤销这台新设备；设置 → 设备会标出最近一天内配对的设备（[#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)）。
+- Bot 设置 → 设备中的**配对手机**改为三步 Tailscale 指引并实时显示状态，确认后可代为运行 `tailscale serve`（[#2399](https://github.com/BotHarness/DeepSeekBot/pull/2399)）。
+- 频道列表可以显示远程 Host：在 **+** 菜单里选**添加远程**并粘贴另一台 Host 的配对链接，浏览器就能通过 Tailscale 列出、打开并回复那台 Host 的聊天。列表上方随后出现一排图标，可在**全部**、**本机**和各个远程之间切换，悬停显示名称和未读数，右键可更改图标或移除（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
+- 手机配对先让你在 托布账号和 Tailscale 之间选择；侧边抽屉会列出账号里还没配对的电脑，点一下即可配对；首次配对会说明电脑需要准备什么（[#2512](https://github.com/BotHarness/DeepSeekBot/pull/2512)、[#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)、[#2402](https://github.com/BotHarness/DeepSeekBot/pull/2402)）。
+- **设置 → 数据与隐私 → 存储空间**显示聊天媒体、消息和记忆各占多少空间，可按时间、类型和聊天预览后清理旧媒体或整条旧消息；Bot 正在处理的、尚未发出的和被记忆引用的内容会保留。手机 App 有同样的存储空间页，CLI 可用 `deepseekbot storage-usage`、`storage-cleanup-*` 和 `storage-messages-cleanup-*` 完成同样的操作（[#2430](https://github.com/BotHarness/DeepSeekBot/issues/2430)）。
+- **设置 → 数据与隐私 → 清除全部 BotHarness 数据**会先列出要删除和保留的内容并再次确认，然后删除所有 Bot、聊天记录、默认位置的记忆、附件、工作区、IM 连接设置和下载的工具，再重启 Host；`deepseekbot data-reset-preview` 和 `data-reset-confirm` 走同样的流程（[#2426](https://github.com/BotHarness/DeepSeekBot/issues/2426)）。
+- 工作区控制栏新增 **Bot 市场面板**：卡片网格随面板宽度排布，按回车搜索，可按最新创建、最近更新或最多 Star 排序，每张卡片都能导入，也能帮你上传 Bot。仓库提供对应语言时按界面语言显示，并可显示一句 AI 摘要；`deepseekbot marketplace-list` 支持 `--sort created` 和 `--lang zh|en`（[#2460](https://github.com/BotHarness/DeepSeekBot/issues/2460)、[#2375](https://github.com/BotHarness/DeepSeekBot/pull/2375)）。
+- **Bot 设置 → 插件**列出已安装的 BotHarness 插件（例如 VRM 伴侣），从 npm 检查兼容的新版本并一键更新，装好后自动刷新或提供「立即重启」；`deepseekbot plugin-check`、`plugin-install` 和 `plugin-restart` 可完成同样的操作（[#2472](https://github.com/BotHarness/DeepSeekBot/pull/2472)）。
+- VRM 伴侣 Panel 可以在这一版 DeepSeekBot 旁用 `dsh plugin add @botharness/vrm-companion` 单独安装。角色住在有天气、按本地时间变化昼夜和可选镜头巡游的 lo-fi 书房里，表情、打字和空闲小动作跟随 Bot 状态，回复在气泡里逐句说出，可载入你自己的 `.vrm` 文件，界面跟随应用语言（[#2222](https://github.com/BotHarness/DeepSeekBot/issues/2222)、[#2304](https://github.com/BotHarness/DeepSeekBot/issues/2304)、[#2305](https://github.com/BotHarness/DeepSeekBot/issues/2305)、[#2458](https://github.com/BotHarness/DeepSeekBot/pull/2458)）。
+- 在手机上向左滑动 Activity 中的回复或未读会话即可清理，需要你处理的请求可以稍后提醒；桌面端 Activity 同步隐藏，筛选 → 已清理 / 已延后 可以恢复，CLI 可用 `deepseekbot inbox --dismissed` 和 `inbox-restore`（[#2404](https://github.com/BotHarness/DeepSeekBot/pull/2404)）。
+- 电脑使用系统文件夹选择器时，手机也能浏览电脑上的文件夹并授权给 Bot；`deepseekbot folder-browse` 可列出同样的文件夹（[#2392](https://github.com/BotHarness/DeepSeekBot/pull/2392)）。
+- 手机 Beta 可以从任意 App 分享文字、链接、照片和文件给 Bot；Bot 通知显示为带头像和审批按钮的聊天消息（Android 由 App 自己绘制）；实体键盘用 ⌘↩ 或回车发送；长按 App 图标列出最近的聊天；可粘贴剪贴板图片、双击点赞 👍、在最新消息处继续上拉拉起键盘；Android 上左滑会话行可静音、置顶和标为已读（[#2401](https://github.com/BotHarness/DeepSeekBot/pull/2401)、[#2397](https://github.com/BotHarness/DeepSeekBot/pull/2397)、[#2465](https://github.com/BotHarness/DeepSeekBot/pull/2465)、[#2380](https://github.com/BotHarness/DeepSeekBot/pull/2380)、[#2364](https://github.com/BotHarness/DeepSeekBot/pull/2364)、[#2353](https://github.com/BotHarness/DeepSeekBot/pull/2353)）。
+- 设备 CLI 与设置 → 设备使用同一所有者，可列出手机、创建私有配对邀请、查看邀请状态和撤销设备；撤销会关闭设备的活动连接（[#2098](https://github.com/BotHarness/DeepSeekBot/issues/2098)）。
+- 远程聊天显示所属 Host 的头像、Bot 活动和未读数，在该 Host 更新已读位置，并显示图片、文件和请求卡片；下载和音频仅在操作后加载（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
+- 活动中心按 Host 汇总远程请求、回复和未读聊天，审批、回答、加入决定、延后与清除都发往所属 Host；失败时保留已加载内容并提供重试，已处理或过期的请求不能重复提交（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
+- 远程 Host 设置支持修改模型和预设、查看用量与记忆活动、预览并确认存储清理；过期的模型修改会被拒绝（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
+- 远程 Bot 会话可通过支持的配对设备路由打开 Browser 和 Computer 查看器；暂停 Bot 后才能接管，画面断线恢复后须重新接管。关闭时交还控制，移除 Host 时最多等待五秒清理，再撤销配对（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
+- **远程聊天与本机聊天显示一致**：网页端打开远程 Host 上的聊天时，图片、文件、工具审批卡、提问卡和私密输入卡都用与本机相同的渲染器显示。图片和文件通过本浏览器的配对从该 Host 加载，批准、回答或提交都在该 Host 上执行（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
+- 手机聊天行支持滑动显示置顶、添加到分区和静音，也可通过无障碍菜单操作。在会话所属的远程 Host 选择或新建分区；添加失败后重试会复用已创建的分区，切换 Host 后拒绝旧操作。iOS 保留左边缘抽屉手势和聊天预览（[#2519](https://github.com/BotHarness/DeepSeekBot/issues/2519)）。
+- 新增首片 Windows 到 Android 的 Local Computer 视频路径，复用已配对加密 LAN 通道，明确接管，释放控制或重启后 Bot 仍保持暂停；视频路径没有图片回退。画面停滞时仍可释放与重新连接，Connect 继续拒绝，等待后续切片。真机与 Human 验收仍待完成；接管后降级时，恢复过程必须协调并保留暂停状态（[英文指南](docs/local-computer-video.md)，[中文指南](docs/local-computer-video.zh.md)，[#2558](https://github.com/BotHarness/DeepSeekBot/issues/2558)）。
+- 手机聊天页展示远程 Host 的分区和顺序，置顶分区可折叠，使用与其他分区相同的完整聊天行，展示消息摘要、未读及状态。搜索临时平铺列表；取消置顶后恢复原分区位置。整理模式与拖动操作留待后续切片（[#2571](https://github.com/BotHarness/DeepSeekBot/issues/2571)）。
+- 设备页和 CLI 新增默认关闭的加密局域网手机配对，手机经电脑批准后访问，撤销立即生效（[#2599](https://github.com/BotHarness/DeepSeekBot/issues/2599)）。
+- 新增电脑端 SSH 隧道命令，可在浏览器操作已运行的 Linux Host，并保留 Host 密钥校验、设备批准与吊销（[#2607](https://github.com/BotHarness/DeepSeekBot/issues/2607)）。
+- 手机配对支持从相册在本机识别二维码，电脑端分别提供局域网和 Tailscale 连接引导，继续沿用指纹确认和设备批准流程（[#2614](https://github.com/BotHarness/DeepSeekBot/issues/2614)）。
+- 新增移动端原生空白 Bot 创建，可选择已配对 Host、保存草稿、在响应中断后恢复同一次创建，并在完成时保留当前导航；CLI 可查询同一创建回执。市场、Git 链接和 Zip 导入仍属于已接受设计的后续切片（[ADR-0247](docs/adr/0247-bot-creation-and-import-recover-on-their-chosen-host.md)，[#2629](https://github.com/BotHarness/DeepSeekBot/issues/2629)）。
+- 新增移动端原生 Git Bot 导入，可修改名称和目标环境、确认来源版本，并在请求中断后恢复原来的 Bot 与聊天；对应 CLI 查询使用同一份 Host 回执（[#2635](https://github.com/BotHarness/DeepSeekBot/issues/2635)、[ADR-0247](docs/adr/0247-bot-creation-and-import-recover-on-their-chosen-host.md)）。
+- 新增移动端原生市场浏览、搜索、主题和 Bot 详情，无需连接电脑即可查看；导入保留已审阅的来源，并进入统一的目标环境与名称确认页（[#2636](https://github.com/BotHarness/DeepSeekBot/issues/2636)）。
+- 新增移动端原生 Bot Zip 导入：保留所选文件、显示分块上传进度、校验预览、允许修改名称和目标 Host，并在中断后恢复同一个 Bot 和私聊。Host 暂存独立过期，持久导入回执继续保留；CLI 使用相同的上传、预览、导入和查询能力（[#2637](https://github.com/BotHarness/DeepSeekBot/issues/2637)）。
+- 移动端创建菜单可直接进入从零创建、Zip、市场和 Git 导入；市场卡片与详情展示头像、横幅，并提供简洁的搜索与筛选入口（[#2644](https://github.com/BotHarness/DeepSeekBot/issues/2644)）。
+- iPhone 可通过已配对的局域网观看 Mac 主屏幕，明确接管后点击，再交还给 Bot；原生视频接收需要重新构建 iOS 应用，视频失败不会回退到截图（[#2653](https://github.com/BotHarness/DeepSeekBot/issues/2653)）。
+- iOS 和 Android 在 Bot 回复正文首次流式显示于前台聊天时轻震一次，并遵循本机触觉反馈设置（[#2666](https://github.com/BotHarness/DeepSeekBot/issues/2666)）。
+- Android 使用原生 Material 3 对话框创建空白 Bot、从 Git 导入 Bot 和创建远程 Host 群频道。创建频道时可多选同一电脑的 Bot，切换电脑会清空选择；已提交的操作保留原目的地以便恢复（[#2673](https://github.com/BotHarness/DeepSeekBot/issues/2673)）。
+- 新增 Bot 创建及 Git、Zip、商城导入的手机匿名统计，区分预览、提交和恢复结果，沿用统计开关与正式采集资格门槛（[#2682](https://github.com/BotHarness/DeepSeekBot/issues/2682)）。
+- 手机设置新增语言和外观选项：可跟随系统、选择中文或英文、固定浅色或深色；选择即时生效并保存在手机本地，保留当前聊天和草稿（[#2702](https://github.com/BotHarness/DeepSeekBot/issues/2702)）。
+- Bot 私信中来自其他会话的记忆更新支持「简约 / 详细」切换，沿用原有显示开关，两种模式均可点击查看完整变更（[#2712](https://github.com/BotHarness/DeepSeekBot/issues/2712)）。
+- 新增 Tobs npm 包与 `tobs` 命令，保留兼容的 `deepseekbot` 入口，两者沿用同一发布实现、配置与数据（[#2722](https://github.com/BotHarness/DeepSeekBot/issues/2722)）。
+- Android 桌面显示名更新为 Tobs／托布，保留应用 ID、签名配置与旧配对链接，并在选择备用图标时保留分享和配对入口（[#2722](https://github.com/BotHarness/DeepSeekBot/issues/2722)）。
+
+### Changed
+
+- 会话视图、Bot 列表、频道侧栏面板、停靠面板外框、Activity 收件箱、首页概览和 IM 应用设置只在自己显示的数据变化时才重新渲染，流式回复、搜索输入和其他 Bot 的 Activity 不再让它们重绘；在脚本负载下，侧栏的 React commit 从 2,640 次降到 80 次（[#2439](https://github.com/BotHarness/DeepSeekBot/issues/2439)、[#2449](https://github.com/BotHarness/DeepSeekBot/issues/2449)、[#2450](https://github.com/BotHarness/DeepSeekBot/issues/2450)、[#2453](https://github.com/BotHarness/DeepSeekBot/issues/2453)、[#2454](https://github.com/BotHarness/DeepSeekBot/issues/2454)、[#2455](https://github.com/BotHarness/DeepSeekBot/issues/2455)）。
+- VRM 伴侣打开时不再因编译着色器而卡住，静止时以 30fps 绘制，卡顿后会恢复分辨率；在没有显卡加速的电脑上显示静态画面和 **Show 3D anyway**，不再以约 1fps 运行（[#2446](https://github.com/BotHarness/DeepSeekBot/pull/2446)、[#2458](https://github.com/BotHarness/DeepSeekBot/pull/2458)）。
+- 桌面端面板标题栏的按钮立即显示提示，面板标题会说明可以拖动或点击隐藏，Bot 设置侧栏的每个分类前都有图标（[#2386](https://github.com/BotHarness/DeepSeekBot/pull/2386)、[#2396](https://github.com/BotHarness/DeepSeekBot/pull/2396)）。
+- 手机 Beta 可以处理以前必须回到电脑的请求：文件夹请求、带 diff 和风险提示的“允许这次／始终允许／拒绝”工具审批、对被自动拒绝的调用允许一次、入群申请，以及回复等待中或受阻的 Assignment，并都会推送通知（[#2080](https://github.com/BotHarness/DeepSeekBot/issues/2080)）。
+- 手机 Beta 更贴合各平台：输入栏对齐 iOS 26 信息或 Material 3，Android 聊天顶栏悬浮，上下边缘渐隐更柔和，对话和 Activity 顶栏的搜索与按钮改为原生；Android 改用 Material 3 导航栏和创建 FAB、导航抽屉、分段列表、选择控件、加载指示器和返回行为。**自定义电脑**改为选择图标和颜色，并显示在每个会话名后面（[#2355](https://github.com/BotHarness/DeepSeekBot/pull/2355)、[#2398](https://github.com/BotHarness/DeepSeekBot/pull/2398)、[#2394](https://github.com/BotHarness/DeepSeekBot/pull/2394)、[#2425](https://github.com/BotHarness/DeepSeekBot/pull/2425)、[#2377](https://github.com/BotHarness/DeepSeekBot/pull/2377)、[#2487](https://github.com/BotHarness/DeepSeekBot/pull/2487)、[#2350](https://github.com/BotHarness/DeepSeekBot/pull/2350)、[#2351](https://github.com/BotHarness/DeepSeekBot/pull/2351)、[#2348](https://github.com/BotHarness/DeepSeekBot/pull/2348)、[#2342](https://github.com/BotHarness/DeepSeekBot/pull/2342)、[#2354](https://github.com/BotHarness/DeepSeekBot/pull/2354)、[#2343](https://github.com/BotHarness/DeepSeekBot/pull/2343)、[#2358](https://github.com/BotHarness/DeepSeekBot/pull/2358)、[#2461](https://github.com/BotHarness/DeepSeekBot/pull/2461)、[#2499](https://github.com/BotHarness/DeepSeekBot/pull/2499)）。
+- 手机通知选择保存在手机并同步到所有配对 Host，重新配对后也会恢复；浏览器为每个远程 Host 分别设置页面打开期间的提醒，重连后不重播旧事项（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
+- 手机聊天页改为从左侧抽屉选择全部或一个 Host 的单列表，保留完整读屏名称和可缩放图标；Android 跟随选中 Host 的颜色，全部视图和 iOS 保留默认强调色。连续切换保留最新 Host 选择，也不会覆盖明确选中的全部视图（[#2518](https://github.com/BotHarness/DeepSeekBot/issues/2518)）。
+- Connect 登录会说明如何用无痕窗口切换账号，并显示当前邮箱和退出入口；手机登录要求重新验证身份，不再默默沿用浏览器会话（[#2520](https://github.com/BotHarness/DeepSeekBot/issues/2520)）。
+- iOS 消息输入框将附件按钮收进同一个更高的圆角容器，为输入区域留出更多空间（[#2566](https://github.com/BotHarness/DeepSeekBot/issues/2566)）。
+- 将远程 Host 的外观、通知、模型、用量和存储统一到一个设置窗口，UI 与 `host-look` CLI 共用设备本地的显示名称、图标和颜色（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
+- Connect 在提供加密通道前拒绝私密输入及已知的凭据设置方法，远程聊天提示在本机或通过 Tailscale 填写密钥。手机内的完整 Host WebView 及入口在所有路由上移除，保留原生页面。感谢 Vain 指出信任边界问题（[#2541](https://github.com/BotHarness/DeepSeekBot/issues/2541)）。
+- Host 与手机端匿名统计的每条事件现在都附带版本和粗粒度设备信息，便于按版本与设备类别比较使用情况和错误，并保留退出统计及数据隐私保护机制（[#2556](https://github.com/BotHarness/DeepSeekBot/issues/2556)）。
+- Android 电脑视频加入大光标、支持拖动滚屏与滑块反馈的图标左右键、紧凑横屏工具栏，以及单一「接管／交还 Bot」按钮；观看时隐藏鼠标控制，顶对齐预览保留双指自由缩放平移和明确归位（[#2559](https://github.com/BotHarness/DeepSeekBot/issues/2559)）。
+- 手机连接失败时提供 Wi-Fi／局域网或远程网络检查建议；Computer 按断线、视频故障和设备拒绝分别提供重试、重新连接视频与重新配对入口（[#2559](https://github.com/BotHarness/DeepSeekBot/issues/2559)）。
+- Android Computer 在两种应用主题下都使用纯黑画布和深色控件，左侧返回按钮与 显示连接及控制图标的 Host 环境胶囊分开，底部操作使用分组的原生 Material 按钮，键盘按钮显示输入是否开启；左右键点击确认后，分别在鼠标位置显示短暂的蓝色或橙色波纹。([#2559](https://github.com/BotHarness/DeepSeekBot/issues/2559))
+- Android 向下滚动时导航栏下移隐藏，新建 FAB 以底边中点为支点缩小并淡出；向上滚动恢复，开启屏幕阅读器时两者始终可见。([#2669](https://github.com/BotHarness/DeepSeekBot/issues/2669))
+- Android Computer 放慢点击波纹，左右键只负责点击，中间滚动区域支持按住持续滚动；接管后在原生 Material 工具栏显示键盘和归位图标。聊天与动态恢复原生导航栏，图标和标签横向排列，动态保留图标并在标签中显示待处理数量。([#2559](https://github.com/BotHarness/DeepSeekBot/issues/2559), [#2669](https://github.com/BotHarness/DeepSeekBot/issues/2669))
+- Bot 市场卡片显示顶部横幅，采用扁平无描边样式和主色导入按钮，搜索框、上传和排序控件统一高度。默认按最多 Star 排序，在当前设备记住排序选择；Star 相同时依次按最后更新和创建时间排序（[#2568](https://github.com/BotHarness/DeepSeekBot/issues/2568)）。
+- iOS 聊天操作改用原生按钮和系统图标；听写保留点按、长按、取消和锁定操作，使用原生触摸识别，并在未锁定的长按被打断时取消听写（[#2575](https://github.com/BotHarness/DeepSeekBot/issues/2575)）。
+- 手机 Connect 使用原生分组展示账户操作和电脑，标明离线及已添加状态，支持多选后逐台核对指纹并添加。新增连接默认保留电脑名称，可稍后在设置中重命名（[#2581](https://github.com/BotHarness/DeepSeekBot/issues/2581)）。
+- 聊天行移除常驻更多按钮，为会话内容留出空间。滑动可置顶、添加到分区和静音；长按打开包含标为已读的完整菜单，iOS 保留原有预览。屏幕阅读器操作继续可用，标题栏、头像和滑动操作栏采用统一水平留白（[#2588](https://github.com/BotHarness/DeepSeekBot/issues/2588)）。
+- 手机的加入分组弹层改用原生顶部关闭和新建操作、原生分组选择行，并在加载时显示进度，避免误以为列表为空；创建与重试仍由原 Host 处理（[#2619](https://github.com/BotHarness/DeepSeekBot/issues/2619)）。
+- 原生分区面板右上角改用 + 图标新建分区，保留读屏名称；Android 顶部操作提供平台支持的图标（[#2619](https://github.com/BotHarness/DeepSeekBot/issues/2619)）。
+- 手机分区选择器固定将“未分组”放在分隔线之前，并用主色对勾标记当前归属；选择“未分组”只解除分区归属（[#2619](https://github.com/BotHarness/DeepSeekBot/issues/2619)）。
+- 移动端导航和自定义选项在实际切换时提供触感反馈，审批与选择提交在被接受后才反馈；界面设置可关闭这台设备上应用额外添加的震感，按压视觉反馈仍然保留（[#2624](https://github.com/BotHarness/DeepSeekBot/issues/2624)）。
+- 移动端市场卡片和 Bot 详情保留简介内容，不再显示“AI 生成的简介”标注（[#2646](https://github.com/BotHarness/DeepSeekBot/issues/2646)）。
+- 移动端市场直接展示排序和常用标签，加入 iOS 悬浮玻璃导航与底部确认搜索，并对齐主题筛选面板的关闭按钮（[#2648](https://github.com/BotHarness/DeepSeekBot/issues/2648)）。
+- 聊天列表的创建按钮改用 iOS 原生菜单和 Material 3 菜单，直接显示四个 Bot 来源，去掉重复标题；附件按钮改为原生弹出菜单，两个加号菜单在触感开启时仅展开轻震一次（[#2650](https://github.com/BotHarness/DeepSeekBot/issues/2650)）。
+- 将 Android 底部导航改为圆角悬浮岛，与安全区边缘保持 16dp 间距，去掉高度与阴影，并保留选中指示和系统字体缩放（[ADR-0235](docs/adr/0235-mobile-creation-shares-the-existing-tab-navigator.md)，[#2655](https://github.com/BotHarness/DeepSeekBot/issues/2655)）。
+- Android 的市场排序等行内选项改用 Material 3 按钮组，保留单选、触觉反馈和大字体下的可读选项；标签筛选使用无边框 chips（[#2656](https://github.com/BotHarness/DeepSeekBot/issues/2656)）。
+- iOS Computer 查看页改用透明原生顶部栏，显示电脑名称及连接、控制状态图标，并采用突出接管操作的原生工具栏、独立多指触控板与系统键盘输入、仅转圈的等待状态、纯黑画布，以及区分左右键的已接收点击波纹（[#2662](https://github.com/BotHarness/DeepSeekBot/issues/2662)）。
+- iOS Computer 改为在画面上单指移动指针，配合原生鼠标图标按钮和固定的单指滚动图标区，操作区不随字号或画面缩放而放大；Android 复用左右键与滚轮 SVG，保留原生按钮和手势；人工远控入口不再要求开启 Bot 的电脑工具（[#2662](https://github.com/BotHarness/DeepSeekBot/issues/2662)）。
+- Android 聊天列表移除行左滑，长按原生面板顶部居中显示会话头像和名称，正文保留置顶、移动分组、静音三个图文操作。底部导航改为上方图标、下方标签，待处理 Activity 数量替换图标（[#2669](https://github.com/BotHarness/DeepSeekBot/issues/2669)）。
+- Android 新建 Bot 和频道改为完整页面，采用设置页风格表单和原生操作按钮，为输入与选择 Bot 留出更多空间（[#2683](https://github.com/BotHarness/DeepSeekBot/issues/2683)）。
+- Android 群组频道的邀请 Bot 改为可下拉关闭的原生抽屉，支持勾选多个 Bot，再点击顶部主题色对勾统一确认（[#2684](https://github.com/BotHarness/DeepSeekBot/issues/2684)）。
+- Android 聊天与动态页面向下滚动时同步收起顶部和底部导航，向上滚动时恢复；搜索和 TalkBack 开启时保持控件可见（[#2686](https://github.com/BotHarness/DeepSeekBot/issues/2686)）。
+- 将 iOS 设置入口从聊天列表右上角移到底部栏，点击仍打开原有设置抽屉（[#2689](https://github.com/BotHarness/DeepSeekBot/issues/2689)）。
+- Android Computer 左右键按钮复用 iOS 和中键滚动区域的同一套鼠标 SVG 图标，并保留原生 Material 按钮（[#2690](https://github.com/BotHarness/DeepSeekBot/issues/2690)）。
+- 将 Android 设置入口从聊天列表顶部移到底部导航栏；点击仍打开现有设置抽屉，并保留当前标签页（[#2691](https://github.com/BotHarness/DeepSeekBot/issues/2691)）。
+- 开发运行时和 SDK 更新至 DeepSeek Harness 0.2.1-rc.3，保留文件工具、Go Session 补丁和旧版本发布检查；安装和开发启动支持 0.2.0 及后续预发布版本，不再与构建版本绑定；可选桌面缩放按适配器协议和完整性检查，不再限制具体 rc（[#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)）。
+- 开发启动会校验 Profile 路径与参数，在 macOS/Linux 追踪继承归属标记的独立后台准备进程，并阻止修改运行中的 Home，持续追踪中断安装与 Host 的进程归属，清理失败启动期间新增的子进程，允许 Windows 独立目录并行，并跳过上游已原生修复的 Go Session 补丁（[#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)）。
+- 应用品牌采用 Tobs（托布，Team of bots／Thousands of Bots），短链入口迁至 go.tobs.app，保留旧域名、短码与数据；市场和统计服务支持新官网来源（[#2722](https://github.com/BotHarness/DeepSeekBot/issues/2722)）。
+- iOS 应用显示名、权限提示和应用内品牌更新为 Tobs／托布，保留原安装、配对链接及应用身份（[#2725](https://github.com/BotHarness/DeepSeekBot/issues/2725)）。
+- 浏览器、电脑控制、权限与审批策略修改，以及 Tob 更新、重启和删除 Bot 的审批现可显式保存“始终允许”；密钥命令通知也提供该选项（[#2730](https://github.com/BotHarness/DeepSeekBot/issues/2730)）。
+- Android 更多操作、长按、消息、附件和创建菜单统一使用 Material 3 Expressive 圆角分组，每个操作行都显示图标和文字（[#2675](https://github.com/BotHarness/DeepSeekBot/issues/2675)）。
+- Android 聊天、Activity、Marketplace 和模型选择器改用原生 Material 3 搜索条，保留即时筛选并提供清除按钮（[#2658](https://github.com/BotHarness/DeepSeekBot/issues/2658)）。
+
+### Fixed
+
+- 修复自 1.4.0 起 Bot 模式在长对话中空闲时卡顿的问题：隐藏的悬浮工具栏不再让每次重绘重建所有气泡，引导轮询不再重渲染整个对话，消息时间与折叠尺寸的计算也更省（[#2413](https://github.com/BotHarness/DeepSeekBot/issues/2413)）。
+- DSH 0.2.1 上的 **立即更新** 恢复可用：现在用 npm 安装包原地升级，装好后页面自动刷新、无需重启，提示会用一行说明失败原因。DeepSeekBot 1.4.1 及更早版本仍需手动更新一次（[#2382](https://github.com/BotHarness/DeepSeekBot/pull/2382)、[更新指南](docs/update-deepseekbot.md)）。
+- Host 会清除超过一天的中断上传，并每天清除超过 30 天且没有任何引用的附件，磁盘不再被无法显示的文件持续占用（[#2430](https://github.com/BotHarness/DeepSeekBot/issues/2430)）。
+- 在手机上取消配对电脑时，会同时在那台电脑上撤销这台手机，并清掉手机上它留下的通知、缓存聊天和快捷方式；连不上电脑时，手机会提示你去电脑的 设置 › 设备 里移除（[#2409](https://github.com/BotHarness/DeepSeekBot/issues/2409)、[#2464](https://github.com/BotHarness/DeepSeekBot/pull/2464)）。
+- 删除 Bot 后，它的私聊会离开频道列表，不再残留并报模型设置错误；历史仍可在“隐藏的频道”中只读查看（[#2417](https://github.com/BotHarness/DeepSeekBot/pull/2417)）。
+- 从 Bot 市场安装 Bot 恢复正常，不再报 `unexpected "origin"`；市场刷新在缺少密钥而跳过 AI 摘要时会记录日志（[#2460](https://github.com/BotHarness/DeepSeekBot/issues/2460)、[#2441](https://github.com/BotHarness/DeepSeekBot/pull/2441)）。
+- 在网页端和桌面端输入框里用 Ctrl+V 粘贴图片只会添加一张，不再重复（[#2390](https://github.com/BotHarness/DeepSeekBot/pull/2390)）。
+- `deepseekbot` CLI 通过 tailnet 名称访问 Host 时返回 `host-untrusted` 并指出 `--trusted-host` 参数，不再误报“刷新启动令牌”（[#2418](https://github.com/BotHarness/DeepSeekBot/pull/2418)）。
+- **配对手机**确认框改为提示用 `tailscale serve --https=443 off` 撤销，只移除 DeepSeekBot 发布的那一条；Connect relay 限制在线 tunnel 总数、按账号限流，并限制回收重试次数（[#2415](https://github.com/BotHarness/DeepSeekBot/pull/2415)、[#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)、[#2410](https://github.com/BotHarness/DeepSeekBot/issues/2410)）。
+- VRM 伴侣不会再在状态连接短暂中断时把回复截在第一个字，长回复留在面板内；网页、手机和角色上的 Bot 状态也不再在“思考”和短工具调用之间来回闪（[#2222](https://github.com/BotHarness/DeepSeekBot/issues/2222)）。
+- 手机 Beta 修复：照片、文件和粘贴的图片恢复发送；新私聊发出第一条消息后不再变空白；iPhone 流式回复不再闪烁跳动；Android 通知保留头像，角标清零时不再被清掉，处理后自动消失，点击能打开对应会话；在手机上处理的请求显示为本机处理；审批按 App 语言显示；大字体下名称和预览保持可读；打开聊天直接停在最新消息；加载指示器改为原生；修复 Android 实体键盘、大字体图标、文件夹选择器和 ⋯ 菜单问题（[#2444](https://github.com/BotHarness/DeepSeekBot/pull/2444)、[#2490](https://github.com/BotHarness/DeepSeekBot/pull/2490)、[#1845](https://github.com/BotHarness/DeepSeekBot/issues/1845)、[#2483](https://github.com/BotHarness/DeepSeekBot/pull/2483)、[#2485](https://github.com/BotHarness/DeepSeekBot/pull/2485)、[#2491](https://github.com/BotHarness/DeepSeekBot/pull/2491)、[#2494](https://github.com/BotHarness/DeepSeekBot/pull/2494)、[#2080](https://github.com/BotHarness/DeepSeekBot/issues/2080)、[#2443](https://github.com/BotHarness/DeepSeekBot/pull/2443)、[#2422](https://github.com/BotHarness/DeepSeekBot/pull/2422)、[#2421](https://github.com/BotHarness/DeepSeekBot/pull/2421)、[#2427](https://github.com/BotHarness/DeepSeekBot/pull/2427)、[#2366](https://github.com/BotHarness/DeepSeekBot/pull/2366)、[#2416](https://github.com/BotHarness/DeepSeekBot/pull/2416)、[#2488](https://github.com/BotHarness/DeepSeekBot/pull/2488)、[#2507](https://github.com/BotHarness/DeepSeekBot/pull/2507)、[#2516](https://github.com/BotHarness/DeepSeekBot/pull/2516)）。
+- 切换远程 Host 或频道时清空未发送的远程草稿，避免误发；窄活动面板会将操作换行，远程失败时保留标题、关闭入口和本地化重试提示（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
+- 移除远程 Host 会清除该浏览器的通知选择，重新配对默认关闭通知，其他 Host 的选择不受影响（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
+- 手机原生模块对齐 Expo SDK 58 补丁基线；验收前须重建 iOS 和 Android 开发客户端，Expo 58.0.16 二进制不具备本次验收资格（[#2500](https://github.com/BotHarness/BotHarness/issues/2500)）。
+- Browser 和 Computer 产物在 Windows 与 Linux 使用一致的 StyleX 令牌派生类名，使提交的构建可重复生成（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
+- Connect 会在大约一分钟内发现账号删除或会话撤销，停止隧道、清除会话，并提示 Host 重新登录（[#2526](https://github.com/BotHarness/DeepSeekBot/issues/2526)）。
+- 修复 Dev 与正式版手机 App 争用同一链接的问题：公共配对链接归正式版，Dev 使用独立配对链接及 Expo 启动链接；在任一 App 内扫描或粘贴已有配对链接仍然可用（[#2322](https://github.com/BotHarness/DeepSeekBot/issues/2322)）。
+- development client 的 `phone-notifications` 命令显式等待 Hermes 中手机 owner 的异步结果，拒绝将 Promise 内部字段误报为成功；写入超时后仍须先读回再决定是否重试（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
+- 原生手机的 Blob 未提供 `arrayBuffer()` 时，也能通过 Connect 上传附件。读取失败或取消会停止上传，不会退回明文（[#2542](https://github.com/BotHarness/DeepSeekBot/issues/2542)）。
+- 修复手机端聊天列表在大字号下将时间排到标题下方的问题；标题与时间保持同一行，预览位于第二行，并保留完整的无障碍文本（[#2553](https://github.com/BotHarness/BotHarness/issues/2553)）。
+- 修复 Windows 本机电脑视频因 Electron 启动输出、输入流及显示通知而无法启动的问题，并处理非整数显示缩放带来的尺寸误差（[#2558](https://github.com/BotHarness/BotHarness/issues/2558)）。
+- Android Release：保留 WebRTC/JNI Zero 入口，修复打开电脑视频时的原生崩溃。需要重新构建 Android 应用（[#2558](https://github.com/BotHarness/BotHarness/issues/2558)）。
+- Android Computer 在双指松开时保留最后的缩放位置，新增二维滚动区和提交文字的键盘入口，并去掉输入前重复的远端光标动画（[#2559](https://github.com/BotHarness/DeepSeekBot/issues/2559)）。
+- Android Computer 通过手机原生键盘直接输入电脑当前焦点字段，不再显示额外输入框或发送栏。稳定的原生焦点避免编辑器更新时反复收起键盘；组合输入、退格和回车继续受当前控制授权约束。([#2559](https://github.com/BotHarness/DeepSeekBot/issues/2559))
+- 将移动端启动时的模板占位图替换为适配浅色和深色模式的 Bot 头像；已安装的应用需要更新原生安装包（[#2577](https://github.com/BotHarness/DeepSeekBot/issues/2577)）。
+- iOS 的“退出登录”和“删除账户”操作统一为文字与图标使用危险操作颜色（[#2581](https://github.com/BotHarness/DeepSeekBot/issues/2581)）。
+- iOS 账户操作图标直接使用危险操作颜色，并在统一图标槽内对齐，同时校正“退出登录”图形的视觉中心（[#2581](https://github.com/BotHarness/DeepSeekBot/issues/2581)）。
+- 修复从另一个浏览器来源配对远程 Host 后，浏览器请求元数据被传入 Host 内部连接，导致聊天列表一直无法连接的问题（[#2584](https://github.com/BotHarness/DeepSeekBot/issues/2584)）。
+- 修复 Bot 提问被通用 Host 客户端提前接收、导致会话和远程活动中心没有问题卡片的情况；现在可直接回答并让 Bot 继续（[#2590](https://github.com/BotHarness/DeepSeekBot/issues/2590)）。
+- 修复 iOS 听写按钮点按或长按无法启动语音识别的问题，录音手势改为在原生开始事件后激活（[#2591](https://github.com/BotHarness/DeepSeekBot/issues/2591)）。
+- iOS 听写入口改用原生开始/停止按钮，居中显示麦克风图标，替换不可靠的长按拖动手势（[#2594](https://github.com/BotHarness/DeepSeekBot/issues/2594)）。
+- 修复 Android 聊天气泡中的 Markdown 列表缩成窄列的问题，覆盖长回复和嵌套列表（[#2596](https://github.com/BotHarness/BotHarness/issues/2596)）。
+- 修复 Android Release lint 拒绝加密局域网策略的问题，显式将原有四项例外限制为精确域名（[#2599](https://github.com/BotHarness/DeepSeekBot/issues/2599)）。
+- 退出登录和删除账号均需二次确认，并说明各自影响。确认后移除此手机中已记录归属该账号的连接，保留手动和未记录归属的旧配对；清理或删除未完成时保留恢复状态，远端结果未知时可再次确认仅清理此手机（[#2603](https://github.com/BotHarness/DeepSeekBot/issues/2603)）。
+- iOS 聊天听写不再因短暂停顿自动结束，可继续说话后手动点击停止（[#2608](https://github.com/BotHarness/DeepSeekBot/issues/2608)）。
+- 电脑断连时保留发送按钮并禁用，保留草稿，恢复连接后即可继续发送（[#2610](https://github.com/BotHarness/DeepSeekBot/issues/2610)）。
+- 修复手机中文界面的配对设备拒绝说明显示英文的问题，保留“重新配对”入口（[#2621](https://github.com/BotHarness/DeepSeekBot/issues/2621)）。
+- iOS 表单输入框随系统字号实时调整高度，并保留草稿和焦点，避免新建分区时大字体被裁切（[#2628](https://github.com/BotHarness/DeepSeekBot/issues/2628)）。
+- 打开消息附件菜单或聊天列表的创建面板时，现在会提供一次轻触感，并遵循本机的触感反馈设置（[#2642](https://github.com/BotHarness/DeepSeekBot/issues/2642)）。
+- 修复 iOS 远控 Mac 时按住滚轮区域会逐格停顿的问题，改用限速连续滚动，并在松手、断连或交还控制后停止（[#2662](https://github.com/BotHarness/DeepSeekBot/issues/2662)）。
+- 对齐 iOS 和 Android 上聊天页 header、频道列表与动态页 header 的左右间距，切换页面时按钮横向位置保持一致（[#2670](https://github.com/BotHarness/DeepSeekBot/issues/2670)）。
+- 支持 Computer 的已配对 Host 上，所有 Bot 都显示供人类使用的 Computer 入口，不再取决于单个 Bot 的 Computer 工具设置。不支持的 Host 保持不可用，暂时的状态查询失败保留上次确认的能力（[#2687](https://github.com/BotHarness/DeepSeekBot/issues/2687)）。
+- 新建频道使用正确文案和顶部确认入口；Android 通过与邀请 Bot 相同的多选抽屉选择成员，无需在表单中滚动长列表（[#2700](https://github.com/BotHarness/DeepSeekBot/issues/2700)）。
+- Android Bot 多选抽屉为虚拟列表中的原生成员行提供初始最小尺寸，并移除空头像容器，使新建频道的候选行能够正常测量和显示（[#2706](https://github.com/BotHarness/DeepSeekBot/issues/2706)）。
+- 新建频道选择成员时显示 Bot 头像，与邀请 Bot 抽屉保持一致（[#2708](https://github.com/BotHarness/DeepSeekBot/issues/2708)）。
+- 按 Expo Doctor 对齐 SDK 58 补丁依赖，并重新构建原生安装包（[#2708](https://github.com/BotHarness/DeepSeekBot/issues/2708)）。
+- 手机语言和外观设置改为与相邻选项对齐的“图标 + 标签”设置行，并保留原生单选菜单（[#2710](https://github.com/BotHarness/DeepSeekBot/issues/2710)）。
+- Android 偏好菜单在标签左侧显示选项图标，右侧仅保留一个选中勾，高亮颜色跟随应用主题色（[#2714](https://github.com/BotHarness/DeepSeekBot/issues/2714)）。
+- iOS 语言和外观菜单补上原生选项图标，保留系统单选标记及菜单样式（[#2714](https://github.com/BotHarness/DeepSeekBot/issues/2714)）。
+- 修复 Bot 聊天开启完全访问后，委托子代理在首次模型请求前被拦截的问题。子代理继续使用受限工作区且不可申请审批，父会话保持所选访问权限（[#2727](https://github.com/BotHarness/DeepSeekBot/issues/2727)）。
+- 修复工作区授权的文件夹浏览器无法离开 Windows 用户目录所在盘的问题：现在可直接点击可用磁盘，浏览并授权文件夹，也可选择输入完整路径跳转（[#2728](https://github.com/BotHarness/DeepSeekBot/issues/2728)）。
+- 修复手机静默断线和网络切换后的恢复，补齐 Tailscale、Connect 和局域网的引导；设备设置会提示检查结果已过期、作废旧地址的配对码，并支持生成失败后直接重试（[#2731](https://github.com/BotHarness/DeepSeekBot/issues/2731)）。
+- Android 聊天主页和 Activity 统一 header 的 Material 图标尺寸，并提前预留搜索框高度，避免展开搜索时 header 将列表向下推（[#2680](https://github.com/BotHarness/DeepSeekBot/issues/2680)）。
+- 后台同步通知偏好时保持四个分类开关可操作，避免电脑离线重试导致 Android 开关反复变灰、恢复（[#2703](https://github.com/BotHarness/DeepSeekBot/issues/2703)）。
+
+### Documentation
+
+- GitHub README 采用 DeepSeekBot 的像素小镇设计，附版本亮点和最近 30 天的仓库状态；README 和安装指南安装 `deepseekbot@1.4.1`（[#2373](https://github.com/BotHarness/DeepSeekBot/issues/2373)、[#2371](https://github.com/BotHarness/DeepSeekBot/pull/2371)）。
+- 新增面向测试者的**配对手机**教程（Tailscale 与扫码配对），并补充 Tobs Connect relay 的部署流程（[#1643](https://github.com/BotHarness/DeepSeekBot/issues/1643)、[#2410](https://github.com/BotHarness/DeepSeekBot/issues/2410)）。
+- 补充首次私信可见性、回复滚动及工作状态行回归的区分方法，提供非 Connect 路由的原生验收流程，并明确源码测试的验证边界（[#2521](https://github.com/BotHarness/DeepSeekBot/issues/2521)、[English](docs/agents/mobile-first-reply.md)、[中文](docs/agents/mobile-first-reply.zh.md)）。
+- 明确 Web、桌面和原生手机端共同遵循的 [UI 设计规范](docs/agents/ui-design.md)：优先用布局、图标和交互表达，说明简短并按需展示，同时保留无障碍支持与知情安全决策所需信息（[#2542](https://github.com/BotHarness/DeepSeekBot/issues/2542)）。
+- 记录 Local Computer 视频设计：无图片回退、自配 TURN、Human 排他控制和持久 Bot 暂停；运行代码迁移与真机验收尚未完成（[ADR-0245](docs/adr/0245-local-computer-video-separates-media-control-and-pause.md)，[#2555](https://github.com/BotHarness/DeepSeekBot/issues/2555)）。
+
+### Security
+
+- Connect 在独立核对 Host 指纹并明确批准设备公钥后，通过 Noise XK 加密消息、附件、审批与私密输入。不可信的配对地址会被拒绝，通知审批遇到 Connect 错误会停止，通知设置通过加密通道读取。来源 Host 的附件读取保持在加密通道，旧请求或流的延迟清理不会影响替代实例。配对改用简洁的原生分步界面，完整指纹分组显示，说明按需展开。手机新增原生私密输入表单，iOS 配对后可直接使用聊天，无需冷启动，即使刚关闭首次使用说明也不阻塞点击；旧 Connect 配对需要重新配对，Browser/Computer 查看器在 Connect 上暂不可用，等待单独验收（[#2542](https://github.com/BotHarness/DeepSeekBot/issues/2542)）。
+
+## [1.4.1] - 2026-10-20
+
+首次进入 Bot 模式时由托布五步引导上手；Bot 模式可以按自己的喜好设置主题、半透明面板和壁纸库；`/compact` 与空闲压缩让长对话保持轻快；快速搜索能直达任意设置项；Memory 支持预览图片和 Markdown；审批更简单，并修复了 Windows Desktop、活动中心和缩放相关问题。
+
+下方的手机应用条目属于独立版本的移动端 Beta；本次 npm 发布不包含手机应用。
+
+### Added
+
+- 第一次进入 Bot 模式时，托布会用五步引导帮你选好颜色模式、主题色、壁纸和默认模型（进阶里可以单独设置执行模型），展示社区入口、用户评价和创始人寄语，最后直接开始和托布的第一次对话。桌宠会在打开 Bot 模式时从上方掉下来，引导期间先隐藏。匿名使用统计新增引导各步骤的浏览、跳过和完成情况以及教程操作，不含输入的文字或模型名称（[#2361](https://github.com/BotHarness/DeepSeekBot/pull/2361)）。
+- 界面设置为 Bot 模式提供独立的浅色、深色或跟随系统主题，可选经典蓝、雾紫、森林绿或暖琥珀配色，并为每种模式设置主色；面板标题栏和内容区可调底色、不透明度与模糊，也可从面板标题栏菜单单独覆盖；壁纸库支持图片（最大 20 MB）和静音循环视频（最大 100 MB），可调整取景、自动切换和随机顺序。首次设置壁纸时，未调整过的面板会变为半透明；恢复入口可清除当前模式的面板覆盖，或确认后恢复全部默认并移除壁纸。外观只保存在这台设备上，不改变 DSH 主题，定向 CLI 也能完成同样操作（[#2258](https://github.com/BotHarness/DeepSeekBot/issues/2258)、[#2259](https://github.com/BotHarness/DeepSeekBot/issues/2259)、[#2260](https://github.com/BotHarness/DeepSeekBot/issues/2260)、[#2261](https://github.com/BotHarness/DeepSeekBot/issues/2261)、[#2262](https://github.com/BotHarness/DeepSeekBot/issues/2262)、[#2263](https://github.com/BotHarness/DeepSeekBot/issues/2263)、[#2264](https://github.com/BotHarness/DeepSeekBot/issues/2264)、[#2362](https://github.com/BotHarness/DeepSeekBot/pull/2362)、[设置指南](docs/settings.md#appearance-and-wallpaper)）。
+- 可随时压缩 Bot 的主会话：在私聊输入框输入 `/compact`、在 IM 私聊发送 `/compact`（`/压缩`），或运行 `deepseekbot bot-compact <bot-id>`；完成后显示压缩前后的 token 数，Bot 正在工作时拒绝执行（[#2332](https://github.com/BotHarness/DeepSeekBot/issues/2332)、[设置指南](docs/settings.md#context-compaction)）。
+- 新增空闲压缩：Bot 安静下来后，趁模型提示缓存还在（缓存寿命的一半，最少 15 分钟；DeepSeek 在观测到实际数据前按 2 小时估计）压缩它的主会话，下一条消息要重读的上下文更短。默认开启，可在 Bot 设置 → 模型与运行 中关闭；聊天里不显示，每次都记录在 Bot 活动中，也可用 `deepseekbot idle-compaction`、`idle-compaction-set` 和 `idle-compaction-cache-set` 操作（[#2310](https://github.com/BotHarness/DeepSeekBot/issues/2310)、[CLI 指南](docs/bot-cli.md#idle-compaction)）。
+- Memory 文件可以按图片和文档预览：PNG、JPEG、GIF、WebP 和有界静态 SVG 可在当前文件、未提交改动和历史中查看并做前后对比；Markdown 默认渲染并可切换源码，外部 HTTPS 图片点击后才加载；下载和 CLI 导出保留原始字节。手机端 Memory 阅读器遵循同样规则（[#2214](https://github.com/BotHarness/DeepSeekBot/issues/2214)）。
+- 受支持的 macOS Desktop 可选开启整窗缩放：在 Bot 设置中设定默认比例，按 Cmd+0 恢复，并按 Profile 启用或停用随产品附带的缩放主题；面板、分隔线和窗口控件保持对齐。另附一个受保护的 Windows 候选版本（支持 Ctrl+0）用于验证，完整 Windows 验证和 Linux 仍单独跟踪（[#2268](https://github.com/BotHarness/DeepSeekBot/issues/2268)、[#2318](https://github.com/BotHarness/DeepSeekBot/issues/2318)、[#2270](https://github.com/BotHarness/DeepSeekBot/issues/2270)、[CLI 指南](docs/bot-cli.md#desktop-window-zoom-controlled-s1)）。
+- 右键活动按钮，可选择哪些活动点亮控制栏上的红点，或直接隐藏，不影响活动筛选和未读状态（[#2231](https://github.com/BotHarness/DeepSeekBot/issues/2231)）。
+- 宽屏控制栏的设置下方新增常驻的「返回 Harness」图标，顶部 Logo 退出方式保持不变（[#2289](https://github.com/BotHarness/DeepSeekBot/issues/2289)）。
+- 在 Bot 模式下，macOS 按 ⌘, 、其他系统按 Ctrl+, 即可打开 Bot 设置，在输入框中也可以；可在 Bot 设置 → 键盘快捷键 中修改（[#2362](https://github.com/BotHarness/DeepSeekBot/pull/2362)）。
+- 移动端 Beta 为每台电脑新增「允许通知」开关，每个私聊和群聊新增「这台手机免打扰」和「在这台电脑上静音」；工具审批、提问和私密输入照常通知，Bot 在私聊里的回复现在也会推送到手机（[#2330](https://github.com/BotHarness/DeepSeekBot/issues/2330)、[#2328](https://github.com/BotHarness/DeepSeekBot/issues/2328)）。
+
+### Changed
+
+- 工具审批统一为「允许这次」「始终允许」「拒绝」。「始终允许」立即生效，并记住此 Bot 在当前范围内使用这个工具；完全访问会自动处理普通请求，权限变更仍会交给 Human；审批卡显示提交进度，状态暂时读不到时可以重新确认，不再误报过期。已有规则和访问范围保持原义（[#2080](https://github.com/BotHarness/DeepSeekBot/issues/2080)）。
+- 快速搜索改用 Alt+K（macOS 为 Option+K）打开，桌面端不再吞掉这个快捷键；浏览器能收到 Ctrl+K 和 ⌘K 时也照常可用。搜索现在能找到 Bot 设置里的具体一行并高亮打开，中文名称可用全拼或首字母命中，中文界面下也能用英文词搜索（[#2360](https://github.com/BotHarness/DeepSeekBot/pull/2360)）。
+- 会话列表里每个 Bot 只显示一个状态：工作中转圈，需要你时显示琥珀色圆环，受阻时显示红色标记，完成后显示勾。头像改为圆角方形，未读数放在角上；分组标题显示有几个 Bot 需要你；时间按聊天软件的习惯显示，移动端 Beta 也显示同样的图标（[#2363](https://github.com/BotHarness/DeepSeekBot/pull/2363)）。
+- 移动端 Beta 改用 iOS 26 和 Android Material 3 原生控件：聊天页可左右切换分页并有独立的创建按钮；sheet 使用简洁的居中标题和系统分段控件；长按消息打开原生底部菜单，包含表情回应、复制和分享；iOS 的侧边栏和聊天标题栏使用液态玻璃，搜索框移到底部导航上方；Android 使用 Material 3 对话框和菜单；取消配对等不可撤销操作会先确认。聊天页改用系统导航栏，消息自上而下排列，打开时停在最新消息，加载历史时位置不动，输入框紧贴键盘上方（[#2194](https://github.com/BotHarness/DeepSeekBot/issues/2194)、[#2195](https://github.com/BotHarness/DeepSeekBot/issues/2195)、[#2324](https://github.com/BotHarness/DeepSeekBot/pull/2324)、[#2333](https://github.com/BotHarness/DeepSeekBot/pull/2333)、[#2349](https://github.com/BotHarness/DeepSeekBot/pull/2349)、[#2352](https://github.com/BotHarness/DeepSeekBot/pull/2352)、[#2344](https://github.com/BotHarness/DeepSeekBot/pull/2344)）。
+- Android Beta 上长回复的流式显示更流畅，减少了重复解析、排版和绘制；超长段落的换行位置可能略有不同（[#2220](https://github.com/BotHarness/DeepSeekBot/issues/2220)、[#2251](https://github.com/BotHarness/DeepSeekBot/issues/2251)、[#2274](https://github.com/BotHarness/DeepSeekBot/issues/2274)）。
+
+### Fixed
+
+- 在网页或通过在线 CLI 命令批准工作区请求时，会先保存这个文件夹的读写权限再继续任务；批准也能把只读授权升级为读写，重复批准不会恢复已撤销的权限（[#2080](https://github.com/BotHarness/DeepSeekBot/issues/2080)）。
+- 聊天底部为浮动伙伴留出空间，最新的审批按钮和回复可以滚到它们上方；窄屏创建 Bot 时，表单在弹窗内滚动（[#2080](https://github.com/BotHarness/DeepSeekBot/issues/2080)）。
+- 修复五个新用户角色 QA 中发现的首用问题：Tob 创建 Bot 的审批会等待 Human 处理而不再过期，审批卡写明要创建的 Bot，新手引导显示已完成步骤，吉祥物不再挡住输入框，预览隐藏 Markdown 符号，只含不可见字符的消息和频道名会被拒绝（[#2315](https://github.com/BotHarness/DeepSeekBot/pull/2315)）。
+- 因上下文溢出而失败的一轮，现在会在频道或私聊里直接说明，并在自动压缩无法恢复时提示缩小请求后重试（[#2311](https://github.com/BotHarness/DeepSeekBot/issues/2311)）。
+- Windows Desktop 打开新版面板工作区，不再回退到旧 Bot 侧栏，会迁移原有面板尺寸，标题栏和控制栏空白处可拖动窗口；Windows 浏览器构建也不再导致 Client 无法启动（[#2221](https://github.com/BotHarness/DeepSeekBot/issues/2221)、[#2289](https://github.com/BotHarness/DeepSeekBot/issues/2289)）。
+- 活动中心在后台刷新时不再闪烁，并通过实时连接在各频道间保持同步，可用 `inbox-watch` 在 CLI 中观察；免打扰频道的消息不再出现在活动消息列表里，已读位置和待处理请求保持不变（[#2230](https://github.com/BotHarness/DeepSeekBot/issues/2230)、[#2231](https://github.com/BotHarness/DeepSeekBot/issues/2231)）。
+- 同一轮混入 IM 请求时，本地私聊和群聊使用私密账号不再被错误拒绝；IM 来源和账号撤销检查保持不变（[#2290](https://github.com/BotHarness/DeepSeekBot/issues/2290)）。
+- 壁纸显示更完整稳定：消息历史改用透明度遮罩渐隐，不再盖上一层底色；标题栏间隙和 macOS 窗口控件区不再有实色底；桌面缩放变化时取景保持不变（[#2264](https://github.com/BotHarness/DeepSeekBot/issues/2264)、[#2292](https://github.com/BotHarness/DeepSeekBot/issues/2292)、[#2293](https://github.com/BotHarness/DeepSeekBot/issues/2293)）。
+- 大比例整窗缩放时 Bot 设置仍然可用：导航按可用宽度切换，设置行纵向排列，选项菜单和提示留在控件旁并保持在窗口内，选择后键盘焦点回到原处（[#2269](https://github.com/BotHarness/DeepSeekBot/issues/2269)）。
+- Memory 差异中的行号和增删标记保持对齐，长行默认自动换行，也可切换为横向滚动（[#2213](https://github.com/BotHarness/DeepSeekBot/issues/2213)）。
+- 移动端 Beta 修复：加载更早的消息时立即显示已保存的正文，不再重新播放；Android 快速滚动后能恢复完整 Markdown（包括表格），长消息气泡不再空白；iOS 26 上设置页不再消失；配对和邀请控件更容易点中，失败原因更清楚（[#2283](https://github.com/BotHarness/DeepSeekBot/issues/2283)、[#2284](https://github.com/BotHarness/DeepSeekBot/issues/2284)、[#2188](https://github.com/BotHarness/DeepSeekBot/issues/2188)、[#2107](https://github.com/BotHarness/DeepSeekBot/issues/2107)、[#2186](https://github.com/BotHarness/DeepSeekBot/issues/2186)）。
+
+### Documentation
+
+- 记录原生 Panel Plugin 边界、独立的位置与绑定、群聊不显示 Bot-bound 面板，以及 VRM／Activity／说话表现优先、随后交付共享 Task Kanban 的方向；明确切片依赖、既有 Sessions 筛选及 Consumer／Provider 生命周期边界；运行行为不变（[#2215](https://github.com/BotHarness/DeepSeekBot/issues/2215)）。
+- GitHub 和 npm README 换上了当前 Bot 模式的截图：带首页和托布的面板工作区、记忆演化、群聊、定时任务、Bot 市场，以及带壁纸的界面设置；GitHub README 补上了 1.4.0 和 1.4.1 的版本亮点（[#2369](https://github.com/BotHarness/DeepSeekBot/pull/2369)）。
+
+## [1.4.0] - 2026-10-19
+
+托布与精简 Home 将 Bot 管理带入对话，持久化面板工作区为每个频道保留布局，扩展 CLI、审批及 DSH 兼容支持日常工作。
+
+下方移动应用和云服务条目描述独立版本的开发／UAT 工作；本次 npm 发版不发布移动应用，也不启用生产云服务。升级前请备份 Profile；恢复旧二进制可能需要升级前备份。
+
+### Added
+
+- Home 引入受保护的本地总管托布，提供模型配置、复用聊天输入框、可编辑问候语和仅填入草稿的快捷提问；下方无边框 Token 历史与 Bot 活跃卡片宽屏两列、窄屏堆叠，点击 Bot 回到原私聊，并保留已有布局和快捷键 ([#2082](https://github.com/BotHarness/DeepSeekBot/issues/2082), [#2184](https://github.com/BotHarness/DeepSeekBot/issues/2184)).
+- 托布发现并使用随插件安装的 DeepSeekBot CLI，管理模型、预设、Assignment 并发与运行偏好，创建及配置人格和记忆完整的 Bot，创建群聊、邀请或移除 Bot、修改群设置和处理待决入群请求。操作保留现有人类权限、审批及过期写入校验；操作键支持丢失响应后的原结果恢复，邀请默认自动接受，但尊重人类已有的 Profile 全局关闭设置 ([#2088](https://github.com/BotHarness/DeepSeekBot/issues/2088), [CLI guide](docs/bot-cli.md#tob-model-and-runtime-management), [#2089](https://github.com/BotHarness/DeepSeekBot/issues/2089), [CLI guide](docs/bot-cli.md#tob-bot-creation-profiles-and-lifecycle), [#2090](https://github.com/BotHarness/DeepSeekBot/issues/2090), [CLI guide](docs/bot-cli.md#tob-group-creation-and-invitations), [CLI guide](docs/bot-cli.md#tob-invitation-cancellation-and-join-decisions), [CLI guide](docs/bot-cli.md#tob-group-settings-and-member-removal), [#2087](https://github.com/BotHarness/DeepSeekBot/issues/2087), [CLI guide](docs/bot-cli.md#home-and-tob)).
+- CLI 可查看 Bot 工具轨迹，并绕过模型直接列出或运行 Bot、浏览器和电脑工具，复用相同授权与审计；仅限会话的操作明确拒绝，轨迹输出不展示秘密工具 ([#1682](https://github.com/BotHarness/DeepSeekBot/issues/1682), [#1695](https://github.com/BotHarness/DeepSeekBot/issues/1695)).
+- 在线 Host CLI 覆盖记忆历史、差异、检查点及受保护恢复，定时任务与运行历史，以及人类收件箱处理、会话查询、审批规则撤销、工作区授权和私有 MCP 生命周期；破坏性操作要求确认 ([#1690](https://github.com/BotHarness/DeepSeekBot/issues/1690), [#1696](https://github.com/BotHarness/DeepSeekBot/issues/1696), [#1699](https://github.com/BotHarness/DeepSeekBot/issues/1699)).
+- CLI 覆盖 Host 所有的频道／群成员及策略、消息与 IM 绑定、模型计划和预设、Bot 外观与唤醒设置、浏览器／电脑诊断与归档、市场、用量／活跃、版本升级及配对审核。命令保留 UI 权限校验和明确拒绝码，安装、移除等危险变更要求显式确认 ([#1697](https://github.com/BotHarness/DeepSeekBot/issues/1697), [#1698](https://github.com/BotHarness/DeepSeekBot/issues/1698), [#1700](https://github.com/BotHarness/DeepSeekBot/issues/1700), [#1701](https://github.com/BotHarness/DeepSeekBot/issues/1701), [#1702](https://github.com/BotHarness/DeepSeekBot/issues/1702), [#1703](https://github.com/BotHarness/DeepSeekBot/issues/1703)).
+- 可选择或编写自动审批模板，并指定共享审核模型；无工具的审批会话对符合条件的操作（包括脱敏秘密工具与浏览器／电脑请求）允许、拒绝或交回人类，决策保留可查看记录。拒绝进入人类收件箱，支持针对原调用的一次性放行；连续拒绝暂停自动审批，修改生效模板或审核模型仍需人类批准 ([#1823](https://github.com/BotHarness/DeepSeekBot/issues/1823), [#1824](https://github.com/BotHarness/DeepSeekBot/issues/1824), [#1825](https://github.com/BotHarness/DeepSeekBot/issues/1825), [#1826](https://github.com/BotHarness/DeepSeekBot/issues/1826), [#1827](https://github.com/BotHarness/DeepSeekBot/issues/1827), [#1822](https://github.com/BotHarness/DeepSeekBot/issues/1822), [#1871](https://github.com/BotHarness/DeepSeekBot/pull/1871)).
+- 可选群聊发送复核能暂缓过时回复、吸收新上下文、让已观察到的同伴答案先行并明确完成收件箱工作，最多两次复核后选择受限续发或稍后处理。中断草稿跨重启通过新观察及防重复回执恢复；附件变化、成员权限撤销和不确定副作用不能静默产生过时或重复回复 ([#2053](https://github.com/BotHarness/DeepSeekBot/issues/2053), [#2054](https://github.com/BotHarness/DeepSeekBot/issues/2054), [#2055](https://github.com/BotHarness/DeepSeekBot/issues/2055), [#2056](https://github.com/BotHarness/DeepSeekBot/issues/2056)).
+- 通过有效十分钟的二维码／链接配对手机，Host 重启后继续访问，并可连同实时连接一起撤销；移动端完整客户端使用配对身份打开 Bot 模式、私聊、私密输入及浏览器／电脑查看器 ([ADR-0199](docs/adr/0199-paired-devices-reach-the-host-through-a-same-listener-device-gateway.md), [#1652](https://github.com/BotHarness/DeepSeekBot/issues/1652), [#1654](https://github.com/BotHarness/DeepSeekBot/issues/1654), [#1687](https://github.com/BotHarness/DeepSeekBot/issues/1687), [#1845](https://github.com/BotHarness/DeepSeekBot/issues/1845)).
+- 配对手机可接收请求与回复通知、打开对应待办，并通过通知操作处理符合条件的工具审批；私密输入不包含内容，撤销配对即撤销通知访问，重新连接可修复注册 ([ADR-0202](docs/adr/0202-phone-push-is-a-content-free-projection-of-the-human-inbox.md), [#1655](https://github.com/BotHarness/DeepSeekBot/issues/1655)).
+- 移动浏览器和电脑查看器支持直接触控或触控板、修饰键、键盘输入以及交还 Bot 控制；本机电脑在输入时接管，空闲后自动交还。符合条件的容器查看器可使用仅限 tailnet 的 WebRTC，并保留 WebSocket 回退、CLI 探测与撤销校验 ([#1798](https://github.com/BotHarness/DeepSeekBot/issues/1798), [#1799](https://github.com/BotHarness/DeepSeekBot/issues/1799), [#1832](https://github.com/BotHarness/DeepSeekBot/issues/1832), [#1862](https://github.com/BotHarness/DeepSeekBot/pull/1862), [#1865](https://github.com/BotHarness/DeepSeekBot/pull/1865)).
+- 移动资料页支持管理群成员和定时任务、跨时间范围查看用量及记忆动态，并配置全局或单 Bot 模型与完整 Assignment 预设；部分调用未知时，用量详情仍保留已报告计数 ([#1894](https://github.com/BotHarness/DeepSeekBot/issues/1894), [#1895](https://github.com/BotHarness/DeepSeekBot/issues/1895), [#1897](https://github.com/BotHarness/DeepSeekBot/issues/1897), [#1899](https://github.com/BotHarness/DeepSeekBot/pull/1899), [#1911](https://github.com/BotHarness/DeepSeekBot/pull/1911), [#1912](https://github.com/BotHarness/DeepSeekBot/issues/1912), [#2086](https://github.com/BotHarness/DeepSeekBot/issues/2086)).
+- 开发／UAT 云服务增加 WorkOS 登录、工作区、持久化文本频道、成员／访客邀请及限定范围 Agent 健康检查，移动抽屉区分本机电脑与云端，并按来源隔离草稿和导航。这些是开发能力，不代表生产云服务或应用商店正式上线 ([#2101](https://github.com/BotHarness/DeepSeekBot/issues/2101), [#2120](https://github.com/BotHarness/DeepSeekBot/issues/2120), [#2130](https://github.com/BotHarness/DeepSeekBot/issues/2130), [#2137](https://github.com/BotHarness/DeepSeekBot/issues/2137), [#2145](https://github.com/BotHarness/DeepSeekBot/issues/2145), [#2148](https://github.com/BotHarness/DeepSeekBot/issues/2148), [#2151](https://github.com/BotHarness/DeepSeekBot/issues/2151), [#2153](https://github.com/BotHarness/DeepSeekBot/issues/2153), [#2155](https://github.com/BotHarness/DeepSeekBot/issues/2155), [#2161](https://github.com/BotHarness/DeepSeekBot/issues/2161), [#2179](https://github.com/BotHarness/DeepSeekBot/issues/2179), [#2174](https://github.com/BotHarness/DeepSeekBot/issues/2174)).
+- Lark/飞书经核验的引用文件可在 Channel 请求气泡中显示，支持有界原件下载、失败重试及可用时的既有 Host 应用菜单；Human 访问仍核对当前来源授权，不唤醒 Bot（[#1022](https://github.com/BotHarness/DeepSeekBot/issues/1022)）。
+- 安装后的 `deepseekbot` CLI 使用独立于 Host 专用 DSH 模块的入口，使授权媒体命令可在 Host 进程外正常启动（[#1022](https://github.com/BotHarness/DeepSeekBot/issues/1022)）。
+- QQ 可通过已授权的保存群目标显式发送本地保留的延迟结果，沿用共享 Outbox、当前应用身份、最终授权与每小时限额；过期回复和不确定发送仍是独立结果，真实 QQ 验收单独记录（[#1154](https://github.com/BotHarness/DeepSeekBot/issues/1154)）。
+- QQ 受检消费者可转交普通群文字，用于当前接收器的真实资格核验和按会话显式收集。现有 Observation 与条数／时间聚合将收集和同 App 主动参与分开；屏蔽接收期间的旧事件不会证明重新允许会话后的收件资格。产品以独立版本 `4.32.0-botharness.21` 集成已核验的 Provider，真实应用与 Client 验收单独记录（[#1155](https://github.com/BotHarness/DeepSeekBot/issues/1155)）。
+- Web 客户端也能停止 PersonaBot。私聊或群组频道里有 Bot 在思考或工作、且输入框为空时，发送按钮会变成 **停止**，按下后结束该 Bot 当前这一轮，与手机端的停止相同。在群组频道里会停止所有正在工作的 Bot。开始输入后按钮变回发送，你仍可以改为发消息引导 Bot（[#1721](https://github.com/BotHarness/DeepSeekBot/issues/1721)）。
+- 把文件拖到会话任意位置即可添加附件，拖动时会出现放置区域（[#1725](https://github.com/BotHarness/DeepSeekBot/issues/1725)）。
+- 设置 → 消息 → 发送消息提供 Enter、Shift+Enter 及 ⌘/Ctrl+Enter，使用键帽显示，并匹配相应的换行行为（[#1726](https://github.com/BotHarness/DeepSeekBot/issues/1726)）。
+- 输入框新增 / 命令：私聊里的 `/memory`、`/sessions`，以及私聊和群聊都有的 `/profile`、`/settings`、`/sidebar`（[#1727](https://github.com/BotHarness/DeepSeekBot/issues/1727)）。
+- 你发的消息如果用了 Markdown（代码块、行内代码、粗体、列表、标题、引用、链接、表格），现在会按格式显示，并保留你输入的换行（[#1728](https://github.com/BotHarness/DeepSeekBot/issues/1728)）。
+- Bot 模式下按 Ctrl+K（macOS 为 ⌘K）可打开快速切换：输入 PersonaBot、群聊或频道名称的一部分（支持中文名），用方向键选择、回车打开，效果与点击侧边栏对应行相同。搜索为空时列出最近的会话，隐藏的频道排在最后；在输入框里打字时也可使用该快捷键（[#1740](https://github.com/BotHarness/DeepSeekBot/issues/1740)）。
+- 在私聊或群聊中悬停或用键盘聚焦 Bot 的头像或名字时，会弹出一张小资料卡，显示它的角色、简介和当前状态（思考中、正在做什么、等待中或受阻），并提供「私聊」和「资料」按钮；Human 发送者的资料卡只显示名字。资料卡取代了浏览器原生的提示文字（[#1744](https://github.com/BotHarness/DeepSeekBot/issues/1744)）。
+- 浏览器标签页标题会显示 Human Inbox 的未读数，有事等你决定时前面加 ●，例如 `● (3) DeepSeek Harness`（[#1746](https://github.com/BotHarness/DeepSeekBot/issues/1746)）。
+- 桌面通知：在 Bot 设置 › 通知里打开「桌面通知」后，页面在后台时，Bot 需要你审批或回答、@你、回复你，或在私聊里回复完成，这个浏览器会弹出系统通知，点击即跳到对应消息（[#1747](https://github.com/BotHarness/DeepSeekBot/issues/1747)）。
+- 在 Bot mode 按 `?` 或 Ctrl+/（Mac 上 ⌘+/）查看全部键盘快捷键，也可以在 Bot 设置 › 键盘快捷键里打开（[#1748](https://github.com/BotHarness/DeepSeekBot/issues/1748)）。
+- 工具审批和提问卡采用紧凑无边框操作，提供清晰处理结果、可展开详情与文件差异、到期提示及键盘操作；单选问题可直接回答，风险更高的始终允许选项保留确认。 ([#1749](https://github.com/BotHarness/DeepSeekBot/issues/1749), [#1752](https://github.com/BotHarness/DeepSeekBot/issues/1752), [#1753](https://github.com/BotHarness/DeepSeekBot/issues/1753)).
+- Human Inbox 可以用 `J`/`K` 上下移动，Enter 跳到来源消息，`E` 标为已处理，`X` 选择，`S` 稍后提醒。选中的条目可以一起标为已处理，选中的工具审批可以一起批准一次或一起拒绝。「稍后提醒」把条目隐藏到选定的时间；「已延后」筛选列出它们并可取消延后，`deepseekbot inbox-snooze` 在命令行里做同样的事（[#1750](https://github.com/BotHarness/DeepSeekBot/issues/1750)、[#1751](https://github.com/BotHarness/DeepSeekBot/issues/1751)、[#1754](https://github.com/BotHarness/DeepSeekBot/issues/1754)）。
+- 在群聊 Channel 中右键点击 Bot 头像，可以打开菜单：发送消息、在输入框中 @ TA，或查看资料（[#1757](https://github.com/BotHarness/DeepSeekBot/pull/1757)）。
+- Bot 模式侧边栏现在会在每个私聊和群聊上显示 Bot 未读消息数。右键会话可以**标为已读**或设为**免打扰**，侧边栏 **⋯** 菜单里可以**全部标为已读**；免打扰的会话变灰，未读不计入活动中心的总数。隐藏或移动会话后会弹出带**撤销**的提示。Alt+↑/↓ 切到上一个或下一个会话，Alt+Shift+↑/↓ 跳到上一个或下一个有未读的会话。CLI 里用 `deepseekbot channel-unread` 和 `deepseekbot channel-mute` 做同样的事（[#1738](https://github.com/BotHarness/DeepSeekBot/issues/1738), [#1739](https://github.com/BotHarness/DeepSeekBot/issues/1739), [#1741](https://github.com/BotHarness/DeepSeekBot/issues/1741), [#1742](https://github.com/BotHarness/DeepSeekBot/issues/1742), [#1743](https://github.com/BotHarness/DeepSeekBot/issues/1743)）。
+- 打开有未读回复的会话时，会在上次读到的位置显示「以下为新消息」分隔线；切换会话后回来仍停在原来读到的消息；过长的消息默认折叠，可点「展开全部」；同组的每条消息悬停时显示自己的时间；图片在页面内预览，可用左右方向键切换；可以从消息的悬停操作栏添加表情回应，手机上长按消息也能回应，Bot 也能在 `channel_send` 里传 `react_to` 和 `reaction` 回应，可以同一次调用里顺带回复（Bot 读取会话时能看到这些回应，`deepseekbot channel-react` 可以添加你的回应）；按 Ctrl/⌘+F 可搜索当前会话并跳到匹配的消息（`deepseekbot channel-search` 执行同样的搜索）（[#1769](https://github.com/BotHarness/DeepSeekBot/pull/1769)）。
+- 创建 Bot 时，可以在 **进阶设置 → 记忆文件位置** 选择记忆文件存放的文件夹（例如另一块磁盘），不必放在默认的 DSH 数据目录。命令行用 `deepseekbot create --memory-location <目录>` 达到同样效果（[#1772](https://github.com/BotHarness/DeepSeekBot/issues/1772)）。
+- 现在可以在 Bot 的 **工作区授权 → Memory Repository** 一栏，把已有 Bot 的记忆文件移到别的文件夹，或移回默认位置。移动后 Bot 会在新文件夹里开启新的主会话，聊天记录和记忆历史都会保留。命令行用 `deepseekbot memory-move <id> --memory-location <目录>` 达到同样效果（[#1772](https://github.com/BotHarness/DeepSeekBot/issues/1772)）。
+- 导航快捷键可以修改：打开快捷键列表（`?` 或 Ctrl/⌘+/），在 Bot 模式、快速切换、上/下一个（未读）会话或快捷键列表旁点「修改」，再按下新的组合键。组合需要包含 Ctrl/⌘ 或 Alt，不能和已占用或保留的组合重复，点「恢复默认」可还原。macOS 上显示 ⌘ ⌥ ⇧（[#1775](https://github.com/BotHarness/DeepSeekBot/issues/1775)）。
+- 其他插件现在可以通过 `dockPanels` Service 往桌面 Bot 模式布局里添加自己的面板。面板可以跟随当前 Channel，也可以在切换 Channel 时保持不变，并和内置面板一起出现在「面板」菜单中（[#1791](https://github.com/BotHarness/DeepSeekBot/issues/1791)）。
+- 新增待办示例插件 `@botharness/todo` 的 Host 部分：一个保存在 DSH 存储中的共享待办列表；Bot 工具（`todos_list`、`todos_add`、`todos_update`、`todos_remove`），让 PersonaBot 替 Human 记录和跟进事项；以及 `deepseekbot todos` / `todo-*` 命令，用于读取和修改列表，或绕过模型直接运行工具。待办 Dock 面板将在后续版本提供（[ADR-0203](docs/adr/0203-bot-mode-is-a-dockable-layout-that-plugins-extend-with-dock-panels.md)，[#1792](https://github.com/BotHarness/DeepSeekBot/issues/1792)）。
+- DeepSeekBot 手机 App 的私聊里，长按一条消息即可复制全文；发送消息、允许或拒绝工具审批、提交回答时，手机会有轻微的触感反馈。聊天图片现在会缓存在手机上，离线也能再次打开，滚动时也不会先闪出别的图片（[#1807](https://github.com/BotHarness/DeepSeekBot/issues/1807)）。
+- 现在可以在聊天中让 PersonaBot 帮你创建另一个 PersonaBot。它会根据对话填好名称、简介、标签、头像、Soul 和核心记忆，也可以把新 Bot 的记忆放在你指定的文件夹。这次调用与其他 Bot 工具一样遵循工具审批和已保存的规则；需要你确认时，卡片会预览新 Bot 及其记忆文件夹。新 Bot 会带着私聊出现在侧边栏，`deepseekbot create` 也新增了 `--avatar-file` 和 `--core-memory`（[#1858](https://github.com/BotHarness/DeepSeekBot/issues/1858)）。
+- 总览页的 Host 整体 token 用量现在除了今日和近 7 天，还可以查看近 4 周和近 12 周；`deepseekbot overview-usage --period month|quarter` 读取相同的范围（[#1898](https://github.com/BotHarness/DeepSeekBot/issues/1898)）。
+- Bot 市场的搜索与话题筛选同时覆盖 GitHub topics 和 Bot 自身 `.botharness/bot.json` 的 tags（兼容旧 `roles`），同一 Bot 的同名标签只计数一次（[#1907](https://github.com/BotHarness/DeepSeekBot/issues/1907)）。
+- 手机聊天现在显示与消息气泡对齐、等间隔的单行 Bot 活动，并按场景展示头像；长按查看完整内容，再从菜单打开相关会话、记忆文件或新 Bot，避免点按误跳转。Bot 资料页的两个设备本地开关可控制镜像到 Human 私聊中的发言和记忆更新（[#1919](https://github.com/BotHarness/DeepSeekBot/issues/1919)）。
+- Web Client 和 DeepSeekBot 手机 App 的「设置 → 关于」会显示构建号：git 短提交号和本地构建时间（手机 App 还显示版本号和分支），测试时一眼就能分辨装的是哪个包；手机上点一下即可复制（[#1923](https://github.com/BotHarness/DeepSeekBot/pull/1923)）。
+- 在手机设置页底部新增默认开启、说明可折叠的匿名统计开关，通过官方 PostHog React Native SDK 记录配对、连接和首次聊天结果；首次说明沿用 Web 客户端，生产启用仍需公开隐私说明、设备验收和 Human QA（[#1935](https://github.com/BotHarness/DeepSeekBot/issues/1935)）。
+- 输入框页脚的模型、工作区、用量及可选生成速度支持右键显隐、拖拽排序和键盘替代操作；偏好保存在当前设备，窄面板控件保持可读，隐藏指标不读取历史。 ([#1958](https://github.com/BotHarness/DeepSeekBot/issues/1958)).
+- Bot 右键菜单新增「模型与推理强度」子菜单：列出该 Bot 可用的模型与思考强度并标记当前选项，选择后直接设为 Bot 默认，无需打开资料页（[#1959](https://github.com/BotHarness/DeepSeekBot/issues/1959)）。
+- 聊天右侧 Dock 新增「Bot 文件」面板，按 Bot 展示附件历史，包括较早的消息。文件沿用既有附件查看器打开，并可在输入框中引用。所选文件在切换历史窗口和恢复草稿后保留，与上传文件共用十个文件的上限；取消引用不会删除文件（[#1960](https://github.com/BotHarness/DeepSeekBot/issues/1960)）。
+- 微信扫码绑定者的私聊可镜像到 Bot 的本地私聊，并可单独选择将本地私聊转发回该账户。两个开关均默认关闭，旁边提供可点击的说明。镜像复用原始内容、参与内容清除，不重复唤醒 Bot；本地审批、私密输入等交互卡片不会外发；转发保留具体账户边界，关闭后停止尚未发送的操作（[#1983](https://github.com/BotHarness/DeepSeekBot/issues/1983)，[规格 #1990](https://github.com/BotHarness/DeepSeekBot/issues/1990)）。
+- DSH 会话列表新增可折叠的 DeepSeekBot 分组，按 Bot／角色建立子组，集中收纳其 Orchestrator 与 Assignment 会话，支持不同执行目录；最外层标题使用用户设置的 Bot 图标（[#1997](https://github.com/BotHarness/DeepSeekBot/issues/1997)）。
+- Bot 子组标题以所属 PersonaBot 的头像替换折叠箭头，点击整个标题仍可展开或折叠分组（[#1997](https://github.com/BotHarness/DeepSeekBot/issues/1997)）。
+- Bot DM 输入框新增内联 `/model <文本>` 与 `/effort <文本>` 选择器：列出与 Bot 右键菜单相同的模型和思考强度，按输入过滤、标记当前项，仅修改此 Bot 的 Orchestrator，在下一轮生效，保留 Assignment 固定配置或全局继承（[#2000](https://github.com/BotHarness/DeepSeekBot/issues/2000)）。
+- 在 IM 私聊中整条消息为斜杠命令时，由 Host 直接回复，不再启动 Bot 轮次：`/commands`、`/help`、`/status`、`/model`、`/effort`、`/stop`、`/new`，支持中文别名与全角 `／`（[#2005](https://github.com/BotHarness/DeepSeekBot/issues/2005)）。
+- 只读回复向已准入私聊发送者开放；模型、强度、停止与新会话操作在微信上限已准入发送者，其他平台需要当前具有批准能力的管理配对。命令按 Bot 顺序执行、复核权限撤销、保留任务模型设置，并沿用既有 Outbox 记录回复结果；群消息与带附件消息继续走原有路径（[#2005](https://github.com/BotHarness/DeepSeekBot/issues/2005)）。
+- 新增 `deepseekbot bot-new-session <Bot ID>`，通过与 `/new` 相同的 Host 运行时退役空闲的编排会话（[#2005](https://github.com/BotHarness/DeepSeekBot/issues/2005)）。
+- Channel sidebar 成员菜单新增「@ TA」快捷操作，各项采用图标加文字；选择成员后保留当前草稿并聚焦输入框（[#2009](https://github.com/BotHarness/DeepSeekBot/issues/2009)）。
+- 移动端聊天可预览并保存仅在本机使用的照片或纯色背景，支持填充/适应、图片位置与背景淡化。可在设置中选择默认背景，或单独设置私信和群聊；取消和保存失败时保留原选择（[#2118](https://github.com/BotHarness/DeepSeekBot/issues/2118)）。
+
+### Changed
+
+- 现有 CLI 脚本修改 Bot 时须提供 `--expected-profile`；`bot-delete-confirm` 和 `bot-delete-retry` 现要求 `--confirm`，以保留已审阅快照及明确的破坏性操作确认（[#2089](https://github.com/BotHarness/DeepSeekBot/issues/2089)）。
+- DeepSeekBot 支持 DSH `>=0.2.0-rc.2 <0.3.0-0`，保留现有最低版本，并适配 DSH 0.2.1-rc.2 的 Owner 身份、工具及前台／后台 Subagent 委派；开发依赖仍固定版本，允许未来 0.2.x 安装不代表已完成其运行验证 ([#2167](https://github.com/BotHarness/DeepSeekBot/issues/2167), [compatibility policy #423](https://github.com/BotHarness/DeepSeekBot/issues/423)).
+- Desktop 新手引导依次完成模型配置、通过托布创建 Bot 和群聊、调整面板，以及点击 Home 标题关闭首页进入对话；迁移保留已有审批、历史和布局，新 Bot 不再自动插入欢迎信 ([#2192](https://github.com/BotHarness/DeepSeekBot/issues/2192)).
+- 桌面工作区采用独立频道列表、消息和 Activity 面板及全高控制栏，支持拖拽布局、持久化尺寸、可调间距与快捷键，并通过右键管理显隐。设置支持跨页搜索及界面、消息、通知、快捷键独立页面；统一面板标题、居中空状态、明暗背景、缩放下菜单定位和自动淡出滚动条，切换频道保留其他面板与草稿 ([#1829](https://github.com/BotHarness/DeepSeekBot/issues/1829), [#2017](https://github.com/BotHarness/DeepSeekBot/issues/2017), [#1789](https://github.com/BotHarness/DeepSeekBot/issues/1789), [#1790](https://github.com/BotHarness/DeepSeekBot/issues/1790), [#2016](https://github.com/BotHarness/DeepSeekBot/issues/2016), [#2042](https://github.com/BotHarness/DeepSeekBot/issues/2042), [#2014](https://github.com/BotHarness/DeepSeekBot/issues/2014)).
+- 会话、记忆文件、记忆演化、定时任务、浏览器和电脑迁入消息面板，支持自由嵌套行列，按频道记住位置、比例和显隐；重新打开或缩放保持布局，窄标题单行省略且操作按钮可用，并迁移旧布局与快捷键。群聊不显示 Bot 专属面板；频道文件和 Bot 收件箱从消息标题按需打开 ([#2033](https://github.com/BotHarness/DeepSeekBot/issues/2033), [#2034](https://github.com/BotHarness/DeepSeekBot/issues/2034), [#2036](https://github.com/BotHarness/DeepSeekBot/issues/2036), [#2049](https://github.com/BotHarness/DeepSeekBot/issues/2049), [#2067](https://github.com/BotHarness/DeepSeekBot/issues/2067), [#2069](https://github.com/BotHarness/DeepSeekBot/issues/2069), [#2076](https://github.com/BotHarness/DeepSeekBot/issues/2076), [#2071](https://github.com/BotHarness/DeepSeekBot/issues/2071), [#2074](https://github.com/BotHarness/DeepSeekBot/issues/2074), [#2048](https://github.com/BotHarness/DeepSeekBot/issues/2048)).
+- 独立发版的移动开发客户端新增原生私聊和群聊，支持流式 Markdown、附件、图片查看、回应、语音转文字、聊天内审批及提问、提及和停止操作。悬浮标题与输入框、连续气泡、上下文动态和紧凑已处理卡片与桌面设计一致；Bot 资料提供人格、记忆、定时任务、模型及工作区授权入口 ([#1643](https://github.com/BotHarness/DeepSeekBot/issues/1643), [#1721](https://github.com/BotHarness/DeepSeekBot/issues/1721), [#1718](https://github.com/BotHarness/DeepSeekBot/issues/1718), [#1838](https://github.com/BotHarness/DeepSeekBot/issues/1838), [#1804](https://github.com/BotHarness/DeepSeekBot/issues/1804), [#1875](https://github.com/BotHarness/DeepSeekBot/pull/1875), [#1879](https://github.com/BotHarness/DeepSeekBot/pull/1879), [#1880](https://github.com/BotHarness/DeepSeekBot/pull/1880), [#1881](https://github.com/BotHarness/DeepSeekBot/pull/1881), [#1886](https://github.com/BotHarness/DeepSeekBot/pull/1886), [#1890](https://github.com/BotHarness/DeepSeekBot/pull/1890), [#1892](https://github.com/BotHarness/DeepSeekBot/pull/1892), [#1900](https://github.com/BotHarness/DeepSeekBot/issues/1900), [#1920](https://github.com/BotHarness/DeepSeekBot/pull/1920)).
+- 移动 Activity 将需要处理、个人动态和其他未读分开，支持原地处理、搜索筛选、已处理历史和滑动切页；导航保留列表位置与已加载数据，返回时刷新已加载分页 ([#1653](https://github.com/BotHarness/DeepSeekBot/issues/1653), [#1954](https://github.com/BotHarness/DeepSeekBot/issues/1954), [#2057](https://github.com/BotHarness/DeepSeekBot/issues/2057), [#2111](https://github.com/BotHarness/DeepSeekBot/issues/2111)).
+- 移动聊天增加搜索、桌面频道分组与未读数、创建快捷入口及显示连接状态的电脑抽屉，支持按电脑定制外观；设置和通知可直接访问，Android 导航适配待办数和大字体 ([#1853](https://github.com/BotHarness/DeepSeekBot/issues/1853), [#1854](https://github.com/BotHarness/DeepSeekBot/issues/1854), [#1861](https://github.com/BotHarness/DeepSeekBot/pull/1861), [#1866](https://github.com/BotHarness/DeepSeekBot/pull/1866), [#1888](https://github.com/BotHarness/DeepSeekBot/issues/1888), [#1850](https://github.com/BotHarness/DeepSeekBot/issues/1850), [#1852](https://github.com/BotHarness/DeepSeekBot/issues/1852), [#1878](https://github.com/BotHarness/DeepSeekBot/pull/1878), [#2077](https://github.com/BotHarness/DeepSeekBot/issues/2077)).
+- Bot 现在按其 Session 自身的 DeepSeek Harness 权限模式运行 Shell 以及其他已安装插件提供的工具（例如 `ops_bash`），不再为每次调用额外弹出审批卡。DeepSeek Harness 自己请求权限时（例如 Shell 命令需要离开沙箱），该请求会以审批卡出现在 Bot 的聊天中。密钥工具、编辑原始附件、浏览器与电脑操作仍按原方式请求批准（[#1731](https://github.com/BotHarness/DeepSeekBot/issues/1731)）。
+- 频道设置更好找了：在消息侧边栏右键频道即可打开「频道设置」「我的昵称」以及私聊的「显示 Bot 在别处的动作」开关；点击对话顶部的名称胶囊也能打开资料和同样的选项。对话区右上角的 ⋯ 按钮已移除（[#1761](https://github.com/BotHarness/DeepSeekBot/pull/1761)）。
+- 桌面端悬停消息时，表情回应、回复和复制操作改为浮在气泡右上边缘的小工具栏里，不再显示在气泡侧边，布局不会跳动（[#1843](https://github.com/BotHarness/DeepSeekBot/pull/1843)）。
+- Bot 与 Assignment 提示词现在说明新文件应放在哪里：临时文件、日志、打包产物和生成结果除非 Human 指定位置，否则放在 Grant 内的 `<workspacePath>/.botharness/<短任务标识>/`（或系统临时目录），绝不放在 Grant 根目录、Human 主目录或新的同级文件夹；已有项目文件就地修改。Assignment 的终态报告会列出创建的文件（[#1957](https://github.com/BotHarness/DeepSeekBot/issues/1957)）。
+- 移动端升级至 Expo SDK 58，保留本地设置与缓存的同步写入行为，并将 iOS 权限译文限定在 iOS，避免 Android 正式包的语言资源检查失败；开发者需要重新构建原生开发客户端（[#2020](https://github.com/BotHarness/BotHarness/issues/2020)）。
+- 活动中心的完整页面与 Dock 直接进入个人收件箱，随所在面板宽度铺满，卡片圆角、颜色和面板内边距与频道列表一致，默认展示可独立折叠的「需要你处理／与你有关／其他未读」三组，标题栏支持搜索全部合资格通知，筛选、历史与排序收进菜单，支持卡片内工具审批、下方展开上下文和失败重试，批量操作收进显式选择模式；同时清理旧总览导航、状态、样式和重复界面测试，已读刷新保留正在输入的回复草稿（[#2026](https://github.com/BotHarness/DeepSeekBot/issues/2026)）。
+- Android 设置采用更舒展的大圆角分组、强调色标题、内缩分隔线和清晰的选中状态；开关改用原生 Material 3 控件，继续保留已有偏好设置（[#2072](https://github.com/BotHarness/DeepSeekBot/issues/2072)）。
+
+### Fixed
+
+- 恢复从控制列空白区域拖动 macOS Desktop 窗口，及面板标题栏空白区域拖动窗口；关闭和移动面板仅由图标与标题区域触发，频道信息与操作按钮独立（[#2205](https://github.com/BotHarness/DeepSeekBot/issues/2205)）。
+- 移动流式回复合并草稿更新、传输追加文字、复用 Markdown 解析并按测量块渲染，保留阅读历史的位置；Android 增加原生渐进文字淡入、改进抽屉／键盘交互及流式或完整气泡偏好，原生淡入需重建客户端 ([#1803](https://github.com/BotHarness/DeepSeekBot/issues/1803), [#1808](https://github.com/BotHarness/DeepSeekBot/issues/1808), [#2028](https://github.com/BotHarness/DeepSeekBot/issues/2028), [#2183](https://github.com/BotHarness/DeepSeekBot/issues/2183), [#1873](https://github.com/BotHarness/DeepSeekBot/pull/1873)).
+- 移动表单与配对界面保持在键盘上方，跟随系统语言和字号，保证导航、标题与操作可用；缺失会话提供有效返回路径，Android 对话框和抽屉统一主题控件，进入云服务时关闭遗留配对界面 ([#2171](https://github.com/BotHarness/DeepSeekBot/issues/2171), [#1806](https://github.com/BotHarness/DeepSeekBot/issues/1806), [#1872](https://github.com/BotHarness/DeepSeekBot/pull/1872), [#1926](https://github.com/BotHarness/DeepSeekBot/pull/1926), [#1938](https://github.com/BotHarness/DeepSeekBot/issues/1938), [#2004](https://github.com/BotHarness/DeepSeekBot/issues/2004), [mobile contribution contract](apps/mobile/DESIGN.md#system-text-and-large-text-acceptance), [#2021](https://github.com/BotHarness/DeepSeekBot/issues/2021), [#2083](https://github.com/BotHarness/DeepSeekBot/issues/2083), [#2106](https://github.com/BotHarness/DeepSeekBot/issues/2106), [#2186](https://github.com/BotHarness/DeepSeekBot/issues/2186)).
+- 在 Windows 上，Bot 的 Orchestrator 现在使用其预设提供的 `pwsh` 作为 Shell，不再出现实际经由 PowerShell 运行的 `bash` 工具；在可写的 Workspace Grant 中运行的 `pwsh` 命令会使用该 Grant。Bot 的角色提示词不再把 `bash` 说成唯一的 Shell，因此 Bot 也会使用其他已安装插件添加的 Shell，例如 `ops_bash`（[#1731](https://github.com/BotHarness/DeepSeekBot/issues/1731)）。
+- PersonaBot 在群消息里写 `@` 加同事显示名时，现在会真正提及该同事：名字显示为提及标记并唤醒对方，即使对方只在被 @ 时唤醒。多位同事回应同一条 Human 请求时，可以各自向同一位总控汇报；两个 Bot 互相 @ 仍会在一轮后停止。Bot 在仍处理上一轮交流的回合中收到新的 Human 任务并汇报时，汇报会再次唤醒总控，不再被当作上一轮交流而丢弃；之前未 @ 的消息只以普通群投递送达的同事，之后被 @ 时仍会被唤醒（[#1764](https://github.com/BotHarness/DeepSeekBot/issues/1764)）。
+- 对于在响应里省略为 0 的缓存计数的路由（例如通过 OpenCode Go 使用 DeepSeek），PersonaBot 的资料页和概览用量现在会显示缓存读取和缓存写入 Token，不再标为未知、总数也不再显示为部分。只有当响应里的总数能证明某项的值时才会补上；本次更新之前记录的用量保持不变（[#1787](https://github.com/BotHarness/DeepSeekBot/issues/1787)）。
+- 修复了从私聊输入框打开的工作区授权对话框自 1.3 起只显示「只读」、无法开启写入的问题；文件夹行的标题栏直接显示写入开关和打开文件夹按钮，新添加的文件夹默认允许写入（[#1855](https://github.com/BotHarness/DeepSeekBot/pull/1855)）。
+- 修复了某条消息客户端无法解析时整个 Bot 私信报“invalid channelTimeline response”的问题：该消息现以纯文本显示，频道其余消息正常加载（[#1887](https://github.com/BotHarness/DeepSeekBot/pull/1887)）。
+- 输入框里的 Bot @chip、@ 候选列表和群聊活动行，现在显示的头像与该 Bot 发消息时的头像一致；之前自定义过头像的 Bot 在这些位置会显示按名字生成的默认头像（[#1906](https://github.com/BotHarness/DeepSeekBot/pull/1906)）。
+- 总览的 token 用量不再因为部分用量未上报（例如升级前保留的旧记录）而整周显示“未知”。总量现在只计入已上报的部分并标记 **+**，每天的柱子也显示已上报的用量（[#1908](https://github.com/BotHarness/DeepSeekBot/pull/1908)）。
+- 在没有 IPv6 的 Docker 主机上，Linux Docker 电脑现在也能启动。之前桌面始终没有响应，电脑会一直停在「正在等待桌面响应…」。接管 Docker 电脑查看并操作桌面也恢复正常，画面不再因「unknown field `max_image_dimension`」失败（[#1924](https://github.com/BotHarness/DeepSeekBot/pull/1924)）。
+- 修复手机统计开关保存后仍显示旧状态的问题，已加载的偏好会在同一次开关事件内更新（[#1935](https://github.com/BotHarness/DeepSeekBot/issues/1935)）。
+- 修复进入 Bot mode 替换原生侧栏后，客户端诊断误报界面丢失的问题。可见的 Bot mode 主界面现在也计为已挂载；界面真正消失或此前发生错误时，仍报告失败（[#1947](https://github.com/BotHarness/DeepSeekBot/issues/1947)）。
+- 在微信等没有发送者角色策略的平台上，发送者权限查询现在返回 `role-policy-not-supported-for-platform`，不再误报 `binding-replaced`，Bot 不会因未变化的绑定而拒绝工作；平台支持判断前先拒绝已禁用／替换身份和已撤销授权；连接群消息保留原始接收绑定，缺少该证据的旧群消息需要发送新消息后再查询（[#1951](https://github.com/BotHarness/DeepSeekBot/issues/1951)）。
+- 滚动会话面板后，下一次更新不再让每一行都滑动；输入框上方活动状态的箭头现在与面板展开方向一致（[#1952](https://github.com/BotHarness/DeepSeekBot/issues/1952)）。
+- 修复使用已发布 IM Provider 时，已授权的微信扫码绑定者私聊一直只能回复、无法主动发送的问题：主动发送现在与 QQ 一致，按账号导出的 `proactive-text-checked`、`proactive-receipt-checked` 与 `proactive-fence-checked` 能力判定（[#1955](https://github.com/BotHarness/DeepSeekBot/issues/1955)）。
+- 关于页面区分源码构建和未知发布元数据，不再把 `0.0.0` 当作软件发布版本；已认证 CLI 提供相同身份，重启轮询等待精确的待生效版本（[#1980](https://github.com/BotHarness/DeepSeekBot/issues/1980)）。
+- 修复本地 Browser 在 Bot 尚未取得标签页时过早发布画面地址的问题；首帧等待和失败现与浏览器停止明确区分，请求有时限，失败后可显式重连（[#2012](https://github.com/BotHarness/DeepSeekBot/issues/2012)）。
+- 修复窄消息面板中的文件附件布局：气泡按内容收紧、正文左对齐并优化换行，文件名保持可见，打开和下载按钮在卡片内自动换行（[#2037](https://github.com/BotHarness/DeepSeekBot/issues/2037)）。
+- 移动端聊天保留结构化 Bot 提及，以正文大小的行内头像和当前姓名显示，并使用对应 Bot 的 primary 颜色。点击可打开对应 Bot 的私聊；改名或缺失的 Bot 按 ID 识别，不通过显示名称匹配（[#2160](https://github.com/BotHarness/DeepSeekBot/issues/2160)）。
+- 进入 Bot 模式时自动检查兼容的 DeepSeekBot 更新，按本地 Profile 记住已关闭的版本提醒，并支持 `release-check --force` 真正刷新检查（[#2173](https://github.com/BotHarness/DeepSeekBot/issues/2173)）。
+
+### Documentation
+
+- 发布可重复执行的 Activity、工作区授权、记忆和浏览器验证路径，关联 CLI 与源码版本证据，并明确覆盖范围限制 ([#1972](https://github.com/BotHarness/DeepSeekBot/issues/1972), [#1973](https://github.com/BotHarness/DeepSeekBot/issues/1973), [#1974](https://github.com/BotHarness/DeepSeekBot/issues/1974), [#1975](https://github.com/BotHarness/DeepSeekBot/issues/1975), [#1976](https://github.com/BotHarness/DeepSeekBot/issues/1976)).
+- GitHub README 和安装指南改为安装 `deepseekbot@1.3.1`，并列出它的亮点（[#1771](https://github.com/BotHarness/DeepSeekBot/pull/1771)）。
+- 明确 DSB 软件与 npm 共用发布身份、QA 产物不可替换、手机／依赖独立版本及渠道／重试门槛；运行校验仍待实现（[#1979](https://github.com/BotHarness/DeepSeekBot/issues/1979)、[规范](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/agents/version-policy.md)、[ADR-0216](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/adr/0216-dsb-product-versions-identify-immutable-package-sets.md)）。
 
 ## [1.3.1] - 2026-10-14
 

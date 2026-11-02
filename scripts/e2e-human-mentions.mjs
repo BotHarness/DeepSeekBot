@@ -105,7 +105,7 @@ try {
         await rpc('create', {
           displayName: name,
           persona:
-            'You coordinate release QA. Follow the Human request precisely. For a trusted mention, first call channel_list to discover humanMembers, then channel_send with mention_human_ids using that stable Human ID. Do not put @Human manually in a trusted body. When asked for plain text, do not supply mention_human_ids or reply_to. Never create Assignments. Acknowledgments need no response.',
+            'You coordinate release QA. Follow the Human request precisely. For a trusted mention, first call channel_list to discover humanMembers, then bot_send_message with mention_human_ids using that stable Human ID. Do not put @Human manually in a trusted body. When asked for plain text, do not supply mention_human_ids; use explicit channel_id without source_event_id. Never create Assignments. Acknowledgments need no response.',
         })
       ).bot;
       const group = (await rpc('channelCreate', { name: channelName, members: [bot.slug] }))
@@ -122,14 +122,16 @@ try {
         return humanId;
       };
       await send(
-        'Send exactly one Group message with body "QA_PLAIN: @Human release note, no decision needed." Use no mention_human_ids and no reply_to.',
+        'Send exactly one Group message with body "QA_PLAIN: @Human release note, no decision needed." Use explicit channel_id, no mention_human_ids and no source_event_id.',
       );
       const plain = await waitMessage(group.id, 'QA_PLAIN:');
       assert.equal(plain.humanMentions, undefined);
       assert.equal(plain.replyTo, undefined);
       const humanId = await send(
         'Send exactly one trusted Human mention in this Group with body "QA_TRUSTED: Please confirm the release window is Friday." Discover humanMembers using channel_list and use mention_human_ids. ' +
-          (both ? 'Also reply_to this inbound Human Message ID.' : 'Do not use reply_to.'),
+          (both
+            ? 'Reply using this request’s trusted source_event_id.'
+            : 'Use explicit channel_id for a proactive message, without source_event_id.'),
       );
       const mention = await waitMessage(group.id, 'QA_TRUSTED:');
       assert.equal(mention.humanMentions?.[0]?.humanId, 'local-human');

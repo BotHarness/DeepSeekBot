@@ -20,7 +20,11 @@ describe('Assignment report consumed by wait', () => {
       async runOrchestrator(run) {
         orchestratorRuns.push(run);
         if (orchestratorRuns.length > 1) return;
-        const created = run.assignments!.create({ grantId: TEST_GRANT_ID, purpose: 'Wait QA' });
+        const created = run.assignments!.create({
+          title: 'Assignment',
+          grantId: TEST_GRANT_ID,
+          description: 'Wait QA',
+        });
         if (created.outcome !== 'created') throw new Error('Missing Assignment');
         const sessionId = created.assignment.sessionId;
         const assignment = assignmentRuns.find((item) => item.sessionId === sessionId)!;

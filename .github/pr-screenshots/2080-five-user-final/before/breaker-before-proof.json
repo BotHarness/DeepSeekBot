@@ -1,0 +1,13 @@
+{
+  "instance": "ax2080-breaker",
+  "calls": [
+    {
+      "name": "pwsh",
+      "outcome": "pending",
+      "result": ""
+    }
+  ],
+  "requestCount": 1,
+  "decisions": [],
+  "rules": []
+}

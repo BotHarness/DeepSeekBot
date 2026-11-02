@@ -1,4 +1,4 @@
-export const paletteSource = '@deepseek-ai/dsh-client-ui-theme@0.2.0-rc.2';
+export const paletteSource = '@deepseek-ai/dsh-client-ui-theme@0.2.1-rc.2';
 
 export const palette = {
   light: {
@@ -12,6 +12,7 @@ export const palette = {
     hover: '#2631480f',
     selected: '#2631481a',
     accent: '#4176e6',
+    accentText: '#4176e6',
     accentTint: '#e4edfd',
     onAccent: '#fff',
     danger: '#ec1313',
@@ -25,6 +26,7 @@ export const palette = {
     surface: '#f5f6f7',
     field: '#fff',
     sheet: '#fff',
+    modal: '#fff',
     elevated: '#fff',
     base: '#fff',
     well: '#fff',
@@ -40,6 +42,7 @@ export const palette = {
     hover: '#ffffff14',
     selected: '#ffffff24',
     accent: '#7aaaff',
+    accentText: '#7aaaff',
     accentTint: '#34415b',
     onAccent: '#0f1115',
     danger: '#f25a5a',
@@ -53,6 +56,7 @@ export const palette = {
     surface: '#353638',
     field: '#232324',
     sheet: '#2c2c2e',
+    modal: '#2c2c2e',
     elevated: '#43454a',
     base: '#151517',
     well: '#151517',

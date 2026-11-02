@@ -58,7 +58,7 @@ if (phase === 'weaker' && !scene.weakerProof) {
   if (!scene.weakerRequested) {
     await rpc('channelSend', {
       channelId: scene.dm,
-      body: `REPAIR_WEAKER_UPDATE: Explicitly resume only Assignment ${scene.sessionId}. Use send_assignment_request with session_id ${scene.sessionId}, mode next-turn, text: Invoke report_to_orchestrator exactly once, state progress, summary ${JSON.stringify(marker)}, expects_reply false; then end without any other tools. After this request channel_send REPAIR_WEAKER_REQUESTED and end. No new Assignment, Shell, files, repair, retries or ignoring of Inbox items.`,
+      body: `REPAIR_WEAKER_UPDATE: Explicitly resume only Assignment ${scene.sessionId}. Use send_assignment_request with session_id ${scene.sessionId}, mode next-turn, text: Invoke report_to_orchestrator exactly once, state progress, summary ${JSON.stringify(marker)}, expects_reply false; then end without any other tools. After this request bot_send_message REPAIR_WEAKER_REQUESTED and end. No new Assignment, Shell, files, repair, retries or ignoring of Inbox items.`,
     });
     scene.weakerRequested = true;
     saveState();
@@ -89,7 +89,7 @@ if (phase === 'weaker' && !scene.weakerProof) {
   if (!scene.weakerReadRequested) {
     await rpc('channelSend', {
       channelId: scene.dm,
-      body: 'READ_WEAKER_INFORMATION: Read only the new supplied Inbox information. channel_send REPAIR_WEAKER_READ once and end; no Assignment requests, no repair/ignore, no Shell or files.',
+      body: 'READ_WEAKER_INFORMATION: Read only the new supplied Inbox information. bot_send_message REPAIR_WEAKER_READ once and end; no Assignment requests, no repair/ignore, no Shell or files.',
     });
     scene.weakerReadRequested = true;
     saveState();

@@ -1,0 +1,290 @@
+[
+  {
+    "batch": 57,
+    "theme": "light",
+    "size": "large",
+    "icons": [
+      {
+        "label": "Sign out",
+        "redPixels": 0,
+        "bluePixels": 181,
+        "textRedPixels": 342,
+        "inkBounds": [15, 39],
+        "weightedInkCenter": 26.12
+      },
+      {
+        "label": "Delete account",
+        "redPixels": 0,
+        "bluePixels": 229,
+        "textRedPixels": 602,
+        "inkBounds": [17, 37],
+        "weightedInkCenter": 27.483
+      }
+    ],
+    "signOutMinusTrash": -1.363
+  },
+  {
+    "batch": 57,
+    "theme": "light",
+    "size": "accessibility-large",
+    "icons": [
+      {
+        "label": "Sign out",
+        "redPixels": 0,
+        "bluePixels": 450,
+        "textRedPixels": 1040,
+        "inkBounds": [19, 56],
+        "weightedInkCenter": 34.988
+      },
+      {
+        "label": "Delete account",
+        "redPixels": 0,
+        "bluePixels": 490,
+        "textRedPixels": 1884,
+        "inkBounds": [22, 53],
+        "weightedInkCenter": 37.464
+      }
+    ],
+    "signOutMinusTrash": -2.476
+  },
+  {
+    "batch": 57,
+    "theme": "light",
+    "size": "accessibility-extra-extra-extra-large",
+    "icons": [
+      {
+        "label": "Sign out",
+        "redPixels": 0,
+        "bluePixels": 693,
+        "textRedPixels": 2415,
+        "inkBounds": [26, 73],
+        "weightedInkCenter": 46.438
+      },
+      {
+        "label": "Delete account",
+        "redPixels": 955,
+        "bluePixels": 876,
+        "textRedPixels": 3398,
+        "inkBounds": [30, 69],
+        "weightedInkCenter": 49.297
+      }
+    ],
+    "signOutMinusTrash": -2.859
+  },
+  {
+    "batch": 57,
+    "theme": "dark",
+    "size": "large",
+    "icons": [
+      {
+        "label": "Sign out",
+        "redPixels": 0,
+        "bluePixels": 181,
+        "textRedPixels": 317,
+        "inkBounds": [15, 39],
+        "weightedInkCenter": 26.115
+      },
+      {
+        "label": "Delete account",
+        "redPixels": 0,
+        "bluePixels": 225,
+        "textRedPixels": 600,
+        "inkBounds": [17, 37],
+        "weightedInkCenter": 27.479
+      }
+    ],
+    "signOutMinusTrash": -1.364
+  },
+  {
+    "batch": 57,
+    "theme": "dark",
+    "size": "accessibility-large",
+    "icons": [
+      {
+        "label": "Sign out",
+        "redPixels": 0,
+        "bluePixels": 432,
+        "textRedPixels": 978,
+        "inkBounds": [19, 56],
+        "weightedInkCenter": 35.02
+      },
+      {
+        "label": "Delete account",
+        "redPixels": 0,
+        "bluePixels": 485,
+        "textRedPixels": 1858,
+        "inkBounds": [22, 53],
+        "weightedInkCenter": 37.473
+      }
+    ],
+    "signOutMinusTrash": -2.453
+  },
+  {
+    "batch": 57,
+    "theme": "dark",
+    "size": "accessibility-extra-extra-extra-large",
+    "icons": [
+      {
+        "label": "Sign out",
+        "redPixels": 0,
+        "bluePixels": 690,
+        "textRedPixels": 2364,
+        "inkBounds": [26, 73],
+        "weightedInkCenter": 46.45
+      },
+      {
+        "label": "Delete account",
+        "redPixels": 944,
+        "bluePixels": 867,
+        "textRedPixels": 3385,
+        "inkBounds": [30, 69],
+        "weightedInkCenter": 49.312
+      }
+    ],
+    "signOutMinusTrash": -2.862
+  },
+  {
+    "batch": 58,
+    "theme": "light",
+    "size": "large",
+    "icons": [
+      {
+        "label": "Sign out",
+        "redPixels": 136,
+        "bluePixels": 0,
+        "textRedPixels": 340,
+        "inkBounds": [22, 41],
+        "weightedInkCenter": 29.984
+      },
+      {
+        "label": "Delete account",
+        "redPixels": 169,
+        "bluePixels": 0,
+        "textRedPixels": 587,
+        "inkBounds": [22, 37],
+        "weightedInkCenter": 29.546
+      }
+    ],
+    "signOutMinusTrash": 0.438
+  },
+  {
+    "batch": 58,
+    "theme": "light",
+    "size": "accessibility-large",
+    "icons": [
+      {
+        "label": "Sign out",
+        "redPixels": 426,
+        "bluePixels": 0,
+        "textRedPixels": 1035,
+        "inkBounds": [30, 67],
+        "weightedInkCenter": 46.348
+      },
+      {
+        "label": "Delete account",
+        "redPixels": 510,
+        "bluePixels": 0,
+        "textRedPixels": 1855,
+        "inkBounds": [30, 61],
+        "weightedInkCenter": 45.454
+      }
+    ],
+    "signOutMinusTrash": 0.894
+  },
+  {
+    "batch": 58,
+    "theme": "light",
+    "size": "accessibility-extra-extra-extra-large",
+    "icons": [
+      {
+        "label": "Sign out",
+        "redPixels": 1048,
+        "bluePixels": 0,
+        "textRedPixels": 2462,
+        "inkBounds": [41, 101],
+        "weightedInkCenter": 67.37
+      },
+      {
+        "label": "Delete account",
+        "redPixels": 1265,
+        "bluePixels": 0,
+        "textRedPixels": 4458,
+        "inkBounds": [40, 90],
+        "weightedInkCenter": 65.247
+      }
+    ],
+    "signOutMinusTrash": 2.123
+  },
+  {
+    "batch": 58,
+    "theme": "dark",
+    "size": "large",
+    "icons": [
+      {
+        "label": "Sign out",
+        "redPixels": 130,
+        "bluePixels": 0,
+        "textRedPixels": 316,
+        "inkBounds": [22, 40],
+        "weightedInkCenter": 29.957
+      },
+      {
+        "label": "Delete account",
+        "redPixels": 157,
+        "bluePixels": 0,
+        "textRedPixels": 556,
+        "inkBounds": [22, 37],
+        "weightedInkCenter": 29.549
+      }
+    ],
+    "signOutMinusTrash": 0.408
+  },
+  {
+    "batch": 58,
+    "theme": "dark",
+    "size": "accessibility-large",
+    "icons": [
+      {
+        "label": "Sign out",
+        "redPixels": 401,
+        "bluePixels": 0,
+        "textRedPixels": 1004,
+        "inkBounds": [30, 67],
+        "weightedInkCenter": 46.262
+      },
+      {
+        "label": "Delete account",
+        "redPixels": 490,
+        "bluePixels": 0,
+        "textRedPixels": 1751,
+        "inkBounds": [30, 61],
+        "weightedInkCenter": 45.453
+      }
+    ],
+    "signOutMinusTrash": 0.809
+  },
+  {
+    "batch": 58,
+    "theme": "dark",
+    "size": "accessibility-extra-extra-extra-large",
+    "icons": [
+      {
+        "label": "Sign out",
+        "redPixels": 1016,
+        "bluePixels": 0,
+        "textRedPixels": 2398,
+        "inkBounds": [41, 101],
+        "weightedInkCenter": 67.376
+      },
+      {
+        "label": "Delete account",
+        "redPixels": 1243,
+        "bluePixels": 0,
+        "textRedPixels": 4316,
+        "inkBounds": [40, 90],
+        "weightedInkCenter": 65.258
+      }
+    ],
+    "signOutMinusTrash": 2.118
+  }
+]

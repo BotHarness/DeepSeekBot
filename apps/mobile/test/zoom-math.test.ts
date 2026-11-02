@@ -30,6 +30,21 @@ describe('image viewer zoom', () => {
     expect(moved.x).toBe(-70);
   });
 
+  it('accepts compensated canvas limits without jumping at the next pinch start', () => {
+    expect(
+      pinchZoom({ scale: 8, x: 40, y: 105, focalX: 80, focalY: 20 }, { x: 80, y: 20 }, 1, {
+        min: 0.6,
+        max: 8,
+      }),
+    ).toEqual({ scale: 8, x: 40, y: 105 });
+    expect(
+      pinchZoom({ scale: 0.45, x: -20, y: 60, focalX: 80, focalY: 60 }, { x: 80, y: 60 }, 1, {
+        min: 0.45,
+        max: 7.5,
+      }),
+    ).toEqual({ scale: 0.45, x: -20, y: 60 });
+  });
+
   it('springs back to fit below 1x and caps the zoom when the fingers lift', () => {
     expect(settleZoom({ scale: 0.7, x: 30, y: 10 }, landscape, frame)).toEqual({
       scale: 1,

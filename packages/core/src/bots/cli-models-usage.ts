@@ -22,6 +22,11 @@ export const MODELS_USAGE_OPTIONS = {
 
 export const MODELS_USAGE_COMMANDS = [
   {
+    command: 'home-model-set',
+    description:
+      'set the Host default model (--provider, --model, --orchestrator-effort, --expected-revision)',
+  },
+  {
     command: 'model-catalog',
     description: 'list the models the Host can run, with the default',
   },
@@ -101,6 +106,7 @@ export interface ModelsUsageValues {
 }
 
 const NO_TARGET = new Set([
+  'home-model-set',
   'model-catalog',
   'overview-usage',
   'overview-memory',
@@ -199,6 +205,29 @@ export async function runModelsUsage(
   if (!noTarget && !target) usage(`${command} requires a nonempty target id.`);
   const expected = revision(values['expected-revision']);
 
+  if (command === 'home-model-set') {
+    if (!values.provider || !values.model) usage('home-model-set requires --provider and --model.');
+    const rpc = await connect();
+    const expectedDefaultRevision =
+      expected ?? (await rpc<{ defaultRevision?: number }>('modelCatalog', {})).defaultRevision;
+    if (!Number.isSafeInteger(expectedDefaultRevision) || Number(expectedDefaultRevision) < 0)
+      throw new CliLiveError(
+        'settings-unavailable',
+        'The Host does not expose its native default model revision.',
+      );
+    return rpc('onboardingModel', {
+      expectedRevision: 0,
+      expectedDefaultRevision,
+      route: {
+        provider: values.provider,
+        model: values.model,
+        ...(values['orchestrator-effort']
+          ? { reasoningEffort: values['orchestrator-effort'] }
+          : {}),
+      },
+      globalDefault: true,
+    });
+  }
   if (command === 'model-catalog') return (await connect())('modelCatalog', {});
   if (command === 'activity-overview') return (await connect())('activityOverview', {});
   if (command === 'channel-activity-today') return (await connect())('channelActivityToday', {});
@@ -256,8 +285,12 @@ export async function runModelsUsage(
     const effort = values['orchestrator-effort']?.trim();
     if (!provider || !model)
       usage('--orchestrator-provider and --orchestrator-model are required.');
-    return (await connect())('modelPlanCustomize', {
+    const rpc = await connect();
+    const expectedRevision =
+      expected ?? (await rpc<ModelPlanState>('modelPlan', { slug: target })).revision ?? 0;
+    return rpc('modelPlanCustomize', {
       slug: target,
+      expectedRevision,
       orchestrator: {
         provider,
         model,

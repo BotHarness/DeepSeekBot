@@ -1,7 +1,8 @@
-import type { ReactElement, ReactNode } from 'react';
+import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { IconChevronDownOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
+import { InstantTooltipScope, Tooltip } from './tooltip.js';
 import { border, color, radius, size, space, text } from './tokens.stylex.js';
 
 const styles = stylex.create({
@@ -42,7 +43,11 @@ const styles = stylex.create({
     pointerEvents: 'none',
   },
   dimmed: { cursor: 'default', opacity: 0.6 },
-  fixed: { flexGrow: 0, flexBasis: 'auto' },
+  fixed: { flexGrow: 0, flexBasis: 'auto', maxWidth: '40%' },
+  compact: { flexGrow: 0, flexBasis: 'auto', cursor: 'grab' },
+  hugged: { flexGrow: 0, flexBasis: 'auto' },
+  context: { display: 'flex', alignItems: 'center', minWidth: 0, flexShrink: 1 },
+  spacer: { flexGrow: 1 },
   chevron: {
     display: 'inline-flex',
     flexShrink: 0,
@@ -81,11 +86,16 @@ const styles = stylex.create({
     flexShrink: 1,
     flexBasis: 0,
     minWidth: 0,
+    overflowX: 'auto',
+    whiteSpace: 'nowrap',
   },
+  tabsCompact: { flexGrow: 0, flexBasis: 'auto' },
   action: {
     display: 'inline-flex',
     alignItems: 'center',
-    flexShrink: 0,
+    minWidth: 0,
+    maxWidth: { default: 'none', ':has([data-session-target])': '60%' },
+    flexShrink: { default: 0, ':has([data-session-target])': 1 },
     paddingInlineEnd: space.x1,
   },
 });
@@ -104,7 +114,11 @@ export function PanelHeader({
   badge,
   tabs,
   action,
+  context,
   disclosure,
+  onHide,
+  hideLabel,
+  hideHint,
   dimmed = false,
   locked = false,
   struck = false,
@@ -114,12 +128,25 @@ export function PanelHeader({
   readonly badge?: ReactNode;
   readonly tabs?: ReactNode;
   readonly action?: ReactNode;
+  readonly context?: ReactNode;
   readonly disclosure?: PanelHeaderDisclosure | undefined;
+  readonly onHide?: () => void;
+  readonly hideLabel?: string;
+  readonly hideHint?: string;
   readonly dimmed?: boolean;
   readonly locked?: boolean;
   readonly struck?: boolean;
 }): ReactElement {
+  const pointer = useRef<{ x: number; y: number; moved: boolean } | undefined>(undefined);
+  const [dragging, setDragging] = useState(false);
+  const labelRef = useRef<HTMLSpanElement>(null);
+  const hint = () => {
+    const node = labelRef.current;
+    const clipped = node !== null && node.scrollWidth > node.clientWidth;
+    return clipped && typeof label === 'string' ? `${label} · ${hideHint ?? ''}` : (hideHint ?? '');
+  };
   const fixed = tabs !== undefined;
+  const hug = !!onHide || (context !== undefined && disclosure === undefined);
   const content = (
     <>
       {icon === undefined ? null : (
@@ -128,23 +155,71 @@ export function PanelHeader({
         </span>
       )}
       <span
+        ref={labelRef}
         data-panel-label=""
-        {...stylex.props(styles.label, fixed && styles.labelFixed, struck && styles.struck)}
+        title={typeof label === 'string' && hideHint === undefined ? label : undefined}
+        {...stylex.props(
+          styles.label,
+          (fixed || hug) && styles.labelFixed,
+          struck && styles.struck,
+        )}
       >
         {label}
       </span>
-      {badge === undefined ? null : <span {...stylex.props(styles.badge)}>{badge}</span>}
+      {badge === undefined || onHide ? null : <span {...stylex.props(styles.badge)}>{badge}</span>}
     </>
   );
   return (
     <div {...stylex.props(styles.header)}>
-      {disclosure === undefined ? (
+      {onHide ? (
+        <Tooltip label={hint} side="bottom" portal disabled={hideHint === undefined || dragging}>
+          <button
+            type="button"
+            data-panel-head=""
+            data-panel-hide=""
+            data-window-drag-recall
+            draggable
+            aria-label={hideLabel}
+            onPointerDown={(event) => {
+              if (event.button === 0)
+                pointer.current = { x: event.clientX, y: event.clientY, moved: false };
+            }}
+            onPointerMove={(event) => {
+              const origin = pointer.current;
+              if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 5)
+                origin.moved = true;
+            }}
+            onPointerCancel={() => {
+              if (pointer.current) pointer.current.moved = true;
+            }}
+            onDragStart={() => {
+              if (pointer.current) pointer.current.moved = true;
+              setDragging(true);
+            }}
+            onDragEnd={() => setDragging(false)}
+            onClick={(event) => {
+              event.stopPropagation();
+              const origin = pointer.current;
+              const moved =
+                origin &&
+                (origin.moved ||
+                  Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 5);
+              if (event.detail === 0 || !moved) onHide();
+              pointer.current = undefined;
+            }}
+            {...stylex.props(styles.head, fixed && styles.fixed, styles.compact)}
+          >
+            {content}
+          </button>
+        </Tooltip>
+      ) : disclosure === undefined ? (
         <div
           data-panel-head=""
           {...stylex.props(
             styles.head,
             styles.static,
             fixed && styles.fixed,
+            hug && styles.hugged,
             dimmed && styles.dimmed,
           )}
         >
@@ -178,8 +253,31 @@ export function PanelHeader({
           {content}
         </button>
       )}
-      {tabs === undefined ? null : <span {...stylex.props(styles.tabs)}>{tabs}</span>}
-      {action === undefined ? null : <span {...stylex.props(styles.action)}>{action}</span>}
+      {onHide && badge !== undefined ? (
+        <span data-panel-badge="" data-window-drag-recall {...stylex.props(styles.badge)}>
+          {badge}
+        </span>
+      ) : null}
+      {context === undefined ? null : (
+        <span data-panel-context="" data-window-drag-recall {...stylex.props(styles.context)}>
+          {context}
+        </span>
+      )}
+      {tabs === undefined ? null : (
+        <span
+          data-panel-tabs=""
+          data-window-drag-recall
+          {...stylex.props(styles.tabs, !!onHide && styles.tabsCompact)}
+        >
+          {tabs}
+        </span>
+      )}
+      {hug ? <span aria-hidden="true" {...stylex.props(styles.spacer)} /> : null}
+      {action === undefined ? null : (
+        <span data-panel-actions="" data-window-drag-recall {...stylex.props(styles.action)}>
+          <InstantTooltipScope>{action}</InstantTooltipScope>
+        </span>
+      )}
     </div>
   );
 }

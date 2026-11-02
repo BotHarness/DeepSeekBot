@@ -1,0 +1,8 @@
+{
+  "phoneInviteAccepted": true,
+  "independentCliSameOrg": true,
+  "memberChannelCount": 4,
+  "preJoinHistoryHidden": true,
+  "memberCannotCreateInviteOrEdit": true,
+  "phoneMemberMessageVisibleToOwner": true
+}

@@ -33,6 +33,8 @@ export interface ViewerStrings {
   readonly navTrack: string;
   readonly missingSlug: string;
   readonly browserNotRunning: string;
+  readonly waitingForFrame: string;
+  readonly noBrowserTab: string;
   readonly frameUnavailable: string;
   readonly inputUnavailable: string;
   readonly pauseRequired: string;
@@ -70,6 +72,8 @@ export const VIEWER_STRINGS: Record<ViewerLocale, ViewerStrings> = {
     navTrack: 'Trackpad',
     missingSlug: 'missing slug',
     browserNotRunning: 'browser not running',
+    waitingForFrame: 'Waiting for the first frame…',
+    noBrowserTab: 'No browser tab',
     frameUnavailable: 'frame unavailable',
     inputUnavailable: 'input unavailable',
     pauseRequired: 'Pause the bot in the Browser entry, then act',
@@ -105,6 +109,8 @@ export const VIEWER_STRINGS: Record<ViewerLocale, ViewerStrings> = {
     navTrack: '触控板',
     missingSlug: '缺少 slug',
     browserNotRunning: '浏览器未运行',
+    waitingForFrame: '正在等待首帧…',
+    noBrowserTab: '没有浏览器标签页',
     frameUnavailable: '画面不可用',
     inputUnavailable: '输入不可用',
     pauseRequired: '先接管再操作',
@@ -382,22 +388,29 @@ const T = ${JSON.stringify(VIEWER_STRINGS[locale]).replace(/</g, '\\u003c')};
     looping = true;
     for (;;) {
       const delay = await poll();
+      if (delay < 0) break;
       if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
   async function poll() {
     if (slug === '') {
       say(T.missingSlug);
-      return 1000;
+      return -1;
     }
     try {
-      const response = await fetch('frame?slug=' + encodeURIComponent(slug) + '&t=' + Date.now() + (frameSeq === '' ? '' : '&after=' + frameSeq), { cache: 'no-store' });
+      const firstFrame = frameSeq === '';
+      if (firstFrame) say(T.waitingForFrame);
+      const response = await fetch('frame?slug=' + encodeURIComponent(slug) + '&t=' + Date.now() + (frameSeq === '' ? '' : '&after=' + frameSeq), { cache: 'no-store', signal: AbortSignal.timeout(15000) });
       if (response.status === 204) return 0;
       if (!response.ok) {
         frameSeq = '';
-        say(response.status === 404 ? T.browserNotRunning : T.frameUnavailable + ' (' + response.status + ')');
-        return 1000;
+        const reason = await response.text();
+        say(response.status === 404 && reason === 'browser not running' ? T.browserNotRunning
+          : response.status === 404 && reason === 'no browser tab' ? T.noBrowserTab
+          : T.frameUnavailable + ' (' + response.status + ')');
+        return -1;
       }
+      if (firstFrame) say('');
       frameSeq = response.headers.get('x-frame-seq') ?? '';
       frameMode = response.headers.get('x-frame-mode') === 'stream' ? 'stream' : 'snapshot';
       const blob = await response.blob();
@@ -419,7 +432,7 @@ const T = ${JSON.stringify(VIEWER_STRINGS[locale]).replace(/</g, '\\u003c')};
       return frameMode === 'stream' ? 0 : 1000;
     } catch {
       say(T.frameUnavailable);
-      return 1000;
+      return -1;
     }
   }
   if (modeBtn) modeBtn.addEventListener('click', () => {
@@ -873,7 +886,7 @@ export type ViewerFrameResult =
       viewport?: { width: number; height: number };
     }
   | { status: 204 }
-  | { status: 400 | 403 | 404; error: string };
+  | { status: 400 | 403 | 404 | 409 | 503; error: string };
 
 export type ViewerInputResult =
   | { status: 200; url: string; title: string }
@@ -889,7 +902,7 @@ export function createLocalViewerActions(options: LocalViewerOptions): LocalView
   const feeds = createFrameFeeds(
     options.frameWaitMs === undefined ? {} : { waitMs: options.frameWaitMs },
   );
-  const refuse = <S extends 400 | 403 | 404 | 409>(status: S, error: string) => ({
+  const refuse = <S extends 400 | 403 | 404 | 409 | 503>(status: S, error: string) => ({
     status,
     error,
   });
@@ -904,9 +917,14 @@ export function createLocalViewerActions(options: LocalViewerOptions): LocalView
       const after =
         afterText !== null && /^\d{1,15}$/u.test(afterText) ? Number(afterText) : undefined;
       const next = await feeds.next(slug, tabId, runtime, after);
+      if (!options.hasAccess(slug)) return refuse(403, 'Browser Access is off for this PersonaBot');
+      if (!runtime.isRunning()) return refuse(404, 'browser not running');
+      if (options.runtimes.for(slug) !== runtime)
+        return refuse(409, 'Browser authority changed during frame');
+      if (options.currentTab(slug) !== tabId) return { status: 204 };
       if (next === undefined) {
-        if (after !== undefined && runtime.isRunning()) return { status: 204 };
-        return refuse(404, 'frame unavailable');
+        if (after !== undefined) return { status: 204 };
+        return refuse(503, 'frame unavailable');
       }
       return {
         status: 200,

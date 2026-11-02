@@ -1,0 +1,11 @@
+{
+  "saveReturn": "Original creation Environment step, draft name and selected Host A retained",
+  "backReturn": "Original creation Environment step, draft name and selected Host A retained",
+  "finalCreation": {
+    "target": "Host A, explicitly selected after display matrix",
+    "name": "QA2922Name",
+    "matchingBots": 1,
+    "hostABots": 6,
+    "hostBBots": 0
+  }
+}

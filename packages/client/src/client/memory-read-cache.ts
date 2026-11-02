@@ -1,7 +1,14 @@
 import type { MemoryGitGraph, MemorySnapshot, MemoryWorkingChange } from './bridge.js';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 
-type MemoryFile = { path: string; body: string; head: string; binary?: boolean };
+type MemoryFile = {
+  path: string;
+  body: string;
+  head: string;
+  binary?: boolean;
+  image?: import('./bridge.js').MemoryImage;
+  markdown?: import('./bridge.js').MemoryMarkdown;
+};
 export interface MemoryReadCache {
   key: number;
   snapshot: MemorySnapshot | undefined;

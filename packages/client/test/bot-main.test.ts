@@ -12,9 +12,11 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   const stub = () => null;
   const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
   return {
+    IconWarningTriangleOutlineRegular: () => null,
     IconCodeOutlineRegular: () => null,
     IconBranchOutlineRegular: () => null,
     Button: stub,
+    Toast: stub,
     IconAgentPresetOutlineRegular: stub,
     IconCheckOutlineRegular: stub,
     IconChevronDownOutlineRegular: stub,
@@ -66,6 +68,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   };
 });
 
+import { createDockPanelRegistry } from '../src/client/dock-panels.js';
 import type { BridgeActions } from '../src/client/actions.js';
 import { BotModePrefs } from '../src/client/bot-mode-prefs.js';
 import {
@@ -83,6 +86,108 @@ import { zhTranslate } from '../src/client/locale.js';
 import { store, type ChannelMessage } from '../src/client/store.js';
 import { WindowCompanions } from '../src/client/window-companions.js';
 import { inertSubmissionActions } from './inert-submissions.js';
+import * as messageAuthorCards from '../src/client/message-author-card.js';
+
+it('keeps settled message groups mounted without rerendering their author cards during drafts', async () => {
+  const previous = store.getSnapshot();
+  const bot = {
+    slug: 'stream-isolation',
+    displayName: 'Stream isolation',
+    roles: [],
+    aggregateState: 'idle',
+    workspaces: [],
+    createdAt: '2026-10-24T00:00:00.000Z',
+  };
+  const channel = {
+    id: 'group-stream-isolation',
+    type: 'group' as const,
+    name: 'Stream isolation',
+    members: [bot.slug],
+    createdAt: bot.createdAt,
+    updatedAt: bot.createdAt,
+  };
+  const committed: ChannelMessage = {
+    id: 'settled-human',
+    at: bot.createdAt,
+    author: { kind: 'human' },
+    body: 'History stays available',
+  };
+  const actions = {
+    profileActivity: async () => ({
+      slug: bot.slug,
+      modelUsageStatus: 'ready',
+      modelUsageRows: [],
+    }),
+    modelPlanState: async () => ({}),
+    modelCatalog: async () => ({ models: [] }),
+    listWorkspaceGrants: async () => [],
+    botSourcePolicies: async () => [],
+    allBotPreview: async () => ({ recipients: [], excluded: [] }),
+    listWorkspaceOptions: async () => [],
+    markRead: async () => undefined,
+    ...inertSubmissionActions,
+  } as unknown as BridgeActions;
+  const prefs = new BotModePrefs();
+  prefs.setStreamReplies(true);
+  const authorCards = vi.spyOn(messageAuthorCards, 'messageAuthorCardModel');
+  const humanRenders = () =>
+    authorCards.mock.calls.filter(([author]) => author.kind === 'human').length;
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  store.setRoster([bot], [channel]);
+  store.select({ kind: 'channel', channelId: channel.id });
+  store.setConversation({ status: 'ready', channel, messages: [committed], drafts: [] });
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () =>
+      root.render(createElement(BotMain, { prefs, actions, channelSidebar: sidebarRegistry() })),
+    );
+    const settled = container.querySelector('[data-message-id="settled-human"]');
+    expect(settled).not.toBeNull();
+    const initialRenders = humanRenders();
+    expect(initialRenders).toBeGreaterThan(0);
+    for (let revision = 1; revision <= 10; revision++) {
+      await act(async () =>
+        store.setConversation({
+          drafts: [
+            {
+              channelId: channel.id,
+              draftId: 'streaming-draft',
+              attemptId: 'attempt',
+              revision,
+              botSlug: bot.slug,
+              body: 'x'.repeat(revision),
+            },
+          ],
+          draftRevision: revision,
+        }),
+      );
+      expect(container.querySelector('[data-message-id="settled-human"]')).toBe(settled);
+      expect(container.querySelector('[data-message-id="streaming-draft"]')).not.toBeNull();
+    }
+    expect(humanRenders()).toBe(initialRenders);
+    await act(async () => prefs.setStreamReplies(false));
+    expect(container.querySelector('[data-message-id="streaming-draft"]')).toBeNull();
+    expect(container.querySelector('[data-message-id="settled-human"]')).toBe(settled);
+    await act(async () => prefs.setStreamReplies(true));
+    expect(container.querySelector('[data-message-id="streaming-draft"]')).not.toBeNull();
+    expect(humanRenders()).toBe(initialRenders);
+    await act(async () =>
+      store.setConversation({ messages: [{ ...committed, body: 'History changed' }], drafts: [] }),
+    );
+    expect(humanRenders()).toBeGreaterThan(initialRenders);
+    expect(container.querySelector('[data-message-id="streaming-draft"]')).toBeNull();
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    authorCards.mockRestore();
+    prefs.dispose();
+    store.setRoster(previous.bots, previous.channels);
+    store.select(previous.selection);
+    store.setConversation(previous.conversation);
+  }
+});
 
 describe('Channel read position candidates', () => {
   it('does not resolve a Grant request from a pending or failed local echo', () => {
@@ -172,6 +277,92 @@ describe('Bot main Sessions pane', () => {
     expect(chip.textContent).not.toContain('GEO');
     expect(chip.textContent).not.toContain('SEO');
   });
+  it('retains global Panel DOM and local input state across Channel loading and updates', async () => {
+    const previous = store.getSnapshot();
+    const originalMedia = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('min-width'),
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+      onchange: null,
+      addListener() {},
+      removeListener() {},
+      dispatchEvent: () => true,
+    })) as typeof window.matchMedia;
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const first = {
+      id: 'stable-first',
+      type: 'group' as const,
+      name: 'First',
+      members: [],
+      createdAt: '2026-10-17T00:00:00.000Z',
+      updatedAt: '2026-10-17T00:00:00.000Z',
+    };
+    const second = { ...first, id: 'stable-second', name: 'Second' };
+    store.setRoster([], [first, second]);
+    store.select({ kind: 'channel', channelId: first.id });
+    store.setConversation({ status: 'ready', channel: first });
+    const registry = createDockPanelRegistry();
+    registry.register({
+      id: 'sessions',
+      title: 'Global probe',
+      icon: 'hash',
+      scope: 'global',
+      component: () =>
+        createElement('input', { 'data-global-probe': '', defaultValue: 'untouched' }),
+    });
+    const node = document.createElement('div');
+    document.body.append(node);
+    const root = createRoot(node);
+    try {
+      await act(() =>
+        root.render(
+          createElement(BotMain, {
+            actions: {
+              ...inertSubmissionActions,
+              allBotPreview: async () => undefined,
+            } as unknown as BridgeActions,
+            channelSidebar: createChannelSidebarRegistry(),
+            dockPanels: registry,
+          }),
+        ),
+      );
+      const dock = node.querySelector('.bh-dock');
+      const input = node.querySelector<HTMLInputElement>('[data-global-probe]')!;
+      expect(input).not.toBeNull();
+      input.value = 'local state retained';
+      for (const channel of [second, first]) {
+        await act(() => store.select({ kind: 'channel', channelId: channel.id }));
+        expect(node.querySelector('.bh-dock')).toBe(dock);
+        expect(node.querySelector('[data-global-probe]')).toBe(input);
+        await act(() => store.setConversation({ status: 'ready', channel }));
+        expect(input.isConnected).toBe(true);
+        expect(input.value).toBe('local state retained');
+        await act(() =>
+          store.setConversation({ revision: store.getSnapshot().conversation.revision + 1 }),
+        );
+        expect(node.querySelector('[data-global-probe]')).toBe(input);
+      }
+    } finally {
+      await act(() => root.unmount());
+      node.remove();
+      window.matchMedia = originalMedia;
+      vi.unstubAllGlobals();
+      store.setRoster(previous.bots, previous.channels);
+      store.select(previous.selection);
+      store.setConversation(previous.conversation);
+    }
+  });
+
   it('keeps the docked Channel sidebar present on every state update while switching Channels', () => {
     const previous = store.getSnapshot();
     const first = {
@@ -224,7 +415,7 @@ describe('Bot main Sessions pane', () => {
     }
   });
 
-  it('shows separately focusable companion and Profile actions beside the DM title and Sessions', async () => {
+  it('shows the DM profile menu without the retired header pin shortcut', async () => {
     const bot = {
       slug: 'ada',
       displayName: 'Ada',
@@ -290,13 +481,9 @@ describe('Bot main Sessions pane', () => {
       ),
     );
     const markup = node.innerHTML;
-    expect(markup).toContain('class="bh-companion-pin"');
-    expect(markup).toContain('aria-label="' + zhTranslate('companion.show') + ' · Ada"');
+    expect(node.querySelector('.bh-companion-pin')).toBeNull();
     expect(node.querySelector('button button')).toBeNull();
-    const pin = node.querySelector<HTMLButtonElement>('.bh-companion-pin')!;
-    await act(() => pin.click());
-    expect(companion.get('ada')).toBeDefined();
-    expect(pin.getAttribute('aria-pressed')).toBe('true');
+    expect(companion.get('ada')).toBeUndefined();
     await act(() => root.unmount());
     node.remove();
 
@@ -308,7 +495,7 @@ describe('Bot main Sessions pane', () => {
     expect(markup).toContain('data-channel-menu-caret=""');
     expect(markup).toMatch(/<span data-conversation-title="" class="[^"]+">Ada<\/span>/);
     expect(markup).not.toContain('bh-channel-sidebar-title');
-    expect(markup).toContain('class="bh-chat-top-fade"');
+    expect(markup).not.toContain('bh-chat-top-fade');
     expect(markup).not.toContain('研究发布状态');
     expect(markup).not.toContain('Ada 空闲');
     expect(markup).not.toContain('bh-composer-activity-status');
@@ -478,7 +665,7 @@ describe('Bot main Sessions pane', () => {
       }),
     );
     expect(markup).toContain('bh-bubble-pending');
-    expect(markup).toContain('发送中');
+    expect(markup).not.toContain('发送中');
     expect(markup).toContain('hello');
     expect(markup).not.toContain('bh-message-group-avatar');
   });
@@ -526,7 +713,8 @@ describe('Bot main Sessions pane', () => {
     );
     expect(markup).toContain('hello');
     expect(markup).toContain('bh-bubble-failed');
-    expect(markup).toContain('发送失败');
+    expect(markup).toContain('将失败消息放回输入框修改后重发');
+    expect(markup).toContain('network disconnected');
     expect(markup).not.toContain('发送中');
   });
   it('keeps a Bot DM read-only when its stored member list is incomplete', () => {
@@ -568,6 +756,69 @@ describe('Bot main Sessions pane', () => {
     store.setRoster(previous.bots, previous.channels);
     store.select(previous.selection);
     store.setConversation(previous.conversation);
+  });
+  it('labels a deleted Bot DM as read-only history', () => {
+    const previous = store.getSnapshot();
+    const channel = {
+      id: 'dm-ada',
+      type: 'dm' as const,
+      name: 'Ada',
+      members: ['ada'],
+      botSlug: 'ada',
+      createdAt: '2026-09-21T00:00:00.000Z',
+      updatedAt: '2026-09-21T00:01:00.000Z',
+    };
+    const render = (deleted: boolean): string => {
+      store.setRoster(
+        [
+          {
+            slug: 'ada',
+            displayName: 'Ada',
+            roles: [],
+            aggregateState: 'idle',
+            workspaces: [],
+            createdAt: '2026-09-21T00:00:00.000Z',
+            ...(deleted ? { deleted: true, paused: true } : {}),
+          },
+        ],
+        [channel],
+      );
+      store.select({ kind: 'channel', channelId: channel.id });
+      store.setConversation({
+        status: 'ready',
+        channel,
+        messages: [
+          {
+            id: 'local-failed-1',
+            at: '2026-09-21T00:02:00.000Z',
+            author: { kind: 'human' },
+            body: 'hello',
+            failed: 'network disconnected',
+          },
+        ],
+        sending: false,
+      });
+      return renderToStaticMarkup(
+        createElement(BotMain, {
+          actions: { ...inertSubmissionActions } as BridgeActions,
+          channelSidebar: sidebarRegistry(),
+        }),
+      );
+    };
+    try {
+      const live = render(false);
+      expect(live).not.toContain('bh-bot-dm-readonly');
+      expect(live).toContain('<button type="button" class="bh-bubble-failed-action"');
+      const markup = render(true);
+      expect(markup).toContain('已删除的 Bot · 仅供查看');
+      expect(markup).toContain('发送失败');
+      expect(markup).not.toContain('<button type="button" class="bh-bubble-failed-action"');
+      expect(markup).not.toContain('Bot 之间的私聊 · 仅供查看');
+    } finally {
+      store.setRoster(previous.bots, previous.channels);
+      store.select(previous.selection);
+      store.setConversation(previous.conversation);
+    }
   });
   it('keeps the own identity row inside the mirrored group while name still precedes time in DOM order', () => {
     const previous = store.getSnapshot();
@@ -1056,9 +1307,9 @@ describe('Bot main Sessions pane', () => {
     expect(menu?.items?.map((item) => item.id)).toEqual([
       'reply',
       'react',
-      'locate',
       'copy',
       'select',
+      'feedback',
     ]);
     await act(async () => menu!.onSelect!('react'));
     const pressed = document.body.querySelector('[data-reaction-picker]');
@@ -1251,7 +1502,7 @@ describe('DM usage refresh', () => {
         root.render(createElement(BotMain, { actions, channelSidebar: sidebarRegistry() })),
       );
       const before = node.querySelector('[data-composer-chip="usage"]')!.textContent;
-      expect(before).toContain('0');
+      expect(before).toContain('— / —');
       await act(async () => {
         store.setConversation({
           messages: [
@@ -1339,6 +1590,99 @@ describe('Bot main question developer details', () => {
     } finally {
       await act(async () => root.unmount());
       node.remove();
+      store.select(previous.selection);
+      store.setConversation(previous.conversation);
+    }
+  });
+});
+
+describe('return to latest messages', () => {
+  it('appears on ordinary history scroll, counts live messages and hides after return', async () => {
+    const previous = store.getSnapshot();
+    const bot = {
+      slug: 'timeline-return',
+      displayName: 'Timeline return',
+      roles: [],
+      aggregateState: 'idle',
+      workspaces: [],
+      createdAt: '2026-10-24T00:00:00.000Z',
+    };
+    const channel = {
+      id: 'dm-timeline-return',
+      type: 'dm' as const,
+      name: bot.displayName,
+      members: [bot.slug],
+      botSlug: bot.slug,
+      createdAt: bot.createdAt,
+      updatedAt: bot.createdAt,
+    };
+    const message = (id: string): ChannelMessage => ({
+      id,
+      at: bot.createdAt,
+      author: { kind: 'bot', slug: bot.slug },
+      body: id,
+    });
+    const actions = {
+      profileActivity: async () => ({
+        slug: bot.slug,
+        modelUsageStatus: 'ready',
+        modelUsageRows: [],
+      }),
+      modelPlanState: async () => ({}),
+      modelCatalog: async () => ({ models: [] }),
+      listWorkspaceGrants: async () => [],
+      botSourcePolicies: async () => [],
+      markRead: async () => undefined,
+      ...inertSubmissionActions,
+    } as unknown as BridgeActions;
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    store.setRoster([bot], [channel]);
+    store.select({ kind: 'bot', slug: bot.slug });
+    store.setConversation({
+      status: 'ready',
+      channel,
+      messages: [message('first')],
+      revision: 1,
+      sending: false,
+    });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      await act(async () =>
+        root.render(createElement(BotMain, { actions, channelSidebar: sidebarRegistry() })),
+      );
+      const viewport = container.querySelector<HTMLElement>('.bh-chat-body')!;
+      Object.defineProperties(viewport, {
+        scrollHeight: { value: 2000 },
+        clientHeight: { value: 500 },
+      });
+      const button = () => container.querySelector<HTMLButtonElement>('.bh-timeline-new');
+      expect(button()).toBeNull();
+      await act(async () => {
+        viewport.scrollTop = 1000;
+        viewport.dispatchEvent(new Event('scroll'));
+      });
+      expect(button()?.getAttribute('aria-label')).toBe(zhTranslate('messages.latest'));
+      expect(button()?.textContent).toBe('');
+      expect(button()?.querySelector('.bh-timeline-new-count')).toBeNull();
+      await act(async () => {
+        store.setConversation({
+          messages: [message('first'), message('second'), message('third')],
+          revision: 3,
+        });
+      });
+      expect(button()?.textContent).toBe('2');
+      expect(button()?.getAttribute('aria-description')).toBe(
+        zhTranslate('messages.unseen', { count: 2 }),
+      );
+      await act(async () => button()!.click());
+      expect(viewport.scrollTop).toBe(2000);
+      expect(button()).toBeNull();
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      store.setRoster(previous.bots, previous.channels);
       store.select(previous.selection);
       store.setConversation(previous.conversation);
     }

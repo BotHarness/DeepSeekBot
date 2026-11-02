@@ -95,6 +95,21 @@ function scratch() {
 }
 
 describe('Browser observation, takeover audit and profile commands', () => {
+  it.each([
+    [404, 'browser not running'],
+    [404, 'no browser tab'],
+    [503, 'frame unavailable'],
+  ])('preserves Browser frame refusals (%s %s)', async (status, error) => {
+    const live = await host(() => ({ status, json: { ok: false, error } }));
+    const result = await invoke(
+      ['browser-frame', 'ada', '--out', join(scratch(), 'frame.jpg')],
+      live.url,
+    );
+    expect(result.code).not.toBe(0);
+    expect(result.json['error']).toMatchObject({ code: 'host-refused', message: error });
+    expect(live.calls[0]?.path).toBe('/api/browser/frame?slug=ada');
+  });
+
   it('reads the observation and saves its picture instead of printing it', async () => {
     const out = join(scratch(), 'frame.png');
     const live = await host(() => ({
@@ -412,4 +427,36 @@ describe('WebRTC commands', () => {
     expect(result.code).not.toBe(0);
     expect(live.calls).toEqual([]);
   });
+});
+
+it('opens a selected Host privacy pane only with explicit confirmation', async () => {
+  const live = await host(() => ({ json: { ok: true } }));
+  expect(
+    (await invoke(['computer-open-permission-settings', '--permission', 'accessibility'], live.url))
+      .code,
+  ).toBe(2);
+  expect(
+    (
+      await invoke(
+        ['computer-open-permission-settings', '--permission', 'arbitrary', '--confirm'],
+        live.url,
+      )
+    ).code,
+  ).toBe(2);
+  expect(live.calls).toHaveLength(0);
+  expect(
+    (
+      await invoke(
+        ['computer-open-permission-settings', '--permission', 'screen-recording', '--confirm'],
+        live.url,
+      )
+    ).json,
+  ).toEqual({ ok: true });
+  expect(live.calls).toEqual([
+    {
+      method: 'POST',
+      path: '/api/computer/open-permission-settings',
+      body: { authorize: true, permission: 'screen-recording' },
+    },
+  ]);
 });

@@ -156,7 +156,7 @@ if (mode === '--serve') {
     await api('browserAccessSet', { slug: bot.slug, enabled: true });
     await api('channelSend', {
       channelId: dm.id,
-      body: `本地文件上传 QA 准备：browser_open 打开 ${fixture}/chooser，然后 browser_observe，channel_send 回复标题；这一步不上传、不点击。`,
+      body: `本地文件上传 QA 准备：browser_open 打开 ${fixture}/chooser，然后 browser_observe，bot_send_message 回复标题；这一步不上传、不点击。`,
     });
     const sessionId = await until(
       async () =>
@@ -173,16 +173,16 @@ if (mode === '--serve') {
     if (mode === '--restore') {
       const rows = await model(
         s,
-        `本地 QA 恢复：browser_open 打开 ${fixture}/chooser，然后 browser_observe，channel_send 回复标题；此步不上传、不点击。`,
+        `本地 QA 恢复：browser_open 打开 ${fixture}/chooser，然后 browser_observe，bot_send_message 回复标题；此步不上传、不点击。`,
       );
-      for (const n of ['browser_open', 'browser_observe', 'channel_send']) success(rows, n);
+      for (const n of ['browser_open', 'browser_observe', 'bot_send_message']) success(rows, n);
       console.log('Real model restored Browser permission.');
     } else if (mode === '--ready') {
       const rows = await until(
         () => events(s),
         (rows) => rows.some((r) => r.type === 'turn/end'),
       );
-      for (const n of ['browser_open', 'browser_observe', 'channel_send']) success(rows, n);
+      for (const n of ['browser_open', 'browser_observe', 'bot_send_message']) success(rows, n);
       save({ ...s, ready: true });
       console.log('Real model and Browser authorization verified.');
     } else {
@@ -221,7 +221,7 @@ if (mode === '--serve') {
         } else {
           const rows = await model(
             s,
-            `本地合成页面 QA，Human 已授权上传这个测试文件。先 browser_observe，然后 browser_upload path=${s.path} ${kind === 'chooser' ? 'ref 必须使用 Attach document 按钮刚观察到的 ref' : '必须省略 ref 参数，验证默认第一个文件字段'}；再 browser_observe 确认 Target: qa-upload.txt; Other: none; Completed: 0，然后 channel_send 回复观察结果。此步只挂附件，不点击 Submit。`,
+            `本地合成页面 QA，Human 已授权上传这个测试文件。先 browser_observe，然后 browser_upload path=${s.path} ${kind === 'chooser' ? 'ref 必须使用 Attach document 按钮刚观察到的 ref' : '必须省略 ref 参数，验证默认第一个文件字段'}；再 browser_observe 确认 Target: qa-upload.txt; Other: none; Completed: 0，然后 bot_send_message 回复观察结果。此步只挂附件，不点击 Submit。`,
           );
           const upload = success(rows, 'browser_upload');
           assert.equal(upload.call.arguments.path, s.path);
@@ -232,7 +232,7 @@ if (mode === '--serve') {
           await shot(s, `after-${kind}-attached.jpg`);
           const submitted = await model(
             s,
-            'Human 已授权本地提交一次：browser_observe，browser_click 刚观察到的 Submit document 按钮 ref，再 browser_observe 确认 Completed: 1，channel_send 回复结果。',
+            'Human 已授权本地提交一次：browser_observe，browser_click 刚观察到的 Submit document 按钮 ref，再 browser_observe 确认 Completed: 1，bot_send_message 回复结果。',
           );
           success(submitted, 'browser_click');
           assert.match(await observe(s), /Target: qa-upload.txt; Other: none; Completed: 1/);

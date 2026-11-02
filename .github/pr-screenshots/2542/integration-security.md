@@ -1,0 +1,28 @@
+# Connect integration security verification
+
+This report covers the final integration of current main (`8f4e650db`), Track A and Track B. Earlier screenshots and real Cloudflare/native receipts retain their recorded runtime revisions; they are not recaptured evidence for this integration.
+
+## Current main integration
+
+- The source-Host message implementation from #2538 supersedes closed #2533. The old parallel adapter is removed.
+- Private input asks the owning Host client whether its route supports secrets. Unpinned Connect refuses; encrypted Connect can submit. Cancel remains available.
+- The canonical message-resource seam uses the owning source's encrypted `read` function. A rejected encrypted read propagates; it never retries direct fetch or the local Host.
+- Current main's Remote Host settings, viewers, notification lifecycle and source routing are preserved. Connect Browser/Computer remains refused by the encrypted gateway.
+
+## Additional #2542 acceptance mapping
+
+| Contract                                                | Implementation and evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| First enrollment and account pairing bind intended keys | ADR-0244 requires independent full Host fingerprint comparison and exact device-key approval; `pairing.ts`, `connect-pairing.ts` and the native verification flow enforce that ceremony. Account discovery never supplies trust by itself. Prior native fingerprint evidence remains separately linked in the PR; deployed account enrollment is not qualified.                                                                                                                |
+| Fresh channel binds Host, device and protocol/route     | `noise/channel.ts` binds Host id and protocol/route in the prologue, authenticates the device static key, and uses the fresh handshake transcript plus direction/counter/length as frame AAD. Gateway admission binds the approved device key to its credential.                                                                                                                                                                                                               |
+| Receiving endpoint rejects tamper and replay            | `connect-encrypted-gateway.test.ts` injects tampered and replayed ciphertext directly into the real WebSocket gateway. Reconnect replay uses the same static identities and matching next counter after fresh admission; fresh transcript/keys reject it. No extra upstream application effect is accepted. Substituted device keys and revoked-device reconnect are refused.                                                                                                  |
+| Concurrent sends and bounded work                       | Encryption/counter advancement plus frame sends are synchronous. Endpoint tests exercise concurrent requests and an overloaded slow upstream; at most 32 requests are admitted. Existing channel tests cover fragment/message bounds; native-carrier tests cover unacknowledged-byte/message limits without bufferedAmount.                                                                                                                                                    |
+| Ready and cleanup ownership                             | Gateway message/error/close handlers are installed before admission. Exact-key admission attaches revocation cleanup before sending `admitted`; the client exposes its session only after that receipt. Async request/stream callbacks compare their concrete owner before deleting or publishing. Session cleanup only removes its own cache entry. Replacement-stream and cancelled-request regressions pass. Existing Connect failure tests prohibit route fallback/replay. |
+
+The replacement-stream regression fails without the ownership guard: a late `closed` event arrives in place of the new stream's `opened` event. With the guard the replacement sends/receives normally. The guard also covers late open, message and error callbacks.
+
+## Verification boundary
+
+- Targeted tests cover actual gateway admission, private RPC, revocation, tamper, same-session replay, reconnect replay, substituted device key, concurrent sends, slow upstream overload, cancellation and logical-stream replacement.
+- The integration changes no pairing protocol, key derivation or native UI layout. Existing platform screenshots are historical evidence of those unchanged implementations, not proof of a new full native run.
+- Physical iPhone, Android native interaction, deployed account enrollment, assistive technology, Chinese native rendering, independent cryptographic audit and the complete native DM/image/tool/private-input release matrix remain unqualified. Merge is not deployment or production qualification.

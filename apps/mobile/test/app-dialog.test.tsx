@@ -1,0 +1,266 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { t } from '../src/ui/strings';
+
+const { platform, nativeAlert, actionSheet } = vi.hoisted(() => ({
+  platform: { OS: 'android' },
+  nativeAlert: vi.fn(),
+  actionSheet: vi.fn(),
+}));
+vi.mock('react-native', () => ({
+  Platform: platform,
+  Alert: { alert: nativeAlert },
+  ActionSheetIOS: { showActionSheetWithOptions: actionSheet },
+  Keyboard: { dismiss() {} },
+}));
+
+import {
+  confirmAppDialog,
+  confirmDestructive,
+  showActionMenu,
+  showAppDialog,
+} from '../src/ui/primitives/app-dialog';
+import { appDialogs, createDialogState } from '../src/ui/primitives/dialog-state';
+
+afterEach(() => {
+  appDialogs.dismiss();
+  nativeAlert.mockReset();
+  actionSheet.mockReset();
+  platform.OS = 'android';
+});
+
+describe('app dialogs', () => {
+  it('keeps a single Android command in a menu and preserves its icon', () => {
+    showActionMenu('Ada', [{ text: 'Open profile', icon: 'person' }]);
+    expect(appDialogs.getSnapshot()).toMatchObject({ presentation: 'menu' });
+    expect(appDialogs.getSnapshot()?.actions[1]?.icon).toBe('person');
+    appDialogs.dismiss();
+    showAppDialog('Confirm?', undefined, [{ text: 'Confirm' }]);
+    expect(appDialogs.getSnapshot()).toMatchObject({ presentation: 'dialog' });
+  });
+  it('shows an iOS action sheet with the destructive action last and Cancel apart', () => {
+    platform.OS = 'ios';
+    const remove = vi.fn();
+    const open = vi.fn();
+    showActionMenu('Bo', [
+      { text: 'Remove', icon: 'remove', style: 'destructive', onPress: remove },
+      { text: 'Open profile', icon: 'person', onPress: open },
+    ]);
+    const [options, pick] = actionSheet.mock.calls[0]!;
+    expect(options).toEqual({
+      title: 'Bo',
+      options: ['Open profile', 'Remove', t.cancel],
+      destructiveButtonIndex: 1,
+      cancelButtonIndex: 2,
+    });
+    pick(2);
+    expect(remove).not.toHaveBeenCalled();
+    pick(0);
+    expect(open).toHaveBeenCalled();
+    expect(nativeAlert).not.toHaveBeenCalled();
+  });
+
+  it('asks before a destructive action with Cancel first', () => {
+    platform.OS = 'ios';
+    confirmDestructive('Sign out?', undefined, 'Sign out', vi.fn());
+    expect(nativeAlert.mock.calls[0]![2]).toEqual([
+      { text: t.cancel, style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: expect.any(Function) },
+    ]);
+  });
+
+  it('routes Android through the app surface and leaves iOS native', () => {
+    showAppDialog('Unpair?', 'Phone only', [{ text: 'Cancel', style: 'cancel' }]);
+    expect(nativeAlert).not.toHaveBeenCalled();
+    expect(appDialogs.getSnapshot()?.title).toBe('Unpair?');
+    appDialogs.dismiss();
+    platform.OS = 'ios';
+    showAppDialog('Unpair?', 'Phone only', [{ text: 'Cancel', style: 'cancel' }]);
+    expect(nativeAlert).toHaveBeenCalledWith('Unpair?', 'Phone only', [
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+    expect(appDialogs.getSnapshot()).toBeUndefined();
+  });
+
+  it('keeps semantic icons in the Android menu but strips them from native iOS alert buttons', () => {
+    showAppDialog('Create', undefined, [{ text: 'New Bot', icon: 'person' }]);
+    expect(appDialogs.getSnapshot()?.actions[0]?.icon).toBe('person');
+    appDialogs.dismiss();
+    platform.OS = 'ios';
+    showAppDialog('Create', undefined, [{ text: 'New Bot', icon: 'person' }]);
+    expect(nativeAlert).toHaveBeenCalledWith('Create', undefined, [{ text: 'New Bot' }]);
+  });
+
+  it('cancel, Back and backdrop dismissal never execute a destructive action', async () => {
+    const state = createDialogState();
+    const remove = vi.fn();
+    const actions = [
+      { text: 'Cancel', style: 'cancel' as const },
+      { text: 'Unpair', style: 'destructive' as const, onPress: remove },
+    ];
+    state.open('Unpair?', undefined, actions);
+    await state.choose(0, state.getSnapshot()!.id);
+    expect(state.getSnapshot()).toBeUndefined();
+    state.open('Unpair?', undefined, actions);
+    state.dismiss();
+    expect(state.getSnapshot()).toBeUndefined();
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('keeps the second confirmation instead of closing it with its menu', async () => {
+    const state = createDialogState();
+    const remove = vi.fn();
+    state.open('Computer', undefined, [
+      {
+        text: 'Unpair',
+        onPress: () => state.open('Unpair?', undefined, [{ text: 'Confirm', onPress: remove }]),
+      },
+    ]);
+    await state.choose(0, state.getSnapshot()!.id);
+    expect(state.getSnapshot()?.title).toBe('Unpair?');
+    expect(remove).not.toHaveBeenCalled();
+    await state.choose(0, state.getSnapshot()!.id);
+    expect(remove).toHaveBeenCalledOnce();
+    expect(state.getSnapshot()).toBeUndefined();
+  });
+
+  it('rejects a repeated menu callback after a destructive confirmation replaces it', async () => {
+    const state = createDialogState();
+    const remove = vi.fn();
+    state.open('Member', undefined, [
+      { text: 'Open profile' },
+      {
+        text: 'Remove',
+        onPress: () =>
+          state.open('Remove member?', undefined, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Remove', style: 'destructive', onPress: remove },
+          ]),
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+    const menuId = state.getSnapshot()!.id;
+    const pressRemove = () => state.choose(1, menuId);
+    const first = pressRemove();
+    const repeated = pressRemove();
+    await Promise.all([first, repeated]);
+    expect(state.getSnapshot()?.title).toBe('Remove member?');
+    expect(remove).not.toHaveBeenCalled();
+    await state.choose(1, state.getSnapshot()!.id);
+    expect(remove).toHaveBeenCalledOnce();
+  });
+
+  it('executes once, blocks dismiss while saving, then closes after success', async () => {
+    const state = createDialogState();
+    let finish!: () => void;
+    const save = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    state.open('Unpair?', undefined, [{ text: 'Unpair', onPress: save }]);
+    const first = state.choose(0, state.getSnapshot()!.id);
+    await state.choose(0, state.getSnapshot()!.id);
+    state.dismiss();
+    expect(state.getSnapshot()?.busy).toBe(0);
+    expect(save).toHaveBeenCalledOnce();
+    finish();
+    await first;
+    expect(state.getSnapshot()).toBeUndefined();
+  });
+
+  it('keeps a refused action open with retry and cancellation available', async () => {
+    const state = createDialogState();
+    const save = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Offline'))
+      .mockResolvedValueOnce(undefined);
+    state.open('Unpair?', undefined, [{ text: 'Unpair', onPress: save }]);
+    await state.choose(0, state.getSnapshot()!.id);
+    expect(state.getSnapshot()).toMatchObject({
+      title: 'Unpair?',
+      busy: undefined,
+      error: 'Offline',
+    });
+    await state.choose(0, state.getSnapshot()!.id);
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(state.getSnapshot()).toBeUndefined();
+  });
+
+  it('keeps an existing group action refusal visible', async () => {
+    const state = createDialogState();
+    state.open('Disband?', undefined, [{ text: 'Disband', onPress: async () => false }]);
+    await state.choose(0, state.getSnapshot()!.id);
+    expect(state.getSnapshot()?.error).toBe('');
+    state.dismiss();
+    expect(state.getSnapshot()).toBeUndefined();
+  });
+
+  it('does not let an older completion dismiss or overwrite a newer request', async () => {
+    const state = createDialogState();
+    let fail!: (reason: Error) => void;
+    state.open('Old', undefined, [
+      {
+        text: 'Run',
+        onPress: () =>
+          new Promise<void>((_, reject) => {
+            fail = reject;
+          }),
+      },
+    ]);
+    const old = state.choose(0, state.getSnapshot()!.id);
+    state.open('New', undefined, [{ text: 'Cancel', style: 'cancel' }]);
+    fail(new Error('Old failure'));
+    await old;
+    expect(state.getSnapshot()).toMatchObject({ title: 'New', busy: undefined, error: undefined });
+  });
+});
+
+it('resolves Android trust confirmation only on explicit confirmation and refuses cancellation or replacement', async () => {
+  const accepted = confirmAppDialog(
+    'Compare fingerprint',
+    'public fingerprint',
+    'Fingerprints match',
+  );
+  await appDialogs.choose(1, appDialogs.getSnapshot()!.id);
+  await expect(accepted).resolves.toBe(true);
+  const cancelled = confirmAppDialog(
+    'Compare fingerprint',
+    'public fingerprint',
+    'Fingerprints match',
+  );
+  await appDialogs.choose(0, appDialogs.getSnapshot()!.id);
+  await expect(cancelled).resolves.toBe(false);
+  const dismissed = confirmAppDialog(
+    'Compare fingerprint',
+    'public fingerprint',
+    'Fingerprints match',
+  );
+  appDialogs.dismiss();
+  await expect(dismissed).resolves.toBe(false);
+  const replaced = confirmAppDialog(
+    'Compare fingerprint',
+    'public fingerprint',
+    'Fingerprints match',
+  );
+  showAppDialog('Another dialog', undefined, [{ text: 'OK' }]);
+  await expect(replaced).resolves.toBe(false);
+});
+
+it('resolves iOS trust confirmation through the native alert buttons', async () => {
+  platform.OS = 'ios';
+  const cancelled = confirmAppDialog(
+    'Compare fingerprint',
+    'public fingerprint',
+    'Fingerprints match',
+  );
+  nativeAlert.mock.calls[0]![2][0].onPress();
+  await expect(cancelled).resolves.toBe(false);
+  const accepted = confirmAppDialog(
+    'Compare fingerprint',
+    'public fingerprint',
+    'Fingerprints match',
+  );
+  nativeAlert.mock.calls[1]![2][1].onPress();
+  await expect(accepted).resolves.toBe(true);
+});

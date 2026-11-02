@@ -126,7 +126,7 @@ if (mode === '--serve') {
     const prior = new Set(oldSession ? (await events(oldSession)).map((event) => event.seq) : []);
     await api('channelSend', {
       channelId: dm.id,
-      body: `本地 QA。只调用 browser_open 打开 ${fixture}/page，再调用 browser_observe，然后调用 channel_send 向当前频道回复页面标题，不滚动、不点击按钮。`,
+      body: `本地 QA。只调用 browser_open 打开 ${fixture}/page，再调用 browser_observe，然后调用 bot_send_message 向当前频道回复页面标题，不滚动、不点击按钮。`,
     });
     const deadline = Date.now() + 180000;
     let sessionId, fresh;

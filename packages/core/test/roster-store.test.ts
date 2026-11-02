@@ -126,6 +126,26 @@ describe('roster store', () => {
     expect(store.snapshot().sections).toEqual([{ id: second.id, name: 'B', channelIds: ['c2'] }]);
   });
 
+  it('forgets a disbanded group everywhere it was placed', async () => {
+    const fake = createFakeRosterDomain();
+    const store = createTestRosterStore();
+    await store.attach(fake.facility);
+    const section = await store.sectionCreate('A');
+    await store.channelAssign('group-1', section.id);
+    await store.channelAssign('c2', section.id);
+    await store.pinsSet(['group-1', 'c2']);
+    await store.hiddenSet(['group-1']);
+    await store.mutedSet('group-1', true);
+
+    await store.channelForget('group-1');
+
+    expect(storedSection(store, section.id)?.channelIds).toEqual(['c2']);
+    expect(storedState(store)).toMatchObject({ pins: ['c2'], hidden: [], muted: [] });
+    const writes = storedWriteCount(store);
+    await store.channelForget('group-1');
+    expect(storedWriteCount(store)).toBe(writes);
+  });
+
   it('assigns a channel once, moving it out of its previous section', async () => {
     const fake = createFakeRosterDomain();
     const store = createTestRosterStore();

@@ -1,0 +1,19 @@
+{
+  "source": "3dbbba7073e1565e289c80ffcf6414bc696d3333",
+  "requestCount": 1,
+  "decisions": [
+    {
+      "requestMessageId": "fb29ebd9-1b9e-4fef-b8a3-b169b02e029d",
+      "outcome": "allowed-once"
+    }
+  ],
+  "ruleCount": 0,
+  "calls": [
+    {
+      "name": "pwsh",
+      "outcome": "ok",
+      "result": "BREAKER_FINAL_2080_OK_9917\r\n",
+      "approval": "allowed-once"
+    }
+  ]
+}

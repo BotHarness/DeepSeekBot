@@ -121,7 +121,7 @@ An Assignment Session is an independent root DSH Session for one line of work. I
 The **Assignment Directory** is a durable read model over Session Ownership plus DSH events, projections, and cold-query facts. It exposes:
 
 ```text
-canonical Session id, purpose, Continuity Key, Workspace
+canonical Session id, Assignment Title and Assignment Description (ADR-0262), Continuity Key, Workspace
 requested model/dependencies
 DSH-derived activity and lastRun
 latest semantic Assignment Report

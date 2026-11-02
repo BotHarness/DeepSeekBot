@@ -26,9 +26,9 @@ export function dailyUsageProperties(
   windowMs: number,
 ): Record<string, TelemetryValue> {
   return {
-    persona_bots: count(counts.personaBots),
-    sessions: count(counts.sessions),
-    messages: count(counts.messages),
+    persona_bot_count: count(counts.personaBots),
+    session_count: count(counts.sessions),
+    message_count: count(counts.messages),
     window_hours: count(Math.round(windowMs / (60 * 60 * 1000))),
   };
 }
@@ -79,7 +79,7 @@ export function startDailyUsage(options: {
           : new Date(at.getTime() - DAILY_USAGE_PERIOD_MS);
       if (last === since && at.getTime() - since.getTime() < DAILY_USAGE_PERIOD_MS) return;
       options.telemetry.capture(
-        'daily_usage',
+        'app:usage_report',
         dailyUsageProperties(options.counts(since, at), at.getTime() - since.getTime()),
       );
       writeDailyUsageAt(options.dataDir, at);

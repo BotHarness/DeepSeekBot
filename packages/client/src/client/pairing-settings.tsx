@@ -1,5 +1,5 @@
 import { useId, useState, type ReactElement } from 'react';
-import { Button, Checkbox, Input, SegmentedTabs, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, Checkbox, SegmentedTabs, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import * as stylex from '@stylexjs/stylex';
 import { Combobox } from './combobox.js';
 import { MessagingHelp } from './messaging-help.js';

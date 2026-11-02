@@ -1,0 +1,12 @@
+{
+  "sourceCommit": "24cfc1b1f9a7d1d2c5aabf03c3c961c28ca41483",
+  "path": "native Tab/Shift+Tab and Return on Bot Settings reset button; no CLI reset",
+  "testedLevels": [8, -8],
+  "defaultLevel": 0,
+  "resultLevel": 0,
+  "freshCliReadback": true,
+  "limitations": [
+    "Functional keyboard recovery with initially hidden document, not fresh extreme native pixels.",
+    "At +8 focused reset visible height about 99 of 120 pixels: responsive layout remains unaccepted."
+  ]
+}

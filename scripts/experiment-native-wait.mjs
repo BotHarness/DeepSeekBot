@@ -186,14 +186,14 @@ try {
       await rpc('create', {
         displayName: `Wait experiment ${mode} ${Date.now()}`,
         persona:
-          'Follow the Human exactly. Use native tools only when explicitly requested. Do not retry refused operations. Reply only through channel_send. When an Assignment is running, do not wait_for_assignment unless explicitly requested; end your turn after dispatch so you can handle unrelated messages.',
+          'Follow the Human exactly. Use native tools only when explicitly requested. Do not retry refused operations. Reply only through bot_send_message. When an Assignment is running, do not wait_for_assignment unless explicitly requested; end your turn after dispatch so you can handle unrelated messages.',
       })
     ).bot,
   };
   scene.channelId = (await rpc('channelDm', { slug: scene.bot.slug })).channel.id;
   mark('scene', scene);
   await openDM();
-  await send('Reply through channel_send with exactly BASELINE_1036. Do not use other tools.');
+  await send('Reply through bot_send_message with exactly BASELINE_1036. Do not use other tools.');
   mark('baseline-reply', await until(() => hasReply('BASELINE_1036'), 'real model baseline DM'));
   mark('baseline-sessions', await rpc('sessions', { slug: scene.bot.slug }));
   if (mode === 'baseline') {
@@ -212,15 +212,15 @@ try {
     const question = mode === 'question';
     if (question) {
       await send(
-        'Call native ask_user_question exactly once: one question id wait-route, question "Which test route?", options [{label:"Canary",description:"Test route"},{label:"Stable",description:"Other route"}]. Wait for Human decision. After actual tool result, channel_send ORIGINAL_RESULT_1036 plus the actual answer. Do not create Assignments.',
+        'Call native ask_user_question exactly once: one question id wait-route, question "Which test route?", options [{label:"Canary",description:"Test route"},{label:"Stable",description:"Other route"}]. Wait for Human decision. After actual tool result, bot_send_message ORIGINAL_RESULT_1036 plus the actual answer. Do not create Assignments.',
       );
     } else if (mode === 'assignment' || mode === 'revoked') {
       await send(
-        `Use Grant ${grant.id} to create exactly one Assignment with continuity key wait-1036. Its purpose: call native ${process.platform === 'win32' ? 'pwsh' : 'bash'} once with command "echo EXACT_OPERATION_1036", then report_to_orchestrator state completed with actual stdout (or state failed with actual error), summary beginning ORIGINAL_RESULT_1036. Do not retry. Orchestrator: immediately channel_send DISPATCHED_1036 after create_assignment returns and end the turn. Do not wait_for_assignment or poll; handle unrelated messages normally. Relay the eventual report through channel_send including ORIGINAL_RESULT_1036 and the actual result.`,
+        `Use Grant ${grant.id} to create exactly one Assignment with continuity key wait-1036. Its purpose: call native ${process.platform === 'win32' ? 'pwsh' : 'bash'} once with command "echo EXACT_OPERATION_1036", then report_to_orchestrator state completed with actual stdout (or state failed with actual error), summary beginning ORIGINAL_RESULT_1036. Do not retry. Orchestrator: immediately bot_send_message DISPATCHED_1036 after create_assignment returns and end the turn. Do not wait_for_assignment or poll; handle unrelated messages normally. Relay the eventual report through bot_send_message including ORIGINAL_RESULT_1036 and the actual result.`,
       );
     } else {
       await send(
-        `Call native ${process.platform === 'win32' ? 'pwsh' : 'bash'} exactly once with command "echo EXACT_OPERATION_1036". Await Human approval and actual native result, then channel_send ORIGINAL_RESULT_1036 plus actual stdout or error. Do not retry or create an Assignment.`,
+        `Call native ${process.platform === 'win32' ? 'pwsh' : 'bash'} exactly once with command "echo EXACT_OPERATION_1036". Await Human approval and actual native result, then bot_send_message ORIGINAL_RESULT_1036 plus actual stdout or error. Do not retry or create an Assignment.`,
       );
     }
     const request = await until(
@@ -235,7 +235,7 @@ try {
     if (mode === 'assignment' || mode === 'revoked')
       await until(() => hasReply('DISPATCHED_1036'), 'Orchestrator dispatch completed');
     const unrelatedId = await send(
-      'This is unrelated Inbox work. Use channel_send now to reply with exactly UNRELATED_REPLY_1036. Do not approve, answer, cancel or replace any pending operation.',
+      'This is unrelated Inbox work. Use bot_send_message now to reply with exactly UNRELATED_REPLY_1036. Do not approve, answer, cancel or replace any pending operation.',
     );
     const untilAt = Date.now() + 20000;
     while (Date.now() < untilAt && !(await hasReply('UNRELATED_REPLY_1036'))) await sleep(1000);

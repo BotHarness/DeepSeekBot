@@ -18,6 +18,7 @@ export interface HostFileOptions {
 }
 export type HostFileOpen = { application: string } | { action: 'reveal' };
 export interface NativeHostFiles {
+  available?(): Promise<boolean>;
   applications(target: HostFileTarget): Promise<HostFileOptions>;
   open(target: HostFileTarget, choice: HostFileOpen): Promise<void>;
 }
@@ -67,6 +68,10 @@ export function createNativeHostFiles(
 ): NativeHostFiles {
   const route = (path: string): string => new URL(path, document.baseURI).href;
   return {
+    async available() {
+      const capability = await session.canOpenWorkspacePath();
+      return capability.ok && capability.value;
+    },
     async applications(target) {
       if (target.kind === 'directory') {
         const response = await fetcher(route('./open-in-app/apps'), {

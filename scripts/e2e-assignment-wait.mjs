@@ -177,7 +177,7 @@ try {
     await rpc('channelSend', {
       channelId: scene.channelId,
       messageId: `human-${crypto.randomUUID()}`,
-      body: `Verify Assignment waiting now. Use Grant ${scene.grantId}, create exactly one Assignment with a new continuity key. Its purpose: run one native Shell command node -e "setTimeout(() => {}, 25000)" (wait 25 seconds), then call report_to_orchestrator with state completed and summary WAIT_VERIFIED. Use no other tools. You, Orchestrator: immediately after create_assignment returns, call wait_for_assignment with its session_id and timeout_seconds 120. Do not inspect-poll and do not end your Turn early. Once wait returns, channel_send WAIT_VERIFIED with its outcome, then end.`,
+      body: `Verify Assignment waiting now. Use Grant ${scene.grantId}, create exactly one Assignment with a new continuity key. Its purpose: run one native Shell command node -e "setTimeout(() => {}, 25000)" (wait 25 seconds), then call report_to_orchestrator with state completed and summary WAIT_VERIFIED. Use no other tools. You, Orchestrator: immediately after create_assignment returns, call wait_for_assignment with its session_id and timeout_seconds 120. Do not inspect-poll and do not end your Turn early. Once wait returns, bot_send_message WAIT_VERIFIED with its outcome, then end.`,
     });
     const waiting = await waitFor(async () => {
       const value = await host(scene.slug);

@@ -14,7 +14,7 @@ const origin = process.env.BH_E2E_ORIGIN ?? 'http://127.0.0.1:3102';
 const nonce = Date.now();
 const name = `ImageReader-${nonce}`;
 const prompt =
-  '请先用 channel_read 找到本消息的图片，再用 channel_read_image 直接查看，不要搜索文件系统。如果图片含有 Z9、一个红色方块和一个蓝色圆形，请只用 channel_send 回复 IMAGE-Z9。';
+  '请先用 channel_read 找到本消息的图片，再用 channel_read_image 直接查看，不要搜索文件系统。如果图片含有 Z9、一个红色方块和一个蓝色圆形，请只用 bot_send_message 回复 IMAGE-Z9。';
 const browser = await puppeteer.launch({
   headless: true,
   args: ['--no-sandbox', '--disable-dev-shm-usage'],

@@ -1,0 +1,399 @@
+{
+  "baseline": "16c7c9af96803f2dde580328ecabb8aa0098dc10",
+  "candidate": "a481602191efde5da1a89dc5583ad1aa99e6c1a0",
+  "order": "ABBAAB",
+  "build": "Android SDK58 Debug, dev JavaScript, Hermes sampling + React hook",
+  "limits": [
+    "ADB command overhead included in selection latency",
+    "Selection comparison uses warm Home returns only (9 samples per version); candidate Activity selection timestamps were not recorded",
+    "JS RAF gaps, not native UI FPS",
+    "First visit follows15 seconds idle; candidate may prefetch",
+    "120FPS and Release remain unqualified"
+  ],
+  "summary": [
+    {
+      "mode": "a",
+      "runs": 3,
+      "switches": 18,
+      "medianFirstVisitMaxFrameMs": 678.1332309246063,
+      "medianWarmMaxFrameMs": 451.90807700157166,
+      "medianWarmMaxCommitMs": 309.24598383903503,
+      "medianWarmHomeSelectionMs": 476.37723088264465,
+      "warmHomeSelectionSamples": 9,
+      "warmFeedRenders": 15,
+      "warmHomeAndRowRenders": 45
+    },
+    {
+      "mode": "b",
+      "runs": 3,
+      "switches": 18,
+      "medianFirstVisitMaxFrameMs": 275.0536150932312,
+      "medianWarmMaxFrameMs": 197.74676990509033,
+      "medianWarmMaxCommitMs": 127.19309186935425,
+      "medianWarmHomeSelectionMs": 262.51415395736694,
+      "warmHomeSelectionSamples": 9,
+      "warmFeedRenders": 0,
+      "warmHomeAndRowRenders": 0
+    }
+  ],
+  "runs": [
+    {
+      "mode": "a",
+      "label": "matched-0-a",
+      "steps": [
+        {
+          "to": "activity",
+          "firstVisit": true,
+          "maxFrameMs": 685.4691541194916,
+          "maxCommitMs": 434.18025612831116,
+          "selectionMs": 1327.9627690315247,
+          "feedRenders": 1,
+          "homeRenders": 3
+        },
+        {
+          "to": "home",
+          "firstVisit": false,
+          "maxFrameMs": 451.90807700157166,
+          "maxCommitMs": 310.32535123825073,
+          "selectionMs": 508.71169209480286,
+          "feedRenders": 1,
+          "homeRenders": 3
+        },
+        {
+          "to": "activity",
+          "firstVisit": false,
+          "maxFrameMs": 409.763384103775,
+          "maxCommitMs": 278.0067183971405,
+          "selectionMs": 778.1131539344788,
+          "feedRenders": 1,
+          "homeRenders": 3
+        },
+        {
+          "to": "home",
+          "firstVisit": false,
+          "maxFrameMs": 442.829461812973,
+          "maxCommitMs": 309.24598383903503,
+          "selectionMs": 464.5594620704651,
+          "feedRenders": 1,
+          "homeRenders": 3
+        },
+        {
+          "to": "activity",
+          "firstVisit": false,
+          "maxFrameMs": 424.44615387916565,
+          "maxCommitMs": 289.35460591316223,
+          "selectionMs": 563.2920000553131,
+          "feedRenders": 1,
+          "homeRenders": 3
+        },
+        {
+          "to": "home",
+          "firstVisit": false,
+          "maxFrameMs": 501.2941539287567,
+          "maxCommitMs": 323.8882784843445,
+          "selectionMs": 476.37723088264465,
+          "feedRenders": 1,
+          "homeRenders": 3
+        }
+      ]
+    },
+    {
+      "mode": "b",
+      "label": "matched-1-b",
+      "steps": [
+        {
+          "to": "activity",
+          "firstVisit": true,
+          "maxFrameMs": 293.8341541290283,
+          "maxCommitMs": 191.45837330818176,
+          "feedRenders": 0,
+          "homeRenders": 0
+        },
+        {
+          "to": "home",
+          "firstVisit": false,
+          "maxFrameMs": 207.40807604789734,
+          "maxCommitMs": 132.9893925189972,
+          "selectionMs": 278.5125379562378,
+          "feedRenders": 0,
+          "homeRenders": 0
+        },
+        {
+          "to": "activity",
+          "firstVisit": false,
+          "maxFrameMs": 197.62769198417664,
+          "maxCommitMs": 126.93118524551392,
+          "feedRenders": 0,
+          "homeRenders": 0
+        },
+        {
+          "to": "home",
+          "firstVisit": false,
+          "maxFrameMs": 197.74676990509033,
+          "maxCommitMs": 129.0450897216797,
+          "selectionMs": 247.72007703781128,
+          "feedRenders": 0,
+          "homeRenders": 0
+        },
+        {
+          "to": "activity",
+          "firstVisit": false,
+          "maxFrameMs": 213.4541540145874,
+          "maxCommitMs": 140.54837346076965,
+          "feedRenders": 0,
+          "homeRenders": 0
+        },
+        {
+          "to": "home",
+          "firstVisit": false,
+          "maxFrameMs": 197.2550768852234,
+          "maxCommitMs": 128.27567219734192,
+          "selectionMs": 254.190691947937,
+          "feedRenders": 0,
+          "homeRenders": 0
+        }
+      ]
+    },
+    {
+      "mode": "b",
+      "label": "matched-2-b",
+      "steps": [
+        {
+          "to": "activity",
+          "firstVisit": true,
+          "maxFrameMs": 275.0536150932312,
+          "maxCommitMs": 175.02423334121704,
+          "feedRenders": 0,
+          "homeRenders": 0
+        },
+        {
+          "to": "home",
+          "firstVisit": false,
+          "maxFrameMs": 216.4338459968567,
+          "maxCommitMs": 127.57138299942017,
+          "selectionMs": 269.9384620189667,
+          "feedRenders": 0,
+          "homeRenders": 0
+        },
+        {
+          "to": "activity",
+          "firstVisit": false,
+          "maxFrameMs": 198.71053910255432,
+          "maxCommitMs": 127.19309186935425,
+          "feedRenders": 0,
+          "homeRenders": 0
+        },
+        {
+          "to": "home",
+          "firstVisit": false,
+          "maxFrameMs": 193.01900005340576,
+          "maxCommitMs": 124.28251504898071,
+          "selectionMs": 272.537230014801,
+          "feedRenders": 0,
+          "homeRenders": 0
+        },
+        {
+          "to": "activity",
+          "firstVisit": false,
+          "maxFrameMs": 184.908616065979,
+          "maxCommitMs": 114.30722212791443,
+          "feedRenders": 0,
+          "homeRenders": 0
+        },
+        {
+          "to": "home",
+          "firstVisit": false,
+          "maxFrameMs": 216.40030813217163,
+          "maxCommitMs": 135.23729038238525,
+          "selectionMs": 260.2646150588989,
+          "feedRenders": 0,
+          "homeRenders": 0
+        }
+      ]
+    },
+    {
+      "mode": "a",
+      "label": "matched-3-a",
+      "steps": [
+        {
+          "to": "activity",
+          "firstVisit": true,
+          "maxFrameMs": 675.0052309036255,
+          "maxCommitMs": 417.7654678821564,
+          "selectionMs": 1249.050154209137,
+          "feedRenders": 1,
+          "homeRenders": 3
+        },
+        {
+          "to": "home",
+          "firstVisit": false,
+          "maxFrameMs": 463.77500009536743,
+          "maxCommitMs": 320.1581082344055,
+          "selectionMs": 479.6962308883667,
+          "feedRenders": 1,
+          "homeRenders": 3
+        },
+        {
+          "to": "activity",
+          "firstVisit": false,
+          "maxFrameMs": 450.3655378818512,
+          "maxCommitMs": 299.6049757003784,
+          "feedRenders": 1,
+          "homeRenders": 3
+        },
+        {
+          "to": "home",
+          "firstVisit": false,
+          "maxFrameMs": 468.1790769100189,
+          "maxCommitMs": 326.91067361831665,
+          "selectionMs": 468.70453906059265,
+          "feedRenders": 1,
+          "homeRenders": 3
+        },
+        {
+          "to": "activity",
+          "firstVisit": false,
+          "maxFrameMs": 450.60953879356384,
+          "maxCommitMs": 298.7192294597626,
+          "selectionMs": 574.552845954895,
+          "feedRenders": 1,
+          "homeRenders": 3
+        },
+        {
+          "to": "home",
+          "firstVisit": false,
+          "maxFrameMs": 462.24807715415955,
+          "maxCommitMs": 330.5310380458832,
+          "selectionMs": 526.1350769996643,
+          "feedRenders": 1,
+          "homeRenders": 3
+        }
+      ]
+    },
+    {
+      "mode": "a",
+      "label": "matched-4-a",
+      "steps": [
+        {
+          "to": "activity",
+          "firstVisit": true,
+          "maxFrameMs": 678.1332309246063,
+          "maxCommitMs": 448.92451095581055,
+          "selectionMs": 1145.8368458747864,
+          "feedRenders": 1,
+          "homeRenders": 3
+        },
+        {
+          "to": "home",
+          "firstVisit": false,
+          "maxFrameMs": 491.7137689590454,
+          "maxCommitMs": 332.66699504852295,
+          "selectionMs": 472.21846199035645,
+          "feedRenders": 1,
+          "homeRenders": 3
+        },
+        {
+          "to": "activity",
+          "firstVisit": false,
+          "maxFrameMs": 453.07876896858215,
+          "maxCommitMs": 297.271954536438,
+          "selectionMs": 57.241539001464844,
+          "feedRenders": 1,
+          "homeRenders": 3
+        },
+        {
+          "to": "home",
+          "firstVisit": false,
+          "maxFrameMs": 470.0652310848236,
+          "maxCommitMs": 329.57606625556946,
+          "selectionMs": 493.5122311115265,
+          "feedRenders": 1,
+          "homeRenders": 3
+        },
+        {
+          "to": "activity",
+          "firstVisit": false,
+          "maxFrameMs": 428.03484582901,
+          "maxCommitMs": 283.65630173683167,
+          "selectionMs": 1023.2424609661102,
+          "feedRenders": 1,
+          "homeRenders": 3
+        },
+        {
+          "to": "home",
+          "firstVisit": false,
+          "maxFrameMs": 443.7483069896698,
+          "maxCommitMs": 305.62870621681213,
+          "selectionMs": 460.3036918640137,
+          "feedRenders": 1,
+          "homeRenders": 3
+        }
+      ]
+    },
+    {
+      "mode": "b",
+      "label": "matched-5-b",
+      "steps": [
+        {
+          "to": "activity",
+          "firstVisit": true,
+          "maxFrameMs": 265.57815408706665,
+          "maxCommitMs": 174.912921667099,
+          "feedRenders": 0,
+          "homeRenders": 0
+        },
+        {
+          "to": "home",
+          "firstVisit": false,
+          "maxFrameMs": 192.35661506652832,
+          "maxCommitMs": 122.22762322425842,
+          "selectionMs": 262.51415395736694,
+          "feedRenders": 0,
+          "homeRenders": 0
+        },
+        {
+          "to": "activity",
+          "firstVisit": false,
+          "maxFrameMs": 199.85415387153625,
+          "maxCommitMs": 127.58961367607117,
+          "feedRenders": 0,
+          "homeRenders": 0
+        },
+        {
+          "to": "home",
+          "firstVisit": false,
+          "maxFrameMs": 190.6126148700714,
+          "maxCommitMs": 121.9365348815918,
+          "selectionMs": 251.77038383483887,
+          "feedRenders": 0,
+          "homeRenders": 0
+        },
+        {
+          "to": "activity",
+          "firstVisit": false,
+          "maxFrameMs": 189.556077003479,
+          "maxCommitMs": 120.15870594978333,
+          "feedRenders": 0,
+          "homeRenders": 0
+        },
+        {
+          "to": "home",
+          "firstVisit": false,
+          "maxFrameMs": 206.83261609077454,
+          "maxCommitMs": 124.52105355262756,
+          "selectionMs": 279.5753080844879,
+          "feedRenders": 0,
+          "homeRenders": 0
+        }
+      ]
+    }
+  ],
+  "evidence": {
+    "viewport": [1220, 2712],
+    "crop": [0, 130, 1220, 1500],
+    "slowActivityResponseMs": 8000,
+    "pendingCaptureMsAfterSelect": 950,
+    "native": "Android16 SDK58 arm64 Debug client",
+    "nativeUiFpsQualified": false
+  }
+}

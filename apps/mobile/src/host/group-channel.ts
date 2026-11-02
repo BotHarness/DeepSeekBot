@@ -1,3 +1,4 @@
+import { workRows, type ProfileAssignment } from './bot-profile';
 import type { HostClient, RosterBot, RosterChannel, RosterView } from './client';
 
 export const GROUP_NAME_MAX = 120;
@@ -83,4 +84,15 @@ export function groupActions(client: HostClient, channelId: string): GroupAction
       await client.refresh().catch(() => undefined);
     },
   };
+}
+
+export async function loadGroupAssignments(
+  client: HostClient,
+  channelId: string,
+): Promise<ProfileAssignment[]> {
+  const { assignments } = await client.call<{ assignments: ProfileAssignment[] }>(
+    'channelAssignments',
+    { channelId },
+  );
+  return workRows(assignments);
 }

@@ -1,0 +1,103 @@
+{
+  "android": "Physical Android 16, arm64-v8a",
+  "matrix": [
+    {
+      "scale": "1.0",
+      "scheme": "light",
+      "keyboard": true,
+      "footerReachable": true,
+      "changedLocalOption": "avatar-option-eyes-dots",
+      "cancelPreservedAvatar": true,
+      "source": "d34a3c0f9299b192e8eb42bf934c9ceaefb7cd51"
+    },
+    {
+      "scale": "1.0",
+      "scheme": "dark",
+      "keyboard": true,
+      "footerReachable": true,
+      "changedLocalOption": "avatar-option-eyes-dots",
+      "cancelPreservedAvatar": true,
+      "source": "d34a3c0f9299b192e8eb42bf934c9ceaefb7cd51"
+    },
+    {
+      "scale": "1.3",
+      "scheme": "light",
+      "keyboard": true,
+      "footerReachable": true,
+      "changedLocalOption": "avatar-option-eyes-dots",
+      "cancelPreservedAvatar": true,
+      "source": "d34a3c0f9299b192e8eb42bf934c9ceaefb7cd51"
+    },
+    {
+      "scale": "1.3",
+      "scheme": "dark",
+      "keyboard": true,
+      "footerReachable": true,
+      "changedLocalOption": "avatar-option-eyes-dots",
+      "cancelPreservedAvatar": true,
+      "source": "d34a3c0f9299b192e8eb42bf934c9ceaefb7cd51"
+    },
+    {
+      "scale": "2.0",
+      "scheme": "light",
+      "keyboard": true,
+      "footerReachable": true,
+      "changedLocalOption": "avatar-option-eyes-dots",
+      "cancelPreservedAvatar": true,
+      "source": "51ab500155f6d9d6530a0710ceac4143c9989f08"
+    },
+    {
+      "scale": "2.0",
+      "scheme": "dark",
+      "keyboard": true,
+      "footerReachable": true,
+      "changedLocalOption": "avatar-option-eyes-dots",
+      "cancelPreservedAvatar": true,
+      "source": "51ab500155f6d9d6530a0710ceac4143c9989f08"
+    }
+  ],
+  "release": {
+    "createdExactlyOne": true,
+    "recipeMatches": true,
+    "coldRestartRetained": true,
+    "releaseSaveReturned": true,
+    "noMessagesSent": true
+  },
+  "extra": {
+    "photoPickerCancelPreserved": true,
+    "syntheticPhotoCancelPreserved": true,
+    "recipeRestored": true,
+    "keyboardDismissedOnEditorEntry": true
+  },
+  "nativeEvents": {
+    "releaseStartup": true,
+    "profileButtonSelection": true,
+    "profileContentUpdated": true,
+    "activityTabSelection": true
+  },
+  "restoration": {
+    "phoneRestored": true,
+    "originalPairingsVerified": true,
+    "ownHostStopped": true,
+    "ownMetroStopped": true,
+    "ownReverseMappingsRemoved": true,
+    "leaseReleased": true,
+    "defaultAdbUnchanged": true
+  },
+  "releaseBuild": {
+    "time": "2026-10-27T23:41:52.5352786Z",
+    "variant": "development-id Release",
+    "sha256": "8B83C4AB81E779B3A90F22D4AA698A9CC312A6ED0F5ABA31E38BD33936BAAACB",
+    "abi": "arm64-v8a",
+    "source": "51ab500155f6d9d6530a0710ceac4143c9989f08"
+  },
+  "debugBuild": {
+    "time": "2026-10-27T23:03:38.2258094Z",
+    "variant": "development-id Debug",
+    "abi": "arm64-v8a",
+    "source": "94797941062a5c956e158eabd79b7c8c6f7d0f51",
+    "sha256": "82FA4366AD2584CEAF4636D951FB20817EC3C7BAACF7F3DB0D8FB03D8B37887E"
+  },
+  "ios": "Not tested in this chat; assigned to another engineer",
+  "performance": "No new FPS or frame-time claim"
+}

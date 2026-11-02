@@ -50,13 +50,6 @@ export interface ProfileCardRegistry {
   dispose(): void;
 }
 
-const PROFILE_CARDS_STORAGE_KEY = 'botharness.profile-cards';
-const GROUP_PROFILE_CARDS_STORAGE_KEY = 'botharness.group-profile-cards';
-
-export const DEFAULT_PINNED_PROFILE_CARDS: readonly string[] = ['token-usage', 'event-activity'];
-const RETIRED_PROFILE_CARDS: readonly string[] = ['totals'];
-export const DEFAULT_PINNED_GROUP_PROFILE_CARDS: readonly string[] = ['group-messages'];
-
 export function createProfileCardRegistry(): ProfileCardRegistry {
   let cards: readonly ProfileCardDescriptor[] = [];
   let groupCards: readonly GroupProfileCardDescriptor[] = [];
@@ -111,46 +104,3 @@ export function createProfileCardRegistry(): ProfileCardRegistry {
 }
 
 export const EMPTY_PROFILE_CARDS: ProfileCardRegistry = createProfileCardRegistry();
-
-function profileCardStorage(): Storage | undefined {
-  return typeof window === 'undefined' ? undefined : window.localStorage;
-}
-
-export function loadPinnedProfileCards(): string[] {
-  const raw = profileCardStorage()?.getItem(PROFILE_CARDS_STORAGE_KEY);
-  if (raw === null || raw === undefined) return [...DEFAULT_PINNED_PROFILE_CARDS];
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.some((value) => typeof value !== 'string')) {
-      return [...DEFAULT_PINNED_PROFILE_CARDS];
-    }
-    return (parsed as string[]).filter((id) => !RETIRED_PROFILE_CARDS.includes(id));
-  } catch {
-    return [...DEFAULT_PINNED_PROFILE_CARDS];
-  }
-}
-
-export function savePinnedProfileCards(ids: readonly string[]): void {
-  profileCardStorage()?.setItem(PROFILE_CARDS_STORAGE_KEY, JSON.stringify([...ids]));
-}
-
-export function togglePinnedProfileCard(ids: readonly string[], id: string): string[] {
-  return ids.includes(id) ? ids.filter((entry) => entry !== id) : [...ids, id];
-}
-
-export function loadPinnedGroupProfileCards(): string[] {
-  const raw = profileCardStorage()?.getItem(GROUP_PROFILE_CARDS_STORAGE_KEY);
-  if (raw === null || raw === undefined) return [...DEFAULT_PINNED_GROUP_PROFILE_CARDS];
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.every((value) => typeof value === 'string')
-      ? (parsed as string[])
-      : [...DEFAULT_PINNED_GROUP_PROFILE_CARDS];
-  } catch {
-    return [...DEFAULT_PINNED_GROUP_PROFILE_CARDS];
-  }
-}
-
-export function savePinnedGroupProfileCards(ids: readonly string[]): void {
-  profileCardStorage()?.setItem(GROUP_PROFILE_CARDS_STORAGE_KEY, JSON.stringify([...ids]));
-}

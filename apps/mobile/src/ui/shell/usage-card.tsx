@@ -1,16 +1,16 @@
 import { useCallback, useRef, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View, type ViewInstance } from 'react-native';
 
 import { compactTokenCount, weekdayLabel } from '../../host/usage-days';
 import { usageWeek, type OverviewUsage } from '../../host/usage';
 import { useDesignTheme } from '../design/theme';
 import { chart } from '../design/chart';
 import type { LayerName } from '../design/layers';
-import { radius, space } from '../design/tokens';
+import { androidSettings, radius, space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Text } from '../primitives/text';
 import { DayBars, type DayBar } from '../primitives/day-bars';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 import { ChevronRightIcon } from './icons';
 
 export type Loaded<T> =
@@ -88,6 +88,7 @@ export function UsageBars({
   selected?: number | undefined;
   onSelect?: (index?: number) => void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   return (
     <DayBars
@@ -111,8 +112,9 @@ export function UsageCard({
   on?: LayerName;
   onOpen(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
-  const { state, read, mount } = useLoaded<OverviewUsage, View>(load);
+  const { state, read, mount } = useLoaded<OverviewUsage, ViewInstance>(load);
   const week = state.value === undefined ? undefined : usageWeek(state.value);
   const amount = week === undefined ? undefined : tokenAmount(week.total, week.partial);
   return (
@@ -124,12 +126,18 @@ export function UsageCard({
         style={({ pressed }) => ({
           gap: space.x4,
           padding: space.x5,
-          borderRadius: radius.md,
+          borderRadius: Platform.OS === 'android' ? androidSettings.radius : radius.md,
           backgroundColor: pressed ? theme.layer[on].pressed : theme.layer[on].fill,
         })}
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
-          <Text strong style={{ flex: 1 }}>
+        <View
+          style={{
+            flexDirection: theme.largeText ? 'column' : 'row',
+            alignItems: theme.largeText ? 'flex-start' : 'center',
+            gap: space.x3,
+          }}
+        >
+          <Text strong style={theme.largeText ? undefined : { flex: 1 }}>
             {t.usage}
           </Text>
           <Text variant="meta" tone="muted">
@@ -137,11 +145,11 @@ export function UsageCard({
           </Text>
           <ChevronRightIcon color={theme.color.muted} size={space.x5} />
         </View>
-        <Text variant="display" numberOfLines={1}>
+        <Text variant="display">
           {amount === undefined ? '—' : amount}
           <Text tone="muted">{t.usageUnit}</Text>
         </Text>
-        <UsageBars days={week?.days} height={chart.spark} on={on} />
+        {theme.largeText ? null : <UsageBars days={week?.days} height={chart.spark} on={on} />}
       </Pressable>
       {state.status === 'loading' && state.value === undefined ? (
         <Text

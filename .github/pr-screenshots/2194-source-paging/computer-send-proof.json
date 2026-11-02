@@ -1,0 +1,6 @@
+{
+  "canonicalOccurrences": 1,
+  "computerSend": true,
+  "channel": "Cloud context boundary",
+  "messageKeys": ["id", "at", "author", "body", "channelRevision", "deliveries"]
+}

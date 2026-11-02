@@ -161,7 +161,7 @@ try {
           await rpc('create', {
             displayName: name,
             persona:
-              'Follow the Human precisely. Reply only with the exact requested marker using channel_send once. No Assignments or other tools.',
+              'Follow the Human precisely. Reply only with the exact requested marker using bot_send_message once. No Assignments or other tools.',
           })
         ).bot;
       const dm = (await rpc('channelDm', { slug: bot.slug })).channel;
@@ -173,7 +173,7 @@ try {
         await rpc('channelSend', {
           channelId: dm.id,
           messageId: 'human-' + crypto.randomUUID(),
-          body: 'Reply exactly USAGE_READY using channel_send once. No other work.',
+          body: 'Reply exactly USAGE_READY using bot_send_message once. No other work.',
         });
         await waitFor(
           async () =>
@@ -346,7 +346,7 @@ try {
         await rpc('channelSend', {
           channelId: scene.bots[0].dm,
           messageId: 'human-' + crypto.randomUUID(),
-          body: 'Reply exactly USAGE_LATE_READY using channel_send once. No other work.',
+          body: 'Reply exactly USAGE_LATE_READY using bot_send_message once. No other work.',
         });
         await waitFor(
           async () =>

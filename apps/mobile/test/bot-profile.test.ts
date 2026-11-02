@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   botChannels,
+  botProfileResource,
   loadBotProfile,
   loadMemoryFile,
   loadMemoryFiles,
   memoryEntries,
+  memoryRouteParams,
+  pinnedMemory,
+  unpinnedEntries,
 } from '../src/host/bot-profile';
 import { parseProfileActivity, weekGlance } from '../src/host/bot-activity';
 import { createHostClient } from '../src/host/client';
@@ -36,21 +40,79 @@ function host(): FakeHost {
 }
 
 function client(fake: FakeHost) {
-  return createHostClient({ routes: [ROUTE], credential: fake.credential, carrier: fake.carrier });
+  return createHostClient({
+    routes: [ROUTE],
+    credential: fake.credential,
+    carrier: fake.carrier,
+  });
 }
 
 describe('Bot profile', () => {
-  it('reads the Soul, Core Memory, Memory files, routines and shared folders through the DM', async () => {
+  it('shows the previous profile during refresh, deduplicates reads and isolates Hosts', async () => {
     const fake = host();
-    const profile = await loadBotProfile(client(fake), { slug, dmChannelId: dm });
+    const connection = client(fake);
+    const bot = { slug, dmChannelId: dm };
+    const resource = botProfileResource(connection, bot);
+    expect(resource.peek()).toBeUndefined();
+    const first = await resource.refresh();
+    expect(botProfileResource(connection, bot)).toBe(resource);
+    let release: (() => void) | undefined;
+    fake.methods.set(
+      'scheduleList',
+      () =>
+        new Promise((done) => {
+          release = () => done({ schedules: [] });
+        }),
+    );
+    const refresh = resource.refresh();
+    expect(resource.refresh()).toBe(refresh);
+    expect(resource.peek()).toBe(first);
+    await new Promise((done) => setTimeout(done, 0));
+    expect(release).toBeDefined();
+    release?.();
+    expect((await refresh).routines).toEqual({ status: 'ready', value: [] });
+    expect(botProfileResource(client(host()), bot).peek()).toBeUndefined();
+    expect(
+      botProfileResource(connection, {
+        slug: 'another',
+        dmChannelId: 'other',
+      }).peek(),
+    ).toBeUndefined();
+  });
 
-    expect(profile.identity).toEqual({
-      status: 'ready',
-      value: profileWire.rpc.memoryFile['SOUL.md'].file.body.trim(),
+  it('keeps last successful sections with an explicit stale error when refresh fails', async () => {
+    const fake = host();
+    const resource = botProfileResource(client(fake), {
+      slug,
+      dmChannelId: dm,
     });
+    const first = await resource.refresh();
+    fake.methods.set('memorySnapshot', () => {
+      throw new Error('offline');
+    });
+    const next = await resource.refresh();
+    expect(next.memory).toEqual({ ...first.memory, staleError: 'offline' });
+    fake.methods.set('memorySnapshot', recorded('memorySnapshot'));
+    expect((await resource.refresh()).memory).toEqual(first.memory);
+  });
+
+  it('reads the pinned Soul and Core Memory, Memory files, routines and shared folders through the DM', async () => {
+    const fake = host();
+    const profile = await loadBotProfile(client(fake), {
+      slug,
+      dmChannelId: dm,
+    });
+
     expect(profile.memory).toEqual({
       status: 'ready',
-      value: { files: profileWire.rpc.memorySnapshot.snapshot.files },
+      value: {
+        status: 'attached',
+        files: profileWire.rpc.memorySnapshot.snapshot.files,
+        pinned: [
+          { role: 'soul', path: 'SOUL.md', present: true },
+          { role: 'coreMemory', path: 'MEMORY.md', present: true },
+        ],
+      },
     });
     expect(profile.routines).toEqual({
       status: 'ready',
@@ -66,12 +128,50 @@ describe('Bot profile', () => {
     expect(fake.calls.map((call) => [call.method, call.args])).toEqual(
       expect.arrayContaining([
         ['memorySnapshot', { channelId: dm }],
-        ['memoryFile', { channelId: dm, path: 'SOUL.md' }],
         ['scheduleList', { slug }],
         ['grants', { slug }],
       ]),
     );
     expect(fake.calls.some((call) => call.method === 'channelDm')).toBe(false);
+    expect(fake.calls.some((call) => call.method === 'memoryFile')).toBe(false);
+  });
+
+  it('says Memory is not attached when the Host has no Memory service', async () => {
+    const fake = host();
+    fake.methods.set('memorySnapshot', () => {
+      throw Object.assign(new Error('Memory Service unavailable'), { code: 'memory-unavailable' });
+    });
+    const profile = await loadBotProfile(client(fake), { slug, dmChannelId: dm });
+    expect(profile.memory).toEqual({ status: 'ready', value: { status: 'unavailable' } });
+    expect(profile.routines.status).toBe('ready');
+  });
+
+  it('pins the standing files the Host names, falling back to SOUL.md and MEMORY.md', () => {
+    expect(
+      pinnedMemory({
+        files: ['persona/SOUL.md', 'notes/a.md'],
+        standing: [{ path: 'persona/SOUL.md', role: 'soul', chars: 1, limit: 10 }],
+      }),
+    ).toEqual([
+      { role: 'soul', path: 'persona/SOUL.md', present: true },
+      { role: 'coreMemory', path: 'MEMORY.md', present: false },
+    ]);
+    expect(
+      unpinnedEntries(profileWire.rpc.memorySnapshot.snapshot.files, [
+        { role: 'soul', path: 'SOUL.md', present: true },
+        { role: 'coreMemory', path: 'MEMORY.md', present: true },
+      ]).map((entry) => entry.path),
+    ).toEqual(['.botharness', 'notes', '.gitattributes']);
+    expect(
+      memoryRouteParams(slug, { kind: 'file', name: 'SOUL.md', path: 'SOUL.md', role: 'soul' }),
+    ).toEqual({ slug, path: 'SOUL.md', kind: 'file', role: 'soul' });
+    expect(
+      memoryRouteParams(slug, { kind: 'folder', name: 'notes', path: 'notes', count: 1 }),
+    ).toEqual({
+      slug,
+      path: 'notes',
+      kind: 'folder',
+    });
   });
 
   it('opens the DM first when the Bot has none yet, and reports empty sections', async () => {
@@ -81,15 +181,32 @@ describe('Bot profile', () => {
     }));
     fake.methods.set('scheduleList', () => ({ schedules: [] }));
     fake.methods.set('grants', () => ({ grants: [] }));
+    fake.methods.set('assignments', () => ({ assignments: [] }));
 
-    const profile = await loadBotProfile(client(fake), { slug: 'quiet', displayName: 'Quiet' });
+    const profile = await loadBotProfile(client(fake), {
+      slug: 'quiet',
+      displayName: 'Quiet',
+    });
 
     expect(profile).toEqual({
-      identity: { status: 'ready', value: undefined },
-      memory: { status: 'ready', value: { files: [] } },
+      memory: {
+        status: 'ready',
+        value: {
+          status: 'attached',
+          files: [],
+          pinned: [
+            { role: 'soul', path: 'SOUL.md', present: false },
+            { role: 'coreMemory', path: 'MEMORY.md', present: false },
+          ],
+        },
+      },
       routines: { status: 'ready', value: [] },
       files: { status: 'ready', value: [] },
-      activity: { status: 'ready', value: parseProfileActivity(recordedActivity) },
+      work: { status: 'ready', value: [] },
+      activity: {
+        status: 'ready',
+        value: parseProfileActivity(recordedActivity),
+      },
     });
     expect(fake.calls[0]).toEqual({
       method: 'channelDm',
@@ -104,10 +221,15 @@ describe('Bot profile', () => {
       throw new Error('Unknown PersonaBot');
     });
 
-    const profile = await loadBotProfile(client(fake), { slug, dmChannelId: dm });
+    const profile = await loadBotProfile(client(fake), {
+      slug,
+      dmChannelId: dm,
+    });
 
-    expect(profile.routines).toEqual({ status: 'failed', error: 'Unknown PersonaBot' });
-    expect(profile.identity.status).toBe('ready');
+    expect(profile.routines).toEqual({
+      status: 'failed',
+      error: 'Unknown PersonaBot',
+    });
     expect(profile.memory.status).toBe('ready');
     expect(profile.files.status).toBe('ready');
   });
@@ -121,7 +243,10 @@ describe('Bot profile', () => {
     });
     expect(
       botChannels(
-        { bots: [], channels: [channel('team', [slug, 'other']), channel('ops', ['other'])] },
+        {
+          bots: [],
+          channels: [channel('team', [slug, 'other']), channel('ops', ['other'])],
+        },
         slug,
       ).map((entry) => entry.id),
     ).toEqual(['team']);
@@ -166,7 +291,10 @@ describe('Bot profile', () => {
 
   it('reads the last week of activity through the DM, and keeps the profile when it fails', async () => {
     const fake = host();
-    const profile = await loadBotProfile(client(fake), { slug, dmChannelId: dm });
+    const profile = await loadBotProfile(client(fake), {
+      slug,
+      dmChannelId: dm,
+    });
     expect(fake.calls).toContainEqual({
       method: 'profileActivity',
       args: { channelId: dm, weeks: 1 },
@@ -182,9 +310,15 @@ describe('Bot profile', () => {
     fake.methods.set('profileActivity', () => {
       throw new Error('Unknown PersonaBot');
     });
-    const failed = await loadBotProfile(client(fake), { slug, dmChannelId: dm });
-    expect(failed.activity).toEqual({ status: 'failed', error: 'Unknown PersonaBot' });
-    expect(failed.identity.status).toBe('ready');
+    const failed = await loadBotProfile(client(fake), {
+      slug,
+      dmChannelId: dm,
+    });
+    expect(failed.activity).toEqual({
+      status: 'failed',
+      error: 'Unknown PersonaBot',
+    });
+    expect(failed.memory.status).toBe('ready');
     expect(failed.routines.status).toBe('ready');
   });
 });

@@ -118,7 +118,7 @@ function fixture() {
         seq: 5,
         time: ms(1),
         data: {
-          name: 'channel_send',
+          name: 'bot_send_message',
           callId: 'call-1',
           arguments: JSON.stringify({
             channel_id: 'dm-mira',
@@ -246,7 +246,7 @@ describe('Diagnostic Bundle', () => {
       ['channel', 'message', 'group-1'],
       ['admission', 'group-mention', 'group-1'],
       ['channel', 'message', 'dm-mira'],
-      ['session', 'tool/call', 'channel_send'],
+      ['session', 'tool/call', 'bot_send_message'],
       ['session', 'tool/result', undefined],
       ['session', 'turn/end', undefined],
     ]);

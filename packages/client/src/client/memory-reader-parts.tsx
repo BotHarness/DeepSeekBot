@@ -1,11 +1,11 @@
 import type { ReactElement, ReactNode } from 'react';
 import {
-  IconBranchOutlineRegular,
   IconChevronDownOutlineRegular,
   IconChevronLeftOutlineRegular,
   IconRefreshOutlineRegular,
-  Tooltip,
+  IconWrapLinesOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { parseMemoryDiff } from './memory-diff-model.js';
 
@@ -37,8 +37,29 @@ export function MemoryViewIconButton({
   );
 }
 
-export function MemoryBranchIcon(): ReactElement {
-  return <IconBranchOutlineRegular size={16} />;
+export function MemoryDiffWrapButton({
+  wrap,
+  onToggle,
+  t,
+}: {
+  wrap: boolean;
+  onToggle: () => void;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const label = t('memory.autoWrap');
+  return (
+    <Tooltip label={label} side="bottom" delayMs={500}>
+      <button
+        type="button"
+        className="bh-memory-view-icon-button bh-memory-diff-wrap-button"
+        aria-label={label}
+        aria-pressed={wrap}
+        onClick={onToggle}
+      >
+        <IconWrapLinesOutlineRegular size={16} />
+      </button>
+    </Tooltip>
+  );
 }
 
 export function MemoryDiffFile({
@@ -48,11 +69,13 @@ export function MemoryDiffFile({
   diff,
   label,
   binary = false,
+  preview,
   binaryLabel,
   emptyLabel,
   oldLineLabel,
   newLineLabel,
   action,
+  wrap = true,
 }: {
   path: string;
   status: string;
@@ -60,11 +83,13 @@ export function MemoryDiffFile({
   diff: string;
   label: string;
   binary?: boolean;
+  preview?: ReactNode;
   binaryLabel: string;
   emptyLabel: string;
   oldLineLabel: string;
   newLineLabel: string;
   action?: ReactNode;
+  wrap?: boolean;
 }): ReactElement {
   const model = parseMemoryDiff(diff);
   const added = model.lines.filter((line) => line.kind === 'add').length;
@@ -87,13 +112,15 @@ export function MemoryDiffFile({
         ) : null}
         {action === undefined ? null : <span className="bh-memory-diff-file-action">{action}</span>}
       </summary>
-      {binary || model.binary ? (
+      {preview !== undefined ? (
+        preview
+      ) : binary || model.binary ? (
         <div className="bh-memory-diff-empty">{binaryLabel}</div>
       ) : model.lines.length === 0 ? (
         <div className="bh-memory-diff-empty">{emptyLabel}</div>
       ) : (
         <div className="bh-memory-diff-scroll">
-          <table className="bh-memory-diff-table" aria-label={label}>
+          <table className="bh-memory-diff-table" aria-label={label} data-wrap={wrap}>
             <tbody>
               {model.lines.map((line, index) =>
                 line.kind === 'hunk' || line.kind === 'note' ? (

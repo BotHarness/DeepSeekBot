@@ -1,0 +1,9 @@
+{
+  "at": "2026-10-18T07:29:22.014Z",
+  "usingActualNativeSession": true,
+  "expectedGuestGrantVisible": false,
+  "grantRevoked": true,
+  "noOrganizationMembership": true,
+  "siblingDenied": true,
+  "orgFilter": true
+}

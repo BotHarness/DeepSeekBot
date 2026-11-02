@@ -65,7 +65,7 @@ if (phase === 'prepare') {
     await rpc('create', {
       displayName: 'Native execution error QA',
       persona:
-        'Follow the Human exactly. In the Assignment role, follow the full purpose: report exactly once as instructed, then end; no Shell, files, questions, subagents or other tools. In the Orchestrator role, create exactly one Assignment with the full purpose verbatim, then channel_send ERROR_CREATED and end. On a Host execution-error Lifecycle Notice, channel_send ERROR_NOTICE_SEEN exactly once and end. Never resume, retry or replace an Assignment or claim successful work.',
+        'Follow the Human exactly. In the Assignment role, follow the full purpose: report exactly once as instructed, then end; no Shell, files, questions, subagents or other tools. In the Orchestrator role, create exactly one Assignment with the full purpose verbatim, then bot_send_message ERROR_CREATED and end. On a Host execution-error Lifecycle Notice, bot_send_message ERROR_NOTICE_SEEN exactly once and end. Never resume, retry or replace an Assignment or claim successful work.',
     })
   ).bot;
   await rpc('modelPresetApply', { slug: bot.slug, presetId: preset.id });
@@ -88,7 +88,7 @@ if (phase === 'prepare') {
       grant.id +
       ' and continuity key native-error-direction. Its full purpose must be exactly: ' +
       JSON.stringify(purpose) +
-      '. Do not shorten it. After creation channel_send ERROR_CREATED and end. On a Host execution-error notice channel_send ERROR_NOTICE_SEEN once and end without retry/resume/replacement.',
+      '. Do not shorten it. After creation bot_send_message ERROR_CREATED and end. On a Host execution-error notice bot_send_message ERROR_NOTICE_SEEN once and end without retry/resume/replacement.',
   });
   scene.sessionId = (
     await waitFor(

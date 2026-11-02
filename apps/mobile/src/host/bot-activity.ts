@@ -61,6 +61,7 @@ function usageRow(entry: Record<string, unknown>): ProfileModelUsageRow | undefi
   if (!isDay(entry['day'])) return undefined;
   const text = (key: string) => (typeof entry[key] === 'string' ? (entry[key] as string) : '');
   return {
+    ...(entry['partial'] === true ? { partial: true } : {}),
     day: entry['day'],
     purpose: text('purpose'),
     provider: text('provider'),
@@ -121,13 +122,11 @@ export function tokenTotal(
   if (activity.modelUsageStatus !== 'ready') return { status: 'unavailable', total: null };
   if (rows.length > 0 && rows.every((row) => row.totalTokens === null))
     return { status: 'unknown', total: null };
-  const partial = rows.some(
-    (row) => row.totalTokens === null || BUCKETS.some((bucket) => row[bucket] === null),
-  );
-  return {
-    status: partial ? 'partial' : 'ready',
-    total: rows.reduce((sum, row) => sum + (row.totalTokens ?? 0), 0),
-  };
+  const partial = rows.some((row) => row.partial === true || row.totalTokens === null);
+  const total = rows.reduce((sum, row) => sum + (row.totalTokens ?? 0), 0);
+  if (total === 0 && rows.some((row) => row.totalTokens === null))
+    return { status: 'unknown', total: null };
+  return { status: partial ? 'partial' : 'ready', total };
 }
 
 function lastDay(activity: ProfileActivity): string {

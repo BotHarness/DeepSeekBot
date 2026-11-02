@@ -156,7 +156,7 @@ try {
 
   await send(
     'Scroll fixture. '.repeat(90) +
-      'Use native write to create scroll-qa.txt in your Memory Repository with the text scroll verified. Read it using native read. Then reply in this DM using channel_send with the exact phrase "DM scroll confirmed". Do not delegate or use Shell.',
+      'Use native write to create scroll-qa.txt in your Memory Repository with the text scroll verified. Read it using native read. Then reply in this DM using bot_send_message with the exact phrase "DM scroll confirmed". Do not delegate or use Shell.',
   );
   await page.waitForFunction(
     () =>

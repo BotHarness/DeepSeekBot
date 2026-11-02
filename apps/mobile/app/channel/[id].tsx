@@ -1,8 +1,22 @@
 import { useLocalSearchParams } from 'expo-router';
 
-import { ConversationScreen } from '../../src/ui/chat/conversation-screen';
+import { ConversationPages } from '../../src/ui/chat/conversation-pages';
 
 export default function ChannelScreen() {
-  const { id, focus } = useLocalSearchParams<{ id: string; focus?: string }>();
-  return <ConversationScreen place={{ kind: 'channel', channelId: id }} focus={focus} />;
+  const { id, focus, focusRequest, focusWindow, hostId } = useLocalSearchParams<{
+    id: string;
+    hostId?: string;
+    focus?: string;
+    focusRequest?: string;
+    focusWindow?: string;
+  }>();
+  return (
+    <ConversationPages
+      expectedHostId={hostId}
+      place={{ kind: 'channel', channelId: id }}
+      focus={focus}
+      focusRequest={focusRequest}
+      latestWindowOnly={focusWindow === 'latest'}
+    />
+  );
 }

@@ -16,6 +16,7 @@ import { ToolApprovalCard } from '../src/client/tool-approval-card.js';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: ({ children, variant: _variant, ...props }: { children: ReactNode; variant?: string }) =>
     createElement('button', props, children),
+  IconRefreshOutlineRegular: () => null,
   Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),
 }));
 
@@ -29,6 +30,7 @@ const message = (toolName = 'bash', input = '{"command":"echo QA"}'): ChannelMes
       sessionId: 'session',
       callId: 'call',
       toolName,
+      allowAlways: true,
       role: 'orchestrator',
       cwd: '/qa',
       input,
@@ -50,10 +52,17 @@ const actions = (): BridgeActions =>
     },
   }) as unknown as BridgeActions;
 
-const render = async (value: ChannelMessage = message()): Promise<HTMLElement> => {
+const render = async (
+  value: ChannelMessage = message(),
+  overrides: Partial<BridgeActions> = {},
+): Promise<HTMLElement> => {
   await act(async () => {
     root.render(
-      createElement(ToolApprovalCard, { message: value, actions: actions(), t: zhTranslate }),
+      createElement(ToolApprovalCard, {
+        message: value,
+        actions: { ...actions(), ...overrides },
+        t: zhTranslate,
+      }),
     );
   });
   await act(async () => {
@@ -103,7 +112,7 @@ describe('Tool approval card layout', () => {
       [...card.querySelectorAll('.bh-tool-approval-card > .bh-tool-approval-actions button')].map(
         (button) => button.textContent,
       ),
-    ).toEqual(['仅批准这一次', '始终允许相同调用', '始终允许此范围全部不透明工具', '拒绝']);
+    ).toEqual(['允许这次', '始终允许', '拒绝']);
     expect(card.querySelector('kbd')).toBeNull();
   });
   it('previews the new Bot on a bot_create card', async () => {
@@ -150,9 +159,11 @@ describe('Tool approval card layout', () => {
     expect(card.querySelector('.bh-tool-approval-details-body')).toBeNull();
     await act(async () =>
       card
-        .querySelector<HTMLButtonElement>('.bh-tool-approval-actions .bh-request-secondary')!
+        .querySelector<HTMLButtonElement>('.bh-tool-approval-actions button:nth-child(2)')!
         .click(),
     );
+    expect(decisions).toEqual(['allowed-always-tool']);
+    expect(card.querySelector('[role="dialog"]')).toBeNull();
     expect(card.querySelector('.bh-tool-approval-details-body')).toBeNull();
   });
   it('collapses to the category and outcome once decided', async () => {
@@ -165,6 +176,132 @@ describe('Tool approval card layout', () => {
     expect(card.querySelector('.bh-tool-approval-details-body')).toBeNull();
     expect(card.querySelector('button')).toBeNull();
     expect(card.textContent).toBe('终端 · 已拒绝');
+  });
+});
+
+describe('Tool approval recovery and duplicate clicks', () => {
+  const button = (card: HTMLElement, label: string): HTMLButtonElement => {
+    const found = [...card.querySelectorAll<HTMLButtonElement>('button')].find(
+      (candidate) => candidate.textContent === label,
+    );
+    expect(found, `Expected button: ${label}`).toBeDefined();
+    return found!;
+  };
+
+  it('lets a Channel card retry a failed status read without calling it expired', async () => {
+    const readState = vi
+      .fn<NonNullable<BridgeActions['toolApprovalState']>>()
+      .mockRejectedValueOnce(new Error('Connection interrupted'))
+      .mockResolvedValue({ status: 'pending' });
+    const card = await render(message(), { toolApprovalState: readState });
+
+    expect(card.textContent).not.toContain(zhTranslate('approval.outcome.expired'));
+    expect(card.textContent).toContain(zhTranslate('companion.requestUnavailable'));
+    expect(card.querySelector('.bh-tool-approval-actions')).toBeNull();
+    await act(async () => button(card, zhTranslate('companion.retryRequest')).click());
+
+    expect(readState).toHaveBeenCalledTimes(2);
+    expect(button(card, zhTranslate('approval.allowAlways')).disabled).toBe(false);
+    expect(decisions).toEqual([]);
+    await act(async () => button(card, zhTranslate('approval.allowAlways')).click());
+    expect(decisions).toEqual(['allowed-always-tool']);
+  });
+
+  it('revalidates after failed submission and status reads without replaying the decision', async () => {
+    const submit = vi
+      .fn<BridgeActions['decideToolApproval']>()
+      .mockRejectedValueOnce(new Error('Response lost'))
+      .mockResolvedValue(undefined);
+    const readState = vi
+      .fn<NonNullable<BridgeActions['toolApprovalState']>>()
+      .mockResolvedValue({ status: 'pending' });
+    const readStatus = vi
+      .fn<BridgeActions['toolApprovalStatus']>()
+      .mockRejectedValueOnce(new Error('Still offline'));
+    const card = await render(message(), {
+      decideToolApproval: submit,
+      toolApprovalState: readState,
+      toolApprovalStatus: readStatus,
+    });
+    await act(async () => button(card, zhTranslate('approval.allowAlways')).click());
+
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(card.textContent).not.toContain(zhTranslate('approval.outcome.expired'));
+    expect(card.textContent).toContain(zhTranslate('companion.requestUnavailable'));
+    await act(async () => button(card, zhTranslate('companion.retryRequest')).click());
+
+    expect(readState).toHaveBeenCalledTimes(2);
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(button(card, zhTranslate('approval.allowAlways')).disabled).toBe(false);
+    await act(async () => button(card, zhTranslate('approval.allowAlways')).click());
+    expect(submit).toHaveBeenCalledTimes(2);
+    expect(submit).toHaveBeenLastCalledWith('dm-ada', 'request', 'allowed-always-tool');
+  });
+
+  it('does not replay an accepted decision when its response was lost and revalidation says expired', async () => {
+    const submit = vi.fn<BridgeActions['decideToolApproval']>(
+      async (_channel, _message, outcome) => {
+        decisions.push(outcome);
+        throw new Error('Accepted by Host, but response lost');
+      },
+    );
+    const readState = vi.fn<NonNullable<BridgeActions['toolApprovalState']>>(async () =>
+      decisions.length === 0 ? { status: 'pending' } : { status: 'expired' },
+    );
+    const readStatus = vi
+      .fn<BridgeActions['toolApprovalStatus']>()
+      .mockRejectedValueOnce(new Error('Connection still unavailable'));
+    const card = await render(message(), {
+      decideToolApproval: submit,
+      toolApprovalState: readState,
+      toolApprovalStatus: readStatus,
+    });
+    await act(async () => button(card, zhTranslate('approval.allowAlways')).click());
+
+    expect(decisions).toEqual(['allowed-always-tool']);
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(card.textContent).toContain(zhTranslate('companion.requestUnavailable'));
+    expect(card.textContent).not.toContain(zhTranslate('approval.outcome.expired'));
+    await act(async () => button(card, zhTranslate('companion.retryRequest')).click());
+
+    expect(readState).toHaveBeenCalledTimes(2);
+    expect(card.textContent).toContain(zhTranslate('approval.outcome.expired'));
+    expect(card.querySelector('.bh-tool-approval-actions')).toBeNull();
+    expect(card.querySelector('button')).toBeNull();
+    await press(card, 'a');
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(decisions).toEqual(['allowed-always-tool']);
+  });
+
+  it('submits a same-tick double click once and visibly shows the pending decision', async () => {
+    let finish: (() => void) | undefined;
+    const submit = vi.fn<BridgeActions['decideToolApproval']>(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const card = await render(message(), { decideToolApproval: submit });
+    const always = button(card, zhTranslate('approval.allowAlways'));
+    await act(async () => {
+      always.click();
+      always.click();
+    });
+
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(submit).toHaveBeenCalledWith('dm-ada', 'request', 'allowed-always-tool');
+    expect(always.disabled).toBe(true);
+    expect(always.getAttribute('aria-busy')).toBe('true');
+    expect(always.textContent).toBe(zhTranslate('approval.allowAlways'));
+    expect(always.getAttribute('aria-busy')).toBe('true');
+    expect(
+      [...card.querySelectorAll<HTMLButtonElement>('.bh-tool-approval-actions button')].every(
+        (candidate) => candidate.disabled,
+      ),
+    ).toBe(true);
+    await act(async () => finish!());
+    expect(card.querySelector('.bh-tool-approval-actions')).toBeNull();
+    expect(submit).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -183,14 +320,30 @@ describe('Tool approval card keyboard', () => {
     expect(decisions).toEqual(['rejected']);
   });
 
-  it('keeps the risk confirmation behind A and backs out with Escape', async () => {
+  it('shows exactly three decisions and remembers only the current tool with A', async () => {
     const card = await render();
+    expect(
+      [...card.querySelectorAll('.bh-tool-approval-actions button')].map(
+        (button) => button.textContent,
+      ),
+    ).toEqual(['允许这次', '始终允许', '拒绝']);
+    await press(card, 'a');
+    expect(decisions).toEqual(['allowed-always-tool']);
+    expect(card.querySelector('[role="group"]')).toBeNull();
+  });
+
+  it('keeps three actions but disables Always allow for an individually confirmed operation', async () => {
+    const value = message();
+    value.toolApprovalRequest!.allowAlways = false;
+    const card = await render(value);
+    const buttons = [
+      ...card.querySelectorAll<HTMLButtonElement>('.bh-tool-approval-actions button'),
+    ];
+    expect(buttons.map((button) => button.textContent)).toEqual(['允许这次', '始终允许', '拒绝']);
+    expect(buttons[1]?.disabled).toBe(true);
     await press(card, 'a');
     expect(decisions).toEqual([]);
-    expect(card.querySelector('[role="group"]')?.textContent).toContain('确认始终允许');
-    await press(card, 'Escape');
-    expect(card.querySelector('[role="group"]')).toBeNull();
-    expect(decisions).toEqual([]);
+    expect(card.textContent).toContain('需要单独确认');
   });
 
   it('ignores keys with modifiers and keys typed into fields', async () => {

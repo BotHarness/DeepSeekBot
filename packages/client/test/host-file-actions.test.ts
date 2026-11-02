@@ -22,6 +22,12 @@ const file = {
   kind: 'file' as const,
 };
 describe('DSH native file adapter', () => {
+  it('checks opening availability without resolving a file or starting an application', async () => {
+    const remote = session(false);
+    expect(await createNativeHostFiles(remote).available?.()).toBe(false);
+    expect(remote.workspacePathApplications).not.toHaveBeenCalled();
+    expect(remote.openWorkspacePath).not.toHaveBeenCalled();
+  });
   it('uses discovered file handlers and passes only the native reveal action or application id', async () => {
     const remote = session();
     const native = createNativeHostFiles(remote);

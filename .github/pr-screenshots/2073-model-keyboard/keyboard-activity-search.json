@@ -1,0 +1,13 @@
+{
+  "result": "pass",
+  "mode": "form-keyboard",
+  "proof": [
+    {
+      "step": "focused-form-clearance",
+      "keyboardTop": 1457,
+      "inputBounds": [39, 351, 1181, 507],
+      "roundingTolerancePx": 1,
+      "actionChecked": false
+    }
+  ]
+}

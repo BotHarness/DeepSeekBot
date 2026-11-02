@@ -1,0 +1,18 @@
+{
+  "suites": [
+    {
+      "name": "expo.modules.materialfabmenu.FabMenuStateTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    {
+      "name": "expo.modules.materialfabmenu.MaterialFabMenuViewTest",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  ]
+}

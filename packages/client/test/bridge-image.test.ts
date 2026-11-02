@@ -239,12 +239,11 @@ it.each([2048, undefined])(
     const container = await render(
       createElement(ChannelMessageBody, { channelId: 'channel', t: zhTranslate, message }),
     );
-    const link = container.querySelector<HTMLAnchorElement>('a[download]');
+    const link = container.querySelector<HTMLButtonElement>('button.bh-message-file-main');
     expect(link?.textContent).toContain('input.csv');
     expect(link?.textContent).toContain('文件');
     expect(link?.textContent?.includes('2 KB')).toBe(sizeBytes !== undefined);
-    expect(link?.getAttribute('href')).toContain('sourceEventId=source');
-    expect(link?.getAttribute('href')).toContain('attachmentId=' + id);
+    expect(link?.getAttribute('aria-label')).toContain('下载');
     expect(fetchImage).not.toHaveBeenCalled();
   },
 );

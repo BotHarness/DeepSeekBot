@@ -1,5 +1,14 @@
 import { fallbackPrimaryColor } from '../src/bots/primary-color.js';
 import { seededBannerRecipe } from '@botharness/pixel-banner';
+import {
+  createCustomPart,
+  emptyPartLayer,
+  fillPartLayer,
+  noisePartLayer,
+  withCustomPart,
+  type PartSlot,
+  type PixelAvatarRecipe,
+} from '@botharness/pixel-avatar';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -18,7 +27,7 @@ import {
   syncBotDescriptor,
 } from '../src/bots/bot-descriptor-sync.js';
 import { readSharedPresentation } from '../src/bots/shared-presentation.js';
-import { parseBotDescriptor } from '../src/marketplace/descriptor.js';
+import { MAX_DESCRIPTOR_BYTES, parseBotDescriptor } from '../src/marketplace/descriptor.js';
 import { ensureMemoryRepository } from '../src/memory/repository.js';
 import { createTestRegistry } from './registry-fixture.js';
 
@@ -49,6 +58,24 @@ function descriptorOf(memoryDir: string): Record<string, unknown> {
     string,
     unknown
   >;
+}
+
+function drawnRecipe(slots: PartSlot[]) {
+  let recipe: PixelAvatarRecipe = DEFAULT_ILLUSTRATED_RECIPE;
+  for (const slot of slots) {
+    const front = noisePartLayer(
+      slot,
+      fillPartLayer(slot, emptyPartLayer(slot), 0, 0, { color: 'hairColor', tone: 0 }),
+      0.5,
+      slot,
+    );
+    recipe = withCustomPart(
+      recipe,
+      slot,
+      createCustomPart(slot, { front, back: emptyPartLayer(slot) }),
+    );
+  }
+  return recipe;
 }
 
 function registryAt(root: string) {
@@ -187,6 +214,72 @@ describe('Bot descriptor sync', () => {
       primaryColor: { mode: 'automatic', fallback: fallbackPrimaryColor('shared') },
     });
     expect(existsSync(join(memoryDir, '.botharness/avatar.png'))).toBe(false);
+  });
+
+  it('ships a drawn Avatar too large for the descriptor as its snapshot plus recipe', () => {
+    const registry = registryAt(tempRoot());
+    registry.create({ slug: 'artist', displayName: 'Artist', workspaces: [] });
+    const memoryDir = registry.memoryDirFor('artist')!;
+    const recipe = drawnRecipe(['bangs', 'outfit']);
+    expect(JSON.stringify(recipe).length).toBeGreaterThan(MAX_DESCRIPTOR_BYTES);
+
+    const updated = registry.setAppearance('artist', recipe);
+    expect(updated.ok).toBe(true);
+    const record = registry.get('artist')!;
+
+    expect(descriptorOf(memoryDir)['avatar']).toEqual({ image: '.botharness/avatar.png' });
+    expect(readFileSync(join(memoryDir, '.botharness/avatar.png'))).toEqual(
+      Buffer.from(record.avatar!.split(',')[1]!, 'base64'),
+    );
+    expect(existsSync(join(memoryDir, '.botharness/avatar.recipe.json'))).toBe(true);
+    const shared = readSharedPresentation(memoryDir);
+    expect(shared?.appearance?.recipe).toEqual(record.appearance?.recipe);
+    expect(shared?.avatar).toBe(record.avatar);
+    expect(git(memoryDir, 'status', '--porcelain')).toBe('');
+
+    expect(registry.update('artist', { displayName: 'Artist Two' }).ok).toBe(true);
+    expect(descriptorOf(memoryDir)['avatar']).toEqual({ image: '.botharness/avatar.png' });
+
+    registry.setAppearance('artist', DEFAULT_ILLUSTRATED_RECIPE);
+    expect(descriptorOf(memoryDir)['avatar']).toEqual({
+      recipe: canonicalAvatarRecipe(DEFAULT_ILLUSTRATED_RECIPE),
+    });
+    expect(existsSync(join(memoryDir, '.botharness/avatar.png'))).toBe(false);
+    expect(existsSync(join(memoryDir, '.botharness/avatar.recipe.json'))).toBe(false);
+    expect(git(memoryDir, 'status', '--porcelain')).toBe('');
+  });
+
+  it('drops an invalid retained translation instead of failing the sync', () => {
+    const registry = registryAt(tempRoot());
+    registry.create({ slug: 'doubao', displayName: '豆包', workspaces: [] });
+    const memoryDir = registry.memoryDirFor('doubao')!;
+    writeFileSync(
+      join(memoryDir, '.botharness/bot.json'),
+      JSON.stringify({
+        name: '豆包',
+        badges: ['beta'],
+        i18n: { en: { name: 'Doubao', bio: 'x'.repeat(161) } },
+      }),
+    );
+
+    expect(registry.update('doubao', { description: '包在我身上' }).ok).toBe(true);
+
+    expect(descriptorOf(memoryDir)).toMatchObject({
+      bio: '包在我身上',
+      badges: ['beta'],
+      i18n: { en: { name: 'Doubao' } },
+    });
+  });
+
+  it('ignores the snapshot recipe once the image no longer matches it', () => {
+    const registry = registryAt(tempRoot());
+    registry.create({ slug: 'artist', displayName: 'Artist', workspaces: [] });
+    const memoryDir = registry.memoryDirFor('artist')!;
+    registry.setAppearance('artist', drawnRecipe(['bangs', 'outfit']));
+
+    writeFileSync(join(memoryDir, '.botharness/avatar.png'), PNG);
+
+    expect(readSharedPresentation(memoryDir)).toEqual({ avatar: PNG_URL });
   });
 
   it('backfills only Bots without a descriptor and skips missing Memory', () => {

@@ -3,6 +3,8 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const rosterProbe = vi.hoisted(() => ({ renders: 0 }));
+
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   const stub = () => null;
   return {
@@ -16,10 +18,19 @@ vi.mock('../src/client/bot-sidebar.js', async () => {
   const { createElement: h } = await import('react');
   const { store } = await import('../src/client/store.js');
   const { useSyncExternalStore } = await import('react');
+  const { useClientStore } = await import('../src/client/use-client-store.js');
   return {
     useClientState: () => useSyncExternalStore(store.subscribe, store.getSnapshot),
-    BotSidebar: ({ wide }: { wide: boolean }) =>
-      h('div', { 'data-roster': wide ? 'wide' : 'rail' }),
+    BotSidebar: ({ wide }: { wide: boolean }) => {
+      const selection = useClientStore((state) => state.selection);
+      const query = useClientStore((state) => state.query);
+      rosterProbe.renders += 1;
+      return h('div', {
+        'data-roster': wide ? 'wide' : 'rail',
+        'data-roster-selection': selection?.kind,
+        'data-roster-query': query,
+      });
+    },
   };
 });
 vi.mock('../src/client/onboarding-checklist-view.js', () => ({
@@ -30,6 +41,7 @@ import type { BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
 import { BotModeSidebar, type BotModeSidebarProps } from '../src/client/bot-mode-sidebar.js';
 import { createDockPanelRegistry } from '../src/client/dock-panels.js';
 import { en, type BotHarnessTranslate } from '../src/client/locale.js';
+import { installTypedLive, type TypedLive } from '../src/client/messaging-defaults-live.js';
 import { store } from '../src/client/store.js';
 
 const t = ((key: keyof typeof en, params?: Record<string, string>) =>
@@ -88,12 +100,50 @@ function render(overrides: Partial<BotModeSidebarProps> = {}) {
 }
 
 describe('Bot mode sidebar', () => {
+  it('skips conversation-only updates while keeping inbox badges and navigation live', () => {
+    const before = store.getSnapshot();
+    try {
+      act(() => store.setHumanInbox({ unreadCount: 0, hasAction: false }));
+      const { container: node } = render();
+      const initialRenders = rosterProbe.renders;
+      for (let draftRevision = 1; draftRevision <= 60; draftRevision += 1)
+        act(() => store.setConversation({ draftRevision }));
+      expect(rosterProbe.renders).toBe(initialRenders);
+      act(() => store.setQuery('Ada'));
+      expect(node.querySelector('[data-roster]')?.getAttribute('data-roster-query')).toBe('Ada');
+      expect(rosterProbe.renders).toBe(initialRenders + 1);
+      act(() => store.setHumanInbox({ unreadCount: 3, hasAction: true }));
+      expect(rosterProbe.renders).toBe(initialRenders + 2);
+      expect(node.querySelector('[data-bh-tour="inbox"]')?.getAttribute('aria-label')).toContain(
+        '3',
+      );
+      act(() => store.select({ kind: 'inbox' }));
+      expect(node.querySelector('[data-roster]')?.getAttribute('data-roster-selection')).toBe(
+        'inbox',
+      );
+      expect(node.querySelector('[data-bh-tour="inbox"]')?.getAttribute('aria-current')).toBe(
+        'page',
+      );
+      act(() => store.select(undefined));
+      expect(node.querySelector('[data-bh-tour="inbox"]')?.hasAttribute('aria-current')).toBe(
+        false,
+      );
+    } finally {
+      act(() => {
+        store.select(before.selection);
+        store.setQuery(before.query);
+        store.setConversation(before.conversation);
+        store.setHumanInbox(before.humanInbox);
+      });
+    }
+  });
+
   it('leads out of Bot mode and drives the DSH column from its own controls', () => {
     const { calls, button, container: node } = render();
 
     expect(calls.refreshHumanInboxStatus).toHaveBeenCalledTimes(1);
     expect(node.querySelector('[data-roster]')?.getAttribute('data-roster')).toBe('wide');
-    expect(node.textContent).toContain('DeepSeekBot');
+    expect(node.textContent).toContain('Tobs');
     expect(node.textContent).not.toContain('Bot mode');
     expect(node.querySelectorAll('button[aria-label="Exit Bot mode"]')).toHaveLength(1);
     const logo = button('Exit Bot mode');
@@ -123,7 +173,7 @@ describe('Bot mode sidebar', () => {
     expect(node.querySelector('[data-roster]')?.getAttribute('data-roster')).toBe('rail');
     expect(button('Open sidebar')).toBeTruthy();
     expect(button('Exit Bot mode').classList.contains('bh-mode-sidebar-logo')).toBe(true);
-    expect(node.textContent).not.toContain('DeepSeekBot');
+    expect(node.textContent).not.toContain('Tobs');
   });
 
   it('shows one pinned card per Dock panel and toggles it in the mounted dock', () => {
@@ -204,4 +254,37 @@ describe('Bot mode sidebar', () => {
     expect(card.querySelector('[data-pinned-panel-dot]')).not.toBeNull();
     act(() => store.setHumanInbox({ unreadCount: 0, hasAction: false }));
   });
+});
+
+it('updates the entry badge from the shared live stream and releases it on unmount', async () => {
+  vi.useFakeTimers();
+  let handlers!: Parameters<TypedLive['roster']>[0];
+  const stop = vi.fn();
+  const uninstall = installTypedLive({
+    roster: (next) => {
+      handlers = next;
+      return stop;
+    },
+    activity: () => () => {},
+  });
+  try {
+    const { calls } = render();
+    handlers.baseline([]);
+    await vi.advanceTimersByTimeAsync(30);
+    const count = calls.refreshHumanInboxStatus.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(calls.refreshHumanInboxStatus).toHaveBeenCalledTimes(count);
+    handlers.attention?.();
+    handlers.attention?.();
+    await vi.advanceTimersByTimeAsync(30);
+    expect(calls.refreshHumanInboxStatus).toHaveBeenCalledTimes(count + 1);
+    act(() => root?.unmount());
+    root = undefined;
+    expect(stop).toHaveBeenCalledTimes(1);
+  } finally {
+    act(() => root?.unmount());
+    root = undefined;
+    uninstall();
+    vi.useRealTimers();
+  }
 });

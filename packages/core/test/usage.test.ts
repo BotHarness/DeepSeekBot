@@ -50,6 +50,57 @@ function expectedDay(time: number): string {
 }
 
 describe('Usage projection', () => {
+  it('remembers the latest request route of each Session', () => {
+    const { usage } = usageProjection({ root: { botSlug: 'ada', rootRole: 'orchestrator' } });
+    expect(usage.latestRoute('root')).toBeUndefined();
+    usage.primeSession('root', [
+      {
+        type: 'request/context',
+        time: TURN_END,
+        seq: 1,
+        data: { provider: 'deepseek', model: 'a' },
+      },
+    ]);
+    usage.handleSessionEvent('root', {
+      type: 'request/header',
+      time: TURN_END + 1,
+      seq: 2,
+      data: { header: { config: { provider: 'opencode-go', model: 'b' } } },
+    });
+    expect(usage.latestRoute('root')).toEqual({ provider: 'opencode-go', model: 'b' });
+    usage.handleSessionEvent('root', {
+      type: 'request/header',
+      time: TURN_END + 2,
+      seq: 3,
+      data: {
+        header: { config: { provider: 'opencode-go', model: 'b', reasoningEffort: 'high' } },
+      },
+    });
+    usage.handleSessionEvent('root', {
+      type: 'request/context',
+      time: TURN_END + 3,
+      seq: 4,
+      data: { provider: 'opencode-go', model: 'b' },
+    });
+    expect(usage.latestRoute('root')).toEqual({
+      provider: 'opencode-go',
+      model: 'b',
+      reasoningEffort: 'high',
+    });
+    expect(usage.latestRoute('other')).toBeUndefined();
+  });
+
+  it('preserves reported usage when the same model also has unreported calls', () => {
+    const { usage } = usageProjection({ root: { botSlug: 'ada', rootRole: 'orchestrator' } });
+    usage.handleSessionEvent('root', event('assistant/message', TURN_END));
+    const missing = event('assistant/message', TURN_END + 1);
+    missing.data.usage = {} as never;
+    usage.handleSessionEvent('root', missing);
+    expect(usage.activity('ada', SINCE)).toMatchObject([
+      { totalTokens: null, reportedTotalTokens: 155 },
+    ]);
+  });
+
   it('reads scoped Session totals through the same bucket rules, skips inherited/duplicate events, and makes no writes', async () => {
     const { usage, ownership } = usageProjection({
       root: { botSlug: 'ada', rootRole: 'orchestrator' },
@@ -293,6 +344,38 @@ describe('Usage projection', () => {
 });
 
 describe('Usage rebuild races', () => {
+  it('extracts usage before reading another session without exposing partial counters', async () => {
+    const { usage } = usageProjection({
+      'session-1': { botSlug: 'ada', rootRole: 'orchestrator' },
+      'session-2': { botSlug: 'ada', rootRole: 'orchestrator' },
+    });
+    const first = event('assistant/message', TURN_END);
+    let firstProjected = false;
+    let projectedBeforeNextRead = false;
+    const report = await usage.rebuild(['session-1', 'session-2'], async (sessionId) => {
+      if (sessionId === 'session-2') {
+        projectedBeforeNextRead = firstProjected;
+        expect(usage.activity('ada', SINCE)).toEqual([]);
+        return { events: [event('assistant/message', TURN_END)], inheritedEventCount: 0 };
+      }
+      return {
+        events: [
+          {
+            ...first,
+            get data() {
+              firstProjected = true;
+              return first.data;
+            },
+          },
+        ],
+        inheritedEventCount: 0,
+      };
+    });
+    expect(projectedBeforeNextRead).toBe(true);
+    expect(report).toEqual({ folded: 2, failed: 0 });
+    expect(usage.activity('ada', SINCE)[0]?.totalTokens).toBe(310);
+  });
+
   function feedTurn(
     usage: ReturnType<typeof createUsageProjection>,
     sessionId: string,

@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import semver from 'semver';
 import {
   awaitPublished,
   assertCleanReleaseSource,
@@ -16,10 +17,15 @@ import {
   publishInWaves,
   releaseVersion,
   verifyRelease,
+  verifyPackedCli,
   reusePublishedProvider,
+  publishedProductProvider,
 } from '../npm-prerelease.mjs';
 import { providerReleasePlan } from '../npm-provider-release.mjs';
 import { productDsh, productImProvider } from '../product-artifacts.mjs';
+import { cloudflaredPackages } from '../cloudflared-packages.mjs';
+
+const platformPackages = new Map(cloudflaredPackages.map((entry) => [entry.name, entry]));
 
 const roots = [];
 afterEach(() => roots.splice(0).forEach((r) => rmSync(r, { recursive: true, force: true })));
@@ -33,17 +39,62 @@ function fixture(productVersion = '0.1.0-alpha.1') {
     mkdirSync(join(dir, 'package'), { recursive: true });
     const version = name === productImProvider.name ? productImProvider.version : productVersion;
     const manifest = { name, version, license: 'MIT', main: './index.js' };
-    if (name === 'deepseekbot') {
+    if (name === '@botharness/computer') {
+      mkdirSync(join(dir, 'package/native/local-video'), { recursive: true });
+      for (const asset of [
+        'launcher.cs',
+        'main.cjs',
+        'preload.cjs',
+        'renderer.html',
+        'renderer.js',
+      ]) {
+        writeFileSync(join(dir, 'package/native/local-video', asset), 'fixture media asset');
+      }
+    }
+    const platform = platformPackages.get(name);
+    if (platform) {
+      Object.assign(manifest, { license: 'Apache-2.0', os: [platform.os], cpu: [platform.cpu] });
+      mkdirSync(join(dir, 'package/bin'));
+      writeFileSync(join(dir, `package/bin/${platform.executable}`), 'binary');
+    }
+    if (name === '@botharness/core') {
+      manifest.exports = { './cli': './cli/index.mjs' };
+      mkdirSync(join(dir, 'package/cli'));
+      writeFileSync(
+        join(dir, 'package/cli/index.mjs'),
+        'export const runBotCreateCli = () => { if (process.env.PATH !== "" || process.env.DEEPSEEKBOT_HOST_TOKEN || process.env.DEEPSEEKBOT_AGENT_TOKEN || process.env.NODE_PATH) throw new Error("ambient dependency"); console.log("tobs: packed help"); };',
+      );
+    }
+    if (name === 'deepseekbot' || name === '@botharness/tobs') {
+      manifest.bin = { deepseekbot: './dist/deepseekbot.mjs' };
+      mkdirSync(join(dir, 'package/dist'));
+      writeFileSync(
+        join(dir, 'package/dist/deepseekbot.mjs'),
+        'import { runBotCreateCli } from "@botharness/core/cli"; runBotCreateCli();',
+      );
       manifest.dependencies = Object.fromEntries(
         publicationOrder
-          .slice(0, -1)
+          .filter((n) => !['deepseekbot', '@botharness/tobs'].includes(n))
+          .filter((n) => !platformPackages.has(n))
           .map((n) => [n, n === productImProvider.name ? productImProvider.version : version]),
+      );
+      manifest.optionalDependencies = Object.fromEntries(
+        [...platformPackages.keys()].map((n) => [n, version]),
       );
       manifest.dsh = { bundle: { patch: './cordis.im.patch.yml' } };
       writeFileSync(
         join(dir, 'package/cordis.im.patch.yml'),
-        "- insert:\n    - id: xmanrui-dsh-im\n      name: '@botharness/im-provider'\n    - id: botharness-core\n      name: '@botharness/core'\n    - id: botharness-client\n      name: '@botharness/ui'\n    - id: botharness-browser\n      name: '@botharness/browser'\n    - id: computer-use\n      name: '@deepseek-ai/dsh-computer-use'\n    - id: botharness-computer\n      name: '@botharness/computer'\n",
+        "- insert:\n    - id: xmanrui-dsh-im\n      name: '@botharness/im-provider'\n    - id: botharness-core\n      name: '@botharness/core'\n    - id: botharness-client\n      name: '@botharness/ui'\n    - id: botharness-browser\n      name: '@botharness/browser'\n    - id: botharness-computer\n      name: '@botharness/computer'\n",
       );
+      if (name === '@botharness/tobs') {
+        manifest.bin = { tobs: './src/tobs.mjs' };
+        manifest.dependencies.deepseekbot = version;
+        mkdirSync(join(dir, 'package/src'));
+        writeFileSync(
+          join(dir, 'package/src/tobs.mjs'),
+          'import "deepseekbot/dist/deepseekbot.mjs";',
+        );
+      }
     }
     if (name === productImProvider.name) {
       manifest.botharness = { managedByProduct: true };
@@ -72,7 +123,8 @@ function fixture(productVersion = '0.1.0-alpha.1') {
       productVersion,
       dsh: productDsh,
       providerRuntime: runtime,
-      artifacts,
+      artifacts: artifacts.filter((artifact) => !platformPackages.has(artifact.name)),
+      platformArtifacts: artifacts.filter((artifact) => platformPackages.has(artifact.name)),
     }),
   );
   const plan = {
@@ -90,13 +142,46 @@ function fixture(productVersion = '0.1.0-alpha.1') {
 }
 
 describe('reviewed npm prerelease', () => {
+  it('pins the published product Provider separately from historical standalone publication', () => {
+    expect(publishedProductProvider).toMatchObject({
+      name: productImProvider.name,
+      distTag: 'latest',
+    });
+    if (publishedProductProvider.version === productImProvider.version)
+      expect(publishedProductProvider.providerSource).toBe(productImProvider.upstream.source);
+    else expect(semver.gt(productImProvider.version, publishedProductProvider.version)).toBe(true);
+    expect(publishedProductProvider.version).toMatch(/^\d+\.\d+\.\d+-botharness\.\d+$/);
+    expect(publishedProductProvider.providerSource).toMatch(/^[a-f0-9]{40}$/);
+    expect(publishedProductProvider.productSource).toMatch(/^[a-f0-9]{40}$/);
+    expect(publishedProductProvider.qualification).toMatch(
+      /^https:\/\/github.com\/BotHarness\/DeepSeekBot\/actions\/runs\/\d+$/,
+    );
+    expect(publishedProductProvider.integrity).toMatch(/^sha512-[A-Za-z0-9+/]{86}==$/);
+    expect(publishedProductProvider.runtimeSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(publishedProductProvider.runtimeFiles).toBeGreaterThan(0);
+  });
+
+  it('rejects the historical standalone plan before downloading or replacing product bytes', async () => {
+    const { root, artifact, remote, rebuilt } = providerReadbackFixture();
+    const download = vi.fn();
+    await expect(
+      reusePublishedProvider(root, {
+        plan: providerReleasePlan,
+        read: async () => remote,
+        download,
+      }),
+    ).rejects.toThrow('Published Provider differs');
+    expect(download).not.toHaveBeenCalled();
+    expect(readFileSync(join(root, artifact.filename))).toEqual(rebuilt);
+  });
+
   function providerReadbackFixture() {
     const { root } = fixture();
     const inventory = JSON.parse(readFileSync(join(root, 'artifacts.json')));
     const artifact = inventory.artifacts.find((value) => value.name === productImProvider.name);
     const bytes = readFileSync(join(root, artifact.filename));
     const plan = {
-      ...providerReleasePlan,
+      ...publishedProductProvider,
       version: artifact.version,
       providerSource: productImProvider.upstream.source,
       integrity: artifact.integrity,
@@ -148,11 +233,15 @@ describe('reviewed npm prerelease', () => {
     },
   );
 
-  it('keeps first-publication preparation when the pinned Provider is absent from registry', async () => {
+  it('keeps first publication with a historical plan when the new Provider is absent', async () => {
     const { root, artifact, rebuilt } = providerReadbackFixture();
     const download = vi.fn();
     await expect(
-      reusePublishedProvider(root, { read: async () => undefined, download }),
+      reusePublishedProvider(root, {
+        plan: providerReleasePlan,
+        read: async () => undefined,
+        download,
+      }),
     ).resolves.toBe(false);
     expect(download).not.toHaveBeenCalled();
     expect(readFileSync(join(root, artifact.filename))).toEqual(rebuilt);
@@ -224,6 +313,7 @@ describe('reviewed npm prerelease', () => {
       ...artifact,
       license: 'MIT',
       main: './dist/index.mjs',
+      exports: { './cli': './cli/index.mjs' },
       dependencies: { other: 'link:../other' },
     };
     expect(() => checkPackage(manifest, artifact, ['package/LICENSE'], [artifact])).toThrow(
@@ -233,6 +323,89 @@ describe('reviewed npm prerelease', () => {
     expect(() => checkPackage(manifest, artifact, ['package/LICENSE'], [artifact])).toThrow(
       'Missing packed entry',
     );
+  });
+  it('rejects a core archive without the CLI used by Tob even if its Host entry remains', () => {
+    const artifact = { name: '@botharness/core', version: '0.1.0-alpha.1' };
+    const manifest = {
+      ...artifact,
+      license: 'MIT',
+      main: './dist/index.mjs',
+      exports: { './cli': './cli/index.mjs' },
+    };
+    const hostOnly = ['package/LICENSE', 'package/dist/index.mjs'];
+    expect(() => checkPackage(manifest, artifact, hostOnly, [artifact])).toThrow(
+      'Missing packed entry: @botharness/core:./cli/index.mjs',
+    );
+    const complete = [...hostOnly, 'package/cli/index.mjs'];
+    expect(() => checkPackage(manifest, artifact, complete, [artifact])).not.toThrow();
+    delete manifest.exports['./cli'];
+    expect(() => checkPackage(manifest, artifact, complete, [artifact])).toThrow(
+      'must export its bundled CLI',
+    );
+  });
+  it('rejects an umbrella archive without its CLI executable rather than relying on a global install', () => {
+    const artifact = { name: 'deepseekbot', version: '0.1.0-alpha.1' };
+    const manifest = {
+      ...artifact,
+      license: 'MIT',
+      bin: { deepseekbot: './dist/deepseekbot.mjs' },
+    };
+    expect(() => checkPackage(manifest, artifact, ['package/LICENSE'], [artifact])).toThrow(
+      'Missing packed entry: deepseekbot:./dist/deepseekbot.mjs',
+    );
+    const files = ['package/LICENSE', 'package/dist/deepseekbot.mjs'];
+    expect(() => checkPackage(manifest, artifact, files, [artifact])).not.toThrow();
+    delete manifest.bin.deepseekbot;
+    expect(() => checkPackage(manifest, artifact, files, [artifact])).toThrow(
+      'must provide its bundled deepseekbot executable',
+    );
+  });
+  it('rejects a Computer archive missing any lazily loaded native helper asset', () => {
+    const artifact = { name: '@botharness/computer', version: '0.1.0-alpha.1' };
+    const manifest = { ...artifact, license: 'MIT', main: './dist/index.mjs' };
+    const assets = ['launcher.cs', 'main.cjs', 'preload.cjs', 'renderer.html', 'renderer.js'];
+    const files = [
+      'package/LICENSE',
+      'package/dist/index.mjs',
+      ...assets.map((name) => `package/native/local-video/${name}`),
+    ];
+    expect(() => checkPackage(manifest, artifact, files, [artifact])).not.toThrow();
+    for (const asset of assets) {
+      expect(() =>
+        checkPackage(
+          manifest,
+          artifact,
+          files.filter((path) => !path.endsWith(`/${asset}`)),
+          [artifact],
+        ),
+      ).toThrow(`Missing packed entry: @botharness/computer:./native/local-video/${asset}`);
+    }
+  });
+  it('executes the archived product CLI without a source checkout or global CLI in its environment', () => {
+    const { root } = fixture();
+    const { packages } = verifyRelease(root);
+    expect(verifyPackedCli(root, packages, '/unused-no-dependencies')).toEqual({
+      executable: 'deepseekbot',
+      packedCoreExport: './cli/index.mjs',
+      isolatedHelp: true,
+    });
+  });
+  it('rejects an archived CLI whose imports depend on unpublished source files', () => {
+    const { root } = fixture();
+    const { packages } = verifyRelease(root);
+    const productIndex = publicationOrder.indexOf('deepseekbot');
+    writeFileSync(
+      join(root, String(productIndex), 'package/dist/deepseekbot.mjs'),
+      'import "../src/unpublished.mjs";',
+    );
+    execFileSync('tar', [
+      '-czf',
+      join(root, `${productIndex}.tgz`),
+      '-C',
+      join(root, String(productIndex)),
+      'package',
+    ]);
+    expect(() => verifyPackedCli(root, packages, '/unused-no-dependencies')).toThrow();
   });
   it('recovers a partial publication only when the existing version has identical bytes', () => {
     const artifact = { name: 'deepseekbot', version: '0.1.0-alpha.1', integrity: 'sha512-test' };
@@ -266,8 +439,9 @@ describe('reviewed npm prerelease', () => {
     const packages = publicationOrder.map(entry);
     const waves = publicationWaves(packages);
     expect(waves.map((wave) => wave.map(({ artifact }) => artifact.name))).toEqual([
-      publicationOrder.slice(0, -1),
+      publicationOrder.slice(0, -2),
       ['deepseekbot'],
+      ['@botharness/tobs'],
     ]);
     expect(publicationWaves([entry('deepseekbot')])).toHaveLength(1);
     const events = [];
@@ -277,11 +451,14 @@ describe('reviewed npm prerelease', () => {
       return new Promise((done) => pending.set(artifact.name, done));
     });
     await Promise.resolve();
-    expect(events).toEqual(publicationOrder.slice(0, -1).map((name) => `start ${name}`));
-    for (const name of publicationOrder.slice(0, -1)) pending.get(name)();
+    expect(events).toEqual(publicationOrder.slice(0, -2).map((name) => `start ${name}`));
+    for (const name of publicationOrder.slice(0, -2)) pending.get(name)();
     await new Promise((done) => setTimeout(done, 0));
     expect(events.at(-1)).toBe('start deepseekbot');
     pending.get('deepseekbot')();
+    await new Promise((done) => setTimeout(done, 0));
+    expect(events.at(-1)).toBe('start @botharness/tobs');
+    pending.get('@botharness/tobs')();
     await run;
     const product = vi.fn();
     await expect(

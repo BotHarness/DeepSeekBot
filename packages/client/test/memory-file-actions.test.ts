@@ -374,7 +374,7 @@ describe('message attachment menus', () => {
       attachment.fileId,
     );
     await click(file);
-    expect(container.querySelector('[role="menu"]')).not.toBeNull();
+    expect(document.querySelector('[data-pointer-menu] [role="menu"]')).not.toBeNull();
     expect(file.getAttribute('aria-haspopup')).toBe('menu');
     const download = container.querySelector('a.bh-message-file-download')!;
     expect(download.getAttribute('aria-label')).toBe('下载到此设备: notes.txt');

@@ -1,0 +1,10 @@
+{
+  "platforms": ["android"],
+  "coreFeatures": ["compose"],
+  "android": {
+    "modules": [
+      "expo.modules.dismissibledrawer.DismissibleDrawerModule",
+      "expo.modules.dismissibledrawer.EndSheetModule"
+    ]
+  }
+}

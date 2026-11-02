@@ -2,10 +2,40 @@ import { transformAsync } from '@babel/core';
 import syntaxJsx from '@babel/plugin-syntax-jsx';
 import syntaxTypescript from '@babel/plugin-syntax-typescript';
 import stylexBabel from '@stylexjs/babel-plugin';
+import { existsSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { dirname, join, relative } from 'node:path';
 
 export const STYLEX_CSS_PLACEHOLDER = '@bh-stylex-css';
 
 const SOURCE = /\.[cm]?[jt]sx?$/;
+
+function canonicalFilePath(file, rootDir) {
+  for (let dir = dirname(file); ; dir = dirname(dir)) {
+    const manifest = join(dir, 'package.json');
+    if (existsSync(manifest)) {
+      const { name } = JSON.parse(readFileSync(manifest, 'utf8'));
+      return `${name}:${relative(dir, file).replaceAll('\\', '/')}`;
+    }
+    if (dirname(dir) === dir) return relative(rootDir, file).replaceAll('\\', '/');
+  }
+}
+
+function resolveStylexFile(specifier, importer) {
+  const require = createRequire(importer);
+  const base = specifier.replace(/\.(?:[cm]?js|tsx?|jsx)$/, '');
+  for (const candidate of [
+    specifier,
+    ...['.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs'].map((suffix) => `${base}${suffix}`),
+  ]) {
+    try {
+      return require.resolve(candidate);
+    } catch (error) {
+      if (error.code !== 'MODULE_NOT_FOUND') throw error;
+    }
+  }
+  return null;
+}
 
 export function stylexOptions(rootDir) {
   return {
@@ -15,7 +45,11 @@ export function stylexOptions(rootDir) {
     classNamePrefix: 'bhx',
     styleResolution: 'property-specificity',
     treeshakeCompensation: true,
-    unstable_moduleResolution: { type: 'commonJS', rootDir },
+    unstable_moduleResolution: {
+      type: 'custom',
+      getCanonicalFilePath: (file) => canonicalFilePath(file, rootDir),
+      filePathResolver: resolveStylexFile,
+    },
   };
 }
 

@@ -5,6 +5,8 @@ Date: 2026-10-06
 
 # Deletion preserves history and makes Memory erasure explicit
 
+> Superseded in part by [ADR-0274](0274-disbanding-a-group-deletes-its-content.md): disbanding a local group deletes the content it does not share with other Channels.
+
 Deleting a PersonaBot or Channel ends its active participation while preserving historical attribution; physical content erasure is an explicit additional scope. The Human confirmed an unchecked **Also delete Memory files** checkbox in PersonaBot deletion, with access to the actual Memory folder, and ordinary Channel deletion retaining history. This avoids making a familiar removal action silently erase learned continuity or shared messages, while still providing a deliberate erasure path. This is accepted target design for [#138](https://github.com/BotHarness/BotHarness/issues/138), not a claim that the deletion controls or Purge Ledger already exist.
 
 ## PersonaBot confirmation

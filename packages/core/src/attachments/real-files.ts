@@ -186,6 +186,45 @@ export function createRealAttachments(root: string, maxBytes: number) {
       closeSync(fd);
       return ref;
     },
+    contentVersion(id: string): string {
+      const { fd } = opened(id);
+      try {
+        const before = fstatSync(fd, { bigint: true });
+        if (before.size > BigInt(maxBytes))
+          throw new ChannelAttachmentError('Attachment exceeds review size limit', 'too-large');
+        const hash = createHash('sha256');
+        const chunk = Buffer.alloc(64 * 1024);
+        let offset = 0;
+        while (offset < Number(before.size)) {
+          const count = readSync(
+            fd,
+            chunk,
+            0,
+            Math.min(chunk.length, Number(before.size) - offset),
+            offset,
+          );
+          if (count === 0)
+            throw new ChannelAttachmentError('Attachment changed during review', 'not-found');
+          hash.update(chunk.subarray(0, count));
+          offset += count;
+        }
+        const after = fstatSync(fd, { bigint: true });
+        const current = lstatSync(target(id).path, { bigint: true });
+        if (
+          before.size !== after.size ||
+          before.mtimeNs !== after.mtimeNs ||
+          before.ctimeNs !== after.ctimeNs ||
+          before.dev !== current.dev ||
+          before.ino !== current.ino ||
+          after.mtimeNs !== current.mtimeNs ||
+          after.ctimeNs !== current.ctimeNs
+        )
+          throw new ChannelAttachmentError('Attachment changed during review', 'not-found');
+        return hash.digest('hex');
+      } finally {
+        closeSync(fd);
+      }
+    },
     download(id: string, signal?: AbortSignal) {
       signal?.throwIfAborted();
       const { fd, ref, path } = opened(id);

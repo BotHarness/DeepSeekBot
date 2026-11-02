@@ -1,10 +1,14 @@
+import { GroupWorkEntry } from './group-work-entry.js';
+import { useSessionTarget } from './session-target.js';
+import type { SessionsState } from './store.js';
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
-import { Tag, Tooltip, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tag, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
-import { useClientState } from './bot-sidebar.js';
+import { useClientStore } from './use-client-store.js';
 import { formatRelativeTime } from './labels.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import {
@@ -28,13 +32,13 @@ import { botNameSource, paintBotScale } from './bot-primary-color.js';
 import { useFlipList } from './flip-list.js';
 import { GroupHeading } from './ds/group-heading.js';
 import { IconButton } from './ds/icon-button.js';
-import { Note } from './ds/note.js';
-import { color, radius, space } from './ds/tokens.stylex.js';
+import { PanelEmptyState } from './ds/empty-state.js';
+import { color, radius } from './ds/tokens.stylex.js';
+import { modelRouteText, SessionSubagentList, SessionSubagentToggle } from './session-subagents.js';
+import { AssignmentWorkButton, AssignmentWorkDialog } from './assignment-work.js';
 
 const styles = stylex.create({
-  groups: { display: 'flex', flexDirection: 'column', gap: space.x3 },
-  group: { marginBlock: space.x1 },
-  groupList: { marginTop: space.x1, marginBottom: space.x2 },
+  groups: { display: 'flex', flexDirection: 'column' },
   orchestrator: { display: 'grid', placeItems: 'center' },
   orchestratorIcon: {
     display: 'grid',
@@ -95,9 +99,29 @@ function SessionsPanel({
   assignmentLimit?: number | undefined;
 }): ReactElement {
   const [archiving, setArchiving] = useState<string>();
+  const [subagentsOpen, setSubagentsOpen] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleSubagents = (sessionId: string): void =>
+    setSubagentsOpen((current) => {
+      const next = new Set(current);
+      if (!next.delete(sessionId)) next.add(sessionId);
+      return next;
+    });
   const [archiveError, setArchiveError] = useState<string>();
-  const client = useClientState();
-  const owned = client.sessions;
+  const [work, setWork] = useState<{ sessionId: string; title: string }>();
+  const groupBot = useClientStore((state) => state.conversation.channel?.type === 'group');
+  const sessions = useClientStore((state) => state.sessions);
+  const conversationRevision = useClientStore((state) => state.conversation.revision);
+  const nameSource = useClientStore((state) => {
+    const bot = state.bots.find((candidate) => candidate.slug === botSlug);
+    return bot === undefined ? undefined : botNameSource(bot);
+  });
+  const [local, setLocal] = useState<SessionsState>({
+    status: 'loading',
+    items: [],
+    error: undefined,
+  });
+  const [reload, setReload] = useState(0);
+  const owned = groupBot ? local : sessions;
   const native = useSyncExternalStore(
     nativeSessions.subscribe,
     nativeSessions.getSnapshot,
@@ -110,8 +134,24 @@ function SessionsPanel({
     .join('|');
 
   const mount = useMountedResource<HTMLDivElement>(() => {
-    if (botSlug !== undefined) void actions.refreshSessions(botSlug);
-  }, [actions, botSlug, signature]);
+    if (botSlug === undefined) return;
+    if (!groupBot) {
+      void actions.refreshSessions(botSlug);
+      return;
+    }
+    let live = true;
+    void actions.readSessions(botSlug).then(
+      (items) => {
+        if (live) setLocal({ status: 'ready', items, error: undefined });
+      },
+      (error) => {
+        if (live) setLocal({ status: 'error', items: [], error: String(error) });
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [actions, botSlug, signature, groupBot, conversationRevision, reload]);
 
   const toggleWorkspace = (key: string): void => {
     updateSessionViewPreference(slug, (current) => ({
@@ -125,7 +165,6 @@ function SessionsPanel({
   const statusRows =
     preference.layout === 'status' ? personaBotSessionRows(owned.items, native.byId, 'all') : rows;
   const groups = groupSessionRowsByWorkspace(rows);
-  const bot = client.bots.find((candidate) => candidate.slug === botSlug);
   const flip = useFlipList<HTMLDivElement>();
   const statusLabel = {
     running: t('sessions.status.running'),
@@ -142,6 +181,16 @@ function SessionsPanel({
   ): ReactElement => {
     const role =
       row.role === 'orchestrator' ? t('sessions.role.orchestrator') : t('sessions.role.assignment');
+    const subagents =
+      row.subagentCount === undefined || botSlug === undefined ? undefined : row.subagentCount;
+    const subagentsExpanded = subagents !== undefined && subagentsOpen.has(row.sessionId);
+    const workable = row.role === 'assignment' && botSlug !== undefined;
+    const archivable = !(
+      row.role !== 'assignment' ||
+      row.section === 'working' ||
+      botSlug === undefined ||
+      (native.byId[row.sessionId] === undefined && row.archived !== true)
+    );
     return (
       <SidebarCardRow
         key={row.sessionId}
@@ -155,9 +204,7 @@ function SessionsPanel({
                   role="img"
                   aria-label={role}
                   title={role}
-                  ref={(element) =>
-                    paintBotScale(element, bot === undefined ? undefined : botNameSource(bot))
-                  }
+                  ref={(element) => paintBotScale(element, nameSource)}
                 >
                   <span {...stylex.props(styles.orchestratorIcon)}>
                     <ChannelSidebarIcon name="bot" size={14} />
@@ -167,7 +214,7 @@ function SessionsPanel({
             }
           : { icon: 'list-checks', iconLabel: role })}
         title={row.title}
-        hint={row.cwd}
+        hint={[row.description, row.cwd].filter(Boolean).join('\n') || undefined}
         mainClassName="bh-session-row"
         state={row.status}
         muted={native.byId[row.sessionId] === undefined}
@@ -184,46 +231,84 @@ function SessionsPanel({
             <Tag tone={STATUS_TONE[row.status]}>{statusLabel[row.status]}</Tag>
           )
         }
-        {...(row.role !== 'assignment' ||
-        row.section === 'working' ||
-        botSlug === undefined ||
-        (native.byId[row.sessionId] === undefined && row.archived !== true)
+        {...(!archivable && !workable && subagents === undefined
           ? {}
           : {
               trailing: (
-                <Tooltip
-                  label={t(row.archived === true ? 'sessions.unarchive' : 'sessions.archive')}
-                  side="top"
-                  portal
-                  delayMs={400}
-                >
-                  <IconButton
-                    size="inline"
-                    data-session-archive=""
-                    disabled={archiving !== undefined}
-                    aria-label={t(
-                      row.archived === true ? 'sessions.unarchiveNamed' : 'sessions.archiveNamed',
-                      { title: row.title },
-                    )}
-                    onClick={() => {
-                      setArchiving(row.sessionId);
-                      setArchiveError(undefined);
-                      void actions
-                        .setSessionArchived(botSlug, row.sessionId, row.archived !== true)
-                        .catch((error: unknown) =>
-                          setArchiveError(error instanceof Error ? error.message : String(error)),
-                        )
-                        .finally(() => setArchiving(undefined));
-                    }}
-                  >
-                    <ChannelSidebarIcon
-                      name={row.archived === true ? 'archive-restore' : 'archive'}
-                      size={14}
+                <>
+                  {workable ? (
+                    <AssignmentWorkButton
+                      title={row.title}
+                      onOpen={() => setWork({ sessionId: row.sessionId, title: row.title })}
+                      t={t}
                     />
-                  </IconButton>
-                </Tooltip>
+                  ) : null}
+                  {subagents === undefined ? null : (
+                    <SessionSubagentToggle
+                      count={subagents}
+                      title={row.title}
+                      open={subagentsExpanded}
+                      onToggle={() => toggleSubagents(row.sessionId)}
+                      t={t}
+                    />
+                  )}
+                  {archivable ? (
+                    <Tooltip
+                      label={t(row.archived === true ? 'sessions.unarchive' : 'sessions.archive')}
+                      side="top"
+                      portal
+                      delayMs={400}
+                    >
+                      <IconButton
+                        size="inline"
+                        data-session-archive=""
+                        disabled={archiving !== undefined}
+                        aria-label={t(
+                          row.archived === true
+                            ? 'sessions.unarchiveNamed'
+                            : 'sessions.archiveNamed',
+                          { title: row.title },
+                        )}
+                        onClick={() => {
+                          setArchiving(row.sessionId);
+                          setArchiveError(undefined);
+                          void actions
+                            .setSessionArchived(botSlug, row.sessionId, row.archived !== true)
+                            .catch((error: unknown) =>
+                              setArchiveError(
+                                error instanceof Error ? error.message : String(error),
+                              ),
+                            )
+                            .finally(() => {
+                              setArchiving(undefined);
+                              setReload((value) => value + 1);
+                            });
+                        }}
+                      >
+                        <ChannelSidebarIcon
+                          name={row.archived === true ? 'archive-restore' : 'archive'}
+                          size={14}
+                        />
+                      </IconButton>
+                    </Tooltip>
+                  ) : null}
+                </>
               ),
             })}
+        {...(subagentsExpanded && botSlug !== undefined
+          ? {
+              detail: (
+                <SessionSubagentList
+                  actions={actions}
+                  botSlug={botSlug}
+                  sessionId={row.sessionId}
+                  revision={`${String(row.subagentCount)}:${signature}`}
+                  canOpen={(id) => native.byId[id] !== undefined}
+                  t={t}
+                />
+              ),
+            }
+          : {})}
         {...(row.assignmentAccessMode === 'danger-full-access'
           ? {
               chips: (
@@ -238,6 +323,7 @@ function SessionsPanel({
             {showWorkspace ? (
               <span>{workspaceName(row.cwd) ?? t('sessions.workspace.unknown')}</span>
             ) : null}
+            {row.modelRoute === undefined ? null : <span>{modelRouteText(row.modelRoute)}</span>}
             <span>{formatRelativeTime(row.updatedAt, Date.now(), t)}</span>
           </>
         }
@@ -272,6 +358,7 @@ function SessionsPanel({
     countLabel?: string,
   ): ReactElement => (
     <GroupHeading
+      flush
       key={key}
       label={name}
       count={count}
@@ -291,9 +378,7 @@ function SessionsPanel({
         <div className="bh-error">{t('sessions.error', { error: owned.error })}</div>
       ) : null}
       {owned.status === 'ready' && rows.length === 0 && assignments.length === 0 ? (
-        <Note tone="subtle" inset>
-          {t('sessions.empty')}
-        </Note>
+        <PanelEmptyState icon="text-quote">{t('sessions.empty')}</PanelEmptyState>
       ) : null}
       {archiveError === undefined ? null : (
         <div className="bh-error" role="alert">
@@ -304,7 +389,7 @@ function SessionsPanel({
         {preference.layout === 'status' ? (
           <>
             {orchestrators.length === 0 ? null : (
-              <SidebarCardList label={t('sessions.role.orchestrator')}>
+              <SidebarCardList flush label={t('sessions.role.orchestrator')}>
                 {orchestrators.map((row) => renderRow(row, true, 'idle'))}
               </SidebarCardList>
             )}
@@ -313,7 +398,7 @@ function SessionsPanel({
               const expanded = !preference.collapsedSections.includes(section.id);
               const name = t(`sessions.section.${section.id}`);
               return (
-                <section key={section.id} data-section={section.id} {...stylex.props(styles.group)}>
+                <section key={section.id} data-section={section.id}>
                   {section.id === 'working' && assignmentLimit !== undefined
                     ? heading(
                         section.id,
@@ -331,10 +416,7 @@ function SessionsPanel({
                         toggleSection(section.id),
                       )}
                   {expanded ? (
-                    <SidebarCardList
-                      label={name}
-                      className={stylex.props(styles.groupList).className}
-                    >
+                    <SidebarCardList flush label={name}>
                       {section.rows.map((row) => renderRow(row, true, section.implied))}
                     </SidebarCardList>
                   ) : null}
@@ -347,7 +429,7 @@ function SessionsPanel({
             const expanded = !preference.collapsedWorkspaces.includes(group.key);
             const name = group.name ?? t('sessions.workspace.unknown');
             return (
-              <section key={group.key} {...stylex.props(styles.group)}>
+              <section key={group.key}>
                 {heading(
                   group.key,
                   name,
@@ -357,10 +439,7 @@ function SessionsPanel({
                   group.path,
                 )}
                 {expanded ? (
-                  <SidebarCardList
-                    label={name}
-                    className={stylex.props(styles.groupList).className}
-                  >
+                  <SidebarCardList flush label={name}>
                     {group.rows.map((row) => renderRow(row, false))}
                   </SidebarCardList>
                 ) : null}
@@ -369,6 +448,17 @@ function SessionsPanel({
           })
         )}
       </div>
+      {work === undefined || botSlug === undefined ? null : (
+        <AssignmentWorkDialog
+          actions={actions}
+          botSlug={botSlug}
+          sessionId={work.sessionId}
+          title={work.title}
+          canOpen={native.byId[work.sessionId] !== undefined}
+          onClose={() => setWork(undefined)}
+          t={t}
+        />
+      )}
     </div>
   );
 }
@@ -377,9 +467,11 @@ export function SessionsHeaderAction({
   botSlug,
   t,
   extraItems = [],
+  extraSelectedIds = [],
   onExtraSelect,
 }: ChannelSidebarEntryProps & {
   extraItems?: readonly MenuEntry[];
+  extraSelectedIds?: readonly string[];
   onExtraSelect?: (id: string) => void;
 }): ReactElement {
   const slug = botSlug ?? '';
@@ -388,16 +480,23 @@ export function SessionsHeaderAction({
     <SidebarViewMenu
       label={t('sessions.menu')}
       items={[
-        { type: 'label', id: 'scope-label', text: t('sessions.view') },
-        { id: 'scope:current', label: t('sessions.current') },
-        { id: 'scope:all', label: t('sessions.all') },
-        { type: 'separator', id: 'layout-separator' },
-        { type: 'label', id: 'layout-label', text: t('sessions.layout') },
-        { id: 'layout:status', label: t('sessions.layout.status') },
-        { id: 'layout:workspace', label: t('sessions.layout.workspace') },
+        ...(botSlug
+          ? [
+              { type: 'label' as const, id: 'scope-label', text: t('sessions.view') },
+              { id: 'scope:current', label: t('sessions.current') },
+              { id: 'scope:all', label: t('sessions.all') },
+              { type: 'separator' as const, id: 'layout-separator' },
+              { type: 'label' as const, id: 'layout-label', text: t('sessions.layout') },
+              { id: 'layout:status', label: t('sessions.layout.status') },
+              { id: 'layout:workspace', label: t('sessions.layout.workspace') },
+            ]
+          : []),
         ...extraItems,
       ]}
-      selectedIds={['scope:' + preference.scope, 'layout:' + preference.layout]}
+      selectedIds={[
+        ...extraSelectedIds,
+        ...(botSlug ? ['scope:' + preference.scope, 'layout:' + preference.layout] : []),
+      ]}
       onSelect={(id) => {
         const [kind, value] = id.split(':');
         if (kind !== 'scope' && kind !== 'layout') {
@@ -420,5 +519,10 @@ export function SessionsEntry(
     assignmentLimit?: number | undefined;
   },
 ): ReactElement {
-  return <SessionsPanel key={props.botSlug ?? 'none'} {...props} />;
+  const target = useSessionTarget(props);
+  return target.kind === 'channel' ? (
+    <GroupWorkEntry key={props.channelId} {...props} nativeSessions={props.nativeSessions} />
+  ) : (
+    <SessionsPanel key={props.channelId + ':' + target.slug} {...props} botSlug={target.slug} />
+  );
 }

@@ -1,0 +1,202 @@
+{
+  "phase": "after",
+  "source": "4023faca6a26e75ae507005ba792848d066646d1",
+  "clean": true,
+  "pixels": {
+    "jpg": [24, 112, 64, 255],
+    "gif": [24, 112, 64, 255],
+    "webp": [26, 112, 62, 255],
+    "svg": [24, 112, 64, 255]
+  },
+  "animations": {
+    "gif": ["32,80,160,255", "176,80,16,255", "168,202,255,255"],
+    "webp": ["30,81,159,255", "176,80,17,255", "168,202,255,255"]
+  },
+  "exports": 40,
+  "hashes": [
+    {
+      "format": "jpg",
+      "side": "current",
+      "sha256": "a5339d5f7bbce97bc09a559c5315fa4088d9502ae4b4f94bc5d57eb5cf7aff41"
+    },
+    {
+      "format": "jpg",
+      "side": "working-before",
+      "sha256": "dd49859af10a1c2b29de1a252773dba4256e7a2a3416147aaeaac0dcc5f39187"
+    },
+    {
+      "format": "jpg",
+      "side": "working-after",
+      "sha256": "a5339d5f7bbce97bc09a559c5315fa4088d9502ae4b4f94bc5d57eb5cf7aff41"
+    },
+    {
+      "format": "jpg",
+      "side": "history-before",
+      "sha256": "dba898b77703765b98d25af272fc7bf11ab3c6a16d9a40f5ab62c503ef3b30e5"
+    },
+    {
+      "format": "jpg",
+      "side": "history-after",
+      "sha256": "dd49859af10a1c2b29de1a252773dba4256e7a2a3416147aaeaac0dcc5f39187"
+    },
+    {
+      "format": "gif",
+      "side": "current",
+      "sha256": "1921f44669037f99b64de17b09485f312f0ad278bfb49e3ed59df5b6ffe03511"
+    },
+    {
+      "format": "gif",
+      "side": "working-before",
+      "sha256": "392a084be5aa0f06de3cce853e60332def77c5312d852d1d7f45c067a650560d"
+    },
+    {
+      "format": "gif",
+      "side": "working-after",
+      "sha256": "1921f44669037f99b64de17b09485f312f0ad278bfb49e3ed59df5b6ffe03511"
+    },
+    {
+      "format": "gif",
+      "side": "history-before",
+      "sha256": "d2030ba6cd9134e2c23116b7ce72d5a171ca821e24843d1d485bc470af508d93"
+    },
+    {
+      "format": "gif",
+      "side": "history-after",
+      "sha256": "392a084be5aa0f06de3cce853e60332def77c5312d852d1d7f45c067a650560d"
+    },
+    {
+      "format": "webp",
+      "side": "current",
+      "sha256": "6e1c96ae74896d6b3fc736a3835291efb498220d4c7aaecc6b5619195b698af6"
+    },
+    {
+      "format": "webp",
+      "side": "working-before",
+      "sha256": "602b9aa756eb6012dc1110904c0c450386474c344b9c632e42ac2099fb61f76e"
+    },
+    {
+      "format": "webp",
+      "side": "working-after",
+      "sha256": "6e1c96ae74896d6b3fc736a3835291efb498220d4c7aaecc6b5619195b698af6"
+    },
+    {
+      "format": "webp",
+      "side": "history-before",
+      "sha256": "f2f3cacde91a36bb945da0db6f9e7f76f1c7235049cf3a5bdae9bb6d94b7d75a"
+    },
+    {
+      "format": "webp",
+      "side": "history-after",
+      "sha256": "602b9aa756eb6012dc1110904c0c450386474c344b9c632e42ac2099fb61f76e"
+    },
+    {
+      "format": "svg",
+      "side": "current",
+      "sha256": "3b40d45ddbfd7c8534daf32f23e6bf9de6f21eec66c2c6f3742b465ddb04d2a0"
+    },
+    {
+      "format": "svg",
+      "side": "working-before",
+      "sha256": "056cc84383d5656e17f15b629c4f68f89c57b962aa9154bafb90b62a811e5d9b"
+    },
+    {
+      "format": "svg",
+      "side": "working-after",
+      "sha256": "3b40d45ddbfd7c8534daf32f23e6bf9de6f21eec66c2c6f3742b465ddb04d2a0"
+    },
+    {
+      "format": "svg",
+      "side": "history-before",
+      "sha256": "590077f15d1ed92070ea8712d796f3cb13fb9381a42e8085abb5978ebcd56fe4"
+    },
+    {
+      "format": "svg",
+      "side": "history-after",
+      "sha256": "056cc84383d5656e17f15b629c4f68f89c57b962aa9154bafb90b62a811e5d9b"
+    },
+    {
+      "format": "jpg",
+      "side": "staged-before",
+      "sha256": "dd49859af10a1c2b29de1a252773dba4256e7a2a3416147aaeaac0dcc5f39187"
+    },
+    {
+      "format": "jpg",
+      "side": "staged-after",
+      "sha256": "a5339d5f7bbce97bc09a559c5315fa4088d9502ae4b4f94bc5d57eb5cf7aff41"
+    },
+    {
+      "format": "jpg",
+      "side": "unstaged-before",
+      "sha256": "a5339d5f7bbce97bc09a559c5315fa4088d9502ae4b4f94bc5d57eb5cf7aff41"
+    },
+    {
+      "format": "jpg",
+      "side": "unstaged-after",
+      "sha256": "dba898b77703765b98d25af272fc7bf11ab3c6a16d9a40f5ab62c503ef3b30e5"
+    },
+    {
+      "format": "gif",
+      "side": "staged-before",
+      "sha256": "392a084be5aa0f06de3cce853e60332def77c5312d852d1d7f45c067a650560d"
+    },
+    {
+      "format": "gif",
+      "side": "staged-after",
+      "sha256": "1921f44669037f99b64de17b09485f312f0ad278bfb49e3ed59df5b6ffe03511"
+    },
+    {
+      "format": "gif",
+      "side": "unstaged-before",
+      "sha256": "1921f44669037f99b64de17b09485f312f0ad278bfb49e3ed59df5b6ffe03511"
+    },
+    {
+      "format": "gif",
+      "side": "unstaged-after",
+      "sha256": "d2030ba6cd9134e2c23116b7ce72d5a171ca821e24843d1d485bc470af508d93"
+    },
+    {
+      "format": "webp",
+      "side": "staged-before",
+      "sha256": "602b9aa756eb6012dc1110904c0c450386474c344b9c632e42ac2099fb61f76e"
+    },
+    {
+      "format": "webp",
+      "side": "staged-after",
+      "sha256": "6e1c96ae74896d6b3fc736a3835291efb498220d4c7aaecc6b5619195b698af6"
+    },
+    {
+      "format": "webp",
+      "side": "unstaged-before",
+      "sha256": "6e1c96ae74896d6b3fc736a3835291efb498220d4c7aaecc6b5619195b698af6"
+    },
+    {
+      "format": "webp",
+      "side": "unstaged-after",
+      "sha256": "f2f3cacde91a36bb945da0db6f9e7f76f1c7235049cf3a5bdae9bb6d94b7d75a"
+    },
+    {
+      "format": "svg",
+      "side": "staged-before",
+      "sha256": "056cc84383d5656e17f15b629c4f68f89c57b962aa9154bafb90b62a811e5d9b"
+    },
+    {
+      "format": "svg",
+      "side": "staged-after",
+      "sha256": "3b40d45ddbfd7c8534daf32f23e6bf9de6f21eec66c2c6f3742b465ddb04d2a0"
+    },
+    {
+      "format": "svg",
+      "side": "unstaged-before",
+      "sha256": "3b40d45ddbfd7c8534daf32f23e6bf9de6f21eec66c2c6f3742b465ddb04d2a0"
+    },
+    {
+      "format": "svg",
+      "side": "unstaged-after",
+      "sha256": "590077f15d1ed92070ea8712d796f3cb13fb9381a42e8085abb5978ebcd56fe4"
+    }
+  ],
+  "unexpectedErrors": [],
+  "expectedRefusals": 0,
+  "forbiddenSvgRequests": 0,
+  "nativeAcceptance": false
+}

@@ -78,7 +78,7 @@ describe('Browser Target native settings seam', () => {
       );
       expect(host.textContent).toContain('settings.local');
       await act(async () => host.querySelector('button')!.click());
-      const choice = [...host.querySelectorAll('button')].find(
+      const choice = [...document.querySelectorAll('button')].find(
         (b) => b.textContent === 'settings.container',
       );
       expect(choice).toBeDefined();
@@ -86,7 +86,7 @@ describe('Browser Target native settings seam', () => {
       expect(scope.getSnapshot().value.target).toBe('container');
       for (const target of ['extension', 'daily-control', 'profile-control'] as const) {
         await act(async () => host.querySelector('button')!.click());
-        const next = [...host.querySelectorAll('button')].find(
+        const next = [...document.querySelectorAll('button')].find(
           (button) => button.textContent === `settings.${target}`,
         );
         expect(next).toBeDefined();
@@ -139,7 +139,7 @@ describe('Browser Target native settings seam', () => {
         (button) => button.textContent === 'settings.driver.current',
       )!;
       await act(async () => driver.click());
-      const candidate = [...host.querySelectorAll('button')].find(
+      const candidate = [...document.querySelectorAll('button')].find(
         (button) => button.textContent === 'settings.driver.agent-browser',
       )!;
       await act(async () => candidate.click());
@@ -175,7 +175,7 @@ describe('Browser Target native settings seam', () => {
       expect(picker.textContent).toBe('settings.local');
       expect(picker.getAttribute('aria-haspopup')).toBe('menu');
       await act(async () => picker.click());
-      const choice = [...host.querySelectorAll('button')].find(
+      const choice = [...document.querySelectorAll('button')].find(
         (button) => button.textContent === 'settings.extension',
       )!;
       await act(async () => choice.click());

@@ -1,0 +1,49 @@
+{
+  "batch": 35,
+  "date": "2026-10-19",
+  "platform": "iOS 26 Simulator",
+  "viewport": {
+    "width": 402,
+    "height": 874
+  },
+  "locale": "en-US",
+  "base": "9a51bc6028cdcc7c8beb5a8bfcc30a8a1755f98c",
+  "source": "2bc5aa4ed229c8ed46ee762ae8d8cd0e2f6d5790",
+  "native": "494a20f1eb4f0666a2c90bc3c758af4e7ff5f46b",
+  "ci": 39150908461,
+  "reduceTransparency": [false, true, false],
+  "restored": {
+    "runtimeSummaryEqual": true,
+    "originalDocumentFiles": 2,
+    "originalPreferenceFiles": 1,
+    "filesByteIdentical": true,
+    "newEmptyDraftRemoved": true,
+    "theme": "light",
+    "contentSize": "large",
+    "originalPreferences": true,
+    "ownDriverClosed": true,
+    "ownMetroStopped": true,
+    "sharedCheckoutRestored": true
+  },
+  "noLoginOrCredentialOperations": true,
+  "noHostOrCloudResourceWrites": true,
+  "noProd": true,
+  "screenshots": [
+    "before-join-default-light",
+    "after-join-default-light",
+    "before-join-default-light-review",
+    "after-join-default-light-review",
+    "before-join-default-light-cancel",
+    "after-join-default-light-cancel",
+    "before-pair-empty-light",
+    "after-pair-empty-light",
+    "before-pair-default-light-submit",
+    "after-pair-default-light-submit",
+    "after-pair-default-light-retry",
+    "after-join-max-dark-review",
+    "after-join-max-dark-cancel",
+    "transparency-off",
+    "transparency-on",
+    "transparency-restored"
+  ]
+}

@@ -50,7 +50,7 @@ describe('Inbox workspace Grant', () => {
               },
             },
           };
-        if (endpoint === 'channelSend') {
+        if (endpoint === 'grantRequestApprove') {
           if (state === 'unconfirmed')
             return {
               ok: false,
@@ -60,13 +60,23 @@ describe('Inbox workspace Grant', () => {
           return {
             ok: true,
             value: {
+              grant: {
+                id: 'grant',
+                botSlug: 'ada',
+                workspaceId: 'project',
+                workspacePath: '/chosen/project',
+                workspaceTitle: 'Project',
+                createdAt: '2026-10-01T10:01:00Z',
+                orchestratorWrite: true,
+                writeRevision: 1,
+              },
               message: {
-                id: payload['messageId'],
+                id: 'grant-resolution-request',
                 at: '2026-10-01T10:02:00Z',
                 author: { kind: 'human' },
-                body: payload['body'],
-                replyTo: payload['replyTo'],
-                grantRequestResolution: payload['grantRequestResolution'],
+                body: 'Authorized Project',
+                replyTo: payload['requestMessageId'],
+                grantRequestResolution: { requestMessageId: 'request', grantId: 'grant' },
               },
             },
           };
@@ -115,12 +125,13 @@ describe('Inbox workspace Grant', () => {
       else await expect(submit).rejects.toThrow();
       expect(store.getSnapshot().selection).toEqual({ kind: 'inbox' });
       expect(folders).toEqual(state === 'stale' ? [] : ['/chosen/project']);
-      const sent = calls.find((row) => row.endpoint === 'channelSend');
+      const sent = calls.find((row) => row.endpoint === 'grantRequestApprove');
       if (state !== 'stale')
         expect(sent?.payload).toMatchObject({
           channelId: 'dm-ada',
-          replyTo: 'request',
-          grantRequestResolution: { requestMessageId: 'request', grantId: 'grant' },
+          requestMessageId: 'request',
+          workspaceId: 'project',
+          acknowledgeReadWrite: true,
         });
       expect(store.getSnapshot().humanInbox.items).toHaveLength(state === 'unconfirmed' ? 1 : 0);
     },

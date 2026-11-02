@@ -1,0 +1,35 @@
+{
+  "hostRuntime": "f02c2423bce02c264548193ac738013f4eac83ab",
+  "cloudRuntime": "3eeed5b05782276b1a02cc2412dd04ab0ec60bca",
+  "cases": [
+    {
+      "name": "original Human removed: A cannot replay forward",
+      "code": "CLOUD_WORK_DENIED"
+    },
+    {
+      "name": "original Human removed: B cannot replay execution",
+      "code": "CLOUD_WORK_DENIED"
+    },
+    {
+      "name": "target grant removed: A cannot replay forward",
+      "code": "CLOUD_FORWARD_DENIED"
+    },
+    {
+      "name": "B cannot add a second delegation hop",
+      "code": "FORWARD_LIMIT"
+    },
+    {
+      "name": "A cannot forward to itself",
+      "code": "FORWARD_LIMIT"
+    },
+    {
+      "name": "A cannot execute after committing forwarding",
+      "code": "CLOUD_WORK_CONFLICT"
+    }
+  ],
+  "authorizedReplayAdditionalExecutions": 0,
+  "canonicalExecutionCount": 1,
+  "extraCloudMessages": 0,
+  "scope": "Formal CLI invokes the same native Tool owner on real admitted phone sources. These are completed-request replay fences, not a live revocation race during a new effect.",
+  "restored": true
+}

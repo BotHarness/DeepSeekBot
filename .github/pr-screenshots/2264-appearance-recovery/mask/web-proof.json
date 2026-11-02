@@ -1,0 +1,21 @@
+{
+  "mask": "linear-gradient(rgba(0, 0, 0, 0), rgb(0, 0, 0) min(24px, 20%), rgb(0, 0, 0) calc(100% - 8px), rgba(0, 0, 0, 0) 100%)",
+  "mode": "alpha",
+  "bodyBg": "rgba(0, 0, 0, 0)",
+  "composerMask": "none",
+  "oldTop": false,
+  "pseudo": "none",
+  "count": 32,
+  "edgeChanges": 16399,
+  "middleChanges": 0,
+  "reload": true,
+  "dimensions": {
+    "x": 325.65625,
+    "y": 40,
+    "width": 1110.328125,
+    "height": 856
+  },
+  "baseline": false,
+  "native": false,
+  "errors": []
+}

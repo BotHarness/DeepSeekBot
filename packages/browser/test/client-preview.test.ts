@@ -306,7 +306,12 @@ describe('Container Human viewer', () => {
     const canvas = frameDocument.createElement('canvas');
     const pixels = new Uint8ClampedArray(1024);
     const context = vi
-      .spyOn(Object.getPrototypeOf(canvas) as HTMLCanvasElement, 'getContext')
+      .spyOn(
+        Object.getPrototypeOf(canvas) as {
+          getContext(kind: '2d'): CanvasRenderingContext2D | null;
+        },
+        'getContext',
+      )
       .mockReturnValue({
         drawImage: vi.fn(),
         getImageData: () => ({ data: pixels }),

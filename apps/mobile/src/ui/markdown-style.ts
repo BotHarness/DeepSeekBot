@@ -1,6 +1,7 @@
 import type { MarkdownStyle } from 'react-native-enriched-markdown';
 
 import { edge, radius, space } from './design/tokens';
+import { messageColors } from './design/controls';
 import type { DesignTheme } from './design/theme';
 
 export function markdownStyle(theme: DesignTheme, ink: string): MarkdownStyle {
@@ -18,6 +19,7 @@ export function markdownStyle(theme: DesignTheme, ink: string): MarkdownStyle {
     lineHeight: theme.type.title.line,
   };
   const code = theme.layer.raised.inset;
+  const colors = messageColors(theme);
   return {
     paragraph: body,
     h1: heading,
@@ -36,7 +38,7 @@ export function markdownStyle(theme: DesignTheme, ink: string): MarkdownStyle {
     },
     blockquote: {
       ...body,
-      color: theme.color.muted,
+      color: colors.muted,
       borderColor: theme.color.border,
       borderWidth: edge.focus,
       gapWidth: space.x3,
@@ -44,6 +46,7 @@ export function markdownStyle(theme: DesignTheme, ink: string): MarkdownStyle {
     },
     codeBlock: {
       ...body,
+      color: colors.code,
       fontFamily: theme.mono,
       fontSize: theme.type.meta.size,
       lineHeight: theme.type.meta.line,
@@ -52,8 +55,13 @@ export function markdownStyle(theme: DesignTheme, ink: string): MarkdownStyle {
       borderRadius: radius.sm,
       padding: space.x3,
     },
-    code: { fontFamily: theme.mono, color: ink, backgroundColor: code, borderColor: 'transparent' },
-    link: { color: theme.color.accent, underline: true },
+    code: {
+      fontFamily: theme.mono,
+      color: colors.code,
+      backgroundColor: code,
+      borderColor: 'transparent',
+    },
+    link: { color: colors.link, underline: true },
     strong: { color: ink },
     em: { color: ink },
     strikethrough: { color: ink },

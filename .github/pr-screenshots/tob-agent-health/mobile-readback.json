@@ -1,0 +1,8 @@
+{
+  "exactFourMessages": true,
+  "phoneMemberIdentity": true,
+  "requestResultCorrelation": true,
+  "completedOnce": true,
+  "localDenialZeroExecution": true,
+  "independentCliSessions": true
+}

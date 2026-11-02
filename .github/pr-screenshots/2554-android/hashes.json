@@ -1,0 +1,50 @@
+[
+  {
+    "file": "after-dark.png",
+    "bytes": 81089,
+    "sha256": "0831d11bc5c7f31956c4b5e4a8525492d6d97f277318fd77a2772df55fa201c4",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  },
+  {
+    "file": "after-light.png",
+    "bytes": 85786,
+    "sha256": "0de88d06dd45240075b9c9247b9e348dc4755aa9edb240a7c50b6baf76317fb4",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  },
+  {
+    "file": "before-dark.png",
+    "bytes": 81835,
+    "sha256": "75da3f6caa14890577da80afb6b8cf8f3abdf9d5a36d7466d51348f7de386680",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  },
+  {
+    "file": "before-light.png",
+    "bytes": 85470,
+    "sha256": "44e4fb8a489044a261971ffac92c589b9398596f478ac60e610b91aa08160883",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  },
+  {
+    "file": "oem-after-dark.png",
+    "bytes": 94632,
+    "sha256": "dc9e4fd58edf0facc2f5381281cdd6eacfd8761acb248d1ba14eb15b16b44c35",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  },
+  {
+    "file": "oem-after-light.png",
+    "bytes": 99131,
+    "sha256": "c8af61092c92cf5030dec22c1201578b0feea1b0a711263628ffc52abde47164",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  },
+  {
+    "file": "oem-before-dark.png",
+    "bytes": 96207,
+    "sha256": "0ac9276ea31498c7c8521dae4870d8554e1fae87184370e82cdfd91a7291d671",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  },
+  {
+    "file": "oem-before-light.png",
+    "bytes": 97892,
+    "sha256": "d88812dccacf622041125dc1d823781ec7a0ec50e354d4808442631167d0d351",
+    "processing": "Original1220x2712 crop x0/y130/w1220/h2530 only."
+  }
+]

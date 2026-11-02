@@ -1,5 +1,6 @@
+import { Text } from './primitives/system-text';
 import { useMemo, useRef, useState } from 'react';
-import { Animated, PanResponder, Pressable, Text, useWindowDimensions, View } from 'react-native';
+import { Animated, PanResponder, Pressable, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
@@ -10,12 +11,13 @@ import {
   type FloatingBounds,
   type FloatingPoint,
 } from './floating-position';
-import { t } from './strings';
+import { useStrings } from './strings';
 import { useTheme } from './theme';
 
 let remembered: FloatingPoint | undefined;
 
 export function FloatingExit({ onExit }: { onExit(): void }) {
+  const t = useStrings();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();

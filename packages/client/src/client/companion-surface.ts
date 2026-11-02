@@ -2,6 +2,8 @@ import * as stylex from '@stylexjs/stylex';
 
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 
+export const COMPANION_READ_INSET = 112;
+
 export const COMPANION_FONT = 'var(--dsw-font-markdown-code-block-font-family)';
 export const COMPANION_RAISED = `color-mix(in srgb, ${color.fg} 4%, ${color.base})`;
 const SHADOW = `color-mix(in srgb, ${color.fg} 16%, transparent)`;

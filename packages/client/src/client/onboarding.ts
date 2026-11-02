@@ -1,10 +1,18 @@
 import type { OnboardingSnapshot, TutorialAction } from '../../../core/src/onboarding/types.js';
+import type { ClientTelemetryEventName } from '../../../core/src/telemetry/events.js';
 import type { BridgeActions } from './actions.js';
 import { errorMessage, type ModelRouteView } from './bridge.js';
 import { requestCreation } from './create-request.js';
 import { store } from './store.js';
 import { invalidateModelPlan } from './model-plan-store.js';
 import type { WindowCompanions } from './window-companions.js';
+import type { LayoutMode } from './layout-mode.js';
+import {
+  ONBOARDING_PERSONAS,
+  type OnboardingFeature,
+  type OnboardingPersona,
+  type PersonaDetail,
+} from './onboarding-personas.js';
 import {
   loadChecklistEvidence,
   type ChecklistEvidence,
@@ -30,8 +38,11 @@ export interface OnboardingViewState {
   guideOpen: boolean;
   sessionsTourOpen: boolean;
   checklistOpen: boolean;
+  layoutComplete?: boolean;
+  layoutMode?: LayoutMode | undefined;
   evidence?: ChecklistEvidence | undefined;
   experience?: 'memory' | 'im' | undefined;
+  intro?: { step: number; hidden: boolean } | undefined;
   busy: boolean;
   error?: string | undefined;
 }
@@ -77,9 +88,36 @@ export class OnboardingController {
       this.update({
         receipt,
         error: undefined,
-        guideOpen: justCompleted || receipt.tutorial !== 'active' ? false : this.state.guideOpen,
+        guideOpen:
+          (justCompleted && !(receipt.journey && !receipt.journey.done)) ||
+          receipt.tutorial !== 'active'
+            ? false
+            : this.state.guideOpen,
         checklistOpen: receipt.tutorial !== 'active' ? false : opening || this.state.checklistOpen,
       });
+      if (receipt.journey) {
+        if (first) {
+          try {
+            this.update({
+              layoutComplete:
+                localStorage.getItem(`botharness/onboarding/layout-v2/${receipt.profileId}`) ===
+                '1',
+            });
+          } catch {}
+          setSessionsTourPending(undefined);
+          try {
+            sessionStorage.removeItem('botharness/onboarding/sessions-return');
+          } catch {}
+        }
+        if (action === 'restart') {
+          try {
+            localStorage.removeItem(`botharness/onboarding/layout-v2/${receipt.profileId}`);
+          } catch {}
+          this.update({ layoutComplete: false });
+          this.openIntro();
+        }
+        if (opening) this.revealTob?.();
+      }
       if (opening || (justCompleted && !first)) void this.refreshEvidence();
       if (first) {
         try {
@@ -101,12 +139,90 @@ export class OnboardingController {
           await companion?.start();
           companion?.initializeDefault(receipt.defaultBotSlug);
         }
-        if (receipt.channelId && (select || store.getSnapshot().selection === undefined))
+        if (
+          !receipt.journey &&
+          receipt.channelId &&
+          (select || store.getSnapshot().selection === undefined)
+        )
           await this.actions.openChannel(receipt.channelId);
       }
     } catch (error) {
       this.update({ error: errorMessage(error) });
     }
+  }
+  introPending(): boolean {
+    const receipt = this.state.receipt;
+    if (!receipt?.journey || receipt.journey.done || receipt.tutorial !== 'not-started')
+      return false;
+    try {
+      return localStorage.getItem(introKey(receipt.profileId)) !== '1';
+    } catch {
+      return true;
+    }
+  }
+  openIntro(): void {
+    this.update({ intro: { step: 0, hidden: false } });
+    this.introEvent('onboarding:intro_view');
+    this.introEvent('onboarding:intro_step_view', { step: INTRO_STEPS[0] });
+  }
+  setIntroStep(step: number): void {
+    if (!this.state.intro || this.state.intro.step === step) return;
+    this.update({ intro: { ...this.state.intro, step } });
+    this.introEvent('onboarding:intro_step_view', { step: INTRO_STEPS[step] ?? INTRO_STEPS[0] });
+  }
+  introEvent(event: ClientTelemetryEventName, properties?: Record<string, string | boolean>): void {
+    try {
+      this.actions.telemetryEvent?.(event, properties);
+    } catch {}
+  }
+  hideIntro(hidden: boolean): void {
+    if (this.state.intro) this.update({ intro: { ...this.state.intro, hidden } });
+  }
+  async closeIntro(outcome?: IntroOutcome): Promise<void> {
+    const receipt = this.state.receipt;
+    const intro = this.state.intro;
+    if (!intro) return;
+    this.update({ intro: undefined });
+    const step = INTRO_STEPS[intro.step] ?? INTRO_STEPS[0];
+    if (outcome && 'starter' in outcome) {
+      const { personas = [], details = [], ...rest } = outcome;
+      this.introEvent('onboarding:intro_complete', {
+        ...rest,
+        ...Object.fromEntries(ONBOARDING_PERSONAS.map((id) => [`is_${id}`, personas.includes(id)])),
+        has_detail: details.length > 0,
+      });
+    } else this.introEvent('onboarding:intro_dismiss', { step, via: outcome?.via ?? 'close' });
+    if (!receipt) return;
+    try {
+      localStorage.setItem(introKey(receipt.profileId), '1');
+    } catch {}
+    if (
+      receipt.tutorial === 'not-started' &&
+      document.querySelector('[data-workspace-enabled]') !== null
+    ) {
+      await this.refresh(undefined, 'start', undefined, true);
+      if (this.state.receipt?.tutorial === 'active') this.update({ guideOpen: true });
+    } else this.revealTob?.();
+  }
+  private revealTob: (() => void) | undefined;
+  attachTobConversation(reveal: () => void): () => void {
+    this.revealTob = reveal;
+    return () => {
+      if (this.revealTob === reveal) this.revealTob = undefined;
+    };
+  }
+  private layout: { setMode(mode: LayoutMode): void } | undefined;
+  attachLayout(mode: LayoutMode, owner: { setMode(mode: LayoutMode): void }): () => void {
+    this.layout = owner;
+    if (this.state.layoutMode !== mode) this.update({ layoutMode: mode });
+    return () => {
+      if (this.layout !== owner) return;
+      this.layout = undefined;
+      this.update({ layoutMode: undefined });
+    };
+  }
+  chooseLayout(mode: LayoutMode): void {
+    this.layout?.setMode(mode);
   }
   private companion: WindowCompanions | undefined;
   attachCompanion(companion: WindowCompanions | undefined): void {
@@ -123,6 +239,7 @@ export class OnboardingController {
   async refreshEvidence(): Promise<void> {
     const receipt = this.state.receipt;
     if (!receipt) return;
+    if (receipt.journey) return;
     const target = this.target();
     const present = target !== undefined && this.companion?.get(target.slug) !== undefined;
     const evidence = await loadChecklistEvidence(this.actions, receipt, target, present);
@@ -161,7 +278,11 @@ export class OnboardingController {
   async startTour(): Promise<void> {
     const target = this.target();
     this.closeChecklistForAction();
-    if (target && store.getSnapshot().conversation.channel?.id !== target.channelId)
+    if (
+      !this.state.receipt?.journey &&
+      target &&
+      store.getSnapshot().conversation.channel?.id !== target.channelId
+    )
       await this.actions.openChannel(target.channelId);
     if (this.state.receipt?.tutorial !== 'active') await this.refresh(undefined, 'continue');
     this.update({ guideOpen: true, sessionsTourOpen: false, checklistOpen: false });
@@ -253,6 +374,17 @@ export class OnboardingController {
       this.savePending(undefined);
   }
   finishTour(): void {
+    if (this.state.receipt?.journey) {
+      try {
+        localStorage.setItem(
+          `botharness/onboarding/layout-v2/${this.state.receipt.profileId}`,
+          '1',
+        );
+      } catch {}
+      this.update({ guideOpen: false, checklistOpen: false, layoutComplete: true });
+      if (!this.state.receipt.journey.done) void this.refresh(undefined, 'finish');
+      return;
+    }
     this.update({ guideOpen: false, checklistOpen: this.state.receipt?.tutorial === 'active' });
   }
   pauseGuide(): void {
@@ -261,7 +393,7 @@ export class OnboardingController {
     if (wasOpen && this.state.receipt?.tutorial === 'active') void this.refresh(undefined, 'pause');
   }
   prepareSend(channelId: string, slug: string, body: string): boolean | Promise<boolean> {
-    this.pauseGuide();
+    if (!this.state.receipt?.journey) this.pauseGuide();
     if (!this.state.receipt || this.state.receipt.completed) return true;
     return this.inspectSend(channelId, slug, body).catch((error: unknown) => {
       this.savePending({ channelId, slug, body });
@@ -369,7 +501,24 @@ export class OnboardingController {
     }
   }
 }
+function introKey(profileId: string): string {
+  return `botharness/onboarding/intro-v1/${profileId}`;
+}
+
 const controllers = new WeakMap<BridgeActions, OnboardingController>();
+export const INTRO_STEPS = ['welcome', 'theme', 'model', 'community', 'start'] as const;
+type IntroProfile = {
+  personas?: readonly OnboardingPersona[];
+  details?: readonly PersonaDetail[];
+};
+export type IntroStartOutcome = IntroProfile &
+  (
+    | { starter: 'persona'; persona: OnboardingPersona; feature: OnboardingFeature }
+    | { starter: 'interview' }
+    | { starter: 'own' }
+  );
+export type IntroOutcome = { via: 'skip' | 'close' } | IntroStartOutcome;
+
 export function onboardingFor(actions: BridgeActions): OnboardingController {
   let controller = controllers.get(actions);
   if (!controller) {

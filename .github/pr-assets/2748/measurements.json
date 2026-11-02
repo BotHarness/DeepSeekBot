@@ -1,0 +1,157 @@
+{
+  "testedSource": "8db143ce274dd332198cdd1028d78dc97bce2d3e",
+  "dsh": "0.2.1-rc.3",
+  "clientBundleSha256": "9f859e68491581ab2cde2618c9a6a86f4ed6be492633bbb4227933185e606c2e",
+  "pageExceptions": [],
+  "consoleWarningsOrErrors": [],
+  "buttonPaint": {
+    "idle": {
+      "background": "rgb(67, 69, 74)",
+      "color": "rgb(249, 250, 251)",
+      "opacity": "1",
+      "alpha": 255
+    },
+    "hover": {
+      "background": "color(srgb 0.319843 0.327373 0.345725)",
+      "color": "rgb(122, 170, 255)",
+      "opacity": "1",
+      "alpha": 255
+    },
+    "pressed": {
+      "background": "color(srgb 0.376941 0.384157 0.401255)",
+      "color": "rgb(122, 170, 255)",
+      "opacity": "1",
+      "alpha": 255
+    }
+  },
+  "proofs": [
+    {
+      "step": "unread",
+      "renderedMessages": 41,
+      "distanceFromBottomPx": 1401,
+      "button": "",
+      "composerHeightPx": 52,
+      "timelineRequestsSoFar": 1
+    },
+    {
+      "step": "older",
+      "renderedMessages": 91,
+      "distanceFromBottomPx": 3139,
+      "button": "",
+      "composerHeightPx": 52,
+      "timelineRequestsSoFar": 2
+    },
+    {
+      "step": "newer",
+      "renderedMessages": 141,
+      "distanceFromBottomPx": 3901,
+      "button": "",
+      "composerHeightPx": 52,
+      "timelineRequestsSoFar": 3
+    },
+    {
+      "step": "history",
+      "renderedMessages": 211,
+      "distanceFromBottomPx": 350,
+      "button": "",
+      "composerHeightPx": 52,
+      "timelineRequestsSoFar": 5
+    },
+    {
+      "step": "hover",
+      "renderedMessages": 211,
+      "distanceFromBottomPx": 350,
+      "button": "",
+      "composerHeightPx": 52,
+      "timelineRequestsSoFar": 5
+    },
+    {
+      "step": "pressed",
+      "renderedMessages": 211,
+      "distanceFromBottomPx": 350,
+      "button": "",
+      "composerHeightPx": 52,
+      "timelineRequestsSoFar": 5
+    },
+    {
+      "step": "bottom",
+      "renderedMessages": 211,
+      "distanceFromBottomPx": 0,
+      "button": null,
+      "composerHeightPx": 52,
+      "timelineRequestsSoFar": 5
+    },
+    {
+      "step": "live",
+      "renderedMessages": 214,
+      "distanceFromBottomPx": 533,
+      "button": "3",
+      "composerHeightPx": 52,
+      "timelineRequestsSoFar": 5
+    },
+    {
+      "step": "multiline",
+      "renderedMessages": 214,
+      "distanceFromBottomPx": 450,
+      "button": "",
+      "composerHeightPx": 152,
+      "timelineRequestsSoFar": 6
+    },
+    {
+      "step": "narrow",
+      "renderedMessages": 214,
+      "distanceFromBottomPx": 16294,
+      "button": "",
+      "composerHeightPx": 110,
+      "timelineRequestsSoFar": 6
+    },
+    {
+      "step": "light",
+      "renderedMessages": 214,
+      "distanceFromBottomPx": 16336,
+      "button": "",
+      "composerHeightPx": 152,
+      "timelineRequestsSoFar": 6
+    },
+    {
+      "step": "dark",
+      "renderedMessages": 214,
+      "distanceFromBottomPx": 16336,
+      "button": "",
+      "composerHeightPx": 152,
+      "timelineRequestsSoFar": 6
+    },
+    {
+      "step": "final",
+      "renderedMessages": 214,
+      "distanceFromBottomPx": 16336,
+      "button": "",
+      "composerHeightPx": 152,
+      "timelineRequestsSoFar": 6
+    },
+    {
+      "step": "read-reopen",
+      "renderedMessages": 50,
+      "distanceFromBottomPx": 0,
+      "button": null,
+      "composerHeightPx": 152,
+      "timelineRequestsSoFar": 8
+    },
+    {
+      "step": "paged-before",
+      "renderedMessages": 30,
+      "distanceFromBottomPx": 922,
+      "button": "",
+      "composerHeightPx": 52,
+      "timelineRequestsSoFar": 10
+    },
+    {
+      "step": "paged-latest",
+      "renderedMessages": 50,
+      "distanceFromBottomPx": 0,
+      "button": null,
+      "composerHeightPx": 52,
+      "timelineRequestsSoFar": 11
+    }
+  ]
+}

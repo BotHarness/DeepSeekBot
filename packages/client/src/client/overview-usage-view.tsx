@@ -5,7 +5,7 @@ import {
   IconRefreshOutlineRegular,
   IconRightUpOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';
-import type { OverviewUsage } from '../../../core/src/bridge/methods.js';
+import type { OverviewUsage } from '../../../../apps/mobile/src/host/usage.js';
 import {
   usageOverviewPeriods,
   type UsageOverviewPeriod,
@@ -23,7 +23,9 @@ export function OverviewUsageView({
   actions,
   t,
 }: {
-  actions: BridgeActions;
+  actions: {
+    overviewUsage(period: UsageOverviewPeriod, after?: string): Promise<OverviewUsage>;
+  } & Partial<Pick<BridgeActions, 'openBot'>>;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [period, setPeriod] = useState<UsageOverviewPeriod>('today');
@@ -230,13 +232,13 @@ export function OverviewUsageView({
                           {!bot.current ? <span>{t('overviewUsage.retained')}</span> : null}
                         </span>
                         <strong>{count(bot.totalTokens)}</strong>
-                        {bot.current ? (
+                        {bot.current && actions.openBot !== undefined ? (
                           <button
                             type="button"
                             className="bh-profile-pin"
                             aria-label={`${t('profile.open')}: ${bot.displayName}`}
                             title={`${t('profile.open')}: ${bot.displayName}`}
-                            onClick={() => void actions.openBot(bot.slug, 'profile')}
+                            onClick={() => void actions.openBot?.(bot.slug, 'profile')}
                           >
                             <IconRightUpOutlineRegular size={16} />
                           </button>

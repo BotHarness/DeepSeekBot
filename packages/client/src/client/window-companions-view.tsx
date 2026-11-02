@@ -15,6 +15,7 @@ import { CompanionSound } from './companion-sound.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { BotModePrefs } from './bot-mode-prefs.js';
 import { MessageDeveloperMode } from './message-developer-mode.js';
+import { onboardingFor } from './onboarding.js';
 
 const subscribeWithoutPrefs = (): (() => void) => () => {};
 
@@ -65,6 +66,12 @@ export function WindowCompanionsView({
     () => prefs?.source.getSnapshot().developerMode ?? false,
     () => false,
   );
+  const onboarding = props.actions ? onboardingFor(props.actions) : undefined;
+  const introOpen = useSyncExternalStore(
+    onboarding?.subscribe ?? subscribeWithoutPrefs,
+    () => onboarding?.getSnapshot().intro !== undefined,
+    () => false,
+  );
   const [bubbles] = useState(() => new CompanionBubbles());
   const [frames] = useState(() => new CompanionFrames());
   const [sound] = useState(() => new CompanionSound());
@@ -97,7 +104,7 @@ export function WindowCompanionsView({
   return (
     <MessageDeveloperMode.Provider value={developerMode}>
       <span hidden ref={audioMount} />
-      {state.companions.map((child) => (
+      {(introOpen ? [] : state.companions).map((child) => (
         <WindowCompanionView
           key={child.getSnapshot().selection?.botId}
           {...props}

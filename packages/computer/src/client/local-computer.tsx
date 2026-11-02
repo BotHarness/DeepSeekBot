@@ -1,3 +1,4 @@
+import { localSetupFailure } from './local-setup-copy.js';
 import { useCallback, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -30,6 +31,8 @@ interface LocalStatus {
   target?: string;
   probe?: { available?: boolean; detail?: string };
   status?: {
+    refusal?: string;
+    permissions?: { accessibility: boolean; screenRecording: boolean };
     state?: string;
     phase?: string;
     detail?: string;
@@ -48,11 +51,11 @@ export function LocalComputerStatus({ t }: { t: ComputerTranslate }): ReactEleme
       credentials: 'same-origin',
       ...(signal === undefined ? {} : { signal }),
     });
-    if (!response.ok) throw new Error(`Computer status: HTTP ${String(response.status)}`);
+    if (!response.ok) throw new Error('request-failed');
     const next = (await response.json()) as LocalStatus;
     if (!signal?.aborted) {
       setPayload(next);
-      setError(undefined);
+      setError((old) => (old === 'request-failed' ? undefined : old));
     }
   }, []);
   const resource = useMountedResource<HTMLDivElement>(() => {
@@ -63,8 +66,8 @@ export function LocalComputerStatus({ t }: { t: ComputerTranslate }): ReactEleme
       pending = true;
       try {
         await refresh(AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]));
-      } catch (error) {
-        if (!controller.signal.aborted) setError(String(error));
+      } catch {
+        if (!controller.signal.aborted) setError('request-failed');
       } finally {
         pending = false;
       }
@@ -79,11 +82,17 @@ export function LocalComputerStatus({ t }: { t: ComputerTranslate }): ReactEleme
   const installing = payload?.install?.state === 'installing';
   const preparing = busy || installing || payload?.status?.phase === 'starting';
   const missing = payload?.status?.missing;
-  const failure =
+  const failureDetail =
     error ??
     (payload?.install?.state === 'failed' ? payload.install.text : undefined) ??
     (missing === undefined ? payload?.status?.detail : undefined) ??
     payload?.probe?.detail;
+  const failure =
+    failureDetail === undefined
+      ? undefined
+      : localSetupFailure(error ?? payload?.status?.refusal, t);
+  const permissions =
+    payload?.status?.refusal === 'permissions-required' ? payload.status.permissions : undefined;
   const post = (path: string, body: Record<string, unknown>): void => {
     setBusy(true);
     setError(undefined);
@@ -94,10 +103,14 @@ export function LocalComputerStatus({ t }: { t: ComputerTranslate }): ReactEleme
       body: JSON.stringify(body),
     })
       .then(async (response) => {
-        if (!response.ok) throw new Error(await response.text());
+        if (!response.ok) {
+          const refused = (await response.json().catch(() => ({}))) as { code?: string };
+          setError(refused.code ?? 'request-failed');
+          return;
+        }
         await refresh();
       })
-      .catch((error: unknown) => setError(String(error)))
+      .catch(() => setError('request-failed'))
       .finally(() => setBusy(false));
   };
   const check = (): void => post('./api/computer/start', { authorize: true, target: 'local' });
@@ -153,6 +166,41 @@ export function LocalComputerStatus({ t }: { t: ComputerTranslate }): ReactEleme
               total: formatProgressMiB(download?.totalBytes ?? 0),
             })}
           />
+        ) : null}
+        {permissions ? (
+          <>
+            {!permissions.accessibility ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={preparing}
+                onClick={() =>
+                  post('./api/computer/open-permission-settings', {
+                    authorize: true,
+                    permission: 'accessibility',
+                  })
+                }
+              >
+                {t('local.open.accessibility')}
+              </Button>
+            ) : null}
+            {!permissions.screenRecording ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={preparing}
+                onClick={() =>
+                  post('./api/computer/open-permission-settings', {
+                    authorize: true,
+                    permission: 'screen-recording',
+                  })
+                }
+              >
+                {t('local.open.screen')}
+              </Button>
+            ) : null}
+            <Note>{t('local.permissions.help')}</Note>
+          </>
         ) : null}
         {checkButton}
       </>

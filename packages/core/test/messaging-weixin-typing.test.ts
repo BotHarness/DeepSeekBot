@@ -227,8 +227,9 @@ it('keeps one native lease alive for related Assignment work after the Inbox tur
   await f.receive();
   await vi.waitFor(() => expect(f.typingInputs).toHaveLength(1));
   const created = f.runs[0]!.assignments.create({
+    title: 'Assignment',
     grantId: TEST_GRANT_ID,
-    purpose: 'related WeChat work',
+    description: 'related WeChat work',
   });
   if (created.outcome !== 'created') throw new Error('Assignment refused');
   f.release();
@@ -250,8 +251,9 @@ it('waits for native follow-up acceptance before starting another typing lease',
   const f = await fixture({ deferAssignment: true });
   await f.receive();
   const created = f.runs[0]!.assignments.create({
+    title: 'Assignment',
     grantId: TEST_GRANT_ID,
-    purpose: 'related WeChat work',
+    description: 'related WeChat work',
   });
   if (created.outcome !== 'created') throw new Error('Assignment refused');
   f.release();

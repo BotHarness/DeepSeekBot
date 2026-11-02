@@ -47,7 +47,7 @@ describe('PersonaBot agent preset', () => {
         "      name: '@deepseek-ai/dsh-agent-preset'",
         '      config:',
         '        id: deepseekbot',
-        '        name: DeepSeekBot',
+        '        name: Tobs',
         `        description: '${BOT_PRESET_DESCRIPTION}'`,
         '        order: 5',
         '        plugins:',
@@ -94,6 +94,37 @@ describe('PersonaBot agent preset', () => {
     expect(once).toContain('id: preset-deepseekbot');
     expect(once).not.toContain('\nold\n');
     expect(synced(once, sample)).toBe(once);
+  });
+
+  it.each(['time-context', 'tool-schedule'])(
+    'removes the complete %s block without modifying neighbors',
+    (id) => {
+      const block = [
+        `          - id: ${id}`,
+        `            name: '@deepseek-ai/dsh-${id}'`,
+        '            config:',
+        '              nested:',
+        '                value: true',
+        '',
+        '            disabled: false',
+        '            isolate:',
+        '              clock: true',
+      ].join('\n');
+      const adjacent = '          - id: tool-ask-user';
+      expect(botPreset(sample.replace(adjacent, `${block}\n${adjacent}`))).toBe(botPreset(sample));
+      expect(botPreset(`${sample}${block}`)).toBe(botPreset(sample) + '\n');
+    },
+  );
+
+  it('keeps the native preset loadable at the older supported floor', () => {
+    const generated = botPreset(standardPresetSource(root));
+    expect(generated).not.toContain('@deepseek-ai/dsh-time-context');
+    expect(generated).not.toContain('@deepseek-ai/dsh-tool-schedule');
+    expect(generated).not.toContain('{{cwd}}');
+    expect(generated).toContain('@deepseek-ai/dsh-tool-fs');
+    expect(generated).toContain('deepseekbot/dist/subagent-control.mjs');
+    expect(generated).not.toContain('@deepseek-ai/dsh-tool-subagent-control/list-agents');
+    expect(botPreset(standardPresetSource(root))).toBe(generated);
   });
 
   it('keeps the committed product patch in sync with the installed DSH standard preset', () => {

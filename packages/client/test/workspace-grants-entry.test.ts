@@ -95,7 +95,7 @@ describe('Workspace Grant sidebar', () => {
     }
   });
 
-  it.each(['manual', 'native'] as const)(
+  it.each(['manual', 'native', 'host-native'] as const)(
     'keeps the %s directory preview visible without publishing a Grant change',
     async (kind) => {
       Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -121,7 +121,16 @@ describe('Workspace Grant sidebar', () => {
                 home: '/',
                 truncated: false,
               }))
-            : vi.fn().mockRejectedValue({ rpcError: { code: 'directory-picker/unavailable' } }),
+            : kind === 'host-native'
+              ? vi.fn(async () => ({
+                  path: '/home/ada',
+                  entries: [],
+                  crumbs: [],
+                  home: '/home/ada',
+                  truncated: false,
+                  nativePicker: true,
+                }))
+              : vi.fn().mockRejectedValue({ rpcError: { code: 'directory-picker/unavailable' } }),
         pickWorkspaceFolder: vi.fn(async () => '/native/alias'),
         resolveWorkspaceFolder: vi.fn(async () => ({
           id: 'folder',

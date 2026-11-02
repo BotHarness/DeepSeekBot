@@ -246,6 +246,7 @@ export function Combobox({
               role="listbox"
               aria-label={label}
               className="bh-combobox-list"
+              data-bh-appearance-owned=""
               style={{
                 ...position,
                 width: root.current?.getBoundingClientRect().width ?? 200,

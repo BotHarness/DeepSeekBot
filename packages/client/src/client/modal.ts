@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { Modal as PrimitiveModal } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Modal as PrimitiveModal } from './appearance-primitives.js';
 
 interface ModalBaseProps {
   open: boolean;
@@ -11,6 +11,7 @@ interface ModalBaseProps {
   footer?: ReactNode;
   className?: string;
   contentClassName?: string;
+  backdropBlur?: boolean;
 }
 
 export type ModalProps = ModalBaseProps &

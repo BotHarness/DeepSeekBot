@@ -520,6 +520,21 @@ export const PAGES = [
     },
   },
   {
+    slug: 'docs/mobile-pairing',
+    order: 16,
+    en: {
+      source: 'docs/mobile-pairing.md',
+      title: 'Pair your phone',
+      description:
+        'Install Tailscale, publish DSH on your tailnet and pair the phone app by QR code.',
+    },
+    zh: {
+      source: 'docs/mobile-pairing.zh.md',
+      title: '配对手机',
+      description: '安装 Tailscale，把 DSH 发布到 tailnet，再扫码把手机 App 和电脑配对。',
+    },
+  },
+  {
     slug: 'dev/index',
     order: 0,
     en: {

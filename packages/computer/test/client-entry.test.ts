@@ -152,7 +152,7 @@ describe('Computer channel sidebar entry registration', () => {
       id: 'computer',
       order: 30,
     });
-    expect((rows[0] as { label(): string }).label()).toBe('Computer');
+    expect((rows[0] as { label(): string }).label()).toBe('电脑控制');
     expect(registered).toHaveLength(1);
     expect(registered[0]?.id).toBe('botharness-computer');
     expect(registered[0]?.label).toBe('电脑');

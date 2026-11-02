@@ -1,0 +1,58 @@
+{
+  "applicationSource": "d1b7f4b85",
+  "baseIntegrated": "5e1335f971da",
+  "beforeSource": "b9b9696ec569",
+  "beforeNote": "iOS source matches original main ee8807a601d1 before the new Android chrome merge",
+  "device": "QA iOS27 iPhone17Pro Simulator, 402x874pt",
+  "binary": {
+    "DeepSeekBotDev": "878201dbcf5e818e9e22d55e8e65ef78ad570346a7ca4cfaf5cdbe339438f5fb",
+    "__preview.dylib": "fcc88b6cec4efcbe64572d188ef62a93b99805ac8d90a2ab2be9d3b48de8490f",
+    "DeepSeekBotDev.debug.dylib": "e4ac69ff5869eee8044d275599678ca47242a231afc0455aa19723110e0ed4a9"
+  },
+  "nativeCompatibility": "Batch79 native inputs unchanged; Debug Metro-loaded JS, not a physical Release package",
+  "nativeLayout": "PASS: default/intermediate/maximum system text x light/dark; inspected real screenshots",
+  "nativeActions": {
+    "source": "d1b7f4b85",
+    "coldStart": "PASS",
+    "reset": "activated",
+    "reconnect": "returned to observing",
+    "exit": "returned to Chats",
+    "takeover": "UNVERIFIED: no Simulator drawable presentation receipt",
+    "remoteInput": "UNVERIFIED",
+    "realHaptics": "UNVERIFIED"
+  },
+  "componentFixture": {
+    "source": "5986ccbcb",
+    "sameComponentAsFinal": true,
+    "fiveButtons": "PASS: same row, each46pt high; all callbacks activated",
+    "maximumText": "PASS: pointer buttons second row; labels wrap",
+    "scope": "Native component layout only. Local fixture callbacks, no Host authorization/input bypass. Temporary route removed."
+  },
+  "sourceChecks": {
+    "mobile": "1610passed9skipped",
+    "lint": "PASS",
+    "format": "PASS",
+    "typecheck": "PASS",
+    "twoReviews": "No unresolved findings"
+  },
+  "unverified": [
+    "physical final UI and haptic sensation",
+    "takeover/handback and remote clicks on this candidate: Simulator drawable presentation receipt remains zero",
+    "VoiceOver",
+    "earlier iOS bordered fallback",
+    "Android native acceptance"
+  ],
+  "PiP": "Deferred #2664",
+  "privacy": "Only harmless AppKit QA window in accepted screenshots; private desktop and dev-loader failure captures excluded",
+  "images": {
+    "di.png": "b351e2c40b1e5beae8da5a842d243d52f3b9c0351e2d2a38ae9a0c578e7dfd5f",
+    "dl.png": "9d86664964373b394ac617ad96f34f9562ee6e21233e914b09940b964f79826f",
+    "fl.png": "2f10e3748d353da5b3b37b94c7c69c0f289a74e60cde2535db4e137747dde00e",
+    "ml.png": "2bc69041ae441b6d69a9f1c9c75e10f65a41fd66d1903c6118806ddc69e72ce5",
+    "b.png": "9d1b927f3f061462954b116fe391564d4ab4f779fc42930b1c8673a07664be2f",
+    "a.png": "6199b177508bc6d5a690d1bf2f85938951e0d4434e9a5b4ba921192e85ff3c4c",
+    "d.png": "60cdb5c8480f480df54c7eaf5bedea2fae556c5c855c35977444efdb9606fb03",
+    "mi.png": "7c28710f650fcf60a0c9d355e37f4a2237f0608d0752d6b4344a723658577842",
+    "f.png": "a3152615a25e0d4187d3e803f70ae1497169fc07fdc7ea9ff6bc0ce18bf7d3bb"
+  }
+}

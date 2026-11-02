@@ -44,6 +44,41 @@ async function walk(market: ReturnType<typeof createMarket>, path: string): Prom
 }
 
 describe('Marketplace Worker sort, search and topics', () => {
+  it('breaks star ties by update, creation, then ID across filtered pages', async () => {
+    const market = createMarket();
+    await seed(market, [
+      { name: 'most', stars: 11, pushedAt: '2025-01-01T00:00:00Z' },
+      { name: 'a-update', stars: 10, pushedAt: '2026-10-02T00:00:00Z' },
+      { name: 'b-created', stars: 10, createdAt: '2026-02-01T00:00:00Z' },
+      { name: 'c-created', stars: 10, createdAt: '2026-02-01T00:00:00Z' },
+      { name: 'z-old', stars: 10 },
+      { name: 'few', stars: 1, pushedAt: '2026-10-03T00:00:00Z' },
+      { name: 'excluded', stars: 99, topics: ['botharness-bot', 'research'] },
+    ]);
+    const expected = ['most', 'a-update', 'c-created', 'b-created', 'z-old', 'few'].map(
+      (name) => `alice/${name}`,
+    );
+    for (const limit of [1, 2, 3, 50]) {
+      expect(await walk(market, `/v1/bots?sort=stars&topic=writing&limit=${limit}`)).toEqual(
+        expected,
+      );
+    }
+  });
+
+  it('refuses old or incomplete star cursors instead of skipping tied entries', async () => {
+    const market = createMarket();
+    for (const value of [
+      ['stars', 10, 'R_old'],
+      ['stars', 10, null, '2026-01-01T00:00:00Z', 'R_old'],
+      ['stars', -1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'R_old'],
+    ]) {
+      const cursor = encodeURIComponent(btoa(JSON.stringify(value)));
+      const response = await market.request(`/v1/bots?sort=stars&cursor=${cursor}`);
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ error: { code: 'invalid-cursor' } });
+    }
+  });
+
   it('sorts by stars with node ID tie-breaks across pages', async () => {
     const market = createMarket();
     await seed(market, [
@@ -61,6 +96,27 @@ describe('Marketplace Worker sort, search and topics', () => {
     ]);
   });
 
+  it('sorts by GitHub creation time with node ID tie-breaks across pages', async () => {
+    const market = createMarket();
+    await seed(market, [
+      { name: 'oldest', createdAt: '2025-03-01T00:00:00Z', pushedAt: '2026-10-09T00:00:00Z' },
+      { name: 'newest', createdAt: '2026-09-01T00:00:00Z', pushedAt: '2026-10-01T00:00:00Z' },
+      { name: 'tie-a', createdAt: '2026-05-01T00:00:00Z' },
+      { name: 'tie-b', createdAt: '2026-05-01T00:00:00Z' },
+    ]);
+
+    expect(await walk(market, '/v1/bots?sort=created&limit=1')).toEqual([
+      'alice/newest',
+      'alice/tie-b',
+      'alice/tie-a',
+      'alice/oldest',
+    ]);
+    const first = (await (await market.request('/v1/bots?sort=created&limit=1')).json()) as {
+      bots: { createdAt: string }[];
+    };
+    expect(first.bots[0]?.createdAt).toBe('2026-09-01T00:00:00Z');
+  });
+
   it('refuses a cursor from another sort or mode', async () => {
     const market = createMarket();
     await seed(market, [{ name: 'one' }, { name: 'two' }]);
@@ -68,6 +124,7 @@ describe('Marketplace Worker sort, search and topics', () => {
 
     const cursor = encodeURIComponent(updated.nextCursor ?? '');
     expect((await market.request(`/v1/bots?sort=stars&cursor=${cursor}`)).status).toBe(400);
+    expect((await market.request(`/v1/bots?sort=created&cursor=${cursor}`)).status).toBe(400);
     expect((await market.request(`/v1/bots?q=helpful&cursor=${cursor}`)).status).toBe(400);
   });
 

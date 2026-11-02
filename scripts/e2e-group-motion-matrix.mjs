@@ -130,7 +130,7 @@ const sent = previous
         timer +
         ' and description "Group motion Human QA". No extra commands, files, Assignment or Subagent. After actual successful completion send ' +
         marker +
-        ' with channel_send to this Group, then end.',
+        ' with bot_send_message to this Group, then end.',
       mentions: [
         {
           botSlug: scene.owner.slug,
@@ -389,7 +389,7 @@ async function measure(g, preference, systemReduced, theme, width) {
   for (const a of profile.avatars)
     assert.equal(a.infinite > 0, expected === 'full' && a.state === 'working');
   const geometry = await page.evaluate(() => {
-    const pop = document.querySelector('.bh-profile-popover').getBoundingClientRect();
+    const pop = document.querySelector('.bh-profile-view').getBoundingClientRect();
     const header = document.querySelector('.bh-group-channel-header').getBoundingClientRect();
     return {
       documentOverflow: document.documentElement.scrollWidth > innerWidth,
@@ -426,7 +426,7 @@ async function measure(g, preference, systemReduced, theme, width) {
     geometry,
   });
   await page.keyboard.press('Escape');
-  await page.waitForFunction(() => !document.querySelector('.bh-profile-popover'));
+  await page.waitForFunction(() => !document.querySelector('.bh-profile-view'));
 }
 try {
   await boot();

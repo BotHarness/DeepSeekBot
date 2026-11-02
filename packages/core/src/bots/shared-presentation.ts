@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { lstatSync, readFileSync, realpathSync } from 'node:fs';
 import { isAbsolute, join, relative } from 'node:path';
 
@@ -23,6 +24,9 @@ const IMAGE_TYPES: Record<string, string> = {
   jpeg: 'image/jpeg',
   webp: 'image/webp',
 };
+
+export const AVATAR_RECIPE_FILE = '.botharness/avatar.recipe.json';
+const MAX_AVATAR_RECIPE_BYTES = 1024 * 1024;
 
 export interface SharedPresentation {
   avatar: string;
@@ -53,7 +57,20 @@ export function readSharedPresentation(memoryDir: string): SharedPresentation | 
   const bytes = readInside(memoryDir, avatar.image, MAX_PERSONA_BOT_AVATAR_BYTES);
   if (type === undefined || bytes === undefined) return undefined;
   const dataUrl = `data:${type};base64,${bytes.toString('base64')}`;
-  return isPersonaBotAvatar(dataUrl) ? { avatar: dataUrl } : undefined;
+  if (!isPersonaBotAvatar(dataUrl)) return undefined;
+  return snapshotRecipe(memoryDir, bytes) ?? { avatar: dataUrl };
+}
+
+function snapshotRecipe(memoryDir: string, image: Buffer): SharedPresentation | undefined {
+  const file = readInside(memoryDir, AVATAR_RECIPE_FILE, MAX_AVATAR_RECIPE_BYTES);
+  if (file === undefined) return undefined;
+  try {
+    const parsed = JSON.parse(file.toString('utf8')) as { image?: unknown; recipe?: unknown };
+    if (parsed.image !== createHash('sha256').update(image).digest('hex')) return undefined;
+    return deriveAvatarAppearance(parsed.recipe);
+  } catch {
+    return undefined;
+  }
 }
 
 export function readSharedBanner(memoryDir: string): BotBanner | undefined {

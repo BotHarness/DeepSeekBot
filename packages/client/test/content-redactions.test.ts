@@ -3,7 +3,10 @@ import { createStore, type ChannelMessage, type ChannelSummary } from '../src/cl
 import { mountRosterLive } from '../src/client/channel-live.js';
 import type { BridgeActions } from '../src/client/actions.js';
 import { subscribeMessagingDefaults } from '../src/client/messaging-defaults-live.js';
-import { parseContentRedactions } from '../src/client/content-redactions.js';
+import {
+  createContentRedactions,
+  parseContentRedactions,
+} from '../src/client/content-redactions.js';
 
 const message: ChannelMessage = {
   id: 'message',
@@ -28,6 +31,37 @@ const placements = ['one', 'two'].map((channelId) => ({
   messageId: 'message',
 }));
 const event = () => new MessageEvent('content/purged', { data: JSON.stringify({ placements }) });
+
+it('preserves settled message identity across draft-only updates without skipping purges', () => {
+  const store = createStore();
+  const redactions = createContentRedactions();
+  store.setConversation({ status: 'ready', channel: channel('one'), messages: [message] });
+  const initial = store.getSnapshot().conversation;
+  expect(redactions.conversation(initial)).toBe(initial);
+  for (let revision = 1; revision <= 10; revision++) {
+    store.setConversation({
+      drafts: [
+        {
+          channelId: 'one',
+          draftId: 'draft',
+          attemptId: 'attempt',
+          revision,
+          botSlug: 'ada',
+          body: 'x'.repeat(revision),
+        },
+      ],
+      draftRevision: revision,
+    });
+    expect(store.getSnapshot().conversation.messages).toBe(initial.messages);
+    expect(store.getSnapshot().conversation.channel).toBe(initial.channel);
+  }
+  redactions.accept(placements);
+  const purged = redactions.conversation(store.getSnapshot().conversation);
+  expect(purged.messages).not.toBe(initial.messages);
+  expect(purged.messages[0]?.body).toBe('');
+  expect(purged.messages[0]?.attachments).toBeUndefined();
+  expect(redactions.conversation({ ...purged, messages: [message] }).messages[0]?.body).toBe('');
+});
 
 it('redacts active and cached shared placements, previews, quotes and delayed responses through the live event', () => {
   const store = createStore();

@@ -64,26 +64,45 @@ describe('default shortcut bindings', () => {
     expect(defaults.matches('bot-mode', key('1', 'Digit1', { altKey: true }))).toBe(false);
   });
 
-  it('opens the quick switcher with Ctrl+K, or Command+K on macOS', () => {
+  it('opens the quick switcher with Alt+K, or Option+K on macOS', () => {
+    expect(defaults.matches('quick-switcher', key('k', 'KeyK', { altKey: true }))).toBe(true);
+    expect(mac.matches('quick-switcher', key('˚', 'KeyK', { altKey: true }))).toBe(true);
+    expect(
+      defaults.matches('quick-switcher', key('k', 'KeyK', { altKey: true, shiftKey: true })),
+    ).toBe(false);
+    expect(
+      defaults.matches('quick-switcher', key('k', 'KeyK', { altKey: true, repeat: true })),
+    ).toBe(false);
+    expect(
+      defaults.matches('quick-switcher', key('k', 'KeyK', { altKey: true, altGraph: true })),
+    ).toBe(false);
+    expect(defaults.matches('quick-switcher', key('k', 'KeyV', { altKey: true }))).toBe(true);
+    expect(defaults.text('quick-switcher')).toBe('Alt+K');
+    expect(mac.text('quick-switcher')).toBe('⌥K');
+  });
+
+  it('still opens the quick switcher with Ctrl+K or Command+K where the browser delivers it', () => {
     expect(defaults.matches('quick-switcher', key('k', 'KeyK', { ctrlKey: true }))).toBe(true);
     expect(defaults.matches('quick-switcher', key('K', 'KeyK', { ctrlKey: true }))).toBe(true);
     expect(mac.matches('quick-switcher', key('k', 'KeyK', { metaKey: true }))).toBe(true);
     expect(mac.matches('quick-switcher', key('k', 'KeyK', { ctrlKey: true }))).toBe(false);
     expect(defaults.matches('quick-switcher', key('k', 'KeyK', { metaKey: true }))).toBe(false);
     expect(
-      defaults.matches('quick-switcher', key('k', 'KeyK', { ctrlKey: true, metaKey: true })),
-    ).toBe(false);
-    expect(
       defaults.matches('quick-switcher', key('k', 'KeyK', { ctrlKey: true, shiftKey: true })),
     ).toBe(false);
     expect(
       defaults.matches('quick-switcher', key('k', 'KeyK', { ctrlKey: true, repeat: true })),
     ).toBe(false);
-    expect(defaults.matches('quick-switcher', key('k', 'KeyV', { ctrlKey: true }))).toBe(true);
-    expect(defaults.matches('quick-switcher', key('t', 'KeyK', { ctrlKey: true }))).toBe(false);
     expect(defaults.matches('quick-switcher', key('л', 'KeyK', { ctrlKey: true }))).toBe(true);
-    expect(defaults.text('quick-switcher')).toBe('Ctrl+K');
-    expect(mac.text('quick-switcher')).toBe('⌘K');
+
+    const custom = new ShortcutBindings(undefined, () => false);
+    custom.set('quick-switcher', { code: 'KeyJ', mod: true, alt: false, shift: false });
+    expect(custom.matches('quick-switcher', key('k', 'KeyK', { ctrlKey: true }))).toBe(false);
+
+    const taken = new ShortcutBindings(undefined, () => false);
+    taken.set('bot-mode', { code: 'KeyK', mod: true, alt: false, shift: false });
+    expect(taken.matches('quick-switcher', key('k', 'KeyK', { ctrlKey: true }))).toBe(false);
+    expect(taken.matches('bot-mode', key('k', 'KeyK', { ctrlKey: true }))).toBe(true);
   });
 
   it('maps Alt+↑/↓ to conversation steps, adds Shift for unread, and allows held keys', () => {
@@ -117,6 +136,18 @@ describe('default shortcut bindings', () => {
     ).toBe(false);
     expect(mac.text('unread-prev')).toBe('⌥⇧↑');
     expect(defaults.text('unread-prev')).toBe('Alt+Shift+↑');
+  });
+
+  it('opens Bot settings with Ctrl+, or ⌘+,', () => {
+    expect(defaults.matches('settings', key(',', 'Comma', { ctrlKey: true }))).toBe(true);
+    expect(mac.matches('settings', key(',', 'Comma', { metaKey: true }))).toBe(true);
+    expect(mac.matches('settings', key(',', 'Comma', { ctrlKey: true }))).toBe(false);
+    expect(defaults.matches('settings', key(',', 'Comma', { ctrlKey: true, altKey: true }))).toBe(
+      false,
+    );
+    expect(defaults.matches('settings', key(',', 'Comma'))).toBe(false);
+    expect(defaults.text('settings')).toBe('Ctrl+,');
+    expect(mac.text('settings')).toBe('⌘,');
   });
 
   it('opens the list with Ctrl+/ or ⌘+/', () => {
@@ -167,7 +198,7 @@ describe('recording a binding', () => {
       shortcutBindingProblem(defaults, 'bot-mode', { ...plain, code: 'Enter', mod: true }),
     ).toEqual({ kind: 'reserved' });
     expect(
-      shortcutBindingProblem(defaults, 'bot-mode', { ...plain, code: 'KeyK', mod: true }),
+      shortcutBindingProblem(defaults, 'bot-mode', { ...plain, code: 'KeyK', alt: true }),
     ).toEqual({ kind: 'conflict', action: 'quick-switcher' });
     expect(
       shortcutBindingProblem(defaults, 'bot-mode', { ...plain, code: 'Backquote', alt: true }),
@@ -210,7 +241,7 @@ describe('stored bindings', () => {
 
   it('keeps the old binding when a change is refused', () => {
     const bindings = new ShortcutBindings(undefined, () => false);
-    expect(bindings.set('bot-mode', { code: 'KeyK', mod: true, alt: false, shift: false })).toEqual(
+    expect(bindings.set('bot-mode', { code: 'KeyK', mod: false, alt: true, shift: false })).toEqual(
       { kind: 'conflict', action: 'quick-switcher' },
     );
     expect(bindings.binding('bot-mode')).toEqual(DEFAULT_SHORTCUT_BINDINGS['bot-mode']);
@@ -221,7 +252,7 @@ describe('stored bindings', () => {
     expect(
       parseShortcutBindings(
         JSON.stringify({
-          'bot-mode': { code: 'KeyK', mod: true, alt: false, shift: false },
+          'bot-mode': { code: 'KeyK', mod: false, alt: true, shift: false },
           help: { code: 'KeyH' },
           unknown: { code: 'KeyU', mod: true, alt: false, shift: false },
         }),

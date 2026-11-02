@@ -77,7 +77,7 @@ export function runCliSmoke({
         kind: 'blank',
         args: [
           '--persona',
-          'For CLI QA, reply to each Human DM with a short response using channel_send.',
+          'For CLI QA, reply to each Human DM with a short response using bot_send_message.',
         ],
       },
       ...(zip ? [{ kind: 'zip', args: ['--from-zip', zip] }] : []),
@@ -101,7 +101,7 @@ export function runCliSmoke({
         '--message-id',
         messageId,
         '--body',
-        `[CLI smoke ${messageId}] Please reply briefly using channel_send.`,
+        `[CLI smoke ${messageId}] Please reply briefly using bot_send_message.`,
       ]);
       if (
         reply.receipt?.messageId !== messageId ||
@@ -133,7 +133,7 @@ export function runCliSmoke({
       for (const botId of owned.bots) {
         const preview = command(['bot-delete-preview', botId]);
         const result = command(
-          ['bot-delete-confirm', botId, '--confirmation-stdin'],
+          ['bot-delete-confirm', botId, '--confirmation-stdin', '--confirm'],
           JSON.stringify({ token: preview.preview.token }),
         );
         if (result.deletion?.phase !== 'complete' || result.deletion?.memory !== 'retained')

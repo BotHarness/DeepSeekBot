@@ -35,11 +35,6 @@ export interface CompanionBot {
   requests?: readonly CompanionRequest[];
   avatarSeed?: 2;
 }
-export interface CompanionSnapshot {
-  profileId: string;
-  bot: CompanionBot;
-  activity: PersonaBotActivitySnapshot;
-}
 export interface CompanionMessage {
   generation: string;
   botId: string;

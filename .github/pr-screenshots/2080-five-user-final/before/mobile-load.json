@@ -1,0 +1,50 @@
+{
+  "paint": [
+    {
+      "name": "first-paint",
+      "time": 8320
+    },
+    {
+      "name": "first-contentful-paint",
+      "time": 30812
+    }
+  ],
+  "resources": [
+    {
+      "path": "/plugins/",
+      "duration": 141062,
+      "size": 4216457
+    },
+    {
+      "path": "/plugins/",
+      "duration": 99363.89999999106,
+      "size": 2136528
+    },
+    {
+      "path": "/assets/index-CN7NIWNw.js",
+      "duration": 26463.90000000596,
+      "size": 319890
+    },
+    {
+      "path": "/api/botharness/appearance-control",
+      "duration": 23047.20000000298,
+      "size": 336
+    },
+    {
+      "path": "/assets/vendor-DcuzkuQH.js",
+      "duration": 21998.39999999106,
+      "size": 210391
+    },
+    {
+      "path": "/api/settings/describe",
+      "duration": 10525,
+      "size": 8678
+    }
+  ],
+  "navigation": [
+    {
+      "domContentLoaded": 30761.89999999106,
+      "load": 146287.79999999702
+    }
+  ]
+}

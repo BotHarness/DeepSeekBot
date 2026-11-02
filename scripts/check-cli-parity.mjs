@@ -4,6 +4,8 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { checkUiInventory, INVENTORY_PATH, readUiSurfaces } from './cli-ui-inventory.mjs';
+
 const BASELINE = 'scripts/cli-parity-baseline.json';
 const LABELS = { bridge: 'bridge method', routes: 'Host route', tools: 'Bot tool' };
 
@@ -28,6 +30,7 @@ export function botToolNamesFrom(grantExecutionSource) {
 }
 
 function runner(surface) {
+  if (surface === 'cloud_work') return 'cloud-work';
   if (surface.startsWith('browser_')) return 'browser-tool';
   if (surface.startsWith('computer_')) return 'computer-tool';
   return 'bot-tool';
@@ -114,7 +117,12 @@ function main(root) {
     tools: botToolNamesFrom(read('packages/core/src/workspaces/grant-execution.ts')),
   };
   const baseline = JSON.parse(read(BASELINE));
-  const errors = checkCliParity({ surfaces, cliSource, baseline });
+  const uiSurfaces = readUiSurfaces(root);
+  const inventory = JSON.parse(read(INVENTORY_PATH));
+  const errors = [
+    ...checkCliParity({ surfaces, cliSource, baseline }),
+    ...checkUiInventory(uiSurfaces, inventory, cliSource),
+  ];
   if (errors.length > 0) {
     for (const error of errors) process.stderr.write(`cli-parity ${error}\n`);
     process.exitCode = 1;
@@ -126,7 +134,7 @@ function main(root) {
     0,
   );
   process.stdout.write(
-    `CLI parity holds: ${String(total - open)} of ${String(total)} UI and Bot surfaces have a deepseekbot command; ${String(open)} recorded in ${BASELINE}.\n`,
+    `CLI parity holds: ${String(total - open)} of ${String(total)} bridge/route/tool surfaces have a deepseekbot command; ${String(open)} recorded in ${BASELINE}. ${uiSurfaces.length} supplemental UI/HTTP surfaces reviewed in ${INVENTORY_PATH} (includes tracked gaps, not full capability authorization).\n`,
   );
 }
 

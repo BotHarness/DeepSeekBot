@@ -1,0 +1,23 @@
+{
+  "environment": "uat",
+  "hostedEmailLogin": "passed-human-assisted",
+  "normalNativePkceCallback": true,
+  "emulatorUsed": false,
+  "sessionInjected": false,
+  "bootstrapUserMatches": true,
+  "trustedConfigMatches": true,
+  "freshWorkosSession": true,
+  "refreshRotated": true,
+  "sameSessionAfterRestart": true,
+  "restartRequiresVerification": true,
+  "ownSessionRevoked": true,
+  "latestRefreshRejected": true,
+  "independentCliAdmitted": true,
+  "localAndStoredSessionRemoved": true,
+  "signedOutAfterRestart": true,
+  "configRetained": true,
+  "magicAuthRestoredDisabled": true,
+  "registrationRemainedClosed": true,
+  "credentialEntryRecorded": false,
+  "automatedHostedOtpEntry": "not-qualified"
+}

@@ -1,0 +1,39 @@
+# Connect encrypted channel
+
+## Sub-features
+
+- Host fingerprint: Devices and `connect-status` expose one stable public identity across restart.
+- Pairing: new phone/browser independently compares Host fingerprint; trusted Host approves the exact device key. No ordinary operation works while pending.
+- Traffic: DM, image upload/download, avatar, approval, native private input, push registration and logical streams use the channel.
+- Failure: changed/missing keys, replay, malformed frames, cancellation, revocation and reconnect fail closed without plaintext Connect fallback.
+- Removal: full phone WebView remains absent; Connect Browser/Computer viewers remain unavailable.
+
+## How to get to it (user POV)
+
+Host Settings → Devices shows the Host fingerprint and pending device keys. Pair from the native phone or Add remote in another trusted Host's browser. Compare the complete Host fingerprint with the independent Host display, then compare and approve the device fingerprint on the Host. In chat, open a pending private-input request and choose Fill privately. Activity opens the same native form.
+
+## Driving it with verify-app
+
+Build and launch a named isolated Host with `verify-app`; run doctor with local network/process permissions. Use a second trusted browser Host for remote chat. Enable only a task-owned local connector or specifically authorized real tunnel. Qualify a real phone through the shared QA queue; a browser or Node carrier is not native proof. Use official DeepSeek credentials for a real DM and disposable private input.
+
+Capture HTTP headers/URLs and WebSocket frames at the Connect origin before channel decryption. Compare synthetic sentinels with those bytes; preserve only redacted pass/fail summaries for publication. Read the owning Host's canonical timeline, approval outcome and private-input status. Verify `device-approve-key <receipt> <public-key> --confirm` and `connect-status` against this live Host. Restart the same isolated Profile and verify a stable fingerprint; reconnect must use new ephemeral keys. Revoke the device and verify open streams close.
+
+## Native attachment regression
+
+In the assigned native batch, choose a disposable image from the system picker and send it through Connect. Confirm its thumbnail and the owning Host attachment record, then verify its bytes/name are absent from the outer capture. The React Native Blob does not provide `arrayBuffer()`; the encrypted carrier reads its bytes with native FileReader. A browser Blob test alone does not qualify this path. Read errors and cancellation must send no application request and never retry through the raw carrier.
+
+## Gotchas
+
+- A Node socket mapped from a Connect hostname to a local origin qualifies the application carrier and native DSH dispatch, not Cloudflare reachability or native key storage.
+- The mobile QA queue may be paused. Keep iOS/Android/Human checks explicitly unrun rather than claiming web-export pixels as native evidence.
+- A browser served through an untrusted intermediary is outside the executable-code trust claim. Origin-local storage is not hardware protection.
+- Never capture real credentials or private chats. Only synthetic test input belongs in published evidence.
+- Protocol vectors and peer reviews do not constitute an external security audit.
+
+## Account computer list and multiple additions (#2581)
+
+In the shared device batch, open Pair a computer → DeepSeekBot account with two task-owned online Hosts A/B, one offline registration and one existing pairing. The account identity and Sign out/Delete account belong to one native section; computers to another. Offline and Added rows cannot be selected. No connection-name input appears. Keep all account emails and private runtime identifiers out of public evidence.
+
+Select A/B and Add2: each must expose its own complete Host fingerprint for independent comparison, then its exact phone fingerprint for owner approval. Do not batch-approve keys. After A succeeds and B fails, A remains Added, B retains a specific retryable result. Retry B without re-adding A. Cancel or mismatch during one ceremony stops the remaining queue; Back/dismiss must not later open a stale verification. An alternate account registration returning an already-saved Host ID is refused before a new encrypted channel is opened; do not replace a saved pairing or its credentials.
+
+After both succeed, both are Added, reopening the page prevents repeated selection, and Settings rename still changes only the phone-local name. Verify sign-out and failed/confirmed account deletion using a disposable QA account only; never delete the Human account for acceptance. Capture default/intermediate/maximum text × light/dark with actual native interactions; Android, physical devices and assistive technology stay separately untested until exercised.

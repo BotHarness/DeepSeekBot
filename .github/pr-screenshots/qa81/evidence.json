@@ -1,0 +1,53 @@
+{
+  "applicationSource": "c2d73e77c088284704b74cca61b50506216ba808",
+  "mainIntegrated": "5e1335f971da3e8e865886d57eecd6c63b5f8da3",
+  "device": "QA iOS27 iPhone17Pro Simulator, 402x874pt",
+  "binary": {
+    "DeepSeekBotDev": "878201dbcf5e818e9e22d55e8e65ef78ad570346a7ca4cfaf5cdbe339438f5fb",
+    "__preview.dylib": "fcc88b6cec4efcbe64572d188ef62a93b99805ac8d90a2ab2be9d3b48de8490f",
+    "DeepSeekBotDev.debug.dylib": "e4ac69ff5869eee8044d275599678ca47242a231afc0455aa19723110e0ed4a9"
+  },
+  "nativeCompatibility": "Batch79 installed Debug binary; unchanged native inputs, Metro-loaded application components",
+  "scope": "Native production ComputerVideoStage, ComputerVideoControls and ComputerClickRipple in a temporary local component fixture. Actual XCTest touch events; callbacks emit local feedback with no Host, session authorization or remote input. Fixture removed before delivery.",
+  "nativeResults": {
+    "leftButton": "PASS: blue ripple, local callback",
+    "rightButton": "PASS: orange ripple, local callback",
+    "surfaceTap": "PASS: blue ripple, local callback",
+    "surfaceLongPress": "PASS: orange ripple, local callback",
+    "movedPointer": "PASS: after drag, left/right rings follow changed cursor from 400,300 to 442,258",
+    "releaseAndReenter": "PASS: hidden and no old ripple replay",
+    "firstClickCapture": "First local left callback recorded, but its short animation is absent from the recording; later left button capture proves the rendered effect.",
+    "colors": "Matches main Android feedback: blue left / orange right"
+  },
+  "capture": {
+    "type": "Frames extracted from actual Simulator video, resized to 402x874 without visual edits",
+    "leftAtSeconds": 13.733333333333333,
+    "rightAtSeconds": 15.15,
+    "leftColoredPixelsCentroid": [220.65, 292.01],
+    "rightColoredPixelsCentroid": [221.01, 291.85],
+    "expectedAnchor": [222.105, 294.3117],
+    "centroidNote": "Arrow occlusion and compression shift the colored-pixel centroid; visually inspected ring center matches pointer tip.",
+    "originalRecordingSha256": "41cf4dda0e1d2f28117b72bc43dbef181470abe5e2106da8f156caac23d0e824"
+  },
+  "sourceChecks": {
+    "mobileAndClient": "1631 passed / 9 skipped",
+    "lint": "PASS",
+    "format": "PASS",
+    "rootAndMobileTypes": "PASS",
+    "specReview": "No findings",
+    "standardsReview": "No findings"
+  },
+  "unverified": [
+    "Real Host-accepted remote clicks on this candidate; Simulator native drawable presentation receipt remains zero",
+    "Physical iPhone appearance and haptic sensation",
+    "Real pinch/zoom and Reduce Motion behavior in this native run",
+    "VoiceOver",
+    "Android native acceptance"
+  ],
+  "cleanup": "Temporary fixture removed, app/owned Metro/driver closed; 8106/8107 released; original preferences/drafts/pairings retained; avatar status cache changed only. No phone installation, merge or store publication.",
+  "images": {
+    "l.png": "fb7f0eb9b815201f8077ff31042417d0d83e254bb5c274e1dcf5bc0f945c532d",
+    "b.png": "c612e46ac89edc5dd2a2ca3cf7e314d8bfec9a8b44a1b6a732cf1d299897cfde",
+    "r.png": "d7b7b7f305f9cae54ee1baa0797ad13c720b7cf32847ece5f6395bfd9a003c7b"
+  }
+}

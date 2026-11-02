@@ -1,8 +1,8 @@
 .expo/
 dist/
 dist-web/
-ios/
-android/
+/ios/
+/android/
 expo-env.d.ts
 *.apk
 *.ipa

@@ -1,0 +1,131 @@
+{
+  "issue": 2214,
+  "base": "132b33e3c9965fcb5a01066a134f2744269b2d75",
+  "capturedSource": "ad787e825fc2b55dd9f8d489b83dc3bc4181021b",
+  "before": {
+    "ok": true,
+    "phase": "before",
+    "source": "132b33e3c9965fcb5a01066a134f2744269b2d75",
+    "browser": "Chrome/153.0.8010.36",
+    "exports": 0,
+    "externalRequests": 0,
+    "imageRequests": 2,
+    "pageErrors": [],
+    "expectedRefusals": [],
+    "screenshots": [
+      "current-dark.png",
+      "current-light.png",
+      "history-dark.png",
+      "working-dark.png",
+      "working-narrow.png"
+    ]
+  },
+  "after": {
+    "ok": true,
+    "phase": "after",
+    "hostSource": {
+      "revision": "ad787e825fc2b55dd9f8d489b83dc3bc4181021b",
+      "dirty": false
+    },
+    "source": "ad787e825fc2b55dd9f8d489b83dc3bc4181021b",
+    "browser": "Chrome/153.0.8010.36",
+    "exports": 9,
+    "externalRequests": 1,
+    "imageRequests": 19,
+    "pageErrors": [],
+    "expectedRefusals": ["missing-image:404"],
+    "screenshots": [
+      "current-dark.png",
+      "current-light.png",
+      "enlarged.png",
+      "external-loaded.png",
+      "history-dark.png",
+      "missing-image.png",
+      "source-dark.png",
+      "working-dark.png",
+      "working-lines.png",
+      "working-narrow-after.png",
+      "working-narrow.png"
+    ]
+  },
+  "narrowLayout": [
+    {
+      "x": 13,
+      "y": 106,
+      "width": 674,
+      "height": 1612.625
+    },
+    {
+      "x": 13,
+      "y": 1718.625,
+      "width": 674,
+      "height": 1612.625
+    }
+  ],
+  "exportedFixtures": [
+    {
+      "case": "current",
+      "sha256": "5e24a2657bc82c4cf045d04f6d38bf0a5ec1c8d52da18f83a406863857464410",
+      "bytes": 5059
+    },
+    {
+      "case": "history-after",
+      "sha256": "d827eb144f8efb8a6ee68e6649403baf645cab41f382c1007afde48670ef588b",
+      "bytes": 6364
+    },
+    {
+      "case": "history-before",
+      "sha256": "31449c997aa7d1b397708e4f7843529e4721c44e94c8bb8f8ba6ba90618fbe2e",
+      "bytes": 5974
+    },
+    {
+      "case": "staged-after",
+      "sha256": "31449c997aa7d1b397708e4f7843529e4721c44e94c8bb8f8ba6ba90618fbe2e",
+      "bytes": 5974
+    },
+    {
+      "case": "staged-before",
+      "sha256": "d827eb144f8efb8a6ee68e6649403baf645cab41f382c1007afde48670ef588b",
+      "bytes": 6364
+    },
+    {
+      "case": "unstaged-after",
+      "sha256": "5e24a2657bc82c4cf045d04f6d38bf0a5ec1c8d52da18f83a406863857464410",
+      "bytes": 5059
+    },
+    {
+      "case": "unstaged-before",
+      "sha256": "31449c997aa7d1b397708e4f7843529e4721c44e94c8bb8f8ba6ba90618fbe2e",
+      "bytes": 5974
+    },
+    {
+      "case": "working-after",
+      "sha256": "5e24a2657bc82c4cf045d04f6d38bf0a5ec1c8d52da18f83a406863857464410",
+      "bytes": 5059
+    },
+    {
+      "case": "working-before",
+      "sha256": "d827eb144f8efb8a6ee68e6649403baf645cab41f382c1007afde48670ef588b",
+      "bytes": 6364
+    }
+  ],
+  "checks": {
+    "focusedTests": 118,
+    "testFiles": 10,
+    "lint": "passed",
+    "format": "passed",
+    "typecheck": "passed (including mobile types)",
+    "build": "passed",
+    "anonymousImageAccess": "HTTP 401",
+    "staleDocumentExport": "memory-image-stale; no output file created",
+    "humanQa": "pending",
+    "nativeDevice": "not run",
+    "fullCi": "pending"
+  },
+  "limits": [
+    "Web Markdown and local PNG only",
+    "External image uses a browser-intercepted synthetic HTTPS response; this proves explicit loading, not arbitrary third-party availability",
+    "Expected missing-image HTTP 404 is separate from unexpected browser errors",
+    "Subsequent evidence commit changes only this packet; captured production source is recorded separately"
+  ]
+}

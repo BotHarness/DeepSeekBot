@@ -1,0 +1,72 @@
+{
+  "codeHead": "2230f8c2145e028006c15f283cde926ff2b44889",
+  "viewport": "430x932",
+  "results": [
+    {
+      "variant": "before",
+      "kind": "dm",
+      "theme": "light",
+      "headerBack": "Activity",
+      "noticeButton": "Activity (bug reproduced)",
+      "result": "pass"
+    },
+    {
+      "variant": "after",
+      "kind": "dm",
+      "theme": "light",
+      "headerBack": "Activity",
+      "noticeButton": "Chats (fixed)",
+      "result": "pass"
+    },
+    {
+      "variant": "before",
+      "kind": "channel",
+      "theme": "light",
+      "headerBack": "Activity",
+      "noticeButton": "Activity (bug reproduced)",
+      "result": "pass"
+    },
+    {
+      "variant": "after",
+      "kind": "channel",
+      "theme": "light",
+      "headerBack": "Activity",
+      "noticeButton": "Chats (fixed)",
+      "result": "pass"
+    },
+    {
+      "variant": "before",
+      "kind": "dm",
+      "theme": "dark",
+      "headerBack": "Activity",
+      "noticeButton": "Activity (bug reproduced)",
+      "result": "pass"
+    },
+    {
+      "variant": "after",
+      "kind": "dm",
+      "theme": "dark",
+      "headerBack": "Activity",
+      "noticeButton": "Chats (fixed)",
+      "result": "pass"
+    },
+    {
+      "variant": "before",
+      "kind": "channel",
+      "theme": "dark",
+      "headerBack": "Activity",
+      "noticeButton": "Activity (bug reproduced)",
+      "result": "pass"
+    },
+    {
+      "variant": "after",
+      "kind": "channel",
+      "theme": "dark",
+      "headerBack": "Activity",
+      "noticeButton": "Chats (fixed)",
+      "result": "pass"
+    }
+  ],
+  "pageErrors": [],
+  "consoleErrors": []
+}

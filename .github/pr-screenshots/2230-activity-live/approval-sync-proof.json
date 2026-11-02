@@ -1,0 +1,41 @@
+{
+  "proofs": [
+    {
+      "clickedSurface": "activity",
+      "requestMessageId": "47c30d6a-2461-4a4b-bee8-fbeb222de735",
+      "sourceEventId": "7c7a7bd5-c90e-4cfa-812c-abf4ace3de30",
+      "decisionMessageId": "482b3f13-6b9f-40fd-bb06-5b8d9d11baa5",
+      "outcome": "allowed-once",
+      "canonicalDecisionCount": 1,
+      "activityMs": 475,
+      "conversationMs": 131,
+      "fileEffect": "APPROVE_2230_ACTIVITY",
+      "conversationText": "\u7ec8\u7aef \u00b7 \u5df2\u5141\u8bb805:17"
+    },
+    {
+      "clickedSurface": "conversation",
+      "requestMessageId": "c298a589-90f8-4651-832c-f9cf0e1aa689",
+      "sourceEventId": "c5411443-9499-49f6-a2ff-737a2426270d",
+      "decisionMessageId": "02040221-e48e-4d95-bedc-586a5ca9ecbc",
+      "outcome": "allowed-once",
+      "canonicalDecisionCount": 1,
+      "activityMs": 513,
+      "conversationMs": 155,
+      "fileEffect": "APPROVE_2230_CONVERSATION",
+      "conversationText": "\u7ec8\u7aef \u00b7 \u5df2\u5141\u8bb805:17"
+    }
+  ],
+  "errors": [],
+  "sockets": [
+    {
+      "role": "activity",
+      "path": "/api/remote.mux"
+    },
+    {
+      "role": "conversation",
+      "path": "/api/remote.mux"
+    }
+  ],
+  "sourceHead": "5cd9a6faee288aa3cc641011875f3a50af6f13f5",
+  "browserConsoleErrors": []
+}

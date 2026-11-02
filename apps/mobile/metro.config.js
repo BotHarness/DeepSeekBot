@@ -59,4 +59,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   return context.resolveRequest(context, moduleName, platform);
 };
 
-module.exports = config;
+module.exports =
+  process.env.BOTHARNESS_MOBILE_WEB_PREVIEW === '1'
+    ? require('./scripts/web-preview/metro.cjs')(config)
+    : config;

@@ -47,9 +47,19 @@
 
 ## 本地开发
 
-工具链与检查命令以 [AGENTS.md](AGENTS.md#commands) 为准；从 [README 开发入口](README.md#docs) 和[隔离实例指南](docs/client-bridge.md#7-本地开发环路dsh-020-rc1) 开始。使用隔离 Profile，凭据留在本机，不操作其他贡献者正在运行的实例。
+工具链与检查命令以 [AGENTS.md](AGENTS.md#commands) 为准；从 [README 开发入口](README.md#docs) 和[隔离实例指南](docs/client-bridge.md#7-本地开发环路dsh-020-rc2) 开始。使用隔离 Profile，凭据留在本机，不操作其他贡献者正在运行的实例。
 
 先跑相关检查，再按需要扩展。记录真实命令和结果，没跑或被阻塞的检查明确说明。避免无关重构和修改生成文件；涉及边界时再读[产品术语](CONTEXT.zh.md)和[架构](docs/architecture/botharness-architecture.md)。
+
+运行 `pnpm install` 后，提交前钩子会使用与 CI 相同的 oxfmt 配置格式化暂存文件，包括 `.github/pr-screenshots/` 下的 Markdown。lint-staged 会还原部分暂存文件中的未暂存修改，不会格式化其他未暂存文件。推送前运行 `pnpm format:check` 检查整个仓库。
+
+### Expo / React Native App 贡献
+
+修改手机端 UI 前，阅读[移动端开发指南](apps/mobile/AGENTS.md)和[系统字号与大字验收规范](apps/mobile/DESIGN.md#system-text-and-large-text-acceptance)。
+
+- 通过共享组件遵循 iOS 语义动态字号与 Android 原生字体缩放。同时调整换行、行高、元信息、弹层和编辑空间；不要通过关闭缩放、缩小文字或全局限制字号掩盖布局问题。键盘展开时，核心内容和操作仍须可用。
+- 对受影响流程，在两个平台分别检查默认、中等放大和最大系统字号，以及浅色、深色外观。使用真实系统设置，实际操作控件，验证切换字号后的草稿/查询保留和真实结果。记录准确档位/倍率及被阻塞、未运行的项目；一个平台通过不代表另一个平台通过。
+- 原生 QA 先进入[共享设备队列](docs/agents/device-qa.md)。PR 附同条件、脱敏的原生前后截图，并确认可加载。源码测试、Web 预览、原生交互与 Human 验收分别记录。各类页面的交互矩阵和截图要求以该规范为准。
 
 ## PR 与评审
 

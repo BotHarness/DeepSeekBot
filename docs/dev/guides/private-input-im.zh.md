@@ -20,7 +20,7 @@
 【IM-PRIVATE-A】用 ask_secret 请求账号 im-demo 的三个必填字段：
 endpoint（私密 URL）、api_key（API key）、api_secret（API secret）。
 等待 Owner 在 Web Chat 私密卡填写；随后用 protected_cli 的
-http-status-v1 消费返回的引用。通过 bridge_reply 在原会话只报告
+http-status-v1 消费返回的引用。通过 bot_send_message 在原会话只报告
 HTTP 状态和成功与否。不要在 IM 收集或发送私密值、引用或配置详情。
 ```
 

@@ -92,8 +92,19 @@ Made bot work visible and dependable.
 
     const englishDirectory = resolve(root, "content/changelog");
     const chineseDirectory = resolve(root, "content/changelog-zh");
-    expect(readdirSync(englishDirectory)).toEqual(["development.mdx", "v1.0.1.mdx", "v1.0.2.mdx", "v1.1.0.mdx", "v1.2.0.mdx", "v1.2.1.mdx", "v1.3.0.mdx", "v1.3.1.mdx"]);
-    expect(readdirSync(chineseDirectory)).toEqual(["development.mdx", "v1.0.1.mdx", "v1.0.2.mdx", "v1.1.0.mdx", "v1.2.0.mdx", "v1.2.1.mdx", "v1.3.0.mdx", "v1.3.1.mdx"]);
+    const englishLedger = readFileSync(resolve(ROOT, "CHANGELOG.md"), "utf8");
+    const chineseLedger = readFileSync(resolve(ROOT, "CHANGELOG.zh.md"), "utf8");
+    const expectedFiles = (ledger: string) => [
+      "development.mdx",
+      ...Array.from(
+        ledger.matchAll(/^## \[(\d+\.\d+\.\d+(?:-[^\]]+)?)\] - \d{4}-\d{2}-\d{2}$/gm),
+        ([, version]) => `v${version}.mdx`,
+      ),
+    ].sort();
+    expect(expectedFiles(englishLedger)).toContain("v1.4.0.mdx");
+    expect(expectedFiles(chineseLedger)).toEqual(expectedFiles(englishLedger));
+    expect(readdirSync(englishDirectory).sort()).toEqual(expectedFiles(englishLedger));
+    expect(readdirSync(chineseDirectory).sort()).toEqual(expectedFiles(chineseLedger));
 
     const english = readFileSync(resolve(englishDirectory, "development.mdx"), "utf8");
     const chinese = readFileSync(resolve(chineseDirectory, "development.mdx"), "utf8");

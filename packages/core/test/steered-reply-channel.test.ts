@@ -5,7 +5,7 @@ import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
 
 describe('reply Channel in a turn that carries several Channels', () => {
-  it('refuses an unaddressed channel_send after a message from another Channel was steered in', async () => {
+  it('refuses an unaddressed bot_send_message after a message from another Channel was steered in', async () => {
     let ready!: (run: OrchestratorAgentRun) => void;
     let release!: () => void;
     const started = new Promise<OrchestratorAgentRun>((resolve) => {
@@ -66,7 +66,7 @@ describe('reply Channel in a turn that carries several Channels', () => {
       expect(steered[0]).toContain(`Channel: ${dm.id}`);
 
       await expect(run.channels.send({ body: 'Private answer' })).rejects.toThrow(
-        `This turn carries messages from several Channels: Group "Team" (channel_id "${group.id}"); Human DM (channel_id "${dm.id}"). Call channel_send again with channel_id`,
+        `This turn carries messages from several Channels: Group "Team" (channel_id "${group.id}"); Human DM (channel_id "${dm.id}"). Call bot_send_message with the trusted source_event_id`,
       );
       const quoted = await run.channels.send({ replyTo: 'steered-dm', body: 'Quoted answer' });
       expect(core.channels.message(dm.id, quoted.id)?.body).toBe('Quoted answer');

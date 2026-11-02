@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -18,9 +18,22 @@ afterEach(async () => {
   );
 });
 
-async function host(handler: (method: string, args: Record<string, unknown>) => unknown) {
+async function host(
+  handler: (method: string, args: Record<string, unknown>) => unknown,
+  media?: { status: number; body: Uint8Array | string },
+) {
   const calls: Array<{ method: string; args: Record<string, unknown> }> = [];
+  const downloads: Array<{ url: string; authorized: boolean }> = [];
   const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+    if (media && req.url?.startsWith('/api/botharness/attachment?')) {
+      downloads.push({ url: req.url, authorized: req.headers.cookie === 'authority=signed' });
+      res
+        .writeHead(media.status, {
+          'content-type': media.status === 200 ? 'application/octet-stream' : 'application/json',
+        })
+        .end(media.body);
+      return;
+    }
     if (req.method === 'GET') {
       res.setHeader('set-cookie', 'authority=signed; HttpOnly');
       res.writeHead(302, { location: '/' }).end();
@@ -44,7 +57,7 @@ async function host(handler: (method: string, args: Record<string, unknown>) => 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('missing address');
-  return { url: `http://127.0.0.1:${address.port}`, calls };
+  return { url: `http://127.0.0.1:${address.port}`, calls, downloads };
 }
 
 async function invoke(argv: string[], url: string, stdin = '') {
@@ -65,6 +78,315 @@ const ok = (method: string, args: Record<string, unknown>) => ({
 });
 
 describe('Channel and group CLI commands', () => {
+  it('routes recovery and current context inspection through the same Host commands', async () => {
+    const live = await host(ok);
+    expect(
+      (
+        await invoke(
+          [
+            'channel-retry',
+            'dm',
+            '--message-id',
+            'request',
+            '--recovery',
+            'compact',
+            '--failure-message-id',
+            'failure',
+          ],
+          live.url,
+        )
+      ).json,
+    ).toMatchObject({
+      method: 'channelRetry',
+      args: {
+        channelId: 'dm',
+        messageId: 'request',
+        recovery: 'compact',
+        failureMessageId: 'failure',
+      },
+    });
+    expect((await invoke(['bot-context', 'ada'], live.url)).json).toMatchObject({
+      method: 'botContext',
+      args: { slug: 'ada' },
+    });
+    expect((await invoke(['bot-system-prompt', 'ada'], live.url)).json).toMatchObject({
+      method: 'botSystemPrompt',
+      args: { slug: 'ada' },
+    });
+    expect(
+      (await invoke(['bot-turn-input', 'ada', '--turns', '2', '--session', 'sess-1'], live.url))
+        .json,
+    ).toMatchObject({
+      method: 'botTurnInput',
+      args: { slug: 'ada', sessionId: 'sess-1', turns: 2 },
+    });
+    expect(
+      (await invoke(['bot-turn-input', 'ada', '--session', 'direct'], live.url)).code,
+    ).not.toBe(0);
+  });
+  it('routes Prompt Preset commands with their part edits from stdin', async () => {
+    const live = await host(ok);
+    expect((await invoke(['prompt-parts'], live.url)).json).toMatchObject({
+      method: 'promptParts',
+    });
+    expect(
+      (
+        await invoke(
+          ['prompt-preset-create', '--name', 'Quiet', '--parts-stdin'],
+          live.url,
+          '{"triage":"Close it."}',
+        )
+      ).json,
+    ).toMatchObject({
+      method: 'promptPresetCreate',
+      args: { name: 'Quiet', parts: { triage: 'Close it.' } },
+    });
+    expect(
+      (
+        await invoke(
+          ['prompt-preset-update', 'p1', '--name', 'Calm', '--expected-revision', '2'],
+          live.url,
+        )
+      ).json,
+    ).toMatchObject({
+      method: 'promptPresetUpdate',
+      args: { id: 'p1', name: 'Calm', expectedRevision: 2 },
+    });
+    expect((await invoke(['prompt-preset-delete', 'p1'], live.url)).code).not.toBe(0);
+    expect((await invoke(['prompt-global-set', 'built-in'], live.url)).json).toMatchObject({
+      method: 'promptGlobalSet',
+      args: { presetId: null },
+    });
+    expect(
+      (
+        await invoke(
+          ['bot-prompt-set', 'ada', '--preset', 'global', '--parts-stdin'],
+          live.url,
+          '{"silence":null}',
+        )
+      ).json,
+    ).toMatchObject({
+      method: 'botPromptSet',
+      args: { slug: 'ada', presetId: null, parts: { silence: null } },
+    });
+    expect(
+      (
+        await invoke(
+          [
+            'bot-prompt-set',
+            'ada',
+            '--prompt-limit',
+            'dm-context-chars=4000',
+            '--prompt-limit',
+            'review-tool-calls=default',
+          ],
+          live.url,
+        )
+      ).json,
+    ).toMatchObject({
+      method: 'botPromptSet',
+      args: { slug: 'ada', limits: { 'dm-context-chars': 4000, 'review-tool-calls': null } },
+    });
+    expect((await invoke(['bot-prompt', 'ada'], live.url)).json).toMatchObject({
+      method: 'botPrompt',
+      args: { slug: 'ada' },
+    });
+  });
+  it('reads group snapshots and forwards stable create and invite identity without changing unkeyed calls', async () => {
+    const live = await host(ok);
+    expect((await invoke(['channel', 'team'], live.url)).json).toMatchObject({
+      method: 'channelGet',
+      args: { channelId: 'team' },
+    });
+    expect((await invoke(['group-create', 'Empty team'], live.url)).code).toBe(0);
+    expect(live.calls.at(-1)).toEqual({
+      method: 'channelCreate',
+      args: { name: 'Empty team', members: [] },
+    });
+    expect(
+      (
+        await invoke(
+          [
+            'group-create',
+            'Team',
+            '--member',
+            'ada',
+            '--member',
+            'bob',
+            '--operation-key',
+            'team-create-1',
+          ],
+          live.url,
+        )
+      ).code,
+    ).toBe(0);
+    expect(live.calls.at(-1)).toEqual({
+      method: 'channelCreate',
+      args: { name: 'Team', members: ['ada', 'bob'], operationKey: 'team-create-1' },
+    });
+    expect(
+      (
+        await invoke(
+          [
+            'group-invite',
+            'team',
+            '--bot',
+            'ada',
+            '--operation-key',
+            'team-invite-1',
+            '--expected-channel',
+            'fingerprint',
+          ],
+          live.url,
+        )
+      ).code,
+    ).toBe(0);
+    expect(live.calls.at(-1)).toEqual({
+      method: 'channelGroupInvite',
+      args: {
+        channelId: 'team',
+        botSlug: 'ada',
+        operationKey: 'team-invite-1',
+        expectedChannel: 'fingerprint',
+      },
+    });
+    expect((await invoke(['group-invite', 'team', '--bot', 'ada'], live.url)).code).toBe(0);
+    expect(live.calls.at(-1)).toEqual({
+      method: 'channelGroupInvite',
+      args: { channelId: 'team', botSlug: 'ada' },
+    });
+  });
+
+  it('rejects invalid operation identity before connecting and preserves owner refusal codes', async () => {
+    const live = await host(() => ({
+      ok: false,
+      error: { code: 'stale-channel', message: 'Channel changed' },
+    }));
+    for (const argv of [
+      ['group-create', 'Team', '--operation-key', 'short'],
+      ['group-invite', 'team', '--bot', 'ada', '--operation-key', 'bad key value'],
+      ['group-invite', 'team', '--bot', 'ada', '--expected-channel', ''],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([]);
+    const refused = await invoke(
+      ['group-invite', 'team', '--bot', 'ada', '--expected-channel', 'old'],
+      live.url,
+    );
+    expect(refused.code).not.toBe(0);
+    expect(refused.json.error.code).toBe('stale-channel');
+  });
+
+  it('forwards optional observed fingerprints on Human Group changes and preserves unguarded compatibility', async () => {
+    const live = await host(ok);
+    const expectedChannel = 'b'.repeat(64);
+    const commands = [
+      ['channel-rename', 'team', '--name', 'New name'],
+      ['group-avatar-set', 'team', '--clear'],
+      ['group-wake-set', 'team', '--bot', 'ada', '--mode', 'mentions'],
+      ['group-wake-set', 'team', '--bot', 'ada', '--inherit'],
+      ['group-member-remove', 'team', '--bot', 'ada'],
+      ['group-invite-cancel', 'team', '--invitation', 'invite-1'],
+      ['group-join-decide', 'team', '--request', 'request-1', '--accept'],
+      ['group-join-decide', 'team', '--request', 'request-2', '--decline'],
+    ];
+    for (const argv of commands) {
+      expect((await invoke(argv, live.url)).code).toBe(0);
+      const original = live.calls.at(-1)!;
+      expect((await invoke([...argv, '--expected-channel', expectedChannel], live.url)).code).toBe(
+        0,
+      );
+      expect(live.calls.at(-1)).toEqual({
+        ...original,
+        args: { ...original.args, expectedChannel },
+      });
+    }
+    const count = live.calls.length;
+    for (const argv of commands) {
+      for (const invalid of ['', 'old', 'A'.repeat(64)])
+        expect(
+          (await invoke([...argv, '--expected-channel', invalid], live.url)).json.error.code,
+        ).toBe('usage');
+    }
+    for (const command of ['group-wake-policies', 'channel', 'group-delete'])
+      expect(
+        (await invoke([command, 'team', '--expected-channel', expectedChannel], live.url)).json
+          .error.code,
+      ).toBe('usage');
+    expect(live.calls).toHaveLength(count);
+  });
+
+  it('downloads exact original bytes with owner authorization without overwriting an existing file', async () => {
+    const bytes = Buffer.from('name,quantity\nalpha,17\n');
+    const live = await host(ok, { status: 200, body: bytes });
+    const path = join(mkdtempSync(join(tmpdir(), 'cli-source-media-')), 'original.csv');
+    const args = [
+      'channel-media-download',
+      'group',
+      '--source-event',
+      'source',
+      '--attachment',
+      'file',
+      '--out',
+      path,
+    ];
+    const result = await invoke(args, live.url);
+    expect(result.code).toBe(0);
+    expect(readFileSync(path)).toEqual(bytes);
+    expect(result.json.download).toMatchObject({
+      path,
+      bytes: bytes.byteLength,
+      mime: 'application/octet-stream',
+    });
+    expect(live.downloads).toEqual([
+      {
+        url: '/api/botharness/attachment?channelId=group&sourceEventId=source&attachmentId=file',
+        authorized: true,
+      },
+    ]);
+    writeFileSync(path, 'local edits');
+    expect((await invoke(args, live.url)).json.error.code).toBe('output-exists');
+    expect(readFileSync(path, 'utf8')).toBe('local edits');
+    const refused = await host(ok, {
+      status: 403,
+      body: JSON.stringify({
+        error: { code: 'source-unavailable', message: 'Attachment source is unavailable' },
+      }),
+    });
+    const denied = await invoke(args, refused.url);
+    expect(denied.code).not.toBe(0);
+    expect(denied.json.error.code).toBe('source-unavailable');
+    expect((await invoke(args.slice(0, -2), live.url)).json.error.code).toBe('usage');
+  });
+  it('resolves source media with Channel authority and preserves coded refusals', async () => {
+    const live = await host(ok);
+    const args = [
+      'channel-media-target',
+      'group',
+      '--source-event',
+      'source',
+      '--attachment',
+      'media',
+    ];
+    const resolved = await invoke(args, live.url);
+    expect(resolved.code, JSON.stringify(resolved.json)).toBe(0);
+    expect(live.calls).toEqual([
+      {
+        method: 'channelMediaTarget',
+        args: { channelId: 'group', sourceEventId: 'source', attachmentId: 'media' },
+      },
+    ]);
+    const refused = await host(() => ({
+      ok: false,
+      error: { code: 'source-unavailable', message: 'source-unavailable' },
+    }));
+    const result = await invoke(args, refused.url);
+    expect(result.code).not.toBe(0);
+    expect(result.json.error.code).toBe('source-unavailable');
+    for (const invalid of [args.slice(0, 2), [...args, '--source-event', 'other']])
+      expect((await invoke(invalid, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toHaveLength(1);
+  });
   it('maps each command to the bridge method and arguments the Web UI uses', async () => {
     const live = await host(ok);
     const png = join(mkdtempSync(join(tmpdir(), 'cli-channels-')), 'avatar.png');
@@ -117,6 +439,7 @@ describe('Channel and group CLI commands', () => {
       [['channel-react', 'grp-1', '--message-id', 'm-1', '--emoji', '👍']],
       [['channel-react', 'grp-1', '--message-id', 'm-1', '--emoji', '👍', '--remove']],
       [['channel-search', 'grp-1', '--query', 'launch', '--cursor', 'c-2', '--limit', '5']],
+      [['message-search', '--query', '搜索', '--cursor', 'c-3', '--limit', '8']],
       [['channel-unread']],
       [['channel-mute', 'grp-1']],
       [['channel-mute', 'grp-1', '--off']],
@@ -206,6 +529,7 @@ describe('Channel and group CLI commands', () => {
         method: 'channelSearch',
         args: { channelId: 'grp-1', text: 'launch', cursor: 'c-2', limit: 5 },
       },
+      { method: 'messageSearch', args: { text: '搜索', cursor: 'c-3', limit: 8 } },
       { method: 'channelUnreadCounts', args: {} },
       { method: 'channelMuteSet', args: { channelId: 'grp-1', muted: true } },
       { method: 'channelMuteSet', args: { channelId: 'grp-1', muted: false } },
@@ -267,6 +591,8 @@ describe('Channel and group CLI commands', () => {
       [['channel-react', 'grp-1', '--message-id', 'm-1']],
       [['channel-search', 'grp-1']],
       [['channel-search', 'grp-1', '--query', 'x', '--limit', '51']],
+      [['message-search']],
+      [['message-search', 'grp-1', '--query', 'x']],
       [['channel-bot-stop', 'dm-ada']],
     ];
     for (const [argv, stdin] of refused) {
@@ -305,4 +631,19 @@ describe('Channel and group CLI commands', () => {
       message: 'Ada is not working right now',
     });
   });
+});
+
+it('reads and explicitly toggles Group send review through the live CLI', async () => {
+  const live = await host(ok);
+  for (const args of [[], ['--accept'], ['--off']]) {
+    expect((await invoke(['group-send-review', 'group', ...args], live.url)).code).toBe(0);
+  }
+  expect(live.calls.map((call) => call.args)).toEqual([
+    { channelId: 'group' },
+    { channelId: 'group', enabled: true },
+    { channelId: 'group', enabled: false },
+  ]);
+  expect(
+    (await invoke(['group-send-review', 'group', '--accept', '--off'], live.url)).code,
+  ).not.toBe(0);
 });

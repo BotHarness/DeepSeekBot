@@ -46,7 +46,7 @@ export function checkApprovalCapacity(proof) {
   const send = orchestrator.events.find(
     (e) =>
       e.type === 'tool/call' &&
-      e.data.name === 'channel_send' &&
+      e.data.name === 'bot_send_message' &&
       JSON.parse(e.data.arguments).body === 'UNRELATED_1037',
   );
   assert.ok(send, 'unrelated reply came from a native Channel tool');
@@ -95,7 +95,7 @@ export function checkApprovalCapacity(proof) {
     const finalSend = orchestrator.events.find(
       (e) =>
         e.type === 'tool/call' &&
-        e.data.name === 'channel_send' &&
+        e.data.name === 'bot_send_message' &&
         JSON.parse(e.data.arguments).body.includes('ORIGINAL_1037'),
     );
     assert.ok(finalSend, 'original result is relayed through the native Channel tool');

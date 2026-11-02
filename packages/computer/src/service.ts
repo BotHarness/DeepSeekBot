@@ -1,7 +1,9 @@
 import type { SelkiesWebRtcContainer } from '../../core/src/http/selkies-webrtc.js';
 import type { ComputerProvider, ComputerRuntimeProbe, ComputerStatus } from './provider.js';
+import type { LocalVideoOwner } from './local-video-contract.js';
 
 export interface ComputerService {
+  localVideo?: LocalVideoOwner | undefined;
   readonly providerName: string | undefined;
   registerProvider(provider: ComputerProvider): () => void;
   probe(): Promise<ComputerRuntimeProbe>;
@@ -25,6 +27,7 @@ export function createComputerService(): ComputerService {
   };
 
   return {
+    localVideo: undefined,
     get providerName(): string | undefined {
       return registration?.provider.name;
     },
@@ -45,7 +48,8 @@ export function createComputerService(): ComputerService {
     start: async () => {
       await requireProvider().start();
     },
-    stop: async () => {
+    async stop() {
+      await this.localVideo?.resetRuntime();
       await requireProvider().stop();
     },
     upstream: () => registration?.provider.upstream(),

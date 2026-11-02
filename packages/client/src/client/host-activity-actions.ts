@@ -1,0 +1,160 @@
+import {
+  allowAutoRejectionOnce,
+  answerQuestion,
+  decideApproval,
+  clearAttentionItem,
+  decideJoinRequest,
+  snoozeAttentionItem,
+} from '../../../../apps/mobile/src/host/attention-actions.js';
+import type { HostClient } from '../../../../apps/mobile/src/host/client.js';
+import {
+  loadApproval,
+  loadQuestion,
+  type DecisionResult,
+  type RequestRef,
+} from '../../../../apps/mobile/src/host/requests.js';
+import type { BridgeActions } from './actions.js';
+import {
+  ignoreHumanAssignmentReport,
+  loadTimelinePage,
+  markReadPosition,
+  type BridgeCall,
+} from './bridge.js';
+import type { HumanInboxCommands } from './human-inbox-view.js';
+import type { ChannelMessage, HumanAttentionItem } from './store.js';
+
+export type HostRequestActions = Pick<
+  BridgeActions,
+  | 'toolApprovalStatus'
+  | 'toolApprovalState'
+  | 'toolApprovalExecutionState'
+  | 'decideToolApproval'
+  | 'userQuestionStatus'
+  | 'answerUserQuestion'
+>;
+
+export interface HostActivityActions extends HumanInboxCommands, HostRequestActions {
+  message(item: HumanAttentionItem, signal?: AbortSignal): Promise<ChannelMessage>;
+}
+
+export function createHostRequestActions(options: {
+  client(): HostClient;
+  ref(channelId: string, messageId: string, retained?: boolean): RequestRef;
+  refresh?(): Promise<void>;
+  requestUnavailable: string;
+}): HostRequestActions {
+  const request = async <T>(run: () => Promise<T>): Promise<T> => {
+    try {
+      return await run();
+    } catch (cause) {
+      throw new Error(options.requestUnavailable, { cause });
+    }
+  };
+  const decided = async (run: () => Promise<DecisionResult>): Promise<void> => {
+    const result = await request(run);
+    await options.refresh?.();
+    if (result !== 'accepted') throw new Error(options.requestUnavailable);
+  };
+  const approval = (channelId: string, messageId: string) =>
+    request(() => loadApproval(options.client(), options.ref(channelId, messageId)));
+  return {
+    async toolApprovalStatus(channelId, messageId) {
+      return (await approval(channelId, messageId)).status === 'pending' ? 'pending' : 'expired';
+    },
+    async toolApprovalState(channelId, messageId) {
+      const value = await approval(channelId, messageId);
+      return {
+        status: value.status === 'pending' ? 'pending' : 'expired',
+        ...(value.expiresAt === undefined ? {} : { expiresAt: value.expiresAt }),
+      };
+    },
+    async toolApprovalExecutionState(channelId, messageId) {
+      return (await approval(channelId, messageId)).execution;
+    },
+    async decideToolApproval(channelId, messageId, outcome) {
+      await decided(() =>
+        decideApproval(options.client(), options.ref(channelId, messageId, false), outcome),
+      );
+    },
+    async userQuestionStatus(channelId, messageId) {
+      const value = await request(() =>
+        loadQuestion(options.client(), options.ref(channelId, messageId)),
+      );
+      return value.status === 'decided' ? 'answered' : value.status;
+    },
+    answerUserQuestion: (channelId, messageId, answers) =>
+      decided(() =>
+        answerQuestion(options.client(), options.ref(channelId, messageId, false), { answers }),
+      ),
+  };
+}
+
+export function createHostActivityActions(options: {
+  client(): HostClient;
+  items(): readonly HumanAttentionItem[];
+  refresh(): Promise<void>;
+  open(channelId: string): Promise<void>;
+  requestUnavailable: string;
+}): HostActivityActions {
+  const refs = new Map<string, RequestRef>();
+  const ref = (channelId: string, messageId: string, retained = true): RequestRef => {
+    const key = JSON.stringify([channelId, messageId]);
+    const item = options
+      .items()
+      .find((item) => item.channelId === channelId && item.messageId === messageId);
+    if (item !== undefined) refs.set(key, { channelId, messageId, botSlug: item.botSlug });
+    const value = item !== undefined || retained ? refs.get(key) : undefined;
+    if (value === undefined) throw new Error('Activity request is unavailable');
+    return value;
+  };
+  const call: BridgeCall = async (method, args, signal) => {
+    signal?.throwIfAborted();
+    const value = await options.client().call(method, args);
+    signal?.throwIfAborted();
+    return { ok: true, value };
+  };
+  const changed = async (run: () => Promise<unknown>): Promise<void> => {
+    await run();
+    await options.refresh();
+  };
+  const requests = createHostRequestActions({ ...options, ref });
+  return {
+    ...requests,
+    refreshHumanInbox: options.refresh,
+    openChannelAtMessage: (channelId) => options.open(channelId),
+    async decideGroupJoin(channelId, requestId, accept) {
+      await changed(() => decideJoinRequest(options.client(), channelId, requestId, accept));
+      return true;
+    },
+    dismissHumanInbox: (item) => changed(() => clearAttentionItem(options.client(), item)),
+    snoozeHumanInbox: (item, until) =>
+      changed(() =>
+        snoozeAttentionItem(options.client(), item, until === null ? null : new Date(until)),
+      ),
+    allowAutoRejectionOnce: (item) =>
+      changed(() => allowAutoRejectionOnce(options.client(), item.id)),
+    markRead: (channelId, messageId) => changed(() => markReadPosition(call, channelId, messageId)),
+    ignoreHumanReport: (sourceEventId) =>
+      changed(() => ignoreHumanAssignmentReport(call, sourceEventId)),
+    async message(item, signal) {
+      if (item.channelId === undefined || item.messageId === undefined)
+        throw new Error('Activity message is unavailable');
+      ref(item.channelId, item.messageId);
+      const { page } = await loadTimelinePage(
+        call,
+        item.channelId,
+        { direction: 'around', around: item.messageId, olderLimit: 0, newerLimit: 0 },
+        signal,
+      );
+      const message = page.entries.find((entry) => entry.id === item.messageId);
+      if (message?.author.kind !== 'bot' || message.author.slug !== item.botSlug)
+        throw new Error('Activity request author changed');
+      return message;
+    },
+    async decideToolApproval(channelId, messageId, outcome) {
+      if (outcome === 'allowed-always-exact' || outcome === 'allowed-always-all')
+        throw new Error('This approval choice is unavailable');
+      await requests.decideToolApproval(channelId, messageId, outcome);
+    },
+  };
+}

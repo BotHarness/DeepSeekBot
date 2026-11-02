@@ -1,3 +1,4 @@
+import { PanelEmptyState } from './ds/empty-state.js';
 import { useId, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
@@ -6,8 +7,8 @@ import {
   SegmentedControl,
   Switch,
   Tag,
-  Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
@@ -805,17 +806,18 @@ export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryPr
   const [toggling, setToggling] = useState<string | undefined>();
   const [started, setStarted] = useState<string | undefined>();
   const active = useRef<string | undefined>(undefined);
-  const editorKey = useRef(0);
   const createRevision = useSyncExternalStore(
     subscribeCreate,
     () => (botSlug === undefined ? 0 : (createRequests.get(botSlug) ?? 0)),
     () => 0,
   );
-  const seenCreate = useRef(createRevision);
-  if (seenCreate.current !== createRevision) {
-    seenCreate.current = createRevision;
-    editorKey.current += 1;
-    setEditor({ key: editorKey.current, scheduleId: undefined });
+  const [seenCreate, setSeenCreate] = useState({ botSlug, revision: createRevision });
+  if (seenCreate.botSlug !== botSlug) {
+    setSeenCreate({ botSlug, revision: createRevision });
+    if (editor !== undefined) setEditor(undefined);
+  } else if (seenCreate.revision !== createRevision) {
+    setSeenCreate({ botSlug, revision: createRevision });
+    setEditor((open) => ({ key: (open?.key ?? 0) + 1, scheduleId: undefined }));
   }
 
   const refresh = async (slug: string): Promise<void> => {
@@ -847,8 +849,7 @@ export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryPr
   if (botSlug === undefined) return <div ref={mount} />;
 
   const openEditor = (scheduleId: string): void => {
-    editorKey.current += 1;
-    setEditor({ key: editorKey.current, scheduleId });
+    setEditor((open) => ({ key: (open?.key ?? 0) + 1, scheduleId }));
   };
 
   const change = (
@@ -892,12 +893,16 @@ export function BotSchedulesEntry({ botSlug, actions, t }: ChannelSidebarEntryPr
         </p>
       )}
       {schedules !== undefined && schedules.length === 0 ? (
-        <div className="bh-schedule-empty">
-          <p className="bh-schedule-muted">{t('schedule.empty')}</p>
-          <Button variant="outline" size="sm" onClick={() => requestCreate(botSlug)}>
-            {t('schedule.add')}
-          </Button>
-        </div>
+        <PanelEmptyState
+          icon="alarm-clock"
+          action={
+            <Button variant="outline" size="sm" onClick={() => requestCreate(botSlug)}>
+              {t('schedule.add')}
+            </Button>
+          }
+        >
+          {t('schedule.empty')}
+        </PanelEmptyState>
       ) : null}
       {schedules === undefined || schedules.length === 0 ? null : (
         <SidebarCardList label={t('entry.schedules')}>

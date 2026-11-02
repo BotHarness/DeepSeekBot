@@ -1,7 +1,8 @@
 import { useId, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
-import { MenuSurface, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives';
+import { MenuSurface } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 
 import type {
   ChannelSidebarEntry,

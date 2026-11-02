@@ -147,7 +147,7 @@ async function start(scene, state) {
   await rpc('channelSend', {
     channelId: scene.channelId,
     messageId: `human-${crypto.randomUUID()}`,
-    body: `Create exactly one Assignment with Grant ${scene.grantId}, continuity key ${tag}. Its purpose must instruct it to report_to_orchestrator state ${state}, summary "${tag}: Which release route should I use, Canary or Stable?", expects_reply true, then end the Turn. It must use no other tools until an actual Human response. On resume with the Human route it must report_to_orchestrator completed with summary "${tag}_DONE:" plus the route. You, the Orchestrator, must not answer the question yourself. After create_assignment, end your Turn. On that report, use channel_send to say "${tag}: waiting for Human" and end your Turn. Once the Human explicitly responds, inspect_assignment and forward the exact Human response through send_assignment_request with answer_to equal to the openAsk Source Event ID and mode next-turn. After completed report use channel_send to say "${tag}: finished".`,
+    body: `Create exactly one Assignment with Grant ${scene.grantId}, continuity key ${tag}. Its purpose must instruct it to report_to_orchestrator state ${state}, summary "${tag}: Which release route should I use, Canary or Stable?", expects_reply true, then end the Turn. It must use no other tools until an actual Human response. On resume with the Human route it must report_to_orchestrator completed with summary "${tag}_DONE:" plus the route. You, the Orchestrator, must not answer the question yourself. After create_assignment, end your Turn. On that report, use bot_send_message to say "${tag}: waiting for Human" and end your Turn. Once the Human explicitly responds, inspect_assignment and forward the exact Human response through send_assignment_request with answer_to equal to the openAsk Source Event ID and mode next-turn. After completed report use bot_send_message to say "${tag}: finished".`,
   });
   const action = await waitFor(
     async () =>
@@ -302,7 +302,7 @@ try {
     await shot('assignment-blocked');
     await rpc('channelSend', {
       channelId: scene.channelId,
-      body: `Stop Assignment ${blocked.sessionId} using stop_assignment exactly once. Do not answer or continue its task. Then channel_send "Blocked Assignment stopped".`,
+      body: `Stop Assignment ${blocked.sessionId} using stop_assignment exactly once. Do not answer or continue its task. Then bot_send_message "Blocked Assignment stopped".`,
     });
     await waitFor(
       async () =>

@@ -1,0 +1,19 @@
+{
+  "source": "3dbbba7073e1565e289c80ffcf6414bc696d3333",
+  "calls": [
+    {
+      "name": "pwsh",
+      "outcome": "ok",
+      "result": "IMPATIENT_FINAL_2080_OK\r\n",
+      "approval": "allowed-once"
+    }
+  ],
+  "requestCount": 1,
+  "decisions": [
+    {
+      "requestMessageId": "ec54cda2-744e-41f3-90b2-6aab3943be67",
+      "outcome": "allowed-once"
+    }
+  ],
+  "ruleCount": 0
+}

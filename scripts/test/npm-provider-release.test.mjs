@@ -60,10 +60,19 @@ it.each(['identity', 'source', 'runtime', 'tag'])(
     if (kind === 'identity') archive.manifest.name = 'deepseekbot';
     if (kind === 'source') archive.provenance.source = 'b'.repeat(40);
     if (kind === 'runtime') archive.provenance.compiledOutput.runtimeSha256 = 'b'.repeat(64);
-    if (kind === 'tag') plan.distTag = 'latest';
+    if (kind === 'tag') plan.distTag = 'unreviewed';
     expect(() => verifyProviderArchive(archive, plan)).toThrow('reviewed plan');
   },
 );
+
+it('verifies stable product bytes without allowing standalone publication', async () => {
+  const fx = fixture();
+  fx.plan.distTag = 'latest';
+  expect(() => verifyProviderArchive(fx.archive, fx.plan)).not.toThrow();
+  await expect(publishQualifiedProvider(fx.input)).rejects.toThrow('reviewed next plan');
+  expect(fx.input.readVersion).not.toHaveBeenCalled();
+  expect(fx.publish).not.toHaveBeenCalled();
+});
 
 it('publishes once and verifies both registry metadata and downloaded bytes', async () => {
   const fx = fixture();

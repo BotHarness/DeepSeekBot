@@ -254,7 +254,60 @@ describe('Roster live Client', () => {
 });
 
 describe('Roster live Client latest messages', () => {
-  it('moves a listed Channel preview forward without a roster refresh', () => {
+  it('retains completed Bot activity across newer Human previews and out-of-order commits', async () => {
+    vi.useFakeTimers();
+    const store = createStore();
+    store.setMode('bot');
+    store.setRoster(
+      ['ada', 'bea'].map((slug) => ({
+        slug,
+        displayName: slug,
+        aggregateState: 'idle',
+        roles: [],
+        workspaces: [],
+        createdAt: CHANNEL.createdAt,
+      })),
+      [CHANNEL],
+    );
+    const refreshRoster = vi.fn(async () => undefined);
+    const sources: FakeSource[] = [];
+    const dispose = mountRosterLive(store, { refreshRoster } as unknown as BridgeActions, (url) => {
+      const source = new FakeSource(url);
+      sources.push(source);
+      return source as unknown as EventSource;
+    });
+    const commit = (id: string, at: number, slug?: string, channelId = CHANNEL.id) =>
+      sources[0]?.listeners.get('roster/latest')?.(
+        new MessageEvent('roster/latest', {
+          data: JSON.stringify({
+            channelId,
+            message: {
+              id,
+              at: new Date(at).toISOString(),
+              author: slug ? { kind: 'bot', slug } : { kind: 'human' },
+              body: id,
+            },
+          }),
+        }),
+      );
+    try {
+      commit('ada-done', 10000, 'ada');
+      commit('human', 30000);
+      commit('bea-done-delayed', 20000, 'bea');
+      commit('ada-older', 5000, 'ada');
+      commit('private', 90000, 'ada', 'unknown');
+      await vi.advanceTimersByTimeAsync(25);
+      expect(store.getSnapshot().bots.find((x) => x.slug === 'ada')?.lastActivityAt).toBe(10000);
+      expect(store.getSnapshot().bots.find((x) => x.slug === 'bea')?.lastActivityAt).toBe(20000);
+      expect(store.getSnapshot().channels[0]?.latestMessage?.id).toBe('human');
+      expect(refreshRoster).not.toHaveBeenCalled();
+    } finally {
+      dispose();
+      vi.useRealTimers();
+    }
+  });
+  it('moves a listed Channel preview forward without a roster refresh', async () => {
+    vi.useFakeTimers();
     const store = createStore();
     store.setMode('bot');
     const other = { ...CHANNEL, id: 'group-other', name: 'Other' };
@@ -279,13 +332,16 @@ describe('Roster live Client latest messages', () => {
       store.getSnapshot().channels.find((item) => item.id === CHANNEL.id)?.latestMessage?.id;
     try {
       latest(CHANNEL.id, 'message-278', '2026-10-13T00:00:02.000Z');
+      await vi.advanceTimersByTimeAsync(25);
       expect(preview()).toBe('message-278');
       expect(store.getSnapshot().channels.find((item) => item.id === CHANNEL.id)?.updatedAt).toBe(
         '2026-10-13T00:00:02.000Z',
       );
       latest(CHANNEL.id, 'older', '2026-10-13T00:00:01.000Z');
+      await vi.advanceTimersByTimeAsync(25);
       expect(preview()).toBe('message-278');
       latest('unknown', 'stray', '2026-10-13T00:00:03.000Z');
+      await vi.advanceTimersByTimeAsync(25);
       expect(store.getSnapshot().channels.map((item) => item.id)).not.toContain('unknown');
       expect(
         store.getSnapshot().channels.find((item) => item.id === other.id)?.latestMessage,
@@ -293,6 +349,7 @@ describe('Roster live Client latest messages', () => {
       expect(refreshRoster).not.toHaveBeenCalled();
     } finally {
       dispose();
+      vi.useRealTimers();
     }
   });
 });

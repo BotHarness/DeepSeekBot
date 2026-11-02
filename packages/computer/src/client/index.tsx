@@ -1,3 +1,4 @@
+import { PanelEmptyState } from '../../../client/src/client/ds/empty-state.js';
 import { border, color, radius, space, text } from '../../../client/src/client/ds/tokens.stylex.js';
 import {
   RemoteViewer,
@@ -24,7 +25,8 @@ import {
   type ComputerKey,
   type ComputerTranslate,
 } from './locale.js';
-import { Button, Tag, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from '../../../client/src/client/ds/tooltip.js';
 import { SidebarCardList, SidebarCardRow } from '../../../client/src/client/sidebar-card.js';
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client';
@@ -39,6 +41,7 @@ import {
 } from './settings-rows.js';
 import { LocalComputerStatus } from './local-computer.js';
 import { useMountedResource } from './mounted-resource.js';
+import { recordViewerOpen } from '../../../client/src/client/telemetry-surface.js';
 
 import { AccessPowerIcon } from './access-power-icon.js';
 import { STYLEX_CSS } from '../../../client/src/client/ds/stylex-css.js';
@@ -486,11 +489,7 @@ export function createComputerEntry(
   return function ComputerEntryWithLocale(props: ChannelSidebarEntryProps): ReactElement {
     const { computerAccess } = useBotInfo(props.botSlug);
     if (computerAccess === false)
-      return (
-        <div className="bh-computer-access-off" style={noteStyle}>
-          {t('entry.access.description')}
-        </div>
-      );
+      return <PanelEmptyState icon="monitor">{t('entry.access.description')}</PanelEmptyState>;
     return <ComputerEntry {...props} t={t} />;
   };
 }
@@ -709,6 +708,7 @@ function ComputerEntry({
   }, []);
 
   const statusResource = useMountedResource<HTMLDivElement>(() => {
+    recordViewerOpen(connectionRpc, 'computer');
     const controller = new AbortController();
     let pending = false;
     const poll = async (): Promise<void> => {

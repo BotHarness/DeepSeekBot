@@ -1,34 +1,8 @@
+import { fetchMessageResource, type MessageHost } from './message-host.js';
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
+import { boundedBridgeMediaRequest } from './bridge-media-request.js';
 
 const MAX_BYTES = 25 * 1024 * 1024;
-let active = 0;
-const waiting: (() => void)[] = [];
-async function boundedImage<T>(signal: AbortSignal, task: () => Promise<T>): Promise<T> {
-  if (active >= 3)
-    await new Promise<void>((resolve, reject) => {
-      const abort = () => {
-        const index = waiting.indexOf(ready);
-        if (index >= 0) waiting.splice(index, 1);
-        reject(signal.reason);
-      };
-      const ready = () => {
-        signal.removeEventListener('abort', abort);
-        active++;
-        resolve();
-      };
-      waiting.push(ready);
-      signal.addEventListener('abort', abort, { once: true });
-      if (signal.aborted) abort();
-    });
-  else active++;
-  try {
-    signal.throwIfAborted();
-    return await task();
-  } finally {
-    active--;
-    waiting.shift()?.();
-  }
-}
 
 export interface BridgeImageState {
   url?: string;
@@ -39,6 +13,7 @@ export function createBridgeImageResource(
   channelId: string,
   sourceEventId: string,
   attachmentId: string,
+  host?: MessageHost,
 ) {
   let state = EMPTY;
   let element: HTMLDivElement | null = null;
@@ -65,11 +40,12 @@ export function createBridgeImageResource(
     const failure = (value: NonNullable<BridgeImageState['failure']>) => {
       if (!request.signal.aborted) update({ failure: value });
     };
-    void boundedImage(request.signal, async () => {
-      const response = await fetch(
-        './api/botharness/attachment?' +
+    void boundedBridgeMediaRequest(request.signal, async () => {
+      const response = await fetchMessageResource(
+        '/api/botharness/attachment?' +
           new URLSearchParams({ channelId, sourceEventId, attachmentId }),
-        { signal: request.signal },
+        request.signal,
+        host,
       );
       request.signal.throwIfAborted();
       if (!response.ok) {
@@ -147,7 +123,7 @@ export function createBridgeImageResource(
     subscribe(listener: () => void) {
       listeners.add(listener);
       if (listeners.size === 1) {
-        stopLive = subscribeMessagingDefaults(reload);
+        stopLive = host === undefined ? subscribeMessagingDefaults(reload) : undefined;
         observe();
       }
       return () => {

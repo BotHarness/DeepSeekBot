@@ -266,17 +266,6 @@ export function createDockerComputerProvider(
     throw failure(message);
   };
 
-  const containerImage = async (): Promise<string | undefined> => {
-    const result = await runner.run([
-      'docker',
-      'inspect',
-      '--format',
-      '{{.Config.Image}}',
-      config.containerName,
-    ]);
-    return result.code === 0 ? result.stdout.trim() : undefined;
-  };
-
   const removeContainer = async (reason: string): Promise<void> => {
     const remove = await runner.run(['docker', 'rm', '-f', config.containerName]);
     if (remove.code !== 0) fail(remove.stderr.trim() || 'docker rm failed');

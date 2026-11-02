@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react';
-import { Image } from 'expo-image';
+import { ResourceImage as Image } from '../primitives/resource-image';
 import { Modal, Pressable, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
+  Easing,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -13,11 +14,12 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { MessageAttachment } from '../../host/conversation';
+import { decelerateCurve, spring } from '../design/motion';
 import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { CloseIcon, ShareIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import {
   clampTo,
   dismissDirection,
@@ -29,7 +31,7 @@ import {
   type Zoom,
 } from './zoom-math';
 
-const SPRING = { damping: 20, stiffness: 220 };
+const SPRING = spring.release;
 const TAP_SLOP = 10;
 
 function RoundButton({
@@ -66,11 +68,14 @@ function ZoomableImage({
   attachment,
   onClose,
   onShare,
+  cachePolicy,
 }: {
   attachment: MessageAttachment;
+  cachePolicy: 'none' | 'memory-disk';
   onClose(): void;
   onShare(attachment: MessageAttachment): Promise<void>;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const frame = useWindowDimensions();
@@ -142,9 +147,13 @@ function ZoomableImage({
       }
       const direction = dismissDirection(dismiss.value, event.velocityY);
       if (direction !== 0) {
-        dismiss.value = withTiming(direction * frame.height, { duration: 180 }, (finished) => {
-          if (finished === true) runOnJS(onClose)();
-        });
+        dismiss.value = withTiming(
+          direction * frame.height,
+          { duration: 180, easing: Easing.bezier(...decelerateCurve) },
+          (finished) => {
+            if (finished === true) runOnJS(onClose)();
+          },
+        );
       } else dismiss.value = withSpring(0, SPRING);
     });
 
@@ -218,7 +227,7 @@ function ZoomableImage({
                 <Image
                   source={attachment.source}
                   recyclingKey={attachment.key}
-                  cachePolicy="memory-disk"
+                  cachePolicy={cachePolicy}
                   contentFit="contain"
                   accessibilityLabel={attachment.name}
                   accessibilityHint={t.viewerHint}
@@ -269,8 +278,10 @@ export function ImageViewer({
   attachment,
   onClose,
   onShare,
+  cachePolicy = 'memory-disk',
 }: {
   attachment: MessageAttachment | undefined;
+  cachePolicy?: 'none' | 'memory-disk';
   onClose(): void;
   onShare(attachment: MessageAttachment): Promise<void>;
 }) {
@@ -288,6 +299,7 @@ export function ImageViewer({
           attachment={attachment}
           onClose={onClose}
           onShare={onShare}
+          cachePolicy={cachePolicy}
         />
       )}
     </Modal>

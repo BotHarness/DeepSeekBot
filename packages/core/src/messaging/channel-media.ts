@@ -6,7 +6,7 @@ import type { ExternalSource } from './inbound.js';
 import type { MessagingGrant } from './outbound.js';
 import { MessagingError, type MessagingProvider } from './provider.js';
 import { readMessagingIdentity } from './identity.js';
-import { bridgeChannel, humanBridgeChannel } from './channel-target.js';
+import { bridgeAttachmentKind, bridgeChannel, humanBridgeChannel } from './channel-target.js';
 import { channelBridgeRoutes } from './channel-bridge.js';
 import { sourceMediaUploadId } from './media-identity.js';
 
@@ -27,16 +27,7 @@ function authority(db: DatabaseSync, input: MediaRequest, active: (slug: string)
     .get(input.channelId, input.sourceEventId) as { payload_json: string } | undefined;
   const source = row && (JSON.parse(row.payload_json) as { external?: ExternalSource }).external;
   const attachment = source?.event.attachments?.find((item) => item.id === input.attachmentId);
-  if (
-    !source ||
-    !attachment ||
-    !(
-      attachment.mediaType?.startsWith('image/') ||
-      (source.platform === 'qq' &&
-        (attachment.mediaType === 'application/octet-stream' ||
-          (source.event.voice && attachment.mediaType === 'audio/unknown')))
-    )
-  )
+  if (!source || !attachment || bridgeAttachmentKind(source, attachment) === undefined)
     throw new MessagingError('source-unavailable');
   const rows = db
     .prepare(`SELECT g.body, p.route_id FROM messaging_source_paths p

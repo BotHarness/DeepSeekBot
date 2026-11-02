@@ -24,14 +24,6 @@ function baseProps(size: number): {
   };
 }
 
-export function DirectTapIcon({ size = 14 }: { readonly size?: number }): ReactElement {
-  return (
-    <svg {...baseProps(size)} fill="currentColor" stroke="none">
-      <path d="M6.5 3.8 18.6 11l-6.9 1.7-2.6 6.5z" />
-    </svg>
-  );
-}
-
 export function TrackpadIcon({ size = 14 }: { readonly size?: number }): ReactElement {
   return (
     <svg {...baseProps(size)}>

@@ -1,0 +1,178 @@
+[
+  {
+    "file": "b-name-open.png",
+    "originalSha256": "d37b4d81b5546b93fcfc9559a75ba2a8bfa9b164ef1f2d2ada264e6f013e242f",
+    "sha256": "dfd22c2908b0bb8282f6066b9df8ee8ceff8ebc7d71c227ef81e90222ef79b44",
+    "cropTopPixels": 124,
+    "source": "f49b329cd44875006bf5bc78ccb12320f2c74ba9",
+    "apkSha256": "0041be31013d9c8be6a9f5ec142036c0ebd8170e5fe3a386debfb4ccb3e1e2cd",
+    "fontScale": "1.0",
+    "night": "Night mode: yes",
+    "scene": "name-open"
+  },
+  {
+    "file": "b-details-closed.png",
+    "originalSha256": "4b41b5c42c64a902526e3f0705fe36eea185d8a68b5259f4df97733d46daeb53",
+    "sha256": "1274053f43aac24d0afac0e0e8b5b3bbf7c194c340a87c93eb6288881bc7addd",
+    "cropTopPixels": 124,
+    "source": "f49b329cd44875006bf5bc78ccb12320f2c74ba9",
+    "apkSha256": "0041be31013d9c8be6a9f5ec142036c0ebd8170e5fe3a386debfb4ccb3e1e2cd",
+    "fontScale": "1.0",
+    "night": "Night mode: yes",
+    "scene": "details-closed"
+  },
+  {
+    "file": "b-details-open.png",
+    "originalSha256": "06ccd428581303541605d3aa018b12dbec4e22c969be620bb87eec9617493210",
+    "sha256": "7b73dffd5416283f878f7d0bdcd23a90bf30d19626ff48bdaa3927044e30ae45",
+    "cropTopPixels": 124,
+    "source": "f49b329cd44875006bf5bc78ccb12320f2c74ba9",
+    "apkSha256": "0041be31013d9c8be6a9f5ec142036c0ebd8170e5fe3a386debfb4ccb3e1e2cd",
+    "fontScale": "1.0",
+    "night": "Night mode: yes",
+    "scene": "details-open"
+  },
+  {
+    "file": "b-search-open.png",
+    "originalSha256": "88359596e479d14ca96ba508ae1bc2ff596cbbe6645777f067deb0bb281ec8f9",
+    "sha256": "b52672bd032608d8ec9824e2d418de1b1f4ee5bd8037e946272ec2c25f99ebbe",
+    "cropTopPixels": 124,
+    "source": "f49b329cd44875006bf5bc78ccb12320f2c74ba9",
+    "apkSha256": "0041be31013d9c8be6a9f5ec142036c0ebd8170e5fe3a386debfb4ccb3e1e2cd",
+    "fontScale": "1.0",
+    "night": "Night mode: yes",
+    "scene": "search-open"
+  },
+  {
+    "file": "b-search-closed.png",
+    "originalSha256": "02de64cf560a52eaed62bca575f284325d84c854d5191eeb4de865292ccb565f",
+    "sha256": "132868d70f6bc8fd36d251b88f9a0db4a6d6620823a6eff3cc0a9058a32ab57c",
+    "cropTopPixels": 124,
+    "source": "f49b329cd44875006bf5bc78ccb12320f2c74ba9",
+    "apkSha256": "0041be31013d9c8be6a9f5ec142036c0ebd8170e5fe3a386debfb4ccb3e1e2cd",
+    "fontScale": "1.0",
+    "night": "Night mode: yes",
+    "scene": "search-closed"
+  },
+  {
+    "file": "a-name-open.png",
+    "originalSha256": "01ee28feaed6907533a02b4efcefd3e84973ee36dbc45c7279fe3e3107265f4a",
+    "sha256": "dfd22c2908b0bb8282f6066b9df8ee8ceff8ebc7d71c227ef81e90222ef79b44",
+    "cropTopPixels": 124,
+    "source": "799da76395c3d9017ce4686d3460dd6b35ac20fc",
+    "apkSha256": "cfe48c312b762b9895f360d4194064faa104b464a07e3400e322ff8a365780e5",
+    "fontScale": "1.0",
+    "night": "Night mode: yes",
+    "scene": "name-open"
+  },
+  {
+    "file": "a-details-closed.png",
+    "originalSha256": "0b496772c9e5d8027289625caea4cb4707a55a0b94269195969b313c3f421cba",
+    "sha256": "1274053f43aac24d0afac0e0e8b5b3bbf7c194c340a87c93eb6288881bc7addd",
+    "cropTopPixels": 124,
+    "source": "799da76395c3d9017ce4686d3460dd6b35ac20fc",
+    "apkSha256": "cfe48c312b762b9895f360d4194064faa104b464a07e3400e322ff8a365780e5",
+    "fontScale": "1.0",
+    "night": "Night mode: yes",
+    "scene": "details-closed"
+  },
+  {
+    "file": "a-details-open.png",
+    "originalSha256": "48829db4765c5fb6afde8f0a1a9fa6c5b3bdd6c3ed833ca830caef678aa731ed",
+    "sha256": "7b73dffd5416283f878f7d0bdcd23a90bf30d19626ff48bdaa3927044e30ae45",
+    "cropTopPixels": 124,
+    "source": "799da76395c3d9017ce4686d3460dd6b35ac20fc",
+    "apkSha256": "cfe48c312b762b9895f360d4194064faa104b464a07e3400e322ff8a365780e5",
+    "fontScale": "1.0",
+    "night": "Night mode: yes",
+    "scene": "details-open"
+  },
+  {
+    "file": "a-search-open.png",
+    "originalSha256": "cc7803b1512ca70801fdd7f1c385024dca929fbeff070ddb8a05b416b868b9f7",
+    "sha256": "b52672bd032608d8ec9824e2d418de1b1f4ee5bd8037e946272ec2c25f99ebbe",
+    "cropTopPixels": 124,
+    "source": "799da76395c3d9017ce4686d3460dd6b35ac20fc",
+    "apkSha256": "cfe48c312b762b9895f360d4194064faa104b464a07e3400e322ff8a365780e5",
+    "fontScale": "1.0",
+    "night": "Night mode: yes",
+    "scene": "search-open"
+  },
+  {
+    "file": "a-search-closed.png",
+    "originalSha256": "82d827946987fd9750f0fc959abbbb3b0ba02b1eec3f284c4d18b5ba3ecc0d3f",
+    "sha256": "132868d70f6bc8fd36d251b88f9a0db4a6d6620823a6eff3cc0a9058a32ab57c",
+    "cropTopPixels": 124,
+    "source": "799da76395c3d9017ce4686d3460dd6b35ac20fc",
+    "apkSha256": "cfe48c312b762b9895f360d4194064faa104b464a07e3400e322ff8a365780e5",
+    "fontScale": "1.0",
+    "night": "Night mode: yes",
+    "scene": "search-closed"
+  },
+  {
+    "file": "m-10-l.png",
+    "originalSha256": "f54c658492f9a50bcbdcf618b51aa80093e07514c97ac0acfcaa512c15a4b543",
+    "sha256": "4cef14b46e3342a74ae762ec2b9f21d284175ff488de88fe4e7855a0500af7dd",
+    "cropTopPixels": 124,
+    "source": "799da76395c3d9017ce4686d3460dd6b35ac20fc",
+    "apkSha256": "cfe48c312b762b9895f360d4194064faa104b464a07e3400e322ff8a365780e5",
+    "fontScale": "1.0",
+    "night": "Night mode: no",
+    "scene": "tags-open"
+  },
+  {
+    "file": "m-10-d.png",
+    "originalSha256": "b728ac0e5830c3ece003491e4a018693cad3690a0ddfc3dec8c093e56f346a41",
+    "sha256": "32c39f1caf165256cdde39f3a588a71b1d24253150391481c21eb1e9e4d84876",
+    "cropTopPixels": 124,
+    "source": "799da76395c3d9017ce4686d3460dd6b35ac20fc",
+    "apkSha256": "cfe48c312b762b9895f360d4194064faa104b464a07e3400e322ff8a365780e5",
+    "fontScale": "1.0",
+    "night": "Night mode: yes",
+    "scene": "tags-open"
+  },
+  {
+    "file": "m-13-l.png",
+    "originalSha256": "0e0e04eb636bc94ff1d1ab49e1b081efe2bc5a6d43a96c38030f2389964c2753",
+    "sha256": "0c3ec9f3b111b9408fe0206062ae6cbee97cb4d81f3a5cc93ad8094533aacd21",
+    "cropTopPixels": 124,
+    "source": "799da76395c3d9017ce4686d3460dd6b35ac20fc",
+    "apkSha256": "cfe48c312b762b9895f360d4194064faa104b464a07e3400e322ff8a365780e5",
+    "fontScale": "1.3",
+    "night": "Night mode: no",
+    "scene": "tags-open"
+  },
+  {
+    "file": "m-13-d.png",
+    "originalSha256": "bdf3a3b9960235b433af9e41ee56c61a444a7f7123862825144cf3d33e3b6089",
+    "sha256": "d92e917d1fd79ab5e396b36ee3164d28b1fcb67e44112700ddd692e0ab301274",
+    "cropTopPixels": 124,
+    "source": "799da76395c3d9017ce4686d3460dd6b35ac20fc",
+    "apkSha256": "cfe48c312b762b9895f360d4194064faa104b464a07e3400e322ff8a365780e5",
+    "fontScale": "1.3",
+    "night": "Night mode: yes",
+    "scene": "tags-open"
+  },
+  {
+    "file": "m-20-l.png",
+    "originalSha256": "1a505b5e24e6d8cc0a51dee59dd0fdc29ad208a06e47288e8183be3082466423",
+    "sha256": "f2359a7f50b3c0959a0db6abe5601e94d8f40c255d7c3774727b292b03afa8e1",
+    "cropTopPixels": 124,
+    "source": "799da76395c3d9017ce4686d3460dd6b35ac20fc",
+    "apkSha256": "cfe48c312b762b9895f360d4194064faa104b464a07e3400e322ff8a365780e5",
+    "fontScale": "2.0",
+    "night": "Night mode: no",
+    "scene": "tags-open"
+  },
+  {
+    "file": "m-20-d.png",
+    "originalSha256": "53135412b04d335b7f980034bc77669a8d7f4df112360fe779ecaa9636946b7f",
+    "sha256": "c44d12f4b289f5cceede18ae346d5689672b07ef4a18e67a3eeafddb9a2a4ea5",
+    "cropTopPixels": 124,
+    "source": "799da76395c3d9017ce4686d3460dd6b35ac20fc",
+    "apkSha256": "cfe48c312b762b9895f360d4194064faa104b464a07e3400e322ff8a365780e5",
+    "fontScale": "2.0",
+    "night": "Night mode: yes",
+    "scene": "tags-open"
+  }
+]

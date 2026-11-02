@@ -22,7 +22,6 @@ import {
   partToneColor,
   shadePartLayer,
   withAvatarCustomPart,
-  isHairPartSlot,
   type PartSlot,
   type IllustratedAvatarRecipe,
   type PartColor,

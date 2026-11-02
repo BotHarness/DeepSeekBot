@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, statfsSync } from 'node:fs';
 
-import { BROWSER_FAILURE_KINDS, type BrowserFailureKind } from '../failure-kinds.js';
+import type { BrowserFailureKind } from '../failure-kinds.js';
 
 export {
   BROWSER_FAILURE_KINDS,

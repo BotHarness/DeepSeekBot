@@ -1,5 +1,5 @@
 import { defineConfig } from 'tsdown';
 
-import { clientBundleOptions } from './tsdown.config';
+import { clientBundleOptions, vrmCompanionClientBundleOptions } from './tsdown.config';
 
-export default defineConfig(clientBundleOptions);
+export default defineConfig([clientBundleOptions, vrmCompanionClientBundleOptions]);

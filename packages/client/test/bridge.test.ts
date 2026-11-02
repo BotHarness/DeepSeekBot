@@ -9,7 +9,6 @@ import {
   loadMemoryGitGraph,
   loadMemoryGitCommitDiff,
   loadSessionBotOwner,
-  loadActivityOverview,
   loadProfileSessionUsage,
   botExists,
   parseBotSummary,
@@ -582,6 +581,40 @@ describe('bridge actions', () => {
     return { clientStore, actions: createActions(call, clientStore) };
   }
 
+  it('sends Home attachments with the stable request ID and selects the canonical DM', async () => {
+    const attachment = {
+      hash: 'sha256:' + 'a'.repeat(64),
+      name: 'note.txt',
+      mime: 'text/plain',
+      size: 4,
+    };
+    const send = vi.fn((payload: Record<string, unknown>) => ({
+      message: {
+        id: payload.messageId,
+        body: payload.body,
+        attachments: payload.attachments,
+        author: { kind: 'human' },
+        at: BOT.createdAt,
+      },
+    }));
+    const { actions, clientStore } = setup({
+      channelSend: send,
+      gitStatus: () => ({ installed: true, autoInstall: false }),
+    });
+    await actions.load();
+    await actions.openChannel(GROUP.id);
+    await actions.sendHome(DM.id, 'Home request', 'human-stable-home', [attachment]);
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channelId: DM.id,
+        body: 'Home request',
+        messageId: 'human-stable-home',
+        attachments: [attachment],
+      }),
+    );
+    expect(clientStore.getSnapshot().conversation.channel?.id).toBe(DM.id);
+  });
+
   it('keeps Session rows visible and ignores an older refresh response', async () => {
     const initial = { sessionId: 'initial', role: 'orchestrator', createdAt: BOT.createdAt };
     const latest = { sessionId: 'latest', role: 'orchestrator', createdAt: BOT.createdAt };
@@ -611,6 +644,26 @@ describe('bridge actions', () => {
       status: 'ready',
       items: [{ sessionId: 'latest' }],
     });
+  });
+
+  it('reopens the same Bot Inbox on each explicit navigation request', async () => {
+    const { clientStore, actions } = setup();
+    await actions.load();
+    await actions.openBot('ada', 'inbox');
+    expect(clientStore.getSnapshot().selection).toEqual({
+      kind: 'bot',
+      slug: 'ada',
+      inboxRequest: 1,
+    });
+    await actions.openBot('ada', 'inbox');
+    expect(clientStore.getSnapshot().selection).toEqual({
+      kind: 'bot',
+      slug: 'ada',
+      inboxRequest: 2,
+    });
+    expect(clientStore.getSnapshot().conversation.status).toBe('ready');
+    await actions.openBot('ada');
+    expect(clientStore.getSnapshot().selection).toEqual({ kind: 'bot', slug: 'ada' });
   });
 
   it('loads the roster and opens a DM with its history in chronological order', async () => {
@@ -988,6 +1041,132 @@ describe('bridge actions', () => {
       'm4',
     );
     expect(clientStore.getSnapshot().conversation.unreadAfterMessageId).toBe('m3');
+  });
+
+  it.each([
+    ['group-channel', true],
+    ['group-channel', false],
+    ['dm-channel', true],
+    ['dm-channel', false],
+    ['bot', true],
+    ['bot', false],
+  ] as const)(
+    'does not fetch an abandoned %s timeline after a late read position (anchor=%s)',
+    async (opener, hasAnchor) => {
+      const target = opener === 'group-channel' ? GROUP.id : DM.id;
+      const destination = target === GROUP.id ? DM.id : GROUP.id;
+      let releaseRead: ((value: Record<string, unknown>) => void) | undefined;
+      const pendingRead = new Promise<Record<string, unknown>>((resolve) => {
+        releaseRead = resolve;
+      });
+      const timelineRequests: Array<Record<string, unknown>> = [];
+      const readPosition = vi.fn((payload: Record<string, unknown>) =>
+        payload['channelId'] === target ? pendingRead : {},
+      );
+      const { clientStore, actions } = setup({
+        channelReadPosition: readPosition,
+        channelTimeline: (payload) => {
+          timelineRequests.push(payload);
+          return {
+            revision: 0,
+            page: {
+              entries: [],
+              olderCursor: null,
+              newerCursor: null,
+              hasOlder: false,
+              hasNewer: false,
+            },
+          };
+        },
+      });
+      await actions.load();
+      const abandoned = opener === 'bot' ? actions.openBot('ada') : actions.openChannel(target);
+      await vi.waitFor(() => expect(readPosition).toHaveBeenCalledWith({ channelId: target }));
+      await actions.openChannel(destination);
+      const visible = clientStore.getSnapshot().conversation;
+      expect(visible.status).toBe('ready');
+      expect(releaseRead).toBeDefined();
+      releaseRead?.(hasAnchor ? { position: { messageId: 'old-read' } } : {});
+      await abandoned;
+      expect(timelineRequests.map((request) => request['channelId'])).toEqual([destination]);
+      expect(clientStore.getSnapshot().conversation).toBe(visible);
+    },
+  );
+
+  it('does not fetch latest after an abandoned opening anchor expires', async () => {
+    let rejectAnchor: ((reason: unknown) => void) | undefined;
+    const pendingAnchor = new Promise<unknown>((_resolve, reject) => {
+      rejectAnchor = reject;
+    });
+    const requests: Array<Record<string, unknown>> = [];
+    const { actions, clientStore } = setup({
+      channelReadPosition: ({ channelId }) =>
+        channelId === GROUP.id ? { position: { messageId: 'expired' } } : {},
+      channelTimeline: (payload) => {
+        requests.push(payload);
+        return payload['channelId'] === GROUP.id && payload['direction'] === 'around'
+          ? pendingAnchor
+          : {
+              revision: 0,
+              page: {
+                entries: [],
+                olderCursor: null,
+                newerCursor: null,
+                hasOlder: false,
+                hasNewer: false,
+              },
+            };
+      },
+    });
+    await actions.load();
+    const abandoned = actions.openChannel(GROUP.id);
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    await actions.openChannel(DM.id);
+    const visible = clientStore.getSnapshot().conversation;
+    expect(rejectAnchor).toBeDefined();
+    rejectAnchor?.(new BridgeCallError('invalid-input', 'expired anchor'));
+    await abandoned;
+    expect(requests).toEqual([
+      { channelId: GROUP.id, direction: 'around', around: 'expired' },
+      { channelId: DM.id },
+    ]);
+    expect(clientStore.getSnapshot().conversation).toBe(visible);
+  });
+
+  it('distinguishes the first opening from a later opening of the same Channel in an ABA switch', async () => {
+    let releaseRead: ((value: Record<string, unknown>) => void) | undefined;
+    const pendingRead = new Promise<Record<string, unknown>>((resolve) => {
+      releaseRead = resolve;
+    });
+    let targetReads = 0;
+    const requests: Array<Record<string, unknown>> = [];
+    const { clientStore, actions } = setup({
+      channelReadPosition: ({ channelId }) =>
+        channelId === GROUP.id && ++targetReads === 1 ? pendingRead : {},
+      channelTimeline: (payload) => {
+        requests.push(payload);
+        return {
+          revision: 0,
+          page: {
+            entries: [],
+            olderCursor: null,
+            newerCursor: null,
+            hasOlder: false,
+            hasNewer: false,
+          },
+        };
+      },
+    });
+    await actions.load();
+    const first = actions.openChannel(GROUP.id);
+    await actions.openChannel(DM.id);
+    await actions.openChannel(GROUP.id);
+    const visible = clientStore.getSnapshot().conversation;
+    expect(releaseRead).toBeDefined();
+    releaseRead?.({ position: { messageId: 'old-read' } });
+    await first;
+    expect(requests.map((request) => request['channelId'])).toEqual([DM.id, GROUP.id]);
+    expect(clientStore.getSnapshot().conversation).toBe(visible);
   });
 
   it('falls back to latest for an expired anchor and sends explicit read marks', async () => {
@@ -2447,6 +2626,33 @@ describe('Workspace folder authorization action', () => {
 });
 
 describe('Workspace native action bridge', () => {
+  it('propagates Host folder refusal codes without falling back to a different picker', async () => {
+    const call = vi.fn<BridgeCall>(async () => ({
+      ok: false,
+      error: { code: 'folder-browse/denied', message: 'Access denied', details: {} },
+    }));
+    await expect(createActions(call, createStore()).listHostFolders('D:\\')).rejects.toMatchObject({
+      code: 'folder-browse/denied',
+    });
+    expect(call).toHaveBeenCalledOnce();
+  });
+
+  it('rejects malformed drive entries from the Host', async () => {
+    const call = vi.fn<BridgeCall>(async () => ({
+      ok: true,
+      value: {
+        path: 'C:\\',
+        home: 'C:\\Users\\ada',
+        crumbs: [],
+        entries: [],
+        truncated: false,
+        roots: [{ name: 'D:\\' }],
+      },
+    }));
+    await expect(createActions(call, createStore()).listHostFolders()).rejects.toThrow(
+      'Invalid Host folder entry',
+    );
+  });
   it('resolves the owner before discovery/open and makes no Grant or Session mutations', async () => {
     const call = vi.fn<BridgeCall>(async (method, payload) => {
       expect(method).toBe('workspaceFileTarget');
@@ -2644,33 +2850,6 @@ it('rejects incomplete external source responses before the source modal can ren
     { ...EXTERNAL_SOURCE.event, attachments: 'file.zip' },
   ])
     await expect(read({ ...EXTERNAL_SOURCE, event })).rejects.toBeInstanceOf(BridgeCallError);
-});
-
-it('admits only a bounded safe Tool summary into Overview and rejects malformed or idle detail', async () => {
-  const activity = {
-    toolKind: 'execute',
-    effect: 'executing',
-    toolName: 'bash',
-    startedAt: 1,
-    activeToolCount: 1,
-    sources: [{ role: 'orchestrator', count: 1 }],
-  };
-  const row = {
-    slug: 'ada',
-    displayName: 'Ada',
-    paused: false,
-    hasAction: true,
-    state: 'working',
-    sessions: [],
-    activity: { ...activity, arguments: 'private', detailRefs: ['private locator'] },
-  };
-  const call = bridgeCall({ activityOverview: () => ({ actionCount: 1, bots: [row] }) });
-  expect((await loadActivityOverview(call)).bots[0]?.activity).toEqual(activity);
-  row.activity.toolName = 'unsafe\nname';
-  await expect(loadActivityOverview(call)).rejects.toThrow('Invalid Overview activity');
-  row.activity.toolName = 'bash';
-  row.state = 'idle';
-  await expect(loadActivityOverview(call)).rejects.toThrow('Invalid Overview activity');
 });
 
 it('reads retained WeChat context audits through the actual Client bridge before rendering', async () => {

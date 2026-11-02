@@ -287,6 +287,17 @@ it('closes instead of waiting forever when no anchor appears', async () => {
   expect(tourOptions.onClosed).toHaveBeenCalledOnce();
 });
 
+it('reports a missing anchor as an interruption when the caller asks', async () => {
+  const tourOptions = options({ onInterrupted: vi.fn() });
+  stop = startInternalTour(
+    [{ selector: '[data-sessions]', title: 'Sessions', description: 'List' }],
+    tourOptions,
+  );
+  await vi.advanceTimersByTimeAsync(4100);
+  expect(tourOptions.onInterrupted).toHaveBeenCalledOnce();
+  expect(tourOptions.onClosed).not.toHaveBeenCalled();
+});
+
 it('continues step numbering when one walkthrough spans two tours', async () => {
   const row = document.createElement('div');
   row.setAttribute('data-bh-tour', 'roster');

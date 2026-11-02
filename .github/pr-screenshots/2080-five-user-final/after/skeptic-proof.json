@@ -1,0 +1,21 @@
+{
+  "source": "3dbbba7073e1565e289c80ffcf6414bc696d3333",
+  "calls": [
+    {
+      "name": "pwsh",
+      "outcome": "ok",
+      "result": "SKEPTIC_FINAL_FULL_2080\r\n"
+    },
+    {
+      "name": "pwsh",
+      "outcome": "denied",
+      "result": "Error: Human approval was rejected",
+      "approval": "rejected"
+    }
+  ],
+  "priorRequestCount": 2,
+  "currentRequestCount": 3,
+  "priorDecisionCount": 2,
+  "currentDecisionCount": 3,
+  "ruleCount": 0
+}

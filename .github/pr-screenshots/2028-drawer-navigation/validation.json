@@ -1,0 +1,54 @@
+{
+  "android": {
+    "profileScrollTop": [286, 286],
+    "settingsScrollTop": [377, 377],
+    "handleDismissal": true,
+    "globalTokens": 674655,
+    "profileTokens": 674655,
+    "remainingTaskRoutines": 0,
+    "notificationScope": "navigation only; no permission or push mutation"
+  },
+  "routineWeb": {
+    "result": "pass",
+    "checks": {
+      "pausedOnHost": true,
+      "resumedOnHost": true,
+      "runNowInHistory": true,
+      "deletedOnHost": true,
+      "advancedRouteMatchesHost": true,
+      "previewMatchesHost": true,
+      "createdOnHost": true,
+      "noPageErrors": true
+    },
+    "steps": [
+      "launched an isolated Host",
+      "created a PersonaBot with a daily and a cron routine through the public API",
+      "paired the app by pasting the link",
+      "the profile lists both routines and a New routine row",
+      "tapping the routine pushed its page inside the profile drawer with its trigger, next run and empty history",
+      "Pause and Resume changed the routine on the Host",
+      "Run now started a manual firing that shows in Recent runs and the Host history",
+      "Delete asked first, then removed the routine on the Host",
+      "a cron routine says the phone cannot edit it and offers the full client",
+      "New routine created a weekly routine on the Host whose preview matched the Host"
+    ]
+  },
+  "automated": {
+    "scope": "preceding drawer slice; caption and chat-fade follow-ups recorded separately",
+    "passed": 628,
+    "skipped": 8
+  },
+  "chatFadeFollowup": {
+    "relatedTestsPassed": 41,
+    "before": { "heightDp": 101.85, "startsAboveComposerDp": 32 },
+    "after": { "heightDp": 24, "bottomDp": 834.46 },
+    "keyboardOpen": { "heightDp": 24, "bottomDp": 487.08 },
+    "nativeBoundsRegression": "old layout fails; closed and open keyboard layouts pass",
+    "qualification": "Android layout only; no new performance or iOS claim"
+  },
+  "limits": [
+    "iOS not run",
+    "No 120 FPS qualification",
+    "Inherited Expo Router cold-start warning retained"
+  ]
+}

@@ -38,7 +38,7 @@ afterEach(() => {
 
 describe('live PersonaBot activity', () => {
   it('yields its redundant stream while a companion supplies shared Activity and resumes on removal', () => {
-    const store = createStore();
+    const store = createStore({ smoothActivity: false });
     store.setMode('bot');
     let companion = false;
     let changed: (() => void) | undefined;
@@ -73,7 +73,7 @@ describe('live PersonaBot activity', () => {
     expect(changed).toBeUndefined();
   });
   it('shows Host changes without roster polling, retains them over stale HTTP results, and accepts restart baselines', () => {
-    const store = createStore();
+    const store = createStore({ smoothActivity: false });
     store.setRoster([BOT], []);
     const sources: Source[] = [];
     const dispose = mountActivityLive(store, (url) => {
@@ -106,7 +106,7 @@ describe('live PersonaBot activity', () => {
 
   it('keeps the last observed activity as stale while the stream is down and returns to live on a new baseline', () => {
     vi.useFakeTimers();
-    const store = createStore();
+    const store = createStore({ smoothActivity: false });
     store.setRoster([BOT], []);
     const sources: Source[] = [];
     const dispose = mountActivityLive(store, () => {
@@ -135,7 +135,7 @@ describe('live PersonaBot activity', () => {
 
   it('refreshes only during stream failure and cancels recovery on mode exit', async () => {
     vi.useFakeTimers();
-    const store = createStore();
+    const store = createStore({ smoothActivity: false });
     store.setRoster([BOT], []);
     store.setMode('bot');
     const source = new Source();
@@ -171,7 +171,7 @@ describe('live PersonaBot activity', () => {
 
   it('refetches revision gaps and ignores late replies from a previous Host generation', async () => {
     vi.useFakeTimers();
-    const store = createStore();
+    const store = createStore({ smoothActivity: false });
     store.setRoster([BOT], []);
     const source = new Source();
     const pending: { signal: AbortSignal; resolve: (value: unknown) => void }[] = [];
@@ -209,7 +209,7 @@ describe('live PersonaBot activity', () => {
 
   it('uses bounded snapshot recovery when stream construction fails, including stalled queries', async () => {
     vi.useFakeTimers();
-    const store = createStore();
+    const store = createStore({ smoothActivity: false });
     store.setRoster([BOT], []);
     store.setMode('bot');
     const read = vi.fn((signal: AbortSignal) => {
@@ -240,7 +240,7 @@ describe('live PersonaBot activity', () => {
     vi.useFakeTimers();
     const document = Object.assign(new EventTarget(), { visibilityState: 'visible' });
     vi.stubGlobal('document', document);
-    const store = createStore();
+    const store = createStore({ smoothActivity: false });
     store.setRoster([BOT], []);
     store.setMode('bot');
     const sources: Source[] = [];
@@ -279,7 +279,7 @@ describe('live PersonaBot activity', () => {
   });
 
   it('keeps a baseline received before initial roster loading and rejects incomplete or ambiguous frames', () => {
-    const store = createStore();
+    const store = createStore({ smoothActivity: false });
     store.applyActivity({
       generation: 'one',
       revision: 1,
@@ -326,7 +326,7 @@ it('validates safe attention and clears it on a new Host baseline without rewrit
   ]) {
     expect(parseActivitySnapshot(baseline(invalid))).toBeUndefined();
   }
-  const store = createStore();
+  const store = createStore({ smoothActivity: false });
   store.setRoster([BOT], []);
   store.applyActivity(snapshot!);
   store.setRoster([BOT], []);

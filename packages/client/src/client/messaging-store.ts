@@ -13,10 +13,6 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-export function messagingSnapshotOf(slug: string): MessagingSnapshot | undefined {
-  return snapshots.get(slug);
-}
-
 export async function refreshMessaging(
   slug: string,
   actions: Pick<BridgeActions, 'messagingSnapshot'>,

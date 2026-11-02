@@ -5,6 +5,20 @@ Date: 2026-09-30
 
 # Activity Center separates overview from the personal Human Inbox
 
+## Presentation superseded by #2026 (2026-10-17)
+
+The accepted [mobile-aligned Activity Center specification](https://github.com/BotHarness/DeepSeekBot/issues/2026)
+supersedes the Overview/Inbox navigation and statistics presentation below. Activity Center
+now opens Human Inbox directly in both the page and Dock. Its first slice presents Tool
+approvals inline, with expandable context beneath the card, explicit selection mode for
+batch work, and a short inert exit transition after the owning request disappears. A failed
+submission stays retryable. Only the owning Channel approval command can resolve a request;
+previewing a card does not advance read positions. Following Human QA, the page and Dock share independently collapsible Needs you, For you
+and Other unread sections. Search and filtering use the existing Host query before
+pagination; sorting and history live in the header menu. Section counts describe the loaded
+window, with a plus sign when more results remain. The projection, identity, read and decision authority
+boundaries described below remain in force; the former Overview presentation is historical.
+
 The Bot mode Activity Center has two views: Overview answers what is happening across PersonaBots and Channels, while Human Inbox answers what the current Human has not read and what requires a decision. This extends ADR-0071's first Human Inbox projection without copying Source Event content, Bot Inbox Admissions, DSH Session logs, or usage facts into a second authority. The first delivery slice is local to the existing Human identity; read positions and projections remain keyed by Human identity so later multi-Human support does not share a person's unread state.
 
 Overview shows the count of unresolved explicit Human actions, each PersonaBot's live state, and currently executing Orchestrator and Assignment Sessions. A Bot opens its DM; a Session opens that exact Session in DSH's original mode. Waiting, blocked, and idle Sessions remain visible through status or action attention but are not called active work. Today's Channel chart counts committed messages once per Channel, splits Human and Bot authors, and offers per-author detail. Token usage is shown globally and per PersonaBot, with a seven-day trend; it is never estimated per Channel. Memory activity shows seven-day committed-change counts and a separate current uncommitted-change indicator. These cards consume the owning activity, Channel, usage, and Memory read models; unavailable data is not presented as zero.
@@ -59,3 +73,17 @@ Overview defaults to PersonaBots with non-idle state or canonical unresolved Hum
 The application-defined `botharness/channelActivityToday` query consumes the Channel owner’s SQLite aggregation over committed placements and Source Events, without materializing message histories or maintaining a second counter. It counts distinct Source Events per visible Channel, excluding generated Bot DM attention notices, deleted Channels, Bot-to-Bot DMs and Group history before the local Human’s visible revision. Human/Bot/other author totals reconcile exactly; canonical bridged actors retain their projected labels. Current Human names resolve in each Channel and Bot names resolve through the registry.
 
 The Host local calendar day defines a half-open interval from midnight to the next calendar midnight, including daylight-saving transitions. The response exposes its day, timezone and UTC boundaries. Overview owns one independent mounted query refreshed every 30 seconds, on explicit refresh and at the Host day boundary; it discards results after unmount. Empty visible Channels report zero; unavailable aggregation fails explicitly. Compact shared-scale stacked bars borrow Profile chart hierarchy and token colors, with native expansion and Channel navigation. CSS segments replace chart axes/tooltips for this small comparison: exact numeric totals and sender counts remain visible without hover. Initial rendering is 20 Channels, with continuation of the complete totals. No read, Admission, wake, message or usage command runs while viewing or expanding these statistics.
+
+## Muted Channel message attention (#2231, first slice)
+
+Human Channel mute is the existing Host Roster preference, distinct from a Bot's Wake Policy or an external conversation's reception policy. Human Attention excludes muted Channels from message lists, including read personal messages retained in Replies, before search, grouping and paging. Global unread status uses the same eligibility rule; per-Channel unread and source history keep their real read positions. Unmuting restores eligibility under existing read, dismissal and snooze rules, without a new cutoff or copied notification data. Explicit Human requests and handled history remain governed by their owners.
+
+The Web Activity page and Dock share a feed that observes committed mute changes from the existing Roster subscription. It re-queries visible sections without changing filters or collapse choices, and rejects responses started before the preference change. The final consumer releases that observer. Roster refresh also refreshes global status. This adds no transport or polling loop; general live attention refresh remains #2230. Independent control-rail indicator preferences are a later #2231 slice.
+
+## Independent Activity indicator scope (#2231, second slice)
+
+The Web control-rail Activity button owns a local presentation choice: all notifications (default), pending Human actions, unread personal messages, other unread messages, or off. Its pointer menu and Shift+F10/ContextMenu keyboard equivalent use the existing PointerMenu owner and focus-return behavior. The button remains operable when its dot is off; its accessible name retains actual unread and action facts.
+
+The application-defined preference is stored separately from Activity queries, collapse state and Host Roster in browser localStorage, isolated by Host origin. Same-origin windows observe storage changes; clearing or invalidating the value restores the default. Persistence failure preserves the current in-memory choice and reports that it was not saved. There is no Host write command for a browser display preference; target-Client CLI control remains under the existing #2095 inventory, while `inbox-status` exposes the owning facts.
+
+The existing Human Attention status query accepts an optional `messageCounts` request. Supporting Hosts return complete `replies` and `other` counts as disjoint partitions of distinct unread Source Events after visibility and mute filtering; a message that is both a mention and reply counts once. Default calls retain their prior response shape. No new stream, polling loop or notification store is introduced. Client status refresh preserves existing facts on failure and marks them unavailable; the rail displays a neutral unknown indicator instead of interpreting unavailable or unsupported category counts as zero. Explicit off always hides the indicator. Activity filtering, search, scrolling, requests and read positions remain independent.

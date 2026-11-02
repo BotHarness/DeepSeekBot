@@ -38,9 +38,10 @@ export function pinchZoom(
   origin: Zoom & { focalX: number; focalY: number },
   focal: { x: number; y: number },
   pinch: number,
+  limits: { min: number; max: number } = { min: 0.6, max: MAX_SCALE * 1.5 },
 ): Zoom {
   'worklet';
-  const scale = Math.min(MAX_SCALE * 1.5, Math.max(0.6, origin.scale * pinch));
+  const scale = Math.min(limits.max, Math.max(limits.min, origin.scale * pinch));
   return {
     scale,
     x: focal.x - ((origin.focalX - origin.x) / origin.scale) * scale,

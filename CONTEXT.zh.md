@@ -4,7 +4,43 @@
 
 ## 语言
 
+### 产品命名
+
+**Tobs / 托布**：
+原名 DeepSeekBot 的应用产品；英文名为 Tobs，中文名为托布。名称意为 Team of bots，也寓意 Thousands of Bots，与内置总管 Bot「Tob」区分。
+_避免使用_：拖布、Tob（指代产品时）
+
+**BotHarness**：
+Tobs 背后的框架；应用采用 Tobs 品牌后，框架仍名为 BotHarness。
+_避免使用_：Tobs（指代框架时）
+
+### 产品发布
+
+**Product Release Version**：
+电脑端 DeepSeekBot 产品及其同步发布组件共用的唯一发布身份；它与独立版本的 DSH runtime、Provider、工具／Skill 和手机应用不同。
+_避免使用_：独立桌面版本、独立 npm 版本、未限定的 Version
+
+**Development Build Identity**：
+未发布 DeepSeekBot 构建的身份及源码状态。它不是 Product Release Version，也不证明发布产物已通过资格验证。
+_避免使用_：已安装发布版、latest 版本、0.0.0 发布版
+
 ### PersonaBot（持久机器人身份）
+
+**Steward Bot**：
+一种持久的本地 PersonaBot，拥有自己的 Memory，可读取 Human 的所有 Bot 与 Channel 内容，并沿用现有审批规则帮助 Human 管理这些身份与应用设置。它是 Human 的唯一对接人：创建和管理其他 Bot，通过 Bot-to-Bot DM 把请求交给最合适的同事，调取工作进展、汇总待处理事项，并在 Human DM 中回报结果。总管身份本身不授予代批其他 Bot 操作的权限。通过对话处理待审批事项属于后续有明确范围的能力，应由原有审批 owner 接收 Human 的明确决定，而不是赋予总管自行批准一切操作的权限。
+_避免使用_：全局 Orchestrator、Home 面板、Dashboard
+
+**Tob**：
+为 Human 提供的内置本地总管 Bot，拥有独立于普通 DeepSeek Bot 的持久身份；名称是 Bot 的倒写，也寓意 Thousands of Bot。Tob 不可删除或归档，但其 Soul 与 Memory 可以编辑和迁移，且不携带本地管理权限。管理操作通过原生 Shell 调用 DeepSeekBot CLI；Host 只为当前已准入的 Human DM 执行授予明确支持的操作，保留身份、审批和 revision 校验。总管身份不等于无限制 CLI 或管理员权限。
+_避免使用_：Home 面板、全局 Orchestrator
+
+**Tob Mode**：
+Tob 模式。手机端在聊天列表下拉并按住后，从顶部滑入的 Tob DM 普通聊天详情页。与点击 Tob 行相比只是入口和入场动画不同；它就是同一个 Tob DM 与同一份历史，不是第二个对话或页面。下拉的目标总是 Tob，必要时使用最近使用的电脑环境的 Tob。桌面端没有 Tob 模式：原来的 Home 面板已移除，在 Simple 布局模式下隐藏 Side column 即可专注于任意频道的对话。
+_避免使用_：Home、Home 面板、拖布模式、personal agent 模式
+
+**Tob Delegation**：
+Tob 委派。Tob 把 Human 的请求交给它判断最合适的同事 PersonaBot：在双方的 Bot-to-Bot DM 中发一条普通消息，再把对方的结果回报到 Human DM。Tob 不先征求 Human 同意，Human 通过每次发送产生的活动提示看到它。委派不带审批权限：同事自己的审批仍交给 Human。
+_避免使用_：分发、路由、Assignment（Assignment 是 Bot 自己的 Session，不是另一个 Bot）
 
 **PersonaBot**：
 由 Host 拥有的一等 bot 实体：一种带 Git-backed Memory Repository、跨越 Session、Chat 与 Workspace，并可同时持有多个 Session 的持久身份。它的 Soul 是 Memory 中的 optional 内容，而不是身份本身。
@@ -91,7 +127,7 @@ _避免使用_：Channel pin、Channel membership、Agent Scope
 _避免使用_：DSH Agent preset、SoulSnapshot
 
 **PersonaBot Model Plan**：
-PersonaBot 模型方案。某个 PersonaBot 持有的模型预设快照或 Human 自定义选择，决定其 Orchestrator 路由与后续 Assignment 的模型选择。它属于运行配置，不属于 Soul 或 Memory。
+PersonaBot 模型方案。某个 PersonaBot 持有的模型预设快照或 Human 自定义选择，决定其 Orchestrator 路由与后续 Assignment 的模型选择。其 Assignment 策略可继续继承全局模型，而 Orchestrator 独立定制。它属于运行配置，不属于 Soul 或 Memory。
 _避免使用_：Soul、DSH Agent preset、model usage
 
 ### 支撑与执行
@@ -124,6 +160,14 @@ _避免使用_：binding、workspace mapping、cwd inference、session membershi
 一条对 Human 有意义、由 PersonaBot 的 Orchestrator 选择独立推进的持续事项。它没有单独的持久 identity 或 lifecycle；其 canonical runtime identity 是承载它的 Assignment Session 的 DSH Session id。
 _避免使用_：Work、work item、task entity、job entity、worker
 
+**Assignment Title**：
+Assignment 的简短、面向 Human 的名称，由 Orchestrator 在创建 Assignment Session 时选定，让 Human 在列表中一眼认出这条工作线。
+_避免使用_：purpose、task name、prompt、Continuity Key
+
+**Assignment Description**：
+用一两句话说明 Assignment 要做什么，由 Orchestrator 与 Assignment Title 一起选定。它既不是发给 Assignment Session 的指令，也不是结果报告。
+_避免使用_：purpose（历史用法）、prompt、Assignment Request、Assignment Report
+
 **Assignment Session**：
 执行且只执行一个 Assignment、由 PersonaBot 拥有的独立 root Session；v1 中它只有一个 working directory。它由 Orchestrator 创建和管理，不要求 Human 另开 Conversation；一个 PersonaBot 可以同时拥有多个 Assignment Session，而 DSH Subagent 永远不算 Assignment Session。
 _避免使用_：Work Session、Worker Session、Executor Session、task Session、child Session
@@ -133,7 +177,7 @@ _避免使用_：Work Session、Worker Session、Executor Session、task Session
 _避免使用_：worker、PersonaBot、Orchestrator、Assignment Session
 
 **Assignment Directory**：
-一种以 PersonaBot 为作用域的持久 read model，当前 Orchestrator 通过它显式列出并寻址自己拥有的 Assignment Session，包括 purpose、Continuity Key、Workspace、源自 DSH 的活动状态与 last-run facts、依赖关系、最新语义报告以及后代活动聚合。它将 execution facts 与 reported outcomes 分开，由 Session Ownership 和 DSH facts 重建，并在需要时查询，而不是完整注入每个 turn。列表支持筛选、文本搜索、排序与 opaque-cursor pagination，默认隐藏 Archived Assignment，且绝不会把 DSH Subagent 扁平化为顶层 Assignment。
+一种以 PersonaBot 为作用域的持久 read model，当前 Orchestrator 通过它显式列出并寻址自己拥有的 Assignment Session，包括 Assignment Title 与 Assignment Description、Continuity Key、Workspace、源自 DSH 的活动状态与 last-run facts、依赖关系、最新语义报告以及后代活动聚合。它将 execution facts 与 reported outcomes 分开，由 Session Ownership 和 DSH facts 重建，并在需要时查询，而不是完整注入每个 turn。列表支持筛选、文本搜索（覆盖 Assignment Title 与 Description 等）、排序与 opaque-cursor pagination，默认隐藏 Archived Assignment，且绝不会把 DSH Subagent 扁平化为顶层 Assignment。
 _避免使用_：task list、AgentHandle map、cwd scan、Orchestrator memory
 
 **Archived Assignment**：
@@ -181,7 +225,7 @@ Web Human 或当前获授权的外部审核人显式保存且可撤销的规则�
 _避免使用_：Workspace Grant、Provider Service Grant、sandbox preset、推断的命令相似性
 
 **Approval Template**：
-Profile 级、由 Human 用 Markdown 写成的审批规范，说明哪些工具审批可以允许、拒绝或交给 Human。每个 PersonaBot 选用一份或不选；选用、取消或修改正在使用的模板，必须由 Human 通过审批卡确认（ADR-0207）。
+Profile 级、由 Human 用 Markdown 写成的审批规范，说明哪些工具审批可以允许、拒绝或交给 Human。每个 PersonaBot 选用一份或不选；选用、取消或修改正在使用的模板，需要 Human 决定，或在独立管理范围中显式保存的 Tool Approval Rule（ADR-0249）。
 _避免使用_：approval mode、auto mode、Tool Approval Rule
 
 **Approval Reviewer**：
@@ -201,12 +245,16 @@ _避免使用_：Workspace Grant、就地切换 Session 模式、Orchestrator �
 _避免使用_：direct Session creation、task entity、job entity
 
 **Binding**：
-PersonaBot 与其参与的某个 surface 之间的连接——例如 Channel、Chat、sidebar 或 renderer。
+PersonaBot 与其参与的某个 surface 之间的连接——例如 Channel、Chat、Panel 或 renderer。
 _避免使用_：integration、connector、channel binding
 
 **Orchestrator Session**：
 PersonaBot 长期存在的 dispatch root Session：同时至多一个处于 active，负责消费 Bot Inbox，并决定 reply、dispatch 以及是否创建新 Assignment Session。它的 working directory 始终是 PersonaBot 的 Memory Repository；它是 PersonaBot 的对外发声者，不是由 Human 管理的 Conversation，也不是 Assignment 列表中的一行。普通 Session output 只保留为 execution history；只有从可信 Session ownership 推导身份、并经过 Channel membership 授权的显式 Channel messaging command，才会向 Human-facing Channel 发声。
 _避免使用_：main agent、brain、supervisor
+
+**Idle Compaction**：
+「空闲压缩」。Orchestrator Session 空闲（没有正在运行的 turn，也没有待处理的 Bot Inbox Admission）达到其模型路由预估 prompt cache 寿命的一部分后，由 Host 发起的 DSH compaction，趁长历史仍能按缓存命中价读取时完成压缩。它不会启动 Bot turn，也不会在 Channel 中发声。
+_避免使用_：auto-compact、后台摘要、cache warming
 
 **Developer Mode**：
 Human 拥有的 Bot-mode 偏好，用于揭示默认隐藏的诊断表面（operational log 视图、verbose 状态）。它只控制 Human 的可见性——绝不是 agent 能力的门：有 shell 通道的 agent 总能触及同一份底层数据，因此绝不能把 Developer Mode 描述或依赖为读取边界。
@@ -229,7 +277,7 @@ _避免使用_：driver、backend、sandbox、tool provider
 _避免使用_：driver、backend、computer provider
 
 **Takeover**：
-Human 在一台 Computer 上的接管会话：暂停所有在该 Computer 上行动的 PersonaBot，并在其持续期间关闭面向模型的截图。它由某个 Bot Screen 发起，但始终作用于整台 Computer。
+Human 对一台 Computer 的排他控制：由某个 Bot Screen 发起，但始终作用于整台 Computer，暂停所有在其上行动的 PersonaBot 的动作与面向模型的截图。观看不授予控制权；释放控制权后 Bot 仍保持暂停，直到 Human 明确恢复。
 _避免使用_：handoff、screen sharing、per-bot takeover
 
 **Computer Export**：
@@ -253,7 +301,7 @@ PersonaBot 级的开启项（默认关闭）：开启后，该 PersonaBot 的 Or
 _避免使用_：permission、grant、feature flag、developer mode
 
 **Computer Authorization**：
-PersonaBot 在 Computer 上首次行动前、由 Human 按会话给予的一次授权；profile 级「自动允许」可跳过询问。Access 决定工具是否存在，Authorization 决定它们能否运行。
+Access 使工具可用后，运行 Computer 工具所需的授权。Human 可以批准当前 Session，或为当前工具与目标保存可撤销的 Tool Approval Rule，供后续 Session 复用。持久规则逐次核验，不产生整会话授权；撤销规则或更换目标后恢复询问。profile 级「自动允许」可跳过询问。
 _避免使用_：takeover、consent dialog、per-action approval
 
 **Computer Audit**：
@@ -275,7 +323,7 @@ PersonaBot 级的开启项（默认关闭）：开启后，该 PersonaBot 的 Or
 _避免使用_：permission、grant、feature flag、extension toggle
 
 **Browser Authorization**：
-PersonaBot 在 Bot Browser 上首次行动前、由 Human 按会话给予的一次授权；profile 级「自动允许」可跳过询问。Access 决定工具是否存在，Authorization 决定它们能否运行。
+Access 使工具可用后，运行 Bot Browser 工具所需的授权。Human 可以批准当前 Session，或为当前工具、Browser Profile 与目标保存可撤销的 Tool Approval Rule，供后续 Session 复用。持久规则逐次核验，不产生整会话授权；撤销规则或更换目标后恢复询问。profile 级「自动允许」可跳过询问。
 _避免使用_：Browser Access、consent dialog、per-action approval
 
 **Browser Pause**：
@@ -363,12 +411,40 @@ _避免使用_：Channel authority、database backup、live inbox
 _避免使用_：credential、Service Grant、automatic reconnect
 
 **Bot Marketplace**：
-harness 中打开、用于浏览、搜索和安装可分享 Bot 的 hosted catalog。只列出 Indexed Repository，没有账号，也没有上传的 Bot（ADR-0131、ADR-0135）。
+harness 中打开、用于浏览、搜索和安装可分享 Bot 的 hosted catalog。同时列出两种条目：Indexed Repository 和 Uploaded Bot（ADR-0131、ADR-0267）。
 _避免使用_：store、hub、Soul registry
 
 **Indexed Repository**：
 带有 `botharness-bot` topic、被 Bot Marketplace 以引用方式列出并定期刷新的公开 GitHub 仓库。安装它即以其 Git URL 创建新的 PersonaBot；它不是 SoulSnapshot、Listing 或 Version。
 _避免使用_：submission、Listing、SoulSnapshot、mirror
+
+**Uploaded Bot**：
+已登录的作者上传 Memory 文件（不含 Git 历史）而形成的 Bot Marketplace 条目。作者可以整体替换它的文件，或彻底删除它；没有版本。安装时创建新的 PersonaBot，并做一次初始提交；之后的替换不会影响已安装的副本。
+_避免使用_：Listing、Version、SoulSnapshot、publication
+
+**Share Draft**：
+上传前由 Tob 与 Human 逐个文件确认、为某个 PersonaBot 的 Memory 文件准备的脱敏副本；源 Memory 不会被修改，只有 Share Draft 会被上传。
+_避免使用_：export、snapshot、redacted Memory
+
+**Install Receipt**：
+安装完成后 Host 向 Bot Marketplace 上报的一次计数，以只用于市场的随机 Host 标识去重，因此每台 Host 对每个条目只计一次。
+_避免使用_：download、clone count、Telemetry event
+
+**Marketplace Digest**：
+Bot Marketplace 每天一篇、按日期保存的文章，介绍近期的 Bot，内嵌可一键安装的 Bot 卡片；往期仍可查看。
+_避免使用_：newsletter、push notification、blog post
+
+**Digest Pick**：
+精选 Bot：Marketplace Digest 在某一段里点名介绍的 Bot。之后从 Bot Marketplace 下架的精选 Bot，文章里的文字保留，但卡片不再显示。
+_避免使用_：featured Bot、编辑推荐、推广 Bot
+
+**Digest Cover**：
+日报封面：代表一期 Marketplace Digest 的图，用这一期仍在架的 Digest Pick 的 banner 和头像拼成，版式按数量选择；一个都不在架时，用按日期生成的像素 banner 兜底。
+_避免使用_：缩略图、hero 图、生成图片
+
+**Marketplace Ranking**：
+榜单：Bot Marketplace 每天生成的三个在架 Bot 列表：热门（最近 7 天安装最多）、新上架（最近 7 天首次收录）和上升最快（比前一周安装增长最多）。三个榜单每天重算一次，读取当天的快照。
+_避免使用_：section、货架、排行榜
 
 **Bot Zip**：
 单个 PersonaBot 的 Memory 文件打成的 `.zip`，附带 `.botharness/bot.json` 描述和头像，由 Human 导出后交给别人；导入时创建新的 PersonaBot。默认只含文件，只有整个 Bot 导出并勾选时才带 Git 历史。不含身份、Session、绑定或凭据（ADR-0135）。
@@ -387,8 +463,16 @@ _避免使用_：repo、page、entry
 _避免使用_：release、build、revision
 
 **Handle**：
-account 唯一的公开标识符，作为其 Listing 的 namespace；绝不使用 account email。
+历史术语（Soul registry）：account 唯一的公开标识符，作为其 Listing 的 namespace。Uploaded Bot 改用 Author ID。
 _避免使用_：username、account id
+
+**Author ID**：
+Bot Marketplace 为上传账号分配的永不改变的短标识，显示在可自由设置的显示名旁边，用来区分重名作者；绝不使用 account email。
+_避免使用_：handle、username、account email
+
+**Account Profile**：
+一个 Connect 账号的显示名和可选头像，由 Bot Marketplace 和它的 Author ID 一起保存。Human 可以在任一客户端的设置里编辑它，Uploaded Bot 会把它显示为作者；account email 从不属于它。
+_避免使用_：Human display name、user profile、author account
 
 **Bot set**：
 一组计划一同导入、带名称的 Listing。
@@ -399,7 +483,7 @@ _避免使用_：collection、bundle、pack、team
 _避免使用_：database dump、live clone、publish
 
 **Import**：
-从分享的 Memory Git 仓库（Git URL 或 Bot Marketplace 安装）创建新的 PersonaBot；始终产生副本，导入的 operational authority 会保持 disabled，直到被显式 rebind 或 reauthorize。
+从分享的 Memory Git 仓库（Git URL 或 Bot Marketplace 安装）或 Bot Zip 创建新的 PersonaBot；始终产生副本，导入的 operational authority 会保持 disabled，直到被显式 rebind 或 reauthorize。
 _避免使用_：install、clone、pull、restore
 
 **Publish**：
@@ -461,19 +545,27 @@ _避免使用_：room、server、board
 _避免使用_：deleted Channel、archived Channel、muted Channel、Content Purge
 
 **Channel Deletion**：
-由 Human 确认，结束某个 Channel 活跃成员关系和路由的操作，同时保留历史及因果归属。它不同于可恢复的隐藏，也不同于另行确认的 Content Purge。
+由 Human 确认，结束某个 Channel 活跃成员关系和路由的操作，同时保留历史及因果归属。它不同于可恢复的隐藏，也不同于另行确认的 Content Purge。对本地群聊而言，Channel Deletion 就是 Group Disband。
 _避免使用_：Hidden Channel、Content Purge、provider conversation deletion
 
+**Group Disband**：
+由 Human 确认、不可撤销地删除一个本地群聊（界面称「解散群聊」）：结束成员关系和路由，并删除该群自己的消息和文件，只保留群的身份作为已删除标记。与其他 Channel 共享的内容、Bot 记忆和 Workspace 文件不受影响。
+_避免使用_：dissolve、archive、退出群聊、Hidden Channel
+
 **Channel section**：
-用户创建、可折叠的 Channel 分组，显示在 bot-mode sidebar 中。它只是本地 display arrangement，不属于 Soul。
+用户创建、可折叠的 Channel 分组，显示在频道列表面板中。归属与顺序属于对应 Host 的 display arrangement，不属于 Soul。
 _避免使用_：folder、category、group
 
+**Pinned section (置顶分区)**：
+内置的展示分区，呈现某个 Host 已置顶的 Channel，与用户创建的 Channel section 归属独立。置顶保留 Channel 的原分区归属，但只在置顶分区展示；取消置顶后恢复普通位置。
+_避免使用_：Channel 副本、用户创建的分区、设备本地置顶存储
+
 **Section order (区块顺序)**：
-bot-mode sidebar 中 Channel section 的相对顺序：默认按创建顺序，之后可由用户排列。未分组 Channel 可以占据 section 之间的顶层位置，但不会因此成为 section。
+频道列表面板中 Channel section 的相对顺序：默认按创建顺序，之后可由用户排列。未分组 Channel 可以占据 section 之间的顶层位置，但不会因此成为 section。
 _避免使用_：priority、layout order
 
 **Sort mode (排序模式)**：
-sidebar scope 对其行进行排序的方式：`auto`（最新 message 优先）、`manual`（用户冻结的顺序）或 `inherit`（遵循全局默认值）。
+Roster 或单个 Channel section 对其行进行排序的方式：`auto`（最新 message 优先）、`manual`（用户冻结的顺序）或 `inherit`（遵循全局默认值）。
 _避免使用_：ordering、sort preference、sorter
 
 **未分组 (Ungrouped)**：
@@ -629,11 +721,13 @@ _避免使用_：wake policy、inferred step state、message priority
 _避免使用_：per-event queue、wake storm、batch（单独使用）
 
 **Activity Center**：
-「活动中心」是 Bot 模式中面向 Human 的跨 PersonaBot、跨 Channel 入口，包含运行总览与个人 Human Inbox。它汇总已有权威事实，不成为消息、用量或 Session 活动的另一份权威。
+「活动中心」是 Bot 模式中面向 Human 的跨 PersonaBot、跨 Channel 注意力入口，直接打开个人 Human Inbox。完整页面与 Dock 共用原位工具审批卡，运行统计不再属于此入口（#2026）。它汇总已有权威事实，不成为消息、用量或 Session 活动的另一份权威。
 _避免使用_：Human Inbox（指整个入口时）、dashboard list
 
+Activity control rail 红点有独立的浏览器／Host 本地显示范围；隐藏或缩小红点范围不改变 Human Inbox 查询、实际未读状态或待处理 Human 请求。
+
 **Human Inbox**：
-Activity Center 内的个人 attention 视图：未解决的 Human 行动、提及与回复、未读 Channel 活动、信息更新及已处理历史。它引用所属权威事实，不复制 Channel 内容，也不会把每条 Bot Inbox 事件都摊成 Human 工作。
+Activity Center 内的个人 attention 视图：未解决的 Human 行动、提及与回复、未读 Channel 活动、信息更新及已处理历史。它引用所属权威事实，不复制 Channel 内容，也不会把每条 Bot Inbox 事件都摊成 Human 工作。Human 设置免打扰的 Channel 不贡献消息注意力（含提及、回复）或全局未读提醒；真实已读位置和明确 Human 行动请求保持不变。
 _避免使用_：notifications、Bot Inbox、dashboard list
 
 **Channel Attention**：
@@ -670,6 +764,8 @@ _避免使用_：caller-supplied author、transport metadata（单独使用）
 
 ### 聊天与回复
 
+**IM 会话镜像**是针对一个已绑定外部私聊的可选本地展示，复用 canonical content，不新增 Inbox Admission 或唤醒。**本地私聊转发**是另一项独立选择，通过同一 Binding 和已授权会话执行外部发送。两者均默认关闭，不新增接收或主动发送权限。见 ADR-0217。
+
 **Chat**：
 PersonaBot 参与的 Feishu/Lark conversation——group 或 p2p——通过 `chat_id` 识别。
 _避免使用_：room、channel、group（当含义也包括 p2p 时）
@@ -682,6 +778,10 @@ _避免使用_：private chat、PM
 两个参与者都是 PersonaBot 的 DM Channel。一个 Bot 发出的消息是该 Channel 中的 Source Event，可以进入另一个 Bot 的 Inbox；Human 的只读查看独立于 Channel membership。
 _避免使用_：peer relay bus、copied inbox conversation
 
+**Bot Collaboration Network**：
+在已确认的跨 Host 设计目标中，活跃 PersonaBot 发现同事并通过 Bot-to-Bot DM 沟通的成员范围，可跨越多个 Host。它建立联系资格；每个接收 Bot 仍保留自己的执行权限和私有 Memory。
+_避免使用_：共享 Memory、全局 Orchestrator、网络路线
+
 **Thread**：
 通过回复 Chat 或 Channel 中某条 message 而开启的 sub-conversation。
 _避免使用_：topic、sub-chat、channel
@@ -691,6 +791,10 @@ PersonaBot answer 的落点：位于 Chat 中 triggering message 下方（root�
 _避免使用_：reply mode、answer position、visibility
 
 ### Host（宿主）与设置
+
+**Environment**：
+移动端列出、添加和选择一个已配对 Host 时，面向用户的名称（中文为「环境」）；一个 PersonaBot 只在一个 Environment 中创建。
+_避免使用_：computer、电脑、machine、device（Computer 已指 PersonaBot 的工作界面）
 
 **PersonaBot registry**：
 拥有 PersonaBot definition、archive state、binding 与 Session ownership 的 Host module；其 operational record 存储在 BotHarness operational database 中，而 Soul content 仍保存在文件中。
@@ -781,51 +885,107 @@ _避免使用_：Archived PersonaBot、stopped Host、backup source
 _避免使用_：Profile Transfer、clone、ordinary restore
 
 **Roster**：
-bot-mode sidebar 中展示 PersonaBot 与 Channel 及其 state 的列表。
-_避免使用_：dashboard、bot list
-
-**App Sidebar**：
-client 的左侧栏。Bot mode 之外是 DSH 原生左栏；桌面端 Bot mode（宽度 960 px 及以上）中由 BotHarness 换成自己的 Bot mode sidebar（DeepSeekBot 标题，其 Logo 悬停时变成「退出 Bot mode」；活动中心、Roster、Bot 设置），这一栏的宽度、拖动调整和收起仍由 DSH 负责；其他插件在左栏的内容在 Bot mode 期间隐藏（ADR-0203）。采用此名称是为了与右侧的 Channel sidebar 区分。
-_避免使用_：left sidebar、main sidebar、navigation
-
-**Channel sidebar**：
-Bot mode panel 中由当前所选 Channel 决定 scope 的右侧区域：group Channel 显示 membership entry，PersonaBot DM 显示该 PersonaBot 自己的 Session、Memory、Bot Inbox 等 entry。桌面端显示为 Channel sidebar tab；窄布局下是一列可折叠 entry。运行配置不在这里，而在 Channel settings。它不是 DSH 原生、由 Session 决定 scope 的右侧栏。
-_避免使用_：PersonaBot navigation、right panel、session panel、inspector、workbench
-
-**Channel body**：
-Bot mode panel 的中间区域，包含所选 Channel 的 header、primary content 与 composer；DM 在这里呈现 Chat。
-_避免使用_：main pane、conversation view、chat panel
-
-**Channel sidebar entry**：
-Channel sidebar 中一个已注册的 item，具有稳定 id、label、order、scope 与 renderer，可用于展示信息、提供 control，或同时承担两者。桌面端它显示在某个 Channel sidebar tab 里；窄布局下各自折叠。以 settings surface 注册的 entry 改为 Channel settings section。不可用的 entry 直接缺席，不显示 placeholder。
-_避免使用_：widget、card、tab、destination、Channel section
-
-**Channel sidebar tab**：
-桌面端 Channel sidebar 的一个图标标签页，包含一个或多个 Channel sidebar entry（会话 = Session + Bot Inbox；记忆 = 记忆文件 + 记忆演化）。没有指定已注册 tab 的 entry 自成一个 tab。有两个可见 entry 的 tab 分成上下两个区域。Human 在 + 视图菜单中排序和隐藏 tab，这些是浏览器本地的展示偏好。
-_避免使用_：view、page、rail item
+频道列表面板中展示 PersonaBot、频道及其状态的列表；它是内容，而不是一个固定的导航区域。
+_避免使用_：sidebar roster、dashboard、bot list
 
 **Bot mode layout**：
-桌面端 Bot mode（宽度 960 px 及以上）中、App Sidebar 右侧的 `main` 区域：一个可停靠布局，Human 可以拖动、停靠、调整大小、关闭和重新打开 Dock panel。每个面板独立存在，面板之间不叠成 tab，Channel body 只有一个，布局按浏览器保存，并可恢复默认（提议中，ADR-0203）。窄布局与手机保持响应式布局。
+桌面端 Bot mode 的两层呈现布局：Global workspace，以及唯一消息面板内当前频道的 Channel workspace。关闭全局面板或频道子面板时，保留其已保存的尺寸比例；重新打开及刷新后，按当前工作区尺寸恢复。Human 可以在所属工作区内移动面板、调整大小；面板不组成标签页，也不浮出所属工作区。符合条件的 Web/macOS shell 释放原生侧栏占位；窄屏和不符合条件的 shell 保留响应式回退。
 _避免使用_：workbench、panel layout、dock
 
-**Dock panel**：
-Bot mode layout 中注册的一个单元：稳定 id、标题、图标、scope（`channel` 面板跟随当前 Channel，`global` 面板不跟随）、默认位置与渲染器。Channel body 和每个 Channel sidebar entry 都是 Dock panel；App Sidebar 不是 Dock panel，留在布局之外；其他插件通过 `dockPanels` Service 注册更多面板。Dock panel 只是 UI Consumer；插件的数据存放在它自己的 Service 与 Provider 中（提议中，ADR-0203）。
-_避免使用_：widget、view、pane、DSH main panel
+**Layout mode**：
+布局模式。Human 在本设备上为桌面端 Bot mode 布局选择的行为：**Simple**（简单模式）或 **Advanced**（高级模式）。Simple 下消息面板始终显示，频道子面板纵向排列在其 Subpanel column 中，Workspace Control Rail 决定 Side column 显示什么；Advanced 是可自由排布的两层工作区。两种模式各自保存布局，切换不会改写另一方；新用户默认 Simple。
+_避免使用_：Bot mode、DSB mode、简单视图、专家模式
+
+**Side column**：
+侧列。Simple 布局模式下，位于 Workspace Control Rail 与消息面板之间的可选一列，显示一个全局面板，例如频道列表、Activity Center 或 Marketplace。点选控制列开关会在这里显示对应面板；再点一次当前已显示的开关则隐藏这一列，只留下控制列和消息面板。显示的各个面板共用同一宽度。
+_避免使用_：sidebar、左侧面板、App Sidebar、primary side bar
+
+**Subpanel column**：
+子面板列。Simple 布局模式下，消息面板内可展开收起的右侧一列，按固定顺序纵向列出当前频道可用的子面板。每个子面板可折叠，整列可滚动；折叠只卸载呈现，不会停止正在运行的浏览器、电脑或会话。
+_避免使用_：Channel sidebar、右侧栏、inspector
+
+以下布局术语描述 [#2048](https://github.com/BotHarness/DeepSeekBot/issues/2048) 与 ADR-0221 中已确认的目标设计。[#2049](https://github.com/BotHarness/DeepSeekBot/issues/2049) 已交付会话子面板，[#2067](https://github.com/BotHarness/DeepSeekBot/issues/2067) 迁入记忆文件、记忆演化和定时任务。[#2069](https://github.com/BotHarness/DeepSeekBot/issues/2069) 将浏览器控制与电脑控制迁入同一 Bot 专属频道工作区。临时文件、收件箱和成员区域尚未统一为持久化子面板布局。
+
+**Global workspace**：
+全局工作区。Bot mode 的外层呈现空间，包含 Workspace Control Rail、频道列表和活动中心等全局面板，以及唯一的消息面板。全局面板不依赖当前频道也具有独立用途。这是 UI 布局，不是 DSH Workspace、执行环境或权限边界。
+_避免使用_：App Sidebar、全局频道、根频道
+
+**Workspace Control Rail**：
+工作区控制列。Global workspace 中唯一、不可关闭、占据整列高度的控制面板。顶部为 DSB 模式退出入口，可排序的开关控制全局面板和消息面板，底部是 Bot Settings。设置上方的拖拽把手在悬停或键盘聚焦时显示，用于把整列移动到各外层列之间。控制列与其他面板使用一致的小圆角。频道子面板开关属于消息 header；布局偏好属于 Bot Settings。
+_避免使用_：panel control、panel control sidebar、App Sidebar、频道列表
+
+**Panel**：
+面板。Bot 工作区中具有独立身份、明确用途和作用域的单元，其位置与大小属于所属工作区；内容面板是其所展示数据的呈现，而非数据权威，工作区控制列则是特殊的全高控制面板。
+_避免使用_：Dock panel、widget、view、pane、sidebar、DSH main panel
+
+以下 Panel 分类命名了[面板插件设计讨论](docs/research/2026-10-19-panel-plugin-design-discussion.md)中已确认的开发目标；不代表外部开发能力或固定 Bot 绑定已经实现。
+
+**Global Panel**：
+全局面板。具有独立于当前 Channel 的用途，不要求绑定某个 PersonaBot 或 Channel，例如当前 Profile 内共享的 Task Kanban。
+_避免使用_：全局频道、所有 Bot 的访问权限
+
+**Bot-bound Panel**：
+绑定 Bot 的面板。以一个 PersonaBot 为对象，例如 Bot 的 3D 陪伴角色。在消息面板内跟随 PersonaBot 私聊，在群聊内不显示；显式绑定的全局工作区实例保留所选 Bot，不随当前频道选择变化。
+_避免使用_：固定面板、固定位置面板、Bot 专属频道子面板
+
+**Channel-bound Panel**：
+绑定频道的面板。以一个 Channel 为对象，其用途可同时适用于 PersonaBot 私聊频道与 Group Channel，例如频道文件。在频道工作区内通常跟随当前频道；显式绑定的实例独立于摆放位置标明所选频道。
+_避免使用_：绑定 Bot 的面板、仅私聊面板
+
+**Group-channel-bound Panel**：
+绑定群聊频道的面板。用途要求 Group Channel 的 Channel-bound Panel，例如群聊成员。仅适用于群聊限制的是可选频道，不引入另一套绑定机制。
+_避免使用_：群成员 Bot 面板、群聊专属权限
+
+**Task**：
+在 Panel Plugin 开发目标（ADR-0234、T2 #2223，待实现）中，Task 是当前 Profile 内由 Human 与 Bot 共同管理的持久工作项，具有稳定身份、标题、描述、状态和最新进度。它不等于 Session 内计划或 Assignment Session，修改 Task 本身不启动执行。
+_避免使用_：Session 计划、Assignment Session、自动执行 Job
+
+**Panel header**：
+面板标题栏。内容面板的标题与操作区域，包含图标、名称和该面板的操作；它始终属于对应面板，不随面板位置改变含义。图标与名称组成随内容宽度自适应的标题操作区：点击关闭面板，拖拽移动面板；频道身份信息、标签页与操作按钮不属于该操作区。在 macOS Desktop 中，标题栏剩余空白区域用于拖动原生窗口。
+_避免使用_：sidebar tab、Channel header（指面板自身标题栏时）
+
+**Panel content**：
+面板内容区。内容面板中位于标题栏下方、承载信息与交互的区域，包含空状态、加载和错误状态；其中的分栏或详情视图是否为频道子面板，由其在所属工作区内的独立身份决定。
+_避免使用_：Channel body、sidebar entry、main pane
+
+**Panel scope**：
+面板作用域。在现有布局中，决定面板所属工作区及所呈现信息的上下文。已确认的开发目标把工作区位置与 Bot／Channel 绑定分开；位置、绑定和显隐均不授予访问权限，也不改变底层领域数据的归属。
+_避免使用_：左右作用域、sidebar scope
+
+**Channel list panel**：
+频道列表面板。承载 Roster 及搜索、列表选项和创建操作的全局内容面板，选择其中一项即选择当前频道；从此处查看 PersonaBot 资料会在消息面板中打开对应 Profile view，若消息面板关闭则先开启。
+_避免使用_：App Sidebar、Bot sidebar、左侧栏、Roster panel
+
+**Messages panel**：
+消息面板。承载当前 Channel workspace 的唯一外层面板。header 标识当前频道并控制可用的频道子面板。右键 header 通过图标、名称与右侧复选框管理子面板开关的显隐；隐藏开关也会关闭对应子面板，不另设管理按钮。隐藏消息面板会隐藏整个频道工作区，同时保留子面板的开关和几何偏好；不停止执行，也不撤销访问权限。
+_避免使用_：Channel body、聊天侧栏、消息列表（指整个面板时）
+
+**Channel workspace**：
+频道工作区。消息面板为当前频道承载的内层呈现空间，包含消息内容及该频道可用的子面板。各频道分别保留布局、尺寸比例和显示偏好。子面板方位由 Human 固定选择：调整消息面板大小不会将左右分割自动改成上下分割，也不会限制可用的停靠方向。子面板可以停靠到任意叶面板的左、右、上、下方，形成按频道保存的嵌套分割树；隐藏叶面板不删除其分割关系和比例。这是第二层，也是最后一层工作区；子面板不能停靠到全局工作区。它不引入第二份频道选择状态或数据权威。
+_避免使用_：Channel sidebar、嵌套全局工作区、DSH Workspace
+
+**Channel subpanel**：
+频道子面板。Channel workspace 内的面板，从消息 header 打开，仅在父面板可见时显示。可用性跟随当前频道及现有访问检查。会话适用于 PersonaBot 私聊和群聊；成员适用于群聊。记忆文件、记忆演化、定时任务、浏览器控制、电脑控制和 PersonaBot Profile 是 Bot 专属 surface，群聊不提供这些入口，即使会话正在显式查看某个群成员 Bot 也不例外。群资料仍可使用。子面板开关只改变呈现，不改变执行或权限。
+_避免使用_：Channel sidebar entry、全局面板（指频道内容时）、tab
+
+**Legacy layout terms**：
+App Sidebar、Channel body、Channel sidebar、Channel sidebar entry 和 Channel sidebar tab 是原固定区域布局的退役名称。原 App Sidebar 的职责分别称为工作区控制列和频道列表面板，Channel body 称为消息面板，原 Channel sidebar 内容使用各具名频道子面板或内部视图的名称；设置内容称为频道设置分区。
+_避免使用_：把历史侧栏名称当作现行面板分类
 
 **Channel settings**：
-当前 Channel 的运行配置 modal（频道设置）：PersonaBot DM 中是 Wake Policy、外部身份与外部连接器；群聊中是 Wake Policy、外部连接器与群管理。从 Channel sidebar 齿轮菜单和 Channel header 的「···」菜单打开，按 Channel settings section 组织。
+频道设置。承载当前频道的 Wake Policy、外部身份、外部连接器和群管理等运行配置的弹窗，按频道设置分区组织；桌面端可从消息面板的频道菜单进入；窄屏使用频道列表中的频道菜单。
 _避免使用_：Bot Settings、Profile settings、sidebar settings
 
 **Channel settings section**：
-Channel settings 中的一个分区：以 settings surface 注册的 Channel sidebar entry，因此不会出现在 Channel sidebar 中。
+频道设置分区。频道设置中一组内聚的频道配置，属于该弹窗，而不是工作区面板。
 _避免使用_：settings tab、settings entry
 
 **PersonaBot Profile**：
-单个 PersonaBot 可分享的身份与只读活动 surface：身份会在分享 PersonaBot 时随之带走（Display name、Avatar、Profile Banner、Bot Tag、Bot Bio）；活动包括由其 owned Session 派生的 token 用量、来自 Bot Inbox Admission 的事件活跃度，以及 Memory commit 活跃度。Model Plan、Wake Policy、外部身份、Bridge、审批等运行配置不属于它，而在 Channel sidebar 与 Channel settings 中。它以 Profile popover 的紧凑形态出现在 DM header 的头像旁，并展开为 Channel body 中的 Profile view。
+单个 PersonaBot 可分享的身份与只读活动 surface：身份会在分享 PersonaBot 时随之带走（Display name、Avatar、Profile Banner、Bot Tag、Bot Bio）；活动包括由其 owned Session 派生的 token 用量、来自 Bot Inbox Admission 的事件活跃度，以及 Memory commit 活跃度。Model Plan、Wake Policy、外部身份、Bridge、审批等运行配置不属于它，而属于频道设置或对应的运行操作面板。DM header 或频道列表中的「查看资料」直接打开消息面板内的 Profile view；从频道列表进入时，若消息面板关闭则先开启。
 _避免使用_：account、dashboard、bot page、裸用 profile、settings page
 
 **Group Profile**：
-单个 Group Channel 的名称、头像，以及基于已提交 Channel 消息的活动 surface，按天和作者展示消息数量，并区分 Human 与 PersonaBot 作者；成员 Wake Policy、Bridge 等群配置在 Channel settings 中。群聊 header 打开弹层及 Channel body 详情；DM Channel 只有对应的 PersonaBot Profile。
+单个 Group Channel 的名称、头像，以及基于已提交 Channel 消息的活动 surface，按天和作者展示消息数量，并区分 Human 与 PersonaBot 作者；成员 Wake Policy、Bridge 等群配置在 Channel settings 中。群聊 header 直接打开消息面板中的 Profile view；DM Channel 只有对应的 PersonaBot Profile。
 _避免使用_：PersonaBot token 用量、群管理侧栏、DM Channel Profile
 
 **Approver**：
@@ -837,28 +997,56 @@ _避免使用_：admin、moderator、group member、recipient
 _避免使用_：approver、notification channel、webhook
 
 **Profile popover**：
-PersonaBot 或 Group Profile 的紧凑形态，锚定在 Channel body header 的头像旁。它只显示 Human 为相应 scope 固定的 Profile Card，并提供进入 Profile view 的入口。
+ADR-0085 中已退役的呈现形态：头像旁的紧凑预览及固定卡片偏好不再使用。「查看资料」直接进入 Profile view（#2017）。
 _避免使用_：menu、dropdown、tooltip、card stack
 
 **Profile view**：
-PersonaBot 或 Group Profile 的展开形态。它占据 Channel body，暂时替换 Chat 的历史与 composer；离开后 Channel body 回到 Chat，且不改变 Channel sidebar 中的任何内容。
-_避免使用_：panel、page、tab、inspector、settings
+PersonaBot 或 Group Profile 在消息面板中的详情视图，暂时替换会话历史和输入区。返回聊天会恢复这些内容，不改变其他面板。
+_避免使用_：独立面板、工作区标签页、inspector、settings
 
 **Profile Card**：
-PersonaBot 或 Group Profile 中一个已注册的 component，具有稳定 id、label、order、scope、visibility rule，以及 compact 与 full 两种 renderer，可用于展示信息、提供 control，或同时承担两者。Human 可以把 Profile Card pin 到相应的 Profile popover。
-_避免使用_：widget、tile、gadget、Channel sidebar entry
+PersonaBot 或 Group Profile 中一个已注册的 component，具有稳定 id、label、order、scope、visibility rule，以及 compact 与 full 两种 renderer，可用于展示信息、提供 control，或同时承担两者。可用的卡片直接显示在 Profile view 中，不再固定到独立预览。
+_避免使用_：widget、tile、gadget、Panel
 
 **Client bridge**：
 Web Client 用于读取 PersonaBot 并调用各自独立 mutation command 的 RPC surface，不与 Client 共享 Host service。
 _避免使用_：remote、IPC、gateway
 
+**This Host**：
+界面中文为“本机”。为 Human 正在使用的客户端页面提供服务的那台 Host。手机 App 没有 This Host。
+_避免使用_：local computer、this computer、本地电脑
+
+**Remote Host**：
+界面中文为“远程”。客户端通过设备配对连上、而不是为它提供页面的 Host。手机连的每台 Host 都是 Remote Host；对 Host A 上的浏览器来说，Host B 是 Remote Host。
+_避免使用_：Computer、其它电脑、machine、server、peer
+
+**Paired Device**：
+持有某台 Host 发放的独立、可撤销凭据的客户端：一个手机 App，或一个 origin 上的一个浏览器 profile。它读取并操作那台 Host，但从不承载 PersonaBot，也不中转其它 Host。
+_避免使用_：phone（指所有设备时）、session、Host
+
+**Host Feed**：
+一台 Host 向一个已认证客户端提供的全部实时状态：名单、头像、activity、未读、Human Inbox 和会话。每个客户端都通过同一个 Host Feed 读取每一台 Host，包括 This Host；新增要同步的状态，就是给 Host Feed 加一项。
+_避免使用_：sync、mirror、replica、bridge state
+
+**Device Notification Preference**：
+某个 Paired Device 希望某台 Host 就哪些 Human Inbox 项提醒它。偏好由设备拥有并保存；Host 只保留一份副本，用来决定给这台设备发什么。
+_避免使用_：Host 通知设置、push settings、mute（指 Channel 时）
+
 **Bot Settings**：
-BotHarness 自有的 modal（Bot 设置），承载 profile 级的 BotHarness 配置，按自己 sidebar 中的 Bot Settings section 组织。单个 PersonaBot 或单个 Channel 的配置不在这里，而在 Channel settings 或 Channel sidebar entry 中。DSH 自带的设置 modal 称为 DSH settings；其中的 Bot 设置 项只负责指向 Bot Settings，App 凭据仍留在 DSH settings。
+BotHarness 自有的 modal（Bot 设置），承载 profile 级的 BotHarness 配置，按自己 sidebar 中的 Bot Settings section 组织。单个 PersonaBot 或单个 Channel 的配置不在这里，而属于频道设置或对应的运行操作面板。DSH 自带的设置 modal 称为 DSH settings；其中的 Bot 设置 项只负责指向 Bot Settings，App 凭据仍留在 DSH settings。
 _避免使用_：Settings UI、settings page、preferences、admin panel、dashboard、web console
 
 **Bot Settings section**：
 Bot Settings 的一个 sidebar 目的地：稳定的 id、label、order，以及渲染一组内聚的 profile 级设置的 renderer。
-_避免使用_：tab、page、settings item、Channel sidebar entry
+_避免使用_：tab、page、settings item、Panel
+
+**Prompt Part**：
+Bot 的 System Prompt 或每轮模板里一段有名字的行为文字，例如怎样汇报进度，Human 可以改写。它周围的工具、投递和 Inbox 契约不是 Prompt Part，保持固定（ADR-0263）。
+_避免使用_：prompt section（DSH 的一个 System Prompt 分段包含多个 part 和固定的契约文字）、template
+
+**Prompt Preset**：
+Profile 里一组具名的 Prompt Part 文字。每个 part 按 Bot 依次取自 Bot 自己的改写、它选的预设、全局预设，最后是内置文字。运行中的 Session 一直使用开始时的文字，直到压缩或新的 Session。
+_避免使用_：system prompt preset、Model Preset（选择模型的预设）、persona
 
 **Access policy**：
 每个 PersonaBot 各自维护、允许访问它的 user 与 Chat 列表。
@@ -870,9 +1058,23 @@ _避免使用_：secret、API key、token
 
 ### 遥测与推广活动
 
+**Message Feedback**：
+依据 ADR-0256，Human 从一条 Channel 消息发起评价；仅好／不好、可选标签、脱敏短评、随机编号与版本发送到 PostHog。对话与执行诊断仅提供本地下载，由 Human 自行决定是否发送，独立于匿名 Telemetry。
+_避免使用_：Telemetry、多选消息导出、自动错误上报
+
+**Mobile Telemetry**：
+Expo 手机应用内默认开启、可在设置底部关闭的粗粒度统计，独立于 Host 统计。只观察配对、实时连接和首次聊天结果，不拥有产品权威，不包含聊天内容或领域标识（ADR-0214）。
+
+**Mobile Install ID**：
+启用统计时保存在手机上的随机统计 UUID，与 Host Install ID、配对设备身份、Human 账号及网站访客均独立。关闭统计会清除标识和待发队列，再开启生成新标识；系统恢复应用数据可能恢复已保存的选择与标识。
+
 **Telemetry**：
-Host 发送到项目分析服务的匿名产品使用事件，默认开启，可用插件配置 `telemetry: false`、`DO_NOT_TRACK=1` 或 `BOTHARNESS_TELEMETRY=0` 关闭。从不包含名称、Memory、对话内容、路径或 IP 地址（ADR-0132）。
+Host 发送到项目分析服务的匿名产品使用事件，默认开启，可用插件配置 `telemetry: false`、`DO_NOT_TRACK=1` 或 `BOTHARNESS_TELEMETRY=0` 关闭。从不包含名称、Memory、对话内容、路径或 IP 地址（ADR-0132）。每个事件都登记在 tracking plan 中，命名为 `category:object_action`，`source` 为 `host`（ADR-0270）。
 _避免使用_：追踪、分析 SDK、崩溃上报器
+
+**Active Day**：
+一次安装被使用的 Host 本地日：当天第一次进入 Bot 模式、Human 发消息或 IM 消息时发送一次 `app:active_day_start`（ADR-0270）。DAU、WAU、MAU 按有 Active Day 的安装计数；只是 Host 在线不算。
+_避免使用_：在线日、daily usage
 
 **Install ID**：
 插件安装首次启动时随机生成、附在其 Telemetry 上的标识。它标识一次安装而不是某个 Human，也从不与官网访客关联。
@@ -885,3 +1087,103 @@ _避免使用_：广告、促销
 **Campaign Link**：
 `go.botharness.ai` 上对应 Campaign 中某一条帖子或视频的短链，带有平台和媒体类型；访问时重定向到官网并附上 UTM 参数，同时计入点击。
 _避免使用_：短网址、UTM 链接、邀请链接
+
+### Sessions panel（会话面板）
+
+查看已有 Session 的唯一会话 surface（`sessions`，TextQuote 图标）；在两层目标布局中，它是消息面板内的 Channel subpanel（ADR-0221）。PersonaBot 私聊固定查看该 Bot；群聊默认查看「当前频道」，即原始 Source Event 属于该群的 Assignment，跨负责 Bot 展示。Human 可以明确选择可访问的群成员 Bot，查看其 Orchestrator 与 Assignment Session，且不改变当前聊天。范围是按频道保存的本地视图偏好，与历史筛选及工作区分组独立。查看操作不创建 Assignment、不发送执行请求、不改变执行。旧工作面板退役；活动中心仍负责 Human 待处理事项与审批。见 ADR-0220。
+
+会话面板默认跟随当前频道时不重复显示范围标签；群聊范围选择收进视图选项菜单，仅显式指定 Bot 时在标题栏显示 `Bot · 名称`。
+
+### 原生 UI 组件
+
+iOS 工作区切换采用应用自定义的常驻导航页面，由 `PagerView` 的显式后端连接原生 UIKit `UIPageViewController`：工作区在左，之后依次为完整聊天列表与底部导航、上次聊天、资料页。Android 保留原导航抽屉。详见 `apps/mobile/DESIGN.md` 的 iOS workspace panel。
+
+讨论界面时说出平台自己的组件名，而不是描述它长什么样。Android 的名称来自 [Material 3 glossary](https://m3.material.io/foundations/glossary) 与 [Material 3 components](https://m3.material.io/components) 索引，代码名来自 [Compose Material 3](https://developer.android.com/reference/kotlin/androidx/compose/material3/package-summary)。Apple 没有单独的 glossary 页面；与之对应的是 [HIG Components](https://developer.apple.com/design/human-interface-guidelines/components) 索引（Content、Layout and organization、Menus and actions、Navigation and search、Presentation、Selection and input、Status、System experiences 八类），代码名来自 [SwiftUI](https://developer.apple.com/documentation/swiftui) 与 [UIKit](https://developer.apple.com/documentation/uikit)，行文拼写以 [Apple Style Guide](https://support.apple.com/guide/applestyleguide/welcome/web) 为准。某个界面用哪个组件、读哪一层 token，由 `apps/mobile/DESIGN.md`、[#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002) 与 ADR-0266 决定。
+
+**Component term**：
+平台设计系统给组件起的确切名称：Android 用 Material 3 名称，iOS 用 HIG 名称；中英文术语表里都写英文原名。代码中用 API 名（`ModalBottomSheet`、`.sheet`），行文中用设计名（modal bottom sheet、sheet）。
+_避免使用_：弹窗、弹框、浮层、下拉框、抽屉（单独使用）、底部那个、popup、popover（除非确指 iOS popover）、modal、overlay、panel、dropdown（单独使用）
+
+**Counterpart**：
+另一个平台上承担相同职能的组件，见下表。对应组件共享的是职能，不是外观或 API：两边各自保持平台默认外观与行为。没有对应组件的职能要明说没有，而不是借用另一个平台的组件。
+_避免使用_：等价组件、同一个组件、某某的 iOS 版
+
+**Native component**：
+由平台自身工具包（Compose Material 3、SwiftUI 或 UIKit）绘制的组件，经原生导航、`@expo/ui` 或本地 Expo module 接入。
+_避免使用_：看起来像原生的 view、RN 仿制品（指原生组件时）
+
+**Look-alike**：
+用 React Native view 模仿原生组件画出来的界面。它是待迁移的债务，不是一种选择（#3002）。
+_避免使用_：原生组件、自定义组件
+
+**Custom surface**：
+没有原生组件能承担其职能、由应用自绘的界面，必须在 `DESIGN.md` 写明理由才保留：消息气泡、流式文本显现、Computer 视频画布及其远程键盘，以及 iOS tab island（ADR-0235）。
+_避免使用_：仿制品（指已记录的自定义界面时）
+
+**Navigation bar**：
+是两个不同的组件。Android 上，Material 3 navigation bar 是底部的顶级目的地栏（iOS 对应：tab bar）。iOS 上，navigation bar 是顶部带标题、Back 和 toolbar item 的栏（Android 对应：top app bar）。必须说明指哪个平台的 navigation bar。
+_避免使用_：底栏、顶栏 / header（平台讨论中）、不带平台的 nav bar、导航栏（不带平台时）
+
+**Expo UI `Host`**：
+`@expo/ui` 中把 Compose 或 SwiftUI 内容嵌入 React Native 并承载其主题（`seedColor`、`colorScheme`）的 view。它与产品术语 **Host** 无关；始终写作 Expo UI `Host` 或 `<Host>`。
+_避免使用_：单独的 Host（指 Expo UI view 时）
+
+**Platform design language**：
+Android 上是 Material 3 及其 Expressive 更新；iOS 26 及以后是 Liquid Glass。它们的 token 词汇就是 ADR-0266 的平台层：Android 的 Material colour roles（`useMaterialRoles()`）与 type styles（`materialType`）；iOS 的 semantic system colours（`systemColors`）、Dynamic Type text styles（`systemType`）与 tint。图标在 Android 用 Material Symbols，在 iOS 用 SF Symbols。
+_避免使用_：Material You（动态取色以外）、毛玻璃、玻璃拟态、Android 上的 iOS 风格、iOS 上的 Material 风格
+
+按职能列出的对应组件。Android 列用 Material 3 名称，iOS 列用 HIG 名称，API 列给出代码名。「—」表示该平台没有承担此职能的组件。
+
+| 职能                              | Android (Material 3)                                          | Compose                                                                         | iOS (HIG)                                                                              | SwiftUI · UIKit                                                                                                    |
+| --------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 当前内容的上下文筛选              | Modal side sheet                                              | 原生 modal side-sheet 容器                                                      | Inspector（窄屏 iPhone 适配为 Sheet）                                                  | `.inspector(isPresented:content:)`                                                                                 |
+| 当前界面的标题与操作              | Top app bar (small, center-aligned, medium/large flexible)    | `TopAppBar`, `CenterAlignedTopAppBar`, `MediumFlexibleTopAppBar`                | Navigation bar (HIG Toolbars)                                                          | `NavigationStack` + `.toolbar`, `.navigationTitle` · `UINavigationBar`                                             |
+| 手机上切换顶级目的地              | Navigation bar                                                | `NavigationBar`, `NavigationBarItem`                                            | Tab bar                                                                                | `TabView` · `UITabBarController`                                                                                   |
+| 宽窗口上的目的地                  | Navigation rail（M3 Expressive 中 expanded rail 取代 drawer） | `NavigationRail`, `WideNavigationRail`                                          | Sidebar                                                                                | `NavigationSplitView` · `UISplitViewController`                                                                    |
+| 在内容旁露出一个面板              | Navigation drawer (dismissible or modal)                      | `DismissibleNavigationDrawer`, `ModalNavigationDrawer`                          | —（Mail 模式：面板是导航栈的根，由 interactive pop 手势露出）                          | `NavigationStack` root · `interactiveContentPopGestureRecognizer`                                                  |
+| 当前页面的常用操作                | Toolbar (docked or floating)                                  | `HorizontalFloatingToolbar`, `FlexibleBottomAppBar`                             | Toolbar                                                                                | `ToolbarItem(placement: .bottomBar)` · `UIToolbar`                                                                 |
+| 唯一的主创建操作                  | FAB, extended FAB                                             | `FloatingActionButton`, `ExtendedFloatingActionButton`                          | —（用 toolbar item）                                                                   | `ToolbarItem`                                                                                                      |
+| 多个相关的创建操作                | FAB menu                                                      | `FloatingActionButtonMenu`                                                      | Pull-down button                                                                       | `Menu`                                                                                                             |
+| 在当前上下文之上完成一个限定任务  | Modal bottom sheet                                            | `ModalBottomSheet`                                                              | Sheet (form sheet, page sheet, with detents)                                           | `.sheet` + `.presentationDetents` · `UISheetPresentationController`                                                |
+| 与界面内容并存的补充内容          | Standard bottom sheet                                         | `BottomSheetScaffold`                                                           | 不带遮罩的 sheet（最大未变暗 detent）                                                  | `.presentationBackgroundInteraction`                                                                               |
+| 全屏任务                          | Full-screen dialog                                            | `Dialog`（全屏属性）                                                            | Full-screen modal                                                                      | `.fullScreenCover` · `UIModalPresentationStyle.fullScreen`                                                         |
+| 重要提示或确认                    | Dialog (basic dialog)                                         | `AlertDialog`                                                                   | Alert                                                                                  | `.alert` · `UIAlertController(.alert)`                                                                             |
+| 响应用户动作给出的选项            | Menu，或放操作的 modal bottom sheet                           | `DropdownMenu`, `ModalBottomSheet`                                              | Action sheet                                                                           | `.confirmationDialog` · `UIAlertController(.actionSheet)`                                                          |
+| 从按钮或 ⋮ / ⋯ 打开的命令         | Menu (dropdown menu)                                          | `DropdownMenu`, `DropdownMenuItem`                                              | Pull-down button (⋯ More)                                                              | `Menu` · `UIButton.menu` + `showsMenuAsPrimaryAction`                                                              |
+| 长按某一项时针对它的操作          | 锚定在该项上的 menu                                           | `DropdownMenu`                                                                  | Context menu                                                                           | `.contextMenu` · `UIContextMenuInteraction`                                                                        |
+| 就地选择一个值                    | Exposed dropdown menu                                         | `ExposedDropdownMenuBox`                                                        | Pop-up button                                                                          | `Picker` + `.pickerStyle(.menu)` · `UIButton.changesSelectionAsPrimaryAction`                                      |
+| 一个主操作加几个相关备选          | Split button                                                  | `SplitButtonLayout`                                                             | 带 primary action 的 pull-down button                                                  | `Menu(primaryAction:)`                                                                                             |
+| 在内容中切换 2–5 个并列视图或选项 | Button group（segmented button 为旧版）                       | `ButtonGroup`, `ToggleButton`, `SingleChoiceSegmentedButtonRow`                 | Segmented control                                                                      | `Picker` + `.pickerStyle(.segmented)` · `UISegmentedControl`                                                       |
+| 在一个界面内跨视图组织内容        | Tabs (primary, secondary)                                     | `PrimaryTabRow`, `SecondaryTabRow`, `Tab`                                       | Segmented control（tab views 是 macOS 组件）                                           | `Picker` + `.pickerStyle(.segmented)` · `UISegmentedControl`                                                       |
+| 一个操作                          | Button: filled, filled tonal, outlined, elevated, text        | `Button`, `FilledTonalButton`, `OutlinedButton`, `ElevatedButton`, `TextButton` | Button: bordered prominent, bordered, borderless；iOS 26 上为 glass prominent 与 glass | `.buttonStyle(.borderedProminent / .bordered / .borderless / .glassProminent / .glass)` · `UIButton.Configuration` |
+| 仅图标的操作                      | Icon button (standard, filled, tonal, outlined)               | `IconButton`, `FilledIconButton`, `FilledTonalIconButton`, `OutlinedIconButton` | 带 SF Symbol 的 button（栏中为 toolbar item）                                          | `Button` + `Image(systemName:)` · `UIBarButtonItem`                                                                |
+| 带开关状态的仅图标操作            | Icon toggle button (standard, filled, outlined)               | `IconToggleButton`, `FilledIconToggleButton`, `OutlinedIconToggleButton`        | 带 SF Symbol 和 selected trait 的 button                                               | `Button` + `.accessibilityAddTraits(.isSelected)`                                                                  |
+| 筛选内容                          | Filter chip                                                   | `FilterChip`                                                                    | Toggle (button style)                                                                  | `Toggle` + `.toggleStyle(.button)`                                                                                 |
+| 建议或上下文操作、已输入的值      | Assist, suggestion and input chips                            | `AssistChip`, `SuggestionChip`, `InputChip`                                     | —（搜索范围用 search tokens）                                                          | `.searchable(text:tokens:)`                                                                                        |
+| 开关一项设置                      | Switch                                                        | `Switch`                                                                        | Toggle (switch style)                                                                  | `Toggle` · `UISwitch`                                                                                              |
+| 在列表中单选                      | Radio button                                                  | `RadioButton`                                                                   | 带 checkmark 的列表行（inline picker）                                                 | `Picker` + `.pickerStyle(.inline)` · `UITableViewCell.accessoryType = .checkmark`                                  |
+| 多选                              | Checkbox                                                      | `Checkbox`, `TriStateCheckbox`                                                  | 带 checkmark 的列表行（checkbox 是 macOS 组件）                                        | `List(selection:)` · `.checkmark` accessory                                                                        |
+| 在范围内取值                      | Slider                                                        | `Slider`, `RangeSlider`                                                         | Slider                                                                                 | `Slider` · `UISlider`                                                                                              |
+| 输入文本                          | Text field (filled, outlined)                                 | `TextField`, `OutlinedTextField`, `SecureTextField`                             | Text field；长篇多行文本用 text view                                                   | `TextField`, `SecureField`, `TextEditor` · `UITextField`, `UITextView`                                             |
+| 搜索                              | Search (search bar, search view)                              | `SearchBar`, `DockedSearchBar`, `ExpandedFullScreenSearchBar`                   | Search field                                                                           | `.searchable` · `UISearchController`                                                                               |
+| 选择日期或时间                    | Date picker, time picker                                      | `DatePicker`, `DatePickerDialog`, `TimePicker`                                  | Picker (date picker: compact, wheels, graphical)                                       | `DatePicker` · `UIDatePicker`                                                                                      |
+| 一组相关内容或设置的行            | List (list items, one- to three-line)                         | `ListItem`, `LazyColumn`                                                        | Lists and tables（设置用 inset grouped）                                               | `List`, `Form`, `Section` · `UICollectionView` list, `UITableView`                                                 |
+| 关于单一主题的内容与操作          | Card (elevated, filled, outlined)                             | `Card`, `ElevatedCard`, `OutlinedCard`                                          | —（inset grouped list 的一个 section）                                                 | `Section`                                                                                                          |
+| 分隔各组                          | Divider                                                       | `HorizontalDivider`                                                             | Separator                                                                              | `Divider` · 列表行 separator                                                                                       |
+| 图标上的计数或状态                | Badge                                                         | `Badge`, `BadgedBox`                                                            | Badge（tab bar item 与 app 图标上）                                                    | `.badge` · `UITabBarItem.badgeValue`                                                                               |
+| 短暂等待                          | Loading indicator                                             | `LoadingIndicator`                                                              | Progress indicator (activity indicator, indeterminate)                                 | `ProgressView()` · `UIActivityIndicatorView`                                                                       |
+| 已知进度                          | Progress indicator (linear, circular)                         | `LinearProgressIndicator`, `CircularProgressIndicator`                          | Progress indicator (progress bar)                                                      | `ProgressView(value:)` · `UIProgressView`                                                                          |
+| 刷新列表                          | Pull to refresh                                               | `PullToRefreshBox`                                                              | Refresh control                                                                        | `.refreshable` · `UIRefreshControl`                                                                                |
+| 关于应用过程的简短消息            | Snackbar                                                      | `Snackbar`, `SnackbarHost`                                                      | —                                                                                      | —                                                                                                                  |
+| 元素的标签或提示                  | Tooltip                                                       | `TooltipBox`, `PlainTooltip`                                                    | iPhone 上没有（help tag 属于 macOS 与 iPadOS 指针）                                    | —                                                                                                                  |
+| 横向滚动浏览一组项目              | Carousel                                                      | `HorizontalMultiBrowseCarousel`                                                 | Collection；有序页面用 page control                                                    | `ScrollView(.horizontal)`, `TabView` + `.tabViewStyle(.page)` · `UICollectionView`, `UIPageControl`                |
+| 返回                              | 系统 Back 与 predictive back；top app bar 的 navigation icon  | `BackHandler`, `PredictiveBackHandler`                                          | Back button 与 interactive pop（边缘或内容区滑动）                                     | `NavigationStack` · `UINavigationController`                                                                       |
+
+本应用当前的配对（`apps/mobile/DESIGN.md`、#3002）：
+
+- 按钮：主要 → filled ↔ bordered prominent（iOS 26 为 glass prominent）；次要与 tonal → filled tonal ↔ bordered（glass）；文本 → text button ↔ borderless；危险 → 使用 Material error 颜色的 filled ↔ destructive role。
+- Sheet：Android `ModalBottomSheet` ↔ iOS 带 detents 的 form sheet（经 Expo Router 的 `presentation: 'formSheet'`，或 `@expo/ui` 的 SwiftUI `BottomSheet`）。
+- Chats 的「-1 屏」：Android `DismissibleNavigationDrawer` ↔ iOS 相邻的常驻导航页面：工作区、完整聊天列表及底部导航、上次聊天与资料页，通过 `PagerView` 的显式 UIKit `UIPageViewController` 后端连接。
+- 顶级导航：Android navigation bar 加创建 FAB ↔ iOS tab island 及其 **+**（自定义界面，ADR-0235）。
+- 活动与工作区标签页：Android primary tabs（`PrimaryTabRow`）。
+- 设置页：Android 分段列表的 list item ↔ iOS inset grouped list（SwiftUI `Form`，配 `Section`、`Label`、`Toggle`、menu 样式 `Picker`、`LabeledContent`），统一经由 `SettingsForm`。

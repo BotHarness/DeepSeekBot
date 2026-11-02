@@ -1,0 +1,81 @@
+{
+  "source": "704fa745bd190d57b491b9b6e56589ffdfbc908b",
+  "records": [
+    {
+      "mode": "dark",
+      "font": 1,
+      "dismiss": "cancel",
+      "panel": [78, 1083, 1142, 1707],
+      "buttons": [
+        [156, 1473, 597, 1629],
+        [623, 1473, 1064, 1629]
+      ],
+      "passed": true
+    },
+    {
+      "mode": "dark",
+      "font": 1.3,
+      "dismiss": "back",
+      "panel": [78, 1029, 1142, 1762],
+      "buttons": [
+        [156, 1528, 597, 1684],
+        [623, 1528, 1064, 1684]
+      ],
+      "passed": true
+    },
+    {
+      "mode": "dark",
+      "font": 2,
+      "dismiss": "backdrop",
+      "panel": [78, 806, 1142, 1985],
+      "buttons": [
+        [156, 1555, 1064, 1718],
+        [156, 1744, 1064, 1907]
+      ],
+      "passed": true
+    },
+    {
+      "mode": "light",
+      "font": 1,
+      "dismiss": "cancel",
+      "panel": [78, 1083, 1142, 1707],
+      "buttons": [
+        [156, 1473, 597, 1629],
+        [623, 1473, 1064, 1629]
+      ],
+      "passed": true
+    },
+    {
+      "mode": "light",
+      "font": 1.3,
+      "dismiss": "back",
+      "panel": [78, 1029, 1142, 1762],
+      "buttons": [
+        [156, 1528, 597, 1684],
+        [623, 1528, 1064, 1684]
+      ],
+      "passed": true
+    },
+    {
+      "mode": "light",
+      "font": 2,
+      "dismiss": "backdrop",
+      "panel": [78, 806, 1142, 1985],
+      "buttons": [
+        [156, 1555, 1064, 1718],
+        [156, 1744, 1064, 1907]
+      ],
+      "passed": true
+    },
+    {
+      "mode": "dark",
+      "createCancel": true,
+      "passed": true
+    },
+    {
+      "mode": "light",
+      "createCancel": true,
+      "passed": true
+    }
+  ]
+}

@@ -45,14 +45,15 @@ it('lists only the Assignments a Channel started, newest first', async () => {
          VALUES (?, 'human-message', ?, ?, ?, 'ask', ?, 'handled')`,
       ).run('source-' + session, bot, channel, 'message-' + session, updatedAt);
       db.prepare(
-        `INSERT INTO assignments (session_id, source_event_id, bot_slug, purpose, activity,
+        `INSERT INTO assignments (session_id, source_event_id, bot_slug, title, description, activity,
            stop_state, latest_report_state, latest_report_summary, latest_report_at,
            created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         session,
         'source-' + session,
         bot,
+        purpose,
         purpose,
         activity,
         stop,
@@ -96,7 +97,8 @@ it('lists only the Assignments a Channel started, newest first', async () => {
       {
         sessionId: 'b-new',
         botSlug: 'bob',
-        purpose: 'Check build',
+        title: 'Check build',
+        description: 'Check build',
         activity: 'idle',
         latestReport: {
           state: 'waiting-human',
@@ -109,7 +111,8 @@ it('lists only the Assignments a Channel started, newest first', async () => {
       {
         sessionId: 'a-old',
         botSlug: 'ada',
-        purpose: 'Draft notes',
+        title: 'Draft notes',
+        description: 'Draft notes',
         activity: 'idle',
         latestReport: {
           state: 'completed',
@@ -122,7 +125,8 @@ it('lists only the Assignments a Channel started, newest first', async () => {
       {
         sessionId: 'd-stopped',
         botSlug: 'ada',
-        purpose: 'Cancelled',
+        title: 'Cancelled',
+        description: 'Cancelled',
         activity: 'stopped',
         createdAt: '2026-09-30T00:00:00.000Z',
         updatedAt: '2026-09-30T00:00:00.000Z',

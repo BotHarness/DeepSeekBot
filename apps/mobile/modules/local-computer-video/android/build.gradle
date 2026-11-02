@@ -1,0 +1,19 @@
+apply plugin: 'com.android.library'
+apply plugin: 'expo-module-gradle-plugin'
+
+group = 'expo.modules.localcomputervideo'
+version = '0.1.0'
+
+android {
+  namespace 'expo.modules.localcomputervideo'
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+    consumerProguardFiles 'consumer-rules.pro'
+  }
+}
+
+dependencies {
+  // M144, source 30d5e63ae91da483e06577b5c35ee91cc5e5c3db. No vendor servers.
+  implementation 'io.github.webrtc-sdk:android:144.7559.15'
+}

@@ -1,8 +1,8 @@
 # @botharness/links
 
-`bh-links`: manage [go.botharness.ai](https://go.botharness.ai) Campaign short links from the command line ([ADR-0132](https://github.com/BotHarness/BotHarness/blob/main/docs/adr/0132-anonymous-posthog-telemetry-and-campaign-short-links.md), [#955](https://github.com/BotHarness/BotHarness/issues/955)). A **Campaign** owns many **Campaign Links**; each link is a short URL that redirects to the DeepSeekBot site with `utm_campaign`, `utm_source` (platform), `utm_medium` (media) and `utm_content` (link slug) and counts its clicks.
+`bh-links`: manage [go.tobs.app](https://go.tobs.app) Campaign short links from the command line ([ADR-0132](https://github.com/BotHarness/BotHarness/blob/main/docs/adr/0132-anonymous-posthog-telemetry-and-campaign-short-links.md), [#955](https://github.com/BotHarness/BotHarness/issues/955)). A **Campaign** owns many **Campaign Links**; each link is a short URL that redirects to the DeepSeekBot site with `utm_campaign`, `utm_source` (platform), `utm_medium` (media) and `utm_content` (link slug) and counts its clicks.
 
-It is a thin client over the links Worker's `/v1` API, typed with the same zod schemas that publish [`/openapi.json`](https://go.botharness.ai/openapi.json). Requires Node.js 22 or later and has no runtime dependencies.
+It is a thin client over the links Worker's `/v1` API, typed with the same zod schemas that publish [`/openapi.json`](https://go.tobs.app/openapi.json). Requires Node.js 22 or later and has no runtime dependencies.
 
 ```bash
 npm install -g @botharness/links
@@ -14,7 +14,7 @@ bh-links list
 
 ```text
 SLUG       SHORT URL                           CAMPAIGN   PLATFORM  MEDIA  CLICKS
-ph-x-post  https://go.botharness.ai/ph-x-post  ph-launch  x         post   1
+ph-x-post  https://go.tobs.app/ph-x-post  ph-launch  x         post   1
 ```
 
 ## Commands
@@ -43,20 +43,20 @@ ph-x-post  https://go.botharness.ai/ph-x-post  ph-launch  x         post   1
 
 ## Configuration
 
-| Source                            | Token            | URL                        |
-| --------------------------------- | ---------------- | -------------------------- |
-| Environment                       | `BH_LINKS_TOKEN` | `BH_LINKS_URL`             |
-| `~/.config/botharness/links.json` | `token`          | `url`                      |
-| Default                           | none             | `https://go.botharness.ai` |
+| Source                            | Token            | URL                   |
+| --------------------------------- | ---------------- | --------------------- |
+| Environment                       | `BH_LINKS_TOKEN` | `BH_LINKS_URL`        |
+| `~/.config/botharness/links.json` | `token`          | `url`                 |
+| Default                           | none             | `https://go.tobs.app` |
 
-The environment wins over the file. `bh-links login` writes the file with mode `0600` (under `$XDG_CONFIG_HOME` when set); without `--token` it asks for the token at a hidden prompt (or reads it from stdin when piped: `pbpaste | bh-links login`), which keeps it out of shell history. A token is a Personal Access Token (`bhl_…`) from the admin page at `go.botharness.ai/admin`; `read` tokens can list and read clicks, `write` tokens can also create, update and archive. `bh-links` never prints a token, only its 12-character prefix.
+The environment wins over the file. `bh-links login` writes the file with mode `0600` (under `$XDG_CONFIG_HOME` when set); without `--token` it asks for the token at a hidden prompt (or reads it from stdin when piped: `pbpaste | bh-links login`), which keeps it out of shell history. A token is a Personal Access Token (`bhl_…`) from the admin page at `go.tobs.app/admin`; `read` tokens can list and read clicks, `write` tokens can also create, update and archive. `bh-links` never prints a token, only its 12-character prefix.
 
 ## MCP
 
 Agents can use the same operations over MCP instead of this CLI:
 
 ```bash
-claude mcp add --transport http botharness-links https://go.botharness.ai/mcp --header "Authorization: Bearer $BH_LINKS_TOKEN"
+claude mcp add --transport http botharness-links https://go.tobs.app/mcp --header "Authorization: Bearer $BH_LINKS_TOKEN"
 ```
 
 ## Development
@@ -76,3 +76,5 @@ Source lives in `packages/links-cli/src` of the BotHarness repository; `pnpm bui
 
 3. The workflow checks that the tag is on `main` and matches the package version, runs `pnpm install --frozen-lockfile`, `pnpm build` and the links and CLI tests, then waits for approval in the `npm-release` environment.
 4. After approval it runs `pnpm --filter @botharness/links publish --provenance --access public`. It authenticates with npm trusted publishing (GitHub OIDC) when a Trusted Publisher for this workflow is configured on npmjs.com for `@botharness/links`, and otherwise with the `NPM_TOKEN` secret, the same fallback as the DeepSeekBot release.
+
+New links use `go.tobs.app` and target `tobs.app`. Existing `go.botharness.ai` and `go.deepseekbot.app` hosts keep serving the same API, MCP and short codes from the same D1 database; existing configured CLI URLs remain valid. The Worker and database keep their existing names.

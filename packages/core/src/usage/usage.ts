@@ -12,6 +12,7 @@ import {
   type OperationalDatabaseModulePort,
   type OperationalDatabaseOwner,
 } from '../database/owner.js';
+import type { IdleCompactionRecord } from '../runtime/idle-compaction.js';
 import type { SessionOwnership } from '../sessions/ownership.js';
 import type { DshSessionEvent } from '../sessions/source.js';
 
@@ -25,6 +26,7 @@ export interface UsageDayRow {
   cacheReadTokens: number;
   cacheWriteTokens: number;
   totalTokens?: number | null;
+  reportedTotalTokens?: number;
   unknownBuckets?: {
     inputTokens: number;
     outputTokens: number;
@@ -60,6 +62,10 @@ export interface UsageProjection {
 
   primeSession(sessionId: string, events: readonly DshSessionEvent[]): void;
 
+  latestRoute(
+    sessionId: string,
+  ): { provider: string; model: string; reasoningEffort?: string } | undefined;
+
   rebuild(
     sessionIds: readonly string[],
     readLog: DshUsageSessionLogReader,
@@ -79,6 +85,10 @@ export interface UsageProjection {
   overview(period: UsageOverviewPeriod, after?: string): UsageOverviewResult;
 
   purgeBot(botSlug: string, removeFiles?: () => void): void;
+
+  recordIdleCompaction(record: IdleCompactionRecord): void;
+
+  idleCompactions(botSlug: string, sinceIso: string): IdleCompactionRecord[];
 }
 
 interface UsageDailyDbRow {
@@ -187,6 +197,27 @@ function reportedBuckets(event: DshSessionEvent): {
 interface UsageRoute {
   provider: string;
   model: string;
+  reasoningEffort?: string;
+}
+
+interface UsageFoldEvent {
+  seq: number;
+  time: number;
+  source: UsageRoute | undefined;
+  buckets: ReturnType<typeof reportedBuckets>;
+}
+
+function projectUsageEvent(event: DshSessionEvent): UsageFoldEvent | undefined {
+  if (event.type !== 'assistant/message' && event.type !== 'assistant/attempt') return undefined;
+  if (event.surfaceOp !== undefined && event.surfaceOp !== 'append') return undefined;
+  if (event.seq === undefined || !Number.isSafeInteger(event.seq) || event.seq < 0)
+    return undefined;
+  return {
+    seq: event.seq,
+    time: event.time,
+    source: routeOf(recordOf(recordOf(event.data)?.['message'])?.['source']),
+    buckets: reportedBuckets(event),
+  };
 }
 
 function routeOf(value: unknown): UsageRoute | undefined {
@@ -195,7 +226,13 @@ function routeOf(value: unknown): UsageRoute | undefined {
     record['provider'].length > 0 &&
     typeof record['model'] === 'string' &&
     record['model'].length > 0
-    ? { provider: record['provider'], model: record['model'] }
+    ? {
+        provider: record['provider'],
+        model: record['model'],
+        ...(typeof record['reasoningEffort'] === 'string' && record['reasoningEffort'].length > 0
+          ? { reasoningEffort: record['reasoningEffort'] }
+          : {}),
+      }
     : undefined;
 }
 
@@ -228,7 +265,7 @@ export function createUsageProjection(options: {
   let rebuilding = false;
   let reconciliationFailed = false;
   let reconciledAt: string | null = null;
-  const queuedEvents: Array<{ sessionId: string; event: DshSessionEvent; route?: UsageRoute }> = [];
+  const queuedEvents: Array<{ sessionId: string; event: UsageFoldEvent; route?: UsageRoute }> = [];
 
   const upsert = (
     connection: DatabaseSync,
@@ -285,13 +322,10 @@ export function createUsageProjection(options: {
 
   const foldEvent = (
     sessionId: string,
-    event: DshSessionEvent,
+    event: UsageFoldEvent,
     route: UsageRoute | undefined,
     connection: DatabaseSync,
   ): boolean => {
-    if (event.type !== 'assistant/message' && event.type !== 'assistant/attempt') return false;
-    if (event.surfaceOp !== undefined && event.surfaceOp !== 'append') return false;
-    if (event.seq === undefined || !Number.isSafeInteger(event.seq) || event.seq < 0) return false;
     const owner = ownership.resolve(sessionId);
     if (owner === undefined) return false;
     let root = owner;
@@ -326,8 +360,7 @@ export function createUsageProjection(options: {
     if (receipt.changes === 0) return false;
     const baseline = baselineByBot.get(owner.botSlug);
     if (baseline !== undefined && event.time <= baseline) return false;
-    const source = routeOf(recordOf(recordOf(event.data)?.['message'])?.['source']);
-    const actual = source ?? route ?? { provider: 'unknown', model: 'unknown' };
+    const actual = event.source ?? route ?? { provider: 'unknown', model: 'unknown' };
     upsert(
       connection,
       owner.botSlug,
@@ -335,7 +368,7 @@ export function createUsageProjection(options: {
       purposeOf(owner),
       actual.provider,
       actual.model,
-      reportedBuckets(event),
+      event.buckets,
     );
     return true;
   };
@@ -365,7 +398,7 @@ export function createUsageProjection(options: {
 
   const writeLive = (
     sessionId: string,
-    event: DshSessionEvent,
+    event: UsageFoldEvent,
     route: UsageRoute | undefined,
   ): void => {
     database.transaction((connection) => foldEvent(sessionId, event, route, connection), ['usage']);
@@ -467,14 +500,37 @@ export function createUsageProjection(options: {
     primeSession(sessionId, events) {
       for (const event of events) observe(sessionId, event);
     },
+    latestRoute(sessionId) {
+      const ordered = [...(routes.get(sessionId) ?? [])].sort(([a], [b]) => a - b);
+      const resolved = ordered.at(-1)?.[1];
+      if (resolved === undefined) return undefined;
+      const effort =
+        resolved.reasoningEffort ??
+        ordered.findLast(
+          ([, route]) =>
+            route.provider === resolved.provider &&
+            route.model === resolved.model &&
+            route.reasoningEffort !== undefined,
+        )?.[1].reasoningEffort;
+      return {
+        provider: resolved.provider,
+        model: resolved.model,
+        ...(effort === undefined ? {} : { reasoningEffort: effort }),
+      };
+    },
     handleSessionEvent(sessionId, event) {
       const route = observe(sessionId, event);
-      if (event.type !== 'assistant/message' && event.type !== 'assistant/attempt') return;
+      const projected = projectUsageEvent(event);
+      if (projected === undefined) return;
       if (rebuilding) {
-        queuedEvents.push({ sessionId, event, ...(route === undefined ? {} : { route }) });
+        queuedEvents.push({
+          sessionId,
+          event: projected,
+          ...(route === undefined ? {} : { route }),
+        });
         return;
       }
-      writeLive(sessionId, event, route);
+      writeLive(sessionId, projected, route);
     },
     async rebuild(sessionIds, readLog) {
       if (rebuilding) throw new Error('Usage reconciliation already running');
@@ -483,25 +539,38 @@ export function createUsageProjection(options: {
       let folded = 0;
       let failed = 0;
       try {
-        const logs = new Map<string, DshUsageSessionLog>();
+        const logs = new Map<
+          string,
+          Array<{ event: UsageFoldEvent; route: UsageRoute | undefined }>
+        >();
         for (const sessionId of sessionIds) {
           if (ownership.resolve(sessionId) === undefined) continue;
+          let log: DshUsageSessionLog | undefined;
           try {
-            const log = await readLog(sessionId);
-            if (log === undefined) failed += 1;
-            else logs.set(sessionId, log);
+            log = await readLog(sessionId);
           } catch {
             failed += 1;
+            continue;
           }
+          if (log === undefined) {
+            failed += 1;
+            continue;
+          }
+          const projected: Array<{ event: UsageFoldEvent; route: UsageRoute | undefined }> = [];
+          let route: UsageRoute | undefined;
+          for (let index = 0; index < log.events.length; index += 1) {
+            const event = log.events[index]!;
+            route = requestRoute(event) ?? route;
+            if (index < log.inheritedEventCount) continue;
+            const usageEvent = projectUsageEvent(event);
+            if (usageEvent !== undefined) projected.push({ event: usageEvent, route });
+          }
+          logs.set(sessionId, projected);
         }
         database.transaction(
           (connection) => {
-            for (const [sessionId, log] of logs) {
-              let route: UsageRoute | undefined;
-              for (let index = 0; index < log.events.length; index += 1) {
-                const event = log.events[index]!;
-                route = requestRoute(event) ?? route;
-                if (index < log.inheritedEventCount) continue;
+            for (const [sessionId, events] of logs) {
+              for (const { event, route } of events) {
                 if (foldEvent(sessionId, event, route, connection)) folded += 1;
               }
             }
@@ -559,11 +628,73 @@ export function createUsageProjection(options: {
           connection.prepare('DELETE FROM usage_daily WHERE bot_slug = ?').run(botSlug);
           connection.prepare('DELETE FROM usage_receipts WHERE bot_slug = ?').run(botSlug);
           connection.prepare('DELETE FROM usage_legacy_baselines WHERE bot_slug = ?').run(botSlug);
+          connection.prepare('DELETE FROM usage_idle_compactions WHERE bot_slug = ?').run(botSlug);
           removeFiles?.();
         },
         ['usage'],
       );
       baselineByBot.delete(botSlug);
+    },
+    recordIdleCompaction(record) {
+      database.transaction(
+        (connection) => {
+          connection
+            .prepare(
+              `INSERT INTO usage_idle_compactions
+                 (bot_slug, at, provider, model, idle_gap_ms, cache_lifetime_ms, cache_lifetime_source,
+                  tokens_before, tokens_after, outcome, error, input_tokens, cache_read_tokens, output_tokens)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            )
+            .run(
+              record.botSlug,
+              record.at,
+              record.provider,
+              record.model,
+              Math.round(record.idleGapMs),
+              Math.round(record.cacheLifetimeMs),
+              record.cacheLifetimeSource,
+              record.tokensBefore,
+              record.tokensAfter,
+              record.outcome,
+              record.error ?? null,
+              record.inputTokens,
+              record.cacheReadTokens,
+              record.outputTokens,
+            );
+        },
+        ['usage'],
+      );
+    },
+    idleCompactions(botSlug, sinceIso) {
+      const rows = database.read((connection) =>
+        connection
+          .prepare(
+            `SELECT bot_slug, at, provider, model, idle_gap_ms, cache_lifetime_ms, cache_lifetime_source,
+                    tokens_before, tokens_after, outcome, error, input_tokens, cache_read_tokens, output_tokens
+               FROM usage_idle_compactions
+              WHERE bot_slug = ? AND at >= ?
+              ORDER BY at`,
+          )
+          .all(botSlug, sinceIso),
+      ) as Array<Record<string, unknown>>;
+      return rows.map((row) => ({
+        botSlug: row['bot_slug'] as string,
+        at: row['at'] as string,
+        provider: row['provider'] as string,
+        model: row['model'] as string,
+        idleGapMs: row['idle_gap_ms'] as number,
+        cacheLifetimeMs: row['cache_lifetime_ms'] as number,
+        cacheLifetimeSource: row[
+          'cache_lifetime_source'
+        ] as IdleCompactionRecord['cacheLifetimeSource'],
+        tokensBefore: row['tokens_before'] as number,
+        tokensAfter: (row['tokens_after'] as number | null) ?? null,
+        outcome: row['outcome'] as IdleCompactionRecord['outcome'],
+        ...(typeof row['error'] === 'string' ? { error: row['error'] } : {}),
+        inputTokens: (row['input_tokens'] as number | null) ?? null,
+        cacheReadTokens: (row['cache_read_tokens'] as number | null) ?? null,
+        outputTokens: (row['output_tokens'] as number | null) ?? null,
+      }));
     },
     activity(botSlug, sinceIso) {
       const sinceDay = usageLocalDay(Date.parse(sinceIso));
@@ -589,6 +720,17 @@ export function createUsageProjection(options: {
         cacheReadTokens: row.cache_read_tokens,
         cacheWriteTokens: row.cache_write_tokens,
         totalTokens: row.unknown_total > 0 ? null : row.total_tokens,
+        ...(row.unknown_total > 0
+          ? {
+              reportedTotalTokens: Math.max(
+                row.total_tokens,
+                row.input_tokens +
+                  row.output_tokens +
+                  row.cache_read_tokens +
+                  row.cache_write_tokens,
+              ),
+            }
+          : {}),
         ...([
           row.unknown_input,
           row.unknown_output,

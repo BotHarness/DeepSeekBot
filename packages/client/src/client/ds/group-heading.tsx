@@ -28,6 +28,7 @@ const styles = stylex.create({
     outlineOffset: '-2px',
   },
   summary: { listStyle: 'none' },
+  flush: { borderRadius: 0 },
   quiet: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
   quietLabel: { fontWeight: text.regular },
   chevron: {
@@ -63,6 +64,7 @@ export function GroupHeading({
   onToggle,
   summary = false,
   quiet = false,
+  flush = false,
 }: {
   readonly label: ReactNode;
   readonly count: ReactNode;
@@ -72,6 +74,7 @@ export function GroupHeading({
   readonly onToggle?: (() => void) | undefined;
   readonly summary?: boolean;
   readonly quiet?: boolean;
+  readonly flush?: boolean | undefined;
 }): ReactElement {
   const chevron = (
     <span
@@ -95,7 +98,13 @@ export function GroupHeading({
       <summary
         data-group-heading=""
         title={title}
-        {...stylex.props(styles.heading, styles.toggle, styles.summary, quiet && styles.quiet)}
+        {...stylex.props(
+          styles.heading,
+          flush && styles.flush,
+          styles.toggle,
+          styles.summary,
+          quiet && styles.quiet,
+        )}
       >
         {chevron}
         {content}
@@ -106,7 +115,7 @@ export function GroupHeading({
       <div
         data-group-heading=""
         title={title}
-        {...stylex.props(styles.heading, quiet && styles.quiet)}
+        {...stylex.props(styles.heading, flush && styles.flush, quiet && styles.quiet)}
       >
         {content}
       </div>
@@ -118,7 +127,7 @@ export function GroupHeading({
       title={title}
       aria-expanded={expanded}
       onClick={onToggle}
-      {...stylex.props(styles.heading, styles.toggle, quiet && styles.quiet)}
+      {...stylex.props(styles.heading, flush && styles.flush, styles.toggle, quiet && styles.quiet)}
     >
       {chevron}
       {content}

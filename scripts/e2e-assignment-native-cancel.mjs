@@ -68,7 +68,7 @@ if (phase === 'prepare') {
     await rpc('create', {
       displayName: 'Native cancellation QA',
       persona:
-        'Follow the Human exactly. Create only one requested Assignment. Never run Shell in the Orchestrator, approve tools, edit files, create subagents or retry work. After creation channel_send CANCEL_CREATED and end. When a Host lifecycle cancellation notice arrives channel_send CANCEL_NOTICE_SEEN and end. Do not claim successful task completion, resume the Assignment or create replacement work.',
+        'Follow the Human exactly. Create only one requested Assignment. Never run Shell in the Orchestrator, approve tools, edit files, create subagents or retry work. After creation bot_send_message CANCEL_CREATED and end. When a Host lifecycle cancellation notice arrives bot_send_message CANCEL_NOTICE_SEEN and end. Do not claim successful task completion, resume the Assignment or create replacement work.',
     })
   ).bot;
   await rpc('modelPresetApply', { slug: bot.slug, presetId: preset.id });
@@ -87,7 +87,7 @@ if (phase === 'prepare') {
       grant.id +
       ' and continuity key native-cancel-direction. Purpose: Human cancellation acceptance. It must FIRST invoke report_to_orchestrator once with state progress, summary ' +
       JSON.stringify(marker) +
-      ', expects_reply false. Then invoke native Shell with only command sleep 1 and description Native cancellation QA timer, omitting sandbox_permissions and justification. Await Human approval. Do not report completed, use files, subagents or other tools. After creating it channel_send CANCEL_CREATED and end without waiting. When a Host cancellation Lifecycle Notice arrives channel_send CANCEL_NOTICE_SEEN and end; never retry, resume or create more work.',
+      ', expects_reply false. Then invoke native Shell with only command sleep 1 and description Native cancellation QA timer, omitting sandbox_permissions and justification. Await Human approval. Do not report completed, use files, subagents or other tools. After creating it bot_send_message CANCEL_CREATED and end without waiting. When a Host cancellation Lifecycle Notice arrives bot_send_message CANCEL_NOTICE_SEEN and end; never retry, resume or create more work.',
   });
   scene.sessionId = (
     await waitFor(

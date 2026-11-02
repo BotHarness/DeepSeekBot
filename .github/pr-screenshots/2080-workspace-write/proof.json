@@ -1,0 +1,45 @@
+{
+  "issue": 2080,
+  "scope": "tracer bullet 1: Web/CLI request approval and native file continuation",
+  "base": "87340ee0eb3edd7bd1a2438b992a44af54048931",
+  "before": {
+    "revision": "ad12b096b116c616811d71ffd0adf2dcca458038",
+    "status": "baseline-reproduced",
+    "writable": false,
+    "writeRevision": 0
+  },
+  "after": {
+    "revision": "18ad131d598f876478470b7858c5310f6c4eec44",
+    "dirty": false,
+    "status": "pass",
+    "writable": true,
+    "writeRevision": 1,
+    "orchestratorFileVerified": true,
+    "assignmentFileVerified": true,
+    "originalTaskHandled": true,
+    "duplicateGrantIdentityStable": true
+  },
+  "legacy": {
+    "revision": "18ad131d598f876478470b7858c5310f6c4eec44",
+    "status": "pass",
+    "sameGrant": true,
+    "writeRevision": 1
+  },
+  "cli": {
+    "directRequest": "pass",
+    "sharedApproval": "pass",
+    "repeat": "pass",
+    "revokedDecision": "invalid-grant"
+  },
+  "viewport": "1440x1100",
+  "locale": "en-US",
+  "theme": "dark",
+  "dsh": "0.2.1-rc.2",
+  "humanQA": "pending",
+  "mobile": "not in this slice",
+  "screenshots": {
+    "before.png": "600ac6c28b381d344763b4f8e481b1ddd4ab73931f5296b42610adf1c67a4927",
+    "after.png": "e026de3e470acf7d6ccaa6f108969fd805ef4868325cb61ce878456873274bc7",
+    "completed.png": "df41015a98425b5acc2c70d438856f7559fb72ed0ff3d1a086471e0709d37c94"
+  }
+}

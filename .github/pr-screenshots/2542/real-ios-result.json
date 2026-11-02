@@ -1,0 +1,25 @@
+{
+  "head": "683b0cbe9c0f158e80929601f59a312ff5f9c4bf",
+  "device": "existing QA iOS 27",
+  "nativeBuild": "Debug, Xcode simulator signing enabled",
+  "realCloudflare": true,
+  "hostFingerprintCompared": true,
+  "deviceFingerprintCompared": true,
+  "keychainPairingPersisted": true,
+  "coldRestartReconnected": true,
+  "requiredFieldDisabled": true,
+  "secureTextField": true,
+  "keyboardAndSaveReachable": true,
+  "failureVisible": true,
+  "failureCanonical": "pending",
+  "explicitRetry": true,
+  "successVisible": "Handled",
+  "successCanonical": "configured",
+  "inputRemoved": true,
+  "noPlaintextObserved": true,
+  "fallbackRequests": 0,
+  "limitations": [
+    "First-pairing RNScreens sheetPresentationController error required cold restart; not full native acceptance",
+    "Account enrollment, physical iPhone, Android and external audit unrun"
+  ]
+}

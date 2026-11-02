@@ -14,15 +14,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  prepare:
+  verification:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 20
     permissions:
       contents: read
       actions: read
     outputs:
       version: ${{ steps.version.outputs.version }}
-      plan_sha256: ${{ steps.plan.outputs.sha256 }}
+      passed: ${{ steps.ci.outputs.passed }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -36,14 +36,6 @@ jobs:
           git fetch --no-tags origin main
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::$TAG is not on main"; exit 1; }
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
-      - uses: pnpm/action-setup@v6
-        with:
-          run_install: false
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .node-version
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
       - name: Reuse the verify run that already passed on this commit
         id: ci
         env:
@@ -56,8 +48,39 @@ jobs:
             sleep 20
           done
           echo "passed=$([ "$state" = success ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-      - if: steps.ci.outputs.passed != 'true'
-        run: pnpm lint && pnpm format:check && pnpm typecheck && pnpm test
+
+  verify-fallback:
+    needs: verification
+    if: needs.verification.outputs.passed != 'true'
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/verify.yml
+
+  prepare:
+    needs: [verification, verify-fallback]
+    if: >-
+      ${{ !cancelled() && needs.verification.result == 'success' &&
+          ((needs.verification.outputs.passed == 'true' && needs.verify-fallback.result == 'skipped') ||
+           (needs.verification.outputs.passed != 'true' && needs.verify-fallback.result == 'success')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      version: ${{ needs.verification.outputs.version }}
+      plan_sha256: ${{ steps.plan.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - name: Read the reviewed Provider pin
         id: provider
@@ -69,10 +92,14 @@ jobs:
           path: .release-provider
           persist-credentials: false
       - run: npm ci --ignore-scripts --prefix .release-provider
+      - name: Verify ordinary QQ media against the exact Provider source
+        run: pnpm exec vitest run scripts/test/qq-ordinary-media.test.mjs
+        env:
+          BH_QQ_PROVIDER_ROOT: .release-provider
       - name: Prepare and dry-run the exact package set
         id: plan
         env:
-          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_VERSION: ${{ needs.verification.outputs.version }}
         run: |
           node scripts/npm-prerelease.mjs prepare --version "$RELEASE_VERSION" --provider-source .release-provider --output "$RUNNER_TEMP/npm-release"
           node --input-type=module -e 'import {readFileSync} from "node:fs"; import {assertCleanReleaseSource} from "./scripts/npm-prerelease.mjs"; assertCleanReleaseSource(JSON.parse(readFileSync(process.env.RUNNER_TEMP+"/npm-release/release-plan.json", "utf8")))'
@@ -82,13 +109,13 @@ jobs:
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: fresh-profile-install-${{ steps.version.outputs.version }}
+          name: fresh-profile-install-${{ needs.verification.outputs.version }}
           path: ${{ runner.temp }}/fresh-profile-install/report.json
           if-no-files-found: ignore
           retention-days: 30
       - uses: actions/upload-artifact@v4
         with:
-          name: npm-release-${{ steps.version.outputs.version }}
+          name: npm-release-${{ needs.verification.outputs.version }}
           path: |
             ${{ runner.temp }}/npm-release/*.tgz
             ${{ runner.temp }}/npm-release/artifacts.json
@@ -96,8 +123,41 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  publish:
+  qualify-commands:
     needs: prepare
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-release-${{ needs.prepare.outputs.version }}
+          path: .release-artifacts
+      - run: node scripts/e2e-tobs-commands.mjs .release-artifacts .release-artifacts/commands.json
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: commands-${{ matrix.os }}-${{ needs.prepare.outputs.version }}
+          path: .release-artifacts/commands.json
+
+  publish:
+    needs: [prepare, qualify-commands]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.qualify-commands.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     environment: npm-release

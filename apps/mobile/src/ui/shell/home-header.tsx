@@ -1,90 +1,181 @@
+import type { ConnectionState } from '../../host/client';
+import { ConnectionProgress, useConnectionProgress } from '../primitives/connection-progress';
 import { useIsFocused } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import type { ReactNode } from 'react';
-import { Pressable, View } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import { Platform, Pressable, View, type ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { AVATAR_EDGE } from '../chat/conversation-row';
-import { DEFAULT_HOST_LOOK, type HostLook } from '../design/host-look';
+import type { ConversationEnvironment } from '../../host/conversation-environments';
+import { hostColorInk } from '../design/host-look';
+import { materialSearchHeight, searchAppBarHeight } from '../design/material-search';
 import { useDesignTheme } from '../design/theme';
-import { radius, space } from '../design/tokens';
+import { chatList, space } from '../design/tokens';
+import { Text } from '../primitives/text';
 import { useMounted } from '../mounted';
-import { t } from '../strings';
-import { HostBandLayer, HostChipFace, useHostBand } from './host-band';
+import { useStrings } from '../strings';
+import { ChatsIcon, ChevronDownIcon, ChevronLeftIcon, CloudIcon } from './icons';
+import { HostGlyph } from './host-tile';
 import { focusOn, hostDrawer, openHostDrawer, useHostDrawerOpen } from './host-drawer';
+import { FixedToolbar } from './fixed-toolbar';
 
 export function HomeHeader({
-  hostName,
-  look = DEFAULT_HOST_LOOK,
+  environment,
+  connection,
   actions,
+  search,
+  bar,
+  barActions,
+  onWorkspaces,
   children,
 }: {
-  hostName: string;
-  look?: HostLook;
+  environment: ConversationEnvironment;
+  connection?: ConnectionState | undefined;
   actions?: ReactNode;
+  search?: ReactNode;
+  bar?: ReactNode;
+  barActions?: ReactNode;
+  onWorkspaces?: (() => void) | undefined;
   children: ReactNode;
 }) {
+  const t = useStrings();
+  const connectionLabel = useConnectionProgress(connection?.status);
   const theme = useDesignTheme();
   const focused = useIsFocused();
   const drawerOpen = useHostDrawerOpen();
   const insets = useSafeAreaInsets();
-  const band = useHostBand(look.banner);
-  const chip = useMounted<View>((node) => {
+  const android = Platform.OS === 'android';
+  const searchBar = android && bar !== undefined;
+  const minimumHeight = searchBar
+    ? insets.top + searchAppBarHeight(theme.fontScale)
+    : insets.top + space.x2 * 2 + materialSearchHeight(theme.fontScale);
+  const [measuredHeight, setMeasuredHeight] = useState(0);
+  const height = Math.max(minimumHeight, measuredHeight);
+  const chip = useMounted<ViewInstance>((node) => {
     hostDrawer.setReturnFocus(() => focusOn(node));
     return () => hostDrawer.setReturnFocus(undefined);
   }, []);
-  return (
-    <HostBandLayer
-      band={band}
-      banner={look.banner}
-      header={
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: space.x3,
-            paddingTop: insets.top + space.x4,
-            paddingBottom: space.x5,
-            paddingLeft: space.x5,
-            paddingRight: space.x4,
-          }}
-        >
-          <Pressable
-            ref={chip}
-            onPress={openHostDrawer}
-            accessibilityRole="button"
-            accessibilityLabel={t.switchComputer(hostName)}
-            accessibilityState={{ expanded: drawerOpen }}
-            style={({ pressed }) => ({
-              flex: 1,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: space.x4,
-              opacity: pressed ? 0.7 : 1,
-            })}
-          >
-            <HostChipFace hostName={hostName} avatar={look.avatar} band={band} />
-          </Pressable>
-          {actions === undefined ? null : (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
-              {actions}
-            </View>
-          )}
-        </View>
-      }
+  const header = (
+    <View
+      testID="home-header"
+      onLayout={android ? (event) => setMeasuredHeight(event.nativeEvent.layout.height) : undefined}
+      style={{
+        backgroundColor: theme.color.base,
+        minHeight: android ? minimumHeight : undefined,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space.x2,
+        paddingHorizontal: searchBar ? 0 : chatList.gutter,
+        paddingTop: insets.top + (searchBar ? 0 : space.x2),
+        paddingBottom: searchBar ? 0 : space.x2,
+      }}
     >
-      {focused ? <StatusBar style={band.lightInk ? 'light' : 'dark'} /> : null}
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: theme.color.base,
-          borderTopLeftRadius: radius.md + AVATAR_EDGE,
-          borderTopRightRadius: radius.md + AVATAR_EDGE,
-          overflow: 'hidden',
-        }}
-      >
-        {children}
-      </View>
-    </HostBandLayer>
+      {searchBar ? (
+        <>
+          <View ref={chip} style={{ flex: 1 }}>
+            {bar}
+          </View>
+          {barActions}
+        </>
+      ) : (
+        (search ?? (
+          <>
+            <Pressable
+              ref={chip}
+              testID="chats-view-button"
+              onPress={onWorkspaces ?? openHostDrawer}
+              accessibilityRole="button"
+              accessibilityLabel={[
+                onWorkspaces ? t.backToWorkspaces : t.workspaces,
+                environment.accessibilityLabel ?? environment.title,
+                connectionLabel,
+              ]
+                .filter(Boolean)
+                .join(', ')}
+              accessibilityState={{
+                ...(onWorkspaces ? {} : { expanded: drawerOpen }),
+                busy: connectionLabel !== undefined,
+              }}
+              style={({ pressed }) => ({
+                flex: 1,
+                minWidth: 0,
+                minHeight: theme.touch,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space.x2,
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              {onWorkspaces ? (
+                <ChevronLeftIcon color={theme.color.accent} size={theme.type.title.line} />
+              ) : null}
+              {environment.kind === 'computer' && environment.hostIcon ? (
+                <HostGlyph
+                  icon={environment.hostIcon}
+                  size={theme.type.title.line * theme.fontScale}
+                  color={hostColorInk(theme.scheme, theme.color, environment.hostColor)}
+                />
+              ) : environment.kind === 'cloud' ? (
+                <CloudIcon
+                  color={theme.color.accent}
+                  size={theme.type.title.line * theme.fontScale}
+                />
+              ) : (
+                <ChatsIcon
+                  color={theme.color.accent}
+                  size={theme.type.title.line * theme.fontScale}
+                />
+              )}
+              <Text
+                variant="title"
+                strong
+                accessibilityRole="header"
+                numberOfLines={Platform.OS === 'android' ? 1 : undefined}
+                style={{ flexShrink: 1 }}
+              >
+                {environment.title}
+              </Text>
+              <ConnectionProgress active={connectionLabel !== undefined} />
+              {onWorkspaces ? null : (
+                <ChevronDownIcon color={theme.color.muted} size={theme.type.body.line} />
+              )}
+            </Pressable>
+            {actions}
+          </>
+        ))
+      )}
+    </View>
+  );
+  return (
+    <View
+      style={{
+        flex: 1,
+        overflow: android ? 'hidden' : undefined,
+        backgroundColor: theme.color.base,
+      }}
+    >
+      {focused ? <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} /> : null}
+      {android ? (
+        <>
+          <View style={{ flex: 1, marginTop: height }}>{children}</View>
+          <FixedToolbar height={height}>{header}</FixedToolbar>
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: insets.top,
+              backgroundColor: theme.color.base,
+            }}
+          />
+        </>
+      ) : (
+        <>
+          {header}
+          {children}
+        </>
+      )}
+    </View>
   );
 }

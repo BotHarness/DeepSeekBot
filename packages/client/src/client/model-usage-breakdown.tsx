@@ -1,8 +1,8 @@
+import { Menu } from './appearance-primitives.js';
 import { useRef, useState, type ReactElement } from 'react';
 import {
   IconEllipsisOutlineRegular,
   IconRefreshOutlineRegular,
-  Menu,
   type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 

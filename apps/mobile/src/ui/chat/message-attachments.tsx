@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { Image } from 'expo-image';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { ResourceImage as Image } from '../primitives/resource-image';
+import { Pressable, View } from 'react-native';
 
 import type { MessageAttachment } from '../../host/conversation';
 import { over } from '../design/layers';
-import { radius, space } from '../design/tokens';
+import { edge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { FileIcon, PhotoIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 
 export function fileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -22,13 +23,16 @@ function AttachmentImage({
   width,
   height,
   onOpen,
+  onImageReady,
 }: {
   attachment: MessageAttachment;
   human: boolean;
   width: number;
   height: number;
   onOpen(attachment: MessageAttachment): void;
+  onImageReady?: ((key: string, ready: boolean) => void) | undefined;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -66,8 +70,12 @@ function AttachmentImage({
         recyclingKey={attachment.key}
         cachePolicy="memory-disk"
         contentFit="cover"
-        transition={150}
-        onError={() => setFailed(true)}
+        transition={onImageReady === undefined ? 150 : 0}
+        onDisplay={() => onImageReady?.(attachment.key, true)}
+        onError={() => {
+          setFailed(true);
+          onImageReady?.(attachment.key, false);
+        }}
         style={box}
       />
     </Pressable>
@@ -83,22 +91,27 @@ function AttachmentFile({
   human: boolean;
   onShare(attachment: MessageAttachment): Promise<void>;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [busy, setBusy] = useState(false);
   const ink = human ? 'onAccent' : 'fg';
   const fill = human ? over(theme.color.selected, theme.color.accent) : theme.layer.raised.inset;
   const unavailable = attachment.source === undefined;
-  const detail = unavailable
-    ? t.attachmentElsewhere
-    : busy
-      ? t.downloading
-      : attachment.size === undefined
-        ? t.fileKind
-        : fileSize(attachment.size);
+  const detail = attachment.cleared
+    ? t.attachmentCleared(fileSize(attachment.size ?? 0))
+    : unavailable
+      ? t.attachmentElsewhere
+      : busy
+        ? t.downloading
+        : attachment.size === undefined
+          ? t.fileKind
+          : fileSize(attachment.size);
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={t.shareFile(attachment.name)}
+      accessibilityLabel={
+        attachment.cleared ? `${attachment.name}, ${detail}` : t.shareFile(attachment.name)
+      }
       accessibilityState={{ busy, disabled: unavailable }}
       disabled={busy || unavailable}
       onPress={() => {
@@ -113,11 +126,14 @@ function AttachmentFile({
         paddingHorizontal: space.x3,
         paddingVertical: space.x2,
         borderRadius: radius.md,
-        backgroundColor: fill,
+        backgroundColor: attachment.cleared ? 'transparent' : fill,
+        borderWidth: attachment.cleared ? edge.hairline : 0,
+        borderStyle: 'dashed',
+        borderColor: theme.color.border,
       }}
     >
       {busy ? (
-        <ActivityIndicator color={theme.color[ink]} />
+        <LoadingIndicator size="control" color={theme.color[ink]} />
       ) : (
         <FileIcon color={theme.color[ink]} size={theme.type.title.line} />
       )}
@@ -138,7 +154,9 @@ export function MessageAttachments({
   human,
   onOpenImage,
   onShare,
+  onImageReady,
 }: {
+  onImageReady?: ((key: string, ready: boolean) => void) | undefined;
   attachments: MessageAttachment[];
   human: boolean;
   onOpenImage(attachment: MessageAttachment): void;
@@ -160,6 +178,7 @@ export function MessageAttachments({
               width={single ? theme.touch * 5 : theme.touch * 3}
               height={single ? theme.touch * 4 : theme.touch * 3}
               onOpen={onOpenImage}
+              onImageReady={onImageReady}
             />
           ))}
         </View>

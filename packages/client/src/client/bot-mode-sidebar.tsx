@@ -4,15 +4,18 @@ import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-store';
 import {
   IconPanelLeftOutlineRegular,
   IconSettingsOutlineRegular,
-  Tooltip,
   isDarwinDesktop,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
+import { DeviceRequestsNotice } from './device-requests-notice.js';
 
 import type { BotModeSortMode } from '../bot-mode-settings.js';
 import type { BridgeActions } from './actions.js';
 import { BotIcon } from './bot-icon.js';
 import type { BotModePrefsSnapshot } from './bot-mode-prefs.js';
-import { BotSidebar, useClientState } from './bot-sidebar.js';
+import { BotSidebar } from './bot-sidebar.js';
+import { keepClientState, useClientStore } from './use-client-store.js';
+import type { ClientState } from './store.js';
 import type { ChannelSidebarRegistry } from './channel-sidebar.js';
 import { ACTIVITY_CENTER_PANEL, type DockPanelRegistry } from './dock-panels.js';
 import { hooked } from './ds/hooked.js';
@@ -20,13 +23,13 @@ import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import { ExitIcon } from './exit-icon.js';
 import { InboxIcon } from './inbox-icon.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { observeHumanAttention } from './messaging-defaults-live.js';
 import { useMountedResource } from './mounted-resource.js';
 import { OnboardingLauncher } from './onboarding-checklist-view.js';
 import { PinnedPanelCards } from './pinned-panel-cards.js';
+import type { QuickSwitcherSettings } from './quick-switcher.js';
 import type { ShortcutBindings } from './shortcut-bindings.js';
 import type { WindowCompanions } from './window-companions.js';
-
-const INBOX_REFRESH_MS = 10_000;
 
 export interface BotModeSidebarProps {
   collapsed: boolean;
@@ -41,15 +44,24 @@ export interface BotModeSidebarProps {
   setSectionSortMode: (sectionId: string, mode: BotModeSortMode | undefined) => void;
   exitBotMode: () => void;
   toggleSidebar: () => void;
-  openBotSettings: () => void;
+  openBotSettings: (sectionId?: string) => void;
+  quickSwitcherSettings?: QuickSwitcherSettings | undefined;
   t: BotHarnessTranslate;
+}
+
+function sameSidebarNavigation(left: ClientState, right: ClientState): boolean {
+  return (
+    left.humanInbox.unreadCount === right.humanInbox.unreadCount &&
+    left.humanInbox.hasAction === right.humanInbox.hasAction &&
+    (left.selection?.kind === 'inbox') === (right.selection?.kind === 'inbox')
+  );
 }
 
 export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
   const { collapsed, actions, useBotModePrefs, t } = props;
   const wide = !collapsed;
   const icon = useBotModePrefs((prefs) => prefs.botIcon);
-  const state = useClientState();
+  const state = useClientStore(keepClientState, sameSidebarNavigation);
   const unread = state.humanInbox.unreadCount;
   const inboxNotes = [
     ...(unread > 0 ? [t('humanInbox.unreadCount', { count: String(unread) })] : []),
@@ -65,11 +77,7 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
   const morph = logoHover || logoFocus;
   const rootMount = useMountedResource<HTMLDivElement>(() => {
     void actions.refreshHumanInboxStatus();
-    const timer = window.setInterval(
-      () => void actions.refreshHumanInboxStatus(),
-      INBOX_REFRESH_MS,
-    );
-    return () => window.clearInterval(timer);
+    return observeHumanAttention(() => void actions.refreshHumanInboxStatus());
   }, [actions]);
 
   const row = (
@@ -206,12 +214,20 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
           useBotModePrefs={useBotModePrefs}
           channelSidebar={props.channelSidebar}
           shortcutBindings={props.shortcutBindings}
+          quickSwitcherSettings={props.quickSwitcherSettings}
           setSortMode={props.setSortMode}
           setSectionSortMode={props.setSectionSortMode}
+          dockPanels={props.dockPanels}
           t={t}
         />
       </div>
       <div {...stylex.props(styles.list, styles.foot, collapsed && styles.listCollapsed)}>
+        <DeviceRequestsNotice
+          t={t}
+          trigger={(open) =>
+            row(t('connections.pending'), <InboxIcon size={wide ? 16 : 18} />, open, { dot: true })
+          }
+        />
         {row(
           t('panel.settings'),
           <IconSettingsOutlineRegular size={wide ? 16 : 18} />,

@@ -1,0 +1,20 @@
+{
+  "codeHead": "2230f8c2145e028006c15f283cde926ff2b44889",
+  "viewport": "430x932",
+  "results": [
+    {
+      "kind": "live-dm",
+      "result": "pass",
+      "checks": [
+        "real pairing UI",
+        "composer send",
+        "canonical bot reply 42",
+        "rendered reply 42",
+        "reload preserves conversation",
+        "no missing notice"
+      ]
+    }
+  ],
+  "pageErrors": [],
+  "consoleErrors": []
+}

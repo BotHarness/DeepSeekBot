@@ -1,4 +1,20 @@
 import { readFileSync } from 'node:fs';
+import {
+  nativeReleaseRuntime,
+  releaseMetadata,
+  evaluateReleaseManifest,
+  type ReleaseRuntime,
+  type ReleaseCompatibility,
+} from './compatibility.js';
+import { releaseComponentNames } from './component.js';
+
+import {
+  captureReleaseComposition,
+  readReleaseIdentity,
+  type ReleaseIdentity,
+  type ReleaseIdentityFailure,
+} from './identity.js';
+import type { LoadedReleaseComponent } from './component.js';
 
 import { pairReleaseLedgers, selectReleaseNotes, type ReleaseNote } from './notes.js';
 import type { ReleaseRestarter } from './restart.js';
@@ -15,11 +31,16 @@ export const DEFAULT_RELEASE_NOTE_SOURCES = [
   (version: string) => `https://registry.npmmirror.com/${RELEASE_NOTES_PACKAGE}/${version}/files/`,
 ] as const;
 
-const CHECK_CACHE_MS = 6 * 60 * 60 * 1000;
-const FAILURE_CACHE_MS = 5 * 60 * 1000;
-const REQUEST_TIMEOUT_MS = 8_000;
+export const RELEASE_CHECK_CACHE_MS = 6 * 60 * 60 * 1000;
+export const RELEASE_FAILURE_CACHE_MS = 5 * 60 * 1000;
+export const RELEASE_REQUEST_TIMEOUT_MS = 8_000;
 const DIAGNOSTIC_CHARS = 2_000;
-const NETWORK_FAILURES = new Set(['network', 'timeout', 'not-found', 'no-matching-version']);
+export const RELEASE_NETWORK_FAILURES = new Set([
+  'network',
+  'timeout',
+  'not-found',
+  'no-matching-version',
+]);
 
 export interface ReleaseLedgers {
   english: string;
@@ -27,24 +48,31 @@ export interface ReleaseLedgers {
 }
 
 export interface ReleaseInfo {
+  profileId?: string;
   version: string;
+  identity?: ReleaseIdentity;
   releases: ReleaseNote[];
 }
 
 export type ReleaseUpdate =
+  | { status: 'unknown'; current: string; reason: ReleaseIdentityFailure }
   | { status: 'development'; current: string }
   | { status: 'unavailable'; current: string }
   | { status: 'current'; current: string; latest: string }
+  | { status: 'blocked'; current: string; latest: string; compatibility: ReleaseCompatibility }
   | {
       status: 'available';
       current: string;
       latest: string;
       releases: ReleaseNote[];
       installable: boolean;
+      compatibility?: ReleaseCompatibility;
+      blockedLatest?: { version: string; compatibility: ReleaseCompatibility };
     }
   | { status: 'restart-required'; current: string; installed: string; restartable: boolean };
 
 export type ReleaseInstallFailure =
+  | 'identity-invalid'
   | 'unavailable'
   | 'invalid-version'
   | 'network'
@@ -53,7 +81,13 @@ export type ReleaseInstallFailure =
   | 'failed';
 
 export type ReleaseInstall =
-  | { status: 'installed'; current: string; installed: string; restartable: boolean }
+  | {
+      status: 'installed';
+      current: string;
+      installed: string;
+      restartable: boolean;
+      applied: boolean;
+    }
   | {
       status: 'failed';
       reason: ReleaseInstallFailure;
@@ -63,16 +97,9 @@ export type ReleaseInstall =
 
 export type ReleaseRestart =
   | { status: 'restarting' }
-  | { status: 'failed'; reason: 'unavailable' | 'not-pending' };
+  | { status: 'failed'; reason: 'unavailable' | 'not-pending' | 'identity-invalid' };
 
-type CheckResult =
-  | Exclude<ReleaseUpdate, { status: 'available' } | { status: 'restart-required' }>
-  | {
-      status: 'available';
-      current: string;
-      latest: string;
-      releases: ReleaseNote[];
-    };
+type CheckResult = Exclude<ReleaseUpdate, { status: 'restart-required' }>;
 
 export interface ReleaseInstallerResult {
   application: string;
@@ -87,13 +114,17 @@ export interface ReleaseInstaller {
 
 export interface ReleaseService {
   info(since?: string): ReleaseInfo;
-  update(): Promise<ReleaseUpdate>;
-  install(version: string): Promise<ReleaseInstall>;
-  restart(): Promise<ReleaseRestart>;
+  update(force?: boolean): Promise<ReleaseUpdate>;
+  install(version: string, beforeEffect?: () => void): Promise<ReleaseInstall>;
+  restart(beforeEffect?: (pendingVersion: string) => void): Promise<ReleaseRestart>;
 }
 
 export interface ReleaseServiceOptions {
   version: () => string;
+  profileId?: string;
+  runtime?: () => Promise<ReleaseRuntime | undefined>;
+  warn?: (message: string) => void;
+  identity?: () => ReleaseIdentity;
   ledgers: () => ReleaseLedgers | undefined;
   fetchImpl?: typeof fetch;
   now?: () => number;
@@ -115,17 +146,34 @@ function readFirst(candidates: readonly URL[]): string | undefined {
   return undefined;
 }
 
-export function installedRelease(
-  moduleUrl: string,
-): Pick<ReleaseServiceOptions, 'version' | 'ledgers'> {
+export function installedRelease(moduleUrl: string): Pick<
+  ReleaseServiceOptions,
+  'version' | 'ledgers'
+> & {
+  identity(
+    anchors?: readonly string[],
+    loaded?: readonly LoadedReleaseComponent[],
+  ): ReleaseIdentity;
+} {
+  const identity = readReleaseIdentity(moduleUrl);
+  const qualified = new Map<string, ReturnType<typeof captureReleaseComposition>>();
   const ledger = (name: string): string | undefined =>
     readFirst([new URL(`../${name}`, moduleUrl), new URL(`../../../${name}`, moduleUrl)]);
   return {
-    version: () => {
-      const manifest = readFirst([new URL('../package.json', moduleUrl)]);
-      if (manifest === undefined) return '0.0.0';
-      const version: unknown = (JSON.parse(manifest) as { version?: unknown }).version;
-      return typeof version === 'string' ? version : '0.0.0';
+    version: () =>
+      identity.kind === 'release'
+        ? identity.version
+        : identity.kind === 'development'
+          ? '0.0.0'
+          : 'unknown',
+    identity: (anchors = [], loaded = []) => {
+      const key = JSON.stringify(anchors);
+      let snapshot = qualified.get(key);
+      if (snapshot === undefined) {
+        snapshot = captureReleaseComposition(identity, moduleUrl, anchors);
+        qualified.set(key, snapshot);
+      }
+      return snapshot(loaded);
     },
     ledgers: () => {
       const english = ledger('CHANGELOG.md');
@@ -135,26 +183,43 @@ export function installedRelease(
   };
 }
 
-function newestTag(tags: unknown, current: string): string | undefined {
+export function newestTag(tags: unknown, current: string): string | undefined {
   if (typeof tags !== 'object' || tags === null) return undefined;
   const source = tags as Record<string, unknown>;
   const candidates = [source['latest'], current.includes('-') ? source['next'] : undefined].filter(
-    (value): value is string => typeof value === 'string' && isReleaseVersion(value),
+    (value): value is string =>
+      typeof value === 'string' &&
+      isReleaseVersion(value) &&
+      (current.includes('-') || !value.includes('-')),
   );
   return candidates.sort(compareVersions).at(-1);
 }
 
-function failureOf(result: ReleaseInstallerResult): ReleaseInstall {
+export function packageTarball(registry: string, name: string, version: string): string {
+  const base = name.slice(name.lastIndexOf('/') + 1);
+  return `${registry.replace(/\/+$/u, '')}/${name}/-/${base}-${version}.tgz`;
+}
+
+export function releaseTarball(registry: string, version: string): string {
+  return packageTarball(registry, RELEASE_PACKAGE, version);
+}
+
+export function releaseInstallFailure(result: ReleaseInstallerResult): ReleaseInstall {
   const kind = result.packageResult?.kind;
   const reason: ReleaseInstallFailure =
     result.error?.code === 'incompatible-version'
       ? 'incompatible'
       : kind === 'build-blocked'
         ? 'build-blocked'
-        : kind !== undefined && NETWORK_FAILURES.has(kind)
+        : kind !== undefined && RELEASE_NETWORK_FAILURES.has(kind)
           ? 'network'
           : 'failed';
-  const diagnostic = (result.error?.diagnostic ?? result.packageResult?.output ?? '').trim();
+  const diagnostic = (
+    result.error?.diagnostic ??
+    result.packageResult?.output ??
+    (reason === 'failed' ? result.error?.code : undefined) ??
+    ''
+  ).trim();
   const logPath = result.packageResult?.logPath;
   return {
     status: 'failed',
@@ -164,23 +229,58 @@ function failureOf(result: ReleaseInstallerResult): ReleaseInstall {
   };
 }
 
+export function createLoadingReleaseService(options: ReleaseServiceOptions): ReleaseService {
+  let ready: ReleaseService | undefined;
+  const version = options.version();
+  const current = (): ReleaseService => {
+    const identity = options.identity?.();
+    if (ready !== undefined && JSON.stringify(identity) === JSON.stringify(ready.info().identity))
+      return ready;
+    const checked: ReleaseIdentity | undefined =
+      ready === undefined || identity?.kind === 'unknown'
+        ? identity
+        : { kind: 'unknown', reason: 'component-mismatch' };
+    const service = createReleaseService({
+      ...options,
+      version: () => version,
+      ...(checked === undefined ? {} : { identity: () => checked }),
+    });
+    if (ready === undefined && checked?.kind !== 'unknown') ready = service;
+    return service;
+  };
+  return {
+    info: (since) => current().info(since),
+    update: (force) => current().update(force),
+    install: (version, beforeEffect) => current().install(version, beforeEffect),
+    restart: (beforeEffect) => current().restart(beforeEffect),
+  };
+}
+
 export function createReleaseService(options: ReleaseServiceOptions): ReleaseService {
+  const identity = options.identity?.();
+  const runningVersion = identity?.kind === 'unknown' ? 'unknown' : options.version();
   const fetchImpl = options.fetchImpl ?? fetch;
   const now = options.now ?? Date.now;
   const registries = options.registries ?? DEFAULT_RELEASE_REGISTRIES;
   const noteSources = options.noteSources ?? DEFAULT_RELEASE_NOTE_SOURCES;
-  const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
+  const timeoutMs = options.timeoutMs ?? RELEASE_REQUEST_TIMEOUT_MS;
   let notes: ReleaseNote[] | undefined;
   let cached: { at: number; result: CheckResult } | undefined;
   let pending: Promise<CheckResult> | undefined;
   let installed: string | undefined;
   let installing: Promise<ReleaseInstall> | undefined;
+  let installingVersion: string | undefined;
 
   const profileBundle = async (): Promise<
     { installer: ReleaseInstaller; version: string | undefined } | undefined
   > => {
     const installer = options.installer?.();
-    if (installer === undefined || !isReleaseVersion(options.version())) return undefined;
+    if (
+      installer === undefined ||
+      identity?.kind === 'unknown' ||
+      !isReleaseVersion(runningVersion)
+    )
+      return undefined;
     try {
       const bundle = (await installer.listBundles()).find(
         (candidate) => candidate.name === RELEASE_PACKAGE && candidate.installed,
@@ -196,16 +296,33 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
       ? version
       : undefined;
 
-  const runInstall = async (version: string): Promise<ReleaseInstall> => {
-    const current = options.version();
+  const runInstall = async (
+    version: string,
+    beforeEffect?: () => void,
+  ): Promise<ReleaseInstall> => {
+    const current = runningVersion;
+    if (identity?.kind === 'unknown') return { status: 'failed', reason: 'identity-invalid' };
     if (!isReleaseVersion(version) || compareVersions(version, current) <= 0) {
       return { status: 'failed', reason: 'invalid-version' };
     }
     const installer = (await profileBundle())?.installer;
     if (installer === undefined) return { status: 'failed', reason: 'unavailable' };
+    const eligibility = await targetCompatibility(version);
+    if (eligibility.status !== 'compatible')
+      return {
+        status: 'failed',
+        reason: eligibility.status === 'incompatible' ? 'incompatible' : 'unavailable',
+      };
+    beforeEffect?.();
     let result: ReleaseInstallerResult;
     try {
       result = await installer.installBundle(`${RELEASE_PACKAGE}@${version}`);
+      if (result.error?.code === 'already-installed') {
+        for (const registry of registries) {
+          result = await installer.installBundle(releaseTarball(registry, version));
+          if (!RELEASE_NETWORK_FAILURES.has(result.packageResult?.kind ?? '')) break;
+        }
+      }
     } catch (error) {
       return {
         status: 'failed',
@@ -217,7 +334,7 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
       result.error !== undefined ||
       (result.application !== 'restart-required' && result.application !== 'applied')
     ) {
-      return failureOf(result);
+      return releaseInstallFailure(result);
     }
     installed = version;
     return {
@@ -225,6 +342,7 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
       current,
       installed: version,
       restartable: options.restarter?.() !== undefined,
+      applied: result.application === 'applied',
     };
   };
 
@@ -244,18 +362,64 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
     }
   };
 
-  const latestVersion = async (current: string): Promise<string | undefined> => {
+  const json = async (url: string): Promise<unknown> => {
+    const body = await text(url);
+    try {
+      return body === undefined ? undefined : JSON.parse(body);
+    } catch {
+      return undefined;
+    }
+  };
+  const runtime = options.runtime ?? nativeReleaseRuntime;
+  const manifestCompatibility = async (
+    registry: string,
+    version: string,
+    host: ReleaseRuntime,
+  ): Promise<ReleaseCompatibility> => {
+    const manifest = releaseMetadata(await json(`${registry}/${RELEASE_PACKAGE}/${version}`));
+    const bundle = evaluateReleaseManifest(host, manifest, RELEASE_PACKAGE, version);
+    if (bundle.status !== 'compatible') return bundle;
+    const dependencies = releaseMetadata(manifest?.['dependencies']);
+    const components = Object.values(releaseComponentNames);
+    if (components.some((name) => dependencies?.[name] !== version))
+      return { status: 'unknown', reason: 'metadata-unavailable', dshVersion: host.version };
+    const provider = dependencies?.['@botharness/im-provider'];
+    if (provider !== undefined && (typeof provider !== 'string' || !isReleaseVersion(provider)))
+      return { status: 'unknown', reason: 'metadata-unavailable', dshVersion: host.version };
+    const entries = components.map((name) => ({ name, version }));
+    if (typeof provider === 'string')
+      entries.push({ name: '@botharness/im-provider', version: provider });
+    const results = await Promise.all(
+      entries.map(async (entry) =>
+        evaluateReleaseManifest(
+          host,
+          await json(`${registry}/${encodeURIComponent(entry.name)}/${entry.version}`),
+          entry.name,
+          entry.version,
+        ),
+      ),
+    );
+    return results.find((result) => result.status !== 'compatible') ?? bundle;
+  };
+  const targetCompatibility = async (version: string): Promise<ReleaseCompatibility> => {
+    const host = await runtime();
+    if (host === undefined) return { status: 'unknown', reason: 'runtime-unavailable' };
     for (const registry of registries) {
-      const body = await text(
-        `${registry.replace(/\/+$/u, '')}/-/package/${RELEASE_PACKAGE}/dist-tags`,
+      const result = await manifestCompatibility(registry.replace(/\/+$/u, ''), version, host);
+      if (result.status !== 'unknown') return result;
+    }
+    return { status: 'unknown', reason: 'metadata-unavailable', dshVersion: host.version };
+  };
+  const latestVersion = async (
+    current: string,
+  ): Promise<{ latest: string; registry: string } | undefined> => {
+    for (const source of registries) {
+      const registry = source.replace(/\/+$/u, '');
+      const latest = newestTag(
+        await json(`${registry}/-/package/${RELEASE_PACKAGE}/dist-tags`),
+        current,
       );
-      if (body === undefined) continue;
-      try {
-        const latest = newestTag(JSON.parse(body), current);
-        if (latest !== undefined) return latest;
-      } catch {
-        continue;
-      }
+      if (latest !== undefined) return { latest, registry };
     }
     return undefined;
   };
@@ -275,18 +439,85 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
   };
 
   const check = async (): Promise<CheckResult> => {
-    const current = options.version();
+    const current = runningVersion;
+    const deadline = Date.now() + 30_000;
+    if (identity?.kind === 'unknown')
+      return { status: 'unknown', current, reason: identity.reason };
     if (!isReleaseVersion(current)) return { status: 'development', current };
-    const latest = await latestVersion(current);
-    if (latest === undefined) return { status: 'unavailable', current };
+    const found = await latestVersion(current);
+    if (found === undefined) return { status: 'unavailable', current };
+    const { latest, registry } = found;
     if (compareVersions(latest, current) <= 0) return { status: 'current', current, latest };
-    return { status: 'available', current, latest, releases: await newerNotes(current, latest) };
+    const host = await runtime();
+    if (host === undefined)
+      return {
+        status: 'blocked',
+        current,
+        latest,
+        compatibility: { status: 'unknown', reason: 'runtime-unavailable' },
+      };
+    const compatibility = await manifestCompatibility(registry, latest, host);
+    if (compatibility.status === 'compatible')
+      return {
+        status: 'available',
+        current,
+        latest,
+        compatibility,
+        installable: false,
+        releases: await newerNotes(current, latest),
+      };
+    const incomplete = (): CheckResult => ({
+      status: 'blocked',
+      current,
+      latest,
+      compatibility: {
+        status: 'unknown',
+        reason: 'metadata-unavailable',
+        dshVersion: host.version,
+      },
+    });
+    if (compatibility.status === 'incompatible') {
+      const packument = releaseMetadata(await json(`${registry}/${RELEASE_PACKAGE}`));
+      const versions = releaseMetadata(packument?.['versions']);
+      if (versions === undefined) return incomplete();
+      const candidates = Object.keys(versions)
+        .filter(
+          (version) =>
+            isReleaseVersion(version) &&
+            (current.includes('-') || !version.includes('-')) &&
+            compareVersions(version, current) > 0 &&
+            compareVersions(version, latest) < 0,
+        )
+        .sort((a, b) => compareVersions(b, a));
+      for (const version of candidates) {
+        if (Date.now() >= deadline) return incomplete();
+        const candidate = await manifestCompatibility(registry, version, host);
+        if (candidate.status === 'compatible')
+          return {
+            status: 'available',
+            current,
+            latest: version,
+            compatibility: candidate,
+            blockedLatest: { version: latest, compatibility },
+            installable: false,
+            releases: await newerNotes(current, version),
+          };
+        if (candidate.status === 'unknown') return incomplete();
+      }
+    }
+    options.warn?.(`release/check blocked target=${latest} compatibility=${compatibility.status}`);
+    return { status: 'blocked', current, latest, compatibility };
   };
 
-  const checked = (): Promise<CheckResult> => {
-    if (cached !== undefined) {
+  const checked = (force = false): Promise<CheckResult> => {
+    if (!force && cached !== undefined) {
       const age = now() - cached.at;
-      const limit = cached.result.status === 'unavailable' ? FAILURE_CACHE_MS : CHECK_CACHE_MS;
+      const limit =
+        cached.result.status === 'unavailable' ||
+        cached.result.status === 'unknown' ||
+        (cached.result.status === 'blocked' && cached.result.compatibility.status === 'unknown')
+          ? RELEASE_FAILURE_CACHE_MS
+          : RELEASE_CHECK_CACHE_MS;
       if (age < limit) return Promise.resolve(cached.result);
     }
     pending ??= check()
@@ -302,9 +533,11 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
 
   return {
     info(since) {
-      const version = options.version();
+      const version = runningVersion;
       return {
         version,
+        ...(options.profileId === undefined ? {} : { profileId: options.profileId }),
+        ...(identity === undefined ? {} : { identity }),
         releases: !isReleaseVersion(version)
           ? []
           : since === undefined
@@ -312,8 +545,8 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
             : selectReleaseNotes(installedNotes(), { after: since, through: version }),
       };
     },
-    async update() {
-      const current = options.version();
+    async update(force = false) {
+      const current = runningVersion;
       const bundle = await profileBundle();
       const pendingVersion = installed ?? newerInProfile(current, bundle?.version);
       if (pendingVersion !== undefined) {
@@ -324,22 +557,30 @@ export function createReleaseService(options: ReleaseServiceOptions): ReleaseSer
           restartable: options.restarter?.() !== undefined,
         };
       }
-      const result = await checked();
+      const result = await checked(force);
       if (result.status !== 'available') return result;
       return { ...result, installable: bundle !== undefined };
     },
-    install(version) {
-      installing ??= runInstall(version).finally(() => {
-        installing = undefined;
-      });
+    install(version, beforeEffect) {
+      if (installing && (beforeEffect !== undefined || installingVersion !== version))
+        return Promise.resolve({ status: 'failed', reason: 'unavailable' });
+      if (!installing) {
+        installingVersion = version;
+        installing = runInstall(version, beforeEffect).finally(() => {
+          installing = undefined;
+          installingVersion = undefined;
+        });
+      }
       return installing;
     },
-    async restart() {
+    async restart(beforeEffect) {
+      if (identity?.kind === 'unknown') return { status: 'failed', reason: 'identity-invalid' };
       const restarter = options.restarter?.();
       if (restarter === undefined) return { status: 'failed', reason: 'unavailable' };
       const pendingVersion =
-        installed ?? newerInProfile(options.version(), (await profileBundle())?.version);
+        installed ?? newerInProfile(runningVersion, (await profileBundle())?.version);
       if (pendingVersion === undefined) return { status: 'failed', reason: 'not-pending' };
+      beforeEffect?.(pendingVersion);
       restarter.restart();
       return { status: 'restarting' };
     },

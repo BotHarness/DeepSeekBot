@@ -1,14 +1,19 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createHostClient, type HostClient } from '../src/host/client';
 import {
   createConversation,
+  reactable,
   shownInChat,
   type CachedConversation,
   type Conversation,
   type ConversationSnapshot,
 } from '../src/host/conversation';
+import { createConversationPlayback } from '../src/host/conversation-playback';
+import { messageForDisplay } from '../src/host/message-display';
 import { FakeHost, type FakeChannel } from './fake-host';
+import wire from './fixtures/host-wire.json';
+import type { ChannelMessage } from '../../../packages/core/src/channels/channel';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
 const SLUG = 'bot-59296301f8d044d2b022d8784c5ed3fe';
@@ -19,6 +24,7 @@ let conversation: Conversation | undefined;
 afterEach(() => {
   conversation?.stop();
   client?.stop();
+  vi.useRealTimers();
 });
 
 function seed(channel: FakeChannel, count: number): void {
@@ -85,6 +91,88 @@ function contiguous(snapshot: ConversationSnapshot): boolean {
 }
 
 describe('DM conversation', () => {
+  it('retains the source Channel and rich payload through the shared display projection', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    channel.append(
+      {
+        id: 'rich-message',
+        author: { kind: 'bot', slug: SLUG },
+        body: 'Image and approval',
+        format: 'text',
+        attachments: [
+          {
+            fileId: 'file:11111111-1111-4111-8111-111111111111',
+            name: 'photo.png',
+            mime: 'image/png',
+            size: 12,
+          },
+        ],
+        toolApprovalRequest: {
+          sessionId: 'session',
+          callId: 'call',
+          toolName: 'bash',
+          role: 'orchestrator',
+          cwd: '/source',
+          input: '{"command":"pwd"}',
+        },
+      },
+      false,
+    );
+    const live = await until(open(host), (snapshot) => snapshot.status === 'live');
+    const message = live.messages.find((entry) => entry.id === 'rich-message')!;
+    expect(message.source?.channelId).toBe(DM);
+    expect(messageForDisplay(message)).toMatchObject({
+      format: 'text',
+      toolApprovalRequest: { callId: 'call' },
+      attachments: [{ fileId: 'file:11111111-1111-4111-8111-111111111111' }],
+    });
+    expect(message.attachments[0]?.source?.uri).toContain(
+      `${ROUTE}/botharness-device/api/botharness/attachment?`,
+    );
+  });
+
+  it('shows paged committed history immediately while playback is held away from latest', async () => {
+    const host = new FakeHost();
+    seed(host.channel(DM), 25);
+    const target = open(host);
+    await until(target, (snapshot) => snapshot.status === 'live');
+    const playback = createConversationPlayback(target);
+    const stop = playback.subscribe(() => {});
+    playback.setFollowing(false);
+    try {
+      await target.loadOlder();
+      const messages = target.getSnapshot().messages;
+      expect(messages[0]).toMatchObject({ revision: 8, body: 'answer 8' });
+      const presented = messages.map(
+        (message) => (playback.getBubble(playback.rowKey(message.id))?.message ?? message).body,
+      );
+      expect(presented).toEqual(messages.map((message) => message.body));
+      expect(playback.diagnostics()).toEqual([]);
+      playback.setFollowing(true);
+      expect(playback.diagnostics()).toEqual([]);
+    } finally {
+      stop();
+    }
+  });
+
+  it('presents recorded activity through the live journal and keeps every revision for read tracking', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    for (const entry of wire.activityJournal.page.entries)
+      channel.append(entry.message as ChannelMessage, false);
+    const live = await until(open(host), (snapshot) => snapshot.status === 'live');
+    expect(live.messages.map((message) => message.activity?.kind)).toEqual([
+      'channel-post',
+      'dm-action',
+      'memory',
+      'bot-create',
+      'departure',
+      'turn-stop',
+    ]);
+    expect(revisions(live)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(live.messages.filter(shownInChat)).toHaveLength(6);
+  });
   it('opens on the Host tail page and pages older history without gaps or duplicates', async () => {
     const host = new FakeHost();
     seed(host.channel(DM), 25);
@@ -110,48 +198,177 @@ describe('DM conversation', () => {
     });
   });
 
-  it('marks request cards and the messages that resolve them', async () => {
+  it('keeps loaded history after a failed earlier page and clears the error on explicit retry', async () => {
+    const host = new FakeHost();
+    seed(host.channel(DM), 25);
+    const target = open(host);
+    const live = await until(target, (snapshot) => snapshot.status === 'live');
+    host.failing.add('channelJournalPage');
+    await target.loadOlder();
+    expect(target.getSnapshot()).toMatchObject({
+      status: 'live',
+      loadingOlder: false,
+      hasOlder: true,
+      olderError: true,
+    });
+    expect(ids(target.getSnapshot())).toEqual(ids(live));
+    expect(target.getTimelineSnapshot().olderError).toBe(true);
+    host.failing.delete('channelJournalPage');
+    await target.loadOlder();
+    expect(target.getSnapshot().olderError).toBeUndefined();
+    expect(target.getTimelineSnapshot().olderError).toBeUndefined();
+    expect(revisions(target.getSnapshot())).toEqual(
+      Array.from({ length: 18 }, (_, index) => index + 8),
+    );
+    expect(new Set(ids(target.getSnapshot())).size).toBe(18);
+  });
+
+  it.each(['allowed-once', 'allowed-always-tool'] as const)(
+    'marks request cards and %s history',
+    async (outcome) => {
+      const host = new FakeHost();
+      const channel = host.channel(DM);
+      const bot = { kind: 'bot' as const, slug: SLUG };
+      channel.append({
+        id: 'ask-tool',
+        author: bot,
+        body: '请求批准执行 bash',
+        toolApprovalRequest: {
+          toolName: 'bash',
+          role: 'orchestrator',
+          cwd: '/w',
+          input: '{"command":"ls /w"}',
+        },
+      } as never);
+      channel.append({
+        id: 'tool-decided',
+        body: '已批准这一次工具调用',
+        toolApprovalDecision: { requestMessageId: 'ask-tool', outcome },
+      } as never);
+      channel.append({
+        id: 'ask-question',
+        author: bot,
+        body: 'Which colour?',
+        userQuestionRequest: { questions: [{ id: 'c', question: 'Which colour?' }] },
+      } as never);
+      channel.append({
+        id: 'question-cancelled',
+        author: bot,
+        body: '提问已取消',
+        userQuestionResolution: { requestMessageId: 'ask-question', state: 'cancelled' },
+      } as never);
+      const live = await until(open(host), (snapshot) => snapshot.status === 'live');
+      const [tool, decided, ask, cancelled] = live.messages;
+      expect(tool?.card).toEqual({
+        kind: 'tool-approval',
+        channelId: DM,
+        subject: 'bash',
+        command: 'ls /w',
+      });
+      expect(decided?.resolves).toEqual({
+        requestId: 'ask-tool',
+        resolution: { kind: 'tool-approval', outcome },
+      });
+      expect(ask?.card).toEqual({ kind: 'user-question', channelId: DM, subject: 'Which colour?' });
+      expect(cancelled?.resolves).toEqual({
+        requestId: 'ask-question',
+        resolution: { kind: 'user-question', state: 'cancelled' },
+      });
+    },
+  );
+
+  it('marks folder requests as cards and hides the read/write answer behind them', async () => {
     const host = new FakeHost();
     const channel = host.channel(DM);
     const bot = { kind: 'bot' as const, slug: SLUG };
     channel.append({
-      id: 'ask-tool',
+      id: 'ask-folder',
       author: bot,
-      body: '请求批准执行 bash',
-      toolApprovalRequest: { toolName: 'bash', role: 'orchestrator', cwd: '/w', input: '{}' },
+      body: 'I need your project folder.',
+      grantRequest: true,
     } as never);
     channel.append({
-      id: 'tool-decided',
-      body: '已批准这一次工具调用',
-      toolApprovalDecision: { requestMessageId: 'ask-tool', outcome: 'allowed-once' },
+      id: 'grant-resolution-ask-folder',
+      body: 'I authorized workspace “Project” for read/write. Continue the original task.',
+      replyTo: 'ask-folder',
+      grantRequestResolution: { requestMessageId: 'ask-folder', grantId: 'g1' },
     } as never);
     channel.append({
-      id: 'ask-question',
+      id: 'ask-old-folder',
       author: bot,
-      body: 'Which colour?',
-      userQuestionRequest: { questions: [{ id: 'c', question: 'Which colour?' }] },
-    } as never);
-    channel.append({
-      id: 'question-cancelled',
-      author: bot,
-      body: '提问已取消',
-      userQuestionResolution: { requestMessageId: 'ask-question', state: 'cancelled' },
+      body: 'Another folder.',
+      grantRequest: true,
+      grantRequestResolved: true,
     } as never);
     const live = await until(open(host), (snapshot) => snapshot.status === 'live');
-    const [tool, decided, ask, cancelled] = live.messages;
-    expect(tool?.card).toEqual({ kind: 'tool-approval', channelId: DM, subject: 'bash' });
-    expect(decided?.resolves).toEqual({
-      requestId: 'ask-tool',
-      resolution: { kind: 'tool-approval', outcome: 'allowed-once' },
-    });
-    expect(ask?.card).toEqual({ kind: 'user-question', channelId: DM, subject: 'Which colour?' });
-    expect(cancelled?.resolves).toEqual({
-      requestId: 'ask-question',
-      resolution: { kind: 'user-question', state: 'cancelled' },
-    });
+    const [ask, answered, old] = live.messages;
+    expect(ask?.card).toEqual({ kind: 'grant', channelId: DM });
+    expect(answered?.resolves).toEqual({ requestId: 'ask-folder', resolution: { kind: 'grant' } });
+    expect(old?.card).toEqual({ kind: 'grant', channelId: DM, resolved: true });
+    expect(live.messages.filter(shownInChat).map((message) => message.id)).toEqual([
+      'ask-folder',
+      'ask-old-folder',
+    ]);
   });
 
-  it('leaves the onboarding welcome and empty notices out of the chat', async () => {
+  it('keeps the Host wire message for clients that render full cards', async () => {
+    const host = new FakeHost();
+    const request = {
+      sessionId: 'session-1',
+      callId: 'call-1',
+      toolName: 'bash',
+      role: 'orchestrator',
+      cwd: '/work',
+      input: '{"command":"pwd"}',
+    };
+    host.channel(DM).append({
+      id: 'approve-pwd',
+      author: { kind: 'bot' as const, slug: SLUG },
+      body: 'Approve bash',
+      toolApprovalRequest: request,
+    } as never);
+    const target = open(host);
+    await until(target, (snapshot) => snapshot.status === 'live');
+    expect(target.wireMessage?.('approve-pwd')).toMatchObject({
+      id: 'approve-pwd',
+      toolApprovalRequest: request,
+    });
+    expect(target.wireMessage?.('missing')).toBeUndefined();
+  });
+
+  it('marks private input requests as cards and hides their resolution', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    channel.append({
+      id: 'ask-key',
+      author: { kind: 'bot' as const, slug: SLUG },
+      body: 'I need the GitHub token.',
+      privateInputRequest: {
+        account: 'github',
+        purpose: 'Read the private repository',
+        fields: [{ id: 'token', label: 'Token', required: true }],
+      },
+    } as never);
+    channel.append({
+      id: 'private-resolution-ask-key',
+      body: 'Private input configured.',
+      privateInputResolution: { requestMessageId: 'ask-key', state: 'configured', references: {} },
+    } as never);
+    const live = await until(open(host), (snapshot) => snapshot.status === 'live');
+    const [ask, resolution] = live.messages;
+    expect(ask?.card).toEqual({
+      kind: 'private-input',
+      channelId: DM,
+      subject: 'Read the private repository',
+    });
+    expect(resolution?.resolves).toEqual({
+      requestId: 'ask-key',
+      resolution: { kind: 'private-input' },
+    });
+    expect(live.messages.filter(shownInChat).map((message) => message.id)).toEqual(['ask-key']);
+  });
+
+  it('shows recognized activity while hiding the welcome and malformed empty notices', async () => {
     const host = new FakeHost();
     const channel = host.channel(DM);
     const bot = { kind: 'bot' as const, slug: SLUG };
@@ -181,7 +398,17 @@ describe('DM conversation', () => {
       'memory-commit-1',
       'onboarding-welcome-v1',
     ]);
-    expect(live.messages.filter(shownInChat).map((message) => message.id)).toEqual(['answer']);
+    expect(live.messages.filter(shownInChat).map((message) => message.id)).toEqual([
+      'answer',
+      'bot-channel-post-1',
+    ]);
+    expect(live.messages[1]?.activity).toEqual({
+      kind: 'channel-post',
+      channelId: 'group-launch',
+      messageId: 'm1',
+      preview: null,
+    });
+    expect(reactable(live.messages[1]!)).toBe(false);
   });
 
   it('shows the cached page at once, then reconciles it with the Host window', async () => {
@@ -263,6 +490,42 @@ describe('DM conversation', () => {
     });
   });
 
+  it('sends a reply with its target and shows the quoted message before and after the Host commits it', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    seed(channel, 2);
+    channel.append(
+      {
+        id: 'human-3',
+        body: 'which file?',
+        author: { kind: 'human' },
+        replyTo: 'bot-2',
+        replyToPreview: { author: { kind: 'bot', slug: SLUG }, body: 'answer 2' },
+      },
+      false,
+    );
+    const target = open(host);
+    const live = await until(target, (s) => s.status === 'live');
+    expect(live.messages.at(-1)).toMatchObject({
+      replyTo: 'bot-2',
+      replyPreview: { author: { kind: 'bot', slug: SLUG }, body: 'answer 2' },
+    });
+    expect(live.messages[0]).not.toHaveProperty('replyTo');
+    const id = target.send('this one', [], { replyTo: 'human-1' });
+    expect(target.getSnapshot().messages.at(-1)).toMatchObject({
+      id,
+      replyTo: 'human-1',
+      replyPreview: { author: { kind: 'human' }, body: 'question 1' },
+    });
+    await until(target, () => host.calls.some((call) => call.method === 'channelSend'));
+    expect(host.calls.find((call) => call.method === 'channelSend')?.args).toMatchObject({
+      channelId: DM,
+      body: 'this one',
+      messageId: id,
+      replyTo: 'human-1',
+    });
+  });
+
   it('shows reactions from the journal and follows reaction changes live', async () => {
     const host = new FakeHost();
     const channel = host.channel(DM);
@@ -333,11 +596,18 @@ describe('DM conversation', () => {
     const target = open(host);
     await until(target, (s) => s.status === 'live');
     host.failing.add('channelSend');
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(1_000);
     const id = target.send('retry me');
+    expect(target.getSnapshot().messages.at(-1)?.attemptStartedAt).toBe(1_000);
+    const sentAt = target.getSnapshot().messages.at(-1)?.at;
     const failed = await until(target, (s) => s.messages.at(-1)?.delivery === 'failed');
     expect(failed.messages.at(-1)?.error).toBeTruthy();
     host.failing.delete('channelSend');
+    vi.setSystemTime(9_000);
     target.retry(id);
+    expect(target.getSnapshot().messages.at(-1)?.attemptStartedAt).toBe(9_000);
+    expect(target.getSnapshot().messages.at(-1)?.at).toBe(sentAt);
     expect(target.getSnapshot().messages.at(-1)?.delivery).toBe('pending');
     await until(target, (s) => s.messages.at(-1)?.revision === 1);
     target.retry(id);
@@ -389,6 +659,22 @@ describe('DM conversation', () => {
       expect.objectContaining({ name: 'a.txt', size: 5 }),
       expect.objectContaining({ name: 'b.txt', size: 4 }),
     ]);
+  });
+
+  it('uploads a typed photo as octet-stream so the Host accepts it', async () => {
+    const host = new FakeHost();
+    host.channel(DM);
+    const target = open(host);
+    await until(target, (s) => s.status === 'live');
+    const photo = async () => new Blob(['png'], { type: 'image/png' });
+    const id = target.send('', [{ name: 'IMG_0001.PNG', kind: 'image', read: photo }]);
+    const sent = (s: ConversationSnapshot) => s.messages.find((message) => message.id === id);
+    await until(target, (s) => sent(s)?.delivery !== 'pending');
+    expect(sent(target.getSnapshot())?.delivery).toBe('committed');
+    expect(host.uploads).toEqual([
+      { name: 'IMG_0001.PNG', type: 'application/octet-stream', text: 'png' },
+    ]);
+    expect(host.calls.filter((call) => call.method === 'channelSend')).toHaveLength(1);
   });
 
   it('shows picked files at once and keeps their local copies after the Host commits them', async () => {
@@ -464,6 +750,7 @@ describe('DM conversation', () => {
     expect(live.messages[0]?.attachments).toEqual([
       {
         key: 'bot-1:0',
+        identity: 'file:00000000-0000-4000-8000-000000000001',
         kind: 'image',
         name: 'chart.png',
         mime: 'image/png',
@@ -476,6 +763,7 @@ describe('DM conversation', () => {
       },
       {
         key: 'bot-1:1',
+        identity: `sha256:${'a'.repeat(64)}`,
         kind: 'file',
         name: 'report.pdf',
         mime: 'application/pdf',
@@ -490,6 +778,7 @@ describe('DM conversation', () => {
     expect(live.messages[1]?.attachments).toEqual([
       {
         key: 'bridged-1:bridge:img-1',
+        identity: 'evt-9:bridge:img-1',
         kind: 'image',
         name: 'photo.jpg',
         source: {
@@ -497,6 +786,40 @@ describe('DM conversation', () => {
           headers,
         },
         local: false,
+      },
+    ]);
+  });
+
+  it('shows cleared media as a cleared file card without a download source', async () => {
+    const host = new FakeHost();
+    host.channel(DM).append(
+      {
+        id: 'old-1',
+        author: { kind: 'human' },
+        body: 'from January',
+        clearedAttachments: [
+          {
+            name: 'beach.png',
+            mime: 'image/png',
+            size: 4096,
+            clearedAt: '2026-10-20T00:00:00.000Z',
+          },
+        ],
+      },
+      false,
+    );
+    const target = open(host);
+    const live = await until(target, (s) => s.messages.length === 1);
+    expect(live.messages[0]?.body).toBe('from January');
+    expect(live.messages[0]?.attachments).toEqual([
+      {
+        key: 'old-1:cleared:0',
+        kind: 'file',
+        name: 'beach.png',
+        mime: 'image/png',
+        size: 4096,
+        local: false,
+        cleared: true,
       },
     ]);
   });
@@ -565,6 +888,36 @@ describe('DM conversation', () => {
     expect(bodies.filter((body) => body === final)).toHaveLength(1);
     expect([...messageArrays]).toEqual([live.messages]);
     expect(messageArrays.has(live.messages)).toBe(true);
+  });
+
+  it('keeps the timeline identity during body appends while publishing live draft text', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    seed(channel, 2);
+    const target = open(host, { draftDelayMs: 0 });
+    await until(target, (s) => s.status === 'live');
+    const draft = { channelId: DM, draftId: 'draft-1', attemptId: 'attempt-1', botSlug: SLUG };
+    channel.emit({
+      type: 'notification',
+      notification: { kind: 'draft', draft: { ...draft, revision: 1, body: 'First' } },
+    });
+    await until(target, (s) => s.drafts[0]?.body === 'First');
+    const before = target.getTimelineSnapshot();
+    channel.emit({
+      type: 'notification',
+      notification: {
+        kind: 'draft-append',
+        append: { ...draft, base: 1, revision: 2, offset: 5, append: ' second' },
+      },
+    });
+    await until(target, (s) => s.drafts[0]?.body === 'First second');
+    expect(target.getTimelineSnapshot()).toBe(before);
+    expect(before.drafts).toEqual([{ draftId: 'draft-1', botSlug: SLUG }]);
+    channel.append({ id: 'settled', body: 'First second', author: { kind: 'bot', slug: SLUG } });
+    await until(target, (s) => s.messages.at(-1)?.id === 'settled');
+    expect(target.getTimelineSnapshot()).not.toBe(before);
+    expect(target.getTimelineSnapshot().drafts).toEqual([]);
+    expect(target.getTimelineSnapshot().messages.at(-1)?.body).toBe('First second');
   });
 
   it('publishes a settled draft at once instead of waiting for the coalescing window', async () => {
@@ -838,6 +1191,45 @@ describe('group Channel conversation', () => {
 });
 
 describe('group Channel mentions on send', () => {
+  it('keeps identity and ranges in cached history, live entries and optimistic messages', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    const mentions = [{ botSlug: 'stable-ada-id', label: 'Ada', start: 0, end: 4 }];
+    channel.append({ id: 'history', body: '@Ada **plan**', mentions }, false);
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const target = open(host, {
+      cache: {
+        read: async () => ({ entries: channel.page(1, undefined, 10)!.entries, hasOlder: false }),
+        write: () => {},
+      },
+      host: {
+        call: (method, args) => client!.call(method, args),
+        upload: (name, data) => client!.upload(name, data),
+        resource: (path) => client!.resource(path),
+        follow: (endpoint, args, handlers) => {
+          let cancel: (() => void) | undefined;
+          void gate.then(() => {
+            cancel = client!.follow(endpoint, args, handlers);
+          });
+          return () => cancel?.();
+        },
+      },
+    });
+    const cached = await until(target, (s) => s.fromCache);
+    expect(cached.messages[0]).toMatchObject({ mentions });
+    release();
+    await until(target, (s) => s.status === 'live' && !s.fromCache);
+    expect(target.getSnapshot().messages[0]).toMatchObject({ mentions });
+    channel.append({ id: 'live', body: '@Ada **plan**', mentions });
+    const live = await until(target, (s) => s.messages.some((message) => message.id === 'live'));
+    expect(live.messages.at(-1)).toMatchObject({ mentions });
+    target.send('@Ada plan it', [], { mentions });
+    expect(target.getSnapshot().messages.at(-1)).toMatchObject({ mentions, delivery: 'pending' });
+  });
+
   it('passes selected mention tokens to channelSend', async () => {
     const host = new FakeHost();
     host.channel('launch-team');
@@ -860,5 +1252,93 @@ describe('group Channel mentions on send', () => {
       body: '@Ada plan it',
       mentions,
     });
+  });
+});
+
+it('observes activation only after an accepted foreground send and a new committed Bot entry', async () => {
+  const host = new FakeHost();
+  const channel = host.channel(DM);
+  seed(channel, 2);
+  const accepted = vi.fn(() => true);
+  const observed = vi.fn();
+  const target = open(host, { telemetry: { send: () => ({ accepted, observed }) } });
+  target.setForeground?.(true);
+  await until(target, (s) => s.status === 'live');
+  expect(observed).not.toHaveBeenCalled();
+  host.failing.add('channelSend');
+  const id = target.send('SENTINEL chat');
+  expect(accepted).not.toHaveBeenCalled();
+  await until(target, (s) => s.messages.at(-1)?.delivery === 'failed');
+  expect(accepted).not.toHaveBeenCalled();
+  host.failing.delete('channelSend');
+  target.retry(id);
+  await until(target, (s) => s.messages.some((m) => m.id === id && m.revision !== undefined));
+  expect(accepted).toHaveBeenCalledTimes(1);
+  channel.emit({
+    type: 'entry',
+    entry: { channelId: DM, revision: 2, message: channel.messages[1]! },
+  });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(observed).not.toHaveBeenCalled();
+  channel.append({ id: 'new-bot', body: 'SENTINEL reply', author: { kind: 'bot', slug: SLUG } });
+  await until(target, (s) => s.messages.at(-1)?.id === 'new-bot');
+  expect(observed).toHaveBeenCalledTimes(1);
+  target.setForeground?.(false);
+  channel.append({ id: 'hidden-bot', author: { kind: 'bot', slug: SLUG } });
+  await until(target, (s) => s.messages.at(-1)?.id === 'hidden-bot');
+  expect(observed).toHaveBeenCalledTimes(1);
+});
+
+it('records Host acceptance after leaving the conversation without observing hidden Bot entries', async () => {
+  const host = new FakeHost();
+  const channel = host.channel(DM);
+  seed(channel, 2);
+  const accepted = vi.fn(() => true);
+  const observed = vi.fn();
+  const target = open(host, { telemetry: { send: () => ({ accepted, observed }) } });
+  target.setForeground?.(true);
+  await until(target, (s) => s.status === 'live');
+  const id = target.send('accepted after navigation');
+  target.setForeground?.(false);
+  await until(target, (s) => s.messages.some((m) => m.id === id && m.revision !== undefined));
+  expect(accepted).toHaveBeenCalledTimes(1);
+  channel.append({ id: 'hidden-after-acceptance', author: { kind: 'bot', slug: SLUG } });
+  await until(target, (s) => s.messages.at(-1)?.id === 'hidden-after-acceptance');
+  expect(observed).not.toHaveBeenCalled();
+});
+
+describe('message deliveries', () => {
+  it('shows Inbox admissions on a Human message and follows their updates', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    channel.append(
+      {
+        id: 'human-1',
+        body: '@Probe check this',
+        author: { kind: 'human' },
+        deliveries: [{ botSlug: SLUG, state: 'pending' }],
+      },
+      false,
+    );
+    const target = open(host);
+    const live = await until(target, (s) => s.status === 'live' && s.messages.length === 1);
+    expect(live.messages[0]?.deliveries).toEqual([{ botSlug: SLUG, state: 'pending' }]);
+    const admission = (state: 'handled' | 'ignored') =>
+      channel.emit({
+        type: 'notification',
+        notification: {
+          kind: 'admission',
+          channelId: DM,
+          messageId: 'human-1',
+          deliveries: [{ botSlug: SLUG, state }],
+        },
+      });
+    admission('ignored');
+    const ignored = await until(target, (s) => s.messages[0]?.deliveries?.[0]?.state === 'ignored');
+    admission('ignored');
+    admission('handled');
+    const handled = await until(target, (s) => s.messages[0]?.deliveries?.[0]?.state === 'handled');
+    expect(handled.messages[0]).not.toBe(ignored.messages[0]);
+    expect(handled.messages[0]?.body).toBe('@Probe check this');
   });
 });

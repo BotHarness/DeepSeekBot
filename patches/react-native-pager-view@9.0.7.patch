@@ -1,0 +1,426 @@
+diff --git a/android/src/main/java/com/reactnativepagerview/PagerViewViewManager.kt b/android/src/main/java/com/reactnativepagerview/PagerViewViewManager.kt
+index d41052a7ecf8976860c8ed9251582bddcde7ffc5..5416930a06b7c44c1c873566be91048e371ffde3 100644
+--- a/android/src/main/java/com/reactnativepagerview/PagerViewViewManager.kt
++++ b/android/src/main/java/com/reactnativepagerview/PagerViewViewManager.kt
+@@ -81,6 +81,12 @@ class PagerViewViewManager : ViewGroupManager<ComposePagerView>(), RNCViewPagerM
+         }
+     }
+ 
++    @ReactProp(name = "stableNativePages", defaultBoolean = false)
++    override fun setStableNativePages(view: ComposePagerView?, value: Boolean) = Unit
++
++    @ReactProp(name = "pageLimit", defaultInt = 0)
++    override fun setPageLimit(view: ComposePagerView?, value: Int) = Unit
++
+     @ReactProp(name = "layoutDirection")
+     override fun setLayoutDirection(view: ComposePagerView?, value: String?) {
+         if (view != null && value != null) {
+diff --git a/ios/PagerView.swift b/ios/PagerView.swift
+index a4a850af33bb517422a7f7e7dc5a14482ce76ae8..b4f48778c6475bff99a634ab70c5db21876b83ca 100644
+--- a/ios/PagerView.swift
++++ b/ios/PagerView.swift
+@@ -19,7 +19,7 @@ struct PagerView: View {
+   var body: some View {
+     GeometryReader { proxy in
+       TabView(selection: $props.currentPage) {
+-        ForEach(Array(props.children.enumerated()), id: \.element.id) { index, child in
++        ForEach(Array(props.children.prefix(props.eligibleCount).enumerated()), id: \.element.id) { index, child in
+           RepresentableView(view: child.view)
+             .frame(width: proxy.size.width, height: proxy.size.height)
+             .rotationEffect(isVertical ? .degrees(-90) : .zero)
+@@ -87,6 +87,11 @@ struct PagerView: View {
+         props.currentPage = newValue.count - 1
+       }
+     }
++    .onChange(of: props.pageLimit) { _ in
++      if props.eligibleCount > 0 && props.currentPage >= props.eligibleCount {
++        props.currentPage = props.eligibleCount - 1
++      }
++    }
+     .onChange(of: props.currentPage) { newValue in
+       delegate?.onPageSelected(position: newValue)
+     }
+diff --git a/ios/PagerViewProps.swift b/ios/PagerViewProps.swift
+index fbc2c9ac3f6b21e5d7c39f6a7135540bf4e81101..1e5b12ac99d3ab9c3342faace157673d285892c2 100644
+--- a/ios/PagerViewProps.swift
++++ b/ios/PagerViewProps.swift
+@@ -27,6 +27,11 @@ struct IdentifiablePlatformView: Identifiable, Equatable {
+ class PagerViewProps: ObservableObject {
+   @Published var children: [IdentifiablePlatformView] = []
+   @Published var currentPage: Int = -1
++  @Published var pageLimit: Int = 0
++
++  var eligibleCount: Int {
++    pageLimit > 0 ? min(pageLimit, children.count) : children.count
++  }
+   @Published var scrollEnabled: Bool = true
+   @Published var overdrag: Bool = false
+   @Published var keyboardDismissMode: UIScrollView.KeyboardDismissMode = .none
+diff --git a/ios/PagerViewProvider.swift b/ios/PagerViewProvider.swift
+index 82cf6f1e7055aa4b641acf09fd1e8b474ee4b772..6e65b32d10f9bc9993e4c2731d07c286ad8bac08 100644
+--- a/ios/PagerViewProvider.swift
++++ b/ios/PagerViewProvider.swift
+@@ -28,38 +28,61 @@ import UIKit
+   private weak var delegate: PagerViewProviderDelegate?
+   private var hostingController: UIHostingController<PagerView>?
+   private var props = PagerViewProps()
++  private var stableController: StablePagerController?
++  private var refreshScheduled = false
++
++  @objc public var stableNativePages: Bool = false
++
++  private func refreshStable() {
++    guard stableNativePages, !refreshScheduled else { return }
++    refreshScheduled = true
++    DispatchQueue.main.async { [weak self] in
++      self?.refreshScheduled = false
++      self?.stableController?.refresh()
++    }
++  }
+ 
+   @objc public var scrollEnabled: Bool = true {
+     didSet {
+       props.scrollEnabled = scrollEnabled
++      refreshStable()
+     }
+   }
+ 
++  @objc public var pageLimit: Int = 0 {
++    didSet { props.pageLimit = pageLimit; refreshStable() }
++  }
++
+   @objc public var overdrag: Bool = false {
+     didSet {
+       props.overdrag = overdrag
++      refreshStable()
+     }
+   }
+ 
+   @objc public var currentPage: Int = -1 {
+     didSet {
+       props.currentPage = currentPage
++      refreshStable()
+     }
+   }
+   @objc public var keyboardDismissMode: UIScrollView.KeyboardDismissMode = .none {
+     didSet {
+       props.keyboardDismissMode = keyboardDismissMode
++      refreshStable()
+     }
+   }
+ 
+   @objc public var layoutDirection: PagerLayoutDirection = .ltr {
+     didSet {
+       props.layoutDirection = layoutDirection
++      refreshStable()
+     }
+   }
+   @objc public var orientation: UICollectionView.ScrollDirection = .horizontal {
+     didSet {
+       props.orientation = orientation
++      refreshStable()
+     }
+   }
+ 
+@@ -74,6 +97,7 @@ import UIKit
+       return
+     }
+     props.children.insert(IdentifiablePlatformView(child), at: index)
++    refreshStable()
+   }
+ 
+   @objc(removeChildAtIndex:)
+@@ -82,6 +106,7 @@ import UIKit
+       return
+     }
+     props.children.remove(at: index)
++    refreshStable()
+   }
+ 
+   override public func didMoveToWindow() {
+@@ -123,6 +148,7 @@ import UIKit
+     // change into `PageChildViewController`. Relayout so it can re-read our
+     // insets (native search bar, keyboard, stacked header, …).
+     hostingController?.view.setNeedsLayout()
++    stableController?.view.setNeedsLayout()
+   }
+ 
+   @objc public func goTo(index: Int, animated: Bool) {
+@@ -177,6 +203,10 @@ import UIKit
+   }
+ 
+   private func setPage(index: Int, animated: Bool) {
++    if let stableController {
++      stableController.move(to: index, animated: animated)
++      return
++    }
+     if animated {
+       withAnimation {
+         props.currentPage = index
+@@ -221,6 +251,20 @@ import UIKit
+   }
+ 
+   private func setupView() {
++    if stableNativePages {
++      if stableController == nil, let parent = reactViewController() {
++        let controller = StablePagerController(props: props, events: delegate)
++        stableController = controller
++        parent.addChild(controller)
++        addSubview(controller.view)
++        controller.view.translatesAutoresizingMaskIntoConstraints = false
++        controller.view.pinEdges(to: self)
++        controller.didMove(toParent: parent)
++      }
++      refreshStable()
++      return
++    }
++
+     if self.hostingController != nil {
+       syncParentViewController()
+       return
+diff --git a/ios/RNCPagerViewComponentView.mm b/ios/RNCPagerViewComponentView.mm
+index eeeecde6365bf4d6bf2aa54b3b93efad74eaa7a6..9eb7cc1cfad59e7596e9c0543c49cb87840f108e 100644
+--- a/ios/RNCPagerViewComponentView.mm
++++ b/ios/RNCPagerViewComponentView.mm
+@@ -7,6 +7,7 @@
+ 
+ #import "RCTFabricComponentsPlugins.h"
+ #import "React/RCTConversions.h"
++#import <React/RCTSurfaceTouchHandler.h>
+ 
+ #import "RCTOnPageScrollEvent.h"
+ 
+@@ -65,6 +66,10 @@ using namespace facebook::react;
+   const auto &oldScreenProps = *std::static_pointer_cast<const RNCViewPagerProps>(_props);
+   const auto &newScreenProps = *std::static_pointer_cast<const RNCViewPagerProps>(props);
+ 
++  if (oldScreenProps.stableNativePages != newScreenProps.stableNativePages) {
++    _pagerViewProvider.stableNativePages = newScreenProps.stableNativePages;
++  }
++
+   if (_pagerViewProvider.currentPage == -1) {
+      _pagerViewProvider.currentPage = newScreenProps.initialPage;
+    }
+@@ -73,6 +78,10 @@ using namespace facebook::react;
+      _pagerViewProvider.scrollEnabled = newScreenProps.scrollEnabled;
+    }
+ 
++  if (oldScreenProps.pageLimit != newScreenProps.pageLimit) {
++    _pagerViewProvider.pageLimit = newScreenProps.pageLimit;
++  }
++
+   if (oldScreenProps.overdrag != newScreenProps.overdrag) {
+      _pagerViewProvider.overdrag = newScreenProps.overdrag;
+    }
+@@ -122,6 +131,7 @@ using namespace facebook::react;
+       break;
+ 
+     case PageScrollStateDragging:
++      if (_pagerViewProvider.stableNativePages) [self cancelAncestorReactTouches];
+       scrollState = RNCViewPagerEventEmitter::OnPageScrollStateChangedPageScrollState::Dragging;
+       break;
+ 
+@@ -137,6 +147,20 @@ using namespace facebook::react;
+ 
+ #pragma mark - Internal methods
+ 
++- (void)cancelAncestorReactTouches {
++  for (UIView *view = self; view != nil; view = view.superview) {
++    for (UIGestureRecognizer *recognizer in view.gestureRecognizers) {
++      if ([recognizer isKindOfClass:RCTSurfaceTouchHandler.class]) {
++        // A native page drag must cancel a child's pending React press before release.
++        recognizer.enabled = NO;
++        recognizer.enabled = YES;
++        [recognizer reset];
++        return;
++      }
++    }
++  }
++}
++
+ - (void)goTo:(NSInteger)index animated:(BOOL)animated {
+   [_pagerViewProvider goToIndex:index animated:animated];
+ }
+diff --git a/ios/StablePagerController.swift b/ios/StablePagerController.swift
+new file mode 100644
+index 0000000000000000000000000000000000000000..b68abd16f1a9d63eef1e4c9945f877a1fb900f90
+--- /dev/null
++++ b/ios/StablePagerController.swift
+@@ -0,0 +1,150 @@
++import UIKit
++
++final class StablePagerController: UIPageViewController, UIPageViewControllerDataSource, UIPageViewControllerDelegate {
++  private let props: PagerViewProps
++  private weak var events: PagerViewProviderDelegate?
++  private var retained: [ObjectIdentifier: PageChildViewController] = [:]
++  private var pages: [PageChildViewController] = []
++  private var selected = -1
++  private var moving = false
++  private var interactiveTransition = false
++  private var pending: (Int, Bool)?
++  private var observation: NSKeyValueObservation?
++  private weak var scroll: UIScrollView?
++
++  init(props: PagerViewProps, events: PagerViewProviderDelegate?) {
++    self.props = props
++    self.events = events
++    super.init(transitionStyle: .scroll, navigationOrientation: props.orientation == .vertical ? .vertical : .horizontal)
++    dataSource = self
++    delegate = self
++  }
++
++  required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
++
++  override func viewDidLoad() {
++    super.viewDidLoad()
++    view.backgroundColor = .clear
++    scroll = view.subviews.compactMap { $0 as? UIScrollView }.first
++    scroll?.scrollsToTop = false
++    scroll?.panGestureRecognizer.addTarget(self, action: #selector(panChanged(_:)))
++    if #available(iOS 26.0, *) {
++      scroll?.topEdgeEffect.isHidden = true
++      scroll?.bottomEdgeEffect.isHidden = true
++      scroll?.leftEdgeEffect.isHidden = true
++      scroll?.rightEdgeEffect.isHidden = true
++    }
++    observation = scroll?.observe(\.contentOffset, options: [.new]) { [weak self] _, _ in self?.progress() }
++    refresh()
++  }
++
++  func refresh() {
++    guard isViewLoaded, !moving else { return }
++    scroll?.isScrollEnabled = props.scrollEnabled
++    scroll?.keyboardDismissMode = props.keyboardDismissMode
++    let live = Set(props.children.map { ObjectIdentifier($0.view) })
++    retained = retained.filter { live.contains($0.key) }
++    let next = props.children.prefix(props.eligibleCount).map { child in
++      let key = ObjectIdentifier(child.view)
++      if let controller = retained[key] { return controller }
++      let controller = PageChildViewController()
++      controller.wrappedView = child.view
++      retained[key] = controller
++      return controller
++    }
++    let changed = pages.count != next.count || zip(pages, next).contains { $0 !== $1 }
++    pages = next
++    guard !pages.isEmpty else { return }
++    let index = min(max(props.currentPage, 0), pages.count - 1)
++    if changed || selected != index {
++      setViewControllers([pages[index]], direction: index < selected ? .reverse : .forward, animated: false)
++      finish(index)
++    }
++  }
++
++  func move(to index: Int, animated: Bool) {
++    guard index >= 0, index < pages.count else { return }
++    if moving { pending = (index, animated); return }
++    guard selected != index else { return }
++    moving = true
++    events?.onPageScrollStateChanged(state: .settling)
++    setViewControllers([pages[index]], direction: index < selected ? .reverse : .forward, animated: animated) { [weak self] _ in
++      guard let self else { return }
++      self.moving = false
++      self.finish(index)
++      self.resume()
++    }
++  }
++
++  private func finish(_ index: Int) {
++    props.currentPage = index
++    if selected != index {
++      selected = index
++      events?.onPageSelected(position: index)
++    }
++    events?.onPageScroll(data: OnPageScrollEventData(position: Double(index), offset: 0))
++    events?.onPageScrollStateChanged(state: .idle)
++  }
++
++  private func resume() {
++    refresh()
++    if let (index, animated) = pending {
++      pending = nil
++      move(to: index, animated: animated)
++    }
++  }
++
++  @objc private func panChanged(_ pan: UIPanGestureRecognizer) {
++    switch pan.state {
++    case .began:
++      moving = true
++      events?.onPageScrollStateChanged(state: .dragging)
++    case .ended:
++      events?.onPageScrollStateChanged(state: .settling)
++      if !interactiveTransition {
++        moving = false
++        finish(max(selected, 0))
++        resume()
++      }
++    case .cancelled, .failed:
++      if !interactiveTransition {
++        moving = false
++        finish(max(selected, 0))
++        resume()
++      }
++    default: break
++    }
++  }
++
++  private func progress() {
++    guard let scroll, selected >= 0, !pages.isEmpty else { return }
++    let vertical = props.orientation == .vertical
++    let size = vertical ? scroll.bounds.height : scroll.bounds.width
++    guard size > 0 else { return }
++    let distance = (vertical ? scroll.contentOffset.y : scroll.contentOffset.x) / size - 1
++    let value = min(max(Double(selected) + Double(distance), 0), Double(pages.count - 1))
++    events?.onPageScroll(data: OnPageScrollEventData(position: floor(value), offset: value - floor(value)))
++  }
++
++  func pageViewController(_ pageViewController: UIPageViewController, viewControllerBefore viewController: UIViewController) -> UIViewController? {
++    guard let index = pages.firstIndex(where: { $0 === viewController }), index > 0 else { return nil }
++    return pages[index - 1]
++  }
++
++  func pageViewController(_ pageViewController: UIPageViewController, viewControllerAfter viewController: UIViewController) -> UIViewController? {
++    guard let index = pages.firstIndex(where: { $0 === viewController }), index + 1 < pages.count else { return nil }
++    return pages[index + 1]
++  }
++
++  func pageViewController(_ pageViewController: UIPageViewController, willTransitionTo pendingViewControllers: [UIViewController]) {
++    moving = true
++    interactiveTransition = true
++  }
++
++  func pageViewController(_ pageViewController: UIPageViewController, didFinishAnimating finished: Bool, previousViewControllers: [UIViewController], transitionCompleted completed: Bool) {
++    moving = false
++    interactiveTransition = false
++    if let current = viewControllers?.first, let index = pages.firstIndex(where: { $0 === current }) { finish(index) }
++    resume()
++  }
++}
+diff --git a/lib/typescript/PagerViewNativeComponent.d.ts b/lib/typescript/PagerViewNativeComponent.d.ts
+index b843c6e2f020ed6ca9e204786c1451dccf08153d..759e1ff723ea66c882e63cd34b3c1806ad7eb96a 100644
+--- a/lib/typescript/PagerViewNativeComponent.d.ts
++++ b/lib/typescript/PagerViewNativeComponent.d.ts
+@@ -12,6 +12,8 @@ export type OnPageScrollStateChangedEventData = Readonly<{
+ }>;
+ export interface NativeProps extends ViewProps {
+     scrollEnabled?: CodegenTypes.WithDefault<boolean, true>;
++    pageLimit?: CodegenTypes.WithDefault<CodegenTypes.Int32, 0>;
++    stableNativePages?: CodegenTypes.WithDefault<boolean, false>;
+     layoutDirection?: CodegenTypes.WithDefault<'ltr' | 'rtl', 'ltr'>;
+     initialPage?: CodegenTypes.Int32;
+     orientation?: CodegenTypes.WithDefault<'horizontal' | 'vertical', 'horizontal'>;
+diff --git a/src/PagerViewNativeComponent.ts b/src/PagerViewNativeComponent.ts
+index 1ac31ca28ec3f8f8c6f94846ddcdf4de176c918c..5b290ea6ad72b8dfc15d65c047d75e5deaed3259 100644
+--- a/src/PagerViewNativeComponent.ts
++++ b/src/PagerViewNativeComponent.ts
+@@ -17,6 +17,9 @@ export type OnPageScrollStateChangedEventData = Readonly<{
+ 
+ export interface NativeProps extends ViewProps {
+   scrollEnabled?: CodegenTypes.WithDefault<boolean, true>;
++  /** iOS: eligible leading pages; zero keeps all native pages. React children stay mounted. */
++  pageLimit?: CodegenTypes.WithDefault<CodegenTypes.Int32, 0>;
++  stableNativePages?: CodegenTypes.WithDefault<boolean, false>;
+   layoutDirection?: CodegenTypes.WithDefault<'ltr' | 'rtl', 'ltr'>;
+   initialPage?: CodegenTypes.Int32;
+   orientation?: CodegenTypes.WithDefault<

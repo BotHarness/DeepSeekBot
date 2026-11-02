@@ -103,3 +103,10 @@ test('public native projection drops prompts, reasoning and incomplete snapshots
   snapshot.hasMore = true;
   assert.throws(() => compactNative(snapshot), /whole bounded Session/);
 });
+
+test('accepts the current sending name in a derived fixture without rewriting retained evidence', () => {
+  const p = JSON.parse(
+    JSON.stringify(load('assignment')).replaceAll('channel_send', 'bot_send_message'),
+  );
+  assert.deepEqual(checkNativeWait(input(p)), p.verdict);
+});

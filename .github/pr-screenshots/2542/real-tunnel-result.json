@@ -1,0 +1,52 @@
+{
+  "head": "683b0cbe9c0f158e80929601f59a312ff5f9c4bf",
+  "realCloudflare": true,
+  "dnsOverride": false,
+  "edgeRayObserved": true,
+  "pairing": "fingerprint and exact device key approval passed",
+  "privateInput": "configured through real tunnel",
+  "settings": true,
+  "failures": [
+    {
+      "case": "reject",
+      "refused": true,
+      "unchanged": true,
+      "noFallback": true,
+      "durationMs": 434
+    },
+    {
+      "case": "blackhole",
+      "refused": true,
+      "unchanged": true,
+      "noFallback": true,
+      "durationMs": 10006
+    },
+    {
+      "case": "tamper",
+      "refused": true,
+      "unchanged": true,
+      "noFallback": true,
+      "durationMs": 1025
+    },
+    {
+      "case": "wrong-host-key",
+      "refused": true,
+      "unchanged": true,
+      "noFallback": true,
+      "durationMs": 614
+    },
+    {
+      "case": "missing-host-key",
+      "refused": true,
+      "unchanged": true,
+      "noFallback": true,
+      "durationMs": 3
+    }
+  ],
+  "recovery": "explicit retry succeeded",
+  "captureEntries": 91,
+  "rawClientRequests": 0,
+  "fallbackRequests": 0,
+  "secretsAbsent": true,
+  "native": false
+}

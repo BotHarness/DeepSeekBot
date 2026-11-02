@@ -4,9 +4,10 @@ import { useMemo } from 'react';
 import { loadBotActivity } from '../../../src/host/bot-profile';
 import { useHostSession, useHostSnapshot } from '../../../src/host/host-session';
 import { ActivityDetailView, type ActivityQuery } from '../../../src/ui/chat/activity-detail';
-import { t } from '../../../src/ui/strings';
+import { useStrings } from '../../../src/ui/strings';
 
 export default function ActivityScreen() {
+  const t = useStrings();
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const { client } = useHostSession();
   const bot = useHostSnapshot(client).roster?.bots.find((entry) => entry.slug === slug);

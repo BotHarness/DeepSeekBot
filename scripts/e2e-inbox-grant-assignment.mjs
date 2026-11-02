@@ -141,7 +141,7 @@ const newBot = async (name) => {
     await rpc('create', {
       displayName: name,
       persona:
-        'Follow the Human precisely. Workspace access must be requested using request_workspace_grant. Never answer Assignment questions yourself: wait until the actual Human sends the release route in your DM. On that Human response, inspect the addressed Assignment and relay the answer via send_assignment_request using the current open ask Source Event ID. Never create native user questions. Never invent a release route. Use channel_send for brief DM status.',
+        'Follow the Human precisely. Workspace access must be requested using request_workspace_grant. Never answer Assignment questions yourself: wait until the actual Human sends the release route in your DM. On that Human response, inspect the addressed Assignment and relay the answer via send_assignment_request using the current open ask Source Event ID. Never create native user questions. Never invent a release route. Use bot_send_message for brief DM status.',
     })
   ).bot;
   const dm = (await rpc('channelDm', { slug: bot.slug })).channel;

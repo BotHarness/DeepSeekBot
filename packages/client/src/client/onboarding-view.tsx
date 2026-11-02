@@ -20,6 +20,8 @@ import { onboardingFor, requestBotCreation } from './onboarding.js';
 import { store } from './store.js';
 import type { WindowCompanions } from './window-companions.js';
 import { startInternalTour, type InternalTourSpec } from './internal-tour.js';
+import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
+import { readLayoutMode, type LayoutMode } from './layout-mode.js';
 import { OnboardingChecklist, markBotModeEntered } from './onboarding-checklist-view.js';
 import { checklistSettled } from './onboarding-checklist.js';
 import { startBotSessionsTour, takeSessionsTourReturn } from './onboarding-sessions-tour.js';
@@ -32,6 +34,7 @@ export function OnboardingModelDialog({
   onConfirm,
   t,
   globalOnly = false,
+  onProviderSettings,
   request,
 }: {
   actions: BridgeActions;
@@ -41,6 +44,7 @@ export function OnboardingModelDialog({
   onConfirm(route: ModelRouteView, globalDefault: boolean, revision: number): Promise<void>;
   t: BotHarnessTranslate;
   globalOnly?: boolean;
+  onProviderSettings?: () => void;
   request?: string | undefined;
 }): ReactElement {
   const [models, setModels] = useState<ModelCatalogEntryView[]>([]);
@@ -149,8 +153,11 @@ export function OnboardingModelDialog({
             }
             disabled={busy}
             onClick={() => {
-              onClose();
-              openModelsSettings();
+              if (onProviderSettings) onProviderSettings();
+              else {
+                onClose();
+                openModelsSettings();
+              }
             }}
           />
         </SidebarCardList>
@@ -340,8 +347,93 @@ export function OnboardingWelcome({
   );
 }
 
+export function desktopLayoutTourSteps(
+  t: BotHarnessTranslate,
+  mode?: LayoutMode,
+): InternalTourSpec[] {
+  if (mode === 'simple')
+    return [
+      {
+        selector: '.bh-workspace-rail',
+        title: t('onboarding.short.views'),
+        description: t('onboarding.short.viewsHint'),
+      },
+      {
+        selector: `.bh-workspace-rail [data-pinned-panel="${CHANNEL_BODY_PANEL}"]`,
+        fallback: '.bh-workspace-rail',
+        title: t('onboarding.short.messages'),
+        description: t('onboarding.short.messagesHint'),
+      },
+      {
+        selector: '[data-workspace-enabled]',
+        title: t('onboarding.short.column'),
+        description: t('onboarding.short.columnHint'),
+      },
+      {
+        selector: '[data-workspace-enabled]',
+        title: t('onboarding.short.switchMode'),
+        description: t('onboarding.short.switchModeHint'),
+      },
+    ];
+  return [
+    {
+      selector: '[data-dock-header]',
+      title: t('onboarding.short.move'),
+      description: t('onboarding.short.moveHint'),
+    },
+    {
+      selector: '[data-workspace-enabled] .dv-sash',
+      fallback: '[data-workspace-enabled]',
+      title: t('onboarding.short.resize'),
+      description: t('onboarding.short.resizeHint'),
+    },
+    {
+      selector: '[data-dock-header] button[data-panel-head]',
+      fallback: '[data-dock-header]',
+      title: t('onboarding.short.hide'),
+      description: t('onboarding.short.hideHint'),
+    },
+    {
+      selector: '.bh-workspace-rail',
+      title: t('onboarding.short.restore'),
+      description: t('onboarding.short.restoreHint'),
+    },
+  ];
+}
+
 function onboardingTourSteps(t: BotHarnessTranslate): InternalTourSpec[] {
   const ownSidebar = botModeSidebarViewport();
+  if (document.querySelector('[data-workspace-enabled]'))
+    return [
+      {
+        selector: '.bh-workspace-rail',
+        title: t('onboarding.tour.rail.title'),
+        description: t('onboarding.tour.rail.hint'),
+      },
+      {
+        selector: '[data-dock-panel="bh:channels"]',
+        fallback: '.bh-workspace-rail [data-pinned-panel="bh:channels"]',
+        title: t('onboarding.tour.channels.title'),
+        description: t('onboarding.tour.channels.hint'),
+      },
+      {
+        selector: '[data-dock-panel="bh:channel-body"]',
+        fallback: '.bh-workspace-rail [data-pinned-panel="bh:channel-body"]',
+        title: t('onboarding.tour.messages.title'),
+        description: t('onboarding.tour.messages.hint'),
+      },
+      {
+        selector: '[data-workspace-enabled]',
+        title: t('onboarding.tour.panels.title'),
+        description: t('onboarding.tour.panels.hint'),
+      },
+      {
+        selector: '[data-channel-subpanel="sessions"]',
+        fallback: '[data-dock-header="bh:channel-body"]',
+        title: t('onboarding.tour.tools.title'),
+        description: t('onboarding.tour.tools.hint'),
+      },
+    ];
   return [
     {
       selector: '[data-onboarding-welcome]',
@@ -403,20 +495,37 @@ export function OnboardingOverlay({
   const controller = onboardingFor(actions);
   controller.attachCompanion(companion);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-  const enter = (): Promise<void> =>
+  const enter = (live: () => boolean = () => true): Promise<void> =>
     controller.enter(companion).then(() => {
+      if (!live()) return;
       void controller.refreshEvidence();
       const receipt = controller.getSnapshot().receipt;
-      if (receipt !== undefined && !receipt.completed && receipt.tutorial === 'not-started')
+      if (controller.introPending()) {
+        if (!controller.getSnapshot().intro) controller.openIntro();
+      } else if (
+        receipt !== undefined &&
+        !(receipt.journey?.done ?? receipt.completed) &&
+        receipt.tutorial === 'not-started' &&
+        (!receipt.journey || document.querySelector('[data-workspace-enabled]') !== null)
+      )
         void controller.refresh(undefined, 'start', undefined, true);
+      else if (
+        receipt?.journey &&
+        !receipt.journey.done &&
+        (receipt.tutorial === 'active' || receipt.tutorial === 'paused') &&
+        !controller.getSnapshot().guideOpen
+      )
+        void controller.startTour();
     });
   const mount = useMountedResource<HTMLSpanElement>(() => {
     let active = true;
     let key = '';
     markBotModeEntered();
+    actions.telemetryEvent('app:bot_mode_enter', { layout: readLayoutMode().mode });
     const returned = takeSessionsTourReturn();
-    void enter().then(() => {
-      if (active && returned) controller.openChecklist();
+    void enter(() => active).then(() => {
+      if (active && returned && !controller.getSnapshot().receipt?.journey)
+        controller.openChecklist();
     });
     const unsubscribe = store.subscribe(() => {
       const snapshot = store.getSnapshot();
@@ -462,28 +571,36 @@ export function OnboardingOverlay({
       state.sendOpen
     )
       return;
-    return startInternalTour(onboardingTourSteps(t), {
-      closeLabel: t('common.close'),
-      skipLabel: t('onboarding.skip'),
-      previousLabel: t('onboarding.tour.previous'),
-      nextLabel: t('onboarding.tour.next'),
-      doneLabel: t('onboarding.tour.done'),
-      onClosed: () => {
-        controller.pauseGuide();
+    return startInternalTour(
+      state.receipt?.journey ? desktopLayoutTourSteps(t, state.layoutMode) : onboardingTourSteps(t),
+      {
+        closeLabel: t('common.close'),
+        skipLabel: t('onboarding.skip'),
+        previousLabel: t('onboarding.tour.previous'),
+        nextLabel: t('onboarding.tour.next'),
+        doneLabel: t(state.receipt?.journey ? 'onboarding.tour.next' : 'onboarding.tour.done'),
+        onClosed: () => {
+          if (controller.getSnapshot().receipt?.journey) controller.finishTour();
+          else controller.pauseGuide();
+        },
+        onInterrupted: () => {
+          controller.pauseGuide();
+        },
+        onFinished: () => {
+          controller.finishTour();
+        },
+        onSkip: () => {
+          void controller.refresh(undefined, 'skip');
+        },
       },
-      onFinished: () => {
-        controller.finishTour();
-      },
-      onSkip: () => {
-        void controller.refresh(undefined, 'skip');
-      },
-    });
+    );
   }, [
     state.guideOpen,
     state.receipt?.tutorial,
     state.receipt?.completed,
     state.modelOpen,
     state.sendOpen,
+    state.layoutMode,
   ]);
   const sessionsTourMount = useMountedResource<HTMLSpanElement>(() => {
     if (!state.sessionsTourOpen || state.receipt?.tutorial !== 'active') return;
@@ -577,7 +694,8 @@ export function OnboardingSetting({
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const receipt = state.receipt;
   const action: TutorialAction =
-    receipt !== undefined && (receipt.completed || receipt.tutorial === 'skipped')
+    receipt !== undefined &&
+    ((receipt.journey?.done ?? receipt.completed) || receipt.tutorial === 'skipped')
       ? 'restart'
       : receipt === undefined || receipt.tutorial === 'not-started'
         ? 'start'

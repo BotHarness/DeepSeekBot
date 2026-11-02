@@ -52,7 +52,7 @@ describe('Trusted Channel attachment file Tools', () => {
             ).rejects.toThrow(/not attached/);
             await expect(
               call(tools, 'channel_attachment_save', { ...input, channel_id: hiddenId }),
-            ).rejects.toThrow(/not a member/);
+            ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
             await expect(
               call(tools, 'channel_attachment_save', {
                 ...input,
@@ -71,7 +71,7 @@ describe('Trusted Channel attachment file Tools', () => {
                 channel_id: joinedId,
                 destination_path: 'again.zip',
               }),
-            ).rejects.toThrow(/not a member/);
+            ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
             writeFileSync(join(project, 'working.zip'), 'processed result');
             const imported = JSON.parse(
               String(
@@ -83,7 +83,11 @@ describe('Trusted Channel attachment file Tools', () => {
             expect(imported.fileId).not.toBe(original.fileId);
             const sent = JSON.parse(
               String(
-                await call(tools, 'channel_send', { body: 'Result', attachments: [imported] }),
+                await call(tools, 'bot_send_message', {
+                  channel_id: sourceId,
+                  body: 'Result',
+                  attachments: [imported],
+                }),
               ),
             );
             expect(sent.channelId).toBe(sourceId);
@@ -92,12 +96,12 @@ describe('Trusted Channel attachment file Tools', () => {
             );
             const before = core.channels.readMessages(sourceId).length;
             await expect(
-              call(tools, 'channel_send', {
+              call(tools, 'bot_send_message', {
                 body: 'Invalid',
                 channel_id: hiddenId,
                 attachments: [imported],
               }),
-            ).rejects.toThrow(/not a member/);
+            ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
             expect(core.channels.readMessages(sourceId)).toHaveLength(before);
             core.grants.revoke('ada', grantId);
             await expect(

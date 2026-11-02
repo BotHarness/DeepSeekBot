@@ -92,8 +92,10 @@ describe('composer actions', () => {
     expect(composerActions({ ...base, dictation: 'denied' })).toEqual(['mic']);
   });
 
-  it('hides the mic and Send while the conversation cannot send', () => {
-    expect(composerActions({ ...base, disabled: true, text: 'hello' })).toEqual([]);
+  it('keeps draft Send visible but hides the mic while unavailable', () => {
+    expect(composerActions({ ...base, disabled: true, text: 'hello' })).toEqual(['send']);
+    expect(composerActions({ ...base, disabled: true, files: 1 })).toEqual(['send']);
+    expect(composerActions({ ...base, disabled: true })).toEqual([]);
     expect(composerActions({ ...base, canDictate: false })).toEqual([]);
   });
 });
@@ -136,6 +138,10 @@ describe('speech language', () => {
 });
 
 describe('composer height', () => {
+  it('reserves room for the conversation and actions at accessibility sizes without clipping a line', () => {
+    expect(composerFieldHeight(400, 64, 5, 175)).toBe(175);
+    expect(composerFieldHeight(400, 64, 5, 50)).toBe(74);
+  });
   it('grows one line at a time up to five lines, then holds and scrolls', () => {
     const line = 22;
     const padding = 5;

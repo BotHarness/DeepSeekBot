@@ -15,12 +15,25 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
       disabled,
       type = 'button',
       form,
+      ...rest
     }: PropsWithChildren<{
       onClick?: () => void;
       disabled?: boolean;
       type?: 'button' | 'submit';
       form?: string;
-    }>) => createElement('button', { type, form, onClick, disabled }, children),
+      [key: `data-${string}`]: unknown;
+    }>) =>
+      createElement(
+        'button',
+        {
+          type,
+          form,
+          onClick,
+          disabled,
+          ...Object.fromEntries(Object.entries(rest).filter(([key]) => key.startsWith('data-'))),
+        },
+        children,
+      ),
     HoverCard: stub,
     IconAgentPresetOutlineRegular: stub,
     IconCheckOutlineRegular: stub,
@@ -46,6 +59,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconSettingsOutlineRegular: stub,
     IconUserOutlineRegular: stub,
     IconTrashOutlineRegular: stub,
+    IconShareOutlineRegular: stub,
     FileTypeIcon: stub,
     ImageLightbox: stub,
     Input: ({ className: _className, ...props }: InputHTMLAttributes<HTMLInputElement>) =>
@@ -108,7 +122,7 @@ import { createGroupProfileCards } from '../src/client/group-profile.js';
 import { loadGroupProfileActivity, type GroupProfileActivity } from '../src/client/bridge.js';
 import { createProfileCardBuiltins } from '../src/client/profile-cards-builtins.js';
 import { createProfileCardRegistry } from '../src/client/profile-cards.js';
-import { ProfilePopover } from '../src/client/personabot-profile.js';
+import { ProfileView } from '../src/client/personabot-profile.js';
 import { store } from '../src/client/store.js';
 import { inertSubmissionActions } from './inert-submissions.js';
 import { fieldNamed } from './primitive-mocks.js';
@@ -142,7 +156,7 @@ function click(container: HTMLElement, selector: string): void {
 }
 
 describe('PersonaBot Profile surface', () => {
-  it('opens from the DM avatar, expands into the Channel body, and edits the profile', async () => {
+  it('opens profile details directly from the DM header and edits the profile without pinning', async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     const previous = store.getSnapshot();
     const bot = {
@@ -270,25 +284,12 @@ describe('PersonaBot Profile surface', () => {
 
       await act(async () => click(container, '.bh-channel-island'));
       await act(async () => click(container, '[data-menu-id="primary"]'));
-      const popover = container.querySelector('.bh-profile-popover');
-      expect(popover).not.toBeNull();
-      expect(popover?.textContent).toContain('Ada');
-      expect(popover?.textContent).toContain('研究员');
-      expect(popover?.textContent).toContain('与你一起发布研究。');
-      expect(popover?.textContent).toContain('查看详细');
-      expect(popover?.textContent).toContain('Token 用量');
-      expect(popover?.textContent).toContain('事件活跃');
-      expect(popover?.textContent).not.toContain('Memory 提交');
-      expect(popover?.textContent).toContain('该时间段暂无记录');
-      expect(container.querySelector('.bh-channel-sidebar')).not.toBeNull();
-
-      await act(async () => click(container, '.bh-profile-expand'));
       expect(container.querySelector('.bh-profile-popover')).toBeNull();
       expect(container.querySelector('.bh-profile-view')).not.toBeNull();
       expect(container.querySelector<HTMLElement>('.bh-topbar')?.dataset['channelDetail']).toBe(
         'true',
       );
-      expect(container.querySelector<HTMLElement>('.bh-chat-top-fade')?.style.display).toBe('none');
+      expect(container.querySelector('.bh-chat-top-fade')).toBeNull();
       const sections = container.querySelectorAll('.bh-profile-view > .bh-profile-section');
       expect([...sections].map((section) => section.getAttribute('aria-label'))).toEqual([
         '活动概览',
@@ -316,6 +317,23 @@ describe('PersonaBot Profile surface', () => {
         '所选时间范围内暂无模型调用记录。',
       );
       expect(container.querySelectorAll('.bh-profile-avatar-button').length).toBe(1);
+      const avatarButton = container.querySelector<HTMLButtonElement>('.bh-profile-avatar-button')!;
+      expect(avatarButton.getAttribute('aria-label')).toBe('更换头像');
+      expect(avatarButton.hasAttribute('data-avatar-editable')).toBe(true);
+      expect(avatarButton.disabled).toBe(false);
+      const overlay = avatarButton.querySelector('.bh-profile-avatar-overlay');
+      expect(overlay?.getAttribute('aria-hidden')).toBe('true');
+      const { CSS } = await import('../src/client/styles.js');
+      expect(CSS).toContain(
+        '.bh-profile-avatar-button:not(:disabled):hover .bh-profile-avatar-overlay',
+      );
+      expect(CSS).toContain('.bh-profile-avatar-button:not(:disabled):hover .bh-persona-avatar');
+      expect(CSS).toMatch(/\.bh-profile-avatar-overlay \{[^}]*\}/);
+      expect(CSS.match(/\.bh-profile-avatar-overlay \{[^}]*\}/)![0]).not.toContain('background');
+      expect(CSS).not.toMatch(
+        /\.bh-profile-header-top \.bh-profile-avatar-button \{[^}]*(border|background)/,
+      );
+      expect(CSS).toContain('.bh-profile-avatar-button:focus-visible .bh-profile-avatar-overlay');
       expect(container.querySelectorAll('.bh-profile-card').length).toBe(3);
       const sidebarLabels = [...container.querySelectorAll('.bh-channel-sidebar [role="tab"]')].map(
         (tab) => tab.getAttribute('aria-label') ?? tab.textContent,
@@ -324,7 +342,8 @@ describe('PersonaBot Profile surface', () => {
       expect(sidebarLabels).not.toContain('唤醒策略');
       expect(sidebarLabels).not.toContain('外部身份');
       expect(sidebarLabels).not.toContain('外部连接器');
-      expect(container.querySelectorAll('.bh-profile-pin[aria-pressed="true"]').length).toBe(2);
+      expect(container.querySelector('.bh-profile-card-head .bh-profile-pin')).toBeNull();
+      expect(container.querySelector('.bh-topbar .bh-companion-pin')).toBeNull();
 
       const headerButton = (label: string) =>
         [...container.querySelectorAll<HTMLButtonElement>('.bh-profile-header button')].find(
@@ -381,7 +400,9 @@ describe('PersonaBot Profile surface', () => {
 
       await act(async () => click(container, '.bh-profile-avatar-button'));
       const avatarDialog = container.querySelector('[role="dialog"][aria-label="头像"]');
-      const avatarMethods = avatarDialog?.querySelectorAll('.bh-avatar-methods > .bh-card-row');
+      const avatarMethods = avatarDialog?.querySelectorAll(
+        '.bh-avatar-methods > .bh-avatar-method',
+      );
       expect(avatarMethods?.length).toBe(2);
       expect(avatarMethods?.[0]?.textContent).toContain('设计像素头像');
       expect(avatarMethods?.[1]?.textContent).toContain('上传图片');
@@ -415,7 +436,8 @@ describe('PersonaBot Profile surface', () => {
 
       await act(async () => click(container, '.bh-channel-island'));
       await act(async () => click(container, '[data-menu-id="primary"]'));
-      expect(container.querySelector('.bh-profile-popover')).not.toBeNull();
+      expect(container.querySelector('.bh-profile-view')).not.toBeNull();
+      expect(container.querySelector('.bh-profile-popover')).toBeNull();
       await act(async () => {
         document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
       });
@@ -470,7 +492,8 @@ describe('PersonaBot Profile surface', () => {
       expect(island?.getAttribute('aria-haspopup')).toBe('menu');
       await act(async () => click(container, '[data-group-channel-name]'));
       await act(async () => click(container, '[data-menu-id="primary"]'));
-      expect(container.querySelector('.bh-profile-popover')).not.toBeNull();
+      expect(container.querySelector('.bh-profile-view')).not.toBeNull();
+      expect(container.querySelector('.bh-profile-popover')).toBeNull();
     } finally {
       await act(async () => root.unmount());
       container.remove();
@@ -605,15 +628,27 @@ describe('Profile activity windows', () => {
       expect(container.querySelector('.bh-profile-card-body > .bh-note')).toBeNull();
       const registry = createProfileCardRegistry();
       registry.register(tokenCard);
-      const popoverProps = {
+      const viewProps = {
         bot: props.bot,
         activity: partial.activity,
         cards: registry,
-        pinned: ['token-usage'],
+        channel: {
+          name: 'Ada',
+          id: 'dm-ada',
+          type: 'dm' as const,
+          botSlug: 'ada',
+          members: ['ada'],
+          createdAt: '',
+          updatedAt: '',
+        },
+        actions: {
+          profileUsage: vi.fn(async () => undefined),
+          profileActivity: vi.fn(async () => undefined),
+        } as unknown as BridgeActions,
         t: zhTranslate,
-        onExpand: vi.fn(),
+        onClose: vi.fn(),
       };
-      await act(async () => root.render(createElement(ProfilePopover, popoverProps)));
+      await act(async () => root.render(createElement(ProfileView, viewProps)));
       const label = container.querySelector('.bh-profile-card-label');
       expect(label?.textContent).toBe(tokenCard.label);
       expect(label?.querySelector('button')?.getAttribute('aria-label')).toBe(
@@ -630,7 +665,7 @@ describe('Profile activity windows', () => {
       expect(tokenCard.help?.({ ...props, activity: completeActivity })).toBeUndefined();
       expect(tokenCard.help?.({ ...props, activity: undefined })).toBeUndefined();
       await act(async () =>
-        root.render(createElement(ProfilePopover, { ...popoverProps, activity: completeActivity })),
+        root.render(createElement(ProfileView, { ...viewProps, activity: completeActivity })),
       );
       expect(container.querySelector('.bh-profile-card-label button')).toBeNull();
     } finally {

@@ -24,7 +24,6 @@ export interface ManagedGitAsset {
 }
 
 export const MANAGED_GIT_RELEASE: string = pins.release;
-export const MANAGED_GIT_VERSION: string = pins.version;
 export const MANAGED_GIT_ASSETS: Readonly<Record<string, ManagedGitAsset>> = pins.assets;
 
 export const MANAGED_GIT_SOURCES: readonly ((asset: string) => string)[] = [

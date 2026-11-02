@@ -11,6 +11,7 @@ export const purgeFactSchema = z
     author: z.discriminatedUnion('kind', [
       z.object({ kind: z.literal('human') }).strict(),
       z.object({ kind: z.literal('bot'), slug: identity }).strict(),
+      z.object({ kind: z.literal('remote-bot'), hostId: identity, slug: identity }).strict(),
       z.object({ kind: z.literal('bridged'), source: identity }).strict(),
       z.object({ kind: z.literal('system') }).strict(),
     ]),
@@ -84,6 +85,39 @@ export interface PurgePreview {
   }[];
 }
 
+export const TEXT_CLEANUP_LIMIT = 2000;
+export type TextCleanupKeptReason = 'bot-working' | 'delivery-pending' | 'shared';
+
+export interface TextCleanupScope {
+  before: string;
+  channelIds?: readonly string[] | undefined;
+}
+
+export interface TextCleanupPreview {
+  token: string;
+  expiresAt: string;
+  scope: { before: string; channelIds: string[] };
+  messages: number;
+  bytes: number;
+  files: number;
+  chats: { channelId: string; name: string; messages: number }[];
+  kept: { reason: TextCleanupKeptReason; messages: number }[];
+  memoryReferences: number;
+  more: boolean;
+}
+
+export interface TextCleanupResult {
+  messages: number;
+  freedBytes: number;
+  cleanupPending?: number;
+}
+
+export interface GroupDisbandResult {
+  messages: number;
+  cleanupPending?: number;
+  retained?: number;
+}
+
 export interface ContentPurge {
   redactions(): PurgedPlacement[];
   history(): ChannelHistoryItem[];
@@ -94,6 +128,9 @@ export interface ContentPurge {
     sourceEventIds: readonly string[],
     token: string,
   ): { accepted: number; cleanupPending?: number };
+  textPreview(scope: TextCleanupScope): TextCleanupPreview;
+  textConfirm(scope: TextCleanupScope, token: string): TextCleanupResult;
+  disband(channelId: string): GroupDisbandResult;
   checkpoint(): PurgeCheckpoint;
   withCheckpoint<T>(exportSnapshot: (checkpoint: PurgeCheckpoint) => T): T;
   close(): void;

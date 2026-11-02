@@ -6,7 +6,7 @@ import {
   type ChannelRecord,
 } from '../channels/channel.js';
 import type { ExternalSource } from './inbound.js';
-import { MessagingError } from './provider.js';
+import { MessagingError, type MessagingAttachment } from './provider.js';
 
 export function humanBridgeChannel(db: DatabaseSync, channelId: string): ChannelRecord {
   const row = db
@@ -61,39 +61,61 @@ export function bridgeChannel(
   return record;
 }
 
-export function projectBridgeMessage(source: ExternalSource, body: string): ChannelMessage {
+export function bridgeAttachmentKind(
+  source: ExternalSource,
+  attachment: MessagingAttachment,
+): 'image' | 'audio' | 'file' | undefined {
+  if (attachment.mediaType?.startsWith('image/')) return 'image';
+  if (source.platform === 'qq') {
+    if (source.event.voice && attachment.mediaType === 'audio/unknown') return 'audio';
+    if (attachment.mediaType === 'application/octet-stream') return 'file';
+  }
+  if (
+    source.platform === 'feishu' &&
+    attachment.mediaType === undefined &&
+    source.event.reply.parentId === attachment.messageId
+  )
+    return 'file';
+  return undefined;
+}
+
+export function projectBridgeMessage(
+  source: ExternalSource,
+  body: string,
+  channelId?: string,
+): ChannelMessage {
+  const mirror = channelId !== undefined && source.dmMirrorChannelId === channelId;
   const senderName = source.event.actor.name?.trim() || undefined;
+  const weixinDm = source.platform === 'weixin' && source.event.conversation.kind === 'dm';
   return {
     id: source.id,
     at: source.at,
-    body,
+    body: mirror
+      ? [body, ...(source.event.attachments ?? []).map((item) => item.name)]
+          .filter(Boolean)
+          .join('\n')
+      : weixinDm && !body.trim()
+        ? source.event.attachments?.map((item) => item.name).join('\n') || body
+        : body,
     format: 'text',
-    ...((source.platform === 'qq' && source.event.voice) ||
-    source.event.attachments?.some(
-      (item) =>
-        item.mediaType?.startsWith('image/') ||
-        (source.platform === 'qq' && item.mediaType === 'application/octet-stream'),
-    )
+    ...(!mirror &&
+    ((source.platform === 'qq' && source.event.voice) ||
+      source.event.attachments?.some((item) => bridgeAttachmentKind(source, item) !== undefined))
       ? {
           bridgeMedia: {
-            items: (source.event.attachments ?? [])
-              .filter(
-                (item) =>
-                  item.mediaType?.startsWith('image/') ||
-                  (source.platform === 'qq' &&
-                    (item.mediaType === 'application/octet-stream' ||
-                      (source.event.voice && item.mediaType === 'audio/unknown'))),
-              )
-              .map((item) => ({
-                id: item.id,
-                kind: item.mediaType?.startsWith('image/')
-                  ? ('image' as const)
-                  : item.mediaType === 'audio/unknown'
-                    ? ('audio' as const)
-                    : ('file' as const),
-                name: item.name,
-                ...(item.sizeBytes === undefined ? {} : { sizeBytes: item.sizeBytes }),
-              })),
+            items: (source.event.attachments ?? []).flatMap((item) => {
+              const kind = bridgeAttachmentKind(source, item);
+              return kind === undefined
+                ? []
+                : [
+                    {
+                      id: item.id,
+                      kind,
+                      name: item.name,
+                      ...(item.sizeBytes === undefined ? {} : { sizeBytes: item.sizeBytes }),
+                    },
+                  ];
+            }),
             ...(source.event.contentParts ? { parts: source.event.contentParts } : {}),
             ...(source.platform === 'qq' && source.event.voice
               ? {
@@ -108,7 +130,10 @@ export function projectBridgeMessage(source: ExternalSource, body: string): Chan
           },
         }
       : {}),
-    author: { kind: 'bridged', source: senderName ?? source.event.actor.id },
+    author: {
+      kind: 'bridged',
+      source: senderName ?? (weixinDm ? 'WeChat' : source.event.actor.id),
+    },
     bridgeOrigin: {
       sourceEventId: source.id,
       platform: source.platform,
@@ -158,7 +183,10 @@ export function placeBridgeSource(
   ).run(source.localChannelId, source.id, source.id);
   return {
     channelId: source.localChannelId,
-    message: { ...projectBridgeMessage(source, source.body), channelRevision: next.revision },
+    message: {
+      ...projectBridgeMessage(source, source.body, source.localChannelId),
+      channelRevision: next.revision,
+    },
     revision: next.revision,
   };
 }

@@ -1,6 +1,8 @@
 import type { HostClient } from './client';
 import type { BotScheduleFiring, BotScheduleSummary, ScheduleTrigger } from './wire';
 
+export type RoutineTarget = { kind: 'new' } | { kind: 'open'; routine: BotScheduleSummary };
+
 export type RoutineCadence = 'daily' | 'weekly' | 'hours';
 
 export interface RoutineForm {

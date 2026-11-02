@@ -10,6 +10,7 @@ export interface LinksEnv {
   ACCESS_TEAM_DOMAIN?: string;
   ACCESS_AUD?: string;
   ADMIN_DEV_EMAIL?: string;
+  ADMIN_ORIGIN?: string;
   ASSETS?: { fetch(request: Request): Promise<Response> };
 }
 

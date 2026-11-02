@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
+import { cloudMessageAllowed } from '../cloud/admission.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { z } from 'zod';
 import { readMessagingIdentity } from './identity.js';
+import { externalBotTurnsExhausted } from './bot-sender-guard.js';
 import { MessagingError, type MessagingInboundEvent } from './provider.js';
 import type { PairingCapability, PairingRequest } from './pairing.js';
 import type { MessagingGrant } from './outbound.js';
@@ -11,7 +13,7 @@ import { channelBridgeRoutes } from './channel-bridge.js';
 import { behaviorPermissionInputs, changeBehaviorPermission } from './behavior-permissions.js';
 import { messagingDefaults } from './defaults.js';
 import { threadReceptionPolicy } from './thread-policy.js';
-import { matchingIngests } from './conversation-ingest.js';
+import { matchingIngests, type ConversationIngest } from './conversation-ingest.js';
 import { bridgeChannel } from './channel-target.js';
 import { chatPairingApplies, chatSenderIdentity, type ChatSenderNamespace } from './chat-sender.js';
 import {
@@ -137,6 +139,83 @@ export function trustedSenderReference(
     actorId: event.actor.id,
     namespace: scoped.namespace,
   };
+}
+export function readSourceSenderPermissions(
+  db: DatabaseSync,
+  botSlug: string,
+  event: Omit<MessagingInboundEvent, 'text'>,
+  at: Date,
+  authority:
+    | MessagingGrant
+    | { ingest: ConversationIngest; bindingId: string | undefined }
+    | undefined,
+): SenderPermissions {
+  const queriedAt = at.toISOString();
+  const unavailable = (reason: string): SenderPermissions => ({
+    queriedAt,
+    status: 'unavailable',
+    reason,
+  });
+  if (event.actor.kind !== 'user') return unavailable('no-current-scoped-identity');
+  if (!authority) return unavailable('source-unavailable');
+  if (!authority.bindingId) return unavailable('no-current-scoped-identity');
+  const scope = 'ingest' in authority ? authority.ingest : authority;
+  let identity;
+  try {
+    identity = readMessagingIdentity(db, authority.bindingId);
+  } catch (error) {
+    if (!(error instanceof MessagingError)) throw error;
+    return unavailable('no-current-scoped-identity');
+  }
+  if (identity.revokedAt) return unavailable('binding-replaced');
+  if (
+    (!('ingest' in authority) && identity.botSlug !== authority.botSlug) ||
+    identity.providerId !== scope.providerId ||
+    identity.accountRef !== event.botId ||
+    identity.fingerprint !== event.fingerprint ||
+    identity.platform !== event.channel ||
+    scope.accountRef !== event.botId ||
+    scope.fingerprint !== event.fingerprint ||
+    scope.platform !== event.channel
+  )
+    return unavailable('binding-replaced');
+  if (!identity.enabled) return unavailable('identity-disabled');
+  if ('ingest' in authority) {
+    if (!authority.ingest.enabled) return unavailable('ingest-disabled');
+    if (
+      authority.ingest.conversation.kind !== event.conversation.kind ||
+      authority.ingest.conversation.id !== event.conversation.id
+    )
+      return unavailable('source-unavailable');
+  } else {
+    if (authority.revokedAt) return unavailable('grant-revoked');
+    if (authority.suspendedReason) return unavailable('rebind-required');
+    if (
+      authority.receiveScope?.kind !== event.conversation.kind ||
+      authority.receiveScope.conversationId !== event.conversation.id
+    )
+      return unavailable('source-unavailable');
+  }
+  if (readBlock(db, identity.botSlug, event.fingerprint, event.conversation))
+    return unavailable('conversation-blocked');
+  if (identity.botSlug !== botSlug) {
+    const own = db
+      .prepare(
+        'SELECT id FROM messaging_bindings WHERE bot_slug = ? AND provider_id = ? AND account_ref = ? AND fingerprint = ? AND revoked_at IS NULL',
+      )
+      .get(botSlug, scope.providerId, event.botId, event.fingerprint) as { id: string } | undefined;
+    if (!own) return unavailable('no-current-scoped-identity');
+    identity = readMessagingIdentity(db, own.id);
+    if (!identity.enabled) return unavailable('identity-disabled');
+    if (readBlock(db, botSlug, event.fingerprint, event.conversation))
+      return unavailable('conversation-blocked');
+  }
+  if (!chatPairingApplies(event))
+    return { queriedAt, status: 'unavailable', reason: 'role-policy-not-supported-for-platform' };
+  const result = readSenderPermissions(db, botSlug, event, at);
+  if (result.sender && result.sender.bindingId !== identity.id)
+    return unavailable('binding-replaced');
+  return result;
 }
 export function readSenderPermissions(
   db: DatabaseSync,
@@ -383,6 +462,8 @@ export function senderAdmissionAllowed(
   botSlug: string,
   event: Omit<MessagingInboundEvent, 'text'>,
 ): boolean {
+  if (event.channel === 'tob') return cloudMessageAllowed(db, botSlug, event, false);
+  if (externalBotTurnsExhausted(db, botSlug, event)) return false;
   return (
     !chatPairingApplies(event) ||
     !readSenderPolicy(db, botSlug).restricted ||
@@ -440,6 +521,7 @@ export function senderContextAllowed(
   botSlug: string,
   event: Omit<MessagingInboundEvent, 'text'>,
 ): boolean {
+  if (event.channel === 'tob') return cloudMessageAllowed(db, botSlug, event, true);
   if (senderAdmissionAllowed(db, botSlug, event)) return true;
   if (event.channel !== 'feishu' || event.conversation.kind !== 'group' || event.mentionedAccount)
     return false;
@@ -502,7 +584,6 @@ export function sourceSenderAllowed(
   sourceEventId: string,
   context = false,
 ): boolean {
-  if (!readSenderPolicy(db, botSlug).restricted) return true;
   const row = db
     .prepare(
       "SELECT payload_json FROM source_events WHERE source_event_id = ? AND source_kind = 'bridge-message'",
@@ -512,6 +593,8 @@ export function sourceSenderAllowed(
   const event = (
     JSON.parse(row.payload_json) as { external?: { event?: Omit<MessagingInboundEvent, 'text'> } }
   ).external?.event;
+  if (event?.channel === 'tob') return cloudMessageAllowed(db, botSlug, event, context);
+  if (!readSenderPolicy(db, botSlug).restricted) return true;
   return (
     !!event &&
     (context

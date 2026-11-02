@@ -683,6 +683,7 @@ export function ComputerSettingsRows({
             description={t('rows.idle.description')}
             control={
               <Menu
+                listClassName="bh-appearance-scope"
                 open={idleOpen}
                 portal
                 align="end"
@@ -772,6 +773,7 @@ export function ComputerSettingsRows({
                   </PillButton>
                 ) : (
                   <Menu
+                    listClassName="bh-appearance-scope"
                     open={importOpen}
                     portal
                     align="end"

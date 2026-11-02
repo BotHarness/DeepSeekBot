@@ -15,8 +15,8 @@ export const MOBILE_BOT_CSS = `
 .bh-mobile-list .bh-search { height: 44px; }
 .bh-mobile-list .bh-search-open { width: 100%; margin-inline: 0; }
 .bh-mobile-content .bh-chat-layout .bh-topbar { position: relative; inset: auto; flex: 0 0 auto; padding: 0; }
-.bh-mobile-content .bh-chat-top-fade, .bh-mobile-content .bh-chat-layout > .bh-sidebar-toggle { display: none; }
-.bh-mobile-content .bh-chat-body { padding-top: ${space.x4}; }
+.bh-mobile-content .bh-chat-layout > .bh-sidebar-toggle { display: none; }
+.bh-mobile-content .bh-chat-body { --bh-chat-mask-top: 0px; padding-top: ${space.x4}; }
 .bh-mobile-content .bh-channel-sidebar-head .bh-sidebar-settings-menu { right: ${space.x3}; }
 .bh-mobile-content .bh-main, .bh-mobile-content .bh-chat-layout, .bh-mobile-content .bh-chat-pane { min-width: 0; }
 .bh-mobile-content .bh-composer-shell { padding-bottom: max(${space.x3}, env(safe-area-inset-bottom)); }

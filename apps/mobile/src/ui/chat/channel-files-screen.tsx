@@ -1,0 +1,380 @@
+import { Stack, useNavigationContainerRef } from 'expo-router';
+import {
+  useProfileFocused,
+  useProfileFocusEffect,
+  RevealProfileConversation,
+} from './profile-visibility';
+import { useContext } from 'react';
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { FlatList, Pressable, View } from 'react-native';
+
+import { createChannelFiles, type ChannelFile } from '../../host/channel-files';
+import type { HostClient } from '../../host/client';
+import type { MessageAttachment } from '../../host/conversation';
+import { useHostSession, useHostSnapshot } from '../../host/host-session';
+import { shareAttachment } from '../../host/share-attachment';
+import { channelMedia, edge, space } from '../design/tokens';
+import { useDesignTheme } from '../design/theme';
+import { Button } from '../primitives/button';
+import { ActionMenuButton, type MenuAction } from '../primitives/action-menu-button';
+import { showActionMenu } from '../primitives/app-dialog';
+import { LoadingIndicator } from '../primitives/loading-indicator';
+import { Text } from '../primitives/text';
+import { conversationHref } from '../shell/open-conversation';
+import { navigateChannel } from '../shell/channel-navigation';
+import { useStrings } from '../strings';
+import { useMounted } from '../mounted';
+import { FileTypeIcon, fileTypeLabel } from './channel-media';
+import { ImageViewer } from './image-viewer';
+import { fileSize } from './message-attachments';
+
+type FilesPlace = { channelId: string; hostId: string; botSlug?: string };
+
+export function ChannelFilesScreen(place: FilesPlace) {
+  const { client, saved } = useHostSession(place.hostId);
+  const t = useStrings();
+  if (!client || saved?.hostId !== place.hostId) return <Text>{t.sourceChanged}</Text>;
+  return <Files key={`${place.hostId}:${place.channelId}`} {...place} client={client} />;
+}
+
+function Files(place: FilesPlace & { client: HostClient }) {
+  const t = useStrings();
+  const theme = useDesignTheme();
+  const list = useChannelFilesList(place);
+  return (
+    <>
+      <Stack.Screen
+        options={{
+          title: t.channelFiles.title,
+          headerBackButtonDisplayMode: 'minimal',
+        }}
+      />
+      <FlatList
+        ref={list.mount}
+        testID="channel-files-list"
+        style={{ flex: 1, backgroundColor: theme.color.base }}
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={{ padding: space.x5, paddingBottom: space.x6 }}
+        data={list.files}
+        keyExtractor={(file) => file.key}
+        ListHeaderComponent={list.header}
+        ListEmptyComponent={list.empty}
+        renderItem={({ item }) => list.renderFile(item)}
+        ListFooterComponent={list.footer}
+      />
+      {list.viewer}
+    </>
+  );
+}
+
+export function useChannelFilesList(
+  { client, channelId, hostId, botSlug }: FilesPlace & { client: HostClient },
+  { active = true, retain = false }: { active?: boolean; retain?: boolean } = {},
+) {
+  const t = useStrings();
+  const theme = useDesignTheme();
+  const navigation = useNavigationContainerRef();
+  const focused = useProfileFocused();
+  const revealConversation = useContext(RevealProfileConversation);
+  const host = useHostSnapshot(client, focused);
+  const files = useMemo(() => createChannelFiles({ host: client, channelId }), [client, channelId]);
+  const snapshot = useSyncExternalStore(files.subscribe, files.getSnapshot);
+  const [previewKey, setPreviewKey] = useState<string>();
+  const [sharing, setSharing] = useState<string>();
+  const [shareFailed, setShareFailed] = useState(false);
+  const [sourceUnavailable, setSourceUnavailable] = useState(false);
+  const live = useRef(false);
+  const lifecycle = useRef(0);
+  const sharePending = useRef(false);
+  const [visited, setVisited] = useState(active);
+  const attached = active || (retain && visited);
+  const mount = useMounted<unknown>(() => () => files.stop(), [files]);
+  useProfileFocusEffect(
+    useCallback(() => {
+      if (!active) return;
+      setVisited(true);
+      return () => {
+        lifecycle.current++;
+        sharePending.current = false;
+        setSharing(undefined);
+        setPreviewKey(undefined);
+      };
+    }, [active]),
+  );
+  useProfileFocusEffect(
+    useCallback(() => {
+      if (!attached) return;
+      live.current = true;
+      sharePending.current = false;
+      setSharing(undefined);
+      files.start();
+      return () => {
+        live.current = false;
+        lifecycle.current++;
+        if (retain) files.pause();
+        else files.stop();
+      };
+    }, [files, attached, retain]),
+  );
+  const available =
+    focused && active && snapshot.status === 'ready' && host.connection.status === 'connected';
+  const preview = available
+    ? snapshot.files.find((file) => file.key === previewKey)?.attachment
+    : undefined;
+  const share = async (attachment: MessageAttachment) => {
+    if (sharePending.current || !available) return;
+    const epoch = lifecycle.current;
+    sharePending.current = true;
+    const stillAvailable = () =>
+      live.current &&
+      lifecycle.current === epoch &&
+      client.getSnapshot().connection.status === 'connected' &&
+      files.getSnapshot().status === 'ready' &&
+      files
+        .getSnapshot()
+        .files.some(
+          (file) =>
+            file.attachment.key === attachment.key &&
+            file.attachment.source?.uri === attachment.source?.uri,
+        );
+    setSharing(attachment.key);
+    setShareFailed(false);
+    try {
+      await shareAttachment(
+        { ...attachment, key: `${hostId}:${channelId}:${attachment.key}` },
+        stillAvailable,
+      );
+    } catch {
+      if (live.current && lifecycle.current === epoch) setShareFailed(true);
+    } finally {
+      if (live.current && lifecycle.current === epoch) {
+        sharePending.current = false;
+        setSharing(undefined);
+      }
+    }
+  };
+  const viewMessage = (file: ChannelFile) => {
+    if (
+      !available ||
+      !live.current ||
+      client.getSnapshot().connection.status !== 'connected' ||
+      files.getSnapshot().status !== 'ready' ||
+      !files.getSnapshot().files.some((current) => current.key === file.key)
+    )
+      return;
+    if (
+      botSlug !== undefined &&
+      host.roster?.bots.find((bot) => bot.slug === botSlug)?.dmChannelId !== channelId
+    ) {
+      setSourceUnavailable(true);
+      return;
+    }
+    const opened = navigateChannel(
+      navigation,
+      conversationHref(
+        botSlug === undefined
+          ? { kind: 'channel', channel: { id: channelId } }
+          : { kind: 'bot', bot: { slug: botSlug } },
+        hostId,
+        file.messageId,
+      ),
+    );
+    if (!opened) setSourceUnavailable(true);
+    else revealConversation?.();
+  };
+  const author = ({ author: sender }: ChannelFile) =>
+    sender.kind === 'human'
+      ? t.activityRow.human
+      : sender.kind === 'bot'
+        ? (host.roster?.bots.find((bot) => bot.slug === sender.slug)?.displayName ?? sender.slug)
+        : sender.kind === 'bridged'
+          ? sender.source
+          : t.channelFiles.system;
+  const notice =
+    snapshot.status === 'refused'
+      ? t.channelFiles.unavailable
+      : snapshot.status === 'interrupted'
+        ? t.channelFiles.disconnected
+        : sourceUnavailable
+          ? t.channelFiles.messageUnavailable
+          : shareFailed
+            ? t.channelFiles.fileUnavailable
+            : undefined;
+  const actionsFor = (item: ChannelFile): MenuAction[] => {
+    const attachment = item.attachment;
+    const disabled = !available || attachment.source === undefined;
+    return [
+      ...(disabled || sharing !== undefined
+        ? []
+        : [
+            {
+              label: t.shareFile(attachment.name),
+              icon: 'share' as const,
+              run: () => {
+                void share(attachment);
+              },
+            },
+          ]),
+      ...(available
+        ? [
+            {
+              label: t.channelFiles.viewMessage,
+              icon: 'chat' as const,
+              run: () => viewMessage(item),
+            },
+          ]
+        : []),
+    ];
+  };
+  const openActions = (item: ChannelFile, actions = actionsFor(item)) =>
+    showActionMenu(
+      item.attachment.name,
+      actions.map((action) => ({
+        text: action.label,
+        icon: action.icon,
+        onPress: action.run,
+      })),
+    );
+  const renderFile = (item: ChannelFile) => {
+    const attachment = item.attachment;
+    const disabled = !available || attachment.source === undefined;
+    const busy = sharing === attachment.key;
+    const date = new Date(item.at).toLocaleString();
+    const rowId = item.key.toLowerCase().replace(/[^a-z0-9-]/gu, '-');
+    const actions = actionsFor(item);
+    return (
+      <View
+        style={{
+          borderBottomWidth: edge.hairline,
+          borderColor: theme.color.border,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: space.x3,
+        }}
+      >
+        <Pressable
+          testID={`channel-file-row-${rowId}`}
+          accessibilityRole="button"
+          accessibilityLabel={`${attachment.name}, ${author(item)}, ${date}`}
+          accessibilityState={{ disabled, busy }}
+          disabled={disabled || sharing !== undefined}
+          android_ripple={{ color: theme.layer.raised.pressed }}
+          onPress={() =>
+            attachment.kind === 'image' ? setPreviewKey(item.key) : void share(attachment)
+          }
+          style={({ pressed }) => ({
+            flex: 1,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: space.x4,
+            paddingVertical: space.x5,
+            minHeight: theme.touch,
+            backgroundColor: pressed ? theme.layer.raised.pressed : undefined,
+          })}
+        >
+          {busy ? (
+            <View style={{ width: channelMedia.typeTile, alignItems: 'center' }}>
+              <LoadingIndicator size="control" />
+            </View>
+          ) : (
+            <FileTypeIcon attachment={attachment} />
+          )}
+          <View style={{ flex: 1, gap: space.x2 }}>
+            <Text strong numberOfLines={2}>
+              {attachment.name}
+            </Text>
+            <Text variant="meta" tone="muted">
+              {author(item)} · {date}
+            </Text>
+            <Text variant="meta" tone="muted">
+              {attachment.cleared
+                ? t.attachmentCleared(fileSize(attachment.size ?? 0))
+                : attachment.source === undefined
+                  ? t.attachmentElsewhere
+                  : [
+                      fileTypeLabel(attachment) || t.fileKind,
+                      attachment.size === undefined ? undefined : fileSize(attachment.size),
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+            </Text>
+          </View>
+        </Pressable>
+        <ActionMenuButton
+          testID={`channel-file-actions-${rowId}`}
+          label={t.conversationActions(attachment.name)}
+          disabled={!available}
+          actions={actions}
+          onOpen={() => openActions(item, actions)}
+        />
+      </View>
+    );
+  };
+  return {
+    mount,
+    files: snapshot.files,
+    status: snapshot.status,
+    hasOlder: snapshot.hasOlder,
+    available,
+    renderFile,
+    openImage: (item: ChannelFile) => {
+      if (available) setPreviewKey(item.key);
+    },
+    openActions: (item: ChannelFile) => openActions(item),
+    loaded: snapshot.loaded,
+    header:
+      notice === undefined ? undefined : (
+        <View style={{ gap: space.x3, paddingBottom: space.x5 }}>
+          <Text accessibilityRole="alert" tone="muted">
+            {notice}
+          </Text>
+          {snapshot.status === 'interrupted' ? (
+            <Button
+              testID="channel-files-reconnect"
+              label={t.retry}
+              onPress={() => {
+                client.retryNow();
+                files.retry();
+              }}
+            />
+          ) : null}
+        </View>
+      ),
+    empty:
+      snapshot.status === 'opening' && !snapshot.loaded ? (
+        <LoadingIndicator />
+      ) : snapshot.status === 'ready' || snapshot.loaded ? (
+        <Text tone="muted">
+          {snapshot.hasOlder ? t.channelFiles.noRecent : t.channelFiles.empty}
+        </Text>
+      ) : (
+        <></>
+      ),
+    footer: snapshot.hasOlder ? (
+      <View style={{ paddingTop: space.x5, gap: space.x3 }}>
+        {snapshot.pageFailed ? (
+          <Text accessibilityRole="alert" tone="muted">
+            {t.channelFiles.pageFailed}
+          </Text>
+        ) : null}
+        <Button
+          testID={snapshot.pageFailed ? 'channel-files-page-retry' : 'channel-files-load-older'}
+          label={snapshot.pageFailed ? t.retry : t.channelFiles.loadOlder}
+          disabled={!available}
+          busy={snapshot.loadingOlder}
+          onPress={() => {
+            void files.loadOlder();
+          }}
+        />
+      </View>
+    ) : undefined,
+    viewer: (
+      <ImageViewer
+        attachment={preview}
+        onClose={() => setPreviewKey(undefined)}
+        onShare={share}
+        cachePolicy="none"
+      />
+    ),
+  };
+}

@@ -1,8 +1,10 @@
+import { PANEL_SCROLLBAR_CSS } from './ds/panel-scrollbars.js';
 import { DOCKVIEW_CSS } from './dockview-css.js';
 import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 
 export const CHANNEL_DOCK_CSS =
   DOCKVIEW_CSS +
+  PANEL_SCROLLBAR_CSS +
   `
 .bh-dock-theme {
   --dv-group-view-background-color: ${color.base};
@@ -26,16 +28,16 @@ export const CHANNEL_DOCK_CSS =
   --dv-spacing-padding: 0;
   --dv-separator-border: ${color.divider};
   --dv-paneview-header-border-color: ${color.divider};
-  --dv-paneview-active-outline-color: ${color.accent};
+  --dv-paneview-active-outline-color: ${color.accentText};
   --dv-sash-color: transparent;
-  --dv-active-sash-color: ${color.accent};
+  --dv-active-sash-color: ${color.accentText};
   --dv-active-sash-transition-duration: 0.1s;
   --dv-active-sash-transition-delay: 0.3s;
   --dv-sash-border-radius: 0;
   --dv-drag-over-background-color: color-mix(in srgb, ${color.accent} 14%, transparent);
-  --dv-drag-over-border-color: ${color.accent};
+  --dv-drag-over-border-color: ${color.accentText};
   --dv-drag-over-border: ${border.hairline} solid ${color.accent};
-  --dv-edge-dock-indicator-color: ${color.accent};
+  --dv-edge-dock-indicator-color: ${color.accentText};
   --dv-icon-hover-background-color: ${color.hover};
   --dv-scrollbar-background-color: ${color.border};
   --dv-tabs-container-scrollbar-color: ${color.border};
@@ -61,9 +63,16 @@ export const CHANNEL_DOCK_CSS =
 }
 .bh-dock .dv-tab {
   padding: 0;
-  cursor: grab;
+  cursor: default;
 }
-.bh-dock .dv-tab:active { cursor: grabbing; }
+.bh-dock .dv-full-width-single-tab .dv-tab { flex: 1 1 0; min-width: 0; }
+.bh-dock .dv-tab:has([data-dock-header="bh:channel-body"]) { flex: 1 1 0; min-width: 0; max-width: 100%; }
+.bh-dock [data-panel-hide]:active { cursor: grabbing; }
+html[data-platform="darwin"] .bh-dock .dv-tabs-and-actions-container,
+html[data-platform="darwin"] .bh-dock .dv-tabs-and-actions-container .dv-tab,
+html[data-platform="darwin"] .bh-dock .bh-dock-header { -webkit-app-region:drag; }
+html[data-platform="darwin"] .bh-dock .bh-dock-header [data-window-drag-recall],
+html[data-platform="darwin"] .bh-dock .bh-dock-header :is(button, a, input, select, textarea, [role="tab"]) { -webkit-app-region:no-drag; }
 .bh-dock .dv-tab:focus-visible,
 .bh-dock .dv-tab:focus-within { outline: none; }
 .bh-dock .dv-tab .dv-default-tab-action { display: none; }
@@ -87,10 +96,21 @@ export const CHANNEL_DOCK_CSS =
   min-height: 0;
 }
 .bh-dock-body > .bh-chat-pane { flex: 1 1 0; }
+.bh-dock :is([data-sidebar-entry-body], [data-dock-panel-body]):has([data-panel-empty]),
+.bh-dock :is([data-sidebar-entry-body], [data-dock-panel-body]) :has([data-panel-empty]) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
 .bh-dock-menu {
+  display: none;
   position: absolute;
   top: calc((var(--bh-channel-header-height) - ${size.icon}) / 2);
   right: ${space.x3};
   z-index: 7;
 }
+/* The expanded App Sidebar already exposes the panel toggles. Use the native
+   frame's resolved state, including responsive collapse and hidden sidebars. */
+[data-sidebar-collapsed] .bh-dock-menu { display: block; }
 `;

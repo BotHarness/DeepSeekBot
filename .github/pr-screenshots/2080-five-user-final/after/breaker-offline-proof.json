@@ -1,0 +1,14 @@
+{
+  "source": "3dbbba7073e1565e289c80ffcf6414bc696d3333",
+  "stage": "offline",
+  "requestCount": 1,
+  "decisionCount": 0,
+  "ruleCount": 0,
+  "calls": [
+    {
+      "name": "pwsh",
+      "outcome": "pending",
+      "result": ""
+    }
+  ]
+}

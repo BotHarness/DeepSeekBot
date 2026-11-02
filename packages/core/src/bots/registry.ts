@@ -1,3 +1,4 @@
+import { isTob, TobError } from '../tob/service.js';
 import {
   existsSync,
   mkdirSync,
@@ -20,6 +21,7 @@ import {
   isUsableAvatarAppearance,
   type CreatePersonaBotInput,
   type CreatePersonaBotResult,
+  type MarketplaceListingRef,
   type PersonaBotPatch,
   type PersonaBotRecord,
   type RemovePersonaBotOptions,
@@ -38,7 +40,11 @@ import {
 } from './shared-presentation.js';
 import { isValidSlug } from './slug.js';
 import { recordMemoryOwnership, transferMemoryOwnership } from './deletion.js';
-import type { HttpsFallback, MemoryCloneResult } from '../memory/clone.js';
+import {
+  memoryRepositoryMatchesCommit,
+  type HttpsFallback,
+  type MemoryCloneResult,
+} from '../memory/clone.js';
 import { restoreBotHistory, writeBotFiles } from './bot-zip.js';
 import type { ZipEntry } from './zip-archive.js';
 import {
@@ -48,13 +54,17 @@ import {
   seedStandingFiles,
   type StandingLimits,
 } from '../memory/soul.js';
+import type { TelemetryEventName } from '../telemetry/events.js';
 import type { TelemetryCapture } from '../telemetry/service.js';
-import type {
-  AssignmentModelOption,
-  ModelPreset,
-  ModelRoute,
-  PersonaBotModelPlan,
+import {
+  isPersonaBotModelPlan,
+  type AssignmentModelOption,
+  type ModelPreset,
+  type ModelRoute,
+  type PersonaBotModelPlan,
 } from '../models/presets.js';
+import { parsePromptLimitValues, type PromptLimitValues } from '../prompts/prompt-limits.js';
+import { parsePromptPartOverrides, type PromptPartOverrides } from '../prompts/prompt-presets.js';
 
 export interface MemoryRepositoryInitialization {
   ok: boolean;
@@ -68,6 +78,7 @@ export interface PersonaBotRegistryOptions {
   onImport?: (event: { phase: 'complete' | 'failed'; count?: number; durationMs: number }) => void;
   now?: () => Date;
   onDisplayNameChanged?: () => void;
+  onAvatarChanged?: () => void;
   onAppearanceImported?: (record: PersonaBotRecord) => void;
 
   initializeMemory?: (memoryDir: string) => MemoryRepositoryInitialization;
@@ -85,13 +96,15 @@ export interface PersonaBotRegistry {
   rootDir: string;
   create(input: CreatePersonaBotInput): CreatePersonaBotResult;
   createFromGit(
-    input: Omit<CreatePersonaBotInput, 'memoryDir'> & { gitUrl: string },
+    input: Omit<CreatePersonaBotInput, 'memoryDir'> & { gitUrl: string; expectedCommit?: string },
+    authorize?: () => void,
   ): Promise<CreatePersonaBotResult>;
   createFromFiles(
     input: Omit<CreatePersonaBotInput, 'memoryDir' | 'persona'> & {
       files: readonly ZipEntry[];
       history?: Buffer;
     },
+    authorize?: () => void,
   ): Promise<CreatePersonaBotResult>;
   get(slug: string): PersonaBotRecord | undefined;
   getHistorical(slug: string): PersonaBotRecord | undefined;
@@ -103,7 +116,11 @@ export interface PersonaBotRegistry {
   defaultMemoryDirFor(slug: string): string;
   setMemoryDir(slug: string, memoryDir: string | undefined): UpdatePersonaBotResult;
   update(slug: string, patch: PersonaBotPatch): UpdatePersonaBotResult;
-  setAppearance(slug: string, recipe: unknown): UpdatePersonaBotResult;
+  setAppearance(
+    slug: string,
+    recipe: unknown,
+    origin?: 'custom' | 'default',
+  ): UpdatePersonaBotResult;
   setBanner(slug: string, banner: unknown): UpdatePersonaBotResult;
   setPrimaryColor(slug: string, choice: unknown): UpdatePersonaBotResult;
   retainedRecordBody(slug: string): string | undefined;
@@ -112,6 +129,15 @@ export interface PersonaBotRegistry {
   setBrowserAccess(slug: string, enabled: boolean): UpdatePersonaBotResult;
   setBrowserProfile(slug: string, profile: string): UpdatePersonaBotResult;
   setApprovalTemplate(slug: string, template: string | undefined): UpdatePersonaBotResult;
+  setMarketplaceListing(slug: string, listing: MarketplaceListingRef): UpdatePersonaBotResult;
+  setPromptSettings(
+    slug: string,
+    settings: {
+      preset?: string | null;
+      overrides?: PromptPartOverrides;
+      limits?: PromptLimitValues;
+    },
+  ): UpdatePersonaBotResult;
   setStandingLimits(slug: string, limits: StandingLimits): UpdatePersonaBotResult;
   inheritModel(slug: string, expectedRevision: number): UpdatePersonaBotResult;
   applyModelPreset(slug: string, preset: ModelPreset): UpdatePersonaBotResult;
@@ -174,7 +200,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
   const defaultMemoryDir = (slug: string): string => join(botDir(slug), 'memory');
 
   const port = attachOperationalModule(options.database, 'bot-registry');
-  const capture = (event: string): void => {
+  const capture = (event: TelemetryEventName): void => {
     try {
       options.capture?.(event);
     } catch {
@@ -189,6 +215,8 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       createdAt: record.createdAt,
     };
     for (const key of [
+      'displayNameCustomized',
+      'avatarCustomized',
       'roles',
       'tag',
       'description',
@@ -205,10 +233,22 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       'browserAccess',
       'browserProfile',
       'approvalTemplate',
+      'promptPreset',
     ] as const) {
       if (record[key] !== undefined) Object.assign(result, { [key]: record[key] });
     }
     if (record.primaryColor !== undefined) result.primaryColor = { ...record.primaryColor };
+    if (record.promptOverrides !== undefined) {
+      const overrides = parsePromptPartOverrides(record.promptOverrides);
+      if (overrides !== undefined && Object.keys(overrides).length > 0)
+        result.promptOverrides = overrides;
+    }
+    if (record.promptLimits !== undefined) {
+      const limits = parsePromptLimitValues(record.promptLimits);
+      if (Object.keys(limits).length > 0) result.promptLimits = limits;
+    }
+    if (record.marketplaceListing !== undefined)
+      result.marketplaceListing = { ...record.marketplaceListing };
     if (record.standingLimits !== undefined)
       result.standingLimits = {
         soul: record.standingLimits.soul,
@@ -227,7 +267,9 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
         sourcePresetName: plan.sourcePresetName,
         appliedAt: plan.appliedAt,
         orchestrator: route(plan.orchestrator),
-        assignmentDefault: route(plan.assignmentDefault),
+        ...(plan.assignmentDefault === undefined
+          ? {}
+          : { assignmentDefault: route(plan.assignmentDefault) }),
         ...(plan.assignmentModels === undefined
           ? {}
           : {
@@ -265,6 +307,22 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       !isBotPrimaryColor(parsed.primaryColor)
     )
       delete (parsed as { primaryColor?: unknown }).primaryColor;
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'modelPlan' in parsed &&
+      !isPersonaBotModelPlan(parsed.modelPlan)
+    )
+      delete parsed.modelPlan;
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'modelPlanRevision' in parsed &&
+      (typeof parsed.modelPlanRevision !== 'number' ||
+        !Number.isSafeInteger(parsed.modelPlanRevision) ||
+        parsed.modelPlanRevision < 0)
+    )
+      delete parsed.modelPlanRevision;
     if (!isPersonaBotRecord(parsed, slug)) throw new Error('Invalid PersonaBot Registry record');
     return recordSnapshot(parsed);
   };
@@ -276,6 +334,9 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     });
   };
   const write = (record: PersonaBotRecord): void => {
+    const slug = record.slug;
+    if (!isPersonaBotRecord(record, slug))
+      throw new Error(`Refusing to persist an invalid PersonaBot Registry record: ${slug}`);
     port.transaction(
       (database) => {
         database
@@ -488,6 +549,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     populate: (
       staging: string,
     ) => Promise<Extract<CreatePersonaBotResult, { ok: false }>['reason'] | undefined>,
+    authorize?: () => void,
   ): Promise<CreatePersonaBotResult> => {
     if (!isValidSlug(input.slug)) return { ok: false, reason: 'invalid-slug' };
     if (read(input.slug) !== undefined || existsSync(botDir(input.slug))) {
@@ -497,11 +559,22 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     let staging: string | undefined;
     let ownsBotDir = false;
     let created = false;
+    let authorizationError: unknown;
+    const checkAuthority = () => {
+      try {
+        authorize?.();
+      } catch (error) {
+        authorizationError = error;
+        throw error;
+      }
+    };
     try {
+      checkAuthority();
       mkdirSync(rootDir, { recursive: true });
       staging = mkdtempSync(join(rootDir, prefix));
       const failure = await populate(staging);
       if (failure !== undefined) return { ok: false, reason: failure };
+      checkAuthority();
       if (read(input.slug) !== undefined || existsSync(botDir(input.slug)))
         return { ok: false, reason: 'duplicate' };
 
@@ -515,7 +588,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       const result = create(input, false);
       created = result.ok;
       if (!result.ok) return result;
-      capture('bot_created');
+      capture('bot_library:bot_create');
       const shared = readSharedPresentation(defaultMemoryDir(input.slug));
       const banner = readSharedBanner(defaultMemoryDir(input.slug));
       const primaryColor = readSharedPrimaryColor(defaultMemoryDir(input.slug));
@@ -545,6 +618,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       syncDescriptor(presented, true);
       return { ok: true, record: presented };
     } catch {
+      if (authorizationError !== undefined) throw authorizationError;
       return { ok: false, reason: 'memory-unavailable' };
     } finally {
       if (staging !== undefined) rmSync(staging, { recursive: true, force: true });
@@ -561,32 +635,47 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     rootDir,
     create(input) {
       const result = create(input, true);
-      if (result.ok) capture('bot_created');
+      if (result.ok) capture('bot_library:bot_create');
       return result;
     },
-    async createFromGit(input) {
-      const { gitUrl, ...recordInput } = input;
+    async createFromGit(input, authorize) {
+      const { gitUrl, expectedCommit, ...recordInput } = input;
       let httpsFallback: HttpsFallback | undefined;
-      const result = await createFromStaging(recordInput, '.git-import-', async (staging) => {
-        if (options.cloneMemory === undefined) return 'memory-unavailable';
-        const cloned = await options.cloneMemory(staging, gitUrl);
-        if (!cloned.ok) return cloned.code;
-        httpsFallback = cloned.httpsFallback;
-        return undefined;
-      });
+      const result = await createFromStaging(
+        recordInput,
+        '.git-import-',
+        async (staging) => {
+          if (options.cloneMemory === undefined) return 'memory-unavailable';
+          const cloned = await options.cloneMemory(staging, gitUrl);
+          if (!cloned.ok) return cloned.code;
+          httpsFallback = cloned.httpsFallback;
+          if (
+            expectedCommit !== undefined &&
+            !(await memoryRepositoryMatchesCommit(staging, expectedCommit))
+          )
+            return 'git-source-changed';
+          return undefined;
+        },
+        authorize,
+      );
       return result.ok && httpsFallback !== undefined ? { ...result, httpsFallback } : result;
     },
-    async createFromFiles(input) {
+    async createFromFiles(input, authorize) {
       const { files, history, ...recordInput } = input;
-      return createFromStaging(recordInput, '.zip-import-', (staging) => {
-        try {
-          writeBotFiles(staging, files);
-          if (history !== undefined) restoreBotHistory(staging, history);
-          return Promise.resolve(undefined);
-        } catch {
-          return Promise.resolve('invalid-zip' as const);
-        }
-      });
+      return createFromStaging(
+        recordInput,
+        '.zip-import-',
+        (staging) => {
+          try {
+            writeBotFiles(staging, files);
+            if (history !== undefined) restoreBotHistory(staging, history);
+            return Promise.resolve(undefined);
+          } catch {
+            return Promise.resolve('invalid-zip' as const);
+          }
+        },
+        authorize,
+      );
     },
     get: active,
     getHistorical: read,
@@ -628,6 +717,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       if (record === undefined) return { ok: false, reason: 'not-found' };
       const previousName = record.displayName;
       const previousAvatar = record.avatar;
+      const previousAppearance = record.appearance;
       const previousProfile = JSON.stringify([
         record.roles,
         record.tag,
@@ -638,6 +728,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
         const displayName = patch.displayName.trim();
         if (displayName.length === 0) return { ok: false, reason: 'invalid-input' };
         record.displayName = displayName;
+        if (isTob(port, slug)) record.displayNameCustomized = true;
       }
       if (patch.roles !== undefined) {
         if (!Array.isArray(patch.roles) || !patch.roles.every((role) => typeof role === 'string')) {
@@ -652,7 +743,13 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       if (!applyOptionalText(record, 'avatar', patch.avatar)) {
         return { ok: false, reason: 'invalid-input' };
       }
-      if (patch.avatar !== undefined) delete record.appearance;
+      if (patch.avatar !== undefined) {
+        delete record.appearance;
+        if (isTob(port, slug)) {
+          if (record.avatar) record.avatarCustomized = true;
+          else delete record.avatarCustomized;
+        }
+      }
       applyOptionalText(record, 'model', patch.model);
       applyOptionalText(record, 'preset', patch.preset);
       if (patch.workspaces !== undefined) {
@@ -666,7 +763,10 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       }
       write(record);
       if (record.displayName !== previousName) options.onDisplayNameChanged?.();
-      if (patch.avatar !== undefined && record.avatar !== previousAvatar) capture('avatar_edited');
+      if (record.avatar !== previousAvatar || record.appearance !== previousAppearance)
+        options.onAvatarChanged?.();
+      if (patch.avatar !== undefined && record.avatar !== previousAvatar)
+        capture('bot_profile:avatar_update');
       if (
         record.displayName !== previousName ||
         JSON.stringify([record.roles, record.tag, record.description, record.avatar]) !==
@@ -675,15 +775,17 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
         syncDescriptor(record);
       return { ok: true, record };
     },
-    setAppearance(slug, recipe) {
+    setAppearance(slug, recipe, origin = 'custom') {
       const record = active(slug);
       if (record === undefined) return { ok: false, reason: 'not-found' };
       const derived = deriveAvatarAppearance(recipe);
       if (derived === undefined) return { ok: false, reason: 'invalid-input' };
       const updated = { ...record, ...derived };
+      if (isTob(port, slug) && origin === 'custom') updated.avatarCustomized = true;
       write(updated);
+      if (record.appearance?.revision !== updated.appearance.revision) options.onAvatarChanged?.();
       syncDescriptor(updated);
-      capture('avatar_edited');
+      capture('bot_profile:avatar_update');
       return { ok: true, record: updated };
     },
     setBanner(slug, banner) {
@@ -693,7 +795,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       const updated = { ...record, banner };
       write(updated);
       syncDescriptor(updated);
-      capture('banner_edited');
+      capture('bot_profile:banner_update');
       return { ok: true, record: updated };
     },
     setPrimaryColor(slug, choice) {
@@ -715,13 +817,14 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       );
     },
     setPaused(slug, paused) {
+      if (paused && isTob(port, slug)) throw new TobError('protected-bot');
       const record = active(slug);
       if (record === undefined) return { ok: false, reason: 'not-found' };
       const archiving = paused && record.paused !== true;
       if (paused) record.paused = true;
       else delete record.paused;
       write(record);
-      if (archiving) capture('bot_archived');
+      if (archiving) capture('bot_library:bot_archive');
       return { ok: true, record };
     },
     setComputerAccess(slug, enabled) {
@@ -754,6 +857,29 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       if (record === undefined) return { ok: false, reason: 'not-found' };
       if (template === undefined) delete record.approvalTemplate;
       else record.approvalTemplate = template;
+      write(record);
+      return { ok: true, record };
+    },
+    setMarketplaceListing(slug, listing) {
+      const record = active(slug);
+      if (record === undefined) return { ok: false, reason: 'not-found' };
+      record.marketplaceListing = { id: listing.id, pushedAt: listing.pushedAt };
+      write(record);
+      return { ok: true, record };
+    },
+    setPromptSettings(slug, settings) {
+      const record = active(slug);
+      if (record === undefined) return { ok: false, reason: 'not-found' };
+      if (settings.preset === null) delete record.promptPreset;
+      else if (settings.preset !== undefined) record.promptPreset = settings.preset;
+      if (settings.overrides !== undefined) {
+        if (Object.keys(settings.overrides).length === 0) delete record.promptOverrides;
+        else record.promptOverrides = settings.overrides;
+      }
+      if (settings.limits !== undefined) {
+        if (Object.keys(settings.limits).length === 0) delete record.promptLimits;
+        else record.promptLimits = settings.limits;
+      }
       write(record);
       return { ok: true, record };
     },
@@ -826,12 +952,12 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     customizeModelPlan(slug, orchestrator, expectedRevision) {
       const record = active(slug);
       if (record === undefined) return { ok: false, reason: 'not-found' };
-      if (record.modelPlan === undefined) return { ok: false, reason: 'invalid-input' };
-      if (record.modelPlan.revision !== expectedRevision)
-        return { ok: false, reason: 'invalid-input' };
+      if (record.model !== undefined) return { ok: false, reason: 'invalid-input' };
+      const revision = record.modelPlan?.revision ?? record.modelPlanRevision ?? 0;
+      if (revision !== expectedRevision) return { ok: false, reason: 'invalid-input' };
       record.modelPlan = {
         ...record.modelPlan,
-        revision: record.modelPlan.revision + 1,
+        revision: revision + 1,
         sourcePresetId: '',
         sourcePresetName: '',
         orchestrator: { ...orchestrator },

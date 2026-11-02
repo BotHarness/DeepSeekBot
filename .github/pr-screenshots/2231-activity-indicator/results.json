@@ -1,0 +1,66 @@
+{
+  "results": [
+    {
+      "scenario": "Pointer and keyboard menu",
+      "result": "passed",
+      "detail": "Right-click and Shift+F10 open without toggling Activity; Escape restores focus"
+    },
+    {
+      "scenario": "Five scopes",
+      "result": "passed",
+      "detail": "All/action/other light; read retained personal messages do not light Related; Off hides"
+    },
+    {
+      "scenario": "Panel independence",
+      "result": "passed",
+      "detail": "Off still opens Activity and retains real accessible counts; category and clear-filters never overwrite indicator scope, and indicator changes preserve category"
+    },
+    {
+      "scenario": "Persistence and windows",
+      "result": "passed",
+      "detail": "Same-origin second window synchronizes in both directions; reload keeps Off and Activity access"
+    },
+    {
+      "scenario": "Host-origin isolation",
+      "result": "passed",
+      "detail": "Same browser using localhost instead of 127.0.0.1 retains default All while original origin stays Off"
+    },
+    {
+      "scenario": "Canonical personal indicator",
+      "result": "passed",
+      "detail": "Real @Human arrival lights Related, mute clears it, unmute restores it, marking read clears it while the retained Activity record remains"
+    },
+    {
+      "scenario": "Resolved requests",
+      "result": "passed",
+      "detail": "Declined join request remains in its Channel owner record and clears the action-only dot"
+    },
+    {
+      "scenario": "Injected failure and recovery",
+      "result": "passed",
+      "detail": "Blocked status requests show neutral unknown rather than zero; Off persists through failure and recovery"
+    },
+    {
+      "scenario": "Invalid preference",
+      "result": "passed",
+      "detail": "Invalid stored value returns to default All"
+    }
+  ],
+  "initialStatus": {
+    "unreadCount": 4,
+    "hasAction": false,
+    "messageCounts": {
+      "replies": 0,
+      "other": 4
+    }
+  },
+  "finalStatus": {
+    "unreadCount": 4,
+    "hasAction": false,
+    "messageCounts": {
+      "replies": 0,
+      "other": 4
+    }
+  },
+  "console": []
+}

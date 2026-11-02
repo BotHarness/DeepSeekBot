@@ -5,10 +5,11 @@ import { createBotStateTracker } from '../src/state/bot-state.js';
 
 function fixture() {
   let assignment: AssignmentDetail = {
+    title: 'Assignment',
     sessionId: 'assignment',
     botSlug: 'ada',
     sourceEventId: 'source',
-    purpose: 'Work',
+    description: 'Work',
     activity: 'working',
     createdAt: '2026-10-03',
     updatedAt: '2026-10-03',

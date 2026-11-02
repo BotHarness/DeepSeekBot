@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { botDmChannelId } from '../src/channels/channel.js';
+import { botDmChannelId, MAX_BOT_HOPS } from '../src/channels/channel.js';
 import { createCore } from '../src/plugin.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import type {
@@ -31,7 +31,9 @@ describe('Bot-to-Bot DM tracer', () => {
       agents: adapter(async (run) => {
         runs.push(run.bot.slug + ':' + run.inboundChannelId);
         if (run.bot.slug === 'ada' && run.inboundChannelId === 'dm-ada') {
-          const contact = run.channels.contacts().contacts.find((item) => item.botId === 'bea');
+          const contact = (await run.channels.contacts()).contacts.find(
+            (item) => item.botId === 'bea',
+          );
           expect(contact?.displayName).toBe('Bea');
           const first = await run.channels.sendToBot({
             botSlug: 'bea',
@@ -292,7 +294,7 @@ describe('Bot-to-Bot DM tracer', () => {
     }
   });
 
-  it('keeps one causal root from waking a colleague twice', async () => {
+  it('wakes a colleague on every round of one causal root until the hop limit', async () => {
     const home = createTempRoot('botharness-bot-dm-loop-');
     const core = createCore({ dshHome: home, agents: adapter(async () => {}) });
     try {
@@ -324,7 +326,9 @@ describe('Bot-to-Bot DM tracer', () => {
       expect(core.channels.message(dm.id, 'reply')?.deliveries).toEqual([
         { botSlug: 'ada', state: 'pending' },
       ]);
-      expect(core.channels.message(dm.id, 'repeat')?.deliveries).toBeUndefined();
+      expect(core.channels.message(dm.id, 'repeat')?.deliveries).toEqual([
+        { botSlug: 'bea', state: 'pending' },
+      ]);
       expect(
         core.channels.readMessages('dm-ada').filter((message) => message.botDmAction !== undefined),
       ).toHaveLength(2);
@@ -402,11 +406,11 @@ describe('Bot-to-Bot DM tracer', () => {
         id: 'bot-over-hop',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
-        body: '第九跳',
+        body: '超过跳数上限',
         botCausation: {
           rootSourceEventId: 'root-over-hop',
           parentSourceEventId: 'parent-over-hop',
-          hop: 9,
+          hop: MAX_BOT_HOPS + 1,
         },
       });
       expect(core.channels.message(dm.id, 'bot-over-hop')?.deliveries).toBeUndefined();

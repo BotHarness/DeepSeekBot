@@ -2,7 +2,8 @@ import { randomBytes } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 
 import { defineSchemaPlan, type SchemaMigration } from './schema.js';
-import { INBOX_HISTORY_INDEX_SQL } from './inbox-history-index.js';
+import { INBOX_HISTORY_INDEX_SQL, MESSAGE_SEARCH_INDEX_SQL } from './inbox-history-index.js';
+import { deriveAssignmentTitle } from '../runtime/assignment-title.js';
 
 const SESSION_OWNERSHIP_MIGRATION: SchemaMigration = {
   generation: 2,
@@ -2293,6 +2294,330 @@ const SECRET_CLI_TOOL_RULE_MIGRATION: SchemaMigration = {
   },
 };
 
+const TOB_IDENTITY_MIGRATION: SchemaMigration = {
+  generation: 96,
+  module: 'tob',
+  description: 'Reserve the protected local Tob identity',
+  migrate(database) {
+    database.exec(`CREATE TABLE tob_identity (
+      singleton INTEGER PRIMARY KEY CHECK (singleton = 1), bot_slug TEXT NOT NULL UNIQUE
+    );`);
+  },
+};
+
+const BOT_CREATION_OPERATION_MIGRATION: SchemaMigration = {
+  generation: 97,
+  module: 'bot-creation',
+  description: 'Reserve stable Bot creation identities for idempotent live CLI retries',
+  migrate(database) {
+    database.exec(`CREATE TABLE bot_creation_operations (
+      operation_key TEXT PRIMARY KEY, payload_hash TEXT NOT NULL,
+      bot_slug TEXT NOT NULL UNIQUE, status TEXT NOT NULL CHECK(status IN ('reserved','created'))
+    );`);
+  },
+};
+
+const CHANNEL_MANAGEMENT_OPERATION_MIGRATION: SchemaMigration = {
+  generation: 98,
+  module: 'channel-management',
+  description: 'Reserve canonical Channel and invitation identities for scoped CLI retries',
+  migrate(database) {
+    database.exec(`CREATE TABLE channel_management_operations (
+      operation_key TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK(kind IN ('create','invite')),
+      payload_hash TEXT NOT NULL, channel_id TEXT NOT NULL, invitation_id TEXT,
+      targets_json TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('reserved','completed'))
+    );`);
+  },
+};
+
+const GROUP_SEND_REVIEW_MIGRATION: SchemaMigration = {
+  generation: 99,
+  module: 'channel-send-review',
+  description: 'Opt-in local Group send review and bounded durable draft intents',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE group_send_review_enabled (channel_id TEXT PRIMARY KEY);
+      CREATE TABLE group_send_review_drafts (
+        id TEXT PRIMARY KEY, owner TEXT NOT NULL, channel_id TEXT NOT NULL,
+        source_event_id TEXT NOT NULL, record_json TEXT NOT NULL
+      );
+      CREATE INDEX group_send_review_source ON group_send_review_drafts(source_event_id);
+    `);
+  },
+};
+
+const CLOUD_CONNECTION_MIGRATION: SchemaMigration = {
+  generation: 100,
+  module: 'messaging',
+  description: 'Track explicit cloud Agent connections without storing secret values',
+  migrate(database) {
+    database.exec(`CREATE TABLE cloud_connections (
+      id TEXT PRIMARY KEY,
+      connection_json TEXT NOT NULL,
+      credential_revision TEXT NOT NULL,
+      active INTEGER NOT NULL CHECK (active IN (0,1)),
+      cursor INTEGER NOT NULL CHECK (cursor >= 0),
+      policy_json TEXT NOT NULL,
+      revision INTEGER NOT NULL CHECK (revision >= 1)
+    );`);
+  },
+};
+
+const CLOUD_WORK_MIGRATION: SchemaMigration = {
+  generation: 101,
+  module: 'messaging',
+  description: 'Fence bounded cloud work execution and forwarding across retries',
+  migrate(database) {
+    database.exec(`CREATE TABLE cloud_work (
+      connection_id TEXT NOT NULL,
+      request_id TEXT NOT NULL,
+      bot_slug TEXT NOT NULL,
+      source_event_id TEXT NOT NULL,
+      request_hash TEXT NOT NULL,
+      state TEXT NOT NULL CHECK (state IN ('authorizing','started','outbox','finished','forwarding','forwarded')),
+      target_actor_id TEXT,
+      environment TEXT NOT NULL,
+      execution_count INTEGER NOT NULL CHECK (execution_count IN (0,1)),
+      outcome_json TEXT,
+      PRIMARY KEY (connection_id,request_id)
+    );`);
+  },
+};
+
+const TOB_ONBOARDING_MIGRATION: SchemaMigration = {
+  generation: 102,
+  module: 'bot-onboarding',
+  description: 'Version the short Tob journey without restarting legacy tutorials',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE bot_onboarding ADD COLUMN journey_version INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE bot_onboarding ADD COLUMN journey_started_at TEXT;
+      ALTER TABLE bot_onboarding ADD COLUMN journey_bot TEXT;
+      ALTER TABLE bot_onboarding ADD COLUMN journey_group TEXT;
+      ALTER TABLE bot_onboarding ADD COLUMN journey_done INTEGER NOT NULL DEFAULT 0;
+      CREATE TABLE onboarding_creation_results (
+        operation_key TEXT NOT NULL, kind TEXT NOT NULL, target_id TEXT,
+        session_id TEXT NOT NULL, recorded_at TEXT NOT NULL,
+        PRIMARY KEY (operation_key, kind)
+      );
+    `);
+  },
+};
+
+const USAGE_IDLE_COMPACTION_MIGRATION: SchemaMigration = {
+  generation: 103,
+  module: 'usage',
+  description: 'Record idle Orchestrator Session compactions for Bot activity',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE usage_idle_compactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bot_slug TEXT NOT NULL,
+        at TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        model TEXT NOT NULL,
+        idle_gap_ms INTEGER NOT NULL,
+        cache_lifetime_ms INTEGER NOT NULL,
+        cache_lifetime_source TEXT NOT NULL,
+        tokens_before INTEGER NOT NULL,
+        tokens_after INTEGER,
+        outcome TEXT NOT NULL CHECK (outcome IN ('compacted', 'nothing', 'failed')),
+        error TEXT,
+        input_tokens INTEGER,
+        cache_read_tokens INTEGER,
+        output_tokens INTEGER
+      );
+      CREATE INDEX usage_idle_compactions_bot_at ON usage_idle_compactions (bot_slug, at);
+    `);
+  },
+};
+
+const THREE_ACTION_APPROVAL_MIGRATION: SchemaMigration = {
+  generation: 104,
+  module: 'tool-approval-rules',
+  description: 'Remember one tool per authority scope and retain native ask for Full Access',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE tool_approval_rules_next (
+        id TEXT PRIMARY KEY, bot_slug TEXT NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ('orchestrator', 'assignment')),
+        scope_key TEXT NOT NULL,
+        kind TEXT NOT NULL CHECK (kind IN ('exact', 'tool', 'all-opaque', 'secret-cli')),
+        tool_name TEXT NOT NULL, input TEXT NOT NULL, created_at TEXT NOT NULL,
+        active INTEGER NOT NULL CHECK (active IN (0, 1)), revoked_at TEXT, external_creator TEXT
+      );
+      INSERT INTO tool_approval_rules_next
+        SELECT * FROM tool_approval_rules;
+      DROP TABLE tool_approval_rules;
+      ALTER TABLE tool_approval_rules_next RENAME TO tool_approval_rules;
+      CREATE INDEX tool_approval_rules_lookup
+        ON tool_approval_rules (bot_slug, role, scope_key, active, revoked_at);
+      UPDATE assignments SET approval_policy = 'ask'
+        WHERE permission_mode = 'danger-full-access' AND approval_policy = 'never';
+    `);
+  },
+};
+
+const PUSH_APP_RENDER_MIGRATION: SchemaMigration = {
+  generation: 105,
+  module: 'push',
+  description: 'Record which paired devices draw push notifications in the app',
+  migrate(database) {
+    database.exec(`ALTER TABLE push_devices ADD COLUMN render TEXT;`);
+  },
+};
+
+const DEVICE_NOTIFICATION_PREFERENCE_MIGRATION: SchemaMigration = {
+  generation: 106,
+  module: 'push',
+  description: 'Keep the device-owned notification preference copy without a push token',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE device_notification_preferences (
+        device_id TEXT PRIMARY KEY,
+        preferences_json TEXT NOT NULL
+      );
+      INSERT INTO device_notification_preferences SELECT device_id, preferences_json FROM push_devices;
+    `);
+  },
+};
+
+const DEVICE_LIVE_ACTIVITY_MIGRATION: SchemaMigration = {
+  generation: 107,
+  module: 'live-activity',
+  description: 'Track device-owned Live Activity delivery handles, never request execution state',
+  migrate(database) {
+    database.exec(`CREATE TABLE device_live_activities (
+      client_id TEXT PRIMARY KEY, device_id TEXT NOT NULL, channel_id TEXT NOT NULL,
+      message_id TEXT NOT NULL, source_event_id TEXT NOT NULL, handle TEXT NOT NULL,
+      expires_at INTEGER NOT NULL, locale TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0,
+      terminal INTEGER NOT NULL DEFAULT 0, last_sent INTEGER NOT NULL DEFAULT 0,
+      last_state TEXT NOT NULL DEFAULT '', pending_state TEXT NOT NULL DEFAULT '',
+      attempt_at INTEGER NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0
+    );`);
+  },
+};
+
+const ASSIGNMENT_TITLE_MIGRATION: SchemaMigration = {
+  generation: 108,
+  module: 'assignments',
+  description: 'Give Assignments a Title and turn purpose into their Description (ADR-0262)',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE assignments RENAME COLUMN purpose TO description;
+      ALTER TABLE assignments ADD COLUMN title TEXT NOT NULL DEFAULT '';
+    `);
+    const rows = database
+      .prepare('SELECT session_id, description FROM assignments')
+      .all() as Array<{
+      session_id: string;
+      description: string;
+    }>;
+    const update = database.prepare('UPDATE assignments SET title = ? WHERE session_id = ?');
+    for (const row of rows) update.run(deriveAssignmentTitle(row.description), row.session_id);
+  },
+};
+
+const SESSION_PROMPT_SNAPSHOT_MIGRATION: SchemaMigration = {
+  generation: 109,
+  module: 'session-ownership',
+  description: 'Freeze each Session Prompt Preset text at its first assembly',
+  migrate(database) {
+    database.exec('ALTER TABLE session_ownership ADD COLUMN prompt_snapshot TEXT;');
+  },
+};
+
+const TOOL_RULE_AUTO_APPROVAL_COUNT_MIGRATION: SchemaMigration = {
+  generation: 110,
+  module: 'tool-approval-rules',
+  description: 'Count the approval requests each always-allow rule answers',
+  migrate(database) {
+    database.exec(
+      'ALTER TABLE tool_approval_rules ADD COLUMN auto_approved_count INTEGER NOT NULL DEFAULT 0;',
+    );
+  },
+};
+
+const REQUEST_ASSIGNMENT_LINK_MIGRATION: SchemaMigration = {
+  generation: 111,
+  module: 'assignments',
+  description: 'Record which Assignment each Human request created or advanced',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE request_assignments (
+        request_source_event_id TEXT NOT NULL REFERENCES source_events(source_event_id),
+        session_id TEXT NOT NULL REFERENCES session_ownership(session_id),
+        linked_at TEXT NOT NULL,
+        PRIMARY KEY (request_source_event_id, session_id)
+      );
+    `);
+  },
+};
+
+const MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION: SchemaMigration = {
+  generation: 112,
+  module: 'messaging',
+  description: 'Index attachment file names in the message full-text index for global search',
+  migrate(database) {
+    database.exec(MESSAGE_SEARCH_INDEX_SQL);
+  },
+};
+
+const GRANT_RECEPTION_EVIDENCE_MIGRATION: SchemaMigration = {
+  generation: 113,
+  module: 'messaging',
+  description: 'Fence grant-backed reception evidence from older Bridge-only readers',
+  migrate(database) {
+    database.exec(`CREATE INDEX messaging_paths_authority
+      ON messaging_source_paths(bot_slug, source_event_id, json_extract(body, '$.kind'));
+      CREATE VIEW messaging_bridge_sources AS SELECT DISTINCT source_event_id
+        FROM messaging_source_paths WHERE json_extract(body, '$.kind') IS NOT 'grant';`);
+  },
+};
+
+const HUMAN_ATTENTION_CANDIDATE_INDEX_MIGRATION: SchemaMigration = {
+  generation: 114,
+  module: 'messaging',
+  description: 'Index canonical pending attention candidates without scanning ordinary history',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX source_events_attention_question ON source_events (message_id, source_event_id)
+        WHERE source_kind = 'bot-message'
+          AND json_extract(payload_json, '$.userQuestionRequest') IS NOT NULL;
+      CREATE INDEX source_events_attention_approval ON source_events (message_id, source_event_id)
+        WHERE source_kind = 'bot-message'
+          AND json_extract(payload_json, '$.toolApprovalRequest') IS NOT NULL;
+      CREATE INDEX source_events_attention_private ON source_events (message_id, source_event_id)
+        WHERE source_kind = 'bot-message'
+          AND json_extract(payload_json, '$.privateInputRequest') IS NOT NULL;
+      CREATE INDEX source_events_attention_grant ON source_events (message_id, source_event_id)
+        WHERE source_kind = 'bot-message'
+          AND json_extract(payload_json, '$.grantRequest') = 1;
+      CREATE INDEX source_events_attention_rejection ON source_events (message_id, source_event_id)
+        WHERE source_kind = 'system-message'
+          AND json_extract(payload_json, '$.toolAutoApproval.outcome') = 'rejected';
+    `);
+  },
+};
+
+const BOT_LAN_ADMISSION_MIGRATION: SchemaMigration = {
+  generation: 115,
+  module: 'bot-lan',
+  description: 'Record explicit Host-key-bound LAN Bot collaboration admissions',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE bot_lan_admissions (
+        host_id TEXT PRIMARY KEY,
+        public_key TEXT NOT NULL,
+        admission_id TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        admitted_at TEXT NOT NULL,
+        revoked_at TEXT
+      );
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2388,4 +2713,24 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   HUMAN_INBOX_SNOOZE_MIGRATION,
   CHANNEL_REACTION_MIGRATION,
   SECRET_CLI_TOOL_RULE_MIGRATION,
+  TOB_IDENTITY_MIGRATION,
+  BOT_CREATION_OPERATION_MIGRATION,
+  CHANNEL_MANAGEMENT_OPERATION_MIGRATION,
+  GROUP_SEND_REVIEW_MIGRATION,
+  CLOUD_CONNECTION_MIGRATION,
+  CLOUD_WORK_MIGRATION,
+  TOB_ONBOARDING_MIGRATION,
+  USAGE_IDLE_COMPACTION_MIGRATION,
+  THREE_ACTION_APPROVAL_MIGRATION,
+  PUSH_APP_RENDER_MIGRATION,
+  DEVICE_NOTIFICATION_PREFERENCE_MIGRATION,
+  DEVICE_LIVE_ACTIVITY_MIGRATION,
+  ASSIGNMENT_TITLE_MIGRATION,
+  SESSION_PROMPT_SNAPSHOT_MIGRATION,
+  TOOL_RULE_AUTO_APPROVAL_COUNT_MIGRATION,
+  REQUEST_ASSIGNMENT_LINK_MIGRATION,
+  MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION,
+  GRANT_RECEPTION_EVIDENCE_MIGRATION,
+  HUMAN_ATTENTION_CANDIDATE_INDEX_MIGRATION,
+  BOT_LAN_ADMISSION_MIGRATION,
 ]);

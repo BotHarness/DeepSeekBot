@@ -33,7 +33,7 @@ Send in the designated test DM:
 [IM-PRIVATE-A] Call ask_secret for account im-demo with required fields
 endpoint (Private URL), api_key (API key), api_secret (API secret).
 Wait for Owner submission in Web Chat, then call protected_cli using
-http-status-v1 and the returned references. Use bridge_reply to report
+http-status-v1 and the returned references. Use bot_send_message to report
 only HTTP status and success in this conversation. Do not collect or
 send private values, references or configuration details in IM.
 ```

@@ -1,21 +1,21 @@
 # @botharness/links-worker
 
-`go.botharness.ai`: the Campaign short link Worker ([ADR-0132](../../docs/adr/0132-anonymous-posthog-telemetry-and-campaign-short-links.md), [#953](https://github.com/BotHarness/BotHarness/issues/953)). A **Campaign** owns many **Campaign Links** (see `CONTEXT.md`). Resolving a link redirects to the product site with UTM parameters, counts the click in D1 and sends a server-side `link_clicked` event to PostHog. It is a Hono app built with `@hono/zod-openapi`; the API is defined once and published as `/openapi.json`.
+`go.tobs.app`: the Campaign short link Worker ([ADR-0132](../../docs/adr/0132-anonymous-posthog-telemetry-and-campaign-short-links.md), [#953](https://github.com/BotHarness/BotHarness/issues/953)). A **Campaign** owns many **Campaign Links** (see `CONTEXT.md`). Resolving a link redirects to the product site with UTM parameters, counts the click in D1 and sends a server-side `campaign:short_link_click` event to PostHog. It is a Hono app built with `@hono/zod-openapi`; the API is defined once and published as `/openapi.json`.
 
 ## Redirect
 
 `GET /{slug}` answers `302` with `Cache-Control: no-store`:
 
-| Case                                                   | Location                                                                                                                        | Counted |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| Active link in an active Campaign                      | `https://deepseekbot.botharness.ai<target>?utm_campaign=<campaign>&utm_source=<platform>&utm_medium=<media>&utm_content=<link>` | yes     |
-| Unknown slug, reserved slug, archived link or Campaign | `https://deepseekbot.botharness.ai/` without UTMs                                                                               | no      |
-| `HEAD` request                                         | same as `GET`                                                                                                                   | no      |
-| Link previewer or crawler `User-Agent`                 | same as `GET`, with UTMs                                                                                                        | no      |
-| `GET /`                                                | `https://deepseekbot.botharness.ai/`                                                                                            | no      |
+| Case                                                   | Location                                                                                                       | Counted |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ------- |
+| Active link in an active Campaign                      | `https://tobs.app<target>?utm_campaign=<campaign>&utm_source=<platform>&utm_medium=<media>&utm_content=<link>` | yes     |
+| Unknown slug, reserved slug, archived link or Campaign | `https://tobs.app/` without UTMs                                                                               | no      |
+| `HEAD` request                                         | same as `GET`                                                                                                  | no      |
+| Link previewer or crawler `User-Agent`                 | same as `GET`, with UTMs                                                                                       | no      |
+| `GET /`                                                | `https://tobs.app/`                                                                                            | no      |
 
 - **Language.** A link stores the Chinese (default) site path and a `language`. `zh` opens the path as is; `en` opens it under `/en`: path `/docs/overview/` with `en` goes to `/en/docs/overview/`, path `/` with `en` goes to `/en/`. Paths that already start with `/en` are refused so the prefix is never doubled.
-- **Not an open redirect.** The origin is fixed in code. A path must start with a single `/` and use only `A-Z a-z 0-9 - . _ ~ / %` (no query, fragment, `..` segment or `//` prefix), and the built URL is checked to stay on `deepseekbot.botharness.ai`.
+- **Not an open redirect.** The origin is fixed in code. A path must start with a single `/` and use only `A-Z a-z 0-9 - . _ ~ / %` (no query, fragment, `..` segment or `//` prefix), and the built URL is checked to stay on `tobs.app`.
 - **Slugs** of Campaigns and links: lowercase letters, digits and hyphens, 1–64 characters, not starting or ending with a hyphen, unique, fixed after creation. `v1`, `v2`, `mcp`, `admin`, `api`, `health` and `openapi` are reserved. Request slugs are matched case-insensitively.
 - **Generated slugs.** A link created without a `slug` gets `<platform>-<media>` (`_` becomes `-`), or the first free `-2`, `-3`… up to `-100` when that is taken, so `utm_content` stays readable. The admin page prefills a Campaign's slug from its name.
 - **Platform** and **media** are free labels (lowercase letters, digits, `-`, `_`, 1–32 characters) so new channels need no deploy. Suggested values: platforms `bilibili`, `x`, `youtube`, `producthunt`, `xiaohongshu`, `zhihu`, `wechat`, `github`, `hackernews`, `reddit`; media `video`, `post`, `launch`, `article`, `thread`, `comment`.
@@ -25,14 +25,14 @@
 
 Counting and the PostHog event run in `waitUntil` after the response, so a D1 write failure or a PostHog outage never blocks or breaks the redirect. D1 keeps a total and a per-UTC-day counter per link; no IP address, user agent or referrer is stored.
 
-Link previewers and crawlers (Twitterbot, facebookexternalhit, Slackbot, Discordbot, TelegramBot, WhatsApp, LinkedInBot, Googlebot, bingbot, Applebot, Embedly, redditbot, Bytespider and any `User-Agent` with a `bot` word, `bot/`, `crawler`, `spider` or `preview`) get the same redirect with UTMs but are neither counted nor sent as `link_clicked`. In-app browsers such as WeChat (`MicroMessenger`) count as people. The `User-Agent` is only matched in memory; it is never stored or sent.
+Link previewers and crawlers (Twitterbot, facebookexternalhit, Slackbot, Discordbot, TelegramBot, WhatsApp, LinkedInBot, Googlebot, bingbot, Applebot, Embedly, redditbot, Bytespider and any `User-Agent` with a `bot` word, `bot/`, `crawler`, `spider` or `preview`) get the same redirect with UTMs but are neither counted nor sent as `campaign:short_link_click`. In-app browsers such as WeChat (`MicroMessenger`) count as people. The `User-Agent` is only matched in memory; it is never stored or sent.
 
 The event goes to `POST {POSTHOG_HOST}/i/v0/e/`:
 
 ```json
 {
   "api_key": "<POSTHOG_KEY>",
-  "event": "link_clicked",
+  "event": "campaign:short_link_click",
   "distinct_id": "<random UUID per click>",
   "properties": {
     "source": "links",
@@ -99,10 +99,10 @@ The Worker serves a Streamable HTTP MCP server at `POST /mcp` ([#955](https://gi
 | `link_archive` `{ slug }`                                                     | write | `POST /v1/links/{slug}/archive`     |
 | `link_clicks` `{ slug, days? }`                                               | read  | `GET /v1/links/{slug}/clicks`       |
 
-Link results carry `shortUrl` (`https://go.botharness.ai/<slug>`) and `target`, the site URL with the four UTMs. Add the server to Claude Code with a PAT from the admin page:
+Link results carry `shortUrl` (`https://go.tobs.app/<slug>`) and `target`, the site URL with the four UTMs. Add the server to Claude Code with a PAT from the admin page:
 
 ```bash
-claude mcp add --transport http botharness-links https://go.botharness.ai/mcp --header "Authorization: Bearer $BH_LINKS_TOKEN"
+claude mcp add --transport http botharness-links https://go.tobs.app/mcp --header "Authorization: Bearer $BH_LINKS_TOKEN"
 ```
 
 claude.ai web connectors need OAuth, which is the second phase (ADR-0132). For the command line, use [`bh-links`](../links-cli/README.md).
@@ -113,7 +113,7 @@ A server-rendered page (Hono `html` templates, no frontend build) for Humans, be
 
 - `/admin`: Campaigns with link and click totals (archived ones on request), a New campaign form, the Personal Access Token list (prefix, scope, expiry, last use, status) with Revoke, and a Create token form. A new token is shown once, with a Copy button, on the response to the create form (`Cache-Control: no-store`); afterwards only its prefix is visible.
 - `/admin/campaigns/{slug}`: once the Campaign has clicks, two [TanStack Charts](https://tanstack.com/charts) with tooltips, mounted in the browser from `/admin/assets/admin-charts.js` (built by `pnpm build:assets`, which `pnpm dev` and `pnpm run deploy` run first, and served by the Worker behind Access) (clicks per day over the last 30 UTC days stacked by platform, and total clicks by link), then the Campaign's links with the short URL and a Copy button, platform, media, target, total clicks, the last 7 UTC days as small bars, last click, inline Edit and Archive; a New link form; and the Campaign's name, description and Archive.
-- Form posts redirect back with a message (`303`). Cross-site posts are refused with `403` by Hono's `csrf` middleware (`Sec-Fetch-Site: same-origin` or an `Origin` of `https://go.botharness.ai`). Pages send `Cache-Control: no-store`, `X-Frame-Options: DENY` and a CSP that allows only the page's own `/admin/admin.js` (copy buttons and confirmations).
+- Form posts redirect back with a message (`303`). Cross-site posts are refused with `403` by Hono's `csrf` middleware (`Sec-Fetch-Site: same-origin` or an `Origin` of `https://go.tobs.app`). Pages send `Cache-Control: no-store`, `X-Frame-Options: DENY` and a CSP that allows only the page's own `/admin/admin.js` (copy buttons and confirmations).
 
 ### Access verification
 
@@ -124,7 +124,7 @@ Local development has no Access. Set `ADMIN_DEV_EMAIL=you@example.com` in `.dev.
 ### Cloudflare Access setup
 
 1. In the Cloudflare dashboard open **Zero Trust**. Its **Settings** page shows the **team domain**, `<team>.cloudflareaccess.com`.
-2. **Access → Applications → Add an application → Self-hosted**. Name it `BotHarness links admin`, session duration 24 hours, and add the public hostname `go.botharness.ai` with path `admin*` (this covers `/admin` and `/admin/...`; leave the redirect `/<slug>`, `/v1` and `/openapi.json` unprotected).
+2. **Access → Applications → Add an application → Self-hosted**. Name it `BotHarness links admin`, session duration 24 hours, and add the public hostname `go.tobs.app` with path `admin*` (this covers `/admin` and `/admin/...`; leave the redirect `/<slug>`, `/v1` and `/openapi.json` unprotected).
 3. Add a policy: action **Allow**, include **Emails** with the maintainers' addresses (or an **Emails ending in** rule for the team domain). Use the default identity provider (one-time PIN by e-mail) or the team's GitHub/Google login.
 4. Save, then open the application's **Overview** (or **Basic information**) and copy the **Application Audience (AUD) Tag**.
 5. Put both values in `wrangler.jsonc` and deploy:
@@ -134,7 +134,7 @@ Local development has no Access. Set `ADMIN_DEV_EMAIL=you@example.com` in `.dev.
    "ACCESS_AUD": "<application AUD tag>",
    ```
 
-6. Open `https://go.botharness.ai/admin`, sign in, create a write token, and delete the bootstrap secret (`npx wrangler secret delete LINKS_BOOTSTRAP_TOKEN`).
+6. Open `https://go.tobs.app/admin`, sign in, create a write token, and delete the bootstrap secret (`npx wrangler secret delete LINKS_BOOTSTRAP_TOKEN`).
 
 ## Known limits
 
@@ -177,7 +177,7 @@ Production deployment is a separate, explicitly authorized step. With `wrangler 
 
 The D1 database `botharness-links` (APAC) was created on 2026-10-06 and its `database_id` is in `wrangler.jsonc`. To recreate it elsewhere, run `npx wrangler d1 create botharness-links` and put the printed `database_id` into `wrangler.jsonc`.
 
-1. Apply the schema and deploy; the `routes` entry attaches the custom domain `go.botharness.ai` (the `botharness.ai` zone is on the same account):
+1. Apply the schema and deploy; the `routes` entry attaches the custom domain `go.tobs.app` (the `botharness.ai` zone is on the same account):
 
    ```bash
    npx wrangler d1 migrations apply LINKS_DB --remote
@@ -191,4 +191,8 @@ The D1 database `botharness-links` (APAC) was created on 2026-10-06 and its `dat
    ```
 
 3. Set up Cloudflare Access for `/admin*` and fill `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` (see [Cloudflare Access setup](#cloudflare-access-setup)), then deploy again.
-4. Sign in at `https://go.botharness.ai/admin`, create a Campaign with two links and a `write` PAT, and delete the bootstrap secret. Use the PAT against the API (for example `curl -H "authorization: Bearer $PAT" https://go.botharness.ai/v1/campaigns`), then create a link with it, and open `https://go.botharness.ai/<slug>`. Check that the site's `$pageview` in PostHog carries the four UTMs and that `link_clicked` arrives with the site script blocked.
+4. Sign in at `https://go.tobs.app/admin`, create a Campaign with two links and a `write` PAT, and delete the bootstrap secret. Use the PAT against the API (for example `curl -H "authorization: Bearer $PAT" https://go.tobs.app/v1/campaigns`), then create a link with it, and open `https://go.tobs.app/<slug>`. Check that the site's `$pageview` in PostHog carries the four UTMs and that `campaign:short_link_click` arrives with the site script blocked.
+
+New links use `go.tobs.app` and target `tobs.app`. Existing `go.botharness.ai` and `go.deepseekbot.app` hosts keep serving the same API, MCP and short codes from the same D1 database; existing configured CLI URLs remain valid. The Worker and database keep their existing names.
+
+`ADMIN_ORIGIN` keeps administration on the existing Cloudflare Access host, `https://go.deepseekbot.app`. GET/HEAD admin requests on the other hosts redirect there without caching; mutations on those hosts are refused. The destination retains its Access JWT verification and CSRF checks. Public redirects and token-authenticated API/MCP calls are not redirected between hosts. A future admin-domain move must configure and verify equivalent Access protection first.

@@ -48,7 +48,9 @@ describe('Human Inbox Assignment reply', () => {
               botSlug: 'ada',
               sessionId: 'session',
               sourceEventId: 'report',
-              purpose: 'Launch review',
+              title: 'Launch review',
+              description: 'Review the launch checklist before release.',
+              purpose: 'Review the launch checklist before release.',
               canReply: true,
               reports: [
                 {

@@ -285,13 +285,13 @@ async function main() {
     const botSend = (args) =>
       call(hostOrigin, 'botToolRun', {
         slug: bot.slug,
-        tool: 'channel_send',
-        args: { channel_id: channel.id, ...args },
+        tool: args.react_to ? 'channel_action' : 'bot_send_message',
+        args: { channel_id: channel.id, ...(args.react_to ? { action: 'react' } : {}), ...args },
       });
     const posted = await botSend({ body: 'The staging deploy finished. All 214 tests passed.' });
     const replyId = /"messageId\\*":\\*"([^"\\]+)/u.exec(JSON.stringify(posted))?.[1];
-    if (replyId === undefined) throw new Error('channel_send returned no message id');
-    steps.push('the Bot posted in its DM through its own channel_send, without a model turn');
+    if (replyId === undefined) throw new Error('bot_send_message returned no message id');
+    steps.push('the Bot posted in its DM through its own bot_send_message, without a model turn');
 
     await page.locator(`::-p-text(${displayName})`).click();
     await page.waitForSelector(`[placeholder="Message ${displayName}"]`, { timeout: 30_000 });

@@ -3,6 +3,8 @@ import { act, createElement, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
+vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('../src/ui/bot-avatar', () => ({
@@ -10,12 +12,14 @@ vi.mock('../src/ui/bot-avatar', () => ({
     createElement('span', { 'data-testid': `avatar-${bot.slug}` }),
 }));
 
-import type { RosterBot } from '../src/host/client';
-import type { InboxSnapshot } from '../src/host/inbox';
-import type { ApprovalRequest, DecisionResult, QuestionRequest } from '../src/host/requests';
+import type {
+  ApprovalChoice,
+  ApprovalRequest,
+  DecisionResult,
+  QuestionRequest,
+} from '../src/host/requests';
 import type { HumanAttentionItem, QuestionAnswer } from '../src/host/wire';
 import { ApprovalView, type ApprovalPort } from '../src/ui/approval-view';
-import { InboxList } from '../src/ui/inbox-list';
 import { QuestionView, type QuestionPort } from '../src/ui/question-view';
 import { t } from '../src/ui/strings';
 import inboxWire from './fixtures/inbox-wire.json';
@@ -41,13 +45,14 @@ const ref = (item: HumanAttentionItem) => ({
 });
 const card = entry('channelTimeline.approvalPending', approvalItem.messageId!)[
   'toolApprovalRequest'
-] as Omit<ApprovalRequest, keyof ReturnType<typeof ref> | 'status'>;
+] as Omit<ApprovalRequest, keyof ReturnType<typeof ref> | 'status' | 'allowAlways'>;
 const pendingApproval: ApprovalRequest = {
   ...ref(approvalItem),
   toolName: card.toolName,
   role: card.role,
   cwd: card.cwd,
   input: card.input,
+  allowAlways: true,
   status: 'pending',
 };
 const pendingQuestion: QuestionRequest = {
@@ -102,8 +107,7 @@ const notice = (container: HTMLElement, tone: string) =>
 
 function approvalPort(
   load: () => Promise<ApprovalRequest>,
-  decide: (outcome: 'allowed-once' | 'rejected') => Promise<DecisionResult> = async () =>
-    'accepted',
+  decide: (outcome: ApprovalChoice) => Promise<DecisionResult> = async () => 'accepted',
 ): ApprovalPort & { decide: ReturnType<typeof vi.fn> } {
   return { load: vi.fn(load), decide: vi.fn(decide) };
 }
@@ -121,6 +125,25 @@ describe('Tool approval screen', () => {
     expect(port.decide).toHaveBeenCalledWith('allowed-once');
     expect(notice(view, 'success')).toBe(t.approved);
     expect(view.querySelector(`button[aria-label="${t.allowOnce}"]`)).toBeNull();
+  });
+
+  it('offers the same three actions as the Web card and remembers the tool', async () => {
+    const port = approvalPort(async () => pendingApproval);
+    const view = await render(createElement(ApprovalView, { port, botName: 'Inbox QA' }));
+    const labels = [...view.querySelectorAll('button')].map((b) => b.getAttribute('aria-label'));
+    expect(labels).toEqual([t.allowOnce, t.alwaysAllow, t.reject]);
+    expect(view.textContent).toContain(t.alwaysToolScope('bash'));
+    await press(button(view, t.alwaysAllow));
+    expect(port.decide).toHaveBeenCalledWith('allowed-always-tool');
+    expect(notice(view, 'success')).toBe(t.approved);
+  });
+
+  it('keeps Always allow unavailable when only a Human may decide this once', async () => {
+    const port = approvalPort(async () => ({ ...pendingApproval, allowAlways: false }));
+    const view = await render(createElement(ApprovalView, { port, botName: 'Inbox QA' }));
+    expect(button(view, t.alwaysAllow).disabled).toBe(true);
+    expect(button(view, t.allowOnce).disabled).toBe(false);
+    expect(view.textContent).toContain(t.alwaysUnavailable);
   });
 
   it('says a tap had no effect when another device decided first', async () => {
@@ -260,83 +283,5 @@ describe('Human question screen', () => {
       act(() => root?.unmount());
       view.remove();
     }
-  });
-});
-
-describe('Inbox list', () => {
-  const bot: RosterBot = {
-    slug: approvalItem.botSlug,
-    displayName: 'Inbox QA',
-    roles: [],
-    computerAccess: false,
-    browserAccess: false,
-    state: 'waiting',
-    paused: false,
-  };
-  const ready = (action: HumanAttentionItem[]): InboxSnapshot => ({
-    status: 'ready',
-    sections: {
-      action,
-      replies: [
-        {
-          id: 'reply:1',
-          category: 'replies',
-          kind: 'channel-mention',
-          createdAt: approvalItem.createdAt,
-          channelId: 'group-1',
-          channelName: 'launch',
-          botSlug: bot.slug,
-          summary: '@Human the draft is ready',
-        },
-      ],
-      handled: items('humanAttention.handled').slice(0, 2),
-    },
-  });
-
-  it('orders actions, then mentions and replies, then handled history', async () => {
-    const opened: string[] = [];
-    const view = await render(
-      createElement(InboxList, {
-        snapshot: ready([approvalItem, questionItem]),
-        bot: (slug: string) => (slug === bot.slug ? bot : undefined),
-        onOpen: (item: HumanAttentionItem) => opened.push(item.id),
-        refreshing: false,
-        onRefresh: () => undefined,
-        now: Date.parse(approvalItem.createdAt) + 5 * 60_000,
-      }),
-    );
-    const headers = [...view.querySelectorAll('[role="header"]')].map((node) => node.textContent);
-    expect(headers).toEqual([
-      t.inboxSections.action,
-      t.inboxSections.replies,
-      t.inboxSections.handled,
-    ]);
-    const rows = [...view.querySelectorAll('[data-testid^="inbox-row-"]')].map((node) =>
-      node.getAttribute('data-testid'),
-    );
-    expect(rows.slice(0, 3)).toEqual([
-      `inbox-row-${approvalItem.id}`,
-      `inbox-row-${questionItem.id}`,
-      'inbox-row-reply:1',
-    ]);
-    expect(view.textContent).toContain(t.inChannel('launch'));
-    expect(view.textContent).toContain(t.ago(5));
-    await press(view.querySelector<HTMLElement>(`[data-testid="inbox-row-${questionItem.id}"]`)!);
-    expect(opened).toEqual([questionItem.id]);
-  });
-
-  it('says nothing needs the Human when no action is waiting, and flags a stale read', async () => {
-    const snapshot = { ...ready([]), stale: 'The Host could not be reached.' } as InboxSnapshot;
-    const view = await render(
-      createElement(InboxList, {
-        snapshot,
-        bot: () => undefined,
-        onOpen: () => undefined,
-        refreshing: false,
-        onRefresh: () => undefined,
-      }),
-    );
-    expect(view.textContent).toContain(t.inboxEmpty);
-    expect(notice(view, 'warning')).toBe(`${t.inboxStale} The Host could not be reached.`);
   });
 });

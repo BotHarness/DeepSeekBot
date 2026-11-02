@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore, type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 
 import { Button, closeTopModal, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
@@ -18,6 +18,7 @@ import { CreateAppForm } from './create-app-form.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { AppSetupDescriptor, ProviderAppSetup } from './provider-app-setup.js';
 import type { ClientStore } from './store.js';
+import { sameBotNames, useStoreSlice } from './use-client-store.js';
 
 export type ImAppsNotice = 'settings-unavailable';
 
@@ -117,7 +118,7 @@ export function ImAppsSection({
   t,
 }: PropsLocale<'botharness'> &
   InjectFace<{ imApps: ImAppsFace; store: ClientStore }>): ReactElement {
-  const bots = useSyncExternalStore(store.subscribe, () => store.getSnapshot().bots);
+  const bots = useStoreSlice(store, (state) => state.bots, sameBotNames);
   const [notice] = useState(() => imApps.takeNotice());
   const [loaded, setLoaded] = useState<Loaded>({ status: 'loading' });
   const [dialog, setDialog] = useState<Dialog>();

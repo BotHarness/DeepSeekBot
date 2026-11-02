@@ -1,0 +1,19 @@
+{
+  "source": "0eba51faf601f267fdfcb72f9892c1ea44b875ad",
+  "nativeFingerprint": "5bf74d7a4490f400555fc1edd98fdb8c3f75759c",
+  "embeddedJSSHA256": "66fea5ad383bcbc24c70a4d905333aeda17a908e96d3535c58d26379390a005e",
+  "mainExecutableSHA256": "b9f8ffd97a5b0b88024c03e26fca013c9083030a8f0131cfed2ff935ed30f4bb",
+  "device": "iPhone XS Max, iOS 18.1.1",
+  "package": "signed Release, ai.botharness.deepseekbot.dev 0.0.1 (1)",
+  "capture": "physical iPhone native interaction, Chinese, dark, 375 x 812 points",
+  "before": "previous installed client 56a654cc2640 opening the current Mac Host; prior-client absence state, not a full base Host comparison",
+  "after": "0eba51faf601; A/B/C/D each incremented exactly once by phone pointer and Left click; Bot paused",
+  "handback": "same candidate; explicit Hand back resumed Bots and removed control while video remained live",
+  "human": "User reported no problems and authorized merge on 2026-10-24 Asia/Tokyo",
+  "notVerified": [
+    "measured FPS or input latency",
+    "revoked-pairing physical fault injection",
+    "locked-screen physical test",
+    "multi-display or internet relay"
+  ]
+}

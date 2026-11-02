@@ -39,7 +39,7 @@ export function createMcpServer(store: Store, scope: Scope): McpServer {
     { name: 'botharness-links', version: '1.0.0' },
     {
       instructions:
-        'Campaign short links on go.botharness.ai. A Campaign owns Campaign Links; each link has a short URL https://go.botharness.ai/<slug> that redirects to deepseekbot.botharness.ai with utm_campaign, utm_source (platform), utm_medium (media) and utm_content (link slug). Create the Campaign first, then one link per post.',
+        'Campaign short links on go.tobs.app. A Campaign owns Campaign Links; each link has a short URL https://go.tobs.app/<slug> that redirects to tobs.app with utm_campaign, utm_source (platform), utm_medium (media) and utm_content (link slug). Create the Campaign first, then one link per post.',
     },
   );
   const write =
@@ -122,7 +122,7 @@ export function createMcpServer(store: Store, scope: Scope): McpServer {
     'link_create',
     {
       description:
-        'Create a Campaign Link for one post. Returns shortUrl (https://go.botharness.ai/<slug>) to put in the post and target, the site URL with UTMs it redirects to. path is the Chinese site path; set language en for the English site.',
+        'Create a Campaign Link for one post. Returns shortUrl (https://go.tobs.app/<slug>) to put in the post and target, the site URL with UTMs it redirects to. path is the Chinese site path; set language en for the English site.',
       inputSchema: LinkCreateSchema,
       annotations: CHANGE,
     },

@@ -48,7 +48,7 @@ export function resolveSubagentRoute(
     request.provider !== undefined ||
     request.model !== undefined ||
     request.reasoning_effort !== undefined;
-  if (plan === undefined) {
+  if (plan?.assignmentDefault === undefined) {
     if (explicit) throw new Error('Apply a Model Preset before selecting a Subagent model');
     return { route: inherited };
   }

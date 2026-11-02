@@ -33,7 +33,16 @@ afterEach(async () => {
   }
 });
 
-async function fixture(inboxOnly = false, twoPaths = false) {
+async function fixture(inboxOnly = false, twoPaths = false, file = false) {
+  const bytes = file ? Buffer.from('name,quantity\nalpha,17\n') : png;
+  const attachment = file
+    ? {
+        id: 'c'.repeat(64),
+        messageId: 'file-parent-message',
+        resourceKey: 'private-key',
+        name: 'qa-source.csv',
+      }
+    : image;
   const home = createTempRoot('bh-channel-media-');
   let consumer: Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1] | undefined;
   const run = vi.fn(async () => {});
@@ -52,7 +61,7 @@ async function fixture(inboxOnly = false, twoPaths = false) {
   cores.push(core);
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
   const download = vi.fn(async function* () {
-    yield png;
+    yield bytes;
   });
   const service: DshImOutboundService = {
     contractVersion: 1,
@@ -157,13 +166,22 @@ async function fixture(inboxOnly = false, twoPaths = false) {
     mentionedAccount: true,
     at: new Date(Date.now() + 100).toISOString(),
     text: 'Before\nAfter',
-    attachments: [image],
-    contentParts: [
-      { kind: 'text', text: 'Before\n' },
-      { kind: 'attachment', id: image.id },
-      { kind: 'text', text: 'After' },
-    ],
-    reply: { messageId: image.messageId, conversationId: 'team', actorId: 'human' },
+    attachments: [attachment],
+    ...(file
+      ? {}
+      : {
+          contentParts: [
+            { kind: 'text' as const, text: 'Before\n' },
+            { kind: 'attachment' as const, id: attachment.id },
+            { kind: 'text' as const, text: 'After' },
+          ],
+        }),
+    reply: {
+      messageId: image.messageId,
+      conversationId: 'team',
+      actorId: 'human',
+      ...(file ? { parentId: attachment.messageId } : {}),
+    },
     replay: { kind: 'provider-redelivery', resumeCursor: false, gapPossible: true },
   };
   await consumer!.onEvent(event, { signal: consumer!.signal });
@@ -187,7 +205,7 @@ async function fixture(inboxOnly = false, twoPaths = false) {
       });
     });
   }
-  const read = (attachmentId = image.id, id = channelId) =>
+  const read = (attachmentId = attachment.id, id = channelId) =>
     core.externalMessaging.readChannelMedia({
       channelId: id,
       sourceEventId,
@@ -223,6 +241,8 @@ async function fixture(inboxOnly = false, twoPaths = false) {
     channelId,
     sourceEventId,
     download,
+    attachment,
+    bytes,
     read,
     counts,
     run,
@@ -240,6 +260,36 @@ async function fixture(inboxOnly = false, twoPaths = false) {
     },
   };
 }
+
+it('projects a Lark source file in its original bubble and downloads its exact original without new attention', async () => {
+  const fx = await fixture(false, false, true);
+  const message = fx.core.channels.readMessages(fx.channelId)[0]!;
+  expect(message.bridgeMedia?.items).toEqual([
+    { id: fx.attachment.id, kind: 'file', name: 'qa-source.csv' },
+  ]);
+  expect(message.bridgeMedia?.parts).toEqual(fx.event.contentParts);
+  expect(JSON.stringify(message)).not.toContain(image.resourceKey);
+  const before = fx.counts();
+  const runs = fx.run.mock.calls.length;
+  const result = await fx.read();
+  expect(Buffer.from(await new Response(result.body).arrayBuffer())).toEqual(fx.bytes);
+  expect(result.inline).toBe(false);
+  const methods = createBridgeMethods({ ...fx.core });
+  const target = await methods.channelMediaTarget({
+    channelId: fx.channelId,
+    sourceEventId: fx.sourceEventId,
+    attachmentId: fx.attachment.id,
+  });
+  expect(target).toMatchObject({ ok: true, value: { target: { kind: 'file' } } });
+  expect(fx.download).toHaveBeenCalledTimes(1);
+  await fx.restart();
+  expect(fx.core.channels.readMessages(fx.channelId)[0]?.bridgeMedia).toEqual(message.bridgeMedia);
+  const retained = await fx.read();
+  expect(Buffer.from(await new Response(retained.body).arrayBuffer())).toEqual(fx.bytes);
+  expect(fx.download).toHaveBeenCalledTimes(1);
+  expect(fx.counts()).toEqual(before);
+  expect(fx.run).toHaveBeenCalledTimes(runs);
+});
 
 it('projects one ordered native message, hides resource keys, and acquires without new Inbox/model activity', async () => {
   const fx = await fixture();
@@ -280,26 +330,36 @@ it('projects one ordered native message, hides resource keys, and acquires witho
   );
 });
 
-it('stopping reception forbids new acquisition but retains acquired bytes; identity unbind forbids cached serving', async () => {
-  const fx = await fixture();
-  await fx.stop();
-  await expect(fx.read()).rejects.toThrow('source-unavailable');
-  expect(fx.download).not.toHaveBeenCalled();
-  const second = await fixture();
-  const first = await second.read();
-  await first.body.cancel();
-  await second.stop();
-  const cached = await second.read();
-  await cached.body.cancel();
-  expect(second.download).toHaveBeenCalledTimes(1);
-  const identity = (await second.core.externalMessaging.snapshot('ada')).identities![0]!;
-  await second.core.externalMessaging.identity('ada', {
-    kind: 'unbind',
-    id: identity.id,
-    expectedRevision: identity.revision,
-  });
-  await expect(second.read()).rejects.toThrow('source-unavailable');
-});
+it.each([false, true])(
+  'stopping reception forbids new acquisition but retains acquired bytes; identity unbind forbids cached serving (file=%s)',
+  async (file) => {
+    const fx = await fixture(false, false, file);
+    await fx.stop();
+    await expect(fx.read()).rejects.toThrow('source-unavailable');
+    expect(fx.download).not.toHaveBeenCalled();
+    const second = await fixture(false, false, file);
+    const first = await second.read();
+    await first.body.cancel();
+    await second.stop();
+    const cached = await second.read();
+    await cached.body.cancel();
+    expect(second.download).toHaveBeenCalledTimes(1);
+    const identity = (await second.core.externalMessaging.snapshot('ada')).identities![0]!;
+    await second.core.externalMessaging.identity('ada', {
+      kind: 'unbind',
+      id: identity.id,
+      expectedRevision: identity.revision,
+    });
+    await expect(second.read()).rejects.toThrow('source-unavailable');
+    expect(
+      await createBridgeMethods({ ...second.core }).channelMediaTarget({
+        channelId: second.channelId,
+        sourceEventId: second.sourceEventId,
+        attachmentId: second.attachment.id,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'source-unavailable' } });
+  },
+);
 
 it('rejects wrong media/Channel, Inbox-only placement and purged bytes without resurrection', async () => {
   const fx = await fixture();
@@ -361,37 +421,43 @@ it('HTTP uses Channel authority with no Bot selector, rejects mixed selectors, a
   await response.arrayBuffer();
 });
 
-it('a separately recorded valid reception path retains access after the first is revoked', async () => {
-  const fx = await fixture(false, true);
-  expect(fx.core.channels.readMessages(fx.channelId)).toHaveLength(1);
-  const first = await fx.read();
-  await first.body.cancel();
-  fx.core.externalMessaging.revoke('ada', fx.grant.id);
-  const independent = await fx.read();
-  await independent.body.cancel();
-  expect(independent.ref.fileId).toBe(first.ref.fileId);
-  expect(fx.download).toHaveBeenCalledTimes(1);
-  const remaining = (await fx.core.externalMessaging.snapshot('ada')).grants.find(
-    (item) => item.id !== fx.grant.id,
-  )!;
-  fx.core.externalMessaging.revoke('ada', remaining.id);
-  await expect(fx.read()).rejects.toThrow('source-unavailable');
-});
+it.each([false, true])(
+  'a separately recorded valid reception path retains access after the first is revoked (file=%s)',
+  async (file) => {
+    const fx = await fixture(false, true, file);
+    expect(fx.core.channels.readMessages(fx.channelId)).toHaveLength(1);
+    const first = await fx.read();
+    await first.body.cancel();
+    fx.core.externalMessaging.revoke('ada', fx.grant.id);
+    const independent = await fx.read();
+    await independent.body.cancel();
+    expect(independent.ref.fileId).toBe(first.ref.fileId);
+    expect(fx.download).toHaveBeenCalledTimes(1);
+    const remaining = (await fx.core.externalMessaging.snapshot('ada')).grants.find(
+      (item) => item.id !== fx.grant.id,
+    )!;
+    fx.core.externalMessaging.revoke('ada', remaining.id);
+    await expect(fx.read()).rejects.toThrow('source-unavailable');
+  },
+);
 
-it('a lost Human membership refuses serving previously acquired bytes', async () => {
-  const fx = await fixture();
-  const first = await fx.read();
-  await first.body.cancel();
-  attachOperationalModule(fx.core.operationalDatabase, 'media-test').transaction((db) =>
-    db
-      .prepare(
-        "UPDATE channel_human_members SET left_at = ? WHERE channel_id = ? AND human_id = 'local-human'",
-      )
-      .run(new Date().toISOString(), fx.channelId),
-  );
-  await expect(fx.read()).rejects.toThrow('channel-unavailable');
-  expect(fx.download).toHaveBeenCalledTimes(1);
-});
+it.each([false, true])(
+  'a lost Human membership refuses serving previously acquired bytes (file=%s)',
+  async (file) => {
+    const fx = await fixture(false, false, file);
+    const first = await fx.read();
+    await first.body.cancel();
+    attachOperationalModule(fx.core.operationalDatabase, 'media-test').transaction((db) =>
+      db
+        .prepare(
+          "UPDATE channel_human_members SET left_at = ? WHERE channel_id = ? AND human_id = 'local-human'",
+        )
+        .run(new Date().toISOString(), fx.channelId),
+    );
+    await expect(fx.read()).rejects.toThrow('channel-unavailable');
+    expect(fx.download).toHaveBeenCalledTimes(1);
+  },
+);
 
 it('unsupported sniffed content returns 422 and an over-limit checked Provider returns 413', async () => {
   const fx = await fixture();

@@ -1,0 +1,72 @@
+[
+  {
+    "edits": "crop only; status bar and header omitted",
+    "originalSize": [1220, 2712],
+    "sourceSha256": "6c10f7a42a4b8066e17ec74e06ef0e3d539cbf44b81b4cbf0dd8b58f0151f6e5",
+    "crop": [0, 350, 1220, 2400],
+    "file": "before-dark.png"
+  },
+  {
+    "edits": "crop only; status bar and header omitted",
+    "originalSize": [1220, 2712],
+    "sourceSha256": "03673455a7d9dfe02db43a87d4dfd4f76d2764521af45497ca988d2d26cc42ab",
+    "crop": [0, 350, 1220, 2400],
+    "file": "after-dark.png"
+  },
+  {
+    "edits": "crop only; status bar and header omitted",
+    "originalSize": [1220, 2712],
+    "sourceSha256": "96ef6e964ab2de99ba1fb8d78e17b93d7a7068672af0dc21fd2466f49944e8ca",
+    "crop": [0, 350, 1220, 2400],
+    "file": "before-large-light.png"
+  },
+  {
+    "edits": "crop only; status bar and header omitted",
+    "originalSize": [1220, 2712],
+    "sourceSha256": "02f2fd87497d580b89b2c8fa9102aa780231056ad8a5a2dc160de60b450d56d5",
+    "crop": [0, 350, 1220, 2400],
+    "file": "after-large-light.png"
+  },
+  {
+    "edits": "crop only; status bar and header omitted",
+    "originalSize": [1220, 2712],
+    "sourceSha256": "1115cb2223b7f74c79c0144360aab88f3e85fe86d87ce35fe4786cc06ddc2f41",
+    "crop": [0, 350, 1220, 2400],
+    "file": "before-rich.png"
+  },
+  {
+    "edits": "crop only; status bar and header omitted",
+    "originalSize": [1220, 2712],
+    "sourceSha256": "76fcd4da1c0c087afef8691ae948b0a4407f86ba497c045a41c06c0a8714790b",
+    "crop": [0, 350, 1220, 2400],
+    "file": "after-rich.png"
+  },
+  {
+    "edits": "crop only; status bar and header omitted",
+    "originalSize": [1220, 2712],
+    "sourceSha256": "6d477ec19eeb89ec8969a79bc9e2888aecb6639112161a8f88a160f93519edf0",
+    "crop": [0, 350, 1220, 2400],
+    "file": "baseline-transition-blank.png"
+  },
+  {
+    "edits": "crop only; status bar and header omitted",
+    "originalSize": [1220, 2712],
+    "sourceSha256": "f9c4919386d6e00f79f97e92704a96fb3ac9f81d59a717653ca24077a1e51043",
+    "crop": [0, 350, 1220, 2400],
+    "file": "baseline-transition-restored.png"
+  },
+  {
+    "edits": "crop only; status bar and header omitted",
+    "originalSize": [1220, 2712],
+    "sourceSha256": "ae921feb0206d8936d5a31a9aac67061f8c0cc09be687503cbef019a90509460",
+    "crop": [0, 350, 1220, 2400],
+    "file": "candidate-tail-held.png"
+  },
+  {
+    "edits": "crop only; status bar and header omitted",
+    "originalSize": [1220, 2712],
+    "sourceSha256": "12c0c98a805c86017779258347146aa868bb50c7aae0ebb800166061182c0f5c",
+    "crop": [0, 350, 1220, 2400],
+    "file": "candidate-tail-reopened.png"
+  }
+]

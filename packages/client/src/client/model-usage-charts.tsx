@@ -1,3 +1,4 @@
+import { readBotColorScheme } from './bot-color-scheme.js';
 import { useMemo, useState, type ReactElement } from 'react';
 
 import { barX, barY, defineChart, dot, stack } from '@tanstack/charts';
@@ -159,11 +160,7 @@ export function UsageToneLegend({ t }: { t: BotHarnessTranslate }): ReactElement
 function chartSurface(host: HTMLElement | null): string {
   return (
     (host === null ? undefined : renderedBackground(host)) ??
-    REFERENCE_SURFACES[
-      typeof document !== 'undefined' && document.body.hasAttribute('data-ds-dark-theme')
-        ? 'dark'
-        : 'light'
-    ].background
+    REFERENCE_SURFACES[readBotColorScheme()].background
   );
 }
 

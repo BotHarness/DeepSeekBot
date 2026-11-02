@@ -87,10 +87,46 @@ const echo = (method: string, args: Record<string, unknown>) => ({
         ? { removed: true }
         : method === 'channelAssign'
           ? {}
-          : { method, args },
+          : { method, args, ...(args['queryVersion'] === 1 ? { queryVersion: 1 } : {}) },
 });
 
 describe('Human Inbox, assignment, Session and approval-rule commands', () => {
+  it('refuses an older Host that ignores Activity query capabilities', async () => {
+    const live = await host(() => ({ ok: true, value: { items: [] } }));
+    const result = await invoke(['inbox', '--search', 'budget'], live.url);
+    expect(result.code).not.toBe(0);
+    expect(result.text).toContain('host-query-unsupported');
+  });
+
+  it('searches and orders personal Activity through the same Host query', async () => {
+    const live = await host(echo);
+    const result = await invoke(
+      [
+        'inbox',
+        '--category',
+        'replies',
+        '--sort',
+        'mentions-first',
+        '--search',
+        'budget',
+        '--unread',
+      ],
+      live.url,
+    );
+    expect(result.code).toBe(0);
+    expect(live.calls).toEqual([
+      {
+        method: 'humanAttention',
+        args: {
+          category: 'replies',
+          sort: 'mentions-first',
+          search: 'budget',
+          unreadOnly: true,
+          queryVersion: 1,
+        },
+      },
+    ]);
+  });
   it('lists, counts, dismisses and ignores Human Inbox items through the live Host', async () => {
     const live = await host(echo);
     const listed = await invoke(
@@ -130,7 +166,7 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
         },
       },
       { method: 'humanAttention', args: {} },
-      { method: 'humanAttentionStatus', args: {} },
+      { method: 'humanAttentionStatus', args: { messageCounts: true } },
       { method: 'humanAttentionDismiss', args: { itemId: 'item-1', sourceKey: 'src-1' } },
       { method: 'humanAttentionDismiss', args: { itemId: 'item-2', sourceKey: '' } },
       { method: 'humanAttentionIgnore', args: { sourceEventId: 'src-9' } },
@@ -169,6 +205,27 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
         args: { itemId: 'approval:src-1', sourceKey: 'src-1', until: null },
       },
     ]);
+  });
+
+  it('lists dismissed Human Inbox items and brings one back', async () => {
+    const live = await host((method, args) =>
+      method === 'humanAttention'
+        ? { ok: true, value: { items: [], dismissed: args['dismissed'] } }
+        : echo(method, args),
+    );
+    await invoke(['inbox', '--category', 'replies', '--dismissed'], live.url);
+    await invoke(['inbox-restore', 'reply:src-1', '--source-key', 'src-1'], live.url);
+    expect((await invoke(['inbox', '--snoozed', '--dismissed'], live.url)).json.error.code).toBe(
+      'usage',
+    );
+    expect(live.calls).toEqual([
+      { method: 'humanAttention', args: { category: 'replies', dismissed: true } },
+      { method: 'humanAttentionRestore', args: { itemId: 'reply:src-1', sourceKey: 'src-1' } },
+    ]);
+    const legacy = await host(() => ({ ok: true, value: { items: [] } }));
+    expect(
+      (await invoke(['inbox', '--category', 'replies', '--dismissed'], legacy.url)).json.error.code,
+    ).toBe('host-query-unsupported');
   });
 
   it('lists auto-rejected calls and allows one once anyway', async () => {
@@ -239,6 +296,57 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it("lists, searches and inspects a Bot's Assignments by Title and Description", async () => {
+    const live = await host(echo);
+    await invoke(['assignments', 'ada'], live.url);
+    await invoke(
+      [
+        'assignments',
+        'ada',
+        '--search',
+        ' export button ',
+        '--activity',
+        'idle, working',
+        '--include-archived',
+        '--limit',
+        '5',
+        '--cursor',
+        'c1',
+      ],
+      live.url,
+    );
+    await invoke(['assignment', 'ada', '--session', 'sess-1'], live.url);
+    await invoke(['assignment-timeline', 'ada', '--session', 'sess-1'], live.url);
+    await invoke(['session-subagents', 'ada', '--session', 'orch-1'], live.url);
+    for (const argv of [
+      ['assignments'],
+      ['assignments', 'ada', '--activity', 'busy'],
+      ['assignments', 'ada', '--limit', '0'],
+      ['assignment', 'ada'],
+      ['assignment-timeline', 'ada'],
+      ['session-subagents', 'ada'],
+      ['session-subagents', '--session', 'orch-1'],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([
+      { method: 'assignments', args: { slug: 'ada', limit: 20 } },
+      {
+        method: 'assignments',
+        args: {
+          slug: 'ada',
+          query: 'export button',
+          activity: ['idle', 'working'],
+          includeArchived: true,
+          limit: 5,
+          cursor: 'c1',
+        },
+      },
+      { method: 'assignment', args: { slug: 'ada', sessionId: 'sess-1' } },
+      { method: 'assignmentTimeline', args: { slug: 'ada', sessionId: 'sess-1' } },
+      { method: 'sessionSubagents', args: { slug: 'ada', sessionId: 'orch-1' } },
+    ]);
+  });
+
   it('lists Bot Sessions, reads their owner and archives assignment Sessions', async () => {
     const live = await host(echo);
     await invoke(['session-ids'], live.url);
@@ -256,6 +364,48 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
       { method: 'sessionOwner', args: { sessionId: 'sess-1' } },
       { method: 'sessionArchiveSet', args: { slug: 'ada', sessionId: 'sess-1', archived: true } },
       { method: 'sessionArchiveSet', args: { slug: 'ada', sessionId: 'sess-1', archived: false } },
+    ]);
+  });
+
+  it('approves directory requests through the shared Host command only with explicit confirmation', async () => {
+    const live = await host(echo);
+    const args = [
+      'grant-request-approve',
+      'ada',
+      '--channel',
+      'dm-ada',
+      '--request',
+      'r1',
+      '--workspace',
+      'w1',
+    ];
+    expect((await invoke(args, live.url)).json.error.code).toBe('usage');
+    await invoke([...args, '--confirm'], live.url);
+    expect(live.calls).toEqual([
+      {
+        method: 'grantRequestApprove',
+        args: {
+          slug: 'ada',
+          channelId: 'dm-ada',
+          requestMessageId: 'r1',
+          workspaceId: 'w1',
+          acknowledgeReadWrite: true,
+        },
+      },
+    ]);
+  });
+
+  it('pages approval history with a bounded limit and the returned cursor', async () => {
+    const live = await host(echo);
+    await invoke(['tool-approval-history', 'ada'], live.url);
+    await invoke(['tool-approval-history', 'ada', '--limit', '5', '--cursor', 'next'], live.url);
+    expect(
+      (await invoke(['tool-approval-history', 'ada', '--limit', '101'], live.url)).json.error.code,
+    ).toBe('usage');
+    expect((await invoke(['tool-approval-history'], live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([
+      { method: 'toolApprovalHistory', args: { slug: 'ada' } },
+      { method: 'toolApprovalHistory', args: { slug: 'ada', limit: 5, cursor: 'next' } },
     ]);
   });
 
@@ -337,4 +487,24 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     expect(result.json.error.code).toBe('usage');
     expect(live.calls).toHaveLength(0);
   });
+});
+
+it('CLI requests Host notification discovery and refuses unsupported Hosts', async () => {
+  const { runInboxCommand } = await import('../src/bots/cli-inbox.js');
+  const rpc = vi.fn(async () => ({ notificationVersion: 1, items: [], nextCursor: 'next' }));
+  const connect = async () => ({
+    rpc: rpc as <T>(method: string, args: Record<string, unknown>) => Promise<T>,
+  });
+  await expect(
+    runInboxCommand('inbox', [], { notifications: true, limit: '20', cursor: 'page' }, connect),
+  ).resolves.toMatchObject({ nextCursor: 'next' });
+  expect(rpc).toHaveBeenCalledExactlyOnceWith('humanAttention', {
+    notifications: true,
+    limit: 20,
+    cursor: 'page',
+  });
+  rpc.mockResolvedValue({ items: [] } as any);
+  await expect(runInboxCommand('inbox', [], { notifications: true }, connect)).rejects.toThrow(
+    'Update the Host',
+  );
 });

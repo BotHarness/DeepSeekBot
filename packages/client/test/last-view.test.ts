@@ -31,6 +31,15 @@ describe('last visible Bot view', () => {
     expect(readLastView(storage)).toEqual({ mode: 'dsh', selection });
   });
 
+  it('restores legacy Overview navigation as the current Inbox', () => {
+    const storage = memoryStorage();
+    storage.setItem(
+      LAST_VIEW_KEY,
+      JSON.stringify({ mode: 'bot', selection: { kind: 'inbox', view: 'overview' } }),
+    );
+    expect(readLastView(storage)).toEqual({ mode: 'bot', selection: { kind: 'inbox' } });
+  });
+
   it('ignores the superseded startup switch and malformed saved navigation', () => {
     const storage = memoryStorage();
     storage.setItem('botharness/start-in-bot-mode.v1', 'true');

@@ -1,0 +1,151 @@
+{
+  "date": "2026-10-19",
+  "productVersion": "0.0.0-zoom.2268.9",
+  "activation": "Explicit native package-manager Profile override; original ui-theme row and native settings authority retained",
+  "scope": "Actual prepared product and native Host APIs; original theme namespace and user Patch authority, no native-window qualification",
+  "settingsLifecycle": [
+    {
+      "label": "pre-existing-native-preferences",
+      "qualified": false,
+      "namespace": "ui-theme",
+      "fontSize": 16,
+      "preference": "dark"
+    },
+    {
+      "label": "product-retains-native-preferences",
+      "qualified": true,
+      "namespace": "ui-theme",
+      "fontSize": 16,
+      "preference": "dark"
+    },
+    {
+      "label": "product-native-font-write",
+      "qualified": true,
+      "namespace": "ui-theme",
+      "fontSize": 17,
+      "preference": "dark"
+    },
+    {
+      "label": "product-restart",
+      "qualified": true,
+      "namespace": "ui-theme",
+      "fontSize": 17,
+      "preference": "dark"
+    },
+    {
+      "label": "setup-disable-restores-native-and-retains-write",
+      "qualified": false,
+      "namespace": "ui-theme",
+      "fontSize": 17,
+      "preference": "dark"
+    }
+  ],
+  "focusedTests": {
+    "files": 5,
+    "passed": 48
+  },
+  "sourceChecks": {
+    "lint": "passed",
+    "format": "passed",
+    "types": "passed",
+    "targetedProductBuild": "passed; output separate from held native instance"
+  },
+  "limits": [
+    "Corrected packed native Desktop activation pending",
+    "Same-device Host switch pending",
+    "Physical IME response pending",
+    "Broader S2 native menu/focus matrix pending",
+    "Windows/Linux deferred to #2270"
+  ],
+  "discarded": [
+    "Grouped replacement renamed native settings namespace",
+    "Sync/async startup Node hooks did not redirect actual DSH metadata discovery"
+  ],
+  "historicalRecord": "historical-validation.json is superseded and does not qualify the corrected composition",
+  "freshProfile": {
+    "productVersion": "0.0.0-zoom.2268.7",
+    "node": "v24.21.0",
+    "platform": "darwin",
+    "scope": "Fresh Profile, no pre-approved builds: one install step, Host boot, Bot and DM creation, restart persistence. Browser, model and IM delivery are separate gates.",
+    "rows": [
+      {
+        "dsh": "0.2.0-rc.2",
+        "state": "passed"
+      },
+      {
+        "dsh": "0.2.1-rc.2",
+        "state": "passed"
+      }
+    ]
+  },
+  "packageLifecycle": {
+    "scope": "Actual tarballs, one task Profile, reinstall after remove, local-version upgrade and rollback; Host graph and canonical Bot identity, no Browser/native input qualification",
+    "rows": [
+      {
+        "label": "reinstall",
+        "version": "0.0.0-zoom.2268.7",
+        "themeCount": 1,
+        "compatibilityMarker": true,
+        "botCount": 1,
+        "identities": "29628c7373c29355873451ba3bf524c0d1a3a4e9b5e9791bf60e070b5751481d"
+      },
+      {
+        "label": "upgrade",
+        "version": "0.0.0-zoom.2268.8",
+        "themeCount": 1,
+        "compatibilityMarker": true,
+        "botCount": 1,
+        "identities": "29628c7373c29355873451ba3bf524c0d1a3a4e9b5e9791bf60e070b5751481d"
+      },
+      {
+        "label": "rollback",
+        "version": "0.0.0-zoom.2268.7",
+        "themeCount": 1,
+        "compatibilityMarker": true,
+        "botCount": 1,
+        "identities": "29628c7373c29355873451ba3bf524c0d1a3a4e9b5e9791bf60e070b5751481d"
+      }
+    ]
+  },
+  "uninstall": {
+    "scope": "Actual prepared product and native Host APIs; original theme namespace and user Patch authority, no native-window qualification",
+    "rows": [
+      {
+        "label": "product-removal-native-fallback",
+        "qualified": false,
+        "namespace": "ui-theme",
+        "fontSize": 17,
+        "preference": "dark"
+      },
+      {
+        "label": "post-removal-cleanup-retains-native-settings",
+        "qualified": false,
+        "namespace": "ui-theme",
+        "fontSize": 17,
+        "preference": "dark"
+      }
+    ]
+  },
+  "unsupportedFloor": {
+    "dsh": "0.2.0-rc.2",
+    "exit": 1,
+    "code": "desktop-zoom-setup-version-unsupported",
+    "profileUnchanged": true
+  },
+  "setupSourceSha256": "d204535fe50d9da50260c63fdcbb851d22ec75fa1abf1b1abf41afe02db08a30",
+  "artifactIntegrity": "sha512-nXWUEgMhcJkqVSsoa8Ab5GQYY8KI/9Tm2Kh17TWXDQPO9de2PGZwTDcW+qdwz3cEu0Qhq9hh3FQGv7aIkZnoAw==",
+  "runtimeReleaseGuard": {
+    "sourceAdapterSha256": "7219bb4f74653e501f84c75ae93c10630ec0ccb30ab95446e625efcd1c08746a",
+    "unit": "Executes generated adapter: qualified boot leases/restores font keys; missing/mismatched release exposes no lease and leaves font-key scope active",
+    "nativeReadOnlyObservation": {
+      "version": "0.2.1-rc.2",
+      "commit": "332895e",
+      "candidateGuardLoaded": false
+    },
+    "newCandidateHostAndSetupBytesMatchPriorLifecycleArtifact": {
+      "dist/desktop-zoom-setup.mjs": true,
+      "desktop-theme/lib/index.js": true
+    },
+    "limit": "An installed Profile override must be disabled before switching outside the qualified tuple; no automatic theme compatibility on other versions is claimed."
+  }
+}

@@ -33,6 +33,7 @@ export interface BotSessionVisibilityOptions {
 
 export interface BotSessionVisibility {
   hidden(): { sessionIds: string[]; groupKeys: string[] };
+  refresh(): void;
   subscribe(listener: () => void): () => void;
   dispose(): void;
 }
@@ -95,6 +96,9 @@ export function createBotSessionVisibility(
   void load();
 
   return {
+    refresh() {
+      if (!disposed) void load();
+    },
     hidden() {
       const { showBotSessions, showApprovalReviewSessions } = prefs.getSnapshot();
       if (showBotSessions && showApprovalReviewSessions) return { sessionIds: [], groupKeys: [] };

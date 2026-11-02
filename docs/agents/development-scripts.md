@@ -4,13 +4,42 @@ Source-file comments were removed under [#449](https://github.com/BotHarness/Bot
 
 Vitest runs test files in parallel workers, one isolated worker per file; Git-backed fixtures each use their own temporary repository. Run `pnpm test` and `pnpm docs:build` sequentially; Vitest cannot coordinate a separately launched docs build.
 
+## Group evaluation completion
+
+`scripts/e2e-group-busy-review.mjs` v3 ends an episode early only after an output or exposed
+revocation, completed interventions, settled responsibility, and 12 seconds of idle, stable
+usage. `scripts/e2e-group-responsibility.mjs` reads the isolated loopback Profile's existing
+database without writing: the acting Bot's original Admission and every episode Bot's
+observed or snoozed Admission must be resolved or ignored. Unopened silent peer copies do
+not owe work. Use fresh Bots per episode; the reader deliberately includes their work across
+Channels, including prelude and DM work. Missing source facts or read errors fail collection
+instead of implying an empty Inbox. The retained pending list is bounded to 100 entries;
+the count and completion decision include all entries.
+
+Keep the 240-second logical outcome cutoff separate from actual stop and final usage
+settlement. A reply before cutoff can be correct while accounting remains censored because
+the original request is still snoozed. Conversely, resolved Admissions do not prove semantic
+completion: the reviewer must read the full Session, Tools and conversations. Preserve older
+frozen cohorts and report any unobserved future cost; never silently replace their protocol
+or treat a preparation reply as the final task outcome.
+
 ## CI test plan
 
-The `verify` workflow runs lint, format, typecheck and build on every pull request. Tests and the docs site build run only where `scripts/ci-plan.mjs` says the change can reach them:
+The `verify` workflow runs lint, format, workspace typecheck (including mobile) and repository build on every pull request. `scripts/ci-plan.mjs` selects tests, the docs site build, and mobile verification independently:
 
 - **Full**: pushes to `main`, the nightly schedule, manual dispatch, the `ci:full` label, and any pull request that changes a full-run input below. The suite runs in parallel shards.
-- **Affected**: every other pull request runs `vitest related` on its changed files, plus every test-area file that names a changed path as a string (for example a fixture, migration, workflow or script read with `fs` or run as a subprocess) and the import closure of such a named script.
+- **Affected**: every other pull request uses Vitest related-test selection on its changed files, plus every test-area file that names a changed path as a string (for example a fixture, migration, workflow or script read with `fs` or run as a subprocess) and the import closure of such a named script.
 - **None**: a pull request whose changed paths cannot reach any test, such as screenshots, change fragments and prose.
+
+The `mobile-export` job runs Expo Doctor and both iOS/Android bundle exports only for mobile app, config, resource or native-module changes, transitive shared imports, or full-run configuration inputs. The existing Babel parser reads JavaScript/TypeScript imports, re-exports and literal `require` calls; the planner follows relative paths and platform variants from mobile source and config; workspace package imports conservatively include the package. Mobile tests, store copy and prose alone do not trigger bundle exports. The workspace typecheck and related tests still cover them. Unknown paths, incomplete diffs, removed/renamed shared code, or imports that cannot be traced safely retain mobile verification. Main pushes, nightly/manual/release verification and `ci:full` also retain it. The plan summary explains each mobile decision. Both platforms stay in one Expo invocation because their work already overlaps. Bundle exports do not replace native compilation or device QA.
+
+The `perf-budget` job launches an isolated Host, seeds a 600-message Group and runs `scripts/perf-idle-timeline.mjs` against [`scripts/perf-budgets/timeline.json`](../../scripts/perf-budgets/timeline.json). It runs when a pull request changes Client source (`packages/client/src/`), the performance scripts or budgets, or the workflow, and on every full run. Structure budgets (mounted messages, DOM nodes, heap, scroll jumps, blank gaps, page errors) fail the job; timing budgets only warn, because shared runners are noisy. The run makes no model calls; a placeholder `DEEPSEEK_API_KEY` only lets the Client open Bot mode. The summary, the budget result and a page screenshot on failure are uploaded as the `timeline-perf` artifact. See [performance observation and verification](ax-performance.md).
+
+The optional `mobile-native-ios` job runs only when a manual `verify.yml` dispatch sets `ios_hardware_send_tests=true`; its default is false, including pull requests, main, schedules and release verification. It uses the standard `xcode-27` runner with read-only repository access and no account, signing or release credentials. CNG enables only the local HardwareSend test specification. The independent Pods test-host scheme first proves ordinary command delivery, then exercises the two composition/focus regressions without building the Tobs app. The aggregate requires this job only when selected. Artifacts retain only synthetic test logs/results and scheme/simulator metadata for seven days; they do not include DerivedData, Pods, app profiles or real user data. See [HardwareSend](../../apps/mobile/modules/hardware-send/README.md#ios-composition-regression-target) for the test boundary and remaining device checks.
+
+For affected tests, `scripts/ci-affected.mjs` asks the pinned Vitest dependency graph for the exact test files once. Zero files finish successfully; fewer than 60 run on that same planning runner. The planner installs the frozen dependencies once for both Babel and Vitest. Selections of 60 or more files run in three deterministic, disjoint shards on separate runners. Shards execute exact Vitest test specifications, reject missing files, and fail on incomplete runs or test errors. The docs-site test stays in its separate job. The threshold limits duplicated checkout/install overhead on small PRs; file-count balancing does not promise equal execution time.
+
+The required aggregate check keeps its existing name. Planned skips are accepted; selected jobs must succeed, including the planning job and any dispatched affected shards. Failures and cancellations block the check. Every job uses the frozen workspace lockfile and pinned toolchain when installing dependencies.
 
 The docs site build test (`apps/docs/test/changelog-public-surfaces.test.ts`) runs in its own job: on full runs, when a changed path is a docs site input below, when it is imported by `apps/docs/astro.config.ts`, `scripts/sync-docs.mjs` or `scripts/sync-slides.mjs`, or when the test names it.
 
@@ -20,62 +49,79 @@ Run `node scripts/ci-plan.mjs --base origin/main` to print the plan and the exac
 
 <!-- BEGIN generated by scripts/ci-plan.mjs -->
 
-| Path                                                                                                      | Pull request runs   | Docs site | Why                                                          |
-| --------------------------------------------------------------------------------------------------------- | ------------------- | --------- | ------------------------------------------------------------ |
-| `package.json`                                                                                            | Full suite          | Yes       | Workspace manifest                                           |
-| `*/*/package.json`                                                                                        | Full suite          | Yes       | Package manifests                                            |
-| `pnpm-lock.yaml`                                                                                          | Full suite          | Yes       | Lockfile                                                     |
-| `pnpm-workspace.yaml`                                                                                     | Full suite          | Yes       | Workspace layout and catalog                                 |
-| `patches/**`                                                                                              | Full suite          | Yes       | Dependency patches                                           |
-| `.node-version`                                                                                           | Full suite          | Yes       | Node version                                                 |
-| `vitest.config.ts`                                                                                        | Full suite          | Yes       | Test runner config                                           |
-| `tsconfig.json`                                                                                           | Full suite          | Yes       | Root TypeScript config                                       |
-| `*/*/tsconfig.json`                                                                                       | Full suite          | Yes       | Package TypeScript configs                                   |
-| `tsdown*.config.ts`                                                                                       | Full suite          | Yes       | Bundle configs                                               |
-| `scripts/stylex-plugin.mjs`                                                                               | Full suite          | Yes       | StyleX transform used by every test                          |
-| `.github/workflows/verify.yml`                                                                            | Full suite          | Yes       | The verify workflow itself                                   |
-| `scripts/ci-plan.mjs`                                                                                     | Full suite          | Yes       | This test plan                                               |
-| `packages/core/src/**`                                                                                    | Related tests       | Yes       | Core source; the docs site also reads it for reference pages |
-| `packages/*/src/**`                                                                                       | Related tests       |           | Package source                                               |
-| `packages/*/test/**`                                                                                      | Related tests       |           | Package tests and helpers                                    |
-| `packages/*/lib/**`                                                                                       | Related tests       |           | Committed client bundles read by stylesheet tests            |
-| `packages/*/extension/**`                                                                                 | Related tests       |           | Browser extension sources                                    |
-| `packages/*/profile-extension/**`                                                                         | Related tests       |           | Browser profile extension sources                            |
-| `packages/*/assets/**`                                                                                    | Related tests       |           | Package assets                                               |
-| `packages/*/migrations/**`                                                                                | Related tests       |           | D1 migrations read by worker test harnesses                  |
-| `packages/*/scripts/**`                                                                                   | Related tests       |           | Package scripts                                              |
-| `packages/*/*.yml`                                                                                        | Related tests       |           | Product patches                                              |
-| `packages/*/wrangler.jsonc`                                                                               | Related tests       |           | Worker configs                                               |
-| `packages/*/{README.md,THIRD_PARTY_NOTICES.md,LICENSE,.gitignore}`                                        | No tests of its own |           | Package prose and ignores                                    |
-| `apps/docs/test/**`                                                                                       | Related tests       | Yes       | Docs tests and fixtures                                      |
-| `apps/docs/**`                                                                                            | Related tests       | Yes       | Docs site                                                    |
-| `apps/presentations/**`                                                                                   | No tests of its own | Yes       | Slides embedded in the docs site                             |
-| `apps/mobile/{app,src,test,scripts}/**`                                                                   | Related tests       |           | Mobile app source, tests and scripts                         |
-| `apps/mobile/{app.json,eas.json,metro.config.js}`                                                         | Related tests       |           | Mobile app config                                            |
-| `apps/mobile/locales/**`                                                                                  | Related tests       |           | Translated iOS permission prompts                            |
-| `apps/mobile/assets/**`                                                                                   | Related tests       |           | Mobile app icons and bundled images                          |
-| `apps/mobile/.maestro/**`                                                                                 | No tests of its own |           | Maestro flows, run on a Mac simulator                        |
-| `apps/mobile/{README.md,AGENTS.md,CLAUDE.md,DESIGN.md,.gitignore}`                                        | No tests of its own |           | Mobile app prose, agent rules and ignores                    |
-| `scripts/test/**`                                                                                         | Related tests       |           | Script tests                                                 |
-| `scripts/fixtures/**`                                                                                     | Related tests       |           | Script test fixtures                                         |
-| `scripts/product-provider/**`                                                                             | Related tests       |           | Product provider scripts                                     |
-| `scripts/*`                                                                                               | Related tests       |           | Repository scripts                                           |
-| `docs/**`                                                                                                 | No tests of its own | Yes       | Documentation synced into the docs site                      |
-| `{CHANGELOG,CHANGELOG.zh,CONTEXT,CONTEXT.zh}.md`                                                          | No tests of its own | Yes       | Release Ledger and glossary pages                            |
-| `.agents/skills/dsh-plugin-dev/**`                                                                        | No tests of its own | Yes       | DSH skill pages on the docs site                             |
-| `.agents/**`                                                                                              | No tests of its own |           | Locked agent skills                                          |
-| `agent/**`                                                                                                | No tests of its own |           | Agent skill mirrors                                          |
-| `.claude/**`                                                                                              | No tests of its own |           | Claude Code settings and skills                              |
-| `.humanlayer/**`                                                                                          | No tests of its own |           | PR description drafts                                        |
-| `changes/**`                                                                                              | No tests of its own |           | Change fragments, checked by lint                            |
-| `.github/pr-screenshots/**`                                                                               | No tests of its own |           | PR evidence images                                           |
-| `.github/pr-assets/**`                                                                                    | No tests of its own |           | PR evidence assets                                           |
-| `.github/{ISSUE_TEMPLATE,DISCUSSION_TEMPLATE}/**`                                                         | No tests of its own |           | Issue and discussion templates                               |
-| `.github/pull_request_template.md`                                                                        | No tests of its own |           | PR template                                                  |
-| `.github/workflows/*.yml`                                                                                 | No tests of its own |           | Release workflows                                            |
-| `{prototype,dsh_research,design}/**`                                                                      | No tests of its own |           | Prototypes and research notes                                |
-| `*.md`                                                                                                    | No tests of its own |           | Root prose                                                   |
-| `{LICENSE,.gitignore,.gitattributes,.oxlintrc.json,.oxfmtrc.json,skills-lock.json,vps.local.example.env}` | No tests of its own |           | Root metadata; lint and format always run                    |
+| Path                                                                                                                                                      | Pull request runs   | Docs site | Why                                                                             |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | --------- | ------------------------------------------------------------------------------- |
+| `package.json`                                                                                                                                            | Full suite          | Yes       | Workspace manifest                                                              |
+| `*/*/package.json`                                                                                                                                        | Full suite          | Yes       | Package manifests                                                               |
+| `pnpm-lock.yaml`                                                                                                                                          | Full suite          | Yes       | Lockfile                                                                        |
+| `pnpm-workspace.yaml`                                                                                                                                     | Full suite          | Yes       | Workspace layout and catalog                                                    |
+| `patches/**`                                                                                                                                              | Full suite          | Yes       | Dependency patches                                                              |
+| `.node-version`                                                                                                                                           | Full suite          | Yes       | Node version                                                                    |
+| `vitest.config.ts`                                                                                                                                        | Full suite          | Yes       | Test runner config                                                              |
+| `tsconfig.json`                                                                                                                                           | Full suite          | Yes       | Root TypeScript config                                                          |
+| `*/*/tsconfig.json`                                                                                                                                       | Full suite          | Yes       | Package TypeScript configs                                                      |
+| `tsdown*.config.ts`                                                                                                                                       | Full suite          | Yes       | Bundle configs                                                                  |
+| `scripts/stylex-plugin.mjs`                                                                                                                               | Full suite          | Yes       | StyleX transform used by every test                                             |
+| `.github/workflows/verify.yml`                                                                                                                            | Full suite          | Yes       | The verify workflow itself                                                      |
+| `.github/workflows/npm-release.yml`                                                                                                                       | Full suite          | Yes       | Release verification and package gates                                          |
+| `scripts/published-product-provider.json`                                                                                                                 | Full suite          | Yes       | Published Provider reuse qualification                                          |
+| `scripts/ci-plan.mjs`                                                                                                                                     | Full suite          | Yes       | This test plan                                                                  |
+| `scripts/ci-affected.mjs`                                                                                                                                 | Full suite          | Yes       | Affected test selection and execution                                           |
+| `packages/core/src/**`                                                                                                                                    | Related tests       | Yes       | Core source; the docs site also reads it for reference pages                    |
+| `packages/*/src/**`                                                                                                                                       | Related tests       |           | Package source                                                                  |
+| `packages/core/test/fixtures/profile-backup/**`                                                                                                           | Full suite          | Yes       | Historical backup archives are loaded dynamically by restore and CLI tests      |
+| `packages/core/test/fixtures/memory-images/**`                                                                                                            | Full suite          | Yes       | Binary image fixtures are loaded dynamically by Host, CLI and mobile tests      |
+| `packages/*/test/**`                                                                                                                                      | Related tests       |           | Package tests and helpers                                                       |
+| `packages/*/lib/**`                                                                                                                                       | Related tests       |           | Committed client bundles read by stylesheet tests                               |
+| `packages/*/extension/**`                                                                                                                                 | Related tests       |           | Browser extension sources                                                       |
+| `packages/*/profile-extension/**`                                                                                                                         | Related tests       |           | Browser profile extension sources                                               |
+| `packages/*/assets/**`                                                                                                                                    | Related tests       |           | Package assets                                                                  |
+| `packages/computer/native/**`                                                                                                                             | Related tests       |           | Windows Local Computer media helper source and protocol fixtures                |
+| `packages/*/migrations/**`                                                                                                                                | Related tests       |           | D1 migrations read by worker test harnesses                                     |
+| `packages/client/appearance-palette.LICENSE`                                                                                                              | No tests of its own |           | License notice for the scoped upstream palette                                  |
+| `packages/*/scripts/**`                                                                                                                                   | Related tests       |           | Package scripts                                                                 |
+| `packages/cloudflared/*/package.json`                                                                                                                     | Related tests       |           | Pinned cloudflared platform package scaffolds read by the release packer        |
+| `packages/*/*.yml`                                                                                                                                        | Related tests       |           | Product patches                                                                 |
+| `packages/*/wrangler.jsonc`                                                                                                                               | Related tests       |           | Worker configs                                                                  |
+| `packages/*/{README.md,THIRD_PARTY_NOTICES.md,LICENSE,.gitignore}`                                                                                        | No tests of its own |           | Package prose and ignores                                                       |
+| `apps/docs/test/**`                                                                                                                                       | Related tests       | Yes       | Docs tests and fixtures                                                         |
+| `apps/docs/**`                                                                                                                                            | Related tests       | Yes       | Docs site                                                                       |
+| `apps/presentations/**`                                                                                                                                   | No tests of its own | Yes       | Slides embedded in the docs site                                                |
+| `apps/mobile/{app,src,test,scripts}/**`                                                                                                                   | Related tests       |           | Mobile app source, tests and scripts                                            |
+| `apps/mobile/modules/**/app.plugin.js`                                                                                                                    | Related tests       |           | Local native config plugins                                                     |
+| `apps/mobile/modules/**/ios/**`                                                                                                                           | No tests of its own |           | Apple Expo adapters, compiled and exercised in the reserved Mac native QA batch |
+| `apps/mobile/modules/**`                                                                                                                                  | No tests of its own |           | Local Expo modules, checked by Android native unit tests                        |
+| `apps/mobile/targets/**`                                                                                                                                  | No tests of its own |           | Apple extension targets, built on a Mac by Expo prebuild                        |
+| `apps/mobile/{app.json,app.config.js,eas.json,metro.config.js}`                                                                                           | Related tests       |           | Mobile app config                                                               |
+| `apps/mobile/with-*.js`                                                                                                                                   | Related tests       |           | Mobile native config plugins                                                    |
+| `apps/mobile/locales/**`                                                                                                                                  | Related tests       |           | Translated iOS permission prompts                                               |
+| `apps/mobile/assets/**`                                                                                                                                   | Related tests       |           | Mobile app icons and bundled images                                             |
+| `apps/mobile/.maestro/**`                                                                                                                                 | No tests of its own |           | Maestro flows, run on a Mac simulator                                           |
+| `apps/mobile/store/**`                                                                                                                                    | No tests of its own |           | Store listing answers, entered in the store consoles                            |
+| `apps/mobile/{README.md,AGENTS.md,CLAUDE.md,DESIGN.md,OVERLAYS.md,OVERLAYS.zh.md,.gitignore}`                                                             | No tests of its own |           | Mobile app prose, agent rules and ignores                                       |
+| `scripts/test/**`                                                                                                                                         | Related tests       |           | Script tests                                                                    |
+| `.github/workflows/readme-status.yml`                                                                                                                     | Related tests       |           | README status collection and publication                                        |
+| `docs/assets/readme/pixel/source/**`                                                                                                                      | Related tests       |           | README renderer source geometry and licenses                                    |
+| `scripts/fixtures/**`                                                                                                                                     | Related tests       |           | Script test fixtures                                                            |
+| `scripts/product-provider/**`                                                                                                                             | Related tests       |           | Product provider scripts                                                        |
+| `scripts/perf-budgets/**`                                                                                                                                 | Related tests       |           | Performance budgets, checked by the timeline budget job                         |
+| `scripts/*`                                                                                                                                               | Related tests       |           | Repository scripts                                                              |
+| `docs/**`                                                                                                                                                 | No tests of its own | Yes       | Documentation synced into the docs site                                         |
+| `{CHANGELOG,CHANGELOG.zh,CONTEXT,CONTEXT.zh}.md`                                                                                                          | No tests of its own | Yes       | Release Ledger and glossary pages                                               |
+| `.agents/skills/dsh-plugin-dev/**`                                                                                                                        | No tests of its own | Yes       | DSH skill pages on the docs site                                                |
+| `.agents/**`                                                                                                                                              | No tests of its own |           | Locked agent skills                                                             |
+| `agent/**`                                                                                                                                                | No tests of its own |           | Agent skill mirrors                                                             |
+| `.claude/**`                                                                                                                                              | No tests of its own |           | Claude Code settings and skills                                                 |
+| `.humanlayer/**`                                                                                                                                          | No tests of its own |           | PR description drafts                                                           |
+| `changes/**`                                                                                                                                              | No tests of its own |           | Change fragments, checked by lint                                               |
+| `.github/pr-screenshots/**`                                                                                                                               | No tests of its own |           | PR evidence images                                                              |
+| `.github/pr-assets/**`                                                                                                                                    | No tests of its own |           | PR evidence assets                                                              |
+| `.github/{ISSUE_TEMPLATE,DISCUSSION_TEMPLATE}/**`                                                                                                         | No tests of its own |           | Issue and discussion templates                                                  |
+| `.github/pull_request_template.md`                                                                                                                        | No tests of its own |           | PR template                                                                     |
+| `.github/workflows/*.yml`                                                                                                                                 | No tests of its own |           | Release workflows                                                               |
+| `{prototype,dsh_research,design}/**`                                                                                                                      | No tests of its own |           | Prototypes and research notes                                                   |
+| `*.md`                                                                                                                                                    | No tests of its own |           | Root prose                                                                      |
+| `{LICENSE,.lintstagedrc.json,.husky/pre-commit,.gitignore,.easignore,.gitattributes,.oxlintrc.json,.oxfmtrc.json,skills-lock.json,vps.local.example.env}` | No tests of its own |           | Root metadata; lint and format always run                                       |
 
 <!-- END generated by scripts/ci-plan.mjs -->
 
@@ -134,3 +180,30 @@ For `pnpm slides:build`, each deck supplies `apps/presentations/slides/<id>/inde
 - `node scripts/e2e-mobile-sim.mjs` (Mac) installs the phone app on its own erased iOS Simulator (rebuilding only when the native fingerprint changes), pairs it with two isolated Hosts by deep link, switches computers and opens notifications delivered with `xcrun simctl push`, including a real Tool approval (needs a model; `--no-approval` skips it). See [the mobile README](../../apps/mobile/README.md#drive-it-on-the-ios-simulator-mac).
 - The other `scripts/e2e-*.mjs` files are issue-specific installed-profile regressions for Channel, Group, Assignment, roster, composer, and tool approval behavior. Their associated Issue and the [development loop](../client-bridge.md) define prerequisites. `scripts/e2e-harvest.mjs` boots its own Profile and requires a real model; `--keep` leaves the isolated home for inspection.
 - `scripts/probe-computer-*.mjs` exercise Computer export and shared viewing paths against the installed Host. Use isolated Profiles and review the corresponding Issues [#154](https://github.com/BotHarness/BotHarness/issues/154) and [#150](https://github.com/BotHarness/BotHarness/issues/150) before running them.
+
+### Release verification reuse
+
+Main verification is isolated by source commit, so a later main push cannot cancel the commit
+selected for release. PR verification still cancels obsolete runs for the same PR. The concurrency
+key also includes the caller workflow, keeping normal verification separate from release fallback.
+
+The npm release workflow checks tag ancestry and looks for a successful `verify.yml` push run on
+that exact SHA. It waits for an existing run, then calls the same reusable verification workflow if
+no success is available. Tag-push context selects the full three-shard test plan, including the
+normal static, docs, mobile and Host smoke gates. Failed or cancelled verification blocks packing;
+a skipped fallback permits packing only when exact-SHA reuse succeeded.
+
+The package build, frozen release plan, supported-DSH fresh installation checks and Human
+`npm-release` environment approval remain required. Reusing source verification never substitutes
+for qualification of the exact tarballs that will be published.
+
+### Published Provider reuse
+
+Product preparation uses `scripts/published-product-provider.json` to verify an already
+published Provider before reusing its exact registry archive. It records the independently
+verified package integrity, upstream source, runtime file digest/count and qualification run.
+After publishing a new Provider with the product, refresh this record from the frozen inventory
+and registry readback before preparing later product releases. A different runtime or registry
+archive still fails closed; an unpublished Provider continues through first-publication preparation.
+The historical `scripts/provider-release-plan.json` belongs to the separate standalone Provider
+publication workflow and is not the product's reuse authority.

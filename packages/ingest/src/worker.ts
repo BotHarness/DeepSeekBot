@@ -1,10 +1,12 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { normalizeCaptureBody } from './taxonomy.js';
 
 export const API_HOST = 'us.i.posthog.com';
 export const ASSET_HOST = 'us-assets.i.posthog.com';
 const ALLOWED_ORIGIN =
-  /^(https:\/\/deepseekbot\.(?:app|dev|botharness\.ai)|https:\/\/[a-z0-9-]+-deepseekbot-site\.[a-z0-9-]+\.workers\.dev|http:\/\/localhost:\d+)$/;
+  /^(https:\/\/tobs\.app|https:\/\/deepseekbot\.(?:app|dev|botharness\.ai)|https:\/\/[a-z0-9-]+-deepseekbot-site\.[a-z0-9-]+\.workers\.dev|http:\/\/localhost:\d+)$/;
+const CAPTURE_PATHS = /^\/(?:batch|e|capture|track|i\/v0\/e)\/?$/u;
 const DROPPED = [
   'cookie',
   'host',
@@ -26,9 +28,7 @@ app.use(
   }),
 );
 
-app.get('/', (c) =>
-  c.text('BotHarness telemetry ingest. See https://deepseekbot.botharness.ai/privacy/\n'),
-);
+app.get('/', (c) => c.text('BotHarness telemetry ingest. See https://tobs.app/privacy/\n'));
 
 app.all('*', async (c) => {
   const url = new URL(c.req.url);
@@ -44,10 +44,25 @@ app.all('*', async (c) => {
   else headers.delete('x-forwarded-for');
 
   const method = c.req.method;
+  let body: BodyInit | null =
+    method === 'GET' || method === 'HEAD' ? null : await c.req.arrayBuffer();
+  if (
+    body !== null &&
+    method === 'POST' &&
+    CAPTURE_PATHS.test(url.pathname) &&
+    !url.searchParams.has('compression') &&
+    !headers.has('content-encoding')
+  ) {
+    const normalized = normalizeCaptureBody(new TextDecoder().decode(body));
+    if (normalized !== undefined) {
+      body = normalized;
+      headers.delete('content-length');
+    }
+  }
   const response = await fetch(url, {
     method,
     headers,
-    body: method === 'GET' || method === 'HEAD' ? null : await c.req.arrayBuffer(),
+    body,
     redirect: 'manual',
   });
   const out = new Response(response.body, response);

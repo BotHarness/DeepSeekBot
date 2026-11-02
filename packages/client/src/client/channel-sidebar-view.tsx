@@ -8,7 +8,7 @@ import {
 } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
-import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 
 import type { BridgeActions } from './actions.js';
 import type {
@@ -42,6 +42,7 @@ import { sidebarStyles } from './channel-sidebar-styles.js';
 import { hooked } from './ds/hooked.js';
 import { PanelHeader } from './ds/panel-header.js';
 import { space } from './ds/tokens.stylex.js';
+import { EntryPart, useStableProps } from './entry-part.js';
 
 const styles = stylex.create({
   entry: { flexGrow: 1, flexShrink: 1, flexBasis: '0%', minWidth: 0 },
@@ -177,7 +178,7 @@ export function ChannelSidebarEntrySection({
   const [expandable, setExpandable] = useState(true);
   const expandableRef = useRef(expandable);
   const shown = (preview ?? expanded) && !editing && !hidden && expandable;
-  const props = {
+  const props = useStableProps({
     ...entryProps,
     refreshRevision,
     requestRefresh: () => setRefreshRevision((value) => value + 1),
@@ -192,15 +193,19 @@ export function ChannelSidebarEntrySection({
       setExpandable(next);
       if (!next && expanded) onToggle();
     },
-  };
+  });
   return (
     <section data-sidebar-entry={entry.id} {...stylex.props(styles.entry, fill && styles.fill)}>
       <PanelHeader
         icon={<ChannelSidebarIcon name={entry.icon} />}
         label={HeaderTabs === undefined ? entry.label : (entry.headerLabel ?? entry.label)}
-        badge={Badge === undefined ? undefined : <Badge {...props} />}
+        badge={Badge === undefined ? undefined : <EntryPart part={Badge} props={props} />}
         tabs={HeaderTabs === undefined ? undefined : <HeaderTabs {...props} />}
-        action={HeaderAction === undefined || editing ? undefined : <HeaderAction {...props} />}
+        action={
+          HeaderAction === undefined || editing ? undefined : (
+            <EntryPart part={HeaderAction} props={props} />
+          )
+        }
         disclosure={
           collapsible
             ? {
@@ -222,7 +227,7 @@ export function ChannelSidebarEntrySection({
           data-sidebar-entry-body=""
           {...stylex.props(styles.body, fill && styles.fillBody)}
         >
-          <entry.component {...props} />
+          <EntryPart part={entry.component} props={props} />
         </div>
       ) : null}
     </section>
@@ -641,6 +646,7 @@ export function ChannelSidebar({
   actions,
   controller,
   t,
+  onMentionBot,
   onMemoryCommitSelect,
   selectedMemoryCommitSha,
   onMemoryFileSelect,
@@ -653,6 +659,7 @@ export function ChannelSidebar({
   actions: BridgeActions;
   controller: ChannelSidebarController;
   t: BotHarnessTranslate;
+  onMentionBot?: ChannelSidebarEntryProps['onMentionBot'];
   onMemoryCommitSelect?: ((sha: string) => void) | undefined;
   selectedMemoryCommitSha?: string | undefined;
   onMemoryFileSelect?: ((path: string) => void) | undefined;
@@ -674,11 +681,6 @@ export function ChannelSidebar({
     () => registry.tabs(scope),
   );
   const selectedBotSlug = context?.botSlug;
-  const inboxMount = useMountedResource<HTMLDivElement>(() => {
-    if (selectedBotSlug === undefined) return;
-    const timer = window.setInterval(() => void actions.refreshBotInbox(selectedBotSlug), 10_000);
-    return () => window.clearInterval(timer);
-  }, [selectedBotSlug, actions]);
   const closeRef = useRef(controller);
   closeRef.current = controller;
   const overlayMount = useMountedResource<HTMLDivElement>(() => {
@@ -704,6 +706,7 @@ export function ChannelSidebar({
           botSlug: selectedBotSlug,
           actions,
           t,
+          onMentionBot,
           onMemoryCommitSelect,
           selectedMemoryCommitSha,
           onMemoryFileSelect,
@@ -711,7 +714,9 @@ export function ChannelSidebar({
           onMemoryWorkingSelect,
           selectedMemoryWorking,
         };
-  const sidebarEntries = entries.filter((entry) => !isChannelSettingsSection(entry));
+  const sidebarEntries = entries.filter(
+    (entry) => entry.id !== 'bot-inbox' && !isChannelSettingsSection(entry),
+  );
   const visibleEntries =
     entryProps === undefined
       ? []
@@ -720,7 +725,6 @@ export function ChannelSidebar({
   const panel = (
     <div
       id="bh-channel-sidebar"
-      ref={inboxMount}
       className={`bh-channel-sidebar${controller.mode === 'overlay' ? ' bh-channel-sidebar-overlay' : ''}`}
       data-bh-tour="channel-sidebar"
       role="complementary"

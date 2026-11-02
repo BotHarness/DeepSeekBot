@@ -1,0 +1,384 @@
+{
+  "date": "2026-10-19",
+  "artifact": "0.0.0-zoom.2268.14",
+  "desktop": "0.2.1-rc.2",
+  "scope": "Actual final installed Desktop. Temporary task-only main/same-origin/cross-origin/native-webview rulers use the real native browser acquire/release and input bridge. Native CUA sends keys; CDP only supplies fixtures/readback, never focus or synthetic input.",
+  "foregroundPrecondition": "First AX attempt left parent focus on Bot Settings and was excluded. Human foregrounded the same existing window. Accepted webview before/minus/plus all had parent active WEBVIEW and guest input hasFocus true.",
+  "rows": [
+    {
+      "stage": "guest-before",
+      "visibility": "visible",
+      "level": 2,
+      "activeParentElement": "s1-guest",
+      "guestId": 3,
+      "guestZoom": 1,
+      "guestInput": "保留输入",
+      "guestHasFocus": true,
+      "frameFocus": [],
+      "mainFixtureInput": "保留 A",
+      "sameOriginFixtureInput": "保留 B"
+    },
+    {
+      "stage": "guest-minus",
+      "visibility": "visible",
+      "level": 1,
+      "activeParentElement": "s1-guest",
+      "guestId": 3,
+      "guestZoom": 1,
+      "guestInput": "保留输入",
+      "guestHasFocus": true,
+      "frameFocus": [],
+      "mainFixtureInput": "保留 A",
+      "sameOriginFixtureInput": "保留 B"
+    },
+    {
+      "stage": "guest-plus",
+      "visibility": "visible",
+      "level": 2,
+      "activeParentElement": "s1-guest",
+      "guestId": 3,
+      "guestZoom": 1,
+      "guestInput": "保留输入",
+      "guestHasFocus": true,
+      "frameFocus": [],
+      "mainFixtureInput": "保留 A",
+      "sameOriginFixtureInput": "保留 B"
+    },
+    {
+      "stage": "cross-minus",
+      "visibility": "hidden",
+      "level": 1,
+      "activeParentElement": "s1-cross",
+      "guestId": 3,
+      "guestZoom": 1,
+      "guestInput": "保留输入",
+      "guestHasFocus": false,
+      "frameFocus": [
+        {
+          "kind": "main",
+          "hasFocus": false,
+          "firstDocumentInput": ""
+        },
+        {
+          "kind": "same-origin",
+          "hasFocus": false,
+          "firstDocumentInput": "保留 B"
+        },
+        {
+          "kind": "cross-origin",
+          "hasFocus": false,
+          "firstDocumentInput": "保留输入"
+        }
+      ],
+      "mainFixtureInput": "保留 A",
+      "sameOriginFixtureInput": "保留 B"
+    },
+    {
+      "stage": "cross-plus",
+      "visibility": "visible",
+      "level": 2,
+      "activeParentElement": "s1-cross",
+      "guestId": 3,
+      "guestZoom": 1,
+      "guestInput": "保留输入",
+      "guestHasFocus": false,
+      "frameFocus": [
+        {
+          "kind": "main",
+          "hasFocus": true,
+          "firstDocumentInput": ""
+        },
+        {
+          "kind": "same-origin",
+          "hasFocus": false,
+          "firstDocumentInput": "保留 B"
+        },
+        {
+          "kind": "cross-origin",
+          "hasFocus": true,
+          "firstDocumentInput": "保留输入"
+        }
+      ],
+      "mainFixtureInput": "保留 A",
+      "sameOriginFixtureInput": "保留 B"
+    },
+    {
+      "stage": "same-minus",
+      "visibility": "visible",
+      "level": 1,
+      "activeParentElement": "s1-local",
+      "guestId": 3,
+      "guestZoom": 1,
+      "guestInput": "保留输入",
+      "guestHasFocus": false,
+      "frameFocus": [
+        {
+          "kind": "main",
+          "hasFocus": true,
+          "firstDocumentInput": ""
+        },
+        {
+          "kind": "same-origin",
+          "hasFocus": true,
+          "firstDocumentInput": "保留 B"
+        },
+        {
+          "kind": "cross-origin",
+          "hasFocus": false,
+          "firstDocumentInput": "保留输入"
+        }
+      ],
+      "mainFixtureInput": "保留 A",
+      "sameOriginFixtureInput": "保留 B"
+    },
+    {
+      "stage": "main-plus",
+      "visibility": "visible",
+      "level": 2,
+      "activeParentElement": "s1-main",
+      "guestId": 3,
+      "guestZoom": 1,
+      "guestInput": "保留输入",
+      "guestHasFocus": false,
+      "frameFocus": [
+        {
+          "kind": "main",
+          "hasFocus": true,
+          "firstDocumentInput": ""
+        },
+        {
+          "kind": "same-origin",
+          "hasFocus": false,
+          "firstDocumentInput": "保留 B"
+        },
+        {
+          "kind": "cross-origin",
+          "hasFocus": false,
+          "firstDocumentInput": "保留输入"
+        }
+      ],
+      "mainFixtureInput": "保留 A",
+      "sameOriginFixtureInput": "保留 B"
+    }
+  ],
+  "accepted": [
+    "WEBVIEW:144% ->120% ->144% on one native key delivery each; same guestId3 and input, guest zoom1 unchanged",
+    "Cross-origin iframe: active iframe, focused frame readback and a single increase120% ->144%; the earlier decrease was read after window occlusion and has narrower evidence",
+    "Same-origin iframe: focused frame, one decrease144% ->120%, retained input",
+    "Main input: focused main document, one increase120% ->144%, retained input",
+    "Real window screenshot contains same-origin/cross-origin/native guest rulers and retained test inputs",
+    "Browser/Computer target menus and Panel context menu at144% stay inside the viewport; menu Escape retains the owning dialog or returns Panel-header focus"
+  ],
+  "nativeMenuCurrent": {
+    "productVersion": "0.0.0-zoom.2268.14",
+    "browser": "opened target choices; Escape retained Bot Settings and returned to target trigger; no target or permission changed",
+    "computer": "opened target choices; Escape retained Bot Settings and returned to target trigger; permission switch stayed off",
+    "panel": "opened Home context menu; Escape returned to same header"
+  },
+  "preservedLimits": [
+    "CUA Equal can include Shift: prior physical plain Cmd+= remains the ordinary-key proof",
+    "Native Minimize button and menu actions did not establish document-hidden precondition in this attempt; no new minimize/restore pass is claimed",
+    "Earlier Human hidden-created webview ordinary foreground recovery remains its original tested-tuple proof, not newly measured here",
+    "No guest reload/recreation/fullscreen paint workaround was added; fixture was disposed through its owned release after the probe",
+    "The console cohort contains native /plugins/events net::ERR_FAILED entries; no page exception was observed, but the complete probe is not labeled error-free",
+    "Arbitrary remote sites, every native tooltip and Windows/Linux are not qualified by these representative fixtures"
+  ],
+  "remainingMacOS": [
+    "Fixed-geometry native minimize/occlusion and hidden-created guest matrix on the final artifact; tool Minimize actions did not establish hidden state",
+    "Native tooltip positioning regression found and being corrected in #2299; new tooltip artifact acceptance required"
+  ],
+  "screenshots": [
+    "final-embedded-focus.png",
+    "final-browser-menu-144.png",
+    "final-computer-menu-144.png",
+    "final-panel-menu-144.png",
+    "final-hide-restore-144.png"
+  ],
+  "nativeHideRestore": {
+    "artifact": "0.0.0-zoom.2268.14",
+    "action": "Native Cmd+H, then native AX Raise of the same window after about 8 seconds",
+    "before": {
+      "visibility": "visible",
+      "zoom": "1.44",
+      "dialogs": 0,
+      "active": {
+        "id": "",
+        "tag": "DIV",
+        "aria": null
+      },
+      "trace": [
+        {
+          "event": "dom-ready",
+          "visibility": "visible"
+        },
+        {
+          "event": "dom-ready",
+          "visibility": "visible"
+        }
+      ],
+      "main": "保留 A",
+      "sameOrigin": "保留 B",
+      "guest": {
+        "id": 4,
+        "url": "http://127.0.0.1:39458/zoom-fixture.html",
+        "zoom": 1,
+        "rect": {
+          "x": 807.859375,
+          "y": 641.5546875,
+          "width": 388.796875,
+          "height": 144,
+          "top": 641.5546875,
+          "right": 1196.65625,
+          "bottom": 785.5546875,
+          "left": 807.859375
+        },
+        "state": {
+          "value": "保留输入",
+          "focus": "BODY",
+          "hasFocus": false,
+          "visibility": "visible"
+        }
+      }
+    },
+    "hidden": {
+      "visibility": "hidden",
+      "zoom": "1.44",
+      "dialogs": 0,
+      "active": {
+        "id": "",
+        "tag": "DIV",
+        "aria": null
+      },
+      "trace": [
+        {
+          "event": "dom-ready",
+          "visibility": "visible"
+        },
+        {
+          "event": "dom-ready",
+          "visibility": "visible"
+        }
+      ],
+      "main": "保留 A",
+      "sameOrigin": "保留 B",
+      "guest": {
+        "id": 4,
+        "url": "http://127.0.0.1:39458/zoom-fixture.html",
+        "zoom": 1,
+        "rect": {
+          "x": 807.859375,
+          "y": 641.5546875,
+          "width": 388.796875,
+          "height": 144,
+          "top": 641.5546875,
+          "right": 1196.65625,
+          "bottom": 785.5546875,
+          "left": 807.859375
+        },
+        "state": {
+          "value": "保留输入",
+          "focus": "BODY",
+          "hasFocus": false,
+          "visibility": "hidden"
+        }
+      }
+    },
+    "after": {
+      "visibility": "visible",
+      "zoom": "1.44",
+      "dialogs": 0,
+      "active": {
+        "id": "",
+        "tag": "DIV",
+        "aria": null
+      },
+      "trace": [
+        {
+          "event": "dom-ready",
+          "visibility": "visible"
+        },
+        {
+          "event": "dom-ready",
+          "visibility": "visible"
+        }
+      ],
+      "main": "保留 A",
+      "sameOrigin": "保留 B",
+      "guest": {
+        "id": 4,
+        "url": "http://127.0.0.1:39458/zoom-fixture.html",
+        "zoom": 1,
+        "rect": {
+          "x": 807.859375,
+          "y": 641.5546875,
+          "width": 388.796875,
+          "height": 144,
+          "top": 641.5546875,
+          "right": 1196.65625,
+          "bottom": 785.5546875,
+          "left": 807.859375
+        },
+        "state": {
+          "value": "保留输入",
+          "focus": "BODY",
+          "hasFocus": false,
+          "visibility": "visible"
+        }
+      }
+    },
+    "result": "Visible -> hidden -> visible, unchanged guest id4, URL, two original dom-ready events, input, zoom1 and exact guest screen geometry; complete-window screenshot shows RGB ruler and input after restoration. No reload/recreation.",
+    "screenshot": "final-hide-restore-144.png"
+  },
+  "nativePluginEvents": {
+    "route": "native dsh-app /plugins/events",
+    "sequence": [
+      {
+        "at": "2026-10-19T13:24:36.548Z",
+        "kind": "request",
+        "id": "46122.632"
+      },
+      {
+        "at": "2026-10-19T13:24:36.555Z",
+        "kind": "response",
+        "id": "46122.632",
+        "status": 200,
+        "mime": "text/event-stream"
+      },
+      {
+        "at": "2026-10-19T13:24:36.555Z",
+        "kind": "sse",
+        "id": "46122.632",
+        "type": "graph",
+        "bytes": 31670
+      },
+      {
+        "at": "2026-10-19T13:29:37.688Z",
+        "kind": "failed",
+        "id": "46122.632",
+        "error": "net::ERR_FAILED",
+        "canceled": false
+      },
+      {
+        "at": "2026-10-19T13:29:40.690Z",
+        "kind": "request",
+        "id": "46122.750"
+      },
+      {
+        "at": "2026-10-19T13:29:40.695Z",
+        "kind": "response",
+        "id": "46122.750",
+        "status": 200,
+        "mime": "text/event-stream"
+      },
+      {
+        "at": "2026-10-19T13:29:40.695Z",
+        "kind": "sse",
+        "id": "46122.750",
+        "type": "graph",
+        "bytes": 31670
+      }
+    ],
+    "observation": "HTTP200 + graph, net::ERR_FAILED after301.1s, automatic EventSource retry3s later, HTTP200 + same-size full graph; no renderer reload. Exact underlying timeout source remains unconfirmed.",
+    "upstreamSource": "Shipped Desktop forwardWebRequest uses Node fetch; shipped dsh-client-hmr uses EventSource with native reconnect. No upstream changes."
+  }
+}

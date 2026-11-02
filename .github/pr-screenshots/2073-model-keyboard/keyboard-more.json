@@ -1,0 +1,57 @@
+[
+  {
+    "label": "keyboard-host-name",
+    "result": "pass",
+    "mode": "form-keyboard",
+    "proof": [
+      {
+        "step": "focused-form-clearance",
+        "keyboardTop": 1457,
+        "inputBounds": [52, 1086, 1168, 1242],
+        "actionChecked": false
+      }
+    ]
+  },
+  {
+    "label": "keyboard-routine-title",
+    "result": "pass",
+    "mode": "form-keyboard",
+    "proof": [
+      {
+        "step": "focused-form-clearance",
+        "keyboardTop": 1457,
+        "inputBounds": [52, 665, 1168, 821],
+        "actionChecked": false
+      }
+    ]
+  },
+  {
+    "label": "keyboard-routine-instruction",
+    "result": "pass",
+    "mode": "form-keyboard",
+    "proof": [
+      {
+        "step": "focused-form-clearance",
+        "keyboardTop": 1457,
+        "inputBounds": [52, 1001, 1168, 1313],
+        "actionChecked": false
+      }
+    ]
+  },
+  {
+    "label": "keyboard-chat-final",
+    "result": "pass",
+    "mode": "keyboard",
+    "proof": [
+      {
+        "step": "keyboard-motion",
+        "keyboardTop": 1457,
+        "first": 526,
+        "last": 279,
+        "travel": 247,
+        "intermediate": 13,
+        "maxStep": 60
+      }
+    ]
+  }
+]

@@ -36,6 +36,39 @@ describe('isValidSlug', () => {
 });
 
 describe('createPersonaBotRegistry', () => {
+  it('publishes committed avatar changes and skips unchanged or refused edits', () => {
+    const root = createRoot();
+    let refuse = false;
+    const database = registryDatabase(root, {
+      faultInjector: ({ stage }) => {
+        if (refuse && stage === 'before-commit') throw new Error('write refused');
+      },
+    });
+    const portraits: (string | undefined)[] = [];
+    const registry = createTestRegistry({
+      rootDir: root,
+      database,
+      onAvatarChanged: () => portraits.push(registry.get('ada')?.avatar),
+    });
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    registry.setAppearance('ada', DEFAULT_ILLUSTRATED_RECIPE);
+    const composed = registry.get('ada')!.avatar!;
+    expect(portraits).toEqual([composed]);
+    registry.setAppearance('ada', DEFAULT_ILLUSTRATED_RECIPE);
+    registry.update('ada', { displayName: 'Ada Lovelace' });
+    expect(portraits).toHaveLength(1);
+    registry.update('ada', { avatar: composed });
+    expect(registry.get('ada')?.appearance).toBeUndefined();
+    expect(portraits).toEqual([composed, composed]);
+    registry.update('ada', { avatar: '' });
+    expect(portraits).toEqual([composed, composed, undefined]);
+    registry.update('ada', { avatar: '' });
+    expect(portraits).toHaveLength(3);
+    refuse = true;
+    expect(() => registry.setAppearance('ada', DEFAULT_ILLUSTRATED_RECIPE)).toThrow();
+    expect(portraits).toHaveLength(3);
+  });
+
   it('retains the committed appearance when the owner refuses the next commit', () => {
     const root = createRoot();
     let refuse = false;

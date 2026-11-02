@@ -1,0 +1,39 @@
+{
+  "source": "5412cbd1701de7890287fd4cde9ab7521c30c65f",
+  "sourceCi": 39164287814,
+  "batch": 44,
+  "uatOnly": true,
+  "accept-proof": {
+    "acceptedExactRecipient": true,
+    "newMembershipRole": "member",
+    "allExistingChannelsVisible": true,
+    "channelCount": 2,
+    "eachChannelReadAllowed": true
+  },
+  "cleanup-proof": {
+    "onlyNewMembershipRemoved": true,
+    "allPriorMembershipIdsRolesStatusesPreserved": true,
+    "recipientMe200": true,
+    "organizationAndChannels403": true,
+    "priorOrganizationAndGuestListsRestored": true,
+    "acceptedInvitationAuditRetained": true
+  },
+  "a1-cleanup": {
+    "priorActivePreserved": true,
+    "ownSessionRevoked": true,
+    "latestRefreshRejected": true
+  },
+  "b1-cleanup": {
+    "priorActivePreserved": true,
+    "ownSessionRevoked": true,
+    "latestRefreshRejected": true
+  },
+  "native": {
+    "listRefreshClearsStaleRows": true,
+    "repeatRefreshRemainsDenied": true,
+    "bothOldNativeRoutesRemainDenied": true,
+    "genericOpenRetryRemainsDenied": true,
+    "backDoesNotRestoreProtectedContent": true,
+    "noClaimOfInstantRevocation": true
+  }
+}

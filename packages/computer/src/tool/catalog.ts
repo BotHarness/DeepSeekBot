@@ -148,5 +148,3 @@ export function localComputerGuidance(platform: string = process.platform): stri
     '\nLocal Computer has no viewer. Never assume a login is complete; ask the Human and re-observe the task window.'
   );
 }
-
-export const LOCAL_COMPUTER_GUIDANCE = localComputerGuidance('darwin');

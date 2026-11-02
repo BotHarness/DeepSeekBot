@@ -109,3 +109,28 @@ describe('Human bubble colour', () => {
     });
   });
 });
+
+describe('bubble text on customized conversation backgrounds', () => {
+  for (const theme of ['light', 'dark'] as const) {
+    it.each([
+      '#ffffff',
+      '#151517',
+      '#f8f5fc',
+      '#211d2b',
+      '#f2f8f4',
+      '#1b2721',
+      '#fcf7ed',
+      '#2b251c',
+      '#4176e6',
+      '#777777',
+    ])(`${theme} preserves readable opaque text over %s`, (background) => {
+      for (const source of Object.values(SOURCES)) {
+        const pair = humanBubbleColors(source, theme, background)!;
+        expect(contrastRatio(rgb(pair.fill), rgb(pair.ink))).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(rgb(pair.fill), rgb(background))).toBeGreaterThanOrEqual(
+          BUBBLE_SEPARATION,
+        );
+      }
+    });
+  }
+});

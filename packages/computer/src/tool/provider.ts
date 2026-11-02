@@ -1,4 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis';
+import { DeviceCallApprovals } from '../../../core/src/workspaces/device-approval.js';
 import type {} from '@deepseek-ai/dsh-computer-use';
 import { ComputerUseProviderName } from '@deepseek-ai/dsh-computer-use/brand';
 import { createMcpToolDefinition } from '@deepseek-ai/dsh-mcp-client';
@@ -72,6 +73,11 @@ export interface ComputerToolProviderOptions {
   readonly driver: CuaDriver;
   readonly isComputerRunning: () => boolean;
   readonly isPaused?: () => boolean;
+
+  readonly runBotOperation?: <T>(
+    operation: (signal?: AbortSignal) => Promise<T>,
+    signal: AbortSignal,
+  ) => Promise<T>;
   readonly isAutoAllowed: () => boolean;
   readonly guidance?: (() => string) | undefined;
   readonly authorizationScope?: (() => string) | undefined;
@@ -93,6 +99,7 @@ export interface ComputerToolProvider {
   attachAgent(scope: Context, sessionId: string, info: { botSlug: string; rootRole: string }): void;
   needsAuthorization(sessionId: string): boolean;
   markAuthorized(sessionId: string, scope?: string): boolean;
+  authorizeCall(token: symbol, authorized: () => boolean): () => void;
   reconcileBot(slug: string): Promise<void>;
   reconcileAll(): Promise<void>;
   resetRuntime(): void;
@@ -156,7 +163,14 @@ export function createComputerToolProvider(
     signal: AbortSignal,
   ): Promise<unknown> => {
     assertNotPaused();
-    const call = driver.call(raw, args, signal);
+    if (signal.aborted) throw new Error('Computer operation was cancelled before admission');
+    const call =
+      options.runBotOperation === undefined
+        ? driver.call(raw, args, signal)
+        : options.runBotOperation(
+            (operationSignal) => driver.call(raw, args, operationSignal),
+            signal,
+          );
     inflight.add(call);
     try {
       const result = await call;
@@ -169,13 +183,19 @@ export function createComputerToolProvider(
   const drain = async (timeoutMs: number): Promise<void> => {
     if (inflight.size === 0) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    await Promise.race([
-      Promise.allSettled([...inflight]),
-      new Promise((resolve) => {
-        timer = setTimeout(resolve, timeoutMs);
-      }),
-    ]);
-    clearTimeout(timer);
+    try {
+      await Promise.race([
+        Promise.allSettled([...inflight]),
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('Computer Bot operations did not drain')),
+            timeoutMs,
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
   };
   const note = options.note ?? ((): void => undefined);
   const onActivity = options.onActivity ?? ((): void => undefined);
@@ -346,6 +366,7 @@ export function createComputerToolProvider(
     } catch {}
   };
 
+  const callApprovals = new DeviceCallApprovals();
   const authorize = async (
     execution: ToolExecution,
     sessionId: string,
@@ -353,7 +374,7 @@ export function createComputerToolProvider(
   ): Promise<void> => {
     const agent = execution.agent;
     if (agent === undefined) throw new Error('Computer tools require a PersonaBot session');
-    if (granted(sessionId) || isAutoAllowed()) return;
+    if (granted(sessionId) || isAutoAllowed() || callApprovals.allowed(execution.token)) return;
     throw new Error('Computer action is not authorized for this session');
   };
 
@@ -472,6 +493,8 @@ export function createComputerToolProvider(
       return true;
     },
 
+    authorizeCall: (token, authorized) => callApprovals.authorize(token, authorized),
+
     async reconcileBot(slug) {
       if (disposed) return;
       const access = core().registry?.get(slug)?.computerAccess === true;
@@ -513,6 +536,7 @@ export function createComputerToolProvider(
       for (const sessionId of registrations.keys()) unregisterSession(sessionId);
       sessions.clear();
       grants.clear();
+      callApprovals.clear();
       const release = slotDisposer;
       slotDisposer = undefined;
       if (release !== undefined) await release();

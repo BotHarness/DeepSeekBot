@@ -1,0 +1,3 @@
+- insert:
+    - id: botharness-vrm-companion
+      name: '@botharness/vrm-companion'

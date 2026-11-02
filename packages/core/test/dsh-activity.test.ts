@@ -37,7 +37,7 @@ describe('DSH activity projection', () => {
         ['step/start', {}],
         ['user/message', {}],
         ['assistant/message', {}],
-        ['tool/call', { name: 'channel_send', callId: 'send' }],
+        ['tool/call', { name: 'bot_send_message', callId: 'send' }],
         ['tool/result', { message: { toolCallId: 'send' } }],
         ['step/end', {}],
         ['step/start', {}],

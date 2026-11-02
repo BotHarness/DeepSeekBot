@@ -6,6 +6,8 @@ Issues: [#1649](https://github.com/BotHarness/DeepSeekBot/issues/1649), [#1644](
 
 # Paired devices reach the Host through a same-listener device gateway
 
+**2026-10-22 safety amendment:** Vain requires removal of the phone's full Host WebView on every route. Track A (#2541) removes that surface and refuses known secret-entry methods on Connect. [ADR-0244](0244-connect-encrypts-device-traffic-against-pinned-host-keys.md) proposes encrypted channels and independently approved device pairing; its complete protocol remains pending approval. The earlier plaintext/account-only design is not a confidentiality guarantee.
+
 A paired phone must keep calling the Host (HTTP unary `/api/<method>` and the Remote stream socket) after the Host restarts, and the Human must be able to cut one phone off at once, including streams it already has open. DSH 0.2.0-rc.2 has one credential form for both carriers: the per-process launch token exchanged for a signed cookie ([ADR-0159](0159-live-cli-verbs-ride-the-dsh-http-carrier.md)). We decided that **a paired device never holds a DSH credential. BotHarness serves a device gateway on DSH's own web server: the device presents its per-device credential to BotHarness-owned routes, BotHarness verifies and records it, and forwards the request to the native `/api` carrier and Remote stream mux over loopback with a Host-held DSH cookie.** Revocation refuses the device's next request and closes the device's open stream sockets.
 
 ## Decision

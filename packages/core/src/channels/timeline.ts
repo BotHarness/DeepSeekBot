@@ -35,15 +35,14 @@ function encodeCursor(channelId: string, message: ChannelMessage): string {
   ).toString('base64url');
 }
 
-function cursorIndex(
+export function timelineCursorAnchor(
   channelId: string,
-  messages: readonly ChannelMessage[],
   cursor: string,
-): number {
-  if (cursor.length > 2048) return -1;
+): Pick<ChannelMessage, 'id' | 'at'> | undefined {
+  if (cursor.length > 2048) return undefined;
   try {
     const value: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
-    if (typeof value !== 'object' || value === null) return -1;
+    if (typeof value !== 'object' || value === null) return undefined;
     const decoded = value as Partial<CursorValue>;
     if (
       decoded.v !== 1 ||
@@ -51,11 +50,22 @@ function cursorIndex(
       typeof decoded.id !== 'string' ||
       typeof decoded.at !== 'string'
     )
-      return -1;
-    return messages.findIndex((message) => message.id === decoded.id && message.at === decoded.at);
+      return undefined;
+    return { id: decoded.id, at: decoded.at };
   } catch {
-    return -1;
+    return undefined;
   }
+}
+
+function cursorIndex(
+  channelId: string,
+  messages: readonly ChannelMessage[],
+  cursor: string,
+): number {
+  const anchor = timelineCursorAnchor(channelId, cursor);
+  return anchor === undefined
+    ? -1
+    : messages.findIndex((message) => message.id === anchor.id && message.at === anchor.at);
 }
 
 export interface ChannelJournalEntry {

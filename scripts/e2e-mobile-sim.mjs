@@ -71,10 +71,10 @@ export function derivedDataFolder(appPath) {
     : parts.slice(0, index + 2).join(sep);
 }
 
-async function nativeFingerprint() {
+export async function nativeFingerprint(projectRoot = mobile) {
   const expo = createRequire(join(mobile, 'package.json')).resolve('expo/package.json');
   const { createFingerprintAsync } = createRequire(expo)('@expo/fingerprint');
-  return (await createFingerprintAsync(mobile)).hash;
+  return (await createFingerprintAsync(projectRoot, { preset: 'strict' })).hash;
 }
 
 function cachedApp(hash) {
@@ -111,7 +111,7 @@ export function renamePairingLink(link, hostName) {
   payload.host.name = hostName;
   return {
     hostId: payload.host.id,
-    link: `deepseekbot://pair?p=${Buffer.from(JSON.stringify(payload)).toString('base64url')}`,
+    link: `deepseekbot-dev://pair?p=${Buffer.from(JSON.stringify(payload)).toString('base64url')}`,
   };
 }
 

@@ -1,0 +1,31 @@
+{
+  "issue": 3251,
+  "base": "a708aa6941fb7556b015b47886cccebb8e07bb65",
+  "runtimeSource": "5a0a7f32b6c19fd789aae8db597b0657323d3493",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "locale": "en",
+  "theme": "light",
+  "platform": "Windows Web Client",
+  "network": "Two isolated Hosts on one Windows device; real cross-device acceptance pending",
+  "before": {
+    "state": "No remote colleague found; no message sent",
+    "sha256": "102ad8b159b8ec79a42db15afc6905936db56445743b6224361e739450098a1e",
+    "consoleIssues": 0,
+    "file": "before.png"
+  },
+  "after": {
+    "sha256": "26c1f2df0d45e3c448d231b6ebd5e3f69ae26337834eccd55ad54183ef26d6fe",
+    "state": "Automatically discovered colleague; authenticated DM and reply; Human DM reports acknowledgement",
+    "file": "after.png",
+    "consoleIssues": 0
+  },
+  "profile": {
+    "consoleIssues": 0,
+    "state": "Read-only remote DM and current public facts",
+    "sha256": "cd7d3c809b4f591a8f608e12276fd1fbce394a32c27a7029591a62e826d713d4",
+    "file": "profile.png"
+  }
+}

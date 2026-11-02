@@ -6,6 +6,8 @@ This candidate recognizes only a native mention of the current authenticated Bot
 
 Maintained Provider source: `1fc80010ab7cfd10ecc4f63c1d46c098e829c6a6` on DSH `0.2.0-rc.2`. Input runtime: 421 files, SHA-256 `8e9416fc17b44d5af993654794e8a795b1a01784bcda68115e1479b1f6695358`. Product candidate: independently versioned `4.32.0-botharness.22`; no publication or deployment is implied.
 
+> **2026-11-02 sync:** the integration now pins Provider `518314f6cf495aea093c0a93b0107de25b66e60d` (`4.32.0-botharness.25`, 424 runtime files, SHA-256 `bc54309720ce66906b562d7afaae99669c2177d67717623f6999e906abe473d1`) on top of current main, including explicit mentions from other Bots. The native record below belongs to the earlier candidate and has not yet been repeated on this one.
+
 ## Automated proof
 
 The original Runtime/Consumer regression failed with expected one admission, actual zero, before the fix. It now passes with unchanged ordinary collection opt-out. The complete affected Discord suite passes 96/96, including native-channel and existing-thread routes, unrelated roles, everyone/here, role ownership changes, exact IDs, forged message metadata, lifetime disposal, checked replies and existing ordinary intake. Provider build and package verification pass.

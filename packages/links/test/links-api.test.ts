@@ -111,9 +111,9 @@ describe('campaign and link API', () => {
       language: 'zh',
       note: 'demo',
       clicks: 0,
-      shortUrl: 'https://go.botharness.ai/yt-demo',
+      shortUrl: 'https://go.tobs.app/yt-demo',
       target:
-        'https://deepseekbot.botharness.ai/?utm_campaign=c1&utm_source=youtube&utm_medium=video&utm_content=yt-demo',
+        'https://tobs.app/?utm_campaign=c1&utm_source=youtube&utm_medium=video&utm_content=yt-demo',
     });
     expect(
       (
@@ -141,7 +141,7 @@ describe('campaign and link API', () => {
       note: null,
       platform: 'youtube',
       target:
-        'https://deepseekbot.botharness.ai/en/market?utm_campaign=c1&utm_source=youtube&utm_medium=video&utm_content=yt-demo',
+        'https://tobs.app/en/market?utm_campaign=c1&utm_source=youtube&utm_medium=video&utm_content=yt-demo',
     });
 
     const byCampaign = (await (await request('/v1/links?campaign=c1', { token })).json()) as {

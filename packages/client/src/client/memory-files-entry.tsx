@@ -6,10 +6,10 @@ import { useMountedResource } from './mounted-resource.js';
 import { cachedMemory, subscribeMemory } from './memory-read-cache.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { MemoryLoadFeedback } from './memory-load-feedback.js';
-import { useClientState } from './bot-sidebar.js';
+import { useClientStore } from './use-client-store.js';
 import { SidebarCardList } from './sidebar-card.js';
 import { StandingLimitsRow } from './standing-limits.js';
-import { Note } from './ds/note.js';
+import { PanelEmptyState } from './ds/empty-state.js';
 
 type MemoryFilesProps = ChannelSidebarEntryProps & { showLimits?: boolean };
 
@@ -28,7 +28,10 @@ function MemoryFilesForScope({
   t,
 }: MemoryFilesProps): ReactElement {
   const cache = cachedMemory(actions, channelId);
-  const bot = useClientState().bots.find((item) => item.slug === botSlug);
+  const bot = useClientStore(
+    (state) => state.bots.find((item) => item.slug === botSlug),
+    (left, right) => left?.slug === right?.slug && left?.standingLimits === right?.standingLimits,
+  );
   const [snapshot, setSnapshot] = useState<MemorySnapshot | undefined>(cache.snapshot);
   const [error, setError] = useState<string | undefined>(cache.snapshotError);
   const [pending, setPending] = useState(false);
@@ -100,9 +103,7 @@ function MemoryFilesForScope({
           <LoadingSkeleton kind="sidebar" label={t('memory.loading')} />
         ) : null
       ) : snapshot.files.length === 0 ? (
-        <Note tone="subtle" inset>
-          {t('memory.empty')}
-        </Note>
+        <PanelEmptyState icon="brain">{t('memory.empty')}</PanelEmptyState>
       ) : (
         <MemoryFileTree
           paths={snapshot.files}

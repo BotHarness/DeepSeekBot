@@ -1,0 +1,70 @@
+{
+  "environment": "UAT",
+  "mobileJs": "247a727b8ee832f1fd21318b2c0063a1b2f3c53b",
+  "hostRuntime": "f02c2423bce02c264548193ac738013f4eac83ab",
+  "cloudRuntime": "3eeed5b05782276b1a02cc2412dd04ab0ec60bca",
+  "nativeBuild": "494a20f1e",
+  "simulator": "BotHarness e2e",
+  "viewport": "402x874",
+  "locale": "en-US",
+  "theme": "light",
+  "requestSource": "Actual phone UI Request health check on Host UAT A; no CLI request injection",
+  "messages": [
+    {
+      "sequence": 16,
+      "kind": "work_request",
+      "authorType": "human"
+    },
+    {
+      "sequence": 17,
+      "kind": "work_request",
+      "authorType": "agent"
+    },
+    {
+      "sequence": 18,
+      "kind": "work_result",
+      "authorType": "agent"
+    }
+  ],
+  "sameChannel": true,
+  "originalHumanAndDeadlinePreserved": true,
+  "executionCounts": {
+    "a": 0,
+    "b": 1
+  },
+  "phoneVisibleResult": true,
+  "auth": {
+    "syntheticIndependentSession": true,
+    "verifiedUser": true,
+    "refreshRotated": true,
+    "coldRestartSameSession": true,
+    "localSignedOut": true,
+    "remoteRevoked": true,
+    "latestRefreshRejected": true,
+    "otherSessionsPreserved": true,
+    "cliPreserved": {
+      "a": true,
+      "b": true
+    }
+  },
+  "restored": {
+    "hostPolicies": true,
+    "workosConfigurationUnchanged": true,
+    "phoneFixtureRevoked": true,
+    "ownMetroStopped": true,
+    "driverClosed": true
+  },
+  "retainedFailures": [
+    "Initial Metro resolved localhost to IPv6; own server restarted IPv4.",
+    "Cold-start selector was attempted before the page finished loading.",
+    "Native back command unavailable for modal sheet; observed native downward dismissal returned to channel.",
+    "Redundant cleanup revoke returned a generic helper failure after verified logout; exact fixture file removed only after remote revocation and latest-refresh rejection were confirmed."
+  ],
+  "limits": [
+    "Synthetic independent staging session; this run does not re-prove Hosted AuthKit/PKCE.",
+    "Two real isolated DSH Hosts on one Mac; not physical hardware diversity.",
+    "Fixed health check only, not arbitrary commands.",
+    "No Android, physical iPhone, Human QA or new Dynamic Type/theme matrix in this increment.",
+    "HTTP history transport; WebSocket and organization-wide Agent membership remain pending."
+  ]
+}

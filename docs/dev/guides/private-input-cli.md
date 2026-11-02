@@ -37,7 +37,7 @@ Call ask_secret for account synthetic-1380, with three required fields:
 endpoint labeled Private URL, api_key labeled API key,
 api_secret labeled API secret. After private submission, call protected_cli
 consumer http-status-v1 using the returned references and the same account.
-Report the actual HTTP status in this DM using channel_send.
+Report the actual HTTP status in this DM using bot_send_message.
 ```
 
 Fill the inline password fields with these synthetic values only:

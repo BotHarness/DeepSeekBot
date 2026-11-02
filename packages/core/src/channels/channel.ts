@@ -1,7 +1,13 @@
 import { parseToolApprovalActor } from '../workspaces/tool-approval-actor.js';
 import { createHash } from 'node:crypto';
+import { isValidSlug } from '../bots/slug.js';
 
-import { isChannelAttachmentRef, type ChannelAttachmentRef } from '../attachments/ref.js';
+import {
+  isChannelAttachmentRef,
+  isChannelClearedAttachment,
+  type ChannelAttachmentRef,
+  type ChannelClearedAttachment,
+} from '../attachments/ref.js';
 import type { ToolApprovalDecision, ToolApprovalRequestCard } from '../workspaces/tool-approval.js';
 import type { ChannelQuestionRequest, ChannelQuestionResolution } from './user-questions.js';
 import {
@@ -54,6 +60,7 @@ export interface ChannelRecord {
   avatar?: string;
   members: string[];
   botSlug?: string;
+  remoteBot?: RemoteBotParticipant;
 
   ownerBotSlug?: string;
   invitations?: GroupInvitation[];
@@ -63,6 +70,115 @@ export interface ChannelRecord {
   deletedAt?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface TailnetBotMembership {
+  kind: 'tailnet';
+  localNodeId: string;
+  remoteNodeId: string;
+}
+
+export interface ConnectBotMembership {
+  kind: 'connect';
+  accountId: string;
+  localHostId: string;
+  remoteHostId: string;
+}
+
+export interface LanBotMembership {
+  kind: 'lan';
+  localAdmissionId: string;
+  remoteAdmissionId: string;
+}
+
+export type BotNetworkScope = TailnetBotMembership | ConnectBotMembership | LanBotMembership;
+export type BotNetworkMembership = BotNetworkScope | { kind: 'scopes'; scopes: BotNetworkScope[] };
+
+function isBotNetworkScope(value: unknown): value is BotNetworkScope {
+  if (typeof value !== 'object' || value === null) return false;
+  const record = value as Record<string, unknown>;
+  const id = (field: string) =>
+    typeof record[field] === 'string' && /^[a-zA-Z0-9_-]{1,128}$/u.test(record[field]);
+  return record['kind'] === 'tailnet'
+    ? id('localNodeId') && id('remoteNodeId')
+    : record['kind'] === 'connect'
+      ? id('accountId') && id('localHostId') && id('remoteHostId')
+      : record['kind'] === 'lan' && id('localAdmissionId') && id('remoteAdmissionId');
+}
+
+export function isBotNetworkMembership(value: unknown): value is BotNetworkMembership {
+  if (isBotNetworkScope(value)) return true;
+  if (typeof value !== 'object' || value === null) return false;
+  const record = value as Record<string, unknown>;
+  const scopes = record['scopes'];
+  return (
+    record['kind'] === 'scopes' &&
+    Array.isArray(scopes) &&
+    scopes.length >= 2 &&
+    scopes.length <= 3 &&
+    scopes.every(isBotNetworkScope) &&
+    new Set(scopes.map((scope) => scope.kind)).size === scopes.length
+  );
+}
+
+export function botNetworkScopes(membership: BotNetworkMembership): readonly BotNetworkScope[] {
+  return membership.kind === 'scopes' ? membership.scopes : [membership];
+}
+
+export function mergeBotNetworkMembership(
+  previous: BotNetworkMembership | undefined,
+  next: BotNetworkMembership,
+): BotNetworkMembership {
+  const scopes = new Map<BotNetworkScope['kind'], BotNetworkScope>();
+  for (const scope of previous === undefined ? [] : botNetworkScopes(previous))
+    scopes.set(scope.kind, scope);
+  for (const scope of botNetworkScopes(next)) scopes.set(scope.kind, scope);
+  return scopes.size === 1
+    ? [...scopes.values()][0]!
+    : { kind: 'scopes', scopes: [...scopes.values()] };
+}
+
+export interface RemoteBotParticipant {
+  membership?: BotNetworkMembership;
+  hostKey?: string;
+  hostId: string;
+  botSlug: string;
+  displayName: string;
+}
+
+export function remoteBotDmRecord(
+  localBotSlug: string,
+  remoteBot: RemoteBotParticipant,
+  at: string,
+): ChannelRecord {
+  if (
+    !isValidSlug(localBotSlug) ||
+    !isValidSlug(remoteBot.botSlug) ||
+    !/^[a-zA-Z0-9_-]{1,128}$/u.test(remoteBot.hostId) ||
+    remoteBot.displayName.length > 128 ||
+    (remoteBot.membership !== undefined &&
+      (!isBotNetworkMembership(remoteBot.membership) || remoteBot.hostKey === undefined)) ||
+    (remoteBot.hostKey !== undefined && !/^[0-9a-f]{64}$/u.test(remoteBot.hostKey))
+  )
+    throw new Error('Invalid remote Bot participant');
+  return {
+    id: `dm-remote-${createHash('sha256')
+      .update(JSON.stringify([localBotSlug, remoteBot.hostId, remoteBot.botSlug]))
+      .digest('hex')
+      .slice(0, 32)}`,
+    type: 'dm',
+    name: remoteBot.displayName,
+    members: [localBotSlug],
+    remoteBot: {
+      hostId: remoteBot.hostId,
+      botSlug: remoteBot.botSlug,
+      displayName: remoteBot.displayName,
+      ...(remoteBot.hostKey === undefined ? {} : { hostKey: remoteBot.hostKey }),
+      ...(remoteBot.membership === undefined ? {} : { membership: { ...remoteBot.membership } }),
+    },
+    createdAt: at,
+    updatedAt: at,
+  };
 }
 
 export interface GroupInvitation {
@@ -106,6 +222,7 @@ export interface GroupJoinRequest {
 export type ChannelMessageAuthor =
   | { kind: 'human' }
   | { kind: 'bot'; slug: string }
+  | { kind: 'remote-bot'; hostId: string; slug: string }
   | { kind: 'bridged'; source: string }
   | { kind: 'system' };
 
@@ -288,7 +405,7 @@ export interface ChannelMessage {
   author: ChannelMessageAuthor;
   body: string;
 
-  onboardingWelcome?: { version: 1 };
+  onboardingWelcome?: { version: 1; kind?: 'tob' };
 
   memorySwitchTarget?: string;
 
@@ -316,6 +433,7 @@ export interface ChannelMessage {
   botCausation?: BotMessageCausation;
 
   grantRequest?: true;
+  grantRequestOwner?: string;
   grantRequestResolved?: boolean;
   assignmentReply?: { sessionId: string; sourceEventId: string };
 
@@ -333,6 +451,7 @@ export interface ChannelMessage {
   privateInputRequest?: PrivateInputCard;
   privateInputResolution?: PrivateInputResolution;
   attachments?: ChannelAttachmentRef[];
+  clearedAttachments?: ChannelClearedAttachment[];
   bridgeMedia?: {
     voice?: Pick<import('../messaging/provider.js').MessagingVoice, 'transcript' | 'durationMs'>;
     items: { id: string; kind: 'image' | 'file' | 'audio'; name: string; sizeBytes?: number }[];
@@ -357,9 +476,17 @@ export interface ChannelMessage {
   replyTo?: string;
 
   replyToPreview?: ChannelReplyPreview | null;
+
+  perf?: ChannelMessagePerf;
 }
 
-export const MAX_BOT_HOPS = 8;
+export interface ChannelMessagePerf {
+  outputTokens: number;
+  elapsedMs: number;
+  estimated: boolean;
+}
+
+export const MAX_BOT_HOPS = 32;
 
 export const CHANNEL_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const MAX_CHANNEL_SLUG_LENGTH = 64;
@@ -378,7 +505,11 @@ export function botDmChannelId(firstBotSlug: string, secondBotSlug: string): str
 }
 
 export function isBotDmChannel(channel: ChannelRecord): boolean {
-  return channel.type === 'dm' && channel.botSlug === undefined && channel.members.length === 2;
+  return (
+    channel.type === 'dm' &&
+    channel.botSlug === undefined &&
+    (channel.remoteBot === undefined ? channel.members.length === 2 : channel.members.length === 1)
+  );
 }
 
 export function slugifyChannelName(name: string): string {
@@ -404,11 +535,22 @@ export function isChannelMessageAuthor(value: unknown): value is ChannelMessageA
       return true;
     case 'bot':
       return typeof author['slug'] === 'string' && author['slug'].length > 0;
+    case 'remote-bot':
+      return (
+        typeof author['hostId'] === 'string' &&
+        /^[a-zA-Z0-9_-]{1,128}$/u.test(author['hostId']) &&
+        typeof author['slug'] === 'string' &&
+        isValidSlug(author['slug'])
+      );
     case 'bridged':
       return typeof author['source'] === 'string' && author['source'].length > 0;
     default:
       return false;
   }
+}
+
+export function isDisbandedGroup(record: ChannelRecord | undefined): boolean {
+  return record?.type === 'group' && record.deletedAt !== undefined && record.name === '';
 }
 
 export function isChannelRecord(value: unknown, id: string): value is ChannelRecord {
@@ -428,6 +570,31 @@ export function isChannelRecord(value: unknown, id: string): value is ChannelRec
   if (!Array.isArray(members) || !members.every((entry) => typeof entry === 'string')) return false;
   const botSlug = record['botSlug'];
   if (botSlug !== undefined && typeof botSlug !== 'string') return false;
+  const remote = record['remoteBot'];
+  if (remote !== undefined) {
+    if (
+      record['type'] !== 'dm' ||
+      botSlug !== undefined ||
+      members.length !== 1 ||
+      typeof remote !== 'object' ||
+      remote === null
+    )
+      return false;
+    const peer = remote as Record<string, unknown>;
+    if (
+      typeof peer['hostId'] !== 'string' ||
+      !/^[a-zA-Z0-9_-]{1,128}$/u.test(peer['hostId']) ||
+      typeof peer['botSlug'] !== 'string' ||
+      !isValidSlug(peer['botSlug']) ||
+      typeof peer['displayName'] !== 'string' ||
+      peer['displayName'].length > 128 ||
+      (peer['membership'] !== undefined &&
+        (!isBotNetworkMembership(peer['membership']) || peer['hostKey'] === undefined)) ||
+      (peer['hostKey'] !== undefined &&
+        (typeof peer['hostKey'] !== 'string' || !/^[0-9a-f]{64}$/u.test(peer['hostKey'])))
+    )
+      return false;
+  }
   const ownerBotSlug = record['ownerBotSlug'];
   if (ownerBotSlug !== undefined) {
     if (
@@ -539,6 +706,13 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       (message['author'] as ChannelMessageAuthor).kind !== 'bot')
   )
     return false;
+  if (
+    message['grantRequestOwner'] !== undefined &&
+    (message['grantRequest'] !== true ||
+      typeof message['grantRequestOwner'] !== 'string' ||
+      !message['grantRequestOwner'])
+  )
+    return false;
   const grantResolution = message['grantRequestResolution'];
   const assignmentReply = message['assignmentReply'];
   if (assignmentReply !== undefined) {
@@ -643,6 +817,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
     if (
       typeof decision['requestMessageId'] !== 'string' ||
       (decision['outcome'] !== 'allowed-once' &&
+        decision['outcome'] !== 'allowed-always-tool' &&
         decision['outcome'] !== 'allowed-always-exact' &&
         decision['outcome'] !== 'allowed-always-all' &&
         decision['outcome'] !== 'rejected') ||
@@ -882,7 +1057,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       typeof causal['parentSourceEventId'] !== 'string' ||
       !Number.isSafeInteger(causal['hop']) ||
       (causal['hop'] as number) < 1 ||
-      (message['author'] as ChannelMessageAuthor)?.kind !== 'bot'
+      !['bot', 'remote-bot'].includes((message['author'] as ChannelMessageAuthor)?.kind)
     )
       return false;
   }
@@ -892,6 +1067,12 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
     (!Array.isArray(attachments) ||
       attachments.length > 10 ||
       !attachments.every(isChannelAttachmentRef))
+  )
+    return false;
+  const cleared = message['clearedAttachments'];
+  if (
+    cleared !== undefined &&
+    (!Array.isArray(cleared) || cleared.length > 10 || !cleared.every(isChannelClearedAttachment))
   )
     return false;
   if (!isChannelMessageAuthor(message['author'])) return false;
@@ -918,7 +1099,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
     if (
       typeof bridgeOrigin !== 'object' ||
       bridgeOrigin === null ||
-      (message['author'] as ChannelMessageAuthor)?.kind !== 'bridged'
+      !['bridged', 'bot'].includes((message['author'] as ChannelMessageAuthor)?.kind)
     )
       return false;
     const origin = bridgeOrigin as Record<string, unknown>;

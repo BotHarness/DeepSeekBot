@@ -1,0 +1,32 @@
+{
+  "originalBytesPreserved": true,
+  "sourceDeletedRestore": true,
+  "crop": {
+    "x": 0.5563920374443129,
+    "y": 0.4548863700445497,
+    "zoom": 1.8
+  },
+  "wide": {
+    "frame": {
+      "x": 0,
+      "y": 0,
+      "width": 1440,
+      "height": 1000
+    },
+    "image": {
+      "x": -882.40625,
+      "y": -318.78125,
+      "width": 2880,
+      "height": 1800
+    },
+    "pointer": "none",
+    "layers": 1
+  },
+  "resize": true,
+  "decodeFailurePreserves": true,
+  "quotaFailurePreserves": true,
+  "cliImportCropRemove": true,
+  "themeIndependent": true,
+  "dshUnaffected": true,
+  "errors": []
+}

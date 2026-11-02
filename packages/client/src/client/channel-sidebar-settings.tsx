@@ -1,3 +1,4 @@
+import { Menu } from './appearance-primitives.js';
 import {
   createContext,
   useContext,
@@ -9,11 +10,10 @@ import {
 } from 'react';
 import {
   IconChevronRightOutlineRegular,
-  Menu,
   MenuItemButton,
   MenuSurface,
-  Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Tooltip } from './ds/tooltip.js';
 import type { ChannelSidebarEntry, ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 

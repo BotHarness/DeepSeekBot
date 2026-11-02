@@ -134,7 +134,7 @@ if (mode === '--serve') {
     await api('browserAccessSet', { slug: bot.slug, enabled: true });
     await api('channelSend', {
       channelId: dm.id,
-      body: `本地 QA：用 browser_open 打开 ${fixture}/page，再 browser_observe 读取页面，再 browser_screenshot 截图。只用 channel_send 回复实际标题、Current item 的文字、截图工具是否成功。如模型路线不支持图片，说明 readable fallback，不猜图。不点击，不操作输入框，不发送截图路径。`,
+      body: `本地 QA：用 browser_open 打开 ${fixture}/page，再 browser_observe 读取页面，再 browser_screenshot 截图。只用 bot_send_message 回复实际标题、Current item 的文字、截图工具是否成功。如模型路线不支持图片，说明 readable fallback，不猜图。不点击，不操作输入框，不发送截图路径。`,
     });
     const sessionId = await until(
       async () =>
@@ -158,7 +158,7 @@ if (mode === '--serve') {
       const results = resultsOf(rows);
       successful(results, 'browser_open');
       successful(results, 'browser_observe');
-      successful(results, 'channel_send');
+      successful(results, 'bot_send_message');
       const shot = successful(results, 'browser_screenshot').message;
       const image = shot.content.find((block) => block.type === 'image');
       let imageAttachment = false;
@@ -249,7 +249,7 @@ if (mode === '--serve') {
       const prior = Math.max(...(await events(state.sessionId)).map((event) => event.seq));
       await api('channelSend', {
         channelId: state.channelId,
-        body: 'Human 已暂停并把页面 item 改为 Updated by Human，现已 Resume。先用 browser_observe 重新读取当前页，再用新 ref 点击 Confirm current item 恰好一次，重新 observe 验证，然后 browser_screenshot 记录结果，最后 channel_send 回复实际 item、确认次数和截图状态。不要打开新页面，不要操作 Human edit 输入框，不发送本地路径。',
+        body: 'Human 已暂停并把页面 item 改为 Updated by Human，现已 Resume。先用 browser_observe 重新读取当前页，再用新 ref 点击 Confirm current item 恰好一次，重新 observe 验证，然后 browser_screenshot 记录结果，最后 bot_send_message 回复实际 item、确认次数和截图状态。不要打开新页面，不要操作 Human edit 输入框，不发送本地路径。',
       });
       const rows = (
         await until(
@@ -264,7 +264,7 @@ if (mode === '--serve') {
       assert.ok(read.seq < click.seq);
       assert.match(textOf(read.message), /Updated by Human/);
       successful(results, 'browser_screenshot');
-      const reply = successful(results, 'channel_send');
+      const reply = successful(results, 'bot_send_message');
       const args =
         typeof reply.call.arguments === 'string'
           ? JSON.parse(reply.call.arguments)

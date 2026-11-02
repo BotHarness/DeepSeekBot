@@ -1,4 +1,5 @@
-import { useRef, useState, type ReactElement } from 'react';
+import { useScopedState } from './scoped-state.js';
+import { useRef, useState, type Ref, type ReactElement } from 'react';
 import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import type { AssignmentAccessPresetView, WorkspaceGrantView, WorkspaceOption } from './bridge.js';
@@ -19,9 +20,9 @@ import {
 } from './workspace-grants-entry.js';
 import { subscribeWorkspaceGrantChanges } from './workspace-grant-events.js';
 import { authorizeGroupMembers, type GroupGrantResult } from './group-workspace-authorization.js';
-import { useMobileBotViewport } from './mobile-viewport.js';
-import { ComposerContextBar } from './composer-context-bar.js';
+import { ComposerContextBar, type ComposerFooterHandle } from './composer-context-bar.js';
 import { ChipButton } from './ds/chip-button.js';
+import type { AveragePerfView } from './message-perf.js';
 
 interface PreviewMember {
   slug: string;
@@ -35,13 +36,16 @@ export function useGroupComposerContext({
   members,
   actions,
   t,
+  avgPerf,
 }: {
   channel: ChannelSummary | undefined;
   members: BotSummary[];
   actions: BridgeActions;
   t: BotHarnessTranslate;
+  avgPerf?: AveragePerfView | undefined;
 }): ComposerContext | undefined {
-  const [openChannel, setOpenChannel] = useState<string>();
+  const footerSettings = useRef<ComposerFooterHandle>(null);
+  const [openChannel, setOpenChannel] = useScopedState<string>(channel?.id);
   if (channel?.type !== 'group') return;
   const open = () => setOpenChannel(channel.id);
   return {
@@ -53,16 +57,19 @@ export function useGroupComposerContext({
         icon: <ChannelSidebarIcon name="folder-key" />,
         run: open,
       },
+      { id: 'footer', label: t('footer.settings'), run: () => footerSettings.current?.open() },
     ],
     content: (
       <GroupComposerContextView
         key={channel.id}
+        footerSettings={footerSettings}
         channelId={channel.id}
         members={members.filter((bot) => !bot.deleted && !bot.paused)}
         actions={actions}
         t={t}
         open={openChannel === channel.id}
         onOpen={open}
+        avgPerf={avgPerf}
         onClose={() => setOpenChannel(undefined)}
       />
     ),
@@ -70,23 +77,26 @@ export function useGroupComposerContext({
 }
 
 export function GroupComposerContextView({
+  footerSettings,
   channelId,
   members,
   actions,
   t,
   open,
   onOpen,
+  avgPerf,
   onClose,
 }: {
+  footerSettings?: Ref<ComposerFooterHandle>;
   channelId: string;
   members: BotSummary[];
   actions: BridgeActions;
   t: BotHarnessTranslate;
   open: boolean;
   onOpen(): void;
+  avgPerf?: AveragePerfView | undefined;
   onClose(): void;
 }): ReactElement {
-  const mobile = useMobileBotViewport();
   const [selected, setSelected] = useState<string[]>();
   const [facts, setFacts] = useState<Record<string, WorkspaceGrantView[] | null | undefined>>({});
   const [workspaces, setWorkspaces] = useState<WorkspaceOption[]>([]);
@@ -199,15 +209,33 @@ export function GroupComposerContextView({
   );
   const retry = results.some((row) => row.status === 'unknown' || row.status === 'failed');
   return (
-    <div ref={mount}>
-      <ComposerContextBar label={t('composerContext.label')} hidden={mobile}>
+    <>
+      <div ref={mount} hidden />
+      <ComposerContextBar
+        settingsRef={footerSettings}
+        available={['workspace', 'avg-perf']}
+        t={t}
+        label={t('composerContext.label')}
+      >
         <ChipButton
           ref={factMount}
           data-composer-chip="workspace"
+          collapseLabel
           icon={<ChannelSidebarIcon name="folder-key" size={14} />}
           label={chip}
+          aria-label={`${t('entry.workspaceGrants')} · ${chip}`}
           onClick={onOpen}
         />
+        {avgPerf === undefined ? null : (
+          <ChipButton
+            data-composer-chip="avg-perf"
+            icon={<ChannelSidebarIcon name="gauge" size={14} />}
+            label={t('message.perf.speed', { tps: avgPerf.tokensPerSecond })}
+            title={t('composerContext.avgPerf.title', { count: avgPerf.count })}
+            tabIndex={-1}
+            disabled
+          />
+        )}
       </ComposerContextBar>
       {open ? (
         <PanelDialog
@@ -338,7 +366,7 @@ export function GroupComposerContextView({
           </details>
         </PanelDialog>
       ) : null}
-    </div>
+    </>
   );
 }
 

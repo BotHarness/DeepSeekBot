@@ -154,7 +154,7 @@ try {
     );
     const idle = await bot(
       'Release QA',
-      'Reply only with requested marker using channel_send once. No other tools or Assignments.',
+      'Reply only with requested marker using bot_send_message once. No other tools or Assignments.',
     );
     const dm = (await rpc('channelDm', { slug: idle.slug })).channel;
     if (
@@ -165,7 +165,7 @@ try {
       await rpc('channelSend', {
         channelId: dm.id,
         messageId: 'human-' + crypto.randomUUID(),
-        body: 'Reply exactly CHANNEL_READY using channel_send once.',
+        body: 'Reply exactly CHANNEL_READY using bot_send_message once.',
       });
       await waitFor(
         async () =>
@@ -298,7 +298,7 @@ try {
       await rpc('channelSend', {
         channelId: scene.dm,
         messageId: 'human-' + crypto.randomUUID(),
-        body: 'Reply exactly CHANNEL_LATE_READY using channel_send once. No other work.',
+        body: 'Reply exactly CHANNEL_LATE_READY using bot_send_message once. No other work.',
       });
       await waitFor(
         async () => (await rpc('humanAttentionStatus')).unreadCount === 1,

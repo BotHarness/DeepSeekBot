@@ -59,3 +59,45 @@ macOS with the installed Google Chrome in headless mode, using a separate
 empty temporary profile and the same local GitHub-flavoured Markdown renderer.
 The baseline is main `0ada01e2`; these are local documentation render checks,
 not screenshots of a GitHub page or the running product.
+
+## v3 product captures (DeepSeekBot 1.4.1 READMEs)
+
+`v3/zh/` and `v3/en/` replace the v2 shots in `README.md`, `README.en.md` and the npm
+README (`packages/deepseekbot/README.md`). The v2 files stay in place. They were captured on
+2026-10-20 in a Linux cloud container, against BotHarness main `b39972c9` and the pinned DSH
+`0.2.1-rc.2` CLI. Each language ran in its own fresh isolated Host launched with
+`node scripts/dev-instance.mjs --home <temporary DSH_HOME> --port <n>`; the Web Client was
+driven with Playwright (Chromium 1194, headless) at 1440 × 900 and device scale factor 2, so
+every file is 2880 × 1800. The browser locale was `zh-CN` or `en-US`, the time zone
+`Asia/Shanghai`, and the theme light, except `hero-dark.jpg`, which is the same view with the
+dark color scheme. PNG captures were saved as JPEG (quality 82, progressive, no metadata);
+nothing was retouched, cropped or generated.
+
+Bots replied through the AX default model, `opencode-go/deepseek-v4.1-flash`, the newest
+DeepSeek model in the pinned catalog. Bot messages are real model replies committed to the
+Channel. Nothing was injected into the UI.
+
+The data is fictional. The demo team (Mira, Theo, Nova, Juniper, Kai) and the
+Observatory Studio Group (天文台工作室) were created with the `deepseekbot` CLI
+(`create`, `group-create`). The DMs used `deepseekbot send`. The Group message and its three
+@mentions were typed in the Group composer. Mira's Memory Repository holds fixture files and
+ordinary Git commits, made before the DM: visitor feedback notes, a spring exhibit plan and a
+merged `research/kids` branch. In the Chinese capture, the uncommitted change to
+`projects/spring-exhibit.md` was made by Mira herself during the Group reply. Kai made the
+weekly schedule from the DM request. Tob answered the Home starter question. The Bot
+Marketplace showed four `sample-bots/*` listings served by a loopback stub through the Host's
+`marketplaceUrl` setting, because the capture container could not reach the real Marketplace.
+The wallpapers are procedurally drawn images (gradients and hills) imported through the
+Appearance page. The capture skipped the onboarding tutorial and removed Tob's Window
+Companion from the view, as a Human can. No real IM message was sent, and no credential, token, local path or personal
+data is visible.
+
+| Asset             | What it shows                                                                                      |
+| ----------------- | -------------------------------------------------------------------------------------------------- |
+| `hero.jpg`        | Bot mode with the control rail and channel list, Mira's DM and her Memory evolution graph.         |
+| `hero-dark.jpg`   | The same view in dark mode; GitHub shows it to readers who use a dark theme.                       |
+| `group.jpg`       | Observatory Studio: three @mentioned Bots reply in turn, with the Members panel.                   |
+| `schedules.jpg`   | Kai's DM after he created a weekly schedule, with the Schedules panel.                             |
+| `marketplace.jpg` | The Bot Marketplace with topic filters, pixel banners and Install buttons (sample data).           |
+| `home.jpg`        | Home (token usage, Bot activity) docked beside Tob's DM answering "How are my Bots doing?".        |
+| `appearance.jpg`  | Bot settings → Appearance with Mist Purple, a three-item wallpaper library and see-through panels. |

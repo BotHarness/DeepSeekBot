@@ -1,4 +1,5 @@
 import { withPublicToolDetail } from '../../../core/src/state/tool-activity.js';
+import { DeviceCallApprovals } from '../../../core/src/workspaces/device-approval.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { createMcpToolDefinition } from '@deepseek-ai/dsh-mcp-client';
 import type { Agent } from '@deepseek-ai/dsh-agent';
@@ -70,6 +71,7 @@ export interface BrowserToolProvider {
   executionSignal(sessionId: string): AbortSignal | undefined;
   needsAuthorization(sessionId: string): boolean;
   markAuthorized(sessionId: string): void;
+  authorizeCall(token: symbol, authorized: () => boolean): () => void;
   resetRuntime(): void;
   invalidateBot(slug: string): void;
   invalidateProfile(profile: string): void;
@@ -254,10 +256,11 @@ export function createBrowserToolProvider(
     } catch {}
   };
 
-  const authorize = async (execution: ToolExecution, sessionId: string): Promise<void> => {
+  const callApprovals = new DeviceCallApprovals();
+  const authorize = (execution: ToolExecution, sessionId: string): void => {
     const agent = execution.agent;
     if (agent === undefined) throw new Error('Browser tools require a PersonaBot session');
-    if (grants.has(sessionId) || isAutoAllowed()) return;
+    if (grants.has(sessionId) || isAutoAllowed() || callApprovals.allowed(execution.token)) return;
     throw new Error('Browser action is not authorized for this session');
   };
 
@@ -862,6 +865,7 @@ export function createBrowserToolProvider(
                 : undefined;
             let controlRevision = controlState?.controlRevision;
             const assertControlCurrent = (): void => {
+              authorize(execution, sessionId);
               if (controlState === undefined) return;
               assertExecutionAllowed(spec.raw, slug);
               if (
@@ -1097,6 +1101,8 @@ export function createBrowserToolProvider(
       grants.add(sessionId);
     },
 
+    authorizeCall: (token, authorized) => callApprovals.authorize(token, authorized),
+
     async reconcileBot(slug) {
       if (disposed) return;
       const access = core().registry?.get(slug)?.browserAccess === true;
@@ -1257,6 +1263,7 @@ export function createBrowserToolProvider(
       for (const sessionId of [...registrations.keys()]) unregisterSession(sessionId);
       sessions.clear();
       grants.clear();
+      callApprovals.clear();
       tabsByBot.clear();
       takeovers.clear();
       await runtimes.stopAll();

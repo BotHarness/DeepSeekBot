@@ -18,6 +18,7 @@ import {
   parseProductComposition,
 } from '../packaged-profile.mjs';
 import { parse } from 'yaml';
+import { cloudflaredPackageNames } from '../cloudflared-packages.mjs';
 import { productManagedUpdate } from '../product-provider/update-policy.mjs';
 
 vi.mock('../dev-im-provider.mjs', async (importOriginal) => {
@@ -37,6 +38,7 @@ function artifactSet(version = '0.0.0-test.823') {
   const root = mkdtempSync(join(tmpdir(), 'product-packages-'));
   temporary.push(root);
   const artifacts = [
+    '@botharness/tobs',
     'deepseekbot',
     '@botharness/browser',
     '@botharness/computer',
@@ -68,6 +70,18 @@ function artifactSet(version = '0.0.0-test.823') {
 }
 
 describe('packaged product selection', () => {
+  it.each(['0.2.0-rc.2', '0.2.1-rc.2', '0.2.1-rc.99'])(
+    'retains build provenance %s without requiring the current SDK pin',
+    (dsh) => {
+      const { root } = artifactSet();
+      const path = join(root, 'artifacts.json');
+      const manifest = JSON.parse(readFileSync(path, 'utf8'));
+      writeFileSync(path, JSON.stringify({ ...manifest, dsh }));
+      expect(verifiedProductArtifacts(root).dsh).toBe(dsh);
+      writeFileSync(path, JSON.stringify({ ...manifest, dsh: 'latest' }));
+      expect(() => verifiedProductArtifacts(root)).toThrow('qualified package set');
+    },
+  );
   it('installs one product Bundle from verified artifacts without a developer Provider or workspace links', () => {
     const { root } = artifactSet();
     const saved = {
@@ -83,6 +97,7 @@ describe('packaged product selection', () => {
     expect(result.dependencies).toEqual({
       other: '1.0.0',
       deepseekbot: expect.stringMatching(/^file:.*\.tgz$/),
+      '@botharness/tobs': expect.stringMatching(/^file:.*\.tgz$/),
     });
     expect(result.dsh.profile.bundles).toEqual([
       '@deepseek-ai/dsh-base',
@@ -174,6 +189,44 @@ describe('packaged product selection', () => {
     expect(productAllowBuilds).toEqual(workspace.allowBuilds);
   });
 
+  it('overrides the verified platform packages for a packaged install and refuses a partial set', () => {
+    const { root, artifacts } = artifactSet();
+    const platformArtifacts = cloudflaredPackageNames.map((name) => {
+      const filename = `${name.replace(/^@/, '').replace('/', '-')}-0.0.0-test.823.tgz`;
+      const bytes = Buffer.from(`platform-fixture:${name}`);
+      writeFileSync(join(root, filename), bytes);
+      return {
+        name,
+        version: '0.0.0-test.823',
+        filename,
+        integrity: `sha512-${createHash('sha512').update(bytes).digest('base64')}`,
+      };
+    });
+    const inventory = {
+      productVersion: '0.0.0-test.823',
+      dsh: productDsh,
+      providerRuntime: { runtimeFiles: 1, runtimeSha256: 'a'.repeat(64) },
+      artifacts,
+      platformArtifacts,
+    };
+    writeFileSync(join(root, 'artifacts.json'), JSON.stringify(inventory));
+    expect(verifiedProductArtifacts(root).platformArtifacts).toHaveLength(platformArtifacts.length);
+    const overrides = parse(packagedWorkspaceSettings('packages: [.]\n', root)).overrides;
+    for (const name of cloudflaredPackageNames)
+      expect(overrides[`${name}@0.0.0-test.823`]).toMatch(/^file:.*\.tgz$/);
+    for (const invalid of [
+      platformArtifacts.slice(1),
+      [{ ...platformArtifacts[0], version: '9.0.0' }, ...platformArtifacts.slice(1)],
+      [{ ...platformArtifacts[0], name: 'deepseekbot' }, ...platformArtifacts.slice(1)],
+    ]) {
+      writeFileSync(
+        join(root, 'artifacts.json'),
+        JSON.stringify({ ...inventory, platformArtifacts: invalid }),
+      );
+      expect(() => verifiedProductArtifacts(root)).toThrow();
+    }
+  });
+
   it('refuses duplicate, missing, mismatched-version or escaping artifact entries', () => {
     const { root, artifacts } = artifactSet();
     for (const invalid of [
@@ -247,7 +300,6 @@ describe('release composition', () => {
       { id: 'botharness-core', name: '@botharness/core' },
       { id: 'botharness-client', name: '@botharness/ui' },
       { id: 'botharness-browser', name: '@botharness/browser' },
-      { id: 'computer-use', name: '@deepseek-ai/dsh-computer-use' },
       { id: 'botharness-computer', name: '@botharness/computer' },
     ];
     expect(() => verifyProductComposition(entries)).not.toThrow();
@@ -257,14 +309,14 @@ describe('release composition', () => {
     expect(() =>
       verifyProductComposition([...entries, { id: 'legacy', name: '@xmanrui/dsh-im' }]),
     ).toThrow('Standalone upstream');
-    expect(() => verifyProductComposition(entries.slice(1))).toThrow('all six');
+    expect(() => verifyProductComposition(entries.slice(1))).toThrow('all five');
     expect(() =>
       verifyProductComposition([{ ...entries[0], disabled: true }, ...entries.slice(1)]),
     ).toThrow('conflicts');
   });
   it('reads native JS tags as data and refuses dynamic component disabling without evaluating code', () => {
     const entries = parseProductComposition(
-      "- id: unrelated\n  name: native\n  disabled: !!js 'throw new Error(\"must not execute\")'\n- id: xmanrui-dsh-im\n  name: '@botharness/im-provider'\n- id: botharness-core\n  name: '@botharness/core'\n- id: botharness-client\n  name: '@botharness/ui'\n- id: botharness-browser\n  name: '@botharness/browser'\n- id: computer-use\n  name: '@deepseek-ai/dsh-computer-use'\n- id: botharness-computer\n  name: '@botharness/computer'\n",
+      "- id: unrelated\n  name: native\n  disabled: !!js 'throw new Error(\"must not execute\")'\n- id: xmanrui-dsh-im\n  name: '@botharness/im-provider'\n- id: botharness-core\n  name: '@botharness/core'\n- id: botharness-client\n  name: '@botharness/ui'\n- id: botharness-browser\n  name: '@botharness/browser'\n- id: botharness-computer\n  name: '@botharness/computer'\n",
     );
     expect(entries[0].disabled.__jsExpr).toContain('must not execute');
     expect(() => verifyProductComposition(entries)).not.toThrow();
@@ -272,7 +324,7 @@ describe('release composition', () => {
     expect(() => verifyProductComposition(entries)).toThrow('conflicts');
   });
   it('keeps product provenance independent when the development Provider selection changes', () => {
-    expect(productImProvider.upstream.source).toBe('1fc80010ab7cfd10ecc4f63c1d46c098e829c6a6');
+    expect(productImProvider.upstream.source).toBe('518314f6cf495aea093c0a93b0107de25b66e60d');
     expect(productImProvider.upstream.dsh).toBe('0.2.0-rc.2');
   });
 
@@ -287,12 +339,16 @@ describe('release composition', () => {
       '@botharness/computer': '0.0.0-test.823',
       '@botharness/core': '0.0.0-test.823',
       '@botharness/ui': '0.0.0-test.823',
-      '@botharness/im-provider': '4.32.0-botharness.22',
+      '@botharness/im-provider': '4.32.0-botharness.25',
     });
+    expect(release.optionalDependencies).toEqual(
+      Object.fromEntries(cloudflaredPackageNames.map((name) => [name, '0.0.0-test.823'])),
+    );
     expect(release.dsh.bundle.patch).toBe('./cordis.im.patch.yml');
     expect(release.bin).toEqual({
       'botharness-profile': './dist/profile-cli.mjs',
       deepseekbot: './dist/deepseekbot.mjs',
+      'deepseekbot-zoom-setup': './dist/desktop-zoom-setup.mjs',
     });
     expect(release.files).toContain('dist');
     expect(source.private).toBe(true);

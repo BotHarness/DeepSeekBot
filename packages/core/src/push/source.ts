@@ -4,6 +4,11 @@ import type { PushCandidate, PushKind, PushSource } from './delivery.js';
 
 const KIND: Partial<Record<HumanAttentionItem['kind'], PushKind>> = {
   'tool-approval': 'approval',
+  'workspace-grant-request': 'approval',
+  'auto-rejection': 'approval',
+  'group-join-request': 'approval',
+  'assignment-waiting-human': 'question',
+  'assignment-blocked': 'question',
   'user-question': 'question',
   'private-input': 'private-input',
   'channel-reply': 'reply',
@@ -16,7 +21,10 @@ const PREVIEW_LIMIT = 140;
 const PREVIEW_FIELDS = ['command', 'cmd', 'script', 'code', 'url', 'path', 'file_path'];
 
 export interface PushApprovalLookup {
-  (channelId: string, messageId: string): { toolName: string; input: string } | undefined;
+  (
+    channelId: string,
+    messageId: string,
+  ): { toolName: string; input: string; allowAlways?: boolean } | undefined;
 }
 
 function clip(text: string): string | undefined {
@@ -40,8 +48,6 @@ function inputPreview(input: string): string {
   return value === undefined ? '' : typeof value === 'string' ? value : JSON.stringify(value);
 }
 
-const ONCE_ONLY_TOOLS = new Set(['secret_cli']);
-
 function approvalOf(
   item: HumanAttentionItem,
   approval: PushApprovalLookup | undefined,
@@ -55,7 +61,7 @@ function approvalOf(
   const preview = clip(shown.trim() === '' ? request.toolName : `${request.toolName} · ${shown}`);
   return {
     ...(preview === undefined ? {} : { preview }),
-    categoryId: ONCE_ONLY_TOOLS.has(request.toolName) ? 'tool-approval-once' : 'tool-approval',
+    categoryId: request.allowAlways === true ? 'tool-approval' : 'tool-approval-once',
   };
 }
 
@@ -65,7 +71,7 @@ function details(
   approval: PushApprovalLookup | undefined,
 ): { preview?: string; categoryId?: string } {
   if (kind === 'private-input') return {};
-  if (kind === 'approval') return approvalOf(item, approval);
+  if (kind === 'approval' && item.kind === 'tool-approval') return approvalOf(item, approval);
   const preview = clip(item.summary);
   return preview === undefined ? {} : { preview };
 }
@@ -94,7 +100,7 @@ function candidate(
 }
 
 export function humanInboxPushSource(
-  attention: Pick<HumanAttentionQuery, 'list' | 'actionCount'>,
+  attention: Pick<HumanAttentionQuery, 'list' | 'actionCount' | 'dmReplies'>,
   botName: (slug: string) => string | undefined,
   approval?: PushApprovalLookup,
 ): PushSource {
@@ -104,8 +110,9 @@ export function humanInboxPushSource(
       const replies = attention
         .list({ category: 'replies', limit: REPLY_LIMIT })
         .items.filter((item) => item.isUnread !== false);
+      const dms = attention.dmReplies(REPLY_LIMIT);
       return {
-        items: [...action, ...replies].flatMap((item) => candidate(item, approval)),
+        items: [...action, ...replies, ...dms].flatMap((item) => candidate(item, approval)),
         badge: attention.actionCount(),
       };
     },

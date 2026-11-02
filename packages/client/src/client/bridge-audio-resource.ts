@@ -1,3 +1,4 @@
+import { fetchMessageResource, type MessageHost } from './message-host.js';
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
 
 interface AudioState {
@@ -11,6 +12,7 @@ export function createBridgeAudioResource(
   channelId: string,
   sourceEventId: string,
   attachmentId: string,
+  host?: MessageHost,
 ) {
   let state = EMPTY;
   let controller: AbortController | undefined;
@@ -34,15 +36,16 @@ export function createBridgeAudioResource(
     const signal = AbortSignal.any([request.signal, AbortSignal.timeout(30000)]);
     update({ loading: true });
     try {
-      const response = await fetch(
-        './api/botharness/attachment?' +
+      const response = await fetchMessageResource(
+        '/api/botharness/attachment?' +
           new URLSearchParams({
             channelId,
             sourceEventId,
             attachmentId,
             representation: 'playback',
           }),
-        { signal },
+        signal,
+        host,
       );
       signal.throwIfAborted();
       if (!response.ok || response.headers.get('content-type')?.split(';', 1)[0] !== 'audio/wav') {
@@ -96,7 +99,8 @@ export function createBridgeAudioResource(
     getSnapshot: () => state,
     subscribe(listener: () => void) {
       listeners.add(listener);
-      if (listeners.size === 1) stopLive = subscribeMessagingDefaults(reset);
+      if (listeners.size === 1)
+        stopLive = host === undefined ? subscribeMessagingDefaults(reset) : undefined;
       return () => {
         listeners.delete(listener);
         if (!listeners.size) {

@@ -187,10 +187,11 @@ it('respects Human membership and visible revisions for current-day history', as
       members: ['ada'],
       ownerBotSlug: 'ada',
     });
+    const visibleAt = Date.now() - 10000;
     for (const id of ['before-join', 'visible'])
       await core.channels.appendMessage(group.id, {
         id,
-        at: new Date().toISOString(),
+        at: new Date(id === 'visible' ? visibleAt : visibleAt + 1000).toISOString(),
         author: { kind: 'bot', slug: 'ada' },
         body: 'Update',
       });
@@ -209,10 +210,68 @@ it('respects Human membership and visible revisions for current-day history', as
         hidden.id,
       );
     });
+    expect(core.channels.latestBotActivity?.().get('ada')).toBe(visibleAt);
     expect(createBridgeMethods({ ...core }).channelActivityToday({})).toMatchObject({
       ok: true,
       value: { total: 1, channels: [{ channelId: group.id, total: 1 }] },
     });
+  } finally {
+    await core.runtime.close();
+    core.operationalDatabase.close();
+  }
+});
+
+it('retains each Bot activity after interleaved group messages and restart, including Assignment reports', async () => {
+  const home = createTempRoot('bh-home-recency-');
+  let core = createCore({ dshHome: home, agents });
+  const adaAt = Date.parse('2026-10-18T10:00:00.123Z');
+  const beaAt = adaAt + 1000;
+  try {
+    for (const slug of ['ada', 'bea', 'report-only'])
+      core.registry.create({ slug, displayName: slug });
+    const group = core.channels.createGroup({ name: 'Activity', members: ['ada', 'bea'] });
+    for (const [slug, at] of [
+      ['ada', adaAt],
+      ['bea', beaAt],
+    ] as const)
+      await core.channels.appendMessage(group.id, {
+        id: slug,
+        author: { kind: 'bot', slug },
+        body: 'Done',
+        at: new Date(at).toISOString(),
+      });
+    await core.channels.appendMessage(group.id, {
+      id: 'human',
+      author: { kind: 'human' },
+      body: 'Thanks',
+      at: new Date(beaAt + 1000).toISOString(),
+    });
+    const expected = new Map([
+      ['ada', adaAt],
+      ['bea', beaAt],
+    ]);
+    expect(core.channels.latestBotActivity?.()).toEqual(expected);
+    await core.runtime.close();
+    core.operationalDatabase.close();
+    core = createCore({ dshHome: home, agents });
+    expect(core.channels.latestBotActivity?.()).toEqual(expected);
+    const reports = vi
+      .spyOn(core.runtime, 'latestAssignmentActivity')
+      .mockReturnValue(new Map([['report-only', beaAt + 2000]]));
+    const result = createBridgeMethods({ ...core }).list({});
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        bots: expect.arrayContaining([
+          expect.objectContaining({ slug: 'ada', lastActivityAt: adaAt }),
+          expect.objectContaining({ slug: 'bea', lastActivityAt: beaAt }),
+          expect.objectContaining({ slug: 'report-only', lastActivityAt: beaAt + 2000 }),
+        ]),
+      },
+    });
+    reports.mockRestore();
+    core.channels.deleteGroup(group.id);
+    expect(core.channels.latestBotActivity?.()).toEqual(new Map());
   } finally {
     await core.runtime.close();
     core.operationalDatabase.close();
