@@ -82,7 +82,9 @@ describe('timelineWorkingRows', () => {
         t: zhTranslate,
       }),
     );
-    expect(html).toContain('summary" aria-hidden="true">正在搜索 · web_search · deepseek.com<span');
+    expect(html).toContain(
+      'summary" aria-hidden="true">正在搜索 · web_search · deepseek.com</span>',
+    );
   });
 
   it('skips a thinking row for the Bot that wrote the latest message but keeps its tool row', () => {
@@ -117,9 +119,9 @@ describe('HeaderWorkingStatus', () => {
     expect(html).toContain('data-state="working"');
     expect(html).toContain('data-effect="searching"');
     expect(html).toContain('width:22px;height:22px');
-    expect(html).toContain('summary" aria-hidden="true">正在搜索 · web_search<span');
+    expect(html).toContain('summary" aria-hidden="true">正在搜索 · web_search</span>');
     expect(html).not.toContain('Mira</span>');
-    expect(html).toContain('bh-header-working-ellipsis');
+    expect(html).not.toContain('bh-header-working-ellipsis');
     expect(html).not.toContain('role="status"');
     expect(html).not.toContain('aria-live');
   });
@@ -133,7 +135,7 @@ describe('HeaderWorkingStatus', () => {
     );
     expect(html.match(/class="bh-persona-avatar"/g)).toHaveLength(3);
     expect(html).toContain('bh-avatar-facepile bh-header-working-avatars');
-    expect(html).toContain('正在工作<span');
+    expect(html).toContain('正在工作</span>');
   });
 
   it('renders nothing without active Bots and counts Bots past the cap', () => {

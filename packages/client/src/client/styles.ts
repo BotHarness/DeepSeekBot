@@ -3486,7 +3486,6 @@ html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
   white-space: nowrap;
 }
 [data-conversation-title] > .bh-header-working-summary { display: block; }
-.bh-header-working-ellipsis i { font-style: normal; }
 html[data-botharness-motion='reduce'] .bh-header-working { animation-name: bh-fade-in; }
 @keyframes bh-header-working-enter {
   from { opacity: 0; transform: scale(0.95); }
@@ -3768,17 +3767,6 @@ html[data-botharness-motion='reduce'] .bh-message-group-enter .bh-message-group-
   color: var(--dsw-alias-label-tertiary);
   font-size: ${text.metaSize};
   line-height: 1;
-}
-.bh-reading-dots {
-  display: inline-flex;
-  gap: ${space.x1};
-  margin-left: ${space.x1};
-}
-.bh-reading-dots i {
-  width: 3px;
-  height: 3px;
-  border-radius: ${radius.round};
-  background: currentColor;
 }
 [data-badge-motion='enter'] {
   animation: bh-badge-in 180ms var(--bh-ease-out) both;

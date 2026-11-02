@@ -157,11 +157,6 @@ export function MessageReading({
       {readers.length > shown.length ? (
         <span className="bh-stack-more">+{readers.length - shown.length}</span>
       ) : null}
-      <span className="bh-reading-dots" aria-hidden="true">
-        <i />
-        <i />
-        <i />
-      </span>
     </span>
   );
 }
