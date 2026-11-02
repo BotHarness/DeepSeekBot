@@ -92,7 +92,7 @@ describe('interrupted Human DM notice', () => {
     }
   });
 
-  it('reruns only the Human DM that a Host stop interrupted before any side effect', async () => {
+  it('continues every Human DM turn a Host stop interrupted, also after side effects', async () => {
     const home = createTempRoot('botharness-interrupted-dm-rerun-');
     const first = createCore({
       dshHome: home,
@@ -145,11 +145,16 @@ describe('interrupted Human DM notice', () => {
     });
     try {
       await second.runtime.whenIdle();
-      expect(turns).toHaveLength(1);
-      expect(turns[0]).toMatch(/^\[Human DM\]\nSource Event ID: [^\n]+\n/);
-      expect(turns[0]).toContain(
-        `Channel: ${dm.id}\nMessage ID: human-interrupted\nRequest human-interrupted`,
-      );
+      expect(turns).toHaveLength(2);
+      for (const id of ['human-interrupted', 'human-effect']) {
+        const turn = turns.find((message) => message.includes(`Message ID: ${id}\n`));
+        expect(turn).toMatch(
+          /^\[Host: your earlier turn for the message below stopped before it finished because the Host restarted\./,
+        );
+        expect(turn).toContain('Continue from where you stopped instead of starting over.');
+        expect(turn).toMatch(/\[Human DM\]\nSource Event ID: [^\n]+\n/);
+        expect(turn).toContain(`Channel: ${dm.id}\nMessage ID: ${id}\nRequest ${id}`);
+      }
       const states = attachOperationalModule(
         second.operationalDatabase,
         'interrupted-dm-test',
@@ -162,7 +167,7 @@ describe('interrupted Human DM notice', () => {
           .all(),
       );
       expect(states).toEqual([
-        { message_id: 'human-effect', attempt_state: 'needs-repair' },
+        { message_id: 'human-effect', attempt_state: 'handled' },
         { message_id: 'human-failed', attempt_state: 'retryable' },
         { message_id: 'human-interrupted', attempt_state: 'handled' },
       ]);

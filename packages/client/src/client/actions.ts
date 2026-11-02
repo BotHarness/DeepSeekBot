@@ -406,7 +406,7 @@ export interface BridgeActions {
   retryMessage(
     channelId: string,
     messageId: string,
-    recovery?: { action: 'compact' | 'new-session'; failureMessageId: string },
+    recovery?: { action: 'continue' | 'compact' | 'new-session'; failureMessageId: string },
   ): Promise<void>;
   stopBot(channelId: string, botSlug: string): Promise<'stopped' | 'not-working'>;
   compactBot(botSlug: string): Promise<BotCompactResult>;

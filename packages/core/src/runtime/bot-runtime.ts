@@ -107,6 +107,7 @@ import {
   type ChannelMessagePerf,
   type ChannelReaction,
   type ChannelRecord,
+  type SessionFailureProgress,
 } from '../channels/channel.js';
 import { ChannelReplyTargetError, MAX_MESSAGE_PAGE } from '../channels/store.js';
 import type { MessagePerfTracker } from '../usage/message-perf.js';
@@ -826,6 +827,8 @@ export interface BotRuntime {
 }
 
 export interface BotRuntimeOptions {
+  readTurnProgress?: (sessionId: string) => Promise<SessionFailureProgress | undefined>;
+  autoContinueDelaysMs?: readonly number[];
   botNetwork?: import('./bot-network.js').BotNetworkPort;
   onTobDelegation?: () => void;
   promptText?: (botSlug: string) => PromptText;
@@ -1354,6 +1357,35 @@ function sessionFailureBody(details: { code?: string; detail: string }): string 
   return `Session failed: ${details.code === undefined ? '' : details.code + ': '}${details.detail}`;
 }
 
+const TRANSIENT_FAILURE_CODES = new Set([
+  'TRANSPORT',
+  'TIMEOUT',
+  'SERVER',
+  'RATE_LIMIT',
+  'EMPTY_RESPONSE',
+]);
+const AUTO_CONTINUE_DELAYS_MS: readonly number[] = [60_000, 180_000];
+
+interface PendingAutoContinue {
+  timer: NodeJS.Timeout;
+  channelId: string;
+  messageId: string;
+  sessionId: string;
+  attempt: number;
+}
+
+type DmContinuation =
+  | { kind: 'failure'; code?: string; autoAttempts: number }
+  | { kind: 'host-restart' };
+
+function continuationNote(continuation: DmContinuation): string {
+  const cause =
+    continuation.kind === 'host-restart'
+      ? 'the Host restarted'
+      : `it failed${continuation.code === undefined ? '' : ` with ${continuation.code}`}`;
+  return `[Host: your earlier turn for the message below stopped before it finished because ${cause}. The tool calls and results it completed are in this Session's history. Continue from where you stopped instead of starting over. A tool call with no recorded result has an unknown outcome: check its effect before repeating it.]\n\n`;
+}
+
 class BotRuntimeImplementation implements BotRuntime {
   readonly #requireExecution: BotRuntimeOptions['requireExecution'];
   readonly #externalMessaging: OutboundMessaging | undefined;
@@ -1418,6 +1450,9 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #pendingHarvests = new Set<string>();
   readonly #digestTimers = new Map<string, NodeJS.Timeout>();
   readonly #snoozeTimers = new Map<string, NodeJS.Timeout>();
+  readonly #autoContinues = new Map<string, PendingAutoContinue>();
+  readonly #readTurnProgress: BotRuntimeOptions['readTurnProgress'];
+  readonly #autoContinueDelaysMs: readonly number[];
   readonly #triageQueued = new Set<string>();
   readonly #triageRunning = new Map<string, number>();
   readonly #triageBaseline = new Map<string, number>();
@@ -1484,6 +1519,8 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#readAssignmentReportPage = options.readAssignmentReportPage;
     this.#messagePerf = options.messagePerf;
     this.#now = options.now ?? (() => new Date());
+    this.#readTurnProgress = options.readTurnProgress;
+    this.#autoContinueDelaysMs = options.autoContinueDelaysMs ?? AUTO_CONTINUE_DELAYS_MS;
     this.#promptText = options.promptText ?? (() => DEFAULT_PROMPT_TEXT);
     this.#promptLimits = options.promptLimits ?? (() => DEFAULT_PROMPT_LIMITS);
     this.#createSessionId = options.createSessionId ?? (() => `botharness-${randomUUID()}`);
@@ -1522,13 +1559,14 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#retireRevokedGroupRetries();
       this.#recoverPendingChannelAdmissions();
       for (const row of interruptedDms) {
-        const admission = this.admitDmMessage({
-          channelId: row.channel_id,
-          messageId: row.message_id,
-          body: row.body,
-        });
-        if (admission.admitted) void admission.settled.catch(() => undefined);
+        const channel = this.#channels.get(row.channel_id);
+        const botSlug = channel?.type === 'dm' ? channel.botSlug : undefined;
+        if (botSlug === undefined) continue;
+        void this.#continueDmTurn(botSlug, row.channel_id, row.message_id, {
+          kind: 'host-restart',
+        })?.catch(() => undefined);
       }
+      this.#rearmAutoContinues();
       this.#recoverPendingDigests();
       this.#recoverPendingAssignmentReports();
       for (const bot of this.#registry.list()) this.#armSnooze(bot.slug);
@@ -1763,6 +1801,129 @@ class BotRuntimeImplementation implements BotRuntime {
     return message;
   }
 
+  #continuableDmEvent(channelId: string, messageId: string): string | undefined {
+    const channel = this.#channels.get(channelId);
+    const message = this.#channels.message(channelId, messageId);
+    if (channel?.type !== 'dm' || !channel.botSlug || message?.author.kind !== 'human')
+      return undefined;
+    const row = this.#database.read((database) =>
+      database
+        .prepare(`
+      SELECT e.source_event_id FROM source_events e
+        JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
+       WHERE e.channel_id = ? AND e.message_id = ? AND a.bot_slug = ?
+         AND e.source_kind = 'human-message' AND a.reason = 'human-dm'
+         AND e.attempt_state IN ('retryable', 'needs-repair')
+         AND a.attempt_state IN ('retryable', 'needs-repair')
+    `)
+        .get(channelId, messageId, channel.botSlug!),
+    ) as { source_event_id: string } | undefined;
+    return row?.source_event_id;
+  }
+
+  #continueDmTurn(
+    botSlug: string,
+    channelId: string,
+    messageId: string,
+    continuation: DmContinuation,
+  ): Promise<void> | undefined {
+    const bot = this.#registry.get(botSlug);
+    const message = this.#channels.message(channelId, messageId);
+    if (this.#closed || bot === undefined || bot.paused === true || message === undefined)
+      return undefined;
+    const sourceEventId = this.#continuableDmEvent(channelId, messageId);
+    if (sourceEventId === undefined) return undefined;
+    const claimed = this.#database.transaction(
+      (database) => {
+        const events = database
+          .prepare(
+            `UPDATE source_events SET attempt_state = 'running'
+              WHERE source_event_id = ? AND attempt_state IN ('retryable', 'needs-repair')`,
+          )
+          .run(sourceEventId).changes;
+        database
+          .prepare(`
+          UPDATE inbox_admissions SET attempt_state = 'running', last_error = NULL
+           WHERE source_event_id = ? AND bot_slug = ? AND attempt_state IN ('retryable', 'needs-repair')
+        `)
+          .run(sourceEventId, botSlug);
+        return events > 0;
+      },
+      ['source-event', 'bot-inbox'],
+    );
+    if (!claimed) return undefined;
+    return this.#enqueue(botSlug, () =>
+      this.#runHumanDmTurn(
+        bot,
+        channelId,
+        message.body,
+        { sourceEventId, shouldRun: true },
+        messageId,
+        continuation,
+      ),
+    );
+  }
+
+  #rearmAutoContinues(): void {
+    for (const bot of this.#registry.list()) {
+      if (bot.paused === true || this.#autoContinues.has(bot.slug)) continue;
+      const channelId = dmChannelId(bot.slug);
+      const card = this.#channels.latestMessage(channelId);
+      const failure = card?.sessionFailure;
+      if (
+        card?.author.kind !== 'bot' ||
+        failure?.autoContinue === undefined ||
+        failure.requestMessageId === undefined ||
+        failure.role !== 'orchestrator' ||
+        failure.code === undefined ||
+        this.currentOrchestratorSessionId(bot.slug) !== failure.sessionId ||
+        this.#continuableDmEvent(channelId, failure.requestMessageId) === undefined
+      )
+        continue;
+      this.#armAutoContinue(
+        bot.slug,
+        {
+          channelId,
+          messageId: failure.requestMessageId,
+          sessionId: failure.sessionId,
+          attempt: failure.autoContinue.attempt,
+        },
+        Math.max(0, Date.parse(failure.autoContinue.at) - this.#now().getTime()),
+        failure.code,
+      );
+    }
+  }
+
+  #cancelAutoContinue(botSlug: string): PendingAutoContinue | undefined {
+    const pending = this.#autoContinues.get(botSlug);
+    if (pending === undefined) return undefined;
+    clearTimeout(pending.timer);
+    this.#autoContinues.delete(botSlug);
+    return pending;
+  }
+
+  #armAutoContinue(
+    botSlug: string,
+    pending: Omit<PendingAutoContinue, 'timer'>,
+    delayMs: number,
+    code: string,
+  ): void {
+    this.#cancelAutoContinue(botSlug);
+    const timer = setTimeout(() => {
+      if (this.#autoContinues.get(botSlug)?.timer !== timer) return;
+      this.#autoContinues.delete(botSlug);
+      if (this.#closed || this.currentOrchestratorSessionId(botSlug) !== pending.sessionId) return;
+      const settled = this.#continueDmTurn(botSlug, pending.channelId, pending.messageId, {
+        kind: 'failure',
+        code,
+        autoAttempts: pending.attempt,
+      });
+      void settled?.catch(() => undefined);
+    }, delayMs);
+    timer.unref?.();
+    this.#autoContinues.set(botSlug, { ...pending, timer });
+  }
+
   async recoverDmMessage(input: {
     channelId: string;
     failureMessageId: string;
@@ -1785,11 +1946,20 @@ class BotRuntimeImplementation implements BotRuntime {
         'Recovery requires the original Bot failure',
       );
     const messageId = failure.requestMessageId;
+    const continuing = input.action === 'continue';
     const assertAllowed = () => {
       const bot = this.#registry.get(botSlug);
       if (!bot || bot.paused || this.#closed)
         throw new SessionRecoveryError('recovery-unavailable', 'This Bot is unavailable');
       this.#requireExecution?.(botSlug);
+      if (continuing) {
+        if (this.#continuableDmEvent(input.channelId, messageId) === undefined)
+          throw new SessionRecoveryError(
+            'retry-unavailable',
+            'This message has nothing left to continue. Inspect its original Session.',
+          );
+        return;
+      }
       try {
         this.#retryableDmMessage(input.channelId, messageId);
       } catch {
@@ -1813,6 +1983,21 @@ class BotRuntimeImplementation implements BotRuntime {
         'bot-busy',
         'Wait for the current reply or stop the Bot first',
       );
+    this.#cancelAutoContinue(botSlug);
+    if (continuing) {
+      const settled = this.#continueDmTurn(botSlug, input.channelId, messageId, {
+        kind: 'failure',
+        ...(failure.code === undefined ? {} : { code: failure.code }),
+        autoAttempts: 0,
+      });
+      if (settled === undefined)
+        throw new SessionRecoveryError(
+          'retry-unavailable',
+          'This message has nothing left to continue. Inspect its original Session.',
+        );
+      void settled.catch(() => undefined);
+      return;
+    }
     await this.#enqueue(botSlug, async () => {
       assertCurrent();
       if (input.action === 'new-session') {
@@ -1908,6 +2093,8 @@ class BotRuntimeImplementation implements BotRuntime {
     const persistedBody = this.#channels.message(channel.id, input.messageId)?.body;
     const body = persistedBody?.trim() ? persistedBody : input.body;
     if (body.trim().length === 0) return { admitted: false, reason: 'blank-body' };
+    if (this.#autoContinues.get(bot.slug)?.messageId !== input.messageId)
+      this.#cancelAutoContinue(bot.slug);
 
     const timestamp = this.#now().toISOString();
     const claim = this.#claimSourceEvent(
@@ -4528,6 +4715,9 @@ class BotRuntimeImplementation implements BotRuntime {
   async #stopTurn(botSlug: string, notice: string): Promise<{ sessionId: string } | undefined> {
     const turn = this.#turnSources.get(botSlug);
     const active = this.#activeTurns.get(botSlug);
+    const waiting = this.#cancelAutoContinue(botSlug);
+    if (waiting !== undefined && (turn === undefined || active === undefined))
+      return this.#closed ? undefined : { sessionId: waiting.sessionId };
     if (this.#closed || turn === undefined || active === undefined) return undefined;
     const sessionId = this.#agents.stopOrchestratorTurn?.(botSlug);
     if (sessionId === undefined) return undefined;
@@ -4568,6 +4758,8 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#digestTimers.clear();
     for (const timer of this.#snoozeTimers.values()) clearTimeout(timer);
     this.#snoozeTimers.clear();
+    for (const pending of this.#autoContinues.values()) clearTimeout(pending.timer);
+    this.#autoContinues.clear();
     for (const timer of this.#groupAdmissionRetries.values()) clearTimeout(timer);
     this.#groupAdmissionRetries.clear();
     this.#digestRetryAt.clear();
@@ -4604,6 +4796,7 @@ class BotRuntimeImplementation implements BotRuntime {
     body: string,
     claim: SourceEventClaim,
     messageId: string,
+    continuation?: DmContinuation,
   ): Promise<void> {
     if (claim.reconciliationRequired === true) {
       throw new Error(`Source Event ${claim.sourceEventId} requires reconciliation before replay`);
@@ -4625,7 +4818,8 @@ class BotRuntimeImplementation implements BotRuntime {
           session,
           claim.sourceEventId,
           channelId,
-          this.#inboundChannelMessage(bot.slug, channelId, messageId, body, claim.sourceEventId),
+          (continuation === undefined ? '' : continuationNote(continuation)) +
+            this.#inboundChannelMessage(bot.slug, channelId, messageId, body, claim.sourceEventId),
           collected.units,
           this.#channels.message(channelId, messageId)?.memorySwitchTarget !== undefined,
           undefined,
@@ -4635,14 +4829,39 @@ class BotRuntimeImplementation implements BotRuntime {
     } catch (error) {
       this.#setObserved(collected.eventIds, null, bot.slug);
       this.#markSourceEventFailed(claim.sourceEventId);
+      const code = sessionFailureDetails(error).code;
+      const autoAttempts = continuation?.kind === 'failure' ? continuation.autoAttempts : 0;
+      const delayMs = this.#autoContinueDelaysMs[autoAttempts];
+      const autoContinue =
+        code !== undefined &&
+        TRANSIENT_FAILURE_CODES.has(code) &&
+        delayMs !== undefined &&
+        !this.#stoppedTurns.has(bot.slug) &&
+        channelId === dmChannelId(bot.slug)
+          ? {
+              attempt: autoAttempts + 1,
+              maxAttempts: this.#autoContinueDelaysMs.length,
+              at: new Date(this.#now().getTime() + delayMs).toISOString(),
+            }
+          : undefined;
+      const sessionId = orchestrator.sessionId;
       await this.#publishSessionFailure({
         channelId,
         requestMessageId: messageId,
         botSlug: bot.slug,
-        sessionId: orchestrator.sessionId,
+        sessionId,
         role: 'orchestrator',
         error,
+        progress: await this.#readTurnProgress?.(sessionId).catch(() => undefined),
+        ...(autoContinue === undefined ? {} : { autoContinue }),
       });
+      if (autoContinue !== undefined && code !== undefined && delayMs !== undefined)
+        this.#armAutoContinue(
+          bot.slug,
+          { channelId, messageId, sessionId, attempt: autoContinue.attempt },
+          delayMs,
+          code,
+        );
       throw error;
     }
     this.#markReportsHandled(collected.eventIds, bot.slug, orchestrator.sessionId);
@@ -5256,12 +5475,16 @@ class BotRuntimeImplementation implements BotRuntime {
     error: unknown;
     context?: string;
     assignmentAnswerTo?: string;
+    progress?: SessionFailureProgress | undefined;
+    autoContinue?: { attempt: number; maxAttempts: number; at: string };
   }): Promise<void> {
     const details = sessionFailureDetails(input.error);
     const failure = {
       role: input.role,
       sessionId: input.sessionId,
       ...details,
+      ...(input.progress === undefined ? {} : { progress: input.progress }),
+      ...(input.autoContinue === undefined ? {} : { autoContinue: input.autoContinue }),
       ...(input.context === undefined ? {} : { context: input.context }),
       ...(input.assignmentAnswerTo === undefined
         ? {}
@@ -5527,7 +5750,6 @@ class BotRuntimeImplementation implements BotRuntime {
           JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
          WHERE e.source_kind = 'human-message' AND a.reason = 'human-dm'
            AND e.attempt_state = 'running' AND a.attempt_state = 'running'
-           AND e.side_effect_started_at IS NULL AND a.side_effect_started_at IS NULL
            AND e.channel_id IS NOT NULL AND e.message_id IS NOT NULL
          ORDER BY e.created_at, e.message_id
       `)

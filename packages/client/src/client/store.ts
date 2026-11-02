@@ -190,6 +190,8 @@ export interface SessionFailureCard {
   status?: number;
   detail: string;
   context?: string;
+  progress?: import('../shared/turn-continuation.js').SessionFailureProgress;
+  autoContinue?: import('../shared/turn-continuation.js').SessionFailureAutoContinue;
 }
 
 export interface ChannelReaction {

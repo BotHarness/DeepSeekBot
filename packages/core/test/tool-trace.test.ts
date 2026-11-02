@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { DshSessionEvent } from '../src/sessions/source.js';
-import { summarizeToolTrace } from '../src/bots/tool-trace.js';
+import { summarizeToolTrace, turnProgress } from '../src/bots/tool-trace.js';
 
 let seq = 0;
 const event = (type: string, data: unknown): DshSessionEvent => ({
@@ -137,5 +137,21 @@ describe('Bot tool-call trace', () => {
     expect(JSON.stringify(call.args).length).toBeLessThan(400);
     expect(call.result.length).toBeLessThanOrEqual(301);
     expect(trace.turns[0]!.endReason).toBeUndefined();
+  });
+});
+
+describe('turnProgress', () => {
+  it('reports completed steps, the last tool and calls without a result in the newest turn', () => {
+    const events = log().slice(0, -3);
+    expect(turnProgress(events)).toEqual({
+      completedSteps: 2,
+      lastTool: 'browser_observe',
+      unknownTools: ['browser_observe'],
+    });
+  });
+
+  it('reports a turn without tool calls and an empty log', () => {
+    expect(turnProgress(log())).toEqual({ completedSteps: 0 });
+    expect(turnProgress([])).toBeUndefined();
   });
 });

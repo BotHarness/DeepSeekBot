@@ -88,7 +88,10 @@ export const CHANNEL_COMMANDS = [
     command: 'channel-mute',
     description: 'mute a Channel so it stays out of unread badges, or unmute it with --off',
   },
-  { command: 'channel-retry', description: 'retry a failed Bot reply to a Human DM message' },
+  {
+    command: 'channel-retry',
+    description: 'retry or continue a failed Bot reply to a Human DM message',
+  },
   { command: 'channel-bot-stop', description: "stop a working Bot's current turn in a Channel" },
   {
     command: 'channel-purge-preview',
@@ -396,8 +399,12 @@ export async function runChannelCommand(
       method = 'channelRetry';
       args.messageId = required(values['message-id'], '--message-id');
       if (values.recovery !== undefined) {
-        if (values.recovery !== 'compact' && values.recovery !== 'new-session')
-          usage('--recovery must be compact or new-session');
+        if (
+          values.recovery !== 'continue' &&
+          values.recovery !== 'compact' &&
+          values.recovery !== 'new-session'
+        )
+          usage('--recovery must be continue, compact or new-session');
         args.recovery = values.recovery;
         args.failureMessageId = required(values['failure-message-id'], '--failure-message-id');
       }

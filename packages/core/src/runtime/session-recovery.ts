@@ -1,4 +1,4 @@
-export type SessionRecoveryAction = 'compact' | 'new-session';
+export type SessionRecoveryAction = 'continue' | 'compact' | 'new-session';
 
 export class SessionRecoveryError extends Error {
   constructor(

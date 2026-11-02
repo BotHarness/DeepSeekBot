@@ -2781,8 +2781,13 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const messageId = asNonBlank(source, 'messageId');
       const recovery = source['recovery'];
       const failureMessageId = asNonBlank(source, 'failureMessageId');
-      if (recovery !== undefined && recovery !== 'compact' && recovery !== 'new-session')
-        return invalidInput('recovery must be compact or new-session');
+      if (
+        recovery !== undefined &&
+        recovery !== 'continue' &&
+        recovery !== 'compact' &&
+        recovery !== 'new-session'
+      )
+        return invalidInput('recovery must be continue, compact or new-session');
       if (!channelId || !messageId || !deps.runtime?.retryDmMessage)
         return invalidInput('Original message is required');
       try {

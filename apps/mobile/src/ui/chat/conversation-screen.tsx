@@ -551,6 +551,7 @@ function ChatConversation({
     const shown = snapshot.messages.filter(shownInChat);
     return dm ? visibleDmActivity(shown, hiddenActivity) : shown;
   }, [snapshot.messages, dm, hiddenActivity]);
+  const latestMessageId = snapshot.messages.at(-1)?.id;
   const chronological = useMemo(
     () =>
       chatRows(
@@ -1075,6 +1076,7 @@ function ChatConversation({
             channelId={activeChannel}
             messageId={item.message.id}
             failure={item.message.sessionFailure}
+            latest={item.message.id === latestMessageId}
             onReport={
               saved
                 ? () =>
@@ -1146,6 +1148,7 @@ function ChatConversation({
       playback,
       focused,
       conversation,
+      latestMessageId,
       client,
       slug,
       inbox,

@@ -675,7 +675,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   channelRetry(
     channelId: string,
     messageId: string,
-    recovery?: 'compact' | 'new-session',
+    recovery?: 'continue' | 'compact' | 'new-session',
     failureMessageId?: string,
   ): Promise<{ accepted: true }> {
     return unwrapAsync(
