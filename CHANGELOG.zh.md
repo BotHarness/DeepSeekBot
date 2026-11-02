@@ -6,7 +6,105 @@
 
 ## [Unreleased]
 
-1.6.0 之后暂无变更。
+1.6.1 之后暂无变更。
+
+## [1.6.1] - 2026-11-02
+
+Tobs 新增 Bot 网络：同一 Tailscale 网络、同一 Connect 账号，或经双方批准的局域网电脑之间，Bot 可以互相发现并私聊；长对话和切换聊天明显更流畅（头像改为静态图片、历史按需加载）；随附 cloudflared 安全更新。
+
+升级会把本地数据迁移到新的数据库结构，之后 Tobs 1.6.0 无法再打开；如可能需要降级，请先备份。
+
+移动端条目描述独立版本应用的变化；本次 npm 发布不发布或验收 Android/iOS 安装包。
+
+### Fixed
+
+- 修复 iOS 大字号聊天标题超出导航胶囊的问题，窄屏下保留返回和资料入口；仅紧凑导航标题限制最大字号，资料页文字仍按系统字号缩放（[#3158](https://github.com/BotHarness/DeepSeekBot/issues/3158)）。
+
+- 修复 Android Activity 筛选面板预测性返回时的遮罩动画，并在再次滑动打开前恢复面板隐藏位置（[#3203](https://github.com/BotHarness/DeepSeekBot/issues/3203)）。
+
+- 修复 Android Activity 筛选侧栏通过系统返回关闭后再次闪现的问题，并保留预测返回手势取消行为（[#3203](https://github.com/BotHarness/DeepSeekBot/issues/3203)）。
+
+- Android 设置页的顶部栏与底部导航隐藏时，滚动视口保持固定，避免视口移动反过来干扰滚动方向判断（[#3204](https://github.com/BotHarness/DeepSeekBot/issues/3204)）。
+
+- Android 聊天列表的下拉手势启动后，手指轻微横移不会再取消下拉，短列表没有原生滚动事件时也适用；下拉启动前仍保留横向手势判断（[#3205](https://github.com/BotHarness/DeepSeekBot/issues/3205)）。
+
+- 打开市场搜索或编辑搜索草稿时保留已加载的卡片与图片，避免键盘输入期间重复渲染目录内容（[#3207](https://github.com/BotHarness/DeepSeekBot/issues/3207)）。
+
+- 修复非法可选模型计划或修订号导致 Bot 注册表无法启动的问题。读取时忽略不可用字段而不丢弃 Bot，保留有效计划、旧模型选择和修订号；注册表写入会拒绝非法记录，但无法阻止外部 SQL 修改（[#3213](https://github.com/BotHarness/DeepSeekBot/issues/3213)）。
+
+- 切换聊天后，过期的读位置响应不再触发多余的消息加载，快速切回同一聊天也能正确区分；保留当前聊天的未读定位及锚点失效回退（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- 检查待回答问题、审批、私密输入、授权和被拒绝的工具请求时，使用选择性历史索引，不再反复扫描普通聊天消息（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- 读取最新消息、未读位置和历史分页时，只水合当前消息窗口及其可见的回复、授权依赖，不再逐条处理整个 Channel 的历史；保留阅读边界和消息元数据，减少长历史的加载开销（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- 流式回复校验来源消息时不再加载 Channel 的完整历史和消息元数据，减少 Bot 在长对话中生成回复时的 Host 开销（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- 面板滚动条在连续滚动时复用同一次显示状态，避免反复恢复和重写行内样式；保留各滚动区域独立淡出及减少动态效果设置（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- 聊天侧栏预览不再为查找最新消息而逐条投影完整历史，保留回复引用、未读回执、表情回应和已迁移附件（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- Bot 回复流式更新时不再反复重建未变化的历史消息分组和决策信息，保留内容清除校验与未读定位（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- QQ 群开启收集全部消息后，接收连接器具备对应附件能力时，普通消息中的受支持图片和文件不再只剩占位文本。仅提及收集、不支持的格式及回复权限保持不变（[#3221](https://github.com/BotHarness/DeepSeekBot/issues/3221)）。
+
+- 修复模型配置误弹手机 App 浮层而未打开原生模型设置的问题；Bot 模式现在通过真正的设置入口跳转，关闭设置后恢复侧栏（[#3222](https://github.com/BotHarness/BotHarness/issues/3222)）。
+
+- 重新登录 Connect 后，若新授权账号仍拥有本机注册，则复用该注册，即使电脑数量已达上限也不额外注册；切换账号时隔离注册与签名凭据（[#3229](https://github.com/BotHarness/DeepSeekBot/issues/3229)）。
+
+- 手机连接详情不再将远程电脑的 localhost 地址显示为“本机”，正确识别 Tailscale IP，并在旧的本地地址仍被使用时提供扫码恢复入口；已固定密钥的加密 SSH 隧道仍可查看和测试（[#3230](https://github.com/BotHarness/DeepSeekBot/issues/3230)）。
+
+- Assignment Report 续读核验持久化正文元数据，不再依赖展示文案；新报告到达后仍继续读取原报告。后续页必须携带返回的报告 Source Event ID，旧的仅偏移调用需从偏移 0 重新开始。历史报告保留兼容读取路径（[#3245](https://github.com/BotHarness/DeepSeekBot/issues/3245)）。
+
+- 启动用量校准在读取会话之间仅保留 token 统计和模型路由元数据，不再保留完整对话正文，减少内存压力，同时保留原子更新和实时事件去重（[#3248](https://github.com/BotHarness/DeepSeekBot/issues/3248)）。
+
+- Tailscale 监听进程未能启动时，不再尝试向其发送终止信号；Host 关闭时仍会等待已启动的监听进程退出（[#3253](https://github.com/BotHarness/DeepSeekBot/issues/3253)）。
+
+- 每次明确发送跨设备 Bot 私聊前刷新路由，Tailnet 或 Connect 不可用及恢复后仍延续同一会话；失败和结果未知的消息不会经另一条路线或在重启后补发（[#3254](https://github.com/BotHarness/DeepSeekBot/issues/3254)）。
+
+- 减少切换聊天时频道列表重复格式化时间的开销，保留本地化日期和本地时区行为（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- 切换聊天时取消过期的频道初次已读位置和消息窗口请求，同时保留未读定位与失效锚点回退（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- 通过索引查询各频道尚未读过的消息范围，避免重复扫描已读历史，减少切换聊天时的后台查询开销（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- 避免纯聊天更新反复渲染原生侧栏及其频道列表，同时保持收件箱徽标和频道选择实时更新（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+### Documentation
+
+- 将安装指南与 README 版本亮点更新为已验证的 Tobs 1.6.0 发布版（[#3195](https://github.com/BotHarness/DeepSeekBot/issues/3195)）。
+
+- 补充原生移动端聊天加载取证路径与可复放的初始化失败对照，明确区分尚未定位的原始 iOS 故障和健康模拟器检查（[#3231](https://github.com/BotHarness/DeepSeekBot/issues/3231)）。
+
+### Security
+
+- 将 Connect 随附的 cloudflared 更新至 2026.10.6，覆盖 Cloudflare eMudhra 证书安全通知要求的 macOS 二进制修复；现有隧道进程需要另行重启才能使用新版程序（[#3199](https://github.com/BotHarness/DeepSeekBot/issues/3199)）。
+
+### Changed
+
+- 移除移动端随滚动隐藏页头、底部导航和创建按钮的效果，Profile 页头也保持显示（[#3204](https://github.com/BotHarness/DeepSeekBot/issues/3204)）。
+
+- Bot 市场在滚动接近底部时自动加载下一页；加载失败时保留已显示的 Bot，并提供重试入口，避免重复请求（[#3208](https://github.com/BotHarness/DeepSeekBot/issues/3208)）。
+
+- 精简移动端创建菜单为「创建 Bot」「导入 Bot」「创建频道」和「Bot市场」；ZIP 与 Git 合并到「导入 Bot」子菜单，保留原有目标电脑选择和恢复流程（[#3209](https://github.com/BotHarness/DeepSeekBot/issues/3209)）。
+
+- 贡献者规范现要求新功能评估性能影响，通过受控组件消融定位瓶颈，并在采用渲染包前完成可复现的 A/B 对比；浏览器与原生验收分别记录（[#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)）。
+
+- 普通界面中的生成式 Bot 头像改为静态图片，减少渲染开销；工作状态由静态标记表达，切换 Channel 时不再创建头像动画资源；窗口挂件保留独立动画路径（[#3226](https://github.com/BotHarness/DeepSeekBot/issues/3226)）。
+
+- 跨 Host Bot 对话现在会刷新同事的可联系状态，并保留替换后的独立身份；退出协作范围会取消尚未开始的工作，重连不会恢复这些工作，已有对话历史仍可查看（[#3252](https://github.com/BotHarness/DeepSeekBot/issues/3252)）。
+
+- Messaging 统一负责外部 Inbox 消息的就绪判断，并分别记录默认接收与可选 Bridge 路由。历史消息保留原有策略，不补写路由；升级后的 Profile 需要新版读取器，降级需恢复升级前备份（[#3261](https://github.com/BotHarness/DeepSeekBot/issues/3261)，[ADR-0276](../docs/adr/0276-messaging-owns-external-readiness-and-reception-evidence.md)）。
+
+- 消息输入框的模型按钮直接打开主模型和执行模型设置；在同一对话框内切换到预设列表，可查看预设名称及主／执行模型组合，不再逐层打开对话框（[#3266](https://github.com/BotHarness/DeepSeekBot/issues/3266)）。
+
+### Added
+
+- Bot 可以发现同一 Tailscale tailnet 内在线主机上的同事，查询公开设备与能力信息，通过现有 Inbox 收发文字私信，并从发起聊天打开对话。离线时发送失败，不建立待发送队列或自动补发（[#3251](https://github.com/BotHarness/DeepSeekBot/issues/3251)）。
+
+- 新增同一 Connect 账号下在线 Host 之间的 Bot 发现与加密私聊，复用现有联系人、Inbox、CLI 和只读会话历史，不引入发件队列或自动重试（[#3253](https://github.com/BotHarness/DeepSeekBot/issues/3253)）。
+
+- 在连接设置或 CLI 中发现附近 Host，核对并批准准确身份后开展局域网 Bot 协作。双方批准后，活跃 Bot 可查询同事并沿用现有 Inbox 交换私聊；离线消息不会排队或自动补发（[#3255](https://github.com/BotHarness/DeepSeekBot/issues/3255)）。
 
 ## [1.6.0] - 2026-10-29
 

@@ -50,8 +50,8 @@ describe("built release and Development status surfaces", () => {
 
       const englishRss = built("changelog/rss.xml");
       const chineseRss = built("zh/changelog/rss.xml");
-      expect(englishRss.match(/<item>/g)).toHaveLength(14);
-      expect(chineseRss.match(/<item>/g)).toHaveLength(14);
+      expect(englishRss.match(/<item>/g)).toHaveLength(15);
+      expect(chineseRss.match(/<item>/g)).toHaveLength(15);
       expect(englishRss).toContain("/changelog/v101/");
       expect(chineseRss).toContain("/zh/changelog/v101/");
       expect(englishRss).toContain("/changelog/v102/");
@@ -78,6 +78,8 @@ describe("built release and Development status surfaces", () => {
       expect(chineseRss).toContain("/zh/changelog/v152/");
       expect(englishRss).toContain("/changelog/v160/");
       expect(chineseRss).toContain("/zh/changelog/v160/");
+      expect(englishRss).toContain("/changelog/v161/");
+      expect(chineseRss).toContain("/zh/changelog/v161/");
       expect(englishRss).toContain("/changelog/development/");
       expect(chineseRss).toContain("/zh/changelog/development/");
 
@@ -90,8 +92,8 @@ describe("built release and Development status surfaces", () => {
       expect(built("changelog/development/index.md")).toContain(
         "Added durable PersonaBot identity",
       );
-      expect(built("index.html")).toContain('href="/changelog/v160"');
-      expect(built("zh/index.html")).toContain('href="/zh/changelog/v160"');
+      expect(built("index.html")).toContain('href="/changelog/v161"');
+      expect(built("zh/index.html")).toContain('href="/zh/changelog/v161"');
 
       expect(
         statSync(resolve(DIST, "og/changelog/development.png")).size,

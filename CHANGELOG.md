@@ -6,7 +6,105 @@ Unreleased entries arrive as [change fragments](changes/README.md) and are folde
 
 ## [Unreleased]
 
-No changes since 1.6.0 yet.
+No changes since 1.6.1 yet.
+
+## [1.6.1] - 2026-11-02
+
+Tobs adds Bot Network, so Bots on computers in the same Tailscale network, under the same Connect account, or on a LAN both sides approve can find and message each other; long conversations and chat switching are much smoother with static Bot avatars and lighter history loading; and the bundled cloudflared receives a security update.
+
+Upgrading migrates local data to a new database schema, so Tobs 1.6.0 cannot open it afterwards; back up first if you may need to downgrade.
+
+Mobile entries describe independently versioned app changes; this npm release does not publish or qualify Android/iOS binaries.
+
+### Fixed
+
+- Kept iOS chat titles within their navigation capsules at large text sizes, preserving the Back and profile actions on narrow screens; compact navigation titles use a local text-size ceiling while profile text remains fully scalable ([#3158](https://github.com/BotHarness/DeepSeekBot/issues/3158)).
+
+- Kept the Android Activity filter scrim in sync with predictive Back and restored the hidden sheet position before reopening it with a swipe ([#3203](https://github.com/BotHarness/DeepSeekBot/issues/3203)).
+
+- Fixed Android Activity filters flashing back open after system Back dismisses the side sheet, while preserving predictive Back cancellation ([#3203](https://github.com/BotHarness/DeepSeekBot/issues/3203)).
+
+- Kept the Android Settings scroll viewport stationary while its header and bottom navigation hide, avoiding scroll-direction feedback from a moving viewport ([#3204](https://github.com/BotHarness/DeepSeekBot/issues/3204)).
+
+- Kept an activated Android Chats pull active when the finger drifts sideways, including on short lists without native scroll events; horizontal gestures still take precedence before a downward pull starts ([#3205](https://github.com/BotHarness/DeepSeekBot/issues/3205)).
+
+- Kept loaded Marketplace cards and artwork unchanged while opening search or editing its draft, avoiding catalogue rerenders during keyboard entry ([#3207](https://github.com/BotHarness/DeepSeekBot/issues/3207)).
+
+- Fixed malformed optional model plans or revision watermarks preventing the Bot registry from starting. Unusable fields are ignored on read without dropping Bots; valid plans, legacy model choices and revision watermarks are retained. Registry writes reject invalid records, but cannot prevent external SQL edits ([#3213](https://github.com/BotHarness/DeepSeekBot/issues/3213)).
+
+- Switching chats stops obsolete read-position responses from starting extra message loads, including rapid return to the same chat; the current chat keeps its unread position and expired-anchor fallback ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- Checking pending questions, approvals, private input, grants and rejected tool requests uses selective history indexes instead of repeatedly scanning ordinary conversation messages ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- Loading the latest, unread-anchor and history pages hydrates only the selected message window and its visible reply/grant dependencies instead of every message in the Channel, reducing work for long histories while retaining read boundaries and message metadata ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- Checking a streamed reply's source message no longer loads the Channel's entire history and message metadata, reducing Host work while Bots generate replies in long conversations ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- Panel scrollbars keep one visibility session during continuous scrolling instead of repeatedly restoring and rewriting inline styles; independent scrollbar fading and reduced-motion behavior are preserved ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- Channel sidebar previews no longer hydrate every historical message to find the latest reply; reply context, unread receipts, reactions and migrated attachments are preserved ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- Streaming Bot replies no longer rebuild unchanged settled-message groups and decision metadata on every draft update; content-purge enforcement and unread positioning are preserved ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- QQ groups with all-message collection enabled now retain supported direct images and files when the receiving connector has the corresponding attachment capability. Mentions-only collection, unsupported formats and reply permissions are unchanged ([#3221](https://github.com/BotHarness/DeepSeekBot/issues/3221)).
+
+- Fixed model setup opening the mobile app popup instead of native model settings; Bot mode now hands off to the actual Settings entry and restores its sidebar when Settings closes ([#3222](https://github.com/BotHarness/BotHarness/issues/3222)).
+
+- Reuse this computer's existing Connect registration after re-login when the newly authorized account still owns it, including at the computer limit. Account switches keep registrations and signing credentials separate ([#3229](https://github.com/BotHarness/DeepSeekBot/issues/3229)).
+
+- Hide a remote computer's localhost addresses from mobile connection details, identify Tailscale IP routes correctly, and offer address recovery when a cached local-only route is active; pinned encrypted SSH tunnels remain visible and testable ([#3230](https://github.com/BotHarness/DeepSeekBot/issues/3230)).
+
+- Assignment Report continuation checks persisted content metadata independently of display text and stays on the same report when a newer one arrives. Subsequent pages must carry the returned Report Source Event ID; old offset-only callers restart at offset 0. Historical reports retain their compatibility read path ([#3245](https://github.com/BotHarness/DeepSeekBot/issues/3245)).
+
+- Startup usage reconciliation retains only token counts and routing metadata between session reads, instead of complete conversation bodies, reducing memory pressure while preserving atomic updates and live-event deduplication ([#3248](https://github.com/BotHarness/DeepSeekBot/issues/3248)).
+
+- Avoid sending a termination signal when the Tailscale watcher could not start, while still waiting for started watchers to exit during Host shutdown ([#3253](https://github.com/BotHarness/DeepSeekBot/issues/3253)).
+
+- Refresh cross-device Bot routes before each explicit DM send, so a colleague can remain in the same conversation when Tailnet or Connect becomes unavailable or returns. Failed and unknown sends are never replayed through another route or after restart ([#3254](https://github.com/BotHarness/DeepSeekBot/issues/3254)).
+
+- Reduced repeated time-formatting work in the Channel list when switching conversations, preserving localized dates and local-time behavior ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- Cancel obsolete initial Channel read-position and timeline requests when switching conversations, while preserving unread anchoring and expired-anchor fallback ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- Count each Channel's unread messages through its indexed unread revision range instead of rescanning retained history, reducing background work during conversation switching ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- Prevented conversation-only updates from repeatedly rendering the native Sidebar and its Channel list, while keeping inbox badges and Channel selection live ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+### Documentation
+
+- Updated installation guides and README highlights to the verified Tobs 1.6.0 release ([#3195](https://github.com/BotHarness/DeepSeekBot/issues/3195)).
+
+- Documented a native mobile Chats loading diagnostic path and repeatable initialization-failure controls, keeping the unresolved original iOS failure separate from healthy Simulator checks ([#3231](https://github.com/BotHarness/DeepSeekBot/issues/3231)).
+
+### Security
+
+- Updated bundled Connect cloudflared to 2026.10.6, including the macOS binaries required by Cloudflare's eMudhra certificate security notice; existing tunnel processes must be restarted separately to use the updated binary ([#3199](https://github.com/BotHarness/DeepSeekBot/issues/3199)).
+
+### Changed
+
+- Kept mobile headers, bottom navigation and the creation button visible while scrolling, including Profile headers ([#3204](https://github.com/BotHarness/DeepSeekBot/issues/3204)).
+
+- Bot Marketplace loads the next page as you scroll near the end, keeps loaded Bots visible when a page fails, and offers an explicit retry without repeating requests ([#3208](https://github.com/BotHarness/DeepSeekBot/issues/3208)).
+
+- Simplified the mobile creation menu to Create Bot, Import Bot, Create Channel and Bot Marketplace; ZIP and Git now share the Import Bot submenu while keeping their existing destination and recovery flows ([#3209](https://github.com/BotHarness/DeepSeekBot/issues/3209)).
+
+- Contributor guidance now requires performance-impact assessment for new features, controlled component ablations for diagnosis, and reproducible A/B checks before adopting rendering packages, with browser and native acceptance kept separate ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
+- Generated Bot avatars in ordinary UI now stay still and use images to reduce rendering work, with static activity indicators and no avatar animation resources during Channel switching. Window Companions retain their separate animation path ([#3226](https://github.com/BotHarness/DeepSeekBot/issues/3226)).
+
+- Cross-Host Bot conversations now refresh colleague availability and preserve independent identities after replacement; leaving the collaboration scope cancels unstarted work without reviving it on reconnection, while keeping existing conversation history ([#3252](https://github.com/BotHarness/DeepSeekBot/issues/3252)).
+
+- Messaging now owns external Inbox readiness and records default reception separately from optional Bridge routes. Historical messages keep their saved policies without backfill; upgraded Profiles require the new reader or a pre-upgrade backup when downgrading ([#3261](https://github.com/BotHarness/DeepSeekBot/issues/3261), [ADR-0276](../docs/adr/0276-messaging-owns-external-readiness-and-reception-evidence.md)).
+
+- The message composer's model button opens main and task model settings directly. Switch to presets in the same dialog to choose a named main/task model pair, without opening another dialog ([#3266](https://github.com/BotHarness/DeepSeekBot/issues/3266)).
+
+### Added
+
+- Bots can discover colleagues on online Hosts in the same Tailscale tailnet and exchange text DMs through their existing Inbox, with public device and capability details and a conversation link in the originating chat. Offline sends fail without an outgoing queue or automatic replay ([#3251](https://github.com/BotHarness/DeepSeekBot/issues/3251)).
+
+- Added online Bot discovery and encrypted DMs between Hosts signed into the same Connect account, using the existing contacts, Inbox, CLI and read-only conversation history without outgoing queues or automatic retries ([#3253](https://github.com/BotHarness/DeepSeekBot/issues/3253)).
+
+- Discover nearby Hosts and approve their exact identities for LAN Bot collaboration from Connections or the CLI. After both Hosts approve, their active Bots can query colleagues and exchange DMs through the existing Inbox; offline messages are never queued or automatically resent ([#3255](https://github.com/BotHarness/DeepSeekBot/issues/3255)).
 
 ## [1.6.0] - 2026-10-29
 
