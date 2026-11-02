@@ -4,7 +4,8 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSy
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { rpc, verifyPaths } from './verify-app.mjs';
+import { cookieFor, rpc, verifyPaths } from './verify-app.mjs';
+import { installed } from './e2e-assignment-probe.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -97,6 +98,58 @@ export const SCENARIOS = [
               ctx.isBot(message, 'aura') && message.body.trim() === '42' && !message.sessionFailure,
           ),
       );
+    },
+  },
+  {
+    id: 'dm-reply-schema-filled',
+    summary:
+      'A model that fills every optional bot_send_message field with an empty value still gets its DM reply committed on the first call (#3296).',
+    areas: RUNTIME_AREAS,
+    bots: ['aura'],
+    async run(ctx) {
+      const dm = await ctx.dm('aura');
+      await ctx.humanSend(
+        dm,
+        [
+          'This is a tool-argument compatibility test. Reply with exactly the digits 42 by calling bot_send_message once.',
+          'Fill in EVERY parameter of bot_send_message explicitly: source_event_id is this message\'s Source Event ID and body is "42";',
+          'every other parameter must still be present with an empty value, exactly:',
+          'attachments: [], binding_id: "", bot_id: "", channel_id: "", conversation_id: "", draft_id: "", grant_id: "", observation_id: "",',
+          'mention_bot_ids: [], mention_human_ids: [], recover: false, resolve_inbox_ids: [], freshness_override: {"draftVersion": 0, "reason": ""}.',
+          'If the call returns an error, do not retry and do not drop any parameter; stop.',
+        ].join(' '),
+      );
+      const sendCalls = async () => {
+        const calls = (await ctx.toolCalls('aura')).filter(
+          (call) => call.name === 'bot_send_message',
+        );
+        ctx.note({ botSendMessageCalls: calls });
+        return calls;
+      };
+      try {
+        await ctx.waitFor('Bot reply with 42', () =>
+          ctx
+            .messages(dm)
+            .find(
+              (message) =>
+                ctx.isBot(message, 'aura') &&
+                message.body.trim() === '42' &&
+                !message.sessionFailure,
+            ),
+        );
+      } catch (error) {
+        const refused = (await sendCalls()).find((call) => call.isError);
+        throw refused ? new Error(`no reply; bot_send_message refused: ${refused.result}`) : error;
+      }
+      const filled = (await sendCalls()).filter(
+        (call) => call.arguments.channel_id === '' && Array.isArray(call.arguments.attachments),
+      );
+      if (filled.length === 0)
+        throw new Error(
+          'the model did not send the schema-filled empty fields; nothing was tested',
+        );
+      if (filled[0].isError)
+        throw new Error(`the schema-filled call was refused: ${filled[0].result}`);
     },
   },
   {
@@ -751,6 +804,46 @@ function localDay(date = new Date()) {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
+async function sessionSnapshot(instance, sessionId) {
+  const WebSocket = installed('ws');
+  const origin = new URL(instance.url).origin;
+  const socket = new WebSocket(`${origin.replace(/^http/u, 'ws')}/api/remote.mux`, {
+    headers: { cookie: cookieFor(instance.home) },
+  });
+  try {
+    await new Promise((done, fail) => {
+      socket.once('open', done);
+      socket.once('error', fail);
+    });
+    return await new Promise((done, fail) => {
+      const timeout = setTimeout(() => fail(new Error('Session snapshot timed out')), 20_000);
+      socket.on('message', (raw) => {
+        const frame = JSON.parse(String(raw));
+        if (frame.type === 'error') {
+          clearTimeout(timeout);
+          fail(new Error(JSON.stringify(frame.error)));
+        }
+        if (frame.type === 'item' && frame.value.type === 'snapshot') {
+          clearTimeout(timeout);
+          done(frame.value);
+        }
+      });
+      socket.send(
+        JSON.stringify({
+          type: 'open',
+          streamId: crypto.randomUUID(),
+          endpoint: 'session/follow',
+          payload: {
+            args: { request: { address: { kind: 'session', sessionId }, maxMessages: 100 } },
+          },
+        }),
+      );
+    });
+  } finally {
+    socket.terminate();
+  }
+}
+
 export function createContext(instance, scenario, timeoutSeconds, log, presetId) {
   const slugs = {};
   const call = (method, args) => rpc(instance, `botharness/${method}`, args);
@@ -819,6 +912,35 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
     },
     slug: (key) => slugs[key],
     host: call,
+    async toolCalls(key) {
+      const { sessions } = await call('sessions', { slug: slugs[key] });
+      const calls = [];
+      for (const { sessionId } of sessions) {
+        const events = (await sessionSnapshot(instance, sessionId)).records.map(
+          (record) => record.event,
+        );
+        for (const event of events) {
+          if (event.type !== 'tool/call') continue;
+          const result = events.find(
+            (entry) =>
+              entry.type === 'tool/result' && entry.data.message.toolCallId === event.data.callId,
+          )?.data.message;
+          let args;
+          try {
+            args = JSON.parse(event.data.arguments);
+          } catch {
+            args = event.data.arguments;
+          }
+          calls.push({
+            name: event.data.name,
+            arguments: args,
+            isError: result?.isError === true,
+            result: (result?.content ?? []).map((part) => part.text ?? '').join(''),
+          });
+        }
+      }
+      return calls;
+    },
     memoryDir: (key) => join(instance.home, 'botharness', 'bots', slugs[key], 'memory'),
     async tob() {
       const home = await call('tobHome', {});
