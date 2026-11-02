@@ -126,6 +126,42 @@ export function ChannelRowStatusGlyph({
   );
 }
 
+const channelTimeFormats = {
+  time: { hour: '2-digit', minute: '2-digit', hour12: false },
+  weekday: { weekday: 'short' },
+  date: { month: 'numeric', day: 'numeric' },
+  year: { year: 'numeric', month: 'numeric', day: 'numeric' },
+} satisfies Record<string, Intl.DateTimeFormatOptions>;
+const channelTimeFormatters = new Map<string, Intl.DateTimeFormat>();
+const MAX_CHANNEL_TIME_FORMATTERS = 8;
+
+function formatChannelDate(
+  date: Date,
+  locale: string,
+  style: keyof typeof channelTimeFormats,
+): string {
+  if (Number.isNaN(date.getTime())) return date.toLocaleDateString(locale);
+  const key = `${locale}:${style}`;
+  let formatter = channelTimeFormatters.get(key);
+  if (formatter === undefined) {
+    formatter = new Intl.DateTimeFormat(locale, { ...channelTimeFormats[style], timeZone: 'UTC' });
+  } else {
+    channelTimeFormatters.delete(key);
+  }
+  channelTimeFormatters.set(key, formatter);
+  if (channelTimeFormatters.size > MAX_CHANNEL_TIME_FORMATTERS)
+    channelTimeFormatters.delete(channelTimeFormatters.keys().next().value!);
+  const localWallTime = new Date(0);
+  localWallTime.setUTCFullYear(date.getFullYear(), date.getMonth(), date.getDate());
+  localWallTime.setUTCHours(
+    date.getHours(),
+    date.getMinutes(),
+    date.getSeconds(),
+    date.getMilliseconds(),
+  );
+  return formatter.format(localWallTime);
+}
+
 export function formatChannelListTime(at: number, now: number, t: BotHarnessTranslate): string {
   const locale = t('time.intlLocale');
   const date = new Date(at);
@@ -133,13 +169,11 @@ export function formatChannelListTime(at: number, now: number, t: BotHarnessTran
   const startOfDay = (value: Date) =>
     new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
   const days = Math.round((startOfDay(today) - startOfDay(date)) / 86_400_000);
-  if (days <= 0)
-    return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: false });
+  if (days <= 0) return formatChannelDate(date, locale, 'time');
   if (days === 1) return t('time.yesterday');
-  if (days < 7) return date.toLocaleDateString(locale, { weekday: 'short' });
-  if (date.getFullYear() === today.getFullYear())
-    return date.toLocaleDateString(locale, { month: 'numeric', day: 'numeric' });
-  return date.toLocaleDateString(locale, { year: 'numeric', month: 'numeric', day: 'numeric' });
+  if (days < 7) return formatChannelDate(date, locale, 'weekday');
+  if (date.getFullYear() === today.getFullYear()) return formatChannelDate(date, locale, 'date');
+  return formatChannelDate(date, locale, 'year');
 }
 
 const minuteListeners = new Set<() => void>();

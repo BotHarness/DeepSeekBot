@@ -3,6 +3,8 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const rosterProbe = vi.hoisted(() => ({ renders: 0 }));
+
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   const stub = () => null;
   return {
@@ -16,10 +18,19 @@ vi.mock('../src/client/bot-sidebar.js', async () => {
   const { createElement: h } = await import('react');
   const { store } = await import('../src/client/store.js');
   const { useSyncExternalStore } = await import('react');
+  const { useClientStore } = await import('../src/client/use-client-store.js');
   return {
     useClientState: () => useSyncExternalStore(store.subscribe, store.getSnapshot),
-    BotSidebar: ({ wide }: { wide: boolean }) =>
-      h('div', { 'data-roster': wide ? 'wide' : 'rail' }),
+    BotSidebar: ({ wide }: { wide: boolean }) => {
+      const selection = useClientStore((state) => state.selection);
+      const query = useClientStore((state) => state.query);
+      rosterProbe.renders += 1;
+      return h('div', {
+        'data-roster': wide ? 'wide' : 'rail',
+        'data-roster-selection': selection?.kind,
+        'data-roster-query': query,
+      });
+    },
   };
 });
 vi.mock('../src/client/onboarding-checklist-view.js', () => ({
@@ -89,6 +100,44 @@ function render(overrides: Partial<BotModeSidebarProps> = {}) {
 }
 
 describe('Bot mode sidebar', () => {
+  it('skips conversation-only updates while keeping inbox badges and navigation live', () => {
+    const before = store.getSnapshot();
+    try {
+      act(() => store.setHumanInbox({ unreadCount: 0, hasAction: false }));
+      const { container: node } = render();
+      const initialRenders = rosterProbe.renders;
+      for (let draftRevision = 1; draftRevision <= 60; draftRevision += 1)
+        act(() => store.setConversation({ draftRevision }));
+      expect(rosterProbe.renders).toBe(initialRenders);
+      act(() => store.setQuery('Ada'));
+      expect(node.querySelector('[data-roster]')?.getAttribute('data-roster-query')).toBe('Ada');
+      expect(rosterProbe.renders).toBe(initialRenders + 1);
+      act(() => store.setHumanInbox({ unreadCount: 3, hasAction: true }));
+      expect(rosterProbe.renders).toBe(initialRenders + 2);
+      expect(node.querySelector('[data-bh-tour="inbox"]')?.getAttribute('aria-label')).toContain(
+        '3',
+      );
+      act(() => store.select({ kind: 'inbox' }));
+      expect(node.querySelector('[data-roster]')?.getAttribute('data-roster-selection')).toBe(
+        'inbox',
+      );
+      expect(node.querySelector('[data-bh-tour="inbox"]')?.getAttribute('aria-current')).toBe(
+        'page',
+      );
+      act(() => store.select(undefined));
+      expect(node.querySelector('[data-bh-tour="inbox"]')?.hasAttribute('aria-current')).toBe(
+        false,
+      );
+    } finally {
+      act(() => {
+        store.select(before.selection);
+        store.setQuery(before.query);
+        store.setConversation(before.conversation);
+        store.setHumanInbox(before.humanInbox);
+      });
+    }
+  });
+
   it('leads out of Bot mode and drives the DSH column from its own controls', () => {
     const { calls, button, container: node } = render();
 

@@ -13,7 +13,9 @@ import type { BotModeSortMode } from '../bot-mode-settings.js';
 import type { BridgeActions } from './actions.js';
 import { BotIcon } from './bot-icon.js';
 import type { BotModePrefsSnapshot } from './bot-mode-prefs.js';
-import { BotSidebar, useClientState } from './bot-sidebar.js';
+import { BotSidebar } from './bot-sidebar.js';
+import { keepClientState, useClientStore } from './use-client-store.js';
+import type { ClientState } from './store.js';
 import type { ChannelSidebarRegistry } from './channel-sidebar.js';
 import { ACTIVITY_CENTER_PANEL, type DockPanelRegistry } from './dock-panels.js';
 import { hooked } from './ds/hooked.js';
@@ -47,11 +49,19 @@ export interface BotModeSidebarProps {
   t: BotHarnessTranslate;
 }
 
+function sameSidebarNavigation(left: ClientState, right: ClientState): boolean {
+  return (
+    left.humanInbox.unreadCount === right.humanInbox.unreadCount &&
+    left.humanInbox.hasAction === right.humanInbox.hasAction &&
+    (left.selection?.kind === 'inbox') === (right.selection?.kind === 'inbox')
+  );
+}
+
 export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
   const { collapsed, actions, useBotModePrefs, t } = props;
   const wide = !collapsed;
   const icon = useBotModePrefs((prefs) => prefs.botIcon);
-  const state = useClientState();
+  const state = useClientStore(keepClientState, sameSidebarNavigation);
   const unread = state.humanInbox.unreadCount;
   const inboxNotes = [
     ...(unread > 0 ? [t('humanInbox.unreadCount', { count: String(unread) })] : []),

@@ -8,8 +8,10 @@ issue #3214, existing claim `issuecomment-6562890860`. First-stage PR #3291 is m
 its source checkpoint is `76718e81f405db1e5fd61470c0e8411f3bd711f6`.
 Read [the first-stage checkpoint](../evidence/3214-performance/README.md) before interpreting historical numbers.
 
-This follow-up changes only the per-Channel unread-count query and adds its regression tests,
-release fragment and this handoff. Renderer, Worker, cache and private loader experiments are
+This follow-up retains four task-owned slices: the per-Channel unread query, bounded date
+formatter reuse, native Sidebar navigation subscription isolation and obsolete opening-request
+cancellation, with their tests, release fragments and journey documentation. Renderer, Worker,
+Markdown-output cache and private loader experiments are
 **not production changes**. No overall goal-start-to-now speedup is established: measurements
 cover different frozen slices and cannot be summed. Browser, installed Desktop and Human
 acceptance remain separate.
@@ -38,6 +40,27 @@ The SQL adds no index, migration, cache, API or persistence authority. It preser
 visibility, missing read positions, departed/deleted Channel exclusion, muted per-Channel counts,
 notice exclusion, SQL null behavior and distinct Source counting.
 
+### Other retained second-stage slices
+
+| Slice                                                          | Matched before → after                                                                            | Limit                                                           |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Channel-list dates: at most eight locale/style formatters      | 30-round warm CPU 413.096 [391.181, 420.253] → 330.182 [315.467, 341.872] ms                      | Five foreground pairs; readable ranges overlap                  |
+| Native Sidebar: compare Inbox unread/action/selection only     | On formatter-common baseline, warm CPU 338.920 [331.093, 343.936] → 273.453 [223.051, 280.267] ms | Hidden renders 56→2, visible 2→2; child subscriptions stay live |
+| Initial request cancellation: selection-scoped AbortController | Five foreground pairs: 30 obsolete requests aborted vs 0                                          | No general latency gain; 9999-unread paired median +11.2 ms     |
+
+Formatter/Sidebar CPU is accumulated CDP TaskDuration from click through readable plus 900 ms,
+not waiting latency. The two experiments are incremental, not additive percentages. Both keep
+ordinary three-Bot fixtures and full geometry; callback tails remain about 133 ms. Warm drift
+is zero in their samples, but cold drift persists in both arms, so zero-jump acceptance remains
+open. Sidebar input observation worsens 25.31 [19.70, 46.22] → 38.60 [28.85, 62.49] ms:
+retain this noisy tail and investigate rather than claiming universal improvement.
+Formatter tests cover locale/timezone changes, invalid dates, early years and eviction.
+Cancellation preserves active expired-anchor fallback and never passes its signal to read
+mutations; it does not cancel synchronous Host SQL, cached refresh or every background request.
+The cancellation A/B has 70 valid operations, 4,919 stable post-ready anchor samples and a
+worst readable time of 804.7 ms; mixed latency signs mean it is resource hygiene, not the
+solution to all waiting. Unknown keepalive/stream endings and pre-send waits are retained.
+
 ### Foreground browser A/B for the unread query
 
 Five interleaved pairs per boundary, headed Chrome 153.0.8010.36, normal VSync, actual 60 Hz,
@@ -62,7 +85,12 @@ observed drift, correct unread divider/order, and peak initial window ≤50. Thi
 1,500 ms acceptance, physical-input latency, presented FPS or continuous pagination correctness.
 Longest callback is 117 ms before / 133.3 ms after; longest task 120 ms in both arms.
 
-## Experiment ledger: attempted is not shipped
+## Experiment ledger: attempted is not necessarily shipped
+
+The Sidebar investigation also completed geometry-preserving list removal, roster freezing,
+header-context and native-parent controls. Formatter and native-parent subscription are retained
+above; stale-roster and header candidates are rejected/reverted. Other Panels still need
+independent isolation; this does not establish all-Panel or heavy-stream acceptance.
 
 | Suspect / approach                 | How isolated                                                                                                              | Conclusion / next boundary                                                                                                   |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
@@ -128,11 +156,13 @@ failures remain preserved rather than silently excluded from the record.
 
 ## Checkpoint validation
 
-On the handoff date, the seven focused unread/attention suites pass (26 tests), including the
-new actual-query-plan guard and membership/read-floor controls. The guard requires the
+On the handoff date, seven unread/attention suites (26 tests) and seven Client suites (126 tests)
+pass: 14 suites / 152 tests in total, including the query-plan, membership/read-floor,
+formatter-resource, live Sidebar and request-cancellation controls. The query-plan guard requires the
 Channel/revision index seek and rejects a full placement scan; it deliberately uses no flaky
 wall-clock threshold. Root and mobile TypeScript checks, scoped lint/format, CI-plan structural
-validation and bilingual release-ledger checks pass. This validation is
+validation and bilingual release-ledger checks pass; scoped Client lint retains preexisting
+warnings outside the changed bridge hunk, with no errors. This validation is
 not a new browser run; the browser results above belong to their frozen experimental identities.
 
 ## Local evidence and safe continuation
@@ -141,6 +171,11 @@ The same-machine archive is the ignored `.humanlayer/tasks/desktop-160-perf/`. S
 `SESSION-HANDOFF.md`, `NEXT-STAGE-GOAL.md`, `EDGE-CASE-MATRIX.md`,
 `NEXT-STAGE-UNREAD-SQL-REPORT.md`, `NEXT-STAGE-RANGESQL-V2-REPORT.md`,
 `T3-RENDERING-NEXT-STAGE.md` and `MARKDOWN-PACKAGE-RESEARCH.md`.
+The three additional source slices are documented in `NEXT-STAGE-FORMATTER-REPORT.md`,
+`NEXT-STAGE-PANEL-ISOLATION-REPORT.md` and `NEXT-STAGE-OPENING-AB-REPORT.md`;
+`NEXT-STAGE-OPENING-CANCELLATION-REPORT.md` is the earlier source/transport checkpoint,
+not the later successful browser A/B. Do not mistake that historical browser blocker for
+the final cancellation evidence.
 These local paths are an index, **not reviewer-accessible raw evidence** or a portable experiment
 bundle. Preserve them for the next session; publish only privacy-reviewed derivatives to R2.
 
