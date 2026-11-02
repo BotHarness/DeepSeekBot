@@ -28,7 +28,12 @@
           "readableMs": 82.7,
           "forcedShellPresentMs": 1545,
           "forcedBoundingBoxMs": 30,
-          "pageErrors": 0
+          "pageErrors": 0,
+          "slowInputEvents": 1102,
+          "inputMaxMs": 96,
+          "inputDelayP50Ms": 0,
+          "inputProcessingP50Ms": 1,
+          "inputPresentationP50Ms": 62
         },
         {
           "block": 2,
@@ -48,7 +53,12 @@
           "readableMs": 98.3,
           "forcedShellPresentMs": 1798,
           "forcedBoundingBoxMs": 49,
-          "pageErrors": 0
+          "pageErrors": 0,
+          "slowInputEvents": 1244,
+          "inputMaxMs": 72,
+          "inputDelayP50Ms": 0,
+          "inputProcessingP50Ms": 1,
+          "inputPresentationP50Ms": 61
         },
         {
           "block": 3,
@@ -68,7 +78,12 @@
           "readableMs": 111.8,
           "forcedShellPresentMs": 1790,
           "forcedBoundingBoxMs": 47,
-          "pageErrors": 0
+          "pageErrors": 0,
+          "slowInputEvents": 1101,
+          "inputMaxMs": 72,
+          "inputDelayP50Ms": 0,
+          "inputProcessingP50Ms": 1,
+          "inputPresentationP50Ms": 62
         },
         {
           "block": 4,
@@ -88,7 +103,12 @@
           "readableMs": 104.1,
           "forcedShellPresentMs": 1802,
           "forcedBoundingBoxMs": 42,
-          "pageErrors": 0
+          "pageErrors": 0,
+          "slowInputEvents": 1931,
+          "inputMaxMs": 88,
+          "inputDelayP50Ms": 0,
+          "inputProcessingP50Ms": 1,
+          "inputPresentationP50Ms": 64
         },
         {
           "block": 5,
@@ -108,7 +128,12 @@
           "readableMs": 122.4,
           "forcedShellPresentMs": 1725,
           "forcedBoundingBoxMs": 37,
-          "pageErrors": 0
+          "pageErrors": 0,
+          "slowInputEvents": 1099,
+          "inputMaxMs": 80,
+          "inputDelayP50Ms": 0,
+          "inputProcessingP50Ms": 1,
+          "inputPresentationP50Ms": 62
         }
       ]
     },
@@ -133,7 +158,12 @@
           "readableMs": 109.9,
           "forcedShellPresentMs": 49,
           "forcedBoundingBoxMs": 275,
-          "pageErrors": 0
+          "pageErrors": 0,
+          "slowInputEvents": 1240,
+          "inputMaxMs": 72,
+          "inputDelayP50Ms": 0,
+          "inputProcessingP50Ms": 1,
+          "inputPresentationP50Ms": 54
         },
         {
           "block": 2,
@@ -153,7 +183,12 @@
           "readableMs": 93.6,
           "forcedShellPresentMs": 44,
           "forcedBoundingBoxMs": 265,
-          "pageErrors": 0
+          "pageErrors": 0,
+          "slowInputEvents": 1101,
+          "inputMaxMs": 72,
+          "inputDelayP50Ms": 0,
+          "inputProcessingP50Ms": 1,
+          "inputPresentationP50Ms": 55
         },
         {
           "block": 3,
@@ -173,7 +208,12 @@
           "readableMs": 103.2,
           "forcedShellPresentMs": 46,
           "forcedBoundingBoxMs": 232,
-          "pageErrors": 0
+          "pageErrors": 0,
+          "slowInputEvents": 1243,
+          "inputMaxMs": 72,
+          "inputDelayP50Ms": 0,
+          "inputProcessingP50Ms": 1,
+          "inputPresentationP50Ms": 62
         },
         {
           "block": 4,
@@ -193,7 +233,12 @@
           "readableMs": 114.6,
           "forcedShellPresentMs": 35,
           "forcedBoundingBoxMs": 236,
-          "pageErrors": 0
+          "pageErrors": 0,
+          "slowInputEvents": 1101,
+          "inputMaxMs": 72,
+          "inputDelayP50Ms": 0,
+          "inputProcessingP50Ms": 1,
+          "inputPresentationP50Ms": 63
         },
         {
           "block": 5,
@@ -213,7 +258,12 @@
           "readableMs": 115.2,
           "forcedShellPresentMs": 74,
           "forcedBoundingBoxMs": 232,
-          "pageErrors": 0
+          "pageErrors": 0,
+          "slowInputEvents": 1932,
+          "inputMaxMs": 72,
+          "inputDelayP50Ms": 0,
+          "inputProcessingP50Ms": 1,
+          "inputPresentationP50Ms": 62
         }
       ]
     },
@@ -238,7 +288,12 @@
           "readableMs": 81,
           "forcedShellPresentMs": 40,
           "forcedBoundingBoxMs": 0,
-          "pageErrors": 0
+          "pageErrors": 0,
+          "slowInputEvents": 1101,
+          "inputMaxMs": 72,
+          "inputDelayP50Ms": 0,
+          "inputProcessingP50Ms": 1,
+          "inputPresentationP50Ms": 63
         },
         {
           "block": 2,
@@ -258,7 +313,12 @@
           "readableMs": 95.2,
           "forcedShellPresentMs": 48,
           "forcedBoundingBoxMs": 0,
-          "pageErrors": 0
+          "pageErrors": 0,
+          "slowInputEvents": 1240,
+          "inputMaxMs": 72,
+          "inputDelayP50Ms": 0,
+          "inputProcessingP50Ms": 1,
+          "inputPresentationP50Ms": 55
         },
         {
           "block": 3,
@@ -278,7 +338,12 @@
           "readableMs": 97.3,
           "forcedShellPresentMs": 49,
           "forcedBoundingBoxMs": 0,
-          "pageErrors": 0
+          "pageErrors": 0,
+          "slowInputEvents": 1245,
+          "inputMaxMs": 72,
+          "inputDelayP50Ms": 0,
+          "inputProcessingP50Ms": 1,
+          "inputPresentationP50Ms": 56
         },
         {
           "block": 4,
@@ -298,7 +363,12 @@
           "readableMs": 111.7,
           "forcedShellPresentMs": 51,
           "forcedBoundingBoxMs": 0,
-          "pageErrors": 0
+          "pageErrors": 0,
+          "slowInputEvents": 1240,
+          "inputMaxMs": 80,
+          "inputDelayP50Ms": 0,
+          "inputProcessingP50Ms": 1,
+          "inputPresentationP50Ms": 55
         },
         {
           "block": 5,
@@ -318,9 +388,26 @@
           "readableMs": 114,
           "forcedShellPresentMs": 67,
           "forcedBoundingBoxMs": 0,
-          "pageErrors": 0
+          "pageErrors": 0,
+          "slowInputEvents": 1932,
+          "inputMaxMs": 72,
+          "inputDelayP50Ms": 0,
+          "inputProcessingP50Ms": 1,
+          "inputPresentationP50Ms": 62
         }
       ]
     }
+  },
+  "inputSampling": {
+    "events": [
+      "keydown",
+      "keypress",
+      "input",
+      "keyup"
+    ],
+    "durationThresholdMs": 16,
+    "slowEventsOnly": true,
+    "percentile": "sorted[floor(q*(n-1))], rounded",
+    "rawSamplesKept": false
   }
 }

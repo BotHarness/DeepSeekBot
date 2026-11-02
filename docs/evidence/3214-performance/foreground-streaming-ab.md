@@ -68,6 +68,33 @@ Median [min, max] of five runs per arm. No run failed and no page errors were re
   measure of user-perceived latency.
 - **Opening:** ranges overlap, so no arm is distinguishable.
 
+## How input p95 is computed
+
+- **Samples:** Event Timing entries named `keydown`, `keypress`, `input` and `keyup`, from a
+  `PerformanceObserver` with `type: 'event'` and `durationThreshold: 16`. They are collected only
+  during the streaming window.
+- **Slow events only:** entries under 16 ms are never recorded, so p95 and p50 describe slow events,
+  not all input. `slowInputEvents` is the sample count for each run.
+- **Percentile:** values are sorted and read at index `floor(q × (n − 1))`, then rounded to a whole
+  millisecond. Chrome reports `duration` in 8 ms steps, which is why values repeat across runs.
+- **Phases:** delay is `processingStart − startTime`, processing is `processingEnd − processingStart`,
+  and presentation is `startTime + duration − processingEnd`. Each phase has its own percentile, so
+  the phases do not have to add up to the total.
+- **Per-run data:** `foreground-streaming-ab.json` holds the count and the p50 and p95 of each phase.
+- **Raw samples were not kept:** the run files store only these summaries, so individual durations
+  cannot be recomputed from this evidence.
+
+Reproduce one run on an isolated Host, using a checkout of the arm's commit. The script is not in this
+repository. The copy used has a SHA-256 starting with `80b1ce5f7e8dc4bc`.
+
+```bash
+node scripts/verify-app.mjs launch --name perf-accept --build
+BH_E2E_INSTANCE=.humanlayer/verify/perf-accept/instance.json node scripts/perf-channel-switch.mjs --fixture <fixture.json> --trials 1 --scroll-rounds 10 --headed --stream --stream-seconds 30 --label <arm>-b<n> --out .humanlayer/perf/accept
+```
+
+On macOS, launch the browser with `-AppleLanguages (en-US)`, for example through a wrapper named in
+`PUPPETEER_EXECUTABLE_PATH`.
+
 ## Failures and limits
 
 - Before these runs, the seed run and the first pilot failed. macOS ignores Chrome's `--lang`, so the
