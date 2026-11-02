@@ -61,7 +61,18 @@ export interface NoiseTransport {
   close(): void;
 }
 
+export interface NoiseKeyAgreement {
+  publicKey(privateKey: Uint8Array): Uint8Array;
+  sharedSecret(privateKey: Uint8Array, publicKey: Uint8Array): Uint8Array;
+}
+
+const DEFAULT_KEY_AGREEMENT: NoiseKeyAgreement = {
+  publicKey: noisePublicKey,
+  sharedSecret: (privateKey, publicKey) => x25519.getSharedSecret(privateKey, publicKey),
+};
+
 export class NoiseXk {
+  private readonly keyAgreement: NoiseKeyAgreement;
   private readonly role: 'initiator' | 'responder';
   private readonly staticKey: Uint8Array;
   private readonly ephemeralKey: Uint8Array;
@@ -80,6 +91,7 @@ export class NoiseXk {
     ephemeralKey: Uint8Array;
     remoteStatic?: Uint8Array;
     prologue: Uint8Array;
+    keyAgreement?: NoiseKeyAgreement;
   }) {
     if (
       options.staticKey.length !== 32 ||
@@ -87,6 +99,7 @@ export class NoiseXk {
       (options.role === 'initiator' && options.remoteStatic?.length !== 32)
     )
       throw new Error('noise-key-invalid');
+    this.keyAgreement = options.keyAgreement ?? DEFAULT_KEY_AGREEMENT;
     this.role = options.role;
     this.staticKey = Uint8Array.from(options.staticKey);
     this.ephemeralKey = Uint8Array.from(options.ephemeralKey);
@@ -95,14 +108,16 @@ export class NoiseXk {
     this.hash = utf8ToBytes(NOISE_PROTOCOL);
     this.chainingKey = this.hash.slice();
     this.mixHash(options.prologue);
-    this.mixHash(this.role === 'initiator' ? this.remoteStatic! : noisePublicKey(this.staticKey));
+    this.mixHash(
+      this.role === 'initiator' ? this.remoteStatic! : this.keyAgreement.publicKey(this.staticKey),
+    );
   }
 
   private mixHash(value: Uint8Array): void {
     this.hash = sha256(concatBytes(this.hash, value));
   }
   private mixDh(local: Uint8Array, remote: Uint8Array): void {
-    const shared = x25519.getSharedSecret(local, remote);
+    const shared = this.keyAgreement.sharedSecret(local, remote);
     try {
       const [chain, key] = derive(this.chainingKey, shared);
       this.chainingKey.fill(0);
@@ -135,14 +150,14 @@ export class NoiseXk {
       if (payload.length > NOISE_LIMIT - overhead) throw new Error('noise-length-invalid');
       let prefix: Uint8Array;
       if (this.flight < 2) {
-        prefix = noisePublicKey(this.ephemeralKey);
+        prefix = this.keyAgreement.publicKey(this.ephemeralKey);
         this.mixHash(prefix);
         this.mixDh(
           this.ephemeralKey,
           this.flight === 0 ? this.remoteStatic! : this.remoteEphemeral!,
         );
       } else {
-        prefix = this.crypt(noisePublicKey(this.staticKey), false);
+        prefix = this.crypt(this.keyAgreement.publicKey(this.staticKey), false);
         this.mixDh(this.staticKey, this.remoteEphemeral!);
       }
       const message = concatBytes(prefix, this.crypt(payload, false));

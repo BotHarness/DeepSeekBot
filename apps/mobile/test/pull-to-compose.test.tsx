@@ -27,11 +27,11 @@ const at = (offset: number, velocity = 0) =>
     },
   }) as NativeSyntheticEvent<NativeScrollEvent>;
 
-function mount(enabled = true, flick?: number) {
+function mount(enabled = true, flick?: number, inverted = false) {
   const onCompose = vi.fn();
   const probe: { current?: ReturnType<typeof usePullToCompose> } = {};
   function Probe() {
-    probe.current = usePullToCompose({ enabled, threshold: THRESHOLD, flick, onCompose });
+    probe.current = usePullToCompose({ enabled, threshold: THRESHOLD, flick, inverted, onCompose });
     return null;
   }
   act(() => createRoot(document.createElement('div')).render(<Probe />));
@@ -117,5 +117,38 @@ describe('pull to compose', () => {
       flickUp(pull, END - 400, -3);
       expect(onCompose).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('inverted latest-first list', () => {
+  it('opens for a flick toward newest at offset zero', () => {
+    const { onCompose, pull } = mount(true, 1, true);
+    act(() => {
+      pull().onScrollBeginDrag(at(0));
+      pull().onScrollEndDrag(at(0, 1.2));
+    });
+    expect(onCompose).toHaveBeenCalledTimes(1);
+    expect(played).toEqual(['impact:light']);
+  });
+
+  it.each([
+    [0, 0, -2],
+    [0, 0, 0.5],
+    [400, 0, 3],
+    [0, 400, 3],
+  ])('ignores a non-composing flick from %s to %s at velocity %s', (from, to, velocity) => {
+    const { onCompose, pull } = mount(true, 1, true);
+    act(() => {
+      pull().onScrollBeginDrag(at(from));
+      pull().onScrollEndDrag(at(to, velocity));
+    });
+    expect(onCompose).not.toHaveBeenCalled();
+    expect(played).toEqual([]);
+  });
+
+  it('measures overscroll toward newest in the inverted direction', () => {
+    const { onCompose, drag } = mount(true, undefined, true);
+    drag(0, -THRESHOLD);
+    expect(onCompose).toHaveBeenCalledTimes(1);
   });
 });

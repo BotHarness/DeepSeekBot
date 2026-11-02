@@ -198,6 +198,58 @@ describe('DM conversation', () => {
     });
   });
 
+  it.each(['success', 'failure'])(
+    'can page after reopening while an old request ends with %s',
+    async (outcome) => {
+      const host = new FakeHost();
+      const channel = host.channel(DM);
+      seed(channel, 25);
+      const target = open(host);
+      await until(target, (snapshot) => snapshot.status === 'live');
+      const gate = () => {
+        let resolve!: () => void;
+        const promise = new Promise<void>((done) => {
+          resolve = done;
+        });
+        return { promise, resolve };
+      };
+      const oldGate = gate();
+      const newGate = gate();
+      let requests = 0;
+      host.methods.set('channelJournalPage', async () => {
+        const old = ++requests === 1;
+        const gate = old ? oldGate : newGate;
+        await gate.promise;
+        if (old && outcome === 'failure') throw new Error('Old connection lost');
+        return channel.page(25, 16, 8);
+      });
+      try {
+        const oldRequest = target.loadOlder();
+        await vi.waitFor(() => expect(requests).toBe(1));
+        target.stop();
+        target.start();
+        await until(target, (snapshot) => snapshot.status === 'live');
+        expect(target.getSnapshot().loadingOlder).toBe(false);
+        const newRequest = target.loadOlder();
+        await vi.waitFor(() => expect(requests).toBe(2));
+        oldGate.resolve();
+        await oldRequest;
+        expect(target.getSnapshot().loadingOlder).toBe(true);
+        await target.loadOlder();
+        expect(requests).toBe(2);
+        newGate.resolve();
+        await newRequest;
+        expect(target.getSnapshot().loadingOlder).toBe(false);
+        expect(revisions(target.getSnapshot())).toEqual(
+          Array.from({ length: 18 }, (_, index) => index + 8),
+        );
+        expect(new Set(ids(target.getSnapshot())).size).toBe(18);
+      } finally {
+        oldGate.resolve();
+        newGate.resolve();
+      }
+    },
+  );
   it('keeps loaded history after a failed earlier page and clears the error on explicit retry', async () => {
     const host = new FakeHost();
     seed(host.channel(DM), 25);
@@ -411,6 +463,47 @@ describe('DM conversation', () => {
     expect(reactable(live.messages[1]!)).toBe(false);
   });
 
+  it('opens live history while a cache read never completes', async () => {
+    const host = new FakeHost();
+    seed(host.channel(DM), 2);
+    const target = open(host, {
+      cache: {
+        read: () => new Promise(() => {}),
+        write: () => {},
+      },
+    });
+    const live = await until(target, (s) => s.status === 'live');
+    expect(ids(live)).toEqual(['human-1', 'bot-2']);
+    expect(live.fromCache).toBe(false);
+  });
+
+  it.each([false, true])(
+    'does not resurrect stale cached messages after an empty live page (interrupted: %s)',
+    async (interrupted) => {
+      const staleHost = new FakeHost();
+      seed(staleHost.channel(DM), 2);
+      const stale = staleHost.channel(DM).page(2, undefined, 2)!;
+      let release: (value: CachedConversation) => void = () => {};
+      const pending = new Promise<CachedConversation>((resolve) => {
+        release = resolve;
+      });
+      const host = new FakeHost();
+      host.channel(DM);
+      const target = open(host, {
+        cache: { read: () => pending, write: () => {} },
+      });
+      await until(target, (s) => s.status === 'live');
+      if (interrupted) {
+        host.kill();
+        await until(target, (s) => s.status === 'interrupted');
+      }
+      release({ entries: stale.entries, hasOlder: false });
+      await pending;
+      await Promise.resolve();
+      expect(target.getSnapshot().messages).toEqual([]);
+      expect(target.getSnapshot().fromCache).toBe(false);
+    },
+  );
   it('shows the cached page at once, then reconciles it with the Host window', async () => {
     const host = new FakeHost();
     const channel = host.channel(DM);

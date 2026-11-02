@@ -66,7 +66,7 @@ export function ChatTitle({
       <Text {...barLabelProps} strong numberOfLines={1} style={[{ flexShrink: 1 }, barLabelStyle]}>
         {activity ?? name}
       </Text>
-      <ConnectionProgress active={connectionLabel !== undefined} />
+      <ConnectionProgress active={connectionLabel !== undefined} label={connectionLabel} />
     </HeaderTitleButton>
   );
   return chip(onPress);

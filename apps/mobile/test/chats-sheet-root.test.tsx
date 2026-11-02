@@ -19,13 +19,19 @@ vi.mock('../src/ui/primitives/end-sheet', () => ({
 vi.mock('../src/ui/chat/conversation-screen', () => ({
   ConversationScreen: ({
     presentation,
+    place,
   }: {
+    place: { slug: string };
     presentation: { active: boolean; onClose(): void; onNestedChange(value: boolean): void };
   }) => {
     const [draft, setDraft] = useState('');
     return (
-      <article data-visible={String(presentation.active)}>
-        <input value={draft} onChange={(e) => setDraft(e.target.value)} />
+      <article data-chat={place.slug} data-visible={String(presentation.active)}>
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onInput={(e) => setDraft(e.currentTarget.value)}
+        />
         <button onClick={presentation.onClose}>Back to Chats</button>
         <button onClick={() => presentation.onNestedChange(true)}>Open Profile</button>
         <button onClick={() => presentation.onNestedChange(false)}>Back to chat</button>
@@ -74,6 +80,11 @@ it('preloads one retained real page above navigation/FAB and preserves it beneat
     expect(page?.getAttribute('data-visible')).toBe('false');
     await click('Settle open');
     expect(page?.getAttribute('data-visible')).toBe('true');
+    const input = container.querySelector('input')!;
+    await act(async () => {
+      input.value = 'unsent draft';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
     await click('Open Profile');
     expect(container.querySelector('main')?.getAttribute('data-active')).toBe('false');
     state.routeFocused = false;
@@ -83,6 +94,8 @@ it('preloads one retained real page above navigation/FAB and preserves it beneat
     state.routeFocused = true;
     await render(true, 'b');
     expect(container.querySelector('article')).toBe(page);
+    expect(container.querySelector('input')).toBe(input);
+    expect(input.value).toBe('unsent draft');
     await click('Back to chat');
     expect(container.querySelector('main')?.getAttribute('data-active')).toBe('true');
     await render();
@@ -95,6 +108,76 @@ it('preloads one retained real page above navigation/FAB and preserves it beneat
     expect(container.querySelector('article')).not.toBe(page);
     expect(container.querySelector('nav')).toBe(navigation);
   } finally {
+    await act(async () => root.unmount());
+  }
+});
+
+it('keeps a closed preload unchanged while another route covers Chats, then prepares the latest chat on return', async () => {
+  state.routeFocused = true;
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const render = (id: string) =>
+    act(async () =>
+      root.render(
+        <ChatsSheetRoot>
+          <ChatsSheetRegistration
+            active={state.routeFocused}
+            enabled
+            chat={{ id, title: id, href: `/dm/${id}?hostId=h1` }}
+          />
+        </ChatsSheetRoot>,
+      ),
+    );
+  try {
+    await render('a');
+    const prepared = container.querySelector('article');
+    expect(prepared?.getAttribute('data-chat')).toBe('a');
+    state.routeFocused = false;
+    await render('b');
+    expect(container.querySelector('article')).toBe(prepared);
+    expect(container.querySelector('[data-chat="b"]')).toBeNull();
+    await render('c');
+    expect(container.querySelector('article')).toBe(prepared);
+    state.routeFocused = true;
+    await render('c');
+    expect(container.querySelector('article')?.getAttribute('data-chat')).toBe('c');
+    await act(async () =>
+      [...container.querySelectorAll('button')]
+        .find((n) => n.textContent === 'Settle open')!
+        .click(),
+    );
+    expect(container.querySelector('article')?.getAttribute('data-visible')).toBe('true');
+    expect(container.querySelector('article')?.getAttribute('data-chat')).toBe('c');
+  } finally {
+    state.routeFocused = true;
+    await act(async () => root.unmount());
+  }
+});
+
+it('does not prepare a hidden chat when Chats first mounts beneath another route', async () => {
+  state.routeFocused = false;
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const render = () =>
+    act(async () =>
+      root.render(
+        <ChatsSheetRoot>
+          <ChatsSheetRegistration
+            active={state.routeFocused}
+            enabled
+            chat={{ id: 'a', title: 'a', href: '/dm/a?hostId=h1' }}
+          />
+        </ChatsSheetRoot>,
+      ),
+    );
+  try {
+    await render();
+    expect(container.querySelector('article')).toBeNull();
+    state.routeFocused = true;
+    await render();
+    expect(container.querySelector('article')?.getAttribute('data-chat')).toBe('a');
+  } finally {
+    state.routeFocused = true;
     await act(async () => root.unmount());
   }
 });

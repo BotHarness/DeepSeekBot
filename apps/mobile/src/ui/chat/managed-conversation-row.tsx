@@ -1,3 +1,4 @@
+import { prepareConversation } from '../../host/host-session';
 import { Platform } from 'react-native';
 import { showActionMenu } from '../primitives/app-dialog';
 import { useStrings } from '../strings';
@@ -45,7 +46,16 @@ export function ManagedConversationRow({
   const router = useRouter();
   const navigation = useNavigationContainerRef();
   const openChannel = () => {
-    if (!openConversation(navigation, row, hostId)) onError();
+    if (!openConversation(navigation, row, hostId)) {
+      onError();
+      return;
+    }
+    const channelId = conversationChannelId(row);
+    if (Platform.OS === 'android' && client && hostId && channelId)
+      prepareConversation(client, hostId, {
+        channelId,
+        ...(row.kind === 'bot' ? { bot: row.bot } : {}),
+      });
   };
   const channelId = conversationChannelId(row);
   const state = { pinned, hostMuted: arrangement?.muted?.includes(channelId ?? '') === true };

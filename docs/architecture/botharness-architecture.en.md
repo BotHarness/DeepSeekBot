@@ -746,3 +746,7 @@ The computer CLI owns a foreground system OpenSSH tunnel; the browser pairs thro
 ### Independent Subagent native composition
 
 Independent `bot_subagent` activations select an allowed explicit preset, the configured child preset, or the live DSH registry's system default, in that order. Forks retain the parent's native composition. This application-defined policy is separate from Model Plan route validation. Only Assignment Sessions have the Bot Subagent tools; an Orchestrator delegates with `create_assignment` and its Subagent tool calls are refused (ADR-0265). Direct CLI calls name a live Assignment with `--session` and reuse its native tool pipeline; absent parents are refused rather than created implicitly. DSH remains the preset and child-lifecycle owner (ADR-0251).
+
+### Android conversation navigation/read handoff (#3257)
+
+After an Android conversation row successfully dispatches navigation, an existing Channel or Bot DM may borrow a subscription to the same Conversation owned by `host-session`, overlapping its read with screen mounting. The current HostClient identity and roster destination are checked first; unresolved DMs keep the original screen-owned creation path. At most one preparation per HostClient remains pending. A screen subscriber takes ownership before releasing that preparation; replacement, a two-second unclaimed deadline, or Host removal also releases it. Existing cache, outgoing-message retention and Host authority remain unchanged: this adds no separate message store, send, read acknowledgment or Host protocol.

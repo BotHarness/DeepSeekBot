@@ -1,3 +1,4 @@
+import { noiseKeyAgreement } from './noise-key-agreement';
 import {
   ConnectChannel,
   CONNECT_CHANNEL_PATH,
@@ -92,6 +93,7 @@ export function openNoiseSocket(options: {
   if (!checkRoute(options.origin).ok) throw new ConnectRefused('route-invalid');
   const channel = new ConnectChannel({
     role: 'initiator',
+    ...(noiseKeyAgreement === undefined ? {} : { keyAgreement: noiseKeyAgreement }),
     hostId: options.hostId,
     hostKey: keyBytes(options.encryption.hostKey),
     staticKey: keyBytes(options.encryption.deviceKey),
