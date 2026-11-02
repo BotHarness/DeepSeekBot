@@ -63,12 +63,7 @@ function statusLabel(status: ChannelRowStatus, t: BotHarnessTranslate): string {
 function glyph(status: Exclude<ChannelRowStatus, 'none'>): ReactElement {
   switch (status) {
     case 'working':
-      return (
-        <>
-          <circle className="bh-row-glyph-track" cx="8" cy="8" r="6.2" />
-          <path className="bh-row-glyph-arc" d="M8 1.8a6.2 6.2 0 0 1 6.2 6.2" />
-        </>
-      );
+      return <circle className="bh-row-glyph-fill" cx="8" cy="8" r="4" />;
     case 'needs-you':
       return (
         <>

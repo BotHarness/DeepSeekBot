@@ -27,17 +27,19 @@ function aliasBounds(): { start: number; end: number } {
 }
 
 describe('client styles', () => {
-  it('steps the working indicators that stay on screen while Bots stream', () => {
+  it('keeps the working indicators static while Bots stream', () => {
     expect(source).toContain(
-      ".bh-row-glyph[data-status='working'] { animation: bh-row-glyph-spin 900ms steps(8) infinite; }",
+      ".bh-row-glyph[data-status='working'] { color: var(--dsw-alias-state-success-primary); }",
     );
-    for (const selector of ['.bh-header-working-ellipsis i', '.bh-reading-dots i']) {
+    expect(source).not.toMatch(/bh-row-glyph-spin|bh-timeline-working-dot/);
+    for (const selector of [
+      '.bh-row-glyph',
+      '.bh-header-working-ellipsis i',
+      '.bh-reading-dots i',
+    ]) {
       const rule = source.slice(source.indexOf(`${selector} {`));
-      expect(rule.slice(0, rule.indexOf('}'))).toContain(
-        'animation: bh-timeline-working-dot 1.2s steps(1, end) infinite;',
-      );
+      expect(rule.slice(0, rule.indexOf('}'))).not.toContain('animation');
     }
-    expect(source).not.toMatch(/bh-(row-glyph-spin|timeline-working-dot) [^;]*(linear|ease)/);
   });
   it('pins a message group avatar to the timeline bottom edge while its group scrolls past', () => {
     expect(source).toMatch(/\.bh-message-group \{[^}]*align-items: flex-end/);

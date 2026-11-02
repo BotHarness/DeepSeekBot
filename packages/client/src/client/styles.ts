@@ -1277,8 +1277,6 @@ html[data-botharness-activity='stale'] .bh-avatar-indicator {
   height: 16px;
   color: var(--dsw-alias-label-primary);
 }
-.bh-row-glyph-track,
-.bh-row-glyph-arc,
 .bh-row-glyph-ring,
 .bh-row-glyph-check,
 .bh-row-glyph-cut {
@@ -1287,27 +1285,17 @@ html[data-botharness-activity='stale'] .bh-avatar-indicator {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.bh-row-glyph-track { stroke: currentColor; stroke-opacity: 0.18; }
-.bh-row-glyph-arc,
 .bh-row-glyph-ring,
 .bh-row-glyph-check { stroke: currentColor; }
 .bh-row-glyph-check { stroke-width: 1.6; }
 .bh-row-glyph-fill { fill: currentColor; }
 .bh-row-glyph-cut { stroke: var(--dsw-alias-bg-base); stroke-width: 1.7; }
 .bh-row-glyph-dot { fill: var(--dsw-alias-bg-base); }
-.bh-row-glyph[data-status='working'] { animation: bh-row-glyph-spin 900ms steps(8) infinite; }
+.bh-row-glyph[data-status='working'] { color: var(--dsw-alias-state-success-primary); }
 .bh-row-glyph[data-status='needs-you'] { color: var(--dsw-alias-state-warn-primary); }
 .bh-row-glyph[data-status='blocked'] { color: var(--dsw-alias-state-error-primary); }
 .bh-row-glyph[data-status='done'],
 .bh-row-glyph[data-status='paused'] { color: var(--dsw-alias-label-tertiary); }
-@keyframes bh-row-glyph-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-html[data-botharness-motion='reduce'] .bh-row-glyph[data-status='working'] {
-  animation: none;
-}
 .bh-section-needs {
   flex: none;
   margin-left: ${space.x2};
@@ -3498,14 +3486,8 @@ html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
   white-space: nowrap;
 }
 [data-conversation-title] > .bh-header-working-summary { display: block; }
-.bh-header-working-ellipsis i {
-  font-style: normal;
-  animation: bh-timeline-working-dot 1.2s steps(1, end) infinite;
-}
-.bh-header-working-ellipsis i:nth-child(2) { animation-delay: 0.2s; }
-.bh-header-working-ellipsis i:nth-child(3) { animation-delay: 0.4s; }
+.bh-header-working-ellipsis i { font-style: normal; }
 html[data-botharness-motion='reduce'] .bh-header-working { animation-name: bh-fade-in; }
-html[data-botharness-motion='reduce'] .bh-header-working-ellipsis i { animation: none; }
 @keyframes bh-header-working-enter {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: none; }
@@ -3517,10 +3499,6 @@ html[data-botharness-motion='reduce'] .bh-header-working-ellipsis i { animation:
 @keyframes bh-fade-out {
   from { opacity: 1; }
   to { opacity: 0; }
-}
-@keyframes bh-timeline-working-dot {
-  0%, 45%, 100% { opacity: 0.25; }
-  15% { opacity: 1; }
 }
 .bh-message-group-avatar-link:focus-visible,
 .bh-message-group-avatar-focus:focus-visible {
@@ -3801,11 +3779,7 @@ html[data-botharness-motion='reduce'] .bh-message-group-enter .bh-message-group-
   height: 3px;
   border-radius: ${radius.round};
   background: currentColor;
-  animation: bh-timeline-working-dot 1.2s steps(1, end) infinite;
 }
-.bh-reading-dots i:nth-child(2) { animation-delay: 0.2s; }
-.bh-reading-dots i:nth-child(3) { animation-delay: 0.4s; }
-html[data-botharness-motion='reduce'] .bh-reading-dots i { animation: none; }
 [data-badge-motion='enter'] {
   animation: bh-badge-in 180ms var(--bh-ease-out) both;
 }
