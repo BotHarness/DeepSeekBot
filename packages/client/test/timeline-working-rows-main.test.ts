@@ -222,7 +222,7 @@ describe('Bot working status in the Channel header', () => {
     const summary = container.querySelector('.bh-topbar .bh-header-working-summary');
     expect(summary?.getAttribute('aria-hidden')).toBe('true');
     expect(headerTitle()).not.toContain('Mira');
-    expect(headerTitle()).toContain('...');
+    expect(headerTitle()).not.toContain('...');
     expect(chat.querySelector('.bh-header-working-summary, .bh-timeline-working')).toBeNull();
     expect(container.querySelector('.bh-composer-activity-status')).toBeNull();
     const live = container.querySelectorAll('.bh-chat-pane > [role="status"][aria-live="polite"]');
