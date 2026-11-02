@@ -654,6 +654,7 @@ export interface BridgeMethods {
   ): Promise<
     BridgeResult<{ delivery: import('../messaging/approval-messaging.js').ApprovalDelivery }>
   >;
+  questionRetry(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   approvalRetry(
     payload: unknown,
   ): Promise<
@@ -2254,6 +2255,17 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       return messagingCall(async (service) => ({
         delivery: await service.approvals.test(input.data.slug),
       }));
+    },
+    questionRetry(payload) {
+      const input = z
+        .object({ slug: z.string().min(1), id: z.string().uuid() })
+        .strict()
+        .safeParse(payload);
+      if (!input.success) return Promise.resolve(invalidInput('Invalid question notification'));
+      return messagingCall(async (service) => {
+        await service.questions.retry(input.data.slug, input.data.id);
+        return { updated: true as const };
+      });
     },
     approvalRetry(payload) {
       const input = z

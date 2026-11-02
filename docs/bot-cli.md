@@ -400,6 +400,8 @@ deepseekbot approval-routes <bot-id>
 deepseekbot approval-route <bot-id> --pairing <pairing-id|none>
 deepseekbot approval-test <bot-id>
 deepseekbot approval-retry <bot-id> --delivery <delivery-id>
+deepseekbot question-deliveries <bot-id>
+deepseekbot question-retry <bot-id> --delivery <delivery-id>
 deepseekbot failure-alerts <bot-id>
 deepseekbot failure-alerts-set <bot-id> --enabled
 deepseekbot failure-alerts-test <bot-id>

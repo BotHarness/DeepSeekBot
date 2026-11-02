@@ -174,7 +174,7 @@ export function createApprovalMessaging(options: {
       paired.revision !== value.pairingRevision ||
       paired.status !== 'approved' ||
       (paired.purpose === 'conversation' && paired.conversationKind !== 'dm') ||
-      !paired.capabilities.some((c) => c === 'approve' || c === 'reject')
+      !paired.capabilities.some((c) => c === 'approve' || c === 'reject' || c === 'answer')
     )
       throw new MessagingError('approval-route-unavailable');
     const provider = options.provider(identity.providerId);
@@ -551,6 +551,14 @@ export function createApprovalMessaging(options: {
     if (status === 'pending') {
       if (read(notice.messageId)) return;
       const selected = route(notice.botSlug);
+      if (
+        selected &&
+        !pairing
+          .list(notice.botSlug)
+          .find((value) => value.id === selected.pairingId)
+          ?.capabilities.some((c) => c === 'approve' || c === 'reject')
+      )
+        return;
       if (!selected) return;
       write({
         id: notice.messageId,
@@ -626,7 +634,7 @@ export function createApprovalMessaging(options: {
         .filter(
           (p) =>
             p.status === 'approved' &&
-            p.capabilities.some((c) => c === 'approve' || c === 'reject'),
+            p.capabilities.some((c) => c === 'approve' || c === 'reject' || c === 'answer'),
         )
         .map((p) => {
           let ready = false;

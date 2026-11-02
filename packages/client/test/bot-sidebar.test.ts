@@ -259,6 +259,7 @@ function stubActions(): BridgeActions {
     approvalRoute: vi.fn(async () => {}),
     approvalTest: vi.fn(async () => {}),
     approvalRetry: vi.fn(async () => {}),
+    questionRetry: vi.fn(),
     failureAlertsSet: vi.fn(async () => {}),
     failureAlertsTest: vi.fn(async () => {}),
     failureAlertsRetry: vi.fn(async () => {}),

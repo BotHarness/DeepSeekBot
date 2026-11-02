@@ -2057,6 +2057,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     'botharness: companion question observation',
   );
   registerChannelUserQuestions(ctx, userQuestions);
+  if (core.operationalDatabase.mode === 'ready')
+    ctx.effect(
+      () => core.externalMessaging.questions.attach(userQuestions, core.channels),
+      'botharness: checked IM question answers',
+    );
   const approvedCalls = new Map<symbol, (name: string, args: unknown) => boolean>();
   const deviceCallReleases = new Map<symbol, () => void>();
   ctx.effect(() => () => approvedCalls.clear(), 'botharness: one-call approval execution fences');
