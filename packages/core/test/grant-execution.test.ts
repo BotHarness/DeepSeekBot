@@ -67,7 +67,7 @@ function fixture() {
   const core = {
     ownership: { resolve },
     runtime: { getAssignment },
-    grants: { requireActive },
+    grants: { requireActive, list: () => [] },
     registry: { memoryDirFor, get: getBot },
     hostTools: new Set<string>(),
   } as never;
@@ -186,7 +186,7 @@ describe('Workspace Grant execution boundary', () => {
           file_path: '/outside/project/file',
           content: 'x',
         }),
-      ).toBeDefined();
+      ).toMatch(/outside/);
       state.memoryDirFor.mockReturnValue('/another-memory');
       expect(grantExecutionDenial(core, child, state.policy, state.approval)).toContain(
         'requires its Memory working directory',
