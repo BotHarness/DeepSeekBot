@@ -149,6 +149,20 @@ describe('quoteMention', () => {
     expect(written.caret).toBe(written.value.length);
   });
 
+  it('keeps a selected mention at the start of the draft', () => {
+    const next = quoteMention(
+      '@Bea hi',
+      [{ botSlug: 'bea', label: 'Bea', start: 0, end: 4 }],
+      'ada',
+      'Ada',
+    );
+    expect(next.value).toBe('@Ada @Bea hi');
+    expect(next.mentions).toEqual([
+      { botSlug: 'ada', label: 'Ada', start: 0, end: 4 },
+      { botSlug: 'bea', label: 'Bea', start: 5, end: 9 },
+    ]);
+  });
+
   it('leaves a draft that already mentions the quoted Bot alone', () => {
     const mentions = [{ botSlug: 'ada', label: 'Ada', start: 3, end: 7 }];
     expect(quoteMention('hi @Ada ', mentions, 'ada', 'Ada')).toEqual({

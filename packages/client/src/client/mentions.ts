@@ -109,8 +109,20 @@ export function quoteMention(
 ): { value: string; mentions: SelectedMention[]; caret: number } {
   if (mentions.some((item) => item.botSlug === botSlug))
     return { value, mentions: [...mentions], caret: value.length };
-  const selected = selectMention(value, mentions, { start: 0, end: 0, query: '' }, botSlug, label);
-  return { ...selected, caret: selected.value.length };
+  const prefix = '@' + label + (value.startsWith(' ') ? '' : ' ');
+  const next = prefix + value;
+  return {
+    value: next,
+    mentions: [
+      { botSlug, label, start: 0, end: label.length + 1 },
+      ...mentions.map((item) => ({
+        ...item,
+        start: item.start + prefix.length,
+        end: item.end + prefix.length,
+      })),
+    ],
+    caret: next.length,
+  };
 }
 
 export function mentionRuns(
