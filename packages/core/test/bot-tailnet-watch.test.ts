@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -12,7 +12,14 @@ import { createTempRoot } from './helpers.js';
 function alive(pid: number): boolean {
   try {
     process.kill(pid, 0);
-    return true;
+  } catch {
+    return false;
+  }
+  try {
+    const state = execFileSync('ps', ['-o', 'stat=', '-p', String(pid)], {
+      encoding: 'utf8',
+    }).trim();
+    return state !== '' && !state.startsWith('Z');
   } catch {
     return false;
   }
