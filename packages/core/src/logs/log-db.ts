@@ -254,9 +254,8 @@ export function openLogDatabase(options: OpenLogDatabaseOptions): LogDatabase {
   const writeRows = (entries: readonly LogEntryInput[]): void => {
     database.exec('BEGIN');
     try {
-      let latest = 0;
-      for (const entry of entries) latest = Math.max(latest, insertRow(entry));
-      prune(Math.max(latest, now()));
+      for (const entry of entries) insertRow(entry);
+      prune(now());
       database.exec('COMMIT');
     } catch (error) {
       try {

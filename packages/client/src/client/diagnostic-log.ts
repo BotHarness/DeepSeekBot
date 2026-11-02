@@ -27,6 +27,7 @@ const FLUSH_MS = 3000;
 const URGENT_FLUSH_MS = 250;
 const MAX_TEXT = 300;
 const MAX_LABEL = 80;
+const MAX_PLAIN_LABEL = 40;
 const REPEAT_WINDOW_MS = 10_000;
 const LONG_TASK_MS = 200;
 const SLOW_RPC_MS = 1500;
@@ -99,17 +100,19 @@ function roleOf(element: Element): string {
   return element.getAttribute('role') ?? element.tagName.toLowerCase();
 }
 
+function plainLabel(control: Element): string {
+  if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement) return '';
+  if (control.children.length > 0) return '';
+  const label = control.textContent?.trim() ?? '';
+  return label.length <= MAX_PLAIN_LABEL ? label : '';
+}
+
 export function describeControl(element: Element): ClientLogFields | undefined {
   const control = element.closest(
     'button, a[href], [role="button"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="tab"], [role="switch"], [role="option"], [role="checkbox"], [role="radio"], [role="treeitem"], [role="link"], summary, input[type="checkbox"], input[type="radio"], select',
   );
   if (control === null) return;
-  const label =
-    control.getAttribute('aria-label') ??
-    control.getAttribute('title') ??
-    (control instanceof HTMLInputElement || control instanceof HTMLSelectElement
-      ? ''
-      : (control.textContent ?? ''));
+  const label = control.getAttribute('aria-label') ?? plainLabel(control);
   const hook = [...control.classList].find((name) => name.startsWith('bh-'));
   const tour = control.getAttribute('data-bh-tour');
   const testId = control.getAttribute('data-testid');

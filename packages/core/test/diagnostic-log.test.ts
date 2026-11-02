@@ -76,6 +76,33 @@ describe('diagnostic log ingest', () => {
     expect(batch.entries[1]?.fields?.['message']).toBe('boom at ~/code/app.ts');
   });
 
+  it('drops entries dated more than a day ahead and keeps older history', async () => {
+    const { http, now, database } = harness();
+    database.write({
+      ts: now() - 60_000,
+      plugin: 'client',
+      owner: 'profile-shared',
+      kind: 'client.action',
+      detail: 'old',
+    });
+    const response = await http(
+      post({
+        version: 1,
+        session: SESSION,
+        entries: [
+          entry(now() + 365 * 86_400_000, 'action', 'click'),
+          entry(now(), 'action', 'click'),
+        ],
+      }),
+    );
+    expect(await response.json()).toMatchObject({ accepted: 1 });
+    await http(get(DIAGNOSTIC_LOGS_PATH));
+    expect(database.query({ kinds: ['client.action'] }).map((row) => row.ts)).toEqual([
+      now(),
+      now() - 60_000,
+    ]);
+  });
+
   it('refuses a malformed envelope or an oversized body', async () => {
     const { http } = harness();
     expect((await http(post({ version: 2, session: SESSION, entries: [] }))).status).toBe(400);

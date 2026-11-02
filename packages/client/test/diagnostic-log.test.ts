@@ -196,6 +196,20 @@ describe('diagnostic helpers', () => {
     ).toEqual({ a: 1, 'b.c': 'x' });
   });
 
+  it('labels a control only by aria-label or short plain text, never by title or rich content', () => {
+    document.body.innerHTML = `
+      <button id="plain">Export logs</button>
+      <button id="titled" class="bh-dm-trace-line" title="secret post preview">
+        <span>Tob</span><span>secret post preview</span>
+      </button>
+      <button id="long">${'secret '.repeat(10)}</button>`;
+    const label = (id: string) => describeControl(document.getElementById(id)!)?.['label'];
+    expect(label('plain')).toBe('Export logs');
+    expect(label('titled')).toBeUndefined();
+    expect(describeControl(document.getElementById('titled')!)?.['hook']).toBe('bh-dm-trace-line');
+    expect(label('long')).toBeUndefined();
+  });
+
   it('ignores clicks outside interactive controls', () => {
     document.body.innerHTML = '<p>text</p>';
     expect(describeControl(document.querySelector('p')!)).toBeUndefined();

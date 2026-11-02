@@ -40,6 +40,7 @@ export type ClientLogLevel = (typeof CLIENT_LOG_LEVELS)[number];
 export const DIAGNOSTIC_LOG_LIMITS = {
   bodyBytes: 64 * 1024,
   entriesPerBatch: 200,
+  clockSkewMs: 24 * 60 * 60 * 1000,
   fieldsPerEntry: 24,
   fieldText: 300,
   hostText: 1000,
@@ -120,7 +121,10 @@ function fieldsOf(value: unknown): Record<string, DiagnosticFieldValue> | undefi
   return count === 0 ? undefined : fields;
 }
 
-export function parseClientLogBatch(value: unknown): ClientLogBatch & { rejected: number } {
+export function parseClientLogBatch(
+  value: unknown,
+  now: () => number = Date.now,
+): ClientLogBatch & { rejected: number } {
   const v = record(value);
   if (
     v === undefined ||
@@ -138,12 +142,14 @@ export function parseClientLogBatch(value: unknown): ClientLogBatch & { rejected
       : 0;
   const entries: ClientLogEntry[] = [];
   let rejected = 0;
+  const latest = now() + DIAGNOSTIC_LOG_LIMITS.clockSkewMs;
   for (const raw of v['entries']) {
     const e = record(raw);
     if (
       e === undefined ||
       !Number.isSafeInteger(e['ts']) ||
       (e['ts'] as number) <= 0 ||
+      (e['ts'] as number) > latest ||
       !CLIENT_LOG_CATEGORIES.includes(e['category'] as ClientLogCategory) ||
       !CLIENT_LOG_LEVELS.includes(e['level'] as ClientLogLevel) ||
       typeof e['code'] !== 'string' ||
@@ -495,7 +501,7 @@ export function createDiagnosticLogHttp(options: DiagnosticLogHttpOptions) {
         } catch {
           throw new DiagnosticLogError('invalid-report', 'The diagnostic report is malformed.');
         }
-        const batch = parseClientLogBatch(value);
+        const batch = parseClientLogBatch(value, now);
         const granted = budget.take(batch.entries.length);
         const rows = batch.entries
           .slice(0, granted)
