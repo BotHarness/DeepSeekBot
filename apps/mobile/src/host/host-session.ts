@@ -89,9 +89,12 @@ export const pushSession = createPushSession({
     reject: t.reject,
     'remove-device': t.removeDevice,
   }),
-  hostPush,
-  beforeRegister: () => notificationPreferences.retry(),
-  prepareRegistration: (host) => notificationPreferences.prepare(host),
+  hostPush: {
+    ...hostPush,
+    register: (host, registration) =>
+      notificationPreferences.withPrepared(host, () => hostPush.register(host, registration)),
+  },
+  beforeRegister: () => notificationPreferences.ready,
   platform: Platform.OS === 'android' ? 'android' : 'ios',
   locale: locale === 'zh' ? 'zh' : 'en',
 });
