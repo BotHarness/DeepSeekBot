@@ -29,9 +29,18 @@ vi.mock('../src/ui/primitives/hardware-send', async () => {
 });
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
-  const { createElement } = await import('react');
-  const View = (props: Record<string, unknown>) => {
-    if (props['__gesture'] !== undefined) speech.gesture = props['__gesture'] as never;
+  const { createElement, useLayoutEffect } = await import('react');
+  const GestureView = (props: Record<string, unknown>) => {
+    const gesture = props['__gesture'] as typeof speech.gesture;
+    useLayoutEffect(() => {
+      speech.gesture = gesture;
+      return () => {
+        if (speech.gesture === gesture) speech.gesture = undefined;
+      };
+    }, [gesture]);
+    return renderView(props);
+  };
+  const renderView = (props: Record<string, unknown>) => {
     const tap = props['onAccessibilityTap'] as (() => void) | undefined;
     return tap === undefined
       ? shim.View(props)
@@ -41,6 +50,8 @@ vi.mock('react-native', async () => {
           props['children'] as never,
         );
   };
+  const View = (props: Record<string, unknown>) =>
+    props['__gesture'] !== undefined ? createElement(GestureView, props) : renderView(props);
   return {
     ...shim,
     Platform: {
@@ -315,7 +326,7 @@ describe('Composer dictation', () => {
 
     await press(t.dictate);
     expect(speech.start).toHaveBeenCalledWith(
-      expect.objectContaining({ interimResults: true, continuous: false }),
+      expect.objectContaining({ interimResults: true, continuous: true }),
     );
     expect(field().placeholder).toBe(t.dictationStarting);
     expect(button(t.stopDictation)).not.toBeNull();
@@ -342,6 +353,18 @@ describe('Composer dictation', () => {
     await press(t.send);
     expect(sent).toHaveBeenCalledWith('Book a table for two.');
     expect(played).toEqual(['impact:light']);
+  });
+
+  it('keeps iOS cumulative transcripts without appending them as Android segments', async () => {
+    speech.platform = 'ios';
+    await act(async () => root!.render(<Harness />));
+    await press(t.dictate);
+    await emit('start');
+    await emit('result', result('First sentence.', false));
+    await emit('result', result('First sentence. Second sentence.', false));
+    await emit('result', result('First sentence. Second sentence.', true));
+    await emit('end');
+    expect(field().value).toBe('First sentence. Second sentence.');
   });
 
   it('cancels a dictation and clears what it had written', async () => {
@@ -414,7 +437,9 @@ describe('Holding the mic', () => {
     await act(async () => speech.gesture!['onPanResponderGrant']!());
     if (move !== undefined) await act(async () => speech.gesture!['onPanResponderMove']!({}, move));
     now.mockReturnValue(1_000 + heldMs);
-    await act(async () => speech.gesture!['onPanResponderRelease']!());
+    const release = speech.gesture?.['onPanResponderRelease'];
+    expect(release).toBeDefined();
+    await act(async () => release!());
     now.mockRestore();
   };
 
@@ -432,6 +457,57 @@ describe('Holding the mic', () => {
     await emit('result', result('See you at seven.', true));
     await emit('end');
     expect(field().value).toBe('See you at seven.');
+  });
+
+  it('requests continuous Android recognition for a held recording', async () => {
+    await act(async () => speech.gesture!['onPanResponderGrant']!());
+    expect(speech.start).toHaveBeenCalledWith(expect.objectContaining({ continuous: true }));
+  });
+
+  it.each([
+    [
+      'First sentence.',
+      'Second',
+      'Second sentence.',
+      'First sentence. Second',
+      'First sentence. Second sentence.',
+    ],
+    ['第一句话。', '第二', '第二句话。', '第一句话。第二', '第一句话。第二句话。'],
+  ])(
+    'keeps finalized segments before the next interim and release result: %s',
+    async (first, interim, final, partialDraft, finalDraft) => {
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_000);
+      try {
+        await act(async () => speech.gesture!['onPanResponderGrant']!());
+        await emit('start');
+        await emit('result', result(first, true));
+        expect(status()).toBe('listening');
+        await emit('result', result(interim, false));
+        expect(field().value).toBe(partialDraft);
+        now.mockReturnValue(13_000);
+        await act(async () => speech.gesture!['onPanResponderRelease']!());
+        expect(speech.stop).toHaveBeenCalledOnce();
+        await emit('result', result(final, true));
+        await emit('end');
+        expect(field().value).toBe(finalDraft);
+        expect(status()).toBe('idle');
+      } finally {
+        now.mockRestore();
+      }
+    },
+  );
+
+  it('does not carry cancelled finalized segments into the next recording', async () => {
+    await act(async () => speech.gesture!['onPanResponderGrant']!());
+    await emit('start');
+    await emit('result', result('第一句话。', true));
+    await act(async () => speech.gesture!['onPanResponderMove']!({}, { dx: -120, dy: 0 }));
+    await emit('end');
+    expect(field().value).toBe('');
+    await act(async () => speech.gesture!['onPanResponderGrant']!());
+    await emit('start');
+    await emit('result', result('新的听写', false));
+    expect(field().value).toBe('新的听写');
   });
 
   it('cancels when the held mic slides left', async () => {
