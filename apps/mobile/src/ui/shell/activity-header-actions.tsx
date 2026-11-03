@@ -17,7 +17,6 @@ export type ActivityHeaderActionsProps = {
   options: ActivityOptions;
   onFilter(): void;
   onSearch(): void;
-  /** Opens the Clear… menu; the button is hidden while there is nothing to clear. */
   onClear?: (() => void) | undefined;
 };
 
