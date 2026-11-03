@@ -53,7 +53,7 @@ it('keeps the preview usable when browser storage is denied', async () => {
   });
 });
 
-it('limits screenshot overrides to the two named Web modules', () => {
+it('limits screenshot overrides to named Web modules', () => {
   type Resolution = { type: string; filePath: string };
   type Config = {
     resolver: {
@@ -66,6 +66,7 @@ it('limits screenshot overrides to the two named Web modules', () => {
   const mobile = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const native = path.join(mobile, 'src/ui/native-interface-preferences.ts');
   const symbol = path.join(mobile, 'src/ui/primitives/system-symbol.tsx');
+  const notifications = path.join(mobile, 'src/host/native-notification-preferences.ts');
   const config = withWebPreview({
     resolver: { resolveRequest: (_context, name) => ({ type: 'sourceFile', filePath: name }) },
   });
@@ -74,10 +75,14 @@ it('limits screenshot overrides to the two named Web modules', () => {
   for (const platform of ['ios', 'android']) {
     expect(resolve(native, platform)).toBe(native);
     expect(resolve(symbol, platform)).toBe(symbol);
+    expect(resolve(notifications, platform)).toBe(notifications);
   }
   expect(resolve(native, 'web')).toBe(
     path.join(mobile, 'scripts/web-preview/interface-preferences.ts'),
   );
   expect(resolve(symbol, 'web')).toBe(path.join(mobile, 'scripts/web-preview/system-symbol.tsx'));
+  expect(resolve(notifications, 'web')).toBe(
+    path.join(mobile, 'scripts/web-preview/notification-preferences.ts'),
+  );
   expect(resolve('other-module.ts', 'web')).toBe('other-module.ts');
 });
