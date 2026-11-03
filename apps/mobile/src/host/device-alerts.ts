@@ -90,6 +90,7 @@ export function createDeviceAlerts(port: DeviceAlertPort, source?: DeviceAlertSo
   const applied = new Map<string, string>();
   const hostEnabled = new Map<string, boolean>();
   const baselined = new Set<string>();
+  const recovering = new Map<string, string>();
   let batchSequence = 0;
   const nextBatch = () => `${port.recoverySession ?? 'legacy'}:${++batchSequence}`;
   let policyApplied: string | undefined;
@@ -120,15 +121,23 @@ export function createDeviceAlerts(port: DeviceAlertPort, source?: DeviceAlertSo
               snapshot.preferences,
             );
             const batch = nextBatch();
-            for (const host of hosts)
+            for (const host of hosts) {
+              const ready =
+                host.connected && host.items !== undefined && hostEnabled.has(host.hostId);
+              if (!ready && !recovering.has(host.hostId)) recovering.set(host.hostId, batch);
+            }
+            for (const host of hosts) {
               await owner.update(
                 {
                   ...host,
                   approvalsEnabled: host.approvalsEnabled && hostEnabled.get(host.hostId) === true,
                   policyReady: hostEnabled.has(host.hostId),
                 },
-                batch,
+                recovering.get(host.hostId) ?? batch,
               );
+              if (host.connected && host.items !== undefined && hostEnabled.has(host.hostId))
+                recovering.delete(host.hostId);
+            }
           }
         } finally {
           refreshing = false;
@@ -260,6 +269,7 @@ export function createDeviceAlerts(port: DeviceAlertPort, source?: DeviceAlertSo
       applied.delete(hostId);
       hostEnabled.delete(hostId);
       baselined.delete(hostId);
+      recovering.delete(hostId);
       policyApplied = undefined;
       return serialize(() => port.forget(hostId));
     },

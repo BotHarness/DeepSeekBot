@@ -121,4 +121,49 @@ describe('durable recovery handoff', () => {
     expect(snapshots[0]?.recovery?.batch).toBe(snapshots[1]?.recovery?.batch);
     expect(snapshots.map((snapshot) => snapshot.hostId)).toEqual(['studio', 'laptop']);
   });
+  it('retains one batch while two disconnected Hosts finish their complete scans at different times', async () => {
+    const snapshots: AlertSnapshot[] = [];
+    let hosts = [
+      { ...input, connected: false },
+      { ...input, hostId: 'laptop', connected: false },
+    ];
+    const owner = createDeviceAlerts(
+      {
+        recoverySession: 'process-1',
+        reconcile: async (snapshot) => {
+          snapshots.push(snapshot);
+        },
+        forget: async () => {},
+      },
+      {
+        ready: Promise.resolve(),
+        failed: () => {
+          throw Error('unexpected failure');
+        },
+        read: () => ({ approvalsEnabled: true, preferences, hosts }),
+      },
+    );
+    owner.setHostEnabled('studio', true);
+    owner.setHostEnabled('laptop', true);
+    owner.refresh();
+    await vi.waitFor(() => expect(snapshots).toHaveLength(2));
+    hosts = [{ ...input }, { ...input, hostId: 'laptop', connected: false }];
+    owner.refresh();
+    await vi.waitFor(() => expect(snapshots).toHaveLength(3));
+    hosts = [{ ...input }, { ...input, hostId: 'laptop' }];
+    owner.refresh();
+    await vi.waitFor(() => expect(snapshots).toHaveLength(4));
+    expect(snapshots[2]?.recovery?.batch).toBe(snapshots[3]?.recovery?.batch);
+    const firstBatch = snapshots[2]?.recovery?.batch;
+    hosts = [
+      { ...input, connected: false },
+      { ...input, hostId: 'laptop' },
+    ];
+    owner.refresh();
+    await vi.waitFor(() => expect(snapshots).toHaveLength(5));
+    hosts = [{ ...input }, { ...input, hostId: 'laptop' }];
+    owner.refresh();
+    await vi.waitFor(() => expect(snapshots).toHaveLength(6));
+    expect(snapshots[5]?.recovery?.batch).not.toBe(firstBatch);
+  });
 });
