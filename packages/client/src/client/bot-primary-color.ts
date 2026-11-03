@@ -92,12 +92,6 @@ function blend(top: Rgb, alpha: number, bottom: Rgb): Rgb {
 
 type Layer = { rgb: Rgb; alpha: number };
 
-// Surface colors only move when the theme, appearance, workspace material or a
-// stylesheet changes. Reading them calls getComputedStyle on every ancestor, which
-// forces a style recalculation, so each node's own background layer is cached
-// until the next invalidation instead of being re-read on every render. The walk
-// itself stays live, so a node that moves to another parent composites against
-// its new ancestors.
 let surfaceEpoch = 0;
 let ownLayers = new WeakMap<Element, Layer | undefined>();
 
