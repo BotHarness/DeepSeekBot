@@ -1,4 +1,3 @@
-/** Same rule as the mobile bubble: one line of text plus padding, with room for emoji ascent. */
 export function singleLineBubble(height: number, paddingY: number, lineHeight: number): boolean {
   return height > 0 && height <= paddingY + lineHeight * 1.5;
 }
@@ -21,7 +20,6 @@ function measure(bubble: HTMLElement): void {
     );
   if (single) {
     bubble.dataset['singleLine'] = '';
-    // A half-height radius, not 999px: the tail corner beside it must not be scaled away.
     bubble.style.setProperty('--bh-bubble-pill', `${bubble.offsetHeight / 2}px`);
   } else {
     delete bubble.dataset['singleLine'];
@@ -29,11 +27,6 @@ function measure(bubble: HTMLElement): void {
   }
 }
 
-/**
- * Marks the text bubble inside a message wrap with `data-single-line` while it
- * fits on one line, so CSS can make a lone one a pill while grouped ones keep
- * the multi-line corners.
- */
 export function observeSingleLineBubble(wrap: HTMLElement): (() => void) | undefined {
   const bubble = wrap.querySelector<HTMLElement>('.bh-bubble');
   if (bubble === null) return;
