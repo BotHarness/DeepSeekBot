@@ -13,7 +13,7 @@ import {
   NotificationSettings,
   type NotificationSettingsPort,
 } from '../src/ui/notification-settings';
-import { t } from '../src/ui/strings';
+import { locale, t } from '../src/ui/strings';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -60,6 +60,42 @@ function port(overrides: Partial<NotificationSettingsPort> = {}) {
 }
 
 describe('Notification settings', () => {
+  it.each(['push-token-timeout', 'Network request failed'])(
+    'reports %s as a registration failure, not an unsupported build',
+    async (reason) => {
+      const view = await render(
+        <NotificationSettings
+          status={{ status: 'unavailable', reason }}
+          hostName="studio"
+          port={port()}
+          onEnable={() => {}}
+          onOpenSettings={() => {}}
+        />,
+      );
+      expect(view.textContent).toContain(
+        locale === 'zh'
+          ? '通知注册未成功，检查网络后重启应用。'
+          : 'Could not register for notifications. Check your connection and restart the app.',
+      );
+      expect(view.textContent).not.toContain(t.notificationsUnavailable);
+      expect(view.textContent).not.toContain(reason);
+    },
+  );
+
+  it('keeps the build diagnostic when the project ID is missing', async () => {
+    const view = await render(
+      <NotificationSettings
+        status={{ status: 'unavailable', reason: 'missing-project-id' }}
+        hostName="studio"
+        port={port()}
+        onEnable={() => {}}
+        onOpenSettings={() => {}}
+      />,
+    );
+    expect(view.textContent).toContain(t.notificationsUnavailable);
+    expect(view.textContent).not.toContain('missing-project-id');
+  });
+
   it('keeps device choices editable without system permission or a push token', async () => {
     const announce = vi.spyOn(AccessibilityInfo, 'announceForAccessibility');
     const settings = port({

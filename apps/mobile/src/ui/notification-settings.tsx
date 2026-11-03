@@ -137,7 +137,14 @@ export function NotificationSettings({
         ) : null}
         {status.status === 'unavailable' ? (
           <SettingsSection on="raised">
-            <SettingsRow on="raised" title={t.notificationsUnavailable} />
+            <SettingsRow
+              on="raised"
+              title={
+                status.reason === 'missing-project-id'
+                  ? t.notificationsUnavailable
+                  : t.notificationsRegistrationFailed
+              }
+            />
           </SettingsSection>
         ) : null}
         {hostFailed ? (
