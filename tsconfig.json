@@ -42,6 +42,7 @@
     "*.config.ts"
   ],
   "exclude": [
+    "apps/mobile/test/notification-preferences-web.test.ts",
     "apps/mobile/test/posthog-sender.test.ts",
     "apps/mobile/test/mobile-telemetry-wire-live.test.ts",
     "apps/mobile/test/native-telemetry.test.ts",

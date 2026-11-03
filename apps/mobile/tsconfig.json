@@ -12,6 +12,7 @@
   "include": [
     "app",
     "src",
+    "test/notification-preferences-web.test.ts",
     "test/posthog-sender.test.ts",
     "test/workspace-panel-root.test.ts",
     "test/mobile-telemetry-wire-live.test.ts",
