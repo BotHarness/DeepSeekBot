@@ -60,16 +60,16 @@ describe('Inbox-only dismissal', () => {
       'workspace-grant-request',
       'workspace-grant-request',
     ]);
-    expect(f.methods.humanAttentionDismissAll({ kind: 'nonsense' }).ok).toBe(false);
-    expect(f.methods.humanAttentionDismissAll({ category: 'handled' }).ok).toBe(false);
-    expect(f.methods.humanAttentionDismissAll({ kind: 'tool-approval' })).toEqual({
+    expect((await f.methods.humanAttentionDismissAll({ kind: 'nonsense' })).ok).toBe(false);
+    expect((await f.methods.humanAttentionDismissAll({ category: 'handled' })).ok).toBe(false);
+    expect(await f.methods.humanAttentionDismissAll({ kind: 'tool-approval' })).toEqual({
       ok: true,
-      value: { accepted: true, dismissed: 0, more: false },
+      value: { accepted: true, dismissed: 0, read: 0, more: false },
     });
     expect(active()).toHaveLength(2);
-    expect(f.methods.humanAttentionDismissAll({ kind: 'workspace-grant-request' })).toEqual({
+    expect(await f.methods.humanAttentionDismissAll({ kind: 'workspace-grant-request' })).toEqual({
       ok: true,
-      value: { accepted: true, dismissed: 2, more: false },
+      value: { accepted: true, dismissed: 2, read: 0, more: false },
     });
     expect(active()).toEqual([]);
     const cleared = f.query.list({ category: 'action', dismissed: true }).items;
@@ -86,11 +86,15 @@ describe('Inbox-only dismissal', () => {
       );
     const before = everything().length;
     expect(before).toBeGreaterThan(1);
-    expect(f.methods.humanAttentionDismissAll({})).toEqual({
+    const unread = f.query.list({ category: 'unread' }).items.length;
+    expect(unread).toBeGreaterThan(0);
+    expect(f.query.status().unreadCount).toBeGreaterThan(0);
+    expect(await f.methods.humanAttentionDismissAll({})).toEqual({
       ok: true,
-      value: { accepted: true, dismissed: before, more: false },
+      value: { accepted: true, dismissed: before, read: unread, more: false },
     });
     expect(everything()).toEqual([]);
+    expect(f.query.status().unreadCount).toBe(0);
   });
 
   it('persists a dismissed grant without authorizing it, hides before pagination, and admits a new request', async () => {

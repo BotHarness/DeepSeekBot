@@ -1114,7 +1114,7 @@ const en = {
   activityClearedNotice: 'Cleared',
   activityClearMany: 'Clear…',
   activityClearManyTitle:
-    'Clear from Activity? Nothing is deleted; you can restore items from Cleared.',
+    'Clear from Activity? Unread conversations are marked read. Nothing is deleted; you can restore items from Cleared.',
   activityClearAll: 'All items',
   activityClearedCount: (count: number) =>
     count === 1 ? 'Cleared 1 item' : `Cleared ${count} items`,
@@ -3149,7 +3149,8 @@ const zh: typeof en = {
   activityUndo: '撤销',
   activityClearedNotice: '已清理',
   activityClearMany: '清理…',
-  activityClearManyTitle: '从活动中清理？不会删除任何内容，可在「已清理」中恢复。',
+  activityClearManyTitle:
+    '从活动中清理？未读会话会标为已读。不会删除任何内容，可在「已清理」中恢复。',
   activityClearAll: '全部条目',
   activityClearedCount: (count: number) => `已清理 ${count} 条`,
   activityClearedMore: (count: number) => `已清理 ${count} 条，再清理一次可处理剩余条目。`,

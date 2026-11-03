@@ -269,7 +269,8 @@ export const zh = {
   'activityInbox.clearItems': '清理…',
   'activityInbox.clearAll': '全部条目',
   'activityInbox.clearTitle': '清理「{scope}」？',
-  'activityInbox.clearBody': '它们会从活动中移除，不会删除消息，也不会回答或拒绝任何请求。',
+  'activityInbox.clearBody':
+    '它们会从活动中移除，未读会话会标为已读。不会删除消息，也不会回答或拒绝任何请求。',
   'activityInbox.clearConfirm': '清理',
   'activityInbox.clearMore': '条目太多，已清理 {count} 条；再执行一次可清理剩余部分。',
   'activityInbox.kind.tool-approval': '工具审批',
@@ -4822,7 +4823,7 @@ export const en = {
   'activityInbox.clearAll': 'All items',
   'activityInbox.clearTitle': 'Clear “{scope}”?',
   'activityInbox.clearBody':
-    'They leave Activity. No messages are deleted and no request is answered or rejected.',
+    'They leave Activity and unread conversations are marked read. No messages are deleted and no request is answered or rejected.',
   'activityInbox.clearConfirm': 'Clear',
   'activityInbox.clearMore': 'Cleared {count} items; run it again to clear the rest.',
   'activityInbox.kind.tool-approval': 'Tool approvals',

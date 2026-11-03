@@ -813,7 +813,7 @@ export interface BridgeMethods {
   humanAttentionRestore(payload: unknown): BridgeResult<{ accepted: boolean }>;
   humanAttentionDismissAll(
     payload: unknown,
-  ): BridgeResult<{ accepted: boolean; dismissed: number; more: boolean }>;
+  ): Promise<BridgeResult<{ accepted: boolean; dismissed: number; read: number; more: boolean }>>;
   humanAttentionIgnore(payload: unknown): BridgeResult<{ accepted: boolean }>;
   humanAttentionSnooze(payload: unknown): BridgeResult<{ accepted: boolean }>;
   assignments(payload: unknown): BridgeResult<{ assignments: AssignmentSummary[] }>;
@@ -1551,6 +1551,11 @@ function unknownAssignment(sessionId: string): BridgeResult<never> {
 const DIRECT_TOOL_TIMEOUT_MS = 10 * 60_000;
 
 const HUMAN_ATTENTION_DISMISS_LIMIT = 1000;
+const HUMAN_ATTENTION_READ_KINDS: ReadonlySet<string> = new Set([
+  'channel-unread',
+  'channel-reply',
+  'channel-mention',
+]);
 const HUMAN_ATTENTION_DISMISS_KINDS: ReadonlySet<string> = new Set<HumanAttentionItem['kind']>([
   'group-join-request',
   'pairing-request',
@@ -6619,7 +6624,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return invalidInput(String(error));
       }
     },
-    humanAttentionDismissAll(payload) {
+    async humanAttentionDismissAll(payload) {
       const source = asObject(payload);
       const kind = source['kind'];
       const category = source['category'];
@@ -6671,9 +6676,21 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           }
         }
         let dismissed = 0;
-        for (const item of matches.slice(0, HUMAN_ATTENTION_DISMISS_LIMIT))
+        const unread: Array<{ channelId: string; messageId: string }> = [];
+        for (const item of matches.slice(0, HUMAN_ATTENTION_DISMISS_LIMIT)) {
           if (decisions.dismiss(item)) dismissed += 1;
-        return { ok: true, value: { accepted: true, dismissed, more } };
+          if (
+            item.channelId !== undefined &&
+            item.messageId !== undefined &&
+            HUMAN_ATTENTION_READ_KINDS.has(item.kind)
+          )
+            unread.push({ channelId: item.channelId, messageId: item.messageId });
+        }
+        let read = 0;
+        for (const target of unread)
+          if ((await deps.channels.markRead(target.channelId, target.messageId)) !== undefined)
+            read += 1;
+        return { ok: true, value: { accepted: true, dismissed, read, more } };
       } catch (error) {
         return invalidInput(String(error));
       }

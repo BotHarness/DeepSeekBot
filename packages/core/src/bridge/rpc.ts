@@ -1789,13 +1789,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
   humanAttentionRestore(itemId: string, sourceKey: string): { accepted: boolean } {
     return unwrap(this.methods.humanAttentionRestore({ itemId, sourceKey }));
   }
-  humanAttentionDismissAll(
+  async humanAttentionDismissAll(
     kind?: string,
     category?: string,
     botSlug?: string,
     channelId?: string,
-  ): { accepted: boolean; dismissed: number; more: boolean } {
-    return unwrap(this.methods.humanAttentionDismissAll({ kind, category, botSlug, channelId }));
+  ): Promise<{ accepted: boolean; dismissed: number; read: number; more: boolean }> {
+    return unwrap(
+      await this.methods.humanAttentionDismissAll({ kind, category, botSlug, channelId }),
+    );
   }
   humanAttentionIgnore(sourceEventId: string): { accepted: boolean } {
     return unwrap(this.methods.humanAttentionIgnore({ sourceEventId }));
