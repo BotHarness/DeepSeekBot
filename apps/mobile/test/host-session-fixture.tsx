@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
 export const notificationTaps = new Set<(data: unknown, action?: string) => void>();
 export const secure = new Map<string, string>();
+export const refreshNotificationPermission = vi.fn(async () => undefined);
 
 vi.mock('expo-secure-store', () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 0,
@@ -65,6 +66,7 @@ vi.mock('../src/host/push-session', () => ({
     sync: async () => undefined,
     forget: async () => undefined,
     retryFailed: async () => undefined,
+    refreshPermission: refreshNotificationPermission,
     reflect() {},
     reflectAgain() {},
   }),
