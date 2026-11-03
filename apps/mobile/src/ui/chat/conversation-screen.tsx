@@ -1113,6 +1113,7 @@ function ChatConversation({
         (item.message.card?.kind === 'tool-approval' ||
           item.message.card?.kind === 'user-question' ||
           item.message.card?.kind === 'grant' ||
+          item.message.card?.kind === 'takeover' ||
           item.message.card?.kind === 'private-input')
       )
         return wrap(

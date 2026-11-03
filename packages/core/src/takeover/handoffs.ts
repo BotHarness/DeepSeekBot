@@ -265,7 +265,21 @@ export function createTakeoverHandoffs(options: TakeoverHandoffOptions): Takeove
     const delay = Math.min(MAX_TIMER_MS, Math.max(0, Date.parse(handoff.expiresAt) - now()));
     const timer = setTimeout(() => {
       timers.delete(key);
-      const current = find(handoff.channelId, handoff.id);
+      let current: TakeoverHandoff | undefined;
+      try {
+        current = find(handoff.channelId, handoff.id);
+      } catch (error) {
+        log(
+          'timer-failed',
+          {
+            id: handoff.id,
+            channel: handoff.channelId,
+            error: error instanceof Error ? error.name : 'unknown',
+          },
+          handoff.botSlug,
+        );
+        return;
+      }
       if (current === undefined || current.status !== 'pending') return;
       if (!overdue(current)) {
         arm(current);

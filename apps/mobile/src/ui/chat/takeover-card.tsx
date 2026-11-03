@@ -53,7 +53,7 @@ export function TakeoverCard({
     setBusy(true);
     setError(undefined);
     client
-      .call(
+      .call<{ takeover?: { status?: string } }>(
         next === 'cancelled' ? 'takeoverCancel' : 'takeoverComplete',
         next === 'cancelled'
           ? { channelId: target.channelId, messageId: target.messageId, surface: 'mobile' }
@@ -65,7 +65,17 @@ export function TakeoverCard({
             },
       )
       .then(
-        () => setSettled(next),
+        (result) => {
+          const recorded = result?.takeover?.status;
+          setSettled(
+            recorded === 'done' ||
+              recorded === 'failed' ||
+              recorded === 'cancelled' ||
+              recorded === 'expired'
+              ? recorded
+              : next,
+          );
+        },
         () => setError(t.takeoverError),
       )
       .finally(() => setBusy(false));

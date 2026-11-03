@@ -6254,7 +6254,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const source = asObject(payload);
       const slug = asSlug(payload);
       if (slug === undefined) return invalidInput('slug is required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
+      const bot = deps.registry.get(slug);
+      if (bot === undefined) return unknownBot(slug);
+      if (bot.paused === true) return invalidInput('The Bot is paused and cannot be woken');
       if (deps.takeovers === undefined) return invalidInput('Takeover handoffs are unavailable');
       const channelId = source['channelId'];
       if (channelId !== undefined && typeof channelId !== 'string')

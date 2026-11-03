@@ -862,7 +862,7 @@ export interface BridgeActions {
     channelId: string,
     messageId: string,
     outcome: 'done' | 'failed' | 'cancelled',
-  ): Promise<void>;
+  ): Promise<'done' | 'failed' | 'cancelled' | 'expired' | undefined>;
   privateAccountStatus?(
     channelId: string,
     messageId: string,

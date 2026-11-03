@@ -142,6 +142,6 @@ export function localComputerGuidance(platform: string = process.platform): stri
       'a Linux (X11/XFCE) desktop inside a container with Chrome',
       LOCAL_DESKTOP[platform] ?? 'the desktop of the DSH Host, shared with the Human',
     ) +
-    '\nLocal Computer has no viewer. Never assume a login is complete; ask the Human and re-observe the task window.'
+    '\nLocal Computer has no viewer: the Human signs in on their own screen, then answers your takeover_request card. Never assume a login is complete; re-observe the task window when the result wakes you.'
   );
 }

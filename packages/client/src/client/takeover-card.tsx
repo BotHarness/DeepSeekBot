@@ -89,7 +89,7 @@ export function TakeoverCard({
     void actions
       .settleTakeover(channelId, message.id, outcome)
       .then(
-        () => setSettled(outcome),
+        (recorded) => setSettled(recorded ?? outcome),
         (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)),
       )
       .finally(() => setBusy(undefined));

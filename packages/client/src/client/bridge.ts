@@ -4305,14 +4305,18 @@ export async function settleTakeover(
   channelId: string,
   messageId: string,
   outcome: 'done' | 'failed' | 'cancelled',
-): Promise<void> {
-  await unwrap(
+): Promise<'done' | 'failed' | 'cancelled' | 'expired' | undefined> {
+  const value = await unwrap(
     call,
     outcome === 'cancelled' ? 'takeoverCancel' : 'takeoverComplete',
     outcome === 'cancelled'
       ? { channelId, messageId, surface: 'web' }
       : { channelId, messageId, outcome, surface: 'web' },
   );
+  const status = (value as { takeover?: { status?: unknown } } | undefined)?.takeover?.status;
+  return status === 'done' || status === 'failed' || status === 'cancelled' || status === 'expired'
+    ? status
+    : undefined;
 }
 
 export async function cancelPrivateInput(

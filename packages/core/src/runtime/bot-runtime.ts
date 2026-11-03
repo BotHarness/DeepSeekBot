@@ -2752,9 +2752,17 @@ class BotRuntimeImplementation implements BotRuntime {
         .get(sourceEventId),
     ) as { body: string } | undefined;
     if (source === undefined) return false;
+    const steered = this.#channels.message(channelId, messageId);
     const mentionPrompt =
-      `Source Event ID: ${sourceEventId}\n` +
-      this.#groupMentionPrompt(botSlug, channelId, messageId, source.body);
+      steered?.takeoverResolution !== undefined
+        ? takeoverResolutionPrompt(
+            sourceEventId,
+            channelId,
+            steered.takeoverResolution,
+            this.#channels.message(channelId, steered.takeoverResolution.requestMessageId),
+          )
+        : `Source Event ID: ${sourceEventId}\n` +
+          this.#groupMentionPrompt(botSlug, channelId, messageId, source.body);
     const claimed = this.#database.transaction(
       (database) => {
         const mention =
@@ -6558,7 +6566,14 @@ class BotRuntimeImplementation implements BotRuntime {
           .prepare(
             `SELECT e.channel_id, e.message_id FROM source_events e
             JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
-            WHERE e.source_event_id = ? AND a.bot_slug = ? AND e.source_kind IN ('human-message', 'bot-message')`,
+            WHERE e.source_event_id = ? AND a.bot_slug = ?
+              AND (
+                e.source_kind IN ('human-message', 'bot-message')
+                OR (
+                  e.source_kind = 'system-message'
+                  AND json_extract(e.payload_json, '$.takeoverResolution') IS NOT NULL
+                )
+              )`,
           )
           .get(id, botSlug);
       });

@@ -50,7 +50,18 @@ function fixture(options: { access?: boolean; start?: number } = {}) {
         )
         .all(sourceMessageId),
     ) as Array<{ bot_slug: string; reason: string }>;
+  const sourceOf = (sourceMessageId: string) =>
+    database.read((db) =>
+      db
+        .prepare(
+          `SELECT source_kind,
+                  json_extract(payload_json, '$.takeoverResolution') IS NOT NULL AS resolution
+             FROM source_events WHERE message_id = ?`,
+        )
+        .get(sourceMessageId),
+    ) as { source_kind: string; resolution: number } | undefined;
   return {
+    sourceOf,
     channels,
     dm,
     group,
@@ -187,6 +198,7 @@ describe('Takeover Handoff', () => {
     expect(resolution.author).toEqual({ kind: 'system' });
     expect(resolution.takeoverResolution?.outcome).toBe('expired');
     expect(f.admissions(resolution.id)).toEqual([{ bot_slug: 'ada', reason: 'human-dm' }]);
+    expect(f.sourceOf(resolution.id)).toEqual({ source_kind: 'system-message', resolution: 1 });
     expect(f.events.at(-1)).toMatchObject({ phase: 'expired', fields: { by: 'host' } });
     f.handoffs.close();
   });
