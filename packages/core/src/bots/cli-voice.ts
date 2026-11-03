@@ -36,7 +36,7 @@ export const VOICE_COMMANDS = [
   {
     command: 'voice-providers',
     description:
-      'list TTS Provider presets and the configured TTS Providers (keys are never shown); --bot also shows its voice binding',
+      'list TTS and ASR Provider presets and the configured Providers (keys are never shown); --bot also shows its voice and speech recognition bindings',
   },
   {
     command: 'voice-provider-add',
@@ -123,12 +123,12 @@ export async function runVoiceCommand(
     });
   }
   if (command === 'voice-provider-remove') {
-    const [id] = positionals(command, rest, 1, 'one TTS Provider id');
+    const [id] = positionals(command, rest, 1, 'one TTS or ASR Provider id');
     const rpc = await connect();
     return rpc('voiceProviderRemove', { id });
   }
   if (command === 'voice-provider-test') {
-    const [id] = positionals(command, rest, 1, 'one TTS Provider id');
+    const [id] = positionals(command, rest, 1, 'one TTS or ASR Provider id');
     const rpc = await connect();
     return rpc('voiceProviderTest', {
       id,
