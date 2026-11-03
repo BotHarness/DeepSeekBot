@@ -17,6 +17,7 @@ import {
 } from './call-contract.js';
 import { createVad, VAD_SAMPLE_RATE, type VadOptions } from './vad.js';
 import { VoiceError, wavFromPcm16 } from './providers.js';
+import type { AsrStream } from './soniox.js';
 
 export interface VoiceCallMedia {
   availability(): Promise<'ready' | 'unsupported-platform' | 'helper-missing'>;
@@ -52,6 +53,12 @@ export interface VoiceCallsDeps {
       language?: string | undefined;
       signal?: AbortSignal | undefined;
     }): Promise<{ text: string; latencyMs: number }>;
+    openStream?(input: {
+      providerId: string;
+      language?: string | undefined;
+      signal?: AbortSignal | undefined;
+      onText?: ((text: string) => void) | undefined;
+    }): AsrStream | undefined;
   };
   media(): VoiceCallMedia | undefined;
   send(input: {
@@ -81,6 +88,8 @@ class CallRefusal extends Error {
 }
 
 const CALL_ID = /^call-[a-f0-9]{16}$/u;
+const HEARING_EVENT_MS = 250;
+const MAX_HEARING_CHARS = 500;
 
 type EventInput = VoiceCallEvent extends infer E
   ? E extends VoiceCallEvent
@@ -114,6 +123,14 @@ interface Call {
   playback: Promise<void>;
   lastHeardAt?: number | undefined;
   timer?: ReturnType<typeof setInterval>;
+  stream?: AsrStream | undefined;
+  hearing?:
+    | {
+        text: string;
+        pushedAt: number;
+        timer?: ReturnType<typeof setTimeout> | undefined;
+      }
+    | undefined;
 }
 
 export interface VoiceCalls {
@@ -202,6 +219,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     clearInterval(call.timer);
     call.abort.abort();
     call.vad.reset();
+    dropStream(call);
     push(call, { type: 'ended', reason });
     log('call-ended', { call: call.id, bot: call.slug, reason, ms: call.endedAt - call.startedAt });
     await call.peer?.close().catch(() => undefined);
@@ -210,32 +228,104 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     }, 60_000).unref?.();
   };
 
+  const dropStream = (call: Call) => {
+    call.stream?.cancel();
+    call.stream = undefined;
+    clearTimeout(call.hearing?.timer);
+    call.hearing = undefined;
+  };
+
+  const startStream = (call: Call) => {
+    dropStream(call);
+    const bot = deps.bot(call.slug);
+    if (bot?.asr === undefined || deps.providers.openStream === undefined) return;
+    let stream: AsrStream | undefined;
+    try {
+      stream = deps.providers.openStream({
+        providerId: bot.asr.providerId,
+        language: bot.asr.language,
+        signal: call.abort.signal,
+        onText: (text) => {
+          if (call.stream !== stream || ended(call)) return;
+          hearing(call, text);
+        },
+      });
+    } catch {
+      stream = undefined;
+    }
+    call.stream = stream;
+  };
+
+  const flushHearing = (call: Call) => {
+    const state = call.hearing;
+    if (state === undefined) return;
+    clearTimeout(state.timer);
+    state.timer = undefined;
+    state.pushedAt = now();
+    push(call, {
+      type: 'hearing',
+      text: state.text.slice(0, MAX_HEARING_CHARS),
+    });
+  };
+
+  const hearing = (call: Call, text: string) => {
+    if (text === '' || text === call.hearing?.text) return;
+    const state = (call.hearing ??= { text, pushedAt: 0 });
+    state.text = text;
+    const wait = state.pushedAt + HEARING_EVENT_MS - now();
+    if (wait <= 0) flushHearing(call);
+    else if (state.timer === undefined) {
+      state.timer = setTimeout(() => {
+        if (call.hearing === state && !ended(call)) flushHearing(call);
+      }, wait);
+      state.timer.unref?.();
+    }
+  };
+
   const transcribe = (call: Call, pcm: Int16Array, audioMs: number) => {
+    const stream = call.stream;
+    call.stream = undefined;
+    clearTimeout(call.hearing?.timer);
+    call.hearing = undefined;
+    const started = now();
+    const streamed = stream?.finish();
+    streamed?.catch(() => undefined);
     call.transcription = call.transcription.then(async () => {
       if (call.phase === 'ended') return;
       const bot = deps.bot(call.slug);
       call.phase = 'transcribing';
       push(call, { type: 'transcribing', audioMs });
-      let wav: Uint8Array | undefined = wavFromPcm16(pcm, VAD_SAMPLE_RATE);
+      let wav: Uint8Array | undefined =
+        streamed === undefined ? wavFromPcm16(pcm, VAD_SAMPLE_RATE) : undefined;
       pcm.fill(0);
-      const started = now();
       let text: string;
       try {
-        if (bot?.asr === undefined) throw new VoiceError('unknown-provider', 'No ASR Provider.');
-        text = (
-          await deps.providers.transcribe({
-            providerId: bot.asr.providerId,
-            audio: wav,
-            language: bot.asr.language,
-            signal: call.abort.signal,
-          })
-        ).text;
+        if (streamed !== undefined) text = (await streamed).text;
+        else {
+          if (bot?.asr === undefined) throw new VoiceError('unknown-provider', 'No ASR Provider.');
+          text = (
+            await deps.providers.transcribe({
+              providerId: bot.asr.providerId,
+              audio: wav!,
+              language: bot.asr.language,
+              signal: call.abort.signal,
+            })
+          ).text;
+        }
       } catch (error) {
         if (ended(call)) return;
         const code = error instanceof VoiceError ? error.code : 'asr-failed';
         const message = error instanceof VoiceError ? error.message : 'Speech recognition failed.';
-        push(call, { type: 'asr-failed', code, message: message.slice(0, 200) });
-        log('call-asr-failed', { call: call.id, code });
+        push(call, {
+          type: 'asr-failed',
+          code,
+          message: message.slice(0, 200),
+        });
+        log('call-asr-failed', {
+          call: call.id,
+          code,
+          mode: streamed === undefined ? 'batch' : 'stream',
+        });
         return;
       } finally {
         wav?.fill(0);
@@ -271,8 +361,21 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         return;
       }
       call.lastHeardAt = now();
-      push(call, { type: 'sent', messageId, text, asrMs });
-      log('call-heard', { call: call.id, bot: call.slug, chars: text.length, asrMs });
+      const mode = streamed === undefined ? 'batch' : 'stream';
+      push(call, {
+        type: 'sent',
+        messageId,
+        text,
+        asrMs,
+        ...(streamed === undefined ? {} : { streamed: true }),
+      });
+      log('call-heard', {
+        call: call.id,
+        bot: call.slug,
+        chars: text.length,
+        asrMs,
+        mode,
+      });
     });
   };
 
@@ -280,10 +383,14 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     if (call.phase === 'ended' || call.phase === 'connecting') return;
     if (call.muted || call.playing || now() < call.deafUntil) return;
     for (const event of call.vad.push(samples)) {
-      if (event.type === 'speech-start') push(call, { type: 'speech-start' });
-      else if (event.type === 'noise')
+      if (event.type === 'speech-start') {
+        push(call, { type: 'speech-start' });
+        startStream(call);
+      } else if (event.type === 'audio') call.stream?.push(event.pcm);
+      else if (event.type === 'noise') {
+        dropStream(call);
         push(call, { type: 'noise-discarded', durationMs: event.durationMs });
-      else transcribe(call, event.pcm, event.endMs - event.startMs);
+      } else transcribe(call, event.pcm, event.endMs - event.startMs);
     }
     settle(call);
   };
@@ -404,7 +511,11 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       media: kind,
       startedAt,
       abort: new AbortController(),
-      vad: createVad({ maxUtteranceMs: VOICE_CALL_LIMITS.maxUtteranceMs, ...deps.vad }),
+      vad: createVad({
+        maxUtteranceMs: VOICE_CALL_LIMITS.maxUtteranceMs,
+        stream: deps.providers.openStream !== undefined,
+        ...deps.vad,
+      }),
       phase: 'connecting',
       muted: false,
       busy: deps.busy(slug),
@@ -527,7 +638,10 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         if (call.phase === 'ended') throw new CallRefusal('call-ended', 'The call has ended.');
         if (call.muted !== command['muted']) {
           call.muted = command['muted'];
-          if (call.muted) call.vad.reset();
+          if (call.muted) {
+            call.vad.reset();
+            dropStream(call);
+          }
           push(call, { type: call.muted ? 'muted' : 'unmuted' });
           settle(call);
         }
@@ -593,6 +707,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         if (call.phase === 'ended' || call.abort.signal.aborted) return;
         call.playing = true;
         call.vad.reset();
+        dropStream(call);
         settle(call);
         push(call, {
           type: 'playing',

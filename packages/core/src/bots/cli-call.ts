@@ -225,7 +225,13 @@ async function simulate(
       text: event.text,
       asrMs: event.asrMs,
       at: event.at,
+      ...(event.streamed === true ? { streamed: true } : {}),
     })),
+    hearing: events
+      .filter(
+        (event): event is Extract<VoiceCallEvent, { type: 'hearing' }> => event.type === 'hearing',
+      )
+      .map((event) => ({ text: event.text, at: event.at })),
     replies: playing.map((event) => ({
       messageId: event.messageId,
       bytes: event.bytes,
