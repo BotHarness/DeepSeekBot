@@ -34,6 +34,8 @@ Install opens a review step: Tob reads the staged files and the step shows **Tob
 
 ## Gotchas
 
+- Install source is an optional named gateway argument (`list`, `hot`, `new`, `rising`, `digest`). A source-bearing `/api/botharness/marketplaceInstall` request must reach the review owner, not fail with `unexpected "source"`. An expired review must still be refused; reaching that refusal proves admission only, not a successful installation. Qualify installation with a real staged review separately.
+
 - The default `verify-app shot` locale is English; Chinese accessible names require `--locale zh`. The fresh Profile welcome dialog must be dismissed before market interaction.
 - Production tie ordering changes only after the Worker and migration `0011_star_tiebreaks.sql` deploy. Old three-field stars cursors receive `invalid-cursor`; reopening/retrying starts from page one. Other cursors remain compatible.
 - Browser sorting preferences are device-local; target-Client CLI preference control remains tracked by #2096. The existing `marketplace-list --sort` exercises each catalog order directly.
