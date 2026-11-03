@@ -410,6 +410,25 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it('stops one Assignment Session and prints the Host result', async () => {
+    const result = {
+      stopped: [],
+      alreadyIdle: [{ botSlug: 'ada', sessionId: 'sess-1', role: 'assignment' }],
+    };
+    const live = await host(() => ({ ok: true, value: result }));
+    const stopped = await invoke(['session-stop', 'ada', 'sess-1'], live.url);
+    expect(stopped.code).toBe(0);
+    expect(stopped.json).toEqual(result);
+    for (const argv of [
+      ['session-stop', 'ada'],
+      ['session-stop', 'ada', 'sess-1', 'extra'],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([
+      { method: 'sessionStop', args: { botSlug: 'ada', sessionId: 'sess-1' } },
+    ]);
+  });
+
   it('approves directory requests through the shared Host command only with explicit confirmation', async () => {
     const live = await host(echo);
     const args = [

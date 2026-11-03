@@ -450,6 +450,7 @@ deepseekbot channel-assign <channel> --section <section-id> --index 0
 deepseekbot session-ids
 deepseekbot session-owner <session-id>
 deepseekbot session-archive-set <bot-id> --session <session-id> --archived
+deepseekbot session-stop <bot-id> <session-id>
 deepseekbot tool-approval-rules <bot-id>
 deepseekbot tool-approval-history <bot-id> [--limit 30] [--cursor <next>]
 deepseekbot tool-approval-rule-revoke <bot-id> --rule <rule-id> --confirm
@@ -458,6 +459,8 @@ deepseekbot grant-write-set <bot-id> --grant <grant-id> --disabled
 deepseekbot private-mcp-set <bot-id> --server <name> --enabled
 deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 ```
+
+`session-stop <bot-id> <session-id>` 停止 Bot 的一个运行中的 Assignment Session，与 Sessions 面板中该行的停止按钮相同。它的 Subagent 随之停止；Orchestrator 和 Bot 的其他 Assignment 继续运行。返回 `stopped` 和 `alreadyIdle`，均为 `{ botSlug, sessionId, role }` 列表：空闲、已停止或重复停止的 Assignment 出现在 `alreadyIdle` 中，命令仍然成功。停止不会唤醒 Orchestrator；它的下一轮会读到一条 Host 生命周期通知，说明 Human 停止了该 Assignment，除非 Human 要求，否则不要重新派发。该 Assignment 保留历史且不会被归档；只有 Orchestrator 发来的 Assignment Request（`send_assignment_request`）能让它继续。Orchestrator Session 会以 `unsupported-role` 拒绝（请用 `channel-bot-stop`），Bot 不拥有的 Session 以 `unknown-session` 拒绝。
 
 `inbox-status` 请求完整的消息分类摘要，返回 `unreadCount`、`hasAction`，以及支持该能力的 Host 返回的 `messageCounts: { replies, other }`。分类在可见性与 Channel 免打扰过滤后，对未读 Source Event 去重并分成个人消息和其他消息；已读保留的提及／回复、已处理请求不点亮消息红点。该摘要不受 Activity 分页和浏览器筛选影响。旧 Host 可能省略 `messageCounts`，缺失不代表零。control rail 红点偏好只在当前浏览器和 Host origin 保存，不改动 CLI 返回的真实状态。
 

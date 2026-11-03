@@ -4,7 +4,7 @@ import type { SessionsState } from './store.js';
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
-import { Tag, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconStopFillRegular, Tag, type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives';
 import { Tooltip } from './ds/tooltip.js';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
@@ -99,6 +99,7 @@ function SessionsPanel({
   assignmentLimit?: number | undefined;
 }): ReactElement {
   const [archiving, setArchiving] = useState<string>();
+  const [stopping, setStopping] = useState<ReadonlySet<string>>(() => new Set());
   const [subagentsOpen, setSubagentsOpen] = useState<ReadonlySet<string>>(() => new Set());
   const toggleSubagents = (sessionId: string): void =>
     setSubagentsOpen((current) => {
@@ -185,6 +186,12 @@ function SessionsPanel({
       row.subagentCount === undefined || botSlug === undefined ? undefined : row.subagentCount;
     const subagentsExpanded = subagents !== undefined && subagentsOpen.has(row.sessionId);
     const workable = row.role === 'assignment' && botSlug !== undefined;
+    const locallyStopping = stopping.has(row.sessionId);
+    const status = locallyStopping ? 'stopping' : row.status;
+    const stoppable =
+      row.role === 'assignment' &&
+      botSlug !== undefined &&
+      (status === 'running' || status === 'stopping');
     const archivable = !(
       row.role !== 'assignment' ||
       row.section === 'working' ||
@@ -216,7 +223,7 @@ function SessionsPanel({
         title={row.title}
         hint={[row.description, row.cwd].filter(Boolean).join('\n') || undefined}
         mainClassName="bh-session-row"
-        state={row.status}
+        state={status}
         muted={native.byId[row.sessionId] === undefined}
         disabled={native.byId[row.sessionId] === undefined}
         onClick={() => void actions.openSession(row.sessionId)}
@@ -227,11 +234,11 @@ function SessionsPanel({
             <Tag tone={row.needs === 'error' || row.needs === 'failed' ? 'danger' : 'warning'}>
               {t(`sessions.needs.${row.needs}`)}
             </Tag>
-          ) : implied === 'any' || row.status === implied ? undefined : (
-            <Tag tone={STATUS_TONE[row.status]}>{statusLabel[row.status]}</Tag>
+          ) : implied === 'any' || status === implied ? undefined : (
+            <Tag tone={STATUS_TONE[status]}>{statusLabel[status]}</Tag>
           )
         }
-        {...(!archivable && !workable && subagents === undefined
+        {...(!archivable && !workable && !stoppable && subagents === undefined
           ? {}
           : {
               trailing: (
@@ -252,6 +259,38 @@ function SessionsPanel({
                       t={t}
                     />
                   )}
+                  {stoppable ? (
+                    <Tooltip label={t('sessions.stop')} side="top" portal delayMs={400}>
+                      <IconButton
+                        size="inline"
+                        data-session-stop=""
+                        disabled={status === 'stopping'}
+                        aria-label={t('sessions.stopNamed', { title: row.title })}
+                        onClick={() => {
+                          const sessionId = row.sessionId;
+                          setStopping((current) => new Set(current).add(sessionId));
+                          setArchiveError(undefined);
+                          void actions
+                            .stopSession(botSlug, sessionId)
+                            .catch((error: unknown) =>
+                              setArchiveError(
+                                error instanceof Error ? error.message : String(error),
+                              ),
+                            )
+                            .finally(() => {
+                              setStopping((current) => {
+                                const next = new Set(current);
+                                next.delete(sessionId);
+                                return next;
+                              });
+                              setReload((value) => value + 1);
+                            });
+                        }}
+                      >
+                        <IconStopFillRegular size={12} />
+                      </IconButton>
+                    </Tooltip>
+                  ) : null}
                   {archivable ? (
                     <Tooltip
                       label={t(row.archived === true ? 'sessions.unarchive' : 'sessions.archive')}

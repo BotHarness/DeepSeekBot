@@ -853,6 +853,7 @@ export interface BotRuntime {
   resumePendingDigests?(botSlug: string): void;
 
   stopBot?(botSlug: string): Promise<void>;
+  stopSession?(botSlug: string, sessionId: string): Promise<SessionStopOutcome>;
   stopTurn?(
     botSlug: string,
     scope?: { autoContinueFor: string; channelId: string },
@@ -1450,6 +1451,19 @@ const AUTO_CONTINUE_DELAYS_MS: readonly number[] = [60_000, 180_000];
 const FAILURE_HOLD_THRESHOLD = 3;
 
 export type BotHoldCause = 'human-stop' | 'failures';
+
+export interface StoppedSessionRef {
+  botSlug: string;
+  sessionId: string;
+  role: 'orchestrator' | 'assignment';
+}
+
+export type SessionStopOutcome =
+  | { outcome: 'settled'; stopped: StoppedSessionRef[]; alreadyIdle: StoppedSessionRef[] }
+  | { outcome: 'refused'; code: 'unknown-session' | 'unsupported-role'; message: string };
+
+const HUMAN_SESSION_STOP_NOTICE =
+  'The Human stopped this Assignment. Do not send it another Assignment Request or redispatch this work unless the Human asks you to. Its history is kept: send_assignment_request with this Session id resumes it.';
 
 interface PendingAutoContinue {
   timer: NodeJS.Timeout;
@@ -4970,6 +4984,41 @@ class BotRuntimeImplementation implements BotRuntime {
       ['assignments'],
     );
     this.#pendingHarvests.delete(botSlug);
+  }
+
+  async stopSession(botSlug: string, sessionId: string): Promise<SessionStopOutcome> {
+    const bot = this.#registry.get(botSlug);
+    const row = this.#assignmentRow(botSlug, sessionId);
+    if (bot === undefined || row === undefined) {
+      const owned = this.#ownership
+        .rootsFor(botSlug, 'orchestrator')
+        .some((root) => root.sessionId === sessionId);
+      return owned
+        ? {
+            outcome: 'refused',
+            code: 'unsupported-role',
+            message:
+              'Session Stop does not cover the Orchestrator Session yet; use channel-bot-stop to stop the Bot.',
+          }
+        : {
+            outcome: 'refused',
+            code: 'unknown-session',
+            message: `${sessionId} is not an Assignment Session of ${botSlug}`,
+          };
+    }
+    const ref: StoppedSessionRef = { botSlug, sessionId, role: 'assignment' };
+    const active =
+      row.stop_state === 'requested' ||
+      (row.stop_state === 'running' &&
+        (row.activity === 'working' ||
+          this.#assignmentAcceptances.has(sessionId) ||
+          this.#assignmentRuns.has(sessionId)));
+    if (!active) return { outcome: 'settled', stopped: [], alreadyIdle: [ref] };
+    await this.#stopAssignment(bot, sessionId, () => undefined, 'human-session-stop');
+    this.#warn?.(
+      JSON.stringify({ component: 'bot-runtime', event: 'session-stop', botSlug, sessionId }),
+    );
+    return { outcome: 'settled', stopped: [ref], alreadyIdle: [] };
   }
 
   async stopTurn(
@@ -8575,12 +8624,26 @@ class BotRuntimeImplementation implements BotRuntime {
       model?: ModelRoute;
     },
   ): AssignmentRequestOutcome {
-    const row = this.#assignmentRow(bot.slug, input.sessionId);
+    let row = this.#assignmentRow(bot.slug, input.sessionId);
     if (row === undefined) throw new Error(`Unknown Assignment Session: ${input.sessionId}`);
     if (isArchivedRow(row) || this.#assignmentArchives.has(input.sessionId)) {
       throw new Error(
         `Assignment Session ${input.sessionId} is archived; call unarchive_assignment before sending it a request`,
       );
+    }
+    if (row.stop_state === 'stopped' && this.#humanSessionStopped(bot.slug, input.sessionId)) {
+      this.#database.transaction(
+        (database) => {
+          database
+            .prepare(
+              `UPDATE assignments SET stop_state = 'running', activity = 'idle', updated_at = ?
+                WHERE bot_slug = ? AND session_id = ? AND stop_state = 'stopped'`,
+            )
+            .run(this.#now().toISOString(), bot.slug, input.sessionId);
+        },
+        ['assignments'],
+      );
+      row = this.#assignmentRow(bot.slug, input.sessionId) ?? row;
     }
     if (row.stop_state !== 'running') {
       throw new Error(`Assignment Session ${input.sessionId} is stopped or stopping`);
@@ -8732,7 +8795,7 @@ class BotRuntimeImplementation implements BotRuntime {
     bot: PersonaBotRecord,
     sessionId: string,
     markSideEffect: () => void,
-    cause: 'orchestrator-stop' | 'human-stop' = 'orchestrator-stop',
+    cause: 'orchestrator-stop' | 'human-stop' | 'human-session-stop' = 'orchestrator-stop',
   ): Promise<AssignmentSummary> {
     const row = this.#assignmentRow(bot.slug, sessionId);
     if (row === undefined) throw new Error(`Unknown Assignment Session: ${sessionId}`);
@@ -8783,15 +8846,18 @@ class BotRuntimeImplementation implements BotRuntime {
             sourceEventId,
             bot.slug,
             sessionId,
-            cause === 'human-stop'
-              ? 'Stopped by the Human together with your turn. This Session will not accept further requests or reports.'
-              : 'Stopped by the Orchestrator. This Session will not accept further requests or reports.',
+            cause === 'human-session-stop'
+              ? HUMAN_SESSION_STOP_NOTICE
+              : cause === 'human-stop'
+                ? 'Stopped by the Human together with your turn. This Session will not accept further requests or reports.'
+                : 'Stopped by the Orchestrator. This Session will not accept further requests or reports.',
             at,
             at,
             JSON.stringify({
               assignmentLifecycle: {
                 state: 'stopped',
                 cause,
+                ...(cause === 'orchestrator-stop' ? {} : { stoppedBy: 'human' }),
               },
             }),
           );
@@ -8802,13 +8868,34 @@ class BotRuntimeImplementation implements BotRuntime {
                      source_policy_revision, source_policy_wake_mode)
                     VALUES (?, ?, 'assignment-lifecycle', ?, ?)`,
           )
-          .run(sourceEventId, bot.slug, sourceRule.revision, sourceRule.wake);
-        return sourceRule.wake === 'immediate';
+          .run(
+            sourceEventId,
+            bot.slug,
+            sourceRule.revision,
+            cause === 'human-session-stop' ? 'silent' : sourceRule.wake,
+          );
+        return cause !== 'human-session-stop' && sourceRule.wake === 'immediate';
       },
       ['assignments', 'source-event', 'bot-inbox'],
     );
     if (stopped) this.#scheduleHarvest(bot.slug);
     return this.#requireAssignmentSummary(bot.slug, sessionId);
+  }
+
+  #humanSessionStopped(botSlug: string, sessionId: string): boolean {
+    const latest = this.#database.read((database) =>
+      database
+        .prepare(
+          `SELECT json_extract(payload_json, '$.assignmentLifecycle.cause') AS cause
+             FROM source_events
+            WHERE bot_slug = ? AND assignment_session_id = ?
+              AND source_kind = 'assignment-lifecycle'
+              AND json_extract(payload_json, '$.assignmentLifecycle.state') = 'stopped'
+            ORDER BY rowid DESC LIMIT 1`,
+        )
+        .get(botSlug, sessionId),
+    ) as { cause: string | null } | undefined;
+    return latest?.cause === 'human-session-stop';
   }
 
   async #archiveAssignment(

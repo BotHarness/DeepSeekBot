@@ -643,6 +643,12 @@ export interface BridgeMethods {
   channelBotStop(
     payload: unknown,
   ): Promise<BridgeResult<{ stopped: { botSlug: string; sessionId: string; messageId: string } }>>;
+  sessionStop(payload: unknown): Promise<
+    BridgeResult<{
+      stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+      alreadyIdle: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+    }>
+  >;
   approvalRoute(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   failureAlertsSet(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   failureAlertsTest(
@@ -2992,6 +2998,18 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         ok: true,
         value: { stopped: { botSlug, sessionId: stopped.sessionId, messageId: appended.id } },
       };
+    },
+    async sessionStop(payload) {
+      const source = asObject(payload);
+      const botSlug = asNonBlank(source, 'botSlug');
+      const sessionId = asNonBlank(source, 'sessionId');
+      if (!botSlug || !sessionId) return invalidInput('botSlug and sessionId are required');
+      if (deps.registry.get(botSlug) === undefined) return unknownBot(botSlug);
+      if (deps.runtime?.stopSession === undefined) return unavailable();
+      const outcome = await deps.runtime.stopSession(botSlug, sessionId);
+      if (outcome.outcome === 'refused')
+        return { ok: false, error: { code: outcome.code, message: outcome.message } };
+      return { ok: true, value: { stopped: outcome.stopped, alreadyIdle: outcome.alreadyIdle } };
     },
     async modelCatalog() {
       if (deps.modelCatalog === undefined) return unavailable();

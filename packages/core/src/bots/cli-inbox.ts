@@ -76,6 +76,11 @@ export const INBOX_COMMANDS = [
   { command: 'session-ids', description: 'list the root Session IDs owned by Bots' },
   { command: 'session-owner', description: 'read which Bot owns a Session, and in which role' },
   {
+    command: 'session-stop',
+    description:
+      "stop one of a Bot's running Assignment Sessions; the Bot and its other Sessions keep running",
+  },
+  {
     command: 'session-archive-set',
     description: "archive or unarchive a Bot's assignment Session",
   },
@@ -462,6 +467,15 @@ function prepare(
     case 'session-owner': {
       const [sessionId] = positionals(command, rest, 1, 'exactly one session id');
       return { method: 'sessionOwner', args: { sessionId } };
+    }
+    case 'session-stop': {
+      const [botSlug, sessionId] = positionals(
+        command,
+        rest,
+        2,
+        'a bot id and one of its Session ids',
+      );
+      return { method: 'sessionStop', args: { botSlug, sessionId } };
     }
     case 'session-archive-set': {
       const [slug] = positionals(command, rest, 1, 'exactly one bot id');

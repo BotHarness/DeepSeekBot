@@ -490,6 +490,7 @@ deepseekbot channel-assign <channel> --section <section-id> --index 0
 deepseekbot session-ids
 deepseekbot session-owner <session-id>
 deepseekbot session-archive-set <bot-id> --session <session-id> --archived
+deepseekbot session-stop <bot-id> <session-id>
 deepseekbot tool-approval-rules <bot-id>
 deepseekbot tool-approval-history <bot-id> [--limit 30] [--cursor <next>]
 deepseekbot tool-approval-rule-revoke <bot-id> --rule <rule-id> --confirm
@@ -498,6 +499,8 @@ deepseekbot grant-write-set <bot-id> --grant <grant-id> --disabled
 deepseekbot private-mcp-set <bot-id> --server <name> --enabled
 deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 ```
+
+`session-stop <bot-id> <session-id>` stops one running Assignment Session of a Bot, as the stop button on its row in the Sessions panel does. Its Subagents stop with it; the Orchestrator and the Bot's other Assignments keep running. It returns `stopped` and `alreadyIdle`, each a list of `{ botSlug, sessionId, role }`: an Assignment that is idle, already stopped or stopped twice comes back in `alreadyIdle` and still succeeds. The stop does not wake the Orchestrator. Its next turn reads a Host lifecycle notice that the Human stopped the Assignment and must not be redispatched unless the Human asks. The Assignment keeps its history and stays unarchived; only an Assignment Request from the Orchestrator (`send_assignment_request`) resumes it. An Orchestrator Session is refused with `unsupported-role` (use `channel-bot-stop`), and a Session the Bot does not own with `unknown-session`.
 
 `inbox-status` requests the complete message-category summary and returns `unreadCount`, `hasAction` and, on a supporting Host, `messageCounts: { replies, other }`. The categories partition distinct unread Source Events after visibility and Channel mute rules; read retained personal messages and handled requests do not trigger a message indicator. These are complete counts, independent of Activity pagination or browser filters. A legacy Host may omit `messageCounts`; missing data is not zero. The control-rail indicator preference is browser/Host-origin-local presentation and does not change this CLI state.
 
