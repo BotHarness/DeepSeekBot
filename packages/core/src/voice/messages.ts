@@ -21,6 +21,14 @@ export interface VoiceMessagesDeps {
   bot(slug: string): PersonaBotRecord | undefined;
   channels: Pick<ChannelStore, 'message' | 'setMessageVoice'>;
   attachments: () => AttachmentStore | undefined;
+  onReady?: (input: {
+    slug: string;
+    channelId: string;
+    messageId: string;
+    at: string;
+    audio: Uint8Array;
+    mime: string;
+  }) => void;
   log?: (phase: string, fields: Record<string, string | number>) => void;
 }
 
@@ -115,6 +123,16 @@ export function createVoiceMessages(deps: VoiceMessagesDeps) {
         });
         const identity = attachmentIdentity(ref);
         record(channelId, messageId, { state: 'ready', attachment: identity }, ref);
+        try {
+          deps.onReady?.({
+            slug: botSlug,
+            channelId,
+            messageId,
+            at: message.at,
+            audio: result.audio,
+            mime: result.mime,
+          });
+        } catch {}
         log('voice-ready', {
           channel: channelId,
           message: messageId,

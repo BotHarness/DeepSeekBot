@@ -915,6 +915,14 @@
       "guide": ".agents/skills/verify-deepseekbot/features/phone-deletion.md",
       "task": 2783,
       "gap": "Expo Web with an isolated Host; iOS/Android native menus and large-text acceptance pending."
+    },
+    {
+      "id": "phone.bot-call",
+      "label": "Call a Bot from iPhone: speech into the DM, spoken replies in the call, busy hint, mute and hang up",
+      "source": "apps/mobile/src/ui/chat/call-screen.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/bot-call.md",
+      "task": 3400,
+      "gap": "Electron helper on Mac/Windows, the iOS native module and physical-device audio are unverified until the device QA run."
     }
   ],
   "scripts": [
@@ -2452,6 +2460,14 @@
       "reason": "Assigned physical iOS QA session only; existing Dev QA chat, actual SpringBoard background then resume without relaunch, known message visibility, composer geometry, draft retention, same Dev PID and an unchanged nonempty static message pixel region, excluding clocks/carets (AX coordinates may change space on resume). Requires caller-owned session/cleanup and screenshot review for real keyboard presence. No build, pairing or message send; no Simulator/Android/performance claim. Native regression goes red on the #2933 keyboard-open blank pane.",
       "task": 2933,
       "sha256": "4288d4ea35c14e25b09c4d4be42927db4a580c45e8151f4f9fd569ec9bebccfc"
+    },
+    {
+      "path": "scripts/e2e-call-media.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.bot-call"],
+      "reason": "Real Chromium WebRTC check of the Host call renderer: audio-only offer, 16 kHz uplink PCM, downlink playback, failed playback and close.",
+      "task": 3400,
+      "sha256": "36f8cb22ef88046af0e7c7ce7be4af62dab402281b0262405cc9d9fd96c23b46"
     }
   ],
   "native": [
