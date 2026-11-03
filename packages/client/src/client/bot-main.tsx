@@ -2216,6 +2216,13 @@ function ConversationView({
   );
   const imageGallery = useMessageImageGallery(galleryImages, t);
   const groupKeys = useMemo(() => messageGroups.map((group) => group.key), [messageGroups]);
+  const groupMembers = useMemo(
+    () =>
+      new Map(
+        messageGroups.map((group) => [group.key, group.messages.map((message) => message.id)]),
+      ),
+    [messageGroups],
+  );
   const pinnedGroups = useMemo(() => {
     const pinned = new Set<string>();
     const focus = conversation.focusMessageId;
@@ -2228,7 +2235,7 @@ function ConversationView({
     });
     return pinned;
   }, [messageGroups, unreadAfter, conversation.focusMessageId]);
-  const timelineWindow = useTimelineWindow(groupKeys, pinnedGroups);
+  const timelineWindow = useTimelineWindow(groupKeys, pinnedGroups, groupMembers);
   const placeUnreadDivider = (element: HTMLDivElement): boolean => {
     const divider = element.querySelector<HTMLElement>('[data-unread-divider]');
     if (divider === null) return false;
