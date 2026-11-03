@@ -347,6 +347,7 @@ function stubActions(): BridgeActions {
     openChannel: vi.fn(async () => undefined),
     openChannelAtMessage: vi.fn(async () => undefined),
     dismissHumanInbox: vi.fn(async () => undefined),
+    dismissAllHumanInbox: vi.fn(async () => ({ dismissed: 0, more: false })),
     allowAutoRejectionOnce: vi.fn(async () => undefined),
     snoozeHumanInbox: vi.fn(async () => undefined),
     humanInboxContextPage: vi.fn(async () => ({

@@ -203,6 +203,7 @@ import {
   type HumanAssignmentContext,
   ignoreHumanAssignmentReport,
   dismissHumanInboxItem,
+  dismissAllHumanInboxItems,
   overrideAutoRejection,
   snoozeHumanInboxItem,
   type TimelinePage,
@@ -621,6 +622,12 @@ export interface BridgeActions {
   setHumanInboxFilters(filters: HumanInboxFilters): Promise<void>;
   loadMoreHumanInbox(): Promise<void>;
   dismissHumanInbox(item: HumanAttentionItem): Promise<void>;
+  dismissAllHumanInbox(filter: {
+    kind?: HumanAttentionItem['kind'] | undefined;
+    categories: ReadonlyArray<'action' | 'info' | 'replies' | 'unread'>;
+    botSlug?: string | undefined;
+    channelId?: string | undefined;
+  }): Promise<{ dismissed: number; more: boolean }>;
   allowAutoRejectionOnce(item: HumanAttentionItem): Promise<void>;
   snoozeHumanInbox(item: HumanAttentionItem, until: string | null): Promise<void>;
   humanInboxContextPage(
@@ -2332,6 +2339,30 @@ export function createActions(
       void Promise.all([actions.refreshHumanInbox(), actions.refreshHumanInboxStatus()]).catch(
         () => undefined,
       );
+    },
+    async dismissAllHumanInbox(filter) {
+      let dismissed = 0;
+      let more = false;
+      try {
+        for (const category of filter.categories) {
+          const result = await dismissAllHumanInboxItems(call, {
+            kind: filter.kind,
+            category,
+            botSlug: filter.botSlug,
+            channelId: filter.channelId,
+          });
+          dismissed += result.dismissed;
+          more ||= result.more;
+        }
+      } finally {
+        humanInboxScopeVersion += 1;
+        humanInboxHeadSeq += 1;
+        humanInboxPageSeq += 1;
+        void Promise.all([actions.refreshHumanInbox(), actions.refreshHumanInboxStatus()]).catch(
+          () => undefined,
+        );
+      }
+      return { dismissed, more };
     },
     async humanInboxContextPage(channelId, request, signal) {
       const { page } = await loadTimelinePage(call, channelId, request, signal);

@@ -164,15 +164,20 @@ export function RepairView({
   port,
   after,
   onOpenChat,
+  cleared = false,
+  clearError,
 }: {
   item: HumanAttentionItem;
   botName: string;
   port: RepairPort;
   after?(): void;
   onOpenChat?(): void;
+  cleared?: boolean;
+  clearError?: string;
 }) {
   const t = useStrings();
-  const { busy, error, done, run } = useAction(after, port, item.id);
+  const { busy, error: actionError, done, run } = useAction(after, port, item.id);
+  const error = actionError ?? clearError;
   const category = t.kind['bot-message-needs-repair']!;
   if (done !== undefined) return <Done category={category} text={done} />;
   return (
@@ -185,7 +190,7 @@ export function RepairView({
         {...(item.summary ? { preview: <CardPreview text={item.summary} /> } : {})}
         {...(error === undefined ? {} : { error })}
       >
-        <CardNote>{t.repairHint}</CardNote>
+        <CardNote>{cleared ? t.repairCleared : t.repairHint}</CardNote>
         <CardButtons stack>
           {onOpenChat === undefined ? null : (
             <Button
@@ -196,21 +201,23 @@ export function RepairView({
               onPress={onOpenChat}
             />
           )}
-          <Button
-            label={t.activityClear}
-            testID="repair-clear"
-            busy={busy === 'clear'}
-            onPress={() =>
-              void run(
-                'clear',
-                async () => {
-                  await port.clear();
-                  return t.repairCleared;
-                },
-                'submit',
-              )
-            }
-          />
+          {cleared ? null : (
+            <Button
+              label={t.activityClear}
+              testID="repair-clear"
+              busy={busy === 'clear'}
+              onPress={() =>
+                void run(
+                  'clear',
+                  async () => {
+                    await port.clear();
+                    return t.repairCleared;
+                  },
+                  'submit',
+                )
+              }
+            />
+          )}
         </CardButtons>
       </ActionCard>
     </Page>

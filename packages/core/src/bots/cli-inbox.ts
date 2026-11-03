@@ -41,6 +41,10 @@ export const INBOX_COMMANDS = [
   { command: 'inbox-dismiss', description: 'dismiss one Human Inbox item' },
   { command: 'inbox-restore', description: 'bring back one dismissed Human Inbox item' },
   {
+    command: 'inbox-dismiss-all',
+    description: 'dismiss every Human Inbox item, or every item of one kind (needs --confirm)',
+  },
+  {
     command: 'inbox-allow-once',
     description: 'allow one auto-rejected call once anyway, from its Human Inbox item',
   },
@@ -324,6 +328,27 @@ function prepare(
       return {
         method: 'humanAttentionDismiss',
         args: { itemId, sourceKey: values['source-key']?.trim() ?? '' },
+      };
+    }
+    case 'inbox-dismiss-all': {
+      positionals(command, rest, 0, '');
+      if (values.confirm !== true)
+        usage('inbox-dismiss-all clears many items at once; pass --confirm.');
+      if (
+        values.category !== undefined &&
+        !['action', 'info', 'unread', 'replies'].includes(values.category)
+      )
+        usage('--category must be one of action, info, unread, replies.');
+      return {
+        method: 'humanAttentionDismissAll',
+        args: {
+          ...(values.kind === undefined ? {} : { kind: required(values.kind, 'kind', command) }),
+          ...(values.category === undefined ? {} : { category: values.category }),
+          ...(values.bot === undefined ? {} : { botSlug: required(values.bot, 'bot', command) }),
+          ...(values.channel === undefined
+            ? {}
+            : { channelId: required(values.channel, 'channel', command) }),
+        },
       };
     }
     case 'inbox-restore': {

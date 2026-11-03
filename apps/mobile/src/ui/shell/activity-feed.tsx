@@ -40,11 +40,13 @@ import {
 import {
   activityKey,
   activityBotKey,
+  localSelection,
   observeActivitySources,
   type ActivityItem as HumanAttentionItem,
   type ActivitySource,
 } from '../../host/activity-sources';
 import {
+  clearAllAttention,
   clearAttentionItem,
   restoreAttentionItem,
   SNOOZE_CHOICES,
@@ -878,6 +880,76 @@ const ActivityPage = memo(function ActivityPage({
       ]);
     void currentInbox()?.refresh();
   };
+  const clearSections: ReadonlyArray<'action' | 'replies' | 'unread'> =
+    filter.section === 'all'
+      ? ['action', 'replies', 'unread']
+      : filter.section === 'action' || filter.section === 'replies' || filter.section === 'unread'
+        ? [filter.section]
+        : [];
+  const clearKinds = [
+    ...new Set(
+      rows.flatMap((row) =>
+        (row.kind === 'row' || row.kind === 'post') &&
+        clearSections.some((section) => section === row.section)
+          ? [row.item.kind]
+          : [],
+      ),
+    ),
+  ];
+  const clearMany = async (kind: string | undefined) => {
+    const targets =
+      sources === undefined
+        ? client === undefined
+          ? []
+          : [{ client, botSlug: filter.bot, channelId: filter.channel }]
+        : sources.flatMap((source) => {
+            const botSlug = localSelection(filter.bot, source);
+            const channelId = localSelection(filter.channel, source);
+            return botSlug === false || channelId === false
+              ? []
+              : [{ client: source.client, botSlug, channelId }];
+          });
+    let dismissed = 0;
+    let more = false;
+    try {
+      for (const target of targets) {
+        if (target.client.getSnapshot().connection.status !== 'connected')
+          throw new Error('activity-source-unavailable');
+        for (const category of clearSections) {
+          const result = await clearAllAttention(target.client, {
+            kind,
+            category,
+            botSlug: target.botSlug,
+            channelId: target.channelId,
+          });
+          dismissed += result.dismissed;
+          more ||= result.more;
+        }
+      }
+      onNotice?.({
+        message: more ? t.activityClearedMore(dismissed) : t.activityClearedCount(dismissed),
+      });
+    } catch {
+      onNotice?.({ message: t.activityChangeFailed });
+    } finally {
+      setHeld([]);
+      await currentInbox()?.refresh();
+    }
+  };
+  const chooseClear = () =>
+    showActionMenu(t.activityClearManyTitle, [
+      {
+        text: t.activityClearAll,
+        icon: ArchiveIcon,
+        style: 'destructive' as const,
+        onPress: () => void clearMany(undefined),
+      },
+      ...clearKinds.map((kind) => ({
+        text: t.kind[kind] ?? t.otherKind,
+        icon: ArchiveIcon,
+        onPress: () => void clearMany(kind),
+      })),
+    ]);
   const refresh = () => {
     setRefreshing(true);
     setHeld([]);
@@ -933,6 +1005,22 @@ const ActivityPage = memo(function ActivityPage({
                         </View>
                       ) : null}
                       {visible.status === 'loading' ? <ListSkeleton /> : null}
+                      {visible.status === 'ready' && clearKinds.length > 0 ? (
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            justifyContent: 'flex-end',
+                            paddingHorizontal: space.x5,
+                          }}
+                        >
+                          <Button
+                            label={t.activityClearMany}
+                            variant="text"
+                            testID="activity-clear-many"
+                            onPress={chooseClear}
+                          />
+                        </View>
+                      ) : null}
                       {visible.status === 'ready' &&
                       Object.values(visible.cursors ?? {}).some(Boolean) ? (
                         <Text variant="meta" tone="muted" style={{ paddingHorizontal: space.x5 }}>

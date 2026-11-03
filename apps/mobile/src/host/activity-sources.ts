@@ -29,7 +29,7 @@ export const activityKey = (item: ActivityItem): string =>
 export const activityBotKey = (item: ActivityItem): string =>
   item.activitySource ? activitySelection(item.activitySource.hostId, item.botSlug) : item.botSlug;
 
-function localSelection(
+export function localSelection(
   value: string | undefined,
   source: ActivitySource,
 ): string | undefined | false {

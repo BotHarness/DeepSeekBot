@@ -30,6 +30,10 @@ const fixture = vi.hoisted(() => {
       summary: 'Interrupted work',
     },
     snapshot,
+    params: {} as Record<string, string>,
+    calls: [] as Array<{ method: string; args: Record<string, unknown> }>,
+    failDismiss: false,
+    dismissed: false,
   };
 });
 vi.mock('react-native', () => import('./react-native-shim'));
@@ -42,18 +46,30 @@ vi.mock('react-native-safe-area-context', () => ({
 vi.mock('../src/ui/primitives/keyboard-form', () => ({
   KeyboardFormScroll: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
-vi.mock('../src/host/host-session', () => ({
-  useHostSession: () => ({
+vi.mock('../src/host/host-session', () => {
+  const session = {
     saved: { hostId: 'host-a' },
-    client: {},
-    inbox: { find: () => fixture.item },
-  }),
-  useHostSnapshot: () => fixture.snapshot,
-  useInbox: () => ({ status: 'ready', sections: { action: [fixture.item] } }),
-}));
+    client: {
+      call: async (method: string, args: Record<string, unknown>) => {
+        fixture.calls.push({ method, args });
+        if (method === 'humanAttentionDismiss') {
+          if (fixture.failDismiss) throw new Error('Host refused the clear');
+          fixture.dismissed = true;
+        }
+        return { accepted: true };
+      },
+    },
+    inbox: { find: () => (fixture.dismissed ? undefined : fixture.item), refresh: async () => {} },
+  };
+  return {
+    useHostSession: () => session,
+    useHostSnapshot: () => fixture.snapshot,
+    useInbox: () => ({ status: 'ready', sections: { action: [fixture.item] } }),
+  };
+});
 vi.mock('expo-router', () => ({
   Stack: { Screen: () => null },
-  useLocalSearchParams: () => ({ ...fixture.item, hostId: 'host-a' }),
+  useLocalSearchParams: () => ({ ...fixture.item, hostId: 'host-a', ...fixture.params }),
   useRouter: () => ({
     push: (href: { pathname: string; params: object }) =>
       navigation.dispatch({
@@ -106,6 +122,54 @@ afterEach(() => {
   container?.remove();
   fixture.snapshot.roster = originalRoster;
   fixture.item.channelId = 'peer-channel';
+  fixture.params = {};
+  fixture.calls.length = 0;
+  fixture.failDismiss = false;
+  fixture.dismissed = false;
+});
+
+it('clears an interruption once when Activity opens it and keeps Open chat', async () => {
+  state = initialState();
+  fixture.params = { clearOnOpen: '1' };
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root!.render(<InboxItemScreen />));
+  await act(async () => root!.render(<InboxItemScreen />));
+  expect(fixture.calls).toEqual([
+    {
+      method: 'humanAttentionDismiss',
+      args: { itemId: fixture.item.id, sourceKey: fixture.item.sourceEventId },
+    },
+  ]);
+  expect(container.querySelector('[data-testid="repair-clear"]')).toBeNull();
+  expect(container.querySelector('[data-testid="repair-open"]')).not.toBeNull();
+  expect(container.textContent).toContain(t.repairCleared);
+  expect(container.textContent).not.toContain(t.repairHint);
+});
+
+it('shows a failed automatic clear and keeps Clear for a retry', async () => {
+  state = initialState();
+  fixture.params = { clearOnOpen: '1' };
+  fixture.failDismiss = true;
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root!.render(<InboxItemScreen />));
+  await act(async () => root!.render(<InboxItemScreen />));
+  expect(fixture.calls.filter((call) => call.method === 'humanAttentionDismiss')).toHaveLength(1);
+  expect(container.textContent).toContain('Host refused the clear');
+  expect(container.querySelector('[data-testid="repair-clear"]')).not.toBeNull();
+});
+
+it('leaves an interruption in place when opened without clearOnOpen', async () => {
+  state = initialState();
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root!.render(<InboxItemScreen />));
+  expect(fixture.calls).toEqual([]);
+  expect(container.querySelector('[data-testid="repair-clear"]')).not.toBeNull();
 });
 
 it('opens an interrupted peer DM from its detail and Back returns to that detail', async () => {

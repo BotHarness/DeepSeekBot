@@ -755,6 +755,7 @@ describe('bridge typert service', () => {
       'humanAttentionIgnore',
       'humanAttentionDismiss',
       'humanAttentionRestore',
+      'humanAttentionDismissAll',
       'humanAttentionSnooze',
       'assignments',
       'channelAssignments',
