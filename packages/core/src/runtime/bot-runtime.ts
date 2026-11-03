@@ -731,6 +731,17 @@ export interface TobCliAuthority {
   markSideEffect(): void;
 }
 
+type NativeOrchestratorRefusal =
+  | 'runtime-closed'
+  | 'aborted'
+  | 'bot-missing'
+  | 'bot-paused'
+  | 'no-current-orchestrator'
+  | 'not-current-orchestrator'
+  | 'no-native-sender'
+  | 'foreign-sender'
+  | 'run-not-ready';
+
 export interface BotRuntime {
   networkBotAvailability?(
     hostId: string,
@@ -4176,20 +4187,37 @@ class BotRuntimeImplementation implements BotRuntime {
   ): Promise<boolean> {
     const owner = this.#ownership.resolve(sessionId);
     if (owner?.rootRole !== 'orchestrator' || owner.parentSessionId !== undefined) return true;
-    const available = () => {
+    const unavailable = (): NativeOrchestratorRefusal | undefined => {
+      if (this.#closed) return 'runtime-closed';
+      if (signal.aborted) return 'aborted';
       const bot = this.#registry.get(owner.botSlug);
-      return (
-        !this.#closed &&
-        !signal.aborted &&
-        bot !== undefined &&
-        !bot.paused &&
-        this.currentOrchestratorSessionId(owner.botSlug) === sessionId
-      );
+      if (bot === undefined) return 'bot-missing';
+      if (bot.paused) return 'bot-paused';
+      const current = this.currentOrchestratorSessionId(owner.botSlug);
+      if (current !== sessionId)
+        return current === undefined ? 'no-current-orchestrator' : 'not-current-orchestrator';
+      return undefined;
     };
-    if (!available()) return false;
+    const available = () => unavailable() === undefined;
+    const refuse = (reason: NativeOrchestratorRefusal): false => {
+      this.#warn?.(
+        JSON.stringify({
+          event: 'native-orchestrator-input',
+          phase: 'refused',
+          reason,
+          bot: owner.botSlug,
+          session: sessionId,
+          executionReady: this.#preparedOrchestrators.has(sessionId),
+          senders: senderSessionIds.length,
+        }),
+      );
+      return false;
+    };
+    const refusal = unavailable();
+    if (refusal !== undefined) return refuse(refusal);
     if (this.#preparedOrchestrators.has(sessionId)) return true;
+    if (!senderSessionIds.length) return refuse('no-native-sender');
     if (
-      !senderSessionIds.length ||
       !senderSessionIds.every((id) => {
         const sender = this.#ownership.resolve(id);
         return (
@@ -4199,7 +4227,7 @@ class BotRuntimeImplementation implements BotRuntime {
         );
       })
     )
-      return false;
+      return refuse('foreign-sender');
     const cancellation = AbortSignal.any([signal, this.#waitLifetime.signal]);
     return new Promise<boolean>((resolve) => {
       let settled = false;
@@ -4209,7 +4237,9 @@ class BotRuntimeImplementation implements BotRuntime {
         cancellation.removeEventListener('abort', abort);
         if (this.#nativeStepReady.get(sessionId) === finish)
           this.#nativeStepReady.delete(sessionId);
-        resolve(accepted && available());
+        const reason = unavailable() ?? (accepted ? undefined : 'run-not-ready');
+        if (reason !== undefined) refuse(reason);
+        resolve(reason === undefined);
       };
       const abort = () => finish(false);
       this.#nativeStepReady.set(sessionId, finish);
