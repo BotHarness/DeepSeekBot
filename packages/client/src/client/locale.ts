@@ -2616,7 +2616,8 @@ export const zh = {
   'im.voiceAudioTooLarge': '语音超过播放大小限制，仍可尝试下载原音。',
   'im.voiceAudioInterrupted': '播放准备已中断，请重试。',
   'im.voiceAudioPlayer': '语音播放器',
-  'im.voiceAudioHint': '支持的 SILK 语音转换为 24 kHz WAV，仅用于播放或处理，不进行语音识别。',
+  'im.voiceAudioHint':
+    '支持的 SILK 或 Opus 语音转换为 24 kHz WAV，仅用于播放或处理，不进行语音识别。',
   'im.voiceAudioUnavailable':
     '此音频暂不能播放：可能编码不支持、解码失败或超过处理限制。仍可下载原始语音；需要内容时请发送文字。',
   'im.voiceDownloadOriginal': '下载原始语音',
@@ -7272,7 +7273,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'im.voiceAudioInterrupted': 'Playback preparation was interrupted. Please retry.',
   'im.voiceAudioPlayer': 'Voice player',
   'im.voiceAudioHint':
-    'Supported SILK is converted to 24 kHz WAV for playback or processing, without speech recognition.',
+    'Supported SILK or Opus voice is converted to 24 kHz WAV for playback or processing, without speech recognition.',
   'im.voiceAudioUnavailable':
     'Audio playback is unavailable: unsupported encoding, decode failure or processing limit. You can still download the original; send text when its content is needed.',
   'im.voiceDownloadOriginal': 'Download original voice',

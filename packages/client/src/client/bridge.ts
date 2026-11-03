@@ -1389,7 +1389,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     if (media['voice'] !== undefined) {
       const voice = asRecord(media['voice']);
       if (
-        bridgeOrigin.platform !== 'qq' ||
+        (bridgeOrigin.platform !== 'qq' && bridgeOrigin.platform !== 'feishu') ||
         !voice ||
         Object.keys(voice).some((key) => !['transcript', 'durationMs'].includes(key)) ||
         (voice['transcript'] !== 'platform' && voice['transcript'] !== 'unavailable') ||
