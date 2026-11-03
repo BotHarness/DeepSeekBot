@@ -684,7 +684,10 @@ export class PrivateInputs {
     const operation = this.#accounts.serial(this.#scope(pending), () =>
       this.#submit(channelId, messageId, pending, credentials, values),
     );
-    pending.operation = operation.then((result) => result.accepted);
+    pending.operation = operation.then(
+      (result) => result.accepted,
+      () => false,
+    );
     try {
       return await operation;
     } finally {

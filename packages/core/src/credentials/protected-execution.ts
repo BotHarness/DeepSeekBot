@@ -102,8 +102,7 @@ const SECRET_HTTP_RESPONSE_LIMIT = 32_000;
 export class SecretHttpRefusal extends Error {}
 
 const SECRET_HTTP_FAILURES = {
-  timeout:
-    'The request reached no answer within 20 seconds; the API may be slow or unreachable from this Host.',
+  timeout: 'The request got no answer in time; the API may be slow or unreachable from this Host.',
   dns: 'The API host name could not be resolved from this Host; check the endpoint the Owner entered.',
   connection:
     'This Host could not connect to the API; it may be down, blocked or need a network proxy.',

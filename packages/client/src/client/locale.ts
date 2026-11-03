@@ -3859,13 +3859,13 @@ export const zh = {
   'privateInput.refused': '未接收（原因代码 {reason}）。{detail}反馈问题时可附上这个原因代码。',
   'privateInput.refused.not-owner': '只有 Bot 的 Owner 可以提交私密信息。',
   'privateInput.refused.not-pending':
-    '这个请求在 Host 上已不再等待输入，可能已过期、已被回答，或在 Host 重启后失效。请让 Bot 重新发起请求。',
+    '这个请求在 Host 上已不再等待输入，可能已过期、已被回答，或在 Host 重启后失效。让 Bot 重新发起请求。',
   'privateInput.refused.busy': '这个请求的另一次提交还在保存中，请稍候再查看状态。',
   'privateInput.refused.invalid-fields': '有必填项为空，或提交了不属于这个请求的字段。',
   'privateInput.refused.store-unavailable': 'Host 的凭据存储不可用，未保存任何内容。',
   'privateInput.refused.expired': '保存过程中请求已过期，未保留任何内容。',
   'privateInput.refused.version-changed':
-    '保存时这个账户已被另一个请求修改，请使用这个账户最新的卡片。',
+    '保存时这个账户已被另一个请求修改，改用这个账户最新的卡片。',
   'privateInput.refused.save-failed': 'Host 无法把私密信息写入凭据存储，未保留任何内容。',
   'privateInput.refused.not-committed':
     '私密信息已写入，但 Host 无法在聊天中记录结果，因此已丢弃。',
