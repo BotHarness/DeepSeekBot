@@ -1703,7 +1703,10 @@ function ConversationView({
     if (memoryCommitIntent !== undefined) store.setMemoryCommitIntent(undefined);
     setSelectedMemoryView(undefined);
     window.requestAnimationFrame(() => {
-      if (scrollRef.current !== null) scrollRef.current.scrollTop = chatScrollBeforeDiff.current;
+      const element = scrollRef.current;
+      if (element === null) return;
+      element.scrollTop = chatScrollBeforeDiff.current;
+      lastTimelineTop.current = element.scrollTop;
     });
   };
   const scheduleReadMark = (): void => {
@@ -2231,6 +2234,7 @@ function ConversationView({
     if (divider === null) return false;
     const viewport = element.getBoundingClientRect();
     element.scrollTop += divider.getBoundingClientRect().top - viewport.top - viewport.height / 4;
+    lastTimelineTop.current = element.scrollTop;
     followingLatest.current =
       !conversation.timeline.hasNewer &&
       element.scrollHeight - element.scrollTop - element.clientHeight <= 80;
@@ -2258,6 +2262,7 @@ function ConversationView({
           } else {
             element.scrollTop = anchor.top + element.scrollHeight - anchor.height;
           }
+          lastTimelineTop.current = element.scrollTop;
           prependAnchor.current = null;
         } else if (
           unreadAfter !== undefined &&
@@ -2277,6 +2282,7 @@ function ConversationView({
           const saved = channelId === undefined ? undefined : rememberedTimelineScroll(channelId);
           if (saved !== undefined && !saved.atLatest && restoreTimelineScroll(element, saved)) {
             restoredScroll.current = true;
+            lastTimelineTop.current = element.scrollTop;
             followingLatest.current = false;
             setAtLatest(false);
           } else if (followingLatest.current) pinTimelineToLatest(element);
@@ -2301,6 +2307,7 @@ function ConversationView({
           (candidate) => candidate.dataset['messageId'] === id,
         );
         target?.scrollIntoView({ block: 'center' });
+        lastTimelineTop.current = element.scrollTop;
         focusTimer = window.setTimeout(() => {
           const current = store.getSnapshot().conversation;
           if (current.channel?.id === channelId && current.focusMessageId === id) {
