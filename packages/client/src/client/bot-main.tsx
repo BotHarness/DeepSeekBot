@@ -206,6 +206,7 @@ import { ReleaseNotesAnnouncement } from './release-notes-view.js';
 import type { TelemetryNoticeController } from './telemetry-notice.js';
 import { TelemetryNotice } from './telemetry-notice-view.js';
 import {
+  followsLatest,
   rememberTimelineScroll,
   rememberedTimelineScroll,
   restoreTimelineScroll,
@@ -1299,6 +1300,11 @@ function ConversationView({
     return true;
   };
   const followingLatest = useScopedRef(scopeKey, true);
+  const lastTimelineTop = useScopedRef(scopeKey, 0);
+  const pinTimelineToLatest = (element: HTMLElement): void => {
+    element.scrollTop = element.scrollHeight;
+    lastTimelineTop.current = element.scrollTop;
+  };
   const companionReadMount = useMountedResource<HTMLElement>(
     (pane) => {
       let visible: boolean | undefined;
@@ -1314,7 +1320,7 @@ function ConversationView({
           followingLatest.current &&
           !store.getSnapshot().conversation.timeline.hasNewer
         ) {
-          timeline.scrollTop = timeline.scrollHeight;
+          pinTimelineToLatest(timeline);
         }
       };
       sync();
@@ -1697,7 +1703,10 @@ function ConversationView({
     if (memoryCommitIntent !== undefined) store.setMemoryCommitIntent(undefined);
     setSelectedMemoryView(undefined);
     window.requestAnimationFrame(() => {
-      if (scrollRef.current !== null) scrollRef.current.scrollTop = chatScrollBeforeDiff.current;
+      const element = scrollRef.current;
+      if (element === null) return;
+      element.scrollTop = chatScrollBeforeDiff.current;
+      lastTimelineTop.current = element.scrollTop;
     });
   };
   const scheduleReadMark = (): void => {
@@ -2225,6 +2234,7 @@ function ConversationView({
     if (divider === null) return false;
     const viewport = element.getBoundingClientRect();
     element.scrollTop += divider.getBoundingClientRect().top - viewport.top - viewport.height / 4;
+    lastTimelineTop.current = element.scrollTop;
     followingLatest.current =
       !conversation.timeline.hasNewer &&
       element.scrollHeight - element.scrollTop - element.clientHeight <= 80;
@@ -2252,6 +2262,7 @@ function ConversationView({
           } else {
             element.scrollTop = anchor.top + element.scrollHeight - anchor.height;
           }
+          lastTimelineTop.current = element.scrollTop;
           prependAnchor.current = null;
         } else if (
           unreadAfter !== undefined &&
@@ -2271,11 +2282,12 @@ function ConversationView({
           const saved = channelId === undefined ? undefined : rememberedTimelineScroll(channelId);
           if (saved !== undefined && !saved.atLatest && restoreTimelineScroll(element, saved)) {
             restoredScroll.current = true;
+            lastTimelineTop.current = element.scrollTop;
             followingLatest.current = false;
             setAtLatest(false);
-          } else if (followingLatest.current) element.scrollTop = element.scrollHeight;
+          } else if (followingLatest.current) pinTimelineToLatest(element);
         } else if (followingLatest.current) {
-          element.scrollTop = element.scrollHeight;
+          pinTimelineToLatest(element);
         }
         const previousRevision = lastRevision.current;
         if (
@@ -2295,6 +2307,7 @@ function ConversationView({
           (candidate) => candidate.dataset['messageId'] === id,
         );
         target?.scrollIntoView({ block: 'center' });
+        lastTimelineTop.current = element.scrollTop;
         focusTimer = window.setTimeout(() => {
           const current = store.getSnapshot().conversation;
           if (current.channel?.id === channelId && current.focusMessageId === id) {
@@ -2338,7 +2351,12 @@ function ConversationView({
     const element = scrollRef.current;
     if (element === null) return;
     const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight <= 80;
-    followingLatest.current = atBottom && !conversation.timeline.hasNewer;
+    followingLatest.current = followsLatest(
+      element,
+      lastTimelineTop.current,
+      conversation.timeline.hasNewer,
+    );
+    lastTimelineTop.current = element.scrollTop;
     setAtLatest(followingLatest.current);
     if (followingLatest.current) setUnseen(0);
     if (channelId !== undefined && conversation.status === 'ready' && positioned.current) {
@@ -2361,7 +2379,7 @@ function ConversationView({
       return;
     }
     const element = scrollRef.current;
-    if (element !== null) element.scrollTop = element.scrollHeight;
+    if (element !== null) pinTimelineToLatest(element);
   };
 
   const startUpload = (item: ChannelComposerUpload): void => {
@@ -2935,13 +2953,24 @@ function ConversationView({
             ref={timelineMount}
             data-loaded-messages={displayMessages.length}
             onScroll={onTimelineScroll}
+            onWheel={(event) => {
+              if (
+                event.deltaY >= 0 ||
+                event.ctrlKey ||
+                event.currentTarget.scrollTop <= 0 ||
+                !followingLatest.current
+              )
+                return;
+              followingLatest.current = false;
+              setAtLatest(false);
+            }}
             onTransitionEnd={(event) => {
               if (
                 event.target === event.currentTarget &&
                 event.propertyName === 'padding-bottom' &&
                 followingLatest.current
               )
-                event.currentTarget.scrollTop = event.currentTarget.scrollHeight;
+                pinTimelineToLatest(event.currentTarget);
             }}
             style={{ display: activeMemoryView === undefined ? undefined : 'none' }}
           >
