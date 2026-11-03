@@ -226,3 +226,60 @@ it.each(['event', 'sync'] as const)(
     f.session.stop();
   },
 );
+
+it('rereads restored system permission without repeatedly registering a healthy session', async () => {
+  const f = fixture();
+  let permission: 'granted' | 'denied' = 'denied';
+  f.notifications.permission = vi.fn(async () => permission);
+  await f.session.sync([host]);
+  expect(f.session.getSnapshot()).toEqual({ status: 'denied' });
+  permission = 'granted';
+  await f.session.refreshPermission();
+  expect(f.session.getSnapshot()).toEqual({ status: 'on', failed: [] });
+  expect(f.register).toHaveBeenCalledTimes(1);
+  await f.session.refreshPermission();
+  expect(f.register).toHaveBeenCalledTimes(1);
+  permission = 'denied';
+  await f.session.refreshPermission();
+  expect(f.session.getSnapshot()).toEqual({ status: 'denied' });
+  f.change(async () => 'revoked-token');
+  await flush();
+  expect(f.register).toHaveBeenCalledTimes(1);
+  permission = 'granted';
+  await f.session.refreshPermission();
+  expect(f.register).toHaveBeenCalledTimes(2);
+  expect(f.session.getSnapshot()).toEqual({ status: 'on', failed: [] });
+});
+
+it('does not restore cloud state from a permission read completed after stop', async () => {
+  const f = fixture();
+  await f.session.sync([host]);
+  const permission = deferred<'denied'>();
+  f.notifications.permission = () => permission.promise;
+  const refresh = f.session.refreshPermission();
+  f.session.stop();
+  permission.resolve('denied');
+  await refresh;
+  expect(f.session.getSnapshot()).toEqual({ status: 'on', failed: [] });
+  expect(f.register).toHaveBeenCalledTimes(1);
+});
+
+it('keeps the latest permission observation authoritative across overlapping resumes', async () => {
+  const f = fixture();
+  f.notifications.permission = async () => 'denied';
+  await f.session.sync([host]);
+  const old = deferred<'granted'>();
+  const latest = deferred<'denied'>();
+  f.notifications.permission = vi
+    .fn<NotificationsPort['permission']>()
+    .mockImplementationOnce(() => old.promise)
+    .mockImplementationOnce(() => latest.promise);
+  const first = f.session.refreshPermission();
+  const second = f.session.refreshPermission();
+  old.resolve('granted');
+  await first;
+  latest.resolve('denied');
+  await second;
+  expect(f.session.getSnapshot()).toEqual({ status: 'denied' });
+  expect(f.register).not.toHaveBeenCalled();
+});

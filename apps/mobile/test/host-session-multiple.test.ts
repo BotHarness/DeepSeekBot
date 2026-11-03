@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 
-import { secure, remotes } from './host-session-fixture';
+import { secure, remotes, refreshNotificationPermission } from './host-session-fixture';
 import { FakeHost } from './fake-host';
 vi.mock('expo-router', () => ({ useFocusEffect: () => undefined }));
 vi.mock('react-native', () => ({
@@ -41,12 +41,15 @@ it('loads both paired Hosts without replacing the other connection when browsing
   await session.switchTo('a');
   expect(session.getState().client).toBe(first);
   const second = session.getHost('b')!.client;
+  refreshNotificationPermission.mockClear();
   for (const listener of lifecycle) listener('background');
+  expect(refreshNotificationPermission).not.toHaveBeenCalled();
   a.up = false;
   b.methods.set('list', () => ({
     bots: [{ slug: 'missed', displayName: 'Caught up', roles: [], state: 'idle', paused: false }],
   }));
   for (const listener of lifecycle) listener('active');
+  expect(refreshNotificationPermission).toHaveBeenCalledOnce();
   await vi.waitFor(() =>
     expect(second.getSnapshot().roster?.bots.some((bot) => bot.slug === 'missed')).toBe(true),
   );

@@ -28,6 +28,7 @@ export interface PushSession {
   enable(hosts: readonly SavedHost[]): Promise<void>;
   forget(host: SavedHost): Promise<void>;
   retryFailed(): Promise<void>;
+  refreshPermission(): Promise<void>;
   reflect(hostId: string, unresolved: ReadonlySet<string> | undefined, count: number): void;
   reflectAgain(): void;
   stop(): void;
@@ -52,6 +53,7 @@ export function createPushSession(options: {
   let reflected = '';
   let retrying: Promise<void> | undefined;
   let generation = 0;
+  let permissionRead = 0;
   let stopped = false;
   let granted = false;
   const registrations = new Map<string, Promise<unknown>>();
@@ -139,8 +141,9 @@ export function createPushSession(options: {
     },
     async sync(hosts) {
       latest = hosts;
+      const read = ++permissionRead;
       const permission = await notifications.permission().catch(() => 'denied' as const);
-      if (stopped) return;
+      if (stopped || read !== permissionRead) return;
       granted = permission === 'granted';
       if (permission === 'granted') return registerAll(hosts);
       generation++;
@@ -148,8 +151,9 @@ export function createPushSession(options: {
     },
     async enable(hosts) {
       latest = hosts;
+      const read = ++permissionRead;
       const permission = await notifications.request().catch(() => 'denied' as const);
-      if (stopped) return;
+      if (stopped || read !== permissionRead) return;
       granted = permission === 'granted';
       if (permission === 'granted') return registerAll(hosts);
       generation++;
@@ -170,6 +174,21 @@ export function createPushSession(options: {
         .catch(() => undefined);
       const badge = latest.length === 0 ? notifications.setBadge(0).catch(() => undefined) : null;
       await Promise.all([cleared, badge, hostPush.unregister(host).catch(() => undefined)]);
+    },
+    async refreshPermission() {
+      const read = ++permissionRead;
+      const permission = await notifications.permission().catch(() => 'denied' as const);
+      if (stopped || read !== permissionRead) return;
+      const changed = granted !== (permission === 'granted');
+      granted = permission === 'granted';
+      if (!granted) {
+        generation++;
+        publish({ status: permission === 'denied' ? 'denied' : 'off' });
+        return;
+      }
+      if (changed || snapshot.status === 'unavailable' || snapshot.status === 'checking')
+        return registerAll(latest);
+      return this.retryFailed();
     },
     retryFailed() {
       if (retrying !== undefined) return retrying;

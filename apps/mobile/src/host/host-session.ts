@@ -256,7 +256,7 @@ AppState.addEventListener('change', (next) => {
   if (next !== 'active') return;
   void notificationPreferences.retry().catch(() => undefined);
   pushSession.reflectAgain();
-  void pushSession.retryFailed();
+  void pushSession.refreshPermission();
   for (const { host } of sessions.values()) {
     host.client.retryNow('resume');
     if (host.client.getSnapshot().connection.status === 'connected') void host.inbox.refresh();
