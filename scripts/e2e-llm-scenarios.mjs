@@ -588,7 +588,6 @@ export const SCENARIOS = [
   },
 ];
 
-/** The lower-cased search query of a YouTube results URL, or undefined for any other page. */
 export function youtubeResultsQuery(url) {
   let parsed;
   try {
@@ -718,7 +717,6 @@ export function modelLabel(route) {
 }
 
 export function selectScenarios(options, changedFiles) {
-  // External scenarios reach real websites from a real Bot Browser, so they run only when named.
   let selected = SCENARIOS.filter((scenario) => scenario.external !== true);
   if (options.scenarios.length > 0)
     selected = SCENARIOS.filter((scenario) => options.scenarios.includes(scenario.id));
@@ -1033,7 +1031,6 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
       );
       return observation;
     },
-    /** Keep the Host's Browser/Computer logs and diagnostics with the attempt, pass or fail. */
     async noteDiagnostics(key) {
       const owner = encodeURIComponent(`bot:${slugs[key]}`);
       const read = (path) => ctx.hostGet(path).catch((error) => ({ error: String(error) }));
