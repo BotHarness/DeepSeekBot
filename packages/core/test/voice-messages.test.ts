@@ -159,6 +159,18 @@ describe('Bot voice messages', () => {
     expect(message.attachments![0]).toMatchObject({ mime: 'audio/mpeg', size: played.length });
   });
 
+  it('falls back to one synthesis when the call cannot finish the voice', async () => {
+    const { VoiceError } = await import('../src/voice/providers.js');
+    const { send, bind, channels, dm, spoken } = await setup(200, async () => {
+      throw new VoiceError('provider-rate-limited', 'Out of quota.');
+    });
+    await bind();
+    const sent = await send({ voice: true, body: '明天会下雨。' });
+    const message = channels.message(dm.id, (sent.result as { messageId: string }).messageId)!;
+    expect(spoken).toEqual(['明天会下雨。']);
+    expect(message.voice).toMatchObject({ state: 'ready' });
+  });
+
   it('sends exactly as before when voice is false', async () => {
     const { send, bind, channels, dm, spoken } = await setup();
     await bind();

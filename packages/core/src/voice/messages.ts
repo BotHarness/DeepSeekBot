@@ -109,13 +109,23 @@ export function createVoiceMessages(deps: VoiceMessagesDeps) {
       record(channelId, messageId, { state: 'pending' });
       try {
         const started = performance.now();
-        const spoken = await deps.speak?.({
-          slug: botSlug,
-          channelId,
-          messageId,
-          body: message.body,
-          signal: input.signal,
-        });
+        let spoken: AudioClip | undefined;
+        try {
+          spoken = await deps.speak?.({
+            slug: botSlug,
+            channelId,
+            messageId,
+            body: message.body,
+            signal: input.signal,
+          });
+        } catch (error) {
+          if (input.signal?.aborted) throw error;
+          log('voice-call-speech-failed', {
+            channel: channelId,
+            message: messageId,
+            code: error instanceof VoiceError ? error.code : 'synthesis-failed',
+          });
+        }
         const result =
           spoken === undefined
             ? await deps.providers.synthesize({

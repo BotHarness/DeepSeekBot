@@ -124,6 +124,7 @@ interface Call {
   timer?: ReturnType<typeof setInterval>;
   replies: Reply[];
   replyCount: number;
+  stoppedDrafts: Set<string>;
   ack?: AudioClip | undefined;
 }
 
@@ -485,6 +486,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
   const stopReply = (call: Call, reply: Reply, reason: 'abandoned' | 'revised' | 'replaced') => {
     reply.stop.abort();
     reply.synth.abort();
+    if (reply.draftId !== undefined) call.stoppedDrafts.add(reply.draftId);
     for (const spoken of reply.sentences) if (spoken.state === 'queued') spoken.state = 'skipped';
     forget(call, reply);
     push(call, { type: 'reply-stopped', replyId: reply.id, reason });
@@ -546,6 +548,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     const draft = event.draft;
     if (draft.channelId !== call.channelId || draft.botSlug !== call.slug || draft.voice !== true)
       return;
+    if (call.stoppedDrafts.has(draft.draftId)) return;
     if (call.replies.some((item) => item.draftId === draft.draftId && item.claimed)) return;
     let reply = call.replies.find((item) => item.draftId === draft.draftId);
     const sentences = speakableSentences(draft.body, draft.bodyComplete === true);
@@ -800,6 +803,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       playback: Promise.resolve(),
       replies: [],
       replyCount: 0,
+      stoppedDrafts: new Set(),
     };
     calls.set(call.id, call);
     log('call-opening', { call: call.id, bot: slug, media: kind });

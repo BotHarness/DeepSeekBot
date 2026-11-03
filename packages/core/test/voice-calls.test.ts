@@ -769,6 +769,26 @@ describe('streamed voice replies', () => {
     );
   });
 
+  it('never restarts a draft it stopped, even when the draft keeps streaming', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const callId = await connected(h);
+    await heardQuestion(h, state.onPcm!);
+    const draft = stream(h);
+    draft.update('好的。我来看看。然后');
+    await settled();
+    draft.update('好吧。别的说法。然后');
+    await settled();
+    draft.update('好吧。别的说法。然后再说。还有');
+    await settled();
+    expect(state.audio.slice(1)).toEqual([clipFor('好的。'), clipFor('我来看看。')]);
+    const events = (await view(h, callId)).events;
+    expect(events.filter((event) => event.type === 'reply-stopped')).toEqual([
+      expect.objectContaining({ reason: 'revised' }),
+    ]);
+    expect(events.filter((event) => event.type === 'reply-text')).toHaveLength(1);
+  });
+
   it('keeps synthesizing the archive when the call ends mid-reply', async () => {
     const { media, state } = fakeMedia();
     const h = harness({ media });
