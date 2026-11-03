@@ -180,6 +180,25 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
     }
   }
 
+  private func noteDevice(_ tap: CallAudioTap, _ factory: RTCPeerConnectionFactory, _ kind: String) {
+    let adm = factory.audioDeviceModule
+    let session = AVAudioSession.sharedInstance()
+    tap.note(kind, [
+      "recordingInitialized": adm.isRecordingInitialized,
+      "recording": adm.isRecording,
+      "playing": adm.isPlaying,
+      "engineRunning": adm.isEngineRunning,
+      "microphoneMuted": adm.isMicrophoneMuted,
+      "inputAvailable": session.isInputAvailable,
+      "inputChannels": session.inputNumberOfChannels,
+      "permission": session.recordPermission == .granted,
+      "trackEnabled": track?.isEnabled ?? false,
+      "sessionActive": RTCAudioSession.sharedInstance().isActive,
+      "audioEnabled": RTCAudioSession.sharedInstance().isAudioEnabled,
+      "manualAudio": RTCAudioSession.sharedInstance().useManualAudio,
+    ])
+  }
+
   func peerConnection(_ peerConnection: RTCPeerConnection, didChange stateChanged: RTCSignalingState) {}
   func peerConnection(_ peerConnection: RTCPeerConnection, didAdd stream: RTCMediaStream) {}
   func peerConnection(_ peerConnection: RTCPeerConnection, didRemove stream: RTCMediaStream) {}
@@ -197,6 +216,11 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
           "agc": processing.autoGainControl.effective.rawValue,
           "hpf": processing.highPassFilter.effective.rawValue,
         ])
+        noteDevice(tap, factory, "device-connected")
+        queue.asyncAfter(deadline: .now() + 3) { [weak self] in
+          guard let self, !self.ended, let factory = self.factory else { return }
+          self.noteDevice(tap, factory, "device-settled")
+        }
       }
     case .failed, .closed: state("failed", "connection-lost")
     default: break
