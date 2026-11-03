@@ -76,7 +76,7 @@ public final class LocalComputerVideoModule: Module {
       guard let call = self.call, call.id == attemptId, let next = CallAttempt.Route(rawValue: route),
         CallAttempt.switchRoute(next) else { return nil }
       return CallAttempt.currentOutput()
-    }.runOnQueue(.main)
+    }
 
     // Test builds: queue a 16-bit WAV file into the uplink in place of the microphone.
     AsyncFunction("callInject") { (attemptId: String, path: String) -> Bool in
