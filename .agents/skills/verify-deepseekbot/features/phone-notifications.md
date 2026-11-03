@@ -61,3 +61,9 @@ Through the shared Android/iOS QA lanes, verify each platform separately:
 5. Record Android hardware/predictive Back and iOS edge swipe separately. Capture loading/error and destination/Back in light/dark at default, intermediate and maximum text sizes. FCM needs a provisioned phone; cross-Host checks need a second paired QA Host. Source tests do not replace this evidence.
 
 Automated entry coverage: `apps/mobile/test/attention-navigation.test.tsx`, `apps/mobile/test/push-navigation.test.tsx`, and `apps/mobile/test/conversation-navigation.test.tsx` drive real entries through the production adapter and installed Expo stack reducer, with external Host/notification inputs simulated.
+
+## Token registration feedback regression (#3223)
+
+Through the shared Android QA owner, cold-launch the provisioned app and wait for notification registration. Confirm that registration settles and does not repeatedly re-register the same device without a real token or pairing change. A genuine token change must register its replacement; a failed token exchange must retain the existing registration error rather than reporting successful delivery. Exercise the visible test notification separately and correlate Host send results with phone presentation. Do not infer FCM delivery from registration alone.
+
+Automated coverage: `apps/mobile/test/push-token-lifecycle.test.ts` checks event-supplied token resolution, rotation during startup, stale exchange results, ordered per-Host registration, exchange failure/timeout retry, permission denial and stopped sessions. The actual adapter contract is covered by `apps/mobile/test/native-token-feedback.test.ts`. Native behavior still needs the shared device lane; source tests do not certify notification delivery.
