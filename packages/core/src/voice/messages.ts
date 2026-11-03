@@ -5,6 +5,7 @@ import type { ChannelMessageVoice } from '../channels/channel.js';
 import type { ChannelStore } from '../channels/store.js';
 import { audioExtension, VoiceError, type VoiceProviders } from './providers.js';
 import { speakableText } from './speakable.js';
+import type { AudioClip } from './speech.js';
 
 export type VoiceAttachOutcome =
   | {
@@ -21,14 +22,13 @@ export interface VoiceMessagesDeps {
   bot(slug: string): PersonaBotRecord | undefined;
   channels: Pick<ChannelStore, 'message' | 'setMessageVoice'>;
   attachments: () => AttachmentStore | undefined;
-  onReady?: (input: {
+  speak?: (input: {
     slug: string;
     channelId: string;
     messageId: string;
-    at: string;
-    audio: Uint8Array;
-    mime: string;
-  }) => void;
+    body: string;
+    signal?: AbortSignal | undefined;
+  }) => Promise<AudioClip | undefined>;
   log?: (phase: string, fields: Record<string, string | number>) => void;
 }
 
@@ -108,12 +108,23 @@ export function createVoiceMessages(deps: VoiceMessagesDeps) {
         );
       record(channelId, messageId, { state: 'pending' });
       try {
-        const result = await deps.providers.synthesize({
-          providerId: binding.providerId,
-          voiceId: binding.voiceId,
-          text,
+        const started = performance.now();
+        const spoken = await deps.speak?.({
+          slug: botSlug,
+          channelId,
+          messageId,
+          body: message.body,
           signal: input.signal,
         });
+        const result =
+          spoken === undefined
+            ? await deps.providers.synthesize({
+                providerId: binding.providerId,
+                voiceId: binding.voiceId,
+                text,
+                signal: input.signal,
+              })
+            : { ...spoken, latencyMs: Math.round(performance.now() - started) };
         const ref = await store.upload({
           data: (async function* () {
             yield result.audio;
@@ -123,21 +134,12 @@ export function createVoiceMessages(deps: VoiceMessagesDeps) {
         });
         const identity = attachmentIdentity(ref);
         record(channelId, messageId, { state: 'ready', attachment: identity }, ref);
-        try {
-          deps.onReady?.({
-            slug: botSlug,
-            channelId,
-            messageId,
-            at: message.at,
-            audio: result.audio,
-            mime: result.mime,
-          });
-        } catch {}
         log('voice-ready', {
           channel: channelId,
           message: messageId,
           bytes: result.audio.byteLength,
           ms: result.latencyMs,
+          source: spoken === undefined ? 'whole' : 'call',
         });
         return {
           status: 'ready',

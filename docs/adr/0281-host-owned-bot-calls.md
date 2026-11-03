@@ -22,6 +22,10 @@ The voice spec lets a Human call a Bot from the phone: speech becomes the Human'
 
 **Clients.** The iOS chat header shows a call button when the native module is present. It asks the Host for readiness first and explains a missing ASR or TTS Provider or media helper. The call screen shows the state, call time, mute, hang up and the busy hint. Test builds of the `.dev` app replace the microphone with injected WAV files on a script timeline and record the downlink with event timestamps.
 
+## Update (2026-11-03, #3401): speaking while the reply streams
+
+After the VAD ends a sentence, the owner plays a short acknowledgement ("嗯", or "Mm-hm" for non-Chinese ASR) synthesized once per call with the Bot's voice; it never involves the model. Bot replies are spoken sentence by sentence through `speakableSentences` and one playback queue: from a `voice: true` draft as it streams (the speculative consumer in the ADR-0054 update), or after the commit when `voice` came after `body`. `speak()` is called by voice-message attachment at commit; it reuses matching draft clips, speaks the rest and returns the joined clips (`joinAudio`: MP3 and Ogg chain, WAV of one format merges) as the attachment, so the archive matches the call. Abandoned or rewritten drafts emit `reply-stopped`; events `ack`, `reply-text`, per-sentence `playing`/`played`, `committed` and `reply-done` give the timings `call-simulate` reports.
+
 ## Consequences
 
 Calls reuse DM messages, voice messages and attachments, so a call leaves an ordinary conversation behind and committed messages survive a dropped call. The Host needs the media helper on Mac or Windows; Linux Hosts report `media-unsupported`. The call supervisor copies the video supervisor's process ownership; merging the two is a later refactor. Streaming ASR/TTS, barge-in, Android and desktop clients build on the same owner and contract.

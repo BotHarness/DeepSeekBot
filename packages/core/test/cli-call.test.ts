@@ -31,18 +31,20 @@ function host(options: { reply?: boolean } = {}) {
     providers: {
       has: () => true,
       transcribe: async () => ({ text: transcripts.shift() ?? '', latencyMs: 3 }),
+      synthesize: async () => ({
+        audio: new Uint8Array([0x49, 0x44, 0x33, 1, 2, 3]),
+        mime: 'audio/mpeg',
+      }),
     },
     media: () => undefined,
     async send({ slug, channelId, messageId }) {
       if (options.reply === false) return;
       setTimeout(() => {
-        calls.deliverVoice({
+        void calls.speak({
           slug,
           channelId,
           messageId: `reply-to-${messageId}`,
-          at: new Date(clock).toISOString(),
-          audio: new Uint8Array([0x49, 0x44, 0x33, 1, 2, 3]),
-          mime: 'audio/mpeg',
+          body: 'Nothing is on your calendar.',
         });
       }, 0);
       clock += 1_500;
@@ -95,14 +97,25 @@ describe('deepseekbot call commands', () => {
       slug: 'ada',
       answered: true,
       heard: [{ text: 'what is on my calendar' }],
-      replies: [{ bytes: 6 }],
+      replies: [{ bytes: 6, sentences: 1, messageId: expect.stringMatching(/^reply-to-/u) }],
+      ackMs: expect.any(Number),
       firstAudioMs: expect.any(Number),
     });
     expect(posts[0]).toEqual({ kind: 'open', slug: 'ada', media: 'synthetic' });
     expect(posts.at(-1)).toMatchObject({ kind: 'hangup' });
     const types = (report['events'] as { type: string }[]).map((event) => event.type);
     expect(types).toEqual(
-      expect.arrayContaining(['connected', 'speech-start', 'sent', 'playing', 'played', 'ended']),
+      expect.arrayContaining([
+        'connected',
+        'speech-start',
+        'ack',
+        'sent',
+        'committed',
+        'playing',
+        'played',
+        'reply-done',
+        'ended',
+      ]),
     );
   });
 

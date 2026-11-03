@@ -58,6 +58,10 @@ function setup(options: { readyAsr?: boolean } = {}) {
     providers: {
       has: () => true,
       transcribe: async () => ({ text: '明天会下雨吗', latencyMs: 4 }),
+      synthesize: async () => ({
+        audio: new Uint8Array([0x49, 0x44, 0x33, 1]),
+        mime: 'audio/mpeg',
+      }),
     },
     media: () => hostMedia,
     async send({ body }) {
@@ -115,7 +119,7 @@ function setup(options: { readyAsr?: boolean } = {}) {
     hostSide,
     phone,
     sent,
-    deliver: calls.deliverVoice,
+    speak: calls.speak,
     advance: async (ms: number) => {
       clock += ms;
       tick?.();
@@ -146,22 +150,20 @@ describe('phone call client', () => {
     const live = world.client.state();
     if (live.status !== 'live') throw new Error(live.status);
     expect(live.call.phase).toBe('listening');
-    world.deliver({
+    await world.speak({
       slug: 'mira',
       channelId: live.call.channelId,
       messageId: 'reply-1',
-      at: new Date(2_000_500).toISOString(),
-      audio: new Uint8Array([0x49, 0x44, 0x33, 1]),
-      mime: 'audio/mpeg',
+      body: '会下雨。',
     });
     await world.advance(1_000);
     await world.advance(1_000);
     const after = world.client.state();
     if (after.status !== 'live') throw new Error(after.status);
     expect(after.events.map((event) => event.type)).toEqual(
-      expect.arrayContaining(['connected', 'speech-start', 'sent', 'playing', 'played']),
+      expect.arrayContaining(['connected', 'speech-start', 'ack', 'sent', 'playing', 'played']),
     );
-    expect(world.hostSide.played).toBe(1);
+    expect(world.hostSide.played).toBe(2);
   });
 
   it('mutes the native track and the Host, and hangs up cleanly', async () => {
