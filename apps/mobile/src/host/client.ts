@@ -114,6 +114,7 @@ export interface HostSnapshot {
   }[];
   computerAvailable?: boolean;
   connection: ConnectionState;
+  activity?: readonly WireBotActivity[];
   roster?: RosterView;
 }
 
@@ -342,6 +343,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         status: routeChecks.get(url) ?? 'unchecked',
       })),
       connection: connection ?? snapshot.connection,
+      activity: [...rawStates.values()],
       ...(computerAvailable === undefined ? {} : { computerAvailable }),
       ...(bots === undefined ? {} : { roster: view(bots) }),
     };

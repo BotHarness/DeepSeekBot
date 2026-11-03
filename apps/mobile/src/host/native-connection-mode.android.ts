@@ -5,6 +5,7 @@ import { AppRegistry, AppState } from 'react-native';
 import type { AlertSnapshot, LocalApprovalAlert } from './device-alerts';
 import { alertBanners } from './alert-banners';
 import type { PushPreferences } from './push';
+import type { ConnectionSummary } from './connection-summary';
 import { REQUESTS_CHANNEL } from './native-notifications';
 import { t } from '../ui/strings';
 
@@ -17,6 +18,14 @@ interface NativeConnectionState {
 interface ConnectionNativeModule {
   connectionState(): NativeConnectionState;
   setConnectionEnabled(enabled: boolean): void;
+  updateConnectionSummary(
+    hosts: number,
+    connected: number,
+    synced: number,
+    active: number,
+    needsYou: number,
+    language: string,
+  ): void;
   syncAlertHostsAsync(
     hosts: string[],
     approvalsEnabled: boolean,
@@ -69,6 +78,21 @@ if (supported) {
 
 export const connectionMode = {
   supported,
+  updateSummary(summary: ConnectionSummary, language: string): void {
+    if (!supported) return;
+    if (typeof native.updateConnectionSummary !== 'function') {
+      publish({ ...snapshot, error: 'connection-build-required' });
+      return;
+    }
+    native.updateConnectionSummary(
+      summary.hosts,
+      summary.connected,
+      summary.synced,
+      summary.active,
+      summary.needsYou,
+      language,
+    );
+  },
   reportAlertFailure(): void {
     publish({ ...snapshot, error: 'alert-sync-failed' });
   },

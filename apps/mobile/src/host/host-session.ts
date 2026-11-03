@@ -33,6 +33,7 @@ import { connectionMode } from './native-connection-mode';
 import { createDeviceAlerts } from './device-alerts';
 import { alertBanners } from './alert-banners';
 import { createConnectionLifetime } from './connection-lifetime';
+import { connectionSummary } from './connection-summary';
 import { createQuietChannels } from './quiet-channels';
 import { loadSavedHosts, saveHosts, type SavedHost } from './saved-host';
 import { mobileTelemetry } from '../telemetry/native';
@@ -110,7 +111,19 @@ const deviceAlerts = createDeviceAlerts(connectionMode, {
   },
 });
 function scheduleAlerts(): void {
-  if (connectionMode.supported) deviceAlerts.refresh();
+  if (!connectionMode.supported) return;
+  connectionMode.updateSummary(
+    connectionSummary(
+      feeds.map((host) => ({
+        hostId: host.saved.hostId,
+        enabled: connectionLifetime.backgroundAllowed(host.client),
+        snapshot: host.snapshot,
+        attention: host.attention,
+      })),
+    ),
+    locale,
+  );
+  deviceAlerts.refresh();
 }
 if (connectionMode.supported) notificationPreferences.subscribe(scheduleAlerts);
 let previousMode = connectionMode.getSnapshot();

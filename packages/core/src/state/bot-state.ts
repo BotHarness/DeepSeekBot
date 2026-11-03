@@ -499,6 +499,7 @@ export interface PersonaBotActivitySnapshot {
   bots: {
     slug: string;
     state: AggregatedState;
+    active?: boolean;
     attention?: PersonaBotAttention;
     activity?: PersonaBotToolActivity;
     sessions?: readonly PersonaBotSessionActivity[];
@@ -518,6 +519,9 @@ export function personaBotActivitySnapshot(
       return {
         slug,
         state: snapshot.state,
+        active: Object.values(snapshot.sessions).some(
+          (state) => state === 'thinking' || state === 'working',
+        ),
         ...(snapshot.attention === undefined ? {} : { attention: snapshot.attention }),
         ...(activity === undefined ? {} : { activity }),
         ...(sessions.length === 0 ? {} : { sessions }),

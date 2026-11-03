@@ -1,4 +1,5 @@
 import type { AlertSnapshot } from './device-alerts';
+import type { ConnectionSummary } from './connection-summary';
 
 const inactive: { enabled: boolean; running: boolean; error: string | null } = {
   enabled: false,
@@ -8,6 +9,7 @@ const inactive: { enabled: boolean; running: boolean; error: string | null } = {
 
 export const connectionMode = {
   supported: false,
+  updateSummary(_summary: ConnectionSummary, _language: string): void {},
   reportAlertFailure(): void {},
   onApproval(_listener: (data: { hostId: string; itemId: string }) => void): () => void {
     return () => {};

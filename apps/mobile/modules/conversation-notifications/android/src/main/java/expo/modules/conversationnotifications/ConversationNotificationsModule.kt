@@ -28,6 +28,9 @@ class ConversationNotificationsModule : Module() {
     Function("connectionState") {
       ConnectionService.state(requireNotNull(appContext.reactContext))
     }
+    Function("updateConnectionSummary") { hosts: Int, connected: Int, synced: Int, active: Int, needsYou: Int, language: String ->
+      ConnectionService.updateSummary(ConnectionSummary(hosts, connected, synced, active, needsYou), language)
+    }
     Function("setConnectionEnabled") { enabled: Boolean ->
       if (enabled) check(appContext.currentActivity != null) { "foreground-required" }
       ConnectionService.setEnabled(requireNotNull(appContext.reactContext), enabled)

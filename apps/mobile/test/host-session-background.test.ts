@@ -22,6 +22,7 @@ vi.mock('react-native', () => ({
 vi.mock('../src/host/native-connection-mode', () => ({
   connectionMode: {
     supported: true,
+    updateSummary() {},
     getSnapshot: () => ({ enabled: native.running, running: native.running, error: null }),
     subscribe: (listener: () => void) => {
       native.listeners.add(listener);

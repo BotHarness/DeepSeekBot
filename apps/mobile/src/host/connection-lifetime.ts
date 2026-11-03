@@ -36,6 +36,9 @@ export function createConnectionLifetime(initialForeground: boolean) {
       if (demand) demand.allowed = value;
       reconcile();
     },
+    backgroundAllowed(connection: Connection): boolean {
+      return connections.get(connection)?.allowed === true;
+    },
     refused(connection: Connection) {
       const demand = connections.get(connection);
       if (demand) {

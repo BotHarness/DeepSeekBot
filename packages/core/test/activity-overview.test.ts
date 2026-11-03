@@ -286,3 +286,25 @@ it('keeps Overview execution identical to the Host snapshot while real native ap
     core.operationalDatabase.close();
   }
 });
+
+it('exposes independent active state even when waiting outranks work and no display session detail exists', async () => {
+  const core = createCore({ dshHome: createTempRoot('bh-active-summary-'), agents });
+  try {
+    core.registry.create({ slug: 'ada', displayName: 'Ada' });
+    core.states.setSessionState('ada', 'working-root', 'working');
+    core.states.setSessionState('ada', 'approval-root', 'waiting');
+    const methods = createBridgeMethods({ ...core });
+    expect(methods.activitySnapshot({})).toMatchObject({
+      ok: true,
+      value: { bots: [{ slug: 'ada', state: 'waiting', active: true }] },
+    });
+    core.states.setSessionState('ada', 'working-root', 'done');
+    expect(methods.activitySnapshot({})).toMatchObject({
+      ok: true,
+      value: { bots: [{ slug: 'ada', state: 'waiting', active: false }] },
+    });
+  } finally {
+    await core.runtime.close();
+    core.operationalDatabase.close();
+  }
+});

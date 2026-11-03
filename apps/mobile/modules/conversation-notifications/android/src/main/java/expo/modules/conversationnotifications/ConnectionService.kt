@@ -2,13 +2,13 @@ package expo.modules.conversationnotifications
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
+import android.os.Handler
 import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
 import android.util.Log
-import androidx.core.app.NotificationCompat
+import android.os.Looper
 import androidx.core.content.ContextCompat
 import com.facebook.react.ReactApplication
 import com.facebook.react.bridge.Arguments
@@ -36,25 +36,8 @@ class ConnectionService : Service() {
       manager.createNotificationChannel(NotificationChannel(
         CHANNEL, if (zh) "保持连接" else "Keep connected", NotificationManager.IMPORTANCE_LOW
       ).apply { setShowBadge(false) })
-      val launch = packageManager.getLaunchIntentForPackage(packageName)
-      val notification = NotificationCompat.Builder(this, CHANNEL)
-        .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
-        .setContentTitle(if (zh) "保持连接" else "Keep connected")
-        .setContentText(if (zh) "后台接收 Bot 审批请求" else "Receiving Bot approvals in the background")
-        .setOngoing(true)
-        .setOnlyAlertOnce(true)
-        .setSilent(true)
-        .apply {
-          if (launch != null) setContentIntent(PendingIntent.getActivity(
-            this@ConnectionService, 0, launch, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-          ))
-        }
-        .addAction(0, if (zh) "停止" else "Stop", PendingIntent.getService(
-          this, 0, Intent(this, ConnectionService::class.java).setAction(STOP),
-          PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        ))
-        .build()
-      startForeground(NOTIFICATION_ID, notification)
+      current = this
+      startForeground(NOTIFICATION_ID, ConnectionNotice.build(this, summary, language ?: if (zh) "zh" else "en"))
       if (task == null) {
         val react = (application as ReactApplication).reactHost?.currentReactContext
         if (react == null) {
@@ -83,6 +66,7 @@ class ConnectionService : Service() {
   }
 
   override fun onDestroy() {
+    current = null
     running = false
     Log.i("BotHarnessConnection", "phase=stopped")
     changed?.invoke()
@@ -94,8 +78,8 @@ class ConnectionService : Service() {
 
   companion object {
     const val TASK = "BotharnessKeepConnected"
-    private const val CHANNEL = "keep-connected"
-    private const val STOP = "botharness.connection.STOP"
+    internal const val CHANNEL = "keep-connected"
+    internal const val STOP = "botharness.connection.STOP"
     private const val NOTIFICATION_ID = 3356
     @Volatile var running = false
       private set
@@ -103,6 +87,29 @@ class ConnectionService : Service() {
       private set
     @Volatile var changed: (() -> Unit)? = null
 
+    @Volatile private var current: ConnectionService? = null
+    @Volatile private var summary = ConnectionSummary()
+    @Volatile private var language: String? = null
+
+    fun updateSummary(value: ConnectionSummary, locale: String) {
+      if (summary == value && language == locale) return
+      summary = value
+      language = locale
+      Handler(Looper.getMainLooper()).post {
+        val service = current
+        if (service != null && running) {
+          try {
+            service.getSystemService(NotificationManager::class.java).notify(
+              NOTIFICATION_ID, ConnectionNotice.build(service, summary, language ?: "en")
+            )
+          } catch (error: Exception) {
+            failure = "connection-summary-failed"
+            Log.e("BotHarnessConnection", "phase=summary-failed reason=${error.javaClass.simpleName}")
+            changed?.invoke()
+          }
+        }
+      }
+    }
     private fun preferences(context: Context) = context.getSharedPreferences("connection-mode", Context.MODE_PRIVATE)
 
     fun state(context: Context): Map<String, Any?> = mapOf(
