@@ -76,7 +76,7 @@ import {
 import {
   DEFAULT_MESSAGE_PAGE,
   MAX_MESSAGE_PAGE,
-  pageChannelJournal,
+  pageChannelJournalRange,
   pageChannelTimeline,
   timelineCursorAnchor,
   type ChannelTimelinePage,
@@ -688,23 +688,48 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     };
   };
 
-  const allMessages = (id: string): ChannelMessage[] => {
-    if (!isValidChannelId(id)) return [];
-    const rows = database.read((db) =>
+  const PLACEMENT_SELECT = `
+    SELECT p.revision, p.source_event_id, p.message_id, e.payload_json, e.body, e.created_at,
+           e.channel_id AS home_channel_id
+      FROM channel_placements p
+      JOIN source_events e ON e.source_event_id = p.source_event_id`;
+
+  const placementsById = (
+    id: string,
+    messageIds: readonly (string | undefined)[],
+    visibleFrom = 0,
+  ): PlacementRow[] => {
+    const ids = [...new Set(messageIds.filter((item): item is string => typeof item === 'string'))];
+    if (!isValidChannelId(id) || ids.length === 0) return [];
+    return database.read((db) =>
       db
-        .prepare(`
-      SELECT p.revision, p.source_event_id, p.message_id, e.payload_json, e.body, e.created_at,
-             e.channel_id AS home_channel_id
-        FROM channel_placements p
-        JOIN source_events e ON e.source_event_id = p.source_event_id
-       WHERE p.channel_id = ? ORDER BY p.revision
-    `)
-        .all(id),
+        .prepare(`${PLACEMENT_SELECT}
+         WHERE p.channel_id = ? AND p.revision >= ?
+           AND p.message_id IN (${ids.map(() => '?').join(', ')})
+         ORDER BY p.revision`)
+        .all(id, visibleFrom, ...ids),
     ) as unknown as PlacementRow[];
-    const members = humanMembers(id);
-    const reactionsById = channelReactions(id);
-    return rows.map((row) => projectPlacement(row, id, members, reactionsById));
   };
+
+  const placementRange = (id: string, first: number, last: number): PlacementRow[] =>
+    !isValidChannelId(id) || last < first
+      ? []
+      : (database.read((db) =>
+          db
+            .prepare(`${PLACEMENT_SELECT}
+             WHERE p.channel_id = ? AND p.revision BETWEEN ? AND ?
+             ORDER BY p.revision`)
+            .all(id, first, last),
+        ) as unknown as PlacementRow[]);
+
+  const placementMessages = (
+    id: string,
+    messageIds: readonly (string | undefined)[],
+    visibleFrom = 0,
+  ): ChannelMessage[] =>
+    placementsById(id, messageIds, visibleFrom).map((row) =>
+      attachmentMigration.project(row.source_event_id, placementMessage(row, id)),
+    );
 
   const projectPostPreview = (message: ChannelMessage): ChannelMessage => {
     const post = message.botChannelPost;
@@ -729,7 +754,11 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     };
   };
 
-  const project = (messages: ChannelMessage[], message: ChannelMessage): ChannelMessage =>
+  const project = (
+    messages: readonly ChannelMessage[],
+    message: ChannelMessage,
+    byId: ReadonlyMap<string, ChannelMessage> = new Map(messages.map((item) => [item.id, item])),
+  ): ChannelMessage =>
     projectAttachmentFiles(
       replyProjection(
         {
@@ -738,10 +767,87 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             ? { grantRequestResolved: isGrantRequestResolved(messages, message.id) }
             : {}),
         },
-        new Map(messages.map((item) => [item.id, item])),
+        byId,
       ),
       options.attachments,
     );
+
+  const grantResolutions = (
+    id: string,
+    grantIds: readonly string[],
+    visibleFrom = 0,
+  ): ChannelMessage[] =>
+    grantIds.length === 0
+      ? []
+      : database.read((db) => {
+          const resolved = new Map<string, ChannelMessage>();
+          for (const row of db
+            .prepare(`
+          SELECT p.message_id, e.payload_json, e.body
+            FROM source_events e
+            CROSS JOIN channel_placements p ON p.source_event_id = e.source_event_id
+           WHERE json_extract(e.payload_json, '$.grantRequestResolution.requestMessageId') IN (${grantIds.map(() => '?').join(', ')})
+             AND p.channel_id = ? AND p.revision >= ?
+             AND CASE WHEN json_valid(e.payload_json) THEN
+               json_extract(e.payload_json, '$.author.kind') = 'human'
+               AND json_extract(e.payload_json, '$.replyTo') = json_extract(e.payload_json, '$.grantRequestResolution.requestMessageId')
+             ELSE 0 END
+           ORDER BY p.revision
+        `)
+            .iterate(...grantIds, id, visibleFrom)) {
+            const candidate = row as unknown as Pick<
+              PlacementRow,
+              'message_id' | 'payload_json' | 'body'
+            >;
+            const message = parseMessage(
+              candidate.payload_json,
+              candidate.body,
+              candidate.message_id,
+              id,
+            );
+            const requestId = message?.grantRequestResolution?.requestMessageId;
+            if (
+              message !== undefined &&
+              requestId !== undefined &&
+              isGrantRequestResolved([message], requestId)
+            )
+              resolved.set(requestId, message);
+            if (resolved.size === grantIds.length) break;
+          }
+          return [...resolved.values()];
+        });
+
+  const projectRows = (
+    id: string,
+    rows: readonly PlacementRow[],
+    visibleFrom = 0,
+    members?: ReturnType<typeof humanMembers>,
+  ): ChannelMessage[] => {
+    if (rows.length === 0) return [];
+    const selectedIds = new Set(rows.map((row) => row.message_id));
+    const reactions = channelReactions(id, [...selectedIds]);
+    const recipients = members ?? humanMembers(id);
+    const selected = rows.map((row) => projectPlacement(row, id, recipients, reactions));
+    const dependencies = [
+      ...selected,
+      ...placementMessages(
+        id,
+        selected.flatMap((message) =>
+          message.replyTo === undefined || selectedIds.has(message.replyTo)
+            ? []
+            : [message.replyTo],
+        ),
+        visibleFrom,
+      ),
+      ...grantResolutions(
+        id,
+        selected.filter((message) => message.grantRequest).map((message) => message.id),
+        visibleFrom,
+      ),
+    ];
+    const byId = new Map(dependencies.map((item) => [item.id, item]));
+    return selected.map((message) => project(dependencies, message, byId));
+  };
 
   const timelinePage = (
     id: string,
@@ -818,84 +924,15 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     );
     if (page === undefined || page.entries.length === 0) return page;
     const selectedIds = new Set(page.entries.map((message) => message.id));
-    const reactions = channelReactions(id, [...selectedIds]);
-    const recipients = members ?? humanMembers(id);
-    const selected = rows
-      .filter((row) => selectedIds.has(row.message_id))
-      .map((row) => projectPlacement(row, id, recipients, reactions));
-    const dependencies = [...selected];
-    const replyIds = [
-      ...new Set(
-        selected.flatMap((message) =>
-          message.replyTo === undefined || selectedIds.has(message.replyTo)
-            ? []
-            : [message.replyTo],
-        ),
+    return {
+      ...page,
+      entries: projectRows(
+        id,
+        rows.filter((row) => selectedIds.has(row.message_id)),
+        visibleFrom,
+        members,
       ),
-    ];
-    if (replyIds.length > 0) {
-      const replies = database.read((db) =>
-        db
-          .prepare(`
-        SELECT p.revision, p.source_event_id, p.message_id, e.payload_json, e.body, e.created_at,
-               e.channel_id AS home_channel_id
-          FROM channel_placements p
-          JOIN source_events e ON e.source_event_id = p.source_event_id
-         WHERE p.channel_id = ? AND p.revision >= ?
-           AND p.message_id IN (${replyIds.map(() => '?').join(', ')})
-      `)
-          .all(id, visibleFrom, ...replyIds),
-      ) as unknown as PlacementRow[];
-      dependencies.push(
-        ...replies.map((row) =>
-          attachmentMigration.project(row.source_event_id, placementMessage(row, id)),
-        ),
-      );
-    }
-    const grantIds = selected
-      .filter((message) => message.grantRequest)
-      .map((message) => message.id);
-    if (grantIds.length > 0) {
-      dependencies.push(
-        ...database.read((db) => {
-          const resolved = new Map<string, ChannelMessage>();
-          for (const row of db
-            .prepare(`
-          SELECT p.message_id, e.payload_json, e.body
-            FROM channel_placements p
-            JOIN source_events e ON e.source_event_id = p.source_event_id
-           WHERE p.channel_id = ? AND p.revision >= ?
-             AND CASE WHEN json_valid(e.payload_json) THEN
-               json_extract(e.payload_json, '$.author.kind') = 'human'
-               AND json_extract(e.payload_json, '$.replyTo') = json_extract(e.payload_json, '$.grantRequestResolution.requestMessageId')
-               AND json_extract(e.payload_json, '$.grantRequestResolution.requestMessageId') IN (${grantIds.map(() => '?').join(', ')})
-             ELSE 0 END
-        `)
-            .iterate(id, visibleFrom, ...grantIds)) {
-            const candidate = row as unknown as Pick<
-              PlacementRow,
-              'message_id' | 'payload_json' | 'body'
-            >;
-            const message = parseMessage(
-              candidate.payload_json,
-              candidate.body,
-              candidate.message_id,
-              id,
-            );
-            const requestId = message?.grantRequestResolution?.requestMessageId;
-            if (
-              message !== undefined &&
-              requestId !== undefined &&
-              isGrantRequestResolved([message], requestId)
-            )
-              resolved.set(requestId, message);
-            if (resolved.size === grantIds.length) break;
-          }
-          return [...resolved.values()];
-        }),
-      );
-    }
-    return { ...page, entries: selected.map((message) => project(dependencies, message)) };
+    };
   };
 
   const revisionOf = (id: string): number => {
@@ -920,12 +957,20 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
   ) => {
     const channel = readRecord(id);
     if (channel === undefined) return once ? { status: 'missing' as const } : undefined;
-    const previous = allMessages(id);
-    const existing = previous.find((item) => item.id === message.id);
+    const existing = projectRows(id, placementsById(id, [message.id]))[0];
     if (existing !== undefined) {
       if (!once || !sameIntent(existing, message)) return { status: 'conflict' as const };
-      return { status: 'existing' as const, message: project(previous, existing) };
+      return { status: 'existing' as const, message: existing };
     }
+    const grantRequestId = message.grantRequestResolution?.requestMessageId;
+    const previous = [
+      ...placementMessages(id, [
+        message.replyTo,
+        grantRequestId,
+        message.takeoverResolution?.requestMessageId,
+      ]),
+      ...grantResolutions(id, grantRequestId === undefined ? [] : [grantRequestId]),
+    ];
     if (preview !== undefined) {
       if (message.author.kind !== 'human') throw new Error('All Bots requires a Human sender');
       assertAllBotPreview(
@@ -1034,7 +1079,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     if (botDm && recipient === undefined && channel.remoteBot === undefined)
       throw new Error('Bot DM has no recipient');
     const durable = rawMessage(message);
-    const revision = previous.length + 1;
+    const revision = revisionOf(id) + 1;
     const sourceEventId = randomUUID();
     const action: ChannelMessage | undefined =
       noticeChannel !== undefined &&
@@ -1057,7 +1102,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           }
         : undefined;
     const actionRevision =
-      noticeChannel === undefined ? undefined : allMessages(noticeChannel.id).length + 1;
+      noticeChannel === undefined ? undefined : revisionOf(noticeChannel.id) + 1;
     const humanDm = senderSlug === undefined ? undefined : readRecord(dmChannelId(senderSlug));
     const traceChannel =
       senderSlug !== undefined &&
@@ -1078,8 +1123,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             botChannelPost: { channelId: id, messageId: durable.id },
           }
         : undefined;
-    const traceRevision =
-      traceChannel === undefined ? undefined : allMessages(traceChannel.id).length + 1;
+    const traceRevision = traceChannel === undefined ? undefined : revisionOf(traceChannel.id) + 1;
     let refused = false;
     try {
       database.transaction(
@@ -2448,10 +2492,9 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           body: '',
           memoryCommit: { botSlug: input.botSlug, ...commit },
         };
-        const revision = allMessages(channel.id).length + 1;
+        const revision = revisionOf(channel.id) + 1;
         const humanDm = channel.id === dm?.id ? undefined : dm;
-        const humanDmRevision =
-          humanDm === undefined ? undefined : allMessages(humanDm.id).length + 1;
+        const humanDmRevision = humanDm === undefined ? undefined : revisionOf(humanDm.id) + 1;
         const sourceEventId = randomUUID();
         database.transaction(
           (db) => {
@@ -2521,7 +2564,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         body: '',
         botCreateAction: { botSlug: input.created.botSlug, displayName: input.created.displayName },
       };
-      const revision = allMessages(channel.id).length + 1;
+      const revision = revisionOf(channel.id) + 1;
       const sourceEventId = randomUUID();
       database.transaction(
         (db) => {
@@ -2667,59 +2710,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         return undefined;
       });
       if (latest === undefined) return undefined;
-      const message = projectPlacement(
-        latest,
-        id,
-        humanMembers(id),
-        channelReactions(id, latest.message_id),
-      );
-      const dependencies = [message];
-      const replyTo = message.replyTo;
-      if (replyTo !== undefined) {
-        const target = database.read((db) =>
-          db
-            .prepare(`
-          SELECT p.message_id, e.payload_json, e.body, e.created_at
-            FROM channel_placements p
-            JOIN source_events e ON e.source_event_id = p.source_event_id
-           WHERE p.channel_id = ? AND p.message_id = ?
-        `)
-            .get(id, replyTo),
-        ) as Pick<PlacementRow, 'message_id' | 'payload_json' | 'body' | 'created_at'> | undefined;
-        if (target !== undefined) dependencies.push(placementMessage(target, id));
-      }
-      if (message.grantRequest) {
-        const resolution = database.read((db) => {
-          for (const row of db
-            .prepare(`
-            SELECT p.message_id, e.payload_json, e.body
-              FROM channel_placements p
-              JOIN source_events e ON e.source_event_id = p.source_event_id
-             WHERE p.channel_id = ?
-               AND CASE WHEN json_valid(e.payload_json) THEN
-                 json_extract(e.payload_json, '$.author.kind') = 'human'
-                 AND json_extract(e.payload_json, '$.replyTo') = ?
-                 AND json_extract(e.payload_json, '$.grantRequestResolution.requestMessageId') = ?
-               ELSE 0 END
-          `)
-            .iterate(id, message.id, message.id)) {
-            const candidate = row as unknown as Pick<
-              PlacementRow,
-              'message_id' | 'payload_json' | 'body'
-            >;
-            const parsed = parseMessage(
-              candidate.payload_json,
-              candidate.body,
-              candidate.message_id,
-              id,
-            );
-            if (parsed !== undefined && isGrantRequestResolved([parsed], message.id)) return parsed;
-          }
-          return undefined;
-        });
-        if (resolution !== undefined) dependencies.push(resolution);
-      }
-      return project(dependencies, message);
+      return projectRows(id, [latest])[0];
     },
     hasMessage(id, messageId) {
       if (!isValidChannelId(id)) return false;
@@ -2736,9 +2727,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       );
     },
     message(id, messageId) {
-      const messages = allMessages(id);
-      const found = messages.find((item) => item.id === messageId);
-      return found === undefined ? undefined : project(messages, found);
+      return projectRows(id, placementsById(id, [messageId]))[0];
     },
     humanSendStatus(id, messageId) {
       const channel = readRecord(id);
@@ -2971,34 +2960,39 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       const row = database.read((db) =>
         db
           .prepare(`SELECT e.payload_json, e.source_event_id
-        FROM source_events e JOIN channel_placements p ON p.source_event_id = e.source_event_id
-        WHERE p.channel_id = ? AND json_extract(e.payload_json, '$.grantRequestResolution.requestMessageId') = ?
-        LIMIT 1`)
-          .get(channelId, requestMessageId),
+        FROM source_events e CROSS JOIN channel_placements p ON p.source_event_id = e.source_event_id
+        WHERE json_extract(e.payload_json, '$.grantRequestResolution.requestMessageId') = ?
+          AND p.channel_id = ?
+        ORDER BY p.revision LIMIT 1`)
+          .get(requestMessageId, channelId),
       ) as { payload_json: string } | undefined;
       if (!row) return undefined;
       const payload = JSON.parse(row.payload_json) as ChannelMessage;
-      return allMessages(channelId).find((message) => message.id === payload.id);
+      return projectRows(channelId, placementsById(channelId, [payload.id]))[0];
     },
     async appendMessageOnce(id, message, preview, origin, canCommit) {
       const result = append(id, message, true, preview, origin, canCommit);
       return result ?? { status: 'missing' };
     },
     readMessages(id, readOptions) {
-      const messages = allMessages(id);
+      if (!isValidChannelId(id)) return [];
       const limit = Math.max(
         1,
         Math.min(readOptions?.limit ?? DEFAULT_MESSAGE_PAGE, MAX_MESSAGE_PAGE),
       );
       const end =
         readOptions?.before === undefined
-          ? messages.length
-          : messages.findIndex((message) => message.id === readOptions.before);
-      if (end < 0) return [];
-      return messages
-        .slice(Math.max(0, end - limit), end)
-        .reverse()
-        .map((message) => project(messages, message));
+          ? revisionOf(id) + 1
+          : placementsById(id, [readOptions.before])[0]?.revision;
+      if (end === undefined) return [];
+      const rows = database.read((db) =>
+        db
+          .prepare(`${PLACEMENT_SELECT}
+           WHERE p.channel_id = ? AND p.revision < ?
+           ORDER BY p.revision DESC LIMIT ?`)
+          .all(id, end, Number.isNaN(limit) ? MAX_MESSAGE_PAGE : Math.ceil(limit)),
+      ) as unknown as PlacementRow[];
+      return projectRows(id, rows);
     },
     queryMessages(id, queryOptions) {
       const query = prepareChannelMessageQuery(id, queryOptions);
@@ -3256,20 +3250,16 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       if (channel === undefined) return undefined;
       const member = humanMembers(id).find((entry) => entry.human_id === LOCAL_HUMAN_ID);
       if (channel.type === 'group' && member === undefined) return undefined;
-      const messages = allMessages(id);
-      const page = pageChannelJournal(id, messages, {
-        ...request,
-        visibleFrom: member?.visible_from_revision ?? 0,
-      });
-      return page === undefined
-        ? undefined
-        : {
-            ...page,
-            entries: page.entries.map((entry) => ({
-              ...entry,
-              message: project(messages, entry.message),
-            })),
-          };
+      return pageChannelJournalRange(
+        id,
+        revisionOf(id),
+        { ...request, visibleFrom: member?.visible_from_revision ?? 0 },
+        (first, last) =>
+          projectRows(id, placementRange(id, first, last)).map((message) => ({
+            message,
+            revision: message.channelRevision!,
+          })),
+      );
     },
     revision: revisionOf,
     admissionChanged(channelId, messageId) {
@@ -3465,13 +3455,10 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     messagesAfter(id, revision) {
       if (!isValidChannelId(id) || !Number.isSafeInteger(revision) || revision < 0)
         return undefined;
-      const messages = allMessages(id);
-      if (revision > messages.length) return undefined;
-      return messages.slice(revision).map((message, index) => ({
-        channelId: id,
-        message: project(messages, message),
-        revision: revision + index + 1,
-      }));
+      if (revision > revisionOf(id)) return undefined;
+      return projectRows(id, placementRange(id, revision + 1, Number.MAX_SAFE_INTEGER)).map(
+        (message) => ({ channelId: id, message, revision: message.channelRevision! }),
+      );
     },
   };
 }
