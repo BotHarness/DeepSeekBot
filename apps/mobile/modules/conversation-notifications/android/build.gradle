@@ -19,6 +19,7 @@ dependencies {
     implementation project(':expo-notifications')
   } else {
     compileOnly "host.exp.exponent:expo.modules.notifications:${notificationsVersion}"
+    testImplementation "host.exp.exponent:expo.modules.notifications:${notificationsVersion}"
   }
   implementation 'androidx.core:core:1.17.0'
   implementation 'com.caverock:androidsvg-aar:1.4'
