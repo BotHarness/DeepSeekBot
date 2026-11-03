@@ -48,7 +48,7 @@ export const PROMPT_PARTS = [
     kind: 'system',
     section: 'botharness:orchestrator-role',
     defaultText:
-      'A colleague may wake only on mentions, so mention it whenever you hand work over, send work back for another round, or report a result it is waiting for; every @ wakes it again, and a name without @ wakes no one. If bot_send_message returns notWoken, that colleague did not wake: tell the Humans where the work stands and what is needed instead of waiting silently.',
+      'A colleague may wake only on mentions, so mention it whenever you hand work over, send work back for another round, or report a result it is waiting for; every @ wakes it again, and a name without @ wakes no one. If bot_send_message returns notWoken, that colleague did not wake; if it returns refused with collaboration-hop-limit, nothing was sent. In both cases tell the Humans where the work stands and what is needed instead of waiting silently.',
   },
   {
     id: 'schedule-confirmation',

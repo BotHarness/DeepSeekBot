@@ -6,6 +6,8 @@ import { stampReleaseComponent } from '../../core/src/release/component.js';
 import {
   BOT_MODE_ICONS,
   DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT,
+  DEFAULT_BOT_HOP_LIMIT,
+  MAX_BOT_HOP_LIMIT,
   BOT_MODE_MOTION_PREFERENCES,
   BOT_MODE_SEND_KEYS,
   BOT_MODE_SORT_MODES,
@@ -29,6 +31,7 @@ stampReleaseComponent(apply, import.meta.url);
 
 export interface Config {
   assignmentConcurrencyLimit: Volatile<number>;
+  botHopLimit: Volatile<number>;
   autoAcceptGroupInvites: Volatile<boolean>;
   developerMode: Volatile<boolean>;
   showBotSessions: Volatile<boolean>;
@@ -49,6 +52,12 @@ export const Config: Schema<Partial<BotModeSettings>, Config> = Schema.object({
     .max(32)
     .step(1)
     .default(DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT)
+    .volatile(),
+  botHopLimit: Schema.number()
+    .min(1)
+    .max(MAX_BOT_HOP_LIMIT)
+    .step(1)
+    .default(DEFAULT_BOT_HOP_LIMIT)
     .volatile(),
   autoAcceptGroupInvites: Schema.boolean().default(DEFAULT_BOT_MODE_GROUP_AUTO_ACCEPT).volatile(),
   developerMode: Schema.boolean().default(DEFAULT_BOT_MODE_DEVELOPER).volatile(),
@@ -83,6 +92,7 @@ export function apply(ctx: Context, config?: Config): void {
         botharness?: {
           configureGroupInvitations(autoAccept: () => boolean): () => void;
           configureAssignmentConcurrencyLimit?(read: () => number): () => void;
+          configureBotHopLimit?(read: () => number): () => void;
         };
       }
     ).botharness;
@@ -98,6 +108,11 @@ export function apply(ctx: Context, config?: Config): void {
         configureLimit(
           () => config?.assignmentConcurrencyLimit.get() ?? DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT,
         ),
+      );
+    const configureHopLimit = core.configureBotHopLimit;
+    if (configureHopLimit !== undefined)
+      child.effect(() =>
+        configureHopLimit(() => config?.botHopLimit.get() ?? DEFAULT_BOT_HOP_LIMIT),
       );
   });
   ctx.inject(['settings'], (child) => {

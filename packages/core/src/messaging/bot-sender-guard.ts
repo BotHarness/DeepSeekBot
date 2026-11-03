@@ -1,8 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
-import { MAX_BOT_HOPS } from '../channels/channel.js';
 import type { MessagingInboundEvent } from './provider.js';
 
-export const EXTERNAL_BOT_TURNS = MAX_BOT_HOPS / 2;
+export const EXTERNAL_BOT_TURNS = 16;
 const EXTERNAL_BOT_WINDOW_MS = 60 * 60 * 1000;
 
 export function externalBotTurnsExhausted(
