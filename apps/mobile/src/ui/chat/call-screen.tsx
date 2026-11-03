@@ -62,12 +62,14 @@ export function CallScreen({
   const [microphone, setMicrophone] = useState<'granted' | 'denied' | 'blocked'>();
   const [report, setReport] = useState<string>();
   const callRef = useRef<CallClient | undefined>(undefined);
+  const dialed = useRef<number | undefined>(undefined);
   const testAudio = testBuild() && script !== undefined;
   const media = useMemo(() => createCallMedia({ testAudio }), [testAudio, attempt]);
 
   useFocusEffect(
     useCallback(() => {
-      if (client === undefined || media === undefined) return;
+      if (client === undefined || media === undefined || dialed.current === attempt) return;
+      dialed.current = attempt;
       let cancelled = false;
       const timeline: Record<string, unknown>[] = [];
       const mark = (kind: string, detail: Record<string, unknown> = {}) =>
@@ -110,9 +112,9 @@ export function CallScreen({
         }
       })();
       return () => {
-        cancelled = true;
         removeTap?.();
         call.dispose();
+        cancelled = true;
         callRef.current = undefined;
         if (testAudio) {
           const file = new File(Paths.cache, `call-report-${Date.now()}.json`);
@@ -122,7 +124,7 @@ export function CallScreen({
           }, 500);
         }
       };
-    }, [client, media, slug, script, testAudio]),
+    }, [client, media, slug, script, testAudio, attempt]),
   );
 
   const ticking = state.status === 'live';
@@ -135,9 +137,17 @@ export function CallScreen({
   );
 
   const model = callScreenModel(t, state);
+  const leave = () => {
+    if (router.canGoBack()) router.back();
+    else
+      router.replace({
+        pathname: '/dm/[slug]',
+        params: { slug, ...(hostId === undefined ? {} : { hostId }) },
+      });
+  };
   const close = () => {
     void callRef.current?.hangup();
-    router.back();
+    leave();
   };
   const duration = startedAt === undefined ? undefined : formatCallDuration(now - startedAt);
   const unsupported = media === undefined;
@@ -269,7 +279,7 @@ export function CallScreen({
                 }}
               />
             ) : null}
-            <Button testID="call-close" label={t.call.close} onPress={() => router.back()} />
+            <Button testID="call-close" label={t.call.close} onPress={leave} />
           </View>
         ) : (
           <View style={{ flexDirection: 'row', justifyContent: 'space-evenly' }}>

@@ -319,7 +319,7 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
         });
         child.stdout.setEncoding('utf8');
         child.stdout.on('data', (chunk: string) => {
-          if (closed) return;
+          if (treeStopped) return;
           if (Buffer.byteLength(output) + Buffer.byteLength(chunk) > 2 * LINE_LIMIT) {
             output = '';
             return failed();
@@ -357,6 +357,7 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
                 if (!closed) failed();
                 continue;
               }
+              if (closed) continue;
               if (
                 envelope['event'] !== 'helper-message' ||
                 typeof envelope['json'] !== 'string' ||

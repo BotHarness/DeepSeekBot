@@ -52,12 +52,7 @@ export function callScreenModel(t: Strings, state: CallClientState): CallScreenM
     return { status: t.call.connecting, live: false, muted: false, retry: false };
   if (state.status === 'ended') {
     const reason = state.reason;
-    const detail =
-      state.code === 'connect-carrier-required'
-        ? t.call.connectOnly
-        : reason === 'refused'
-          ? (state.error ?? t.call.ended.refused)
-          : t.call.ended[reason];
+    const detail = reason === 'refused' ? refusalMessage(t, state.code) : t.call.ended[reason];
     return {
       status: reason === 'refused' ? t.call.ended.refused : t.call.ended.hangup,
       live: false,
@@ -84,12 +79,41 @@ export function callScreenModel(t: Strings, state: CallClientState): CallScreenM
   return { status, live: true, muted, retry: false, ...(hint === undefined ? {} : { hint }) };
 }
 
+function refusalMessage(t: Strings, code: string | undefined): string {
+  switch (code) {
+    case 'connect-carrier-required':
+      return t.call.connectOnly;
+    case 'asr-not-configured':
+      return t.call.missing.asr;
+    case 'tts-not-configured':
+      return t.call.missing.tts;
+    case 'unknown-bot':
+      return t.call.missing.bot;
+    case 'bot-paused':
+      return t.call.ended['bot-unavailable'];
+    case 'media-unsupported':
+      return t.call.missing['media-unsupported'];
+    case 'media-helper-missing':
+      return t.call.missing['media-helper-missing'];
+    case 'media-failed':
+    case 'not-ready':
+    case 'queue-full':
+    case 'operation-timeout':
+      return t.call.missing['media-unavailable'];
+    case 'call-active':
+      return t.call.busyElsewhere;
+    case 'unreachable':
+      return t.call.unreachable;
+    default:
+      return t.call.ended.refused;
+  }
+}
+
 export function readinessMessage(
   t: Strings,
   readiness: VoiceCallReadiness | { readonly code: string; readonly error: string },
 ): string | undefined {
-  if ('code' in readiness)
-    return readiness.code === 'connect-carrier-required' ? t.call.connectOnly : readiness.error;
+  if ('code' in readiness) return refusalMessage(t, readiness.code);
   if (readiness.ready) return undefined;
   return readiness.missing.map((missing: VoiceCallMissing) => t.call.missing[missing]).join('\n');
 }

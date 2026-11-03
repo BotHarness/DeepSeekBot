@@ -76,6 +76,23 @@ describe('call screen model', () => {
     ).toBe('Calls need the same Wi-Fi as the computer, or Tailscale.');
   });
 
+  it('shows refusals in the app language, never the Host English text', () => {
+    const refused = (code: string) =>
+      callScreenModel(zh, {
+        status: 'ended',
+        reason: 'refused',
+        code: code as never,
+        error: 'Bind a speech recognition (ASR) Provider to this Bot before calling it.',
+        events: [],
+      }).ended;
+    expect(refused('asr-not-configured')).toBe(zh.call.missing.asr);
+    expect(refused('media-failed')).toBe(zh.call.missing['media-unavailable']);
+    expect(refused('something-new')).toBe(zh.call.ended.refused);
+    expect(readinessMessage(zh, { code: 'unreachable', error: 'offline' })).toBe(
+      zh.call.unreachable,
+    );
+  });
+
   it('explains which Provider is missing before a call', () => {
     const readiness = {
       slug: 'mira',
