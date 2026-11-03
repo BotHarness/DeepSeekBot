@@ -16,7 +16,8 @@ export function bubbleCorners(
   human: boolean,
   { first, last, avatar = false, compact = false }: BubbleGroup,
 ) {
-  const open = compact && first && last ? radius.round : radius.lg;
+  const pill = compact && first && last;
+  const open = pill ? radius.round : radius.lg;
   return {
     borderRadius: open,
     ...(human
@@ -26,7 +27,7 @@ export function bubbleCorners(
         }
       : {
           borderTopLeftRadius: first ? open : radius.sm,
-          borderBottomLeftRadius: last ? (avatar ? AVATAR_CORNER : open) : radius.sm,
+          borderBottomLeftRadius: last ? (avatar && !pill ? AVATAR_CORNER : open) : radius.sm,
         }),
   } as const;
 }

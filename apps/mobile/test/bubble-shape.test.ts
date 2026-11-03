@@ -51,7 +51,7 @@ describe('bubbleShape', () => {
       bubbleShape(false, { first: true, last: true, avatar: true, compact: true }),
     ).toMatchObject({
       borderTopLeftRadius: radius.round,
-      borderBottomLeftRadius: AVATAR_CORNER,
+      borderBottomLeftRadius: radius.round,
     });
     expect(singleLine(42, 22, 1)).toBe(true);
     expect(singleLine(64, 22, 1)).toBe(false);

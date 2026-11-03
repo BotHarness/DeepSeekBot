@@ -3665,11 +3665,6 @@ html[data-botharness-motion='reduce'] .bh-message-group-enter .bh-message-group-
   --bh-bubble-radius: ${radius.lg};
   border-radius: var(--bh-bubble-radius);
 }
-/* Same rule as mobile: a lone single-line bubble is a pill; inside a group a
-   single-line bubble keeps the multi-line radius so the stack reads as one shape. */
-.bh-bubble[data-single-line][data-group-position='solo'] {
-  --bh-bubble-radius: var(--bh-bubble-pill);
-}
 .bh-bubble[data-group-position='solo'],
 .bh-bubble[data-group-position='last'] {
   border-bottom-left-radius: ${radius.sm};
@@ -3703,6 +3698,11 @@ html[data-botharness-motion='reduce'] .bh-message-group-enter .bh-message-group-
   border-bottom-left-radius: var(--bh-bubble-radius);
   border-top-right-radius: ${radius.sm};
   border-bottom-right-radius: ${radius.sm};
+}
+/* Same rule as mobile: a lone single-line bubble is a pill on every corner; inside a
+   group a single-line bubble keeps the multi-line radius so the stack reads as one shape. */
+.bh-bubble.bh-bubble[data-single-line][data-group-position='solo'] {
+  border-radius: var(--bh-bubble-pill);
 }
 /* Reactions and live reading avatars hang over the bubble's bottom edge:
    reactions on the author's side, readers on the other. */
