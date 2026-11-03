@@ -4275,8 +4275,19 @@ export async function submitPrivateInput(
   const result = await call('privateInputSubmit', { channelId, messageId, values });
   if (!result.ok)
     throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
-  if ((result.value as { accepted?: unknown }).accepted !== true)
-    throw new Error('Private input was not accepted');
+  privateInputAccepted(result.value);
+}
+
+export function privateInputAccepted(value: unknown): void {
+  const { accepted, reason } = (value ?? {}) as { accepted?: unknown; reason?: unknown };
+  if (accepted === true) return;
+  throw new BridgeCallError(
+    'private-input-not-accepted',
+    typeof reason === 'string'
+      ? 'Private input was not accepted: ' + reason
+      : 'Private input was not accepted',
+    typeof reason === 'string' ? { reason } : undefined,
+  );
 }
 
 export async function cancelPrivateInput(

@@ -3860,6 +3860,20 @@ export const zh = {
   'privateInput.submit': '私密提交',
   'privateInput.cancel': '取消',
   'privateInput.error': '未能完成请求。请核对状态；如需重新填写，请勿粘贴到聊天中。',
+  'privateInput.refused': '未接收（原因代码 {reason}）。{detail}反馈问题时可附上这个原因代码。',
+  'privateInput.refused.not-owner': '只有 Bot 的 Owner 可以提交私密信息。',
+  'privateInput.refused.not-pending':
+    '这个请求在 Host 上已不再等待输入，可能已过期、已被回答，或在 Host 重启后失效。让 Bot 重新发起请求。',
+  'privateInput.refused.busy': '这个请求的另一次提交还在保存中，请稍候再查看状态。',
+  'privateInput.refused.invalid-fields': '有必填项为空，或提交了不属于这个请求的字段。',
+  'privateInput.refused.store-unavailable': 'Host 的凭据存储不可用，未保存任何内容。',
+  'privateInput.refused.expired': '保存过程中请求已过期，未保留任何内容。',
+  'privateInput.refused.version-changed':
+    '保存时这个账户已被另一个请求修改，改用这个账户最新的卡片。',
+  'privateInput.refused.save-failed': 'Host 无法把私密信息写入凭据存储，未保留任何内容。',
+  'privateInput.refused.not-committed':
+    '私密信息已写入，但 Host 无法在聊天中记录结果，因此已丢弃。',
+  'privateInput.refused.unknown': 'Host 没有说明原因。',
   'question.source': '来自 Orchestrator Session',
   'question.custom': '其他回答',
   'question.customPlaceholder': '输入你的回答',
@@ -8584,6 +8598,25 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'privateInput.cancel': 'Cancel',
   'privateInput.error':
     'The request could not be completed. Check its status; keep any replacement values out of Chat.',
+  'privateInput.refused':
+    'Not received (reason code {reason}). {detail} Include this reason code when you report the problem.',
+  'privateInput.refused.not-owner': 'Only the Bot Owner can submit private information.',
+  'privateInput.refused.not-pending':
+    'This request is no longer open on the Host. It may have expired, been answered, or been lost when the Host restarted. Ask the Bot for a new request.',
+  'privateInput.refused.busy':
+    'Another submission for this request is still being saved. Wait a moment and check its status.',
+  'privateInput.refused.invalid-fields':
+    'A required field is empty, or a field does not belong to this request.',
+  'privateInput.refused.store-unavailable':
+    'The Host credential store is unavailable, so nothing was saved.',
+  'privateInput.refused.expired': 'The request expired while saving, so nothing was kept.',
+  'privateInput.refused.version-changed':
+    'Another request changed this account while saving. Use the latest card for this account.',
+  'privateInput.refused.save-failed':
+    'The Host could not write the private information to its credential store, so nothing was kept.',
+  'privateInput.refused.not-committed':
+    'The private information was written, but the Host could not record the result in the chat, so it was discarded.',
+  'privateInput.refused.unknown': 'The Host did not give a reason.',
   'question.source': 'From Orchestrator Session',
   'question.custom': 'Other answer',
   'question.customPlaceholder': 'Type your answer',

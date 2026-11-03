@@ -111,7 +111,10 @@ function PrivateAccountsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps)
     });
   const openRequest = (row: PrivateAccountSummary) => {
     channelSettings.close();
-    void actions.openChannelAtMessage(row.channelId!, row.messageId!);
+    void actions.openChannelAtMessage(
+      row.channelId!,
+      row.status === 'replacing' ? (row.replacementMessageId ?? row.messageId!) : row.messageId!,
+    );
   };
 
   const now = Date.now();
@@ -121,9 +124,12 @@ function PrivateAccountsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps)
     unavailable: t('privateAccounts.status.unavailable'),
   } as const;
   const replacementCard = (row: PrivateAccountSummary) => {
-    const message = inputRequests.find((candidate) => candidate.id === row.replacementMessageId);
+    const message =
+      channel?.id === row.channelId
+        ? inputRequests.find((candidate) => candidate.id === row.replacementMessageId)
+        : undefined;
     return message?.privateInputRequest === undefined ? null : (
-      <PrivateInputCard message={message} actions={actions} t={t} />
+      <PrivateInputCard message={message} actions={actions} channelId={row.channelId} t={t} />
     );
   };
 

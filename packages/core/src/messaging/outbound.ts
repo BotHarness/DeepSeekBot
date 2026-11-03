@@ -317,7 +317,7 @@ export interface OutboundMessaging {
     botSlug: string,
     sourceEventId: string,
     requestId: string,
-    webUrl: string,
+    webUrl: string | undefined,
     authority: import('../credentials/im-origin.js').PrivateReplyAuthority,
   ): Promise<OutboxIntent>;
   acquireFile(
@@ -2021,13 +2021,14 @@ export function createOutboundMessaging(options: {
       if (!/^[0-9a-f-]{36}$/.test(requestId)) throw new MessagingError('source-unavailable');
       if (authority.signal.aborted || !authority.current())
         throw new MessagingError('source-unavailable');
-      const url = new URL(webUrl);
+      const url = webUrl === undefined ? undefined : new URL(webUrl);
       if (
-        !['http:', 'https:'].includes(url.protocol) ||
-        url.username ||
-        url.password ||
-        url.search ||
-        !url.hash.startsWith('#botharness-private-input=')
+        url !== undefined &&
+        (!['http:', 'https:'].includes(url.protocol) ||
+          url.username ||
+          url.password ||
+          url.search ||
+          !url.hash.startsWith('#botharness-private-input='))
       )
         throw new MessagingError('source-unavailable');
       const noticeId = 'private-input-' + requestId;
@@ -2036,8 +2037,10 @@ export function createOutboundMessaging(options: {
         const result = await routedReply(
           botSlug,
           sourceEventId,
-          'Owner action needed. Open the private input card in Web Chat. Do not send private values here.\n' +
-            url.href,
+          url === undefined
+            ? "Owner action needed. Open this Bot's Chat in Web Chat or the app and fill in the private input card there. Do not send private values here."
+            : 'Owner action needed. Open the private input card in Web Chat. Do not send private values here.\n' +
+                url.href,
           noticeId,
         );
         if (result.state !== 'provider-accepted') throw new MessagingError('source-unavailable');

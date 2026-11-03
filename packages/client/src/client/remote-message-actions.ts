@@ -6,6 +6,7 @@ import {
   resolveWorkspaceFolder,
 } from '../../../../apps/mobile/src/host/bot-settings.js';
 import type { BridgeActions } from './actions.js';
+import { privateInputAccepted } from './bridge.js';
 import type { MessageHost } from './message-host.js';
 import type { FolderBrowserActions } from './workspace-grants-entry.js';
 
@@ -44,7 +45,11 @@ export function remoteMessageActions(
     }
   };
   return {
-    ...createHostRequestActions({ client: () => client, ref, requestUnavailable }),
+    ...createHostRequestActions({
+      client: () => client,
+      ref,
+      requestUnavailable,
+    }),
     async privateInputStatus(channelId, messageId) {
       const value = await client.call<{
         status: Awaited<ReturnType<NonNullable<BridgeActions['privateInputStatus']>>>;
@@ -55,12 +60,13 @@ export function remoteMessageActions(
     },
     async privateInputSubmit(channelId, messageId, values) {
       ref(channelId, messageId);
-      const value = await client.call<{ accepted: boolean }>('privateInputSubmit', {
-        channelId,
-        messageId,
-        values,
-      });
-      if (value.accepted !== true) throw new Error('Private input was not accepted');
+      privateInputAccepted(
+        await client.call<{ accepted: boolean; reason?: string }>('privateInputSubmit', {
+          channelId,
+          messageId,
+          values,
+        }),
+      );
     },
     async privateInputCancel(channelId, messageId) {
       ref(channelId, messageId);

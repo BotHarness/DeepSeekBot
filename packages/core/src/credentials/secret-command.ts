@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { PrivateInputFailure } from './diagnostics.js';
 
 export class SecretCommandRefusal extends Error {}
 
@@ -6,6 +7,7 @@ export interface SecretCommandResult {
   consumer: 'command-v1';
   successful: boolean;
   exitCode: number | null;
+  exitSignal?: string;
   stdout: string;
   stderr: string;
   truncated: boolean;
@@ -173,7 +175,7 @@ export function runSecretCommand(
 ): Promise<SecretCommandResult> {
   return new Promise((resolve, reject) => {
     if (signal.aborted || argv[0] === undefined) {
-      reject(new Error('Secret command cancelled'));
+      reject(new PrivateInputFailure('The command was cancelled before it started.', 'cancelled'));
       return;
     }
     const child = spawn(argv[0], argv.slice(1), {
@@ -184,13 +186,14 @@ export function runSecretCommand(
     });
     const output = { stdout: '', stderr: '' };
     let truncated = false;
-    let stopped = false;
-    const stop = () => {
-      stopped = true;
+    let stopped: 'timeout' | 'cancelled' | undefined;
+    const stop = (reason: 'timeout' | 'cancelled') => {
+      stopped ??= reason;
       child.kill('SIGKILL');
     };
-    const timer = setTimeout(stop, timeoutMs);
-    signal.addEventListener('abort', stop, { once: true });
+    const timer = setTimeout(() => stop('timeout'), timeoutMs);
+    const abort = () => stop('cancelled');
+    signal.addEventListener('abort', abort, { once: true });
     for (const stream of ['stdout', 'stderr'] as const)
       child[stream].on('data', (chunk: Buffer) => {
         const room = SECRET_COMMAND_OUTPUT_LIMIT * 4 - output[stream].length;
@@ -200,16 +203,27 @@ export function runSecretCommand(
         }
         output[stream] += chunk.toString('utf8').slice(0, room);
       });
-    child.on('error', () => {
+    child.on('error', (error: NodeJS.ErrnoException) => {
       clearTimeout(timer);
-      signal.removeEventListener('abort', stop);
-      reject(new SecretCommandRefusal('the program could not be started; is it installed?'));
+      signal.removeEventListener('abort', abort);
+      reject(
+        new SecretCommandRefusal(
+          `the program could not be started (${typeof error.code === 'string' ? error.code : error.name}); is it installed and allowed by the Shell sandbox?`,
+        ),
+      );
     });
-    child.on('close', (code) => {
+    child.on('close', (code, exitSignal) => {
       clearTimeout(timer);
-      signal.removeEventListener('abort', stop);
-      if (stopped) {
-        reject(new Error('Secret command timed out or was cancelled'));
+      signal.removeEventListener('abort', abort);
+      if (stopped !== undefined) {
+        reject(
+          new PrivateInputFailure(
+            stopped === 'timeout'
+              ? `The command did not finish within ${timeoutMs / 1000} seconds and was stopped.`
+              : 'The command was cancelled before it finished.',
+            stopped,
+          ),
+        );
         return;
       }
       const clip = (text: string): string => {
@@ -224,6 +238,7 @@ export function runSecretCommand(
         consumer: 'command-v1',
         successful: code === 0,
         exitCode: code,
+        ...(code === null && exitSignal !== null ? { exitSignal } : {}),
         stdout,
         stderr,
         truncated,

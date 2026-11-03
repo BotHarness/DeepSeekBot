@@ -20,7 +20,7 @@ A local DM or Group interaction can reuse configured accounts while IM requests 
 
 - Values live in DSH's native credential store, bound to the requesting Bot and account. Another Bot cannot use them.
 - Channel history holds the request and the references only.
-- `secret_http` never sends a secret anywhere but the Owner-entered endpoint. Redirects are refused. Plain http is accepted only for a local address. The endpoint may carry its own query string, which stays on every request and is masked in the response like a secret. A request the Host refuses before sending comes back as `refused` with the reason, so the Bot can explain it. Secret values are masked in the returned text in raw, base64 and URL-encoded form; that masking is a courtesy, not a boundary.
+- `secret_http` never sends a secret anywhere but the Owner-entered endpoint. Redirects are not followed: a redirect comes back as its status and `location` (secrets masked). Plain http is accepted only for a local address. The endpoint may carry its own query string, which stays on every request and is masked in the response like a secret. A request the Host refuses before sending, or one that cannot reach the API (timeout, unresolved host name, refused connection, rejected certificate), comes back as `refused` with the reason, so the Bot can explain it. Secret values are masked in the returned text in raw, base64 and URL-encoded form; that masking is a courtesy, not a boundary.
 - An Agent cannot read the credential store. DSH runs every Shell command inside an OS sandbox, and the Host adds a rule that the store is unreadable: a Seatbelt rule on macOS, an empty-file mask under bwrap on Linux. Agent file tools that target the store, and Shell commands that name it, are refused before any approval card.
 
 ## Limits
@@ -60,6 +60,14 @@ The Bot calls `secret_mcp_connect`. Expect an approval card that names the launc
 Treat an MCP server as a program you install and trust, as other MCP clients do. Besides receiving the secret, it can add its own instructions to the Bot's system prompt, and its tool descriptions and results reach the model. Text from the server, or from data it returns such as an issue someone else wrote, can steer the Bot. Each tool call still asks for approval unless you saved a rule or turned on full access.
 
 For a local check without a real service, start `node scripts/ask-secret-fixture.mjs 31381` and ask the Bot to connect `node <repo>/scripts/secret-mcp-fixture.mjs` with `STATUS_ENDPOINT`, `STATUS_API_KEY` and `STATUS_API_SECRET`, then call `check_status` (expect 200) and `describe_setup` (expect the key shown as `[secret]`).
+
+## When something fails
+
+Every failure names its reason, and none of them contains a secret value:
+
+- A submission the Host does not receive shows a reason code on the card, such as `not-pending` (the request expired, was answered, or was lost in a Host restart), `invalid-fields`, `store-unavailable`, `save-failed` or `version-changed`. `deepseekbot ask-secret-submit` prints the same code.
+- A tool call that uses the secret tells the Bot why it failed: the API timed out, its host name did not resolve, the connection was refused, the certificate was rejected, the endpoint is not https, a redirect was not followed, the helper or command timed out, an MCP server did not finish starting, or the Host could not read the credential store. A store read error no longer reads as "the account was removed", so the Bot does not ask for the secret again.
+- Each step (request, submission, use, refusal, failure) is written to the global diagnostic log under the source `private-input`, failures as warnings, with the Bot, request id, tool and reason. Exporting the diagnostic log gives a report to attach to an issue.
 
 ## Owner CLI
 

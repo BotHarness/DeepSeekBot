@@ -107,6 +107,7 @@ import Schema from '@deepseek-ai/schemastery';
 
 import { installOrchestratorFileTools } from './workspaces/orchestrator-file-tools.js';
 import { ProtectedExecution } from './credentials/protected-execution.js';
+import { privateInputLog } from './credentials/diagnostics.js';
 import { nativeExecutionRoot } from './workspaces/grant-native-tools.js';
 import { createAttachmentStore, type AttachmentStore } from './attachments/store.js';
 import { startAttachmentSweep } from './attachments/sweep.js';
@@ -1317,8 +1318,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     modelCatalog,
   );
-  const privateExecution = new ProtectedExecution((phase, details = {}) =>
-    ctx.logger.info('private-input %j', { phase, ...details }),
+  const privateExecution = new ProtectedExecution(
+    privateInputLog((format, value) => ctx.logger.info(format, value), diagnosticEvents),
   );
   const turnRefusals = new Map<string, string>();
   ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
@@ -1675,6 +1676,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     config.privateInputWebUrl,
     undefined,
     secretMcpStore,
+    diagnosticEvents,
   );
   ctx.effect(() => () => core.externalMessaging.close(), 'botharness: external messaging');
   const cloudConnections = new CloudConnections(
