@@ -674,7 +674,7 @@ export function ChannelComposer({
       renderedAttachmentKey.current = attachmentKey;
       requestedCaret.current = undefined;
       if (caret !== undefined) setRichSelection(editor, Math.min(caret, value.length));
-      syncTextarea(editor);
+      scheduleSync(editor);
       return () => {
         richRef.current = null;
       };
@@ -687,7 +687,7 @@ export function ChannelComposer({
       channelCandidates,
       avatarKey,
       attachmentKey,
-      syncTextarea,
+      scheduleSync,
     ],
   );
   const textareaMount = useMountedResource<HTMLTextAreaElement>(
