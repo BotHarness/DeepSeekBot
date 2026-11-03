@@ -125,7 +125,7 @@ Delivery: prefer background delivery. A refusal is a contract, not an obstacle â
 
 Cancellation does not roll back. Input already delivered to the desktop stays delivered; re-observe before retrying.
 
-Credentials are the Human's. Never type passwords, API keys, or recovery codes. When a page asks for a login, tell the Human in the chat what to log in to, then wait â€” the Human logs in through the Computer panel. Logins persist in the shared browser profile.
+Credentials are the Human's. Never type passwords, API keys, or recovery codes. When a page asks for a login, call \`takeover_request\` with target computer, a short title and one sentence saying what to do; a card appears in the conversation, your turn ends, and the Human's result wakes you through the Bot Inbox. Take a fresh screenshot before acting again. Logins persist in the shared browser profile.
 
 Before an externally visible action (posting, sending, purchasing, deleting), tell the Human what you are about to do in one short message. Computer Authorization lets you act; it is not blanket consent for surprising consequences. When done, report what you did with the window and outcome, and stop acting.`;
 
@@ -141,10 +141,7 @@ export function localComputerGuidance(platform: string = process.platform): stri
     COMPUTER_GUIDANCE.replace(
       'a Linux (X11/XFCE) desktop inside a container with Chrome',
       LOCAL_DESKTOP[platform] ?? 'the desktop of the DSH Host, shared with the Human',
-    ).replace(
-      'the Human logs in through the Computer panel',
-      'the Human logs in directly on their own screen',
     ) +
-    '\nLocal Computer has no viewer. Never assume a login is complete; ask the Human and re-observe the task window.'
+    '\nLocal Computer has no viewer: the Human signs in on their own screen, then answers your takeover_request card. Never assume a login is complete; re-observe the task window when the result wakes you.'
   );
 }

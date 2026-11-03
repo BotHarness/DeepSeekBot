@@ -148,6 +148,7 @@ import type {
   DirectBotToolSpec,
 } from '../runtime/bot-runtime.js';
 import type { BotAttentionPage, BotAttentionState } from '../runtime/attention.js';
+import type { TakeoverHandoff } from '../takeover/contracts.js';
 import type {
   BotSchedule,
   BotScheduleChange,
@@ -2501,6 +2502,51 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.telemetrySet({ enabled }));
   }
 
+  takeoverList(query: {
+    slug?: string;
+    channelId?: string;
+    pendingOnly?: boolean;
+    limit?: number;
+  }): { takeovers: TakeoverHandoff[] } {
+    return unwrap(this.methods.takeoverList(query ?? {}));
+  }
+
+  takeoverStatus(channelId: string, messageId: string): { takeover: TakeoverHandoff } {
+    return unwrap(this.methods.takeoverStatus({ channelId, messageId }));
+  }
+
+  async takeoverRequest(
+    slug: string,
+    input: { channelId?: string; target: string; title: string; message: string; minutes?: number },
+  ): Promise<{ takeover: TakeoverHandoff }> {
+    return unwrapAsync(this.methods.takeoverRequest({ ...input, slug }));
+  }
+
+  async takeoverComplete(
+    channelId: string,
+    messageId: string,
+    outcome: 'done' | 'failed',
+    surface?: string,
+  ): Promise<{ takeover: TakeoverHandoff }> {
+    return unwrapAsync(this.methods.takeoverComplete({ channelId, messageId, outcome, surface }));
+  }
+
+  async takeoverCancel(
+    channelId: string,
+    messageId: string,
+    surface?: string,
+    bot?: string,
+  ): Promise<{ takeover: TakeoverHandoff }> {
+    return unwrapAsync(
+      this.methods.takeoverCancel({
+        channelId,
+        messageId,
+        surface,
+        ...(bot === undefined ? {} : { bot }),
+      }),
+    );
+  }
+
   scheduleList(slug: string): { schedules: BotSchedule[] } {
     return unwrap(this.methods.scheduleList({ slug }));
   }
@@ -2809,6 +2855,11 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'gitStatus',
   'gitInstall',
   'scheduleList',
+  'takeoverList',
+  'takeoverStatus',
+  'takeoverRequest',
+  'takeoverComplete',
+  'takeoverCancel',
   'scheduleCreate',
   'scheduleUpdate',
   'scheduleDelete',

@@ -110,6 +110,7 @@ import {
   type SessionFailureProgress,
 } from '../channels/channel.js';
 import { ChannelReplyTargetError, MAX_MESSAGE_PAGE } from '../channels/store.js';
+import type { TakeoverResolution } from '../takeover/contracts.js';
 import type { MessagePerfTracker } from '../usage/message-perf.js';
 import { attachmentIdentity, type ChannelAttachmentRef } from '../attachments/ref.js';
 import type { ChannelMessageQueryOptions, ChannelStore } from '../channels/store.js';
@@ -1299,6 +1300,34 @@ function coalesceInbox(rows: InboxReportRow[]): InboxUnit[] {
     existing.repeats += 1;
   }
   return [...units.values()];
+}
+
+const TAKEOVER_OUTCOME_GUIDANCE: Record<TakeoverResolution['outcome'], string> = {
+  done: 'The Human says they finished. Their result is not verified: observe again first (take a fresh Computer screenshot or call browser_observe), confirm the step really succeeded, then continue the original task and tell the Human the result in this Channel.',
+  failed:
+    'The Human could not finish. Observe the current state, then either try another way, ask the Human briefly what blocked them, or report that the task cannot continue.',
+  cancelled:
+    'The Human cancelled the request; they no longer need it. Do not request a takeover again unless they ask. Reply briefly only if that helps.',
+  expired:
+    'Nobody finished the request before it expired. Observe the current state; if the step is still blocked, tell the Human briefly instead of requesting again right away.',
+};
+
+function takeoverResolutionPrompt(
+  sourceEventId: string,
+  channelId: string,
+  resolution: TakeoverResolution,
+  request: ChannelMessage | undefined,
+): string {
+  const card = request?.takeoverRequest;
+  const facts = {
+    id: resolution.requestMessageId,
+    target: card?.target ?? 'unknown',
+    title: card?.title ?? 'unknown',
+    request: request?.body ?? '',
+    outcome: resolution.outcome,
+    by: resolution.by,
+  };
+  return `[Bot Inbox: Takeover Handoff ended]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nHandoff: ${JSON.stringify(facts)}\n${TAKEOVER_OUTCOME_GUIDANCE[resolution.outcome]} Credentials the Human typed stay in the live view; never ask for them in chat.`;
 }
 
 function renderInbox(units: InboxUnit[], text: PromptText = DEFAULT_PROMPT_TEXT): string {
@@ -2723,9 +2752,17 @@ class BotRuntimeImplementation implements BotRuntime {
         .get(sourceEventId),
     ) as { body: string } | undefined;
     if (source === undefined) return false;
+    const steered = this.#channels.message(channelId, messageId);
     const mentionPrompt =
-      `Source Event ID: ${sourceEventId}\n` +
-      this.#groupMentionPrompt(botSlug, channelId, messageId, source.body);
+      steered?.takeoverResolution !== undefined
+        ? takeoverResolutionPrompt(
+            sourceEventId,
+            channelId,
+            steered.takeoverResolution,
+            this.#channels.message(channelId, steered.takeoverResolution.requestMessageId),
+          )
+        : `Source Event ID: ${sourceEventId}\n` +
+          this.#groupMentionPrompt(botSlug, channelId, messageId, source.body);
     const claimed = this.#database.transaction(
       (database) => {
         const mention =
@@ -3827,6 +3864,13 @@ class BotRuntimeImplementation implements BotRuntime {
       (message?.author.kind === 'bot' || message?.author.kind === 'remote-bot')
     )
       return `[Bot Inbox: direct message from PersonaBot ${message.author.slug}${message.author.kind === 'remote-bot' ? ` on Host ${message.author.hostId}` : ''}]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${body}\n${this.#promptText(botSlug)('bot-dm-hint')}`;
+    if (message?.takeoverResolution !== undefined)
+      return takeoverResolutionPrompt(
+        sourceEventId,
+        channelId,
+        message.takeoverResolution,
+        this.#channels.message(channelId, message.takeoverResolution.requestMessageId),
+      );
     if (message?.author.kind === 'human' && message.toolAutoApprovalOverride !== undefined) {
       const target = message.toolAutoApprovalOverride;
       const input =
@@ -6522,7 +6566,14 @@ class BotRuntimeImplementation implements BotRuntime {
           .prepare(
             `SELECT e.channel_id, e.message_id FROM source_events e
             JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
-            WHERE e.source_event_id = ? AND a.bot_slug = ? AND e.source_kind IN ('human-message', 'bot-message')`,
+            WHERE e.source_event_id = ? AND a.bot_slug = ?
+              AND (
+                e.source_kind IN ('human-message', 'bot-message')
+                OR (
+                  e.source_kind = 'system-message'
+                  AND json_extract(e.payload_json, '$.takeoverResolution') IS NOT NULL
+                )
+              )`,
           )
           .get(id, botSlug);
       });

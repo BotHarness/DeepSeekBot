@@ -14,6 +14,7 @@ const indexes = [
   'source_events_attention_private',
   'source_events_attention_grant',
   'source_events_attention_rejection',
+  'source_events_attention_takeover',
 ];
 
 describe('Human attention candidate indexes', () => {
@@ -62,7 +63,7 @@ describe('Human attention candidate indexes', () => {
         mountOperationalDatabase({ dshHome, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
       );
       expect(upgraded.mode).toBe('ready');
-      expect(upgraded.generation).toBe(116);
+      expect(upgraded.generation).toBe(117);
       const current = attachOperationalModule(upgraded, 'attention-index-upgrade');
       const after = current.read((connection) =>
         createHash('sha256')

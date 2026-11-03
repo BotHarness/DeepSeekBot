@@ -145,6 +145,8 @@ import {
 import { ChannelSidebar, useChannelSidebar } from './channel-sidebar-view.js';
 import { ChannelDock, useChannelDockActive } from './channel-dock.js';
 import { dockPanelsFromEntries, type DockPanelChannel, type DockPanelHost } from './dock-panels.js';
+import { TAKEOVER_PANELS, TakeoverTimeline, takeoverResolutions } from './takeover-card.js';
+import type { TakeoverTarget } from '../../../core/src/takeover/contracts.js';
 import { MemoryCommitView } from './memory-commit-view.js';
 import { MemoryFileView, MemoryWorkingView } from './memory-current-view.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
@@ -1378,8 +1380,29 @@ function ConversationView({
   const timelineDrafts =
     conversation.timeline.hasNewer || !streamReplies ? undefined : conversation.drafts;
   const visibleMessages = useMemo(
-    () => visibleDmMessages(messages, hiddenActions),
+    () =>
+      visibleDmMessages(messages, hiddenActions).filter(
+        (message) => message.takeoverResolution === undefined,
+      ),
     [messages, hiddenActions],
+  );
+  const takeoverTimeline = useMemo(
+    () => ({
+      resolutions: takeoverResolutions(messages),
+      open: (target: TakeoverTarget, botSlug: string): boolean => {
+        const panel = TAKEOVER_PANELS[target];
+        if (dockPanels === undefined || !dockPanels.panels().some((entry) => entry.id === panel))
+          return false;
+        if (channel?.type !== 'dm' || channel.botSlug !== botSlug) {
+          void actions.openBot(botSlug).then(() => dockPanels.open(panel));
+          return true;
+        }
+        if (dockPanels.canOpen?.(panel) === false) return false;
+        dockPanels.open(panel);
+        return true;
+      },
+    }),
+    [messages, dockPanels, channel, actions],
   );
   const displayMessages = useMemo<readonly ChannelMessage[]>(() => {
     if (timelineDrafts === undefined || timelineDrafts.length === 0) return visibleMessages;
@@ -3175,39 +3198,43 @@ function ConversationView({
                       <OnboardingMemoryNavigation.Provider
                         value={timelineCallbacks.memoryNavigation}
                       >
-                        <MessageGroupView
-                          humanMembers={channel?.humanMembers ?? NO_HUMAN_MEMBERS}
-                          group={group}
-                          arrivals={arrivals}
-                          reading={reading}
-                          channelId={channelId}
-                          remoteBot={channel?.remoteBot}
-                          remoteContact={channel?.remoteContact}
-                          remoteAvailability={channel?.remoteAvailability}
-                          actions={actions}
-                          gallery={imageGallery.gallery}
-                          nativeChatT={nativeChatT}
-                          resolvedGrantRequests={timelineDecisions.resolvedGrantRequests}
-                          toolApprovalDecisions={timelineDecisions.toolApprovalDecisions}
-                          userQuestionResolutions={timelineDecisions.userQuestionResolutions}
-                          focusMessageId={conversation.focusMessageId}
-                          currentDmBotSlug={
-                            channel?.type === 'dm' && !botDm ? channel.botSlug : undefined
-                          }
-                          bots={state.bots}
-                          onContextMenu={timelineCallbacks.contextMenu}
-                          onAvatarMenu={
-                            channel?.type === 'group' ? timelineCallbacks.avatarMenu : undefined
-                          }
-                          onOpenInbox={timelineCallbacks.openInbox}
-                          onReply={readOnlyDm ? undefined : timelineCallbacks.reply}
-                          onReact={
-                            reactToMessage === undefined ? undefined : timelineCallbacks.react
-                          }
-                          onJumpReply={timelineCallbacks.jumpReply}
-                          onRestoreFailed={readOnlyDm ? undefined : timelineCallbacks.restoreFailed}
-                          t={t}
-                        />
+                        <TakeoverTimeline.Provider value={takeoverTimeline}>
+                          <MessageGroupView
+                            humanMembers={channel?.humanMembers ?? NO_HUMAN_MEMBERS}
+                            group={group}
+                            arrivals={arrivals}
+                            reading={reading}
+                            channelId={channelId}
+                            remoteBot={channel?.remoteBot}
+                            remoteContact={channel?.remoteContact}
+                            remoteAvailability={channel?.remoteAvailability}
+                            actions={actions}
+                            gallery={imageGallery.gallery}
+                            nativeChatT={nativeChatT}
+                            resolvedGrantRequests={timelineDecisions.resolvedGrantRequests}
+                            toolApprovalDecisions={timelineDecisions.toolApprovalDecisions}
+                            userQuestionResolutions={timelineDecisions.userQuestionResolutions}
+                            focusMessageId={conversation.focusMessageId}
+                            currentDmBotSlug={
+                              channel?.type === 'dm' && !botDm ? channel.botSlug : undefined
+                            }
+                            bots={state.bots}
+                            onContextMenu={timelineCallbacks.contextMenu}
+                            onAvatarMenu={
+                              channel?.type === 'group' ? timelineCallbacks.avatarMenu : undefined
+                            }
+                            onOpenInbox={timelineCallbacks.openInbox}
+                            onReply={readOnlyDm ? undefined : timelineCallbacks.reply}
+                            onReact={
+                              reactToMessage === undefined ? undefined : timelineCallbacks.react
+                            }
+                            onJumpReply={timelineCallbacks.jumpReply}
+                            onRestoreFailed={
+                              readOnlyDm ? undefined : timelineCallbacks.restoreFailed
+                            }
+                            t={t}
+                          />
+                        </TakeoverTimeline.Provider>
                       </OnboardingMemoryNavigation.Provider>
                     ) : (
                       <button

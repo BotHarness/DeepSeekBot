@@ -1,3 +1,7 @@
+import {
+  isTakeoverRequestCard,
+  isTakeoverResolution,
+} from '../../../core/src/takeover/contracts.js';
 import { parseFailureAutoContinue, parseFailureProgress } from '../shared/turn-continuation.js';
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
 import { clientLog } from './diagnostic-log.js';
@@ -1721,6 +1725,12 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       : { privateInputRequest: parsePrivateInputCard(record['privateInputRequest']) }),
     ...(userQuestionRequest === undefined ? {} : { userQuestionRequest }),
     ...(userQuestionResolution === undefined ? {} : { userQuestionResolution }),
+    ...(isTakeoverRequestCard(record['takeoverRequest']) && author.kind === 'bot'
+      ? { takeoverRequest: record['takeoverRequest'] }
+      : {}),
+    ...(isTakeoverResolution(record['takeoverResolution'])
+      ? { takeoverResolution: record['takeoverResolution'] }
+      : {}),
     ...(attachments === undefined ? {} : { attachments: attachments as ChannelAttachmentRef[] }),
     ...(Array.isArray(record['clearedAttachments']) &&
     record['clearedAttachments'].length <= 10 &&
@@ -4290,6 +4300,25 @@ export function privateInputAccepted(value: unknown): void {
   );
 }
 
+export async function settleTakeover(
+  call: BridgeCall,
+  channelId: string,
+  messageId: string,
+  outcome: 'done' | 'failed' | 'cancelled',
+): Promise<'done' | 'failed' | 'cancelled' | 'expired' | undefined> {
+  const value = await unwrap(
+    call,
+    outcome === 'cancelled' ? 'takeoverCancel' : 'takeoverComplete',
+    outcome === 'cancelled'
+      ? { channelId, messageId, surface: 'web' }
+      : { channelId, messageId, outcome, surface: 'web' },
+  );
+  const status = (value as { takeover?: { status?: unknown } } | undefined)?.takeover?.status;
+  return status === 'done' || status === 'failed' || status === 'cancelled' || status === 'expired'
+    ? status
+    : undefined;
+}
+
 export async function cancelPrivateInput(
   call: BridgeCall,
   channelId: string,
@@ -4643,6 +4672,7 @@ export function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
       item['kind'] !== 'pairing-request' &&
       item['kind'] !== 'user-question' &&
       item['kind'] !== 'private-input' &&
+      item['kind'] !== 'takeover-request' &&
       item['kind'] !== 'tool-approval' &&
       item['kind'] !== 'auto-rejection' &&
       item['kind'] !== 'workspace-grant-request' &&
@@ -4704,7 +4734,7 @@ export function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
         return undefined;
     }
     if (
-      item['kind'] === 'private-input' &&
+      (item['kind'] === 'private-input' || item['kind'] === 'takeover-request') &&
       (item['category'] !== 'action' ||
         typeof item['messageId'] !== 'string' ||
         typeof item['sourceEventId'] !== 'string')

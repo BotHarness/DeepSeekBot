@@ -194,13 +194,16 @@ function preferencesOf(json: string | undefined): PushPreferences {
   ) as PushPreferences;
 }
 
-const TITLES: Record<PushLocale, Record<PushKind | 'channel-mention', (bot: string) => string>> = {
+type PushCopyKey = PushKind | 'channel-mention' | 'takeover-request';
+
+const TITLES: Record<PushLocale, Record<PushCopyKey, (bot: string) => string>> = {
   en: {
     approval: (bot) => `${bot} needs your approval`,
     question: (bot) => `${bot} has a question for you`,
     'private-input': (bot) => `${bot} needs private input from you`,
     reply: (bot) => `${bot} replied to you`,
     'channel-mention': (bot) => `${bot} mentioned you`,
+    'takeover-request': (bot) => `${bot} needs you to take over`,
   },
   zh: {
     approval: (bot) => `${bot} 需要你审批`,
@@ -208,13 +211,11 @@ const TITLES: Record<PushLocale, Record<PushKind | 'channel-mention', (bot: stri
     'private-input': (bot) => `${bot} 需要你提供私密输入`,
     reply: (bot) => `${bot} 回复了你`,
     'channel-mention': (bot) => `${bot} 提到了你`,
+    'takeover-request': (bot) => `${bot} 需要你接管`,
   },
 };
 
-const LEADS: Record<
-  PushLocale,
-  Record<PushKind | 'channel-mention', (bot: string | undefined) => string>
-> = {
+const LEADS: Record<PushLocale, Record<PushCopyKey, (bot: string | undefined) => string>> = {
   en: {
     approval: (bot) => (bot === undefined ? 'Needs your approval' : `${bot} needs your approval`),
     question: (bot) =>
@@ -223,6 +224,8 @@ const LEADS: Record<
       bot === undefined ? 'Needs private input from you' : `${bot} needs private input from you`,
     reply: (bot) => bot ?? '',
     'channel-mention': (bot) => bot ?? '',
+    'takeover-request': (bot) =>
+      bot === undefined ? 'Needs you to take over' : `${bot} needs you to take over`,
   },
   zh: {
     approval: (bot) => (bot === undefined ? '需要你审批' : `${bot} 需要你审批`),
@@ -231,6 +234,7 @@ const LEADS: Record<
       bot === undefined ? '需要你提供私密输入' : `${bot} 需要你提供私密输入`,
     reply: (bot) => bot ?? '',
     'channel-mention': (bot) => bot ?? '',
+    'takeover-request': (bot) => (bot === undefined ? '需要你接管' : `${bot} 需要你接管`),
   },
 };
 
@@ -266,7 +270,10 @@ function text(
   bot: string,
   locale: PushLocale,
 ): { title: string; body: string; message: string } {
-  const key = candidate.attentionKind === 'channel-mention' ? 'channel-mention' : candidate.kind;
+  const key: PushCopyKey =
+    candidate.attentionKind === 'channel-mention' || candidate.attentionKind === 'takeover-request'
+      ? candidate.attentionKind
+      : candidate.kind;
   const compose = (lead: string): string =>
     candidate.preview === undefined
       ? lead

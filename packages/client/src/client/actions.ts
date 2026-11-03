@@ -191,6 +191,7 @@ import {
   loadPrivateInputStatus,
   submitPrivateInput,
   cancelPrivateInput,
+  settleTakeover,
   answerUserQuestion,
   type WorkspaceOption,
   type WorkspaceGrantView,
@@ -857,6 +858,11 @@ export interface BridgeActions {
     values: Record<string, string>,
   ): Promise<void>;
   privateInputCancel?(channelId: string, messageId: string): Promise<void>;
+  settleTakeover?(
+    channelId: string,
+    messageId: string,
+    outcome: 'done' | 'failed' | 'cancelled',
+  ): Promise<'done' | 'failed' | 'cancelled' | 'expired' | undefined>;
   privateAccountStatus?(
     channelId: string,
     messageId: string,
@@ -1947,6 +1953,8 @@ export function createActions(
     privateInputSubmit: (channelId, messageId, values) =>
       submitPrivateInput(call, channelId, messageId, values),
     privateInputCancel: (channelId, messageId) => cancelPrivateInput(call, channelId, messageId),
+    settleTakeover: (channelId, messageId, outcome) =>
+      settleTakeover(call, channelId, messageId, outcome),
     privateAccountStatus: async (channelId, messageId) => {
       const result = await call('privateAccountStatus', {
         channelId,

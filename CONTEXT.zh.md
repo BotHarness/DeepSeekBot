@@ -280,6 +280,10 @@ _避免使用_：driver、backend、computer provider
 Human 对一台 Computer 的排他控制：由某个 Bot Screen 发起，但始终作用于整台 Computer，暂停所有在其上行动的 PersonaBot 的动作与面向模型的截图。观看不授予控制权；释放控制权后 Bot 仍保持暂停，直到 Human 明确恢复。
 _避免使用_：handoff、screen sharing、per-bot takeover
 
+**Takeover Handoff**：
+PersonaBot 异步请求 Human 在它的 Computer 或 Bot Browser 上代做一步它自己不能做的操作，在对话中显示为一张卡片：标题、Bot 的一句话和“接管”按钮。Bot 发出请求后本轮结束；完成、无法完成、取消或过期都会经 Inbox 唤醒它，它先重新观察再行动。交接只负责打开画面：控制权仍来自 Takeover 或 Browser Takeover。
+_避免使用_：blocking takeover、login link、credential request
+
 **Computer Export**：
 一台 Computer 持久卷的可携带归档，由显式导出操作产生，可在另一台 Host 上恢复。它是 profile 级 facet，绝不是 PersonaBot export 的一部分。
 _避免使用_：PersonaBot export、backup file、disk image
@@ -331,7 +335,7 @@ Human 对某一个 PersonaBot 标签的暂停：停止该 PersonaBot 的浏览�
 _避免使用_：Computer Takeover、handoff、screen sharing、access gate
 
 **Browser Takeover**：接管
-Human 经 Viewer 明确接管某一个 PersonaBot 的浏览器画面：暂停该 Bot 的动作并开放 Human 输入；释放后恢复 Bot，除非还有未完成的接管链接。它比 Browser Pause 更窄（是控制，不只是叫停），也比 Computer Takeover 更窄（只是一个 Bot 的画面，永远不是整台机器）。
+Human 经 Viewer 明确接管某一个 PersonaBot 的浏览器画面：暂停该 Bot 的动作并开放 Human 输入；释放后恢复 Bot。它比 Browser Pause 更窄（是控制，不只是叫停），也比 Computer Takeover 更窄（只是一个 Bot 的画面，永远不是整台机器）。
 _避免使用_：Browser Pause、Computer Takeover、handoff、screen sharing
 
 **Browser Watch**：观看

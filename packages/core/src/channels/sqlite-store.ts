@@ -1153,45 +1153,59 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
               origin.sessionId,
               durable.author.slug,
             );
+          const takeoverRequester =
+            durable.takeoverResolution === undefined || durable.takeoverResolution.by === 'bot'
+              ? undefined
+              : previous.find((entry) => entry.id === durable.takeoverResolution?.requestMessageId)
+                  ?.author;
           const candidateRecipients =
             durable.privateInputResolution !== undefined
               ? []
-              : durable.author.kind === 'human'
-                ? channel.type === 'dm' && channel.botSlug !== undefined
-                  ? [{ botSlug: channel.botSlug, reason: 'human-dm' }]
-                  : [
-                      ...new Set([
-                        ...mentions.map((item) => item.botSlug),
-                        ...(channel.type === 'group' && grantRequester(durable, previous)
-                          ? [grantRequester(durable, previous)!]
-                          : []),
-                        ...(channel.type === 'group' &&
-                        durable.toolAutoApprovalOverride !== undefined &&
-                        channel.members.includes(durable.toolAutoApprovalOverride.botSlug)
-                          ? [durable.toolAutoApprovalOverride.botSlug]
-                          : []),
-                      ]),
-                    ].map((botSlug) => ({
-                      botSlug,
-                      reason: 'group-mention',
-                    }))
-                : channel.type === 'group' &&
-                    senderSlug !== undefined &&
-                    durable.botCausation !== undefined &&
-                    durable.botCausation.hop <= MAX_BOT_HOPS
-                  ? [...new Set(mentions.map((item) => item.botSlug))]
-                      .filter((targetSlug) => targetSlug !== senderSlug)
-                      .map((botSlug) => ({ botSlug, reason: 'group-mention' }))
-                  : botDm &&
-                      recipient !== undefined &&
+              : durable.takeoverResolution !== undefined
+                ? takeoverRequester?.kind === 'bot'
+                  ? [
+                      {
+                        botSlug: takeoverRequester.slug,
+                        reason: channel.type === 'dm' ? 'human-dm' : 'group-mention',
+                      },
+                    ]
+                  : []
+                : durable.author.kind === 'human'
+                  ? channel.type === 'dm' && channel.botSlug !== undefined
+                    ? [{ botSlug: channel.botSlug, reason: 'human-dm' }]
+                    : [
+                        ...new Set([
+                          ...mentions.map((item) => item.botSlug),
+                          ...(channel.type === 'group' && grantRequester(durable, previous)
+                            ? [grantRequester(durable, previous)!]
+                            : []),
+                          ...(channel.type === 'group' &&
+                          durable.toolAutoApprovalOverride !== undefined &&
+                          channel.members.includes(durable.toolAutoApprovalOverride.botSlug)
+                            ? [durable.toolAutoApprovalOverride.botSlug]
+                            : []),
+                        ]),
+                      ].map((botSlug) => ({
+                        botSlug,
+                        reason: 'group-mention',
+                      }))
+                  : channel.type === 'group' &&
+                      senderSlug !== undefined &&
                       durable.botCausation !== undefined &&
                       durable.botCausation.hop <= MAX_BOT_HOPS
-                    ? [{ botSlug: recipient, reason: 'bot-dm' }]
-                    : [];
+                    ? [...new Set(mentions.map((item) => item.botSlug))]
+                        .filter((targetSlug) => targetSlug !== senderSlug)
+                        .map((botSlug) => ({ botSlug, reason: 'group-mention' }))
+                    : botDm &&
+                        recipient !== undefined &&
+                        durable.botCausation !== undefined &&
+                        durable.botCausation.hop <= MAX_BOT_HOPS
+                      ? [{ botSlug: recipient, reason: 'bot-dm' }]
+                      : [];
           const recipients = candidateRecipients.filter((item) => isBotActive(item.botSlug));
           const immediate = new Set(recipients.map((item) => item.botSlug));
           const ordinaryAllowed =
-            durable.author.kind === 'human' ||
+            (durable.author.kind === 'human' && durable.takeoverResolution === undefined) ||
             (senderSlug !== undefined &&
               durable.botCausation !== undefined &&
               durable.botCausation.hop <= MAX_BOT_HOPS);

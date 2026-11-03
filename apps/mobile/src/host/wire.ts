@@ -82,6 +82,8 @@ export interface ChannelWireMessage extends WireMessage {
   toolApprovalRequest?: unknown;
   userQuestionRequest?: unknown;
   privateInputRequest?: unknown;
+  takeoverRequest?: unknown;
+  takeoverResolution?: unknown;
   sessionFailure?: unknown;
   grantRequest?: true;
   grantRequestResolved?: boolean;

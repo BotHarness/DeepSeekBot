@@ -377,7 +377,6 @@ describe('per-PersonaBot registration, authorization, and tabs', () => {
       'browser_screenshot',
       'browser_scroll',
       'browser_tabs',
-      'browser_takeover',
       'browser_type',
       'browser_upload',
       'browser_wait',
@@ -1055,39 +1054,10 @@ describe('per-PersonaBot registration, authorization, and tabs', () => {
     ).rejects.toThrow(/ref from browser_observe or x\/y/);
   });
 
-  it('runs a takeover handoff: request pauses, await verifies state and resumes', async () => {
+  it('no longer offers the blocking browser_takeover tool', () => {
     const h = harness({ access: true, auto: true });
     h.created();
-    const call = (name: string, args: Record<string, unknown>) =>
-      h.state.definitions.get(name)!.execute(args, execution(name)) as Promise<{
-        content: { text?: string }[];
-      }>;
-    await call('browser_open', { url: 'https://example.com' });
-    const requested = await call('browser_takeover', {
-      action: 'request',
-      instructions: 'Log in to Example',
-    });
-    const text = requested.content.map((part) => part.text ?? '').join('\n');
-    expect(text).toContain('Takeover link (single-use');
-    expect(text).toContain('Post this guiding message to the Human now:');
-    expect(h.provider.isTakeover('bot-a')).toBe(true);
-    expect(h.audits.at(-1)?.summary).toContain('chars=');
-    expect(JSON.stringify(h.audits)).not.toContain('Log in to Example');
-    const token = /takeover=([0-9a-f]+)/u.exec(text)?.[1] ?? '';
-    expect(token).not.toBe('');
-    h.takeovers.accept(token);
-    h.takeovers.complete(token, 'done');
-    const waited = await call('browser_takeover', { action: 'await', token });
-    const doneText = waited.content.map((part) => part.text ?? '').join('\n');
-    expect(doneText).toContain('Human finished (done)');
-    expect(doneText).toContain('https://example.com/');
-    expect(doneText).toContain('Call browser_observe before acting.');
-    expect(h.provider.isTakeover('bot-a')).toBe(false);
-    const status = await call('browser_takeover', { action: 'status', token });
-    expect(status.content.map((part) => part.text ?? '').join()).toContain('completed');
-    await expect(call('browser_takeover', { action: 'await', token: 'nope' })).rejects.toThrow(
-      /Unknown takeover token/,
-    );
+    expect(h.state.definitions.has('browser_takeover')).toBe(false);
   });
 
   it('keeps the current tab on recoverable errors and drops it on dead targets', async () => {

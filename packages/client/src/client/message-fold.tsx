@@ -55,6 +55,7 @@ export function foldableMessage(message: ChannelMessage): boolean {
     message.sessionFailure === undefined &&
     message.toolApprovalRequest === undefined &&
     message.privateInputRequest === undefined &&
+    message.takeoverRequest === undefined &&
     message.userQuestionRequest === undefined &&
     message.grantRequest !== true
   );

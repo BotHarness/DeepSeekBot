@@ -21,7 +21,7 @@ import type {
 
 export type DeliveryState = 'pending' | 'committed' | 'failed';
 
-export type CardKind = 'tool-approval' | 'user-question' | 'private-input' | 'grant';
+export type CardKind = 'tool-approval' | 'user-question' | 'private-input' | 'grant' | 'takeover';
 
 export interface MessageCard {
   kind: CardKind;
@@ -29,13 +29,15 @@ export interface MessageCard {
   subject?: string;
   command?: string;
   resolved?: true;
+  takeover?: { target: 'computer' | 'browser'; title: string; expiresAt: string };
 }
 
 export type CardResolution =
   | { kind: 'tool-approval'; outcome: ToolApprovalOutcome }
   | { kind: 'user-question'; state: 'answered' | 'cancelled' }
   | { kind: 'grant' }
-  | { kind: 'private-input' };
+  | { kind: 'private-input' }
+  | { kind: 'takeover'; outcome: 'done' | 'failed' | 'cancelled' | 'expired' };
 
 export interface MessageAttachment {
   key: string;
@@ -111,6 +113,7 @@ export function shownInChat(message: ConversationMessage): boolean {
     resolution?.kind === 'tool-approval' ||
     resolution?.kind === 'grant' ||
     resolution?.kind === 'private-input' ||
+    resolution?.kind === 'takeover' ||
     (resolution?.kind === 'user-question' && resolution.state === 'cancelled')
   )
     return false;
@@ -321,6 +324,18 @@ function cardOf(channelId: string, message: ChannelWireMessage): MessageCard | u
     const subject = text(field(message.privateInputRequest, 'purpose'));
     return { kind: 'private-input', channelId, ...(subject === undefined ? {} : { subject }) };
   }
+  if (message.takeoverRequest !== undefined && message.author.kind === 'bot') {
+    const target = field(message.takeoverRequest, 'target');
+    const title = text(field(message.takeoverRequest, 'title'));
+    const expiresAt = text(field(message.takeoverRequest, 'expiresAt'));
+    if ((target === 'computer' || target === 'browser') && title !== undefined && expiresAt)
+      return {
+        kind: 'takeover',
+        channelId,
+        subject: message.body,
+        takeover: { target, title, expiresAt },
+      };
+  }
   if (message.grantRequest === true)
     return {
       kind: 'grant',
@@ -354,6 +369,13 @@ function resolvesOf(message: ChannelWireMessage): ConversationMessage['resolves'
     return { requestId: answered, resolution: { kind: 'user-question', state } };
   const granted = text(field(message.grantRequestResolution, 'requestMessageId'));
   if (granted !== undefined) return { requestId: granted, resolution: { kind: 'grant' } };
+  const handed = text(field(message.takeoverResolution, 'requestMessageId'));
+  const ended = field(message.takeoverResolution, 'outcome');
+  if (
+    handed !== undefined &&
+    (ended === 'done' || ended === 'failed' || ended === 'cancelled' || ended === 'expired')
+  )
+    return { requestId: handed, resolution: { kind: 'takeover', outcome: ended } };
   const provided = text(field(message.privateInputResolution, 'requestMessageId'));
   if (provided !== undefined) return { requestId: provided, resolution: { kind: 'private-input' } };
   return undefined;
