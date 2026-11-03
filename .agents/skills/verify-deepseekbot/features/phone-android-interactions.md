@@ -1,5 +1,9 @@
 # Android launch, sheets, shell and chat presentation
 
+## Image pinch worklet regression (#3337)
+
+Run `pnpm exec vitest run apps/mobile/test/zoom-math.test.ts` to execute the installed Expo Babel development and production worklet output in an isolated runtime, including default pinch bounds, explicit canvas limits, double-tap and settling. In the assigned Android QA batch, open the same JPEG and record single tap, double tap, two-finger zoom in/out, release, pan and close before/after. Preserve the native error stack, app PID, build SHA and device/OS identity; distinguish a visible runtime error from process death. The pinch must change scale without `MAX_SCALE` errors and settle to the existing bounds. Repeat on a second image and after reopening. The Node runtime proves transformed closure behavior, not physical multitouch or native rendering.
+
 The Android development app uses native form sheets for Bot and group profiles, Android nested scrolling for their lists, and keyboard-frame animation for the chat composer. iOS keeps its existing form-sheet grabber and dedicated chat frame; forms on both platforms use the shared keyboard controller.
 
 ## Sub-features
