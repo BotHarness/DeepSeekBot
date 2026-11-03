@@ -14,6 +14,7 @@ const TOPICS = new Set([
   'bot-registry',
   'roster',
   'content-purge',
+  'pairing',
 ]);
 
 export function watchHumanAttention(

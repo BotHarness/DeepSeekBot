@@ -268,6 +268,20 @@ _本节图片为旧版 Profile 布局；现在配对从右侧侧栏的「外部�
 
 [查看深色恢复截图](/guides/lark/pairing/integrated-recovered-dark.jpg)。
 
+## 新的 Lark 用户上手：从第一次私聊到受限执行
+
+这是一个从未和 Bot 对话过的人的完整、已验证路径。
+
+1. **限制陌生发送者。** 在 Bot 私聊中打开「频道侧栏 → 外部身份 → IM 配对」，新建角色（例如「Tester」），并开启受限发送者。CLI：`deepseekbot sender-access <bot-id> --input-stdin`，分别传入 `{"kind":"create-role",…}` 和 `{"kind":"policy","restricted":true,…}`。
+2. **对方发出第一条私聊。** 该消息不会执行；Lark 会回复申请编号和 10 分钟有效期。
+3. **在 Activity Center 批准。** 申请会出现在「需要你」中，标题为「BearDoodle asks to chat with Lark Helper」（中文界面为「BearDoodle 申请与 Lark Helper 对话」）。选择角色后点「同意」，或「拒绝」。`/pair` 管理申请同样会出现在这里，只是改为勾选能力。CLI：`deepseekbot inbox --category action`，然后 `deepseekbot pairing-review <bot-id> <pairing-id> --decision approve --role <role-id> --confirm`。
+4. **只限制这个人。** 先创建行为权限（例如「运行命令」和「分享记忆文件」），再建一个只包含此人的权限组：允许前者、禁止后者。禁止优先于任何角色或其它权限组。
+5. **对方重新提问。** Lark 会告知配对已批准，之前的消息不会执行；之后的提问在私聊中得到回答。
+6. **执行仍需你批准。** 需要更高权限的命令会在 Activity Center（以及已配置的管理私聊）出现审批；点「允许一次」后，结果回到对方私聊。
+7. **被禁止的行为会被拒绝。** 请求被禁止的内容时，Bot 会拒绝并说明对应规则。
+
+行为权限是 Bot 通过发送者权限工具读取的指令，不是沙箱；审批工具等能力由 Host 强制执行。目前针对单个人的行为限制通过“只含一人的权限组”实现。
+
 ## 常见问题
 
 | 现象                          | 优先检查                                                                                                                          |

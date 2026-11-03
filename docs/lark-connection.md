@@ -268,6 +268,20 @@ These additional captures use the integrated source preview in a fresh isolated 
 
 [Dark recovery capture](/guides/lark/pairing/integrated-recovered-dark.jpg).
 
+## Onboard a new Lark user: from first DM to limited execution
+
+This is the verified end-to-end path for a person who has never talked to the Bot.
+
+1. **Restrict unknown senders.** In the Bot DM, open **Channel sidebar → External identities → IM pairing**, create a Role such as _Tester_, and turn on restricted senders. CLI: `deepseekbot sender-access <bot-id> --input-stdin` with `{"kind":"create-role",…}` and `{"kind":"policy","restricted":true,…}`.
+2. **The person sends a first DM.** It does not run. Lark replies with a request reference and a 10-minute expiry.
+3. **Approve in Activity Center.** The request appears under **Needs you** as “BearDoodle asks to chat with Lark Helper”. Pick a Role and choose **Accept**, or **Decline**. A `/pair` management request appears the same way, with capability checkboxes instead of a Role. CLI: `deepseekbot inbox --category action`, then `deepseekbot pairing-review <bot-id> <pairing-id> --decision approve --role <role-id> --confirm`.
+4. **Limit this one person.** Create behavior permissions (for example _Run commands_ and _Share memory files_), then a permission group whose only member is this person, allowing the first and denying the second. Deny wins over any Role or other group.
+5. **The person asks again.** Lark tells them the pairing was approved; earlier messages never run. Questions are answered in the DM.
+6. **Execution still needs you.** A command that asks for wider access shows an approval in Activity Center (and in a management DM, if one is configured). After **Allow once**, the result goes back to the person's DM.
+7. **Denied behavior is refused.** Asking for something the group denies gets a refusal that names the rule.
+
+Behavior permissions are instructions the Bot reads through its sender-permission tool; they are not a sandbox. Capabilities such as approving tools are enforced by the Host. Per-person behavior limits currently use a one-person group.
+
 ## Troubleshooting
 
 | Symptom                                              | Check first                                                                                                                                                                                      |

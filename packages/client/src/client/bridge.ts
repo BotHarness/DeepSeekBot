@@ -4629,6 +4629,7 @@ export function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
       return undefined;
     if (
       item['kind'] !== 'group-join-request' &&
+      item['kind'] !== 'pairing-request' &&
       item['kind'] !== 'user-question' &&
       item['kind'] !== 'private-input' &&
       item['kind'] !== 'tool-approval' &&
@@ -4668,6 +4669,8 @@ export function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
     )
       return undefined;
     if (item['requestId'] !== undefined && typeof item['requestId'] !== 'string') return undefined;
+    if (item['kind'] === 'pairing-request' && typeof item['requestId'] !== 'string')
+      return undefined;
     if (item['messageId'] !== undefined && typeof item['messageId'] !== 'string') return undefined;
     if (item['snoozedUntil'] !== undefined && typeof item['snoozedUntil'] !== 'string')
       return undefined;
