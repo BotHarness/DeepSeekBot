@@ -188,3 +188,28 @@ describe('browser profiles', () => {
     expect(runtimes.installProgress('a')).toBeUndefined();
   });
 });
+
+describe('launch mode on the Local Computer desktop (#3378)', () => {
+  it('passes the headless decision through unevaluated so each launch reads the current target', () => {
+    let desktop = false;
+    const decide = vi.fn(() => !desktop);
+    const created: BotBrowserRuntimeOptions[] = [];
+    const runtimes = createBotBrowserRuntimes({
+      browserDir,
+      installDir,
+      headless: decide,
+      profileOf: () => '',
+      create: (options) => {
+        created.push(options);
+        return fakeRuntime();
+      },
+    });
+    runtimes.for('bot-a');
+    expect(decide).not.toHaveBeenCalled();
+    const headless = created[0]?.headless;
+    expect(typeof headless).toBe('function');
+    expect((headless as () => boolean)()).toBe(true);
+    desktop = true;
+    expect((headless as () => boolean)()).toBe(false);
+  });
+});

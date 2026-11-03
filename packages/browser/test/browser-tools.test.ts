@@ -148,6 +148,8 @@ function harness(options: {
   profile?: Parameters<typeof createBrowserToolProvider>[0]['profile'];
   borrowed?: Parameters<typeof createBrowserToolProvider>[0]['borrowed'];
   takeover?: Parameters<typeof createBrowserToolProvider>[0]['takeover'];
+  desktopControl?: Parameters<typeof createBrowserToolProvider>[0]['desktopControl'];
+  note?: (detail: string) => void;
 }): Harness {
   const { scope, state } = fakeScope();
   const runtime = fakeRuntime();
@@ -184,6 +186,8 @@ function harness(options: {
     ...(options.borrowed === undefined ? {} : { borrowed: options.borrowed }),
     takeover: options.takeover ?? (() => takeovers),
     takeoverUrlFor: () => '/botharness-browser/viewer/local/?slug=bot-a',
+    ...(options.desktopControl === undefined ? {} : { desktopControl: options.desktopControl }),
+    ...(options.note === undefined ? {} : { note: options.note }),
     audit: (event) => audits.push(event),
     core: () => ({
       registry: {
@@ -396,6 +400,43 @@ describe('per-PersonaBot registration, authorization, and tabs', () => {
     expect(h.runtime.open).not.toHaveBeenCalled();
     h.provider.markAuthorized('session-a');
     expect(h.provider.needsAuthorization('session-a')).toBe(false);
+  });
+
+  it('follows the Local Computer control owner: refuses while held, re-observes after hand-back (#3378)', async () => {
+    const desktop = { held: false, epoch: 0 };
+    const notes: string[] = [];
+    const h = harness({
+      access: true,
+      auto: true,
+      desktopControl: () => desktop,
+      note: (detail) => notes.push(detail),
+    });
+    await h.provider.runDirect('bot-a', 'browser_open', { url: 'https://example.com' });
+    await h.provider.runDirect('bot-a', 'observe', {});
+    await h.provider.runDirect('bot-a', 'click', { ref: 'e1' });
+    expect(h.runtime.click).toHaveBeenCalledTimes(1);
+
+    desktop.held = true;
+    desktop.epoch = 1;
+    for (const [tool, args] of [
+      ['click', { ref: 'e1' }],
+      ['observe', {}],
+      ['browser_open', { url: 'https://example.com' }],
+    ] as const)
+      await expect(h.provider.runDirect('bot-a', tool, args)).rejects.toThrow(
+        'The Human holds the Computer',
+      );
+    expect(notes).toContain('phase=control-refused owner=computer-pause slug=bot-a tool=click');
+
+    desktop.held = false;
+    desktop.epoch = 2;
+    await expect(h.provider.runDirect('bot-a', 'click', { ref: 'e1' })).rejects.toThrow(
+      'The Human used the Computer since your last browser_observe',
+    );
+    expect(h.runtime.click).toHaveBeenCalledTimes(1);
+    await h.provider.runDirect('bot-a', 'observe', {});
+    await h.provider.runDirect('bot-a', 'click', { ref: 'e1' });
+    expect(h.runtime.click).toHaveBeenCalledTimes(2);
   });
 
   it('runs the same tools directly for the Owner without a Session, model or approval card', async () => {
