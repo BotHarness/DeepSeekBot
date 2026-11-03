@@ -16,7 +16,9 @@ export function bubbleCorners(
   human: boolean,
   { first, last, avatar = false, compact = false }: BubbleGroup,
 ) {
-  const open = compact ? radius.round : radius.lg;
+  // Only a lone single-line bubble becomes a pill. Inside a group, a
+  // single-line bubble keeps the multi-line radius so the stack reads as one shape.
+  const open = compact && first && last ? radius.round : radius.lg;
   return {
     borderRadius: open,
     ...(human

@@ -41,15 +41,42 @@ describe('bubbleShape', () => {
     });
   });
 
-  it('turns a single-line bubble into a full pill but keeps joined corners tight', () => {
-    expect(bubbleShape(true, { first: true, last: false, compact: true })).toMatchObject({
+  it('turns a lone single-line bubble into a full pill', () => {
+    expect(bubbleShape(true, { first: true, last: true, compact: true })).toMatchObject({
       borderRadius: radius.round,
       borderTopRightRadius: radius.round,
-      borderBottomRightRadius: radius.sm,
+      borderBottomRightRadius: radius.round,
+    });
+    expect(
+      bubbleShape(false, { first: true, last: true, avatar: true, compact: true }),
+    ).toMatchObject({
+      borderTopLeftRadius: radius.round,
+      borderBottomLeftRadius: AVATAR_CORNER,
     });
     expect(singleLine(42, 22, 1)).toBe(true);
     expect(singleLine(64, 22, 1)).toBe(false);
     expect(singleLine(64, 22, 1.5)).toBe(true);
+  });
+
+  it('gives grouped single-line bubbles the multi-line corners', () => {
+    expect(bubbleShape(true, { first: true, last: false, compact: true })).toMatchObject(
+      bubbleShape(true, { first: true, last: false }),
+    );
+    expect(bubbleShape(true, { first: true, last: false, compact: true })).toMatchObject({
+      borderRadius: radius.lg,
+      borderTopRightRadius: radius.lg,
+      borderBottomRightRadius: radius.sm,
+    });
+    expect(bubbleShape(false, { first: false, last: false, compact: true })).toMatchObject({
+      borderRadius: radius.lg,
+      borderTopLeftRadius: radius.sm,
+      borderBottomLeftRadius: radius.sm,
+    });
+    expect(bubbleShape(false, { first: false, last: true, compact: true })).toMatchObject({
+      borderRadius: radius.lg,
+      borderTopLeftRadius: radius.sm,
+      borderBottomLeftRadius: radius.lg,
+    });
   });
 
   it('uses the tighter gap inside a group', () => {

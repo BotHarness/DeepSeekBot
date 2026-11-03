@@ -214,6 +214,7 @@ import {
   restoreTimelineScroll,
   timelineScrollAnchor,
 } from './timeline-position.js';
+import { observeSingleLineBubble } from './bubble-line.js';
 import { TimelineUnreadDivider } from './timeline-unread-divider.js';
 import { AutoCollapseMessages, foldableMessage, MessageFold } from './message-fold.js';
 import {
@@ -441,12 +442,13 @@ export function MessageBubbleWrap({
       timer.current = undefined;
     }
   }, []);
-  const mount = useMountedResource<HTMLDivElement>(
-    () => () => {
+  const mount = useMountedResource<HTMLDivElement>((node) => {
+    const unobserve = observeSingleLineBubble(node);
+    return () => {
+      unobserve?.();
       if (timer.current !== undefined) clearTimeout(timer.current);
-    },
-    [],
-  );
+    };
+  }, []);
   const cancel = (): void => {
     clearTimer();
     origin.current = undefined;
