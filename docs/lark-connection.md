@@ -507,3 +507,7 @@ Preparation acquires up to 25 MiB under current source authorization. Playback t
 This is a draft video tracer. Native intake, decoded playback, installed-product E2E, matched-theme captures and Human feedback remain pending in [the verification checkpoint](dev/verification/lark-1023-channel-video.md). Audio, direct media messages, runtime transcoding, generated covers and model transcription are not delivered by this slice. The mobile app currently offers the original as a file action.
 
 Opening the Bot Inbox's source details does not fetch this video or its cover. That inspector retains explicit original-download actions; prepare playback from the Channel bubble.
+
+## Referenced voice message in Channel history
+
+A Lark voice message quoted by a text request that really mentions the Bot appears in the Channel bubble as an audio card with **Prepare playback** and an original download. Preparing fetches the voice (up to 1 MiB) under the same source authorization and converts its Opus audio to WAV on the Host; playback then starts only when you press play. Lark gives no transcript, so the bubble marks it as unavailable; a known length shows as the platform duration. Formats other than Ogg Opus are refused with the original still downloadable. Stop, unbind and revocation follow the file rules above. The Bot Inbox's source details also prepare audio only on an explicit action.
