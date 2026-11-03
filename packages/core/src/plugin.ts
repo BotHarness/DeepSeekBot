@@ -3028,6 +3028,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const tobVoiceOperations = createTobVoiceOperations({
     providers: () => core.voiceProviders,
     registry: core.registry,
+    isProtectedBot: (slug) => core.tob.isTob(slug),
   });
   registerBridge(ctx, bridgeMethods, privateInputs, {
     followRoster: (signal) => core.live.followRoster(signal),

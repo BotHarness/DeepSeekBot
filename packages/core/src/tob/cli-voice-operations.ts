@@ -60,6 +60,7 @@ function unwrap<T>(result: BridgeResult<T>): T {
 export function createTobVoiceOperations(deps: {
   providers: () => VoiceProviders | undefined;
   registry: PersonaBotRegistry;
+  isProtectedBot(slug: string): boolean;
 }) {
   const bridge = () =>
     createVoiceBridgeMethods({ providers: deps.providers(), registry: deps.registry });
@@ -71,7 +72,16 @@ export function createTobVoiceOperations(deps: {
   const voiceOf = (slug: string) => {
     const bot = deps.registry.get(slug);
     if (bot === undefined) throw new TobError('unknown-bot');
+    if (deps.isProtectedBot(slug)) throw new TobError('protected-bot');
     return bot.voice ?? null;
+  };
+  const guardUsers = (providerId: string) => {
+    if (
+      deps.registry
+        .list()
+        .some((bot) => bot.voice?.providerId === providerId && deps.isProtectedBot(bot.slug))
+    )
+      throw new TobError('protected-bot');
   };
   const same = (actual: unknown, expected: unknown) => {
     if (!isDeepStrictEqual(actual, expected)) throw new TobError('stale-setting');
@@ -143,12 +153,14 @@ export function createTobVoiceOperations(deps: {
       keys(args, ['id']);
       const id = text(args['id'], 64);
       if (!providers().has(id)) throw new TobError('unknown-provider');
+      guardUsers(id);
       const current = providers().get(id);
       return {
         proposal: proposal(command, id, current, { remove: true }),
         run: async (guard, beforeEffect) => {
           guard();
           same(providers().has(id) ? providers().get(id) : null, current);
+          guardUsers(id);
           beforeEffect?.();
           return unwrap(await bridge().voiceProviderRemove({ id }));
         },

@@ -180,7 +180,11 @@ describe('unreachable custom provider on this computer', () => {
 describe('Tob voice operations', () => {
   it('lists, adds a keyless provider with a proposal, and binds a Bot voice', async () => {
     const { providers, registry } = await fixture();
-    const prepare = createTobVoiceOperations({ providers: () => providers, registry });
+    const prepare = createTobVoiceOperations({
+      providers: () => providers,
+      registry,
+      isProtectedBot: (slug) => slug === 'tob',
+    });
     expect(TOB_VOICE_CAPABILITIES.map((entry) => entry.command)).toEqual([
       'voice-providers',
       'voice-provider-add',
@@ -232,7 +236,11 @@ describe('Tob voice operations', () => {
 
   it('never takes a key, and refuses keyed presets, unknown ids and stale bindings', async () => {
     const { providers, registry } = await fixture();
-    const prepare = createTobVoiceOperations({ providers: () => providers, registry });
+    const prepare = createTobVoiceOperations({
+      providers: () => providers,
+      registry,
+      isProtectedBot: (slug) => slug === 'tob',
+    });
     const code = async (run: () => unknown) => {
       try {
         await run();
@@ -274,6 +282,17 @@ describe('Tob voice operations', () => {
       ),
     ).toBe('stale-setting');
     expect(removed).toBe(0);
+    expect(registry.create({ slug: 'tob', displayName: 'Tob' }).ok).toBe(true);
+    expect(await code(() => prepare('voice-set', { slug: 'tob', providerId: null }))).toBe(
+      'protected-bot',
+    );
+    const { provider: kept } = (await (await prepare('voice-provider-add', {
+      preset: 'local',
+    }))!.run(() => undefined)) as { provider: { id: string } };
+    registry.setVoice('tob', { providerId: kept.id, voiceId: 'zf_001' });
+    expect(await code(() => prepare('voice-provider-remove', { id: kept.id }))).toBe(
+      'protected-bot',
+    );
     expect(await prepare('model-catalog', {})).toBeUndefined();
   });
 });
