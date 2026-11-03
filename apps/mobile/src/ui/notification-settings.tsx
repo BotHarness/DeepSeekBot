@@ -140,7 +140,14 @@ export function NotificationSettings({
         ) : null}
         {status.status === 'unavailable' ? (
           <SettingsSection on="raised">
-            <SettingsRow on="raised" title={t.cloudPushUnavailable} />
+            <SettingsRow
+              on="raised"
+              title={
+                status.reason === 'missing-project-id'
+                  ? t.cloudPushUnavailable
+                  : t.notificationsRegistrationFailed
+              }
+            />
           </SettingsSection>
         ) : null}
         {hostFailed ? (

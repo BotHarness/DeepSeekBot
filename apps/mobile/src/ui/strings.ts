@@ -1503,6 +1503,8 @@ const en = {
   notificationsOff: 'Notifications are off for this phone.',
   notificationsDenied: `Notifications are turned off for ${productName.en} in the phone settings.`,
   notificationsUnavailable: 'This build of the app cannot receive notifications.',
+  notificationsRegistrationFailed:
+    'Could not register for notifications. Check your connection and restart the app.',
   notificationsHostFailed: (host: string) => `${host} could not be told about this phone yet.`,
   notificationsChecking: 'Checking notifications…',
   turnOnNotifications: 'Turn on notifications',
@@ -3532,6 +3534,7 @@ const zh: typeof en = {
   notificationsOff: '这台手机的通知已关闭。',
   notificationsDenied: `手机设置里关闭了 ${productName.zh} 的通知。`,
   notificationsUnavailable: '这个版本的应用无法接收通知。',
+  notificationsRegistrationFailed: '通知注册未成功，检查网络后重启应用。',
   notificationsHostFailed: (host: string) => `还没能把这台手机告诉 ${host}。`,
   notificationsChecking: '正在检查通知…',
   turnOnNotifications: '开启通知',
