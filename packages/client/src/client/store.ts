@@ -244,7 +244,13 @@ export interface ChannelMessage {
     files: Array<{ path: string; added: number | null; deleted: number | null }>;
     moreFiles: number;
   };
-  turnStop?: { botName: string; humanName: string };
+  turnStop?: {
+    botName: string;
+    humanName: string;
+    held?: boolean;
+    cause?: 'human-stop' | 'failures';
+    failures?: number;
+  };
   toolAutoApproval?: import('../../../core/src/channels/channel.js').ChannelToolAutoApproval;
   toolAutoApprovalPause?: import('../../../core/src/channels/channel.js').ChannelToolAutoApprovalPause;
   memberDeparture?: {
