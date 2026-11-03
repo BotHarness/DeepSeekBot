@@ -45,7 +45,8 @@ Measured on a 4-core x86 machine: download ~20 s on a fast link, unpacking
 ~100 s, start ~7 s, about 0.9 GB memory while running. Kokoro makes 1 s of
 speech in ~0.55 s of CPU time with 2 threads; SenseVoice hears 3 s of audio in
 ~0.25 s. Apple Silicon is faster. Any 64-bit Mac (macOS 11+) or Windows 10/11
-x64 or ARM64 PC works; no GPU, Docker or account is needed.
+x64 or ARM64 PC works; Linux follows the macOS steps. No GPU, Docker or account
+is needed.
 
 Every shell command below goes through the normal approval. Do not batch the
 install into one opaque command: run each step so the Human can see it.
