@@ -690,6 +690,7 @@ describe('plugin entry', () => {
       'humanAttentionIgnore',
       'humanAttentionDismiss',
       'humanAttentionRestore',
+      'humanAttentionDismissAll',
       'humanAttentionSnooze',
       'assignments',
       'channelAssignments',

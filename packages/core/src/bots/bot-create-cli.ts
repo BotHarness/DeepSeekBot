@@ -316,6 +316,8 @@ Usage:
   tobs inbox-status
   tobs inbox-dismiss <item-id> [--source-key <source-event-id>]
   tobs inbox-restore <item-id> [--source-key <source-event-id>]
+  tobs inbox-dismiss-all --confirm [--kind <kind>] [--category action|info|unread|replies]
+                    [--bot <id>] [--channel <id>]
   tobs inbox-allow-once <autoreject:item-id>
   tobs inbox-snooze <item-id> [--source-key <source-event-id>] (--until <ISO time> | --clear)
   tobs inbox-ignore <source-event-id>

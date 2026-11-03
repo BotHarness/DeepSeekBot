@@ -32,7 +32,11 @@ export {
 } from './bot-name-color.js';
 
 export const CHART_CONTRAST = 3;
-export const CHART_TONE_LEVELS = { cached: 1, uncached: 0.62, output: 0.36 } as const;
+export const CHART_TONE_LEVELS = {
+  cached: 1,
+  uncached: 0.62,
+  output: 0.36,
+} as const;
 export type ChartTone = keyof typeof CHART_TONE_LEVELS;
 
 export function botChartColor(source: string, background: string): string {
@@ -86,18 +90,36 @@ function blend(top: Rgb, alpha: number, bottom: Rgb): Rgb {
   ];
 }
 
+type Layer = { rgb: Rgb; alpha: number };
+
+let surfaceEpoch = 0;
+let ownLayers = new WeakMap<Element, Layer | undefined>();
+
+export function invalidateBotSurfaces(): void {
+  surfaceEpoch += 1;
+  ownLayers = new WeakMap();
+}
+
+function ownLayer(node: Element): Layer | undefined {
+  if (ownLayers.has(node)) return ownLayers.get(node);
+  const color = parseColor(getComputedStyle(node).backgroundColor);
+  const layer = color === undefined || color.alpha === 0 ? undefined : color;
+  if (node.isConnected) ownLayers.set(node, layer);
+  return layer;
+}
+
 export function renderedBackground(element: Element): string | undefined {
   if (typeof getComputedStyle !== 'function') return undefined;
-  const layers: Array<{ rgb: Rgb; alpha: number }> = [];
+  const layers: Layer[] = [];
   for (let node: Element | null = element; node !== null; node = node.parentElement) {
-    const color = parseColor(getComputedStyle(node).backgroundColor);
-    if (color === undefined || color.alpha === 0) continue;
-    layers.push(color);
-    if (color.alpha === 1) {
+    const layer = ownLayer(node);
+    if (layer === undefined) continue;
+    layers.push(layer);
+    if (layer.alpha === 1) {
       return toHex(
         layers.reduceRight<Rgb>(
-          (below, layer) => blend(layer.rgb, layer.alpha, below),
-          layers[layers.length - 1]!.rgb,
+          (below, current) => blend(current.rgb, current.alpha, below),
+          layer.rgb,
         ),
       );
     }
@@ -105,7 +127,6 @@ export function renderedBackground(element: Element): string | undefined {
   return undefined;
 }
 
-let observer: MutationObserver | undefined;
 const listeners = new Set<() => void>();
 
 function notifySurfaces(): void {
@@ -122,22 +143,76 @@ function scheduleSurfaceNotification(): void {
   });
 }
 
+const THEME_ROOT_ATTRIBUTES = new Set(['class', 'style']);
+const THEME_BODY_ATTRIBUTES = new Set(['data-ds-dark-theme']);
+const SCOPE_ATTRIBUTES = ['data-workspace-enabled', 'data-wallpaper-active'];
+
+function isStylesheet(node: Node): boolean {
+  return node.nodeName === 'STYLE' || node.nodeName === 'LINK';
+}
+
+function changesStyles(record: MutationRecord): boolean {
+  if (record.type === 'attributes') {
+    const name = record.attributeName ?? '';
+    if (SCOPE_ATTRIBUTES.includes(name)) return true;
+    return record.target === document.documentElement
+      ? THEME_ROOT_ATTRIBUTES.has(name)
+      : THEME_BODY_ATTRIBUTES.has(name);
+  }
+  if (record.type === 'characterData') return record.target.parentNode?.nodeName === 'STYLE';
+  return (
+    isStylesheet(record.target) || [...record.addedNodes, ...record.removedNodes].some(isStylesheet)
+  );
+}
+
+function changesSurface(record: MutationRecord): boolean {
+  return record.type === 'attributes' || changesStyles(record);
+}
+
+let watcher: MutationObserver | undefined;
+let scopes: MutationObserver | undefined;
+let watchingPaint = false;
+
+function watchSurfaces(): void {
+  if (
+    watcher !== undefined ||
+    typeof MutationObserver !== 'function' ||
+    typeof document === 'undefined'
+  )
+    return;
+  const changed = (records: MutationRecord[]): void => {
+    if (watchingPaint && records.some(changesStyles)) return refreshBotPrimaryColors();
+    if (listeners.size > 0 && records.some(changesSurface)) {
+      invalidateBotSurfaces();
+      notifySurfaces();
+    }
+  };
+  watcher = new MutationObserver(changed);
+  watcher.observe(document.body, { attributes: true });
+  watcher.observe(document.documentElement, { attributes: true });
+  watcher.observe(document.head, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+  });
+  scopes = new MutationObserver(changed);
+  scopes.observe(document.body, {
+    attributes: true,
+    subtree: true,
+    attributeFilter: SCOPE_ATTRIBUTES,
+  });
+}
+
 function subscribeSurface(listener: () => void): () => void {
   listeners.add(listener);
-  if (
-    observer === undefined &&
-    typeof MutationObserver === 'function' &&
-    typeof document !== 'undefined'
-  ) {
-    observer = new MutationObserver(notifySurfaces);
-    observer.observe(document.body, { attributes: true });
-    observer.observe(document.documentElement, { attributes: true });
-  }
+  watchSurfaces();
   return () => {
     listeners.delete(listener);
-    if (listeners.size > 0) return;
-    observer?.disconnect();
-    observer = undefined;
+    if (listeners.size > 0 || watchingPaint) return;
+    watcher?.disconnect();
+    scopes?.disconnect();
+    watcher = undefined;
+    scopes = undefined;
   };
 }
 
@@ -160,11 +235,12 @@ export function useConversationSurface(): {
   return { background, probe: attach };
 }
 
-let painter: MutationObserver | undefined;
+const paintedEpoch = new WeakMap<HTMLElement, number>();
 
 function paint(element: HTMLElement): void {
   const source = element.dataset['botNameSource'];
   if (source === undefined) return;
+  if (element.isConnected) paintedEpoch.set(element, surfaceEpoch);
   const color = botNameColor(
     source,
     renderedBackground(element) ?? REFERENCE_SURFACES[currentTheme()].background,
@@ -182,6 +258,12 @@ export function paintBotName(element: HTMLElement | null, source: string | undef
     element.style.removeProperty('color');
     return;
   }
+  if (
+    element.dataset['botNameSource'] === source &&
+    element.dataset['botNameColor'] !== undefined &&
+    paintedEpoch.get(element) === surfaceEpoch
+  )
+    return;
   element.dataset['botNameSource'] = source;
   paint(element);
   watchTheme();
@@ -189,19 +271,15 @@ export function paintBotName(element: HTMLElement | null, source: string | undef
 
 export function refreshBotPrimaryColors(): void {
   if (typeof document === 'undefined') return;
+  invalidateBotSurfaces();
   notifySurfaces();
   document.querySelectorAll<HTMLElement>('[data-bot-name-source]').forEach(paint);
   document.querySelectorAll<HTMLElement>('[data-bot-scale-source]').forEach(paintScale);
 }
 
 function watchTheme(): void {
-  if (painter !== undefined || typeof MutationObserver !== 'function') return;
-  painter = new MutationObserver(refreshBotPrimaryColors);
-  painter.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] });
-  painter.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ['class', 'style'],
-  });
+  watchingPaint = true;
+  watchSurfaces();
 }
 
 export function botNameSource(
@@ -213,6 +291,7 @@ export function botNameSource(
 function paintScale(element: HTMLElement): void {
   const source = element.dataset['botScaleSource'];
   if (source === undefined) return;
+  if (element.isConnected) paintedEpoch.set(element, surfaceEpoch);
   const color = botChartColor(
     source,
     renderedBackground(element) ?? REFERENCE_SURFACES[currentTheme()].background,
@@ -230,6 +309,12 @@ export function paintBotScale(element: HTMLElement | null, source: string | unde
     element.style.removeProperty('--bh-bot-color');
     return;
   }
+  if (
+    element.dataset['botScaleSource'] === source &&
+    element.dataset['botScaleColor'] !== undefined &&
+    paintedEpoch.get(element) === surfaceEpoch
+  )
+    return;
   element.dataset['botScaleSource'] = source;
   paintScale(element);
   watchTheme();

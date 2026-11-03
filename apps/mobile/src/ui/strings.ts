@@ -1112,6 +1112,13 @@ const en = {
   activityUnsnooze: 'Unsnooze',
   activityUndo: 'Undo',
   activityClearedNotice: 'Cleared',
+  activityClearMany: 'Clear…',
+  activityClearManyTitle:
+    'Clear from Activity? Unread conversations are marked read. Nothing is deleted; you can restore items from Cleared.',
+  activityClearAll: 'All items',
+  activityClearedCount: (count: number) =>
+    count === 1 ? 'Cleared 1 item' : `Cleared ${count} items`,
+  activityClearedMore: (count: number) => `Cleared ${count} items. Clear again for the rest.`,
   activitySnoozedNotice: (time: string) => `Snoozed until ${time}`,
   activityRestoredNotice: 'Restored',
   activityChangeFailed: 'Could not change this item. Try again.',
@@ -3211,6 +3218,12 @@ const zh: typeof en = {
   activityUnsnooze: '取消延后',
   activityUndo: '撤销',
   activityClearedNotice: '已清理',
+  activityClearMany: '清理…',
+  activityClearManyTitle:
+    '从活动中清理？未读会话会标为已读。不会删除任何内容，可在「已清理」中恢复。',
+  activityClearAll: '全部条目',
+  activityClearedCount: (count: number) => `已清理 ${count} 条`,
+  activityClearedMore: (count: number) => `已清理 ${count} 条，再清理一次可处理剩余条目。`,
   activitySnoozedNotice: (time: string) => `已延后到 ${time}`,
   activityRestoredNotice: '已恢复',
   activityChangeFailed: '没能完成这项操作，再试一次。',
