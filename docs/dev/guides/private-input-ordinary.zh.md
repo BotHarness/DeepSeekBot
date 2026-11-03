@@ -61,6 +61,14 @@ Bot 会调用 `secret_mcp_connect`。预期：审批卡写明启动程序和参�
 
 不依赖真实服务的本地验证：启动 `node scripts/ask-secret-fixture.mjs 31381`，让 Bot 用 `STATUS_ENDPOINT`、`STATUS_API_KEY`、`STATUS_API_SECRET` 接上 `node <仓库>/scripts/secret-mcp-fixture.mjs`，然后调用 `check_status`（应为 200）和 `describe_setup`（key 应显示为 `[secret]`）。
 
+## 出错时
+
+每种失败都会给出原因，原因中不含任何私密值：
+
+- Host 没有接收的提交，会在卡片上显示原因代码，例如 `not-pending`（请求已过期、已被回答，或在 Host 重启后失效）、`invalid-fields`、`store-unavailable`、`save-failed`、`version-changed`。`deepseekbot ask-secret-submit` 输出同样的代码。
+- 使用私密信息的工具调用失败时，Bot 能看到原因：API 超时、域名解析失败、连接被拒、证书不被接受、endpoint 不是 https、重定向未被跟随、辅助进程或命令超时、MCP 服务没有在时限内启动，或 Host 读不了凭据存储。凭据存储读取失败不再被说成"账号已被移除"，Bot 因此不会再次索要密钥。
+- 每一步（请求、提交、使用、拒绝、失败）都会以来源 `private-input` 写入全局诊断日志，失败记为 warning，带 Bot、请求 id、工具和原因。导出诊断日志即可附到 issue 里反馈。
+
 ## Owner CLI
 
 `deepseekbot` 的在线命令在普通 Profile 中和 Web Chat 行为一致：`ask-secret-status`、`ask-secret-submit --values-stdin`、`ask-secret-cancel`、`ask-secret-account-status`、`ask-secret-replace`、`ask-secret-revoke`、`ask-secret-accounts`。`secret_http` 的审批用 `tool-approval-decide` 决定。见 [CLI 参考](../../bot-cli.zh.md)。

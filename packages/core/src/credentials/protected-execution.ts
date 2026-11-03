@@ -1,22 +1,33 @@
 import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import type { PrivateInputLog } from './diagnostics.js';
+import { PrivateInputFailure, type PrivateInputLog } from './diagnostics.js';
 
 const AUTHENTICATED_STATUS_CLI = String.raw`
 let input='';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', c => { input+=c; if(input.length>60000) process.exit(2); });
+const classify=(error)=>{
+  const code=String(error?.cause?.code ?? error?.code ?? '');
+  return error?.name==='TimeoutError' ? 'timeout'
+    : /redirect/i.test(String(error?.cause?.message ?? '')) ? 'redirect'
+    : ['ENOTFOUND','EAI_AGAIN','EAI_NONAME','EAI_FAIL'].includes(code) ? 'dns'
+    : ['ECONNREFUSED','ECONNRESET','EHOSTUNREACH','ENETUNREACH','ETIMEDOUT','EPIPE','UND_ERR_SOCKET','UND_ERR_CONNECT_TIMEOUT'].includes(code) ? 'connection'
+    : /CERT|SSL|TLS|SELF_SIGNED|ALTNAME/.test(code) ? 'tls'
+    : 'network';
+};
 process.stdin.on('end', async () => {
+  let values;
+  try { values=JSON.parse(input); input=''; } catch { process.exitCode=2; return; }
+  let url;
+  try { url=new URL(values.endpoint); } catch { process.stdout.write('failure:endpoint'); return; }
+  if(!['https:','http:'].includes(url.protocol) || url.username || url.password
+    || (url.protocol==='http:' && !['127.0.0.1','localhost','[::1]'].includes(url.hostname))) { process.stdout.write('failure:endpoint'); return; }
   try {
-    const values=JSON.parse(input); input='';
-    const url=new URL(values.endpoint);
-    if(!['https:','http:'].includes(url.protocol) || url.username || url.password) process.exit(2);
-    if(url.protocol==='http:' && !['127.0.0.1','localhost','[::1]'].includes(url.hostname)) process.exit(2);
     const response=await fetch(url, {method:'GET', redirect:'error',
       headers:{'x-api-key':values.api_key,'x-api-secret':values.api_secret}, signal:AbortSignal.timeout(10000)});
     await response.body?.cancel();
     process.stdout.write(String(response.status));
-  } catch { process.exitCode=2; }
+  } catch (error) { process.stdout.write('failure:'+classify(error)); }
 });
 `;
 
@@ -98,6 +109,10 @@ const SECRET_HTTP_FAILURES = {
     'This Host could not connect to the API; it may be down, blocked or need a network proxy.',
   tls: 'The API TLS certificate was not accepted by this Host.',
   network: 'The request failed on the network before the API answered.',
+  endpoint:
+    'The Owner-supplied endpoint is not an https URL, or a plain http URL outside this computer; the Owner should replace the endpoint field.',
+  redirect:
+    'The API answered with a redirect, which is not followed; the Owner should replace the endpoint field with the final address.',
 } as const;
 
 export function secretHttpTarget(endpoint: string, path: string): URL {
@@ -141,21 +156,55 @@ export class ProtectedExecution {
   async authenticatedStatus(
     values: Record<string, string>,
     signal: AbortSignal,
-  ): Promise<{ consumer: string; successful: boolean; httpStatus: number; action?: string }> {
+  ): Promise<{
+    consumer: string;
+    successful: boolean;
+    httpStatus: number;
+    action?: string;
+  }> {
     if (Object.keys(values).sort().join(',') !== 'api_key,api_secret,endpoint')
-      throw new Error('http-status-v1 requires endpoint, api_key and api_secret references');
-    if (signal.aborted || this.#closed) throw new Error('Protected credential execution cancelled');
+      throw new PrivateInputFailure(
+        'http-status-v1 requires endpoint, api_key and api_secret references',
+        'invalid-references',
+      );
+    if (signal.aborted || this.#closed)
+      throw new PrivateInputFailure(
+        'The protected request was cancelled before it started.',
+        'cancelled',
+      );
     const started = Date.now();
     this.log('credential-cli-started', { program: 'http-status-v1' });
     const output = await this.#spawn(
+      'http-status-v1',
       process.execPath,
       ['--disable-proto=throw', '-e', AUTHENTICATED_STATUS_CLI],
       JSON.stringify(values),
       signal,
       true,
+      32,
     );
-    if (!/^[1-5][0-9]{2}$/.test(output))
-      throw new Error('Protected CLI returned an invalid nonsecret result');
+    const failure = /^failure:([a-z]+)$/.exec(output)?.[1];
+    if (failure !== undefined && failure in SECRET_HTTP_FAILURES) {
+      this.log('credential-cli-unreachable', {
+        program: 'http-status-v1',
+        failure,
+        durationMs: Date.now() - started,
+      });
+      throw new PrivateInputFailure(
+        SECRET_HTTP_FAILURES[failure as keyof typeof SECRET_HTTP_FAILURES],
+        failure,
+      );
+    }
+    if (!/^[1-5][0-9]{2}$/.test(output)) {
+      this.log('execution-failed', {
+        program: 'http-status-v1',
+        reason: 'invalid-result',
+      });
+      throw new PrivateInputFailure(
+        'The protected helper returned a result the Host could not read.',
+        'invalid-result',
+      );
+    }
     const httpStatus = Number(output);
     this.log('credential-cli-completed', {
       program: 'http-status-v1',
@@ -204,10 +253,15 @@ export class ProtectedExecution {
       (method === 'GET' || request.body.length > SECRET_HTTP_BODY_LIMIT)
     )
       throw new SecretHttpRefusal('body is not allowed for this request');
-    if (signal.aborted || this.#closed) throw new Error('Protected credential execution cancelled');
+    if (signal.aborted || this.#closed)
+      throw new PrivateInputFailure(
+        'The protected request was cancelled before it started.',
+        'cancelled',
+      );
     const started = Date.now();
     this.log('credential-cli-started', { program: 'http-request-v1' });
     const output = await this.#spawn(
+      'http-request-v1',
       process.execPath,
       ['--disable-proto=throw', '-e', AUTHENTICATED_REQUEST_CLI],
       JSON.stringify({
@@ -236,12 +290,12 @@ export class ProtectedExecution {
     try {
       parsed = JSON.parse(output) as typeof parsed;
     } catch {
-      throw new Error('Protected request returned an invalid result');
+      throw this.#invalid('http-request-v1');
     }
     if (typeof parsed.failure === 'string' && parsed.failure in SECRET_HTTP_FAILURES) {
       this.log('credential-cli-unreachable', {
         program: 'http-request-v1',
-        failure: parsed.failure as keyof typeof SECRET_HTTP_FAILURES,
+        failure: parsed.failure,
         durationMs: Date.now() - started,
       });
       throw new SecretHttpRefusal(
@@ -254,7 +308,7 @@ export class ProtectedExecution {
       typeof parsed.body !== 'string' ||
       (parsed.location !== undefined && typeof parsed.location !== 'string')
     )
-      throw new Error('Protected request returned an invalid result');
+      throw this.#invalid('http-request-v1');
     this.log('credential-cli-completed', {
       program: 'http-request-v1',
       durationMs: Date.now() - started,
@@ -276,7 +330,16 @@ export class ProtectedExecution {
     };
   }
 
+  #invalid(program: string): PrivateInputFailure {
+    this.log('execution-failed', { program, reason: 'invalid-result' });
+    return new PrivateInputFailure(
+      'The protected helper returned a result the Host could not read.',
+      'invalid-result',
+    );
+  }
+
   #spawn(
+    label: string,
     program: string,
     args: string[],
     stdin: string,
@@ -287,7 +350,12 @@ export class ProtectedExecution {
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       if (this.#closed || signal.aborted) {
-        reject(new Error('Protected execution cancelled'));
+        reject(
+          new PrivateInputFailure(
+            'The protected request was cancelled before it started.',
+            'cancelled',
+          ),
+        );
         return;
       }
       const child = spawn(program, args, {
@@ -295,39 +363,59 @@ export class ProtectedExecution {
         cwd: tmpdir(),
         stdio: ['pipe', 'pipe', 'pipe'],
         ...(credentialBearing
-          ? { env: process.platform === 'win32' ? { SystemRoot: process.env.SystemRoot } : {} }
+          ? {
+              env: process.platform === 'win32' ? { SystemRoot: process.env.SystemRoot } : {},
+            }
           : {}),
       });
       this.#children.add(child);
       let output = '';
-      let failed = false;
+      let failure: 'cancelled' | 'timeout' | 'output-limit' | 'start' | 'stdin' | undefined;
       const limit = outputLimit ?? (credentialBearing ? 3 : 16_000);
-      const stop = () => {
-        failed = true;
+      const wait = timeoutMs ?? (credentialBearing ? 15_000 : 30_000);
+      const stop = (reason: NonNullable<typeof failure>) => {
+        failure ??= reason;
         child.kill();
       };
-      const timer = setTimeout(stop, timeoutMs ?? (credentialBearing ? 15_000 : 30_000));
-      signal.addEventListener('abort', stop, { once: true });
+      const timer = setTimeout(() => stop('timeout'), wait);
+      const abort = () => stop('cancelled');
+      signal.addEventListener('abort', abort, { once: true });
       child.stdout.on('data', (chunk: Buffer) => {
         output += chunk.toString('utf8');
         if (output.length > limit) {
           output = '';
-          stop();
+          stop('output-limit');
         }
       });
       child.stderr.on('data', () => undefined);
-      child.stdin.on('error', () => stop());
+      child.stdin.on('error', () => stop('stdin'));
       child.on('error', () => {
-        failed = true;
+        failure ??= 'start';
       });
       child.on('close', (code) => {
         clearTimeout(timer);
-        signal.removeEventListener('abort', stop);
+        signal.removeEventListener('abort', abort);
         this.#children.delete(child);
-        if (failed || code !== 0 || signal.aborted) {
-          this.log('execution-failed');
-          reject(new Error('Protected execution failed or was cancelled'));
-        } else resolve(output);
+        if (failure === undefined && signal.aborted) failure = 'cancelled';
+        if (failure === undefined && code === 0) {
+          resolve(output);
+          return;
+        }
+        const reason = failure ?? 'exit';
+        const message = {
+          cancelled: 'The protected request was cancelled before it finished.',
+          timeout: `The protected helper did not finish within ${Math.round(wait / 1000)} seconds and was stopped.`,
+          'output-limit': 'The protected helper returned more output than allowed and was stopped.',
+          start: 'The Host could not start its protected helper process.',
+          stdin: 'The protected helper closed before the Host could hand it the request.',
+          exit: `The protected helper exited with code ${String(code)}.`,
+        }[reason];
+        this.log('execution-failed', {
+          program: label,
+          reason,
+          exitCode: code,
+        });
+        reject(new PrivateInputFailure(message, reason));
       });
       child.stdin.end(stdin);
     });

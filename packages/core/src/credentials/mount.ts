@@ -13,7 +13,8 @@ import {
 } from './secret-command.js';
 import { SecretMcpServers, rememberedStarts, secretMcpEnv, secretMcpPlan } from './secret-mcp.js';
 import type { SecretMcpRecord, SecretMcpStore } from './secret-mcp-store.js';
-import type { PrivateInputLog } from './diagnostics.js';
+import { privateInputLog, privateToolFailure, privateToolOutcome } from './diagnostics.js';
+import type { DiagnosticEvents } from '../diagnostics/diagnostic-log.js';
 import { privateInputWebUrl } from './web-locator.js';
 import { credentialStoreDenial, credentialStorePath, denyStoreRead } from './store-guard.js';
 import { resolveDshHome } from '../im/config-store.js';
@@ -21,17 +22,16 @@ import { resolveDshHome } from '../im/config-store.js';
 export function mountPrivateInputs(
   ctx: Context,
   core: BotHarnessCore,
-  execution = new ProtectedExecution((phase, details = {}) =>
-    ctx.logger.info('private-input %j', { phase, ...details }),
-  ),
+  protectedExecution?: ProtectedExecution,
   webUrl?: string,
   dshHome = resolveDshHome(),
   store?: SecretMcpStore,
+  events?: DiagnosticEvents,
 ): PrivateInputs {
   if (webUrl !== undefined)
     privateInputWebUrl(webUrl, 'dm-check', '00000000-0000-0000-0000-000000000000');
-  const log: PrivateInputLog = (phase, details = {}) =>
-    ctx.logger.info('private-input %j', { phase, ...details });
+  const log = privateInputLog((format, value) => ctx.logger.info(format, value), events);
+  const execution = protectedExecution ?? new ProtectedExecution(log);
   ctx.inject(['credentials'], () => {
     queueMicrotask(() => void owner.recover().catch(() => log('recovery-unavailable')));
   });
@@ -195,6 +195,22 @@ export function mountPrivateInputs(
     () =>
       core.contributeBotAgentSetup((agentCtx, agent, info) => {
         if (info.rootRole !== 'orchestrator') return;
+        const observe = async (tool: string, run: () => Promise<string>): Promise<string> => {
+          const details = {
+            tool,
+            botSlug: info.botSlug,
+            sessionId: agent.session.id,
+          };
+          try {
+            const result = await run();
+            const outcome = privateToolOutcome(result);
+            if (outcome !== undefined) log(outcome.phase, { ...details, ...outcome.details });
+            return result;
+          } catch (error) {
+            log('tool-failed', { ...details, ...privateToolFailure(error) });
+            throw error;
+          }
+        };
         agentCtx.tools.register(
           defineTool({
             name: 'ask_secret',
@@ -239,12 +255,13 @@ export function mountPrivateInputs(
               schema: { type: 'string' },
               render: (_args, value) => [{ type: 'text', text: value }],
             },
-            execute: async (args, call) => {
-              const { source_event_id: sourceEventId, ...declaration } = args;
-              return JSON.stringify(
-                await owner.ask(agent, declaration, call.signal, sourceEventId),
-              );
-            },
+            execute: (args, call) =>
+              observe('ask_secret', async () => {
+                const { source_event_id: sourceEventId, ...declaration } = args;
+                return JSON.stringify(
+                  await owner.ask(agent, declaration, call.signal, sourceEventId),
+                );
+              }),
           }),
         );
         agentCtx.tools.register(
@@ -254,7 +271,11 @@ export function mountPrivateInputs(
               PRIVATE_SOURCE_GUIDANCE +
               'Run a qualified trusted CLI using opaque private references. Supported consumer: http-status-v1, one GET with endpoint, api_key and api_secret references; returns only numeric HTTP status and request success, never response text. A successful HTTP status does not independently certify remote authentication. No arbitrary command, env, headers, redirects or plaintext fallback. Existing Human execution approval applies.',
             parameters: {
-              consumer: { type: 'string', required: true, description: 'http-status-v1' },
+              consumer: {
+                type: 'string',
+                required: true,
+                description: 'http-status-v1',
+              },
               account: {
                 type: 'string',
                 required: true,
@@ -265,7 +286,11 @@ export function mountPrivateInputs(
                 required: true,
                 description: 'Opaque endpoint reference.',
               },
-              api_key: { type: 'string', required: true, description: 'Opaque API key reference.' },
+              api_key: {
+                type: 'string',
+                required: true,
+                description: 'Opaque API key reference.',
+              },
               api_secret: {
                 type: 'string',
                 required: true,
@@ -276,19 +301,24 @@ export function mountPrivateInputs(
               schema: { type: 'string' },
               render: (_args, value) => [{ type: 'text', text: value }],
             },
-            execute: async (args, call) => {
-              if (args.consumer !== 'http-status-v1')
-                throw new Error('Protected CLI consumer is unsupported');
-              return JSON.stringify(
-                await owner.consume(
-                  agent,
-                  args.account,
-                  { endpoint: args.endpoint, api_key: args.api_key, api_secret: args.api_secret },
-                  (values, signal) => execution.authenticatedStatus(values, signal),
-                  call.signal,
-                ),
-              );
-            },
+            execute: (args, call) =>
+              observe('protected_cli', async () => {
+                if (args.consumer !== 'http-status-v1')
+                  throw new Error('Protected CLI consumer is unsupported');
+                return JSON.stringify(
+                  await owner.consume(
+                    agent,
+                    args.account,
+                    {
+                      endpoint: args.endpoint,
+                      api_key: args.api_key,
+                      api_secret: args.api_secret,
+                    },
+                    (values, signal) => execution.authenticatedStatus(values, signal),
+                    call.signal,
+                  ),
+                );
+              }),
           }),
         );
         agentCtx.tools.register(
@@ -360,66 +390,69 @@ export function mountPrivateInputs(
               schema: { type: 'string' },
               render: (_args, value) => [{ type: 'text', text: value }],
             },
-            execute: async (args, call) => {
-              const endpointField = args.endpoint_field ?? 'endpoint';
-              const references: Record<string, string> = {};
-              for (const reference of args.references) {
-                const field = /^private:[0-9a-f-]{36}:([a-z][a-z0-9_]{0,47})$/.exec(reference)?.[1];
-                if (field === undefined || references[field] !== undefined)
-                  throw new Error('references must be distinct ask_secret references');
-                references[field] = reference;
-              }
-              if (references[endpointField] === undefined)
-                throw new Error('references must include the endpoint field');
-              return JSON.stringify(
-                await owner.consume(
-                  agent,
-                  args.account,
-                  references,
-                  async (values, signal) => {
-                    const fill = (text: string): string =>
-                      text.replace(/\{\{([a-z][a-z0-9_]{0,47})\}\}/g, (_match, field: string) => {
-                        const value = field === endpointField ? undefined : values[field];
-                        if (value === undefined)
-                          throw new SecretHttpRefusal(
-                            'A placeholder names a field that was not referenced',
-                          );
-                        return value;
-                      });
-                    try {
-                      return await execution.authenticatedRequest(
-                        {
-                          endpoint: values[endpointField]!,
-                          path: args.path,
-                          method: args.method,
-                          headers: (args.headers ?? []).map((entry) => ({
-                            name: entry.name,
-                            value: fill(entry.value),
-                          })),
-                          query: (args.query ?? []).map((entry) => ({
-                            name: entry.name,
-                            value: fill(entry.value),
-                          })),
-                          ...(args.body === undefined ? {} : { body: fill(args.body) }),
-                        },
-                        Object.entries(values)
-                          .filter(([field]) => field !== endpointField)
-                          .map(([, value]) => value),
-                        signal,
-                      );
-                    } catch (error) {
-                      if (!(error instanceof SecretHttpRefusal)) throw error;
-                      return {
-                        consumer: 'http-request-v1',
-                        successful: false,
-                        refused: error.message,
-                      };
-                    }
-                  },
-                  call.signal,
-                ),
-              );
-            },
+            execute: (args, call) =>
+              observe('secret_http', async () => {
+                const endpointField = args.endpoint_field ?? 'endpoint';
+                const references: Record<string, string> = {};
+                for (const reference of args.references) {
+                  const field = /^private:[0-9a-f-]{36}:([a-z][a-z0-9_]{0,47})$/.exec(
+                    reference,
+                  )?.[1];
+                  if (field === undefined || references[field] !== undefined)
+                    throw new Error('references must be distinct ask_secret references');
+                  references[field] = reference;
+                }
+                if (references[endpointField] === undefined)
+                  throw new Error('references must include the endpoint field');
+                return JSON.stringify(
+                  await owner.consume(
+                    agent,
+                    args.account,
+                    references,
+                    async (values, signal) => {
+                      const fill = (text: string): string =>
+                        text.replace(/\{\{([a-z][a-z0-9_]{0,47})\}\}/g, (_match, field: string) => {
+                          const value = field === endpointField ? undefined : values[field];
+                          if (value === undefined)
+                            throw new SecretHttpRefusal(
+                              'A placeholder names a field that was not referenced',
+                            );
+                          return value;
+                        });
+                      try {
+                        return await execution.authenticatedRequest(
+                          {
+                            endpoint: values[endpointField]!,
+                            path: args.path,
+                            method: args.method,
+                            headers: (args.headers ?? []).map((entry) => ({
+                              name: entry.name,
+                              value: fill(entry.value),
+                            })),
+                            query: (args.query ?? []).map((entry) => ({
+                              name: entry.name,
+                              value: fill(entry.value),
+                            })),
+                            ...(args.body === undefined ? {} : { body: fill(args.body) }),
+                          },
+                          Object.entries(values)
+                            .filter(([field]) => field !== endpointField)
+                            .map(([, value]) => value),
+                          signal,
+                        );
+                      } catch (error) {
+                        if (!(error instanceof SecretHttpRefusal)) throw error;
+                        return {
+                          consumer: 'http-request-v1',
+                          successful: false,
+                          refused: error.message,
+                        };
+                      }
+                    },
+                    call.signal,
+                  ),
+                );
+              }),
           }),
         );
         agentCtx.tools.register(
@@ -471,82 +504,96 @@ export function mountPrivateInputs(
               schema: { type: 'string' },
               render: (_args, value) => [{ type: 'text', text: value }],
             },
-            execute: async (args, call) => {
-              const references: Record<string, string> = {};
-              for (const reference of args.references) {
-                const field = /^private:[0-9a-f-]{36}:([a-z][a-z0-9_]{0,47})$/.exec(reference)?.[1];
-                if (field === undefined || references[field] !== undefined)
-                  throw new Error('references must be distinct ask_secret references');
-                references[field] = reference;
-              }
-              const refuse = (reason: string) =>
-                JSON.stringify({ consumer: 'command-v1', successful: false, refused: reason });
-              const cwd = agent.session.header.cwd;
-              const sandbox = ctx.get('sandbox') as unknown as
-                | {
-                    confine(
-                      argv: readonly string[],
-                      policy: { mode: 'workspace-write'; workspaceRoot: string },
-                      signal?: AbortSignal,
-                    ): Promise<{ argv: string[] }>;
-                  }
-                | undefined;
-              if (cwd === undefined || sandbox === undefined)
-                return refuse('The Shell sandbox is unavailable, so the command was not started');
-              let command: string[];
-              let names: string[];
-              try {
-                ({ command, names } = secretCommandPlan(args));
-              } catch (error) {
-                if (error instanceof SecretCommandRefusal) return refuse(error.message);
-                throw error;
-              }
-              let confined: { argv: string[] };
-              try {
-                confined = await sandbox.confine(
-                  command,
-                  { mode: 'workspace-write', workspaceRoot: cwd },
-                  call.signal,
-                );
-              } catch {
-                return refuse('The Shell sandbox is unavailable, so the command was not started');
-              }
-              return JSON.stringify(
-                await owner.consume(
-                  agent,
-                  args.account,
-                  references,
-                  async (values, signal) => {
-                    try {
-                      const env = secretCommandBaseEnv();
-                      for (const [index, entry] of args.env.entries())
-                        env[names[index]!] = entry.value.replace(
-                          /\{\{([a-z][a-z0-9_]{0,47})\}\}/g,
-                          (_match, field: string) => {
-                            const value = values[field];
-                            if (value === undefined)
-                              throw new SecretCommandRefusal(
-                                'A placeholder names a field that was not referenced',
-                              );
-                            return value;
-                          },
-                        );
-                      return await runSecretCommand(
-                        confined.argv,
-                        env,
-                        cwd,
-                        Object.values(values),
-                        signal,
-                      );
-                    } catch (error) {
-                      if (!(error instanceof SecretCommandRefusal)) throw error;
-                      return { consumer: 'command-v1', successful: false, refused: error.message };
+            execute: (args, call) =>
+              observe('secret_cli', async () => {
+                const references: Record<string, string> = {};
+                for (const reference of args.references) {
+                  const field = /^private:[0-9a-f-]{36}:([a-z][a-z0-9_]{0,47})$/.exec(
+                    reference,
+                  )?.[1];
+                  if (field === undefined || references[field] !== undefined)
+                    throw new Error('references must be distinct ask_secret references');
+                  references[field] = reference;
+                }
+                const refuse = (reason: string) =>
+                  JSON.stringify({
+                    consumer: 'command-v1',
+                    successful: false,
+                    refused: reason,
+                  });
+                const cwd = agent.session.header.cwd;
+                const sandbox = ctx.get('sandbox') as unknown as
+                  | {
+                      confine(
+                        argv: readonly string[],
+                        policy: {
+                          mode: 'workspace-write';
+                          workspaceRoot: string;
+                        },
+                        signal?: AbortSignal,
+                      ): Promise<{ argv: string[] }>;
                     }
-                  },
-                  call.signal,
-                ),
-              );
-            },
+                  | undefined;
+                if (cwd === undefined || sandbox === undefined)
+                  return refuse('The Shell sandbox is unavailable, so the command was not started');
+                let command: string[];
+                let names: string[];
+                try {
+                  ({ command, names } = secretCommandPlan(args));
+                } catch (error) {
+                  if (error instanceof SecretCommandRefusal) return refuse(error.message);
+                  throw error;
+                }
+                let confined: { argv: string[] };
+                try {
+                  confined = await sandbox.confine(
+                    command,
+                    { mode: 'workspace-write', workspaceRoot: cwd },
+                    call.signal,
+                  );
+                } catch {
+                  return refuse('The Shell sandbox is unavailable, so the command was not started');
+                }
+                return JSON.stringify(
+                  await owner.consume(
+                    agent,
+                    args.account,
+                    references,
+                    async (values, signal) => {
+                      try {
+                        const env = secretCommandBaseEnv();
+                        for (const [index, entry] of args.env.entries())
+                          env[names[index]!] = entry.value.replace(
+                            /\{\{([a-z][a-z0-9_]{0,47})\}\}/g,
+                            (_match, field: string) => {
+                              const value = values[field];
+                              if (value === undefined)
+                                throw new SecretCommandRefusal(
+                                  'A placeholder names a field that was not referenced',
+                                );
+                              return value;
+                            },
+                          );
+                        return await runSecretCommand(
+                          confined.argv,
+                          env,
+                          cwd,
+                          Object.values(values),
+                          signal,
+                        );
+                      } catch (error) {
+                        if (!(error instanceof SecretCommandRefusal)) throw error;
+                        return {
+                          consumer: 'command-v1',
+                          successful: false,
+                          refused: error.message,
+                        };
+                      }
+                    },
+                    call.signal,
+                  ),
+                );
+              }),
           }),
         );
         const connectServer = async (
@@ -569,7 +616,11 @@ export function mountPrivateInputs(
             references[field] = reference;
           }
           const refuse = (reason: string) =>
-            JSON.stringify({ consumer: 'mcp-v1', connected: false, refused: reason });
+            JSON.stringify({
+              consumer: 'mcp-v1',
+              connected: false,
+              refused: reason,
+            });
           const cwd = agent.session.header.cwd;
           const sandbox = ctx.get('sandbox') as unknown as
             | {
@@ -727,24 +778,28 @@ export function mountPrivateInputs(
               schema: { type: 'string' },
               render: (_args, value) => [{ type: 'text', text: value }],
             },
-            execute: async (args, call) => {
-              const result = await connectServer(args, call.signal);
-              if (
-                rememberedStarts.delete(call.token) &&
-                mcpServers.has(agent, args.server_name) &&
-                store !== undefined
-              )
-                store.put({
-                  botSlug: info.botSlug,
-                  serverName: args.server_name,
-                  account: args.account,
-                  program: args.program,
-                  args: [...args.args],
-                  env: args.env.map((entry) => ({ name: entry.name, value: entry.value })),
-                  references: [...args.references],
-                });
-              return result;
-            },
+            execute: (args, call) =>
+              observe('secret_mcp_connect', async () => {
+                const result = await connectServer(args, call.signal);
+                if (
+                  rememberedStarts.delete(call.token) &&
+                  mcpServers.has(agent, args.server_name) &&
+                  store !== undefined
+                )
+                  store.put({
+                    botSlug: info.botSlug,
+                    serverName: args.server_name,
+                    account: args.account,
+                    program: args.program,
+                    args: [...args.args],
+                    env: args.env.map((entry) => ({
+                      name: entry.name,
+                      value: entry.value,
+                    })),
+                    references: [...args.references],
+                  });
+                return result;
+              }),
           }),
         );
         const connectRemembered = (server: SecretMcpRecord): Promise<void> => {
@@ -770,7 +825,10 @@ export function mountPrivateInputs(
           );
         };
         let disposed = false;
-        liveOrchestrators.set(agent, { botSlug: info.botSlug, connect: connectRemembered });
+        liveOrchestrators.set(agent, {
+          botSlug: info.botSlug,
+          connect: connectRemembered,
+        });
         agentCtx.effect(
           () => () => {
             disposed = true;
@@ -796,7 +854,10 @@ export function mountPrivateInputs(
             description:
               'Stop an MCP server you started with secret_mcp_connect, remove its tools and forget it so it is not reconnected. Without server_name it lists the servers you have connected.',
             parameters: {
-              server_name: { type: 'string', description: 'The server_name used to connect.' },
+              server_name: {
+                type: 'string',
+                description: 'The server_name used to connect.',
+              },
             },
             output: {
               schema: { type: 'string' },

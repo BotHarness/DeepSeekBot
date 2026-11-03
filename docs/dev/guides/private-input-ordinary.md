@@ -61,6 +61,14 @@ Treat an MCP server as a program you install and trust, as other MCP clients do.
 
 For a local check without a real service, start `node scripts/ask-secret-fixture.mjs 31381` and ask the Bot to connect `node <repo>/scripts/secret-mcp-fixture.mjs` with `STATUS_ENDPOINT`, `STATUS_API_KEY` and `STATUS_API_SECRET`, then call `check_status` (expect 200) and `describe_setup` (expect the key shown as `[secret]`).
 
+## When something fails
+
+Every failure names its reason, and none of them contains a secret value:
+
+- A submission the Host does not receive shows a reason code on the card, such as `not-pending` (the request expired, was answered, or was lost in a Host restart), `invalid-fields`, `store-unavailable`, `save-failed` or `version-changed`. `deepseekbot ask-secret-submit` prints the same code.
+- A tool call that uses the secret tells the Bot why it failed: the API timed out, its host name did not resolve, the connection was refused, the certificate was rejected, the endpoint is not https, a redirect was not followed, the helper or command timed out, an MCP server did not finish starting, or the Host could not read the credential store. A store read error no longer reads as "the account was removed", so the Bot does not ask for the secret again.
+- Each step (request, submission, use, refusal, failure) is written to the global diagnostic log under the source `private-input`, failures as warnings, with the Bot, request id, tool and reason. Exporting the diagnostic log gives a report to attach to an issue.
+
 ## Owner CLI
 
 The `deepseekbot` live commands work in an ordinary Profile exactly as in Web Chat: `ask-secret-status`, `ask-secret-submit --values-stdin`, `ask-secret-cancel`, `ask-secret-account-status`, `ask-secret-replace`, `ask-secret-revoke` and `ask-secret-accounts`. Decide the `secret_http` approval with `tool-approval-decide`. See [the CLI reference](../../bot-cli.md).

@@ -135,7 +135,7 @@ describe('Host-run secret command consumer', () => {
         signal,
         300,
       ),
-    ).rejects.toThrow('timed out');
+    ).rejects.toThrow('did not finish within 0.3 seconds');
     await expect(
       runSecretCommand(['bh-no-such-program-1572'], secretCommandBaseEnv(), tmpdir(), [], signal),
     ).rejects.toThrow(SecretCommandRefusal);
