@@ -8,6 +8,11 @@ import type { PushPreferences } from './push';
 import type { ConnectionSummary } from './connection-summary';
 import { REQUESTS_CHANNEL } from './native-notifications';
 import { t } from '../ui/strings';
+import type {
+  NotificationDiagnostics,
+  LocalTestResult,
+  NotificationDiagnosticsPort,
+} from './notification-diagnostics';
 
 interface NativeConnectionState {
   enabled: boolean;
@@ -16,6 +21,9 @@ interface NativeConnectionState {
 }
 
 interface ConnectionNativeModule {
+  notificationDiagnostics?(): NotificationDiagnostics;
+  dismissNotificationSetup?(): void;
+  testLocalNotification?(language: string): LocalTestResult;
   alertRecoverySession?(): string;
   connectionState(): NativeConnectionState;
   setConnectionEnabled(enabled: boolean): void;
@@ -156,5 +164,21 @@ export const connectionMode = {
   async forget(hostId: string): Promise<void> {
     if (supported) await native.forgetAlertsAsync(hostId);
     alertBanners.reconcile(hostId, [], []);
+  },
+};
+
+export const notificationDiagnostics: NotificationDiagnosticsPort = {
+  async read() {
+    if (!native?.notificationDiagnostics) throw new Error('connection-build-required');
+    publish(native.connectionState());
+    return native.notificationDiagnostics();
+  },
+  async dismissSetup() {
+    if (!native?.dismissNotificationSetup) throw new Error('connection-build-required');
+    native.dismissNotificationSetup();
+  },
+  async test(language) {
+    if (!native?.testLocalNotification) throw new Error('connection-build-required');
+    return native.testLocalNotification(language);
   },
 };

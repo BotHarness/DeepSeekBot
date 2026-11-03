@@ -48,7 +48,7 @@ export function NotificationSettings({
   const [settings, setSettings] = useState<PushSettings | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [test, setTest] = useState<
-    { state: 'sending' | 'sent' } | { state: 'failed'; error: string }
+    { state: 'sending' | 'sent' | 'seen' } | { state: 'failed'; error: string }
   >();
   const on = status.status === 'on';
 
@@ -113,6 +113,15 @@ export function NotificationSettings({
     <View ref={mount} style={{ flex: 1 }}>
       <SettingsForm testID="notification-settings">
         {connectionSettings}
+        {on && settings !== undefined ? (
+          <SettingsSection on="raised">
+            <SettingsRow
+              on="raised"
+              title={t.notificationCloudRegistration}
+              detail={settings.registered ? t.notificationRegistered : t.notificationNotRegistered}
+            />
+          </SettingsSection>
+        ) : null}
         {status.status === 'checking' || (on && settings === undefined && error === undefined) ? (
           <SettingsSection on="raised">
             <SettingsRow title={t.loading} on="raised" control={{ kind: 'busy' }} />
@@ -212,9 +221,23 @@ export function NotificationSettings({
               title={t.sendTest}
               testID="notifications-test"
               onPress={test?.state === 'sending' ? undefined : sendTest}
-              detail={test?.state === 'sent' ? t.testSent : undefined}
+              detail={
+                test?.state === 'seen'
+                  ? t.notificationLocalTestState.seen
+                  : test?.state === 'sent'
+                    ? t.testSent
+                    : undefined
+              }
               control={test?.state === 'sending' ? { kind: 'busy' } : undefined}
             />
+            {test?.state === 'sent' ? (
+              <SettingsRow
+                on="raised"
+                title={t.notificationSawTest}
+                testID="notification-cloud-test-seen"
+                onPress={() => setTest({ state: 'seen' })}
+              />
+            ) : null}
           </SettingsSection>
         ) : null}
       </SettingsForm>

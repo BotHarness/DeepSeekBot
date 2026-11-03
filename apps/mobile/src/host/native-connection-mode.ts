@@ -1,10 +1,23 @@
 import type { AlertSnapshot } from './device-alerts';
 import type { ConnectionSummary } from './connection-summary';
+import type { NotificationDiagnosticsPort } from './notification-diagnostics';
 
 const inactive: { enabled: boolean; running: boolean; error: string | null } = {
   enabled: false,
   running: false,
   error: null,
+};
+
+export const notificationDiagnostics: NotificationDiagnosticsPort = {
+  async read() {
+    throw new Error('connection-build-required');
+  },
+  async dismissSetup() {
+    throw new Error('connection-build-required');
+  },
+  async test() {
+    throw new Error('connection-build-required');
+  },
 };
 
 export const connectionMode = {

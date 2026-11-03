@@ -568,6 +568,18 @@ export function useHostSessions(visible = true): readonly ConnectedHost[] {
   return useVisibleSnapshot(feedSource, visible);
 }
 
+export function useConnectionSummary() {
+  const current = useHostSessions();
+  return connectionSummary(
+    current.map((host) => ({
+      hostId: host.saved.hostId,
+      enabled: connectionLifetime.backgroundAllowed(host.client),
+      snapshot: host.snapshot,
+      attention: host.attention,
+    })),
+  );
+}
+
 const availability = hostAvailabilitySource(feedSource);
 
 export function useHostAvailability(visible = true) {

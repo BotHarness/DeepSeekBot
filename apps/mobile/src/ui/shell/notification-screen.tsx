@@ -6,6 +6,7 @@ import {
   hostSession,
   useHostSession,
   usePushStatus,
+  useConnectionSummary,
   pushSession,
   setHostNotificationsEnabled,
 } from '../../host/host-session';
@@ -16,6 +17,7 @@ import { KeepConnectedSettings } from '../keep-connected-settings';
 export default function NotificationsScreen() {
   const { saved } = useHostSession();
   const status = usePushStatus();
+  const summary = useConnectionSummary();
   const preference = useSyncExternalStore(
     notificationPreferences.subscribe,
     notificationPreferences.getSnapshot,
@@ -53,7 +55,7 @@ export default function NotificationsScreen() {
       hostName={saved.hostName}
       port={port}
       preference={preference}
-      connectionSettings={<KeepConnectedSettings />}
+      connectionSettings={<KeepConnectedSettings summary={summary} />}
       onEnable={() => void pushSession.enable(hostSession.getState().hosts)}
       onOpenSettings={() => void Linking.openSettings()}
       key={saved.hostId}

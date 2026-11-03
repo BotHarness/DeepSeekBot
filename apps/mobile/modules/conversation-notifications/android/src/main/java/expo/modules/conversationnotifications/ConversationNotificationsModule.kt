@@ -28,6 +28,15 @@ class ConversationNotificationsModule : Module() {
     OnDestroy { ConnectionService.changed = null; ApprovalAlerts.incoming = null }
 
     Function("alertRecoverySession") { recoverySession }
+    Function("notificationDiagnostics") {
+      NotificationDiagnostics.read(requireNotNull(appContext.reactContext))
+    }
+    Function("dismissNotificationSetup") {
+      NotificationDiagnostics.dismissSetup(requireNotNull(appContext.reactContext))
+    }
+    Function("testLocalNotification") { language: String ->
+      NotificationDiagnostics.test(requireNotNull(appContext.reactContext), language)
+    }
     Function("connectionState") {
       ConnectionService.state(requireNotNull(appContext.reactContext))
     }

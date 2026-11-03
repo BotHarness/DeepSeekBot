@@ -2,13 +2,15 @@ import { useState, useSyncExternalStore } from 'react';
 import { AppState, Linking, View, type ViewInstance } from 'react-native';
 import * as Notifications from 'expo-notifications';
 
-import { connectionMode } from '../host/native-connection-mode';
+import { connectionMode, notificationDiagnostics } from '../host/native-connection-mode';
+import type { ConnectionSummary } from '../host/connection-summary';
+import { NotificationDiagnosticsSettings } from './notification-diagnostics-settings';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { useStrings } from './strings';
 import { useMounted } from './mounted';
 import { space } from './design/tokens';
 
-export function KeepConnectedSettings() {
+export function KeepConnectedSettings({ summary }: { summary: ConnectionSummary }) {
   const t = useStrings();
   const state = useSyncExternalStore(connectionMode.subscribe, connectionMode.getSnapshot);
   const [busy, setBusy] = useState(false);
@@ -31,6 +33,7 @@ export function KeepConnectedSettings() {
     setFailed(false);
     void connectionMode
       .setEnabled(enabled)
+      .then(() => notificationDiagnostics.dismissSetup())
       .catch(() => setFailed(true))
       .finally(() => setBusy(false));
   };
@@ -82,6 +85,12 @@ export function KeepConnectedSettings() {
           />
         </SettingsSection>
       ) : null}
+      <NotificationDiagnosticsSettings
+        port={notificationDiagnostics}
+        enabled={state.enabled}
+        running={state.running}
+        summary={summary}
+      />
     </View>
   );
 }
