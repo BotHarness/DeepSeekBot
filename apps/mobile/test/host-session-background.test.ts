@@ -88,6 +88,7 @@ it('isolates background opt-out, refusal and unpairing across two shared Host cl
   expect(native.forgotten).not.toContain('b');
   await session.unpair('a');
   expect(session.getHost('b')!.client).toBe(second);
+  await vi.waitFor(() => expect(second.getSnapshot().connection.status).toBe('connected'));
   native.running = false;
   for (const listener of native.listeners) listener();
   expect(second.getSnapshot().connection.status).toBe('connected');
