@@ -18,6 +18,7 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
   private var factory: RTCPeerConnectionFactory?
   private var peer: RTCPeerConnection?
   private var track: RTCAudioTrack?
+  private var remoteTrack: RTCAudioTrack?
   private var answered: ((Result<String, CallError>) -> Void)?
   private var settleScheduled = false
   private let started = CACurrentMediaTime()
@@ -150,7 +151,10 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
   }
 
   func mute(_ muted: Bool) {
-    queue.async { [self] in track?.isEnabled = !muted }
+    queue.async { [self] in
+      track?.isEnabled = !muted
+      tap?.capture.setMuted(muted)
+    }
   }
 
   func inject(_ samples: [Float], rate: Double) -> Bool {
@@ -164,7 +168,8 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
     finish(.failure(CallError(code: "closed")))
     queue.async { [self] in
       track?.isEnabled = false
-      peer?.delegate = nil; peer?.close(); peer = nil; track = nil; factory = nil
+      if let render = tap?.render { remoteTrack?.remove(render) }
+      peer?.delegate = nil; peer?.close(); peer = nil; track = nil; remoteTrack = nil; factory = nil
       let recording = tap?.render.writeRecording()
       Self.releaseSession()
       DispatchQueue.main.async { done(recording) }
@@ -217,7 +222,11 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
   func peerConnection(_ peerConnection: RTCPeerConnection, didAdd rtpReceiver: RTCRtpReceiver, streams: [RTCMediaStream]) {
     // The Bot's voice plays through the voice-processing unit; a test build also records it.
     guard let remote = rtpReceiver.track as? RTCAudioTrack else { state("failed", "unexpected-track"); return }
-    if let render = tap?.render { remote.add(render) }
+    queue.async { [self] in
+      guard !ended, remoteTrack == nil else { return }
+      remoteTrack = remote
+      if let render = tap?.render { remote.add(render) }
+    }
   }
 }
 
@@ -256,9 +265,23 @@ final class CallAudioTap {
       self.started = started; self.emit = emit
     }
 
+    private var muted = false
+
+    func setMuted(_ value: Bool) {
+      lock.lock(); muted = value
+      if value { source = []; position = 0 }
+      lock.unlock()
+    }
+
     /// Queues samples (S16 range) at their own rate; they play after earlier ones.
     func enqueue(_ samples: [Float], rate: Double) {
       lock.lock()
+      if muted {
+        lock.unlock()
+        let ms = Int((CACurrentMediaTime() - started) * 1000)
+        DispatchQueue.main.async { [emit] in emit("inject-dropped", ["ms": ms, "samples": samples.count, "reason": "muted"]) }
+        return
+      }
       if position >= Double(source.count) { source = []; position = 0 }
       // One queue holds one rate; resample later items onto it.
       if source.isEmpty { sourceRate = rate; source = samples } else { source += resample(samples, from: rate, to: sourceRate) }
