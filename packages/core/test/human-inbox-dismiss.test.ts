@@ -45,6 +45,54 @@ function fixture() {
 }
 
 describe('Inbox-only dismissal', () => {
+  it('dismisses every item of one kind, or every item, and leaves them restorable', async () => {
+    const f = fixture();
+    for (const id of ['grant-1', 'grant-2'])
+      await f.channels.appendMessage(f.dm.id, {
+        id,
+        at: FIXED_NOW().toISOString(),
+        author: { kind: 'bot', slug: 'ada' },
+        body: id,
+        grantRequest: true,
+      });
+    const active = () => f.query.list({ category: 'action' }).items;
+    expect(active().map((item) => item.kind)).toEqual([
+      'workspace-grant-request',
+      'workspace-grant-request',
+    ]);
+    expect(f.methods.humanAttentionDismissAll({ kind: 'nonsense' }).ok).toBe(false);
+    expect(f.methods.humanAttentionDismissAll({ category: 'handled' }).ok).toBe(false);
+    expect(f.methods.humanAttentionDismissAll({ kind: 'tool-approval' })).toEqual({
+      ok: true,
+      value: { accepted: true, dismissed: 0, more: false },
+    });
+    expect(active()).toHaveLength(2);
+    expect(f.methods.humanAttentionDismissAll({ kind: 'workspace-grant-request' })).toEqual({
+      ok: true,
+      value: { accepted: true, dismissed: 2, more: false },
+    });
+    expect(active()).toEqual([]);
+    const cleared = f.query.list({ category: 'action', dismissed: true }).items;
+    expect(cleared).toHaveLength(2);
+    expect(
+      f.methods.humanAttentionRestore({
+        itemId: cleared[0]!.id,
+        sourceKey: cleared[0]!.sourceEventId,
+      }),
+    ).toEqual({ ok: true, value: { accepted: true } });
+    const everything = () =>
+      (['action', 'info', 'replies', 'unread'] as const).flatMap(
+        (category) => f.query.list({ category }).items,
+      );
+    const before = everything().length;
+    expect(before).toBeGreaterThan(1);
+    expect(f.methods.humanAttentionDismissAll({})).toEqual({
+      ok: true,
+      value: { accepted: true, dismissed: before, more: false },
+    });
+    expect(everything()).toEqual([]);
+  });
+
   it('persists a dismissed grant without authorizing it, hides before pagination, and admits a new request', async () => {
     const f = fixture();
     for (const id of ['first', 'second'])

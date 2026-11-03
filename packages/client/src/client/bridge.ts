@@ -4845,6 +4845,28 @@ export async function dismissHumanInboxItem(
   if (value?.['accepted'] !== true) throw new Error('Inbox dismissal was not confirmed');
 }
 
+export async function dismissAllHumanInboxItems(
+  call: BridgeCall,
+  filter: {
+    kind?: HumanAttentionItem['kind'] | undefined;
+    category?: 'action' | 'info' | 'replies' | 'unread' | undefined;
+    botSlug?: string | undefined;
+    channelId?: string | undefined;
+  },
+): Promise<{ dismissed: number; more: boolean }> {
+  const value = asRecord(
+    await unwrap(call, 'humanAttentionDismissAll', {
+      ...(filter.kind === undefined ? {} : { kind: filter.kind }),
+      ...(filter.category === undefined ? {} : { category: filter.category }),
+      ...(filter.botSlug === undefined ? {} : { botSlug: filter.botSlug }),
+      ...(filter.channelId === undefined ? {} : { channelId: filter.channelId }),
+    }),
+  );
+  if (value?.['accepted'] !== true || typeof value['dismissed'] !== 'number')
+    throw new Error('Inbox dismissal was not confirmed');
+  return { dismissed: value['dismissed'], more: value['more'] === true };
+}
+
 export async function overrideAutoRejection(call: BridgeCall, itemId: string): Promise<void> {
   const value = asRecord(await unwrap(call, 'toolAutoRejectionOverride', { itemId }));
   if (value?.['accepted'] !== true) throw new Error('Auto-rejection override was not confirmed');

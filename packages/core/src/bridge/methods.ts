@@ -402,6 +402,7 @@ import {
   type HumanAttentionDecisions,
   type HumanAttentionPage,
   type HumanAttentionCategory,
+  type HumanAttentionItem,
 } from '../runtime/human-attention.js';
 import { DirectBotToolError, queryAssignmentDirectory } from '../runtime/bot-runtime.js';
 import type {
@@ -810,6 +811,9 @@ export interface BridgeMethods {
   ): BridgeResult<{ channels: Array<{ channelId: string; unreadCount: number }> }>;
   humanAttentionDismiss(payload: unknown): BridgeResult<{ accepted: boolean }>;
   humanAttentionRestore(payload: unknown): BridgeResult<{ accepted: boolean }>;
+  humanAttentionDismissAll(
+    payload: unknown,
+  ): BridgeResult<{ accepted: boolean; dismissed: number; more: boolean }>;
   humanAttentionIgnore(payload: unknown): BridgeResult<{ accepted: boolean }>;
   humanAttentionSnooze(payload: unknown): BridgeResult<{ accepted: boolean }>;
   assignments(payload: unknown): BridgeResult<{ assignments: AssignmentSummary[] }>;
@@ -1545,6 +1549,25 @@ function unknownAssignment(sessionId: string): BridgeResult<never> {
 }
 
 const DIRECT_TOOL_TIMEOUT_MS = 10 * 60_000;
+
+const HUMAN_ATTENTION_DISMISS_LIMIT = 1000;
+const HUMAN_ATTENTION_DISMISS_KINDS: ReadonlySet<string> = new Set<HumanAttentionItem['kind']>([
+  'group-join-request',
+  'pairing-request',
+  'user-question',
+  'private-input',
+  'tool-approval',
+  'auto-rejection',
+  'workspace-grant-request',
+  'bot-dm-message',
+  'assignment-waiting-human',
+  'assignment-blocked',
+  'assignment-report',
+  'bot-message-needs-repair',
+  'channel-unread',
+  'channel-reply',
+  'channel-mention',
+]);
 
 function directToolsUnavailable(): BridgeResult<never> {
   return {
@@ -6592,6 +6615,65 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         )
           return invalidInput('Inbox item is no longer available');
         return { ok: true, value: { accepted: true } };
+      } catch (error) {
+        return invalidInput(String(error));
+      }
+    },
+    humanAttentionDismissAll(payload) {
+      const source = asObject(payload);
+      const kind = source['kind'];
+      const category = source['category'];
+      const botSlug = source['botSlug'];
+      const channelId = source['channelId'];
+      if (kind !== undefined && !HUMAN_ATTENTION_DISMISS_KINDS.has(kind as string))
+        return invalidInput('kind is not a clearable Activity kind');
+      if (
+        category !== undefined &&
+        category !== 'action' &&
+        category !== 'info' &&
+        category !== 'replies' &&
+        category !== 'unread'
+      )
+        return invalidInput('category must be action, info, replies or unread');
+      if (botSlug !== undefined && (typeof botSlug !== 'string' || !isValidSlug(botSlug)))
+        return invalidInput('invalid Bot filter');
+      if (
+        channelId !== undefined &&
+        (typeof channelId !== 'string' || !isValidChannelId(channelId))
+      )
+        return invalidInput('invalid Channel filter');
+      const query = deps.humanAttention;
+      const decisions = deps.humanAttentionDecisions;
+      if (query === undefined || decisions === undefined)
+        return invalidInput('Activity is unavailable');
+      try {
+        const matches: HumanAttentionItem[] = [];
+        let more = false;
+        for (const section of category === undefined
+          ? (['action', 'info', 'replies', 'unread'] as const)
+          : [category as 'action' | 'info' | 'replies' | 'unread']) {
+          let cursor: string | undefined;
+          do {
+            const page = query.list({
+              category: section,
+              limit: 100,
+              ...(botSlug === undefined ? {} : { botSlug: botSlug as string }),
+              ...(channelId === undefined ? {} : { channelId: channelId as string }),
+              ...(cursor === undefined ? {} : { cursor }),
+            });
+            for (const item of page.items)
+              if (kind === undefined || item.kind === kind) matches.push(item);
+            cursor = page.nextCursor;
+          } while (cursor !== undefined && matches.length < HUMAN_ATTENTION_DISMISS_LIMIT);
+          if (matches.length >= HUMAN_ATTENTION_DISMISS_LIMIT) {
+            more = true;
+            break;
+          }
+        }
+        let dismissed = 0;
+        for (const item of matches.slice(0, HUMAN_ATTENTION_DISMISS_LIMIT))
+          if (decisions.dismiss(item)) dismissed += 1;
+        return { ok: true, value: { accepted: true, dismissed, more } };
       } catch (error) {
         return invalidInput(String(error));
       }

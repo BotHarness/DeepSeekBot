@@ -244,6 +244,49 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it('dismisses every Inbox item, or every item of one kind, only with --confirm', async () => {
+    const live = await host(() => ({
+      ok: true,
+      value: { accepted: true, dismissed: 3, more: false },
+    }));
+    const all = await invoke(['inbox-dismiss-all', '--confirm'], live.url);
+    expect(all.code).toBe(0);
+    expect(all.json).toEqual({ accepted: true, dismissed: 3, more: false });
+    await invoke(
+      [
+        'inbox-dismiss-all',
+        '--confirm',
+        '--kind',
+        'bot-message-needs-repair',
+        '--category',
+        'action',
+        '--bot',
+        'ada',
+        '--channel',
+        'dm-ada',
+      ],
+      live.url,
+    );
+    for (const argv of [
+      ['inbox-dismiss-all'],
+      ['inbox-dismiss-all', '--confirm', 'extra'],
+      ['inbox-dismiss-all', '--confirm', '--category', 'handled'],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([
+      { method: 'humanAttentionDismissAll', args: {} },
+      {
+        method: 'humanAttentionDismissAll',
+        args: {
+          kind: 'bot-message-needs-repair',
+          category: 'action',
+          botSlug: 'ada',
+          channelId: 'dm-ada',
+        },
+      },
+    ]);
+  });
+
   it('refuses malformed Inbox queries before reaching the Host', async () => {
     const live = await host(echo);
     for (const argv of [
