@@ -1545,7 +1545,8 @@ const en = {
   localReplyText: 'New reply',
   alertOpen: 'Open',
   alertDismiss: 'Dismiss',
-  localNotificationsDenied: 'System notifications are off. The connection can still stay on.',
+  localNotificationsDenied:
+    'System notifications are off. Keep connected can stay on, but its ongoing notification may be hidden. In-app alerts still work while the app is open.',
   cloudPushUnavailable: 'Cloud push is unavailable',
   localAlertsFailed: 'Could not sync approval alerts. Open the app to retry.',
   notificationsHint:
@@ -3627,7 +3628,8 @@ const zh: typeof en = {
   localReplyText: '新回复',
   alertOpen: '打开',
   alertDismiss: '关闭提示',
-  localNotificationsDenied: '系统通知已关闭，仍可保持连接。',
+  localNotificationsDenied:
+    '系统通知已关闭，仍可保持连接，但常驻通知可能不在通知栏显示。打开应用时仍会显示应用内提醒。',
   cloudPushUnavailable: '云推送暂不可用',
   localAlertsFailed: '审批提醒未能同步，请打开应用重试。',
   notificationsHint: '通知类型适用于此手机配对的所有远程。私密输入不会显示。',
