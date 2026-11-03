@@ -1187,7 +1187,7 @@ function ConversationView({
   );
   const scrollRef = useScopedRef<HTMLDivElement | null>(scopeKey, null);
   const draftScope = conversationDraftKey(state);
-  const recovery = useComposerRecovery(draftScope, state, actions);
+  const recovery = useComposerRecovery(draftScope, store.getSnapshot, actions);
   const [draft, setDraft] = useConversationDraft(draftScope, 'text', '');
   const [allBotPreview, setAllBotPreview] = useScopedState<AllBotPreview>(scopeKey);
   const [allBotNotice, setAllBotNotice] = useScopedState<string>(scopeKey);

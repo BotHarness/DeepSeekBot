@@ -54,7 +54,7 @@ export function clearConversationDrafts(): void {
 
 export function useComposerRecovery(
   scope: string | undefined,
-  state: ClientState,
+  getState: () => ClientState,
   actions: BridgeActions,
 ) {
   const manager = owner();
@@ -93,6 +93,8 @@ export function useComposerRecovery(
           .validateComposerDraft(channelId, uploaded, restored.reply?.id)
           .then((checked) => {
             if (disposed || manager.read(scope).draft !== restored) return;
+            const state = getState();
+            if (conversationDraftKey(state) !== scope) return;
             const channel = state.channels.find((item) => item.id === channelId);
             const mentions = restored.mentions.filter(
               (mention) =>
@@ -136,7 +138,7 @@ export function useComposerRecovery(
         unsubscribe();
       };
     },
-    [scope, actions, state.bots, state.channels, retry, manager],
+    [scope, actions, getState, retry, manager],
   );
   return {
     mount,
