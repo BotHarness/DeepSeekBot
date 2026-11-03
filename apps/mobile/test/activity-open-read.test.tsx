@@ -60,7 +60,7 @@ async function settle() {
     await act(async () => new Promise((resolve) => setTimeout(resolve, 5)));
 }
 
-it('opening an unread reply from Activity opens its Channel and marks it read', async () => {
+it('opening an unread reply from Activity opens its Channel and marks it read, but not when the Channel cannot open', async () => {
   const host = new FakeHost('a');
   let read = false;
   remotes.set('a.tailnet.ts.net', host);
@@ -72,6 +72,19 @@ it('opening an unread reply from Activity opens its Channel and marks it read', 
     items:
       args['category'] === 'replies' && !(read && args['unreadOnly'] === true)
         ? [
+            {
+              id: 'reply:event-gone',
+              category: 'replies',
+              kind: 'channel-reply',
+              createdAt: new Date().toISOString(),
+              channelId: 'gone',
+              channelName: 'Gone',
+              botSlug: 'ada',
+              summary: 'Old',
+              messageId: 'message-gone',
+              sourceEventId: 'event-gone',
+              isUnread: true,
+            },
             {
               id: 'reply:event-1',
               category: 'replies',
@@ -122,6 +135,15 @@ it('opening an unread reply from Activity opens its Channel and marks it read', 
   try {
     await act(async () => root.render(createElement(Screen)));
     await settle();
+    const rowFor = (id: string) =>
+      [...view.querySelectorAll<HTMLElement>('[data-testid^="inbox-row-"]')].find(
+        (el) => el.getAttribute('data-testid') === `inbox-row-${JSON.stringify(['a', id])}`,
+      );
+    await act(async () => rowFor('reply:event-gone')!.click());
+    await settle();
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(host.calls.some((call) => call.method === 'channelMarkRead')).toBe(false);
+    push.mockClear();
     const row = [...view.querySelectorAll<HTMLElement>('[data-testid^="inbox-row-"]')].find(
       (el) =>
         el.getAttribute('data-testid') === `inbox-row-${JSON.stringify(['a', 'reply:event-1'])}`,

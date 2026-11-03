@@ -69,15 +69,6 @@ export default function ActivityScreen() {
     (item: ActivityItem) => {
       const source = sources.find((source) => source.client === item.activitySource?.client);
       if (!source) return;
-      if (
-        (item.kind === 'channel-reply' || item.kind === 'channel-mention') &&
-        item.isUnread === true &&
-        item.channelId !== undefined &&
-        item.messageId !== undefined
-      )
-        void source.client
-          .call('channelMarkRead', { channelId: item.channelId, messageId: item.messageId })
-          .catch(() => undefined);
       const opensChannel = [
         'channel-unread',
         'channel-reply',
@@ -89,7 +80,18 @@ export default function ActivityScreen() {
       const destination = opensChannel
         ? channelDestination(source.hostId, item, source.roster)
         : undefined;
-      if (destination && navigateChannel(navigation, destination)) return;
+      if (destination && navigateChannel(navigation, destination)) {
+        if (
+          (item.kind === 'channel-reply' || item.kind === 'channel-mention') &&
+          item.isUnread === true &&
+          item.channelId !== undefined &&
+          item.messageId !== undefined
+        )
+          void source.client
+            .call('channelMarkRead', { channelId: item.channelId, messageId: item.messageId })
+            .catch(() => undefined);
+        return;
+      }
       router.push({
         pathname: '/inbox/[id]',
         params: {
