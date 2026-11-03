@@ -2,6 +2,7 @@ import { readIngest } from './conversation-ingest.js';
 import { isChannelNotice } from '../channels/channel-notice.js';
 import { sourceContentPurged } from '../purge/fence.js';
 import { effectiveDmControls } from './dm-controls.js';
+import { decodeLarkVoice } from '../attachments/lark-audio.js';
 import { decodeQqVoice } from '../attachments/qq-audio.js';
 import type { ToolApprovalActor } from '../workspaces/tool-approval-actor.js';
 import {
@@ -1872,7 +1873,9 @@ export function createOutboundMessaging(options: {
         throw new MessagingError('source-unavailable');
       const source = inbound.read(botSlug, sourceEventId);
       if (
-        (source.platform !== 'weixin' && source.platform !== 'qq') ||
+        (source.platform !== 'weixin' &&
+          source.platform !== 'qq' &&
+          source.platform !== 'feishu') ||
         !source.event.voice ||
         !source.event.attachments?.some(
           (file) => file.id === attachmentId && file.mediaType?.startsWith('audio/'),
@@ -1928,7 +1931,11 @@ export function createOutboundMessaging(options: {
               sourceEventId,
               attachmentId,
               source.event.voice,
-              source.platform === 'qq' ? 'qq-silk-wav-v1' : 'silk-wav-v1',
+              source.platform === 'qq'
+                ? 'qq-silk-wav-v1'
+                : source.platform === 'feishu'
+                  ? 'lark-opus-wav-v1'
+                  : 'silk-wav-v1',
             ]),
           )
           .digest('hex')
@@ -1948,7 +1955,9 @@ export function createOutboundMessaging(options: {
             const wav =
               source.platform === 'qq'
                 ? await decodeQqVoice(bytes, combined)
-                : await decodeWeChatVoice(bytes, source.event.voice!, combined);
+                : source.platform === 'feishu'
+                  ? await decodeLarkVoice(bytes, combined)
+                  : await decodeWeChatVoice(bytes, source.event.voice!, combined);
             validate();
             return (async function* () {
               validate();
