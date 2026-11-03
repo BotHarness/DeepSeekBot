@@ -102,6 +102,7 @@ export default function ActivityScreen() {
           summary: item.summary,
           ...(item.channelId === undefined ? {} : { channelId: item.channelId }),
           ...(item.messageId === undefined ? {} : { messageId: item.messageId }),
+          ...(item.kind === 'bot-message-needs-repair' ? { clearOnOpen: '1' } : {}),
         },
       });
     },

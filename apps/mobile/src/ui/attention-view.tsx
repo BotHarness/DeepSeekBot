@@ -164,12 +164,14 @@ export function RepairView({
   port,
   after,
   onOpenChat,
+  cleared = false,
 }: {
   item: HumanAttentionItem;
   botName: string;
   port: RepairPort;
   after?(): void;
   onOpenChat?(): void;
+  cleared?: boolean;
 }) {
   const t = useStrings();
   const { busy, error, done, run } = useAction(after, port, item.id);
@@ -196,21 +198,23 @@ export function RepairView({
               onPress={onOpenChat}
             />
           )}
-          <Button
-            label={t.activityClear}
-            testID="repair-clear"
-            busy={busy === 'clear'}
-            onPress={() =>
-              void run(
-                'clear',
-                async () => {
-                  await port.clear();
-                  return t.repairCleared;
-                },
-                'submit',
-              )
-            }
-          />
+          {cleared ? null : (
+            <Button
+              label={t.activityClear}
+              testID="repair-clear"
+              busy={busy === 'clear'}
+              onPress={() =>
+                void run(
+                  'clear',
+                  async () => {
+                    await port.clear();
+                    return t.repairCleared;
+                  },
+                  'submit',
+                )
+              }
+            />
+          )}
         </CardButtons>
       </ActionCard>
     </Page>

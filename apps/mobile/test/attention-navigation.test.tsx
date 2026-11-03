@@ -30,6 +30,8 @@ const fixture = vi.hoisted(() => {
       summary: 'Interrupted work',
     },
     snapshot,
+    params: {} as Record<string, string>,
+    calls: [] as Array<{ method: string; args: Record<string, unknown> }>,
   };
 });
 vi.mock('react-native', () => import('./react-native-shim'));
@@ -45,15 +47,20 @@ vi.mock('../src/ui/primitives/keyboard-form', () => ({
 vi.mock('../src/host/host-session', () => ({
   useHostSession: () => ({
     saved: { hostId: 'host-a' },
-    client: {},
-    inbox: { find: () => fixture.item },
+    client: {
+      call: async (method: string, args: Record<string, unknown>) => {
+        fixture.calls.push({ method, args });
+        return { accepted: true };
+      },
+    },
+    inbox: { find: () => fixture.item, refresh: async () => {} },
   }),
   useHostSnapshot: () => fixture.snapshot,
   useInbox: () => ({ status: 'ready', sections: { action: [fixture.item] } }),
 }));
 vi.mock('expo-router', () => ({
   Stack: { Screen: () => null },
-  useLocalSearchParams: () => ({ ...fixture.item, hostId: 'host-a' }),
+  useLocalSearchParams: () => ({ ...fixture.item, hostId: 'host-a', ...fixture.params }),
   useRouter: () => ({
     push: (href: { pathname: string; params: object }) =>
       navigation.dispatch({
@@ -106,6 +113,36 @@ afterEach(() => {
   container?.remove();
   fixture.snapshot.roster = originalRoster;
   fixture.item.channelId = 'peer-channel';
+  fixture.params = {};
+  fixture.calls.length = 0;
+});
+
+it('clears an interruption once when Activity opens it and keeps Open chat', async () => {
+  state = initialState();
+  fixture.params = { clearOnOpen: '1' };
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root!.render(<InboxItemScreen />));
+  await act(async () => root!.render(<InboxItemScreen />));
+  expect(fixture.calls).toEqual([
+    {
+      method: 'humanAttentionDismiss',
+      args: { itemId: fixture.item.id, sourceKey: fixture.item.sourceEventId },
+    },
+  ]);
+  expect(container.querySelector('[data-testid="repair-clear"]')).toBeNull();
+  expect(container.querySelector('[data-testid="repair-open"]')).not.toBeNull();
+});
+
+it('leaves an interruption in place when opened without clearOnOpen', async () => {
+  state = initialState();
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root!.render(<InboxItemScreen />));
+  expect(fixture.calls).toEqual([]);
+  expect(container.querySelector('[data-testid="repair-clear"]')).not.toBeNull();
 });
 
 it('opens an interrupted peer DM from its detail and Back returns to that detail', async () => {
