@@ -26,6 +26,7 @@ import { webModalOpen } from './channel-shortcuts.js';
 import { HumanInboxReply } from './human-inbox-reply.js';
 import { HumanInboxDismiss } from './human-inbox-detail-controls.js';
 import { HumanInboxWorkspaceAction } from './human-inbox-workspace-action.js';
+import { HumanInboxPairing } from './human-inbox-pairing.js';
 import { HumanInboxAssignment } from './human-inbox-assignment.js';
 import {
   AllowAutoRejectionButton,
@@ -368,21 +369,31 @@ export function HumanInboxView({
               ? t('humanInbox.approval', { bot: botName(item.botSlug) })
               : item.kind === 'auto-rejection'
                 ? t('humanInbox.autoRejection', { bot: botName(item.botSlug) })
-                : item.kind === 'workspace-grant-request'
-                  ? t('humanInbox.grant', { bot: botName(item.botSlug) })
-                  : item.kind === 'assignment-waiting-human'
-                    ? t('humanInbox.assignmentWaiting', { bot: botName(item.botSlug) })
-                    : item.kind === 'assignment-blocked'
-                      ? t('humanInbox.assignmentBlocked', {
-                          bot: botName(item.botSlug),
-                        })
-                      : item.kind === 'assignment-report'
-                        ? t('humanInbox.assignmentReport', {
+                : item.kind === 'pairing-request'
+                  ? t(
+                      item.summary.startsWith('conversation')
+                        ? 'humanInbox.pairingConversation'
+                        : 'humanInbox.pairingManagement',
+                      {
+                        bot: botName(item.botSlug),
+                        name: item.summary.split(' · ')[1] || t('pairing.unknownName'),
+                      },
+                    )
+                  : item.kind === 'workspace-grant-request'
+                    ? t('humanInbox.grant', { bot: botName(item.botSlug) })
+                    : item.kind === 'assignment-waiting-human'
+                      ? t('humanInbox.assignmentWaiting', { bot: botName(item.botSlug) })
+                      : item.kind === 'assignment-blocked'
+                        ? t('humanInbox.assignmentBlocked', {
                             bot: botName(item.botSlug),
                           })
-                        : item.kind === 'bot-message-needs-repair'
-                          ? t('humanInbox.repair', { bot: botName(item.botSlug) })
-                          : botName(item.botSlug);
+                        : item.kind === 'assignment-report'
+                          ? t('humanInbox.assignmentReport', {
+                              bot: botName(item.botSlug),
+                            })
+                          : item.kind === 'bot-message-needs-repair'
+                            ? t('humanInbox.repair', { bot: botName(item.botSlug) })
+                            : botName(item.botSlug);
 
   const renderSource = (source: HumanAttentionItem, onClose: () => void): ReactElement =>
     hostSource !== undefined ? (
@@ -752,15 +763,28 @@ export function HumanInboxView({
                     </div>
                     <div className="bh-human-inbox-row-actions">
                       <>
-                        {item.kind === 'channel-unread' ||
-                        item.kind === 'channel-reply' ||
-                        item.kind === 'channel-mention' ||
-                        item.kind === 'tool-approval' ||
-                        item.kind === 'user-question' ||
-                        item.kind === 'private-input' ||
-                        item.kind === 'workspace-grant-request' ||
-                        item.kind === 'assignment-waiting-human' ||
-                        item.kind === 'assignment-blocked' ? (
+                        {item.kind === 'pairing-request' && item.category !== 'handled' ? (
+                          hostSource === undefined ? (
+                            <HumanInboxPairing source={item} actions={actions} t={t} />
+                          ) : (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              type="button"
+                              onClick={() => openAction(item)}
+                            >
+                              {t('humanInbox.open')}
+                            </Button>
+                          )
+                        ) : item.kind === 'channel-unread' ||
+                          item.kind === 'channel-reply' ||
+                          item.kind === 'channel-mention' ||
+                          item.kind === 'tool-approval' ||
+                          item.kind === 'user-question' ||
+                          item.kind === 'private-input' ||
+                          item.kind === 'workspace-grant-request' ||
+                          item.kind === 'assignment-waiting-human' ||
+                          item.kind === 'assignment-blocked' ? (
                           hostSource === undefined &&
                           item.kind === 'workspace-grant-request' &&
                           item.category !== 'handled' ? (

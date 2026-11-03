@@ -319,6 +319,7 @@ export interface HumanAttentionItem {
   category: HumanInboxCategory;
   kind:
     | 'group-join-request'
+    | 'pairing-request'
     | 'user-question'
     | 'private-input'
     | 'tool-approval'

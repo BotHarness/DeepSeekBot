@@ -405,7 +405,7 @@ export function PairingSettings({
     </section>
   );
 }
-function PairingRow({
+export function PairingRow({
   request,
   selectGroup,
   roles,

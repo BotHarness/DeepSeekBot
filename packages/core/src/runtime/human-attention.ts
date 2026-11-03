@@ -15,6 +15,7 @@ export interface HumanAttentionItem {
   category: HumanAttentionCategory;
   kind:
     | 'group-join-request'
+    | 'pairing-request'
     | 'user-question'
     | 'private-input'
     | 'tool-approval'
@@ -130,6 +131,21 @@ interface Cursor {
 }
 
 const ACTION_ATTENTION_CTE = `WITH attention AS (
+          SELECT 'pairing:' || p.id AS id,
+                 'action' AS category, 'pairing-request' AS kind,
+                 json_extract(p.body, '$.createdAt') AS created_at,
+                 'dm-' || p.bot_slug AS channel_id,
+                 coalesce((SELECT json_extract(dm.record_json, '$.name') FROM channel_records dm
+                            WHERE dm.channel_id = 'dm-' || p.bot_slug), '') AS channel_name,
+                 p.bot_slug,
+                 p.purpose || ' · ' || coalesce(json_extract(p.body, '$.actorName'), '') || ' · '
+                   || json_extract(p.body, '$.reference') AS summary,
+                 p.id AS request_id, NULL AS message_id, NULL AS assignment_session_id,
+                 NULL AS source_event_id
+            FROM messaging_pairings p
+           WHERE p.status = 'pending'
+             AND json_extract(p.body, '$.expiresAt') > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          UNION ALL
           SELECT 'join:' || json_extract(j.value, '$.id') AS id,
                  'action' AS category, 'group-join-request' AS kind,
                  json_extract(j.value, '$.createdAt') AS created_at,
