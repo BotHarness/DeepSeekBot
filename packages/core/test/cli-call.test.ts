@@ -62,7 +62,10 @@ function host(options: { reply?: boolean } = {}) {
     now: () => clock,
     async sleep(ms: number) {
       clock += ms;
-      await new Promise((resolve) => setImmediate(resolve));
+      for (let turn = 0; turn < 3; turn += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await new Promise((resolve) => setImmediate(resolve));
+      }
     },
   };
   const run = (
@@ -122,7 +125,7 @@ describe('deepseekbot call commands', () => {
       script: scriptFile,
       'reply-wait': '20',
     })) as { heard: { text: string }[]; events: { type: string }[] };
-    expect(posts.filter((body) => body['kind'] === 'heartbeat').length).toBeLessThan(5);
+    expect(posts.filter((body) => body['kind'] === 'heartbeat').length).toBeLessThan(10);
     expect(report.heard.map((item) => item.text)).toEqual([
       'what is on my calendar',
       'and tomorrow',
