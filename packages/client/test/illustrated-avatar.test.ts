@@ -4,12 +4,17 @@ import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { PersonaBotAvatar } from '../src/client/avatar.js';
 import {
+  avatarSvg,
   DEFAULT_ILLUSTRATED_RECIPE,
   LINE_TOOL_SYMBOLS,
   pixelSymbolCells,
 } from '../../core/src/bots/avatar-appearance.js';
 import { lineMorphD, sampleLineSymbol } from '../src/client/line-morph.js';
-import { PIXEL_MORPH_MS, PIXEL_SYMBOL_HOLD_MS } from '../src/client/illustrated-avatar.js';
+import {
+  cachedStaticAvatarSvg,
+  PIXEL_MORPH_MS,
+  PIXEL_SYMBOL_HOLD_MS,
+} from '../src/client/illustrated-avatar.js';
 import { pixelPathMarkup as rawPixelMarkup } from '@botharness/pixel-morph';
 
 const pixelMarkup = (...args: Parameters<typeof rawPixelMarkup>) => {
@@ -733,4 +738,14 @@ it('keeps one parsed figure while a large avatar alternates thinking and working
     Reflect.deleteProperty(document, 'hidden');
     node.remove();
   }
+});
+
+it('reuses one static avatar markup for equal recipes across mounts', () => {
+  const first = cachedStaticAvatarSvg({ ...DEFAULT_ILLUSTRATED_RECIPE }, 'portrait');
+  const second = cachedStaticAvatarSvg({ ...DEFAULT_ILLUSTRATED_RECIPE }, 'portrait');
+  expect(first).toBe(avatarSvg(DEFAULT_ILLUSTRATED_RECIPE, { surface: 'portrait' }));
+  expect(second).toBe(first);
+  expect(cachedStaticAvatarSvg(DEFAULT_LINE_RECIPE, 'portrait')).toBe(
+    avatarSvg(DEFAULT_LINE_RECIPE, { surface: 'portrait' }),
+  );
 });
