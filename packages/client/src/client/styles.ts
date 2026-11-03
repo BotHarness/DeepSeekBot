@@ -6516,6 +6516,12 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
   gap: ${space.x2};
   flex-wrap: wrap;
 }
+.bh-human-inbox-pairing-capabilities {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: ${space.x2} ${space.x4};
+}
 .bh-human-inbox-row-check {
   position: relative;
   z-index: 1;

@@ -1,11 +1,24 @@
+import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 import { useState, type ReactElement } from 'react';
-import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
+import type {
+  PairingCapability,
+  PairingRequest,
+  PairingReviewInput,
+} from '../../../core/src/messaging/pairing.js';
 import type { ExternalUserRole } from '../../../core/src/messaging/sender-access.js';
 import type { BridgeActions } from './actions.js';
+import { Combobox } from './combobox.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
-import { PairingRow } from './pairing-settings.js';
 import type { HumanAttentionItem } from './store.js';
+
+const capabilities = [
+  ['approve', 'pairing.approveCapability'],
+  ['reject', 'pairing.rejectCapability'],
+  ['answer', 'pairing.answerCapability'],
+  ['save-rules', 'pairing.rulesCapability'],
+  ['review-pairing', 'pairing.reviewCapability'],
+] as const;
 
 export function HumanInboxPairing({
   source,
@@ -17,6 +30,8 @@ export function HumanInboxPairing({
   t: BotHarnessTranslate;
 }): ReactElement {
   const [loaded, setLoaded] = useState<{ request?: PairingRequest; roles: ExternalUserRole[] }>();
+  const [roleId, setRoleId] = useState('');
+  const [selected, setSelected] = useState<PairingCapability[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const load = async (): Promise<void> => {
@@ -31,6 +46,8 @@ export function HumanInboxPairing({
       live = false;
     };
   }, [source.botSlug, source.requestId]);
+  const request = loaded?.request;
+  const role = loaded?.roles.find((item) => item.id === roleId);
   const review = async (input: PairingReviewInput): Promise<void> => {
     setBusy(true);
     setError(false);
@@ -44,21 +61,78 @@ export function HumanInboxPairing({
       setBusy(false);
     }
   };
+  const base = request && { id: request.id, expectedRevision: request.revision };
   return (
-    <div ref={mount} className="bh-human-inbox-pairing">
-      {loaded?.request?.status === 'pending' ? (
-        <PairingRow
-          request={loaded.request}
-          roles={loaded.roles}
-          selectGroup={() => undefined}
-          busy={busy}
-          review={review}
-          t={t}
-        />
+    <div ref={mount} className="bh-human-inbox-row-actions">
+      {base && request?.status === 'pending' ? (
+        <>
+          {request.purpose === 'conversation' ? (
+            <Combobox
+              label={t('pairing.role')}
+              toggleLabel={t('pairing.role')}
+              value={roleId}
+              fallbackValue=""
+              disabled={busy}
+              searchable={false}
+              onSelect={setRoleId}
+              options={[
+                { value: '', label: t('pairing.selectRole') },
+                ...(loaded?.roles ?? []).map((item) => ({ value: item.id, label: item.name })),
+              ]}
+            />
+          ) : (
+            <div className="bh-human-inbox-pairing-capabilities">
+              {capabilities.map(([capability, label]) => (
+                <Checkbox
+                  key={capability}
+                  label={t(label)}
+                  checked={selected.includes(capability)}
+                  disabled={busy}
+                  onChange={(checked) =>
+                    setSelected((value) =>
+                      checked
+                        ? [...value, capability]
+                        : value.filter((item) => item !== capability),
+                    )
+                  }
+                />
+              ))}
+            </div>
+          )}
+          <Button
+            variant="primary"
+            size="sm"
+            type="button"
+            disabled={busy || (request.purpose === 'conversation' ? !role : selected.length === 0)}
+            onClick={() =>
+              void review(
+                request.purpose === 'conversation' && role
+                  ? {
+                      ...base,
+                      kind: 'approve',
+                      roleId: role.id,
+                      expectedRoleRevision: role.revision,
+                    }
+                  : { ...base, kind: 'approve', capabilities: selected },
+              )
+            }
+          >
+            {t('humanInbox.accept')}
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            type="button"
+            disabled={busy}
+            onClick={() => void review({ ...base, kind: 'reject' })}
+          >
+            {t('humanInbox.decline')}
+          </Button>
+        </>
       ) : loaded ? (
-        <p role="status">{t('humanInbox.pairingUnavailable')}</p>
+        <span role="status">{t('humanInbox.pairingUnavailable')}</span>
       ) : null}
-      {error ? <p role="alert">{t('humanInbox.failed')}</p> : null}
+      {error ? <span role="alert">{t('humanInbox.failed')}</span> : null}
     </div>
   );
 }
