@@ -292,6 +292,33 @@ describe('native Subagent report admission', () => {
     }
   });
 
+  it('admits a waiting native step under the same policy when a soft check fails before readiness', async () => {
+    const f = fixture();
+    try {
+      const accepted = f.runtime.prepareNativeOrchestratorStep!(
+        'parent',
+        ['child'],
+        new AbortController().signal,
+      );
+      await f.started.promise;
+      f.archived.add('parent');
+      f.prepared.resolve();
+      expect(await accepted).toBe(true);
+      expect(f.warnings.map((warning) => JSON.parse(warning) as Record<string, unknown>)).toEqual([
+        expect.objectContaining({
+          phase: 'admitted-unavailable',
+          reason: 'no-current-orchestrator',
+        }),
+      ]);
+    } finally {
+      f.archived.delete('parent');
+      f.prepared.resolve();
+      f.finished.resolve();
+      await f.runtime.whenIdle();
+      await f.runtime.close();
+    }
+  });
+
   it('cancels while preparing without leaving a waiter or accepting a report', async () => {
     const f = fixture();
     const controller = new AbortController();

@@ -4213,20 +4213,21 @@ class BotRuntimeImplementation implements BotRuntime {
       );
       return false;
     };
+    const admitUnavailable = (reason: NativeOrchestratorRefusal): void =>
+      this.#warn?.(
+        JSON.stringify({
+          event: 'native-orchestrator-input',
+          phase: 'admitted-unavailable',
+          reason,
+          bot: owner.botSlug,
+          session: sessionId,
+          senders: senderSessionIds.length,
+        }),
+      );
     const refusal = unavailable();
     if (this.#preparedOrchestrators.has(sessionId)) {
       if (refusal === 'runtime-closed' || refusal === 'aborted') return refuse(refusal);
-      if (refusal !== undefined)
-        this.#warn?.(
-          JSON.stringify({
-            event: 'native-orchestrator-input',
-            phase: 'admitted-unavailable',
-            reason: refusal,
-            bot: owner.botSlug,
-            session: sessionId,
-            senders: senderSessionIds.length,
-          }),
-        );
+      if (refusal !== undefined) admitUnavailable(refusal);
       return true;
     }
     if (refusal !== undefined) return refuse(refusal);
@@ -4251,7 +4252,10 @@ class BotRuntimeImplementation implements BotRuntime {
         cancellation.removeEventListener('abort', abort);
         if (this.#nativeStepReady.get(sessionId) === finish)
           this.#nativeStepReady.delete(sessionId);
-        const reason = unavailable() ?? (accepted ? undefined : 'run-not-ready');
+        const refusal = unavailable();
+        const fatal = refusal === 'runtime-closed' || refusal === 'aborted';
+        if (accepted && refusal !== undefined && !fatal) admitUnavailable(refusal);
+        const reason = accepted && !fatal ? undefined : (refusal ?? 'run-not-ready');
         if (reason !== undefined) refuse(reason);
         resolve(reason === undefined);
       };
