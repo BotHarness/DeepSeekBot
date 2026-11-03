@@ -10,8 +10,14 @@ import { expect, it } from 'vitest';
 import { createTailnetBotBridge } from '../src/devices/bot-tailnet-bridge.js';
 import type { BotTailnet } from '../src/devices/bot-tailnet.js';
 import type { TailnetChange } from '../src/devices/bot-tailnet-watch.js';
+import { loopbackAliasesAvailable } from './loopback-aliases.js';
 
-it.each(['background', 'explicit'])(
+const directoryAliases = await loopbackAliasesAvailable(['127.0.0.10', '127.0.0.11']);
+const withdrawalAliases = await loopbackAliasesAvailable(['127.0.0.8', '127.0.0.9']);
+const rebindAliases = await loopbackAliasesAvailable(['127.0.0.2', '127.0.0.3', '127.0.0.4']);
+const relationshipAliases = await loopbackAliasesAvailable(['127.0.0.2', '127.0.0.3']);
+
+it.skipIf(!directoryAliases).each(['background', 'explicit'])(
   'cancels an older %s directory read when a fresh query starts',
   async (kind) => {
     const self = { nodeId: 'self', address: '127.0.0.10' };
@@ -65,7 +71,7 @@ it.each(['background', 'explicit'])(
   },
 );
 
-it.each([false, true])(
+it.skipIf(!withdrawalAliases).each([false, true])(
   'waits for observed withdrawal before trusting a returned peer (cancellation fails: %s)',
   async (fails) => {
     const self = { nodeId: 'self', address: '127.0.0.8' };
@@ -142,54 +148,57 @@ it.each([false, true])(
   },
 );
 
-it('rebinds its own listener after the local tailnet identity changes', async () => {
-  let self = { nodeId: 'initial-node', address: '127.0.0.2' };
-  const bridge = createTailnetBotBridge({
-    hostId: 'local',
-    key: async () => randomBytes(32),
-    directory: () => [],
-    async receive() {},
-    ports: [43273],
-    tailnet: {
-      async snapshot() {
-        return { self, peers: [] };
-      },
-      async admit() {
-        return { nodeId: 'caller', address: '127.0.0.3' };
-      },
-    },
-  });
-  const query = (address: string) =>
-    new Promise<number | 'offline'>((resolve) => {
-      const call = request(
-        {
-          hostname: address,
-          port: 43273,
-          path: '/botharness-bots/v1/contacts?offset=0',
-          localAddress: '127.0.0.3',
-          agent: false,
-          timeout: 1000,
+it.skipIf(!rebindAliases)(
+  'rebinds its own listener after the local tailnet identity changes',
+  async () => {
+    let self = { nodeId: 'initial-node', address: '127.0.0.2' };
+    const bridge = createTailnetBotBridge({
+      hostId: 'local',
+      key: async () => randomBytes(32),
+      directory: () => [],
+      async receive() {},
+      ports: [43273],
+      tailnet: {
+        async snapshot() {
+          return { self, peers: [] };
         },
-        (response) => {
-          response.resume();
-          resolve(response.statusCode!);
+        async admit() {
+          return { nodeId: 'caller', address: '127.0.0.3' };
         },
-      );
-      call.on('error', () => resolve('offline'));
-      call.on('timeout', () => call.destroy());
-      call.end();
+      },
     });
-  try {
-    await bridge.start();
-    expect(await query('127.0.0.2')).toBe(200);
-    self = { nodeId: 'replacement-node', address: '127.0.0.4' };
-    await bridge.refresh?.();
-    expect(await query('127.0.0.4')).toBe(200);
-    expect(await query('127.0.0.2')).toBe('offline');
-  } finally {
-    await bridge.close();
-  }
-});
+    const query = (address: string) =>
+      new Promise<number | 'offline'>((resolve) => {
+        const call = request(
+          {
+            hostname: address,
+            port: 43273,
+            path: '/botharness-bots/v1/contacts?offset=0',
+            localAddress: '127.0.0.3',
+            agent: false,
+            timeout: 1000,
+          },
+          (response) => {
+            response.resume();
+            resolve(response.statusCode!);
+          },
+        );
+        call.on('error', () => resolve('offline'));
+        call.on('timeout', () => call.destroy());
+        call.end();
+      });
+    try {
+      await bridge.start();
+      expect(await query('127.0.0.2')).toBe(200);
+      self = { nodeId: 'replacement-node', address: '127.0.0.4' };
+      await bridge.refresh?.();
+      expect(await query('127.0.0.4')).toBe(200);
+      expect(await query('127.0.0.2')).toBe('offline');
+    } finally {
+      await bridge.close();
+    }
+  },
+);
 
 it('checks persisted membership independently of online routes after a bridge restart', async () => {
   const self = { nodeId: 'local-node', address: '127.0.0.2' };
@@ -244,7 +253,7 @@ it('checks persisted membership independently of online routes after a bridge re
   }
 });
 
-it.each(['changed', 'legacy'])(
+it.skipIf(!relationshipAliases).each(['changed', 'legacy'])(
   'discovers and sends exactly once while replacing a %s relationship',
   async (relationship) => {
     const keys = [randomBytes(32), randomBytes(32)];
