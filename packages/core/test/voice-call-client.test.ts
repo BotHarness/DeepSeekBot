@@ -78,9 +78,11 @@ function setup(options: { readyAsr?: boolean } = {}) {
     muted: [] as boolean[],
     stopped: 0,
   };
+  let gate: Promise<void> | undefined;
   const media: CallClientMedia = {
     async start({ offer }) {
       phone.offers.push(offer);
+      if (gate !== undefined) await gate;
       return 'v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=sendrecv\r\n';
     },
     mute: (muted) => phone.muted.push(muted),
@@ -121,6 +123,9 @@ function setup(options: { readyAsr?: boolean } = {}) {
     },
     offline: () => {
       reachable = false;
+    },
+    slowStart: (wait: Promise<void>) => {
+      gate = wait;
     },
     get ticking() {
       return tick !== undefined;
@@ -202,6 +207,23 @@ describe('phone call client', () => {
     for (const listener of world.phone.listeners) listener('failed', 'connection-lost');
     await flush();
     expect(world.client.state()).toMatchObject({ status: 'ended', reason: 'media-failed' });
+    expect(await world.post({ kind: 'status' })).toMatchObject({
+      calls: [{ phase: 'ended', endReason: 'hangup' }],
+    });
+  });
+
+  it('hangs up the Host call when the screen closes while the microphone starts', async () => {
+    const world = setup();
+    const media = world.client;
+    let release: (() => void) | undefined;
+    world.slowStart(new Promise<void>((resolve) => (release = resolve)));
+    const opening = media.open('mira');
+    await flush();
+    media.dispose();
+    release!();
+    await opening;
+    await flush();
+    expect(world.phone.stopped).toBeGreaterThan(1);
     expect(await world.post({ kind: 'status' })).toMatchObject({
       calls: [{ phase: 'ended', endReason: 'hangup' }],
     });

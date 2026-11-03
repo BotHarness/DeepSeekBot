@@ -83,7 +83,10 @@ function script(values: CallValues): ScriptEntry[] {
   if (!Array.isArray(steps) || steps.length === 0 || steps.length > 20)
     usage('--script holds 1–20 steps like [{"at": 0, "file": "/abs/question.wav"}].');
   return steps.map((step) => {
-    const entry = step as Record<string, unknown>;
+    const entry = (typeof step === 'object' && step !== null ? step : {}) as Record<
+      string,
+      unknown
+    >;
     if (
       typeof entry['at'] !== 'number' ||
       !Number.isFinite(entry['at']) ||
@@ -176,8 +179,12 @@ async function simulate(
       streamMs += (chunk.length / 16_000) * 1000;
     }
     const deadline = clock.now() + replyWaitMs;
-    const sentCount = () => events.filter((event) => event.type === 'sent').length;
-    const playedCount = () => events.filter((event) => event.type === 'played').length;
+    const count = (...types: VoiceCallEvent['type'][]) =>
+      events.filter((event) => types.includes(event.type)).length;
+    const settled = () =>
+      count('speech-start') <= count('transcribing', 'noise-discarded') &&
+      count('transcribing') <= count('sent', 'asr-failed', 'send-failed', 'nothing-heard') &&
+      count('played', 'playback-failed') >= count('sent');
     while (clock.now() < deadline) {
       await clock.sleep(1_000);
       collect(
@@ -192,7 +199,7 @@ async function simulate(
       );
       await heartbeat();
       if (events.some((event) => event.type === 'ended')) break;
-      if (sentCount() >= steps.length && playedCount() >= sentCount()) break;
+      if (settled()) break;
     }
   } finally {
     const hungUp = await post({ kind: 'hangup', callId }).catch(() => undefined);

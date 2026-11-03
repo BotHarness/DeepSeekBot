@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CallClientState } from '../../../packages/core/src/voice/call-client';
 import type { VoiceCallView } from '../../../packages/core/src/voice/call-contract';
 import { callScreenModel, formatCallDuration, readinessMessage } from '../src/ui/chat/call-model';
+import { callLinkRedirect } from '../src/ui/chat/call-link';
 import { callStrings } from '../src/ui/strings';
 
 const en = { call: callStrings.en };
@@ -112,5 +113,14 @@ describe('call screen model', () => {
   it('formats call time', () => {
     expect(formatCallDuration(65_400)).toBe('01:05');
     expect(formatCallDuration(3_725_000)).toBe('1:02:05');
+  });
+});
+
+describe('call links', () => {
+  it('turns a call link into the DM so a call always starts from a tap', () => {
+    expect(callLinkRedirect('deepseekbot://call/mira?hostId=h1', false)).toBe('/dm/mira');
+    expect(callLinkRedirect('/call/mira', false)).toBe('/dm/mira');
+    expect(callLinkRedirect('deepseekbot-dev://call/mira?script=x', true)).toBeUndefined();
+    expect(callLinkRedirect('/dm/mira', false)).toBeUndefined();
   });
 });

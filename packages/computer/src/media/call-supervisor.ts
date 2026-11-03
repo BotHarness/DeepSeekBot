@@ -421,6 +421,7 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
             const done = new Promise<void>((resolve, reject) =>
               playbacks.set(playback, { resolve, reject }),
             );
+            done.catch(() => undefined);
             const stop = () => {
               void request('stop', { playback }).catch(() => undefined);
               playbacks

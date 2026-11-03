@@ -117,11 +117,12 @@ describe('deepseekbot call commands', () => {
         { at: 7_000, file: second },
       ]),
     );
-    const { run } = host();
+    const { run, posts } = host();
     const report = (await run('call-simulate', ['ada'], {
       script: scriptFile,
       'reply-wait': '20',
     })) as { heard: { text: string }[]; events: { type: string }[] };
+    expect(posts.filter((body) => body['kind'] === 'heartbeat').length).toBeLessThan(5);
     expect(report.heard.map((item) => item.text)).toEqual([
       'what is on my calendar',
       'and tomorrow',

@@ -204,7 +204,11 @@ export function createCallClient(options: CallClientOptions): CallClient {
         });
         return;
       }
-      if (status() === 'ended') return;
+      if (status() === 'ended') {
+        options.media.stop();
+        await options.post({ kind: 'hangup', callId: opened.callId }).catch(() => undefined);
+        return;
+      }
       let signalled: VoiceCallResult;
       try {
         signalled = await options.post({
@@ -219,7 +223,10 @@ export function createCallClient(options: CallClientOptions): CallClient {
         });
         return;
       }
-      if (status() === 'ended') return;
+      if (status() === 'ended') {
+        await options.post({ kind: 'hangup', callId: opened.callId }).catch(() => undefined);
+        return;
+      }
       if (!signalled.ok) {
         finish('media-failed', { code: signalled.code, error: signalled.error });
         return;
@@ -255,7 +262,7 @@ export function createCallClient(options: CallClientOptions): CallClient {
       finish('hangup');
     },
     dispose() {
-      if (status() === 'live' && call !== undefined)
+      if (status() !== 'ended' && call !== undefined)
         void options.post({ kind: 'hangup', callId: call.callId }).catch(() => undefined);
       finish('hangup');
       disposed = true;

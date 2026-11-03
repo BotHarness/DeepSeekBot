@@ -2,7 +2,7 @@ import * as Application from 'expo-application';
 import { File, Paths } from 'expo-file-system';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Linking, Pressable, View } from 'react-native';
+import { Linking, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -119,8 +119,14 @@ export function CallScreen({
         if (testAudio) {
           const file = new File(Paths.cache, `call-report-${Date.now()}.json`);
           setTimeout(() => {
-            file.write(JSON.stringify({ timeline, recording: media.test?.recording() ?? null }));
-            setReport(file.uri);
+            try {
+              file.writeSync(
+                JSON.stringify({ timeline, recording: media.test?.recording() ?? null }),
+              );
+              setReport(file.uri);
+            } catch {
+              setReport(undefined);
+            }
           }, 500);
         }
       };
@@ -211,7 +217,10 @@ export function CallScreen({
           justifyContent: 'space-between',
         }}
       >
-        <View style={{ alignItems: 'center', gap: space.x4 }}>
+        <ScrollView
+          style={{ flexShrink: 1 }}
+          contentContainerStyle={{ alignItems: 'center', gap: space.x4 }}
+        >
           {bot === undefined ? null : <BotAvatar bot={bot} size={theme.touch * 2.5} />}
           <Text variant="display" accessibilityRole="header" style={{ textAlign: 'center' }}>
             {bot?.displayName ?? slug}
@@ -257,7 +266,7 @@ export function CallScreen({
               {report}
             </Text>
           )}
-        </View>
+        </ScrollView>
         {ended !== undefined ? (
           <View style={{ gap: space.x4 }}>
             {microphone === 'blocked' ? (
