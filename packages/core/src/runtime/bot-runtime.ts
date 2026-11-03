@@ -4214,8 +4214,22 @@ class BotRuntimeImplementation implements BotRuntime {
       return false;
     };
     const refusal = unavailable();
+    if (this.#preparedOrchestrators.has(sessionId)) {
+      if (refusal === 'runtime-closed' || refusal === 'aborted') return refuse(refusal);
+      if (refusal !== undefined)
+        this.#warn?.(
+          JSON.stringify({
+            event: 'native-orchestrator-input',
+            phase: 'admitted-unavailable',
+            reason: refusal,
+            bot: owner.botSlug,
+            session: sessionId,
+            senders: senderSessionIds.length,
+          }),
+        );
+      return true;
+    }
     if (refusal !== undefined) return refuse(refusal);
-    if (this.#preparedOrchestrators.has(sessionId)) return true;
     if (!senderSessionIds.length) return refuse('no-native-sender');
     if (
       !senderSessionIds.every((id) => {

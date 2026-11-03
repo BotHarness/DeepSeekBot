@@ -252,6 +252,46 @@ describe('native Subagent report admission', () => {
     }
   });
 
+  it('keeps a Runtime-driven turn running when a softer fence fails mid-turn (#3315)', async () => {
+    const f = fixture();
+    try {
+      const dm = f.runtime.admitDmMessage({
+        channelId: f.dm.id,
+        messageId: 'human-mid-turn',
+        body: 'Long request',
+      });
+      if (!dm.admitted) throw new Error(dm.reason);
+      await f.started.promise;
+      f.prepared.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      f.archived.add('parent');
+      expect(
+        await f.runtime.prepareNativeOrchestratorStep!('parent', [], new AbortController().signal),
+      ).toBe(true);
+      const aborted = new AbortController();
+      aborted.abort();
+      expect(await f.runtime.prepareNativeOrchestratorStep!('parent', [], aborted.signal)).toBe(
+        false,
+      );
+      expect(f.warnings.map((warning) => JSON.parse(warning) as Record<string, unknown>)).toEqual([
+        expect.objectContaining({
+          event: 'native-orchestrator-input',
+          phase: 'admitted-unavailable',
+          reason: 'no-current-orchestrator',
+        }),
+        expect.objectContaining({ phase: 'refused', reason: 'aborted', executionReady: true }),
+      ]);
+      f.archived.delete('parent');
+      f.finished.resolve();
+      await dm.settled;
+    } finally {
+      f.prepared.resolve();
+      f.finished.resolve();
+      await f.runtime.whenIdle();
+      await f.runtime.close();
+    }
+  });
+
   it('cancels while preparing without leaving a waiter or accepting a report', async () => {
     const f = fixture();
     const controller = new AbortController();
