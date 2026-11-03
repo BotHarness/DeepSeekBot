@@ -135,6 +135,7 @@ export interface VoiceCalls {
     slug: string;
     channelId: string;
     messageId: string;
+    at: string;
     body: string;
     signal?: AbortSignal | undefined;
   }): Promise<AudioClip | undefined>;
@@ -567,10 +568,10 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       });
     }
     const known = reply.sentences;
-    const diverged = known.findIndex(
-      (spoken, index) => index < sentences.length && sentences[index] !== spoken.text,
-    );
-    if (diverged !== -1) {
+    const diverged =
+      known.length > sentences.length ||
+      known.some((spoken, index) => sentences[index] !== spoken.text);
+    if (diverged) {
       stopReply(call, reply, 'revised');
       return;
     }
@@ -581,6 +582,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     slug: string;
     channelId: string;
     messageId: string;
+    at: string;
     body: string;
     signal?: AbortSignal | undefined;
   }): Promise<AudioClip | undefined> => {
@@ -589,7 +591,8 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       call === undefined ||
       !call.connected ||
       call.slug !== input.slug ||
-      call.channelId !== input.channelId
+      call.channelId !== input.channelId ||
+      Date.parse(input.at) < call.startedAt - 1_000
     )
       return undefined;
     const final = speakableSentences(input.body, true);

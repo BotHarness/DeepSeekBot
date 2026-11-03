@@ -191,6 +191,7 @@ function harness(
     synthesized,
     phone,
     ok,
+    at: () => new Date(clock).toISOString(),
     advance: (ms: number) => {
       clock += ms;
     },
@@ -272,6 +273,7 @@ describe('Host call owner', () => {
 
     h.advance(1_200);
     const archived = await h.calls.speak({
+      at: h.at(),
       slug: 'mira',
       channelId: 'dm-mira',
       messageId: 'bot-reply-1',
@@ -339,7 +341,13 @@ describe('Host call owner', () => {
     const callId = await connected(h);
     let finish!: () => void;
     state.playDelay = new Promise<void>((resolve) => (finish = resolve));
-    await h.calls.speak({ slug: 'mira', channelId: 'dm-mira', messageId: 'm1', body: '好的。' });
+    await h.calls.speak({
+      at: h.at(),
+      slug: 'mira',
+      channelId: 'dm-mira',
+      messageId: 'm1',
+      body: '好的。',
+    });
     await settled();
     expect((await view(h, callId)).phase).toBe('bot-speaking');
     h.feed(state.onPcm!, concat(speech(1200), silence(900)));
@@ -519,7 +527,13 @@ describe('Host call owner', () => {
     }
     await settled();
     expect(h.sent.map((item) => item.body)).toEqual(['帮我查一下明天的天气']);
-    await h.calls.speak({ slug: 'mira', channelId: 'dm-mira', messageId: 'r1', body: '晴天。' });
+    await h.calls.speak({
+      at: h.at(),
+      slug: 'mira',
+      channelId: 'dm-mira',
+      messageId: 'r1',
+      body: '晴天。',
+    });
     await settled();
     expect(types((await view(h, call.callId)).events)).toEqual(
       expect.arrayContaining(['sent', 'playing', 'played']),
@@ -538,7 +552,13 @@ describe('Host call owner', () => {
     const h = harness({ media });
     await connected(h);
     expect(
-      await h.calls.speak({ slug: 'other', channelId: 'dm-other', messageId: 'x', body: '你好。' }),
+      await h.calls.speak({
+        at: h.at(),
+        slug: 'other',
+        channelId: 'dm-other',
+        messageId: 'x',
+        body: '你好。',
+      }),
     ).toBeUndefined();
     for (const draft of [
       { channelId: 'dm-other', botSlug: 'other', voice: true as const },
@@ -611,6 +631,7 @@ describe('streamed voice replies', () => {
     draft.settled();
     h.advance(400);
     const archived = await h.calls.speak({
+      at: h.at(),
       slug: 'mira',
       channelId: 'dm-mira',
       messageId: 'bot-1',
@@ -687,6 +708,7 @@ describe('streamed voice replies', () => {
 
     state.playDelay = undefined;
     const archived = await h.calls.speak({
+      at: h.at(),
       slug: 'mira',
       channelId: 'dm-mira',
       messageId: 'bot-2',
@@ -711,6 +733,7 @@ describe('streamed voice replies', () => {
     expect(state.audio).toEqual([clipFor('嗯。')]);
     draft.settled();
     const archived = await h.calls.speak({
+      at: h.at(),
       slug: 'mira',
       channelId: 'dm-mira',
       messageId: 'bot-3',
@@ -745,6 +768,7 @@ describe('streamed voice replies', () => {
     stream(h).update('好的。我来看看。然后');
     await settled();
     const archived = await h.calls.speak({
+      at: h.at(),
       slug: 'mira',
       channelId: 'dm-mira',
       messageId: 'bot-4',
@@ -789,6 +813,41 @@ describe('streamed voice replies', () => {
     expect(events.filter((event) => event.type === 'reply-text')).toHaveLength(1);
   });
 
+  it('stops at once when the draft takes back a sentence it already queued', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const callId = await connected(h);
+    await heardQuestion(h, state.onPcm!);
+    const draft = stream(h);
+    draft.update('好的。马上转账。然后');
+    await settled();
+    draft.update('好的。');
+    await settled();
+    const events = (await view(h, callId)).events;
+    expect(events.filter((event) => event.type === 'reply-stopped')).toEqual([
+      expect.objectContaining({ reason: 'revised' }),
+    ]);
+  });
+
+  it('does not speak a message written before the call started', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    await connected(h);
+    await heardQuestion(h, state.onPcm!);
+    const before = state.audio.length;
+    expect(
+      await h.calls.speak({
+        at: new Date(0).toISOString(),
+        slug: 'mira',
+        channelId: 'dm-mira',
+        messageId: 'old',
+        body: '旧消息。',
+      }),
+    ).toBeUndefined();
+    await settled();
+    expect(state.audio).toHaveLength(before);
+  });
+
   it('keeps synthesizing the archive when the call ends mid-reply', async () => {
     const { media, state } = fakeMedia();
     const h = harness({ media });
@@ -796,6 +855,7 @@ describe('streamed voice replies', () => {
     await heardQuestion(h, state.onPcm!);
     state.playDelay = new Promise<void>(() => undefined);
     const spoken = h.calls.speak({
+      at: h.at(),
       slug: 'mira',
       channelId: 'dm-mira',
       messageId: 'bot-5',

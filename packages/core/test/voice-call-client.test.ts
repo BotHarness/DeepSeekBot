@@ -119,7 +119,8 @@ function setup(options: { readyAsr?: boolean } = {}) {
     hostSide,
     phone,
     sent,
-    speak: calls.speak,
+    speak: (input: Omit<Parameters<typeof calls.speak>[0], 'at'>) =>
+      calls.speak({ ...input, at: new Date(clock).toISOString() }),
     advance: async (ms: number) => {
       clock += ms;
       tick?.();

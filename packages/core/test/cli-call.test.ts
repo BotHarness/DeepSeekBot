@@ -41,6 +41,7 @@ function host(options: { reply?: boolean } = {}) {
       if (options.reply === false) return;
       setTimeout(() => {
         void calls.speak({
+          at: new Date(clock).toISOString(),
           slug,
           channelId,
           messageId: `reply-to-${messageId}`,

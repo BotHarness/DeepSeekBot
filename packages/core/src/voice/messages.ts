@@ -26,6 +26,7 @@ export interface VoiceMessagesDeps {
     slug: string;
     channelId: string;
     messageId: string;
+    at: string;
     body: string;
     signal?: AbortSignal | undefined;
   }) => Promise<AudioClip | undefined>;
@@ -115,6 +116,7 @@ export function createVoiceMessages(deps: VoiceMessagesDeps) {
             slug: botSlug,
             channelId,
             messageId,
+            at: message.at,
             body: message.body,
             signal: input.signal,
           });

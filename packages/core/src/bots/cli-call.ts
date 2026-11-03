@@ -274,7 +274,9 @@ async function simulate(
     ackMs: ack?.ms ?? null,
     firstTextMs: first('textMs'),
     firstAudioMs: first('responseMs'),
-    answered: heard.length > 0 && events.some((event) => event.type === 'reply-done'),
+    answered:
+      heard.length > 0 &&
+      events.some((event) => event.type === 'reply-done' && event.sentences > 0),
     events,
   };
 }
