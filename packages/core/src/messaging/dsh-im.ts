@@ -9,6 +9,9 @@ import type {
   MessagingHistoryQuery,
   MessagingHistoryPage,
   MessagingApprovalCard,
+  MessagingCardAction,
+  MessagingQuestionAction,
+  MessagingQuestionCard,
   MessagingPairingCard,
   MessagingApprovalAck,
   MessagingTypingState,
@@ -36,6 +39,18 @@ export interface DshImOutboundService {
     options: { expectedFingerprint: string; signal: AbortSignal; beforeSend(): boolean },
   ): Promise<{ accepted: true }>;
   approvalCardVersion?: 1;
+  questionCardVersion?: 1;
+  questionCardChecked?(
+    botId: string,
+    route: MessagingReplyRoute | MessagingReceipt,
+    card: MessagingQuestionCard,
+    options: {
+      expectedFingerprint: string;
+      signal: AbortSignal;
+      beforeSend(): boolean;
+      update?: boolean;
+    },
+  ): Promise<{ sent?: true; updated?: true; receipt?: MessagingReceipt }>;
   approvalRuleCardVersion?: 1 | 2;
   pairingCardVersion?: 1;
   approvalCardChecked?(
@@ -248,6 +263,11 @@ const inboundSchema = z
         itemId: identifier.optional(),
         reportedSizeBytes: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
         playLength: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
+        durationMs: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
+        posterAttachmentId: z
+          .string()
+          .regex(/^[a-f0-9]{64}$/)
+          .optional(),
       })
       .strict()
       .optional(),
@@ -310,6 +330,32 @@ const inboundSchema = z
       (event.conversation.kind === 'group' && event.mentionedAccount),
     { message: 'Bot senders are accepted only when they mention this account in a group' },
   );
+
+function isLarkVideo(event: z.infer<typeof inboundSchema>, images: boolean): boolean {
+  const video = event.video;
+  const items = event.attachments ?? [];
+  if (
+    !video ||
+    !event.mentionedAccount ||
+    !event.reply.parentId ||
+    event.reply.parentId === event.messageId ||
+    event.contentParts ||
+    event.voice ||
+    video.playLength !== undefined ||
+    video.reportedSizeBytes !== undefined ||
+    items.length !== (video.posterAttachmentId === undefined ? 1 : 2)
+  )
+    return false;
+  return (
+    items.every((item) =>
+      item.messageId !== event.reply.parentId
+        ? false
+        : item.id === video.itemId
+          ? item.mediaType === 'video/unknown'
+          : images && item.id === video.posterAttachmentId && item.mediaType === 'image/unknown',
+    ) && items.some((item) => item.id === video.itemId)
+  );
+}
 
 function providerFailure(error: unknown): MessagingProviderError {
   if (error instanceof MessagingProviderError) return error;
@@ -685,6 +731,55 @@ export function createDshImProvider(
             host.approvalRuleCardVersion === 2 && allOpaqueAccounts.get(ref) === fingerprint,
         }
       : {}),
+    ...(platform === 'feishu' &&
+    host.questionCardVersion === 1 &&
+    typeof host.questionCardChecked === 'function'
+      ? {
+          async questionCard(input: Parameters<NonNullable<MessagingProvider['questionCard']>>[0]) {
+            input.signal.throwIfAborted();
+            const info = await host.describeBot(input.accountRef);
+            if (info.account.fingerprint !== input.fingerprint)
+              throw new MessagingError('rebind-required');
+            if (
+              !info.connected ||
+              ![
+                'question-card-checked',
+                'question-card-update-checked',
+                'question-action-consumer',
+              ].every((cap) => info.capabilities.includes(cap))
+            )
+              throw new MessagingProviderError('capability-unavailable', 'not-started');
+            try {
+              const result = await host.questionCardChecked!(
+                input.accountRef,
+                input.route,
+                input.card,
+                {
+                  expectedFingerprint: input.fingerprint,
+                  signal: input.signal,
+                  beforeSend: input.beforeSend,
+                  ...(input.update ? { update: true } : {}),
+                },
+              );
+              if (input.update) {
+                if (result.updated !== true)
+                  throw new MessagingProviderError('provider-result-unknown', 'unknown');
+                return { updated: true as const };
+              }
+              if (
+                result.sent !== true ||
+                result.receipt?.version !== 1 ||
+                !result.receipt.messageId ||
+                result.receipt.conversationId !== input.route.conversationId
+              )
+                throw new MessagingProviderError('provider-result-unknown', 'unknown');
+              return { sent: true as const, receipt: result.receipt };
+            } catch (error) {
+              throw providerFailure(error);
+            }
+          },
+        }
+      : {}),
     ...(host.replyContextVersion === 1 &&
     host.replyReceiptVersion === 1 &&
     host.replyFenceVersion === 1 &&
@@ -786,6 +881,10 @@ export function createDshImProvider(
               (platform !== 'qq' ||
                 (info.capabilities.includes('source-generic-file-checked') &&
                   info.capabilities.includes('reply-file-fence-checked')));
+            const larkVideos =
+              platform === 'feishu' &&
+              sourceFiles &&
+              info.capabilities.includes('source-video-checked');
             const qqDirect =
               platform === 'qq' && info.capabilities.includes('direct-message-consumer');
             return host.consumeInbound!(input.accountRef, {
@@ -809,10 +908,11 @@ export function createDshImProvider(
               info.capabilities.includes('source-voice-audio-checked')
                 ? { sourceVoiceAudio: true }
                 : {}),
-              ...(platform === 'weixin' &&
-              host.fileVersion === 1 &&
-              info.capabilities.includes('source-video-checked') &&
-              info.capabilities.includes('reply-video-fence-checked')
+              ...(larkVideos ||
+              (platform === 'weixin' &&
+                host.fileVersion === 1 &&
+                info.capabilities.includes('source-video-checked') &&
+                info.capabilities.includes('reply-video-fence-checked'))
                 ? { sourceVideos: true }
                 : {}),
               ...(platform === 'feishu' &&
@@ -882,7 +982,21 @@ export function createDshImProvider(
                                   conversationId: identifier,
                                   messageId: identifier,
                                   requestId: z.string().uuid(),
-                                  action: z.enum(['allowed-once', 'rejected']),
+                                  action: z.enum(['allowed-once', 'rejected', 'answer']),
+                                  values: z
+                                    .array(
+                                      z
+                                        .object({
+                                          selected: z
+                                            .array(z.number().int().min(0).max(99))
+                                            .max(100),
+                                          custom: z.string().min(1).max(2000).optional(),
+                                        })
+                                        .strict(),
+                                    )
+                                    .min(1)
+                                    .max(3)
+                                    .optional(),
                                 })
                                 .strict()
                       ).parse(raw);
@@ -904,7 +1018,27 @@ export function createDshImProvider(
                         event.fingerprint !== input.fingerprint
                       )
                         throw new MessagingError('untrusted-source');
-                      return input.onAction!(event, context.signal);
+                      if ('values' in event || event.action === 'answer') {
+                        const { values } = event as { values?: MessagingQuestionAction['values'] };
+                        if (
+                          event.action !== 'answer' ||
+                          !values ||
+                          host.questionCardVersion !== 1 ||
+                          !info.capabilities.includes('question-action-consumer')
+                        )
+                          throw new MessagingError('untrusted-source');
+                        return input.onAction!(
+                          {
+                            ...(event as Omit<MessagingQuestionAction, 'values'>),
+                            values: values.map(({ selected, custom }) => ({
+                              selected,
+                              ...(custom === undefined ? {} : { custom }),
+                            })),
+                          },
+                          context.signal,
+                        );
+                      }
+                      return input.onAction!(event as MessagingCardAction, context.signal);
                     },
                   }
                 : {}),
@@ -937,6 +1071,7 @@ export function createDshImProvider(
                 : {}),
               onEvent: async (raw, context) => {
                 const parsed = inboundSchema.parse(raw);
+                const larkVideo = larkVideos && isLarkVideo(parsed, sourceImages);
                 const qqAttachments = parsed.attachments?.every((item) =>
                   item.mediaType?.startsWith('image/')
                     ? sourceImages
@@ -958,6 +1093,7 @@ export function createDshImProvider(
                     (parsed.attachments?.length ?? 0) > 1 ||
                     (platform === 'feishu' &&
                       parsed.attachments?.some((item) => item.mediaType?.startsWith('image/')))) &&
+                    !larkVideo &&
                     (platform === 'qq'
                       ? !qqAttachments
                       : platform !== 'feishu' ||
@@ -980,7 +1116,11 @@ export function createDshImProvider(
                   (parsed.voice &&
                     parsed.attachments?.length &&
                     !info.capabilities.includes('source-voice-audio-checked')) ||
+                  (platform !== 'feishu' &&
+                    (parsed.video?.durationMs !== undefined ||
+                      parsed.video?.posterAttachmentId !== undefined)) ||
                   (parsed.video &&
+                    !larkVideo &&
                     (platform !== 'weixin' ||
                       !info.capabilities.includes('source-video-checked') ||
                       !info.capabilities.includes('reply-video-fence-checked') ||
@@ -1066,7 +1206,7 @@ export function createDshImProvider(
                   event.attachments?.some(
                     (item) =>
                       item.messageId !==
-                      (platform === 'feishu' && !item.mediaType?.startsWith('image/')
+                      (platform === 'feishu' && (larkVideo || !item.mediaType?.startsWith('image/'))
                         ? event.reply.parentId
                         : event.messageId),
                   )
@@ -1240,6 +1380,9 @@ export function createDshImProvider(
             if (
               info.account.fingerprint !== input.fingerprint ||
               !info.capabilities.includes('source-file-checked') ||
+              (platform === 'feishu' &&
+                input.attachment.mediaType === 'video/unknown' &&
+                !info.capabilities.includes('source-video-checked')) ||
               (platform === 'qq' &&
                 !input.attachment.mediaType?.startsWith('image/') &&
                 (input.attachment.mediaType === 'audio/unknown'

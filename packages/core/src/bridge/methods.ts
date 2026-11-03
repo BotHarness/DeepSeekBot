@@ -654,6 +654,7 @@ export interface BridgeMethods {
   ): Promise<
     BridgeResult<{ delivery: import('../messaging/approval-messaging.js').ApprovalDelivery }>
   >;
+  questionRetry(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   approvalRetry(
     payload: unknown,
   ): Promise<
@@ -2255,6 +2256,17 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         delivery: await service.approvals.test(input.data.slug),
       }));
     },
+    questionRetry(payload) {
+      const input = z
+        .object({ slug: z.string().min(1), id: z.string().uuid() })
+        .strict()
+        .safeParse(payload);
+      if (!input.success) return Promise.resolve(invalidInput('Invalid question notification'));
+      return messagingCall(async (service) => {
+        await service.questions.retry(input.data.slug, input.data.id);
+        return { updated: true as const };
+      });
+    },
     approvalRetry(payload) {
       const input = z
         .object({ slug: z.string().min(1), id: z.string().uuid() })
@@ -2781,8 +2793,13 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const messageId = asNonBlank(source, 'messageId');
       const recovery = source['recovery'];
       const failureMessageId = asNonBlank(source, 'failureMessageId');
-      if (recovery !== undefined && recovery !== 'compact' && recovery !== 'new-session')
-        return invalidInput('recovery must be compact or new-session');
+      if (
+        recovery !== undefined &&
+        recovery !== 'continue' &&
+        recovery !== 'compact' &&
+        recovery !== 'new-session'
+      )
+        return invalidInput('recovery must be continue, compact or new-session');
       if (!channelId || !messageId || !deps.runtime?.retryDmMessage)
         return invalidInput('Original message is required');
       try {
@@ -2886,7 +2903,13 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         channel.type === 'group' ? !channel.members.includes(botSlug) : channel.botSlug !== botSlug
       )
         return invalidInput(`${bot.displayName} is not in this Channel`);
-      const stopped = await deps.runtime?.stopTurn?.(botSlug);
+      const autoContinueFor = asNonBlank(source, 'autoContinueFor');
+      if (source['autoContinueFor'] !== undefined && autoContinueFor === undefined)
+        return invalidInput('autoContinueFor must be a message id');
+      const stopped = await deps.runtime?.stopTurn?.(
+        botSlug,
+        autoContinueFor === undefined ? undefined : { autoContinueFor, channelId },
+      );
       if (stopped === undefined)
         return {
           ok: false,

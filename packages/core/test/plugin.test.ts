@@ -576,6 +576,7 @@ describe('plugin entry', () => {
       'approvalRoute',
       'approvalTest',
       'approvalRetry',
+      'questionRetry',
       'failureAlertsSet',
       'failureAlertsTest',
       'failureAlertsRetry',

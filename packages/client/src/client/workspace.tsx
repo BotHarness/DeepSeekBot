@@ -1,5 +1,6 @@
 import { Menu } from './appearance-primitives.js';
 import { DeviceRequestsNotice } from './device-requests-notice.js';
+import { DiagnosticLogsEntry } from './diagnostic-logs-entry.js';
 import { MobileAppsEntry } from './mobile-apps.js';
 import { activityIndicator } from './activity-indicator.js';
 import { useActivityIndicatorMenu } from './activity-indicator-menu.js';
@@ -13,7 +14,7 @@ import { workspaceShortcutId } from './workspace-shortcuts.js';
 import { createPortal } from 'react-dom';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 
-import { workspaceColumns, moveWorkspaceRail, railModeControls } from './workspace-layout.js';
+import { workspaceMoveColumns, moveWorkspaceRail, railModeControls } from './workspace-layout.js';
 import { useRef, useState, useSyncExternalStore, type ReactNode, type ReactElement } from 'react';
 import { SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { LayoutMode } from './layout-mode.js';
@@ -366,12 +367,10 @@ function WorkspaceRail({
           }
           items={[
             { id: 'left', label: t('workspace.left') },
-            ...workspaceColumns(api)
-              .slice(1)
-              .map((column, index) => ({
-                id: column.id,
-                label: t('workspace.beforeColumn', { index: String(index + 2) }),
-              })),
+            ...workspaceMoveColumns(api, menu).map((id, index) => ({
+              id,
+              label: t('workspace.beforeColumn', { index: String(index + 2) }),
+            })),
             { id: 'right', label: t('workspace.right') },
           ]}
           onSelect={(id) => {
@@ -435,6 +434,7 @@ function WorkspaceRail({
         )}
 
       <MobileAppsEntry t={t} />
+      <DiagnosticLogsEntry t={t} />
       <Tooltip label={t('panel.settings')} side="right">
         <button aria-label={t('panel.settings')} onClick={() => options.openBotSettings()}>
           <ChannelSidebarIcon name="settings" />

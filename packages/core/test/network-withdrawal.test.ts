@@ -13,8 +13,11 @@ import { receiveNetworkBotDm } from '../src/runtime/bot-network.js';
 import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { createTempRoot } from './helpers.js';
+import { loopbackAliasesAvailable } from './loopback-aliases.js';
 
-it.each(['pending', 'started', 'alternate-network', 'connect-route'] as const)(
+const aliases = await loopbackAliasesAvailable(['127.0.0.12', '127.0.0.13']);
+
+it.skipIf(!aliases).each(['pending', 'started', 'alternate-network', 'connect-route'] as const)(
   'carries a native removal through the real bridge and Inbox for %s work',
   async (phase) => {
     const nodes = [

@@ -1,7 +1,12 @@
 import { BotNetworkDeliveryError } from './runtime/bot-network.js';
 import type { AssignmentReportContent } from './runtime/assignment-report.js';
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from './window-zoom/control.js';
-import { compactUnknownContext, contextCapacity } from './runtime/context-window.js';
+import {
+  compactUnknownContext,
+  contextCapacity,
+  createTargetCompaction,
+  type PricedSurface,
+} from './runtime/context-window.js';
 import { createBotRequestRetry } from './runtime/bot-request-retry.js';
 import { messageText, systemPromptFromLog } from './runtime/prompt-inspection.js';
 
@@ -91,8 +96,8 @@ import { createHash } from 'node:crypto';
 import { createCompanionFeed, COMPANION_PATH, type CompanionFeed } from './companions/feed.js';
 
 import type { Context } from '@deepseek-ai/cordis';
-import { assembleContextFor } from '@deepseek-ai/dsh-agent';
-import type {} from '@deepseek-ai/dsh-session';
+import { assembleContextFor, type Agent } from '@deepseek-ai/dsh-agent';
+import type { SessionSeq } from '@deepseek-ai/dsh-session';
 import { renderContextSections, renderPrompt } from '@deepseek-ai/dsh-system-prompt';
 import type {} from '@deepseek-ai/dsh-tools';
 import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-approval';
@@ -126,6 +131,8 @@ import { homedir } from 'node:os';
 import type { BotAgentSetupInfo } from './runtime/dsh-bot-agent-adapter.js';
 import { registerBridge } from './bridge/rpc.js';
 import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
+import { mountDiagnosticLog } from './diagnostics/diagnostic-log.js';
+import { createTurnLog } from './diagnostics/turn-log.js';
 import { mountDevicePairing } from './devices/mount.js';
 import { humanInboxPushSource } from './push/source.js';
 import { createMarketplaceClient } from './marketplace/client.js';
@@ -159,6 +166,7 @@ import {
   readHumanMessageCounts,
   startActiveDayWatch,
 } from './telemetry/active-day.js';
+import { createClientIssueReporter, type ClientIssueReporter } from './telemetry/client-issues.js';
 import { deliverPendingExceptions, installExceptionCapture } from './telemetry/exceptions.js';
 import { createPersonaBotRegistry, type PersonaBotRegistry } from './bots/registry.js';
 import { createPersonaBotDeletions, type PersonaBotDeletions } from './bots/deletion.js';
@@ -292,6 +300,8 @@ import {
   type AssignmentReportPage,
 } from './runtime/assignment-tail.js';
 import type { DshSessionEvent, DshSessionStore } from './sessions/source.js';
+import { turnProgress } from './bots/tool-trace.js';
+import type { SessionFailureProgress } from './channels/channel.js';
 import {
   createBotStateTracker,
   personaBotActivitySnapshot,
@@ -345,6 +355,21 @@ export const inject = [
 export const PERSONA_SECTION_ORDER = 10400;
 
 const COMPACTION_END_EVENT: string = 'compaction/end';
+
+interface PressureCompactionEngine {
+  config?: Record<string, unknown>;
+  compactIfNeeded?(
+    agent: Agent,
+    trigger: 'pressure' | 'context-overflow',
+    signal: AbortSignal,
+  ): Promise<unknown>;
+  compactRegion?(
+    start: SessionSeq,
+    end: SessionSeq,
+    agent: Agent,
+    signal: AbortSignal,
+  ): Promise<unknown>;
+}
 
 export interface CompactionRefreshSink {
   ownership: { resolve(sessionId: string): { botSlug: string } | undefined };
@@ -553,6 +578,8 @@ export function createCore(
       content: string;
     }) => Promise<{ locator: string; bytes: number; retrievalHint: string }>;
     readAssignmentTail?: (sessionId: string) => Promise<AssignmentEventTail>;
+    readTurnProgress?: (sessionId: string) => Promise<SessionFailureProgress | undefined>;
+    autoContinueDelaysMs?: readonly number[];
     readAssignmentReportPage?: (
       sessionId: string,
       acceptedSummary: string,
@@ -1006,6 +1033,12 @@ export function createCore(
   });
   runtime = createBotRuntime({
     ...(options.botNetwork === undefined ? {} : { botNetwork: options.botNetwork }),
+    ...(options.readTurnProgress === undefined
+      ? {}
+      : { readTurnProgress: options.readTurnProgress }),
+    ...(options.autoContinueDelaysMs === undefined
+      ? {}
+      : { autoContinueDelaysMs: options.autoContinueDelaysMs }),
     onTobDelegation: () => options.capture?.('tob:delegation_send', { surface: 'bot_tool' }),
     promptText: (slug) => {
       const sessionId = runtime?.currentOrchestratorSessionId?.(slug);
@@ -1180,6 +1213,25 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const dshHome = resolveDshHome();
   applyPendingDataReset({ dshHome, home: homedir(), log: (message) => ctx.logger.info(message) });
   mountClientDiagnostics(ctx, dshHome);
+  let clientIssues: ClientIssueReporter | undefined;
+  const diagnosticEvents = mountDiagnosticLog(ctx, {
+    onClientEntries: (session, entries) => clientIssues?.observe(session, entries),
+    dshHome,
+    homes: [
+      { path: dshHome, label: '$DSH_HOME' },
+      { path: homedir(), label: '~' },
+    ],
+    environment: () => {
+      const dshVersion = installedDshVersion();
+      return {
+        version: runningRelease.version,
+        ...(dshVersion === undefined ? {} : { dshVersion }),
+        platform: process.platform,
+        arch: process.arch,
+        node: process.version,
+      };
+    },
+  });
   const release = installedRelease(import.meta.url);
   const telemetryChoice = telemetryDecision(config.telemetry);
   const telemetryDir = join(dshHome, 'botharness');
@@ -1198,6 +1250,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   ctx.effect(() => () => void telemetry.close(), 'botharness: telemetry');
   telemetry.capture('app:host_start');
+  clientIssues = createClientIssueReporter({ telemetry });
   const activeDay = createActiveDay({ telemetry, dataDir: telemetryDir });
   deliverPendingExceptions(telemetry, telemetryDir);
   if (telemetryState.lockedBy === undefined)
@@ -1481,6 +1534,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       if (query === undefined) throw new Error('DSH Session Query is unavailable');
       return readBoundedAssignmentTail(query, sessionId);
     },
+    readTurnProgress: async (sessionId) => {
+      const query = ctx.get('sessionQuery') as unknown as
+        | { readSession(id: string): Promise<{ events: readonly DshSessionEvent[] }> }
+        | undefined;
+      if (query === undefined) return undefined;
+      return turnProgress((await query.readSession(sessionId)).events);
+    },
     readAssignmentReportPage: async (sessionId, acceptedSummary, offset, content) => {
       const query = ctx.get('sessionQuery') as unknown as AssignmentSessionQuery | undefined;
       if (query === undefined) throw new Error('DSH Session Query is unavailable');
@@ -1722,10 +1782,60 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     };
   };
   let compactionBaseConfig: Record<string, unknown> | undefined;
+  const targetCompactionEngines = new WeakSet<object>();
+  const installTargetCompaction = (engine: PressureCompactionEngine): void => {
+    if (targetCompactionEngines.has(engine)) return;
+    const original = engine.compactIfNeeded;
+    if (typeof original !== 'function' || typeof engine.compactRegion !== 'function') return;
+    targetCompactionEngines.add(engine);
+    const fallback = original.bind(engine);
+    const compactToTarget = createTargetCompaction({
+      measure: (session) =>
+        (ctx.get('tokenMeter') as unknown as { measure(session: unknown): PricedSurface }).measure(
+          session,
+        ),
+      prune: (session) =>
+        (
+          ctx.get('toolResultPruner') as unknown as
+            | { pruneSession(session: unknown): void }
+            | undefined
+        )?.pruneSession(session),
+      compactRegion: (start, end, agent, signal) =>
+        engine.compactRegion!(start, end, agent, signal),
+      log: (level, event) => ctx.logger[level](`context-compaction ${JSON.stringify(event)}`),
+    });
+    engine.compactIfNeeded = async (agent, trigger, signal) => {
+      if (trigger !== 'pressure' || core.ownership.resolve(agent.session.id) === undefined)
+        return fallback(agent, trigger, signal);
+      const route = agent.session.requestHeader()?.config;
+      if (route === undefined || ctx.get('tokenMeter') === undefined)
+        return fallback(agent, trigger, signal);
+      const info = await ctx.llm.resolveModelInfo(route.provider, route.model, signal);
+      const contextWindow = info.context?.contextWindow;
+      if (contextWindow === undefined) return fallback(agent, trigger, signal);
+      const modelPolicies = (compactionBaseConfig ?? engine.config)?.['modelPolicies'];
+      const threshold = compactionThresholdTokens(
+        {
+          ...(Array.isArray(modelPolicies)
+            ? {
+                modelPolicies: modelPolicies as NonNullable<
+                  CompactionThresholdPolicy['modelPolicies']
+                >,
+              }
+            : {}),
+          ...compactionPolicy(),
+        },
+        route,
+        contextWindow,
+        route.maxTokens ?? info.defaultMaxTokens ?? 0,
+      );
+      if (threshold <= 0) return fallback(agent, trigger, signal);
+      return compactToTarget(agent, threshold, signal);
+    };
+  };
   const applyCompactionPolicy = (): void => {
-    const engine = ctx.get('compaction') as unknown as
-      | { config?: Record<string, unknown> }
-      | undefined;
+    const engine = ctx.get('compaction') as unknown as PressureCompactionEngine | undefined;
+    if (engine !== undefined) installTargetCompaction(engine);
     const config = engine?.config;
     if (engine === undefined || typeof config !== 'object' || !('thresholdRatio' in config)) return;
     compactionBaseConfig ??= config;
@@ -1737,6 +1847,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     engine.config = Object.freeze({ ...compactionBaseConfig, thresholdRatio, headroomTokens });
   };
   installNativeSubagentWake(ctx, core.runtime);
+  applyCompactionPolicy();
   ctx.on(
     'agent/pre-step',
     async ({ agent, signal }, next) => {
@@ -1995,6 +2106,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     'botharness: companion question observation',
   );
   registerChannelUserQuestions(ctx, userQuestions);
+  if (core.operationalDatabase.mode === 'ready')
+    ctx.effect(
+      () => core.externalMessaging.questions.attach(userQuestions, core.channels),
+      'botharness: checked IM question answers',
+    );
   const approvedCalls = new Map<symbol, (name: string, args: unknown) => boolean>();
   const deviceCallReleases = new Map<symbol, () => void>();
   ctx.effect(() => () => approvedCalls.clear(), 'botharness: one-call approval execution fences');
@@ -3225,6 +3341,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     core.states.onActivity((event) => ctx.emit('botharness/personabot/activity', event)),
   );
 
+  const turnLog = createTurnLog({
+    events: diagnosticEvents,
+    owner: (sessionId) => core.ownership.resolve(sessionId),
+  });
   ctx.on(
     'session/event',
     (session, event) => {
@@ -3241,6 +3361,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       }
       core.usage?.handleSessionEvent(session.id, event);
       core.messagePerf.observeSessionEvent(session.id, event);
+      turnLog.observe(session.id, event);
       idleCompaction.observeEvent(session.id, event);
       handleCompactionEvent(
         {
@@ -3286,6 +3407,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       agentAdapter.forgetAgent(agent);
       userQuestions.cancelSession(agent.session.id);
       idleCompaction.forget(agent.session.id);
+      turnLog.forget(agent.session.id);
       activity.handleSessionDisposed(agent.session.id);
       core.messagePerf.clear(agent.session.id);
     },

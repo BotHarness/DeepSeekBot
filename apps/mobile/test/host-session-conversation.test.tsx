@@ -422,15 +422,130 @@ it('keeps an activity-only conversation available without rerendering on unchang
   expect(view.channel.followerCount).toBe(1);
 });
 
+async function prepareTargets() {
+  const ids = [`prepare-${++nextChannel}`, `prepare-${++nextChannel}`];
+  const channels = ids.map((id) => {
+    const channel = hosts.a.channel(id);
+    channel.append({ id: `${id}-latest`, body: `Latest ${id}` });
+    return channel;
+  });
+  hosts.a.methods.set('channels', () => ({
+    channels: ids.map((id) => ({ id, type: 'group', name: id, members: [] })),
+  }));
+  const client = hooks.hostSession.getHost('a')!.client;
+  await act(async () => client.refresh());
+  vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+  return { ids, channels, client };
+}
+
+it('starts the selected channel before mounting and hands off without another follow or idle lease', async () => {
+  const { ids, channels, client } = await prepareTargets();
+  const channelId = ids[0]!;
+  hooks.prepareConversation(client, 'a', { channelId });
+  await flush();
+  expect(channels[0]!.followerCount).toBe(1);
+  expect(channels[0]!.follows).toHaveLength(1);
+  act(() => root.render(<Screen hostId="a" channelId={channelId} visible />));
+  await flush();
+  expect(snapshot.messages).toEqual([expect.objectContaining({ body: `Latest ${channelId}` })]);
+  expect(channels[0]!.follows).toHaveLength(1);
+  act(() => root.render(null));
+  await act(async () => vi.advanceTimersByTimeAsync(1));
+  expect(channels[0]!.followerCount).toBe(0);
+});
+
+it('releases a prepared channel when navigation never mounts its screen', async () => {
+  const { ids, channels, client } = await prepareTargets();
+  hooks.prepareConversation(client, 'a', { channelId: ids[0]! });
+  await flush();
+  expect(channels[0]!.followerCount).toBe(1);
+  await act(async () => vi.advanceTimersByTimeAsync(2_001));
+  expect(channels[0]!.followerCount).toBe(0);
+});
+
+it('keeps only the latest pending navigation and does not refollow repeated selection', async () => {
+  const { ids, channels, client } = await prepareTargets();
+  hooks.prepareConversation(client, 'a', { channelId: ids[0]! });
+  await flush();
+  hooks.prepareConversation(client, 'a', { channelId: ids[1]! });
+  await flush();
+  await act(async () => vi.advanceTimersByTimeAsync(1));
+  expect(channels[0]!.followerCount).toBe(0);
+  expect(channels[1]!.followerCount).toBe(1);
+  hooks.prepareConversation(client, 'a', { channelId: ids[1]! });
+  await flush();
+  expect(channels[1]!.follows).toHaveLength(1);
+  await act(async () => vi.advanceTimersByTimeAsync(2_001));
+  expect(channels[1]!.followerCount).toBe(0);
+});
+
+it('does not prepare another Host, removed channels or unresolved Bot DMs', async () => {
+  const { ids, channels, client } = await prepareTargets();
+  const before = hosts.a.calls.length;
+  hooks.prepareConversation(client, 'b', { channelId: ids[0]! });
+  hooks.prepareConversation(client, 'a', { channelId: 'removed' });
+  hooks.prepareConversation(client, 'a', { channelId: ids[0]!, bot: { slug: 'unknown' } });
+  await flush();
+  expect(channels[0]!.followerCount).toBe(0);
+  expect(hosts.a.calls.slice(before)).toEqual([]);
+});
+it('hands an existing Bot DM to the same route owner without creating a DM or marking it read', async () => {
+  const channelId = `prepare-dm-${++nextChannel}`;
+  const channel = hosts.a.channel(channelId);
+  channel.append({ id: 'dm-latest', body: 'Prepared DM' });
+  hosts.a.methods.set('list', () => ({
+    bots: [{ slug: 'prepared-bot', displayName: 'Prepared Bot' }],
+  }));
+  hosts.a.methods.set('channels', () => ({
+    channels: [{ id: channelId, type: 'dm', botSlug: 'prepared-bot', name: 'DM', members: [] }],
+  }));
+  const client = hooks.hostSession.getHost('a')!.client;
+  await act(async () => client.refresh());
+  vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+  const bot = { slug: 'prepared-bot', dmChannelId: channelId };
+  const before = hosts.a.calls.length;
+  function DmScreen() {
+    const conversation = hooks.useConversation(client, bot);
+    const snapshot = hooks.useConversationTimelineSnapshot(conversation, undefined, true);
+    return <output>{JSON.stringify(snapshot.messages)}</output>;
+  }
+  try {
+    hooks.prepareConversation(client, 'a', { channelId, bot });
+    await flush();
+    expect(channel.followerCount).toBe(1);
+    act(() => root.render(<DmScreen />));
+    await flush();
+    expect(container.textContent).toContain('Prepared DM');
+    expect(channel.follows).toHaveLength(1);
+    expect(
+      hosts.a.calls
+        .slice(before)
+        .filter((call) => ['channelDm', 'channelMarkRead', 'channelSend'].includes(call.method)),
+    ).toEqual([]);
+    act(() => root.render(null));
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(channel.followerCount).toBe(0);
+  } finally {
+    hosts.a.methods.delete('list');
+  }
+});
 it('drops the retained route owner when its Host session is removed', async () => {
   const view = await open();
   await view.send();
   await view.leave();
   const client = hooks.hostSession.getHost('a')!.client;
+  const warm = await prepareTargets();
+  hooks.prepareConversation(client, 'a', { channelId: warm.ids[0]! });
+  await flush();
+  expect(warm.channels[0]!.followerCount).toBe(1);
   await act(async () => {
     await hooks.hostSession.unpair('a');
   });
   expect(client.getSnapshot().connection.status).toBe('stopped');
+  expect(warm.channels[0]!.followerCount).toBe(0);
+  hooks.prepareConversation(client, 'a', { channelId: warm.ids[0]! });
+  await flush();
+  expect(warm.channels[0]!.followerCount).toBe(0);
   expect(view.channel.followerCount).toBe(0);
   await view.mount('b');
   expect(snapshot.messages).toEqual([]);

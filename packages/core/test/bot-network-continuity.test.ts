@@ -11,6 +11,9 @@ import { receiveNetworkBotDm } from '../src/runtime/bot-network.js';
 import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { createTempRoot } from './helpers.js';
+import { loopbackAliasesAvailable } from './loopback-aliases.js';
+
+const aliases = await loopbackAliasesAvailable(['127.0.0.31', '127.0.0.32']);
 
 async function dualRouteHosts(saved?: { homes: string[]; keys: Buffer[] }) {
   const nodes = [
@@ -246,220 +249,245 @@ async function explicitSender(core: ReturnType<typeof createCore>, rootId = 'roo
     );
 }
 
-it('keeps one DM when a new explicit send follows loss of the previously selected route', async () => {
-  const f = await dualRouteHosts();
-  try {
-    const left = f.cores[0]!;
-    const contacts = await left.runtime.runDirectBotTool!(
-      'bot',
-      'list_bot_contacts',
-      {},
-      new AbortController().signal,
-    );
-    expect(contacts.result).toMatchObject({ contacts: [{ botId: 'remote:right:bot' }] });
-    const send = await explicitSender(left);
-    await expect(send('FIRST')).resolves.toBeDefined();
-    const channel = left.channels.list().find((item) => item.remoteBot)!;
-    expect(f.delivered).toEqual(['tailnet:FIRST']);
-    f.setTailnetOnline(false);
-    await expect(send('SECOND')).resolves.toBeDefined();
-    expect(f.delivered).toEqual(['tailnet:FIRST', 'connect:SECOND']);
-    expect(
-      left.channels
-        .list()
-        .filter((item) => item.remoteBot)
-        .map((item) => item.id),
-    ).toEqual([channel.id]);
-    expect(left.channels.readMessages(channel.id).map((message) => message.body)).toEqual([
-      'SECOND',
-      'FIRST',
-    ]);
-    const remote = f.cores[1]!.channels.list().find((item) => item.remoteBot)!;
-    expect(f.cores[1]!.channels.readMessages(remote.id).map((message) => message.body)).toEqual([
-      'SECOND',
-      'FIRST',
-    ]);
-  } finally {
-    await f.close();
-  }
-}, 120_000);
-
-it('does not resend a committed unknown delivery on the other live route, but accepts a later explicit message in the same DM', async () => {
-  const f = await dualRouteHosts();
-  try {
-    const left = f.cores[0]!;
-    f.setTailnetOnline(false);
-    const send = await explicitSender(left);
-    await expect(send('FIRST')).resolves.toBeDefined();
-    const channel = left.channels.list().find((item) => item.remoteBot)!;
-    expect(f.delivered).toEqual(['connect:FIRST']);
-    f.loseNextConnectAcknowledgement();
-    await expect(send('UNKNOWN')).rejects.toMatchObject({ code: 'delivery-unknown' });
-    expect(left.runtime.networkBotAvailability!('right', 'bot')).toBe('available');
-    expect(f.delivered).toEqual(['connect:FIRST', 'connect:UNKNOWN']);
-    await expect(send('LATER')).resolves.toBeDefined();
-    expect(f.delivered).toEqual(['connect:FIRST', 'connect:UNKNOWN', 'tailnet:LATER']);
-    expect(
-      left.channels
-        .list()
-        .filter((item) => item.remoteBot)
-        .map((item) => item.id),
-    ).toEqual([channel.id]);
-    expect(left.channels.readMessages(channel.id).map((message) => message.body)).toEqual([
-      'LATER',
-      'FIRST',
-    ]);
-    const remote = f.cores[1]!.channels.list().find((item) => item.remoteBot)!;
-    expect(f.cores[1]!.channels.readMessages(remote.id).map((message) => message.body)).toEqual([
-      'LATER',
-      'UNKNOWN',
-      'FIRST',
-    ]);
-  } finally {
-    await f.close();
-  }
-}, 120_000);
-
-it('retains one DM across both-route failure and Host restart without delivering the failed message later', async () => {
-  let f = await dualRouteHosts();
-  try {
-    const send = await explicitSender(f.cores[0]!);
-    await expect(send('FIRST')).resolves.toBeDefined();
-    const localId = f.cores[0]!.channels.list().find((item) => item.remoteBot)!.id;
-    const remoteId = f.cores[1]!.channels.list().find((item) => item.remoteBot)!.id;
-    f.setTailnetOnline(false);
-    f.setConnectOnline(false);
-    await expect(send('OFFLINE')).rejects.toMatchObject({ code: 'unable-to-deliver' });
-    expect(f.delivered).toEqual(['tailnet:FIRST']);
-    expect(f.cores[0]!.runtime.networkBotAvailability!('right', 'bot')).toBe('unavailable');
-    f.setConnectOnline(true);
-    await expect(send('RECOVERED')).resolves.toBeDefined();
-    expect(f.delivered).toEqual(['tailnet:FIRST', 'connect:RECOVERED']);
-    const saved = f.saved;
-    await f.close();
-    f = await dualRouteHosts(saved);
-    await Promise.all(f.cores.map((core) => core.runtime.whenIdle()));
-    expect(f.delivered).toEqual([]);
-    expect(f.cores[0]!.channels.readMessages(localId).map((message) => message.body)).toEqual([
-      'RECOVERED',
-      'FIRST',
-    ]);
-    expect(f.cores[1]!.channels.readMessages(remoteId).map((message) => message.body)).toEqual([
-      'RECOVERED',
-      'FIRST',
-    ]);
-    const next = await explicitSender(f.cores[0]!, 'new-request');
-    await expect(next('LATER')).resolves.toBeDefined();
-    expect(f.delivered).toEqual(['tailnet:LATER']);
-    for (const [index, id] of [localId, remoteId].entries()) {
+it.skipIf(!aliases)(
+  'keeps one DM when a new explicit send follows loss of the previously selected route',
+  async () => {
+    const f = await dualRouteHosts();
+    try {
+      const left = f.cores[0]!;
+      const contacts = await left.runtime.runDirectBotTool!(
+        'bot',
+        'list_bot_contacts',
+        {},
+        new AbortController().signal,
+      );
+      expect(contacts.result).toMatchObject({ contacts: [{ botId: 'remote:right:bot' }] });
+      const send = await explicitSender(left);
+      await expect(send('FIRST')).resolves.toBeDefined();
+      const channel = left.channels.list().find((item) => item.remoteBot)!;
+      expect(f.delivered).toEqual(['tailnet:FIRST']);
+      f.setTailnetOnline(false);
+      await expect(send('SECOND')).resolves.toBeDefined();
+      expect(f.delivered).toEqual(['tailnet:FIRST', 'connect:SECOND']);
       expect(
-        f.cores[index]!.channels.list()
+        left.channels
+          .list()
           .filter((item) => item.remoteBot)
           .map((item) => item.id),
-      ).toEqual([id]);
-      expect(f.cores[index]!.channels.readMessages(id).map((message) => message.body)).toEqual([
-        'LATER',
-        'RECOVERED',
-        'FIRST',
-      ]);
-    }
-  } finally {
-    await f.close();
-  }
-}, 120_000);
-
-it('sends through the remaining common scope but refuses after both memberships withdraw', async () => {
-  const f = await dualRouteHosts();
-  try {
-    const left = f.cores[0]!;
-    const send = await explicitSender(left);
-    await expect(send('FIRST')).resolves.toBeDefined();
-    const channel = left.channels.list().find((item) => item.remoteBot)!;
-    f.withdrawTailnet();
-    await expect(send('REMAINING_SCOPE')).resolves.toBeDefined();
-    expect(f.delivered).toEqual(['tailnet:FIRST', 'connect:REMAINING_SCOPE']);
-    expect(left.runtime.networkBotAvailability!('right', 'bot')).toBe('available');
-    f.withdrawConnect();
-    await expect(send('NO_SCOPE')).rejects.toMatchObject({
-      code: expect.stringMatching(/^(network-denied|unable-to-deliver)$/u),
-    });
-    const contacts = await left.runtime.runDirectBotTool!(
-      'bot',
-      'list_bot_contacts',
-      {},
-      new AbortController().signal,
-    );
-    expect(contacts.result).toMatchObject({ contacts: [] });
-    expect(f.delivered).toEqual(['tailnet:FIRST', 'connect:REMAINING_SCOPE']);
-    expect(left.channels.readMessages(channel.id).map((message) => message.body)).toEqual([
-      'REMAINING_SCOPE',
-      'FIRST',
-    ]);
-  } finally {
-    await f.close();
-  }
-}, 120_000);
-
-it('keeps updated profile facts and a reply on the same identity across routes despite a same-name colleague', async () => {
-  const f = await dualRouteHosts();
-  try {
-    const [left, right] = f.cores;
-    right!.registry.create({ slug: 'twin', displayName: 'Developer' });
-    right!.registry.update('bot', { description: 'Initial responsibility' });
-    const query = () =>
-      left!.runtime.runDirectBotTool!('bot', 'list_bot_contacts', {}, new AbortController().signal);
-    expect((await query()).result).toMatchObject({
-      contacts: [
-        { botId: 'remote:right:bot', displayName: 'Developer' },
-        { botId: 'remote:right:twin', displayName: 'Developer' },
-      ],
-    });
-    const send = await explicitSender(left!);
-    await send('FIRST');
-    const localId = left!.channels.list().find((item) => item.remoteBot)!.id;
-    const remoteId = right!.channels.list().find((item) => item.remoteBot)!.id;
-    right!.registry.update('bot', { description: 'iOS development and debugging' });
-    f.setDeviceModel(1, 'Test workstation');
-    f.setTailnetOnline(false);
-    await send('SECOND');
-    expect((await query()).result).toMatchObject({
-      contacts: [
-        {
-          botId: 'remote:right:bot',
-          description: 'iOS development and debugging',
-          device: { model: 'Test workstation' },
-        },
-        { botId: 'remote:right:twin', displayName: 'Developer' },
-      ],
-    });
-    const accepted = right!.inboxHistory.list('bot', {
-      channelId: remoteId,
-      query: 'SECOND',
-    }).items;
-    expect(accepted).toHaveLength(1);
-    await right!.runtime.runDirectBotTool!(
-      'bot',
-      'bot_send_message',
-      { bot_id: 'remote:left:bot', body: 'REPLY' },
-      new AbortController().signal,
-      undefined,
-      accepted[0]!.sourceEventId,
-    );
-    expect(f.delivered).toEqual(['tailnet:FIRST', 'connect:SECOND', 'connect:REPLY']);
-    for (const [index, id] of [localId, remoteId].entries()) {
-      expect(
-        f.cores[index]!.channels.list()
-          .filter((item) => item.remoteBot)
-          .map((item) => item.id),
-      ).toEqual([id]);
-      expect(f.cores[index]!.channels.readMessages(id).map((message) => message.body)).toEqual([
-        'REPLY',
+      ).toEqual([channel.id]);
+      expect(left.channels.readMessages(channel.id).map((message) => message.body)).toEqual([
         'SECOND',
         'FIRST',
       ]);
+      const remote = f.cores[1]!.channels.list().find((item) => item.remoteBot)!;
+      expect(f.cores[1]!.channels.readMessages(remote.id).map((message) => message.body)).toEqual([
+        'SECOND',
+        'FIRST',
+      ]);
+    } finally {
+      await f.close();
     }
-    expect(right!.inboxHistory.list('twin').items).toEqual([]);
-  } finally {
-    await f.close();
-  }
-}, 120_000);
+  },
+  120_000,
+);
+
+it.skipIf(!aliases)(
+  'does not resend a committed unknown delivery on the other live route, but accepts a later explicit message in the same DM',
+  async () => {
+    const f = await dualRouteHosts();
+    try {
+      const left = f.cores[0]!;
+      f.setTailnetOnline(false);
+      const send = await explicitSender(left);
+      await expect(send('FIRST')).resolves.toBeDefined();
+      const channel = left.channels.list().find((item) => item.remoteBot)!;
+      expect(f.delivered).toEqual(['connect:FIRST']);
+      f.loseNextConnectAcknowledgement();
+      await expect(send('UNKNOWN')).rejects.toMatchObject({ code: 'delivery-unknown' });
+      expect(left.runtime.networkBotAvailability!('right', 'bot')).toBe('available');
+      expect(f.delivered).toEqual(['connect:FIRST', 'connect:UNKNOWN']);
+      await expect(send('LATER')).resolves.toBeDefined();
+      expect(f.delivered).toEqual(['connect:FIRST', 'connect:UNKNOWN', 'tailnet:LATER']);
+      expect(
+        left.channels
+          .list()
+          .filter((item) => item.remoteBot)
+          .map((item) => item.id),
+      ).toEqual([channel.id]);
+      expect(left.channels.readMessages(channel.id).map((message) => message.body)).toEqual([
+        'LATER',
+        'FIRST',
+      ]);
+      const remote = f.cores[1]!.channels.list().find((item) => item.remoteBot)!;
+      expect(f.cores[1]!.channels.readMessages(remote.id).map((message) => message.body)).toEqual([
+        'LATER',
+        'UNKNOWN',
+        'FIRST',
+      ]);
+    } finally {
+      await f.close();
+    }
+  },
+  120_000,
+);
+
+it.skipIf(!aliases)(
+  'retains one DM across both-route failure and Host restart without delivering the failed message later',
+  async () => {
+    let f = await dualRouteHosts();
+    try {
+      const send = await explicitSender(f.cores[0]!);
+      await expect(send('FIRST')).resolves.toBeDefined();
+      const localId = f.cores[0]!.channels.list().find((item) => item.remoteBot)!.id;
+      const remoteId = f.cores[1]!.channels.list().find((item) => item.remoteBot)!.id;
+      f.setTailnetOnline(false);
+      f.setConnectOnline(false);
+      await expect(send('OFFLINE')).rejects.toMatchObject({ code: 'unable-to-deliver' });
+      expect(f.delivered).toEqual(['tailnet:FIRST']);
+      expect(f.cores[0]!.runtime.networkBotAvailability!('right', 'bot')).toBe('unavailable');
+      f.setConnectOnline(true);
+      await expect(send('RECOVERED')).resolves.toBeDefined();
+      expect(f.delivered).toEqual(['tailnet:FIRST', 'connect:RECOVERED']);
+      const saved = f.saved;
+      await f.close();
+      f = await dualRouteHosts(saved);
+      await Promise.all(f.cores.map((core) => core.runtime.whenIdle()));
+      expect(f.delivered).toEqual([]);
+      expect(f.cores[0]!.channels.readMessages(localId).map((message) => message.body)).toEqual([
+        'RECOVERED',
+        'FIRST',
+      ]);
+      expect(f.cores[1]!.channels.readMessages(remoteId).map((message) => message.body)).toEqual([
+        'RECOVERED',
+        'FIRST',
+      ]);
+      const next = await explicitSender(f.cores[0]!, 'new-request');
+      await expect(next('LATER')).resolves.toBeDefined();
+      expect(f.delivered).toEqual(['tailnet:LATER']);
+      for (const [index, id] of [localId, remoteId].entries()) {
+        expect(
+          f.cores[index]!.channels.list()
+            .filter((item) => item.remoteBot)
+            .map((item) => item.id),
+        ).toEqual([id]);
+        expect(f.cores[index]!.channels.readMessages(id).map((message) => message.body)).toEqual([
+          'LATER',
+          'RECOVERED',
+          'FIRST',
+        ]);
+      }
+    } finally {
+      await f.close();
+    }
+  },
+  120_000,
+);
+
+it.skipIf(!aliases)(
+  'sends through the remaining common scope but refuses after both memberships withdraw',
+  async () => {
+    const f = await dualRouteHosts();
+    try {
+      const left = f.cores[0]!;
+      const send = await explicitSender(left);
+      await expect(send('FIRST')).resolves.toBeDefined();
+      const channel = left.channels.list().find((item) => item.remoteBot)!;
+      f.withdrawTailnet();
+      await expect(send('REMAINING_SCOPE')).resolves.toBeDefined();
+      expect(f.delivered).toEqual(['tailnet:FIRST', 'connect:REMAINING_SCOPE']);
+      expect(left.runtime.networkBotAvailability!('right', 'bot')).toBe('available');
+      f.withdrawConnect();
+      await expect(send('NO_SCOPE')).rejects.toMatchObject({
+        code: expect.stringMatching(/^(network-denied|unable-to-deliver)$/u),
+      });
+      const contacts = await left.runtime.runDirectBotTool!(
+        'bot',
+        'list_bot_contacts',
+        {},
+        new AbortController().signal,
+      );
+      expect(contacts.result).toMatchObject({ contacts: [] });
+      expect(f.delivered).toEqual(['tailnet:FIRST', 'connect:REMAINING_SCOPE']);
+      expect(left.channels.readMessages(channel.id).map((message) => message.body)).toEqual([
+        'REMAINING_SCOPE',
+        'FIRST',
+      ]);
+    } finally {
+      await f.close();
+    }
+  },
+  120_000,
+);
+
+it.skipIf(!aliases)(
+  'keeps updated profile facts and a reply on the same identity across routes despite a same-name colleague',
+  async () => {
+    const f = await dualRouteHosts();
+    try {
+      const [left, right] = f.cores;
+      right!.registry.create({ slug: 'twin', displayName: 'Developer' });
+      right!.registry.update('bot', { description: 'Initial responsibility' });
+      const query = () =>
+        left!.runtime.runDirectBotTool!(
+          'bot',
+          'list_bot_contacts',
+          {},
+          new AbortController().signal,
+        );
+      expect((await query()).result).toMatchObject({
+        contacts: [
+          { botId: 'remote:right:bot', displayName: 'Developer' },
+          { botId: 'remote:right:twin', displayName: 'Developer' },
+        ],
+      });
+      const send = await explicitSender(left!);
+      await send('FIRST');
+      const localId = left!.channels.list().find((item) => item.remoteBot)!.id;
+      const remoteId = right!.channels.list().find((item) => item.remoteBot)!.id;
+      right!.registry.update('bot', { description: 'iOS development and debugging' });
+      f.setDeviceModel(1, 'Test workstation');
+      f.setTailnetOnline(false);
+      await send('SECOND');
+      expect((await query()).result).toMatchObject({
+        contacts: [
+          {
+            botId: 'remote:right:bot',
+            description: 'iOS development and debugging',
+            device: { model: 'Test workstation' },
+          },
+          { botId: 'remote:right:twin', displayName: 'Developer' },
+        ],
+      });
+      const accepted = right!.inboxHistory.list('bot', {
+        channelId: remoteId,
+        query: 'SECOND',
+      }).items;
+      expect(accepted).toHaveLength(1);
+      await right!.runtime.runDirectBotTool!(
+        'bot',
+        'bot_send_message',
+        { bot_id: 'remote:left:bot', body: 'REPLY' },
+        new AbortController().signal,
+        undefined,
+        accepted[0]!.sourceEventId,
+      );
+      expect(f.delivered).toEqual(['tailnet:FIRST', 'connect:SECOND', 'connect:REPLY']);
+      for (const [index, id] of [localId, remoteId].entries()) {
+        expect(
+          f.cores[index]!.channels.list()
+            .filter((item) => item.remoteBot)
+            .map((item) => item.id),
+        ).toEqual([id]);
+        expect(f.cores[index]!.channels.readMessages(id).map((message) => message.body)).toEqual([
+          'REPLY',
+          'SECOND',
+          'FIRST',
+        ]);
+      }
+      expect(right!.inboxHistory.list('twin').items).toEqual([]);
+    } finally {
+      await f.close();
+    }
+  },
+  120_000,
+);

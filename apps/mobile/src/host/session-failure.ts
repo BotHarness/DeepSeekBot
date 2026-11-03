@@ -1,10 +1,20 @@
 import { sessionMaintenanceFor } from '../../../../packages/client/src/shared/session-maintenance';
+import {
+  parseFailureAutoContinue,
+  parseFailureProgress,
+  turnContinuationFor,
+  type SessionFailureAutoContinue,
+  type SessionFailureProgress,
+} from '../../../../packages/client/src/shared/turn-continuation';
+export { latestTurnMessageId } from '../../../../packages/core/src/channels/channel-notice';
 export interface SessionFailure {
   role: 'orchestrator' | 'assignment';
   sessionId: string;
   detail: string;
   requestMessageId?: string;
   code?: string;
+  progress?: SessionFailureProgress;
+  autoContinue?: SessionFailureAutoContinue;
 }
 
 export function sessionFailure(value: unknown): SessionFailure | undefined {
@@ -30,11 +40,61 @@ export function sessionFailure(value: unknown): SessionFailure | undefined {
       ? { requestMessageId: value.requestMessageId }
       : {}),
     ...('code' in value && typeof value.code === 'string' ? { code: value.code } : {}),
+    ...withParsed(
+      'progress',
+      parseFailureProgress('progress' in value ? value.progress : undefined),
+    ),
+    ...withParsed(
+      'autoContinue',
+      parseFailureAutoContinue('autoContinue' in value ? value.autoContinue : undefined),
+    ),
   };
 }
 
+function withParsed<K extends string, V>(key: K, value: V | undefined): { [P in K]?: V } {
+  return (value === undefined ? {} : { [key]: value }) as { [P in K]?: V };
+}
+
+export function createFailureContinuation(
+  client: {
+    call(method: string, args: Record<string, unknown>): Promise<unknown>;
+  },
+  channelId: string,
+  failureMessageId: string,
+  failure: SessionFailure,
+) {
+  const slug = channelId.startsWith('dm-') ? channelId.slice(3) : undefined;
+  return turnContinuationFor(
+    client,
+    {
+      channelId,
+      failureMessageId,
+      botSlug: slug,
+      role: failure.role,
+      requestMessageId: failure.requestMessageId,
+    },
+    {
+      continueTurn: (channel, messageId, failureId) =>
+        client.call('channelRetry', {
+          channelId: channel,
+          messageId,
+          recovery: 'continue',
+          failureMessageId: failureId,
+        }),
+      cancelAuto: (channel, botSlug, messageId) =>
+        client.call('channelBotStop', {
+          channelId: channel,
+          botSlug,
+          autoContinueFor: messageId,
+        }),
+    },
+  );
+}
+
 export function createFailureMaintenance(
-  client: { call(method: string, args: Record<string, unknown>): Promise<unknown> },
+  client: {
+    call(method: string, args: Record<string, unknown>): Promise<unknown>;
+  },
   channelId: string,
   failure: SessionFailure,
 ) {

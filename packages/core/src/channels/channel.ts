@@ -245,6 +245,20 @@ export interface SessionFailureCard {
   status?: number;
   detail: string;
   context?: string;
+  progress?: SessionFailureProgress;
+  autoContinue?: SessionFailureAutoContinue;
+}
+
+export interface SessionFailureProgress {
+  completedSteps: number;
+  lastTool?: string;
+  unknownTools?: string[];
+}
+
+export interface SessionFailureAutoContinue {
+  attempt: number;
+  maxAttempts: number;
+  at: string;
 }
 
 export interface ChannelMention {
@@ -454,7 +468,13 @@ export interface ChannelMessage {
   clearedAttachments?: ChannelClearedAttachment[];
   bridgeMedia?: {
     voice?: Pick<import('../messaging/provider.js').MessagingVoice, 'transcript' | 'durationMs'>;
-    items: { id: string; kind: 'image' | 'file' | 'audio'; name: string; sizeBytes?: number }[];
+    video?: { attachmentId: string; durationMs?: number; posterAttachmentId?: string };
+    items: {
+      id: string;
+      kind: 'image' | 'file' | 'audio' | 'video';
+      name: string;
+      sizeBytes?: number;
+    }[];
     parts?: import('../messaging/provider.js').MessagingContentPart[];
   };
   bridgeOrigin?: {
@@ -675,6 +695,37 @@ export function isChannelRecord(value: unknown, id: string): value is ChannelRec
   return true;
 }
 
+function validFailureProgress(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (typeof value !== 'object' || value === null) return false;
+  const progress = value as Record<string, unknown>;
+  return (
+    typeof progress['completedSteps'] === 'number' &&
+    Number.isInteger(progress['completedSteps']) &&
+    progress['completedSteps'] >= 0 &&
+    (progress['lastTool'] === undefined || typeof progress['lastTool'] === 'string') &&
+    (progress['unknownTools'] === undefined ||
+      (Array.isArray(progress['unknownTools']) &&
+        progress['unknownTools'].every((name) => typeof name === 'string')))
+  );
+}
+
+function validFailureAutoContinue(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (typeof value !== 'object' || value === null) return false;
+  const auto = value as Record<string, unknown>;
+  return (
+    typeof auto['attempt'] === 'number' &&
+    Number.isInteger(auto['attempt']) &&
+    auto['attempt'] >= 1 &&
+    typeof auto['maxAttempts'] === 'number' &&
+    Number.isInteger(auto['maxAttempts']) &&
+    auto['maxAttempts'] >= auto['attempt'] &&
+    typeof auto['at'] === 'string' &&
+    Number.isFinite(Date.parse(auto['at']))
+  );
+}
+
 export function isChannelMessage(value: unknown): value is ChannelMessage {
   if (typeof value !== 'object' || value === null) return false;
   const message = value as Record<string, unknown>;
@@ -786,7 +837,9 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       notice['detail'].length === 0 ||
       (notice['code'] !== undefined && typeof notice['code'] !== 'string') ||
       (notice['status'] !== undefined && typeof notice['status'] !== 'number') ||
-      (notice['context'] !== undefined && typeof notice['context'] !== 'string')
+      (notice['context'] !== undefined && typeof notice['context'] !== 'string') ||
+      !validFailureProgress(notice['progress']) ||
+      !validFailureAutoContinue(notice['autoContinue'])
     )
       return false;
   }
@@ -929,6 +982,11 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
   if (questionResolution !== undefined) {
     if (typeof questionResolution !== 'object' || questionResolution === null) return false;
     const resolution = questionResolution as Record<string, unknown>;
+    if (
+      resolution['actor'] !== undefined &&
+      (resolution['state'] !== 'answered' || !parseToolApprovalActor(resolution['actor']))
+    )
+      return false;
     if (
       typeof resolution['requestMessageId'] !== 'string' ||
       message['replyTo'] !== resolution['requestMessageId'] ||

@@ -111,6 +111,14 @@ export const MESSAGING_COMMANDS = [
     description: 'retry one failed IM approval delivery',
   },
   {
+    command: 'question-retry',
+    description: 'repair one IM question notification or unconfirmed answer',
+  },
+  {
+    command: 'question-deliveries',
+    description: "read a Bot's IM question notifications",
+  },
+  {
     command: 'failure-alerts',
     description: "read a Bot's IM failure-alert setting and deliveries",
   },
@@ -270,6 +278,7 @@ export async function prepareMessaging(
     case 'channel-bridge':
     case 'approval-routes':
     case 'approval-test':
+    case 'question-deliveries':
     case 'failure-alerts':
     case 'failure-alerts-test':
       break;
@@ -324,6 +333,7 @@ export async function prepareMessaging(
       if (values.pairing !== 'none') uuid(values.pairing, '--pairing');
       break;
     case 'approval-retry':
+    case 'question-retry':
     case 'failure-alerts-retry':
       uuid(values.delivery, '--delivery');
       break;
@@ -528,6 +538,13 @@ export async function runMessaging(operation: MessagingOperation, rpc: Rpc): Pro
         slug: target,
         id: values.delivery!.trim(),
       });
+    case 'question-retry':
+      return rpc('questionRetry', {
+        slug: target,
+        id: values.delivery!.trim(),
+      });
+    case 'question-deliveries':
+      return { deliveries: (await snapshot())['questions'] ?? [] };
     case 'failure-alerts':
       return record((await snapshot())['failureAlerts']);
     case 'failure-alerts-set': {

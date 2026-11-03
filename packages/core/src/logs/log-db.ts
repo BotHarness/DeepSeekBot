@@ -55,12 +55,20 @@ export interface OpenLogDatabaseOptions {
   readonly maxAgeMs?: number;
 
   readonly migrations?: readonly LogMigration[];
+
+  readonly readOnly?: boolean;
 }
+
+export class LogDatabaseUnreadableError extends Error {}
 
 export interface LogDatabase {
   write(entry: LogEntryInput): void;
 
+  writeMany(entries: readonly LogEntryInput[]): void;
+
   query(filter?: LogQuery): LogEntry[];
+
+  range(since: number, max: number): LogEntry[];
   close(): void;
 }
 
@@ -73,6 +81,8 @@ export const LOG_QUERY_DEFAULT_LIMIT = 100;
 
 export const LOG_QUERY_MAX_LIMIT = 1000;
 
+export const LOG_EXPORT_MAX_ROWS = LOG_DEFAULT_MAX_ROWS;
+
 export interface LogQuery {
   readonly plugin?: string;
   readonly owner?: LogOwnerScope;
@@ -81,6 +91,8 @@ export interface LogQuery {
 
   readonly since?: number;
   readonly limit?: number;
+
+  readonly kinds?: readonly string[];
 }
 
 const BUILTIN_MIGRATIONS: readonly LogMigration[] = [
@@ -180,7 +192,25 @@ export function openLogDatabase(options: OpenLogDatabaseOptions): LogDatabase {
     return true;
   };
 
+  const openReadOnly = (): DatabaseSync => {
+    let database: DatabaseSync;
+    try {
+      database = new DatabaseSync(path, { readOnly: true });
+    } catch (error) {
+      throw new LogDatabaseUnreadableError('logs.db cannot be opened', { cause: error });
+    }
+    const version = readVersion(database);
+    if (version === LOG_DB_VERSION) return database;
+    database.close();
+    throw new LogDatabaseUnreadableError(
+      version === undefined
+        ? 'logs.db schema is unreadable'
+        : `logs.db schema ${version} is not supported`,
+    );
+  };
+
   const openOrRebuild = (): DatabaseSync => {
+    if (options.readOnly === true) return openReadOnly();
     try {
       if (!existsSync(path)) return rebuildEmpty();
       const database = new DatabaseSync(path);
@@ -210,7 +240,7 @@ export function openLogDatabase(options: OpenLogDatabaseOptions): LogDatabase {
     database = next;
   };
 
-  const writeRow = (entry: LogEntryInput): void => {
+  const insertRow = (entry: LogEntryInput): number => {
     const at = entry.ts ?? now();
     database
       .prepare(
@@ -229,16 +259,37 @@ export function openLogDatabase(options: OpenLogDatabaseOptions): LogDatabase {
         entry.traceId ?? null,
         entry.payload ?? null,
       );
+    return at;
+  };
+
+  const prune = (at: number): void => {
     database.prepare('DELETE FROM log_entries WHERE ts < ?').run(at - maxAgeMs);
     database
       .prepare(
-        'DELETE FROM log_entries WHERE id NOT IN (SELECT id FROM log_entries ORDER BY ts DESC, id DESC LIMIT ?)',
+        'DELETE FROM log_entries WHERE id NOT IN (SELECT id FROM log_entries ORDER BY id DESC LIMIT ?)',
       )
       .run(maxRows);
   };
 
+  const writeRow = (entry: LogEntryInput): void => prune(insertRow(entry));
+
+  const writeRows = (entries: readonly LogEntryInput[]): void => {
+    database.exec('BEGIN');
+    try {
+      for (const entry of entries) insertRow(entry);
+      prune(now());
+      database.exec('COMMIT');
+    } catch (error) {
+      try {
+        database.exec('ROLLBACK');
+      } catch {}
+      throw error;
+    }
+  };
+
   return {
     write(entry: LogEntryInput): void {
+      if (options.readOnly === true) throw new LogDatabaseUnreadableError('logs.db is read-only');
       try {
         if (!existsSync(path)) swap(openOrRebuild());
         writeRow(entry);
@@ -247,76 +298,101 @@ export function openLogDatabase(options: OpenLogDatabaseOptions): LogDatabase {
         writeRow(entry);
       }
     },
-    query(filter?: LogQuery): LogEntry[] {
-      const conditions: string[] = [];
-      const params: (string | number)[] = [];
-      if (filter?.plugin !== undefined && filter.plugin !== '') {
-        conditions.push('plugin = ?');
-        params.push(filter.plugin);
-      }
-      if (filter?.owner !== undefined) {
-        conditions.push('owner = ?');
-        params.push(filter.owner);
-      }
-      if (filter?.entity !== undefined && filter.entity !== '') {
-        conditions.push(
-          '(principal = ? OR bot = ? OR orchestrator_session = ? OR assignment_session = ? OR trace_id = ?)',
-        );
-        params.push(filter.entity, filter.entity, filter.entity, filter.entity, filter.entity);
-      }
-      if (filter?.since !== undefined && Number.isFinite(filter.since)) {
-        conditions.push('ts >= ?');
-        params.push(filter.since);
-      }
-      const limit =
-        filter?.limit !== undefined &&
-        Number.isInteger(filter.limit) &&
-        filter.limit > 0 &&
-        filter.limit <= LOG_QUERY_MAX_LIMIT
-          ? filter.limit
-          : LOG_QUERY_DEFAULT_LIMIT;
-      const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    writeMany(entries: readonly LogEntryInput[]): void {
+      if (entries.length === 0) return;
+      if (options.readOnly === true) throw new LogDatabaseUnreadableError('logs.db is read-only');
       try {
-        const rows = database
-          .prepare(
-            `SELECT id, ts, plugin, owner, kind, detail, principal, bot, orchestrator_session, assignment_session, trace_id, payload FROM log_entries ${where} ORDER BY ts DESC, id DESC LIMIT ?`,
-          )
-          .all(...params, limit) as {
-          id: number;
-          ts: number;
-          plugin: string;
-          owner: string;
-          kind: string;
-          detail: string;
-          principal: string | null;
-          bot: string | null;
-          orchestrator_session: string | null;
-          assignment_session: string | null;
-          trace_id: string | null;
-          payload: string | null;
-        }[];
-        return rows.map((row): LogEntry => ({
-          id: row.id,
-          ts: row.ts,
-          plugin: row.plugin,
-          owner: row.owner as LogOwnerScope,
-          kind: row.kind,
-          detail: row.detail,
-          ...(row.principal === null ? {} : { principal: row.principal }),
-          ...(row.bot === null ? {} : { bot: row.bot }),
-          ...(row.orchestrator_session === null
-            ? {}
-            : { orchestratorSession: row.orchestrator_session }),
-          ...(row.assignment_session === null ? {} : { assignmentSession: row.assignment_session }),
-          ...(row.trace_id === null ? {} : { traceId: row.trace_id }),
-          ...(row.payload === null ? {} : { payload: row.payload }),
-        }));
+        if (!existsSync(path)) swap(openOrRebuild());
+        writeRows(entries);
       } catch {
-        return [];
+        swap(openOrRebuild());
+        writeRows(entries);
       }
+    },
+    query(filter?: LogQuery): LogEntry[] {
+      return select(filter, LOG_QUERY_MAX_LIMIT);
+    },
+    range(since: number, max: number): LogEntry[] {
+      const limit = Math.min(Math.max(1, Math.trunc(max)), LOG_EXPORT_MAX_ROWS + 1);
+      return select({ since, limit }, LOG_EXPORT_MAX_ROWS + 1).reverse();
     },
     close(): void {
       database.close();
     },
   };
+
+  function select(filter: LogQuery | undefined, maxLimit: number): LogEntry[] {
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+    if (filter?.plugin !== undefined && filter.plugin !== '') {
+      conditions.push('plugin = ?');
+      params.push(filter.plugin);
+    }
+    if (filter?.owner !== undefined) {
+      conditions.push('owner = ?');
+      params.push(filter.owner);
+    }
+    if (filter?.entity !== undefined && filter.entity !== '') {
+      conditions.push(
+        '(principal = ? OR bot = ? OR orchestrator_session = ? OR assignment_session = ? OR trace_id = ?)',
+      );
+      params.push(filter.entity, filter.entity, filter.entity, filter.entity, filter.entity);
+    }
+    if (filter?.kinds !== undefined && filter.kinds.length > 0) {
+      conditions.push(`kind IN (${filter.kinds.map(() => '?').join(', ')})`);
+      params.push(...filter.kinds);
+    }
+    if (filter?.since !== undefined && Number.isFinite(filter.since)) {
+      conditions.push('ts >= ?');
+      params.push(filter.since);
+    }
+    const limit =
+      filter?.limit !== undefined &&
+      Number.isInteger(filter.limit) &&
+      filter.limit > 0 &&
+      filter.limit <= maxLimit
+        ? filter.limit
+        : LOG_QUERY_DEFAULT_LIMIT;
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    try {
+      const rows = database
+        .prepare(
+          `SELECT id, ts, plugin, owner, kind, detail, principal, bot, orchestrator_session, assignment_session, trace_id, payload FROM log_entries ${where} ORDER BY ts DESC, id DESC LIMIT ?`,
+        )
+        .all(...params, limit) as {
+        id: number;
+        ts: number;
+        plugin: string;
+        owner: string;
+        kind: string;
+        detail: string;
+        principal: string | null;
+        bot: string | null;
+        orchestrator_session: string | null;
+        assignment_session: string | null;
+        trace_id: string | null;
+        payload: string | null;
+      }[];
+      return rows.map((row): LogEntry => ({
+        id: row.id,
+        ts: row.ts,
+        plugin: row.plugin,
+        owner: row.owner as LogOwnerScope,
+        kind: row.kind,
+        detail: row.detail,
+        ...(row.principal === null ? {} : { principal: row.principal }),
+        ...(row.bot === null ? {} : { bot: row.bot }),
+        ...(row.orchestrator_session === null
+          ? {}
+          : { orchestratorSession: row.orchestrator_session }),
+        ...(row.assignment_session === null ? {} : { assignmentSession: row.assignment_session }),
+        ...(row.trace_id === null ? {} : { traceId: row.trace_id }),
+        ...(row.payload === null ? {} : { payload: row.payload }),
+      }));
+    } catch (error) {
+      if (options.readOnly === true)
+        throw new LogDatabaseUnreadableError('logs.db entries are unreadable', { cause: error });
+      return [];
+    }
+  }
 }

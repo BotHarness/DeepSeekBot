@@ -1,12 +1,12 @@
 {
   "name": "@botharness/im-provider",
-  "version": "4.32.0-botharness.23",
-  "filename": "botharness-im-provider-4.32.0-botharness.23.tgz",
-  "integrity": "sha512-gZMD4YF3TUV2R+VFU4e6xXeVcuXf/By3h56zRoDfgFmGkT/ALjXEnP1DPUz3pG+rxoHiODlRyrgwGP/vIhKKRQ==",
+  "version": "4.32.0-botharness.24",
+  "filename": "botharness-im-provider-4.32.0-botharness.24.tgz",
+  "integrity": "sha512-ziKFeegYxXR7P/d7FMPhgRc090lQMwaVF/cfp4jjzXfdZ6frfWwM6OabNNt5mCSChmTE36JsZa4TLdtGfJJclw==",
   "distTag": "latest",
   "providerSource": "7505ce6fcda26c02810781fde9d4da81dab28a68",
-  "productSource": "bd29b0aaef96f4114476a817dcdefc80e33ef802",
+  "productSource": "442958e02736a40a79e8fff6dfde14d788b8a50f",
   "runtimeFiles": 425,
-  "runtimeSha256": "c1962f8ed92e106522792f961c6faf0c043ab1daae0a63e495b937644cce9d6d",
-  "qualification": "https://github.com/BotHarness/DeepSeekBot/actions/runs/40918990037"
+  "runtimeSha256": "d6268320b405f668f55a3179b8f1875b93dfe8f34b20afa90e3406c9cd7015c3",
+  "qualification": "https://github.com/BotHarness/DeepSeekBot/actions/runs/41410612059"
 }

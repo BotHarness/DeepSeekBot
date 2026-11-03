@@ -1,3 +1,4 @@
+import { writeIngest } from '../src/messaging/conversation-ingest.js';
 import { rmSync } from 'node:fs';
 import { setImmediate as tick } from 'node:timers/promises';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -33,16 +34,19 @@ afterEach(async () => {
   }
 });
 
-async function fixture(inboxOnly = false, twoPaths = false, file = false) {
-  const bytes = file ? Buffer.from('name,quantity\nalpha,17\n') : png;
-  const attachment = file
-    ? {
-        id: 'c'.repeat(64),
-        messageId: 'file-parent-message',
-        resourceKey: 'private-key',
-        name: 'qa-source.csv',
-      }
-    : image;
+async function fixture(inboxOnly = false, twoPaths = false, file = false, video = false) {
+  const mp4 = Buffer.from('000000186674797069736f6d0000020069736f6d69736f32', 'hex');
+  const bytes = video ? mp4 : file ? Buffer.from('name,quantity\nalpha,17\n') : png;
+  const attachment =
+    file || video
+      ? {
+          id: 'c'.repeat(64),
+          messageId: 'file-parent-message',
+          resourceKey: 'private-key',
+          name: video ? 'qa-video.mp4' : 'qa-source.csv',
+          ...(video ? { mediaType: 'video/unknown' } : {}),
+        }
+      : image;
   const home = createTempRoot('bh-channel-media-');
   let consumer: Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1] | undefined;
   const run = vi.fn(async () => {});
@@ -93,6 +97,7 @@ async function fixture(inboxOnly = false, twoPaths = false, file = false) {
         'source-file-checked',
         'reply-file-checked',
         'source-image-checked',
+        ...(video ? ['source-video-checked'] : []),
       ],
     }),
     sendChecked: async () => ({ sent: true }),
@@ -101,7 +106,12 @@ async function fixture(inboxOnly = false, twoPaths = false, file = false) {
       consumer = input;
       return () => {};
     },
-    readSourceFile: async () => download(),
+    readSourceFile: async (_id, _route, item) =>
+      item.id === image.id && video
+        ? (async function* () {
+            yield png;
+          })()
+        : download(),
     replyFileChecked: async () => ({ sent: true }),
   };
   core.externalMessaging.register(createDshImProvider(service)!);
@@ -166,8 +176,11 @@ async function fixture(inboxOnly = false, twoPaths = false, file = false) {
     mentionedAccount: true,
     at: new Date(Date.now() + 100).toISOString(),
     text: 'Before\nAfter',
-    attachments: [attachment],
-    ...(file
+    attachments: [attachment, ...(video ? [{ ...image, messageId: attachment.messageId }] : [])],
+    ...(video
+      ? { video: { itemId: attachment.id, durationMs: 4000, posterAttachmentId: image.id } }
+      : {}),
+    ...(file || video
       ? {}
       : {
           contentParts: [
@@ -180,7 +193,7 @@ async function fixture(inboxOnly = false, twoPaths = false, file = false) {
       messageId: image.messageId,
       conversationId: 'team',
       actorId: 'human',
-      ...(file ? { parentId: attachment.messageId } : {}),
+      ...(file || video ? { parentId: attachment.messageId } : {}),
     },
     replay: { kind: 'provider-redelivery', resumeCursor: false, gapPossible: true },
   };
@@ -244,6 +257,14 @@ async function fixture(inboxOnly = false, twoPaths = false, file = false) {
     attachment,
     bytes,
     read,
+    playback: () =>
+      core.externalMessaging.readChannelMedia({
+        channelId,
+        sourceEventId,
+        attachmentId: attachment.id,
+        representation: 'playback',
+        signal: new AbortController().signal,
+      }),
     counts,
     run,
     stop,
@@ -260,6 +281,197 @@ async function fixture(inboxOnly = false, twoPaths = false, file = false) {
     },
   };
 }
+
+it('projects a checked Lark native video and platform cover once; explicit playback shares original bytes without attention or transcoding', async () => {
+  const fx = await fixture(false, false, false, true);
+  expect(fx.consumer?.sourceVideos).toBe(true);
+  const messages = fx.core.channels.readMessages(fx.channelId);
+  expect(messages).toHaveLength(1);
+  expect(messages[0]?.bridgeMedia).toMatchObject({
+    video: { attachmentId: fx.attachment.id, durationMs: 4000, posterAttachmentId: image.id },
+    items: [{ kind: 'video', name: 'qa-video.mp4' }, { kind: 'image' }],
+  });
+  expect(JSON.stringify(messages)).not.toContain('private-key');
+  expect(fx.download).not.toHaveBeenCalled();
+  const before = fx.counts();
+  const runs = fx.run.mock.calls.length;
+  const playback = await fx.playback();
+  expect(playback.inline).toBe(true);
+  expect(playback.ref.mime).toBe('video/mp4');
+  expect(Buffer.from(await new Response(playback.body).arrayBuffer())).toEqual(fx.bytes);
+  const original = await fx.read();
+  expect(original.inline).toBe(false);
+  expect(Buffer.from(await new Response(original.body).arrayBuffer())).toEqual(fx.bytes);
+  const cover = await fx.read(image.id);
+  expect(cover.ref.mime).toBe('image/png');
+  expect(Buffer.from(await new Response(cover.body).arrayBuffer())).toEqual(png);
+  expect(fx.download).toHaveBeenCalledTimes(1);
+  await fx.restart();
+  expect(fx.core.channels.readMessages(fx.channelId)[0]?.bridgeMedia).toEqual(
+    messages[0]?.bridgeMedia,
+  );
+  const cached = await fx.playback();
+  await cached.body.cancel();
+  expect(fx.download).toHaveBeenCalledTimes(1);
+  expect(fx.counts()).toEqual(before);
+  expect(fx.run).toHaveBeenCalledTimes(runs);
+});
+
+it('refuses a Lark video association changed to another parent, primary resource, poster or unsupported content', async () => {
+  const fx = await fixture(false, false, false, true);
+  for (const event of [
+    { ...fx.event, video: { ...fx.event.video!, itemId: image.id } },
+    { ...fx.event, video: { ...fx.event.video!, posterAttachmentId: fx.attachment.id } },
+    { ...fx.event, reply: { ...fx.event.reply, parentId: 'other-parent' } },
+    { ...fx.event, mentionedAccount: false },
+  ]) {
+    await expect(fx.consumer!.onEvent(event, { signal: fx.consumer!.signal })).rejects.toThrow(
+      'untrusted-source',
+    );
+  }
+  fx.download.mockImplementation(async function* () {
+    yield Buffer.from('not a video');
+  });
+  await expect(fx.playback()).rejects.toThrow('media-format-unsupported');
+  const original = await fx.read();
+  expect(Buffer.from(await new Response(original.body).arrayBuffer()).toString()).toBe(
+    'not a video',
+  );
+  expect(fx.download).toHaveBeenCalledTimes(1);
+});
+
+it('video playback follows stop-before-acquire, stopped cache and identity revocation rules', async () => {
+  const fx = await fixture(false, false, false, true);
+  await fx.stop();
+  await expect(fx.playback()).rejects.toThrow('source-unavailable');
+  expect(fx.download).not.toHaveBeenCalled();
+  const second = await fixture(false, false, false, true);
+  const first = await second.playback();
+  await first.body.cancel();
+  await second.stop();
+  const cached = await second.playback();
+  await cached.body.cancel();
+  const identity = (await second.core.externalMessaging.snapshot('ada')).identities![0]!;
+  await second.core.externalMessaging.identity('ada', {
+    kind: 'unbind',
+    id: identity.id,
+    expectedRevision: identity.revision,
+  });
+  await expect(second.playback()).rejects.toThrow('source-unavailable');
+  expect(second.download).toHaveBeenCalledTimes(1);
+});
+
+it('a connected conversation grants Channel media only while its ingest is enabled', async () => {
+  const fx = await fixture(false, false, false, true);
+  const database = attachOperationalModule(fx.core.operationalDatabase, 'media-test');
+  const ingestFor = (connected: string) =>
+    database.read((db) => {
+      const { payload_json } = db
+        .prepare('SELECT payload_json FROM source_events WHERE source_event_id = ?')
+        .get(fx.sourceEventId) as { payload_json: string };
+      const { event, grantId } = (
+        JSON.parse(payload_json) as {
+          external: {
+            grantId: string;
+            event: {
+              botId: string;
+              fingerprint: string;
+              conversation: { kind: 'dm' | 'group'; id: string };
+            };
+          };
+        }
+      ).external;
+      return {
+        grantId,
+        value: {
+          id: 'ingest-1',
+          channelId: connected,
+          providerId: 'dsh-im/feishu',
+          accountRef: event.botId,
+          fingerprint: event.fingerprint,
+          platform: 'feishu',
+          accountName: 'QA',
+          conversation: { ...event.conversation, name: 'QA' },
+          revision: 1,
+          enabled: true,
+          intakeAfter: new Date(0).toISOString(),
+          wake: { mode: 'mentions' as const, count: 1, intervalSeconds: 0 },
+          createdAt: new Date(0).toISOString(),
+        },
+      };
+    });
+  const created = createBridgeMethods({ ...fx.core }).channelCreate({
+    name: 'Connected',
+    members: ['ada'],
+  });
+  if (!created.ok) throw new Error(created.error.message);
+  const connected = created.value.channel.id;
+  database.transaction((db) => {
+    db.prepare(
+      'INSERT INTO channel_placements (channel_id, revision, source_event_id, message_id) VALUES (?, 1, ?, ?)',
+    ).run(connected, fx.sourceEventId, fx.sourceEventId);
+  });
+  const ingest = ingestFor(connected);
+  await expect(fx.read(fx.attachment.id, connected)).rejects.toMatchObject({
+    code: 'source-unavailable',
+  });
+  database.transaction((db) => writeIngest(db, ingest.value));
+  const result = await fx.read(fx.attachment.id, connected);
+  expect(Buffer.from(await new Response(result.body).arrayBuffer())).toEqual(fx.bytes);
+  database.transaction((db) => writeIngest(db, { ...ingest.value, enabled: false, revision: 2 }));
+  await expect(fx.read(fx.attachment.id, connected)).rejects.toMatchObject({
+    code: 'source-unavailable',
+  });
+});
+
+it('requires the Lark video capability instead of borrowing file or image qualification', async () => {
+  const fx = await fixture(false, false, false, true);
+  const info = await fx.service.describeBot('account');
+  let input: Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1] | undefined;
+  const provider = createDshImProvider({
+    ...fx.service,
+    describeBot: async () => ({
+      ...info,
+      capabilities: info.capabilities.filter((cap) => cap !== 'source-video-checked'),
+    }),
+    consumeInbound: async (
+      _id: string,
+      options: Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1],
+    ) => {
+      input = options;
+      return () => {};
+    },
+  })!;
+  await provider.consume!({
+    accountRef: 'account',
+    fingerprint,
+    signal: new AbortController().signal,
+    onEvent: async () => ({ accepted: true }),
+  });
+  expect(input?.sourceVideos).toBeUndefined();
+  await expect(input!.onEvent(fx.event, { signal: input!.signal })).rejects.toThrow(
+    'untrusted-source',
+  );
+  fx.service.describeBot = async () => ({
+    ...info,
+    capabilities: info.capabilities.filter((cap) => cap !== 'source-video-checked'),
+  });
+  await expect(fx.playback()).rejects.toThrow('provider-incompatible');
+  expect(fx.download).not.toHaveBeenCalled();
+});
+
+it('retains an independently valid video path but does not resurrect missing original bytes', async () => {
+  const fx = await fixture(false, true, false, true);
+  const first = await fx.playback();
+  await first.body.cancel();
+  fx.core.externalMessaging.revoke('ada', fx.grant.id);
+  const independent = await fx.playback();
+  await independent.body.cancel();
+  expect(independent.ref.fileId).toBe(first.ref.fileId);
+  rmSync(fx.core.attachments.fileTarget(first.ref.fileId!).path);
+  await expect(fx.playback()).rejects.toThrow('unavailable');
+  expect(fx.download).toHaveBeenCalledTimes(1);
+});
 
 it('projects a Lark source file in its original bubble and downloads its exact original without new attention', async () => {
   const fx = await fixture(false, false, true);

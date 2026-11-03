@@ -348,7 +348,7 @@ private-origin check is retained; a group pairing does not create a management d
 Removing a capability or revoking/reassigning the person refuses delayed decisions. If
 reassignment invalidates the route, explicitly select/save its new current destination again.
 Legacy `/pair` management grants remain independent and do not enable ordinary chat by themselves.
-Native Questions, group execution-approval destinations and pairing-code issuance are separate work.
+Group execution-approval destinations and pairing-code issuance are separate work. A management DM with the **Answer formal questions** capability receives native questions as a private form and can also answer with a quoted reply or `/answer <reference> <text>`; the original session accepts one answer, and an unconfirmed submission is never replayed ([#1031](https://github.com/BotHarness/DeepSeekBot/issues/1031)). Qualification is recorded in [the verification note](dev/verification/lark-1031-native-questions.md).
 
 This slice supports Lark private **Allow once** and **Reject** cards through a qualified Provider. The #1033 source candidate adds the separately confirmed exact-rule path below. Group execution approvals, native question forms and non-blocking native waits are separate slices. The released dsh-im package number alone does not imply card capability; an unavailable Provider remains unavailable.
 
@@ -497,3 +497,13 @@ The #1022 candidate reuses the shared Channel file card for a checked Lark paren
 Select the filename to download the original. The card shows its known filename and size; absent MIME and size remain unknown. Download starts only on explicit action, shows progress or a refusal, and offers **Retry**. The default limit is 25 MiB. When the Host supports native file opening, the card also offers the existing detected-application menu. Choosing an application opens the acquired Host copy; it never uploads edits to Lark. Unsupported devices retain download.
 
 Every action checks current Human Channel membership, the original placement and source, receiving identity and independent valid source paths. Pausing sync prevents new acquisition through that path while retaining authorized acquired files. Unbind or revocation prevents acquisition and cached access through that authorization. Refresh and restart preserve acquired history; missing or purged bytes are not reconstructed. Human access adds no Inbox admission, model work or external send authority. Real Lark/file/Client verification remains a separate gate tracked in [#1022](https://github.com/BotHarness/DeepSeekBot/issues/1022).
+
+## Referenced video in Channel history (candidate)
+
+The first #1023 slice uses a native Lark video sent with **Image & video**, quoted by a text request with a real Bot mention. With the conversation synced to a Channel, the request bubble offers original download and **Prepare video**. A file named `.mp4` remains a file unless Lark identifies its parent as native video.
+
+Preparation acquires up to 25 MiB under current source authorization. Playback then requires a separate manual action; it never starts automatically. Known duration is labeled **Platform duration**. A cover appears only if the native parent supplies one and it loads successfully; cover absence or failure does not block playback. Unsupported formats and transfer failures have separate messages, and the original remains downloadable. Refreshing requires preparation again; already acquired originals remain in the existing authorized Attachment store. Stop, unbind and revocation follow the file rules above.
+
+This is a draft video tracer. Native intake, decoded playback, installed-product E2E, matched-theme captures and Human feedback remain pending in [the verification checkpoint](dev/verification/lark-1023-channel-video.md). Audio, direct media messages, runtime transcoding, generated covers and model transcription are not delivered by this slice. The mobile app currently offers the original as a file action.
+
+Opening the Bot Inbox's source details does not fetch this video or its cover. That inspector retains explicit original-download actions; prepare playback from the Channel bubble.

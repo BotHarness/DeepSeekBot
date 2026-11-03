@@ -19,6 +19,7 @@ export type MarkdownViewportStage = {
   scroll: SharedValue<number>;
   layout: SharedValue<number>;
   active: boolean;
+  inverted?: boolean;
 };
 
 export const MarkdownViewportContext = createContext<MarkdownViewportStage | undefined>(undefined);
@@ -59,6 +60,7 @@ export function useMarkdownViewport() {
   const content = stage?.content;
   const layout = stage?.layout;
   const active = stage?.active === true;
+  const inverted = stage?.inverted === true;
   useAnimatedReaction(
     () => {
       if (
@@ -76,7 +78,10 @@ export function useMarkdownViewport() {
       if (document === null || frame === null || contentFrame === null || frame.height <= 0)
         return null;
       return {
-        top: contentFrame.pageY - document.pageY + scroll.value,
+        top:
+          contentFrame.pageY -
+          document.pageY +
+          (inverted ? contentFrame.height - frame.height - scroll.value : scroll.value),
         height: frame.height,
       };
     },

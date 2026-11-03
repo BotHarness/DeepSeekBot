@@ -61,11 +61,6 @@ export function WorkingSummary({
   return (
     <span className="bh-header-working-summary" aria-hidden="true">
       {workingSummary(rows, t)}
-      <span className="bh-header-working-ellipsis">
-        <i>.</i>
-        <i>.</i>
-        <i>.</i>
-      </span>
     </span>
   );
 }

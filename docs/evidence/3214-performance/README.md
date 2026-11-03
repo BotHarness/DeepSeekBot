@@ -75,3 +75,7 @@ The delivery branch is based on the updated main branch. Its existing generation
 
 Historical browser/Host processes were task-owned and stopped; ports were released and evidence retained. This PR preparation does not restart the paused continuous-performance goal or modify shared QA Hosts/generated builds.
 Delivery verification on the updated-main worktree passed 18 focused test files / 275 tests, and a separate broader Channel/attention/usage/budget batch passed 34 files / 262 tests. These batches overlap and are not added into a total. Root TypeScript checking, scoped formatting/lint, Release Ledger, CLI parity, feature-map and source-policy checks passed. Lint retains existing unused-variable/control-regex warnings. The sparse-checkout CI-plan CLI cannot validate omitted asset directories; full CI planning and docs/mobile/build checks remain CI gates. These checks do not substitute for browser, installed Desktop or Human acceptance.
+
+## Foreground streaming A/B
+
+The later measurement of #3311 and #3313 on a real GPU is in [foreground-streaming-ab.md](foreground-streaming-ab.md).

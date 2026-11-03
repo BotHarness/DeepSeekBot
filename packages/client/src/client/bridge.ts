@@ -1,4 +1,6 @@
+import { parseFailureAutoContinue, parseFailureProgress } from '../shared/turn-continuation.js';
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
+import { clientLog } from './diagnostic-log.js';
 import { parseToolApprovalActor } from '../../../core/src/workspaces/tool-approval-actor.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
@@ -585,7 +587,12 @@ export function createBridgeCall(ctx: ClientContext): BridgeCall {
         error: { code: 'unavailable', message: 'Connection RPC is not available', details: {} },
       };
     }
-    return rpc.call('/api', `botharness/${endpoint}`, { args: remoteArgs(payload) }, signal);
+    const run = () =>
+      rpc.call('/api', `botharness/${endpoint}`, { args: remoteArgs(payload) }, signal);
+    const recorder = clientLog();
+    return recorder === undefined
+      ? run()
+      : recorder.timeRpc(endpoint, run, (result) => (result.ok ? undefined : result.error.code));
   };
 }
 
@@ -1155,6 +1162,10 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       ...(typeof failure['status'] === 'number' ? { status: failure['status'] } : {}),
       ...(typeof failure['context'] === 'string' ? { context: failure['context'] } : {}),
     };
+    const progress = parseFailureProgress(failure['progress']);
+    if (progress !== undefined) sessionFailure.progress = progress;
+    const autoContinue = parseFailureAutoContinue(failure['autoContinue']);
+    if (autoContinue !== undefined) sessionFailure.autoContinue = autoContinue;
   }
   let memberDeparture: ChannelMessage['memberDeparture'];
   let turnStop: ChannelMessage['turnStop'];
@@ -1370,7 +1381,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     if (
       !bridgeOrigin ||
       !media ||
-      Object.keys(media).some((key) => !['items', 'parts', 'voice'].includes(key)) ||
+      Object.keys(media).some((key) => !['items', 'parts', 'voice', 'video'].includes(key)) ||
       !Array.isArray(media['items']) ||
       media['items'].length > 32
     )
@@ -1395,7 +1406,8 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       if (
         !item ||
         (item['kind'] === 'audio' && !media['voice']) ||
-        (item['kind'] !== 'image' && item['kind'] !== 'file' && item['kind'] !== 'audio') ||
+        (item['kind'] === 'video' && !media['video']) ||
+        !['image', 'file', 'audio', 'video'].includes(String(item['kind'])) ||
         typeof item['id'] !== 'string' ||
         !/^[a-f0-9]{64}$/.test(item['id']) ||
         typeof item['name'] !== 'string' ||
@@ -1408,6 +1420,39 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       )
         return;
       ids.add(item['id']);
+    }
+    if (media['video'] !== undefined) {
+      const video = asRecord(media['video']);
+      if (
+        bridgeOrigin.platform !== 'feishu' ||
+        !video ||
+        media['voice'] ||
+        media['parts'] ||
+        Object.keys(video).some(
+          (key) => !['attachmentId', 'durationMs', 'posterAttachmentId'].includes(key),
+        ) ||
+        (video['durationMs'] !== undefined &&
+          (typeof video['durationMs'] !== 'number' ||
+            !Number.isSafeInteger(video['durationMs']) ||
+            video['durationMs'] < 0)) ||
+        media['items'].length !== (video['posterAttachmentId'] === undefined ? 1 : 2) ||
+        !media['items'].some((raw) => {
+          const item = asRecord(raw);
+          return (
+            item !== undefined && item['id'] === video['attachmentId'] && item['kind'] === 'video'
+          );
+        }) ||
+        (video['posterAttachmentId'] !== undefined &&
+          !media['items'].some((raw) => {
+            const item = asRecord(raw);
+            return (
+              item !== undefined &&
+              item['id'] === video['posterAttachmentId'] &&
+              item['kind'] === 'image'
+            );
+          }))
+      )
+        return;
     }
     if (media['parts'] !== undefined) {
       if (!Array.isArray(media['parts']) || media['parts'].length > 256) return;
@@ -5945,6 +5990,14 @@ export async function retryApprovalNotification(
   id: string,
 ): Promise<void> {
   await unwrap(call, 'approvalRetry', { slug, id });
+}
+
+export async function retryQuestionNotification(
+  call: BridgeCall,
+  slug: string,
+  id: string,
+): Promise<void> {
+  await unwrap(call, 'questionRetry', { slug, id });
 }
 
 export async function setFailureAlerts(

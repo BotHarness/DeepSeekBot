@@ -1,3 +1,4 @@
+import { QuestionNotifications } from './question-notifications.js';
 import { useState, type ReactElement } from 'react';
 import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import { ReachablePostDialog } from './reachable-post.js';
@@ -231,6 +232,13 @@ function IdentitiesForBot({
               test: () => operate(() => actions.failureAlertsTest(slug), 'approval'),
               retry: (id) => operate(() => actions.failureAlertsRetry(slug, id), 'approval'),
             }}
+          />
+          <QuestionNotifications
+            deliveries={snapshot?.questions ?? []}
+            busy={busy}
+            t={t}
+            repair={(id) => operate(() => actions.questionRetry(slug, id), 'approval')}
+            openSession={actions.openSession}
           />
         </PanelDialog>
       ) : null}

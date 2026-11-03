@@ -165,21 +165,25 @@ export function installClientObserver(win: Window & typeof globalThis): void {
       return !!rect && rect.width > 0 && rect.height > 0;
     });
   };
-  const inspect = (): void => {
+  const check = (): void => {
+    frame = 0;
     if (disposed) return;
-    const present = shellPresent();
-    if (!present && mounted) {
-      mounted = false;
-      record('shell-lost', 'lifecycle', true);
+    if (!shellPresent()) {
+      if (mounted) {
+        mounted = false;
+        record('shell-lost', 'lifecycle', true);
+      }
+      return;
     }
-    if (!present || mounted || frame) return;
-    frame = win.requestAnimationFrame(() => {
-      frame = 0;
-      if (!shellPresent()) return;
-      mounted = true;
-      if (!data.firstFailure) data.state = 'shell-ready';
-      record('shell-mounted', 'lifecycle');
-    });
+    if (mounted) return;
+    mounted = true;
+    if (!data.firstFailure) data.state = 'shell-ready';
+    record('shell-mounted', 'lifecycle');
+  };
+  const inspect = (): void => {
+    if (disposed || frame) return;
+    if (!mounted && !shellPresent()) return;
+    frame = win.requestAnimationFrame(check);
   };
   const observer = new win.MutationObserver(inspect);
   observer.observe(win.document, {

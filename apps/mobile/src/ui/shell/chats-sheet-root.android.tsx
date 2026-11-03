@@ -37,7 +37,9 @@ function ChatPanel({
   children: ReactNode;
 }) {
   const [opened, setOpened] = useState<RecentChat>();
-  const chat = opened ?? request?.chat;
+  const [prepared, setPrepared] = useState<RecentChat>();
+  if (!covered && prepared !== request?.chat) setPrepared(request?.chat);
+  const chat = opened ?? prepared;
   const href = chat?.href;
   const target = conversationTarget(href);
   const open = opened !== undefined;

@@ -218,7 +218,7 @@ export class GroupSendReview {
       };
       const botSlug = message.author.kind === 'bot' ? message.author.slug : '';
       requireSourceEffects(db, draft.sourceEventId, botSlug);
-      if (fingerprint(message) !== draft.committed.intent)
+      if (!committedIntentMatches(draft.committed.intent, message))
         return refuse('draft-commit-content-changed');
       const row = db
         .prepare(
@@ -624,7 +624,14 @@ export class GroupSendReview {
   }
 }
 
-function fingerprint(message: ChannelMessage): string {
+export function committedIntentMatches(intent: string, message: ChannelMessage): boolean {
+  return (
+    fingerprint(message) === intent ||
+    (message.attachments === undefined && fingerprint({ ...message, attachments: [] }) === intent)
+  );
+}
+
+export function fingerprint(message: ChannelMessage): string {
   return createHash('sha256')
     .update(
       JSON.stringify({

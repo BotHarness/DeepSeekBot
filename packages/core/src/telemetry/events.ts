@@ -1,4 +1,5 @@
 import { MARKETPLACE_INSTALL_SOURCES } from '../marketplace/client.js';
+import { CLIENT_ISSUE_DURATION_BUCKETS, CLIENT_ISSUE_KINDS } from './client-issues.js';
 
 export const CONNECTOR_TYPES = ['feishu', 'lark', 'slack', 'discord', 'weixin', 'other'] as const;
 
@@ -132,6 +133,15 @@ export const TELEMETRY_EVENTS = {
       session_count: 'count',
       message_count: 'count',
       window_hours: 'count',
+    },
+  },
+  'app:client_issue_report': {
+    origin: 'host',
+    description:
+      'The Web Client hit a failure or a slowdown: an uncaught error, a failed or slow request, a long frame or a broken invariant. At most once per kind per Client session, with no message text.',
+    properties: {
+      kind: CLIENT_ISSUE_KINDS,
+      duration_bucket: CLIENT_ISSUE_DURATION_BUCKETS,
     },
   },
   'app:active_day_start': {

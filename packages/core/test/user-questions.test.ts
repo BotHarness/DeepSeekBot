@@ -60,6 +60,105 @@ function fixture(role: 'orchestrator' | 'assignment' = 'orchestrator', timed?: T
 }
 
 describe('native DSH questions in a PersonaBot DM', () => {
+  it('publishes only committed requests and accepted answers, while a broken observer cannot settle the owner', async () => {
+    const state = fixture();
+    const notices: string[] = [];
+    state.answerer.observe((notice, status) => {
+      expect(state.channels.message(channelId, notice.messageId)).toBeDefined();
+      notices.push(status);
+    });
+    state.answerer.observe(() => {
+      throw new Error('observer failed');
+    });
+    const wait = state.answerer.ask({ agent: state.agent, questions });
+    await vi.waitFor(() => expect(notices).toEqual(['pending']));
+    const id = state.answerer.activeMessageIds()[0]!;
+    expect(state.answerer.pending('ada', id)?.sessionId).toBe(sessionId);
+    expect(
+      await state.answerer.answer('ada', id, {
+        answers: [{ id: questions[0]!.id, selected: ['main'] }],
+      }),
+    ).toBe(true);
+    await wait;
+    expect(notices).toEqual(['pending', 'answered']);
+    expect(state.warn).toHaveBeenCalledWith('user-question-notification-failed');
+  });
+
+  it('rechecks external authority inside the canonical Channel commit queue and preserves the ask when it is revoked', async () => {
+    const state = fixture();
+    const wait = state.answerer.ask({ agent: state.agent, questions });
+    await vi.waitFor(() => expect(state.answerer.activeMessageIds()).toHaveLength(1));
+    const id = state.answerer.activeMessageIds()[0]!;
+    let authorized = true;
+    await vi.waitFor(() => expect(state.answerer.pending('ada', id)).toBeDefined());
+    const answer = { answers: [{ id: questions[0]!.id, selected: ['main'] }] };
+    const result = state.answerer.answer('ada', id, answer, {
+      actor: {
+        platform: 'feishu',
+        bindingId: 'binding',
+        fingerprint: 'a'.repeat(64),
+        actorId: 'ou_human',
+        pairingId: 'pairing',
+        pairingRevision: 1,
+        conversationId: 'oc_dm',
+        messageId: 'om_card',
+      },
+      authorized: () => authorized,
+    });
+    authorized = false;
+    expect(await result).toBe(false);
+    expect(state.channels.readMessages(channelId)).toHaveLength(1);
+    expect(state.answerer.status('ada', id)).toBe('pending');
+    expect(await state.answerer.answer('ada', id, answer)).toBe(true);
+    expect(await wait).toEqual(answer);
+  });
+
+  it('keeps the original native ask after a failed answer write and accepts only one winner', async () => {
+    const state = fixture();
+    const wait = state.answerer.ask({ agent: state.agent, questions });
+    await vi.waitFor(() => expect(state.answerer.activeMessageIds()).toHaveLength(1));
+    const id = state.answerer.activeMessageIds()[0]!;
+    const answer = { answers: [{ id: questions[0]!.id, selected: ['main'] }] };
+    await vi.waitFor(() => expect(state.answerer.pending('ada', id)).toBeDefined());
+    vi.spyOn(state.channels, 'appendMessage').mockRejectedValueOnce(
+      new Error('answer write failed'),
+    );
+    await expect(state.answerer.answer('ada', id, answer)).rejects.toThrow('answer write failed');
+    expect(state.answerer.status('ada', id)).toBe('pending');
+    expect(
+      await Promise.all([
+        state.answerer.answer('ada', id, answer),
+        state.answerer.answer('ada', id, answer),
+      ]),
+    ).toEqual([true, false]);
+    expect(await wait).toEqual(answer);
+    expect(
+      state.channels.readMessages(channelId).filter((m) => m.userQuestionResolution),
+    ).toHaveLength(1);
+  });
+
+  it('requires explicit owner reconciliation after a write commits but reports an uncertain result', async () => {
+    const state = fixture();
+    const wait = state.answerer.ask({ agent: state.agent, questions });
+    await vi.waitFor(() => expect(state.answerer.activeMessageIds()).toHaveLength(1));
+    const id = state.answerer.activeMessageIds()[0]!;
+    await vi.waitFor(() => expect(state.answerer.pending('ada', id)).toBeDefined());
+    const answer = { answers: [{ id: questions[0]!.id, selected: ['main'] }] };
+    const append = state.channels.appendMessage.bind(state.channels);
+    vi.spyOn(state.channels, 'appendMessage').mockImplementationOnce(async (...args) => {
+      await append(...args);
+      throw new Error('post-commit write outcome unknown');
+    });
+    await expect(state.answerer.answer('ada', id, answer)).rejects.toThrow('unknown');
+    expect(await state.answerer.answer('ada', id, answer)).toBe(false);
+    expect(state.answerer.pending('ada', id)).toBeDefined();
+    expect(state.answerer.reconcile('ada', id)).toBe(true);
+    expect(await wait).toEqual(answer);
+    expect(
+      state.channels.readMessages(channelId).filter((m) => m.userQuestionResolution),
+    ).toHaveLength(1);
+  });
+
   it('commits a card, validates the Human answer, and resumes the same waiting request', async () => {
     const state = fixture();
     const wait = state.answerer.ask({ agent: state.agent, questions });

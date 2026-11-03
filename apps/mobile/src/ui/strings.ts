@@ -413,6 +413,18 @@ const en = {
     newDone: 'New session ready for your next message',
     compacted: 'Context compacted',
     nothing: 'Nothing to compact yet',
+    continue: 'Continue',
+    progress: (steps: number, tool: string) => `${steps} steps done, stopped at ${tool}`,
+    progressNoTool: (steps: number) => `${steps} steps done`,
+    unknownTools: (tools: string) =>
+      `Unknown outcome: ${tools}. Continuing asks the Bot to check these first.`,
+    autoContinue: (seconds: number, attempt: number, max: number) =>
+      `Continuing automatically in ${seconds}s (${attempt}/${max})`,
+    autoContinueCancel: 'Cancel auto-continue',
+    autoContinueCancelled: 'Auto-continue cancelled',
+    continueChanged: 'The Bot started a new session, so this turn cannot continue in the old one.',
+    continueUnavailable: 'Nothing is left to continue in this turn.',
+    continueFailed: 'Could not continue. Try again shortly.',
     refused: {
       MEMORY_CWD_MISMATCH: [
         "The session's working directory is not this Bot's Memory directory",
@@ -2493,6 +2505,17 @@ const zh: typeof en = {
     newDone: '已开启新会话，可以发送下一条消息',
     compacted: '上下文已压缩',
     nothing: '当前没有可压缩的内容',
+    continue: '继续',
+    progress: (steps: number, tool: string) => `已完成 ${steps} 步，停在 ${tool}`,
+    progressNoTool: (steps: number) => `已完成 ${steps} 步`,
+    unknownTools: (tools: string) => `结果未知：${tools}。继续时会提醒 Bot 先检查`,
+    autoContinue: (seconds: number, attempt: number, max: number) =>
+      `${seconds} 秒后自动继续（${attempt}/${max}）`,
+    autoContinueCancel: '取消自动继续',
+    autoContinueCancelled: '已取消自动继续',
+    continueChanged: 'Bot 已换了新会话，无法在原会话继续',
+    continueUnavailable: '这一轮已经没有可继续的内容',
+    continueFailed: '没能继续，请稍后再试',
     refused: {
       MEMORY_CWD_MISMATCH: [
         '会话的工作目录不是这个 Bot 的 Memory 目录',

@@ -5,6 +5,8 @@ import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.j
 import { attachOperationalModule } from '../src/database/owner.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { createTempRoot } from './helpers.js';
+import { committedIntentMatches, fingerprint } from '../src/channels/send-review.js';
+import type { ChannelMessage } from '../src/channels/channel.js';
 
 function open(dshHome: string) {
   return createCore({
@@ -92,6 +94,19 @@ async function fixture(
     core.operationalDatabase.close();
   }
 }
+
+it('replays a commit recorded with empty attachments after empty options are omitted (#3296)', () => {
+  const message: ChannelMessage = {
+    id: 'bot-1',
+    at: '2026-11-02T00:00:00.000Z',
+    author: { kind: 'bot', slug: 'ada' },
+    body: 'Done',
+  };
+  const legacy = fingerprint({ ...message, attachments: [] });
+  expect(committedIntentMatches(legacy, message)).toBe(true);
+  expect(committedIntentMatches(fingerprint(message), message)).toBe(true);
+  expect(committedIntentMatches(legacy, { ...message, body: 'Different intent' })).toBe(false);
+});
 
 describe('explicit Group draft recovery and commit receipts', () => {
   it('recovers an exhausted draft with a fresh post-restart read without resetting its budget', async () => {
