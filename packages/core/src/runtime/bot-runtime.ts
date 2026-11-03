@@ -1750,6 +1750,7 @@ class BotRuntimeImplementation implements BotRuntime {
         [],
         [],
       );
+      this.#failureStreaks.delete(botSlug);
     } catch (error) {
       this.#triageBaseline.delete(botSlug);
       await this.#noteAutomaticFailure(botSlug, channelId, error);
@@ -1828,7 +1829,9 @@ class BotRuntimeImplementation implements BotRuntime {
         [],
         [],
       );
+      this.#failureStreaks.delete(botSlug);
     } catch (error) {
+      await this.#noteAutomaticFailure(botSlug, channelId, error);
       const retryAt = new Date(this.#now().getTime() + 300_000).toISOString();
       this.#database.transaction(
         (database) => {
@@ -5019,8 +5022,8 @@ class BotRuntimeImplementation implements BotRuntime {
     );
     if (stopped !== undefined) return stopped;
     if (assignments === 0 && !waking) {
-      if (wasHeld === undefined) this.#held.delete(botSlug);
-      else this.#held.set(botSlug, wasHeld);
+      if (wasHeld !== undefined) this.#held.set(botSlug, wasHeld);
+      else if (this.#held.delete(botSlug)) this.#resumeAutomaticWakes(botSlug);
       return undefined;
     }
     const sessionId = this.currentOrchestratorSessionId(botSlug);
@@ -5055,6 +5058,10 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#digestRetryAt.delete(key);
         this.#digestFailureCount.delete(key);
       }
+    this.#resumeAutomaticWakes(botSlug);
+  }
+
+  #resumeAutomaticWakes(botSlug: string): void {
     queueMicrotask(() => {
       if (this.#closed || this.#held.has(botSlug)) return;
       this.#checkHarvestReadiness(botSlug);
@@ -5094,7 +5101,11 @@ class BotRuntimeImplementation implements BotRuntime {
     error: unknown,
   ): Promise<void> {
     const code = sessionFailureDetails(error).code;
-    if (code === undefined || TRANSIENT_FAILURE_CODES.has(code) || this.#held.has(botSlug)) return;
+    if (this.#held.has(botSlug)) return;
+    if (code === undefined || TRANSIENT_FAILURE_CODES.has(code)) {
+      this.#failureStreaks.delete(botSlug);
+      return;
+    }
     const streak = (this.#failureStreaks.get(botSlug) ?? 0) + 1;
     this.#failureStreaks.set(botSlug, streak);
     if (streak < FAILURE_HOLD_THRESHOLD) return;
