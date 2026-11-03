@@ -101,24 +101,9 @@ describe('AX native OpenCode Go reuse', () => {
       .filter((line) => line.startsWith(' ') || line.startsWith('-'))
       .map((line) => line.slice(1))
       .join('\n');
-    const relocated = goSessionPatch('prefix\n' + original);
-    expect(relocated).toContain('@@ -2,6 +2,7 @@');
-    expect(relocated).toContain('@@ -8,7 +9,10 @@');
+    expect(goSessionPatch('prefix\n' + original)).toContain('@@ -2,7 +2,10 @@');
     expect(() => goSessionPatch('changed upstream')).toThrow('request shape');
     expect(() => goSessionPatch(original + '\n' + original)).toThrow('request shape');
-  });
-  it('drops a hunk the adapter already carries and relocates the rest', () => {
-    const lines = readFileSync(GO_SESSION_PATCH, 'utf8').split('\n');
-    const hunks = [];
-    for (const line of lines.slice(lines.findIndex((l) => l.startsWith('@@ '))))
-      if (line.startsWith('@@ ')) hunks.push([]);
-      else if (line !== '') hunks.at(-1).push(line);
-    const side = (hunk, mark) =>
-      hunk.filter((l) => l.startsWith(' ') || l.startsWith(mark)).map((l) => l.slice(1));
-    const source = ['prefix', ...side(hunks[0], '+'), ...side(hunks[1], '-')].join('\n');
-    const relocated = goSessionPatch(source);
-    expect(relocated).not.toBeNull();
-    expect(relocated.match(/^@@ .*$/gm)).toEqual(['@@ -9,7 +9,10 @@']);
   });
   it('skips an exact native repair without adding a redundant patch', () => {
     const { root } = fixture();

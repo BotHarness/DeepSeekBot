@@ -2,6 +2,7 @@ import { BotNetworkDeliveryError } from './runtime/bot-network.js';
 import type { AssignmentReportContent } from './runtime/assignment-report.js';
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from './window-zoom/control.js';
 import { compactUnknownContext, contextCapacity } from './runtime/context-window.js';
+import { createBotRequestRetry } from './runtime/bot-request-retry.js';
 import { messageText, systemPromptFromLog } from './runtime/prompt-inspection.js';
 
 import { createWindowZoomSetup, WINDOW_ZOOM_SETUP_PATH } from './window-zoom/setup.js';
@@ -1780,6 +1781,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         ? decision
         : restartEmptyToolSeries(agent.session, decision);
     },
+    { global: true },
+  );
+  ctx.on(
+    'agent/request-error',
+    createBotRequestRetry({
+      isBotSession: (sessionId) => core.ownership.resolve(sessionId) !== undefined,
+      log: (message) => ctx.logger.info(message),
+    }),
     { global: true },
   );
   const approvalTemplates = createApprovalTemplateLibrary(

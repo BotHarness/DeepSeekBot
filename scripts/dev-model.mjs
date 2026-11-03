@@ -38,64 +38,36 @@ export function withoutAxRuntimePatch(source) {
   return String(document);
 }
 
-function patchHunks(template) {
-  const lines = template.split('\n');
-  const first = lines.findIndex((line) => line.startsWith('@@ '));
-  const hunks = [];
-  for (const line of lines.slice(first)) {
-    if (line.startsWith('@@ ')) hunks.push({ body: [] });
-    else hunks.at(-1).body.push(line);
-  }
-  return {
-    header: lines.slice(0, first),
-    hunks: hunks.map(({ body }) => {
-      while (body.length > 0 && body.at(-1) === '') body.pop();
-      const side = (mark) =>
-        body
-          .filter((line) => line.startsWith(' ') || line.startsWith(mark))
-          .map((line) => line.slice(1));
-      const original = side('-');
-      const repaired = side('+');
-      return {
-        body,
-        original: original.join('\n'),
-        repaired: repaired.join('\n'),
-        from: original.length,
-        to: repaired.length,
-      };
-    }),
-  };
-}
-
 export function goSessionPatch(adapterSource) {
-  const { header, hunks } = patchHunks(readFileSync(GO_SESSION_PATCH, 'utf8'));
-  const pending = [];
-  for (const hunk of hunks) {
-    const repairedOffset = adapterSource.indexOf(hunk.repaired);
-    if (repairedOffset >= 0) {
-      if (
-        adapterSource.indexOf(hunk.repaired, repairedOffset + 1) < 0 &&
-        !adapterSource.includes(hunk.original)
-      )
-        continue;
-      throw new Error('AX Go adapter request shape is ambiguous');
-    }
-    const offset = adapterSource.indexOf(hunk.original);
-    if (offset < 0 || adapterSource.indexOf(hunk.original, offset + 1) >= 0)
-      throw new Error(
-        'AX Go adapter request shape is unsupported; cannot safely apply the Session header patch',
-      );
-    pending.push({ ...hunk, line: adapterSource.slice(0, offset).split('\n').length });
+  const template = readFileSync(GO_SESSION_PATCH, 'utf8');
+  const lines = template.split('\n');
+  const hunk = lines.findIndex((line) => line.startsWith('@@ '));
+  const original = lines
+    .slice(hunk + 1)
+    .filter((line) => line.startsWith(' ') || line.startsWith('-'))
+    .map((line) => line.slice(1))
+    .join('\n');
+  const repaired = lines
+    .slice(hunk + 1)
+    .filter((line) => line.startsWith(' ') || line.startsWith('+'))
+    .map((line) => line.slice(1))
+    .join('\n');
+  const repairedOffset = adapterSource.indexOf(repaired);
+  if (repairedOffset >= 0) {
+    if (
+      adapterSource.indexOf(repaired, repairedOffset + 1) < 0 &&
+      !adapterSource.includes(original)
+    )
+      return null;
+    throw new Error('AX Go adapter request shape is ambiguous');
   }
-  if (pending.length === 0) return null;
-  pending.sort((a, b) => a.line - b.line);
-  let delta = 0;
-  const out = [...header];
-  for (const hunk of pending) {
-    out.push(`@@ -${hunk.line},${hunk.from} +${hunk.line + delta},${hunk.to} @@`, ...hunk.body);
-    delta += hunk.to - hunk.from;
-  }
-  return out.join('\n') + '\n';
+  const offset = adapterSource.indexOf(original);
+  if (offset < 0 || adapterSource.indexOf(original, offset + 1) >= 0)
+    throw new Error(
+      'AX Go adapter request shape is unsupported; cannot safely apply the Session header patch',
+    );
+  const line = adapterSource.slice(0, offset).split('\n').length;
+  return template.replace(/^@@ -\d+,7 \+\d+,10 @@$/m, `@@ -${line},7 +${line},10 @@`);
 }
 
 export function installedGoAdapter(runtime) {
