@@ -4,8 +4,8 @@ section: Changed
 
 ## en
 
-- Sidebar rows for Bots and conversations re-render only when their own name, preview, unread count, status or selection changes. They no longer re-render on every update while a Bot streams, so sidebar work no longer grows with the number of Bots and conversations ([#3277](https://github.com/BotHarness/DeepSeekBot/issues/3277)).
+- Sidebar rows for Bots and conversations skip re-rendering when their own data did not change, and a roster refresh keeps unchanged Bots and conversations as they were. While one Bot streams, the other rows and their avatars, tooltips and status glyphs no longer re-render on every update ([#3277](https://github.com/BotHarness/DeepSeekBot/issues/3277)).
 
 ## zh
 
-- 侧边栏里 Bot 和会话的行，只在自身的名称、预览、未读数、状态或选中状态变化时才重新渲染。Bot 流式回复时，不再每次更新都把所有行重渲染一遍，侧边栏的开销不再随 Bot 和会话数量增长（[#3277](https://github.com/BotHarness/DeepSeekBot/issues/3277)）。
+- 侧边栏里 Bot 和会话的行，在自身数据没有变化时跳过重新渲染；刷新列表时，没有变化的 Bot 和会话也保持原样。一个 Bot 流式回复时，其他行及其头像、提示和状态图标不再随每次更新重新渲染（[#3277](https://github.com/BotHarness/DeepSeekBot/issues/3277)）。

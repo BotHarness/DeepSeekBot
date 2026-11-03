@@ -572,6 +572,22 @@ export interface ClientStore {
   setHumanInbox(patch: Partial<HumanInboxState>): void;
 }
 
+export function keepUnchanged<T>(
+  previous: readonly T[],
+  next: readonly T[],
+  key: (item: T) => string,
+): readonly T[] {
+  const before = new Map(previous.map((item) => [key(item), item]));
+  let same = previous.length === next.length;
+  const kept = next.map((item, index) => {
+    const old = before.get(key(item));
+    const reused = old !== undefined && JSON.stringify(old) === JSON.stringify(item) ? old : item;
+    if (reused !== previous[index]) same = false;
+    return reused;
+  });
+  return same ? previous : kept;
+}
+
 function initialConversation(): ConversationState {
   return {
     status: 'idle',
@@ -863,10 +879,18 @@ export function createStore({
       update({ status, error });
     },
     setRoster(bots, channels) {
-      update({ bots: bots.map(withActivity), channels, status: 'ready', error: undefined });
+      update({
+        bots: keepUnchanged(state.bots, bots.map(withActivity), (bot) => bot.slug),
+        channels: keepUnchanged(state.channels, channels, (channel) => channel.id),
+        status: 'ready',
+        error: undefined,
+      });
     },
     setRosterPreviews(bots, channels) {
-      update({ bots: bots.map(withActivity), channels });
+      update({
+        bots: keepUnchanged(state.bots, bots.map(withActivity), (bot) => bot.slug),
+        channels: keepUnchanged(state.channels, channels, (channel) => channel.id),
+      });
     },
     applyActivity(snapshot) {
       if (activity?.generation === snapshot.generation && snapshot.revision <= activity.revision)

@@ -1209,7 +1209,10 @@ export function BotSidebar({
   const query = state.query.trim().toLowerCase();
   const botBySlug = useMemo(() => new Map(state.bots.map((bot) => [bot.slug, bot])), [state.bots]);
   const rowLatest = useRef(new Map<string, RowCallbacks<ChannelMenuRequest>>());
-  rowLatest.current = new Map();
+  const rowCallbacks = new Map<string, RowCallbacks<ChannelMenuRequest>>();
+  const publishRowCallbacks = useMountedResource<HTMLSpanElement>(() => {
+    rowLatest.current = rowCallbacks;
+  }, [rowCallbacks]);
   const rosterHiddenIds = [...state.roster.hidden, ...deletedBotDmIds(state.channels, state.bots)];
   const hiddenChannelSet = new Set(rosterHiddenIds);
   const allPinnedChannelIds = resolvePinnedChannelIds(state.channels, state.roster.pins);
@@ -1996,7 +1999,7 @@ export function BotSidebar({
       onPinDragEnd: endPinDrag,
       drag,
     };
-    rowLatest.current.set(latestKey, callbacks);
+    rowCallbacks.set(latestKey, callbacks);
     if (channel.type === 'dm' && bot !== undefined) {
       return (
         <MemoBotRow
@@ -2306,6 +2309,7 @@ export function BotSidebar({
         channelGapDropProps(resolved.sectionId).drop(resolved.half);
       }}
     >
+      <span ref={publishRowCallbacks} hidden aria-hidden="true" />
       <span ref={createFromWelcome} hidden aria-hidden="true" />
       {state.activitySync === 'stale' ? (
         <div className="bh-activity-stale" role="status" data-activity-stale>

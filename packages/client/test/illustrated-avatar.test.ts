@@ -17,6 +17,11 @@ import {
 } from '../src/client/illustrated-avatar.js';
 import { pixelPathMarkup as rawPixelMarkup } from '@botharness/pixel-morph';
 
+vi.mock('../../core/src/bots/avatar-appearance.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../core/src/bots/avatar-appearance.js')>();
+  return { ...actual, avatarSvg: vi.fn(actual.avatarSvg) };
+});
+
 const pixelMarkup = (...args: Parameters<typeof rawPixelMarkup>) => {
   const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   group.innerHTML = rawPixelMarkup(...args);
@@ -741,6 +746,11 @@ it('keeps one parsed figure while a large avatar alternates thinking and working
 });
 
 it('reuses one static avatar markup for equal recipes across mounts', () => {
+  const recipe = { ...DEFAULT_ILLUSTRATED_RECIPE, pose: 'left' as const };
+  vi.mocked(avatarSvg).mockClear();
+  cachedStaticAvatarSvg({ ...recipe }, 'portrait');
+  cachedStaticAvatarSvg({ ...recipe }, 'portrait');
+  expect(avatarSvg).toHaveBeenCalledTimes(1);
   const first = cachedStaticAvatarSvg({ ...DEFAULT_ILLUSTRATED_RECIPE }, 'portrait');
   const second = cachedStaticAvatarSvg({ ...DEFAULT_ILLUSTRATED_RECIPE }, 'portrait');
   expect(first).toBe(avatarSvg(DEFAULT_ILLUSTRATED_RECIPE, { surface: 'portrait' }));
