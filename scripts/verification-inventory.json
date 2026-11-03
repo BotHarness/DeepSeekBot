@@ -698,6 +698,14 @@
       "gap": "Current rc.3 opening verified; close/return, Home and failure-card runtime paths and native Desktop QA pending."
     },
     {
+      "id": "im.apps.bot-eligibility",
+      "label": "Create or bind an IM app using only live unpaused Bots and invalidate deleted selections",
+      "source": "packages/client/src/client/im-apps-section.tsx",
+      "task": 3220,
+      "guide": ".agents/skills/verify-deepseekbot/features/im-bot-pickers.md",
+      "gap": "Create app picker verified in an isolated Host with the dsh-im provider; Bind on a real connected app and native Desktop QA pending."
+    },
+    {
       "id": "orchestrator-model-switch",
       "label": "Orchestrator-only quick model switching with Assignment inheritance",
       "source": "packages/client/src/client/dm-composer-context.tsx",
