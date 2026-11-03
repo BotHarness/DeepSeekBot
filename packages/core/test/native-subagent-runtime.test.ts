@@ -305,6 +305,7 @@ describe('native Subagent report admission', () => {
       f.prepared.resolve();
       expect(await accepted).toBe(true);
       expect(f.runs[0]!.acceptNativeInput?.()).toBe(true);
+      expect(() => f.runs[0]!.sourcePolicy?.resetAssignmentReport()).not.toThrow();
       let released = false;
       void f.released.promise.then(() => (released = true));
       await Promise.resolve();

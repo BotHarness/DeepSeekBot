@@ -4278,7 +4278,7 @@ class BotRuntimeImplementation implements BotRuntime {
           [],
           false,
           () => {
-            if (!available()) throw new Error('Native Orchestrator is unavailable');
+            if (!admissible()) throw new Error('Native Orchestrator is unavailable');
           },
           [],
           [],
