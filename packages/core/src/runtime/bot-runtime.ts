@@ -4201,11 +4201,11 @@ class BotRuntimeImplementation implements BotRuntime {
     const refuse = (reason: NativeOrchestratorRefusal): false => {
       this.#warn?.(
         JSON.stringify({
-          component: 'bot-runtime',
-          event: 'native-orchestrator-input-refused',
+          event: 'native-orchestrator-input',
+          phase: 'refused',
           reason,
-          botSlug: owner.botSlug,
-          sessionId,
+          bot: owner.botSlug,
+          session: sessionId,
           executionReady: this.#preparedOrchestrators.has(sessionId),
           senders: senderSessionIds.length,
         }),

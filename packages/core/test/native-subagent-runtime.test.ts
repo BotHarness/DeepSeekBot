@@ -202,8 +202,10 @@ describe('native Subagent report admission', () => {
         expect(f.warnings.map((warning) => JSON.parse(warning) as Record<string, unknown>)).toEqual(
           [
             expect.objectContaining({
-              event: 'native-orchestrator-input-refused',
-              sessionId: 'parent',
+              event: 'native-orchestrator-input',
+              phase: 'refused',
+              bot: 'ada',
+              session: 'parent',
               reason: {
                 'unknown-child': 'foreign-sender',
                 'no-sender': 'no-native-sender',
