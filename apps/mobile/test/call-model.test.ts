@@ -103,6 +103,7 @@ describe('call screen model', () => {
       ttsProviderId: null,
       media: 'ready' as const,
       activeCallId: null,
+      callElsewhere: false,
     };
     expect(readinessMessage(en, readiness)).toBe(
       [en.call.missing.asr, en.call.missing.tts].join('\n'),
