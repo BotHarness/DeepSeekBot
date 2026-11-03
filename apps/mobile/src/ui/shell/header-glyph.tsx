@@ -1,7 +1,13 @@
 import { useDesignTheme } from '../design/theme';
-import { ActivityFilterIcon, ActivitySearchIcon, SettingsIcon, TobModeIcon } from './icons';
+import {
+  ActivityFilterIcon,
+  ActivitySearchIcon,
+  ArchiveIcon,
+  SettingsIcon,
+  TobModeIcon,
+} from './icons';
 
-export type HeaderActionIcon = 'filter' | 'search' | 'settings' | 'tob';
+export type HeaderActionIcon = 'archive' | 'filter' | 'search' | 'settings' | 'tob';
 
 export type HeaderActionProps = {
   icon: HeaderActionIcon;
@@ -12,6 +18,7 @@ export type HeaderActionProps = {
 };
 
 const glyphs = {
+  archive: { Glyph: ArchiveIcon, size: 'size' },
   filter: { Glyph: ActivityFilterIcon, size: 'size' },
   search: { Glyph: ActivitySearchIcon, size: 'size' },
   settings: { Glyph: SettingsIcon, size: 'line' },

@@ -77,6 +77,7 @@ vi.mock(
 
 const requireAsset = createRequire(import.meta.url);
 for (const name of [
+  'archive',
   'arrow-back',
   'close',
   'filter-list',

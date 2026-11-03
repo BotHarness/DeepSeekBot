@@ -17,6 +17,8 @@ export type ActivityHeaderActionsProps = {
   options: ActivityOptions;
   onFilter(): void;
   onSearch(): void;
+  /** Opens the Clear… menu; the button is hidden while there is nothing to clear. */
+  onClear?: (() => void) | undefined;
 };
 
 export function ActivityHeaderActions({
@@ -24,10 +26,19 @@ export function ActivityHeaderActions({
   searching,
   onFilter,
   onSearch,
+  onClear,
 }: ActivityHeaderActionsProps) {
   const t = useStrings();
   return (
     <>
+      {onClear ? (
+        <HeaderAction
+          icon="archive"
+          label={t.activityClearMany}
+          testID="activity-clear-many"
+          onPress={onClear}
+        />
+      ) : null}
       <HeaderAction
         icon="filter"
         label={t.activityOptions}
