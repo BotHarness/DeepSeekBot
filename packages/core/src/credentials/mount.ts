@@ -48,28 +48,24 @@ export function mountPrivateInputs(
       core.runtime.bindPrivateInputOrigin?.(agent.session.id, sourceEventId),
     replyAuthority: (botSlug, sourceEventId, authority) =>
       core.externalMessaging.privateInputReplyAuthority(botSlug, sourceEventId, authority),
-    ...(webUrl === undefined
-      ? {}
-      : {
-          notify: async (
-            botSlug: string,
-            origin: import('./im-origin.js').PrivateInputOrigin,
-            channelId: string,
-            messageId: string,
-          ) => {
-            if (!origin.current()) throw new Error('Private input IM authority changed');
-            await core.externalMessaging.privateInputNotice(
-              botSlug,
-              origin.sourceEventId,
-              messageId,
-              privateInputWebUrl(webUrl, channelId, messageId),
-              {
-                signal: origin.signal,
-                current: () => origin.current() && owner.status(channelId, messageId) === 'pending',
-              },
-            );
-          },
-        }),
+    notify: async (
+      botSlug: string,
+      origin: import('./im-origin.js').PrivateInputOrigin,
+      channelId: string,
+      messageId: string,
+    ) => {
+      if (!origin.current()) throw new Error('Private input IM authority changed');
+      await core.externalMessaging.privateInputNotice(
+        botSlug,
+        origin.sourceEventId,
+        messageId,
+        webUrl === undefined ? undefined : privateInputWebUrl(webUrl, channelId, messageId),
+        {
+          signal: origin.signal,
+          current: () => origin.current() && owner.status(channelId, messageId) === 'pending',
+        },
+      );
+    },
     qualified: () => Promise.resolve(true),
     log,
     changed: (botSlug, count) => core.states.setPrivateInputCount(botSlug, count),
@@ -204,7 +200,7 @@ export function mountPrivateInputs(
             name: 'ask_secret',
             description:
               PRIVATE_SOURCE_GUIDANCE +
-              'Reuse configured private references, or ask the authenticated Owner for private strings in an interactive conversation. Declare account, purpose and dynamic fields. Web and scheduled runs must omit source_event_id; configured accounts can be reused without an IM source or new input. For an accepted IM Source Event the Host sends the Owner an existing Web Chat card link; never collect private values in IM text, attachments, quoted messages or ordinary questions. For a local Channel request the input card appears in the Channel the request came from, a Group or your Human DM; only the Owner can fill it, the values are never shown there, and only you receive the references. When the account purpose needs explanation, briefly explain it in the originating conversation; do not require a separate acknowledgment. Never ask anyone to type a secret into the conversation. Returns opaque references only. Do not send references or private configuration details to IM; report only the authorized nonsecret operation result with bot_send_message using the same source_event_id. Private input does not approve execution. Unattended runs cannot open input cards. A failed handoff may already have sent its notice; report missing private configuration and do not retry.',
+              'Reuse configured private references, or ask the authenticated Owner for private strings in an interactive conversation. Declare account, purpose and dynamic fields. Web and scheduled runs must omit source_event_id; configured accounts can be reused without an IM source or new input. For an accepted IM Source Event the card opens in your Chat and the Host sends the IM conversation an Owner-action notice (with a Web Chat link when the Profile configures one); never collect private values in IM text, attachments, quoted messages or ordinary questions. For a local Channel request the input card appears in the Channel the request came from, a Group or your Human DM; only the Owner can fill it, the values are never shown there, and only you receive the references. When the account purpose needs explanation, briefly explain it in the originating conversation; do not require a separate acknowledgment. Never ask anyone to type a secret into the conversation. Returns opaque references only. Do not send references or private configuration details to IM; report only the authorized nonsecret operation result with bot_send_message using the same source_event_id. Private input does not approve execution. Unattended runs cannot open input cards. A failed handoff may already have sent its notice; report missing private configuration and do not retry.',
             parameters: {
               account: {
                 type: 'string',

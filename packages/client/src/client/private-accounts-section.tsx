@@ -123,7 +123,7 @@ function PrivateAccountsPanel({ botSlug, actions, t }: ChannelSidebarEntryProps)
   const replacementCard = (row: PrivateAccountSummary) => {
     const message = inputRequests.find((candidate) => candidate.id === row.replacementMessageId);
     return message?.privateInputRequest === undefined ? null : (
-      <PrivateInputCard message={message} actions={actions} t={t} />
+      <PrivateInputCard message={message} actions={actions} channelId={row.channelId} t={t} />
     );
   };
 
