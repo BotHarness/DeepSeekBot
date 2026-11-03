@@ -148,6 +148,7 @@ export function createTobVoiceOperations(deps: {
         proposal: proposal(command, id, current, { remove: true }),
         run: async (guard, beforeEffect) => {
           guard();
+          same(providers().has(id) ? providers().get(id) : null, current);
           beforeEffect?.();
           return unwrap(await bridge().voiceProviderRemove({ id }));
         },

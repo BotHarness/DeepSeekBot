@@ -700,7 +700,8 @@ def main() -> None:
     get.add_argument("--tts", action="store_true", help="only Kokoro")
     for name in ("serve", "start"):
         command = commands.add_parser(name)
-        command.add_argument("--host", default="127.0.0.1")
+        if name == "serve":
+            command.add_argument("--host", default="127.0.0.1")
         command.add_argument("--threads", type=int, default=0)
         command.add_argument("--wait", type=float, default=120)
     commands.add_parser("status")

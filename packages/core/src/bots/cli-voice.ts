@@ -39,7 +39,7 @@ export const VOICE_COMMANDS = [
   {
     command: 'voice-provider-add',
     description:
-      'add a TTS Provider from a preset (custom, fish-audio, elevenlabs, openai); key only from --key-stdin',
+      'add a TTS Provider from a preset (local, custom, fish-audio, elevenlabs, openai); key only from --key-stdin',
   },
   {
     command: 'voice-provider-remove',

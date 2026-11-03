@@ -123,6 +123,7 @@ describe('local speech service kit', () => {
     const exposed = run('serve', '--host', '0.0.0.0');
     expect(exposed.status).toBe(1);
     expect(JSON.parse(exposed.stdout)).toMatchObject({ ok: false, code: 'key-required' });
+    expect(run('start', '--host', '0.0.0.0').status).toBe(2);
   });
 
   it('documents the measured sizes, the start and stop commands and both systems', () => {
@@ -261,6 +262,18 @@ describe('Tob voice operations', () => {
     const set = (await prepare('voice-set', { slug: 'ada', providerId: provider.id }))!;
     registry.setVoice('ada', { providerId: provider.id, voiceId: 'zf_002' });
     expect(await code(() => set.run(() => undefined))).toBe('stale-setting');
+    const remove = (await prepare('voice-provider-remove', { id: provider.id }))!;
+    await (await prepare('voice-provider-remove', { id: provider.id }))!.run(() => undefined);
+    let removed = 0;
+    expect(
+      await code(() =>
+        remove.run(
+          () => undefined,
+          () => (removed += 1),
+        ),
+      ),
+    ).toBe('stale-setting');
+    expect(removed).toBe(0);
     expect(await prepare('model-catalog', {})).toBeUndefined();
   });
 });
