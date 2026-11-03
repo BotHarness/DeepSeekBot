@@ -236,12 +236,22 @@ final class CallAudioTap {
       DispatchQueue.main.async { [emit] in emit("inject-queued", ["ms": ms, "samples": samples.count, "rate": rate]) }
     }
 
+    private var reported = false
+
     func audioProcessingInitialize(sampleRate sampleRateHz: Int, channels: Int) {
       lock.lock(); outputRate = Double(sampleRateHz); lock.unlock()
+      let ms = Int((CACurrentMediaTime() - started) * 1000)
+      DispatchQueue.main.async { [emit] in emit("capture-init", ["ms": ms, "rate": sampleRateHz, "channels": channels]) }
     }
 
     func audioProcessingProcess(audioBuffer: RTCAudioBuffer) {
       lock.lock(); defer { lock.unlock() }
+      if !reported {
+        reported = true
+        let ms = Int((CACurrentMediaTime() - started) * 1000)
+        let detail: [String: Any] = ["ms": ms, "channels": audioBuffer.channels, "frames": audioBuffer.frames, "rate": outputRate]
+        DispatchQueue.main.async { [emit] in emit("capture-first-frame", detail) }
+      }
       let step = sourceRate / outputRate
       for channel in 0..<audioBuffer.channels {
         let out = audioBuffer.rawBuffer(forChannel: channel)

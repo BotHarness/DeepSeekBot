@@ -1345,6 +1345,7 @@ function ChatConversation({
       insets.left -
       insets.right -
       (theme.touch + space.x5 + headerGap) * 2 -
+      (ios && placeCall !== undefined ? theme.touch + headerGap : 0) -
       (ios && glassHeader ? space.x4 * 2 : 0),
   );
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
