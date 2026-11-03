@@ -52,23 +52,28 @@ export function AttentionItemView({
     known === undefined ? { kind: 'loading' } : { kind: 'ready', item: known },
   );
   const [cleared, setCleared] = useState(false);
+  const [clearError, setClearError] = useState<string | undefined>(undefined);
   const clearing = useRef<string | undefined>(undefined);
+  const afterRef = useRef(after);
+  afterRef.current = after;
   const clearOpened = useCallback(
     (opened: HumanAttentionItem | undefined) => {
       if (!clearOnOpen || opened?.kind !== 'bot-message-needs-repair') return;
       if (clearing.current === opened.id) return;
       clearing.current = opened.id;
+      setClearError(undefined);
       void clearAttentionItem(client, opened).then(
         () => {
           setCleared(true);
-          after?.();
+          afterRef.current?.();
         },
-        () => {
+        (error: unknown) => {
           clearing.current = undefined;
+          setClearError(errorText(error));
         },
       );
     },
-    [client, clearOnOpen, after],
+    [client, clearOnOpen],
   );
   const load = useCallback(async () => {
     setPhase({ kind: 'loading' });
@@ -147,6 +152,7 @@ export function AttentionItemView({
         {...(after === undefined ? {} : { after })}
         {...(onOpenChat === undefined ? {} : { onOpenChat: () => onOpenChat(item) })}
         cleared={cleared}
+        {...(clearError === undefined ? {} : { clearError })}
       />
     );
   else if (
