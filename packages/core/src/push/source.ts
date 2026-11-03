@@ -7,6 +7,7 @@ const KIND: Partial<Record<HumanAttentionItem['kind'], PushKind>> = {
   'workspace-grant-request': 'approval',
   'auto-rejection': 'approval',
   'group-join-request': 'approval',
+  'pairing-request': 'approval',
   'assignment-waiting-human': 'question',
   'assignment-blocked': 'question',
   'user-question': 'question',

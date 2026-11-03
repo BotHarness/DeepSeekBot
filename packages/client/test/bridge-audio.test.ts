@@ -161,3 +161,31 @@ it('unmount aborts pending playback and discards a late response', async () => {
     vi.unstubAllGlobals();
   }
 });
+
+it('accepts Lark voice media and refuses voice evidence from platforms without a checked audio path', () => {
+  const message = (platform: string) =>
+    parseChannelMessage({
+      id: 'source',
+      at: '2026-11-03T00:00:00.000Z',
+      body: 'please listen',
+      format: 'text',
+      author: { kind: 'bridged', source: 'Human' },
+      bridgeOrigin: {
+        sourceEventId: 'source',
+        platform,
+        conversationId: 'group',
+        conversationName: 'Group',
+        messageId: 'native-message',
+        senderId: 'human',
+      },
+      bridgeMedia: {
+        voice: { transcript: 'unavailable', durationMs: 4916 },
+        items: [{ kind: 'audio', id: 'a'.repeat(64), name: 'voice.opus' }],
+      },
+    });
+  expect(message('feishu')?.bridgeMedia).toEqual({
+    voice: { transcript: 'unavailable', durationMs: 4916 },
+    items: [{ kind: 'audio', id: 'a'.repeat(64), name: 'voice.opus' }],
+  });
+  expect(message('discord')).toBeUndefined();
+});

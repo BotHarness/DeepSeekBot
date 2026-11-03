@@ -84,6 +84,7 @@ async function fixture(mounted = false) {
       });
   const fingerprint = 'a'.repeat(64);
   let consumer: Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1] | undefined;
+  const replies: string[] = [];
   const transport: DshImOutboundService = {
     contractVersion: 1,
     replyContextVersion: 1,
@@ -119,8 +120,9 @@ async function fixture(mounted = false) {
       return () => {};
     },
     qualifyReplyChecked: async (_account, route) => route,
-    replyChecked: async (_account, route, _text, options) => {
+    replyChecked: async (_account, route, text, options) => {
       if (options.beforeSend?.() === false) throw new Error('stale-route');
+      replies.push(text);
       return {
         sent: true,
         receipt: { version: 1, messageId: 'synthetic-reply', conversationId: route.conversationId },
@@ -144,6 +146,7 @@ async function fixture(mounted = false) {
     core,
     privateInputs,
     grant,
+    replies,
     mount(agent: Agent) {
       liveAgent = agent;
       const root = new Context();
@@ -263,6 +266,49 @@ async function fixture(mounted = false) {
     },
   };
 }
+
+it('opens an IM-started card in Web Chat and accepts the Owner key without a configured Web URL', async () => {
+  const f = await fixture(true);
+  let mounted: ReturnType<typeof f.mount> | undefined;
+  try {
+    const source = await f.im();
+    const run = await f.started();
+    const agent = {
+      id: run.sessionId,
+      session: { id: run.sessionId, header: { cwd: f.home } },
+    } as Agent;
+    mounted = f.mount(agent);
+    const asked = mounted.call('ask_secret', { ...declaration, source_event_id: source });
+    await vi.waitFor(() =>
+      expect(f.core.channels.readMessages('dm-ada').some((m) => m.privateInputRequest)).toBe(true),
+    );
+    const card = f.core.channels.readMessages('dm-ada').find((m) => m.privateInputRequest)!;
+    await vi.waitFor(() => expect(f.replies).toHaveLength(1));
+    expect(f.replies[0]).toContain('Owner action needed');
+    expect(f.replies[0]).not.toContain('#botharness-private-input=');
+    expect(f.privateInputs.status('dm-ada', card.id)).toBe('pending');
+    expect(
+      await f.privateInputs.submit(true, {
+        channelId: 'dm-ada',
+        messageId: card.id,
+        values: { token: 'SYNTHETIC-3340' },
+      }),
+    ).toBe(true);
+    const result = JSON.parse((await asked) as string);
+    expect(result).toMatchObject({ status: 'configured', account: declaration.account });
+    await expect(
+      f.privateInputs.consume(agent, declaration.account, result.references, async (values) =>
+        values.token === 'SYNTHETIC-3340' ? 'authenticated' : 'refused',
+      ),
+    ).resolves.toBe('authenticated');
+    expect(JSON.stringify([f.replies, f.core.channels.readMessages('dm-ada')])).not.toContain(
+      'SYNTHETIC-3340',
+    );
+  } finally {
+    await mounted?.close();
+    await f.close();
+  }
+});
 
 it('recovers a registered secret_cli multi-IM refusal by selecting the configured account source without a Web notice', async () => {
   const f = await fixture(true);

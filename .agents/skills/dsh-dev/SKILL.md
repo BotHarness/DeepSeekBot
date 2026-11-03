@@ -191,6 +191,8 @@ When a DSH-side bug or trap is diagnosed, **record it here (or in the playbook) 
 
 | 52 | Native Settings navigation clicks an unrelated dialog trigger | Onboarding opens the mobile app popup or returns without a model editor | Do not select the first `button[aria-haspopup="dialog"]`. In RC2, native Settings may be an Account menu item whose hidden shortcut contributes to `textContent`; match its accessible label, excluding `aria-hidden` content. A whole-sidebar Bot mode shadow must yield while the native settings shell is needed, then restore on close, timeout or cancellation without switching the main panel. Verify the actual Models page (`Add model provider`), not a generic `Models` label also present in onboarding (#3222). |
 
+| 53 | A gateway concurrency refusal ends the Bot turn without retry | Several Bots woken at once on a serial local model fail within seconds with `PI_AI_ERROR: Concurrency limit exceeded for user, please retry later`, while one direct DSH chat queues and succeeds | Native `llm-pi-ai` classifies failures by text; an in-stream refusal without `429` or `rate limit` becomes non-retryable `PI_AI_ERROR`, so `dsh-llm-retry` never runs, and its default normal budget (5 retries, about 15 s) would be too short anyway. A repo pnpm patch only changes AX/dev runtimes, never a user's installed DSH. BotHarness owns the fix on the public `agent/request-error` waterfall (`runtime/bot-request-retry.ts`): Bot Sessions retry concurrency-limit, too-many-requests, server-busy and `RATE_LIMIT` failures with 1–10 s backoff for up to 300 s, delegating providers set to `retryPolicy.mode: always` (#3300). |
+
 ## Reference
 
 For opted-in AX Go launches on Windows, stage the reviewed adapter patch inside the isolated
