@@ -85,7 +85,9 @@ class RecoveryAlertsTest {
       .put("v", 1).put("hostId", "studio").put("itemId", item).put("kind", kind)).build(),
     ChannelAwareTrigger("requests")))
 
-  private fun audible() = platform.posted.count { (_, notice) -> notice.defaults and android.app.Notification.DEFAULT_SOUND != 0 }
+  private fun alertingCandidates() = platform.posted.count { (_, notice) ->
+    notice.groupAlertBehavior == android.app.Notification.GROUP_ALERT_ALL
+  }
 
   @Test fun firstEnableSilencesOldRepliesAndSummarizesRequestsWithoutPrivateContent() = runBlocking {
     val items = listOf("old" to "channel-reply", "approval" to "tool-approval", "private" to "private-input")
@@ -110,11 +112,15 @@ class RecoveryAlertsTest {
     alerts.reconcile(snapshot(items, batch = "reconnected"))
     alerts.reconcile(snapshot(items, host = "laptop", batch = "reconnected"))
     assertEquals(2, platform.posted.size)
-    assertEquals(1, audible())
+    assertEquals("channel-controlled alerting candidates", 1, alertingCandidates())
+    for ((_, notice) in platform.posted.filter { it.second.groupAlertBehavior != android.app.Notification.GROUP_ALERT_ALL }) {
+      assertEquals(android.app.Notification.GROUP_ALERT_SUMMARY, notice.groupAlertBehavior)
+      assertEquals(0, notice.flags and android.app.Notification.FLAG_GROUP_SUMMARY)
+    }
     assertEquals("New replies 251 · Needs you 1", platform.posted[0].second.extras.getCharSequence("android.text").toString())
     alerts.reconcile(snapshot(items + ("fresh" to "channel-reply"), batch = "live"))
     assertEquals(3, platform.posted.size)
-    assertEquals(2, audible())
+    assertEquals(2, alertingCandidates())
   }
 
   @Test fun restartRetainsDeduplicationAndRecoversUnseenReplies() = runBlocking {
@@ -149,7 +155,7 @@ class RecoveryAlertsTest {
     platform.failPost = false
     alerts.reconcile(snapshot(items, session = "p2", batch = "retry"))
     assertEquals(1, platform.posted.size)
-    assertEquals(0, audible())
+    assertEquals(0, alertingCandidates())
     assertEquals("New replies 0 · Needs you 2", platform.posted[0].second.extras.getCharSequence("android.text").toString())
   }
 
@@ -173,7 +179,11 @@ class RecoveryAlertsTest {
     alerts.reconcile(snapshot(listOf("b" to "user-question"), batch = "partial"))
     assertEquals(2, platform.posted.size)
     assertEquals(platform.posted[0].first, platform.posted[1].first)
-    assertEquals(1, audible())
+    assertEquals("channel-controlled alerting candidates", 1, alertingCandidates())
+    for ((_, notice) in platform.posted.filter { it.second.groupAlertBehavior != android.app.Notification.GROUP_ALERT_ALL }) {
+      assertEquals(android.app.Notification.GROUP_ALERT_SUMMARY, notice.groupAlertBehavior)
+      assertEquals(0, notice.flags and android.app.Notification.FLAG_GROUP_SUMMARY)
+    }
     alerts.reconcile(snapshot(batch = "resolved"))
     assertTrue(platform.cancelled.contains(platform.posted[0].first))
     platform.backgroundRunning = false
