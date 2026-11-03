@@ -138,6 +138,8 @@ const clearPresentations = async (host: SavedHost) => {
 };
 export function setHostNotificationsEnabled(hostId: string, enabled: boolean): void {
   deviceAlerts.setHostEnabled(hostId, enabled);
+  const client = sessions.get(hostId)?.host.client;
+  if (client) connectionLifetime.allowBackground(client, enabled);
   scheduleAlerts();
 }
 let state: HostSessionState = { saved: undefined, hosts: [], client: undefined, inbox: undefined };
@@ -231,6 +233,10 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   const disbanded = watchDisbandedGroups();
   const offConnection = client.subscribe(() => {
     const snapshot = client.getSnapshot();
+    if (snapshot.connection.status === 'refused' && deviceAlerts.includes(saved.hostId)) {
+      connectionLifetime.refused(client);
+      void clearPresentations(saved).catch(() => connectionMode.reportAlertFailure());
+    }
     if (snapshot.roster !== undefined) {
       const change = disbanded(snapshot.roster);
       const live = conversations.get(client);
@@ -249,7 +255,10 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
         void hostPush
           .settings(saved)
           .then((settings) => {
-            if (sessions.get(saved.hostId)?.host.client === client) {
+            if (
+              sessions.get(saved.hostId)?.host.client === client &&
+              client.getSnapshot().connection.status !== 'refused'
+            ) {
               quietChannels.set(saved.hostId, settings.quietChannelIds);
               setHostNotificationsEnabled(saved.hostId, settings.enabled);
             }
@@ -316,6 +325,7 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
     if (connectionMode.supported) connectionLifetime.add(session.host.client);
     else session.host.client.start();
   }
+  connectionLifetime.backgroundRunning(connectionMode.getSnapshot().running);
   const saved = currentHost(next) ?? null;
   const selected = saved ? sessions.get(saved.hostId)?.host : undefined;
   if (

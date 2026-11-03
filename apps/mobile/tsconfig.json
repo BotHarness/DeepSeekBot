@@ -26,6 +26,7 @@
     "test/activity-feed.test.ts",
     "test/host-session-unpair.test.ts",
     "test/host-session-multiple.test.ts",
+    "test/host-session-background.test.ts",
     "test/conversation-cache-host.test.ts",
     "test/reanimated-shim.ts",
     "test/platform-tokens.test.ts",
