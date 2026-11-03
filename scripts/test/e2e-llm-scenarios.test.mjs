@@ -12,16 +12,43 @@ import {
   sumHostRows,
   sumSessionTotals,
   summarizeAttempts,
+  youtubeResultsQuery,
 } from '../e2e-llm-scenarios.mjs';
 
 describe('real-model scenario selection', () => {
-  it('runs every scenario by default and named ones on request', () => {
-    expect(selectScenarios(parseScenarioArgs([]))).toEqual(SCENARIOS);
+  it('runs every internal scenario by default and named ones on request', () => {
+    expect(selectScenarios(parseScenarioArgs([]))).toEqual(
+      SCENARIOS.filter((scenario) => scenario.external !== true),
+    );
     expect(
       selectScenarios(parseScenarioArgs(['--scenario', 'worker-reports-to-coordinator'])).map(
         (scenario) => scenario.id,
       ),
     ).toEqual(['worker-reports-to-coordinator']);
+  });
+
+  it('runs external scenarios only when they are named', () => {
+    const ids = (options, changed) =>
+      selectScenarios(options, changed).map((scenario) => scenario.id);
+    expect(ids(parseScenarioArgs([]))).not.toContain('browser-youtube-search');
+    expect(
+      ids(parseScenarioArgs(['--changed-from', 'origin/main']), ['packages/browser/src/index.ts']),
+    ).not.toContain('browser-youtube-search');
+    expect(ids(parseScenarioArgs(['--scenario', 'browser-youtube-search']))).toEqual([
+      'browser-youtube-search',
+    ]);
+  });
+
+  it('reads the query of a YouTube results page only', () => {
+    expect(youtubeResultsQuery('https://www.youtube.com/results?search_query=lofi+hip++hop')).toBe(
+      'lofi hip hop',
+    );
+    expect(youtubeResultsQuery('https://m.youtube.com/results?search_query=LoFi%20Hip%20Hop')).toBe(
+      'lofi hip hop',
+    );
+    expect(youtubeResultsQuery('https://www.youtube.com/watch?v=abc')).toBeUndefined();
+    expect(youtubeResultsQuery('https://evil-youtube.com/results?search_query=x')).toBeUndefined();
+    expect(youtubeResultsQuery('not a url')).toBeUndefined();
   });
 
   it('keeps only scenarios whose areas the changed files touch', () => {
@@ -126,7 +153,12 @@ describe('scenario token usage and model matrix', () => {
       [
         record(
           'aura',
-          { uncachedInputTokens: 100, outputTokens: 20, cacheReadTokens: 300, cacheWriteTokens: 0 },
+          {
+            uncachedInputTokens: 100,
+            outputTokens: 20,
+            cacheReadTokens: 300,
+            cacheWriteTokens: 0,
+          },
           route,
         ),
         record('nexus', { uncachedInputTokens: 50, outputTokens: 10, cacheReadTokens: 200 }, route),
