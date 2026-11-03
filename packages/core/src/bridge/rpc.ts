@@ -62,6 +62,7 @@ import type {
   MarketplaceDigestSummary,
   MarketplaceEntry,
   MarketplaceFileView,
+  MarketplaceInstallSource,
   MarketplacePage,
   MarketplaceQuery,
   MarketplaceSection,
@@ -2438,13 +2439,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
     id: string,
     reviewId: string,
     operationKey?: string,
+    source?: MarketplaceInstallSource,
   ): Promise<{
     bot: PersonaBotDetail;
     channelId: string;
     receipt?: BotCreationReceipt;
     listing: MarketplaceEntry;
   }> {
-    return unwrapAsync(this.methods.marketplaceInstall({ id, reviewId, operationKey }));
+    return unwrapAsync(this.methods.marketplaceInstall({ id, reviewId, operationKey, source }));
   }
 
   async releaseInfo(since?: string): Promise<ReleaseInfo> {
