@@ -12,13 +12,11 @@ export function groupChannelMessages(
   const groups: MessageGroup[] = [];
   for (const message of messages) {
     const last = groups.at(-1);
-    const first = last?.messages[0];
     const previous = last?.messages.at(-1);
     if (previous !== undefined && previous.id === breakAfter) {
       groups.push({ key: message.id, messages: [message] });
       continue;
     }
-    const firstAt = first === undefined ? NaN : Date.parse(first.at);
     const previousAt = previous === undefined ? NaN : Date.parse(previous.at);
     const at = Date.parse(message.at);
     const sameAuthor =
@@ -60,7 +58,7 @@ export function groupChannelMessages(
       last.messages.length < 8 &&
       at - previousAt >= 0 &&
       at - previousAt <= 15_000 &&
-      at - firstAt <= 180_000
+      Math.floor(at / 180_000) === Math.floor(previousAt / 180_000)
     ) {
       last.messages.push(message);
     } else {

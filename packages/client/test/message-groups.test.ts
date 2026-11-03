@@ -47,6 +47,17 @@ describe('Channel message visual groups', () => {
     ).toHaveLength(2);
   });
 
+  it('keeps the keys of later groups when older history is loaded in front', () => {
+    const history = Array.from({ length: 200 }, (_, index) => message(`m-${index}`, index * 5));
+    const loaded = new Set(groupChannelMessages(history).map((group) => group.key));
+    const recent = groupChannelMessages(history.slice(53));
+    const boundary = recent.findIndex(
+      (group) => Date.parse(group.messages[0]!.at) >= Date.parse(history[72]!.at),
+    );
+    expect(boundary).toBeGreaterThan(0);
+    expect(recent.slice(boundary).every((group) => loaded.has(group.key))).toBe(true);
+  });
+
   it('isolates bodyless Bot DM actions as centered timeline items', () => {
     const action: ChannelMessage = {
       ...message('action', 1),
