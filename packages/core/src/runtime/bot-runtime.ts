@@ -110,6 +110,7 @@ import {
   type SessionFailureProgress,
 } from '../channels/channel.js';
 import { ChannelReplyTargetError, MAX_MESSAGE_PAGE } from '../channels/store.js';
+import type { TakeoverResolution } from '../takeover/contracts.js';
 import type { MessagePerfTracker } from '../usage/message-perf.js';
 import { attachmentIdentity, type ChannelAttachmentRef } from '../attachments/ref.js';
 import type { ChannelMessageQueryOptions, ChannelStore } from '../channels/store.js';
@@ -597,6 +598,11 @@ export interface OrchestratorChannelAccess {
     left: boolean;
   };
   react?(input: BotReactionInput & { channelId?: string }): BotReactionResult;
+  attachVoice?(input: {
+    channelId: string;
+    messageId: string;
+    signal?: AbortSignal;
+  }): Promise<import('../voice/messages.js').VoiceAttachOutcome>;
   sendToBot(input: {
     botSlug: string;
     body: string;
@@ -886,6 +892,7 @@ export interface BotRuntimeOptions {
       >
     >;
   attachments?: AttachmentStore;
+  voiceMessages?: import('../voice/messages.js').VoiceMessages;
 
   ownership?: SessionOwnership;
 
@@ -1301,6 +1308,34 @@ function coalesceInbox(rows: InboxReportRow[]): InboxUnit[] {
   return [...units.values()];
 }
 
+const TAKEOVER_OUTCOME_GUIDANCE: Record<TakeoverResolution['outcome'], string> = {
+  done: 'The Human says they finished. Their result is not verified: observe again first (take a fresh Computer screenshot or call browser_observe), confirm the step really succeeded, then continue the original task and tell the Human the result in this Channel.',
+  failed:
+    'The Human could not finish. Observe the current state, then either try another way, ask the Human briefly what blocked them, or report that the task cannot continue.',
+  cancelled:
+    'The Human cancelled the request; they no longer need it. Do not request a takeover again unless they ask. Reply briefly only if that helps.',
+  expired:
+    'Nobody finished the request before it expired. Observe the current state; if the step is still blocked, tell the Human briefly instead of requesting again right away.',
+};
+
+function takeoverResolutionPrompt(
+  sourceEventId: string,
+  channelId: string,
+  resolution: TakeoverResolution,
+  request: ChannelMessage | undefined,
+): string {
+  const card = request?.takeoverRequest;
+  const facts = {
+    id: resolution.requestMessageId,
+    target: card?.target ?? 'unknown',
+    title: card?.title ?? 'unknown',
+    request: request?.body ?? '',
+    outcome: resolution.outcome,
+    by: resolution.by,
+  };
+  return `[Bot Inbox: Takeover Handoff ended]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nHandoff: ${JSON.stringify(facts)}\n${TAKEOVER_OUTCOME_GUIDANCE[resolution.outcome]} Credentials the Human typed stay in the live view; never ask for them in chat.`;
+}
+
 function renderInbox(units: InboxUnit[], text: PromptText = DEFAULT_PROMPT_TEXT): string {
   const lines = units.map((unit) => {
     if (unit.external !== undefined) {
@@ -1450,6 +1485,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #agents: BotAgentAdapter;
   readonly #memory: BotRuntimeOptions['memory'];
   readonly #attachments: AttachmentStore | undefined;
+  readonly #voiceMessages: import('../voice/messages.js').VoiceMessages | undefined;
   readonly #originalAttachments = new OriginalAttachmentAccess();
   readonly #saveReportSpill: BotRuntimeOptions['saveReportSpill'];
   readonly #readAssignmentTail: BotRuntimeOptions['readAssignmentTail'];
@@ -1557,6 +1593,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#agents = options.agents;
     this.#memory = options.memory;
     this.#attachments = options.attachments;
+    this.#voiceMessages = options.voiceMessages;
     this.#saveReportSpill = options.saveReportSpill;
     this.#readAssignmentTail = options.readAssignmentTail;
     this.#readAssignmentReportPage = options.readAssignmentReportPage;
@@ -2723,9 +2760,17 @@ class BotRuntimeImplementation implements BotRuntime {
         .get(sourceEventId),
     ) as { body: string } | undefined;
     if (source === undefined) return false;
+    const steered = this.#channels.message(channelId, messageId);
     const mentionPrompt =
-      `Source Event ID: ${sourceEventId}\n` +
-      this.#groupMentionPrompt(botSlug, channelId, messageId, source.body);
+      steered?.takeoverResolution !== undefined
+        ? takeoverResolutionPrompt(
+            sourceEventId,
+            channelId,
+            steered.takeoverResolution,
+            this.#channels.message(channelId, steered.takeoverResolution.requestMessageId),
+          )
+        : `Source Event ID: ${sourceEventId}\n` +
+          this.#groupMentionPrompt(botSlug, channelId, messageId, source.body);
     const claimed = this.#database.transaction(
       (database) => {
         const mention =
@@ -3827,6 +3872,13 @@ class BotRuntimeImplementation implements BotRuntime {
       (message?.author.kind === 'bot' || message?.author.kind === 'remote-bot')
     )
       return `[Bot Inbox: direct message from PersonaBot ${message.author.slug}${message.author.kind === 'remote-bot' ? ` on Host ${message.author.hostId}` : ''}]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${body}\n${this.#promptText(botSlug)('bot-dm-hint')}`;
+    if (message?.takeoverResolution !== undefined)
+      return takeoverResolutionPrompt(
+        sourceEventId,
+        channelId,
+        message.takeoverResolution,
+        this.#channels.message(channelId, message.takeoverResolution.requestMessageId),
+      );
     if (message?.author.kind === 'human' && message.toolAutoApprovalOverride !== undefined) {
       const target = message.toolAutoApprovalOverride;
       const input =
@@ -4199,6 +4251,9 @@ class BotRuntimeImplementation implements BotRuntime {
       return undefined;
     };
     const available = () => unavailable() === undefined;
+    const fatal = (reason: NativeOrchestratorRefusal | undefined) =>
+      reason === 'runtime-closed' || reason === 'aborted';
+    const admissible = () => !fatal(unavailable());
     const refuse = (reason: NativeOrchestratorRefusal): false => {
       this.#warn?.(
         JSON.stringify({
@@ -4213,9 +4268,24 @@ class BotRuntimeImplementation implements BotRuntime {
       );
       return false;
     };
+    const admitUnavailable = (reason: NativeOrchestratorRefusal): void =>
+      this.#warn?.(
+        JSON.stringify({
+          event: 'native-orchestrator-input',
+          phase: 'admitted-unavailable',
+          reason,
+          bot: owner.botSlug,
+          session: sessionId,
+          senders: senderSessionIds.length,
+        }),
+      );
     const refusal = unavailable();
+    if (this.#preparedOrchestrators.has(sessionId)) {
+      if (refusal === 'runtime-closed' || refusal === 'aborted') return refuse(refusal);
+      if (refusal !== undefined) admitUnavailable(refusal);
+      return true;
+    }
     if (refusal !== undefined) return refuse(refusal);
-    if (this.#preparedOrchestrators.has(sessionId)) return true;
     if (!senderSessionIds.length) return refuse('no-native-sender');
     if (
       !senderSessionIds.every((id) => {
@@ -4237,7 +4307,10 @@ class BotRuntimeImplementation implements BotRuntime {
         cancellation.removeEventListener('abort', abort);
         if (this.#nativeStepReady.get(sessionId) === finish)
           this.#nativeStepReady.delete(sessionId);
-        const reason = unavailable() ?? (accepted ? undefined : 'run-not-ready');
+        const refusal = unavailable();
+        const stop = fatal(refusal);
+        if (accepted && refusal !== undefined && !stop) admitUnavailable(refusal);
+        const reason = accepted && !stop ? undefined : (refusal ?? 'run-not-ready');
         if (reason !== undefined) refuse(reason);
         resolve(reason === undefined);
       };
@@ -4257,11 +4330,11 @@ class BotRuntimeImplementation implements BotRuntime {
           [],
           false,
           () => {
-            if (!available()) throw new Error('Native Orchestrator is unavailable');
+            if (!admissible()) throw new Error('Native Orchestrator is unavailable');
           },
           [],
           [],
-          available,
+          admissible,
         );
       }).then(
         () => finish(false),
@@ -6522,7 +6595,14 @@ class BotRuntimeImplementation implements BotRuntime {
           .prepare(
             `SELECT e.channel_id, e.message_id FROM source_events e
             JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
-            WHERE e.source_event_id = ? AND a.bot_slug = ? AND e.source_kind IN ('human-message', 'bot-message')`,
+            WHERE e.source_event_id = ? AND a.bot_slug = ?
+              AND (
+                e.source_kind IN ('human-message', 'bot-message')
+                OR (
+                  e.source_kind = 'system-message'
+                  AND json_extract(e.payload_json, '$.takeoverResolution') IS NOT NULL
+                )
+              )`,
           )
           .get(id, botSlug);
       });
@@ -6822,6 +6902,12 @@ class BotRuntimeImplementation implements BotRuntime {
         return this.#channels.getGroupWakePolicy(channel.id, botSlug);
       },
       react: (input) => this.#react(botSlug, resolve(input.channelId), input),
+      ...(this.#voiceMessages === undefined
+        ? {}
+        : {
+            attachVoice: (input: { channelId: string; messageId: string; signal?: AbortSignal }) =>
+              this.#voiceMessages!.attach({ botSlug, ...input }),
+          }),
       leaveGroup: (input) => {
         requireOrdinaryGroupActor();
         const channel = this.#channels.get(input.channelId);

@@ -191,6 +191,7 @@ import {
   loadPrivateInputStatus,
   submitPrivateInput,
   cancelPrivateInput,
+  settleTakeover,
   answerUserQuestion,
   type WorkspaceOption,
   type WorkspaceGrantView,
@@ -361,6 +362,20 @@ import {
   type SubmissionAttempt,
   type SubmissionSnapshot,
 } from './composer-submission-store.js';
+import {
+  addVoiceProvider,
+  loadVoiceProviders,
+  removeVoiceProvider,
+  setBotVoice,
+  synthesizeVoice,
+  testVoiceProvider,
+  type BotVoiceView,
+  type VoiceProviderAddInput,
+  type VoiceProviderHealthView,
+  type VoiceProvidersView,
+  type VoiceProviderView,
+  type VoiceSynthesisView,
+} from './voice-bridge.js';
 
 const GIT_INSTALL_POLL_MS = 500;
 
@@ -844,6 +859,21 @@ export interface BridgeActions {
   ): Promise<{ templates: ApprovalTemplateView[]; selected: string | null }>;
   setBotApprovalTemplate?(slug: string, template: string | null): Promise<void>;
   approvalReviewerModel?(): Promise<ApprovalReviewerModelView>;
+  voiceProviders?(slug?: string): Promise<VoiceProvidersView>;
+  addVoiceProvider?(input: VoiceProviderAddInput): Promise<VoiceProviderView>;
+  removeVoiceProvider?(id: string): Promise<string[]>;
+  testVoiceProvider?(id: string, voiceId?: string): Promise<VoiceProviderHealthView>;
+  synthesizeVoice?(input: {
+    text: string;
+    slug?: string;
+    providerId?: string;
+    voiceId?: string;
+  }): Promise<VoiceSynthesisView>;
+  setBotVoice?(
+    slug: string,
+    providerId: string | null,
+    voiceId?: string,
+  ): Promise<BotVoiceView | null>;
   setApprovalReviewerModel?(model: ModelRouteView | null): Promise<ApprovalReviewerModelView>;
   revokeToolApprovalRule(slug: string, id: string): Promise<void>;
   toolApprovalStatus(channelId: string, messageId: string): Promise<'pending' | 'expired'>;
@@ -857,6 +887,11 @@ export interface BridgeActions {
     values: Record<string, string>,
   ): Promise<void>;
   privateInputCancel?(channelId: string, messageId: string): Promise<void>;
+  settleTakeover?(
+    channelId: string,
+    messageId: string,
+    outcome: 'done' | 'failed' | 'cancelled',
+  ): Promise<'done' | 'failed' | 'cancelled' | 'expired' | undefined>;
   privateAccountStatus?(
     channelId: string,
     messageId: string,
@@ -1938,6 +1973,12 @@ export function createActions(
     approvalTemplates: (slug) => loadApprovalTemplates(call, slug),
     setBotApprovalTemplate: (slug, template) => setBotApprovalTemplate(call, slug, template),
     approvalReviewerModel: () => loadApprovalReviewerModel(call),
+    voiceProviders: (slug) => loadVoiceProviders(call, slug),
+    addVoiceProvider: (input) => addVoiceProvider(call, input),
+    removeVoiceProvider: (id) => removeVoiceProvider(call, id),
+    testVoiceProvider: (id, voiceId) => testVoiceProvider(call, id, voiceId),
+    synthesizeVoice: (input) => synthesizeVoice(call, input),
+    setBotVoice: (slug, providerId, voiceId) => setBotVoice(call, slug, providerId, voiceId),
     setApprovalReviewerModel: (model) => setApprovalReviewerModel(call, model),
     revokeToolApprovalRule: (slug, id) => revokeToolApprovalRule(call, slug, id),
     toolApprovalStatus: (channelId, messageId) =>
@@ -1947,6 +1988,8 @@ export function createActions(
     privateInputSubmit: (channelId, messageId, values) =>
       submitPrivateInput(call, channelId, messageId, values),
     privateInputCancel: (channelId, messageId) => cancelPrivateInput(call, channelId, messageId),
+    settleTakeover: (channelId, messageId, outcome) =>
+      settleTakeover(call, channelId, messageId, outcome),
     privateAccountStatus: async (channelId, messageId) => {
       const result = await call('privateAccountStatus', {
         channelId,

@@ -520,6 +520,20 @@ deepseekbot schedule-delete <bot-id> --sid <schedule-id> --confirm
 
 With a Host selected, the schedule commands call the same Host methods as the Schedules panel, so the Host checks the Bot, the trigger, the time zone and the lock, and a refusal keeps its code (`invalid-input`, `not-found`, `locked`, `inactive`). `schedule-preview` returns the trigger and the Host's next occurrences. `schedule-run-now` queues a firing that the running Host executes. `schedule-delete` also removes the schedule's history, so it needs `--confirm`, like the panel's confirmation.
 
+### Takeover Handoffs on a live Host
+
+```bash
+deepseekbot takeovers [<bot-id>] [--pending] [--channel <channel-id>] [--limit 20]
+deepseekbot takeover-request <bot-id> --target browser --title "Sign in to the shop" --body "Please sign in, then press Done." [--channel <channel-id>] [--minutes 30]
+deepseekbot takeover-status --channel <channel-id> --message-id <request-id>
+deepseekbot takeover-complete --channel <channel-id> --message-id <request-id> --outcome done|failed
+deepseekbot takeover-cancel --channel <channel-id> --message-id <request-id> [--bot <bot-id>]
+```
+
+A Takeover Handoff is how a Bot asks the Human to operate its Computer or Bot Browser for one step it must not do itself, such as signing in or a captcha. The Bot calls `takeover_request`; the conversation shows a card with the title, the Bot's sentence and a Take over button that opens the Computer or Browser view, and the Human gets a push when away. The Bot's turn ends at once: the Human can keep chatting, and the Bot answers them. Done, Could not finish, cancel and expiry post a resolution that wakes the Bot through its Inbox, and the Bot observes the screen again before it continues; a Bot withdrawing its own request with `takeover_cancel` does not wake it. A Bot has at most one pending request; it expires after 30 minutes by default (at most 120).
+
+`takeover-request` posts the card as the Bot through the same Host code as the Bot tool, in the Bot's DM unless `--channel` names a Channel the Bot can post in. `takeover-complete` and `takeover-cancel` act as the Human, like the card's buttons, and wake the Bot; `takeover-cancel --bot <bot-id>` withdraws the request as that Bot, like `takeover_cancel`, and wakes nobody. `takeovers <bot-id>` reads what `takeover_list` returns. Refusals keep their code: `unknown-bot`, `invalid-input`, `target-off` (Browser or Computer Access is off), `channel-unavailable`, `already-pending`, `not-found` and `not-pending`. Each request, refusal and outcome is recorded in the diagnostic log under the source `takeover` with ids, counts, lengths and timings only, never the title or sentence; read it with `deepseekbot diagnostic-logs` or `diagnostic-logs-export`.
+
 ### Browser and Computer: observation, packages, transfer and logs
 
 ```bash
@@ -719,6 +733,23 @@ deepseekbot inbox-allow-once autoreject:<source-event-id>
 `inbox-allow-once` returns `{accepted, channelId, messageId}`, where `messageId` is the Human's override message in the Channel. An item that was already allowed, or whose Bot left the Channel, is refused with `auto-rejection-unavailable`.
 
 **Circuit breaker.** After 3 rejections in a row, or 20 in one Session, auto approval pauses for that Session: every request posts a card, and the Channel shows a notice. The next approval the Human gives in that Session, on a card or from the Inbox, resumes it with fresh counts. The thresholds are fixed. The breaker and unused "allow once" overrides live in Host memory, so a Host restart resumes auto approval with fresh counts and drops an override the Bot has not used yet; the Inbox item stays handled.
+
+### Voice messages (TTS Providers)
+
+A Bot can speak a reply: `bot_send_message` takes `voice: true` before `body`, the text commits first, and the Host then synthesizes it through the Bot's TTS Provider and attaches the audio to the same message. Desktop and iOS show a voice bar above the text. Code blocks, file paths, URLs and tables are replaced by short spoken notes instead of being read out. If synthesis fails the message stays, without a voice bar, and shows why. Only local Channels get voice; a DM to another Bot or an external IM conversation sends the text and reports `unsupported-destination`. The Host never records or stores the Human's voice.
+
+```bash
+deepseekbot voice-providers [--bot <bot-id>]
+printf '%s' "$FISH_AUDIO_KEY" | deepseekbot voice-provider-add fish-audio --model s2.1-pro-free --voice <reference-id> --key-stdin
+deepseekbot voice-provider-add custom --name Kokoro --base-url http://127.0.0.1:8880/v1 --model kokoro --voice af_bella
+deepseekbot voice-provider-test <provider-id> [--voice <voice-id>]
+deepseekbot voice-set <bot-id> <provider-id> [--voice <voice-id>]
+deepseekbot voice-set <bot-id> off
+deepseekbot voice-synthesize --bot <bot-id> --text 'Done. See `src/app.ts`.' --markdown --out /tmp/voice.mp3
+deepseekbot voice-provider-remove <provider-id>
+```
+
+Presets are `custom` (any OpenAI-compatible `/audio/speech` endpoint, for example a local Kokoro-FastAPI or LocalAI; key optional), `fish-audio`, `elevenlabs` and `openai` (key required). `voice-providers` returns `{presets, providers, bot?}`; each provider shows `id`, `name`, `preset`, `baseUrl`, `model`, `defaultVoice` and `keySet`, never the key. The key is read only from stdin and kept in the Host credential store. `voice-provider-test` synthesizes a short phrase and returns `{ok: true, latencyMs, bytes, mime}` or `{ok: false, code, message}`. `voice-set` binds the Bot's voice; `off` removes it, and removing a provider clears the Bots that used it (`clearedBots`). `voice-synthesize` uses the Bot's binding (`--bot`) or a provider (`--provider`), reads the text from `--text` or `--text-stdin`, applies the spoken-text rules with `--markdown`, writes the audio to the absolute `--out` path and prints `{providerId, voiceId, mime, bytes, latencyMs, text, out}`. Refusals carry a code: `usage`, `invalid-input`, `key-required`, `unknown-provider`, `voice-not-configured`, `provider-unauthorized`, `provider-rate-limited`, `provider-unavailable`, `provider-timeout`, `provider-rejected` and `provider-bad-response`. Each synthesis writes a `voice` line to `logs.db` with the provider, latency and size, never the text or key.
 
 ### Approval Reviewer model
 

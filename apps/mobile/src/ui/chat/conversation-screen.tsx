@@ -87,6 +87,7 @@ import { botColor } from '../bot-color';
 import { ApprovalCard } from './approval-card';
 import { GrantRequestCard } from './grant-request-card';
 import { PrivateInputCard } from './private-input-card';
+import { TakeoverCard } from './takeover-card';
 import { ActivityRow } from './activity-row';
 import type { BubbleGroup } from './bubble-shape';
 import { botBusy } from './bot-tone';
@@ -296,6 +297,18 @@ const RequestCard = memo(function RequestCard({
   );
 
   const subject = card.subject === undefined ? {} : { subject: card.subject };
+  if (card.kind === 'takeover' && card.takeover !== undefined)
+    return (
+      <TakeoverCard
+        client={client}
+        target={ref}
+        takeover={card.takeover}
+        sentence={card.subject ?? message.body}
+        outcome={resolution?.kind === 'takeover' ? resolution.outcome : undefined}
+        focused={focused}
+        group={group}
+      />
+    );
   if (card.kind === 'private-input')
     return (
       <PrivateInputCard
@@ -1100,6 +1113,7 @@ function ChatConversation({
         (item.message.card?.kind === 'tool-approval' ||
           item.message.card?.kind === 'user-question' ||
           item.message.card?.kind === 'grant' ||
+          item.message.card?.kind === 'takeover' ||
           item.message.card?.kind === 'private-input')
       )
         return wrap(

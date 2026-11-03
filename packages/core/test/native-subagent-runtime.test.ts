@@ -252,6 +252,79 @@ describe('native Subagent report admission', () => {
     }
   });
 
+  it('keeps a Runtime-driven turn running when a softer fence fails mid-turn (#3315)', async () => {
+    const f = fixture();
+    try {
+      const dm = f.runtime.admitDmMessage({
+        channelId: f.dm.id,
+        messageId: 'human-mid-turn',
+        body: 'Long request',
+      });
+      if (!dm.admitted) throw new Error(dm.reason);
+      await f.started.promise;
+      f.prepared.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      f.archived.add('parent');
+      expect(
+        await f.runtime.prepareNativeOrchestratorStep!('parent', [], new AbortController().signal),
+      ).toBe(true);
+      const aborted = new AbortController();
+      aborted.abort();
+      expect(await f.runtime.prepareNativeOrchestratorStep!('parent', [], aborted.signal)).toBe(
+        false,
+      );
+      expect(f.warnings.map((warning) => JSON.parse(warning) as Record<string, unknown>)).toEqual([
+        expect.objectContaining({
+          event: 'native-orchestrator-input',
+          phase: 'admitted-unavailable',
+          reason: 'no-current-orchestrator',
+        }),
+        expect.objectContaining({ phase: 'refused', reason: 'aborted', executionReady: true }),
+      ]);
+      f.archived.delete('parent');
+      f.finished.resolve();
+      await dm.settled;
+    } finally {
+      f.prepared.resolve();
+      f.finished.resolve();
+      await f.runtime.whenIdle();
+      await f.runtime.close();
+    }
+  });
+
+  it('admits a waiting native step under the same policy when a soft check fails before readiness', async () => {
+    const f = fixture();
+    try {
+      const accepted = f.runtime.prepareNativeOrchestratorStep!(
+        'parent',
+        ['child'],
+        new AbortController().signal,
+      );
+      await f.started.promise;
+      f.archived.add('parent');
+      f.prepared.resolve();
+      expect(await accepted).toBe(true);
+      expect(f.runs[0]!.acceptNativeInput?.()).toBe(true);
+      expect(() => f.runs[0]!.sourcePolicy?.resetAssignmentReport()).not.toThrow();
+      let released = false;
+      void f.released.promise.then(() => (released = true));
+      await Promise.resolve();
+      expect(released).toBe(false);
+      expect(f.warnings.map((warning) => JSON.parse(warning) as Record<string, unknown>)).toEqual([
+        expect.objectContaining({
+          phase: 'admitted-unavailable',
+          reason: 'no-current-orchestrator',
+        }),
+      ]);
+    } finally {
+      f.archived.delete('parent');
+      f.prepared.resolve();
+      f.finished.resolve();
+      await f.runtime.whenIdle();
+      await f.runtime.close();
+    }
+  });
+
   it('cancels while preparing without leaving a waiter or accepting a report', async () => {
     const f = fixture();
     const controller = new AbortController();

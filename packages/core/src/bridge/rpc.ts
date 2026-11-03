@@ -1,5 +1,8 @@
 import type { BotImportsService } from '../bots/imports.js';
 import { isAuthenticatedOwner } from './owner-compat.js';
+import type { VoiceProvidersView, VoiceSynthesisView } from '../voice/bridge.js';
+import type { ProviderHealth, TtsProviderView } from '../voice/providers.js';
+import type { PersonaBotVoice } from '../bots/persona-bot.js';
 import type { CloudManagementInput, CloudManagementResult } from '../cloud/management.js';
 import type { ChannelManagementResult } from '../channels/management.js';
 import type { BotCreationReceipt } from '../bots/creation.js';
@@ -148,6 +151,7 @@ import type {
   DirectBotToolSpec,
 } from '../runtime/bot-runtime.js';
 import type { BotAttentionPage, BotAttentionState } from '../runtime/attention.js';
+import type { TakeoverHandoff } from '../takeover/contracts.js';
 import type {
   BotSchedule,
   BotScheduleChange,
@@ -1247,6 +1251,49 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   botApprovalTemplateSet(slug: string, template: string | null): { bot: PersonaBotDetail } {
     return unwrap(this.methods.botApprovalTemplateSet({ slug, template }));
+  }
+
+  voiceProviders(slug?: string): VoiceProvidersView {
+    return unwrap(this.methods.voiceProviders(slug === undefined ? {} : { slug }));
+  }
+
+  voiceProviderAdd(
+    preset: string,
+    name?: string,
+    baseUrl?: string,
+    model?: string,
+    defaultVoice?: string,
+    key?: string,
+  ): Promise<{ provider: TtsProviderView }> {
+    return unwrapAsync(
+      this.methods.voiceProviderAdd({ preset, name, baseUrl, model, defaultVoice, key }),
+    );
+  }
+
+  voiceProviderRemove(id: string): Promise<{ provider: TtsProviderView; clearedBots: string[] }> {
+    return unwrapAsync(this.methods.voiceProviderRemove({ id }));
+  }
+
+  voiceProviderTest(id: string, voiceId?: string): Promise<ProviderHealth> {
+    return unwrapAsync(this.methods.voiceProviderTest({ id, voiceId }));
+  }
+
+  voiceSynthesize(
+    text: string,
+    slug?: string,
+    providerId?: string,
+    voiceId?: string,
+    markdown?: boolean,
+  ): Promise<VoiceSynthesisView> {
+    return unwrapAsync(this.methods.voiceSynthesize({ text, slug, providerId, voiceId, markdown }));
+  }
+
+  botVoiceSet(
+    slug: string,
+    providerId: string | null,
+    voiceId?: string,
+  ): { slug: string; voice: PersonaBotVoice | null } {
+    return unwrap(this.methods.botVoiceSet({ slug, providerId, voiceId }));
   }
 
   approvalReviewerModel(): Promise<ApprovalReviewerModelView> {
@@ -2501,6 +2548,51 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.telemetrySet({ enabled }));
   }
 
+  takeoverList(query: {
+    slug?: string;
+    channelId?: string;
+    pendingOnly?: boolean;
+    limit?: number;
+  }): { takeovers: TakeoverHandoff[] } {
+    return unwrap(this.methods.takeoverList(query ?? {}));
+  }
+
+  takeoverStatus(channelId: string, messageId: string): { takeover: TakeoverHandoff } {
+    return unwrap(this.methods.takeoverStatus({ channelId, messageId }));
+  }
+
+  async takeoverRequest(
+    slug: string,
+    input: { channelId?: string; target: string; title: string; message: string; minutes?: number },
+  ): Promise<{ takeover: TakeoverHandoff }> {
+    return unwrapAsync(this.methods.takeoverRequest({ ...input, slug }));
+  }
+
+  async takeoverComplete(
+    channelId: string,
+    messageId: string,
+    outcome: 'done' | 'failed',
+    surface?: string,
+  ): Promise<{ takeover: TakeoverHandoff }> {
+    return unwrapAsync(this.methods.takeoverComplete({ channelId, messageId, outcome, surface }));
+  }
+
+  async takeoverCancel(
+    channelId: string,
+    messageId: string,
+    surface?: string,
+    bot?: string,
+  ): Promise<{ takeover: TakeoverHandoff }> {
+    return unwrapAsync(
+      this.methods.takeoverCancel({
+        channelId,
+        messageId,
+        surface,
+        ...(bot === undefined ? {} : { bot }),
+      }),
+    );
+  }
+
   scheduleList(slug: string): { schedules: BotSchedule[] } {
     return unwrap(this.methods.scheduleList({ slug }));
   }
@@ -2757,6 +2849,12 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botApprovalTemplateSet',
   'approvalReviewerModel',
   'approvalReviewerModelSet',
+  'voiceProviders',
+  'voiceProviderAdd',
+  'voiceProviderRemove',
+  'voiceProviderTest',
+  'voiceSynthesize',
+  'botVoiceSet',
   'idleCompaction',
   'idleCompactionSet',
   'idleCompactionCacheLifetimeSet',
@@ -2809,6 +2907,11 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'gitStatus',
   'gitInstall',
   'scheduleList',
+  'takeoverList',
+  'takeoverStatus',
+  'takeoverRequest',
+  'takeoverComplete',
+  'takeoverCancel',
   'scheduleCreate',
   'scheduleUpdate',
   'scheduleDelete',

@@ -307,6 +307,54 @@ describe('runtime lifecycle', () => {
     expect(runtime.isRunning()).toBe(false);
   });
 
+  it('brings the Bot tab to the front when headed on the Local Computer desktop (#3378)', async () => {
+    const child = fakeChild();
+    spawnMock.mockReturnValue(child.proc as never);
+    const client = fakeClient();
+    const runtime = createBotBrowserRuntime({
+      userDataDir: '/tmp/browser-test',
+      platform: 'linux',
+      env: {},
+      fileExists: (path) => path === '/usr/bin/google-chrome',
+      connect: async () => client,
+      headless: () => false,
+      foregroundTabs: () => true,
+    });
+    const ensuring = runtime.ensure();
+    child.ready();
+    await ensuring;
+    await runtime.open('https://example.com');
+    const activations = (): number =>
+      client.calls.filter((call) => call.method === 'Target.activateTarget').length;
+    expect(client.send).toHaveBeenCalledWith('Target.activateTarget', { targetId: 'tab-1' });
+    expect(activations()).toBe(1);
+    await runtime.observe('tab-1');
+    expect(activations()).toBe(2);
+    await runtime.stop();
+  });
+
+  it('keeps Bot tabs in the background when headless even if the desktop asks for foreground', async () => {
+    const child = fakeChild();
+    spawnMock.mockReturnValue(child.proc as never);
+    const client = fakeClient();
+    const runtime = createBotBrowserRuntime({
+      userDataDir: '/tmp/browser-test',
+      platform: 'linux',
+      env: {},
+      fileExists: (path) => path === '/usr/bin/google-chrome',
+      connect: async () => client,
+      headless: () => true,
+      foregroundTabs: () => true,
+    });
+    const ensuring = runtime.ensure();
+    child.ready();
+    await ensuring;
+    await runtime.open('https://example.com');
+    await runtime.observe('tab-1');
+    expect(client.calls.map((call) => call.method)).not.toContain('Target.activateTarget');
+    await runtime.stop();
+  });
+
   it('launches, opens, reuses the tab, observes, and stops', async () => {
     const child = fakeChild();
     spawnMock.mockReturnValue(child.proc as never);

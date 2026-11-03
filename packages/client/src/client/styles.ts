@@ -3857,6 +3857,10 @@ html[data-botharness-motion='reduce'] [data-badge-motion='leave'] { animation-na
 .bh-message-file-more { flex: none; color: inherit; }
 /* Bound intrinsic attachment width too, so long filenames do not widen the bubble. */
 .bh-message-attachments { display: grid; max-width: 320px; gap: ${space.x3}; margin-top: ${space.x3}; }
+.bh-message-voice { max-width: 320px; margin-bottom: ${space.x3}; }
+.bh-message-voice .bh-message-audio { width: 100%; box-sizing: border-box; }
+.bh-message-voice-note { display: block; color: var(--dsw-alias-label-secondary); font-size: ${text.metaSize}; line-height: ${text.metaLine}; }
+.bh-message-voice[data-voice-state='failed'] .bh-message-voice-note { color: var(--dsw-alias-label-tertiary); }
 .bh-message-perf { margin-top: ${space.x2}; color: var(--dsw-alias-label-tertiary); font-size: ${text.metaSize}; line-height: ${text.metaLine}; font-variant-numeric: tabular-nums; }
 .bh-bridge-media-content { white-space: pre-wrap; }
 .bh-bridge-image { max-width: min(100%, 320px); }

@@ -9,6 +9,15 @@ import { SendReviewRequired, GroupReplySourceRevoked } from '../channels/send-re
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { MAX_BOT_HOPS, type ChannelMessage } from '../channels/channel.js';
 import type { OrchestratorAgentRun } from './bot-runtime.js';
+import type { VoiceAttachOutcome } from '../voice/messages.js';
+
+function unsupportedVoice(): VoiceAttachOutcome {
+  return {
+    status: 'failed',
+    code: 'unsupported-destination',
+    message: 'Voice messages are available in local Channels only; the text was sent.',
+  };
+}
 
 export class BotMessageError extends Error {
   constructor(
@@ -55,6 +64,7 @@ const OPTIONAL_FIELDS = [
   'mention_human_ids',
   'freshness_override',
   'resolve_inbox_ids',
+  'voice',
 ] as const;
 
 function isEmptyOption(value: unknown): boolean {
@@ -157,6 +167,11 @@ export function createBotMessageTool(
           reason: { type: 'string', required: true },
         },
         description: 'Explicit Group review override for the current draft version and reason.',
+      },
+      voice: {
+        type: 'boolean',
+        description:
+          'Default false. true also sends this message as a voice message: the Human sees the same text with a playable voice bar, spoken with your configured voice. Decide per message; give voice before body. Code, paths and tables are not read aloud. Local Channels only.',
       },
       body: { type: 'string', required: true, description: 'The actual message to deliver.' },
       resolve_inbox_ids: {
@@ -278,6 +293,7 @@ export function createBotMessageTool(
           'Only the explicitly referenced reply source can be resolved by this slice.',
         );
       let messageId: string;
+      let voice: VoiceAttachOutcome | undefined;
       let intentId: string | undefined;
       let unwoken: ReturnType<typeof notWoken> = [];
       if (args.bot_id !== undefined) {
@@ -290,6 +306,7 @@ export function createBotMessageTool(
         channelId = sent.channelId;
         unwoken = notWoken(sent.message, [args.bot_id]);
         drafts?.settle(channelId, sent.message.body);
+        if (args.voice) voice = unsupportedVoice();
       } else if (external) {
         const messaging = run.externalMessaging;
         if (messaging === undefined)
@@ -346,6 +363,7 @@ export function createBotMessageTool(
           });
         messageId = result.receipt.messageId;
         intentId = result.id;
+        if (args.voice) voice = unsupportedVoice();
       } else {
         try {
           const message = await run.channels.send({
@@ -377,6 +395,19 @@ export function createBotMessageTool(
               : (message.mentions ?? []).map((mention) => mention.botSlug),
           );
           drafts?.settle(channelId!, message.body);
+          if (args.voice)
+            voice =
+              run.channels.attachVoice === undefined
+                ? {
+                    status: 'failed',
+                    code: 'voice-unavailable',
+                    message: 'Voice messages are unavailable on this Host.',
+                  }
+                : await run.channels.attachVoice({
+                    channelId: channelId!,
+                    messageId,
+                    signal: exec.signal,
+                  });
         } catch (error) {
           if (error instanceof SendReviewRequired) {
             drafts?.discard(error.outcome.channelId);
@@ -427,6 +458,7 @@ export function createBotMessageTool(
         messageId,
         ...(intentId === undefined ? {} : { intentId }),
         ...(unwoken.length === 0 ? {} : { notWoken: unwoken, notice: NOT_WOKEN_NOTICE }),
+        ...(voice === undefined ? {} : { voice }),
         inboxResolution,
       });
     },

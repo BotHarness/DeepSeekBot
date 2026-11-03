@@ -14,6 +14,8 @@ import { createWindowZoomSetup, WINDOW_ZOOM_SETUP_PATH } from './window-zoom/set
 import { nativeReleaseRuntime } from './release/compatibility.js';
 import { createFolderBrowser } from './workspaces/folder-browse.js';
 import { APPEARANCE_CONTROL_PATH, createAppearanceControl } from './appearance/control.js';
+import { VoiceProviders } from './voice/providers.js';
+import { createVoiceMessages, type VoiceMessages } from './voice/messages.js';
 import { CloudConnections } from './cloud/connections.js';
 import { createCloudProvider } from './cloud/provider.js';
 import { createChannelManagement, type ChannelManagementService } from './channels/management.js';
@@ -133,6 +135,7 @@ import type { BotAgentSetupInfo } from './runtime/dsh-bot-agent-adapter.js';
 import { registerBridge } from './bridge/rpc.js';
 import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
 import { mountDiagnosticLog } from './diagnostics/diagnostic-log.js';
+import { createCoreTakeoverHandoffs, mountTakeoverTools } from './takeover/mount.js';
 import { createTurnLog } from './diagnostics/turn-log.js';
 import { mountDevicePairing } from './devices/mount.js';
 import { humanInboxPushSource } from './push/source.js';
@@ -515,6 +518,8 @@ export interface BotHarnessCore {
   grants: WorkspaceGrantStore;
   externalMessaging: OutboundMessaging;
   cloudConnections?: CloudConnections;
+  voiceProviders: VoiceProviders;
+  voiceMessages: VoiceMessages;
   cloudWork?: CloudWork;
   toolRules: ToolApprovalRuleStore;
   assignmentAccess: AssignmentAccessStore;
@@ -600,6 +605,14 @@ export function createCore(
     activePrivateInputMessageIds?: () => readonly string[];
     erasePrivateAccounts?: (slug: string) => Promise<unknown>;
     capture?: TelemetryCapture;
+    credentials?: () =>
+      | Pick<
+          import('@deepseek-ai/dsh-credentials').CredentialProvider,
+          'readRecord' | 'modifyRecord' | 'deleteRecord'
+        >
+      | undefined;
+    voiceLog?: (phase: string, fields: Record<string, string | number>) => void;
+    voiceFetch?: typeof fetch;
   } = {},
 ): BotHarnessCore {
   const dshHome = options.dshHome ?? resolveDshHome();
@@ -821,6 +834,8 @@ export function createCore(
       live?.publishHumanRead(channelId, humanId, revision),
     onReactionChanged: (channelId, messageId, reactions) =>
       live?.publishReaction(channelId, messageId, reactions),
+    onVoiceChanged: (channelId, messageId, message) =>
+      live?.publishVoice(channelId, messageId, message),
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
   const attention = createBotAttentionQuery(
@@ -1032,7 +1047,21 @@ export function createCore(
     registry,
     ownership,
   });
+  const voiceProviders = new VoiceProviders({
+    database: attachOperationalModule(operationalDatabase, 'voice'),
+    credentials: options.credentials ?? (() => undefined),
+    ...(options.voiceFetch === undefined ? {} : { fetch: options.voiceFetch }),
+    ...(options.voiceLog === undefined ? {} : { log: options.voiceLog }),
+  });
+  const voiceMessages = createVoiceMessages({
+    providers: voiceProviders,
+    bot: (slug) => registry.get(slug),
+    channels,
+    attachments: () => attachments,
+    ...(options.voiceLog === undefined ? {} : { log: options.voiceLog }),
+  });
   runtime = createBotRuntime({
+    voiceMessages,
     ...(options.botNetwork === undefined ? {} : { botNetwork: options.botNetwork }),
     ...(options.readTurnProgress === undefined
       ? {}
@@ -1148,6 +1177,8 @@ export function createCore(
   });
   if (operationalDatabase.mode === 'ready') schedules.start();
   return {
+    voiceProviders,
+    voiceMessages,
     prompts,
     deletions,
     profileRecovery,
@@ -1483,6 +1514,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let imCommandServices: import('./messaging/im-commands.js').ImCommandServices | undefined;
   let botNetwork: import('./runtime/bot-network.js').BotNetworkPort | undefined;
   const core = createCore({
+    credentials: () => ctx.get('credentials'),
+    voiceLog: (phase, fields) => diagnosticEvents.record('voice', phase, fields),
     botNetwork: {
       contacts: () => botNetwork?.contacts() ?? [],
       availability: (hostId, botSlug) =>
@@ -1678,6 +1711,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     secretMcpStore,
     diagnosticEvents,
   );
+  const takeovers = createCoreTakeoverHandoffs(ctx, core, diagnosticEvents);
+  mountTakeoverTools(ctx, core, takeovers);
   ctx.effect(() => () => core.externalMessaging.close(), 'botharness: external messaging');
   const cloudConnections = new CloudConnections(
     attachOperationalModule(core.operationalDatabase, 'messaging'),
@@ -2635,6 +2670,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (event) => ctx.logger.info(JSON.stringify(event)),
   });
   const bridgeMethods = createBridgeMethods({
+    voiceProviders: core.voiceProviders,
     prompts: core.prompts,
     botContext: async (slug) => {
       const sessionId = core.runtime.currentOrchestratorSessionId?.(slug) ?? null;
@@ -2803,6 +2839,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     attention: core.attention,
     sourcePolicy: core.sourcePolicy,
     schedules: core.schedules,
+    takeovers,
     humanAttention: core.humanAttention,
     humanAttentionDecisions: core.humanAttentionDecisions,
     grants: core.grants,

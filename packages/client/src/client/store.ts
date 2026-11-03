@@ -264,7 +264,10 @@ export interface ChannelMessage {
   userQuestionResolution?: UserQuestionResolution;
   privateInputRequest?: import('../../../core/src/credentials/contracts.js').PrivateInputCard;
   privateInputResolution?: import('../../../core/src/credentials/contracts.js').PrivateInputResolution;
+  takeoverRequest?: import('../../../core/src/takeover/contracts.js').TakeoverRequestCard;
+  takeoverResolution?: import('../../../core/src/takeover/contracts.js').TakeoverResolution;
   attachments?: ChannelAttachmentRef[];
+  voice?: import('../../../core/src/channels/channel.js').ChannelMessageVoice;
   clearedAttachments?: import('../../../core/src/attachments/ref.js').ChannelClearedAttachment[];
   format?: 'markdown' | 'text';
   replyTo?: string;
@@ -322,6 +325,7 @@ export interface HumanAttentionItem {
     | 'pairing-request'
     | 'user-question'
     | 'private-input'
+    | 'takeover-request'
     | 'tool-approval'
     | 'auto-rejection'
     | 'workspace-grant-request'

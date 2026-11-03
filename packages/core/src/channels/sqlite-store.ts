@@ -49,6 +49,7 @@ import {
   groupChannelIdBase,
   isChannelMessage,
   isChannelMessageAuthor,
+  isChannelMessageVoice,
   isChannelRecord,
   isGroupAvatar,
   isValidChannelId,
@@ -1153,45 +1154,59 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
               origin.sessionId,
               durable.author.slug,
             );
+          const takeoverRequester =
+            durable.takeoverResolution === undefined || durable.takeoverResolution.by === 'bot'
+              ? undefined
+              : previous.find((entry) => entry.id === durable.takeoverResolution?.requestMessageId)
+                  ?.author;
           const candidateRecipients =
             durable.privateInputResolution !== undefined
               ? []
-              : durable.author.kind === 'human'
-                ? channel.type === 'dm' && channel.botSlug !== undefined
-                  ? [{ botSlug: channel.botSlug, reason: 'human-dm' }]
-                  : [
-                      ...new Set([
-                        ...mentions.map((item) => item.botSlug),
-                        ...(channel.type === 'group' && grantRequester(durable, previous)
-                          ? [grantRequester(durable, previous)!]
-                          : []),
-                        ...(channel.type === 'group' &&
-                        durable.toolAutoApprovalOverride !== undefined &&
-                        channel.members.includes(durable.toolAutoApprovalOverride.botSlug)
-                          ? [durable.toolAutoApprovalOverride.botSlug]
-                          : []),
-                      ]),
-                    ].map((botSlug) => ({
-                      botSlug,
-                      reason: 'group-mention',
-                    }))
-                : channel.type === 'group' &&
-                    senderSlug !== undefined &&
-                    durable.botCausation !== undefined &&
-                    durable.botCausation.hop <= MAX_BOT_HOPS
-                  ? [...new Set(mentions.map((item) => item.botSlug))]
-                      .filter((targetSlug) => targetSlug !== senderSlug)
-                      .map((botSlug) => ({ botSlug, reason: 'group-mention' }))
-                  : botDm &&
-                      recipient !== undefined &&
+              : durable.takeoverResolution !== undefined
+                ? takeoverRequester?.kind === 'bot'
+                  ? [
+                      {
+                        botSlug: takeoverRequester.slug,
+                        reason: channel.type === 'dm' ? 'human-dm' : 'group-mention',
+                      },
+                    ]
+                  : []
+                : durable.author.kind === 'human'
+                  ? channel.type === 'dm' && channel.botSlug !== undefined
+                    ? [{ botSlug: channel.botSlug, reason: 'human-dm' }]
+                    : [
+                        ...new Set([
+                          ...mentions.map((item) => item.botSlug),
+                          ...(channel.type === 'group' && grantRequester(durable, previous)
+                            ? [grantRequester(durable, previous)!]
+                            : []),
+                          ...(channel.type === 'group' &&
+                          durable.toolAutoApprovalOverride !== undefined &&
+                          channel.members.includes(durable.toolAutoApprovalOverride.botSlug)
+                            ? [durable.toolAutoApprovalOverride.botSlug]
+                            : []),
+                        ]),
+                      ].map((botSlug) => ({
+                        botSlug,
+                        reason: 'group-mention',
+                      }))
+                  : channel.type === 'group' &&
+                      senderSlug !== undefined &&
                       durable.botCausation !== undefined &&
                       durable.botCausation.hop <= MAX_BOT_HOPS
-                    ? [{ botSlug: recipient, reason: 'bot-dm' }]
-                    : [];
+                    ? [...new Set(mentions.map((item) => item.botSlug))]
+                        .filter((targetSlug) => targetSlug !== senderSlug)
+                        .map((botSlug) => ({ botSlug, reason: 'group-mention' }))
+                    : botDm &&
+                        recipient !== undefined &&
+                        durable.botCausation !== undefined &&
+                        durable.botCausation.hop <= MAX_BOT_HOPS
+                      ? [{ botSlug: recipient, reason: 'bot-dm' }]
+                      : [];
           const recipients = candidateRecipients.filter((item) => isBotActive(item.botSlug));
           const immediate = new Set(recipients.map((item) => item.botSlug));
           const ordinaryAllowed =
-            durable.author.kind === 'human' ||
+            (durable.author.kind === 'human' && durable.takeoverResolution === undefined) ||
             (senderSlug !== undefined &&
               durable.botCausation !== undefined &&
               durable.botCausation.hop <= MAX_BOT_HOPS);
@@ -3257,6 +3272,55 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     admissionChanged(channelId, messageId) {
       const message = this.message(channelId, messageId);
       if (message !== undefined) options.onAdmissionChanged?.(channelId, messageId, message);
+    },
+    setMessageVoice(channelId, messageId, voice, attachment) {
+      if (!isChannelMessageVoice(voice)) throw new Error('Invalid voice state');
+      if (attachment !== undefined) assertAttachmentRefs([attachment]);
+      const changed = database.transaction(
+        (db) => {
+          const row = db
+            .prepare(`
+            SELECT e.source_event_id, e.payload_json, e.body FROM channel_placements p
+            JOIN source_events e ON e.source_event_id = p.source_event_id
+            WHERE p.channel_id = ? AND p.message_id = ?
+          `)
+            .get(channelId, messageId) as
+            | Pick<PlacementRow, 'source_event_id' | 'payload_json' | 'body'>
+            | undefined;
+          if (row === undefined) return false;
+          const payload = JSON.parse(row.payload_json) as Record<string, unknown>;
+          const author = payload['author'] as ChannelMessage['author'] | undefined;
+          if (author?.kind !== 'bot') return false;
+          const refs = Array.isArray(payload['attachments'])
+            ? (payload['attachments'] as ChannelAttachmentRef[])
+            : [];
+          const next: Record<string, unknown> = { ...payload, voice };
+          if (
+            attachment !== undefined &&
+            !refs.some((ref) => attachmentIdentity(ref) === attachmentIdentity(attachment))
+          ) {
+            if (refs.length >= 10) throw new Error('A message holds at most ten attachments');
+            next['attachments'] = [...refs, attachment];
+          }
+          const candidate = parseMessage(JSON.stringify(next), row.body, messageId, channelId);
+          if (candidate === undefined) throw new Error('Invalid voice message');
+          db.prepare('UPDATE source_events SET payload_json = ? WHERE source_event_id = ?').run(
+            JSON.stringify(next),
+            row.source_event_id,
+          );
+          return true;
+        },
+        ['channel'],
+      );
+      if (!changed) return undefined;
+      const message = this.message(channelId, messageId);
+      if (message !== undefined)
+        try {
+          options.onVoiceChanged?.(channelId, messageId, message);
+        } catch (error) {
+          options.warn?.('Voice notification failed: ' + String(error));
+        }
+      return message;
     },
     latestBotActivity() {
       const rows = database.read((db) =>

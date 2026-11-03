@@ -1,3 +1,7 @@
+import {
+  isTakeoverRequestCard,
+  isTakeoverResolution,
+} from '../../../core/src/takeover/contracts.js';
 import { parseFailureAutoContinue, parseFailureProgress } from '../shared/turn-continuation.js';
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
 import { clientLog } from './diagnostic-log.js';
@@ -100,6 +104,10 @@ import {
   isChannelAttachmentRef,
   isChannelClearedAttachment,
 } from '../../../core/src/attachments/ref.js';
+import {
+  isChannelMessageVoice,
+  type ChannelMessageVoice,
+} from '../../../core/src/channels/voice.js';
 import type { UsageFilter, UsageQueryResult } from '../../../core/src/usage/query.js';
 export type { UsageFilter, UsageQueryResult } from '../../../core/src/usage/query.js';
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
@@ -1721,7 +1729,16 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       : { privateInputRequest: parsePrivateInputCard(record['privateInputRequest']) }),
     ...(userQuestionRequest === undefined ? {} : { userQuestionRequest }),
     ...(userQuestionResolution === undefined ? {} : { userQuestionResolution }),
+    ...(isTakeoverRequestCard(record['takeoverRequest']) && author.kind === 'bot'
+      ? { takeoverRequest: record['takeoverRequest'] }
+      : {}),
+    ...(isTakeoverResolution(record['takeoverResolution'])
+      ? { takeoverResolution: record['takeoverResolution'] }
+      : {}),
     ...(attachments === undefined ? {} : { attachments: attachments as ChannelAttachmentRef[] }),
+    ...(author.kind === 'bot' && parseMessageVoice(record['voice']) !== undefined
+      ? { voice: parseMessageVoice(record['voice'])! }
+      : {}),
     ...(Array.isArray(record['clearedAttachments']) &&
     record['clearedAttachments'].length <= 10 &&
     record['clearedAttachments'].every(isChannelClearedAttachment)
@@ -1734,6 +1751,10 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(replyToPreview === undefined ? {} : { replyToPreview }),
     ...(perf === undefined ? {} : { perf }),
   };
+}
+
+export function parseMessageVoice(value: unknown): ChannelMessageVoice | undefined {
+  return isChannelMessageVoice(value) ? value : undefined;
 }
 
 export function parseReactions(value: unknown): ChannelReaction[] | undefined {
@@ -4290,6 +4311,25 @@ export function privateInputAccepted(value: unknown): void {
   );
 }
 
+export async function settleTakeover(
+  call: BridgeCall,
+  channelId: string,
+  messageId: string,
+  outcome: 'done' | 'failed' | 'cancelled',
+): Promise<'done' | 'failed' | 'cancelled' | 'expired' | undefined> {
+  const value = await unwrap(
+    call,
+    outcome === 'cancelled' ? 'takeoverCancel' : 'takeoverComplete',
+    outcome === 'cancelled'
+      ? { channelId, messageId, surface: 'web' }
+      : { channelId, messageId, outcome, surface: 'web' },
+  );
+  const status = (value as { takeover?: { status?: unknown } } | undefined)?.takeover?.status;
+  return status === 'done' || status === 'failed' || status === 'cancelled' || status === 'expired'
+    ? status
+    : undefined;
+}
+
 export async function cancelPrivateInput(
   call: BridgeCall,
   channelId: string,
@@ -4643,6 +4683,7 @@ export function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
       item['kind'] !== 'pairing-request' &&
       item['kind'] !== 'user-question' &&
       item['kind'] !== 'private-input' &&
+      item['kind'] !== 'takeover-request' &&
       item['kind'] !== 'tool-approval' &&
       item['kind'] !== 'auto-rejection' &&
       item['kind'] !== 'workspace-grant-request' &&
@@ -4704,7 +4745,7 @@ export function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
         return undefined;
     }
     if (
-      item['kind'] === 'private-input' &&
+      (item['kind'] === 'private-input' || item['kind'] === 'takeover-request') &&
       (item['category'] !== 'action' ||
         typeof item['messageId'] !== 'string' ||
         typeof item['sourceEventId'] !== 'string')

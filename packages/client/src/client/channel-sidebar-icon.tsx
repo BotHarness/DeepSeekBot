@@ -761,6 +761,14 @@ const glyphs: Record<string, readonly [string, Record<string, string | number>][
       },
     ],
   ],
+  'audio-lines': [
+    ['path', { d: 'M2 10v3' }],
+    ['path', { d: 'M6 6v11' }],
+    ['path', { d: 'M10 3v18' }],
+    ['path', { d: 'M14 8v7' }],
+    ['path', { d: 'M18 5v13' }],
+    ['path', { d: 'M22 10v3' }],
+  ],
   'book-open': [
     ['path', { d: 'M12 5v16' }],
     [

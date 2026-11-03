@@ -283,6 +283,10 @@ _Avoid_: driver, backend, computer provider
 A Human's exclusive control of a Computer, initiated from a Bot Screen but applying to the whole Computer and pausing every PersonaBot's actions and model-facing screenshots there. Watching grants no control; releasing control leaves the Bots paused until the Human explicitly resumes them.
 _Avoid_: handoff, screen sharing, per-bot takeover
 
+**Takeover Handoff**:
+A PersonaBot's asynchronous request that the Human operate its Computer or Bot Browser for one step it must not do itself, shown in the conversation as a card with a title, the Bot's sentence and a Take over button. The Bot's turn ends when it asks; Done, Could not finish, cancel or expiry wakes it through its Inbox, and it re-observes before acting. The handoff only opens the view: control still comes from Takeover or Browser Takeover.
+_Avoid_: blocking takeover, login link, credential request
+
 **Computer Export**:
 A portable archive of one Computer's persistent volume, produced by an explicit export action and restorable on another Host. It is a profile-scoped facet, never part of a PersonaBot export.
 _Avoid_: PersonaBot export, backup file, disk image
@@ -334,7 +338,7 @@ A Human pause on one PersonaBot's tabs that stops that PersonaBot's browser acti
 _Avoid_: Computer Takeover, handoff, screen sharing, access gate
 
 **Browser Takeover**:
-A Human explicitly taking control of one PersonaBot's browser viewport through the viewer: it pauses that PersonaBot's actions and enables Human input for its duration. Releasing resumes the Bot unless a handoff link is still pending. It is narrower than Browser Pause (control, not just a stop) and narrower than Computer Takeover (one Bot's viewport, never the whole machine).
+A Human explicitly taking control of one PersonaBot's browser viewport through the viewer: it pauses that PersonaBot's actions and enables Human input for its duration. Releasing resumes the Bot. It is narrower than Browser Pause (control, not just a stop) and narrower than Computer Takeover (one Bot's viewport, never the whole machine).
 _Avoid_: Browser Pause, Computer Takeover, handoff, screen sharing
 
 **Browser Watch**:

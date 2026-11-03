@@ -73,6 +73,7 @@ export interface ComputerToolProviderOptions {
   readonly driver: CuaDriver;
   readonly isComputerRunning: () => boolean;
   readonly isPaused?: () => boolean;
+  readonly isBotPaused?: (slug: string) => boolean;
 
   readonly runBotOperation?: <T>(
     operation: (signal?: AbortSignal) => Promise<T>,
@@ -150,19 +151,27 @@ export function createComputerToolProvider(
   options: ComputerToolProviderOptions,
 ): ComputerToolProvider {
   const { ctx, driver, isComputerRunning, isAutoAllowed, audit, core } = options;
-  const assertNotPaused = (): void => {
+  const note = options.note ?? ((): void => undefined);
+  const assertNotPaused = (slug: string): void => {
     if (options.isPaused?.() === true)
       throw new Error(
         'Computer Pause is active: the Human is using the desktop from the phone. Wait for them to hand it back, then take a fresh screenshot before acting',
       );
+    if (options.isBotPaused?.(slug) === true) {
+      note(`phase=control-refused owner=browser-pause slug=${slug}`);
+      throw new Error(
+        'Browser Pause is active for this PersonaBot: the Human holds its Bot Browser. Wait for them to Resume, then take a fresh screenshot before acting',
+      );
+    }
   };
   const inflight = new Set<Promise<unknown>>();
   const botCall = async (
+    slug: string,
     raw: string,
     args: Record<string, unknown>,
     signal: AbortSignal,
   ): Promise<unknown> => {
-    assertNotPaused();
+    assertNotPaused(slug);
     if (signal.aborted) throw new Error('Computer operation was cancelled before admission');
     const call =
       options.runBotOperation === undefined
@@ -174,7 +183,7 @@ export function createComputerToolProvider(
     inflight.add(call);
     try {
       const result = await call;
-      assertNotPaused();
+      assertNotPaused(slug);
       return result;
     } finally {
       inflight.delete(call);
@@ -197,7 +206,6 @@ export function createComputerToolProvider(
       clearTimeout(timer);
     }
   };
-  const note = options.note ?? ((): void => undefined);
   const onActivity = options.onActivity ?? ((): void => undefined);
 
   const sessions = new Map<string, { scope: Context; disposed: boolean }>();
@@ -279,10 +287,10 @@ export function createComputerToolProvider(
                 'The Computer is not running; ask the Human to start it from the Computer panel',
               );
             }
-            assertNotPaused();
+            assertNotPaused(slug);
             const started = Date.now();
             try {
-              const result = await botCall(raw, args, execution.signal);
+              const result = await botCall(slug, raw, args, execution.signal);
               const failed =
                 typeof result === 'object' &&
                 result !== null &&
@@ -430,7 +438,7 @@ export function createComputerToolProvider(
         throw new Error('Computer Access is off for this PersonaBot');
       if (!isComputerRunning())
         throw new Error('The Computer is not running; start it with computer-start first');
-      const result = await botCall(raw, args, signal);
+      const result = await botCall(slug, raw, args, signal);
       const failed =
         typeof result === 'object' &&
         result !== null &&

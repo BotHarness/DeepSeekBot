@@ -1,3 +1,4 @@
+import { isChannelMessageVoice, type ChannelMessageVoice } from './voice.js';
 import { parseToolApprovalActor } from '../workspaces/tool-approval-actor.js';
 import { createHash } from 'node:crypto';
 import { isValidSlug } from '../bots/slug.js';
@@ -15,6 +16,12 @@ import {
   type PrivateInputCard,
   type PrivateInputResolution,
 } from '../credentials/contracts.js';
+import {
+  isTakeoverRequestCard,
+  isTakeoverResolution,
+  type TakeoverRequestCard,
+  type TakeoverResolution,
+} from '../takeover/contracts.js';
 
 export type ChannelType = 'dm' | 'group';
 
@@ -464,8 +471,11 @@ export interface ChannelMessage {
   userQuestionResolution?: ChannelQuestionResolution;
   privateInputRequest?: PrivateInputCard;
   privateInputResolution?: PrivateInputResolution;
+  takeoverRequest?: TakeoverRequestCard;
+  takeoverResolution?: TakeoverResolution;
   attachments?: ChannelAttachmentRef[];
   clearedAttachments?: ChannelClearedAttachment[];
+  voice?: ChannelMessageVoice;
   bridgeMedia?: {
     voice?: Pick<import('../messaging/provider.js').MessagingVoice, 'transcript' | 'durationMs'>;
     video?: { attachmentId: string; durationMs?: number; posterAttachmentId?: string };
@@ -499,6 +509,8 @@ export interface ChannelMessage {
 
   perf?: ChannelMessagePerf;
 }
+
+export { isChannelMessageVoice, type ChannelMessageVoice };
 
 export interface ChannelMessagePerf {
   outputTokens: number;
@@ -1060,6 +1072,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
         pause['reason'] !== 'session')
     )
       return false;
+  } else if (message['takeoverResolution'] !== undefined) {
   } else if (
     (message['author'] as ChannelMessageAuthor)?.kind === 'system' &&
     !(
@@ -1125,6 +1138,12 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
     (!Array.isArray(attachments) ||
       attachments.length > 10 ||
       !attachments.every(isChannelAttachmentRef))
+  )
+    return false;
+  if (
+    message['voice'] !== undefined &&
+    (!isChannelMessageVoice(message['voice']) ||
+      !['bot', 'remote-bot'].includes((message['author'] as ChannelMessageAuthor)?.kind))
   )
     return false;
   const cleared = message['clearedAttachments'];
@@ -1251,6 +1270,26 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
           typeof ref === 'string' && /^private:[0-9a-f-]{36}:[a-z][a-z0-9_]{0,47}$/.test(ref),
       )
     )
+      return false;
+  }
+  const takeoverRequest = message['takeoverRequest'];
+  if (
+    takeoverRequest !== undefined &&
+    (!isTakeoverRequestCard(takeoverRequest) ||
+      (message['author'] as ChannelMessageAuthor)?.kind !== 'bot')
+  )
+    return false;
+  const takeoverResolution = message['takeoverResolution'];
+  if (takeoverResolution !== undefined) {
+    if (!isTakeoverResolution(takeoverResolution)) return false;
+    const author = (message['author'] as ChannelMessageAuthor)?.kind;
+    const expected =
+      takeoverResolution.by === 'human'
+        ? 'human'
+        : takeoverResolution.by === 'bot'
+          ? 'bot'
+          : 'system';
+    if (author !== expected || message['replyTo'] !== takeoverResolution.requestMessageId)
       return false;
   }
   const external = message['external'];
