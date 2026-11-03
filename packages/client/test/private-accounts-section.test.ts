@@ -231,6 +231,7 @@ it('polls and submits a pending replacement in the Channel its account came from
   const { store } = await import('../src/client/store.js');
   const replacement = '22222222-2222-4222-8222-222222222222';
   store.setConversation({
+    channel: { id: 'group-team', type: 'group', name: 'Team', members: ['ada'] } as never,
     messages: [
       {
         id: replacement,
@@ -260,7 +261,14 @@ it('polls and submits a pending replacement in the Channel its account came from
     await vi.waitFor(() => expect(status).toHaveBeenCalled());
     expect(status).toHaveBeenCalledWith('group-team', replacement);
     expect(status).not.toHaveBeenCalledWith('dm-ada', replacement);
+    store.setConversation({
+      channel: { id: 'dm-ada', type: 'dm', botSlug: 'ada', members: ['ada'] } as never,
+    });
+    await render();
+    expect(host.querySelector('.bh-private-input-card')).toBeNull();
+    await act(async () => button(zhTranslate('privateAccounts.openRequest')).click());
+    expect(actions.openChannelAtMessage).toHaveBeenCalledWith('group-team', replacement);
   } finally {
-    store.setConversation({ messages: [] });
+    store.setConversation({ channel: undefined, messages: [] } as never);
   }
 });

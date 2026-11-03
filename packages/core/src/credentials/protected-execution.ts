@@ -24,37 +24,35 @@ const AUTHENTICATED_REQUEST_CLI = String.raw`
 let input='';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', c => { input+=c; if(input.length>200000) process.exit(2); });
+const classify=(error)=>{
+  const code=String(error?.cause?.code ?? error?.code ?? '');
+  return error?.name==='TimeoutError' ? 'timeout'
+    : ['ENOTFOUND','EAI_AGAIN','EAI_NONAME','EAI_FAIL'].includes(code) ? 'dns'
+    : ['ECONNREFUSED','ECONNRESET','EHOSTUNREACH','ENETUNREACH','ETIMEDOUT','EPIPE','UND_ERR_SOCKET','UND_ERR_CONNECT_TIMEOUT'].includes(code) ? 'connection'
+    : /CERT|SSL|TLS|SELF_SIGNED|ALTNAME/.test(code) ? 'tls'
+    : 'network';
+};
 process.stdin.on('end', async () => {
+  let request;
+  try { request=JSON.parse(input); input=''; } catch { process.exitCode=2; return; }
+  const mask=(text)=>{ for(const secret of request.mask){ for(const form of [secret, Buffer.from(secret).toString('base64'), encodeURIComponent(secret)])
+    if(form.length>=6) text=text.split(form).join('[secret]'); } return text; };
+  let output;
   try {
-    const request=JSON.parse(input); input='';
-    let response;
-    try {
-      response=await fetch(request.url, {method:request.method, redirect:'manual', headers:request.headers,
-        ...(request.body===undefined ? {} : {body:request.body}), signal:AbortSignal.timeout(20000)});
-    } catch (error) {
-      const code=String(error?.cause?.code ?? error?.code ?? '');
-      const failure=error?.name==='TimeoutError' ? 'timeout'
-        : ['ENOTFOUND','EAI_AGAIN','EAI_NONAME','EAI_FAIL'].includes(code) ? 'dns'
-        : ['ECONNREFUSED','ECONNRESET','EHOSTUNREACH','ENETUNREACH','ETIMEDOUT','EPIPE','UND_ERR_SOCKET','UND_ERR_CONNECT_TIMEOUT'].includes(code) ? 'connection'
-        : /CERT|SSL|TLS|SELF_SIGNED|ALTNAME/.test(code) ? 'tls'
-        : 'network';
-      process.stdout.write(JSON.stringify({failure}));
-      return;
-    }
-    const mask=(text)=>{ for(const secret of request.mask){ for(const form of [secret, Buffer.from(secret).toString('base64'), encodeURIComponent(secret)])
-      if(form.length>=6) text=text.split(form).join('[secret]'); } return text; };
+    const response=await fetch(request.url, {method:request.method, redirect:'manual', headers:request.headers,
+      ...(request.body===undefined ? {} : {body:request.body}), signal:AbortSignal.timeout(20000)});
     if(response.status>=300 && response.status<400 && response.headers.has('location')){
       await response.body?.cancel();
-      process.stdout.write(JSON.stringify({status:response.status, contentType:response.headers.get('content-type')??'', body:'', truncated:false,
-        location:mask(String(response.headers.get('location')).slice(0,2000))}));
-      return;
+      output={status:response.status, contentType:response.headers.get('content-type')??'', body:'', truncated:false,
+        location:mask(String(response.headers.get('location'))).slice(0,2000)};
+    } else {
+      const reader=response.body?.getReader(); const chunks=[]; let size=0; let truncated=false;
+      while(reader){ const {done,value}=await reader.read(); if(done) break; size+=value.length;
+        if(size>request.limit){ truncated=true; await reader.cancel(); break; } chunks.push(value); }
+      output={status:response.status, contentType:response.headers.get('content-type')??'', body:mask(Buffer.concat(chunks).toString('utf8')), truncated};
     }
-    const reader=response.body?.getReader(); const chunks=[]; let size=0; let truncated=false;
-    while(reader){ const {done,value}=await reader.read(); if(done) break; size+=value.length;
-      if(size>request.limit){ truncated=true; await reader.cancel(); break; } chunks.push(value); }
-    const text=mask(Buffer.concat(chunks).toString('utf8'));
-    process.stdout.write(JSON.stringify({status:response.status, contentType:response.headers.get('content-type')??'', body:text, truncated}));
-  } catch { process.exitCode=2; }
+  } catch (error) { output={failure:classify(error)}; }
+  process.stdout.write(JSON.stringify(output));
 });
 `;
 

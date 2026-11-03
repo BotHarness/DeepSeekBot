@@ -26,6 +26,13 @@ async function echo(): Promise<{ base: string; seen: Array<Record<string, unknow
     });
     request.on('end', () => {
       seen.push({ method: request.method, url: request.url, headers: request.headers, body });
+      if (request.url?.startsWith('/v1/long-redirect')) {
+        response.writeHead(307, {
+          location: `http://127.0.0.1:9/${'a'.repeat(1970)}SYNTHETIC-token-value`,
+        });
+        response.end();
+        return;
+      }
       if (request.url?.startsWith('/v1/redirect')) {
         response.writeHead(302, { location: 'http://127.0.0.1:9/elsewhere' });
         response.end();
@@ -165,6 +172,13 @@ describe('Host-run secret HTTP consumer', () => {
         location: 'http://127.0.0.1:9/elsewhere',
         action: expect.stringContaining('redirect'),
       });
+      const long = await execution.authenticatedRequest(
+        { ...request, path: '/long-redirect' },
+        ['SYNTHETIC-token-value'],
+        signal,
+      );
+      expect(long.location).not.toContain('SYNTHETIC');
+      expect(long.location?.length).toBeLessThanOrEqual(2000);
       const sent = seen.length;
       for (const unsafe of [
         { ...request, path: '/items', method: 'TRACE' },
@@ -207,6 +221,23 @@ describe('Host-run secret HTTP consumer', () => {
           signal,
         ),
       ).rejects.toThrow(/could not be resolved|could not connect|failed on the network/);
+      const stalled = createServer((_request, response) => {
+        response.writeHead(200, { 'content-type': 'application/json' });
+        response.write('{"partial":');
+        setTimeout(() => response.socket?.destroy(), 50);
+      });
+      servers.push(stalled);
+      await new Promise<void>((resolve) => stalled.listen(0, '127.0.0.1', resolve));
+      await expect(
+        execution.authenticatedRequest(
+          {
+            ...request,
+            endpoint: `http://127.0.0.1:${(stalled.address() as AddressInfo).port}`,
+          },
+          [],
+          signal,
+        ),
+      ).rejects.toBeInstanceOf(SecretHttpRefusal);
     } finally {
       await execution.close();
     }
