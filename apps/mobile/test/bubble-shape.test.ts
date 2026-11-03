@@ -10,12 +10,18 @@ import {
 import { radius, space } from '../src/ui/design/tokens';
 
 describe('bubbleShape', () => {
-  it('rounds a lone Bot bubble on every corner', () => {
+  it('gives a lone multi-line bubble a tight tail corner on the author side', () => {
     expect(bubbleShape(false, { first: true, last: true })).toMatchObject({
       alignSelf: 'flex-start',
       maxWidth: BUBBLE_MAX,
+      borderRadius: radius.lg,
       borderTopLeftRadius: radius.lg,
-      borderBottomLeftRadius: radius.lg,
+      borderBottomLeftRadius: AVATAR_CORNER,
+    });
+    expect(bubbleShape(true, { first: true, last: true })).toMatchObject({
+      borderRadius: radius.lg,
+      borderTopRightRadius: radius.lg,
+      borderBottomRightRadius: AVATAR_CORNER,
     });
   });
 
@@ -27,7 +33,7 @@ describe('bubbleShape', () => {
     expect(bubbleShape(true, { first: false, last: true })).toMatchObject({
       alignSelf: 'flex-end',
       borderTopRightRadius: radius.sm,
-      borderBottomRightRadius: radius.lg,
+      borderBottomRightRadius: AVATAR_CORNER,
     });
   });
 
@@ -75,7 +81,7 @@ describe('bubbleShape', () => {
     expect(bubbleShape(false, { first: false, last: true, compact: true })).toMatchObject({
       borderRadius: radius.lg,
       borderTopLeftRadius: radius.sm,
-      borderBottomLeftRadius: radius.lg,
+      borderBottomLeftRadius: AVATAR_CORNER,
     });
   });
 

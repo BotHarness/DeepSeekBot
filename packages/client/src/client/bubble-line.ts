@@ -18,13 +18,8 @@ function measure(bubble: HTMLElement): void {
       Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom),
       lineHeightOf(body),
     );
-  if (single) {
-    bubble.dataset['singleLine'] = '';
-    bubble.style.setProperty('--bh-bubble-pill', `${bubble.offsetHeight / 2}px`);
-  } else {
-    delete bubble.dataset['singleLine'];
-    bubble.style.removeProperty('--bh-bubble-pill');
-  }
+  if (single) bubble.dataset['singleLine'] = '';
+  else delete bubble.dataset['singleLine'];
 }
 
 export function observeSingleLineBubble(wrap: HTMLElement): (() => void) | undefined {

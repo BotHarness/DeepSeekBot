@@ -12,22 +12,20 @@ export const BADGE_HEIGHT = space.x6 + space.x2;
 
 export const BADGE_OVERLAP = BADGE_HEIGHT / 2 + space.x2;
 
-export function bubbleCorners(
-  human: boolean,
-  { first, last, avatar = false, compact = false }: BubbleGroup,
-) {
+export function bubbleCorners(human: boolean, { first, last, compact = false }: BubbleGroup) {
   const pill = compact && first && last;
   const open = pill ? radius.round : radius.lg;
+  const tail = pill ? radius.round : AVATAR_CORNER;
   return {
     borderRadius: open,
     ...(human
       ? {
           borderTopRightRadius: first ? open : radius.sm,
-          borderBottomRightRadius: last ? open : radius.sm,
+          borderBottomRightRadius: last ? tail : radius.sm,
         }
       : {
           borderTopLeftRadius: first ? open : radius.sm,
-          borderBottomLeftRadius: last ? (avatar && !pill ? AVATAR_CORNER : open) : radius.sm,
+          borderBottomLeftRadius: last ? tail : radius.sm,
         }),
   } as const;
 }
