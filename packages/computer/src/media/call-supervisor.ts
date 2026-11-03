@@ -411,13 +411,6 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
               throw new CallMediaError('helper-failed', 'The audio is empty or too large.');
             const playback = `p${(playbackSeq += 1)}`;
             const encoded = Buffer.from(audio).toString('base64');
-            for (let offset = 0; offset < encoded.length; offset += AUDIO_CHUNK) {
-              playSignal.throwIfAborted();
-              await request('audio', {
-                playback,
-                data: encoded.slice(offset, offset + AUDIO_CHUNK),
-              });
-            }
             const done = new Promise<void>((resolve, reject) =>
               playbacks.set(playback, { resolve, reject }),
             );
@@ -431,10 +424,19 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
             };
             playSignal.addEventListener('abort', stop, { once: true });
             try {
+              for (let offset = 0; offset < encoded.length; offset += AUDIO_CHUNK) {
+                playSignal.throwIfAborted();
+                await request('audio', {
+                  playback,
+                  data: encoded.slice(offset, offset + AUDIO_CHUNK),
+                });
+              }
+              playSignal.throwIfAborted();
               await request('play', { playback, mime: mime.slice(0, 40) });
               await done;
             } finally {
               playSignal.removeEventListener('abort', stop);
+              playbacks.delete(playback);
             }
           },
           close,

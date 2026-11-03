@@ -100,6 +100,8 @@ function script(values: CallValues): ScriptEntry[] {
   });
 }
 
+const SIMULATION_BUDGET_MS = 540_000;
+
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 function pcmBase64(samples: Int16Array): string {
@@ -132,6 +134,25 @@ async function simulate(
   const replyWaitMs = Number(values['reply-wait'] ?? 90) * 1000;
   if (!Number.isFinite(replyWaitMs) || replyWaitMs < 1_000 || replyWaitMs > 540_000)
     usage('--reply-wait must be 1–540 seconds.');
+  const timeline: Int16Array[] = [];
+  for (const step of steps) {
+    const gap = Math.max(
+      0,
+      Math.round((step.at * 16_000) / 1000) - timeline.reduce((n, part) => n + part.length, 0),
+    );
+    if (gap > 0) timeline.push(new Int16Array(gap));
+    timeline.push(step.audio);
+  }
+  timeline.push(new Int16Array(24_000));
+  const total = timeline.reduce((sum, part) => sum + part.length, 0);
+  if ((total / 16_000) * 1000 + replyWaitMs > SIMULATION_BUDGET_MS)
+    usage('The audio timeline plus --reply-wait must fit in 9 minutes.');
+  const audio = new Int16Array(total);
+  let offset = 0;
+  for (const part of timeline) {
+    audio.set(part, offset);
+    offset += part.length;
+  }
   const opened = result(await post({ kind: 'open', slug, media: 'synthetic' }));
   const call = opened['call'] as VoiceCallView;
   const callId = call.callId;
@@ -149,23 +170,6 @@ async function simulate(
   const silence = new Int16Array(CHUNK);
   let streamMs = 0;
   try {
-    const timeline: Int16Array[] = [];
-    for (const step of steps) {
-      const gap = Math.max(
-        0,
-        Math.round((step.at * 16_000) / 1000) - timeline.reduce((n, part) => n + part.length, 0),
-      );
-      if (gap > 0) timeline.push(new Int16Array(gap));
-      timeline.push(step.audio);
-    }
-    timeline.push(new Int16Array(24_000));
-    const total = timeline.reduce((sum, part) => sum + part.length, 0);
-    const audio = new Int16Array(total);
-    let offset = 0;
-    for (const part of timeline) {
-      audio.set(part, offset);
-      offset += part.length;
-    }
     for (let position = 0; position < audio.length; position += CHUNK) {
       const due = started + (position / 16_000) * 1000;
       const wait = due - clock.now();

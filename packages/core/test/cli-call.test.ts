@@ -145,6 +145,18 @@ describe('deepseekbot call commands', () => {
     expect(posts.at(-1)).toMatchObject({ kind: 'hangup' });
   });
 
+  it('refuses a timeline and reply wait that would outlast the Host connection, before opening', async () => {
+    const root = createTempRoot('cli-call-');
+    const file = wav(root, 'q.wav', speech(500));
+    const scriptFile = join(root, 'late.json');
+    writeFileSync(scriptFile, JSON.stringify([{ at: 500_000, file }]));
+    const { run, posts } = host();
+    await expect(
+      run('call-simulate', ['ada'], { script: scriptFile, 'reply-wait': '90' }),
+    ).rejects.toMatchObject({ code: 'usage' });
+    expect(posts).toEqual([]);
+  });
+
   it('reads readiness and status, and refuses bad arguments before connecting', async () => {
     const { run, posts } = host();
     expect(await run('call-readiness', ['ada'])).toMatchObject({

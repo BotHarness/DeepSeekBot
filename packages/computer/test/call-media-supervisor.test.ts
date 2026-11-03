@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -29,11 +29,14 @@ process.stdin.on('data', (chunk) => {
   while ((newline = input.indexOf('\n')) >= 0) {
     const request = JSON.parse(input.slice(0, newline));
     input = input.slice(newline + 1);
+    require('node:fs').appendFileSync(require('node:path').join(__dirname, 'ops.log'), request.op + '\n');
     const value =
       request.op === 'offer'
         ? { offer: { type: 'offer', sdp: 'v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\n' } }
         : null;
-    helper({ id: request.id, ok: true, value });
+    const reply = () => helper({ id: request.id, ok: true, value });
+    if (request.op === 'audio') setTimeout(reply, 50);
+    else reply();
   }
 });
 process.stdin.on('end', () => {
@@ -48,8 +51,10 @@ afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
 });
 
+let root = '';
+
 async function media(events: string[]) {
-  const root = await mkdtemp(join(tmpdir(), 'call-media-test-'));
+  root = await mkdtemp(join(tmpdir(), 'call-media-test-'));
   roots.push(root);
   await writeFile(join(root, 'launcher-macos.cjs'), FAKE_LAUNCHER);
   return createCallMedia({
@@ -81,5 +86,23 @@ describe('call media supervisor', () => {
     const second = await open(calls, 'call-2');
     expect(second.offer?.type).toBe('offer');
     await second.close();
+  });
+
+  it('stops a reply interrupted while its audio uploads and never starts it', async () => {
+    const calls = await media([]);
+    const call = await open(calls, 'call-3');
+    const interrupt = new AbortController();
+    const playing = call.play(
+      new Uint8Array([0x49, 0x44, 0x33, 1]),
+      'audio/mpeg',
+      interrupt.signal,
+    );
+    setTimeout(() => interrupt.abort(), 10);
+    await expect(playing).rejects.toThrow();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const ops = (await readFile(join(root, 'ops.log'), 'utf8')).trim().split('\n');
+    expect(ops).toContain('stop');
+    expect(ops).not.toContain('play');
+    await call.close();
   });
 });
