@@ -15,6 +15,7 @@ import { externalPermissionGroups } from '../src/messaging/permission-groups.js'
 import { behaviorPermissions } from '../src/messaging/behavior-permissions.js';
 import { readSenderPermissions } from '../src/messaging/sender-access.js';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
+import { createHumanAttentionQuery } from '../src/runtime/human-attention.js';
 import { createDshImProvider, type DshImOutboundService } from '../src/messaging/dsh-im.js';
 import type { MessagingInboundEvent } from '../src/messaging/provider.js';
 import { createTempRoot } from './helpers.js';
@@ -1078,4 +1079,31 @@ it('an unbound identity cannot exhaust the replacement identity approved-capacit
     capabilities: ['answer'],
   });
   expect(f.pairing.assert('ada', 'replacement', 'ou_user0', 'answer').id).toBe(request.id);
+});
+
+it('pending pairing requests reach the action inbox until reviewed', () => {
+  const f = fixture();
+  const attention = createHumanAttentionQuery(attachOperationalModule(f.owner, 'human-attention'));
+  const actions = () =>
+    attention
+      .list({ category: 'action', sort: 'newest' })
+      .items.filter((item) => item.kind === 'pairing-request');
+  const management = f.pairing.request('binding', event());
+  const conversation = f.pairing.request('binding', event('ou_bob', 'message-2'), 'conversation');
+  expect(actions()).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        botSlug: 'ada',
+        channelId: 'dm-ada',
+        requestId: management.id,
+        summary: `management · Alice QA · ${management.reference}`,
+      }),
+      expect.objectContaining({
+        requestId: conversation.id,
+        summary: `conversation · Alice QA · ${conversation.reference}`,
+      }),
+    ]),
+  );
+  f.pairing.review('ada', { kind: 'reject', id: management.id, expectedRevision: 1 });
+  expect(actions().map((item) => item.requestId)).toEqual([conversation.id]);
 });

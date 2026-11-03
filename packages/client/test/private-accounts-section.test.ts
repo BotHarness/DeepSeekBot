@@ -37,6 +37,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   IconCheckOutlineRegular: () => null,
   IconCloseOutlineRegular: () => null,
   IconRefreshOutlineRegular: () => null,
+  IconInfoOutlineRegular: () => null,
+  Input: (props: Record<string, unknown>) => createElement('input', props),
   IconEllipsisOutlineRegular: () => null,
   relativeTime: () => ({ unit: 'now', n: 0 }),
 }));
@@ -223,4 +225,50 @@ it('says the list cannot be read instead of showing it as empty', async () => {
     zhTranslate('privateAccounts.unavailable'),
   );
   expect(host.textContent).not.toContain(zhTranslate('privateAccounts.empty'));
+});
+
+it('polls and submits a pending replacement in the Channel its account came from', async () => {
+  const { store } = await import('../src/client/store.js');
+  const replacement = '22222222-2222-4222-8222-222222222222';
+  store.setConversation({
+    channel: { id: 'group-team', type: 'group', name: 'Team', members: ['ada'] } as never,
+    messages: [
+      {
+        id: replacement,
+        at: '2026-11-03T00:00:00.000Z',
+        author: { kind: 'bot', slug: 'ada' },
+        body: 'Check the controlled service',
+        privateInputRequest: {
+          account: 'synthetic',
+          purpose: 'Check the controlled service',
+          fields: [{ id: 'api_key', label: 'API key', required: true }],
+          replacesMessageId: CARD,
+        },
+      },
+    ] as never,
+  });
+  const status = vi.fn(async () => 'pending' as const);
+  (actions as unknown as { privateInputStatus: typeof status }).privateInputStatus = status;
+  list = {
+    status: 'ready',
+    accounts: [
+      { ...row, channelId: 'group-team', status: 'replacing', replacementMessageId: replacement },
+    ],
+    replaceable: true,
+  };
+  try {
+    await render();
+    await vi.waitFor(() => expect(status).toHaveBeenCalled());
+    expect(status).toHaveBeenCalledWith('group-team', replacement);
+    expect(status).not.toHaveBeenCalledWith('dm-ada', replacement);
+    store.setConversation({
+      channel: { id: 'dm-ada', type: 'dm', botSlug: 'ada', members: ['ada'] } as never,
+    });
+    await render();
+    expect(host.querySelector('.bh-private-input-card')).toBeNull();
+    await act(async () => button(zhTranslate('privateAccounts.openRequest')).click());
+    expect(actions.openChannelAtMessage).toHaveBeenCalledWith('group-team', replacement);
+  } finally {
+    store.setConversation({ channel: undefined, messages: [] } as never);
+  }
 });

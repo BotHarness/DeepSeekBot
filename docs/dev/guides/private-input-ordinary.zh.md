@@ -20,7 +20,7 @@
 
 - 值保存在 DSH 原生凭据存储中，绑定到发起请求的 Bot 和账号，其他 Bot 无法使用。
 - Channel 历史里只有请求和引用。
-- `secret_http` 只会把密钥发往 Owner 填写的地址。拒绝跳转；只有本机地址允许明文 http。地址可以自带查询串，它会保留在每次请求上，并和密钥一样在返回内容里被掩码。Host 在发送前拒绝的请求会以 `refused` 加原因返回，Bot 可以据此解释。返回文本中的密钥会以原文、base64、URL 编码三种形式被掩码；掩码只是防止意外回显，不是安全边界。
+- `secret_http` 只会把密钥发往 Owner 填写的地址。不跟随跳转：遇到跳转时返回状态码和 `location`（其中的密钥会被掩码）；只有本机地址允许明文 http。地址可以自带查询串，它会保留在每次请求上，并和密钥一样在返回内容里被掩码。Host 在发送前拒绝的请求，以及连不上 API 的请求（超时、域名解析失败、连接被拒、证书不被接受），都会以 `refused` 加原因返回，Bot 可以据此解释。返回文本中的密钥会以原文、base64、URL 编码三种形式被掩码；掩码只是防止意外回显，不是安全边界。
 - Agent 读不到凭据存储。DSH 把每条 Shell 命令放在系统沙箱中运行，Host 额外加一条“不可读取凭据存储”的规则：macOS 上是 Seatbelt 规则，Linux 的 bwrap 下用空文件遮盖。针对该存储的 Agent 文件工具，以及点名它的 Shell 命令，在弹出审批卡之前就会被拒绝。
 
 ## 限制
@@ -60,6 +60,14 @@ Bot 会调用 `secret_mcp_connect`。预期：审批卡写明启动程序和参�
 请把 MCP 服务当作你安装并信任的程序，这和其他 MCP 客户端的做法一致。除了拿到密钥，它还能把自己的说明写进 Bot 的系统提示，它的工具描述和返回结果也会交给模型。服务里的文字，或者它返回的数据（比如别人写的一个 issue），都可能引导 Bot 做事。每次工具调用仍然需要审批，除非你保存了规则或开了完全访问。
 
 不依赖真实服务的本地验证：启动 `node scripts/ask-secret-fixture.mjs 31381`，让 Bot 用 `STATUS_ENDPOINT`、`STATUS_API_KEY`、`STATUS_API_SECRET` 接上 `node <仓库>/scripts/secret-mcp-fixture.mjs`，然后调用 `check_status`（应为 200）和 `describe_setup`（key 应显示为 `[secret]`）。
+
+## 出错时
+
+每种失败都会给出原因，原因中不含任何私密值：
+
+- Host 没有接收的提交，会在卡片上显示原因代码，例如 `not-pending`（请求已过期、已被回答，或在 Host 重启后失效）、`invalid-fields`、`store-unavailable`、`save-failed`、`version-changed`。`deepseekbot ask-secret-submit` 输出同样的代码。
+- 使用私密信息的工具调用失败时，Bot 能看到原因：API 超时、域名解析失败、连接被拒、证书不被接受、endpoint 不是 https、重定向未被跟随、辅助进程或命令超时、MCP 服务没有在时限内启动，或 Host 读不了凭据存储。凭据存储读取失败不再被说成"账号已被移除"，Bot 因此不会再次索要密钥。
+- 每一步（请求、提交、使用、拒绝、失败）都会以来源 `private-input` 写入全局诊断日志，失败记为 warning，带 Bot、请求 id、工具和原因。导出诊断日志即可附到 issue 里反馈。
 
 ## Owner CLI
 

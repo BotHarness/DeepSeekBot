@@ -1389,7 +1389,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     if (media['voice'] !== undefined) {
       const voice = asRecord(media['voice']);
       if (
-        bridgeOrigin.platform !== 'qq' ||
+        (bridgeOrigin.platform !== 'qq' && bridgeOrigin.platform !== 'feishu') ||
         !voice ||
         Object.keys(voice).some((key) => !['transcript', 'durationMs'].includes(key)) ||
         (voice['transcript'] !== 'platform' && voice['transcript'] !== 'unavailable') ||
@@ -4275,8 +4275,19 @@ export async function submitPrivateInput(
   const result = await call('privateInputSubmit', { channelId, messageId, values });
   if (!result.ok)
     throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
-  if ((result.value as { accepted?: unknown }).accepted !== true)
-    throw new Error('Private input was not accepted');
+  privateInputAccepted(result.value);
+}
+
+export function privateInputAccepted(value: unknown): void {
+  const { accepted, reason } = (value ?? {}) as { accepted?: unknown; reason?: unknown };
+  if (accepted === true) return;
+  throw new BridgeCallError(
+    'private-input-not-accepted',
+    typeof reason === 'string'
+      ? 'Private input was not accepted: ' + reason
+      : 'Private input was not accepted',
+    typeof reason === 'string' ? { reason } : undefined,
+  );
 }
 
 export async function cancelPrivateInput(
@@ -4629,6 +4640,7 @@ export function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
       return undefined;
     if (
       item['kind'] !== 'group-join-request' &&
+      item['kind'] !== 'pairing-request' &&
       item['kind'] !== 'user-question' &&
       item['kind'] !== 'private-input' &&
       item['kind'] !== 'tool-approval' &&
@@ -4668,6 +4680,8 @@ export function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
     )
       return undefined;
     if (item['requestId'] !== undefined && typeof item['requestId'] !== 'string') return undefined;
+    if (item['kind'] === 'pairing-request' && typeof item['requestId'] !== 'string')
+      return undefined;
     if (item['messageId'] !== undefined && typeof item['messageId'] !== 'string') return undefined;
     if (item['snoozedUntil'] !== undefined && typeof item['snoozedUntil'] !== 'string')
       return undefined;

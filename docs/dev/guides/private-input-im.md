@@ -1,6 +1,8 @@
 # Request private input from IM and complete it in Web Chat
 
-A Profile with `privateInputWebUrl` set can accept an authorized IM request, ask its Owner for confidential fields in the existing PersonaBot Web DM, consume their references under existing execution approval and reply to the original IM conversation with a nonsecret result. The first real-provider qualification is a Lark QA2 DM. This does not add native IM secret forms or qualify arbitrary CLI/MCP consumers.
+A Profile can accept an authorized IM request, ask its Owner for confidential fields in the existing PersonaBot Web DM, consume their references under existing execution approval and reply to the original IM conversation with a nonsecret result. The first real-provider qualification is a Lark QA2 DM. This does not add native IM secret forms or qualify arbitrary CLI/MCP consumers.
+
+Without `privateInputWebUrl` the flow still works: the card opens in the PersonaBot's Chat and the IM notice tells the Owner to fill it in there, without a link. Setting the Web origin only adds a link to the notice ([#3340](https://github.com/BotHarness/DeepSeekBot/issues/3340)).
 
 Secret input itself needs no setup ([ordinary Profile guide](private-input-ordinary.md)). This flow was qualified in the Docker-protected Profile that has since been removed ([ADR-0192](../../adr/0192-the-docker-protected-profile-is-removed.md)); it has not been re-run against a real IM App since. Configure an independent [test App](../../agents/im-test-apps.md) and bind it to a real PersonaBot using the existing qualified Provider. Do not start another receiver for an App already used by another Host. Keep QA1 and production Profiles separate.
 

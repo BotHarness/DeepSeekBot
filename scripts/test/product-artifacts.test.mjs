@@ -324,7 +324,7 @@ describe('release composition', () => {
     expect(() => verifyProductComposition(entries)).toThrow('conflicts');
   });
   it('keeps product provenance independent when the development Provider selection changes', () => {
-    expect(productImProvider.upstream.source).toBe('e655636c061fa0aed8c77c23f7e87cb5abf79b65');
+    expect(productImProvider.upstream.source).toBe('bb0c7956896f5f5845950a0707837cd7938a11b3');
     expect(productImProvider.upstream.dsh).toBe('0.2.0-rc.2');
   });
 
@@ -339,7 +339,7 @@ describe('release composition', () => {
       '@botharness/computer': '0.0.0-test.823',
       '@botharness/core': '0.0.0-test.823',
       '@botharness/ui': '0.0.0-test.823',
-      '@botharness/im-provider': '4.32.0-botharness.26',
+      '@botharness/im-provider': '4.32.0-botharness.27',
     });
     expect(release.optionalDependencies).toEqual(
       Object.fromEntries(cloudflaredPackageNames.map((name) => [name, '0.0.0-test.823'])),
@@ -377,11 +377,11 @@ describe('release composition', () => {
 
 describe('product-managed Provider updates', () => {
   it('reports the running artifact without starting any independent check or installation job', () => {
-    expect(productManagedUpdate('update.status', {}, undefined, '4.32.0-botharness.26')).toEqual({
+    expect(productManagedUpdate('update.status', {}, undefined, '4.32.0-botharness.27')).toEqual({
       ok: true,
       value: {
-        runningVersion: '4.32.0-botharness.26',
-        installedVersion: '4.32.0-botharness.26',
+        runningVersion: '4.32.0-botharness.27',
+        installedVersion: '4.32.0-botharness.27',
         latestVersion: null,
         canInstall: false,
         sourceInstall: false,
@@ -405,7 +405,7 @@ describe('product-managed Provider updates', () => {
     'refuses %s so upstream update paths cannot replace the qualified artifact',
     (endpoint, payload) => {
       expect(
-        productManagedUpdate(endpoint, payload, undefined, '4.32.0-botharness.26'),
+        productManagedUpdate(endpoint, payload, undefined, '4.32.0-botharness.27'),
       ).toMatchObject({ ok: false, error: { code: 'product-managed' } });
     },
   );
@@ -413,7 +413,7 @@ describe('product-managed Provider updates', () => {
     const controller = new AbortController();
     controller.abort();
     expect(
-      productManagedUpdate('update.status', {}, controller.signal, '4.32.0-botharness.26'),
+      productManagedUpdate('update.status', {}, controller.signal, '4.32.0-botharness.27'),
     ).toMatchObject({ ok: false, error: { code: 'cancelled' } });
   });
 });

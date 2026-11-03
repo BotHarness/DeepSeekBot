@@ -386,16 +386,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
     channelId: string,
     messageId: string,
     values: Record<string, string>,
-  ): Promise<{ accepted: boolean }> {
+  ): Promise<{ accepted: boolean; reason?: string }> {
     this.requirePrivateOwner();
-    return {
-      accepted:
-        (await this.privateInputs?.submit(true, {
-          channelId,
-          messageId,
-          values,
-        })) ?? false,
-    };
+    if (this.privateInputs === undefined) return { accepted: false, reason: 'store-unavailable' };
+    return await this.privateInputs.submission(true, {
+      channelId,
+      messageId,
+      values,
+    });
   }
 
   async privateInputCancel(channelId: string, messageId: string): Promise<{ accepted: boolean }> {

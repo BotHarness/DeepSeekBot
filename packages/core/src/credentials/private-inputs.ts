@@ -7,7 +7,7 @@ import { dmChannelId } from '../channels/channel.js';
 import type { ChannelStore, ChannelAppendOnceResult } from '../channels/store.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { SessionOwnership } from '../sessions/ownership.js';
-import type { PrivateInputLog } from './diagnostics.js';
+import { PrivateInputFailure, type PrivateInputLog } from './diagnostics.js';
 import {
   PrivateInputRefusal,
   type PrivateInputOrigin,
@@ -23,6 +23,8 @@ import {
   type PrivateAccountStatus,
   type PrivateAccountSummary,
   type PrivateRevocationResult,
+  type PrivateSubmissionRefusal,
+  type PrivateSubmissionResult,
 } from './contracts.js';
 
 const grantFields = {
@@ -313,7 +315,10 @@ export class PrivateInputs {
           });
           if (result.status !== 'appended' && result.status !== 'existing')
             throw new Error('Private request reconciliation failed');
-          this.deps.log('recovered-expired', { requestId: message.id, botSlug: channel.botSlug });
+          this.deps.log('recovered-expired', {
+            requestId: message.id,
+            botSlug: channel.botSlug,
+          });
         }
         cursor = page.nextCursor;
       } while (cursor !== undefined);
@@ -456,7 +461,10 @@ export class PrivateInputs {
     if (origin !== undefined && this.status(channelId, opened.messageId) === 'pending') {
       try {
         await this.deps.notify!(owner.botSlug, origin, channelId, opened.messageId);
-        this.deps.log('im-notice-settled', { botSlug: owner.botSlug, requestId: opened.messageId });
+        this.deps.log('im-notice-settled', {
+          botSlug: owner.botSlug,
+          requestId: opened.messageId,
+        });
       } catch {
         const pending = this.#pending.get(opened.messageId);
         if (pending !== undefined) await this.#stop(opened.messageId, pending, 'expired');
@@ -592,7 +600,10 @@ export class PrivateInputs {
     } catch {
       committed = this.#resolution(channelId, id)?.state === state;
       if (!committed)
-        this.deps.log('terminal-save-failed', { requestId: id, botSlug: pending.botSlug });
+        this.deps.log('terminal-save-failed', {
+          requestId: id,
+          botSlug: pending.botSlug,
+        });
     }
     this.#finish(id, pending, {
       status: committed ? state : 'expired',
@@ -639,32 +650,46 @@ export class PrivateInputs {
   }
 
   async submit(owner: boolean, input: unknown): Promise<boolean> {
-    if (!owner) return false;
+    return (await this.submission(owner, input)).accepted;
+  }
+
+  async submission(owner: boolean, input: unknown): Promise<PrivateSubmissionResult> {
+    const refuse = (reason: PrivateSubmissionRefusal, botSlug?: string, requestId?: string) => {
+      this.deps.log('submit-refused', {
+        reason,
+        ...(botSlug === undefined ? {} : { botSlug }),
+        ...(requestId === undefined ? {} : { requestId }),
+      });
+      return { accepted: false, reason };
+    };
+    if (!owner) return refuse('not-owner');
     await this.recover();
     const parsed = privateSubmissionSchema.safeParse(input);
-    if (!parsed.success) return false;
+    if (!parsed.success) return refuse('invalid-fields');
     const { channelId, messageId, values } = parsed.data;
     const pending = this.#pending.get(messageId);
-    if (
-      pending === undefined ||
-      pending.operation !== undefined ||
-      channelId !== pending.channelId ||
-      this.status(channelId, messageId) !== 'pending'
-    )
-      return false;
+    if (pending === undefined || channelId !== pending.channelId)
+      return refuse('not-pending', undefined, messageId);
+    if (pending.operation !== undefined) return refuse('busy', pending.botSlug, messageId);
+    if (this.status(channelId, messageId) !== 'pending')
+      return refuse('not-pending', pending.botSlug, messageId);
     const fields = pending.request.fields;
     if (
       Object.keys(values).some((key) => !fields.some((field) => field.id === key)) ||
       fields.some((field) => field.required && (values[field.id]?.length ?? 0) === 0)
     )
-      return false;
+      return refuse('invalid-fields', pending.botSlug, messageId);
     const credentials = this.deps.credentials();
-    if (credentials === undefined) return false;
-    pending.operation = this.#accounts.serial(this.#scope(pending), () =>
+    if (credentials === undefined) return refuse('store-unavailable', pending.botSlug, messageId);
+    const operation = this.#accounts.serial(this.#scope(pending), () =>
       this.#submit(channelId, messageId, pending, credentials, values),
     );
+    pending.operation = operation.then(
+      (result) => result.accepted,
+      () => false,
+    );
     try {
-      return await pending.operation;
+      return await operation;
     } finally {
       pending.operation = undefined;
     }
@@ -676,8 +701,9 @@ export class PrivateInputs {
     pending: Pending,
     credentials: CredentialProvider,
     values: Record<string, string>,
-  ): Promise<boolean> {
+  ): Promise<PrivateSubmissionResult> {
     const grantId = randomUUID();
+    let stage: PrivateSubmissionRefusal = 'expired';
     const key = credentialKey('botharness-private', 'grant-' + grantId);
     const references = Object.fromEntries(
       pending.request.fields
@@ -691,8 +717,12 @@ export class PrivateInputs {
     try {
       if (!(await this.deps.qualified()) || !this.#valid(pending))
         throw new Error('Private input expired');
-      if ((await this.#accounts.read(this.#scope(pending)))?.revision !== pending.expectedRevision)
+      stage = 'store-unavailable';
+      const binding = await this.#accounts.read(this.#scope(pending));
+      stage = 'version-changed';
+      if (binding?.revision !== pending.expectedRevision)
         throw new Error('Private account version changed');
+      stage = 'save-failed';
       await credentials.modifyRecord(key, async (current) => {
         if (current !== undefined || !this.#valid(pending))
           throw new Error('Private grant unavailable');
@@ -710,11 +740,14 @@ export class PrivateInputs {
           },
         };
       });
+      stage = 'expired';
       if (!this.#valid(pending)) throw new Error('Private input expired');
+      stage = 'save-failed';
       await this.#accounts.commit(this.#scope(pending), pending.expectedRevision, grantId, () =>
         this.#valid(pending),
       );
       activated = true;
+      stage = 'not-committed';
       stopping = this.#stopUses(this.#scope(pending), 'replacement');
       try {
         await this.deps.channels.appendMessageOnce(
@@ -725,7 +758,11 @@ export class PrivateInputs {
             author: { kind: 'human' },
             replyTo: id,
             body: 'Private information configured',
-            privateInputResolution: { requestMessageId: id, state: 'configured', references },
+            privateInputResolution: {
+              requestMessageId: id,
+              state: 'configured',
+              references,
+            },
           },
           undefined,
           undefined,
@@ -745,9 +782,12 @@ export class PrivateInputs {
         JSON.stringify(committed.references) !== JSON.stringify(references)
       )
         throw new Error('Private input was not committed');
-    } catch {
+    } catch (error) {
+      if (stage === 'save-failed' && !this.#valid(pending)) stage = 'expired';
       this.deps.log('submit-failed', {
         requestId: id,
+        reason: stage,
+        errorName: error instanceof Error ? error.name : typeof error,
         botSlug: pending.botSlug,
         ...(pending.agent === undefined ? {} : { sessionId: pending.agent.session.id }),
       });
@@ -780,7 +820,7 @@ export class PrivateInputs {
       }
       for (const field of Object.keys(values)) delete values[field];
     }
-    return configured;
+    return configured ? { accepted: true } : { accepted: false, reason: stage };
   }
 
   async cancel(owner: boolean, channelId: string, messageId: string): Promise<boolean> {
@@ -811,19 +851,40 @@ export class PrivateInputs {
       return bot === undefined ? undefined : { botSlug: sharedFrom, createdAt: bot.createdAt };
     };
     const owner = grantOwner();
-    if (owner === undefined || !(await this.deps.qualified()))
-      throw new Error('Protected credential consumption is unavailable');
+    if (owner === undefined)
+      throw new PrivateInputFailure(
+        sharedFrom === undefined
+          ? 'Protected credential use needs the live main conversation Session of a PersonaBot; this Session is not one.'
+          : 'The PersonaBot that shares this account is unavailable.',
+        'no-owner',
+      );
+    if (!(await this.deps.qualified()))
+      throw new PrivateInputFailure(
+        'Protected credential use is unavailable in this Profile.',
+        'unqualified',
+      );
+    const invalidReferences = () =>
+      new PrivateInputFailure(
+        'Credential references are invalid: pass 1 to 8 references from one ask_secret result, each private:<id>:<field> used for its own field.',
+        'invalid-references',
+      );
     const entries = Object.entries(references);
-    if (entries.length === 0 || entries.length > 8)
-      throw new Error('Credential references are invalid');
-    const matches = entries.map(([field, ref]) => ({ field, match: referencePattern.exec(ref) }));
+    if (entries.length === 0 || entries.length > 8) throw invalidReferences();
+    const matches = entries.map(([field, ref]) => ({
+      field,
+      match: referencePattern.exec(ref),
+    }));
     const id = matches[0]?.match?.[1];
     if (
       id === undefined ||
       matches.some(({ field, match }) => match?.[1] !== id || match?.[2] !== field)
     )
-      throw new Error('Credential references are invalid');
-    const scope = { botSlug: owner.botSlug, botCreatedAt: owner.createdAt, account };
+      throw invalidReferences();
+    const scope = {
+      botSlug: owner.botSlug,
+      botCreatedAt: owner.createdAt,
+      account,
+    };
     const remembered = [...(this.#origins.get(agent)?.get(account)?.values() ?? [])].filter(
       (origin) => origin.applies(),
     );
@@ -855,8 +916,15 @@ export class PrivateInputs {
           throw new PrivateInputRefusal('private-account-unavailable');
         const currentOwner = grantOwner();
         if (currentOwner?.botSlug !== owner.botSlug || currentOwner.createdAt !== owner.createdAt)
-          throw new Error('Credential authority changed');
-        if (signal?.aborted) throw new Error('Protected credential consumer was cancelled');
+          throw new PrivateInputFailure(
+            'The PersonaBot that owns this account changed while the request was starting.',
+            'authority-changed',
+          );
+        if (signal?.aborted)
+          throw new PrivateInputFailure(
+            'The protected request was cancelled before it started.',
+            'cancelled',
+          );
         if (origin !== undefined && !origin.current())
           throw new PrivateInputRefusal('private-source-revoked');
         if (origin !== undefined) this.#guardReply(agent, scope, origin, () => true);
@@ -919,20 +987,59 @@ export class PrivateInputs {
         return { promise };
       })
       .catch((error: unknown) => {
-        if (error instanceof PrivateInputRefusal) throw error;
-        throw new PrivateInputRefusal('private-account-unavailable');
+        if (error instanceof PrivateInputRefusal || error instanceof PrivateInputFailure) {
+          this.deps.log('consume-refused', {
+            requestId: id,
+            botSlug: owner.botSlug,
+            sessionId: agent.session.id,
+            reason: error instanceof PrivateInputFailure ? error.reason : String(error.code),
+          });
+          throw error;
+        }
+        this.deps.log('consume-refused', {
+          requestId: id,
+          botSlug: owner.botSlug,
+          sessionId: agent.session.id,
+          reason: 'store-unreadable',
+          errorName: error instanceof Error ? error.name : typeof error,
+        });
+        throw new PrivateInputFailure(
+          'The Host could not read the saved private information for this account from its credential store. Report this to the Owner; asking for the secret again will not help until the store is readable.',
+          'store-unreadable',
+        );
       });
     const started = Date.now();
-    const details = { requestId: id, botSlug: owner.botSlug, sessionId: agent.session.id };
+    const details = {
+      requestId: id,
+      botSlug: owner.botSlug,
+      sessionId: agent.session.id,
+    };
     this.deps.log('consume-started', details);
     try {
       const result = await startedUse.promise;
-      this.deps.log('consume-completed', { ...details, durationMs: Date.now() - started });
+      this.deps.log('consume-completed', {
+        ...details,
+        durationMs: Date.now() - started,
+      });
       return result;
     } catch (error) {
-      this.deps.log('consume-failed', { ...details, durationMs: Date.now() - started });
-      if (error instanceof PrivateInputRefusal) throw error;
-      throw new Error('Protected credential consumer failed or was cancelled');
+      const known = error instanceof PrivateInputRefusal || error instanceof PrivateInputFailure;
+      this.deps.log('consume-failed', {
+        ...details,
+        durationMs: Date.now() - started,
+        reason:
+          error instanceof PrivateInputFailure
+            ? error.reason
+            : error instanceof PrivateInputRefusal
+              ? String(error.code)
+              : 'consumer-error',
+        ...(known ? {} : { errorName: error instanceof Error ? error.name : typeof error }),
+      });
+      if (known) throw error;
+      throw new PrivateInputFailure(
+        `Protected credential consumer failed (${error instanceof Error ? error.name : typeof error}); the Host diagnostic log has the details.`,
+        'consumer-error',
+      );
     }
   }
 
@@ -956,7 +1063,11 @@ export class PrivateInputs {
     )
       return undefined;
     return {
-      scope: { botSlug: bot.slug, botCreatedAt: bot.createdAt, account: request.account },
+      scope: {
+        botSlug: bot.slug,
+        botCreatedAt: bot.createdAt,
+        account: request.account,
+      },
       grantId,
       request,
       references: resolution.references,
@@ -1004,7 +1115,11 @@ export class PrivateInputs {
       const bindings = await this.#accounts.list(bot.slug, bot.createdAt);
       const rows: PrivateAccountSummary[] = [];
       for (const listed of bindings) {
-        const scope = { botSlug: bot.slug, botCreatedAt: bot.createdAt, account: listed.account };
+        const scope = {
+          botSlug: bot.slug,
+          botCreatedAt: bot.createdAt,
+          account: listed.account,
+        };
         const row = await this.#accounts.serial(scope, async () => {
           const binding = await this.#accounts.read(scope);
           if (binding?.grantId === undefined || binding.grantId === null) return undefined;
@@ -1207,7 +1322,10 @@ export class PrivateInputs {
           this.#configuredCard(channelId, messageId)?.scope.botCreatedAt ===
           card.scope.botCreatedAt,
       );
-      this.deps.log('account-revoked', { botSlug: card.scope.botSlug, requestId: card.grantId });
+      this.deps.log('account-revoked', {
+        botSlug: card.scope.botSlug,
+        requestId: card.grantId,
+      });
       await this.deps
         .credentials()
         ?.deleteRecord(credentialKey('botharness-private', 'grant-' + card.grantId))
@@ -1243,7 +1361,11 @@ export class PrivateInputs {
         await this.#stop(id, pending, 'cancelled');
     let erased = 0;
     for (const listed of await this.#accounts.list(bot.slug, bot.createdAt)) {
-      const scope = { botSlug: bot.slug, botCreatedAt: bot.createdAt, account: listed.account };
+      const scope = {
+        botSlug: bot.slug,
+        botCreatedAt: bot.createdAt,
+        account: listed.account,
+      };
       await this.#accounts.serial(scope, async () => {
         const binding = await this.#accounts.read(scope);
         if (binding === undefined) return;
@@ -1271,7 +1393,10 @@ export class PrivateInputs {
         erased += 1;
       }
     }
-    this.deps.log('bot-accounts-erased', { botSlug: bot.slug, completed: erased });
+    this.deps.log('bot-accounts-erased', {
+      botSlug: bot.slug,
+      completed: erased,
+    });
     return erased;
   }
 

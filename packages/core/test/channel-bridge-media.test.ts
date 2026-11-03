@@ -12,6 +12,7 @@ import type { MessagingGrant } from '../src/messaging/outbound.js';
 import type { MessagingInboundEvent } from '../src/messaging/provider.js';
 import { createAttachmentHttp } from '../src/attachments/http.js';
 import { createTempRoot } from './helpers.js';
+import { oggOpus } from './ogg-opus.js';
 
 const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a4S8AAAAASUVORK5CYII=',
@@ -34,19 +35,31 @@ afterEach(async () => {
   }
 });
 
-async function fixture(inboxOnly = false, twoPaths = false, file = false, video = false) {
+async function fixture(
+  inboxOnly = false,
+  twoPaths = false,
+  file = false,
+  video = false,
+  audio = false,
+) {
   const mp4 = Buffer.from('000000186674797069736f6d0000020069736f6d69736f32', 'hex');
-  const bytes = video ? mp4 : file ? Buffer.from('name,quantity\nalpha,17\n') : png;
-  const attachment =
-    file || video
-      ? {
-          id: 'c'.repeat(64),
-          messageId: 'file-parent-message',
-          resourceKey: 'private-key',
-          name: video ? 'qa-video.mp4' : 'qa-source.csv',
-          ...(video ? { mediaType: 'video/unknown' } : {}),
-        }
-      : image;
+  const bytes = audio
+    ? oggOpus()
+    : video
+      ? mp4
+      : file
+        ? Buffer.from('name,quantity\nalpha,17\n')
+        : png;
+  const parent = file || video || audio;
+  const attachment = parent
+    ? {
+        id: 'c'.repeat(64),
+        messageId: 'file-parent-message',
+        resourceKey: 'private-key',
+        name: audio ? 'voice.opus' : video ? 'qa-video.mp4' : 'qa-source.csv',
+        ...(video ? { mediaType: 'video/unknown' } : audio ? { mediaType: 'audio/unknown' } : {}),
+      }
+    : image;
   const home = createTempRoot('bh-channel-media-');
   let consumer: Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1] | undefined;
   const run = vi.fn(async () => {});
@@ -98,6 +111,7 @@ async function fixture(inboxOnly = false, twoPaths = false, file = false, video 
         'reply-file-checked',
         'source-image-checked',
         ...(video ? ['source-video-checked'] : []),
+        ...(audio ? ['source-voice-audio-checked'] : []),
       ],
     }),
     sendChecked: async () => ({ sent: true }),
@@ -180,7 +194,10 @@ async function fixture(inboxOnly = false, twoPaths = false, file = false, video 
     ...(video
       ? { video: { itemId: attachment.id, durationMs: 4000, posterAttachmentId: image.id } }
       : {}),
-    ...(file || video
+    ...(audio
+      ? { voice: { transcript: 'unavailable' as const, itemId: attachment.id, durationMs: 1000 } }
+      : {}),
+    ...(parent
       ? {}
       : {
           contentParts: [
@@ -193,7 +210,7 @@ async function fixture(inboxOnly = false, twoPaths = false, file = false, video 
       messageId: image.messageId,
       conversationId: 'team',
       actorId: 'human',
-      ...(file || video ? { parentId: attachment.messageId } : {}),
+      ...(parent ? { parentId: attachment.messageId } : {}),
     },
     replay: { kind: 'provider-redelivery', resumeCursor: false, gapPossible: true },
   };
@@ -315,6 +332,90 @@ it('projects a checked Lark native video and platform cover once; explicit playb
   expect(fx.download).toHaveBeenCalledTimes(1);
   expect(fx.counts()).toEqual(before);
   expect(fx.run).toHaveBeenCalledTimes(runs);
+});
+
+it('projects a checked Lark native voice and prepares WAV playback only on explicit request', async () => {
+  const fx = await fixture(false, false, false, false, true);
+  expect(fx.consumer?.sourceVoiceAudio).toBe(true);
+  expect(fx.consumer?.sourceVideos).toBeUndefined();
+  const messages = fx.core.channels.readMessages(fx.channelId);
+  expect(messages).toHaveLength(1);
+  expect(messages[0]?.bridgeMedia).toEqual({
+    items: [{ id: fx.attachment.id, kind: 'audio', name: 'voice.opus' }],
+    voice: { transcript: 'unavailable', durationMs: 1000 },
+  });
+  expect(JSON.stringify(messages)).not.toContain('private-key');
+  expect(fx.download).not.toHaveBeenCalled();
+  const before = fx.counts();
+  const runs = fx.run.mock.calls.length;
+  const playback = await fx.playback();
+  expect(playback.inline).toBe(true);
+  expect(playback.ref.mime).toBe('audio/wav');
+  const wav = Buffer.from(await new Response(playback.body).arrayBuffer());
+  expect(wav.readUInt32LE(24)).toBe(24000);
+  expect((wav.length - 44) / 48000).toBeGreaterThan(0.9);
+  const original = await fx.read();
+  expect(original.inline).toBe(false);
+  expect(Buffer.from(await new Response(original.body).arrayBuffer())).toEqual(fx.bytes);
+  expect(fx.download).toHaveBeenCalledTimes(1);
+  await fx.restart();
+  const cached = await fx.playback();
+  await cached.body.cancel();
+  expect(fx.download).toHaveBeenCalledTimes(1);
+  expect(fx.counts()).toEqual(before);
+  expect(fx.run).toHaveBeenCalledTimes(runs);
+});
+
+it('refuses a Lark voice that is not the exact quoted parent audio, and keeps a bad codec downloadable', async () => {
+  const fx = await fixture(false, false, false, false, true);
+  for (const event of [
+    { ...fx.event, voice: { ...fx.event.voice!, itemId: image.id } },
+    { ...fx.event, voice: { ...fx.event.voice!, transcript: 'platform' as const } },
+    { ...fx.event, voice: { ...fx.event.voice!, encodeType: 6 } },
+    { ...fx.event, reply: { ...fx.event.reply, parentId: 'other-parent' } },
+    { ...fx.event, attachments: [{ ...fx.attachment, mediaType: 'video/unknown' }] },
+    { ...fx.event, mentionedAccount: false },
+  ]) {
+    await expect(fx.consumer!.onEvent(event, { signal: fx.consumer!.signal })).rejects.toThrow();
+  }
+  fx.download.mockImplementation(async function* () {
+    yield Buffer.from('not ogg opus');
+  });
+  await expect(fx.playback()).rejects.toThrow('audio-codec-unsupported');
+  const original = await fx.read();
+  expect(Buffer.from(await new Response(original.body).arrayBuffer()).toString()).toBe(
+    'not ogg opus',
+  );
+});
+
+it('requires the Lark voice-audio capability instead of borrowing file qualification', async () => {
+  const fx = await fixture(false, false, false, false, true);
+  const info = await fx.service.describeBot('account');
+  let input: Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1] | undefined;
+  const provider = createDshImProvider({
+    ...fx.service,
+    describeBot: async () => ({
+      ...info,
+      capabilities: info.capabilities.filter((cap) => cap !== 'source-voice-audio-checked'),
+    }),
+    consumeInbound: async (
+      _id: string,
+      options: Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1],
+    ) => {
+      input = options;
+      return () => {};
+    },
+  })!;
+  await provider.consume!({
+    accountRef: 'account',
+    fingerprint,
+    signal: new AbortController().signal,
+    onEvent: async () => ({ accepted: true }),
+  });
+  expect(input?.sourceVoiceAudio).toBeUndefined();
+  await expect(input!.onEvent(fx.event, { signal: input!.signal })).rejects.toThrow(
+    'untrusted-source',
+  );
 });
 
 it('refuses a Lark video association changed to another parent, primary resource, poster or unsupported content', async () => {

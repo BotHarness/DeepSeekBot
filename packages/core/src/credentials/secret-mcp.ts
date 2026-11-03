@@ -200,18 +200,20 @@ export class SecretMcpServers {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const started = await Promise.race([
       fiber.await().then(
-        () => fiber.state === 2,
-        () => false,
+        () => (fiber.state === 2 ? 'started' : 'stopped'),
+        () => 'failed' as const,
       ),
-      new Promise<boolean>((resolve) => {
-        timer = setTimeout(() => resolve(false), timeoutMs);
+      new Promise<'timeout'>((resolve) => {
+        timer = setTimeout(() => resolve('timeout'), timeoutMs);
       }),
     ]);
     clearTimeout(timer);
-    if (!started) {
+    if (started !== 'started') {
       await Promise.resolve(fiber.dispose()).catch(() => undefined);
       throw new SecretCommandRefusal(
-        'the MCP server did not start; check the program, its arguments and that it is installed',
+        started === 'timeout'
+          ? `the MCP server did not finish starting within ${Math.round(timeoutMs / 1000)} seconds; check that the launcher can download or find the server and that it speaks MCP over stdio`
+          : 'the MCP server exited or failed during startup; check the program, its arguments, that it is installed, and the environment variables it needs',
       );
     }
     const prefix = `mcp__${plan.serverName}__`;

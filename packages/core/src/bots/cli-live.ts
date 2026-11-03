@@ -1238,6 +1238,7 @@ export async function runLiveCli(
   const signal = AbortSignal.timeout(duration);
   const { rpc } = await connectLiveHost(values, io, signal);
   if (command.startsWith('ask-secret-')) {
+    let refusal: unknown;
     try {
       if (command === 'ask-secret-accounts') {
         const result = await rpc<{
@@ -1342,22 +1343,27 @@ export async function runLiveCli(
         };
       }
       const method = command === 'ask-secret-submit' ? 'privateInputSubmit' : 'privateInputCancel';
-      const result = await rpc<{ accepted?: unknown }>(method, {
+      const result = await rpc<{ accepted?: unknown; reason?: unknown }>(method, {
         channelId: target,
         messageId,
         ...(confidential === undefined ? {} : { values: confidential }),
       });
-      if (result.accepted !== true) throw new Error('Private request was not accepted');
-      return { accepted: true };
+      if (result.accepted !== true) refusal = result.reason;
+      else return { accepted: true };
     } catch {
-      throw new CliLiveError(
-        'private-input-not-accepted',
-        'Private input operation was not accepted. Check Owner authentication and request status before retrying.',
-      );
+      refusal = undefined;
     } finally {
       if (confidential !== undefined)
         for (const key of Object.keys(confidential)) delete confidential[key];
     }
+    throw new CliLiveError(
+      'private-input-not-accepted',
+      'Private input operation was not accepted' +
+        (typeof refusal === 'string' && /^[a-z-]{1,40}$/.test(refusal)
+          ? ` (reason: ${refusal})`
+          : '') +
+        '. Check Owner authentication and request status before retrying.',
+    );
   }
   if (command === 'send') {
     const channelId = dmChannelId(target);
