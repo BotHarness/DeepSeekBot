@@ -3703,6 +3703,7 @@ html[data-botharness-motion='reduce'] .bh-message-group-enter .bh-message-group-
    group a single-line bubble keeps the multi-line radius so the stack reads as one shape. */
 .bh-bubble.bh-bubble[data-single-line][data-group-position='solo'] {
   border-radius: 999px;
+  corner-shape: round;
 }
 /* Reactions and live reading avatars hang over the bubble's bottom edge:
    reactions on the author's side, readers on the other. */
