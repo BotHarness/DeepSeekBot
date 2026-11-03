@@ -1,6 +1,6 @@
-# Bot calls: Mac or Windows Host to iPhone or Android
+# Bot calls: phones and the Mac or Windows desktop
 
-A paired iPhone or Android phone calls a Bot. The Host's media helper carries WebRTC audio, the Host call owner cuts sentences with its built-in VAD, transcribes them through the Bot's ASR Provider and sends them to the DM, and the Bot's committed voice replies play back in the call. See [ADR-0281](../../../../docs/adr/0281-host-owned-bot-calls.md), [ADR-0284](../../../../docs/adr/0284-android-bot-calls-are-foreground-only.md) (Android, foreground only) and the [CLI contract](../../../../docs/bot-cli.md#bot-calls-and-speech-recognition-asr-providers).
+A paired iPhone or Android phone, or the Mac or Windows desktop Client (`desktop.bot-call`), calls a Bot. The Host's media helper carries WebRTC audio, the Host call owner cuts sentences with its built-in VAD, transcribes them through the Bot's ASR Provider and sends them to the DM, and the Bot's committed voice replies play back in the call. See [ADR-0281](../../../../docs/adr/0281-host-owned-bot-calls.md), [ADR-0284](../../../../docs/adr/0284-android-bot-calls-are-foreground-only.md) (Android, foreground only) and the [CLI contract](../../../../docs/bot-cli.md#bot-calls-and-speech-recognition-asr-providers).
 
 ## Sub-features
 
@@ -11,6 +11,7 @@ A paired iPhone or Android phone calls a Bot. The Host's media helper carries We
 - `busy`: while the Orchestrator is on an earlier turn, the phone shows "It's busy. It will hear you in its next turn." and nothing is spoken.
 - `microphone`: a refused microphone offers Allow microphone; a blocked one offers Open Settings and the call starts when the app returns with it allowed.
 - `lifecycle`: mute, hang up, background (and lock on Android), 8 s network loss (`connection-lost`) and device revoke end or pause the call cleanly; committed messages remain. Connect routes are refused with `connect-carrier-required`.
+- `desktop`: in a Bot DM the chat header shows a phone button (`Call <Bot>`). During a call it becomes the call bar `Call with <Bot>`: status, call time, `Mute`/`Unmute` and `Hang up`. The chat keeps scrolling under it and voice replies appear in the timeline as they come. The browser microphone runs with echo cancellation. A second desktop window or device gets "Another device or window is on a call with this computer." and the first call goes on.
 - `media`: the Host helper offers one Opus audio section with no STUN/TURN, returns 16 kHz PCM frames and plays reply files.
 
 ## How to get to it (user POV)
@@ -21,9 +22,10 @@ On a Mac or Windows Host, add an ASR and a TTS Provider in Settings › Voice or
 
 1. Host only, no phone: `deepseekbot call-simulate <bot> --file /abs/question.wav` (or `--script` with a cough between two sentences) against a Host with the latest DeepSeek model. Check `heard`, `replies`, `firstAudioMs` and that the cough appears only as `noise-discarded`.
 2. Media helper without Electron: `node scripts/e2e-call-media.mjs` loads the helper's renderer in Chromium, connects a phone page and checks uplink PCM, downlink playback, failed playback and close.
-3. iPhone: use a `.dev` development build. Open `deepseekbot-dev://call/<bot>?script=<url-of-timeline.json>` where the timeline is `[{"at": 0, "url": "https://…/question.wav"}]`; the build replaces the microphone with those files, records the downlink and writes a timing report path on the call screen (`call-test-report`). Use `chat-call-button`, `call-mute`, `call-hang-up`, `call-status`, `call-duration` and `call-hint`.
-4. Android: the same `.dev` link works on the Windows/Android lane (`adb shell am start -a android.intent.action.VIEW -d "deepseekbot-dev://call/<bot>?script=<url>"`). The report path and the downlink WAV are in the app cache (`adb shell run-as ai.botharness.deepseekbot.dev ls cache`). Also check: deny the microphone once (Allow microphone asks again), deny twice (Open Settings, and the call starts on return once allowed), lock the phone mid-call (call ends as hang-up), and echo on the loudspeaker with a real voice on a physical phone.
-5. Capture the call screen in light and dark, at default and largest text, connecting, listening, speaking, busy and ended. Record the first-sentence audio time from `firstAudioMs` or the report.
+3. Desktop without a Mac or Windows Host: `node scripts/e2e-desktop-call.mjs [--scenario question,long-task|/abs/timeline.json] [--json]` starts Chromium with `--use-file-for-fake-audio-capture`, runs the Client's real call store and browser media against the helper renderer and the real Host call owner, and checks the heard sentence, the discarded cough, the replies heard on the desktop and that a second window is refused. The timeline format is the same as `call-simulate --script`. On a real Mac or Windows Host, open the Bot DM in the desktop app and press `Call <Bot>`.
+4. iPhone: use a `.dev` development build. Open `deepseekbot-dev://call/<bot>?script=<url-of-timeline.json>` where the timeline is `[{"at": 0, "url": "https://…/question.wav"}]`; the build replaces the microphone with those files, records the downlink and writes a timing report path on the call screen (`call-test-report`). Use `chat-call-button`, `call-mute`, `call-hang-up`, `call-status`, `call-duration` and `call-hint`.
+5. Android: the same `.dev` link works on the Windows/Android lane (`adb shell am start -a android.intent.action.VIEW -d "deepseekbot-dev://call/<bot>?script=<url>"`). The report path and the downlink WAV are in the app cache (`adb shell run-as ai.botharness.deepseekbot.dev ls cache`). Also check: deny the microphone once (Allow microphone asks again), deny twice (Open Settings, and the call starts on return once allowed), lock the phone mid-call (call ends as hang-up), and echo on the loudspeaker with a real voice on a physical phone.
+6. Capture the call screen in light and dark, at default and largest text, connecting, listening, speaking, busy and ended. Record the first-sentence audio time from `firstAudioMs` or the report.
 
 ## Gotchas
 

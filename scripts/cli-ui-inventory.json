@@ -854,6 +854,14 @@
       "commands": ["call-readiness", "call-status", "call-hangup", "call-simulate"]
     },
     {
+      "id": "ui-call-window",
+      "description": "Each desktop or Web window keeps a random call id in session storage so the Host tells two windows apart.",
+      "scope": "Client transport / transient state",
+      "surfaces": ["storage:packages/client/src/client/desktop-call.ts:setItem(CLIENT_KEY)"],
+      "exemption": "A per-window caller identity, not a setting. Calls themselves are covered by call-readiness, call-status, call-hangup and call-simulate.",
+      "configurable": false
+    },
+    {
       "id": "computer-webrtc",
       "description": "HTTP operation with existing direct CLI command.",
       "scope": "Host",

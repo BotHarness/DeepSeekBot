@@ -202,6 +202,7 @@ import { useAvatarFollow } from './avatar-follow.js';
 import { useMountedResource } from './mounted-resource.js';
 import * as stylex from '@stylexjs/stylex';
 import { IconButton } from './ds/icon-button.js';
+import { DmCallControl } from './dm-call.js';
 import { color, radius, text } from './ds/tokens.stylex.js';
 import type { ReleaseNotesController } from './release-notes.js';
 import { ReleaseNotesAnnouncement } from './release-notes-view.js';
@@ -2893,6 +2894,13 @@ function ConversationView({
                 </IconButton>
               </span>
             )}
+            {!workspaceEnabled &&
+              onMobileBack === undefined &&
+              channel?.type === 'dm' &&
+              profileBot !== undefined &&
+              profileBot.deleted !== true && (
+                <DmCallControl slug={profileBot.slug} name={profileBot.displayName} t={t} />
+              )}
             {!workspaceEnabled && onMobileBack === undefined && inboxAvailable && (
               <span className="bh-channel-island-wrap">
                 <IconButton
@@ -3650,6 +3658,14 @@ function ConversationView({
                         : {}),
                       actions: (
                         <>
+                          {profileBot !== undefined && profileBot.deleted !== true && (
+                            <DmCallControl
+                              slug={profileBot.slug}
+                              name={profileBot.displayName}
+                              variant="header"
+                              t={t}
+                            />
+                          )}
                           {hasChannelSettings && (
                             <Tooltip
                               label={t('channelSettings.open')}
