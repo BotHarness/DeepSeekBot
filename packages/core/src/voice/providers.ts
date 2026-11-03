@@ -672,6 +672,8 @@ export class VoiceProviders {
     form.append('model', stored.model ?? 'whisper-1');
     form.append('response_format', 'json');
     if (language !== undefined) form.append('language', language.split('-')[0]!);
+    const script = chineseScript(language);
+    if (script !== undefined) form.append('prompt', script);
     const timeout = AbortSignal.timeout(this.#timeoutMs);
     const signal = input.signal === undefined ? timeout : AbortSignal.any([input.signal, timeout]);
     const started = performance.now();
@@ -787,6 +789,13 @@ export function audioExtension(mime: string): string {
       'audio/flac': 'flac',
     }[mime] ?? 'audio'
   );
+}
+
+export function chineseScript(language: string | undefined): string | undefined {
+  if (language === undefined || !/^zh(?:$|-)/iu.test(language)) return undefined;
+  return /^zh-(?:tw|hk|mo|hant)$/iu.test(language)
+    ? '以下是普通話的句子，使用繁體中文。'
+    : '以下是普通话的句子，使用简体中文。';
 }
 
 export function wavFromPcm16(samples: Int16Array, sampleRate: number): Uint8Array {

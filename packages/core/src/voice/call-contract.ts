@@ -1,5 +1,7 @@
 export const VOICE_CALL_PATH = '/api/voice/call';
 
+export const VOICE_CALL_HOST_OWNER = 'host-owner';
+
 export const VOICE_CALL_LIMITS = {
   requestBytes: 128 * 1024,
   signalBytes: 96 * 1024,

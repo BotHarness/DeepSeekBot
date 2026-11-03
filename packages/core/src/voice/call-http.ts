@@ -1,4 +1,4 @@
-import { VOICE_CALL_LIMITS, type VoiceCallResult } from './call-contract.js';
+import { VOICE_CALL_HOST_OWNER, VOICE_CALL_LIMITS, type VoiceCallResult } from './call-contract.js';
 import type { VoiceCalls } from './calls.js';
 
 export function createVoiceCallHttp(owner: () => VoiceCalls | undefined) {
@@ -39,6 +39,6 @@ export function createVoiceCallHttp(owner: () => VoiceCalls | undefined) {
     } catch {
       return reply({ ok: false, code: 'invalid-input', error: 'The call command must be JSON.' });
     }
-    return reply(await calls.handle({ deviceId: 'host-owner' }, command, request.signal));
+    return reply(await calls.handle({ deviceId: VOICE_CALL_HOST_OWNER }, command, request.signal));
   };
 }

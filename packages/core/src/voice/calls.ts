@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 
 import { dmChannelId } from '../channels/channel.js';
 import {
+  VOICE_CALL_HOST_OWNER,
   VOICE_CALL_LIMITS,
   type VoiceCallCommand,
   type VoiceCallDescription,
@@ -342,11 +343,14 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     };
   };
 
-  const own = (caller: VoiceCaller, value: unknown): Call => {
+  const own = (caller: VoiceCaller, value: unknown, admin = false): Call => {
     if (typeof value !== 'string' || !CALL_ID.test(value))
       throw new CallRefusal('invalid-input', 'A call id is required.');
     const call = calls.get(value);
-    if (call === undefined || call.caller !== caller.deviceId)
+    if (
+      call === undefined ||
+      (call.caller !== caller.deviceId && !(admin && caller.deviceId === VOICE_CALL_HOST_OWNER))
+    )
       throw new CallRefusal('call-not-found', 'That call does not exist.');
     return call;
   };
@@ -471,7 +475,10 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         return {
           ok: true,
           calls: [...calls.values()]
-            .filter((call) => call.caller === caller.deviceId)
+            .filter(
+              (call) =>
+                caller.deviceId === VOICE_CALL_HOST_OWNER || call.caller === caller.deviceId,
+            )
             .map((call) => view(call)),
         };
       case 'open': {
@@ -547,7 +554,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         return { ok: true, call: view(call, (after as number | undefined) ?? before) };
       }
       case 'hangup': {
-        const call = own(caller, command['callId']);
+        const call = own(caller, command['callId'], true);
         await end(call, 'hangup');
         return { ok: true, call: view(call) };
       }

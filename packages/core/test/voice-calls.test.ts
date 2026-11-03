@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import type { VoiceCallEvent, VoiceCallResult, VoiceCallView } from '../src/voice/call-contract.js';
+import { VOICE_CALL_HOST_OWNER } from '../src/voice/call-contract.js';
 import {
   createVoiceCalls,
   type VoiceCallBot,
@@ -447,6 +448,26 @@ describe('Host call owner', () => {
     const second = await h.ok({ kind: 'open', slug: 'mira' });
     expect(second.call!.callId).not.toBe(first);
     expect(await view(h, first)).toMatchObject({ phase: 'ended', endReason: 'replaced' });
+  });
+
+  it('lets the Host owner see and end any call, but not mute it', async () => {
+    const { media } = fakeMedia();
+    const h = harness({ media });
+    const callId = await connected(h);
+    const owner = { deviceId: VOICE_CALL_HOST_OWNER };
+    expect(await h.calls.handle(owner, { kind: 'status' })).toMatchObject({
+      ok: true,
+      calls: [{ callId }],
+    });
+    expect(await h.calls.handle({ deviceId: 'tablet' }, { kind: 'status' })).toMatchObject({
+      calls: [],
+    });
+    expect(await h.calls.handle(owner, { kind: 'mute', callId, muted: true })).toMatchObject({
+      ok: false,
+      code: 'call-not-found',
+    });
+    expect(await h.calls.handle(owner, { kind: 'hangup', callId })).toMatchObject({ ok: true });
+    expect(await view(h, callId)).toMatchObject({ phase: 'ended', endReason: 'hangup' });
   });
 
   it('a synthetic call takes injected PCM without WebRTC', async () => {

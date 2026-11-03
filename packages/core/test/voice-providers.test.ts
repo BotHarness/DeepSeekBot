@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
-import { VoiceProviders } from '../src/voice/providers.js';
+import { chineseScript, VoiceProviders } from '../src/voice/providers.js';
 import { speakableText } from '../src/voice/speakable.js';
 import { createTempRoot } from './helpers.js';
 
@@ -315,6 +315,7 @@ describe('ASR Provider owner', () => {
     expect(seen.form.get('model')).toBe('gpt-4o-mini-transcribe');
     expect(seen.form.get('language')).toBe('zh');
     expect(seen.form.get('response_format')).toBe('json');
+    expect(seen.form.get('prompt')).toBe(chineseScript('zh'));
     const file = seen.form.get('file') as File;
     expect(file.type).toBe('audio/wav');
     expect(file.size).toBe(44 + 32_000);
@@ -373,5 +374,16 @@ describe('ASR Provider owner', () => {
     await expect(
       providers.transcribe({ providerId: provider.id, audio: new Uint8Array([0, 1, 2, 3]) }),
     ).rejects.toMatchObject({ code: 'invalid-input' });
+  });
+});
+
+describe('Chinese script hint', () => {
+  it('asks for Simplified unless the language names a Traditional region', () => {
+    expect(chineseScript('zh')).toContain('简体');
+    expect(chineseScript('zh-CN')).toContain('简体');
+    expect(chineseScript('zh-TW')).toContain('繁體');
+    expect(chineseScript('zh-Hant')).toContain('繁體');
+    expect(chineseScript('en')).toBeUndefined();
+    expect(chineseScript(undefined)).toBeUndefined();
   });
 });
