@@ -243,6 +243,17 @@ function requestRoute(event: DshSessionEvent): UsageRoute | undefined {
   return undefined;
 }
 
+function routeIndex(history: ReadonlyArray<readonly [number, UsageRoute]>, seq: number): number {
+  let low = 0;
+  let high = history.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (history[middle]![0] <= seq) low = middle + 1;
+    else high = middle;
+  }
+  return low - 1;
+}
+
 export function createUsageProjection(options: {
   ownership: SessionOwnership;
   database: OperationalDatabaseOwner;
@@ -254,7 +265,7 @@ export function createUsageProjection(options: {
     'usage',
   );
   const { ownership } = options;
-  const routes = new Map<string, Map<number, UsageRoute>>();
+  const routes = new Map<string, Array<[number, UsageRoute]>>();
   const fingerprintKey = database.read((connection) =>
     connection.prepare('SELECT fingerprint_key FROM usage_receipt_state WHERE singleton = 1').get(),
   ) as { fingerprint_key: string };
@@ -380,20 +391,14 @@ export function createUsageProjection(options: {
     let history = routes.get(sessionId);
     if (route !== undefined) {
       if (history === undefined) {
-        history = new Map();
+        history = [];
         routes.set(sessionId, history);
       }
-      history.set(event.seq, route);
+      const at = routeIndex(history, event.seq);
+      if (history[at]?.[0] === event.seq) history[at] = [event.seq, route];
+      else history.splice(at + 1, 0, [event.seq, route]);
     }
-    let latest = -1;
-    let resolved: UsageRoute | undefined;
-    for (const [seq, candidate] of history ?? []) {
-      if (seq <= event.seq && seq > latest) {
-        latest = seq;
-        resolved = candidate;
-      }
-    }
-    return resolved;
+    return history === undefined ? undefined : history[routeIndex(history, event.seq)]?.[1];
   };
 
   const writeLive = (
@@ -501,7 +506,7 @@ export function createUsageProjection(options: {
       for (const event of events) observe(sessionId, event);
     },
     latestRoute(sessionId) {
-      const ordered = [...(routes.get(sessionId) ?? [])].sort(([a], [b]) => a - b);
+      const ordered = routes.get(sessionId) ?? [];
       const resolved = ordered.at(-1)?.[1];
       if (resolved === undefined) return undefined;
       const effort =
