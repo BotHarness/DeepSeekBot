@@ -718,7 +718,7 @@ export class VoiceProviders {
         code,
         timeout.aborted
           ? `The provider did not answer within ${Math.round(this.#timeoutMs / 1000)} s.`
-          : `The provider cannot be reached (${error instanceof Error ? error.name : 'network error'}).`,
+          : unreachableMessage(stored.baseUrl, error, stored.preset),
       );
     }
     if (!response.ok) {

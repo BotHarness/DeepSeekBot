@@ -100,7 +100,7 @@ export function ttsPreset(id: string): TtsPreset | undefined {
   return TTS_PRESETS.find((preset) => preset.id === id);
 }
 
-export type AsrPresetId = 'custom' | 'openai' | 'groq';
+export type AsrPresetId = 'custom' | 'local' | 'openai' | 'groq';
 
 export interface AsrPreset {
   id: AsrPresetId;
@@ -120,6 +120,14 @@ export const ASR_PRESETS: readonly AsrPreset[] = [
     name: 'OpenAI-compatible endpoint',
     keyRequired: false,
     defaultModel: 'whisper-1',
+    capabilities: { billing: 'self-hosted' },
+  },
+  {
+    id: 'local',
+    name: 'Local speech service (SenseVoice)',
+    baseUrl: LOCAL_VOICE_BASE_URL,
+    keyRequired: false,
+    defaultModel: 'sensevoice',
     capabilities: { billing: 'self-hosted' },
   },
   {

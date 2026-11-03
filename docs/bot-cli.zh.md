@@ -735,11 +735,13 @@ cd ~/BotHarness/voice && python3 -m venv .venv
 .venv/bin/python botharness_voice.py start      # 另有 status、stop、serve、selftest
 deepseekbot voice-provider-add local
 deepseekbot voice-set <bot-id> <provider-id> --voice zf_001
+deepseekbot voice-provider-add local --kind asr --language zh
+deepseekbot voice-asr-set <bot-id> <asr-provider-id>
 ```
 
-`voice-local-kit` 写出 `botharness_voice.py`，输出 `{dir, script, baseUrl, models, steps: {macos, windows}}`。Windows 上用 `py -3 -m venv .venv` 和 `.venv\Scripts\python`。脚本每个命令输出一行 JSON（`ok: false` 带 `code` 和 `message`）；`selftest` 先合成一句话再识别回来。`local` 预设不需要密钥，使用 Kokoro 音色，例如 `zf_001`、`zm_009`、`af_maple`、`af_sol` 和 `bf_vale`（完整列表见 `GET /v1/models`）。服务没启动时，`voice-provider-test` 和语音消息会报 `provider-unavailable`，并说明“The local speech service at … is not running”。
+`voice-local-kit` 写出 `botharness_voice.py`，输出 `{dir, script, baseUrl, models, steps: {macos, windows}}`。Windows 上用 `py -3 -m venv .venv` 和 `.venv\Scripts\python`。脚本每个命令输出一行 JSON（`ok: false` 带 `code` 和 `message`）；`selftest` 先合成一句话再识别回来。`local` TTS 预设不需要密钥，使用 Kokoro 音色，例如 `zf_001`、`zm_009`、`af_maple`、`af_sol` 和 `bf_vale`（完整列表见 `GET /v1/models`）。`local` ASR 预设（`--kind asr`）使用 SenseVoice（模型 `sensevoice`，支持 `zh`、`en`、`ja`、`ko`、`yue`），供 Bot 通话使用。服务没启动时，`voice-provider-test`、语音消息和语音识别会报 `provider-unavailable`，并说明“The local speech service at … is not running”。
 
-Tob 的受限 CLI 支持 `voice-providers`、`voice-provider-test`、`voice-provider-add`（只限无密钥的 `local` 和 `custom` 预设，没有密钥参数）、`voice-provider-remove` 和 `voice-set`；写操作会弹出审批卡片。需要密钥的 Provider 由用户在设置 › 语音中添加。
+Tob 的受限 CLI 支持 `voice-providers`、`voice-provider-test`、`voice-provider-add`（只限无密钥的 `local` 和 `custom` 预设，TTS 或 `--kind asr`，没有密钥参数）、`voice-provider-remove`、`voice-set` 和 `voice-asr-set`；写操作会弹出审批卡片。需要密钥的 Provider 由用户在设置 › 语音中添加。
 
 ### Bot 通话与语音识别（ASR Provider）
 
@@ -758,7 +760,7 @@ deepseekbot call-status
 deepseekbot call-hangup <call-id>
 ```
 
-ASR 预设有 `custom`（任何兼容 OpenAI `/audio/transcriptions` 的端点，密钥可选）、`openai` 和 `groq`。`voice-providers` 在 `asrPresets` 和 `asrProviders` 下列出它们，`bot.asr` 显示绑定。对 ASR Provider 运行 `voice-provider-test` 会转写半秒静音。`voice-transcribe` 读取 16 位 PCM WAV，输出 `{providerId, text, latencyMs}`。`call-readiness` 返回 `{ready, missing, asrProviderId, ttsProviderId, media, activeCallId}`，`missing` 可能是 `asr`、`tts`、`bot`、`media-unsupported`、`media-helper-missing` 或 `media-unavailable`；手机上的通话按钮显示同样的原因。`call-simulate` 不需要手机，直接打开一个合成的 Host 通话，按真实时间播放 WAV（或最多 20 步的 `{"at": 毫秒, "file": "/abs.wav"}` 时间线），等到每句被听到的话都有已播放的回复，或 `--reply-wait` 秒用完，然后挂断并输出 `{callId, heard, replies, firstAudioMs, answered, events}`；`firstAudioMs` 是从一句话结束到第一段回复音频的时间。每个 Host 同时只有一通电话：同一设备会替换自己的通话，其他设备会收到 `call-active`。手机断开 8 秒后通话结束（`connection-lost`），已发送的消息仍留在 DM。每通电话会在 `logs.db` 写入带耗时的 `voice` 日志，从不记录音频或转写内容。
+ASR 预设有 `custom`（任何兼容 OpenAI `/audio/transcriptions` 的端点，密钥可选）、`local`（上文的本地语音服务）、`openai` 和 `groq`。`voice-providers` 在 `asrPresets` 和 `asrProviders` 下列出它们，`bot.asr` 显示绑定。对 ASR Provider 运行 `voice-provider-test` 会转写半秒静音。`voice-transcribe` 读取 16 位 PCM WAV，输出 `{providerId, text, latencyMs}`。`call-readiness` 返回 `{ready, missing, asrProviderId, ttsProviderId, media, activeCallId}`，`missing` 可能是 `asr`、`tts`、`bot`、`media-unsupported`、`media-helper-missing` 或 `media-unavailable`；手机上的通话按钮显示同样的原因。`call-simulate` 不需要手机，直接打开一个合成的 Host 通话，按真实时间播放 WAV（或最多 20 步的 `{"at": 毫秒, "file": "/abs.wav"}` 时间线），等到每句被听到的话都有已播放的回复，或 `--reply-wait` 秒用完，然后挂断并输出 `{callId, heard, replies, firstAudioMs, answered, events}`；`firstAudioMs` 是从一句话结束到第一段回复音频的时间。每个 Host 同时只有一通电话：同一设备会替换自己的通话，其他设备会收到 `call-active`。手机断开 8 秒后通话结束（`connection-lost`），已发送的消息仍留在 DM。每通电话会在 `logs.db` 写入带耗时的 `voice` 日志，从不记录音频或转写内容。
 
 ### 审批员模型
 

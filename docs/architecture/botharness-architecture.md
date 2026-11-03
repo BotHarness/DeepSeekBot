@@ -524,7 +524,7 @@ Orchestrator 的应用定义 channel_list 工具从当前 PersonaBot 的 Session
 
 ### 本地语音服务（ADR-0283）
 
-[ADR-0283](../adr/0283-bot-deployed-local-speech-service.md)：运行时 skill `setting-up-local-voice` 指导 Bot 在 Host 所在的 macOS 或 Windows 电脑上部署一个 Python 脚本（sherpa-onnx：SenseVoice 识别、Kokoro 合成），它只监听 `127.0.0.1:8790` 并提供 OpenAI 兼容的 `/v1/audio/speech` 与 `/v1/audio/transcriptions`。`deepseekbot voice-local-kit` 离线写出脚本；Tob 的受限 CLI 可读取、测试、登记无密钥的 `local`／`custom` Provider 并绑定 Bot 语音，写操作走审批卡片，密钥从不经过 Bot。Host 不启动也不保活该服务；服务未运行时 `VoiceProviders` 返回带启动方法的 `provider-unavailable`。
+[ADR-0283](../adr/0283-bot-deployed-local-speech-service.md)：运行时 skill `setting-up-local-voice` 指导 Bot 在 Host 所在的 macOS 或 Windows 电脑上部署一个 Python 脚本（sherpa-onnx：SenseVoice 识别、Kokoro 合成），它只监听 `127.0.0.1:8790` 并提供 OpenAI 兼容的 `/v1/audio/speech` 与 `/v1/audio/transcriptions`。`deepseekbot voice-local-kit` 离线写出脚本；Tob 的受限 CLI 可读取、测试、登记无密钥的 `local`／`custom` TTS 和 ASR Provider，并绑定 Bot 的语音与语音识别（`voice-set`、`voice-asr-set`），写操作走审批卡片，密钥从不经过 Bot。Host 不启动也不保活该服务；服务未运行时 `VoiceProviders` 返回带启动方法的 `provider-unavailable`。
 
 ### 外部 CLI 的在线请求与回复
 

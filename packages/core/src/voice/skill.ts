@@ -7,10 +7,10 @@ import {
 export const LOCAL_VOICE_SKILL_NAME = 'setting-up-local-voice';
 
 export const LOCAL_VOICE_SKILL_DESCRIPTION =
-  'Deploy a free, offline speech service (SenseVoice speech-to-text and Kokoro text-to-speech) on the Host computer, macOS or Windows, and register it as a Bot voice Provider.';
+  'Deploy a free, offline speech service (SenseVoice speech-to-text and Kokoro text-to-speech) on the Host computer, macOS or Windows, and register it as a Bot voice and speech recognition Provider.';
 
 export const LOCAL_VOICE_SKILL_WHEN_TO_USE =
-  'When the Human asks for a local, offline or free voice for a Bot, wants a Bot to speak without a cloud TTS key, or asks you to set up SenseVoice, Kokoro or a local speech service.';
+  'When the Human asks for a local, offline or free voice or speech recognition for a Bot, wants a Bot to speak or take calls without a cloud key, or asks you to set up SenseVoice, Kokoro or a local speech service.';
 
 export const LOCAL_VOICE_SKILL_INVOCATION = {
   modelInvocable: true,
@@ -119,11 +119,20 @@ py -3 -m venv .venv
 deepseekbot voice-provider-add local
 deepseekbot voice-provider-test <provider-id>
 deepseekbot voice-set <bot-id> <provider-id> --voice zf_001
+deepseekbot voice-provider-add local --kind asr --language zh
+deepseekbot voice-provider-test <asr-provider-id>
+deepseekbot voice-asr-set <bot-id> <asr-provider-id>
 \`\`\`
 
+- The first three lines give the Bot a voice (Kokoro); the last three let it
+  hear (SenseVoice), which Bot calls need. Do both unless the Human wants only
+  one. The two Providers have different ids (\`tts-…\` and \`asr-…\`).
 - \`voice-provider-add local\` uses ${LOCAL_VOICE_BASE_URL}; pass
   \`--base-url http://127.0.0.1:<port>/v1\` if you changed the port. Writes ask
   the Human for approval.
+- \`--language\` is the Human's main language (\`zh\`, \`en\`, \`ja\`, \`ko\`,
+  \`yue\`); leave it out to let SenseVoice detect it. An ASR health check
+  transcribes half a second of silence, so empty text is a pass.
 - Voices: Chinese female such as \`zf_001\`, \`zf_002\`, Chinese male such as
   \`zm_009\`, \`zm_010\`, English female \`af_maple\`, \`af_sol\`, \`bf_vale\`.
   The numbers have gaps; the full list is \`GET /v1/models\`. Let the Human
@@ -131,7 +140,7 @@ deepseekbot voice-set <bot-id> <provider-id> --voice zf_001
   \`voice-provider-test <provider-id> --voice <id>\`.
 - If you cannot run these commands, tell the Human: Settings › Voice ›
   New Provider › "Local speech service (Kokoro)", then pick it in the Bot's
-  Voice settings.
+  Voice settings. Speech recognition is set up only through the CLI.
 
 ## 5. Hand over
 
@@ -142,10 +151,10 @@ Tell the Human, in their language:
   restart of the computer the service is off until started again);
 - stop: \`<python> ${LOCAL_VOICE_SCRIPT_NAME} stop\`;
 - when it is off, voice messages keep their text and say "The local speech
-  service … is not running", and \`voice-provider-test\` reports
-  \`provider-unavailable\` with the same sentence;
-- to remove it: \`deepseekbot voice-provider-remove <provider-id>\`, then delete
-  the folder.
+  service … is not running", calls cannot hear, and \`voice-provider-test\`
+  reports \`provider-unavailable\` with the same sentence;
+- to remove it: \`deepseekbot voice-provider-remove <provider-id>\` for each of
+  the two Providers, then delete the folder.
 
 Never open the port beyond this computer. If the Human insists, the script
 refuses unless \`BOTHARNESS_VOICE_KEY\` is set, and the Provider then needs that

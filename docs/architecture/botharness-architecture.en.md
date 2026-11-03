@@ -318,7 +318,7 @@ External application preparation is documented on the website, reached through l
 
 ### Local speech service (ADR-0283)
 
-[ADR-0283](../adr/0283-bot-deployed-local-speech-service.md): the runtime skill `setting-up-local-voice` guides a Bot to deploy one Python script (sherpa-onnx: SenseVoice recognition, Kokoro synthesis) on the Host's macOS or Windows computer. It listens only on `127.0.0.1:8790` and serves the OpenAI-compatible `/v1/audio/speech` and `/v1/audio/transcriptions`. `deepseekbot voice-local-kit` writes the script offline; Tob's scoped CLI can read, test and register keyless `local`/`custom` Providers and bind a Bot's voice, with writes behind the approval card and no key ever passing through a Bot. The Host neither starts nor keeps the service alive; when it is off, `VoiceProviders` returns `provider-unavailable` with how to start it.
+[ADR-0283](../adr/0283-bot-deployed-local-speech-service.md): the runtime skill `setting-up-local-voice` guides a Bot to deploy one Python script (sherpa-onnx: SenseVoice recognition, Kokoro synthesis) on the Host's macOS or Windows computer. It listens only on `127.0.0.1:8790` and serves the OpenAI-compatible `/v1/audio/speech` and `/v1/audio/transcriptions`. `deepseekbot voice-local-kit` writes the script offline; Tob's scoped CLI can read, test and register keyless `local`/`custom` TTS and ASR Providers and bind a Bot's voice and speech recognition (`voice-set`, `voice-asr-set`), with writes behind the approval card and no key ever passing through a Bot. The Host neither starts nor keeps the service alive; when it is off, `VoiceProviders` returns `provider-unavailable` with how to start it.
 
 ### First outbound tracer: explicit Profile authorization
 

@@ -2,17 +2,22 @@ import { isDeepStrictEqual } from 'node:util';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { BridgeResult } from '../bridge/methods.js';
 import { createVoiceBridgeMethods } from '../voice/bridge.js';
-import { ttsPreset } from '../voice/presets.js';
+import { asrPreset, ttsPreset } from '../voice/presets.js';
 import type { VoiceProviders } from '../voice/providers.js';
 import type { PreparedTobOperation } from './cli-operations.js';
 import { TobError } from './service.js';
 
 export const TOB_VOICE_CAPABILITIES = [
   ['voice-providers', 'List TTS Provider presets, configured providers and a Bot voice', false],
-  ['voice-provider-add', 'Add a keyless TTS Provider such as the local speech service', true],
-  ['voice-provider-test', 'Health-check a TTS Provider with a short phrase', false],
-  ['voice-provider-remove', 'Remove a TTS Provider and the Bot voices that use it', true],
+  [
+    'voice-provider-add',
+    'Add a keyless TTS or ASR Provider such as the local speech service',
+    true,
+  ],
+  ['voice-provider-test', 'Health-check a TTS or ASR Provider', false],
+  ['voice-provider-remove', 'Remove a voice Provider and the Bot bindings that use it', true],
   ['voice-set', 'Bind or clear a Bot voice', true],
+  ['voice-asr-set', "Bind or clear a Bot's speech recognition", true],
 ].map(([command, description, write]) => ({
   command: String(command),
   description: String(description),
@@ -75,11 +80,31 @@ export function createTobVoiceOperations(deps: {
     if (deps.isProtectedBot(slug)) throw new TobError('protected-bot');
     return bot.voice ?? null;
   };
+  const asrOf = (slug: string) => {
+    const bot = deps.registry.get(slug);
+    if (bot === undefined) throw new TobError('unknown-bot');
+    if (deps.isProtectedBot(slug)) throw new TobError('protected-bot');
+    return bot.asr ?? null;
+  };
+  const kindOf = (id: string) =>
+    providers().has(id) ? 'tts' : providers().has(id, 'asr') ? 'asr' : undefined;
+  const current = (id: string) => {
+    const kind = kindOf(id);
+    return kind === undefined
+      ? null
+      : kind === 'asr'
+        ? providers().getAsr(id)
+        : providers().get(id);
+  };
   const guardUsers = (providerId: string) => {
     if (
       deps.registry
         .list()
-        .some((bot) => bot.voice?.providerId === providerId && deps.isProtectedBot(bot.slug))
+        .some(
+          (bot) =>
+            (bot.voice?.providerId === providerId || bot.asr?.providerId === providerId) &&
+            deps.isProtectedBot(bot.slug),
+        )
     )
       throw new TobError('protected-bot');
   };
@@ -116,34 +141,34 @@ export function createTobVoiceOperations(deps: {
       };
     }
     if (command === 'voice-provider-add') {
-      keys(args, ['preset', 'name', 'baseUrl', 'model', 'defaultVoice']);
+      keys(args, ['kind', 'preset', 'name', 'baseUrl', 'model', 'defaultVoice', 'language']);
+      const asr = args['kind'] === 'asr';
+      if (args['kind'] !== undefined && args['kind'] !== 'tts' && !asr)
+        throw new TobError('invalid-input');
       const preset = text(args['preset'], 64);
-      const found = ttsPreset(preset);
+      const found = asr ? asrPreset(preset) : ttsPreset(preset);
       if (found === undefined) throw new TobError('invalid-input');
       if (found.keyRequired) throw new TobError('key-required');
+      if (args[asr ? 'defaultVoice' : 'language'] !== undefined)
+        throw new TobError('invalid-input');
       const patch = {
+        ...(asr ? { kind: 'asr' } : {}),
         preset,
         ...Object.fromEntries(
-          (['name', 'baseUrl', 'model', 'defaultVoice'] as const).flatMap((field) => {
+          (['name', 'baseUrl', 'model', 'defaultVoice', 'language'] as const).flatMap((field) => {
             const value = optional(args[field], field === 'baseUrl' ? 500 : 200);
             return value === undefined ? [] : [[field, value]];
           }),
         ),
       };
       if (patch.preset === 'custom' && !('baseUrl' in patch)) throw new TobError('invalid-input');
-      const before = providers()
-        .list()
-        .map((entry) => entry.id);
+      const ids = () => [...providers().list(), ...providers().listAsr()].map((entry) => entry.id);
+      const before = ids();
       return {
         proposal: proposal(command, 'voice-providers', null, patch),
         run: async (guard, beforeEffect) => {
           guard();
-          same(
-            providers()
-              .list()
-              .map((entry) => entry.id),
-            before,
-          );
+          same(ids(), before);
           beforeEffect?.();
           return unwrap(await bridge().voiceProviderAdd(patch));
         },
@@ -152,17 +177,46 @@ export function createTobVoiceOperations(deps: {
     if (command === 'voice-provider-remove') {
       keys(args, ['id']);
       const id = text(args['id'], 64);
-      if (!providers().has(id)) throw new TobError('unknown-provider');
+      if (kindOf(id) === undefined) throw new TobError('unknown-provider');
       guardUsers(id);
-      const current = providers().get(id);
+      const previous = current(id);
       return {
-        proposal: proposal(command, id, current, { remove: true }),
+        proposal: proposal(command, id, previous, { remove: true }),
         run: async (guard, beforeEffect) => {
           guard();
-          same(providers().has(id) ? providers().get(id) : null, current);
+          same(current(id), previous);
           guardUsers(id);
           beforeEffect?.();
           return unwrap(await bridge().voiceProviderRemove({ id }));
+        },
+      };
+    }
+    if (command === 'voice-asr-set') {
+      keys(args, ['slug', 'providerId', 'language']);
+      const slug = text(args['slug'], 200);
+      const providerId = args['providerId'] === null ? null : text(args['providerId'], 64);
+      const language = optional(args['language'], 16);
+      if (providerId === null && language !== undefined) throw new TobError('invalid-input');
+      if (providerId !== null && !providers().has(providerId, 'asr'))
+        throw new TobError('unknown-provider');
+      const previous = asrOf(slug);
+      const patch =
+        providerId === null
+          ? null
+          : { providerId, ...(language === undefined ? {} : { language }) };
+      return {
+        proposal: proposal(command, slug, previous, patch),
+        run: (guard, beforeEffect) => {
+          guard();
+          same(asrOf(slug), previous);
+          beforeEffect?.();
+          return unwrap(
+            bridge().botAsrSet({
+              slug,
+              providerId,
+              ...(language === undefined ? {} : { language }),
+            }),
+          );
         },
       };
     }

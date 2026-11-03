@@ -4,18 +4,21 @@ import { CliLiveError } from './cli-live-error.js';
 export const TOB_AGENT_VOICE_COMMAND_USAGE: Readonly<Record<string, string>> = {
   'voice-providers': 'deepseekbot voice-providers [--bot <bot-slug>]',
   'voice-provider-add':
-    'deepseekbot voice-provider-add <local|custom> [--name <name>] [--base-url <url>] [--model <model>] [--voice <voice-id>]; keyed presets are added by the Human in Settings',
+    'deepseekbot voice-provider-add <local|custom> [--kind asr] [--name <name>] [--base-url <url>] [--model <model>] [--voice <voice-id> | --language <code>]; keyed presets are added by the Human in Settings',
   'voice-provider-test': 'deepseekbot voice-provider-test <provider-id> [--voice <voice-id>]',
   'voice-provider-remove': 'deepseekbot voice-provider-remove <provider-id>',
   'voice-set': 'deepseekbot voice-set <bot-slug> (<provider-id> [--voice <voice-id>] | off)',
+  'voice-asr-set':
+    'deepseekbot voice-asr-set <bot-slug> (<asr-provider-id> [--language <code>] | off)',
 };
 
 const OPTIONS: Readonly<Record<string, readonly string[]>> = {
   'voice-providers': ['bot'],
-  'voice-provider-add': ['name', 'base-url', 'model', 'voice'],
+  'voice-provider-add': ['kind', 'name', 'base-url', 'model', 'voice', 'language'],
   'voice-provider-test': ['voice'],
   'voice-provider-remove': [],
   'voice-set': ['voice'],
+  'voice-asr-set': ['language'],
 };
 
 function usage(message: string): never {
@@ -68,17 +71,37 @@ export function parseAgentVoice(
         ['base-url', 'baseUrl'],
         ['model', 'model'],
         ['voice', 'defaultVoice'],
+        ['kind', 'kind'],
+        ['language', 'language'],
       ] as const)
         if (values[flag] !== undefined) args[field] = textValue(values[flag], `--${flag}`);
       return { command, args, write: true };
     }
     case 'voice-provider-test': {
-      const [id] = positional(1, 'one TTS Provider id');
+      const [id] = positional(1, 'one voice Provider id');
       return { command, args: { id, ...voice }, write: false };
     }
     case 'voice-provider-remove': {
-      const [id] = positional(1, 'one TTS Provider id');
+      const [id] = positional(1, 'one voice Provider id');
       return { command, args: { id }, write: true };
+    }
+    case 'voice-asr-set': {
+      const [slug, providerId] = positional(2, 'a bot id and an ASR Provider id (or off)');
+      if (providerId === 'off') {
+        if (values['language'] !== undefined) usage('--language does not apply to `off`.');
+        return { command, args: { slug, providerId: null }, write: true };
+      }
+      return {
+        command,
+        args: {
+          slug,
+          providerId,
+          ...(values['language'] === undefined
+            ? {}
+            : { language: textValue(values['language'], '--language') }),
+        },
+        write: true,
+      };
     }
     default: {
       const [slug, providerId] = positional(2, 'a bot id and a TTS Provider id (or off)');

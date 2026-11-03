@@ -22,7 +22,7 @@ import {
   LOCAL_VOICE_SCRIPT,
   LOCAL_VOICE_SCRIPT_NAME,
 } from '../src/voice/local-kit.js';
-import { ttsPreset } from '../src/voice/presets.js';
+import { asrPreset, ttsPreset } from '../src/voice/presets.js';
 import { VoiceProviders } from '../src/voice/providers.js';
 import { LOCAL_VOICE_SKILL_CONTENT } from '../src/voice/skill.js';
 import { createTempRoot, FIXED_NOW } from './helpers.js';
@@ -160,6 +160,31 @@ describe('local preset', () => {
   });
 });
 
+describe('local ASR preset', () => {
+  it('registers SenseVoice without a key and names a stopped service plainly', async () => {
+    expect(asrPreset('local')).toMatchObject({
+      keyRequired: false,
+      baseUrl: LOCAL_VOICE_BASE_URL,
+      defaultModel: 'sensevoice',
+    });
+    const { providers } = await fixture();
+    const port = await freePort();
+    const provider = await providers.add({
+      kind: 'asr',
+      preset: 'local',
+      baseUrl: `http://127.0.0.1:${port}/v1`,
+      language: 'zh',
+    });
+    expect(provider).toMatchObject({ kind: 'asr', preset: 'local', model: 'sensevoice' });
+    expect(await providers.test(provider.id)).toEqual({
+      ok: false,
+      providerId: provider.id,
+      code: 'provider-unavailable',
+      message: `The local speech service at http://127.0.0.1:${port} is not running. Start it on the Host computer (python botharness_voice.py start in its folder) and try again.`,
+    });
+  });
+});
+
 describe('unreachable custom provider on this computer', () => {
   it('keeps the generic message for a provider that is not the local kit', async () => {
     const { providers } = await fixture();
@@ -191,6 +216,7 @@ describe('Tob voice operations', () => {
       'voice-provider-test',
       'voice-provider-remove',
       'voice-set',
+      'voice-asr-set',
     ]);
     const guard = () => undefined;
     const listed = (await (await prepare('voice-providers', { slug: 'ada' }))!.run(guard)) as {
@@ -198,7 +224,7 @@ describe('Tob voice operations', () => {
       bot: unknown;
     };
     expect(listed.providers).toEqual([]);
-    expect(listed.bot).toEqual({ slug: 'ada', selected: null });
+    expect(listed.bot).toEqual({ slug: 'ada', selected: null, asr: null });
 
     const add = (await prepare('voice-provider-add', { preset: 'local' }))!;
     expect(add.proposal).toEqual({
@@ -282,8 +308,45 @@ describe('Tob voice operations', () => {
       ),
     ).toBe('stale-setting');
     expect(removed).toBe(0);
+    const asr = (await prepare('voice-provider-add', { kind: 'asr', preset: 'local' }))!;
+    expect(asr.proposal?.patch).toEqual({ kind: 'asr', preset: 'local' });
+    const { provider: heard } = (await asr.run(() => undefined)) as {
+      provider: { id: string; kind: string };
+    };
+    expect(heard.kind).toBe('asr');
+    expect(await code(() => prepare('voice-provider-add', { kind: 'asr', preset: 'groq' }))).toBe(
+      'key-required',
+    );
+    expect(
+      await code(() =>
+        prepare('voice-provider-add', { kind: 'asr', preset: 'local', defaultVoice: 'zf_001' }),
+      ),
+    ).toBe('invalid-input');
+    expect(
+      await code(() => prepare('voice-asr-set', { slug: 'ada', providerId: provider.id })),
+    ).toBe('unknown-provider');
+    const bind = (await prepare('voice-asr-set', {
+      slug: 'ada',
+      providerId: heard.id,
+      language: 'zh',
+    }))!;
+    expect(bind.proposal).toEqual({
+      command: 'voice-asr-set',
+      target: 'ada',
+      previousValue: null,
+      patch: { providerId: heard.id, language: 'zh' },
+    });
+    await bind.run(() => undefined);
+    expect(registry.get('ada')?.asr).toEqual({ providerId: heard.id, language: 'zh' });
+    const dropAsr = (await prepare('voice-provider-remove', { id: heard.id }))!;
+    expect(dropAsr.proposal?.previousValue).toMatchObject({ id: heard.id, kind: 'asr' });
+    await dropAsr.run(() => undefined);
+    expect(registry.get('ada')?.asr).toBeUndefined();
     expect(registry.create({ slug: 'tob', displayName: 'Tob' }).ok).toBe(true);
     expect(await code(() => prepare('voice-set', { slug: 'tob', providerId: null }))).toBe(
+      'protected-bot',
+    );
+    expect(await code(() => prepare('voice-asr-set', { slug: 'tob', providerId: null }))).toBe(
       'protected-bot',
     );
     const { provider: kept } = (await (await prepare('voice-provider-add', {
@@ -328,6 +391,30 @@ describe('scoped CLI parsing for voice', () => {
       command: 'voice-provider-test',
       args: { id: 'tts-0123456789ab', voiceId: 'af_sol' },
       write: false,
+    });
+    expect(
+      await parseAgentManagement(
+        'voice-provider-add',
+        ['local'],
+        { kind: 'asr', language: 'zh' },
+        io,
+      ),
+    ).toEqual({
+      command: 'voice-provider-add',
+      args: { preset: 'local', kind: 'asr', language: 'zh' },
+      write: true,
+    });
+    expect(
+      await parseAgentManagement(
+        'voice-asr-set',
+        ['ada', 'asr-0123456789ab'],
+        { language: 'zh' },
+        io,
+      ),
+    ).toEqual({
+      command: 'voice-asr-set',
+      args: { slug: 'ada', providerId: 'asr-0123456789ab', language: 'zh' },
+      write: true,
     });
     await expect(
       parseAgentManagement('voice-provider-add', ['openai'], { 'key-stdin': true }, io),
