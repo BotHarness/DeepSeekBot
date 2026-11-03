@@ -10,6 +10,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
+import org.json.JSONArray
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -50,10 +51,10 @@ class ApprovalAlertsTest {
 
   @After fun close() { alerts.close(); ApprovalAlerts.incoming = null }
 
-  private fun request(identifier: String, item: String = "approval-1") = Notification(NotificationRequest(
+  private fun request(identifier: String, item: String = "approval-1", kind: String = "tool-approval") = Notification(NotificationRequest(
     identifier,
     NotificationContent.Builder().setTitle("Approval").setText("Needs you").setBody(JSONObject()
-      .put("v", 1).put("hostId", "studio").put("itemId", item).put("kind", "tool-approval"))
+      .put("v", 1).put("hostId", "studio").put("itemId", item).put("kind", kind))
       .build(),
     ChannelAwareTrigger("requests")
   ))
@@ -123,6 +124,46 @@ class ApprovalAlertsTest {
     alerts.present(request("local"), null, true)
     platform.backgroundRunning = false
     alerts.present(request("fcm"), null, false)
+    assertEquals(emptyList<String>(), platform.posted)
+  }
+
+  private fun foregroundSnapshot(silent: Boolean = false) = JSONObject("""{
+    "hostId":"studio", "foreground":true, "pending":["approval-1"],
+    "silent":${if (silent) "[\"approval-1\"]" else "[]"},
+    "alerts":[{"title":"Helper","body":"Question","data":{
+      "v":1,"hostId":"studio","itemId":"approval-1","kind":"user-question"
+    }}]
+  }""")
+
+  @Test fun foregroundClaimSuppressesCloudAndBackgroundWithoutNotificationPermission() = runBlocking {
+    platform.foreground = true
+    platform.allowed = false
+    assertEquals(1, JSONArray(alerts.reconcile(foregroundSnapshot())).length())
+    assertEquals(0, JSONArray(alerts.reconcile(foregroundSnapshot())).length())
+    platform.foreground = false
+    platform.allowed = true
+    alerts.present(request("fcm", kind = "user-question"), null, false)
+    assertEquals(emptyList<String>(), platform.posted)
+  }
+
+  @Test fun backgroundClaimSuppressesTheForegroundBanner() = runBlocking {
+    alerts.present(request("fcm", kind = "user-question"), null, false)
+    platform.foreground = true
+    assertEquals(0, JSONArray(alerts.reconcile(foregroundSnapshot())).length())
+    assertEquals(listOf("fcm"), platform.posted)
+  }
+
+  @Test fun currentConversationSilentClaimPreventsLaterCloudReplay() = runBlocking {
+    platform.foreground = true
+    assertEquals(0, JSONArray(alerts.reconcile(foregroundSnapshot(silent = true))).length())
+    platform.foreground = false
+    alerts.present(request("fcm", kind = "channel-reply"), null, false)
+    assertEquals(emptyList<String>(), platform.posted)
+  }
+
+  @Test fun disabledKindsApplyToCloudBeforeTheNextFeed() = runBlocking {
+    alerts.hosts(setOf("studio"), true, kinds = mapOf("approval" to true, "question" to false))
+    alerts.present(request("fcm", kind = "user-question"), null, false)
     assertEquals(emptyList<String>(), platform.posted)
   }
 }

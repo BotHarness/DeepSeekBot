@@ -127,6 +127,8 @@ question 可先真实返回 pending，问题保持可回答；同一 Session 可
 
 Android 本地优先提醒的目标边界见 [ADR-0280](../adr/0280-android-local-alerts-share-native-arbitration.md)（[#3353](https://github.com/BotHarness/DeepSeekBot/issues/3353)）：Human Inbox 的完整通知投影进入设备提醒模块，连接生命周期模块则共享既有 paired Host client 与 Android 前台消息服务。首片只验收后台 Tool approval；原生仲裁以 Host／Inbox item 身份统一本地和 FCM 提醒，持久记录只表示展示尝试，不构成已读或送达权威。保持连接、系统通知权限及云推送登记相互独立；切片原生证据与 Human 反馈由 #3355 跟踪。
 
+N2 将同一原生仲裁扩展到既有审批、提问、私密输入及回复／mention：前台领取返回有界的应用内提示队列，后台领取调用系统通知。当前实际可见会话的普通回复静默消费，请求保留明显提示；提示点击复用已有可信通知路由。会话静音仅抑制回复，私密输入无正文。首次完整投影静默建立普通回复基线，完整断线补收仍属于 N5。持久领取先于显示，进程在其间终止仍可能丢失一次提示，不能作为已显示回执。允许提前开发 Draft stack，不代表 N1 或后续切片已完成原生与 Human 验收。
+
 ## 1 · 系统上下文
 
 新附件已遵循 [ADR-0100](../adr/0100-file-open-actions-target-real-host-files.md)：独立上传彼此独立，显式复用身份才共享编辑结果。原生打开指向真实目标；后续消息读取、预览和下载使用当前内容，上传源独立。保存不保留附件历史，不生成 Source Revision、Inbox Admission、通知或 Bot wake。目标缺失则报告不可用，不自动重建。旧 CAS 迁移（#577）按 Source Event 附件出现位置预留可重启恢复的身份，仅在保留依赖未转换时继续保护旧对象；其他 CAS 数据与 Memory Git 行为保持各自语义。

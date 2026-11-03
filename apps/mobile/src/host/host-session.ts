@@ -31,6 +31,7 @@ import { createPushSession, type PushStatus } from './push-session';
 import { notificationPreferences } from './native-notification-preferences';
 import { connectionMode } from './native-connection-mode';
 import { createDeviceAlerts } from './device-alerts';
+import { alertBanners } from './alert-banners';
 import { createConnectionLifetime } from './connection-lifetime';
 import { createQuietChannels } from './quiet-channels';
 import { loadSavedHosts, saveHosts, type SavedHost } from './saved-host';
@@ -58,6 +59,7 @@ export interface ConnectedHost {
 const sessions = new Map<string, { host: ConnectedHost; dispose(): void }>();
 const connectionLifetime = createConnectionLifetime(AppState.currentState === 'active');
 const feedListeners = new Set<() => void>();
+const visibleConversations = new Map<Conversation, { hostId: string; channelId: string }>();
 let feeds: readonly ConnectedHost[] = [];
 function publishFeeds(): void {
   feeds = [...sessions.values()].map(({ host }) => ({
@@ -73,9 +75,11 @@ const deviceAlerts = createDeviceAlerts(connectionMode, {
   ready: notificationPreferences.ready,
   failed: () => connectionMode.reportAlertFailure(),
   read: () => {
-    const enabled = notificationPreferences.getSnapshot().preferences?.approval === true;
+    const preferences = notificationPreferences.getSnapshot().preferences;
+    const enabled = preferences !== undefined && Object.values(preferences).some(Boolean);
     return {
       approvalsEnabled: enabled,
+      ...(preferences ? { preferences } : {}),
       hosts: feeds
         .filter((host) => host.snapshot.connection.status !== 'refused')
         .map((host) => ({
@@ -90,6 +94,17 @@ const deviceAlerts = createDeviceAlerts(connectionMode, {
           botName: (slug: string) =>
             host.snapshot.roster?.bots.find((bot) => bot.slug === slug)?.displayName,
           approvalText: t.localApprovalText,
+          ...(preferences ? { preferences } : {}),
+          quietChannelIds: quietChannels.get(host.saved.hostId),
+          visibleChannelId: [...visibleConversations.values()].find(
+            (entry) => entry.hostId === host.saved.hostId,
+          )?.channelId,
+          text: {
+            approval: t.localApprovalText,
+            question: t.localQuestionText,
+            'private-input': t.localPrivateInputText,
+            reply: t.localReplyText,
+          },
         })),
     };
   },
@@ -234,8 +249,10 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
         void hostPush
           .settings(saved)
           .then((settings) => {
-            if (sessions.get(saved.hostId)?.host.client === client)
+            if (sessions.get(saved.hostId)?.host.client === client) {
+              quietChannels.set(saved.hostId, settings.quietChannelIds);
               setHostNotificationsEnabled(saved.hostId, settings.enabled);
+            }
           })
           .catch(() => undefined);
       void pushSession.retryFailed();
@@ -340,6 +357,7 @@ const hostsReady = loadSavedHosts().then(restoreHosts, () => adopt({ hosts: [] }
 
 AppState.addEventListener('change', (next) => {
   if (next === 'active') deviceAlerts.invalidate();
+  else alertBanners.clear();
   connectionLifetime.foreground(next === 'active');
   mobileTelemetry.foreground(next === 'active', state.hosts.length);
   notificationPreferences.setForeground(next === 'active');
@@ -539,7 +557,6 @@ export const quietChannels = createQuietChannels();
 quietChannels.subscribe(publishFeeds);
 
 export function refreshQuietChannels(saved: SavedHost): void {
-  if (pushSession.getSnapshot().status !== 'on') return;
   hostPush.settings(saved).then(
     (settings) => quietChannels.set(saved.hostId, settings.quietChannelIds),
     () => undefined,
@@ -656,7 +673,16 @@ function conversationFor(
   };
   const conversation: Conversation = {
     ...inner,
+    setForeground(active) {
+      inner.setForeground?.(active);
+      const hostId = clientHosts.get(client);
+      if (active && hostId && options.channelId)
+        visibleConversations.set(conversation, { hostId, channelId: options.channelId });
+      else visibleConversations.delete(conversation);
+      scheduleAlerts();
+    },
     stop() {
+      visibleConversations.delete(conversation);
       releasePreparedConversation(client, conversation);
       clearTimeout(idle);
       offRetained?.();

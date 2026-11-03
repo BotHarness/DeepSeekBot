@@ -10,6 +10,7 @@ import { conversationFilter } from './native-conversation-filter';
 import { computerEnvironmentKey } from './conversation-environments';
 import { nativeCarrier } from './native-carrier';
 import { onNotificationTap } from './native-notifications';
+import { alertBanners } from './alert-banners';
 import { parsePushData, pushHref, type PushTarget } from './push';
 import { decideFromPush, removeFromPush } from './push-actions';
 import { removeDevice } from './pairing';
@@ -183,7 +184,7 @@ export function usePushRouting(
         if (!disposed) onPending(false);
       }
     };
-    const offTap = onNotificationTap((data, action) => {
+    const receive = (data: unknown, action: string | undefined) => {
       const target = parsePushData(data);
       if (target === undefined) return;
       if (action === undefined) recordFeature('notification:push_open', {});
@@ -199,12 +200,15 @@ export function usePushRouting(
       });
       onPending(true);
       void drain();
-    });
+    };
+    const offTap = onNotificationTap(receive);
+    const offBanner = alertBanners.onOpen((data) => receive(data, undefined));
     const offSession = hostSession.subscribe(() => void drain());
     return () => {
       disposed = true;
       waiting?.abort();
       offTap();
+      offBanner();
       offSession();
     };
   }, [router, navigation, onPending, captureWorkspaceSelection]);

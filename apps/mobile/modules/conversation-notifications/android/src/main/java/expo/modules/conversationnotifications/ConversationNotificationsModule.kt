@@ -32,8 +32,8 @@ class ConversationNotificationsModule : Module() {
       if (enabled) check(appContext.currentActivity != null) { "foreground-required" }
       ConnectionService.setEnabled(requireNotNull(appContext.reactContext), enabled)
     }
-    AsyncFunction("syncAlertHostsAsync") Coroutine { hosts: List<String>, enabled: Boolean, preferences: Map<String, Boolean> ->
-      ApprovalAlerts.get(requireNotNull(appContext.reactContext)).hosts(hosts.toSet(), enabled, preferences)
+    AsyncFunction("syncAlertHostsAsync") Coroutine { hosts: List<String>, enabled: Boolean, preferences: Map<String, Boolean>, kinds: Map<String, Boolean> ->
+      ApprovalAlerts.get(requireNotNull(appContext.reactContext)).hosts(hosts.toSet(), enabled, preferences, kinds)
     }
     AsyncFunction("reconcileAlertsAsync") Coroutine { snapshot: String ->
       ApprovalAlerts.get(requireNotNull(appContext.reactContext)).reconcile(JSONObject(snapshot))

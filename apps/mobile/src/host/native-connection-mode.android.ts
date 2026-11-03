@@ -2,7 +2,9 @@ import { requireOptionalNativeModule } from 'expo';
 import * as Notifications from 'expo-notifications';
 import { AppRegistry, AppState } from 'react-native';
 
-import type { AlertSnapshot } from './device-alerts';
+import type { AlertSnapshot, LocalApprovalAlert } from './device-alerts';
+import { alertBanners } from './alert-banners';
+import type { PushPreferences } from './push';
 import { REQUESTS_CHANNEL } from './native-notifications';
 import { t } from '../ui/strings';
 
@@ -19,8 +21,9 @@ interface ConnectionNativeModule {
     hosts: string[],
     approvalsEnabled: boolean,
     hostPreferences: Record<string, boolean>,
+    kinds: Partial<PushPreferences>,
   ): Promise<void>;
-  reconcileAlertsAsync(snapshot: string): Promise<void>;
+  reconcileAlertsAsync(snapshot: string): Promise<string>;
   forgetAlertsAsync(host: string): Promise<void>;
   verifyAbsentAlertAsync(host: string, item: string): Promise<void>;
   addListener(
@@ -103,13 +106,23 @@ export const connectionMode = {
     hosts: string[],
     approvalsEnabled: boolean,
     hostPreferences: Record<string, boolean>,
+    kinds?: PushPreferences,
   ): Promise<void> {
-    if (supported) await native.syncAlertHostsAsync(hosts, approvalsEnabled, hostPreferences);
+    if (supported)
+      await native.syncAlertHostsAsync(hosts, approvalsEnabled, hostPreferences, kinds ?? {});
   },
   async reconcile(snapshot: AlertSnapshot): Promise<void> {
-    if (supported) await native.reconcileAlertsAsync(JSON.stringify(snapshot));
+    if (!supported) return;
+    const result = await native.reconcileAlertsAsync(JSON.stringify(snapshot));
+    const banners: LocalApprovalAlert[] = JSON.parse(result);
+    alertBanners.reconcile(
+      snapshot.hostId,
+      snapshot.pending,
+      AppState.currentState === 'active' ? banners : [],
+    );
   },
   async forget(hostId: string): Promise<void> {
     if (supported) await native.forgetAlertsAsync(hostId);
+    alertBanners.reconcile(hostId, [], []);
   },
 };
