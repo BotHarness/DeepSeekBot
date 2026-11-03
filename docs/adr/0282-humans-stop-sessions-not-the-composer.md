@@ -1,4 +1,4 @@
-# ADR-0281: Humans stop Sessions, not Bots from the composer
+# ADR-0282: Humans stop Sessions, not Bots from the composer
 
 - Status: Accepted (design; spec #3416)
 - Date: 2026-11-03
