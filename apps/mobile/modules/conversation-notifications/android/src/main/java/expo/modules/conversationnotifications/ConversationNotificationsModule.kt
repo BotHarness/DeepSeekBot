@@ -11,6 +11,8 @@ import java.io.File
 import org.json.JSONObject
 
 class ConversationNotificationsModule : Module() {
+  private val recoverySession = java.util.UUID.randomUUID().toString()
+
   override fun definition() = ModuleDefinition {
     Name("ConversationNotifications")
     Events("connectionState", "approvalArrived")
@@ -25,6 +27,7 @@ class ConversationNotificationsModule : Module() {
     }
     OnDestroy { ConnectionService.changed = null; ApprovalAlerts.incoming = null }
 
+    Function("alertRecoverySession") { recoverySession }
     Function("connectionState") {
       ConnectionService.state(requireNotNull(appContext.reactContext))
     }

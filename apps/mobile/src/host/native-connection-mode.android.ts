@@ -16,6 +16,7 @@ interface NativeConnectionState {
 }
 
 interface ConnectionNativeModule {
+  alertRecoverySession?(): string;
   connectionState(): NativeConnectionState;
   setConnectionEnabled(enabled: boolean): void;
   updateConnectionSummary(
@@ -78,6 +79,7 @@ if (supported) {
 
 export const connectionMode = {
   supported,
+  recoverySession: supported ? (native.alertRecoverySession?.() ?? 'build-required') : undefined,
   updateSummary(summary: ConnectionSummary, language: string): void {
     if (!supported) return;
     if (typeof native.updateConnectionSummary !== 'function') {
@@ -94,7 +96,8 @@ export const connectionMode = {
     );
   },
   reportAlertFailure(): void {
-    publish({ ...snapshot, error: 'alert-sync-failed' });
+    if (snapshot.error !== 'connection-build-required')
+      publish({ ...snapshot, error: 'alert-sync-failed' });
   },
   onApproval(listener: (data: { hostId: string; itemId: string }) => void): () => void {
     const subscription = supported ? native.addListener('approvalArrived', listener) : undefined;
@@ -137,7 +140,12 @@ export const connectionMode = {
   },
   async reconcile(snapshot: AlertSnapshot): Promise<void> {
     if (!supported) return;
+    if (snapshot.recovery && typeof native.alertRecoverySession !== 'function') {
+      publish({ ...native.connectionState(), error: 'connection-build-required' });
+      throw new Error('connection-build-required');
+    }
     const result = await native.reconcileAlertsAsync(JSON.stringify(snapshot));
+    if (snapshot.recovery?.ready === false) return;
     const banners: LocalApprovalAlert[] = JSON.parse(result);
     alertBanners.reconcile(
       snapshot.hostId,

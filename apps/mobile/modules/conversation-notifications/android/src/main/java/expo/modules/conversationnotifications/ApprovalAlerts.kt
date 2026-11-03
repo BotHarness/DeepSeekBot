@@ -5,6 +5,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import expo.modules.notifications.notifications.model.Notification
 import expo.modules.notifications.notifications.model.NotificationBehaviorRecord
@@ -45,15 +46,18 @@ class ApprovalAlerts internal constructor(
   private val context: Context,
   private val platform: ApprovalNotificationPlatform = AndroidApprovalNotifications(context)
 ) : SQLiteOpenHelper(
-  context, "approval-alerts.db", null, 1
+  context, "approval-alerts.db", null, 2
 ) {
   private val mutex = Mutex()
   private val preferences = context.getSharedPreferences("approval-alert-policy", Context.MODE_PRIVATE)
 
   override fun onCreate(db: SQLiteDatabase) {
     db.execSQL("CREATE TABLE alerts (host TEXT NOT NULL, item TEXT NOT NULL, state TEXT NOT NULL, identifier TEXT, observed INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(host, item))")
+    AlertRecovery.install(db)
   }
-  override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+  override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+    if (oldVersion < 2) AlertRecovery.install(db)
+  }
 
   suspend fun hosts(ids: Set<String>, approvalsEnabled: Boolean, policies: Map<String, Boolean> = emptyMap(), kinds: Map<String, Boolean> = emptyMap()) = mutex.withLock {
     val previous = preferences.getStringSet("hosts", emptySet()) ?: emptySet()
@@ -88,12 +92,24 @@ class ApprovalAlerts internal constructor(
     readableDatabase.rawQuery("SELECT identifier FROM alerts WHERE host = ?", arrayOf(host)).use { rows ->
       while (rows.moveToNext()) rows.getString(0)?.let(platform::cancel)
     }
+    for (group in RecoveryGroups(readableDatabase).read(host)) platform.cancel(identifier(host, group.id))
+    RecoveryGroups(writableDatabase).forget(host)
+    AlertRecovery(writableDatabase).forget(host)
     writableDatabase.delete("alerts", "host = ?", arrayOf(host))
   }
 
   suspend fun reconcile(snapshot: JSONObject): String {
     val banners = JSONArray()
     val host = snapshot.getString("hostId")
+    val recovery = snapshot.optJSONObject("recovery")
+    if (recovery != null && (!recovery.has("enabled") || !recovery.optBoolean("ready"))) {
+      mutex.withLock {
+        if (paired(host) && recovery.has("enabled")) AlertRecovery(writableDatabase).enter(
+          host, recovery.getString("session"), false, recovery.getBoolean("enabled"), recoveryEpoch()
+        )
+      }
+      return banners.toString()
+    }
     val pending = snapshot.getJSONArray("pending").let { values ->
       (0 until values.length()).map { values.getString(it) }.toSet()
     }
@@ -106,28 +122,50 @@ class ApprovalAlerts internal constructor(
         check(preferences.edit().putString("quiet:$host", it.toString()).commit())
       }
       val db = writableDatabase
-      db.rawQuery("SELECT item, identifier FROM alerts WHERE host = ? AND observed = 1 AND state != 'resolved'", arrayOf(host)).use { rows ->
-        while (rows.moveToNext()) {
-          val item = rows.getString(0)
-          if (item !in pending) {
-            rows.getString(1)?.let(platform::cancel)
-            db.execSQL("UPDATE alerts SET state = 'resolved' WHERE host = ? AND item = ?", arrayOf(host, item))
+      db.beginTransaction()
+      try {
+        val mode = recovery?.let { AlertRecovery(db).enter(host, it.getString("session"), true, it.getBoolean("enabled"), recoveryEpoch()) }
+        db.rawQuery("SELECT item, identifier FROM alerts WHERE host = ? AND observed = 1 AND state != 'resolved'", arrayOf(host)).use { rows ->
+          while (rows.moveToNext()) {
+            val item = rows.getString(0)
+            if (item !in pending) {
+              rows.getString(1)?.let(platform::cancel)
+              db.execSQL("UPDATE alerts SET state = 'resolved' WHERE host = ? AND item = ?", arrayOf(host, item))
+            }
           }
         }
-      }
-      for (item in pending) {
-        db.insertWithOnConflict("alerts", null, ContentValues().apply {
-          put("host", host); put("item", item); put("state", "pending"); put("observed", 1)
-        }, SQLiteDatabase.CONFLICT_IGNORE)
-        db.execSQL("UPDATE alerts SET observed = 1 WHERE host = ? AND item = ?", arrayOf(host, item))
-      }
-      snapshot.optJSONArray("silent")?.let { values ->
-        for (index in 0 until values.length()) db.execSQL(
-          "UPDATE alerts SET state = 'posted' WHERE host = ? AND item = ? AND state = 'pending'",
-          arrayOf(host, values.getString(index))
-        )
-      }
+        for (item in pending) {
+          db.insertWithOnConflict("alerts", null, ContentValues().apply {
+            put("host", host); put("item", item); put("state", "pending"); put("observed", 1)
+          }, SQLiteDatabase.CONFLICT_IGNORE)
+          db.execSQL("UPDATE alerts SET observed = 1 WHERE host = ? AND item = ?", arrayOf(host, item))
+        }
+        snapshot.optJSONArray("silent")?.let { values ->
+          for (index in 0 until values.length()) db.execSQL(
+            "UPDATE alerts SET state = 'posted' WHERE host = ? AND item = ? AND state = 'pending'",
+            arrayOf(host, values.getString(index))
+          )
+        }
+        if (recovery != null && (mode == RecoveryMode.INITIAL || mode == RecoveryMode.RECOVERY)) {
+          if (mode == RecoveryMode.INITIAL) snapshot.optJSONArray("items")?.let { facts ->
+            for (index in 0 until facts.length()) {
+              val fact = facts.getJSONObject(index)
+              if (fact.optString("kind") in setOf("channel-reply", "channel-mention")) db.execSQL(
+                "UPDATE alerts SET state = 'posted' WHERE host = ? AND item = ? AND state = 'pending'",
+                arrayOf(host, fact.getString("itemId"))
+              )
+            }
+          }
+          val candidates = snapshot.getJSONArray("alerts").let { values ->
+            (0 until values.length()).map { values.getJSONObject(it).getJSONObject("data") }
+              .filter { policyAllows(it) && pendingState(host, it.getString("itemId")) }
+          }
+          RecoveryGroups(db).stage(host, recovery, candidates)
+        }
+      db.setTransactionSuccessful()
+      } finally { db.endTransaction() }
     }
+    presentGroups(host, snapshot.optBoolean("foreground"), banners)
     val alerts = snapshot.getJSONArray("alerts")
     for (index in 0 until alerts.length()) {
       val alert = alerts.getJSONObject(index)
@@ -189,6 +227,57 @@ class ApprovalAlerts internal constructor(
     }
   }
 
+  private fun recoveryEpoch() = context.getSharedPreferences("connection-mode", Context.MODE_PRIVATE).getLong("recoveryEpoch", 0)
+
+  private fun pendingState(host: String, item: String): Boolean = readableDatabase.rawQuery(
+    "SELECT state FROM alerts WHERE host = ? AND item = ?", arrayOf(host, item)
+  ).use { it.moveToFirst() && it.getString(0) == "pending" }
+
+  private fun groupAllowed(host: String) = paired(host) && preferences.getBoolean("enabled", true) &&
+    host !in (preferences.getStringSet("muted", emptySet()) ?: emptySet())
+
+  private fun groups(host: String) = RecoveryGroups(readableDatabase).read(host).map { group ->
+    group.copy(members = group.members.filter(::policyAllows))
+  }
+
+  private suspend fun presentGroups(host: String, foreground: Boolean, banners: JSONArray) {
+    val pending = mutex.withLock { groups(host) }
+    for (group in pending) {
+      val id = identifier(host, group.id)
+      if (group.members.isEmpty() || !mutex.withLock { groupAllowed(host) }) {
+        platform.cancel(id)
+        continue
+      }
+      if (group.presented == group.signature) continue
+      val alert = group.alert()
+      if (foreground && platform.foreground) {
+        if (group.surface == "system") continue
+        mutex.withLock {
+          val current = groups(host).find { it.batch == group.batch }
+          if (groupAllowed(host) && platform.foreground && current != null && current.surface != "system" && current.signature == group.signature && current.presented != current.signature) {
+            RecoveryGroups(writableDatabase).presented(current, "foreground")
+            banners.put(alert)
+          }
+        }
+        continue
+      }
+      if (group.surface == "foreground" || platform.foreground || !platform.backgroundRunning || !platform.permitted()) continue
+      val content = NotificationContent.Builder().setTitle(alert.getString("title"))
+        .setText(alert.getString("body")).setBody(alert.getJSONObject("data"))
+        .setAutoDismiss(true).apply { useDefaultSound(); useDefaultVibrationPattern() }.build()
+      val built = platform.build(Notification(NotificationRequest(id, content, ChannelAwareTrigger("requests"))), null)
+      mutex.withLock {
+        val current = groups(host).find { it.batch == group.batch }
+        if (!groupAllowed(host) || platform.foreground || !platform.backgroundRunning || !platform.permitted() ||
+          current == null || current.surface == "foreground" || current.signature != group.signature || current.presented == current.signature) return@withLock
+        val audible = current.presented == null && AlertRecovery(writableDatabase).claimSound(current.batch)
+        val notification = if (audible) built else NotificationCompat.Builder(context, built).setSilent(true).build()
+        platform.post(id, notification)
+        RecoveryGroups(writableDatabase).presented(current, "system")
+      }
+    }
+  }
+
   private fun eligible(host: String, item: String, local: Boolean, foreground: Boolean = false): Boolean {
     if (!paired(host) || !preferences.getBoolean("enabled", true)) return false
     if (host in (preferences.getStringSet("muted", emptySet()) ?: emptySet())) return false
@@ -196,7 +285,7 @@ class ApprovalAlerts internal constructor(
     if (local && (!platform.backgroundRunning || platform.foreground)) return false
     val state = readableDatabase.rawQuery("SELECT state FROM alerts WHERE host = ? AND item = ?", arrayOf(host, item))
       .use { if (it.moveToFirst()) it.getString(0) else null }
-    return state != "posted" && state != "resolved" && (foreground || platform.permitted())
+    return state != "posted" && state != "resolved" && state != "grouped" && (foreground || platform.permitted())
   }
 
   private fun policyAllows(data: JSONObject): Boolean {

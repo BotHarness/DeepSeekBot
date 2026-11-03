@@ -17,6 +17,7 @@ const kinds: Record<string, PushKind> = {
 export interface LocalApprovalAlert {
   title: string;
   body: string;
+  members?: string[];
   data: {
     v: 1;
     hostId: string;
@@ -32,6 +33,15 @@ export interface LocalApprovalAlert {
 
 export interface AlertSnapshot {
   hostId: string;
+  recovery?: {
+    session: string;
+    batch: string;
+    ready: boolean;
+    enabled?: boolean | undefined;
+    hostName: string;
+    language: string;
+  };
+  items?: { itemId: string; kind: string }[];
   pending: string[];
   alerts: LocalApprovalAlert[];
   foreground?: boolean;
@@ -41,6 +51,7 @@ export interface AlertSnapshot {
 }
 
 export interface DeviceAlertPort {
+  recoverySession?: string | undefined;
   reconcile(snapshot: AlertSnapshot): Promise<void>;
   forget(hostId: string): Promise<void>;
   syncHosts?(
@@ -53,10 +64,13 @@ export interface DeviceAlertPort {
 
 export interface DeviceAlertInput {
   hostId: string;
+  hostName?: string;
+  language?: string;
   connected: boolean;
   items: readonly HumanAttentionItem[] | undefined;
   foreground: boolean;
   approvalsEnabled: boolean;
+  policyReady?: boolean;
   botName(slug: string): string | undefined;
   approvalText: string;
   preferences?: PushPreferences;
@@ -76,6 +90,8 @@ export function createDeviceAlerts(port: DeviceAlertPort, source?: DeviceAlertSo
   const applied = new Map<string, string>();
   const hostEnabled = new Map<string, boolean>();
   const baselined = new Set<string>();
+  let batchSequence = 0;
+  const nextBatch = () => `${port.recoverySession ?? 'legacy'}:${++batchSequence}`;
   let policyApplied: string | undefined;
   let pending = false;
   let refreshing = false;
@@ -103,11 +119,16 @@ export function createDeviceAlerts(port: DeviceAlertPort, source?: DeviceAlertSo
               snapshot.approvalsEnabled,
               snapshot.preferences,
             );
+            const batch = nextBatch();
             for (const host of hosts)
-              await owner.update({
-                ...host,
-                approvalsEnabled: host.approvalsEnabled && hostEnabled.get(host.hostId) === true,
-              });
+              await owner.update(
+                {
+                  ...host,
+                  approvalsEnabled: host.approvalsEnabled && hostEnabled.get(host.hostId) === true,
+                  policyReady: hostEnabled.has(host.hostId),
+                },
+                batch,
+              );
           }
         } finally {
           refreshing = false;
@@ -145,13 +166,27 @@ export function createDeviceAlerts(port: DeviceAlertPort, source?: DeviceAlertSo
     invalidate(): void {
       applied.clear();
     },
-    async update(input: DeviceAlertInput): Promise<void> {
-      if (!input.connected || input.items === undefined) return;
-      const pending = input.items.filter((item) => kinds[item.kind] !== undefined);
+    async update(input: DeviceAlertInput, batch = nextBatch()): Promise<void> {
+      const ready = input.connected && input.items !== undefined && input.policyReady !== false;
+      if (!ready && port.recoverySession === undefined) return;
+      const pending = (ready ? input.items! : []).filter((item) => kinds[item.kind] !== undefined);
       const extended = input.preferences !== undefined;
       const silent: string[] = [];
       const snapshot: AlertSnapshot = {
         hostId: input.hostId,
+        ...(port.recoverySession === undefined
+          ? {}
+          : {
+              items: pending.map((item) => ({ itemId: item.id, kind: item.kind })),
+              recovery: {
+                session: port.recoverySession,
+                batch,
+                ready,
+                enabled: input.policyReady === false ? undefined : input.approvalsEnabled,
+                hostName: input.hostName ?? input.hostId,
+                language: input.language ?? 'en',
+              },
+            }),
         pending: pending.map((item) => item.id),
         ...(extended
           ? {
@@ -169,7 +204,7 @@ export function createDeviceAlerts(port: DeviceAlertPort, source?: DeviceAlertSo
             return [];
           if (
             kind === 'reply' &&
-            (!baselined.has(input.hostId) ||
+            ((port.recoverySession === undefined && !baselined.has(input.hostId)) ||
               (input.foreground && input.visibleChannelId === item.channelId))
           ) {
             silent.push(item.id);
@@ -210,7 +245,10 @@ export function createDeviceAlerts(port: DeviceAlertPort, source?: DeviceAlertSo
       };
       await serialize(async () => {
         if (removed.has(input.hostId)) return;
-        const key = JSON.stringify(snapshot);
+        const key = JSON.stringify({
+          ...snapshot,
+          ...(snapshot.recovery ? { recovery: { ...snapshot.recovery, batch: undefined } } : {}),
+        });
         if (applied.get(input.hostId) === key) return;
         await port.reconcile(snapshot);
         baselined.add(input.hostId);

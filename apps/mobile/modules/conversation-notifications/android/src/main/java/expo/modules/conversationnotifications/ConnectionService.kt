@@ -119,7 +119,11 @@ class ConnectionService : Service() {
     )
 
     fun setEnabled(context: Context, enabled: Boolean) {
-      check(preferences(context).edit().putBoolean("enabled", enabled).commit()) { "connection-preference-write-failed" }
+      val saved = preferences(context)
+      val edit = saved.edit().putBoolean("enabled", enabled)
+      if (enabled && !saved.getBoolean("enabled", false))
+        edit.putLong("recoveryEpoch", saved.getLong("recoveryEpoch", 0) + 1)
+      check(edit.commit()) { "connection-preference-write-failed" }
       if (enabled) {
         try {
           ContextCompat.startForegroundService(context, Intent(context, ConnectionService::class.java))

@@ -85,6 +85,8 @@ const deviceAlerts = createDeviceAlerts(connectionMode, {
         .filter((host) => host.snapshot.connection.status !== 'refused')
         .map((host) => ({
           hostId: host.saved.hostId,
+          hostName: host.saved.hostName,
+          language: locale,
           connected: host.snapshot.connection.status === 'connected',
           items:
             host.attention.status === 'ready' && !host.attention.stale
