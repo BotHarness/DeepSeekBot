@@ -27,6 +27,16 @@ function aliasBounds(): { start: number; end: number } {
 }
 
 describe('client styles', () => {
+  it('keeps the working indicators static while Bots stream', () => {
+    expect(source).toContain(
+      ".bh-row-glyph[data-status='working'] { color: var(--dsw-alias-state-success-primary); }",
+    );
+    expect(source).not.toMatch(
+      /bh-row-glyph-spin|bh-timeline-working-dot|bh-header-working-ellipsis|bh-reading-dots/,
+    );
+    const rule = source.slice(source.indexOf('.bh-row-glyph {'));
+    expect(rule.slice(0, rule.indexOf('}'))).not.toContain('animation');
+  });
   it('pins a message group avatar to the timeline bottom edge while its group scrolls past', () => {
     expect(source).toMatch(/\.bh-message-group \{[^}]*align-items: flex-end/);
     expect(source).toMatch(/\.bh-message-group-avatar \{[^}]*position: sticky;\s*bottom: 0;/);
