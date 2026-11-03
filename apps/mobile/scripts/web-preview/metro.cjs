@@ -4,6 +4,10 @@ module.exports = function withWebPreview(config) {
   const resolve = config.resolver.resolveRequest;
   const overrides = new Map([
     [
+      path.resolve(__dirname, '../../src/host/native-notification-preferences.ts'),
+      path.resolve(__dirname, 'notification-preferences.ts'),
+    ],
+    [
       path.resolve(__dirname, '../../src/host/native-host-look.ts'),
       path.resolve(__dirname, 'host-look.ts'),
     ],

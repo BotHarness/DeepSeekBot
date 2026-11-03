@@ -453,6 +453,10 @@ describe('Host client', () => {
     host.revoke();
     const refused = await until(target, (s) => s.connection.status === 'refused');
     expect(refused.connection).toMatchObject({ code: 'device-revoked' });
+    const attempts = host.requests.length;
+    target.retryNow('resume');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(host.requests.length).toBe(attempts);
   });
 
   it('asks to pair again when the Host does not know this phone', async () => {

@@ -2,6 +2,7 @@ import { useMounted } from '../src/ui/mounted';
 import { watchRequestActivity } from '../src/host/native-live-activity';
 import { useCallback, useState } from 'react';
 import { Notice } from '../src/ui/request-parts';
+import { DeviceAlertBanner } from '../src/ui/primitives/device-alert-banner';
 import { channelRouteId, channelStackRouter } from '../src/ui/shell/channel-navigation';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -85,6 +86,7 @@ function RootNavigator() {
         <SafeAreaProvider>
           <View ref={routing} style={{ flex: 1 }} onTouchStart={noteTouch}>
             <StatusBar style={design.scheme === 'dark' ? 'light' : 'dark'} />
+            <DeviceAlertBanner />
             {routingPending ? (
               <SafeAreaView edges={['top']}>
                 <Notice tone="warning">{t.channelOpening}</Notice>

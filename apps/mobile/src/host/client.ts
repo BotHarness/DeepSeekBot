@@ -114,6 +114,7 @@ export interface HostSnapshot {
   }[];
   computerAvailable?: boolean;
   connection: ConnectionState;
+  activity?: readonly WireBotActivity[];
   roster?: RosterView;
 }
 
@@ -343,6 +344,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         status: routeChecks.get(url) ?? 'unchecked',
       })),
       connection: connection ?? snapshot.connection,
+      activity: [...rawStates.values()],
       ...(computerAvailable === undefined ? {} : { computerAvailable }),
       ...(bots === undefined ? {} : { roster: view(bots) }),
     };
@@ -670,7 +672,17 @@ export function createHostClient(options: HostClientOptions): HostClient {
       running = false;
       generation += 1;
       disconnectCurrent?.(error.message);
+      interruptFollowers(error.message);
+      clearTimeout(retryTimer);
+      clearTimeout(settle);
+      settle = undefined;
+      wake?.();
       socket?.close();
+      socket = undefined;
+      carrier.close?.();
+      avatars.clear();
+      avatarLoading.clear();
+      options.telemetry?.dispose();
       publish({
         status: 'refused',
         route,
@@ -1069,13 +1081,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         if (!running || current !== generation) return;
         socket?.close();
         if (error instanceof CredentialRefused) {
-          running = false;
-          publish({
-            status: 'refused',
-            route,
-            code: error.code,
-            reason: error.message,
-          });
+          refusedBy(error);
           return;
         }
         attempt += 1;

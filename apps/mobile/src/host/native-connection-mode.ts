@@ -1,0 +1,46 @@
+import type { AlertSnapshot } from './device-alerts';
+import type { ConnectionSummary } from './connection-summary';
+import type { NotificationDiagnosticsPort } from './notification-diagnostics';
+
+const inactive: { enabled: boolean; running: boolean; error: string | null } = {
+  enabled: false,
+  running: false,
+  error: null,
+};
+
+export const notificationDiagnostics: NotificationDiagnosticsPort = {
+  async read() {
+    throw new Error('connection-build-required');
+  },
+  async dismissSetup() {
+    throw new Error('connection-build-required');
+  },
+  async test() {
+    throw new Error('connection-build-required');
+  },
+};
+
+export const connectionMode = {
+  supported: false,
+  updateSummary(_summary: ConnectionSummary, _language: string): void {},
+  reportAlertFailure(): void {},
+  onApproval(_listener: (data: { hostId: string; itemId: string }) => void): () => void {
+    return () => {};
+  },
+  async verifiedAbsent(_hostId: string, _itemId: string): Promise<void> {},
+  getSnapshot: () => inactive,
+  subscribe(_listener: () => void): () => void {
+    return () => {};
+  },
+  async setEnabled(_enabled: boolean): Promise<void> {
+    throw new Error('connection-build-required');
+  },
+  async resume(): Promise<void> {},
+  async syncHosts(
+    _hosts: string[],
+    _approvalsEnabled: boolean,
+    _hostPreferences: Record<string, boolean>,
+  ): Promise<void> {},
+  async reconcile(_snapshot: AlertSnapshot): Promise<void> {},
+  async forget(_hostId: string): Promise<void> {},
+};

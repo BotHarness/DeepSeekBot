@@ -14,6 +14,8 @@ const item = (id: string): HumanAttentionItem => ({
 
 it('publishes only complete notification discovery and restarts a scan invalidated between pages', async () => {
   let live = () => {};
+  let connectionChanged = () => {};
+  let connection: 'connected' | 'stopped' = 'connected';
   let fail = false;
   let mutate = false;
   let changed = false;
@@ -45,8 +47,11 @@ it('publishes only complete notification discovery and restarts a scan invalidat
     api: unavailable,
     resource: unavailable,
     follow: unavailable,
-    getSnapshot: () => ({ connection: { status: 'connected', route: '' } }),
-    subscribe: () => () => {},
+    getSnapshot: () => ({ connection: { status: connection, route: '' } }),
+    subscribe: (listener) => {
+      connectionChanged = listener;
+      return () => {};
+    },
     onLive: (listener) => {
       live = () => listener('activity');
       return () => {};
@@ -61,6 +66,14 @@ it('publishes only complete notification discovery and restarts a scan invalidat
       published.push(snapshot.notificationItems.map((item) => item.id));
   });
   try {
+    await inbox.refresh();
+    expect(published.at(-1)).toEqual(['withdrawn', 'dm']);
+    connection = 'stopped';
+    connectionChanged();
+    expect(inbox.getSnapshot()).toMatchObject({ notificationItems: undefined });
+    connection = 'connected';
+    connectionChanged();
+    expect(inbox.getSnapshot()).toMatchObject({ notificationItems: undefined });
     await inbox.refresh();
     expect(published.at(-1)).toEqual(['withdrawn', 'dm']);
     published.length = 0;

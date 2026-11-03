@@ -87,6 +87,11 @@ vi.mock('../src/host/native-carrier', () => ({ nativeCarrier: () => carrier }));
 
 vi.mock('../src/host/native-notification-preferences', () => ({
   notificationPreferences: {
+    ready: Promise.resolve(),
+    getSnapshot: () => ({
+      preferences: { approval: true, question: true, 'private-input': true, reply: true },
+    }),
+    subscribe: () => () => {},
     setForeground() {},
     sync: async () => {},
     retry: async () => {},

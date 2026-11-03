@@ -92,7 +92,7 @@ describe('Notification settings', () => {
         onOpenSettings={() => {}}
       />,
     );
-    expect(view.textContent).toContain(t.notificationsUnavailable);
+    expect(view.textContent).toContain(t.cloudPushUnavailable);
     expect(view.textContent).not.toContain('missing-project-id');
   });
 
@@ -175,6 +175,13 @@ describe('Notification settings', () => {
     expect(settings.test).toHaveBeenCalled();
     expect(view.textContent).toContain(t.testSent);
     expect(announce).toHaveBeenCalledWith(t.testSent);
+    expect(view.textContent).not.toContain(t.notificationLocalTestState.seen);
+    await act(async () =>
+      view
+        .querySelector<HTMLButtonElement>('[data-testid="notification-cloud-test-seen"]')!
+        .click(),
+    );
+    expect(view.textContent).toContain(t.notificationLocalTestState.seen);
   });
 
   it('hides the kinds while this phone does not allow notifications, and brings them back', async () => {

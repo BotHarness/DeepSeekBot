@@ -216,6 +216,8 @@ export function createInbox(
   let wasConnected = false;
   const offClient = client.subscribe(() => {
     const connected = client.getSnapshot().connection.status === 'connected';
+    if (!connected && wasConnected && options.notifications && snapshot.status === 'ready')
+      publish({ ...snapshot, notificationItems: undefined });
     if (connected !== wasConnected) connectionRevision += 1;
     if (connected && !wasConnected) background();
     wasConnected = connected;
