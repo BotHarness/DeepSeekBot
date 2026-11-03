@@ -37,21 +37,81 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
 
   private var ended: Bool { lock.lock(); defer { lock.unlock() }; return closed }
 
-  /// Configures the shared audio session for a voice call: play and record, voice-chat
-  /// mode (system echo cancellation and gain control), loudspeaker by default.
-  static func configureSession() -> Bool {
+  /// Where the call's audio goes. `speaker` and `receiver` are call audio: voice-chat
+  /// mode, the call volume, Bluetooth over HFP. `media` is media audio: default mode,
+  /// the media volume, Bluetooth headphones over A2DP with the phone's microphone.
+  /// All three keep the voice-processing unit, so echo cancellation stays on.
+  enum Route: String {
+    case speaker, receiver, media
+  }
+
+  static func configuration(_ route: Route) -> RTCAudioSessionConfiguration {
+    let config = RTCAudioSessionConfiguration.webRTC()
+    config.category = AVAudioSession.Category.playAndRecord.rawValue
+    switch route {
+    case .speaker:
+      config.mode = AVAudioSession.Mode.voiceChat.rawValue
+      config.categoryOptions = [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP]
+    case .receiver:
+      config.mode = AVAudioSession.Mode.voiceChat.rawValue
+      config.categoryOptions = [.allowBluetooth, .allowBluetoothA2DP]
+    case .media:
+      config.mode = AVAudioSession.Mode.default.rawValue
+      config.categoryOptions = [.defaultToSpeaker, .allowBluetoothA2DP]
+    }
+    return config
+  }
+
+  /// Configures and activates the shared audio session for a new call. The session
+  /// is activated once per call and released once in `close`, so WebRTC's activation
+  /// count stays balanced; route changes during the call only reconfigure it.
+  static func configureSession(_ route: Route) -> Bool {
     let session = RTCAudioSession.sharedInstance()
     session.lockForConfiguration()
     defer { session.unlockForConfiguration() }
-    let config = RTCAudioSessionConfiguration.webRTC()
-    config.category = AVAudioSession.Category.playAndRecord.rawValue
-    config.mode = AVAudioSession.Mode.voiceChat.rawValue
-    config.categoryOptions = [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP]
     do {
-      try session.setConfiguration(config, active: true)
+      try session.setConfiguration(configuration(route), active: true)
+      applyOverride(route, session)
       return true
     } catch {
       return false
+    }
+  }
+
+  /// Switches a live call between call audio and media audio, or between the
+  /// loudspeaker and the receiver, without restarting the peer.
+  static func switchRoute(_ route: Route) -> Bool {
+    let session = RTCAudioSession.sharedInstance()
+    session.lockForConfiguration()
+    defer { session.unlockForConfiguration() }
+    do {
+      try session.setConfiguration(configuration(route))
+      applyOverride(route, session)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /// Only the built-in speaker and receiver are overridden; headphones, Bluetooth
+  /// and car audio keep the route the system chose.
+  private static func applyOverride(_ route: Route, _ session: RTCAudioSession) {
+    let outputs = AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType)
+    guard outputs.allSatisfy({ $0 == .builtInSpeaker || $0 == .builtInReceiver }) else { return }
+    try? session.overrideOutputAudioPort(route == .receiver ? .none : .speaker)
+  }
+
+  /// The current output, in the words the call screen and test reports use.
+  static func currentOutput() -> String {
+    guard let port = AVAudioSession.sharedInstance().currentRoute.outputs.first?.portType else { return "none" }
+    switch port {
+    case .builtInSpeaker: return "speaker"
+    case .builtInReceiver: return "receiver"
+    case .bluetoothA2DP, .bluetoothHFP, .bluetoothLE: return "bluetooth"
+    case .headphones, .usbAudio: return "headphones"
+    case .carAudio: return "car"
+    case .airPlay: return "airplay"
+    default: return "other"
     }
   }
 

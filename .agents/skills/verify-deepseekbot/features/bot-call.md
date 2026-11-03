@@ -9,7 +9,9 @@ A paired iPhone calls a Bot. The Host's media helper carries WebRTC audio, the H
 - `long-task`: the Bot first says a short line such as "Let me check", dispatches an Assignment, and speaks the result when it returns.
 - `text-only`: after "send me text", replies carry no voice.
 - `busy`: while the Orchestrator is on an earlier turn, the phone shows "It's busy. It will hear you in its next turn." and nothing is spoken.
-- `lifecycle`: mute, hang up, background, 8 s network loss (`connection-lost`) and device revoke end or pause the call cleanly; committed messages remain. Connect routes are refused with `connect-carrier-required`.
+- `lifecycle`: mute, hang up, 8 s network loss (`connection-lost`) and device revoke end or pause the call cleanly; committed messages remain. Connect routes are refused with `connect-carrier-required`.
+- `background` (#3422, [ADR-0283](../../../../docs/adr/0283-bot-calls-keep-running-in-the-background.md)): locking the iPhone or switching apps keeps the call; the Host shows no `ended` event. The `TobsCall` Live Activity shows the Bot, the call timer, the status and Mute and Hang Up buttons on the Lock Screen and in the Dynamic Island; Hang Up there ends the call as `hangup`. A phone call or another app pausing the audio shows the paused hint and resumes after.
+- `audio-route`: the call screen's Audio pull-down (`call-audio`) switches Speaker, iPhone (receiver) and Media Audio without dropping the call, and the phone remembers the choice.
 - `media`: the Host helper offers one Opus audio section with no STUN/TURN, returns 16 kHz PCM frames and plays reply files.
 
 ## How to get to it (user POV)
@@ -21,7 +23,8 @@ On a Mac or Windows Host, add an ASR and a TTS Provider in Settings › Voice or
 1. Host only, no phone: `deepseekbot call-simulate <bot> --file /abs/question.wav` (or `--script` with a cough between two sentences) against a Host with the latest DeepSeek model. Check `heard`, `replies`, `firstAudioMs` and that the cough appears only as `noise-discarded`.
 2. Media helper without Electron: `node scripts/e2e-call-media.mjs` loads the helper's renderer in Chromium, connects a phone page and checks uplink PCM, downlink playback, failed playback and close.
 3. iPhone: use a `.dev` development build. Open `deepseekbot-dev://call/<bot>?script=<url-of-timeline.json>` where the timeline is `[{"at": 0, "url": "https://…/question.wav"}]`; the build replaces the microphone with those files, records the downlink and writes a timing report path on the call screen (`call-test-report`). Use `chat-call-button`, `call-mute`, `call-hang-up`, `call-status`, `call-duration` and `call-hint`.
-4. Capture the call screen in light and dark, at default and largest text, connecting, listening, speaking, busy and ended. Record the first-sentence audio time from `firstAudioMs` or the report.
+4. Background (real iPhone only): with a `script` call running, lock the phone before the next injected sentence; the downlink report still shows `downlink-start` and the DM gets the reply. Check the Lock Screen Live Activity, press Hang Up there, and confirm the Host logs `call-ended` with `hangup`. Switch Audio to Media Audio and confirm the volume buttons move the media volume and Bluetooth headphones play over A2DP. Start a FaceTime or phone call to the iPhone during a Bot call and confirm the paused hint, then the resume.
+5. Capture the call screen in light and dark, at default and largest text, connecting, listening, speaking, busy and ended. Record the first-sentence audio time from `firstAudioMs` or the report.
 
 ## Gotchas
 

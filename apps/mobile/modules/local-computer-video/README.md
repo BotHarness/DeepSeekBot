@@ -12,8 +12,15 @@ audio-only offer from the Host call owner and answers with a microphone track on
 connection factory. The audio session is play-and-record in voice-chat mode on the loudspeaker, and
 the track requests echo cancellation, noise suppression and gain control, so the Bot's reply is not
 heard back as the Human's speech. `callMute` disables the track, `callStop` closes the peer and
-releases the audio session, and leaving the foreground ends the call. The screen stays on during a
-call. No audio is stored. With `testAudio` (only `.dev` development builds pass it), a capture
+releases the audio session. No audio is stored.
+
+The call keeps running with the screen locked or the app in the background (#3422): the module's
+config plugin declares the `audio` background mode, and the session stays active from `callStart`
+to `callStop`. `callStart` takes a fourth argument, the audio route: `speaker` or `receiver` (call
+audio, voice-chat mode) or `media` (media audio, default mode, Bluetooth A2DP output). `callRoute`
+switches a live call between them by reconfiguring the active session, and returns the output now
+in use. `onCallAudio` reports interruptions by another call, Siri or app, and output changes such as
+headphones being unplugged; neither ends the call. See ADR-0283. With `testAudio` (only `.dev` development builds pass it), a capture
 post-processing hook replaces the microphone with WAV files queued by `callInject`, and a renderer
 on the remote track records the downlink to a WAV in the caches folder and reports
 `downlink-start`/`downlink-end` timestamps through `onCallTap`. iOS needs a rebuilt development

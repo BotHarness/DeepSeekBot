@@ -47,7 +47,11 @@ function transient(
   }
 }
 
-export function callScreenModel(t: Strings, state: CallClientState): CallScreenModel {
+export function callScreenModel(
+  t: Strings,
+  state: CallClientState,
+  options: { interrupted?: boolean } = {},
+): CallScreenModel {
   if (state.status === 'idle' || state.status === 'opening')
     return { status: t.call.connecting, live: false, muted: false, retry: false };
   if (state.status === 'ended') {
@@ -75,7 +79,12 @@ export function callScreenModel(t: Strings, state: CallClientState): CallScreenM
             : muted
               ? t.call.muted
               : t.call.listening;
-  const hint = call.busy ? t.call.busy : transient(t, events, call.durationMs);
+  const hint =
+    options.interrupted === true
+      ? t.call.interrupted
+      : call.busy
+        ? t.call.busy
+        : transient(t, events, call.durationMs);
   return { status, live: true, muted, retry: false, ...(hint === undefined ? {} : { hint }) };
 }
 
@@ -125,4 +134,36 @@ export function formatCallDuration(ms: number): string {
   const seconds = total % 60;
   const two = (value: number) => String(value).padStart(2, '0');
   return hours > 0 ? `${hours}:${two(minutes)}:${two(seconds)}` : `${two(minutes)}:${two(seconds)}`;
+}
+
+export type CallActivityPhase =
+  | 'connecting'
+  | 'listening'
+  | 'hearing'
+  | 'thinking'
+  | 'speaking'
+  | 'muted'
+  | 'interrupted'
+  | 'reconnecting';
+
+export function callActivityPhase(
+  state: CallClientState,
+  interrupted: boolean,
+): CallActivityPhase | undefined {
+  if (state.status === 'opening') return 'connecting';
+  if (state.status !== 'live') return undefined;
+  if (interrupted) return 'interrupted';
+  if (state.reconnecting) return 'reconnecting';
+  switch (state.call.phase) {
+    case 'connecting':
+      return 'connecting';
+    case 'user-speaking':
+      return 'hearing';
+    case 'transcribing':
+      return 'thinking';
+    case 'bot-speaking':
+      return 'speaking';
+    default:
+      return state.muted ? 'muted' : 'listening';
+  }
 }

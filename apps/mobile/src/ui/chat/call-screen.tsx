@@ -12,16 +12,21 @@ import {
   type CallPost,
 } from '../../../../../packages/core/src/voice/call-client';
 import { VOICE_CALL_PATH } from '../../../../../packages/core/src/voice/call-contract';
+import type { CallAudioRoute } from '../../host/call-audio-route';
 import { createCallMedia, microphoneAccess } from '../../host/call-media';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
+import { callAudioRoute, useCallAudioRoute } from '../../host/native-call-audio-route';
+import { callActivityNative, onCallActivityAction } from '../../host/native-call-activity';
 import { BotAvatar } from '../bot-avatar';
 import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Button } from '../primitives/button';
 import { SystemSymbol } from '../primitives/system-symbol';
 import { Text } from '../primitives/text';
-import { useStrings } from '../strings';
-import { callScreenModel, formatCallDuration } from './call-model';
+import { locale, useStrings } from '../strings';
+import { createCallActivity } from './call-activity';
+import { CallAudioMenu } from './call-audio-menu';
+import { callActivityPhase, callScreenModel, formatCallDuration } from './call-model';
 
 const testBuild = () =>
   typeof __DEV__ !== 'undefined' && __DEV__ && Application.applicationId?.endsWith('.dev') === true;
@@ -61,10 +66,18 @@ export function CallScreen({
   const [attempt, setAttempt] = useState(0);
   const [microphone, setMicrophone] = useState<'granted' | 'denied' | 'blocked'>();
   const [report, setReport] = useState<string>();
+  const [interrupted, setInterrupted] = useState(false);
+  const [audioFailed, setAudioFailed] = useState(false);
+  const audio = useCallAudioRoute();
   const callRef = useRef<CallClient | undefined>(undefined);
   const dialed = useRef<number | undefined>(undefined);
+  const nameRef = useRef(slug);
+  nameRef.current = bot?.displayName ?? slug;
   const testAudio = testBuild() && script !== undefined;
-  const media = useMemo(() => createCallMedia({ testAudio }), [testAudio, attempt]);
+  const media = useMemo(
+    () => createCallMedia({ testAudio, route: () => callAudioRoute.getSnapshot().route }),
+    [testAudio, attempt],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -74,13 +87,40 @@ export function CallScreen({
       const timeline: Record<string, unknown>[] = [];
       const mark = (kind: string, detail: Record<string, unknown> = {}) =>
         timeline.push({ kind, at: Date.now(), ...detail });
+      const activity = createCallActivity(callActivityNative);
+      let current: CallClientState = { status: 'idle' };
+      let paused = false;
+      let connectedAt: number | undefined;
+      const showActivity = () => {
+        const phase = callActivityPhase(current, paused);
+        activity.sync(
+          phase === undefined
+            ? undefined
+            : {
+                name: nameRef.current,
+                phase,
+                startedAt: connectedAt ?? Date.now(),
+                muted: current.status === 'live' && current.muted,
+                locale: locale === 'zh' ? 'zh' : 'en',
+              },
+        );
+      };
       const call = createCallClient({
         post: hostPost(client),
         media,
         onChange: (next) => {
           if (cancelled) return;
+          current = next;
           setState(next);
-          if (next.status === 'live') setStartedAt((previous) => previous ?? Date.now());
+          if (next.status === 'live') {
+            connectedAt ??= Date.now();
+            setStartedAt((previous) => previous ?? connectedAt);
+          }
+          if (next.status === 'ended') {
+            paused = false;
+            setInterrupted(false);
+          }
+          showActivity();
           if (testAudio)
             mark('state', {
               status: next.status,
@@ -90,11 +130,26 @@ export function CallScreen({
       });
       callRef.current = call;
       const removeTap = media.test?.onTap((event) => mark('native', event));
+      const removeAudio = media.audio?.onChange((event) => {
+        if (cancelled) return;
+        paused = event.interrupted;
+        setInterrupted(event.interrupted);
+        showActivity();
+        if (testAudio) mark('audio', event);
+      });
+      const removeActions = onCallActivityAction((action) => {
+        if (cancelled) return;
+        if (testAudio) mark('activity-action', { action });
+        if (action === 'hang-up') void call.hangup();
+        else if (current.status === 'live') void call.mute(!current.muted);
+      });
       void (async () => {
         const access = await microphoneAccess();
         if (cancelled) return;
         setMicrophone(access);
         if (access !== 'granted') return;
+        await callAudioRoute.ready;
+        if (cancelled) return;
         await call.open(slug);
         if (cancelled || !testAudio || media.test === undefined || script === undefined) return;
         try {
@@ -113,6 +168,9 @@ export function CallScreen({
       })();
       return () => {
         removeTap?.();
+        removeAudio?.();
+        removeActions();
+        activity.end();
         call.dispose();
         cancelled = true;
         callRef.current = undefined;
@@ -142,7 +200,20 @@ export function CallScreen({
     }, [ticking]),
   );
 
-  const model = callScreenModel(t, state);
+  useFocusEffect(
+    useCallback(() => {
+      if (!audioFailed) return;
+      const timer = setTimeout(() => setAudioFailed(false), 4_000);
+      return () => clearTimeout(timer);
+    }, [audioFailed]),
+  );
+
+  const model = callScreenModel(t, state, { interrupted });
+  const hint = audioFailed ? t.call.audioSwitchFailed : model.hint;
+  const switchAudio = (route: CallAudioRoute) => {
+    callAudioRoute.setRoute(route);
+    setAudioFailed(media?.audio?.route(route) === null);
+  };
   const leave = () => {
     if (router.canGoBack()) router.back();
     else
@@ -245,7 +316,7 @@ export function CallScreen({
               {duration}
             </Text>
           )}
-          {model.hint === undefined ? null : (
+          {hint === undefined ? null : (
             <View
               testID="call-hint"
               style={{
@@ -257,7 +328,7 @@ export function CallScreen({
               }}
             >
               <Text variant="meta" accessibilityLiveRegion="polite" style={{ textAlign: 'center' }}>
-                {model.hint}
+                {hint}
               </Text>
             </View>
           )}
@@ -302,6 +373,21 @@ export function CallScreen({
               disabled: !model.live,
               onPress: () => void callRef.current?.mute(!model.muted),
             })}
+            {media?.audio === undefined ? null : (
+              <View style={{ alignItems: 'center', gap: space.x3 }}>
+                <CallAudioMenu
+                  route={audio.route}
+                  size={round}
+                  fill={theme.color.surface}
+                  ink={theme.color.fg}
+                  disabled={!model.live}
+                  onChange={switchAudio}
+                />
+                <Text variant="meta" tone="muted">
+                  {t.call.audioRoute[audio.route]}
+                </Text>
+              </View>
+            )}
             {roundButton({
               label: t.call.hangUp,
               testID: 'call-hang-up',
