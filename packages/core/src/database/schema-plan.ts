@@ -2660,6 +2660,19 @@ const VOICE_PROVIDER_MIGRATION: SchemaMigration = {
   },
 };
 
+const GRANT_RESOLUTION_INDEX_MIGRATION: SchemaMigration = {
+  generation: 119,
+  module: 'messaging',
+  description: 'Index grant request resolutions without scanning Channel history',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX source_events_grant_resolution
+        ON source_events (json_extract(payload_json, '$.grantRequestResolution.requestMessageId'))
+        WHERE json_extract(payload_json, '$.grantRequestResolution.requestMessageId') IS NOT NULL;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2778,4 +2791,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   QUESTION_MESSAGING_MIGRATION,
   TAKEOVER_ATTENTION_INDEX_MIGRATION,
   VOICE_PROVIDER_MIGRATION,
+  GRANT_RESOLUTION_INDEX_MIGRATION,
 ]);
