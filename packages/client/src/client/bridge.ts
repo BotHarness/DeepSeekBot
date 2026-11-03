@@ -104,6 +104,10 @@ import {
   isChannelAttachmentRef,
   isChannelClearedAttachment,
 } from '../../../core/src/attachments/ref.js';
+import {
+  isChannelMessageVoice,
+  type ChannelMessageVoice,
+} from '../../../core/src/channels/voice.js';
 import type { UsageFilter, UsageQueryResult } from '../../../core/src/usage/query.js';
 export type { UsageFilter, UsageQueryResult } from '../../../core/src/usage/query.js';
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
@@ -1732,6 +1736,9 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       ? { takeoverResolution: record['takeoverResolution'] }
       : {}),
     ...(attachments === undefined ? {} : { attachments: attachments as ChannelAttachmentRef[] }),
+    ...(author.kind === 'bot' && parseMessageVoice(record['voice']) !== undefined
+      ? { voice: parseMessageVoice(record['voice'])! }
+      : {}),
     ...(Array.isArray(record['clearedAttachments']) &&
     record['clearedAttachments'].length <= 10 &&
     record['clearedAttachments'].every(isChannelClearedAttachment)
@@ -1744,6 +1751,10 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(replyToPreview === undefined ? {} : { replyToPreview }),
     ...(perf === undefined ? {} : { perf }),
   };
+}
+
+export function parseMessageVoice(value: unknown): ChannelMessageVoice | undefined {
+  return isChannelMessageVoice(value) ? value : undefined;
 }
 
 export function parseReactions(value: unknown): ChannelReaction[] | undefined {

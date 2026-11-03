@@ -9,6 +9,7 @@ import type { BridgeActions } from './actions.js';
 import { AccountProfileSettings } from './account-profile-settings.js';
 import type { ConnectSignInCode } from './connect-sign-in.js';
 import { ApprovalReviewerModelSetting } from './approval-reviewer-model-setting.js';
+import { VoiceProviderSettings } from './voice-settings.js';
 import {
   AssignmentConcurrencyRow,
   ApprovalReviewSessionsVisibilitySetting,
@@ -116,6 +117,14 @@ export function PromptsSection(props: SectionProps<{ actions: BridgeActions }>):
   return (
     <Rows>
       <PromptPresetSettings actions={props.actions} t={props.t} />
+    </Rows>
+  );
+}
+
+export function VoiceSection(props: SectionProps<{ actions: BridgeActions }>): ReactElement {
+  return (
+    <Rows>
+      <VoiceProviderSettings actions={props.actions} t={props.t} />
     </Rows>
   );
 }

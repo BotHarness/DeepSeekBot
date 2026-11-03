@@ -247,6 +247,26 @@
       ]
     },
     {
+      "id": "voice",
+      "description": "TTS Providers (add, test, remove) and each Bot's voice binding and preview.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/voice-settings.tsx:{t('voice.providers.new')}",
+        "setting:packages/client/src/client/voice-settings.tsx:{provider.name}",
+        "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.provider')}",
+        "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.voiceId')}",
+        "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.preview')}"
+      ],
+      "commands": [
+        "voice-providers",
+        "voice-provider-add",
+        "voice-provider-remove",
+        "voice-provider-test",
+        "voice-set",
+        "voice-synthesize"
+      ]
+    },
+    {
       "id": "idle-compaction",
       "description": "Host idle Orchestrator Session compaction setting.",
       "scope": "Host",

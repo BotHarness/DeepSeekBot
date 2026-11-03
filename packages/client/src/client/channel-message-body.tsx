@@ -761,7 +761,16 @@ export function ChannelMessageBody({
       </button>
     );
   };
-  const attachedFiles = messageAttachmentReferences(message.attachments ?? []);
+  const voice = message.voice;
+  const voiceAttachment =
+    voice?.state === 'ready'
+      ? message.attachments?.find((ref) => (ref.fileId ?? ref.hash) === voice.attachment)
+      : undefined;
+  const fileAttachments =
+    voiceAttachment === undefined
+      ? message.attachments
+      : message.attachments?.filter((ref) => ref !== voiceAttachment);
+  const attachedFiles = messageAttachmentReferences(fileAttachments ?? []);
   const renderAttachmentText = (text: string) =>
     attachmentReferenceRuns(text, attachedFiles).map((part, index) => {
       const item = part.attachment;
@@ -792,6 +801,30 @@ export function ChannelMessageBody({
     });
   return (
     <div className="bh-bubble-content">
+      {voice === undefined ? null : (
+        <div className="bh-message-voice" data-voice-state={voice.state}>
+          {voiceAttachment !== undefined ? (
+            <MessageAttachment
+              attachment={voiceAttachment}
+              channelId={channelId}
+              messageId={message.id}
+              actions={actions}
+              displayName={t('message.voice.label')}
+              t={t}
+            />
+          ) : voice.state === 'pending' ? (
+            <span className="bh-message-voice-note" role="status">
+              {t('message.voice.pending')}
+            </span>
+          ) : voice.state === 'failed' ? (
+            <span className="bh-message-voice-note" role="status">
+              {t('message.voice.failed', {
+                reason: voice.error ?? voice.code ?? '',
+              })}
+            </span>
+          ) : null}
+        </div>
+      )}
       {message.body.length === 0 ? null : format === 'text' ? (
         <div className="bh-bubble-body">
           {referenceRuns(
@@ -844,9 +877,9 @@ export function ChannelMessageBody({
           ) : null}
         </div>
       )}
-      {message.attachments?.length ? (
+      {fileAttachments?.length ? (
         <div className="bh-message-attachments">
-          {message.attachments.map((ref, index) => (
+          {fileAttachments.map((ref, index) => (
             <MessageAttachment
               key={`${ref.fileId ?? ref.hash}-${index}`}
               attachment={ref}
