@@ -4,6 +4,7 @@ import { useDesignTheme, type DesignTheme } from '../design/theme';
 import { radius } from '../design/tokens';
 import {
   ActivityFilterIcon,
+  ArchiveIcon,
   ActivitySearchIcon,
   BrowserIcon,
   ChevronLeftIcon,
@@ -21,6 +22,7 @@ export type HeaderIcon =
   | 'back'
   | 'close'
   | 'clear'
+  | 'archive'
   | 'filter'
   | 'search'
   | 'settings'
@@ -45,6 +47,7 @@ const glyphs = {
   back: { Glyph: ChevronLeftIcon, size: (theme) => theme.type.title.line },
   close: { Glyph: CloseIcon, size: (theme) => theme.type.title.line },
   clear: { Glyph: CloseIcon, size: (theme) => theme.type.title.size },
+  archive: { Glyph: ArchiveIcon, size: (theme) => theme.type.title.size },
   filter: { Glyph: ActivityFilterIcon, size: (theme) => theme.type.title.size },
   search: { Glyph: ActivitySearchIcon, size: (theme) => theme.type.title.size },
   settings: { Glyph: SettingsIcon, size: (theme) => theme.type.title.line },

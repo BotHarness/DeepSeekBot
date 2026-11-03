@@ -11,6 +11,7 @@ const icons: Record<HeaderIcon, number> = {
   back: require('../../../assets/header/arrow-back.xml'),
   close: require('../../../assets/header/close.xml'),
   clear: require('../../../assets/header/close.xml'),
+  archive: require('../../../assets/header/archive.xml'),
   filter: require('../../../assets/header/filter-list.xml'),
   search: require('../../../assets/header/search.xml'),
   settings: require('../../../assets/header/settings.xml'),
