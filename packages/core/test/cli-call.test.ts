@@ -157,6 +157,24 @@ describe('deepseekbot call commands', () => {
     expect(posts).toEqual([]);
   });
 
+  it('refuses script steps that overlap, before opening', async () => {
+    const root = createTempRoot('cli-call-');
+    const file = wav(root, 'q.wav', speech(2000));
+    const scriptFile = join(root, 'overlap.json');
+    writeFileSync(
+      scriptFile,
+      JSON.stringify([
+        { at: 0, file },
+        { at: 1000, file },
+      ]),
+    );
+    const { run, posts } = host();
+    await expect(run('call-simulate', ['ada'], { script: scriptFile })).rejects.toMatchObject({
+      code: 'usage',
+    });
+    expect(posts).toEqual([]);
+  });
+
   it('reads readiness and status, and refuses bad arguments before connecting', async () => {
     const { run, posts } = host();
     expect(await run('call-readiness', ['ada'])).toMatchObject({

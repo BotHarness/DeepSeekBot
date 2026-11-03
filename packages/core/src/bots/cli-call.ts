@@ -135,13 +135,14 @@ async function simulate(
   if (!Number.isFinite(replyWaitMs) || replyWaitMs < 1_000 || replyWaitMs > 540_000)
     usage('--reply-wait must be 1–540 seconds.');
   const timeline: Int16Array[] = [];
+  let end = 0;
   for (const step of steps) {
-    const gap = Math.max(
-      0,
-      Math.round((step.at * 16_000) / 1000) - timeline.reduce((n, part) => n + part.length, 0),
-    );
-    if (gap > 0) timeline.push(new Int16Array(gap));
+    const start = Math.round((step.at * 16_000) / 1000);
+    if (start < end)
+      usage('Script steps must not overlap: each "at" must come after the previous file ends.');
+    if (start > end) timeline.push(new Int16Array(start - end));
     timeline.push(step.audio);
+    end = start + step.audio.length;
   }
   timeline.push(new Int16Array(24_000));
   const total = timeline.reduce((sum, part) => sum + part.length, 0);
