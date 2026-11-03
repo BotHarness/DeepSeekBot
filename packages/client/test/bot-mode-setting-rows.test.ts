@@ -95,6 +95,7 @@ function snapshot(patch?: Partial<BotModePrefsSnapshot>): BotModePrefsSnapshot {
     streamReplies: false,
     autoAcceptGroupInvites: true,
     assignmentConcurrencyLimit: 3,
+    botHopLimit: 128,
     developerMode: false,
     showBotSessions: false,
     showApprovalReviewSessions: false,

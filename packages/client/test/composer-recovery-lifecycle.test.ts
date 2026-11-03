@@ -97,6 +97,8 @@ async function fixture(draft: Partial<ComposerDraft> = { text: 'retained draft' 
   return {
     client,
     actions,
+    bots,
+    channels,
     pending,
     finish,
     get recovery() {
@@ -115,6 +117,8 @@ async function fixture(draft: Partial<ComposerDraft> = { text: 'retained draft' 
 it('settles after a production refreshRoster while validation is pending', async () => {
   const f = await fixture();
   const before = f.client.getSnapshot();
+  f.bots[0] = { ...f.bots[0]!, displayName: 'Renamed Bot' };
+  f.channels[1] = { ...f.channels[1]!, updatedAt: 'later' };
   await act(async () => f.actions.refreshRoster());
   expect(f.client.getSnapshot().bots).not.toBe(before.bots);
   expect(f.client.getSnapshot().channels).not.toBe(before.channels);

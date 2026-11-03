@@ -48,6 +48,7 @@ const useBotModePrefs = ((selector: (value: BotModePrefsSnapshot) => unknown) =>
     streamReplies: false,
     autoAcceptGroupInvites: true,
     assignmentConcurrencyLimit: 3,
+    botHopLimit: 128,
     developerMode: false,
     showBotSessions: false,
     showApprovalReviewSessions: false,

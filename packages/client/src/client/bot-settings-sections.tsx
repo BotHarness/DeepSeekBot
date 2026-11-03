@@ -12,6 +12,7 @@ import { ApprovalReviewerModelSetting } from './approval-reviewer-model-setting.
 import { VoiceProviderSettings } from './voice-settings.js';
 import {
   AssignmentConcurrencyRow,
+  BotHopLimitRow,
   ApprovalReviewSessionsVisibilitySetting,
   BotSessionsVisibilitySetting,
   DeveloperModeSetting,
@@ -144,6 +145,7 @@ export function MessagingSection(props: SectionProps<MessagingSectionFace>): Rea
       <StreamRepliesSetting {...props} />
       <SettingsSection>
         <GroupAutoAcceptSetting {...props} />
+        <BotHopLimitRow {...props} />
       </SettingsSection>
       <MessagingDefaultsSettings call={props.call} t={props.t} />
     </Rows>

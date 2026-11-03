@@ -189,11 +189,12 @@ printf '{"assignmentConcurrencyLimit":3}' | deepseekbot settings-set botharness-
 printf '{"autoCollapseMessages":true}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"showDeliveryReceipts":true}' | deepseekbot settings-set botharness-client --patch-stdin
 printf '{"streamReplies":true}' | deepseekbot settings-set botharness-client --patch-stdin
+printf '{"botHopLimit":128}' | deepseekbot settings-set botharness-client --patch-stdin
 deepseekbot workspace-create /srv/bots/workspace
 deepseekbot group-create "Skill Lab" --member <bot-id> --member <bot-id>
 ```
 
-`access-set` refuses `danger-full-access` unless `--acknowledge-risk` is given: full access lets the Bot perform ordinary work and use the Browser and Computer without routine approval cards; permission and approval-policy management still needs an individual Human decision. `--scope chat` also applies it to the Bot's own chat; `assignments` keeps it to new Assignments. `settings` returns `{ns, revision, value}` for one namespace; `settings-set` reads a JSON object of fields from stdin and applies it against that revision, so a concurrent change fails instead of being overwritten. Only fields the Host marks as live can be changed this way. `workspace-create` takes an absolute path and returns the Host workspace, whose id `grant-create` uses.
+`access-set` refuses `danger-full-access` unless `--acknowledge-risk` is given: full access lets the Bot perform ordinary work and use the Browser and Computer without routine approval cards; permission and approval-policy management still needs an individual Human decision. `--scope chat` also applies it to the Bot's own chat; `assignments` keeps it to new Assignments. `settings` returns `{ns, revision, value}` for one namespace; `settings-set` reads a JSON object of fields from stdin and applies it against that revision, so a concurrent change fails instead of being overwritten. Only fields the Host marks as live can be changed this way. `botHopLimit` (integer 1–1000, default 128, Settings → Messaging) is the maximum depth of a Bot-to-Bot chain started by one Human message. A Bot send that would wake another Bot (an @ mention or a Bot DM) past it is refused with `collaboration-hop-limit` and nothing is committed; a Group message without Bot mentions is still posted but wakes no one. The scoped Tob CLI cannot change it. `workspace-create` takes an absolute path and returns the Host workspace, whose id `grant-create` uses.
 
 ### Channels and groups
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { botDmChannelId, MAX_BOT_HOPS } from '../src/channels/channel.js';
+import { botDmChannelId, DEFAULT_BOT_HOP_LIMIT } from '../src/channels/channel.js';
 import { createCore } from '../src/plugin.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import type {
@@ -410,7 +410,7 @@ describe('Bot-to-Bot DM tracer', () => {
         botCausation: {
           rootSourceEventId: 'root-over-hop',
           parentSourceEventId: 'parent-over-hop',
-          hop: MAX_BOT_HOPS + 1,
+          hop: DEFAULT_BOT_HOP_LIMIT + 1,
         },
       });
       expect(core.channels.message(dm.id, 'bot-over-hop')?.deliveries).toBeUndefined();

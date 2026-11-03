@@ -309,6 +309,7 @@ import {
 import type { DshSessionEvent, DshSessionStore } from './sessions/source.js';
 import { turnProgress } from './bots/tool-trace.js';
 import type { SessionFailureProgress } from './channels/channel.js';
+import { DEFAULT_BOT_HOP_LIMIT, isBotHopLimit } from './channels/channel.js';
 import {
   createBotStateTracker,
   personaBotActivitySnapshot,
@@ -492,6 +493,7 @@ export interface BotHarnessCore {
 
   configureGroupInvitations(autoAccept: () => boolean): () => void;
   configureAssignmentConcurrencyLimit(read: () => number): () => void;
+  configureBotHopLimit(read: () => number): () => void;
 
   hostTools: Set<string>;
 
@@ -601,6 +603,7 @@ export function createCore(
     tobSettings?: () => TobSettingsProvider | undefined;
     sessionArchive?: () => NativeSessionArchive | undefined;
     autoAcceptGroupInvitations?: () => boolean;
+    botHopLimit?: () => number;
     triageContinuation?: boolean;
     imCommands?: () => import('./messaging/im-commands.js').ImCommandServices | undefined;
     onOutputCommitted?: (event: PersonaBotOutputCommitted) => void;
@@ -780,8 +783,14 @@ export function createCore(
   });
   const initialGroupInvitationPolicy = options.autoAcceptGroupInvitations ?? (() => true);
   const assignmentLimits: { read: () => number }[] = [];
+  const botHopLimits: { read: () => number }[] = [];
+  const botHopLimit = (): number => {
+    const value = (botHopLimits.at(-1)?.read ?? options.botHopLimit)?.();
+    return isBotHopLimit(value) ? value : DEFAULT_BOT_HOP_LIMIT;
+  };
   const groupInvitationPolicies: { policy: () => boolean }[] = [];
   const channels = createSqliteChannelStore({
+    botHopLimit,
     autoAcceptGroupInvitations: () =>
       (groupInvitationPolicies.at(-1)?.policy ?? initialGroupInvitationPolicy)(),
     database: attachOperationalModule(operationalDatabase, 'messaging'),
@@ -1091,6 +1100,7 @@ export function createCore(
     schedules,
     assignmentConcurrencyLimit: () =>
       assignmentLimits.at(-1)?.read() ?? DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT,
+    botHopLimit,
     ...(options.sessionArchive === undefined ? {} : { sessionArchive: options.sessionArchive }),
     beginAssignmentWait: (slug, sessionId) => states.beginAssignmentWait(slug, sessionId),
     database: operationalDatabase,
@@ -1201,6 +1211,14 @@ export function createCore(
     externalMessaging,
     registry,
     modelPresets,
+    configureBotHopLimit: (read) => {
+      const registration = { read };
+      botHopLimits.push(registration);
+      return () => {
+        const index = botHopLimits.indexOf(registration);
+        if (index !== -1) botHopLimits.splice(index, 1);
+      };
+    },
     configureAssignmentConcurrencyLimit: (read) => {
       const registration = { read };
       assignmentLimits.push(registration);

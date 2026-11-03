@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAX_BOT_HOPS } from '../src/channels/channel.js';
+import { DEFAULT_BOT_HOP_LIMIT } from '../src/channels/channel.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createCore } from '../src/plugin.js';
 import type { BotAgentAdapter, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
@@ -321,7 +321,7 @@ describe('Bot Group mention tracer', () => {
         botCausation: {
           rootSourceEventId: 'other-root',
           parentSourceEventId: 'parent-3',
-          hop: MAX_BOT_HOPS + 1,
+          hop: DEFAULT_BOT_HOP_LIMIT + 1,
         },
       });
       resumed.runtime.admitGroupMessage(group.id, 'bot-repeat');

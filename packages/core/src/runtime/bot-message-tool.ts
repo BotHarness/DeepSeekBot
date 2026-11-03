@@ -7,7 +7,8 @@ import { isChannelAttachmentRef } from '../attachments/ref.js';
 import { createHash } from 'node:crypto';
 import { SendReviewRequired, GroupReplySourceRevoked } from '../channels/send-review.js';
 import { defineTool } from '@deepseek-ai/dsh-tools';
-import { MAX_BOT_HOPS, type ChannelMessage } from '../channels/channel.js';
+import type { ChannelMessage } from '../channels/channel.js';
+import { BotHopLimitReached } from '../channels/hop-limit.js';
 import type { OrchestratorAgentRun } from './bot-runtime.js';
 import type { VoiceAttachOutcome } from '../voice/messages.js';
 
@@ -32,17 +33,25 @@ export class BotMessageError extends Error {
 const NOT_WOKEN_NOTICE =
   'These colleagues did not wake and will not see this message on their own. Tell the Humans in this conversation where the work stands and what is needed to continue; do not resend the same @.';
 
+const HOP_LIMIT_NOTICE =
+  'Not sent: this Bot-to-Bot chain used its whole hop budget since the last Human message, so no colleague was messaged or woken. Tell the Humans in this conversation where the work stands: a Human can continue by messaging you directly or @-mentioning you, which starts a new chain, or raise the limit in Settings → Messaging. Do not retry the same @.';
+
 function notWoken(message: ChannelMessage, targets: readonly string[]) {
   const woken = new Set((message.deliveries ?? []).map((delivery) => delivery.botSlug));
-  const reason =
-    (message.botCausation?.hop ?? 0) > MAX_BOT_HOPS ? 'collaboration-hop-limit' : 'not-admitted';
   return [...new Set(targets)]
-    .filter(
-      (botSlug) =>
-        !woken.has(botSlug) &&
-        (reason === 'collaboration-hop-limit' || !botSlug.startsWith('remote:')),
-    )
-    .map((botId) => ({ botId, reason }));
+    .filter((botSlug) => !woken.has(botSlug) && !botSlug.startsWith('remote:'))
+    .map((botId) => ({ botId, reason: 'not-admitted' as const }));
+}
+
+function hopLimitRefusal(error: BotHopLimitReached, channelId: string | undefined): string {
+  return JSON.stringify({
+    status: 'refused',
+    ...(channelId === undefined ? {} : { channelId }),
+    reason: error.code,
+    hop: error.hop,
+    hopLimit: error.limit,
+    notice: HOP_LIMIT_NOTICE,
+  });
 }
 
 const DESTINATION_FIELDS = [
@@ -297,11 +306,17 @@ export function createBotMessageTool(
       let intentId: string | undefined;
       let unwoken: ReturnType<typeof notWoken> = [];
       if (args.bot_id !== undefined) {
-        const sent = await run.channels.sendToBot({
-          botSlug: args.bot_id,
-          body: args.body,
-          deliveryKey: String(exec.callId),
-        });
+        let sent: Awaited<ReturnType<typeof run.channels.sendToBot>>;
+        try {
+          sent = await run.channels.sendToBot({
+            botSlug: args.bot_id,
+            body: args.body,
+            deliveryKey: String(exec.callId),
+          });
+        } catch (error) {
+          if (error instanceof BotHopLimitReached) return hopLimitRefusal(error, undefined);
+          throw error;
+        }
         messageId = sent.message.id;
         channelId = sent.channelId;
         unwoken = notWoken(sent.message, [args.bot_id]);
@@ -412,6 +427,10 @@ export function createBotMessageTool(
           if (error instanceof SendReviewRequired) {
             drafts?.discard(error.outcome.channelId);
             return JSON.stringify(error.outcome);
+          }
+          if (error instanceof BotHopLimitReached) {
+            drafts?.discard(channelId!);
+            return hopLimitRefusal(error, channelId);
           }
           if (error instanceof GroupReplySourceRevoked) {
             drafts?.discard(error.channelId);
