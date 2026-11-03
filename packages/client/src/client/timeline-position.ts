@@ -69,3 +69,13 @@ export function restoreTimelineScroll(viewport: HTMLElement, scroll: TimelineScr
   viewport.scrollTop += target.getBoundingClientRect().top - top - scroll.offset;
   return true;
 }
+
+export function followsLatest(
+  viewport: Pick<HTMLElement, 'scrollTop' | 'scrollHeight' | 'clientHeight'>,
+  previousTop: number,
+  hasNewer: boolean,
+): boolean {
+  const distance = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+  if (hasNewer || distance > 80) return false;
+  return viewport.scrollTop >= previousTop || distance <= 1;
+}

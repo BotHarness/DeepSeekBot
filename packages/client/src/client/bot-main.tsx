@@ -206,6 +206,7 @@ import { ReleaseNotesAnnouncement } from './release-notes-view.js';
 import type { TelemetryNoticeController } from './telemetry-notice.js';
 import { TelemetryNotice } from './telemetry-notice-view.js';
 import {
+  followsLatest,
   rememberTimelineScroll,
   rememberedTimelineScroll,
   restoreTimelineScroll,
@@ -1299,6 +1300,7 @@ function ConversationView({
     return true;
   };
   const followingLatest = useScopedRef(scopeKey, true);
+  const lastTimelineTop = useScopedRef(scopeKey, 0);
   const companionReadMount = useMountedResource<HTMLElement>(
     (pane) => {
       let visible: boolean | undefined;
@@ -2338,7 +2340,12 @@ function ConversationView({
     const element = scrollRef.current;
     if (element === null) return;
     const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight <= 80;
-    followingLatest.current = atBottom && !conversation.timeline.hasNewer;
+    followingLatest.current = followsLatest(
+      element,
+      lastTimelineTop.current,
+      conversation.timeline.hasNewer,
+    );
+    lastTimelineTop.current = element.scrollTop;
     setAtLatest(followingLatest.current);
     if (followingLatest.current) setUnseen(0);
     if (channelId !== undefined && conversation.status === 'ready' && positioned.current) {
@@ -2935,6 +2942,17 @@ function ConversationView({
             ref={timelineMount}
             data-loaded-messages={displayMessages.length}
             onScroll={onTimelineScroll}
+            onWheel={(event) => {
+              if (
+                event.deltaY >= 0 ||
+                event.ctrlKey ||
+                event.currentTarget.scrollTop <= 0 ||
+                !followingLatest.current
+              )
+                return;
+              followingLatest.current = false;
+              setAtLatest(false);
+            }}
             onTransitionEnd={(event) => {
               if (
                 event.target === event.currentTarget &&
