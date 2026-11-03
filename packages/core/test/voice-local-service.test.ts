@@ -159,6 +159,23 @@ describe('local preset', () => {
   });
 });
 
+describe('unreachable custom provider on this computer', () => {
+  it('keeps the generic message for a provider that is not the local kit', async () => {
+    const { providers } = await fixture();
+    const port = await freePort();
+    const provider = await providers.add({
+      preset: 'custom',
+      baseUrl: `http://127.0.0.1:${port}/v1`,
+      defaultVoice: 'af_bella',
+    });
+    expect(await providers.test(provider.id)).toMatchObject({
+      ok: false,
+      code: 'provider-unavailable',
+      message: `Nothing is listening at http://127.0.0.1:${port}. Check that the speech service is running.`,
+    });
+  });
+});
+
 describe('Tob voice operations', () => {
   it('lists, adds a keyless provider with a proposal, and binds a Bot voice', async () => {
     const { providers, registry } = await fixture();

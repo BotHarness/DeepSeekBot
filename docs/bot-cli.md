@@ -765,7 +765,7 @@ deepseekbot voice-provider-add local
 deepseekbot voice-set <bot-id> <provider-id> --voice zf_001
 ```
 
-`voice-local-kit` writes `botharness_voice.py` and prints `{dir, script, baseUrl, models, steps: {macos, windows}}`. On Windows use `py -3 -m venv .venv` and `.venv\Scripts\python`. Each script command prints one JSON line (`ok: false` carries `code` and `message`); `selftest` speaks a phrase and transcribes it back. The `local` preset needs no key and uses Kokoro voices such as `zf_001`–`zf_099`, `zm_009`–`zm_100`, `af_maple`, `af_sol` and `bf_vale`. When the service is off, `voice-provider-test` and voice messages report `provider-unavailable` with "The local speech service at … is not running".
+`voice-local-kit` writes `botharness_voice.py` and prints `{dir, script, baseUrl, models, steps: {macos, windows}}`. On Windows use `py -3 -m venv .venv` and `.venv\Scripts\python`. Each script command prints one JSON line (`ok: false` carries `code` and `message`); `selftest` speaks a phrase and transcribes it back. The `local` preset needs no key and uses Kokoro voices such as `zf_001`, `zm_009`, `af_maple`, `af_sol` and `bf_vale` (the full list is `GET /v1/models`). When the service is off, `voice-provider-test` and voice messages report `provider-unavailable` with "The local speech service at … is not running".
 
 Tob's scoped CLI accepts `voice-providers`, `voice-provider-test`, `voice-provider-add` (keyless `local` and `custom` presets only, no key option), `voice-provider-remove` and `voice-set`; writes show the usual approval card. Keyed providers are added by the Human in Settings › Voice.
 

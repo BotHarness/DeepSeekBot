@@ -124,9 +124,10 @@ deepseekbot voice-set <bot-id> <provider-id> --voice zf_001
 - \`voice-provider-add local\` uses ${LOCAL_VOICE_BASE_URL}; pass
   \`--base-url http://127.0.0.1:<port>/v1\` if you changed the port. Writes ask
   the Human for approval.
-- Voices: \`zf_001\`–\`zf_099\` (Chinese female), \`zm_009\`–\`zm_100\` (Chinese
-  male), \`af_maple\`, \`af_sol\`, \`bf_vale\` (English female). The full list is
-  \`GET /v1/models\`. Let the Human pick; offer two or three to try with
+- Voices: Chinese female such as \`zf_001\`, \`zf_002\`, Chinese male such as
+  \`zm_009\`, \`zm_010\`, English female \`af_maple\`, \`af_sol\`, \`bf_vale\`.
+  The numbers have gaps; the full list is \`GET /v1/models\`. Let the Human
+  pick; offer two or three to try with
   \`voice-provider-test <provider-id> --voice <id>\`.
 - If you cannot run these commands, tell the Human: Settings › Voice ›
   New Provider › "Local speech service (Kokoro)", then pick it in the Bot's

@@ -736,7 +736,7 @@ deepseekbot voice-provider-add local
 deepseekbot voice-set <bot-id> <provider-id> --voice zf_001
 ```
 
-`voice-local-kit` 写出 `botharness_voice.py`，输出 `{dir, script, baseUrl, models, steps: {macos, windows}}`。Windows 上用 `py -3 -m venv .venv` 和 `.venv\Scripts\python`。脚本每个命令输出一行 JSON（`ok: false` 带 `code` 和 `message`）；`selftest` 先合成一句话再识别回来。`local` 预设不需要密钥，使用 Kokoro 音色，例如 `zf_001`–`zf_099`、`zm_009`–`zm_100`、`af_maple`、`af_sol` 和 `bf_vale`。服务没启动时，`voice-provider-test` 和语音消息会报 `provider-unavailable`，并说明“The local speech service at … is not running”。
+`voice-local-kit` 写出 `botharness_voice.py`，输出 `{dir, script, baseUrl, models, steps: {macos, windows}}`。Windows 上用 `py -3 -m venv .venv` 和 `.venv\Scripts\python`。脚本每个命令输出一行 JSON（`ok: false` 带 `code` 和 `message`）；`selftest` 先合成一句话再识别回来。`local` 预设不需要密钥，使用 Kokoro 音色，例如 `zf_001`、`zm_009`、`af_maple`、`af_sol` 和 `bf_vale`（完整列表见 `GET /v1/models`）。服务没启动时，`voice-provider-test` 和语音消息会报 `provider-unavailable`，并说明“The local speech service at … is not running”。
 
 Tob 的受限 CLI 支持 `voice-providers`、`voice-provider-test`、`voice-provider-add`（只限无密钥的 `local` 和 `custom` 预设，没有密钥参数）、`voice-provider-remove` 和 `voice-set`；写操作会弹出审批卡片。需要密钥的 Provider 由用户在设置 › 语音中添加。
 

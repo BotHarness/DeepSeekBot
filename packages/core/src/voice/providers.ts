@@ -233,10 +233,10 @@ function causeCode(error: unknown): string | undefined {
   return undefined;
 }
 
-export function unreachableMessage(baseUrl: string, error: unknown): string {
+export function unreachableMessage(baseUrl: string, error: unknown, preset?: string): string {
   const url = new URL(baseUrl);
   const code = causeCode(error);
-  if (LOOPBACK_HOSTS.has(url.hostname))
+  if (preset === 'local' && LOOPBACK_HOSTS.has(url.hostname) && code === 'ECONNREFUSED')
     return `The local speech service at ${url.origin} is not running. Start it on the Host computer (python ${LOCAL_VOICE_SCRIPT_NAME} start in its folder) and try again.`;
   if (code === 'ECONNREFUSED')
     return `Nothing is listening at ${url.origin}. Check that the speech service is running.`;
@@ -489,7 +489,7 @@ export class VoiceProviders {
         code,
         timeout.aborted
           ? `The provider did not answer within ${Math.round(this.#timeoutMs / 1000)} s.`
-          : unreachableMessage(stored.baseUrl, error),
+          : unreachableMessage(stored.baseUrl, error, stored.preset),
       );
     }
     if (!response.ok) {
