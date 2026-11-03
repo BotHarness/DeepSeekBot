@@ -77,5 +77,8 @@ export function followsLatest(
 ): boolean {
   const distance = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
   if (hasNewer || distance > 80) return false;
-  return viewport.scrollTop >= previousTop || distance <= 1;
+  return (
+    viewport.scrollTop >= previousTop ||
+    (distance <= 1 && previousTop > viewport.scrollHeight - viewport.clientHeight)
+  );
 }

@@ -1301,6 +1301,10 @@ function ConversationView({
   };
   const followingLatest = useScopedRef(scopeKey, true);
   const lastTimelineTop = useScopedRef(scopeKey, 0);
+  const pinTimelineToLatest = (element: HTMLElement): void => {
+    element.scrollTop = element.scrollHeight;
+    lastTimelineTop.current = element.scrollTop;
+  };
   const companionReadMount = useMountedResource<HTMLElement>(
     (pane) => {
       let visible: boolean | undefined;
@@ -1316,7 +1320,7 @@ function ConversationView({
           followingLatest.current &&
           !store.getSnapshot().conversation.timeline.hasNewer
         ) {
-          timeline.scrollTop = timeline.scrollHeight;
+          pinTimelineToLatest(timeline);
         }
       };
       sync();
@@ -2275,9 +2279,9 @@ function ConversationView({
             restoredScroll.current = true;
             followingLatest.current = false;
             setAtLatest(false);
-          } else if (followingLatest.current) element.scrollTop = element.scrollHeight;
+          } else if (followingLatest.current) pinTimelineToLatest(element);
         } else if (followingLatest.current) {
-          element.scrollTop = element.scrollHeight;
+          pinTimelineToLatest(element);
         }
         const previousRevision = lastRevision.current;
         if (
@@ -2368,7 +2372,7 @@ function ConversationView({
       return;
     }
     const element = scrollRef.current;
-    if (element !== null) element.scrollTop = element.scrollHeight;
+    if (element !== null) pinTimelineToLatest(element);
   };
 
   const startUpload = (item: ChannelComposerUpload): void => {
@@ -2959,7 +2963,7 @@ function ConversationView({
                 event.propertyName === 'padding-bottom' &&
                 followingLatest.current
               )
-                event.currentTarget.scrollTop = event.currentTarget.scrollHeight;
+                pinTimelineToLatest(event.currentTarget);
             }}
             style={{ display: activeMemoryView === undefined ? undefined : 'none' }}
           >

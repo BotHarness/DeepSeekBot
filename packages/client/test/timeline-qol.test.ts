@@ -208,6 +208,7 @@ describe('followsLatest', () => {
 
   it('stops following as soon as the reader moves up, even inside the bottom zone', () => {
     expect(followsLatest(viewport(1460), 1500, false)).toBe(false);
+    expect(followsLatest(viewport(1499), 1500, false)).toBe(false);
   });
 
   it('keeps following when shrinking content clamps the bottom position up', () => {
