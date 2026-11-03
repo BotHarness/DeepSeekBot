@@ -4199,6 +4199,9 @@ class BotRuntimeImplementation implements BotRuntime {
       return undefined;
     };
     const available = () => unavailable() === undefined;
+    const fatal = (reason: NativeOrchestratorRefusal | undefined) =>
+      reason === 'runtime-closed' || reason === 'aborted';
+    const admissible = () => !fatal(unavailable());
     const refuse = (reason: NativeOrchestratorRefusal): false => {
       this.#warn?.(
         JSON.stringify({
@@ -4253,9 +4256,9 @@ class BotRuntimeImplementation implements BotRuntime {
         if (this.#nativeStepReady.get(sessionId) === finish)
           this.#nativeStepReady.delete(sessionId);
         const refusal = unavailable();
-        const fatal = refusal === 'runtime-closed' || refusal === 'aborted';
-        if (accepted && refusal !== undefined && !fatal) admitUnavailable(refusal);
-        const reason = accepted && !fatal ? undefined : (refusal ?? 'run-not-ready');
+        const stop = fatal(refusal);
+        if (accepted && refusal !== undefined && !stop) admitUnavailable(refusal);
+        const reason = accepted && !stop ? undefined : (refusal ?? 'run-not-ready');
         if (reason !== undefined) refuse(reason);
         resolve(reason === undefined);
       };
@@ -4279,7 +4282,7 @@ class BotRuntimeImplementation implements BotRuntime {
           },
           [],
           [],
-          available,
+          admissible,
         );
       }).then(
         () => finish(false),

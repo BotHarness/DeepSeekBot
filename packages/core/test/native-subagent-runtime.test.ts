@@ -304,6 +304,11 @@ describe('native Subagent report admission', () => {
       f.archived.add('parent');
       f.prepared.resolve();
       expect(await accepted).toBe(true);
+      expect(f.runs[0]!.acceptNativeInput?.()).toBe(true);
+      let released = false;
+      void f.released.promise.then(() => (released = true));
+      await Promise.resolve();
+      expect(released).toBe(false);
       expect(f.warnings.map((warning) => JSON.parse(warning) as Record<string, unknown>)).toEqual([
         expect.objectContaining({
           phase: 'admitted-unavailable',
