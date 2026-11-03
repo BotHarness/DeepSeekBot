@@ -1410,6 +1410,8 @@ export const zh = {
   'memoryCommit.author': '{sha} · Git 作者：{name}',
   'member.left': '{name} 退出了频道',
   'turn.stopped': '{human} 停止了 {name}',
+  'turn.stoppedHeld': '{human} 停止了 {name} · 有人给它发消息前不会继续',
+  'turn.stoppedFailures': '{name} 连续 {count} 次运行失败，已自动停下 · 给它发消息即可重试',
   'member.removed': '{name} 被移出了频道',
   'hidden.modal.title': '隐藏的频道与 Bot 私聊',
   'hidden.modal.description': '这里可以恢复隐藏的频道，或只读查看 Bot 之间的私聊。',
@@ -6098,6 +6100,9 @@ export const en = {
   'memoryCommit.author': '{sha} · Git author: {name}',
   'member.left': '{name} left the Channel',
   'turn.stopped': '{human} stopped {name}',
+  'turn.stoppedHeld': '{human} stopped {name} · it waits until someone messages it',
+  'turn.stoppedFailures':
+    '{name} stopped after {count} failed runs in a row · message it to try again',
   'member.removed': '{name} was removed from the Channel',
   'hidden.modal.title': 'Hidden channels and Bot DMs',
   'hidden.modal.description': 'Restore hidden channels or inspect Bot-to-Bot direct messages here.',

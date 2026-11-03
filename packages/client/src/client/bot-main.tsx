@@ -234,6 +234,7 @@ import {
 } from './message-image-gallery.js';
 import { inlineImageAttachment } from './message-attachment.js';
 import { channelAttachmentUrl } from './bridge.js';
+import { turnStopText } from './turn-stop.js';
 
 export function committedMessageIds(messages: readonly ChannelMessage[]): Set<string> {
   return new Set(
@@ -3094,12 +3095,7 @@ function ConversationView({
                       />
                     ) : first.turnStop !== undefined ? (
                       <div className="bh-member-departure" data-message-id={first.id}>
-                        <span>
-                          {t('turn.stopped', {
-                            human: first.turnStop.humanName,
-                            name: first.turnStop.botName,
-                          })}
-                        </span>
+                        <span>{turnStopText(first.turnStop, t)}</span>
                       </div>
                     ) : first.memberDeparture !== undefined ? (
                       <div className="bh-member-departure" data-message-id={first.id}>

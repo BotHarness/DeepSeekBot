@@ -857,6 +857,7 @@ export interface BotRuntime {
     botSlug: string,
     scope?: { autoContinueFor: string; channelId: string },
   ): Promise<{ sessionId: string } | undefined>;
+  heldCause?(botSlug: string): BotHoldCause | undefined;
   endGroup?(channelId: string): Promise<void>;
   whenIdle(): Promise<void>;
   close(): Promise<void>;
@@ -1446,6 +1447,9 @@ const TRANSIENT_FAILURE_CODES = new Set([
   'EMPTY_RESPONSE',
 ]);
 const AUTO_CONTINUE_DELAYS_MS: readonly number[] = [60_000, 180_000];
+const FAILURE_HOLD_THRESHOLD = 3;
+
+export type BotHoldCause = 'human-stop' | 'failures';
 
 interface PendingAutoContinue {
   timer: NodeJS.Timeout;
@@ -1513,6 +1517,8 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #preparedOrchestrators = new Set<string>();
   readonly #stoppedTurns = new Set<string>();
   readonly #stopNotices = new Map<string, string>();
+  readonly #held = new Map<string, BotHoldCause>();
+  readonly #failureStreaks = new Map<string, number>();
   readonly #typingTurns = new Map<string, MessagingProcessing>();
   readonly #typingAssignments = new Map<string, MessagingProcessing>();
   readonly #turnSources = new Map<
@@ -1684,7 +1690,7 @@ class BotRuntimeImplementation implements BotRuntime {
     );
     const timer = setTimeout(() => {
       this.#snoozeTimers.delete(botSlug);
-      if (this.#closed) return;
+      if (this.#closed || this.#held.has(botSlug)) return;
       void this.#enqueue(botSlug, () => this.#runSnoozeReturnTurn(botSlug))
         .finally(() => this.#armSnooze(botSlug))
         .catch(() => undefined);
@@ -1694,7 +1700,13 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #queueTriage(botSlug: string): void {
-    if (!this.#triageContinuation || this.#closed || this.#triageQueued.has(botSlug)) return;
+    if (
+      !this.#triageContinuation ||
+      this.#closed ||
+      this.#held.has(botSlug) ||
+      this.#triageQueued.has(botSlug)
+    )
+      return;
     this.#triageQueued.add(botSlug);
     void this.#enqueue(botSlug, () => this.#runTriageTurn(botSlug)).catch(() => undefined);
   }
@@ -1702,7 +1714,7 @@ class BotRuntimeImplementation implements BotRuntime {
   async #runTriageTurn(botSlug: string): Promise<void> {
     this.#triageQueued.delete(botSlug);
     const bot = this.#registry.get(botSlug);
-    if (this.#closed || bot === undefined || bot.paused === true) return;
+    if (this.#closed || bot === undefined || bot.paused === true || this.#held.has(botSlug)) return;
     const ids = this.#inboxTriage.openIds(botSlug);
     const baseline = this.#triageBaseline.get(botSlug);
     this.#triageBaseline.delete(botSlug);
@@ -1743,8 +1755,10 @@ class BotRuntimeImplementation implements BotRuntime {
         [],
         [],
       );
+      this.#failureStreaks.delete(botSlug);
     } catch (error) {
       this.#triageBaseline.delete(botSlug);
+      await this.#noteAutomaticFailure(botSlug, channelId, error);
       this.#warn?.(
         JSON.stringify({
           component: 'bot-runtime',
@@ -1759,7 +1773,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   async #runSnoozeReturnTurn(botSlug: string): Promise<void> {
-    if (this.#closed) return;
+    if (this.#closed || this.#held.has(botSlug)) return;
     const bot = this.#registry.get(botSlug);
     if (bot === undefined || bot.paused === true) return;
     const timestamp = this.#now().toISOString();
@@ -1820,7 +1834,9 @@ class BotRuntimeImplementation implements BotRuntime {
         [],
         [],
       );
+      this.#failureStreaks.delete(botSlug);
     } catch (error) {
+      await this.#noteAutomaticFailure(botSlug, channelId, error);
       const retryAt = new Date(this.#now().getTime() + 300_000).toISOString();
       this.#database.transaction(
         (database) => {
@@ -2088,6 +2104,7 @@ class BotRuntimeImplementation implements BotRuntime {
         'Wait for the current reply or stop the Bot first',
       );
     this.#cancelAutoContinue(botSlug);
+    this.#release(botSlug);
     if (continuing) {
       const settled = this.#continueDmTurn(botSlug, input.channelId, messageId, {
         kind: 'failure',
@@ -2199,6 +2216,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (body.trim().length === 0) return { admitted: false, reason: 'blank-body' };
     if (this.#autoContinues.get(bot.slug)?.messageId !== input.messageId)
       this.#cancelAutoContinue(bot.slug);
+    this.#release(bot.slug);
 
     const timestamp = this.#now().toISOString();
     const claim = this.#claimSourceEvent(
@@ -2236,6 +2254,12 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   admitGroupMessage(channelId: string, messageId: string): void {
+    const channel = this.#channels.get(channelId);
+    if (
+      channel?.type === 'group' &&
+      this.#channels.message(channelId, messageId)?.author.kind === 'human'
+    )
+      for (const slug of channel.members) this.#release(slug);
     this.#admitChannelMessage(channelId, messageId, 'group-mention');
     this.#admitChannelMessage(channelId, messageId, 'group-ordinary');
   }
@@ -2314,6 +2338,7 @@ class BotRuntimeImplementation implements BotRuntime {
           message_id: string | null;
         }
       | undefined;
+    if (row?.reason === 'human-dm' || row?.reason === 'group-mention') this.#release(botSlug);
     if (
       row?.reason === 'group-ordinary' &&
       this.#externalMessaging.inbound.read(botSlug, sourceEventId).receptionPaths
@@ -3000,7 +3025,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #scheduleDigest(botSlug: string, channelId: string): void {
-    if (this.#closed) return;
+    if (this.#closed || this.#held.has(botSlug)) return;
     const key = `${botSlug}:${channelId}`;
     const channel = this.#channels.get(channelId);
     const bot = this.#registry.get(botSlug);
@@ -3095,7 +3120,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #scheduleHarvest(botSlug: string): void {
-    if (this.#closed) return;
+    if (this.#closed || this.#held.has(botSlug)) return;
     const bot = this.#registry.get(botSlug);
     if (bot === undefined || bot.paused === true) return;
     if (this.#pendingHarvests.has(botSlug)) return;
@@ -3110,7 +3135,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #checkHarvestReadiness(botSlug: string): void {
-    if (this.#closed) return;
+    if (this.#closed || this.#held.has(botSlug)) return;
     const bot = this.#registry.get(botSlug);
     if (bot === undefined || bot.paused === true) return;
     const immediate = this.#database.read((database) =>
@@ -3212,7 +3237,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   async #runHarvestTurn(botSlug: string): Promise<void> {
-    if (this.#closed) return;
+    if (this.#closed || this.#held.has(botSlug)) return;
     await this.#retireWithdrawnNetworkAdmissions(botSlug);
     if (this.#closed) return;
     const bot = this.#registry.get(botSlug);
@@ -3328,6 +3353,7 @@ class BotRuntimeImplementation implements BotRuntime {
       });
       this.#markReportsHandled(collected.eventIds, botSlug, ran.sessionId);
       this.#settleHarvestHandled(botSlug, includedIds);
+      this.#failureStreaks.delete(botSlug);
       for (const digest of claimed.digests) {
         this.#digestRetryAt.delete(`${botSlug}:${digest.channelId}`);
         this.#digestFailureCount.delete(`${botSlug}:${digest.channelId}`);
@@ -3396,6 +3422,7 @@ class BotRuntimeImplementation implements BotRuntime {
           );
         }
       }
+      await this.#noteAutomaticFailure(botSlug, primaryChannelId, error);
       throw error;
     } finally {
       for (const item of claimed.items)
@@ -4960,10 +4987,167 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#cancelAutoContinue(botSlug);
       return { sessionId: pending.sessionId };
     }
-    return this.#stopTurn(
+    const at = this.#now().toISOString();
+    const waking = this.#hasPendingWake(botSlug);
+    const working = this.#workingAssignmentIds(botSlug);
+    const wasHeld = this.#held.get(botSlug);
+    this.#hold(botSlug, 'human-stop');
+    const stopped = await this.#stopTurn(
       botSlug,
-      `[Host: the Human stopped your previous turn at ${this.#now().toISOString()} before it finished. Do not resume that work unless they ask again.]\n\n`,
+      `[Host: the Human stopped your previous turn at ${at} before it finished${working.length > 0 ? ', together with your running Assignment Sessions' : ''}. Do not resume that work unless they ask again.]\n\n`,
     );
+    const bot = this.#registry.get(botSlug);
+    let assignments = 0;
+    if (bot !== undefined && this.#agents.stopAssignment !== undefined)
+      for (const sessionId of working) {
+        try {
+          await this.#stopAssignment(bot, sessionId, () => undefined, 'human-stop');
+          assignments += 1;
+        } catch (error) {
+          this.#warn?.(
+            JSON.stringify({
+              component: 'bot-runtime',
+              event: 'human-stop-assignment-failed',
+              botSlug,
+              sessionId,
+              error: String(error).slice(0, 500),
+            }),
+          );
+        }
+      }
+    this.#warn?.(
+      JSON.stringify({
+        component: 'bot-runtime',
+        event: 'human-stop',
+        botSlug,
+        turn: stopped !== undefined,
+        assignments,
+        pendingWake: waking,
+      }),
+    );
+    if (stopped !== undefined) return stopped;
+    if (assignments === 0 && !waking) {
+      if (wasHeld !== undefined) this.#held.set(botSlug, wasHeld);
+      else if (this.#held.delete(botSlug)) this.#resumeAutomaticWakes(botSlug);
+      return undefined;
+    }
+    const sessionId = this.currentOrchestratorSessionId(botSlug);
+    return sessionId === undefined ? undefined : { sessionId };
+  }
+
+  heldCause(botSlug: string): BotHoldCause | undefined {
+    return this.#held.get(botSlug);
+  }
+
+  #hold(botSlug: string, cause: BotHoldCause): void {
+    this.#held.set(botSlug, cause);
+    this.#triageQueued.delete(botSlug);
+    for (const [key, timer] of this.#digestTimers)
+      if (key.startsWith(`${botSlug}:`) || key === `external:${botSlug}`) {
+        clearTimeout(timer);
+        this.#digestTimers.delete(key);
+      }
+    const snooze = this.#snoozeTimers.get(botSlug);
+    if (snooze !== undefined) clearTimeout(snooze);
+    this.#snoozeTimers.delete(botSlug);
+    const retry = this.#inboxFactoryRetries.get(botSlug);
+    if (retry?.timer !== undefined) clearTimeout(retry.timer);
+    this.#inboxFactoryRetries.delete(botSlug);
+  }
+
+  #release(botSlug: string): void {
+    this.#failureStreaks.delete(botSlug);
+    if (!this.#held.delete(botSlug)) return;
+    for (const key of this.#digestRetryAt.keys())
+      if (key.startsWith(`${botSlug}:`)) {
+        this.#digestRetryAt.delete(key);
+        this.#digestFailureCount.delete(key);
+      }
+    this.#resumeAutomaticWakes(botSlug);
+  }
+
+  #resumeAutomaticWakes(botSlug: string): void {
+    queueMicrotask(() => {
+      if (this.#closed || this.#held.has(botSlug)) return;
+      this.#checkHarvestReadiness(botSlug);
+      this.#recoverPendingDigests(botSlug);
+      this.#armSnooze(botSlug);
+    });
+  }
+
+  #hasPendingWake(botSlug: string): boolean {
+    if (
+      this.#pendingHarvests.has(botSlug) ||
+      this.#triageQueued.has(botSlug) ||
+      this.#inboxFactoryRetries.has(botSlug)
+    )
+      return true;
+    for (const key of this.#digestRetryAt.keys()) if (key.startsWith(`${botSlug}:`)) return true;
+    return false;
+  }
+
+  #workingAssignmentIds(botSlug: string): string[] {
+    return (
+      this.#database.read((database) =>
+        database
+          .prepare(
+            `SELECT session_id FROM assignments
+              WHERE bot_slug = ? AND stop_state = 'running' AND activity = 'working'
+              ORDER BY session_id`,
+          )
+          .all(botSlug),
+      ) as unknown as Array<{ session_id: string }>
+    ).map((row) => row.session_id);
+  }
+
+  async #noteAutomaticFailure(
+    botSlug: string,
+    channelId: string | undefined,
+    error: unknown,
+  ): Promise<void> {
+    const code = sessionFailureDetails(error).code;
+    if (this.#held.has(botSlug)) return;
+    if (code === undefined || TRANSIENT_FAILURE_CODES.has(code)) {
+      this.#failureStreaks.delete(botSlug);
+      return;
+    }
+    const streak = (this.#failureStreaks.get(botSlug) ?? 0) + 1;
+    this.#failureStreaks.set(botSlug, streak);
+    if (streak < FAILURE_HOLD_THRESHOLD) return;
+    this.#failureStreaks.delete(botSlug);
+    this.#hold(botSlug, 'failures');
+    this.#warn?.(
+      JSON.stringify({ component: 'bot-runtime', event: 'failure-hold', botSlug, code, streak }),
+    );
+    const bot = this.#registry.get(botSlug);
+    const sessionId = this.currentOrchestratorSessionId(botSlug);
+    const original = channelId === undefined ? undefined : this.#channels.get(channelId);
+    const channel =
+      original === undefined ||
+      isBotDmChannel(original) ||
+      (original.type === 'group' && !original.members.includes(botSlug))
+        ? bot === undefined
+          ? undefined
+          : this.#channels.getOrCreateDm(botSlug, bot.displayName)?.id
+        : original.id;
+    if (bot === undefined || sessionId === undefined || channel === undefined) return;
+    await this.#channels
+      .appendMessage(channel, {
+        id: `turn-stopped-${randomUUID()}`,
+        at: this.#now().toISOString(),
+        author: { kind: 'system' },
+        body: `${bot.displayName} stopped after ${streak} failed runs in a row (${code}). Send it a message to try again.`,
+        turnStop: {
+          botSlug,
+          botName: bot.displayName,
+          humanName: this.#channels.listHumanMembers(channel)[0]?.displayName ?? 'Human',
+          sessionId,
+          held: true,
+          cause: 'failures',
+          failures: streak,
+        },
+      })
+      .catch(() => undefined);
   }
 
   async endGroup(channelId: string): Promise<void> {
@@ -5107,6 +5291,7 @@ class BotRuntimeImplementation implements BotRuntime {
         TRANSIENT_FAILURE_CODES.has(code) &&
         delayMs !== undefined &&
         !this.#stoppedTurns.has(bot.slug) &&
+        !this.#held.has(bot.slug) &&
         channelId === dmChannelId(bot.slug)
           ? {
               attempt: autoAttempts + 1,
@@ -8547,6 +8732,7 @@ class BotRuntimeImplementation implements BotRuntime {
     bot: PersonaBotRecord,
     sessionId: string,
     markSideEffect: () => void,
+    cause: 'orchestrator-stop' | 'human-stop' = 'orchestrator-stop',
   ): Promise<AssignmentSummary> {
     const row = this.#assignmentRow(bot.slug, sessionId);
     if (row === undefined) throw new Error(`Unknown Assignment Session: ${sessionId}`);
@@ -8597,13 +8783,15 @@ class BotRuntimeImplementation implements BotRuntime {
             sourceEventId,
             bot.slug,
             sessionId,
-            'Stopped by the Orchestrator. This Session will not accept further requests or reports.',
+            cause === 'human-stop'
+              ? 'Stopped by the Human together with your turn. This Session will not accept further requests or reports.'
+              : 'Stopped by the Orchestrator. This Session will not accept further requests or reports.',
             at,
             at,
             JSON.stringify({
               assignmentLifecycle: {
                 state: 'stopped',
-                cause: 'orchestrator-stop',
+                cause,
               },
             }),
           );
@@ -9225,6 +9413,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #scheduleExternalDigest(botSlug: string): void {
+    if (this.#held.has(botSlug)) return;
     this.#armDigest(
       botSlug,
       `external:${botSlug}`,

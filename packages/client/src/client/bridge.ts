@@ -1254,7 +1254,15 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       typeof stop['humanName'] !== 'string'
     )
       return undefined;
-    turnStop = { botName: stop['botName'], humanName: stop['humanName'] };
+    turnStop = {
+      botName: stop['botName'],
+      humanName: stop['humanName'],
+      ...(stop['held'] === true ? { held: true } : {}),
+      ...(stop['cause'] === 'failures' || stop['cause'] === 'human-stop'
+        ? { cause: stop['cause'] }
+        : {}),
+      ...(typeof stop['failures'] === 'number' ? { failures: stop['failures'] } : {}),
+    };
   } else if (author.kind === 'system' && asRecord(record['onboardingWelcome'])?.['version'] !== 1) {
     return undefined;
   }

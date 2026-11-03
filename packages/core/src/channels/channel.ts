@@ -332,6 +332,9 @@ export interface ChannelTurnStop {
   botName: string;
   humanName: string;
   sessionId: string;
+  held?: true;
+  cause?: 'human-stop' | 'failures';
+  failures?: number;
 }
 
 export interface ChannelMemberDeparture {
@@ -1048,7 +1051,13 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       stop === null ||
       ['botSlug', 'botName', 'humanName', 'sessionId'].some(
         (key) => typeof stop[key] !== 'string' || stop[key].length === 0,
-      )
+      ) ||
+      (stop['held'] !== undefined && stop['held'] !== true) ||
+      (stop['cause'] !== undefined &&
+        stop['cause'] !== 'human-stop' &&
+        stop['cause'] !== 'failures') ||
+      (stop['failures'] !== undefined &&
+        (typeof stop['failures'] !== 'number' || !Number.isInteger(stop['failures'])))
     )
       return false;
   } else if (message['toolAutoApproval'] !== undefined) {
