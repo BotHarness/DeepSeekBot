@@ -4243,6 +4243,9 @@ class BotRuntimeImplementation implements BotRuntime {
       return undefined;
     };
     const available = () => unavailable() === undefined;
+    const fatal = (reason: NativeOrchestratorRefusal | undefined) =>
+      reason === 'runtime-closed' || reason === 'aborted';
+    const admissible = () => !fatal(unavailable());
     const refuse = (reason: NativeOrchestratorRefusal): false => {
       this.#warn?.(
         JSON.stringify({
@@ -4257,9 +4260,24 @@ class BotRuntimeImplementation implements BotRuntime {
       );
       return false;
     };
+    const admitUnavailable = (reason: NativeOrchestratorRefusal): void =>
+      this.#warn?.(
+        JSON.stringify({
+          event: 'native-orchestrator-input',
+          phase: 'admitted-unavailable',
+          reason,
+          bot: owner.botSlug,
+          session: sessionId,
+          senders: senderSessionIds.length,
+        }),
+      );
     const refusal = unavailable();
+    if (this.#preparedOrchestrators.has(sessionId)) {
+      if (refusal === 'runtime-closed' || refusal === 'aborted') return refuse(refusal);
+      if (refusal !== undefined) admitUnavailable(refusal);
+      return true;
+    }
     if (refusal !== undefined) return refuse(refusal);
-    if (this.#preparedOrchestrators.has(sessionId)) return true;
     if (!senderSessionIds.length) return refuse('no-native-sender');
     if (
       !senderSessionIds.every((id) => {
@@ -4281,7 +4299,10 @@ class BotRuntimeImplementation implements BotRuntime {
         cancellation.removeEventListener('abort', abort);
         if (this.#nativeStepReady.get(sessionId) === finish)
           this.#nativeStepReady.delete(sessionId);
-        const reason = unavailable() ?? (accepted ? undefined : 'run-not-ready');
+        const refusal = unavailable();
+        const stop = fatal(refusal);
+        if (accepted && refusal !== undefined && !stop) admitUnavailable(refusal);
+        const reason = accepted && !stop ? undefined : (refusal ?? 'run-not-ready');
         if (reason !== undefined) refuse(reason);
         resolve(reason === undefined);
       };
@@ -4301,11 +4322,11 @@ class BotRuntimeImplementation implements BotRuntime {
           [],
           false,
           () => {
-            if (!available()) throw new Error('Native Orchestrator is unavailable');
+            if (!admissible()) throw new Error('Native Orchestrator is unavailable');
           },
           [],
           [],
-          available,
+          admissible,
         );
       }).then(
         () => finish(false),
