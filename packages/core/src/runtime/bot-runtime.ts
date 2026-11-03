@@ -1,4 +1,5 @@
 import { BotNetworkDeliveryError } from './bot-network.js';
+import { BotHopLimitReached } from '../channels/hop-limit.js';
 import { SessionRecoveryError, type SessionRecoveryAction } from './session-recovery.js';
 import { prepareAssignmentReport, type AssignmentReportContent } from './assignment-report.js';
 import {
@@ -96,7 +97,7 @@ import type { MemoryChangeDelta, MemoryChangeScan } from '../memory/accepted.js'
 import type { MemoryService } from '../memory/service.js';
 import {
   isBotDmChannel,
-  MAX_BOT_HOPS,
+  DEFAULT_BOT_HOP_LIMIT,
   dmChannelId,
   type GroupInvitation,
   type GroupJoinRequest,
@@ -920,6 +921,8 @@ export interface BotRuntimeOptions {
 
   assignmentConcurrencyLimit?: number | (() => number);
 
+  botHopLimit?: () => number;
+
   sessionArchive?: () => NativeSessionArchive | undefined;
 
   warn?: (message: string) => void;
@@ -1499,6 +1502,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #createEventId: () => string;
   readonly #createMessageId: () => string;
   readonly #assignmentConcurrencyLimit: () => number;
+  readonly #botHopLimit: () => number;
   readonly #sessionArchive: (() => NativeSessionArchive | undefined) | undefined;
   readonly #approvalCapacity: AssignmentApprovalCapacity;
   readonly #warn: ((message: string) => void) | undefined;
@@ -1611,6 +1615,7 @@ class BotRuntimeImplementation implements BotRuntime {
       options.assignmentConcurrencyLimit ?? DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT;
     this.#assignmentConcurrencyLimit =
       typeof configuredLimit === 'function' ? configuredLimit : () => configuredLimit;
+    this.#botHopLimit = options.botHopLimit ?? (() => DEFAULT_BOT_HOP_LIMIT);
     this.#sessionArchive = options.sessionArchive;
     this.#warn = options.warn;
     this.#triageContinuation = options.triageContinuation === true;
@@ -6737,7 +6742,7 @@ class BotRuntimeImplementation implements BotRuntime {
         if (target === undefined || target.paused === true || target.slug === botSlug)
           throw new Error('Invitee must be another active nonmember PersonaBot');
         const botCausation = this.#botCausation(sourceEventId);
-        if (botCausation.hop > MAX_BOT_HOPS) throw new Error('Bot collaboration hop limit reached');
+        this.#requireBotHop(botCausation);
         const dm = this.#channels.getOrCreateDm(target.slug, target.displayName);
         if (dm === undefined) throw new Error('Invitee DM is unavailable');
         beforeSend();
@@ -6786,7 +6791,7 @@ class BotRuntimeImplementation implements BotRuntime {
         const owner =
           target.ownerBotSlug === undefined ? undefined : this.#registry.get(target.ownerBotSlug);
         const botCausation = this.#botCausation(sourceEventId);
-        if (botCausation.hop > MAX_BOT_HOPS) throw new Error('Bot collaboration hop limit reached');
+        this.#requireBotHop(botCausation);
         beforeSend();
         const ownerDm =
           owner === undefined
@@ -6821,7 +6826,7 @@ class BotRuntimeImplementation implements BotRuntime {
         )
           throw new Error('Only the current Bot Group owner can decide this join request');
         const botCausation = this.#botCausation(sourceEventId);
-        if (botCausation.hop > MAX_BOT_HOPS) throw new Error('Bot collaboration hop limit reached');
+        this.#requireBotHop(botCausation);
         beforeSend();
         const dm = this.#channels.getOrCreateDm(requester.slug, requester.displayName);
         if (dm === undefined) throw new Error('Requester DM is unavailable');
@@ -7658,6 +7663,7 @@ class BotRuntimeImplementation implements BotRuntime {
       ...(input.attachments === undefined ? {} : { attachments: input.attachments }),
       ...this.#perf(input.sessionId, body),
     };
+    if (mentions.length > 0) this.#requireBotHop(message.botCausation!);
     input.beforeSend();
     if (this.groupSendReview.enabled(channel.id) || input.draftId !== undefined)
       this.#requireSendReviewOwner(botSlug, input.sessionId);
@@ -7777,6 +7783,11 @@ class BotRuntimeImplementation implements BotRuntime {
           .get(channelId, ...sources) as { source_event_id: string } | undefined,
     );
     return row?.source_event_id;
+  }
+
+  #requireBotHop(causation: BotMessageCausation): void {
+    const limit = this.#botHopLimit();
+    if (causation.hop > limit) throw new BotHopLimitReached(causation.hop, limit);
   }
 
   #botCausation(sourceEventId: string | undefined): BotMessageCausation {
@@ -7997,6 +8008,7 @@ class BotRuntimeImplementation implements BotRuntime {
         throw new Error('Bot DM delivery key has different content');
       return { channelId: channel.id, message: accepted };
     }
+    this.#requireBotHop(causation);
     input.beforeSend();
     await this.#botNetwork.send(peer.hostId, {
       id: message.id,
@@ -8062,6 +8074,7 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#turnSourceIn(botSlug, channel.id, input.readSourceEventIds) ??
         input.sourceEventId,
     );
+    this.#requireBotHop(botCausation);
     const messageId = this.#deliveryMessageId(input.sessionId, input.deliveryKey);
     const message: ChannelMessage = {
       id: messageId,

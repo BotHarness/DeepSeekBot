@@ -518,7 +518,14 @@ export interface ChannelMessagePerf {
   estimated: boolean;
 }
 
-export const MAX_BOT_HOPS = 32;
+export const DEFAULT_BOT_HOP_LIMIT = 128;
+export const MAX_BOT_HOP_LIMIT = 1000;
+
+export function isBotHopLimit(value: unknown): value is number {
+  return (
+    typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= MAX_BOT_HOP_LIMIT
+  );
+}
 
 export const CHANNEL_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const MAX_CHANNEL_SLUG_LENGTH = 64;

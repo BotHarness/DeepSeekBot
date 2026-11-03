@@ -44,7 +44,7 @@ import {
   mergeBotNetworkMembership,
   dmChannelId,
   isBotDmChannel,
-  MAX_BOT_HOPS,
+  DEFAULT_BOT_HOP_LIMIT,
   LOCAL_HUMAN_ID,
   groupChannelIdBase,
   isChannelMessage,
@@ -89,6 +89,7 @@ interface SqliteChannelStoreOptions extends ChannelStoreOptions {
   sourcePolicy?: BotSourcePolicyStore;
 
   autoAcceptGroupInvitations?: () => boolean;
+  botHopLimit?: () => number;
 }
 
 interface PlacementRow {
@@ -331,6 +332,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     `).run(timestamp, invitationId);
   };
   const isBotActive = options.isBotActive ?? (() => true);
+  const botHopLimit = options.botHopLimit ?? (() => DEFAULT_BOT_HOP_LIMIT);
   let lowerRegistered = false;
   const registerLower = (db: DatabaseSync): void => {
     if (lowerRegistered) return;
@@ -1159,6 +1161,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
               ? undefined
               : previous.find((entry) => entry.id === durable.takeoverResolution?.requestMessageId)
                   ?.author;
+          const hopLimit = botHopLimit();
           const candidateRecipients =
             durable.privateInputResolution !== undefined
               ? []
@@ -1193,14 +1196,14 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
                   : channel.type === 'group' &&
                       senderSlug !== undefined &&
                       durable.botCausation !== undefined &&
-                      durable.botCausation.hop <= MAX_BOT_HOPS
+                      durable.botCausation.hop <= hopLimit
                     ? [...new Set(mentions.map((item) => item.botSlug))]
                         .filter((targetSlug) => targetSlug !== senderSlug)
                         .map((botSlug) => ({ botSlug, reason: 'group-mention' }))
                     : botDm &&
                         recipient !== undefined &&
                         durable.botCausation !== undefined &&
-                        durable.botCausation.hop <= MAX_BOT_HOPS
+                        durable.botCausation.hop <= hopLimit
                       ? [{ botSlug: recipient, reason: 'bot-dm' }]
                       : [];
           const recipients = candidateRecipients.filter((item) => isBotActive(item.botSlug));
@@ -1209,7 +1212,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             (durable.author.kind === 'human' && durable.takeoverResolution === undefined) ||
             (senderSlug !== undefined &&
               durable.botCausation !== undefined &&
-              durable.botCausation.hop <= MAX_BOT_HOPS);
+              durable.botCausation.hop <= hopLimit);
           const ordinary =
             channel.type === 'group' && ordinaryAllowed
               ? channel.members.flatMap((botSlug) => {
