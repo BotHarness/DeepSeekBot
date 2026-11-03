@@ -432,6 +432,51 @@ describe('Composer test IDs', () => {
 });
 
 describe('Holding the mic', () => {
+  it('clears the held UI when recognition ends before the finger releases', async () => {
+    await act(async () => speech.gesture!['onPanResponderGrant']!());
+    await emit('start');
+    expect(field().placeholder).toBe(t.dictationHoldHint);
+    await emit('result', result('第一句话。', true));
+    await emit('end');
+    expect(status()).toBe('idle');
+    expect(field().value).toBe('第一句话。');
+    expect(speech.gesture).toBeUndefined();
+    expect(button(t.send)).not.toBeNull();
+    expect(field().placeholder).not.toBe(t.dictationHoldHint);
+    expect(speech.stop).not.toHaveBeenCalled();
+    expect(speech.abort).not.toHaveBeenCalled();
+  });
+
+  it.each(['end', 'error'])(
+    'clears a silent hold after %s and permits a new hold',
+    async (event) => {
+      await act(async () => speech.gesture!['onPanResponderGrant']!());
+      await emit('start');
+      expect(field().placeholder).toBe(t.dictationHoldHint);
+      await emit(event, event === 'error' ? { error: 'no-speech' } : undefined);
+      expect(status()).toBe('idle');
+      expect(speech.gesture).toBeDefined();
+      expect(field().placeholder).not.toBe(t.dictationHoldHint);
+      await act(async () => speech.gesture!['onPanResponderRelease']!());
+      await act(async () => speech.gesture!['onPanResponderGrant']!());
+      await emit('start');
+      expect(field().placeholder).toBe(t.dictationHoldHint);
+      await act(async () => speech.gesture!['onPanResponderMove']!({}, { dx: 0, dy: -90 }));
+      await act(async () => speech.gesture!['onPanResponderRelease']!());
+      expect(status()).toBe('listening');
+      expect(field().placeholder).not.toBe(t.dictationHoldHint);
+      expect(speech.stop).not.toHaveBeenCalled();
+    },
+  );
+
+  it('clears held UI when microphone permission is refused', async () => {
+    speech.granted = false;
+    await act(async () => speech.gesture!['onPanResponderGrant']!());
+    expect(status()).toBe('denied');
+    expect(field().placeholder).not.toBe(t.dictationHoldHint);
+    expect(speech.start).not.toHaveBeenCalled();
+  });
+
   const grab = async (heldMs: number, move?: { dx: number; dy: number }) => {
     const now = vi.spyOn(Date, 'now').mockReturnValue(1_000);
     await act(async () => speech.gesture!['onPanResponderGrant']!());
