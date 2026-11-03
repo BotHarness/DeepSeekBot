@@ -289,7 +289,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
     options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const record = options.record ?? (() => {});
   const iso = (): string => new Date(now()).toISOString();
-  const tickets = new Map<string, { deviceId: string; sentAt: number }>();
+  const tickets = new Map<string, { deviceId: string; token: string; sentAt: number }>();
   let running: Promise<void> | undefined;
   let again = false;
 
@@ -354,6 +354,10 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
     if (drop(deviceId)) record({ phase: 'token-dropped', deviceId, code });
   };
 
+  const dropInvalidToken = (deviceId: string, token: string): void => {
+    if (row(deviceId)?.token === token) dropToken(deviceId, 'device-not-registered');
+  };
+
   const deliver = async (
     device: DeviceRow,
     messages: ExpoMessage[],
@@ -382,7 +386,11 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         if (ticket.status === 'ok') {
           record({ phase: 'sent', deviceId: device.device_id, kind, outcome: 'ok' });
           if (tickets.size < MAX_PENDING_RECEIPTS)
-            tickets.set(ticket.id, { deviceId: device.device_id, sentAt: now() });
+            tickets.set(ticket.id, {
+              deviceId: device.device_id,
+              token: device.token,
+              sentAt: now(),
+            });
           return;
         }
         const code = ticket.details?.error ?? 'error';
@@ -390,7 +398,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         if (code === 'DeviceNotRegistered') unregistered = true;
       });
       if (unregistered) {
-        dropToken(device.device_id, 'device-not-registered');
+        dropInvalidToken(device.device_id, device.token);
         return false;
       }
     }
@@ -680,7 +688,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
           tickets.delete(id);
           const receipt = receipts[id];
           if (receipt?.status === 'error' && receipt.details?.error === 'DeviceNotRegistered')
-            dropToken(ticket.deviceId, 'device-not-registered');
+            dropInvalidToken(ticket.deviceId, ticket.token);
         }
       }
     },
