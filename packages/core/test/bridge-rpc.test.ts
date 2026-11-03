@@ -375,6 +375,22 @@ describe('bridge typert service', () => {
     });
   });
 
+  it('forwards the Marketplace install source through the named RPC facade (#3342)', async () => {
+    const { service, methods } = setup();
+    const install = vi
+      .spyOn(methods, 'marketplaceInstall')
+      .mockResolvedValue({ ok: false, error: { code: 'not-found', message: 'gone' } });
+    await expect(
+      service.marketplaceInstall('R_doubao', 'review-1', undefined, 'digest'),
+    ).rejects.toThrow('gone');
+    expect(install).toHaveBeenCalledWith({
+      id: 'R_doubao',
+      reviewId: 'review-1',
+      operationKey: undefined,
+      source: 'digest',
+    });
+  });
+
   it('round-trips profile fingerprint and preserves stale profile refusal through the RPC facade', () => {
     const { service } = setup();
     service.create('Ada');
@@ -995,6 +1011,12 @@ describe('bridge typert service', () => {
     expect(parameterNames(service.marketplaceSubmit)).toEqual(['url', 'altcha']);
     expect(parameterNames(service.marketplaceChallenge)).toEqual([]);
     expect(parameterNames(service.marketplaceReport)).toEqual(['id', 'altcha', 'reason']);
+    expect(parameterNames(service.marketplaceInstall)).toEqual([
+      'id',
+      'reviewId',
+      'operationKey',
+      'source',
+    ]);
     expect(parameterNames(service.releaseInfo)).toEqual(['since']);
     expect(parameterNames(service.releaseUpdate)).toEqual(['force']);
     expect(parameterNames(service.channelReact)).toEqual([
