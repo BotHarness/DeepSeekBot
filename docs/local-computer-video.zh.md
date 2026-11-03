@@ -32,6 +32,12 @@ T1 使用直连 WebRTC，未配置 STUN/TURN。手机的信令和控制复用既
 
 画面停滞时禁止输入，但「交还 Bot」、退出和「重新连接」仍可用。Computer 暂停或调用者保留 grant 时即可明确交还，与能否输入分开。重新连接先关闭旧 attempt，再恢复观看，不恢复控制权、不恢复 Bot、不重放输入。
 
+## 桌面上的 Bot 浏览器
+
+Computer 目标为本机且系统为 macOS 或 Windows 时，本机 Bot 浏览器以有窗口模式显示在这台电脑的桌面上（使用独立托管的浏览器配置，不是 Human 日常使用的 Chrome），Bot 浏览网页时，Computer 视频能直接看到它。其他目标仍按插件的 `headless` 设置运行。运行模式在启动时决定，切换目标后要等 Bot 浏览器下次启动才生效；启动会记录为 `phase=launch-mode mode=headed reason=local-computer-desktop`。
+
+整块桌面只有一个控制方。Human 接管 Computer 期间，所有 Bot 的浏览器工具都会被拒绝；「交还 Bot」之后，Bot 必须先调用 `browser_observe`，才能点击、输入、按键、滚动或上传。暂停某个 Bot 的浏览器时，该 Bot 的 Computer 工具同样会被拒绝，直到恢复。拒绝会记录为 `phase=control-refused owner=computer-pause|computer-handback|browser-pause`。
+
 ## 连接排查
 
 手机无法连接局域网 Host 时，请把手机连到电脑所在的 Wi-Fi，允许本地网络访问，并在电脑的「设置 → 设备」中开启局域网连接，再点「重试」。仅打开 Wi-Fi 而没有连接网络还不够。远程连接则提示检查手机网络、电脑未休眠且 DeepSeekBot 正在运行；不能从一个错误就断定是 Wi-Fi 故障。

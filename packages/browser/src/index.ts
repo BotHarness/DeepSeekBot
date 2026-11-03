@@ -168,6 +168,25 @@ export function apply(
       : config.containerDriver) ?? 'current';
   const driver = (): 'current' | 'agent-browser' =>
     target() === 'container' ? containerDriver() : localDriver();
+  const localDesktop = (): { held: boolean; epoch: number } | undefined => {
+    if (target() !== 'local') return undefined;
+    const computer = ctx.get('botharnessComputerTools') as unknown as
+      | { desktopControl?: () => { desktop: boolean; held: boolean; epoch: number } }
+      | undefined;
+    const control = computer?.desktopControl?.();
+    return control?.desktop === true ? { held: control.held, epoch: control.epoch } : undefined;
+  };
+  const launchHeadless = (): boolean => {
+    const desktop = localDesktop() !== undefined;
+    const headless = config.headless && !desktop;
+    diagnostics.record(
+      'lifecycle',
+      `phase=launch-mode mode=${headless ? 'headless' : 'headed'} reason=${
+        desktop ? 'local-computer-desktop' : config.headless ? 'config-headless' : 'config-headed'
+      }`,
+    );
+    return headless;
+  };
   let revision = 0;
   const registrationScopes = new WeakMap<AbortSignal, number>();
   let registrationRevision = 0;
@@ -273,7 +292,7 @@ export function apply(
     tailnetAddress: () => detectTailnetAddress(),
     installDir: pinnedBrowserDirectory(),
     ...(config.browserPath.trim() === '' ? {} : { browserPath: config.browserPath.trim() }),
-    ...(config.headless ? { headless: true } : {}),
+    headless: launchHeadless,
     onEvent: (detail) => diagnostics.record('lifecycle', detail),
     profileOf: (slug) => {
       const registry = coreLookup()?.registry as
@@ -369,6 +388,7 @@ export function apply(
     borrowed: () => (target() === 'extension' ? borrow : undefined),
     takeover: () => takeovers,
     takeoverUrlFor: takeoverViewerBase,
+    desktopControl: localDesktop,
     audit: (event) => diagnostics.record('browser-action', formatAudit(event)),
     note: (detail) => diagnostics.record('lifecycle', detail),
     onInvalidate: (slug) => botRevisions.set(slug, (botRevisions.get(slug) ?? 0) + 1),
@@ -411,6 +431,8 @@ export function apply(
       );
     },
     ownsTool: (name: string) => ownsBrowserTool(name),
+    isTakeover: (slug: string) => provider.isTakeover(slug),
+    sharesLocalDesktop: () => localDesktop() !== undefined,
     executionSignal: (sessionId: string) => provider.executionSignal(sessionId),
     needsAuthorization: (sessionId: string) => provider.needsAuthorization(sessionId),
     authorizationScope,

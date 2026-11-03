@@ -77,7 +77,7 @@ export interface BotBrowserRuntimeOptions {
     installDir: string,
     hooks?: { onProgress?: (downloadedBytes: number, totalBytes: number) => void },
   ) => Promise<string>;
-  readonly headless?: boolean;
+  readonly headless?: boolean | (() => boolean);
   readonly launchTimeoutMs?: number;
   readonly onEvent?: (detail: string) => void;
   readonly onInstallProgress?: (downloadedBytes: number, totalBytes: number) => void;
@@ -541,13 +541,15 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       onEvent(`installed ${binary}`);
     }
     mkdirSync(options.userDataDir, { recursive: true });
-    onEvent(`launch ${binary}`);
+    const headless =
+      typeof options.headless === 'function' ? options.headless() : options.headless === true;
+    onEvent(`launch ${binary} mode=${headless ? 'headless' : 'headed'}`);
     const proc = spawn(
       binary,
       [
         ...buildLaunchArgs({
           userDataDir: options.userDataDir,
-          ...(options.headless === true ? { headless: true } : {}),
+          ...(headless ? { headless: true } : {}),
         }),
       ],
       { stdio: ['ignore', 'ignore', 'pipe'] },

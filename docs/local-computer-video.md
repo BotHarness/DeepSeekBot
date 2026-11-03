@@ -40,6 +40,12 @@ T1 uses direct WebRTC with no configured STUN/TURN servers. On LAN, signaling an
 
 When video stalls, input is disabled but **Hand back**, exit and **Reconnect** remain available. Hand back is available while the Computer is paused or the caller retains a grant, separately from eligibility to send input. Reconnect closes the old attempt before opening observation again; it does not restore control, resume Bots or replay input.
 
+## Bot Browser on the desktop
+
+With the Local Computer target on macOS or Windows, the local Bot Browser launches headed as a window on this desktop (its own managed profile, not the Human's daily Chrome), so the Computer video shows it while the Bot browses. The plugin `headless` setting still applies on other targets. The mode is chosen at launch, so a target switch applies the next time the Bot Browser starts; the launch is logged as `phase=launch-mode mode=headed reason=local-computer-desktop`.
+
+The desktop has one control owner. While the Human holds the Computer, every Browser tool of every Bot is refused, and after **Hand back** a Bot must run `browser_observe` before it clicks, types, presses a key, scrolls or uploads. Pausing one Bot's Browser likewise refuses that Bot's Computer tools until Resume. Refusals are logged as `phase=control-refused owner=computer-pause|computer-handback|browser-pause`.
+
 ## Connection checks
 
 If the phone cannot reach a LAN Host, connect it to the computer's Wi-Fi, allow Local Network access and enable local access in the computer's **Settings → Devices**, then choose **Retry**. Turning Wi-Fi on without joining a network is insufficient. Remote connections instead show phone-network and computer-awake/DeepSeekBot checks; an error does not establish that Wi-Fi is the cause.

@@ -64,7 +64,13 @@ export interface BrowserToolProviderOptions {
   readonly borrowed?: () => Pick<BorrowService, 'observe'> | undefined;
   readonly takeover?: () => TakeoverService | undefined;
   readonly takeoverUrlFor?: (slug: string) => string | undefined;
+  readonly desktopControl?: () => { readonly held: boolean; readonly epoch: number } | undefined;
 }
+
+export const DESKTOP_HELD_MESSAGE =
+  'The Human holds the Computer: they are using this desktop, including the Bot Browser, from the Computer view. Wait for them to hand it back, then call browser_observe before acting';
+export const DESKTOP_STALE_MESSAGE =
+  'The Human used the Computer since your last browser_observe; call browser_observe of the current page before acting';
 
 export interface BrowserToolProvider {
   attachAgent(scope: Context, sessionId: string, info: { botSlug: string; rootRole: string }): void;
@@ -187,6 +193,7 @@ export function createBrowserToolProvider(
     lastActivity: number;
     controlRevision: number;
     observedControlRevision: number;
+    observedDesktopEpoch: number | undefined;
   }
 
   const tabsByBot = new Map<string, BotTabs>();
@@ -200,6 +207,7 @@ export function createBrowserToolProvider(
       lastActivity: Date.now(),
       controlRevision: 0,
       observedControlRevision: 0,
+      observedDesktopEpoch: options.desktopControl?.()?.epoch,
     };
     tabsByBot.set(slug, created);
     return created;
@@ -273,12 +281,25 @@ export function createBrowserToolProvider(
         'Browser Pause is active for this PersonaBot; ask the Human to Resume in the Browser entry, then call browser_observe before acting',
       );
     }
+    const desktop = options.desktopControl?.();
+    if (desktop?.held === true && raw !== 'takeover') {
+      note(`phase=control-refused owner=computer-pause slug=${slug} tool=${raw}`);
+      throw new Error(DESKTOP_HELD_MESSAGE);
+    }
     if (['click', 'type', 'press_key', 'scroll', 'upload'].includes(raw)) {
       const state = botTabs(slug);
       if (state.observedControlRevision !== state.controlRevision) {
         throw new Error(
           'Browser Resume requires a fresh browser_observe of the current page before acting',
         );
+      }
+      if (
+        desktop !== undefined &&
+        state.observedDesktopEpoch !== undefined &&
+        state.observedDesktopEpoch !== desktop.epoch
+      ) {
+        note(`phase=control-refused owner=computer-handback slug=${slug} tool=${raw}`);
+        throw new Error(DESKTOP_STALE_MESSAGE);
       }
     }
   };
@@ -547,6 +568,7 @@ export function createBrowserToolProvider(
         );
       }
       const revision = state.controlRevision;
+      const desktopEpoch = options.desktopControl?.()?.epoch;
       const actionable = !takeovers.has(slug);
       let observation;
       try {
@@ -567,6 +589,9 @@ export function createBrowserToolProvider(
       ) {
         state.observedControlRevision = revision;
       }
+      const after = options.desktopControl?.();
+      if (after !== undefined && after.held !== true && after.epoch === desktopEpoch)
+        state.observedDesktopEpoch = desktopEpoch;
       const elementLines = observation.elements.map((element) => formatBrowserElement(element));
       const parts = [`URL: ${observation.url}`, `Title: ${observation.title}`];
       if (elementLines.length > 0) {
