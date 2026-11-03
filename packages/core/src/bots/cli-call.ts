@@ -232,7 +232,7 @@ async function simulate(
       ...(event.responseMs === undefined ? {} : { responseMs: event.responseMs }),
     })),
     firstAudioMs: playing[0]?.responseMs ?? null,
-    answered: heard.length > 0 && playing.length > 0,
+    answered: heard.length > 0 && events.some((event) => event.type === 'played'),
     events,
   };
 }

@@ -118,7 +118,10 @@ describe('call screen model', () => {
 
 describe('call links', () => {
   it('turns a call link into the DM so a call always starts from a tap', () => {
-    expect(callLinkRedirect('deepseekbot://call/mira?hostId=h1', false)).toBe('/dm/mira');
+    expect(callLinkRedirect('deepseekbot://call/mira?hostId=h1', false)).toBe('/dm/mira?hostId=h1');
+    expect(callLinkRedirect('deepseekbot://call/mira?script=x&hostId=a%20b#top', false)).toBe(
+      '/dm/mira?hostId=a%20b',
+    );
     expect(callLinkRedirect('/call/mira', false)).toBe('/dm/mira');
     expect(callLinkRedirect('deepseekbot-dev://call/mira?script=x', true)).toBeUndefined();
     expect(callLinkRedirect('/dm/mira', false)).toBeUndefined();
