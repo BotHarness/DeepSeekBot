@@ -8,6 +8,7 @@ export type NativePageHeaderProps = {
   onBack(): void;
   backID: string;
   action?: { label: string; testID: string; onPress(): void } | undefined;
+  call?: { label: string; testID: string; onPress(): void } | undefined;
 };
 export function NativePageHeader(_props: NativePageHeaderProps) {
   return null;

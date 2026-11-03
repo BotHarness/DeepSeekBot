@@ -44,6 +44,8 @@ export interface PersonaBotRecord {
 
   voice?: PersonaBotVoice;
 
+  asr?: PersonaBotAsr;
+
   standingLimits?: StandingLimits;
 
   marketplaceListing?: MarketplaceListingRef;
@@ -70,6 +72,24 @@ export function isPersonaBotVoice(value: unknown): value is PersonaBotVoice {
         voice['voiceId'].trim() !== '' &&
         voice['voiceId'].length <= 200 &&
         !/[\u0000-\u001f\u007f]/u.test(voice['voiceId'])))
+  );
+}
+
+export interface PersonaBotAsr {
+  providerId: string;
+  language?: string;
+}
+
+export function isPersonaBotAsr(value: unknown): value is PersonaBotAsr {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const asr = value as Record<string, unknown>;
+  return (
+    Object.keys(asr).every((key) => key === 'providerId' || key === 'language') &&
+    typeof asr['providerId'] === 'string' &&
+    /^asr-[a-f0-9]{12}$/u.test(asr['providerId']) &&
+    (asr['language'] === undefined ||
+      (typeof asr['language'] === 'string' &&
+        /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$/u.test(asr['language'])))
   );
 }
 
@@ -203,6 +223,7 @@ export function isPersonaBotRecord(value: unknown, slug: string): value is Perso
   if (record['promptPreset'] !== undefined && typeof record['promptPreset'] !== 'string')
     return false;
   if (record['voice'] !== undefined && !isPersonaBotVoice(record['voice'])) return false;
+  if (record['asr'] !== undefined && !isPersonaBotAsr(record['asr'])) return false;
   if (
     record['promptOverrides'] !== undefined &&
     (typeof record['promptOverrides'] !== 'object' ||

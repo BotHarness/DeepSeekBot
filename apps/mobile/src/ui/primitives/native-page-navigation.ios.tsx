@@ -49,7 +49,7 @@ export function NativePageNavigation({ children }: { children: ReactNode }) {
   );
 }
 
-export function NativePageHeader({ title, onBack, backID, action }: NativePageHeaderProps) {
+export function NativePageHeader({ title, onBack, backID, action, call }: NativePageHeaderProps) {
   const theme = useDesignTheme();
   const t = useStrings();
   const items: HeaderBarButtonItem[] = headerIslands
@@ -67,6 +67,35 @@ export function NativePageHeader({ title, onBack, backID, action }: NativePageHe
         },
       ];
   if (title !== undefined) items.push({ type: 'spacing', spacing: glassPress.gap });
+  const right: HeaderBarButtonItem[] = [];
+  if (call !== undefined)
+    right.push(
+      { type: 'spacing', spacing: glassPress.gap },
+      {
+        type: 'button',
+        index: 1,
+        title: '',
+        icon: { type: 'sfSymbol', name: 'phone' },
+        identifier: call.testID,
+        accessibilityLabel: call.label,
+        onPress: call.onPress,
+        sharesBackground: false,
+      },
+    );
+  if (action !== undefined)
+    right.push(
+      { type: 'spacing', spacing: glassPress.gap },
+      {
+        type: 'button',
+        index: 0,
+        title: '',
+        icon: { type: 'sfSymbol', name: 'ellipsis' },
+        identifier: action.testID,
+        accessibilityLabel: action.label,
+        onPress: action.onPress,
+        sharesBackground: false,
+      },
+    );
   return (
     <ScreenStackHeaderConfig
       title=""
@@ -76,23 +105,7 @@ export function NativePageHeader({ title, onBack, backID, action }: NativePageHe
       hideBackButton
       color={theme.color.fg}
       headerLeftBarButtonItems={items}
-      headerRightBarButtonItems={
-        action === undefined
-          ? []
-          : [
-              { type: 'spacing', spacing: glassPress.gap },
-              {
-                type: 'button',
-                index: 0,
-                title: '',
-                icon: { type: 'sfSymbol', name: 'ellipsis' },
-                identifier: action.testID,
-                accessibilityLabel: action.label,
-                onPress: action.onPress,
-                sharesBackground: false,
-              },
-            ]
-      }
+      headerRightBarButtonItems={right}
     >
       {headerIslands ? (
         <ScreenStackHeaderLeftView>

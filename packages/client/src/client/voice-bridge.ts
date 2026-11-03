@@ -1,7 +1,11 @@
-import type { PersonaBotVoice } from '../../../core/src/bots/persona-bot.js';
+import type { PersonaBotAsr, PersonaBotVoice } from '../../../core/src/bots/persona-bot.js';
 import type { VoiceProvidersView, VoiceSynthesisView } from '../../../core/src/voice/bridge.js';
-import type { TtsPreset } from '../../../core/src/voice/presets.js';
-import type { ProviderHealth, TtsProviderView } from '../../../core/src/voice/providers.js';
+import type { AsrPreset, TtsPreset } from '../../../core/src/voice/presets.js';
+import type {
+  AsrProviderView,
+  ProviderHealth,
+  TtsProviderView,
+} from '../../../core/src/voice/providers.js';
 import { BridgeCallError, type BridgeCall } from './bridge.js';
 
 export type {
@@ -61,6 +65,16 @@ function voice(value: unknown, method: string): PersonaBotVoice | null {
   } as PersonaBotVoice;
 }
 
+function asrBinding(value: unknown): PersonaBotAsr | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const view = value as Record<string, unknown>;
+  if (typeof view['providerId'] !== 'string') return null;
+  return {
+    providerId: view['providerId'],
+    ...(typeof view['language'] === 'string' ? { language: view['language'] } : {}),
+  };
+}
+
 export async function loadVoiceProviders(
   call: BridgeCall,
   slug?: string,
@@ -72,12 +86,19 @@ export async function loadVoiceProviders(
   return {
     presets: view['presets'] as TtsPreset[],
     providers: view['providers'].map((entry) => provider(entry, 'voiceProviders')),
+    asrPresets: Array.isArray(view['asrPresets']) ? (view['asrPresets'] as AsrPreset[]) : [],
+    asrProviders: Array.isArray(view['asrProviders'])
+      ? view['asrProviders'].map(
+          (entry) => provider(entry, 'voiceProviders') as unknown as AsrProviderView,
+        )
+      : [],
     ...(bot === undefined || typeof bot['slug'] !== 'string'
       ? {}
       : {
           bot: {
             slug: bot['slug'],
             selected: voice(bot['selected'], 'voiceProviders'),
+            asr: asrBinding(bot['asr']),
           },
         }),
   };

@@ -374,7 +374,9 @@ export function BotVoiceSettings({
     void setBotVoice(slug, providerId, voice.trim() || undefined)
       .then((next) => {
         setView((current) =>
-          current === undefined ? current : { ...current, bot: { slug, selected: next } },
+          current === undefined
+            ? current
+            : { ...current, bot: { slug, selected: next, asr: current.bot?.asr ?? null } },
         );
         setVoiceId(next?.voiceId ?? '');
         setSaved(true);

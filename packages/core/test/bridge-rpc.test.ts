@@ -849,6 +849,8 @@ describe('bridge typert service', () => {
       'voiceProviderTest',
       'voiceSynthesize',
       'botVoiceSet',
+      'voiceTranscribe',
+      'botAsrSet',
       'idleCompaction',
       'idleCompactionSet',
       'idleCompactionCacheLifetimeSet',

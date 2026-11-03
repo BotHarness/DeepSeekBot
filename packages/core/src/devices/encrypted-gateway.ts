@@ -12,6 +12,12 @@ import {
   type LocalVideoBinding,
   type LocalVideoResult,
 } from '../../../computer/src/local-video-contract.js';
+import {
+  VOICE_CALL_CONNECT_REFUSAL,
+  VOICE_CALL_LIMITS,
+  VOICE_CALL_PATH,
+  type VoiceCallResult,
+} from '../voice/call-contract.js';
 
 const BODY_LIMIT = 4 * 1024 * 1024;
 const QUEUE_LIMIT = 20 * 1024 * 1024;
@@ -42,7 +48,7 @@ function pathAllowed(path: string): boolean {
   }
   return (
     (name.startsWith('/botharness-device/api/') &&
-      !/\/(?:webrtc|web|browser|computer)(?:\/|$)/u.test(name)) ||
+      !/\/(?:webrtc|web|browser|computer|voice)(?:\/|$)/u.test(name)) ||
     [
       '/botharness-device/activity',
       '/botharness-device/activity/prepare',
@@ -69,6 +75,11 @@ export function createEncryptedGateway(options: {
     command: unknown;
     signal: AbortSignal;
   }) => Promise<LocalVideoResult>;
+  voiceCall?: (input: {
+    deviceId: string;
+    command: unknown;
+    signal: AbortSignal;
+  }) => Promise<VoiceCallResult>;
   verifyEnrollment?: (
     body: string,
     signature: string,
@@ -105,6 +116,27 @@ export function createEncryptedGateway(options: {
     const requests = new Map<string, () => void>();
     let videoBinding: LocalVideoBinding | undefined;
     let videoPending = 0;
+    const callIds = new Set<string>();
+    let callPending = 0;
+    const hangUpCalls = () => {
+      const dispatch = options.voiceCall;
+      if (!dispatch) return;
+      for (const callId of callIds) {
+        const abort = new AbortController();
+        const timer = setTimeout(() => abort.abort(), LOCAL_VIDEO_LIMITS.cleanupTimeoutMs);
+        void Promise.resolve()
+          .then(() =>
+            dispatch({
+              deviceId: deviceId!,
+              command: { kind: 'hangup', callId },
+              signal: abort.signal,
+            }),
+          )
+          .catch(() => {})
+          .finally(() => clearTimeout(timer));
+      }
+      callIds.clear();
+    };
     const closeVideo = (binding: LocalVideoBinding) => {
       const dispatch = options.localVideo;
       if (!dispatch) return;
@@ -134,6 +166,7 @@ export function createEncryptedGateway(options: {
       requests.clear();
       if (videoBinding) closeVideo(videoBinding);
       videoBinding = undefined;
+      hangUpCalls();
       active.delete(close);
       if (admitted) encrypted--;
       else negotiating--;
@@ -289,6 +322,98 @@ export function createEncryptedGateway(options: {
           videoPending--;
         });
     };
+    const call = (id: string, input: Record<string, unknown>) => {
+      const respond = (result: VoiceCallResult) =>
+        send({
+          type: 'response',
+          id,
+          status: result.ok ? 200 : 409,
+          contentType: 'application/json',
+          body: Buffer.from(JSON.stringify(result)).toString('base64'),
+        });
+      if (options.route !== 'lan') return respond(VOICE_CALL_CONNECT_REFUSAL);
+      const dispatch = options.voiceCall;
+      if (!dispatch)
+        return respond({
+          ok: false,
+          code: 'not-ready',
+          error: 'Calls are not ready on this Host.',
+        });
+      if (input['method'] !== 'POST')
+        return respond({ ok: false, code: 'invalid-input', error: 'A call command is required.' });
+      if (callPending >= VOICE_CALL_LIMITS.pendingRequests)
+        return respond({
+          ok: false,
+          code: 'queue-full',
+          error: 'Too many call commands are pending.',
+        });
+      const bytes = Buffer.from(
+        field(input, 'body') ?? '',
+        input['encoding'] === 'base64' ? 'base64' : 'utf8',
+      );
+      if (bytes.length > VOICE_CALL_LIMITS.requestBytes)
+        return respond({
+          ok: false,
+          code: 'request-too-large',
+          error: 'The call command is too large.',
+        });
+      let command: unknown;
+      try {
+        command = JSON.parse(bytes.toString('utf8'));
+      } catch {
+        return respond({
+          ok: false,
+          code: 'invalid-input',
+          error: 'The call command must be JSON.',
+        });
+      }
+      const abort = new AbortController();
+      const cancel = () => {
+        abort.abort();
+        clearTimeout(timer);
+      };
+      const timer = setTimeout(() => {
+        if (requests.get(id) !== cancel) return;
+        requests.delete(id);
+        cancel();
+        respond({
+          ok: false,
+          code: 'operation-timeout',
+          error: 'The call command did not complete.',
+        });
+      }, VOICE_CALL_LIMITS.operationTimeoutMs);
+      requests.set(id, cancel);
+      callPending++;
+      void Promise.resolve()
+        .then(() => dispatch({ deviceId: deviceId!, command, signal: abort.signal }))
+        .then(
+          (result) => {
+            if (result.ok && result.call !== undefined) {
+              if (result.call.phase === 'ended') callIds.delete(result.call.callId);
+              else if (closed || abort.signal.aborted) {
+                callIds.add(result.call.callId);
+                hangUpCalls();
+              } else callIds.add(result.call.callId);
+            }
+            if (requests.get(id) !== cancel) return;
+            requests.delete(id);
+            respond(result);
+          },
+          () => {
+            if (requests.get(id) !== cancel) return;
+            requests.delete(id);
+            respond({
+              ok: false,
+              code: 'operation-timeout',
+              error: 'The call command did not complete.',
+            });
+          },
+        )
+        .finally(() => {
+          clearTimeout(timer);
+          callPending--;
+        });
+    };
     const forward = (input: Record<string, unknown>) => {
       const id = field(input, 'id'),
         path = field(input, 'path'),
@@ -304,6 +429,7 @@ export function createEncryptedGateway(options: {
       )
         throw new Error('channel-request-invalid');
       if (path === `/botharness-device${LOCAL_VIDEO_PATH}`) return video(id, input);
+      if (path === `/botharness-device${VOICE_CALL_PATH}`) return call(id, input);
       if (!pathAllowed(path)) throw new Error('channel-request-invalid');
       const body = field(input, 'body') ?? '';
       const bytes = Buffer.from(body, input['encoding'] === 'base64' ? 'base64' : 'utf8');

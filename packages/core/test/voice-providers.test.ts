@@ -256,3 +256,122 @@ describe('speakable text', () => {
     );
   });
 });
+
+async function fakeAsr(respond: (form: FormData, headers: Headers) => Response) {
+  const requests: { url: string; form: FormData; headers: Headers }[] = [];
+  const server: Server = createServer((request, response) => {
+    const chunks: Buffer[] = [];
+    request.on('data', (chunk: Buffer) => chunks.push(chunk));
+    request.on('end', async () => {
+      const headers = new Headers(request.headers as Record<string, string>);
+      const form = await new Request('http://x', {
+        method: 'POST',
+        headers,
+        body: Buffer.concat(chunks),
+      }).formData();
+      requests.push({ url: request.url ?? '', form, headers });
+      const answer = respond(form, headers);
+      response.writeHead(answer.status, { 'Content-Type': 'application/json' });
+      response.end(Buffer.from(await answer.arrayBuffer()));
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  cleanup.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
+  const { port } = server.address() as AddressInfo;
+  return { url: `http://127.0.0.1:${port}`, requests };
+}
+
+describe('ASR Provider owner', () => {
+  it('transcribes WAV through an OpenAI-compatible endpoint with its key and language', async () => {
+    const service = await fakeAsr(() => Response.json({ text: '  帮我查一下\n天气 ' }));
+    const { providers, owner, logs } = await fixture();
+    const secret = 'sk-asr-secret-0123456789';
+    const provider = await providers.add({
+      kind: 'asr',
+      preset: 'openai',
+      baseUrl: `${service.url}/v1`,
+      language: 'zh',
+      key: secret,
+    });
+    expect(provider).toMatchObject({
+      kind: 'asr',
+      preset: 'openai',
+      model: 'gpt-4o-mini-transcribe',
+      language: 'zh',
+      keySet: true,
+    });
+    expect(provider.id).toMatch(/^asr-[a-f0-9]{12}$/u);
+    expect(providers.list()).toEqual([]);
+    expect(providers.listAsr()).toEqual([provider]);
+    const { wavFromPcm16 } = await import('../src/voice/providers.js');
+    const result = await providers.transcribe({
+      providerId: provider.id,
+      audio: wavFromPcm16(new Int16Array(16_000), 16_000),
+    });
+    expect(result.text).toBe('帮我查一下 天气');
+    const seen = service.requests[0]!;
+    expect(seen.url).toBe('/v1/audio/transcriptions');
+    expect(seen.headers.get('authorization')).toBe(`Bearer ${secret}`);
+    expect(seen.form.get('model')).toBe('gpt-4o-mini-transcribe');
+    expect(seen.form.get('language')).toBe('zh');
+    expect(seen.form.get('response_format')).toBe('json');
+    const file = seen.form.get('file') as File;
+    expect(file.type).toBe('audio/wav');
+    expect(file.size).toBe(44 + 32_000);
+    const rows = attachOperationalModule(owner, 'voice').read((db) =>
+      db.prepare('SELECT body FROM voice_providers').all(),
+    );
+    expect(JSON.stringify(rows)).not.toContain(secret);
+    expect(JSON.stringify(logs)).not.toContain(secret);
+  });
+
+  it('keeps TTS and ASR Providers apart', async () => {
+    const service = await fakeAsr(() => Response.json({ text: 'ok' }));
+    const { providers } = await fixture();
+    const asr = await providers.add({ kind: 'asr', preset: 'custom', baseUrl: service.url });
+    const tts = await providers.add({ preset: 'custom', baseUrl: service.url, defaultVoice: 'a' });
+    await expect(providers.synthesize({ providerId: asr.id, text: 'hi' })).rejects.toMatchObject({
+      code: 'wrong-provider-kind',
+    });
+    await expect(
+      providers.transcribe({ providerId: tts.id, audio: new Uint8Array([1, 2]) }),
+    ).rejects.toMatchObject({ code: 'wrong-provider-kind' });
+    expect(providers.has(asr.id, 'asr')).toBe(true);
+    expect(providers.has(asr.id)).toBe(false);
+    await expect(
+      providers.add({ kind: 'asr', preset: 'custom', baseUrl: service.url, defaultVoice: 'x' }),
+    ).rejects.toMatchObject({ code: 'invalid-input' });
+    await expect(providers.add({ kind: 'asr', preset: 'groq' })).rejects.toMatchObject({
+      code: 'key-required',
+    });
+    const removed = await providers.remove(asr.id);
+    expect(removed.kind).toBe('asr');
+    expect(providers.listAsr()).toEqual([]);
+  });
+
+  it('reports provider failures with codes and health-checks with silence', async () => {
+    let status = 401;
+    const service = await fakeAsr(() =>
+      status === 200
+        ? Response.json({ text: '' })
+        : Response.json({ error: { message: 'bad key sk-leakedkey0123456' } }, { status }),
+    );
+    const { providers } = await fixture();
+    const provider = await providers.add({ kind: 'asr', preset: 'custom', baseUrl: service.url });
+    const failed = await providers.test(provider.id);
+    expect(failed).toMatchObject({ ok: false, code: 'provider-unauthorized' });
+    expect(JSON.stringify(failed)).not.toContain('sk-leakedkey');
+    status = 200;
+    expect(await providers.test(provider.id)).toMatchObject({ ok: true });
+    status = 503;
+    await expect(
+      providers.transcribe({
+        providerId: provider.id,
+        audio: (await import('../src/voice/providers.js')).wavFromPcm16(new Int16Array(10), 16_000),
+      }),
+    ).rejects.toMatchObject({ code: 'provider-unavailable' });
+    await expect(
+      providers.transcribe({ providerId: provider.id, audio: new Uint8Array([0, 1, 2, 3]) }),
+    ).rejects.toMatchObject({ code: 'invalid-input' });
+  });
+});

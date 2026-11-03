@@ -1,0 +1,158 @@
+export const VOICE_CALL_PATH = '/api/voice/call';
+
+export const VOICE_CALL_LIMITS = {
+  requestBytes: 128 * 1024,
+  signalBytes: 96 * 1024,
+  injectBytes: 88 * 1024,
+  pendingRequests: 8,
+  operationTimeoutMs: 10_000,
+  heartbeatLossMs: 8_000,
+  connectTimeoutMs: 20_000,
+  heartbeatMs: 1_000,
+  events: 64,
+  maxUtteranceMs: 30_000,
+  playbackTailMs: 300,
+} as const;
+
+export type VoiceCallPhase =
+  | 'connecting'
+  | 'listening'
+  | 'user-speaking'
+  | 'transcribing'
+  | 'bot-speaking'
+  | 'ended';
+
+export type VoiceCallEndReason =
+  | 'hangup'
+  | 'connection-lost'
+  | 'connect-timeout'
+  | 'media-failed'
+  | 'replaced'
+  | 'bot-unavailable'
+  | 'host-stopped';
+
+export type VoiceCallEvent =
+  | { seq: number; at: number; type: 'connected' }
+  | { seq: number; at: number; type: 'speech-start' }
+  | { seq: number; at: number; type: 'noise-discarded'; durationMs: number }
+  | { seq: number; at: number; type: 'transcribing'; audioMs: number }
+  | { seq: number; at: number; type: 'nothing-heard' }
+  | {
+      seq: number;
+      at: number;
+      type: 'sent';
+      messageId: string;
+      text: string;
+      asrMs: number;
+    }
+  | { seq: number; at: number; type: 'asr-failed'; code: string; message: string }
+  | { seq: number; at: number; type: 'send-failed'; code: string; message: string }
+  | {
+      seq: number;
+      at: number;
+      type: 'playing';
+      messageId: string;
+      bytes: number;
+      responseMs?: number;
+    }
+  | { seq: number; at: number; type: 'played'; messageId: string }
+  | { seq: number; at: number; type: 'playback-failed'; messageId: string; code: string }
+  | { seq: number; at: number; type: 'busy' }
+  | { seq: number; at: number; type: 'idle' }
+  | { seq: number; at: number; type: 'muted' }
+  | { seq: number; at: number; type: 'unmuted' }
+  | { seq: number; at: number; type: 'ended'; reason: VoiceCallEndReason };
+
+export interface VoiceCallDescription {
+  readonly type: 'offer' | 'answer';
+  readonly sdp: string;
+}
+
+export interface VoiceCallView {
+  readonly callId: string;
+  readonly slug: string;
+  readonly channelId: string;
+  readonly phase: VoiceCallPhase;
+  readonly muted: boolean;
+  readonly busy: boolean;
+  readonly media: 'webrtc' | 'synthetic';
+  readonly startedAt: number;
+  readonly durationMs: number;
+  readonly endReason?: VoiceCallEndReason;
+  readonly offer?: VoiceCallDescription;
+  readonly events: readonly VoiceCallEvent[];
+  readonly lastSeq: number;
+}
+
+export type VoiceCallMissing =
+  | 'bot'
+  | 'asr'
+  | 'tts'
+  | 'media-unsupported'
+  | 'media-helper-missing'
+  | 'media-unavailable';
+
+export interface VoiceCallReadiness {
+  readonly slug: string;
+  readonly ready: boolean;
+  readonly missing: readonly VoiceCallMissing[];
+  readonly asrProviderId: string | null;
+  readonly ttsProviderId: string | null;
+  readonly media: 'ready' | 'unsupported-platform' | 'helper-missing' | 'unavailable';
+  readonly activeCallId: string | null;
+}
+
+export type VoiceCallCommand =
+  | { readonly kind: 'readiness'; readonly slug: string }
+  | { readonly kind: 'status' }
+  | { readonly kind: 'open'; readonly slug: string; readonly media?: 'webrtc' | 'synthetic' }
+  | {
+      readonly kind: 'signal';
+      readonly callId: string;
+      readonly answer: VoiceCallDescription;
+    }
+  | { readonly kind: 'heartbeat'; readonly callId: string; readonly after?: number }
+  | { readonly kind: 'mute'; readonly callId: string; readonly muted: boolean }
+  | {
+      readonly kind: 'inject';
+      readonly callId: string;
+      readonly pcm: string;
+      readonly after?: number;
+    }
+  | { readonly kind: 'hangup'; readonly callId: string };
+
+export type VoiceCallRefusal =
+  | 'invalid-input'
+  | 'not-ready'
+  | 'unknown-bot'
+  | 'bot-paused'
+  | 'asr-not-configured'
+  | 'tts-not-configured'
+  | 'media-unsupported'
+  | 'media-helper-missing'
+  | 'media-failed'
+  | 'call-active'
+  | 'call-not-found'
+  | 'call-ended'
+  | 'signal-failed'
+  | 'synthetic-only'
+  | 'request-too-large'
+  | 'queue-full'
+  | 'operation-timeout'
+  | 'connect-carrier-required'
+  | 'device-revoked';
+
+export type VoiceCallResult =
+  | {
+      readonly ok: true;
+      readonly call?: VoiceCallView;
+      readonly calls?: readonly VoiceCallView[];
+      readonly readiness?: VoiceCallReadiness;
+    }
+  | { readonly ok: false; readonly code: VoiceCallRefusal; readonly error: string };
+
+export const VOICE_CALL_CONNECT_REFUSAL: VoiceCallResult = {
+  ok: false,
+  code: 'connect-carrier-required',
+  error: 'Calls need the paired LAN route or Tailscale; Tobs Connect does not carry calls.',
+};

@@ -22,7 +22,17 @@ export const LOCAL_VIDEO_ARCHIVE_URL = `https://github.com/electron/electron/rel
 export const LOCAL_VIDEO_ARCHIVE_BYTES = 158_508_870;
 const MANIFEST = '.botharness-video-runtime.json';
 const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024;
-const ASSETS = ['main.cjs', 'preload.cjs', 'renderer.html', 'renderer.js', 'launcher.cs'] as const;
+const ASSETS = [
+  'main.cjs',
+  'preload.cjs',
+  'renderer.html',
+  'renderer.js',
+  'launcher.cs',
+  'call-main.cjs',
+  'call-preload.cjs',
+  'call-renderer.html',
+  'call-renderer.js',
+] as const;
 export const LOCAL_VIDEO_LAUNCHER = 'botharness-media-launcher.exe';
 
 export function localVideoHelperDirectory(): string {

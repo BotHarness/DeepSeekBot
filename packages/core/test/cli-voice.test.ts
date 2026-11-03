@@ -37,8 +37,15 @@ async function host() {
         ...(request.headers.authorization === undefined
           ? {}
           : { auth: request.headers.authorization }),
-        body: JSON.parse(raw) as Record<string, unknown>,
+        body: request.headers['content-type']?.startsWith('application/json')
+          ? (JSON.parse(raw) as Record<string, unknown>)
+          : { multipart: raw.includes('name="file"') },
       });
+      if (request.url?.endsWith('/audio/transcriptions')) {
+        response.writeHead(200, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ text: 'call me back tomorrow' }));
+        return;
+      }
       response.writeHead(200, { 'Content-Type': 'audio/wav' });
       response.end(WAV);
     });
@@ -170,5 +177,55 @@ describe('deepseekbot voice commands', () => {
     await expect(run('voice-provider-add', ['nope'])).rejects.toMatchObject({
       code: 'invalid-input',
     });
+  });
+
+  it('adds an ASR Provider, binds it to a Bot and transcribes a test file', async () => {
+    const { run, calls, seen, root, url } = await host();
+    const added = (await run(
+      'voice-provider-add',
+      ['groq'],
+      { kind: 'asr', 'base-url': `${url}/openai/v1`, language: 'en', 'key-stdin': true },
+      'gsk-secret-0123456789\n',
+    )) as { provider: { id: string; kind: string; keySet: boolean } };
+    expect(added.provider).toMatchObject({ kind: 'asr', keySet: true });
+    const id = added.provider.id;
+    expect(await run('voice-provider-test', [id])).toMatchObject({ ok: true });
+    expect(await run('voice-asr-set', ['ada', id], { language: 'zh' })).toEqual({
+      slug: 'ada',
+      asr: { providerId: id, language: 'zh' },
+    });
+    const file = join(root, 'question.wav');
+    const { wavFromPcm16 } = await import('../src/voice/providers.js');
+    (await import('node:fs')).writeFileSync(file, wavFromPcm16(new Int16Array(8_000), 16_000));
+    expect(await run('voice-transcribe', [], { bot: 'ada', file })).toEqual({
+      providerId: id,
+      language: 'zh',
+      text: 'call me back tomorrow',
+      latencyMs: expect.any(Number),
+    });
+    expect(seen.at(-1)).toMatchObject({
+      url: '/openai/v1/audio/transcriptions',
+      auth: 'Bearer gsk-secret-0123456789',
+      body: { multipart: true },
+    });
+    const listed = (await run('voice-providers', [], { bot: 'ada' })) as Record<string, unknown>;
+    expect(listed).toMatchObject({
+      asrProviders: [{ id, kind: 'asr' }],
+      bot: { asr: { providerId: id, language: 'zh' } },
+    });
+    expect(await run('voice-provider-remove', [id])).toMatchObject({ clearedBots: ['ada'] });
+    expect(await run('voice-asr-set', ['ada', 'off'])).toEqual({ slug: 'ada', asr: null });
+    expect(calls.map(([method]) => method)).toContain('voiceTranscribe');
+    for (const [command, rest, values] of [
+      ['voice-provider-add', ['groq'], { kind: 'stt' }],
+      ['voice-provider-add', ['custom'], { kind: 'asr', voice: 'x' }],
+      ['voice-asr-set', ['ada', 'off'], { language: 'en' }],
+      ['voice-transcribe', [], { bot: 'ada' }],
+      ['voice-transcribe', [], { file }],
+      ['voice-transcribe', [], { bot: 'ada', file: 'relative.wav' }],
+    ] as const)
+      await expect(run(command, [...rest], values as VoiceValues)).rejects.toMatchObject({
+        code: 'usage',
+      });
   });
 });

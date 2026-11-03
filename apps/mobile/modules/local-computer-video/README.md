@@ -5,6 +5,20 @@ authorizes observation and control; this view owns only its ephemeral native pee
 and renderer. Input uses the existing authenticated Host client. No camera, microphone,
 DataChannel, clipboard, picture-in-picture, image decoding or public STUN/TURN is configured.
 
+## Bot calls (iOS)
+
+The same module also answers a Bot call (#3400). `callStart(attemptId, offer, testAudio)` takes one
+audio-only offer from the Host call owner and answers with a microphone track on a separate peer
+connection factory. The audio session is play-and-record in voice-chat mode on the loudspeaker, and
+the track requests echo cancellation, noise suppression and gain control, so the Bot's reply is not
+heard back as the Human's speech. `callMute` disables the track, `callStop` closes the peer and
+releases the audio session, and leaving the foreground ends the call. The screen stays on during a
+call. No audio is stored. With `testAudio` (only `.dev` development builds pass it), a capture
+post-processing hook replaces the microphone with WAV files queued by `callInject`, and a renderer
+on the remote track records the downlink to a WAV in the caches folder and reports
+`downlink-start`/`downlink-end` timestamps through `onCallTap`. iOS needs a rebuilt development
+client for these functions; the JavaScript side hides the call button when they are missing.
+
 The Android development client must be rebuilt after adding this module. It uses the
 existing Expo Modules Gradle plugin and local-module autolinking; no JavaScript package
 or config plugin is added. The iOS receiver also requires a rebuilt native client.

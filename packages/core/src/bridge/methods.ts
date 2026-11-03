@@ -978,6 +978,8 @@ export interface BridgeMethods {
   voiceProviderTest: VoiceBridgeMethods['voiceProviderTest'];
   voiceSynthesize: VoiceBridgeMethods['voiceSynthesize'];
   botVoiceSet: VoiceBridgeMethods['botVoiceSet'];
+  voiceTranscribe: VoiceBridgeMethods['voiceTranscribe'];
+  botAsrSet: VoiceBridgeMethods['botAsrSet'];
   approvalReviewerModel(payload?: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
   approvalReviewerModelSet(payload: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
   idleCompaction(payload?: unknown): BridgeResult<IdleCompactionView>;
@@ -5944,6 +5946,17 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         };
       }
       const requestedMessageId = source['messageId'];
+      const rawVoiceCall = source['voiceCall'];
+      let voiceCall: ChannelMessage['voiceCall'];
+      if (rawVoiceCall !== undefined) {
+        const callId =
+          typeof rawVoiceCall === 'object' && rawVoiceCall !== null
+            ? (rawVoiceCall as Record<string, unknown>)['callId']
+            : undefined;
+        if (typeof callId !== 'string' || !/^call-[a-f0-9]{16}$/u.test(callId))
+          return invalidInput('voiceCall must name a call');
+        voiceCall = { callId };
+      }
       const rawAssignmentReply = source['assignmentReply'];
       let assignmentReply: ChannelMessage['assignmentReply'];
       if (rawAssignmentReply !== undefined) {
@@ -6110,6 +6123,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         ...(grantRequestResolution === undefined ? {} : { grantRequestResolution }),
         ...(assignmentReply === undefined ? {} : { assignmentReply }),
         ...(memorySwitchTarget === undefined ? {} : { memorySwitchTarget }),
+        ...(voiceCall === undefined ? {} : { voiceCall }),
       };
       if (
         channel.type === 'dm' &&

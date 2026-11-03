@@ -476,6 +476,7 @@ export interface ChannelMessage {
   attachments?: ChannelAttachmentRef[];
   clearedAttachments?: ChannelClearedAttachment[];
   voice?: ChannelMessageVoice;
+  voiceCall?: { callId: string };
   bridgeMedia?: {
     voice?: Pick<import('../messaging/provider.js').MessagingVoice, 'transcript' | 'durationMs'>;
     video?: { attachmentId: string; durationMs?: number; posterAttachmentId?: string };
@@ -751,6 +752,17 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       welcome === null ||
       (welcome as { version?: unknown }).version !== 1 ||
       (message['author'] as ChannelMessageAuthor)?.kind !== 'system')
+  )
+    return false;
+  const voiceCall = message['voiceCall'];
+  if (
+    voiceCall !== undefined &&
+    (typeof voiceCall !== 'object' ||
+      voiceCall === null ||
+      Object.keys(voiceCall).join() !== 'callId' ||
+      typeof (voiceCall as { callId?: unknown }).callId !== 'string' ||
+      !/^call-[a-f0-9]{16}$/u.test((voiceCall as { callId: string }).callId) ||
+      (message['author'] as ChannelMessageAuthor)?.kind !== 'human')
   )
     return false;
   const switchTarget = message['memorySwitchTarget'];

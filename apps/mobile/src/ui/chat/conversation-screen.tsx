@@ -155,6 +155,7 @@ import { useStrings } from '../strings';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { ListSkeleton } from '../primitives/list-skeleton';
 import { Button } from '../primitives/button';
+import { useBotCall } from './call-button';
 
 type Row = ChatRow | { kind: 'draft'; key: string; draft: ConversationDraftReference };
 const NO_DRAFTS: ConversationDraftReference[] = [];
@@ -1323,6 +1324,11 @@ function ChatConversation({
     />
   );
   const canOpenProfile = saved !== undefined && !hostRefused && !missing && selected === undefined;
+  const placeCall = useBotCall(
+    canOpenProfile && dm && bot !== undefined ? client : undefined,
+    slug,
+    saved?.hostId,
+  );
   const profileButton = canOpenProfile ? (
     <HeaderIconButton
       icon="more"
@@ -1472,6 +1478,18 @@ function ChatConversation({
                   unstable_headerRightItems: () =>
                     canOpenProfile
                       ? [
+                          ...(placeCall === undefined
+                            ? []
+                            : [
+                                { type: 'spacing' as const, spacing: headerGap },
+                                {
+                                  type: 'button' as const,
+                                  label: t.call.button,
+                                  identifier: 'chat-call-button',
+                                  icon: { type: 'sfSymbol' as const, name: 'phone' as const },
+                                  onPress: placeCall,
+                                },
+                              ]),
                           { type: 'spacing' as const, spacing: headerGap },
                           {
                             type: 'button' as const,
@@ -1959,6 +1977,11 @@ function ChatConversation({
             canOpenProfile
               ? { label: t.openProfile, testID: 'chat-profile-button', onPress: openProfile }
               : undefined
+          }
+          call={
+            placeCall === undefined
+              ? undefined
+              : { label: t.call.button, testID: 'chat-call-button', onPress: placeCall }
           }
         />
       )}
