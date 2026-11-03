@@ -264,6 +264,9 @@ describe('native Subagent report admission', () => {
       await f.started.promise;
       controller.abort();
       expect(await accepted).toBe(false);
+      expect(f.warnings.map((warning) => JSON.parse(warning) as Record<string, unknown>)).toEqual([
+        expect.objectContaining({ event: 'native-orchestrator-input', reason: 'aborted' }),
+      ]);
     } finally {
       f.prepared.resolve();
       f.finished.resolve();

@@ -739,7 +739,8 @@ type NativeOrchestratorRefusal =
   | 'no-current-orchestrator'
   | 'not-current-orchestrator'
   | 'no-native-sender'
-  | 'foreign-sender';
+  | 'foreign-sender'
+  | 'run-not-ready';
 
 export interface BotRuntime {
   networkBotAvailability?(
@@ -4236,7 +4237,9 @@ class BotRuntimeImplementation implements BotRuntime {
         cancellation.removeEventListener('abort', abort);
         if (this.#nativeStepReady.get(sessionId) === finish)
           this.#nativeStepReady.delete(sessionId);
-        resolve(accepted && available());
+        const reason = unavailable() ?? (accepted ? undefined : 'run-not-ready');
+        if (reason !== undefined) refuse(reason);
+        resolve(reason === undefined);
       };
       const abort = () => finish(false);
       this.#nativeStepReady.set(sessionId, finish);
