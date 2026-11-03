@@ -19,6 +19,19 @@ on the remote track records the downlink to a WAV in the caches folder and repor
 `downlink-start`/`downlink-end` timestamps through `onCallTap`. iOS needs a rebuilt development
 client for these functions; the JavaScript side hides the call button when they are missing.
 
+## Bot calls (Android)
+
+Android has the same four functions and two events (#3405, ADR-0284). `CallAttempt.kt` builds its own
+`PeerConnectionFactory` with a `JavaAudioDeviceModule`, so a call never shares native resources with the
+video peer. The microphone uses the voice-communication source with the platform echo canceller and noise
+suppressor where available, and the track requests WebRTC's communication processing. The call takes
+transient audio focus, `MODE_IN_COMMUNICATION`, and routes to a connected headset or else the loudspeaker;
+all of it is restored on close. The window keeps the screen on during a call, and leaving the foreground or
+locking the phone ends it with `closed`/`background`. With `testAudio`, an `AudioBufferCallback` overwrites
+each recorded buffer with WAV files queued by `callInject` (silence when empty), and an `AudioTrackSink` on
+the remote track records the downlink to a WAV in the cache folder with `downlink-start`/`downlink-end`. The
+module manifest declares `RECORD_AUDIO` and `MODIFY_AUDIO_SETTINGS`. A rebuilt development client is needed.
+
 The Android development client must be rebuilt after adding this module. It uses the
 existing Expo Modules Gradle plugin and local-module autolinking; no JavaScript package
 or config plugin is added. The iOS receiver also requires a rebuilt native client.

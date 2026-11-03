@@ -12,6 +12,7 @@ import {
   ComputerIcon,
   HandBackIcon,
   PencilIcon,
+  PhoneIcon,
   PlusIcon,
   MoreIcon,
   SettingsIcon,
@@ -32,6 +33,7 @@ export type HeaderIcon =
   | 'computer'
   | 'hand-back'
   | 'tob'
+  | 'call'
   | 'more';
 
 export type HeaderIconButtonProps = {
@@ -57,6 +59,7 @@ const glyphs = {
   computer: { Glyph: ComputerIcon, size: (theme) => theme.touch / 2 },
   'hand-back': { Glyph: HandBackIcon, size: (theme) => theme.touch / 2 },
   tob: { Glyph: TobModeIcon, size: (theme) => theme.type.title.line },
+  call: { Glyph: PhoneIcon, size: (theme) => theme.type.title.line },
 } satisfies Record<HeaderIcon, { Glyph: typeof CloseIcon; size(theme: DesignTheme): number }>;
 
 export function HeaderIconButton({
