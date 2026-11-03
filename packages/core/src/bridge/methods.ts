@@ -2986,6 +2986,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           botName: bot.displayName,
           humanName: human,
           sessionId: stopped.sessionId,
+          ...(autoContinueFor === undefined ? { held: true, cause: 'human-stop' } : {}),
         },
       });
       if (appended === undefined) return unknownChannel(channelId);

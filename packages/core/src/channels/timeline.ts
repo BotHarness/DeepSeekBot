@@ -92,21 +92,25 @@ export function pageChannelJournal(
   messages: readonly ChannelMessage[],
   request: ChannelJournalRequest,
 ): ChannelJournalPage | undefined {
+  return pageChannelJournalRange(channelId, messages.length, request, (first, last) =>
+    messages.slice(first - 1, last).map((message, index) => ({ message, revision: first + index })),
+  );
+}
+
+export function pageChannelJournalRange(
+  channelId: string,
+  revision: number,
+  request: ChannelJournalRequest,
+  load: (first: number, last: number) => readonly Omit<ChannelJournalEntry, 'channelId'>[],
+): ChannelJournalPage | undefined {
   const { through, before } = request;
-  if (!Number.isSafeInteger(through) || through < 0 || through > messages.length) return undefined;
+  if (!Number.isSafeInteger(through) || through < 0 || through > revision) return undefined;
   if (before !== undefined && (!Number.isSafeInteger(before) || before < 1)) return undefined;
   const limit = Math.max(1, Math.min(request.limit ?? DEFAULT_MESSAGE_PAGE, MAX_MESSAGE_PAGE));
   const floor = Math.max(1, request.visibleFrom ?? 1);
   const last = before === undefined ? through : Math.min(through, before - 1);
   const first = Math.max(floor, last - limit + 1);
-  const entries =
-    last < first
-      ? []
-      : messages.slice(first - 1, last).map((message, index) => ({
-          channelId,
-          message,
-          revision: first + index,
-        }));
+  const entries = last < first ? [] : load(first, last).map((entry) => ({ channelId, ...entry }));
   return {
     entries,
     olderCursor: entries[0] === undefined ? null : encodeCursor(channelId, entries[0].message),
