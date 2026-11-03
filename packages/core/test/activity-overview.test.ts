@@ -291,6 +291,8 @@ it('exposes independent active state even when waiting outranks work and no disp
   const core = createCore({ dshHome: createTempRoot('bh-active-summary-'), agents });
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
+    const activityEvents: { active?: boolean; state: string }[] = [];
+    core.states.onActivity((event) => activityEvents.push(event));
     core.states.setSessionState('ada', 'working-root', 'working');
     core.states.setSessionState('ada', 'approval-root', 'waiting');
     const methods = createBridgeMethods({ ...core });
@@ -298,7 +300,9 @@ it('exposes independent active state even when waiting outranks work and no disp
       ok: true,
       value: { bots: [{ slug: 'ada', state: 'waiting', active: true }] },
     });
+    expect(activityEvents.at(-1)).toMatchObject({ state: 'waiting', active: true });
     core.states.setSessionState('ada', 'working-root', 'done');
+    expect(activityEvents.at(-1)).toMatchObject({ state: 'waiting', active: false });
     expect(methods.activitySnapshot({})).toMatchObject({
       ok: true,
       value: { bots: [{ slug: 'ada', state: 'waiting', active: false }] },

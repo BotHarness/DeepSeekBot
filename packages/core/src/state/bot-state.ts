@@ -243,14 +243,15 @@ export function createBotStateTracker(): BotStateTracker {
   };
   const publishActivity = (slug: string, cause: PersonaBotActivityEvent['cause']): void => {
     const activity = activityOf(slug);
-    const state = snapshotOf(slug, bots.get(slug) ?? new Map()).state;
+    const snapshot = snapshotOf(slug, bots.get(slug) ?? new Map());
     const sessions = sessionActivityOf(slug);
     const attention = attentionOf(slug);
     const event: PersonaBotActivityEvent = {
       generation,
       revision,
       slug,
-      state,
+      state: snapshot.state,
+      active: hasActiveSession(snapshot),
       cause,
       ...(attention === undefined ? {} : { attention }),
       ...(sessions.length === 0 ? {} : { sessions }),
@@ -483,6 +484,7 @@ export function createBotStateTracker(): BotStateTracker {
 }
 
 export interface PersonaBotActivityEvent {
+  active?: boolean;
   generation: string;
   revision: number;
   slug: string;
@@ -506,6 +508,12 @@ export interface PersonaBotActivitySnapshot {
   }[];
 }
 
+function hasActiveSession(snapshot: BotStateSnapshot): boolean {
+  return Object.values(snapshot.sessions).some(
+    (state) => state === 'thinking' || state === 'working',
+  );
+}
+
 export function personaBotActivitySnapshot(
   slugs: readonly string[],
   states: BotStateTracker,
@@ -519,9 +527,7 @@ export function personaBotActivitySnapshot(
       return {
         slug,
         state: snapshot.state,
-        active: Object.values(snapshot.sessions).some(
-          (state) => state === 'thinking' || state === 'working',
-        ),
+        active: hasActiveSession(snapshot),
         ...(snapshot.attention === undefined ? {} : { attention: snapshot.attention }),
         ...(activity === undefined ? {} : { activity }),
         ...(sessions.length === 0 ? {} : { sessions }),
