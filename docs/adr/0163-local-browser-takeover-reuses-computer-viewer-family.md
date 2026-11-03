@@ -40,3 +40,12 @@ Human testing showed that pausing on every viewer open destroys a wanted behavio
 - On desktop the viewer page hides its control rows and types straight from the physical keyboard; on touch devices a gamepad-scale pad (click, right-click, scroll, keyboard summon) plus a latching modifier row drives input, and the native keyboard is summoned by tapping rather than by a visible input box.
 
 Related glossary: Browser Takeover (explicit control), Browser Watch (non-interrupting observation), Browser Pause (manual stop).
+
+## Amendment 2026-11-03: the handoff is an asynchronous conversation card ([#3379](https://github.com/BotHarness/DeepSeekBot/issues/3379))
+
+The blocking `browser_takeover` request/await flow is replaced by one Takeover Handoff shared by Computer and Browser:
+
+- The Bot calls `takeover_request` with a target (`computer` or `browser`), a title and one sentence. A card in the conversation shows them with a Take over button that opens the live view; the Bot's turn ends at once and the Human can keep chatting.
+- Done, Could not finish, cancel and expiry post a resolution message that wakes the Bot through its Inbox. The Bot observes again before it acts, so stale observation refs stay invalid.
+- The secret rules above are unchanged: credentials are typed only in the live view, the card text must not ask for them, and the `takeover` diagnostic events carry ids, counts, lengths and timings only.
+- The handoff does not pause or own control; who controls the view stays with the viewer's takeover switch.

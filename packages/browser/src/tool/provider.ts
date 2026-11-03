@@ -11,7 +11,7 @@ import { basename } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 
 import { BROWSER_GUIDANCE, BROWSER_TOOLS, browserToolName } from './catalog.js';
-import { takeoverUrl, type TakeoverService } from '../takeover.js';
+import type { TakeoverService } from '../takeover.js';
 import { formatBrowserElement } from '../runtime/observation.js';
 import { saveScreenshot } from '../screenshots.js';
 import type { BotBrowserRuntimes } from '../runtimes.js';
@@ -165,12 +165,6 @@ function boundedNumber(value: unknown, min: number, max: number, fallback: numbe
   return Math.max(min, Math.min(max, Math.round(value)));
 }
 
-function boundedTakeoverTimeout(value: unknown): number | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value !== 'number' || Number.isNaN(value)) return undefined;
-  return Math.max(1_000, Math.min(600_000, Math.round(value)));
-}
-
 export function createBrowserToolProvider(
   options: BrowserToolProviderOptions,
 ): BrowserToolProvider {
@@ -268,7 +262,7 @@ export function createBrowserToolProvider(
     if (core().registry?.get(slug)?.browserAccess !== true) {
       throw new Error('Browser Access is off for this PersonaBot');
     }
-    if (raw !== 'observe' && raw !== 'takeover' && takeovers.has(slug)) {
+    if (raw !== 'observe' && takeovers.has(slug)) {
       throw new Error(
         'Browser Pause is active for this PersonaBot; ask the Human to Resume in the Browser entry, then call browser_observe before acting',
       );
@@ -293,125 +287,6 @@ export function createBrowserToolProvider(
     else takeovers.delete(slug);
     note(`takeover ${active ? 'on' : 'off'} slug=${slug}`);
     return takeovers.has(slug);
-  };
-
-  const currentTabOf = (slug: string): string | undefined => tabsByBot.get(slug)?.current;
-
-  const runTakeover = async (
-    args: Record<string, unknown>,
-    slug: string,
-    signal: AbortSignal,
-  ): Promise<{ content: BrowserToolContent[] }> => {
-    const service = options.takeover?.();
-    if (service === undefined) {
-      throw new Error('Browser takeover is unavailable for this target');
-    }
-    const action = typeof args['action'] === 'string' ? args['action'] : '';
-    if (action === 'request') {
-      const instructions = typeof args['instructions'] === 'string' ? args['instructions'] : '';
-      const expectedUrl =
-        typeof args['expectedUrl'] === 'string' && args['expectedUrl'] !== ''
-          ? args['expectedUrl']
-          : undefined;
-      if (currentTabOf(slug) === undefined) {
-        throw new Error(
-          'This PersonaBot has no Bot Browser tab yet; call browser_open with a URL first',
-        );
-      }
-      const base = options.takeoverUrlFor?.(slug);
-      if (base === undefined) {
-        throw new Error('The Bot Browser viewer is not running; call browser_open first');
-      }
-      signal.throwIfAborted();
-      applyTakeover(slug, true);
-      onActivity(slug);
-      const record = service.mint(slug, instructions, expectedUrl);
-      const link = takeoverUrl(base, record.token);
-      const minutes = Math.round((record.expiresAt - record.createdAt) / 60_000);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: [
-              `Takeover link (single-use, expires in ${minutes} min): ${link}`,
-              '',
-              'Post this guiding message to the Human now:',
-              `Please take over the browser: open the link, ${record.instructions}, then click Done (or Could not finish). I will verify the page after you finish.`,
-              '',
-              'Then call browser_takeover action await with the token to wait for completion.',
-            ].join('\n'),
-          },
-        ],
-      };
-    }
-    if (action === 'await' || action === 'status') {
-      const token = typeof args['token'] === 'string' ? args['token'] : '';
-      if (token === '')
-        throw new Error('browser_takeover action await needs the token from request');
-      const seen = service.describe(token);
-      if (seen === undefined || seen.slug !== slug) {
-        throw new Error('Unknown takeover token; call browser_takeover action request first');
-      }
-      if (action === 'status') {
-        const reason = seen.reason === undefined ? '' : ` (${seen.reason})`;
-        return {
-          content: [{ type: 'text', text: `Takeover ${seen.state}${reason}` }],
-        };
-      }
-      const timeoutMs = boundedTakeoverTimeout(args['timeoutMs']);
-      signal.throwIfAborted();
-      const controller = new AbortController();
-      const onAbort = (): void => controller.abort(signal.reason);
-      signal.addEventListener('abort', onAbort, { once: true });
-      const timer =
-        timeoutMs === undefined
-          ? undefined
-          : setTimeout(() => controller.abort(new Error('Takeover wait timed out')), timeoutMs);
-      let record;
-      try {
-        record = await service.wait(token, controller.signal);
-      } catch (error) {
-        if (error instanceof Error && error.message === 'Takeover wait timed out') throw error;
-        throw error;
-      } finally {
-        if (timer !== undefined) clearTimeout(timer);
-        signal.removeEventListener('abort', onAbort);
-      }
-      const tabId = currentTabOf(slug);
-      let verified = 'the page state is unavailable; observe before acting';
-      if (tabId !== undefined) {
-        try {
-          const info = await runtimes.for(slug).tabInfo(tabId);
-          verified = `${info.url}${info.title === '' ? '' : ` — ${info.title}`}`;
-        } catch {
-          verified = 'the page state is unavailable; observe before acting';
-        }
-      }
-      applyTakeover(slug, false);
-      onActivity(slug);
-      const expected = record.expectedUrl;
-      const matched =
-        expected === undefined
-          ? undefined
-          : verified.includes(expected)
-            ? 'expected page state verified'
-            : `expected page state NOT seen (expected ${expected})`;
-      return {
-        content: [
-          {
-            type: 'text',
-            text: [
-              record.state === 'completed'
-                ? `Human finished (${record.reason ?? 'done'}): ${verified}`
-                : `Takeover expired before the Human finished: ${verified}`,
-              ...(matched === undefined ? [] : [matched]),
-              'Call browser_observe before acting.',
-            ].join('\n'),
-          },
-        ],
-      };
-    }
-    throw new Error('Unknown browser_takeover action: use request, await, or status');
   };
 
   const runTool = async (
@@ -513,9 +388,6 @@ export function createBrowserToolProvider(
       };
     }
     const runtime = runtimes.for(slug);
-    if (raw === 'takeover') {
-      return runTakeover(args, slug, signal);
-    }
     if (raw === 'open') {
       const url = typeof args['url'] === 'string' ? args['url'] : '';
       if (!/^https?:\/\//u.test(url)) {

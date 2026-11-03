@@ -480,6 +480,20 @@ deepseekbot schedule-delete <bot-id> --sid <schedule-id> --confirm
 
 选定 Host 后，定时任务命令调用与「定时任务」面板相同的 Host 方法，由 Host 检查 Bot、触发器、时区和锁定状态；被拒时保留 Host 的错误码（`invalid-input`、`not-found`、`locked`、`inactive`）。`schedule-preview` 返回触发器和 Host 算出的接下来几次时刻。`schedule-run-now` 排入一次触发，由运行中的 Host 执行。`schedule-delete` 会连同该任务的历史一起删除，所以和面板上的确认一样，需要 `--confirm`。
 
+### 在线 Host 上的接管交接（Takeover Handoff）
+
+```bash
+deepseekbot takeovers [<bot-id>] [--pending] [--channel <channel-id>] [--limit 20]
+deepseekbot takeover-request <bot-id> --target browser --title "登录商店" --body "请登录后点完成。" [--channel <channel-id>] [--minutes 30]
+deepseekbot takeover-status --channel <channel-id> --message-id <request-id>
+deepseekbot takeover-complete --channel <channel-id> --message-id <request-id> --outcome done|failed
+deepseekbot takeover-cancel --channel <channel-id> --message-id <request-id> [--bot <bot-id>]
+```
+
+接管交接是 Bot 请 Human 操作它的 Computer 或 Bot 浏览器完成一步它自己不能做的事，例如登录或验证码。Bot 调用 `takeover_request`；对话里出现一张卡片，含标题、Bot 的一句话和打开 Computer 或浏览器视图的「接管」按钮，Human 不在应用里时会收到推送。Bot 的这一轮立即结束：Human 可以继续聊天，Bot 照常回复。完成、无法完成、取消和过期都会发布一条结果，经 Bot Inbox 唤醒 Bot，Bot 先重新观察画面再继续；Bot 用 `takeover_cancel` 撤回自己的请求时不会唤醒自己。每个 Bot 同时最多一个待处理请求，默认 30 分钟后过期（最多 120 分钟）。
+
+`takeover-request` 以 Bot 身份、通过与 Bot 工具相同的 Host 代码发布卡片，默认在 Bot 的私聊里，`--channel` 可指定 Bot 能发言的 Channel。`takeover-complete` 和 `takeover-cancel` 以 Human 身份操作，与卡片按钮相同，并唤醒 Bot；`takeover-cancel --bot <bot-id>` 以该 Bot 身份撤回请求，与 `takeover_cancel` 相同，不唤醒任何人。`takeovers <bot-id>` 读取与 `takeover_list` 相同的内容。被拒时保留错误码：`unknown-bot`、`invalid-input`、`target-off`（浏览器或 Computer 权限未开启）、`channel-unavailable`、`already-pending`、`not-found` 和 `not-pending`。每次请求、拒绝和结果都以来源 `takeover` 记入诊断日志，只含 id、数量、长度和耗时，从不含标题或那句话；用 `deepseekbot diagnostic-logs` 或 `diagnostic-logs-export` 读取。
+
 ### Local Computer 视频
 
 Windows 本机 Computer 使用 [Android 纯视频路径](local-computer-video.zh.md)。前文 `computer-frame`、`computer-takeover`、`computer-input` 的描述只适用于旧目标；迁移后的 Windows 目标返回 `update-required`。Bot／诊断截图仍是独立能力，并遵守全局 Bot 暂停。

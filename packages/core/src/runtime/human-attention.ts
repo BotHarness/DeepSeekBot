@@ -18,6 +18,7 @@ export interface HumanAttentionItem {
     | 'pairing-request'
     | 'user-question'
     | 'private-input'
+    | 'takeover-request'
     | 'tool-approval'
     | 'auto-rejection'
     | 'workspace-grant-request'
@@ -249,6 +250,28 @@ const ACTION_ATTENTION_CTE = `WITH attention AS (
                     '$.privateInputResolution.requestMessageId') = e.message_id
              )
           UNION ALL
+          SELECT 'takeover:' || e.source_event_id AS id,
+                 'action' AS category, 'takeover-request' AS kind,
+                 e.created_at, c.channel_id,
+                 json_extract(c.record_json, '$.name') AS channel_name,
+                 e.bot_slug, json_extract(e.payload_json, '$.takeoverRequest.title') || ' · ' || e.body AS summary,
+                 NULL AS request_id, e.message_id,
+                 NULL AS assignment_session_id, e.source_event_id
+            FROM source_events e
+            JOIN channel_placements p ON p.source_event_id = e.source_event_id
+            JOIN channel_records c ON c.channel_id = p.channel_id
+           WHERE (json_extract(c.record_json, '$.type') = 'group'
+               OR (json_extract(c.record_json, '$.type') = 'dm' AND json_extract(c.record_json, '$.botSlug') = e.bot_slug))
+             AND json_extract(c.record_json, '$.deletedAt') IS NULL
+             AND e.source_kind = 'bot-message'
+             AND json_extract(e.payload_json, '$.takeoverRequest') IS NOT NULL
+             AND json_extract(e.payload_json, '$.takeoverRequest.expiresAt') > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+             AND NOT EXISTS (
+               SELECT 1 FROM source_events resolution
+                WHERE resolution.channel_id = e.channel_id
+                  AND resolution.message_id = 'takeover-resolution-' || e.message_id
+             )
+          UNION ALL
           SELECT 'grant:' || e.source_event_id AS id,
                  'action' AS category, 'workspace-grant-request' AS kind,
                  e.created_at, c.channel_id,
@@ -387,6 +410,8 @@ const DM_CARD_FIELDS = [
   'userQuestionResolution',
   'privateInputRequest',
   'privateInputResolution',
+  'takeoverRequest',
+  'takeoverResolution',
   'grantRequest',
 ];
 

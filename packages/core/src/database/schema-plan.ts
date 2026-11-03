@@ -2632,6 +2632,19 @@ const QUESTION_MESSAGING_MIGRATION: SchemaMigration = {
   },
 };
 
+const TAKEOVER_ATTENTION_INDEX_MIGRATION: SchemaMigration = {
+  generation: 117,
+  module: 'messaging',
+  description: 'Index Takeover Handoff requests without scanning ordinary history',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX source_events_attention_takeover ON source_events (message_id, source_event_id)
+        WHERE source_kind = 'bot-message'
+          AND json_extract(payload_json, '$.takeoverRequest') IS NOT NULL;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2748,4 +2761,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   HUMAN_ATTENTION_CANDIDATE_INDEX_MIGRATION,
   BOT_LAN_ADMISSION_MIGRATION,
   QUESTION_MESSAGING_MIGRATION,
+  TAKEOVER_ATTENTION_INDEX_MIGRATION,
 ]);

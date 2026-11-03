@@ -520,6 +520,20 @@ deepseekbot schedule-delete <bot-id> --sid <schedule-id> --confirm
 
 With a Host selected, the schedule commands call the same Host methods as the Schedules panel, so the Host checks the Bot, the trigger, the time zone and the lock, and a refusal keeps its code (`invalid-input`, `not-found`, `locked`, `inactive`). `schedule-preview` returns the trigger and the Host's next occurrences. `schedule-run-now` queues a firing that the running Host executes. `schedule-delete` also removes the schedule's history, so it needs `--confirm`, like the panel's confirmation.
 
+### Takeover Handoffs on a live Host
+
+```bash
+deepseekbot takeovers [<bot-id>] [--pending] [--channel <channel-id>] [--limit 20]
+deepseekbot takeover-request <bot-id> --target browser --title "Sign in to the shop" --body "Please sign in, then press Done." [--channel <channel-id>] [--minutes 30]
+deepseekbot takeover-status --channel <channel-id> --message-id <request-id>
+deepseekbot takeover-complete --channel <channel-id> --message-id <request-id> --outcome done|failed
+deepseekbot takeover-cancel --channel <channel-id> --message-id <request-id> [--bot <bot-id>]
+```
+
+A Takeover Handoff is how a Bot asks the Human to operate its Computer or Bot Browser for one step it must not do itself, such as signing in or a captcha. The Bot calls `takeover_request`; the conversation shows a card with the title, the Bot's sentence and a Take over button that opens the Computer or Browser view, and the Human gets a push when away. The Bot's turn ends at once: the Human can keep chatting, and the Bot answers them. Done, Could not finish, cancel and expiry post a resolution that wakes the Bot through its Inbox, and the Bot observes the screen again before it continues; a Bot withdrawing its own request with `takeover_cancel` does not wake it. A Bot has at most one pending request; it expires after 30 minutes by default (at most 120).
+
+`takeover-request` posts the card as the Bot through the same Host code as the Bot tool, in the Bot's DM unless `--channel` names a Channel the Bot can post in. `takeover-complete` and `takeover-cancel` act as the Human, like the card's buttons, and wake the Bot; `takeover-cancel --bot <bot-id>` withdraws the request as that Bot, like `takeover_cancel`, and wakes nobody. `takeovers <bot-id>` reads what `takeover_list` returns. Refusals keep their code: `unknown-bot`, `invalid-input`, `target-off` (Browser or Computer Access is off), `channel-unavailable`, `already-pending`, `not-found` and `not-pending`. Each request, refusal and outcome is recorded in the diagnostic log under the source `takeover` with ids, counts, lengths and timings only, never the title or sentence; read it with `deepseekbot diagnostic-logs` or `diagnostic-logs-export`.
+
 ### Browser and Computer: observation, packages, transfer and logs
 
 ```bash

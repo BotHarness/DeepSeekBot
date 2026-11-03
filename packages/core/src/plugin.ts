@@ -133,6 +133,7 @@ import type { BotAgentSetupInfo } from './runtime/dsh-bot-agent-adapter.js';
 import { registerBridge } from './bridge/rpc.js';
 import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
 import { mountDiagnosticLog } from './diagnostics/diagnostic-log.js';
+import { createCoreTakeoverHandoffs, mountTakeoverTools } from './takeover/mount.js';
 import { createTurnLog } from './diagnostics/turn-log.js';
 import { mountDevicePairing } from './devices/mount.js';
 import { humanInboxPushSource } from './push/source.js';
@@ -1678,6 +1679,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     secretMcpStore,
     diagnosticEvents,
   );
+  const takeovers = createCoreTakeoverHandoffs(ctx, core, diagnosticEvents);
+  mountTakeoverTools(ctx, core, takeovers);
   ctx.effect(() => () => core.externalMessaging.close(), 'botharness: external messaging');
   const cloudConnections = new CloudConnections(
     attachOperationalModule(core.operationalDatabase, 'messaging'),
@@ -2803,6 +2806,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     attention: core.attention,
     sourcePolicy: core.sourcePolicy,
     schedules: core.schedules,
+    takeovers,
     humanAttention: core.humanAttention,
     humanAttentionDecisions: core.humanAttentionDecisions,
     grants: core.grants,

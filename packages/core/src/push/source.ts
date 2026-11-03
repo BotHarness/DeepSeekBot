@@ -12,6 +12,7 @@ const KIND: Partial<Record<HumanAttentionItem['kind'], PushKind>> = {
   'assignment-blocked': 'question',
   'user-question': 'question',
   'private-input': 'private-input',
+  'takeover-request': 'question',
   'channel-reply': 'reply',
   'channel-mention': 'reply',
 };

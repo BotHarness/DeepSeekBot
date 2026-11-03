@@ -38,6 +38,12 @@ import { CliLiveError } from './cli-live-error.js';
 import { CONNECTION_COMMANDS, runConnectionCommand } from './cli-connection.js';
 import { BOT_TOOL_COMMANDS, runBotToolCommand } from './cli-bot-tool.js';
 import {
+  TAKEOVER_COMMANDS,
+  TAKEOVER_OPTIONS,
+  isTakeoverCommand,
+  runTakeoverCommand,
+} from './cli-takeover.js';
+import {
   channelOperationKey,
   CHANNEL_COMMANDS,
   CHANNEL_OPTIONS,
@@ -175,6 +181,7 @@ export const LIVE_OPTIONS = {
   ...SHARE_DRAFT_OPTIONS,
   ...INBOX_OPTIONS,
   ...SCHEDULE_OPTIONS,
+  ...TAKEOVER_OPTIONS,
   ...BROWSER_COMPUTER_OPTIONS,
   ...PROFILE_OPTIONS,
   ...TODO_OPTIONS,
@@ -306,6 +313,7 @@ export const LIVE_COMMANDS = [
   ...BROWSER_COMPUTER_COMMANDS,
   ...PROFILE_COMMANDS,
   ...BOT_TOOL_COMMANDS,
+  ...TAKEOVER_COMMANDS,
   ...TODO_COMMANDS,
   ...APPROVAL_TEMPLATE_COMMANDS,
   ...PROMPT_PRESET_COMMANDS,
@@ -1068,6 +1076,10 @@ export async function runLiveCli(
     });
   if (isTodoCommand(command))
     return runTodoCommand(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (isTakeoverCommand(command))
+    return runTakeoverCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
   if (BOT_TOOL_COMMANDS.some((entry) => entry.command === command))

@@ -14,6 +14,7 @@ import { BridgeFile } from './bridge-file.js';
 import { BridgeVideo } from './bridge-video.js';
 import { UserQuestionCard } from './user-question-card.js';
 import { PrivateInputCard } from './private-input-card.js';
+import { TakeoverCard } from './takeover-card.js';
 import { ToolApprovalCard } from './tool-approval-card.js';
 import { OnboardingWelcome } from './onboarding-view.js';
 import { BridgeImage } from './bridge-image.js';
@@ -548,6 +549,8 @@ export function ChannelMessageBody({
   if (message.privateInputRequest !== undefined && actions !== undefined) {
     return <PrivateInputCard message={message} actions={actions} channelId={channelId} t={t} />;
   }
+  if (message.takeoverRequest !== undefined && actions !== undefined)
+    return <TakeoverCard message={message} channelId={channelId} actions={actions} t={t} />;
   if (message.userQuestionRequest !== undefined && actions !== undefined) {
     return (
       <UserQuestionCard
