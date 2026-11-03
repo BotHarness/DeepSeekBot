@@ -335,7 +335,7 @@ Human 对某一个 PersonaBot 标签的暂停：停止该 PersonaBot 的浏览�
 _避免使用_：Computer Takeover、handoff、screen sharing、access gate
 
 **Browser Takeover**：接管
-Human 经 Viewer 明确接管某一个 PersonaBot 的浏览器画面：暂停该 Bot 的动作并开放 Human 输入；释放后恢复 Bot，除非还有未完成的接管链接。它比 Browser Pause 更窄（是控制，不只是叫停），也比 Computer Takeover 更窄（只是一个 Bot 的画面，永远不是整台机器）。
+Human 经 Viewer 明确接管某一个 PersonaBot 的浏览器画面：暂停该 Bot 的动作并开放 Human 输入；释放后恢复 Bot。它比 Browser Pause 更窄（是控制，不只是叫停），也比 Computer Takeover 更窄（只是一个 Bot 的画面，永远不是整台机器）。
 _避免使用_：Browser Pause、Computer Takeover、handoff、screen sharing
 
 **Browser Watch**：观看

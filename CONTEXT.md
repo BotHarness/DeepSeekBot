@@ -338,7 +338,7 @@ A Human pause on one PersonaBot's tabs that stops that PersonaBot's browser acti
 _Avoid_: Computer Takeover, handoff, screen sharing, access gate
 
 **Browser Takeover**:
-A Human explicitly taking control of one PersonaBot's browser viewport through the viewer: it pauses that PersonaBot's actions and enables Human input for its duration. Releasing resumes the Bot unless a handoff link is still pending. It is narrower than Browser Pause (control, not just a stop) and narrower than Computer Takeover (one Bot's viewport, never the whole machine).
+A Human explicitly taking control of one PersonaBot's browser viewport through the viewer: it pauses that PersonaBot's actions and enables Human input for its duration. Releasing resumes the Bot. It is narrower than Browser Pause (control, not just a stop) and narrower than Computer Takeover (one Bot's viewport, never the whole machine).
 _Avoid_: Browser Pause, Computer Takeover, handoff, screen sharing
 
 **Browser Watch**:
