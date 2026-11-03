@@ -12,7 +12,7 @@ import { spring } from '../design/motion';
 import { space, swipeReply } from '../design/tokens';
 import { haptic } from '../haptics';
 import { ReplyIcon } from '../shell/icons';
-import { repliesAt, replyTravel } from './reply-swipe-model';
+import { horizontalSwipeOwner, repliesAt, replyTravel } from './reply-swipe-model';
 
 export function ReplySwipe({
   enabled,
@@ -26,11 +26,12 @@ export function ReplySwipe({
   const theme = useDesignTheme();
   const travel = useSharedValue(0);
   const armed = useSharedValue(false);
-  const direction = I18nManager.isRTL ? -1 : 1;
+  const direction = I18nManager.isRTL ? 1 : -1;
   const arm = () => haptic('selection');
   const pan = Gesture.Pan()
     .enabled(enabled)
     .activeOffsetX(direction * swipeReply.start)
+    .failOffsetX(-direction * swipeReply.backFail)
     .failOffsetY([-swipeReply.verticalFail, swipeReply.verticalFail])
     .onStart(() => {
       armed.value = false;
@@ -58,7 +59,7 @@ export function ReplySwipe({
   });
   return (
     <GestureDetector gesture={pan}>
-      <View collapsable={false}>
+      <View collapsable={false} nativeID={enabled ? horizontalSwipeOwner : undefined}>
         <Animated.View
           pointerEvents="none"
           style={[
@@ -66,7 +67,7 @@ export function ReplySwipe({
               position: 'absolute',
               top: 0,
               bottom: 0,
-              start: space.x3,
+              end: space.x3,
               justifyContent: 'center',
             },
             hint,

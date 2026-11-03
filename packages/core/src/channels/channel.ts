@@ -1,3 +1,4 @@
+import { isChannelMessageVoice, type ChannelMessageVoice } from './voice.js';
 import { parseToolApprovalActor } from '../workspaces/tool-approval-actor.js';
 import { createHash } from 'node:crypto';
 import { isValidSlug } from '../bots/slug.js';
@@ -331,6 +332,9 @@ export interface ChannelTurnStop {
   botName: string;
   humanName: string;
   sessionId: string;
+  held?: true;
+  cause?: 'human-stop' | 'failures';
+  failures?: number;
 }
 
 export interface ChannelMemberDeparture {
@@ -474,6 +478,7 @@ export interface ChannelMessage {
   takeoverResolution?: TakeoverResolution;
   attachments?: ChannelAttachmentRef[];
   clearedAttachments?: ChannelClearedAttachment[];
+  voice?: ChannelMessageVoice;
   bridgeMedia?: {
     voice?: Pick<import('../messaging/provider.js').MessagingVoice, 'transcript' | 'durationMs'>;
     video?: { attachmentId: string; durationMs?: number; posterAttachmentId?: string };
@@ -508,13 +513,22 @@ export interface ChannelMessage {
   perf?: ChannelMessagePerf;
 }
 
+export { isChannelMessageVoice, type ChannelMessageVoice };
+
 export interface ChannelMessagePerf {
   outputTokens: number;
   elapsedMs: number;
   estimated: boolean;
 }
 
-export const MAX_BOT_HOPS = 32;
+export const DEFAULT_BOT_HOP_LIMIT = 128;
+export const MAX_BOT_HOP_LIMIT = 1000;
+
+export function isBotHopLimit(value: unknown): value is number {
+  return (
+    typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= MAX_BOT_HOP_LIMIT
+  );
+}
 
 export const CHANNEL_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const MAX_CHANNEL_SLUG_LENGTH = 64;
@@ -1037,7 +1051,13 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       stop === null ||
       ['botSlug', 'botName', 'humanName', 'sessionId'].some(
         (key) => typeof stop[key] !== 'string' || stop[key].length === 0,
-      )
+      ) ||
+      (stop['held'] !== undefined && stop['held'] !== true) ||
+      (stop['cause'] !== undefined &&
+        stop['cause'] !== 'human-stop' &&
+        stop['cause'] !== 'failures') ||
+      (stop['failures'] !== undefined &&
+        (typeof stop['failures'] !== 'number' || !Number.isInteger(stop['failures'])))
     )
       return false;
   } else if (message['toolAutoApproval'] !== undefined) {
@@ -1134,6 +1154,12 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
     (!Array.isArray(attachments) ||
       attachments.length > 10 ||
       !attachments.every(isChannelAttachmentRef))
+  )
+    return false;
+  if (
+    message['voice'] !== undefined &&
+    (!isChannelMessageVoice(message['voice']) ||
+      !['bot', 'remote-bot'].includes((message['author'] as ChannelMessageAuthor)?.kind))
   )
     return false;
   const cleared = message['clearedAttachments'];

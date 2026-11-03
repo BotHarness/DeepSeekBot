@@ -1,3 +1,5 @@
+import { createVoiceBridgeMethods, type VoiceBridgeMethods } from '../voice/bridge.js';
+import type { VoiceProviders } from '../voice/providers.js';
 import { networkBotId, type BotContact } from '../runtime/bot-contact-discovery.js';
 import { BotNetworkDeliveryError } from '../runtime/bot-network.js';
 import { join } from 'node:path';
@@ -970,6 +972,12 @@ export interface BridgeMethods {
     payload: unknown,
   ): BridgeResult<{ template: { name: string }; clearedBots: string[] }>;
   botApprovalTemplateSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
+  voiceProviders: VoiceBridgeMethods['voiceProviders'];
+  voiceProviderAdd: VoiceBridgeMethods['voiceProviderAdd'];
+  voiceProviderRemove: VoiceBridgeMethods['voiceProviderRemove'];
+  voiceProviderTest: VoiceBridgeMethods['voiceProviderTest'];
+  voiceSynthesize: VoiceBridgeMethods['voiceSynthesize'];
+  botVoiceSet: VoiceBridgeMethods['botVoiceSet'];
   approvalReviewerModel(payload?: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
   approvalReviewerModelSet(payload: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
   idleCompaction(payload?: unknown): BridgeResult<IdleCompactionView>;
@@ -1132,6 +1140,7 @@ function storageFailure(
 }
 
 export interface BridgeMethodsDeps {
+  voiceProviders?: VoiceProviders;
   botContext?(slug: string): Promise<BotContextWindow>;
   botSystemPrompt?(slug: string): Promise<BotSystemPromptView>;
   prompts?: PromptSettings;
@@ -2124,6 +2133,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
   };
 
   return {
+    ...createVoiceBridgeMethods({ providers: deps.voiceProviders, registry: deps.registry }),
     channelBridges(payload) {
       const input = z
         .object({ channelId: z.string().min(1).max(128) })
@@ -2974,6 +2984,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           botName: bot.displayName,
           humanName: human,
           sessionId: stopped.sessionId,
+          ...(autoContinueFor === undefined ? { held: true, cause: 'human-stop' } : {}),
         },
       });
       if (appended === undefined) return unknownChannel(channelId);

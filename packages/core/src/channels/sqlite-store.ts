@@ -44,11 +44,12 @@ import {
   mergeBotNetworkMembership,
   dmChannelId,
   isBotDmChannel,
-  MAX_BOT_HOPS,
+  DEFAULT_BOT_HOP_LIMIT,
   LOCAL_HUMAN_ID,
   groupChannelIdBase,
   isChannelMessage,
   isChannelMessageAuthor,
+  isChannelMessageVoice,
   isChannelRecord,
   isGroupAvatar,
   isValidChannelId,
@@ -88,6 +89,7 @@ interface SqliteChannelStoreOptions extends ChannelStoreOptions {
   sourcePolicy?: BotSourcePolicyStore;
 
   autoAcceptGroupInvitations?: () => boolean;
+  botHopLimit?: () => number;
 }
 
 interface PlacementRow {
@@ -330,6 +332,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     `).run(timestamp, invitationId);
   };
   const isBotActive = options.isBotActive ?? (() => true);
+  const botHopLimit = options.botHopLimit ?? (() => DEFAULT_BOT_HOP_LIMIT);
   let lowerRegistered = false;
   const registerLower = (db: DatabaseSync): void => {
     if (lowerRegistered) return;
@@ -1158,6 +1161,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
               ? undefined
               : previous.find((entry) => entry.id === durable.takeoverResolution?.requestMessageId)
                   ?.author;
+          const hopLimit = botHopLimit();
           const candidateRecipients =
             durable.privateInputResolution !== undefined
               ? []
@@ -1192,14 +1196,14 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
                   : channel.type === 'group' &&
                       senderSlug !== undefined &&
                       durable.botCausation !== undefined &&
-                      durable.botCausation.hop <= MAX_BOT_HOPS
+                      durable.botCausation.hop <= hopLimit
                     ? [...new Set(mentions.map((item) => item.botSlug))]
                         .filter((targetSlug) => targetSlug !== senderSlug)
                         .map((botSlug) => ({ botSlug, reason: 'group-mention' }))
                     : botDm &&
                         recipient !== undefined &&
                         durable.botCausation !== undefined &&
-                        durable.botCausation.hop <= MAX_BOT_HOPS
+                        durable.botCausation.hop <= hopLimit
                       ? [{ botSlug: recipient, reason: 'bot-dm' }]
                       : [];
           const recipients = candidateRecipients.filter((item) => isBotActive(item.botSlug));
@@ -1208,7 +1212,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             (durable.author.kind === 'human' && durable.takeoverResolution === undefined) ||
             (senderSlug !== undefined &&
               durable.botCausation !== undefined &&
-              durable.botCausation.hop <= MAX_BOT_HOPS);
+              durable.botCausation.hop <= hopLimit);
           const ordinary =
             channel.type === 'group' && ordinaryAllowed
               ? channel.members.flatMap((botSlug) => {
@@ -3271,6 +3275,55 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     admissionChanged(channelId, messageId) {
       const message = this.message(channelId, messageId);
       if (message !== undefined) options.onAdmissionChanged?.(channelId, messageId, message);
+    },
+    setMessageVoice(channelId, messageId, voice, attachment) {
+      if (!isChannelMessageVoice(voice)) throw new Error('Invalid voice state');
+      if (attachment !== undefined) assertAttachmentRefs([attachment]);
+      const changed = database.transaction(
+        (db) => {
+          const row = db
+            .prepare(`
+            SELECT e.source_event_id, e.payload_json, e.body FROM channel_placements p
+            JOIN source_events e ON e.source_event_id = p.source_event_id
+            WHERE p.channel_id = ? AND p.message_id = ?
+          `)
+            .get(channelId, messageId) as
+            | Pick<PlacementRow, 'source_event_id' | 'payload_json' | 'body'>
+            | undefined;
+          if (row === undefined) return false;
+          const payload = JSON.parse(row.payload_json) as Record<string, unknown>;
+          const author = payload['author'] as ChannelMessage['author'] | undefined;
+          if (author?.kind !== 'bot') return false;
+          const refs = Array.isArray(payload['attachments'])
+            ? (payload['attachments'] as ChannelAttachmentRef[])
+            : [];
+          const next: Record<string, unknown> = { ...payload, voice };
+          if (
+            attachment !== undefined &&
+            !refs.some((ref) => attachmentIdentity(ref) === attachmentIdentity(attachment))
+          ) {
+            if (refs.length >= 10) throw new Error('A message holds at most ten attachments');
+            next['attachments'] = [...refs, attachment];
+          }
+          const candidate = parseMessage(JSON.stringify(next), row.body, messageId, channelId);
+          if (candidate === undefined) throw new Error('Invalid voice message');
+          db.prepare('UPDATE source_events SET payload_json = ? WHERE source_event_id = ?').run(
+            JSON.stringify(next),
+            row.source_event_id,
+          );
+          return true;
+        },
+        ['channel'],
+      );
+      if (!changed) return undefined;
+      const message = this.message(channelId, messageId);
+      if (message !== undefined)
+        try {
+          options.onVoiceChanged?.(channelId, messageId, message);
+        } catch (error) {
+          options.warn?.('Voice notification failed: ' + String(error));
+        }
+      return message;
     },
     latestBotActivity() {
       const rows = database.read((db) =>

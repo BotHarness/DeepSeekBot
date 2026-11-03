@@ -113,7 +113,7 @@ function RootNavigator() {
                   dangerouslySingular={channelRouteId}
                   options={({ route }) => ({
                     title: '',
-                    fullScreenGestureEnabled: false,
+                    fullScreenGestureEnabled: true,
                     ...swipeEntryOptions(route),
                   })}
                   listeners={swipeEntryListeners('default')}
@@ -123,7 +123,7 @@ function RootNavigator() {
                   dangerouslySingular={channelRouteId}
                   options={({ route }) => ({
                     title: '',
-                    fullScreenGestureEnabled: false,
+                    fullScreenGestureEnabled: true,
                     ...swipeEntryOptions(route),
                   })}
                   listeners={swipeEntryListeners('default')}

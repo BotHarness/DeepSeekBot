@@ -13,6 +13,7 @@ import {
   type BotModeSendKey,
   type BotModeSortMode,
 } from '../bot-mode-settings.js';
+import { BotHopLimitSetting } from './bot-hop-limit-setting.js';
 import { AssignmentConcurrencySetting } from './assignment-concurrency-setting.js';
 import { BotIcon } from './bot-icon.js';
 import type { BotModePrefsFace } from './bot-mode-prefs.js';
@@ -419,6 +420,22 @@ export function GroupAutoAcceptSetting({
           label={t('groupAutoAccept.row.title')}
         />
       }
+    />
+  );
+}
+
+export function BotHopLimitRow({
+  t,
+  useBotModePrefs,
+  setBotHopLimit,
+}: BotModeSettingRowProps): ReactElement {
+  const prefs = useBotModePrefs((value) => value);
+  return (
+    <BotHopLimitSetting
+      t={t}
+      limit={prefs.botHopLimit}
+      writable={prefs.status === 'ready' && prefs.mode === 'host'}
+      save={setBotHopLimit}
     />
   );
 }

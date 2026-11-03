@@ -63,7 +63,7 @@ describe('Human attention candidate indexes', () => {
         mountOperationalDatabase({ dshHome, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
       );
       expect(upgraded.mode).toBe('ready');
-      expect(upgraded.generation).toBe(117);
+      expect(upgraded.generation).toBe(118);
       const current = attachOperationalModule(upgraded, 'attention-index-upgrade');
       const after = current.read((connection) =>
         createHash('sha256')

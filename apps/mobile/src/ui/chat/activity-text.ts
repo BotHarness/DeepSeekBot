@@ -135,6 +135,17 @@ export function activityText(
         verb: activity.departureType === 'removed' ? copy.removed : copy.left,
       };
     case 'turn-stop':
-      return { name: activity.humanName, verb: copy.stopped(activity.botName) };
+      if (activity.cause === 'failures')
+        return {
+          botSlug: activity.botSlug,
+          name: activity.botName,
+          verb: copy.stoppedFailures(activity.failures ?? 0),
+          detail: copy.stoppedRetry,
+        };
+      return {
+        name: activity.humanName,
+        verb: copy.stopped(activity.botName),
+        ...(activity.held === true ? { detail: copy.stoppedHeld } : {}),
+      };
   }
 }

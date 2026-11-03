@@ -68,6 +68,7 @@ export interface ChannelWireMessage extends WireMessage {
   reactions?: WireReaction[];
   deliveries?: WireDelivery[];
   attachments?: readonly AttachmentRef[];
+  voice?: WireMessageVoice;
   clearedAttachments?: readonly {
     name: string;
     mime: string;
@@ -100,6 +101,14 @@ export interface ChannelWireMessage extends WireMessage {
   botCreateAction?: unknown;
   memberDeparture?: unknown;
   turnStop?: unknown;
+}
+
+export interface WireMessageVoice {
+  state: 'pending' | 'ready' | 'failed';
+  attachment?: string;
+  durationMs?: number;
+  code?: string;
+  error?: string;
 }
 
 export interface BridgeMediaItem {
@@ -159,6 +168,13 @@ export type ChannelNotification =
       channelId: string;
       messageId: string;
       reactions: WireReaction[];
+    }
+  | {
+      kind: 'voice';
+      channelId: string;
+      messageId: string;
+      voice: WireMessageVoice;
+      attachments: readonly AttachmentRef[];
     }
   | {
       kind: 'draft-baseline';
