@@ -263,7 +263,8 @@
         "voice-provider-remove",
         "voice-provider-test",
         "voice-set",
-        "voice-synthesize"
+        "voice-synthesize",
+        "voice-local-kit"
       ]
     },
     {

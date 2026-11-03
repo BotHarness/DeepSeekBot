@@ -518,6 +518,10 @@ Orchestrator 的应用定义 channel_list 工具从当前 PersonaBot 的 Session
 
 [ADR-0280](../adr/0280-tts-providers-and-bot-voice-messages.md)：`VoiceProviders` 负责 TTS Provider（预设、端点、模型、默认音色存在运营库 `voice_providers` 表，密钥只在凭据存储）及其健康检查。PersonaBot 可选的 `voice` 绑定指定一个 provider 和音色。`bot_send_message` 带 `voice: true` 时先提交文字，再通过绑定合成朗读文本，把音频作为普通附件挂到同一条消息上，记录 `voice` 状态（`pending`、`ready`、`failed`）并发布 `channel/voice`。失败不会撤回文字。桌面端和 iOS 把语音附件显示为文字上方的语音条。
 
+### 本地语音服务（ADR-0281）
+
+[ADR-0281](../adr/0281-bot-deployed-local-speech-service.md)：运行时 skill `setting-up-local-voice` 指导 Bot 在 Host 所在的 macOS 或 Windows 电脑上部署一个 Python 脚本（sherpa-onnx：SenseVoice 识别、Kokoro 合成），它只监听 `127.0.0.1:8790` 并提供 OpenAI 兼容的 `/v1/audio/speech` 与 `/v1/audio/transcriptions`。`deepseekbot voice-local-kit` 离线写出脚本；Tob 的受限 CLI 可读取、测试、登记无密钥的 `local`／`custom` Provider 并绑定 Bot 语音，写操作走审批卡片，密钥从不经过 Bot。Host 不启动也不保活该服务；服务未运行时 `VoiceProviders` 返回带启动方法的 `provider-unavailable`。
+
 ### 外部 CLI 的在线请求与回复
 
 应用定义的在线 CLI 依照 ADR-0159，每次从当前 Host 启动令牌换取内存 cookie，经既有 DSH HTTP unary carrier 调用 Typert Bridge；不另设监听器、凭据缓存或数据库旁路。发送先由 Registry 查询确认 Bot，再由 Channel owner 建立 DM，使用 `human-UUID` 消息 ID 提交；重试去重仍归 Host。新增 `channelSendStatus` 只读查询复用 `source_events`、`inbox_admissions`、`channel_output_origins` 和 `session_ownership`，按原请求 Source Event、同一 DM 与 Bot 所有的 Session 返回已提交回复和当前处理状态，不以时间窗口或最新一条消息猜测对应关系。问题／审批卡片、通知及失败不算回复；超时保留回执供查询，不自动重发。工具审批、正式问题、工作区授权和发布状态沿用各自 Host owner；无新增耐久表或权限权威。见 [CLI 指南](../bot-cli.zh.md) 与 [#1317](https://github.com/BotHarness/DeepSeekBot/issues/1317)。

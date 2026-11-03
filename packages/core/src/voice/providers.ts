@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
 
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
+import { LOCAL_VOICE_SCRIPT_NAME } from './local-kit.js';
 import { TTS_PRESETS, ttsPreset, type TtsPreset, type TtsWire } from './presets.js';
 
 type Credentials = Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>;
@@ -219,6 +220,29 @@ async function providerMessage(response: Response, key: string | undefined): Pro
   if (key !== undefined && key.length >= 4) clean = clean.split(key).join('[redacted]');
   clean = clean.replace(/\b(sk|xi|fa)[-_][A-Za-z0-9_-]{8,}/gu, '[redacted]');
   return clean.slice(0, 200) || `HTTP ${response.status}`;
+}
+
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]', '0.0.0.0']);
+
+function causeCode(error: unknown): string | undefined {
+  for (let current = error, depth = 0; current && depth < 4; depth += 1) {
+    const code = (current as { code?: unknown }).code;
+    if (typeof code === 'string') return code;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return undefined;
+}
+
+export function unreachableMessage(baseUrl: string, error: unknown): string {
+  const url = new URL(baseUrl);
+  const code = causeCode(error);
+  if (LOOPBACK_HOSTS.has(url.hostname))
+    return `The local speech service at ${url.origin} is not running. Start it on the Host computer (python ${LOCAL_VOICE_SCRIPT_NAME} start in its folder) and try again.`;
+  if (code === 'ECONNREFUSED')
+    return `Nothing is listening at ${url.origin}. Check that the speech service is running.`;
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN')
+    return `The provider host ${url.hostname} cannot be found.`;
+  return `The provider cannot be reached (${code ?? (error instanceof Error ? error.name : 'network error')}).`;
 }
 
 function statusError(status: number, detail: string): VoiceError {
@@ -465,7 +489,7 @@ export class VoiceProviders {
         code,
         timeout.aborted
           ? `The provider did not answer within ${Math.round(this.#timeoutMs / 1000)} s.`
-          : `The provider cannot be reached (${error instanceof Error ? error.name : 'network error'}).`,
+          : unreachableMessage(stored.baseUrl, error),
       );
     }
     if (!response.ok) {

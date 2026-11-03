@@ -70,6 +70,12 @@ function createStubContext(): { ctx: Context; stubs: Stubs } {
   return { ctx, stubs };
 }
 
+function logsSkill(stubs: { skills: { register: { mock: { calls: unknown[][] } } } }) {
+  return stubs.skills.register.mock.calls.filter(
+    ([skill]) => (skill as { name?: string }).name === 'reading-operational-logs',
+  );
+}
+
 describe('plugin entry', () => {
   it.each([
     ['browser', 'browser_open', 'browser_observe', 'botharnessBrowserTools'],
@@ -353,7 +359,17 @@ describe('plugin entry', () => {
     apply(ctx, { enabled: true });
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(stubs.skills.register).not.toHaveBeenCalled();
+    expect(logsSkill(stubs)).toHaveLength(0);
+  });
+
+  it('always offers the local voice skill', async () => {
+    const { ctx, stubs } = createStubContext();
+    apply(ctx, { enabled: true });
+    await vi.waitFor(() =>
+      expect(
+        stubs.skills.register.mock.calls.map(([skill]) => (skill as { name: string }).name),
+      ).toContain('setting-up-local-voice'),
+    );
   });
 
   it('restores and updates developer mode from native settings without a Client', async () => {
@@ -368,26 +384,26 @@ describe('plugin entry', () => {
       describe: () => [{ ns: 'botharness-client', revision: 1, value: { developerMode: enabled } }],
     } as never);
     apply(ctx, { enabled: true });
-    await vi.waitFor(() => expect(stubs.skills.register).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(logsSkill(stubs)).toHaveLength(1));
     enabled = false;
     settingsEvents.emit('settings/document-updated', 'botharness-client', 2);
     expect(dispose).toHaveBeenCalledOnce();
     enabled = true;
     settingsEvents.emit('settings/document-updated', 'unrelated', 3);
-    expect(stubs.skills.register).toHaveBeenCalledOnce();
+    expect(logsSkill(stubs)).toHaveLength(1);
     settingsEvents.emit('settings/document-updated', 'botharness-client', 4);
-    expect(stubs.skills.register).toHaveBeenCalledTimes(2);
+    expect(logsSkill(stubs)).toHaveLength(2);
   });
 
   it('applies persisted developer mode when native Settings becomes available later', async () => {
     const { ctx, stubs } = createStubContext();
     apply(ctx, { enabled: true });
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(stubs.skills.register).not.toHaveBeenCalled();
+    expect(logsSkill(stubs)).toHaveLength(0);
     ctx.provide('settings', {
       describe: () => [{ ns: 'botharness-client', revision: 0, value: { developerMode: true } }],
     } as never);
-    await vi.waitFor(() => expect(stubs.skills.register).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(logsSkill(stubs)).toHaveLength(1));
   });
 
   it('rebuilds the activity projection from owned Session logs and follows live events', () => {

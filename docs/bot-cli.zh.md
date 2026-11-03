@@ -720,7 +720,25 @@ deepseekbot voice-synthesize --bot <bot-id> --text '完成了，见 `src/app.ts`
 deepseekbot voice-provider-remove <provider-id>
 ```
 
-预设有 `custom`（任何兼容 OpenAI `/audio/speech` 的端点，例如本地 Kokoro-FastAPI 或 LocalAI，密钥可选）、`fish-audio`、`elevenlabs` 和 `openai`（需要密钥）。`voice-providers` 返回 `{presets, providers, bot?}`，每个 provider 列出 `id`、`name`、`preset`、`baseUrl`、`model`、`defaultVoice` 和 `keySet`，从不返回密钥。密钥只从 stdin 读取，保存在 Host 凭据存储中。`voice-provider-test` 合成一小段话，返回 `{ok: true, latencyMs, bytes, mime}` 或 `{ok: false, code, message}`。`voice-set` 绑定 Bot 的声音，`off` 解除绑定；移除 provider 会清掉使用它的 Bot（`clearedBots`）。`voice-synthesize` 使用 Bot 的绑定（`--bot`）或指定 provider（`--provider`），文字来自 `--text` 或 `--text-stdin`，加 `--markdown` 时套用朗读规则，把音频写到绝对路径 `--out`，输出 `{providerId, voiceId, mime, bytes, latencyMs, text, out}`。拒绝时带错误码：`usage`、`invalid-input`、`key-required`、`unknown-provider`、`voice-not-configured`、`provider-unauthorized`、`provider-rate-limited`、`provider-unavailable`、`provider-timeout`、`provider-rejected` 和 `provider-bad-response`。每次合成会在 `logs.db` 写一条 `voice` 记录，包含 provider、延迟和大小，不含文字或密钥。
+预设有 `custom`（任何兼容 OpenAI `/audio/speech` 的端点，例如本地 Kokoro-FastAPI 或 LocalAI，密钥可选）、`local`（下文的本地语音服务，无需密钥）、`fish-audio`、`elevenlabs` 和 `openai`（需要密钥）。`voice-providers` 返回 `{presets, providers, bot?}`，每个 provider 列出 `id`、`name`、`preset`、`baseUrl`、`model`、`defaultVoice` 和 `keySet`，从不返回密钥。密钥只从 stdin 读取，保存在 Host 凭据存储中。`voice-provider-test` 合成一小段话，返回 `{ok: true, latencyMs, bytes, mime}` 或 `{ok: false, code, message}`。`voice-set` 绑定 Bot 的声音，`off` 解除绑定；移除 provider 会清掉使用它的 Bot（`clearedBots`）。`voice-synthesize` 使用 Bot 的绑定（`--bot`）或指定 provider（`--provider`），文字来自 `--text` 或 `--text-stdin`，加 `--markdown` 时套用朗读规则，把音频写到绝对路径 `--out`，输出 `{providerId, voiceId, mime, bytes, latencyMs, text, out}`。拒绝时带错误码：`usage`、`invalid-input`、`key-required`、`unknown-provider`、`voice-not-configured`、`provider-unauthorized`、`provider-rate-limited`、`provider-unavailable`、`provider-timeout`、`provider-rejected` 和 `provider-bad-response`。每次合成会在 `logs.db` 写一条 `voice` 记录，包含 provider、延迟和大小，不含文字或密钥。
+
+### 本地语音服务
+
+Bot 可以用 `setting-up-local-voice` skill 在 Host 所在的电脑（macOS 或 Windows）上部署一个免费、离线的语音服务：一个 Python 脚本在 CPU 上运行 SenseVoice（语音转文字）和 Kokoro（中英文语音合成），在 `http://127.0.0.1:8790/v1` 提供 OpenAI 音频接口。Host 不会启动或保活它，由用户自己启动和停止。
+
+```bash
+deepseekbot voice-local-kit --dir ~/BotHarness/voice      # 绝对路径；离线可用，Bot 的 shell 里也能用
+cd ~/BotHarness/voice && python3 -m venv .venv
+.venv/bin/python -m pip install "sherpa-onnx>=1.13.8,<2" numpy
+.venv/bin/python botharness_voice.py download   # SenseVoice 166 MB + Kokoro 365 MB
+.venv/bin/python botharness_voice.py start      # 另有 status、stop、serve、selftest
+deepseekbot voice-provider-add local
+deepseekbot voice-set <bot-id> <provider-id> --voice zf_001
+```
+
+`voice-local-kit` 写出 `botharness_voice.py`，输出 `{dir, script, baseUrl, models, steps: {macos, windows}}`。Windows 上用 `py -3 -m venv .venv` 和 `.venv\Scripts\python`。脚本每个命令输出一行 JSON（`ok: false` 带 `code` 和 `message`）；`selftest` 先合成一句话再识别回来。`local` 预设不需要密钥，使用 Kokoro 音色，例如 `zf_001`–`zf_099`、`zm_009`–`zm_100`、`af_maple`、`af_sol` 和 `bf_vale`。服务没启动时，`voice-provider-test` 和语音消息会报 `provider-unavailable`，并说明“The local speech service at … is not running”。
+
+Tob 的受限 CLI 支持 `voice-providers`、`voice-provider-test`、`voice-provider-add`（只限无密钥的 `local` 和 `custom` 预设，没有密钥参数）、`voice-provider-remove` 和 `voice-set`；写操作会弹出审批卡片。需要密钥的 Provider 由用户在设置 › 语音中添加。
 
 ### 审批员模型
 

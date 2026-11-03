@@ -749,7 +749,25 @@ deepseekbot voice-synthesize --bot <bot-id> --text 'Done. See `src/app.ts`.' --m
 deepseekbot voice-provider-remove <provider-id>
 ```
 
-Presets are `custom` (any OpenAI-compatible `/audio/speech` endpoint, for example a local Kokoro-FastAPI or LocalAI; key optional), `fish-audio`, `elevenlabs` and `openai` (key required). `voice-providers` returns `{presets, providers, bot?}`; each provider shows `id`, `name`, `preset`, `baseUrl`, `model`, `defaultVoice` and `keySet`, never the key. The key is read only from stdin and kept in the Host credential store. `voice-provider-test` synthesizes a short phrase and returns `{ok: true, latencyMs, bytes, mime}` or `{ok: false, code, message}`. `voice-set` binds the Bot's voice; `off` removes it, and removing a provider clears the Bots that used it (`clearedBots`). `voice-synthesize` uses the Bot's binding (`--bot`) or a provider (`--provider`), reads the text from `--text` or `--text-stdin`, applies the spoken-text rules with `--markdown`, writes the audio to the absolute `--out` path and prints `{providerId, voiceId, mime, bytes, latencyMs, text, out}`. Refusals carry a code: `usage`, `invalid-input`, `key-required`, `unknown-provider`, `voice-not-configured`, `provider-unauthorized`, `provider-rate-limited`, `provider-unavailable`, `provider-timeout`, `provider-rejected` and `provider-bad-response`. Each synthesis writes a `voice` line to `logs.db` with the provider, latency and size, never the text or key.
+Presets are `custom` (any OpenAI-compatible `/audio/speech` endpoint, for example a local Kokoro-FastAPI or LocalAI; key optional), `local` (the local speech service below; no key), `fish-audio`, `elevenlabs` and `openai` (key required). `voice-providers` returns `{presets, providers, bot?}`; each provider shows `id`, `name`, `preset`, `baseUrl`, `model`, `defaultVoice` and `keySet`, never the key. The key is read only from stdin and kept in the Host credential store. `voice-provider-test` synthesizes a short phrase and returns `{ok: true, latencyMs, bytes, mime}` or `{ok: false, code, message}`. `voice-set` binds the Bot's voice; `off` removes it, and removing a provider clears the Bots that used it (`clearedBots`). `voice-synthesize` uses the Bot's binding (`--bot`) or a provider (`--provider`), reads the text from `--text` or `--text-stdin`, applies the spoken-text rules with `--markdown`, writes the audio to the absolute `--out` path and prints `{providerId, voiceId, mime, bytes, latencyMs, text, out}`. Refusals carry a code: `usage`, `invalid-input`, `key-required`, `unknown-provider`, `voice-not-configured`, `provider-unauthorized`, `provider-rate-limited`, `provider-unavailable`, `provider-timeout`, `provider-rejected` and `provider-bad-response`. Each synthesis writes a `voice` line to `logs.db` with the provider, latency and size, never the text or key.
+
+### Local speech service
+
+A Bot can set up a free, offline speech service on the Host computer (macOS or Windows) with the `setting-up-local-voice` skill: one Python script runs SenseVoice (speech to text) and Kokoro (Chinese and English text to speech) on the CPU and answers the OpenAI audio API at `http://127.0.0.1:8790/v1`. The Host never starts or keeps it alive; the Human starts and stops it.
+
+```bash
+deepseekbot voice-local-kit --dir ~/BotHarness/voice      # absolute folder; works offline and in a Bot's shell
+cd ~/BotHarness/voice && python3 -m venv .venv
+.venv/bin/python -m pip install "sherpa-onnx>=1.13.8,<2" numpy
+.venv/bin/python botharness_voice.py download   # SenseVoice 166 MB + Kokoro 365 MB
+.venv/bin/python botharness_voice.py start      # also: status, stop, serve, selftest
+deepseekbot voice-provider-add local
+deepseekbot voice-set <bot-id> <provider-id> --voice zf_001
+```
+
+`voice-local-kit` writes `botharness_voice.py` and prints `{dir, script, baseUrl, models, steps: {macos, windows}}`. On Windows use `py -3 -m venv .venv` and `.venv\Scripts\python`. Each script command prints one JSON line (`ok: false` carries `code` and `message`); `selftest` speaks a phrase and transcribes it back. The `local` preset needs no key and uses Kokoro voices such as `zf_001`–`zf_099`, `zm_009`–`zm_100`, `af_maple`, `af_sol` and `bf_vale`. When the service is off, `voice-provider-test` and voice messages report `provider-unavailable` with "The local speech service at … is not running".
+
+Tob's scoped CLI accepts `voice-providers`, `voice-provider-test`, `voice-provider-add` (keyless `local` and `custom` presets only, no key option), `voice-provider-remove` and `voice-set`; writes show the usual approval card. Keyed providers are added by the Human in Settings › Voice.
 
 ### Approval Reviewer model
 

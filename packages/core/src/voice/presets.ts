@@ -1,6 +1,8 @@
+import { LOCAL_VOICE_BASE_URL } from './local-kit.js';
+
 export type TtsWire = 'openai' | 'fish' | 'elevenlabs';
 
-export type TtsPresetId = 'custom' | 'openai' | 'fish-audio' | 'elevenlabs';
+export type TtsPresetId = 'custom' | 'local' | 'openai' | 'fish-audio' | 'elevenlabs';
 
 export interface TtsVoiceOption {
   id: string;
@@ -31,6 +33,25 @@ export const TTS_PRESETS: readonly TtsPreset[] = [
     keyRequired: false,
     defaultModel: 'tts-1',
     voices: [],
+    capabilities: { streaming: false, billing: 'self-hosted' },
+  },
+  {
+    id: 'local',
+    name: 'Local speech service (Kokoro)',
+    wire: 'openai',
+    baseUrl: LOCAL_VOICE_BASE_URL,
+    keyRequired: false,
+    defaultModel: 'kokoro',
+    defaultVoice: 'zf_001',
+    voices: [
+      { id: 'zf_001', name: 'zf_001 (中文 女)' },
+      { id: 'zf_002', name: 'zf_002 (中文 女)' },
+      { id: 'zm_009', name: 'zm_009 (中文 男)' },
+      { id: 'zm_010', name: 'zm_010 (中文 男)' },
+      { id: 'af_maple', name: 'af_maple (English F)' },
+      { id: 'af_sol', name: 'af_sol (English F)' },
+      { id: 'bf_vale', name: 'bf_vale (English F)' },
+    ],
     capabilities: { streaming: false, billing: 'self-hosted' },
   },
   {
