@@ -116,6 +116,11 @@ export function activityOf(message: ChannelWireMessage): ChannelActivity | undef
       botName: stop['botName'],
       humanName: stop['humanName'],
       sessionId: stop['sessionId'],
+      ...(stop['held'] === true ? { held: true as const } : {}),
+      ...(stop['cause'] === 'human-stop' || stop['cause'] === 'failures'
+        ? { cause: stop['cause'] }
+        : {}),
+      ...(typeof stop['failures'] === 'number' ? { failures: stop['failures'] } : {}),
     };
   return undefined;
 }

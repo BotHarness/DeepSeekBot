@@ -243,11 +243,12 @@ index eeeecde6365bf4d6bf2aa54b3b93efad74eaa7a6..9eb7cc1cfad59e7596e9c0543c49cb87
  }
 diff --git a/ios/StablePagerController.swift b/ios/StablePagerController.swift
 new file mode 100644
-index 0000000000000000000000000000000000000000..b68abd16f1a9d63eef1e4c9945f877a1fb900f90
+index 0000000000000000000000000000000000000000..109939d0b2348efc6ab7e4ade56dfafd2b2124a5
 --- /dev/null
 +++ b/ios/StablePagerController.swift
-@@ -0,0 +1,150 @@
+@@ -0,0 +1,223 @@
 +import UIKit
++import UIKit.UIGestureRecognizerSubclass
 +
 +final class StablePagerController: UIPageViewController, UIPageViewControllerDataSource, UIPageViewControllerDelegate {
 +  private let props: PagerViewProps
@@ -260,6 +261,7 @@ index 0000000000000000000000000000000000000000..b68abd16f1a9d63eef1e4c9945f877a1
 +  private var pending: (Int, Bool)?
 +  private var observation: NSKeyValueObservation?
 +  private weak var scroll: UIScrollView?
++  private let gate = PagerDragGate()
 +
 +  init(props: PagerViewProps, events: PagerViewProviderDelegate?) {
 +    self.props = props
@@ -277,6 +279,12 @@ index 0000000000000000000000000000000000000000..b68abd16f1a9d63eef1e4c9945f877a1
 +    scroll = view.subviews.compactMap { $0 as? UIScrollView }.first
 +    scroll?.scrollsToTop = false
 +    scroll?.panGestureRecognizer.addTarget(self, action: #selector(panChanged(_:)))
++    gate.canGoBack = { [weak self] in
++      guard let self else { return false }
++      return self.selected <= 0 && (self.navigationController?.viewControllers.count ?? 0) > 1
++    }
++    scroll?.addGestureRecognizer(gate)
++    scroll?.panGestureRecognizer.require(toFail: gate)
 +    if #available(iOS 26.0, *) {
 +      scroll?.topEdgeEffect.isHidden = true
 +      scroll?.bottomEdgeEffect.isHidden = true
@@ -395,6 +403,71 @@ index 0000000000000000000000000000000000000000..b68abd16f1a9d63eef1e4c9945f877a1
 +    interactiveTransition = false
 +    if let current = viewControllers?.first, let index = pages.firstIndex(where: { $0 === current }) { finish(index) }
 +    resume()
++  }
++}
++
++/// Decides before a page drag starts whether the pager may take it. A drag that starts
++/// on a view marked as a horizontal swipe owner (`nativeID`) belongs to that view, and a
++/// drag toward the back side on the first page belongs to the navigation back swipe.
++/// Otherwise it fails at once and the page drag behaves as usual. It never cancels or
++/// delays touches and recognizes alongside every other recognizer.
++final class PagerDragGate: UIGestureRecognizer, UIGestureRecognizerDelegate {
++  static let owner = "horizontal-swipe-owner"
++  private static let decide: CGFloat = 2
++  var canGoBack: () -> Bool = { false }
++  private var origin: CGPoint = .zero
++
++  init() {
++    super.init(target: nil, action: nil)
++    cancelsTouchesInView = false
++    delaysTouchesBegan = false
++    delaysTouchesEnded = false
++    delegate = self
++  }
++
++  override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
++    guard state == .possible else { return }
++    guard let touch = touches.first, touches.count == 1 else { state = .failed; return }
++    if owns(touch.view) { state = .began; return }
++    if !canGoBack() { state = .failed; return }
++    origin = touch.location(in: view)
++  }
++
++  override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
++    if state == .began || state == .changed { state = .changed; return }
++    guard state == .possible, let touch = touches.first else { return }
++    let point = touch.location(in: view)
++    let dx = point.x - origin.x
++    let dy = point.y - origin.y
++    guard max(abs(dx), abs(dy)) >= Self.decide else { return }
++    let rtl = UIApplication.shared.userInterfaceLayoutDirection == .rightToLeft
++    let backward = rtl ? dx < 0 : dx > 0
++    state = backward && abs(dx) >= abs(dy) ? .began : .failed
++  }
++
++  override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
++    state = state == .began || state == .changed ? .ended : .failed
++  }
++
++  override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
++    state = state == .began || state == .changed ? .cancelled : .failed
++  }
++
++  override func canPrevent(_ preventedGestureRecognizer: UIGestureRecognizer) -> Bool { false }
++  override func canBePrevented(by preventingGestureRecognizer: UIGestureRecognizer) -> Bool { false }
++
++  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
++    true
++  }
++
++  private func owns(_ start: UIView?) -> Bool {
++    let selector = NSSelectorFromString("nativeId")
++    var current = start
++    while let candidate = current, candidate !== view {
++      if candidate.responds(to: selector), candidate.value(forKey: "nativeId") as? String == Self.owner { return true }
++      current = candidate.superview
++    }
++    return false
 +  }
 +}
 diff --git a/lib/typescript/PagerViewNativeComponent.d.ts b/lib/typescript/PagerViewNativeComponent.d.ts

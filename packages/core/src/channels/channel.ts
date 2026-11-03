@@ -332,6 +332,9 @@ export interface ChannelTurnStop {
   botName: string;
   humanName: string;
   sessionId: string;
+  held?: true;
+  cause?: 'human-stop' | 'failures';
+  failures?: number;
 }
 
 export interface ChannelMemberDeparture {
@@ -518,7 +521,14 @@ export interface ChannelMessagePerf {
   estimated: boolean;
 }
 
-export const MAX_BOT_HOPS = 32;
+export const DEFAULT_BOT_HOP_LIMIT = 128;
+export const MAX_BOT_HOP_LIMIT = 1000;
+
+export function isBotHopLimit(value: unknown): value is number {
+  return (
+    typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= MAX_BOT_HOP_LIMIT
+  );
+}
 
 export const CHANNEL_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const MAX_CHANNEL_SLUG_LENGTH = 64;
@@ -1041,7 +1051,13 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       stop === null ||
       ['botSlug', 'botName', 'humanName', 'sessionId'].some(
         (key) => typeof stop[key] !== 'string' || stop[key].length === 0,
-      )
+      ) ||
+      (stop['held'] !== undefined && stop['held'] !== true) ||
+      (stop['cause'] !== undefined &&
+        stop['cause'] !== 'human-stop' &&
+        stop['cause'] !== 'failures') ||
+      (stop['failures'] !== undefined &&
+        (typeof stop['failures'] !== 'number' || !Number.isInteger(stop['failures'])))
     )
       return false;
   } else if (message['toolAutoApproval'] !== undefined) {

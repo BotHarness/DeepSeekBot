@@ -209,33 +209,48 @@ export function createInboxTriage(
     inTurn: readonly string[] = [],
   ): OpenRow[] => {
     const predicates = filterPredicates(name, filter);
-    const turnSql =
-      inTurn.length === 0
-        ? ''
-        : ` OR (a.source_event_id IN (${inTurn.map(() => '?').join(', ')}) AND a.resolved_at IS NULL
-              AND a.ignored_at IS NULL AND a.attempt_state <> 'needs-repair')`;
     const snoozeSql =
       snoozed === 'exclude'
         ? `AND NOT ${SNOOZED_SQL}`
         : snoozed === 'only'
           ? `AND ${SNOOZED_SQL}`
           : '';
-    return database.read(
-      (db) =>
-        db
-          .prepare(`
+    const select = (where: string, values: readonly string[]): OpenRow[] =>
+      database.read(
+        (db) =>
+          db
+            .prepare(`
         SELECT e.source_event_id, e.source_kind, ${CHANNEL_SQL} AS channel_id, e.message_id,
                e.assignment_session_id, ${CONVERSATION_SQL} AS conversation,
                e.created_at, e.body,
                CASE WHEN ${SNOOZED_SQL} THEN a.snoozed_until END AS snoozed_until
           FROM inbox_admissions a
           JOIN source_events e ON e.source_event_id = a.source_event_id
-         WHERE a.bot_slug = ? AND (${OPEN_ADMISSION_SQL}${turnSql}) ${snoozeSql}
+         WHERE a.bot_slug = ? AND ${where} ${snoozeSql}
            ${predicates.sql.map((predicate) => `AND ${predicate}`).join('\n')}
          ORDER BY e.created_at DESC, e.source_event_id DESC
       `)
-          .all(botSlug, ...inTurn, ...predicates.values) as unknown as OpenRow[],
-    );
+            .all(botSlug, ...values, ...predicates.values) as unknown as OpenRow[],
+      );
+    const open = select(OPEN_ADMISSION_SQL, []);
+    if (inTurn.length === 0) return open;
+    const seen = new Set(open.map((row) => row.source_event_id));
+    const turn = select(
+      `a.source_event_id IN (${inTurn.map(() => '?').join(', ')}) AND a.resolved_at IS NULL
+        AND a.ignored_at IS NULL AND a.attempt_state <> 'needs-repair'`,
+      inTurn,
+    ).filter((row) => !seen.has(row.source_event_id));
+    return turn.length === 0
+      ? open
+      : [...open, ...turn].sort((left, right) =>
+          left.created_at === right.created_at
+            ? right.source_event_id < left.source_event_id
+              ? -1
+              : Number(right.source_event_id > left.source_event_id)
+            : right.created_at < left.created_at
+              ? -1
+              : 1,
+        );
   };
 
   const group = (rows: OpenRow[]): InboxOpenGroup[] => {

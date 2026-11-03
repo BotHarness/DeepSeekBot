@@ -55,6 +55,7 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'messageFold.row.title',
     'message.delivery.row.title',
     'groupAutoAccept.row.title',
+    'botHopLimit.title',
     'defaults.title',
     'bridge.condition',
     'im.ordinaryWake',

@@ -363,7 +363,7 @@ const ACTION_ATTENTION_CTE = `WITH attention AS (
              AND d.source_event_id IS NULL
         )`;
 
-const channelAttentionCte = (excludeMuted: boolean): string => `
+const channelAttentionCte = (excludeMuted: boolean, unreadOnly = false): string => `
   WITH visible_messages AS (
     SELECT p.channel_id, p.revision, p.message_id, p.source_event_id,
            e.created_at, e.body, e.bot_slug,
@@ -380,7 +380,20 @@ const channelAttentionCte = (excludeMuted: boolean): string => `
                    SELECT 1 FROM json_each(e.payload_json, '$.humanMentions') mention
                     WHERE json_extract(mention.value, '$.humanId') = m.human_id
                  ) THEN 1 ELSE 0 END AS is_mention
-      FROM channel_placements p
+      ${
+        unreadOnly
+          ? `FROM channel_records c
+      LEFT JOIN channel_read_positions r
+        ON r.channel_id = c.channel_id AND r.human_id = ?
+      LEFT JOIN channel_human_members m
+        ON m.channel_id = c.channel_id AND m.human_id = ?
+      CROSS JOIN channel_placements p
+        ON p.channel_id = c.channel_id AND p.revision > coalesce(r.revision, 0)
+      JOIN source_events e ON e.source_event_id = p.source_event_id
+      LEFT JOIN channel_placements original ON original.channel_id = p.channel_id
+        AND original.message_id = json_extract(e.payload_json, '$.replyTo')
+      LEFT JOIN source_events target ON target.source_event_id = original.source_event_id`
+          : `FROM channel_placements p
       JOIN source_events e ON e.source_event_id = p.source_event_id
       JOIN channel_records c ON c.channel_id = p.channel_id
       LEFT JOIN channel_placements original ON original.channel_id = p.channel_id
@@ -389,7 +402,8 @@ const channelAttentionCte = (excludeMuted: boolean): string => `
       LEFT JOIN channel_read_positions r
         ON r.channel_id = p.channel_id AND r.human_id = ?
       LEFT JOIN channel_human_members m
-        ON m.channel_id = p.channel_id AND m.human_id = ?
+        ON m.channel_id = p.channel_id AND m.human_id = ?`
+      }
      WHERE json_extract(c.record_json, '$.deletedAt') IS NULL
        AND ((json_extract(c.record_json, '$.type') = 'dm'
              AND json_extract(c.record_json, '$.botSlug') IS NOT NULL)
@@ -416,6 +430,7 @@ const DM_CARD_FIELDS = [
 ];
 
 const INBOX_CHANNEL_ATTENTION_CTE = channelAttentionCte(true);
+const INBOX_CHANNEL_UNREAD_CTE = channelAttentionCte(true, true);
 
 function decodeCursor(value: string, filters: string): Cursor {
   try {
@@ -1068,7 +1083,7 @@ SELECT 'handled:' || request.source_event_id AS id,
       const counts = database.read(
         (db) =>
           db
-            .prepare(`${INBOX_CHANNEL_ATTENTION_CTE}, unread_events AS (
+            .prepare(`${INBOX_CHANNEL_UNREAD_CTE}, unread_events AS (
           SELECT source_event_id, max(is_reply OR is_mention) AS personal
             FROM visible_unread GROUP BY source_event_id
         )
@@ -1093,7 +1108,7 @@ SELECT 'handled:' || request.source_event_id AS id,
       const rows = database.read(
         (db) =>
           db
-            .prepare(`${INBOX_CHANNEL_ATTENTION_CTE}
+            .prepare(`${INBOX_CHANNEL_UNREAD_CTE}
         SELECT v.channel_id, v.message_id, v.source_event_id, v.created_at, v.body, v.bot_slug
           FROM visible_unread v
           JOIN source_events e ON e.source_event_id = v.source_event_id

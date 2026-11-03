@@ -752,7 +752,7 @@ export function createChannelLiveHub(
         return new Response('Invalid Channel revision', { status: 400 });
       }
       const after = Math.max(requested, resumed);
-      if (channels.messagesAfter(channelId, after) === undefined) {
+      if (after > channels.revision(channelId)) {
         return new Response('Channel revision is ahead of the log', { status: 409 });
       }
 

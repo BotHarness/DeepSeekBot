@@ -252,6 +252,18 @@ _避免使用_：integration、connector、channel binding
 PersonaBot 长期存在的 dispatch root Session：同时至多一个处于 active，负责消费 Bot Inbox，并决定 reply、dispatch 以及是否创建新 Assignment Session。它的 working directory 始终是 PersonaBot 的 Memory Repository；它是 PersonaBot 的对外发声者，不是由 Human 管理的 Conversation，也不是 Assignment 列表中的一行。普通 Session output 只保留为 execution history；只有从可信 Session ownership 推导身份、并经过 Channel membership 授权的显式 Channel messaging command，才会向 Human-facing Channel 发声。
 _避免使用_：main agent、brain、supervisor
 
+**Session Stop**：
+「停止 Session」。Human 指向一个正在运行的 Orchestrator Session 或 Assignment Session 并结束它：取消当前 turn，其 Subagent 一起停止，它成为 Stopped Session。同一 PersonaBot 的其他 Session 继续运行。除 Bot Stop 外这是唯一的停止方式；输入框没有停止。
+_避免使用_：停止 Bot（指单个 Session 时）、暂停、归档、取消任务、interrupt
+
+**Bot Stop**：
+「停止全部」。一次对某个 PersonaBot 拥有的所有运行中 Session 执行 Session Stop。它按 PersonaBot 进行；群聊没有停止全部成员 Bot 的操作。
+_避免使用_：停止所有 Bot、群停止、暂停、Archived PersonaBot
+
+**Stopped Session**：
+「已停止的 Session」。被 Human 停止的 Session，在它自己的上级再次找它之前不会被自动唤醒：Orchestrator Session 需要 Human 发消息，Assignment Session 需要 Assignment Request。期间到达的事件只排队，不唤醒。停止从不等于归档。
+_避免使用_：已归档 Session、暂停的 Session、失败的 Session
+
 **Idle Compaction**：
 「空闲压缩」。Orchestrator Session 空闲（没有正在运行的 turn，也没有待处理的 Bot Inbox Admission）达到其模型路由预估 prompt cache 寿命的一部分后，由 Host 发起的 DSH compaction，趁长历史仍能按缓存命中价读取时完成压缩。它不会启动 Bot turn，也不会在 Channel 中发声。
 _避免使用_：auto-compact、后台摘要、cache warming
@@ -1094,7 +1106,7 @@ _避免使用_：短网址、UTM 链接、邀请链接
 
 ### Sessions panel（会话面板）
 
-查看已有 Session 的唯一会话 surface（`sessions`，TextQuote 图标）；在两层目标布局中，它是消息面板内的 Channel subpanel（ADR-0221）。PersonaBot 私聊固定查看该 Bot；群聊默认查看「当前频道」，即原始 Source Event 属于该群的 Assignment，跨负责 Bot 展示。Human 可以明确选择可访问的群成员 Bot，查看其 Orchestrator 与 Assignment Session，且不改变当前聊天。范围是按频道保存的本地视图偏好，与历史筛选及工作区分组独立。查看操作不创建 Assignment、不发送执行请求、不改变执行。旧工作面板退役；活动中心仍负责 Human 待处理事项与审批。见 ADR-0220。
+查看已有 Session 的唯一会话 surface（`sessions`，TextQuote 图标）；在两层目标布局中，它是消息面板内的 Channel subpanel（ADR-0221）。PersonaBot 私聊固定查看该 Bot；群聊默认查看「当前频道」，即原始 Source Event 属于该群的 Assignment，跨负责 Bot 展示。Human 可以明确选择可访问的群成员 Bot，查看其 Orchestrator 与 Assignment Session，且不改变当前聊天。范围是按频道保存的本地视图偏好，与历史筛选及工作区分组独立。它不创建 Assignment、不发送执行请求；唯一的执行控制是对运行中行的 Session Stop 和 Bot Stop。旧工作面板退役；活动中心仍负责 Human 待处理事项与审批。见 ADR-0220。
 
 会话面板默认跟随当前频道时不重复显示范围标签；群聊范围选择收进视图选项菜单，仅显式指定 Bot 时在标题栏显示 `Bot · 名称`。
 

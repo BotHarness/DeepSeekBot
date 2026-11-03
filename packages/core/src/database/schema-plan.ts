@@ -2660,6 +2660,41 @@ const VOICE_PROVIDER_MIGRATION: SchemaMigration = {
   },
 };
 
+const GRANT_RESOLUTION_INDEX_MIGRATION: SchemaMigration = {
+  generation: 119,
+  module: 'messaging',
+  description: 'Index grant request resolutions without scanning Channel history',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX source_events_grant_resolution
+        ON source_events (json_extract(payload_json, '$.grantRequestResolution.requestMessageId'))
+        WHERE json_extract(payload_json, '$.grantRequestResolution.requestMessageId') IS NOT NULL;
+    `);
+  },
+};
+
+const OUTPUT_REQUEST_INDEX_MIGRATION: SchemaMigration = {
+  generation: 120,
+  module: 'messaging',
+  description: 'Index Bot output lookups by the request that caused them',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX channel_output_origins_request ON channel_output_origins (request_source_event_id);
+    `);
+  },
+};
+
+const SESSION_PARENT_INDEX_MIGRATION: SchemaMigration = {
+  generation: 121,
+  module: 'session-ownership',
+  description: 'Index child Sessions by parent without scanning every Session',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX session_ownership_parent ON session_ownership (parent_session_id);
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2778,4 +2813,7 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   QUESTION_MESSAGING_MIGRATION,
   TAKEOVER_ATTENTION_INDEX_MIGRATION,
   VOICE_PROVIDER_MIGRATION,
+  GRANT_RESOLUTION_INDEX_MIGRATION,
+  OUTPUT_REQUEST_INDEX_MIGRATION,
+  SESSION_PARENT_INDEX_MIGRATION,
 ]);

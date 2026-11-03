@@ -214,6 +214,7 @@ import {
   restoreTimelineScroll,
   timelineScrollAnchor,
 } from './timeline-position.js';
+import { observeSingleLineBubble } from './bubble-line.js';
 import { TimelineUnreadDivider } from './timeline-unread-divider.js';
 import { AutoCollapseMessages, foldableMessage, MessageFold } from './message-fold.js';
 import {
@@ -234,6 +235,7 @@ import {
 } from './message-image-gallery.js';
 import { inlineImageAttachment } from './message-attachment.js';
 import { channelAttachmentUrl } from './bridge.js';
+import { turnStopText } from './turn-stop.js';
 
 export function committedMessageIds(messages: readonly ChannelMessage[]): Set<string> {
   return new Set(
@@ -441,12 +443,13 @@ export function MessageBubbleWrap({
       timer.current = undefined;
     }
   }, []);
-  const mount = useMountedResource<HTMLDivElement>(
-    () => () => {
+  const mount = useMountedResource<HTMLDivElement>((node) => {
+    const unobserve = observeSingleLineBubble(node);
+    return () => {
+      unobserve?.();
       if (timer.current !== undefined) clearTimeout(timer.current);
-    },
-    [],
-  );
+    };
+  }, []);
   const cancel = (): void => {
     clearTimer();
     origin.current = undefined;
@@ -3094,12 +3097,7 @@ function ConversationView({
                       />
                     ) : first.turnStop !== undefined ? (
                       <div className="bh-member-departure" data-message-id={first.id}>
-                        <span>
-                          {t('turn.stopped', {
-                            human: first.turnStop.humanName,
-                            name: first.turnStop.botName,
-                          })}
-                        </span>
+                        <span>{turnStopText(first.turnStop, t)}</span>
                       </div>
                     ) : first.memberDeparture !== undefined ? (
                       <div className="bh-member-departure" data-message-id={first.id}>
