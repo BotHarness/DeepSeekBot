@@ -4,7 +4,7 @@ section: Changed
 
 ## en
 
-- Bots can now hand work to each other for up to 128 hops after each of your messages (was 32), so multi-step chains like you → A → B → C run without you nudging them along. You can change the limit in Settings → Messages or with `deepseekbot settings-set botharness-client`. When a chain does run out, the sending Bot's message is refused and the Bot is told why, instead of the message landing in the colleague's Inbox without waking it ([#3409](https://github.com/BotHarness/DeepSeekBot/issues/3409)).
+- Bots can now hand work to each other for up to 128 hops after each of your messages (was 32), so multi-step chains like you → A → B → C run without you nudging them along. You can change the limit in Settings → Messaging or with `deepseekbot settings-set botharness-client`. When a chain does run out, the sending Bot's message is refused and the Bot is told why, instead of the message landing in the colleague's Inbox without waking it ([#3409](https://github.com/BotHarness/DeepSeekBot/issues/3409)).
 
 ## zh
 

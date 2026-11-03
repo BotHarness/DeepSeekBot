@@ -1254,7 +1254,7 @@ export const zh = {
   'assignmentLimit.failed': '保存失败，原上限仍然有效。请重试。',
   'botHopLimit.title': 'Bot 间协作跳数上限',
   'botHopLimit.description':
-    '人每发一条消息，Bot 之间最多可以互相 @ 或私信传递多少次。用完后发送方会收到明确的拒绝提示，你回复任意一句即可继续。用来防止 Bot 之间无限互相唤醒。',
+    '从你的一条消息开始，Bot 之间通过 @ 或私信接力最多能传多少层。到达上限时，发送方 Bot 会收到明确的拒绝提示；你直接私信或 @ 那个 Bot 即可开始新的一轮。用来防止 Bot 之间无限互相唤醒。',
   'botHopLimit.saved': '已保存，下一次发送即生效。',
   'botHopLimit.invalid': '请输入 1–1000 之间的整数。',
   'botHopLimit.failed': '保存失败，原上限仍然有效。请重试。',
@@ -5888,7 +5888,7 @@ export const en = {
   'assignmentLimit.failed': 'Save failed. The previous limit still applies. Please retry.',
   'botHopLimit.title': 'Bot-to-Bot hop limit',
   'botHopLimit.description':
-    'How many times Bots can pass work to each other (@ or Bot DM) after each message you send. When it runs out, the sending Bot is told its send was refused; reply with anything to start a new budget. Stops Bots from waking each other forever.',
+    'How deep a chain of Bots passing work to each other (@ or Bot DM) can go from one of your messages. When a chain reaches it, the sending Bot is told its send was refused; message or @ that Bot to start a new chain. Stops Bots from waking each other forever.',
   'botHopLimit.saved': 'Saved. Applies from the next send.',
   'botHopLimit.invalid': 'Enter an integer from 1 to 1000.',
   'botHopLimit.failed': 'Save failed. The previous limit still applies. Please retry.',

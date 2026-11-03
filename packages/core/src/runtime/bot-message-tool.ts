@@ -25,7 +25,7 @@ const NOT_WOKEN_NOTICE =
   'These colleagues did not wake and will not see this message on their own. Tell the Humans in this conversation where the work stands and what is needed to continue; do not resend the same @.';
 
 const HOP_LIMIT_NOTICE =
-  'Not sent: this Bot-to-Bot chain used its whole hop budget since the last Human message, so no colleague was messaged or woken. Tell the Humans in this conversation where the work stands; any Human reply starts a new budget, and a Human can raise the limit in Settings → Messages. Do not retry the same @.';
+  'Not sent: this Bot-to-Bot chain used its whole hop budget since the last Human message, so no colleague was messaged or woken. Tell the Humans in this conversation where the work stands: a Human can continue by messaging you directly or @-mentioning you, which starts a new chain, or raise the limit in Settings → Messaging. Do not retry the same @.';
 
 function notWoken(message: ChannelMessage, targets: readonly string[]) {
   const woken = new Set((message.deliveries ?? []).map((delivery) => delivery.botSlug));
