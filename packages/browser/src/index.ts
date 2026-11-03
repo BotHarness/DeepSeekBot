@@ -293,6 +293,7 @@ export function apply(
     installDir: pinnedBrowserDirectory(),
     ...(config.browserPath.trim() === '' ? {} : { browserPath: config.browserPath.trim() }),
     headless: launchHeadless,
+    foregroundTabs: () => localDesktop() !== undefined,
     onEvent: (detail) => diagnostics.record('lifecycle', detail),
     profileOf: (slug) => {
       const registry = coreLookup()?.registry as

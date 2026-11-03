@@ -78,6 +78,7 @@ export interface BotBrowserRuntimeOptions {
     hooks?: { onProgress?: (downloadedBytes: number, totalBytes: number) => void },
   ) => Promise<string>;
   readonly headless?: boolean | (() => boolean);
+  readonly foregroundTabs?: () => boolean;
   readonly launchTimeoutMs?: number;
   readonly onEvent?: (detail: string) => void;
   readonly onInstallProgress?: (downloadedBytes: number, totalBytes: number) => void;
@@ -464,6 +465,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
   let stopping: Promise<void> | undefined;
   let binary: string | undefined;
   let lastUrl: string | undefined;
+  let foreground = false;
   const sessions = new Map<string, string>();
 
   const isRunning = (): boolean =>
@@ -543,6 +545,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
     mkdirSync(options.userDataDir, { recursive: true });
     const headless =
       typeof options.headless === 'function' ? options.headless() : options.headless === true;
+    foreground = !headless && options.foregroundTabs?.() === true;
     onEvent(`launch ${binary} mode=${headless ? 'headless' : 'headed'}`);
     const proc = spawn(
       binary,
@@ -892,8 +895,20 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
         targetId = undefined;
       }
     }
-    if (targetId === undefined) return openTarget(url, false);
-    return navigateTab(targetId, url);
+    const tab =
+      targetId === undefined ? await openTarget(url, false) : await navigateTab(targetId, url);
+    await showTab(tab.tabId);
+    return tab;
+  };
+
+  const showTab = async (targetId: string): Promise<void> => {
+    const live = client;
+    if (!foreground || options.execution !== undefined || live === undefined) return;
+    try {
+      await live.send('Target.activateTarget', { targetId });
+    } catch (error) {
+      onEvent(`phase=show-tab outcome=error detail=${String(error).slice(0, 160)}`);
+    }
   };
 
   const navigateTab = async (targetId: string, url: string): Promise<BrowserTab> => {
@@ -949,7 +964,9 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
 
   const createTab = async (url: string): Promise<BrowserTab> => {
     await ensure();
-    return openTarget(url, false);
+    const tab = await openTarget(url, false);
+    await showTab(tab.tabId);
+    return tab;
   };
 
   const uploadFile = async (
@@ -1071,6 +1088,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
 
   const observe = async (tabId: string): Promise<BrowserObservation> => {
     const sessionId = await attach(tabId);
+    await showTab(tabId);
     const value = asObject(await evaluate(sessionId, SNAPSHOT_SCRIPT));
     if (value === undefined) throw new Error('The Bot Browser returned no page state');
     const elements = Array.isArray(value['elements'])

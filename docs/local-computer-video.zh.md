@@ -34,7 +34,7 @@ T1 使用直连 WebRTC，未配置 STUN/TURN。手机的信令和控制复用既
 
 ## 桌面上的 Bot 浏览器
 
-Computer 目标为本机且系统为 macOS 或 Windows 时，本机 Bot 浏览器以有窗口模式显示在这台电脑的桌面上（使用独立托管的浏览器配置，不是 Human 日常使用的 Chrome），Bot 浏览网页时，Computer 视频能直接看到它。其他目标仍按插件的 `headless` 设置运行。运行模式在启动时决定，切换目标后要等 Bot 浏览器下次启动才生效；启动会记录为 `phase=launch-mode mode=headed reason=local-computer-desktop`。
+Computer 目标为本机且系统为 macOS 或 Windows 时，本机 Bot 浏览器以有窗口模式显示在这台电脑的桌面上（使用独立托管的浏览器配置，不是 Human 日常使用的 Chrome），Bot 浏览网页时，Computer 视频能直接看到它。每次 `browser_open` 和 `browser_observe` 都会把该 Bot 当前的标签页切到前台；其他模式下 Bot 标签页仍在后台。其他目标仍按插件的 `headless` 设置运行。运行模式在启动时决定，切换目标后要等 Bot 浏览器下次启动才生效；启动会记录为 `phase=launch-mode mode=headed reason=local-computer-desktop`。
 
 整块桌面只有一个控制方。Human 接管 Computer 期间，所有 Bot 的浏览器工具都会被拒绝；「交还 Bot」之后，Bot 必须先调用 `browser_observe`，才能点击、输入、按键、滚动或上传。暂停某个 Bot 的浏览器时，该 Bot 的 Computer 工具同样会被拒绝，直到恢复。拒绝会记录为 `phase=control-refused owner=computer-pause|computer-handback|browser-pause`。
 

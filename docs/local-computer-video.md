@@ -42,7 +42,7 @@ When video stalls, input is disabled but **Hand back**, exit and **Reconnect** r
 
 ## Bot Browser on the desktop
 
-With the Local Computer target on macOS or Windows, the local Bot Browser launches headed as a window on this desktop (its own managed profile, not the Human's daily Chrome), so the Computer video shows it while the Bot browses. The plugin `headless` setting still applies on other targets. The mode is chosen at launch, so a target switch applies the next time the Bot Browser starts; the launch is logged as `phase=launch-mode mode=headed reason=local-computer-desktop`.
+With the Local Computer target on macOS or Windows, the local Bot Browser launches headed as a window on this desktop (its own managed profile, not the Human's daily Chrome), so the Computer video shows it while the Bot browses. Each `browser_open` and `browser_observe` brings that Bot's current tab to the front; Bot tabs stay in the background in every other mode. The plugin `headless` setting still applies on other targets. The mode is chosen at launch, so a target switch applies the next time the Bot Browser starts; the launch is logged as `phase=launch-mode mode=headed reason=local-computer-desktop`.
 
 The desktop has one control owner. While the Human holds the Computer, every Browser tool of every Bot is refused, and after **Hand back** a Bot must run `browser_observe` before it clicks, types, presses a key, scrolls or uploads. Pausing one Bot's Browser likewise refuses that Bot's Computer tools until Resume. Refusals are logged as `phase=control-refused owner=computer-pause|computer-handback|browser-pause`.
 
