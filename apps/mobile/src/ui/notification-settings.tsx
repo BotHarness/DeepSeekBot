@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, View, type ViewInstance } from 'react-native';
 
 import {
@@ -34,6 +34,7 @@ export function NotificationSettings({
   preference,
   onEnable,
   onOpenSettings,
+  connectionSettings,
 }: {
   status: PushStatus;
   hostName: string;
@@ -41,6 +42,7 @@ export function NotificationSettings({
   preference?: DevicePreferenceSnapshot;
   onEnable(): void;
   onOpenSettings(): void;
+  connectionSettings?: ReactNode;
 }) {
   const t = useStrings();
   const [settings, setSettings] = useState<PushSettings | undefined>();
@@ -110,6 +112,7 @@ export function NotificationSettings({
   return (
     <View ref={mount} style={{ flex: 1 }}>
       <SettingsForm testID="notification-settings">
+        {connectionSettings}
         {status.status === 'checking' || (on && settings === undefined && error === undefined) ? (
           <SettingsSection on="raised">
             <SettingsRow title={t.loading} on="raised" control={{ kind: 'busy' }} />
@@ -137,7 +140,7 @@ export function NotificationSettings({
         ) : null}
         {status.status === 'unavailable' ? (
           <SettingsSection on="raised">
-            <SettingsRow on="raised" title={t.notificationsUnavailable} />
+            <SettingsRow on="raised" title={t.cloudPushUnavailable} />
           </SettingsSection>
         ) : null}
         {hostFailed ? (

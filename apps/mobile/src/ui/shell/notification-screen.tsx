@@ -7,9 +7,11 @@ import {
   useHostSession,
   usePushStatus,
   pushSession,
+  setHostNotificationsEnabled,
 } from '../../host/host-session';
 import { NotificationSettings, type NotificationSettingsPort } from '../notification-settings';
 import { notificationPreferences } from '../../host/native-notification-preferences';
+import { KeepConnectedSettings } from '../keep-connected-settings';
 
 export default function NotificationsScreen() {
   const { saved } = useHostSession();
@@ -35,7 +37,11 @@ export default function NotificationsScreen() {
             set: async (preferences) => {
               await notificationPreferences.set(preferences);
             },
-            setEnabled: (enabled) => hostPush.setEnabled(saved, enabled),
+            setEnabled: async (enabled) => {
+              const settings = await hostPush.setEnabled(saved, enabled);
+              setHostNotificationsEnabled(saved.hostId, settings.enabled);
+              return settings;
+            },
             test: () => hostPush.test(saved),
           },
     [saved, status.status],
@@ -47,6 +53,7 @@ export default function NotificationsScreen() {
       hostName={saved.hostName}
       port={port}
       preference={preference}
+      connectionSettings={<KeepConnectedSettings />}
       onEnable={() => void pushSession.enable(hostSession.getState().hosts)}
       onOpenSettings={() => void Linking.openSettings()}
       key={saved.hostId}

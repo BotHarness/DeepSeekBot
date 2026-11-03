@@ -125,6 +125,8 @@ question 可先真实返回 pending，问题保持可回答；同一 Session 可
 生产依赖仍为 RC1，timed 模式仅在显式配置的隔离 RC2 Profile 验证。权限审批、容量释放／重获和同群隐私验收
 继续阻塞，不从这次 DM 能力实验推断完成。
 
+Android 本地优先提醒的目标边界见 [ADR-0280](../adr/0280-android-local-alerts-share-native-arbitration.md)（[#3353](https://github.com/BotHarness/DeepSeekBot/issues/3353)）：Human Inbox 的完整通知投影进入设备提醒模块，连接生命周期模块则共享既有 paired Host client 与 Android 前台消息服务。首片只验收后台 Tool approval；原生仲裁以 Host／Inbox item 身份统一本地和 FCM 提醒，持久记录只表示展示尝试，不构成已读或送达权威。保持连接、系统通知权限及云推送登记相互独立；切片原生证据与 Human 反馈由 #3355 跟踪。
+
 ## 1 · 系统上下文
 
 新附件已遵循 [ADR-0100](../adr/0100-file-open-actions-target-real-host-files.md)：独立上传彼此独立，显式复用身份才共享编辑结果。原生打开指向真实目标；后续消息读取、预览和下载使用当前内容，上传源独立。保存不保留附件历史，不生成 Source Revision、Inbox Admission、通知或 Bot wake。目标缺失则报告不可用，不自动重建。旧 CAS 迁移（#577）按 Source Event 附件出现位置预留可重启恢复的身份，仅在保留依赖未转换时继续保护旧对象；其他 CAS 数据与 Memory Git 行为保持各自语义。
