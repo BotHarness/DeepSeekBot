@@ -27,14 +27,32 @@ process.stdin.on('data', c => { input+=c; if(input.length>200000) process.exit(2
 process.stdin.on('end', async () => {
   try {
     const request=JSON.parse(input); input='';
-    const response=await fetch(request.url, {method:request.method, redirect:'error', headers:request.headers,
-      ...(request.body===undefined ? {} : {body:request.body}), signal:AbortSignal.timeout(20000)});
+    let response;
+    try {
+      response=await fetch(request.url, {method:request.method, redirect:'manual', headers:request.headers,
+        ...(request.body===undefined ? {} : {body:request.body}), signal:AbortSignal.timeout(20000)});
+    } catch (error) {
+      const code=String(error?.cause?.code ?? error?.code ?? '');
+      const failure=error?.name==='TimeoutError' ? 'timeout'
+        : ['ENOTFOUND','EAI_AGAIN','EAI_NONAME','EAI_FAIL'].includes(code) ? 'dns'
+        : ['ECONNREFUSED','ECONNRESET','EHOSTUNREACH','ENETUNREACH','ETIMEDOUT','EPIPE','UND_ERR_SOCKET','UND_ERR_CONNECT_TIMEOUT'].includes(code) ? 'connection'
+        : /CERT|SSL|TLS|SELF_SIGNED|ALTNAME/.test(code) ? 'tls'
+        : 'network';
+      process.stdout.write(JSON.stringify({failure}));
+      return;
+    }
+    const mask=(text)=>{ for(const secret of request.mask){ for(const form of [secret, Buffer.from(secret).toString('base64'), encodeURIComponent(secret)])
+      if(form.length>=6) text=text.split(form).join('[secret]'); } return text; };
+    if(response.status>=300 && response.status<400 && response.headers.has('location')){
+      await response.body?.cancel();
+      process.stdout.write(JSON.stringify({status:response.status, contentType:response.headers.get('content-type')??'', body:'', truncated:false,
+        location:mask(String(response.headers.get('location')).slice(0,2000))}));
+      return;
+    }
     const reader=response.body?.getReader(); const chunks=[]; let size=0; let truncated=false;
     while(reader){ const {done,value}=await reader.read(); if(done) break; size+=value.length;
       if(size>request.limit){ truncated=true; await reader.cancel(); break; } chunks.push(value); }
-    let text=Buffer.concat(chunks).toString('utf8');
-    for(const secret of request.mask){ for(const form of [secret, Buffer.from(secret).toString('base64'), encodeURIComponent(secret)])
-      if(form.length>=6) text=text.split(form).join('[secret]'); }
+    const text=mask(Buffer.concat(chunks).toString('utf8'));
     process.stdout.write(JSON.stringify({status:response.status, contentType:response.headers.get('content-type')??'', body:text, truncated}));
   } catch { process.exitCode=2; }
 });
@@ -56,6 +74,8 @@ export interface SecretHttpResult {
   contentType: string;
   body: string;
   truncated: boolean;
+  location?: string;
+  action?: string;
 }
 
 const SECRET_HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
@@ -71,6 +91,16 @@ const SECRET_HTTP_BODY_LIMIT = 64_000;
 const SECRET_HTTP_RESPONSE_LIMIT = 32_000;
 
 export class SecretHttpRefusal extends Error {}
+
+const SECRET_HTTP_FAILURES = {
+  timeout:
+    'The request reached no answer within 20 seconds; the API may be slow or unreachable from this Host.',
+  dns: 'The API host name could not be resolved from this Host; check the endpoint the Owner entered.',
+  connection:
+    'This Host could not connect to the API; it may be down, blocked or need a network proxy.',
+  tls: 'The API TLS certificate was not accepted by this Host.',
+  network: 'The request failed on the network before the API answered.',
+} as const;
 
 export function secretHttpTarget(endpoint: string, path: string): URL {
   let base: URL;
@@ -197,16 +227,34 @@ export class ProtectedExecution {
       SECRET_HTTP_RESPONSE_LIMIT * 8,
       30_000,
     );
-    let parsed: { status?: unknown; contentType?: unknown; body?: unknown; truncated?: unknown };
+    let parsed: {
+      status?: unknown;
+      contentType?: unknown;
+      body?: unknown;
+      truncated?: unknown;
+      location?: unknown;
+      failure?: unknown;
+    };
     try {
       parsed = JSON.parse(output) as typeof parsed;
     } catch {
       throw new Error('Protected request returned an invalid result');
     }
+    if (typeof parsed.failure === 'string' && parsed.failure in SECRET_HTTP_FAILURES) {
+      this.log('credential-cli-unreachable', {
+        program: 'http-request-v1',
+        failure: parsed.failure as keyof typeof SECRET_HTTP_FAILURES,
+        durationMs: Date.now() - started,
+      });
+      throw new SecretHttpRefusal(
+        SECRET_HTTP_FAILURES[parsed.failure as keyof typeof SECRET_HTTP_FAILURES],
+      );
+    }
     if (
       typeof parsed.status !== 'number' ||
       typeof parsed.contentType !== 'string' ||
-      typeof parsed.body !== 'string'
+      typeof parsed.body !== 'string' ||
+      (parsed.location !== undefined && typeof parsed.location !== 'string')
     )
       throw new Error('Protected request returned an invalid result');
     this.log('credential-cli-completed', {
@@ -220,6 +268,13 @@ export class ProtectedExecution {
       contentType: parsed.contentType.slice(0, 200),
       body: parsed.body,
       truncated: parsed.truncated === true,
+      ...(typeof parsed.location === 'string'
+        ? {
+            location: parsed.location,
+            action:
+              'The API answered with a redirect, which is not followed. Retry with the path or endpoint it points to; a different origin needs the Owner to replace the endpoint field.',
+          }
+        : {}),
     };
   }
 

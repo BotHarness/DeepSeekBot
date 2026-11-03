@@ -157,9 +157,14 @@ describe('Host-run secret HTTP consumer', () => {
       expect(
         await execution.authenticatedRequest({ ...request, path: '/denied' }, [], signal),
       ).toMatchObject({ httpStatus: 401, successful: false });
-      await expect(
-        execution.authenticatedRequest({ ...request, path: '/redirect' }, [], signal),
-      ).rejects.toThrow('Protected execution failed');
+      expect(
+        await execution.authenticatedRequest({ ...request, path: '/redirect' }, [], signal),
+      ).toMatchObject({
+        httpStatus: 302,
+        successful: false,
+        location: 'http://127.0.0.1:9/elsewhere',
+        action: expect.stringContaining('redirect'),
+      });
       const sent = seen.length;
       for (const unsafe of [
         { ...request, path: '/items', method: 'TRACE' },
@@ -170,6 +175,38 @@ describe('Host-run secret HTTP consumer', () => {
       ])
         await expect(execution.authenticatedRequest(unsafe, [], signal)).rejects.toThrow();
       expect(seen).toHaveLength(sent);
+    } finally {
+      await execution.close();
+    }
+  });
+
+  it('tells the Bot why an unreachable API failed instead of an opaque error', async () => {
+    const closed = createServer();
+    await new Promise<void>((resolve) => closed.listen(0, '127.0.0.1', resolve));
+    const port = (closed.address() as AddressInfo).port;
+    await new Promise((resolve) => closed.close(resolve));
+    const execution = new ProtectedExecution(() => undefined);
+    const signal = new AbortController().signal;
+    const request = { method: 'GET', headers: [], query: [], path: '/models' };
+    try {
+      await expect(
+        execution.authenticatedRequest(
+          { ...request, endpoint: `http://127.0.0.1:${port}` },
+          [],
+          signal,
+        ),
+      ).rejects.toThrow(
+        new SecretHttpRefusal(
+          'This Host could not connect to the API; it may be down, blocked or need a network proxy.',
+        ),
+      );
+      await expect(
+        execution.authenticatedRequest(
+          { ...request, endpoint: 'https://api.botharness-3340.invalid' },
+          [],
+          signal,
+        ),
+      ).rejects.toThrow(/could not be resolved|could not connect|failed on the network/);
     } finally {
       await execution.close();
     }
