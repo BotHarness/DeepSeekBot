@@ -1,4 +1,4 @@
-# ADR-0281: Bot-deployed local speech service
+# ADR-0283: Bot-deployed local speech service
 
 - Status: Accepted (V6 tracer bullet of voice)
 - Date: 2026-11-03
