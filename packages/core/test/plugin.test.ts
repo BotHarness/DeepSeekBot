@@ -800,6 +800,8 @@ describe('plugin entry', () => {
       'voiceProviderTest',
       'voiceSynthesize',
       'botVoiceSet',
+      'voiceTranscribe',
+      'botAsrSet',
       'idleCompaction',
       'idleCompactionSet',
       'idleCompactionCacheLifetimeSet',

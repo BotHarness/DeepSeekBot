@@ -848,6 +848,13 @@
       "commands": ["computer-video"]
     },
     {
+      "id": "voice-call",
+      "description": "Bot calls through the Host call owner: readiness, status, hang up and a synthetic-audio call without a phone.",
+      "scope": "Host",
+      "surfaces": ["route:packages/core/src/plugin.ts:VOICE_CALL_PATH"],
+      "commands": ["call-readiness", "call-status", "call-hangup", "call-simulate"]
+    },
+    {
       "id": "computer-webrtc",
       "description": "HTTP operation with existing direct CLI command.",
       "scope": "Host",

@@ -1,8 +1,12 @@
 import type { BotImportsService } from '../bots/imports.js';
 import { isAuthenticatedOwner } from './owner-compat.js';
-import type { VoiceProvidersView, VoiceSynthesisView } from '../voice/bridge.js';
-import type { ProviderHealth, TtsProviderView } from '../voice/providers.js';
-import type { PersonaBotVoice } from '../bots/persona-bot.js';
+import type {
+  VoiceProvidersView,
+  VoiceSynthesisView,
+  VoiceTranscriptionView,
+} from '../voice/bridge.js';
+import type { ProviderHealth, VoiceProviderView } from '../voice/providers.js';
+import type { PersonaBotAsr, PersonaBotVoice } from '../bots/persona-bot.js';
 import type { CloudManagementInput, CloudManagementResult } from '../cloud/management.js';
 import type { ChannelManagementResult } from '../channels/management.js';
 import type { BotCreationReceipt } from '../bots/creation.js';
@@ -1264,13 +1268,24 @@ export class BotharnessBridgeService extends TypertRemoteService {
     model?: string,
     defaultVoice?: string,
     key?: string,
-  ): Promise<{ provider: TtsProviderView }> {
+    kind?: string,
+    language?: string,
+  ): Promise<{ provider: VoiceProviderView }> {
     return unwrapAsync(
-      this.methods.voiceProviderAdd({ preset, name, baseUrl, model, defaultVoice, key }),
+      this.methods.voiceProviderAdd({
+        preset,
+        name,
+        baseUrl,
+        model,
+        defaultVoice,
+        key,
+        kind,
+        language,
+      }),
     );
   }
 
-  voiceProviderRemove(id: string): Promise<{ provider: TtsProviderView; clearedBots: string[] }> {
+  voiceProviderRemove(id: string): Promise<{ provider: VoiceProviderView; clearedBots: string[] }> {
     return unwrapAsync(this.methods.voiceProviderRemove({ id }));
   }
 
@@ -1294,6 +1309,23 @@ export class BotharnessBridgeService extends TypertRemoteService {
     voiceId?: string,
   ): { slug: string; voice: PersonaBotVoice | null } {
     return unwrap(this.methods.botVoiceSet({ slug, providerId, voiceId }));
+  }
+
+  voiceTranscribe(
+    audio: string,
+    slug?: string,
+    providerId?: string,
+    language?: string,
+  ): Promise<VoiceTranscriptionView> {
+    return unwrapAsync(this.methods.voiceTranscribe({ audio, slug, providerId, language }));
+  }
+
+  botAsrSet(
+    slug: string,
+    providerId: string | null,
+    language?: string,
+  ): { slug: string; asr: PersonaBotAsr | null } {
+    return unwrap(this.methods.botAsrSet({ slug, providerId, language }));
   }
 
   approvalReviewerModel(): Promise<ApprovalReviewerModelView> {
@@ -2855,6 +2887,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'voiceProviderTest',
   'voiceSynthesize',
   'botVoiceSet',
+  'voiceTranscribe',
+  'botAsrSet',
   'idleCompaction',
   'idleCompactionSet',
   'idleCompactionCacheLifetimeSet',

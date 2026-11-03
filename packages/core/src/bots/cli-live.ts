@@ -142,6 +142,13 @@ import {
   type VoiceValues,
 } from './cli-voice.js';
 import {
+  CALL_COMMANDS,
+  CALL_OPTIONS,
+  CALL_PATH,
+  isCallCommand,
+  runCallCommand,
+} from './cli-call.js';
+import {
   isStorageCommand,
   runStorageCommand,
   STORAGE_COMMANDS,
@@ -196,6 +203,7 @@ export const LIVE_OPTIONS = {
   ...PROMPT_PRESET_OPTIONS,
   ...APPROVAL_REVIEWER_OPTIONS,
   ...VOICE_OPTIONS,
+  ...CALL_OPTIONS,
   ...STORAGE_OPTIONS,
   host: { type: 'string' },
   'token-file': { type: 'string' },
@@ -327,6 +335,7 @@ export const LIVE_COMMANDS = [
   ...PROMPT_PRESET_COMMANDS,
   ...APPROVAL_REVIEWER_COMMANDS,
   ...VOICE_COMMANDS,
+  ...CALL_COMMANDS,
   ...IDLE_COMPACTION_COMMANDS,
   ...STORAGE_COMMANDS,
   {
@@ -1063,6 +1072,23 @@ export async function runLiveCli(
     return runVoiceCommand(command, rest, values, io, async () => {
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
       return (await connectLiveHost(values, io, signal)).rpc;
+    });
+  if (isCallCommand(command))
+    return runCallCommand(command, rest, values, async () => {
+      const signal = AbortSignal.timeout(
+        values.timeout === undefined && command === 'call-simulate'
+          ? 600_000
+          : timeoutMs(values.timeout),
+      );
+      const { http } = await connectLiveHost(values, io, signal);
+      return async (body) => {
+        const { bytes } = await http(CALL_PATH, body);
+        try {
+          return record(JSON.parse(new TextDecoder().decode(bytes)));
+        } catch {
+          throw new CliLiveError('host-protocol-error', 'The Host returned no JSON for the call.');
+        }
+      };
     });
   if (isApprovalReviewerCommand(command))
     return runApprovalReviewerCommand(command, rest, values, async () => {

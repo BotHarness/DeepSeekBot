@@ -770,6 +770,25 @@ deepseekbot voice-set <bot-id> <provider-id> --voice zf_001
 
 Tob's scoped CLI accepts `voice-providers`, `voice-provider-test`, `voice-provider-add` (keyless `local` and `custom` presets only, no key option), `voice-provider-remove` and `voice-set`; writes show the usual approval card. Keyed providers are added by the Human in Settings › Voice.
 
+### Bot calls and speech recognition (ASR Providers)
+
+A paired iPhone can call a Bot whose Host runs on a Mac or Windows computer. The phone sends microphone audio over WebRTC on the paired LAN route or Tailscale (Connect refuses calls with `connect-carrier-required`). The Host finds each sentence with its built-in voice activity detection, which ignores coughs, knocks and other short noise, transcribes it through the Bot's ASR Provider and sends the text to the DM as the Human's message. The Bot answers with `voice: true`; the committed voice reply plays in the call and stays in the DM as a voice bar with its text. While the Bot is busy with an earlier turn the phone shows a hint and nothing is spoken. Recordings are never stored: each sentence's audio is dropped once it is transcribed.
+
+```bash
+printf '%s' "$OPENAI_API_KEY" | deepseekbot voice-provider-add openai --kind asr --model gpt-4o-mini-transcribe --key-stdin
+deepseekbot voice-provider-add custom --kind asr --name Whisper --base-url http://127.0.0.1:8000/v1 --model whisper-1 --language zh
+deepseekbot voice-asr-set <bot-id> <asr-provider-id> [--language zh]
+deepseekbot voice-asr-set <bot-id> off
+deepseekbot voice-transcribe --bot <bot-id> --file /abs/question.wav [--language zh]
+deepseekbot call-readiness <bot-id>
+deepseekbot call-simulate <bot-id> --file /abs/question.wav [--reply-wait 90]
+deepseekbot call-simulate <bot-id> --script /abs/timeline.json
+deepseekbot call-status
+deepseekbot call-hangup <call-id>
+```
+
+ASR presets are `custom` (any OpenAI-compatible `/audio/transcriptions` endpoint; key optional), `openai` and `groq`. `voice-providers` lists them under `asrPresets` and `asrProviders`, and `bot.asr` shows the binding. `voice-provider-test` on an ASR Provider transcribes half a second of silence. `voice-transcribe` reads a 16-bit PCM WAV and prints `{providerId, text, latencyMs}`. `call-readiness` returns `{ready, missing, asrProviderId, ttsProviderId, media, activeCallId}`, where `missing` names `asr`, `tts`, `bot`, `media-unsupported`, `media-helper-missing` or `media-unavailable`; the phone's call button shows the same reasons. `call-simulate` opens a synthetic Host call without a phone, plays the WAV (or a timeline of up to 20 `{"at": ms, "file": "/abs.wav"}` steps) into it in real time, waits until every heard sentence has a played reply or `--reply-wait` seconds pass, hangs up, and prints `{callId, heard, replies, firstAudioMs, answered, events}`; `firstAudioMs` is the time from the end of the sentence to the first reply audio. One call runs per Host: the same device replaces its call and another device gets `call-active`. A call ends after 8 seconds without the phone (`connection-lost`); messages already sent stay in the DM. Each call writes `voice` lines to `logs.db` with timings, never audio or transcripts.
+
 ### Approval Reviewer model
 
 By default each Bot's Approval Reviewer runs on that Bot's own model. One Profile-wide setting can name a single reviewer model for every Bot instead, for example a cheap, fast one.

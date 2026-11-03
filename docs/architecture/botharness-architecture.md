@@ -518,6 +518,10 @@ Orchestrator 的应用定义 channel_list 工具从当前 PersonaBot 的 Session
 
 [ADR-0280](../adr/0280-tts-providers-and-bot-voice-messages.md)：`VoiceProviders` 负责 TTS Provider（预设、端点、模型、默认音色存在运营库 `voice_providers` 表，密钥只在凭据存储）及其健康检查。PersonaBot 可选的 `voice` 绑定指定一个 provider 和音色。`bot_send_message` 带 `voice: true` 时先提交文字，再通过绑定合成朗读文本，把音频作为普通附件挂到同一条消息上，记录 `voice` 状态（`pending`、`ready`、`failed`）并发布 `channel/voice`。失败不会撤回文字。桌面端和 iOS 把语音附件显示为文字上方的语音条。
 
+### Bot 通话（ADR-0281）
+
+[ADR-0281](../adr/0281-host-owned-bot-calls.md)：`VoiceProviders` 也负责 ASR Provider（`kind: 'asr'`，兼容 OpenAI `/audio/transcriptions`），PersonaBot 可以绑定一个 `asr`。`createVoiceCalls` 是 Host 上通话的唯一所有者，入口是 `POST /api/voice/call`（局域网 Noise 通道和 Tailscale 设备网关；Connect 返回 `connect-carrier-required`）。它对 16 kHz 上行 PCM 运行内置 VAD（检测音高，咳嗽和敲击会被丢弃），把每句话转写后以 Human 消息发到 Bot DM，并带上 `voiceCall`，从而加入 `voice-call-hint` 提示词片段。该 DM 中就绪的语音回复会在通话中播放；Bot 说话时忽略上行。每个 Host 同时一通电话；8 秒没有心跳即结束。音频从不保存。Host 侧由 Electron 媒体助手（`call-main.cjs`）承载 WebRTC，手机侧由 iOS 原生模块应答；`synthetic` 通话让 `deepseekbot call-simulate` 可以注入音频。
+
 ### 本地语音服务（ADR-0283）
 
 [ADR-0283](../adr/0283-bot-deployed-local-speech-service.md)：运行时 skill `setting-up-local-voice` 指导 Bot 在 Host 所在的 macOS 或 Windows 电脑上部署一个 Python 脚本（sherpa-onnx：SenseVoice 识别、Kokoro 合成），它只监听 `127.0.0.1:8790` 并提供 OpenAI 兼容的 `/v1/audio/speech` 与 `/v1/audio/transcriptions`。`deepseekbot voice-local-kit` 离线写出脚本；Tob 的受限 CLI 可读取、测试、登记无密钥的 `local`／`custom` Provider 并绑定 Bot 语音，写操作走审批卡片，密钥从不经过 Bot。Host 不启动也不保活该服务；服务未运行时 `VoiceProviders` 返回带启动方法的 `provider-unavailable`。
