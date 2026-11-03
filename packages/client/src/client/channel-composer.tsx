@@ -581,6 +581,23 @@ export function ChannelComposer({
       };
     });
   }, []);
+  const pendingFit = useRef<{ element: HTMLElement } | undefined>(undefined);
+  const scheduleSync = useCallback(
+    (element: HTMLElement): void => {
+      const pending = pendingFit.current;
+      if (pending !== undefined) {
+        pending.element = element;
+        return;
+      }
+      const entry = { element };
+      pendingFit.current = entry;
+      requestAnimationFrame(() => {
+        pendingFit.current = undefined;
+        if (entry.element.isConnected) syncTextarea(entry.element);
+      });
+    },
+    [syncTextarea],
+  );
 
   const avatarKey = mentions
     .map((mention) => {
@@ -657,7 +674,7 @@ export function ChannelComposer({
       renderedAttachmentKey.current = attachmentKey;
       requestedCaret.current = undefined;
       if (caret !== undefined) setRichSelection(editor, Math.min(caret, value.length));
-      syncTextarea(editor);
+      scheduleSync(editor);
       return () => {
         richRef.current = null;
       };
@@ -670,7 +687,7 @@ export function ChannelComposer({
       channelCandidates,
       avatarKey,
       attachmentKey,
-      syncTextarea,
+      scheduleSync,
     ],
   );
   const textareaMount = useMountedResource<HTMLTextAreaElement>(
@@ -678,12 +695,12 @@ export function ChannelComposer({
       textareaRef.current = element;
       setAvatarMounts((current) => (current.length === 0 ? current : []));
       setAttachmentMounts((current) => (current.length === 0 ? current : []));
-      syncTextarea(element);
+      scheduleSync(element);
       return () => {
         textareaRef.current = null;
       };
     },
-    [syncTextarea, value],
+    [scheduleSync, value],
   );
   const replyId = reply?.id;
   const bodyMount = useMountedResource<HTMLDivElement>(
@@ -701,18 +718,18 @@ export function ChannelComposer({
         const nextWidth = entry?.contentRect.width;
         if (nextWidth === undefined || nextWidth === width) return;
         width = nextWidth;
-        syncTextarea(element);
+        scheduleSync(element);
       });
       observer.observe(element);
       return () => observer.disconnect();
     },
-    [syncTextarea, rich, replyId, focusSignal],
+    [scheduleSync, rich, replyId, focusSignal],
   );
 
   const emitRichChange = (editor: HTMLDivElement): void => {
     if (editor.innerHTML === '<br>') editor.replaceChildren();
     const next = readRichMentionDraft(editor);
-    syncTextarea(editor);
+    scheduleSync(editor);
     onChange(next.value, next.mentions, next.channelRefs);
     const caret = richSelectionOffsets(editor)?.end ?? next.value.length;
     slashTarget.current = context?.target;
@@ -1145,7 +1162,7 @@ export function ChannelComposer({
               value={value}
               disabled={sending}
               onChange={(event) => {
-                syncTextarea(event.currentTarget);
+                scheduleSync(event.currentTarget);
                 const next = event.target.value;
                 slashTarget.current = context?.target;
                 setSlashQuery(
