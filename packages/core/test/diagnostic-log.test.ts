@@ -27,7 +27,10 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-function harness(now = () => 1_800_000_000_000) {
+function harness(
+  now = () => 1_800_000_000_000,
+  onClientEntries?: (session: string, entries: readonly unknown[]) => void,
+) {
   const dir = mkdtempSync(join(tmpdir(), 'diagnostic-log-'));
   dirs.push(dir);
   const database = openLogDatabase({ dir, now });
@@ -39,6 +42,7 @@ function harness(now = () => 1_800_000_000_000) {
     environment: { version: '1.6.2', platform: 'darwin', arch: 'arm64', node: 'v24.0.0' },
     homes: [{ path: HOME, label: '~' }],
     now,
+    ...(onClientEntries === undefined ? {} : { onClientEntries }),
   });
   return { database, writer, http, now };
 }
@@ -101,6 +105,21 @@ describe('diagnostic log ingest', () => {
       now(),
       now() - 60_000,
     ]);
+  });
+
+  it('hands accepted entries to the Client issue observer', async () => {
+    const seen: Array<{ session: string; codes: string[] }> = [];
+    const { http, now } = harness(undefined, (session, entries) =>
+      seen.push({ session, codes: entries.map((e) => (e as { code: string }).code) }),
+    );
+    await http(
+      post({
+        version: 1,
+        session: SESSION,
+        entries: [entry(now(), 'error', 'uncaught-error', {}, 'error'), entry(-1, 'action', 'x')],
+      }),
+    );
+    expect(seen).toEqual([{ session: SESSION, codes: ['uncaught-error'] }]);
   });
 
   it('refuses a malformed envelope or an oversized body', async () => {

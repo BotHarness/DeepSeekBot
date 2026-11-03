@@ -165,6 +165,7 @@ import {
   readHumanMessageCounts,
   startActiveDayWatch,
 } from './telemetry/active-day.js';
+import { createClientIssueReporter, type ClientIssueReporter } from './telemetry/client-issues.js';
 import { deliverPendingExceptions, installExceptionCapture } from './telemetry/exceptions.js';
 import { createPersonaBotRegistry, type PersonaBotRegistry } from './bots/registry.js';
 import { createPersonaBotDeletions, type PersonaBotDeletions } from './bots/deletion.js';
@@ -1211,7 +1212,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const dshHome = resolveDshHome();
   applyPendingDataReset({ dshHome, home: homedir(), log: (message) => ctx.logger.info(message) });
   mountClientDiagnostics(ctx, dshHome);
+  let clientIssues: ClientIssueReporter | undefined;
   const diagnosticEvents = mountDiagnosticLog(ctx, {
+    onClientEntries: (session, entries) => clientIssues?.observe(session, entries),
     dshHome,
     homes: [
       { path: dshHome, label: '$DSH_HOME' },
@@ -1246,6 +1249,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   ctx.effect(() => () => void telemetry.close(), 'botharness: telemetry');
   telemetry.capture('app:host_start');
+  clientIssues = createClientIssueReporter({ telemetry });
   const activeDay = createActiveDay({ telemetry, dataDir: telemetryDir });
   deliverPendingExceptions(telemetry, telemetryDir);
   if (telemetryState.lockedBy === undefined)
