@@ -734,6 +734,23 @@ deepseekbot inbox-allow-once autoreject:<source-event-id>
 
 **Circuit breaker.** After 3 rejections in a row, or 20 in one Session, auto approval pauses for that Session: every request posts a card, and the Channel shows a notice. The next approval the Human gives in that Session, on a card or from the Inbox, resumes it with fresh counts. The thresholds are fixed. The breaker and unused "allow once" overrides live in Host memory, so a Host restart resumes auto approval with fresh counts and drops an override the Bot has not used yet; the Inbox item stays handled.
 
+### Voice messages (TTS Providers)
+
+A Bot can speak a reply: `bot_send_message` takes `voice: true` before `body`, the text commits first, and the Host then synthesizes it through the Bot's TTS Provider and attaches the audio to the same message. Desktop and iOS show a voice bar above the text. Code blocks, file paths, URLs and tables are replaced by short spoken notes instead of being read out. If synthesis fails the message stays, without a voice bar, and shows why. Only local Channels get voice; a DM to another Bot or an external IM conversation sends the text and reports `unsupported-destination`. The Host never records or stores the Human's voice.
+
+```bash
+deepseekbot voice-providers [--bot <bot-id>]
+printf '%s' "$FISH_AUDIO_KEY" | deepseekbot voice-provider-add fish-audio --model s2.1-pro-free --voice <reference-id> --key-stdin
+deepseekbot voice-provider-add custom --name Kokoro --base-url http://127.0.0.1:8880/v1 --model kokoro --voice af_bella
+deepseekbot voice-provider-test <provider-id> [--voice <voice-id>]
+deepseekbot voice-set <bot-id> <provider-id> [--voice <voice-id>]
+deepseekbot voice-set <bot-id> off
+deepseekbot voice-synthesize --bot <bot-id> --text 'Done. See `src/app.ts`.' --markdown --out /tmp/voice.mp3
+deepseekbot voice-provider-remove <provider-id>
+```
+
+Presets are `custom` (any OpenAI-compatible `/audio/speech` endpoint, for example a local Kokoro-FastAPI or LocalAI; key optional), `fish-audio`, `elevenlabs` and `openai` (key required). `voice-providers` returns `{presets, providers, bot?}`; each provider shows `id`, `name`, `preset`, `baseUrl`, `model`, `defaultVoice` and `keySet`, never the key. The key is read only from stdin and kept in the Host credential store. `voice-provider-test` synthesizes a short phrase and returns `{ok: true, latencyMs, bytes, mime}` or `{ok: false, code, message}`. `voice-set` binds the Bot's voice; `off` removes it, and removing a provider clears the Bots that used it (`clearedBots`). `voice-synthesize` uses the Bot's binding (`--bot`) or a provider (`--provider`), reads the text from `--text` or `--text-stdin`, applies the spoken-text rules with `--markdown`, writes the audio to the absolute `--out` path and prints `{providerId, voiceId, mime, bytes, latencyMs, text, out}`. Refusals carry a code: `usage`, `invalid-input`, `key-required`, `unknown-provider`, `voice-not-configured`, `provider-unauthorized`, `provider-rate-limited`, `provider-unavailable`, `provider-timeout`, `provider-rejected` and `provider-bad-response`. Each synthesis writes a `voice` line to `logs.db` with the provider, latency and size, never the text or key.
+
 ### Approval Reviewer model
 
 By default each Bot's Approval Reviewer runs on that Bot's own model. One Profile-wide setting can name a single reviewer model for every Bot instead, for example a cheap, fast one.

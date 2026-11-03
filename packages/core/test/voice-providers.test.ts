@@ -1,0 +1,258 @@
+import { createServer, type IncomingMessage, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { join } from 'node:path';
+
+import { Context } from '@deepseek-ai/cordis';
+import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local';
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
+import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
+import { VoiceProviders } from '../src/voice/providers.js';
+import { speakableText } from '../src/voice/speakable.js';
+import { createTempRoot } from './helpers.js';
+
+const MP3 = Buffer.concat([Buffer.from('ID3'), Buffer.alloc(64, 1)]);
+const cleanup: (() => Promise<void> | void)[] = [];
+afterEach(async () => {
+  for (const close of cleanup.splice(0).reverse()) await close();
+});
+
+interface Seen {
+  method: string;
+  url: string;
+  headers: IncomingMessage['headers'];
+  body: Record<string, unknown>;
+}
+
+async function fakeTts(
+  respond: (seen: Seen) => { status: number; type?: string; body: Buffer | string } = () => ({
+    status: 200,
+    type: 'audio/mpeg',
+    body: MP3,
+  }),
+) {
+  const requests: Seen[] = [];
+  const server: Server = createServer((request, response) => {
+    let raw = '';
+    request.on('data', (chunk) => (raw += chunk));
+    request.on('end', () => {
+      const seen = {
+        method: request.method ?? '',
+        url: request.url ?? '',
+        headers: request.headers,
+        body: raw ? (JSON.parse(raw) as Record<string, unknown>) : {},
+      };
+      requests.push(seen);
+      const answer = respond(seen);
+      response.writeHead(answer.status, { 'Content-Type': answer.type ?? 'application/json' });
+      response.end(answer.body);
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  cleanup.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
+  const { port } = server.address() as AddressInfo;
+  return { url: `http://127.0.0.1:${port}`, requests };
+}
+
+async function fixture(options: { timeoutMs?: number } = {}) {
+  const root = createTempRoot('voice-providers-');
+  const ctx = new Context();
+  const fiber = ctx.plugin(LocalCredentialProvider, {
+    path: join(root, '.credentials.yaml'),
+    watch: false,
+  });
+  await fiber.await();
+  const owner = mountOperationalDatabase({ dshHome: root, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+  const logs: { phase: string; fields: Record<string, string | number> }[] = [];
+  const providers = new VoiceProviders({
+    database: attachOperationalModule(owner, 'voice'),
+    credentials: () => ctx.credentials,
+    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+    log: (phase, fields) => logs.push({ phase, fields }),
+  });
+  cleanup.push(async () => {
+    owner.close();
+    await fiber.dispose();
+  });
+  return { providers, logs, root, owner };
+}
+
+describe('TTS Provider owner', () => {
+  it('synthesizes through a custom OpenAI-compatible endpoint and reports health', async () => {
+    const service = await fakeTts();
+    const { providers, owner } = await fixture();
+    const provider = await providers.add({
+      preset: 'custom',
+      name: 'Local Kokoro',
+      baseUrl: `${service.url}/v1/`,
+      model: 'kokoro',
+      defaultVoice: 'af_bella',
+    });
+    expect(provider).toMatchObject({
+      preset: 'custom',
+      wire: 'openai',
+      baseUrl: `${service.url}/v1`,
+      keySet: false,
+    });
+    const health = await providers.test(provider.id);
+    expect(health).toMatchObject({ ok: true, mime: 'audio/mpeg', bytes: MP3.length });
+    expect(service.requests[0]).toMatchObject({
+      method: 'POST',
+      url: '/v1/audio/speech',
+      body: { model: 'kokoro', voice: 'af_bella', response_format: 'mp3', input: 'Hello.' },
+    });
+    expect(service.requests[0]!.headers.authorization).toBeUndefined();
+    const stored = attachOperationalModule(owner, 'voice').read((db) =>
+      db.prepare('SELECT body FROM voice_providers').all(),
+    );
+    expect(JSON.stringify(stored)).not.toContain('key');
+  });
+
+  it('keeps a preset key in the credentials store and never returns it', async () => {
+    const service = await fakeTts();
+    const { providers, owner, logs } = await fixture();
+    const secret = 'fa-secret-key-0123456789';
+    const provider = await providers.add({
+      preset: 'fish-audio',
+      baseUrl: service.url,
+      model: 's2.1-pro-free',
+      key: secret,
+    });
+    expect(provider.keySet).toBe(true);
+    expect(JSON.stringify(providers.list())).not.toContain(secret);
+    const result = await providers.synthesize({
+      providerId: provider.id,
+      voiceId: 'ref-123',
+      text: '你好',
+    });
+    expect(result.mime).toBe('audio/mpeg');
+    expect(service.requests[0]).toMatchObject({
+      url: '/v1/tts',
+      body: { text: '你好', reference_id: 'ref-123', format: 'mp3' },
+    });
+    expect(service.requests[0]!.headers.authorization).toBe(`Bearer ${secret}`);
+    expect(service.requests[0]!.headers['model']).toBe('s2.1-pro-free');
+    const rows = attachOperationalModule(owner, 'voice').read((db) =>
+      db.prepare('SELECT body FROM voice_providers').all(),
+    );
+    expect(JSON.stringify(rows)).not.toContain(secret);
+    expect(JSON.stringify(logs)).not.toContain(secret);
+  });
+
+  it('requires a key for a key-only preset', async () => {
+    const { providers } = await fixture();
+    await expect(providers.add({ preset: 'elevenlabs' })).rejects.toMatchObject({
+      code: 'key-required',
+    });
+    await expect(providers.add({ preset: 'custom' })).rejects.toMatchObject({
+      code: 'invalid-input',
+    });
+  });
+
+  it('turns provider failures into clear health results without leaking the key', async () => {
+    const secret = 'xi-leaky-secret-abcdef123456';
+    const service = await fakeTts((seen) =>
+      seen.url.includes('/v1/text-to-speech/')
+        ? {
+            status: 401,
+            body: JSON.stringify({
+              detail: { status: 'invalid_api_key', message: `bad ${secret}` },
+            }),
+          }
+        : { status: 200, body: 'not audio', type: 'text/plain' },
+    );
+    const { providers } = await fixture();
+    const eleven = await providers.add({ preset: 'elevenlabs', baseUrl: service.url, key: secret });
+    const health = await providers.test(eleven.id);
+    expect(health).toMatchObject({ ok: false, code: 'provider-unauthorized' });
+    expect(JSON.stringify(health)).not.toContain(secret);
+    expect(service.requests[0]!.headers['xi-api-key']).toBe(secret);
+    expect(service.requests[0]!.url).toContain('/v1/text-to-speech/JBFqnCBsd6RMkjVDRZzb');
+
+    const custom = await providers.add({
+      preset: 'custom',
+      baseUrl: service.url,
+      defaultVoice: 'a',
+    });
+    expect(await providers.test(custom.id)).toMatchObject({
+      ok: false,
+      code: 'provider-bad-response',
+    });
+  });
+
+  it('reports an unreachable endpoint and a timeout', async () => {
+    const { providers } = await fixture({ timeoutMs: 200 });
+    const closed = await providers.add({
+      preset: 'custom',
+      baseUrl: 'http://127.0.0.1:9',
+      defaultVoice: 'a',
+    });
+    expect(await providers.test(closed.id)).toMatchObject({
+      ok: false,
+      code: 'provider-unavailable',
+    });
+    const hanging = createServer(() => undefined);
+    await new Promise<void>((resolve) => hanging.listen(0, '127.0.0.1', resolve));
+    cleanup.push(() => {
+      hanging.closeAllConnections();
+      return new Promise<void>((resolve) => hanging.close(() => resolve()));
+    });
+    const slow = await providers.add({
+      preset: 'custom',
+      baseUrl: `http://127.0.0.1:${(hanging.address() as AddressInfo).port}`,
+      defaultVoice: 'a',
+    });
+    expect(await providers.test(slow.id)).toMatchObject({ ok: false, code: 'provider-timeout' });
+  });
+
+  it('removes a provider and its stored key', async () => {
+    const service = await fakeTts();
+    const { providers } = await fixture();
+    const provider = await providers.add({ preset: 'openai', baseUrl: service.url, key: 'sk-1' });
+    await providers.remove(provider.id);
+    expect(providers.list()).toEqual([]);
+    await expect(
+      providers.synthesize({ providerId: provider.id, text: 'hi' }),
+    ).rejects.toMatchObject({ code: 'unknown-provider' });
+  });
+});
+
+describe('speakable text', () => {
+  it('does not read code blocks, paths, URLs or tables verbatim', () => {
+    const spoken = speakableText(
+      [
+        '## Done',
+        'I fixed **the bug** in `src/app/main.ts` — see /Users/ada/project/src/index.ts.',
+        '```ts',
+        'const secret = compute();',
+        '```',
+        '| a | b |',
+        '| --- | --- |',
+        '| 1 | 2 |',
+        'Details: https://example.com/very/long/path?x=1',
+        '- First item',
+      ].join('\n'),
+    );
+    expect(spoken).not.toMatch(/compute|src\/app|\/Users\/ada|example\.com|\| a \||\*\*|##/u);
+    expect(spoken).toContain('Done.');
+    expect(spoken).toContain('the bug');
+    expect(spoken).toContain('(code is in the text)');
+    expect(spoken).toContain('(table is in the text)');
+    expect(spoken).toContain('a file path');
+    expect(spoken).toContain('First item');
+  });
+
+  it('replaces bare relative file paths but keeps short slash words', () => {
+    expect(speakableText('The change is in src/app/main.ts, and/or docs/adr/notes.')).toBe(
+      'The change is in a file path, and/or a file path.',
+    );
+    expect(speakableText('Speed is 5 km/h.')).toBe('Speed is 5 km/h.');
+  });
+
+  it('keeps Chinese prose natural', () => {
+    expect(speakableText('好的，我**马上**处理。\n\n```\nrm -rf /\n```')).toBe(
+      '好的，我马上处理。（代码见文字）',
+    );
+  });
+});

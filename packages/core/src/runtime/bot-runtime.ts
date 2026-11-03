@@ -598,6 +598,11 @@ export interface OrchestratorChannelAccess {
     left: boolean;
   };
   react?(input: BotReactionInput & { channelId?: string }): BotReactionResult;
+  attachVoice?(input: {
+    channelId: string;
+    messageId: string;
+    signal?: AbortSignal;
+  }): Promise<import('../voice/messages.js').VoiceAttachOutcome>;
   sendToBot(input: {
     botSlug: string;
     body: string;
@@ -887,6 +892,7 @@ export interface BotRuntimeOptions {
       >
     >;
   attachments?: AttachmentStore;
+  voiceMessages?: import('../voice/messages.js').VoiceMessages;
 
   ownership?: SessionOwnership;
 
@@ -1479,6 +1485,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #agents: BotAgentAdapter;
   readonly #memory: BotRuntimeOptions['memory'];
   readonly #attachments: AttachmentStore | undefined;
+  readonly #voiceMessages: import('../voice/messages.js').VoiceMessages | undefined;
   readonly #originalAttachments = new OriginalAttachmentAccess();
   readonly #saveReportSpill: BotRuntimeOptions['saveReportSpill'];
   readonly #readAssignmentTail: BotRuntimeOptions['readAssignmentTail'];
@@ -1586,6 +1593,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#agents = options.agents;
     this.#memory = options.memory;
     this.#attachments = options.attachments;
+    this.#voiceMessages = options.voiceMessages;
     this.#saveReportSpill = options.saveReportSpill;
     this.#readAssignmentTail = options.readAssignmentTail;
     this.#readAssignmentReportPage = options.readAssignmentReportPage;
@@ -6894,6 +6902,12 @@ class BotRuntimeImplementation implements BotRuntime {
         return this.#channels.getGroupWakePolicy(channel.id, botSlug);
       },
       react: (input) => this.#react(botSlug, resolve(input.channelId), input),
+      ...(this.#voiceMessages === undefined
+        ? {}
+        : {
+            attachVoice: (input: { channelId: string; messageId: string; signal?: AbortSignal }) =>
+              this.#voiceMessages!.attach({ botSlug, ...input }),
+          }),
       leaveGroup: (input) => {
         requireOrdinaryGroupActor();
         const channel = this.#channels.get(input.channelId);

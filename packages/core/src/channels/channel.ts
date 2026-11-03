@@ -1,3 +1,4 @@
+import { isChannelMessageVoice, type ChannelMessageVoice } from './voice.js';
 import { parseToolApprovalActor } from '../workspaces/tool-approval-actor.js';
 import { createHash } from 'node:crypto';
 import { isValidSlug } from '../bots/slug.js';
@@ -474,6 +475,7 @@ export interface ChannelMessage {
   takeoverResolution?: TakeoverResolution;
   attachments?: ChannelAttachmentRef[];
   clearedAttachments?: ChannelClearedAttachment[];
+  voice?: ChannelMessageVoice;
   bridgeMedia?: {
     voice?: Pick<import('../messaging/provider.js').MessagingVoice, 'transcript' | 'durationMs'>;
     video?: { attachmentId: string; durationMs?: number; posterAttachmentId?: string };
@@ -507,6 +509,8 @@ export interface ChannelMessage {
 
   perf?: ChannelMessagePerf;
 }
+
+export { isChannelMessageVoice, type ChannelMessageVoice };
 
 export interface ChannelMessagePerf {
   outputTokens: number;
@@ -1134,6 +1138,12 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
     (!Array.isArray(attachments) ||
       attachments.length > 10 ||
       !attachments.every(isChannelAttachmentRef))
+  )
+    return false;
+  if (
+    message['voice'] !== undefined &&
+    (!isChannelMessageVoice(message['voice']) ||
+      !['bot', 'remote-bot'].includes((message['author'] as ChannelMessageAuthor)?.kind))
   )
     return false;
   const cleared = message['clearedAttachments'];

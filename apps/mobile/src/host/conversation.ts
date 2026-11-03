@@ -15,6 +15,7 @@ import type {
   WireDraft,
   WireDelivery,
   WireDraftAppend,
+  WireMessageVoice,
   WireReaction,
   WireReplyPreview,
 } from './wire';
@@ -129,8 +130,15 @@ export function shownInChat(message: ConversationMessage): boolean {
   );
 }
 
+export interface MessageVoice {
+  state: 'pending' | 'ready' | 'failed';
+  audio?: MessageAttachment;
+  error?: string;
+}
+
 export interface ConversationMessage {
   source?: JournalEntry;
+  voice?: MessageVoice;
   sessionFailure?: import('./session-failure').SessionFailure;
   id: string;
   revision?: number;
@@ -449,6 +457,26 @@ export function attachmentsOf(
   return [...stored, ...cleared, ...bridged];
 }
 
+export function voiceOf(
+  message: ChannelWireMessage,
+  attachments: MessageAttachment[],
+): { attachments: MessageAttachment[]; voice?: MessageVoice } {
+  const voice = message.author.kind === 'bot' ? message.voice : undefined;
+  if (voice === undefined) return { attachments };
+  const audio =
+    voice.attachment === undefined
+      ? undefined
+      : attachments.find((attachment) => attachment.identity === voice.attachment);
+  return {
+    attachments: audio === undefined ? attachments : attachments.filter((item) => item !== audio),
+    voice: {
+      state: voice.state,
+      ...(audio === undefined ? {} : { audio: { ...audio, kind: 'audio' } }),
+      ...(voice.error === undefined ? {} : { error: voice.error }),
+    },
+  };
+}
+
 function present(
   entry: JournalEntry,
   resolve: (path: string) => RemoteSource,
@@ -460,6 +488,7 @@ function present(
   const resolves = resolvesOf(message);
   const activity = activityOf(message);
   const failure = kind === 'bot' ? sessionFailure(message.sessionFailure) : undefined;
+  const { attachments, voice } = voiceOf(message, attachmentsOf(entry, resolve, picked));
   return {
     id: message.id,
     source: entry,
@@ -472,7 +501,8 @@ function present(
     ...(message.replyTo === undefined
       ? {}
       : { replyTo: message.replyTo, replyPreview: message.replyToPreview ?? null }),
-    attachments: attachmentsOf(entry, resolve, picked),
+    attachments,
+    ...(voice === undefined ? {} : { voice }),
     ...(card === undefined ? {} : { card }),
     ...(resolves === undefined ? {} : { resolves }),
     ...(activity === undefined ? {} : { activity }),
@@ -686,6 +716,25 @@ export function createConversation(options: ConversationOptions): Conversation {
     return true;
   };
 
+  const setVoice = (
+    messageId: string,
+    voice: WireMessageVoice,
+    attachments: readonly AttachmentRef[],
+  ): void => {
+    window = window.map((entry) =>
+      entry.message.id !== messageId || entry.message.author.kind !== 'bot'
+        ? entry
+        : {
+            ...entry,
+            message: {
+              ...entry.message,
+              voice,
+              ...(attachments.length === 0 ? {} : { attachments: [...attachments] }),
+            },
+          },
+    );
+  };
+
   const setDeliveries = (messageId: string, deliveries: readonly WireDelivery[]): boolean => {
     const signature = (list: readonly WireDelivery[] | undefined) =>
       (list ?? []).map((delivery) => delivery.botSlug + ':' + delivery.state).join('|');
@@ -708,6 +757,9 @@ export function createConversation(options: ConversationOptions): Conversation {
     if (notification.kind === 'reaction') {
       if (notification.channelId === channelId)
         setReactions(notification.messageId, notification.reactions);
+    } else if (notification.kind === 'voice') {
+      if (notification.channelId === channelId)
+        setVoice(notification.messageId, notification.voice, notification.attachments);
     } else if (notification.kind === 'draft-baseline') {
       clearDrafts();
       for (const draft of notification.drafts) upsertDraft(draft);
@@ -768,7 +820,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       const admitted = applyNotification(frame.notification, current);
       const kind = frame.notification.kind;
       if (kind === 'draft' || kind === 'draft-append') return publishDrafts();
-      if (kind !== 'reaction' && !admitted) return publish(false);
+      if (kind !== 'reaction' && kind !== 'voice' && !admitted) return publish(false);
     }
     settleOutgoing();
     publish();

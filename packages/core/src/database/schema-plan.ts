@@ -2645,6 +2645,21 @@ const TAKEOVER_ATTENTION_INDEX_MIGRATION: SchemaMigration = {
   },
 };
 
+const VOICE_PROVIDER_MIGRATION: SchemaMigration = {
+  generation: 118,
+  module: 'voice',
+  description: 'Store TTS Providers; their keys stay in the credentials service',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE voice_providers (
+        id TEXT PRIMARY KEY,
+        body TEXT NOT NULL CHECK (json_valid(body)),
+        created_at TEXT NOT NULL
+      );
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2762,4 +2777,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   BOT_LAN_ADMISSION_MIGRATION,
   QUESTION_MESSAGING_MIGRATION,
   TAKEOVER_ATTENTION_INDEX_MIGRATION,
+  VOICE_PROVIDER_MIGRATION,
 ]);

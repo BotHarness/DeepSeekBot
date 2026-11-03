@@ -267,6 +267,7 @@ export interface ChannelMessage {
   takeoverRequest?: import('../../../core/src/takeover/contracts.js').TakeoverRequestCard;
   takeoverResolution?: import('../../../core/src/takeover/contracts.js').TakeoverResolution;
   attachments?: ChannelAttachmentRef[];
+  voice?: import('../../../core/src/channels/channel.js').ChannelMessageVoice;
   clearedAttachments?: import('../../../core/src/attachments/ref.js').ChannelClearedAttachment[];
   format?: 'markdown' | 'text';
   replyTo?: string;

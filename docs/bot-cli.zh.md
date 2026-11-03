@@ -705,6 +705,23 @@ deepseekbot inbox-allow-once autoreject:<source-event-id>
 
 **熔断。** 同一会话连续 3 次被拒绝，或累计 20 次被拒绝后，此会话的自动审批暂停：之后每个请求都发卡片，Channel 里会出现一条提示。Human 在此会话里给出的下一次批准（卡片上或收件箱里）会恢复自动审批并重新计数。阈值固定。熔断状态和尚未使用的“允许这一次”只保存在 Host 内存里，所以 Host 重启后自动审批会重新计数并恢复，Bot 还没用掉的放行会失效，收件箱条目仍算已处理。
 
+### 语音消息（TTS Provider）
+
+Bot 可以把回复读出来：`bot_send_message` 在 `body` 之前接受 `voice: true`，文字先提交，然后 Host 用 Bot 绑定的 TTS Provider 合成，把音频挂到同一条消息上。桌面端和 iOS 在文字上方显示语音条。代码块、文件路径、链接和表格不会照读，而是换成简短的口头提示。合成失败时消息照常显示，没有语音条，并说明原因。只有本地 Channel 支持语音；发给其他 Bot 的私信或外部 IM 会话只发文字，并返回 `unsupported-destination`。Host 从不录制或保存 Human 的声音。
+
+```bash
+deepseekbot voice-providers [--bot <bot-id>]
+printf '%s' "$FISH_AUDIO_KEY" | deepseekbot voice-provider-add fish-audio --model s2.1-pro-free --voice <reference-id> --key-stdin
+deepseekbot voice-provider-add custom --name Kokoro --base-url http://127.0.0.1:8880/v1 --model kokoro --voice af_bella
+deepseekbot voice-provider-test <provider-id> [--voice <voice-id>]
+deepseekbot voice-set <bot-id> <provider-id> [--voice <voice-id>]
+deepseekbot voice-set <bot-id> off
+deepseekbot voice-synthesize --bot <bot-id> --text '完成了，见 `src/app.ts`。' --markdown --out /tmp/voice.mp3
+deepseekbot voice-provider-remove <provider-id>
+```
+
+预设有 `custom`（任何兼容 OpenAI `/audio/speech` 的端点，例如本地 Kokoro-FastAPI 或 LocalAI，密钥可选）、`fish-audio`、`elevenlabs` 和 `openai`（需要密钥）。`voice-providers` 返回 `{presets, providers, bot?}`，每个 provider 列出 `id`、`name`、`preset`、`baseUrl`、`model`、`defaultVoice` 和 `keySet`，从不返回密钥。密钥只从 stdin 读取，保存在 Host 凭据存储中。`voice-provider-test` 合成一小段话，返回 `{ok: true, latencyMs, bytes, mime}` 或 `{ok: false, code, message}`。`voice-set` 绑定 Bot 的声音，`off` 解除绑定；移除 provider 会清掉使用它的 Bot（`clearedBots`）。`voice-synthesize` 使用 Bot 的绑定（`--bot`）或指定 provider（`--provider`），文字来自 `--text` 或 `--text-stdin`，加 `--markdown` 时套用朗读规则，把音频写到绝对路径 `--out`，输出 `{providerId, voiceId, mime, bytes, latencyMs, text, out}`。拒绝时带错误码：`usage`、`invalid-input`、`key-required`、`unknown-provider`、`voice-not-configured`、`provider-unauthorized`、`provider-rate-limited`、`provider-unavailable`、`provider-timeout`、`provider-rejected` 和 `provider-bad-response`。每次合成会在 `logs.db` 写一条 `voice` 记录，包含 provider、延迟和大小，不含文字或密钥。
+
 ### 审批员模型
 
 默认情况下，每个 Bot 的审批员用这个 Bot 自己的模型。一个 Profile 级设置可以改成所有 Bot 共用一个审批员模型，比如一个便宜又快的模型。

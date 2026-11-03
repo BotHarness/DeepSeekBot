@@ -42,6 +42,8 @@ export interface PersonaBotRecord {
 
   approvalTemplate?: string;
 
+  voice?: PersonaBotVoice;
+
   standingLimits?: StandingLimits;
 
   marketplaceListing?: MarketplaceListingRef;
@@ -49,6 +51,26 @@ export interface PersonaBotRecord {
   promptPreset?: string;
   promptOverrides?: PromptPartOverrides;
   promptLimits?: PromptLimitValues;
+}
+
+export interface PersonaBotVoice {
+  providerId: string;
+  voiceId?: string;
+}
+
+export function isPersonaBotVoice(value: unknown): value is PersonaBotVoice {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const voice = value as Record<string, unknown>;
+  return (
+    Object.keys(voice).every((key) => key === 'providerId' || key === 'voiceId') &&
+    typeof voice['providerId'] === 'string' &&
+    /^tts-[a-f0-9]{12}$/u.test(voice['providerId']) &&
+    (voice['voiceId'] === undefined ||
+      (typeof voice['voiceId'] === 'string' &&
+        voice['voiceId'].trim() !== '' &&
+        voice['voiceId'].length <= 200 &&
+        !/[\u0000-\u001f\u007f]/u.test(voice['voiceId'])))
+  );
 }
 
 export interface MarketplaceListingRef {
@@ -180,6 +202,7 @@ export function isPersonaBotRecord(value: unknown, slug: string): value is Perso
     return false;
   if (record['promptPreset'] !== undefined && typeof record['promptPreset'] !== 'string')
     return false;
+  if (record['voice'] !== undefined && !isPersonaBotVoice(record['voice'])) return false;
   if (
     record['promptOverrides'] !== undefined &&
     (typeof record['promptOverrides'] !== 'object' ||

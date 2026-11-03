@@ -135,6 +135,13 @@ import {
   type ApprovalReviewerValues,
 } from './cli-approval-reviewer.js';
 import {
+  VOICE_COMMANDS,
+  VOICE_OPTIONS,
+  isVoiceCommand,
+  runVoiceCommand,
+  type VoiceValues,
+} from './cli-voice.js';
+import {
   isStorageCommand,
   runStorageCommand,
   STORAGE_COMMANDS,
@@ -188,6 +195,7 @@ export const LIVE_OPTIONS = {
   ...APPROVAL_TEMPLATE_OPTIONS,
   ...PROMPT_PRESET_OPTIONS,
   ...APPROVAL_REVIEWER_OPTIONS,
+  ...VOICE_OPTIONS,
   ...STORAGE_OPTIONS,
   host: { type: 'string' },
   'token-file': { type: 'string' },
@@ -318,6 +326,7 @@ export const LIVE_COMMANDS = [
   ...APPROVAL_TEMPLATE_COMMANDS,
   ...PROMPT_PRESET_COMMANDS,
   ...APPROVAL_REVIEWER_COMMANDS,
+  ...VOICE_COMMANDS,
   ...IDLE_COMPACTION_COMMANDS,
   ...STORAGE_COMMANDS,
   {
@@ -577,7 +586,8 @@ interface LiveValues
     ProfileValues,
     TodoValues,
     ApprovalTemplateValues,
-    ApprovalReviewerValues {
+    ApprovalReviewerValues,
+    VoiceValues {
   'new-home'?: string;
   'client-id'?: string;
   'device-file'?: string;
@@ -1046,6 +1056,11 @@ export async function runLiveCli(
     );
   if (isProfileCommand(command))
     return runProfileCommand(command, rest, values, io, async () => {
+      const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+      return (await connectLiveHost(values, io, signal)).rpc;
+    });
+  if (isVoiceCommand(command))
+    return runVoiceCommand(command, rest, values, io, async () => {
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
       return (await connectLiveHost(values, io, signal)).rpc;
     });

@@ -11,6 +11,7 @@ export const CHANNEL_COMMIT_EVENT = 'channel/message';
 export const CHANNEL_ADMISSION_EVENT = 'channel/admission';
 export const CHANNEL_HUMAN_READ_EVENT = 'channel/human-read';
 export const CHANNEL_REACTION_EVENT = 'channel/reaction';
+export const CHANNEL_VOICE_EVENT = 'channel/voice';
 export const CHANNEL_DRAFT_EVENT = 'channel/draft';
 export const CHANNEL_DRAFT_APPEND_EVENT = 'channel/draft-append';
 export const CHANNEL_DRAFT_BASELINE_EVENT = 'channel/draft-baseline';
@@ -52,6 +53,7 @@ interface Subscriber {
   pushAdmission(messageId: string, message: ChannelMessage): void;
   pushHumanRead(humanId: string, revision: number): void;
   pushReaction(messageId: string, reactions: ChannelReaction[]): void;
+  pushVoice(messageId: string, message: ChannelMessage): void;
   close(): void;
 }
 
@@ -76,6 +78,13 @@ export type ChannelLiveNotification =
     }
   | { kind: 'human-read'; channelId: string; humanId: string; revision: number }
   | { kind: 'reaction'; channelId: string; messageId: string; reactions: ChannelReaction[] }
+  | {
+      kind: 'voice';
+      channelId: string;
+      messageId: string;
+      voice: NonNullable<ChannelMessage['voice']>;
+      attachments: NonNullable<ChannelMessage['attachments']>;
+    }
   | { kind: 'draft-baseline'; channelId: string; revision: number; drafts: PublishedDraft[] }
   | { kind: 'draft'; draft: PublishedDraft }
   | { kind: 'draft-append'; append: PublishedDraftAppend }
@@ -118,6 +127,10 @@ function encodeChannelFrame(frame: ChannelLiveFrame): string {
     const { kind: _kind, ...data } = notification;
     return `event: ${CHANNEL_REACTION_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
   }
+  if (notification.kind === 'voice') {
+    const { kind: _kind, ...data } = notification;
+    return `event: ${CHANNEL_VOICE_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
+  }
   if (notification.kind === 'draft-baseline') {
     const { kind: _kind, ...data } = notification;
     return `event: ${CHANNEL_DRAFT_BASELINE_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -156,6 +169,7 @@ export interface ChannelLiveHub {
   publishAdmission(channelId: string, messageId: string, message: ChannelMessage): void;
   publishHumanRead(channelId: string, humanId: string, revision: number): void;
   publishReaction(channelId: string, messageId: string, reactions: ChannelReaction[]): void;
+  publishVoice(channelId: string, messageId: string, message: ChannelMessage): void;
   publishDraft(event: ChannelDraftEvent): void;
   publishRosterCommitted(): void;
   publishContentPurged(): void;
@@ -592,6 +606,19 @@ export function createChannelLiveHub(
           notification: { kind: 'reaction', channelId, messageId, reactions },
         });
       },
+      pushVoice(messageId, message) {
+        if (message.voice === undefined) return;
+        emit({
+          type: 'notification',
+          notification: {
+            kind: 'voice',
+            channelId,
+            messageId,
+            voice: message.voice,
+            attachments: message.attachments ?? [],
+          },
+        });
+      },
       pushDraft(event) {
         emit({
           type: 'notification',
@@ -798,6 +825,10 @@ export function createChannelLiveHub(
     publishReaction(channelId, messageId, reactions) {
       for (const subscriber of subscribers.get(channelId) ?? [])
         subscriber.pushReaction(messageId, reactions);
+    },
+    publishVoice(channelId, messageId, message) {
+      for (const subscriber of subscribers.get(channelId) ?? [])
+        subscriber.pushVoice(messageId, message);
     },
     publishDraft(event) {
       const channelId = event.type === 'update' ? event.draft.channelId : event.channelId;
