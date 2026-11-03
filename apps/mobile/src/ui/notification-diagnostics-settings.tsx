@@ -54,7 +54,7 @@ export function NotificationDiagnosticsSettings({
       disposed = true;
       subscription.remove();
     };
-  }, [port]);
+  }, [port, enabled, running]);
   const dismiss = () => {
     void port.dismissSetup().then(
       () => {
