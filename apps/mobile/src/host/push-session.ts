@@ -8,7 +8,7 @@ export interface NotificationsPort {
   permission(): Promise<PermissionState>;
   request(): Promise<PermissionState>;
   token(): Promise<string>;
-  onTokenChanged(listener: () => void): () => void;
+  onTokenChanged(listener: (resolveToken: () => Promise<string>) => void): () => void;
   setBadge(count: number): Promise<void>;
   presented(): Promise<Array<{ id: string; data: unknown }>>;
   dismiss(id: string): Promise<void>;
@@ -51,24 +51,36 @@ export function createPushSession(options: {
   let latest: readonly SavedHost[] = [];
   let reflected = '';
   let retrying: Promise<void> | undefined;
+  let generation = 0;
+  let stopped = false;
+  let granted = false;
+  const registrations = new Map<string, Promise<unknown>>();
 
   const publish = (next: PushStatus): void => {
     snapshot = next;
     for (const listener of listeners) listener();
   };
 
-  const registerAll = async (hosts: readonly SavedHost[]): Promise<void> => {
+  const registerAll = async (
+    hosts: readonly SavedHost[],
+    resolveToken: () => Promise<string> = () => notifications.token(),
+  ): Promise<void> => {
+    if (stopped) return;
+    const attempt = ++generation;
+    const current = () => !stopped && attempt === generation;
     try {
       await options.beforeRegister?.();
     } catch {
-      publish({ status: 'unavailable', reason: 'notification-preferences-unavailable' });
+      if (current())
+        publish({ status: 'unavailable', reason: 'notification-preferences-unavailable' });
       return;
     }
+    if (!current()) return;
     let token: string;
     try {
       let timer: ReturnType<typeof setTimeout> | undefined;
       token = await Promise.race([
-        notifications.token(),
+        resolveToken(),
         new Promise<never>((_, reject) => {
           timer = setTimeout(
             () => reject(new Error('push-token-timeout')),
@@ -77,35 +89,46 @@ export function createPushSession(options: {
         }),
       ]).finally(() => clearTimeout(timer));
     } catch (error) {
+      if (!current()) return;
       publish({
         status: 'unavailable',
         reason: error instanceof Error ? error.message : String(error),
       });
       return;
     }
+    if (!current()) return;
     const results = await Promise.all(
-      hosts.map((host) =>
-        Promise.resolve()
-          .then(() => options.prepareRegistration?.(host))
-          .then(() =>
-            hostPush.register(host, {
+      hosts.map((host) => {
+        const work = (registrations.get(host.hostId) ?? Promise.resolve())
+          .catch(() => undefined)
+          .then(async () => {
+            if (!current()) return;
+            await options.prepareRegistration?.(host);
+            if (!current()) return;
+            return hostPush.register(host, {
               token,
               platform: options.platform,
               locale: options.locale,
               ...(options.platform === 'android' ? { render: 'app' as const } : {}),
-            }),
-          )
+            });
+          });
+        registrations.set(host.hostId, work);
+        return work
           .then(
             () => undefined,
             () => host.hostId,
-          ),
-      ),
+          )
+          .finally(() => {
+            if (registrations.get(host.hostId) === work) registrations.delete(host.hostId);
+          });
+      }),
     );
-    publish({ status: 'on', failed: results.flatMap((id) => (id === undefined ? [] : [id])) });
+    if (current())
+      publish({ status: 'on', failed: results.flatMap((id) => (id === undefined ? [] : [id])) });
   };
 
-  const offToken = notifications.onTokenChanged(() => {
-    if (snapshot.status === 'on') void registerAll(latest);
+  const offToken = notifications.onTokenChanged((resolveToken) => {
+    if (granted && !stopped) void registerAll(latest, resolveToken);
   });
 
   return {
@@ -117,13 +140,19 @@ export function createPushSession(options: {
     async sync(hosts) {
       latest = hosts;
       const permission = await notifications.permission().catch(() => 'denied' as const);
+      if (stopped) return;
+      granted = permission === 'granted';
       if (permission === 'granted') return registerAll(hosts);
+      generation++;
       publish({ status: permission === 'denied' ? 'denied' : 'off' });
     },
     async enable(hosts) {
       latest = hosts;
       const permission = await notifications.request().catch(() => 'denied' as const);
+      if (stopped) return;
+      granted = permission === 'granted';
       if (permission === 'granted') return registerAll(hosts);
+      generation++;
       publish({ status: permission === 'denied' ? 'denied' : 'off' });
     },
     async forget(host) {
@@ -148,7 +177,7 @@ export function createPushSession(options: {
       const failed = new Set(snapshot.failed);
       const hosts = latest.filter((entry) => failed.has(entry.hostId));
       if (hosts.length === 0) return Promise.resolve();
-      retrying = registerAll(hosts).finally(() => {
+      retrying = registerAll(latest).finally(() => {
         retrying = undefined;
       });
       return retrying;
@@ -181,6 +210,8 @@ export function createPushSession(options: {
       reflected = '';
     },
     stop() {
+      stopped = true;
+      generation++;
       offToken();
     },
   };
