@@ -88,8 +88,20 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
       self.peer = peer
       let microphone = factory.audioTrack(with: factory.audioSource(with: nil), trackId: "call-mic")
       // Echo cancellation keeps the Bot's own reply on the speaker out of the uplink.
-      _ = microphone.setAudioProcessingOptions(RTCAudioProcessingOptions(
-        echoCancellation: true, noiseSuppression: true, autoGainControl: true, highPassFilter: true))
+      // A test build forces software processing so the capture hook that replaces
+      // the microphone with injected audio runs; platform voice processing skips it.
+      let options: RTCAudioProcessingOptions
+      if tap != nil {
+        let software = { RTCAudioProcessingComponentOptions(enabled: true, mode: .software) }
+        options = RTCAudioProcessingOptions(
+          echoCancellationOptions: software(), noiseSuppressionOptions: software(),
+          autoGainControlOptions: software(), highPassFilterOptions: software())
+      } else {
+        options = RTCAudioProcessingOptions(
+          echoCancellation: true, noiseSuppression: true, autoGainControl: true, highPassFilter: true)
+      }
+      let applied = microphone.setAudioProcessingOptions(options)
+      tap?.note("processing-options", ["code": applied.code.rawValue, "message": applied.message])
       track = microphone
       peer.setRemoteDescription(RTCSessionDescription(type: .offer, sdp: offer)) { [weak self] error in
         guard let self else { return }
@@ -174,7 +186,18 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
   func peerConnectionShouldNegotiate(_ peerConnection: RTCPeerConnection) {}
   func peerConnection(_ peerConnection: RTCPeerConnection, didChange newState: RTCIceConnectionState) {
     switch newState {
-    case .connected, .completed: state("connected")
+    case .connected, .completed:
+      state("connected")
+      if let tap, let factory {
+        let processing = factory.audioProcessingState
+        tap.note("processing-state", [
+          "apm": processing.hasAudioProcessingModule,
+          "aec": processing.echoCancellation.effective.rawValue,
+          "ns": processing.noiseSuppression.effective.rawValue,
+          "agc": processing.autoGainControl.effective.rawValue,
+          "hpf": processing.highPassFilter.effective.rawValue,
+        ])
+      }
     case .failed, .closed: state("failed", "connection-lost")
     default: break
     }
@@ -207,9 +230,19 @@ final class CallAudioTap {
   let capture: Capture
   let render: Render
 
+  private let started: CFTimeInterval
+  private let emit: (String, [String: Any]) -> Void
+
   init(started: CFTimeInterval, emit: @escaping (String, [String: Any]) -> Void) {
+    self.started = started
+    self.emit = emit
     capture = Capture(started: started, emit: emit)
     render = Render(started: started, emit: emit)
+  }
+
+  func note(_ kind: String, _ detail: [String: Any]) {
+    let ms = Int((CACurrentMediaTime() - started) * 1000)
+    DispatchQueue.main.async { [emit] in emit(kind, detail.merging(["ms": ms]) { current, _ in current }) }
   }
 
   final class Capture: NSObject, RTCAudioCustomProcessingDelegate {
