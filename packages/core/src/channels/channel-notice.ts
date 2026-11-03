@@ -1,6 +1,6 @@
 import type { ChannelMessage } from './channel.js';
 
-const CHANNEL_NOTICE_FIELDS = [
+export const CHANNEL_NOTICE_FIELDS = [
   'botDmAction',
   'botCreateAction',
   'botChannelPost',

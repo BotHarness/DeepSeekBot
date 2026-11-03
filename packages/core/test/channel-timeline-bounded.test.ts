@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createAttachmentStore } from '../src/attachments/store.js';
 import { isChannelMessage, type ChannelMessage } from '../src/channels/channel.js';
+import { CHANNEL_NOTICE_FIELDS } from '../src/channels/channel-notice.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { pageChannelTimeline, type ChannelTimelineRequest } from '../src/channels/timeline.js';
 import {
@@ -29,11 +30,25 @@ function fixture() {
   );
   const database = attachOperationalModule(owner, 'channels');
   const files = createAttachmentStore({ rootDir: join(root, 'attachments') });
-  const metrics = { reads: 0, rows: 0 };
+  const metrics = { reads: 0, rows: 0, statements: [] as string[] };
   const observed: OperationalDatabaseModulePort = {
     module: database.module,
     read(query) {
-      const result = database.read(query);
+      const result = database.read((db) =>
+        query(
+          new Proxy(db, {
+            get(target, key) {
+              if (key === 'prepare')
+                return (sql: string) => {
+                  metrics.statements.push(sql);
+                  return target.prepare(sql);
+                };
+              const value = Reflect.get(target, key) as unknown;
+              return typeof value === 'function' ? value.bind(target) : value;
+            },
+          }),
+        ),
+      );
       metrics.reads++;
       metrics.rows += Array.isArray(result) ? result.length : Number(result !== undefined);
       return result;
@@ -599,5 +614,87 @@ describe('SQLite bounded timeline hydration', () => {
     current.seed(resolution('here'));
     expect(current.channels.message(current.channel.id, 'grant')?.grantRequestResolved).toBe(true);
     expect(current.channels.grantRequestResolution?.(current.channel.id, 'grant')?.id).toBe('here');
+  });
+
+  it('finds the latest message past any number of trailing notices with one indexed row', () => {
+    const current = fixture();
+    current.seed(message('real'));
+    for (const count of [50, 2000]) {
+      current.seed(
+        ...Array.from({ length: count }, (_, index) =>
+          message(`post-${count}-${index}`, {
+            botChannelPost: { channelId: current.channel.id, messageId: 'real' },
+          }),
+        ),
+      );
+      current.metrics.statements.length = 0;
+      expect(current.channels.latestMessage(current.channel.id)?.id).toBe('real');
+    }
+    const latest = current.metrics.statements.find((sql) =>
+      sql.includes('ORDER BY p.revision DESC'),
+    );
+    expect(
+      current.database.read((db) =>
+        db
+          .prepare(`EXPLAIN QUERY PLAN ${latest!}`)
+          .all()
+          .map((row) => String((row as { detail: string }).detail)),
+      ),
+    ).toContainEqual(expect.stringContaining('USING INDEX channel_placements_latest_message'));
+  });
+
+  it('marks every notice field and payload rewrite on the placement', () => {
+    const current = fixture();
+    const notices = {
+      botDmAction: { channelId: current.channel.id, messageId: 'm', recipientBotSlug: 'bea' },
+      botCreateAction: { botSlug: 'bea', displayName: 'Bea' },
+      botChannelPost: { channelId: current.channel.id, messageId: 'm' },
+      memoryCommit: { botSlug: 'ada', sha: 'a'.repeat(40), message: 'm', files: [] },
+      toolAutoApproval: { outcome: 'approved' },
+      toolAutoApprovalPause: { until: timestamp },
+    } satisfies Record<(typeof CHANNEL_NOTICE_FIELDS)[number], object>;
+    expect(Object.keys(notices).sort()).toEqual([...CHANNEL_NOTICE_FIELDS].sort());
+    const flags = () =>
+      Object.fromEntries(
+        (
+          current.database.read((db) =>
+            db
+              .prepare('SELECT message_id, notice FROM channel_placements WHERE channel_id = ?')
+              .all(current.channel.id),
+          ) as Array<{ message_id: string; notice: number }>
+        ).map((row) => [row.message_id, row.notice]),
+      );
+    current.database.transaction((db) => {
+      const event = db.prepare(`INSERT INTO source_events
+        (source_event_id, source_kind, channel_id, message_id, body, created_at, payload_json)
+        VALUES (?, 'bot-message', ?, ?, '', ?, ?)`);
+      const placement = db.prepare(`INSERT INTO channel_placements
+        (channel_id, revision, source_event_id, message_id) VALUES (?, ?, ?, ?)`);
+      [...Object.entries(notices), ['plain', undefined] as const].forEach(
+        ([field, value], index) => {
+          event.run(
+            `${field}-source`,
+            current.channel.id,
+            field,
+            timestamp,
+            JSON.stringify({
+              author: { kind: 'bot', slug: 'ada' },
+              ...(value ? { [field]: value } : {}),
+            }),
+          );
+          placement.run(current.channel.id, index + 1, `${field}-source`, field);
+        },
+      );
+    });
+    expect(flags()).toEqual({
+      ...Object.fromEntries(CHANNEL_NOTICE_FIELDS.map((field) => [field, 1])),
+      plain: 0,
+    });
+    current.database.transaction((db) =>
+      db
+        .prepare('UPDATE source_events SET payload_json = ? WHERE message_id = ?')
+        .run('{"botCreateAction":null}', 'botCreateAction'),
+    );
+    expect(flags().botCreateAction).toBe(0);
   });
 });

@@ -2701,7 +2701,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
                  e.channel_id AS home_channel_id
             FROM channel_placements p
             JOIN source_events e ON e.source_event_id = p.source_event_id
-           WHERE p.channel_id = ? ORDER BY p.revision DESC
+           WHERE p.channel_id = ? AND p.notice = 0 ORDER BY p.revision DESC
         `)
           .iterate(id)) {
           const placement = row as unknown as PlacementRow;
@@ -3319,21 +3319,34 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       const rows = database.read((db) =>
         db
           .prepare(`
-        SELECT json_extract(e.payload_json, '$.author.slug') AS slug,
-               MAX(unixepoch(e.created_at, 'subsec') * 1000) AS at
-          FROM channel_placements p
-          JOIN source_events e ON e.source_event_id = p.source_event_id
-          JOIN channel_records c ON c.channel_id = p.channel_id
-          LEFT JOIN channel_human_members m ON m.channel_id = p.channel_id
-            AND m.human_id = ? AND m.left_at IS NULL
-         WHERE json_extract(c.record_json, '$.deletedAt') IS NULL
-           AND json_extract(e.payload_json, '$.author.kind') = 'bot'
-           AND ${notChannelNoticeSql('e.payload_json')}
-           AND ((json_extract(c.record_json, '$.type') = 'dm'
-                 AND json_extract(c.record_json, '$.botSlug') IS NOT NULL)
-             OR (json_extract(c.record_json, '$.type') = 'group'
-                 AND m.human_id IS NOT NULL AND p.revision >= m.visible_from_revision))
-         GROUP BY slug
+        WITH RECURSIVE slugs(slug) AS (
+          SELECT min(bot_slug) FROM source_events WHERE bot_slug IS NOT NULL
+          UNION ALL
+          SELECT (SELECT min(bot_slug) FROM source_events WHERE bot_slug > slugs.slug)
+            FROM slugs WHERE slug IS NOT NULL
+        )
+        SELECT slug, (
+          SELECT unixepoch(e.created_at, 'subsec') * 1000
+            FROM source_events e
+           WHERE e.bot_slug = slugs.slug
+             AND json_extract(e.payload_json, '$.author.kind') = 'bot'
+             AND json_extract(e.payload_json, '$.author.slug') = slugs.slug
+             AND ${notChannelNoticeSql('e.payload_json')}
+             AND EXISTS (
+               SELECT 1 FROM channel_placements p
+                 JOIN channel_records c ON c.channel_id = p.channel_id
+                 LEFT JOIN channel_human_members m ON m.channel_id = p.channel_id
+                   AND m.human_id = ? AND m.left_at IS NULL
+                WHERE p.source_event_id = e.source_event_id
+                  AND json_extract(c.record_json, '$.deletedAt') IS NULL
+                  AND ((json_extract(c.record_json, '$.type') = 'dm'
+                        AND json_extract(c.record_json, '$.botSlug') IS NOT NULL)
+                    OR (json_extract(c.record_json, '$.type') = 'group'
+                        AND m.human_id IS NOT NULL AND p.revision >= m.visible_from_revision))
+             )
+           ORDER BY e.created_at DESC, e.source_event_id DESC LIMIT 1
+        ) AS at
+          FROM slugs WHERE slug IS NOT NULL
       `)
           .all(LOCAL_HUMAN_ID),
       ) as Array<{ slug: string; at: number }>;

@@ -2695,6 +2695,48 @@ const SESSION_PARENT_INDEX_MIGRATION: SchemaMigration = {
   },
 };
 
+const NEEDS_REPAIR_INDEX_MIGRATION: SchemaMigration = {
+  generation: 122,
+  module: 'bot-inbox',
+  description: 'Index Admissions that need repair without scanning Inbox history',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX inbox_admissions_needs_repair ON inbox_admissions (source_event_id, bot_slug)
+        WHERE attempt_state = 'needs-repair';
+    `);
+  },
+};
+
+const PLACEMENT_NOTICE_MIGRATION: SchemaMigration = {
+  generation: 123,
+  module: 'messaging',
+  description: 'Mark notice placements so the latest message is found without walking notices',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE channel_placements ADD COLUMN notice INTEGER NOT NULL DEFAULT 0;
+      UPDATE channel_placements SET notice = 1 WHERE source_event_id IN (
+        SELECT source_event_id FROM source_events
+         WHERE CASE WHEN json_valid(payload_json) THEN coalesce(json_type(payload_json, '$.botDmAction') = 'object' OR json_type(payload_json, '$.botCreateAction') = 'object' OR json_type(payload_json, '$.botChannelPost') = 'object' OR json_type(payload_json, '$.memoryCommit') = 'object' OR json_type(payload_json, '$.toolAutoApproval') = 'object' OR json_type(payload_json, '$.toolAutoApprovalPause') = 'object', 0) ELSE 0 END
+      );
+      CREATE INDEX channel_placements_latest_message ON channel_placements (channel_id, revision)
+        WHERE notice = 0;
+      CREATE TRIGGER channel_placements_notice_insert AFTER INSERT ON channel_placements
+        BEGIN
+          UPDATE channel_placements SET notice = coalesce((
+            SELECT CASE WHEN json_valid(payload_json) THEN coalesce(json_type(payload_json, '$.botDmAction') = 'object' OR json_type(payload_json, '$.botCreateAction') = 'object' OR json_type(payload_json, '$.botChannelPost') = 'object' OR json_type(payload_json, '$.memoryCommit') = 'object' OR json_type(payload_json, '$.toolAutoApproval') = 'object' OR json_type(payload_json, '$.toolAutoApprovalPause') = 'object', 0) ELSE 0 END FROM source_events
+             WHERE source_event_id = NEW.source_event_id
+          ), 0)
+           WHERE channel_id = NEW.channel_id AND revision = NEW.revision;
+        END;
+      CREATE TRIGGER channel_placements_notice_update AFTER UPDATE OF payload_json ON source_events
+        BEGIN
+          UPDATE channel_placements SET notice = CASE WHEN json_valid(NEW.payload_json) THEN coalesce(json_type(NEW.payload_json, '$.botDmAction') = 'object' OR json_type(NEW.payload_json, '$.botCreateAction') = 'object' OR json_type(NEW.payload_json, '$.botChannelPost') = 'object' OR json_type(NEW.payload_json, '$.memoryCommit') = 'object' OR json_type(NEW.payload_json, '$.toolAutoApproval') = 'object' OR json_type(NEW.payload_json, '$.toolAutoApprovalPause') = 'object', 0) ELSE 0 END
+           WHERE source_event_id = NEW.source_event_id;
+        END;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2816,4 +2858,6 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   GRANT_RESOLUTION_INDEX_MIGRATION,
   OUTPUT_REQUEST_INDEX_MIGRATION,
   SESSION_PARENT_INDEX_MIGRATION,
+  NEEDS_REPAIR_INDEX_MIGRATION,
+  PLACEMENT_NOTICE_MIGRATION,
 ]);
