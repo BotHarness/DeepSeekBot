@@ -239,6 +239,7 @@ import {
 import { inlineImageAttachment } from './message-attachment.js';
 import { channelAttachmentUrl } from './bridge.js';
 import { turnStopText } from './turn-stop.js';
+import { VoiceCallRecordBubble } from './voice-call-record.js';
 
 export function committedMessageIds(messages: readonly ChannelMessage[]): Set<string> {
   return new Set(
@@ -1554,6 +1555,7 @@ function ConversationView({
       item.memoryCommit === undefined &&
       item.memberDeparture === undefined &&
       item.turnStop === undefined &&
+      item.voiceCallRecord === undefined &&
       item.toolAutoApproval === undefined &&
       item.toolAutoApprovalPause === undefined,
   );
@@ -3055,6 +3057,12 @@ function ConversationView({
                         messageId={first.id}
                         record={first.toolAutoApprovalPause}
                         bots={state.bots}
+                        t={t}
+                      />
+                    ) : first.voiceCallRecord !== undefined ? (
+                      <VoiceCallRecordBubble
+                        messageId={first.id}
+                        record={first.voiceCallRecord}
                         t={t}
                       />
                     ) : first.turnStop !== undefined ? (

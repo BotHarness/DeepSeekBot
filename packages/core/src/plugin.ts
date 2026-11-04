@@ -18,6 +18,7 @@ import { VoiceProviders } from './voice/providers.js';
 import { createVoiceMessages, type VoiceMessages } from './voice/messages.js';
 import { createVoiceCalls, type VoiceCallMedia, type VoiceCalls } from './voice/calls.js';
 import { withVoiceDefaults } from './voice/defaults.js';
+import { voiceCallRecordBody } from './channels/voice-call-record.js';
 import { VOICE_CALL_PATH } from './voice/call-contract.js';
 import { createVoiceCallHttp } from './voice/call-http.js';
 import { CloudConnections } from './cloud/connections.js';
@@ -905,7 +906,9 @@ export function createCore(
       if (topics.includes('content-purge')) live?.publishContentPurged();
       if (
         topics.some((topic) =>
-          ['bindings', 'grants', 'bot-schedules', 'content-purge', 'assignments'].includes(topic),
+          ['bindings', 'grants', 'bot-schedules', 'content-purge', 'assignment-report'].includes(
+            topic,
+          ),
         )
       )
         live?.publishRosterCommitted();
@@ -3089,6 +3092,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       });
       if (!result.ok)
         throw Object.assign(new Error(result.error.message), { code: result.error.code });
+    },
+    async record({ slug, channelId, record }) {
+      const bot = core.registry.get(slug);
+      if (core.channels.get(channelId) === undefined)
+        core.channels.getOrCreateDm(slug, bot?.displayName);
+      const appended = await core.channels.appendMessage(channelId, {
+        id: `voice-call-${record.state}-${record.callId}`,
+        at: record.state === 'started' ? record.startedAt : record.endedAt,
+        author: { kind: 'system' },
+        body: voiceCallRecordBody(record),
+        voiceCallRecord: record,
+      });
+      return appended?.id;
     },
     busy: (slug) => {
       const overview = bridgeMethods.activityOverview({});

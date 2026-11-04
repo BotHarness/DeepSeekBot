@@ -7,6 +7,16 @@ import {
 } from './assignment-human-context.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 
+export const HUMAN_ATTENTION_SUMMARY_LIMIT = 280;
+
+export function attentionSummary(text: string): string {
+  if (text.length <= HUMAN_ATTENTION_SUMMARY_LIMIT) return text;
+  const chars = Array.from(text.slice(0, HUMAN_ATTENTION_SUMMARY_LIMIT * 2 + 2));
+  return chars.length <= HUMAN_ATTENTION_SUMMARY_LIMIT
+    ? text
+    : `${chars.slice(0, HUMAN_ATTENTION_SUMMARY_LIMIT - 1).join('')}…`;
+}
+
 export type HumanAttentionCategory = 'action' | 'info' | 'unread' | 'replies' | 'handled';
 export type HumanAttentionSort = 'newest' | 'oldest' | 'mentions-first';
 
@@ -477,7 +487,7 @@ function attentionItem(row: AttentionRow): HumanAttentionItem {
     ...(row.channel_id === null ? {} : { channelId: row.channel_id }),
     ...(row.channel_name === null ? {} : { channelName: row.channel_name }),
     botSlug: row.bot_slug,
-    summary: row.summary,
+    summary: attentionSummary(row.summary),
     ...(row.request_id === null ? {} : { requestId: row.request_id }),
     ...(row.message_id === null ? {} : { messageId: row.message_id }),
     ...(row.assignment_session_id === null
@@ -856,7 +866,7 @@ SELECT 'handled:' || request.source_event_id AS id,
           channelId: row.channel_id,
           channelName: row.channel_name,
           botSlug: row.bot_slug,
-          summary: row.summary,
+          summary: attentionSummary(row.summary),
           messageId: row.message_id,
           sourceEventId: row.source_event_id,
           isUnread: row.is_unread === 1,
@@ -943,7 +953,7 @@ SELECT 'handled:' || request.source_event_id AS id,
             channelId: row.channel_id,
             channelName: row.channel_name,
             botSlug: row.bot_slug,
-            summary: row.summary,
+            summary: attentionSummary(row.summary),
             messageId: row.message_id,
             sourceEventId: row.source_event_id,
             unreadCount: row.unread_count,
@@ -1173,7 +1183,7 @@ SELECT 'handled:' || request.source_event_id AS id,
         createdAt: row.created_at,
         channelId: row.channel_id,
         botSlug: row.bot_slug,
-        summary: row.body,
+        summary: attentionSummary(row.body),
         messageId: row.message_id,
         sourceEventId: row.source_event_id,
         isUnread: true,

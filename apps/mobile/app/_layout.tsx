@@ -26,6 +26,7 @@ import { noteTouch } from '../src/ui/primitives/touch-anchor';
 import { sheetScreenOptions } from '../src/ui/primitives/sheet-screen';
 import { useSystemReducedMotion } from '../src/ui/primitives/use-system-reduced-motion';
 import { profileScreenOptions } from '../src/ui/chat/profile-presentation';
+import { CallSessionHost } from '../src/ui/chat/call-session-host';
 import { swipeEntryListeners, swipeEntryOptions } from '../src/ui/shell/swipe-entry';
 import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
 import { useDesignTheme } from '../src/ui/design/theme';
@@ -289,6 +290,7 @@ function RootNavigator() {
                 />
               </Stack>
             </View>
+            <CallSessionHost />
             <BotCreationNotice />
             <ChannelCreationNotice />
             <StatisticsNotice />
