@@ -7,6 +7,14 @@ export type ChannelVoiceCallEndReason =
   | 'bot-unavailable'
   | 'host-stopped';
 
+export type ChannelVoiceCallShareChange = 'share-stopped' | 'share-paused' | 'share-resumed';
+
+export const VOICE_CALL_SHARE_CHANGES: readonly ChannelVoiceCallShareChange[] = [
+  'share-stopped',
+  'share-paused',
+  'share-resumed',
+];
+
 export type ChannelVoiceCallRecord =
   | {
       callId: string;
@@ -39,7 +47,7 @@ export type ChannelVoiceCallRecord =
   | {
       callId: string;
       botSlug: string;
-      state: 'share-stopped';
+      state: ChannelVoiceCallShareChange;
       startedAt: string;
       source: 'camera' | 'screen';
       atMs: number;
@@ -88,7 +96,7 @@ export function isChannelVoiceCallRecord(value: unknown): value is ChannelVoiceC
       count(record['toMs']) &&
       (record['toMs'] as number) >= (record['fromMs'] as number)
     );
-  if (record['state'] === 'share-stopped')
+  if (VOICE_CALL_SHARE_CHANGES.includes(record['state'] as ChannelVoiceCallShareChange))
     return (
       Object.keys(record).length === 6 &&
       (record['source'] === 'camera' || record['source'] === 'screen') &&
@@ -121,8 +129,15 @@ export function voiceCallDuration(ms: number): string {
 export function voiceCallRecordBody(record: ChannelVoiceCallRecord): string {
   if (record.state === 'frames')
     return `${record.source === 'camera' ? 'Camera' : 'Screen'} record of call ${record.callId} from ${voiceCallDuration(record.fromMs)} to ${voiceCallDuration(record.toMs)} while the Human was silent: ${record.frames === 1 ? 'one keyframe' : `a ${record.layout} grid of ${record.frames} keyframes`}, oldest first.`;
-  if (record.state === 'share-stopped')
-    return `${record.source === 'camera' ? 'The camera' : 'Screen sharing'} in call ${record.callId} stopped at ${voiceCallDuration(record.atMs)} without the Human turning it off; the call went on with voice only.`;
+  if ('atMs' in record) {
+    const what = `${record.source === 'camera' ? 'The camera' : 'Screen sharing'} in call ${record.callId}`;
+    const at = voiceCallDuration(record.atMs);
+    if (record.state === 'share-resumed')
+      return `${what} resumed at ${at} when the Human's app came back.`;
+    return record.state === 'share-paused'
+      ? `${what} paused at ${at} because the Human's app went to the background; the call went on with voice only.`
+      : `${what} stopped at ${at} without the Human turning it off; the call went on with voice only.`;
+  }
   return record.state === 'started'
     ? `Voice call ${record.callId} started at ${record.startedAt}.`
     : `Voice call ${record.callId} ended at ${record.endedAt} after ${voiceCallDuration(record.durationMs)} (${record.reason}). Messages from ${record.startedAt} to ${record.endedAt} in this DM are from that call.`;

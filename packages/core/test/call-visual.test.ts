@@ -534,6 +534,47 @@ describe('Host call owner with a shared camera or screen', () => {
     expect(h.sent.map((item) => item.visual === undefined)).toEqual([false, true, true]);
   });
 
+  it('notes a camera paused in the background and resumed in the foreground', async () => {
+    const h = host();
+    const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'camera' });
+    h.advance(20_000);
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'off', paused: true });
+    h.advance(10_000);
+    const back = await h.ok({
+      kind: 'visual',
+      callId: call.callId,
+      source: 'camera',
+      resumed: true,
+    });
+    expect(back.visual).toBe('camera');
+    await vi.waitFor(() =>
+      expect(h.lifecycle.map((record) => record.state)).toEqual([
+        'started',
+        'share-paused',
+        'share-resumed',
+      ]),
+    );
+    const [, paused, resumed] = h.lifecycle;
+    expect(paused).toMatchObject({ source: 'camera' });
+    expect(resumed).toMatchObject({ source: 'camera' });
+    expect(voiceCallRecordBody(paused!)).toContain('went to the background');
+    expect(voiceCallRecordBody(resumed!)).toContain('resumed at');
+    expect(isChannelVoiceCallRecord(resumed)).toBe(true);
+    for (const command of [
+      { source: 'camera', paused: true },
+      { source: 'off', resumed: true },
+      { source: 'off', paused: true, stopped: true },
+      { source: 'off', paused: 'yes' },
+    ])
+      expect(
+        await h.calls.handle(h.phone, { kind: 'visual', callId: call.callId, ...command }),
+      ).toMatchObject({
+        ok: false,
+        code: 'invalid-input',
+      });
+  });
+
   it('notes in the DM when the system stops a share, and only then', async () => {
     const h = host();
     const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });

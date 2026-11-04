@@ -178,7 +178,7 @@ export function createDesktopCall(
           label: undefined,
           error: source === 'camera' ? 'camera-stopped' : 'screen-stopped',
         });
-        if (client === owned) void owned.visual('off', current.visual.save, true);
+        if (client === owned) void owned.visual('off', current.visual.save, 'stopped');
       },
     });
     let stream: MediaStream;

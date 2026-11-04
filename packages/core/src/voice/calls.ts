@@ -17,7 +17,10 @@ import {
   type VoiceCallZoom,
 } from './call-contract.js';
 import type { ChannelDraftEvent } from '../channels/draft.js';
-import type { ChannelVoiceCallLifecycle } from '../channels/voice-call-record.js';
+import type {
+  ChannelVoiceCallLifecycle,
+  ChannelVoiceCallShareChange,
+} from '../channels/voice-call-record.js';
 import { createVad, VAD_SAMPLE_RATE, type VadOptions } from './vad.js';
 import { VoiceError, wavFromPcm16 } from './providers.js';
 import type { AsrStream } from './soniox.js';
@@ -503,19 +506,23 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     recordTail = call.recorded;
   };
 
-  const recordStopped = (call: Call, source: CallVisualSource) => {
+  const recordShare = (
+    call: Call,
+    state: ChannelVoiceCallShareChange,
+    source: CallVisualSource,
+  ) => {
     const started = call.recorded;
     const connectedAt = call.connectedAt;
     if (started === undefined || connectedAt === undefined) return;
     const atMs = Math.max(0, now() - connectedAt);
-    log('call-share-stopped', { call: call.id, source, atMs });
+    log(`call-${state}`, { call: call.id, source, atMs });
     const before = recordTail;
     call.recorded = before.then(async () => {
       const startMessageId = await started;
       await writeRecord(call, {
         callId: call.id,
         botSlug: call.slug,
-        state: 'share-stopped',
+        state,
         startedAt: iso(connectedAt),
         source,
         atMs,
@@ -1619,11 +1626,27 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         const save = command['save'] ?? true;
         if (typeof save !== 'boolean')
           throw new CallRefusal('invalid-input', 'save must be true or false.');
-        const stopped = command['stopped'] ?? false;
-        if (typeof stopped !== 'boolean' || (stopped && source !== 'off'))
-          throw new CallRefusal('invalid-input', 'stopped must be true only with source off.');
+        const flags = (['stopped', 'paused', 'resumed'] as const).filter((flag) => {
+          const value = command[flag] ?? false;
+          if (typeof value !== 'boolean')
+            throw new CallRefusal('invalid-input', `${flag} must be true or false.`);
+          return value;
+        });
+        const change = flags[0];
+        if (
+          flags.length > 1 ||
+          ((change === 'stopped' || change === 'paused') && source !== 'off') ||
+          (change === 'resumed' && source === 'off')
+        )
+          throw new CallRefusal(
+            'invalid-input',
+            'stopped and paused go with source off, resumed with camera or screen, one at a time.',
+          );
         if (call.phase === 'ended') throw new CallRefusal('call-ended', 'The call has ended.');
-        if (stopped && call.visual !== 'off') recordStopped(call, call.visual);
+        if (change === 'resumed' && source !== 'off' && call.visual !== source)
+          recordShare(call, 'share-resumed', source);
+        else if (change !== undefined && change !== 'resumed' && call.visual !== 'off')
+          recordShare(call, `share-${change}`, call.visual);
         if (call.visual !== source || call.saveFrames !== save) {
           if (call.visual !== source) {
             call.frames = [];

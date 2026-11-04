@@ -3170,8 +3170,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         core.channels.getOrCreateDm(slug, bot?.displayName);
       const appended = await core.channels.appendMessage(channelId, {
         id:
-          record.state === 'share-stopped'
-            ? `voice-call-share-stopped-${record.callId}-${record.atMs}`
+          'atMs' in record
+            ? `voice-call-${record.state}-${record.callId}-${record.atMs}`
             : `voice-call-${record.state}-${record.callId}`,
         at:
           record.state === 'started'

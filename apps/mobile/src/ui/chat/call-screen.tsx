@@ -18,6 +18,7 @@ import { SystemSymbol } from '../primitives/system-symbol';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { CallAudioMenu } from './call-audio-menu';
+import { CallCameraPreview } from './call-camera-preview';
 import { callAudioDeviceName } from './call-audio-symbol';
 import { callScreenModel, formatCallDuration, microphoneRecovery } from './call-model';
 import { callSessions, sameCall } from './call-session';
@@ -27,6 +28,9 @@ const symbols = {
   mic: { ios: 'mic.fill', android: 'mic' },
   micOff: { ios: 'mic.slash.fill', android: 'mic_off' },
   hangUp: { ios: 'phone.down.fill', android: 'call_end' },
+  camera: { ios: 'video.fill', android: 'videocam' },
+  cameraOff: { ios: 'video.slash.fill', android: 'videocam_off' },
+  flip: { ios: 'arrow.triangle.2.circlepath.camera', android: 'flip_camera_ios' },
   minimize: {
     ios: 'arrow.down.right.and.arrow.up.left',
     android: 'close_fullscreen',
@@ -90,7 +94,15 @@ export function CallScreen({
     interrupted: session?.interrupted === true,
   });
   const recovery = microphoneRecovery(t, microphone);
-  const hint = audioFailed ? t.call.audioSwitchFailed : model.hint;
+  const camera = session?.camera;
+  const cameraOn = camera?.on === true;
+  const cameraError =
+    camera?.error === 'camera-denied'
+      ? t.call.cameraDenied
+      : camera?.error === 'camera-missing'
+        ? t.call.cameraMissing
+        : undefined;
+  const hint = audioFailed ? t.call.audioSwitchFailed : (cameraError ?? model.hint);
   const control = () => (key === undefined ? undefined : callSessions.controls());
   const shownRoute = session?.audioRoute ?? fallbackCallAudioRoute();
   const chooseAudio = (output: CallAudioOutputId, microphone: CallMicrophoneId) => {
@@ -210,7 +222,62 @@ export function CallScreen({
           style={{ flexShrink: 1 }}
           contentContainerStyle={{ alignItems: 'center', gap: space.x4 }}
         >
-          {bot === undefined ? null : <BotAvatar bot={bot} size={theme.touch * 2.5} />}
+          {cameraOn && ended === undefined ? (
+            <View style={{ alignItems: 'center', gap: space.x3 }}>
+              <View
+                testID="call-camera-preview"
+                accessible
+                accessibilityLabel={t.call.cameraPreview}
+                style={{
+                  width: theme.touch * 4.5,
+                  aspectRatio: 3 / 4,
+                  borderRadius: radius.lg,
+                  overflow: 'hidden',
+                  backgroundColor: theme.color.surface,
+                }}
+              >
+                <CallCameraPreview style={{ flex: 1 }} />
+                <Pressable
+                  testID="call-camera-flip"
+                  accessibilityRole="button"
+                  accessibilityLabel={t.call.cameraFlip}
+                  hitSlop={space.x2}
+                  onPress={() => control()?.flip()}
+                  style={({ pressed }) => ({
+                    position: 'absolute',
+                    right: space.x3,
+                    bottom: space.x3,
+                    width: theme.touch,
+                    height: theme.touch,
+                    borderRadius: radius.round,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: theme.color.base,
+                    opacity: pressed ? 0.7 : 0.9,
+                  })}
+                >
+                  <SystemSymbol
+                    name={symbols.flip}
+                    size={theme.type.body.line}
+                    color={theme.color.fg}
+                  />
+                </Pressable>
+              </View>
+              <Text
+                testID="call-camera-keyframes"
+                variant="meta"
+                tone="muted"
+                accessibilityLiveRegion="polite"
+                style={{ fontVariant: ['tabular-nums'] }}
+              >
+                {camera.keyframes > 0
+                  ? t.call.cameraKeyframes(camera.keyframes)
+                  : t.call.cameraWaiting}
+              </Text>
+            </View>
+          ) : bot === undefined ? null : (
+            <BotAvatar bot={bot} size={theme.touch * 2.5} />
+          )}
           <Text variant="display" accessibilityRole="header" style={{ textAlign: 'center' }}>
             {bot?.displayName ?? slug}
           </Text>
@@ -311,6 +378,18 @@ export function CallScreen({
               disabled: !model.live,
               onPress: () => control()?.mute(!model.muted),
             })}
+            {session?.cameraSupported !== true
+              ? null
+              : roundButton({
+                  label: t.call.camera,
+                  testID: 'call-camera',
+                  symbol: cameraOn ? symbols.camera : symbols.cameraOff,
+                  fill: cameraOn ? theme.color.fg : theme.color.surface,
+                  ink: cameraOn ? theme.color.base : theme.color.fg,
+                  selected: cameraOn,
+                  disabled: !model.live || camera?.starting === true,
+                  onPress: () => control()?.camera(!cameraOn),
+                })}
             {session?.audioRoutes !== true ? null : (
               <View style={{ alignItems: 'center', gap: space.x3 }}>
                 <CallAudioMenu

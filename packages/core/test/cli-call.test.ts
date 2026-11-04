@@ -164,7 +164,23 @@ describe('deepseekbot call commands', () => {
     ).toMatchObject({ source: 'off' });
     expect(ended.visual['shareEndedAtMs']).toBeGreaterThanOrEqual(1200);
     expect(ended.visual['sentFrames']).toBeLessThan(3);
+    const paused = (await run('call-simulate', ['ada'], {
+      file,
+      video: frames,
+      'share-pause': '600-1800',
+      'reply-wait': '20',
+    })) as { visual: Record<string, unknown> };
+    expect(
+      posts.find((post) => post['kind'] === 'visual' && post['paused'] === true),
+    ).toMatchObject({ source: 'off' });
+    expect(
+      posts.find((post) => post['kind'] === 'visual' && post['resumed'] === true),
+    ).toMatchObject({ source: 'camera' });
+    expect(paused.visual['pausedAtMs']).toBeGreaterThanOrEqual(600);
+    expect(paused.visual['resumedAtMs']).toBeGreaterThanOrEqual(1800);
     for (const values of [
+      { file, 'share-pause': '1-2' },
+      { file, video: frames, 'share-pause': '900-100' },
       { file, 'share-ends-at': '100' },
       { file, screen: frames, 'share-ends-at': 'soon' },
     ])

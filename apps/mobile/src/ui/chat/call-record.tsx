@@ -20,7 +20,7 @@ export const CallRecordBubble = memo(function CallRecordBubble({
   const started = record.state === 'started';
   const glyph = theme.type.body.line;
   const Icon =
-    record.state === 'frames' || record.state === 'share-stopped'
+    record.state === 'frames' || 'atMs' in record
       ? record.source === 'camera'
         ? CameraIcon
         : ScreenIcon
