@@ -1,12 +1,21 @@
-import { Context } from '@deepseek-ai/cordis';
+import { Context, Service } from '@deepseek-ai/cordis';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { ApprovalService } from '@deepseek-ai/dsh-user-approval';
-import { describe, expect, it, vi } from 'vitest';
+import { Session, SessionId } from '@deepseek-ai/dsh-session';
+import { SessionProjectionRegistry } from '@deepseek-ai/dsh-session-projection';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { registerChannelToolApproval } from '../src/workspaces/tool-approval.js';
 
-function fixture(policy: 'ask' | 'never' = 'ask') {
+const contexts: Context[] = [];
+afterEach(async () => {
+  for (const ctx of contexts.splice(0)) await ctx.fiber.dispose();
+});
+
+async function fixture(policy: 'ask' | 'never' = 'ask', openTurn = true) {
   const ctx = new Context();
+  contexts.push(ctx);
+  new SessionProjectionRegistry(ctx);
   const native = vi.fn(async () => 'rejected' as const);
   ctx.on('approval/request', native, { global: true });
   const answer = vi.fn(async (request: { callId?: string }) =>
@@ -14,15 +23,16 @@ function fixture(policy: 'ask' | 'never' = 'ask') {
   );
   registerChannelToolApproval(ctx, { ask: answer });
   const service = new ApprovalService(ctx, { policy });
-  const agent = {
-    session: { seq: 1, eventAt: () => ({ type: 'turn/start' }), append: vi.fn() },
-  } as unknown as Agent;
+  await service[Service.init]();
+  const session = Session.create(SessionId('approval-routing'));
+  if (openTurn) session.append('turn/start', { turn: 1 });
+  const agent = { session } as Agent;
   return { ctx, native, answer, service, agent };
 }
 
 describe('Channel approval routing through the native policy boundary', () => {
   it('answers owned calls before an earlier native answerer can swallow the request', async () => {
-    const state = fixture();
+    const state = await fixture();
     expect(
       await state.service.request({
         agent: state.agent,
@@ -33,7 +43,7 @@ describe('Channel approval routing through the native policy boundary', () => {
     expect(state.native).not.toHaveBeenCalled();
   });
   it('delegates unowned calls to the original native answerer', async () => {
-    const state = fixture();
+    const state = await fixture();
     expect(
       await state.service.request({
         agent: state.agent,
@@ -44,7 +54,7 @@ describe('Channel approval routing through the native policy boundary', () => {
     expect(state.native).toHaveBeenCalledOnce();
   });
   it('does not bypass native never policy', async () => {
-    const state = fixture('never');
+    const state = await fixture('never');
     expect(
       await state.service.request({
         agent: state.agent,
@@ -56,7 +66,7 @@ describe('Channel approval routing through the native policy boundary', () => {
     expect(state.native).not.toHaveBeenCalled();
   });
   it('does not route cancelled requests', async () => {
-    const state = fixture();
+    const state = await fixture();
     expect(
       await state.service.request({
         agent: state.agent,
@@ -66,5 +76,19 @@ describe('Channel approval routing through the native policy boundary', () => {
       }),
     ).toBe('cancelled');
     expect(state.answer).not.toHaveBeenCalled();
+  });
+  it('refuses an idle Session before routing or appending approval audit events', async () => {
+    const state = await fixture('ask', false);
+    const before = state.agent.session.seq;
+    await expect(
+      state.service.request({
+        agent: state.agent,
+        toolName: 'bash',
+        callId: ToolCallId('owned'),
+      }),
+    ).rejects.toThrow('outside an open turn');
+    expect(state.agent.session.seq).toBe(before);
+    expect(state.answer).not.toHaveBeenCalled();
+    expect(state.native).not.toHaveBeenCalled();
   });
 });
