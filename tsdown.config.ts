@@ -119,7 +119,7 @@ export const coreCliBundleOptions: UserConfig = {
   platform: 'node',
   dts: false,
   clean: true,
-  external: ['@resvg/resvg-js', 'silk-wasm', 'opus-decoder', 'css-tree'],
+  external: ['@resvg/resvg-js', 'sharp', 'silk-wasm', 'opus-decoder', 'css-tree'],
   deps: { alwaysBundle: [/^@deepseek-ai\//] },
 };
 
@@ -219,6 +219,7 @@ export default defineConfig([
     clean: true,
     external: [
       '@resvg/resvg-js',
+      'sharp',
       'silk-wasm',
       'opus-decoder',
       'css-tree',
