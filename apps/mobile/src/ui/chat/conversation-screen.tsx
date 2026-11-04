@@ -1370,6 +1370,7 @@ function ChatConversation({
       theme.touch -
       headerGap * 2 -
       theme.touch * (canOpenProfile ? (placeCall === undefined ? 1 : 2) : 1) -
+      (ios && glassHeader && canOpenProfile && placeCall !== undefined ? space.x5 : 0) -
       (ios && glassHeader ? space.x4 * 2 : 0),
   );
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
