@@ -4,6 +4,36 @@ import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 
 const native = vi.hoisted(() => ({ reduced: false }));
+vi.mock('../src/host/host-session', () => ({
+  useHostSessions: () => [
+    {
+      saved: { hostId: 'other' },
+      snapshot: {
+        roster: {
+          bots: [],
+          channels: [{ id: 'group', avatar: 'wrong-host.png' }],
+        },
+      },
+    },
+    {
+      saved: { hostId: 'studio' },
+      snapshot: {
+        roster: {
+          bots: [{ slug: 'test', dmChannelId: 'dm:test', avatarUrl: 'bot.png' }],
+          channels: [{ id: 'group', avatar: 'channel.png' }],
+        },
+      },
+    },
+  ],
+}));
+vi.mock('../src/ui/bot-avatar', () => ({
+  BotAvatar: ({ bot }: { bot: { avatarUrl: string } }) =>
+    createElement('img', { src: bot.avatarUrl, 'data-testid': 'bot-avatar' }),
+}));
+vi.mock('../src/ui/chat/group-mark', () => ({
+  GroupMark: ({ avatar }: { avatar?: string }) =>
+    createElement('div', { 'data-testid': 'channel-avatar', 'data-avatar': avatar ?? '#' }),
+}));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-keyboard-controller', () => ({
   useKeyboardState: (select: (state: { isVisible: boolean; height: number }) => unknown) =>
@@ -73,10 +103,12 @@ it('moves one alert between inserted and overlay slots without consuming it; ope
       ),
     );
     expect(host.querySelectorAll('[data-testid="device-alert-banner"]')).toHaveLength(1);
+    expect(host.querySelector('[data-testid="bot-avatar"]')?.getAttribute('src')).toBe('bot.png');
     expect(host.querySelector('[data-testid="device-alert-overlay"]')).toBeNull();
     await act(async () => interfacePreferences.setInAppAlertStyle('overlay'));
     expect(host.querySelectorAll('[data-testid="device-alert-banner"]')).toHaveLength(1);
     expect(host.querySelector('[data-testid="device-alert-overlay"]')).not.toBeNull();
+    expect(host.querySelector('[data-testid="bot-avatar"]')?.getAttribute('src')).toBe('bot.png');
     expect(host.querySelector('[data-motion="slide"]')).not.toBeNull();
     expect(opened).not.toHaveBeenCalled();
     native.reduced = true;
@@ -99,3 +131,68 @@ it('moves one alert between inserted and overlay slots without consuming it; ope
     alertBanners.clear();
   }
 });
+
+it.each(['inline', 'overlay'] as const)(
+  '%s uses the source Channel avatar and fallback, without attributing a recovery summary to one Channel',
+  async (placement) => {
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    const alert = {
+      title: 'Channel',
+      body: 'Message',
+      data: {
+        v: 1 as const,
+        hostId: 'studio',
+        itemId: `channel-message-${placement}`,
+        kind: 'channel-reply',
+        botSlug: 'test',
+        channelId: 'group',
+        messageId: 'm1',
+        sender: 'Bot',
+        text: 'Message',
+      },
+    };
+    try {
+      interfacePreferences.setInAppAlerts(true);
+      interfacePreferences.setInAppAlertStyle(placement);
+      alertBanners.reconcile('studio', [alert.data.itemId], [alert]);
+      await act(async () => root.render(<DeviceAlertBanner placement={placement} />));
+      expect(
+        host.querySelector('[data-testid="channel-avatar"]')?.getAttribute('data-avatar'),
+      ).toBe('channel.png');
+      expect(host.querySelector('[data-testid="bot-avatar"]')).toBeNull();
+      await act(async () =>
+        alertBanners.reconcile(
+          'studio',
+          [alert.data.itemId],
+          [
+            {
+              ...alert,
+              data: { ...alert.data, channelId: 'without-avatar' },
+            },
+          ],
+        ),
+      );
+      expect(
+        host.querySelector('[data-testid="channel-avatar"]')?.getAttribute('data-avatar'),
+      ).toBe('#');
+      await act(async () =>
+        alertBanners.reconcile(
+          'studio',
+          [alert.data.itemId],
+          [
+            {
+              ...alert,
+              members: ['one', 'two'],
+            },
+          ],
+        ),
+      );
+      expect(host.querySelector('[data-testid="channel-avatar"]')).toBeNull();
+      expect(host.querySelector('[data-testid="bot-avatar"]')).toBeNull();
+    } finally {
+      await act(async () => root.unmount());
+      alertBanners.clear();
+    }
+  },
+);
