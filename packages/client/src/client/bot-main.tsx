@@ -2153,17 +2153,17 @@ function ConversationView({
   );
   const arrivalIds = useMemo(
     () =>
-      displayMessages
+      visibleMessages
         .filter((item) => !streamReplies || item.author.kind !== 'bot')
         .map((item) => item.id),
-    [displayMessages, streamReplies],
+    [visibleMessages, streamReplies],
   );
   const arrivals = useMessageArrivals(channelId, arrivalIds, conversation.status === 'ready');
   const galleryImages = useMemo<GalleryImage[]>(
     () =>
       channelId === undefined
         ? []
-        : displayMessages.flatMap((message) =>
+        : visibleMessages.flatMap((message) =>
             message.contentPurged === true
               ? []
               : (message.attachments ?? []).flatMap((ref) =>
@@ -2178,29 +2178,26 @@ function ConversationView({
                     : [],
                 ),
           ),
-    [channelId, displayMessages],
+    [channelId, visibleMessages],
   );
   const imageGallery = useMessageImageGallery(galleryImages, t);
-  const groupKeys = useMemo(() => messageGroups.map((group) => group.key), [messageGroups]);
-  const groupMembers = useMemo(
-    () =>
-      new Map(
-        messageGroups.map((group) => [group.key, group.messages.map((message) => message.id)]),
-      ),
-    [messageGroups],
-  );
+  const groupShape = useStableGroupShape(messageGroups);
+  const groupKeys = groupShape.keys;
+  const groupMembers = groupShape.members;
   const pinnedGroups = useMemo(() => {
     const pinned = new Set<string>();
     const focus = conversation.focusMessageId;
-    messageGroups.forEach((group, index) => {
+    groupKeys.forEach((key, index) => {
+      const ids = groupMembers.get(key) ?? [];
+      const previous = index === 0 ? undefined : groupMembers.get(groupKeys[index - 1]!);
       if (
-        (focus !== undefined && group.messages.some((message) => message.id === focus)) ||
-        (unreadAfter !== undefined && messageGroups[index - 1]?.messages.at(-1)?.id === unreadAfter)
+        (focus !== undefined && ids.includes(focus)) ||
+        (unreadAfter !== undefined && previous?.at(-1) === unreadAfter)
       )
-        pinned.add(group.key);
+        pinned.add(key);
     });
     return pinned;
-  }, [messageGroups, unreadAfter, conversation.focusMessageId]);
+  }, [groupKeys, groupMembers, unreadAfter, conversation.focusMessageId]);
   const timelineWindow = useTimelineWindow(groupKeys, pinnedGroups, groupMembers);
   const placeUnreadDivider = (element: HTMLDivElement): boolean => {
     const divider = element.querySelector<HTMLElement>('[data-unread-divider]');
@@ -3746,6 +3743,38 @@ function ConversationView({
       </div>
     </div>
   );
+}
+
+function useStableGroupShape(
+  groups: readonly { key: string; messages: readonly { id: string }[] }[],
+): {
+  keys: string[];
+  members: Map<string, string[]>;
+} {
+  const shape = useRef<{ keys: string[]; members: Map<string, string[]> } | undefined>(undefined);
+  const previous = shape.current;
+  if (
+    previous !== undefined &&
+    previous.keys.length === groups.length &&
+    groups.every((group, index) => {
+      const ids = previous.members.get(group.key);
+      return (
+        previous.keys[index] === group.key &&
+        ids !== undefined &&
+        ids.length === group.messages.length &&
+        group.messages.every((message, at) => ids[at] === message.id)
+      );
+    })
+  )
+    return previous;
+  const next = {
+    keys: groups.map((group) => group.key),
+    members: new Map(
+      groups.map((group) => [group.key, group.messages.map((message) => message.id)]),
+    ),
+  };
+  shape.current = next;
+  return next;
 }
 
 function sameConversationInputs(left: ClientState, right: ClientState): boolean {
