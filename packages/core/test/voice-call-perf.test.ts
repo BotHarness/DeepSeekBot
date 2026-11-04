@@ -70,4 +70,12 @@ describe('call media performance', () => {
     perf.sample(stats({ uplinkPackets: 500 }), 12_000, 0);
     expect(perf.view()?.uplinkPps).toEqual({ avg: 41.7, max: 50 });
   });
+
+  it('reports how often the helper saw the connection drop', () => {
+    const perf = createCallPerf(5_000);
+    perf.sample(stats({ disconnects: 0 }), 0, 0);
+    const sample = perf.sample(stats({ disconnects: 1 }), 5_000, 0);
+    expect(sample?.disconnects).toBe(1);
+    expect(perf.view()?.disconnects).toBe(1);
+  });
 });

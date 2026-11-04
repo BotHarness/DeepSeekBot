@@ -13,6 +13,7 @@ describe('call helper stats', () => {
         packetsSent: 'x',
         roundTripTimeMs: 4.5,
         cpuPercent: 7,
+        disconnects: 2,
         jitterMs: Number.NaN,
       }),
     ).toEqual({
@@ -25,6 +26,7 @@ describe('call helper stats', () => {
       downlinkBytes: 0,
       rttMs: 4.5,
       helperCpuPct: 7,
+      disconnects: 2,
     });
   });
 });

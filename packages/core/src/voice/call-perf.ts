@@ -81,6 +81,7 @@ export function createCallPerf(sampleMs: number): CallPerf {
         ...(stats.jitterMs === undefined ? {} : { jitterMs: round(stats.jitterMs) }),
         ...(stats.rttMs === undefined ? {} : { rttMs: round(stats.rttMs) }),
         ...(stats.helperCpuPct === undefined ? {} : { helperCpuPct: round(stats.helperCpuPct) }),
+        ...(stats.disconnects === undefined ? {} : { disconnects: stats.disconnects }),
         hostCpuPct: round(((hostCpuMs - before.hostCpuMs) * 100) / (atMs - before.atMs)),
       };
       last = next;
@@ -110,6 +111,7 @@ export function createCallPerf(sampleMs: number): CallPerf {
         ...(ranges.helperCpuPct.count === 0 ? {} : { helperCpuPct: summary(ranges.helperCpuPct) }),
         ...(ranges.rttMs.count === 0 ? {} : { rttMs: summary(ranges.rttMs) }),
         uplinkLossPct: round(received + lost <= 0 ? 0 : (lost * 100) / (received + lost)),
+        ...(latest.disconnects === undefined ? {} : { disconnects: latest.disconnects }),
       };
     },
   };
@@ -144,5 +146,6 @@ export function parseStats(value: unknown): VoiceCallMediaStats | undefined {
     ...optional('jitterMs', 'jitterMs'),
     ...optional('roundTripTimeMs', 'rttMs'),
     ...optional('cpuPercent', 'helperCpuPct'),
+    ...optional('disconnects', 'disconnects'),
   };
 }

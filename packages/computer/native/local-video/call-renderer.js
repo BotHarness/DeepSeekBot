@@ -9,6 +9,8 @@ let answered = false;
 let stopped = false;
 let connectedSent = false;
 let disconnectTimer;
+let disconnects = 0;
+const DISCONNECT_GRACE_MS = 15_000;
 let framesSent = 0;
 const parts = new Map();
 const playing = new Map();
@@ -121,8 +123,9 @@ window.callStart = async () => {
           window.callBridge.state('connected');
         }
       } else if (state === 'disconnected') {
+        disconnects += 1;
         clearTimeout(disconnectTimer);
-        disconnectTimer = setTimeout(fail, 5000);
+        disconnectTimer = setTimeout(fail, DISCONNECT_GRACE_MS);
       } else if (state === 'failed' || state === 'closed') fail();
     });
     peer.addEventListener('datachannel', (event) => {
@@ -232,6 +235,7 @@ window.callStats = async () => {
   const result = {
     state: peer?.connectionState ?? 'new',
     framesSent,
+    disconnects,
     path: 'unknown',
   };
   if (!peer) return result;

@@ -28,6 +28,7 @@ export interface VoiceCallMediaStats {
   readonly jitterMs?: number;
   readonly rttMs?: number;
   readonly helperCpuPct?: number;
+  readonly disconnects?: number;
 }
 
 export interface VoiceCallPerfSample {
@@ -41,6 +42,7 @@ export interface VoiceCallPerfSample {
   readonly jitterMs?: number;
   readonly rttMs?: number;
   readonly helperCpuPct?: number;
+  readonly disconnects?: number;
   readonly hostCpuPct: number;
 }
 
@@ -61,6 +63,7 @@ export interface VoiceCallPerf {
   readonly helperCpuPct?: VoiceCallPerfRange;
   readonly rttMs?: VoiceCallPerfRange;
   readonly uplinkLossPct: number;
+  readonly disconnects?: number;
 }
 
 export type VoiceCallPhase =

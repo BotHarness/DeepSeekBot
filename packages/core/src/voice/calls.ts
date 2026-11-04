@@ -374,6 +374,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         hostCpuPctAvg: perf.hostCpuPct.avg,
         ...(perf.helperCpuPct === undefined ? {} : { helperCpuPctAvg: perf.helperCpuPct.avg }),
         ...(perf.rttMs === undefined ? {} : { rttMsAvg: perf.rttMs.avg }),
+        ...(perf.disconnects === undefined ? {} : { disconnects: perf.disconnects }),
       });
     await call.peer?.close().catch(() => undefined);
     setTimeout(() => {
