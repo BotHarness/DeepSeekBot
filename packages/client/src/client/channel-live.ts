@@ -592,13 +592,19 @@ export function mountChannelLive(
           if (change.type !== 'notification') return;
           const notification = change.notification;
           if (typeof notification !== 'object' || notification === null) return;
-          const item = notification as { kind?: unknown; draft?: unknown; event?: unknown };
+          const item = notification as {
+            kind?: unknown;
+            draft?: unknown;
+            append?: unknown;
+            event?: unknown;
+          };
           if (item.kind === 'admission') onAdmission(notification);
           else if (item.kind === 'human-read') onHumanRead(notification);
           else if (item.kind === 'reaction') onReaction(notification);
           else if (item.kind === 'voice') onVoice(notification);
           else if (item.kind === 'draft-baseline') onDraftBaseline(notification);
           else if (item.kind === 'draft') onDraft(item.draft);
+          else if (item.kind === 'draft-append') onDraftAppend(item.append);
           else if (item.kind === 'draft-settled') onLifecycle(item.event, false);
           else if (item.kind === 'draft-abandoned') onLifecycle(item.event, true);
         },

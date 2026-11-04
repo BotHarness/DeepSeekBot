@@ -78,6 +78,15 @@ export const CHANNEL_REMOTE_DESCRIPTOR = Object.freeze({
         (value): value is number => Number.isSafeInteger(value) && (value as number) >= 1,
       ),
     }),
+    Object.freeze({
+      name: 'drafts',
+      wire: 'drafts',
+      source: 'json' as const,
+      codec: strict(
+        'a draft delivery',
+        (value): value is 'full' | 'append' => value === 'full' || value === 'append',
+      ),
+    }),
   ]),
 });
 
@@ -85,6 +94,7 @@ export interface ChannelNamespace {
   followChannel(
     channelId: string,
     limit: number,
+    drafts: 'full' | 'append',
     signal: AbortSignal,
   ): AsyncIterable<ChannelLiveFrame>;
 }
@@ -193,7 +203,7 @@ export function createChannelFollow(
         },
         failed,
       },
-      (request, signal) => namespace().followChannel(channelId, request.limit, signal),
+      (request, signal) => namespace().followChannel(channelId, request.limit, 'append', signal),
       (request, through, signal) =>
         readPage(
           channelId,
