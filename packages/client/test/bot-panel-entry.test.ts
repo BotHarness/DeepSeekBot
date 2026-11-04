@@ -113,7 +113,7 @@ it('keeps notification states and active-mode navigation distinct', async () => 
     expect(actions.querySelector('.bh-panel-gear')).not.toBeNull();
     expect(chip.dataset['unread']).toBe('true');
     expect(chip.querySelector('.bh-human-inbox-count')?.textContent?.trim()).toBe('99+');
-    expect(chip.getAttribute('aria-label')).toContain('126');
+    expect(chip.getAttribute('aria-label')).toContain('99+');
     expect(chip.querySelector('.bh-human-inbox-notification-dot')).toBeNull();
     chip.click();
     expect(open).toHaveBeenCalledOnce();
@@ -134,7 +134,7 @@ it('keeps notification states and active-mode navigation distinct', async () => 
     expect(native.querySelector('.bh-panel-actions')).toBeNull();
     expect(chip.querySelector('.bh-human-inbox-count')).toBeNull();
     expect(chip.querySelector('.bh-human-inbox-notification-dot')).not.toBeNull();
-    expect(chip.getAttribute('aria-label')).toContain('126');
+    expect(chip.getAttribute('aria-label')).toContain('99+');
     await render(24, false);
     expect(chip.tabIndex).toBe(-1);
     expect(chip.getAttribute('aria-hidden')).toBe('true');

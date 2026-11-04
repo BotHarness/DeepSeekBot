@@ -365,7 +365,7 @@ const ACTION_ATTENTION_CTE = `WITH attention AS (
 
 const channelAttentionCte = (
   excludeMuted: boolean,
-  scope: 'all' | 'unread' | 'replies' = 'all',
+  scope: 'all' | 'unread' | 'replies' | 'unread-replies' = 'all',
 ): string => `
   WITH visible_messages AS (
     SELECT p.channel_id, p.revision, p.message_id, p.source_event_id,
@@ -391,7 +391,13 @@ const channelAttentionCte = (
       LEFT JOIN channel_human_members m
         ON m.channel_id = c.channel_id AND m.human_id = ?
       CROSS JOIN channel_placements p
-        ON p.channel_id = c.channel_id AND ${scope === 'unread' ? 'p.revision > coalesce(r.revision, 0)' : 'p.for_human = 1'}
+        ON p.channel_id = c.channel_id AND ${
+          scope === 'unread'
+            ? 'p.revision > coalesce(r.revision, 0) AND p.notice = 0'
+            : scope === 'replies'
+              ? 'p.for_human = 1'
+              : 'p.for_human = 1 AND p.revision > coalesce(r.revision, 0)'
+        }
       JOIN source_events e ON e.source_event_id = p.source_event_id
       LEFT JOIN channel_placements original ON original.channel_id = p.channel_id
         AND original.message_id = json_extract(e.payload_json, '$.replyTo')
@@ -432,9 +438,12 @@ const DM_CARD_FIELDS = [
   'grantRequest',
 ];
 
+export const UNREAD_COUNT_LIMIT = 100;
+
 const INBOX_CHANNEL_ATTENTION_CTE = channelAttentionCte(true);
 const INBOX_CHANNEL_UNREAD_CTE = channelAttentionCte(true, 'unread');
 const INBOX_CHANNEL_REPLIES_CTE = channelAttentionCte(true, 'replies');
+const INBOX_CHANNEL_UNREAD_REPLIES_CTE = channelAttentionCte(true, 'unread-replies');
 
 function decodeCursor(value: string, filters: string): Cursor {
   try {
@@ -1087,28 +1096,39 @@ SELECT 'handled:' || request.source_event_id AS id,
       };
     },
     status(messageCounts = false) {
-      const counts = database.read(
-        (db) =>
-          db
-            .prepare(`${INBOX_CHANNEL_UNREAD_CTE}, unread_events AS (
-          SELECT source_event_id, max(is_reply OR is_mention) AS personal
-            FROM visible_unread GROUP BY source_event_id
-        )
-          SELECT count(*) AS total, coalesce(sum(personal), 0) AS replies,
-                 count(*) - coalesce(sum(personal), 0) AS other FROM unread_events
-        `)
-            .get(LOCAL_HUMAN_ID, LOCAL_HUMAN_ID, JSON.stringify(mutedChannelIds())) as {
-            total: number;
-            replies: number;
-            other: number;
-          },
-      );
+      const muted = JSON.stringify(mutedChannelIds());
+      const count = (sql: string) =>
+        database.read(
+          (db) =>
+            (
+              db.prepare(sql).get(LOCAL_HUMAN_ID, LOCAL_HUMAN_ID, muted, UNREAD_COUNT_LIMIT) as {
+                count: number;
+              }
+            ).count,
+        );
+      const total = count(`${INBOX_CHANNEL_UNREAD_CTE}
+        SELECT count(*) AS count FROM (SELECT DISTINCT source_event_id FROM visible_unread LIMIT ?)`);
+      if (!messageCounts)
+        return {
+          unreadCount: total,
+          hasAction: this.list({ category: 'action', limit: 1 }).items.length > 0,
+        };
+      const replies = count(`${INBOX_CHANNEL_UNREAD_REPLIES_CTE}
+        SELECT count(*) AS count FROM (
+          SELECT DISTINCT source_event_id FROM visible_unread WHERE is_reply OR is_mention LIMIT ?
+        )`);
+      const other =
+        total < UNREAD_COUNT_LIMIT || replies < UNREAD_COUNT_LIMIT
+          ? total - replies
+          : count(`${INBOX_CHANNEL_UNREAD_CTE}
+        SELECT count(*) AS count FROM (
+          SELECT DISTINCT source_event_id FROM visible_unread
+           WHERE NOT (is_reply OR is_mention) LIMIT ?
+        )`);
       return {
-        unreadCount: counts.total,
+        unreadCount: total,
         hasAction: this.list({ category: 'action', limit: 1 }).items.length > 0,
-        ...(messageCounts
-          ? { messageCounts: { replies: counts.replies, other: counts.other } }
-          : {}),
+        messageCounts: { replies, other },
       };
     },
     dmReplies(limit, before) {
@@ -1179,19 +1199,25 @@ SELECT 'handled:' || request.source_event_id AS id,
                    AND m.left_at IS NULL AND m.visible_from_revision IS NOT NULL))
         ), counts AS MATERIALIZED (
           SELECT eligible.channel_id, (
-            SELECT count(DISTINCT p.source_event_id)
-              FROM channel_placements p
-              JOIN source_events e ON e.source_event_id = p.source_event_id
-             WHERE p.channel_id = eligible.channel_id
-               AND p.revision > eligible.read_revision
-               AND (eligible.type = 'dm' OR p.revision >= eligible.visible_from)
-               AND json_extract(e.payload_json, '$.author.kind') != 'human'
-               AND ${notChannelNoticeSql('e.payload_json')}
+            SELECT count(*) FROM (
+              SELECT DISTINCT p.source_event_id
+                FROM channel_placements p
+                JOIN source_events e ON e.source_event_id = p.source_event_id
+               WHERE p.channel_id = eligible.channel_id
+                 AND p.revision > eligible.read_revision AND p.notice = 0
+                 AND (eligible.type = 'dm' OR p.revision >= eligible.visible_from)
+                 AND json_extract(e.payload_json, '$.author.kind') != 'human'
+                 AND ${notChannelNoticeSql('e.payload_json')}
+               LIMIT ?
+            )
           ) AS unread_count FROM eligible
         )
         SELECT channel_id, unread_count FROM counts
          WHERE unread_count > 0 ORDER BY channel_id`)
-            .all(LOCAL_HUMAN_ID, LOCAL_HUMAN_ID) as { channel_id: string; unread_count: number }[]
+            .all(LOCAL_HUMAN_ID, LOCAL_HUMAN_ID, UNREAD_COUNT_LIMIT) as {
+            channel_id: string;
+            unread_count: number;
+          }[]
         ).map((row) => ({ channelId: row.channel_id, unreadCount: row.unread_count })),
       );
     },
