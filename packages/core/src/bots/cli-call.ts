@@ -265,6 +265,7 @@ async function simulate(
       asrMs: event.asrMs,
       at: event.at,
       ...(event.streamed === true ? { streamed: true } : {}),
+      ...(event.segments === undefined ? {} : { segments: event.segments }),
     })),
     hearing: events
       .filter(

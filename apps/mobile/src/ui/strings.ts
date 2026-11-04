@@ -1,3 +1,4 @@
+import { badgeCount } from './primitives/badge-count';
 import { productName } from './product-name';
 import { tapVerb } from './platform-copy';
 import type { DeviceRefusal } from '../host/client';
@@ -1466,9 +1467,10 @@ const en = {
   },
   needsYouCount: (count: number) => (count === 1 ? 'needs you' : `${count} need you`),
   sectionNeedsYou: (count: number) => (count === 1 ? '1 needs you' : `${count} need you`),
-  unreadCount: (count: number) => (count === 1 ? '1 unread message' : `${count} unread messages`),
+  unreadCount: (count: number) =>
+    count === 1 ? '1 unread message' : `${badgeCount(count)} unread messages`,
   mutedUnread: (count: number) =>
-    count === 1 ? 'muted, 1 unread message' : `muted, ${count} unread messages`,
+    count === 1 ? 'muted, 1 unread message' : `muted, ${badgeCount(count)} unread messages`,
   openSearch: 'Search',
   openTobMode: 'Tob Mode',
   closeSearch: 'Close search',
@@ -1585,7 +1587,7 @@ const en = {
   hostOffline: 'Offline',
   hostChecking: 'Checking…',
   hostPending: (count: number) => (count === 1 ? '1 needs you' : `${count} need you`),
-  hostUnread: (count: number) => (count === 1 ? '1 unread' : `${count} unread`),
+  hostUnread: (count: number) => (count === 1 ? '1 unread' : `${badgeCount(count)} unread`),
   hostMore: (host: string) => `More for ${host}`,
   showHost: 'Show this workspace',
   unpairHost: (host: string) => `Unpair ${host}?`,
@@ -1622,6 +1624,8 @@ const en = {
       'media-helper-missing':
         'Open Computer on this Bot once so the computer installs what calls need.',
       'media-unavailable': 'The computer can’t start a call right now. Try again soon.',
+      'local-voice-off':
+        'The local speech service on the computer is off. Start it there (python botharness_voice.py start in its folder).',
     },
     connectOnly: 'Calls need the same Wi-Fi as the computer, or Tailscale.',
     busyElsewhere: 'Another device is on a call with this computer.',
@@ -3566,8 +3570,8 @@ const zh: typeof en = {
   },
   needsYouCount: (count: number) => (count === 1 ? '等你处理' : `${count} 项等你处理`),
   sectionNeedsYou: (count: number) => `${count} 个需要你`,
-  unreadCount: (count: number) => `${count} 条未读消息`,
-  mutedUnread: (count: number) => `已静音，${count} 条未读消息`,
+  unreadCount: (count: number) => `${badgeCount(count)} 条未读消息`,
+  mutedUnread: (count: number) => `已静音，${badgeCount(count)} 条未读消息`,
   openSearch: '搜索',
   openTobMode: 'Tob 模式',
   closeSearch: '关闭搜索',
@@ -3680,7 +3684,7 @@ const zh: typeof en = {
   hostOffline: '离线',
   hostChecking: '正在检查…',
   hostPending: (count: number) => `${count} 项等你处理`,
-  hostUnread: (count: number) => `${count} 条未读`,
+  hostUnread: (count: number) => `${badgeCount(count)} 条未读`,
   hostMore: (host: string) => `${host} 的更多操作`,
   showHost: '显示这个工作区',
   unpairHost: (host: string) => `取消配对 ${host}？`,
@@ -3716,6 +3720,8 @@ const zh: typeof en = {
       'media-unsupported': `通话需要 Mac 或 Windows 电脑上的 ${productName.zh}。`,
       'media-helper-missing': '先为这个 Bot 打开一次“电脑”，电脑会安装通话需要的组件。',
       'media-unavailable': '电脑现在无法开始通话，请稍后再试。',
+      'local-voice-off':
+        '电脑上的本地语音服务没开。请在电脑上启动它（在它的文件夹里运行 python botharness_voice.py start）。',
     },
     connectOnly: '通话需要和电脑在同一 Wi-Fi，或使用 Tailscale。',
     busyElsewhere: '另一台设备正在和这台电脑通话。',

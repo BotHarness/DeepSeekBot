@@ -35,6 +35,7 @@ import { mountWorkspaceShell, type WorkspaceLayoutCommand } from './workspace-sh
 import { CHANNEL_BODY_PANEL, CHANNEL_WORKSPACE_PANELS } from './channel-dock-layout.js';
 import { WORKSPACE_CHANNELS, WorkspaceContext } from './workspace-context.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { unreadCountLabel } from './unread-count.js';
 
 export type WorkspaceOptions = Omit<
   BotModeSidebarProps,
@@ -235,7 +236,7 @@ function WorkspaceRail({
   const indicator = activityIndicator(indicatorMenu.scope, state.humanInbox);
   const attentionLabel = [
     ...(state.humanInbox.unreadCount > 0
-      ? [t('humanInbox.unreadCount', { count: String(state.humanInbox.unreadCount) })]
+      ? [t('humanInbox.unreadCount', { count: unreadCountLabel(state.humanInbox.unreadCount) })]
       : []),
     ...(state.humanInbox.hasAction ? [t('humanInbox.action')] : []),
     ...(indicator === 'unknown' ? [t('activityIndicator.unavailable')] : []),
