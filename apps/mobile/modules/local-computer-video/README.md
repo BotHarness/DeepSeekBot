@@ -12,8 +12,18 @@ audio-only offer from the Host call owner and answers with a microphone track on
 connection factory. The audio session is play-and-record in voice-chat mode on the loudspeaker, and
 the track requests echo cancellation, noise suppression and gain control, so the Bot's reply is not
 heard back as the Human's speech. `callMute` disables the track, `callStop` closes the peer and
-releases the audio session, and leaving the foreground ends the call. The screen stays on during a
-call. No audio is stored. With `testAudio` (only `.dev` development builds pass it), a capture
+releases the audio session. No audio is stored.
+
+The call keeps running with the screen locked or the app in the background (#3422): the module's
+config plugin declares the `audio` background mode, and the session stays active from `callStart`
+to `callStop`. `callStart` also takes the microphone (`headset` or `iphone`) to use when headphones
+take the call. `callAudio(attemptId, output, microphone)` switches a live call's output (`receiver`,
+`speaker` or `external`) and microphone (`iphone` or `headset`) by reconfiguring the active session,
+and `callAudioState` reads the route: the output and microphone in use, the ones on offer with the
+connected device's name, and whether music mode is on. Headphones with the iPhone microphone is
+music mode: A2DP output, other apps keep playing, Apple's voice processing off (the peer factory
+uses the AudioEngine device module) and WebRTC software echo cancellation on the track. `onCallAudio` reports interruptions by another call,
+Siri or app, and every route change with that same route, such as headphones being unplugged; neither ends the call. See ADR-0285. With `testAudio` (only `.dev` development builds pass it), a capture
 post-processing hook replaces the microphone with WAV files queued by `callInject`, and a renderer
 on the remote track records the downlink to a WAV in the caches folder and reports
 `downlink-start`/`downlink-end` timestamps through `onCallTap`. iOS needs a rebuilt development
