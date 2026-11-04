@@ -2007,6 +2007,7 @@ export const zh = {
   'voice.mic.unnamed': '麦克风 {number}',
   'voice.mic.labelsHint': '允许麦克风后才会显示名称。点下面的「开始测试」授权一次即可。',
   'voice.mic.fellBack': '之前选的麦克风已不可用，已改用系统默认。',
+  'voice.mic.using': '正在使用：{name}。如果没有声音，请在上面换一个输入设备。',
   'voice.mic.start': '开始测试',
   'voice.mic.stop': '停止',
   'voice.mic.level': '输入音量',
@@ -6841,6 +6842,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
     'Names appear after you allow the microphone. Start the test once to allow it.',
   'voice.mic.fellBack':
     'The microphone you chose is no longer available, so the system default is used.',
+  'voice.mic.using':
+    'Listening on {name}. If the bar stays still, choose another input device above.',
   'voice.mic.start': 'Start test',
   'voice.mic.stop': 'Stop',
   'voice.mic.level': 'Input level',

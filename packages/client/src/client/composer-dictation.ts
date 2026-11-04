@@ -148,10 +148,15 @@ export function createBrowserDictationMic(
       const media = devices();
       if (media?.getUserMedia === undefined) throw new DictationMicError('microphone-missing');
       const generation = epoch;
+      const audio = typeof AudioContext === 'function' ? new AudioContext() : undefined;
+      context = audio;
+      void audio?.resume().catch(() => undefined);
       let acquired: MediaStream;
       try {
         acquired = (await openMicrophone(media)).stream;
       } catch (error) {
+        if (context === audio) context = undefined;
+        void audio?.close().catch(() => undefined);
         const name = (error as { name?: unknown } | undefined)?.name;
         throw new DictationMicError(
           name === 'NotAllowedError' || name === 'SecurityError'
@@ -163,10 +168,12 @@ export function createBrowserDictationMic(
         for (const track of acquired.getTracks()) track.stop();
         return;
       }
+      if (audio === undefined) {
+        for (const track of acquired.getTracks()) track.stop();
+        throw new DictationMicError('microphone-missing');
+      }
       stream = acquired;
       const owned = acquired;
-      const audio = new AudioContext();
-      context = audio;
       const source = audio.createMediaStreamSource(owned);
       const node = audio.createScriptProcessor(4096, 1, 1);
       processor = node;

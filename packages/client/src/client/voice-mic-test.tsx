@@ -115,6 +115,8 @@ export function VoiceMicTest({
   const value = draft ?? threshold.dbfs;
   const limit = useRef(value);
   limit.current = value;
+  const [using, setUsing] = useState<string>();
+  const unlocked = useRef<AudioContext | undefined>(undefined);
   const fill = useRef<HTMLDivElement | null>(null);
   const readout = useRef<HTMLSpanElement | null>(null);
   const speech = useRef<HTMLSpanElement | null>(null);
@@ -139,12 +141,14 @@ export function VoiceMicTest({
           return;
         }
         stream = acquired;
+        setUsing(acquired.getAudioTracks()[0]?.label || undefined);
         if (missing) {
           setDevice(undefined);
           setFellBack(true);
         }
         refreshDevices();
-        const audio = new AudioContext();
+        const audio = unlocked.current ?? new AudioContext();
+        unlocked.current = undefined;
         context = audio;
         const analyser = audio.createAnalyser();
         analyser.fftSize = 2048;
@@ -174,6 +178,9 @@ export function VoiceMicTest({
       });
     return () => {
       stopped = true;
+      setUsing(undefined);
+      void unlocked.current?.close().catch(() => undefined);
+      unlocked.current = undefined;
       cancelAnimationFrame(frame);
       for (const track of stream?.getTracks() ?? []) track.stop();
       void context?.close().catch(() => undefined);
@@ -237,6 +244,11 @@ export function VoiceMicTest({
             size="sm"
             onClick={() => {
               setProblem(undefined);
+              if (!running && typeof AudioContext === 'function') {
+                const audio = new AudioContext();
+                void audio.resume().catch(() => undefined);
+                unlocked.current = audio;
+              }
               setRunning(!running);
             }}
           >
@@ -260,6 +272,9 @@ export function VoiceMicTest({
             <span ref={speech} />
           </span>
         </div>
+        {using === undefined ? null : (
+          <Note tone="muted">{t('voice.mic.using', { name: using })}</Note>
+        )}
         {problem === undefined ? null : (
           <Note tone="danger">
             {problem === 'denied' ? t('voice.mic.denied') : t('voice.mic.missing')}
