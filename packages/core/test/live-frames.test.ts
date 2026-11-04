@@ -108,6 +108,33 @@ describe('live frames on the native stream carrier', () => {
     expect((await ended).done).toBe(true);
   });
 
+  it('carries a Bot reply as a roster preview without a full roster refresh', async () => {
+    const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }));
+    hubs.push(hub);
+    const abort = new AbortController();
+    const frames = hub.followRoster(abort.signal)[Symbol.asyncIterator]();
+    await frames.next();
+    const reply = {
+      id: 'bot',
+      at: '2026-10-18T00:00:00Z',
+      author: { kind: 'bot' as const, slug: 'ada' },
+      body: 'Done',
+    };
+    hub.publishCommitted({ channelId: 'a', revision: 1, message: reply });
+    hub.publishCommitted({
+      channelId: 'a',
+      revision: 2,
+      message: { ...reply, id: 'bot-2', body: 'Done again' },
+    });
+    expect((await frames.next()).value).toEqual({
+      type: 'latest',
+      channelId: 'a',
+      message: { ...reply, id: 'bot-2', body: 'Done again' },
+    });
+    abort.abort();
+    expect((await frames.next()).done).toBe(true);
+  });
+
   it('retains a canonical roster refresh when a slow reader coalesces a Bot reply into a Human preview', async () => {
     const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }));
     hubs.push(hub);
