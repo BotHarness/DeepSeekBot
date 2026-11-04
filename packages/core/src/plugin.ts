@@ -904,7 +904,9 @@ export function createCore(
       if (topics.includes('content-purge')) live?.publishContentPurged();
       if (
         topics.some((topic) =>
-          ['bindings', 'grants', 'bot-schedules', 'content-purge', 'assignments'].includes(topic),
+          ['bindings', 'grants', 'bot-schedules', 'content-purge', 'assignment-report'].includes(
+            topic,
+          ),
         )
       )
         live?.publishRosterCommitted();
