@@ -1,8 +1,10 @@
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFile, execFileSync, spawnSync } from 'node:child_process';
+import { createServer as createHttpServer } from 'node:http';
 import { readFileSync, statSync } from 'node:fs';
 import { createServer } from 'node:net';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 
 import { Context } from '@deepseek-ai/cordis';
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local';
@@ -124,6 +126,31 @@ describe('local speech service kit', () => {
     expect(exposed.status).toBe(1);
     expect(JSON.parse(exposed.stdout)).toMatchObject({ ok: false, code: 'key-required' });
     expect(run('start', '--host', '0.0.0.0').status).toBe(2);
+  });
+
+  it('ignores another service that answers on the port', async () => {
+    const py = python();
+    if (py === undefined) return;
+    const dir = createTempRoot('voice-kit-foreign-');
+    const { script } = runVoiceLocalKit([], { dir });
+    const foreign = createHttpServer((_request, response) => {
+      response.setHeader('content-type', 'application/json');
+      response.end(JSON.stringify({ status: 'ok', pid: process.pid }));
+    });
+    await new Promise<void>((resolve) => foreign.listen(0, '127.0.0.1', resolve));
+    cleanup.push(() => new Promise<void>((resolve) => foreign.close(() => resolve())));
+    const port = String((foreign.address() as AddressInfo).port);
+    const run = async (...args: string[]) =>
+      JSON.parse(
+        (
+          await promisify(execFile)(py, ['-I', script, '--home', dir, '--port', port, ...args], {
+            encoding: 'utf8',
+            timeout: 20_000,
+          })
+        ).stdout,
+      ) as unknown;
+    expect(await run('status')).toMatchObject({ running: false });
+    expect(await run('stop')).toMatchObject({ running: false, stopped: false });
   });
 
   it('documents the measured sizes, the start and stop commands and both systems', () => {

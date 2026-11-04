@@ -588,9 +588,12 @@ def base_url(args) -> str:
 def probe(args, timeout: float = 2.0) -> dict | None:
     try:
         with urllib.request.urlopen(f"{base_url(args)}/health", timeout=timeout) as response:
-            return json.loads(response.read())
+            state = json.loads(response.read())
     except (urllib.error.URLError, OSError, ValueError):
         return None
+    if isinstance(state, dict) and state.get("service") == "botharness-voice":
+        return state
+    return None
 
 
 def start(args) -> dict:
