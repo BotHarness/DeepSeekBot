@@ -54,7 +54,7 @@ export const CallRecordBubble = memo(function CallRecordBubble({
           <Icon color={started ? theme.color.success : theme.color.muted} size={glyph} />
         </View>
         <View style={{ flexShrink: 1 }}>
-          <Text variant="body" strong numberOfLines={theme.largeText ? 2 : 1}>
+          <Text variant="body" strong numberOfLines={theme.largeText ? undefined : 1}>
             {title}
           </Text>
           <Text variant="meta" tone="muted" style={{ fontVariant: ['tabular-nums'] }}>

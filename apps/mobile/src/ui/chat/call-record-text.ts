@@ -2,7 +2,7 @@ import {
   voiceCallDuration,
   type ChannelVoiceCallRecord,
 } from '../../../../../packages/core/src/channels/voice-call-record';
-import { t as defaultStrings } from '../strings';
+import { locale, t as defaultStrings } from '../strings';
 
 export type CallCopy = Pick<
   typeof defaultStrings.call,
@@ -13,7 +13,10 @@ function clock(at: string): string {
   const date = new Date(at);
   return Number.isNaN(date.getTime())
     ? ''
-    : new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(date);
+    : new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+      }).format(date);
 }
 
 export function callRecordLines(

@@ -530,6 +530,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       }
       const messageId = `human-${randomUUID()}`;
       await call.recorded;
+      if (ended(call)) return;
       try {
         await deps.send({
           slug: call.slug,
@@ -1244,6 +1245,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       case 'hangup': {
         const call = own(caller, command['callId'], true);
         await end(call, 'hangup');
+        await Promise.race([call.recorded, new Promise((resolve) => setTimeout(resolve, 3_000))]);
         return { ok: true, call: view(call) };
       }
       default:

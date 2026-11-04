@@ -109,7 +109,7 @@ describe('voice call records in the Bot DM (#3483)', () => {
       expect(runs.at(-1)!.message).toContain(`[Voice call ${CALL}]`);
       expect(runs.at(-1)!.message).not.toContain('Last voice call');
 
-      const endedAt = new Date(Date.now() - 1_000).toISOString();
+      const endedAt = new Date(Date.parse(startedAt) + 59_000).toISOString();
       await notice({
         callId: CALL,
         botSlug: 'mira',
