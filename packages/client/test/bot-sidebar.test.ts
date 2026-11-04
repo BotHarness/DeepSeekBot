@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement, Profiler, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -887,6 +887,47 @@ describe('bot sidebar rows', () => {
       }
       expect(captured.tooltipLabels.filter((label) => label.startsWith('Nova ·'))).toHaveLength(3);
       expect(captured.tooltipLabels.filter((label) => label.startsWith('Atlas ·'))).toEqual([]);
+    } finally {
+      await act(() => root.unmount());
+      node.remove();
+    }
+  });
+
+  it('does not re-render on Inbox, conversation or session writes it does not show', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    store.setRoster([BOT], [DM_CHANNEL]);
+    const node = document.createElement('div');
+    document.body.append(node);
+    const root = createRoot(node);
+    let commits = 0;
+    try {
+      await act(() =>
+        root.render(
+          createElement(
+            Profiler,
+            { id: 'sidebar', onRender: () => (commits += 1) },
+            createElement(BotSidebar, {
+              wide: true,
+              actions: stubActions(),
+              useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+                selector(prefs)) as never,
+              setSortMode,
+              setSectionSortMode,
+              t: zhTranslate,
+            }),
+          ),
+        ),
+      );
+      commits = 0;
+      for (let n = 0; n < 5; n++)
+        await act(() => {
+          store.setHumanInbox({ status: n % 2 === 0 ? 'ready' : 'loading', items: [] });
+          store.setConversation({ revision: n + 1 });
+          store.setSessions({ ...store.getSnapshot().sessions });
+        });
+      expect(commits).toBe(0);
+      await act(() => store.setHumanInbox({ channelUnread: { [DM_CHANNEL.id]: 3 } }));
+      expect(commits).toBeGreaterThan(0);
     } finally {
       await act(() => root.unmount());
       node.remove();

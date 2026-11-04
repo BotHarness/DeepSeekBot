@@ -1,3 +1,4 @@
+import type { ConversationStateView } from './store.js';
 import { Menu } from './appearance-primitives.js';
 import { ChannelNicknameEntry, ChannelTraceEntry } from './channel-personal-settings.js';
 import type { ExternalSource } from '../../../core/src/messaging/inbound.js';
@@ -74,7 +75,7 @@ import {
   type InboxSection,
 } from './inbox-sections.js';
 import type { BotHarnessTranslate } from './locale.js';
-import type { BotAttentionItem, ClientState } from './store.js';
+import type { BotAttentionItem } from './store.js';
 import { IconButton } from './ds/icon-button.js';
 import { GroupHeading } from './ds/group-heading.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
@@ -1314,7 +1315,8 @@ export function createChannelSidebarBuiltins(
       order: 1,
       scope,
       component: ChannelNicknameEntry,
-      visible: (state: ClientState) => state.conversation.channel?.humanNickname !== undefined,
+      visible: (state: ConversationStateView) =>
+        state.conversation.channel?.humanNickname !== undefined,
     })),
     {
       id: 'dm-trace',

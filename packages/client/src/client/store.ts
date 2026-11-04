@@ -513,6 +513,17 @@ export interface RosterState {
   readOnly: boolean;
 }
 
+export const CONVERSATION_STATE_KEYS = [
+  'bots',
+  'channels',
+  'selection',
+  'conversation',
+  'memoryCommitIntent',
+  'contentPurgeRevision',
+  'composerIdentity',
+] as const;
+export type ConversationStateView = Pick<ClientState, (typeof CONVERSATION_STATE_KEYS)[number]>;
+
 export interface ClientState {
   contentPurgeRevision?: number;
   composerIdentity?:

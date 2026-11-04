@@ -24,7 +24,9 @@ import type { DockviewApi } from 'dockview-react';
 import type { BotModeSidebarProps } from './bot-mode-sidebar.js';
 import type { BotModePrefs } from './bot-mode-prefs.js';
 import { BotSidebar } from './bot-sidebar.js';
-import { keepClientState, sameFields, useClientStore } from './use-client-store.js';
+import { useClientStore } from './use-client-store.js';
+import { shallowEqual } from '@deepseek-ai/dsh-client-store';
+import type { ClientState } from './store.js';
 import { BotIcon } from './bot-icon.js';
 import { ExitIcon } from './exit-icon.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
@@ -53,7 +55,13 @@ export type WorkspaceOptions = Omit<
   registerLayoutSettings(setTarget: (node: HTMLDivElement | null) => void): () => void;
 };
 
-const railInputs = sameFields(['humanInbox', 'selection']);
+const selectRailAttention = (state: ClientState) => ({
+  unreadCount: state.humanInbox.unreadCount,
+  hasAction: state.humanInbox.hasAction,
+  messageCounts: state.humanInbox.messageCounts,
+  attentionStatus: state.humanInbox.attentionStatus,
+});
+const selectRailBotSlug = (state: ClientState) => resolveChannelSidebarContext(state)?.botSlug;
 export function Workspace({
   options,
   t,
@@ -231,14 +239,15 @@ function WorkspaceRail({
     options.prefs.source.subscribe,
     () => options.prefs.source.getSnapshot().botIcon,
   );
-  const state = useClientStore(keepClientState, railInputs);
+  const attention = useClientStore(selectRailAttention, shallowEqual);
+  const railBotSlug = useClientStore(selectRailBotSlug);
   const indicatorMenu = useActivityIndicatorMenu(t);
-  const indicator = activityIndicator(indicatorMenu.scope, state.humanInbox);
+  const indicator = activityIndicator(indicatorMenu.scope, attention);
   const attentionLabel = [
-    ...(state.humanInbox.unreadCount > 0
-      ? [t('humanInbox.unreadCount', { count: unreadCountLabel(state.humanInbox.unreadCount) })]
+    ...(attention.unreadCount > 0
+      ? [t('humanInbox.unreadCount', { count: unreadCountLabel(attention.unreadCount) })]
       : []),
-    ...(state.humanInbox.hasAction ? [t('humanInbox.action')] : []),
+    ...(attention.hasAction ? [t('humanInbox.action')] : []),
     ...(indicator === 'unknown' ? [t('activityIndicator.unavailable')] : []),
   ].join(' · ');
   const shortcuts = useSyncExternalStore(
@@ -246,7 +255,7 @@ function WorkspaceRail({
     options.shortcuts.catalog.getSnapshot,
   );
   const panels = useSyncExternalStore(options.dockPanels!.subscribe, options.dockPanels!.panels);
-  const botOnlyHidden = resolveChannelSidebarContext(state)?.botSlug
+  const botOnlyHidden = railBotSlug
     ? []
     : [
         ...BOT_ONLY_CHANNEL_PANELS,
@@ -334,8 +343,8 @@ function WorkspaceRail({
               badge={(id) =>
                 id === 'activity-center'
                   ? {
-                      count: state.humanInbox.unreadCount,
-                      dot: state.humanInbox.hasAction,
+                      count: attention.unreadCount,
+                      dot: attention.hasAction,
                       indicator,
                       label: attentionLabel || undefined,
                     }

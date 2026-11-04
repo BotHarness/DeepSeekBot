@@ -1,3 +1,4 @@
+import type { ConversationStateView } from './store.js';
 import { useState, useSyncExternalStore, type Dispatch, type SetStateAction } from 'react';
 import {
   ComposerDraftStore,
@@ -31,7 +32,7 @@ function owner(): ComposerDraftStore {
   return persistent;
 }
 
-export function conversationDraftKey(state: ClientState): string | undefined {
+export function conversationDraftKey(state: ConversationStateView): string | undefined {
   const identity = state.composerIdentity;
   if (identity === undefined) return undefined;
   const selection = state.selection;
