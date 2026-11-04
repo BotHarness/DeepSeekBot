@@ -12,10 +12,15 @@ import {
   type CallPost,
 } from '../../../../../packages/core/src/voice/call-client';
 import { VOICE_CALL_PATH } from '../../../../../packages/core/src/voice/call-contract';
-import type { CallAudioRoute } from '../../host/call-audio-route';
+import {
+  fallbackCallAudioRoute,
+  type CallAudioOutputId,
+  type CallAudioRouteState,
+  type CallMicrophoneId,
+} from '../../host/call-audio-route';
 import { createCallMedia, microphoneAccess, microphoneGranted } from '../../host/call-media';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
-import { callAudioRoute, useCallAudioRoute } from '../../host/native-call-audio-route';
+import { callAudioPreference } from '../../host/native-call-audio-route';
 import { callActivityNative, onCallActivityAction } from '../../host/native-call-activity';
 import { BotAvatar } from '../bot-avatar';
 import { radius, space } from '../design/tokens';
@@ -26,6 +31,7 @@ import { Text } from '../primitives/text';
 import { locale, useStrings } from '../strings';
 import { createCallActivity } from './call-activity';
 import { CallAudioMenu } from './call-audio-menu';
+import { callAudioDeviceName } from './call-audio-symbol';
 import {
   callActivityPhase,
   callScreenModel,
@@ -79,14 +85,14 @@ export function CallScreen({
   const [report, setReport] = useState<string>();
   const [interrupted, setInterrupted] = useState(false);
   const [audioFailed, setAudioFailed] = useState(false);
-  const audio = useCallAudioRoute();
+  const [route, setRoute] = useState<CallAudioRouteState | undefined>(undefined);
   const callRef = useRef<CallClient | undefined>(undefined);
   const dialed = useRef<number | undefined>(undefined);
   const nameRef = useRef(slug);
   nameRef.current = bot?.displayName ?? slug;
   const testAudio = testBuild() && script !== undefined;
   const media = useMemo(
-    () => createCallMedia({ testAudio, route: () => callAudioRoute.getSnapshot().route }),
+    () => createCallMedia({ testAudio, audio: () => callAudioPreference.getSnapshot().audio }),
     [testAudio, attempt],
   );
 
@@ -145,6 +151,7 @@ export function CallScreen({
         if (cancelled) return;
         paused = event.interrupted;
         setInterrupted(event.interrupted);
+        if (event.route !== undefined) setRoute(event.route);
         showActivity();
         if (testAudio) mark('audio', event);
       });
@@ -159,9 +166,11 @@ export function CallScreen({
         if (cancelled) return;
         setMicrophone(access);
         if (access !== 'granted') return;
-        await callAudioRoute.ready;
+        await callAudioPreference.ready;
         if (cancelled) return;
         await call.open(slug);
+        const opened = await media.audio?.state();
+        if (!cancelled && opened !== undefined && opened !== null) setRoute(opened);
         if (cancelled || !testAudio || media.test === undefined || script === undefined) return;
         try {
           const steps = (await (await fetch(script)).json()) as ScriptStep[];
@@ -238,9 +247,17 @@ export function CallScreen({
   const model = callScreenModel(t, state, { interrupted });
   const recovery = microphoneRecovery(t, microphone);
   const hint = audioFailed ? t.call.audioSwitchFailed : model.hint;
-  const switchAudio = (route: CallAudioRoute) => {
-    callAudioRoute.setRoute(route);
-    setAudioFailed(media?.audio?.route(route) === null);
+  const shownRoute = route ?? fallbackCallAudioRoute();
+  const chooseAudio = (output: CallAudioOutputId, microphone: CallMicrophoneId) => {
+    void media?.audio?.choose(output, microphone).then((next) => {
+      if (next === null) {
+        setAudioFailed(true);
+        return;
+      }
+      setAudioFailed(false);
+      setRoute(next);
+      if (next.output === 'external') callAudioPreference.setHeadsetMicrophone(next.microphone);
+    });
   };
   const leave = () => {
     if (router.canGoBack()) router.back();
@@ -423,15 +440,19 @@ export function CallScreen({
             {media?.audio === undefined ? null : (
               <View style={{ alignItems: 'center', gap: space.x3 }}>
                 <CallAudioMenu
-                  route={audio.route}
+                  route={shownRoute}
                   size={round}
                   fill={theme.color.surface}
                   ink={theme.color.fg}
                   disabled={!model.live}
-                  onChange={switchAudio}
+                  onOutput={(output) => chooseAudio(output, shownRoute.microphone)}
+                  onMicrophone={(microphone) => chooseAudio(shownRoute.output, microphone)}
                 />
                 <Text variant="meta" tone="muted">
-                  {t.call.audioRoute[audio.route]}
+                  {callAudioDeviceName(
+                    t,
+                    shownRoute.outputs.find((output) => output.id === shownRoute.output),
+                  )}
                 </Text>
               </View>
             )}

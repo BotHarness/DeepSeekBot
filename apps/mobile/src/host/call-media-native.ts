@@ -4,22 +4,39 @@ import type {
   CallClientMedia,
   CallMediaState,
 } from '../../../../packages/core/src/voice/call-client';
-import type { CallAudioControl, CallAudioEvent, CallAudioRoute } from './call-audio-route';
+import {
+  DEFAULT_CALL_AUDIO,
+  parseCallAudioRouteState,
+  type CallAudioControl,
+  type CallAudioOutputId,
+  type CallAudioPreference,
+  type CallMicrophoneId,
+} from './call-audio-route';
 
 type Subscription = { remove(): void };
 type CallStateEvent = { attemptId: string; state: CallMediaState; code?: string };
 type CallTapEvent = { attemptId: string; kind: string; ms?: number } & Record<string, unknown>;
-type NativeAudioEvent = { attemptId: string } & CallAudioEvent;
+type NativeAudioEvent = {
+  attemptId: string;
+  interrupted?: boolean;
+  resumed?: boolean;
+  route?: unknown;
+};
 
 interface CallNativeModule {
   callStart(
     attemptId: string,
     offer: string,
     testAudio: boolean,
-    route?: CallAudioRoute,
+    headsetMicrophone?: CallMicrophoneId,
   ): Promise<string>;
   callMute(attemptId: string, muted: boolean): void;
-  callRoute?(attemptId: string, route: CallAudioRoute): string | null;
+  callAudio?(
+    attemptId: string,
+    output: CallAudioOutputId,
+    microphone: CallMicrophoneId,
+  ): Promise<unknown>;
+  callAudioState?(attemptId: string): Promise<unknown>;
   callInject(attemptId: string, path: string): Promise<boolean>;
   callStop(attemptId: string): Promise<string | null>;
   addListener(event: 'onCallState', listener: (event: CallStateEvent) => void): Subscription;
@@ -53,11 +70,11 @@ export interface CallTestAudio {
 }
 
 export function createCallMedia(
-  options: { testAudio?: boolean; route?: () => CallAudioRoute } = {},
+  options: { testAudio?: boolean; audio?: () => CallAudioPreference } = {},
 ): (CallClientMedia & { audio?: CallAudioControl; test?: CallTestAudio }) | undefined {
   if (!callMediaSupported || native === null) return undefined;
   const module = native;
-  const routable = typeof module.callRoute === 'function';
+  const routable = typeof module.callAudio === 'function';
   let attempt: string | undefined;
   let recording: string | null = null;
   const testAudio = options.testAudio === true;
@@ -65,7 +82,8 @@ export function createCallMedia(
     async start({ callId, offer }) {
       attempt = callId;
       if (!routable) return module.callStart(callId, offer, testAudio);
-      return module.callStart(callId, offer, testAudio, options.route?.() ?? 'speaker');
+      const audio = options.audio?.() ?? DEFAULT_CALL_AUDIO;
+      return module.callStart(callId, offer, testAudio, audio.headsetMicrophone);
     },
     mute(muted) {
       if (attempt !== undefined) module.callMute(attempt, muted);
@@ -90,17 +108,24 @@ export function createCallMedia(
   };
   if (routable)
     media.audio = {
-      route(route) {
+      async choose(output, microphone) {
         if (attempt === undefined) return null;
-        return module.callRoute?.(attempt, route) ?? null;
+        const next = await module.callAudio?.(attempt, output, microphone).catch(() => undefined);
+        return parseCallAudioRouteState(next) ?? null;
+      },
+      async state() {
+        if (attempt === undefined) return null;
+        const current = await module.callAudioState?.(attempt).catch(() => undefined);
+        return parseCallAudioRouteState(current) ?? null;
       },
       onChange(listener) {
         const subscription = module.addListener('onCallAudio', (event) => {
           if (event.attemptId !== attempt) return;
+          const route = parseCallAudioRouteState(event.route);
           listener({
             interrupted: event.interrupted === true,
-            ...(typeof event.output === 'string' ? { output: event.output } : {}),
             ...(typeof event.resumed === 'boolean' ? { resumed: event.resumed } : {}),
+            ...(route === undefined ? {} : { route }),
           });
         });
         return () => subscription.remove();
