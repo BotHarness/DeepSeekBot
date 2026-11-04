@@ -67,30 +67,28 @@ export function NativePageHeader({ title, onBack, backID, action, call }: Native
         },
       ];
   if (title !== undefined) items.push({ type: 'spacing', spacing: glassPress.gap });
-  const right: HeaderBarButtonItem[] = [];
   const grouped = call !== undefined && action !== undefined;
-  if (call !== undefined || action !== undefined)
-    right.push({ type: 'spacing', spacing: glassPress.gap });
-  if (call !== undefined)
-    right.push({
-      type: 'button',
-      index: 1,
-      title: '',
-      icon: { type: 'sfSymbol', name: 'phone' },
-      identifier: call.testID,
-      accessibilityLabel: call.label,
-      onPress: call.onPress,
-      sharesBackground: grouped,
-    });
+  const right: HeaderBarButtonItem[] = [];
   if (action !== undefined)
     right.push({
       type: 'button',
-      index: 0,
+      index: right.length,
       title: '',
       icon: { type: 'sfSymbol', name: 'ellipsis' },
       identifier: action.testID,
       accessibilityLabel: action.label,
       onPress: action.onPress,
+      sharesBackground: grouped,
+    });
+  if (call !== undefined)
+    right.push({
+      type: 'button',
+      index: right.length,
+      title: '',
+      icon: { type: 'sfSymbol', name: 'phone' },
+      identifier: call.testID,
+      accessibilityLabel: call.label,
+      onPress: call.onPress,
       sharesBackground: grouped,
     });
   return (

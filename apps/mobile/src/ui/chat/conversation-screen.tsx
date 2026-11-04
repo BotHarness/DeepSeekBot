@@ -1503,7 +1503,14 @@ function ChatConversation({
                   unstable_headerRightItems: () =>
                     canOpenProfile
                       ? [
-                          { type: 'spacing' as const, spacing: headerGap },
+                          {
+                            type: 'button' as const,
+                            label: t.openProfile,
+                            identifier: 'chat-profile-button',
+                            icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
+                            sharesBackground: placeCall !== undefined,
+                            onPress: openProfile,
+                          },
                           ...(placeCall === undefined
                             ? []
                             : [
@@ -1516,14 +1523,6 @@ function ChatConversation({
                                   onPress: placeCall,
                                 },
                               ]),
-                          {
-                            type: 'button' as const,
-                            label: t.openProfile,
-                            identifier: 'chat-profile-button',
-                            icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
-                            sharesBackground: placeCall !== undefined,
-                            onPress: openProfile,
-                          },
                         ]
                       : [],
                   unstable_headerLeftItems: () => [
