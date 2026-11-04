@@ -393,7 +393,7 @@ const channelAttentionCte = (
       CROSS JOIN channel_placements p
         ON p.channel_id = c.channel_id AND ${
           scope === 'unread'
-            ? 'p.revision > coalesce(r.revision, 0)'
+            ? 'p.revision > coalesce(r.revision, 0) AND p.notice = 0'
             : scope === 'replies'
               ? 'p.for_human = 1'
               : 'p.for_human = 1 AND p.revision > coalesce(r.revision, 0)'
@@ -1204,7 +1204,7 @@ SELECT 'handled:' || request.source_event_id AS id,
                 FROM channel_placements p
                 JOIN source_events e ON e.source_event_id = p.source_event_id
                WHERE p.channel_id = eligible.channel_id
-                 AND p.revision > eligible.read_revision
+                 AND p.revision > eligible.read_revision AND p.notice = 0
                  AND (eligible.type = 'dm' OR p.revision >= eligible.visible_from)
                  AND json_extract(e.payload_json, '$.author.kind') != 'human'
                  AND ${notChannelNoticeSql('e.payload_json')}

@@ -63,6 +63,10 @@ describe('Human attention unread status', () => {
       );
       expect(details.some((detail) => /^SCAN p\b/.test(detail))).toBe(false);
     }
+    for (const sql of counts.filter((statement) => !statement.includes('p.for_human = 1')))
+      expect(plan(sql)).toContainEqual(
+        expect.stringMatching(/^SEARCH p USING INDEX channel_placements_latest_message /),
+      );
     const replies = counts.find((sql) => sql.includes('p.for_human = 1'));
     expect(plan(replies!)).toContainEqual(
       expect.stringMatching(/^SEARCH p USING INDEX channel_placements_for_human /),
