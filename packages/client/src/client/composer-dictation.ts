@@ -97,6 +97,19 @@ export function withDictation(base: string, heard: string): string {
     : `${base} ${text}`;
 }
 
+export function spliceDictation(
+  before: string,
+  heard: string,
+  after: string,
+): { value: string; caret: number } {
+  const head = withDictation(before, heard);
+  if (after === '' || head === before) return { value: `${head}${after}`, caret: head.length };
+  const last = head.at(-1) ?? '';
+  const next = after[0] ?? '';
+  const tight = /[\s\p{P}]/u.test(next) || /\s/u.test(last) || TIGHT.test(last) || TIGHT.test(next);
+  return { value: `${head}${tight ? '' : ' '}${after}`, caret: head.length };
+}
+
 export interface DictationMic {
   start(onPcm: (samples: Int16Array) => void): Promise<void>;
   stop(): void;

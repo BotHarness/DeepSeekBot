@@ -4424,7 +4424,9 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
     color-mix(in srgb, var(--dsw-alias-label-primary) 9%, transparent);
   transition:
     padding 220ms var(--ds-ease-in-out),
-    border-radius 220ms var(--ds-ease-in-out);
+    border-radius 220ms var(--ds-ease-in-out),
+    border-color 160ms var(--ds-ease-in-out),
+    box-shadow 160ms var(--ds-ease-in-out);
 }
 .bh-composer-expanded {
   padding-top: ${space.x3};
@@ -4639,11 +4641,55 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   animation: bh-dictation-pulse 1.6s var(--ds-ease-in-out) infinite;
 }
 @keyframes bh-dictation-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--dsw-alias-state-business-primary) 40%, transparent); }
-  50% { box-shadow: 0 0 0 6px transparent; }
+  0% {
+    box-shadow:
+      0 0 0 0 color-mix(in srgb, var(--dsw-alias-state-business-primary) 45%, transparent),
+      0 0 0 0 color-mix(in srgb, var(--dsw-alias-state-business-primary) 30%, transparent);
+  }
+  100% {
+    box-shadow:
+      0 0 0 8px transparent,
+      0 0 0 14px transparent;
+  }
+}
+.bh-composer[data-dictation='starting'],
+.bh-composer[data-dictation='listening'],
+.bh-composer[data-dictation='finishing'] {
+  border-color: var(--dsw-alias-state-business-primary);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-business-primary) 18%, transparent),
+    0 8px 24px color-mix(in srgb, var(--dsw-alias-state-business-primary) 16%, transparent);
 }
 .bh-composer[data-dictation='listening'] .bh-composer-input,
-.bh-composer[data-dictation='finishing'] .bh-composer-input { caret-color: transparent; }
+.bh-composer[data-dictation='finishing'] .bh-composer-input { caret-color: var(--dsw-alias-state-business-primary); }
+.bh-composer-dictation-hint {
+  position: absolute;
+  bottom: calc(100% + ${space.x2});
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - ${space.x4});
+  padding: 6px ${space.x3};
+  border: ${border.hairline} solid color-mix(in srgb, var(--dsw-alias-state-business-primary) 35%, transparent);
+  border-radius: ${radius.round};
+  background: var(--dsw-alias-bg-module-platform);
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--dsw-alias-label-primary) 12%, transparent);
+  pointer-events: none;
+}
+.bh-composer-dictation-hint[data-state='outside'] {
+  border-color: var(--dsw-alias-state-warning-primary, var(--dsw-alias-state-business-primary));
+}
+.bh-composer-dictation-hint[data-state='denied'],
+.bh-composer-dictation-hint[data-state='missing'],
+.bh-composer-dictation-hint[data-state='failed'] {
+  border-color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 45%, transparent);
+  color: var(--dsw-alias-state-error-primary);
+}
 .bh-composer[data-dictation='denied'] .bh-composer-input::placeholder,
 .bh-composer[data-dictation='missing'] .bh-composer-input::placeholder,
 .bh-composer[data-dictation='failed'] .bh-composer-input::placeholder { color: var(--dsw-alias-state-error-primary); }

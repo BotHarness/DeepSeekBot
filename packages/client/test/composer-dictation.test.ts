@@ -5,6 +5,7 @@ import {
   createComposerDictation,
   downsampleTo16k,
   pcmBase64,
+  spliceDictation,
   withDictation,
   type DictationMic,
   type VoiceDictationPort,
@@ -152,6 +153,22 @@ describe('composer dictation', () => {
     expect(out.length).toBe(16);
     expect(out[0]).toBe(16_384);
     expect(pcmBase64(Int16Array.from([1, -1]))).toBe(btoa('\u0001\u0000ÿÿ'));
+  });
+
+  it('inserts the transcript at the caret and keeps the text after it', () => {
+    expect(spliceDictation('草稿：', '明天见', '。后面')).toEqual({
+      value: '草稿：明天见。后面',
+      caret: 6,
+    });
+    expect(spliceDictation('call me', 'back', 'tomorrow')).toEqual({
+      value: 'call me back tomorrow',
+      caret: 12,
+    });
+    expect(spliceDictation('see you', 'soon', ', ok')).toEqual({
+      value: 'see you soon, ok',
+      caret: 12,
+    });
+    expect(spliceDictation('keep', '', ' rest')).toEqual({ value: 'keep rest', caret: 4 });
   });
 
   it('places the transcript after the existing draft', () => {

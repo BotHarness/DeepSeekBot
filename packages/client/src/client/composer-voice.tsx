@@ -1,7 +1,4 @@
-import {
-  IconMicrophoneOutlineRegular,
-  IconStopFillRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { IconMicrophoneOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 import {
   useMemo,
   useRef,
@@ -17,7 +14,7 @@ import {
   dictationActive,
   DICTATION_HOLD_MS,
   DICTATION_HOLD_SLOP_PX,
-  withDictation,
+  spliceDictation,
   type ComposerDictation,
   type ComposerDictationSnapshot,
   type DictationMic,
@@ -35,6 +32,7 @@ export interface ComposerVoice {
   readonly ready: boolean;
   readonly snapshot: ComposerDictationSnapshot;
   readonly active: boolean;
+  readonly outside: boolean;
   start(mode: 'toggle' | 'hold'): void;
   stop(): void;
   cancel(): void;
@@ -50,18 +48,21 @@ export function useComposerVoice({
   value,
   disabled,
   apply,
+  selection,
   mic,
 }: {
   port: VoiceDictationPort | undefined;
   value: string;
   disabled: boolean;
-  apply(next: string): void;
+  apply(next: string, caret: number): void;
+  selection?: (() => { start: number; end: number } | undefined) | undefined;
   mic?: DictationMic | undefined;
 }): ComposerVoice {
   const [ready, setReady] = useState(false);
-  const latest = useRef({ value, apply, disabled });
-  latest.current = { value, apply, disabled };
-  const base = useRef('');
+  const [outside, setOutside] = useState(false);
+  const latest = useRef({ value, apply, disabled, selection });
+  latest.current = { value, apply, disabled, selection };
+  const base = useRef({ before: '', after: '' });
   const controller = useMemo<ComposerDictation | undefined>(
     () =>
       port === undefined
@@ -69,7 +70,10 @@ export function useComposerVoice({
         : createComposerDictation({
             port,
             ...(mic === undefined ? {} : { mic }),
-            onText: (text) => latest.current.apply(withDictation(base.current, text)),
+            onText: (text) => {
+              const next = spliceDictation(base.current.before, text, base.current.after);
+              latest.current.apply(next.value, next.caret);
+            },
           }),
     [port, mic],
   );
@@ -83,17 +87,24 @@ export function useComposerVoice({
     snapshot.status === 'denied' || snapshot.status === 'missing' || snapshot.status === 'failed';
   const start = (mode: 'toggle' | 'hold') => {
     if (controller === undefined || latest.current.disabled) return;
-    base.current = latest.current.value;
+    const current = latest.current.value;
+    const range = latest.current.selection?.();
+    const from = Math.max(0, Math.min(range?.start ?? current.length, current.length));
+    const to = Math.max(from, Math.min(range?.end ?? from, current.length));
+    base.current = { before: current.slice(0, from), after: current.slice(to) };
+    setOutside(false);
     controller.start(mode);
   };
-  const stop = () => void controller?.stop();
-  const cancelRef = useRef(() => undefined as void);
+  const stop = () => {
+    setOutside(false);
+    void controller?.stop();
+  };
   const cancel = () => {
     if (controller === undefined || !dictationActive(controller.snapshot().status)) return;
     controller.cancel();
-    latest.current.apply(base.current);
+    const { before, after } = base.current;
+    latest.current.apply(`${before}${after}`, before.length);
   };
-  cancelRef.current = cancel;
   const readyMount = useMountedResource<HTMLSpanElement>(() => {
     setReady(false);
     if (port === undefined) return;
@@ -117,23 +128,17 @@ export function useComposerVoice({
     const timer = setTimeout(() => controller.dismiss(), 6_000);
     return () => clearTimeout(timer);
   }, [settled, controller]);
-  const escapeMount = useMountedResource<HTMLSpanElement>(() => {
-    if (!active) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      event.stopPropagation();
-      cancelRef.current();
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [active]);
   const holding = useRef<{ timer?: ReturnType<typeof setTimeout>; started: boolean }>({
     started: false,
   });
   const onPointerDown = (event: PointerEvent<HTMLElement>) => {
-    if (!ready || active || event.button !== 0 || latest.current.disabled) return;
-    if (latest.current.value.trim() !== '') return;
+    if (event.button !== 0) return;
+    if (active) {
+      if (snapshot.mode === 'toggle' && snapshot.status !== 'finishing') stop();
+      return;
+    }
+    if (!ready || latest.current.disabled) return;
+    const area = event.currentTarget;
     const x = event.clientX;
     const y = event.clientY;
     const gesture: { timer?: ReturnType<typeof setTimeout>; started: boolean } = {
@@ -147,7 +152,16 @@ export function useComposerVoice({
       window.removeEventListener('pointercancel', up, true);
     };
     const move = (next: globalThis.PointerEvent) => {
-      if (gesture.started) return;
+      if (gesture.started) {
+        const box = area.getBoundingClientRect();
+        setOutside(
+          next.clientX < box.left ||
+            next.clientX > box.right ||
+            next.clientY < box.top ||
+            next.clientY > box.bottom,
+        );
+        return;
+      }
       if (Math.hypot(next.clientX - x, next.clientY - y) > DICTATION_HOLD_SLOP_PX) finish();
     };
     const up = () => {
@@ -156,18 +170,19 @@ export function useComposerVoice({
     };
     gesture.timer = setTimeout(() => {
       gesture.started = true;
-      window.getSelection()?.removeAllRanges();
       start('hold');
+      window.getSelection()?.removeAllRanges();
     }, DICTATION_HOLD_MS);
     window.addEventListener('pointermove', move, true);
     window.addEventListener('pointerup', up, true);
     window.addEventListener('pointercancel', up, true);
   };
   return {
-    mounts: [readyMount, controllerMount, settleMount, escapeMount],
+    mounts: [readyMount, controllerMount, settleMount],
     ready: ready && controller !== undefined,
     snapshot,
     active,
+    outside: active && outside,
     start,
     stop,
     cancel,
@@ -187,8 +202,9 @@ export function composerVoiceStatus(
 ): string | undefined {
   const { status, mode } = voice.snapshot;
   if (status === 'starting') return t('composer.dictationStarting');
-  if (status === 'listening')
-    return t(mode === 'hold' ? 'composer.dictationHolding' : 'composer.dictationListening');
+  if (status === 'listening' && mode === 'hold')
+    return t(voice.outside ? 'composer.dictationHoldingOutside' : 'composer.dictationHolding');
+  if (status === 'listening') return t('composer.dictationListening');
   if (status === 'finishing') return t('composer.dictationFinishing');
   if (status === 'denied') return t('composer.dictationDenied');
   if (status === 'missing') return t('composer.dictationMissing');
@@ -267,7 +283,7 @@ export function ComposerMicButton({
           else voice.start('toggle');
         }}
       >
-        {live ? <IconStopFillRegular size={12} /> : <IconMicrophoneOutlineRegular size={16} />}
+        <IconMicrophoneOutlineRegular size={16} />
       </button>
     </Tooltip>
   );

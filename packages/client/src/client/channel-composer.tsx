@@ -412,7 +412,9 @@ export function ChannelComposer({
     port: dictation,
     value,
     disabled: sending,
-    apply: (next) => {
+    selection: () => selectionOffsets(),
+    apply: (next, caret) => {
+      requestedCaret.current = caret;
       onChange(
         next,
         rebaseMentions(value, next, mentions),
@@ -717,6 +719,12 @@ export function ChannelComposer({
   const textareaMount = useMountedResource<HTMLTextAreaElement>(
     (element) => {
       textareaRef.current = element;
+      const caret = requestedCaret.current;
+      if (caret !== undefined && richRef.current === null) {
+        requestedCaret.current = undefined;
+        const at = Math.min(caret, element.value.length);
+        element.setSelectionRange(at, at);
+      }
       setAvatarMounts((current) => (current.length === 0 ? current : []));
       setAttachmentMounts((current) => (current.length === 0 ? current : []));
       scheduleSync(element);
@@ -957,6 +965,17 @@ export function ChannelComposer({
 
   return (
     <div className="bh-composer-shell" data-bh-tour="composer" data-companion-avoid>
+      {dictation === undefined ? null : (
+        <div
+          className="bh-composer-dictation-hint"
+          role="status"
+          aria-live="polite"
+          data-state={voice.outside ? 'outside' : voice.snapshot.status}
+          hidden={voice.snapshot.status === 'idle'}
+        >
+          {composerVoiceStatus(voice, t) ?? ''}
+        </div>
+      )}
       {allBotNotice === undefined ? null : (
         <div className="bh-muted" role="status">
           {allBotNotice}
@@ -1281,11 +1300,7 @@ export function ChannelComposer({
         {voice.mounts.map((mount, index) => (
           <span key={index} ref={mount} hidden />
         ))}
-        {dictation === undefined ? null : (
-          <span className="bh-sr-only" role="status" aria-live="polite">
-            {composerVoiceStatus(voice, t) ?? ''}
-          </span>
-        )}
+
         <div className="bh-composer-footer">
           {voice.ready ? <ComposerMicButton voice={voice} disabled={sending} t={t} /> : null}
           {stop?.label !== undefined &&
