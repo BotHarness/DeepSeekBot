@@ -348,7 +348,9 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     push(call, { type: 'ended', reason });
     log('call-ended', { call: call.id, bot: call.slug, reason, ms: call.endedAt - call.startedAt });
     const perf = call.perf.view();
-    if (perf !== undefined)
+    if (perf === undefined && call.connected && call.peer?.stats !== undefined)
+      log('call-media-summary', { call: call.id, samples: 0 });
+    else if (perf !== undefined)
       log('call-media-summary', {
         call: call.id,
         samples: perf.samples,

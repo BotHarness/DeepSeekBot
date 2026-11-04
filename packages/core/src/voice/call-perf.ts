@@ -9,23 +9,28 @@ interface Range {
   sum: number;
   max: number;
   count: number;
+  weight: number;
 }
 
 const round = (value: number) => Math.round(value * 10) / 10;
 
 function range(): Range {
-  return { sum: 0, max: 0, count: 0 };
+  return { sum: 0, max: 0, count: 0, weight: 0 };
 }
 
-function add(target: Range, value: number | undefined) {
+function add(target: Range, value: number | undefined, weight = 1) {
   if (value === undefined || !Number.isFinite(value)) return;
-  target.sum += value;
+  target.sum += value * weight;
   target.max = Math.max(target.max, value);
   target.count += 1;
+  target.weight += weight;
 }
 
 function summary(target: Range): VoiceCallPerfRange {
-  return { avg: round(target.count === 0 ? 0 : target.sum / target.count), max: round(target.max) };
+  return {
+    avg: round(target.weight === 0 ? 0 : target.sum / target.weight),
+    max: round(target.max),
+  };
 }
 
 export interface CallPerf {
@@ -80,10 +85,10 @@ export function createCallPerf(sampleMs: number): CallPerf {
       };
       last = next;
       samples += 1;
-      add(ranges.uplinkPps, next.uplinkPps);
-      add(ranges.downlinkPps, next.downlinkPps);
-      add(ranges.uplinkKbps, next.uplinkKbps);
-      add(ranges.downlinkKbps, next.downlinkKbps);
+      add(ranges.uplinkPps, received / seconds, seconds);
+      add(ranges.downlinkPps, delta('downlinkPackets') / seconds, seconds);
+      add(ranges.uplinkKbps, (delta('uplinkBytes') * 8) / 1000 / seconds, seconds);
+      add(ranges.downlinkKbps, (delta('downlinkBytes') * 8) / 1000 / seconds, seconds);
       add(ranges.hostCpuPct, next.hostCpuPct);
       add(ranges.helperCpuPct, next.helperCpuPct);
       add(ranges.rttMs, next.rttMs);

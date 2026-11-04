@@ -62,4 +62,12 @@ describe('call media performance', () => {
     const sample = perf.sample(stats({ uplinkPackets: 29, rttMs: 8 }), 5_000, 0)!;
     expect(perfFields(sample)).toMatchObject({ atMs: 5_000, uplinkPps: 5.8, rttMs: 8 });
   });
+
+  it('weights the whole-call average by how long each interval lasted', () => {
+    const perf = createCallPerf(5_000);
+    perf.sample(stats(), 0, 0);
+    perf.sample(stats({ uplinkPackets: 500 }), 10_000, 0);
+    perf.sample(stats({ uplinkPackets: 500 }), 12_000, 0);
+    expect(perf.view()?.uplinkPps).toEqual({ avg: 41.7, max: 50 });
+  });
 });
