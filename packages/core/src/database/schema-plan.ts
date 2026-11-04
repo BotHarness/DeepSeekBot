@@ -2811,6 +2811,91 @@ const ATTENTION_RESOLUTION_INDEX_MIGRATION: SchemaMigration = {
   },
 };
 
+const CHANGE = (channel: string, message: string): string =>
+  `INSERT INTO channel_changes (channel_id, message_id) VALUES (${channel}, ${message});`;
+
+const FAN_OUT = (sourceEventId: string): string =>
+  `INSERT INTO channel_changes (channel_id, message_id)
+     SELECT channel_id, message_id FROM channel_placements WHERE source_event_id = ${sourceEventId};`;
+
+const CHANNEL_CHANGE_LOG_MIGRATION: SchemaMigration = {
+  generation: 127,
+  module: 'messaging',
+  description: 'Record every client-visible message change in one global change sequence',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE channel_changes (
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        channel_id TEXT NOT NULL,
+        message_id TEXT,
+        at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      );
+      CREATE INDEX channel_changes_channel ON channel_changes (channel_id, seq);
+      CREATE INDEX channel_changes_at ON channel_changes (at);
+      CREATE TABLE channel_change_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+      INSERT INTO channel_change_meta (key, value) VALUES
+        ('epoch', lower(hex(randomblob(8)))),
+        ('floor', '0');
+      CREATE TRIGGER channel_changes_placement_insert AFTER INSERT ON channel_placements
+        BEGIN ${CHANGE('NEW.channel_id', 'NEW.message_id')} END;
+      CREATE TRIGGER channel_changes_placement_update
+        AFTER UPDATE OF channel_id, message_id, source_event_id ON channel_placements
+        BEGIN
+          ${CHANGE('OLD.channel_id', 'OLD.message_id')}
+          ${CHANGE('NEW.channel_id', 'NEW.message_id')}
+        END;
+      CREATE TRIGGER channel_changes_placement_delete AFTER DELETE ON channel_placements
+        BEGIN ${CHANGE('OLD.channel_id', 'OLD.message_id')} END;
+      CREATE TRIGGER channel_changes_source_update AFTER UPDATE ON source_events
+        WHEN OLD.body IS NOT NEW.body OR OLD.payload_json IS NOT NEW.payload_json
+          OR OLD.observed_at IS NOT NEW.observed_at OR OLD.handled_at IS NOT NEW.handled_at
+        BEGIN ${FAN_OUT('NEW.source_event_id')} END;
+      CREATE TRIGGER channel_changes_admission_insert AFTER INSERT ON inbox_admissions
+        BEGIN ${FAN_OUT('NEW.source_event_id')} END;
+      CREATE TRIGGER channel_changes_admission_update AFTER UPDATE ON inbox_admissions
+        BEGIN ${FAN_OUT('NEW.source_event_id')} END;
+      CREATE TRIGGER channel_changes_admission_delete AFTER DELETE ON inbox_admissions
+        BEGIN ${FAN_OUT('OLD.source_event_id')} END;
+      CREATE TRIGGER channel_changes_reaction_insert AFTER INSERT ON channel_reactions
+        BEGIN ${CHANGE('NEW.channel_id', 'NEW.message_id')} END;
+      CREATE TRIGGER channel_changes_reaction_delete AFTER DELETE ON channel_reactions
+        BEGIN ${CHANGE('OLD.channel_id', 'OLD.message_id')} END;
+      CREATE TRIGGER channel_changes_read_insert AFTER INSERT ON channel_read_positions
+        BEGIN ${CHANGE('NEW.channel_id', 'NULL')} END;
+      CREATE TRIGGER channel_changes_read_update AFTER UPDATE ON channel_read_positions
+        BEGIN ${CHANGE('NEW.channel_id', 'NULL')} END;
+      CREATE TRIGGER channel_changes_binding_insert AFTER INSERT ON attachment_file_bindings
+        BEGIN ${FAN_OUT('NEW.source_event_id')} END;
+      CREATE TRIGGER channel_changes_binding_update AFTER UPDATE ON attachment_file_bindings
+        BEGIN ${FAN_OUT('NEW.source_event_id')} END;
+      CREATE TRIGGER channel_changes_binding_delete AFTER DELETE ON attachment_file_bindings
+        BEGIN ${FAN_OUT('OLD.source_event_id')} END;
+      CREATE TRIGGER channel_changes_nickname_insert AFTER INSERT ON channel_human_nicknames
+        BEGIN ${CHANGE('NEW.channel_id', 'NULL')} END;
+      CREATE TRIGGER channel_changes_nickname_update AFTER UPDATE ON channel_human_nicknames
+        BEGIN ${CHANGE('NEW.channel_id', 'NULL')} END;
+      CREATE TRIGGER channel_changes_nickname_delete AFTER DELETE ON channel_human_nicknames
+        BEGIN ${CHANGE('OLD.channel_id', 'NULL')} END;
+      CREATE TRIGGER channel_changes_name_insert AFTER INSERT ON local_human_names
+        BEGIN ${CHANGE("''", 'NULL')} END;
+      CREATE TRIGGER channel_changes_name_update AFTER UPDATE ON local_human_names
+        BEGIN ${CHANGE("''", 'NULL')} END;
+      CREATE TRIGGER channel_changes_name_delete AFTER DELETE ON local_human_names
+        BEGIN ${CHANGE("''", 'NULL')} END;
+      CREATE TRIGGER channel_changes_record_update AFTER UPDATE ON channel_records
+        WHEN OLD.record_json IS NOT NEW.record_json
+        BEGIN ${CHANGE('NEW.channel_id', 'NULL')} END;
+      CREATE TRIGGER channel_changes_assignment_insert AFTER INSERT ON request_assignments
+        BEGIN ${FAN_OUT('NEW.request_source_event_id')} END;
+      CREATE TRIGGER channel_changes_assignment_delete AFTER DELETE ON request_assignments
+        BEGIN ${FAN_OUT('OLD.request_source_event_id')} END;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2937,4 +3022,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   PLACEMENT_HUMAN_REPLY_MIGRATION,
   BOUNDED_RANGE_INDEX_MIGRATION,
   ATTENTION_RESOLUTION_INDEX_MIGRATION,
+  CHANNEL_CHANGE_LOG_MIGRATION,
 ]);

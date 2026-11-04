@@ -94,6 +94,25 @@ export interface ChannelSendStatus {
   assignmentId?: string;
 }
 
+export const CHANNEL_CHANGE_PAGE = 200;
+export const CHANNEL_CHANGE_RETENTION_DAYS = 30;
+
+export interface ChannelChangesRequest {
+  epoch?: string | undefined;
+  since: number;
+  limit?: number | undefined;
+}
+
+export interface ChannelChangesPage {
+  epoch: string;
+  seq: number;
+  reset?: true;
+  upserts: ChannelMessage[];
+  removed: string[];
+  channel: boolean;
+  more: boolean;
+}
+
 export interface ChannelMessageCommit {
   channelId: string;
   message: ChannelMessage;
@@ -469,6 +488,7 @@ export interface ChannelStore {
   readHumanJournalPage(id: string, request: ChannelJournalRequest): ChannelJournalPage | undefined;
   revision(id: string): number;
   messagesAfter(id: string, revision: number): ChannelMessageCommit[] | undefined;
+  humanChanges?(id: string, request: ChannelChangesRequest): ChannelChangesPage | undefined;
   admissionChanged?(channelId: string, messageId: string): void;
   setMessageVoice?(
     channelId: string,

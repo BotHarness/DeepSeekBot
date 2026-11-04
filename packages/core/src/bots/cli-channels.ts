@@ -26,6 +26,7 @@ export const CHANNEL_OPTIONS = {
   off: { type: 'boolean' },
   attachment: { type: 'string' },
   representation: { type: 'string' },
+  epoch: { type: 'string' },
 } as const;
 
 export const CHANNEL_COMMANDS = [
@@ -89,6 +90,10 @@ export const CHANNEL_COMMANDS = [
   {
     command: 'channel-journal',
     description: "page a Channel's message journal through a revision",
+  },
+  {
+    command: 'channel-changes',
+    description: "page a Channel's message changes after a change-log position",
   },
   {
     command: 'channel-timeline',
@@ -177,6 +182,8 @@ interface ChannelValues {
   attachment?: string;
   representation?: string;
   out?: string;
+  since?: string;
+  epoch?: string;
 }
 
 const WAKE_MODES = new Set(['all', 'mentions', 'digest', 'silent']);
@@ -374,6 +381,18 @@ export async function runChannelCommand(
         channelId,
         through,
         ...(before === undefined ? {} : { before }),
+        ...(limit === undefined ? {} : { limit }),
+      };
+      break;
+    }
+    case 'channel-changes': {
+      method = 'channelChanges';
+      const since = integer(values.since, '--since', 0, 2 ** 53 - 1) ?? 0;
+      const limit = integer(values.limit, '--limit', 1, 200);
+      args = {
+        channelId,
+        since,
+        ...(values.epoch === undefined ? {} : { epoch: values.epoch }),
         ...(limit === undefined ? {} : { limit }),
       };
       break;

@@ -72,6 +72,9 @@ import {
   type ChannelStore,
   type ChannelStoreOptions,
   type ChannelMessageOrigin,
+  type ChannelChangesPage,
+  CHANNEL_CHANGE_PAGE,
+  CHANNEL_CHANGE_RETENTION_DAYS,
 } from './store.js';
 import {
   DEFAULT_MESSAGE_PAGE,
@@ -286,9 +289,24 @@ function eventPayload(message: ChannelMessage): string {
   return JSON.stringify(envelope);
 }
 
+export function pruneChannelChanges(database: OperationalDatabaseModulePort, at: Date): void {
+  const cutoff = new Date(at.getTime() - CHANNEL_CHANGE_RETENTION_DAYS * 86_400_000).toISOString();
+  database.transaction((db) => {
+    const expired = db
+      .prepare('SELECT MAX(seq) AS seq FROM channel_changes WHERE at < ?')
+      .get(cutoff) as { seq: number | null };
+    if (expired.seq === null) return;
+    db.prepare('DELETE FROM channel_changes WHERE seq <= ?').run(expired.seq);
+    db.prepare(
+      "UPDATE channel_change_meta SET value = CAST(? AS TEXT) WHERE key = 'floor' AND CAST(value AS INTEGER) < ?",
+    ).run(expired.seq, expired.seq);
+  });
+}
+
 export function createSqliteChannelStore(options: SqliteChannelStoreOptions): ChannelStore {
   const { database, rootDir } = options;
   const now = options.now ?? (() => new Date());
+  if (options.databaseOwnerReady !== false) pruneChannelChanges(database, now());
   const sourcePolicy = options.sourcePolicy ?? createBotSourcePolicyStore(database, now);
   const insertSourceAdmission = (
     db: DatabaseSync,
@@ -3493,6 +3511,82 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           .all(botSlug, sinceIso),
       ) as unknown as Array<{ reason: string; at: string }>;
       return rows.map((row) => ({ at: row.at, reason: row.reason }));
+    },
+    humanChanges(id, request) {
+      const channel = readRecord(id);
+      if (channel === undefined) return undefined;
+      const member = humanMembers(id).find((entry) => entry.human_id === LOCAL_HUMAN_ID);
+      if (channel.type === 'group' && member === undefined) return undefined;
+      const limit = Math.max(
+        1,
+        Math.min(request.limit ?? CHANNEL_CHANGE_PAGE, CHANNEL_CHANGE_PAGE),
+      );
+      const log = database.read((db) => {
+        const meta = new Map(
+          (
+            db.prepare('SELECT key, value FROM channel_change_meta').all() as Array<{
+              key: string;
+              value: string;
+            }>
+          ).map((row) => [row.key, row.value]),
+        );
+        const head = (
+          db.prepare('SELECT COALESCE(MAX(seq), 0) AS seq FROM channel_changes').get() as {
+            seq: number;
+          }
+        ).seq;
+        const sequence = db
+          .prepare("SELECT seq FROM sqlite_sequence WHERE name = 'channel_changes'")
+          .get() as { seq: number } | undefined;
+        const rows = db
+          .prepare(
+            `SELECT seq, channel_id, message_id FROM channel_changes
+              WHERE (channel_id = ? OR channel_id = '') AND seq > ?
+              ORDER BY seq LIMIT ?`,
+          )
+          .all(id, Number.isSafeInteger(request.since) ? request.since : 0, limit + 1) as Array<{
+          seq: number;
+          channel_id: string;
+          message_id: string | null;
+        }>;
+        return {
+          epoch: meta.get('epoch') ?? '',
+          floor: Number(meta.get('floor') ?? '0'),
+          head: Math.max(head, sequence?.seq ?? 0),
+          rows,
+        };
+      });
+      const reset = (): ChannelChangesPage => ({
+        epoch: log.epoch,
+        seq: log.head,
+        reset: true,
+        upserts: [],
+        removed: [],
+        channel: true,
+        more: false,
+      });
+      if (
+        request.epoch !== log.epoch ||
+        !Number.isSafeInteger(request.since) ||
+        request.since < log.floor ||
+        request.since > log.head
+      )
+        return reset();
+      const more = log.rows.length > limit;
+      const rows = log.rows.slice(0, limit);
+      const ids = [
+        ...new Set(rows.flatMap((row) => (row.message_id === null ? [] : [row.message_id]))),
+      ];
+      const visibleFrom = member?.visible_from_revision ?? 0;
+      const placed = new Set(placementsById(id, ids).map((row) => row.message_id));
+      return {
+        epoch: log.epoch,
+        seq: more ? rows.at(-1)!.seq : log.head,
+        upserts: projectRows(id, placementsById(id, ids, visibleFrom), visibleFrom),
+        removed: ids.filter((messageId) => !placed.has(messageId)),
+        channel: rows.some((row) => row.message_id === null),
+        more,
+      };
     },
     messagesAfter(id, revision) {
       if (!isValidChannelId(id) || !Number.isSafeInteger(revision) || revision < 0)

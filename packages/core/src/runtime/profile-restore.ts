@@ -31,6 +31,9 @@ export function suspendRestoredExecution(database: OperationalDatabaseOwner): vo
   attachOperationalModule(database, 'bot-schedules').transaction((db) =>
     db.exec('UPDATE bot_schedules SET enabled = 0'),
   );
+  attachOperationalModule(database, 'channels').transaction((db) =>
+    db.exec("UPDATE channel_change_meta SET value = lower(hex(randomblob(8))) WHERE key = 'epoch'"),
+  );
   attachOperationalModule(database, 'workspace-grants').transaction((db) =>
     db
       .prepare('UPDATE workspace_grants SET revoked_at = ? WHERE revoked_at IS NULL')
