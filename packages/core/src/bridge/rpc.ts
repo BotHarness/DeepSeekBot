@@ -42,7 +42,13 @@ import type {
 } from '../storage/media-cleanup.js';
 import type { GroupMemberWakePolicy } from '../channels/channel.js';
 import { LiveRefused } from '../channels/live-frames.js';
-import type { ChannelJournalPage, ChannelJournalRequest } from '../channels/timeline.js';
+import type {
+  ChannelChangeCursor,
+  ChannelChanges,
+  ChannelChangesRequest,
+  ChannelJournalPage,
+  ChannelJournalRequest,
+} from '../channels/timeline.js';
 import type { CompanionLiveFrame } from '../companions/live.js';
 import type { CloudWork, CloudWorkInput } from '../cloud/work.js';
 import {
@@ -255,6 +261,8 @@ export interface BridgeLive {
     drafts?: DraftDelivery,
   ): AsyncIterable<ChannelLiveFrame>;
   journalPage(channelId: string, request: ChannelJournalRequest): ChannelJournalPage | undefined;
+  changes(channelId: string, request: ChannelChangesRequest): ChannelChanges | undefined;
+  changeCursor(): ChannelChangeCursor | undefined;
   followCompanion(
     resume: string,
     lastEventId: string,
@@ -348,6 +356,25 @@ export class BotharnessBridgeService extends TypertRemoteService {
         message: 'Channel journal page is unavailable',
       });
     return page;
+  }
+
+  channelChanges(
+    channelId: string,
+    sinceSeq: number,
+    epoch?: string,
+    limit?: number,
+  ): ChannelChanges {
+    const changes = this.live?.changes(channelId, { sinceSeq, epoch, limit });
+    if (changes === undefined)
+      throw toRemoteError({ code: 'not-found', message: 'Channel changes are unavailable' });
+    return changes;
+  }
+
+  channelChangeCursor(): ChannelChangeCursor {
+    const cursor = this.live?.changeCursor();
+    if (cursor === undefined)
+      throw toRemoteError({ code: 'unavailable', message: 'Channel changes are unavailable' });
+    return cursor;
   }
 
   async *followChannel(
@@ -3029,6 +3056,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'scheduleRunNow',
   'schedulePreview',
   'channelJournalPage',
+  'channelChanges',
+  'channelChangeCursor',
 ]);
 markRemoteStreams(BotharnessBridgeService.prototype, [
   'followRoster',

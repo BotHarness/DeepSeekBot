@@ -19,6 +19,14 @@ export function profileWorkspaceDependencies(
 }
 
 export function suspendRestoredExecution(database: OperationalDatabaseOwner): void {
+  attachOperationalModule(database, 'messaging').transaction((db) =>
+    db.exec(`
+      UPDATE channel_change_epoch
+         SET epoch = lower(hex(randomblob(8))),
+             floor_seq = coalesce((SELECT seq FROM sqlite_sequence WHERE name = 'channel_changes'), 0)
+       WHERE singleton = 1;
+    `),
+  );
   const port = attachOperationalModule(database, 'bot-runtime');
   port.transaction((db) => {
     db.exec(`
