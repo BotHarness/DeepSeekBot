@@ -1,3 +1,4 @@
+import type { ConversationStateView } from './store.js';
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
 
 import type { BridgeActions } from './actions.js';
@@ -31,7 +32,7 @@ export function ChannelSettingsDialog({
   prefs = channelSidebarPrefs,
 }: {
   registry: ChannelSidebarRegistry;
-  state: ClientState;
+  state: ConversationStateView;
   actions: BridgeActions;
   t: BotHarnessTranslate;
   controller?: ChannelSettings;
@@ -187,7 +188,7 @@ export function ChannelSettingsAttention({
   controller = channelSettings,
 }: {
   registry: ChannelSidebarRegistry;
-  state: ClientState;
+  state: ConversationStateView;
   actions: BridgeActions;
   t: BotHarnessTranslate;
   controller?: ChannelSettings;

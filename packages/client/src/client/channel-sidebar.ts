@@ -1,3 +1,4 @@
+import type { ConversationStateView } from './store.js';
 import type { ComponentType } from 'react';
 
 import type { BridgeActions } from './actions.js';
@@ -9,7 +10,7 @@ import type { DockPanelHost } from './dock-panels.js';
 
 export type ChannelSidebarScope = 'channel' | 'personabot';
 
-export function resolveChannelSidebarContext(state: ClientState):
+export function resolveChannelSidebarContext(state: ConversationStateView):
   | {
       channel: ChannelSummary | undefined;
       scope: ChannelSidebarScope;
@@ -83,7 +84,7 @@ export interface ChannelSidebarEntry {
   headerLabel?: string;
   headerTabs?: ComponentType<ChannelSidebarEntryProps>;
   badge?: ComponentType<ChannelSidebarEntryProps>;
-  visible?: (state: ClientState) => boolean;
+  visible?: (state: ConversationStateView) => boolean;
   tab?: string;
   surface?: 'settings';
   attention?: ComponentType<ChannelSettingsAttentionProps>;

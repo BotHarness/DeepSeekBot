@@ -1,3 +1,4 @@
+import type { ConversationStateView } from './store.js';
 import type { NativeSessionCatalog } from './sessions-entry.js';
 import { personaBotSessionRows } from './session-rows.js';
 import { useRef, useSyncExternalStore } from 'react';
@@ -46,7 +47,7 @@ type Load =
 
 const EMPTY_CATALOG = { ids: [], byId: {} };
 
-function runningOrchestrators(state: ClientState, channelId: string): string {
+function runningOrchestrators(state: ConversationStateView, channelId: string): string {
   const channel =
     state.conversation.channel?.id === channelId
       ? state.conversation.channel

@@ -1,3 +1,4 @@
+import type { ConversationStateView } from './store.js';
 import { Menu } from './appearance-primitives.js';
 import { ChannelNicknameEntry, ChannelTraceEntry } from './channel-personal-settings.js';
 import type { ExternalSource } from '../../../core/src/messaging/inbound.js';
@@ -1314,7 +1315,8 @@ export function createChannelSidebarBuiltins(
       order: 1,
       scope,
       component: ChannelNicknameEntry,
-      visible: (state: ClientState) => state.conversation.channel?.humanNickname !== undefined,
+      visible: (state: ConversationStateView) =>
+        state.conversation.channel?.humanNickname !== undefined,
     })),
     {
       id: 'dm-trace',

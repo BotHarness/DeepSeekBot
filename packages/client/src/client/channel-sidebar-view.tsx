@@ -1,3 +1,4 @@
+import type { ConversationStateView } from './store.js';
 import {
   useCallback,
   useId,
@@ -97,7 +98,7 @@ export interface ChannelSidebarController {
 }
 
 export function useChannelSidebar(
-  state: ClientState,
+  state: ConversationStateView,
   prefs: ChannelSidebarPrefs = channelSidebarPrefs,
 ): ChannelSidebarController {
   const narrow = useNarrowChannelSidebar();
@@ -655,7 +656,7 @@ export function ChannelSidebar({
   selectedMemoryWorking,
 }: {
   registry: ChannelSidebarRegistry;
-  state: ClientState;
+  state: ConversationStateView;
   actions: BridgeActions;
   controller: ChannelSidebarController;
   t: BotHarnessTranslate;
