@@ -70,6 +70,7 @@ async function fakeSoniox(options: { finals?: string[]; refuse?: number; partial
         return;
       }
       const message = JSON.parse(text) as Record<string, unknown>;
+      if (message['type'] === 'keepalive') return;
       if (session.config === undefined) {
         session.config = message;
         return;
@@ -211,6 +212,43 @@ describe('Soniox streaming ASR Provider', () => {
       mode: 'stream',
       chars: result.text.length,
     });
+  });
+
+  it('opens the next socket ahead of time and uses it for the next sentence', async () => {
+    const soniox = await fakeSoniox({ finals: ['第一句', '第二句'] });
+    const { providers } = await realProviders();
+    const asr = await providers.add({
+      kind: 'asr',
+      preset: 'soniox',
+      baseUrl: soniox.url,
+      key: 'soniox-test-key',
+    });
+    providers.warm(asr.id);
+    await until(() => soniox.sessions.length === 1);
+    expect(soniox.sessions[0]!.config).toBeUndefined();
+
+    const first = providers.openStream({ providerId: asr.id })!;
+    for (const chunk of chunks(speech(500))) first.push(chunk);
+    expect((await first.finish()).text).toBe('第一句');
+    expect(soniox.sessions[0]).toMatchObject({
+      authorization: 'Bearer soniox-test-key',
+      config: { model: 'stt-rt-v6', audio_format: 'pcm_s16le' },
+      bytes: 16_000,
+      finalized: true,
+    });
+    await until(() => soniox.sessions.length === 2);
+    expect(soniox.sessions[1]!.config).toBeUndefined();
+
+    const second = providers.openStream({ providerId: asr.id })!;
+    for (const chunk of chunks(speech(500))) second.push(chunk);
+    expect((await second.finish()).text).toBe('第二句');
+    expect(soniox.sessions[1]!.finalized).toBe(true);
+    await until(() => soniox.sessions.length === 3);
+
+    providers.cool(asr.id);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(soniox.sessions).toHaveLength(3);
+    expect(soniox.sessions[2]!.config).toBeUndefined();
   });
 
   it('transcribes a whole file through the same socket for tests and health checks', async () => {
@@ -384,7 +422,8 @@ describe('Host call owner with a streaming ASR Provider', () => {
     );
     await until(() => call.sent.length === 2);
     expect(call.sent.map((entry) => entry.body)).toEqual(['第一句', '第二句']);
-    expect(soniox.sessions).toHaveLength(2);
+    expect(soniox.sessions.filter((session) => session.config !== undefined)).toHaveLength(2);
+    expect(soniox.sessions.filter((session) => session.config === undefined)).toHaveLength(1);
   });
 
   it('reports a refused key as asr-failed and keeps listening', async () => {

@@ -336,6 +336,7 @@ export interface OrchestratorAgentRun {
   acceptNativeInput?: () => boolean;
   setExecutionReady?(ready: boolean): void;
   requireContent?(): void;
+  toolsInterrupted?(calls: InterruptedToolCall[]): void;
   sessionId: string;
   resume: boolean;
   bot: PersonaBotRecord;
@@ -451,8 +452,16 @@ export interface OrchestratorAgentRun {
   };
 }
 
+export interface InterruptedToolCall {
+  callId: string;
+  name: string;
+  arguments: string;
+}
+
 export interface AssignmentAgentRun {
   requireContent?(): void;
+  accepted?(): void;
+  toolsInterrupted?(calls: InterruptedToolCall[]): void;
   sessionId: string;
   bot: PersonaBotRecord;
   text: string;
@@ -702,6 +711,7 @@ export interface BotAgentAdapter {
   requestAssignment(run: AssignmentAgentRun): AssignmentRequestDelivery;
   stopAssignment?(sessionId: string): Promise<void>;
   stopBot?(botSlug: string, sessionIds: string[]): Promise<void>;
+  abandonSession?(sessionId: string): Promise<void>;
   releaseSession?(sessionId: string): Promise<void>;
   directTools?(): DirectBotToolSpec[];
   runDirectTool?(
@@ -867,6 +877,8 @@ export interface BotRuntime {
 export interface BotRuntimeOptions {
   readTurnProgress?: (sessionId: string) => Promise<SessionFailureProgress | undefined>;
   autoContinueDelaysMs?: readonly number[];
+  stopSettleTimeoutMs?: number;
+  closeSessionApprovals?: (sessionIds: readonly string[]) => void;
   botNetwork?: import('./bot-network.js').BotNetworkPort;
   onTobDelegation?: () => void;
   promptText?: (botSlug: string) => PromptText;
@@ -1462,6 +1474,19 @@ export type SessionStopOutcome =
   | { outcome: 'settled'; stopped: StoppedSessionRef[]; alreadyIdle: StoppedSessionRef[] }
   | { outcome: 'refused'; code: 'unknown-session' | 'unsupported-role'; message: string };
 
+const STOP_SETTLE_TIMEOUT_MS = 30_000;
+
+const SESSION_STOPPED_REFUSAL =
+  'The Human stopped this Session. This action was not performed; wait for the Human before doing more.';
+
+function interruptedToolsNote(calls: readonly InterruptedToolCall[]): string {
+  const lines = calls.map((call) => {
+    const args = call.arguments.length > 300 ? `${call.arguments.slice(0, 300)}…` : call.arguments;
+    return `- ${call.name} (call ${call.callId}): ${args}`;
+  });
+  return `[Host: the Human stopped this Session while these tool calls were still running. Each is recorded as stopped by the Human with an unknown result: it may or may not have taken effect. Check its effect before you redo any of them, and do not repeat a side effect blindly.\n${lines.join('\n')}]\n\n`;
+}
+
 const HUMAN_SESSION_STOP_NOTICE =
   'The Human stopped this Assignment. Do not send it another Assignment Request or redispatch this work unless the Human asks you to. Its history is kept: send_assignment_request with this Session id resumes it.';
 
@@ -1556,6 +1581,10 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #autoContinues = new Map<string, PendingAutoContinue>();
   readonly #readTurnProgress: BotRuntimeOptions['readTurnProgress'];
   readonly #autoContinueDelaysMs: readonly number[];
+  readonly #stopSettleTimeoutMs: number;
+  readonly #closeSessionApprovals: BotRuntimeOptions['closeSessionApprovals'];
+  readonly #interruptedTools = new Map<string, InterruptedToolCall[]>();
+  readonly #pendingDeliveries = new Map<string, string>();
   readonly #triageQueued = new Set<string>();
   readonly #triageRunning = new Map<string, number>();
   readonly #triageBaseline = new Map<string, number>();
@@ -1625,6 +1654,8 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#now = options.now ?? (() => new Date());
     this.#readTurnProgress = options.readTurnProgress;
     this.#autoContinueDelaysMs = options.autoContinueDelaysMs ?? AUTO_CONTINUE_DELAYS_MS;
+    this.#stopSettleTimeoutMs = options.stopSettleTimeoutMs ?? STOP_SETTLE_TIMEOUT_MS;
+    this.#closeSessionApprovals = options.closeSessionApprovals;
     this.#promptText = options.promptText ?? (() => DEFAULT_PROMPT_TEXT);
     this.#promptLimits = options.promptLimits ?? (() => DEFAULT_PROMPT_LIMITS);
     this.#createSessionId = options.createSessionId ?? (() => `botharness-${randomUUID()}`);
@@ -5044,6 +5075,10 @@ class BotRuntimeImplementation implements BotRuntime {
     const waking = this.#hasPendingWake(botSlug);
     const working = this.#workingAssignmentIds(botSlug);
     const wasHeld = this.#held.get(botSlug);
+    const orchestratorSessionId = this.currentOrchestratorSessionId(botSlug);
+    if (orchestratorSessionId !== undefined)
+      this.#beginSessionStop(botSlug, orchestratorSessionId, 'orchestrator');
+    this.groupSendReview.stop(botSlug);
     this.#hold(botSlug, 'human-stop');
     const stopped = await this.#stopTurn(
       botSlug,
@@ -5051,6 +5086,8 @@ class BotRuntimeImplementation implements BotRuntime {
     );
     const bot = this.#registry.get(botSlug);
     let assignments = 0;
+    if (bot !== undefined && stopped !== undefined)
+      assignments += await this.#cancelPendingDeliveries(bot, stopped.sessionId);
     if (bot !== undefined && this.#agents.stopAssignment !== undefined)
       for (const sessionId of working) {
         try {
@@ -5229,8 +5266,116 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#stoppedTurns.add(botSlug);
     this.groupSendReview.stop(botSlug);
     this.#stopNotices.set(botSlug, notice);
-    await active.catch(() => undefined);
+    await this.#settleStop(
+      botSlug,
+      sessionId,
+      active.catch(() => undefined),
+    );
     return { sessionId };
+  }
+
+  #beginSessionStop(botSlug: string, sessionId: string, role: 'orchestrator' | 'assignment'): void {
+    const tree = [
+      sessionId,
+      ...this.#ownership.descendantsOf(sessionId).map((child) => child.sessionId),
+    ];
+    try {
+      this.#closeSessionApprovals?.(tree);
+    } catch (error) {
+      this.#warn?.(
+        JSON.stringify({
+          component: 'bot-runtime',
+          event: 'stop-approvals-failed',
+          botSlug,
+          sessionId,
+          error: String(error).slice(0, 500),
+        }),
+      );
+    }
+    if (role === 'orchestrator') this.groupSendReview.stopOwner(`${botSlug}:${sessionId}`);
+  }
+
+  async #settleStop(botSlug: string, sessionId: string, settling: Promise<unknown>): Promise<void> {
+    let timer: NodeJS.Timeout | undefined;
+    let outcome: 'settled' | 'timeout';
+    try {
+      outcome = await Promise.race([
+        settling.then(() => 'settled' as const),
+        new Promise<'timeout'>((resolve) => {
+          timer = setTimeout(() => resolve('timeout'), this.#stopSettleTimeoutMs);
+          timer.unref?.();
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+    if (outcome === 'settled') return;
+    this.#warn?.(
+      JSON.stringify({
+        component: 'bot-runtime',
+        event: 'stop-settle-timeout',
+        botSlug,
+        sessionId,
+        timeoutMs: this.#stopSettleTimeoutMs,
+      }),
+    );
+    await this.#agents.abandonSession?.(sessionId).catch(() => undefined);
+  }
+
+  async #cancelPendingDeliveries(
+    bot: PersonaBotRecord,
+    orchestratorSessionId: string,
+  ): Promise<number> {
+    let cancelled = 0;
+    for (const [sessionId, owner] of [...this.#pendingDeliveries]) {
+      if (owner !== orchestratorSessionId) continue;
+      this.#pendingDeliveries.delete(sessionId);
+      try {
+        await this.#stopAssignment(bot, sessionId, () => undefined, 'human-session-stop');
+        cancelled += 1;
+      } catch (error) {
+        this.#warn?.(
+          JSON.stringify({
+            component: 'bot-runtime',
+            event: 'stop-pending-delivery-failed',
+            botSlug: bot.slug,
+            sessionId,
+            error: String(error).slice(0, 500),
+          }),
+        );
+      }
+    }
+    return cancelled;
+  }
+
+  #recordInterruptedTools(
+    botSlug: string,
+    sessionId: string,
+    calls: readonly InterruptedToolCall[],
+  ): void {
+    if (calls.length === 0) return;
+    this.#interruptedTools.set(sessionId, [
+      ...(this.#interruptedTools.get(sessionId) ?? []),
+      ...calls,
+    ]);
+    this.#warn?.(
+      JSON.stringify({
+        component: 'bot-runtime',
+        event: 'stop-interrupted-tools',
+        botSlug,
+        sessionId,
+        result: 'unknown',
+        stoppedBy: 'human',
+        calls: calls.map((call) => ({ callId: call.callId, name: call.name })),
+      }),
+    );
+  }
+
+  #takeInterruptedToolsNote(sessionId: string): string {
+    const calls = this.#interruptedTools.get(sessionId);
+    if (calls === undefined) return '';
+    this.#interruptedTools.delete(sessionId);
+    return interruptedToolsNote(calls);
   }
 
   async whenIdle(): Promise<void> {
@@ -5466,6 +5611,7 @@ class BotRuntimeImplementation implements BotRuntime {
     let preserveObservation = false;
     const importedFiles = new Map<string, ChannelAttachmentRef>();
     const markSideEffect = (): void => {
+      if (this.#stoppedTurns.has(bot.slug)) throw new Error(SESSION_STOPPED_REFUSAL);
       this.#database.read((db) => {
         for (const id of new Set([...turnSources, ...readAdmissions]))
           requireSourceEffects(db, id, bot.slug);
@@ -5552,6 +5698,8 @@ class BotRuntimeImplementation implements BotRuntime {
         sessionId: orchestrator.sessionId,
         resume: orchestrator.resume,
         bot,
+        toolsInterrupted: (calls) =>
+          this.#recordInterruptedTools(bot.slug, orchestrator.sessionId, calls),
         message: (() => {
           const human =
             channelId === undefined ? undefined : this.#channels.listHumanMembers(channelId)[0];
@@ -5559,6 +5707,7 @@ class BotRuntimeImplementation implements BotRuntime {
           this.#stopNotices.delete(bot.slug);
           return (
             stopped +
+            this.#takeInterruptedToolsNote(orchestrator.sessionId) +
             this.#interruptedDmNotice(bot.slug, channelId) +
             (human === undefined || human.displayName === 'Human'
               ? body
@@ -6052,12 +6201,22 @@ class BotRuntimeImplementation implements BotRuntime {
     readAdmissions?: Set<string>,
   ): OrchestratorAssignmentAccess {
     const markSideEffect = markAttemptSideEffect;
+    const refuseStopped = () => {
+      if (orchestratorSessionId !== undefined && this.#stoppedTurns.has(bot.slug))
+        throw new Error(SESSION_STOPPED_REFUSAL);
+    };
+    const trackDelivery = (sessionId: string, pending: boolean) => {
+      if (orchestratorSessionId === undefined) return;
+      if (pending) this.#pendingDeliveries.set(sessionId, orchestratorSessionId);
+      else this.#pendingDeliveries.delete(sessionId);
+    };
     return {
       create: (input) => {
         if (sourceEventId === undefined)
           throw new Error('Assignment creation requires a Source Event');
+        refuseStopped();
         this.#database.read((db) => requireSourceEffects(db, sourceEventId, bot.slug));
-        const outcome = this.#createOrReuseAssignment(bot, sourceEventId, input);
+        const outcome = this.#createOrReuseAssignment(bot, sourceEventId, input, trackDelivery);
         if (outcome.outcome === 'created' || outcome.outcome === 'reused') {
           markSideEffect();
           this.#linkRequestAssignment(sourceEventId, outcome.assignment.sessionId);
@@ -6085,9 +6244,10 @@ class BotRuntimeImplementation implements BotRuntime {
           request,
         ),
       request: (input) => {
+        refuseStopped();
         if (sourceEventId !== undefined)
           this.#database.read((db) => requireSourceEffects(db, sourceEventId, bot.slug));
-        const outcome = this.#requestAssignment(bot, input);
+        const outcome = this.#requestAssignment(bot, input, trackDelivery);
         if (outcome.delivery !== 'capacity') {
           markSideEffect();
           if (sourceEventId !== undefined)
@@ -8485,6 +8645,7 @@ class BotRuntimeImplementation implements BotRuntime {
       grantId: string;
       model?: ModelRoute;
     },
+    trackDelivery?: (sessionId: string, pending: boolean) => void,
   ): AssignmentCreateOutcome {
     const title = requireBoundedText(input.title, 'title', ASSIGNMENT_TITLE_MAX_LENGTH);
     const description = requireBoundedText(
@@ -8530,11 +8691,11 @@ class BotRuntimeImplementation implements BotRuntime {
           throw new Error(
             'An existing keyed Assignment keeps its model; use a new key for a new model choice',
           );
-        const request = this.#requestAssignment(bot, {
-          sessionId: holder.session_id,
-          mode: 'next-turn',
-          text,
-        });
+        const request = this.#requestAssignment(
+          bot,
+          { sessionId: holder.session_id, mode: 'next-turn', text },
+          trackDelivery,
+        );
         if (request.delivery === 'capacity') {
           const { assignment: _assignment, delivery: _delivery, ...refusal } = request;
           return refusal;
@@ -8593,10 +8754,13 @@ class BotRuntimeImplementation implements BotRuntime {
       },
       ['session-ownership', 'assignments'],
     );
+    trackDelivery?.(sessionId, true);
     this.#trackAssignmentRun(sessionId, () =>
       this.#agents.runAssignment({
         requireContent: () =>
           this.#database.read((db) => requireAssignmentSource(db, sourceEventId, bot.slug)),
+        accepted: () => trackDelivery?.(sessionId, false),
+        toolsInterrupted: (calls) => this.#recordInterruptedTools(bot.slug, sessionId, calls),
         sessionId,
         bot,
         text,
@@ -8627,6 +8791,7 @@ class BotRuntimeImplementation implements BotRuntime {
       answerTo?: string;
       model?: ModelRoute;
     },
+    trackDelivery?: (sessionId: string, pending: boolean) => void,
   ): AssignmentRequestOutcome {
     let row = this.#assignmentRow(bot.slug, input.sessionId);
     if (row === undefined) throw new Error(`Unknown Assignment Session: ${input.sessionId}`);
@@ -8701,12 +8866,15 @@ class BotRuntimeImplementation implements BotRuntime {
       }
       this.#setActivity(input.sessionId, 'working');
     }
+    const interrupted = this.#interruptedTools.get(input.sessionId);
     const run: AssignmentAgentRun = {
       requireContent: () =>
         this.#database.read((db) => requireAssignmentSource(db, row.source_event_id, bot.slug)),
+      accepted: () => trackDelivery?.(input.sessionId, false),
+      toolsInterrupted: (calls) => this.#recordInterruptedTools(bot.slug, input.sessionId, calls),
       sessionId: input.sessionId,
       bot,
-      text,
+      text: interrupted === undefined ? text : interruptedToolsNote(interrupted) + text,
       resume: true,
       permission,
       ...(modelRoute === undefined ? {} : { modelRoute }),
@@ -8722,6 +8890,7 @@ class BotRuntimeImplementation implements BotRuntime {
     let delivery: AssignmentRequestDelivery;
     try {
       delivery = this.#agents.requestAssignment(run);
+      if (interrupted !== undefined) this.#interruptedTools.delete(input.sessionId);
     } catch (error) {
       if (error instanceof AssignmentInboxAcceptanceUncertainError)
         this.#setActivity(input.sessionId, 'error');
@@ -8757,6 +8926,7 @@ class BotRuntimeImplementation implements BotRuntime {
     };
     if (delivery.delivery === 'followup') {
       this.#assignmentAcceptances.add(input.sessionId);
+      trackDelivery?.(input.sessionId, true);
       let accepted = false;
       let uncertain = false;
       void delivery.done.catch(() => undefined);
@@ -8807,6 +8977,8 @@ class BotRuntimeImplementation implements BotRuntime {
     if (this.#agents.stopAssignment === undefined)
       throw new Error('Assignment stop is unavailable');
     markSideEffect();
+    this.#pendingDeliveries.delete(sessionId);
+    this.#beginSessionStop(bot.slug, sessionId, 'assignment');
     if (row.stop_state === 'running') {
       const at = this.#now().toISOString();
       this.#database.transaction(
@@ -8823,8 +8995,15 @@ class BotRuntimeImplementation implements BotRuntime {
       );
     }
     await this.#typingAssignments.get(sessionId)?.stop();
-    await this.#agents.stopAssignment(sessionId);
-    await this.#assignmentRuns.get(sessionId);
+    const stopAssignment = this.#agents.stopAssignment.bind(this.#agents);
+    await this.#settleStop(
+      bot.slug,
+      sessionId,
+      (async () => {
+        await stopAssignment(sessionId);
+        await this.#assignmentRuns.get(sessionId);
+      })(),
+    );
     const at = this.#now().toISOString();
     const sourceEventId = this.#createEventId();
     const stopped = this.#database.transaction(

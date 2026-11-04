@@ -29,6 +29,7 @@ import { OnboardingLauncher } from './onboarding-checklist-view.js';
 import { PinnedPanelCards } from './pinned-panel-cards.js';
 import type { QuickSwitcherSettings } from './quick-switcher.js';
 import type { ShortcutBindings } from './shortcut-bindings.js';
+import { unreadCountLabel } from './unread-count.js';
 import type { WindowCompanions } from './window-companions.js';
 
 export interface BotModeSidebarProps {
@@ -64,7 +65,7 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
   const state = useClientStore(keepClientState, sameSidebarNavigation);
   const unread = state.humanInbox.unreadCount;
   const inboxNotes = [
-    ...(unread > 0 ? [t('humanInbox.unreadCount', { count: String(unread) })] : []),
+    ...(unread > 0 ? [t('humanInbox.unreadCount', { count: unreadCountLabel(unread) })] : []),
     ...(state.humanInbox.hasAction ? [t('humanInbox.action')] : []),
   ];
   const inboxLabel = [t('activityCenter.title'), ...inboxNotes].join(' · ');
@@ -179,7 +180,7 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
               dot: unread > 0 || state.humanInbox.hasAction,
               trailing:
                 unread > 0 ? (
-                  <span {...stylex.props(styles.count)}>{unread > 99 ? '99+' : unread}</span>
+                  <span {...stylex.props(styles.count)}>{unreadCountLabel(unread)}</span>
                 ) : null,
             },
           )}

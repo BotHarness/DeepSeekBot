@@ -12,6 +12,7 @@ import type { VoiceCallEvent, VoiceCallResult, VoiceCallView } from '../src/voic
 import { VOICE_CALL_HOST_OWNER } from '../src/voice/call-contract.js';
 import {
   createVoiceCalls,
+  joinTranscripts,
   type VoiceCallBot,
   type VoiceCallMedia,
   type VoiceCallsDeps,
@@ -471,6 +472,21 @@ describe('Host call owner', () => {
       ok: false,
       code: 'asr-not-configured',
     });
+    const off = harness({
+      media: fakeMedia().media,
+      providers: {
+        has: () => true,
+        localServiceOff: async (_id, kind) => kind === 'asr',
+        async transcribe() {
+          return { text: '', latencyMs: 1 };
+        },
+        synthesize: async () => ({ audio: new Uint8Array(), mime: 'audio/mpeg' }),
+      },
+    });
+    expect((await off.ok({ kind: 'readiness', slug: 'mira' })).readiness).toMatchObject({
+      ready: false,
+      missing: ['local-voice-off'],
+    });
     const noMedia = harness({ media: undefined });
     expect(await noMedia.calls.handle(noMedia.phone, { kind: 'open', slug: 'mira' })).toMatchObject(
       { ok: false, code: 'media-unsupported' },
@@ -583,6 +599,57 @@ describe('Host call owner', () => {
     expect(await view(h, callId)).toMatchObject({ phase: 'ended', endReason: 'hangup' });
   });
 
+  it('recognizes each piece after a short pause while the caller keeps talking', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const callId = await connected(h);
+    h.feed(state.onPcm!, concat(silence(300), speech(1200), silence(350)));
+    await settled();
+    expect(h.transcribed).toHaveLength(1);
+    expect(h.sent).toEqual([]);
+    expect((await view(h, callId)).events.at(-1)).toMatchObject({
+      type: 'hearing',
+      text: '帮我查一下明天的天气',
+    });
+    h.feed(state.onPcm!, concat(speech(1000, { seed: 5 }), silence(900)));
+    await settled();
+    expect(h.transcribed).toHaveLength(2);
+    expect(h.sent.map((item) => item.body)).toEqual(['帮我查一下明天的天气第二句话']);
+    expect((await view(h, callId)).events.at(-1)).toMatchObject({ type: 'sent', segments: 2 });
+    expect(h.transcribed.every((wav) => wav.every((byte) => byte === 0))).toBe(true);
+  });
+
+  it('joins pieces with a space except next to Chinese or Japanese text', () => {
+    expect(joinTranscripts(['明天上海', '会下雨吗？'])).toBe('明天上海会下雨吗？');
+    expect(joinTranscripts(['今日は', 'いい天気'])).toBe('今日はいい天気');
+    expect(joinTranscripts(['Hello.', 'How are you?'])).toBe('Hello. How are you?');
+    expect(joinTranscripts(['저는', '학생입니다.'])).toBe('저는 학생입니다.');
+    expect(joinTranscripts(['Привет,', 'как дела?'])).toBe('Привет, как дела?');
+    expect(joinTranscripts(['打开', 'GitHub'])).toBe('打开GitHub');
+  });
+
+  it('joins English pieces with a space, also after punctuation', async () => {
+    const { media, state } = fakeMedia();
+    const texts = ['Hello.', 'What is the weather tomorrow?'];
+    const h = harness({
+      media,
+      providers: {
+        has: (id, kind) => id.startsWith(kind),
+        async transcribe() {
+          return { text: texts.shift() ?? '', latencyMs: 1 };
+        },
+        synthesize: async () => ({ audio: MP3, mime: 'audio/mpeg' }),
+      },
+    });
+    await connected(h);
+    h.feed(
+      state.onPcm!,
+      concat(speech(1000), silence(350), speech(1000, { seed: 6 }), silence(900)),
+    );
+    await settled();
+    expect(h.sent.map((item) => item.body)).toEqual(['Hello. What is the weather tomorrow?']);
+  });
+
   it('a synthetic call takes injected PCM without WebRTC', async () => {
     const h = harness({ media: undefined });
     const call = (await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' })).call!;
@@ -681,7 +748,7 @@ describe('streamed voice replies', () => {
   }
 
   async function heardQuestion(h: ReturnType<typeof harness>, onPcm: (pcm: Int16Array) => void) {
-    h.feed(onPcm, concat(silence(300), speech(1200), silence(900)));
+    h.feed(onPcm, concat(silence(300), speech(1200), silence(800)));
     await settled();
   }
 

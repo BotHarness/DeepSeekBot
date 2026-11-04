@@ -50,13 +50,27 @@ describe('Human attention unread status', () => {
   it('reads placements only after each Channel read position', () => {
     const { attention, statements, plan } = recorder();
     expect(attention.status(true)).toMatchObject({ unreadCount: 0 });
-    const sql = statements.find((statement) => statement.includes('unread_events'));
-    expect(sql).toBeDefined();
-    const details = plan(sql!);
-    expect(details).toContainEqual(
-      expect.stringMatching(/^SEARCH p USING .*channel_id=\? AND revision>\?/),
+    attention.unreadByChannel();
+    const counts = statements.filter(
+      (statement) =>
+        statement.includes('count(*) AS count FROM') || statement.includes('AS unread_count'),
     );
-    expect(details.some((detail) => /^SCAN p\b/.test(detail))).toBe(false);
+    expect(counts.length).toBeGreaterThanOrEqual(3);
+    for (const sql of counts) {
+      const details = plan(sql);
+      expect(details).toContainEqual(
+        expect.stringMatching(/^SEARCH p USING .*channel_id=\? AND revision>\?/),
+      );
+      expect(details.some((detail) => /^SCAN p\b/.test(detail))).toBe(false);
+    }
+    for (const sql of counts.filter((statement) => !statement.includes('p.for_human = 1')))
+      expect(plan(sql)).toContainEqual(
+        expect.stringMatching(/^SEARCH p USING INDEX channel_placements_latest_message /),
+      );
+    const replies = counts.find((sql) => sql.includes('p.for_human = 1'));
+    expect(plan(replies!)).toContainEqual(
+      expect.stringMatching(/^SEARCH p USING INDEX channel_placements_for_human /),
+    );
   });
 
   it('never scans message, placement or Admission history for action attention', () => {

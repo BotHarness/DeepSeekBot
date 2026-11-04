@@ -5,7 +5,7 @@ import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { defineSchemaPlan } from '../src/database/schema.js';
-import { createHumanAttentionQuery } from '../src/runtime/human-attention.js';
+import { createHumanAttentionQuery, UNREAD_COUNT_LIMIT } from '../src/runtime/human-attention.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
 const indexes = [
@@ -63,7 +63,7 @@ describe('Human attention candidate indexes', () => {
         mountOperationalDatabase({ dshHome, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
       );
       expect(upgraded.mode).toBe('ready');
-      expect(upgraded.generation).toBe(123);
+      expect(upgraded.generation).toBe(125);
       const current = attachOperationalModule(upgraded, 'attention-index-upgrade');
       const after = current.read((connection) =>
         createHash('sha256')
@@ -165,7 +165,7 @@ describe('Human attention candidate indexes', () => {
       },
     };
     expect(createHumanAttentionQuery(observed).status()).toEqual({
-      unreadCount: 2000,
+      unreadCount: UNREAD_COUNT_LIMIT,
       hasAction: false,
     });
     expect(plans.length).toBeGreaterThan(0);

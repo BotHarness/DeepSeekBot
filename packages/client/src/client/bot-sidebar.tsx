@@ -1,4 +1,4 @@
-import { UnreadCount } from './unread-count.js';
+import { UnreadCount, unreadCountLabel } from './unread-count.js';
 export { unreadCountLabel } from './unread-count.js';
 import { Menu } from './appearance-primitives.js';
 import { ALL_HOSTS, remoteHosts } from './remote-hosts.js';
@@ -267,7 +267,7 @@ export function BotPanelIcon({
     ...(state.humanInbox.unreadCount > 0
       ? [
           t('humanInbox.unreadCount', {
-            count: String(state.humanInbox.unreadCount),
+            count: unreadCountLabel(state.humanInbox.unreadCount),
           }),
         ]
       : []),
@@ -391,7 +391,7 @@ export function BotPanelIcon({
                 <InboxIcon size={16} />
                 {state.humanInbox.unreadCount > 0 ? (
                   <span className="bh-human-inbox-count">
-                    {state.humanInbox.unreadCount > 99 ? '99+' : state.humanInbox.unreadCount}
+                    {unreadCountLabel(state.humanInbox.unreadCount)}
                   </span>
                 ) : null}
               </span>

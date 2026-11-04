@@ -48,6 +48,7 @@ export type VoiceCallEvent =
       text: string;
       asrMs: number;
       streamed?: boolean;
+      segments?: number;
     }
   | { seq: number; at: number; type: 'asr-failed'; code: string; message: string }
   | { seq: number; at: number; type: 'send-failed'; code: string; message: string }
@@ -137,7 +138,8 @@ export type VoiceCallMissing =
   | 'tts'
   | 'media-unsupported'
   | 'media-helper-missing'
-  | 'media-unavailable';
+  | 'media-unavailable'
+  | 'local-voice-off';
 
 export interface VoiceCallReadiness {
   readonly slug: string;
