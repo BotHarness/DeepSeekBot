@@ -93,7 +93,7 @@ import {
 } from '../storage/media-cleanup.js';
 import { pairingReviewInput, type PairingRequest } from '../messaging/pairing.js';
 import { senderAccessInput } from '../messaging/sender-access.js';
-import type { GroupMemberWakePolicy } from '../channels/channel.js';
+import type { ChannelTurnStopTarget, GroupMemberWakePolicy } from '../channels/channel.js';
 import {
   parseAllBotMention,
   expandAllBotMention,
@@ -110,6 +110,7 @@ import {
   type UsageOverviewResult,
 } from '../usage/overview.js';
 import { markAllHumanMessagesRead } from '../channels/mark-all-read.js';
+import { channelPreviewMessage } from '../channels/channel-notice.js';
 import { channelBridgeInput, type ChannelBridgeSnapshot } from '../messaging/channel-bridge.js';
 import {
   conversationIngestInput,
@@ -647,6 +648,14 @@ export interface BridgeMethods {
     BridgeResult<{
       stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
       alreadyIdle: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+      messageId?: string;
+    }>
+  >;
+  botStop(payload: unknown): Promise<
+    BridgeResult<{
+      stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+      alreadyIdle: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+      messageId?: string;
     }>
   >;
   approvalRoute(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
@@ -1546,6 +1555,10 @@ function unknownBot(slug: string): BridgeResult<never> {
   return { ok: false, error: { code: 'not-found', message: `unknown PersonaBot: ${slug}` } };
 }
 
+function botInChannel(channel: ChannelRecord, botSlug: string): boolean {
+  return channel.type === 'group' ? channel.members.includes(botSlug) : channel.botSlug === botSlug;
+}
+
 function unknownChannel(id: string): BridgeResult<never> {
   return { ok: false, error: { code: 'not-found', message: `unknown Channel: ${id}` } };
 }
@@ -1879,6 +1892,104 @@ function historyPosition(cursor: string): ToolApprovalHistoryPosition | undefine
   }
 }
 export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
+  async function appendStopNotice(
+    channelId: string,
+    botSlug: string,
+    botName: string,
+    sessionId: string,
+    target: ChannelTurnStopTarget,
+  ): Promise<string | undefined> {
+    const human = deps.channels.listHumanMembers(channelId)[0]?.displayName ?? 'Human';
+    const subject =
+      target.scope === 'bot'
+        ? botName
+        : target.role === 'orchestrator'
+          ? `${botName}'s Orchestrator`
+          : `${botName}'s Assignment${target.title ? ` “${target.title}”` : ''}`;
+    const appended = await deps.channels.appendMessage(channelId, {
+      id: `turn-stopped-${randomUUID()}`,
+      at: new Date().toISOString(),
+      author: { kind: 'system' },
+      body: `${human} stopped ${subject}.`,
+      turnStop: {
+        botSlug,
+        botName,
+        humanName: human,
+        sessionId,
+        cause: 'human-stop',
+        target,
+      },
+    });
+    return appended?.id;
+  }
+
+  async function stopBotSessions(
+    source: Record<string, unknown>,
+    botSlug: string,
+    channelId: string | undefined,
+  ): Promise<
+    BridgeResult<{
+      stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+      alreadyIdle: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+      messageId?: string;
+    }>
+  > {
+    const bot = deps.registry.get(botSlug);
+    if (bot === undefined) return unknownBot(botSlug);
+    const autoContinueFor = asNonBlank(source, 'autoContinueFor');
+    if (source['autoContinueFor'] !== undefined && autoContinueFor === undefined)
+      return invalidInput('autoContinueFor must be a message id');
+    if (autoContinueFor !== undefined) {
+      if (channelId === undefined) return invalidInput('autoContinueFor needs a channelId');
+      const cancelled = await deps.runtime?.stopTurn?.(botSlug, { autoContinueFor, channelId });
+      if (cancelled === undefined) return { ok: true, value: { stopped: [], alreadyIdle: [] } };
+      const human = deps.channels.listHumanMembers(channelId)[0]?.displayName ?? 'Human';
+      const appended = await deps.channels.appendMessage(channelId, {
+        id: `turn-stopped-${randomUUID()}`,
+        at: new Date().toISOString(),
+        author: { kind: 'system' },
+        body: `${human} stopped ${bot.displayName}.`,
+        turnStop: {
+          botSlug,
+          botName: bot.displayName,
+          humanName: human,
+          sessionId: cancelled.sessionId,
+        },
+      });
+      return {
+        ok: true,
+        value: {
+          stopped: [{ botSlug, sessionId: cancelled.sessionId, role: 'orchestrator' }],
+          alreadyIdle: [],
+          ...(appended === undefined ? {} : { messageId: appended.id }),
+        },
+      };
+    }
+    if (deps.runtime?.stopAllSessions === undefined) return unavailable();
+    const outcome = await deps.runtime.stopAllSessions(botSlug);
+    const channel = channelId === undefined ? undefined : deps.channels.get(channelId);
+    const noticeSession =
+      outcome.stopped.find((ref) => ref.role === 'orchestrator')?.sessionId ??
+      outcome.stopped[0]?.sessionId;
+    const messageId =
+      noticeSession !== undefined &&
+      channel !== undefined &&
+      !channel.deletedAt &&
+      botInChannel(channel, botSlug)
+        ? await appendStopNotice(channel.id, botSlug, bot.displayName, noticeSession, {
+            scope: 'bot',
+          })
+        : undefined;
+    return {
+      ok: true,
+      value: {
+        stopped: outcome.stopped,
+        alreadyIdle: outcome.alreadyIdle,
+        ...(messageId === undefined ? {} : { messageId }),
+      },
+    };
+  }
+
   const approvalTemplateLibrary = deps.approvalTemplates ?? createApprovalTemplateLibrary();
   const templateUsers = (name: string): string[] =>
     deps.registry
@@ -2965,53 +3076,90 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (channel === undefined || channel.deletedAt) return unknownChannel(channelId);
       const bot = deps.registry.get(botSlug);
       if (bot === undefined) return unknownBot(botSlug);
-      if (
-        channel.type === 'group' ? !channel.members.includes(botSlug) : channel.botSlug !== botSlug
-      )
+      if (!botInChannel(channel, botSlug))
         return invalidInput(`${bot.displayName} is not in this Channel`);
-      const autoContinueFor = asNonBlank(source, 'autoContinueFor');
-      if (source['autoContinueFor'] !== undefined && autoContinueFor === undefined)
-        return invalidInput('autoContinueFor must be a message id');
-      const stopped = await deps.runtime?.stopTurn?.(
-        botSlug,
-        autoContinueFor === undefined ? undefined : { autoContinueFor, channelId },
-      );
-      if (stopped === undefined)
+      const stopped = await stopBotSessions(source, botSlug, channelId);
+      if (!stopped.ok) return stopped;
+      if (stopped.value.messageId === undefined)
         return {
           ok: false,
           error: { code: 'not-working', message: `${bot.displayName} is not working right now` },
         };
-      const human = deps.channels.listHumanMembers(channelId)[0]?.displayName ?? 'Human';
-      const appended = await deps.channels.appendMessage(channelId, {
-        id: `turn-stopped-${randomUUID()}`,
-        at: new Date().toISOString(),
-        author: { kind: 'system' },
-        body: `${human} stopped ${bot.displayName}.`,
-        turnStop: {
-          botSlug,
-          botName: bot.displayName,
-          humanName: human,
-          sessionId: stopped.sessionId,
-          ...(autoContinueFor === undefined ? { held: true, cause: 'human-stop' } : {}),
-        },
-      });
-      if (appended === undefined) return unknownChannel(channelId);
+      const sessionId =
+        stopped.value.stopped.find((ref) => ref.role === 'orchestrator')?.sessionId ??
+        stopped.value.stopped[0]!.sessionId;
       return {
         ok: true,
-        value: { stopped: { botSlug, sessionId: stopped.sessionId, messageId: appended.id } },
+        value: { stopped: { botSlug, sessionId, messageId: stopped.value.messageId } },
       };
+    },
+    async botStop(payload) {
+      const source = asObject(payload);
+      const botSlug = asNonBlank(source, 'botSlug');
+      if (!botSlug) return invalidInput('botSlug is required');
+      if (deps.registry.get(botSlug) === undefined) return unknownBot(botSlug);
+      const channelId = asNonBlank(source, 'channelId');
+      if (source['channelId'] !== undefined && channelId === undefined)
+        return invalidInput('channelId must be a Channel id');
+      if (channelId !== undefined) {
+        const channel = deps.channels.get(channelId);
+        if (channel === undefined || channel.deletedAt) return unknownChannel(channelId);
+      }
+      return stopBotSessions(source, botSlug, channelId);
     },
     async sessionStop(payload) {
       const source = asObject(payload);
       const botSlug = asNonBlank(source, 'botSlug');
-      const sessionId = asNonBlank(source, 'sessionId');
-      if (!botSlug || !sessionId) return invalidInput('botSlug and sessionId are required');
-      if (deps.registry.get(botSlug) === undefined) return unknownBot(botSlug);
+      const activityId = asNonBlank(source, 'activityId');
+      if (!botSlug || (source['sessionId'] === undefined) === (activityId === undefined))
+        return invalidInput('botSlug and exactly one of sessionId or activityId are required');
+      const bot = deps.registry.get(botSlug);
+      if (bot === undefined) return unknownBot(botSlug);
+      const channelId = asNonBlank(source, 'channelId');
+      if (source['channelId'] !== undefined && channelId === undefined)
+        return invalidInput('channelId must be a Channel id');
       if (deps.runtime?.stopSession === undefined) return unavailable();
+      const sessionId =
+        activityId === undefined
+          ? asNonBlank(source, 'sessionId')
+          : deps.states.sessionIdForActivity(botSlug, activityId);
+      if (activityId !== undefined && sessionId === undefined)
+        return { ok: true, value: { stopped: [], alreadyIdle: [] } };
+      if (!sessionId) return invalidInput('sessionId must be a Session id');
       const outcome = await deps.runtime.stopSession(botSlug, sessionId);
       if (outcome.outcome === 'refused')
         return { ok: false, error: { code: outcome.code, message: outcome.message } };
-      return { ok: true, value: { stopped: outcome.stopped, alreadyIdle: outcome.alreadyIdle } };
+      const ref = outcome.stopped[0];
+      const channel = channelId === undefined ? undefined : deps.channels.get(channelId);
+      const related =
+        ref !== undefined &&
+        channel !== undefined &&
+        !channel.deletedAt &&
+        (ref.role === 'orchestrator'
+          ? botInChannel(channel, botSlug)
+          : (deps.runtime.listChannelAssignments?.(channel.id) ?? []).some(
+              (assignment) => assignment.sessionId === ref.sessionId,
+            ));
+      const title =
+        ref?.role === 'assignment'
+          ? deps.runtime.getAssignment(botSlug, ref.sessionId)?.title
+          : undefined;
+      const messageId = related
+        ? await appendStopNotice(channel!.id, bot.slug, bot.displayName, ref.sessionId, {
+            scope: 'session',
+            role: ref.role,
+            sessionId: ref.sessionId,
+            ...(title ? { title } : {}),
+          })
+        : undefined;
+      return {
+        ok: true,
+        value: {
+          stopped: outcome.stopped,
+          alreadyIdle: outcome.alreadyIdle,
+          ...(messageId === undefined ? {} : { messageId }),
+        },
+      };
     },
     async modelCatalog() {
       if (deps.modelCatalog === undefined) return unavailable();
@@ -4949,7 +5097,8 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         deps.channels.getOrCreateDm(bot.slug, bot.displayName);
       }
       const channels = deps.channels.list().map((channel) => {
-        const latestMessage = deps.channels.latestMessage(channel.id);
+        const latest = deps.channels.latestMessage(channel.id);
+        const latestMessage = latest === undefined ? undefined : channelPreviewMessage(latest);
         return {
           ...channelView(channel),
           ...(latestMessage === undefined ? {} : { latestMessage }),

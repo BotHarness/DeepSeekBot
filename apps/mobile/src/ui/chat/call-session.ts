@@ -1,5 +1,9 @@
 import type { CallClientState } from '../../../../../packages/core/src/voice/call-client';
-import type { CallAudioRoute } from '../../host/call-audio-route';
+import type {
+  CallAudioOutputId,
+  CallAudioRouteState,
+  CallMicrophoneId,
+} from '../../host/call-audio-route';
 import type { MicrophoneAccess } from '../../host/call-media';
 
 export type CallRequest = {
@@ -20,18 +24,29 @@ export type CallSessionSnapshot = {
   report?: string | undefined;
   supported: boolean;
   audioRoutes: boolean;
+  audioRoute?: CallAudioRouteState | undefined;
 };
 
 export interface CallControls {
   mute(muted: boolean): void;
   hangup(): void;
-  route(route: CallAudioRoute): boolean;
+  choose(
+    output: CallAudioOutputId,
+    microphone: CallMicrophoneId,
+  ): Promise<CallAudioRouteState | null>;
 }
 
 export type CallSessionPatch = Partial<
   Pick<
     CallSessionSnapshot,
-    'state' | 'startedAt' | 'microphone' | 'interrupted' | 'report' | 'supported' | 'audioRoutes'
+    | 'state'
+    | 'startedAt'
+    | 'microphone'
+    | 'interrupted'
+    | 'report'
+    | 'supported'
+    | 'audioRoutes'
+    | 'audioRoute'
   >
 >;
 

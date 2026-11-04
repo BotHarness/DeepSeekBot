@@ -184,9 +184,11 @@ it('gives roster and Activity their own typed streams and leaves only the Channe
 
 it('declares the Channel stream with strict Channel ID and page-size parameters', () => {
   expect(CHANNEL_REMOTE_DESCRIPTOR).toMatchObject({ method: 'followChannel', mode: 'stream' });
-  const [channelId, limit] = CHANNEL_REMOTE_DESCRIPTOR.parameters.map((parameter) =>
+  const [channelId, limit, drafts] = CHANNEL_REMOTE_DESCRIPTOR.parameters.map((parameter) =>
     parameter.codec.create(),
   );
+  expect(drafts!.parse('append')).toBe('append');
+  expect(() => drafts!.parse('partial')).toThrow('Expected a draft delivery');
   expect(channelId!.parse('c1')).toBe('c1');
   expect(() => channelId!.parse(1)).toThrow('Expected a Channel ID');
   expect(limit!.parse(50)).toBe(50);
@@ -231,7 +233,8 @@ it('follows a Channel through the official journal stream: replace, append, gap 
   const follow = createChannelFollow(
     remote as never,
     () => ({
-      followChannel: (_channelId, limit, signal) => {
+      followChannel: (_channelId, limit, drafts, signal) => {
+        expect(drafts).toBe('append');
         opens.push(limit);
         return feed.items(signal) as never;
       },

@@ -74,13 +74,13 @@ import type { BotModePrefs } from './bot-mode-prefs.js';
 import {
   ChannelComposer,
   type ChannelComposerActivity,
-  type ChannelComposerStop,
   type ChannelComposerUpload,
 } from './channel-composer.js';
 import { PanelDialog } from './ds/panel-dialog.js';
+import { ConversationSessionStop, useHeaderSessionStop } from './header-session-stop.js';
+import { runningSessionCount, runningSessionGroups } from './session-stop-model.js';
 import { ChannelFiles, GeneratedFilesContext } from './generated-files-panel.js';
 import { attachmentIdentity } from '../../../core/src/attachments/ref.js';
-import { stoppableBots } from './composer-stop.js';
 import type { SelectedMention } from './mentions.js';
 import type { SelectedChannelRef } from './channel-refs.js';
 import { recallEntries, stepRecall, SUBMISSION_PREFIX } from './composer-submission-store.js';
@@ -1197,11 +1197,6 @@ function ConversationView({
   const [draft, setDraft] = useConversationDraft(draftScope, 'text', '');
   const [allBotPreview, setAllBotPreview] = useScopedState<AllBotPreview>(scopeKey);
   const [allBotNotice, setAllBotNotice] = useScopedState<string>(scopeKey);
-  const [botStop, setBotStop] = useScopedState<{
-    channelId: string;
-    stopping: boolean;
-    notice?: string;
-  }>(scopeKey);
   const [mentionTokens, setMentionTokens] = useConversationDraft(draftScope, 'mentions', []);
   const [channelRefTokens, setChannelRefTokens] = useConversationDraft(
     draftScope,
@@ -1491,6 +1486,17 @@ function ConversationView({
     (item) => item.state !== 'idle' || item.attention !== undefined,
   );
   const dmBot = bot ?? (channel?.type === 'dm' && !botDm ? profileBot : undefined);
+  const sessionStop = useHeaderSessionStop();
+  const sessionStopGroups = runningSessionGroups(
+    readOnlyDm || channel === undefined
+      ? []
+      : channel.type === 'group'
+        ? channelBots.filter((member) => member.deleted !== true)
+        : channel.type === 'dm' && !botDm && profileBot !== undefined
+          ? [profileBot]
+          : [],
+  );
+  const sessionStopCount = runningSessionCount(sessionStopGroups);
   const dmBotActivity = dmBot === undefined ? undefined : personaBotActivity(state, dmBot);
   const composerFacepile: PersonaBotFacepileItem[] =
     dmBot === undefined
@@ -1551,73 +1557,6 @@ function ConversationView({
             .catch((error: unknown) => {
               console.warn('botharness: reaction failed', error);
             });
-  const stopTargets =
-    channelId !== undefined &&
-    !readOnlyDm &&
-    (channel?.type === 'group' ||
-      (channel?.type === 'dm' && !botDm && channel.botSlug !== undefined))
-      ? stoppableBots(
-          (channel.type === 'group'
-            ? channelBots
-            : state.bots.filter((member) => member.slug === channel.botSlug)
-          ).map((member) => ({
-            slug: member.slug,
-            name: member.displayName,
-            paused: member.paused === true,
-            state: personaBotActivity(state, member),
-          })),
-        )
-      : [];
-  const channelStop = botStop?.channelId === channelId ? botStop : undefined;
-  const composerStop: ChannelComposerStop | undefined =
-    channelId === undefined || (stopTargets.length === 0 && channelStop?.notice === undefined)
-      ? undefined
-      : {
-          label:
-            stopTargets.length === 0
-              ? undefined
-              : stopTargets.length === 1
-                ? t('composer.stopBot', { name: stopTargets[0]?.name ?? '' })
-                : t('composer.stopBots', { count: stopTargets.length }),
-          stopping: channelStop?.stopping === true,
-          notice: channelStop?.notice,
-          onStop: () => {
-            if (stopTargets.length === 0 || channelStop?.stopping === true) return;
-            setBotStop({ channelId, stopping: true });
-            void Promise.allSettled(
-              stopTargets.map((target) => actions.stopBot(channelId, target.slug)),
-            ).then((outcomes) => {
-              const failed = outcomes.find((outcome) => outcome.status === 'rejected');
-              const idle = stopTargets.filter((_target, index) => {
-                const outcome = outcomes[index];
-                return outcome?.status === 'fulfilled' && outcome.value === 'not-working';
-              });
-              const notice =
-                failed !== undefined
-                  ? t('composer.stopFailed', {
-                      reason:
-                        failed.reason instanceof Error
-                          ? failed.reason.message
-                          : String(failed.reason),
-                    })
-                  : idle.length > 0 && idle.length === stopTargets.length
-                    ? t('composer.stopNotWorking', {
-                        name: idle.map((target) => target.name).join(', '),
-                      })
-                    : undefined;
-              if (notice === undefined) {
-                setBotStop(undefined);
-                return;
-              }
-              const shown = { channelId, stopping: false, notice };
-              setBotStop(shown);
-              window.setTimeout(
-                () => setBotStop((current) => (current === shown ? undefined : current)),
-                6000,
-              );
-            });
-          },
-        };
   const selectedIds =
     selectedMessages !== undefined && selectedMessages.channelId === channelId
       ? selectedMessages.ids
@@ -2214,17 +2153,17 @@ function ConversationView({
   );
   const arrivalIds = useMemo(
     () =>
-      displayMessages
+      visibleMessages
         .filter((item) => !streamReplies || item.author.kind !== 'bot')
         .map((item) => item.id),
-    [displayMessages, streamReplies],
+    [visibleMessages, streamReplies],
   );
   const arrivals = useMessageArrivals(channelId, arrivalIds, conversation.status === 'ready');
   const galleryImages = useMemo<GalleryImage[]>(
     () =>
       channelId === undefined
         ? []
-        : displayMessages.flatMap((message) =>
+        : visibleMessages.flatMap((message) =>
             message.contentPurged === true
               ? []
               : (message.attachments ?? []).flatMap((ref) =>
@@ -2239,29 +2178,26 @@ function ConversationView({
                     : [],
                 ),
           ),
-    [channelId, displayMessages],
+    [channelId, visibleMessages],
   );
   const imageGallery = useMessageImageGallery(galleryImages, t);
-  const groupKeys = useMemo(() => messageGroups.map((group) => group.key), [messageGroups]);
-  const groupMembers = useMemo(
-    () =>
-      new Map(
-        messageGroups.map((group) => [group.key, group.messages.map((message) => message.id)]),
-      ),
-    [messageGroups],
-  );
+  const groupShape = useStableGroupShape(messageGroups);
+  const groupKeys = groupShape.keys;
+  const groupMembers = groupShape.members;
   const pinnedGroups = useMemo(() => {
     const pinned = new Set<string>();
     const focus = conversation.focusMessageId;
-    messageGroups.forEach((group, index) => {
+    groupKeys.forEach((key, index) => {
+      const ids = groupMembers.get(key) ?? [];
+      const previous = index === 0 ? undefined : groupMembers.get(groupKeys[index - 1]!);
       if (
-        (focus !== undefined && group.messages.some((message) => message.id === focus)) ||
-        (unreadAfter !== undefined && messageGroups[index - 1]?.messages.at(-1)?.id === unreadAfter)
+        (focus !== undefined && ids.includes(focus)) ||
+        (unreadAfter !== undefined && previous?.at(-1) === unreadAfter)
       )
-        pinned.add(group.key);
+        pinned.add(key);
     });
     return pinned;
-  }, [messageGroups, unreadAfter, conversation.focusMessageId]);
+  }, [groupKeys, groupMembers, unreadAfter, conversation.focusMessageId]);
   const timelineWindow = useTimelineWindow(groupKeys, pinnedGroups, groupMembers);
   const placeUnreadDivider = (element: HTMLDivElement): boolean => {
     const divider = element.querySelector<HTMLElement>('[data-unread-divider]');
@@ -3428,7 +3364,6 @@ function ConversationView({
                   }
                   allBotPreview={channel?.type === 'group' ? allBotPreview : undefined}
                   allBotNotice={allBotNotice}
-                  stop={composerStop}
                   mentionCandidates={
                     channel?.type === 'group'
                       ? channelBots
@@ -3612,11 +3547,22 @@ function ConversationView({
                 workspaceEnabled && channel !== undefined
                   ? {
                       title,
-                      ...(dmWorking
-                        ? { label: <WorkingSummary rows={workingRows} t={t} /> }
-                        : channel.type === 'group'
-                          ? { status: <HeaderWorkingStatus rows={workingRows} t={t} /> }
-                          : {}),
+                      ...(dmWorking ? { label: <WorkingSummary rows={workingRows} t={t} /> } : {}),
+                      status: (
+                        <ConversationSessionStop
+                          channel={channel}
+                          groups={sessionStopGroups}
+                          controller={sessionStop}
+                          actions={actions}
+                          t={t}
+                          status={
+                            channel.type === 'group' && workingRows.items.length > 0 ? (
+                              <HeaderWorkingStatus rows={workingRows} t={t} />
+                            ) : undefined
+                          }
+                          onOpenProfile={profileBot === undefined ? undefined : openProfileView}
+                        />
+                      ),
                       icon:
                         channel.type === 'group' || botDm ? (
                           <GroupChannelIcon
@@ -3646,13 +3592,22 @@ function ConversationView({
                       ...(profileBot !== undefined || channel.type === 'group'
                         ? {
                             profile: {
-                              label: t(
-                                channel.type === 'group'
-                                  ? 'groupProfile.openAvatar'
-                                  : 'profile.openAvatar',
-                                { name: title },
-                              ),
-                              open: openProfileView,
+                              label:
+                                channel.type === 'dm' && sessionStopCount > 0
+                                  ? t('sessionStop.open', { count: sessionStopCount })
+                                  : t(
+                                      channel.type === 'group'
+                                        ? 'groupProfile.openAvatar'
+                                        : 'profile.openAvatar',
+                                      { name: title },
+                                    ),
+                              open:
+                                channel.type === 'dm' && sessionStopCount > 0
+                                  ? sessionStop.toggle
+                                  : openProfileView,
+                              ...(channel.type === 'dm' && sessionStopCount > 0
+                                ? { expanded: sessionStop.open }
+                                : {}),
                             },
                           }
                         : {}),
@@ -3788,6 +3743,38 @@ function ConversationView({
       </div>
     </div>
   );
+}
+
+function useStableGroupShape(
+  groups: readonly { key: string; messages: readonly { id: string }[] }[],
+): {
+  keys: string[];
+  members: Map<string, string[]>;
+} {
+  const shape = useRef<{ keys: string[]; members: Map<string, string[]> } | undefined>(undefined);
+  const previous = shape.current;
+  if (
+    previous !== undefined &&
+    previous.keys.length === groups.length &&
+    groups.every((group, index) => {
+      const ids = previous.members.get(group.key);
+      return (
+        previous.keys[index] === group.key &&
+        ids !== undefined &&
+        ids.length === group.messages.length &&
+        group.messages.every((message, at) => ids[at] === message.id)
+      );
+    })
+  )
+    return previous;
+  const next = {
+    keys: groups.map((group) => group.key),
+    members: new Map(
+      groups.map((group) => [group.key, group.messages.map((message) => message.id)]),
+    ),
+  };
+  shape.current = next;
+  return next;
 }
 
 function sameConversationInputs(left: ClientState, right: ClientState): boolean {

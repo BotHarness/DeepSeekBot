@@ -1,12 +1,17 @@
-import type { CallAudioRoute } from '../../host/call-audio-route';
+import type {
+  CallAudioOutputId,
+  CallAudioRouteState,
+  CallMicrophoneId,
+} from '../../host/call-audio-route';
 
 export interface CallAudioMenuProps {
-  route: CallAudioRoute;
+  route: CallAudioRouteState;
   size: number;
   fill: string;
   ink: string;
   disabled: boolean;
-  onChange(route: CallAudioRoute): void;
+  onOutput(output: CallAudioOutputId): void;
+  onMicrophone(microphone: CallMicrophoneId): void;
 }
 
 export function CallAudioMenu(_props: CallAudioMenuProps) {

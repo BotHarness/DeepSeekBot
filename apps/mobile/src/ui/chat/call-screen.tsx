@@ -3,9 +3,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { Linking, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { CallAudioRoute } from '../../host/call-audio-route';
+import {
+  fallbackCallAudioRoute,
+  type CallAudioOutputId,
+  type CallMicrophoneId,
+} from '../../host/call-audio-route';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
-import { callAudioRoute, useCallAudioRoute } from '../../host/native-call-audio-route';
+import { callAudioPreference } from '../../host/native-call-audio-route';
 import { BotAvatar } from '../bot-avatar';
 import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
@@ -14,6 +18,7 @@ import { SystemSymbol } from '../primitives/system-symbol';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { CallAudioMenu } from './call-audio-menu';
+import { callAudioDeviceName } from './call-audio-symbol';
 import { callScreenModel, formatCallDuration, microphoneRecovery } from './call-model';
 import { callSessions, sameCall } from './call-session';
 import { useCallSession } from './call-session-host';
@@ -50,7 +55,6 @@ export function CallScreen({
   const key = session?.key;
   const [now, setNow] = useState(Date.now());
   const [audioFailed, setAudioFailed] = useState(false);
-  const audio = useCallAudioRoute();
 
   useFocusEffect(
     useCallback(() => {
@@ -88,10 +92,19 @@ export function CallScreen({
   const recovery = microphoneRecovery(t, microphone);
   const hint = audioFailed ? t.call.audioSwitchFailed : model.hint;
   const control = () => (key === undefined ? undefined : callSessions.controls());
-  const switchAudio = (route: CallAudioRoute) => {
-    callAudioRoute.setRoute(route);
-    const switched = control()?.route(route);
-    setAudioFailed(switched === false);
+  const shownRoute = session?.audioRoute ?? fallbackCallAudioRoute();
+  const chooseAudio = (output: CallAudioOutputId, microphone: CallMicrophoneId) => {
+    const choosing = control();
+    if (choosing === undefined || key === undefined) return;
+    void choosing.choose(output, microphone).then((next) => {
+      if (next === null) {
+        setAudioFailed(true);
+        return;
+      }
+      setAudioFailed(false);
+      callSessions.publish(key, { audioRoute: next });
+      if (next.output === 'external') callAudioPreference.setHeadsetMicrophone(next.microphone);
+    });
   };
   const leave = () => {
     if (router.canGoBack()) router.back();
@@ -301,15 +314,19 @@ export function CallScreen({
             {session?.audioRoutes !== true ? null : (
               <View style={{ alignItems: 'center', gap: space.x3 }}>
                 <CallAudioMenu
-                  route={audio.route}
+                  route={shownRoute}
                   size={round}
                   fill={theme.color.surface}
                   ink={theme.color.fg}
                   disabled={!model.live}
-                  onChange={switchAudio}
+                  onOutput={(output) => chooseAudio(output, shownRoute.microphone)}
+                  onMicrophone={(microphone) => chooseAudio(shownRoute.output, microphone)}
                 />
                 <Text variant="meta" tone="muted">
-                  {t.call.audioRoute[audio.route]}
+                  {callAudioDeviceName(
+                    t,
+                    shownRoute.outputs.find((output) => output.id === shownRoute.output),
+                  )}
                 </Text>
               </View>
             )}

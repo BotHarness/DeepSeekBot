@@ -12,7 +12,7 @@ import { VOICE_CALL_PATH } from '../../../../../packages/core/src/voice/call-con
 import { createCallMedia, microphoneAccess, microphoneGranted } from '../../host/call-media';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { callActivityNative, onCallActivityAction } from '../../host/native-call-activity';
-import { callAudioRoute } from '../../host/native-call-audio-route';
+import { callAudioPreference } from '../../host/native-call-audio-route';
 import { useMounted } from '../mounted';
 import { locale } from '../strings';
 import { createCallActivity } from './call-activity';
@@ -64,7 +64,7 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
     () =>
       createCallMedia({
         testAudio,
-        route: () => callAudioRoute.getSnapshot().route,
+        audio: () => callAudioPreference.getSnapshot().audio,
       }),
     [testAudio],
   );
@@ -146,13 +146,16 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
     const detach = callSessions.attach(key, {
       mute: (muted) => void call.mute(muted),
       hangup: () => void call.hangup(),
-      route: (route) => media.audio?.route(route) !== null,
+      choose: async (output, microphone) => (await media.audio?.choose(output, microphone)) ?? null,
     });
     const removeTap = media.test?.onTap((event) => mark('native', event));
     const removeAudio = media.audio?.onChange((event) => {
       if (cancelled) return;
       paused = event.interrupted;
-      callSessions.publish(key, { interrupted: event.interrupted });
+      callSessions.publish(key, {
+        interrupted: event.interrupted,
+        ...(event.route === undefined ? {} : { audioRoute: event.route }),
+      });
       showActivity();
       if (testAudio) mark('audio', event);
     });
@@ -167,9 +170,12 @@ function CallRunner({ session }: { session: CallSessionSnapshot }) {
       if (cancelled) return;
       callSessions.publish(key, { microphone: access });
       if (access !== 'granted') return;
-      await callAudioRoute.ready;
+      await callAudioPreference.ready;
       if (cancelled) return;
       await call.open(slug);
+      const opened = await media.audio?.state();
+      if (!cancelled && opened !== undefined && opened !== null)
+        callSessions.publish(key, { audioRoute: opened });
       if (cancelled || !testAudio || media.test === undefined || script === undefined) return;
       try {
         const steps = (await (await fetch(script)).json()) as ScriptStep[];

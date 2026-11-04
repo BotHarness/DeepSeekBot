@@ -134,7 +134,7 @@ export function activityText(
         name: activity.displayName,
         verb: activity.departureType === 'removed' ? copy.removed : copy.left,
       };
-    case 'turn-stop':
+    case 'turn-stop': {
       if (activity.cause === 'failures')
         return {
           botSlug: activity.botSlug,
@@ -142,10 +142,24 @@ export function activityText(
           verb: copy.stoppedFailures(activity.failures ?? 0),
           detail: copy.stoppedRetry,
         };
+      const target = activity.target;
+      const session = target?.scope === 'session' ? target : undefined;
       return {
         name: activity.humanName,
-        verb: copy.stopped(activity.botName),
-        ...(activity.held === true ? { detail: copy.stoppedHeld } : {}),
+        verb:
+          target?.scope === 'bot'
+            ? copy.stoppedBot(activity.botName)
+            : session?.role === 'orchestrator'
+              ? copy.stoppedOrchestrator(activity.botName)
+              : session?.role === 'assignment'
+                ? copy.stoppedAssignment(activity.botName, session.title)
+                : copy.stopped(activity.botName),
+        ...(session?.role === 'orchestrator'
+          ? { detail: copy.stoppedOrchestratorHeld }
+          : activity.held === true
+            ? { detail: copy.stoppedHeld }
+            : {}),
       };
+    }
   }
 }

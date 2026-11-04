@@ -78,7 +78,12 @@ export const INBOX_COMMANDS = [
   {
     command: 'session-stop',
     description:
-      "stop one of a Bot's running Assignment Sessions; the Bot and its other Sessions keep running",
+      "stop one of a Bot's running Sessions (its Orchestrator or one Assignment); its other Sessions keep running",
+  },
+  {
+    command: 'bot-stop',
+    description:
+      'stop every running Session of one Bot; its Orchestrator stays quiet until a Human writes to it',
   },
   {
     command: 'session-archive-set',
@@ -469,13 +474,38 @@ function prepare(
       return { method: 'sessionOwner', args: { sessionId } };
     }
     case 'session-stop': {
+      const activityId =
+        values.activity === undefined ? undefined : required(values.activity, 'activity', command);
       const [botSlug, sessionId] = positionals(
         command,
         rest,
-        2,
-        'a bot id and one of its Session ids',
+        activityId === undefined ? 2 : 1,
+        activityId === undefined
+          ? 'a bot id and one of its Session ids'
+          : 'a bot id, with --activity naming the running Session',
       );
-      return { method: 'sessionStop', args: { botSlug, sessionId } };
+      return {
+        method: 'sessionStop',
+        args: {
+          botSlug,
+          ...(activityId === undefined ? { sessionId } : { activityId }),
+          ...(values.channel === undefined
+            ? {}
+            : { channelId: required(values.channel, 'channel', command) }),
+        },
+      };
+    }
+    case 'bot-stop': {
+      const [botSlug] = positionals(command, rest, 1, 'exactly one bot id');
+      return {
+        method: 'botStop',
+        args: {
+          botSlug,
+          ...(values.channel === undefined
+            ? {}
+            : { channelId: required(values.channel, 'channel', command) }),
+        },
+      };
     }
     case 'session-archive-set': {
       const [slug] = positionals(command, rest, 1, 'exactly one bot id');

@@ -11,7 +11,7 @@ import type { RosterConfig } from './roster-config.js';
 import type { RosterSection, TopOrderEntry } from './roster.js';
 import type { PurgedPlacement } from '../../../core/src/purge/contracts.js';
 import type { PixelBannerRecipe } from '@botharness/pixel-banner';
-import { createContentRedactions } from './content-redactions.js';
+import { createContentRedactions, sameItems } from './content-redactions.js';
 import { ActivitySmoother } from './activity-smoothing.js';
 
 export type ClientMode = 'dsh' | 'bot';
@@ -247,6 +247,9 @@ export interface ChannelMessage {
   turnStop?: {
     botName: string;
     humanName: string;
+    target?:
+      | { scope: 'bot' }
+      | { scope: 'session'; role: 'orchestrator' | 'assignment'; title?: string };
     held?: boolean;
     cause?: 'human-stop' | 'failures';
     failures?: number;
@@ -678,6 +681,31 @@ function sameActivity(
   );
 }
 
+function sameValue(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (Array.isArray(left) && Array.isArray(right)) return sameItems(left, right);
+  if (
+    typeof left !== 'object' ||
+    typeof right !== 'object' ||
+    left === null ||
+    right === null ||
+    Array.isArray(left) ||
+    Array.isArray(right)
+  )
+    return false;
+  const leftKeys = Object.keys(left);
+  return (
+    leftKeys.length === Object.keys(right).length &&
+    leftKeys.every(
+      (key) => (left as Record<string, unknown>)[key] === (right as Record<string, unknown>)[key],
+    )
+  );
+}
+
+function samePatch<T extends object>(current: T, patch: Partial<T>): boolean {
+  return (Object.keys(patch) as (keyof T)[]).every((key) => sameValue(current[key], patch[key]));
+}
+
 export function createStore({
   smoothActivity = true,
 }: { smoothActivity?: boolean } = {}): ClientStore {
@@ -801,10 +829,18 @@ export function createStore({
   };
 
   const update = (patch: Partial<ClientState>): void => {
+    const previous = state;
+    const redactedChannels = patch.channels?.map(redactions.channel);
     state = {
       ...state,
       ...patch,
-      ...(patch.channels === undefined ? {} : { channels: patch.channels.map(redactions.channel) }),
+      ...(patch.channels === undefined || redactedChannels === undefined
+        ? {}
+        : {
+            channels: sameItems(redactedChannels, patch.channels)
+              ? patch.channels
+              : redactedChannels,
+          }),
       ...(patch.conversation === undefined
         ? {}
         : { conversation: redactions.conversation(patch.conversation) }),
@@ -822,19 +858,27 @@ export function createStore({
         ? { ...channel, name: bot.displayName }
         : channel;
     };
+    if (patch.bots !== undefined || patch.channels !== undefined) {
+      const channels = state.channels.map(presentChannel);
+      if (channels.some((channel, index) => channel !== state.channels[index]))
+        state.channels = channels;
+    }
     if (
       patch.bots !== undefined ||
       patch.channels !== undefined ||
       patch.conversation !== undefined
     ) {
-      const channels = state.channels.map(presentChannel);
-      if (channels.some((channel, index) => channel !== state.channels[index]))
-        state.channels = channels;
       if (state.conversation.channel) {
         const channel = presentChannel(state.conversation.channel);
         if (channel !== state.conversation.channel)
           state.conversation = { ...state.conversation, channel };
       }
+    }
+    if (
+      (Object.keys(state) as (keyof ClientState)[]).every((key) => state[key] === previous[key])
+    ) {
+      state = previous;
+      return;
     }
     for (const listener of listeners) listener();
   };
@@ -985,9 +1029,11 @@ export function createStore({
       update({ sessions: { ...state.sessions, ...patch } });
     },
     setBotInbox(patch) {
+      if (samePatch(state.botInbox, patch)) return;
       update({ botInbox: { ...state.botInbox, ...patch } });
     },
     setHumanInbox(patch) {
+      if (samePatch(state.humanInbox, patch)) return;
       update({ humanInbox: { ...state.humanInbox, ...patch } });
     },
   };

@@ -212,6 +212,7 @@ import {
   loadSessions,
   setSessionArchived,
   stopSession,
+  stopBot,
   moveMemoryLocation,
   loadBots,
   loadMemorySnapshot,
@@ -721,7 +722,11 @@ export interface BridgeActions {
   refreshSessions(slug: string): Promise<void>;
   readSessions(slug: string): Promise<OwnedSessionSummary[]>;
   setSessionArchived(slug: string, sessionId: string, archived: boolean): Promise<void>;
-  stopSession(slug: string, sessionId: string): Promise<void>;
+  stopSession(
+    slug: string,
+    session: string | { activityId: string },
+    channelId?: string,
+  ): Promise<void>;
   messageAttachmentTarget(
     channelId: string,
     messageId: string,
@@ -1479,7 +1484,6 @@ export function createActions(
   let humanInboxPageSeq = 0;
   let humanInboxPagesPending = 0;
   let humanInboxScopeVersion = 0;
-  let humanInboxStatusSeq = 0;
   const loadInboxStatus = async (): Promise<
     Partial<
       Pick<
@@ -1499,16 +1503,32 @@ export function createActions(
       ...(channelUnread.status === 'fulfilled' ? { channelUnread: channelUnread.value } : {}),
     };
   };
-  const refreshHumanInboxStatus = async (): Promise<void> => {
-    const requestSeq = ++humanInboxStatusSeq;
+  let humanInboxStatusReading: Promise<void> | undefined;
+  let humanInboxStatusAgain = false;
+  const readHumanInboxStatus = async (): Promise<void> => {
     try {
       const status = await loadInboxStatus();
-      if (requestSeq === humanInboxStatusSeq) clientStore.setHumanInbox(status);
+      if (!humanInboxStatusAgain) clientStore.setHumanInbox(status);
     } catch {
-      if (requestSeq === humanInboxStatusSeq)
-        clientStore.setHumanInbox({ attentionStatus: 'error' });
-      return;
+      if (!humanInboxStatusAgain) clientStore.setHumanInbox({ attentionStatus: 'error' });
     }
+  };
+  const refreshHumanInboxStatus = (): Promise<void> => {
+    if (humanInboxStatusReading !== undefined) {
+      humanInboxStatusAgain = true;
+      return humanInboxStatusReading;
+    }
+    humanInboxStatusReading = (async () => {
+      try {
+        do {
+          humanInboxStatusAgain = false;
+          await readHumanInboxStatus();
+        } while (humanInboxStatusAgain);
+      } finally {
+        humanInboxStatusReading = undefined;
+      }
+    })();
+    return humanInboxStatusReading;
   };
   const loadHumanInboxFor = async (
     category: HumanInboxCategory,
@@ -1878,17 +1898,13 @@ export function createActions(
       }
     },
     async stopBot(channelId, botSlug) {
-      try {
-        await invoke('channelBotStop', { channelId, botSlug });
-      } catch (error) {
-        if (error instanceof BridgeCallError && error.code === 'not-working') return 'not-working';
-        throw error;
-      }
+      const stopped = await stopBot(call, botSlug, channelId);
+      if (stopped.stopped.length === 0) return 'not-working';
       await actions.refreshChannelMessages(channelId).catch(() => undefined);
       return 'stopped';
     },
     async cancelAutoContinue(channelId, botSlug, requestMessageId) {
-      await invoke('channelBotStop', {
+      await invoke('botStop', {
         channelId,
         botSlug,
         autoContinueFor: requestMessageId,
@@ -2550,9 +2566,7 @@ export function createActions(
         await refreshHumanInboxStatus();
         throw error;
       }
-      const requestSeq = ++humanInboxStatusSeq;
-      const status = await loadInboxStatus();
-      if (requestSeq === humanInboxStatusSeq) clientStore.setHumanInbox(status);
+      await refreshHumanInboxStatus();
       if (humanInboxScope() !== undefined) await actions.refreshHumanInbox();
     },
     async markRead(channelId, messageId) {
@@ -3130,8 +3144,10 @@ export function createActions(
       if (selection === undefined || selectedBotSlug(selection) !== slug) return;
       await loadSessionsFor(slug, selection);
     },
-    async stopSession(slug, sessionId) {
-      await stopSession(call, slug, sessionId);
+    async stopSession(slug, session, channelId) {
+      const stopped = await stopSession(call, slug, session, channelId);
+      if (stopped.messageId !== undefined && channelId !== undefined)
+        await actions.refreshChannelMessages(channelId).catch(() => undefined);
       const selection = currentSelection();
       if (selection === undefined || selectedBotSlug(selection) !== slug) return;
       await loadSessionsFor(slug, selection);

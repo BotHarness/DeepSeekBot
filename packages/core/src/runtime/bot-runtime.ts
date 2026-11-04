@@ -864,6 +864,7 @@ export interface BotRuntime {
 
   stopBot?(botSlug: string): Promise<void>;
   stopSession?(botSlug: string, sessionId: string): Promise<SessionStopOutcome>;
+  stopAllSessions?(botSlug: string): Promise<BotStopOutcome>;
   stopTurn?(
     botSlug: string,
     scope?: { autoContinueFor: string; channelId: string },
@@ -1470,9 +1471,14 @@ export interface StoppedSessionRef {
   role: 'orchestrator' | 'assignment';
 }
 
+export interface BotStopOutcome {
+  stopped: StoppedSessionRef[];
+  alreadyIdle: StoppedSessionRef[];
+}
+
 export type SessionStopOutcome =
-  | { outcome: 'settled'; stopped: StoppedSessionRef[]; alreadyIdle: StoppedSessionRef[] }
-  | { outcome: 'refused'; code: 'unknown-session' | 'unsupported-role'; message: string };
+  | ({ outcome: 'settled' } & BotStopOutcome)
+  | { outcome: 'refused'; code: 'unknown-session'; message: string };
 
 const STOP_SETTLE_TIMEOUT_MS = 30_000;
 
@@ -5025,30 +5031,42 @@ class BotRuntimeImplementation implements BotRuntime {
     const bot = this.#registry.get(botSlug);
     const row = this.#assignmentRow(botSlug, sessionId);
     if (bot === undefined || row === undefined) {
-      const owned = this.#ownership
-        .rootsFor(botSlug, 'orchestrator')
-        .some((root) => root.sessionId === sessionId);
-      return owned
-        ? {
-            outcome: 'refused',
-            code: 'unsupported-role',
-            message:
-              'Session Stop does not cover the Orchestrator Session yet; use channel-bot-stop to stop the Bot.',
-          }
-        : {
-            outcome: 'refused',
-            code: 'unknown-session',
-            message: `${sessionId} is not an Assignment Session of ${botSlug}`,
-          };
+      const owned =
+        bot !== undefined &&
+        this.#ownership
+          .rootsFor(botSlug, 'orchestrator')
+          .some((root) => root.sessionId === sessionId);
+      if (!owned || bot === undefined)
+        return {
+          outcome: 'refused',
+          code: 'unknown-session',
+          message: `${sessionId} is not a Session of ${botSlug}`,
+        };
+      const ref: StoppedSessionRef = { botSlug, sessionId, role: 'orchestrator' };
+      const current = this.currentOrchestratorSessionId(botSlug);
+      const stopped =
+        (current === undefined || current === sessionId) &&
+        (await this.#humanStopOrchestrator(
+          bot,
+          `[Host: the Human stopped your previous turn at ${this.#now().toISOString()} before it finished. Only your Orchestrator Session stopped; your Assignment Sessions keep running. Do not resume that work unless they ask again.]\n\n`,
+        )) !== undefined;
+      this.#warn?.(
+        JSON.stringify({
+          component: 'bot-runtime',
+          event: 'session-stop',
+          role: 'orchestrator',
+          botSlug,
+          sessionId,
+          stopped,
+        }),
+      );
+      return stopped
+        ? { outcome: 'settled', stopped: [ref], alreadyIdle: [] }
+        : { outcome: 'settled', stopped: [], alreadyIdle: [ref] };
     }
     const ref: StoppedSessionRef = { botSlug, sessionId, role: 'assignment' };
-    const active =
-      row.stop_state === 'requested' ||
-      (row.stop_state === 'running' &&
-        (row.activity === 'working' ||
-          this.#assignmentAcceptances.has(sessionId) ||
-          this.#assignmentRuns.has(sessionId)));
-    if (!active) return { outcome: 'settled', stopped: [], alreadyIdle: [ref] };
+    if (!this.#assignmentActive(row))
+      return { outcome: 'settled', stopped: [], alreadyIdle: [ref] };
     await this.#stopAssignment(bot, sessionId, () => undefined, 'human-session-stop');
     this.#warn?.(
       JSON.stringify({ component: 'bot-runtime', event: 'session-stop', botSlug, sessionId }),
@@ -5071,28 +5089,37 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#cancelAutoContinue(botSlug);
       return { sessionId: pending.sessionId };
     }
-    const at = this.#now().toISOString();
-    const waking = this.#hasPendingWake(botSlug);
-    const working = this.#workingAssignmentIds(botSlug);
-    const wasHeld = this.#held.get(botSlug);
-    const orchestratorSessionId = this.currentOrchestratorSessionId(botSlug);
-    if (orchestratorSessionId !== undefined)
-      this.#beginSessionStop(botSlug, orchestratorSessionId, 'orchestrator');
-    this.groupSendReview.stop(botSlug);
-    this.#hold(botSlug, 'human-stop');
-    const stopped = await this.#stopTurn(
-      botSlug,
-      `[Host: the Human stopped your previous turn at ${at} before it finished${working.length > 0 ? ', together with your running Assignment Sessions' : ''}. Do not resume that work unless they ask again.]\n\n`,
-    );
+    const outcome = await this.stopAllSessions(botSlug);
+    if (outcome.stopped.length === 0) return undefined;
+    const sessionId =
+      outcome.stopped.find((ref) => ref.role === 'orchestrator')?.sessionId ??
+      this.currentOrchestratorSessionId(botSlug);
+    return sessionId === undefined ? undefined : { sessionId };
+  }
+
+  async stopAllSessions(botSlug: string): Promise<BotStopOutcome> {
     const bot = this.#registry.get(botSlug);
-    let assignments = 0;
-    if (bot !== undefined && stopped !== undefined)
-      assignments += await this.#cancelPendingDeliveries(bot, stopped.sessionId);
-    if (bot !== undefined && this.#agents.stopAssignment !== undefined)
-      for (const sessionId of working) {
+    if (bot === undefined) return { stopped: [], alreadyIdle: [] };
+    const orchestratorId = this.currentOrchestratorSessionId(botSlug);
+    const assignmentIds = this.#activeAssignmentIds(botSlug);
+    const turn = await this.#humanStopOrchestrator(
+      bot,
+      `[Host: the Human stopped your previous turn at ${this.#now().toISOString()} before it finished${assignmentIds.length > 0 ? ', together with your running Assignment Sessions' : ''}. Do not resume that work unless they ask again.]\n\n`,
+    );
+    const stopped: StoppedSessionRef[] = [];
+    const alreadyIdle: StoppedSessionRef[] = [];
+    const orchestratorSession = turn?.sessionId ?? orchestratorId;
+    if (orchestratorSession !== undefined)
+      (turn !== undefined ? stopped : alreadyIdle).push({
+        botSlug,
+        sessionId: orchestratorSession,
+        role: 'orchestrator',
+      });
+    if (this.#agents.stopAssignment !== undefined)
+      for (const sessionId of assignmentIds) {
         try {
-          await this.#stopAssignment(bot, sessionId, () => undefined, 'human-stop');
-          assignments += 1;
+          await this.#stopAssignment(bot, sessionId, () => undefined, 'human-session-stop');
+          stopped.push({ botSlug, sessionId, role: 'assignment' });
         } catch (error) {
           this.#warn?.(
             JSON.stringify({
@@ -5110,19 +5137,50 @@ class BotRuntimeImplementation implements BotRuntime {
         component: 'bot-runtime',
         event: 'human-stop',
         botSlug,
-        turn: stopped !== undefined,
-        assignments,
-        pendingWake: waking,
+        turn: turn !== undefined,
+        assignments: stopped.filter((ref) => ref.role === 'assignment').length,
       }),
     );
-    if (stopped !== undefined) return stopped;
-    if (assignments === 0 && !waking) {
-      if (wasHeld !== undefined) this.#held.set(botSlug, wasHeld);
-      else if (this.#held.delete(botSlug)) this.#resumeAutomaticWakes(botSlug);
-      return undefined;
-    }
-    const sessionId = this.currentOrchestratorSessionId(botSlug);
-    return sessionId === undefined ? undefined : { sessionId };
+    return { stopped, alreadyIdle };
+  }
+
+  async #humanStopOrchestrator(
+    bot: PersonaBotRecord,
+    notice: string,
+  ): Promise<{ sessionId: string } | undefined> {
+    const orchestratorSessionId = this.currentOrchestratorSessionId(bot.slug);
+    if (orchestratorSessionId !== undefined)
+      this.#beginSessionStop(bot.slug, orchestratorSessionId, 'orchestrator');
+    this.groupSendReview.stop(bot.slug);
+    const turn = await this.#stopTurn(bot.slug, notice);
+    if (turn !== undefined) await this.#cancelPendingDeliveries(bot, turn.sessionId);
+    return turn;
+  }
+
+  #assignmentActive(row: { stop_state: string; activity: string; session_id: string }): boolean {
+    return (
+      row.stop_state === 'requested' ||
+      (row.stop_state === 'running' &&
+        (row.activity === 'working' ||
+          this.#assignmentAcceptances.has(row.session_id) ||
+          this.#assignmentRuns.has(row.session_id)))
+    );
+  }
+
+  #activeAssignmentIds(botSlug: string): string[] {
+    return (
+      this.#database.read((database) =>
+        database
+          .prepare(
+            `SELECT session_id, stop_state, activity FROM assignments
+              WHERE bot_slug = ? AND stop_state IN ('running', 'requested')
+              ORDER BY session_id`,
+          )
+          .all(botSlug),
+      ) as unknown as Array<{ session_id: string; stop_state: string; activity: string }>
+    )
+      .filter((row) => this.#assignmentActive(row))
+      .map((row) => row.session_id);
   }
 
   heldCause(botSlug: string): BotHoldCause | undefined {
@@ -5163,31 +5221,6 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#recoverPendingDigests(botSlug);
       this.#armSnooze(botSlug);
     });
-  }
-
-  #hasPendingWake(botSlug: string): boolean {
-    if (
-      this.#pendingHarvests.has(botSlug) ||
-      this.#triageQueued.has(botSlug) ||
-      this.#inboxFactoryRetries.has(botSlug)
-    )
-      return true;
-    for (const key of this.#digestRetryAt.keys()) if (key.startsWith(`${botSlug}:`)) return true;
-    return false;
-  }
-
-  #workingAssignmentIds(botSlug: string): string[] {
-    return (
-      this.#database.read((database) =>
-        database
-          .prepare(
-            `SELECT session_id FROM assignments
-              WHERE bot_slug = ? AND stop_state = 'running' AND activity = 'working'
-              ORDER BY session_id`,
-          )
-          .all(botSlug),
-      ) as unknown as Array<{ session_id: string }>
-    ).map((row) => row.session_id);
   }
 
   async #noteAutomaticFailure(
@@ -9078,7 +9111,7 @@ class BotRuntimeImplementation implements BotRuntime {
         )
         .get(botSlug, sessionId),
     ) as { cause: string | null } | undefined;
-    return latest?.cause === 'human-session-stop';
+    return latest?.cause === 'human-session-stop' || latest?.cause === 'human-stop';
   }
 
   async #archiveAssignment(

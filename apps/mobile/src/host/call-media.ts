@@ -1,5 +1,5 @@
 import type { CallClientMedia } from '../../../../packages/core/src/voice/call-client';
-import type { CallAudioControl, CallAudioRoute } from './call-audio-route';
+import type { CallAudioControl, CallAudioPreference } from './call-audio-route';
 
 export const callMediaSupported = false;
 
@@ -20,7 +20,7 @@ export interface CallTestAudio {
 }
 
 export function createCallMedia(
-  _options: { testAudio?: boolean; route?: () => CallAudioRoute } = {},
+  _options: { testAudio?: boolean; audio?: () => CallAudioPreference } = {},
 ): (CallClientMedia & { audio?: CallAudioControl; test?: CallTestAudio }) | undefined {
   return undefined;
 }

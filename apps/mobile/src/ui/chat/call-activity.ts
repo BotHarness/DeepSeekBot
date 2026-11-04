@@ -36,12 +36,21 @@ export function createCallActivity(native: CallActivityNative) {
   let ended = false;
   let latest: CallActivityProps | undefined;
   let shown: CallActivityProps | undefined;
+  let updating = false;
 
   const push = () => {
-    if (handle === undefined || latest === undefined || ended) return;
+    if (handle === undefined || latest === undefined || ended || updating) return;
     if (shown !== undefined && same(shown, latest)) return;
-    shown = latest;
-    void handle.update(latest).catch(() => undefined);
+    const next = latest;
+    shown = next;
+    updating = true;
+    void handle
+      .update(next)
+      .catch(() => undefined)
+      .then(() => {
+        updating = false;
+        push();
+      });
   };
 
   const end = () => {

@@ -18,6 +18,7 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
   private var factory: RTCPeerConnectionFactory?
   private var peer: RTCPeerConnection?
   private var track: RTCAudioTrack?
+  private var music = false
   private var remoteTrack: RTCAudioTrack?
   private var answered: ((Result<String, CallError>) -> Void)?
   private var settleScheduled = false
@@ -37,84 +38,6 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
 
   private var ended: Bool { lock.lock(); defer { lock.unlock() }; return closed }
 
-  /// Where the call's audio goes. `speaker` and `receiver` are call audio: voice-chat
-  /// mode, the call volume, Bluetooth over HFP. `media` is media audio: default mode,
-  /// the media volume, Bluetooth headphones over A2DP with the phone's microphone.
-  /// All three keep the voice-processing unit, so echo cancellation stays on.
-  enum Route: String {
-    case speaker, receiver, media
-  }
-
-  static func configuration(_ route: Route) -> RTCAudioSessionConfiguration {
-    let config = RTCAudioSessionConfiguration.webRTC()
-    config.category = AVAudioSession.Category.playAndRecord.rawValue
-    switch route {
-    case .speaker:
-      config.mode = AVAudioSession.Mode.voiceChat.rawValue
-      config.categoryOptions = [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP]
-    case .receiver:
-      config.mode = AVAudioSession.Mode.voiceChat.rawValue
-      config.categoryOptions = [.allowBluetooth, .allowBluetoothA2DP]
-    case .media:
-      config.mode = AVAudioSession.Mode.default.rawValue
-      config.categoryOptions = [.defaultToSpeaker, .allowBluetoothA2DP]
-    }
-    return config
-  }
-
-  /// Configures and activates the shared audio session for a new call. The session
-  /// is activated once per call and released once in `close`, so WebRTC's activation
-  /// count stays balanced; route changes during the call only reconfigure it.
-  static func configureSession(_ route: Route) -> Bool {
-    let session = RTCAudioSession.sharedInstance()
-    session.lockForConfiguration()
-    defer { session.unlockForConfiguration() }
-    do {
-      try session.setConfiguration(configuration(route), active: true)
-      applyOverride(route, session)
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  /// Switches a live call between call audio and media audio, or between the
-  /// loudspeaker and the receiver, without restarting the peer.
-  static func switchRoute(_ route: Route) -> Bool {
-    let session = RTCAudioSession.sharedInstance()
-    session.lockForConfiguration()
-    defer { session.unlockForConfiguration() }
-    do {
-      try session.setConfiguration(configuration(route))
-      applyOverride(route, session)
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  /// Only the built-in speaker and receiver are overridden; headphones, Bluetooth
-  /// and car audio keep the route the system chose.
-  private static func applyOverride(_ route: Route, _ session: RTCAudioSession) {
-    let outputs = AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType)
-    guard outputs.allSatisfy({ $0 == .builtInSpeaker || $0 == .builtInReceiver }) else { return }
-    try? session.overrideOutputAudioPort(route == .receiver ? .none : .speaker)
-  }
-
-  /// The current output, in the words the call screen and test reports use.
-  static func currentOutput() -> String {
-    guard let port = AVAudioSession.sharedInstance().currentRoute.outputs.first?.portType else { return "none" }
-    switch port {
-    case .builtInSpeaker: return "speaker"
-    case .builtInReceiver: return "receiver"
-    case .bluetoothA2DP, .bluetoothHFP, .bluetoothLE: return "bluetooth"
-    case .headphones, .usbAudio: return "headphones"
-    case .carAudio: return "car"
-    case .airPlay: return "airplay"
-    default: return "other"
-    }
-  }
-
   static func releaseSession() {
     let session = RTCAudioSession.sharedInstance()
     session.lockForConfiguration()
@@ -129,8 +52,10 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
       _ = Self.ssl
       let processing = RTCDefaultAudioProcessingModule()
       processing.capturePostProcessingDelegate = tap?.capture
+      // The AudioEngine module can turn Apple's voice processing off at runtime, which
+      // music mode needs for A2DP output and for other apps' audio to keep playing.
       factory = RTCPeerConnectionFactory(
-        audioDeviceModuleType: .platformDefault,
+        audioDeviceModuleType: .audioEngine,
         bypassVoiceProcessing: false,
         encoderFactory: nil,
         decoderFactory: nil,
@@ -149,19 +74,8 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
       // Echo cancellation keeps the Bot's own reply on the speaker out of the uplink.
       // A test build forces software processing so the capture hook that replaces
       // the microphone with injected audio runs; platform voice processing skips it.
-      let options: RTCAudioProcessingOptions
-      if tap != nil {
-        let software = { RTCAudioProcessingComponentOptions(enabled: true, mode: .software) }
-        options = RTCAudioProcessingOptions(
-          echoCancellationOptions: software(), noiseSuppressionOptions: software(),
-          autoGainControlOptions: software(), highPassFilterOptions: software())
-      } else {
-        options = RTCAudioProcessingOptions(
-          echoCancellation: true, noiseSuppression: true, autoGainControl: true, highPassFilter: true)
-      }
-      let applied = microphone.setAudioProcessingOptions(options)
-      tap?.note("processing-options", ["code": applied.code.rawValue, "message": applied.message])
       track = microphone
+      applyProcessing()
       peer.setRemoteDescription(RTCSessionDescription(type: .offer, sdp: offer)) { [weak self] error in
         guard let self else { return }
         self.queue.async { [self] in
@@ -208,6 +122,34 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
     }
     guard description.sdp.utf8.count <= 98304 else { finish(.failure(CallError(code: "signal-too-large"))); return }
     finish(.success(description.sdp))
+  }
+
+  /// Music mode runs without Apple's voice processing, so Bluetooth headphones play over
+  /// A2DP and other apps keep playing; WebRTC's software echo canceller and noise
+  /// suppressor take over on the microphone.
+  func setMusicMode(_ on: Bool) {
+    queue.async { [self] in
+      guard !ended, music != on else { return }
+      music = on
+      applyProcessing()
+    }
+  }
+
+  private func applyProcessing() {
+    guard let factory, let track else { return }
+    _ = factory.audioDeviceModule.setPlatformVoiceProcessingAllowed(!music)
+    let options: RTCAudioProcessingOptions
+    if tap != nil || music {
+      let software = { RTCAudioProcessingComponentOptions(enabled: true, mode: .software) }
+      options = RTCAudioProcessingOptions(
+        echoCancellationOptions: software(), noiseSuppressionOptions: software(),
+        autoGainControlOptions: software(), highPassFilterOptions: software())
+    } else {
+      options = RTCAudioProcessingOptions(
+        echoCancellation: true, noiseSuppression: true, autoGainControl: true, highPassFilter: true)
+    }
+    let applied = track.setAudioProcessingOptions(options)
+    tap?.note("processing-options", ["music": music, "code": applied.code.rawValue, "message": applied.message])
   }
 
   func mute(_ muted: Bool) {

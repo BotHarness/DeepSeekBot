@@ -3,12 +3,17 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { CallClientState } from '../../../packages/core/src/voice/call-client';
 import type { VoiceCallView } from '../../../packages/core/src/voice/call-contract';
-import { createCallAudioRoutePreference } from '../src/host/call-audio-route';
+import {
+  createCallAudioPreference,
+  parseCallAudioRouteState,
+  type CallAudioPreference,
+} from '../src/host/call-audio-route';
 import {
   createCallActivity,
   type CallActivityHandle,
   type CallActivityProps,
 } from '../src/ui/chat/call-activity';
+import { callAudioDeviceName, callAudioDeviceSymbol } from '../src/ui/chat/call-audio-symbol';
 import { callActivityPhase, callScreenModel } from '../src/ui/chat/call-model';
 import { callStrings } from '../src/ui/strings';
 
@@ -77,55 +82,140 @@ describe('background call audio mode', () => {
   });
 });
 
-describe('call audio route preference', () => {
-  it('starts on the speaker and remembers the last choice', async () => {
-    const writes: string[] = [];
-    const preference = createCallAudioRoutePreference({
+describe('call audio preference', () => {
+  it('starts with the headset microphone and remembers the choice for headphones', async () => {
+    const writes: CallAudioPreference[] = [];
+    const preference = createCallAudioPreference({
       read: async () => undefined,
-      write: (route) => writes.push(route),
+      write: (audio) => writes.push(audio),
     });
     await preference.ready;
     expect(preference.getSnapshot()).toMatchObject({
-      route: 'speaker',
+      audio: { headsetMicrophone: 'headset' },
       loaded: true,
     });
-    preference.setRoute('media');
-    preference.setRoute('media');
-    expect(preference.getSnapshot().route).toBe('media');
-    expect(writes).toEqual(['media']);
+    preference.setHeadsetMicrophone('iphone');
+    preference.setHeadsetMicrophone('iphone');
+    expect(preference.getSnapshot().audio).toEqual({ headsetMicrophone: 'iphone' });
+    expect(writes).toEqual([{ headsetMicrophone: 'iphone' }]);
   });
 
-  it('reads a saved route, and ignores a value it does not know', async () => {
-    const saved = createCallAudioRoutePreference({
-      read: async () => 'receiver',
-      write() {},
+  it('moves earlier saved choices to the microphone they meant', async () => {
+    const cases: [unknown, CallAudioPreference][] = [
+      ['speaker', { headsetMicrophone: 'headset' }],
+      ['receiver', { headsetMicrophone: 'headset' }],
+      ['media', { headsetMicrophone: 'iphone' }],
+      [{ type: 'media', builtIn: 'speaker' }, { headsetMicrophone: 'iphone' }],
+      [{ type: 'call', builtIn: 'receiver' }, { headsetMicrophone: 'headset' }],
+    ];
+    for (const [saved, expected] of cases) {
+      const writes: CallAudioPreference[] = [];
+      const preference = createCallAudioPreference({
+        read: async () => saved,
+        write: (audio) => writes.push(audio),
+      });
+      await preference.ready;
+      expect(preference.getSnapshot().audio).toEqual(expected);
+      expect(writes).toEqual([expected]);
+    }
+  });
+
+  it('reads a saved choice, and ignores a value it does not know', async () => {
+    const writes: CallAudioPreference[] = [];
+    const saved = createCallAudioPreference({
+      read: async () => ({ headsetMicrophone: 'iphone' }),
+      write: (audio) => writes.push(audio),
     });
     await saved.ready;
-    expect(saved.getSnapshot().route).toBe('receiver');
+    expect(saved.getSnapshot().audio).toEqual({ headsetMicrophone: 'iphone' });
+    expect(writes).toEqual([]);
 
-    const odd = createCallAudioRoutePreference({
+    const odd = createCallAudioPreference({
       read: async () => 'loud',
       write() {},
     });
     await odd.ready;
     expect(odd.getSnapshot()).toMatchObject({
-      route: 'speaker',
+      audio: { headsetMicrophone: 'headset' },
       storageError: true,
     });
   });
 
   it('keeps a choice made before the saved one loads', async () => {
     let finish: (value: unknown) => void = () => undefined;
-    const writes: string[] = [];
-    const preference = createCallAudioRoutePreference({
+    const writes: CallAudioPreference[] = [];
+    const preference = createCallAudioPreference({
       read: () => new Promise((resolve) => (finish = resolve)),
-      write: (route) => writes.push(route),
+      write: (audio) => writes.push(audio),
     });
-    preference.setRoute('media');
-    finish('receiver');
+    preference.setHeadsetMicrophone('iphone');
+    finish({ headsetMicrophone: 'headset' });
     await preference.ready;
-    expect(preference.getSnapshot().route).toBe('media');
-    expect(writes).toEqual(['media']);
+    expect(preference.getSnapshot().audio).toEqual({ headsetMicrophone: 'iphone' });
+    expect(writes).toEqual([{ headsetMicrophone: 'iphone' }]);
+  });
+});
+
+describe('call audio route', () => {
+  const headphones = {
+    output: 'external',
+    outputs: [
+      { id: 'receiver', kind: 'receiver', name: '' },
+      { id: 'external', kind: 'bluetooth', name: 'AirPods Pro' },
+      { id: 'speaker', kind: 'speaker', name: '' },
+    ],
+    microphone: 'iphone',
+    microphones: [
+      { id: 'iphone', kind: 'iphone', name: '' },
+      { id: 'headset', kind: 'bluetooth', name: 'AirPods Pro' },
+    ],
+    music: true,
+  };
+
+  it('reads the route the phone reports, with the devices actually in use', () => {
+    expect(parseCallAudioRouteState(headphones)).toEqual(headphones);
+    expect(
+      parseCallAudioRouteState({
+        ...headphones,
+        outputs: [...headphones.outputs, { id: 'external', kind: 'car', name: 'Car' }, 'odd'],
+      })?.outputs,
+    ).toHaveLength(3);
+    expect(
+      parseCallAudioRouteState({
+        ...headphones,
+        outputs: headphones.outputs.filter((output) => output.id !== 'external'),
+      }),
+    ).toBeUndefined();
+    expect(parseCallAudioRouteState({ ...headphones, microphone: 'loud' })).toBeUndefined();
+    expect(parseCallAudioRouteState({ ...headphones, music: 'yes' })?.music).toBe(false);
+  });
+
+  it('names and draws each device the way the Phone app does', () => {
+    const route = parseCallAudioRouteState(headphones);
+    const [receiver, airpods, speaker] = route?.outputs ?? [];
+    expect([receiver, airpods, speaker].map(callAudioDeviceSymbol)).toEqual([
+      'iphone',
+      'airpods',
+      'speaker.wave.2.fill',
+    ]);
+    expect(
+      callAudioDeviceSymbol({ id: 'external', kind: 'bluetooth', name: 'OpenRun by Shokz' }),
+    ).toBe('headphones');
+    expect(callAudioDeviceSymbol({ id: 'external', kind: 'car', name: 'CarPlay' })).toBe(
+      'car.fill',
+    );
+    expect([receiver, airpods, speaker].map((device) => callAudioDeviceName(zh, device))).toEqual([
+      '听筒',
+      'AirPods Pro',
+      '扬声器',
+    ]);
+    expect(route?.microphones.map((device) => callAudioDeviceName(en, device))).toEqual([
+      'iPhone',
+      'AirPods Pro',
+    ]);
+    expect(callAudioDeviceName(en, { id: 'external', kind: 'headphones', name: ' ' })).toBe(
+      'Headphones',
+    );
   });
 });
 
@@ -198,11 +288,39 @@ describe('call Live Activity', () => {
     expect(native.updates).toEqual([props({ phase: 'listening' })]);
     activity.sync(props({ phase: 'listening' }));
     activity.sync(props({ phase: 'speaking' }));
+    await flush();
     expect(native.updates.map((update) => update.phase)).toEqual(['listening', 'speaking']);
     activity.sync(undefined);
     expect(native.end).toHaveBeenCalledTimes(1);
     activity.sync(props());
     expect(native.start).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends one update at a time so the latest phase is the one left showing', async () => {
+    const native = fake();
+    const applied: CallActivityProps[] = [];
+    const waiting: (() => void)[] = [];
+    native.handle.update = (next) =>
+      new Promise<void>((done) => {
+        waiting.push(() => {
+          applied.push(next);
+          done();
+        });
+      });
+    const activity = createCallActivity({ start: native.start });
+    activity.sync(props({ phase: 'hearing' }));
+    native.open();
+    await flush();
+    activity.sync(props({ phase: 'speaking' }));
+    activity.sync(props({ phase: 'listening' }));
+    expect(waiting).toHaveLength(1);
+    waiting.shift()?.();
+    await flush();
+    expect(waiting).toHaveLength(1);
+    waiting.shift()?.();
+    await flush();
+    expect(waiting).toHaveLength(0);
+    expect(applied.map((update) => update.phase)).toEqual(['speaking', 'listening']);
   });
 
   it('ends an activity that finishes starting after the call ended', async () => {

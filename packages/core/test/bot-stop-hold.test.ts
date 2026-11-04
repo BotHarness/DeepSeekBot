@@ -70,7 +70,7 @@ async function humanDm(
 }
 
 describe('A stopped PersonaBot stays stopped', () => {
-  it('takes no Bot message until the Human writes to it, then catches up', async () => {
+  it('stops only the running turn; a later Bot message wakes it as usual', async () => {
     const fake = team();
     const core = createCore({ dshHome: createTempRoot('bh-stop-hold-'), agents: fake.agents });
     const bridge = createBridgeMethods({ ...core });
@@ -83,33 +83,21 @@ describe('A stopped PersonaBot stays stopped', () => {
       const stopped = await bridge.channelBotStop({ channelId: 'dm-ada', botSlug: 'ada' });
       expect(stopped).toMatchObject({ ok: true });
       await core.runtime.whenIdle();
-      expect(core.runtime.heldCause?.('ada')).toBe('human-stop');
+      expect(core.runtime.heldCause?.('ada')).toBeUndefined();
       expect(core.channels.readMessages('dm-ada')[0]).toMatchObject({
         author: { kind: 'system' },
-        turnStop: { botSlug: 'ada', held: true, cause: 'human-stop' },
+        turnStop: { botSlug: 'ada', cause: 'human-stop', target: { scope: 'bot' } },
       });
+      expect(core.channels.readMessages('dm-ada')[0]?.turnStop?.held).toBeUndefined();
 
       await humanDm(core, 'bea', 'human-bea-1', 'Ping Ada');
       await core.runtime.whenIdle();
-      await humanDm(core, 'bea', 'human-bea-2', 'Ping Ada again');
-      await core.runtime.whenIdle();
-      expect(core.channels.readMessages(botDmChannelId('ada', 'bea'))).toHaveLength(2);
-      expect(fake.runs.filter((run) => run.slug === 'ada')).toHaveLength(1);
-
-      await humanDm(core, 'ada', 'human-ada-2', 'OK, carry on');
-      await core.runtime.whenIdle();
       await new Promise((resolve) => setTimeout(resolve, 0));
       await core.runtime.whenIdle();
-      expect(core.runtime.heldCause?.('ada')).toBeUndefined();
       const ada = fake.runs.filter((run) => run.slug === 'ada');
-      expect(ada.map((run) => run.channelId)).toEqual([
-        'dm-ada',
-        'dm-ada',
-        botDmChannelId('ada', 'bea'),
-      ]);
+      expect(ada.map((run) => run.channelId)).toEqual(['dm-ada', botDmChannelId('ada', 'bea')]);
       expect(ada[1]!.message).toContain('[Host: the Human stopped your previous turn');
-      expect(ada[1]!.message).toContain('OK, carry on');
-      expect(ada[2]!.message).toContain('Round 2: keep the campaign going');
+      expect(ada[1]!.message).toContain('Round 1: keep the campaign going');
     } finally {
       fake.release();
       await core.runtime.close();

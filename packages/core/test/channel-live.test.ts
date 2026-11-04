@@ -417,6 +417,47 @@ describe('Channel post-commit stream', () => {
     await reader?.cancel();
   });
 
+  it('streams only the appended draft text when the reader asks for appends', async () => {
+    const store = createChannelStore({ rootDir: root() });
+    const dm = store.getOrCreateDm('ada', 'Ada')!;
+    const hub = createChannelLiveHub(store);
+    hubs.push(hub);
+    expect(
+      hub.open(
+        new Request(`http://localhost${CHANNEL_STREAM_PATH}?channelId=${dm.id}&after=0&drafts=x`),
+      ).status,
+    ).toBe(400);
+    const reader = hub
+      .open(
+        new Request(
+          `http://localhost${CHANNEL_STREAM_PATH}?channelId=${dm.id}&after=0&drafts=append`,
+        ),
+      )
+      .body?.getReader();
+    await reader?.read();
+    await reader?.read();
+    const draft = (body: string) => ({
+      type: 'update' as const,
+      draft: {
+        channelId: dm.id,
+        draftId: 'attempt:call',
+        attemptId: 'attempt',
+        botSlug: 'ada',
+        body,
+      },
+    });
+    hub.publishDraft(draft('你'));
+    expect(new TextDecoder().decode((await reader?.read())?.value)).toContain(
+      'event: channel/draft\n',
+    );
+    hub.publishDraft(draft('你好'));
+    const appended = new TextDecoder().decode((await reader?.read())?.value);
+    expect(appended).toContain('event: channel/draft-append');
+    expect(appended).toContain('"append":"好"');
+    expect(appended).not.toContain('"body"');
+    await reader?.cancel();
+  });
+
   it('streams transient DM drafts without advancing the durable revision and settles once', async () => {
     let hub: ChannelLiveHub | undefined;
     const store = createChannelStore({

@@ -1,6 +1,6 @@
 import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
 import type { PurgedPlacement } from '../purge/contracts.js';
-import { isChannelNotice } from './channel-notice.js';
+import { channelPreviewMessage, isChannelNotice } from './channel-notice.js';
 import type { ChannelDraft, ChannelDraftEvent } from './draft.js';
 import type { ChannelMessage, ChannelReaction } from './channel.js';
 import type { ChannelMessageCommit, ChannelStore } from './store.js';
@@ -184,7 +184,7 @@ function parseRevision(value: string | null): number | undefined {
 
 interface ActivitySource {
   snapshot(): PersonaBotActivitySnapshot;
-  onChange(listener: () => void): () => void;
+  onChange(listener: (change?: unknown) => void): () => void;
 }
 
 function combineLiveResponses(channel: Response, roster: Response): Response {
@@ -250,6 +250,16 @@ export function createChannelLiveHub(
   const drafts = new Map<string, Map<string, PublishedDraft>>();
   const draftRevisions = new Map<string, number>();
   const activitySubscribers = new Set<{ close(): void }>();
+  let activityFrame:
+    | { change: unknown; snapshot: PersonaBotActivitySnapshot; data: string }
+    | undefined;
+  const currentActivity = (source: ActivitySource, change?: unknown) => {
+    if (change === undefined || activityFrame?.change !== change) {
+      const snapshot = source.snapshot();
+      activityFrame = { change, snapshot, data: JSON.stringify(snapshot) };
+    }
+    return activityFrame;
+  };
   const openActivity = (): Response => {
     if (activity === undefined) return new Response('Activity unavailable', { status: 503 });
     const encoder = new TextEncoder();
@@ -259,6 +269,7 @@ export function createChannelLiveHub(
       start(controller) {
         let ended = false;
         let pending = false;
+        let sent: string | undefined;
         let unsubscribe: (() => void) | undefined;
         let heartbeat: ReturnType<typeof setInterval> | undefined;
         const subscriber = {
@@ -273,19 +284,18 @@ export function createChannelLiveHub(
             } catch {}
           },
         };
-        const send = (): void => {
+        const send = (change?: unknown): void => {
           if (ended) return;
           if ((controller.desiredSize ?? 0) <= 0) {
             pending = true;
             return;
           }
           pending = false;
+          const { data } = currentActivity(activity, change);
+          if (data === sent) return;
+          sent = data;
           try {
-            controller.enqueue(
-              encoder.encode(
-                `event: activity/snapshot\ndata: ${JSON.stringify(activity.snapshot())}\n\n`,
-              ),
-            );
+            controller.enqueue(encoder.encode(`event: activity/snapshot\ndata: ${data}\n\n`));
           } catch {
             subscriber.close();
           }
@@ -341,20 +351,20 @@ export function createChannelLiveHub(
       start(controller) {
         let ended = false;
         let pendingActivity = false;
+        let sentActivity: string | undefined;
         let offActivity: (() => void) | undefined;
-        const sendActivity = (): void => {
+        const sendActivity = (change?: unknown): void => {
           if (ended || activity === undefined) return;
           if ((controller.desiredSize ?? 0) <= 0) {
             pendingActivity = true;
             return;
           }
           pendingActivity = false;
+          const { data } = currentActivity(activity, change);
+          if (data === sentActivity) return;
+          sentActivity = data;
           try {
-            controller.enqueue(
-              encoder.encode(
-                `event: activity/snapshot\ndata: ${JSON.stringify(activity.snapshot())}\n\n`,
-              ),
-            );
+            controller.enqueue(encoder.encode(`event: activity/snapshot\ndata: ${data}\n\n`));
           } catch {
             subscriber?.close();
           }
@@ -478,7 +488,13 @@ export function createChannelLiveHub(
         const stale = queue.findIndex(
           (frame) => frame.type === 'latest' && frame.channelId === channelId,
         );
-        if (stale !== -1) queue.splice(stale, 1);
+        const dropped = stale === -1 ? undefined : queue.splice(stale, 1)[0];
+        if (
+          dropped?.type === 'latest' &&
+          dropped.message.author.kind === 'bot' &&
+          (message.author.kind !== 'bot' || message.author.slug !== dropped.message.author.slug)
+        )
+          this.push();
         queue.push({ type: 'latest', channelId, message });
         if (queue.length > ROSTER_LIVE_QUEUE_LIMIT) this.close();
         wake?.();
@@ -513,6 +529,7 @@ export function createChannelLiveHub(
     if (activity === undefined) throw new LiveUnavailable('Activity unavailable');
     let ended = signal.aborted;
     let pending = false;
+    let lastChange: unknown;
     let wake: (() => void) | undefined;
     const subscriber = {
       close(): void {
@@ -526,19 +543,24 @@ export function createChannelLiveHub(
     signal.addEventListener('abort', abort, { once: true });
     const unsubscribe = ended
       ? undefined
-      : activity.onChange(() => {
+      : activity.onChange((change) => {
+          lastChange = change;
           pending = true;
           wake?.();
         });
     if (!ended) activitySubscribers.add(subscriber);
     try {
       if (ended) return;
-      yield { type: 'baseline', snapshot: activity.snapshot() };
+      let sent = currentActivity(activity);
+      yield { type: 'baseline', snapshot: sent.snapshot };
       for (;;) {
         if (ended) return;
         if (pending) {
           pending = false;
-          yield { type: 'changed', snapshot: activity.snapshot() };
+          const next = currentActivity(activity, lastChange);
+          if (next.data === sent.data) continue;
+          sent = next;
+          yield { type: 'changed', snapshot: next.snapshot };
           continue;
         }
         await new Promise<void>((resolve) => {
@@ -745,6 +767,9 @@ export function createChannelLiveHub(
         return new Response('Unknown Channel', { status: 404 });
       }
       const query = url.searchParams.get('after');
+      const drafts = url.searchParams.get('drafts') ?? 'full';
+      if (drafts !== 'full' && drafts !== 'append')
+        return new Response('Invalid draft delivery', { status: 400 });
       const lastEventId = request.headers.get('Last-Event-ID');
       const requested = query === null ? 0 : parseRevision(query);
       const resumed = lastEventId === null ? 0 : parseRevision(lastEventId);
@@ -771,6 +796,7 @@ export function createChannelLiveHub(
                 controller.close();
               } catch {}
             },
+            drafts,
           );
           heartbeat = setInterval(() => {
             try {
@@ -794,11 +820,11 @@ export function createChannelLiveHub(
     },
     publishCommitted(commit) {
       for (const subscriber of subscribers.get(commit.channelId) ?? []) subscriber.push(commit);
-      if (!isChannelNotice(commit.message))
-        for (const subscriber of rosterSubscribers)
-          subscriber.latest(commit.channelId, commit.message);
+      if (!isChannelNotice(commit.message)) {
+        const preview = channelPreviewMessage(commit.message);
+        for (const subscriber of rosterSubscribers) subscriber.latest(commit.channelId, preview);
+      }
       if (commit.message.author.kind !== 'bot') return;
-      if (!isChannelNotice(commit.message)) this.publishRosterCommitted();
       const botSlug = commit.message.author.slug;
       const candidates = [...(drafts.get(commit.channelId)?.values() ?? [])].filter(
         (draft) => draft.botSlug === botSlug,

@@ -2,6 +2,9 @@ import { isChannelMessageVoice, type ChannelMessageVoice } from './voice.js';
 import { parseToolApprovalActor } from '../workspaces/tool-approval-actor.js';
 import { createHash } from 'node:crypto';
 import { isValidSlug } from '../bots/slug.js';
+import { isChannelTurnStopTarget, type ChannelTurnStopTarget } from './turn-stop.js';
+
+export { isChannelTurnStopTarget, type ChannelTurnStopTarget };
 
 import {
   isChannelAttachmentRef,
@@ -335,6 +338,7 @@ export interface ChannelTurnStop {
   held?: true;
   cause?: 'human-stop' | 'failures';
   failures?: number;
+  target?: ChannelTurnStopTarget;
 }
 
 export interface ChannelMemberDeparture {
@@ -1069,7 +1073,8 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
         stop['cause'] !== 'human-stop' &&
         stop['cause'] !== 'failures') ||
       (stop['failures'] !== undefined &&
-        (typeof stop['failures'] !== 'number' || !Number.isInteger(stop['failures'])))
+        (typeof stop['failures'] !== 'number' || !Number.isInteger(stop['failures']))) ||
+      (stop['target'] !== undefined && !isChannelTurnStopTarget(stop['target']))
     )
       return false;
   } else if (message['toolAutoApproval'] !== undefined) {

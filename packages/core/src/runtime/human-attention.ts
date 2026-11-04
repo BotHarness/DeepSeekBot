@@ -179,7 +179,7 @@ const ACTION_ATTENTION_CTE = `WITH attention AS (
                SELECT 1 FROM source_events resolution
                 WHERE resolution.channel_id = e.channel_id
                   AND json_extract(resolution.payload_json,
-                    '$.userQuestionResolution.requestMessageId') = e.message_id
+                    '$.userQuestionResolution.requestMessageId') = +e.message_id
              )
           UNION ALL
           SELECT 'approval:' || e.source_event_id AS id,
@@ -201,7 +201,7 @@ const ACTION_ATTENTION_CTE = `WITH attention AS (
                SELECT 1 FROM source_events decision
                 WHERE decision.channel_id = e.channel_id
                   AND json_extract(decision.payload_json,
-                    '$.toolApprovalDecision.requestMessageId') = e.message_id
+                    '$.toolApprovalDecision.requestMessageId') = +e.message_id
              )
           UNION ALL
           SELECT 'autoreject:' || e.source_event_id AS id,
@@ -224,7 +224,7 @@ const ACTION_ATTENTION_CTE = `WITH attention AS (
                 WHERE override.channel_id = e.channel_id
                   AND override.source_kind = 'human-message'
                   AND json_extract(override.payload_json,
-                    '$.toolAutoApprovalOverride.recordMessageId') = e.message_id
+                    '$.toolAutoApprovalOverride.recordMessageId') = +e.message_id
              )
           UNION ALL
           SELECT 'private:' || e.source_event_id AS id,
@@ -247,7 +247,7 @@ const ACTION_ATTENTION_CTE = `WITH attention AS (
                SELECT 1 FROM source_events resolution
                 WHERE resolution.channel_id = e.channel_id
                   AND json_extract(resolution.payload_json,
-                    '$.privateInputResolution.requestMessageId') = e.message_id
+                    '$.privateInputResolution.requestMessageId') = +e.message_id
              )
           UNION ALL
           SELECT 'takeover:' || e.source_event_id AS id,
@@ -292,7 +292,7 @@ const ACTION_ATTENTION_CTE = `WITH attention AS (
                   AND resolution.source_kind = 'human-message'
                   AND json_extract(resolution.payload_json, '$.author.kind') = 'human'
                   AND json_extract(resolution.payload_json,
-                    '$.grantRequestResolution.requestMessageId') = e.message_id
+                    '$.grantRequestResolution.requestMessageId') = +e.message_id
              )
           UNION ALL
           SELECT 'assignment:' || a.session_id AS id,
@@ -1038,7 +1038,7 @@ SELECT 'handled:' || request.source_event_id AS id,
                  JOIN channel_placements rp ON rp.source_event_id = resolution.source_event_id
                 WHERE rp.channel_id = p.channel_id
                   AND json_extract(resolution.payload_json,
-                    '$.userQuestionResolution.requestMessageId') = e.message_id
+                    '$.userQuestionResolution.requestMessageId') = +e.message_id
              )
            ORDER BY e.created_at, e.source_event_id`)
             .all() as Array<{ channelId: string; messageId: string }>,

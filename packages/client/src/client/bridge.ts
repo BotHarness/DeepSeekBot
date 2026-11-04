@@ -1254,9 +1254,24 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       typeof stop['humanName'] !== 'string'
     )
       return undefined;
+    const target = asRecord(stop['target']);
     turnStop = {
       botName: stop['botName'],
       humanName: stop['humanName'],
+      ...(target?.['scope'] === 'bot'
+        ? { target: { scope: 'bot' as const } }
+        : target?.['scope'] === 'session' &&
+            (target['role'] === 'orchestrator' || target['role'] === 'assignment')
+          ? {
+              target: {
+                scope: 'session' as const,
+                role: target['role'],
+                ...(typeof target['title'] === 'string' && target['title'] !== ''
+                  ? { title: target['title'] }
+                  : {}),
+              },
+            }
+          : {}),
       ...(stop['held'] === true ? { held: true } : {}),
       ...(stop['cause'] === 'failures' || stop['cause'] === 'human-stop'
         ? { cause: stop['cause'] }
@@ -5011,17 +5026,49 @@ export interface StoppedSessionRef {
   role: 'orchestrator' | 'assignment';
 }
 
+export interface SessionStopResult {
+  stopped: StoppedSessionRef[];
+  alreadyIdle: StoppedSessionRef[];
+  messageId?: string;
+}
+
+function parseSessionStopResult(value: unknown): SessionStopResult {
+  const record = asRecord(value);
+  const refs = (key: string): StoppedSessionRef[] => {
+    const list = record?.[key];
+    return Array.isArray(list) ? (list as StoppedSessionRef[]) : [];
+  };
+  const messageId = record?.['messageId'];
+  return {
+    stopped: refs('stopped'),
+    alreadyIdle: refs('alreadyIdle'),
+    ...(typeof messageId === 'string' ? { messageId } : {}),
+  };
+}
+
 export async function stopSession(
   call: BridgeCall,
   botSlug: string,
-  sessionId: string,
-): Promise<{ stopped: StoppedSessionRef[]; alreadyIdle: StoppedSessionRef[] }> {
-  const value = asRecord(await unwrap(call, 'sessionStop', { botSlug, sessionId }));
-  const refs = (key: string): StoppedSessionRef[] => {
-    const list = value?.[key];
-    return Array.isArray(list) ? (list as StoppedSessionRef[]) : [];
-  };
-  return { stopped: refs('stopped'), alreadyIdle: refs('alreadyIdle') };
+  session: string | { activityId: string },
+  channelId?: string,
+): Promise<SessionStopResult> {
+  return parseSessionStopResult(
+    await unwrap(call, 'sessionStop', {
+      botSlug,
+      ...(typeof session === 'string' ? { sessionId: session } : session),
+      ...(channelId === undefined ? {} : { channelId }),
+    }),
+  );
+}
+
+export async function stopBot(
+  call: BridgeCall,
+  botSlug: string,
+  channelId?: string,
+): Promise<SessionStopResult> {
+  return parseSessionStopResult(
+    await unwrap(call, 'botStop', { botSlug, ...(channelId === undefined ? {} : { channelId }) }),
+  );
 }
 
 export async function moveMemoryLocation(

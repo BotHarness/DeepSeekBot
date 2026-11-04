@@ -37,7 +37,7 @@ const controls = () =>
   ({
     mute: vi.fn(),
     hangup: vi.fn(),
-    route: vi.fn(() => true),
+    choose: vi.fn(async () => null),
   }) satisfies CallControls;
 
 describe('call session store (#3468)', () => {

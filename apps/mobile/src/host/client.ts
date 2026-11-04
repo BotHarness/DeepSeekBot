@@ -339,16 +339,62 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let liveSocket: { generation: number; send(frame: MuxClientFrame): void } | undefined;
   let streams = new Map<string, { item(value: unknown): void; end(frame: MuxServerFrame): void }>();
 
+  const shared = new Map<string, { json: string; value: unknown }>();
+  const share = <T>(key: string, value: T): T => {
+    const json = JSON.stringify(value);
+    const previous = shared.get(key);
+    if (previous?.json === json) return previous.value as T;
+    shared.set(key, { json, value });
+    return value;
+  };
+  const sameList = <T>(next: readonly T[], previous: readonly T[] | undefined): boolean =>
+    previous !== undefined &&
+    next.length === previous.length &&
+    next.every((item, index) => item === previous[index]);
+  const shareRoster = (next: RosterView, previous: RosterView | undefined): RosterView => {
+    const bots = next.bots.map((bot) => share(`bot:${bot.slug}`, bot));
+    const channels = next.channels.map((channel) => share(`channel:${channel.id}`, channel));
+    const roster: RosterView = {
+      ...next,
+      bots: sameList(bots, previous?.bots) ? previous!.bots : bots,
+      channels: sameList(channels, previous?.channels) ? previous!.channels : channels,
+      ...(next.activityChannels === undefined
+        ? {}
+        : {
+            activityChannels: sameList(next.activityChannels, previous?.activityChannels)
+              ? previous!.activityChannels!
+              : next.activityChannels,
+          }),
+    };
+    return previous !== undefined &&
+      (Object.keys(roster) as (keyof RosterView)[]).every((key) => roster[key] === previous[key]) &&
+      Object.keys(previous).length === Object.keys(roster).length
+      ? previous
+      : roster;
+  };
+
   const publish = (connection?: ConnectionState): void => {
-    snapshot = {
-      routes: routes.map((url) => ({
-        url,
-        status: routeChecks.get(url) ?? 'unchecked',
-      })),
+    const nextRoutes: NonNullable<HostSnapshot['routes']> = routes.map((url) => ({
+      url,
+      status: routeChecks.get(url) ?? 'unchecked',
+    }));
+    const roster = bots === undefined ? undefined : shareRoster(view(bots), snapshot.roster);
+    const next: HostSnapshot = {
+      routes:
+        snapshot.routes !== undefined &&
+        JSON.stringify(nextRoutes) === JSON.stringify(snapshot.routes)
+          ? snapshot.routes
+          : nextRoutes,
       connection: connection ?? snapshot.connection,
       ...(computerAvailable === undefined ? {} : { computerAvailable }),
-      ...(bots === undefined ? {} : { roster: view(bots) }),
+      ...(roster === undefined ? {} : { roster }),
     };
+    const unchanged =
+      connection === undefined &&
+      Object.keys(next).length === Object.keys(snapshot).length &&
+      (Object.keys(next) as (keyof HostSnapshot)[]).every((key) => next[key] === snapshot[key]);
+    if (unchanged) return;
+    snapshot = next;
     if (connection !== undefined)
       options.telemetry?.update(
         connection.status,

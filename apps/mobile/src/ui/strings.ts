@@ -839,7 +839,14 @@ const en = {
     left: 'left the Channel',
     removed: 'was removed from the Channel',
     stopped: (name: string) => `stopped ${name}`,
+    stoppedBot: (name: string) => `stopped all of ${name}’s Sessions`,
+    stoppedOrchestrator: (name: string) => `stopped ${name}’s Orchestrator`,
+    stoppedAssignment: (name: string, title?: string) =>
+      title === undefined
+        ? `stopped one of ${name}’s Assignments`
+        : `stopped ${name}’s Assignment “${title}”`,
     stoppedHeld: 'It waits until someone messages it',
+    stoppedOrchestratorHeld: 'Assignments keep running',
     stoppedFailures: (count: number) => `stopped after ${count} failed runs in a row`,
     stoppedRetry: 'Message it to try again',
     human: 'You',
@@ -1611,15 +1618,21 @@ const en = {
     hangUp: 'Hang up',
     interrupted: 'Paused by another call or app. It resumes when that ends.',
     audio: 'Audio',
-    audioRoute: {
-      speaker: 'Speaker',
-      receiver: 'iPhone',
-      media: 'Media Audio',
+    audioMicrophone: 'Microphone',
+    audioMicrophoneHint: {
+      iphone: 'Music keeps playing, better sound',
+      headset: 'Call quality, best for noisy places',
     },
-    audioRouteHint: {
-      speaker: 'Call audio on the speaker. Volume buttons set the call volume.',
-      receiver: 'Call audio at your ear. Volume buttons set the call volume.',
-      media: 'Plays like music: the media volume, and full quality on Bluetooth headphones.',
+    audioOutput: 'Output',
+    audioDevices: {
+      iphone: 'iPhone',
+      receiver: 'iPhone',
+      speaker: 'Speaker',
+      bluetooth: 'Bluetooth',
+      headphones: 'Headphones',
+      car: 'Car',
+      airplay: 'AirPlay',
+      other: 'Audio device',
     },
     audioSwitchFailed: 'Couldn’t switch the audio. Try again.',
     duration: (text: string) => `Call time ${text}`,
@@ -2990,7 +3003,14 @@ const zh: typeof en = {
     left: '退出了频道',
     removed: '被移出了频道',
     stopped: (name: string) => `停止了 ${name}`,
+    stoppedBot: (name: string) => `停止了 ${name} 的全部 Session`,
+    stoppedOrchestrator: (name: string) => `停止了 ${name} 的 Orchestrator`,
+    stoppedAssignment: (name: string, title?: string) =>
+      title === undefined
+        ? `停止了 ${name} 的一个 Assignment`
+        : `停止了 ${name} 的 Assignment「${title}」`,
     stoppedHeld: '有人给它发消息前不会继续',
+    stoppedOrchestratorHeld: 'Assignment 继续运行',
     stoppedFailures: (count: number) => `连续 ${count} 次运行失败，已自动停下`,
     stoppedRetry: '给它发消息即可重试',
     human: '你',
@@ -3725,15 +3745,21 @@ const zh: typeof en = {
     hangUp: '挂断',
     interrupted: '被其他通话或 App 打断，结束后自动恢复',
     audio: '音频',
-    audioRoute: {
-      speaker: '扬声器',
-      receiver: '听筒',
-      media: '媒体音频',
+    audioMicrophone: '麦克风',
+    audioMicrophoneHint: {
+      iphone: '音乐不停，音质更好',
+      headset: '通话音质，适合嘈杂环境',
     },
-    audioRouteHint: {
-      speaker: '通话音频，从扬声器播放。音量键调节通话音量。',
-      receiver: '通话音频，贴近耳朵听。音量键调节通话音量。',
-      media: '像音乐一样播放：使用媒体音量，蓝牙耳机保持高音质。',
+    audioOutput: '输出',
+    audioDevices: {
+      iphone: 'iPhone',
+      receiver: '听筒',
+      speaker: '扬声器',
+      bluetooth: '蓝牙耳机',
+      headphones: '耳机',
+      car: '车载音频',
+      airplay: 'AirPlay',
+      other: '音频设备',
     },
     audioSwitchFailed: '没能切换音频，再试一次。',
     duration: (text: string) => `通话时长 ${text}`,
