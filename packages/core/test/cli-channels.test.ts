@@ -461,6 +461,7 @@ describe('Channel and group CLI commands', () => {
       [['channel-history']],
       [['channel-history-sources', 'grp-1', '--before', '42']],
       [['channel-journal', 'grp-1', '--through', '9', '--before', '5', '--limit', '3']],
+      [['channel-files', 'grp-1', '--before', '7', '--limit', '30']],
       [
         [
           'channel-timeline',
@@ -550,6 +551,7 @@ describe('Channel and group CLI commands', () => {
         method: 'channelJournalPage',
         args: { channelId: 'grp-1', through: 9, before: 5, limit: 3 },
       },
+      { method: 'channelFilesPage', args: { channelId: 'grp-1', before: 7, limit: 30 } },
       {
         method: 'channelTimeline',
         args: { channelId: 'grp-1', direction: 'around', around: 'm-1', olderLimit: 0 },
@@ -623,6 +625,7 @@ describe('Channel and group CLI commands', () => {
       [['group-wake-set', 'grp-1', '--bot', 'ada', '--mode', 'all', '--count', '0']],
       [['group-wake-set', 'grp-1', '--bot', 'ada', '--mode', 'all', '--interval', '1.5']],
       [['channel-journal', 'grp-1']],
+      [['channel-files', 'grp-1', '--limit', '101']],
       [['channel-timeline', 'grp-1', '--direction', 'sideways']],
       [['channel-timeline', 'grp-1', '--direction', 'around']],
       [['channel-history-sources', 'grp-1', '--before', 'abc']],

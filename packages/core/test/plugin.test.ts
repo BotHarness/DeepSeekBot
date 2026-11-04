@@ -869,6 +869,7 @@ describe('plugin entry', () => {
       'scheduleRunNow',
       'schedulePreview',
       'channelJournalPage',
+      'channelFilesPage',
       'followRoster',
       'followActivity',
       'followChannel',

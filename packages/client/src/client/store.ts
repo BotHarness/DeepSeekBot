@@ -117,10 +117,15 @@ export interface ChannelReplyPreview {
   body: string;
 }
 
-export type ChannelAttachmentRef = { name: string; mime: string; size: number } & (
-  | { fileId: string; hash?: never }
-  | { hash: string; fileId?: never }
-);
+export type ChannelAttachmentRef = {
+  name: string;
+  mime: string;
+  size: number;
+  version?: string;
+  width?: number;
+  height?: number;
+  thumbhash?: string;
+} & ({ fileId: string; hash?: never } | { hash: string; fileId?: never });
 
 export interface BotCreatePreview {
   memoryFolder: string;

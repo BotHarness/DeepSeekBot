@@ -36,7 +36,12 @@ import type {
 } from '../storage/media-cleanup.js';
 import type { GroupMemberWakePolicy } from '../channels/channel.js';
 import { LiveRefused } from '../channels/live-frames.js';
-import type { ChannelJournalPage, ChannelJournalRequest } from '../channels/timeline.js';
+import type {
+  ChannelFilesPage,
+  ChannelFilesRequest,
+  ChannelJournalPage,
+  ChannelJournalRequest,
+} from '../channels/timeline.js';
 import type { CompanionLiveFrame } from '../companions/live.js';
 import type { CloudWork, CloudWorkInput } from '../cloud/work.js';
 import {
@@ -249,6 +254,7 @@ export interface BridgeLive {
     drafts?: DraftDelivery,
   ): AsyncIterable<ChannelLiveFrame>;
   journalPage(channelId: string, request: ChannelJournalRequest): ChannelJournalPage | undefined;
+  filesPage(channelId: string, request: ChannelFilesRequest): ChannelFilesPage | undefined;
   followCompanion(
     resume: string,
     lastEventId: string,
@@ -340,6 +346,16 @@ export class BotharnessBridgeService extends TypertRemoteService {
       throw toRemoteError({
         code: 'not-found',
         message: 'Channel journal page is unavailable',
+      });
+    return page;
+  }
+
+  channelFilesPage(channelId: string, before?: number, limit?: number): ChannelFilesPage {
+    const page = this.live?.filesPage(channelId, { before, limit });
+    if (page === undefined)
+      throw toRemoteError({
+        code: 'not-found',
+        message: 'Channel files page is unavailable',
       });
     return page;
   }
@@ -2996,6 +3012,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'scheduleRunNow',
   'schedulePreview',
   'channelJournalPage',
+  'channelFilesPage',
 ]);
 markRemoteStreams(BotharnessBridgeService.prototype, [
   'followRoster',

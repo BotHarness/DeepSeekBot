@@ -80,6 +80,20 @@ export interface ChannelJournalPage {
   hasOlder: boolean;
 }
 
+export interface ChannelFilesRequest {
+  before?: number | undefined;
+  limit?: number | undefined;
+}
+
+export interface ChannelFilesPage {
+  entries: ChannelJournalEntry[];
+  nextBefore?: number;
+}
+
+export const CHANNEL_FILES_LIMIT = 50;
+export const CHANNEL_FILES_MAX = 100;
+export const CHANNEL_FILES_SCAN = 2000;
+
 export interface ChannelJournalRequest {
   through: number;
   before?: number | undefined;
