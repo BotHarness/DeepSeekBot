@@ -46,15 +46,11 @@ export type BotStateEvent =
       state: SessionState;
       snapshot: BotStateSnapshot;
     }
-  | {
-      type: 'session-removed';
-      slug: string;
-      sessionId: string;
-      snapshot: BotStateSnapshot;
-    };
+  | { type: 'session-removed'; slug: string; sessionId: string; snapshot: BotStateSnapshot };
 
 export interface BotStateTracker {
   beginAssignmentWait(slug: string, sessionId: string): () => void;
+  syncDurableAttentionWith(sync: () => void): void;
   replaceDurableAttention(
     rows: readonly {
       botSlug: string;
@@ -77,7 +73,7 @@ export interface BotStateTracker {
   ): void;
   activity(slug: string): PersonaBotToolActivity | undefined;
   sessionActivity(slug: string): readonly PersonaBotSessionActivity[];
-  sessionForActivity?(slug: string, activityId: string): string | undefined;
+  sessionIdForActivity(slug: string, activityId: string): string | undefined;
   rebuildSessionStates(
     rows: readonly {
       slug: string;
@@ -126,7 +122,9 @@ export function createBotStateTracker(): BotStateTracker {
       informationalCount: number;
     }
   >();
+  let syncDurableAttention = (): void => {};
   const attentionOf = (slug: string): PersonaBotAttention | undefined => {
+    syncDurableAttention();
     const count = approvalCounts.get(slug);
     const questionCount = questionCounts.get(slug);
     const privateInputCount = privateInputCounts.get(slug);
@@ -243,11 +241,7 @@ export function createBotStateTracker(): BotStateTracker {
       const detail = sessionDetails.get(sessionId);
       if (state === 'done' || detail === undefined) continue;
       const activity = state === 'working' ? tools.get(sessionId) : undefined;
-      result.push({
-        ...detail,
-        state,
-        ...(activity === undefined ? {} : { activity }),
-      });
+      result.push({ ...detail, state, ...(activity === undefined ? {} : { activity }) });
     }
     return structuredClone(result);
   };
@@ -278,11 +272,6 @@ export function createBotStateTracker(): BotStateTracker {
   };
 
   const tracker: BotStateTracker = {
-    sessionForActivity(slug, activityId) {
-      for (const sessionId of bots.get(slug)?.keys() ?? [])
-        if (sessionDetails.get(sessionId)?.id === activityId) return sessionId;
-      return undefined;
-    },
     beginAssignmentWait(slug, sessionId) {
       if (!bots.get(slug)?.has(sessionId) || sessionDetails.get(sessionId)?.role !== 'orchestrator')
         return () => {};
@@ -304,6 +293,9 @@ export function createBotStateTracker(): BotStateTracker {
           assignmentWaits.delete(sessionId);
         if (bots.get(slug)?.has(sessionId)) update(previous);
       };
+    },
+    syncDurableAttentionWith(sync) {
+      syncDurableAttention = sync;
     },
     replaceDurableAttention(rows) {
       if (
@@ -339,12 +331,7 @@ export function createBotStateTracker(): BotStateTracker {
               informationalCount,
             }) => [
               botSlug,
-              {
-                waitingHumanCount,
-                blockedCount,
-                workspaceGrantCount,
-                informationalCount,
-              },
+              { waitingHumanCount, blockedCount, workspaceGrantCount, informationalCount },
             ],
           ),
       );
@@ -438,12 +425,7 @@ export function createBotStateTracker(): BotStateTracker {
           activeToolCount: nextActivity.activeToolCount,
           ...(nextActivity.sources === undefined
             ? {}
-            : {
-                sources: nextActivity.sources.map(({ role, count }) => ({
-                  role,
-                  count,
-                })),
-              }),
+            : { sources: nextActivity.sources.map(({ role, count }) => ({ role, count })) }),
         });
       sessions.set(sessionId, state);
       const changed =
@@ -485,6 +467,11 @@ export function createBotStateTracker(): BotStateTracker {
     },
     activity: activityOf,
     sessionActivity: sessionActivityOf,
+    sessionIdForActivity(slug, activityId) {
+      for (const sessionId of bots.get(slug)?.keys() ?? [])
+        if (sessionDetails.get(sessionId)?.id === activityId) return sessionId;
+      return undefined;
+    },
     onActivity(listener) {
       activityListeners.add(listener);
       return () => {
@@ -534,19 +521,17 @@ export function personaBotActivitySnapshot(
   slugs: readonly string[],
   states: BotStateTracker,
 ): PersonaBotActivitySnapshot {
-  return {
-    ...states.version(),
-    bots: slugs.map((slug) => {
-      const activity = states.activity(slug);
-      const sessions = states.sessionActivity(slug);
-      const snapshot = states.snapshot(slug);
-      return {
-        slug,
-        state: snapshot.state,
-        ...(snapshot.attention === undefined ? {} : { attention: snapshot.attention }),
-        ...(activity === undefined ? {} : { activity }),
-        ...(sessions.length === 0 ? {} : { sessions }),
-      };
-    }),
-  };
+  const bots = slugs.map((slug) => {
+    const activity = states.activity(slug);
+    const sessions = states.sessionActivity(slug);
+    const snapshot = states.snapshot(slug);
+    return {
+      slug,
+      state: snapshot.state,
+      ...(snapshot.attention === undefined ? {} : { attention: snapshot.attention }),
+      ...(activity === undefined ? {} : { activity }),
+      ...(sessions.length === 0 ? {} : { sessions }),
+    };
+  });
+  return { ...states.version(), bots };
 }

@@ -9648,7 +9648,7 @@ class BotRuntimeImplementation implements BotRuntime {
           .run(sourceEventId, botSlug, sourceRule.revision, sourceRule.wake);
         return sourceRule.wake;
       },
-      ['assignments', 'source-event', 'bot-inbox'],
+      ['assignments', 'assignment-report', 'source-event', 'bot-inbox'],
     );
     if (
       reportWake === 'immediate' ||

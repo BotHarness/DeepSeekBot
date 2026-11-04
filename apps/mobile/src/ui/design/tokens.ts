@@ -54,6 +54,14 @@ export const stateRing = {
   segment: 0.26,
   period: 1300,
 } as const;
+export const callBubble = {
+  avatarScale: 1.25,
+  badge: 20,
+  capsuleOverlap: 8,
+  pulsePeriod: 1400,
+  pulseGrowth: 0.35,
+  maxTextScale: 1.4,
+} as const;
 export const rowGlyph = { size: 16, period: 900 } as const;
 export const accountActionIcon = {
   slot: 28,

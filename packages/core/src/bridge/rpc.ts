@@ -795,8 +795,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
   sessionStop(
     botSlug: string,
-    sessionId: string,
+    sessionId?: string,
     channelId?: string,
+    activityId?: string,
   ): Promise<{
     stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
     alreadyIdle: import('../runtime/bot-runtime.js').StoppedSessionRef[];
@@ -805,8 +806,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(
       this.methods.sessionStop({
         botSlug,
-        sessionId,
+        ...(sessionId === undefined ? {} : { sessionId }),
         ...(channelId === undefined ? {} : { channelId }),
+        ...(activityId === undefined ? {} : { activityId }),
       }),
     );
   }
@@ -1588,6 +1590,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
         ...(expectedChannel === undefined ? {} : { expectedChannel }),
       }),
     );
+  }
+
+  ping() {
+    return unwrap(this.methods.ping({}));
   }
 
   humanIdentity() {
@@ -2778,6 +2784,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'pause',
   'resume',
   'channels',
+  'ping',
   'humanIdentity',
   'composerIdentity',
   'composerValidate',

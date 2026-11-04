@@ -54,8 +54,10 @@ import {
 import { createExpoSender } from '../push/expo-sender.js';
 import { createDevicePushHttp } from '../push/http.js';
 import type { TelemetryService } from '../telemetry/service.js';
+import { coalesce } from '../runtime/coalesce.js';
 
 const PUSH_SETTLE_MS = 500;
+const SETTLE_MAX_WAIT_MS = 2_000;
 const PUSH_SWEEP_MS = 60_000;
 
 export interface DevicePushOptions {
@@ -321,12 +323,9 @@ export function mountDevicePairing(
           ctx.logger.warn(`push phase=reconcile-failed error=${String(error)}`),
         );
     };
-    let settle: ReturnType<typeof setTimeout> | undefined;
+    const settle = coalesce(reconcile, { delayMs: PUSH_SETTLE_MS, maxWaitMs: SETTLE_MAX_WAIT_MS });
     ctx.effect(() => {
-      const off = watched.watch(() => {
-        clearTimeout(settle);
-        settle = setTimeout(reconcile, PUSH_SETTLE_MS);
-      });
+      const off = watched.watch(settle.schedule);
       const sweep = setInterval(() => {
         reconcile();
         void delivery.checkReceipts();
@@ -334,7 +333,7 @@ export function mountDevicePairing(
       reconcile();
       return () => {
         off();
-        clearTimeout(settle);
+        settle.cancel();
         clearInterval(sweep);
       };
     }, 'botharness: push delivery');
@@ -645,7 +644,6 @@ export function mountDevicePairing(
       });
       const delivery = activity;
       webCtx.effect(() => {
-        let settle: ReturnType<typeof setTimeout> | undefined;
         const reconcile = () => {
           const started = Date.now();
           void delivery
@@ -658,15 +656,19 @@ export function mountDevicePairing(
               ),
             );
         };
-        const off = options.database.subscribe(({ module }) => {
-          if (module === 'live-activity') return;
-          clearTimeout(settle);
-          settle = setTimeout(reconcile, 500);
+        const settle = coalesce(reconcile, {
+          delayMs: PUSH_SETTLE_MS,
+          maxWaitMs: SETTLE_MAX_WAIT_MS,
+        });
+        const off = options.database.subscribe(({ module, topics }) => {
+          if (module === 'live-activity' || module === 'telemetry') return;
+          if (topics.length > 0 && topics.every((topic) => topic === 'usage')) return;
+          settle.schedule();
         });
         const sweep = setInterval(reconcile, 60_000);
         return () => {
           off();
-          clearTimeout(settle);
+          settle.cancel();
           clearInterval(sweep);
           delivery.dispose();
           activity = undefined;

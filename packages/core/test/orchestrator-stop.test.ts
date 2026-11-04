@@ -44,11 +44,7 @@ function agents() {
     requestAssignment(run) {
       assignmentRuns.push(run);
       run.accepted?.();
-      return {
-        delivery: 'followup',
-        accepted: Promise.resolve(),
-        done: hold(run.sessionId),
-      };
+      return { delivery: 'followup', accepted: Promise.resolve(), done: hold(run.sessionId) };
     },
     async stopAssignment(id) {
       stopped.push(id);
@@ -81,12 +77,7 @@ async function fixture(home = createTempRoot('bh-orchestrator-stop-')) {
     workspaces: () => ({
       get: (id) =>
         id === 'test-workspace'
-          ? {
-              id,
-              path: home,
-              title: 'Test Workspace',
-              status: async () => 'ok',
-            }
+          ? { id, path: home, title: 'Test Workspace', status: async () => 'ok' }
           : undefined,
       list: () => [],
     }),
@@ -101,11 +92,7 @@ async function fixture(home = createTempRoot('bh-orchestrator-stop-')) {
   function send(body: string) {
     sent += 1;
     const messageId = `human-${Date.now()}-${sent}`;
-    const admission = core.runtime.admitDmMessage({
-      channelId: dm.id,
-      messageId,
-      body,
-    });
+    const admission = core.runtime.admitDmMessage({ channelId: dm.id, messageId, body });
     if (!admission.admitted) throw new Error('Not admitted');
     return admission.settled;
   }
@@ -166,11 +153,7 @@ describe('Session Stop on the Orchestrator', () => {
       expect(notice).toMatchObject({
         body: "Human stopped Ada's Orchestrator.",
         turnStop: {
-          target: {
-            scope: 'session',
-            role: 'orchestrator',
-            sessionId: orchestrator,
-          },
+          target: { scope: 'session', role: 'orchestrator', sessionId: orchestrator },
         },
       });
 
@@ -188,35 +171,6 @@ describe('Session Stop on the Orchestrator', () => {
     }
   });
 
-  it('accepts the public Session id from the live activity snapshot', async () => {
-    const f = await fixture();
-    try {
-      const assignment = await f.create('Crawl every page');
-      f.core.states.setSessionState('ada', assignment, 'working', undefined, 'assignment', 'Crawl');
-      const snapshot = await f.bridge.activitySnapshot({});
-      if (!snapshot.ok) throw new Error('no snapshot');
-      const live = snapshot.value.bots
-        .find((bot) => bot.slug === 'ada')
-        ?.sessions?.find((session) => session.role === 'assignment');
-      expect(live?.id).toMatch(/^activity-/);
-      expect(live?.id).not.toBe(assignment);
-
-      const result = await f.bridge.sessionStop({
-        botSlug: 'ada',
-        sessionId: live!.id,
-      });
-      expect(result).toMatchObject({
-        ok: true,
-        value: {
-          stopped: [{ botSlug: 'ada', sessionId: assignment, role: 'assignment' }],
-        },
-      });
-      expect(f.live.stopped).toEqual([assignment]);
-    } finally {
-      await f.close();
-    }
-  });
-
   it('is woken as usual by an Assignment Report after the stop', async () => {
     const f = await fixture();
     try {
@@ -228,10 +182,7 @@ describe('Session Stop on the Orchestrator', () => {
       const before = f.live.orchestratorRuns.length;
 
       const run = f.live.assignmentRuns.find((item) => item.sessionId === assignment)!;
-      await run.report({
-        state: 'completed',
-        summary: 'The report is drafted',
-      });
+      await run.report({ state: 'completed', summary: 'The report is drafted' });
       f.live.finish(assignment);
       await vi.waitFor(() => expect(f.live.orchestratorRuns.length).toBeGreaterThan(before));
       const next = f.live.orchestratorRuns.slice(before).join('\n');
@@ -257,10 +208,7 @@ describe('Bot Stop', () => {
       const { settled } = await f.busyTurn();
       const orchestrator = f.core.runtime.currentOrchestratorSessionId!('ada')!;
 
-      const result = await f.bridge.botStop({
-        botSlug: 'ada',
-        channelId: f.dm.id,
-      });
+      const result = await f.bridge.botStop({ botSlug: 'ada', channelId: f.dm.id });
       await settled;
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -273,16 +221,11 @@ describe('Bot Stop', () => {
       );
       expect(result.value.stopped).toHaveLength(3);
       expect(f.live.stopped.sort()).toEqual([first, second].sort());
-      expect(f.core.runtime.getAssignment('ada', idle)).toMatchObject({
-        activity: 'idle',
-      });
+      expect(f.core.runtime.getAssignment('ada', idle)).toMatchObject({ activity: 'idle' });
       expect(f.core.runtime.heldCause?.('ada')).toBeUndefined();
       expect(
         f.core.channels.readMessages(f.dm.id).find((message) => message.turnStop !== undefined),
-      ).toMatchObject({
-        body: 'Human stopped Ada.',
-        turnStop: { target: { scope: 'bot' } },
-      });
+      ).toMatchObject({ body: 'Human stopped Ada.', turnStop: { target: { scope: 'bot' } } });
 
       const again = await f.bridge.botStop({ botSlug: 'ada' });
       expect(again).toEqual({
@@ -315,14 +258,8 @@ describe('Bot Stop', () => {
       });
       expect(f.core.runtime.heldCause?.('ada')).toBeUndefined();
       const assignment = await f.create('Crawl');
-      const stopped = await f.bridge.channelBotStop({
-        channelId: f.dm.id,
-        botSlug: 'ada',
-      });
-      expect(stopped).toMatchObject({
-        ok: true,
-        value: { stopped: { botSlug: 'ada' } },
-      });
+      const stopped = await f.bridge.channelBotStop({ channelId: f.dm.id, botSlug: 'ada' });
+      expect(stopped).toMatchObject({ ok: true, value: { stopped: { botSlug: 'ada' } } });
       expect(f.live.stopped).toEqual([assignment]);
     } finally {
       await f.close();
@@ -335,10 +272,7 @@ describe('Stop notices', () => {
     const f = await fixture();
     try {
       const assignment = await f.create('Crawl every page');
-      const elsewhere = f.core.channels.createGroup({
-        name: 'Elsewhere',
-        members: ['ada'],
-      }).id;
+      const elsewhere = f.core.channels.createGroup({ name: 'Elsewhere', members: ['ada'] }).id;
       const unrelated = await f.bridge.sessionStop({
         botSlug: 'ada',
         sessionId: assignment,
@@ -355,10 +289,7 @@ describe('Stop notices', () => {
         sessionId: second,
         channelId: f.dm.id,
       });
-      expect(related).toMatchObject({
-        ok: true,
-        value: { messageId: expect.any(String) },
-      });
+      expect(related).toMatchObject({ ok: true, value: { messageId: expect.any(String) } });
       expect(
         f.core.channels.readMessages(f.dm.id).find((message) => message.turnStop !== undefined),
       ).toMatchObject({

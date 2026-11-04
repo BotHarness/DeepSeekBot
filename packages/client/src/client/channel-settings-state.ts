@@ -1,5 +1,5 @@
+import type { ConversationStateView } from './store.js';
 import type { ChannelSidebarEntry, ChannelSidebarScope } from './channel-sidebar.js';
-import type { ClientState } from './store.js';
 
 export interface ChannelSettingsSnapshot {
   readonly open: boolean;
@@ -65,7 +65,7 @@ export function isChannelSettingsSection(entry: ChannelSidebarEntry): boolean {
 
 export function channelSettingsSections(
   entries: readonly ChannelSidebarEntry[],
-  state: ClientState,
+  state: ConversationStateView,
 ): readonly ChannelSidebarEntry[] {
   return entries.filter(
     (entry) => isChannelSettingsSection(entry) && (entry.visible?.(state) ?? true),

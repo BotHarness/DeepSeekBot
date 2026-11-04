@@ -722,7 +722,11 @@ export interface BridgeActions {
   refreshSessions(slug: string): Promise<void>;
   readSessions(slug: string): Promise<OwnedSessionSummary[]>;
   setSessionArchived(slug: string, sessionId: string, archived: boolean): Promise<void>;
-  stopSession(slug: string, sessionId: string, channelId?: string): Promise<void>;
+  stopSession(
+    slug: string,
+    session: string | { activityId: string },
+    channelId?: string,
+  ): Promise<void>;
   messageAttachmentTarget(
     channelId: string,
     messageId: string,
@@ -1480,7 +1484,6 @@ export function createActions(
   let humanInboxPageSeq = 0;
   let humanInboxPagesPending = 0;
   let humanInboxScopeVersion = 0;
-  let humanInboxStatusSeq = 0;
   const loadInboxStatus = async (): Promise<
     Partial<
       Pick<
@@ -1500,16 +1503,32 @@ export function createActions(
       ...(channelUnread.status === 'fulfilled' ? { channelUnread: channelUnread.value } : {}),
     };
   };
-  const refreshHumanInboxStatus = async (): Promise<void> => {
-    const requestSeq = ++humanInboxStatusSeq;
+  let humanInboxStatusReading: Promise<void> | undefined;
+  let humanInboxStatusAgain = false;
+  const readHumanInboxStatus = async (): Promise<void> => {
     try {
       const status = await loadInboxStatus();
-      if (requestSeq === humanInboxStatusSeq) clientStore.setHumanInbox(status);
+      if (!humanInboxStatusAgain) clientStore.setHumanInbox(status);
     } catch {
-      if (requestSeq === humanInboxStatusSeq)
-        clientStore.setHumanInbox({ attentionStatus: 'error' });
-      return;
+      if (!humanInboxStatusAgain) clientStore.setHumanInbox({ attentionStatus: 'error' });
     }
+  };
+  const refreshHumanInboxStatus = (): Promise<void> => {
+    if (humanInboxStatusReading !== undefined) {
+      humanInboxStatusAgain = true;
+      return humanInboxStatusReading;
+    }
+    humanInboxStatusReading = (async () => {
+      try {
+        do {
+          humanInboxStatusAgain = false;
+          await readHumanInboxStatus();
+        } while (humanInboxStatusAgain);
+      } finally {
+        humanInboxStatusReading = undefined;
+      }
+    })();
+    return humanInboxStatusReading;
   };
   const loadHumanInboxFor = async (
     category: HumanInboxCategory,
@@ -2547,9 +2566,7 @@ export function createActions(
         await refreshHumanInboxStatus();
         throw error;
       }
-      const requestSeq = ++humanInboxStatusSeq;
-      const status = await loadInboxStatus();
-      if (requestSeq === humanInboxStatusSeq) clientStore.setHumanInbox(status);
+      await refreshHumanInboxStatus();
       if (humanInboxScope() !== undefined) await actions.refreshHumanInbox();
     },
     async markRead(channelId, messageId) {
@@ -3127,8 +3144,8 @@ export function createActions(
       if (selection === undefined || selectedBotSlug(selection) !== slug) return;
       await loadSessionsFor(slug, selection);
     },
-    async stopSession(slug, sessionId, channelId) {
-      const stopped = await stopSession(call, slug, sessionId, channelId);
+    async stopSession(slug, session, channelId) {
+      const stopped = await stopSession(call, slug, session, channelId);
       if (stopped.messageId !== undefined && channelId !== undefined)
         await actions.refreshChannelMessages(channelId).catch(() => undefined);
       const selection = currentSelection();

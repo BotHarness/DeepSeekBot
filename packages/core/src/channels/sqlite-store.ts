@@ -3328,6 +3328,21 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         }
       return message;
     },
+    privateInputRequests() {
+      return (
+        database.read((db) =>
+          db
+            .prepare(`
+          SELECT p.channel_id, p.message_id
+            FROM source_events e
+            JOIN channel_placements p ON p.source_event_id = e.source_event_id
+           WHERE e.source_kind = 'bot-message'
+             AND json_extract(e.payload_json, '$.privateInputRequest') IS NOT NULL
+        `)
+            .all(),
+        ) as Array<{ channel_id: string; message_id: string }>
+      ).map((row) => ({ channelId: row.channel_id, messageId: row.message_id }));
+    },
     latestBotActivity() {
       const rows = database.read((db) =>
         db

@@ -54,7 +54,7 @@ describe('session stopper', () => {
     await stopper.stopBot('ada');
     expect(call).toHaveBeenNthCalledWith(1, 'sessionStop', {
       botSlug: 'ada',
-      sessionId: 'a1',
+      activityId: 'a1',
       channelId: 'g1',
     });
     expect(call).toHaveBeenNthCalledWith(2, 'botStop', { botSlug: 'ada', channelId: 'g1' });

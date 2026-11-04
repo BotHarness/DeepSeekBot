@@ -419,13 +419,18 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     const stopped = await invoke(['session-stop', 'ada', 'sess-1'], live.url);
     expect(stopped.code).toBe(0);
     expect(stopped.json).toEqual(result);
+    expect((await invoke(['session-stop', 'ada', '--activity', 'activity-1'], live.url)).code).toBe(
+      0,
+    );
     for (const argv of [
       ['session-stop', 'ada'],
       ['session-stop', 'ada', 'sess-1', 'extra'],
+      ['session-stop', 'ada', 'sess-1', '--activity', 'activity-1'],
     ])
       expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
     expect(live.calls).toEqual([
       { method: 'sessionStop', args: { botSlug: 'ada', sessionId: 'sess-1' } },
+      { method: 'sessionStop', args: { botSlug: 'ada', activityId: 'activity-1' } },
     ]);
   });
 

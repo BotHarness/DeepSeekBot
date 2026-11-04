@@ -110,6 +110,7 @@ import {
   type UsageOverviewResult,
 } from '../usage/overview.js';
 import { markAllHumanMessagesRead } from '../channels/mark-all-read.js';
+import { channelPreviewMessage } from '../channels/channel-notice.js';
 import { channelBridgeInput, type ChannelBridgeSnapshot } from '../messaging/channel-bridge.js';
 import {
   conversationIngestInput,
@@ -640,11 +641,9 @@ export interface BridgeMethods {
   botCompact(payload: unknown): Promise<BridgeResult<ManualCompactionResult>>;
   botContext(payload: unknown): Promise<BridgeResult<BotContextWindow>>;
   botSystemPrompt(payload: unknown): Promise<BridgeResult<BotSystemPromptView>>;
-  channelBotStop(payload: unknown): Promise<
-    BridgeResult<{
-      stopped: { botSlug: string; sessionId: string; messageId: string };
-    }>
-  >;
+  channelBotStop(
+    payload: unknown,
+  ): Promise<BridgeResult<{ stopped: { botSlug: string; sessionId: string; messageId: string } }>>;
   sessionStop(payload: unknown): Promise<
     BridgeResult<{
       stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
@@ -661,26 +660,26 @@ export interface BridgeMethods {
   >;
   approvalRoute(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   failureAlertsSet(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
-  failureAlertsTest(payload: unknown): Promise<
-    BridgeResult<{
-      delivery: import('../messaging/failure-alerts.js').FailureAlertDelivery;
-    }>
+  failureAlertsTest(
+    payload: unknown,
+  ): Promise<
+    BridgeResult<{ delivery: import('../messaging/failure-alerts.js').FailureAlertDelivery }>
   >;
-  failureAlertsRetry(payload: unknown): Promise<
-    BridgeResult<{
-      delivery: import('../messaging/failure-alerts.js').FailureAlertDelivery;
-    }>
+  failureAlertsRetry(
+    payload: unknown,
+  ): Promise<
+    BridgeResult<{ delivery: import('../messaging/failure-alerts.js').FailureAlertDelivery }>
   >;
-  approvalTest(payload: unknown): Promise<
-    BridgeResult<{
-      delivery: import('../messaging/approval-messaging.js').ApprovalDelivery;
-    }>
+  approvalTest(
+    payload: unknown,
+  ): Promise<
+    BridgeResult<{ delivery: import('../messaging/approval-messaging.js').ApprovalDelivery }>
   >;
   questionRetry(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
-  approvalRetry(payload: unknown): Promise<
-    BridgeResult<{
-      delivery: import('../messaging/approval-messaging.js').ApprovalDelivery;
-    }>
+  approvalRetry(
+    payload: unknown,
+  ): Promise<
+    BridgeResult<{ delivery: import('../messaging/approval-messaging.js').ApprovalDelivery }>
   >;
   pairingReview(payload: unknown): Promise<BridgeResult<{ pairing: PairingRequest }>>;
   senderAccess(payload: unknown): Promise<BridgeResult<void>>;
@@ -712,12 +711,10 @@ export interface BridgeMethods {
   messagingConversation(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   messagingSend(payload: unknown): Promise<BridgeResult<{ intent: OutboxIntent }>>;
 
-  modelCatalog(payload: unknown): Promise<
-    BridgeResult<{
-      models: ModelCatalogEntry[];
-      default?: ModelRoute;
-      defaultRevision?: number;
-    }>
+  modelCatalog(
+    payload: unknown,
+  ): Promise<
+    BridgeResult<{ models: ModelCatalogEntry[]; default?: ModelRoute; defaultRevision?: number }>
   >;
   modelPresets(payload: unknown): BridgeResult<{ presets: ModelPreset[] }>;
   modelPresetCreate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
@@ -733,11 +730,9 @@ export interface BridgeMethods {
   list(payload: unknown): BridgeResult<{ bots: PersonaBotSummary[] }>;
   activitySnapshot(payload: unknown): BridgeResult<PersonaBotActivitySnapshot>;
   get(payload: unknown): BridgeResult<{ bot: PersonaBotDetail; profileFingerprint: string }>;
-  create(payload: unknown): BridgeResult<{
-    bot: PersonaBotDetail;
-    channelId?: string;
-    receipt?: BotCreationReceipt;
-  }>;
+  create(
+    payload: unknown,
+  ): BridgeResult<{ bot: PersonaBotDetail; channelId?: string; receipt?: BotCreationReceipt }>;
   botImportPreview(
     payload: unknown,
   ): Promise<BridgeResult<Awaited<ReturnType<BotImportsService['previewGit']>>>>;
@@ -746,12 +741,10 @@ export interface BridgeMethods {
   zipUploadChunk(payload: unknown): BridgeResult<BotZipUploadStatus>;
   zipUploadPreview(payload: unknown): BridgeResult<BotZipPreview>;
   zipImportLookup(payload: unknown): BridgeResult<{ receipt: BotCreationReceipt | null }>;
-  zipImport(payload: unknown): Promise<
-    BridgeResult<{
-      bot: PersonaBotDetail;
-      channelId: string;
-      receipt?: BotCreationReceipt;
-    }>
+  zipImport(
+    payload: unknown,
+  ): Promise<
+    BridgeResult<{ bot: PersonaBotDetail; channelId: string; receipt?: BotCreationReceipt }>
   >;
   createLookup(payload: unknown): BridgeResult<{ receipt: BotCreationReceipt | null }>;
   createFromGit(payload: unknown): Promise<
@@ -768,17 +761,17 @@ export interface BridgeMethods {
   deletionPreview(payload: unknown): BridgeResult<{ preview: PersonaBotDeletionPreview }>;
   deletionConfirm(payload: unknown): Promise<BridgeResult<{ deletion: PersonaBotDeletion }>>;
   deletionRetry(payload: unknown): Promise<BridgeResult<{ deletion: PersonaBotDeletion }>>;
-  deletionMemoryFolder(payload: unknown): BridgeResult<{
-    target: { path: string; relativePath: string; kind: 'directory' };
-  }>;
+  deletionMemoryFolder(
+    payload: unknown,
+  ): BridgeResult<{ target: { path: string; relativePath: string; kind: 'directory' } }>;
   pause(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   resume(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
+  ping(payload: unknown): BridgeResult<{ ok: true }>;
   humanIdentity(payload: unknown): BridgeResult<LocalHumanIdentity>;
   composerIdentity(payload: unknown): BridgeResult<ComposerRecoveryIdentity>;
-  composerValidate(payload: unknown): BridgeResult<{
-    reply?: ChannelMessage;
-    attachments: Array<ChannelAttachmentRef | null>;
-  }>;
+  composerValidate(
+    payload: unknown,
+  ): BridgeResult<{ reply?: ChannelMessage; attachments: Array<ChannelAttachmentRef | null> }>;
   humanNameSet(payload: unknown): BridgeResult<LocalHumanIdentity>;
   channelHumanNameSet(payload: unknown): BridgeResult<{ channel: ChannelListItem }>;
   channels(payload: unknown): Promise<BridgeResult<{ channels: ChannelListItem[] }>>;
@@ -834,19 +827,14 @@ export interface BridgeMethods {
   humanAttention(payload: unknown): BridgeResult<HumanAttentionPage>;
   humanAssignmentContext(payload: unknown): BridgeResult<{ context: HumanAssignmentContext }>;
   humanAttentionStatus(payload: unknown): BridgeResult<HumanAttentionStatus>;
-  channelUnreadCounts(payload: unknown): BridgeResult<{
-    channels: Array<{ channelId: string; unreadCount: number }>;
-  }>;
+  channelUnreadCounts(
+    payload: unknown,
+  ): BridgeResult<{ channels: Array<{ channelId: string; unreadCount: number }> }>;
   humanAttentionDismiss(payload: unknown): BridgeResult<{ accepted: boolean }>;
   humanAttentionRestore(payload: unknown): BridgeResult<{ accepted: boolean }>;
-  humanAttentionDismissAll(payload: unknown): Promise<
-    BridgeResult<{
-      accepted: boolean;
-      dismissed: number;
-      read: number;
-      more: boolean;
-    }>
-  >;
+  humanAttentionDismissAll(
+    payload: unknown,
+  ): Promise<BridgeResult<{ accepted: boolean; dismissed: number; read: number; more: boolean }>>;
   humanAttentionIgnore(payload: unknown): BridgeResult<{ accepted: boolean }>;
   humanAttentionSnooze(payload: unknown): BridgeResult<{ accepted: boolean }>;
   assignments(payload: unknown): BridgeResult<{ assignments: AssignmentSummary[] }>;
@@ -867,12 +855,12 @@ export interface BridgeMethods {
       omittedSubagents: number;
     }>
   >;
-  workspaceOptions(payload: unknown): BridgeResult<{
-    workspaces: { id: string; path: string; title: string }[];
-  }>;
-  workspaceFileTarget(payload: unknown): BridgeResult<{
-    target: { path: string; relativePath: ''; kind: 'directory' };
-  }>;
+  workspaceOptions(
+    payload: unknown,
+  ): BridgeResult<{ workspaces: { id: string; path: string; title: string }[] }>;
+  workspaceFileTarget(
+    payload: unknown,
+  ): BridgeResult<{ target: { path: string; relativePath: ''; kind: 'directory' } }>;
   folderBrowse(payload: unknown): Promise<BridgeResult<FolderListing>>;
   grants(payload: unknown): BridgeResult<{ grants: WorkspaceGrant[] }>;
   grantCreate(
@@ -909,14 +897,9 @@ export interface BridgeMethods {
     payload: unknown,
   ): Promise<BridgeResult<{ slug: string; sessionId: string; turns: TurnInputView[] }>>;
   botTools(payload: unknown): BridgeResult<{ sessionId: 'direct'; tools: DirectBotToolSpec[] }>;
-  botToolRun(payload: unknown): Promise<
-    BridgeResult<{
-      slug: string;
-      tool: string;
-      sessionId: 'direct';
-      result: unknown;
-    }>
-  >;
+  botToolRun(
+    payload: unknown,
+  ): Promise<BridgeResult<{ slug: string; tool: string; sessionId: 'direct'; result: unknown }>>;
   sessionArchiveSet(payload: unknown): Promise<BridgeResult<{ archived: boolean }>>;
   memoryMove(
     payload: unknown,
@@ -949,10 +932,9 @@ export interface BridgeMethods {
   memoryRecoveryHistory(
     payload: unknown,
   ): BridgeResult<{ checkpoints: MemoryRecoveryCheckpoint[] }>;
-  memoryRestore(payload: unknown): BridgeResult<{
-    checkpoint: MemoryRecoveryCheckpoint;
-    archivePath: string;
-  }>;
+  memoryRestore(
+    payload: unknown,
+  ): BridgeResult<{ checkpoint: MemoryRecoveryCheckpoint; archivePath: string }>;
   memorySave(payload: unknown): BridgeResult<{ commit: MemoryAcceptedCommit }>;
   memoryRestoreCommit(payload: unknown): BridgeResult<{
     head: string;
@@ -985,10 +967,9 @@ export interface BridgeMethods {
   computerAccessSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   browserAccessSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   browserProfileSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  approvalTemplates(payload?: unknown): BridgeResult<{
-    templates: ApprovalTemplateEntry[];
-    selected?: string | null;
-  }>;
+  approvalTemplates(
+    payload?: unknown,
+  ): BridgeResult<{ templates: ApprovalTemplateEntry[]; selected?: string | null }>;
   approvalTemplateCreate(payload: unknown): BridgeResult<{ template: ApprovalTemplateEntry }>;
   approvalTemplateUpdate(payload: unknown): BridgeResult<{ template: ApprovalTemplateEntry }>;
   promptParts(
@@ -1032,12 +1013,7 @@ export interface BridgeMethods {
   partLibraryImport(payload: unknown): BridgeResult<{
     added: PartLibraryEntry[];
     refused: { name: string; reason: string }[];
-    image?: {
-      width: number;
-      height: number;
-      colors: number;
-      slots: PartSlot[];
-    };
+    image?: { width: number; height: number; colors: number; slots: PartSlot[] };
   }>;
   partLibraryImportImage(payload: unknown): BridgeResult<{ entry: PartLibraryEntry }>;
   marketplaceList(payload: unknown): Promise<BridgeResult<MarketplacePage>>;
@@ -1269,12 +1245,7 @@ export interface BridgeMethodsDeps {
 function unmanagedGitStatus(): GitStatus {
   const git = probeGit();
   return git.available
-    ? {
-        ...git,
-        source: 'system',
-        installable: false,
-        install: { phase: 'idle' },
-      }
+    ? { ...git, source: 'system', installable: false, install: { phase: 'idle' } }
     : { ...git, installable: false, install: { phase: 'idle' } };
 }
 
@@ -1363,10 +1334,7 @@ function parseCreation(
     ...(avatar.value === undefined ? {} : { avatar: avatar.value }),
     ...(memoryLocation.value === undefined ? {} : { memoryLocation: memoryLocation.value }),
   };
-  return {
-    ok: true,
-    value: { input, ...(operationKey === undefined ? {} : { operationKey }) },
-  };
+  return { ok: true, value: { input, ...(operationKey === undefined ? {} : { operationKey }) } };
 }
 
 function parseZipUpload(payload: unknown): BotZipUploadIdentity | undefined {
@@ -1443,10 +1411,7 @@ const parseWorkspaces = (source: Record<string, unknown>): ParsedField<string[]>
 function releaseUnavailable(): BridgeResult<never> {
   return {
     ok: false,
-    error: {
-      code: 'release-unavailable',
-      message: 'Release information is unavailable',
-    },
+    error: { code: 'release-unavailable', message: 'Release information is unavailable' },
   };
 }
 
@@ -1462,10 +1427,7 @@ const TUTORIAL_EVENTS: Record<TutorialAction, TelemetryEventName> = {
 function telemetryUnavailable(): BridgeResult<never> {
   return {
     ok: false,
-    error: {
-      code: 'telemetry-unavailable',
-      message: 'Usage statistics are unavailable',
-    },
+    error: { code: 'telemetry-unavailable', message: 'Usage statistics are unavailable' },
   };
 }
 
@@ -1503,10 +1465,7 @@ function promptPresetFailure(reason: PromptPresetFailure): BridgeResult<never> {
     'duplicate-name': 'Another Prompt Preset already has this name',
     unavailable: 'Prompt Presets are unavailable',
   };
-  return {
-    ok: false,
-    error: { code: `prompt-preset-${reason}`, message: message[reason] },
-  };
+  return { ok: false, error: { code: `prompt-preset-${reason}`, message: message[reason] } };
 }
 
 function botPromptView(
@@ -1590,17 +1549,11 @@ function templateWriteFailure(
     'built-in': 'template-read-only',
     unavailable: 'unavailable',
   } as const;
-  return {
-    ok: false,
-    error: { code: codes[reason], message: messages[reason] },
-  };
+  return { ok: false, error: { code: codes[reason], message: messages[reason] } };
 }
 
 function unknownBot(slug: string): BridgeResult<never> {
-  return {
-    ok: false,
-    error: { code: 'not-found', message: `unknown PersonaBot: ${slug}` },
-  };
+  return { ok: false, error: { code: 'not-found', message: `unknown PersonaBot: ${slug}` } };
 }
 
 function botInChannel(channel: ChannelRecord, botSlug: string): boolean {
@@ -1608,10 +1561,7 @@ function botInChannel(channel: ChannelRecord, botSlug: string): boolean {
 }
 
 function unknownChannel(id: string): BridgeResult<never> {
-  return {
-    ok: false,
-    error: { code: 'not-found', message: `unknown Channel: ${id}` },
-  };
+  return { ok: false, error: { code: 'not-found', message: `unknown Channel: ${id}` } };
 }
 
 function dmAdmissionFailure(
@@ -1637,10 +1587,7 @@ function dmAdmissionFailure(
     case 'blank-body':
       return invalidInput('body is required');
     case 'runtime-closed':
-      return {
-        ok: false,
-        error: { code: 'unavailable', message: 'Bot runtime is closed' },
-      };
+      return { ok: false, error: { code: 'unavailable', message: 'Bot runtime is closed' } };
   }
 }
 
@@ -1681,10 +1628,7 @@ const HUMAN_ATTENTION_DISMISS_KINDS: ReadonlySet<string> = new Set<HumanAttentio
 function directToolsUnavailable(): BridgeResult<never> {
   return {
     ok: false,
-    error: {
-      code: 'unavailable',
-      message: 'Direct Bot tools are unavailable on this Host',
-    },
+    error: { code: 'unavailable', message: 'Direct Bot tools are unavailable on this Host' },
   };
 }
 
@@ -1751,28 +1695,19 @@ async function subagentSessionsOf(
 function unavailable(): BridgeResult<never> {
   return {
     ok: false,
-    error: {
-      code: 'storage-unavailable',
-      message: 'roster storage is unavailable',
-    },
+    error: { code: 'storage-unavailable', message: 'roster storage is unavailable' },
   };
 }
 
 function unknownSection(sectionId: string): BridgeResult<never> {
   return {
     ok: false,
-    error: {
-      code: 'not-found',
-      message: `unknown Channel section: ${sectionId}`,
-    },
+    error: { code: 'not-found', message: `unknown Channel section: ${sectionId}` },
   };
 }
 
 const sectionCreatePayload = z.object({ name: z.string() });
-const sectionRenamePayload = z.object({
-  sectionId: z.string().min(1),
-  name: z.string(),
-});
+const sectionRenamePayload = z.object({ sectionId: z.string().min(1), name: z.string() });
 const sectionRemovePayload = z.object({ sectionId: z.string().min(1) });
 const channelAssignPayload = z.object({
   channelId: z.string().min(1),
@@ -1785,10 +1720,7 @@ const topReorderPayload = z.object({
 });
 const pinsSetPayload = z.object({ pins: z.array(z.string()) });
 const hiddenSetPayload = z.object({ hidden: z.array(z.string()) });
-const channelMuteSetPayload = z.object({
-  channelId: z.string().trim().min(1),
-  muted: z.boolean(),
-});
+const channelMuteSetPayload = z.object({ channelId: z.string().trim().min(1), muted: z.boolean() });
 const rosterBatchPayload = z.object({
   action: z.enum(['pin', 'unpin', 'hide', 'move']),
   channelIds: z
@@ -1812,16 +1744,10 @@ function createFailure(
     case 'duplicate':
       return {
         ok: false,
-        error: {
-          code: 'duplicate',
-          message: `PersonaBot already exists: ${slug}`,
-        },
+        error: { code: 'duplicate', message: `PersonaBot already exists: ${slug}` },
       };
     case 'invalid-slug':
-      return {
-        ok: false,
-        error: { code: 'invalid-slug', message: `invalid slug: ${slug}` },
-      };
+      return { ok: false, error: { code: 'invalid-slug', message: `invalid slug: ${slug}` } };
     case 'invalid-input':
       return invalidInput('invalid PersonaBot input');
     case 'invalid-memory-dir':
@@ -1877,10 +1803,7 @@ function createFailure(
     case 'invalid-zip':
       return {
         ok: false,
-        error: {
-          code: 'invalid-zip',
-          message: 'The zip file could not be unpacked.',
-        },
+        error: { code: 'invalid-zip', message: 'The zip file could not be unpacked.' },
       };
     case 'memory-unavailable':
       return {
@@ -2019,10 +1942,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       return invalidInput('autoContinueFor must be a message id');
     if (autoContinueFor !== undefined) {
       if (channelId === undefined) return invalidInput('autoContinueFor needs a channelId');
-      const cancelled = await deps.runtime?.stopTurn?.(botSlug, {
-        autoContinueFor,
-        channelId,
-      });
+      const cancelled = await deps.runtime?.stopTurn?.(botSlug, { autoContinueFor, channelId });
       if (cancelled === undefined) return { ok: true, value: { stopped: [], alreadyIdle: [] } };
       const human = deps.channels.listHumanMembers(channelId)[0]?.displayName ?? 'Human';
       const appended = await deps.channels.appendMessage(channelId, {
@@ -2137,10 +2057,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     if (deps.marketplace === undefined) {
       return {
         ok: false,
-        error: {
-          code: 'marketplace-unavailable',
-          message: 'Bot Marketplace is unavailable',
-        },
+        error: { code: 'marketplace-unavailable', message: 'Bot Marketplace is unavailable' },
       };
     }
     const result = await operation(deps.marketplace);
@@ -2174,15 +2091,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       },
     };
   };
-  const marketplaceUnavailable = (): {
-    ok: false;
-    error: { code: string; message: string };
-  } => ({
+  const marketplaceUnavailable = (): { ok: false; error: { code: string; message: string } } => ({
     ok: false,
-    error: {
-      code: 'marketplace-unavailable',
-      message: 'Bot Marketplace is unavailable',
-    },
+    error: { code: 'marketplace-unavailable', message: 'Bot Marketplace is unavailable' },
   });
   const shareDraftSlug = (payload: unknown): string | undefined => {
     const slug = asSlug(payload);
@@ -2197,13 +2108,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
   ): BridgeResult<ShareDraftView> =>
     uploadResult(
       result.ok
-        ? {
-            ok: true,
-            value: {
-              ...result.value,
-              summary: summarizeShareDraft(result.value),
-            },
-          }
+        ? { ok: true, value: { ...result.value, summary: summarizeShareDraft(result.value) } }
         : result,
     );
   const uploadResult = <T>(
@@ -2232,10 +2137,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     if (deps.externalMessaging === undefined)
       return {
         ok: false,
-        error: {
-          code: 'messaging-unavailable',
-          message: 'External messaging is unavailable',
-        },
+        error: { code: 'messaging-unavailable', message: 'External messaging is unavailable' },
       };
     try {
       return { ok: true, value: await operation(deps.externalMessaging) };
@@ -2300,26 +2202,17 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     if (deps.memory === undefined) {
       return {
         ok: false,
-        error: {
-          code: 'memory-unavailable',
-          message: 'Memory Service unavailable',
-        },
+        error: { code: 'memory-unavailable', message: 'Memory Service unavailable' },
       };
     }
     try {
       return { ok: true, value: operation() };
     } catch (error) {
       if (error instanceof MemoryAcceptError || error instanceof MemoryImageError) {
-        return {
-          ok: false,
-          error: { code: error.code, message: error.message },
-        };
+        return { ok: false, error: { code: error.code, message: error.message } };
       }
       if (error instanceof MemoryFileError)
-        return {
-          ok: false,
-          error: { code: error.code, message: error.message },
-        };
+        return { ok: false, error: { code: error.code, message: error.message } };
       if (error instanceof MemoryPathError) return invalidInput(error.message);
       throw error;
     }
@@ -2332,10 +2225,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     const slug = asSlug(payload);
     if (slug === undefined) return invalidInput('slug is required');
     if (paused && deps.tob?.isTob(slug))
-      return {
-        ok: false,
-        error: { code: 'protected-bot', message: 'Tob cannot be archived' },
-      };
+      return { ok: false, error: { code: 'protected-bot', message: 'Tob cannot be archived' } };
     const result = deps.registry.setPaused(slug, paused);
     if (!result.ok) return unknownBot(slug);
     if (paused) deps.channels.cancelInvitationsForBot(slug);
@@ -2363,10 +2253,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
   };
 
   return {
-    ...createVoiceBridgeMethods({
-      providers: deps.voiceProviders,
-      registry: deps.registry,
-    }),
+    ...createVoiceBridgeMethods({ providers: deps.voiceProviders, registry: deps.registry }),
     channelBridges(payload) {
       const input = z
         .object({ channelId: z.string().min(1).max(128) })
@@ -2385,10 +2272,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     },
     channelIngest(payload) {
       const input = z
-        .object({
-          channelId: z.string().min(1).max(128),
-          input: conversationIngestInput,
-        })
+        .object({ channelId: z.string().min(1).max(128), input: conversationIngestInput })
         .strict()
         .safeParse(payload);
       if (!input.success)
@@ -2400,10 +2284,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     },
     channelBridge(payload) {
       const input = z
-        .object({
-          channelId: z.string().min(1).max(128),
-          input: channelBridgeInput,
-        })
+        .object({ channelId: z.string().min(1).max(128), input: channelBridgeInput })
         .strict()
         .safeParse(payload);
       if (!input.success) return Promise.resolve(invalidInput('Invalid Channel Bridge command'));
@@ -2470,11 +2351,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     },
     messagingReceive(payload) {
       const input = z
-        .object({
-          slug: z.string().min(1),
-          grantId: z.string().uuid(),
-          enabled: z.boolean(),
-        })
+        .object({ slug: z.string().min(1), grantId: z.string().uuid(), enabled: z.boolean() })
         .strict()
         .safeParse(payload);
       if (!input.success) return Promise.resolve(invalidInput('Invalid receive setting'));
@@ -2485,10 +2362,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     },
     messagingSource(payload) {
       const input = z
-        .object({
-          slug: z.string().min(1),
-          sourceEventId: z.string().min(1).max(128),
-        })
+        .object({ slug: z.string().min(1), sourceEventId: z.string().min(1).max(128) })
         .strict()
         .safeParse(payload);
       if (!input.success) return Promise.resolve(invalidInput('Invalid external source'));
@@ -2790,10 +2664,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     },
     messagingTargets(payload) {
       const input = z
-        .object({
-          providerId: z.string().min(1),
-          accountRef: z.string().min(1),
-        })
+        .object({ providerId: z.string().min(1), accountRef: z.string().min(1) })
         .strict()
         .safeParse(payload);
       if (!input.success) return Promise.resolve(invalidInput('Invalid target query'));
@@ -2814,9 +2685,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         .strict()
         .safeParse(payload);
       if (!input.success) return Promise.resolve(invalidInput('Invalid authorization'));
-      return messagingCall(async (service) => ({
-        grant: await service.authorize(input.data),
-      }));
+      return messagingCall(async (service) => ({ grant: await service.authorize(input.data) }));
     },
     messagingRevoke(payload) {
       const input = z
@@ -2831,10 +2700,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     },
     messagingConversation(payload) {
       const conversation = z
-        .object({
-          kind: z.enum(['dm', 'group']),
-          id: z.string().min(1).max(512),
-        })
+        .object({ kind: z.enum(['dm', 'group']), id: z.string().min(1).max(512) })
         .strict();
       const revision = z.number().int().min(0);
       const input = z
@@ -2919,10 +2785,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       try {
         const home = await deps.tob.ensure();
         const attention = deps.humanAttention?.status();
-        return {
-          ok: true,
-          value: { ...home, ...(attention ? { attention } : {}) },
-        };
+        return { ok: true, value: { ...home, ...(attention ? { attention } : {}) } };
       } catch (error) {
         return {
           ok: false,
@@ -2971,10 +2834,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return invalidInput('Bot and expected revision required');
       const result = deps.registry.inheritModel(slug, revision as number);
       if (!result.ok) return invalidInput('Bot model changed; reopen before saving');
-      return {
-        ok: true,
-        value: { revision: result.record.modelPlanRevision ?? 0 },
-      };
+      return { ok: true, value: { revision: result.record.modelPlanRevision ?? 0 } };
     },
     telemetryEvent(payload) {
       const source = asObject(payload);
@@ -3092,10 +2952,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           revision as number,
         );
         if (!result.ok) return invalidInput('Bot model changed; reopen before saving');
-        return {
-          ok: true,
-          value: { revision: result.record.modelPlan!.revision },
-        };
+        return { ok: true, value: { revision: result.record.modelPlan!.revision } };
       } catch (error) {
         if ((error as { code?: string }).code === 'SETTINGS_CONFLICT')
           return {
@@ -3143,10 +3000,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return { ok: true, value: { accepted: true } };
       } catch (error) {
         if (error instanceof SessionRecoveryError)
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
+          return { ok: false, error: { code: error.code, message: error.message } };
         return invalidInput(error instanceof Error ? error.message : 'Retry unavailable');
       }
     },
@@ -3160,19 +3014,13 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         if (outcome === 'busy')
           return {
             ok: false,
-            error: {
-              code: 'bot-busy',
-              message: 'Stop the Bot before starting a fresh Session',
-            },
+            error: { code: 'bot-busy', message: 'Stop the Bot before starting a fresh Session' },
           };
         return { ok: true, value: { started: true } };
       } catch {
         return {
           ok: false,
-          error: {
-            code: 'session-reset-failed',
-            message: 'Could not start a fresh Session',
-          },
+          error: { code: 'session-reset-failed', message: 'Could not start a fresh Session' },
         };
       }
     },
@@ -3186,24 +3034,15 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         if (result.outcome === 'busy')
           return {
             ok: false,
-            error: {
-              code: 'bot-busy',
-              message: 'Stop the Bot before compacting its Session',
-            },
+            error: { code: 'bot-busy', message: 'Stop the Bot before compacting its Session' },
           };
         return { ok: true, value: result };
       } catch (error) {
         if (error instanceof SessionRecoveryError)
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
+          return { ok: false, error: { code: error.code, message: error.message } };
         return {
           ok: false,
-          error: {
-            code: 'compaction-failed',
-            message: 'Could not compact the Session',
-          },
+          error: { code: 'compaction-failed', message: 'Could not compact the Session' },
         };
       }
     },
@@ -3245,19 +3084,14 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (stopped.value.messageId === undefined)
         return {
           ok: false,
-          error: {
-            code: 'not-working',
-            message: `${bot.displayName} is not working right now`,
-          },
+          error: { code: 'not-working', message: `${bot.displayName} is not working right now` },
         };
       const sessionId =
         stopped.value.stopped.find((ref) => ref.role === 'orchestrator')?.sessionId ??
         stopped.value.stopped[0]!.sessionId;
       return {
         ok: true,
-        value: {
-          stopped: { botSlug, sessionId, messageId: stopped.value.messageId },
-        },
+        value: { stopped: { botSlug, sessionId, messageId: stopped.value.messageId } },
       };
     },
     async botStop(payload) {
@@ -3277,23 +3111,25 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     async sessionStop(payload) {
       const source = asObject(payload);
       const botSlug = asNonBlank(source, 'botSlug');
-      const sessionId = asNonBlank(source, 'sessionId');
-      if (!botSlug || !sessionId) return invalidInput('botSlug and sessionId are required');
+      const activityId = asNonBlank(source, 'activityId');
+      if (!botSlug || (source['sessionId'] === undefined) === (activityId === undefined))
+        return invalidInput('botSlug and exactly one of sessionId or activityId are required');
       const bot = deps.registry.get(botSlug);
       if (bot === undefined) return unknownBot(botSlug);
       const channelId = asNonBlank(source, 'channelId');
       if (source['channelId'] !== undefined && channelId === undefined)
         return invalidInput('channelId must be a Channel id');
       if (deps.runtime?.stopSession === undefined) return unavailable();
-      const outcome = await deps.runtime.stopSession(
-        botSlug,
-        deps.states.sessionForActivity?.(botSlug, sessionId) ?? sessionId,
-      );
+      const sessionId =
+        activityId === undefined
+          ? asNonBlank(source, 'sessionId')
+          : deps.states.sessionIdForActivity(botSlug, activityId);
+      if (activityId !== undefined && sessionId === undefined)
+        return { ok: true, value: { stopped: [], alreadyIdle: [] } };
+      if (!sessionId) return invalidInput('sessionId must be a Session id');
+      const outcome = await deps.runtime.stopSession(botSlug, sessionId);
       if (outcome.outcome === 'refused')
-        return {
-          ok: false,
-          error: { code: outcome.code, message: outcome.message },
-        };
+        return { ok: false, error: { code: outcome.code, message: outcome.message } };
       const ref = outcome.stopped[0];
       const channel = channelId === undefined ? undefined : deps.channels.get(channelId);
       const related =
@@ -3619,10 +3455,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.deletions === undefined) return unavailable();
       try {
         if (deps.tob?.isTob(slug))
-          return {
-            ok: false,
-            error: { code: 'protected-bot', message: 'Tob cannot be deleted' },
-          };
+          return { ok: false, error: { code: 'protected-bot', message: 'Tob cannot be deleted' } };
         return { ok: true, value: { preview: deps.deletions.preview(slug) } };
       } catch (error) {
         return invalidInput(
@@ -3642,10 +3475,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.deletions === undefined) return unavailable();
       try {
         if (deps.tob?.isTob(slug))
-          return {
-            ok: false,
-            error: { code: 'protected-bot', message: 'Tob cannot be deleted' },
-          };
+          return { ok: false, error: { code: 'protected-bot', message: 'Tob cannot be deleted' } };
         const result = deps.deletions.confirm(slug, source['token'], source['eraseMemory']);
         deps.computerAccess?.changed(slug);
         deps.browserAccess?.changed(slug);
@@ -3659,10 +3489,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (slug === undefined) return invalidInput('slug is required');
       if (deps.deletions === undefined) return unavailable();
       try {
-        return {
-          ok: true,
-          value: { deletion: await deps.deletions.retry(slug) },
-        };
+        return { ok: true, value: { deletion: await deps.deletions.retry(slug) } };
       } catch (error) {
         return invalidInput(error instanceof Error ? error.message : 'Deletion retry unavailable');
       }
@@ -3749,10 +3576,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.channels.humanMessageCounts === undefined)
         return {
           ok: false,
-          error: {
-            code: 'storage-unavailable',
-            message: 'Channel activity query unavailable',
-          },
+          error: { code: 'storage-unavailable', message: 'Channel activity query unavailable' },
         };
       return {
         ok: true,
@@ -3791,10 +3615,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
               state,
               ...(assignment === undefined
                 ? {}
-                : {
-                    title: assignment.title,
-                    description: assignment.description,
-                  }),
+                : { title: assignment.title, description: assignment.description }),
             });
         }
         return {
@@ -3862,10 +3683,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           };
         } catch (error) {
           if (error instanceof BotCreationError)
-            return {
-              ok: false,
-              error: { code: error.code, message: error.message },
-            };
+            return { ok: false, error: { code: error.code, message: error.message } };
           throw error;
         }
       }
@@ -3896,18 +3714,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           },
         };
       try {
-        return {
-          ok: true,
-          value: {
-            receipt: deps.creations.lookup(operationKey, input) ?? null,
-          },
-        };
+        return { ok: true, value: { receipt: deps.creations.lookup(operationKey, input) ?? null } };
       } catch (error) {
         if (error instanceof BotCreationError)
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
+          return { ok: false, error: { code: error.code, message: error.message } };
         throw error;
       }
     },
@@ -3930,10 +3740,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return invalidInput('An upload chunk is required');
       if (!deps.zipImports) return unavailable();
       try {
-        return {
-          ok: true,
-          value: deps.zipImports.chunk({ ...input, offset, dataBase64 }),
-        };
+        return { ok: true, value: deps.zipImports.chunk({ ...input, offset, dataBase64 }) };
       } catch (error) {
         return zipFailure(error);
       }
@@ -3953,10 +3760,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (!input) return invalidInput('The original import input is required');
       if (!deps.zipImports) return unavailable();
       try {
-        return {
-          ok: true,
-          value: { receipt: deps.zipImports.lookup(input) ?? null },
-        };
+        return { ok: true, value: { receipt: deps.zipImports.lookup(input) ?? null } };
       } catch (error) {
         return zipFailure(error);
       }
@@ -4020,16 +3824,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           ...(roles.value === undefined ? {} : { roles: roles.value }),
           ...(description.value === undefined ? {} : { description: description.value }),
         });
-        return {
-          ok: true,
-          value: { receipt: imports.lookup(operationKey, input) ?? null },
-        };
+        return { ok: true, value: { receipt: imports.lookup(operationKey, input) ?? null } };
       } catch (error) {
         if (error instanceof BotCreationError)
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
+          return { ok: false, error: { code: error.code, message: error.message } };
         throw error;
       }
     },
@@ -4111,10 +3909,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           };
         } catch (error) {
           if (error instanceof BotCreationError)
-            return {
-              ok: false,
-              error: { code: error.code, message: error.message },
-            };
+            return { ok: false, error: { code: error.code, message: error.message } };
           throw error;
         }
       }
@@ -4167,10 +3962,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       return marketplaceCall(async (client) => {
         const page = await client.list(query);
         return page.ok
-          ? {
-              ok: true,
-              value: { ...page.value, bots: page.value.bots.map(withInstalls) },
-            }
+          ? { ok: true, value: { ...page.value, bots: page.value.bots.map(withInstalls) } }
           : page;
       });
     },
@@ -4274,10 +4066,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     telemetryStatus() {
       return {
         ok: true,
-        value: deps.telemetry?.status() ?? {
-          enabled: false,
-          preference: false,
-        },
+        value: deps.telemetry?.status() ?? { enabled: false, preference: false },
       };
     },
     gitStatus() {
@@ -4312,10 +4101,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       return marketplaceCall(async (client) => {
         const detail = await client.detail(id.trim(), lang);
         return detail.ok
-          ? {
-              ok: true,
-              value: { ...detail.value, bot: withInstalls(detail.value.bot) },
-            }
+          ? { ok: true, value: { ...detail.value, bot: withInstalls(detail.value.bot) } }
           : detail;
       });
     },
@@ -4355,10 +4141,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       }
       const trimmed = reason?.trim() ?? '';
       return marketplaceCall((client) =>
-        client.report(id.trim(), {
-          altcha,
-          ...(trimmed.length === 0 ? {} : { reason: trimmed }),
-        }),
+        client.report(id.trim(), { altcha, ...(trimmed.length === 0 ? {} : { reason: trimmed }) }),
       );
     },
     async marketplaceAccount() {
@@ -4443,10 +4226,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           ? {
               ok: true,
               value: {
-                bots: mine.value.map((entry) => ({
-                  ...entry,
-                  bot: withInstalls(entry.bot),
-                })),
+                bots: mine.value.map((entry) => ({ ...entry, bot: withInstalls(entry.bot) })),
               },
             }
           : mine,
@@ -4532,10 +4312,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (typeof reviewId !== 'string' || reviewId.length === 0)
         return {
           ok: false,
-          error: {
-            code: 'review-required',
-            message: 'Run marketplaceInstallReview first',
-          },
+          error: { code: 'review-required', message: 'Run marketplaceInstallReview first' },
         };
       if (operationKey !== undefined && typeof operationKey !== 'string')
         return invalidInput('invalid operationKey');
@@ -4575,10 +4352,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         };
       } catch (error) {
         if (error instanceof BotCreationError)
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
+          return { ok: false, error: { code: error.code, message: error.message } };
         throw error;
       }
     },
@@ -4705,10 +4479,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (slug === undefined) return invalidInput('slug must be a Bot id');
       const record = deps.registry.get(slug);
       if (record === undefined) return unknownBot(slug);
-      return {
-        ok: true,
-        value: { templates, selected: record.approvalTemplate ?? null },
-      };
+      return { ok: true, value: { templates, selected: record.approvalTemplate ?? null } };
     },
     approvalTemplateCreate(payload) {
       const object = asObject(payload);
@@ -4764,10 +4535,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const library = deps.prompts.library;
       return {
         ok: true,
-        value: {
-          presets: library.list(),
-          globalPresetId: library.globalPresetId() ?? null,
-        },
+        value: { presets: library.list(), globalPresetId: library.globalPresetId() ?? null },
       };
     },
     promptPresetCreate(payload) {
@@ -4779,11 +4547,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return invalidInput(
           'name, optional parts ({partId: text}) and limits ({limitId: integer in range}) are required',
         );
-      const result = deps.prompts.library.create({
-        name: source['name'],
-        parts,
-        limits,
-      });
+      const result = deps.prompts.library.create({ name: source['name'], parts, limits });
       return result.ok
         ? { ok: true, value: { preset: result.value } }
         : promptPresetFailure(result.reason);
@@ -4871,14 +4635,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         ...(presetId === undefined ? {} : { preset: presetId }),
         ...(parts === undefined
           ? {}
-          : {
-              overrides: applyPromptPartEdits(record.promptOverrides ?? {}, parts),
-            }),
+          : { overrides: applyPromptPartEdits(record.promptOverrides ?? {}, parts) }),
         ...(limits === undefined
           ? {}
-          : {
-              limits: applyPromptLimitEdits(record.promptLimits ?? {}, limits),
-            }),
+          : { limits: applyPromptLimitEdits(record.promptLimits ?? {}, limits) }),
       });
       if (!result.ok) return unknownBot(slug);
       return { ok: true, value: botPromptView(deps, prompts, slug) };
@@ -5081,10 +4841,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           };
           return {
             ok: true,
-            value: {
-              fileName: partFileName(file),
-              data: encodePartFile(file).toString('base64'),
-            },
+            value: { fileName: partFileName(file), data: encodePartFile(file).toString('base64') },
           };
         }
         if (id === undefined) {
@@ -5115,10 +4872,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         };
         return {
           ok: true,
-          value: {
-            fileName: partFileName(file),
-            data: encodePartFile(file).toString('base64'),
-          },
+          value: { fileName: partFileName(file), data: encodePartFile(file).toString('base64') },
         };
       } catch (error) {
         if (error instanceof OperationalDatabaseError) return unavailable();
@@ -5192,11 +4946,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const part = partFromImage(image, slot as PartSlot, colors);
       if (typeof part === 'string') return invalidInput(partImageMessage(part));
       try {
-        const entry = deps.partLibrary.add({
-          part,
-          name,
-          origin: 'imported-image',
-        });
+        const entry = deps.partLibrary.add({ part, name, origin: 'imported-image' });
         return { ok: true, value: { entry } };
       } catch (error) {
         if (error instanceof OperationalDatabaseError) return unavailable();
@@ -5244,15 +4994,16 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (avatar !== null && !isPersonaBotAvatar(avatar)) {
         return invalidInput('avatar must be a bounded PNG, JPEG, or WebP data URL');
       }
-      const result = deps.registry.update(scope.botSlug, {
-        avatar: avatar ?? '',
-      });
+      const result = deps.registry.update(scope.botSlug, { avatar: avatar ?? '' });
       if (!result.ok) {
         return result.reason === 'not-found'
           ? unknownBot(scope.botSlug)
           : invalidInput('invalid avatar');
       }
       return { ok: true, value: detailOf(result.record) };
+    },
+    ping() {
+      return { ok: true, value: { ok: true } };
     },
     humanIdentity() {
       return { ok: true, value: deps.channels.humanIdentity() };
@@ -5264,10 +5015,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       } catch {
         return {
           ok: false,
-          error: {
-            code: 'storage-unavailable',
-            message: 'Composer recovery identity unavailable',
-          },
+          error: { code: 'storage-unavailable', message: 'Composer recovery identity unavailable' },
         };
       }
     },
@@ -5315,10 +5063,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           throw error;
         }
       });
-      return {
-        ok: true,
-        value: { ...(reply === undefined ? {} : { reply }), attachments },
-      };
+      return { ok: true, value: { ...(reply === undefined ? {} : { reply }), attachments } };
     },
     humanNameSet(payload) {
       const input = z
@@ -5327,20 +5072,14 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         .safeParse(payload);
       if (!input.success) return invalidInput('A displayName string or null is required');
       try {
-        return {
-          ok: true,
-          value: deps.channels.setHumanDefaultName(input.data.displayName),
-        };
+        return { ok: true, value: deps.channels.setHumanDefaultName(input.data.displayName) };
       } catch (error) {
         return invalidInput(error instanceof Error ? error.message : String(error));
       }
     },
     channelHumanNameSet(payload) {
       const input = z
-        .object({
-          channelId: z.string(),
-          nickname: z.string().max(128).nullable(),
-        })
+        .object({ channelId: z.string(), nickname: z.string().max(128).nullable() })
         .strict()
         .safeParse(payload);
       if (!input.success)
@@ -5349,9 +5088,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         deps.channels.setHumanNickname(input.data.channelId, input.data.nickname);
         return {
           ok: true,
-          value: {
-            channel: channelView(deps.channels.get(input.data.channelId)!),
-          },
+          value: { channel: channelView(deps.channels.get(input.data.channelId)!) },
         };
       } catch (error) {
         return invalidInput(error instanceof Error ? error.message : String(error));
@@ -5364,7 +5101,8 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         deps.channels.getOrCreateDm(bot.slug, bot.displayName);
       }
       const channels = deps.channels.list().map((channel) => {
-        const latestMessage = deps.channels.latestMessage(channel.id);
+        const latest = deps.channels.latestMessage(channel.id);
+        const latestMessage = latest === undefined ? undefined : channelPreviewMessage(latest);
         return {
           ...channelView(channel),
           ...(latestMessage === undefined ? {} : { latestMessage }),
@@ -5394,23 +5132,14 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (!deps.channelManagement)
         return {
           ok: false,
-          error: {
-            code: 'unavailable',
-            message: 'Channel management is unavailable',
-          },
+          error: { code: 'unavailable', message: 'Channel management is unavailable' },
         };
       try {
         const result = deps.channelManagement.snapshot(channelId);
-        return {
-          ok: true,
-          value: { ...result, channel: channelView(result.channel) },
-        };
+        return { ok: true, value: { ...result, channel: channelView(result.channel) } };
       } catch (error) {
         if (error instanceof ChannelManagementError)
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
+          return { ok: false, error: { code: error.code, message: error.message } };
         throw error;
       }
     },
@@ -5434,39 +5163,24 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             { name, members: [...members] },
             operationKey,
           );
-          return {
-            ok: true,
-            value: { ...result, channel: channelView(result.channel) },
-          };
+          return { ok: true, value: { ...result, channel: channelView(result.channel) } };
         } catch (error) {
           if (error instanceof ChannelManagementError)
-            return {
-              ok: false,
-              error: { code: error.code, message: error.message },
-            };
+            return { ok: false, error: { code: error.code, message: error.message } };
           throw error;
         }
       }
       if (operationKey !== undefined)
         return {
           ok: false,
-          error: {
-            code: 'unavailable',
-            message: 'Channel management is unavailable',
-          },
+          error: { code: 'unavailable', message: 'Channel management is unavailable' },
         };
       if (members.some((slug) => deps.tob?.isTob(slug)))
         return {
           ok: false,
-          error: {
-            code: 'protected-bot',
-            message: 'Tob cannot join group Channels',
-          },
+          error: { code: 'protected-bot', message: 'Tob cannot join group Channels' },
         };
-      const channel = deps.channels.createGroup({
-        name,
-        members: [...members],
-      });
+      const channel = deps.channels.createGroup({ name, members: [...members] });
       return { ok: true, value: { channel: channelView(channel) } };
     },
     channelRename(payload) {
@@ -5498,16 +5212,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             name,
             ...(expectedChannel === undefined ? {} : { expectedChannel }),
           });
-          return {
-            ok: true,
-            value: { ...result, channel: channelView(result.channel) },
-          };
+          return { ok: true, value: { ...result, channel: channelView(result.channel) } };
         } catch (error) {
           if (error instanceof ChannelManagementError)
-            return {
-              ok: false,
-              error: { code: error.code, message: error.message },
-            };
+            return { ok: false, error: { code: error.code, message: error.message } };
           throw error;
         }
       }
@@ -5518,9 +5226,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       let bot: PersonaBotDetail | undefined;
       if (existing.type === 'dm' && existing.botSlug !== undefined) {
         if (deps.registry.get(existing.botSlug) === undefined) return unknownBot(existing.botSlug);
-        const result = deps.registry.update(existing.botSlug, {
-          displayName: name,
-        });
+        const result = deps.registry.update(existing.botSlug, { displayName: name });
         if (!result.ok) return unknownBot(existing.botSlug);
         bot = detailOf(result.record).bot;
       }
@@ -5528,10 +5234,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (channel === undefined) return unknownChannel(channelId);
       return {
         ok: true,
-        value: {
-          channel: channelView(channel),
-          ...(bot === undefined ? {} : { bot }),
-        },
+        value: { channel: channelView(channel), ...(bot === undefined ? {} : { bot }) },
       };
     },
     channelGroupAvatarSet(payload) {
@@ -5553,16 +5256,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             avatar,
             ...(expectedChannel === undefined ? {} : { expectedChannel }),
           });
-          return {
-            ok: true,
-            value: { ...result, channel: channelView(result.channel) },
-          };
+          return { ok: true, value: { ...result, channel: channelView(result.channel) } };
         } catch (error) {
           if (error instanceof ChannelManagementError)
-            return {
-              ok: false,
-              error: { code: error.code, message: error.message },
-            };
+            return { ok: false, error: { code: error.code, message: error.message } };
           throw error;
         }
       }
@@ -5570,9 +5267,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       try {
         return {
           ok: true,
-          value: {
-            channel: channelView(deps.channels.setGroupAvatar(channelId, avatar)),
-          },
+          value: { channel: channelView(deps.channels.setGroupAvatar(channelId, avatar)) },
         };
       } catch (error) {
         return invalidInput(String(error));
@@ -5596,41 +5291,25 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.channelManagement) {
         try {
           const result = deps.channelManagement.invite(
-            {
-              channelId,
-              botSlug,
-              ...(expectedChannel === undefined ? {} : { expectedChannel }),
-            },
+            { channelId, botSlug, ...(expectedChannel === undefined ? {} : { expectedChannel }) },
             operationKey,
           );
-          return {
-            ok: true,
-            value: { ...result, channel: channelView(result.channel) },
-          };
+          return { ok: true, value: { ...result, channel: channelView(result.channel) } };
         } catch (error) {
           if (error instanceof ChannelManagementError)
-            return {
-              ok: false,
-              error: { code: error.code, message: error.message },
-            };
+            return { ok: false, error: { code: error.code, message: error.message } };
           throw error;
         }
       }
       if (operationKey !== undefined || expectedChannel !== undefined)
         return {
           ok: false,
-          error: {
-            code: 'unavailable',
-            message: 'Channel management is unavailable',
-          },
+          error: { code: 'unavailable', message: 'Channel management is unavailable' },
         };
       if (deps.tob?.isTob(botSlug))
         return {
           ok: false,
-          error: {
-            code: 'protected-bot',
-            message: 'Tob cannot join group Channels',
-          },
+          error: { code: 'protected-bot', message: 'Tob cannot join group Channels' },
         };
       const bot = deps.registry.get(botSlug);
       const channel = deps.channels.get(channelId);
@@ -5647,10 +5326,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           targetDmChannelId: dm.id,
         });
         deps.runtime?.admitGroupInvitation(dm.id, invitation.id);
-        return {
-          ok: true,
-          value: { channel: channelView(deps.channels.get(channelId)!) },
-        };
+        return { ok: true, value: { channel: channelView(deps.channels.get(channelId)!) } };
       } catch (error) {
         return invalidInput(String(error));
       }
@@ -5674,16 +5350,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             invitationId,
             ...(expectedChannel === undefined ? {} : { expectedChannel }),
           });
-          return {
-            ok: true,
-            value: { ...result, channel: channelView(result.channel) },
-          };
+          return { ok: true, value: { ...result, channel: channelView(result.channel) } };
         } catch (error) {
           if (error instanceof ChannelManagementError)
-            return {
-              ok: false,
-              error: { code: error.code, message: error.message },
-            };
+            return { ok: false, error: { code: error.code, message: error.message } };
           throw error;
         }
       }
@@ -5691,9 +5361,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       try {
         return {
           ok: true,
-          value: {
-            channel: channelView(deps.channels.cancelGroupInvite(channelId, invitationId)),
-          },
+          value: { channel: channelView(deps.channels.cancelGroupInvite(channelId, invitationId)) },
         };
       } catch (error) {
         return invalidInput(String(error));
@@ -5720,16 +5388,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             accept,
             ...(expectedChannel === undefined ? {} : { expectedChannel }),
           });
-          return {
-            ok: true,
-            value: { ...result, channel: channelView(result.channel) },
-          };
+          return { ok: true, value: { ...result, channel: channelView(result.channel) } };
         } catch (error) {
           if (error instanceof ChannelManagementError)
-            return {
-              ok: false,
-              error: { code: error.code, message: error.message },
-            };
+            return { ok: false, error: { code: error.code, message: error.message } };
           throw error;
         }
       }
@@ -5741,10 +5403,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (accept && deps.tob?.isTob(request.requesterBotSlug))
         return {
           ok: false,
-          error: {
-            code: 'protected-bot',
-            message: 'Tob cannot join group Channels',
-          },
+          error: { code: 'protected-bot', message: 'Tob cannot join group Channels' },
         };
       if (request.status !== 'pending')
         return request.status === (accept ? 'accepted' : 'declined')
@@ -5793,16 +5452,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             botSlug,
             ...(expectedChannel === undefined ? {} : { expectedChannel }),
           });
-          return {
-            ok: true,
-            value: { ...result, channel: channelView(result.channel) },
-          };
+          return { ok: true, value: { ...result, channel: channelView(result.channel) } };
         } catch (error) {
           if (error instanceof ChannelManagementError)
-            return {
-              ok: false,
-              error: { code: error.code, message: error.message },
-            };
+            return { ok: false, error: { code: error.code, message: error.message } };
           throw error;
         }
       }
@@ -5810,9 +5463,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       try {
         return {
           ok: true,
-          value: {
-            channel: channelView(deps.channels.removeGroupMember(channelId, botSlug)),
-          },
+          value: { channel: channelView(deps.channels.removeGroupMember(channelId, botSlug)) },
         };
       } catch (error) {
         return invalidInput(String(error));
@@ -5820,10 +5471,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     },
     channelGroupSendReview(payload) {
       const parsed = z
-        .object({
-          channelId: z.string().min(1),
-          enabled: z.boolean().optional(),
-        })
+        .object({ channelId: z.string().min(1), enabled: z.boolean().optional() })
         .strict()
         .safeParse(payload);
       if (!parsed.success) return invalidInput('Invalid send review configuration');
@@ -5841,10 +5489,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (!review)
         return {
           ok: false,
-          error: {
-            code: 'unavailable',
-            message: 'Group send review is unavailable on this Host',
-          },
+          error: { code: 'unavailable', message: 'Group send review is unavailable on this Host' },
         };
       if (enabled !== undefined) review.configure(channelId, enabled);
       return { ok: true, value: { enabled: review.enabled(channelId) } };
@@ -5933,16 +5578,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             ...(inherit === undefined ? {} : { inherit }),
             ...(expectedChannel === undefined ? {} : { expectedChannel }),
           });
-          return {
-            ok: true,
-            value: { ...result, channel: channelView(result.channel) },
-          };
+          return { ok: true, value: { ...result, channel: channelView(result.channel) } };
         } catch (error) {
           if (error instanceof ChannelManagementError)
-            return {
-              ok: false,
-              error: { code: error.code, message: error.message },
-            };
+            return { ok: false, error: { code: error.code, message: error.message } };
           throw error;
         }
       }
@@ -6161,10 +5800,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           deps.warn?.(`botharness.group_disband.roster_failed error=${String(error)}`),
         );
       try {
-        return {
-          ok: true,
-          value: { deleted: true, ...purge.disband(channelId) },
-        };
+        return { ok: true, value: { deleted: true, ...purge.disband(channelId) } };
       } catch (error) {
         return purgeFailure(error, 'The group was disbanded, but its messages were not deleted');
       }
@@ -6189,10 +5825,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         ...(cursor === undefined || cursor.length === 0 ? {} : { before: cursor }),
         ...(limit === undefined ? {} : { limit }),
       });
-      return {
-        ok: true,
-        value: { messages, revision: deps.channels.revision(channelId) },
-      };
+      return { ok: true, value: { messages, revision: deps.channels.revision(channelId) } };
     },
     channelTimeline(payload) {
       const source = asObject(payload);
@@ -6212,10 +5845,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (!parsed.success) return invalidInput('invalid channelTimeline payload');
       const page = deps.channels.readHumanTimeline(channelId, parsed.data);
       if (page === undefined) return invalidInput('invalid or expired timeline anchor');
-      return {
-        ok: true,
-        value: { page, revision: deps.channels.revision(channelId) },
-      };
+      return { ok: true, value: { page, revision: deps.channels.revision(channelId) } };
     },
     channelReadPosition(payload) {
       const channelId = asNonBlank(asObject(payload), 'channelId');
@@ -6249,10 +5879,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.channels.setHumanReaction === undefined)
         return {
           ok: false,
-          error: {
-            code: 'storage-unavailable',
-            message: 'reactions are unavailable',
-          },
+          error: { code: 'storage-unavailable', message: 'reactions are unavailable' },
         };
       try {
         const reactions = deps.channels.setHumanReaction(channelId, messageId, emoji, active);
@@ -6284,10 +5911,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.channels.searchHumanMessages === undefined)
         return {
           ok: false,
-          error: {
-            code: 'storage-unavailable',
-            message: 'search is unavailable',
-          },
+          error: { code: 'storage-unavailable', message: 'search is unavailable' },
         };
       try {
         const page = deps.channels.searchHumanMessages(channelId, {
@@ -6318,10 +5942,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.channels.searchAllHumanMessages === undefined)
         return {
           ok: false,
-          error: {
-            code: 'storage-unavailable',
-            message: 'search is unavailable',
-          },
+          error: { code: 'storage-unavailable', message: 'search is unavailable' },
         };
       let hidden: string[];
       try {
@@ -6346,10 +5967,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     },
     async channelMarkAllRead() {
       try {
-        return {
-          ok: true,
-          value: await markAllHumanMessagesRead(deps.channels),
-        };
+        return { ok: true, value: await markAllHumanMessagesRead(deps.channels) };
       } catch (error) {
         return invalidInput(String(error));
       }
@@ -6358,10 +5976,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const channelId = asNonBlank(asObject(payload), 'channelId');
       if (channelId === undefined) return invalidInput('channelId is required');
       try {
-        return {
-          ok: true,
-          value: deps.channels.previewAllBotMention(channelId),
-        };
+        return { ok: true, value: deps.channels.previewAllBotMention(channelId) };
       } catch (error) {
         return invalidInput((error as Error).message);
       }
@@ -6828,13 +6443,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return invalidInput('channelId and messageId are required');
       const takeover = deps.takeovers.get(source['channelId'], source['messageId']);
       return takeover === undefined
-        ? {
-            ok: false,
-            error: {
-              code: 'not-found',
-              message: 'No takeover request with this id',
-            },
-          }
+        ? { ok: false, error: { code: 'not-found', message: 'No takeover request with this id' } }
         : { ok: true, value: { takeover } };
     },
     async takeoverRequest(payload) {
@@ -7005,10 +6614,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         change.trigger = trigger;
       }
       try {
-        return {
-          ok: true,
-          value: { schedule: deps.schedules.update(slug, id, change, 'human') },
-        };
+        return { ok: true, value: { schedule: deps.schedules.update(slug, id, change, 'human') } };
       } catch (error) {
         return scheduleFailure(error);
       }
@@ -7021,10 +6627,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.registry.get(slug) === undefined) return unknownBot(slug);
       if (deps.schedules === undefined) return invalidInput('Bot Schedules are unavailable');
       try {
-        return {
-          ok: true,
-          value: { removed: deps.schedules.remove(slug, id, 'human') },
-        };
+        return { ok: true, value: { removed: deps.schedules.remove(slug, id, 'human') } };
       } catch (error) {
         return scheduleFailure(error);
       }
@@ -7037,10 +6640,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.registry.get(slug) === undefined) return unknownBot(slug);
       if (deps.schedules === undefined) return invalidInput('Bot Schedules are unavailable');
       try {
-        return {
-          ok: true,
-          value: { firings: deps.schedules.history(slug, id) },
-        };
+        return { ok: true, value: { firings: deps.schedules.history(slug, id) } };
       } catch (error) {
         return scheduleFailure(error);
       }
@@ -7063,10 +6663,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (trigger === undefined)
         return invalidInput('trigger must be every, daily, weekly, once or cron');
       try {
-        return {
-          ok: true,
-          value: { occurrences: previewBotScheduleTrigger(trigger) },
-        };
+        return { ok: true, value: { occurrences: previewBotScheduleTrigger(trigger) } };
       } catch (error) {
         return scheduleFailure(error);
       }
@@ -7076,10 +6673,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (slug === undefined) return invalidInput('slug is required');
       if (deps.registry.get(slug) === undefined) return unknownBot(slug);
       try {
-        return {
-          ok: true,
-          value: { policies: deps.sourcePolicy?.list(slug) ?? [] },
-        };
+        return { ok: true, value: { policies: deps.sourcePolicy?.list(slug) ?? [] } };
       } catch (error) {
         return invalidInput(String(error));
       }
@@ -7144,11 +6738,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           return invalidInput('Assignment report wake must be conditional or immediate');
         return {
           ok: true,
-          value: {
-            policy: deps.sourcePolicy.setAssignmentReport(slug, wake, {
-              kind: 'human',
-            }),
-          },
+          value: { policy: deps.sourcePolicy.setAssignmentReport(slug, wake, { kind: 'human' }) },
         };
       } catch (error) {
         return invalidInput(String(error));
@@ -7165,11 +6755,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         if (sourceClass === 'group-ordinary')
           return {
             ok: true,
-            value: {
-              policy: deps.sourcePolicy.resetGroupOrdinary(slug, {
-                kind: 'human',
-              }),
-            },
+            value: { policy: deps.sourcePolicy.resetGroupOrdinary(slug, { kind: 'human' }) },
           };
         if (
           sourceClass === 'human-dm' ||
@@ -7188,11 +6774,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           return invalidInput('Source class is not editable');
         return {
           ok: true,
-          value: {
-            policy: deps.sourcePolicy.resetAssignmentReport(slug, {
-              kind: 'human',
-            }),
-          },
+          value: { policy: deps.sourcePolicy.resetAssignmentReport(slug, { kind: 'human' }) },
         };
       } catch (error) {
         return invalidInput(String(error));
@@ -7326,10 +6908,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     },
     channelUnreadCounts() {
       try {
-        return {
-          ok: true,
-          value: { channels: deps.humanAttention?.unreadByChannel() ?? [] },
-        };
+        return { ok: true, value: { channels: deps.humanAttention?.unreadByChannel() ?? [] } };
       } catch (error) {
         return invalidInput(String(error));
       }
@@ -7448,10 +7027,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             item.messageId !== undefined &&
             HUMAN_ATTENTION_READ_KINDS.has(item.kind)
           )
-            unread.push({
-              channelId: item.channelId,
-              messageId: item.messageId,
-            });
+            unread.push({ channelId: item.channelId, messageId: item.messageId });
         }
         let read = 0;
         for (const target of unread)
@@ -7646,10 +7222,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
         return {
           ok: false,
-          error: {
-            code: 'not-found',
-            message: `unknown root Session: ${sessionId}`,
-          },
+          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
         };
       const read = deps.readUsageSessionLog;
       if (read === undefined) return unavailable();
@@ -7657,23 +7230,14 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         subagents: await subagentSessionsOf(deps.ownership, read, slug, sessionId),
         describe: (id, name, args) => deps.describeToolCall?.(id, name, args),
       });
-      return {
-        ok: true,
-        value: { sessionId, role: owner.rootRole, ...children },
-      };
+      return { ok: true, value: { sessionId, role: owner.rootRole, ...children } };
     },
     workspaceOptions() {
       try {
-        return {
-          ok: true,
-          value: { workspaces: deps.grants?.availableWorkspaces() ?? [] },
-        };
+        return { ok: true, value: { workspaces: deps.grants?.availableWorkspaces() ?? [] } };
       } catch (error) {
         if (error instanceof WorkspaceGrantError) {
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
+          return { ok: false, error: { code: error.code, message: error.message } };
         }
         throw error;
       }
@@ -7714,10 +7278,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.attachments === undefined)
         return {
           ok: false,
-          error: {
-            code: 'storage-unavailable',
-            message: 'Attachment store unavailable',
-          },
+          error: { code: 'storage-unavailable', message: 'Attachment store unavailable' },
         };
       try {
         return {
@@ -7754,22 +7315,13 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.folders === undefined)
         return {
           ok: false,
-          error: {
-            code: 'unavailable',
-            message: 'Folder browsing is unavailable',
-          },
+          error: { code: 'unavailable', message: 'Folder browsing is unavailable' },
         };
       try {
-        return {
-          ok: true,
-          value: await deps.folders.list(input.data.path, input.data.offset),
-        };
+        return { ok: true, value: await deps.folders.list(input.data.path, input.data.offset) };
       } catch (error) {
         if (error instanceof FolderBrowseError)
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
+          return { ok: false, error: { code: error.code, message: error.message } };
         throw error;
       }
     },
@@ -7783,29 +7335,17 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.grants === undefined)
         return {
           ok: false,
-          error: {
-            code: 'unavailable',
-            message: 'Workspace Grants are unavailable',
-          },
+          error: { code: 'unavailable', message: 'Workspace Grants are unavailable' },
         };
       try {
         const grant = deps.grants.requireActive(slug, grantId);
         return {
           ok: true,
-          value: {
-            target: {
-              path: grant.workspacePath,
-              relativePath: '',
-              kind: 'directory',
-            },
-          },
+          value: { target: { path: grant.workspacePath, relativePath: '', kind: 'directory' } },
         };
       } catch (error) {
         if (error instanceof WorkspaceGrantError)
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
+          return { ok: false, error: { code: error.code, message: error.message } };
         throw error;
       }
     },
@@ -7835,10 +7375,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           return { ok: true, value: { grants } };
         } catch (error) {
           if (error instanceof WorkspaceGrantError)
-            return {
-              ok: false,
-              error: { code: error.code, message: error.message },
-            };
+            return { ok: false, error: { code: error.code, message: error.message } };
           throw error;
         }
       }
@@ -7855,10 +7392,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.grants === undefined)
         return {
           ok: false,
-          error: {
-            code: 'unavailable',
-            message: 'Workspace Grants are unavailable',
-          },
+          error: { code: 'unavailable', message: 'Workspace Grants are unavailable' },
         };
       const scope = source?.['scope'];
       const parsedScope =
@@ -7906,16 +7440,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             created = true;
           },
         });
-        return {
-          ok: true,
-          value: { grant, ...(scope === undefined ? {} : { created }) },
-        };
+        return { ok: true, value: { grant, ...(scope === undefined ? {} : { created }) } };
       } catch (error) {
         if (error instanceof WorkspaceGrantError) {
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
+          return { ok: false, error: { code: error.code, message: error.message } };
         }
         throw error;
       }
@@ -7931,10 +7459,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.grants === undefined)
         return {
           ok: false,
-          error: {
-            code: 'unavailable',
-            message: 'Workspace Grants are unavailable',
-          },
+          error: { code: 'unavailable', message: 'Workspace Grants are unavailable' },
         };
       try {
         const grant = deps.grants.revoke(slug, grantId);
@@ -7942,10 +7467,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return { ok: true, value: { grant } };
       } catch (error) {
         if (error instanceof WorkspaceGrantError) {
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
+          return { ok: false, error: { code: error.code, message: error.message } };
         }
         throw error;
       }
@@ -7972,10 +7494,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         };
       } catch (error) {
         if (error instanceof WorkspaceGrantError)
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
+          return { ok: false, error: { code: error.code, message: error.message } };
         throw error;
       }
     },
@@ -7990,10 +7509,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.grants === undefined)
         return {
           ok: false,
-          error: {
-            code: 'unavailable',
-            message: 'Workspace Grants are unavailable',
-          },
+          error: { code: 'unavailable', message: 'Workspace Grants are unavailable' },
         };
       try {
         const grant = deps.grants.setOrchestratorWrite(slug, grantId, enabled);
@@ -8001,10 +7517,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return { ok: true, value: { grant } };
       } catch (error) {
         if (error instanceof WorkspaceGrantError)
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
+          return { ok: false, error: { code: error.code, message: error.message } };
         throw error;
       }
     },
@@ -8038,10 +7551,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const scope = source['scope'];
       if (scope !== undefined && scope !== 'chat' && scope !== 'assignments')
         return invalidInput('scope must be chat or assignments');
-      return {
-        ok: true,
-        value: { preset: deps.assignmentAccess.set(slug, mode, scope) },
-      };
+      return { ok: true, value: { preset: deps.assignmentAccess.set(slug, mode, scope) } };
     },
     toolApprovalRules(payload) {
       const slug = asSlug(payload);
@@ -8081,10 +7591,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.channels.toolApprovalHistory === undefined)
         return {
           ok: false,
-          error: {
-            code: 'storage-unavailable',
-            message: 'approval history is unavailable',
-          },
+          error: { code: 'storage-unavailable', message: 'approval history is unavailable' },
         };
       const size = limit ?? 30;
       const read = deps.channels.toolApprovalHistory(slug, {
@@ -8100,10 +7607,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           ...(read.length > size && last !== undefined
             ? {
                 nextCursor: Buffer.from(
-                  JSON.stringify({
-                    at: last.decidedAt,
-                    id: last.decisionMessageId,
-                  }),
+                  JSON.stringify({ at: last.decidedAt, id: last.decisionMessageId }),
                 ).toString('base64url'),
               }
             : {}),
@@ -8246,11 +7750,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       } catch {}
       return {
         ok: true,
-        value: {
-          accepted: true,
-          channelId: item.channelId,
-          messageId: result.message.id,
-        },
+        value: { accepted: true, channelId: item.channelId, messageId: result.message.id },
       };
     },
     userQuestionStatus(payload) {
@@ -8324,14 +7824,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.readUsageSessionLog === undefined) return unavailable();
       const log = await deps.readUsageSessionLog(sessionId);
       if (log === undefined) return unavailable();
-      return {
-        ok: true,
-        value: {
-          slug,
-          sessionId,
-          ...summarizeToolTrace(log.events, { turns }),
-        },
-      };
+      return { ok: true, value: { slug, sessionId, ...summarizeToolTrace(log.events, { turns }) } };
     },
     async botTurnInput(payload) {
       const slug = asSlug(payload);
@@ -8354,14 +7847,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.readUsageSessionLog === undefined) return unavailable();
       const log = await deps.readUsageSessionLog(sessionId);
       if (log === undefined) return unavailable();
-      return {
-        ok: true,
-        value: {
-          slug,
-          sessionId,
-          ...summarizeTurnInput(log.events, { turns }),
-        },
-      };
+      return { ok: true, value: { slug, sessionId, ...summarizeTurnInput(log.events, { turns }) } };
     },
     botTools() {
       const tools = deps.runtime?.directBotTools?.();
@@ -8510,11 +7996,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         slug,
         typeof location === 'string' && location.trim() !== '' ? location.trim() : null,
       );
-      if (!target.ok)
-        return {
-          ok: false,
-          error: { code: target.code, message: target.message },
-        };
+      if (!target.ok) return { ok: false, error: { code: target.code, message: target.message } };
       if (target.to === target.from)
         return { ok: true, value: { memoryDir: target.from, moved: false } };
       try {
@@ -8549,10 +8031,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         };
       }
       if (outcome.outcome === 'refused')
-        return {
-          ok: false,
-          error: { code: outcome.code, message: outcome.message },
-        };
+        return { ok: false, error: { code: outcome.code, message: outcome.message } };
       return {
         ok: true,
         value: {
@@ -8601,10 +8080,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       }));
       return {
         ok: true,
-        value: {
-          sessionIds: groups.flatMap((group) => group.sessionIds),
-          groups,
-        },
+        value: { sessionIds: groups.flatMap((group) => group.sessionIds), groups },
       };
     },
     memoryFileTarget(payload) {
@@ -8614,16 +8090,12 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (slug === undefined || typeof path !== 'string')
         return invalidInput('slug and path are required');
       if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      return memoryCall(() => ({
-        target: deps.memory!.fileTarget(slug, path),
-      }));
+      return memoryCall(() => ({ target: deps.memory!.fileTarget(slug, path) }));
     },
     memorySnapshot(payload) {
       const scope = dmMemory(payload);
       if (!('botSlug' in scope)) return scope;
-      return memoryCall(() => ({
-        snapshot: deps.memory!.snapshot(scope.botSlug),
-      }));
+      return memoryCall(() => ({ snapshot: deps.memory!.snapshot(scope.botSlug) }));
     },
     memoryFile(payload) {
       const scope = dmMemory(payload);
@@ -8638,9 +8110,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     memoryHistory(payload) {
       const scope = dmMemory(payload);
       if (!('botSlug' in scope)) return scope;
-      return memoryCall(() => ({
-        commits: deps.memory!.history(scope.botSlug),
-      }));
+      return memoryCall(() => ({ commits: deps.memory!.history(scope.botSlug) }));
     },
     memoryDiff(payload) {
       const scope = dmMemory(payload);
@@ -8677,9 +8147,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     memoryWorkingChanges(payload) {
       const scope = dmMemory(payload);
       if (!('botSlug' in scope)) return scope;
-      return memoryCall(() => ({
-        changes: deps.memory!.workingChanges(scope.botSlug),
-      }));
+      return memoryCall(() => ({ changes: deps.memory!.workingChanges(scope.botSlug) }));
     },
     memoryWorkingDiff(payload) {
       const scope = dmMemory(payload);
@@ -8700,9 +8168,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     memoryRecoveryHistory(payload) {
       const scope = dmMemory(payload);
       if (!('botSlug' in scope)) return scope;
-      return memoryCall(() => ({
-        checkpoints: deps.memory!.recoveryHistory(scope.botSlug),
-      }));
+      return memoryCall(() => ({ checkpoints: deps.memory!.recoveryHistory(scope.botSlug) }));
     },
     memoryRestore(payload) {
       const scope = dmMemory(payload);
@@ -8786,9 +8252,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     memoryVersions(payload) {
       const scope = dmMemory(payload);
       if (!('botSlug' in scope)) return scope;
-      return memoryCall(() => ({
-        versions: deps.memory!.versions(scope.botSlug),
-      }));
+      return memoryCall(() => ({ versions: deps.memory!.versions(scope.botSlug) }));
     },
     memoryNameVersion(payload) {
       const scope = dmMemory(payload);
@@ -8804,11 +8268,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       )
         return invalidInput('valid sha and name are required');
       return memoryCall(() => ({
-        version: deps.memory!.nameVersionHuman({
-          botSlug: scope.botSlug,
-          sha,
-          name,
-        }),
+        version: deps.memory!.nameVersionHuman({ botSlug: scope.botSlug, sha, name }),
       }));
     },
     memoryRemoveVersionName(payload) {
@@ -8835,11 +8295,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       )
         return invalidInput('valid expectedHead and repairId are required');
       return memoryCall(() => ({
-        repair: deps.memory!.repairHuman({
-          botSlug: scope.botSlug,
-          expectedHead,
-          repairId,
-        }),
+        repair: deps.memory!.repairHuman({ botSlug: scope.botSlug, expectedHead, repairId }),
       }));
     },
     async overviewMemory(payload) {
@@ -8852,10 +8308,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.memory?.overviewActivity === undefined)
         return {
           ok: false,
-          error: {
-            code: 'storage-unavailable',
-            message: 'Memory statistics unavailable',
-          },
+          error: { code: 'storage-unavailable', message: 'Memory statistics unavailable' },
         };
       return { ok: true, value: await deps.memory.overviewActivity(after) };
     },
@@ -8874,10 +8327,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.usage === undefined)
         return {
           ok: false,
-          error: {
-            code: 'storage-unavailable',
-            message: 'Usage statistics unavailable',
-          },
+          error: { code: 'storage-unavailable', message: 'Usage statistics unavailable' },
         };
       try {
         const result = deps.usage.overview(period, after);
@@ -8907,10 +8357,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         if (error instanceof OperationalDatabaseError)
           return {
             ok: false,
-            error: {
-              code: 'storage-unavailable',
-              message: 'Usage statistics unavailable',
-            },
+            error: { code: 'storage-unavailable', message: 'Usage statistics unavailable' },
           };
         throw error;
       }
@@ -8923,10 +8370,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return invalidInput('Usage filter requires real dates within a 182-day non-future range');
       if (deps.usage === undefined) return unavailable();
       try {
-        return {
-          ok: true,
-          value: deps.usage.query(scope.botSlug, parsed.data),
-        };
+        return { ok: true, value: deps.usage.query(scope.botSlug, parsed.data) };
       } catch (error) {
         if (error instanceof OperationalDatabaseError) return unavailable();
         throw error;
@@ -9098,10 +8542,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const channelId = asNonBlank(asObject(payload), 'channelId');
       if (channelId === undefined || deps.channels.get(channelId)?.type !== 'group')
         return invalidInput('group channelId is required');
-      return {
-        ok: true,
-        value: groupProfileActivity(deps.channels, channelId),
-      };
+      return { ok: true, value: groupProfileActivity(deps.channels, channelId) };
     },
     rosterGet() {
       try {
@@ -9116,9 +8557,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (!parsed.success) return invalidInput('invalid sectionCreate payload');
       const name = parsed.data.name.trim();
       if (name.length === 0) return invalidInput('name is required');
-      return rosterWrite(async () => ({
-        section: await deps.roster.sectionCreate(name),
-      }));
+      return rosterWrite(async () => ({ section: await deps.roster.sectionCreate(name) }));
     },
     async sectionRename(payload) {
       const parsed = sectionRenamePayload.safeParse(payload);
@@ -9163,25 +8602,19 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     async pinsSet(payload) {
       const parsed = pinsSetPayload.safeParse(payload);
       if (!parsed.success) return invalidInput('invalid pinsSet payload');
-      return rosterWrite(async () => ({
-        pins: await deps.roster.pinsSet(parsed.data.pins),
-      }));
+      return rosterWrite(async () => ({ pins: await deps.roster.pinsSet(parsed.data.pins) }));
     },
     async hiddenSet(payload) {
       const parsed = hiddenSetPayload.safeParse(payload);
       if (!parsed.success) return invalidInput('invalid hiddenSet payload');
-      return rosterWrite(async () => ({
-        hidden: await deps.roster.hiddenSet(parsed.data.hidden),
-      }));
+      return rosterWrite(async () => ({ hidden: await deps.roster.hiddenSet(parsed.data.hidden) }));
     },
     async channelMuteSet(payload) {
       const parsed = channelMuteSetPayload.safeParse(payload);
       if (!parsed.success) return invalidInput('channelId and a boolean muted are required');
       const { channelId, muted } = parsed.data;
       if (muted && deps.channels.get(channelId) === undefined) return unknownChannel(channelId);
-      return rosterWrite(async () => ({
-        muted: await deps.roster.mutedSet(channelId, muted),
-      }));
+      return rosterWrite(async () => ({ muted: await deps.roster.mutedSet(channelId, muted) }));
     },
     async rosterBatch(payload) {
       const parsed = rosterBatchPayload.safeParse(payload);
@@ -9214,10 +8647,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const enabled = asObject(payload)['enabled'];
       if (typeof enabled !== 'boolean') return invalidInput('enabled is required');
       deps.developerMode?.set(enabled);
-      return {
-        ok: true,
-        value: { accepted: deps.developerMode !== undefined },
-      };
+      return { ok: true, value: { accepted: deps.developerMode !== undefined } };
     },
   };
 }

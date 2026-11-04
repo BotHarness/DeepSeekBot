@@ -31,7 +31,7 @@ export function sessionStopper(
   const notice = channelId === undefined ? {} : { channelId };
   return {
     async stopSession(botSlug, sessionId) {
-      await client.call('sessionStop', { botSlug, sessionId, ...notice });
+      await client.call('sessionStop', { botSlug, activityId: sessionId, ...notice });
     },
     async stopBot(botSlug) {
       await client.call('botStop', { botSlug, ...notice });
