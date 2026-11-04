@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { CallClientState } from '../../../packages/core/src/voice/call-client';
 import type { VoiceCallView } from '../../../packages/core/src/voice/call-contract';
-import { callScreenModel, formatCallDuration, readinessMessage } from '../src/ui/chat/call-model';
+import {
+  callScreenModel,
+  formatCallDuration,
+  microphoneRecovery,
+  readinessMessage,
+} from '../src/ui/chat/call-model';
 import { callLinkRedirect } from '../src/ui/chat/call-link';
 import { callStrings } from '../src/ui/strings';
 
@@ -144,6 +149,17 @@ describe('call screen model', () => {
       [en.call.missing.asr, en.call.missing.tts].join('\n'),
     );
     expect(readinessMessage(en, { ...readiness, ready: true, missing: [] })).toBeUndefined();
+  });
+
+  it('offers a way back when the microphone is off', () => {
+    expect(microphoneRecovery(en, 'granted')).toBeUndefined();
+    expect(microphoneRecovery(en, undefined)).toBeUndefined();
+    expect(microphoneRecovery(en, 'denied')).toEqual({
+      message: 'Calls need the microphone.',
+      action: 'ask',
+    });
+    expect(microphoneRecovery(en, 'blocked')?.action).toBe('settings');
+    expect(microphoneRecovery(zh, 'blocked')?.message).toContain('麦克风');
   });
 
   it('formats call time', () => {
