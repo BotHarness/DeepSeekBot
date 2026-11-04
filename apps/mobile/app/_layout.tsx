@@ -93,197 +93,200 @@ function RootNavigator() {
               </SafeAreaView>
             ) : null}
             <View ref={stack} testID="app-stack-content" style={{ flex: 1 }}>
-              <Stack
-                UNSTABLE_router={channelStackRouter}
-                screenOptions={{
-                  orientation: 'portrait',
-                  headerStyle: { backgroundColor: theme.background },
-                  headerTintColor: theme.ink,
-                  headerShadowVisible: false,
-                  headerBackButtonDisplayMode: 'minimal',
-                  headerBackTitle: t.back,
-                  contentStyle: { backgroundColor: theme.background },
-                }}
-              >
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen
-                  name="(bot-creation)"
-                  options={{ headerShown: false, freezeOnBlur: true }}
-                />
-                <Stack.Screen
-                  name="dm/[slug]"
-                  dangerouslySingular={channelRouteId}
-                  options={({ route }) => ({
-                    title: '',
-                    fullScreenGestureEnabled: false,
-                    ...swipeEntryOptions(route),
-                  })}
-                  listeners={swipeEntryListeners('default')}
-                />
-                <Stack.Screen
-                  name="channel/[id]"
-                  dangerouslySingular={channelRouteId}
-                  options={({ route }) => ({
-                    title: '',
-                    fullScreenGestureEnabled: false,
-                    ...swipeEntryOptions(route),
-                  })}
-                  listeners={swipeEntryListeners('default')}
-                />
-                <Stack.Screen name="dm-top" options={topEntranceScreenOptions} />
-                <Stack.Screen
-                  name="bot/[slug]"
-                  options={({ route }) => ({
-                    title: t.profile,
-                    ...profileScreenOptions(design, reducedMotion),
-                    ...swipeEntryOptions(route),
-                  })}
-                  listeners={profileListeners}
-                />
-                <Stack.Screen
-                  name="channel-details"
-                  options={({ route }) => ({
-                    ...profileScreenOptions(design, reducedMotion),
-                    ...swipeEntryOptions(route),
-                  })}
-                  listeners={profileListeners}
-                />
-                <Stack.Screen
-                  name="group/[id]"
-                  options={({ route }) => ({
-                    title: t.groupInfo,
-                    ...profileScreenOptions(design, reducedMotion),
-                    ...swipeEntryOptions(route),
-                  })}
-                  listeners={profileListeners}
-                />
-                {settingsPages.map(([name, title]) => (
+              <SafeAreaProvider>
+                <Stack
+                  UNSTABLE_router={channelStackRouter}
+                  screenOptions={{
+                    orientation: 'portrait',
+                    headerStyle: { backgroundColor: theme.background },
+                    headerTintColor: theme.ink,
+                    headerShadowVisible: false,
+                    headerBackButtonDisplayMode: 'minimal',
+                    headerBackTitle: t.back,
+                    contentStyle: { backgroundColor: theme.background },
+                  }}
+                >
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                   <Stack.Screen
-                    key={name}
-                    name={`settings/${name}`}
+                    name="(bot-creation)"
+                    options={{ headerShown: false, freezeOnBlur: true }}
+                  />
+                  <Stack.Screen
+                    name="dm/[slug]"
+                    dangerouslySingular={channelRouteId}
+                    options={({ route }) => ({
+                      title: '',
+                      fullScreenGestureEnabled: false,
+                      ...swipeEntryOptions(route),
+                    })}
+                    listeners={swipeEntryListeners('default')}
+                  />
+                  <Stack.Screen
+                    name="channel/[id]"
+                    dangerouslySingular={channelRouteId}
+                    options={({ route }) => ({
+                      title: '',
+                      fullScreenGestureEnabled: false,
+                      ...swipeEntryOptions(route),
+                    })}
+                    listeners={swipeEntryListeners('default')}
+                  />
+                  <Stack.Screen name="dm-top" options={topEntranceScreenOptions} />
+                  <Stack.Screen
+                    name="bot/[slug]"
+                    options={({ route }) => ({
+                      title: t.profile,
+                      ...profileScreenOptions(design, reducedMotion),
+                      ...swipeEntryOptions(route),
+                    })}
+                    listeners={profileListeners}
+                  />
+                  <Stack.Screen
+                    name="channel-details"
+                    options={({ route }) => ({
+                      ...profileScreenOptions(design, reducedMotion),
+                      ...swipeEntryOptions(route),
+                    })}
+                    listeners={profileListeners}
+                  />
+                  <Stack.Screen
+                    name="group/[id]"
+                    options={({ route }) => ({
+                      title: t.groupInfo,
+                      ...profileScreenOptions(design, reducedMotion),
+                      ...swipeEntryOptions(route),
+                    })}
+                    listeners={profileListeners}
+                  />
+                  {settingsPages.map(([name, title]) => (
+                    <Stack.Screen
+                      key={name}
+                      name={`settings/${name}`}
+                      options={{
+                        ...(title === undefined ? {} : { title }),
+                        ...(name === 'profile-name' ? { headerShown: false } : {}),
+                        headerStyle: { backgroundColor: design.overlay.fill },
+                        contentStyle: { backgroundColor: design.overlay.fill },
+                      }}
+                    />
+                  ))}
+                  <Stack.Screen
+                    name="pair"
                     options={{
-                      ...(title === undefined ? {} : { title }),
-                      ...(name === 'profile-name' ? { headerShown: false } : {}),
-                      headerStyle: { backgroundColor: design.overlay.fill },
-                      contentStyle: { backgroundColor: design.overlay.fill },
+                      title: t.pairTitle,
+                      ...sheetScreenOptions(design, true),
                     }}
                   />
-                ))}
-                <Stack.Screen
-                  name="pair"
-                  options={{
-                    title: t.pairTitle,
-                    ...sheetScreenOptions(design, true),
-                  }}
-                />
-                <Stack.Screen
-                  name="share"
-                  options={{
-                    title: t.share.title,
-                    ...sheetScreenOptions(design, true),
-                  }}
-                />
-                <Stack.Screen
-                  name="private-input"
-                  options={{
-                    ...sheetScreenOptions(design, true),
-                    title: t.privateInputOpen,
-                  }}
-                />
-                <Stack.Screen name="inbox/[id]" options={{ title: t.inbox }} />
-                <Stack.Screen
-                  name="conversation-section"
-                  options={{
-                    ...sheetScreenOptions(design, true),
-                    title: t.rowActions.section,
-                    headerShown: Platform.OS !== 'android',
-                  }}
-                />
-                <Stack.Screen
-                  name="cloud-join"
-                  options={{
-                    title: t.cloudJoin.title,
-                    headerRight: () => <WorkspaceButton />,
-                  }}
-                />
-                <Stack.Screen
-                  name="cloud-services"
-                  options={{
-                    title: t.cloud.title,
-                    headerRight: () => <WorkspaceButton />,
-                  }}
-                />
-                <Stack.Screen
-                  name="cloud-organizations"
-                  options={{
-                    title: t.cloudOrganizations.title,
-                    headerRight: () => <WorkspaceButton />,
-                  }}
-                />
-                <Stack.Screen
-                  name="cloud-invitations"
-                  options={{
-                    title: t.cloudInvitations.title,
-                    headerRight: () => <WorkspaceButton />,
-                  }}
-                />
-                <Stack.Screen
-                  name="cloud-agents"
-                  options={{
-                    title: t.cloudAgents.title,
-                    headerRight: () => <WorkspaceButton />,
-                  }}
-                />
-                <Stack.Screen
-                  name="cloud-channels"
-                  dangerouslySingular={cloudChannelRouteId}
-                  options={{
-                    title: t.cloudChannels.title,
-                    headerRight: () => <WorkspaceButton />,
-                  }}
-                />
-                <Stack.Screen
-                  name="message-feedback"
-                  options={{ title: t.feedback.title, presentation: 'modal' }}
-                />
-                <Stack.Screen name="notifications" options={{ title: t.notifications }} />
-                <Stack.Screen
-                  name="browser/[slug]"
-                  options={{
-                    title: t.profileBrowser,
-                    presentation: 'fullScreenModal',
-                    gestureEnabled: false,
-                  }}
-                />
-                <Stack.Screen
-                  name="computer/[slug]"
-                  options={{
-                    title: t.profileComputer,
-                    orientation: Platform.OS === 'android' ? 'all' : 'portrait',
-                    presentation: Platform.OS === 'ios' ? 'card' : 'fullScreenModal',
-                    headerShown: false,
-                    gestureEnabled: false,
-                  }}
-                />
-                <Stack.Screen
-                  name="host-look"
-                  options={{
-                    title: t.hostLook,
-                    ...sheetScreenOptions(design, true),
-                  }}
-                />
-                <Stack.Screen
-                  name="host-connection"
-                  options={{
-                    title: t.connectionRoutes.title,
-                    ...sheetScreenOptions(design, true),
-                  }}
-                />
-              </Stack>
+                  <Stack.Screen
+                    name="share"
+                    options={{
+                      title: t.share.title,
+                      ...sheetScreenOptions(design, true),
+                    }}
+                  />
+                  <Stack.Screen
+                    name="private-input"
+                    options={{
+                      ...sheetScreenOptions(design, true),
+                      title: t.privateInputOpen,
+                    }}
+                  />
+                  <Stack.Screen name="inbox/[id]" options={{ title: t.inbox }} />
+                  <Stack.Screen
+                    name="conversation-section"
+                    options={{
+                      ...sheetScreenOptions(design, true),
+                      title: t.rowActions.section,
+                      headerShown: Platform.OS !== 'android',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="cloud-join"
+                    options={{
+                      title: t.cloudJoin.title,
+                      headerRight: () => <WorkspaceButton />,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="cloud-services"
+                    options={{
+                      title: t.cloud.title,
+                      headerRight: () => <WorkspaceButton />,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="cloud-organizations"
+                    options={{
+                      title: t.cloudOrganizations.title,
+                      headerRight: () => <WorkspaceButton />,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="cloud-invitations"
+                    options={{
+                      title: t.cloudInvitations.title,
+                      headerRight: () => <WorkspaceButton />,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="cloud-agents"
+                    options={{
+                      title: t.cloudAgents.title,
+                      headerRight: () => <WorkspaceButton />,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="cloud-channels"
+                    dangerouslySingular={cloudChannelRouteId}
+                    options={{
+                      title: t.cloudChannels.title,
+                      headerRight: () => <WorkspaceButton />,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="message-feedback"
+                    options={{ title: t.feedback.title, presentation: 'modal' }}
+                  />
+                  <Stack.Screen name="notifications" options={{ title: t.notifications }} />
+                  <Stack.Screen
+                    name="browser/[slug]"
+                    options={{
+                      title: t.profileBrowser,
+                      presentation: 'fullScreenModal',
+                      gestureEnabled: false,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="computer/[slug]"
+                    options={{
+                      title: t.profileComputer,
+                      orientation: Platform.OS === 'android' ? 'all' : 'portrait',
+                      presentation: Platform.OS === 'ios' ? 'card' : 'fullScreenModal',
+                      headerShown: false,
+                      gestureEnabled: false,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="host-look"
+                    options={{
+                      title: t.hostLook,
+                      ...sheetScreenOptions(design, true),
+                    }}
+                  />
+                  <Stack.Screen
+                    name="host-connection"
+                    options={{
+                      title: t.connectionRoutes.title,
+                      ...sheetScreenOptions(design, true),
+                    }}
+                  />
+                </Stack>
+              </SafeAreaProvider>
             </View>
             <BotCreationNotice />
             <ChannelCreationNotice />
             <StatisticsNotice />
+            <DeviceAlertBanner placement="overlay" />
             <HostDrawer />
             <AppDialogHost />
           </View>

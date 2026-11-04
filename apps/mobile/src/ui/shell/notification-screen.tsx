@@ -1,5 +1,5 @@
 import { useMemo, useSyncExternalStore } from 'react';
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
 
 import {
   hostPush,
@@ -13,6 +13,7 @@ import {
 import { NotificationSettings, type NotificationSettingsPort } from '../notification-settings';
 import { notificationPreferences } from '../../host/native-notification-preferences';
 import { KeepConnectedSettings } from '../keep-connected-settings';
+import { InAppNotificationSettings } from '../in-app-notification-settings';
 
 export default function NotificationsScreen() {
   const { saved } = useHostSession();
@@ -55,7 +56,12 @@ export default function NotificationsScreen() {
       hostName={saved.hostName}
       port={port}
       preference={preference}
-      connectionSettings={<KeepConnectedSettings summary={summary} />}
+      connectionSettings={
+        <>
+          {Platform.OS === 'android' ? <InAppNotificationSettings /> : null}
+          <KeepConnectedSettings summary={summary} />
+        </>
+      }
       onEnable={() => void pushSession.enable(hostSession.getState().hosts)}
       onOpenSettings={() => void Linking.openSettings()}
       key={saved.hostId}

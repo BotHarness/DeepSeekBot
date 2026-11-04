@@ -45,6 +45,27 @@ function fixture() {
 }
 
 describe('device alert presentation', () => {
+  it('clears visible in-app alerts on opt-out and does not replay alerts received while disabled', async () => {
+    const { owner, snapshots } = fixture();
+    await owner.update({ ...input, items: [item('user-question')] });
+    const banners = createAlertBanners();
+    const alert = snapshots[0]!.alerts[0]!;
+    const opened: unknown[] = [];
+    banners.onOpen((data) => opened.push(data));
+    banners.reconcile('studio', ['user-question'], [alert]);
+    expect(banners.getSnapshot()).toEqual(alert);
+    banners.setEnabled(false);
+    expect(banners.getSnapshot()).toBeUndefined();
+    banners.reconcile('studio', ['user-question'], [alert]);
+    banners.setEnabled(true);
+    expect(banners.getSnapshot()).toBeUndefined();
+    banners.open();
+    expect(opened).toEqual([]);
+    const fresh = { ...alert, data: { ...alert.data, itemId: 'fresh' } };
+    banners.reconcile('studio', ['fresh'], [fresh]);
+    banners.open();
+    expect(opened).toEqual([fresh.data]);
+  });
   it('routes every existing kind from a complete feed without a token and removes private input text', async () => {
     const { owner, snapshots } = fixture();
     await owner.update(input);

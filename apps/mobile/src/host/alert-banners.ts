@@ -2,6 +2,7 @@ import type { LocalApprovalAlert } from './device-alerts';
 
 export function createAlertBanners() {
   let queue: LocalApprovalAlert[] = [];
+  let enabled = true;
   const dismissed = new Set<string>();
   const key = (alert: LocalApprovalAlert) => JSON.stringify([alert.data.hostId, alert.data.itemId]);
   const retire = (alert: LocalApprovalAlert | undefined) => {
@@ -13,6 +14,12 @@ export function createAlertBanners() {
     for (const listener of listeners) listener();
   };
   return {
+    setEnabled(next: boolean) {
+      if (enabled === next) return;
+      enabled = next;
+      if (!enabled) queue = [];
+      publish();
+    },
     getSnapshot: () => queue[0],
     subscribe(listener: () => void) {
       listeners.add(listener);
@@ -21,6 +28,7 @@ export function createAlertBanners() {
       };
     },
     reconcile(host: string, pending: readonly string[], added: LocalApprovalAlert[]) {
+      if (!enabled) return;
       queue = queue.filter(
         (alert) =>
           alert.data.hostId !== host ||
