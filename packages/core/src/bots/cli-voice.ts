@@ -79,7 +79,7 @@ export const VOICE_COMMANDS = [
   {
     command: 'voice-vad-set',
     description:
-      'set the Host-wide speech detection threshold in dBFS (-70 to -20; lower hears quieter microphones), or default; affects pause-cut dictation and calls, not Soniox dictation',
+      'set the Host-wide speech detection threshold in dBFS (-70 to -20; lower hears quieter microphones), or default; put -- before a negative value (voice-vad-set -- -55); affects pause-cut dictation and calls, not Soniox dictation',
   },
   {
     command: 'voice-transcribe',
@@ -236,9 +236,16 @@ export async function runVoiceCommand(
     };
   }
   if (command === 'voice-vad-set') {
-    const [value] = positionals(command, rest, 1, 'a threshold in dBFS such as -55, or default');
+    const [value] = positionals(
+      command,
+      rest,
+      1,
+      'a threshold in dBFS after -- such as -- -55, or default',
+    );
     if (value !== 'default' && !/^-?\d+(?:\.\d+)?$/u.test(value!))
-      usage('The threshold is a number in dBFS such as -55, or default.');
+      usage(
+        'The threshold is a number in dBFS, written after -- such as `voice-vad-set -- -55`, or default.',
+      );
     const rpc = await connect();
     return rpc('voiceSpeechThresholdSet', { dbfs: value === 'default' ? null : Number(value) });
   }
