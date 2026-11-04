@@ -181,12 +181,10 @@ export function useComposerVoice({
   };
 }
 
-export function composerVoicePlaceholder(
+export function composerVoiceStatus(
   voice: ComposerVoice,
-  placeholder: string,
-  holdPlaceholder: string | undefined,
   t: BotHarnessTranslate,
-): string {
+): string | undefined {
   const { status, mode } = voice.snapshot;
   if (status === 'starting') return t('composer.dictationStarting');
   if (status === 'listening')
@@ -195,7 +193,19 @@ export function composerVoicePlaceholder(
   if (status === 'denied') return t('composer.dictationDenied');
   if (status === 'missing') return t('composer.dictationMissing');
   if (status === 'failed') return t('composer.dictationFailed');
-  return voice.ready && holdPlaceholder !== undefined ? holdPlaceholder : placeholder;
+  return undefined;
+}
+
+export function composerVoicePlaceholder(
+  voice: ComposerVoice,
+  placeholder: string,
+  holdPlaceholder: string | undefined,
+  t: BotHarnessTranslate,
+): string {
+  return (
+    composerVoiceStatus(voice, t) ??
+    (voice.ready && holdPlaceholder !== undefined ? holdPlaceholder : placeholder)
+  );
 }
 
 export function ComposerMicButton({
@@ -209,15 +219,27 @@ export function ComposerMicButton({
 }): ReactElement {
   const press = useRef<{ at: number; startedHere: boolean } | undefined>(undefined);
   const recording = voice.active;
+  const live = voice.snapshot.status === 'listening' || voice.snapshot.status === 'finishing';
   const label = recording ? t('composer.stopDictation') : t('composer.dictate');
   return (
-    <Tooltip label={recording ? label : t('composer.dictateHint')} side="top" portal delayMs={350}>
+    <Tooltip
+      label={
+        recording
+          ? label
+          : voice.snapshot.status === 'idle'
+            ? t('composer.dictateHint')
+            : (composerVoiceStatus(voice, t) ?? t('composer.dictateHint'))
+      }
+      side="top"
+      portal
+      delayMs={350}
+    >
       <button
         type="button"
         className="bh-composer-mic"
-        data-state={recording ? (voice.snapshot.mode ?? 'toggle') : 'idle'}
+        data-state={live ? (voice.snapshot.mode ?? 'toggle') : recording ? 'starting' : 'idle'}
         aria-label={label}
-        aria-pressed={recording}
+        aria-pressed={live}
         disabled={disabled || voice.snapshot.status === 'finishing'}
         onPointerDown={(event) => {
           if (event.button !== 0) return;
@@ -245,7 +267,7 @@ export function ComposerMicButton({
           else voice.start('toggle');
         }}
       >
-        {recording ? <IconStopFillRegular size={12} /> : <IconMicrophoneOutlineRegular size={16} />}
+        {live ? <IconStopFillRegular size={12} /> : <IconMicrophoneOutlineRegular size={16} />}
       </button>
     </Tooltip>
   );

@@ -114,7 +114,9 @@ export function createBrowserDictationMic(
   let stream: MediaStream | undefined;
   let context: AudioContext | undefined;
   let processor: ScriptProcessorNode | undefined;
+  let epoch = 0;
   const release = () => {
+    epoch += 1;
     if (processor !== undefined) processor.onaudioprocess = null;
     processor?.disconnect();
     processor = undefined;
@@ -128,8 +130,10 @@ export function createBrowserDictationMic(
       release();
       const media = devices();
       if (media?.getUserMedia === undefined) throw new DictationMicError('microphone-missing');
+      const generation = epoch;
+      let acquired: MediaStream;
       try {
-        stream = await media.getUserMedia({ audio: CALL_AUDIO_CONSTRAINTS, video: false });
+        acquired = await media.getUserMedia({ audio: CALL_AUDIO_CONSTRAINTS, video: false });
       } catch (error) {
         const name = (error as { name?: unknown } | undefined)?.name;
         throw new DictationMicError(
@@ -138,7 +142,12 @@ export function createBrowserDictationMic(
             : 'microphone-missing',
         );
       }
-      const owned = stream;
+      if (generation !== epoch) {
+        for (const track of acquired.getTracks()) track.stop();
+        return;
+      }
+      stream = acquired;
+      const owned = acquired;
       const audio = new AudioContext();
       context = audio;
       const source = audio.createMediaStreamSource(owned);

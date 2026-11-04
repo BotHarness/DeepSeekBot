@@ -23,6 +23,7 @@ export interface VoiceDictationView {
   readonly state: VoiceDictationState;
   readonly text: string;
   readonly audioMs: number;
+  readonly truncated?: true;
   readonly error?: { readonly code: string; readonly message: string };
 }
 
@@ -109,6 +110,7 @@ interface Session {
   streamed: string;
   state: VoiceDictationState;
   samples: number;
+  truncated: boolean;
   error: { code: string; message: string } | undefined;
   idle: ReturnType<typeof setTimeout> | undefined;
   finished: Promise<VoiceDictationView> | undefined;
@@ -162,6 +164,7 @@ export function createVoiceDictations(deps: VoiceDictationDeps): VoiceDictations
     state: session.state,
     text: text(session),
     audioMs: Math.round((session.samples / VAD_SAMPLE_RATE) * 1000),
+    ...(session.truncated ? { truncated: true as const } : {}),
     ...(session.error === undefined ? {} : { error: session.error }),
   });
 
@@ -311,6 +314,7 @@ export function createVoiceDictations(deps: VoiceDictationDeps): VoiceDictations
         streamed: '',
         state: 'listening',
         samples: 0,
+        truncated: false,
         error: undefined,
         idle: undefined,
         finished: undefined,
@@ -324,10 +328,14 @@ export function createVoiceDictations(deps: VoiceDictationDeps): VoiceDictations
     push(id, pcm) {
       const session = get(id);
       if (session.state !== 'listening' || session.finished !== undefined) return view(session);
-      touch(session);
       const room = (VOICE_DICTATION_LIMITS.maxMs / 1000) * VAD_SAMPLE_RATE - session.samples;
       const accepted = room <= 0 ? new Int16Array(0) : pcm.subarray(0, room);
+      if (accepted.length < pcm.length && !session.truncated) {
+        session.truncated = true;
+        log('dictation-truncated', { dictation: session.id });
+      }
       if (accepted.length > 0) {
+        touch(session);
         session.samples += accepted.length;
         try {
           feed(session, accepted.slice());

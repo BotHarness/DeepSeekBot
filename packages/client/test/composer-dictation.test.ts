@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  createBrowserDictationMic,
   createComposerDictation,
   downsampleTo16k,
   pcmBase64,
@@ -122,6 +123,27 @@ describe('composer dictation', () => {
     dictation.start('toggle');
     await settle();
     expect(dictation.snapshot().status).toBe('failed');
+  });
+
+  it('stops a microphone stream that arrives after the mic was released', async () => {
+    let grant: ((stream: MediaStream) => void) | undefined;
+    let stoppedTracks = 0;
+    const stream = {
+      getTracks: () => [{ stop: () => (stoppedTracks += 1) }],
+    } as unknown as MediaStream;
+    const devices = {
+      getUserMedia: () =>
+        new Promise<MediaStream>((resolve) => {
+          grant = resolve;
+        }),
+    } as unknown as MediaDevices;
+    const mic = createBrowserDictationMic(() => devices);
+    const started = mic.start(() => undefined);
+    await settle();
+    mic.stop();
+    grant?.(stream);
+    await started;
+    expect(stoppedTracks).toBe(1);
   });
 
   it('downsamples to 16 kHz PCM and encodes little-endian base64', () => {

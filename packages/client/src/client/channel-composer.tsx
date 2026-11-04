@@ -71,7 +71,12 @@ export interface ChannelComposerActivity {
 
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
 import type { VoiceDictationPort } from './composer-dictation.js';
-import { ComposerMicButton, composerVoicePlaceholder, useComposerVoice } from './composer-voice.js';
+import {
+  ComposerMicButton,
+  composerVoicePlaceholder,
+  composerVoiceStatus,
+  useComposerVoice,
+} from './composer-voice.js';
 import { useMountedResource } from './mounted-resource.js';
 
 export interface ChannelComposerStop {
@@ -1276,6 +1281,11 @@ export function ChannelComposer({
         {voice.mounts.map((mount, index) => (
           <span key={index} ref={mount} hidden />
         ))}
+        {dictation === undefined ? null : (
+          <span className="bh-sr-only" role="status" aria-live="polite">
+            {composerVoiceStatus(voice, t) ?? ''}
+          </span>
+        )}
         <div className="bh-composer-footer">
           {voice.ready ? <ComposerMicButton voice={voice} disabled={sending} t={t} /> : null}
           {stop?.label !== undefined &&

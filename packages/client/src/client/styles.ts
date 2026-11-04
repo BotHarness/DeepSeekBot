@@ -4630,6 +4630,7 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 .bh-composer-mic:hover { background: var(--dsw-alias-interactive-bg-active); color: var(--dsw-alias-label-primary); }
 .bh-composer-mic:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
 .bh-composer-mic:disabled { opacity: .5; cursor: default; }
+.bh-composer-mic[data-state='starting'] { color: var(--dsw-alias-state-business-primary); background: var(--dsw-alias-interactive-bg-active); }
 .bh-composer-mic[data-state='toggle'],
 .bh-composer-mic[data-state='hold'] {
   border-color: transparent;

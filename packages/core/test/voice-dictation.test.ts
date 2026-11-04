@@ -131,6 +131,24 @@ describe('composer dictation', () => {
     expect(() => dictations.open({})).toThrow(/Too many dictations/u);
   });
 
+  it('flags audio past the length limit and stops refreshing the idle timer', () => {
+    vi.useFakeTimers();
+    const { providers, pushed } = streamingProviders();
+    const dictations = createVoiceDictations({ providers: () => providers, botAsr: () => null });
+    const opened = dictations.open({});
+    const second = 16_000;
+    for (let index = 0; index < 119; index += 1) dictations.push(opened.id, new Int16Array(second));
+    expect(dictations.push(opened.id, new Int16Array(second)).truncated).toBeUndefined();
+    vi.advanceTimersByTime(10_000);
+    expect(dictations.push(opened.id, new Int16Array(320))).toMatchObject({
+      truncated: true,
+      audioMs: 120_000,
+    });
+    vi.advanceTimersByTime(5_001);
+    expect(dictations.push(opened.id, new Int16Array(320)).state).toBe('cancelled');
+    expect(pushed).toHaveLength(120);
+  });
+
   it('ends an idle session', () => {
     vi.useFakeTimers();
     const { providers } = streamingProviders();

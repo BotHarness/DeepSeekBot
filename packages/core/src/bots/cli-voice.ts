@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 
+import { VOICE_DICTATION_LIMITS } from '../voice/dictation.js';
 import { readWavAs16kMono } from '../voice/wav.js';
 import { LocalVoiceKitError, writeLocalVoiceKit, type LocalVoiceKit } from '../voice/local-kit.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
@@ -261,6 +262,7 @@ export async function runVoiceCommand(
 }
 
 const DICTATE_CHUNK_SAMPLES = 3_200;
+const DICTATE_SAMPLE_RATE = 16_000;
 
 async function runVoiceDictate(
   rest: string[],
@@ -279,6 +281,11 @@ async function runVoiceDictate(
       error instanceof Error && !('code' in error) ? error.message : `Cannot read ${values.file}.`,
     );
   }
+  if (pcm.length > (VOICE_DICTATION_LIMITS.maxMs / 1000) * DICTATE_SAMPLE_RATE)
+    throw new CliLiveError(
+      'invalid-input',
+      `voice-dictate takes at most ${VOICE_DICTATION_LIMITS.maxMs / 1000} s of audio.`,
+    );
   const target = {
     ...(values.bot?.trim() ? { slug: values.bot.trim() } : {}),
     ...(values.provider?.trim() ? { providerId: values.provider.trim() } : {}),
@@ -308,7 +315,19 @@ async function runVoiceDictate(
     throw error;
   }
   const stopped = (await rpc('voiceDictation', { kind: 'stop', id })) as {
-    dictation?: Record<string, unknown>;
+    dictation?: Record<string, unknown> & {
+      state?: unknown;
+      text?: unknown;
+      error?: { code?: unknown; message?: unknown };
+    };
   };
-  return { ...stopped?.dictation, heard };
+  const final = stopped?.dictation;
+  if (final?.state === 'failed')
+    throw new CliLiveError(
+      typeof final.error?.code === 'string' ? final.error.code : 'asr-failed',
+      typeof final.error?.message === 'string' ? final.error.message : 'Dictation failed.',
+    );
+  if (typeof final?.text === 'string' && final.text !== '' && heard.at(-1) !== final.text)
+    heard.push(final.text);
+  return { ...final, heard };
 }
