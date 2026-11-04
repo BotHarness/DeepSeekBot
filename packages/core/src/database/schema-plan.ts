@@ -2786,6 +2786,31 @@ const BOUNDED_RANGE_INDEX_MIGRATION: SchemaMigration = {
   },
 };
 
+const ATTENTION_RESOLUTION_INDEX_MIGRATION: SchemaMigration = {
+  generation: 126,
+  module: 'messaging',
+  description: 'Index attention resolutions and admission activity time for bounded lookups',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX source_events_question_resolution
+        ON source_events (json_extract(payload_json, '$.userQuestionResolution.requestMessageId'))
+        WHERE json_extract(payload_json, '$.userQuestionResolution.requestMessageId') IS NOT NULL;
+      CREATE INDEX source_events_approval_decision
+        ON source_events (json_extract(payload_json, '$.toolApprovalDecision.requestMessageId'))
+        WHERE json_extract(payload_json, '$.toolApprovalDecision.requestMessageId') IS NOT NULL;
+      CREATE INDEX source_events_approval_override
+        ON source_events (json_extract(payload_json, '$.toolAutoApprovalOverride.recordMessageId'))
+        WHERE json_extract(payload_json, '$.toolAutoApprovalOverride.recordMessageId') IS NOT NULL;
+      CREATE INDEX source_events_private_resolution
+        ON source_events (json_extract(payload_json, '$.privateInputResolution.requestMessageId'))
+        WHERE json_extract(payload_json, '$.privateInputResolution.requestMessageId') IS NOT NULL;
+      CREATE INDEX inbox_admissions_activity
+        ON inbox_admissions (bot_slug, coalesce(observed_at, handled_at))
+        WHERE ignored_at IS NULL;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2911,4 +2936,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   PLACEMENT_NOTICE_MIGRATION,
   PLACEMENT_HUMAN_REPLY_MIGRATION,
   BOUNDED_RANGE_INDEX_MIGRATION,
+  ATTENTION_RESOLUTION_INDEX_MIGRATION,
 ]);
