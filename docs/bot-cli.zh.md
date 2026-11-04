@@ -748,7 +748,7 @@ Tob 的受限 CLI 支持 `voice-providers`、`voice-provider-test`、`voice-prov
 
 ### Bot 通话与语音识别（ASR Provider）
 
-已配对的 iPhone 可以给 Bot 打电话，前提是 Host 运行在 Mac 或 Windows 电脑上。手机通过 WebRTC 在已配对的局域网线路或 Tailscale 上发送麦克风音频（Connect 不承载通话，会返回 `connect-carrier-required`）。Host 用内置的语音活动检测切出每一句话（咳嗽、敲击等短噪声会被忽略），通过 Bot 的 ASR Provider 转成文字，并以 Human 消息发到 DM。Human 说完后，Host 会立即播放一声短的“嗯”（ASR 语言不是中文时为 “Mm-hm”），不经过模型。Bot 用 `voice: true` 回复；如果 `voice` 写在 `body` 之前，Host 会从流式草稿里按句合成并播放，不等消息提交。草稿被放弃或回合被取消时立即停止，不留下任何内容。消息提交后，已经播放的句子拼成它的语音条，所以存档和通话里听到的一致；如果 `voice` 写在 `body` 之后，则在提交后再播放。Bot 还在忙上一轮时，手机只显示提示，不会发声。录音从不保存：每句话的音频在转写后立即丢弃。
+已配对的 iPhone 可以给 Bot 打电话，前提是 Host 运行在 Mac 或 Windows 电脑上。手机通过 WebRTC 在已配对的局域网线路或 Tailscale 上发送麦克风音频（Connect 不承载通话，会返回 `connect-carrier-required`）。Host 用内置的语音活动检测切出每一句话（咳嗽、敲击等短噪声会被忽略），通过 Bot 的 ASR Provider 转成文字，并以 Human 消息发到 DM。Human 说完后，Host 会立即播放一声短的“嗯”（ASR 语言不是中文时为 “Mm-hm”），不经过模型。Bot 用 `voice: true` 回复；如果 `voice` 写在 `body` 之前，Host 会从流式草稿里按句合成并播放，不等消息提交。草稿被放弃或回合被取消时立即停止，不留下任何内容。消息提交后，已经播放的句子拼成它的语音条，所以存档和通话里听到的一致；如果 `voice` 写在 `body` 之后，则在提交后再播放。Bot 还在忙上一轮时，手机只显示提示，不会发声；通话里刚说的那句话引起的这一轮不会显示这个提示。录音从不保存：每句话的音频在转写后立即丢弃。
 
 ```bash
 printf '%s' "$OPENAI_API_KEY" | deepseekbot voice-provider-add openai --kind asr --model gpt-4o-mini-transcribe --key-stdin

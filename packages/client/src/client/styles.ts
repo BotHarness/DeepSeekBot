@@ -6,6 +6,7 @@ import { WINDOW_COMPANION_CSS } from './window-companion-styles.js';
 import { COMBOBOX_CSS } from './combobox.js';
 import { CHANNEL_DOCK_CSS } from './channel-dock-styles.js';
 import { GENERATED_FILES_CSS } from './generated-files-styles.js';
+import { CALL_CSS } from './call-styles.js';
 import { DEEPSEEKBOT_TRANSPARENT_DATA_URI } from './bot-icon-assets.js';
 import { ACTIVITY_INBOX_CSS } from './activity-inbox-styles.js';
 import { MOBILE_APPS_CSS } from './mobile-apps-styles.js';
@@ -19,6 +20,7 @@ export const CSS =
   WINDOW_COMPANION_CSS +
   CHANNEL_DOCK_CSS +
   GENERATED_FILES_CSS +
+  CALL_CSS +
   ACTIVITY_INBOX_CSS +
   MOBILE_APPS_CSS +
   `

@@ -380,6 +380,39 @@ describe('Host call owner', () => {
     expect(types(after.events)).toContain('idle');
   });
 
+  it('does not show busy for the turn the call itself started', async () => {
+    let busy = false;
+    const { media, state } = fakeMedia();
+    const h = harness({ media, busy: () => busy });
+    const callId = await connected(h);
+    h.feed(state.onPcm!, concat(silence(300), speech(1000), silence(900)));
+    await settled();
+    expect(h.sent).toHaveLength(1);
+    busy = true;
+    const answering = await view(h, callId);
+    expect(answering.busy).toBe(false);
+    expect(types(answering.events)).not.toContain('busy');
+    busy = false;
+    expect((await view(h, callId)).busy).toBe(false);
+    busy = true;
+    const other = await view(h, callId, answering.lastSeq);
+    expect(other.busy).toBe(true);
+    expect(types(other.events)).toContain('busy');
+  });
+
+  it('shows busy again when the own turn never starts', async () => {
+    let busy = false;
+    const { media, state } = fakeMedia();
+    const h = harness({ media, busy: () => busy });
+    const callId = await connected(h);
+    h.feed(state.onPcm!, concat(silence(300), speech(1000), silence(900)));
+    await settled();
+    expect(h.sent).toHaveLength(1);
+    h.advance(11_000);
+    busy = true;
+    expect((await view(h, callId)).busy).toBe(true);
+  });
+
   it('mute stops hearing until unmuted', async () => {
     const { media, state } = fakeMedia();
     const h = harness({ media });
