@@ -17,6 +17,7 @@ import { join } from 'node:path';
 
 import { isValidSlug } from '../bots/slug.js';
 import { ChannelAttachmentError, type AttachmentStore } from '../attachments/store.js';
+import type { MediaVersions } from '../attachments/media-versions.js';
 import {
   attachmentIdentity,
   attachmentIntent,
@@ -63,6 +64,7 @@ export { DEFAULT_MESSAGE_PAGE, MAX_MESSAGE_PAGE } from './timeline.js';
 export interface ChannelStoreOptions {
   rootDir: string;
   attachments?: AttachmentStore;
+  mediaVersions?: Pick<MediaVersions, 'describe'>;
   now?: () => Date;
   onCommitted?: (commit: ChannelMessageCommit) => void;
   onRecordChanged?: () => void;

@@ -655,6 +655,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     projectAttachmentFiles(
       attachmentMigration.project(sourceEventId, message),
       options.attachments,
+      options.mediaVersions,
     );
 
   const placementMessage = (
@@ -770,6 +771,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         byId,
       ),
       options.attachments,
+      options.mediaVersions,
     );
 
   const grantResolutions = (
@@ -3126,6 +3128,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
           projectAttachmentFiles(
             replyProjection(projectPostPreview(message), byId),
             options.attachments,
+            options.mediaVersions,
           ),
         ),
         ...(rows.length <= query.limit || last === undefined

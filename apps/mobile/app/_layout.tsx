@@ -28,11 +28,15 @@ import { useSystemReducedMotion } from '../src/ui/primitives/use-system-reduced-
 import { profileScreenOptions } from '../src/ui/chat/profile-presentation';
 import { CallSessionHost } from '../src/ui/chat/call-session-host';
 import { swipeEntryListeners, swipeEntryOptions } from '../src/ui/shell/swipe-entry';
+import { installMediaStore } from '../src/host/media-cache';
+import { nativeMediaStore } from '../src/host/native-media-store';
 import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
 import { useDesignTheme } from '../src/ui/design/theme';
 import { useStrings } from '../src/ui/strings';
 import { useTheme } from '../src/ui/theme';
 import { useNativeInterfacePreferences } from '../src/ui/native-interface-preferences';
+
+installMediaStore(nativeMediaStore);
 
 export const unstable_settings = { initialRouteName: '(tabs)' };
 

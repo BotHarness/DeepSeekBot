@@ -48,6 +48,11 @@ export interface MessageAttachment {
   mime?: string;
   size?: number;
   source?: RemoteSource;
+  thumbnail?: RemoteSource;
+  preview?: RemoteSource;
+  thumbhash?: string;
+  width?: number;
+  height?: number;
   local: boolean;
   cleared?: true;
 }
@@ -393,6 +398,35 @@ function attachmentPath(params: Record<string, string>): string {
   return `${ATTACHMENT_PATH}?${new URLSearchParams(params)}`;
 }
 
+function versionedSources(
+  resolve: (path: string) => RemoteSource,
+  owner: { channelId: string; messageId: string },
+  fileId: string,
+  version: string,
+  image: boolean,
+): { source: RemoteSource; thumbnail?: RemoteSource; preview?: RemoteSource } {
+  const variant = (name?: string): RemoteSource => ({
+    ...resolve(
+      attachmentPath({
+        ...owner,
+        fileId,
+        v: version,
+        ...(name === undefined ? {} : { variant: name }),
+      }),
+    ),
+    cacheKey: name === undefined ? `${fileId}:${version}` : `${fileId}:${version}:${name}`,
+  });
+  if (!image) return { source: variant() };
+  return {
+    source: variant(),
+    thumbnail: variant(THUMBNAIL_VARIANT),
+    preview: variant(PREVIEW_VARIANT),
+  };
+}
+
+export const THUMBNAIL_VARIANT = '320';
+export const PREVIEW_VARIANT = '800';
+
 export function attachmentsOf(
   entry: JournalEntry,
   resolve: (path: string) => RemoteSource,
@@ -409,17 +443,23 @@ export function attachmentsOf(
       name: ref.name,
       mime: ref.mime,
       size: ref.size,
-      ...(file?.uri === undefined
-        ? {
-            source: resolve(
-              attachmentPath(
-                ref.fileId === undefined
-                  ? { hash: ref.hash ?? '', name: ref.name, ...owner }
-                  : { ...owner, fileId: ref.fileId },
+      ...(file?.uri !== undefined
+        ? { source: { uri: file.uri, headers: {} } }
+        : ref.fileId !== undefined && ref.version !== undefined
+          ? versionedSources(resolve, owner, ref.fileId, ref.version, PREVIEWABLE.has(ref.mime))
+          : {
+              source: resolve(
+                attachmentPath(
+                  ref.fileId === undefined
+                    ? { hash: ref.hash ?? '', name: ref.name, ...owner }
+                    : { ...owner, fileId: ref.fileId },
+                ),
               ),
-            ),
-          }
-        : { source: { uri: file.uri, headers: {} } }),
+            }),
+      ...(ref.thumbhash === undefined ? {} : { thumbhash: ref.thumbhash }),
+      ...(ref.width === undefined || ref.height === undefined
+        ? {}
+        : { width: ref.width, height: ref.height }),
       local: file?.uri !== undefined,
     };
   });
