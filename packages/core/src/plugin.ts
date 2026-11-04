@@ -3125,7 +3125,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       if (!result.ok)
         throw Object.assign(new Error(result.error.message), { code: result.error.code });
     },
-    async recordFrames({ slug, channelId, callId, startedAt, source, image, frames, fromMs, toMs }) {
+    async recordFrames({
+      slug,
+      channelId,
+      callId,
+      startedAt,
+      source,
+      image,
+      frames,
+      fromMs,
+      toMs,
+    }) {
       if (core.channels.get(channelId) === undefined) return undefined;
       const record = {
         callId,
