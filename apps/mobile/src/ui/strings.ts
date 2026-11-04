@@ -1625,6 +1625,8 @@ const en = {
     busyElsewhere: 'Another device is on a call with this computer.',
     unreachable: 'Can’t reach the computer. Check that it’s on and try again.',
     noMicrophone: `Turn on Microphone for ${productName.en} in Settings to call.`,
+    microphoneNeeded: 'Calls need the microphone.',
+    allowMicrophone: 'Allow microphone',
     openSettings: 'Open Settings',
     phoneUnsupported: 'Calls need the latest version of this app.',
     ended: {
@@ -3715,6 +3717,8 @@ const zh: typeof en = {
     busyElsewhere: '另一台设备正在和这台电脑通话。',
     unreachable: '连不上电脑。请确认电脑开着，再试一次。',
     noMicrophone: `请在设置里允许 ${productName.zh} 使用麦克风后再通话。`,
+    microphoneNeeded: '通话需要使用麦克风。',
+    allowMicrophone: '允许使用麦克风',
     openSettings: '打开设置',
     phoneUnsupported: '通话需要更新到最新版本的 App。',
     ended: {

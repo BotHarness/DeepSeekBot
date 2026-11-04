@@ -4,6 +4,10 @@ export const callMediaSupported = false;
 
 export type MicrophoneAccess = 'granted' | 'denied' | 'blocked';
 
+export async function microphoneGranted(): Promise<boolean> {
+  return false;
+}
+
 export async function microphoneAccess(): Promise<MicrophoneAccess> {
   return 'denied';
 }

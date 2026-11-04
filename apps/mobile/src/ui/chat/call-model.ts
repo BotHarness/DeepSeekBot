@@ -151,6 +151,17 @@ export function readinessMessage(
   return readiness.missing.map((missing: VoiceCallMissing) => t.call.missing[missing]).join('\n');
 }
 
+export type MicrophoneRecovery = { message: string; action: 'ask' | 'settings' };
+
+export function microphoneRecovery(
+  t: Strings,
+  access: 'granted' | 'denied' | 'blocked' | undefined,
+): MicrophoneRecovery | undefined {
+  if (access === 'denied') return { message: t.call.microphoneNeeded, action: 'ask' };
+  if (access === 'blocked') return { message: t.call.noMicrophone, action: 'settings' };
+  return undefined;
+}
+
 export function formatCallDuration(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
   const hours = Math.floor(total / 3600);
