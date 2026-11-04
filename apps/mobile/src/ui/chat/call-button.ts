@@ -8,6 +8,7 @@ import { callMediaSupported } from '../../host/call-media';
 import { showAppDialog } from '../primitives/app-dialog';
 import { useStrings } from '../strings';
 import { readinessMessage } from './call-model';
+import { callSessions, sameCall } from './call-session';
 
 export function useBotCall(
   client: HostClient | undefined,
@@ -19,6 +20,14 @@ export function useBotCall(
   const pending = useRef(false);
   const call = useCallback(() => {
     if (client === undefined || slug === undefined || pending.current) return;
+    const running = callSessions.getSnapshot();
+    if (running !== undefined && sameCall(running.request, { slug, hostId })) {
+      router.push({
+        pathname: '/call/[slug]',
+        params: { slug, ...(hostId === undefined ? {} : { hostId }) },
+      });
+      return;
+    }
     pending.current = true;
     void (async () => {
       try {

@@ -1,65 +1,37 @@
-import * as Application from 'expo-application';
-import { File, Paths } from 'expo-file-system';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { AppState, Linking, Pressable, ScrollView, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Linking, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
-  createCallClient,
-  type CallClient,
-  type CallClientState,
-  type CallPost,
-} from '../../../../../packages/core/src/voice/call-client';
-import { VOICE_CALL_PATH } from '../../../../../packages/core/src/voice/call-contract';
-import {
   fallbackCallAudioRoute,
   type CallAudioOutputId,
-  type CallAudioRouteState,
   type CallMicrophoneId,
 } from '../../host/call-audio-route';
-import { createCallMedia, microphoneAccess, microphoneGranted } from '../../host/call-media';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { callAudioPreference } from '../../host/native-call-audio-route';
-import { callActivityNative, onCallActivityAction } from '../../host/native-call-activity';
 import { BotAvatar } from '../bot-avatar';
 import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Button } from '../primitives/button';
 import { SystemSymbol } from '../primitives/system-symbol';
 import { Text } from '../primitives/text';
-import { locale, useStrings } from '../strings';
-import { createCallActivity } from './call-activity';
+import { useStrings } from '../strings';
 import { CallAudioMenu } from './call-audio-menu';
 import { callAudioDeviceName } from './call-audio-symbol';
-import {
-  callActivityPhase,
-  callScreenModel,
-  formatCallDuration,
-  microphoneRecovery,
-} from './call-model';
-
-const testBuild = () =>
-  typeof __DEV__ !== 'undefined' && __DEV__ && Application.applicationId?.endsWith('.dev') === true;
-
-type ScriptStep = { at: number; url: string };
+import { callScreenModel, formatCallDuration, microphoneRecovery } from './call-model';
+import { callSessions, sameCall } from './call-session';
+import { useCallSession } from './call-session-host';
 
 const symbols = {
   mic: { ios: 'mic.fill', android: 'mic' },
   micOff: { ios: 'mic.slash.fill', android: 'mic_off' },
   hangUp: { ios: 'phone.down.fill', android: 'call_end' },
+  minimize: {
+    ios: 'arrow.down.right.and.arrow.up.left',
+    android: 'close_fullscreen',
+  },
 } as const;
-
-function hostPost(api: ReturnType<typeof useHostSession>['client']): CallPost {
-  return async (body) => {
-    if (api === undefined) throw new Error('No Host connection.');
-    const answer = await api.api(VOICE_CALL_PATH, { body });
-    const result = answer.body as { ok?: unknown } | null;
-    if (result === null || typeof result !== 'object' || typeof result.ok !== 'boolean')
-      throw new Error(`The Host answered ${answer.status}.`);
-    return result as Awaited<ReturnType<CallPost>>;
-  };
-}
 
 export function CallScreen({
   slug,
@@ -77,163 +49,32 @@ export function CallScreen({
   const { client } = useHostSession(hostId);
   const snapshot = useHostSnapshot(client);
   const bot = snapshot.roster?.bots.find((entry) => entry.slug === slug);
-  const [state, setState] = useState<CallClientState>({ status: 'idle' });
-  const [startedAt, setStartedAt] = useState<number>();
+  const current = useCallSession();
+  const session =
+    current !== undefined && sameCall(current.request, { slug, hostId }) ? current : undefined;
+  const key = session?.key;
   const [now, setNow] = useState(Date.now());
-  const [attempt, setAttempt] = useState(0);
-  const [microphone, setMicrophone] = useState<'granted' | 'denied' | 'blocked'>();
-  const [report, setReport] = useState<string>();
-  const [interrupted, setInterrupted] = useState(false);
   const [audioFailed, setAudioFailed] = useState(false);
-  const [route, setRoute] = useState<CallAudioRouteState | undefined>(undefined);
-  const callRef = useRef<CallClient | undefined>(undefined);
-  const dialed = useRef<number | undefined>(undefined);
-  const nameRef = useRef(slug);
-  nameRef.current = bot?.displayName ?? slug;
-  const testAudio = testBuild() && script !== undefined;
-  const media = useMemo(
-    () => createCallMedia({ testAudio, audio: () => callAudioPreference.getSnapshot().audio }),
-    [testAudio, attempt],
-  );
 
   useFocusEffect(
     useCallback(() => {
-      if (client === undefined || media === undefined || dialed.current === attempt) return;
-      dialed.current = attempt;
-      let cancelled = false;
-      const timeline: Record<string, unknown>[] = [];
-      const mark = (kind: string, detail: Record<string, unknown> = {}) =>
-        timeline.push({ kind, at: Date.now(), ...detail });
-      const activity = createCallActivity(callActivityNative);
-      let current: CallClientState = { status: 'idle' };
-      let paused = false;
-      let connectedAt: number | undefined;
-      const showActivity = () => {
-        const phase = callActivityPhase(current, paused);
-        activity.sync(
-          phase === undefined
-            ? undefined
-            : {
-                name: nameRef.current,
-                phase,
-                startedAt: connectedAt ?? Date.now(),
-                muted: current.status === 'live' && current.muted,
-                locale: locale === 'zh' ? 'zh' : 'en',
-              },
-        );
-      };
-      const call = createCallClient({
-        post: hostPost(client),
-        media,
-        onChange: (next) => {
-          if (cancelled) return;
-          current = next;
-          setState(next);
-          if (next.status === 'live') {
-            connectedAt ??= Date.now();
-            setStartedAt((previous) => previous ?? connectedAt);
-          }
-          if (next.status === 'ended') {
-            paused = false;
-            setInterrupted(false);
-          }
-          showActivity();
-          if (testAudio)
-            mark('state', {
-              status: next.status,
-              phase: next.status === 'live' ? next.call.phase : undefined,
-            });
-        },
-      });
-      callRef.current = call;
-      const removeTap = media.test?.onTap((event) => mark('native', event));
-      const removeAudio = media.audio?.onChange((event) => {
-        if (cancelled) return;
-        paused = event.interrupted;
-        setInterrupted(event.interrupted);
-        if (event.route !== undefined) setRoute(event.route);
-        showActivity();
-        if (testAudio) mark('audio', event);
-      });
-      const removeActions = onCallActivityAction((action) => {
-        if (cancelled) return;
-        if (testAudio) mark('activity-action', { action });
-        if (action === 'hang-up') void call.hangup();
-        else if (current.status === 'live') void call.mute(!current.muted);
-      });
-      void (async () => {
-        const access = await microphoneAccess();
-        if (cancelled) return;
-        setMicrophone(access);
-        if (access !== 'granted') return;
-        await callAudioPreference.ready;
-        if (cancelled) return;
-        await call.open(slug);
-        const opened = await media.audio?.state();
-        if (!cancelled && opened !== undefined && opened !== null) setRoute(opened);
-        if (cancelled || !testAudio || media.test === undefined || script === undefined) return;
-        try {
-          const steps = (await (await fetch(script)).json()) as ScriptStep[];
-          const started = Date.now();
-          for (const step of steps.slice(0, 20)) {
-            const local = await File.downloadFileAsync(step.url, Paths.cache, { idempotent: true });
-            const wait = started + step.at - Date.now();
-            if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
-            if (cancelled) return;
-            mark('inject', { url: step.url, ok: await media.test.inject(local.uri) });
-          }
-        } catch (error) {
-          mark('script-failed', { error: String(error) });
-        }
-      })();
+      callSessions.open({ slug, hostId, script });
+      const showing = callSessions.getSnapshot()?.key;
       return () => {
-        removeTap?.();
-        removeAudio?.();
-        removeActions();
-        activity.end();
-        call.dispose();
-        cancelled = true;
-        callRef.current = undefined;
-        if (testAudio) {
-          const file = new File(Paths.cache, `call-report-${Date.now()}.json`);
-          setTimeout(() => {
-            try {
-              file.writeSync(
-                JSON.stringify({ timeline, recording: media.test?.recording() ?? null }),
-              );
-              setReport(file.uri);
-            } catch {
-              setReport(undefined);
-            }
-          }, 500);
-        }
+        if (showing !== undefined) callSessions.minimize(showing);
       };
-    }, [client, media, slug, script, testAudio, attempt]),
+    }, [slug, hostId, script]),
   );
 
+  const state = session?.state ?? { status: 'idle' as const };
   const ticking = state.status === 'live';
   useFocusEffect(
     useCallback(() => {
       if (!ticking) return;
+      setNow(Date.now());
       const timer = setInterval(() => setNow(Date.now()), 1_000);
       return () => clearInterval(timer);
     }, [ticking]),
-  );
-
-  const waitingForMicrophone = microphone === 'denied' || microphone === 'blocked';
-  useFocusEffect(
-    useCallback(() => {
-      if (!waitingForMicrophone) return;
-      const subscription = AppState.addEventListener('change', (next) => {
-        if (next !== 'active') return;
-        void microphoneGranted().then((granted) => {
-          if (!granted) return;
-          setMicrophone(undefined);
-          setAttempt((value) => value + 1);
-        });
-      });
-      return () => subscription.remove();
-    }, [waitingForMicrophone]),
   );
 
   useFocusEffect(
@@ -244,18 +85,24 @@ export function CallScreen({
     }, [audioFailed]),
   );
 
-  const model = callScreenModel(t, state, { interrupted });
+  const microphone = session?.microphone;
+  const model = callScreenModel(t, state, {
+    interrupted: session?.interrupted === true,
+  });
   const recovery = microphoneRecovery(t, microphone);
   const hint = audioFailed ? t.call.audioSwitchFailed : model.hint;
-  const shownRoute = route ?? fallbackCallAudioRoute();
+  const control = () => (key === undefined ? undefined : callSessions.controls());
+  const shownRoute = session?.audioRoute ?? fallbackCallAudioRoute();
   const chooseAudio = (output: CallAudioOutputId, microphone: CallMicrophoneId) => {
-    void media?.audio?.choose(output, microphone).then((next) => {
+    const choosing = control();
+    if (choosing === undefined || key === undefined) return;
+    void choosing.choose(output, microphone).then((next) => {
       if (next === null) {
         setAudioFailed(true);
         return;
       }
       setAudioFailed(false);
-      setRoute(next);
+      callSessions.publish(key, { audioRoute: next });
       if (next.output === 'external') callAudioPreference.setHeadsetMicrophone(next.microphone);
     });
   };
@@ -268,12 +115,14 @@ export function CallScreen({
       });
   };
   const close = () => {
-    void callRef.current?.hangup();
+    if (key !== undefined) callSessions.close(key);
     leave();
   };
+  const startedAt = session?.startedAt;
   const duration = startedAt === undefined ? undefined : formatCallDuration(now - startedAt);
-  const unsupported = media === undefined;
+  const unsupported = session?.supported === false;
   const ended = unsupported ? t.call.phoneUnsupported : (recovery?.message ?? model.ended);
+  const report = session?.report;
 
   const round = theme.touch * 1.5;
   const roundButton = (input: {
@@ -329,6 +178,34 @@ export function CallScreen({
           justifyContent: 'space-between',
         }}
       >
+        {ended !== undefined ? null : (
+          <Pressable
+            testID="call-minimize"
+            accessibilityRole="button"
+            accessibilityLabel={t.call.minimize}
+            hitSlop={space.x2}
+            onPress={leave}
+            style={({ pressed }) => ({
+              position: 'absolute',
+              zIndex: 1,
+              top: insets.top + space.x3,
+              left: space.x4,
+              width: theme.touch,
+              height: theme.touch,
+              borderRadius: radius.round,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: theme.color.surface,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <SystemSymbol
+              name={symbols.minimize}
+              size={theme.type.body.line}
+              color={theme.color.fg}
+            />
+          </Pressable>
+        )}
         <ScrollView
           style={{ flexShrink: 1 }}
           contentContainerStyle={{ alignItems: 'center', gap: space.x4 }}
@@ -407,8 +284,7 @@ export function CallScreen({
                 label={t.call.allowMicrophone}
                 tone="primary"
                 onPress={() => {
-                  setMicrophone(undefined);
-                  setAttempt((value) => value + 1);
+                  if (key !== undefined) callSessions.retry(key);
                 }}
               />
             ) : model.retry && !unsupported && microphone === 'granted' ? (
@@ -417,9 +293,7 @@ export function CallScreen({
                 label={t.call.callAgain}
                 tone="primary"
                 onPress={() => {
-                  setStartedAt(undefined);
-                  setState({ status: 'idle' });
-                  setAttempt((value) => value + 1);
+                  if (key !== undefined) callSessions.retry(key);
                 }}
               />
             ) : null}
@@ -435,9 +309,9 @@ export function CallScreen({
               ink: model.muted ? theme.color.base : theme.color.fg,
               selected: model.muted,
               disabled: !model.live,
-              onPress: () => void callRef.current?.mute(!model.muted),
+              onPress: () => control()?.mute(!model.muted),
             })}
-            {media?.audio === undefined ? null : (
+            {session?.audioRoutes !== true ? null : (
               <View style={{ alignItems: 'center', gap: space.x3 }}>
                 <CallAudioMenu
                   route={shownRoute}

@@ -211,3 +211,44 @@ export function callActivityPhase(
       return state.muted ? 'muted' : 'listening';
   }
 }
+
+export type CallBubbleTone =
+  | 'connecting'
+  | 'listening'
+  | 'hearing'
+  | 'thinking'
+  | 'speaking'
+  | 'muted'
+  | 'paused'
+  | 'ended';
+
+export type CallBubbleModel = {
+  tone: CallBubbleTone;
+  status: string;
+  muted: boolean;
+  duration?: string;
+};
+
+export function callBubbleModel(
+  t: Strings,
+  input: { state: CallClientState; interrupted: boolean; startedAt?: number | undefined },
+  now: number,
+): CallBubbleModel {
+  const { state, interrupted } = input;
+  if (state.status === 'ended') return { tone: 'ended', status: t.call.ended.hangup, muted: false };
+  const phase = callActivityPhase(state, interrupted);
+  const muted = state.status === 'live' && state.muted;
+  const duration =
+    state.status === 'live' && input.startedAt !== undefined
+      ? formatCallDuration(now - input.startedAt)
+      : undefined;
+  const tone: CallBubbleTone =
+    phase === undefined || phase === 'connecting' || phase === 'reconnecting'
+      ? 'connecting'
+      : phase === 'interrupted'
+        ? 'paused'
+        : phase;
+  const status =
+    tone === 'paused' ? t.call.paused : callScreenModel(t, state, { interrupted }).status;
+  return { tone, status, muted, ...(duration === undefined ? {} : { duration }) };
+}

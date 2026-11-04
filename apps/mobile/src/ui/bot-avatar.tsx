@@ -23,7 +23,7 @@ import { stateColor, useTheme } from './theme';
 
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
-function StateRing({
+export function StateRing({
   box,
   corner,
   color,

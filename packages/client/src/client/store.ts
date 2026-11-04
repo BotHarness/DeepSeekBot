@@ -255,6 +255,7 @@ export interface ChannelMessage {
     failures?: number;
   };
   toolAutoApproval?: import('../../../core/src/channels/channel.js').ChannelToolAutoApproval;
+  voiceCallRecord?: import('../../../core/src/channels/voice-call-record.js').ChannelVoiceCallRecord;
   toolAutoApprovalPause?: import('../../../core/src/channels/channel.js').ChannelToolAutoApprovalPause;
   memberDeparture?: {
     memberKind: 'bot' | 'human';
