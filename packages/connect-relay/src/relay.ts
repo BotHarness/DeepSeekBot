@@ -476,7 +476,18 @@ export function createRelay(options: RelayOptions) {
           .prepare('SELECT * FROM hosts WHERE account = ? ORDER BY created_at, id')
           .bind(account)
           .all<HostRow>();
-        return json(200, { hosts: results.map(view) });
+        const hosts = await Promise.all(
+          results.map(async (row) => {
+            if (row.tunnel_id === null) return view(row);
+            try {
+              const state = await tunnels.tunnelState(row.tunnel_id);
+              return { ...view(row), connected: state !== undefined && ONLINE.has(state.status) };
+            } catch {
+              return view(row);
+            }
+          }),
+        );
+        return json(200, { hosts });
       }
       if (request.method !== 'POST') return failure(405, 'method-not-allowed');
       const body = await readBody(request);

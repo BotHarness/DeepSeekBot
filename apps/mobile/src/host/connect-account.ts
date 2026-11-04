@@ -326,7 +326,10 @@ export function createConnectAccount(options: {
                   id: host['id'],
                   name: host['name'],
                   hostname: host['hostname'],
-                  online: host['tunnel'] === true,
+                  online:
+                    typeof host['connected'] === 'boolean'
+                      ? host['connected']
+                      : host['tunnel'] === true,
                 },
               ]
             : [];

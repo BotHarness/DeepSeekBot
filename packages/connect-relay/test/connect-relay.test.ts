@@ -402,6 +402,28 @@ describe('Connect relay tunnels', () => {
     });
   });
 
+  it('lists a Host as connected only while its tunnel has live connections', async () => {
+    const { call, tunnels } = await setup();
+    await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Studio' } });
+    await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Laptop' } });
+    const listed = async () => (await call('GET', '/v1/hosts', { as: 'user_alice' })).body['hosts'];
+    expect((await listed())[0]).not.toHaveProperty('connected');
+    await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
+      as: 'user_alice',
+      body: { originPort: 41001 },
+    });
+    expect((await listed())[0]).toMatchObject({ tunnel: true, connected: false });
+    tunnels.tunnels.get('tunnel-1')!.status = 'healthy';
+    expect((await listed())[0]).toMatchObject({ tunnel: true, connected: true });
+    tunnels.tunnelState = async () => {
+      throw new Error('cloudflare down');
+    };
+    const fallback = await listed();
+    expect(fallback[0]).toMatchObject({ tunnel: true });
+    expect(fallback[0]).not.toHaveProperty('connected');
+    expect(fallback[1]).toMatchObject({ tunnel: false });
+  });
+
   it('reclaims tunnels left offline and recreates them on the same hostname', async () => {
     const { call, relay, tunnels, advance, at } = await setup();
     await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Studio' } });
