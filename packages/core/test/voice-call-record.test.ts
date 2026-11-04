@@ -4,6 +4,7 @@ import { createBridgeMethods } from '../src/bridge/methods.js';
 import { isChannelMessage } from '../src/channels/channel.js';
 import {
   voiceCallRecordBody,
+  type ChannelVoiceCallLifecycle,
   type ChannelVoiceCallRecord,
 } from '../src/channels/voice-call-record.js';
 import { createCore } from '../src/plugin.js';
@@ -35,7 +36,7 @@ function setup() {
     roster: core.roster,
     runtime: core.runtime,
   });
-  const notice = (record: ChannelVoiceCallRecord) =>
+  const notice = (record: ChannelVoiceCallLifecycle) =>
     core.channels.appendMessage(dm.id, {
       id: `voice-call-${record.state}-${record.callId}`,
       at: record.state === 'started' ? record.startedAt : record.endedAt,

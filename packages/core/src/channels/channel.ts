@@ -434,17 +434,33 @@ export type ChannelCallVisual =
       source: 'camera' | 'screen';
       frames: number;
       layout: '1x1' | '2x2' | '3x3' | '4x4';
+      unsaved?: true;
+      records?: string[];
     }
   | {
       source: 'camera' | 'screen';
       sameAs: string;
+      records?: string[];
     };
+
+export const MAX_CALL_VISUAL_RECORDS = 50;
+
+const callVisualRecords = (value: unknown) =>
+  value === undefined ||
+  (Array.isArray(value) &&
+    value.length > 0 &&
+    value.length <= MAX_CALL_VISUAL_RECORDS &&
+    value.every((id) => typeof id === 'string' && id.length > 0 && id.length <= 150));
 
 export function isChannelCallVisual(value: unknown): value is ChannelCallVisual {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const visual = value as Record<string, unknown>;
   if (visual['source'] !== 'camera' && visual['source'] !== 'screen') return false;
-  const keys = Object.keys(visual).sort().join();
+  if (!callVisualRecords(visual['records'])) return false;
+  const keys = Object.keys(visual)
+    .filter((key) => key !== 'records')
+    .sort()
+    .join();
   if (keys === 'sameAs,source')
     return (
       typeof visual['sameAs'] === 'string' &&
@@ -452,7 +468,8 @@ export function isChannelCallVisual(value: unknown): value is ChannelCallVisual 
       visual['sameAs'].length <= 150
     );
   return (
-    keys === 'frames,layout,source' &&
+    (keys === 'frames,layout,source' ||
+      (keys === 'frames,layout,source,unsaved' && visual['unsaved'] === true)) &&
     Number.isSafeInteger(visual['frames']) &&
     (visual['frames'] as number) >= 1 &&
     (visual['frames'] as number) <= 16 &&

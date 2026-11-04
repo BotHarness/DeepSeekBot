@@ -5,7 +5,7 @@ import type { ChannelVoiceCallRecord } from '../../../../../packages/core/src/ch
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
-import { PhoneIcon, PhoneOffIcon } from '../shell/icons';
+import { CameraIcon, PhoneIcon, PhoneOffIcon, ScreenIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { callRecordLines } from './call-record-text';
 
@@ -19,7 +19,14 @@ export const CallRecordBubble = memo(function CallRecordBubble({
   const { title, detail } = callRecordLines(record, strings.call);
   const started = record.state === 'started';
   const glyph = theme.type.body.line;
-  const Icon = started ? PhoneIcon : PhoneOffIcon;
+  const Icon =
+    record.state === 'frames'
+      ? record.source === 'camera'
+        ? CameraIcon
+        : ScreenIcon
+      : started
+        ? PhoneIcon
+        : PhoneOffIcon;
   return (
     <View style={{ alignItems: 'center', paddingVertical: space.x2 }}>
       <View

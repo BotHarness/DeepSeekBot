@@ -48,3 +48,22 @@ it('shows the start time and the call length in the Human’s language', () => {
   expect(callRecordLines(started, callStrings.zh).title).toBe('语音通话开始');
   expect(callRecordLines(started, callStrings.en).detail).toMatch(/^Started \d/u);
 });
+
+it('reads a silent frame record as camera or screen activity with its time range', () => {
+  const frames = {
+    callId: 'call-0123456789abcdef',
+    botSlug: 'mira',
+    state: 'frames',
+    startedAt: '2026-11-04T10:00:00.000Z',
+    source: 'screen',
+    frames: 16,
+    layout: '4x4',
+    fromMs: 12_000,
+    toMs: 40_000,
+  } as const;
+  expect(activityOf(message(frames))).toEqual({ kind: 'voice-call', record: frames });
+  expect(callRecordLines(frames)).toEqual({
+    title: 'Screen while you were silent',
+    detail: '0:12–0:40 · 16 keyframes',
+  });
+});

@@ -15,6 +15,7 @@ export const CALL_OPTIONS = {
   'reply-wait': { type: 'string' },
   video: { type: 'string' },
   screen: { type: 'string' },
+  'no-save': { type: 'boolean' },
 } as const;
 
 export interface CallValues {
@@ -24,6 +25,7 @@ export interface CallValues {
   video?: string;
   screen?: string;
   out?: string;
+  'no-save'?: boolean;
 }
 
 export const CALL_COMMANDS = [
@@ -48,7 +50,7 @@ export const CALL_COMMANDS = [
   {
     command: 'call-simulate',
     description:
-      'call a Bot with synthetic audio: plays --file <abs.wav> (or a --script <abs.json> timeline) into a Host call without a phone, optionally sharing --video (camera) or --screen <abs video file or JPEG folder> as keyframes, waits for the spoken reply and reports event timings',
+      'call a Bot with synthetic audio: plays --file <abs.wav> (or a --script <abs.json> timeline) into a Host call without a phone, optionally sharing --video (camera) or --screen <abs video file or JPEG folder> as keyframes (--no-save keeps grids out of the DM), waits for the spoken reply and reports event timings',
   },
 ] as const;
 
@@ -128,7 +130,10 @@ function visualInput(
   if (values.video !== undefined && values.screen !== undefined)
     usage('call-simulate shares one source: pass --video or --screen, not both.');
   const path = values.video ?? values.screen;
-  if (path === undefined) return undefined;
+  if (path === undefined) {
+    if (values['no-save'] === true) usage('--no-save needs --video or --screen.');
+    return undefined;
+  }
   if (!isAbsolute(path)) usage('--video and --screen take an absolute video file or JPEG folder.');
   return { source: values.video !== undefined ? 'camera' : 'screen', path };
 }
@@ -235,7 +240,12 @@ async function simulate(
   try {
     if (visual !== undefined)
       collect(
-        result(await post({ kind: 'visual', callId, source: visual.source }))[
+        result(await post({
+          kind: 'visual',
+          callId,
+          source: visual.source,
+          ...(values['no-save'] === true ? { save: false } : {}),
+        }))[
           'call'
         ] as VoiceCallView,
       );
@@ -350,6 +360,16 @@ async function simulate(
               ...(sent === undefined ? {} : { messageId: sent.messageId, waitedMs: sent.waitedMs }),
             };
           }),
+          saved: values['no-save'] !== true,
+          records: of('frame-record').map((event) => ({
+            messageId: event.messageId,
+            frames: event.frames,
+            layout: event.layout,
+            bytes: event.bytes,
+            composeMs: event.composeMs,
+            fromMs: event.fromMs,
+            toMs: event.toMs,
+          })),
           unchanged: of('grid-unchanged').map((event) => ({
             messageId: event.messageId,
             sameAs: event.sameAs,
@@ -413,8 +433,8 @@ export async function runCallCommand(
     if (rest.length !== 2 || !rest[0]!.trim())
       usage('call-frame needs a message id and a cell number.');
     const cell = Number(rest[1]);
-    if (!Number.isSafeInteger(cell) || cell < 1 || cell > 16)
-      usage('The cell is the tile number printed on the grid, from 1 to 16.');
+    if (!Number.isSafeInteger(cell) || cell < 0 || cell > 16)
+      usage('The cell is the tile number printed on the grid, 1 to 16, or 0 for a whole unsaved grid.');
     if (values.out !== undefined && !isAbsolute(values.out))
       usage('--out must be an absolute path.');
     const reply = result(
