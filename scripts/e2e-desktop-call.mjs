@@ -36,6 +36,7 @@ writeFileSync(
   entry,
   [
     `export { createVoiceCalls } from ${JSON.stringify(join(root, 'packages/core/src/voice/calls.ts'))};`,
+    `export { parseStats } from ${JSON.stringify(join(root, 'packages/core/src/voice/call-perf.ts'))};`,
     `export { createVoiceCallHttp } from ${JSON.stringify(join(root, 'packages/core/src/voice/call-http.ts'))};`,
     `export { speech, cough, silence, concat } from ${JSON.stringify(join(root, 'packages/core/test/voice-audio-fixtures.ts'))};`,
   ].join('\n'),
@@ -220,6 +221,9 @@ async function hostMediaPage(browser, base) {
             const done = new Promise((resolve) => state.played.set(id, resolve));
             await media.evaluate(([key, type]) => window.callPlay(key, type), [id, mime]);
             if (!(await done)) throw new Error('playback failed');
+          },
+          async stats() {
+            return host.parseStats(await media.evaluate(() => window.callStats()));
           },
           async close() {
             state.onPcm = undefined;
@@ -439,6 +443,19 @@ async function runScenario(name, scenario) {
     result.downlinkRms = Number(loud.toFixed(3));
     result.asrClipMs = asrAudio.map((bytes) => Math.round(((bytes - 44) / 2 / RATE) * 1000));
 
+    const perf = (await calls.handle({ deviceId: 'host-owner' }, { kind: 'status' })).calls.at(
+      -1,
+    ).perf;
+    assert.ok(perf?.samples >= 1, 'the Host samples call media performance');
+    assert.ok(perf.uplinkPps.max >= 20, `speech fills the uplink (${perf.uplinkPps.max}/s)`);
+    result.perf = {
+      samples: perf.samples,
+      uplinkPps: perf.uplinkPps,
+      downlinkPps: perf.downlinkPps,
+      uplinkKbps: perf.uplinkKbps,
+      downlinkKbps: perf.downlinkKbps,
+      hostCpuPct: perf.hostCpuPct,
+    };
     await window1.evaluate(() => window.__desktopCall.mute(true));
     assert.equal((await window1.evaluate(() => window.__desktopCall.snapshot())).state.muted, true);
     await window1.evaluate(() => window.__desktopCall.hangup());

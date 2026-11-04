@@ -255,14 +255,22 @@ window.callStats = async () => {
       report.type === 'inbound-rtp' &&
       report.kind === 'audio' &&
       Number.isFinite(report.bytesReceived)
-    )
+    ) {
       result.bytesReceived = report.bytesReceived;
+      result.packetsReceived = report.packetsReceived ?? 0;
+      result.packetsLost = Math.max(0, report.packetsLost ?? 0);
+      if (Number.isFinite(report.jitter)) result.jitterMs = report.jitter * 1000;
+      result.concealedSamples = report.concealedSamples ?? 0;
+      result.totalSamplesReceived = report.totalSamplesReceived ?? 0;
+    }
     if (
       report.type === 'outbound-rtp' &&
       report.kind === 'audio' &&
       Number.isFinite(report.bytesSent)
-    )
+    ) {
       result.bytesSent = report.bytesSent;
+      result.packetsSent = report.packetsSent ?? 0;
+    }
   }
   return result;
 };
