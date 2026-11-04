@@ -238,7 +238,10 @@ describe('deepseekbot voice commands', () => {
     };
     const tts = (await run('voice-provider-add', ['local'])) as { provider: { id: string } };
     expect(await run('voice-default-set', ['asr', asr.provider.id], { language: 'zh' })).toEqual({
-      defaults: { tts: null, asr: { providerId: asr.provider.id, language: 'zh' } },
+      defaults: {
+        tts: { providerId: tts.provider.id },
+        asr: { providerId: asr.provider.id, language: 'zh' },
+      },
     });
     await run('voice-default-set', ['tts', tts.provider.id], { voice: 'zm_009' });
     expect(await run('voice-defaults', [])).toEqual({

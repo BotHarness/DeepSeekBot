@@ -95,7 +95,12 @@ describe('Host-wide voice defaults', () => {
     const providers = await fixture();
     const tts = await providers.add({ preset: 'local' });
     const asr = await providers.add({ kind: 'asr', preset: 'local' });
-    expect(providers.defaults()).toEqual({ tts: null, asr: null });
+    expect(providers.defaults()).toEqual({
+      tts: { providerId: tts.id },
+      asr: { providerId: asr.id },
+    });
+    await providers.add({ kind: 'asr', preset: 'local' });
+    expect(providers.defaults().asr).toEqual({ providerId: asr.id });
     providers.setDefault('tts', { providerId: tts.id, voiceId: 'zm_009' });
     providers.setDefault('asr', { providerId: asr.id, language: 'zh' });
     expect(providers.defaults()).toEqual({
@@ -135,8 +140,8 @@ describe('Host-wide voice defaults', () => {
 
   it('lets Bot dictation and the bridge view follow the default unless overridden', async () => {
     const providers = await fixture();
-    const chosen = await providers.add({ kind: 'asr', preset: 'local' });
     const own = await providers.add({ kind: 'asr', preset: 'local' });
+    const chosen = await providers.add({ kind: 'asr', preset: 'local' });
     const bridge = createVoiceBridgeMethods({
       providers,
       registry: registry({ plain: {}, custom: { asr: { providerId: own.id } } }),
@@ -147,6 +152,7 @@ describe('Host-wide voice defaults', () => {
         ? result.value.readiness.providerId
         : undefined;
     };
+    expect(await readiness('plain')).toBe(own.id);
     const set = bridge.voiceDefaultSet({ kind: 'asr', providerId: chosen.id, language: 'zh' });
     expect(set).toEqual({
       ok: true,

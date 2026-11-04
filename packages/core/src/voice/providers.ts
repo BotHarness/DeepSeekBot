@@ -504,6 +504,7 @@ export class VoiceProviders {
     };
     await this.#insert(stored, key);
     this.#log('provider-added', { provider: id, preset: preset.id });
+    if (this.defaults().tts === null) this.setDefault('tts', { providerId: id });
     return view(stored);
   }
 
@@ -538,6 +539,7 @@ export class VoiceProviders {
     };
     await this.#insert(stored, key);
     this.#log('provider-added', { provider: id, preset: preset.id, kind: 'asr' });
+    if (this.defaults().asr === null) this.setDefault('asr', { providerId: id });
     return asrView(stored);
   }
 

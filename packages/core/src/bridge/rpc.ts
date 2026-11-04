@@ -726,8 +726,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
       }),
     );
   }
-  telemetryEvent(event: string, properties: Record<string, string | boolean> = {}): null {
-    return unwrap(this.methods.telemetryEvent({ event, properties }));
+  telemetryEvent(event: string, properties?: Record<string, string | boolean>): null {
+    return unwrap(this.methods.telemetryEvent({ event, properties: properties ?? {} }));
   }
   modelPlanInherit(slug: string, expectedRevision: number): { revision: number } {
     return unwrap(this.methods.modelPlanInherit({ slug, expectedRevision }));
@@ -1366,9 +1366,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
   voiceDefaultSet(
     kind: string,
     providerId: string | null,
-    options: { voiceId?: string; language?: string } = {},
+    voiceId?: string,
+    language?: string,
   ): { defaults: VoiceDefaults } {
-    return unwrap(this.methods.voiceDefaultSet({ kind, providerId, ...options }));
+    return unwrap(this.methods.voiceDefaultSet({ kind, providerId, voiceId, language }));
   }
 
   voiceDictation(
