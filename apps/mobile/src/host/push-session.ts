@@ -53,6 +53,7 @@ export function createPushSession(options: {
   let retrying: Promise<void> | undefined;
   let fetching = 0;
   let seenToken: string | undefined;
+  let changedDuringFetch = false;
 
   const publish = (next: PushStatus): void => {
     snapshot = next;
@@ -108,12 +109,21 @@ export function createPushSession(options: {
       ),
     );
     publish({ status: 'on', failed: results.flatMap((id) => (id === undefined ? [] : [id])) });
+    if (changedDuringFetch && fetching === 0) {
+      changedDuringFetch = false;
+      await registerAll(latest);
+    }
   };
 
   const offToken = notifications.onTokenChanged((token) => {
     const unchanged = token !== undefined && token === seenToken;
+    const replaced = token !== undefined && seenToken !== undefined && token !== seenToken;
     if (token !== undefined) seenToken = token;
-    if (fetching > 0 || unchanged) return;
+    if (fetching > 0) {
+      if (replaced) changedDuringFetch = true;
+      return;
+    }
+    if (unchanged) return;
     if (snapshot.status === 'on') void registerAll(latest);
   });
 

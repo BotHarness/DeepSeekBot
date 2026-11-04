@@ -380,6 +380,16 @@ describe('push registration with a real Host gateway', () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(registrations).toBe(2);
     expect(preferences).toBe(2);
+    phone.port.token = async () => {
+      emit();
+      device = 'device-token-3';
+      emit();
+      return fetchToken();
+    };
+    await session.sync([h.saved]);
+    await vi.waitFor(() => expect(registrations).toBe(4));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(registrations).toBe(4);
     session.stop();
   });
 
