@@ -2,6 +2,7 @@ import type { ChannelActivity } from '../../host/channel-activity';
 import type { RosterView } from '../../host/client';
 import type { ConversationMessage } from '../../host/conversation';
 import { t } from '../strings';
+import { callRecordLines } from './call-record-text';
 
 export type ActivityTarget =
   | { pathname: '/channel/[id]'; params: { id: string; focus: string; focusWindow: 'latest' } }
@@ -134,6 +135,10 @@ export function activityText(
         name: activity.displayName,
         verb: activity.departureType === 'removed' ? copy.removed : copy.left,
       };
+    case 'voice-call': {
+      const { title, detail } = callRecordLines(activity.record);
+      return { name: title, verb: '', detail };
+    }
     case 'turn-stop': {
       if (activity.cause === 'failures')
         return {

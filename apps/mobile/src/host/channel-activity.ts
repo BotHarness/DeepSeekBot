@@ -6,6 +6,10 @@ import type {
   ChannelTurnStop,
 } from '../../../../packages/core/src/channels/channel';
 import { isChannelTurnStopTarget } from '../../../../packages/core/src/channels/turn-stop';
+import {
+  isChannelVoiceCallRecord,
+  type ChannelVoiceCallRecord,
+} from '../../../../packages/core/src/channels/voice-call-record';
 import type { ChannelWireMessage } from './wire';
 
 export type ChannelActivity =
@@ -14,7 +18,8 @@ export type ChannelActivity =
   | { kind: 'memory'; commit: ChannelMemoryCommit; noticeOrigin?: { channelId: string } }
   | ({ kind: 'bot-create' } & BotCreateAction)
   | ({ kind: 'departure' } & ChannelMemberDeparture)
-  | ({ kind: 'turn-stop' } & ChannelTurnStop);
+  | ({ kind: 'turn-stop' } & ChannelTurnStop)
+  | { kind: 'voice-call'; record: ChannelVoiceCallRecord };
 
 function record(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -77,6 +82,8 @@ export function activityOf(message: ChannelWireMessage): ChannelActivity | undef
   if (message.author.kind === 'bot' && text(created['botSlug']) && text(created['displayName']))
     return { kind: 'bot-create', botSlug: created['botSlug'], displayName: created['displayName'] };
   if (message.author.kind !== 'system') return undefined;
+  if (isChannelVoiceCallRecord(message.voiceCallRecord))
+    return { kind: 'voice-call', record: message.voiceCallRecord };
   if (memoryCommit(message.memoryCommit)) {
     const origin = record(message.noticeOrigin);
     if (message.noticeOrigin !== undefined && !text(origin['channelId'])) return undefined;

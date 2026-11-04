@@ -17,6 +17,7 @@ import {
   type VoiceCallView,
 } from './call-contract.js';
 import type { ChannelDraftEvent } from '../channels/draft.js';
+import type { ChannelVoiceCallRecord } from '../channels/voice-call-record.js';
 import { createCallPerf, perfFields, type CallPerf } from './call-perf.js';
 import { createVad, VAD_SAMPLE_RATE, type VadOptions } from './vad.js';
 import { VoiceError, wavFromPcm16 } from './providers.js';
@@ -84,6 +85,11 @@ export interface VoiceCallsDeps {
     callId: string;
   }): Promise<void>;
   busy(slug: string): boolean;
+  record?(input: {
+    slug: string;
+    channelId: string;
+    record: ChannelVoiceCallRecord;
+  }): Promise<string | undefined>;
   now?: () => number;
   cpuMs?: () => number;
   vad?: VadOptions;
@@ -164,6 +170,9 @@ interface Call {
   deafUntil: number;
   lastHeartbeat: number;
   connected: boolean;
+  connectedAt?: number;
+  recorded?: Promise<string | undefined>;
+  heard: number;
   endReason?: VoiceCallEndReason;
   endedAt?: number;
   offer?: VoiceCallDescription;
@@ -347,6 +356,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     call.warmed = undefined;
     push(call, { type: 'ended', reason });
     log('call-ended', { call: call.id, bot: call.slug, reason, ms: call.endedAt - call.startedAt });
+    recordEnd(call, reason);
     const perf = call.perf.view();
     if (perf === undefined && call.connected && call.peer?.stats !== undefined)
       log('call-media-summary', { call: call.id, samples: 0 });
@@ -369,6 +379,63 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     setTimeout(() => {
       if (calls.get(call.id) === call) calls.delete(call.id);
     }, 60_000).unref?.();
+  };
+
+  const iso = (ms: number) => new Date(ms).toISOString();
+
+  const writeRecord = async (call: Call, record: ChannelVoiceCallRecord) => {
+    if (deps.record === undefined) return undefined;
+    try {
+      return await deps.record({ slug: call.slug, channelId: call.channelId, record });
+    } catch (error) {
+      log('call-record-failed', {
+        call: call.id,
+        state: record.state,
+        message: (error instanceof Error ? error.message : 'unknown').slice(0, 200),
+      });
+      return undefined;
+    }
+  };
+
+  let recordTail: Promise<unknown> = Promise.resolve();
+
+  const recordStart = (call: Call) => {
+    if (deps.record === undefined || call.connectedAt === undefined) return;
+    const before = recordTail;
+    const connectedAt = call.connectedAt;
+    call.recorded = before.then(() =>
+      writeRecord(call, {
+        callId: call.id,
+        botSlug: call.slug,
+        state: 'started',
+        startedAt: iso(connectedAt),
+      }),
+    );
+    recordTail = call.recorded;
+  };
+
+  const recordEnd = (call: Call, reason: VoiceCallEndReason) => {
+    const started = call.recorded;
+    const connectedAt = call.connectedAt;
+    if (started === undefined || connectedAt === undefined) return;
+    const endedAt = call.endedAt ?? now();
+    const pending = call.transcription.catch(() => undefined);
+    call.recorded = (async () => {
+      const startMessageId = await started;
+      await pending;
+      return writeRecord(call, {
+        callId: call.id,
+        botSlug: call.slug,
+        state: 'ended',
+        startedAt: iso(connectedAt),
+        endedAt: iso(endedAt),
+        durationMs: Math.max(0, endedAt - connectedAt),
+        reason,
+        heard: call.heard,
+        ...(startMessageId === undefined ? {} : { startMessageId }),
+      });
+    })();
+    recordTail = call.recorded;
   };
 
   const dropStream = (call: Call) => {
@@ -524,6 +591,8 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         return;
       }
       const messageId = `human-${randomUUID()}`;
+      await call.recorded;
+      if (ended(call)) return;
       try {
         await deps.send({
           slug: call.slug,
@@ -545,6 +614,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         return;
       }
       call.lastHeardAt = now();
+      call.heard += 1;
       if (!call.busy && call.ownTurn === 'none') {
         call.ownTurn = 'sent';
         call.ownTurnAt = now();
@@ -1081,6 +1151,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       deafUntil: 0,
       lastHeartbeat: startedAt,
       connected: false,
+      heard: 0,
       events: [],
       seq: 0,
       transcription: Promise.resolve(),
@@ -1101,7 +1172,9 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     const connected = () => {
       if (call.connected || call.phase === 'ended') return;
       call.connected = true;
+      call.connectedAt = now();
       call.phase = 'listening';
+      recordStart(call);
       push(call, { type: 'connected' });
       if (call.busy) push(call, { type: 'busy' });
       prepareAck(call);
@@ -1240,6 +1313,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       case 'hangup': {
         const call = own(caller, command['callId'], true);
         await end(call, 'hangup');
+        await Promise.race([call.recorded, new Promise((resolve) => setTimeout(resolve, 3_000))]);
         return { ok: true, call: view(call) };
       }
       default:
@@ -1273,7 +1347,12 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     },
     async dispose() {
       disposed = true;
-      await Promise.all([...calls.values()].map((call) => end(call, 'host-stopped')));
+      const open = [...calls.values()];
+      await Promise.all(open.map((call) => end(call, 'host-stopped')));
+      await Promise.race([
+        Promise.all(open.map((call) => call.recorded)),
+        new Promise((resolve) => setTimeout(resolve, 2_000).unref?.()),
+      ]);
       calls.clear();
     },
   };

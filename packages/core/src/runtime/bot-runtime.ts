@@ -110,6 +110,7 @@ import {
   type ChannelRecord,
   type SessionFailureProgress,
 } from '../channels/channel.js';
+import { voiceCallDuration, type ChannelVoiceCallRecord } from '../channels/voice-call-record.js';
 import { ChannelReplyTargetError, MAX_MESSAGE_PAGE } from '../channels/store.js';
 import type { TakeoverResolution } from '../takeover/contracts.js';
 import type { MessagePerfTracker } from '../usage/message-perf.js';
@@ -3928,6 +3929,30 @@ class BotRuntimeImplementation implements BotRuntime {
       .join('');
   }
 
+  #lastCallNote(channelId: string, messageId: string): string | undefined {
+    let record: ChannelVoiceCallRecord | undefined;
+    try {
+      record = this.#channels.queryMessages(channelId, {
+        text: 'voice call',
+        authorKind: 'system',
+        limit: 1,
+      }).messages[0]?.voiceCallRecord;
+    } catch {
+      return undefined;
+    }
+    if (record?.state !== 'ended') return undefined;
+    let typed: ChannelMessage[];
+    try {
+      typed = this.#channels
+        .queryMessages(channelId, { authorKind: 'human', from: record.endedAt, limit: 50 })
+        .messages.filter((item) => item.voiceCall === undefined);
+    } catch {
+      return undefined;
+    }
+    if (typed.at(-1)?.id !== messageId) return undefined;
+    return `[Last voice call with the Human in this DM: ${record.callId}, from ${record.startedAt} to ${record.endedAt} (${voiceCallDuration(record.durationMs)}, ${record.heard} spoken message${record.heard === 1 ? '' : 's'} heard). The Human is typing again now. The DM messages between the call's start and end notices are what was said on that call; read them with channel_read from=${record.startedAt} to=${record.endedAt}. channel_read text "voice call" with author_kind system lists earlier calls.]`;
+  }
+
   #groupMentionPrompt(botSlug: string, channelId: string, messageId: string, body: string): string {
     const message = this.#channels.message(channelId, messageId);
     const sender = message?.author.kind === 'bot' ? `PersonaBot ${message.author.slug}` : 'Human';
@@ -3995,6 +4020,10 @@ class BotRuntimeImplementation implements BotRuntime {
       parts.push(
         `[Voice call ${message.voiceCall.callId}] ${this.#promptText(botSlug)('voice-call-hint')}`,
       );
+    else {
+      const call = this.#lastCallNote(channelId, messageId);
+      if (call !== undefined) parts.push(call);
+    }
     if (message.assignmentReply !== undefined)
       parts.push(
         `[Human response to Assignment Session ${message.assignmentReply.sessionId}, report Source Event ${message.assignmentReply.sourceEventId}]\nUse assignment inspection and send_assignment_request to relay this response to the addressed Assignment. This DM is Human input; it does not itself resume the Assignment or clear its open ask.`,
