@@ -50,6 +50,14 @@ function fail() {
 
 window.addEventListener('beforeunload', stop);
 
+function withDtx(sdp) {
+  const opus = new Set();
+  for (const match of sdp.matchAll(/^a=rtpmap:(\d+) opus\/48000/gimu)) opus.add(match[1]);
+  return sdp.replace(/^a=fmtp:(\d+) ([^\r\n]*)$/gmu, (line, payload, params) =>
+    opus.has(payload) && !/(?:^|;)\s*usedtx=/u.test(params) ? `${line};usedtx=1` : line,
+  );
+}
+
 function base64(bytes) {
   let binary = '';
   for (let index = 0; index < bytes.length; index += 0x8000)
@@ -67,7 +75,10 @@ async function startCapture(stream) {
   await captureContext.audioWorklet.addModule(url);
   URL.revokeObjectURL(url);
   const source = captureContext.createMediaStreamSource(stream);
-  tap = new AudioWorkletNode(captureContext, 'pcm-tap', { numberOfInputs: 1, numberOfOutputs: 0 });
+  tap = new AudioWorkletNode(captureContext, 'pcm-tap', {
+    numberOfInputs: 1,
+    numberOfOutputs: 0,
+  });
   let pending = new Int16Array(FRAME);
   let filled = 0;
   tap.port.onmessage = (event) => {
@@ -131,7 +142,8 @@ window.callStart = async () => {
     );
     if (!opus.length) throw new Error('Opus unavailable');
     transceiver.setCodecPreferences(opus);
-    await peer.setLocalDescription(await peer.createOffer());
+    const offer = await peer.createOffer();
+    await peer.setLocalDescription({ type: 'offer', sdp: withDtx(offer.sdp) });
     await new Promise((resolve, reject) => {
       let candidates = 0;
       const finish = (error) => {
@@ -166,7 +178,7 @@ window.callStart = async () => {
 window.callAnswer = async (sdp) => {
   if (!peer || answered) throw new Error('Stale answer');
   answered = true;
-  await peer.setRemoteDescription({ type: 'answer', sdp });
+  await peer.setRemoteDescription({ type: 'answer', sdp: withDtx(sdp) });
   return null;
 };
 
@@ -218,7 +230,11 @@ window.callStop = (playback) => {
 };
 
 window.callStats = async () => {
-  const result = { state: peer?.connectionState ?? 'new', framesSent, path: 'unknown' };
+  const result = {
+    state: peer?.connectionState ?? 'new',
+    framesSent,
+    path: 'unknown',
+  };
   if (!peer) return result;
   const stats = await peer.getStats();
   for (const report of stats.values()) {

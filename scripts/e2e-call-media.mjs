@@ -105,6 +105,7 @@ try {
   );
   assert.match(offer.sdp, /a=rtpmap:\d+ opus\/48000/iu);
   assert.doesNotMatch(offer.sdp, /m=application/iu, 'no data channel');
+  assert.match(offer.sdp, /a=fmtp:\d+ [^\r\n]*usedtx=1/iu, 'the offer asks the phone for Opus DTX');
 
   const answer = await phone.evaluate(async (sdp) => {
     const phone = window.__phone;
@@ -124,7 +125,10 @@ try {
         analyser.getFloatTimeDomainData(data);
         let sum = 0;
         for (const value of data) sum += value * value;
-        phone.levels.push({ at: performance.now(), rms: Math.sqrt(sum / data.length) });
+        phone.levels.push({
+          at: performance.now(),
+          rms: Math.sqrt(sum / data.length),
+        });
       }, 50);
     });
     await peer.setRemoteDescription({ type: 'offer', sdp });
@@ -189,7 +193,9 @@ try {
   const playStarted = Date.now();
   const played = await host.evaluate(() => window.callPlay('p1', 'audio/wav'));
   assert.equal(played.started, true);
-  await host.waitForFunction(() => window.__events.played.length === 1, null, { timeout: 5_000 });
+  await host.waitForFunction(() => window.__events.played.length === 1, null, {
+    timeout: 5_000,
+  });
   timings.playbackMs = Date.now() - playStarted;
   const heard = await phone.evaluate((from) => window.__phone.levels.slice(from), before);
   const downlinkRms = Math.max(...heard.map((level) => level.rms));
@@ -206,6 +212,47 @@ try {
     ok: false,
   });
 
+  const rate = async (ms) => {
+    const packets = () =>
+      host.evaluate(async () => {
+        const counts = { uplink: 0, downlink: 0 };
+        for (const report of (await peer.getStats()).values())
+          if (report.kind === 'audio' && report.type === 'inbound-rtp')
+            counts.uplink = report.packetsReceived;
+          else if (report.kind === 'audio' && report.type === 'outbound-rtp')
+            counts.downlink = report.packetsSent;
+        return counts;
+      });
+    const first = await packets();
+    await host.waitForTimeout(ms);
+    const last = await packets();
+    const per = (key) => Number((((last[key] - first[key]) * 1000) / ms).toFixed(1));
+    return { uplink: per('uplink'), downlink: per('downlink') };
+  };
+  await host.waitForTimeout(1000);
+  const quietRate = await rate(4000);
+  await phone.evaluate(() => {
+    window.__phone.gain.gain.value = 1;
+  });
+  await host.waitForTimeout(300);
+  const talkingRate = await rate(2000);
+  await phone.evaluate(() => {
+    window.__phone.gain.gain.value = 0;
+  });
+  const pcmBeforeQuiet = await host.evaluate(() => window.__events.pcm.length);
+  await host.waitForTimeout(1000);
+  const pcmDuringQuiet = (await host.evaluate(() => window.__events.pcm.length)) - pcmBeforeQuiet;
+  assert.ok(talkingRate.uplink >= 40, `speech sends every frame (${talkingRate.uplink}/s)`);
+  assert.ok(
+    quietRate.uplink <= 10,
+    `a silent phone sends DTX packets only (${quietRate.uplink}/s)`,
+  );
+  assert.ok(
+    quietRate.downlink <= 10,
+    `a silent Host sends DTX packets only (${quietRate.downlink}/s)`,
+  );
+  assert.ok(pcmDuringQuiet >= 8, `the Host VAD still gets PCM in DTX gaps (${pcmDuringQuiet}/s)`);
+
   const stats = await host.evaluate(() => window.callStats());
   assert.equal(stats.state, 'connected');
   assert.ok(stats.bytesReceived > 0 && stats.bytesSent > 0);
@@ -219,8 +266,13 @@ try {
     offerSections: sections.length,
     uplink: { frames: uplink.frames, rms: Number(uplinkRms.toFixed(3)) },
     downlink: { rms: Number(downlinkRms.toFixed(3)) },
+    packetsPerSecond: { quiet: quietRate, talking: talkingRate },
     timings,
-    stats: { path: stats.path, bytesReceived: stats.bytesReceived, bytesSent: stats.bytesSent },
+    stats: {
+      path: stats.path,
+      bytesReceived: stats.bytesReceived,
+      bytesSent: stats.bytesSent,
+    },
   };
   console.log(process.argv.includes('--json') ? JSON.stringify(result) : result);
 } finally {
