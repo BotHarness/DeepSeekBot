@@ -256,8 +256,10 @@ class CallAttempt(
         (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)?.let { detail["thermal"] = it.currentThermalStatus }
       }
       (context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager)?.let {
-        detail["batteryPct"] = it.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
-        detail["batteryCurrentUa"] = it.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
+        val level = it.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+        if (level != Int.MIN_VALUE) detail["batteryPct"] = level
+        val current = it.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
+        if (current != Int.MIN_VALUE) detail["batteryCurrentUa"] = current
       }
       tap.note("perf", detail)
     }

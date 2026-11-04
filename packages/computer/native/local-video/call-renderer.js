@@ -53,11 +53,22 @@ function fail() {
 window.addEventListener('beforeunload', stop);
 
 function withDtx(sdp) {
-  const opus = new Set();
-  for (const match of sdp.matchAll(/^a=rtpmap:(\d+) opus\/48000/gimu)) opus.add(match[1]);
-  return sdp.replace(/^a=fmtp:(\d+) ([^\r\n]*)$/gmu, (line, payload, params) =>
-    opus.has(payload) && !/(?:^|;)\s*usedtx=/u.test(params) ? `${line};usedtx=1` : line,
-  );
+  const eol = sdp.includes('\r\n') ? '\r\n' : '\n';
+  const sections = sdp.split(/(?=^m=)/mu);
+  return sections
+    .map((section) => {
+      const opus = new Set();
+      for (const match of section.matchAll(/^a=rtpmap:(\d+) opus\/48000/gimu)) opus.add(match[1]);
+      const described = new Set();
+      const tuned = section.replace(/^a=fmtp:(\d+) ([^\r\n]*)$/gmu, (line, payload, params) => {
+        described.add(payload);
+        return opus.has(payload) && !/(?:^|;)\s*usedtx=/u.test(params) ? `${line};usedtx=1` : line;
+      });
+      return tuned.replace(/^a=rtpmap:(\d+) opus\/48000[^\r\n]*$/gimu, (line, payload) =>
+        described.has(payload) ? line : `${line}${eol}a=fmtp:${payload} usedtx=1`,
+      );
+    })
+    .join('');
 }
 
 function base64(bytes) {

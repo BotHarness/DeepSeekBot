@@ -266,7 +266,7 @@ try {
 
   await phone.evaluate(() => window.__phone.peer.close());
   await host.waitForFunction(() => window.__events.states.includes('failed'), null, {
-    timeout: 15_000,
+    timeout: 30_000,
   });
   const result = {
     ok: true,
