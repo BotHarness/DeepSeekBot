@@ -86,8 +86,8 @@ function json(status: number, body: unknown): Response {
   });
 }
 
-function failure(status: number, code: string): Response {
-  return json(status, { error: { code } });
+function failure(status: number, code: string, cause?: string): Response {
+  return json(status, { error: cause === undefined ? { code } : { code, cause } });
 }
 
 async function readBody(
@@ -372,7 +372,7 @@ export function createRelay(options: RelayOptions) {
       return failure(400, 'invalid-verifier');
     const name = body?.['name'];
     if (name !== undefined && !validName(name)) return failure(400, 'invalid-device-name');
-    if (row.tunnel_id === null) return failure(409, 'host-offline');
+    if (row.tunnel_id === null) return failure(409, 'host-offline', 'no-tunnel');
     const payload = JSON.stringify({
       hostId: row.id,
       account,
@@ -387,10 +387,14 @@ export function createRelay(options: RelayOptions) {
         method: 'GET',
         signal: AbortSignal.timeout(OFFER_TIMEOUT_MS),
       });
-    } catch {
-      return failure(409, 'host-offline');
+    } catch (error) {
+      return failure(
+        409,
+        'host-offline',
+        (error as { name?: unknown } | null)?.name === 'TimeoutError' ? 'timeout' : 'unreachable',
+      );
     }
-    if (reply.status >= 500) return failure(409, 'host-offline');
+    if (reply.status >= 500) return failure(409, 'host-offline', `http-${reply.status}`);
     const answer = (await reply.json().catch(() => undefined)) as
       | {
           encryption?: { protocol?: unknown; publicKey?: unknown };
@@ -405,7 +409,11 @@ export function createRelay(options: RelayOptions) {
       typeof answer.host?.id !== 'string' ||
       typeof answer.host.name !== 'string'
     )
-      return failure(502, 'host-refused');
+      return failure(
+        502,
+        'host-refused',
+        reply.status === 200 ? 'bad-offer' : `http-${reply.status}`,
+      );
     return json(200, {
       enrollment: { body: payload, signature },
       encryption: answer.encryption,

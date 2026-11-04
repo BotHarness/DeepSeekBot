@@ -723,7 +723,7 @@ describe('Connect relay phone offers', () => {
     const offer = (as: string, body: unknown) =>
       call('POST', '/v1/hosts/haaaaaaaaaaab/offer', { as, body });
     expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).body).toEqual({
-      error: { code: 'host-offline' },
+      error: { code: 'host-offline', cause: 'no-tunnel' },
     });
     await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
       as: 'user_alice',
@@ -733,10 +733,22 @@ describe('Connect relay phone offers', () => {
     expect((await offer('user_alice', { verifierHash: 'short' })).body).toEqual({
       error: { code: 'invalid-verifier' },
     });
-    expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).status).toBe(409);
+    expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).body).toEqual({
+      error: { code: 'host-offline', cause: 'unreachable' },
+    });
+    answer = async () => {
+      throw new DOMException('timed out', 'TimeoutError');
+    };
+    expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).body).toEqual({
+      error: { code: 'host-offline', cause: 'timeout' },
+    });
+    answer = async () => new Response('bad gateway', { status: 530 });
+    expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).body).toEqual({
+      error: { code: 'host-offline', cause: 'http-530' },
+    });
     answer = async () => Response.json({ code: 'relay-signature-invalid' }, { status: 401 });
     expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).body).toEqual({
-      error: { code: 'host-refused' },
+      error: { code: 'host-refused', cause: 'http-401' },
     });
     answer = async () => Response.json({ offer: 'x', expiresAt: 'y', host: { name: 'Other' } });
     expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).status).toBe(502);

@@ -47,7 +47,7 @@ export type PairingRefusal =
 
 export type ParsedLink =
   | { ok: true; payload: PairingPayload }
-  | { ok: false; code: PairingRefusal };
+  | { ok: false; code: PairingRefusal; detail?: string };
 
 const SCHEMES = new Set(['deepseekbot:', 'deepseekbot-dev:']);
 
@@ -140,6 +140,7 @@ export async function redeemPairing(options: {
   deviceName: string;
   carrier: HostCarrier;
   timeoutMs?: number;
+  lanRetryDelayMs?: number;
   onPending?: (deviceFingerprint: string) => void;
   confirmFingerprint?: (fingerprint: string, hostName: string) => Promise<boolean>;
   signal?: AbortSignal;
@@ -150,6 +151,7 @@ export async function redeemPairing(options: {
   if (payload.enrollment && payload.routes.some((route) => !isConnectRoute(route)))
     return { ok: false, code: 'no-route' };
   if (payload.encryption !== undefined) return redeemEncrypted(options);
+  const details: string[] = [];
   for (const route of payload.routes) {
     if (isEncryptedRoute(route)) return { ok: false, code: 'host-key-required' };
     let status: number;
@@ -167,8 +169,23 @@ export async function redeemPairing(options: {
         signal: controller.signal,
       });
       status = response.status;
-      body = record(JSON.parse(await response.text()));
-    } catch {
+      const text = await response.text();
+      try {
+        body = record(JSON.parse(text));
+      } catch {
+        body = {};
+      }
+    } catch (error) {
+      details.push(
+        channelFailureDetail(
+          route,
+          controller.signal.aborted
+            ? 'channel-timeout'
+            : error instanceof Error
+              ? error.message
+              : '',
+        ),
+      );
       continue;
     } finally {
       clearTimeout(timer);
@@ -177,6 +194,10 @@ export async function redeemPairing(options: {
       return {
         ok: false,
         code: body['code'] === 'offer-expired' ? 'offer-expired' : 'offer-invalid',
+        detail: channelFailureDetail(
+          route,
+          typeof body['code'] === 'string' ? `refused-${body['code']}` : 'refused',
+        ),
       };
     const host = record(body['host']);
     if (
@@ -184,8 +205,10 @@ export async function redeemPairing(options: {
       typeof body['credential'] !== 'string' ||
       typeof body['deviceId'] !== 'string' ||
       host['id'] !== payload.host.id
-    )
+    ) {
+      details.push(channelFailureDetail(route, status === 200 ? 'bad-reply' : `http-${status}`));
       continue;
+    }
     return {
       ok: true,
       host: {
@@ -197,7 +220,10 @@ export async function redeemPairing(options: {
       },
     };
   }
-  return { ok: false, code: 'unreachable' };
+  const detail = joinFailureDetails(details);
+  return detail === undefined
+    ? { ok: false, code: 'unreachable' }
+    : { ok: false, code: 'unreachable', detail };
 }
 
 export async function revokePairing(options: {
@@ -312,7 +338,8 @@ export async function pairHost(options: {
       typeof options.text === 'string' ? parsePairingLink(options.text) : await options.text();
     if (options.signal?.aborted) return { ok: false, code: 'cancelled' };
     if (!parsed.ok) {
-      observation.finish('refused', parsed.code);
+      if (parsed.detail === undefined) observation.finish('refused', parsed.code);
+      else observation.finish('refused', parsed.code, parsed.detail);
       return parsed;
     }
     const existing = options.existing?.(parsed.payload.host.id);
@@ -346,9 +373,11 @@ export async function pairHost(options: {
     }
     try {
       await options.save(redeemed.host);
-    } catch {
-      observation.finish('failed', 'storage-failure');
-      return { ok: false, code: 'storage-failure' };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      const detail = `app:storage-${/^[a-z][a-z0-9-]{0,39}$/u.test(message) ? message : 'error'}`;
+      observation.finish('failed', 'storage-failure', detail);
+      return { ok: false, code: 'storage-failure', detail };
     }
     observation.finish('success');
     return { ok: true };
@@ -416,11 +445,32 @@ export async function updatePairedRoutes(
   }
 }
 
+const LAN_PROMPT_RETRY_MS = 4000;
+
+function pause(ms: number, signal?: AbortSignal): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve(false);
+      return;
+    }
+    const stop = () => {
+      clearTimeout(timer);
+      resolve(false);
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', stop);
+      resolve(true);
+    }, ms);
+    signal?.addEventListener('abort', stop, { once: true });
+  });
+}
+
 async function redeemEncrypted(options: {
   payload: PairingPayload;
   deviceName: string;
   carrier: HostCarrier;
   signal?: AbortSignal;
+  lanRetryDelayMs?: number;
   onPending?: (deviceFingerprint: string) => void;
   confirmFingerprint?: (fingerprint: string, hostName: string) => Promise<boolean>;
 }): Promise<Redemption> {
@@ -459,7 +509,16 @@ async function redeemEncrypted(options: {
     if (result.code === 'lan-permission-denied') lanDenied = true;
     if (result.code !== 'lan-unreachable' && result.code !== 'lan-permission-denied') break;
   }
-  if (result.ok) return result;
+  if (lanDenied && (await pause(options.lanRetryDelayMs ?? LAN_PROMPT_RETRY_MS, options.signal)))
+    for (const route of lan) {
+      const retried = await redeemEncryptedRoute(options, encryption, route);
+      if (retried.ok) return retried;
+      if (retried.detail !== undefined) details.push(`${retried.detail}-retry`);
+      if (retried.code !== 'lan-unreachable' && retried.code !== 'lan-permission-denied') {
+        result = retried;
+        break;
+      }
+    }
   const code =
     lanDenied && (result.code === 'unreachable' || result.code === 'lan-unreachable')
       ? 'lan-permission-denied'

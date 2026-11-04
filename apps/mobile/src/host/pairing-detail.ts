@@ -1,7 +1,8 @@
 import { isConnectRoute, isLanRoute } from './route';
 
 const TOKEN = /^[a-z][a-z0-9-]{0,47}$/u;
-const SEGMENT = /^(?:lan|connect|remote|link|app):[a-z][a-z0-9-]{0,47}(?::[a-z][a-z0-9-]{0,47})?$/u;
+const SEGMENT =
+  /^(?:lan|connect|remote|link|app|relay):[a-z][a-z0-9-]{0,47}(?::[a-z][a-z0-9-]{0,47})?$/u;
 const MAX_SEGMENTS = 4;
 
 function pathKind(route: string): 'lan' | 'connect' | 'remote' | 'app' {
@@ -34,6 +35,13 @@ export function reasonCode(reason: string): string {
 
 export function channelFailureDetail(route: string, reason: string): string {
   return `${pathKind(route)}:${reasonCode(reason || 'channel-disconnected')}`;
+}
+
+export function relayFailureDetail(code: string, cause?: unknown): string {
+  const head = TOKEN.test(code) ? code : 'relay-error';
+  return typeof cause === 'string' && TOKEN.test(cause)
+    ? `relay:${head}:${cause}`
+    : `relay:${head}`;
 }
 
 export function joinFailureDetails(details: readonly string[]): string | undefined {

@@ -6,6 +6,7 @@ import {
   isPairingFailureDetail,
   joinFailureDetails,
   pairingDiagnostics,
+  relayFailureDetail,
   reasonCode,
 } from '../src/host/pairing-detail';
 import { sanitizeEvent } from '../src/telemetry/schema';
@@ -123,8 +124,8 @@ describe('encrypted redemption', () => {
     expect(opened).toEqual([LAN, CONNECT]);
   });
 
-  it('names the iOS Local Network denial when no other path works', async () => {
-    const { carrier } = closingCarrier({
+  it('retries the local path once after the iOS Local Network prompt, then names the denial', async () => {
+    const { carrier, opened } = closingCarrier({
       [LAN]: 'lan-unreachable:local-network-denied',
       [CONNECT]: 'socket error',
     });
@@ -133,9 +134,31 @@ describe('encrypted redemption', () => {
         payload: payload([LAN, CONNECT]),
         deviceName: 'Phone',
         carrier,
+        lanRetryDelayMs: 1,
         confirmFingerprint: async () => true,
       }),
-    ).toMatchObject({ ok: false, code: 'lan-permission-denied' });
+    ).toEqual({
+      ok: false,
+      code: 'lan-permission-denied',
+      detail:
+        'lan:lan-unreachable:local-network-denied,connect:socket-error,lan:lan-unreachable:local-network-denied-retry',
+    });
+    expect(opened).toEqual([LAN, CONNECT, LAN]);
+  });
+
+  it('does not retry the local path after an ordinary local failure', async () => {
+    const { carrier, opened } = closingCarrier({
+      [LAN]: 'channel-timeout',
+      [CONNECT]: 'socket error',
+    });
+    await redeemPairing({
+      payload: payload([LAN, CONNECT]),
+      deviceName: 'Phone',
+      carrier,
+      lanRetryDelayMs: 1,
+      confirmFingerprint: async () => true,
+    });
+    expect(opened).toEqual([LAN, CONNECT]);
   });
 
   it('reports an offer that expires while waiting as expired, not unreachable', async () => {
@@ -219,5 +242,35 @@ describe('pairingDiagnostics', () => {
         'app: 1.6.1 (42)',
       ].join('\n'),
     );
+  });
+});
+
+describe('plaintext and account failures', () => {
+  it('keeps one cause per path for a plaintext pairing link', async () => {
+    const TAILNET = 'https://studio.tailnet-example.ts.net';
+    const TAILNET_IP = 'https://laptop.tailnet-example.ts.net';
+    const request = vi.fn(async (url: string) => {
+      if (url.startsWith(TAILNET_IP)) throw new Error('Connection refused');
+      return new Response('down', { status: 503 });
+    });
+    const carrier: HostCarrier = {
+      randomBytes: () => new Uint8Array(32),
+      request,
+      openSocket: () => ({ send: () => {}, close: () => {} }),
+    };
+    const plain = { ...payload([TAILNET_IP, TAILNET]) } as PairingPayload;
+    delete (plain as { encryption?: unknown }).encryption;
+    expect(await redeemPairing({ payload: plain, deviceName: 'Phone', carrier })).toEqual({
+      ok: false,
+      code: 'unreachable',
+      detail: 'remote:socket-refused,remote:http-503',
+    });
+  });
+
+  it('turns relay causes into address-free codes', () => {
+    expect(relayFailureDetail('host-offline', 'no-tunnel')).toBe('relay:host-offline:no-tunnel');
+    expect(relayFailureDetail('host-offline', 'http-530')).toBe('relay:host-offline:http-530');
+    expect(relayFailureDetail('host-offline', 'at 10.0.0.4')).toBe('relay:host-offline');
+    expect(isPairingFailureDetail(relayFailureDetail('host-refused', 'bad-offer'))).toBe(true);
   });
 });
