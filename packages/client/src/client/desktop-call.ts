@@ -236,6 +236,7 @@ export type DesktopCallNoticeKey =
   | 'call.missing.mediaUnsupported'
   | 'call.missing.mediaHelper'
   | 'call.missing.mediaUnavailable'
+  | 'call.missing.localVoiceOff'
   | 'call.elsewhere'
   | 'call.unreachable'
   | 'call.microphoneDenied'
@@ -255,6 +256,7 @@ const MISSING: Record<VoiceCallMissing, DesktopCallNoticeKey> = {
   'media-unsupported': 'call.missing.mediaUnsupported',
   'media-helper-missing': 'call.missing.mediaHelper',
   'media-unavailable': 'call.missing.mediaUnavailable',
+  'local-voice-off': 'call.missing.localVoiceOff',
 };
 
 function refusal(code: string | undefined): DesktopCallNoticeKey {

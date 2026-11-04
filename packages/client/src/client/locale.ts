@@ -4637,6 +4637,8 @@ export const zh = {
   'call.missing.mediaUnsupported': '通话需要 Mac 或 Windows 电脑作为 Host。',
   'call.missing.mediaHelper': '先为这个 Bot 打开一次“电脑”，电脑会安装通话需要的组件。',
   'call.missing.mediaUnavailable': '电脑现在无法开始通话，请稍后再试。',
+  'call.missing.localVoiceOff':
+    '电脑上的本地语音服务没开。请在电脑上启动它（在它的文件夹里运行 python botharness_voice.py start）。',
   'call.elsewhere': '另一台设备或窗口正在和这台电脑通话。',
   'call.unreachable': '连不上电脑，请再试一次。',
   'call.microphoneDenied': '请允许这个 App 使用麦克风，然后再通话。',
@@ -9580,6 +9582,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'call.missing.mediaHelper':
     'Open Computer on this Bot once so the computer installs what calls need.',
   'call.missing.mediaUnavailable': 'The computer can’t start a call right now. Try again soon.',
+  'call.missing.localVoiceOff':
+    'The local speech service on the computer is off. Start it there (python botharness_voice.py start in its folder).',
   'call.elsewhere': 'Another device or window is on a call with this computer.',
   'call.unreachable': 'Can’t reach the computer. Try again.',
   'call.microphoneDenied': 'Allow this app to use the microphone, then call again.',

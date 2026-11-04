@@ -46,7 +46,7 @@ function hostMedia(): VoiceCallMedia {
   };
 }
 
-function host(options: { asr?: boolean; busy?: () => boolean } = {}) {
+function host(options: { asr?: boolean; busy?: () => boolean; localOff?: boolean } = {}) {
   const calls: VoiceCalls = createVoiceCalls({
     bot: (slug) =>
       slug === 'mira'
@@ -58,6 +58,7 @@ function host(options: { asr?: boolean; busy?: () => boolean } = {}) {
         : undefined,
     providers: {
       has: (id, kind) => id.startsWith(kind),
+      ...(options.localOff ? { localServiceOff: async () => true } : {}),
       transcribe: async () => ({ text: 'hi', latencyMs: 1 }),
       synthesize: async () => ({ audio: new Uint8Array(4), mime: 'audio/wav' }),
     },
@@ -141,6 +142,14 @@ describe('desktop call', () => {
     const mac = desktopWindow(fetcher, 'window-mac-0001');
     await mac.call.start('mira');
     expect(desktopCallNotice(mac.call.snapshot())).toEqual(['call.missing.asr']);
+  });
+
+  it('names a stopped local speech service before dialing', async () => {
+    const { fetcher } = host({ localOff: true });
+    const mac = desktopWindow(fetcher, 'window-mac-0001');
+    await mac.call.start('mira');
+    expect(desktopCallNotice(mac.call.snapshot())).toEqual(['call.missing.localVoiceOff']);
+    expect(mac.media.started).toEqual([]);
   });
 
   it('shows the busy hint only on screen', async () => {
