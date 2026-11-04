@@ -11,6 +11,7 @@ import { useSystemReducedMotion } from './use-system-reduced-motion';
 import { useStrings } from '../strings';
 import { Button } from './button';
 import { Text } from './text';
+import { DeviceAlertAvatar } from './device-alert-avatar';
 
 export function DeviceAlertBanner({ placement = 'inline' }: { placement?: InAppAlertStyle }) {
   const alert = useSyncExternalStore(alertBanners.subscribe, alertBanners.getSnapshot);
@@ -32,8 +33,13 @@ export function DeviceAlertBanner({ placement = 'inline' }: { placement?: InAppA
       testID="device-alert-banner"
       style={{ padding: space.x4, gap: space.x3 }}
     >
-      <Text strong>{alert.title}</Text>
-      <Text>{alert.body}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.x3 }}>
+        <DeviceAlertAvatar alert={alert} />
+        <View style={{ flex: 1, minWidth: 0, gap: space.x3 }}>
+          <Text strong>{alert.title}</Text>
+          <Text>{alert.body}</Text>
+        </View>
+      </View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x3 }}>
         <Button
           label={t.alertOpen}
