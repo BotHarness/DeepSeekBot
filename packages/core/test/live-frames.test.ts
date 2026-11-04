@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LiveRefused, openLiveFrames, parseLiveFrame } from '../src/channels/live-frames.js';
 import type { AssistantStreamFrame } from '@deepseek-ai/dsh-agent';
 import { ChannelDraftTracker } from '../src/channels/draft.js';
@@ -215,6 +215,40 @@ describe('live frames on the native stream carrier', () => {
     const frame = (await frames.next()).value;
     expect(frame.event).toBe('roster/latest');
     expect(JSON.parse(frame.data)).toEqual({ channelId: 'c1', message });
+    abort.abort();
+  });
+
+  it('builds one Activity snapshot per change for every follower and skips unchanged ones', async () => {
+    let revision = 0;
+    const listeners = new Set<(change?: unknown) => void>();
+    const snapshot = vi.fn(() => ({ generation: 'g', revision, bots: [] }) as never);
+    const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }), {
+      snapshot,
+      onChange: (listener) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    });
+    hubs.push(hub);
+    const abort = new AbortController();
+    const followers = [0, 1, 2].map(() => hub.followActivity(abort.signal)[Symbol.asyncIterator]());
+    for (const frames of followers) await frames.next();
+    snapshot.mockClear();
+    revision = 1;
+    const change = {};
+    for (const listener of listeners) listener(change);
+    for (const frames of followers)
+      expect((await frames.next()).value).toMatchObject({
+        type: 'changed',
+        snapshot: { revision: 1 },
+      });
+    expect(snapshot).toHaveBeenCalledTimes(1);
+    for (const listener of listeners) listener({});
+    const next = followers.map((frames) => frames.next());
+    revision = 2;
+    for (const listener of listeners) listener({});
+    for (const pending of next)
+      expect((await pending).value).toMatchObject({ type: 'changed', snapshot: { revision: 2 } });
     abort.abort();
   });
 

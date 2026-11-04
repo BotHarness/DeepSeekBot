@@ -50,6 +50,7 @@ export type BotStateEvent =
 
 export interface BotStateTracker {
   beginAssignmentWait(slug: string, sessionId: string): () => void;
+  syncDurableAttentionWith(sync: () => void): void;
   replaceDurableAttention(
     rows: readonly {
       botSlug: string;
@@ -120,7 +121,9 @@ export function createBotStateTracker(): BotStateTracker {
       informationalCount: number;
     }
   >();
+  let syncDurableAttention = (): void => {};
   const attentionOf = (slug: string): PersonaBotAttention | undefined => {
+    syncDurableAttention();
     const count = approvalCounts.get(slug);
     const questionCount = questionCounts.get(slug);
     const privateInputCount = privateInputCounts.get(slug);
@@ -289,6 +292,9 @@ export function createBotStateTracker(): BotStateTracker {
           assignmentWaits.delete(sessionId);
         if (bots.get(slug)?.has(sessionId)) update(previous);
       };
+    },
+    syncDurableAttentionWith(sync) {
+      syncDurableAttention = sync;
     },
     replaceDurableAttention(rows) {
       if (
