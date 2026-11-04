@@ -70,6 +70,7 @@ export function createPushSession(options: {
     if (stopped) return;
     const attempt = ++generation;
     const current = () => !stopped && attempt === generation;
+    if (snapshot.status === 'denied' || snapshot.status === 'off') publish({ status: 'checking' });
     try {
       await options.beforeRegister?.();
     } catch {
