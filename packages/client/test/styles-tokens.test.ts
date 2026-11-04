@@ -232,7 +232,9 @@ describe('client styles', () => {
 
   it('keeps the composer island token-driven and clear of the message scroll area', () => {
     expect(source).toMatch(/\.bh-composer \{[^}]*min-height: 50px/);
-    expect(source).toMatch(/\.bh-composer \{[^}]*border-radius: 25px/);
+    expect(source).toMatch(
+      /\.bh-composer \{[^}]*border-radius: calc\(var\(--bh-composer-body-height\) \/ 2 \+ [^;]+\);\s*corner-shape: round;/,
+    );
     expect(source).toMatch(/\.bh-composer-expanded \{[^}]*padding-bottom: 48px/);
     expect(source).toMatch(/\.bh-composer-expanded \{[^}]*border-radius: 20px/);
     expect(source).toMatch(/\.bh-composer-with-footer \{[^}]*padding: 10px 12px 48px/);
