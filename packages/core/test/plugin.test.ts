@@ -657,6 +657,7 @@ describe('plugin entry', () => {
       'pause',
       'resume',
       'channels',
+      'ping',
       'humanIdentity',
       'composerIdentity',
       'composerValidate',

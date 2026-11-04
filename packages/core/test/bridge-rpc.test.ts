@@ -706,6 +706,7 @@ describe('bridge typert service', () => {
       'pause',
       'resume',
       'channels',
+      'ping',
       'humanIdentity',
       'composerIdentity',
       'composerValidate',

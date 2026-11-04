@@ -1592,6 +1592,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
+  ping() {
+    return unwrap(this.methods.ping({}));
+  }
+
   humanIdentity() {
     return unwrap(this.methods.humanIdentity({}));
   }
@@ -2780,6 +2784,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'pause',
   'resume',
   'channels',
+  'ping',
   'humanIdentity',
   'composerIdentity',
   'composerValidate',
