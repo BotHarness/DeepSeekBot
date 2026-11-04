@@ -966,15 +966,9 @@ export function ChannelComposer({
   return (
     <div className="bh-composer-shell" data-bh-tour="composer" data-companion-avoid>
       {dictation === undefined ? null : (
-        <div
-          className="bh-composer-dictation-hint"
-          role="status"
-          aria-live="polite"
-          data-state={voice.outside ? 'outside' : voice.snapshot.status}
-          hidden={voice.snapshot.status === 'idle'}
-        >
+        <span className="bh-sr-only" role="status" aria-live="polite">
           {composerVoiceStatus(voice, t) ?? ''}
-        </div>
+        </span>
       )}
       {allBotNotice === undefined ? null : (
         <div className="bh-muted" role="status">

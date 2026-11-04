@@ -4662,34 +4662,6 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 }
 .bh-composer[data-dictation='listening'] .bh-composer-input,
 .bh-composer[data-dictation='finishing'] .bh-composer-input { caret-color: var(--dsw-alias-state-business-primary); }
-.bh-composer-dictation-hint {
-  position: absolute;
-  bottom: calc(100% + ${space.x2});
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: calc(100% - ${space.x4});
-  padding: ${space.x1} ${space.x3};
-  border: ${border.hairline} solid color-mix(in srgb, var(--dsw-alias-state-business-primary) 35%, transparent);
-  border-radius: ${radius.round};
-  background: var(--dsw-alias-bg-module-platform);
-  color: var(--dsw-alias-label-primary);
-  font-size: ${text.metaSize};
-  line-height: ${text.metaLine};
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  box-shadow: 0 6px 18px color-mix(in srgb, var(--dsw-alias-label-primary) 12%, transparent);
-  pointer-events: none;
-}
-.bh-composer-dictation-hint[data-state='outside'] {
-  border-color: var(--dsw-alias-state-warning-primary, var(--dsw-alias-state-business-primary));
-}
-.bh-composer-dictation-hint[data-state='denied'],
-.bh-composer-dictation-hint[data-state='missing'],
-.bh-composer-dictation-hint[data-state='failed'] {
-  border-color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 45%, transparent);
-  color: var(--dsw-alias-state-error-primary);
-}
 .bh-composer[data-dictation='denied'] .bh-composer-input::placeholder,
 .bh-composer[data-dictation='missing'] .bh-composer-input::placeholder,
 .bh-composer[data-dictation='failed'] .bh-composer-input::placeholder { color: var(--dsw-alias-state-error-primary); }
