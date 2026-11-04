@@ -155,7 +155,6 @@ async function simulate(
   post: CallPost,
   clock: { now(): number; sleep(ms: number): Promise<void> },
 ): Promise<unknown> {
-  const visual = await loadVisual(values);
   const steps = script(values)
     .map((step) => {
       let audio: Int16Array;
@@ -187,6 +186,7 @@ async function simulate(
   const total = timeline.reduce((sum, part) => sum + part.length, 0);
   if ((total / 16_000) * 1000 + replyWaitMs > SIMULATION_BUDGET_MS)
     usage('The audio timeline plus --reply-wait must fit in 9 minutes.');
+  const visual = await loadVisual(values);
   const audio = new Int16Array(total);
   let offset = 0;
   for (const part of timeline) {
@@ -349,8 +349,8 @@ async function simulate(
           pickMs: visual.pickMs,
           prepareMs: of('frame-received').map((event) => event.prepareMs),
           framePostMs: sentFrames.map((frame) => frame.postMs),
-          grids: of('grid-built').map((built, index) => {
-            const sent = of('grid-sent')[index];
+          grids: of('grid-built').map((built) => {
+            const sent = of('grid-sent').find((event) => event.grid === built.grid);
             return {
               frames: built.frames,
               dropped: built.dropped,

@@ -306,7 +306,11 @@ describe('Host call owner with a shared camera or screen', () => {
     const built = events.find((event) => event.type === 'grid-built');
     expect(built).toMatchObject({ frames: 3, dropped: 0, layout: '2x2' });
     const gridSent = events.find((event) => event.type === 'grid-sent');
-    expect(gridSent).toMatchObject({ messageId: first.messageId, layout: '2x2' });
+    expect(gridSent).toMatchObject({
+      grid: (built as { grid: number }).grid,
+      messageId: first.messageId,
+      layout: '2x2',
+    });
   });
 
   it('returns a grid cell at its original size until the call ends', async () => {
@@ -507,7 +511,7 @@ describe('Host call owner with a shared camera or screen', () => {
   });
 
   it('forgets the old grid when the source switches', async () => {
-    const h = host(['看这个', '换屏幕了']);
+    const h = host(['看这个', '换屏幕了', '再看摄像头']);
     const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
     await h.ok({ kind: 'visual', callId: call.callId, source: 'camera' });
     await h.ok({
@@ -519,7 +523,9 @@ describe('Host call owner with a shared camera or screen', () => {
     await h.say(call.callId);
     await h.ok({ kind: 'visual', callId: call.callId, source: 'screen' });
     await h.say(call.callId);
-    expect(h.sent.map((item) => item.visual === undefined)).toEqual([false, true]);
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'camera' });
+    await h.say(call.callId);
+    expect(h.sent.map((item) => item.visual === undefined)).toEqual([false, true, true]);
   });
 });
 

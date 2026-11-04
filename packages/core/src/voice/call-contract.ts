@@ -139,6 +139,7 @@ export type VoiceCallEvent =
       seq: number;
       at: number;
       type: 'grid-built';
+      grid: number;
       source: CallVisualSource;
       frames: number;
       dropped: number;
@@ -150,6 +151,7 @@ export type VoiceCallEvent =
       seq: number;
       at: number;
       type: 'grid-sent';
+      grid: number;
       messageId: string;
       layout: CallGridLayout;
       waitedMs: number;

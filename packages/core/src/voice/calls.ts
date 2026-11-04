@@ -192,6 +192,7 @@ interface VisualFrame {
 }
 
 interface GridJob {
+  readonly id: number;
   readonly source: CallVisualSource;
   readonly frames: VisualFrame[];
   readonly picked: readonly PreparedFrame[];
@@ -220,6 +221,7 @@ interface Call {
   records: string[];
   recording: boolean;
   frames: VisualFrame[];
+  grids: number;
   lastGrid?: { readonly source: CallVisualSource; readonly messageId: string } | undefined;
   readonly vad: ReturnType<typeof createVad>;
   phase: VoiceCallPhase;
@@ -678,6 +680,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
           taken.map((entry) => entry.frame),
         );
         call.records.push(messageId);
+        if (call.visual === source) call.lastGrid = { source, messageId };
         if (call.records.length > MAX_CALL_VISUAL_RECORDS) call.records.shift();
         push(call, {
           type: 'frame-record',
@@ -709,9 +712,11 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     const frames = call.frames;
     call.frames = [];
     const endAt = now();
+    const id = (call.grids += 1);
     if (frames.length === 0) {
-      const last = call.records.at(-1) ?? (call.lastGrid?.source === source ? call.lastGrid.messageId : undefined);
+      const last = call.lastGrid?.source === source ? call.lastGrid.messageId : undefined;
       return {
+        id,
         source,
         frames,
         picked: [],
@@ -731,6 +736,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         if (!ended(call))
           push(call, {
             type: 'grid-built',
+            grid: id,
             source,
             frames: picked.length,
             dropped: frames.length - picked.length,
@@ -749,7 +755,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         return { source, image, frames: picked.length, saved } as const;
       });
     result.catch(() => undefined);
-    return { source, frames, picked: picked.map((entry) => entry.frame), result };
+    return { id, source, frames, picked: picked.map((entry) => entry.frame), result };
   };
 
   const restoreGrid = (call: Call, grid: GridJob | undefined) => {
@@ -871,7 +877,13 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
           grid?.picked ?? [],
           visual.saved ? undefined : visual.image,
         );
-        push(call, { type: 'grid-sent', messageId, layout: visual.image.layout, waitedMs });
+        push(call, {
+          type: 'grid-sent',
+          grid: grid?.id ?? 0,
+          messageId,
+          layout: visual.image.layout,
+          waitedMs,
+        });
       } else if (visual !== undefined)
         push(call, { type: 'grid-unchanged', messageId, sameAs: visual.sameAs });
       call.lastHeardAt = now();
@@ -1405,6 +1417,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       records: [],
       recording: false,
       frames: [],
+      grids: 0,
       vad: createVad({
         maxUtteranceMs: VOICE_CALL_LIMITS.maxUtteranceMs,
         stream: !segmented,
@@ -1586,7 +1599,10 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
           throw new CallRefusal('invalid-input', 'save must be true or false.');
         if (call.phase === 'ended') throw new CallRefusal('call-ended', 'The call has ended.');
         if (call.visual !== source || call.saveFrames !== save) {
-          if (call.visual !== source) call.frames = [];
+          if (call.visual !== source) {
+            call.frames = [];
+            call.lastGrid = undefined;
+          }
           call.visual = source;
           call.saveFrames = save;
           push(call, { type: 'visual', source, ...(save ? {} : { unsaved: true }) });
