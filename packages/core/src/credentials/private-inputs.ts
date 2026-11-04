@@ -283,47 +283,57 @@ export class PrivateInputs {
     return this.#recovery;
   }
 
-  async #recover(): Promise<void> {
-    const credentials = this.deps.credentials();
-    if (credentials === undefined) throw new Error('Credential provider is unavailable');
-    for (const channel of this.deps.channels.list()) {
-      if (channel.type !== 'dm' || channel.botSlug === undefined) continue;
+  #scanRequests(dms: readonly { id: string }[]): Array<{ channelId: string; messageId: string }> {
+    const requests: Array<{ channelId: string; messageId: string }> = [];
+    for (const channel of dms) {
       let cursor: string | undefined;
       do {
         const page = this.deps.channels.queryMessages(channel.id, {
           limit: 100,
           ...(cursor === undefined ? {} : { cursor }),
         });
-        for (const message of page.messages) {
-          if (
-            message.privateInputRequest === undefined ||
-            this.#pending.has(message.id) ||
-            this.#resolution(channel.id, message.id) !== undefined
-          )
-            continue;
-          const result = await this.deps.channels.appendMessageOnce(channel.id, {
-            id: 'private-resolution-' + message.id,
-            at: new Date().toISOString(),
-            author: { kind: 'human' },
-            replyTo: message.id,
-            body: 'Private input expired',
-            privateInputResolution: {
-              requestMessageId: message.id,
-              state: 'expired',
-              references: {},
-            },
-          });
-          if (result.status !== 'appended' && result.status !== 'existing')
-            throw new Error('Private request reconciliation failed');
-          this.deps.log('recovered-expired', {
-            requestId: message.id,
-            botSlug: channel.botSlug,
-          });
-        }
+        for (const message of page.messages)
+          if (message.privateInputRequest !== undefined)
+            requests.push({ channelId: channel.id, messageId: message.id });
         cursor = page.nextCursor;
       } while (cursor !== undefined);
-      this.#publish(channel.botSlug);
     }
+    return requests;
+  }
+
+  async #recover(): Promise<void> {
+    const credentials = this.deps.credentials();
+    if (credentials === undefined) throw new Error('Credential provider is unavailable');
+    const dms = this.deps.channels
+      .list()
+      .filter((channel) => channel.type === 'dm' && channel.botSlug !== undefined);
+    const requests = this.deps.channels.privateInputRequests?.() ?? this.#scanRequests(dms);
+    const botOf = new Map(dms.map((channel) => [channel.id, channel.botSlug!]));
+    for (const { channelId, messageId } of requests) {
+      const botSlug = botOf.get(channelId);
+      if (
+        botSlug === undefined ||
+        this.#pending.has(messageId) ||
+        this.#resolution(channelId, messageId) !== undefined
+      )
+        continue;
+      const result = await this.deps.channels.appendMessageOnce(channelId, {
+        id: 'private-resolution-' + messageId,
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        replyTo: messageId,
+        body: 'Private input expired',
+        privateInputResolution: {
+          requestMessageId: messageId,
+          state: 'expired',
+          references: {},
+        },
+      });
+      if (result.status !== 'appended' && result.status !== 'existing')
+        throw new Error('Private request reconciliation failed');
+      this.deps.log('recovered-expired', { requestId: messageId, botSlug });
+    }
+    for (const botSlug of new Set(botOf.values())) this.#publish(botSlug);
     for (const entry of await credentials.listRecords()) {
       const id = /^botharness-private\/grant-([0-9a-f-]{36})$/.exec(entry.key)?.[1];
       if (id === undefined || entry.kind !== 'grant') continue;

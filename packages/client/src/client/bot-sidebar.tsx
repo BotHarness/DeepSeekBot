@@ -1,4 +1,5 @@
 import { UnreadCount, unreadCountLabel } from './unread-count.js';
+import { observeHumanAttention } from './messaging-defaults-live.js';
 export { unreadCountLabel } from './unread-count.js';
 import { Menu } from './appearance-primitives.js';
 import { ALL_HOSTS, remoteHosts } from './remote-hosts.js';
@@ -275,8 +276,7 @@ export function BotPanelIcon({
   ].join(' · ');
   const entryMount = useMountedResource<HTMLElement>(() => {
     void refreshStatus();
-    const timer = window.setInterval(() => void refreshStatus(), 10_000);
-    return () => window.clearInterval(timer);
+    return observeHumanAttention(() => void refreshStatus());
   }, [refreshStatus]);
 
   const glyphMount = useMountedResource<HTMLSpanElement>(

@@ -478,6 +478,7 @@ export interface ChannelStore {
   ): ChannelMessage | undefined;
 
   latestBotActivity?(): ReadonlyMap<string, number>;
+  privateInputRequests?(): Array<{ channelId: string; messageId: string }>;
   humanMessageCounts?(
     from: string,
     to: string,
