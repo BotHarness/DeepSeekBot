@@ -80,8 +80,22 @@ it('preserves canonical content and admission snapshots while allowing distinct 
   expect(
     port.read((db) => db.prepare('SELECT * FROM channel_placements ORDER BY channel_id').all()),
   ).toEqual([
-    { channel_id: 'one', revision: 9, source_event_id: 'source', message_id: 'source', notice: 0 },
-    { channel_id: 'two', revision: 1, source_event_id: 'source', message_id: 'source', notice: 0 },
+    {
+      channel_id: 'one',
+      revision: 9,
+      source_event_id: 'source',
+      message_id: 'source',
+      notice: 0,
+      for_human: 0,
+    },
+    {
+      channel_id: 'two',
+      revision: 1,
+      source_event_id: 'source',
+      message_id: 'source',
+      notice: 0,
+      for_human: 0,
+    },
   ]);
   expect(() =>
     port.transaction((db) =>

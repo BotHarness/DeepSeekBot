@@ -3427,12 +3427,13 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
                    json_extract(e.payload_json, '$.external.event.actor.id')))
                  ELSE json_extract(e.payload_json, '$.author') END AS author_json,
                COUNT(DISTINCT p.source_event_id) AS count
-          FROM channel_placements p
-          JOIN source_events e ON e.source_event_id = p.source_event_id
+          FROM source_events e
+          CROSS JOIN channel_placements p ON p.source_event_id = e.source_event_id
           JOIN channel_records c ON c.channel_id = p.channel_id
           LEFT JOIN channel_human_members m ON m.channel_id = p.channel_id
             AND m.human_id = ? AND m.left_at IS NULL
-         WHERE json_extract(c.record_json, '$.deletedAt') IS NULL
+         WHERE e.created_at >= date(?, '-1 day') AND e.created_at < date(?, '+2 day')
+           AND json_extract(c.record_json, '$.deletedAt') IS NULL
            AND ${notChannelNoticeSql('e.payload_json')}
            AND ((json_extract(c.record_json, '$.type') = 'dm'
                  AND json_extract(c.record_json, '$.botSlug') IS NOT NULL)
@@ -3441,7 +3442,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
            AND julianday(e.created_at) >= julianday(?) AND julianday(e.created_at) < julianday(?)
          GROUP BY p.channel_id, author_json
       `)
-          .all(LOCAL_HUMAN_ID, from, to),
+          .all(LOCAL_HUMAN_ID, from, to, from, to),
       ) as Array<{ channel_id: string; author_json: string; count: number }>;
       return rows.map((row) => {
         const author: unknown = JSON.parse(row.author_json);
