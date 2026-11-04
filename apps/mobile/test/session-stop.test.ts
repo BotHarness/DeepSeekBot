@@ -9,7 +9,10 @@ import {
   sessionStopper,
 } from '../src/host/session-stop';
 
-const bot = (slug: string, sessions: RosterBot['sessions']) => ({ slug, sessions });
+const bot = (
+  slug: string,
+  sessions: RosterBot['sessions'],
+): Pick<RosterBot, 'slug' | 'sessions'> => (sessions === undefined ? { slug } : { slug, sessions });
 
 describe('running Sessions', () => {
   const ada = bot('ada', [
