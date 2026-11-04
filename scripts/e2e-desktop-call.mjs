@@ -443,9 +443,12 @@ async function runScenario(name, scenario) {
     result.downlinkRms = Number(loud.toFixed(3));
     result.asrClipMs = asrAudio.map((bytes) => Math.round(((bytes - 44) / 2 / RATE) * 1000));
 
-    const perf = (await calls.handle({ deviceId: 'host-owner' }, { kind: 'status' })).calls.at(
-      -1,
-    ).perf;
+    let perf;
+    for (const until = Date.now() + 8_000; Date.now() < until;) {
+      perf = (await calls.handle({ deviceId: 'host-owner' }, { kind: 'status' })).calls.at(-1).perf;
+      if (perf?.samples >= 1) break;
+      await new Promise((wait) => setTimeout(wait, 250));
+    }
     assert.ok(perf?.samples >= 1, 'the Host samples call media performance');
     assert.ok(perf.uplinkPps.max >= 20, `speech fills the uplink (${perf.uplinkPps.max}/s)`);
     result.perf = {

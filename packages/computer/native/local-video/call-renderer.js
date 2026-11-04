@@ -142,8 +142,7 @@ window.callStart = async () => {
     );
     if (!opus.length) throw new Error('Opus unavailable');
     transceiver.setCodecPreferences(opus);
-    const offer = await peer.createOffer();
-    await peer.setLocalDescription({ type: 'offer', sdp: withDtx(offer.sdp) });
+    await peer.setLocalDescription(await peer.createOffer());
     await new Promise((resolve, reject) => {
       let candidates = 0;
       const finish = (error) => {
@@ -168,7 +167,7 @@ window.callStart = async () => {
       peer.addEventListener('icecandidate', candidate);
       complete();
     });
-    return { offer: { type: 'offer', sdp: peer.localDescription.sdp } };
+    return { offer: { type: 'offer', sdp: withDtx(peer.localDescription.sdp) } };
   } catch (error) {
     stop();
     throw error;

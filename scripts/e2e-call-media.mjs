@@ -229,6 +229,13 @@ try {
     const per = (key) => Number((((last[key] - first[key]) * 1000) / ms).toFixed(1));
     return { uplink: per('uplink'), downlink: per('downlink') };
   };
+  await host.evaluate(() => {
+    const silent = playContext.createGain();
+    silent.gain.value = 0;
+    const tone = playContext.createOscillator();
+    tone.connect(silent).connect(destination);
+    tone.start();
+  });
   await host.waitForTimeout(1000);
   const quietRate = await rate(4000);
   await phone.evaluate(() => {

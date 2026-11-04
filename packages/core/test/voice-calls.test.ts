@@ -517,7 +517,7 @@ describe('Host call owner', () => {
       rttMs: 12,
     };
     h.advance(5_000);
-    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    await view(h, callId);
     await settled();
     const perf = (await view(h, callId)).perf!;
     expect(perf.samples).toBe(1);
