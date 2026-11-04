@@ -429,6 +429,39 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it('stops the Orchestrator Session from a Channel and every Session of a Bot', async () => {
+    const result = {
+      stopped: [{ botSlug: 'ada', sessionId: 'orch-1', role: 'orchestrator' }],
+      alreadyIdle: [],
+      messageId: 'turn-stopped-1',
+    };
+    const live = await host(() => ({ ok: true, value: result }));
+    const session = await invoke(
+      ['session-stop', 'ada', 'orch-1', '--channel', 'dm-ada'],
+      live.url,
+    );
+    expect(session.code).toBe(0);
+    expect(session.json).toEqual(result);
+    const bot = await invoke(['bot-stop', 'ada', '--channel', 'dm-ada'], live.url);
+    expect(bot.code).toBe(0);
+    expect(bot.json).toEqual(result);
+    expect((await invoke(['bot-stop', 'ada'], live.url)).code).toBe(0);
+    for (const argv of [
+      ['bot-stop'],
+      ['bot-stop', 'ada', 'extra'],
+      ['bot-stop', 'ada', '--channel', ' '],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([
+      {
+        method: 'sessionStop',
+        args: { botSlug: 'ada', sessionId: 'orch-1', channelId: 'dm-ada' },
+      },
+      { method: 'botStop', args: { botSlug: 'ada', channelId: 'dm-ada' } },
+      { method: 'botStop', args: { botSlug: 'ada' } },
+    ]);
+  });
+
   it('approves directory requests through the shared Host command only with explicit confirmation', async () => {
     const live = await host(echo);
     const args = [

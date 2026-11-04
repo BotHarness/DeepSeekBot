@@ -88,21 +88,21 @@ describe('Stop in the composer', () => {
     ]);
   });
 
-  it('calls channelBotStop and reports a Bot with no running turn', async () => {
+  it('runs Bot Stop and reports a Bot with nothing running', async () => {
     const calls: Array<{ endpoint: string; payload: Record<string, unknown> }> = [];
     let working = true;
     const call: BridgeCall = async (endpoint, payload) => {
       calls.push({ endpoint, payload });
-      if (endpoint === 'channelBotStop') {
-        if (!working)
-          return {
-            ok: false,
-            error: { code: 'not-working', message: 'Ada is not working', details: {} },
-          };
+      if (endpoint === 'botStop') {
+        const stopped = working ? [{ botSlug: 'ada', sessionId: 's-1', role: 'orchestrator' }] : [];
         working = false;
         return {
           ok: true,
-          value: { stopped: { botSlug: 'ada', sessionId: 's-1', messageId: 'turn-stopped-1' } },
+          value: {
+            stopped,
+            alreadyIdle: [],
+            ...(stopped.length > 0 ? { messageId: 'turn-stopped-1' } : {}),
+          },
         };
       }
       return { ok: false, error: { code: 'unavailable', message: endpoint, details: {} } };
@@ -111,9 +111,9 @@ describe('Stop in the composer', () => {
 
     await expect(actions.stopBot('dm-ada', 'ada')).resolves.toBe('stopped');
     await expect(actions.stopBot('dm-ada', 'ada')).resolves.toBe('not-working');
-    expect(calls.filter((item) => item.endpoint === 'channelBotStop')).toEqual([
-      { endpoint: 'channelBotStop', payload: { channelId: 'dm-ada', botSlug: 'ada' } },
-      { endpoint: 'channelBotStop', payload: { channelId: 'dm-ada', botSlug: 'ada' } },
+    expect(calls.filter((item) => item.endpoint === 'botStop')).toEqual([
+      { endpoint: 'botStop', payload: { botSlug: 'ada', channelId: 'dm-ada' } },
+      { endpoint: 'botStop', payload: { botSlug: 'ada', channelId: 'dm-ada' } },
     ]);
   });
 });

@@ -796,11 +796,36 @@ export class BotharnessBridgeService extends TypertRemoteService {
   sessionStop(
     botSlug: string,
     sessionId: string,
+    channelId?: string,
   ): Promise<{
     stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
     alreadyIdle: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+    messageId?: string;
   }> {
-    return unwrapAsync(this.methods.sessionStop({ botSlug, sessionId }));
+    return unwrapAsync(
+      this.methods.sessionStop({
+        botSlug,
+        sessionId,
+        ...(channelId === undefined ? {} : { channelId }),
+      }),
+    );
+  }
+  botStop(
+    botSlug: string,
+    channelId?: string,
+    autoContinueFor?: string,
+  ): Promise<{
+    stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+    alreadyIdle: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+    messageId?: string;
+  }> {
+    return unwrapAsync(
+      this.methods.botStop({
+        botSlug,
+        ...(channelId === undefined ? {} : { channelId }),
+        ...(autoContinueFor === undefined ? {} : { autoContinueFor }),
+      }),
+    );
   }
   modelCatalog(): Promise<{
     models: ModelCatalogEntry[];
@@ -2720,6 +2745,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botTurnInput',
   'channelBotStop',
   'sessionStop',
+  'botStop',
   'modelCatalog',
   'modelPresets',
   'modelPresetCreate',
