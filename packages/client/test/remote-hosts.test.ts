@@ -140,7 +140,7 @@ describe('remote hosts', () => {
     expect(await sources.pair(link(), 'Browser', 'host-a')).toEqual({
       ok: false,
       code: 'unreachable',
-      detail: 'remote:offline',
+      detail: 'remote:socket-offline',
     });
     expect(record).toHaveBeenCalledWith('remote_host:host_pair_complete', { outcome: 'failed' });
   });

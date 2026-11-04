@@ -29,6 +29,9 @@ describe('reasonCode', () => {
     ['Unable to resolve host "abc123.deepseekbot.dev": No address associated', 'socket-dns'],
     ['Connection refused', 'socket-refused'],
     ['Something odd at 10.0.0.4', 'socket-error'],
+    ['studio', 'socket-error'],
+    ['abc123:studio', 'socket-error'],
+    ['lan-unreachable:sockettimeoutexception', 'lan-unreachable:sockettimeoutexception'],
   ])('reduces %j to %j', (reason, code) => {
     expect(reasonCode(reason)).toBe(code);
   });
@@ -180,6 +183,33 @@ describe('encrypted redemption', () => {
         'lan:lan-unreachable:local-network-denied,connect:socket-error,lan:channel-timeout-retry',
     });
     expect(opened).toEqual([LAN, CONNECT, LAN]);
+  });
+
+  it('reports the retry result when a local-only link stops being denied', async () => {
+    let attempts = 0;
+    const carrier: HostCarrier = {
+      randomBytes: () => new Uint8Array(32).fill(7),
+      request: vi.fn(),
+      openSocket(_url: string, events: HostSocketEvents) {
+        const reason =
+          attempts++ === 0 ? 'lan-unreachable:local-network-denied' : 'channel-timeout';
+        setTimeout(() => events.closed(reason), 0);
+        return { send: () => {}, close: () => {} };
+      },
+    };
+    expect(
+      await redeemPairing({
+        payload: payload([LAN]),
+        deviceName: 'Phone',
+        carrier,
+        lanRetryDelayMs: 1,
+        confirmFingerprint: async () => true,
+      }),
+    ).toEqual({
+      ok: false,
+      code: 'lan-unreachable',
+      detail: 'lan:lan-unreachable:local-network-denied,lan:channel-timeout-retry',
+    });
   });
 
   it('does not retry the local path after an ordinary local failure', async () => {

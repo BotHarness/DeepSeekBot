@@ -11,9 +11,12 @@ function pathKind(route: string): 'lan' | 'connect' | 'remote' | 'app' {
   return isConnectRoute(route) ? 'connect' : 'remote';
 }
 
+const KNOWN_HEAD =
+  /^(?:channel|lan|refused|offer|http|socket|nsurl|posix|storage|bad-reply|no-tunnel|timeout|unreachable)(?:-[a-z0-9-]*)?$/u;
+
 export function reasonCode(reason: string): string {
   const [head = '', tail] = reason.split(':', 2);
-  if (TOKEN.test(head) && (tail === undefined || TOKEN.test(tail)))
+  if (TOKEN.test(head) && KNOWN_HEAD.test(head) && (tail === undefined || TOKEN.test(tail)))
     return tail === undefined ? head : `${head}:${tail}`;
   const native = /(NSURLErrorDomain|NSPOSIXErrorDomain)[^\d-]{0,16}(-?\d{1,6})/u.exec(reason);
   if (native) return `${native[1] === 'NSURLErrorDomain' ? 'nsurl' : 'posix'}${native[2]}`;

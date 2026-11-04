@@ -516,10 +516,11 @@ async function redeemEncrypted(options: {
       if (retried.ok) return retried;
       if (retried.detail !== undefined) details.push(`${retried.detail}-retry`);
       if (retried.code === 'lan-permission-denied') lanDenied = true;
-      if (retried.code !== 'lan-unreachable' && retried.code !== 'lan-permission-denied') {
+      const terminal =
+        retried.code !== 'lan-unreachable' && retried.code !== 'lan-permission-denied';
+      if (terminal || result.code === 'lan-unreachable' || result.code === 'lan-permission-denied')
         result = retried;
-        break;
-      }
+      if (terminal) break;
     }
   }
   const code =
