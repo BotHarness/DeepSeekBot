@@ -298,6 +298,72 @@ describe('Host call owner with a shared camera or screen', () => {
     expect(gridSent).toMatchObject({ messageId: first.messageId, layout: '2x2' });
   });
 
+  it('returns a grid cell at its original size until the call ends', async () => {
+    const h = host();
+    const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'screen' });
+    const originals: Buffer[] = [];
+    for (const color of [
+      { r: 250, g: 0, b: 0 },
+      { r: 0, g: 250, b: 0 },
+    ]) {
+      const original = await jpeg(color, 1920, 1080);
+      originals.push(original);
+      await h.ok({
+        kind: 'frame',
+        callId: call.callId,
+        source: 'screen',
+        jpeg: original.toString('base64'),
+      });
+    }
+    await h.say(call.callId);
+    const messageId = h.sent[0]!.messageId;
+
+    const second = h.calls.zoom({ slug: 'mira', messageId, cell: 2 });
+    expect(second).toMatchObject({ released: false, cell: 2, cells: 2, width: 1920, height: 1080 });
+    expect(Buffer.from((second as { jpeg: Uint8Array }).jpeg).equals(originals[1]!)).toBe(true);
+    expect(h.calls.zoom({ slug: 'other', messageId, cell: 1 }).released).toBe(true);
+    expect(() => h.calls.zoom({ slug: 'mira', messageId, cell: 3 })).toThrow(/pick 1 to 2/u);
+
+    const routed = await h.calls.handle({ deviceId: 'cli' }, { kind: 'zoom', messageId, cell: 1 });
+    expect(routed).toMatchObject({
+      ok: true,
+      zoom: { released: false, cell: 1, cells: 2, source: 'screen', width: 1920, height: 1080 },
+    });
+    expect(
+      await h.calls.handle({ deviceId: 'cli' }, { kind: 'zoom', messageId, cell: 0 }),
+    ).toMatchObject({ ok: false, code: 'cell-invalid' });
+    const events = (await h.ok({ kind: 'heartbeat', callId: call.callId })).events;
+    expect(events.filter((event) => event.type === 'frame-zoomed')).toHaveLength(2);
+
+    await h.ok({ kind: 'hangup', callId: call.callId });
+    expect(h.calls.zoom({ slug: 'mira', messageId, cell: 1 })).toEqual({
+      released: true,
+      messageId,
+      cell: 1,
+    });
+  });
+
+  it('keeps only the newest 64 grid cells', async () => {
+    const h = host(Array.from({ length: 5 }, (_, index) => `第${index}句`));
+    const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'camera' });
+    const frame = (await jpeg({ r: 10, g: 20, b: 30 }, 160, 90)).toString('base64');
+    for (let sentence = 0; sentence < 5; sentence += 1) {
+      for (let index = 0; index < 16; index += 1)
+        await h.ok({ kind: 'frame', callId: call.callId, source: 'camera', jpeg: frame });
+      await h.say(call.callId);
+    }
+    expect(h.sent).toHaveLength(5);
+    expect(h.calls.zoom({ slug: 'mira', messageId: h.sent[0]!.messageId, cell: 1 }).released).toBe(
+      true,
+    );
+    for (const message of h.sent.slice(1))
+      expect(h.calls.zoom({ slug: 'mira', messageId: message.messageId, cell: 16 }).released).toBe(
+        false,
+      );
+  });
+
   it('keeps keyframes for the next sentence when nothing was heard', async () => {
     const h = host(['', '现在呢']);
     const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });

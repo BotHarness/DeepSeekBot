@@ -64,6 +64,7 @@ export const TURN_ONLY_BOT_TOOLS: ReadonlySet<string> = new Set([
   'send_assignment_request',
   'wait_for_assignment',
   'channel_read_image',
+  'call_frame',
   'channel_attachment_open',
   'memory_switch_branch',
   'memory_continue_from_commit',
@@ -2850,6 +2851,132 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             ...(result.ref.fileId === undefined
               ? { hash: result.ref.hash }
               : { fileId: result.ref.fileId }),
+            image,
+          };
+        },
+      }),
+    );
+    registerTool(
+      defineTool({
+        name: 'call_frame',
+        description:
+          "Zoom into one cell of a call grid: returns that keyframe at its original resolution when the grid's small tiles are hard to read. Pass message_id of the Human call message that carries the grid and cell, the tile number printed on it (a single-frame view is cell 1). Originals live only in Host memory for the most recent 64 keyframes of a running call; after the call ends or newer keyframes replace them the result says released, so answer from the grid itself.",
+        parameters: {
+          channel_id: {
+            type: 'string',
+            description: 'Channel id; defaults to the inbound Channel.',
+          },
+          message_id: {
+            type: 'string',
+            required: true,
+            description: 'The Human call message that carries the grid image.',
+          },
+          cell: {
+            type: 'integer',
+            required: true,
+            description: 'Tile number printed on the grid, from 1.',
+          },
+        },
+        output: {
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              channelId: { type: 'string', required: true },
+              messageId: { type: 'string', required: true },
+              cell: { type: 'integer', required: true },
+              released: { type: 'boolean', required: true },
+              cells: { type: 'integer' },
+              source: { type: 'string', enum: ['camera', 'screen'] },
+              image: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  attachmentId: { type: 'string', required: true },
+                  mediaType: {
+                    type: 'string',
+                    enum: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+                    required: true,
+                  },
+                  bytes: { type: 'integer', required: true },
+                  width: { type: 'integer', required: true },
+                  height: { type: 'integer', required: true },
+                  name: { type: 'string' },
+                  originalDimensions: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                      width: { type: 'integer', required: true },
+                      height: { type: 'integer', required: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          render: (_args, value) => {
+            const image = value.image;
+            if (value.released || image === undefined)
+              return [
+                {
+                  type: 'text',
+                  text: `The original keyframes of the grid on message ${value.messageId} are released: the call ended or newer keyframes replaced them. Answer from the grid image itself.`,
+                },
+              ];
+            return [
+              {
+                type: 'text',
+                text: `Cell ${value.cell} of ${value.cells ?? value.cell} from the ${value.source ?? 'call'} grid on message ${value.messageId}, at its original resolution`,
+              },
+              {
+                type: 'image',
+                attachment: {
+                  attachmentId: AttachmentId(image.attachmentId),
+                  mediaType: image.mediaType,
+                  bytes: image.bytes,
+                  width: image.width,
+                  height: image.height,
+                  ...(image.name === undefined ? {} : { name: image.name }),
+                  ...(image.originalDimensions === undefined
+                    ? {}
+                    : { originalDimensions: { ...image.originalDimensions } }),
+                },
+              },
+            ];
+          },
+        },
+        execute: async (args) => {
+          const active = this.#runs.get(run.sessionId);
+          if (active?.role !== 'orchestrator') {
+            throw new Error('call_frame: Orchestrator run is unavailable');
+          }
+          const zoom = active.run.channels.callFrame;
+          if (zoom === undefined) throw new Error('call_frame: calls are unavailable on this Host');
+          const channelId = args.channel_id ?? active.run.inboundChannelId;
+          if (channelId === undefined) throw new Error('call_frame: explicit Channel required');
+          const result = zoom({
+            ...(args.channel_id === undefined ? {} : { channelId: args.channel_id }),
+            messageId: args.message_id,
+            cell: args.cell,
+          });
+          if (result.released)
+            return { channelId, messageId: args.message_id, cell: args.cell, released: true };
+          const hostAttachments = agentCtx.get('attachments');
+          if (hostAttachments === undefined) {
+            throw new Error('call_frame: DSH attachment service is unavailable');
+          }
+          const image = await hostAttachments.saveImage({
+            data: result.jpeg,
+            mediaType: 'image/jpeg',
+            name: `call-${result.source}-cell-${result.cell}.jpg`,
+          });
+          return {
+            channelId,
+            messageId: args.message_id,
+            cell: result.cell,
+            released: false,
+            cells: result.cells,
+            source: result.source,
             image,
           };
         },

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 
 import { CliLiveError } from './cli-live-error.js';
@@ -23,6 +23,7 @@ export interface CallValues {
   'reply-wait'?: string;
   video?: string;
   screen?: string;
+  out?: string;
 }
 
 export const CALL_COMMANDS = [
@@ -38,6 +39,11 @@ export const CALL_COMMANDS = [
   {
     command: 'call-hangup',
     description: 'end a call by id',
+  },
+  {
+    command: 'call-frame',
+    description:
+      'show one cell of a call grid at its original resolution: call-frame <message-id> <cell> [--out /abs.jpg]; released once the call ends or newer keyframes replace it',
   },
   {
     command: 'call-simulate',
@@ -402,6 +408,28 @@ export async function runCallCommand(
   if (command === 'call-readiness') {
     const slug = one('one bot id');
     return result(await (await connect())({ kind: 'readiness', slug }));
+  }
+  if (command === 'call-frame') {
+    if (rest.length !== 2 || !rest[0]!.trim())
+      usage('call-frame needs a message id and a cell number.');
+    const cell = Number(rest[1]);
+    if (!Number.isSafeInteger(cell) || cell < 1 || cell > 16)
+      usage('The cell is the tile number printed on the grid, from 1 to 16.');
+    if (values.out !== undefined && !isAbsolute(values.out))
+      usage('--out must be an absolute path.');
+    const reply = result(
+      await (
+        await connect()
+      )({ kind: 'zoom', messageId: rest[0]!.trim(), cell }),
+    );
+    const zoom = reply['zoom'] as Record<string, unknown> | undefined;
+    if (zoom === undefined)
+      throw new CliLiveError('host-protocol-error', 'The Host sent no frame.');
+    const { jpeg, ...view } = zoom;
+    if (view['released'] === true || typeof jpeg !== 'string' || values.out === undefined)
+      return view;
+    writeFileSync(values.out, Buffer.from(jpeg, 'base64'), { mode: 0o600 });
+    return { ...view, out: values.out };
   }
   if (command === 'call-hangup') {
     const callId = one('one call id');

@@ -10,6 +10,7 @@ export const VOICE_CALL_LIMITS = {
   requestBytes: 768 * 1024,
   frameBytes: 512 * 1024,
   pendingFrames: 32,
+  keptFrames: 64,
   signalBytes: 96 * 1024,
   injectBytes: 88 * 1024,
   pendingRequests: 8,
@@ -149,6 +150,7 @@ export type VoiceCallEvent =
     }
   | { seq: number; at: number; type: 'grid-unchanged'; messageId: string; sameAs: string }
   | { seq: number; at: number; type: 'grid-failed'; message: string }
+  | { seq: number; at: number; type: 'frame-zoomed'; messageId: string; cell: number; ms: number }
   | { seq: number; at: number; type: 'ended'; reason: VoiceCallEndReason };
 
 export interface VoiceCallDescription {
@@ -224,7 +226,8 @@ export type VoiceCallCommand =
       readonly skipped?: number;
       readonly after?: number;
     }
-  | { readonly kind: 'hangup'; readonly callId: string };
+  | { readonly kind: 'hangup'; readonly callId: string }
+  | { readonly kind: 'zoom'; readonly messageId: string; readonly cell: number };
 
 export type VoiceCallRefusal =
   | 'invalid-input'
@@ -247,7 +250,8 @@ export type VoiceCallRefusal =
   | 'connect-carrier-required'
   | 'device-revoked'
   | 'visual-off'
-  | 'frame-invalid';
+  | 'frame-invalid'
+  | 'cell-invalid';
 
 export type VoiceCallResult =
   | {
@@ -255,6 +259,7 @@ export type VoiceCallResult =
       readonly call?: VoiceCallView;
       readonly calls?: readonly VoiceCallView[];
       readonly readiness?: VoiceCallReadiness;
+      readonly zoom?: VoiceCallZoomView;
     }
   | { readonly ok: false; readonly code: VoiceCallRefusal; readonly error: string };
 
@@ -263,3 +268,30 @@ export const VOICE_CALL_CONNECT_REFUSAL: VoiceCallResult = {
   code: 'connect-carrier-required',
   error: 'Calls need the paired LAN route or Tailscale; Tobs Connect does not carry calls.',
 };
+
+export type VoiceCallZoom =
+  | { readonly released: true; readonly messageId: string; readonly cell: number }
+  | {
+      readonly released: false;
+      readonly messageId: string;
+      readonly cell: number;
+      readonly cells: number;
+      readonly source: CallVisualSource;
+      readonly jpeg: Uint8Array;
+      readonly width: number;
+      readonly height: number;
+    };
+
+export type VoiceCallZoomView =
+  | { readonly released: true; readonly messageId: string; readonly cell: number }
+  | {
+      readonly released: false;
+      readonly messageId: string;
+      readonly cell: number;
+      readonly cells: number;
+      readonly source: CallVisualSource;
+      readonly width: number;
+      readonly height: number;
+      readonly bytes: number;
+      readonly jpeg: string;
+    };
