@@ -14,7 +14,9 @@ vi.mock('expo-router', async () => {
   };
 });
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
-vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
+vi.mock('../src/ui/primitives/system-symbol', () => ({
+  SystemSymbol: () => null,
+}));
 vi.mock('expo-router/react-navigation', () => ({ useHeaderHeight: () => 96 }));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
@@ -72,7 +74,10 @@ vi.mock('../src/ui/chat/sheet', () => {
         ? createElement(
             'div',
             { role: 'dialog', 'aria-label': label },
-            createElement('button', { 'aria-label': 'dismiss-sheet', onClick: onClose }),
+            createElement('button', {
+              'aria-label': 'dismiss-sheet',
+              onClick: onClose,
+            }),
             children,
           )
         : null,
@@ -163,7 +168,10 @@ const pressAlert = (call: number, text: string) =>
   );
 
 function tabMemory(tab?: ProfileTab): ProfileTabMemory {
-  const memory = createProfileTabMemory({ read: async () => undefined, write() {} });
+  const memory = createProfileTabMemory({
+    read: async () => undefined,
+    write() {},
+  });
   if (tab !== undefined) memory.remember('group', tab);
   return memory;
 }
@@ -186,7 +194,9 @@ const showTab = (props: GroupProfileProps, tab: ProfileTab) =>
 
 describe('Group profile', () => {
   it('lets the Human replace the photo by pressing the large Channel avatar', async () => {
-    const props = sheet({ pickAvatar: vi.fn(async () => 'data:image/jpeg;base64,/9j/AA==') });
+    const props = sheet({
+      pickAvatar: vi.fn(async () => 'data:image/jpeg;base64,/9j/AA=='),
+    });
     const view = await render(<GroupProfilePage {...props} />);
     const avatar = view.querySelector<HTMLButtonElement>('[data-testid="group-avatar-change"]');
     expect(avatar).not.toBeNull();
@@ -314,7 +324,9 @@ describe('Group profile', () => {
         resolve = done;
         reject = fail;
       });
-      const props = sheet({ actions: actions({ invite: vi.fn(() => pending) }) });
+      const props = sheet({
+        actions: actions({ invite: vi.fn(() => pending) }),
+      });
       const view = await render(<GroupProfilePage {...props} />);
       await act(async () => button(view, t.groupInvite)!.click());
       const invite = view.querySelector(`[role="dialog"][aria-label="${t.groupInvite}"]`)!;
@@ -536,7 +548,12 @@ describe('Group profile', () => {
     ]);
     const boBusy = busy(bo, [
       { id: 'bo-orch', role: 'orchestrator', state: 'working' },
-      { id: 'bo-a1', role: 'assignment', name: 'Draft the launch notes', state: 'working' },
+      {
+        id: 'bo-a1',
+        role: 'assignment',
+        name: 'Draft the launch notes',
+        state: 'working',
+      },
     ]);
     const stopper = () => ({
       stopSession: vi.fn(async () => undefined),
@@ -606,13 +623,14 @@ describe('Group profile', () => {
       expect(view.textContent).toContain(t.profileEmpty.work);
     });
 
-    it('stops one Session in one tap and shows Stopping until it leaves the list', async () => {
+    it('stops one Session from its menu with no confirmation and shows Stopping until it leaves the list', async () => {
       const stop = stopper();
       const props = sheet({ info: running([adaBusy, boBusy]), stopper: stop }, 'work');
       const view = await render(<GroupProfilePage {...props} />);
       await act(async () => testId(view, 'working-stop-bo-a1')!.click());
+      await pressAlert(alert.mock.calls.length - 1, t.sessionStop);
       expect(stop.stopSession).toHaveBeenCalledWith('bo', 'bo-a1');
-      expect(alert).not.toHaveBeenCalled();
+      expect(alert).toHaveBeenCalledOnce();
       expect(testId(view, 'working-stop-bo-a1')).toBeNull();
       expect(testId(view, 'working-stop-bo-a1-stopping')?.textContent).toBe(t.sessionStopping);
       expect(testId(view, 'working-stop-bo-orch')).not.toBeNull();
@@ -629,6 +647,7 @@ describe('Group profile', () => {
       const props = sheet({ info: running([adaBusy, boBusy]), stopper: stop }, 'work');
       const view = await render(<GroupProfilePage {...props} />);
       await act(async () => testId(view, 'working-stop-all-bo')!.click());
+      await pressAlert(alert.mock.calls.length - 1, t.sessionStopAll);
       expect(stop.stopBot).toHaveBeenCalledWith('bo');
       expect(stop.stopSession).not.toHaveBeenCalled();
       expect(testId(view, 'working-stop-bo-orch-stopping')).not.toBeNull();
@@ -643,6 +662,7 @@ describe('Group profile', () => {
       const props = sheet({ info: running([boBusy]), stopper: stop }, 'work');
       const view = await render(<GroupProfilePage {...props} />);
       await act(async () => testId(view, 'working-stop-bo-a1')!.click());
+      await pressAlert(alert.mock.calls.length - 1, t.sessionStop);
       expect(testId(view, 'working-stop-bo-a1')).not.toBeNull();
       expect(testId(view, 'working-stop-failed')?.textContent).toContain('Host unavailable');
     });

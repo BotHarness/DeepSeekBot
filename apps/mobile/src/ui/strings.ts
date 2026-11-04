@@ -1339,7 +1339,10 @@ const en = {
   expiresInMinutes: (count: number) => `Expires in ${count} min`,
   diffLabel: (path: string) => `Changes to ${path}`,
   diffMore: (count: number) => `Show ${count} more lines`,
-  takeoverCategory: { computer: 'Take over the computer', browser: 'Take over the browser' },
+  takeoverCategory: {
+    computer: 'Take over the computer',
+    browser: 'Take over the browser',
+  },
   takeoverOutcome: {
     done: 'Done',
     failed: "Couldn't finish",
@@ -1739,6 +1742,7 @@ const en = {
   sessionAssignment: 'Assignment',
   sessionStop: 'Stop',
   sessionStopAll: 'Stop all',
+  sessionMenu: (title: string) => `Options for ${title}`,
   sessionStopping: 'Stopping…',
   sessionStopFailed: (detail: string) => `Couldn’t stop. ${detail}`,
   sessionCount: (count: number) => `${count} running`,
@@ -3838,6 +3842,7 @@ const zh: typeof en = {
   sessionAssignment: 'Assignment',
   sessionStop: '停止',
   sessionStopAll: '全部停止',
+  sessionMenu: (title: string) => `${title} 的选项`,
   sessionStopping: '正在停止…',
   sessionStopFailed: (detail: string) => `没能停止。${detail}`,
   sessionCount: (count: number) => `${count} 个在运行`,

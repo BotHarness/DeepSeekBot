@@ -18,7 +18,8 @@ export type MenuAction = {
     | 'check'
     | 'folder'
     | 'chat'
-    | 'share';
+    | 'share'
+    | 'stop';
   run(): void;
   destructive?: boolean;
 };

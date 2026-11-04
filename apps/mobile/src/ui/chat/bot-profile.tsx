@@ -56,6 +56,8 @@ import {
 } from './profile-routines';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { Button } from '../primitives/button';
+import { ActionMenuButton } from '../primitives/action-menu-button';
+import { showActionMenu } from '../primitives/app-dialog';
 import { Segmented } from '../primitives/segmented';
 import { memoryChangeTime, useMemoryChanges, type MemoryChanges } from './memory-changes';
 import {
@@ -90,7 +92,11 @@ type RowBody =
   | { kind: 'grid'; entries: MemoryEntry[]; columns: number; lead: boolean }
   | { kind: 'commit'; change: MemoryChange }
   | { kind: 'more'; busy: boolean }
-  | { kind: 'routine-group'; group: RoutineGroup; routines: BotScheduleSummary[] }
+  | {
+      kind: 'routine-group';
+      group: RoutineGroup;
+      routines: BotScheduleSummary[];
+    }
   | { kind: 'assignment'; assignment: ProfileAssignment }
   | { kind: 'day'; label: string }
   | {
@@ -458,18 +464,20 @@ export type WorkRow = Row;
 
 const HEAD_AVATAR = 20;
 
-function StopControl({
-  label,
+function StopMenu({
+  title,
+  action,
   stopping,
   testID,
-  onPress,
+  onStop,
   compact = false,
 }: {
-  compact?: boolean;
-  label: string;
+  title: string;
+  action: string;
   stopping: boolean;
   testID: string;
-  onPress(): void;
+  onStop(): void;
+  compact?: boolean;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -488,7 +496,21 @@ function StopControl({
     );
   return (
     <View style={{ flexShrink: 0, ...bleed }}>
-      <Button label={label} variant="text" tone="danger" fit testID={testID} onPress={onPress} />
+      <ActionMenuButton
+        label={t.sessionMenu(title)}
+        testID={testID}
+        actions={[{ label: action, icon: 'stop', destructive: true, run: onStop }]}
+        onOpen={() =>
+          showActionMenu(title, [
+            {
+              text: action,
+              icon: 'stop',
+              style: 'destructive',
+              onPress: onStop,
+            },
+          ])
+        }
+      />
     </View>
   );
 }
@@ -539,12 +561,13 @@ export function WorkListRow({
           {row.label}
         </Text>
         {stops === undefined ? null : (
-          <StopControl
+          <StopMenu
             compact
-            label={t.sessionStopAll}
+            title={row.label}
+            action={t.sessionStopAll}
             stopping={row.sessionIds.every((id) => stops.stopping(row.botSlug, id))}
             testID={`working-stop-all-${row.botSlug}`}
-            onPress={() => stops.stopAll(row.botSlug)}
+            onStop={() => stops.stopAll(row.botSlug)}
           />
         )}
       </View>
@@ -562,17 +585,18 @@ export function WorkListRow({
         style={[
           shape,
           {
-            flexDirection: theme.largeText ? 'column' : 'row',
-            alignItems: theme.largeText ? 'stretch' : 'center',
+            flexDirection: 'row',
+            alignItems: 'center',
             gap: space.x3,
             minHeight: theme.touch,
+            paddingRight: space.x3,
           },
         ]}
       >
         <View
           accessible
           accessibilityLabel={[title, state].join(', ')}
-          style={{ flex: theme.largeText ? undefined : 1, flexDirection: 'row', gap: space.x3 }}
+          style={{ flex: 1, flexDirection: 'row', gap: space.x3 }}
         >
           <View style={{ paddingTop: (theme.type.body.line - rowGlyph.size) / 2 }}>
             <AssignmentActivityIcon
@@ -588,11 +612,12 @@ export function WorkListRow({
           </View>
         </View>
         {stops === undefined ? null : (
-          <StopControl
-            label={t.sessionStop}
+          <StopMenu
+            title={title}
+            action={t.sessionStop}
             stopping={stopping}
             testID={`working-stop-${session.id}`}
-            onPress={() => stops.stop(row.botSlug, session.id)}
+            onStop={() => stops.stop(row.botSlug, session.id)}
           />
         )}
       </View>
@@ -633,7 +658,13 @@ export function WorkListRow({
           <AssignmentActivityIcon activity={assignment.activity} size={rowGlyph.size} />
         </View>
         <View style={{ flex: 1, gap: space.x1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.x3 }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'baseline',
+              gap: space.x3,
+            }}
+          >
             <Text numberOfLines={theme.largeText ? undefined : 2} style={{ flex: 1 }}>
               {assignment.title}
             </Text>
@@ -737,7 +768,13 @@ function ProfileRow({
           },
         ]}
       >
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.x3 }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'baseline',
+            gap: space.x3,
+          }}
+        >
           <Text numberOfLines={2} style={{ flex: 1 }}>
             {change.subject}
           </Text>

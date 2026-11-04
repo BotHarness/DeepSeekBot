@@ -46,7 +46,12 @@ export type BotStateEvent =
       state: SessionState;
       snapshot: BotStateSnapshot;
     }
-  | { type: 'session-removed'; slug: string; sessionId: string; snapshot: BotStateSnapshot };
+  | {
+      type: 'session-removed';
+      slug: string;
+      sessionId: string;
+      snapshot: BotStateSnapshot;
+    };
 
 export interface BotStateTracker {
   beginAssignmentWait(slug: string, sessionId: string): () => void;
@@ -72,6 +77,7 @@ export interface BotStateTracker {
   ): void;
   activity(slug: string): PersonaBotToolActivity | undefined;
   sessionActivity(slug: string): readonly PersonaBotSessionActivity[];
+  sessionForActivity?(slug: string, activityId: string): string | undefined;
   rebuildSessionStates(
     rows: readonly {
       slug: string;
@@ -237,7 +243,11 @@ export function createBotStateTracker(): BotStateTracker {
       const detail = sessionDetails.get(sessionId);
       if (state === 'done' || detail === undefined) continue;
       const activity = state === 'working' ? tools.get(sessionId) : undefined;
-      result.push({ ...detail, state, ...(activity === undefined ? {} : { activity }) });
+      result.push({
+        ...detail,
+        state,
+        ...(activity === undefined ? {} : { activity }),
+      });
     }
     return structuredClone(result);
   };
@@ -268,6 +278,11 @@ export function createBotStateTracker(): BotStateTracker {
   };
 
   const tracker: BotStateTracker = {
+    sessionForActivity(slug, activityId) {
+      for (const sessionId of bots.get(slug)?.keys() ?? [])
+        if (sessionDetails.get(sessionId)?.id === activityId) return sessionId;
+      return undefined;
+    },
     beginAssignmentWait(slug, sessionId) {
       if (!bots.get(slug)?.has(sessionId) || sessionDetails.get(sessionId)?.role !== 'orchestrator')
         return () => {};
@@ -324,7 +339,12 @@ export function createBotStateTracker(): BotStateTracker {
               informationalCount,
             }) => [
               botSlug,
-              { waitingHumanCount, blockedCount, workspaceGrantCount, informationalCount },
+              {
+                waitingHumanCount,
+                blockedCount,
+                workspaceGrantCount,
+                informationalCount,
+              },
             ],
           ),
       );
@@ -418,7 +438,12 @@ export function createBotStateTracker(): BotStateTracker {
           activeToolCount: nextActivity.activeToolCount,
           ...(nextActivity.sources === undefined
             ? {}
-            : { sources: nextActivity.sources.map(({ role, count }) => ({ role, count })) }),
+            : {
+                sources: nextActivity.sources.map(({ role, count }) => ({
+                  role,
+                  count,
+                })),
+              }),
         });
       sessions.set(sessionId, state);
       const changed =
