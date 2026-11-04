@@ -33,11 +33,12 @@ const live = (patch: Partial<VoiceCallView> = {}, extra: Record<string, unknown>
     ...extra,
   }) as CallClientState;
 
-const controls = (): CallControls & { hangup: ReturnType<typeof vi.fn> } => ({
-  mute: vi.fn(),
-  hangup: vi.fn(),
-  route: vi.fn(() => true),
-});
+const controls = () =>
+  ({
+    mute: vi.fn(),
+    hangup: vi.fn(),
+    route: vi.fn(() => true),
+  }) satisfies CallControls;
 
 describe('call session store (#3468)', () => {
   it('keeps a running call when the call screen is minimized and reopens it without dialing', () => {
@@ -79,7 +80,7 @@ describe('call session store (#3468)', () => {
     const key = sessions.getSnapshot()!.key;
     sessions.publish(key, {
       microphone: 'granted',
-      state: { status: 'ended', reason: 'hangup' },
+      state: { status: 'ended', reason: 'hangup', events: [] },
     });
     sessions.minimize(key);
     expect(sessions.getSnapshot()).toBeUndefined();
@@ -98,7 +99,7 @@ describe('call session store (#3468)', () => {
     sessions.publish(key, { microphone: 'granted', state: live() });
     sessions.minimize(key);
     sessions.publish(key, {
-      state: { status: 'ended', reason: 'connection-lost' },
+      state: { status: 'ended', reason: 'connection-lost', events: [] },
     });
     expect(sessions.getSnapshot()).toMatchObject({
       expanded: false,
@@ -136,7 +137,7 @@ describe('call session store (#3468)', () => {
     sessions.publish(key, {
       microphone: 'denied',
       startedAt: 5,
-      state: { status: 'ended', reason: 'hangup' },
+      state: { status: 'ended', reason: 'hangup', events: [] },
     });
     sessions.retry(key);
     expect(sessions.getSnapshot()).toMatchObject({
@@ -184,7 +185,7 @@ describe('floating call bubble model (#3468)', () => {
       tone: 'paused',
       status: 'Paused',
     });
-    expect(at({ status: 'ended', reason: 'hangup' })).toEqual({
+    expect(at({ status: 'ended', reason: 'hangup', events: [] })).toEqual({
       tone: 'ended',
       status: 'Call ended',
       muted: false,
