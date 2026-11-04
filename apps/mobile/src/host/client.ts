@@ -132,6 +132,7 @@ export interface RemoteSource {
   uri: string;
   headers: Record<string, string>;
   cacheKey?: string;
+  scope?: string;
 }
 
 export interface StreamHandlers {
@@ -172,6 +173,7 @@ export interface HostApiAnswer {
 
 export interface HostClientOptions {
   onRoutesChanged?: (routes: string[]) => Promise<void>;
+  onPurged?: (placements: unknown) => void;
   hostId?: string;
   encryption?: HostEncryption;
   telemetry?: ConnectionTelemetry;
@@ -491,11 +493,13 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const absolute = (path: string): string =>
     path.startsWith('/') ? `${route}${DEVICE_PREFIX}${path}` : path;
 
+  const scope = options.hostId ? { scope: options.hostId } : {};
   const resource = (path: string): RemoteSource => {
     if (checkRoute(route).ok && !isEncryptedRoute(route, options.encryption))
-      return { uri: absolute(path), headers: authorization };
+      return { uri: absolute(path), headers: authorization, ...scope };
     const origin = route;
     return {
+      ...scope,
       uri: `connect-resource:${options.hostId ?? ''}:${path}`,
       headers: {},
       read: async (signal) => {
@@ -990,6 +994,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
           };
           follow('botharness/followRoster', (value) => {
             const frame = value as RosterLiveFrame;
+            if (frame.type === 'baseline' || frame.type === 'purged')
+              options.onPurged?.(frame.placements);
             if (frame.type === 'baseline') {
               baselines.roster = true;
               if (baselines.activity) resolveReady();

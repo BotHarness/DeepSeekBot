@@ -50,6 +50,18 @@ export async function cachedAttachmentUri(
   return file.uri;
 }
 
+export function forgetSharedCopies(cacheKeyPrefixes: readonly string[]): void {
+  if (cacheKeyPrefixes.length === 0) return;
+  try {
+    const root = new Directory(Paths.cache, 'attachments');
+    if (!root.exists) return;
+    const prefixes = cacheKeyPrefixes.map(folderName);
+    for (const entry of root.list())
+      if (entry instanceof Directory && prefixes.some((prefix) => entry.name.startsWith(prefix)))
+        entry.delete();
+  } catch {}
+}
+
 export async function shareAttachment(
   attachment: MessageAttachment,
   stillAvailable: () => boolean = () => true,

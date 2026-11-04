@@ -12,38 +12,38 @@ export function ResourceImage({
   ...props
 }: Omit<ComponentProps<typeof Image>, 'source'> & { source: RemoteSource }) {
   const cacheKey = source.cacheKey;
+  const onDisk = cacheKey !== undefined && mediaCacheAvailable();
   const [resolved, setResolved] = useState<Resolved | undefined>(() => {
-    if (source.read === undefined || cacheKey === undefined) return undefined;
-    const cached = cachedMediaUri(cacheKey);
+    const cached = onDisk ? cachedMediaUri(cacheKey) : undefined;
     return cached === undefined ? undefined : { uri: cached, headers: {} };
   });
   const mount = useMounted<Image>(() => {
-    const read = source.read;
-    if (!read) return;
+    if (!onDisk && !source.read) return;
     const controller = new AbortController();
     const failed = () => {
       if (!controller.signal.aborted) props.onError?.({ error: 'resource-unavailable' });
     };
-    if (cacheKey !== undefined && mediaCacheAvailable()) {
+    if (onDisk) {
       const cached = cachedMediaUri(cacheKey);
       if (cached !== undefined) {
         setResolved({ uri: cached, headers: {} });
         return;
       }
       setResolved(undefined);
-      void cacheMedia({ ...source, cacheKey, read }, controller.signal).then((uri) => {
+      void cacheMedia({ ...source, cacheKey }, controller.signal).then((uri) => {
         if (!controller.signal.aborted) setResolved({ uri, headers: {} });
       }, failed);
       return () => controller.abort();
     }
+    const read = source.read!;
     setResolved(undefined);
     void read(controller.signal).then(({ bytes, mime }) => {
       if (!controller.signal.aborted)
         setResolved({ uri: `data:${mime};base64,${encodeBase64(bytes)}`, headers: {} });
     }, failed);
     return () => controller.abort();
-  }, [source.uri, cacheKey]);
-  const direct =
-    cacheKey === undefined ? source : { uri: source.uri, headers: source.headers, cacheKey };
-  return <Image {...props} ref={mount} source={source.read ? (resolved ?? null) : direct} />;
+  }, [source.uri, cacheKey, onDisk]);
+  if (onDisk)
+    return <Image {...props} cachePolicy="memory" ref={mount} source={resolved ?? null} />;
+  return <Image {...props} ref={mount} source={source.read ? (resolved ?? null) : source} />;
 }
