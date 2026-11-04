@@ -36,6 +36,7 @@ export type VoiceCallEndReason =
 export type VoiceCallEvent =
   | { seq: number; at: number; type: 'connected' }
   | { seq: number; at: number; type: 'speech-start' }
+  | { seq: number; at: number; type: 'hearing'; text: string }
   | { seq: number; at: number; type: 'noise-discarded'; durationMs: number }
   | { seq: number; at: number; type: 'transcribing'; audioMs: number }
   | { seq: number; at: number; type: 'nothing-heard' }
@@ -46,6 +47,7 @@ export type VoiceCallEvent =
       messageId: string;
       text: string;
       asrMs: number;
+      streamed?: boolean;
     }
   | { seq: number; at: number; type: 'asr-failed'; code: string; message: string }
   | { seq: number; at: number; type: 'send-failed'; code: string; message: string }

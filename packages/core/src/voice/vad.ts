@@ -12,6 +12,7 @@ export interface VadOptions {
   preRollMs?: number;
   tailMs?: number;
   maxUtteranceMs?: number;
+  stream?: boolean;
   activeDb?: number;
   minActiveDbfs?: number;
   periodicity?: number;
@@ -19,6 +20,7 @@ export interface VadOptions {
 
 export type VadEvent =
   | { type: 'speech-start'; atMs: number }
+  | { type: 'audio'; pcm: Int16Array }
   | {
       type: 'utterance';
       pcm: Int16Array;
@@ -173,6 +175,7 @@ export function createVad(options: VadOptions = {}): Vad {
       if (voiced >= startVoiced) {
         state = 'speech';
         events.push({ type: 'speech-start', atMs: startFrame * FRAME_MS });
+        if (options.stream === true) events.push({ type: 'audio', pcm: join(current) });
       } else if (quiet >= candidateGap || current.length >= candidateLimit) {
         if (activeRun >= 2)
           events.push({
@@ -185,6 +188,7 @@ export function createVad(options: VadOptions = {}): Vad {
       }
       return;
     }
+    if (options.stream === true) events.push({ type: 'audio', pcm: samples });
     if (quiet >= endSilence) {
       finish(events, false);
       history = [];
