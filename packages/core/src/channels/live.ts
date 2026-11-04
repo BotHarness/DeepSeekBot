@@ -184,7 +184,7 @@ function parseRevision(value: string | null): number | undefined {
 
 interface ActivitySource {
   snapshot(): PersonaBotActivitySnapshot;
-  onChange(listener: () => void): () => void;
+  onChange(listener: (change?: unknown) => void): () => void;
 }
 
 function combineLiveResponses(channel: Response, roster: Response): Response {
@@ -250,6 +250,16 @@ export function createChannelLiveHub(
   const drafts = new Map<string, Map<string, PublishedDraft>>();
   const draftRevisions = new Map<string, number>();
   const activitySubscribers = new Set<{ close(): void }>();
+  let activityFrame:
+    | { change: unknown; snapshot: PersonaBotActivitySnapshot; data: string }
+    | undefined;
+  const currentActivity = (source: ActivitySource, change?: unknown) => {
+    if (change === undefined || activityFrame?.change !== change) {
+      const snapshot = source.snapshot();
+      activityFrame = { change, snapshot, data: JSON.stringify(snapshot) };
+    }
+    return activityFrame;
+  };
   const openActivity = (): Response => {
     if (activity === undefined) return new Response('Activity unavailable', { status: 503 });
     const encoder = new TextEncoder();
@@ -259,6 +269,7 @@ export function createChannelLiveHub(
       start(controller) {
         let ended = false;
         let pending = false;
+        let sent: string | undefined;
         let unsubscribe: (() => void) | undefined;
         let heartbeat: ReturnType<typeof setInterval> | undefined;
         const subscriber = {
@@ -273,19 +284,18 @@ export function createChannelLiveHub(
             } catch {}
           },
         };
-        const send = (): void => {
+        const send = (change?: unknown): void => {
           if (ended) return;
           if ((controller.desiredSize ?? 0) <= 0) {
             pending = true;
             return;
           }
           pending = false;
+          const { data } = currentActivity(activity, change);
+          if (data === sent) return;
+          sent = data;
           try {
-            controller.enqueue(
-              encoder.encode(
-                `event: activity/snapshot\ndata: ${JSON.stringify(activity.snapshot())}\n\n`,
-              ),
-            );
+            controller.enqueue(encoder.encode(`event: activity/snapshot\ndata: ${data}\n\n`));
           } catch {
             subscriber.close();
           }
@@ -341,20 +351,20 @@ export function createChannelLiveHub(
       start(controller) {
         let ended = false;
         let pendingActivity = false;
+        let sentActivity: string | undefined;
         let offActivity: (() => void) | undefined;
-        const sendActivity = (): void => {
+        const sendActivity = (change?: unknown): void => {
           if (ended || activity === undefined) return;
           if ((controller.desiredSize ?? 0) <= 0) {
             pendingActivity = true;
             return;
           }
           pendingActivity = false;
+          const { data } = currentActivity(activity, change);
+          if (data === sentActivity) return;
+          sentActivity = data;
           try {
-            controller.enqueue(
-              encoder.encode(
-                `event: activity/snapshot\ndata: ${JSON.stringify(activity.snapshot())}\n\n`,
-              ),
-            );
+            controller.enqueue(encoder.encode(`event: activity/snapshot\ndata: ${data}\n\n`));
           } catch {
             subscriber?.close();
           }
@@ -519,6 +529,7 @@ export function createChannelLiveHub(
     if (activity === undefined) throw new LiveUnavailable('Activity unavailable');
     let ended = signal.aborted;
     let pending = false;
+    let lastChange: unknown;
     let wake: (() => void) | undefined;
     const subscriber = {
       close(): void {
@@ -532,19 +543,24 @@ export function createChannelLiveHub(
     signal.addEventListener('abort', abort, { once: true });
     const unsubscribe = ended
       ? undefined
-      : activity.onChange(() => {
+      : activity.onChange((change) => {
+          lastChange = change;
           pending = true;
           wake?.();
         });
     if (!ended) activitySubscribers.add(subscriber);
     try {
       if (ended) return;
-      yield { type: 'baseline', snapshot: activity.snapshot() };
+      let sent = currentActivity(activity);
+      yield { type: 'baseline', snapshot: sent.snapshot };
       for (;;) {
         if (ended) return;
         if (pending) {
           pending = false;
-          yield { type: 'changed', snapshot: activity.snapshot() };
+          const next = currentActivity(activity, lastChange);
+          if (next.data === sent.data) continue;
+          sent = next;
+          yield { type: 'changed', snapshot: next.snapshot };
           continue;
         }
         await new Promise<void>((resolve) => {
