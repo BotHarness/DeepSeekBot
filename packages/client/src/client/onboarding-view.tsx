@@ -1,3 +1,4 @@
+import { useClientFields } from './use-client-store.js';
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
 import { Button, Checkbox, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { TutorialAction } from '../../../core/src/onboarding/types.js';
@@ -25,6 +26,8 @@ import { readLayoutMode, type LayoutMode } from './layout-mode.js';
 import { OnboardingChecklist, markBotModeEntered } from './onboarding-checklist-view.js';
 import { checklistSettled } from './onboarding-checklist.js';
 import { startBotSessionsTour, takeSessionsTourReturn } from './onboarding-sessions-tour.js';
+
+const ONBOARDING_VIEW_FIELDS = ['bots', 'channels', 'conversation'] as const;
 
 export function OnboardingModelDialog({
   actions,
@@ -196,7 +199,7 @@ export function OnboardingWelcome({
 }): ReactElement {
   const controller = onboardingFor(actions);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-  const client = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const client = useClientFields(ONBOARDING_VIEW_FIELDS);
   const channel =
     client.channels.find((candidate) => candidate.id === channelId) ??
     (client.conversation.channel?.id === channelId ? client.conversation.channel : undefined);

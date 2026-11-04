@@ -1,6 +1,5 @@
 import type { ConversationStateView } from './store.js';
 import type { ChannelSidebarEntry, ChannelSidebarScope } from './channel-sidebar.js';
-import type { ClientState } from './store.js';
 
 export interface ChannelSettingsSnapshot {
   readonly open: boolean;

@@ -3,7 +3,7 @@ import type { ComponentType } from 'react';
 
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
-import type { ChannelSummary, ClientState } from './store.js';
+import type { ChannelSummary } from './store.js';
 import type { MemoryWorkingChange } from './bridge.js';
 import { channelSidebarScopeKey } from './channel-sidebar-prefs.js';
 import type { DockPanelHost } from './dock-panels.js';

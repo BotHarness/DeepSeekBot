@@ -33,7 +33,6 @@ import {
   MIN_CHANNEL_SIDEBAR_WIDTH,
 } from './channel-sidebar-prefs.js';
 import type { BotHarnessTranslate } from './locale.js';
-import type { ClientState } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { insertEntryBefore, moveEntry, resolveEntryOrder } from './channel-sidebar-order.js';

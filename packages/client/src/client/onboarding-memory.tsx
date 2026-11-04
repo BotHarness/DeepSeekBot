@@ -1,3 +1,4 @@
+import { useClientFields } from './use-client-store.js';
 import {
   createContext,
   useContext,
@@ -16,7 +17,8 @@ import { Modal } from './modal.js';
 import { onboardingFor } from './onboarding.js';
 import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
-import { store } from './store.js';
+
+const ONBOARDING_MEMORY_FIELDS = ['bots', 'conversation'] as const;
 
 export const OnboardingMemoryNavigation = createContext<
   | {
@@ -43,7 +45,7 @@ export function OnboardingMemory({
   const [page, setPage] = useState<'overview' | 'files' | 'changes' | 'preference'>('overview');
   const [preference, setPreference] = useState('');
   const inputId = useId();
-  const client = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const client = useClientFields(ONBOARDING_MEMORY_FIELDS);
   const channel = client.conversation.channel;
   const experienceMount = useMountedResource<HTMLSpanElement>(() => {
     if (!controller.consumeExperience('memory')) return;

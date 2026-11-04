@@ -10,7 +10,6 @@ import { IconStopFillRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { useClientStore } from './use-client-store.js';
-import type { ClientState } from './store.js';
 import { sameBotsBesidesActivity } from './conversation-bots.js';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { formatRelativeTime } from './labels.js';

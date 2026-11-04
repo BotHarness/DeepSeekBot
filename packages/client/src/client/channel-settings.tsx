@@ -13,7 +13,6 @@ import { channelSidebarPrefs, type ChannelSidebarPrefs } from './channel-sidebar
 import { SettingsDialog } from './ds/settings-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
-import type { ClientState } from './store.js';
 import {
   channelSettings,
   channelSettingsSectionKey,

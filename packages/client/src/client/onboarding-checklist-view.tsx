@@ -1,3 +1,4 @@
+import { useClientFields } from './use-client-store.js';
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -15,7 +16,8 @@ import {
   type ChecklistItem,
   type ChecklistTier,
 } from './onboarding-checklist.js';
-import { store } from './store.js';
+
+const ONBOARDING_CHECKLIST_VIEW_FIELDS = ['conversation'] as const;
 
 const LAUNCHER_SELECTOR = '[data-bh-onboarding-launcher]';
 
@@ -154,7 +156,7 @@ export function OnboardingChecklist({
 }): ReactElement | null {
   const controller = onboardingFor(actions);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-  const client = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const client = useClientFields(ONBOARDING_CHECKLIST_VIEW_FIELDS);
   const [position, setPosition] = useState<Position>({ placement: 'sheet' });
   const [page, setPage] = useState<number | undefined>(undefined);
   const mount = useMountedResource<HTMLDivElement>(

@@ -160,7 +160,7 @@ const workload: Record<Phase, (n: number) => void> = {
     const snapshot = store.getSnapshot();
     if (n % 4 === 0) store.setConfig({ ...snapshot.config });
     else if (n % 4 === 1) store.setRosterState({ muted: [...snapshot.roster.muted] });
-    else if (n % 4 === 2) store.setGit({ ...snapshot.git });
+    else if (n % 4 === 2 && snapshot.git !== undefined) store.setGit({ ...snapshot.git });
     else store.setSessions({ ...snapshot.sessions });
   },
 };
