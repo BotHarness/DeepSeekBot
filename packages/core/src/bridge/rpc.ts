@@ -2072,7 +2072,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     channelId: string,
     messageId: string,
   ): {
-    status: 'pending' | 'expired';
+    status: 'pending' | 'expired' | 'stopped';
     execution?: 'waiting-human' | 'waiting-capacity' | 'running' | 'settled' | 'needs-repair';
   } {
     return unwrap(this.methods.toolApprovalStatus({ channelId, messageId }));

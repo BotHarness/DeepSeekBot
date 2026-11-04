@@ -1179,6 +1179,7 @@ const en = {
     `Already decided on another device (${outcome}). Your tap had no effect.`,
   alreadyAnswered: 'Already answered on another device. Your answer was not sent.',
   expired: 'This request expired before a decision, so nothing was sent.',
+  stopped: 'The Session was stopped, so this call will not run.',
   outcome: {
     'allowed-once': 'allowed once',
     'allowed-always-tool': 'always allowed for this tool',
@@ -1421,6 +1422,7 @@ const en = {
   cardAnswered: 'Answered',
   cardCancelled: 'Cancelled',
   cardExpired: 'Expired',
+  cardStopped: 'Session stopped',
   elsewhere: (state: string) => `${state} on another device`,
   cardLine: (subject: string, state: string) => `${subject} · ${state}`,
   cardLoadFailed: 'Could not read this request.',
@@ -3288,6 +3290,7 @@ const zh: typeof en = {
     `已在其他设备上处理（${outcome}），这次${tapVerb.zh}没有生效。`,
   alreadyAnswered: '已在其他设备上回答，这次回答没有发送。',
   expired: '这个请求在处理前已过期，没有发送任何决定。',
+  stopped: '会话已停止，这次调用不会执行。',
   outcome: {
     'allowed-once': '允许一次',
     'allowed-always-tool': '始终允许此工具',
@@ -3519,6 +3522,7 @@ const zh: typeof en = {
   cardAnswered: '已回答',
   cardCancelled: '已取消',
   cardExpired: '已过期',
+  cardStopped: '会话已停止',
   elsewhere: (state: string) => `${state}（在另一台设备上）`,
   cardLine: (subject: string, state: string) => `${subject} · ${state}`,
   cardLoadFailed: '读取这个请求失败。',
