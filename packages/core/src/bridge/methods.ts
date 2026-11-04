@@ -3109,14 +3109,22 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     async sessionStop(payload) {
       const source = asObject(payload);
       const botSlug = asNonBlank(source, 'botSlug');
-      const sessionId = asNonBlank(source, 'sessionId');
-      if (!botSlug || !sessionId) return invalidInput('botSlug and sessionId are required');
+      const activityId = asNonBlank(source, 'activityId');
+      if (!botSlug || (source['sessionId'] === undefined) === (activityId === undefined))
+        return invalidInput('botSlug and exactly one of sessionId or activityId are required');
       const bot = deps.registry.get(botSlug);
       if (bot === undefined) return unknownBot(botSlug);
       const channelId = asNonBlank(source, 'channelId');
       if (source['channelId'] !== undefined && channelId === undefined)
         return invalidInput('channelId must be a Channel id');
       if (deps.runtime?.stopSession === undefined) return unavailable();
+      const sessionId =
+        activityId === undefined
+          ? asNonBlank(source, 'sessionId')
+          : deps.states.sessionIdForActivity(botSlug, activityId);
+      if (activityId !== undefined && sessionId === undefined)
+        return { ok: true, value: { stopped: [], alreadyIdle: [] } };
+      if (!sessionId) return invalidInput('sessionId must be a Session id');
       const outcome = await deps.runtime.stopSession(botSlug, sessionId);
       if (outcome.outcome === 'refused')
         return { ok: false, error: { code: outcome.code, message: outcome.message } };

@@ -24,11 +24,9 @@ import {
   IconCloseOutlineRegular,
   IconPaperclipOutlineRegular,
   IconSendOutlineRegular,
-  IconStopFillRegular,
   ImageLightbox,
   fileSizeText,
 } from '@deepseek-ai/dsh-client-ui-primitives';
-import { Tooltip } from './ds/tooltip.js';
 import { createPortal } from 'react-dom';
 
 import { PersonaBotAvatar, type PersonaBotFacepileItem } from './avatar.js';
@@ -72,13 +70,6 @@ export interface ChannelComposerActivity {
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 
-export interface ChannelComposerStop {
-  label?: string | undefined;
-  stopping: boolean;
-  notice?: string | undefined;
-  onStop(): void;
-}
-
 export interface ChannelComposerUpload {
   id: string;
   file: File;
@@ -100,7 +91,6 @@ export interface ChannelComposerProps {
   onRetryAttachment?(id: string): void;
   onRemoveAttachment?(id: string): void;
   allBotNotice?: string | undefined;
-  stop?: ChannelComposerStop | undefined;
   allBotPreview?: AllBotPreview | undefined;
   mentionCandidates?: readonly BotSummary[] | undefined;
   mentions?: readonly SelectedMention[] | undefined;
@@ -384,7 +374,6 @@ export function ChannelComposer({
   onRetryAttachment,
   onRemoveAttachment,
   allBotNotice,
-  stop,
   allBotPreview,
   mentionCandidates = [],
   mentions = [],
@@ -934,11 +923,6 @@ export function ChannelComposer({
           {allBotNotice}
         </div>
       )}
-      {stop?.notice === undefined ? null : (
-        <div className="bh-muted" role="status">
-          {stop.notice}
-        </div>
-      )}
       {channelQuery !== undefined && channelOptions.length > 0 ? (
         <div className="bh-mention-picker" role="listbox" aria-label="Reference a Group Channel">
           {channelOptions.map((candidate, index) => (
@@ -1242,46 +1226,28 @@ export function ChannelComposer({
           <IconPaperclipOutlineRegular size={16} />
         </button>
         <div className="bh-composer-footer">
-          {stop?.label !== undefined &&
-          !hasVisibleText(value) &&
-          attachments.length === 0 &&
-          shortcutOptions.length === 0 ? (
-            <Tooltip label={stop.label} side="top" portal delayMs={350}>
-              <Button
-                className="bh-send-btn bh-stop-btn"
-                variant="primary"
-                size="sm"
-                icon={<IconStopFillRegular size={14} />}
-                aria-label={stop.stopping ? t('composer.stopping') : stop.label}
-                aria-busy={stop.stopping || undefined}
-                disabled={stop.stopping}
-                onClick={stop.onStop}
-              />
-            </Tooltip>
-          ) : (
-            <Button
-              className="bh-send-btn"
-              variant="primary"
-              size="sm"
-              icon={<IconSendOutlineRegular size={16} />}
-              aria-label={sending ? t('message.sending') : t('composer.send')}
-              disabled={
-                (!hasVisibleText(value) && attachments.length === 0) ||
-                sending ||
-                mentions.some(
-                  (item) => item.kind === 'all-bots' && item.preview.recipients.length === 0,
-                ) ||
-                attachments.length > 10 ||
-                attachments.some((item) => item.status !== 'ready')
-              }
-              onClick={() => {
-                if (shortcutOptions.length > 0) {
-                  const shortcut = shortcutOptions[shortcutIndex % shortcutOptions.length];
-                  if (shortcut !== undefined) chooseShortcut(shortcut);
-                } else if (!hasShortcutArgument) void onSubmit();
-              }}
-            />
-          )}
+          <Button
+            className="bh-send-btn"
+            variant="primary"
+            size="sm"
+            icon={<IconSendOutlineRegular size={16} />}
+            aria-label={sending ? t('message.sending') : t('composer.send')}
+            disabled={
+              (!hasVisibleText(value) && attachments.length === 0) ||
+              sending ||
+              mentions.some(
+                (item) => item.kind === 'all-bots' && item.preview.recipients.length === 0,
+              ) ||
+              attachments.length > 10 ||
+              attachments.some((item) => item.status !== 'ready')
+            }
+            onClick={() => {
+              if (shortcutOptions.length > 0) {
+                const shortcut = shortcutOptions[shortcutIndex % shortcutOptions.length];
+                if (shortcut !== undefined) chooseShortcut(shortcut);
+              } else if (!hasShortcutArgument) void onSubmit();
+            }}
+          />
         </div>
       </div>
       {context?.content}

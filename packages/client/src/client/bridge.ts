@@ -5049,13 +5049,13 @@ function parseSessionStopResult(value: unknown): SessionStopResult {
 export async function stopSession(
   call: BridgeCall,
   botSlug: string,
-  sessionId: string,
+  session: string | { activityId: string },
   channelId?: string,
 ): Promise<SessionStopResult> {
   return parseSessionStopResult(
     await unwrap(call, 'sessionStop', {
       botSlug,
-      sessionId,
+      ...(typeof session === 'string' ? { sessionId: session } : session),
       ...(channelId === undefined ? {} : { channelId }),
     }),
   );
