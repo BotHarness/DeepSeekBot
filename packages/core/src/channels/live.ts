@@ -767,6 +767,9 @@ export function createChannelLiveHub(
         return new Response('Unknown Channel', { status: 404 });
       }
       const query = url.searchParams.get('after');
+      const drafts = url.searchParams.get('drafts') ?? 'full';
+      if (drafts !== 'full' && drafts !== 'append')
+        return new Response('Invalid draft delivery', { status: 400 });
       const lastEventId = request.headers.get('Last-Event-ID');
       const requested = query === null ? 0 : parseRevision(query);
       const resumed = lastEventId === null ? 0 : parseRevision(lastEventId);
@@ -793,6 +796,7 @@ export function createChannelLiveHub(
                 controller.close();
               } catch {}
             },
+            drafts,
           );
           heartbeat = setInterval(() => {
             try {
