@@ -23,6 +23,7 @@ const IMAGE_MIMES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp
 
 export interface MediaVersions {
   describe(fileId: string): MediaFacts | undefined;
+  known(fileId: string): boolean;
   ensure(fileId: string): Promise<MediaFacts | undefined>;
   thumbnail(
     fileId: string,
@@ -122,6 +123,7 @@ export function createMediaVersions(
       void ensure(fileId).catch(() => undefined);
       return undefined;
     },
+    known: (fileId) => fresh(fileId)?.sidecar !== undefined,
     ensure,
     async thumbnail(fileId, version, variant) {
       const facts = await ensure(fileId);
