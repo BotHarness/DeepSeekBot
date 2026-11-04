@@ -10,6 +10,7 @@ import { titleChipFill } from './header-chrome';
 import { barLabelStyle, barLabelProps } from './native-header';
 import { GroupMark } from './group-mark';
 import { WorkingStatus, workingLabel } from './working-status';
+import { SessionCountChip } from './session-count-chip';
 
 const MARK = 28;
 
@@ -18,11 +19,13 @@ export function ChannelTitle({
   fallback,
   connectionLabel,
   working = [],
+  sessions = 0,
   onPress,
 }: {
   channel: RosterChannel | undefined;
   fallback: string;
   working?: readonly RosterBot[];
+  sessions?: number;
   connectionLabel?: string | undefined;
   onPress(): void;
 }) {
@@ -41,6 +44,7 @@ export function ChannelTitle({
         working.length
           ? `${working.map((bot) => bot.displayName).join(', ')}: ${workingLabel(working)}`
           : undefined,
+        sessions > 0 ? t.sessionCount(sessions) : undefined,
       ]
         .filter(Boolean)
         .join(', ')}
@@ -77,6 +81,7 @@ export function ChannelTitle({
       </Text>
       <ConnectionProgress active={connectionLabel !== undefined} label={connectionLabel} />
       <WorkingStatus bots={working} />
+      <SessionCountChip count={sessions} />
     </HeaderTitleButton>
   );
   return chip(onPress);

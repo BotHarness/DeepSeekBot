@@ -11,6 +11,7 @@ import {
   type ProfilePart,
 } from '../../host/bot-profile';
 import type { RosterBot, RosterChannel } from '../../host/client';
+import { runningSessions, type RunningSession, type SessionStopper } from '../../host/session-stop';
 import type { MemoryChange, MemoryChangesPage } from '../../host/memory-changes';
 import type { BotScheduleSummary, ProfileActivity } from '../../host/wire';
 import { botBanner } from '../../marketplace/artwork';
@@ -38,6 +39,8 @@ import { useStrings, t } from '../strings';
 import { ActivityGlance } from './activity-glance';
 import { AssignmentActivityIcon } from './assignment-marks';
 import { botStateTone } from './bot-tone';
+import { stepLabel } from './bot-steps';
+import { useSessionStops, type SessionStops } from './session-stops';
 import {
   MemoryGridRow,
   MemoryPinnedCards,
@@ -90,6 +93,8 @@ type RowBody =
   | { kind: 'routine-group'; group: RoutineGroup; routines: BotScheduleSummary[] }
   | { kind: 'assignment'; assignment: ProfileAssignment }
   | { kind: 'day'; label: string }
+  | { kind: 'working-head'; label: string; botSlug: string; sessionIds: string[]; lead: boolean }
+  | { kind: 'session'; botSlug: string; session: RunningSession }
   | { kind: 'activity'; activity: ProfileActivity }
   | { kind: 'note'; text: string }
   | { kind: 'failed'; error: string }
@@ -109,17 +114,76 @@ export interface BotProfileActions {
   onOpenAssignment?(assignment: ProfileAssignment): void;
   onNewRoutine?(): void;
   routines?: RoutineChanges;
+  stops?: SessionStops | undefined;
   onOpenActivity(): void;
   onClose(): void;
+}
+
+function boundary(body: RowBody | undefined): boolean {
+  return body?.kind === 'day' || body?.kind === 'working-head';
 }
 
 function frame(section: ProfileSection, bodies: RowBody[]): Row[] {
   return bodies.map((body, index) => ({
     ...body,
     key: `${section}:${index}`,
-    first: index === 0 || bodies[index - 1]?.kind === 'day',
-    last: index === bodies.length - 1 || bodies[index + 1]?.kind === 'day',
+    first: index === 0 || boundary(bodies[index - 1]),
+    last: index === bodies.length - 1 || boundary(bodies[index + 1]),
   }));
+}
+
+function workingKey(body: RowBody): string {
+  if (body.kind === 'working-head') return `working:bot:${body.botSlug}`;
+  if (body.kind === 'session') return `working:${body.botSlug}:${body.session.id}`;
+  return 'working:heading';
+}
+
+export function workingRows(
+  bots: readonly Pick<RosterBot, 'slug' | 'displayName' | 'sessions'>[],
+  grouped: boolean,
+): Row[] {
+  const running = bots
+    .map((bot) => ({ bot, sessions: runningSessions(bot) }))
+    .filter(({ sessions }) => sessions.length > 0);
+  if (running.length === 0) return [];
+  const bodies: RowBody[] = grouped ? [{ kind: 'day', label: t.workingNow }] : [];
+  for (const { bot, sessions } of running) {
+    bodies.push({
+      kind: 'working-head',
+      label: grouped ? bot.displayName : t.workingNow,
+      botSlug: bot.slug,
+      sessionIds: sessions.map((session) => session.id),
+      lead: !grouped,
+    });
+    for (const session of sessions) bodies.push({ kind: 'session', botSlug: bot.slug, session });
+  }
+  return bodies.map((body, index) => ({
+    ...body,
+    key: workingKey(body),
+    first: index === 0 || boundary(bodies[index - 1]),
+    last: index === bodies.length - 1 || boundary(bodies[index + 1]),
+  }));
+}
+
+export function workingGap<T>(
+  node: (key: string, render: () => ReactNode) => T,
+  error: string | undefined,
+): T {
+  return node('working:gap', () => (
+    <View testID="working-now-end" style={{ paddingTop: space.x3, paddingBottom: space.x3 }}>
+      {error === undefined ? null : (
+        <Text testID="working-stop-failed" variant="meta" tone="danger">
+          {t.sessionStopFailed(error)}
+        </Text>
+      )}
+    </View>
+  ));
+}
+
+export function sessionTitle(session: RunningSession): string {
+  if (session.role === 'orchestrator') return t.sessionOrchestrator;
+  const name = session.name?.trim() ?? '';
+  return name === '' ? t.sessionAssignment : name;
 }
 
 function partRows<T>(
@@ -387,14 +451,48 @@ function rowShape(theme: ReturnType<typeof useDesignTheme>, row: Row) {
 
 export type WorkRow = Row;
 
+function StopControl({
+  label,
+  stopping,
+  testID,
+  onPress,
+}: {
+  label: string;
+  stopping: boolean;
+  testID: string;
+  onPress(): void;
+}) {
+  const t = useStrings();
+  const theme = useDesignTheme();
+  if (stopping)
+    return (
+      <View
+        testID={`${testID}-stopping`}
+        accessibilityLiveRegion="polite"
+        style={{ minHeight: theme.touch, justifyContent: 'center' }}
+      >
+        <Text variant="meta" tone="muted">
+          {t.sessionStopping}
+        </Text>
+      </View>
+    );
+  return (
+    <View style={{ flexShrink: 0 }}>
+      <Button label={label} variant="text" tone="danger" fit testID={testID} onPress={onPress} />
+    </View>
+  );
+}
+
 export function WorkListRow({
   row,
   onRetry,
   onOpen,
+  stops,
 }: {
   row: Row;
   onRetry(): void;
   onOpen?: ((assignment: ProfileAssignment) => void) | undefined;
+  stops?: SessionStops | undefined;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -405,14 +503,86 @@ export function WorkListRow({
         tone="muted"
         strong
         style={{
-          paddingTop: row.key.endsWith(':0') ? 0 : space.x4,
+          paddingTop: row.key.endsWith(':0') || row.key === 'working:heading' ? 0 : space.x4,
           paddingBottom: space.x2,
         }}
       >
         {row.label}
       </Text>
     );
+  if (row.kind === 'working-head')
+    return (
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: space.x3,
+          paddingTop: row.lead ? 0 : space.x3,
+        }}
+      >
+        <Text variant="meta" tone="muted" strong style={{ flex: 1, minWidth: 0 }}>
+          {row.label}
+        </Text>
+        {stops === undefined ? null : (
+          <StopControl
+            label={t.sessionStopAll}
+            stopping={row.sessionIds.every((id) => stops.stopping(row.botSlug, id))}
+            testID={`working-stop-all-${row.botSlug}`}
+            onPress={() => stops.stopAll(row.botSlug)}
+          />
+        )}
+      </View>
+    );
   const shape = rowShape(theme, row);
+  if (row.kind === 'session') {
+    const { session } = row;
+    const title = sessionTitle(session);
+    const stopping = stops?.stopping(row.botSlug, session.id) === true;
+    const state = stepLabel(session.activity, session.state);
+    return (
+      <View
+        testID={`working-session-${session.id}`}
+        accessible={false}
+        style={[
+          shape,
+          {
+            flexDirection: theme.largeText ? 'column' : 'row',
+            alignItems: theme.largeText ? 'stretch' : 'center',
+            gap: space.x3,
+            minHeight: theme.touch,
+          },
+        ]}
+      >
+        <View
+          accessible
+          accessibilityLabel={[title, state].join(', ')}
+          style={{ flex: theme.largeText ? undefined : 1, flexDirection: 'row', gap: space.x3 }}
+        >
+          <View style={{ paddingTop: (theme.type.body.line - rowGlyph.size) / 2 }}>
+            <AssignmentActivityIcon
+              activity={stopping ? 'stopping' : 'working'}
+              size={rowGlyph.size}
+            />
+          </View>
+          <View style={{ flex: 1, gap: space.x1 }}>
+            <Text numberOfLines={theme.largeText ? undefined : 2}>{title}</Text>
+            <Text variant="meta" tone="muted" numberOfLines={theme.largeText ? undefined : 1}>
+              {state}
+            </Text>
+          </View>
+        </View>
+        {stops === undefined ? null : (
+          <StopControl
+            label={t.sessionStop}
+            stopping={stopping}
+            testID={`working-stop-${session.id}`}
+            onPress={() => stops.stop(row.botSlug, session.id)}
+          />
+        )}
+      </View>
+    );
+  }
   if (row.kind === 'assignment') {
     const { assignment } = row;
     const time = new Date(assignment.updatedAt).toLocaleTimeString(undefined, {
@@ -515,12 +685,21 @@ function ProfileRow({
     );
   if (
     row.kind === 'day' ||
+    row.kind === 'working-head' ||
+    row.kind === 'session' ||
     row.kind === 'assignment' ||
     row.kind === 'loading' ||
     row.kind === 'failed' ||
     row.kind === 'note'
   )
-    return <WorkListRow row={row} onRetry={onRetry} onOpen={actions.onOpenAssignment} />;
+    return (
+      <WorkListRow
+        row={row}
+        onRetry={onRetry}
+        onOpen={actions.onOpenAssignment}
+        stops={actions.stops}
+      />
+    );
   const shape = rowShape(theme, row);
   if (row.kind === 'commit') {
     const { change } = row;
@@ -618,11 +797,13 @@ export function BotProfilePage({
   initialProfile,
   avatar,
   tabMemory,
+  stopper,
 }: {
   bot: RosterBot;
   channels: RosterChannel[];
   load: () => Promise<BotProfile>;
   actions: BotProfileActions;
+  stopper?: SessionStopper | undefined;
   settings?: ReactNode;
   permissions?: ReactNode;
   workActions?: ReactNode;
@@ -635,6 +816,7 @@ export function BotProfilePage({
   const t = useStrings();
   const theme = useDesignTheme();
   const avatarEditor = useAvatarEditor(avatar);
+  const stops = useSessionStops(stopper, [bot]);
   const [profile, setProfile] = useState(initialProfile);
   const content = useSheetContent();
   const columns = useMemoryColumns();
@@ -660,7 +842,7 @@ export function BotProfilePage({
   const showChanges = attached && memoryView === 'changes';
   const rowOf = (row: Row): ShellRow => ({
     key: row.key,
-    render: () => <ProfileRow bot={bot} row={row} onRetry={read} actions={actions} />,
+    render: () => <ProfileRow bot={bot} row={row} onRetry={read} actions={{ ...actions, stops }} />,
   });
   const changeRowOf = (row: Row): ShellRow => ({
     key: `changes:${row.key}`,
@@ -686,10 +868,13 @@ export function BotProfilePage({
         <SettingsHeading>{title}</SettingsHeading>
       </View>
     ));
+  const working = workingRows([bot], false);
   const bodies: Record<Exclude<ProfileTab, 'files' | 'members'>, ProfileTabBody> = {
     work: {
       rows: [
         ...(workActions === undefined ? [] : [node('work:actions', () => workActions)]),
+        ...working.map(rowOf),
+        ...(working.length === 0 ? [] : [workingGap(node, stops?.error)]),
         ...rows.work.map(rowOf),
       ],
     },

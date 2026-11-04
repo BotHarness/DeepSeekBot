@@ -515,4 +515,132 @@ describe('Group profile', () => {
     expect(loadWork).toHaveBeenCalledTimes(2);
     expect(view.textContent).toContain(t.profileEmpty.work);
   });
+
+  describe('Working now', () => {
+    const busy = (base: RosterBot, sessions: NonNullable<RosterBot['sessions']>): RosterBot => ({
+      ...base,
+      state: 'working',
+      sessions,
+    });
+    const running = (members: RosterBot[]): GroupInfo => ({
+      ...info,
+      members: members.map((member, index) => ({
+        slug: member.slug,
+        bot: member,
+        owner: index === 0,
+      })),
+    });
+    const adaBusy = busy(ada, [
+      { id: 'ada-orch', role: 'orchestrator', state: 'thinking' },
+      { id: 'ada-sub', role: 'subagent', state: 'working' },
+    ]);
+    const boBusy = busy(bo, [
+      { id: 'bo-orch', role: 'orchestrator', state: 'working' },
+      { id: 'bo-a1', role: 'assignment', name: 'Draft the launch notes', state: 'working' },
+    ]);
+    const stopper = () => ({
+      stopSession: vi.fn(async () => undefined),
+      stopBot: vi.fn(async () => undefined),
+    });
+    const testId = (view: ParentNode, id: string) =>
+      view.querySelector<HTMLElement>(`[data-testid="${id}"]`);
+
+    it('lists running Sessions above Today, grouped by member Bot, without Subagents', async () => {
+      const assignment: ProfileAssignment = {
+        sessionId: 'assignment-7',
+        botSlug: 'bo',
+        title: 'Earlier work',
+        activity: 'idle',
+        updatedAt: new Date().toISOString(),
+      };
+      const props = sheet(
+        {
+          info: running([adaBusy, boBusy]),
+          loadWork: vi.fn(async () => [assignment]),
+          stopper: stopper(),
+        },
+        'work',
+      );
+      const view = await render(<GroupProfilePage {...props} />);
+      const text = view.textContent ?? '';
+      expect(text.indexOf(t.workingNow)).toBeGreaterThanOrEqual(0);
+      expect(text.indexOf(t.workingNow)).toBeLessThan(text.indexOf(t.usageToday));
+      expect(
+        [...view.querySelectorAll('[data-testid^="working-"]')]
+          .map((node) => node.getAttribute('data-testid'))
+          .filter((id) => !id!.endsWith('-stopping') && !id!.startsWith('working-now')),
+      ).toEqual([
+        'working-stop-all-ada',
+        'working-session-ada-orch',
+        'working-stop-ada-orch',
+        'working-stop-all-bo',
+        'working-session-bo-orch',
+        'working-stop-bo-orch',
+        'working-session-bo-a1',
+        'working-stop-bo-a1',
+      ]);
+      expect(testId(view, 'working-session-ada-orch')?.textContent).toContain(
+        t.sessionOrchestrator,
+      );
+      expect(testId(view, 'working-session-bo-a1')?.textContent).toContain(
+        'Draft the launch notes',
+      );
+      expect(testId(view, 'working-session-ada-sub')).toBeNull();
+      expect(testId(view, 'working-stop-all-ada')).not.toBeNull();
+      expect(testId(view, 'working-stop-all-bo')).not.toBeNull();
+      expect(view.querySelectorAll('[data-testid^="working-stop-all-"]')).toHaveLength(2);
+      expect(testId(view, 'profile-assignment-assignment-7')).not.toBeNull();
+    });
+
+    it('hides Working now while no member Bot is running', async () => {
+      const view = await render(
+        <GroupProfilePage
+          {...sheet({ loadWork: vi.fn(async () => []), stopper: stopper() }, 'work')}
+        />,
+      );
+      expect(view.textContent).not.toContain(t.workingNow);
+      expect(view.textContent).toContain(t.profileEmpty.work);
+    });
+
+    it('stops one Session in one tap and shows Stopping until it leaves the list', async () => {
+      const stop = stopper();
+      const props = sheet({ info: running([adaBusy, boBusy]), stopper: stop }, 'work');
+      const view = await render(<GroupProfilePage {...props} />);
+      await act(async () => testId(view, 'working-stop-bo-a1')!.click());
+      expect(stop.stopSession).toHaveBeenCalledWith('bo', 'bo-a1');
+      expect(alert).not.toHaveBeenCalled();
+      expect(testId(view, 'working-stop-bo-a1')).toBeNull();
+      expect(testId(view, 'working-stop-bo-a1-stopping')?.textContent).toBe(t.sessionStopping);
+      expect(testId(view, 'working-stop-bo-orch')).not.toBeNull();
+      const settled = busy(bo, [{ id: 'bo-orch', role: 'orchestrator', state: 'working' }]);
+      await act(async () =>
+        root!.render(<GroupProfilePage {...props} info={running([adaBusy, settled])} />),
+      );
+      expect(testId(view, 'working-session-bo-a1')).toBeNull();
+      expect(testId(view, 'working-stop-bo-orch')).not.toBeNull();
+    });
+
+    it('stops every Session of one Bot from its stop-all', async () => {
+      const stop = stopper();
+      const props = sheet({ info: running([adaBusy, boBusy]), stopper: stop }, 'work');
+      const view = await render(<GroupProfilePage {...props} />);
+      await act(async () => testId(view, 'working-stop-all-bo')!.click());
+      expect(stop.stopBot).toHaveBeenCalledWith('bo');
+      expect(stop.stopSession).not.toHaveBeenCalled();
+      expect(testId(view, 'working-stop-bo-orch-stopping')).not.toBeNull();
+      expect(testId(view, 'working-stop-bo-a1-stopping')).not.toBeNull();
+      expect(testId(view, 'working-stop-all-bo-stopping')).not.toBeNull();
+      expect(testId(view, 'working-stop-ada-orch')).not.toBeNull();
+    });
+
+    it('restores Stop and explains a failed stop', async () => {
+      const stop = stopper();
+      stop.stopSession.mockRejectedValueOnce(new Error('Host unavailable'));
+      const props = sheet({ info: running([boBusy]), stopper: stop }, 'work');
+      const view = await render(<GroupProfilePage {...props} />);
+      await act(async () => testId(view, 'working-stop-bo-a1')!.click());
+      expect(testId(view, 'working-stop-bo-a1')).not.toBeNull();
+      expect(testId(view, 'working-stop-failed')?.textContent).toContain('Host unavailable');
+    });
+  });
 });

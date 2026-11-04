@@ -4,6 +4,7 @@ import { View } from 'react-native';
 
 import { botChannels, botProfileResource, memoryRouteParams } from '../../host/bot-profile';
 import { loadMemoryChanges } from '../../host/memory-changes';
+import { sessionStopper } from '../../host/session-stop';
 import { botRoutines } from '../../host/routines';
 import { setBotAvatar } from '../../host/bot-avatar';
 import { pickAvatarImage } from '../../host/pick-avatar-image';
@@ -87,6 +88,9 @@ export function BotProfileScreen({
       initialProfile={profile.peek()}
       load={profile.refresh}
       tabMemory={profileTabMemory}
+      {...(snapshot.connection.status === 'refused'
+        ? {}
+        : { stopper: sessionStopper(client, channelId ?? bot.dmChannelId) })}
       avatar={{
         pick: pickAvatarImage,
         save: (avatar) => setBotAvatar(client, bot, avatar),

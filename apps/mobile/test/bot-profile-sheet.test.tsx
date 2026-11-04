@@ -438,6 +438,71 @@ describe('Bot profile page', () => {
     expect(onOpenAssignment).toHaveBeenCalledWith(assignments[0]);
   });
 
+  it('starts Work with Working now and stops one Session or all of them', async () => {
+    const stopper = {
+      stopSession: vi.fn(async () => undefined),
+      stopBot: vi.fn(async () => undefined),
+    };
+    const running = {
+      ...bot,
+      state: 'working' as const,
+      sessions: [
+        { id: 'orch', role: 'orchestrator' as const, state: 'thinking' as const },
+        { id: 'sub', role: 'subagent' as const, state: 'working' as const },
+        {
+          id: 'assignment-9',
+          role: 'assignment' as const,
+          name: 'Collect the papers',
+          state: 'working' as const,
+        },
+      ],
+    };
+    const view = await render(
+      <BotProfileSheet
+        bot={running}
+        channels={[]}
+        load={async () => full}
+        actions={actions()}
+        avatar={avatarNone}
+        stopper={stopper}
+      />,
+    );
+    const text = view.textContent ?? '';
+    expect(text.indexOf(t.workingNow)).toBeGreaterThanOrEqual(0);
+    expect(text.indexOf(t.workingNow)).toBeLessThan(text.indexOf(t.usageToday));
+    expect(text.indexOf(t.sessionOrchestrator)).toBeLessThan(text.indexOf('Collect the papers'));
+    expect(view.querySelector('[data-testid="working-session-sub"]')).toBeNull();
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>('[data-testid="working-stop-assignment-9"]')!.click(),
+    );
+    expect(stopper.stopSession).toHaveBeenCalledWith(bot.slug, 'assignment-9');
+    expect(
+      view.querySelector('[data-testid="working-stop-assignment-9-stopping"]')?.textContent,
+    ).toBe(t.sessionStopping);
+    await act(async () =>
+      view
+        .querySelector<HTMLButtonElement>(`[data-testid="working-stop-all-${bot.slug}"]`)!
+        .click(),
+    );
+    expect(stopper.stopBot).toHaveBeenCalledWith(bot.slug);
+    expect(view.querySelector('[data-testid="working-stop-orch-stopping"]')).not.toBeNull();
+  });
+
+  it('shows no Working now while the Bot runs nothing', async () => {
+    const view = await render(
+      <BotProfileSheet
+        bot={bot}
+        channels={[]}
+        load={async () => full}
+        actions={actions()}
+        avatar={avatarNone}
+        stopper={{ stopSession: vi.fn(), stopBot: vi.fn() }}
+      />,
+    );
+    expect(view.textContent).not.toContain(t.workingNow);
+    expect(view.textContent).toContain(t.usageToday);
+  });
+
   it('places Permissions between the overview and the Bot settings', async () => {
     const view = await render(
       <BotProfileSheet

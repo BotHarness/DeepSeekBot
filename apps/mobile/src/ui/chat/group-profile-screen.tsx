@@ -5,6 +5,7 @@ import { View } from 'react-native';
 import { groupActions, groupInfo, loadGroupAssignments } from '../../host/group-channel';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { pickAvatarImage } from '../../host/pick-avatar-image';
+import { sessionStopper } from '../../host/session-stop';
 import { ChannelFilesTab } from './channel-files-tab';
 import { GroupProfilePage } from './group-info';
 import { profileTabMemory } from './native-profile-tab-memory';
@@ -78,7 +79,7 @@ export function GroupProfileScreen({
         router.push({ pathname: '/bot/[slug]', params: { slug, hostId: saved?.hostId } })
       }
       onDisbanded={() => router.dismissAll()}
-      {...(refused ? {} : { loadWork })}
+      {...(refused ? {} : { loadWork, stopper: sessionStopper(client, info.channel.id) })}
       onOpenAssignment={(assignment) => {
         if (assignment.botSlug === undefined) return;
         router.push({

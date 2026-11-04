@@ -94,6 +94,7 @@ import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
 import { WorkingStatus } from './working-status';
 import { ChatTitle } from './chat-title';
+import { runningSessionCount } from '../../host/session-stop';
 import { HeaderIconButton } from '../shell/header-icon-button';
 import { Composer, type ComposerInput } from './composer';
 import { GroupUnavailable } from './group-unavailable';
@@ -1318,6 +1319,7 @@ function ChatConversation({
     <ChannelTitle
       channel={channel}
       working={working}
+      sessions={runningSessionCount(members)}
       connectionLabel={connectionLabel}
       fallback={channelName ?? t.groupInfo}
       onPress={openProfile}
