@@ -34,7 +34,7 @@ const styles = stylex.create({
     position: 'absolute',
     insetBlock: '-2px',
     width: '2px',
-    marginInlineStart: '-1px',
+    transform: 'translateX(-50%)',
     backgroundColor: color.accent,
   },
   readout: {
