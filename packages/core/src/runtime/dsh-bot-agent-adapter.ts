@@ -431,8 +431,24 @@ function interruptedToolCalls(
 ): InterruptedToolCall[] {
   if (stopSeq === undefined) return [];
   const started = new Map<string, InterruptedToolCall>();
+  const asked = new Map<string, string>();
+  const awaitingApproval = new Set<string>();
   for (const event of handle.agent.session.snapshotEvents(fromSeq)) {
     if (Number(event.seq) >= stopSeq) break;
+    if (event.type === 'approval/asked') {
+      const data = event.data as { id: string; callId?: string };
+      if (data.callId !== undefined) {
+        asked.set(String(data.id), String(data.callId));
+        awaitingApproval.add(String(data.callId));
+      }
+      continue;
+    }
+    if (event.type === 'approval/decided') {
+      const data = event.data as { id: string };
+      const callId = asked.get(String(data.id));
+      if (callId !== undefined) awaitingApproval.delete(callId);
+      continue;
+    }
     if (event.type === 'tool/call') {
       const data = event.data as { callId: string; name: string; arguments: string };
       started.set(String(data.callId), {
@@ -446,7 +462,7 @@ function interruptedToolCalls(
       if (callId !== undefined) started.delete(String(callId));
     }
   }
-  return [...started.values()];
+  return [...started.values()].filter((call) => !awaitingApproval.has(call.callId));
 }
 
 function turnAborted(handle: AgentHandle, fromSeq: SessionLogOffset): boolean {

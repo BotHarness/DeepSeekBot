@@ -179,6 +179,18 @@ describe('A Human stop mid-tool-call', () => {
           name: 'bash',
           arguments: '{"command":"./deploy.sh production"}',
         });
+        session.append('tool/call', {
+          turn: 1,
+          step: 1,
+          callId: 'call-awaiting',
+          name: 'bash',
+          arguments: '{"command":"rm -rf build"}',
+        });
+        session.append('approval/asked', {
+          id: 'approval-1',
+          toolName: 'bash',
+          callId: 'call-awaiting',
+        });
         await f.cancelled(session.id);
         session.append('tool/result', {
           turn: 1,
@@ -205,6 +217,7 @@ describe('A Human stop mid-tool-call', () => {
         'bash (call call-deploy): {"command":"./deploy.sh production"}',
       );
       expect(textOf(next)).not.toContain('call-read');
+      expect(textOf(next)).not.toContain('call-awaiting');
       expect(textOf(later)).not.toContain('unknown result');
     } finally {
       await f.close();
