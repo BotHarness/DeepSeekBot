@@ -19,7 +19,9 @@ describe('Channel unread revision ranges', () => {
       const event = connection.prepare(`INSERT INTO source_events
         (source_event_id, source_kind, bot_slug, channel_id, message_id, body, created_at, payload_json)
         VALUES (?, 'bot-message', 'ada', ?, ?, 'Retained history', '2026-11-02T00:00:00Z', ?)`);
-      const placement = connection.prepare('INSERT INTO channel_placements VALUES (?, ?, ?, ?)');
+      const placement = connection.prepare(
+        'INSERT INTO channel_placements (channel_id, revision, source_event_id, message_id) VALUES (?, ?, ?, ?)',
+      );
       for (let revision = 1; revision <= 2000; revision++) {
         const id = `history-${revision}`;
         event.run(
