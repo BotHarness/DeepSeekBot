@@ -78,3 +78,49 @@ export const TTS_PRESETS: readonly TtsPreset[] = [
 export function ttsPreset(id: string): TtsPreset | undefined {
   return TTS_PRESETS.find((preset) => preset.id === id);
 }
+
+export type AsrPresetId = 'custom' | 'openai' | 'groq';
+
+export interface AsrPreset {
+  id: AsrPresetId;
+  name: string;
+  baseUrl?: string;
+  keyRequired: boolean;
+  defaultModel?: string;
+  capabilities: {
+    billing: 'per-minute' | 'self-hosted';
+  };
+  docsUrl?: string;
+}
+
+export const ASR_PRESETS: readonly AsrPreset[] = [
+  {
+    id: 'custom',
+    name: 'OpenAI-compatible endpoint',
+    keyRequired: false,
+    defaultModel: 'whisper-1',
+    capabilities: { billing: 'self-hosted' },
+  },
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    baseUrl: 'https://api.openai.com/v1',
+    keyRequired: true,
+    defaultModel: 'gpt-4o-mini-transcribe',
+    capabilities: { billing: 'per-minute' },
+    docsUrl: 'https://platform.openai.com/docs/api-reference/audio/createTranscription',
+  },
+  {
+    id: 'groq',
+    name: 'Groq',
+    baseUrl: 'https://api.groq.com/openai/v1',
+    keyRequired: true,
+    defaultModel: 'whisper-large-v3-turbo',
+    capabilities: { billing: 'per-minute' },
+    docsUrl: 'https://console.groq.com/docs/speech-to-text',
+  },
+];
+
+export function asrPreset(id: string): AsrPreset | undefined {
+  return ASR_PRESETS.find((preset) => preset.id === id);
+}

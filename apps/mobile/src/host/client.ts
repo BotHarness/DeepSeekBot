@@ -10,6 +10,10 @@ import { rosterSortingOf, type RosterSorting } from './roster-sorting';
 import { DEVICE_PREFIX } from './pairing';
 import { checkRoute, isConnectRoute, isEncryptedRoute, isLanRoute, socketOrigin } from './route';
 import { LOCAL_VIDEO_PATH } from '../../../../packages/computer/src/local-video-contract';
+import {
+  VOICE_CALL_CONNECT_REFUSAL,
+  VOICE_CALL_PATH,
+} from '../../../../packages/core/src/voice/call-contract';
 import { secretRouteRefusal } from '../../../../packages/core/src/bridge/secret-route';
 import {
   REMOTE_STREAM_MUX_PATH,
@@ -620,6 +624,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
             error: 'Local Computer video requires the paired LAN route.',
           },
         };
+      if (isConnectRoute(route) && path === VOICE_CALL_PATH)
+        return { status: 409, body: VOICE_CALL_CONNECT_REFUSAL };
       if (
         isEncryptedRoute(route, options.encryption) &&
         /^\/api\/(?:browser|computer)\//u.test(path) &&

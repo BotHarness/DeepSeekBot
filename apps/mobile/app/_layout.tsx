@@ -254,6 +254,16 @@ function RootNavigator() {
                   }}
                 />
                 <Stack.Screen
+                  name="call/[slug]"
+                  options={{
+                    title: t.call.title,
+                    orientation: 'portrait',
+                    presentation: 'fullScreenModal',
+                    headerShown: false,
+                    gestureEnabled: false,
+                  }}
+                />
+                <Stack.Screen
                   name="computer/[slug]"
                   options={{
                     title: t.profileComputer,

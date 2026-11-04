@@ -2,15 +2,28 @@ import { randomUUID } from 'node:crypto';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
 
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
-import { TTS_PRESETS, ttsPreset, type TtsPreset, type TtsWire } from './presets.js';
+import {
+  ASR_PRESETS,
+  asrPreset,
+  TTS_PRESETS,
+  ttsPreset,
+  type AsrPreset,
+  type TtsPreset,
+  type TtsWire,
+} from './presets.js';
 
 type Credentials = Pick<CredentialProvider, 'readRecord' | 'modifyRecord' | 'deleteRecord'>;
 
 export const MAX_TTS_INPUT_CHARS = 4_000;
 export const MAX_TTS_AUDIO_BYTES = 10 * 1024 * 1024;
+export const MAX_ASR_AUDIO_BYTES = 8 * 1024 * 1024;
+export const MAX_TRANSCRIPT_CHARS = 4_000;
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_PROVIDERS = 32;
-const PROVIDER_ID = /^tts-[a-f0-9]{12}$/u;
+const PROVIDER_ID = /^(?:tts|asr)-[a-f0-9]{12}$/u;
+const LANGUAGE = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$/u;
+
+export type VoiceProviderKind = 'tts' | 'asr';
 const HEALTH_TEXT = 'Hello.';
 
 export type VoiceErrorCode =
@@ -26,7 +39,8 @@ export type VoiceErrorCode =
   | 'provider-unavailable'
   | 'provider-timeout'
   | 'provider-bad-response'
-  | 'audio-too-large';
+  | 'audio-too-large'
+  | 'wrong-provider-kind';
 
 export class VoiceError extends Error {
   constructor(
@@ -40,6 +54,7 @@ export class VoiceError extends Error {
 
 export interface TtsProviderView {
   id: string;
+  kind: 'tts';
   name: string;
   preset: TtsPreset['id'];
   wire: TtsWire;
@@ -50,13 +65,34 @@ export interface TtsProviderView {
   createdAt: string;
 }
 
+export interface AsrProviderView {
+  id: string;
+  kind: 'asr';
+  name: string;
+  preset: AsrPreset['id'];
+  baseUrl: string;
+  model?: string;
+  language?: string;
+  keySet: boolean;
+  createdAt: string;
+}
+
+export type VoiceProviderView = TtsProviderView | AsrProviderView;
+
 export interface TtsProviderInput {
+  kind?: VoiceProviderKind;
   preset: string;
   name?: string;
   baseUrl?: string;
   model?: string;
   defaultVoice?: string;
+  language?: string;
   key?: string;
+}
+
+export interface TranscriptionResult {
+  text: string;
+  latencyMs: number;
 }
 
 export interface SynthesisResult {
@@ -77,13 +113,29 @@ export type ProviderHealth =
 
 interface StoredProvider {
   id: string;
+  kind?: 'asr';
   name: string;
-  preset: TtsPreset['id'];
+  preset: string;
   baseUrl: string;
   model?: string;
   defaultVoice?: string;
+  language?: string;
   credentialRevision?: string;
   createdAt: string;
+}
+
+function kindOf(stored: StoredProvider): VoiceProviderKind {
+  return stored.kind === 'asr' ? 'asr' : 'tts';
+}
+
+function asrPresetOf(id: string): AsrPreset {
+  const preset = asrPreset(id);
+  if (preset === undefined)
+    throw new VoiceError(
+      'invalid-input',
+      `Unknown ASR preset ${JSON.stringify(id)}; use one of ${ASR_PRESETS.map((entry) => entry.id).join(', ')}.`,
+    );
+  return preset;
 }
 
 function presetOf(id: string): TtsPreset {
@@ -136,7 +188,10 @@ function parseStored(body: string): StoredProvider | undefined {
       typeof value.name !== 'string' ||
       typeof value.baseUrl !== 'string' ||
       typeof value.createdAt !== 'string' ||
-      ttsPreset(String(value.preset)) === undefined
+      (value.kind !== undefined && value.kind !== 'asr') ||
+      value.id.startsWith(value.kind === 'asr' ? 'tts-' : 'asr-') ||
+      (value.kind === 'asr' ? asrPreset(String(value.preset)) : ttsPreset(String(value.preset))) ===
+        undefined
     )
       return undefined;
     return value as StoredProvider;
@@ -145,12 +200,31 @@ function parseStored(body: string): StoredProvider | undefined {
   }
 }
 
+function asrView(stored: StoredProvider): AsrProviderView {
+  return {
+    id: stored.id,
+    kind: 'asr',
+    name: stored.name,
+    preset: asrPresetOf(stored.preset).id,
+    baseUrl: stored.baseUrl,
+    ...(stored.model === undefined ? {} : { model: stored.model }),
+    ...(stored.language === undefined ? {} : { language: stored.language }),
+    keySet: stored.credentialRevision !== undefined,
+    createdAt: stored.createdAt,
+  };
+}
+
+function anyView(stored: StoredProvider): VoiceProviderView {
+  return kindOf(stored) === 'asr' ? asrView(stored) : view(stored);
+}
+
 function view(stored: StoredProvider): TtsProviderView {
   const preset = presetOf(stored.preset);
   return {
     id: stored.id,
+    kind: 'tts',
     name: stored.name,
-    preset: stored.preset,
+    preset: preset.id,
     wire: preset.wire,
     baseUrl: stored.baseUrl,
     ...(stored.model === undefined ? {} : { model: stored.model }),
@@ -264,35 +338,63 @@ export class VoiceProviders {
     return TTS_PRESETS;
   }
 
-  #stored(id: string): StoredProvider {
+  asrPresets(): readonly AsrPreset[] {
+    return ASR_PRESETS;
+  }
+
+  #stored(id: string, kind?: VoiceProviderKind): StoredProvider {
+    const label = kind === 'asr' ? 'ASR' : kind === 'tts' ? 'TTS' : 'Voice';
     if (typeof id !== 'string' || !PROVIDER_ID.test(id))
-      throw new VoiceError('unknown-provider', 'No TTS Provider has that id.');
+      throw new VoiceError('unknown-provider', `No ${label} Provider has that id.`);
     const row = this.#db.read((db) =>
       db.prepare('SELECT body FROM voice_providers WHERE id = ?').get(id),
     ) as { body: string } | undefined;
     const stored = row === undefined ? undefined : parseStored(row.body);
     if (stored === undefined)
-      throw new VoiceError('unknown-provider', 'No TTS Provider has that id.');
+      throw new VoiceError('unknown-provider', `No ${label} Provider has that id.`);
+    if (kind !== undefined && kindOf(stored) !== kind)
+      throw new VoiceError(
+        'wrong-provider-kind',
+        kind === 'asr'
+          ? 'That is a TTS Provider; choose a speech recognition (ASR) Provider.'
+          : 'That is a speech recognition (ASR) Provider; choose a TTS Provider.',
+      );
     return stored;
   }
 
-  list(): TtsProviderView[] {
+  #all(): StoredProvider[] {
     const rows = this.#db.read((db) =>
       db.prepare('SELECT body FROM voice_providers ORDER BY created_at, id').all(),
     ) as { body: string }[];
     return rows.flatMap((row) => {
       const stored = parseStored(row.body);
-      return stored === undefined ? [] : [view(stored)];
+      return stored === undefined ? [] : [stored];
     });
   }
 
-  get(id: string): TtsProviderView {
-    return view(this.#stored(id));
+  list(): TtsProviderView[] {
+    return this.#all()
+      .filter((stored) => kindOf(stored) === 'tts')
+      .map(view);
   }
 
-  has(id: string): boolean {
+  listAsr(): AsrProviderView[] {
+    return this.#all()
+      .filter((stored) => kindOf(stored) === 'asr')
+      .map(asrView);
+  }
+
+  get(id: string): TtsProviderView {
+    return view(this.#stored(id, 'tts'));
+  }
+
+  getAsr(id: string): AsrProviderView {
+    return asrView(this.#stored(id, 'asr'));
+  }
+
+  has(id: string, kind: VoiceProviderKind = 'tts'): boolean {
     try {
-      this.#stored(id);
+      this.#stored(id, kind);
       return true;
     } catch {
       return false;
@@ -306,7 +408,12 @@ export class VoiceProviders {
     return credentials;
   }
 
-  async add(input: TtsProviderInput): Promise<TtsProviderView> {
+  async add(input: TtsProviderInput & { kind: 'asr' }): Promise<AsrProviderView>;
+  async add(input: TtsProviderInput): Promise<VoiceProviderView>;
+  async add(input: TtsProviderInput): Promise<VoiceProviderView> {
+    if (input.kind !== undefined && input.kind !== 'tts' && input.kind !== 'asr')
+      throw new VoiceError('invalid-input', 'kind must be tts or asr.');
+    if (input.kind === 'asr') return this.#addAsr(input);
     const preset = presetOf(String(input.preset ?? ''));
     const name = cleanText(input.name, 'Name', 80) ?? preset.name;
     const rawBase = cleanText(input.baseUrl, 'Base URL', 500);
@@ -330,6 +437,47 @@ export class VoiceProviders {
       ...(defaultVoice === undefined ? {} : { defaultVoice }),
       createdAt: this.#now().toISOString(),
     };
+    await this.#insert(stored, key);
+    this.#log('provider-added', { provider: id, preset: preset.id });
+    return view(stored);
+  }
+
+  async #addAsr(input: TtsProviderInput): Promise<AsrProviderView> {
+    const preset = asrPresetOf(String(input.preset ?? ''));
+    if (input.defaultVoice !== undefined)
+      throw new VoiceError('invalid-input', 'A speech recognition Provider has no voice.');
+    const name = cleanText(input.name, 'Name', 80) ?? preset.name;
+    const rawBase = cleanText(input.baseUrl, 'Base URL', 500);
+    if (preset.baseUrl === undefined && rawBase === undefined)
+      throw new VoiceError('invalid-input', 'A custom ASR Provider needs a base URL.');
+    const baseUrl = normalizeBaseUrl(rawBase ?? preset.baseUrl!);
+    const model = cleanText(input.model, 'Model', 120) ?? preset.defaultModel;
+    const language = cleanText(input.language, 'Language', 16);
+    if (language !== undefined && !LANGUAGE.test(language))
+      throw new VoiceError('invalid-input', 'Language must be a code such as en or zh.');
+    const key = input.key === undefined ? undefined : cleanText(input.key, 'Key', 4_096);
+    if (preset.keyRequired && key === undefined)
+      throw new VoiceError('key-required', `${preset.name} needs an API key.`);
+    if (this.listAsr().length >= MAX_PROVIDERS)
+      throw new VoiceError('provider-limit', `At most ${MAX_PROVIDERS} ASR Providers are allowed.`);
+    const id = `asr-${randomUUID().replace(/-/gu, '').slice(0, 12)}`;
+    const stored: StoredProvider = {
+      id,
+      kind: 'asr',
+      name,
+      preset: preset.id,
+      baseUrl,
+      ...(model === undefined ? {} : { model }),
+      ...(language === undefined ? {} : { language }),
+      createdAt: this.#now().toISOString(),
+    };
+    await this.#insert(stored, key);
+    this.#log('provider-added', { provider: id, preset: preset.id, kind: 'asr' });
+    return asrView(stored);
+  }
+
+  async #insert(stored: StoredProvider, key: string | undefined): Promise<void> {
+    const id = stored.id;
     if (key !== undefined) {
       const revision = randomUUID();
       await this.#native().modifyRecord(credentialKey('botharness-core', id), async () => ({
@@ -345,11 +493,9 @@ export class VoiceProviders {
           .run(id, JSON.stringify(stored), stored.createdAt),
       ['voice'],
     );
-    this.#log('provider-added', { provider: id, preset: preset.id });
-    return view(stored);
   }
 
-  async remove(id: string): Promise<TtsProviderView> {
+  async remove(id: string): Promise<VoiceProviderView> {
     const stored = this.#stored(id);
     this.#db.transaction(
       (db) => db.prepare('DELETE FROM voice_providers WHERE id = ?').run(id),
@@ -360,7 +506,7 @@ export class VoiceProviders {
         .deleteRecord(credentialKey('botharness-core', id))
         .catch(() => undefined);
     this.#log('provider-removed', { provider: id });
-    return view(stored);
+    return anyView(stored);
   }
 
   async #key(stored: StoredProvider): Promise<string | undefined> {
@@ -444,7 +590,7 @@ export class VoiceProviders {
     text: string;
     signal?: AbortSignal | undefined;
   }): Promise<SynthesisResult> {
-    const stored = this.#stored(input.providerId);
+    const stored = this.#stored(input.providerId, 'tts');
     const text = input.text.trim();
     if (text === '' || text.length > MAX_TTS_INPUT_CHARS)
       throw new VoiceError('invalid-input', `Text must be 1–${MAX_TTS_INPUT_CHARS} characters.`);
@@ -501,8 +647,113 @@ export class VoiceProviders {
     return { audio, mime, latencyMs };
   }
 
+  async transcribe(input: {
+    providerId: string;
+    audio: Uint8Array;
+    language?: string | undefined;
+    signal?: AbortSignal | undefined;
+  }): Promise<TranscriptionResult> {
+    const stored = this.#stored(input.providerId, 'asr');
+    if (input.audio.byteLength === 0 || input.audio.byteLength > MAX_ASR_AUDIO_BYTES)
+      throw new VoiceError('invalid-input', 'The audio is empty or too large to transcribe.');
+    const mime = sniffAudio(input.audio, null);
+    if (mime === undefined)
+      throw new VoiceError('invalid-input', 'The audio must be WAV, MP3, OGG or FLAC.');
+    const language = input.language?.trim() || stored.language;
+    if (language !== undefined && !LANGUAGE.test(language))
+      throw new VoiceError('invalid-input', 'Language must be a code such as en or zh.');
+    const key = await this.#key(stored);
+    const form = new FormData();
+    form.append(
+      'file',
+      new Blob([input.audio as Uint8Array<ArrayBuffer>], { type: mime }),
+      `speech.${audioExtension(mime)}`,
+    );
+    form.append('model', stored.model ?? 'whisper-1');
+    form.append('response_format', 'json');
+    if (language !== undefined) form.append('language', language.split('-')[0]!);
+    const script = chineseScript(language);
+    if (script !== undefined) form.append('prompt', script);
+    const timeout = AbortSignal.timeout(this.#timeoutMs);
+    const signal = input.signal === undefined ? timeout : AbortSignal.any([input.signal, timeout]);
+    const started = performance.now();
+    let response: Response;
+    try {
+      response = await this.#fetch(`${stored.baseUrl}/audio/transcriptions`, {
+        method: 'POST',
+        headers: key === undefined ? {} : { Authorization: `Bearer ${key}` },
+        body: form,
+        signal,
+        redirect: 'error',
+      });
+    } catch (error) {
+      input.signal?.throwIfAborted();
+      const code = timeout.aborted ? 'provider-timeout' : 'provider-unavailable';
+      this.#log('transcribe-failed', { provider: stored.id, code });
+      throw new VoiceError(
+        code,
+        timeout.aborted
+          ? `The provider did not answer within ${Math.round(this.#timeoutMs / 1000)} s.`
+          : `The provider cannot be reached (${error instanceof Error ? error.name : 'network error'}).`,
+      );
+    }
+    if (!response.ok) {
+      const failure = statusError(response.status, await providerMessage(response, key));
+      this.#log('transcribe-failed', {
+        provider: stored.id,
+        code: failure.code,
+        status: response.status,
+      });
+      throw failure;
+    }
+    let body: unknown;
+    try {
+      body = JSON.parse(new TextDecoder().decode(await readBounded(response, 256 * 1024)));
+    } catch (error) {
+      if (error instanceof VoiceError) throw error;
+      input.signal?.throwIfAborted();
+      throw new VoiceError('provider-bad-response', 'The provider did not return a transcript.');
+    }
+    const raw =
+      typeof body === 'object' && body !== null ? (body as Record<string, unknown>)['text'] : '';
+    if (typeof raw !== 'string')
+      throw new VoiceError('provider-bad-response', 'The provider did not return a transcript.');
+    const text = raw
+      .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/gu, ' ')
+      .replace(/\s+/gu, ' ')
+      .trim()
+      .slice(0, MAX_TRANSCRIPT_CHARS);
+    const latencyMs = Math.round(performance.now() - started);
+    this.#log('transcribed', {
+      provider: stored.id,
+      bytes: input.audio.byteLength,
+      chars: text.length,
+      ms: latencyMs,
+    });
+    return { text, latencyMs };
+  }
+
   async test(id: string, voiceId?: string, signal?: AbortSignal): Promise<ProviderHealth> {
     const stored = this.#stored(id);
+    if (kindOf(stored) === 'asr') {
+      try {
+        const result = await this.transcribe({
+          providerId: id,
+          audio: silenceWav(16_000, 500),
+          signal,
+        });
+        return {
+          ok: true,
+          providerId: stored.id,
+          latencyMs: result.latencyMs,
+          bytes: 0,
+          mime: 'text/plain',
+        };
+      } catch (error) {
+        if (!(error instanceof VoiceError)) throw error;
+        return { ok: false, providerId: stored.id, code: error.code, message: error.message };
+      }
+    }
     try {
       const result = await this.synthesize({
         providerId: id,
@@ -538,4 +789,40 @@ export function audioExtension(mime: string): string {
       'audio/flac': 'flac',
     }[mime] ?? 'audio'
   );
+}
+
+export function chineseScript(language: string | undefined): string | undefined {
+  if (language === undefined || !/^zh(?:$|-)/iu.test(language)) return undefined;
+  return /^zh-(?:tw|hk|mo|hant)$/iu.test(language)
+    ? '以下是普通話的句子，使用繁體中文。'
+    : '以下是普通话的句子，使用简体中文。';
+}
+
+export function wavFromPcm16(samples: Int16Array, sampleRate: number): Uint8Array {
+  const out = new Uint8Array(44 + samples.byteLength);
+  const view = new DataView(out.buffer);
+  const ascii = (offset: number, text: string) => {
+    for (let index = 0; index < text.length; index += 1)
+      out[offset + index] = text.charCodeAt(index);
+  };
+  ascii(0, 'RIFF');
+  view.setUint32(4, 36 + samples.byteLength, true);
+  ascii(8, 'WAVE');
+  ascii(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  ascii(36, 'data');
+  view.setUint32(40, samples.byteLength, true);
+  for (let index = 0; index < samples.length; index += 1)
+    view.setInt16(44 + index * 2, samples[index]!, true);
+  return out;
+}
+
+function silenceWav(sampleRate: number, milliseconds: number): Uint8Array {
+  return wavFromPcm16(new Int16Array(Math.round((sampleRate * milliseconds) / 1000)), sampleRate);
 }
