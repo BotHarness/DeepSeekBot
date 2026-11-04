@@ -8,7 +8,7 @@ export interface NotificationsPort {
   permission(): Promise<PermissionState>;
   request(): Promise<PermissionState>;
   token(): Promise<string>;
-  onTokenChanged(listener: () => void): () => void;
+  onTokenChanged(listener: (token: string | undefined) => void): () => void;
   setBadge(count: number): Promise<void>;
   presented(): Promise<Array<{ id: string; data: unknown }>>;
   dismiss(id: string): Promise<void>;
@@ -51,6 +51,8 @@ export function createPushSession(options: {
   let latest: readonly SavedHost[] = [];
   let reflected = '';
   let retrying: Promise<void> | undefined;
+  let fetching = 0;
+  let seenToken: string | undefined;
 
   const publish = (next: PushStatus): void => {
     snapshot = next;
@@ -67,6 +69,7 @@ export function createPushSession(options: {
     let token: string;
     try {
       let timer: ReturnType<typeof setTimeout> | undefined;
+      fetching++;
       token = await Promise.race([
         notifications.token(),
         new Promise<never>((_, reject) => {
@@ -75,7 +78,10 @@ export function createPushSession(options: {
             options.tokenTimeoutMs ?? TOKEN_TIMEOUT_MS,
           );
         }),
-      ]).finally(() => clearTimeout(timer));
+      ]).finally(() => {
+        fetching--;
+        clearTimeout(timer);
+      });
     } catch (error) {
       publish({
         status: 'unavailable',
@@ -104,7 +110,10 @@ export function createPushSession(options: {
     publish({ status: 'on', failed: results.flatMap((id) => (id === undefined ? [] : [id])) });
   };
 
-  const offToken = notifications.onTokenChanged(() => {
+  const offToken = notifications.onTokenChanged((token) => {
+    const unchanged = token !== undefined && token === seenToken;
+    if (token !== undefined) seenToken = token;
+    if (fetching > 0 || unchanged) return;
     if (snapshot.status === 'on') void registerAll(latest);
   });
 
