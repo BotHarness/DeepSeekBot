@@ -287,5 +287,15 @@ describe('deepseekbot voice commands', () => {
     expect(kinds).toEqual([]);
     await expect(dictate(short)).rejects.toMatchObject({ code: 'asr-failed', message: 'down' });
     expect(kinds).toEqual(['open', 'push', 'push', 'stop']);
+    kinds.length = 0;
+    const cancelled = async () => async (_method: string, payload: Record<string, unknown>) => {
+      kinds.push(String(payload['kind']));
+      if (payload['kind'] === 'open') return { dictation: { id: 'dict-0000000000000002' } };
+      return { dictation: { state: 'cancelled', text: 'half' } };
+    };
+    await expect(
+      runVoiceCommand('voice-dictate', [], { file: short }, {}, cancelled as never),
+    ).rejects.toMatchObject({ code: 'dictation-cancelled' });
+    expect(kinds).toEqual(['open', 'push', 'stop']);
   });
 });

@@ -327,6 +327,11 @@ async function runVoiceDictate(
       typeof final.error?.code === 'string' ? final.error.code : 'asr-failed',
       typeof final.error?.message === 'string' ? final.error.message : 'Dictation failed.',
     );
+  if (final?.state === 'cancelled')
+    throw new CliLiveError(
+      'dictation-cancelled',
+      'The Host ended the dictation before it finished, so the transcript is incomplete.',
+    );
   if (typeof final?.text === 'string' && final.text !== '' && heard.at(-1) !== final.text)
     heard.push(final.text);
   return { ...final, heard };
