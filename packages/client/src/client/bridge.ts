@@ -6,6 +6,7 @@ import { parseFailureAutoContinue, parseFailureProgress } from '../shared/turn-c
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
 import { clientLog } from './diagnostic-log.js';
 import { parseToolApprovalActor } from '../../../core/src/workspaces/tool-approval-actor.js';
+import { isChannelVoiceCallRecord } from '../../../core/src/channels/voice-call-record.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
 import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
@@ -1179,7 +1180,12 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
   let turnStop: ChannelMessage['turnStop'];
   let toolAutoApproval: ChannelMessage['toolAutoApproval'];
   let toolAutoApprovalPause: ChannelMessage['toolAutoApprovalPause'];
-  if (record['toolAutoApprovalPause'] !== undefined) {
+  let voiceCallRecord: ChannelMessage['voiceCallRecord'];
+  if (record['voiceCallRecord'] !== undefined) {
+    if (author.kind !== 'system' || !isChannelVoiceCallRecord(record['voiceCallRecord']))
+      return undefined;
+    voiceCallRecord = record['voiceCallRecord'];
+  } else if (record['toolAutoApprovalPause'] !== undefined) {
     const pause = asRecord(record['toolAutoApprovalPause']);
     if (
       pause === undefined ||
@@ -1742,6 +1748,7 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(memoryCommit === undefined ? {} : { memoryCommit }),
     ...(memberDeparture === undefined ? {} : { memberDeparture }),
     ...(turnStop === undefined ? {} : { turnStop }),
+    ...(voiceCallRecord === undefined ? {} : { voiceCallRecord }),
     ...(toolAutoApproval === undefined ? {} : { toolAutoApproval }),
     ...(toolAutoApprovalPause === undefined ? {} : { toolAutoApprovalPause }),
     ...(toolApprovalRequest === undefined ? {} : { toolApprovalRequest }),
