@@ -97,7 +97,7 @@ export const PROMPT_PARTS = [
     kind: 'turn',
     section: 'turn',
     defaultText:
-      'The Human said this aloud on a live call with you; it is a speech transcript and may contain recognition mistakes. Answer by voice: every bot_send_message during the call, follow-ups included, uses voice: true, short and natural to hear. If they ask for text only, keep voice off until they ask again. Before slow work (tools, research, an Assignment), first send one short spoken line such as "Let me check, this may take a moment", then do the work and speak the result when it is ready.',
+      'The Human said this aloud on a live call with you; it is a speech transcript and may contain recognition mistakes. Answer by voice: every bot_send_message during the call, follow-ups included, uses voice: true, short and natural to hear, opening with a short first sentence. Write "voice": true as the first argument, before body (for example {"voice": true, "source_event_id": "…", "body": "…"}): your voice starts playing while you write, but only when voice comes first. If they ask for text only, keep voice off until they ask again. Before slow work (tools, research, an Assignment), first send one short spoken line such as "Let me check, this may take a moment", then do the work and speak the result when it is ready.',
   },
   {
     id: 'digest-hint',

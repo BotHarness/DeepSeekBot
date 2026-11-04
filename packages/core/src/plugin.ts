@@ -525,7 +525,7 @@ export interface BotHarnessCore {
   cloudConnections?: CloudConnections;
   voiceProviders: VoiceProviders;
   voiceMessages: VoiceMessages;
-  voiceReady: { listener?: Parameters<typeof createVoiceMessages>[0]['onReady'] };
+  voiceSpeech: { speak?: Parameters<typeof createVoiceMessages>[0]['speak'] };
   cloudWork?: CloudWork;
   toolRules: ToolApprovalRuleStore;
   assignmentAccess: AssignmentAccessStore;
@@ -1061,13 +1061,13 @@ export function createCore(
     ...(options.voiceFetch === undefined ? {} : { fetch: options.voiceFetch }),
     ...(options.voiceLog === undefined ? {} : { log: options.voiceLog }),
   });
-  const voiceReady: { listener?: Parameters<typeof createVoiceMessages>[0]['onReady'] } = {};
+  const voiceSpeech: { speak?: Parameters<typeof createVoiceMessages>[0]['speak'] } = {};
   const voiceMessages = createVoiceMessages({
     providers: voiceProviders,
     bot: (slug) => registry.get(slug),
     channels,
     attachments: () => attachments,
-    onReady: (input) => voiceReady.listener?.(input),
+    speak: async (input) => voiceSpeech.speak?.(input),
     ...(options.voiceLog === undefined ? {} : { log: options.voiceLog }),
   });
   runtime = createBotRuntime({
@@ -1190,7 +1190,7 @@ export function createCore(
   return {
     voiceProviders,
     voiceMessages,
-    voiceReady,
+    voiceSpeech,
     prompts,
     deletions,
     profileRecovery,
@@ -1318,6 +1318,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       : `git phase=resolved unavailable=${resolvedGit.reason}`,
   );
   let publishDraft: (event: ChannelDraftEvent) => void = () => undefined;
+  let voiceDrafts: (event: ChannelDraftEvent) => void = () => undefined;
   const defaultModel = (ctx as unknown as { agentDefaultModel: DshDefaultModelHost })
     .agentDefaultModel;
   const providerCredentials = createProviderCredentialHealth();
@@ -1613,7 +1614,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       ctx.get('workspaceRegistry') as unknown as NativeSessionArchive | undefined,
     imCommands: () => imCommandServices,
   });
-  publishDraft = (event) => core.live.publishDraft(event);
+  publishDraft = (event) => {
+    core.live.publishDraft(event);
+    try {
+      voiceDrafts(event);
+    } catch (error) {
+      diagnosticEvents.record('voice', 'call-draft-failed', { error: String(error).slice(0, 200) });
+    }
+  };
   ctx.effect(() => () => core.operationalDatabase.close(), 'botharness: operational database');
   ctx.effect(() => () => core.contentPurge.close(), 'botharness: purge ledger');
   const storage = createStorageCleanup({
@@ -3063,10 +3071,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (phase, fields) => diagnosticEvents.record('voice', phase, fields),
   });
   const calls = voiceCalls;
-  core.voiceReady.listener = (input) => calls.deliverVoice(input);
+  core.voiceSpeech.speak = (input) => calls.speak(input);
+  voiceDrafts = (event) => calls.draft(event);
   ctx.effect(
     () => async () => {
-      core.voiceReady.listener = undefined;
+      core.voiceSpeech.speak = undefined;
+      voiceDrafts = () => undefined;
       voiceCalls = undefined;
       await calls.dispose();
     },

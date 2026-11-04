@@ -30,7 +30,7 @@ afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close();
 });
 
-async function setup(status = 200) {
+async function setup(status = 200, speak?: Parameters<typeof createVoiceMessages>[0]['speak']) {
   const spoken: string[] = [];
   const server = createServer((request, response) => {
     let raw = '';
@@ -76,6 +76,7 @@ async function setup(status = 200) {
     bot: (slug) => registry.get(slug),
     channels,
     attachments: () => attachments,
+    ...(speak === undefined ? {} : { speak }),
   });
   const bridge = createVoiceBridgeMethods({ providers, registry });
   const agents = createDshBotAgentAdapter({
@@ -139,6 +140,35 @@ describe('Bot voice messages', () => {
     expect(spoken).toEqual(['All checks passed. (code is in the text)']);
     expect(notifications.map((entry) => entry.message.voice?.state)).toEqual(['pending', 'ready']);
     expect(channels.referencedAttachmentHashes().has(attachmentIdentity(audio))).toBe(true);
+  });
+
+  it('stores the sentences a live call spoke as the voice attachment, without a second synthesis', async () => {
+    const played = new Uint8Array(Buffer.concat([Buffer.from('ID3'), Buffer.alloc(64, 3)]));
+    const asked: { slug: string; channelId: string; body: string }[] = [];
+    const { send, bind, channels, dm, spoken } = await setup(200, async (input) => {
+      asked.push({ slug: input.slug, channelId: input.channelId, body: input.body });
+      return { audio: played, mime: 'audio/mpeg' };
+    });
+    await bind();
+    const sent = await send({ voice: true, body: '明天会下雨。带上伞吧。' });
+    const result = sent.result as { messageId: string };
+    const message = channels.message(dm.id, result.messageId)!;
+    expect(asked).toEqual([{ slug: 'ada', channelId: dm.id, body: '明天会下雨。带上伞吧。' }]);
+    expect(spoken).toEqual([]);
+    expect(message.voice).toMatchObject({ state: 'ready' });
+    expect(message.attachments![0]).toMatchObject({ mime: 'audio/mpeg', size: played.length });
+  });
+
+  it('falls back to one synthesis when the call cannot finish the voice', async () => {
+    const { VoiceError } = await import('../src/voice/providers.js');
+    const { send, bind, channels, dm, spoken } = await setup(200, async () => {
+      throw new VoiceError('provider-rate-limited', 'Out of quota.');
+    });
+    await bind();
+    const sent = await send({ voice: true, body: '明天会下雨。' });
+    const message = channels.message(dm.id, (sent.result as { messageId: string }).messageId)!;
+    expect(spoken).toEqual(['明天会下雨。']);
+    expect(message.voice).toMatchObject({ state: 'ready' });
   });
 
   it('sends exactly as before when voice is false', async () => {

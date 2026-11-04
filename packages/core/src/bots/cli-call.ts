@@ -189,7 +189,7 @@ async function simulate(
     const settled = () =>
       count('speech-start') <= count('transcribing', 'noise-discarded') &&
       count('transcribing') <= count('sent', 'asr-failed', 'send-failed', 'nothing-heard') &&
-      count('played', 'playback-failed') >= count('sent');
+      count('reply-done') >= count('sent');
     while (clock.now() < deadline) {
       await clock.sleep(1_000);
       collect(
@@ -213,8 +213,47 @@ async function simulate(
   const heard = events.filter(
     (event): event is Extract<VoiceCallEvent, { type: 'sent' }> => event.type === 'sent',
   );
-  const playing = events.filter(
-    (event): event is Extract<VoiceCallEvent, { type: 'playing' }> => event.type === 'playing',
+  const replies = new Map<
+    string,
+    {
+      replyId: string;
+      messageId?: string;
+      sentences: number;
+      bytes: number;
+      textMs?: number;
+      responseMs?: number;
+      firstAudioAt?: number;
+      committedAt?: number;
+    }
+  >();
+  const reply = (replyId: string) => {
+    let entry = replies.get(replyId);
+    if (entry === undefined) {
+      entry = { replyId, sentences: 0, bytes: 0 };
+      replies.set(replyId, entry);
+    }
+    return entry;
+  };
+  for (const event of events) {
+    if (event.type === 'reply-text') {
+      if (event.responseMs !== undefined) reply(event.replyId).textMs = event.responseMs;
+    } else if (event.type === 'playing') {
+      const entry = reply(event.replyId);
+      entry.bytes += event.bytes;
+      entry.firstAudioAt ??= event.at;
+      if (event.responseMs !== undefined) entry.responseMs ??= event.responseMs;
+    } else if (event.type === 'played') reply(event.replyId).sentences += 1;
+    else if (event.type === 'committed') {
+      const entry = reply(event.replyId);
+      entry.messageId = event.messageId;
+      entry.committedAt = event.at;
+    }
+  }
+  const spoken = [...replies.values()].filter((entry) => entry.firstAudioAt !== undefined);
+  const first = <K extends 'textMs' | 'responseMs'>(key: K) =>
+    [...replies.values()].find((entry) => entry[key] !== undefined)?.[key] ?? null;
+  const ack = events.find(
+    (event): event is Extract<VoiceCallEvent, { type: 'ack' }> => event.type === 'ack',
   );
   return {
     callId,
@@ -226,14 +265,18 @@ async function simulate(
       asrMs: event.asrMs,
       at: event.at,
     })),
-    replies: playing.map((event) => ({
-      messageId: event.messageId,
-      bytes: event.bytes,
-      at: event.at,
-      ...(event.responseMs === undefined ? {} : { responseMs: event.responseMs }),
+    replies: spoken.map((entry) => ({
+      ...entry,
+      ...(entry.committedAt === undefined
+        ? {}
+        : { audioBeforeCommit: entry.firstAudioAt! < entry.committedAt }),
     })),
-    firstAudioMs: playing[0]?.responseMs ?? null,
-    answered: heard.length > 0 && events.some((event) => event.type === 'played'),
+    ackMs: ack?.ms ?? null,
+    firstTextMs: first('textMs'),
+    firstAudioMs: first('responseMs'),
+    answered:
+      heard.length > 0 &&
+      events.some((event) => event.type === 'reply-done' && event.sentences > 0),
     events,
   };
 }
