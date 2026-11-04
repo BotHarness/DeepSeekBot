@@ -52,6 +52,8 @@ remain alongside retries:
   eight files, 144 passing tests (`final-focused.log`). The bounded full suite also
   encountered failures and was stopped; neither full-suite attempt is a passing gate.
   Lint, formatting and both release-ledger checks passed.
+  Isolating the registry Git-import failure reproduced a CRLF-versus-LF assertion
+  under Windows Git conversion; other full-suite failures are not yet classified.
 - A linked RC1 Host passed authenticated API health and a real Web DM returned `42`
   for seventeen plus twenty-five. Its canonical turn completed with a committed
   `bot_send_message` result. This was the earlier linked build, not the frozen product;
@@ -81,6 +83,13 @@ remain alongside retries:
   spawn/completion/report delivery, not idle-parent wake or idle model-switch capture.
   A direct CLI child on an idle RC3 Assignment was refused with
   `Assignment approval execution authority is unavailable`; that path remains open.
+- RC1 same-candidate restart passed: authenticated API, the same Bot identity, the
+  earlier child-result DM receipt, and a fresh native read returning retained Memory
+  content `rc3477-file-ok`. This is not a published-version-to-candidate upgrade.
+  Startup initially refused a stale resource PID reused by an unrelated Chrome
+  process. After verifying the task Host/preparation processes had exited, the stale
+  task-local owner record was backed up and removed; the unrelated process was not
+  touched. Retained logs distinguish this AX recovery from the product restart.
 
 | Gate                                                              | Status                                   |
 | ----------------------------------------------------------------- | ---------------------------------------- |
@@ -90,7 +99,8 @@ remain alongside retries:
 | Linked RC1 real Web DM                                            | Passed on earlier linked build           |
 | Frozen reply, Memory files, Assignment report, child completion   | Passed with qualifications above         |
 | Idle native Subagent wake / idle model change / direct idle child | Unverified; direct-path refusal retained |
-| Existing Profile upgrade and restart                              | Unverified                               |
+| Same-candidate RC1 Profile restart                                | Passed, with AX recovery above           |
+| Published-version Profile upgrade                                 | Unverified                               |
 | Windows native Desktop                                            | Unverified for this candidate            |
 | macOS native Desktop                                              | Unverified; no macOS result supplied     |
 | Product publication / website deployment                          | Not performed                            |
