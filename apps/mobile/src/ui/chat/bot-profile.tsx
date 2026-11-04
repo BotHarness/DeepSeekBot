@@ -93,7 +93,14 @@ type RowBody =
   | { kind: 'routine-group'; group: RoutineGroup; routines: BotScheduleSummary[] }
   | { kind: 'assignment'; assignment: ProfileAssignment }
   | { kind: 'day'; label: string }
-  | { kind: 'working-head'; label: string; botSlug: string; sessionIds: string[]; lead: boolean }
+  | {
+      kind: 'working-head';
+      label: string;
+      botSlug: string;
+      sessionIds: string[];
+      lead: boolean;
+      bot?: RosterBot;
+    }
   | { kind: 'session'; botSlug: string; session: RunningSession }
   | { kind: 'activity'; activity: ProfileActivity }
   | { kind: 'note'; text: string }
@@ -138,22 +145,20 @@ function workingKey(body: RowBody): string {
   return 'working:heading';
 }
 
-export function workingRows(
-  bots: readonly Pick<RosterBot, 'slug' | 'displayName' | 'sessions'>[],
-  grouped: boolean,
-): Row[] {
+export function workingRows(bots: readonly RosterBot[], grouped: boolean): Row[] {
   const running = bots
     .map((bot) => ({ bot, sessions: runningSessions(bot) }))
     .filter(({ sessions }) => sessions.length > 0);
   if (running.length === 0) return [];
   const bodies: RowBody[] = grouped ? [{ kind: 'day', label: t.workingNow }] : [];
-  for (const { bot, sessions } of running) {
+  for (const [index, { bot, sessions }] of running.entries()) {
     bodies.push({
       kind: 'working-head',
       label: grouped ? bot.displayName : t.workingNow,
       botSlug: bot.slug,
       sessionIds: sessions.map((session) => session.id),
-      lead: !grouped,
+      lead: index === 0,
+      ...(grouped ? { bot } : {}),
     });
     for (const session of sessions) bodies.push({ kind: 'session', botSlug: bot.slug, session });
   }
@@ -451,12 +456,16 @@ function rowShape(theme: ReturnType<typeof useDesignTheme>, row: Row) {
 
 export type WorkRow = Row;
 
+const HEAD_AVATAR = 20;
+
 function StopControl({
   label,
   stopping,
   testID,
   onPress,
+  compact = false,
 }: {
+  compact?: boolean;
   label: string;
   stopping: boolean;
   testID: string;
@@ -464,12 +473,13 @@ function StopControl({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const bleed = compact ? { marginVertical: -(theme.touch - theme.type.meta.line) / 2 } : {};
   if (stopping)
     return (
       <View
         testID={`${testID}-stopping`}
         accessibilityLiveRegion="polite"
-        style={{ minHeight: theme.touch, justifyContent: 'center' }}
+        style={{ minHeight: theme.touch, justifyContent: 'center', ...bleed }}
       >
         <Text variant="meta" tone="muted">
           {t.sessionStopping}
@@ -477,7 +487,7 @@ function StopControl({
       </View>
     );
   return (
-    <View style={{ flexShrink: 0 }}>
+    <View style={{ flexShrink: 0, ...bleed }}>
       <Button label={label} variant="text" tone="danger" fit testID={testID} onPress={onPress} />
     </View>
   );
@@ -518,14 +528,19 @@ export function WorkListRow({
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: space.x3,
-          paddingTop: row.lead ? 0 : space.x3,
+          paddingTop: row.lead ? 0 : space.x4,
+          paddingBottom: space.x2,
         }}
       >
+        {row.bot === undefined ? null : (
+          <BotAvatar bot={row.bot} size={HEAD_AVATAR} ring={false} corner={radius.sm} />
+        )}
         <Text variant="meta" tone="muted" strong style={{ flex: 1, minWidth: 0 }}>
           {row.label}
         </Text>
         {stops === undefined ? null : (
           <StopControl
+            compact
             label={t.sessionStopAll}
             stopping={row.sessionIds.every((id) => stops.stopping(row.botSlug, id))}
             testID={`working-stop-all-${row.botSlug}`}

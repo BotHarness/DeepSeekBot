@@ -589,6 +589,10 @@ describe('Group profile', () => {
       expect(testId(view, 'working-stop-all-ada')).not.toBeNull();
       expect(testId(view, 'working-stop-all-bo')).not.toBeNull();
       expect(view.querySelectorAll('[data-testid^="working-stop-all-"]')).toHaveLength(2);
+      const head = (slug: string) =>
+        testId(view, `working-stop-all-${slug}`)!.closest('div:has(> div > button)');
+      expect(head('ada')?.querySelector('[data-testid="avatar-ada"]')).not.toBeNull();
+      expect(head('bo')?.querySelector('[data-testid="avatar-bo"]')).not.toBeNull();
       expect(testId(view, 'profile-assignment-assignment-7')).not.toBeNull();
     });
 
