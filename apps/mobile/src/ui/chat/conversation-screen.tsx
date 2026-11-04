@@ -2035,7 +2035,7 @@ function useIdentityBots(bots: readonly RosterBot[] | undefined): RosterBot[] | 
       }) => identity,
     ),
   );
-  if (last.current?.key !== key)
+  if (last.current === undefined || last.current.key !== key)
     last.current = { key, bots: bots === undefined ? undefined : [...bots] };
   return last.current.bots;
 }
