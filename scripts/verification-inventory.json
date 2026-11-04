@@ -2483,7 +2483,7 @@
       "behaviors": ["desktop.bot-call"],
       "reason": "Desktop call in Chromium with fake audio capture files: the Client's browser WebRTC (echo cancellation on) against the Host call renderer and the real Host call owner; question and long-task scenarios, cough discarded, reply heard, second window refused.",
       "task": 3403,
-      "sha256": "429ec634e494c7646c07bd71ffdd91251c3cca7af3678c9bf4a1b2a7ec9450f4"
+      "sha256": "2741ed9bd207a242307b768606ddb8c71a580abd12af80b614d7936ea1d9e7de"
     }
   ],
   "native": [

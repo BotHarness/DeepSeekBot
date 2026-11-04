@@ -121,6 +121,7 @@ export function joinTranscripts(parts: readonly string[]): string {
   return out;
 }
 const MAX_HEARING_CHARS = 500;
+const OWN_TURN_START_MS = 10_000;
 const CLIENT_ID = /^[A-Za-z0-9_-]{8,64}$/u;
 
 export function voiceCallClientId(command: unknown): string | undefined {
@@ -153,6 +154,8 @@ interface Call {
   phase: VoiceCallPhase;
   muted: boolean;
   busy: boolean;
+  ownTurn: 'none' | 'sent' | 'running';
+  ownTurnAt: number;
   playing: boolean;
   deafUntil: number;
   lastHeartbeat: number;
@@ -488,6 +491,10 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         return;
       }
       call.lastHeardAt = now();
+      if (!call.busy && call.ownTurn === 'none') {
+        call.ownTurn = 'sent';
+        call.ownTurnAt = now();
+      }
       prune(call);
       push(call, {
         type: 'sent',
@@ -887,7 +894,11 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       void end(call, 'bot-unavailable');
       return;
     }
-    const busy = deps.busy(call.slug);
+    const running = deps.busy(call.slug);
+    if (call.ownTurn === 'sent' && at - call.ownTurnAt > OWN_TURN_START_MS) call.ownTurn = 'none';
+    else if (call.ownTurn === 'sent' && running) call.ownTurn = 'running';
+    else if (call.ownTurn === 'running' && !running) call.ownTurn = 'none';
+    const busy = running && call.ownTurn === 'none';
     if (busy !== call.busy) {
       call.busy = busy;
       push(call, { type: busy ? 'busy' : 'idle' });
@@ -1008,6 +1019,8 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       phase: 'connecting',
       muted: false,
       busy: deps.busy(slug),
+      ownTurn: 'none',
+      ownTurnAt: 0,
       playing: false,
       deafUntil: 0,
       lastHeartbeat: startedAt,

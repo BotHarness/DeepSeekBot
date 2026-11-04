@@ -26,6 +26,7 @@ const flag = (name) => {
 };
 const scenarios = (flag('--scenario') ?? 'question,long-task').split(',');
 const json = args.includes('--json');
+const wavMic = args.includes('--wav-mic') || process.platform === 'darwin';
 const work = mkdtempSync(join(tmpdir(), 'bh-desktop-call-'));
 const RATE = 16_000;
 const CAPTURE_RATE = 48_000;
@@ -250,6 +251,11 @@ async function runScenario(name, scenario) {
       response.end(await reply.text());
       return;
     }
+    if (path === '/capture.wav') {
+      response.writeHead(200, { 'content-type': 'audio/wav' });
+      response.end(readFileSync(capture));
+      return;
+    }
     if (path === '/desktop.html') {
       response.writeHead(200, { 'content-type': 'text/html' });
       response.end('<!doctype html><meta charset="utf-8"><script src="desktop.js"></script>');
@@ -280,13 +286,38 @@ async function runScenario(name, scenario) {
   });
   const desktopBrowser = await chromium.launch({
     args: [
-      '--use-fake-ui-for-media-stream',
-      '--use-fake-device-for-media-stream',
-      `--use-file-for-fake-audio-capture=${capture}%noloop`,
+      ...(wavMic
+        ? []
+        : [
+            '--use-fake-ui-for-media-stream',
+            '--use-fake-device-for-media-stream',
+            `--use-file-for-fake-audio-capture=${capture}%noloop`,
+          ]),
       '--autoplay-policy=no-user-gesture-required',
       '--disable-features=WebRtcHideLocalIpsWithMdns',
     ],
   });
+  const desktopContext = async () => {
+    const context = await desktopBrowser.newContext();
+    await context.addInitScript((substitute) => {
+      const devices = navigator.mediaDevices;
+      const native = devices.getUserMedia.bind(devices);
+      window.__micConstraints = [];
+      devices.getUserMedia = async (constraints) => {
+        window.__micConstraints.push(constraints);
+        if (!substitute) return native(constraints);
+        const context = new AudioContext();
+        const data = await (await fetch('/capture.wav')).arrayBuffer();
+        const source = context.createBufferSource();
+        source.buffer = await context.decodeAudioData(data);
+        const sink = context.createMediaStreamDestination();
+        source.connect(sink);
+        source.start();
+        return sink.stream;
+      };
+    }, wavMic);
+    return context;
+  };
   const helper = await hostMediaPage(helperBrowser, base);
   calls = host.createVoiceCalls({
     bot: (slug) =>
@@ -324,7 +355,7 @@ async function runScenario(name, scenario) {
   const route = host.createVoiceCallHttp(() => calls);
   const result = { scenario: name };
   try {
-    const desktop = await desktopBrowser.newContext();
+    const desktop = await desktopContext();
     const window1 = await desktop.newPage();
     await window1.addInitScript(() => {
       const Native = window.RTCPeerConnection;
@@ -359,7 +390,7 @@ async function runScenario(name, scenario) {
     );
     result.connectedMs = Date.now() - started;
 
-    const other = await (await desktopBrowser.newContext()).newPage();
+    const other = await (await desktopContext()).newPage();
     await other.goto(`${base}/desktop.html`);
     await other.evaluate(() => window.__desktopCall.start('mira'));
     const refused = await other.evaluate(() => window.__desktopCall.snapshot());
@@ -392,6 +423,12 @@ async function runScenario(name, scenario) {
     );
     if (scenario.expectNoise)
       assert.ok(types.includes('noise-discarded'), `the cough was discarded: ${types.join(',')}`);
+    const [requested] = await window1.evaluate(() => window.__micConstraints);
+    assert.equal(
+      requested?.audio?.echoCancellation,
+      true,
+      'the microphone runs with echo cancellation',
+    );
     const downlink = await window1.evaluate(() => window.__downlink);
     const loud = Math.max(0, ...downlink.map((level) => level.rms));
     assert.ok(loud > 0.05, `the desktop heard the reply (rms ${loud.toFixed(3)})`);
