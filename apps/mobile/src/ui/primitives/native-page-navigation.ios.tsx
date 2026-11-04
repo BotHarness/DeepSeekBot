@@ -68,34 +68,31 @@ export function NativePageHeader({ title, onBack, backID, action, call }: Native
       ];
   if (title !== undefined) items.push({ type: 'spacing', spacing: glassPress.gap });
   const right: HeaderBarButtonItem[] = [];
+  const grouped = call !== undefined && action !== undefined;
+  if (call !== undefined || action !== undefined)
+    right.push({ type: 'spacing', spacing: glassPress.gap });
   if (call !== undefined)
-    right.push(
-      { type: 'spacing', spacing: glassPress.gap },
-      {
-        type: 'button',
-        index: 1,
-        title: '',
-        icon: { type: 'sfSymbol', name: 'phone' },
-        identifier: call.testID,
-        accessibilityLabel: call.label,
-        onPress: call.onPress,
-        sharesBackground: false,
-      },
-    );
+    right.push({
+      type: 'button',
+      index: 1,
+      title: '',
+      icon: { type: 'sfSymbol', name: 'phone' },
+      identifier: call.testID,
+      accessibilityLabel: call.label,
+      onPress: call.onPress,
+      sharesBackground: grouped,
+    });
   if (action !== undefined)
-    right.push(
-      { type: 'spacing', spacing: glassPress.gap },
-      {
-        type: 'button',
-        index: 0,
-        title: '',
-        icon: { type: 'sfSymbol', name: 'ellipsis' },
-        identifier: action.testID,
-        accessibilityLabel: action.label,
-        onPress: action.onPress,
-        sharesBackground: false,
-      },
-    );
+    right.push({
+      type: 'button',
+      index: 0,
+      title: '',
+      icon: { type: 'sfSymbol', name: 'ellipsis' },
+      identifier: action.testID,
+      accessibilityLabel: action.label,
+      onPress: action.onPress,
+      sharesBackground: grouped,
+    });
   return (
     <ScreenStackHeaderConfig
       title=""
