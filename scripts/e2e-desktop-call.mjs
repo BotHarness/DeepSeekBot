@@ -40,7 +40,16 @@ writeFileSync(
     `export { speech, cough, silence, concat } from ${JSON.stringify(join(root, 'packages/core/test/voice-audio-fixtures.ts'))};`,
   ].join('\n'),
 );
-const host = (await unrun({ path: entry })).module;
+const sharpEntry = require.resolve('sharp', { paths: [join(root, 'packages/core')] });
+const host = (
+  await unrun({
+    path: entry,
+    inputOptions: {
+      resolve: { alias: { sharp: sharpEntry } },
+      external: (id) => id === sharpEntry,
+    },
+  })
+).module;
 
 const page = join(work, 'desktop.ts');
 writeFileSync(
@@ -166,7 +175,36 @@ const SCENARIOS = {
     expectHeard: 1,
     expectNoise: false,
   },
+  camera: {
+    camera: true,
+    steps: [{ at: 6_000, audio: host.speech(1_400, { seed: 7 }) }],
+    transcripts: ['What am I holding up to the camera?'],
+    replies: () => [{ delayMs: 500, text: 'A red card, then a blue one, then a green one.' }],
+    expectHeard: 1,
+    expectNoise: false,
+  },
 };
+
+function cameraVideo(path) {
+  const scenes = ['red', 'blue', 'green', 'yellow', 'white', 'purple'];
+  const inputs = scenes.flatMap((color) => [
+    '-f',
+    'lavfi',
+    '-t',
+    '1.5',
+    '-i',
+    `color=c=${color}:s=640x360:r=15`,
+  ]);
+  execSync(
+    [
+      'ffmpeg -hide_banner -loglevel error -y',
+      ...inputs.map((part) => (part.includes('=') ? JSON.stringify(part) : part)),
+      `-filter_complex "${scenes.map((_, index) => `[${index}:v]`).join('')}concat=n=${scenes.length}:v=1:a=0[v]"`,
+      '-map "[v]" -pix_fmt yuv420p',
+      JSON.stringify(path),
+    ].join(' '),
+  );
+}
 
 async function hostMediaPage(browser, base) {
   const context = await browser.newContext();
@@ -235,6 +273,8 @@ async function hostMediaPage(browser, base) {
 async function runScenario(name, scenario) {
   const capture = join(work, `${name}.wav`);
   writeFileSync(capture, wavBytes(timelineAudio(scenario.steps), CAPTURE_RATE));
+  const video = join(work, `${name}.y4m`);
+  if (scenario.camera) cameraVideo(video);
   const sent = [];
   const transcripts = [...scenario.transcripts];
   const asrAudio = [];
@@ -286,13 +326,11 @@ async function runScenario(name, scenario) {
   });
   const desktopBrowser = await chromium.launch({
     args: [
-      ...(wavMic
+      ...(wavMic && !scenario.camera
         ? []
-        : [
-            '--use-fake-ui-for-media-stream',
-            '--use-fake-device-for-media-stream',
-            `--use-file-for-fake-audio-capture=${capture}%noloop`,
-          ]),
+        : ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream']),
+      ...(wavMic ? [] : [`--use-file-for-fake-audio-capture=${capture}%noloop`]),
+      ...(scenario.camera ? [`--use-file-for-fake-video-capture=${video}`] : []),
       '--autoplay-policy=no-user-gesture-required',
       '--disable-features=WebRtcHideLocalIpsWithMdns',
     ],
@@ -304,6 +342,7 @@ async function runScenario(name, scenario) {
       const native = devices.getUserMedia.bind(devices);
       window.__micConstraints = [];
       devices.getUserMedia = async (constraints) => {
+        if (constraints?.video) return native(constraints);
         window.__micConstraints.push(constraints);
         if (!substitute) return native(constraints);
         const context = new AudioContext();
@@ -336,7 +375,23 @@ async function runScenario(name, scenario) {
     },
     media: () => helper.media,
     async send(input) {
-      sent.push({ body: input.body, at: Date.now() });
+      sent.push({
+        body: input.body,
+        at: Date.now(),
+        ...(input.visual === undefined
+          ? {}
+          : {
+              visual:
+                'image' in input.visual
+                  ? {
+                      source: input.visual.source,
+                      frames: input.visual.frames,
+                      layout: input.visual.image.layout,
+                      bytes: input.visual.image.jpeg.byteLength,
+                    }
+                  : { source: input.visual.source, sameAs: input.visual.sameAs },
+            }),
+      });
       for (const reply of scenario.replies(input.body))
         setTimeout(
           () =>
@@ -389,6 +444,14 @@ async function runScenario(name, scenario) {
       `the desktop call is live (${JSON.stringify(opened.block ?? opened.state)})`,
     );
     result.connectedMs = Date.now() - started;
+    if (scenario.camera) {
+      await window1.evaluate(() => window.__desktopCall.camera(true));
+      const visual = await window1.evaluate(() => {
+        const current = window.__desktopCall.snapshot().visual;
+        return { source: current.source, error: current.error ?? null };
+      });
+      assert.deepEqual(visual, { source: 'camera', error: null }, 'the camera is on');
+    }
 
     const other = await (await desktopContext()).newPage();
     await other.goto(`${base}/desktop.html`);
@@ -438,6 +501,28 @@ async function runScenario(name, scenario) {
     result.noiseDiscarded = types.filter((type) => type === 'noise-discarded').length;
     result.downlinkRms = Number(loud.toFixed(3));
     result.asrClipMs = asrAudio.map((bytes) => Math.round(((bytes - 44) / 2 / RATE) * 1000));
+    if (scenario.camera) {
+      const received = events.filter((event) => event.type === 'frame-received');
+      const built = events.find((event) => event.type === 'grid-built');
+      const gridSent = events.find((event) => event.type === 'grid-sent');
+      assert.ok(received.length >= 2, `keyframes reached the Host: ${types.join(',')}`);
+      assert.ok(
+        built !== undefined && gridSent !== undefined,
+        `a grid was sent: ${types.join(',')}`,
+      );
+      assert.equal(gridSent.grid, built.grid, 'the sent grid is the built one');
+      assert.equal(sent[0]?.visual?.source, 'camera', 'the sentence carried the camera grid');
+      const shown = await window1.evaluate(() => window.__desktopCall.snapshot().visual.keyframes);
+      result.camera = {
+        keyframesShown: shown,
+        received: received.length,
+        frameBytes: received.map((event) => event.bytes),
+        prepareMs: received.map((event) => event.prepareMs),
+        grid: sent[0].visual,
+        composeMs: built.composeMs,
+        waitedMs: gridSent.waitedMs,
+      };
+    }
 
     await window1.evaluate(() => window.__desktopCall.mute(true));
     assert.equal((await window1.evaluate(() => window.__desktopCall.snapshot())).state.muted, true);

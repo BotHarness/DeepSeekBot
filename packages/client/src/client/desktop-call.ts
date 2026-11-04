@@ -13,6 +13,12 @@ import {
   type VoiceCallReadiness,
   type VoiceCallResult,
 } from '../../../core/src/voice/call-contract.js';
+import {
+  CallCameraError,
+  createBrowserCallCamera,
+  type CallCamera,
+  type CallCameraKeyframe,
+} from './call-camera.js';
 import { createBrowserCallMedia } from './call-media.js';
 
 const CLIENT_KEY = 'botharness/call-client.v1';
@@ -23,18 +29,41 @@ export type DesktopCallBlock =
   | { readonly kind: 'elsewhere' }
   | { readonly kind: 'error'; readonly code: string };
 
+export interface DesktopCallVisual {
+  readonly source: 'off' | 'camera';
+  readonly save: boolean;
+  readonly starting: boolean;
+  readonly stream: MediaStream | undefined;
+  readonly keyframes: number;
+  readonly keyframeAt: number | undefined;
+  readonly error: 'camera-denied' | 'camera-missing' | undefined;
+}
+
 export interface DesktopCallSnapshot {
   readonly slug: string | undefined;
   readonly checking: boolean;
   readonly block: DesktopCallBlock | undefined;
   readonly state: CallClientState;
+  readonly visual: DesktopCallVisual;
 }
+
+export const DESKTOP_CALL_VISUAL_OFF: DesktopCallVisual = {
+  source: 'off',
+  save: true,
+  starting: false,
+  stream: undefined,
+  keyframes: 0,
+  keyframeAt: undefined,
+  error: undefined,
+};
 
 export interface DesktopCall {
   subscribe(listener: () => void): () => void;
   snapshot(): DesktopCallSnapshot;
   start(slug: string): Promise<void>;
   mute(muted: boolean): Promise<void>;
+  camera(on: boolean): Promise<void>;
+  saveFrames(save: boolean): Promise<void>;
   hangup(): Promise<void>;
   dismiss(): void;
 }
@@ -76,10 +105,16 @@ export function createDesktopCall(
   options: {
     post?: CallPost;
     media?: () => CallClientMedia;
+    camera?: (onKeyframe: (frame: CallCameraKeyframe) => Promise<void>) => CallCamera;
+    now?: () => number;
   } = {},
 ): DesktopCall {
   const post = options.post ?? createCallPost(windowClientId());
   const media = options.media ?? (() => createBrowserCallMedia());
+  const makeCamera =
+    options.camera ?? ((onKeyframe) => createBrowserCallCamera({ source: 'camera', onKeyframe }));
+  const clock = options.now ?? Date.now;
+  let camera: CallCamera | undefined;
   const listeners = new Set<() => void>();
   let client: CallClient | undefined;
   let current: DesktopCallSnapshot = {
@@ -87,12 +122,19 @@ export function createDesktopCall(
     checking: false,
     block: undefined,
     state: { status: 'idle' },
+    visual: DESKTOP_CALL_VISUAL_OFF,
   };
   const set = (next: Partial<DesktopCallSnapshot>) => {
     current = { ...current, ...next };
     for (const listener of [...listeners]) listener();
   };
   const active = () => current.state.status === 'opening' || current.state.status === 'live';
+  const setVisual = (next: Partial<DesktopCallVisual>) =>
+    set({ visual: { ...current.visual, ...next } });
+  const stopCamera = () => {
+    camera?.stop();
+    camera = undefined;
+  };
   return {
     subscribe(listener) {
       listeners.add(listener);
@@ -103,7 +145,14 @@ export function createDesktopCall(
       if (current.checking || active()) return;
       client?.dispose();
       client = undefined;
-      set({ slug, checking: true, block: undefined, state: { status: 'idle' } });
+      stopCamera();
+      set({
+        slug,
+        checking: true,
+        block: undefined,
+        state: { status: 'idle' },
+        visual: DESKTOP_CALL_VISUAL_OFF,
+      });
       let readiness: Awaited<ReturnType<typeof readCallReadiness>>;
       try {
         readiness = await readCallReadiness(post, slug);
@@ -128,7 +177,13 @@ export function createDesktopCall(
         post,
         media: media(),
         onChange: (state) => {
-          if (client === owned) set({ state });
+          if (client !== owned) return;
+          if (state.status === 'ended' && camera !== undefined) {
+            stopCamera();
+            set({ state, visual: { ...current.visual, source: 'off', stream: undefined } });
+            return;
+          }
+          set({ state });
         },
       });
       client = owned;
@@ -138,9 +193,60 @@ export function createDesktopCall(
     async mute(muted) {
       await client?.mute(muted);
     },
+    async camera(on) {
+      const owned = client;
+      if (owned === undefined || current.state.status !== 'live' || current.visual.starting) return;
+      if (!on) {
+        if (current.visual.source === 'off') return;
+        stopCamera();
+        setVisual({ source: 'off', stream: undefined });
+        await owned.visual('off', current.visual.save);
+        return;
+      }
+      if (current.visual.source === 'camera') return;
+      setVisual({ starting: true, error: undefined });
+      const started = makeCamera(async (frame) => {
+        if (camera !== started || client !== owned) return;
+        setVisual({ keyframes: current.visual.keyframes + 1, keyframeAt: clock() });
+        await owned.frame(frame);
+      });
+      camera = started;
+      const refused = await owned.visual('camera', current.visual.save);
+      if (refused !== undefined && !refused.ok) {
+        stopCamera();
+        setVisual({ starting: false });
+        return;
+      }
+      try {
+        const stream = await started.start();
+        if (camera !== started) {
+          started.stop();
+          return;
+        }
+        setVisual({ source: 'camera', starting: false, stream });
+      } catch (error) {
+        if (camera === started) camera = undefined;
+        started.stop();
+        setVisual({
+          starting: false,
+          source: 'off',
+          stream: undefined,
+          error: error instanceof CallCameraError ? error.code : 'camera-missing',
+        });
+        await owned.visual('off', current.visual.save);
+      }
+    },
+    async saveFrames(save) {
+      if (current.visual.save === save) return;
+      setVisual({ save });
+      const owned = client;
+      if (owned !== undefined && current.state.status === 'live' && current.visual.source !== 'off')
+        await owned.visual(current.visual.source, save);
+    },
     async hangup() {
+      stopCamera();
       await client?.hangup();
-      set({ block: undefined, state: { status: 'idle' } });
+      set({ block: undefined, state: { status: 'idle' }, visual: DESKTOP_CALL_VISUAL_OFF });
     },
     dismiss() {
       if (active()) return;

@@ -240,14 +240,14 @@ async function simulate(
   try {
     if (visual !== undefined)
       collect(
-        result(await post({
-          kind: 'visual',
-          callId,
-          source: visual.source,
-          ...(values['no-save'] === true ? { save: false } : {}),
-        }))[
-          'call'
-        ] as VoiceCallView,
+        result(
+          await post({
+            kind: 'visual',
+            callId,
+            source: visual.source,
+            ...(values['no-save'] === true ? { save: false } : {}),
+          }),
+        )['call'] as VoiceCallView,
       );
     for (let position = 0; position < audio.length; position += CHUNK) {
       const due = started + (position / 16_000) * 1000;
@@ -434,7 +434,9 @@ export async function runCallCommand(
       usage('call-frame needs a message id and a cell number.');
     const cell = Number(rest[1]);
     if (!Number.isSafeInteger(cell) || cell < 0 || cell > 16)
-      usage('The cell is the tile number printed on the grid, 1 to 16, or 0 for a whole unsaved grid.');
+      usage(
+        'The cell is the tile number printed on the grid, 1 to 16, or 0 for a whole unsaved grid.',
+      );
     if (values.out !== undefined && !isAbsolute(values.out))
       usage('--out must be an absolute path.');
     const reply = result(
