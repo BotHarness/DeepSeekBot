@@ -171,3 +171,51 @@ it('retains the required Inbox ISC notice without allowing other or modified com
     await scanSource('packages/client/src/client/inbox-icon.tsx', source + '\n// unrelated'),
   ).toHaveLength(1);
 });
+
+describe('client store subscriptions', () => {
+  const kinds = async (source, path = 'packages/client/src/client/sample.tsx') =>
+    (await scanSource(path, source))
+      .filter((item) => item.kind === 'store-subscription')
+      .map((item) => item.token.split('(')[0]);
+
+  it('rejects whole client-store subscriptions and whole-state selectors', async () => {
+    const source = [
+      "import { store } from './store.js';",
+      "import type { ClientStore, ClientState } from './store.js';",
+      'interface Props { roster: Pick<ClientStore, "subscribe" | "getSnapshot">; state: ClientState }',
+      'export function A({ roster }: Props) {',
+      '  useSyncExternalStore(store.subscribe, store.getSnapshot);',
+      '  useSyncExternalStore(roster.subscribe, roster.getSnapshot);',
+      '  useClientStore(keepClientState, same);',
+      '  useStoreSlice(roster, (state) => state);',
+      '  return null;',
+      '}',
+    ].join('\n');
+    expect(await kinds(source)).toEqual([
+      'state: ClientState',
+      'useSyncExternalStore',
+      'useSyncExternalStore',
+      'useClientStore',
+      'useStoreSlice',
+    ]);
+  });
+
+  it('accepts field selections and other stores', async () => {
+    const source = [
+      "import { store } from './store.js';",
+      'export function A({ prefs }) {',
+      '  useSyncExternalStore(prefs.subscribe, prefs.getSnapshot);',
+      '  useClientStore((state) => state.bots);',
+      "  useClientFields(['bots'], store);",
+      '  return null;',
+      '}',
+    ].join('\n');
+    expect(await kinds(source)).toEqual([]);
+    expect(
+      await kinds(
+        'useSyncExternalStore(store.subscribe, store.getSnapshot);',
+        'packages/client/test/sample.test.tsx',
+      ),
+    ).toEqual([]);
+  });
+});
