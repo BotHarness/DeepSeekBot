@@ -115,6 +115,7 @@ import {
 import { ungroupedLabel } from './labels.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { turnStopText } from './turn-stop.js';
+import { voiceCallRecordText } from './voice-call-record.js';
 import { toolApprovalText } from './approval-text.js';
 import { personaBotActivity } from './persona-activity.js';
 import { CreatePersonaBotModal } from './persona-bot-create.js';
@@ -556,6 +557,7 @@ function channelPreview(
   if (message?.contentPurged) return t('purge.purged');
   if (message === undefined) return t('rail.noMessages');
   if (message.turnStop !== undefined) return turnStopText(message.turnStop, t);
+  if (message.voiceCallRecord !== undefined) return voiceCallRecordText(message.voiceCallRecord, t);
   if (message.memberDeparture !== undefined)
     return t(
       message.memberDeparture.departureType === 'removed' ? 'member.removed' : 'member.left',

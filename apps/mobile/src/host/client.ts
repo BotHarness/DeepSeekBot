@@ -11,6 +11,10 @@ import { DEVICE_PREFIX } from './pairing';
 import { checkRoute, isConnectRoute, isEncryptedRoute, isLanRoute, socketOrigin } from './route';
 import { LOCAL_VIDEO_PATH } from '../../../../packages/computer/src/local-video-contract';
 import {
+  isChannelVoiceCallRecord,
+  type ChannelVoiceCallRecord,
+} from '../../../../packages/core/src/channels/voice-call-record';
+import {
   VOICE_CALL_CONNECT_REFUSAL,
   VOICE_CALL_PATH,
 } from '../../../../packages/core/src/voice/call-contract';
@@ -63,6 +67,7 @@ export interface RosterBot {
   paused: boolean;
   dmChannelId?: string;
   preview?: string;
+  previewCall?: ChannelVoiceCallRecord;
   previewAt?: string;
   latestMessageId?: string;
   previewAuthor?: WireAuthor;
@@ -78,6 +83,7 @@ export interface RosterChannel {
   pendingInvites?: Array<{ id: string; botSlug: string }>;
   pendingJoins?: Array<{ id: string; botSlug: string }>;
   preview?: string;
+  previewCall?: ChannelVoiceCallRecord;
   previewAt?: string;
   latestMessageId?: string;
   previewAuthor?: WireAuthor;
@@ -240,14 +246,19 @@ function record(value: unknown): Record<string, unknown> {
 
 function previewOf(channel: ChannelListItem | undefined): {
   preview?: string;
+  previewCall?: ChannelVoiceCallRecord;
   previewAt?: string;
   latestMessageId?: string;
   previewAuthor?: WireAuthor;
 } {
   const message = channel?.latestMessage;
   if (message === undefined) return {};
+  const call = record(message).voiceCallRecord;
   return {
     preview: message.body.replace(/\s+/gu, ' ').trim().slice(0, 140),
+    ...(message.author?.kind === 'system' && isChannelVoiceCallRecord(call)
+      ? { previewCall: call }
+      : {}),
     previewAt: message.at,
     latestMessageId: message.id,
     ...(message.author === undefined ? {} : { previewAuthor: message.author }),

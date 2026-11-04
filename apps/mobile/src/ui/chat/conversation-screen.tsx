@@ -89,6 +89,7 @@ import { GrantRequestCard } from './grant-request-card';
 import { PrivateInputCard } from './private-input-card';
 import { TakeoverCard } from './takeover-card';
 import { ActivityRow } from './activity-row';
+import { CallRecordBubble } from './call-record';
 import type { BubbleGroup } from './bubble-shape';
 import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
@@ -1029,6 +1030,8 @@ function ChatConversation({
         </MessageSelectionRow>
       );
 
+      if (item.message.activity?.kind === 'voice-call')
+        return wrap(<CallRecordBubble record={item.message.activity.record} />);
       if (item.message.activity !== undefined)
         return wrap(
           <ActivityRow

@@ -1604,6 +1604,10 @@ const en = {
   openProfile: 'Opens the profile',
   call: {
     button: 'Call',
+    recordStarted: 'Voice call started',
+    recordEnded: 'Voice call ended',
+    recordStartedAt: (time: string) => `Started ${time}`,
+    recordLength: (time: string) => `Lasted ${time}`,
     title: 'Call',
     connecting: 'Connecting…',
     listening: 'Listening',
@@ -3727,6 +3731,10 @@ const zh: typeof en = {
   openProfile: '打开资料页',
   call: {
     button: '通话',
+    recordStarted: '语音通话开始',
+    recordEnded: '语音通话结束',
+    recordStartedAt: (time: string) => `开始于 ${time}`,
+    recordLength: (time: string) => `时长 ${time}`,
     title: '通话',
     connecting: '正在接通…',
     listening: '在听',

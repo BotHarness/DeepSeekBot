@@ -11,6 +11,12 @@ import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import type { VoiceCallEvent, VoiceCallResult, VoiceCallView } from '../src/voice/call-contract.js';
 import { VOICE_CALL_HOST_OWNER } from '../src/voice/call-contract.js';
 import {
+  isChannelVoiceCallRecord,
+  voiceCallDuration,
+  voiceCallRecordBody,
+  type ChannelVoiceCallRecord,
+} from '../src/channels/voice-call-record.js';
+import {
   createVoiceCalls,
   joinTranscripts,
   type VoiceCallBot,
@@ -141,10 +147,13 @@ function harness(
     media?: VoiceCallMedia | undefined;
     busy?: () => boolean;
     send?: VoiceCallsDeps['send'];
+    record?: VoiceCallsDeps['record'];
   } = {},
 ) {
   let clock = 1_000_000;
   const sent: { body: string; callId: string; channelId: string; messageId: string }[] = [];
+  const log: string[] = [];
+  const records: ChannelVoiceCallRecord[] = [];
   const bot: VoiceCallBot | undefined =
     'bot' in options
       ? options.bot
@@ -175,6 +184,15 @@ function harness(
       options.send ??
       (async (input) => {
         sent.push(input);
+        log.push(`sent:${input.body}`);
+      }),
+    record:
+      options.record ??
+      (async ({ channelId, record }) => {
+        expect(channelId).toBe('dm-mira');
+        records.push(record);
+        log.push(`record:${record.state}`);
+        return `voice-call-${record.state}-${record.callId}`;
       }),
     busy: options.busy ?? (() => false),
     now: () => clock,
@@ -189,6 +207,8 @@ function harness(
   return {
     calls,
     sent,
+    log,
+    records,
     transcribed,
     synthesized,
     phone,
@@ -744,6 +764,118 @@ describe('Host call owner', () => {
     await settled();
     expect(state.played).toEqual([]);
     expect(h.synthesized).toEqual(['嗯。']);
+  });
+});
+
+describe('call records in the DM (#3483)', () => {
+  it("writes a start notice when the call connects and an end notice with its length after the call's messages", async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const opened = (await h.ok({ kind: 'open', slug: 'mira' })).call!;
+    h.advance(2_000);
+    expect(h.records).toEqual([]);
+    await h.ok({
+      kind: 'signal',
+      callId: opened.callId,
+      answer: { type: 'answer', sdp: 'v=0\r\n' },
+    });
+    await settled();
+    const connectedAt = new Date(1_002_000).toISOString();
+    expect(h.records).toEqual([
+      { callId: opened.callId, botSlug: 'mira', state: 'started', startedAt: connectedAt },
+    ]);
+    h.feed(state.onPcm!, concat(silence(300), speech(1000), silence(900)));
+    await h.ok({ kind: 'hangup', callId: opened.callId });
+    await settled();
+    const end = h.records[1]!;
+    expect(end).toMatchObject({
+      callId: opened.callId,
+      botSlug: 'mira',
+      state: 'ended',
+      startedAt: connectedAt,
+      reason: 'hangup',
+      startMessageId: `voice-call-started-${opened.callId}`,
+    });
+    expect(end.state === 'ended' && end.durationMs).toBe(
+      Date.parse(end.state === 'ended' ? end.endedAt : '') - 1_002_000,
+    );
+    expect(isChannelVoiceCallRecord(end)).toBe(true);
+    expect(h.log.at(0)).toBe('record:started');
+    expect(h.log.at(-1)).toBe('record:ended');
+  });
+
+  it('counts the sentences the call sent to the DM', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const callId = await connected(h);
+    h.feed(state.onPcm!, concat(silence(300), speech(1000), silence(900)));
+    await settled();
+    h.advance(65_000);
+    await h.ok({ kind: 'heartbeat', callId });
+    await h.ok({ kind: 'hangup', callId });
+    await settled();
+    expect(h.log).toEqual(['record:started', 'sent:帮我查一下明天的天气', 'record:ended']);
+    expect(h.records[1]).toMatchObject({ state: 'ended', heard: 1, reason: 'hangup' });
+  });
+
+  it('leaves no record for a call that never connected', async () => {
+    const { media } = fakeMedia();
+    const h = harness({ media });
+    const opened = (await h.ok({ kind: 'open', slug: 'mira' })).call!;
+    await h.ok({ kind: 'hangup', callId: opened.callId });
+    await settled();
+    expect(h.records).toEqual([]);
+  });
+
+  it('keeps the call going when the notice cannot be written', async () => {
+    const h = harness({
+      media: undefined,
+      record: async () => {
+        throw new Error('disk full');
+      },
+    });
+    const call = (await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' })).call!;
+    const audio = concat(silence(300), speech(1200), silence(900));
+    for (let offset = 0; offset < audio.length; offset += 16_000) {
+      const part = audio.slice(offset, offset + 16_000);
+      h.advance(1_000);
+      await h.ok({
+        kind: 'inject',
+        callId: call.callId,
+        pcm: Buffer.from(part.buffer, part.byteOffset, part.byteLength).toString('base64'),
+      });
+    }
+    await settled();
+    expect(h.sent.map((item) => item.body)).toEqual(['帮我查一下明天的天气']);
+    expect((await view(h, call.callId)).phase).not.toBe('ended');
+  });
+
+  it('formats the length and a body the Bot can search', () => {
+    expect(voiceCallDuration(0)).toBe('0:00');
+    expect(voiceCallDuration(65_400)).toBe('1:05');
+    expect(voiceCallDuration(3_725_000)).toBe('1:02:05');
+    const body = voiceCallRecordBody({
+      callId: 'call-0123456789abcdef',
+      botSlug: 'mira',
+      state: 'ended',
+      startedAt: '2026-11-04T10:00:00.000Z',
+      endedAt: '2026-11-04T10:12:04.000Z',
+      durationMs: 724_000,
+      reason: 'hangup',
+      heard: 6,
+    });
+    expect(body.toLowerCase()).toContain('voice call');
+    expect(body).toContain('12:04');
+    expect(body).toContain('2026-11-04T10:00:00.000Z');
+    expect(
+      isChannelVoiceCallRecord({
+        callId: 'call-0123456789abcdef',
+        botSlug: 'mira',
+        state: 'started',
+        startedAt: '2026-11-04T10:00:00.000Z',
+        extra: 1,
+      }),
+    ).toBe(false);
   });
 });
 
