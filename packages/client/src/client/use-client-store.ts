@@ -84,6 +84,8 @@ export function sameFields<K extends keyof ClientState>(
 }
 
 export const keepClientState = (state: ClientState): ClientState => state;
+export const selectConversationChannel = (state: ClientState) => state.conversation.channel;
+export const selectConversationSending = (state: ClientState) => state.conversation.sending;
 
 const fieldSelections = new WeakMap<
   readonly (keyof ClientState)[],

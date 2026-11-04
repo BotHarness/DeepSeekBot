@@ -1,4 +1,9 @@
-import { useClientFields } from './use-client-store.js';
+import {
+  selectConversationChannel,
+  selectConversationSending,
+  useClientFields,
+  useClientStore,
+} from './use-client-store.js';
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
 import { Button, Checkbox, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { TutorialAction } from '../../../core/src/onboarding/types.js';
@@ -27,7 +32,7 @@ import { OnboardingChecklist, markBotModeEntered } from './onboarding-checklist-
 import { checklistSettled } from './onboarding-checklist.js';
 import { startBotSessionsTour, takeSessionsTourReturn } from './onboarding-sessions-tour.js';
 
-const ONBOARDING_VIEW_FIELDS = ['bots', 'channels', 'conversation'] as const;
+const ONBOARDING_VIEW_FIELDS = ['bots', 'channels'] as const;
 
 export function OnboardingModelDialog({
   actions,
@@ -200,9 +205,11 @@ export function OnboardingWelcome({
   const controller = onboardingFor(actions);
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const client = useClientFields(ONBOARDING_VIEW_FIELDS);
+  const conversationChannel = useClientStore(selectConversationChannel);
+  const sending = useClientStore(selectConversationSending);
   const channel =
     client.channels.find((candidate) => candidate.id === channelId) ??
-    (client.conversation.channel?.id === channelId ? client.conversation.channel : undefined);
+    (conversationChannel?.id === channelId ? conversationChannel : undefined);
   const botSlug = channel?.botSlug;
   const bot =
     botSlug === undefined ? undefined : client.bots.find((entry) => entry.slug === botSlug);
@@ -298,7 +305,7 @@ export function OnboardingWelcome({
                     : t('onboarding.reminderUnknownHint')
                   : undefined
               }
-              disabled={state.busy || store.getSnapshot().conversation.sending}
+              disabled={state.busy || sending}
               onClick={() =>
                 void controller.request(
                   channelId,

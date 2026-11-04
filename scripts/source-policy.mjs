@@ -114,7 +114,7 @@ function scanScript(path, fragment, source, baseOffset) {
     );
   }
   if (appliesToStoreSubscriptions(path))
-    for (const node of findStoreSubscriptions(parsed))
+    for (const node of findStoreSubscriptions(parsed, path))
       found.push(
         issue(
           path,

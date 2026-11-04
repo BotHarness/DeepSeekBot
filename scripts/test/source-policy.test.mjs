@@ -188,6 +188,7 @@ describe('client store subscriptions', () => {
       '  useSyncExternalStore(roster.subscribe, roster.getSnapshot);',
       '  useClientStore(keepClientState, same);',
       '  useStoreSlice(roster, (state) => state);',
+      '  useClientStore((state) => { return state; });',
       '  return null;',
       '}',
     ].join('\n');
@@ -197,14 +198,23 @@ describe('client store subscriptions', () => {
       'useSyncExternalStore',
       'useClientStore',
       'useStoreSlice',
+      'useClientStore',
     ]);
+    expect(
+      await kinds(
+        "import { store } from '../client/store.js';\nuseSyncExternalStore(store.subscribe, store.getSnapshot);",
+        'packages/client/src/panels/sample.tsx',
+      ),
+    ).toEqual(['useSyncExternalStore']);
   });
 
   it('accepts field selections and other stores', async () => {
     const source = [
       "import { store } from './store.js';",
+      "import { store as preferences } from './preferences/store.js';",
       'export function A({ prefs }) {',
       '  useSyncExternalStore(prefs.subscribe, prefs.getSnapshot);',
+      '  useSyncExternalStore(preferences.subscribe, preferences.getSnapshot);',
       '  useClientStore((state) => state.bots);',
       "  useClientFields(['bots'], store);",
       '  return null;',

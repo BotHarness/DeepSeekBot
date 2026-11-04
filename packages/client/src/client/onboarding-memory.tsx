@@ -1,4 +1,9 @@
-import { useClientFields } from './use-client-store.js';
+import {
+  selectConversationChannel,
+  selectConversationSending,
+  useClientFields,
+  useClientStore,
+} from './use-client-store.js';
 import {
   createContext,
   useContext,
@@ -18,7 +23,7 @@ import { onboardingFor } from './onboarding.js';
 import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 
-const ONBOARDING_MEMORY_FIELDS = ['bots', 'conversation'] as const;
+const ONBOARDING_MEMORY_FIELDS = ['bots'] as const;
 
 export const OnboardingMemoryNavigation = createContext<
   | {
@@ -46,7 +51,8 @@ export function OnboardingMemory({
   const [preference, setPreference] = useState('');
   const inputId = useId();
   const client = useClientFields(ONBOARDING_MEMORY_FIELDS);
-  const channel = client.conversation.channel;
+  const channel = useClientStore(selectConversationChannel);
+  const sending = useClientStore(selectConversationSending);
   const experienceMount = useMountedResource<HTMLSpanElement>(() => {
     if (!controller.consumeExperience('memory')) return;
     setPreference('');
@@ -114,7 +120,7 @@ export function OnboardingMemory({
               {page === 'preference' ? (
                 <Button
                   variant="primary"
-                  disabled={!preference.trim() || state.busy || client.conversation.sending}
+                  disabled={!preference.trim() || state.busy || sending}
                   onClick={() => {
                     const body = t('onboarding.memory.request', { preference: preference.trim() });
                     close();

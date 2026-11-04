@@ -1,8 +1,10 @@
+import { posix } from 'node:path';
 import traverseModule from '@babel/traverse';
 
 const traverse = typeof traverseModule === 'function' ? traverseModule : traverseModule.default;
 
 const CLIENT_SOURCE = /^packages\/client\/src\/.+\.(?:ts|tsx)$/;
+const CLIENT_STORE_MODULE = 'packages/client/src/client/store.js';
 const SELECTOR_HOOKS = new Map([
   ['useClientStore', 0],
   ['useStoreSlice', 1],
@@ -30,11 +32,16 @@ function mentionsClientState(node) {
   );
 }
 
-function clientStoreNames(ast) {
+function importsClientStore(file, source) {
+  if (!source.startsWith('.')) return false;
+  return posix.join(posix.dirname(file), source) === CLIENT_STORE_MODULE;
+}
+
+function clientStoreNames(ast, file) {
   const names = new Set();
   traverse(ast, {
     ImportDeclaration(path) {
-      if (!/\/store\.js$/.test(path.node.source.value)) return;
+      if (!importsClientStore(file, path.node.source.value)) return;
       for (const specifier of path.node.specifiers)
         if (
           specifier.type === 'ImportSpecifier' &&
@@ -69,13 +76,17 @@ function returnsWholeState(node) {
   if (node?.type === 'Identifier') return node.name === 'keepClientState';
   if (node?.type !== 'ArrowFunctionExpression' || node.params.length !== 1) return false;
   const param = node.params[0];
-  return (
-    param.type === 'Identifier' && node.body.type === 'Identifier' && node.body.name === param.name
-  );
+  const body =
+    node.body.type === 'BlockStatement' &&
+    node.body.body.length === 1 &&
+    node.body.body[0].type === 'ReturnStatement'
+      ? node.body.body[0].argument
+      : node.body;
+  return param.type === 'Identifier' && body?.type === 'Identifier' && body.name === param.name;
 }
 
-export function findStoreSubscriptions(ast) {
-  const stores = clientStoreNames(ast);
+export function findStoreSubscriptions(ast, file) {
+  const stores = clientStoreNames(ast, file);
   const found = [];
   traverse(ast, {
     CallExpression(path) {
