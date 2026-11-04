@@ -417,7 +417,7 @@ minimumReleaseAgeExclude:
   - '@expo/require-utils@58.0.5'
 
 patchedDependencies:
-  expo@58.0.22: patches/expo@58.0.22.patch
+  expo@58.0.23: patches/expo@58.0.23.patch
   react-native-collapsible-tab-view@8.0.1: patches/react-native-collapsible-tab-view@8.0.1.patch
   '@deepseek-ai/dsh-tool-fs@0.2.1-rc.3': patches/@deepseek-ai__dsh-tool-fs@0.2.1-rc.3.patch
   '@deepseek-ai/dsh-llm-pi-ai@0.2.1-rc.3': patches/@deepseek-ai__dsh-llm-pi-ai@0.2.1-rc.3.patch
@@ -425,4 +425,4 @@ patchedDependencies:
   expo-quick-actions@6.0.2: patches/expo-quick-actions@6.0.2.patch
   react-native-view-shot@6.1.1: patches/react-native-view-shot@6.1.1.patch
   react-native-pager-view@9.0.7: patches/react-native-pager-view@9.0.7.patch
-  expo-router@58.0.29: patches/expo-router@58.0.29.patch
+  expo-router@58.0.30: patches/expo-router@58.0.30.patch

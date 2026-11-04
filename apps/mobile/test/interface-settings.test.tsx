@@ -90,7 +90,12 @@ it('updates mounted settings and theme immediately and preserves unrelated state
     await press('settings-appearance-dark');
     expect(host.querySelector('output')!.textContent).toBe('dark');
     expect(host.querySelector('[data-testid="preview"]')!.textContent).toBe('light');
-    expect(saved).toEqual({ language: 'zh', appearance: 'dark' });
+    expect(saved).toEqual({
+      language: 'zh',
+      appearance: 'dark',
+      inAppAlerts: true,
+      inAppAlertStyle: 'inline',
+    });
     expect(host.querySelector('input')).toBe(field);
     expect(field.value).toBe('unsent draft');
     expect(field.selectionStart).toBe(3);

@@ -60,6 +60,7 @@ import { MarketplacePastPicksScreen } from '../src/ui/shell/marketplace-past-pic
 import { MarketplaceRankingScreen } from '../src/ui/shell/marketplace-ranking-screen';
 import { MarketplaceScreen } from '../src/ui/shell/marketplace-screen';
 import { t } from '../src/ui/strings';
+import { interfacePreferences } from '../src/ui/interface-preferences';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -110,6 +111,7 @@ let root: Root;
 let element: HTMLElement;
 const features = vi.fn();
 beforeEach(() => {
+  interfacePreferences.setLanguage('en');
   vi.clearAllMocks();
   fixture.params = { entry: 'all' };
   setFeatureSink(features);
