@@ -20,7 +20,7 @@ export function UnreadCount({
   return (
     <span
       className={`bh-unread-count${corner ? ' bh-unread-corner' : ''}${muted ? ' bh-unread-count-muted' : ''}`}
-      aria-label={t('roster.unreadCount', { count })}
+      aria-label={t('roster.unreadCount', { count: unreadCountLabel(count) })}
     >
       {unreadCountLabel(count)}
     </span>

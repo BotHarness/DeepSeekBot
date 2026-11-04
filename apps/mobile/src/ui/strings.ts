@@ -1,3 +1,4 @@
+import { badgeCount } from './primitives/badge-count';
 import { productName } from './product-name';
 import { tapVerb } from './platform-copy';
 import type { DeviceRefusal } from '../host/client';
@@ -1466,9 +1467,10 @@ const en = {
   },
   needsYouCount: (count: number) => (count === 1 ? 'needs you' : `${count} need you`),
   sectionNeedsYou: (count: number) => (count === 1 ? '1 needs you' : `${count} need you`),
-  unreadCount: (count: number) => (count === 1 ? '1 unread message' : `${count} unread messages`),
+  unreadCount: (count: number) =>
+    count === 1 ? '1 unread message' : `${badgeCount(count)} unread messages`,
   mutedUnread: (count: number) =>
-    count === 1 ? 'muted, 1 unread message' : `muted, ${count} unread messages`,
+    count === 1 ? 'muted, 1 unread message' : `muted, ${badgeCount(count)} unread messages`,
   openSearch: 'Search',
   openTobMode: 'Tob Mode',
   closeSearch: 'Close search',
@@ -1585,7 +1587,7 @@ const en = {
   hostOffline: 'Offline',
   hostChecking: 'Checking…',
   hostPending: (count: number) => (count === 1 ? '1 needs you' : `${count} need you`),
-  hostUnread: (count: number) => (count === 1 ? '1 unread' : `${count} unread`),
+  hostUnread: (count: number) => (count === 1 ? '1 unread' : `${badgeCount(count)} unread`),
   hostMore: (host: string) => `More for ${host}`,
   showHost: 'Show this workspace',
   unpairHost: (host: string) => `Unpair ${host}?`,
@@ -3566,8 +3568,8 @@ const zh: typeof en = {
   },
   needsYouCount: (count: number) => (count === 1 ? '等你处理' : `${count} 项等你处理`),
   sectionNeedsYou: (count: number) => `${count} 个需要你`,
-  unreadCount: (count: number) => `${count} 条未读消息`,
-  mutedUnread: (count: number) => `已静音，${count} 条未读消息`,
+  unreadCount: (count: number) => `${badgeCount(count)} 条未读消息`,
+  mutedUnread: (count: number) => `已静音，${badgeCount(count)} 条未读消息`,
   openSearch: '搜索',
   openTobMode: 'Tob 模式',
   closeSearch: '关闭搜索',
@@ -3680,7 +3682,7 @@ const zh: typeof en = {
   hostOffline: '离线',
   hostChecking: '正在检查…',
   hostPending: (count: number) => `${count} 项等你处理`,
-  hostUnread: (count: number) => `${count} 条未读`,
+  hostUnread: (count: number) => `${badgeCount(count)} 条未读`,
   hostMore: (host: string) => `${host} 的更多操作`,
   showHost: '显示这个工作区',
   unpairHost: (host: string) => `取消配对 ${host}？`,
