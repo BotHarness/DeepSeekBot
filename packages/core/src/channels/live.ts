@@ -1,6 +1,6 @@
 import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
 import type { PurgedPlacement } from '../purge/contracts.js';
-import { isChannelNotice } from './channel-notice.js';
+import { channelPreviewMessage, isChannelNotice } from './channel-notice.js';
 import type { ChannelDraft, ChannelDraftEvent } from './draft.js';
 import type { ChannelMessage, ChannelReaction } from './channel.js';
 import type { ChannelMessageCommit, ChannelStore } from './store.js';
@@ -820,9 +820,10 @@ export function createChannelLiveHub(
     },
     publishCommitted(commit) {
       for (const subscriber of subscribers.get(commit.channelId) ?? []) subscriber.push(commit);
-      if (!isChannelNotice(commit.message))
-        for (const subscriber of rosterSubscribers)
-          subscriber.latest(commit.channelId, commit.message);
+      if (!isChannelNotice(commit.message)) {
+        const preview = channelPreviewMessage(commit.message);
+        for (const subscriber of rosterSubscribers) subscriber.latest(commit.channelId, preview);
+      }
       if (commit.message.author.kind !== 'bot') return;
       const botSlug = commit.message.author.slug;
       const candidates = [...(drafts.get(commit.channelId)?.values() ?? [])].filter(

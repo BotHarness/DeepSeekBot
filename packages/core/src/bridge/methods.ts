@@ -110,6 +110,7 @@ import {
   type UsageOverviewResult,
 } from '../usage/overview.js';
 import { markAllHumanMessagesRead } from '../channels/mark-all-read.js';
+import { channelPreviewMessage } from '../channels/channel-notice.js';
 import { channelBridgeInput, type ChannelBridgeSnapshot } from '../messaging/channel-bridge.js';
 import {
   conversationIngestInput,
@@ -5096,7 +5097,8 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         deps.channels.getOrCreateDm(bot.slug, bot.displayName);
       }
       const channels = deps.channels.list().map((channel) => {
-        const latestMessage = deps.channels.latestMessage(channel.id);
+        const latest = deps.channels.latestMessage(channel.id);
+        const latestMessage = latest === undefined ? undefined : channelPreviewMessage(latest);
         return {
           ...channelView(channel),
           ...(latestMessage === undefined ? {} : { latestMessage }),

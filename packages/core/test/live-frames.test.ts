@@ -108,6 +108,33 @@ describe('live frames on the native stream carrier', () => {
     expect((await ended).done).toBe(true);
   });
 
+  it('sends roster previews without deliveries, receipts or reactions', async () => {
+    const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }));
+    hubs.push(hub);
+    const abort = new AbortController();
+    const frames = hub.followRoster(abort.signal)[Symbol.asyncIterator]();
+    await frames.next();
+    hub.publishCommitted({
+      channelId: 'a',
+      revision: 1,
+      message: {
+        id: 'm',
+        at: '2026-11-04T00:00:00Z',
+        author: { kind: 'human' },
+        body: 'Hi',
+        deliveries: [{ botSlug: 'ada', state: 'read' }] as never,
+        humanReceipts: [] as never,
+        reactions: [{ emoji: '👍', count: 1 }] as never,
+      },
+    });
+    const frame = (await frames.next()).value as { message: Record<string, unknown> };
+    expect(frame.message).toMatchObject({ id: 'm', body: 'Hi' });
+    expect(Object.keys(frame.message)).not.toEqual(expect.arrayContaining(['deliveries']));
+    expect(frame.message).not.toHaveProperty('humanReceipts');
+    expect(frame.message).not.toHaveProperty('reactions');
+    abort.abort();
+  });
+
   it('carries a Bot reply as a roster preview without a full roster refresh', async () => {
     const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }));
     hubs.push(hub);

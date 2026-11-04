@@ -28,3 +28,15 @@ export function notChannelNoticeSql(payloadColumn: string): string {
     (field) => `json_type(${payloadColumn}, '$.${field}') IS NULL`,
   ).join(' AND ');
 }
+
+export function channelPreviewMessage<
+  T extends { deliveries?: unknown; humanReceipts?: unknown; reactions?: unknown },
+>(message: T): Omit<T, 'deliveries' | 'humanReceipts' | 'reactions'> {
+  const {
+    deliveries: _deliveries,
+    humanReceipts: _receipts,
+    reactions: _reactions,
+    ...preview
+  } = message;
+  return preview;
+}
