@@ -95,6 +95,7 @@ export function createPhoneCallCamera(options: {
       const frame = await module.callCameraKeyframe(VOICE_CALL_LIMITS.frameBytes).catch(() => null);
       if (picker !== active) return;
       if (frame === null) {
+        active.reset();
         skipped += 1;
         return;
       }

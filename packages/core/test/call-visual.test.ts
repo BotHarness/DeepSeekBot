@@ -534,6 +534,24 @@ describe('Host call owner with a shared camera or screen', () => {
     expect(h.sent.map((item) => item.visual === undefined)).toEqual([false, true, true]);
   });
 
+  it('drops a keyframe still being read when the camera was turned off and on again', async () => {
+    const h = host(['现在看到什么']);
+    const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'camera' });
+    const late = h.ok({
+      kind: 'frame',
+      callId: call.callId,
+      source: 'camera',
+      jpeg: (await jpeg({ r: 0, g: 200, b: 0 }, 1920, 1080)).toString('base64'),
+    });
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'off' });
+    await h.ok({ kind: 'visual', callId: call.callId, source: 'camera' });
+    await late;
+    await h.say(call.callId);
+    expect(h.sent).toHaveLength(1);
+    expect(h.sent[0]!.visual).toBeUndefined();
+  });
+
   it('notes a camera paused in the background and resumed in the foreground', async () => {
     const h = host();
     const call = await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' });

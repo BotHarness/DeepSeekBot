@@ -143,6 +143,7 @@ export function createBrowserCallCamera(options: CallCameraOptions): CallCamera 
         if (blob !== null && blob.size <= VOICE_CALL_LIMITS.frameBytes) break;
       }
       if (blob === null || blob.size > VOICE_CALL_LIMITS.frameBytes) {
+        picker.reset();
         skipped += 1;
         return;
       }
