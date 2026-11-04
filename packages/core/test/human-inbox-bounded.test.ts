@@ -1,9 +1,11 @@
 import type { DatabaseSync } from 'node:sqlite';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { LOCAL_HUMAN_ID } from '../src/channels/channel.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
+import { createChannelStore } from '../src/channels/store.js';
 import {
   attachOperationalModule,
   mountOperationalDatabase,
@@ -220,6 +222,46 @@ describe('Human inbox history bounds', () => {
       });
     expect(channels.humanMessageCounts!(from, to)).toEqual([
       { channelId: group.id, author: { kind: 'bot', slug: 'ada' }, count: 3 },
+    ]);
+  });
+
+  it('marks legacy imported replies that precede their Human target', async () => {
+    const home = createTempRoot('human-inbox-legacy-');
+    const rootDir = join(home, 'channels');
+    const legacy = createChannelStore({ rootDir });
+    const group = legacy.createGroup({ name: 'Legacy', members: ['ada'] });
+    await legacy.appendMessage(group.id, {
+      id: 'human-plan',
+      at: '2026-11-01T00:00:00.000Z',
+      author: { kind: 'human' },
+      body: 'Review.',
+    });
+    await legacy.appendMessage(group.id, {
+      id: 'ada-reply',
+      at: '2026-11-01T00:01:00.000Z',
+      author: { kind: 'bot', slug: 'ada' },
+      body: 'Reviewed.',
+      replyTo: 'human-plan',
+    });
+    const file = join(rootDir, group.id, 'messages.ndjson');
+    const lines = readFileSync(file, 'utf8').trim().split('\n');
+    writeFileSync(file, [...lines].reverse().join('\n') + '\n');
+    const owner = trackTestOwner(
+      mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
+    );
+    const database = attachOperationalModule(owner, 'human-inbox-legacy');
+    createSqliteChannelStore({ database, rootDir });
+    expect(
+      database.read((db) =>
+        db
+          .prepare(
+            'SELECT message_id, for_human FROM channel_placements WHERE channel_id = ? ORDER BY revision',
+          )
+          .all(group.id),
+      ),
+    ).toEqual([
+      { message_id: 'ada-reply', for_human: 1 },
+      { message_id: 'human-plan', for_human: 0 },
     ]);
   });
 });

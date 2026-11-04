@@ -1535,6 +1535,19 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             VALUES (?, ?, ?, ?)
           `).run(record.id, index + 1, sourceEventId, message.id);
           }
+          db.prepare(`
+          UPDATE channel_placements SET for_human = coalesce((
+            SELECT CASE WHEN json_valid(e.payload_json) AND json_extract(e.payload_json, '$.author.kind') = 'bot'
+                   THEN coalesce(json_array_length(e.payload_json, '$.humanMentions') > 0 OR EXISTS (
+                     SELECT 1 FROM channel_placements o JOIN source_events t ON t.source_event_id = o.source_event_id
+                      WHERE o.channel_id = channel_placements.channel_id
+                        AND o.message_id = json_extract(e.payload_json, '$.replyTo')
+                        AND json_valid(t.payload_json) AND json_extract(t.payload_json, '$.author.kind') = 'human'), 0)
+                   ELSE 0 END
+              FROM source_events e WHERE e.source_event_id = channel_placements.source_event_id
+          ), 0)
+           WHERE channel_id = ?
+        `).run(record.id);
           if (readPosition !== undefined)
             db.prepare(`
           INSERT INTO channel_read_positions (channel_id, human_id, message_id, revision, read_at)
