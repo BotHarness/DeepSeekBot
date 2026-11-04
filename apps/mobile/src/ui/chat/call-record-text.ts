@@ -9,11 +9,17 @@ export type CallCopy = Pick<
   'recordStarted' | 'recordEnded' | 'recordStartedAt' | 'recordLength'
 >;
 
+function timeLocale(): string {
+  const device = new Intl.DateTimeFormat().resolvedOptions().locale;
+  if (device.toLowerCase().startsWith(locale)) return device;
+  return locale === 'zh' ? 'zh-CN' : 'en';
+}
+
 function clock(at: string): string {
   const date = new Date(at);
   return Number.isNaN(date.getTime())
     ? ''
-    : new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en-US', {
+    : new Intl.DateTimeFormat(timeLocale(), {
         hour: 'numeric',
         minute: '2-digit',
       }).format(date);

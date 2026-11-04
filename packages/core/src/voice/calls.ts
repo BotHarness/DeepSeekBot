@@ -343,14 +343,21 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     }
   };
 
+  let recordTail: Promise<unknown> = Promise.resolve();
+
   const recordStart = (call: Call) => {
     if (deps.record === undefined || call.connectedAt === undefined) return;
-    call.recorded = writeRecord(call, {
-      callId: call.id,
-      botSlug: call.slug,
-      state: 'started',
-      startedAt: iso(call.connectedAt),
-    });
+    const before = recordTail;
+    const connectedAt = call.connectedAt;
+    call.recorded = before.then(() =>
+      writeRecord(call, {
+        callId: call.id,
+        botSlug: call.slug,
+        state: 'started',
+        startedAt: iso(connectedAt),
+      }),
+    );
+    recordTail = call.recorded;
   };
 
   const recordEnd = (call: Call, reason: VoiceCallEndReason) => {
@@ -374,6 +381,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         ...(startMessageId === undefined ? {} : { startMessageId }),
       });
     })();
+    recordTail = call.recorded;
   };
 
   const dropStream = (call: Call) => {

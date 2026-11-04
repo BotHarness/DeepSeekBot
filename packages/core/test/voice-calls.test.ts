@@ -818,6 +818,47 @@ describe('call records in the DM (#3483)', () => {
     expect(h.records[1]).toMatchObject({ state: 'ended', heard: 1, reason: 'hangup' });
   });
 
+  it('keeps an earlier call end notice ahead of the next call when its last sentence is still transcribing', async () => {
+    let release: (() => void) | undefined;
+    const { media, state } = fakeMedia();
+    const h = harness({
+      media,
+      providers: {
+        has: (id, kind) => id.startsWith(kind),
+        async transcribe() {
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          return { text: '最后一句', latencyMs: 5 };
+        },
+        async synthesize({ text }) {
+          return { audio: clipFor(text), mime: 'audio/mpeg' };
+        },
+      },
+    });
+    const first = await connected(h);
+    h.feed(state.onPcm!, concat(silence(300), speech(1000), silence(900)));
+    await settled();
+    expect(release).toBeDefined();
+    const hungUp = h.ok({ kind: 'hangup', callId: first });
+    await settled();
+    const second = await connected(h);
+    await h.ok({ kind: 'hangup', callId: second });
+    await settled();
+    expect(h.records.map((record) => `${record.state}:${record.callId}`)).toEqual([
+      `started:${first}`,
+    ]);
+    release!();
+    await hungUp;
+    await settled();
+    expect(h.records.map((record) => `${record.state}:${record.callId}`)).toEqual([
+      `started:${first}`,
+      `ended:${first}`,
+      `started:${second}`,
+      `ended:${second}`,
+    ]);
+  });
+
   it('leaves no record for a call that never connected', async () => {
     const { media } = fakeMedia();
     const h = harness({ media });
