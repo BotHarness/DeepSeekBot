@@ -1126,6 +1126,38 @@ it('unified messaging preserves Group draft review before committing', async () 
   });
 });
 
+it('a Human stop invalidates a held Group draft so it can no longer be recovered or sent', async () => {
+  await fixture(async ({ core, channelId, human, tool }) => {
+    await human('question', 'What is the release date?');
+    const read = await tool('channel_read', {});
+    await human('correction', 'Use October 21, not October 20.');
+    const held = await tool('bot_send_message', {
+      body: 'October 20',
+      observation_id: read.observationIds[channelId],
+      end_turn: true,
+    });
+    expect(held.status).toBe('held');
+
+    await core.runtime.stopTurn!('ada');
+
+    expect(
+      core.runtime.groupSendReview!.inspect('direct:ada', channelId, held.draftId!),
+    ).toMatchObject({ state: 'dropped', terminationReason: 'stopped' });
+    const fresh = await tool('channel_read', {});
+    expect(
+      await tool('bot_send_message', {
+        body: 'October 21',
+        draft_id: held.draftId,
+        observation_id: fresh.observationIds[channelId],
+        recover: true,
+      }),
+    ).toMatchObject({ status: 'refused', reason: 'draft-terminal' });
+    expect(
+      core.channels.readMessages(channelId).filter((message) => message.author.kind === 'bot'),
+    ).toHaveLength(0);
+  });
+});
+
 it('channel actions cannot smuggle a message through extra delivery arguments', async () => {
   await fixture(async ({ core, channelId, human, tool }) => {
     await human('reaction-target', 'React only');

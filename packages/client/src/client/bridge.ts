@@ -4205,14 +4205,20 @@ export async function revokeToolApprovalRule(
     throw new Error('invalid toolApprovalRuleRevoke response');
 }
 
+export type ToolApprovalStatus = 'pending' | 'expired' | 'stopped';
+
+function isToolApprovalStatus(value: unknown): value is ToolApprovalStatus {
+  return value === 'pending' || value === 'expired' || value === 'stopped';
+}
+
 export async function loadToolApprovalStatus(
   call: BridgeCall,
   channelId: string,
   messageId: string,
-): Promise<'pending' | 'expired'> {
+): Promise<ToolApprovalStatus> {
   const response = asRecord(await unwrap(call, 'toolApprovalStatus', { channelId, messageId }));
   const status = response?.['status'];
-  if (status !== 'pending' && status !== 'expired') {
+  if (!isToolApprovalStatus(status)) {
     throw new Error('invalid toolApprovalStatus response');
   }
   return status;
@@ -4222,10 +4228,10 @@ export async function loadToolApprovalState(
   call: BridgeCall,
   channelId: string,
   messageId: string,
-): Promise<{ status: 'pending' | 'expired'; expiresAt?: string }> {
+): Promise<{ status: ToolApprovalStatus; expiresAt?: string }> {
   const response = asRecord(await unwrap(call, 'toolApprovalStatus', { channelId, messageId }));
   const status = response?.['status'];
-  if (status !== 'pending' && status !== 'expired') {
+  if (!isToolApprovalStatus(status)) {
     throw new Error('invalid toolApprovalStatus response');
   }
   const expiresAt = response?.['expiresAt'];
