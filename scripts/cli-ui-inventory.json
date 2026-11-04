@@ -197,6 +197,8 @@
         "field:packages/client/src/bot-mode-settings.ts:sortModes",
         "field:packages/client/src/bot-mode-settings.ts:showDeliveryReceipts",
         "field:packages/client/src/bot-mode-settings.ts:streamReplies",
+        "field:packages/client/src/bot-mode-settings.ts:botHopLimit",
+        "setting:packages/client/src/client/bot-hop-limit-setting.tsx:{t('botHopLimit.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('groupAutoAccept.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('icon.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('motion.row.title')}",
@@ -244,6 +246,27 @@
         "prompt-global-set",
         "bot-prompt",
         "bot-prompt-set"
+      ]
+    },
+    {
+      "id": "voice",
+      "description": "TTS Providers (add, test, remove) and each Bot's voice binding and preview.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/voice-settings.tsx:{t('voice.providers.new')}",
+        "setting:packages/client/src/client/voice-settings.tsx:{provider.name}",
+        "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.provider')}",
+        "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.voiceId')}",
+        "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.preview')}"
+      ],
+      "commands": [
+        "voice-providers",
+        "voice-provider-add",
+        "voice-provider-remove",
+        "voice-provider-test",
+        "voice-set",
+        "voice-synthesize",
+        "voice-local-kit"
       ]
     },
     {
@@ -823,6 +846,21 @@
       "scope": "Host",
       "surfaces": ["route:packages/computer/src/index.ts:LOCAL_VIDEO_PATH"],
       "commands": ["computer-video"]
+    },
+    {
+      "id": "voice-call",
+      "description": "Bot calls through the Host call owner: readiness, status, hang up and a synthetic-audio call without a phone.",
+      "scope": "Host",
+      "surfaces": ["route:packages/core/src/plugin.ts:VOICE_CALL_PATH"],
+      "commands": ["call-readiness", "call-status", "call-hangup", "call-simulate"]
+    },
+    {
+      "id": "ui-call-window",
+      "description": "Each desktop or Web window keeps a random call id in session storage so the Host tells two windows apart.",
+      "scope": "Client transport / transient state",
+      "surfaces": ["storage:packages/client/src/client/desktop-call.ts:setItem(CLIENT_KEY)"],
+      "exemption": "A per-window caller identity, not a setting. Calls themselves are covered by call-readiness, call-status, call-hangup and call-simulate.",
+      "configurable": false
     },
     {
       "id": "computer-webrtc",

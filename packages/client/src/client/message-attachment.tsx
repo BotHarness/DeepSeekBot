@@ -56,10 +56,12 @@ export function MessageAttachment({
   actions,
   compact = false,
   trailingAction,
+  displayName,
   t,
 }: {
   attachment: ChannelAttachmentRef;
   compact?: boolean;
+  displayName?: string | undefined;
   trailingAction?: ReactNode;
   channelId?: string | undefined;
   messageId: string;
@@ -118,7 +120,7 @@ export function MessageAttachment({
         onKeyDown={id === undefined ? undefined : (event) => menu.onKey(id, event)}
       >
         <MessageAudio
-          name={ref.name}
+          name={displayName ?? ref.name}
           size={ref.size}
           url={url}
           onPrepare={host === undefined ? undefined : resource.prepare}

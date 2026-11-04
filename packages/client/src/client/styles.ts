@@ -6,6 +6,7 @@ import { WINDOW_COMPANION_CSS } from './window-companion-styles.js';
 import { COMBOBOX_CSS } from './combobox.js';
 import { CHANNEL_DOCK_CSS } from './channel-dock-styles.js';
 import { GENERATED_FILES_CSS } from './generated-files-styles.js';
+import { CALL_CSS } from './call-styles.js';
 import { DEEPSEEKBOT_TRANSPARENT_DATA_URI } from './bot-icon-assets.js';
 import { ACTIVITY_INBOX_CSS } from './activity-inbox-styles.js';
 import { MOBILE_APPS_CSS } from './mobile-apps-styles.js';
@@ -19,6 +20,7 @@ export const CSS =
   WINDOW_COMPANION_CSS +
   CHANNEL_DOCK_CSS +
   GENERATED_FILES_CSS +
+  CALL_CSS +
   ACTIVITY_INBOX_CSS +
   MOBILE_APPS_CSS +
   `
@@ -3665,9 +3667,6 @@ html[data-botharness-motion='reduce'] .bh-message-group-enter .bh-message-group-
   --bh-bubble-radius: ${radius.lg};
   border-radius: var(--bh-bubble-radius);
 }
-.bh-bubble:has(> .bh-bubble-body) {
-  --bh-bubble-radius: 20px;
-}
 .bh-bubble[data-group-position='solo'],
 .bh-bubble[data-group-position='last'] {
   border-bottom-left-radius: ${radius.sm};
@@ -3701,6 +3700,11 @@ html[data-botharness-motion='reduce'] .bh-message-group-enter .bh-message-group-
   border-bottom-left-radius: var(--bh-bubble-radius);
   border-top-right-radius: ${radius.sm};
   border-bottom-right-radius: ${radius.sm};
+}
+/* Same rule as mobile: a lone single-line bubble is a pill on every corner; inside a
+   group a single-line bubble keeps the multi-line radius so the stack reads as one shape. */
+.bh-bubble.bh-bubble[data-single-line][data-group-position='solo'] {
+  border-radius: 999px;
 }
 /* Reactions and live reading avatars hang over the bubble's bottom edge:
    reactions on the author's side, readers on the other. */
@@ -3857,6 +3861,10 @@ html[data-botharness-motion='reduce'] [data-badge-motion='leave'] { animation-na
 .bh-message-file-more { flex: none; color: inherit; }
 /* Bound intrinsic attachment width too, so long filenames do not widen the bubble. */
 .bh-message-attachments { display: grid; max-width: 320px; gap: ${space.x3}; margin-top: ${space.x3}; }
+.bh-message-voice { max-width: 320px; margin-bottom: ${space.x3}; }
+.bh-message-voice .bh-message-audio { width: 100%; box-sizing: border-box; }
+.bh-message-voice-note { display: block; color: var(--dsw-alias-label-secondary); font-size: ${text.metaSize}; line-height: ${text.metaLine}; }
+.bh-message-voice[data-voice-state='failed'] .bh-message-voice-note { color: var(--dsw-alias-label-tertiary); }
 .bh-message-perf { margin-top: ${space.x2}; color: var(--dsw-alias-label-tertiary); font-size: ${text.metaSize}; line-height: ${text.metaLine}; font-variant-numeric: tabular-nums; }
 .bh-bridge-media-content { white-space: pre-wrap; }
 .bh-bridge-image { max-width: min(100%, 320px); }

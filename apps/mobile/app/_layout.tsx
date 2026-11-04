@@ -113,7 +113,7 @@ function RootNavigator() {
                   dangerouslySingular={channelRouteId}
                   options={({ route }) => ({
                     title: '',
-                    fullScreenGestureEnabled: false,
+                    fullScreenGestureEnabled: true,
                     ...swipeEntryOptions(route),
                   })}
                   listeners={swipeEntryListeners('default')}
@@ -123,7 +123,7 @@ function RootNavigator() {
                   dangerouslySingular={channelRouteId}
                   options={({ route }) => ({
                     title: '',
-                    fullScreenGestureEnabled: false,
+                    fullScreenGestureEnabled: true,
                     ...swipeEntryOptions(route),
                   })}
                   listeners={swipeEntryListeners('default')}
@@ -250,6 +250,16 @@ function RootNavigator() {
                   options={{
                     title: t.profileBrowser,
                     presentation: 'fullScreenModal',
+                    gestureEnabled: false,
+                  }}
+                />
+                <Stack.Screen
+                  name="call/[slug]"
+                  options={{
+                    title: t.call.title,
+                    orientation: 'portrait',
+                    presentation: 'fullScreenModal',
+                    headerShown: false,
                     gestureEnabled: false,
                   }}
                 />

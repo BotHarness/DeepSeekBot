@@ -1,3 +1,7 @@
+import {
+  isTakeoverRequestCard,
+  isTakeoverResolution,
+} from '../../../core/src/takeover/contracts.js';
 import { parseFailureAutoContinue, parseFailureProgress } from '../shared/turn-continuation.js';
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
 import { clientLog } from './diagnostic-log.js';
@@ -100,6 +104,10 @@ import {
   isChannelAttachmentRef,
   isChannelClearedAttachment,
 } from '../../../core/src/attachments/ref.js';
+import {
+  isChannelMessageVoice,
+  type ChannelMessageVoice,
+} from '../../../core/src/channels/voice.js';
 import type { UsageFilter, UsageQueryResult } from '../../../core/src/usage/query.js';
 export type { UsageFilter, UsageQueryResult } from '../../../core/src/usage/query.js';
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
@@ -1246,7 +1254,30 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       typeof stop['humanName'] !== 'string'
     )
       return undefined;
-    turnStop = { botName: stop['botName'], humanName: stop['humanName'] };
+    const target = asRecord(stop['target']);
+    turnStop = {
+      botName: stop['botName'],
+      humanName: stop['humanName'],
+      ...(target?.['scope'] === 'bot'
+        ? { target: { scope: 'bot' as const } }
+        : target?.['scope'] === 'session' &&
+            (target['role'] === 'orchestrator' || target['role'] === 'assignment')
+          ? {
+              target: {
+                scope: 'session' as const,
+                role: target['role'],
+                ...(typeof target['title'] === 'string' && target['title'] !== ''
+                  ? { title: target['title'] }
+                  : {}),
+              },
+            }
+          : {}),
+      ...(stop['held'] === true ? { held: true } : {}),
+      ...(stop['cause'] === 'failures' || stop['cause'] === 'human-stop'
+        ? { cause: stop['cause'] }
+        : {}),
+      ...(typeof stop['failures'] === 'number' ? { failures: stop['failures'] } : {}),
+    };
   } else if (author.kind === 'system' && asRecord(record['onboardingWelcome'])?.['version'] !== 1) {
     return undefined;
   }
@@ -1721,7 +1752,16 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
       : { privateInputRequest: parsePrivateInputCard(record['privateInputRequest']) }),
     ...(userQuestionRequest === undefined ? {} : { userQuestionRequest }),
     ...(userQuestionResolution === undefined ? {} : { userQuestionResolution }),
+    ...(isTakeoverRequestCard(record['takeoverRequest']) && author.kind === 'bot'
+      ? { takeoverRequest: record['takeoverRequest'] }
+      : {}),
+    ...(isTakeoverResolution(record['takeoverResolution'])
+      ? { takeoverResolution: record['takeoverResolution'] }
+      : {}),
     ...(attachments === undefined ? {} : { attachments: attachments as ChannelAttachmentRef[] }),
+    ...(author.kind === 'bot' && parseMessageVoice(record['voice']) !== undefined
+      ? { voice: parseMessageVoice(record['voice'])! }
+      : {}),
     ...(Array.isArray(record['clearedAttachments']) &&
     record['clearedAttachments'].length <= 10 &&
     record['clearedAttachments'].every(isChannelClearedAttachment)
@@ -1734,6 +1774,10 @@ export function parseChannelMessage(value: unknown): ChannelMessage | undefined 
     ...(replyToPreview === undefined ? {} : { replyToPreview }),
     ...(perf === undefined ? {} : { perf }),
   };
+}
+
+export function parseMessageVoice(value: unknown): ChannelMessageVoice | undefined {
+  return isChannelMessageVoice(value) ? value : undefined;
 }
 
 export function parseReactions(value: unknown): ChannelReaction[] | undefined {
@@ -4176,14 +4220,20 @@ export async function revokeToolApprovalRule(
     throw new Error('invalid toolApprovalRuleRevoke response');
 }
 
+export type ToolApprovalStatus = 'pending' | 'expired' | 'stopped';
+
+function isToolApprovalStatus(value: unknown): value is ToolApprovalStatus {
+  return value === 'pending' || value === 'expired' || value === 'stopped';
+}
+
 export async function loadToolApprovalStatus(
   call: BridgeCall,
   channelId: string,
   messageId: string,
-): Promise<'pending' | 'expired'> {
+): Promise<ToolApprovalStatus> {
   const response = asRecord(await unwrap(call, 'toolApprovalStatus', { channelId, messageId }));
   const status = response?.['status'];
-  if (status !== 'pending' && status !== 'expired') {
+  if (!isToolApprovalStatus(status)) {
     throw new Error('invalid toolApprovalStatus response');
   }
   return status;
@@ -4193,10 +4243,10 @@ export async function loadToolApprovalState(
   call: BridgeCall,
   channelId: string,
   messageId: string,
-): Promise<{ status: 'pending' | 'expired'; expiresAt?: string }> {
+): Promise<{ status: ToolApprovalStatus; expiresAt?: string }> {
   const response = asRecord(await unwrap(call, 'toolApprovalStatus', { channelId, messageId }));
   const status = response?.['status'];
-  if (status !== 'pending' && status !== 'expired') {
+  if (!isToolApprovalStatus(status)) {
     throw new Error('invalid toolApprovalStatus response');
   }
   const expiresAt = response?.['expiresAt'];
@@ -4288,6 +4338,25 @@ export function privateInputAccepted(value: unknown): void {
       : 'Private input was not accepted',
     typeof reason === 'string' ? { reason } : undefined,
   );
+}
+
+export async function settleTakeover(
+  call: BridgeCall,
+  channelId: string,
+  messageId: string,
+  outcome: 'done' | 'failed' | 'cancelled',
+): Promise<'done' | 'failed' | 'cancelled' | 'expired' | undefined> {
+  const value = await unwrap(
+    call,
+    outcome === 'cancelled' ? 'takeoverCancel' : 'takeoverComplete',
+    outcome === 'cancelled'
+      ? { channelId, messageId, surface: 'web' }
+      : { channelId, messageId, outcome, surface: 'web' },
+  );
+  const status = (value as { takeover?: { status?: unknown } } | undefined)?.takeover?.status;
+  return status === 'done' || status === 'failed' || status === 'cancelled' || status === 'expired'
+    ? status
+    : undefined;
 }
 
 export async function cancelPrivateInput(
@@ -4643,6 +4712,7 @@ export function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
       item['kind'] !== 'pairing-request' &&
       item['kind'] !== 'user-question' &&
       item['kind'] !== 'private-input' &&
+      item['kind'] !== 'takeover-request' &&
       item['kind'] !== 'tool-approval' &&
       item['kind'] !== 'auto-rejection' &&
       item['kind'] !== 'workspace-grant-request' &&
@@ -4704,7 +4774,7 @@ export function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
         return undefined;
     }
     if (
-      item['kind'] === 'private-input' &&
+      (item['kind'] === 'private-input' || item['kind'] === 'takeover-request') &&
       (item['category'] !== 'action' ||
         typeof item['messageId'] !== 'string' ||
         typeof item['sourceEventId'] !== 'string')
@@ -4948,6 +5018,57 @@ export async function setSessionArchived(
 ): Promise<boolean> {
   const value = asRecord(await unwrap(call, 'sessionArchiveSet', { slug, sessionId, archived }));
   return value?.['archived'] === true;
+}
+
+export interface StoppedSessionRef {
+  botSlug: string;
+  sessionId: string;
+  role: 'orchestrator' | 'assignment';
+}
+
+export interface SessionStopResult {
+  stopped: StoppedSessionRef[];
+  alreadyIdle: StoppedSessionRef[];
+  messageId?: string;
+}
+
+function parseSessionStopResult(value: unknown): SessionStopResult {
+  const record = asRecord(value);
+  const refs = (key: string): StoppedSessionRef[] => {
+    const list = record?.[key];
+    return Array.isArray(list) ? (list as StoppedSessionRef[]) : [];
+  };
+  const messageId = record?.['messageId'];
+  return {
+    stopped: refs('stopped'),
+    alreadyIdle: refs('alreadyIdle'),
+    ...(typeof messageId === 'string' ? { messageId } : {}),
+  };
+}
+
+export async function stopSession(
+  call: BridgeCall,
+  botSlug: string,
+  session: string | { activityId: string },
+  channelId?: string,
+): Promise<SessionStopResult> {
+  return parseSessionStopResult(
+    await unwrap(call, 'sessionStop', {
+      botSlug,
+      ...(typeof session === 'string' ? { sessionId: session } : session),
+      ...(channelId === undefined ? {} : { channelId }),
+    }),
+  );
+}
+
+export async function stopBot(
+  call: BridgeCall,
+  botSlug: string,
+  channelId?: string,
+): Promise<SessionStopResult> {
+  return parseSessionStopResult(
+    await unwrap(call, 'botStop', { botSlug, ...(channelId === undefined ? {} : { channelId }) }),
+  );
 }
 
 export async function moveMemoryLocation(

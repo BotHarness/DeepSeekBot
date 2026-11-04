@@ -7,6 +7,7 @@ type PanEvent = { translationX: number };
 type Pan = {
   enabled: boolean;
   activeX: unknown;
+  failX: unknown;
   start(): void;
   update(event: PanEvent): void;
   end(event: PanEvent): void;
@@ -27,6 +28,7 @@ vi.mock('react-native-gesture-handler', async () => {
         const pan: Pan = {
           enabled: true,
           activeX: undefined,
+          failX: undefined,
           start: () => undefined,
           update: () => undefined,
           end: () => undefined,
@@ -36,6 +38,7 @@ vi.mock('react-native-gesture-handler', async () => {
         const builder = {
           enabled: (value: boolean) => ((pan.enabled = value), builder),
           activeOffsetX: (value: unknown) => ((pan.activeX = value), builder),
+          failOffsetX: (value: unknown) => ((pan.failX = value), builder),
           failOffsetY: () => builder,
           onStart: (run: Pan['start']) => ((pan.start = run), builder),
           onUpdate: (run: Pan['update']) => ((pan.update = run), builder),
@@ -52,13 +55,14 @@ vi.mock('react-native-gesture-handler', async () => {
 
 const { ReplySwipe } = await import('../src/ui/chat/reply-swipe');
 const { ReplyBar } = await import('../src/ui/chat/reply-bar');
-const { replyTravel, repliesAt } = await import('../src/ui/chat/reply-swipe-model');
+const { horizontalSwipeOwner, replyTravel, repliesAt } =
+  await import('../src/ui/chat/reply-swipe-model');
 const { swipeReply } = await import('../src/ui/design/tokens');
 const { t } = await import('../src/ui/strings');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-describe('swipe right to reply', () => {
+describe('swipe left to reply', () => {
   let root: Root;
   let container: HTMLDivElement;
 
@@ -82,7 +86,7 @@ describe('swipe right to reply', () => {
     expect(repliesAt(swipeReply.commit)).toBe(true);
   });
 
-  it('starts only rightward, ticks once at the threshold and replies on release', async () => {
+  it('starts only leftward, leaves a swipe right to Back, ticks once and replies on release', async () => {
     const onReply = vi.fn();
     await act(async () =>
       root.render(
@@ -92,20 +96,40 @@ describe('swipe right to reply', () => {
       ),
     );
     const pan = state.pans.at(-1)!;
-    expect(pan.activeX).toBe(swipeReply.start);
+    expect(pan.activeX).toBe(-swipeReply.start);
+    expect(pan.failX).toBe(swipeReply.backFail);
     expect(container.textContent).toContain('bubble');
     pan.start();
-    pan.update({ translationX: swipeReply.commit / 2 });
+    pan.update({ translationX: -swipeReply.commit / 2 });
     expect(state.haptics).toEqual([]);
-    pan.update({ translationX: swipeReply.commit });
-    pan.update({ translationX: swipeReply.commit + 20 });
+    pan.update({ translationX: -swipeReply.commit });
+    pan.update({ translationX: -swipeReply.commit - 20 });
     expect(state.haptics).toEqual(['selection']);
-    pan.end({ translationX: swipeReply.commit + 20 });
+    pan.end({ translationX: -swipeReply.commit - 20 });
     pan.finalize();
     expect(onReply).toHaveBeenCalledTimes(1);
   });
 
-  it('does nothing when let go before the threshold or when off', async () => {
+  it('marks the row as owning its swipe left so the profile swipe skips it', async () => {
+    await act(async () =>
+      root.render(
+        <ReplySwipe enabled onReply={() => undefined}>
+          <span>bubble</span>
+        </ReplySwipe>,
+      ),
+    );
+    expect(container.querySelector(`[data-native-id="${horizontalSwipeOwner}"]`)).not.toBeNull();
+    await act(async () =>
+      root.render(
+        <ReplySwipe enabled={false} onReply={() => undefined}>
+          <span>bubble</span>
+        </ReplySwipe>,
+      ),
+    );
+    expect(container.querySelector('[data-native-id]')).toBeNull();
+  });
+
+  it('does nothing when let go before the threshold, swiped right or when off', async () => {
     const onReply = vi.fn();
     await act(async () =>
       root.render(
@@ -117,8 +141,11 @@ describe('swipe right to reply', () => {
     const pan = state.pans.at(-1)!;
     expect(pan.enabled).toBe(false);
     pan.start();
-    pan.update({ translationX: swipeReply.commit - 10 });
-    pan.end({ translationX: swipeReply.commit - 10 });
+    pan.update({ translationX: -(swipeReply.commit - 10) });
+    pan.end({ translationX: -(swipeReply.commit - 10) });
+    pan.start();
+    pan.update({ translationX: swipeReply.commit + 20 });
+    pan.end({ translationX: swipeReply.commit + 20 });
     expect(onReply).not.toHaveBeenCalled();
   });
 

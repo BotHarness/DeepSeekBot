@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LiveRefused, openLiveFrames, parseLiveFrame } from '../src/channels/live-frames.js';
 import type { AssistantStreamFrame } from '@deepseek-ai/dsh-agent';
 import { ChannelDraftTracker } from '../src/channels/draft.js';
@@ -108,6 +108,60 @@ describe('live frames on the native stream carrier', () => {
     expect((await ended).done).toBe(true);
   });
 
+  it('sends roster previews without deliveries, receipts or reactions', async () => {
+    const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }));
+    hubs.push(hub);
+    const abort = new AbortController();
+    const frames = hub.followRoster(abort.signal)[Symbol.asyncIterator]();
+    await frames.next();
+    hub.publishCommitted({
+      channelId: 'a',
+      revision: 1,
+      message: {
+        id: 'm',
+        at: '2026-11-04T00:00:00Z',
+        author: { kind: 'human' },
+        body: 'Hi',
+        deliveries: [{ botSlug: 'ada', state: 'read' }] as never,
+        humanReceipts: [] as never,
+        reactions: [{ emoji: '👍', count: 1 }] as never,
+      },
+    });
+    const frame = (await frames.next()).value as { message: Record<string, unknown> };
+    expect(frame.message).toMatchObject({ id: 'm', body: 'Hi' });
+    expect(Object.keys(frame.message)).not.toEqual(expect.arrayContaining(['deliveries']));
+    expect(frame.message).not.toHaveProperty('humanReceipts');
+    expect(frame.message).not.toHaveProperty('reactions');
+    abort.abort();
+  });
+
+  it('carries a Bot reply as a roster preview without a full roster refresh', async () => {
+    const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }));
+    hubs.push(hub);
+    const abort = new AbortController();
+    const frames = hub.followRoster(abort.signal)[Symbol.asyncIterator]();
+    await frames.next();
+    const reply = {
+      id: 'bot',
+      at: '2026-10-18T00:00:00Z',
+      author: { kind: 'bot' as const, slug: 'ada' },
+      body: 'Done',
+    };
+    hub.publishCommitted({ channelId: 'a', revision: 1, message: reply });
+    hub.publishCommitted({
+      channelId: 'a',
+      revision: 2,
+      message: { ...reply, id: 'bot-2', body: 'Done again' },
+    });
+    expect((await frames.next()).value).toEqual({
+      type: 'latest',
+      channelId: 'a',
+      message: { ...reply, id: 'bot-2', body: 'Done again' },
+    });
+    abort.abort();
+    expect((await frames.next()).done).toBe(true);
+  });
+
   it('retains a canonical roster refresh when a slow reader coalesces a Bot reply into a Human preview', async () => {
     const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }));
     hubs.push(hub);
@@ -188,6 +242,40 @@ describe('live frames on the native stream carrier', () => {
     const frame = (await frames.next()).value;
     expect(frame.event).toBe('roster/latest');
     expect(JSON.parse(frame.data)).toEqual({ channelId: 'c1', message });
+    abort.abort();
+  });
+
+  it('builds one Activity snapshot per change for every follower and skips unchanged ones', async () => {
+    let revision = 0;
+    const listeners = new Set<(change?: unknown) => void>();
+    const snapshot = vi.fn(() => ({ generation: 'g', revision, bots: [] }) as never);
+    const hub = createChannelLiveHub(createChannelStore({ rootDir: root() }), {
+      snapshot,
+      onChange: (listener) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    });
+    hubs.push(hub);
+    const abort = new AbortController();
+    const followers = [0, 1, 2].map(() => hub.followActivity(abort.signal)[Symbol.asyncIterator]());
+    for (const frames of followers) await frames.next();
+    snapshot.mockClear();
+    revision = 1;
+    const change = {};
+    for (const listener of listeners) listener(change);
+    for (const frames of followers)
+      expect((await frames.next()).value).toMatchObject({
+        type: 'changed',
+        snapshot: { revision: 1 },
+      });
+    expect(snapshot).toHaveBeenCalledTimes(1);
+    for (const listener of listeners) listener({});
+    const next = followers.map((frames) => frames.next());
+    revision = 2;
+    for (const listener of listeners) listener({});
+    for (const pending of next)
+      expect((await pending).value).toMatchObject({ type: 'changed', snapshot: { revision: 2 } });
     abort.abort();
   });
 

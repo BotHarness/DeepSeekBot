@@ -1,6 +1,10 @@
+import { isChannelMessageVoice, type ChannelMessageVoice } from './voice.js';
 import { parseToolApprovalActor } from '../workspaces/tool-approval-actor.js';
 import { createHash } from 'node:crypto';
 import { isValidSlug } from '../bots/slug.js';
+import { isChannelTurnStopTarget, type ChannelTurnStopTarget } from './turn-stop.js';
+
+export { isChannelTurnStopTarget, type ChannelTurnStopTarget };
 
 import {
   isChannelAttachmentRef,
@@ -15,6 +19,12 @@ import {
   type PrivateInputCard,
   type PrivateInputResolution,
 } from '../credentials/contracts.js';
+import {
+  isTakeoverRequestCard,
+  isTakeoverResolution,
+  type TakeoverRequestCard,
+  type TakeoverResolution,
+} from '../takeover/contracts.js';
 
 export type ChannelType = 'dm' | 'group';
 
@@ -325,6 +335,10 @@ export interface ChannelTurnStop {
   botName: string;
   humanName: string;
   sessionId: string;
+  held?: true;
+  cause?: 'human-stop' | 'failures';
+  failures?: number;
+  target?: ChannelTurnStopTarget;
 }
 
 export interface ChannelMemberDeparture {
@@ -464,8 +478,12 @@ export interface ChannelMessage {
   userQuestionResolution?: ChannelQuestionResolution;
   privateInputRequest?: PrivateInputCard;
   privateInputResolution?: PrivateInputResolution;
+  takeoverRequest?: TakeoverRequestCard;
+  takeoverResolution?: TakeoverResolution;
   attachments?: ChannelAttachmentRef[];
   clearedAttachments?: ChannelClearedAttachment[];
+  voice?: ChannelMessageVoice;
+  voiceCall?: { callId: string };
   bridgeMedia?: {
     voice?: Pick<import('../messaging/provider.js').MessagingVoice, 'transcript' | 'durationMs'>;
     video?: { attachmentId: string; durationMs?: number; posterAttachmentId?: string };
@@ -500,13 +518,22 @@ export interface ChannelMessage {
   perf?: ChannelMessagePerf;
 }
 
+export { isChannelMessageVoice, type ChannelMessageVoice };
+
 export interface ChannelMessagePerf {
   outputTokens: number;
   elapsedMs: number;
   estimated: boolean;
 }
 
-export const MAX_BOT_HOPS = 32;
+export const DEFAULT_BOT_HOP_LIMIT = 128;
+export const MAX_BOT_HOP_LIMIT = 1000;
+
+export function isBotHopLimit(value: unknown): value is number {
+  return (
+    typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= MAX_BOT_HOP_LIMIT
+  );
+}
 
 export const CHANNEL_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const MAX_CHANNEL_SLUG_LENGTH = 64;
@@ -739,6 +766,17 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       welcome === null ||
       (welcome as { version?: unknown }).version !== 1 ||
       (message['author'] as ChannelMessageAuthor)?.kind !== 'system')
+  )
+    return false;
+  const voiceCall = message['voiceCall'];
+  if (
+    voiceCall !== undefined &&
+    (typeof voiceCall !== 'object' ||
+      voiceCall === null ||
+      Object.keys(voiceCall).join() !== 'callId' ||
+      typeof (voiceCall as { callId?: unknown }).callId !== 'string' ||
+      !/^call-[a-f0-9]{16}$/u.test((voiceCall as { callId: string }).callId) ||
+      (message['author'] as ChannelMessageAuthor)?.kind !== 'human')
   )
     return false;
   const switchTarget = message['memorySwitchTarget'];
@@ -1029,7 +1067,14 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
       stop === null ||
       ['botSlug', 'botName', 'humanName', 'sessionId'].some(
         (key) => typeof stop[key] !== 'string' || stop[key].length === 0,
-      )
+      ) ||
+      (stop['held'] !== undefined && stop['held'] !== true) ||
+      (stop['cause'] !== undefined &&
+        stop['cause'] !== 'human-stop' &&
+        stop['cause'] !== 'failures') ||
+      (stop['failures'] !== undefined &&
+        (typeof stop['failures'] !== 'number' || !Number.isInteger(stop['failures']))) ||
+      (stop['target'] !== undefined && !isChannelTurnStopTarget(stop['target']))
     )
       return false;
   } else if (message['toolAutoApproval'] !== undefined) {
@@ -1060,6 +1105,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
         pause['reason'] !== 'session')
     )
       return false;
+  } else if (message['takeoverResolution'] !== undefined) {
   } else if (
     (message['author'] as ChannelMessageAuthor)?.kind === 'system' &&
     !(
@@ -1125,6 +1171,12 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
     (!Array.isArray(attachments) ||
       attachments.length > 10 ||
       !attachments.every(isChannelAttachmentRef))
+  )
+    return false;
+  if (
+    message['voice'] !== undefined &&
+    (!isChannelMessageVoice(message['voice']) ||
+      !['bot', 'remote-bot'].includes((message['author'] as ChannelMessageAuthor)?.kind))
   )
     return false;
   const cleared = message['clearedAttachments'];
@@ -1251,6 +1303,26 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
           typeof ref === 'string' && /^private:[0-9a-f-]{36}:[a-z][a-z0-9_]{0,47}$/.test(ref),
       )
     )
+      return false;
+  }
+  const takeoverRequest = message['takeoverRequest'];
+  if (
+    takeoverRequest !== undefined &&
+    (!isTakeoverRequestCard(takeoverRequest) ||
+      (message['author'] as ChannelMessageAuthor)?.kind !== 'bot')
+  )
+    return false;
+  const takeoverResolution = message['takeoverResolution'];
+  if (takeoverResolution !== undefined) {
+    if (!isTakeoverResolution(takeoverResolution)) return false;
+    const author = (message['author'] as ChannelMessageAuthor)?.kind;
+    const expected =
+      takeoverResolution.by === 'human'
+        ? 'human'
+        : takeoverResolution.by === 'bot'
+          ? 'bot'
+          : 'system';
+    if (author !== expected || message['replyTo'] !== takeoverResolution.requestMessageId)
       return false;
   }
   const external = message['external'];

@@ -191,6 +191,7 @@ import {
   loadPrivateInputStatus,
   submitPrivateInput,
   cancelPrivateInput,
+  settleTakeover,
   answerUserQuestion,
   type WorkspaceOption,
   type WorkspaceGrantView,
@@ -210,6 +211,8 @@ import {
   type TimelinePageRequest,
   loadSessions,
   setSessionArchived,
+  stopSession,
+  stopBot,
   moveMemoryLocation,
   loadBots,
   loadMemorySnapshot,
@@ -361,6 +364,20 @@ import {
   type SubmissionAttempt,
   type SubmissionSnapshot,
 } from './composer-submission-store.js';
+import {
+  addVoiceProvider,
+  loadVoiceProviders,
+  removeVoiceProvider,
+  setBotVoice,
+  synthesizeVoice,
+  testVoiceProvider,
+  type BotVoiceView,
+  type VoiceProviderAddInput,
+  type VoiceProviderHealthView,
+  type VoiceProvidersView,
+  type VoiceProviderView,
+  type VoiceSynthesisView,
+} from './voice-bridge.js';
 
 const GIT_INSTALL_POLL_MS = 500;
 
@@ -705,6 +722,11 @@ export interface BridgeActions {
   refreshSessions(slug: string): Promise<void>;
   readSessions(slug: string): Promise<OwnedSessionSummary[]>;
   setSessionArchived(slug: string, sessionId: string, archived: boolean): Promise<void>;
+  stopSession(
+    slug: string,
+    session: string | { activityId: string },
+    channelId?: string,
+  ): Promise<void>;
   messageAttachmentTarget(
     channelId: string,
     messageId: string,
@@ -844,9 +866,27 @@ export interface BridgeActions {
   ): Promise<{ templates: ApprovalTemplateView[]; selected: string | null }>;
   setBotApprovalTemplate?(slug: string, template: string | null): Promise<void>;
   approvalReviewerModel?(): Promise<ApprovalReviewerModelView>;
+  voiceProviders?(slug?: string): Promise<VoiceProvidersView>;
+  addVoiceProvider?(input: VoiceProviderAddInput): Promise<VoiceProviderView>;
+  removeVoiceProvider?(id: string): Promise<string[]>;
+  testVoiceProvider?(id: string, voiceId?: string): Promise<VoiceProviderHealthView>;
+  synthesizeVoice?(input: {
+    text: string;
+    slug?: string;
+    providerId?: string;
+    voiceId?: string;
+  }): Promise<VoiceSynthesisView>;
+  setBotVoice?(
+    slug: string,
+    providerId: string | null,
+    voiceId?: string,
+  ): Promise<BotVoiceView | null>;
   setApprovalReviewerModel?(model: ModelRouteView | null): Promise<ApprovalReviewerModelView>;
   revokeToolApprovalRule(slug: string, id: string): Promise<void>;
-  toolApprovalStatus(channelId: string, messageId: string): Promise<'pending' | 'expired'>;
+  toolApprovalStatus(
+    channelId: string,
+    messageId: string,
+  ): Promise<import('./bridge.js').ToolApprovalStatus>;
   privateInputStatus?(
     channelId: string,
     messageId: string,
@@ -857,6 +897,11 @@ export interface BridgeActions {
     values: Record<string, string>,
   ): Promise<void>;
   privateInputCancel?(channelId: string, messageId: string): Promise<void>;
+  settleTakeover?(
+    channelId: string,
+    messageId: string,
+    outcome: 'done' | 'failed' | 'cancelled',
+  ): Promise<'done' | 'failed' | 'cancelled' | 'expired' | undefined>;
   privateAccountStatus?(
     channelId: string,
     messageId: string,
@@ -872,7 +917,7 @@ export interface BridgeActions {
   toolApprovalState?(
     channelId: string,
     messageId: string,
-  ): Promise<{ status: 'pending' | 'expired'; expiresAt?: string }>;
+  ): Promise<{ status: import('./bridge.js').ToolApprovalStatus; expiresAt?: string }>;
   toolApprovalExecutionState?(
     channelId: string,
     messageId: string,
@@ -1439,7 +1484,6 @@ export function createActions(
   let humanInboxPageSeq = 0;
   let humanInboxPagesPending = 0;
   let humanInboxScopeVersion = 0;
-  let humanInboxStatusSeq = 0;
   const loadInboxStatus = async (): Promise<
     Partial<
       Pick<
@@ -1459,16 +1503,32 @@ export function createActions(
       ...(channelUnread.status === 'fulfilled' ? { channelUnread: channelUnread.value } : {}),
     };
   };
-  const refreshHumanInboxStatus = async (): Promise<void> => {
-    const requestSeq = ++humanInboxStatusSeq;
+  let humanInboxStatusReading: Promise<void> | undefined;
+  let humanInboxStatusAgain = false;
+  const readHumanInboxStatus = async (): Promise<void> => {
     try {
       const status = await loadInboxStatus();
-      if (requestSeq === humanInboxStatusSeq) clientStore.setHumanInbox(status);
+      if (!humanInboxStatusAgain) clientStore.setHumanInbox(status);
     } catch {
-      if (requestSeq === humanInboxStatusSeq)
-        clientStore.setHumanInbox({ attentionStatus: 'error' });
-      return;
+      if (!humanInboxStatusAgain) clientStore.setHumanInbox({ attentionStatus: 'error' });
     }
+  };
+  const refreshHumanInboxStatus = (): Promise<void> => {
+    if (humanInboxStatusReading !== undefined) {
+      humanInboxStatusAgain = true;
+      return humanInboxStatusReading;
+    }
+    humanInboxStatusReading = (async () => {
+      try {
+        do {
+          humanInboxStatusAgain = false;
+          await readHumanInboxStatus();
+        } while (humanInboxStatusAgain);
+      } finally {
+        humanInboxStatusReading = undefined;
+      }
+    })();
+    return humanInboxStatusReading;
   };
   const loadHumanInboxFor = async (
     category: HumanInboxCategory,
@@ -1702,7 +1762,7 @@ export function createActions(
     channelId: string,
     messageId: string,
     submit: () => Promise<void>,
-    loadStatus: () => Promise<'pending' | 'submitted' | 'answered' | 'expired'>,
+    loadStatus: () => Promise<'pending' | 'submitted' | 'answered' | 'expired' | 'stopped'>,
   ): Promise<void> => {
     let resolved = false;
     try {
@@ -1712,7 +1772,7 @@ export function createActions(
       if (!resolved) {
         try {
           const status = await loadStatus();
-          resolved = status === 'expired' || status === 'answered';
+          resolved = status === 'expired' || status === 'stopped' || status === 'answered';
         } catch {}
       }
       if (resolved)
@@ -1838,17 +1898,13 @@ export function createActions(
       }
     },
     async stopBot(channelId, botSlug) {
-      try {
-        await invoke('channelBotStop', { channelId, botSlug });
-      } catch (error) {
-        if (error instanceof BridgeCallError && error.code === 'not-working') return 'not-working';
-        throw error;
-      }
+      const stopped = await stopBot(call, botSlug, channelId);
+      if (stopped.stopped.length === 0) return 'not-working';
       await actions.refreshChannelMessages(channelId).catch(() => undefined);
       return 'stopped';
     },
     async cancelAutoContinue(channelId, botSlug, requestMessageId) {
-      await invoke('channelBotStop', {
+      await invoke('botStop', {
         channelId,
         botSlug,
         autoContinueFor: requestMessageId,
@@ -1938,6 +1994,12 @@ export function createActions(
     approvalTemplates: (slug) => loadApprovalTemplates(call, slug),
     setBotApprovalTemplate: (slug, template) => setBotApprovalTemplate(call, slug, template),
     approvalReviewerModel: () => loadApprovalReviewerModel(call),
+    voiceProviders: (slug) => loadVoiceProviders(call, slug),
+    addVoiceProvider: (input) => addVoiceProvider(call, input),
+    removeVoiceProvider: (id) => removeVoiceProvider(call, id),
+    testVoiceProvider: (id, voiceId) => testVoiceProvider(call, id, voiceId),
+    synthesizeVoice: (input) => synthesizeVoice(call, input),
+    setBotVoice: (slug, providerId, voiceId) => setBotVoice(call, slug, providerId, voiceId),
     setApprovalReviewerModel: (model) => setApprovalReviewerModel(call, model),
     revokeToolApprovalRule: (slug, id) => revokeToolApprovalRule(call, slug, id),
     toolApprovalStatus: (channelId, messageId) =>
@@ -1947,6 +2009,8 @@ export function createActions(
     privateInputSubmit: (channelId, messageId, values) =>
       submitPrivateInput(call, channelId, messageId, values),
     privateInputCancel: (channelId, messageId) => cancelPrivateInput(call, channelId, messageId),
+    settleTakeover: (channelId, messageId, outcome) =>
+      settleTakeover(call, channelId, messageId, outcome),
     privateAccountStatus: async (channelId, messageId) => {
       const result = await call('privateAccountStatus', {
         channelId,
@@ -2502,9 +2566,7 @@ export function createActions(
         await refreshHumanInboxStatus();
         throw error;
       }
-      const requestSeq = ++humanInboxStatusSeq;
-      const status = await loadInboxStatus();
-      if (requestSeq === humanInboxStatusSeq) clientStore.setHumanInbox(status);
+      await refreshHumanInboxStatus();
       if (humanInboxScope() !== undefined) await actions.refreshHumanInbox();
     },
     async markRead(channelId, messageId) {
@@ -3078,6 +3140,14 @@ export function createActions(
     },
     async setSessionArchived(slug, sessionId, archived) {
       await setSessionArchived(call, slug, sessionId, archived);
+      const selection = currentSelection();
+      if (selection === undefined || selectedBotSlug(selection) !== slug) return;
+      await loadSessionsFor(slug, selection);
+    },
+    async stopSession(slug, session, channelId) {
+      const stopped = await stopSession(call, slug, session, channelId);
+      if (stopped.messageId !== undefined && channelId !== undefined)
+        await actions.refreshChannelMessages(channelId).catch(() => undefined);
       const selection = currentSelection();
       if (selection === undefined || selectedBotSlug(selection) !== slug) return;
       await loadSessionsFor(slug, selection);

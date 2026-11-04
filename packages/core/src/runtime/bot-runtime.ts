@@ -1,4 +1,5 @@
 import { BotNetworkDeliveryError } from './bot-network.js';
+import { BotHopLimitReached } from '../channels/hop-limit.js';
 import { SessionRecoveryError, type SessionRecoveryAction } from './session-recovery.js';
 import { prepareAssignmentReport, type AssignmentReportContent } from './assignment-report.js';
 import {
@@ -96,7 +97,7 @@ import type { MemoryChangeDelta, MemoryChangeScan } from '../memory/accepted.js'
 import type { MemoryService } from '../memory/service.js';
 import {
   isBotDmChannel,
-  MAX_BOT_HOPS,
+  DEFAULT_BOT_HOP_LIMIT,
   dmChannelId,
   type GroupInvitation,
   type GroupJoinRequest,
@@ -110,6 +111,7 @@ import {
   type SessionFailureProgress,
 } from '../channels/channel.js';
 import { ChannelReplyTargetError, MAX_MESSAGE_PAGE } from '../channels/store.js';
+import type { TakeoverResolution } from '../takeover/contracts.js';
 import type { MessagePerfTracker } from '../usage/message-perf.js';
 import { attachmentIdentity, type ChannelAttachmentRef } from '../attachments/ref.js';
 import type { ChannelMessageQueryOptions, ChannelStore } from '../channels/store.js';
@@ -334,6 +336,7 @@ export interface OrchestratorAgentRun {
   acceptNativeInput?: () => boolean;
   setExecutionReady?(ready: boolean): void;
   requireContent?(): void;
+  toolsInterrupted?(calls: InterruptedToolCall[]): void;
   sessionId: string;
   resume: boolean;
   bot: PersonaBotRecord;
@@ -449,8 +452,16 @@ export interface OrchestratorAgentRun {
   };
 }
 
+export interface InterruptedToolCall {
+  callId: string;
+  name: string;
+  arguments: string;
+}
+
 export interface AssignmentAgentRun {
   requireContent?(): void;
+  accepted?(): void;
+  toolsInterrupted?(calls: InterruptedToolCall[]): void;
   sessionId: string;
   bot: PersonaBotRecord;
   text: string;
@@ -597,6 +608,11 @@ export interface OrchestratorChannelAccess {
     left: boolean;
   };
   react?(input: BotReactionInput & { channelId?: string }): BotReactionResult;
+  attachVoice?(input: {
+    channelId: string;
+    messageId: string;
+    signal?: AbortSignal;
+  }): Promise<import('../voice/messages.js').VoiceAttachOutcome>;
   sendToBot(input: {
     botSlug: string;
     body: string;
@@ -695,6 +711,7 @@ export interface BotAgentAdapter {
   requestAssignment(run: AssignmentAgentRun): AssignmentRequestDelivery;
   stopAssignment?(sessionId: string): Promise<void>;
   stopBot?(botSlug: string, sessionIds: string[]): Promise<void>;
+  abandonSession?(sessionId: string): Promise<void>;
   releaseSession?(sessionId: string): Promise<void>;
   directTools?(): DirectBotToolSpec[];
   runDirectTool?(
@@ -846,10 +863,13 @@ export interface BotRuntime {
   resumePendingDigests?(botSlug: string): void;
 
   stopBot?(botSlug: string): Promise<void>;
+  stopSession?(botSlug: string, sessionId: string): Promise<SessionStopOutcome>;
+  stopAllSessions?(botSlug: string): Promise<BotStopOutcome>;
   stopTurn?(
     botSlug: string,
     scope?: { autoContinueFor: string; channelId: string },
   ): Promise<{ sessionId: string } | undefined>;
+  heldCause?(botSlug: string): BotHoldCause | undefined;
   endGroup?(channelId: string): Promise<void>;
   whenIdle(): Promise<void>;
   close(): Promise<void>;
@@ -858,6 +878,8 @@ export interface BotRuntime {
 export interface BotRuntimeOptions {
   readTurnProgress?: (sessionId: string) => Promise<SessionFailureProgress | undefined>;
   autoContinueDelaysMs?: readonly number[];
+  stopSettleTimeoutMs?: number;
+  closeSessionApprovals?: (sessionIds: readonly string[]) => void;
   botNetwork?: import('./bot-network.js').BotNetworkPort;
   onTobDelegation?: () => void;
   promptText?: (botSlug: string) => PromptText;
@@ -886,6 +908,7 @@ export interface BotRuntimeOptions {
       >
     >;
   attachments?: AttachmentStore;
+  voiceMessages?: import('../voice/messages.js').VoiceMessages;
 
   ownership?: SessionOwnership;
 
@@ -912,6 +935,8 @@ export interface BotRuntimeOptions {
   sessionArchived?: (sessionId: string) => boolean;
 
   assignmentConcurrencyLimit?: number | (() => number);
+
+  botHopLimit?: () => number;
 
   sessionArchive?: () => NativeSessionArchive | undefined;
 
@@ -1301,6 +1326,34 @@ function coalesceInbox(rows: InboxReportRow[]): InboxUnit[] {
   return [...units.values()];
 }
 
+const TAKEOVER_OUTCOME_GUIDANCE: Record<TakeoverResolution['outcome'], string> = {
+  done: 'The Human says they finished. Their result is not verified: observe again first (take a fresh Computer screenshot or call browser_observe), confirm the step really succeeded, then continue the original task and tell the Human the result in this Channel.',
+  failed:
+    'The Human could not finish. Observe the current state, then either try another way, ask the Human briefly what blocked them, or report that the task cannot continue.',
+  cancelled:
+    'The Human cancelled the request; they no longer need it. Do not request a takeover again unless they ask. Reply briefly only if that helps.',
+  expired:
+    'Nobody finished the request before it expired. Observe the current state; if the step is still blocked, tell the Human briefly instead of requesting again right away.',
+};
+
+function takeoverResolutionPrompt(
+  sourceEventId: string,
+  channelId: string,
+  resolution: TakeoverResolution,
+  request: ChannelMessage | undefined,
+): string {
+  const card = request?.takeoverRequest;
+  const facts = {
+    id: resolution.requestMessageId,
+    target: card?.target ?? 'unknown',
+    title: card?.title ?? 'unknown',
+    request: request?.body ?? '',
+    outcome: resolution.outcome,
+    by: resolution.by,
+  };
+  return `[Bot Inbox: Takeover Handoff ended]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nHandoff: ${JSON.stringify(facts)}\n${TAKEOVER_OUTCOME_GUIDANCE[resolution.outcome]} Credentials the Human typed stay in the live view; never ask for them in chat.`;
+}
+
 function renderInbox(units: InboxUnit[], text: PromptText = DEFAULT_PROMPT_TEXT): string {
   const lines = units.map((unit) => {
     if (unit.external !== undefined) {
@@ -1408,6 +1461,40 @@ const TRANSIENT_FAILURE_CODES = new Set([
   'EMPTY_RESPONSE',
 ]);
 const AUTO_CONTINUE_DELAYS_MS: readonly number[] = [60_000, 180_000];
+const FAILURE_HOLD_THRESHOLD = 3;
+
+export type BotHoldCause = 'human-stop' | 'failures';
+
+export interface StoppedSessionRef {
+  botSlug: string;
+  sessionId: string;
+  role: 'orchestrator' | 'assignment';
+}
+
+export interface BotStopOutcome {
+  stopped: StoppedSessionRef[];
+  alreadyIdle: StoppedSessionRef[];
+}
+
+export type SessionStopOutcome =
+  | ({ outcome: 'settled' } & BotStopOutcome)
+  | { outcome: 'refused'; code: 'unknown-session'; message: string };
+
+const STOP_SETTLE_TIMEOUT_MS = 30_000;
+
+const SESSION_STOPPED_REFUSAL =
+  'The Human stopped this Session. This action was not performed; wait for the Human before doing more.';
+
+function interruptedToolsNote(calls: readonly InterruptedToolCall[]): string {
+  const lines = calls.map((call) => {
+    const args = call.arguments.length > 300 ? `${call.arguments.slice(0, 300)}…` : call.arguments;
+    return `- ${call.name} (call ${call.callId}): ${args}`;
+  });
+  return `[Host: the Human stopped this Session while these tool calls were still running. Each is recorded as stopped by the Human with an unknown result: it may or may not have taken effect. Check its effect before you redo any of them, and do not repeat a side effect blindly.\n${lines.join('\n')}]\n\n`;
+}
+
+const HUMAN_SESSION_STOP_NOTICE =
+  'The Human stopped this Assignment. Do not send it another Assignment Request or redispatch this work unless the Human asks you to. Its history is kept: send_assignment_request with this Session id resumes it.';
 
 interface PendingAutoContinue {
   timer: NodeJS.Timeout;
@@ -1450,6 +1537,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #agents: BotAgentAdapter;
   readonly #memory: BotRuntimeOptions['memory'];
   readonly #attachments: AttachmentStore | undefined;
+  readonly #voiceMessages: import('../voice/messages.js').VoiceMessages | undefined;
   readonly #originalAttachments = new OriginalAttachmentAccess();
   readonly #saveReportSpill: BotRuntimeOptions['saveReportSpill'];
   readonly #readAssignmentTail: BotRuntimeOptions['readAssignmentTail'];
@@ -1463,6 +1551,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #createEventId: () => string;
   readonly #createMessageId: () => string;
   readonly #assignmentConcurrencyLimit: () => number;
+  readonly #botHopLimit: () => number;
   readonly #sessionArchive: (() => NativeSessionArchive | undefined) | undefined;
   readonly #approvalCapacity: AssignmentApprovalCapacity;
   readonly #warn: ((message: string) => void) | undefined;
@@ -1473,6 +1562,8 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #preparedOrchestrators = new Set<string>();
   readonly #stoppedTurns = new Set<string>();
   readonly #stopNotices = new Map<string, string>();
+  readonly #held = new Map<string, BotHoldCause>();
+  readonly #failureStreaks = new Map<string, number>();
   readonly #typingTurns = new Map<string, MessagingProcessing>();
   readonly #typingAssignments = new Map<string, MessagingProcessing>();
   readonly #turnSources = new Map<
@@ -1496,6 +1587,10 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #autoContinues = new Map<string, PendingAutoContinue>();
   readonly #readTurnProgress: BotRuntimeOptions['readTurnProgress'];
   readonly #autoContinueDelaysMs: readonly number[];
+  readonly #stopSettleTimeoutMs: number;
+  readonly #closeSessionApprovals: BotRuntimeOptions['closeSessionApprovals'];
+  readonly #interruptedTools = new Map<string, InterruptedToolCall[]>();
+  readonly #pendingDeliveries = new Map<string, string>();
   readonly #triageQueued = new Set<string>();
   readonly #triageRunning = new Map<string, number>();
   readonly #triageBaseline = new Map<string, number>();
@@ -1557,6 +1652,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#agents = options.agents;
     this.#memory = options.memory;
     this.#attachments = options.attachments;
+    this.#voiceMessages = options.voiceMessages;
     this.#saveReportSpill = options.saveReportSpill;
     this.#readAssignmentTail = options.readAssignmentTail;
     this.#readAssignmentReportPage = options.readAssignmentReportPage;
@@ -1564,6 +1660,8 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#now = options.now ?? (() => new Date());
     this.#readTurnProgress = options.readTurnProgress;
     this.#autoContinueDelaysMs = options.autoContinueDelaysMs ?? AUTO_CONTINUE_DELAYS_MS;
+    this.#stopSettleTimeoutMs = options.stopSettleTimeoutMs ?? STOP_SETTLE_TIMEOUT_MS;
+    this.#closeSessionApprovals = options.closeSessionApprovals;
     this.#promptText = options.promptText ?? (() => DEFAULT_PROMPT_TEXT);
     this.#promptLimits = options.promptLimits ?? (() => DEFAULT_PROMPT_LIMITS);
     this.#createSessionId = options.createSessionId ?? (() => `botharness-${randomUUID()}`);
@@ -1574,6 +1672,7 @@ class BotRuntimeImplementation implements BotRuntime {
       options.assignmentConcurrencyLimit ?? DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT;
     this.#assignmentConcurrencyLimit =
       typeof configuredLimit === 'function' ? configuredLimit : () => configuredLimit;
+    this.#botHopLimit = options.botHopLimit ?? (() => DEFAULT_BOT_HOP_LIMIT);
     this.#sessionArchive = options.sessionArchive;
     this.#warn = options.warn;
     this.#triageContinuation = options.triageContinuation === true;
@@ -1642,7 +1741,7 @@ class BotRuntimeImplementation implements BotRuntime {
     );
     const timer = setTimeout(() => {
       this.#snoozeTimers.delete(botSlug);
-      if (this.#closed) return;
+      if (this.#closed || this.#held.has(botSlug)) return;
       void this.#enqueue(botSlug, () => this.#runSnoozeReturnTurn(botSlug))
         .finally(() => this.#armSnooze(botSlug))
         .catch(() => undefined);
@@ -1652,7 +1751,13 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #queueTriage(botSlug: string): void {
-    if (!this.#triageContinuation || this.#closed || this.#triageQueued.has(botSlug)) return;
+    if (
+      !this.#triageContinuation ||
+      this.#closed ||
+      this.#held.has(botSlug) ||
+      this.#triageQueued.has(botSlug)
+    )
+      return;
     this.#triageQueued.add(botSlug);
     void this.#enqueue(botSlug, () => this.#runTriageTurn(botSlug)).catch(() => undefined);
   }
@@ -1660,7 +1765,7 @@ class BotRuntimeImplementation implements BotRuntime {
   async #runTriageTurn(botSlug: string): Promise<void> {
     this.#triageQueued.delete(botSlug);
     const bot = this.#registry.get(botSlug);
-    if (this.#closed || bot === undefined || bot.paused === true) return;
+    if (this.#closed || bot === undefined || bot.paused === true || this.#held.has(botSlug)) return;
     const ids = this.#inboxTriage.openIds(botSlug);
     const baseline = this.#triageBaseline.get(botSlug);
     this.#triageBaseline.delete(botSlug);
@@ -1701,8 +1806,10 @@ class BotRuntimeImplementation implements BotRuntime {
         [],
         [],
       );
+      this.#failureStreaks.delete(botSlug);
     } catch (error) {
       this.#triageBaseline.delete(botSlug);
+      await this.#noteAutomaticFailure(botSlug, channelId, error);
       this.#warn?.(
         JSON.stringify({
           component: 'bot-runtime',
@@ -1717,7 +1824,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   async #runSnoozeReturnTurn(botSlug: string): Promise<void> {
-    if (this.#closed) return;
+    if (this.#closed || this.#held.has(botSlug)) return;
     const bot = this.#registry.get(botSlug);
     if (bot === undefined || bot.paused === true) return;
     const timestamp = this.#now().toISOString();
@@ -1778,7 +1885,9 @@ class BotRuntimeImplementation implements BotRuntime {
         [],
         [],
       );
+      this.#failureStreaks.delete(botSlug);
     } catch (error) {
+      await this.#noteAutomaticFailure(botSlug, channelId, error);
       const retryAt = new Date(this.#now().getTime() + 300_000).toISOString();
       this.#database.transaction(
         (database) => {
@@ -2046,6 +2155,7 @@ class BotRuntimeImplementation implements BotRuntime {
         'Wait for the current reply or stop the Bot first',
       );
     this.#cancelAutoContinue(botSlug);
+    this.#release(botSlug);
     if (continuing) {
       const settled = this.#continueDmTurn(botSlug, input.channelId, messageId, {
         kind: 'failure',
@@ -2157,6 +2267,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (body.trim().length === 0) return { admitted: false, reason: 'blank-body' };
     if (this.#autoContinues.get(bot.slug)?.messageId !== input.messageId)
       this.#cancelAutoContinue(bot.slug);
+    this.#release(bot.slug);
 
     const timestamp = this.#now().toISOString();
     const claim = this.#claimSourceEvent(
@@ -2194,6 +2305,12 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   admitGroupMessage(channelId: string, messageId: string): void {
+    const channel = this.#channels.get(channelId);
+    if (
+      channel?.type === 'group' &&
+      this.#channels.message(channelId, messageId)?.author.kind === 'human'
+    )
+      for (const slug of channel.members) this.#release(slug);
     this.#admitChannelMessage(channelId, messageId, 'group-mention');
     this.#admitChannelMessage(channelId, messageId, 'group-ordinary');
   }
@@ -2272,6 +2389,7 @@ class BotRuntimeImplementation implements BotRuntime {
           message_id: string | null;
         }
       | undefined;
+    if (row?.reason === 'human-dm' || row?.reason === 'group-mention') this.#release(botSlug);
     if (
       row?.reason === 'group-ordinary' &&
       this.#externalMessaging.inbound.read(botSlug, sourceEventId).receptionPaths
@@ -2723,9 +2841,17 @@ class BotRuntimeImplementation implements BotRuntime {
         .get(sourceEventId),
     ) as { body: string } | undefined;
     if (source === undefined) return false;
+    const steered = this.#channels.message(channelId, messageId);
     const mentionPrompt =
-      `Source Event ID: ${sourceEventId}\n` +
-      this.#groupMentionPrompt(botSlug, channelId, messageId, source.body);
+      steered?.takeoverResolution !== undefined
+        ? takeoverResolutionPrompt(
+            sourceEventId,
+            channelId,
+            steered.takeoverResolution,
+            this.#channels.message(channelId, steered.takeoverResolution.requestMessageId),
+          )
+        : `Source Event ID: ${sourceEventId}\n` +
+          this.#groupMentionPrompt(botSlug, channelId, messageId, source.body);
     const claimed = this.#database.transaction(
       (database) => {
         const mention =
@@ -2950,7 +3076,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #scheduleDigest(botSlug: string, channelId: string): void {
-    if (this.#closed) return;
+    if (this.#closed || this.#held.has(botSlug)) return;
     const key = `${botSlug}:${channelId}`;
     const channel = this.#channels.get(channelId);
     const bot = this.#registry.get(botSlug);
@@ -3045,7 +3171,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #scheduleHarvest(botSlug: string): void {
-    if (this.#closed) return;
+    if (this.#closed || this.#held.has(botSlug)) return;
     const bot = this.#registry.get(botSlug);
     if (bot === undefined || bot.paused === true) return;
     if (this.#pendingHarvests.has(botSlug)) return;
@@ -3060,7 +3186,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #checkHarvestReadiness(botSlug: string): void {
-    if (this.#closed) return;
+    if (this.#closed || this.#held.has(botSlug)) return;
     const bot = this.#registry.get(botSlug);
     if (bot === undefined || bot.paused === true) return;
     const immediate = this.#database.read((database) =>
@@ -3162,7 +3288,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   async #runHarvestTurn(botSlug: string): Promise<void> {
-    if (this.#closed) return;
+    if (this.#closed || this.#held.has(botSlug)) return;
     await this.#retireWithdrawnNetworkAdmissions(botSlug);
     if (this.#closed) return;
     const bot = this.#registry.get(botSlug);
@@ -3278,6 +3404,7 @@ class BotRuntimeImplementation implements BotRuntime {
       });
       this.#markReportsHandled(collected.eventIds, botSlug, ran.sessionId);
       this.#settleHarvestHandled(botSlug, includedIds);
+      this.#failureStreaks.delete(botSlug);
       for (const digest of claimed.digests) {
         this.#digestRetryAt.delete(`${botSlug}:${digest.channelId}`);
         this.#digestFailureCount.delete(`${botSlug}:${digest.channelId}`);
@@ -3346,6 +3473,7 @@ class BotRuntimeImplementation implements BotRuntime {
           );
         }
       }
+      await this.#noteAutomaticFailure(botSlug, primaryChannelId, error);
       throw error;
     } finally {
       for (const item of claimed.items)
@@ -3827,6 +3955,13 @@ class BotRuntimeImplementation implements BotRuntime {
       (message?.author.kind === 'bot' || message?.author.kind === 'remote-bot')
     )
       return `[Bot Inbox: direct message from PersonaBot ${message.author.slug}${message.author.kind === 'remote-bot' ? ` on Host ${message.author.hostId}` : ''}]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${body}\n${this.#promptText(botSlug)('bot-dm-hint')}`;
+    if (message?.takeoverResolution !== undefined)
+      return takeoverResolutionPrompt(
+        sourceEventId,
+        channelId,
+        message.takeoverResolution,
+        this.#channels.message(channelId, message.takeoverResolution.requestMessageId),
+      );
     if (message?.author.kind === 'human' && message.toolAutoApprovalOverride !== undefined) {
       const target = message.toolAutoApprovalOverride;
       const input =
@@ -3856,6 +3991,10 @@ class BotRuntimeImplementation implements BotRuntime {
     const parts = [
       `[Human DM]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${text}`,
     ];
+    if (message.voiceCall !== undefined)
+      parts.push(
+        `[Voice call ${message.voiceCall.callId}] ${this.#promptText(botSlug)('voice-call-hint')}`,
+      );
     if (message.assignmentReply !== undefined)
       parts.push(
         `[Human response to Assignment Session ${message.assignmentReply.sessionId}, report Source Event ${message.assignmentReply.sourceEventId}]\nUse assignment inspection and send_assignment_request to relay this response to the addressed Assignment. This DM is Human input; it does not itself resume the Assignment or clear its open ask.`,
@@ -4199,6 +4338,9 @@ class BotRuntimeImplementation implements BotRuntime {
       return undefined;
     };
     const available = () => unavailable() === undefined;
+    const fatal = (reason: NativeOrchestratorRefusal | undefined) =>
+      reason === 'runtime-closed' || reason === 'aborted';
+    const admissible = () => !fatal(unavailable());
     const refuse = (reason: NativeOrchestratorRefusal): false => {
       this.#warn?.(
         JSON.stringify({
@@ -4213,9 +4355,24 @@ class BotRuntimeImplementation implements BotRuntime {
       );
       return false;
     };
+    const admitUnavailable = (reason: NativeOrchestratorRefusal): void =>
+      this.#warn?.(
+        JSON.stringify({
+          event: 'native-orchestrator-input',
+          phase: 'admitted-unavailable',
+          reason,
+          bot: owner.botSlug,
+          session: sessionId,
+          senders: senderSessionIds.length,
+        }),
+      );
     const refusal = unavailable();
+    if (this.#preparedOrchestrators.has(sessionId)) {
+      if (refusal === 'runtime-closed' || refusal === 'aborted') return refuse(refusal);
+      if (refusal !== undefined) admitUnavailable(refusal);
+      return true;
+    }
     if (refusal !== undefined) return refuse(refusal);
-    if (this.#preparedOrchestrators.has(sessionId)) return true;
     if (!senderSessionIds.length) return refuse('no-native-sender');
     if (
       !senderSessionIds.every((id) => {
@@ -4237,7 +4394,10 @@ class BotRuntimeImplementation implements BotRuntime {
         cancellation.removeEventListener('abort', abort);
         if (this.#nativeStepReady.get(sessionId) === finish)
           this.#nativeStepReady.delete(sessionId);
-        const reason = unavailable() ?? (accepted ? undefined : 'run-not-ready');
+        const refusal = unavailable();
+        const stop = fatal(refusal);
+        if (accepted && refusal !== undefined && !stop) admitUnavailable(refusal);
+        const reason = accepted && !stop ? undefined : (refusal ?? 'run-not-ready');
         if (reason !== undefined) refuse(reason);
         resolve(reason === undefined);
       };
@@ -4257,11 +4417,11 @@ class BotRuntimeImplementation implements BotRuntime {
           [],
           false,
           () => {
-            if (!available()) throw new Error('Native Orchestrator is unavailable');
+            if (!admissible()) throw new Error('Native Orchestrator is unavailable');
           },
           [],
           [],
-          available,
+          admissible,
         );
       }).then(
         () => finish(false),
@@ -4867,6 +5027,53 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#pendingHarvests.delete(botSlug);
   }
 
+  async stopSession(botSlug: string, sessionId: string): Promise<SessionStopOutcome> {
+    const bot = this.#registry.get(botSlug);
+    const row = this.#assignmentRow(botSlug, sessionId);
+    if (bot === undefined || row === undefined) {
+      const owned =
+        bot !== undefined &&
+        this.#ownership
+          .rootsFor(botSlug, 'orchestrator')
+          .some((root) => root.sessionId === sessionId);
+      if (!owned || bot === undefined)
+        return {
+          outcome: 'refused',
+          code: 'unknown-session',
+          message: `${sessionId} is not a Session of ${botSlug}`,
+        };
+      const ref: StoppedSessionRef = { botSlug, sessionId, role: 'orchestrator' };
+      const current = this.currentOrchestratorSessionId(botSlug);
+      const stopped =
+        (current === undefined || current === sessionId) &&
+        (await this.#humanStopOrchestrator(
+          bot,
+          `[Host: the Human stopped your previous turn at ${this.#now().toISOString()} before it finished. Only your Orchestrator Session stopped; your Assignment Sessions keep running. Do not resume that work unless they ask again.]\n\n`,
+        )) !== undefined;
+      this.#warn?.(
+        JSON.stringify({
+          component: 'bot-runtime',
+          event: 'session-stop',
+          role: 'orchestrator',
+          botSlug,
+          sessionId,
+          stopped,
+        }),
+      );
+      return stopped
+        ? { outcome: 'settled', stopped: [ref], alreadyIdle: [] }
+        : { outcome: 'settled', stopped: [], alreadyIdle: [ref] };
+    }
+    const ref: StoppedSessionRef = { botSlug, sessionId, role: 'assignment' };
+    if (!this.#assignmentActive(row))
+      return { outcome: 'settled', stopped: [], alreadyIdle: [ref] };
+    await this.#stopAssignment(bot, sessionId, () => undefined, 'human-session-stop');
+    this.#warn?.(
+      JSON.stringify({ component: 'bot-runtime', event: 'session-stop', botSlug, sessionId }),
+    );
+    return { outcome: 'settled', stopped: [ref], alreadyIdle: [] };
+  }
+
   async stopTurn(
     botSlug: string,
     scope?: { autoContinueFor: string; channelId: string },
@@ -4882,10 +5089,188 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#cancelAutoContinue(botSlug);
       return { sessionId: pending.sessionId };
     }
-    return this.#stopTurn(
-      botSlug,
-      `[Host: the Human stopped your previous turn at ${this.#now().toISOString()} before it finished. Do not resume that work unless they ask again.]\n\n`,
+    const outcome = await this.stopAllSessions(botSlug);
+    if (outcome.stopped.length === 0) return undefined;
+    const sessionId =
+      outcome.stopped.find((ref) => ref.role === 'orchestrator')?.sessionId ??
+      this.currentOrchestratorSessionId(botSlug);
+    return sessionId === undefined ? undefined : { sessionId };
+  }
+
+  async stopAllSessions(botSlug: string): Promise<BotStopOutcome> {
+    const bot = this.#registry.get(botSlug);
+    if (bot === undefined) return { stopped: [], alreadyIdle: [] };
+    const orchestratorId = this.currentOrchestratorSessionId(botSlug);
+    const assignmentIds = this.#activeAssignmentIds(botSlug);
+    const turn = await this.#humanStopOrchestrator(
+      bot,
+      `[Host: the Human stopped your previous turn at ${this.#now().toISOString()} before it finished${assignmentIds.length > 0 ? ', together with your running Assignment Sessions' : ''}. Do not resume that work unless they ask again.]\n\n`,
     );
+    const stopped: StoppedSessionRef[] = [];
+    const alreadyIdle: StoppedSessionRef[] = [];
+    const orchestratorSession = turn?.sessionId ?? orchestratorId;
+    if (orchestratorSession !== undefined)
+      (turn !== undefined ? stopped : alreadyIdle).push({
+        botSlug,
+        sessionId: orchestratorSession,
+        role: 'orchestrator',
+      });
+    if (this.#agents.stopAssignment !== undefined)
+      for (const sessionId of assignmentIds) {
+        try {
+          await this.#stopAssignment(bot, sessionId, () => undefined, 'human-session-stop');
+          stopped.push({ botSlug, sessionId, role: 'assignment' });
+        } catch (error) {
+          this.#warn?.(
+            JSON.stringify({
+              component: 'bot-runtime',
+              event: 'human-stop-assignment-failed',
+              botSlug,
+              sessionId,
+              error: String(error).slice(0, 500),
+            }),
+          );
+        }
+      }
+    this.#warn?.(
+      JSON.stringify({
+        component: 'bot-runtime',
+        event: 'human-stop',
+        botSlug,
+        turn: turn !== undefined,
+        assignments: stopped.filter((ref) => ref.role === 'assignment').length,
+      }),
+    );
+    return { stopped, alreadyIdle };
+  }
+
+  async #humanStopOrchestrator(
+    bot: PersonaBotRecord,
+    notice: string,
+  ): Promise<{ sessionId: string } | undefined> {
+    const orchestratorSessionId = this.currentOrchestratorSessionId(bot.slug);
+    if (orchestratorSessionId !== undefined)
+      this.#beginSessionStop(bot.slug, orchestratorSessionId, 'orchestrator');
+    this.groupSendReview.stop(bot.slug);
+    const turn = await this.#stopTurn(bot.slug, notice);
+    if (turn !== undefined) await this.#cancelPendingDeliveries(bot, turn.sessionId);
+    return turn;
+  }
+
+  #assignmentActive(row: { stop_state: string; activity: string; session_id: string }): boolean {
+    return (
+      row.stop_state === 'requested' ||
+      (row.stop_state === 'running' &&
+        (row.activity === 'working' ||
+          this.#assignmentAcceptances.has(row.session_id) ||
+          this.#assignmentRuns.has(row.session_id)))
+    );
+  }
+
+  #activeAssignmentIds(botSlug: string): string[] {
+    return (
+      this.#database.read((database) =>
+        database
+          .prepare(
+            `SELECT session_id, stop_state, activity FROM assignments
+              WHERE bot_slug = ? AND stop_state IN ('running', 'requested')
+              ORDER BY session_id`,
+          )
+          .all(botSlug),
+      ) as unknown as Array<{ session_id: string; stop_state: string; activity: string }>
+    )
+      .filter((row) => this.#assignmentActive(row))
+      .map((row) => row.session_id);
+  }
+
+  heldCause(botSlug: string): BotHoldCause | undefined {
+    return this.#held.get(botSlug);
+  }
+
+  #hold(botSlug: string, cause: BotHoldCause): void {
+    this.#held.set(botSlug, cause);
+    this.#triageQueued.delete(botSlug);
+    for (const [key, timer] of this.#digestTimers)
+      if (key.startsWith(`${botSlug}:`) || key === `external:${botSlug}`) {
+        clearTimeout(timer);
+        this.#digestTimers.delete(key);
+      }
+    const snooze = this.#snoozeTimers.get(botSlug);
+    if (snooze !== undefined) clearTimeout(snooze);
+    this.#snoozeTimers.delete(botSlug);
+    const retry = this.#inboxFactoryRetries.get(botSlug);
+    if (retry?.timer !== undefined) clearTimeout(retry.timer);
+    this.#inboxFactoryRetries.delete(botSlug);
+  }
+
+  #release(botSlug: string): void {
+    this.#failureStreaks.delete(botSlug);
+    if (!this.#held.delete(botSlug)) return;
+    for (const key of this.#digestRetryAt.keys())
+      if (key.startsWith(`${botSlug}:`)) {
+        this.#digestRetryAt.delete(key);
+        this.#digestFailureCount.delete(key);
+      }
+    this.#resumeAutomaticWakes(botSlug);
+  }
+
+  #resumeAutomaticWakes(botSlug: string): void {
+    queueMicrotask(() => {
+      if (this.#closed || this.#held.has(botSlug)) return;
+      this.#checkHarvestReadiness(botSlug);
+      this.#recoverPendingDigests(botSlug);
+      this.#armSnooze(botSlug);
+    });
+  }
+
+  async #noteAutomaticFailure(
+    botSlug: string,
+    channelId: string | undefined,
+    error: unknown,
+  ): Promise<void> {
+    const code = sessionFailureDetails(error).code;
+    if (this.#held.has(botSlug)) return;
+    if (code === undefined || TRANSIENT_FAILURE_CODES.has(code)) {
+      this.#failureStreaks.delete(botSlug);
+      return;
+    }
+    const streak = (this.#failureStreaks.get(botSlug) ?? 0) + 1;
+    this.#failureStreaks.set(botSlug, streak);
+    if (streak < FAILURE_HOLD_THRESHOLD) return;
+    this.#failureStreaks.delete(botSlug);
+    this.#hold(botSlug, 'failures');
+    this.#warn?.(
+      JSON.stringify({ component: 'bot-runtime', event: 'failure-hold', botSlug, code, streak }),
+    );
+    const bot = this.#registry.get(botSlug);
+    const sessionId = this.currentOrchestratorSessionId(botSlug);
+    const original = channelId === undefined ? undefined : this.#channels.get(channelId);
+    const channel =
+      original === undefined ||
+      isBotDmChannel(original) ||
+      (original.type === 'group' && !original.members.includes(botSlug))
+        ? bot === undefined
+          ? undefined
+          : this.#channels.getOrCreateDm(botSlug, bot.displayName)?.id
+        : original.id;
+    if (bot === undefined || sessionId === undefined || channel === undefined) return;
+    await this.#channels
+      .appendMessage(channel, {
+        id: `turn-stopped-${randomUUID()}`,
+        at: this.#now().toISOString(),
+        author: { kind: 'system' },
+        body: `${bot.displayName} stopped after ${streak} failed runs in a row (${code}). Send it a message to try again.`,
+        turnStop: {
+          botSlug,
+          botName: bot.displayName,
+          humanName: this.#channels.listHumanMembers(channel)[0]?.displayName ?? 'Human',
+          sessionId,
+          held: true,
+          cause: 'failures',
+          failures: streak,
+        },
+      })
+      .catch(() => undefined);
   }
 
   async endGroup(channelId: string): Promise<void> {
@@ -4914,8 +5299,116 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#stoppedTurns.add(botSlug);
     this.groupSendReview.stop(botSlug);
     this.#stopNotices.set(botSlug, notice);
-    await active.catch(() => undefined);
+    await this.#settleStop(
+      botSlug,
+      sessionId,
+      active.catch(() => undefined),
+    );
     return { sessionId };
+  }
+
+  #beginSessionStop(botSlug: string, sessionId: string, role: 'orchestrator' | 'assignment'): void {
+    const tree = [
+      sessionId,
+      ...this.#ownership.descendantsOf(sessionId).map((child) => child.sessionId),
+    ];
+    try {
+      this.#closeSessionApprovals?.(tree);
+    } catch (error) {
+      this.#warn?.(
+        JSON.stringify({
+          component: 'bot-runtime',
+          event: 'stop-approvals-failed',
+          botSlug,
+          sessionId,
+          error: String(error).slice(0, 500),
+        }),
+      );
+    }
+    if (role === 'orchestrator') this.groupSendReview.stopOwner(`${botSlug}:${sessionId}`);
+  }
+
+  async #settleStop(botSlug: string, sessionId: string, settling: Promise<unknown>): Promise<void> {
+    let timer: NodeJS.Timeout | undefined;
+    let outcome: 'settled' | 'timeout';
+    try {
+      outcome = await Promise.race([
+        settling.then(() => 'settled' as const),
+        new Promise<'timeout'>((resolve) => {
+          timer = setTimeout(() => resolve('timeout'), this.#stopSettleTimeoutMs);
+          timer.unref?.();
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+    if (outcome === 'settled') return;
+    this.#warn?.(
+      JSON.stringify({
+        component: 'bot-runtime',
+        event: 'stop-settle-timeout',
+        botSlug,
+        sessionId,
+        timeoutMs: this.#stopSettleTimeoutMs,
+      }),
+    );
+    await this.#agents.abandonSession?.(sessionId).catch(() => undefined);
+  }
+
+  async #cancelPendingDeliveries(
+    bot: PersonaBotRecord,
+    orchestratorSessionId: string,
+  ): Promise<number> {
+    let cancelled = 0;
+    for (const [sessionId, owner] of [...this.#pendingDeliveries]) {
+      if (owner !== orchestratorSessionId) continue;
+      this.#pendingDeliveries.delete(sessionId);
+      try {
+        await this.#stopAssignment(bot, sessionId, () => undefined, 'human-session-stop');
+        cancelled += 1;
+      } catch (error) {
+        this.#warn?.(
+          JSON.stringify({
+            component: 'bot-runtime',
+            event: 'stop-pending-delivery-failed',
+            botSlug: bot.slug,
+            sessionId,
+            error: String(error).slice(0, 500),
+          }),
+        );
+      }
+    }
+    return cancelled;
+  }
+
+  #recordInterruptedTools(
+    botSlug: string,
+    sessionId: string,
+    calls: readonly InterruptedToolCall[],
+  ): void {
+    if (calls.length === 0) return;
+    this.#interruptedTools.set(sessionId, [
+      ...(this.#interruptedTools.get(sessionId) ?? []),
+      ...calls,
+    ]);
+    this.#warn?.(
+      JSON.stringify({
+        component: 'bot-runtime',
+        event: 'stop-interrupted-tools',
+        botSlug,
+        sessionId,
+        result: 'unknown',
+        stoppedBy: 'human',
+        calls: calls.map((call) => ({ callId: call.callId, name: call.name })),
+      }),
+    );
+  }
+
+  #takeInterruptedToolsNote(sessionId: string): string {
+    const calls = this.#interruptedTools.get(sessionId);
+    if (calls === undefined) return '';
+    this.#interruptedTools.delete(sessionId);
+    return interruptedToolsNote(calls);
   }
 
   async whenIdle(): Promise<void> {
@@ -5029,6 +5522,7 @@ class BotRuntimeImplementation implements BotRuntime {
         TRANSIENT_FAILURE_CODES.has(code) &&
         delayMs !== undefined &&
         !this.#stoppedTurns.has(bot.slug) &&
+        !this.#held.has(bot.slug) &&
         channelId === dmChannelId(bot.slug)
           ? {
               attempt: autoAttempts + 1,
@@ -5150,6 +5644,7 @@ class BotRuntimeImplementation implements BotRuntime {
     let preserveObservation = false;
     const importedFiles = new Map<string, ChannelAttachmentRef>();
     const markSideEffect = (): void => {
+      if (this.#stoppedTurns.has(bot.slug)) throw new Error(SESSION_STOPPED_REFUSAL);
       this.#database.read((db) => {
         for (const id of new Set([...turnSources, ...readAdmissions]))
           requireSourceEffects(db, id, bot.slug);
@@ -5236,6 +5731,8 @@ class BotRuntimeImplementation implements BotRuntime {
         sessionId: orchestrator.sessionId,
         resume: orchestrator.resume,
         bot,
+        toolsInterrupted: (calls) =>
+          this.#recordInterruptedTools(bot.slug, orchestrator.sessionId, calls),
         message: (() => {
           const human =
             channelId === undefined ? undefined : this.#channels.listHumanMembers(channelId)[0];
@@ -5243,6 +5740,7 @@ class BotRuntimeImplementation implements BotRuntime {
           this.#stopNotices.delete(bot.slug);
           return (
             stopped +
+            this.#takeInterruptedToolsNote(orchestrator.sessionId) +
             this.#interruptedDmNotice(bot.slug, channelId) +
             (human === undefined || human.displayName === 'Human'
               ? body
@@ -5736,12 +6234,22 @@ class BotRuntimeImplementation implements BotRuntime {
     readAdmissions?: Set<string>,
   ): OrchestratorAssignmentAccess {
     const markSideEffect = markAttemptSideEffect;
+    const refuseStopped = () => {
+      if (orchestratorSessionId !== undefined && this.#stoppedTurns.has(bot.slug))
+        throw new Error(SESSION_STOPPED_REFUSAL);
+    };
+    const trackDelivery = (sessionId: string, pending: boolean) => {
+      if (orchestratorSessionId === undefined) return;
+      if (pending) this.#pendingDeliveries.set(sessionId, orchestratorSessionId);
+      else this.#pendingDeliveries.delete(sessionId);
+    };
     return {
       create: (input) => {
         if (sourceEventId === undefined)
           throw new Error('Assignment creation requires a Source Event');
+        refuseStopped();
         this.#database.read((db) => requireSourceEffects(db, sourceEventId, bot.slug));
-        const outcome = this.#createOrReuseAssignment(bot, sourceEventId, input);
+        const outcome = this.#createOrReuseAssignment(bot, sourceEventId, input, trackDelivery);
         if (outcome.outcome === 'created' || outcome.outcome === 'reused') {
           markSideEffect();
           this.#linkRequestAssignment(sourceEventId, outcome.assignment.sessionId);
@@ -5769,9 +6277,10 @@ class BotRuntimeImplementation implements BotRuntime {
           request,
         ),
       request: (input) => {
+        refuseStopped();
         if (sourceEventId !== undefined)
           this.#database.read((db) => requireSourceEffects(db, sourceEventId, bot.slug));
-        const outcome = this.#requestAssignment(bot, input);
+        const outcome = this.#requestAssignment(bot, input, trackDelivery);
         if (outcome.delivery !== 'capacity') {
           markSideEffect();
           if (sourceEventId !== undefined)
@@ -6522,7 +7031,14 @@ class BotRuntimeImplementation implements BotRuntime {
           .prepare(
             `SELECT e.channel_id, e.message_id FROM source_events e
             JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
-            WHERE e.source_event_id = ? AND a.bot_slug = ? AND e.source_kind IN ('human-message', 'bot-message')`,
+            WHERE e.source_event_id = ? AND a.bot_slug = ?
+              AND (
+                e.source_kind IN ('human-message', 'bot-message')
+                OR (
+                  e.source_kind = 'system-message'
+                  AND json_extract(e.payload_json, '$.takeoverResolution') IS NOT NULL
+                )
+              )`,
           )
           .get(id, botSlug);
       });
@@ -6657,7 +7173,7 @@ class BotRuntimeImplementation implements BotRuntime {
         if (target === undefined || target.paused === true || target.slug === botSlug)
           throw new Error('Invitee must be another active nonmember PersonaBot');
         const botCausation = this.#botCausation(sourceEventId);
-        if (botCausation.hop > MAX_BOT_HOPS) throw new Error('Bot collaboration hop limit reached');
+        this.#requireBotHop(botCausation);
         const dm = this.#channels.getOrCreateDm(target.slug, target.displayName);
         if (dm === undefined) throw new Error('Invitee DM is unavailable');
         beforeSend();
@@ -6706,7 +7222,7 @@ class BotRuntimeImplementation implements BotRuntime {
         const owner =
           target.ownerBotSlug === undefined ? undefined : this.#registry.get(target.ownerBotSlug);
         const botCausation = this.#botCausation(sourceEventId);
-        if (botCausation.hop > MAX_BOT_HOPS) throw new Error('Bot collaboration hop limit reached');
+        this.#requireBotHop(botCausation);
         beforeSend();
         const ownerDm =
           owner === undefined
@@ -6741,7 +7257,7 @@ class BotRuntimeImplementation implements BotRuntime {
         )
           throw new Error('Only the current Bot Group owner can decide this join request');
         const botCausation = this.#botCausation(sourceEventId);
-        if (botCausation.hop > MAX_BOT_HOPS) throw new Error('Bot collaboration hop limit reached');
+        this.#requireBotHop(botCausation);
         beforeSend();
         const dm = this.#channels.getOrCreateDm(requester.slug, requester.displayName);
         if (dm === undefined) throw new Error('Requester DM is unavailable');
@@ -6822,6 +7338,12 @@ class BotRuntimeImplementation implements BotRuntime {
         return this.#channels.getGroupWakePolicy(channel.id, botSlug);
       },
       react: (input) => this.#react(botSlug, resolve(input.channelId), input),
+      ...(this.#voiceMessages === undefined
+        ? {}
+        : {
+            attachVoice: (input: { channelId: string; messageId: string; signal?: AbortSignal }) =>
+              this.#voiceMessages!.attach({ botSlug, ...input }),
+          }),
       leaveGroup: (input) => {
         requireOrdinaryGroupActor();
         const channel = this.#channels.get(input.channelId);
@@ -7572,6 +8094,7 @@ class BotRuntimeImplementation implements BotRuntime {
       ...(input.attachments === undefined ? {} : { attachments: input.attachments }),
       ...this.#perf(input.sessionId, body),
     };
+    if (mentions.length > 0) this.#requireBotHop(message.botCausation!);
     input.beforeSend();
     if (this.groupSendReview.enabled(channel.id) || input.draftId !== undefined)
       this.#requireSendReviewOwner(botSlug, input.sessionId);
@@ -7691,6 +8214,11 @@ class BotRuntimeImplementation implements BotRuntime {
           .get(channelId, ...sources) as { source_event_id: string } | undefined,
     );
     return row?.source_event_id;
+  }
+
+  #requireBotHop(causation: BotMessageCausation): void {
+    const limit = this.#botHopLimit();
+    if (causation.hop > limit) throw new BotHopLimitReached(causation.hop, limit);
   }
 
   #botCausation(sourceEventId: string | undefined): BotMessageCausation {
@@ -7911,6 +8439,7 @@ class BotRuntimeImplementation implements BotRuntime {
         throw new Error('Bot DM delivery key has different content');
       return { channelId: channel.id, message: accepted };
     }
+    this.#requireBotHop(causation);
     input.beforeSend();
     await this.#botNetwork.send(peer.hostId, {
       id: message.id,
@@ -7976,6 +8505,7 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#turnSourceIn(botSlug, channel.id, input.readSourceEventIds) ??
         input.sourceEventId,
     );
+    this.#requireBotHop(botCausation);
     const messageId = this.#deliveryMessageId(input.sessionId, input.deliveryKey);
     const message: ChannelMessage = {
       id: messageId,
@@ -8148,6 +8678,7 @@ class BotRuntimeImplementation implements BotRuntime {
       grantId: string;
       model?: ModelRoute;
     },
+    trackDelivery?: (sessionId: string, pending: boolean) => void,
   ): AssignmentCreateOutcome {
     const title = requireBoundedText(input.title, 'title', ASSIGNMENT_TITLE_MAX_LENGTH);
     const description = requireBoundedText(
@@ -8193,11 +8724,11 @@ class BotRuntimeImplementation implements BotRuntime {
           throw new Error(
             'An existing keyed Assignment keeps its model; use a new key for a new model choice',
           );
-        const request = this.#requestAssignment(bot, {
-          sessionId: holder.session_id,
-          mode: 'next-turn',
-          text,
-        });
+        const request = this.#requestAssignment(
+          bot,
+          { sessionId: holder.session_id, mode: 'next-turn', text },
+          trackDelivery,
+        );
         if (request.delivery === 'capacity') {
           const { assignment: _assignment, delivery: _delivery, ...refusal } = request;
           return refusal;
@@ -8256,10 +8787,13 @@ class BotRuntimeImplementation implements BotRuntime {
       },
       ['session-ownership', 'assignments'],
     );
+    trackDelivery?.(sessionId, true);
     this.#trackAssignmentRun(sessionId, () =>
       this.#agents.runAssignment({
         requireContent: () =>
           this.#database.read((db) => requireAssignmentSource(db, sourceEventId, bot.slug)),
+        accepted: () => trackDelivery?.(sessionId, false),
+        toolsInterrupted: (calls) => this.#recordInterruptedTools(bot.slug, sessionId, calls),
         sessionId,
         bot,
         text,
@@ -8290,13 +8824,28 @@ class BotRuntimeImplementation implements BotRuntime {
       answerTo?: string;
       model?: ModelRoute;
     },
+    trackDelivery?: (sessionId: string, pending: boolean) => void,
   ): AssignmentRequestOutcome {
-    const row = this.#assignmentRow(bot.slug, input.sessionId);
+    let row = this.#assignmentRow(bot.slug, input.sessionId);
     if (row === undefined) throw new Error(`Unknown Assignment Session: ${input.sessionId}`);
     if (isArchivedRow(row) || this.#assignmentArchives.has(input.sessionId)) {
       throw new Error(
         `Assignment Session ${input.sessionId} is archived; call unarchive_assignment before sending it a request`,
       );
+    }
+    if (row.stop_state === 'stopped' && this.#humanSessionStopped(bot.slug, input.sessionId)) {
+      this.#database.transaction(
+        (database) => {
+          database
+            .prepare(
+              `UPDATE assignments SET stop_state = 'running', activity = 'idle', updated_at = ?
+                WHERE bot_slug = ? AND session_id = ? AND stop_state = 'stopped'`,
+            )
+            .run(this.#now().toISOString(), bot.slug, input.sessionId);
+        },
+        ['assignments'],
+      );
+      row = this.#assignmentRow(bot.slug, input.sessionId) ?? row;
     }
     if (row.stop_state !== 'running') {
       throw new Error(`Assignment Session ${input.sessionId} is stopped or stopping`);
@@ -8350,12 +8899,15 @@ class BotRuntimeImplementation implements BotRuntime {
       }
       this.#setActivity(input.sessionId, 'working');
     }
+    const interrupted = this.#interruptedTools.get(input.sessionId);
     const run: AssignmentAgentRun = {
       requireContent: () =>
         this.#database.read((db) => requireAssignmentSource(db, row.source_event_id, bot.slug)),
+      accepted: () => trackDelivery?.(input.sessionId, false),
+      toolsInterrupted: (calls) => this.#recordInterruptedTools(bot.slug, input.sessionId, calls),
       sessionId: input.sessionId,
       bot,
-      text,
+      text: interrupted === undefined ? text : interruptedToolsNote(interrupted) + text,
       resume: true,
       permission,
       ...(modelRoute === undefined ? {} : { modelRoute }),
@@ -8371,6 +8923,7 @@ class BotRuntimeImplementation implements BotRuntime {
     let delivery: AssignmentRequestDelivery;
     try {
       delivery = this.#agents.requestAssignment(run);
+      if (interrupted !== undefined) this.#interruptedTools.delete(input.sessionId);
     } catch (error) {
       if (error instanceof AssignmentInboxAcceptanceUncertainError)
         this.#setActivity(input.sessionId, 'error');
@@ -8406,6 +8959,7 @@ class BotRuntimeImplementation implements BotRuntime {
     };
     if (delivery.delivery === 'followup') {
       this.#assignmentAcceptances.add(input.sessionId);
+      trackDelivery?.(input.sessionId, true);
       let accepted = false;
       let uncertain = false;
       void delivery.done.catch(() => undefined);
@@ -8448,6 +9002,7 @@ class BotRuntimeImplementation implements BotRuntime {
     bot: PersonaBotRecord,
     sessionId: string,
     markSideEffect: () => void,
+    cause: 'orchestrator-stop' | 'human-stop' | 'human-session-stop' = 'orchestrator-stop',
   ): Promise<AssignmentSummary> {
     const row = this.#assignmentRow(bot.slug, sessionId);
     if (row === undefined) throw new Error(`Unknown Assignment Session: ${sessionId}`);
@@ -8455,6 +9010,8 @@ class BotRuntimeImplementation implements BotRuntime {
     if (this.#agents.stopAssignment === undefined)
       throw new Error('Assignment stop is unavailable');
     markSideEffect();
+    this.#pendingDeliveries.delete(sessionId);
+    this.#beginSessionStop(bot.slug, sessionId, 'assignment');
     if (row.stop_state === 'running') {
       const at = this.#now().toISOString();
       this.#database.transaction(
@@ -8471,8 +9028,15 @@ class BotRuntimeImplementation implements BotRuntime {
       );
     }
     await this.#typingAssignments.get(sessionId)?.stop();
-    await this.#agents.stopAssignment(sessionId);
-    await this.#assignmentRuns.get(sessionId);
+    const stopAssignment = this.#agents.stopAssignment.bind(this.#agents);
+    await this.#settleStop(
+      bot.slug,
+      sessionId,
+      (async () => {
+        await stopAssignment(sessionId);
+        await this.#assignmentRuns.get(sessionId);
+      })(),
+    );
     const at = this.#now().toISOString();
     const sourceEventId = this.#createEventId();
     const stopped = this.#database.transaction(
@@ -8498,13 +9062,18 @@ class BotRuntimeImplementation implements BotRuntime {
             sourceEventId,
             bot.slug,
             sessionId,
-            'Stopped by the Orchestrator. This Session will not accept further requests or reports.',
+            cause === 'human-session-stop'
+              ? HUMAN_SESSION_STOP_NOTICE
+              : cause === 'human-stop'
+                ? 'Stopped by the Human together with your turn. This Session will not accept further requests or reports.'
+                : 'Stopped by the Orchestrator. This Session will not accept further requests or reports.',
             at,
             at,
             JSON.stringify({
               assignmentLifecycle: {
                 state: 'stopped',
-                cause: 'orchestrator-stop',
+                cause,
+                ...(cause === 'orchestrator-stop' ? {} : { stoppedBy: 'human' }),
               },
             }),
           );
@@ -8515,13 +9084,34 @@ class BotRuntimeImplementation implements BotRuntime {
                      source_policy_revision, source_policy_wake_mode)
                     VALUES (?, ?, 'assignment-lifecycle', ?, ?)`,
           )
-          .run(sourceEventId, bot.slug, sourceRule.revision, sourceRule.wake);
-        return sourceRule.wake === 'immediate';
+          .run(
+            sourceEventId,
+            bot.slug,
+            sourceRule.revision,
+            cause === 'human-session-stop' ? 'silent' : sourceRule.wake,
+          );
+        return cause !== 'human-session-stop' && sourceRule.wake === 'immediate';
       },
       ['assignments', 'source-event', 'bot-inbox'],
     );
     if (stopped) this.#scheduleHarvest(bot.slug);
     return this.#requireAssignmentSummary(bot.slug, sessionId);
+  }
+
+  #humanSessionStopped(botSlug: string, sessionId: string): boolean {
+    const latest = this.#database.read((database) =>
+      database
+        .prepare(
+          `SELECT json_extract(payload_json, '$.assignmentLifecycle.cause') AS cause
+             FROM source_events
+            WHERE bot_slug = ? AND assignment_session_id = ?
+              AND source_kind = 'assignment-lifecycle'
+              AND json_extract(payload_json, '$.assignmentLifecycle.state') = 'stopped'
+            ORDER BY rowid DESC LIMIT 1`,
+        )
+        .get(botSlug, sessionId),
+    ) as { cause: string | null } | undefined;
+    return latest?.cause === 'human-session-stop' || latest?.cause === 'human-stop';
   }
 
   async #archiveAssignment(
@@ -9126,6 +9716,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   #scheduleExternalDigest(botSlug: string): void {
+    if (this.#held.has(botSlug)) return;
     this.#armDigest(
       botSlug,
       `external:${botSlug}`,

@@ -1,13 +1,15 @@
 import type { NativeSessionCatalog } from './sessions-entry.js';
 import { personaBotSessionRows } from './session-rows.js';
-import { useSyncExternalStore } from 'react';
+import { useRef, useSyncExternalStore } from 'react';
 import { useState, type ReactElement } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
+import { IconStopFillRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { useClientStore } from './use-client-store.js';
+import type { ClientState } from './store.js';
 import { sameBotsBesidesActivity } from './conversation-bots.js';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { formatRelativeTime } from './labels.js';
@@ -16,6 +18,8 @@ import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { GroupHeading } from './ds/group-heading.js';
 import { PanelEmptyState } from './ds/empty-state.js';
+import { IconButton } from './ds/icon-button.js';
+import { Tooltip } from './ds/tooltip.js';
 import { color } from './ds/tokens.stylex.js';
 import { modelRouteText, SessionSubagentList, SessionSubagentToggle } from './session-subagents.js';
 import { AssignmentWorkButton, AssignmentWorkDialog } from './assignment-work.js';
@@ -41,6 +45,36 @@ type Load =
   | { status: 'error'; assignments: readonly ChannelAssignmentSummary[]; error: string };
 
 const EMPTY_CATALOG = { ids: [], byId: {} };
+
+function runningOrchestrators(state: ClientState, channelId: string): string {
+  const channel =
+    state.conversation.channel?.id === channelId
+      ? state.conversation.channel
+      : state.channels.find((candidate) => candidate.id === channelId);
+  if (channel?.type !== 'group') return '';
+  return channel.members
+    .flatMap((slug) => {
+      const turn = state.bots
+        .find((bot) => bot.slug === slug)
+        ?.sessionActivity?.find((session) => session.role === 'orchestrator');
+      return turn === undefined ? [] : [slug + '\t' + turn.id];
+    })
+    .join('\n');
+}
+
+async function currentOrchestratorSessionId(
+  actions: ChannelSidebarEntryProps['actions'],
+  botSlug: string,
+): Promise<string | undefined> {
+  const orchestrators = (await actions.readSessions(botSlug)).filter(
+    (session) => session.role === 'orchestrator',
+  );
+  return (
+    orchestrators.find((session) => session.currentOrchestrator === true) ??
+    orchestrators.sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0]
+  )?.sessionId;
+}
+
 const emptySubscribe = () => () => {};
 function GroupWorkPanel({
   channelId,
@@ -68,6 +102,54 @@ function GroupWorkPanel({
       return next;
     });
   const signature = native.ids.map((id) => `${id}:${native.byId[id]?.running === true}`).join('|');
+  const runningSignature = useClientStore((state) => runningOrchestrators(state, channelId));
+  const running = (runningSignature === '' ? [] : runningSignature.split('\n')).map((line) => {
+    const [slug = '', turn = ''] = line.split('\t');
+    return { slug, turn };
+  });
+  const [orchestratorIds, setOrchestratorIds] = useState<Readonly<Record<string, string>>>({});
+  const [stopping, setStopping] = useState<ReadonlySet<string>>(() => new Set());
+  const [stopError, setStopError] = useState<string>();
+  const resolving = useRef(new Map<string, Promise<string | undefined>>());
+  const resolveOrchestrator = (slug: string, turn: string): Promise<string | undefined> => {
+    const pending = resolving.current.get(turn);
+    if (pending !== undefined) return pending;
+    const next = currentOrchestratorSessionId(actions, slug).then(
+      (sessionId) => {
+        if (sessionId !== undefined)
+          setOrchestratorIds((current) =>
+            current[turn] === sessionId ? current : { ...current, [turn]: sessionId },
+          );
+        return sessionId;
+      },
+      () => undefined,
+    );
+    resolving.current.set(turn, next);
+    return next;
+  };
+  const workingNowMount = useMountedResource<HTMLElement>(() => {
+    const live = new Set(running.map((entry) => entry.turn));
+    for (const turn of resolving.current.keys())
+      if (!live.has(turn)) resolving.current.delete(turn);
+    for (const entry of running) void resolveOrchestrator(entry.slug, entry.turn);
+  }, [runningSignature]);
+  const stopOrchestrator = (slug: string, turn: string): void => {
+    setStopping((current) => new Set(current).add(turn));
+    setStopError(undefined);
+    void resolveOrchestrator(slug, turn)
+      .then((sessionId) => {
+        if (sessionId === undefined) throw new Error(t('sessions.status.unavailable'));
+        return actions.stopSession(slug, sessionId, channelId);
+      })
+      .catch((error: unknown) => {
+        setStopError(error instanceof Error ? error.message : String(error));
+        setStopping((current) => {
+          const next = new Set(current);
+          next.delete(turn);
+          return next;
+        });
+      });
+  };
   const mount = useMountedResource<HTMLDivElement>(() => {
     let live = true;
     actions.channelAssignments(channelId).then(
@@ -200,6 +282,49 @@ function GroupWorkPanel({
     );
   };
 
+  const renderOrchestrator = ({ slug, turn }: { slug: string; turn: string }): ReactElement => {
+    const bot = bots.find((candidate) => candidate.slug === slug);
+    const name = bot?.displayName ?? slug;
+    const sessionId = orchestratorIds[turn];
+    const isStopping = stopping.has(turn);
+    return (
+      <SidebarCardRow
+        key={slug}
+        flipKey={'orchestrator:' + slug}
+        leading={
+          <PersonaBotAvatar
+            t={t}
+            personaBotId={slug}
+            name={name}
+            src={bot?.avatar}
+            appearance={bot?.appearance}
+            avatarSeed={bot?.avatarSeed}
+            state="working"
+            size={24}
+          />
+        }
+        title={name}
+        mainClassName="bh-group-orchestrator-row"
+        state={isStopping ? 'stopping' : 'running'}
+        {...(sessionId === undefined ? {} : { onClick: () => actions.openSession(sessionId) })}
+        badge={isStopping ? <Tag tone="warning">{t('sessions.status.stopping')}</Tag> : undefined}
+        trailing={
+          <Tooltip label={t('sessions.stop')} side="top" portal delayMs={400}>
+            <IconButton
+              size="inline"
+              data-session-stop=""
+              disabled={isStopping}
+              aria-label={t('sessions.stopNamed', { title: name })}
+              onClick={() => stopOrchestrator(slug, turn)}
+            >
+              <IconStopFillRegular size={12} />
+            </IconButton>
+          </Tooltip>
+        }
+      />
+    );
+  };
+
   const grouped = GROUPS.map((group) => ({
     group,
     rows: load.assignments.filter((assignment) => groupFor(assignment) === group),
@@ -213,7 +338,20 @@ function GroupWorkPanel({
       {load.status === 'error' ? (
         <div className="bh-error">{t('groupWork.error', { error: load.error })}</div>
       ) : null}
-      {load.status === 'ready' && load.assignments.length === 0 ? (
+      {running.length === 0 ? null : (
+        <section data-group="working-now" ref={workingNowMount}>
+          <GroupHeading flush label={t('groupWork.workingNow')} count={running.length} />
+          <SidebarCardList flush label={t('groupWork.workingNow')}>
+            {running.map(renderOrchestrator)}
+          </SidebarCardList>
+        </section>
+      )}
+      {stopError === undefined ? null : (
+        <div className="bh-error" role="alert">
+          {stopError}
+        </div>
+      )}
+      {load.status === 'ready' && load.assignments.length === 0 && running.length === 0 ? (
         <PanelEmptyState icon="text-quote">{t('groupWork.empty')}</PanelEmptyState>
       ) : null}
       {load.assignments.length >= 200 ? <p role="note">{t('sessions.channel.limit')}</p> : null}

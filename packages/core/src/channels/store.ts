@@ -38,6 +38,7 @@ import {
   type BotCreateAction,
   type ChannelMemoryCommit,
   type ChannelMessage,
+  type ChannelMessageVoice,
   type ChannelReaction,
   type ChannelRecord,
   type GroupInvitation,
@@ -68,6 +69,7 @@ export interface ChannelStoreOptions {
   onAdmissionChanged?: (channelId: string, messageId: string, message: ChannelMessage) => void;
   onHumanReadChanged?: (channelId: string, humanId: string, revision: number) => void;
   onReactionChanged?: (channelId: string, messageId: string, reactions: ChannelReaction[]) => void;
+  onVoiceChanged?: (channelId: string, messageId: string, message: ChannelMessage) => void;
   warn?: (message: string) => void;
   isBotActive?: (botSlug: string) => boolean;
   botDisplayName?: (botSlug: string) => string | undefined;
@@ -468,6 +470,12 @@ export interface ChannelStore {
   revision(id: string): number;
   messagesAfter(id: string, revision: number): ChannelMessageCommit[] | undefined;
   admissionChanged?(channelId: string, messageId: string): void;
+  setMessageVoice?(
+    channelId: string,
+    messageId: string,
+    voice: ChannelMessageVoice,
+    attachment?: ChannelAttachmentRef,
+  ): ChannelMessage | undefined;
 
   latestBotActivity?(): ReadonlyMap<string, number>;
   humanMessageCounts?(

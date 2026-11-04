@@ -14,6 +14,11 @@ import { createWindowZoomSetup, WINDOW_ZOOM_SETUP_PATH } from './window-zoom/set
 import { nativeReleaseRuntime } from './release/compatibility.js';
 import { createFolderBrowser } from './workspaces/folder-browse.js';
 import { APPEARANCE_CONTROL_PATH, createAppearanceControl } from './appearance/control.js';
+import { VoiceProviders } from './voice/providers.js';
+import { createVoiceMessages, type VoiceMessages } from './voice/messages.js';
+import { createVoiceCalls, type VoiceCallMedia, type VoiceCalls } from './voice/calls.js';
+import { VOICE_CALL_PATH } from './voice/call-contract.js';
+import { createVoiceCallHttp } from './voice/call-http.js';
 import { CloudConnections } from './cloud/connections.js';
 import { createCloudProvider } from './cloud/provider.js';
 import { createChannelManagement, type ChannelManagementService } from './channels/management.js';
@@ -56,6 +61,16 @@ import {
   TOB_MAINTENANCE_CAPABILITIES,
 } from './tob/cli-maintenance-operations.js';
 import { installTobCliShell } from './tob/cli-shell.js';
+import { createTobVoiceOperations, TOB_VOICE_CAPABILITIES } from './tob/cli-voice-operations.js';
+import {
+  LOCAL_VOICE_SKILL_CONTENT,
+  LOCAL_VOICE_SKILL_DESCRIPTION,
+  LOCAL_VOICE_SKILL_INVOCATION,
+  LOCAL_VOICE_SKILL_NAME,
+  LOCAL_VOICE_SKILL_PROVIDER,
+  LOCAL_VOICE_SKILL_SOURCE,
+  LOCAL_VOICE_SKILL_WHEN_TO_USE,
+} from './voice/skill.js';
 import { approveTobCliOperation } from './tob/cli-approval.js';
 import { onboardingNewsAvailable } from './onboarding/search.js';
 import { nativeTimedQuestions } from './channels/native-timed-questions.js';
@@ -133,6 +148,7 @@ import type { BotAgentSetupInfo } from './runtime/dsh-bot-agent-adapter.js';
 import { registerBridge } from './bridge/rpc.js';
 import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
 import { mountDiagnosticLog } from './diagnostics/diagnostic-log.js';
+import { createCoreTakeoverHandoffs, mountTakeoverTools } from './takeover/mount.js';
 import { createTurnLog } from './diagnostics/turn-log.js';
 import { mountDevicePairing } from './devices/mount.js';
 import { humanInboxPushSource } from './push/source.js';
@@ -183,6 +199,7 @@ import { createProviderCredentialHealth } from './models/credential-health.js';
 import { createModelRouteReadiness } from './models/readiness.js';
 import { createBotAvatarHttp, botAvatarUrl, BOT_AVATAR_PATH } from './bots/avatar-http.js';
 import { BOT_BANNER_PATH, createBotBannerHttp } from './bots/banner-http.js';
+import { coalesce } from './runtime/coalesce.js';
 import { watchHumanAttention } from './runtime/human-attention-live.js';
 import { createChannelLiveHub, CHANNEL_STREAM_PATH, type ChannelLiveHub } from './channels/live.js';
 import type { ChannelDraftEvent } from './channels/draft.js';
@@ -199,6 +216,7 @@ import {
   attachOperationalModule,
   failOperationalDatabase,
   mountOperationalDatabase,
+  onOperationalDatabaseClose,
   type OperationalDatabaseOwner,
 } from './database/owner.js';
 import { applyPendingDataReset, createDataReset } from './data-reset/reset.js';
@@ -303,6 +321,7 @@ import {
 import type { DshSessionEvent, DshSessionStore } from './sessions/source.js';
 import { turnProgress } from './bots/tool-trace.js';
 import type { SessionFailureProgress } from './channels/channel.js';
+import { DEFAULT_BOT_HOP_LIMIT, isBotHopLimit } from './channels/channel.js';
 import {
   createBotStateTracker,
   personaBotActivitySnapshot,
@@ -486,6 +505,7 @@ export interface BotHarnessCore {
 
   configureGroupInvitations(autoAccept: () => boolean): () => void;
   configureAssignmentConcurrencyLimit(read: () => number): () => void;
+  configureBotHopLimit(read: () => number): () => void;
 
   hostTools: Set<string>;
 
@@ -515,6 +535,9 @@ export interface BotHarnessCore {
   grants: WorkspaceGrantStore;
   externalMessaging: OutboundMessaging;
   cloudConnections?: CloudConnections;
+  voiceProviders: VoiceProviders;
+  voiceMessages: VoiceMessages;
+  voiceSpeech: { speak?: Parameters<typeof createVoiceMessages>[0]['speak'] };
   cloudWork?: CloudWork;
   toolRules: ToolApprovalRuleStore;
   assignmentAccess: AssignmentAccessStore;
@@ -581,6 +604,8 @@ export function createCore(
     readAssignmentTail?: (sessionId: string) => Promise<AssignmentEventTail>;
     readTurnProgress?: (sessionId: string) => Promise<SessionFailureProgress | undefined>;
     autoContinueDelaysMs?: readonly number[];
+    stopSettleTimeoutMs?: number;
+    closeSessionApprovals?: (sessionIds: readonly string[]) => void;
     readAssignmentReportPage?: (
       sessionId: string,
       acceptedSummary: string,
@@ -592,6 +617,7 @@ export function createCore(
     tobSettings?: () => TobSettingsProvider | undefined;
     sessionArchive?: () => NativeSessionArchive | undefined;
     autoAcceptGroupInvitations?: () => boolean;
+    botHopLimit?: () => number;
     triageContinuation?: boolean;
     imCommands?: () => import('./messaging/im-commands.js').ImCommandServices | undefined;
     onOutputCommitted?: (event: PersonaBotOutputCommitted) => void;
@@ -600,6 +626,14 @@ export function createCore(
     activePrivateInputMessageIds?: () => readonly string[];
     erasePrivateAccounts?: (slug: string) => Promise<unknown>;
     capture?: TelemetryCapture;
+    credentials?: () =>
+      | Pick<
+          import('@deepseek-ai/dsh-credentials').CredentialProvider,
+          'readRecord' | 'modifyRecord' | 'deleteRecord'
+        >
+      | undefined;
+    voiceLog?: (phase: string, fields: Record<string, string | number>) => void;
+    voiceFetch?: typeof fetch;
   } = {},
 ): BotHarnessCore {
   const dshHome = options.dshHome ?? resolveDshHome();
@@ -763,8 +797,14 @@ export function createCore(
   });
   const initialGroupInvitationPolicy = options.autoAcceptGroupInvitations ?? (() => true);
   const assignmentLimits: { read: () => number }[] = [];
+  const botHopLimits: { read: () => number }[] = [];
+  const botHopLimit = (): number => {
+    const value = (botHopLimits.at(-1)?.read ?? options.botHopLimit)?.();
+    return isBotHopLimit(value) ? value : DEFAULT_BOT_HOP_LIMIT;
+  };
   const groupInvitationPolicies: { policy: () => boolean }[] = [];
   const channels = createSqliteChannelStore({
+    botHopLimit,
     autoAcceptGroupInvitations: () =>
       (groupInvitationPolicies.at(-1)?.policy ?? initialGroupInvitationPolicy)(),
     database: attachOperationalModule(operationalDatabase, 'messaging'),
@@ -821,6 +861,8 @@ export function createCore(
       live?.publishHumanRead(channelId, humanId, revision),
     onReactionChanged: (channelId, messageId, reactions) =>
       live?.publishReaction(channelId, messageId, reactions),
+    onVoiceChanged: (channelId, messageId, message) =>
+      live?.publishVoice(channelId, messageId, message),
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
   const attention = createBotAttentionQuery(
@@ -852,6 +894,12 @@ export function createCore(
         humanAttention.durableAttention().filter((row) => registry.get(row.botSlug) !== undefined),
       );
     refreshDurableAttention();
+    const durableAttention = coalesce(refreshDurableAttention, { delayMs: 100, maxWaitMs: 500 });
+    states.syncDurableAttentionWith(durableAttention.flush);
+    onOperationalDatabaseClose(operationalDatabase, () => {
+      states.syncDurableAttentionWith(() => {});
+      durableAttention.cancel();
+    });
     operationalDatabase.subscribe(({ topics }) => {
       if (topics.includes('content-purge')) live?.publishContentPurged();
       if (
@@ -862,17 +910,12 @@ export function createCore(
         live?.publishRosterCommitted();
       if (
         topics.some((topic) =>
-          [
-            'assignments',
-            'source-event',
-            'bot-inbox',
-            'channel',
-            'human-attention',
-            'usage',
-          ].includes(topic),
+          ['assignments', 'source-event', 'bot-inbox', 'channel', 'human-attention'].includes(
+            topic,
+          ),
         )
       )
-        refreshDurableAttention();
+        durableAttention.schedule();
     });
   }
   live = createChannelLiveHub(
@@ -883,7 +926,7 @@ export function createCore(
           registry.list().map((bot) => bot.slug),
           states,
         ),
-      onChange: (changed) => states.onActivity(() => changed()),
+      onChange: (changed) => states.onActivity((event) => changed(event)),
     },
     () => contentPurge.redactions(),
     (changed) =>
@@ -1032,7 +1075,23 @@ export function createCore(
     registry,
     ownership,
   });
+  const voiceProviders = new VoiceProviders({
+    database: attachOperationalModule(operationalDatabase, 'voice'),
+    credentials: options.credentials ?? (() => undefined),
+    ...(options.voiceFetch === undefined ? {} : { fetch: options.voiceFetch }),
+    ...(options.voiceLog === undefined ? {} : { log: options.voiceLog }),
+  });
+  const voiceSpeech: { speak?: Parameters<typeof createVoiceMessages>[0]['speak'] } = {};
+  const voiceMessages = createVoiceMessages({
+    providers: voiceProviders,
+    bot: (slug) => registry.get(slug),
+    channels,
+    attachments: () => attachments,
+    speak: async (input) => voiceSpeech.speak?.(input),
+    ...(options.voiceLog === undefined ? {} : { log: options.voiceLog }),
+  });
   runtime = createBotRuntime({
+    voiceMessages,
     ...(options.botNetwork === undefined ? {} : { botNetwork: options.botNetwork }),
     ...(options.readTurnProgress === undefined
       ? {}
@@ -1040,6 +1099,12 @@ export function createCore(
     ...(options.autoContinueDelaysMs === undefined
       ? {}
       : { autoContinueDelaysMs: options.autoContinueDelaysMs }),
+    ...(options.stopSettleTimeoutMs === undefined
+      ? {}
+      : { stopSettleTimeoutMs: options.stopSettleTimeoutMs }),
+    ...(options.closeSessionApprovals === undefined
+      ? {}
+      : { closeSessionApprovals: options.closeSessionApprovals }),
     onTobDelegation: () => options.capture?.('tob:delegation_send', { surface: 'bot_tool' }),
     promptText: (slug) => {
       const sessionId = runtime?.currentOrchestratorSessionId?.(slug);
@@ -1056,6 +1121,7 @@ export function createCore(
     schedules,
     assignmentConcurrencyLimit: () =>
       assignmentLimits.at(-1)?.read() ?? DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT,
+    botHopLimit,
     ...(options.sessionArchive === undefined ? {} : { sessionArchive: options.sessionArchive }),
     beginAssignmentWait: (slug, sessionId) => states.beginAssignmentWait(slug, sessionId),
     database: operationalDatabase,
@@ -1148,6 +1214,9 @@ export function createCore(
   });
   if (operationalDatabase.mode === 'ready') schedules.start();
   return {
+    voiceProviders,
+    voiceMessages,
+    voiceSpeech,
     prompts,
     deletions,
     profileRecovery,
@@ -1163,6 +1232,14 @@ export function createCore(
     externalMessaging,
     registry,
     modelPresets,
+    configureBotHopLimit: (read) => {
+      const registration = { read };
+      botHopLimits.push(registration);
+      return () => {
+        const index = botHopLimits.indexOf(registration);
+        if (index !== -1) botHopLimits.splice(index, 1);
+      };
+    },
     configureAssignmentConcurrencyLimit: (read) => {
       const registration = { read };
       assignmentLimits.push(registration);
@@ -1267,6 +1344,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       : `git phase=resolved unavailable=${resolvedGit.reason}`,
   );
   let publishDraft: (event: ChannelDraftEvent) => void = () => undefined;
+  let voiceDrafts: (event: ChannelDraftEvent) => void = () => undefined;
   const defaultModel = (ctx as unknown as { agentDefaultModel: DshDefaultModelHost })
     .agentDefaultModel;
   const providerCredentials = createProviderCredentialHealth();
@@ -1408,7 +1486,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                     (await tobBotCreationOperations(command, args)) ??
                     (await tobBotProfileOperations(command, args)) ??
                     (await tobShareDraftOperations(command, args)) ??
-                    (await tobChannelOperations(command, args));
+                    (await tobChannelOperations(command, args)) ??
+                    (await tobVoiceOperations(command, args));
                   if (!prepared || !['create', 'group-create'].includes(command)) return prepared;
                   return {
                     ...prepared,
@@ -1431,6 +1510,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   ...TOB_BOT_PROFILE_CAPABILITIES,
                   ...TOB_SHARE_DRAFT_CAPABILITIES,
                   ...TOB_CHANNEL_CAPABILITIES,
+                  ...TOB_VOICE_CAPABILITIES,
                 ],
                 beforeWrite: () => source.markSideEffect?.(),
                 readSetting: () => core.tob.readSetting(),
@@ -1483,6 +1563,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let imCommandServices: import('./messaging/im-commands.js').ImCommandServices | undefined;
   let botNetwork: import('./runtime/bot-network.js').BotNetworkPort | undefined;
   const core = createCore({
+    credentials: () => ctx.get('credentials'),
+    voiceLog: (phase, fields) => diagnosticEvents.record('voice', phase, fields),
     botNetwork: {
       contacts: () => botNetwork?.contacts() ?? [],
       availability: (hostId, botSlug) =>
@@ -1503,6 +1585,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       emitPersonaBotOutputCommitted(ctx, event, (message) => ctx.logger.warn(message)),
     activeQuestionMessageIds: () => userQuestions?.activeMessageIds() ?? [],
     activeToolApprovalMessageIds: () => toolApproval?.activeMessageIds() ?? [],
+    closeSessionApprovals: (sessionIds) => toolApproval?.closeSessions(sessionIds),
     activePrivateInputMessageIds: () => privateInputs?.activeMessageIds() ?? [],
     erasePrivateAccounts: async (slug) => {
       await privateInputs?.mcpServers?.erase(slug);
@@ -1560,7 +1643,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       ctx.get('workspaceRegistry') as unknown as NativeSessionArchive | undefined,
     imCommands: () => imCommandServices,
   });
-  publishDraft = (event) => core.live.publishDraft(event);
+  publishDraft = (event) => {
+    core.live.publishDraft(event);
+    try {
+      voiceDrafts(event);
+    } catch (error) {
+      diagnosticEvents.record('voice', 'call-draft-failed', { error: String(error).slice(0, 200) });
+    }
+  };
   ctx.effect(() => () => core.operationalDatabase.close(), 'botharness: operational database');
   ctx.effect(() => () => core.contentPurge.close(), 'botharness: purge ledger');
   const storage = createStorageCleanup({
@@ -1585,7 +1675,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     'botharness: attachment sweep',
   );
   let connectAccount: ConnectAccount | undefined;
+  let voiceCalls: VoiceCalls | undefined;
   mountDevicePairing(ctx, {
+    calls: () => voiceCalls,
     botNetwork: {
       registry: core.registry,
       channels: core.channels,
@@ -1678,6 +1770,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     secretMcpStore,
     diagnosticEvents,
   );
+  const takeovers = createCoreTakeoverHandoffs(ctx, core, diagnosticEvents);
+  mountTakeoverTools(ctx, core, takeovers);
   ctx.effect(() => () => core.externalMessaging.close(), 'botharness: external messaging');
   const cloudConnections = new CloudConnections(
     attachOperationalModule(core.operationalDatabase, 'messaging'),
@@ -2635,6 +2729,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (event) => ctx.logger.info(JSON.stringify(event)),
   });
   const bridgeMethods = createBridgeMethods({
+    voiceProviders: core.voiceProviders,
     prompts: core.prompts,
     botContext: async (slug) => {
       const sessionId = core.runtime.currentOrchestratorSessionId?.(slug) ?? null;
@@ -2803,6 +2898,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     attention: core.attention,
     sourcePolicy: core.sourcePolicy,
     schedules: core.schedules,
+    takeovers,
     humanAttention: core.humanAttention,
     humanAttentionDecisions: core.humanAttentionDecisions,
     grants: core.grants,
@@ -2976,6 +3072,50 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     registry: core.registry,
     isProtectedBot: (slug) => core.tob.isTob(slug),
   });
+  voiceCalls = createVoiceCalls({
+    bot: (slug) => core.registry.get(slug),
+    providers: core.voiceProviders,
+    media: () =>
+      (ctx.get('botharnessComputer') as { callMedia?: VoiceCallMedia } | undefined)?.callMedia,
+    async send({ channelId, messageId, body, callId }) {
+      const result = await bridgeMethods.channelSend({
+        channelId,
+        messageId,
+        body,
+        voiceCall: { callId },
+      });
+      if (!result.ok)
+        throw Object.assign(new Error(result.error.message), { code: result.error.code });
+    },
+    busy: (slug) => {
+      const overview = bridgeMethods.activityOverview({});
+      return (
+        overview.ok &&
+        overview.value.bots.some(
+          (bot) =>
+            bot.slug === slug && bot.sessions.some((session) => session.role === 'orchestrator'),
+        )
+      );
+    },
+    log: (phase, fields) => diagnosticEvents.record('voice', phase, fields),
+  });
+  const calls = voiceCalls;
+  core.voiceSpeech.speak = (input) => calls.speak(input);
+  voiceDrafts = (event) => calls.draft(event);
+  ctx.effect(
+    () => async () => {
+      core.voiceSpeech.speak = undefined;
+      voiceDrafts = () => undefined;
+      voiceCalls = undefined;
+      await calls.dispose();
+    },
+    'botharness: voice calls',
+  );
+  const tobVoiceOperations = createTobVoiceOperations({
+    providers: () => core.voiceProviders,
+    registry: core.registry,
+    isProtectedBot: (slug) => core.tob.isTob(slug),
+  });
   registerBridge(ctx, bridgeMethods, privateInputs, {
     followRoster: (signal) => core.live.followRoster(signal),
     followActivity: (signal) => core.live.followActivity(signal),
@@ -3016,6 +3156,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       },
     });
     developerModeTarget.gate = gate;
+    skillsCtx.effect(
+      () =>
+        skills.register({
+          name: LOCAL_VOICE_SKILL_NAME,
+          description: LOCAL_VOICE_SKILL_DESCRIPTION,
+          whenToUse: LOCAL_VOICE_SKILL_WHEN_TO_USE,
+          content: LOCAL_VOICE_SKILL_CONTENT,
+          invocation: LOCAL_VOICE_SKILL_INVOCATION,
+          source: LOCAL_VOICE_SKILL_SOURCE,
+          provider: LOCAL_VOICE_SKILL_PROVIDER,
+        }),
+      'botharness: local voice skill',
+    );
     skillsCtx.effect(() => {
       syncDeveloperMode();
       return () => {
@@ -3081,6 +3234,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         await off();
       };
     }, 'botharness: explicit Client-local appearance control');
+    connectionCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: VOICE_CALL_PATH,
+          methods: ['POST'],
+          requestBody: 'buffered',
+          fetch: createVoiceCallHttp(() => voiceCalls),
+        }),
+      'botharness: Bot calls (Host owner and CLI)',
+    );
     connectionCtx.effect(() => {
       return connection.fetch.register({
         path: CHANNEL_STREAM_PATH,

@@ -39,7 +39,7 @@ import {
   backgroundImageUri,
 } from '../../host/native-chat-background';
 import { ChatBackground } from './chat-background';
-import type { HostClient } from '../../host/client';
+import type { HostClient, RosterBot } from '../../host/client';
 import { visibleDmActivity } from '../../host/dm-activity';
 import { latestTurnMessageId } from '../../host/session-failure';
 import { useHiddenDmActivity } from '../../host/native-dm-activity';
@@ -87,6 +87,7 @@ import { botColor } from '../bot-color';
 import { ApprovalCard } from './approval-card';
 import { GrantRequestCard } from './grant-request-card';
 import { PrivateInputCard } from './private-input-card';
+import { TakeoverCard } from './takeover-card';
 import { ActivityRow } from './activity-row';
 import type { BubbleGroup } from './bubble-shape';
 import { botBusy } from './bot-tone';
@@ -154,6 +155,7 @@ import { useStrings } from '../strings';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { ListSkeleton } from '../primitives/list-skeleton';
 import { Button } from '../primitives/button';
+import { useBotCall } from './call-button';
 
 type Row = ChatRow | { kind: 'draft'; key: string; draft: ConversationDraftReference };
 const NO_DRAFTS: ConversationDraftReference[] = [];
@@ -196,9 +198,10 @@ export function ConversationScreen({
   const focused = routeFocused && active && (presentation?.active ?? true);
   const roster = useHostSnapshot(client, focused).roster;
   const navigation = useNavigationContainerRef();
+  const identityBots = useIdentityBots(roster?.bots);
   const identities = useMemo(
     () => ({
-      bots: roster?.bots ?? [],
+      bots: identityBots ?? [],
       openBot: (slug: string) =>
         saved &&
         navigateChannel(navigation, {
@@ -206,7 +209,7 @@ export function ConversationScreen({
           params: { slug, hostId: saved.hostId },
         }),
     }),
-    [roster?.bots, navigation, saved],
+    [identityBots, navigation, saved],
   );
   const bot =
     place.kind === 'dm' ? roster?.bots.find((entry) => entry.slug === place.slug) : undefined;
@@ -296,6 +299,18 @@ const RequestCard = memo(function RequestCard({
   );
 
   const subject = card.subject === undefined ? {} : { subject: card.subject };
+  if (card.kind === 'takeover' && card.takeover !== undefined)
+    return (
+      <TakeoverCard
+        client={client}
+        target={ref}
+        takeover={card.takeover}
+        sentence={card.subject ?? message.body}
+        outcome={resolution?.kind === 'takeover' ? resolution.outcome : undefined}
+        focused={focused}
+        group={group}
+      />
+    );
   if (card.kind === 'private-input')
     return (
       <PrivateInputCard
@@ -943,8 +958,13 @@ function ChatConversation({
     [conversation],
   );
 
-  const roster = host.roster;
-  const botName = useBotNames(roster?.bots);
+  const liveRoster = host.roster;
+  const identityBots = useIdentityBots(liveRoster?.bots);
+  const roster = useMemo(
+    () => (liveRoster === undefined ? undefined : { ...liveRoster, bots: identityBots ?? [] }),
+    [identityBots, liveRoster?.channels, liveRoster?.activityChannels],
+  );
+  const botName = useBotNames(identityBots);
   const reading = useMemo(() => readingBots(snapshot.messages), [snapshot.messages]);
   const [deliveryFor, setDeliveryFor] = useState<string>();
   const openDelivery = useCallback(
@@ -1100,6 +1120,7 @@ function ChatConversation({
         (item.message.card?.kind === 'tool-approval' ||
           item.message.card?.kind === 'user-question' ||
           item.message.card?.kind === 'grant' ||
+          item.message.card?.kind === 'takeover' ||
           item.message.card?.kind === 'private-input')
       )
         return wrap(
@@ -1309,6 +1330,11 @@ function ChatConversation({
     />
   );
   const canOpenProfile = saved !== undefined && !hostRefused && !missing && selected === undefined;
+  const placeCall = useBotCall(
+    canOpenProfile && dm && bot !== undefined ? client : undefined,
+    slug,
+    saved?.hostId,
+  );
   const profileButton = canOpenProfile ? (
     <HeaderIconButton
       icon="more"
@@ -1319,12 +1345,22 @@ function ChatConversation({
   ) : null;
   const ios = Platform.OS === 'ios';
   const headerGap = glassPress.gap;
+  const callButton =
+    !ios && placeCall !== undefined ? (
+      <HeaderIconButton
+        icon="call"
+        label={t.call.button}
+        testID="chat-call-button"
+        onPress={placeCall}
+      />
+    ) : null;
   const titleWidth = Math.max(
     0,
     windowWidth -
       insets.left -
       insets.right -
       (theme.touch + space.x5 + headerGap) * 2 -
+      (ios && placeCall !== undefined ? (theme.touch + headerGap) * 2 : 0) -
       (ios && glassHeader ? space.x4 * 2 : 0),
   );
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
@@ -1458,6 +1494,18 @@ function ChatConversation({
                   unstable_headerRightItems: () =>
                     canOpenProfile
                       ? [
+                          ...(placeCall === undefined
+                            ? []
+                            : [
+                                { type: 'spacing' as const, spacing: headerGap },
+                                {
+                                  type: 'button' as const,
+                                  label: t.call.button,
+                                  identifier: 'chat-call-button',
+                                  icon: { type: 'sfSymbol' as const, name: 'phone' as const },
+                                  onPress: placeCall,
+                                },
+                              ]),
                           { type: 'spacing' as const, spacing: headerGap },
                           {
                             type: 'button' as const,
@@ -1490,13 +1538,24 @@ function ChatConversation({
                 }
               : {
                   headerTitleAlign: 'left' as const,
-                  headerRight: () => profileButton,
+                  headerRight: () =>
+                    callButton === null ? (
+                      profileButton
+                    ) : (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: headerGap }}>
+                        {callButton}
+                        {profileButton}
+                      </View>
+                    ),
                   headerTitle: () => (
                     <View
                       key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
                       style={{
                         width: dm || botDm ? undefined : windowWidth - (theme.touch + space.x5) * 2,
-                        maxWidth: windowWidth - (theme.touch + space.x5) * 2,
+                        maxWidth:
+                          windowWidth -
+                          (theme.touch + space.x5) * 2 -
+                          (callButton === null ? 0 : theme.touch + headerGap),
                         marginHorizontal: space.x3,
                       }}
                     >
@@ -1878,6 +1937,7 @@ function ChatConversation({
           >
             {back}
             <View style={{ flex: 1, minWidth: 0 }}>{title}</View>
+            {callButton}
             {profileButton}
           </View>
         ) : null}
@@ -1917,7 +1977,9 @@ function ChatConversation({
           onClose={() => setImageSelection(undefined)}
         />
       ) : null}
-      <ImageViewer attachment={viewing} onClose={() => setViewing(undefined)} onShare={share} />
+      {viewing === undefined ? null : (
+        <ImageViewer attachment={viewing} onClose={() => setViewing(undefined)} onShare={share} />
+      )}
       <DeliverySheet
         message={
           deliveryFor === undefined
@@ -1946,8 +2008,34 @@ function ChatConversation({
               ? { label: t.openProfile, testID: 'chat-profile-button', onPress: openProfile }
               : undefined
           }
+          call={
+            placeCall === undefined
+              ? undefined
+              : { label: t.call.button, testID: 'chat-call-button', onPress: placeCall }
+          }
         />
       )}
     </>
   );
+}
+
+function useIdentityBots(bots: readonly RosterBot[] | undefined): RosterBot[] | undefined {
+  const last = useRef<{ key: string; bots: RosterBot[] | undefined }>(undefined);
+  const key = JSON.stringify(
+    bots?.map(
+      ({
+        state: _state,
+        activity: _activity,
+        sessions: _sessions,
+        preview: _preview,
+        previewAt: _previewAt,
+        previewAuthor: _previewAuthor,
+        latestMessageId: _latestMessageId,
+        ...identity
+      }) => identity,
+    ),
+  );
+  if (last.current === undefined || last.current.key !== key)
+    last.current = { key, bots: bots === undefined ? undefined : [...bots] };
+  return last.current.bots;
 }

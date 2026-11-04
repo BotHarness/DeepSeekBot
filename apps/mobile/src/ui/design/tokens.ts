@@ -298,6 +298,7 @@ export const swipeOpen = {
 export const swipeReply = {
   start: 12,
   verticalFail: 10,
+  backFail: 8,
   commit: 56,
   reach: 72,
   icon: 28,

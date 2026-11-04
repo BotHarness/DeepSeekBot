@@ -752,6 +752,7 @@ export function createOutboundMessaging(options: {
       message.userQuestionResolution ||
       message.privateInputRequest ||
       message.privateInputResolution ||
+      message.takeoverResolution ||
       message.sessionFailure ||
       message.grantRequest ||
       message.grantRequestResolution ||

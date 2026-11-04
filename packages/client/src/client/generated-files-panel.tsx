@@ -45,12 +45,20 @@ export function ChannelFiles({
     setLoading(false);
     const controller = new AbortController();
     const cache = createGeneratedFilesHistory();
+    let seenChannels: unknown;
+    let seenMessages: unknown;
     const reconcile = (): void => {
       const snapshot = store.getSnapshot();
+      const messages =
+        snapshot.conversation.channel?.id === channelId
+          ? snapshot.conversation.messages
+          : undefined;
+      if (snapshot.channels === seenChannels && messages === seenMessages) return;
+      seenChannels = snapshot.channels;
+      seenMessages = messages;
       const latest = snapshot.channels.find((item) => item.id === channelId)?.latestMessage;
       if (latest !== undefined) cache.accept([latest], 'live');
-      if (snapshot.conversation.channel?.id === channelId)
-        cache.accept(snapshot.conversation.messages, 'live');
+      if (messages !== undefined) cache.accept(messages, 'live');
       setHistory(cache.files());
     };
     const unsubscribe = store.subscribe(reconcile);

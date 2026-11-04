@@ -2632,6 +2632,185 @@ const QUESTION_MESSAGING_MIGRATION: SchemaMigration = {
   },
 };
 
+const TAKEOVER_ATTENTION_INDEX_MIGRATION: SchemaMigration = {
+  generation: 117,
+  module: 'messaging',
+  description: 'Index Takeover Handoff requests without scanning ordinary history',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX source_events_attention_takeover ON source_events (message_id, source_event_id)
+        WHERE source_kind = 'bot-message'
+          AND json_extract(payload_json, '$.takeoverRequest') IS NOT NULL;
+    `);
+  },
+};
+
+const VOICE_PROVIDER_MIGRATION: SchemaMigration = {
+  generation: 118,
+  module: 'voice',
+  description: 'Store TTS Providers; their keys stay in the credentials service',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE voice_providers (
+        id TEXT PRIMARY KEY,
+        body TEXT NOT NULL CHECK (json_valid(body)),
+        created_at TEXT NOT NULL
+      );
+    `);
+  },
+};
+
+const GRANT_RESOLUTION_INDEX_MIGRATION: SchemaMigration = {
+  generation: 119,
+  module: 'messaging',
+  description: 'Index grant request resolutions without scanning Channel history',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX source_events_grant_resolution
+        ON source_events (json_extract(payload_json, '$.grantRequestResolution.requestMessageId'))
+        WHERE json_extract(payload_json, '$.grantRequestResolution.requestMessageId') IS NOT NULL;
+    `);
+  },
+};
+
+const OUTPUT_REQUEST_INDEX_MIGRATION: SchemaMigration = {
+  generation: 120,
+  module: 'messaging',
+  description: 'Index Bot output lookups by the request that caused them',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX channel_output_origins_request ON channel_output_origins (request_source_event_id);
+    `);
+  },
+};
+
+const SESSION_PARENT_INDEX_MIGRATION: SchemaMigration = {
+  generation: 121,
+  module: 'session-ownership',
+  description: 'Index child Sessions by parent without scanning every Session',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX session_ownership_parent ON session_ownership (parent_session_id);
+    `);
+  },
+};
+
+const NEEDS_REPAIR_INDEX_MIGRATION: SchemaMigration = {
+  generation: 122,
+  module: 'bot-inbox',
+  description: 'Index Admissions that need repair without scanning Inbox history',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX inbox_admissions_needs_repair ON inbox_admissions (source_event_id, bot_slug)
+        WHERE attempt_state = 'needs-repair';
+    `);
+  },
+};
+
+const PLACEMENT_NOTICE_MIGRATION: SchemaMigration = {
+  generation: 123,
+  module: 'messaging',
+  description: 'Mark notice placements so the latest message is found without walking notices',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE channel_placements ADD COLUMN notice INTEGER NOT NULL DEFAULT 0;
+      UPDATE channel_placements SET notice = 1 WHERE source_event_id IN (
+        SELECT source_event_id FROM source_events
+         WHERE CASE WHEN json_valid(payload_json) THEN coalesce(json_type(payload_json, '$.botDmAction') = 'object' OR json_type(payload_json, '$.botCreateAction') = 'object' OR json_type(payload_json, '$.botChannelPost') = 'object' OR json_type(payload_json, '$.memoryCommit') = 'object' OR json_type(payload_json, '$.toolAutoApproval') = 'object' OR json_type(payload_json, '$.toolAutoApprovalPause') = 'object', 0) ELSE 0 END
+      );
+      CREATE INDEX channel_placements_latest_message ON channel_placements (channel_id, revision)
+        WHERE notice = 0;
+      CREATE TRIGGER channel_placements_notice_insert AFTER INSERT ON channel_placements
+        BEGIN
+          UPDATE channel_placements SET notice = coalesce((
+            SELECT CASE WHEN json_valid(payload_json) THEN coalesce(json_type(payload_json, '$.botDmAction') = 'object' OR json_type(payload_json, '$.botCreateAction') = 'object' OR json_type(payload_json, '$.botChannelPost') = 'object' OR json_type(payload_json, '$.memoryCommit') = 'object' OR json_type(payload_json, '$.toolAutoApproval') = 'object' OR json_type(payload_json, '$.toolAutoApprovalPause') = 'object', 0) ELSE 0 END FROM source_events
+             WHERE source_event_id = NEW.source_event_id
+          ), 0)
+           WHERE channel_id = NEW.channel_id AND revision = NEW.revision;
+        END;
+      CREATE TRIGGER channel_placements_notice_update AFTER UPDATE OF payload_json ON source_events
+        BEGIN
+          UPDATE channel_placements SET notice = CASE WHEN json_valid(NEW.payload_json) THEN coalesce(json_type(NEW.payload_json, '$.botDmAction') = 'object' OR json_type(NEW.payload_json, '$.botCreateAction') = 'object' OR json_type(NEW.payload_json, '$.botChannelPost') = 'object' OR json_type(NEW.payload_json, '$.memoryCommit') = 'object' OR json_type(NEW.payload_json, '$.toolAutoApproval') = 'object' OR json_type(NEW.payload_json, '$.toolAutoApprovalPause') = 'object', 0) ELSE 0 END
+           WHERE source_event_id = NEW.source_event_id;
+        END;
+    `);
+  },
+};
+
+const PLACEMENT_HUMAN_REPLY_MIGRATION: SchemaMigration = {
+  generation: 124,
+  module: 'messaging',
+  description:
+    'Mark Bot replies and mentions for the Human so the replies list skips other history',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE channel_placements ADD COLUMN for_human INTEGER NOT NULL DEFAULT 0;
+      UPDATE channel_placements SET for_human = 1 WHERE (
+        SELECT CASE WHEN json_valid(e.payload_json) AND json_extract(e.payload_json, '$.author.kind') = 'bot' THEN coalesce(json_array_length(e.payload_json, '$.humanMentions') > 0 OR EXISTS (SELECT 1 FROM channel_placements o JOIN source_events t ON t.source_event_id = o.source_event_id WHERE o.channel_id = channel_placements.channel_id AND o.message_id = json_extract(e.payload_json, '$.replyTo') AND json_valid(t.payload_json) AND json_extract(t.payload_json, '$.author.kind') = 'human'), 0) ELSE 0 END FROM source_events e WHERE e.source_event_id = channel_placements.source_event_id
+      ) = 1;
+      CREATE INDEX channel_placements_for_human ON channel_placements (channel_id, revision)
+        WHERE for_human = 1;
+      CREATE TRIGGER channel_placements_for_human_insert AFTER INSERT ON channel_placements
+        BEGIN
+          UPDATE channel_placements SET for_human = coalesce((
+            SELECT CASE WHEN json_valid(e.payload_json) AND json_extract(e.payload_json, '$.author.kind') = 'bot' THEN coalesce(json_array_length(e.payload_json, '$.humanMentions') > 0 OR EXISTS (SELECT 1 FROM channel_placements o JOIN source_events t ON t.source_event_id = o.source_event_id WHERE o.channel_id = NEW.channel_id AND o.message_id = json_extract(e.payload_json, '$.replyTo') AND json_valid(t.payload_json) AND json_extract(t.payload_json, '$.author.kind') = 'human'), 0) ELSE 0 END FROM source_events e WHERE e.source_event_id = NEW.source_event_id
+          ), 0)
+           WHERE channel_id = NEW.channel_id AND revision = NEW.revision;
+        END;
+      CREATE TRIGGER channel_placements_for_human_update AFTER UPDATE OF payload_json ON source_events
+        BEGIN
+          UPDATE channel_placements SET for_human = coalesce((
+            SELECT CASE WHEN json_valid(e.payload_json) AND json_extract(e.payload_json, '$.author.kind') = 'bot' THEN coalesce(json_array_length(e.payload_json, '$.humanMentions') > 0 OR EXISTS (SELECT 1 FROM channel_placements o JOIN source_events t ON t.source_event_id = o.source_event_id WHERE o.channel_id = channel_placements.channel_id AND o.message_id = json_extract(e.payload_json, '$.replyTo') AND json_valid(t.payload_json) AND json_extract(t.payload_json, '$.author.kind') = 'human'), 0) ELSE 0 END FROM source_events e WHERE e.source_event_id = NEW.source_event_id
+          ), 0)
+           WHERE source_event_id = NEW.source_event_id;
+        END;
+    `);
+  },
+};
+
+const BOUNDED_RANGE_INDEX_MIGRATION: SchemaMigration = {
+  generation: 125,
+  module: 'messaging',
+  description:
+    'Index message time, outbound attempts, outbound receipts and external message ids for bounded lookups',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX source_events_created ON source_events (created_at);
+      CREATE INDEX messaging_outbox_attempts_started ON messaging_outbox_attempts (started_at);
+      CREATE INDEX messaging_outbox_receipt
+        ON messaging_outbox (bot_slug, json_extract(body, '$.receipt.messageId'));
+      CREATE INDEX source_events_external_message
+        ON source_events (bot_slug, json_extract(payload_json, '$.external.event.messageId'))
+        WHERE source_kind = 'bridge-message';
+    `);
+  },
+};
+
+const ATTENTION_RESOLUTION_INDEX_MIGRATION: SchemaMigration = {
+  generation: 126,
+  module: 'messaging',
+  description: 'Index attention resolutions and admission activity time for bounded lookups',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX source_events_question_resolution
+        ON source_events (json_extract(payload_json, '$.userQuestionResolution.requestMessageId'))
+        WHERE json_extract(payload_json, '$.userQuestionResolution.requestMessageId') IS NOT NULL;
+      CREATE INDEX source_events_approval_decision
+        ON source_events (json_extract(payload_json, '$.toolApprovalDecision.requestMessageId'))
+        WHERE json_extract(payload_json, '$.toolApprovalDecision.requestMessageId') IS NOT NULL;
+      CREATE INDEX source_events_approval_override
+        ON source_events (json_extract(payload_json, '$.toolAutoApprovalOverride.recordMessageId'))
+        WHERE json_extract(payload_json, '$.toolAutoApprovalOverride.recordMessageId') IS NOT NULL;
+      CREATE INDEX source_events_private_resolution
+        ON source_events (json_extract(payload_json, '$.privateInputResolution.requestMessageId'))
+        WHERE json_extract(payload_json, '$.privateInputResolution.requestMessageId') IS NOT NULL;
+      CREATE INDEX inbox_admissions_activity
+        ON inbox_admissions (bot_slug, coalesce(observed_at, handled_at))
+        WHERE ignored_at IS NULL;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2748,4 +2927,14 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   HUMAN_ATTENTION_CANDIDATE_INDEX_MIGRATION,
   BOT_LAN_ADMISSION_MIGRATION,
   QUESTION_MESSAGING_MIGRATION,
+  TAKEOVER_ATTENTION_INDEX_MIGRATION,
+  VOICE_PROVIDER_MIGRATION,
+  GRANT_RESOLUTION_INDEX_MIGRATION,
+  OUTPUT_REQUEST_INDEX_MIGRATION,
+  SESSION_PARENT_INDEX_MIGRATION,
+  NEEDS_REPAIR_INDEX_MIGRATION,
+  PLACEMENT_NOTICE_MIGRATION,
+  PLACEMENT_HUMAN_REPLY_MIGRATION,
+  BOUNDED_RANGE_INDEX_MIGRATION,
+  ATTENTION_RESOLUTION_INDEX_MIGRATION,
 ]);
