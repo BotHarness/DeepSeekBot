@@ -15,7 +15,7 @@ import {
   MessageIcon,
   PersonIcon,
   PlusIcon,
-  RecordingStopIcon,
+  StopCircleIcon,
 } from '../shell/icons';
 import { useStrings } from '../strings';
 import { activityPeer, activityText, type ActivityTarget } from './activity-text';
@@ -67,7 +67,7 @@ export function ActivityRow({
             ? PlusIcon
             : activity.kind === 'departure'
               ? PersonIcon
-              : RecordingStopIcon;
+              : StopCircleIcon;
   const size = theme.type.meta.line;
   const hit = Math.max(0, (theme.touch - size) / 2);
   const open = () => {
@@ -104,13 +104,15 @@ export function ActivityRow({
           {dmSlug !== undefined ? null : (
             <View style={{ width: SPEAKER_AVATAR, alignItems: 'center' }}>
               {actor === undefined ? (
-                <PersonIcon color={theme.color.muted} size={size} />
+                <Icon color={theme.color.muted} size={size} />
               ) : (
                 <BotAvatar bot={actor} size={size} corner={radius.xs} ring={false} />
               )}
             </View>
           )}
-          <Icon color={theme.color.muted} size={size} />
+          {dmSlug === undefined && actor === undefined ? null : (
+            <Icon color={theme.color.muted} size={size} />
+          )}
           {dmSlug === undefined || peerSlug === undefined ? null : peer === undefined ? (
             <PersonIcon color={theme.color.muted} size={size} />
           ) : (
