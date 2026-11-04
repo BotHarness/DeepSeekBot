@@ -89,6 +89,7 @@ for (const name of [
   'computer',
   'do-not-touch',
   'tob-mode',
+  'call',
   'more-vert',
 ]) {
   const path = requireAsset.resolve(`../assets/header/${name}.xml`);
