@@ -1,5 +1,6 @@
 import { useState, type ReactElement, type RefCallback } from 'react';
 import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import * as stylex from '@stylexjs/stylex';
 
 import type { BridgeActions } from './actions.js';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
@@ -9,6 +10,7 @@ import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
+import { space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { MessageAudio } from './message-audio.js';
@@ -23,6 +25,10 @@ import {
   initialChoice,
   type Choice,
 } from './voice-options.js';
+
+const styles = stylex.create({
+  page: { display: 'flex', flexDirection: 'column', minWidth: 0, paddingBottom: space.x6 },
+});
 
 type VoiceActions = Pick<
   BridgeActions,
@@ -375,24 +381,15 @@ export function VoiceProviderSettings({
         description={kind === 'tts' ? t('voice.providers.description') : t('voice.asr.description')}
       >
         {view === undefined ? null : defaultRow(view, kind)}
-        {view === undefined || kind === 'tts' ? null : (
-          <VoiceMicTest
-            threshold={view.speechThreshold}
-            save={
-              actions.setSpeechThreshold === undefined
-                ? undefined
-                : async (dbfs) => {
-                    const speechThreshold = await actions.setSpeechThreshold!(dbfs);
-                    setView((current) =>
-                      current === undefined ? current : { ...current, speechThreshold },
-                    );
-                  }
-            }
-            t={t}
-          />
-        )}
         <SettingsRow
           title={kind === 'tts' ? t('voice.providers.new') : t('voice.asr.new')}
+          description={
+            view !== undefined && providers.length === 0
+              ? kind === 'tts'
+                ? t('voice.providers.empty')
+                : t('voice.asr.empty')
+              : undefined
+          }
           data={{ 'data-voice-provider-new': kind }}
           control={
             <Button
@@ -464,11 +461,6 @@ export function VoiceProviderSettings({
             );
           })
         )}
-        {view !== undefined && providers.length === 0 ? (
-          <Note tone="muted">
-            {kind === 'tts' ? t('voice.providers.empty') : t('voice.asr.empty')}
-          </Note>
-        ) : null}
       </SettingsSection>
     );
   };
@@ -482,9 +474,25 @@ export function VoiceProviderSettings({
           ...view.asrProviders,
         ]);
   return (
-    <div ref={mount} data-voice-providers="">
+    <div ref={mount} data-voice-providers="" {...stylex.props(styles.page)}>
       {section('tts')}
       {section('asr')}
+      {view === undefined ? null : (
+        <VoiceMicTest
+          threshold={view.speechThreshold}
+          save={
+            actions.setSpeechThreshold === undefined
+              ? undefined
+              : async (dbfs) => {
+                  const speechThreshold = await actions.setSpeechThreshold!(dbfs);
+                  setView((current) =>
+                    current === undefined ? current : { ...current, speechThreshold },
+                  );
+                }
+          }
+          t={t}
+        />
+      )}
       {error === undefined || draft !== undefined || removing !== undefined ? null : (
         <Note tone="danger">{error}</Note>
       )}

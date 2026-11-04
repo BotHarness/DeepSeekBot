@@ -256,6 +256,7 @@
         "setting:packages/client/src/client/voice-settings.tsx:{kind === 'tts' ? t('voice.providers.new') : t('voice.asr.new')}",
         "setting:packages/client/src/client/voice-settings.tsx:{t('voice.default.title')}",
         "setting:packages/client/src/client/voice-mic-test.tsx:{t('voice.mic.title')}",
+        "setting:packages/client/src/client/voice-mic-test.tsx:{t('voice.mic.threshold')}",
         "setting:packages/client/src/client/voice-settings.tsx:{provider.name}",
         "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.provider')}",
         "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.asr')}",
@@ -523,6 +524,7 @@
       "description": "The microphone this browser uses for dictation, the microphone test and desktop or Web calls.",
       "scope": "Client device preference",
       "surfaces": [
+        "setting:packages/client/src/client/voice-mic-test.tsx:{t('voice.mic.device')}",
         "storage:packages/client/src/client/mic-device.ts:removeItem(MIC_DEVICE_STORAGE_KEY)",
         "storage:packages/client/src/client/mic-device.ts:setItem(MIC_DEVICE_STORAGE_KEY)"
       ],

@@ -12,7 +12,7 @@ import {
 } from './mic-device.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
-import { SettingsRow } from './ds/settings-row.js';
+import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -20,10 +20,18 @@ import type { VoiceSpeechThresholdView } from './voice-bridge.js';
 import { levelDbfs, meterFraction, METER_FLOOR_DBFS, smoothLevel } from './voice-level.js';
 
 const styles = stylex.create({
-  body: { display: 'grid', gap: space.x3, width: '100%' },
+  meterLine: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x4,
+    minWidth: 0,
+    paddingTop: space.x2,
+  },
   meter: {
     position: 'relative',
-    height: '10px',
+    flexGrow: 1,
+    minWidth: 0,
+    height: '8px',
     borderRadius: radius.sm,
     backgroundColor: color.well,
     borderWidth: border.hairline,
@@ -40,30 +48,24 @@ const styles = stylex.create({
   },
   marker: {
     position: 'absolute',
-    insetBlock: '-2px',
+    insetBlock: 0,
     width: '2px',
     transform: 'translateX(-50%)',
     backgroundColor: color.accent,
   },
   readout: {
     display: 'flex',
-    flexWrap: 'wrap',
     gap: space.x3,
+    flexShrink: 0,
+    minWidth: '9em',
+    justifyContent: 'flex-end',
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     color: color.muted,
     fontVariantNumeric: 'tabular-nums',
+    whiteSpace: 'nowrap',
   },
-  slider: {
-    display: 'grid',
-    gridTemplateColumns: 'auto minmax(0, 1fr) auto',
-    alignItems: 'center',
-    gap: space.x3,
-    fontSize: text.bodySize,
-    color: color.fg,
-  },
-  range: { width: '100%', accentColor: color.accent },
-  actions: { display: 'flex', flexWrap: 'wrap', gap: space.x3 },
+  range: { flexGrow: 1, minWidth: 0, margin: 0, accentColor: color.accent },
 });
 
 type MicProblem = 'denied' | 'missing' | undefined;
@@ -188,31 +190,26 @@ export function VoiceMicTest({
       .finally(() => setBusy(false));
   };
   const marker = `${(meterFraction(value) * 100).toFixed(1)}%`;
+  const release = () => {
+    if (draft !== undefined && draft !== threshold.dbfs) commit(draft);
+  };
   return (
-    <SettingsRow
-      title={t('voice.mic.title')}
-      description={t('voice.mic.description')}
-      data={{ 'data-voice-mic-test': '' }}
-      control={
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            setProblem(undefined);
-            setRunning(!running);
-          }}
-        >
-          {running ? t('voice.mic.stop') : t('voice.mic.start')}
-        </Button>
-      }
-    >
-      <div ref={meterMount} {...stylex.props(styles.body)}>
-        <div ref={listMount} {...stylex.props(styles.slider)}>
-          <span>{t('voice.mic.device')}</span>
+    <SettingsSection title={t('voice.mic.section')} description={t('voice.mic.sectionHint')}>
+      <SettingsRow
+        rootRef={listMount}
+        title={t('voice.mic.device')}
+        description={
+          fellBack
+            ? t('voice.mic.fellBack')
+            : devices.length > 0 && devices.every((item) => item.label === '')
+              ? t('voice.mic.labelsHint')
+              : t('voice.mic.deviceHint')
+        }
+        data={{ 'data-voice-mic-device': '' }}
+        control={
           <Select
             label={t('voice.mic.device')}
             value={device ?? SYSTEM_DEFAULT}
-            align="start"
             options={[
               { value: SYSTEM_DEFAULT, label: t('voice.mic.systemDefault') },
               ...devices.map((item, index) => ({
@@ -227,31 +224,68 @@ export function VoiceMicTest({
               setFellBack(false);
             }}
           />
-          <span />
+        }
+      />
+      <SettingsRow
+        rootRef={meterMount}
+        title={t('voice.mic.title')}
+        description={t('voice.mic.description')}
+        data={{ 'data-voice-mic-test': '' }}
+        control={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setProblem(undefined);
+              setRunning(!running);
+            }}
+          >
+            {running ? t('voice.mic.stop') : t('voice.mic.start')}
+          </Button>
+        }
+      >
+        <div {...stylex.props(styles.meterLine)}>
+          <div
+            {...stylex.props(styles.meter)}
+            role="meter"
+            aria-label={t('voice.mic.level')}
+            aria-valuemin={METER_FLOOR_DBFS}
+            aria-valuemax={0}
+          >
+            <div ref={fill} {...stylex.props(styles.fill)} />
+            <div {...stylex.props(styles.marker)} style={{ insetInlineStart: marker }} />
+          </div>
+          <span {...stylex.props(styles.readout)}>
+            <span ref={readout}>{running ? '…' : t('voice.mic.idle')}</span>
+            <span ref={speech} />
+          </span>
         </div>
-        {devices.length > 0 && devices.every((item) => item.label === '') ? (
-          <Note tone="muted">{t('voice.mic.labelsHint')}</Note>
-        ) : null}
-        {fellBack ? <Note tone="muted">{t('voice.mic.fellBack')}</Note> : null}
-        <div
-          {...stylex.props(styles.meter)}
-          role="meter"
-          aria-label={t('voice.mic.level')}
-          aria-valuemin={METER_FLOOR_DBFS}
-          aria-valuemax={0}
-        >
-          <div ref={fill} {...stylex.props(styles.fill)} />
-          <div {...stylex.props(styles.marker)} style={{ insetInlineStart: marker }} />
-        </div>
-        <div {...stylex.props(styles.readout)}>
-          <span ref={readout}>{running ? '…' : t('voice.mic.idle')}</span>
-          <span ref={speech} />
-        </div>
-        <label {...stylex.props(styles.slider)}>
-          <span>{t('voice.mic.threshold')}</span>
+        {problem === undefined ? null : (
+          <Note tone="danger">
+            {problem === 'denied' ? t('voice.mic.denied') : t('voice.mic.missing')}
+          </Note>
+        )}
+      </SettingsRow>
+      <SettingsRow
+        title={t('voice.mic.threshold')}
+        description={t('voice.mic.thresholdHint')}
+        data={{ 'data-voice-speech-threshold': '' }}
+        control={
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={save === undefined || busy || (!threshold.custom && draft === undefined)}
+            onClick={() => commit(null)}
+          >
+            {t('voice.mic.reset')}
+          </Button>
+        }
+      >
+        <div {...stylex.props(styles.meterLine)}>
           <input
             {...stylex.props(styles.range)}
             id="voice-speech-threshold"
+            aria-label={t('voice.mic.threshold')}
             type="range"
             min={threshold.min}
             max={threshold.max}
@@ -259,34 +293,14 @@ export function VoiceMicTest({
             value={value}
             disabled={save === undefined || busy}
             onChange={(event) => setDraft(Number(event.currentTarget.value))}
+            onPointerUp={release}
+            onKeyUp={release}
+            onBlur={release}
           />
-          <span>{t('voice.mic.dbfs', { value })}</span>
-        </label>
-        <div {...stylex.props(styles.actions)}>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={save === undefined || busy || draft === undefined || draft === threshold.dbfs}
-            onClick={() => commit(value)}
-          >
-            {t('voice.bot.save')}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={save === undefined || busy || (!threshold.custom && draft === undefined)}
-            onClick={() => commit(null)}
-          >
-            {t('voice.mic.reset', { value: threshold.defaultDbfs })}
-          </Button>
+          <span {...stylex.props(styles.readout)}>{t('voice.mic.dbfs', { value })}</span>
         </div>
-        {problem === undefined ? null : (
-          <Note tone="danger">
-            {problem === 'denied' ? t('voice.mic.denied') : t('voice.mic.missing')}
-          </Note>
-        )}
         {error === undefined ? null : <Note tone="danger">{error}</Note>}
-      </div>
-    </SettingsRow>
+      </SettingsRow>
+    </SettingsSection>
   );
 }

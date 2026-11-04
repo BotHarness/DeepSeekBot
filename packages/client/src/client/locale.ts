@@ -1995,12 +1995,17 @@ export const zh = {
   'voice.providers.empty':
     '还没有语音服务。可以添加 Fish Audio、ElevenLabs、OpenAI，或任何兼容 OpenAI 的本地端点。',
   'voice.mic.title': '麦克风测试',
+  'voice.mic.section': '麦克风',
+  'voice.mic.sectionHint': '只对这台电脑上的这个浏览器生效。',
+  'voice.mic.deviceHint': '输入框语音输入、麦克风测试和通话都用这个麦克风。',
   'voice.mic.description':
-    '选择这台电脑在这个浏览器里用的麦克风，看看它有没有收到声音。竖线是「说话阈值」：音量超过它才算说话。它影响按停顿分段的语音输入（例如本地 SenseVoice）和通话里的说话检测；Soniox 实时转写自己判断断句，不受影响。',
-  'voice.mic.device': '麦克风',
+    '点「开始测试」后说几句话，音量条应该明显跳动；超过竖线（说话阈值）才算说话。',
+  'voice.mic.thresholdHint':
+    '数值越低，越小的声音也会被当作说话。影响按停顿分段的语音输入（例如本地 SenseVoice）和通话；Soniox 实时转写自己判断断句，不受影响。松开滑块即保存。',
+  'voice.mic.device': '输入设备',
   'voice.mic.systemDefault': '系统默认',
   'voice.mic.unnamed': '麦克风 {number}',
-  'voice.mic.labelsHint': '允许麦克风后显示名称。点「开始测试」授权一次即可。',
+  'voice.mic.labelsHint': '允许麦克风后才会显示名称。点下面的「开始测试」授权一次即可。',
   'voice.mic.fellBack': '之前选的麦克风已不可用，已改用系统默认。',
   'voice.mic.start': '开始测试',
   'voice.mic.stop': '停止',
@@ -2010,7 +2015,7 @@ export const zh = {
   'voice.mic.quiet': '低于阈值',
   'voice.mic.threshold': '说话阈值',
   'voice.mic.dbfs': '{value} dBFS',
-  'voice.mic.reset': '恢复默认（{value} dBFS）',
+  'voice.mic.reset': '恢复默认',
   'voice.mic.denied': '浏览器没有允许使用麦克风。请在地址栏的站点设置里允许麦克风，然后再试。',
   'voice.mic.missing': '没有找到可用的麦克风。请检查设备是否已连接，并在系统设置里选择输入设备。',
   'voice.asr.title': '语音识别（ASR）',
@@ -6821,9 +6826,15 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'voice.providers.empty':
     'No voice services yet. Add Fish Audio, ElevenLabs, OpenAI, or any OpenAI-compatible local endpoint.',
   'voice.mic.title': 'Microphone test',
+  'voice.mic.section': 'Microphone',
+  'voice.mic.sectionHint': 'Applies to this browser on this computer only.',
+  'voice.mic.deviceHint':
+    'Composer voice input, the microphone test and calls use this microphone.',
   'voice.mic.description':
-    'Choose the microphone this browser uses on this computer and check that it picks up sound. The line marks the speech threshold: input louder than it counts as speech. It affects pause-cut voice input (such as local SenseVoice) and speech detection in calls. Soniox live transcription finds sentence ends itself and ignores it.',
-  'voice.mic.device': 'Microphone',
+    'Start the test and say a few words: the bar should move clearly. Input past the line (the speech threshold) counts as speech.',
+  'voice.mic.thresholdHint':
+    'Lower values treat quieter sound as speech. Applies to pause-cut voice input (such as local SenseVoice) and calls; Soniox live transcription finds sentence ends itself. Saved when you release the slider.',
+  'voice.mic.device': 'Input device',
   'voice.mic.systemDefault': 'System default',
   'voice.mic.unnamed': 'Microphone {number}',
   'voice.mic.labelsHint':
@@ -6838,7 +6849,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'voice.mic.quiet': 'Below threshold',
   'voice.mic.threshold': 'Speech threshold',
   'voice.mic.dbfs': '{value} dBFS',
-  'voice.mic.reset': 'Reset to default ({value} dBFS)',
+  'voice.mic.reset': 'Reset to default',
   'voice.mic.denied':
     'The browser blocked the microphone. Allow it in the site settings next to the address bar, then try again.',
   'voice.mic.missing':
