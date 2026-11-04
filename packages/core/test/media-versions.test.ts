@@ -145,3 +145,31 @@ it('refuses a versioned request for a file the message does not own', async () =
   expect(response.status).toBeGreaterThanOrEqual(400);
   expect(response.headers.get('cache-control')).toBe('no-store');
 });
+
+it('serves byte ranges of a versioned original for resume and video seeking', async () => {
+  const { core, ref, get } = await fixture();
+  const version = (await core.mediaVersions.ensure(ref.fileId!))!.version;
+  const whole = Buffer.from(await (await get(`&v=${version}`)).arrayBuffer());
+  expect((await get(`&v=${version}`)).headers.get('accept-ranges')).toBe('bytes');
+
+  const head = await get(`&v=${version}`, { range: 'bytes=0-99' });
+  expect(head.status).toBe(206);
+  expect(head.headers.get('content-range')).toBe(`bytes 0-99/${whole.length}`);
+  expect(head.headers.get('cache-control')).toContain('immutable');
+  expect(Buffer.from(await head.arrayBuffer())).toEqual(whole.subarray(0, 100));
+
+  const rest = await get(`&v=${version}`, { range: 'bytes=100-' });
+  expect(rest.status).toBe(206);
+  expect(Buffer.concat([whole.subarray(0, 100), Buffer.from(await rest.arrayBuffer())])).toEqual(
+    whole,
+  );
+
+  const tail = await get(`&v=${version}`, { range: 'bytes=-10' });
+  expect(Buffer.from(await tail.arrayBuffer())).toEqual(whole.subarray(whole.length - 10));
+
+  const beyond = await get(`&v=${version}`, { range: `bytes=${whole.length}-` });
+  expect(beyond.status).toBe(416);
+  expect(beyond.headers.get('content-range')).toBe(`bytes */${whole.length}`);
+  expect((await get(`&v=${version}`, { range: 'bytes=x-y' })).status).toBe(416);
+  expect((await get(`&v=${'0'.repeat(32)}`, { range: 'bytes=0-9' })).status).toBe(409);
+});

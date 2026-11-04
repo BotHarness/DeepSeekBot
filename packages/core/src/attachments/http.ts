@@ -1,3 +1,6 @@
+import { createReadStream, statSync } from 'node:fs';
+import { Readable } from 'node:stream';
+
 import { MessagingError } from '../messaging/provider.js';
 import type { ChannelAttachmentRef } from './ref.js';
 import { createMessageAttachmentFiles } from './message-files.js';
@@ -7,6 +10,32 @@ import type { ChannelStore } from '../channels/store.js';
 import { ChannelAttachmentError, safeAttachmentName, type AttachmentStore } from './store.js';
 
 export const CHANNEL_ATTACHMENT_PATH = '/api/botharness/attachment';
+
+function parseRange(
+  header: string | null,
+): { start?: number; end?: number } | 'invalid' | undefined {
+  if (header === null) return undefined;
+  const match = /^bytes=(\d*)-(\d*)$/u.exec(header.trim());
+  if (match === null || (match[1] === '' && match[2] === '')) return 'invalid';
+  return {
+    ...(match[1] === '' ? {} : { start: Number(match[1]) }),
+    ...(match[2] === '' ? {} : { end: Number(match[2]) }),
+  };
+}
+
+function clampRange(
+  range: { start?: number; end?: number },
+  size: number,
+): { start: number; end: number } | undefined {
+  if (size === 0) return undefined;
+  if (range.start === undefined) {
+    const suffix = Math.min(range.end ?? 0, size);
+    return suffix === 0 ? undefined : { start: size - suffix, end: size - 1 };
+  }
+  if (range.start >= size) return undefined;
+  const end = Math.min(range.end ?? size - 1, size - 1);
+  return end < range.start ? undefined : { start: range.start, end };
+}
 
 const IMMUTABLE = { 'cache-control': 'private, max-age=31536000, immutable' };
 export const CHANNEL_ATTACHMENT_UPLOAD_PATH = '/api/botharness/attachment/upload';
@@ -280,6 +309,32 @@ export function createAttachmentHttp(
         if (request.headers.get('if-none-match') === etag)
           return new Response(null, { status: 304, headers: { etag, ...IMMUTABLE } });
         try {
+          const range = parseRange(request.headers.get('range'));
+          if (range !== undefined) {
+            const { path } = files.target(channelId, messageId, fileId);
+            const size = statSync(path).size;
+            const slice = range === 'invalid' ? undefined : clampRange(range, size);
+            if (slice === undefined)
+              return new Response(null, {
+                status: 416,
+                headers: { 'content-range': `bytes */${size}`, 'cache-control': 'no-store' },
+              });
+            const ref = store.current({ fileId, name: '', mime: '', size: 0 });
+            const stream = createReadStream(path, { start: slice.start, end: slice.end });
+            request.signal.addEventListener('abort', () => stream.destroy(), { once: true });
+            return new Response(Readable.toWeb(stream) as ReadableStream<Uint8Array>, {
+              status: 206,
+              headers: {
+                'content-type': ref.mime,
+                'content-length': String(slice.end - slice.start + 1),
+                'content-range': `bytes ${slice.start}-${slice.end}/${size}`,
+                'accept-ranges': 'bytes',
+                'x-content-type-options': 'nosniff',
+                etag,
+                ...IMMUTABLE,
+              },
+            });
+          }
           const { ref, body } = await files.download(channelId, messageId, fileId, request.signal);
           const image = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(ref.mime);
           return new Response(body, {
@@ -287,6 +342,7 @@ export function createAttachmentHttp(
               'content-type': ref.mime,
               'content-length': String(ref.size),
               'content-disposition': filenameDisposition(ref.name, image),
+              'accept-ranges': 'bytes',
               'x-content-type-options': 'nosniff',
               etag,
               ...IMMUTABLE,
