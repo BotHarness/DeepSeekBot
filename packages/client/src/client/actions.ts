@@ -722,7 +722,11 @@ export interface BridgeActions {
   refreshSessions(slug: string): Promise<void>;
   readSessions(slug: string): Promise<OwnedSessionSummary[]>;
   setSessionArchived(slug: string, sessionId: string, archived: boolean): Promise<void>;
-  stopSession(slug: string, sessionId: string, channelId?: string): Promise<void>;
+  stopSession(
+    slug: string,
+    session: string | { activityId: string },
+    channelId?: string,
+  ): Promise<void>;
   messageAttachmentTarget(
     channelId: string,
     messageId: string,
@@ -3127,8 +3131,8 @@ export function createActions(
       if (selection === undefined || selectedBotSlug(selection) !== slug) return;
       await loadSessionsFor(slug, selection);
     },
-    async stopSession(slug, sessionId, channelId) {
-      const stopped = await stopSession(call, slug, sessionId, channelId);
+    async stopSession(slug, session, channelId) {
+      const stopped = await stopSession(call, slug, session, channelId);
       if (stopped.messageId !== undefined && channelId !== undefined)
         await actions.refreshChannelMessages(channelId).catch(() => undefined);
       const selection = currentSelection();

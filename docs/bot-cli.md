@@ -491,6 +491,7 @@ deepseekbot session-ids
 deepseekbot session-owner <session-id>
 deepseekbot session-archive-set <bot-id> --session <session-id> --archived
 deepseekbot session-stop <bot-id> <session-id> [--channel <channel-id>]
+deepseekbot session-stop <bot-id> --activity <activity-id> [--channel <channel-id>]
 deepseekbot bot-stop <bot-id> [--channel <channel-id>]
 deepseekbot tool-approval-rules <bot-id>
 deepseekbot tool-approval-history <bot-id> [--limit 30] [--cursor <next>]
@@ -502,6 +503,8 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 ```
 
 `session-stop <bot-id> <session-id>` stops one running Session of a Bot, as the stop button on its row in the Sessions panel does. Its Subagents stop with it, and the Bot's other Sessions keep running. It returns `stopped` and `alreadyIdle`, each a list of `{ botSlug, sessionId, role }`: a Session that is idle, already stopped or stopped twice comes back in `alreadyIdle` and still succeeds. A Session the Bot does not own is refused with `unknown-session`. With `--channel`, the Channel the stop came from gets a one-line notice (`turnStop.target`, plus `messageId` in the result), but only when the Session belongs there: the Bot's Orchestrator in a Channel the Bot is in, an Assignment only in the Channel that started it.
+
+`session-stop <bot-id> --activity <activity-id>` stops the Session behind one row of the Bot's live activity snapshot (`sessions[].id`), as the stop on a row of the Messages header popover does. A row that has already gone means the Session finished, so the command returns empty `stopped` and `alreadyIdle` lists and still succeeds. Pass either a Session id or `--activity`, not both.
 
 Stopping an **Assignment** does not wake the Orchestrator. Its next turn reads a Host lifecycle notice that the Human stopped the Assignment and must not be redispatched unless the Human asks. The Assignment keeps its history and stays unarchived; only an Assignment Request from the Orchestrator (`send_assignment_request`) resumes it.
 

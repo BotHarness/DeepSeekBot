@@ -474,17 +474,21 @@ function prepare(
       return { method: 'sessionOwner', args: { sessionId } };
     }
     case 'session-stop': {
+      const activityId =
+        values.activity === undefined ? undefined : required(values.activity, 'activity', command);
       const [botSlug, sessionId] = positionals(
         command,
         rest,
-        2,
-        'a bot id and one of its Session ids',
+        activityId === undefined ? 2 : 1,
+        activityId === undefined
+          ? 'a bot id and one of its Session ids'
+          : 'a bot id, with --activity naming the running Session',
       );
       return {
         method: 'sessionStop',
         args: {
           botSlug,
-          sessionId,
+          ...(activityId === undefined ? { sessionId } : { activityId }),
           ...(values.channel === undefined
             ? {}
             : { channelId: required(values.channel, 'channel', command) }),

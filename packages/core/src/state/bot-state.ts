@@ -72,6 +72,7 @@ export interface BotStateTracker {
   ): void;
   activity(slug: string): PersonaBotToolActivity | undefined;
   sessionActivity(slug: string): readonly PersonaBotSessionActivity[];
+  sessionIdForActivity(slug: string, activityId: string): string | undefined;
   rebuildSessionStates(
     rows: readonly {
       slug: string;
@@ -460,6 +461,11 @@ export function createBotStateTracker(): BotStateTracker {
     },
     activity: activityOf,
     sessionActivity: sessionActivityOf,
+    sessionIdForActivity(slug, activityId) {
+      for (const sessionId of bots.get(slug)?.keys() ?? [])
+        if (sessionDetails.get(sessionId)?.id === activityId) return sessionId;
+      return undefined;
+    },
     onActivity(listener) {
       activityListeners.add(listener);
       return () => {
