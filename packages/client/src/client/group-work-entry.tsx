@@ -1,3 +1,4 @@
+import type { ConversationStateView } from './store.js';
 import type { NativeSessionCatalog } from './sessions-entry.js';
 import { personaBotSessionRows } from './session-rows.js';
 import { useRef, useSyncExternalStore } from 'react';
@@ -9,7 +10,6 @@ import { IconStopFillRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { useClientStore } from './use-client-store.js';
-import type { ClientState } from './store.js';
 import { sameBotsBesidesActivity } from './conversation-bots.js';
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { formatRelativeTime } from './labels.js';
@@ -46,7 +46,7 @@ type Load =
 
 const EMPTY_CATALOG = { ids: [], byId: {} };
 
-function runningOrchestrators(state: ClientState, channelId: string): string {
+function runningOrchestrators(state: ConversationStateView, channelId: string): string {
   const channel =
     state.conversation.channel?.id === channelId
       ? state.conversation.channel

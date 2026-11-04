@@ -142,7 +142,7 @@ import {
 } from './session-return-action.js';
 import { mountActivityLive } from './activity-live.js';
 import { installChannelFollow, mountChannelLive, mountRosterLive } from './channel-live.js';
-import { installTypedLive } from './messaging-defaults-live.js';
+import { installTypedLive, observeHumanAttention } from './messaging-defaults-live.js';
 import {
   CHANNEL_REMOTE_DESCRIPTOR,
   COMPANION_REMOTE_DESCRIPTOR,
@@ -684,12 +684,14 @@ export function apply(ctx: ClientContext): void {
           listener();
         });
         const offPrefs = desktopNotifications.subscribe(listener);
+        const offAttention = observeHumanAttention(listener);
         document.addEventListener('visibilitychange', listener);
         window.addEventListener('focus', listener);
         window.addEventListener('blur', listener);
         return () => {
           offStore();
           offPrefs();
+          offAttention();
           document.removeEventListener('visibilitychange', listener);
           window.removeEventListener('focus', listener);
           window.removeEventListener('blur', listener);

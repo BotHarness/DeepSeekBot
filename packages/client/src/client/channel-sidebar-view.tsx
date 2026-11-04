@@ -1,3 +1,4 @@
+import type { ConversationStateView } from './store.js';
 import {
   useCallback,
   useId,
@@ -32,7 +33,6 @@ import {
   MIN_CHANNEL_SIDEBAR_WIDTH,
 } from './channel-sidebar-prefs.js';
 import type { BotHarnessTranslate } from './locale.js';
-import type { ClientState } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { insertEntryBefore, moveEntry, resolveEntryOrder } from './channel-sidebar-order.js';
@@ -97,7 +97,7 @@ export interface ChannelSidebarController {
 }
 
 export function useChannelSidebar(
-  state: ClientState,
+  state: ConversationStateView,
   prefs: ChannelSidebarPrefs = channelSidebarPrefs,
 ): ChannelSidebarController {
   const narrow = useNarrowChannelSidebar();
@@ -655,7 +655,7 @@ export function ChannelSidebar({
   selectedMemoryWorking,
 }: {
   registry: ChannelSidebarRegistry;
-  state: ClientState;
+  state: ConversationStateView;
   actions: BridgeActions;
   controller: ChannelSidebarController;
   t: BotHarnessTranslate;

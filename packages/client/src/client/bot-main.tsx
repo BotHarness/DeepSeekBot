@@ -1,3 +1,4 @@
+import { CONVERSATION_STATE_KEYS, type ConversationStateView } from './store.js';
 import { PendingDelivery } from './message-delivery.js';
 import { AppearanceContext } from './appearance-context.js';
 import type { Appearance } from './appearance.js';
@@ -68,7 +69,7 @@ import {
   personaBotPresentationSummary,
   type PersonaBotFacepileItem,
 } from './avatar.js';
-import { keepClientState, useClientStore } from './use-client-store.js';
+import { useClientStore } from './use-client-store.js';
 import { sameConversationBots } from './conversation-bots.js';
 import type { BotModePrefs } from './bot-mode-prefs.js';
 import {
@@ -341,7 +342,13 @@ const messageStyles = stylex.create({
   },
 });
 
-function Welcome({ state, t }: { state: ClientState; t: BotHarnessTranslate }): ReactElement {
+function Welcome({
+  state,
+  t,
+}: {
+  state: ConversationStateView;
+  t: BotHarnessTranslate;
+}): ReactElement {
   return (
     <div className="bh-root bh-main">
       <div className="bh-content" {...stylex.props(messageStyles.emptyContainer)}>
@@ -1100,7 +1107,7 @@ function ConversationView({
 }: {
   onMobileBack?: (() => void) | undefined;
   scopeKey: string;
-  state: ClientState;
+  state: ConversationStateView;
   actions: BridgeActions;
   companion?: WindowCompanions | undefined;
   channelSidebar: ChannelSidebarRegistry;
@@ -3777,17 +3784,20 @@ function useStableGroupShape(
   return next;
 }
 
-function sameConversationInputs(left: ClientState, right: ClientState): boolean {
-  const keys = Object.keys(right) as (keyof ClientState)[];
-  return (
-    keys.length === Object.keys(left).length &&
-    keys.every(
-      (key) =>
-        key === 'humanInbox' ||
-        key === 'query' ||
-        left[key] === right[key] ||
-        (key === 'bots' && sameConversationBots(left.bots, right.bots, right)),
-    )
+function selectConversationState(state: ClientState): ConversationStateView {
+  return Object.fromEntries(
+    CONVERSATION_STATE_KEYS.flatMap((key) => (state[key] === undefined ? [] : [[key, state[key]]])),
+  ) as ConversationStateView;
+}
+
+function sameConversationInputs(
+  left: ConversationStateView,
+  right: ConversationStateView,
+): boolean {
+  return CONVERSATION_STATE_KEYS.every(
+    (key) =>
+      left[key] === right[key] ||
+      (key === 'bots' && sameConversationBots(left.bots, right.bots, right)),
   );
 }
 
@@ -3812,7 +3822,7 @@ function BotMainContent({
   nativeChatT?: NativeChatFailureText | undefined;
   t?: BotHarnessTranslate | undefined;
 }): ReactElement {
-  const state = useClientStore(keepClientState, sameConversationInputs);
+  const state = useClientStore(selectConversationState, sameConversationInputs);
   const workspace = useContext(WorkspaceContext);
   if (!workspace && state.selection === undefined) return <Welcome state={state} t={t} />;
   if (!workspace && state.selection?.kind === 'inbox')
