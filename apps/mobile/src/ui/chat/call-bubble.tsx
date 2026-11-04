@@ -31,6 +31,7 @@ import type { CallSessionSnapshot } from './call-session';
 const symbols = {
   micOff: { ios: 'mic.slash.fill', android: 'mic_off' },
   phone: { ios: 'phone.fill', android: 'call' },
+  hangUp: { ios: 'phone.down.fill', android: 'call_end' },
 } as const;
 
 const placement = {
@@ -246,17 +247,26 @@ export function CallBubble({ session }: { session: CallSessionSnapshot }) {
             boxShadow: glassShadow(theme.scheme),
           }}
         >
-          <Text
-            testID="call-bubble-status"
-            variant="meta"
-            tone={model.tone === 'ended' ? 'danger' : 'fg'}
-            strong
-            numberOfLines={1}
-            maxFontSizeMultiplier={callBubble.maxTextScale}
-            style={{ fontVariant: ['tabular-nums'] }}
-          >
-            {model.capsule}
-          </Text>
+          {model.duration === undefined ? (
+            <View testID="call-bubble-status" style={{ height: theme.type.meta.line }}>
+              <SystemSymbol
+                name={model.tone === 'ended' ? symbols.hangUp : symbols.phone}
+                size={theme.type.meta.line}
+                color={model.tone === 'ended' ? theme.color.danger : theme.color.muted}
+              />
+            </View>
+          ) : (
+            <Text
+              testID="call-bubble-status"
+              variant="meta"
+              strong
+              numberOfLines={1}
+              maxFontSizeMultiplier={callBubble.maxTextScale}
+              style={{ fontVariant: ['tabular-nums'] }}
+            >
+              {model.duration}
+            </Text>
+          )}
         </View>
       </Animated.View>
     </GestureDetector>

@@ -165,13 +165,11 @@ describe('floating call bubble model (#3468)', () => {
       callBubbleModel(en, { state, interrupted, startedAt: 1_000 }, 66_000);
     expect(at({ status: 'opening' })).toMatchObject({
       tone: 'connecting',
-      capsule: 'Calling…',
       muted: false,
     });
     expect(at(live())).toEqual({
       tone: 'listening',
       status: 'Listening',
-      capsule: '01:05',
       muted: false,
       duration: '01:05',
     });
@@ -190,16 +188,8 @@ describe('floating call bubble model (#3468)', () => {
     expect(at({ status: 'ended', reason: 'hangup', events: [] })).toEqual({
       tone: 'ended',
       status: 'Call ended',
-      capsule: 'Ended',
       muted: false,
     });
-    expect(
-      callBubbleModel(
-        zh,
-        { state: { status: 'ended', reason: 'hangup', events: [] }, interrupted: false },
-        0,
-      ).capsule,
-    ).toBe('已结束');
   });
 
   it('names the Bot, status and time for screen readers in both languages', () => {
