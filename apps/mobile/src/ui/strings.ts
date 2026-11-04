@@ -839,7 +839,14 @@ const en = {
     left: 'left the Channel',
     removed: 'was removed from the Channel',
     stopped: (name: string) => `stopped ${name}`,
+    stoppedBot: (name: string) => `stopped all of ${name}’s Sessions`,
+    stoppedOrchestrator: (name: string) => `stopped ${name}’s Orchestrator`,
+    stoppedAssignment: (name: string, title?: string) =>
+      title === undefined
+        ? `stopped one of ${name}’s Assignments`
+        : `stopped ${name}’s Assignment “${title}”`,
     stoppedHeld: 'It waits until someone messages it',
+    stoppedOrchestratorHeld: 'Assignments keep running',
     stoppedFailures: (count: number) => `stopped after ${count} failed runs in a row`,
     stoppedRetry: 'Message it to try again',
     human: 'You',
@@ -2973,7 +2980,14 @@ const zh: typeof en = {
     left: '退出了频道',
     removed: '被移出了频道',
     stopped: (name: string) => `停止了 ${name}`,
+    stoppedBot: (name: string) => `停止了 ${name} 的全部 Session`,
+    stoppedOrchestrator: (name: string) => `停止了 ${name} 的 Orchestrator`,
+    stoppedAssignment: (name: string, title?: string) =>
+      title === undefined
+        ? `停止了 ${name} 的一个 Assignment`
+        : `停止了 ${name} 的 Assignment「${title}」`,
     stoppedHeld: '有人给它发消息前不会继续',
+    stoppedOrchestratorHeld: 'Assignment 继续运行',
     stoppedFailures: (count: number) => `连续 ${count} 次运行失败，已自动停下`,
     stoppedRetry: '给它发消息即可重试',
     human: '你',

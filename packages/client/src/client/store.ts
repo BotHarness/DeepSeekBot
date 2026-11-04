@@ -247,6 +247,9 @@ export interface ChannelMessage {
   turnStop?: {
     botName: string;
     humanName: string;
+    target?:
+      | { scope: 'bot' }
+      | { scope: 'session'; role: 'orchestrator' | 'assignment'; title?: string };
     held?: boolean;
     cause?: 'human-stop' | 'failures';
     failures?: number;

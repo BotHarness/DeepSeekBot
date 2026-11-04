@@ -5,6 +5,7 @@ import type {
   ChannelMemoryCommit,
   ChannelTurnStop,
 } from '../../../../packages/core/src/channels/channel';
+import { isChannelTurnStopTarget } from '../../../../packages/core/src/channels/turn-stop';
 import type { ChannelWireMessage } from './wire';
 
 export type ChannelActivity =
@@ -121,6 +122,7 @@ export function activityOf(message: ChannelWireMessage): ChannelActivity | undef
         ? { cause: stop['cause'] }
         : {}),
       ...(typeof stop['failures'] === 'number' ? { failures: stop['failures'] } : {}),
+      ...(isChannelTurnStopTarget(stop['target']) ? { target: stop['target'] } : {}),
     };
   return undefined;
 }

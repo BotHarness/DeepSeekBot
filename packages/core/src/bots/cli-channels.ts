@@ -125,7 +125,7 @@ export const CHANNEL_COMMANDS = [
   },
   {
     command: 'channel-bot-stop',
-    description: "stop a working Bot's current turn in a Channel",
+    description: 'deprecated alias of bot-stop: stop every running Session of a Bot in a Channel',
   },
   {
     command: 'channel-purge-preview',
@@ -451,6 +451,9 @@ export async function runChannelCommand(
       }
       break;
     case 'channel-bot-stop':
+      io.stderr(
+        'tobs: channel-bot-stop is deprecated and will be removed; use `bot-stop <bot> --channel <channel-id>`.',
+      );
       method = 'channelBotStop';
       args.botSlug = required(values.bot, '--bot');
       if (values['auto-continue-for'] !== undefined)

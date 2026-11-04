@@ -215,13 +215,9 @@ describe('Session Stop on an Assignment', () => {
     }
   });
 
-  it('refuses the Orchestrator Session and Sessions the Bot does not own', async () => {
+  it('refuses Sessions the Bot does not own', async () => {
     const f = await fixture();
     try {
-      const orchestrator = f.core.runtime.currentOrchestratorSessionId!('ada')!;
-      expect(await f.bridge.sessionStop({ botSlug: 'ada', sessionId: orchestrator })).toMatchObject(
-        { ok: false, error: { code: 'unsupported-role' } },
-      );
       expect(
         await f.bridge.sessionStop({ botSlug: 'ada', sessionId: 'not-a-session' }),
       ).toMatchObject({ ok: false, error: { code: 'unknown-session' } });

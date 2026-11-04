@@ -62,14 +62,15 @@ async function host(
 
 async function invoke(argv: string[], url: string, stdin = '') {
   const stdout: string[] = [];
+  const stderr: string[] = [];
   const code = await runBotCreateCli(argv, {
     env: { DEEPSEEKBOT_HOST: url, DEEPSEEKBOT_HOST_TOKEN: 'private-test-token' },
     stdout: (text) => stdout.push(text),
-    stderr: () => undefined,
+    stderr: (text) => stderr.push(text),
     readStdin: async () => stdin,
   });
   expect(stdout).toHaveLength(1);
-  return { code, json: JSON.parse(stdout.join('')) };
+  return { code, json: JSON.parse(stdout.join('')), stderr };
 }
 
 const ok = (method: string, args: Record<string, unknown>) => ({
@@ -664,6 +665,8 @@ describe('Channel and group CLI commands', () => {
       error: { code: 'not-working', message: 'Ada is not working right now' },
     }));
     const result = await invoke(['channel-bot-stop', 'dm-ada', '--bot', 'ada'], live.url);
+    expect(result.stderr.join('')).toContain('channel-bot-stop is deprecated');
+    expect(result.stderr.join('')).toContain('bot-stop <bot> --channel <channel-id>');
     expect(result.code).not.toBe(0);
     expect(result.json.error).toEqual({
       code: 'not-working',

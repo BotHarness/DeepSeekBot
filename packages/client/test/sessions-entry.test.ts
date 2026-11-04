@@ -1,12 +1,38 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
+import { act, createElement, type PropsWithChildren, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Modal: () => null,
+  Modal: ({ title, footer, children }: PropsWithChildren<{ title: string; footer: ReactNode }>) =>
+    createElement('div', { role: 'dialog' }, title, children, footer),
   relativeTime: () => ({ unit: 'now', n: 0 }),
-  Button: () => null,
+  Button: ({
+    children,
+    type,
+    form,
+    onClick,
+  }: PropsWithChildren<{ type?: 'button' | 'submit'; form?: string; onClick?: () => void }>) =>
+    createElement('button', { type, form, onClick }, children),
+  Checkbox: ({
+    checked,
+    onChange,
+    label,
+  }: {
+    checked: boolean;
+    onChange: (value: boolean) => void;
+    label: string;
+  }) =>
+    createElement(
+      'label',
+      null,
+      createElement('input', {
+        type: 'checkbox',
+        checked,
+        onChange: (event: { target: { checked: boolean } }) => onChange(event.target.checked),
+      }),
+      label,
+    ),
   Input: () => null,
   StateDot: () => null,
   Tag: ({ children }: PropsWithChildren) => createElement('span', { className: 'tag' }, children),
@@ -182,7 +208,7 @@ it('pins the Orchestrator on top and groups Assignments by needs input, working,
   }
 });
 
-it('stops one running Assignment from its row and shows Stopping… until the stop settles', async () => {
+it('stops a running Orchestrator or Assignment from its row and shows Stopping… until the stop settles', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const previous = store.getSnapshot().sessions;
   updateSessionViewPreference('stop-qa', (current) => ({ ...current, scope: 'all' }));
@@ -231,6 +257,7 @@ it('stops one running Assignment from its row and shows Stopping… until the st
         settle = resolve;
       }),
   );
+  const stopBot = vi.fn(async () => 'stopped' as const);
   const container = document.createElement('div');
   document.body.append(container);
   const root = createRoot(container);
@@ -244,6 +271,7 @@ it('stops one running Assignment from its row and shows Stopping… until the st
           actions: {
             refreshSessions: vi.fn(async () => undefined),
             stopSession,
+            stopBot,
           } as unknown as BridgeActions,
           t: zhTranslate,
           nativeSessions: native,
@@ -251,7 +279,9 @@ it('stops one running Assignment from its row and shows Stopping… until the st
       ),
     );
     const row = (id: string) => container.querySelector(`[data-flip-key="${id}"]`)!;
-    expect(row('orc').querySelector('[data-session-stop]')).toBeNull();
+    const orchestrator = row('orc').querySelector<HTMLButtonElement>('[data-session-stop]')!;
+    expect(orchestrator.disabled).toBe(false);
+    expect(orchestrator.getAttribute('aria-label')).toBe('停止「Main」');
     expect(row('a-idle').querySelector('[data-session-stop]')).toBeNull();
     const halting = row('a-halting').querySelector<HTMLButtonElement>('[data-session-stop]')!;
     expect(halting.disabled).toBe(true);
@@ -261,7 +291,7 @@ it('stops one running Assignment from its row and shows Stopping… until the st
     expect(button.getAttribute('aria-label')).toBe('停止「Crawl every page」');
     await act(async () => button.click());
     expect(stopSession).toHaveBeenCalledTimes(1);
-    expect(stopSession).toHaveBeenCalledWith('stop-qa', 'a-run');
+    expect(stopSession).toHaveBeenCalledWith('stop-qa', 'a-run', 'dm-ada');
     expect(row('a-run').querySelector('.bh-card-badge')?.textContent).toBe('正在停止…');
     expect(row('a-run').querySelector<HTMLButtonElement>('[data-session-stop]')!.disabled).toBe(
       true,
@@ -270,6 +300,29 @@ it('stops one running Assignment from its row and shows Stopping… until the st
 
     await act(async () => settle());
     expect(row('a-run').querySelector('.bh-card-badge')).toBeNull();
+
+    const dialogButton = (text: string) =>
+      [...document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(
+        (button) => button.textContent?.trim() === text,
+      )!;
+    await act(async () => orchestrator.click());
+    expect(document.body.textContent).toContain('停止「Main」？');
+    expect(document.body.textContent).toContain('同时停止它正在运行的 2 个 Assignment');
+    await act(async () => dialogButton('停止').click());
+    expect(stopSession).toHaveBeenLastCalledWith('stop-qa', 'orc', 'dm-ada');
+    expect(stopBot).not.toHaveBeenCalled();
+    await act(async () => settle());
+
+    await act(async () => orchestrator.click());
+    const checkbox = document.body.querySelector<HTMLInputElement>(
+      '[role="dialog"] input[type="checkbox"]',
+    )!;
+    expect(checkbox.checked).toBe(false);
+    await act(async () => checkbox.click());
+    await act(async () => dialogButton('停止').click());
+    expect(stopBot).toHaveBeenCalledWith('dm-ada', 'stop-qa');
+    expect(stopSession).toHaveBeenCalledTimes(2);
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
   } finally {
     await act(async () => root.unmount());
     container.remove();

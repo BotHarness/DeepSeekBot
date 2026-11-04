@@ -212,6 +212,7 @@ import {
   loadSessions,
   setSessionArchived,
   stopSession,
+  stopBot,
   moveMemoryLocation,
   loadBots,
   loadMemorySnapshot,
@@ -721,7 +722,7 @@ export interface BridgeActions {
   refreshSessions(slug: string): Promise<void>;
   readSessions(slug: string): Promise<OwnedSessionSummary[]>;
   setSessionArchived(slug: string, sessionId: string, archived: boolean): Promise<void>;
-  stopSession(slug: string, sessionId: string): Promise<void>;
+  stopSession(slug: string, sessionId: string, channelId?: string): Promise<void>;
   messageAttachmentTarget(
     channelId: string,
     messageId: string,
@@ -1878,17 +1879,13 @@ export function createActions(
       }
     },
     async stopBot(channelId, botSlug) {
-      try {
-        await invoke('channelBotStop', { channelId, botSlug });
-      } catch (error) {
-        if (error instanceof BridgeCallError && error.code === 'not-working') return 'not-working';
-        throw error;
-      }
+      const stopped = await stopBot(call, botSlug, channelId);
+      if (stopped.stopped.length === 0) return 'not-working';
       await actions.refreshChannelMessages(channelId).catch(() => undefined);
       return 'stopped';
     },
     async cancelAutoContinue(channelId, botSlug, requestMessageId) {
-      await invoke('channelBotStop', {
+      await invoke('botStop', {
         channelId,
         botSlug,
         autoContinueFor: requestMessageId,
@@ -3130,8 +3127,10 @@ export function createActions(
       if (selection === undefined || selectedBotSlug(selection) !== slug) return;
       await loadSessionsFor(slug, selection);
     },
-    async stopSession(slug, sessionId) {
-      await stopSession(call, slug, sessionId);
+    async stopSession(slug, sessionId, channelId) {
+      const stopped = await stopSession(call, slug, sessionId, channelId);
+      if (stopped.messageId !== undefined && channelId !== undefined)
+        await actions.refreshChannelMessages(channelId).catch(() => undefined);
       const selection = currentSelection();
       if (selection === undefined || selectedBotSlug(selection) !== slug) return;
       await loadSessionsFor(slug, selection);
