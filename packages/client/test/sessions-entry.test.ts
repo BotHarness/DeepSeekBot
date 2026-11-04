@@ -11,6 +11,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   StateDot: () => null,
   Tag: ({ children }: PropsWithChildren) => createElement('span', { className: 'tag' }, children),
   IconChevronDownOutlineRegular: () => null,
+  IconStopFillRegular: () => null,
   Menu: ({ anchor }: { anchor: unknown }) => anchor,
   Tooltip: ({ children }: PropsWithChildren) => children,
 }));
@@ -174,6 +175,101 @@ it('pins the Orchestrator on top and groups Assignments by needs input, working,
     await act(async () => idle.querySelector<HTMLButtonElement>('[data-group-heading]')!.click());
     expect(sessionViewPreferenceSnapshot('sessions-qa').collapsedSections).toEqual(['idle']);
     expect(container.querySelector('[data-section="idle"] .bh-card-list')).toBeNull();
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    store.setSessions(previous);
+  }
+});
+
+it('stops one running Assignment from its row and shows Stopping… until the stop settles', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const previous = store.getSnapshot().sessions;
+  updateSessionViewPreference('stop-qa', (current) => ({ ...current, scope: 'all' }));
+  store.setSessions({
+    status: 'ready',
+    items: [
+      { sessionId: 'orc', role: 'orchestrator', createdAt: '2026-10-01T00:00:00Z' },
+      {
+        sessionId: 'a-run',
+        role: 'assignment',
+        createdAt: '2026-10-01T00:00:00Z',
+        assignmentTitle: 'Crawl every page',
+      },
+      {
+        sessionId: 'a-other',
+        role: 'assignment',
+        createdAt: '2026-10-01T00:00:00Z',
+        assignmentTitle: 'Write the summary',
+      },
+      {
+        sessionId: 'a-idle',
+        role: 'assignment',
+        createdAt: '2026-10-01T00:00:00Z',
+        assignmentTitle: 'Quick lookup',
+      },
+      {
+        sessionId: 'a-halting',
+        role: 'assignment',
+        createdAt: '2026-10-01T00:00:00Z',
+        assignmentActivity: 'stopping',
+        assignmentTitle: 'Halting',
+      },
+    ],
+  });
+  const native = catalog({
+    orc: { displayTitle: 'Main', updatedAt: 1, running: true },
+    'a-run': { displayTitle: 'Crawl every page', updatedAt: 20, running: true },
+    'a-other': { displayTitle: 'Write the summary', updatedAt: 30, running: true },
+    'a-idle': { displayTitle: 'Quick lookup', updatedAt: 10, running: false },
+    'a-halting': { displayTitle: 'Halting', updatedAt: 5, running: true },
+  });
+  let settle!: () => void;
+  const stopSession = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        settle = resolve;
+      }),
+  );
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () =>
+      root.render(
+        createElement(SessionsEntry, {
+          scope: 'personabot',
+          channelId: 'dm-ada',
+          botSlug: 'stop-qa',
+          actions: {
+            refreshSessions: vi.fn(async () => undefined),
+            stopSession,
+          } as unknown as BridgeActions,
+          t: zhTranslate,
+          nativeSessions: native,
+        } as ChannelSidebarEntryProps & { nativeSessions: NativeSessionCatalog }),
+      ),
+    );
+    const row = (id: string) => container.querySelector(`[data-flip-key="${id}"]`)!;
+    expect(row('orc').querySelector('[data-session-stop]')).toBeNull();
+    expect(row('a-idle').querySelector('[data-session-stop]')).toBeNull();
+    const halting = row('a-halting').querySelector<HTMLButtonElement>('[data-session-stop]')!;
+    expect(halting.disabled).toBe(true);
+    expect(row('a-halting').querySelector('.bh-card-badge')?.textContent).toBe('正在停止…');
+
+    const button = row('a-run').querySelector<HTMLButtonElement>('[data-session-stop]')!;
+    expect(button.getAttribute('aria-label')).toBe('停止「Crawl every page」');
+    await act(async () => button.click());
+    expect(stopSession).toHaveBeenCalledTimes(1);
+    expect(stopSession).toHaveBeenCalledWith('stop-qa', 'a-run');
+    expect(row('a-run').querySelector('.bh-card-badge')?.textContent).toBe('正在停止…');
+    expect(row('a-run').querySelector<HTMLButtonElement>('[data-session-stop]')!.disabled).toBe(
+      true,
+    );
+    expect(row('a-other').querySelector('.bh-card-badge')).toBeNull();
+
+    await act(async () => settle());
+    expect(row('a-run').querySelector('.bh-card-badge')).toBeNull();
   } finally {
     await act(async () => root.unmount());
     container.remove();
