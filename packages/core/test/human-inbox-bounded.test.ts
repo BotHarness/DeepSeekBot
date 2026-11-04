@@ -202,6 +202,31 @@ describe('Human inbox history bounds', () => {
     );
   });
 
+  it('resolves pending cards and Bot activity through indexes instead of Channel history', () => {
+    const { channels, attention, statements, plan } = fixture();
+    attention.status(true);
+    attention.list({ category: 'action', limit: 20 });
+    attention.openTimedQuestionCards();
+    channels.admissionActivity!('ada', '2026-01-01T00:00:00.000Z');
+    const details = statements.flatMap(plan);
+    expect(
+      details.filter((detail) =>
+        /^SEARCH (resolution|decision|override) USING (COVERING )?INDEX \w+ \(channel_id=\?\)$/.test(
+          detail,
+        ),
+      ),
+    ).toEqual([]);
+    for (const index of [
+      'source_events_question_resolution',
+      'source_events_approval_decision',
+      'source_events_approval_override',
+      'source_events_private_resolution',
+      'source_events_grant_resolution',
+      'inbox_admissions_activity',
+    ])
+      expect(details.some((detail) => detail.includes(index))).toBe(true);
+  });
+
   it('counts only the requested local day from the time index', async () => {
     const { channels } = fixture();
     const group = channels.createGroup({ name: 'Launch', members: ['ada'] });
