@@ -531,9 +531,9 @@ describe('Host call owner', () => {
     expect(h.transcribed.every((wav) => wav.every((byte) => byte === 0))).toBe(true);
   });
 
-  it('joins English pieces with a space', async () => {
+  it('joins English pieces with a space, also after punctuation', async () => {
     const { media, state } = fakeMedia();
-    const texts = ['What is', 'the weather tomorrow?'];
+    const texts = ['Hello.', 'What is the weather tomorrow?'];
     const h = harness({
       media,
       providers: {
@@ -550,7 +550,7 @@ describe('Host call owner', () => {
       concat(speech(1000), silence(350), speech(1000, { seed: 6 }), silence(900)),
     );
     await settled();
-    expect(h.sent.map((item) => item.body)).toEqual(['What is the weather tomorrow?']);
+    expect(h.sent.map((item) => item.body)).toEqual(['Hello. What is the weather tomorrow?']);
   });
 
   it('a synthetic call takes injected PCM without WebRTC', async () => {

@@ -103,13 +103,18 @@ const HEARING_EVENT_MS = 250;
 const SEGMENT_VAD = { segmentSilenceMs: 250, endSilenceMs: 600 } as const;
 const MIN_TAIL_SAMPLES = VAD_SAMPLE_RATE / 5;
 
+const TIGHT =
+  '\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}\\p{Script=Hangul}\\p{Script=Thai}\\u3000-\\u303F\\uFF00-\\uFFEF';
+const TIGHT_END = new RegExp(`[${TIGHT}]$`, 'u');
+const TIGHT_START = new RegExp(`^[${TIGHT}]`, 'u');
+
 function joinTranscripts(parts: readonly string[]): string {
   let out = '';
   for (const raw of parts) {
     const part = raw.trim();
     if (part === '') continue;
-    const latin = /[A-Za-z0-9]$/u.test(out) && /^[A-Za-z0-9]/u.test(part);
-    out += out === '' || !latin ? part : ` ${part}`;
+    const tight = TIGHT_END.test(out) || TIGHT_START.test(part);
+    out += out === '' || tight ? part : ` ${part}`;
   }
   return out;
 }
@@ -403,6 +408,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     const started = now();
     let early: Promise<string> | undefined;
     let mode: 'batch' | 'stream' | 'segments' = 'batch';
+    let pieces = 0;
     if (stream !== undefined) {
       mode = 'stream';
       early = stream.finish().then((result) => result.text);
@@ -412,6 +418,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       const parts = [...segments.parts];
       if (rest.length >= MIN_TAIL_SAMPLES) parts.push(recognize(call, rest));
       else rest.fill(0);
+      pieces = parts.length;
       early = Promise.all(parts).then(joinTranscripts);
     }
     early?.catch(() => undefined);
@@ -473,7 +480,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         text,
         asrMs,
         ...(mode === 'stream' ? { streamed: true } : {}),
-        ...(mode === 'segments' ? { segments: segments!.parts.length } : {}),
+        ...(mode === 'segments' ? { segments: pieces } : {}),
       });
       log('call-heard', {
         call: call.id,

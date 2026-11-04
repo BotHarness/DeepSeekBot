@@ -838,7 +838,11 @@ export class VoiceProviders {
     this.#key(stored).then(
       (key) => {
         if (entry.socket !== holder) return;
-        pending.socket = warmSoniox({ baseUrl: stored.baseUrl, key, socket: this.#socket });
+        try {
+          pending.socket = warmSoniox({ baseUrl: stored.baseUrl, key, socket: this.#socket });
+        } catch {
+          if (entry.socket === holder) entry.socket = undefined;
+        }
       },
       () => {
         if (entry.socket === holder) entry.socket = undefined;
