@@ -146,6 +146,42 @@ describe('encrypted redemption', () => {
     expect(opened).toEqual([LAN, CONNECT, LAN]);
   });
 
+  it('stops naming the permission once the retry fails for another reason', async () => {
+    let attempts = 0;
+    const opened: string[] = [];
+    const carrier: HostCarrier = {
+      randomBytes: () => new Uint8Array(32).fill(7),
+      request: vi.fn(),
+      openSocket(url: string, events: HostSocketEvents) {
+        const origin = new URL(url.replace(/^ws/u, 'http')).origin;
+        opened.push(origin);
+        const reason =
+          origin === LAN
+            ? attempts++ === 0
+              ? 'lan-unreachable:local-network-denied'
+              : 'channel-timeout'
+            : 'socket error';
+        setTimeout(() => events.closed(reason), 0);
+        return { send: () => {}, close: () => {} };
+      },
+    };
+    expect(
+      await redeemPairing({
+        payload: payload([LAN, CONNECT]),
+        deviceName: 'Phone',
+        carrier,
+        lanRetryDelayMs: 1,
+        confirmFingerprint: async () => true,
+      }),
+    ).toEqual({
+      ok: false,
+      code: 'unreachable',
+      detail:
+        'lan:lan-unreachable:local-network-denied,connect:socket-error,lan:channel-timeout-retry',
+    });
+    expect(opened).toEqual([LAN, CONNECT, LAN]);
+  });
+
   it('does not retry the local path after an ordinary local failure', async () => {
     const { carrier, opened } = closingCarrier({
       [LAN]: 'channel-timeout',

@@ -509,16 +509,19 @@ async function redeemEncrypted(options: {
     if (result.code === 'lan-permission-denied') lanDenied = true;
     if (result.code !== 'lan-unreachable' && result.code !== 'lan-permission-denied') break;
   }
-  if (lanDenied && (await pause(options.lanRetryDelayMs ?? LAN_PROMPT_RETRY_MS, options.signal)))
+  if (lanDenied && (await pause(options.lanRetryDelayMs ?? LAN_PROMPT_RETRY_MS, options.signal))) {
+    lanDenied = false;
     for (const route of lan) {
       const retried = await redeemEncryptedRoute(options, encryption, route);
       if (retried.ok) return retried;
       if (retried.detail !== undefined) details.push(`${retried.detail}-retry`);
+      if (retried.code === 'lan-permission-denied') lanDenied = true;
       if (retried.code !== 'lan-unreachable' && retried.code !== 'lan-permission-denied') {
         result = retried;
         break;
       }
     }
+  }
   const code =
     lanDenied && (result.code === 'unreachable' || result.code === 'lan-unreachable')
       ? 'lan-permission-denied'
