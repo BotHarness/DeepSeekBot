@@ -52,8 +52,8 @@ remain alongside retries:
   eight files, 144 passing tests (`final-focused.log`). The bounded full suite also
   encountered failures and was stopped; neither full-suite attempt is a passing gate.
   Lint, formatting and both release-ledger checks passed.
-  Isolating the registry Git-import failure reproduced a CRLF-versus-LF assertion
-  under Windows Git conversion; other full-suite failures are not yet classified.
+  The follow-up classification and fixes are recorded below; neither interrupted
+  Windows run becomes a passing full-suite gate retroactively.
 - A linked RC1 Host passed authenticated API health and a real Web DM returned `42`
   for seventeen plus twenty-five. Its canonical turn completed with a committed
   `bot_send_message` result. This was the earlier linked build, not the frozen product;
@@ -90,6 +90,37 @@ remain alongside retries:
   process. After verifying the task Host/preparation processes had exited, the stale
   task-local owner record was backed up and removed; the unrelated process was not
   touched. Retained logs distinguish this AX recovery from the product restart.
+
+### Full-suite failure investigation
+
+The first completed Linux full CI run, [41891895496](https://github.com/BotHarness/DeepSeekBot/actions/runs/41891895496),
+identified five failing tests and one separate performance-navigation failure:
+
+- Four Channel approval tests constructed the native service without initializing
+  its RC1 Session Projection. The fixture now initializes the real registry/service
+  and opens a real Session turn. An additional regression verifies idle Sessions are
+  refused before routing or audit writes; native policy is not weakened.
+- The manifest test omitted the retained `0.2.1-rc.3` matrix entry. Its expected list
+  now matches the minimum, historical RC2, previous RC3 and pinned RC1 targets.
+- The performance script waited for the removed workspace rail. It now waits for
+  Bot mode, selects the Channel row in the sidebar and dismisses the welcome overlay.
+  A real isolated RC1 run loaded all 600 messages under the unchanged budget: 12
+  mounted messages, zero page errors, zero scroll jumps/gaps and 0.7% idle main-thread
+  occupancy. All structure/timing budget checks passed locally.
+
+The bounded Windows run had 21 failures across nine files. Repeating those exact
+tests serially under the original 15-second timeout passed 17. One remaining
+failure was Git's CRLF conversion; the source fixture now commits a `.gitattributes`
+LF rule, without changing machine Git settings or product content handling. The
+other three were timeouts: a diagnostic-only 60-second allowance passed all three
+in 15.48, 18.06 and 13.01 seconds respectively. Repository timeouts remain unchanged;
+this does not qualify a complete Windows suite.
+
+After the fixes, the three affected test files passed all 39 tests, and lint,
+formatting and root/mobile typechecks passed. A filtered dependency installation
+temporarily mixed mobile React type links; reinstalling the unchanged lockfile for
+the full workspace restored typechecks without mobile source changes. A fresh
+full CI run is required for the fixed commit; its result belongs to that exact SHA.
 
 | Gate                                                              | Status                                   |
 | ----------------------------------------------------------------- | ---------------------------------------- |
