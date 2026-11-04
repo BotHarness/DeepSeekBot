@@ -245,6 +245,19 @@ export function CallScreen({
               {duration}
             </Text>
           )}
+          {model.heard === undefined || ended !== undefined ? null : (
+            <Text
+              testID="call-heard"
+              variant="body"
+              tone={model.heard.final ? 'fg' : 'subtle'}
+              numberOfLines={4}
+              accessibilityLiveRegion="polite"
+              accessibilityLabel={t.call.heard(model.heard.text)}
+              style={{ textAlign: 'center', marginTop: space.x4 }}
+            >
+              {model.heard.text}
+            </Text>
+          )}
           {model.hint === undefined ? null : (
             <View
               testID="call-hint"

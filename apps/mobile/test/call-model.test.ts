@@ -62,6 +62,42 @@ describe('call screen model', () => {
     ).toBeUndefined();
   });
 
+  it('shows live text while speaking, then the sent text for a few seconds', () => {
+    const at = (seq: number, ms: number) => ({ seq, at: ms });
+    const speaking = [
+      { ...at(1, 8_000), type: 'speech-start' as const },
+      { ...at(2, 8_500), type: 'hearing' as const, text: '明天上海' },
+    ];
+    expect(callScreenModel(zh, live({}, { events: speaking } as never)).heard).toEqual({
+      text: '明天上海',
+      final: false,
+    });
+    const sent = [
+      ...speaking,
+      { ...at(3, 9_000), type: 'transcribing' as const, audioMs: 1_000 },
+      {
+        ...at(4, 9_300),
+        type: 'sent' as const,
+        messageId: 'human-1',
+        text: '明天上海会下雨吗？',
+        asrMs: 200,
+        streamed: true,
+      },
+    ];
+    expect(callScreenModel(zh, live({}, { events: sent } as never)).heard).toEqual({
+      text: '明天上海会下雨吗？',
+      final: true,
+    });
+    expect(
+      callScreenModel(zh, live({ durationMs: 20_000 }, { events: sent } as never)).heard,
+    ).toBeUndefined();
+    const missed = [
+      ...speaking,
+      { ...at(3, 9_000), type: 'asr-failed' as const, code: 'x', message: 'x' },
+    ];
+    expect(callScreenModel(zh, live({}, { events: missed } as never)).heard).toBeUndefined();
+  });
+
   it('ends clearly and keeps Connect separate', () => {
     expect(
       callScreenModel(en, { status: 'ended', reason: 'connection-lost', events: [] }),

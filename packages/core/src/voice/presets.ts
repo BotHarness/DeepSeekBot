@@ -79,15 +79,19 @@ export function ttsPreset(id: string): TtsPreset | undefined {
   return TTS_PRESETS.find((preset) => preset.id === id);
 }
 
-export type AsrPresetId = 'custom' | 'openai' | 'groq';
+export type AsrPresetId = 'custom' | 'openai' | 'groq' | 'soniox';
+
+export type AsrWire = 'openai' | 'soniox';
 
 export interface AsrPreset {
   id: AsrPresetId;
   name: string;
+  wire: AsrWire;
   baseUrl?: string;
   keyRequired: boolean;
   defaultModel?: string;
   capabilities: {
+    streaming: boolean;
     billing: 'per-minute' | 'self-hosted';
   };
   docsUrl?: string;
@@ -98,16 +102,18 @@ export const ASR_PRESETS: readonly AsrPreset[] = [
     id: 'custom',
     name: 'OpenAI-compatible endpoint',
     keyRequired: false,
+    wire: 'openai',
     defaultModel: 'whisper-1',
-    capabilities: { billing: 'self-hosted' },
+    capabilities: { streaming: false, billing: 'self-hosted' },
   },
   {
     id: 'openai',
     name: 'OpenAI',
     baseUrl: 'https://api.openai.com/v1',
     keyRequired: true,
+    wire: 'openai',
     defaultModel: 'gpt-4o-mini-transcribe',
-    capabilities: { billing: 'per-minute' },
+    capabilities: { streaming: false, billing: 'per-minute' },
     docsUrl: 'https://platform.openai.com/docs/api-reference/audio/createTranscription',
   },
   {
@@ -115,9 +121,20 @@ export const ASR_PRESETS: readonly AsrPreset[] = [
     name: 'Groq',
     baseUrl: 'https://api.groq.com/openai/v1',
     keyRequired: true,
+    wire: 'openai',
     defaultModel: 'whisper-large-v3-turbo',
-    capabilities: { billing: 'per-minute' },
+    capabilities: { streaming: false, billing: 'per-minute' },
     docsUrl: 'https://console.groq.com/docs/speech-to-text',
+  },
+  {
+    id: 'soniox',
+    name: 'Soniox (streaming)',
+    wire: 'soniox',
+    baseUrl: 'https://stt-rt.soniox.com',
+    keyRequired: true,
+    defaultModel: 'stt-rt-v6',
+    capabilities: { streaming: true, billing: 'per-minute' },
+    docsUrl: 'https://soniox.com/docs/stt/api-reference/websocket-api',
   },
 ];
 
