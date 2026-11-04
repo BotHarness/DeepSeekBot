@@ -698,7 +698,13 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       FROM channel_placements p
       JOIN source_events e ON e.source_event_id = p.source_event_id`;
 
+  const changeLogIn = (db: DatabaseSync): boolean =>
+    db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'channel_change_epoch'")
+      .get() !== undefined;
+
   const changeCursorIn = (db: DatabaseSync): ChannelChangeCursor => {
+    if (!changeLogIn(db)) return { epoch: 'none', seq: 0 };
     const epoch = db
       .prepare('SELECT epoch, floor_seq FROM channel_change_epoch WHERE singleton = 1')
       .get() as { epoch: string; floor_seq: number } | undefined;
@@ -1585,6 +1591,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
   if (options.databaseOwnerReady !== false)
     database.transaction(
       (db) => {
+        if (!changeLogIn(db)) return;
         const head = changeCursorIn(db).seq;
         const floor = head - CHANNEL_CHANGES_RETAINED;
         if (floor > 0) {
@@ -3303,6 +3310,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       );
       const read = database.read((db) => {
         const cursor = changeCursorIn(db);
+        if (!changeLogIn(db)) return { cursor, rows: undefined };
         const floor = Number(
           (
             db.prepare('SELECT floor_seq FROM channel_change_epoch WHERE singleton = 1').get() as
@@ -3358,10 +3366,12 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     recordAttachmentChange(fileId) {
       return database.transaction(
         (db) =>
-          Number(
-            db
-              .prepare(
-                `INSERT INTO channel_changes (channel_id, message_id, kind)
+          !changeLogIn(db)
+            ? 0
+            : Number(
+                db
+                  .prepare(
+                    `INSERT INTO channel_changes (channel_id, message_id, kind)
                  SELECT DISTINCT p.channel_id, p.message_id, 'message'
                    FROM channel_placements p
                    JOIN source_events e ON e.source_event_id = p.source_event_id
@@ -3369,15 +3379,16 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
                      OR p.source_event_id IN (
                        SELECT source_event_id FROM attachment_file_bindings WHERE file_id = ?
                      )`,
-              )
-              .run(JSON.stringify(fileId), fileId).changes,
-          ),
+                  )
+                  .run(JSON.stringify(fileId), fileId).changes,
+              ),
         ['channel-changes'],
       );
     },
     rotateChangeEpoch() {
       return database.transaction(
         (db) => {
+          if (!changeLogIn(db)) return changeCursorIn(db);
           const head = changeCursorIn(db).seq;
           db.prepare(
             'UPDATE channel_change_epoch SET epoch = lower(hex(randomblob(8))), floor_seq = ? WHERE singleton = 1',
