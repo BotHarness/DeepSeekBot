@@ -1369,7 +1369,9 @@ function ChatConversation({
       space.x5 * 2 -
       theme.touch -
       headerGap * 2 -
-      theme.touch * (canOpenProfile ? (placeCall === undefined ? 1 : 2) : 1) -
+      (theme.touch +
+        (ios ? Math.min(space.x3, Math.max(0, (theme.fontScale - 1) * space.x3)) : 0)) *
+        (canOpenProfile ? (placeCall === undefined ? 1 : 2) : 1) -
       (ios && glassHeader && canOpenProfile && placeCall !== undefined ? space.x5 : 0) -
       (ios && glassHeader ? space.x4 * 2 : 0),
   );
