@@ -155,6 +155,38 @@ describe('Home resource ownership across handoff and interruption', () => {
       rmSync(home, { recursive: true, force: true });
     }
   });
+  it('hands off only the live Host after preparation has exited', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'bh-preparation-handoff-'));
+    const owner = join(home, '.botharness-host.json');
+    const lease = acquireHome(home);
+    let child;
+    let released = false;
+    try {
+      await lease.run(process.execPath, ['-e', "process.stdout.write('prepared')"]);
+      child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+        stdio: 'ignore',
+      });
+      await once(child, 'spawn');
+      lease.started(child, join(home, 'fixture.log'));
+      lease.release();
+      released = true;
+      const saved = JSON.parse(readFileSync(owner, 'utf8'));
+      expect(saved.resources.map((resource) => resource.pid)).toEqual([child.pid]);
+      expect(() => acquireHome(home)).toThrow('in use');
+      child.kill();
+      await once(child, 'exit');
+      const next = acquireHome(home);
+      next.release();
+      expect(existsSync(owner)).toBe(false);
+    } finally {
+      if (child?.exitCode === null && child.signalCode === null) {
+        child.kill();
+        await once(child, 'exit');
+      }
+      if (!released) lease.release();
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
   it.skipIf(process.platform === 'win32')(
     'does not hang on pipes inherited by an abandoned preparation descendant',
     async () => {
