@@ -1,4 +1,6 @@
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
+
+import sharp from 'sharp';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -86,6 +88,47 @@ function wav(root: string, name: string, samples: Int16Array, rate = 16_000) {
 }
 
 describe('deepseekbot call commands', () => {
+  it('call-simulate --video shares the keyframes a client would pick and reports the grids', async () => {
+    const root = createTempRoot('cli-call-');
+    const file = wav(root, 'q.wav', concat(silence(300), speech(2600), silence(200)));
+    const frames = join(root, 'frames');
+    mkdirSync(frames);
+    const colors = [
+      [200, 0, 0],
+      [200, 0, 0],
+      [0, 0, 200],
+      [0, 0, 200],
+      [0, 200, 0],
+      [0, 200, 0],
+    ] as const;
+    for (const [index, [r, g, b]] of colors.entries())
+      await sharp({ create: { width: 320, height: 180, channels: 3, background: { r, g, b } } })
+        .jpeg()
+        .toFile(join(frames, `${index + 1}.jpg`));
+    const { run, posts } = host();
+    const report = (await run('call-simulate', ['ada'], {
+      file,
+      video: frames,
+      'reply-wait': '20',
+    })) as { visual: Record<string, unknown> };
+    expect(posts[1]).toMatchObject({ kind: 'visual', source: 'camera' });
+    expect(posts.filter((post) => post['kind'] === 'frame')).toHaveLength(3);
+    expect(report.visual).toMatchObject({
+      source: 'camera',
+      samples: 6,
+      keyframes: 3,
+      sentFrames: 3,
+      grids: [{ frames: 3, layout: '2x2', messageId: expect.any(String) }],
+      failed: [],
+    });
+    await expect(
+      run('call-simulate', ['ada'], { file, video: frames, screen: frames }),
+    ).rejects.toMatchObject({ code: 'usage' });
+    await expect(run('call-simulate', ['ada'], { file, screen: 'relative' })).rejects.toMatchObject(
+      { code: 'usage' },
+    );
+  });
+
   it('call-simulate plays a WAV into a synthetic call and reports heard text and reply timing', async () => {
     const root = createTempRoot('cli-call-');
     const file = wav(root, 'q.wav', concat(silence(300), speech(1400), silence(200)));

@@ -4016,11 +4016,17 @@ class BotRuntimeImplementation implements BotRuntime {
     const parts = [
       `[Human DM]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${text}`,
     ];
-    if (message.voiceCall !== undefined)
+    if (message.voiceCall !== undefined) {
       parts.push(
         `[Voice call ${message.voiceCall.callId}] ${this.#promptText(botSlug)('voice-call-hint')}`,
       );
-    else {
+      const visual = callVisualNote(
+        channelId,
+        message,
+        this.#promptText(botSlug)('voice-call-visual-hint'),
+      );
+      if (visual !== undefined) parts.push(visual);
+    } else {
       const call = this.#lastCallNote(channelId, messageId);
       if (call !== undefined) parts.push(call);
     }
@@ -10199,4 +10205,20 @@ class BotRuntimeImplementation implements BotRuntime {
 
 export function createBotRuntime(options: BotRuntimeOptions): BotRuntime {
   return new BotRuntimeImplementation(options);
+}
+
+export function callVisualNote(
+  channelId: string,
+  message: ChannelMessage,
+  hint: string,
+): string | undefined {
+  const visual = message.voiceCall?.visual;
+  if (visual === undefined) return undefined;
+  if ('sameAs' in visual)
+    return `[Call ${visual.source} view] Nothing changed in the Human's ${visual.source} since message ${visual.sameAs}; that message's image is still what they see.`;
+  const image = message.attachments?.find((ref) => ref.mime === 'image/jpeg');
+  if (image === undefined) return undefined;
+  const what =
+    visual.frames === 1 ? 'one keyframe' : `a ${visual.layout} grid of ${visual.frames} keyframes`;
+  return `[Call ${visual.source} view] This message carries ${what} from the Human's ${visual.source}: channel_read_image with channel_id ${channelId}, message_id ${message.id} and attachment_id ${attachmentIdentity(image)}. ${hint}`;
 }

@@ -21,6 +21,16 @@ import { createVad, VAD_SAMPLE_RATE, type VadOptions } from './vad.js';
 import { VoiceError, wavFromPcm16 } from './providers.js';
 import type { AsrStream } from './soniox.js';
 import { joinAudio, speakableSentences, type AudioClip } from './speech.js';
+import {
+  CallFrameError,
+  createCallImaging,
+  frameLabel,
+  isJpeg,
+  type CallImaging,
+  type GridImage,
+  type PreparedFrame,
+} from './call-frames.js';
+import { pickGridFrames, type CallVisualSource } from './keyframes.js';
 
 export interface VoiceCallMedia {
   availability(): Promise<'ready' | 'unsupported-platform' | 'helper-missing'>;
@@ -38,6 +48,17 @@ export interface VoiceCallMediaPeer {
   play(audio: Uint8Array, mime: string, signal: AbortSignal): Promise<void>;
   close(): Promise<void>;
 }
+
+export type VoiceCallSentVisual =
+  | {
+      readonly source: CallVisualSource;
+      readonly image: GridImage;
+      readonly frames: number;
+    }
+  | {
+      readonly source: CallVisualSource;
+      readonly sameAs: string;
+    };
 
 export interface VoiceCallBot {
   readonly slug: string;
@@ -80,8 +101,10 @@ export interface VoiceCallsDeps {
     messageId: string;
     body: string;
     callId: string;
+    visual?: VoiceCallSentVisual | undefined;
   }): Promise<void>;
   busy(slug: string): boolean;
+  imaging?: CallImaging;
   record?(input: {
     slug: string;
     channelId: string;
@@ -147,6 +170,18 @@ type EventInput = VoiceCallEvent extends infer E
     : never
   : never;
 
+interface VisualFrame {
+  readonly at: number;
+  readonly score: number;
+  readonly frame: PreparedFrame;
+}
+
+interface GridJob {
+  readonly source: CallVisualSource;
+  readonly frames: VisualFrame[];
+  readonly result: Promise<VoiceCallSentVisual | undefined>;
+}
+
 interface Call {
   readonly id: string;
   readonly slug: string;
@@ -156,6 +191,9 @@ interface Call {
   readonly media: 'webrtc' | 'synthetic';
   readonly startedAt: number;
   readonly abort: AbortController;
+  visual: CallVisualSource | 'off';
+  frames: VisualFrame[];
+  lastGrid?: { readonly source: CallVisualSource; readonly messageId: string } | undefined;
   readonly vad: ReturnType<typeof createVad>;
   phase: VoiceCallPhase;
   muted: boolean;
@@ -264,6 +302,8 @@ interface Reply {
 export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
   const now = deps.now ?? (() => Date.now());
   const log = deps.log ?? (() => undefined);
+  let imaging = deps.imaging;
+  const images = () => (imaging ??= createCallImaging());
   const calls = new Map<string, Call>();
   let disposed = false;
 
@@ -283,6 +323,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     muted: call.muted,
     busy: call.busy,
     media: call.media,
+    visual: call.visual,
     startedAt: call.startedAt,
     durationMs: (call.endedAt ?? now()) - call.startedAt,
     ...(call.endReason === undefined ? {} : { endReason: call.endReason }),
@@ -314,6 +355,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       if (!reply.claimed) reply.synth.abort();
     }
     call.replies = [];
+    call.frames = [];
     call.vad.reset();
     dropStream(call);
     if (call.warmed !== undefined) deps.providers.cool?.(call.warmed);
@@ -483,7 +525,79 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     }
   };
 
-  const transcribe = (call: Call, pcm: Int16Array, audioMs: number, segmentedSamples: number) => {
+  const trimFrames = (call: Call) => {
+    while (call.frames.length > VOICE_CALL_LIMITS.pendingFrames) {
+      let lowest = 1;
+      for (let index = 2; index < call.frames.length; index += 1)
+        if (call.frames[index]!.score < call.frames[lowest]!.score) lowest = index;
+      call.frames.splice(lowest, 1);
+    }
+  };
+
+  const takeGrid = (call: Call): GridJob | undefined => {
+    if (call.visual === 'off') return undefined;
+    const source = call.visual;
+    const frames = call.frames;
+    call.frames = [];
+    const endAt = now();
+    if (frames.length === 0) {
+      const last = call.lastGrid;
+      return {
+        source,
+        frames,
+        result: Promise.resolve(
+          last !== undefined && last.source === source
+            ? { source, sameAs: last.messageId }
+            : undefined,
+        ),
+      };
+    }
+    const picked = pickGridFrames(frames);
+    const started = now();
+    const result = images()
+      .compose(
+        picked.map((entry) => entry.frame),
+        picked.map((entry, index) => frameLabel(index, (endAt - entry.at) / 1000)),
+      )
+      .then((image) => {
+        const composeMs = now() - started;
+        if (!ended(call))
+          push(call, {
+            type: 'grid-built',
+            source,
+            frames: picked.length,
+            dropped: frames.length - picked.length,
+            layout: image.layout,
+            bytes: image.jpeg.byteLength,
+            composeMs,
+          });
+        log('call-grid-built', {
+          call: call.id,
+          source,
+          frames: picked.length,
+          layout: image.layout,
+          bytes: image.jpeg.byteLength,
+          ms: composeMs,
+        });
+        return { source, image, frames: picked.length } as const;
+      });
+    result.catch(() => undefined);
+    return { source, frames, result };
+  };
+
+  const restoreGrid = (call: Call, grid: GridJob | undefined) => {
+    if (grid === undefined || grid.frames.length === 0 || call.visual !== grid.source) return;
+    call.frames = [...grid.frames, ...call.frames];
+    trimFrames(call);
+  };
+
+  const transcribe = (
+    call: Call,
+    pcm: Int16Array,
+    audioMs: number,
+    segmentedSamples: number,
+    grid: GridJob | undefined,
+  ) => {
     const stream = call.stream;
     const segments = call.segments;
     call.stream = undefined;
@@ -525,6 +639,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
           message: message.slice(0, 200),
         });
         log('call-asr-failed', { call: call.id, code, mode });
+        restoreGrid(call, grid);
         return;
       } finally {
         if (call.phase === 'transcribing') call.phase = 'listening';
@@ -534,11 +649,27 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       if (ended(call)) return;
       if (text.replace(/[\s\p{P}]/gu, '') === '') {
         push(call, { type: 'nothing-heard' });
+        restoreGrid(call, grid);
         return;
       }
       const messageId = `human-${randomUUID()}`;
       await call.recorded;
       if (ended(call)) return;
+      let visual: VoiceCallSentVisual | undefined;
+      let waitedMs = 0;
+      if (grid !== undefined) {
+        const waitFrom = now();
+        try {
+          visual = await grid.result;
+        } catch (error) {
+          const message =
+            error instanceof CallFrameError ? error.message : 'The grid image could not be built.';
+          if (!ended(call)) push(call, { type: 'grid-failed', message: message.slice(0, 200) });
+          log('call-grid-failed', { call: call.id, message: message.slice(0, 200) });
+        }
+        waitedMs = now() - waitFrom;
+        if (ended(call)) return;
+      }
       try {
         await deps.send({
           slug: call.slug,
@@ -546,8 +677,10 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
           messageId,
           body: text,
           callId: call.id,
+          ...(visual === undefined ? {} : { visual }),
         });
       } catch (error) {
+        restoreGrid(call, grid);
         const failure = record(error);
         push(call, {
           type: 'send-failed',
@@ -559,6 +692,11 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         });
         return;
       }
+      if (visual !== undefined && 'image' in visual) {
+        call.lastGrid = { source: visual.source, messageId };
+        push(call, { type: 'grid-sent', messageId, layout: visual.image.layout, waitedMs });
+      } else if (visual !== undefined)
+        push(call, { type: 'grid-unchanged', messageId, sameAs: visual.sameAs });
       call.lastHeardAt = now();
       call.heard += 1;
       if (!call.busy && call.ownTurn === 'none') {
@@ -938,7 +1076,13 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         push(call, { type: 'noise-discarded', durationMs: event.durationMs });
       } else {
         acknowledge(call);
-        transcribe(call, event.pcm, event.endMs - event.startMs, event.segmentedSamples);
+        transcribe(
+          call,
+          event.pcm,
+          event.endMs - event.startMs,
+          event.segmentedSamples,
+          takeGrid(call),
+        );
       }
     }
     settle(call);
@@ -1079,6 +1223,8 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       media: kind,
       startedAt,
       abort: new AbortController(),
+      visual: 'off',
+      frames: [],
       vad: createVad({
         maxUtteranceMs: VOICE_CALL_LIMITS.maxUtteranceMs,
         stream: !segmented,
@@ -1248,6 +1394,79 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         const before = call.seq;
         call.lastHeartbeat = now();
         hear(call, pcmFromBase64(pcm));
+        return { ok: true, call: view(call, (after as number | undefined) ?? before) };
+      }
+      case 'visual': {
+        const call = own(caller, command['callId']);
+        const source = command['source'];
+        if (source !== 'camera' && source !== 'screen' && source !== 'off')
+          throw new CallRefusal('invalid-input', 'source must be camera, screen or off.');
+        if (call.phase === 'ended') throw new CallRefusal('call-ended', 'The call has ended.');
+        if (call.visual !== source) {
+          call.visual = source;
+          call.frames = [];
+          push(call, { type: 'visual', source });
+          log('call-visual', { call: call.id, source });
+        }
+        call.lastHeartbeat = now();
+        return { ok: true, call: view(call) };
+      }
+      case 'frame': {
+        const call = own(caller, command['callId']);
+        if (call.phase === 'ended') throw new CallRefusal('call-ended', 'The call has ended.');
+        const source = command['source'];
+        if (source !== 'camera' && source !== 'screen')
+          throw new CallRefusal('invalid-input', 'source must be camera or screen.');
+        if (call.visual !== source)
+          throw new CallRefusal('visual-off', `The call is not sharing the ${source} now.`);
+        const jpeg = command['jpeg'];
+        if (
+          typeof jpeg !== 'string' ||
+          jpeg.length === 0 ||
+          jpeg.length > Math.ceil(VOICE_CALL_LIMITS.frameBytes / 3) * 4
+        )
+          throw new CallRefusal(
+            'frame-invalid',
+            'jpeg must be a base64 JPEG keyframe of at most 512 KB.',
+          );
+        const score = command['score'] ?? 1;
+        const skipped = command['skipped'];
+        const after = command['after'];
+        if (typeof score !== 'number' || !(score >= 0 && score <= 1))
+          throw new CallRefusal('invalid-input', 'score must be a number from 0 to 1.');
+        if (skipped !== undefined && (!Number.isSafeInteger(skipped) || (skipped as number) < 0))
+          throw new CallRefusal('invalid-input', 'skipped must be a count of samples.');
+        if (after !== undefined && (!Number.isSafeInteger(after) || (after as number) < 0))
+          throw new CallRefusal('invalid-input', 'after must be an event sequence number.');
+        const bytes = new Uint8Array(Buffer.from(jpeg, 'base64'));
+        if (!isJpeg(bytes) || bytes.byteLength > VOICE_CALL_LIMITS.frameBytes)
+          throw new CallRefusal('frame-invalid', 'The keyframe must be a JPEG image.');
+        const before = call.seq;
+        call.lastHeartbeat = now();
+        const started = now();
+        let frame: PreparedFrame;
+        try {
+          frame = await images().prepare(bytes);
+        } catch (error) {
+          throw new CallRefusal(
+            'frame-invalid',
+            error instanceof CallFrameError ? error.message : 'The keyframe could not be read.',
+          );
+        }
+        if (!ended(call) && call.visual === source) {
+          call.frames.push({ at: now(), score, frame });
+          trimFrames(call);
+          push(call, {
+            type: 'frame-received',
+            source,
+            bytes: bytes.byteLength,
+            width: frame.width,
+            height: frame.height,
+            score: Math.round(score * 1000) / 1000,
+            prepareMs: now() - started,
+            ...(skipped === undefined ? {} : { skipped: skipped as number }),
+          });
+        }
         return { ok: true, call: view(call, (after as number | undefined) ?? before) };
       }
       case 'hangup': {

@@ -100,6 +100,13 @@ export const PROMPT_PARTS = [
       'The Human said this aloud on a live call with you; it is a speech transcript and may contain recognition mistakes. Answer by voice: every bot_send_message during the call, follow-ups included, uses voice: true, short and natural to hear, opening with a short first sentence. Write "voice": true as the first argument, before body (for example {"voice": true, "source_event_id": "…", "body": "…"}): your voice starts playing while you write, but only when voice comes first. If they ask for text only, keep voice off until they ask again. Before slow work (tools, research, an Assignment), first send one short spoken line such as "Let me check, this may take a moment", then do the work and speak the result when it is ready.',
   },
   {
+    id: 'voice-call-visual-hint',
+    kind: 'turn',
+    section: 'turn',
+    defaultText:
+      'On this call the Human shares their camera or screen. Each of their spoken messages carries one image of what changed while they spoke: a single keyframe, or a grid of keyframes in time order from top-left to bottom-right, each tile labelled with its number and how many seconds before they finished speaking. Look at the image before you answer; talk about what you see briefly, as speech. Earlier views stay on earlier messages of this DM.',
+  },
+  {
     id: 'digest-hint',
     kind: 'turn',
     section: 'turn',

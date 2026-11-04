@@ -321,7 +321,8 @@ import {
 } from './runtime/assignment-tail.js';
 import type { DshSessionEvent, DshSessionStore } from './sessions/source.js';
 import { turnProgress } from './bots/tool-trace.js';
-import type { SessionFailureProgress } from './channels/channel.js';
+import type { ChannelCallVisual, SessionFailureProgress } from './channels/channel.js';
+import type { ChannelAttachmentRef } from './attachments/ref.js';
 import { DEFAULT_BOT_HOP_LIMIT, isBotHopLimit } from './channels/channel.js';
 import {
   createBotStateTracker,
@@ -3080,12 +3081,27 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     providers: core.voiceProviders,
     media: () =>
       (ctx.get('botharnessComputer') as { callMedia?: VoiceCallMedia } | undefined)?.callMedia,
-    async send({ channelId, messageId, body, callId }) {
+    async send({ channelId, messageId, body, callId, visual }) {
+      let attachments: ChannelAttachmentRef[] | undefined;
+      let meta: ChannelCallVisual | undefined;
+      if (visual !== undefined && 'image' in visual) {
+        const image = visual.image.jpeg;
+        attachments = [
+          await core.attachments.upload({
+            data: (async function* () {
+              yield image;
+            })(),
+            name: `call-${visual.source}-${messageId.slice(-12)}.jpg`,
+          }),
+        ];
+        meta = { source: visual.source, frames: visual.frames, layout: visual.image.layout };
+      } else if (visual !== undefined) meta = { source: visual.source, sameAs: visual.sameAs };
       const result = await bridgeMethods.channelSend({
         channelId,
         messageId,
         body,
-        voiceCall: { callId },
+        ...(attachments === undefined ? {} : { attachments }),
+        voiceCall: meta === undefined ? { callId } : { callId, visual: meta },
       });
       if (!result.ok)
         throw Object.assign(new Error(result.error.message), { code: result.error.code });
