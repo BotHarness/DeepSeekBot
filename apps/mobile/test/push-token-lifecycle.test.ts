@@ -264,6 +264,23 @@ it('does not restore cloud state from a permission read completed after stop', a
   expect(f.register).toHaveBeenCalledTimes(1);
 });
 
+it('clears stale permission denial while restored registration is pending', async () => {
+  const token = deferred<string>();
+  const f = fixture(() => token.promise);
+  let permission: 'granted' | 'denied' = 'denied';
+  f.notifications.permission = async () => permission;
+  await f.session.sync([host]);
+  expect(f.session.getSnapshot()).toEqual({ status: 'denied' });
+  permission = 'granted';
+  const restoring = f.session.refreshPermission();
+  await flush();
+  expect(f.session.getSnapshot()).toEqual({ status: 'checking' });
+  token.resolve('restored-token');
+  await restoring;
+  expect(f.session.getSnapshot()).toEqual({ status: 'on', failed: [] });
+  f.session.stop();
+});
+
 it('keeps the latest permission observation authoritative across overlapping resumes', async () => {
   const f = fixture();
   f.notifications.permission = async () => 'denied';
