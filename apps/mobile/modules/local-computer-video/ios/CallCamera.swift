@@ -1,5 +1,6 @@
 import AVFoundation
 import CoreImage
+import ExpoModulesCore
 import UIKit
 
 enum CallCameraFailure: String, Error {
