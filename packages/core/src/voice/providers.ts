@@ -416,6 +416,21 @@ export class VoiceProviders {
     return asrView(this.#stored(id, 'asr'));
   }
 
+  async localServiceOff(id: string, kind: VoiceProviderKind = 'tts'): Promise<boolean> {
+    if (!this.has(id, kind)) return false;
+    const stored = this.#stored(id, kind);
+    if (stored.preset !== 'local') return false;
+    try {
+      await this.#fetch(`${new URL(stored.baseUrl).origin}/health`, {
+        signal: AbortSignal.timeout(1_500),
+        redirect: 'error',
+      });
+      return false;
+    } catch (error) {
+      return causeCode(error) === 'ECONNREFUSED';
+    }
+  }
+
   has(id: string, kind: VoiceProviderKind = 'tts'): boolean {
     try {
       this.#stored(id, kind);

@@ -176,6 +176,13 @@ describe('local ASR preset', () => {
       language: 'zh',
     });
     expect(provider).toMatchObject({ kind: 'asr', preset: 'local', model: 'sensevoice' });
+    expect(await providers.localServiceOff(provider.id, 'asr')).toBe(true);
+    const custom = await providers.add({
+      kind: 'asr',
+      preset: 'custom',
+      baseUrl: `http://127.0.0.1:${port}/v1`,
+    });
+    expect(await providers.localServiceOff(custom.id, 'asr')).toBe(false);
     expect(await providers.test(provider.id)).toEqual({
       ok: false,
       providerId: provider.id,

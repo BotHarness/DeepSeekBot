@@ -92,7 +92,8 @@ export type VoiceCallMissing =
   | 'tts'
   | 'media-unsupported'
   | 'media-helper-missing'
-  | 'media-unavailable';
+  | 'media-unavailable'
+  | 'local-voice-off';
 
 export interface VoiceCallReadiness {
   readonly slug: string;

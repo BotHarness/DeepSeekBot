@@ -46,6 +46,7 @@ export interface VoiceCallsDeps {
   bot(slug: string): VoiceCallBot | undefined;
   providers: {
     has(id: string, kind: 'tts' | 'asr'): boolean;
+    localServiceOff?(id: string, kind: 'tts' | 'asr'): Promise<boolean>;
     transcribe(input: {
       providerId: string;
       audio: Uint8Array;
@@ -323,6 +324,15 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     const tts = bot?.voice?.providerId;
     if (asr === undefined || !deps.providers.has(asr, 'asr')) missing.push('asr');
     if (tts === undefined || !deps.providers.has(tts, 'tts')) missing.push('tts');
+    const off = deps.providers.localServiceOff?.bind(deps.providers);
+    if (off !== undefined) {
+      const checks = [
+        ...(asr !== undefined && !missing.includes('asr') ? [off(asr, 'asr')] : []),
+        ...(tts !== undefined && !missing.includes('tts') ? [off(tts, 'tts')] : []),
+      ];
+      const results = await Promise.all(checks.map((check) => check.catch(() => false)));
+      if (results.includes(true)) missing.push('local-voice-off');
+    }
     const media = deps.media();
     const availability =
       media === undefined
