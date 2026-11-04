@@ -1,7 +1,7 @@
 diff --git a/lib/index.js b/lib/index.js
 --- a/lib/index.js
 +++ b/lib/index.js
-@@ -1218,7 +1218,7 @@
+@@ -1977,7 +1977,7 @@
  		maxBytes: resolved.readMaxBytes,
  		streamMinSize: resolved.readStreamMinSize
  	});
@@ -9,4 +9,4 @@ diff --git a/lib/index.js b/lib/index.js
 +	if (resolved.readImage) ctx.inject(["attachments", "fs", "workingDirectory"], (imageCtx) => {
  		applyReadImageTool(imageCtx);
  	});
- 	if (resolved.write || resolved.edit) {
+ 	if (resolved.write || resolved.edit || resolved.applyPatch) {

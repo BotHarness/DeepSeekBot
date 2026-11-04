@@ -61,6 +61,10 @@ export function botPreset(standard) {
     /^ {10}- id: (?:time-context|tool-schedule)\n(?: {12,}[^\n]*(?:\n|$)|[ \t]*\n)*/gm,
     '',
   );
+  body = body.replace(
+    /( {10}- id: tool-plugin-manager\n {12}name: '@deepseek-ai\/dsh-plugin-manager\/tools'\n) {12}disabled: [^\n]+/,
+    '$1            disabled: true',
+  );
   return body;
 }
 

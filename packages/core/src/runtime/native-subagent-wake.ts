@@ -15,6 +15,8 @@ export function installNativeSubagentWake(ctx: Context, runtime: BotRuntime): vo
           ? source.senderSessionId
           : undefined;
       const senders = claimed.get(agent.session.id) ?? [];
+      if (senders.length === 0 && typeof agent.model?.select === 'function')
+        runtime.captureNativeOrchestratorModel?.(agent.session.id);
       senders.push(sender);
       claimed.set(agent.session.id, senders);
     },

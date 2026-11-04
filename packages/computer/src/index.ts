@@ -127,7 +127,17 @@ export const DEFAULT_CONFIG: ComputerConfig = {
   dataDir: '',
 };
 
-export const Config = Schema.object({
+type ComputerSchemaConfig = Omit<
+  ComputerConfig,
+  'target' | 'exportDir' | 'idleStopMinutes' | 'autoAllowActions'
+> & {
+  target: Volatile<ComputerTarget>;
+  exportDir: Volatile<string>;
+  idleStopMinutes: Volatile<number>;
+  autoAllowActions: Volatile<boolean>;
+};
+
+export const Config: Schema<Partial<ComputerConfig>, ComputerSchemaConfig> = Schema.object({
   target: Schema.union([Schema.const('local'), Schema.const('container')])
     .default('container')
     .volatile(),

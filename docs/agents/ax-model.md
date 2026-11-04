@@ -55,11 +55,11 @@ this header; the first real QA turn failed with HTTP 400 `MissingSessionID`.
 
 For an opted-in AX launch, the helper installs an independent pinned CLI under the isolated
 home's `ax-cli` directory (or `packaged-cli` for product-artifact qualification). It applies the
-reviewed `dsh-llm-pi-ai` pnpm patch (re-keyed to `0.2.1-rc.3`): only the Go route adds the actual
+reviewed `dsh-llm-pi-ai` pnpm patch selected by the native request shape (RC3 and RC1 templates): only the Go route adds the actual
 `GenerateOptions.sessionId`, removes case-insensitive collisions with a configured static
 header, and retains native `User-Agent` attribution and other headers. Missing Session identity
 stays missing; no fixed, random or substitute identity is supplied. Other Providers keep their
-existing headers. The Go qualification refuses a different DSH version until reverified.
+existing headers. The launcher refuses an unknown or ambiguous request shape; version admission alone is not runtime qualification.
 
 The helper copies the reviewed patch into that CLI's `patches/` directory and uses a relative
 path in its `pnpm-workspace.yaml`. Windows pnpm otherwise resolves a drive-qualified patch path
@@ -67,7 +67,7 @@ under the runtime directory and fails with `ERR_PNPM_PATCH_NOT_FOUND`, especiall
 worktree and isolated home are on different drives. Each launch refreshes the staged bytes from
 the worktree; other workspace settings and patch entries are preserved.
 
-The repository default is DSH `0.2.1-rc.3`; its installed adapter still omits the header.
+The candidate development default is DSH `0.2.2-rc.1`; its installed adapter still needs the Go Session header patch. Follow [the RC1 qualification record](dsh-022-rc1-upgrade.md) for current verification status.
 Runtime qualification of this pin remains required. Historical RC2 evidence: the DSH
 `0.2.0-rc.2` adapter omitted the header, the patch applied unchanged, and the adapter regression
 (`scripts/test/dev-go-session.test.mjs`) passed against the patched RC2 package. On 2026-10-13 a

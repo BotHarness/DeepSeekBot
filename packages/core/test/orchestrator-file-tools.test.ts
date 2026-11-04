@@ -1,3 +1,4 @@
+import { executeNativeTool, installNativeTools } from '../src/runtime/native-agent-compat.js';
 import { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
@@ -71,6 +72,7 @@ describe('Agent-scoped native file Policy', () => {
       await providers.await();
       const runtime = ctx.plugin(ToolRuntime, {});
       await runtime.await();
+      await installNativeTools(ctx);
       const agentA = { session: { id: 'agent-a', header: { cwd: '/memory' } } } as Agent;
       const agentB = { session: { id: 'agent-b', header: { cwd: '/memory' } } } as Agent;
       const scopeA = createScope(ctx, agentA);
@@ -93,7 +95,7 @@ describe('Agent-scoped native file Policy', () => {
       try {
         expect(ctx.get('workingDirectory')).toBe(nativeDirectory);
         const execute = (agent: Agent, path: string, id: string) =>
-          ctx.tools.execute({
+          executeNativeTool(ctx, {
             agent,
             callId: ToolCallId(id),
             name: 'write',
@@ -215,6 +217,7 @@ describe('Agent-scoped native file Policy', () => {
       await providers.await();
       const runtime = ctx.plugin(ToolRuntime, {});
       await runtime.await();
+      await installNativeTools(ctx);
       const agent = {
         session: {
           id: 'native-image-agent',
@@ -236,7 +239,7 @@ describe('Agent-scoped native file Policy', () => {
         },
       );
       const execute = (id: string) =>
-        ctx.tools.execute({
+        executeNativeTool(ctx, {
           agent,
           callId: ToolCallId(id),
           name: 'read_image',
@@ -302,6 +305,7 @@ describe('Agent-scoped native file Policy', () => {
       await providers.await();
       const runtime = ctx.plugin(ToolRuntime, {});
       await runtime.await();
+      await installNativeTools(ctx);
       const disposePreset = ctx.tools.register(
         defineTool({
           name: shellName,
@@ -332,7 +336,7 @@ describe('Agent-scoped native file Policy', () => {
         expect(visible.find((tool) => tool.name === shellName)?.description).not.toBe(
           'preset shell',
         );
-        const result = await ctx.tools.execute({
+        const result = await executeNativeTool(ctx, {
           agent,
           callId: ToolCallId('shell'),
           name: shellName,

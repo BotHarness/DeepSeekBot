@@ -1,3 +1,4 @@
+import { executeNativeTool, installNativeTools } from '../src/runtime/native-agent-compat.js';
 import { Context } from '@deepseek-ai/cordis';
 import type { Agent, AssistantStreamFrame } from '@deepseek-ai/dsh-agent';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
@@ -818,15 +819,15 @@ describe('DSH Bot Agent adapter', () => {
       });
       tobScope.ctx.get('tools')!.register(tool);
       ordinaryScope.ctx.get('tools')!.register(tool);
-      tobScope.ctx.get('tools')!.presentAs('native');
-      ordinaryScope.ctx.get('tools')!.presentAs('native');
+      await tobScope.ctx.inject(['tools'], (ctx) => installNativeTools(ctx)).await();
+      await ordinaryScope.ctx.inject(['tools'], (ctx) => installNativeTools(ctx)).await();
       try {
         expect(() => tobScope.ctx.get('tools')!.restrict({ deny: [toolName] })).toThrow(
           'unknown global tool',
         );
         expect(() => tobScope.ctx.get('tools')!.guard(fence)).not.toThrow();
         const execute = (agent: Agent) =>
-          ctx.get('tools')!.execute({
+          executeNativeTool(ctx, {
             agent,
             callId: ToolCallId(agent.session.id),
             name: toolName,
@@ -1892,9 +1893,13 @@ describe('DSH Bot Agent adapter', () => {
       await sendStarted;
       expect(await host.selectedModel(run.sessionId)).toMatchObject(high);
       currentPlan = { ...initialPlan, revision: 2, orchestrator: low };
+      adapter.captureNativeOrchestratorModel?.(run.sessionId, run.bot);
       expect(await host.selectedModel(run.sessionId)).toMatchObject(high);
       releaseSend();
       await firstTurn;
+
+      adapter.captureNativeOrchestratorModel?.(run.sessionId, run.bot);
+      expect(await host.selectedModel(run.sessionId)).toMatchObject(low);
 
       await adapter.runOrchestrator({ ...run, resume: true, message: 'Next turn' });
       expect(await host.selectedModel(run.sessionId)).toMatchObject(low);

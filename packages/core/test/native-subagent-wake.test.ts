@@ -1,5 +1,5 @@
 import { Context } from '@deepseek-ai/cordis';
-import { installModelSelection, type Agent, type ModelSelection } from '@deepseek-ai/dsh-agent';
+import type { Agent, ModelSelection } from '@deepseek-ai/dsh-agent';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import { describe, expect, it, vi } from 'vitest';
@@ -15,15 +15,25 @@ describe('native wake prepares before model/prompt assembly', () => {
       current: { provider: 'old-provider', model: 'old-model' },
       assembled: undefined,
     };
+    Object.assign(agent, {
+      model: {
+        current: () => selection.current,
+        select: (value: ModelSelection) => {
+          selection.current = value;
+        },
+      },
+    });
+    const capture = vi.fn(() => {
+      agent.model.select({ provider: 'deepseek-official', model: 'deepseek-flash' });
+    });
     const prepare = vi.fn(async () => {
       await Promise.resolve();
-      selection.current = { provider: 'deepseek-official', model: 'deepseek-flash' };
       return true;
     });
     installNativeSubagentWake(ctx, {
       prepareNativeOrchestratorStep: prepare,
+      captureNativeOrchestratorModel: capture,
     } as unknown as BotRuntime);
-    installModelSelection(ctx, selection);
     try {
       ctx.emit('agent/inbox/claimed', {
         agent,
@@ -33,23 +43,20 @@ describe('native wake prepares before model/prompt assembly', () => {
           source: { kind: 'agent-message', form: 'relay', senderSessionId: SessionId('child') },
         }),
       });
-      const assembly = await ctx.waterfall(
+      const captured = agent.model.current();
+      expect(capture).toHaveBeenCalledWith('parent');
+      expect(prepare).not.toHaveBeenCalled();
+      await ctx.waterfall(
         'system-prompt/assemble',
         {} as never,
         { agent, signal } as never,
         async () => ({ variables: {} }) as never,
       );
       expect(prepare).toHaveBeenCalledWith('parent', ['child'], signal);
-      expect(assembly.variables).toMatchObject({
+      expect(captured).toMatchObject({
         provider: 'deepseek-official',
         model: 'deepseek-flash',
       });
-      const request = await ctx.waterfall(
-        'agent/request',
-        { agent, turn: 1, step: 1, signal },
-        async () => ({ provider: 'old-provider', model: 'old-model' }),
-      );
-      expect(request).toMatchObject({ provider: 'deepseek-official', model: 'deepseek-flash' });
       await ctx.waterfall(
         'system-prompt/assemble',
         {} as never,

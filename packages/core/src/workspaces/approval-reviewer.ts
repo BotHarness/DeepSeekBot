@@ -1,4 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis';
+import { installNativeTools } from '../runtime/native-agent-compat.js';
 import type { Agent, AgentHandle, CreateAgentOptions } from '@deepseek-ai/dsh-agent';
 import { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm';
 import { SessionId } from '@deepseek-ai/dsh-session';
@@ -327,8 +328,8 @@ export interface ApprovalReviewSession {
   timeoutMs?: number;
 }
 
-function composeReviewer(systemPrompt: string, name: string): (agentCtx: Context) => void {
-  return (agentCtx) => {
+function composeReviewer(systemPrompt: string, name: string): (agentCtx: Context) => Promise<void> {
+  return async (agentCtx) => {
     agentCtx.systemPrompt.section({
       name,
       order: 0,
@@ -337,11 +338,15 @@ function composeReviewer(systemPrompt: string, name: string): (agentCtx: Context
       complete: true,
     });
     agentCtx.systemPrompt.suppressRuntimeContext();
-    agentCtx.on('system-prompt/assemble', async (_assembly, _context, next) => {
-      const assembly = await next();
-      assembly.tools = [];
-      return assembly;
-    });
+    if (typeof agentCtx.tools.setExecutor === 'function') {
+      await installNativeTools(agentCtx, false);
+    } else {
+      agentCtx.on('system-prompt/assemble', async (_assembly, _context, next) => {
+        const assembly = await next();
+        Object.assign(assembly, { tools: [] });
+        return assembly;
+      });
+    }
     agentCtx.tools.guard(({ name: tool }) => `${tool} is not available to this reviewer`);
   };
 }

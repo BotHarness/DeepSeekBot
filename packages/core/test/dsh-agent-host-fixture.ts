@@ -4,6 +4,7 @@ import type {
   Agent,
   AgentHandle,
   CreateAgentOptions,
+  ModelSelection,
   ResumeAgentOptions,
 } from '@deepseek-ai/dsh-agent';
 import { createAssistantMessage, type Message, type UserMessage } from '@deepseek-ai/dsh-llm';
@@ -95,14 +96,7 @@ export class FakeAgentHost implements DshAgentHost {
   }
 
   async selectedModel(sessionId: string): Promise<unknown> {
-    const scope = this.scopes.get(sessionId);
-    const assemble = scope?.listeners.get('system-prompt/assemble');
-    const request = scope?.listeners.get('agent/request');
-    if (assemble === undefined || request === undefined) {
-      throw new Error(`Model selection listeners unavailable for ${sessionId}`);
-    }
-    await assemble({}, {}, async () => ({ variables: {} }));
-    return request({}, async () => ({ provider: 'test', model: 'test' }));
+    return this.#live.get(sessionId)?.model.current();
   }
 
   constructor(
@@ -158,10 +152,17 @@ export class FakeAgentHost implements DshAgentHost {
         events.slice(fromSeq, toSeqExclusive),
     };
     let pending = Promise.resolve();
+    let selected: ModelSelection | undefined;
     let turn = 0;
     const fakeAgent = {
       id: sessionId,
       session,
+      model: {
+        current: () => selected,
+        select: (value: ModelSelection) => {
+          selected = { ...value };
+        },
+      },
       followup: (message: UserMessage) => {
         const received = this.received.get(sessionId) ?? [];
         received.push(message);

@@ -1,5 +1,7 @@
 # Release Ledger
 
+For an upstream DSH RC, start with [DSH upgrade qualification](dsh-upgrade.md). An unchanged Tobs product that passes on a new Host needs updated compatibility evidence, not an automatic product release. Product adaptations return to this ledger and the existing publication workflow.
+
 `CHANGELOG.md` is the English canonical Release Ledger for DeepSeekBot.
 `CHANGELOG.zh.md` is its maintained Chinese counterpart. Together they answer one question:
 what observable difference will a user or DSH plugin developer find in a DeepSeekBot release?

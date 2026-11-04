@@ -39,6 +39,13 @@ const sample = [
 ].join('\n');
 
 describe('PersonaBot agent preset', () => {
+  it('keeps native plugin management disabled when upstream makes it Profile-dependent', () => {
+    const manager =
+      "          - id: tool-plugin-manager\n            name: '@deepseek-ai/dsh-plugin-manager/tools'\n            disabled: !!js \"!ctx.get('profileContext')\"\n";
+    expect(botPreset(sample + manager)).toContain(
+      "name: '@deepseek-ai/dsh-plugin-manager/tools'\n            disabled: true",
+    );
+  });
   it('copies the standard preset and changes only its identity, order, question mode and native subagent tools', () => {
     expect(botPreset(sample)).toBe(
       [

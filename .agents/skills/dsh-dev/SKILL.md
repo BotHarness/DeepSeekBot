@@ -5,6 +5,30 @@ description: Use when developing, running, or debugging BotHarness against a loc
 
 # DSH development & debugging
 
+### DSH 0.2.2-rc.1 qualification
+
+Use [the recurring RC workflow](../../../docs/agents/dsh-upgrade.md) and
+[the version-specific record](../../../docs/agents/dsh-022-rc1-upgrade.md). RC tracking
+does not raise the `>=0.2.0-0` admission floor, and a new pin is not runtime evidence.
+On RC1, select the Agent model before step preparation: Inbox claim precedes the
+loop's model snapshot, while prompt assembly is already too late to change that
+step's route. Keep asynchronous application authorization before prompt admission.
+Native tool execution now dispatches batches to scoped executors; direct CLI calls
+must omit model-step logging and verify result identity. An executor disposer leaves
+an unavailable selection, so borrowed application handles must not own its lifetime.
+Reviewer schema suppression belongs to the executor's description, not the prompt
+presentation waterfall or inherited-tool restrictions. Verify packaged module loading
+and both API generations in a real Host; source-tree imports can hide missing native
+dependencies.
+
+On Windows, a retained development-Home resource PID can be reused by an unrelated
+process after the task Host exits. A resulting "Home is in use" refusal is not proof
+that the old Host remains alive. Inspect current process identities and the exact
+Home before recovery; never kill a process just because its PID appears in the record.
+Preserve the stale owner record and recover only the verified task-local record after
+checking that its Host and preparation processes have exited. Retain the refusal and
+recovery evidence separately from the product restart result.
+
 ### Empty tool declaration series (#3137)
 
 DSH 0.2.1-rc.3 can record a `request/header` with `startsSeries: true` and no tools.
@@ -36,7 +60,7 @@ The web client calls `/api/<endpoint>` over plain HTTP (`fetch` + auth cookie). 
 
 ## Dev loop (WSL, fnm node)
 
-The reproducible build baseline is `@deepseek-ai/dsh@0.2.1-rc.3`. The launcher uses the installed local CLI or an isolated `--dsh-version <version>` installation, accepts DSH `>=0.2.0-0` including future prereleases, creates an isolated Web Profile, links all Bundle members as dependencies, enables only the `deepseekbot` umbrella, and probes the authenticated API.
+The reproducible build baseline is `@deepseek-ai/dsh@0.2.2-rc.1`. The launcher uses the installed local CLI or an isolated `--dsh-version <version>` installation, accepts DSH `>=0.2.0-0` including future prereleases, creates an isolated Web Profile, links all Bundle members as dependencies, enables only the `deepseekbot` umbrella, and probes the authenticated API.
 
 ```bash
 corepack pnpm build
