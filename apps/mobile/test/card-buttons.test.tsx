@@ -25,4 +25,14 @@ describe('card buttons', () => {
     expect(stacksCardButtons(two, true)).toBe(true);
     expect(stacksCardButtons(<B label="One" />, false)).toBe(false);
   });
+
+  it('stacks exactly three decisions', () => {
+    const three = [
+      <B key="a" label="Continue" />,
+      <B key="b" label="Compact" />,
+      <B key="c" label="New session" />,
+    ];
+    expect(countCardButtons(three)).toBe(3);
+    expect(stacksCardButtons(three, false)).toBe(true);
+  });
 });
