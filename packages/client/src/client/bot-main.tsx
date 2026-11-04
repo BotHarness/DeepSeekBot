@@ -12,6 +12,7 @@ import { useTimelineWindow } from './timeline-window.js';
 import { OnboardingOverlay } from './onboarding-view.js';
 import { BotIntro } from './bot-intro.js';
 import type { Wallpaper } from './wallpaper.js';
+import type { VoiceDictationPort } from './composer-dictation.js';
 import {
   ChannelMark,
   ChannelMenuCaret,
@@ -1369,10 +1370,13 @@ function ConversationView({
   const conversation = state.conversation;
   const channel = conversation.channel;
   const dictationSlug = channel?.type === 'dm' ? channel.botSlug : undefined;
-  const dictationPort = useMemo(
-    () => actions.dictationPort?.(dictationSlug),
-    [actions, dictationSlug],
-  );
+  const dictationPort = useMemo(() => {
+    const port: unknown = actions.dictationPort?.(dictationSlug);
+    if (port instanceof Promise) port.catch(() => undefined);
+    return typeof (port as VoiceDictationPort | undefined)?.readiness === 'function'
+      ? (port as VoiceDictationPort)
+      : undefined;
+  }, [actions, dictationSlug]);
   const botNames = new Map(state.bots.map((member) => [member.slug, member.displayName]));
   const dmBotSlug = channel?.type === 'dm' ? channel.botSlug : undefined;
   const hiddenActions = useSyncExternalStore(

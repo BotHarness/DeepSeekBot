@@ -183,6 +183,7 @@ export type ComposerDictationStatus =
   | 'starting'
   | 'listening'
   | 'finishing'
+  | 'limited'
   | 'denied'
   | 'missing'
   | 'failed';
@@ -222,6 +223,7 @@ export function createComposerDictation(options: {
   let buffered = 0;
   let pushing: Promise<void> = Promise.resolve();
   let inFlight = false;
+  let limited = false;
   const set = (next: Partial<ComposerDictationSnapshot>) => {
     current = { ...current, ...next };
     for (const listener of [...listeners]) listener();
@@ -256,7 +258,12 @@ export function createComposerDictation(options: {
         );
         if (mine !== run) return;
         heard(view.text);
-        if (view.state === 'failed') throw new Error(view.error?.code ?? 'asr-failed');
+        if (view.state !== 'listening') throw new Error(view.error?.code ?? view.state);
+        if (view.truncated === true && !limited) {
+          limited = true;
+          void Promise.resolve().then(() => controller.stop());
+          return;
+        }
       }
     })()
       .catch(() => {
@@ -281,7 +288,7 @@ export function createComposerDictation(options: {
     if (session !== undefined) void options.port.cancel(session).catch(() => undefined);
     set({ status: 'failed', mode: undefined });
   };
-  return {
+  const controller: ComposerDictation = {
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -290,6 +297,7 @@ export function createComposerDictation(options: {
     start(mode) {
       if (dictationActive(current.status)) return;
       reset();
+      limited = false;
       const mine = run;
       set({ status: 'starting', text: '', mode });
       const opened = options.port.open();
@@ -353,7 +361,7 @@ export function createComposerDictation(options: {
         if (view.state === 'failed') throw new Error(view.error?.code ?? 'asr-failed');
         heard(view.text);
         reset();
-        set({ status: 'idle', mode: undefined });
+        set({ status: limited ? 'limited' : 'idle', mode: undefined });
       } catch {
         if (mine === run) fail();
       }
@@ -373,4 +381,5 @@ export function createComposerDictation(options: {
       listeners.clear();
     },
   };
+  return controller;
 }

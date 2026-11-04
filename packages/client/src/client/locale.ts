@@ -2223,6 +2223,7 @@ export const zh = {
   'composer.dictationHoldingOutside': '已移出输入框，松开也会结束，文字会保留',
   'composer.dictationListening': '正在听… 点输入框或麦克风结束',
   'composer.dictationFinishing': '正在转写最后一段…',
+  'composer.dictationLimit': '已到 2 分钟上限，录音已自动结束，文字已保留。',
   'composer.dictationDenied': '无法使用麦克风。请在浏览器或系统设置里允许后再试。',
   'composer.dictationMissing': '没有找到可用的麦克风。',
   'composer.dictationFailed': '语音输入中断了，点麦克风重试。',
@@ -7022,6 +7023,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
     'Outside the input. Releasing still finishes and keeps the text',
   'composer.dictationListening': 'Listening… click the input or the mic to finish',
   'composer.dictationFinishing': 'Transcribing the last part…',
+  'composer.dictationLimit': 'Reached the 2-minute limit, so recording stopped. The text is kept.',
   'composer.dictationDenied':
     'The microphone is blocked. Allow it in the browser or system settings, then try again.',
   'composer.dictationMissing': 'No microphone was found.',

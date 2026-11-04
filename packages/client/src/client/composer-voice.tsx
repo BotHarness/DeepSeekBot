@@ -84,7 +84,10 @@ export function useComposerVoice({
   );
   const active = dictationActive(snapshot.status);
   const settled =
-    snapshot.status === 'denied' || snapshot.status === 'missing' || snapshot.status === 'failed';
+    snapshot.status === 'denied' ||
+    snapshot.status === 'missing' ||
+    snapshot.status === 'failed' ||
+    snapshot.status === 'limited';
   const start = (mode: 'toggle' | 'hold') => {
     if (controller === undefined || latest.current.disabled) return;
     const current = latest.current.value;
@@ -206,6 +209,7 @@ export function composerVoiceStatus(
     return t(voice.outside ? 'composer.dictationHoldingOutside' : 'composer.dictationHolding');
   if (status === 'listening') return t('composer.dictationListening');
   if (status === 'finishing') return t('composer.dictationFinishing');
+  if (status === 'limited') return t('composer.dictationLimit');
   if (status === 'denied') return t('composer.dictationDenied');
   if (status === 'missing') return t('composer.dictationMissing');
   if (status === 'failed') return t('composer.dictationFailed');

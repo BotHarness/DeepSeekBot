@@ -4668,13 +4668,13 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   left: 50%;
   transform: translateX(-50%);
   max-width: calc(100% - ${space.x4});
-  padding: 6px ${space.x3};
+  padding: ${space.x1} ${space.x3};
   border: ${border.hairline} solid color-mix(in srgb, var(--dsw-alias-state-business-primary) 35%, transparent);
   border-radius: ${radius.round};
   background: var(--dsw-alias-bg-module-platform);
   color: var(--dsw-alias-label-primary);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: ${text.metaSize};
+  line-height: ${text.metaLine};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

@@ -126,6 +126,47 @@ describe('composer dictation', () => {
     expect(dictation.snapshot().status).toBe('failed');
   });
 
+  it('finishes on its own once the Host reports dropped audio past the limit', async () => {
+    const { mic, say } = fakeMic();
+    let pushes = 0;
+    const calls: string[] = [];
+    const base: VoiceDictationView = {
+      id: 'dict-0000000000000001',
+      providerId: 'local',
+      mode: 'segments',
+      state: 'listening',
+      text: '',
+      audioMs: 0,
+    };
+    const port: VoiceDictationPort = {
+      readiness: async () => ({
+        ready: true,
+        providerId: 'local',
+        mode: 'segments',
+        sampleRate: 16_000,
+      }),
+      open: async () => base,
+      push: async () => {
+        pushes += 1;
+        return { ...base, text: '全部', ...(pushes > 1 ? { truncated: true as const } : {}) };
+      },
+      stop: async () => {
+        calls.push('stop');
+        return { ...base, state: 'done', text: '全部', truncated: true };
+      },
+      cancel: async () => ({ ...base, state: 'cancelled' }),
+    };
+    const dictation = createComposerDictation({ port, mic, onText: () => undefined });
+    dictation.start('toggle');
+    await settle();
+    say(3_200);
+    await settle();
+    say(3_200);
+    for (let index = 0; index < 4; index += 1) await settle();
+    expect(calls).toEqual(['stop']);
+    expect(dictation.snapshot()).toMatchObject({ status: 'limited', text: '全部' });
+  });
+
   it('stops a microphone stream that arrives after the mic was released', async () => {
     let grant: ((stream: MediaStream) => void) | undefined;
     let stoppedTracks = 0;
