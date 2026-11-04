@@ -4,6 +4,7 @@ const path = require('node:path');
 const withSharingPlugin = require('expo-sharing/app.plugin').default;
 const withIosBrand = require('./with-ios-brand');
 const withAndroidBrand = require('./with-android-brand');
+const release = require('../../scripts/install-release.json');
 
 const mainCheckout = () => {
   try {
@@ -53,6 +54,7 @@ module.exports = ({ config }) => {
   const bundleIdentifier = store ? 'app.deepseekbot.mobile' : config.ios.bundleIdentifier;
   const resolved = withSharing({
     ...config,
+    version: release.version,
     plugins: [
       ...config.plugins,
       './modules/local-computer-video/app.plugin.js',
