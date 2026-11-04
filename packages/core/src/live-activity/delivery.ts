@@ -188,21 +188,22 @@ export function createActivityDelivery(options: {
       return reconciliation;
     }
     reconciliation = (async () => {
-      for (const row of rows()) {
-        if (disposed) break;
-        await serial(() => reconcileRow(row.client_id));
-      }
-      if (disposed) return;
-      database.transaction((db) => {
-        db.prepare('DELETE FROM device_live_activities WHERE terminal = 1 AND expires_at < ?').run(
-          now() - 24 * 60 * 60_000,
-        );
-      });
+      do {
+        reconcileAgain = false;
+        for (const row of rows()) {
+          if (disposed) break;
+          await serial(() => reconcileRow(row.client_id));
+        }
+        if (disposed) return;
+        database.transaction((db) => {
+          db.prepare(
+            'DELETE FROM device_live_activities WHERE terminal = 1 AND expires_at < ?',
+          ).run(now() - 24 * 60 * 60_000);
+        });
+      } while (reconcileAgain);
     })().finally(() => {
       reconciliation = undefined;
-      if (!reconcileAgain) return;
       reconcileAgain = false;
-      void reconcile().catch(() => undefined);
     });
     return reconciliation;
   };
