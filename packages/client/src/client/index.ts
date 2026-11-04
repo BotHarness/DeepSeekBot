@@ -454,10 +454,12 @@ export function apply(ctx: ClientContext): void {
       warn: (message, error) => ctx.logger.warn(message, error),
     });
     let roster = '';
+    let rosterBots: unknown;
     const offRoster = store.subscribe(() => {
-      const next = JSON.stringify(
-        store.getSnapshot().bots.map((bot) => [bot.slug, bot.displayName]),
-      );
+      const bots = store.getSnapshot().bots;
+      if (bots === rosterBots) return;
+      rosterBots = bots;
+      const next = JSON.stringify(bots.map((bot) => [bot.slug, bot.displayName]));
       if (next === roster) return;
       roster = next;
       visibility.refresh();
