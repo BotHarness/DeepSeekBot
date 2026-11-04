@@ -14,7 +14,7 @@ ADR-0289 let Mac, Windows and Web calls send camera keyframes. The spec also ask
 
 **Capture first, then switch.** Turning on a source opens the capture before posting `visual`, so the browser still sees the click when it shows the picker. Only after the Host accepts does the Client stop the old source and start sampling with a new picker, so the first frame after a switch is always sent. If the Human cancels the picker, nothing changes and no error is shown.
 
-**What the Human sees.** The call bar has a screen button next to the camera button. The preview panel shows the shared picture unmirrored and reads "Sharing: <window name>" from the track label, with the same keyframe flash, count and save switch.
+**What the Human sees.** The call bar has a screen button next to the camera button. The preview panel shows the shared picture unmirrored and reads "Sharing:" followed by the window name from the track label, with the same keyframe flash, count and save switch.
 
 **Stopped by the system.** When the shared window closes or the Human uses the browser's stop button, the track ends. The Client returns to voice only, shows "Screen sharing stopped. The call is voice only now." with a Close button, and sends `visual off` with `stopped: true`. The Host accepts `stopped` only with `off`, and writes a `share-stopped` call record (source and time into the call) into the DM after the start record. The Bot reads it as "Screen sharing in call … stopped at m:ss without the Human turning it off; the call went on with voice only." Desktop and mobile show it as a call record card. A camera that disconnects takes the same path with `camera-stopped`.
 
