@@ -4999,6 +4999,25 @@ export async function setSessionArchived(
   return value?.['archived'] === true;
 }
 
+export interface StoppedSessionRef {
+  botSlug: string;
+  sessionId: string;
+  role: 'orchestrator' | 'assignment';
+}
+
+export async function stopSession(
+  call: BridgeCall,
+  botSlug: string,
+  sessionId: string,
+): Promise<{ stopped: StoppedSessionRef[]; alreadyIdle: StoppedSessionRef[] }> {
+  const value = asRecord(await unwrap(call, 'sessionStop', { botSlug, sessionId }));
+  const refs = (key: string): StoppedSessionRef[] => {
+    const list = value?.[key];
+    return Array.isArray(list) ? (list as StoppedSessionRef[]) : [];
+  };
+  return { stopped: refs('stopped'), alreadyIdle: refs('alreadyIdle') };
+}
+
 export async function moveMemoryLocation(
   call: BridgeCall,
   slug: string,

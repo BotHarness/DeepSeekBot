@@ -31,6 +31,42 @@ function tracker() {
 }
 
 describe('Orchestrator Channel draft tracker', () => {
+  it('marks a draft for voice only when voice: true came before the body', () => {
+    const first = tracker();
+    for (const [index, fragment] of [
+      '{"channel_id":"dm-ada","voice":true,"body":"好的。',
+      '马上查',
+      '。"}',
+    ].entries())
+      first.drafts.accept('orchestrator-ada', delta(fragment, 'bot_send_message', index));
+    expect(
+      first.events.map(
+        (event) =>
+          event.type === 'update' && [
+            event.draft.body,
+            event.draft.voice,
+            event.draft.bodyComplete,
+          ],
+      ),
+    ).toEqual([
+      ['好的。', true, undefined],
+      ['好的。马上查', true, undefined],
+      ['好的。马上查。', true, true],
+    ]);
+
+    const late = tracker();
+    for (const [index, fragment] of [
+      '{"channel_id":"dm-ada","body":"好的。',
+      '"',
+      ',"voice":true}',
+    ].entries())
+      late.drafts.accept('orchestrator-ada', delta(fragment, 'bot_send_message', index));
+    expect(
+      late.events.every((event) => event.type !== 'update' || event.draft.voice === undefined),
+    ).toBe(true);
+    expect(late.events.at(-1)).toMatchObject({ draft: { body: '好的。', bodyComplete: true } });
+  });
+
   it('routes unified reply previews by trusted source and never falls back for external sources', () => {
     const { drafts, events } = tracker();
     drafts.begin('orchestrator-ada', {
