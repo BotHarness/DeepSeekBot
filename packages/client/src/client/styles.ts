@@ -4682,10 +4682,6 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 .bh-composer[data-dictation='failed'] .bh-composer-input::placeholder { color: var(--dsw-alias-state-error-primary); }
 html[data-botharness-motion='reduce'] .bh-composer-mic { animation: none; }
 html[data-botharness-motion='reduce'] .bh-composer-mic::before { transform: none; transition: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-business-primary) calc(20% + var(--bh-dictation-level, 0) * 60%), transparent); }
-@media (prefers-reduced-motion: reduce) {
-  .bh-composer-mic { animation: none; }
-  .bh-composer-mic::before { transform: none; transition: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-business-primary) calc(20% + var(--bh-dictation-level, 0) * 60%), transparent); }
-}
 .bh-composer[data-dictation='starting'] .bh-composer-rich-input[contenteditable='false'],
 .bh-composer[data-dictation='listening'] .bh-composer-rich-input[contenteditable='false'],
 .bh-composer[data-dictation='finishing'] .bh-composer-rich-input[contenteditable='false'] { color: var(--dsw-alias-label-primary); }
