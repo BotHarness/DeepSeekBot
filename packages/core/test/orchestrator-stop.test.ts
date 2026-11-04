@@ -38,10 +38,12 @@ function agents() {
     },
     runAssignment(run) {
       assignmentRuns.push(run);
+      run.accepted?.();
       return hold(run.sessionId);
     },
     requestAssignment(run) {
       assignmentRuns.push(run);
+      run.accepted?.();
       return { delivery: 'followup', accepted: Promise.resolve(), done: hold(run.sessionId) };
     },
     async stopAssignment(id) {

@@ -5144,12 +5144,6 @@ class BotRuntimeImplementation implements BotRuntime {
     return { stopped, alreadyIdle };
   }
 
-  /**
-   * Stop the Orchestrator's current turn only (a DSH-level interrupt). Approvals the
-   * Session had open close, its held Group sends are dropped, and Assignment
-   * creates/requests the turn had not delivered yet are cancelled. Nothing is held:
-   * the Orchestrator wakes again as usual.
-   */
   async #humanStopOrchestrator(
     bot: PersonaBotRecord,
     notice: string,
@@ -5228,7 +5222,6 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#armSnooze(botSlug);
     });
   }
-
 
   async #noteAutomaticFailure(
     botSlug: string,
