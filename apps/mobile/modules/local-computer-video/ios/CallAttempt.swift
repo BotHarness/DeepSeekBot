@@ -71,7 +71,7 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
     defer { session.unlockForConfiguration() }
     do {
       try session.setConfiguration(configuration(route), active: true)
-      applyOverride(route, session)
+      clearOverride(session)
       return true
     } catch {
       return false
@@ -86,19 +86,19 @@ final class CallAttempt: NSObject, RTCPeerConnectionDelegate {
     defer { session.unlockForConfiguration() }
     do {
       try session.setConfiguration(configuration(route))
-      applyOverride(route, session)
+      clearOverride(session)
       return true
     } catch {
       return false
     }
   }
 
-  /// Only the built-in speaker and receiver are overridden; headphones, Bluetooth
-  /// and car audio keep the route the system chose.
-  private static func applyOverride(_ route: Route, _ session: RTCAudioSession) {
-    let outputs = AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType)
-    guard outputs.allSatisfy({ $0 == .builtInSpeaker || $0 == .builtInReceiver }) else { return }
-    try? session.overrideOutputAudioPort(route == .receiver ? .none : .speaker)
+  /// Speaker and media audio reach the loudspeaker through `defaultToSpeaker`, which
+  /// still yields to headphones, Bluetooth and car audio. A forced speaker override
+  /// would keep the loudspeaker even after Bluetooth headphones connect, so any
+  /// override is cleared instead.
+  private static func clearOverride(_ session: RTCAudioSession) {
+    try? session.overrideOutputAudioPort(.none)
   }
 
   /// The current output, in the words the call screen and test reports use.

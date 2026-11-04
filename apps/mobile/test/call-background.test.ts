@@ -198,11 +198,39 @@ describe('call Live Activity', () => {
     expect(native.updates).toEqual([props({ phase: 'listening' })]);
     activity.sync(props({ phase: 'listening' }));
     activity.sync(props({ phase: 'speaking' }));
+    await flush();
     expect(native.updates.map((update) => update.phase)).toEqual(['listening', 'speaking']);
     activity.sync(undefined);
     expect(native.end).toHaveBeenCalledTimes(1);
     activity.sync(props());
     expect(native.start).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends one update at a time so the latest phase is the one left showing', async () => {
+    const native = fake();
+    const applied: CallActivityProps[] = [];
+    const waiting: (() => void)[] = [];
+    native.handle.update = (next) =>
+      new Promise<void>((done) => {
+        waiting.push(() => {
+          applied.push(next);
+          done();
+        });
+      });
+    const activity = createCallActivity({ start: native.start });
+    activity.sync(props({ phase: 'hearing' }));
+    native.open();
+    await flush();
+    activity.sync(props({ phase: 'speaking' }));
+    activity.sync(props({ phase: 'listening' }));
+    expect(waiting).toHaveLength(1);
+    waiting.shift()?.();
+    await flush();
+    expect(waiting).toHaveLength(1);
+    waiting.shift()?.();
+    await flush();
+    expect(waiting).toHaveLength(0);
+    expect(applied.map((update) => update.phase)).toEqual(['speaking', 'listening']);
   });
 
   it('ends an activity that finishes starting after the call ended', async () => {
