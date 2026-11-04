@@ -147,6 +147,7 @@ export interface VoiceCallReadiness {
   readonly ttsProviderId: string | null;
   readonly media: 'ready' | 'unsupported-platform' | 'helper-missing' | 'unavailable';
   readonly activeCallId: string | null;
+  readonly callElsewhere: boolean;
 }
 
 export type VoiceCallCommand =

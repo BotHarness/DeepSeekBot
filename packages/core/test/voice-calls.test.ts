@@ -16,6 +16,7 @@ import {
   type VoiceCallMedia,
   type VoiceCallsDeps,
 } from '../src/voice/calls.js';
+import { createVoiceCallHttp } from '../src/voice/call-http.js';
 import { VoiceProviders } from '../src/voice/providers.js';
 import { joinAudio } from '../src/voice/speech.js';
 import { createTempRoot } from './helpers.js';
@@ -489,6 +490,77 @@ describe('Host call owner', () => {
     const second = await h.ok({ kind: 'open', slug: 'mira' });
     expect(second.call!.callId).not.toBe(first);
     expect(await view(h, first)).toMatchObject({ phase: 'ended', endReason: 'replaced' });
+  });
+
+  it('treats each desktop window as its own caller and refuses the second one', async () => {
+    const { media } = fakeMedia();
+    const h = harness({ media });
+    const mac = { deviceId: VOICE_CALL_HOST_OWNER, client: 'window-mac-0001' };
+    const other = { deviceId: VOICE_CALL_HOST_OWNER, client: 'window-win-0002' };
+    const opened = await h.ok({ kind: 'open', slug: 'mira' }, mac);
+    const callId = opened.call!.callId;
+    expect(await h.calls.handle(other, { kind: 'readiness', slug: 'mira' })).toMatchObject({
+      readiness: { activeCallId: null, callElsewhere: true },
+    });
+    expect(await h.ok({ kind: 'readiness', slug: 'mira' }, mac)).toMatchObject({
+      readiness: { activeCallId: callId, callElsewhere: false },
+    });
+    expect(await h.calls.handle(other, { kind: 'open', slug: 'mira' })).toMatchObject({
+      ok: false,
+      code: 'call-active',
+    });
+    expect(await h.calls.handle(h.phone, { kind: 'open', slug: 'mira' })).toMatchObject({
+      ok: false,
+      code: 'call-active',
+    });
+    expect(await h.calls.handle(other, { kind: 'mute', callId, muted: true })).toMatchObject({
+      ok: false,
+      code: 'call-not-found',
+    });
+    const kept = await h.ok({ kind: 'heartbeat', callId }, mac);
+    expect(kept.call!.phase).not.toBe('ended');
+    const replaced = await h.ok({ kind: 'open', slug: 'mira' }, mac);
+    expect(replaced.call!.callId).not.toBe(callId);
+  });
+
+  it('a phone call refuses a desktop window', async () => {
+    const { media } = fakeMedia();
+    const h = harness({ media });
+    await connected(h);
+    const mac = { deviceId: VOICE_CALL_HOST_OWNER, client: 'window-mac-0001' };
+    expect(await h.ok({ kind: 'readiness', slug: 'mira' }, mac)).toMatchObject({
+      readiness: { callElsewhere: true, activeCallId: null },
+    });
+    expect(await h.calls.handle(mac, { kind: 'open', slug: 'mira' })).toMatchObject({
+      ok: false,
+      code: 'call-active',
+    });
+  });
+
+  it('reads the Client window id on the Host-owner route', async () => {
+    const seen: unknown[] = [];
+    const route = createVoiceCallHttp(() => ({
+      handle: async (caller) => {
+        seen.push(caller);
+        return { ok: true };
+      },
+      draft: () => undefined,
+      speak: async () => undefined,
+      revoke: async () => undefined,
+      dispose: async () => undefined,
+    }));
+    const post = (body: unknown) =>
+      route(
+        new Request('http://host/api/voice/call', { method: 'POST', body: JSON.stringify(body) }),
+      );
+    await post({ kind: 'status', client: 'window-mac-0001' });
+    await post({ kind: 'status', client: 'bad id!' });
+    await post({ kind: 'status' });
+    expect(seen).toEqual([
+      { deviceId: VOICE_CALL_HOST_OWNER, client: 'window-mac-0001' },
+      { deviceId: VOICE_CALL_HOST_OWNER, client: undefined },
+      { deviceId: VOICE_CALL_HOST_OWNER, client: undefined },
+    ]);
   });
 
   it('lets the Host owner see and end any call, but not mute it', async () => {

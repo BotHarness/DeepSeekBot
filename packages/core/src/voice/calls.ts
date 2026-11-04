@@ -84,6 +84,7 @@ export interface VoiceCallsDeps {
 
 export interface VoiceCaller {
   readonly deviceId: string;
+  readonly client?: string | undefined;
 }
 
 class CallRefusal extends Error {
@@ -98,6 +99,18 @@ class CallRefusal extends Error {
 const CALL_ID = /^call-[a-f0-9]{16}$/u;
 const HEARING_EVENT_MS = 250;
 const MAX_HEARING_CHARS = 500;
+const CLIENT_ID = /^[A-Za-z0-9_-]{8,64}$/u;
+
+export function voiceCallClientId(command: unknown): string | undefined {
+  const value =
+    typeof command === 'object' && command !== null
+      ? (command as Record<string, unknown>)['client']
+      : undefined;
+  return typeof value === 'string' && CLIENT_ID.test(value) ? value : undefined;
+}
+
+const sameCaller = (call: { caller: string; client: string | undefined }, caller: VoiceCaller) =>
+  call.caller === caller.deviceId && call.client === caller.client;
 
 type EventInput = VoiceCallEvent extends infer E
   ? E extends VoiceCallEvent
@@ -110,6 +123,7 @@ interface Call {
   readonly slug: string;
   readonly channelId: string;
   readonly caller: string;
+  readonly client: string | undefined;
   readonly media: 'webrtc' | 'synthetic';
   readonly startedAt: number;
   readonly abort: AbortController;
@@ -810,7 +824,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     }
   };
 
-  const readiness = async (slug: string): Promise<VoiceCallReadiness> => {
+  const readiness = async (caller: VoiceCaller, slug: string): Promise<VoiceCallReadiness> => {
     const bot = deps.bot(slug);
     const missing: VoiceCallMissing[] = [];
     if (bot === undefined || bot.paused === true) missing.push('bot');
@@ -834,7 +848,11 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       asrProviderId: asr ?? null,
       ttsProviderId: tts ?? null,
       media: availability,
-      activeCallId: active?.slug === slug ? active.id : null,
+      activeCallId:
+        active !== undefined && active.slug === slug && sameCaller(active, caller)
+          ? active.id
+          : null,
+      callElsewhere: active !== undefined && !sameCaller(active, caller),
     };
   };
 
@@ -844,7 +862,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     const call = calls.get(value);
     if (
       call === undefined ||
-      (call.caller !== caller.deviceId && !(admin && caller.deviceId === VOICE_CALL_HOST_OWNER))
+      (!sameCaller(call, caller) && !(admin && caller.deviceId === VOICE_CALL_HOST_OWNER))
     )
       throw new CallRefusal('call-not-found', 'That call does not exist.');
     return call;
@@ -886,7 +904,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     }
     const active = live();
     if (active !== undefined) {
-      if (active.caller !== caller.deviceId)
+      if (!sameCaller(active, caller))
         throw new CallRefusal('call-active', 'Another device is already on a call with this Host.');
       await end(active, 'replaced');
     }
@@ -896,6 +914,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       slug,
       channelId: dmChannelId(slug),
       caller: caller.deviceId,
+      client: caller.client,
       media: kind,
       startedAt,
       abort: new AbortController(),
@@ -973,7 +992,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     const command = record(raw) as Partial<VoiceCallCommand> & Record<string, unknown>;
     switch (command.kind) {
       case 'readiness':
-        return { ok: true, readiness: await readiness(slugOf(command['slug'])) };
+        return { ok: true, readiness: await readiness(caller, slugOf(command['slug'])) };
       case 'status':
         return {
           ok: true,
