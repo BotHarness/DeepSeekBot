@@ -17,7 +17,10 @@ export function createAlertBanners() {
     setEnabled(next: boolean) {
       if (enabled === next) return;
       enabled = next;
-      if (!enabled) queue = [];
+      if (!enabled) {
+        queue.forEach(retire);
+        queue = [];
+      }
       publish();
     },
     getSnapshot: () => queue[0],
@@ -28,7 +31,10 @@ export function createAlertBanners() {
       };
     },
     reconcile(host: string, pending: readonly string[], added: LocalApprovalAlert[]) {
-      if (!enabled) return;
+      if (!enabled) {
+        added.forEach(retire);
+        return;
+      }
       queue = queue.filter(
         (alert) =>
           alert.data.hostId !== host ||

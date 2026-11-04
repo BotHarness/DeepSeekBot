@@ -45,6 +45,35 @@ function fixture() {
 }
 
 describe('device alert presentation', () => {
+  it.each([true, false])(
+    'does not replay a hidden recovery group after membership changes (initially visible: %s)',
+    async (initiallyVisible) => {
+      const { owner, snapshots } = fixture();
+      await owner.update({ ...input, items: [item('user-question')] });
+      const alert = snapshots[0]!.alerts[0]!;
+      const group = {
+        ...alert,
+        members: ['a', 'b'],
+        data: { ...alert.data, itemId: 'recovery:old' },
+      };
+      const banners = createAlertBanners();
+      if (initiallyVisible) banners.reconcile('studio', ['a', 'b'], [group]);
+      banners.setEnabled(false);
+      if (!initiallyVisible) banners.reconcile('studio', ['a', 'b'], [group]);
+      banners.setEnabled(true);
+      banners.reconcile('studio', ['b'], [{ ...group, members: ['b'] }]);
+      expect(banners.getSnapshot()).toBeUndefined();
+
+      const fresh = {
+        ...group,
+        members: ['c'],
+        data: { ...group.data, itemId: 'recovery:fresh' },
+      };
+      banners.reconcile('studio', ['b', 'c'], [fresh]);
+      expect(banners.getSnapshot()).toEqual(fresh);
+    },
+  );
+
   it('clears visible in-app alerts on opt-out and does not replay alerts received while disabled', async () => {
     const { owner, snapshots } = fixture();
     await owner.update({ ...input, items: [item('user-question')] });

@@ -1551,7 +1551,7 @@ const en = {
   inAppAlertOverlay: 'Top overlay',
   inAppAlertsHint: 'Show alerts while using the app. System notifications stay unchanged.',
   localNotificationsDenied:
-    'System notifications are off. Keep connected can stay on, but its ongoing notification may be hidden. In-app alerts still work while the app is open.',
+    'System notifications are off. Keep connected can stay on, but its ongoing notification may be hidden. In-app alerts have a separate setting.',
   cloudPushUnavailable: 'Cloud push is unavailable',
   localAlertsFailed: 'Could not sync approval alerts. Open the app to retry.',
   notificationsHint:
@@ -3639,7 +3639,7 @@ const zh: typeof en = {
   inAppAlertOverlay: '顶部浮层',
   inAppAlertsHint: '使用 App 时显示提醒，不影响系统通知。',
   localNotificationsDenied:
-    '系统通知已关闭，仍可保持连接，但常驻通知可能不在通知栏显示。打开应用时仍会显示应用内提醒。',
+    '系统通知已关闭，仍可保持连接，但常驻通知可能不在通知栏显示。应用内提醒可单独设置。',
   cloudPushUnavailable: '云推送暂不可用',
   localAlertsFailed: '审批提醒未能同步，请打开应用重试。',
   notificationsHint: '通知类型适用于此手机配对的所有远程。私密输入不会显示。',
