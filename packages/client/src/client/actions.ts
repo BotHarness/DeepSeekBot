@@ -371,12 +371,14 @@ import {
   removeVoiceProvider,
   setBotAsr,
   setBotVoice,
+  setSpeechThreshold,
   setVoiceDefault,
   synthesizeVoice,
   testVoiceProvider,
   type BotAsrView,
   type BotVoiceView,
   type VoiceDefaultsView,
+  type VoiceSpeechThresholdView,
   type VoiceProviderAddInput,
   type VoiceProviderHealthView,
   type VoiceProvidersView,
@@ -893,6 +895,7 @@ export interface BridgeActions {
     providerId: string | null,
     voiceId?: string,
   ): Promise<VoiceDefaultsView>;
+  setSpeechThreshold?(dbfs: number | null): Promise<VoiceSpeechThresholdView>;
   setApprovalReviewerModel?(model: ModelRouteView | null): Promise<ApprovalReviewerModelView>;
   revokeToolApprovalRule(slug: string, id: string): Promise<void>;
   toolApprovalStatus(
@@ -2016,6 +2019,7 @@ export function createActions(
     setBotAsr: (slug, providerId) => setBotAsr(call, slug, providerId),
     setVoiceDefault: (kind, providerId, voiceId) =>
       setVoiceDefault(call, kind, providerId, voiceId),
+    setSpeechThreshold: (dbfs) => setSpeechThreshold(call, dbfs),
     setApprovalReviewerModel: (model) => setApprovalReviewerModel(call, model),
     revokeToolApprovalRule: (slug, id) => revokeToolApprovalRule(call, slug, id),
     toolApprovalStatus: (channelId, messageId) =>

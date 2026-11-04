@@ -12,6 +12,7 @@ import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { MessageAudio } from './message-audio.js';
+import { VoiceMicTest } from './voice-mic-test.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { VoiceProviderHealthView, VoiceProvidersView } from './voice-bridge.js';
 import {
@@ -33,6 +34,7 @@ type VoiceActions = Pick<
   | 'setBotVoice'
   | 'setBotAsr'
   | 'setVoiceDefault'
+  | 'setSpeechThreshold'
 >;
 
 type Kind = 'tts' | 'asr';
@@ -373,6 +375,22 @@ export function VoiceProviderSettings({
         description={kind === 'tts' ? t('voice.providers.description') : t('voice.asr.description')}
       >
         {view === undefined ? null : defaultRow(view, kind)}
+        {view === undefined || kind === 'tts' ? null : (
+          <VoiceMicTest
+            threshold={view.speechThreshold}
+            save={
+              actions.setSpeechThreshold === undefined
+                ? undefined
+                : async (dbfs) => {
+                    const speechThreshold = await actions.setSpeechThreshold!(dbfs);
+                    setView((current) =>
+                      current === undefined ? current : { ...current, speechThreshold },
+                    );
+                  }
+            }
+            t={t}
+          />
+        )}
         <SettingsRow
           title={kind === 'tts' ? t('voice.providers.new') : t('voice.asr.new')}
           data={{ 'data-voice-provider-new': kind }}

@@ -77,6 +77,11 @@ export const VOICE_COMMANDS = [
       'set the Host-wide default: tts <provider-id> [--voice <id>], asr <provider-id> [--language <code>], or <tts|asr> off',
   },
   {
+    command: 'voice-vad-set',
+    description:
+      'set the Host-wide speech detection threshold in dBFS (-70 to -20; lower hears quieter microphones), or default; affects pause-cut dictation and calls, not Soniox dictation',
+  },
+  {
     command: 'voice-transcribe',
     description:
       'transcribe a test recording --file <absolute audio file> with a Bot binding (--bot) or an ASR Provider (--provider); the audio is not stored',
@@ -221,8 +226,21 @@ export async function runVoiceCommand(
   if (command === 'voice-defaults') {
     positionals(command, rest, 0, 'no positional arguments');
     const rpc = await connect();
-    const view = (await rpc('voiceProviders', {})) as { defaults?: unknown };
-    return { defaults: view.defaults ?? { tts: null, asr: null } };
+    const view = (await rpc('voiceProviders', {})) as {
+      defaults?: unknown;
+      speechThreshold?: unknown;
+    };
+    return {
+      defaults: view.defaults ?? { tts: null, asr: null },
+      ...(view.speechThreshold === undefined ? {} : { speechThreshold: view.speechThreshold }),
+    };
+  }
+  if (command === 'voice-vad-set') {
+    const [value] = positionals(command, rest, 1, 'a threshold in dBFS such as -55, or default');
+    if (value !== 'default' && !/^-?\d+(?:\.\d+)?$/u.test(value!))
+      usage('The threshold is a number in dBFS such as -55, or default.');
+    const rpc = await connect();
+    return rpc('voiceSpeechThresholdSet', { dbfs: value === 'default' ? null : Number(value) });
   }
   if (command === 'voice-default-set') {
     const [kind, target] = positionals(command, rest, 2, 'tts or asr, and a Provider id (or off)');

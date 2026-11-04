@@ -73,6 +73,7 @@ export interface VoiceDictationDeps {
   providers(): VoiceDictationProviders | undefined;
   botAsr(slug: string): { providerId: string; language?: string } | null | undefined;
   defaultAsr?: (() => { providerId: string; language?: string } | null) | undefined;
+  speechDbfs?: (() => number) | undefined;
   now?: () => number;
   vad?: VadOptions | undefined;
   log?: ((phase: string, fields: Record<string, string | number>) => void) | undefined;
@@ -309,7 +310,14 @@ export function createVoiceDictations(deps: VoiceDictationDeps): VoiceDictations
         abort,
         startedAt: now(),
         stream,
-        vad: mode === 'segments' ? createVad({ ...SEGMENT_VAD, ...deps.vad }) : undefined,
+        vad:
+          mode === 'segments'
+            ? createVad({
+                ...SEGMENT_VAD,
+                ...(deps.speechDbfs === undefined ? {} : { minActiveDbfs: deps.speechDbfs() }),
+                ...deps.vad,
+              })
+            : undefined,
         parts: [],
         texts: [],
         streamed: '',

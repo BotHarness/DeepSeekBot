@@ -2457,6 +2457,7 @@ function ConversationView({
     return selected.caret;
   };
 
+  const dictating = useRef(false);
   const fileDrop = useConversationFileDrop(
     !readOnlyDm &&
       !conversation.sending &&
@@ -2464,6 +2465,7 @@ function ConversationView({
       activeMemoryView === undefined &&
       selectedIds === undefined,
     (files) => {
+      if (dictating.current) return;
       addFiles(files);
       setRestoreFocusSignal((value) => value + 1);
     },
@@ -3395,6 +3397,7 @@ function ConversationView({
                   placeholder={t('composer.placeholder', { name: title })}
                   holdPlaceholder={t('composer.holdToTalk', { name: title })}
                   dictation={dictationPort}
+                  dictating={dictating}
                   sending={conversation.sending || recovery.blocked}
                   focusSignal={restoreFocusSignal}
                   attachments={uploadItems}

@@ -10,10 +10,12 @@ import {
   type ProviderHealth,
   type TtsProviderView,
   type VoiceDefaults,
+  type VoiceSpeechThreshold,
   type VoiceProviderView,
   type VoiceProviders,
 } from './providers.js';
 import { withVoiceDefaults } from './defaults.js';
+import { DEFAULT_SPEECH_DBFS } from './vad.js';
 import { speakableText } from './speakable.js';
 import {
   createVoiceDictations,
@@ -30,6 +32,7 @@ export interface VoiceProvidersView {
   asrPresets: readonly AsrPreset[];
   asrProviders: AsrProviderView[];
   defaults: VoiceDefaults;
+  speechThreshold: VoiceSpeechThreshold;
   bot?: { slug: string; selected: PersonaBotVoice | null; asr: PersonaBotAsr | null };
 }
 
@@ -62,6 +65,9 @@ export interface VoiceBridgeMethods {
   voiceTranscribe(payload: unknown): Promise<BridgeResult<VoiceTranscriptionView>>;
   botAsrSet(payload: unknown): BridgeResult<{ slug: string; asr: PersonaBotAsr | null }>;
   voiceDefaultSet(payload: unknown): BridgeResult<{ defaults: VoiceDefaults }>;
+  voiceSpeechThresholdSet(
+    payload: unknown,
+  ): BridgeResult<{ speechThreshold: VoiceSpeechThreshold }>;
   voiceDictation(
     payload: unknown,
   ): Promise<
@@ -106,6 +112,7 @@ export function createVoiceBridgeMethods(deps: {
       providers: () => deps.providers,
       botAsr: (slug) => effective(slug)?.asr ?? null,
       defaultAsr: () => deps.providers?.defaults().asr ?? null,
+      speechDbfs: () => deps.providers?.speechThreshold().dbfs ?? DEFAULT_SPEECH_DBFS,
       log: deps.log,
     });
   const unavailable = (): BridgeResult<never> => ({
@@ -139,6 +146,7 @@ export function createVoiceBridgeMethods(deps: {
           asrPresets: providers.asrPresets(),
           asrProviders: providers.listAsr(),
           defaults: providers.defaults(),
+          speechThreshold: providers.speechThreshold(),
           ...(bot === undefined
             ? {}
             : { bot: { slug: bot.slug, selected: bot.voice ?? null, asr: bot.asr ?? null } }),
@@ -378,6 +386,17 @@ export function createVoiceBridgeMethods(deps: {
               },
         );
         return { ok: true, value: { defaults } };
+      } catch (error) {
+        return failure(error);
+      }
+    },
+    voiceSpeechThresholdSet(payload) {
+      if (deps.providers === undefined) return unavailable();
+      const dbfs = record(payload)['dbfs'];
+      if (dbfs !== null && (typeof dbfs !== 'number' || !Number.isFinite(dbfs)))
+        return invalid('dbfs (a number such as -50, or null for the default) is required');
+      try {
+        return { ok: true, value: { speechThreshold: deps.providers.setSpeechThreshold(dbfs) } };
       } catch (error) {
         return failure(error);
       }

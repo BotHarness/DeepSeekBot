@@ -4,6 +4,7 @@ import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credent
 
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { LOCAL_VOICE_SCRIPT_NAME } from './local-kit.js';
+import { clampSpeechDbfs, DEFAULT_SPEECH_DBFS, SPEECH_DBFS_RANGE } from './vad.js';
 import {
   warmSoniox,
   type WarmSoniox,
@@ -37,6 +38,14 @@ const PROVIDER_ID = /^(?:tts|asr)-[a-f0-9]{12}$/u;
 const LANGUAGE = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$/u;
 
 export type VoiceProviderKind = 'tts' | 'asr';
+
+export interface VoiceSpeechThreshold {
+  dbfs: number;
+  custom: boolean;
+  defaultDbfs: number;
+  min: number;
+  max: number;
+}
 
 export interface VoiceDefaults {
   tts: { providerId: string; voiceId?: string } | null;
@@ -548,6 +557,48 @@ export class VoiceProviders {
       base,
       this.#all().map((stored) => stored.name),
     );
+  }
+
+  speechThreshold(): VoiceSpeechThreshold {
+    const row = this.#db.read((db) =>
+      db.prepare("SELECT value FROM voice_settings WHERE key = 'speech-dbfs'").get(),
+    ) as { value: string } | undefined;
+    let stored: unknown;
+    try {
+      stored = row === undefined ? undefined : JSON.parse(row.value);
+    } catch {
+      stored = undefined;
+    }
+    const custom = typeof stored === 'number' && Number.isFinite(stored);
+    return {
+      dbfs: custom ? clampSpeechDbfs(stored as number) : DEFAULT_SPEECH_DBFS,
+      custom,
+      defaultDbfs: DEFAULT_SPEECH_DBFS,
+      min: SPEECH_DBFS_RANGE.min,
+      max: SPEECH_DBFS_RANGE.max,
+    };
+  }
+
+  setSpeechThreshold(dbfs: number | null): VoiceSpeechThreshold {
+    if (dbfs !== null && (typeof dbfs !== 'number' || !Number.isFinite(dbfs)))
+      throw new VoiceError(
+        'invalid-input',
+        'The speech threshold is a number in dBFS, such as -50.',
+      );
+    this.#db.transaction(
+      (db) =>
+        dbfs === null
+          ? db.prepare("DELETE FROM voice_settings WHERE key = 'speech-dbfs'").run()
+          : db
+              .prepare(
+                "INSERT INTO voice_settings (key, value) VALUES ('speech-dbfs', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+              )
+              .run(JSON.stringify(clampSpeechDbfs(dbfs))),
+      ['voice'],
+    );
+    const result = this.speechThreshold();
+    this.#log('speech-threshold-set', { dbfs: result.dbfs });
+    return result;
   }
 
   defaults(): VoiceDefaults {

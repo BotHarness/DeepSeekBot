@@ -4,6 +4,7 @@ import type {
 } from '../../../core/src/voice/dictation.js';
 import { BridgeCallError, type BridgeCall } from './bridge.js';
 import { CALL_AUDIO_CONSTRAINTS } from './call-media.js';
+import { levelDbfs, meterFraction } from './voice-level.js';
 
 export type { VoiceDictationReadiness, VoiceDictationView };
 
@@ -113,6 +114,7 @@ export function spliceDictation(
 export interface DictationMic {
   start(onPcm: (samples: Int16Array) => void): Promise<void>;
   stop(): void;
+  level?(): number;
 }
 
 export class DictationMicError extends Error {
@@ -128,8 +130,10 @@ export function createBrowserDictationMic(
   let context: AudioContext | undefined;
   let processor: ScriptProcessorNode | undefined;
   let epoch = 0;
+  let level = 0;
   const release = () => {
     epoch += 1;
+    level = 0;
     if (processor !== undefined) processor.onaudioprocess = null;
     processor?.disconnect();
     processor = undefined;
@@ -168,13 +172,16 @@ export function createBrowserDictationMic(
       processor = node;
       node.onaudioprocess = (event) => {
         if (stream !== owned) return;
-        onPcm(downsampleTo16k(event.inputBuffer.getChannelData(0), audio.sampleRate));
+        const channel = event.inputBuffer.getChannelData(0);
+        level = meterFraction(levelDbfs(channel));
+        onPcm(downsampleTo16k(channel, audio.sampleRate));
       };
       source.connect(node);
       node.connect(audio.destination);
       if (audio.state === 'suspended') await audio.resume().catch(() => undefined);
     },
     stop: release,
+    level: () => level,
   };
 }
 
@@ -203,6 +210,7 @@ export interface ComposerDictation {
   cancel(): void;
   dismiss(): void;
   dispose(): void;
+  level(): number;
 }
 
 export function dictationActive(status: ComposerDictationStatus): boolean {
@@ -294,6 +302,7 @@ export function createComposerDictation(options: {
       return () => listeners.delete(listener);
     },
     snapshot: () => current,
+    level: () => (current.status === 'listening' ? (mic.level?.() ?? 0) : 0),
     start(mode) {
       if (dictationActive(current.status)) return;
       reset();

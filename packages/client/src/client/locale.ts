@@ -1994,6 +1994,20 @@ export const zh = {
   'voice.providers.addSubmit': '添加并测试',
   'voice.providers.empty':
     '还没有语音服务。可以添加 Fish Audio、ElevenLabs、OpenAI，或任何兼容 OpenAI 的本地端点。',
+  'voice.mic.title': '麦克风测试',
+  'voice.mic.description':
+    '看看麦克风有没有收到声音。竖线是「说话阈值」：音量超过它才算说话。它影响按停顿分段的语音输入（例如本地 SenseVoice）和通话里的说话检测；Soniox 实时转写自己判断断句，不受影响。',
+  'voice.mic.start': '开始测试',
+  'voice.mic.stop': '停止',
+  'voice.mic.level': '输入音量',
+  'voice.mic.idle': '未在测试',
+  'voice.mic.speech': '算作说话',
+  'voice.mic.quiet': '低于阈值',
+  'voice.mic.threshold': '说话阈值',
+  'voice.mic.dbfs': '{value} dBFS',
+  'voice.mic.reset': '恢复默认（{value} dBFS）',
+  'voice.mic.denied': '浏览器没有允许使用麦克风。请在地址栏的站点设置里允许麦克风，然后再试。',
+  'voice.mic.missing': '没有找到可用的麦克风。请检查设备是否已连接，并在系统设置里选择输入设备。',
   'voice.asr.title': '语音识别（ASR）',
   'voice.asr.description':
     '输入框的语音输入和通话用这些服务把说话转成文字。密钥只保存在本机 Host，不会再显示。',
@@ -6801,6 +6815,22 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'voice.providers.addSubmit': 'Add and test',
   'voice.providers.empty':
     'No voice services yet. Add Fish Audio, ElevenLabs, OpenAI, or any OpenAI-compatible local endpoint.',
+  'voice.mic.title': 'Microphone test',
+  'voice.mic.description':
+    'Check that your microphone picks up sound. The line marks the speech threshold: input louder than it counts as speech. It affects pause-cut voice input (such as local SenseVoice) and speech detection in calls. Soniox live transcription finds sentence ends itself and ignores it.',
+  'voice.mic.start': 'Start test',
+  'voice.mic.stop': 'Stop',
+  'voice.mic.level': 'Input level',
+  'voice.mic.idle': 'Not testing',
+  'voice.mic.speech': 'Counts as speech',
+  'voice.mic.quiet': 'Below threshold',
+  'voice.mic.threshold': 'Speech threshold',
+  'voice.mic.dbfs': '{value} dBFS',
+  'voice.mic.reset': 'Reset to default ({value} dBFS)',
+  'voice.mic.denied':
+    'The browser blocked the microphone. Allow it in the site settings next to the address bar, then try again.',
+  'voice.mic.missing':
+    'No microphone was found. Check that one is connected and chosen as the input device in system settings.',
   'voice.asr.title': 'Speech recognition (ASR)',
   'voice.asr.description':
     'Composer voice input and calls turn speech into text through these services. Keys stay on this Host and are never shown again.',

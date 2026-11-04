@@ -11,6 +11,7 @@ import { createVoiceBridgeMethods } from '../src/voice/bridge.js';
 import { withVoiceDefaults } from '../src/voice/defaults.js';
 import { ASR_PRESETS, TTS_PRESETS, uniqueProviderName } from '../src/voice/presets.js';
 import { VoiceProviders } from '../src/voice/providers.js';
+import { clampSpeechDbfs, createVad, DEFAULT_SPEECH_DBFS } from '../src/voice/vad.js';
 import { createTempRoot } from './helpers.js';
 
 const cleanup: (() => Promise<void> | void)[] = [];
@@ -174,6 +175,57 @@ describe('Host-wide voice defaults', () => {
     expect(bridge.voiceDefaultSet({ kind: 'tts', providerId: chosen.id })).toMatchObject({
       ok: false,
       error: { code: 'wrong-provider-kind' },
+    });
+  });
+});
+
+function tone(dbfs: number, ms: number): Int16Array {
+  const amplitude = Math.sqrt(2) * 10 ** (dbfs / 20) * 32767;
+  return Int16Array.from({ length: (16_000 * ms) / 1000 }, (_, index) =>
+    Math.round(amplitude * Math.sin((2 * Math.PI * 180 * index) / 16_000)),
+  );
+}
+
+describe('Host-wide speech threshold', () => {
+  it('stores, clamps and resets the threshold', async () => {
+    const providers = await fixture();
+    expect(providers.speechThreshold()).toEqual({
+      dbfs: DEFAULT_SPEECH_DBFS,
+      custom: false,
+      defaultDbfs: -50,
+      min: -70,
+      max: -20,
+    });
+    expect(providers.setSpeechThreshold(-58.4)).toMatchObject({ dbfs: -58, custom: true });
+    expect(providers.setSpeechThreshold(-200).dbfs).toBe(-70);
+    expect(providers.setSpeechThreshold(5).dbfs).toBe(-20);
+    expect(providers.setSpeechThreshold(null)).toMatchObject({ dbfs: -50, custom: false });
+    expect(() => providers.setSpeechThreshold(Number.NaN)).toThrow(/dBFS/u);
+    expect(clampSpeechDbfs(-45.6)).toBe(-46);
+  });
+
+  it('lets a lower threshold hear a quiet microphone', () => {
+    const quiet = [new Int16Array(16_000), tone(-56, 600)];
+    const starts = (minActiveDbfs?: number) => {
+      const vad = createVad(minActiveDbfs === undefined ? {} : { minActiveDbfs });
+      return quiet.flatMap((pcm) => vad.push(pcm)).some((event) => event.type === 'speech-start');
+    };
+    expect(starts()).toBe(false);
+    expect(starts(-60)).toBe(true);
+  });
+
+  it('reports the threshold through the bridge and refuses bad input', async () => {
+    const providers = await fixture();
+    const bridge = createVoiceBridgeMethods({ providers, registry: registry({}) });
+    expect(bridge.voiceSpeechThresholdSet({ dbfs: -62 })).toMatchObject({
+      ok: true,
+      value: { speechThreshold: { dbfs: -62, custom: true } },
+    });
+    const view = bridge.voiceProviders({});
+    expect(view.ok && view.value.speechThreshold.dbfs).toBe(-62);
+    expect(bridge.voiceSpeechThresholdSet({ dbfs: 'loud' })).toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input' },
     });
   });
 });

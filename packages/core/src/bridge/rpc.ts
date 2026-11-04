@@ -6,7 +6,12 @@ import type {
   VoiceTranscriptionView,
 } from '../voice/bridge.js';
 import type { VoiceDictationReadiness, VoiceDictationView } from '../voice/dictation.js';
-import type { ProviderHealth, VoiceDefaults, VoiceProviderView } from '../voice/providers.js';
+import type {
+  ProviderHealth,
+  VoiceDefaults,
+  VoiceProviderView,
+  VoiceSpeechThreshold,
+} from '../voice/providers.js';
 import type { PersonaBotAsr, PersonaBotVoice } from '../bots/persona-bot.js';
 import type { CloudManagementInput, CloudManagementResult } from '../cloud/management.js';
 import type { ChannelManagementResult } from '../channels/management.js';
@@ -1372,6 +1377,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     language?: string,
   ): { defaults: VoiceDefaults } {
     return unwrap(this.methods.voiceDefaultSet({ kind, providerId, voiceId, language }));
+  }
+
+  voiceSpeechThresholdSet(dbfs: number | null): { speechThreshold: VoiceSpeechThreshold } {
+    return unwrap(this.methods.voiceSpeechThresholdSet({ dbfs }));
   }
 
   voiceDictation(
@@ -2954,6 +2963,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'voiceTranscribe',
   'botAsrSet',
   'voiceDefaultSet',
+  'voiceSpeechThresholdSet',
   'voiceDictation',
   'idleCompaction',
   'idleCompactionSet',

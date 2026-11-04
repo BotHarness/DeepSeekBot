@@ -2825,6 +2825,20 @@ const VOICE_DEFAULTS_MIGRATION: SchemaMigration = {
   },
 };
 
+const VOICE_SETTINGS_MIGRATION: SchemaMigration = {
+  generation: 128,
+  module: 'voice',
+  description: 'Store Host-wide voice tuning such as the speech detection threshold',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE voice_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL CHECK (json_valid(value))
+      );
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2952,4 +2966,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   BOUNDED_RANGE_INDEX_MIGRATION,
   ATTENTION_RESOLUTION_INDEX_MIGRATION,
   VOICE_DEFAULTS_MIGRATION,
+  VOICE_SETTINGS_MIGRATION,
 ]);

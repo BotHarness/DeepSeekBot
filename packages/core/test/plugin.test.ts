@@ -806,6 +806,7 @@ describe('plugin entry', () => {
       'voiceTranscribe',
       'botAsrSet',
       'voiceDefaultSet',
+      'voiceSpeechThresholdSet',
       'voiceDictation',
       'idleCompaction',
       'idleCompactionSet',

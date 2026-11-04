@@ -232,7 +232,7 @@ describe('deepseekbot voice commands', () => {
 
   it('sets and shows the Host-wide default TTS and ASR Providers', async () => {
     const { run } = await host();
-    expect(await run('voice-defaults', [])).toEqual({ defaults: { tts: null, asr: null } });
+    expect(await run('voice-defaults', [])).toMatchObject({ defaults: { tts: null, asr: null } });
     const asr = (await run('voice-provider-add', ['local'], { kind: 'asr' })) as {
       provider: { id: string };
     };
@@ -244,12 +244,21 @@ describe('deepseekbot voice commands', () => {
       },
     });
     await run('voice-default-set', ['tts', tts.provider.id], { voice: 'zm_009' });
-    expect(await run('voice-defaults', [])).toEqual({
+    expect(await run('voice-defaults', [])).toMatchObject({
       defaults: {
         tts: { providerId: tts.provider.id, voiceId: 'zm_009' },
         asr: { providerId: asr.provider.id, language: 'zh' },
       },
     });
+    expect(await run('voice-vad-set', ['-58'])).toMatchObject({
+      speechThreshold: { dbfs: -58, custom: true },
+    });
+    expect(await run('voice-defaults', [])).toMatchObject({ speechThreshold: { dbfs: -58 } });
+    expect(await run('voice-vad-set', ['default'])).toMatchObject({
+      speechThreshold: { dbfs: -50, custom: false },
+    });
+    await expect(run('voice-vad-set', ['loud'])).rejects.toMatchObject({ code: 'usage' });
+    await expect(run('voice-vad-set', [])).rejects.toMatchObject({ code: 'usage' });
     expect(await run('voice-default-set', ['tts', 'off'])).toMatchObject({
       defaults: { tts: null },
     });

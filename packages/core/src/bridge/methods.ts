@@ -997,6 +997,7 @@ export interface BridgeMethods {
   voiceTranscribe: VoiceBridgeMethods['voiceTranscribe'];
   botAsrSet: VoiceBridgeMethods['botAsrSet'];
   voiceDefaultSet: VoiceBridgeMethods['voiceDefaultSet'];
+  voiceSpeechThresholdSet: VoiceBridgeMethods['voiceSpeechThresholdSet'];
   voiceDictation: VoiceBridgeMethods['voiceDictation'];
   approvalReviewerModel(payload?: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
   approvalReviewerModelSet(payload: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;

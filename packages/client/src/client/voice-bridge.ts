@@ -6,7 +6,9 @@ import type {
   ProviderHealth,
   TtsProviderView,
   VoiceDefaults,
+  VoiceSpeechThreshold,
 } from '../../../core/src/voice/providers.js';
+import { DEFAULT_SPEECH_DBFS, SPEECH_DBFS_RANGE } from '../../../core/src/voice/vad.js';
 import { BridgeCallError, type BridgeCall } from './bridge.js';
 
 export type {
@@ -15,6 +17,7 @@ export type {
   PersonaBotAsr as BotAsrView,
   PersonaBotVoice as BotVoiceView,
   VoiceDefaults as VoiceDefaultsView,
+  VoiceSpeechThreshold as VoiceSpeechThresholdView,
   ProviderHealth as VoiceProviderHealthView,
   TtsPreset as VoicePresetView,
   TtsProviderView as VoiceProviderView,
@@ -92,6 +95,20 @@ function defaultsOf(value: unknown): VoiceDefaults {
   };
 }
 
+function thresholdOf(value: unknown): VoiceSpeechThreshold {
+  const view =
+    typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+  const number = (key: string, fallback: number) =>
+    typeof view[key] === 'number' && Number.isFinite(view[key]) ? (view[key] as number) : fallback;
+  return {
+    dbfs: number('dbfs', DEFAULT_SPEECH_DBFS),
+    custom: view['custom'] === true,
+    defaultDbfs: number('defaultDbfs', DEFAULT_SPEECH_DBFS),
+    min: number('min', SPEECH_DBFS_RANGE.min),
+    max: number('max', SPEECH_DBFS_RANGE.max),
+  };
+}
+
 export async function loadVoiceProviders(
   call: BridgeCall,
   slug?: string,
@@ -110,6 +127,7 @@ export async function loadVoiceProviders(
         )
       : [],
     defaults: defaultsOf(view['defaults']),
+    speechThreshold: thresholdOf(view['speechThreshold']),
     ...(bot === undefined || typeof bot['slug'] !== 'string'
       ? {}
       : {
@@ -199,4 +217,12 @@ export async function setVoiceDefault(
     ...(voiceId === undefined ? {} : { voiceId }),
   });
   return defaultsOf(view['defaults']);
+}
+
+export async function setSpeechThreshold(
+  call: BridgeCall,
+  dbfs: number | null,
+): Promise<VoiceSpeechThreshold> {
+  const view = await unwrap(call, 'voiceSpeechThresholdSet', { dbfs });
+  return thresholdOf(view['speechThreshold']);
 }

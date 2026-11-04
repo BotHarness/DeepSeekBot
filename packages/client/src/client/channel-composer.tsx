@@ -68,7 +68,7 @@ export interface ChannelComposerActivity {
 }
 
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
-import type { VoiceDictationPort } from './composer-dictation.js';
+import type { DictationMic, VoiceDictationPort } from './composer-dictation.js';
 import {
   ComposerMicButton,
   composerVoicePlaceholder,
@@ -93,6 +93,8 @@ export interface ChannelComposerProps {
   placeholder: string;
   holdPlaceholder?: string | undefined;
   dictation?: VoiceDictationPort | undefined;
+  dictating?: { current: boolean } | undefined;
+  dictationMic?: DictationMic | undefined;
   sending: boolean;
   focusSignal?: number;
   attachments?: readonly ChannelComposerUpload[] | undefined;
@@ -378,6 +380,8 @@ export function ChannelComposer({
   placeholder: basePlaceholder,
   holdPlaceholder,
   dictation,
+  dictating,
+  dictationMic,
   sending,
   focusSignal = 0,
   attachments = [],
@@ -401,6 +405,7 @@ export function ChannelComposer({
     port: dictation,
     value,
     disabled: sending,
+    mic: dictationMic,
     selection: () => selectionOffsets(),
     apply: (next, caret) => {
       requestedCaret.current = caret;
@@ -411,6 +416,7 @@ export function ChannelComposer({
       );
     },
   });
+  if (dictating !== undefined) dictating.current = voice.active;
   const placeholder = composerVoicePlaceholder(voice, basePlaceholder, holdPlaceholder, t);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const richRef = useRef<HTMLDivElement | null>(null);
@@ -463,7 +469,7 @@ export function ChannelComposer({
     setSlashQuery(undefined);
   };
   const chooseShortcut = (shortcut: ComposerShortcut): void => {
-    if (shortcut.disabled) return;
+    if (shortcut.disabled || voice.active) return;
     clearShortcut();
     shortcut.run();
   };
@@ -501,7 +507,7 @@ export function ChannelComposer({
           )
           .slice(0, 8);
   const chooseChannel = (channel: ChannelSummary): void => {
-    if (channelQuery === undefined) return;
+    if (channelQuery === undefined || voice.active) return;
     const selected = selectChannelRef(value, channelRefs, channelQuery, channel.id, channel.name);
     onChange(selected.value, rebaseMentions(value, selected.value, mentions), selected.refs);
     setChannelQuery(undefined);
@@ -515,7 +521,7 @@ export function ChannelComposer({
     });
   };
   const chooseMention = (bot: BotSummary | { preview: AllBotPreview }): void => {
-    if (mentionQuery === undefined) return;
+    if (mentionQuery === undefined || voice.active) return;
     if ('preview' in bot && bot.preview.recipients.length === 0) return;
     const selected =
       'preview' in bot
@@ -552,6 +558,7 @@ export function ChannelComposer({
     });
   };
   const addFilesAtSelection = (files: File[], selection = selectionOffsets()): void => {
+    if (voice.active) return;
     const caret = onAddFiles?.(files, selection);
     if (caret === undefined) return;
     requestedCaret.current = caret;
@@ -561,6 +568,11 @@ export function ChannelComposer({
     });
   };
   const handleFilePaste = (event: ClipboardEvent<HTMLElement>): boolean => {
+    if (voice.active) {
+      event.preventDefault();
+      event.stopPropagation();
+      return true;
+    }
     const clipboard = event.clipboardData;
     const listed = Array.from(clipboard.files);
     const files =
@@ -1177,6 +1189,7 @@ export function ChannelComposer({
               }}
               onDrop={(event) => {
                 event.preventDefault();
+                if (voice.active) return;
                 const text = event.dataTransfer.getData('text/plain');
                 if (text.length > 0) {
                   insertRichPlainText(event.currentTarget, text.replace(/\r\n?/gu, '\n'));
@@ -1264,7 +1277,7 @@ export function ChannelComposer({
           type="button"
           className="bh-composer-add-file"
           aria-label={t('composer.addAttachment')}
-          disabled={sending || attachments.length >= 10}
+          disabled={sending || voice.active || attachments.length >= 10}
           onMouseDown={() => {
             savedFileSelection.current = selectionOffsets();
           }}

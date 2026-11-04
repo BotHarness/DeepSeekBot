@@ -3076,6 +3076,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   });
   voiceCalls = createVoiceCalls({
     bot: (slug) => withVoiceDefaults(core.registry.get(slug), () => core.voiceProviders.defaults()),
+    speechDbfs: () => core.voiceProviders.speechThreshold().dbfs,
     providers: core.voiceProviders,
     media: () =>
       (ctx.get('botharnessComputer') as { callMedia?: VoiceCallMedia } | undefined)?.callMedia,

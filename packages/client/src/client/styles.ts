@@ -4638,7 +4638,22 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   border-color: transparent;
   background: var(--dsw-alias-state-business-primary);
   color: var(--dsw-alias-label-primary-foreground);
+  position: relative;
+  isolation: isolate;
   animation: bh-dictation-pulse 1.6s var(--ds-ease-in-out) infinite;
+}
+.bh-composer-mic[data-state='toggle']::before,
+.bh-composer-mic[data-state='hold']::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: ${radius.round};
+  pointer-events: none;
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 40%, transparent);
+  opacity: calc(0.2 + var(--bh-dictation-level, 0) * 0.6);
+  transform: scale(calc(1 + var(--bh-dictation-level, 0) * 0.85));
+  transition: transform 60ms linear, opacity 60ms linear;
 }
 @keyframes bh-dictation-pulse {
   0% {
@@ -4666,6 +4681,11 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 .bh-composer[data-dictation='missing'] .bh-composer-input::placeholder,
 .bh-composer[data-dictation='failed'] .bh-composer-input::placeholder { color: var(--dsw-alias-state-error-primary); }
 html[data-botharness-motion='reduce'] .bh-composer-mic { animation: none; }
+html[data-botharness-motion='reduce'] .bh-composer-mic::before { transform: none; transition: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-business-primary) calc(20% + var(--bh-dictation-level, 0) * 60%), transparent); }
+@media (prefers-reduced-motion: reduce) {
+  .bh-composer-mic { animation: none; }
+  .bh-composer-mic::before { transform: none; transition: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-business-primary) calc(20% + var(--bh-dictation-level, 0) * 60%), transparent); }
+}
 .bh-composer[data-dictation='starting'] .bh-composer-rich-input[contenteditable='false'],
 .bh-composer[data-dictation='listening'] .bh-composer-rich-input[contenteditable='false'],
 .bh-composer[data-dictation='finishing'] .bh-composer-rich-input[contenteditable='false'] { color: var(--dsw-alias-label-primary); }

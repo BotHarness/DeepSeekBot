@@ -22,6 +22,7 @@ import {
 } from './composer-dictation.js';
 import { Tooltip } from './ds/tooltip.js';
 import { useMountedResource } from './mounted-resource.js';
+import { smoothLevel } from './voice-level.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 const IDLE: ComposerDictationSnapshot = { status: 'idle', text: '', mode: undefined };
@@ -33,6 +34,7 @@ export interface ComposerVoice {
   readonly snapshot: ComposerDictationSnapshot;
   readonly active: boolean;
   readonly outside: boolean;
+  level(): number;
   start(mode: 'toggle' | 'hold'): void;
   stop(): void;
   cancel(): void;
@@ -186,6 +188,7 @@ export function useComposerVoice({
     snapshot,
     active,
     outside: active && outside,
+    level: () => controller?.level() ?? 0,
     start,
     stop,
     cancel,
@@ -240,6 +243,24 @@ export function ComposerMicButton({
   const press = useRef<{ at: number; startedHere: boolean } | undefined>(undefined);
   const recording = voice.active;
   const live = voice.snapshot.status === 'listening' || voice.snapshot.status === 'finishing';
+  const readLevel = useRef(voice.level);
+  readLevel.current = voice.level;
+  const levelMount = useMountedResource<HTMLButtonElement>(
+    (node) => {
+      if (!live || typeof requestAnimationFrame !== 'function') return;
+      let shown = 0;
+      let frame = requestAnimationFrame(function tick() {
+        shown = smoothLevel(shown, readLevel.current());
+        node.style.setProperty('--bh-dictation-level', shown.toFixed(3));
+        frame = requestAnimationFrame(tick);
+      });
+      return () => {
+        cancelAnimationFrame(frame);
+        node.style.removeProperty('--bh-dictation-level');
+      };
+    },
+    [live],
+  );
   const label = recording ? t('composer.stopDictation') : t('composer.dictate');
   return (
     <Tooltip
@@ -256,6 +277,7 @@ export function ComposerMicButton({
     >
       <button
         type="button"
+        ref={levelMount}
         className="bh-composer-mic"
         data-state={live ? (voice.snapshot.mode ?? 'toggle') : recording ? 'starting' : 'idle'}
         aria-label={label}
