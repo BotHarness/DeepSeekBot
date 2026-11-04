@@ -180,9 +180,13 @@ export function createActivityDelivery(options: {
     });
   };
   let reconciliation: Promise<void> | undefined;
+  let reconcileAgain = false;
   const reconcile = (): Promise<void> => {
     if (disposed) return Promise.resolve();
-    if (reconciliation) return reconciliation;
+    if (reconciliation) {
+      reconcileAgain = true;
+      return reconciliation;
+    }
     reconciliation = (async () => {
       for (const row of rows()) {
         if (disposed) break;
@@ -196,6 +200,9 @@ export function createActivityDelivery(options: {
       });
     })().finally(() => {
       reconciliation = undefined;
+      if (!reconcileAgain) return;
+      reconcileAgain = false;
+      void reconcile().catch(() => undefined);
     });
     return reconciliation;
   };

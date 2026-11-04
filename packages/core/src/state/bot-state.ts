@@ -515,19 +515,17 @@ export function personaBotActivitySnapshot(
   slugs: readonly string[],
   states: BotStateTracker,
 ): PersonaBotActivitySnapshot {
-  return {
-    ...states.version(),
-    bots: slugs.map((slug) => {
-      const activity = states.activity(slug);
-      const sessions = states.sessionActivity(slug);
-      const snapshot = states.snapshot(slug);
-      return {
-        slug,
-        state: snapshot.state,
-        ...(snapshot.attention === undefined ? {} : { attention: snapshot.attention }),
-        ...(activity === undefined ? {} : { activity }),
-        ...(sessions.length === 0 ? {} : { sessions }),
-      };
-    }),
-  };
+  const bots = slugs.map((slug) => {
+    const activity = states.activity(slug);
+    const sessions = states.sessionActivity(slug);
+    const snapshot = states.snapshot(slug);
+    return {
+      slug,
+      state: snapshot.state,
+      ...(snapshot.attention === undefined ? {} : { attention: snapshot.attention }),
+      ...(activity === undefined ? {} : { activity }),
+      ...(sessions.length === 0 ? {} : { sessions }),
+    };
+  });
+  return { ...states.version(), bots };
 }
