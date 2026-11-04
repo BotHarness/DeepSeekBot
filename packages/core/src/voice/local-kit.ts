@@ -169,29 +169,40 @@ def download(home: Path, which: list[str]) -> dict:
             continue
         archive = models / f"{name}.tar.bz2.part"
         started = time.monotonic()
-        log(f"downloading {url}")
+        have = archive.stat().st_size if archive.exists() else 0
+        log(f"downloading {url}" + (f" from {have >> 20} MB" if have else ""))
+        request = urllib.request.Request(url, headers={"Range": f"bytes={have}-"} if have else {})
         try:
-            with urllib.request.urlopen(url, timeout=60) as response, open(archive, "wb") as out:
-                total = int(response.headers.get("Content-Length") or 0)
-                done = 0
+            with urllib.request.urlopen(request, timeout=60) as response:
+                resumed = have > 0 and response.status == 206
+                done = have if resumed else 0
+                total = done + int(response.headers.get("Content-Length") or 0)
                 last = 0.0
-                while True:
-                    chunk = response.read(1 << 20)
-                    if not chunk:
-                        break
-                    out.write(chunk)
-                    done += len(chunk)
-                    if time.monotonic() - last > 5:
-                        last = time.monotonic()
-                        share = f" {done * 100 // total}%" if total else ""
-                        log(f"  {name}: {done >> 20} MB{share}")
+                with open(archive, "ab" if resumed else "wb") as out:
+                    while True:
+                        chunk = response.read(1 << 20)
+                        if not chunk:
+                            break
+                        out.write(chunk)
+                        done += len(chunk)
+                        if time.monotonic() - last > 5:
+                            last = time.monotonic()
+                            share = f" {done * 100 // total}%" if total else ""
+                            log(f"  {name}: {done >> 20} MB{share}")
+        except urllib.error.HTTPError as error:
+            if error.code != 416 or not have:
+                fail("download-failed", f"Cannot download {name}: {error}; run download again")
+            done = have
         except (urllib.error.URLError, OSError) as error:
-            archive.unlink(missing_ok=True)
-            fail("download-failed", f"Cannot download {name}: {error}")
+            fail("download-failed", f"Cannot download {name}: {error}; run download again to resume")
         downloaded = time.monotonic() - started
         log(f"unpacking {name}")
-        with tarfile.open(archive, "r:bz2") as tar:
-            safe_extract(tar, models)
+        try:
+            with tarfile.open(archive, "r:bz2") as tar:
+                safe_extract(tar, models)
+        except (tarfile.TarError, EOFError, OSError) as error:
+            archive.unlink(missing_ok=True)
+            fail("download-failed", f"The {name} archive is damaged ({error}); run download again")
         archive.unlink(missing_ok=True)
         report[kind] = {
             "model": name,

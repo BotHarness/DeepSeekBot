@@ -101,8 +101,11 @@ py -3 -m venv .venv
 
 - Keep sherpa-onnx below 2: version 2 drops the espeak fallback and Kokoro
   then skips English words that are not in its lexicon.
-- \`download\` prints sizes and seconds; quote them to the Human. It resumes
-  nothing: rerun it after a failure. \`--asr\` or \`--tts\` fetches one model.
+- \`download\` prints sizes and seconds; quote them to the Human. On a slow
+  link (about 530 MB at 1 MB/s is 9 minutes) run \`download --asr\` and
+  \`download --tts\` as two calls. If a call is cut off or fails, run the same
+  command again: it continues from the partial file. Do not fetch the
+  archives by hand.
 - \`start\` runs the server in the background and returns JSON with \`pid\`
   and \`log\`. \`status\` and \`stop\` do what they say. \`serve\` runs it in the
   foreground (Ctrl+C stops it).
