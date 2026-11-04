@@ -98,8 +98,8 @@ export function useComposerVoice({
     setReady(false);
     if (port === undefined) return;
     let live = true;
-    port
-      .readiness()
+    Promise.resolve()
+      .then(() => port.readiness())
       .then((readiness) => {
         if (live) setReady(readiness.ready);
       })
