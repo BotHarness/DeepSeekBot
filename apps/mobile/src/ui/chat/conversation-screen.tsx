@@ -2023,7 +2023,16 @@ function useIdentityBots(bots: readonly RosterBot[] | undefined): RosterBot[] | 
   const last = useRef<{ key: string; bots: RosterBot[] | undefined }>(undefined);
   const key = JSON.stringify(
     bots?.map(
-      ({ state: _state, activity: _activity, sessions: _sessions, ...identity }) => identity,
+      ({
+        state: _state,
+        activity: _activity,
+        sessions: _sessions,
+        preview: _preview,
+        previewAt: _previewAt,
+        previewAuthor: _previewAuthor,
+        latestMessageId: _latestMessageId,
+        ...identity
+      }) => identity,
     ),
   );
   if (last.current?.key !== key)

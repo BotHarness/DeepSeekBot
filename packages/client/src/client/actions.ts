@@ -1507,9 +1507,10 @@ export function createActions(
   let humanInboxStatusAgain = false;
   const readHumanInboxStatus = async (): Promise<void> => {
     try {
-      clientStore.setHumanInbox(await loadInboxStatus());
+      const status = await loadInboxStatus();
+      if (!humanInboxStatusAgain) clientStore.setHumanInbox(status);
     } catch {
-      clientStore.setHumanInbox({ attentionStatus: 'error' });
+      if (!humanInboxStatusAgain) clientStore.setHumanInbox({ attentionStatus: 'error' });
     }
   };
   const refreshHumanInboxStatus = (): Promise<void> => {

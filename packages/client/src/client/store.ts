@@ -874,8 +874,12 @@ export function createStore({
           state.conversation = { ...state.conversation, channel };
       }
     }
-    if ((Object.keys(state) as (keyof ClientState)[]).every((key) => state[key] === previous[key]))
+    if (
+      (Object.keys(state) as (keyof ClientState)[]).every((key) => state[key] === previous[key])
+    ) {
+      state = previous;
       return;
+    }
     for (const listener of listeners) listener();
   };
 
