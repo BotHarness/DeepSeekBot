@@ -522,6 +522,10 @@ Orchestrator 的应用定义 channel_list 工具从当前 PersonaBot 的 Session
 
 [ADR-0281](../adr/0281-host-owned-bot-calls.md)：`VoiceProviders` 也负责 ASR Provider（`kind: 'asr'`，兼容 OpenAI `/audio/transcriptions`），PersonaBot 可以绑定一个 `asr`。`createVoiceCalls` 是 Host 上通话的唯一所有者，入口是 `POST /api/voice/call`（局域网 Noise 通道和 Tailscale 设备网关；Connect 返回 `connect-carrier-required`）。它对 16 kHz 上行 PCM 运行内置 VAD（检测音高，咳嗽和敲击会被丢弃），把每句话转写后以 Human 消息发到 Bot DM，并带上 `voiceCall`，从而加入 `voice-call-hint` 提示词片段。一句话结束时先播放一声短应答。作为草稿的 speculative 消费者（ADR-0054），通话在 `voice: true` 的 `bot_send_message` 草稿流式到达时按句合成播放，草稿被放弃时立即停止；消息提交后认领已播放的片段，拼成语音附件（`joinAudio`），只补合成缺少的句子。Bot 说话时忽略上行。每个 Host 同时一通电话；8 秒没有心跳即结束。音频从不保存。Host 侧由 Electron 媒体助手（`call-main.cjs`）承载 WebRTC，手机侧由 iOS 原生模块应答；`synthetic` 通话让 `deepseekbot call-simulate` 可以注入音频。Android 用同一个原生模块应答，音频设备模块开启回声消除；两种手机上的通话都只在前台进行，App 离开前台或锁屏时通话结束（[ADR-0284](../adr/0284-android-bot-calls-are-foreground-only.md)）。
 
+### 本地语音服务（ADR-0283）
+
+[ADR-0283](../adr/0283-bot-deployed-local-speech-service.md)：运行时 skill `setting-up-local-voice` 指导 Bot 在 Host 所在的 macOS 或 Windows 电脑上部署一个 Python 脚本（sherpa-onnx：SenseVoice 识别、Kokoro 合成），它只监听 `127.0.0.1:8790` 并提供 OpenAI 兼容的 `/v1/audio/speech` 与 `/v1/audio/transcriptions`。`deepseekbot voice-local-kit` 离线写出脚本；Tob 的受限 CLI 可读取、测试、登记无密钥的 `local`／`custom` TTS 和 ASR Provider，并绑定 Bot 的语音与语音识别（`voice-set`、`voice-asr-set`），写操作走审批卡片，密钥从不经过 Bot。Host 不启动也不保活该服务；服务未运行时 `VoiceProviders` 返回带启动方法的 `provider-unavailable`。
+
 ### 外部 CLI 的在线请求与回复
 
 应用定义的在线 CLI 依照 ADR-0159，每次从当前 Host 启动令牌换取内存 cookie，经既有 DSH HTTP unary carrier 调用 Typert Bridge；不另设监听器、凭据缓存或数据库旁路。发送先由 Registry 查询确认 Bot，再由 Channel owner 建立 DM，使用 `human-UUID` 消息 ID 提交；重试去重仍归 Host。新增 `channelSendStatus` 只读查询复用 `source_events`、`inbox_admissions`、`channel_output_origins` 和 `session_ownership`，按原请求 Source Event、同一 DM 与 Bot 所有的 Session 返回已提交回复和当前处理状态，不以时间窗口或最新一条消息猜测对应关系。问题／审批卡片、通知及失败不算回复；超时保留回执供查询，不自动重发。工具审批、正式问题、工作区授权和发布状态沿用各自 Host owner；无新增耐久表或权限权威。见 [CLI 指南](../bot-cli.zh.md) 与 [#1317](https://github.com/BotHarness/DeepSeekBot/issues/1317)。

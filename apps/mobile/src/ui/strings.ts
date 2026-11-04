@@ -1624,6 +1624,8 @@ const en = {
       'media-helper-missing':
         'Open Computer on this Bot once so the computer installs what calls need.',
       'media-unavailable': 'The computer can’t start a call right now. Try again soon.',
+      'local-voice-off':
+        'The local speech service on the computer is off. Start it there (python botharness_voice.py start in its folder).',
     },
     connectOnly: 'Calls need the same Wi-Fi as the computer, or Tailscale.',
     busyElsewhere: 'Another device is on a call with this computer.',
@@ -3718,6 +3720,8 @@ const zh: typeof en = {
       'media-unsupported': `通话需要 Mac 或 Windows 电脑上的 ${productName.zh}。`,
       'media-helper-missing': '先为这个 Bot 打开一次“电脑”，电脑会安装通话需要的组件。',
       'media-unavailable': '电脑现在无法开始通话，请稍后再试。',
+      'local-voice-off':
+        '电脑上的本地语音服务没开。请在电脑上启动它（在它的文件夹里运行 python botharness_voice.py start）。',
     },
     connectOnly: '通话需要和电脑在同一 Wi-Fi，或使用 Tailscale。',
     busyElsewhere: '另一台设备正在和这台电脑通话。',

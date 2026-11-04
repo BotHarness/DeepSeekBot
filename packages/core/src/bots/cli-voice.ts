@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 
+import { LocalVoiceKitError, writeLocalVoiceKit, type LocalVoiceKit } from '../voice/local-kit.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 
@@ -16,6 +17,7 @@ export const VOICE_OPTIONS = {
 } as const;
 
 export interface VoiceValues {
+  dir?: string;
   bot?: string;
   provider?: string;
   model?: string;
@@ -41,7 +43,7 @@ export const VOICE_COMMANDS = [
   {
     command: 'voice-provider-add',
     description:
-      'add a TTS Provider from a preset (custom, fish-audio, elevenlabs, openai), or with --kind asr a speech recognition Provider (custom, openai, groq, or soniox which streams while the caller speaks; --language); key only from --key-stdin',
+      'add a TTS Provider from a preset (local, custom, fish-audio, elevenlabs, openai), or with --kind asr a speech recognition Provider (custom, local, openai, groq, or soniox which streams while the caller speaks; --language); key only from --key-stdin',
   },
   {
     command: 'voice-provider-remove',
@@ -68,6 +70,11 @@ export const VOICE_COMMANDS = [
       'transcribe a test recording --file <absolute audio file> with a Bot binding (--bot) or an ASR Provider (--provider); the audio is not stored',
   },
   {
+    command: 'voice-local-kit',
+    description:
+      'write the local speech service script (SenseVoice + Kokoro, OpenAI-compatible) into --dir <absolute folder> and print the macOS and Windows steps; works offline',
+  },
+  {
     command: 'voice-synthesize',
     description:
       'synthesize test speech with a Bot binding (--bot) or a provider (--provider) into --out <absolute file>',
@@ -78,6 +85,26 @@ type Command = (typeof VOICE_COMMANDS)[number]['command'];
 
 export function isVoiceCommand(command: string): command is Command {
   return VOICE_COMMANDS.some((entry) => entry.command === command);
+}
+
+export const VOICE_LOCAL_KIT_HELP = {
+  command: 'voice-local-kit',
+  usage: 'deepseekbot voice-local-kit --dir <absolute folder>',
+  description:
+    'Writes botharness_voice.py (SenseVoice + Kokoro, OpenAI-compatible on 127.0.0.1:8790) into the folder and prints the macOS and Windows steps. Needs no Host; works in a Bot shell.',
+} as const;
+
+export function runVoiceLocalKit(rest: string[], values: { dir?: unknown }): LocalVoiceKit {
+  if (rest.length !== 0) usage('voice-local-kit takes no positional arguments; use --dir.');
+  const dir = values.dir;
+  if (typeof dir !== 'string' || !isAbsolute(dir))
+    usage('voice-local-kit needs --dir <absolute folder>.');
+  try {
+    return writeLocalVoiceKit(dir);
+  } catch (error) {
+    if (error instanceof LocalVoiceKitError) throw new CliLiveError(error.code, error.message);
+    throw error;
+  }
 }
 
 function usage(message: string): never {
@@ -97,6 +124,7 @@ export async function runVoiceCommand(
   io: Pick<BotCreateCliIo, 'readStdin'>,
   connect: () => Promise<Rpc>,
 ): Promise<unknown> {
+  if (command === 'voice-local-kit') return runVoiceLocalKit(rest, values);
   if (command === 'voice-providers') {
     positionals(command, rest, 0, 'no positional arguments');
     const rpc = await connect();

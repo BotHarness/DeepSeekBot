@@ -471,6 +471,21 @@ describe('Host call owner', () => {
       ok: false,
       code: 'asr-not-configured',
     });
+    const off = harness({
+      media: fakeMedia().media,
+      providers: {
+        has: () => true,
+        localServiceOff: async (_id, kind) => kind === 'asr',
+        async transcribe() {
+          return { text: '', latencyMs: 1 };
+        },
+        synthesize: async () => ({ audio: new Uint8Array(), mime: 'audio/mpeg' }),
+      },
+    });
+    expect((await off.ok({ kind: 'readiness', slug: 'mira' })).readiness).toMatchObject({
+      ready: false,
+      missing: ['local-voice-off'],
+    });
     const noMedia = harness({ media: undefined });
     expect(await noMedia.calls.handle(noMedia.phone, { kind: 'open', slug: 'mira' })).toMatchObject(
       { ok: false, code: 'media-unsupported' },

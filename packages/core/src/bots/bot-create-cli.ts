@@ -78,6 +78,7 @@ import { ZipArchiveError, writeZip, type ZipEntry } from './zip-archive.js';
 import { INBOX_HOST_COMMANDS } from './cli-inbox.js';
 import { CliLiveError, LIVE_COMMANDS, LIVE_OPTIONS, runLiveCli } from './cli-live.js';
 import { hasAgentCliContext, runAgentCli } from './cli-agent.js';
+import { runVoiceLocalKit, VOICE_LOCAL_KIT_HELP } from './cli-voice.js';
 import { runSshCli, SSH_COMMANDS, SSH_OPTIONS } from './cli-ssh.js';
 import { PROFILE_ONLINE_COMMANDS } from './cli-profile.js';
 import {
@@ -2617,6 +2618,16 @@ export async function runBotCreateCli(
     });
     const [command, ...rest] = positionals;
     compactOutput = values.compact === true;
+    if (command === 'voice-local-kit') {
+      out.stdout(
+        JSON.stringify(
+          values.help === true ? VOICE_LOCAL_KIT_HELP : runVoiceLocalKit(rest, values),
+          null,
+          2,
+        ),
+      );
+      return 0;
+    }
     if (hasAgentCliContext(io.env)) {
       out.stdout(JSON.stringify(await runAgentCli(command, rest, values, io), null, 2));
       return 0;
