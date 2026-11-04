@@ -503,6 +503,28 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     recordTail = call.recorded;
   };
 
+  const recordStopped = (call: Call, source: CallVisualSource) => {
+    const started = call.recorded;
+    const connectedAt = call.connectedAt;
+    if (started === undefined || connectedAt === undefined) return;
+    const atMs = Math.max(0, now() - connectedAt);
+    log('call-share-stopped', { call: call.id, source, atMs });
+    const before = recordTail;
+    call.recorded = before.then(async () => {
+      const startMessageId = await started;
+      await writeRecord(call, {
+        callId: call.id,
+        botSlug: call.slug,
+        state: 'share-stopped',
+        startedAt: iso(connectedAt),
+        source,
+        atMs,
+      });
+      return startMessageId;
+    });
+    recordTail = call.recorded;
+  };
+
   const recordEnd = (call: Call, reason: VoiceCallEndReason) => {
     const started = call.recorded;
     const connectedAt = call.connectedAt;
@@ -1597,7 +1619,11 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         const save = command['save'] ?? true;
         if (typeof save !== 'boolean')
           throw new CallRefusal('invalid-input', 'save must be true or false.');
+        const stopped = command['stopped'] ?? false;
+        if (typeof stopped !== 'boolean' || (stopped && source !== 'off'))
+          throw new CallRefusal('invalid-input', 'stopped must be true only with source off.');
         if (call.phase === 'ended') throw new CallRefusal('call-ended', 'The call has ended.');
+        if (stopped && call.visual !== 'off') recordStopped(call, call.visual);
         if (call.visual !== source || call.saveFrames !== save) {
           if (call.visual !== source) {
             call.frames = [];

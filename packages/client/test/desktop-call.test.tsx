@@ -17,8 +17,9 @@ import {
 import {
   CallCameraError,
   type CallCamera,
-  type CallCameraKeyframe,
+  type CallCaptureErrorCode,
 } from '../src/client/call-camera.js';
+import type { CallVisualSource } from '../../core/src/voice/keyframes.js';
 import {
   DESKTOP_CALL_VISUAL_OFF,
   createCallPost,
@@ -26,6 +27,7 @@ import {
   desktopCallNotice,
   desktopCallView,
   formatCallDuration,
+  type DesktopCallCaptureHandlers,
 } from '../src/client/desktop-call.js';
 import { DmCallControl } from '../src/client/dm-call.js';
 import { en } from '../src/client/locale.js';
@@ -53,6 +55,7 @@ function hostMedia(): VoiceCallMedia {
 }
 
 function host(options: { asr?: boolean; busy?: () => boolean; localOff?: boolean } = {}) {
+  const records: { state: string; source?: string }[] = [];
   const calls: VoiceCalls = createVoiceCalls({
     bot: (slug) =>
       slug === 'mira'
@@ -70,13 +73,17 @@ function host(options: { asr?: boolean; busy?: () => boolean; localOff?: boolean
     },
     media: hostMedia,
     send: async () => undefined,
+    record: async ({ record }) => {
+      records.push(record);
+      return `record-${records.length}`;
+    },
     busy: options.busy ?? (() => false),
   });
   cleanup.push(() => calls.dispose());
   const route = createVoiceCallHttp(() => calls);
   const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) =>
     route(new Request(new URL(String(input), 'http://host/'), init))) as typeof fetch;
-  return { calls, fetcher };
+  return { calls, fetcher, records };
 }
 
 function windowMedia() {
@@ -100,35 +107,52 @@ function windowMedia() {
 const RED_JPEG =
   '/9j/2wBDABALDA4MChAODQ4SERATGCgaGBYWGDEjJR0oOjM9PDkzODdASFxOQERXRTc4UG1RV19iZ2hnPk1xeXBkeFxlZ2P/2wBDARESEhgVGC8aGi9jQjhCY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2P/wAARCAAkAEADASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFgEBAQEAAAAAAAAAAAAAAAAAAAQG/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8AjgIWoAAAAAAAAAAAAAAAAAAAAAAf/9k=';
 
-function fakeCamera(options: { fail?: 'camera-denied' } = {}) {
-  let emit: ((frame: CallCameraKeyframe) => Promise<void>) | undefined;
-  let running = false;
-  const stream = { id: 'camera-stream' } as unknown as MediaStream;
+function fakeCamera(options: { fail?: CallCaptureErrorCode } = {}) {
+  let handlers: DesktopCallCaptureHandlers | undefined;
+  let running: CallVisualSource | undefined;
+  let sampling = false;
   return {
-    make(onKeyframe: (frame: CallCameraKeyframe) => Promise<void>): CallCamera {
-      emit = onKeyframe;
+    make(source: CallVisualSource, next: DesktopCallCaptureHandlers): CallCamera {
+      const stream = { id: `${source}-stream` } as unknown as MediaStream;
+      let mine = false;
       return {
         async start() {
           if (options.fail !== undefined) throw new CallCameraError(options.fail);
-          running = true;
+          handlers = next;
+          running = source;
+          mine = true;
           return stream;
         },
-        stop() {
-          running = false;
+        run() {
+          sampling = true;
         },
-        stream: () => (running ? stream : undefined),
+        stop() {
+          if (!mine) return;
+          mine = false;
+          if (running !== source) return;
+          running = undefined;
+          sampling = false;
+        },
+        stream: () => (mine ? stream : undefined),
+        label: () => (source === 'screen' ? 'build.log - Terminal' : 'FaceTime HD Camera'),
       };
     },
-    running: () => running,
+    running: () => running !== undefined && sampling,
+    source: () => running,
     async keyframe() {
-      await emit?.({
-        source: 'camera',
+      await handlers?.onKeyframe({
+        source: running ?? 'camera',
         jpeg: RED_JPEG,
         score: 0.5,
         skipped: 2,
         bytes: 287,
         prepareMs: 4,
       });
+    },
+    end() {
+      running = undefined;
+      sampling = false;
+      handlers?.onEnded();
     },
   };
 }
@@ -142,7 +166,7 @@ function desktopWindow(
   const call = createDesktopCall({
     post: createCallPost(client, fetcher),
     media: () => media.media,
-    camera: (onKeyframe) => camera.make(onKeyframe),
+    capture: (source, handlers) => camera.make(source, handlers),
   });
   cleanup.push(() => call.hangup());
   return { call, media, camera };
@@ -355,6 +379,57 @@ describe('desktop call', () => {
     );
   });
 
+  it('switches from the camera to a shared window and notes when the system stops it', async () => {
+    const { calls, fetcher, records } = host();
+    const mac = desktopWindow(fetcher, 'window-mac-0001');
+    await mac.call.start('mira');
+    await mac.call.camera(true);
+    await mac.camera.keyframe();
+    await mac.call.screen(true);
+    expect(mac.call.snapshot().visual).toMatchObject({
+      source: 'screen',
+      label: 'build.log - Terminal',
+      keyframes: 0,
+    });
+    expect(mac.camera.source()).toBe('screen');
+    await mac.camera.keyframe();
+    const status = async () =>
+      (
+        (await calls.handle({ deviceId: 'host-owner' }, { kind: 'status' })) as unknown as {
+          calls: { visual?: string; events: { type: string; source?: string }[] }[];
+        }
+      ).calls[0]!;
+    expect((await status()).visual).toBe('screen');
+    expect(
+      (await status()).events.filter((event) => event.type === 'frame-received').at(-1),
+    ).toMatchObject({ source: 'screen' });
+    mac.camera.end();
+    await vi.waitFor(async () => expect((await status()).visual).toBe('off'));
+    expect(mac.call.snapshot().visual).toMatchObject({
+      source: 'off',
+      error: 'screen-stopped',
+      stream: undefined,
+    });
+    expect(mac.call.snapshot().state.status).toBe('live');
+    await vi.waitFor(() =>
+      expect(records).toContainEqual(
+        expect.objectContaining({ state: 'share-stopped', source: 'screen' }),
+      ),
+    );
+    mac.call.dismissVisual();
+    expect(mac.call.snapshot().visual.error).toBeUndefined();
+  });
+
+  it('keeps the current source when the screen picker is cancelled', async () => {
+    const { fetcher } = host();
+    const cancelled = fakeCamera({ fail: 'screen-cancelled' });
+    const mac = desktopWindow(fetcher, 'window-mac-0001', cancelled);
+    await mac.call.start('mira');
+    await mac.call.screen(true);
+    expect(mac.call.snapshot().visual).toMatchObject({ source: 'off', error: undefined });
+    expect(mac.call.snapshot().state.status).toBe('live');
+  });
+
   it('shows the camera button, preview and save switch in the call bar', async () => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
     const { fetcher } = host();
@@ -385,5 +460,25 @@ describe('desktop call', () => {
       element.querySelector<HTMLButtonElement>('button[aria-label="Turn camera off"]')!.click(),
     );
     expect(document.body.querySelector('[aria-label="Camera preview"]')).toBeNull();
+    await act(async () =>
+      element.querySelector<HTMLButtonElement>('button[aria-label="Share screen"]')!.click(),
+    );
+    const shared = document.body.querySelector(
+      '[role="group"][aria-label="Screen share preview"]',
+    )!;
+    expect(shared.getAttribute('data-source')).toBe('screen');
+    expect(shared.textContent).toContain('Sharing: build.log - Terminal');
+    expect(
+      element
+        .querySelector('button[aria-label="Stop sharing screen"]')
+        ?.getAttribute('aria-pressed'),
+    ).toBe('true');
+    await act(async () => mac.camera.end());
+    const notice = document.body.querySelector('.bh-call-camera[role="alert"]')!;
+    expect(notice.textContent).toContain('Screen sharing stopped. The call is voice only now.');
+    await act(async () =>
+      notice.querySelector<HTMLButtonElement>('.bh-call-camera-close')!.click(),
+    );
+    expect(document.body.querySelector('.bh-call-camera')).toBeNull();
   });
 });

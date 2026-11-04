@@ -39,7 +39,12 @@ function setup() {
   const notice = (record: ChannelVoiceCallLifecycle) =>
     core.channels.appendMessage(dm.id, {
       id: `voice-call-${record.state}-${record.callId}`,
-      at: record.state === 'started' ? record.startedAt : record.endedAt,
+      at:
+        record.state === 'started'
+          ? record.startedAt
+          : record.state === 'ended'
+            ? record.endedAt
+            : record.startedAt,
       author: { kind: 'system' },
       body: voiceCallRecordBody(record),
       voiceCallRecord: record,

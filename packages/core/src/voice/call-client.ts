@@ -43,7 +43,11 @@ export interface CallClient {
   readonly state: () => CallClientState;
   open(slug: string): Promise<void>;
   mute(muted: boolean): Promise<void>;
-  visual(source: CallVisualSource | 'off', save?: boolean): Promise<VoiceCallResult | undefined>;
+  visual(
+    source: CallVisualSource | 'off',
+    save?: boolean,
+    stopped?: boolean,
+  ): Promise<VoiceCallResult | undefined>;
   frame(input: CallClientFrame): Promise<VoiceCallResult | undefined>;
   hangup(): Promise<void>;
   dispose(): void;
@@ -257,10 +261,16 @@ export function createCallClient(options: CallClientOptions): CallClient {
       } catch {}
       if (status() === 'live') live();
     },
-    async visual(source, save = true) {
+    async visual(source, save = true, stopped = false) {
       if (status() !== 'live' || call === undefined) return undefined;
       try {
-        const result = await options.post({ kind: 'visual', callId: call.callId, source, save });
+        const result = await options.post({
+          kind: 'visual',
+          callId: call.callId,
+          source,
+          save,
+          ...(stopped ? { stopped } : {}),
+        });
         if (result.ok) absorb(result.call);
         if (status() === 'live') live();
         return result;

@@ -16,6 +16,7 @@ export const CALL_OPTIONS = {
   video: { type: 'string' },
   screen: { type: 'string' },
   'no-save': { type: 'boolean' },
+  'share-ends-at': { type: 'string' },
 } as const;
 
 export interface CallValues {
@@ -26,6 +27,7 @@ export interface CallValues {
   screen?: string;
   out?: string;
   'no-save'?: boolean;
+  'share-ends-at'?: string;
 }
 
 export const CALL_COMMANDS = [
@@ -50,7 +52,7 @@ export const CALL_COMMANDS = [
   {
     command: 'call-simulate',
     description:
-      'call a Bot with synthetic audio: plays --file <abs.wav> (or a --script <abs.json> timeline) into a Host call without a phone, optionally sharing --video (camera) or --screen <abs video file or JPEG folder> as keyframes (--no-save keeps grids out of the DM), waits for the spoken reply and reports event timings',
+      'call a Bot with synthetic audio: plays --file <abs.wav> (or a --script <abs.json> timeline) into a Host call without a phone, optionally sharing --video (camera) or --screen <abs video file or JPEG folder> as keyframes (--no-save keeps grids out of the DM; --share-ends-at <ms> ends the share as the system would, leaving the call voice only), waits for the spoken reply and reports event timings',
   },
 ] as const;
 
@@ -132,6 +134,7 @@ function visualInput(
   const path = values.video ?? values.screen;
   if (path === undefined) {
     if (values['no-save'] === true) usage('--no-save needs --video or --screen.');
+    if (values['share-ends-at'] !== undefined) usage('--share-ends-at needs --video or --screen.');
     return undefined;
   }
   if (!isAbsolute(path)) usage('--video and --screen take an absolute video file or JPEG folder.');
@@ -172,6 +175,10 @@ async function simulate(
   const replyWaitMs = Number(values['reply-wait'] ?? 90) * 1000;
   if (!Number.isFinite(replyWaitMs) || replyWaitMs < 1_000 || replyWaitMs > 540_000)
     usage('--reply-wait must be 1–540 seconds.');
+  const shareEndsAt =
+    values['share-ends-at'] === undefined ? undefined : Number(values['share-ends-at']);
+  if (shareEndsAt !== undefined && (!Number.isSafeInteger(shareEndsAt) || shareEndsAt < 0))
+    usage('--share-ends-at takes milliseconds into the call.');
   const timeline: Int16Array[] = [];
   let end = 0;
   for (const step of steps) {
@@ -211,9 +218,26 @@ async function simulate(
   const CHUNK = 16_000;
   const silence = new Int16Array(CHUNK);
   let streamMs = 0;
+  let shareEndedAt: number | undefined;
   const shareDue = async () => {
-    if (visual === undefined) return;
+    if (visual === undefined || shareEndedAt !== undefined) return;
     const elapsed = clock.now() - started;
+    if (shareEndsAt !== undefined && elapsed >= shareEndsAt) {
+      frames.length = 0;
+      shareEndedAt = Math.round(elapsed);
+      collect(
+        result(
+          await post({
+            kind: 'visual',
+            callId,
+            source: 'off',
+            stopped: true,
+            ...(values['no-save'] === true ? { save: false } : {}),
+          }),
+        )['call'] as VoiceCallView,
+      );
+      return;
+    }
     while (frames.length > 0 && frames[0]!.atMs <= elapsed) {
       const frame = frames.shift()!;
       const before = clock.now();
@@ -361,6 +385,7 @@ async function simulate(
             };
           }),
           saved: values['no-save'] !== true,
+          ...(shareEndedAt === undefined ? {} : { shareEndedAtMs: shareEndedAt }),
           records: of('frame-record').map((event) => ({
             messageId: event.messageId,
             frames: event.frames,

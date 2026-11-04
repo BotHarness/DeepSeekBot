@@ -153,6 +153,22 @@ describe('deepseekbot call commands', () => {
     await expect(run('call-simulate', ['ada'], { file, 'no-save': true })).rejects.toMatchObject({
       code: 'usage',
     });
+    const ended = (await run('call-simulate', ['ada'], {
+      file,
+      screen: frames,
+      'share-ends-at': '1200',
+      'reply-wait': '20',
+    })) as { visual: Record<string, unknown> };
+    expect(
+      posts.find((post) => post['kind'] === 'visual' && post['stopped'] === true),
+    ).toMatchObject({ source: 'off' });
+    expect(ended.visual['shareEndedAtMs']).toBeGreaterThanOrEqual(1200);
+    expect(ended.visual['sentFrames']).toBeLessThan(3);
+    for (const values of [
+      { file, 'share-ends-at': '100' },
+      { file, screen: frames, 'share-ends-at': 'soon' },
+    ])
+      await expect(run('call-simulate', ['ada'], values)).rejects.toMatchObject({ code: 'usage' });
     await expect(run('call-simulate', ['ada'], { file, screen: 'relative' })).rejects.toMatchObject(
       { code: 'usage' },
     );

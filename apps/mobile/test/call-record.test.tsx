@@ -67,3 +67,22 @@ it('reads a silent frame record as camera or screen activity with its time range
     detail: '0:12–0:40 · 16 keyframes',
   });
 });
+
+it('reads a share the system stopped as a voice-only note', () => {
+  const stopped = {
+    callId: 'call-0123456789abcdef',
+    botSlug: 'mira',
+    state: 'share-stopped',
+    startedAt: '2026-11-04T10:00:00.000Z',
+    source: 'screen',
+    atMs: 95_000,
+  } as const;
+  expect(activityOf(message(stopped))).toEqual({ kind: 'voice-call', record: stopped });
+  expect(callRecordLines(stopped, callStrings.en)).toEqual({
+    title: 'Screen sharing stopped',
+    detail: 'Voice only from 1:35',
+  });
+  expect(callRecordPreview({ ...stopped, source: 'camera' }, callStrings.zh)).toBe(
+    '摄像头已断开 · 1:35 起仅语音',
+  );
+});

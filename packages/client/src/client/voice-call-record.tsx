@@ -24,6 +24,15 @@ function recordLines(record: CallRecord, t: BotHarnessTranslate): [string, strin
         frames: String(record.frames),
       }),
     ];
+  if (record.state === 'share-stopped')
+    return [
+      t(
+        record.source === 'camera'
+          ? 'call.recordShareStoppedCamera'
+          : 'call.recordShareStoppedScreen',
+      ),
+      t('call.recordShareStoppedAt', { time: voiceCallDuration(record.atMs) }),
+    ];
   return record.state === 'started'
     ? [t('call.recordStarted'), t('call.recordStartedAt', { time: clock(record.startedAt, t) })]
     : [
@@ -33,7 +42,8 @@ function recordLines(record: CallRecord, t: BotHarnessTranslate): [string, strin
 }
 
 export function voiceCallRecordText(record: CallRecord, t: BotHarnessTranslate): string {
-  if (record.state === 'frames') return recordLines(record, t).join(' · ');
+  if (record.state === 'frames' || record.state === 'share-stopped')
+    return recordLines(record, t).join(' · ');
   return record.state === 'started'
     ? `${t('call.recordStarted')} · ${t('call.recordStartedAt', { time: clock(record.startedAt, t) })}`
     : `${t('call.recordEnded')} · ${t('call.recordLength', { time: voiceCallDuration(record.durationMs) })}`;
@@ -61,9 +71,11 @@ export function VoiceCallRecordBubble({
       <span className="bh-call-record-icon" aria-hidden="true">
         <ChannelSidebarIcon
           name={
-            record.state === 'frames'
+            record.state === 'frames' || record.state === 'share-stopped'
               ? record.source === 'camera'
-                ? 'video'
+                ? record.state === 'frames'
+                  ? 'video'
+                  : 'video-off'
                 : 'monitor'
               : started
                 ? 'phone'
