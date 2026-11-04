@@ -86,6 +86,13 @@ describe('Channel composer during dictation', () => {
           mentions: empty,
           channelCandidates: empty,
           channelRefs: empty,
+          attachments: [
+            {
+              id: 'a1',
+              file: new File(['x'], 'notes.txt', { type: 'text/plain' }),
+              status: 'ready',
+            },
+          ],
           onAddFiles,
           onChange,
           onSubmit: vi.fn(),
@@ -99,12 +106,16 @@ describe('Channel composer during dictation', () => {
     });
     expect(micButton.getAttribute('aria-pressed')).toBe('true');
     const file = new File(['image'], 'shot.png', { type: 'image/png' });
-    const event = paste(container.querySelector('textarea')!, [file]);
+    const event = paste(container.querySelector('textarea, .bh-composer-rich-input')!, [file]);
     expect(event.defaultPrevented).toBe(true);
     expect(onAddFiles).not.toHaveBeenCalled();
     expect(onChange).not.toHaveBeenCalled();
     expect(container.querySelector<HTMLButtonElement>('.bh-composer-add-file')!.disabled).toBe(
       true,
     );
+    const reference = container.querySelector<HTMLButtonElement>('.bh-composer-file-reference')!;
+    expect(reference.disabled).toBe(true);
+    await act(async () => reference.click());
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

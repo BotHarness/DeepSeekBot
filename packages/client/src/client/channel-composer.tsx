@@ -647,6 +647,7 @@ export function ChannelComposer({
     .join('|');
   const renderedAttachmentKey = useRef('');
   const referenceAttachment = (item: ChannelComposerUpload): void => {
+    if (voice.active) return;
     const selected = insertAttachmentReferences(value, [item], selectionOffsets());
     requestedCaret.current = selected.caret;
     onChange(
@@ -1130,7 +1131,7 @@ export function ChannelComposer({
                   onRetry={() => onRetryAttachment?.(item.id)}
                   onRemove={() => onRemoveAttachment?.(item.id)}
                   onReference={() => referenceAttachment(item)}
-                  sending={sending}
+                  sending={sending || voice.active}
                 />
               ) : (
                 <ComposerFileAttachment
@@ -1141,7 +1142,7 @@ export function ChannelComposer({
                   onRetry={() => onRetryAttachment?.(item.id)}
                   onRemove={() => onRemoveAttachment?.(item.id)}
                   onReference={() => referenceAttachment(item)}
-                  sending={sending}
+                  sending={sending || voice.active}
                 />
               ),
             )}
