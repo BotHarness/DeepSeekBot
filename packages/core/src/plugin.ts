@@ -592,6 +592,8 @@ export function createCore(
     readAssignmentTail?: (sessionId: string) => Promise<AssignmentEventTail>;
     readTurnProgress?: (sessionId: string) => Promise<SessionFailureProgress | undefined>;
     autoContinueDelaysMs?: readonly number[];
+    stopSettleTimeoutMs?: number;
+    closeSessionApprovals?: (sessionIds: readonly string[]) => void;
     readAssignmentReportPage?: (
       sessionId: string,
       acceptedSummary: string,
@@ -1079,6 +1081,12 @@ export function createCore(
     ...(options.autoContinueDelaysMs === undefined
       ? {}
       : { autoContinueDelaysMs: options.autoContinueDelaysMs }),
+    ...(options.stopSettleTimeoutMs === undefined
+      ? {}
+      : { stopSettleTimeoutMs: options.stopSettleTimeoutMs }),
+    ...(options.closeSessionApprovals === undefined
+      ? {}
+      : { closeSessionApprovals: options.closeSessionApprovals }),
     onTobDelegation: () => options.capture?.('tob:delegation_send', { surface: 'bot_tool' }),
     promptText: (slug) => {
       const sessionId = runtime?.currentOrchestratorSessionId?.(slug);
@@ -1557,6 +1565,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       emitPersonaBotOutputCommitted(ctx, event, (message) => ctx.logger.warn(message)),
     activeQuestionMessageIds: () => userQuestions?.activeMessageIds() ?? [],
     activeToolApprovalMessageIds: () => toolApproval?.activeMessageIds() ?? [],
+    closeSessionApprovals: (sessionIds) => toolApproval?.closeSessions(sessionIds),
     activePrivateInputMessageIds: () => privateInputs?.activeMessageIds() ?? [],
     erasePrivateAccounts: async (slug) => {
       await privateInputs?.mcpServers?.erase(slug);

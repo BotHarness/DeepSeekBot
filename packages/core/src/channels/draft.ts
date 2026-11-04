@@ -219,6 +219,13 @@ export class ChannelDraftTracker {
     this.#runs.delete(sessionId);
   }
 
+  interrupt(sessionId: string): void {
+    const run = this.#runs.get(sessionId);
+    if (run === undefined) return;
+    for (const attempt of run.attempts.values()) this.#abandonAttempt(attempt, 'interrupted');
+    this.#runs.delete(sessionId);
+  }
+
   #switchAttempt(run: DraftRun, attemptId: string): void {
     if (run.currentAttemptId === attemptId) return;
     for (const attempt of run.attempts.values()) this.#abandonAttempt(attempt, 'interrupted');
