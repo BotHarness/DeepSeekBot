@@ -79,13 +79,14 @@ export function CallBubble({ session }: { session: CallSessionSnapshot }) {
   const ringColor = bubbleRingColor(theme, model.tone);
   const avatar = Math.round(theme.touch * callBubble.avatarScale);
   const box = avatar + stateRing.inset * 2;
-  const width = box;
+  const edge = space.x4;
+  const width = box + edge * 2;
   const capsuleHeight = theme.type.meta.line * callBubble.maxTextScale + space.x1 * 2;
   const height = box + capsuleHeight - callBubble.capsuleOverlap;
-  const edge = space.x4;
   const top = insets.top + space.x3;
   const bottom = window.height - insets.bottom - navigationBar.height - height - space.x3;
-  const xFor = (side: 'left' | 'right') => (side === 'left' ? edge : window.width - width - edge);
+  const right = window.width - width;
+  const xFor = (side: 'left' | 'right') => (side === 'left' ? 0 : right);
   const initialY = Math.min(Math.max(placement.y ?? insets.top + theme.touch * 2, top), bottom);
 
   const x = useSharedValue(xFor(placement.side));
@@ -96,10 +97,9 @@ export function CallBubble({ session }: { session: CallSessionSnapshot }) {
     scale.value = withSpring(1, spring.spatial.fast);
     opacity.value = withSpring(1, spring.effects.fast);
   }, [scale, opacity]);
-  const right = window.width - width - edge;
   const snap = useMounted(() => {
-    x.value = withSpring(placement.side === 'left' ? edge : right, spring.release);
-  }, [x, edge, right]);
+    x.value = withSpring(placement.side === 'left' ? 0 : right, spring.release);
+  }, [x, right]);
 
   const pulsing = !reduced && (model.tone === 'speaking' || model.tone === 'hearing');
 
@@ -131,7 +131,7 @@ export function CallBubble({ session }: { session: CallSessionSnapshot }) {
     .onEnd((event) => {
       const center = x.value + width / 2 + event.velocityX * 0.1;
       const side = center < window.width / 2 ? 'left' : 'right';
-      const target = side === 'left' ? edge : window.width - width - edge;
+      const target = side === 'left' ? 0 : right;
       x.value = withSpring(target, {
         ...spring.release,
         velocity: event.velocityX,
@@ -153,7 +153,6 @@ export function CallBubble({ session }: { session: CallSessionSnapshot }) {
     model.status,
     model.duration,
   );
-  const capsule = model.duration ?? model.status;
   return (
     <GestureDetector gesture={gesture}>
       <Animated.View
@@ -237,6 +236,9 @@ export function CallBubble({ session }: { session: CallSessionSnapshot }) {
           style={{
             position: 'absolute',
             top: box - callBubble.capsuleOverlap,
+            minWidth: box,
+            maxWidth: width,
+            alignItems: 'center',
             paddingHorizontal: space.x3,
             paddingVertical: space.x1,
             borderRadius: radius.round,
@@ -253,7 +255,7 @@ export function CallBubble({ session }: { session: CallSessionSnapshot }) {
             maxFontSizeMultiplier={callBubble.maxTextScale}
             style={{ fontVariant: ['tabular-nums'] }}
           >
-            {capsule}
+            {model.capsule}
           </Text>
         </View>
       </Animated.View>

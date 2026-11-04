@@ -225,6 +225,7 @@ export type CallBubbleTone =
 export type CallBubbleModel = {
   tone: CallBubbleTone;
   status: string;
+  capsule: string;
   muted: boolean;
   duration?: string;
 };
@@ -235,7 +236,13 @@ export function callBubbleModel(
   now: number,
 ): CallBubbleModel {
   const { state, interrupted } = input;
-  if (state.status === 'ended') return { tone: 'ended', status: t.call.ended.hangup, muted: false };
+  if (state.status === 'ended')
+    return {
+      tone: 'ended',
+      status: t.call.ended.hangup,
+      capsule: t.call.bubbleShort.ended,
+      muted: false,
+    };
   const phase = callActivityPhase(state, interrupted);
   const muted = state.status === 'live' && state.muted;
   const duration =
@@ -250,5 +257,6 @@ export function callBubbleModel(
         : phase;
   const status =
     tone === 'paused' ? t.call.paused : callScreenModel(t, state, { interrupted }).status;
-  return { tone, status, muted, ...(duration === undefined ? {} : { duration }) };
+  const capsule = duration ?? (tone === 'connecting' ? t.call.bubbleShort.connecting : status);
+  return { tone, status, capsule, muted, ...(duration === undefined ? {} : { duration }) };
 }
