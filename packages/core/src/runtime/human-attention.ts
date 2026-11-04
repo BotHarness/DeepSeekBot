@@ -1013,8 +1013,9 @@ SELECT 'handled:' || request.source_event_id AS id,
             .prepare(`
           SELECT p.channel_id AS channelId, e.message_id AS messageId
             FROM source_events e
-            JOIN channel_placements p ON p.source_event_id = e.source_event_id
+            CROSS JOIN channel_placements p ON p.source_event_id = e.source_event_id
            WHERE e.source_kind = 'bot-message'
+             AND json_extract(e.payload_json, '$.userQuestionRequest') IS NOT NULL
              AND e.message_id IS NOT NULL
              AND json_extract(e.payload_json, '$.userQuestionRequest.callId') IS NOT NULL
              AND NOT EXISTS (
