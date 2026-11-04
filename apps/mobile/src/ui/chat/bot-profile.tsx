@@ -488,12 +488,18 @@ function StopMenu({
     return (
       <View
         testID={`${testID}-stopping`}
+        accessible
+        accessibilityLabel={t.sessionStopping}
         accessibilityLiveRegion="polite"
-        style={{ minHeight: theme.touch, justifyContent: 'center', ...bleed }}
+        style={{
+          width: theme.touch,
+          minHeight: theme.touch,
+          alignItems: 'center',
+          justifyContent: 'center',
+          ...bleed,
+        }}
       >
-        <Text variant="meta" tone="muted">
-          {t.sessionStopping}
-        </Text>
+        <LoadingIndicator size="control" color={theme.color.muted} />
       </View>
     );
   return (
@@ -584,7 +590,7 @@ export function WorkListRow({
     const { session } = row;
     const title = sessionTitle(session);
     const stopping = stops?.stopping(row.botSlug, session.id) === true;
-    const state = stepLabel(session.activity, session.state);
+    const state = stopping ? t.sessionStopping : stepLabel(session.activity, session.state);
     return (
       <View
         testID={`working-session-${session.id}`}

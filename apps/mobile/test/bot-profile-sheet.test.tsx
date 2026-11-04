@@ -494,8 +494,9 @@ describe('Bot profile page', () => {
     await pressAlert(t.sessionStop);
     expect(stopper.stopSession).toHaveBeenCalledWith(bot.slug, 'assignment-9');
     expect(
-      view.querySelector('[data-testid="working-stop-assignment-9-stopping"]')?.textContent,
-    ).toBe(t.sessionStopping);
+      view.querySelector('[data-testid="working-session-assignment-9"]')?.textContent,
+    ).toContain(t.sessionStopping);
+    expect(view.querySelector('[data-testid="working-stop-assignment-9-stopping"]')).not.toBeNull();
     await act(async () =>
       view
         .querySelector<HTMLButtonElement>(`[data-testid="working-stop-all-${bot.slug}"]`)!

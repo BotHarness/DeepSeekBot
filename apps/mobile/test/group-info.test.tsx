@@ -656,7 +656,10 @@ describe('Group profile', () => {
       expect(stop.stopSession).toHaveBeenCalledWith('bo', 'bo-a1');
       expect(alert).toHaveBeenCalledOnce();
       expect(testId(view, 'working-stop-bo-a1')).toBeNull();
-      expect(testId(view, 'working-stop-bo-a1-stopping')?.textContent).toBe(t.sessionStopping);
+      expect(testId(view, 'working-stop-bo-a1-stopping')?.getAttribute('aria-label')).toBe(
+        t.sessionStopping,
+      );
+      expect(testId(view, 'working-session-bo-a1')?.textContent).toContain(t.sessionStopping);
       expect(testId(view, 'working-stop-bo-orch')).not.toBeNull();
       const settled = busy(bo, [{ id: 'bo-orch', role: 'orchestrator', state: 'working' }]);
       await act(async () =>
