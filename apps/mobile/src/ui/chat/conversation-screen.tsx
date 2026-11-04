@@ -1339,6 +1339,15 @@ function ChatConversation({
   ) : null;
   const ios = Platform.OS === 'ios';
   const headerGap = glassPress.gap;
+  const callButton =
+    !ios && placeCall !== undefined ? (
+      <HeaderIconButton
+        icon="call"
+        label={t.call.button}
+        testID="chat-call-button"
+        onPress={placeCall}
+      />
+    ) : null;
   const titleWidth = Math.max(
     0,
     windowWidth -
@@ -1523,13 +1532,24 @@ function ChatConversation({
                 }
               : {
                   headerTitleAlign: 'left' as const,
-                  headerRight: () => profileButton,
+                  headerRight: () =>
+                    callButton === null ? (
+                      profileButton
+                    ) : (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: headerGap }}>
+                        {callButton}
+                        {profileButton}
+                      </View>
+                    ),
                   headerTitle: () => (
                     <View
                       key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
                       style={{
                         width: dm || botDm ? undefined : windowWidth - (theme.touch + space.x5) * 2,
-                        maxWidth: windowWidth - (theme.touch + space.x5) * 2,
+                        maxWidth:
+                          windowWidth -
+                          (theme.touch + space.x5) * 2 -
+                          (callButton === null ? 0 : theme.touch + headerGap),
                         marginHorizontal: space.x3,
                       }}
                     >
@@ -1911,6 +1931,7 @@ function ChatConversation({
           >
             {back}
             <View style={{ flex: 1, minWidth: 0 }}>{title}</View>
+            {callButton}
             {profileButton}
           </View>
         ) : null}

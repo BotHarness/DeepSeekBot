@@ -40,7 +40,7 @@ type Phase =
     }
   | {
       kind: 'settled';
-      status: 'decided' | 'expired';
+      status: 'decided' | 'expired' | 'stopped';
       outcome?: ToolApprovalOutcome;
       mine: boolean;
       label?: string;
@@ -90,6 +90,8 @@ function settledLine(
   if (phase.kind !== 'settled') return undefined;
   if (phase.status === 'expired')
     return { text: t.cardLine(subject, t.cardExpired), tone: 'subtle' };
+  if (phase.status === 'stopped')
+    return { text: t.cardLine(subject, t.cardStopped), tone: 'subtle' };
   return state(phase.outcome, true);
 }
 
@@ -228,7 +230,7 @@ export function ApprovalCard({
       if (!submission.active || current.current !== submission) return;
       setPhase({
         kind: 'settled',
-        status: result,
+        status: now?.status === 'stopped' ? 'stopped' : result,
         mine: false,
         label: requestLabel(request),
         ...(now?.outcome === undefined ? {} : { outcome: now.outcome }),

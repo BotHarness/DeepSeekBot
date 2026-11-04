@@ -450,6 +450,7 @@ deepseekbot channel-assign <channel> --section <section-id> --index 0
 deepseekbot session-ids
 deepseekbot session-owner <session-id>
 deepseekbot session-archive-set <bot-id> --session <session-id> --archived
+deepseekbot session-stop <bot-id> <session-id>
 deepseekbot tool-approval-rules <bot-id>
 deepseekbot tool-approval-history <bot-id> [--limit 30] [--cursor <next>]
 deepseekbot tool-approval-rule-revoke <bot-id> --rule <rule-id> --confirm
@@ -458,6 +459,8 @@ deepseekbot grant-write-set <bot-id> --grant <grant-id> --disabled
 deepseekbot private-mcp-set <bot-id> --server <name> --enabled
 deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 ```
+
+`session-stop <bot-id> <session-id>` 停止 Bot 的一个运行中的 Assignment Session，与 Sessions 面板中该行的停止按钮相同。它的 Subagent 随之停止；Orchestrator 和 Bot 的其他 Assignment 继续运行。返回 `stopped` 和 `alreadyIdle`，均为 `{ botSlug, sessionId, role }` 列表：空闲、已停止或重复停止的 Assignment 出现在 `alreadyIdle` 中，命令仍然成功。停止不会唤醒 Orchestrator；它的下一轮会读到一条 Host 生命周期通知，说明 Human 停止了该 Assignment，除非 Human 要求，否则不要重新派发。该 Assignment 保留历史且不会被归档；只有 Orchestrator 发来的 Assignment Request（`send_assignment_request`）能让它继续。Orchestrator Session 会以 `unsupported-role` 拒绝（请用 `channel-bot-stop`），Bot 不拥有的 Session 以 `unknown-session` 拒绝。
 
 `inbox-status` 请求完整的消息分类摘要，返回 `unreadCount`、`hasAction`，以及支持该能力的 Host 返回的 `messageCounts: { replies, other }`。分类在可见性与 Channel 免打扰过滤后，对未读 Source Event 去重并分成个人消息和其他消息；已读保留的提及／回复、已处理请求不点亮消息红点。该摘要不受 Activity 分页和浏览器筛选影响。旧 Host 可能省略 `messageCounts`，缺失不代表零。control rail 红点偏好只在当前浏览器和 Host origin 保存，不改动 CLI 返回的真实状态。
 
@@ -721,11 +724,31 @@ deepseekbot voice-synthesize --bot <bot-id> --text '完成了，见 `src/app.ts`
 deepseekbot voice-provider-remove <provider-id>
 ```
 
-预设有 `custom`（任何兼容 OpenAI `/audio/speech` 的端点，例如本地 Kokoro-FastAPI 或 LocalAI，密钥可选）、`fish-audio`、`elevenlabs` 和 `openai`（需要密钥）。`voice-providers` 返回 `{presets, providers, bot?}`，每个 provider 列出 `id`、`name`、`preset`、`baseUrl`、`model`、`defaultVoice` 和 `keySet`，从不返回密钥。密钥只从 stdin 读取，保存在 Host 凭据存储中。`voice-provider-test` 合成一小段话，返回 `{ok: true, latencyMs, bytes, mime}` 或 `{ok: false, code, message}`。`voice-set` 绑定 Bot 的声音，`off` 解除绑定；移除 provider 会清掉使用它的 Bot（`clearedBots`）。`voice-synthesize` 使用 Bot 的绑定（`--bot`）或指定 provider（`--provider`），文字来自 `--text` 或 `--text-stdin`，加 `--markdown` 时套用朗读规则，把音频写到绝对路径 `--out`，输出 `{providerId, voiceId, mime, bytes, latencyMs, text, out}`。拒绝时带错误码：`usage`、`invalid-input`、`key-required`、`unknown-provider`、`voice-not-configured`、`provider-unauthorized`、`provider-rate-limited`、`provider-unavailable`、`provider-timeout`、`provider-rejected` 和 `provider-bad-response`。每次合成会在 `logs.db` 写一条 `voice` 记录，包含 provider、延迟和大小，不含文字或密钥。
+预设有 `custom`（任何兼容 OpenAI `/audio/speech` 的端点，例如本地 Kokoro-FastAPI 或 LocalAI，密钥可选）、`local`（下文的本地语音服务，无需密钥）、`fish-audio`、`elevenlabs` 和 `openai`（需要密钥）。`voice-providers` 返回 `{presets, providers, bot?}`，每个 provider 列出 `id`、`name`、`preset`、`baseUrl`、`model`、`defaultVoice` 和 `keySet`，从不返回密钥。密钥只从 stdin 读取，保存在 Host 凭据存储中。`voice-provider-test` 合成一小段话，返回 `{ok: true, latencyMs, bytes, mime}` 或 `{ok: false, code, message}`。`voice-set` 绑定 Bot 的声音，`off` 解除绑定；移除 provider 会清掉使用它的 Bot（`clearedBots`）。`voice-synthesize` 使用 Bot 的绑定（`--bot`）或指定 provider（`--provider`），文字来自 `--text` 或 `--text-stdin`，加 `--markdown` 时套用朗读规则，把音频写到绝对路径 `--out`，输出 `{providerId, voiceId, mime, bytes, latencyMs, text, out}`。拒绝时带错误码：`usage`、`invalid-input`、`key-required`、`unknown-provider`、`voice-not-configured`、`provider-unauthorized`、`provider-rate-limited`、`provider-unavailable`、`provider-timeout`、`provider-rejected` 和 `provider-bad-response`。每次合成会在 `logs.db` 写一条 `voice` 记录，包含 provider、延迟和大小，不含文字或密钥。
+
+### 本地语音服务
+
+Bot 可以用 `setting-up-local-voice` skill 在 Host 所在的电脑（macOS 或 Windows）上部署一个免费、离线的语音服务：一个 Python 脚本在 CPU 上运行 SenseVoice（语音转文字）和 Kokoro（中英文语音合成），在 `http://127.0.0.1:8790/v1` 提供 OpenAI 音频接口。Host 不会启动或保活它，由用户自己启动和停止。
+
+```bash
+deepseekbot voice-local-kit --dir ~/BotHarness/voice      # 绝对路径；离线可用，Bot 的 shell 里也能用
+cd ~/BotHarness/voice && python3 -m venv .venv
+.venv/bin/python -m pip install "sherpa-onnx>=1.13.8,<2" numpy
+.venv/bin/python botharness_voice.py download   # SenseVoice 166 MB + Kokoro 365 MB
+.venv/bin/python botharness_voice.py start      # 另有 status、stop、serve、selftest
+deepseekbot voice-provider-add local
+deepseekbot voice-set <bot-id> <provider-id> --voice zf_001
+deepseekbot voice-provider-add local --kind asr --language zh
+deepseekbot voice-asr-set <bot-id> <asr-provider-id>
+```
+
+`voice-local-kit` 写出 `botharness_voice.py`，输出 `{dir, script, baseUrl, models, steps: {macos, windows}}`。Windows 上用 `py -3 -m venv .venv` 和 `.venv\Scripts\python`。脚本每个命令输出一行 JSON（`ok: false` 带 `code` 和 `message`）；`selftest` 先合成一句话再识别回来。`local` TTS 预设不需要密钥，使用 Kokoro 音色，例如 `zf_001`、`zm_009`、`af_maple`、`af_sol` 和 `bf_vale`（完整列表见 `GET /v1/models`）。`local` ASR 预设（`--kind asr`）使用 SenseVoice（模型 `sensevoice`，支持 `zh`、`en`、`ja`、`ko`、`yue`），供 Bot 通话使用。服务没启动时，`voice-provider-test`、语音消息和语音识别会报 `provider-unavailable`，并说明“The local speech service at … is not running”。
+
+Tob 的受限 CLI 支持 `voice-providers`、`voice-provider-test`、`voice-provider-add`（只限无密钥的 `local` 和 `custom` 预设，TTS 或 `--kind asr`，没有密钥参数）、`voice-provider-remove`、`voice-set` 和 `voice-asr-set`；写操作会弹出审批卡片。需要密钥的 Provider 由用户在设置 › 语音中添加。
 
 ### Bot 通话与语音识别（ASR Provider）
 
-已配对的 iPhone 可以给 Bot 打电话，前提是 Host 运行在 Mac 或 Windows 电脑上。手机通过 WebRTC 在已配对的局域网线路或 Tailscale 上发送麦克风音频（Connect 不承载通话，会返回 `connect-carrier-required`）。Host 用内置的语音活动检测切出每一句话（咳嗽、敲击等短噪声会被忽略），通过 Bot 的 ASR Provider 转成文字，并以 Human 消息发到 DM。Bot 用 `voice: true` 回复；已提交的语音回复会在通话中播放，并以带文字的语音条留在 DM 里。Bot 还在忙上一轮时，手机只显示提示，不会发声。录音从不保存：每句话的音频在转写后立即丢弃。
+已配对的 iPhone 可以给 Bot 打电话，前提是 Host 运行在 Mac 或 Windows 电脑上。手机通过 WebRTC 在已配对的局域网线路或 Tailscale 上发送麦克风音频（Connect 不承载通话，会返回 `connect-carrier-required`）。Host 用内置的语音活动检测切出每一句话（咳嗽、敲击等短噪声会被忽略），通过 Bot 的 ASR Provider 转成文字，并以 Human 消息发到 DM。Human 说完后，Host 会立即播放一声短的“嗯”（ASR 语言不是中文时为 “Mm-hm”），不经过模型。Bot 用 `voice: true` 回复；如果 `voice` 写在 `body` 之前，Host 会从流式草稿里按句合成并播放，不等消息提交。草稿被放弃或回合被取消时立即停止，不留下任何内容。消息提交后，已经播放的句子拼成它的语音条，所以存档和通话里听到的一致；如果 `voice` 写在 `body` 之后，则在提交后再播放。Bot 还在忙上一轮时，手机只显示提示，不会发声；通话里刚说的那句话引起的这一轮不会显示这个提示。录音从不保存：每句话的音频在转写后立即丢弃。
 
 ```bash
 printf '%s' "$OPENAI_API_KEY" | deepseekbot voice-provider-add openai --kind asr --model gpt-4o-mini-transcribe --key-stdin
@@ -740,7 +763,7 @@ deepseekbot call-status
 deepseekbot call-hangup <call-id>
 ```
 
-ASR 预设有 `custom`（任何兼容 OpenAI `/audio/transcriptions` 的端点，密钥可选）、`openai` 和 `groq`。`voice-providers` 在 `asrPresets` 和 `asrProviders` 下列出它们，`bot.asr` 显示绑定。对 ASR Provider 运行 `voice-provider-test` 会转写半秒静音。`voice-transcribe` 读取 16 位 PCM WAV，输出 `{providerId, text, latencyMs}`。`call-readiness` 返回 `{ready, missing, asrProviderId, ttsProviderId, media, activeCallId}`，`missing` 可能是 `asr`、`tts`、`bot`、`media-unsupported`、`media-helper-missing` 或 `media-unavailable`；手机上的通话按钮显示同样的原因。`call-simulate` 不需要手机，直接打开一个合成的 Host 通话，按真实时间播放 WAV（或最多 20 步的 `{"at": 毫秒, "file": "/abs.wav"}` 时间线），等到每句被听到的话都有已播放的回复，或 `--reply-wait` 秒用完，然后挂断并输出 `{callId, heard, replies, firstAudioMs, answered, events}`；`firstAudioMs` 是从一句话结束到第一段回复音频的时间。每个 Host 同时只有一通电话：同一设备会替换自己的通话，其他设备会收到 `call-active`。手机断开 8 秒后通话结束（`connection-lost`），已发送的消息仍留在 DM。每通电话会在 `logs.db` 写入带耗时的 `voice` 日志，从不记录音频或转写内容。
+ASR 预设有 `custom`（任何兼容 OpenAI `/audio/transcriptions` 的端点，密钥可选）、`local`（上文的本地语音服务）、`openai` 和 `groq`。`voice-providers` 在 `asrPresets` 和 `asrProviders` 下列出它们，`bot.asr` 显示绑定。对 ASR Provider 运行 `voice-provider-test` 会转写半秒静音。`voice-transcribe` 读取 16 位 PCM WAV，输出 `{providerId, text, latencyMs}`。`call-readiness` 返回 `{ready, missing, asrProviderId, ttsProviderId, media, activeCallId, callElsewhere}`，`missing` 可能是 `asr`、`tts`、`bot`、`media-unsupported`、`media-helper-missing`、`media-unavailable` 或 `local-voice-off`（`local` Provider 的本地服务没在运行）；手机上的通话按钮显示同样的原因。`call-simulate` 不需要手机，直接打开一个合成的 Host 通话，按真实时间播放 WAV（或最多 20 步的 `{"at": 毫秒, "file": "/abs.wav"}` 时间线），等到每句被听到的话都有已播放的回复，或 `--reply-wait` 秒用完，然后挂断并输出 `{callId, heard, replies, ackMs, firstTextMs, firstAudioMs, answered, events}`。`ackMs` 是从说完到应答声的时间，`firstTextMs` 是从发出转写到 Bot 草稿里出现第一段文字的时间（模型首字加工具调用前缀），`firstAudioMs` 是到第一段回复音频的时间。每条回复列出 `replyId`、`messageId`、已播放的 `sentences`、`bytes`、`textMs`、`responseMs` 和 `audioBeforeCommit`。事件包括 `ack`、`reply-text`、逐句的 `playing`/`played`、`committed`（带 `reused` 和 `synthesized` 句数）、`reply-stopped` 和 `reply-done`。每个 Host 同时只有一通电话：同一设备会替换自己的通话，其他设备会收到 `call-active`；`callElsewhere` 在拨打前就会说明这一点。桌面端和 Web 窗口共用 Host owner，所以每个窗口会发送自己的 `client` id，第二个窗口会像第二台设备一样被拒绝。手机断开 8 秒后通话结束（`connection-lost`），已发送的消息仍留在 DM。每通电话会在 `logs.db` 写入带耗时的 `voice` 日志，从不记录音频或转写内容。
 
 ### 审批员模型
 

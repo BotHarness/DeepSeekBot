@@ -1,13 +1,25 @@
 import { randomUUID } from 'node:crypto';
+import type WebSocket from 'ws';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
 
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
+import { LOCAL_VOICE_SCRIPT_NAME } from './local-kit.js';
+import {
+  warmSoniox,
+  type WarmSoniox,
+  openSonioxStream,
+  sonioxLanguageHints,
+  sonioxTranscribeFile,
+  type AsrStream,
+  type SonioxSocketFactory,
+} from './soniox.js';
 import {
   ASR_PRESETS,
   asrPreset,
   TTS_PRESETS,
   ttsPreset,
   type AsrPreset,
+  type AsrWire,
   type TtsPreset,
   type TtsWire,
 } from './presets.js';
@@ -70,6 +82,8 @@ export interface AsrProviderView {
   kind: 'asr';
   name: string;
   preset: AsrPreset['id'];
+  wire: AsrWire;
+  streaming: boolean;
   baseUrl: string;
   model?: string;
   language?: string;
@@ -201,11 +215,14 @@ function parseStored(body: string): StoredProvider | undefined {
 }
 
 function asrView(stored: StoredProvider): AsrProviderView {
+  const preset = asrPresetOf(stored.preset);
   return {
     id: stored.id,
     kind: 'asr',
     name: stored.name,
-    preset: asrPresetOf(stored.preset).id,
+    preset: preset.id,
+    wire: preset.wire,
+    streaming: preset.capabilities.streaming,
     baseUrl: stored.baseUrl,
     ...(stored.model === undefined ? {} : { model: stored.model }),
     ...(stored.language === undefined ? {} : { language: stored.language }),
@@ -295,6 +312,29 @@ async function providerMessage(response: Response, key: string | undefined): Pro
   return clean.slice(0, 200) || `HTTP ${response.status}`;
 }
 
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]', '0.0.0.0']);
+
+function causeCode(error: unknown): string | undefined {
+  for (let current = error, depth = 0; current && depth < 4; depth += 1) {
+    const code = (current as { code?: unknown }).code;
+    if (typeof code === 'string') return code;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return undefined;
+}
+
+export function unreachableMessage(baseUrl: string, error: unknown, preset?: string): string {
+  const url = new URL(baseUrl);
+  const code = causeCode(error);
+  if (preset === 'local' && LOOPBACK_HOSTS.has(url.hostname) && code === 'ECONNREFUSED')
+    return `The local speech service at ${url.origin} is not running. Start it on the Host computer (python ${LOCAL_VOICE_SCRIPT_NAME} start in its folder) and try again.`;
+  if (code === 'ECONNREFUSED')
+    return `Nothing is listening at ${url.origin}. Check that the speech service is running.`;
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN')
+    return `The provider host ${url.hostname} cannot be found.`;
+  return `The provider cannot be reached (${code ?? (error instanceof Error ? error.name : 'network error')}).`;
+}
+
 function statusError(status: number, detail: string): VoiceError {
   if (status === 401 || status === 403)
     return new VoiceError('provider-unauthorized', `The provider refused the key: ${detail}`);
@@ -315,6 +355,7 @@ export interface VoiceProvidersOptions {
   now?: () => Date;
   timeoutMs?: number;
   log?: (phase: string, fields: Record<string, string | number>) => void;
+  socket?: SonioxSocketFactory;
 }
 
 export class VoiceProviders {
@@ -324,6 +365,8 @@ export class VoiceProviders {
   readonly #now: () => Date;
   readonly #timeoutMs: number;
   readonly #log: NonNullable<VoiceProvidersOptions['log']>;
+  readonly #socket: SonioxSocketFactory | undefined;
+  readonly #warm = new Map<string, { users: number; socket?: WarmSoniox | undefined }>();
 
   constructor(options: VoiceProvidersOptions) {
     this.#db = options.database;
@@ -332,6 +375,7 @@ export class VoiceProviders {
     this.#now = options.now ?? (() => new Date());
     this.#timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.#log = options.log ?? (() => undefined);
+    this.#socket = options.socket;
   }
 
   presets(): readonly TtsPreset[] {
@@ -390,6 +434,21 @@ export class VoiceProviders {
 
   getAsr(id: string): AsrProviderView {
     return asrView(this.#stored(id, 'asr'));
+  }
+
+  async localServiceOff(id: string, kind: VoiceProviderKind = 'tts'): Promise<boolean> {
+    if (!this.has(id, kind)) return false;
+    const stored = this.#stored(id, kind);
+    if (stored.preset !== 'local') return false;
+    try {
+      await this.#fetch(`${new URL(stored.baseUrl).origin}/health`, {
+        signal: AbortSignal.timeout(1_500),
+        redirect: 'error',
+      });
+      return false;
+    } catch (error) {
+      return causeCode(error) === 'ECONNREFUSED';
+    }
   }
 
   has(id: string, kind: VoiceProviderKind = 'tts'): boolean {
@@ -611,7 +670,7 @@ export class VoiceProviders {
         code,
         timeout.aborted
           ? `The provider did not answer within ${Math.round(this.#timeoutMs / 1000)} s.`
-          : `The provider cannot be reached (${error instanceof Error ? error.name : 'network error'}).`,
+          : unreachableMessage(stored.baseUrl, error, stored.preset),
       );
     }
     if (!response.ok) {
@@ -663,6 +722,8 @@ export class VoiceProviders {
     if (language !== undefined && !LANGUAGE.test(language))
       throw new VoiceError('invalid-input', 'Language must be a code such as en or zh.');
     const key = await this.#key(stored);
+    if (asrPresetOf(stored.preset).wire === 'soniox')
+      return this.#sonioxFile(stored, key, input.audio, language, input.signal);
     const form = new FormData();
     form.append(
       'file',
@@ -694,7 +755,7 @@ export class VoiceProviders {
         code,
         timeout.aborted
           ? `The provider did not answer within ${Math.round(this.#timeoutMs / 1000)} s.`
-          : `The provider cannot be reached (${error instanceof Error ? error.name : 'network error'}).`,
+          : unreachableMessage(stored.baseUrl, error, stored.preset),
       );
     }
     if (!response.ok) {
@@ -731,6 +792,184 @@ export class VoiceProviders {
       ms: latencyMs,
     });
     return { text, latencyMs };
+  }
+
+  async #sonioxFile(
+    stored: StoredProvider,
+    key: string | undefined,
+    audio: Uint8Array,
+    language: string | undefined,
+    signal: AbortSignal | undefined,
+  ): Promise<TranscriptionResult> {
+    try {
+      const result = await sonioxTranscribeFile({
+        baseUrl: stored.baseUrl,
+        key,
+        model: stored.model ?? 'stt-rt-v6',
+        languageHints: sonioxLanguageHints(language),
+        audio,
+        timeoutMs: this.#timeoutMs,
+        signal,
+        socket: this.#socket,
+      });
+      this.#log('transcribed', {
+        provider: stored.id,
+        bytes: audio.byteLength,
+        chars: result.text.length,
+        ms: result.latencyMs,
+      });
+      return result;
+    } catch (error) {
+      signal?.throwIfAborted();
+      if (error instanceof VoiceError)
+        this.#log('transcribe-failed', {
+          provider: stored.id,
+          code: error.code,
+        });
+      throw error;
+    }
+  }
+
+  streams(id: string): boolean {
+    try {
+      return asrPresetOf(this.#stored(id, 'asr').preset).capabilities.streaming;
+    } catch {
+      return false;
+    }
+  }
+
+  warm(id: string): void {
+    if (!this.streams(id)) return;
+    const entry = this.#warm.get(id) ?? { users: 0 };
+    entry.users += 1;
+    this.#warm.set(id, entry);
+    this.#rewarm(id);
+  }
+
+  cool(id: string): void {
+    const entry = this.#warm.get(id);
+    if (entry === undefined) return;
+    entry.users -= 1;
+    if (entry.users > 0) return;
+    this.#warm.delete(id);
+    entry.socket?.close();
+  }
+
+  #rewarm(id: string): void {
+    const entry = this.#warm.get(id);
+    if (entry === undefined || entry.users <= 0 || entry.socket !== undefined) return;
+    let stored: StoredProvider;
+    try {
+      stored = this.#stored(id, 'asr');
+    } catch {
+      return;
+    }
+    const pending: { socket?: WarmSoniox | undefined } = {};
+    const holder: WarmSoniox = {
+      take: () => pending.socket?.take(),
+      close: () => {
+        pending.socket?.close();
+        pending.socket = undefined;
+        if (entry.socket === holder) entry.socket = undefined;
+      },
+    };
+    entry.socket = holder;
+    this.#key(stored).then(
+      (key) => {
+        if (entry.socket !== holder) return;
+        try {
+          pending.socket = warmSoniox({ baseUrl: stored.baseUrl, key, socket: this.#socket });
+        } catch {
+          if (entry.socket === holder) entry.socket = undefined;
+        }
+      },
+      () => {
+        if (entry.socket === holder) entry.socket = undefined;
+      },
+    );
+  }
+
+  #takeWarm(id: string): WebSocket | undefined {
+    const entry = this.#warm.get(id);
+    const held = entry?.socket;
+    if (entry === undefined || held === undefined) return undefined;
+    entry.socket = undefined;
+    const socket = held.take();
+    if (socket === undefined) held.close();
+    this.#rewarm(id);
+    return socket;
+  }
+
+  openStream(input: {
+    providerId: string;
+    language?: string | undefined;
+    signal?: AbortSignal | undefined;
+    onText?: ((text: string) => void) | undefined;
+  }): AsrStream | undefined {
+    if (!this.streams(input.providerId)) return undefined;
+    const stored = this.#stored(input.providerId, 'asr');
+    const language = input.language?.trim() || stored.language;
+    const opened = this.#key(stored).then((key) =>
+      openSonioxStream({
+        baseUrl: stored.baseUrl,
+        key,
+        model: stored.model ?? 'stt-rt-v6',
+        languageHints: sonioxLanguageHints(language),
+        audio: 'pcm',
+        timeoutMs: Math.min(this.#timeoutMs, 10_000),
+        signal: input.signal,
+        onText: input.onText,
+        socket: this.#socket,
+        warm: this.#takeWarm(input.providerId),
+      }),
+    );
+    const log = this.#log;
+    let stream: AsrStream | undefined;
+    let early: Int16Array[] = [];
+    let cancelled = false;
+    opened.then(
+      (ready) => {
+        if (cancelled) {
+          ready.cancel();
+          return;
+        }
+        stream = ready;
+        for (const pcm of early) ready.push(pcm);
+        early = [];
+      },
+      () => undefined,
+    );
+    return {
+      push(pcm) {
+        if (cancelled) return;
+        if (stream !== undefined) stream.push(pcm);
+        else early.push(pcm.slice());
+      },
+      async finish() {
+        const ready = stream ?? (await opened);
+        const result = await ready.finish().catch((error: unknown) => {
+          if (error instanceof VoiceError)
+            log('transcribe-failed', {
+              provider: stored.id,
+              code: error.code,
+              mode: 'stream',
+            });
+          throw error;
+        });
+        log('transcribed', {
+          provider: stored.id,
+          chars: result.text.length,
+          ms: result.latencyMs,
+          mode: 'stream',
+        });
+        return result;
+      },
+      cancel() {
+        cancelled = true;
+        early = [];
+        stream?.cancel();
+      },
+    };
   }
 
   async test(id: string, voiceId?: string, signal?: AbortSignal): Promise<ProviderHealth> {

@@ -1,4 +1,4 @@
-# ADR-0283: Bot calls keep running in the background, with a Live Activity and a call or media audio choice
+# ADR-0285: Bot calls keep running in the background, with a Live Activity and a call or media audio choice
 
 - Status: Accepted (iOS)
 - Date: 2026-11-03

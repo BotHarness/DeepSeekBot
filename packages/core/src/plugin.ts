@@ -61,6 +61,16 @@ import {
   TOB_MAINTENANCE_CAPABILITIES,
 } from './tob/cli-maintenance-operations.js';
 import { installTobCliShell } from './tob/cli-shell.js';
+import { createTobVoiceOperations, TOB_VOICE_CAPABILITIES } from './tob/cli-voice-operations.js';
+import {
+  LOCAL_VOICE_SKILL_CONTENT,
+  LOCAL_VOICE_SKILL_DESCRIPTION,
+  LOCAL_VOICE_SKILL_INVOCATION,
+  LOCAL_VOICE_SKILL_NAME,
+  LOCAL_VOICE_SKILL_PROVIDER,
+  LOCAL_VOICE_SKILL_SOURCE,
+  LOCAL_VOICE_SKILL_WHEN_TO_USE,
+} from './voice/skill.js';
 import { approveTobCliOperation } from './tob/cli-approval.js';
 import { onboardingNewsAvailable } from './onboarding/search.js';
 import { nativeTimedQuestions } from './channels/native-timed-questions.js';
@@ -525,7 +535,7 @@ export interface BotHarnessCore {
   cloudConnections?: CloudConnections;
   voiceProviders: VoiceProviders;
   voiceMessages: VoiceMessages;
-  voiceReady: { listener?: Parameters<typeof createVoiceMessages>[0]['onReady'] };
+  voiceSpeech: { speak?: Parameters<typeof createVoiceMessages>[0]['speak'] };
   cloudWork?: CloudWork;
   toolRules: ToolApprovalRuleStore;
   assignmentAccess: AssignmentAccessStore;
@@ -592,6 +602,8 @@ export function createCore(
     readAssignmentTail?: (sessionId: string) => Promise<AssignmentEventTail>;
     readTurnProgress?: (sessionId: string) => Promise<SessionFailureProgress | undefined>;
     autoContinueDelaysMs?: readonly number[];
+    stopSettleTimeoutMs?: number;
+    closeSessionApprovals?: (sessionIds: readonly string[]) => void;
     readAssignmentReportPage?: (
       sessionId: string,
       acceptedSummary: string,
@@ -1061,13 +1073,13 @@ export function createCore(
     ...(options.voiceFetch === undefined ? {} : { fetch: options.voiceFetch }),
     ...(options.voiceLog === undefined ? {} : { log: options.voiceLog }),
   });
-  const voiceReady: { listener?: Parameters<typeof createVoiceMessages>[0]['onReady'] } = {};
+  const voiceSpeech: { speak?: Parameters<typeof createVoiceMessages>[0]['speak'] } = {};
   const voiceMessages = createVoiceMessages({
     providers: voiceProviders,
     bot: (slug) => registry.get(slug),
     channels,
     attachments: () => attachments,
-    onReady: (input) => voiceReady.listener?.(input),
+    speak: async (input) => voiceSpeech.speak?.(input),
     ...(options.voiceLog === undefined ? {} : { log: options.voiceLog }),
   });
   runtime = createBotRuntime({
@@ -1079,6 +1091,12 @@ export function createCore(
     ...(options.autoContinueDelaysMs === undefined
       ? {}
       : { autoContinueDelaysMs: options.autoContinueDelaysMs }),
+    ...(options.stopSettleTimeoutMs === undefined
+      ? {}
+      : { stopSettleTimeoutMs: options.stopSettleTimeoutMs }),
+    ...(options.closeSessionApprovals === undefined
+      ? {}
+      : { closeSessionApprovals: options.closeSessionApprovals }),
     onTobDelegation: () => options.capture?.('tob:delegation_send', { surface: 'bot_tool' }),
     promptText: (slug) => {
       const sessionId = runtime?.currentOrchestratorSessionId?.(slug);
@@ -1190,7 +1208,7 @@ export function createCore(
   return {
     voiceProviders,
     voiceMessages,
-    voiceReady,
+    voiceSpeech,
     prompts,
     deletions,
     profileRecovery,
@@ -1318,6 +1336,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       : `git phase=resolved unavailable=${resolvedGit.reason}`,
   );
   let publishDraft: (event: ChannelDraftEvent) => void = () => undefined;
+  let voiceDrafts: (event: ChannelDraftEvent) => void = () => undefined;
   const defaultModel = (ctx as unknown as { agentDefaultModel: DshDefaultModelHost })
     .agentDefaultModel;
   const providerCredentials = createProviderCredentialHealth();
@@ -1459,7 +1478,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                     (await tobBotCreationOperations(command, args)) ??
                     (await tobBotProfileOperations(command, args)) ??
                     (await tobShareDraftOperations(command, args)) ??
-                    (await tobChannelOperations(command, args));
+                    (await tobChannelOperations(command, args)) ??
+                    (await tobVoiceOperations(command, args));
                   if (!prepared || !['create', 'group-create'].includes(command)) return prepared;
                   return {
                     ...prepared,
@@ -1482,6 +1502,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   ...TOB_BOT_PROFILE_CAPABILITIES,
                   ...TOB_SHARE_DRAFT_CAPABILITIES,
                   ...TOB_CHANNEL_CAPABILITIES,
+                  ...TOB_VOICE_CAPABILITIES,
                 ],
                 beforeWrite: () => source.markSideEffect?.(),
                 readSetting: () => core.tob.readSetting(),
@@ -1556,6 +1577,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       emitPersonaBotOutputCommitted(ctx, event, (message) => ctx.logger.warn(message)),
     activeQuestionMessageIds: () => userQuestions?.activeMessageIds() ?? [],
     activeToolApprovalMessageIds: () => toolApproval?.activeMessageIds() ?? [],
+    closeSessionApprovals: (sessionIds) => toolApproval?.closeSessions(sessionIds),
     activePrivateInputMessageIds: () => privateInputs?.activeMessageIds() ?? [],
     erasePrivateAccounts: async (slug) => {
       await privateInputs?.mcpServers?.erase(slug);
@@ -1613,7 +1635,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       ctx.get('workspaceRegistry') as unknown as NativeSessionArchive | undefined,
     imCommands: () => imCommandServices,
   });
-  publishDraft = (event) => core.live.publishDraft(event);
+  publishDraft = (event) => {
+    core.live.publishDraft(event);
+    try {
+      voiceDrafts(event);
+    } catch (error) {
+      diagnosticEvents.record('voice', 'call-draft-failed', { error: String(error).slice(0, 200) });
+    }
+  };
   ctx.effect(() => () => core.operationalDatabase.close(), 'botharness: operational database');
   ctx.effect(() => () => core.contentPurge.close(), 'botharness: purge ledger');
   const storage = createStorageCleanup({
@@ -3063,15 +3092,22 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (phase, fields) => diagnosticEvents.record('voice', phase, fields),
   });
   const calls = voiceCalls;
-  core.voiceReady.listener = (input) => calls.deliverVoice(input);
+  core.voiceSpeech.speak = (input) => calls.speak(input);
+  voiceDrafts = (event) => calls.draft(event);
   ctx.effect(
     () => async () => {
-      core.voiceReady.listener = undefined;
+      core.voiceSpeech.speak = undefined;
+      voiceDrafts = () => undefined;
       voiceCalls = undefined;
       await calls.dispose();
     },
     'botharness: voice calls',
   );
+  const tobVoiceOperations = createTobVoiceOperations({
+    providers: () => core.voiceProviders,
+    registry: core.registry,
+    isProtectedBot: (slug) => core.tob.isTob(slug),
+  });
   registerBridge(ctx, bridgeMethods, privateInputs, {
     followRoster: (signal) => core.live.followRoster(signal),
     followActivity: (signal) => core.live.followActivity(signal),
@@ -3112,6 +3148,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       },
     });
     developerModeTarget.gate = gate;
+    skillsCtx.effect(
+      () =>
+        skills.register({
+          name: LOCAL_VOICE_SKILL_NAME,
+          description: LOCAL_VOICE_SKILL_DESCRIPTION,
+          whenToUse: LOCAL_VOICE_SKILL_WHEN_TO_USE,
+          content: LOCAL_VOICE_SKILL_CONTENT,
+          invocation: LOCAL_VOICE_SKILL_INVOCATION,
+          source: LOCAL_VOICE_SKILL_SOURCE,
+          provider: LOCAL_VOICE_SKILL_PROVIDER,
+        }),
+      'botharness: local voice skill',
+    );
     skillsCtx.effect(() => {
       syncDeveloperMode();
       return () => {

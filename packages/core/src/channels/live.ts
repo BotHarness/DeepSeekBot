@@ -841,8 +841,16 @@ export function createChannelLiveHub(
           group = new Map();
           drafts.set(channelId, group);
         }
-        const draft = { ...event.draft, revision };
-        const previous = group.get(draft.draftId);
+        const { voice: _voice, bodyComplete: _bodyComplete, ...visible } = event.draft;
+        const previous = group.get(visible.draftId);
+        if (
+          previous?.attemptId === visible.attemptId &&
+          previous.botSlug === visible.botSlug &&
+          previous.channelId === visible.channelId &&
+          previous.body === visible.body
+        )
+          return;
+        const draft = { ...visible, revision };
         group.set(draft.draftId, draft);
         published =
           previous?.attemptId === draft.attemptId &&

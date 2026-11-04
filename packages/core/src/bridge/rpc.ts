@@ -793,6 +793,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
       }),
     );
   }
+  sessionStop(
+    botSlug: string,
+    sessionId: string,
+  ): Promise<{
+    stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+    alreadyIdle: import('../runtime/bot-runtime.js').StoppedSessionRef[];
+  }> {
+    return unwrapAsync(this.methods.sessionStop({ botSlug, sessionId }));
+  }
   modelCatalog(): Promise<{
     models: ModelCatalogEntry[];
     default?: ModelRoute;
@@ -2063,7 +2072,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     channelId: string,
     messageId: string,
   ): {
-    status: 'pending' | 'expired';
+    status: 'pending' | 'expired' | 'stopped';
     execution?: 'waiting-human' | 'waiting-capacity' | 'running' | 'settled' | 'needs-repair';
   } {
     return unwrap(this.methods.toolApprovalStatus({ channelId, messageId }));
@@ -2710,6 +2719,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botSystemPrompt',
   'botTurnInput',
   'channelBotStop',
+  'sessionStop',
   'modelCatalog',
   'modelPresets',
   'modelPresetCreate',
