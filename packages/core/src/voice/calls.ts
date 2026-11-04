@@ -104,11 +104,11 @@ const SEGMENT_VAD = { segmentSilenceMs: 250, endSilenceMs: 600 } as const;
 const MIN_TAIL_SAMPLES = VAD_SAMPLE_RATE / 5;
 
 const TIGHT =
-  '\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}\\p{Script=Hangul}\\p{Script=Thai}\\u3000-\\u303F\\uFF00-\\uFFEF';
+  '\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}\\p{Script=Thai}\\u3000-\\u303F\\uFF00-\\uFFEF';
 const TIGHT_END = new RegExp(`[${TIGHT}]$`, 'u');
 const TIGHT_START = new RegExp(`^[${TIGHT}]`, 'u');
 
-function joinTranscripts(parts: readonly string[]): string {
+export function joinTranscripts(parts: readonly string[]): string {
   let out = '';
   for (const raw of parts) {
     const part = raw.trim();

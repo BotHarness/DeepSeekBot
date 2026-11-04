@@ -12,6 +12,7 @@ import type { VoiceCallEvent, VoiceCallResult, VoiceCallView } from '../src/voic
 import { VOICE_CALL_HOST_OWNER } from '../src/voice/call-contract.js';
 import {
   createVoiceCalls,
+  joinTranscripts,
   type VoiceCallBot,
   type VoiceCallMedia,
   type VoiceCallsDeps,
@@ -529,6 +530,15 @@ describe('Host call owner', () => {
     expect(h.sent.map((item) => item.body)).toEqual(['帮我查一下明天的天气第二句话']);
     expect((await view(h, callId)).events.at(-1)).toMatchObject({ type: 'sent', segments: 2 });
     expect(h.transcribed.every((wav) => wav.every((byte) => byte === 0))).toBe(true);
+  });
+
+  it('joins pieces with a space except next to Chinese or Japanese text', () => {
+    expect(joinTranscripts(['明天上海', '会下雨吗？'])).toBe('明天上海会下雨吗？');
+    expect(joinTranscripts(['今日は', 'いい天気'])).toBe('今日はいい天気');
+    expect(joinTranscripts(['Hello.', 'How are you?'])).toBe('Hello. How are you?');
+    expect(joinTranscripts(['저는', '학생입니다.'])).toBe('저는 학생입니다.');
+    expect(joinTranscripts(['Привет,', 'как дела?'])).toBe('Привет, как дела?');
+    expect(joinTranscripts(['打开', 'GitHub'])).toBe('打开GitHub');
   });
 
   it('joins English pieces with a space, also after punctuation', async () => {
