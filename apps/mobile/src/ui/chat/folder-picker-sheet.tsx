@@ -184,6 +184,7 @@ export function FolderPickerSheet({
   return (
     <Sheet
       visible
+      fill
       label={t.browseTitle}
       title={t.grantTitle}
       subtitle={t.browseHint}

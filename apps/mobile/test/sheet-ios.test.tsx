@@ -14,6 +14,10 @@ const native = vi.hoisted(() => ({
 
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
+  Modal: (props: { visible: boolean; presentationStyle?: string; children?: ReactNode }) =>
+    props.visible
+      ? createElement('aside', { 'data-presentation': props.presentationStyle }, props.children)
+      : null,
   View: (props: {
     accessibilityLabel?: string;
     style?: unknown;
@@ -65,7 +69,7 @@ vi.mock('@expo/ui/swift-ui', () => ({
     createElement('section', { 'data-match': JSON.stringify(matchContents) }, children),
 }));
 vi.mock('../src/ui/design/theme', () => ({
-  useDesignTheme: () => ({ scheme: 'light', touch: 44 }),
+  useDesignTheme: () => ({ scheme: 'light', touch: 44, overlay: { fill: '#fff' } }),
 }));
 vi.mock('../src/ui/strings', () => ({ useStrings: () => ({ cancel: 'Cancel' }) }));
 vi.mock('../src/ui/primitives/drawer-header', () => ({
@@ -203,6 +207,20 @@ it('opens keyboard sheets large and caps the content above the keyboard', async 
   );
   expect(detents(typing)).toEqual(['large']);
   expect(contentStyle(typing).maxHeight).toBe(844 - 47 - 34 - 44 * 2 - 336);
+});
+
+it('presents a long list as a UIKit page sheet, where its scroll view can scroll (#3484)', async () => {
+  const view = await mount(
+    <Sheet visible fill label="Folders" title="Folders" onClose={() => {}}>
+      <p>rows</p>
+    </Sheet>,
+  );
+  expect(view.querySelector('dialog')).toBeNull();
+  expect(view.querySelector('aside')?.getAttribute('data-presentation')).toBe('pageSheet');
+  expect(view.querySelector('aside [aria-label="Folders"] header')?.textContent).toContain(
+    'Folders',
+  );
+  expect(view.querySelector('aside p')?.textContent).toBe('rows');
 });
 
 it('picks the detent from the room the medium detent leaves', () => {
