@@ -89,6 +89,7 @@ export interface VoiceCallsDeps {
   }): Promise<string | undefined>;
   now?: () => number;
   vad?: VadOptions;
+  speechDbfs?: () => number;
   log?: (phase: string, fields: Record<string, string | number>) => void;
 }
 
@@ -1083,6 +1084,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         maxUtteranceMs: VOICE_CALL_LIMITS.maxUtteranceMs,
         stream: !segmented,
         ...(segmented ? SEGMENT_VAD : {}),
+        ...(deps.speechDbfs === undefined ? {} : { minActiveDbfs: deps.speechDbfs() }),
         ...deps.vad,
       }),
       segmented,

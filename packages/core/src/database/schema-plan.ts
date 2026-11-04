@@ -2836,6 +2836,34 @@ const CAUSAL_PURGE_TOMBSTONE_MIGRATION: SchemaMigration = {
   },
 };
 
+const VOICE_DEFAULTS_MIGRATION: SchemaMigration = {
+  generation: 128,
+  module: 'voice',
+  description: 'Store the Host-wide default TTS and ASR Provider every Bot falls back to',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE voice_defaults (
+        kind TEXT PRIMARY KEY CHECK (kind IN ('tts', 'asr')),
+        body TEXT NOT NULL CHECK (json_valid(body))
+      );
+    `);
+  },
+};
+
+const VOICE_SETTINGS_MIGRATION: SchemaMigration = {
+  generation: 129,
+  module: 'voice',
+  description: 'Store Host-wide voice tuning such as the speech detection threshold',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE voice_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL CHECK (json_valid(value))
+      );
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2963,4 +2991,6 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   BOUNDED_RANGE_INDEX_MIGRATION,
   ATTENTION_RESOLUTION_INDEX_MIGRATION,
   CAUSAL_PURGE_TOMBSTONE_MIGRATION,
+  VOICE_DEFAULTS_MIGRATION,
+  VOICE_SETTINGS_MIGRATION,
 ]);
