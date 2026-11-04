@@ -100,7 +100,7 @@ class CallRefusal extends Error {
 
 const CALL_ID = /^call-[a-f0-9]{16}$/u;
 const HEARING_EVENT_MS = 250;
-const SEGMENT_VAD = { segmentSilenceMs: 250, endSilenceMs: 600, maxSegmentMs: 9_000 } as const;
+const SEGMENT_VAD = { segmentSilenceMs: 250, endSilenceMs: 600 } as const;
 const MIN_TAIL_SAMPLES = VAD_SAMPLE_RATE / 5;
 
 function joinTranscripts(parts: readonly string[]): string {

@@ -14,7 +14,6 @@ export interface VadOptions {
   maxUtteranceMs?: number;
   stream?: boolean;
   segmentSilenceMs?: number;
-  maxSegmentMs?: number;
   minSegmentVoicedMs?: number;
   activeDb?: number;
   minActiveDbfs?: number;
@@ -33,7 +32,7 @@ export type VadEvent =
       cut: boolean;
       segmentedSamples: number;
     }
-  | { type: 'segment'; pcm: Int16Array; startMs: number; endMs: number; forced: boolean }
+  | { type: 'segment'; pcm: Int16Array; startMs: number; endMs: number }
   | { type: 'noise'; startMs: number; durationMs: number };
 
 export interface Vad {
@@ -95,7 +94,6 @@ export function createVad(options: VadOptions = {}): Vad {
   const periodicityNeeded = options.periodicity ?? 0.55;
   const segmentSilence =
     options.segmentSilenceMs === undefined ? undefined : frames(options.segmentSilenceMs);
-  const maxSegment = frames(options.maxSegmentMs ?? 9_000);
   const minSegmentVoiced = frames(options.minSegmentVoicedMs ?? 200);
 
   let pending = new Int16Array(0);
@@ -211,18 +209,14 @@ export function createVad(options: VadOptions = {}): Vad {
     if (options.stream === true) events.push({ type: 'audio', pcm: samples });
     if (quiet < endSilence && segmentSilence !== undefined) {
       const pause = !paused && quiet >= segmentSilence;
-      const forced = current.length - segmentStart >= maxSegment;
-      if ((pause || forced) && segmentVoiced >= minSegmentVoiced) {
-        const end = forced
-          ? current.length
-          : Math.min(current.length, lastActive - startFrame + 1 + tail);
+      if (pause && segmentVoiced >= minSegmentVoiced) {
+        const end = Math.min(current.length, lastActive - startFrame + 1 + tail);
         if (end > segmentStart) {
           events.push({
             type: 'segment',
             pcm: join(current.slice(segmentStart, end)),
             startMs: (startFrame + segmentStart) * FRAME_MS,
             endMs: (startFrame + end) * FRAME_MS,
-            forced: !pause,
           });
           segmentStart = end;
           segmentVoiced = 0;
