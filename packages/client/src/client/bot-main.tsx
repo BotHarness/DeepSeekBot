@@ -1368,6 +1368,11 @@ function ConversationView({
     useScopedState<GroupProfileActivity>(scopeKey);
   const conversation = state.conversation;
   const channel = conversation.channel;
+  const dictationSlug = channel?.type === 'dm' ? channel.botSlug : undefined;
+  const dictationPort = useMemo(
+    () => actions.dictationPort?.(dictationSlug),
+    [actions, dictationSlug],
+  );
   const botNames = new Map(state.bots.map((member) => [member.slug, member.displayName]));
   const dmBotSlug = channel?.type === 'dm' ? channel.botSlug : undefined;
   const hiddenActions = useSyncExternalStore(
@@ -3442,6 +3447,8 @@ function ConversationView({
                         : []
                   }
                   placeholder={t('composer.placeholder', { name: title })}
+                  holdPlaceholder={t('composer.holdToTalk', { name: title })}
+                  dictation={dictationPort}
                   sending={conversation.sending || recovery.blocked}
                   focusSignal={restoreFocusSignal}
                   attachments={uploadItems}

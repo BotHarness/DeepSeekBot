@@ -364,6 +364,7 @@ import {
   type SubmissionAttempt,
   type SubmissionSnapshot,
 } from './composer-submission-store.js';
+import { createVoiceDictationPort } from './composer-dictation.js';
 import {
   addVoiceProvider,
   loadVoiceProviders,
@@ -863,6 +864,7 @@ export interface BridgeActions {
   setBotApprovalTemplate?(slug: string, template: string | null): Promise<void>;
   approvalReviewerModel?(): Promise<ApprovalReviewerModelView>;
   voiceProviders?(slug?: string): Promise<VoiceProvidersView>;
+  dictationPort?(slug?: string): import('./composer-dictation.js').VoiceDictationPort;
   addVoiceProvider?(input: VoiceProviderAddInput): Promise<VoiceProviderView>;
   removeVoiceProvider?(id: string): Promise<string[]>;
   testVoiceProvider?(id: string, voiceId?: string): Promise<VoiceProviderHealthView>;
@@ -1976,6 +1978,7 @@ export function createActions(
     setBotApprovalTemplate: (slug, template) => setBotApprovalTemplate(call, slug, template),
     approvalReviewerModel: () => loadApprovalReviewerModel(call),
     voiceProviders: (slug) => loadVoiceProviders(call, slug),
+    dictationPort: (slug) => createVoiceDictationPort(call, { slug }),
     addVoiceProvider: (input) => addVoiceProvider(call, input),
     removeVoiceProvider: (id) => removeVoiceProvider(call, id),
     testVoiceProvider: (id, voiceId) => testVoiceProvider(call, id, voiceId),

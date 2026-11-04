@@ -4609,6 +4609,50 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   padding: 0;
   border-radius: ${radius.round};
 }
+.bh-composer-has-mic { --bh-composer-compact-padding-right: 92px; }
+.bh-composer-has-mic .bh-composer-footer { gap: ${space.x2}; }
+.bh-composer-mic {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: ${border.hairline} solid ${color.border};
+  border-radius: ${radius.round};
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.bh-composer-mic:hover { background: var(--dsw-alias-interactive-bg-active); color: var(--dsw-alias-label-primary); }
+.bh-composer-mic:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
+.bh-composer-mic:disabled { opacity: .5; cursor: default; }
+.bh-composer-mic[data-state='toggle'],
+.bh-composer-mic[data-state='hold'] {
+  border-color: transparent;
+  background: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-label-primary-foreground);
+  animation: bh-dictation-pulse 1.6s var(--ds-ease-in-out) infinite;
+}
+@keyframes bh-dictation-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--dsw-alias-state-business-primary) 40%, transparent); }
+  50% { box-shadow: 0 0 0 6px transparent; }
+}
+.bh-composer[data-dictation='listening'] .bh-composer-input,
+.bh-composer[data-dictation='finishing'] .bh-composer-input { caret-color: transparent; }
+.bh-composer[data-dictation='denied'] .bh-composer-input::placeholder,
+.bh-composer[data-dictation='missing'] .bh-composer-input::placeholder,
+.bh-composer[data-dictation='failed'] .bh-composer-input::placeholder { color: var(--dsw-alias-state-error-primary); }
+html[data-botharness-motion='reduce'] .bh-composer-mic { animation: none; }
+.bh-composer[data-dictation='starting'] .bh-composer-rich-input[contenteditable='false'],
+.bh-composer[data-dictation='listening'] .bh-composer-rich-input[contenteditable='false'],
+.bh-composer[data-dictation='finishing'] .bh-composer-rich-input[contenteditable='false'] { color: var(--dsw-alias-label-primary); }
+.bh-composer[data-dictation='denied'] .bh-composer-rich-input:empty::before,
+.bh-composer[data-dictation='missing'] .bh-composer-rich-input:empty::before,
+.bh-composer[data-dictation='failed'] .bh-composer-rich-input:empty::before { color: var(--dsw-alias-state-error-primary); }
 html[data-botharness-motion='reduce'] .bh-composer,
 html[data-botharness-motion='reduce'] .bh-composer-body,
 html[data-botharness-motion='reduce'] .bh-composer-add-file,

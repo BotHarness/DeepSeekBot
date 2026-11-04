@@ -13,6 +13,14 @@ import {
   type VoiceProviders,
 } from './providers.js';
 import { speakableText } from './speakable.js';
+import {
+  createVoiceDictations,
+  pcmFromBase64,
+  VoiceDictationError,
+  type VoiceDictationReadiness,
+  type VoiceDictations,
+  type VoiceDictationView,
+} from './dictation.js';
 
 export interface VoiceProvidersView {
   presets: readonly TtsPreset[];
@@ -50,6 +58,11 @@ export interface VoiceBridgeMethods {
   botVoiceSet(payload: unknown): BridgeResult<{ slug: string; voice: PersonaBotVoice | null }>;
   voiceTranscribe(payload: unknown): Promise<BridgeResult<VoiceTranscriptionView>>;
   botAsrSet(payload: unknown): BridgeResult<{ slug: string; asr: PersonaBotAsr | null }>;
+  voiceDictation(
+    payload: unknown,
+  ): Promise<
+    BridgeResult<{ readiness: VoiceDictationReadiness } | { dictation: VoiceDictationView }>
+  >;
 }
 
 function record(payload: unknown): Record<string, unknown> {
@@ -75,7 +88,16 @@ function optionalText(value: unknown): string | undefined {
 export function createVoiceBridgeMethods(deps: {
   providers: VoiceProviders | undefined;
   registry: PersonaBotRegistry;
+  dictations?: VoiceDictations | undefined;
+  log?: ((phase: string, fields: Record<string, string | number>) => void) | undefined;
 }): VoiceBridgeMethods {
+  const dictations =
+    deps.dictations ??
+    createVoiceDictations({
+      providers: () => deps.providers,
+      botAsr: (slug) => deps.registry.get(slug)?.asr ?? null,
+      log: deps.log,
+    });
   const unavailable = (): BridgeResult<never> => ({
     ok: false,
     error: {
@@ -319,6 +341,43 @@ export function createVoiceBridgeMethods(deps: {
           ? { ok: false, error: { code: 'not-found', message: `unknown PersonaBot: ${slug}` } }
           : invalid('the ASR binding is not valid (language is a code such as en or zh)');
       return { ok: true, value: { slug, asr: result.record.asr ?? null } };
+    },
+    async voiceDictation(payload) {
+      if (deps.providers === undefined) return unavailable();
+      const input = record(payload);
+      const kind = input['kind'];
+      try {
+        if (kind === 'readiness' || kind === 'open') {
+          const slug = optionalText(input['slug']);
+          if (slug !== undefined && deps.registry.get(slug) === undefined)
+            return {
+              ok: false,
+              error: { code: 'not-found', message: `unknown PersonaBot: ${slug}` },
+            };
+          const target = {
+            slug,
+            providerId: optionalText(input['providerId']),
+            language: optionalText(input['language']),
+          };
+          return kind === 'readiness'
+            ? { ok: true, value: { readiness: dictations.readiness(target) } }
+            : { ok: true, value: { dictation: dictations.open(target) } };
+        }
+        const id = optionalText(input['id']);
+        if (id === undefined) return invalid('id is required');
+        if (kind === 'push')
+          return {
+            ok: true,
+            value: { dictation: dictations.push(id, pcmFromBase64(input['pcm'])) },
+          };
+        if (kind === 'stop') return { ok: true, value: { dictation: await dictations.stop(id) } };
+        if (kind === 'cancel') return { ok: true, value: { dictation: dictations.cancel(id) } };
+        return invalid('kind must be readiness, open, push, stop or cancel');
+      } catch (error) {
+        if (error instanceof VoiceDictationError)
+          return { ok: false, error: { code: error.code, message: error.message } };
+        return failure(error);
+      }
     },
   };
 }

@@ -2722,6 +2722,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   });
   const bridgeMethods = createBridgeMethods({
     voiceProviders: core.voiceProviders,
+    voiceLog: (phase, fields) => diagnosticEvents.record('voice', phase, fields),
     prompts: core.prompts,
     botContext: async (slug) => {
       const sessionId = core.runtime.currentOrchestratorSessionId?.(slug) ?? null;

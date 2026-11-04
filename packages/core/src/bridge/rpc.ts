@@ -5,6 +5,7 @@ import type {
   VoiceSynthesisView,
   VoiceTranscriptionView,
 } from '../voice/bridge.js';
+import type { VoiceDictationReadiness, VoiceDictationView } from '../voice/dictation.js';
 import type { ProviderHealth, VoiceProviderView } from '../voice/providers.js';
 import type { PersonaBotAsr, PersonaBotVoice } from '../bots/persona-bot.js';
 import type { CloudManagementInput, CloudManagementResult } from '../cloud/management.js';
@@ -1360,6 +1361,17 @@ export class BotharnessBridgeService extends TypertRemoteService {
     language?: string,
   ): { slug: string; asr: PersonaBotAsr | null } {
     return unwrap(this.methods.botAsrSet({ slug, providerId, language }));
+  }
+
+  voiceDictation(
+    kind: string,
+    id?: string,
+    pcm?: string,
+    slug?: string,
+    providerId?: string,
+    language?: string,
+  ): Promise<{ readiness: VoiceDictationReadiness } | { dictation: VoiceDictationView }> {
+    return unwrapAsync(this.methods.voiceDictation({ kind, id, pcm, slug, providerId, language }));
   }
 
   approvalReviewerModel(): Promise<ApprovalReviewerModelView> {
@@ -2925,6 +2937,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botVoiceSet',
   'voiceTranscribe',
   'botAsrSet',
+  'voiceDictation',
   'idleCompaction',
   'idleCompactionSet',
   'idleCompactionCacheLifetimeSet',

@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 
+import { readWavAs16kMono } from '../voice/wav.js';
 import { LocalVoiceKitError, writeLocalVoiceKit, type LocalVoiceKit } from '../voice/local-kit.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
@@ -68,6 +69,11 @@ export const VOICE_COMMANDS = [
     command: 'voice-transcribe',
     description:
       'transcribe a test recording --file <absolute audio file> with a Bot binding (--bot) or an ASR Provider (--provider); the audio is not stored',
+  },
+  {
+    command: 'voice-dictate',
+    description:
+      'run composer dictation on a WAV recording --file <absolute .wav>: streams it in 200 ms chunks through the same Host session the composer mic uses (Bot binding with --bot, a Provider with --provider, or the Host default) and prints the live and final text; the audio is not stored',
   },
   {
     command: 'voice-local-kit',
@@ -201,6 +207,7 @@ export async function runVoiceCommand(
       ...(values.language === undefined ? {} : { language: values.language }),
     });
   }
+  if (command === 'voice-dictate') return runVoiceDictate(rest, values, connect);
   if (command === 'voice-transcribe') {
     positionals(command, rest, 0, 'no positional arguments; use --bot or --provider');
     const bot = values.bot?.trim();
@@ -251,4 +258,57 @@ export async function runVoiceCommand(
   }
   const { audio: _audio, ...summary } = result;
   return { ...summary, out };
+}
+
+const DICTATE_CHUNK_SAMPLES = 3_200;
+
+async function runVoiceDictate(
+  rest: string[],
+  values: VoiceValues,
+  connect: () => Promise<Rpc>,
+): Promise<unknown> {
+  positionals('voice-dictate', rest, 0, 'no positional arguments; use --file');
+  if (values.file === undefined || !isAbsolute(values.file))
+    usage('voice-dictate needs --file <absolute .wav file>.');
+  let pcm: Int16Array;
+  try {
+    pcm = readWavAs16kMono(readFileSync(values.file));
+  } catch (error) {
+    throw new CliLiveError(
+      'invalid-input',
+      error instanceof Error && !('code' in error) ? error.message : `Cannot read ${values.file}.`,
+    );
+  }
+  const target = {
+    ...(values.bot?.trim() ? { slug: values.bot.trim() } : {}),
+    ...(values.provider?.trim() ? { providerId: values.provider.trim() } : {}),
+    ...(values.language === undefined ? {} : { language: values.language }),
+  };
+  const rpc = await connect();
+  const opened = (await rpc('voiceDictation', { kind: 'open', ...target })) as {
+    dictation?: { id?: unknown };
+  };
+  const id = opened?.dictation?.id;
+  if (typeof id !== 'string') throw new CliLiveError('invalid-response', 'No dictation id.');
+  const heard: string[] = [];
+  try {
+    for (let offset = 0; offset < pcm.length; offset += DICTATE_CHUNK_SAMPLES) {
+      const chunk = pcm.subarray(offset, offset + DICTATE_CHUNK_SAMPLES);
+      const pushed = (await rpc('voiceDictation', {
+        kind: 'push',
+        id,
+        pcm: Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength).toString('base64'),
+      })) as { dictation?: { text?: unknown; state?: unknown } };
+      const text = pushed?.dictation?.text;
+      if (typeof text === 'string' && text !== '' && heard.at(-1) !== text) heard.push(text);
+      if (pushed?.dictation?.state !== 'listening') break;
+    }
+  } catch (error) {
+    await rpc('voiceDictation', { kind: 'cancel', id }).catch(() => undefined);
+    throw error;
+  }
+  const stopped = (await rpc('voiceDictation', { kind: 'stop', id })) as {
+    dictation?: Record<string, unknown>;
+  };
+  return { ...stopped?.dictation, heard };
 }

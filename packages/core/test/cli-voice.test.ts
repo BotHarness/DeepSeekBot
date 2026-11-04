@@ -14,6 +14,7 @@ import { createVoiceBridgeMethods } from '../src/voice/bridge.js';
 import { VoiceProviders } from '../src/voice/providers.js';
 import { createTempRoot, FIXED_NOW, trackTestOwner } from './helpers.js';
 import { createTestRegistry } from './registry-fixture.js';
+import { concat, silence, speech } from './voice-audio-fixtures.js';
 
 const WAV = Buffer.concat([
   Buffer.from('RIFF'),
@@ -227,5 +228,39 @@ describe('deepseekbot voice commands', () => {
       await expect(run(command, [...rest], values as VoiceValues)).rejects.toMatchObject({
         code: 'usage',
       });
+  });
+
+  it('dictates a WAV through the composer dictation session', async () => {
+    const { run, calls, seen, root, url } = await host();
+    const added = (await run(
+      'voice-provider-add',
+      ['groq'],
+      { kind: 'asr', 'base-url': `${url}/openai/v1`, 'key-stdin': true },
+      'gsk-secret-0123456789\n',
+    )) as { provider: { id: string } };
+    const file = join(root, 'dictate.wav');
+    const { wavFromPcm16 } = await import('../src/voice/providers.js');
+    (await import('node:fs')).writeFileSync(
+      file,
+      wavFromPcm16(concat(silence(300), speech(1_000), silence(300)), 16_000),
+    );
+    const result = (await run('voice-dictate', [], { file })) as Record<string, unknown>;
+    expect(result).toMatchObject({
+      providerId: added.provider.id,
+      mode: 'segments',
+      state: 'done',
+      text: 'call me back tomorrow',
+      audioMs: 1_600,
+    });
+    expect(seen.filter((entry) => entry.url.endsWith('/audio/transcriptions'))).toHaveLength(1);
+    expect(calls.map(([method, payload]) => `${method}:${String(payload['kind'])}`)).toEqual([
+      'voiceProviderAdd:asr',
+      'voiceDictation:open',
+      ...Array.from({ length: 8 }, () => 'voiceDictation:push'),
+      'voiceDictation:stop',
+    ]);
+    await expect(run('voice-dictate', [], { file: 'relative.wav' })).rejects.toMatchObject({
+      code: 'usage',
+    });
   });
 });

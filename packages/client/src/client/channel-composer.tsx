@@ -70,6 +70,8 @@ export interface ChannelComposerActivity {
 }
 
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
+import type { VoiceDictationPort } from './composer-dictation.js';
+import { ComposerMicButton, composerVoicePlaceholder, useComposerVoice } from './composer-voice.js';
 import { useMountedResource } from './mounted-resource.js';
 
 export interface ChannelComposerStop {
@@ -93,6 +95,8 @@ export interface ChannelComposerProps {
   sendKey?: ComposerSendKey | undefined;
   value: string;
   placeholder: string;
+  holdPlaceholder?: string | undefined;
+  dictation?: VoiceDictationPort | undefined;
   sending: boolean;
   focusSignal?: number;
   attachments?: readonly ChannelComposerUpload[] | undefined;
@@ -376,7 +380,9 @@ export function ChannelComposer({
   context,
   sendKey = 'enter',
   value,
-  placeholder,
+  placeholder: basePlaceholder,
+  holdPlaceholder,
+  dictation,
   sending,
   focusSignal = 0,
   attachments = [],
@@ -397,6 +403,19 @@ export function ChannelComposer({
   onRecall,
   onSubmit,
 }: ChannelComposerProps): ReactElement {
+  const voice = useComposerVoice({
+    port: dictation,
+    value,
+    disabled: sending,
+    apply: (next) => {
+      onChange(
+        next,
+        rebaseMentions(value, next, mentions),
+        rebaseChannelRefs(value, next, channelRefs),
+      );
+    },
+  });
+  const placeholder = composerVoicePlaceholder(voice, basePlaceholder, holdPlaceholder, t);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const richRef = useRef<HTMLDivElement | null>(null);
   const requestedCaret = useRef<number | undefined>(undefined);
@@ -741,6 +760,10 @@ export function ChannelComposer({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
+    if (voice.active && event.key === 'Enter') {
+      event.preventDefault();
+      return;
+    }
     if (
       hasShortcutArgument &&
       shortcutOptions.length === 0 &&
@@ -1058,8 +1081,9 @@ export function ChannelComposer({
         </div>
       ) : null}
       <div
-        className={`bh-composer ${fit.expanded ? 'bh-composer-expanded' : 'bh-composer-compact'}${fit.animateFirstExpand ? ' bh-composer-first-expand' : ''}${reply === undefined ? '' : ' bh-composer-replying'}${hasFooter ? ' bh-composer-with-footer' : ''}`}
+        className={`bh-composer ${fit.expanded ? 'bh-composer-expanded' : 'bh-composer-compact'}${fit.animateFirstExpand ? ' bh-composer-first-expand' : ''}${reply === undefined ? '' : ' bh-composer-replying'}${hasFooter ? ' bh-composer-with-footer' : ''}${voice.ready ? ' bh-composer-has-mic' : ''}`}
         data-layout={fit.expanded ? 'expanded' : 'compact'}
+        data-dictation={voice.snapshot.status}
         style={{ '--bh-composer-body-height': `${fit.height}px` } as CSSProperties}
       >
         {reply === undefined ? null : (
@@ -1109,17 +1133,23 @@ export function ChannelComposer({
             )}
           </div>
         ) : null}
-        <div ref={bodyMount} className="bh-composer-body">
+        <div
+          ref={bodyMount}
+          className="bh-composer-body"
+          onPointerDown={voice.holdHandlers.onPointerDown}
+          onContextMenu={voice.holdHandlers.onContextMenu}
+        >
           {rich ? (
             <div
               ref={richMount}
               className="bh-composer-input bh-composer-rich-input"
               role="textbox"
-              aria-label={placeholder}
+              aria-label={basePlaceholder}
               aria-multiline="true"
               aria-disabled={sending}
+              aria-readonly={voice.active || undefined}
               data-placeholder={placeholder}
-              contentEditable={!sending}
+              contentEditable={!sending && !voice.active}
               suppressContentEditableWarning
               onClick={(event) => {
                 const target = event.target;
@@ -1159,8 +1189,10 @@ export function ChannelComposer({
               className="bh-composer-input"
               rows={1}
               placeholder={placeholder}
+              aria-label={basePlaceholder}
               value={value}
               disabled={sending}
+              readOnly={voice.active}
               onChange={(event) => {
                 scheduleSync(event.currentTarget);
                 const next = event.target.value;
@@ -1241,7 +1273,11 @@ export function ChannelComposer({
         >
           <IconPaperclipOutlineRegular size={16} />
         </button>
+        {voice.mounts.map((mount, index) => (
+          <span key={index} ref={mount} hidden />
+        ))}
         <div className="bh-composer-footer">
+          {voice.ready ? <ComposerMicButton voice={voice} disabled={sending} t={t} /> : null}
           {stop?.label !== undefined &&
           !hasVisibleText(value) &&
           attachments.length === 0 &&
@@ -1268,6 +1304,7 @@ export function ChannelComposer({
               disabled={
                 (!hasVisibleText(value) && attachments.length === 0) ||
                 sending ||
+                voice.active ||
                 mentions.some(
                   (item) => item.kind === 'all-bots' && item.preview.recipients.length === 0,
                 ) ||
