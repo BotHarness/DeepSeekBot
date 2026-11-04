@@ -2,8 +2,16 @@ import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
-import { CALL_AUDIO_CONSTRAINTS } from './call-media.js';
+import {
+  micOptions,
+  openMicrophone,
+  readMicDevice,
+  savedMicMissing,
+  writeMicDevice,
+  type MicOption,
+} from './mic-device.js';
 import { Note } from './ds/note.js';
+import { Select } from './ds/select.js';
 import { SettingsRow } from './ds/settings-row.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -60,6 +68,8 @@ const styles = stylex.create({
 
 type MicProblem = 'denied' | 'missing' | undefined;
 
+const SYSTEM_DEFAULT = '\u0000default';
+
 export function VoiceMicTest({
   threshold,
   save,
@@ -74,6 +84,32 @@ export function VoiceMicTest({
   const [draft, setDraft] = useState<number>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [device, setDevice] = useState<string | undefined>(() => readMicDevice());
+  const [devices, setDevices] = useState<readonly MicOption[]>([]);
+  const [fellBack, setFellBack] = useState(false);
+  const refreshDevices = () => {
+    const media = globalThis.navigator?.mediaDevices;
+    if (media?.enumerateDevices === undefined) return;
+    void media
+      .enumerateDevices()
+      .then((list) => {
+        const options = micOptions(list);
+        setDevices(options);
+        const saved = readMicDevice();
+        if (savedMicMissing(saved, options)) {
+          writeMicDevice(undefined);
+          setDevice(undefined);
+          setFellBack(true);
+        }
+      })
+      .catch(() => undefined);
+  };
+  const listMount = useMountedResource<HTMLDivElement>(() => {
+    refreshDevices();
+    const media = globalThis.navigator?.mediaDevices;
+    media?.addEventListener?.('devicechange', refreshDevices);
+    return () => media?.removeEventListener?.('devicechange', refreshDevices);
+  }, []);
   const value = draft ?? threshold.dbfs;
   const limit = useRef(value);
   limit.current = value;
@@ -94,14 +130,18 @@ export function VoiceMicTest({
       setRunning(false);
       return;
     }
-    void media
-      .getUserMedia({ audio: CALL_AUDIO_CONSTRAINTS, video: false })
-      .then((acquired) => {
+    void openMicrophone(media)
+      .then(({ stream: acquired, fellBack: missing }) => {
         if (stopped) {
           for (const track of acquired.getTracks()) track.stop();
           return;
         }
         stream = acquired;
+        if (missing) {
+          setDevice(undefined);
+          setFellBack(true);
+        }
+        refreshDevices();
         const audio = new AudioContext();
         context = audio;
         const analyser = audio.createAnalyser();
@@ -137,7 +177,7 @@ export function VoiceMicTest({
       void context?.close().catch(() => undefined);
       if (fill.current !== null) fill.current.style.width = '0%';
     };
-  }, [running]);
+  }, [running, device]);
   const commit = (dbfs: number | null) => {
     if (save === undefined || busy) return;
     setBusy(true);
@@ -167,6 +207,32 @@ export function VoiceMicTest({
       }
     >
       <div ref={meterMount} {...stylex.props(styles.body)}>
+        <div ref={listMount} {...stylex.props(styles.slider)}>
+          <span>{t('voice.mic.device')}</span>
+          <Select
+            label={t('voice.mic.device')}
+            value={device ?? SYSTEM_DEFAULT}
+            align="start"
+            options={[
+              { value: SYSTEM_DEFAULT, label: t('voice.mic.systemDefault') },
+              ...devices.map((item, index) => ({
+                value: item.id,
+                label: item.label || t('voice.mic.unnamed', { number: index + 1 }),
+              })),
+            ]}
+            onChange={(next) => {
+              const id = next === SYSTEM_DEFAULT ? undefined : next;
+              writeMicDevice(id);
+              setDevice(id);
+              setFellBack(false);
+            }}
+          />
+          <span />
+        </div>
+        {devices.length > 0 && devices.every((item) => item.label === '') ? (
+          <Note tone="muted">{t('voice.mic.labelsHint')}</Note>
+        ) : null}
+        {fellBack ? <Note tone="muted">{t('voice.mic.fellBack')}</Note> : null}
         <div
           {...stylex.props(styles.meter)}
           role="meter"

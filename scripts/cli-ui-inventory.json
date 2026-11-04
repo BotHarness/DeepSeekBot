@@ -519,6 +519,17 @@
       "commands": ["todos", "todo-add", "todo-update", "todo-remove", "todo-tool"]
     },
     {
+      "id": "ui-mic-device",
+      "description": "The microphone this browser uses for dictation, the microphone test and desktop or Web calls.",
+      "scope": "Client device preference",
+      "surfaces": [
+        "storage:packages/client/src/client/mic-device.ts:removeItem(MIC_DEVICE_STORAGE_KEY)",
+        "storage:packages/client/src/client/mic-device.ts:setItem(MIC_DEVICE_STORAGE_KEY)"
+      ],
+      "exemption": "Microphone device ids come from enumerateDevices in one browser profile on one machine and mean nothing to the Host or another Client, so no Host CLI can list or set them. The Host-side capture path is covered by voice-dictate.",
+      "configurable": false
+    },
+    {
       "id": "ui-drafts",
       "description": "Drafts, pending sends and transport request recovery are per-Client delivery state, not configurable settings; sending is already covered by send.",
       "scope": "Client transport / transient state",

@@ -1996,7 +1996,12 @@ export const zh = {
     '还没有语音服务。可以添加 Fish Audio、ElevenLabs、OpenAI，或任何兼容 OpenAI 的本地端点。',
   'voice.mic.title': '麦克风测试',
   'voice.mic.description':
-    '看看麦克风有没有收到声音。竖线是「说话阈值」：音量超过它才算说话。它影响按停顿分段的语音输入（例如本地 SenseVoice）和通话里的说话检测；Soniox 实时转写自己判断断句，不受影响。',
+    '选择这台电脑在这个浏览器里用的麦克风，看看它有没有收到声音。竖线是「说话阈值」：音量超过它才算说话。它影响按停顿分段的语音输入（例如本地 SenseVoice）和通话里的说话检测；Soniox 实时转写自己判断断句，不受影响。',
+  'voice.mic.device': '麦克风',
+  'voice.mic.systemDefault': '系统默认',
+  'voice.mic.unnamed': '麦克风 {number}',
+  'voice.mic.labelsHint': '允许麦克风后显示名称。点「开始测试」授权一次即可。',
+  'voice.mic.fellBack': '之前选的麦克风已不可用，已改用系统默认。',
   'voice.mic.start': '开始测试',
   'voice.mic.stop': '停止',
   'voice.mic.level': '输入音量',
@@ -6817,7 +6822,14 @@ My relationship with you, established lore and topics to avoid: [fill in].
     'No voice services yet. Add Fish Audio, ElevenLabs, OpenAI, or any OpenAI-compatible local endpoint.',
   'voice.mic.title': 'Microphone test',
   'voice.mic.description':
-    'Check that your microphone picks up sound. The line marks the speech threshold: input louder than it counts as speech. It affects pause-cut voice input (such as local SenseVoice) and speech detection in calls. Soniox live transcription finds sentence ends itself and ignores it.',
+    'Choose the microphone this browser uses on this computer and check that it picks up sound. The line marks the speech threshold: input louder than it counts as speech. It affects pause-cut voice input (such as local SenseVoice) and speech detection in calls. Soniox live transcription finds sentence ends itself and ignores it.',
+  'voice.mic.device': 'Microphone',
+  'voice.mic.systemDefault': 'System default',
+  'voice.mic.unnamed': 'Microphone {number}',
+  'voice.mic.labelsHint':
+    'Names appear after you allow the microphone. Start the test once to allow it.',
+  'voice.mic.fellBack':
+    'The microphone you chose is no longer available, so the system default is used.',
   'voice.mic.start': 'Start test',
   'voice.mic.stop': 'Stop',
   'voice.mic.level': 'Input level',

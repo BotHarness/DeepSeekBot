@@ -3,7 +3,7 @@ import type {
   VoiceDictationView,
 } from '../../../core/src/voice/dictation.js';
 import { BridgeCallError, type BridgeCall } from './bridge.js';
-import { CALL_AUDIO_CONSTRAINTS } from './call-media.js';
+import { openMicrophone } from './mic-device.js';
 import { levelDbfs, meterFraction } from './voice-level.js';
 
 export type { VoiceDictationReadiness, VoiceDictationView };
@@ -150,7 +150,7 @@ export function createBrowserDictationMic(
       const generation = epoch;
       let acquired: MediaStream;
       try {
-        acquired = await media.getUserMedia({ audio: CALL_AUDIO_CONSTRAINTS, video: false });
+        acquired = (await openMicrophone(media)).stream;
       } catch (error) {
         const name = (error as { name?: unknown } | undefined)?.name;
         throw new DictationMicError(
