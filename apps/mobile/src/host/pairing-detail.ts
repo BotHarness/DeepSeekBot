@@ -46,3 +46,21 @@ export function isPairingFailureDetail(value: unknown): value is string {
   const segments = value.split(',');
   return segments.length <= MAX_SEGMENTS && segments.every((segment) => SEGMENT.test(segment));
 }
+
+export function pairingDiagnostics(input: {
+  code: string;
+  detail?: string | undefined;
+  method: string;
+  platform: string;
+  osVersion?: string | null;
+  appVersion?: string | null;
+  appBuild?: string | null;
+}): string {
+  return [
+    `reason: ${input.code}`,
+    `detail: ${input.detail ?? 'none'}`,
+    `method: ${input.method}`,
+    `platform: ${input.platform} ${input.osVersion ?? 'unknown'}`,
+    `app: ${input.appVersion ?? 'unknown'} (${input.appBuild ?? 'unknown'})`,
+  ].join('\n');
+}

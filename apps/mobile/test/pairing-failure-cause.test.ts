@@ -5,6 +5,7 @@ import {
   channelFailureDetail,
   isPairingFailureDetail,
   joinFailureDetails,
+  pairingDiagnostics,
   reasonCode,
 } from '../src/host/pairing-detail';
 import { sanitizeEvent } from '../src/telemetry/schema';
@@ -194,5 +195,29 @@ describe('pairing telemetry detail', () => {
     expect(
       joinFailureDetails(['lan:a', 'lan:b', 'lan:c', 'connect:d', 'connect:e'])?.split(','),
     ).toEqual(['lan:b', 'lan:c', 'connect:d', 'connect:e']);
+  });
+});
+
+describe('pairingDiagnostics', () => {
+  it('lists the facts a report needs without any address', () => {
+    expect(
+      pairingDiagnostics({
+        code: 'unreachable',
+        detail: 'lan:channel-timeout,connect:http-530',
+        method: 'qr',
+        platform: 'ios',
+        osVersion: '18.2',
+        appVersion: '1.6.1',
+        appBuild: '42',
+      }),
+    ).toBe(
+      [
+        'reason: unreachable',
+        'detail: lan:channel-timeout,connect:http-530',
+        'method: qr',
+        'platform: ios 18.2',
+        'app: 1.6.1 (42)',
+      ].join('\n'),
+    );
   });
 });
