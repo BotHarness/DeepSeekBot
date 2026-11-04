@@ -9,7 +9,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-it('refreshes once per burst of roster frames and ignores Bot activity frames', async () => {
+it('refreshes once per burst of live frames', async () => {
   let live: (source: 'roster' | 'activity') => void = () => {};
   const call = vi.fn(async (method: string) =>
     method === 'channelUnreadCounts' ? { channels: [] } : { queryVersion: 1, items: [] },
@@ -42,13 +42,14 @@ it('refreshes once per burst of roster frames and ignores Bot activity frames', 
     expect(reads()).toBe(1);
 
     for (let i = 0; i < 20; i++) live('activity');
-    await vi.runAllTimersAsync();
-    expect(reads()).toBe(1);
-
     for (let i = 0; i < 5; i++) live('roster');
     expect(reads()).toBe(1);
     await vi.runAllTimersAsync();
     expect(reads()).toBe(2);
+
+    for (let i = 0; i < 20; i++) live('activity');
+    await vi.runAllTimersAsync();
+    expect(reads()).toBe(3);
   } finally {
     inbox.stop();
   }

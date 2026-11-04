@@ -222,8 +222,7 @@ export function createInbox(
     wasConnected = connected;
   });
   let liveTimer: ReturnType<typeof setTimeout> | undefined;
-  const offLive = client.onLive((source) => {
-    if (source !== 'roster') return;
+  const offLive = client.onLive(() => {
     if (reading !== undefined) {
       readAgain = true;
       return;
