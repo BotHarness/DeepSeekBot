@@ -211,6 +211,7 @@ import {
   type TimelinePageRequest,
   loadSessions,
   setSessionArchived,
+  stopSession,
   moveMemoryLocation,
   loadBots,
   loadMemorySnapshot,
@@ -720,6 +721,7 @@ export interface BridgeActions {
   refreshSessions(slug: string): Promise<void>;
   readSessions(slug: string): Promise<OwnedSessionSummary[]>;
   setSessionArchived(slug: string, sessionId: string, archived: boolean): Promise<void>;
+  stopSession(slug: string, sessionId: string): Promise<void>;
   messageAttachmentTarget(
     channelId: string,
     messageId: string,
@@ -3121,6 +3123,12 @@ export function createActions(
     },
     async setSessionArchived(slug, sessionId, archived) {
       await setSessionArchived(call, slug, sessionId, archived);
+      const selection = currentSelection();
+      if (selection === undefined || selectedBotSlug(selection) !== slug) return;
+      await loadSessionsFor(slug, selection);
+    },
+    async stopSession(slug, sessionId) {
+      await stopSession(call, slug, sessionId);
       const selection = currentSelection();
       if (selection === undefined || selectedBotSlug(selection) !== slug) return;
       await loadSessionsFor(slug, selection);

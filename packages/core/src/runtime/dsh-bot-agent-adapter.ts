@@ -712,6 +712,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   requestAssignment(run: AssignmentAgentRun): AssignmentRequestDelivery {
     this.#assertOpen();
     if (this.#stoppedBots.has(run.bot.slug)) throw new Error('PersonaBot is deleted');
+    this.#stopping.delete(run.sessionId);
     const handle = this.#handles.get(run.sessionId);
     const active = this.#runs.get(run.sessionId);
     if (handle !== undefined && active?.role === 'assignment') {

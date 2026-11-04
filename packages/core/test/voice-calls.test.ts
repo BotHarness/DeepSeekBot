@@ -18,6 +18,7 @@ import {
 } from '../src/voice/calls.js';
 import { createVoiceCallHttp } from '../src/voice/call-http.js';
 import { VoiceProviders } from '../src/voice/providers.js';
+import { joinAudio } from '../src/voice/speech.js';
 import { createTempRoot } from './helpers.js';
 import { chunks, concat, cough, knock, silence, speech } from './voice-audio-fixtures.js';
 
@@ -27,6 +28,12 @@ afterEach(async () => {
 });
 
 const MP3 = Buffer.concat([Buffer.from('ID3'), Buffer.alloc(256, 1)]);
+
+function clipFor(text: string): Uint8Array {
+  return new Uint8Array(
+    Buffer.concat([Buffer.from([0x49, 0x44, 0x33, 4, 0, 0, 0, 0, 0, 0]), Buffer.from(text)]),
+  );
+}
 
 async function fakeSpeechService(transcripts: string[]) {
   const heard: { bytes: number; sampleRate: number; language: string | null }[] = [];
@@ -84,6 +91,8 @@ function fakeMedia(availability: Awaited<ReturnType<VoiceCallMedia['availability
     onStatus: undefined as ((status: 'connected' | 'failed' | 'closed') => void) | undefined,
     answers: [] as string[],
     played: [] as { bytes: number; mime: string }[],
+    audio: [] as Uint8Array[],
+    stopped: 0,
     closed: 0,
     playDelay: undefined as Promise<void> | undefined,
   };
@@ -98,9 +107,22 @@ function fakeMedia(availability: Awaited<ReturnType<VoiceCallMedia['availability
           state.answers.push(answer.sdp);
           queueMicrotask(() => onStatus('connected'));
         },
-        async play(audio, mime) {
+        async play(audio, mime, signal) {
           state.played.push({ bytes: audio.byteLength, mime });
-          await state.playDelay;
+          state.audio.push(audio.slice());
+          if (state.playDelay === undefined) return;
+          await new Promise<void>((resolve) => {
+            const stop = () => {
+              state.stopped += 1;
+              resolve();
+            };
+            if (signal.aborted) return stop();
+            signal.addEventListener('abort', stop, { once: true });
+            void state.playDelay!.then(() => {
+              signal.removeEventListener('abort', stop);
+              resolve();
+            });
+          });
         },
         async close() {
           state.closed += 1;
@@ -132,11 +154,16 @@ function harness(
         };
   const transcribed: Uint8Array[] = [];
   const transcripts = ['帮我查一下明天的天气', '第二句话'];
+  const synthesized: string[] = [];
   const providers: VoiceCallsDeps['providers'] = options.providers ?? {
     has: (id, kind) => id.startsWith(kind),
     async transcribe({ audio }) {
       transcribed.push(audio);
       return { text: transcripts.shift() ?? '', latencyMs: 5 };
+    },
+    async synthesize({ text }) {
+      synthesized.push(text);
+      return { audio: clipFor(text), mime: 'audio/mpeg' };
     },
   };
   const calls = createVoiceCalls({
@@ -162,8 +189,10 @@ function harness(
     calls,
     sent,
     transcribed,
+    synthesized,
     phone,
     ok,
+    at: () => new Date(clock).toISOString(),
     advance: (ms: number) => {
       clock += ms;
     },
@@ -213,6 +242,7 @@ describe('Host call owner', () => {
       },
     });
     const callId = await connected(h);
+    await new Promise((resolve) => setTimeout(resolve, 50));
     expect(state.answers).toEqual(['v=0\r\n']);
     expect((await view(h, callId)).phase).toBe('listening');
 
@@ -234,28 +264,39 @@ describe('Host call owner', () => {
       },
     ]);
     let current = await view(h, callId);
-    expect(types(current.events)).toEqual(['connected', 'speech-start', 'transcribing', 'sent']);
+    expect(types(current.events)).toEqual([
+      'connected',
+      'speech-start',
+      'ack',
+      'transcribing',
+      'sent',
+    ]);
 
-    const speechAudio = await providers.synthesize({ providerId: tts.id, text: '会下雨，带伞。' });
     h.advance(1_200);
-    h.calls.deliverVoice({
+    const archived = await h.calls.speak({
+      at: h.at(),
       slug: 'mira',
       channelId: 'dm-mira',
       messageId: 'bot-reply-1',
-      at: new Date(1_000_000 + 5_000).toISOString(),
-      audio: speechAudio.audio,
-      mime: speechAudio.mime,
+      body: '会下雨，带伞。',
     });
     await settled();
-    expect(state.played).toEqual([{ bytes: MP3.length, mime: 'audio/mpeg' }]);
+    expect(archived).toEqual({ audio: new Uint8Array(MP3), mime: 'audio/mpeg' });
+    expect(state.played).toEqual([
+      { bytes: MP3.length, mime: 'audio/mpeg' },
+      { bytes: MP3.length, mime: 'audio/mpeg' },
+    ]);
     current = await view(h, callId, current.lastSeq);
     expect(current.events).toEqual([
+      expect.objectContaining({ type: 'committed', messageId: 'bot-reply-1', reused: 0 }),
       expect.objectContaining({
         type: 'playing',
         messageId: 'bot-reply-1',
+        sentence: 0,
         responseMs: 1_200,
       }),
       expect.objectContaining({ type: 'played', messageId: 'bot-reply-1' }),
+      expect.objectContaining({ type: 'reply-done', messageId: 'bot-reply-1', sentences: 1 }),
     ]);
     expect(current.phase).toBe('listening');
   });
@@ -301,13 +342,12 @@ describe('Host call owner', () => {
     const callId = await connected(h);
     let finish!: () => void;
     state.playDelay = new Promise<void>((resolve) => (finish = resolve));
-    h.calls.deliverVoice({
+    await h.calls.speak({
+      at: h.at(),
       slug: 'mira',
       channelId: 'dm-mira',
       messageId: 'm1',
-      at: new Date(1_000_500).toISOString(),
-      audio: MP3,
-      mime: 'audio/mpeg',
+      body: '好的。',
     });
     await settled();
     expect((await view(h, callId)).phase).toBe('bot-speaking');
@@ -320,7 +360,7 @@ describe('Host call owner', () => {
     expect((await view(h, callId)).phase).not.toBe('bot-speaking');
   });
 
-  it('shows busy while the Orchestrator runs a turn and plays nothing for it', async () => {
+  it('shows busy while the Orchestrator runs a turn and plays only the acknowledgement', async () => {
     let busy = false;
     const { media, state } = fakeMedia();
     const h = harness({ media, busy: () => busy });
@@ -332,7 +372,7 @@ describe('Host call owner', () => {
     h.feed(state.onPcm!, concat(silence(300), speech(1000), silence(900)));
     await settled();
     expect(h.sent).toHaveLength(1);
-    expect(state.played).toEqual([]);
+    expect(state.audio).toEqual([clipFor('嗯。')]);
     busy = false;
     const after = await view(h, callId, during.lastSeq);
     expect(after.busy).toBe(false);
@@ -371,6 +411,7 @@ describe('Host call owner', () => {
           }
           return { text: '再试一次', latencyMs: 1 };
         },
+        synthesize: async ({ text }) => ({ audio: clipFor(text), mime: 'audio/mpeg' }),
       },
     });
     const callId = await connected(h);
@@ -503,7 +544,8 @@ describe('Host call owner', () => {
         seen.push(caller);
         return { ok: true };
       },
-      deliverVoice: () => undefined,
+      draft: () => undefined,
+      speak: async () => undefined,
       revoke: async () => undefined,
       dispose: async () => undefined,
     }));
@@ -557,13 +599,12 @@ describe('Host call owner', () => {
     }
     await settled();
     expect(h.sent.map((item) => item.body)).toEqual(['帮我查一下明天的天气']);
-    h.calls.deliverVoice({
+    await h.calls.speak({
+      at: h.at(),
       slug: 'mira',
       channelId: 'dm-mira',
       messageId: 'r1',
-      at: new Date().toISOString(),
-      audio: MP3,
-      mime: 'audio/mpeg',
+      body: '晴天。',
     });
     await settled();
     expect(types((await view(h, call.callId)).events)).toEqual(
@@ -578,27 +619,328 @@ describe('Host call owner', () => {
     ).toMatchObject({ ok: false, code: 'call-ended' });
   });
 
-  it('plays only replies from the called Bot, committed during the call', async () => {
+  it('speaks only the called Bot in its DM, and only drafts that asked for voice first', async () => {
     const { media, state } = fakeMedia();
     const h = harness({ media });
     await connected(h);
-    h.calls.deliverVoice({
-      slug: 'other',
-      channelId: 'dm-other',
-      messageId: 'x',
-      at: new Date(1_000_100).toISOString(),
-      audio: MP3,
-      mime: 'audio/mpeg',
-    });
-    h.calls.deliverVoice({
-      slug: 'mira',
-      channelId: 'dm-mira',
-      messageId: 'old',
-      at: new Date(900_000).toISOString(),
-      audio: MP3,
-      mime: 'audio/mpeg',
-    });
+    expect(
+      await h.calls.speak({
+        at: h.at(),
+        slug: 'other',
+        channelId: 'dm-other',
+        messageId: 'x',
+        body: '你好。',
+      }),
+    ).toBeUndefined();
+    for (const draft of [
+      { channelId: 'dm-other', botSlug: 'other', voice: true as const },
+      { channelId: 'dm-mira', botSlug: 'mira' },
+      { channelId: 'group-1', botSlug: 'mira', voice: true as const },
+    ])
+      h.calls.draft({
+        type: 'update',
+        draft: { ...draft, draftId: 'a:1', attemptId: 'a', body: '第一句。第二句。第三' },
+      });
     await settled();
     expect(state.played).toEqual([]);
+    expect(h.synthesized).toEqual(['嗯。']);
+  });
+});
+
+describe('streamed voice replies', () => {
+  function stream(h: ReturnType<typeof harness>, draftId = 'a1:c1') {
+    const attemptId = draftId.split(':')[0]!;
+    return {
+      update(body: string, extra: { bodyComplete?: true; voice?: false } = {}) {
+        h.calls.draft({
+          type: 'update',
+          draft: {
+            channelId: 'dm-mira',
+            draftId,
+            attemptId,
+            botSlug: 'mira',
+            body,
+            ...(extra.voice === false ? {} : { voice: true }),
+            ...(extra.bodyComplete === undefined ? {} : { bodyComplete: true }),
+          },
+        });
+      },
+      settled() {
+        h.calls.draft({ type: 'settled', channelId: 'dm-mira', draftId, attemptId });
+      },
+      abandoned() {
+        h.calls.draft({
+          type: 'abandoned',
+          channelId: 'dm-mira',
+          draftId,
+          attemptId,
+          reason: 'interrupted',
+        });
+      },
+    };
+  }
+
+  async function heardQuestion(h: ReturnType<typeof harness>, onPcm: (pcm: Int16Array) => void) {
+    h.feed(onPcm, concat(silence(300), speech(1200), silence(900)));
+    await settled();
+  }
+
+  it('says "嗯" right after the Human stops, speaks the first sentence before the commit and archives what played', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const callId = await connected(h);
+    await heardQuestion(h, state.onPcm!);
+    const draft = stream(h);
+    h.advance(800);
+    draft.update('明天');
+    h.advance(200);
+    draft.update('明天会下雨。带');
+    await settled();
+    h.advance(300);
+    draft.update('明天会下雨。带上伞吧。');
+    draft.update('明天会下雨。带上伞吧。', { bodyComplete: true });
+    await settled();
+    draft.settled();
+    h.advance(400);
+    const archived = await h.calls.speak({
+      at: h.at(),
+      slug: 'mira',
+      channelId: 'dm-mira',
+      messageId: 'bot-1',
+      body: '明天会下雨。带上伞吧。',
+    });
+    await settled();
+
+    const events = (await view(h, callId)).events;
+    const at = (type: string, extra: Record<string, unknown> = {}) =>
+      events.find(
+        (event) =>
+          event.type === type &&
+          Object.entries(extra).every(
+            ([key, value]) => (event as Record<string, unknown>)[key] === value,
+          ),
+      )!.at;
+    expect(types(events)).toEqual([
+      'connected',
+      'speech-start',
+      'ack',
+      'transcribing',
+      'sent',
+      'reply-text',
+      'playing',
+      'played',
+      'playing',
+      'played',
+      'committed',
+      'reply-done',
+    ]);
+    expect((events.find((event) => event.type === 'ack') as { ms: number }).ms).toBeLessThanOrEqual(
+      200,
+    );
+    expect(at('ack')).toBeLessThanOrEqual(at('sent'));
+    expect(events.find((event) => event.type === 'reply-text')).toMatchObject({ responseMs: 800 });
+    expect(events.find((event) => event.type === 'playing')).toMatchObject({
+      sentence: 0,
+      responseMs: 1_000,
+    });
+    expect(at('playing', { sentence: 0 })).toBeLessThan(at('committed'));
+    expect(events.find((event) => event.type === 'committed')).toMatchObject({
+      messageId: 'bot-1',
+      reused: 2,
+      synthesized: 0,
+    });
+    expect(h.synthesized).toEqual(['嗯。', '明天会下雨。', '带上伞吧。']);
+    expect(state.audio).toEqual([clipFor('嗯。'), clipFor('明天会下雨。'), clipFor('带上伞吧。')]);
+    expect(archived).toEqual(
+      joinAudio(state.audio.slice(1).map((audio) => ({ audio, mime: 'audio/mpeg' }))),
+    );
+    expect(Buffer.from(archived!.audio).toString('latin1')).toContain(
+      Buffer.from('明天会下雨。带上伞吧。').toString('latin1'),
+    );
+  });
+
+  it('stops at once and keeps nothing when the draft is abandoned', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const callId = await connected(h);
+    await heardQuestion(h, state.onPcm!);
+    state.playDelay = new Promise<void>(() => undefined);
+    const draft = stream(h);
+    draft.update('第一句话。第二句话。第三');
+    await settled();
+    expect((await view(h, callId)).phase).toBe('bot-speaking');
+    draft.abandoned();
+    await settled();
+    const current = await view(h, callId);
+    expect(state.stopped).toBe(1);
+    expect(state.audio).toEqual([clipFor('嗯。'), clipFor('第一句话。')]);
+    expect(current.phase).toBe('listening');
+    expect(types(current.events).slice(-3)).toEqual(['reply-text', 'playing', 'reply-stopped']);
+    expect(current.events.at(-1)).toMatchObject({ reason: 'abandoned' });
+
+    state.playDelay = undefined;
+    const archived = await h.calls.speak({
+      at: h.at(),
+      slug: 'mira',
+      channelId: 'dm-mira',
+      messageId: 'bot-2',
+      body: '换个说法。',
+    });
+    await settled();
+    expect(archived).toEqual({ audio: clipFor('换个说法。'), mime: 'audio/mpeg' });
+    expect((await view(h, callId)).events.at(-1)).toMatchObject({
+      type: 'reply-done',
+      messageId: 'bot-2',
+    });
+  });
+
+  it('falls back to speaking after the commit when voice came after the body', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const callId = await connected(h);
+    await heardQuestion(h, state.onPcm!);
+    const draft = stream(h);
+    draft.update('第一句。第二句。', { voice: false, bodyComplete: true });
+    await settled();
+    expect(state.audio).toEqual([clipFor('嗯。')]);
+    draft.settled();
+    const archived = await h.calls.speak({
+      at: h.at(),
+      slug: 'mira',
+      channelId: 'dm-mira',
+      messageId: 'bot-3',
+      body: '第一句。第二句。',
+    });
+    await settled();
+    const events = (await view(h, callId)).events;
+    expect(types(events).slice(-6)).toEqual([
+      'committed',
+      'playing',
+      'played',
+      'playing',
+      'played',
+      'reply-done',
+    ]);
+    expect(events.find((event) => event.type === 'committed')).toMatchObject({
+      reused: 0,
+      synthesized: 2,
+    });
+    expect(archived).toEqual(
+      joinAudio(
+        [clipFor('第一句。'), clipFor('第二句。')].map((audio) => ({ audio, mime: 'audio/mpeg' })),
+      ),
+    );
+  });
+
+  it('reuses the sentences that match the committed text and speaks the rewritten rest', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const callId = await connected(h);
+    await heardQuestion(h, state.onPcm!);
+    stream(h).update('好的。我来看看。然后');
+    await settled();
+    const archived = await h.calls.speak({
+      at: h.at(),
+      slug: 'mira',
+      channelId: 'dm-mira',
+      messageId: 'bot-4',
+      body: '好的。明天晴。',
+    });
+    await settled();
+    expect(
+      (await view(h, callId)).events.find((event) => event.type === 'committed'),
+    ).toMatchObject({
+      reused: 1,
+      synthesized: 1,
+    });
+    expect(state.audio.slice(1)).toEqual([
+      clipFor('好的。'),
+      clipFor('我来看看。'),
+      clipFor('明天晴。'),
+    ]);
+    expect(archived).toEqual(
+      joinAudio(
+        [clipFor('好的。'), clipFor('明天晴。')].map((audio) => ({ audio, mime: 'audio/mpeg' })),
+      ),
+    );
+  });
+
+  it('never restarts a draft it stopped, even when the draft keeps streaming', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const callId = await connected(h);
+    await heardQuestion(h, state.onPcm!);
+    const draft = stream(h);
+    draft.update('好的。我来看看。然后');
+    await settled();
+    draft.update('好吧。别的说法。然后');
+    await settled();
+    draft.update('好吧。别的说法。然后再说。还有');
+    await settled();
+    expect(state.audio.slice(1)).toEqual([clipFor('好的。'), clipFor('我来看看。')]);
+    const events = (await view(h, callId)).events;
+    expect(events.filter((event) => event.type === 'reply-stopped')).toEqual([
+      expect.objectContaining({ reason: 'revised' }),
+    ]);
+    expect(events.filter((event) => event.type === 'reply-text')).toHaveLength(1);
+  });
+
+  it('stops at once when the draft takes back a sentence it already queued', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const callId = await connected(h);
+    await heardQuestion(h, state.onPcm!);
+    const draft = stream(h);
+    draft.update('好的。马上转账。然后');
+    await settled();
+    draft.update('好的。');
+    await settled();
+    const events = (await view(h, callId)).events;
+    expect(events.filter((event) => event.type === 'reply-stopped')).toEqual([
+      expect.objectContaining({ reason: 'revised' }),
+    ]);
+  });
+
+  it('does not speak a message written before the call started', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    await connected(h);
+    await heardQuestion(h, state.onPcm!);
+    const before = state.audio.length;
+    expect(
+      await h.calls.speak({
+        at: new Date(0).toISOString(),
+        slug: 'mira',
+        channelId: 'dm-mira',
+        messageId: 'old',
+        body: '旧消息。',
+      }),
+    ).toBeUndefined();
+    await settled();
+    expect(state.audio).toHaveLength(before);
+  });
+
+  it('keeps synthesizing the archive when the call ends mid-reply', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const callId = await connected(h);
+    await heardQuestion(h, state.onPcm!);
+    state.playDelay = new Promise<void>(() => undefined);
+    const spoken = h.calls.speak({
+      at: h.at(),
+      slug: 'mira',
+      channelId: 'dm-mira',
+      messageId: 'bot-5',
+      body: '第一句。第二句。',
+    });
+    await settled();
+    await h.ok({ kind: 'hangup', callId });
+    expect(await spoken).toEqual(
+      joinAudio(
+        [clipFor('第一句。'), clipFor('第二句。')].map((audio) => ({ audio, mime: 'audio/mpeg' })),
+      ),
+    );
+    expect(state.stopped).toBe(1);
+    expect(state.audio).toHaveLength(2);
   });
 });

@@ -11,7 +11,7 @@ export const VOICE_CALL_LIMITS = {
   heartbeatLossMs: 8_000,
   connectTimeoutMs: 20_000,
   heartbeatMs: 1_000,
-  events: 64,
+  events: 256,
   maxUtteranceMs: 30_000,
   playbackTailMs: 300,
 } as const;
@@ -49,16 +49,59 @@ export type VoiceCallEvent =
     }
   | { seq: number; at: number; type: 'asr-failed'; code: string; message: string }
   | { seq: number; at: number; type: 'send-failed'; code: string; message: string }
+  | { seq: number; at: number; type: 'ack'; ms: number }
+  | { seq: number; at: number; type: 'reply-text'; replyId: string; responseMs?: number }
   | {
       seq: number;
       at: number;
       type: 'playing';
-      messageId: string;
+      replyId: string;
+      sentence: number;
+      messageId?: string;
       bytes: number;
       responseMs?: number;
     }
-  | { seq: number; at: number; type: 'played'; messageId: string }
-  | { seq: number; at: number; type: 'playback-failed'; messageId: string; code: string }
+  | {
+      seq: number;
+      at: number;
+      type: 'played';
+      replyId: string;
+      sentence: number;
+      messageId?: string;
+    }
+  | {
+      seq: number;
+      at: number;
+      type: 'playback-failed';
+      replyId: string;
+      sentence: number;
+      messageId?: string;
+      code: string;
+    }
+  | {
+      seq: number;
+      at: number;
+      type: 'committed';
+      replyId: string;
+      messageId: string;
+      reused: number;
+      synthesized: number;
+    }
+  | {
+      seq: number;
+      at: number;
+      type: 'reply-stopped';
+      replyId: string;
+      reason: 'abandoned' | 'revised' | 'replaced';
+    }
+  | {
+      seq: number;
+      at: number;
+      type: 'reply-done';
+      replyId: string;
+      messageId: string;
+      sentences: number;
+    }
   | { seq: number; at: number; type: 'busy' }
   | { seq: number; at: number; type: 'idle' }
   | { seq: number; at: number; type: 'muted' }
