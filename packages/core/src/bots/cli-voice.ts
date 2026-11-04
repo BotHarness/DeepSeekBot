@@ -67,6 +67,16 @@ export const VOICE_COMMANDS = [
       "bind a Bot's speech recognition for calls: <bot> <asr-provider-id> [--language <code>], or <bot> off",
   },
   {
+    command: 'voice-defaults',
+    description:
+      'show the Host-wide default TTS and speech recognition Providers that every Bot without its own binding uses',
+  },
+  {
+    command: 'voice-default-set',
+    description:
+      'set the Host-wide default: tts <provider-id> [--voice <id>], asr <provider-id> [--language <code>], or <tts|asr> off',
+  },
+  {
     command: 'voice-transcribe',
     description:
       'transcribe a test recording --file <absolute audio file> with a Bot binding (--bot) or an ASR Provider (--provider); the audio is not stored',
@@ -205,6 +215,29 @@ export async function runVoiceCommand(
     return rpc('botAsrSet', {
       slug,
       providerId,
+      ...(values.language === undefined ? {} : { language: values.language }),
+    });
+  }
+  if (command === 'voice-defaults') {
+    positionals(command, rest, 0, 'no positional arguments');
+    const rpc = await connect();
+    const view = (await rpc('voiceProviders', {})) as { defaults?: unknown };
+    return { defaults: view.defaults ?? { tts: null, asr: null } };
+  }
+  if (command === 'voice-default-set') {
+    const [kind, target] = positionals(command, rest, 2, 'tts or asr, and a Provider id (or off)');
+    if (kind !== 'tts' && kind !== 'asr') usage('The first argument is tts or asr.');
+    if (kind === 'tts' && values.language !== undefined)
+      usage('--language applies to the asr default.');
+    if (kind === 'asr' && values.voice !== undefined) usage('--voice applies to the tts default.');
+    const off = target === 'off';
+    if (off && (values.voice !== undefined || values.language !== undefined))
+      usage('--voice and --language do not apply to `off`.');
+    const rpc = await connect();
+    return rpc('voiceDefaultSet', {
+      kind,
+      providerId: off ? null : target,
+      ...(values.voice === undefined ? {} : { voiceId: values.voice }),
       ...(values.language === undefined ? {} : { language: values.language }),
     });
   }

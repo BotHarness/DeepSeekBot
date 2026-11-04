@@ -9,9 +9,11 @@ import {
   type AsrProviderView,
   type ProviderHealth,
   type TtsProviderView,
+  type VoiceDefaults,
   type VoiceProviderView,
   type VoiceProviders,
 } from './providers.js';
+import { withVoiceDefaults } from './defaults.js';
 import { speakableText } from './speakable.js';
 import {
   createVoiceDictations,
@@ -27,6 +29,7 @@ export interface VoiceProvidersView {
   providers: TtsProviderView[];
   asrPresets: readonly AsrPreset[];
   asrProviders: AsrProviderView[];
+  defaults: VoiceDefaults;
   bot?: { slug: string; selected: PersonaBotVoice | null; asr: PersonaBotAsr | null };
 }
 
@@ -58,6 +61,7 @@ export interface VoiceBridgeMethods {
   botVoiceSet(payload: unknown): BridgeResult<{ slug: string; voice: PersonaBotVoice | null }>;
   voiceTranscribe(payload: unknown): Promise<BridgeResult<VoiceTranscriptionView>>;
   botAsrSet(payload: unknown): BridgeResult<{ slug: string; asr: PersonaBotAsr | null }>;
+  voiceDefaultSet(payload: unknown): BridgeResult<{ defaults: VoiceDefaults }>;
   voiceDictation(
     payload: unknown,
   ): Promise<
@@ -91,11 +95,17 @@ export function createVoiceBridgeMethods(deps: {
   dictations?: VoiceDictations | undefined;
   log?: ((phase: string, fields: Record<string, string | number>) => void) | undefined;
 }): VoiceBridgeMethods {
+  const effective = (slug: string) =>
+    withVoiceDefaults(
+      deps.registry.get(slug),
+      deps.providers === undefined ? undefined : () => deps.providers!.defaults(),
+    );
   const dictations =
     deps.dictations ??
     createVoiceDictations({
       providers: () => deps.providers,
-      botAsr: (slug) => deps.registry.get(slug)?.asr ?? null,
+      botAsr: (slug) => effective(slug)?.asr ?? null,
+      defaultAsr: () => deps.providers?.defaults().asr ?? null,
       log: deps.log,
     });
   const unavailable = (): BridgeResult<never> => ({
@@ -128,6 +138,7 @@ export function createVoiceBridgeMethods(deps: {
           providers: providers.list(),
           asrPresets: providers.asrPresets(),
           asrProviders: providers.listAsr(),
+          defaults: providers.defaults(),
           ...(bot === undefined
             ? {}
             : { bot: { slug: bot.slug, selected: bot.voice ?? null, asr: bot.asr ?? null } }),
@@ -194,7 +205,7 @@ export function createVoiceBridgeMethods(deps: {
       if (deps.providers === undefined) return unavailable();
       const input = record(payload);
       const slug = optionalText(input['slug']);
-      const bot = slug === undefined ? undefined : deps.registry.get(slug);
+      const bot = slug === undefined ? undefined : effective(slug);
       if (slug !== undefined && bot === undefined)
         return {
           ok: false,
@@ -279,7 +290,7 @@ export function createVoiceBridgeMethods(deps: {
       if (deps.providers === undefined) return unavailable();
       const input = record(payload);
       const slug = optionalText(input['slug']);
-      const bot = slug === undefined ? undefined : deps.registry.get(slug);
+      const bot = slug === undefined ? undefined : effective(slug);
       if (slug !== undefined && bot === undefined)
         return { ok: false, error: { code: 'not-found', message: `unknown PersonaBot: ${slug}` } };
       const providerId = optionalText(input['providerId']) ?? bot?.asr?.providerId;
@@ -341,6 +352,35 @@ export function createVoiceBridgeMethods(deps: {
           ? { ok: false, error: { code: 'not-found', message: `unknown PersonaBot: ${slug}` } }
           : invalid('the ASR binding is not valid (language is a code such as en or zh)');
       return { ok: true, value: { slug, asr: result.record.asr ?? null } };
+    },
+    voiceDefaultSet(payload) {
+      if (deps.providers === undefined) return unavailable();
+      const input = record(payload);
+      const kind = input['kind'];
+      if (kind !== 'tts' && kind !== 'asr') return invalid('kind must be tts or asr');
+      const providerId = input['providerId'];
+      if (providerId !== null && typeof providerId !== 'string')
+        return invalid('providerId (a Provider id, or null for none) is required');
+      for (const field of ['voiceId', 'language'])
+        if (input[field] !== undefined && input[field] !== null && typeof input[field] !== 'string')
+          return invalid(`${field} must be text`);
+      const voiceId = optionalText(input['voiceId']);
+      const language = optionalText(input['language']);
+      try {
+        const defaults = deps.providers.setDefault(
+          kind,
+          providerId === null
+            ? null
+            : {
+                providerId,
+                ...(voiceId === undefined ? {} : { voiceId }),
+                ...(language === undefined ? {} : { language }),
+              },
+        );
+        return { ok: true, value: { defaults } };
+      } catch (error) {
+        return failure(error);
+      }
     },
     async voiceDictation(payload) {
       if (deps.providers === undefined) return unavailable();

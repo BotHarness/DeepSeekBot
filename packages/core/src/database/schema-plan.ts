@@ -2811,6 +2811,20 @@ const ATTENTION_RESOLUTION_INDEX_MIGRATION: SchemaMigration = {
   },
 };
 
+const VOICE_DEFAULTS_MIGRATION: SchemaMigration = {
+  generation: 127,
+  module: 'voice',
+  description: 'Store the Host-wide default TTS and ASR Provider every Bot falls back to',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE voice_defaults (
+        kind TEXT PRIMARY KEY CHECK (kind IN ('tts', 'asr')),
+        body TEXT NOT NULL CHECK (json_valid(body))
+      );
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2937,4 +2951,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   PLACEMENT_HUMAN_REPLY_MIGRATION,
   BOUNDED_RANGE_INDEX_MIGRATION,
   ATTENTION_RESOLUTION_INDEX_MIGRATION,
+  VOICE_DEFAULTS_MIGRATION,
 ]);

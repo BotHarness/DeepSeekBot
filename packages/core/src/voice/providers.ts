@@ -18,6 +18,7 @@ import {
   asrPreset,
   TTS_PRESETS,
   ttsPreset,
+  uniqueProviderName,
   type AsrPreset,
   type AsrWire,
   type TtsPreset,
@@ -36,6 +37,11 @@ const PROVIDER_ID = /^(?:tts|asr)-[a-f0-9]{12}$/u;
 const LANGUAGE = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$/u;
 
 export type VoiceProviderKind = 'tts' | 'asr';
+
+export interface VoiceDefaults {
+  tts: { providerId: string; voiceId?: string } | null;
+  asr: { providerId: string; language?: string } | null;
+}
 const HEALTH_TEXT = 'Hello.';
 
 export type VoiceErrorCode =
@@ -474,7 +480,7 @@ export class VoiceProviders {
       throw new VoiceError('invalid-input', 'kind must be tts or asr.');
     if (input.kind === 'asr') return this.#addAsr(input);
     const preset = presetOf(String(input.preset ?? ''));
-    const name = cleanText(input.name, 'Name', 80) ?? preset.name;
+    const name = cleanText(input.name, 'Name', 80) ?? this.#defaultName(preset.name);
     const rawBase = cleanText(input.baseUrl, 'Base URL', 500);
     if (preset.baseUrl === undefined && rawBase === undefined)
       throw new VoiceError('invalid-input', 'A custom TTS Provider needs a base URL.');
@@ -505,7 +511,7 @@ export class VoiceProviders {
     const preset = asrPresetOf(String(input.preset ?? ''));
     if (input.defaultVoice !== undefined)
       throw new VoiceError('invalid-input', 'A speech recognition Provider has no voice.');
-    const name = cleanText(input.name, 'Name', 80) ?? preset.name;
+    const name = cleanText(input.name, 'Name', 80) ?? this.#defaultName(preset.name);
     const rawBase = cleanText(input.baseUrl, 'Base URL', 500);
     if (preset.baseUrl === undefined && rawBase === undefined)
       throw new VoiceError('invalid-input', 'A custom ASR Provider needs a base URL.');
@@ -535,6 +541,83 @@ export class VoiceProviders {
     return asrView(stored);
   }
 
+  #defaultName(base: string): string {
+    return uniqueProviderName(
+      base,
+      this.#all().map((stored) => stored.name),
+    );
+  }
+
+  defaults(): VoiceDefaults {
+    const rows = this.#db.read((db) =>
+      db.prepare('SELECT kind, body FROM voice_defaults').all(),
+    ) as { kind: string; body: string }[];
+    const result: VoiceDefaults = { tts: null, asr: null };
+    for (const row of rows) {
+      let body: Record<string, unknown>;
+      try {
+        body = JSON.parse(row.body) as Record<string, unknown>;
+      } catch {
+        continue;
+      }
+      const providerId = body['providerId'];
+      if (typeof providerId !== 'string') continue;
+      if (row.kind === 'tts' && this.has(providerId, 'tts'))
+        result.tts = {
+          providerId,
+          ...(typeof body['voiceId'] === 'string' ? { voiceId: body['voiceId'] } : {}),
+        };
+      if (row.kind === 'asr' && this.has(providerId, 'asr'))
+        result.asr = {
+          providerId,
+          ...(typeof body['language'] === 'string' ? { language: body['language'] } : {}),
+        };
+    }
+    return result;
+  }
+
+  setDefault(
+    kind: VoiceProviderKind,
+    binding: { providerId: string; voiceId?: string; language?: string } | null,
+  ): VoiceDefaults {
+    if (kind !== 'tts' && kind !== 'asr')
+      throw new VoiceError('invalid-input', 'kind must be tts or asr.');
+    if (binding === null) {
+      this.#db.transaction(
+        (db) => db.prepare('DELETE FROM voice_defaults WHERE kind = ?').run(kind),
+        ['voice'],
+      );
+      this.#log('default-cleared', { kind });
+      return this.defaults();
+    }
+    this.#stored(binding.providerId, kind);
+    const body: Record<string, string> = { providerId: binding.providerId };
+    if (kind === 'tts') {
+      if (binding.language !== undefined)
+        throw new VoiceError('invalid-input', 'A TTS default has no language.');
+      const voiceId = cleanText(binding.voiceId, 'Voice', 200);
+      if (voiceId !== undefined) body['voiceId'] = voiceId;
+    } else {
+      if (binding.voiceId !== undefined)
+        throw new VoiceError('invalid-input', 'A speech recognition default has no voice.');
+      const language = cleanText(binding.language, 'Language', 16);
+      if (language !== undefined && !LANGUAGE.test(language))
+        throw new VoiceError('invalid-input', 'Language must be a code such as en or zh.');
+      if (language !== undefined) body['language'] = language;
+    }
+    this.#db.transaction(
+      (db) =>
+        db
+          .prepare(
+            'INSERT INTO voice_defaults (kind, body) VALUES (?, ?) ON CONFLICT(kind) DO UPDATE SET body = excluded.body',
+          )
+          .run(kind, JSON.stringify(body)),
+      ['voice'],
+    );
+    this.#log('default-set', { kind, provider: binding.providerId });
+    return this.defaults();
+  }
+
   async #insert(stored: StoredProvider, key: string | undefined): Promise<void> {
     const id = stored.id;
     if (key !== undefined) {
@@ -557,7 +640,12 @@ export class VoiceProviders {
   async remove(id: string): Promise<VoiceProviderView> {
     const stored = this.#stored(id);
     this.#db.transaction(
-      (db) => db.prepare('DELETE FROM voice_providers WHERE id = ?').run(id),
+      (db) => {
+        db.prepare('DELETE FROM voice_providers WHERE id = ?').run(id);
+        db.prepare("DELETE FROM voice_defaults WHERE json_extract(body, '$.providerId') = ?").run(
+          id,
+        );
+      },
       ['voice'],
     );
     if (stored.credentialRevision !== undefined)

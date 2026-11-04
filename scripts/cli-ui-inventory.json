@@ -250,12 +250,14 @@
     },
     {
       "id": "voice",
-      "description": "TTS Providers (add, test, remove) and each Bot's voice binding and preview.",
+      "description": "TTS and ASR Providers (add, test, remove), the Host-wide default for each, and each Bot's voice and speech recognition override and preview.",
       "scope": "Host",
       "surfaces": [
-        "setting:packages/client/src/client/voice-settings.tsx:{t('voice.providers.new')}",
+        "setting:packages/client/src/client/voice-settings.tsx:{kind === 'tts' ? t('voice.providers.new') : t('voice.asr.new')}",
+        "setting:packages/client/src/client/voice-settings.tsx:{t('voice.default.title')}",
         "setting:packages/client/src/client/voice-settings.tsx:{provider.name}",
         "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.provider')}",
+        "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.asr')}",
         "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.voiceId')}",
         "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.preview')}"
       ],
@@ -265,6 +267,9 @@
         "voice-provider-remove",
         "voice-provider-test",
         "voice-set",
+        "voice-asr-set",
+        "voice-defaults",
+        "voice-default-set",
         "voice-synthesize",
         "voice-local-kit"
       ]

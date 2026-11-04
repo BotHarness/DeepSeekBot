@@ -72,6 +72,7 @@ export interface VoiceDictationProviders {
 export interface VoiceDictationDeps {
   providers(): VoiceDictationProviders | undefined;
   botAsr(slug: string): { providerId: string; language?: string } | null | undefined;
+  defaultAsr?: (() => { providerId: string; language?: string } | null) | undefined;
   now?: () => number;
   vad?: VadOptions | undefined;
   log?: ((phase: string, fields: Record<string, string | number>) => void) | undefined;
@@ -130,7 +131,7 @@ export function createVoiceDictations(deps: VoiceDictationDeps): VoiceDictations
         throw new VoiceDictationError('unknown-provider', 'No ASR Provider has that id.');
       return { providers, providerId: target.providerId, language: target.language };
     }
-    const bound = target.slug === undefined ? undefined : deps.botAsr(target.slug);
+    const bound = target.slug === undefined ? deps.defaultAsr?.() : deps.botAsr(target.slug);
     if (bound !== undefined && bound !== null && providers.has(bound.providerId, 'asr'))
       return {
         providers,

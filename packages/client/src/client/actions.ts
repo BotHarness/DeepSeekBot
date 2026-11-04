@@ -369,10 +369,14 @@ import {
   addVoiceProvider,
   loadVoiceProviders,
   removeVoiceProvider,
+  setBotAsr,
   setBotVoice,
+  setVoiceDefault,
   synthesizeVoice,
   testVoiceProvider,
+  type BotAsrView,
   type BotVoiceView,
+  type VoiceDefaultsView,
   type VoiceProviderAddInput,
   type VoiceProviderHealthView,
   type VoiceProvidersView,
@@ -879,6 +883,12 @@ export interface BridgeActions {
     providerId: string | null,
     voiceId?: string,
   ): Promise<BotVoiceView | null>;
+  setBotAsr?(slug: string, providerId: string | null): Promise<BotAsrView | null>;
+  setVoiceDefault?(
+    kind: 'tts' | 'asr',
+    providerId: string | null,
+    voiceId?: string,
+  ): Promise<VoiceDefaultsView>;
   setApprovalReviewerModel?(model: ModelRouteView | null): Promise<ApprovalReviewerModelView>;
   revokeToolApprovalRule(slug: string, id: string): Promise<void>;
   toolApprovalStatus(
@@ -1984,6 +1994,9 @@ export function createActions(
     testVoiceProvider: (id, voiceId) => testVoiceProvider(call, id, voiceId),
     synthesizeVoice: (input) => synthesizeVoice(call, input),
     setBotVoice: (slug, providerId, voiceId) => setBotVoice(call, slug, providerId, voiceId),
+    setBotAsr: (slug, providerId) => setBotAsr(call, slug, providerId),
+    setVoiceDefault: (kind, providerId, voiceId) =>
+      setVoiceDefault(call, kind, providerId, voiceId),
     setApprovalReviewerModel: (model) => setApprovalReviewerModel(call, model),
     revokeToolApprovalRule: (slug, id) => revokeToolApprovalRule(call, slug, id),
     toolApprovalStatus: (channelId, messageId) =>

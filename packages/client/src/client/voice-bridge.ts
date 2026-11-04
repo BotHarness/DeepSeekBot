@@ -5,11 +5,16 @@ import type {
   AsrProviderView,
   ProviderHealth,
   TtsProviderView,
+  VoiceDefaults,
 } from '../../../core/src/voice/providers.js';
 import { BridgeCallError, type BridgeCall } from './bridge.js';
 
 export type {
+  AsrPreset as AsrPresetView,
+  AsrProviderView,
+  PersonaBotAsr as BotAsrView,
   PersonaBotVoice as BotVoiceView,
+  VoiceDefaults as VoiceDefaultsView,
   ProviderHealth as VoiceProviderHealthView,
   TtsPreset as VoicePresetView,
   TtsProviderView as VoiceProviderView,
@@ -18,7 +23,9 @@ export type {
 };
 
 export interface VoiceProviderAddInput {
+  kind?: 'tts' | 'asr';
   preset: string;
+  language?: string;
   name?: string;
   baseUrl?: string;
   model?: string;
@@ -75,6 +82,16 @@ function asrBinding(value: unknown): PersonaBotAsr | null {
   };
 }
 
+function defaultsOf(value: unknown): VoiceDefaults {
+  if (typeof value !== 'object' || value === null) return { tts: null, asr: null };
+  const view = value as Record<string, unknown>;
+  const tts = voice(view['tts'], 'voiceProviders');
+  return {
+    tts: tts === null ? null : { ...tts },
+    asr: asrBinding(view['asr']),
+  };
+}
+
 export async function loadVoiceProviders(
   call: BridgeCall,
   slug?: string,
@@ -92,6 +109,7 @@ export async function loadVoiceProviders(
           (entry) => provider(entry, 'voiceProviders') as unknown as AsrProviderView,
         )
       : [],
+    defaults: defaultsOf(view['defaults']),
     ...(bot === undefined || typeof bot['slug'] !== 'string'
       ? {}
       : {
@@ -158,4 +176,27 @@ export async function setBotVoice(
     ...(voiceId === undefined ? {} : { voiceId }),
   });
   return voice(view['voice'], 'botVoiceSet');
+}
+
+export async function setBotAsr(
+  call: BridgeCall,
+  slug: string,
+  providerId: string | null,
+): Promise<PersonaBotAsr | null> {
+  const view = await unwrap(call, 'botAsrSet', { slug, providerId });
+  return asrBinding(view['asr']);
+}
+
+export async function setVoiceDefault(
+  call: BridgeCall,
+  kind: 'tts' | 'asr',
+  providerId: string | null,
+  voiceId?: string,
+): Promise<VoiceDefaults> {
+  const view = await unwrap(call, 'voiceDefaultSet', {
+    kind,
+    providerId,
+    ...(voiceId === undefined ? {} : { voiceId }),
+  });
+  return defaultsOf(view['defaults']);
 }

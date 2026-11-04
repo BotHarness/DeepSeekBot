@@ -230,6 +230,38 @@ describe('deepseekbot voice commands', () => {
       });
   });
 
+  it('sets and shows the Host-wide default TTS and ASR Providers', async () => {
+    const { run } = await host();
+    expect(await run('voice-defaults', [])).toEqual({ defaults: { tts: null, asr: null } });
+    const asr = (await run('voice-provider-add', ['local'], { kind: 'asr' })) as {
+      provider: { id: string };
+    };
+    const tts = (await run('voice-provider-add', ['local'])) as { provider: { id: string } };
+    expect(await run('voice-default-set', ['asr', asr.provider.id], { language: 'zh' })).toEqual({
+      defaults: { tts: null, asr: { providerId: asr.provider.id, language: 'zh' } },
+    });
+    await run('voice-default-set', ['tts', tts.provider.id], { voice: 'zm_009' });
+    expect(await run('voice-defaults', [])).toEqual({
+      defaults: {
+        tts: { providerId: tts.provider.id, voiceId: 'zm_009' },
+        asr: { providerId: asr.provider.id, language: 'zh' },
+      },
+    });
+    expect(await run('voice-default-set', ['tts', 'off'])).toMatchObject({
+      defaults: { tts: null },
+    });
+    for (const [rest, values] of [
+      [['call', 'off'], {}],
+      [['tts', tts.provider.id], { language: 'zh' }],
+      [['asr', asr.provider.id], { voice: 'x' }],
+      [['asr', 'off'], { language: 'zh' }],
+      [['asr'], {}],
+    ] as const)
+      await expect(
+        run('voice-default-set', [...rest], values as VoiceValues),
+      ).rejects.toMatchObject({ code: 'usage' });
+  });
+
   it('dictates a WAV through the composer dictation session', async () => {
     const { run, calls, seen, root, url } = await host();
     const added = (await run(
