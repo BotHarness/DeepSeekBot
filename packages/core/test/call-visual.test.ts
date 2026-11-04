@@ -40,10 +40,10 @@ describe('keyframe picker', () => {
     expect(picker.push(thumb(10), 1000).keyframe).toBe(false);
     expect(picker.push(thumb(60), 1500).keyframe).toBe(false);
     expect(picker.push(thumb(90), 2000).keyframe).toBe(false);
-    expect(picker.push(thumb(90), 2500).keyframe).toBe(false);
-    const settled = picker.push(thumb(90), 3000);
+    const settled = picker.push(thumb(90), 2500);
     expect(settled.keyframe).toBe(true);
     expect(settled.score).toBeCloseTo(80 / 255, 3);
+    expect(picker.push(thumb(90), 3000).keyframe).toBe(false);
     expect(picker.keyframes).toBe(2);
     expect(picker.samples).toBe(7);
   });
@@ -55,10 +55,18 @@ describe('keyframe picker', () => {
     for (let index = 0; index < 120; index += 1) scrolled[1000 + index] = 0;
     picker.push(page, 0);
     expect(picker.push(scrolled, 500).keyframe).toBe(false);
-    expect(picker.push(scrolled, 1000).keyframe).toBe(false);
-    const sent = picker.push(scrolled, 1500);
+    const sent = picker.push(scrolled, 1000);
     expect(sent.keyframe).toBe(true);
     expect(sent.score).toBeLessThan(0.02);
+  });
+
+  it('sends a page shown for a second, counting stillness from when it appeared', () => {
+    const picker = createKeyframePicker(KEYFRAME_DEFAULTS.screen);
+    const sent: number[] = [];
+    const pages = [10, 60, 110, 160];
+    for (let at = 0; at < 4_000; at += 500)
+      if (picker.push(thumb(pages[Math.floor(at / 1_000)]!), at).keyframe) sent.push(at);
+    expect(sent).toEqual([0, 1_500, 2_500, 3_500]);
   });
 
   it('still sends a change that never settles, such as a playing video', () => {

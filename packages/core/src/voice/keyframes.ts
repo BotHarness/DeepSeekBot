@@ -52,6 +52,7 @@ export function createKeyframePicker(options: KeyframeOptions): KeyframePicker {
   let previous: Uint8Array | undefined;
   let changedAt: number | undefined;
   let stillSince: number | undefined;
+  let previousAt: number | undefined;
   let samples = 0;
   let keyframes = 0;
   const take = (thumb: Uint8Array, score: number): KeyframeDecision => {
@@ -64,9 +65,10 @@ export function createKeyframePicker(options: KeyframeOptions): KeyframePicker {
     push(thumb, atMs) {
       samples += 1;
       const motion = previous === undefined ? 1 : frameDifference(previous, thumb);
-      previous = thumb;
-      if (motion <= options.stillness) stillSince ??= atMs;
+      if (motion <= options.stillness) stillSince ??= previousAt ?? atMs;
       else stillSince = undefined;
+      previous = thumb;
+      previousAt = atMs;
       if (last === undefined) return take(thumb, 1);
       const score = frameDifference(last, thumb);
       if (score < options.threshold) {
@@ -81,6 +83,7 @@ export function createKeyframePicker(options: KeyframeOptions): KeyframePicker {
     reset() {
       last = undefined;
       previous = undefined;
+      previousAt = undefined;
       changedAt = undefined;
       stillSince = undefined;
     },
