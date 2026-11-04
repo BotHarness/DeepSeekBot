@@ -43,7 +43,7 @@ export const VOICE_COMMANDS = [
   {
     command: 'voice-provider-add',
     description:
-      'add a TTS Provider from a preset (local, custom, fish-audio, elevenlabs, openai), or with --kind asr a speech recognition Provider (custom, openai, groq; --language); key only from --key-stdin',
+      'add a TTS Provider from a preset (local, custom, fish-audio, elevenlabs, openai), or with --kind asr a speech recognition Provider (custom, local, openai, groq, or soniox which streams while the caller speaks; --language); key only from --key-stdin',
   },
   {
     command: 'voice-provider-remove',

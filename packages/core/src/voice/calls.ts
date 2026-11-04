@@ -15,8 +15,11 @@ import {
   type VoiceCallResult,
   type VoiceCallView,
 } from './call-contract.js';
+import type { ChannelDraftEvent } from '../channels/draft.js';
 import { createVad, VAD_SAMPLE_RATE, type VadOptions } from './vad.js';
 import { VoiceError, wavFromPcm16 } from './providers.js';
+import type { AsrStream } from './soniox.js';
+import { joinAudio, speakableSentences, type AudioClip } from './speech.js';
 
 export interface VoiceCallMedia {
   availability(): Promise<'ready' | 'unsupported-platform' | 'helper-missing'>;
@@ -39,7 +42,7 @@ export interface VoiceCallBot {
   readonly slug: string;
   readonly paused?: boolean;
   readonly asr?: { readonly providerId: string; readonly language?: string };
-  readonly voice?: { readonly providerId: string };
+  readonly voice?: { readonly providerId: string; readonly voiceId?: string | undefined };
 }
 
 export interface VoiceCallsDeps {
@@ -53,6 +56,18 @@ export interface VoiceCallsDeps {
       language?: string | undefined;
       signal?: AbortSignal | undefined;
     }): Promise<{ text: string; latencyMs: number }>;
+    openStream?(input: {
+      providerId: string;
+      language?: string | undefined;
+      signal?: AbortSignal | undefined;
+      onText?: ((text: string) => void) | undefined;
+    }): AsrStream | undefined;
+    synthesize(input: {
+      providerId: string;
+      voiceId?: string | undefined;
+      text: string;
+      signal?: AbortSignal | undefined;
+    }): Promise<AudioClip>;
   };
   media(): VoiceCallMedia | undefined;
   send(input: {
@@ -70,6 +85,7 @@ export interface VoiceCallsDeps {
 
 export interface VoiceCaller {
   readonly deviceId: string;
+  readonly client?: string | undefined;
 }
 
 class CallRefusal extends Error {
@@ -82,6 +98,20 @@ class CallRefusal extends Error {
 }
 
 const CALL_ID = /^call-[a-f0-9]{16}$/u;
+const HEARING_EVENT_MS = 250;
+const MAX_HEARING_CHARS = 500;
+const CLIENT_ID = /^[A-Za-z0-9_-]{8,64}$/u;
+
+export function voiceCallClientId(command: unknown): string | undefined {
+  const value =
+    typeof command === 'object' && command !== null
+      ? (command as Record<string, unknown>)['client']
+      : undefined;
+  return typeof value === 'string' && CLIENT_ID.test(value) ? value : undefined;
+}
+
+const sameCaller = (call: { caller: string; client: string | undefined }, caller: VoiceCaller) =>
+  call.caller === caller.deviceId && call.client === caller.client;
 
 type EventInput = VoiceCallEvent extends infer E
   ? E extends VoiceCallEvent
@@ -94,6 +124,7 @@ interface Call {
   readonly slug: string;
   readonly channelId: string;
   readonly caller: string;
+  readonly client: string | undefined;
   readonly media: 'webrtc' | 'synthetic';
   readonly startedAt: number;
   readonly abort: AbortController;
@@ -115,18 +146,31 @@ interface Call {
   playback: Promise<void>;
   lastHeardAt?: number | undefined;
   timer?: ReturnType<typeof setInterval>;
+  stream?: AsrStream | undefined;
+  hearing?:
+    | {
+        text: string;
+        pushedAt: number;
+        timer?: ReturnType<typeof setTimeout> | undefined;
+      }
+    | undefined;
+  replies: Reply[];
+  replyCount: number;
+  stoppedDrafts: Set<string>;
+  ack?: AudioClip | undefined;
 }
 
 export interface VoiceCalls {
   handle(caller: VoiceCaller, command: unknown, signal?: AbortSignal): Promise<VoiceCallResult>;
-  deliverVoice(input: {
+  draft(event: ChannelDraftEvent): void;
+  speak(input: {
     slug: string;
     channelId: string;
     messageId: string;
     at: string;
-    audio: Uint8Array;
-    mime: string;
-  }): void;
+    body: string;
+    signal?: AbortSignal | undefined;
+  }): Promise<AudioClip | undefined>;
   revoke(deviceId: string): Promise<void>;
   dispose(): Promise<void>;
 }
@@ -153,6 +197,33 @@ function pcmFromBase64(value: string): Int16Array {
 }
 
 const ended = (call: { phase: VoiceCallPhase }) => call.phase === 'ended';
+
+const SETTLED_CLAIM_MS = 15_000;
+
+export function ackText(language: string | undefined): string {
+  return language === undefined || /^(zh|yue|ja)/iu.test(language) ? '嗯。' : 'Mm-hm.';
+}
+
+interface Spoken {
+  readonly text: string;
+  readonly clip: Promise<AudioClip>;
+  state: 'queued' | 'playing' | 'played' | 'failed' | 'skipped';
+}
+
+interface Reply {
+  readonly id: string;
+  readonly draftId?: string;
+  readonly heardAt?: number | undefined;
+  readonly sentences: Spoken[];
+  readonly stop: AbortController;
+  readonly synth: AbortController;
+  synthChain: Promise<unknown>;
+  messageId?: string;
+  claimed: boolean;
+  started: boolean;
+  finished: number;
+  done: boolean;
+}
 
 export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
   const now = deps.now ?? (() => Date.now());
@@ -202,7 +273,13 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     call.endedAt = now();
     clearInterval(call.timer);
     call.abort.abort();
+    for (const reply of call.replies) {
+      reply.stop.abort();
+      if (!reply.claimed) reply.synth.abort();
+    }
+    call.replies = [];
     call.vad.reset();
+    dropStream(call);
     push(call, { type: 'ended', reason });
     log('call-ended', { call: call.id, bot: call.slug, reason, ms: call.endedAt - call.startedAt });
     await call.peer?.close().catch(() => undefined);
@@ -211,32 +288,104 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     }, 60_000).unref?.();
   };
 
+  const dropStream = (call: Call) => {
+    call.stream?.cancel();
+    call.stream = undefined;
+    clearTimeout(call.hearing?.timer);
+    call.hearing = undefined;
+  };
+
+  const startStream = (call: Call) => {
+    dropStream(call);
+    const bot = deps.bot(call.slug);
+    if (bot?.asr === undefined || deps.providers.openStream === undefined) return;
+    let stream: AsrStream | undefined;
+    try {
+      stream = deps.providers.openStream({
+        providerId: bot.asr.providerId,
+        language: bot.asr.language,
+        signal: call.abort.signal,
+        onText: (text) => {
+          if (call.stream !== stream || ended(call)) return;
+          hearing(call, text);
+        },
+      });
+    } catch {
+      stream = undefined;
+    }
+    call.stream = stream;
+  };
+
+  const flushHearing = (call: Call) => {
+    const state = call.hearing;
+    if (state === undefined) return;
+    clearTimeout(state.timer);
+    state.timer = undefined;
+    state.pushedAt = now();
+    push(call, {
+      type: 'hearing',
+      text: state.text.slice(0, MAX_HEARING_CHARS),
+    });
+  };
+
+  const hearing = (call: Call, text: string) => {
+    if (text === '' || text === call.hearing?.text) return;
+    const state = (call.hearing ??= { text, pushedAt: 0 });
+    state.text = text;
+    const wait = state.pushedAt + HEARING_EVENT_MS - now();
+    if (wait <= 0) flushHearing(call);
+    else if (state.timer === undefined) {
+      state.timer = setTimeout(() => {
+        if (call.hearing === state && !ended(call)) flushHearing(call);
+      }, wait);
+      state.timer.unref?.();
+    }
+  };
+
   const transcribe = (call: Call, pcm: Int16Array, audioMs: number) => {
+    const stream = call.stream;
+    call.stream = undefined;
+    clearTimeout(call.hearing?.timer);
+    call.hearing = undefined;
+    const started = now();
+    const streamed = stream?.finish();
+    streamed?.catch(() => undefined);
     call.transcription = call.transcription.then(async () => {
       if (call.phase === 'ended') return;
       const bot = deps.bot(call.slug);
       call.phase = 'transcribing';
       push(call, { type: 'transcribing', audioMs });
-      let wav: Uint8Array | undefined = wavFromPcm16(pcm, VAD_SAMPLE_RATE);
+      let wav: Uint8Array | undefined =
+        streamed === undefined ? wavFromPcm16(pcm, VAD_SAMPLE_RATE) : undefined;
       pcm.fill(0);
-      const started = now();
       let text: string;
       try {
-        if (bot?.asr === undefined) throw new VoiceError('unknown-provider', 'No ASR Provider.');
-        text = (
-          await deps.providers.transcribe({
-            providerId: bot.asr.providerId,
-            audio: wav,
-            language: bot.asr.language,
-            signal: call.abort.signal,
-          })
-        ).text;
+        if (streamed !== undefined) text = (await streamed).text;
+        else {
+          if (bot?.asr === undefined) throw new VoiceError('unknown-provider', 'No ASR Provider.');
+          text = (
+            await deps.providers.transcribe({
+              providerId: bot.asr.providerId,
+              audio: wav!,
+              language: bot.asr.language,
+              signal: call.abort.signal,
+            })
+          ).text;
+        }
       } catch (error) {
         if (ended(call)) return;
         const code = error instanceof VoiceError ? error.code : 'asr-failed';
         const message = error instanceof VoiceError ? error.message : 'Speech recognition failed.';
-        push(call, { type: 'asr-failed', code, message: message.slice(0, 200) });
-        log('call-asr-failed', { call: call.id, code });
+        push(call, {
+          type: 'asr-failed',
+          code,
+          message: message.slice(0, 200),
+        });
+        log('call-asr-failed', {
+          call: call.id,
+          code,
+          mode: streamed === undefined ? 'batch' : 'stream',
+        });
         return;
       } finally {
         wav?.fill(0);
@@ -272,19 +421,379 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         return;
       }
       call.lastHeardAt = now();
-      push(call, { type: 'sent', messageId, text, asrMs });
-      log('call-heard', { call: call.id, bot: call.slug, chars: text.length, asrMs });
+      prune(call);
+      push(call, {
+        type: 'sent',
+        messageId,
+        text,
+        asrMs,
+        ...(streamed === undefined ? {} : { streamed: true }),
+      });
+      log('call-heard', {
+        call: call.id,
+        bot: call.slug,
+        chars: text.length,
+        asrMs,
+        mode: streamed === undefined ? 'batch' : 'stream',
+      });
     });
+  };
+
+  const synthesize = (call: Call, text: string, signal: AbortSignal): Promise<AudioClip> => {
+    const voice = deps.bot(call.slug)?.voice;
+    if (voice === undefined)
+      return Promise.reject(new VoiceError('unknown-provider', 'No TTS Provider.'));
+    return Promise.resolve().then(() =>
+      deps.providers.synthesize({
+        providerId: voice.providerId,
+        voiceId: voice.voiceId,
+        text,
+        signal,
+      }),
+    );
+  };
+
+  const forget = (call: Call, reply: Reply) => {
+    call.replies = call.replies.filter((other) => other !== reply);
+  };
+
+  const maybeDone = (call: Call, reply: Reply) => {
+    if (
+      reply.done ||
+      !reply.claimed ||
+      reply.messageId === undefined ||
+      reply.finished < reply.sentences.length
+    )
+      return;
+    reply.done = true;
+    forget(call, reply);
+    if (!ended(call))
+      push(call, {
+        type: 'reply-done',
+        replyId: reply.id,
+        messageId: reply.messageId,
+        sentences: reply.sentences.filter((spoken) => spoken.state === 'played').length,
+      });
+  };
+
+  const finishSentence = (call: Call, reply: Reply) => {
+    reply.finished += 1;
+    maybeDone(call, reply);
+  };
+
+  const pending = (reply: Reply) =>
+    reply.sentences.some((spoken) => spoken.state === 'queued' || spoken.state === 'playing');
+
+  const prune = (call: Call) => {
+    for (const reply of [...call.replies])
+      if (!reply.claimed && !pending(reply)) {
+        reply.synth.abort();
+        forget(call, reply);
+      }
+  };
+
+  const playSentence = async (call: Call, reply: Reply, spoken: Spoken, index: number) => {
+    const skip = () => {
+      if (spoken.state === 'queued') spoken.state = 'skipped';
+      finishSentence(call, reply);
+    };
+    if (ended(call) || reply.stop.signal.aborted || spoken.state !== 'queued') return skip();
+    let clip: AudioClip;
+    try {
+      clip = await spoken.clip;
+    } catch (error) {
+      if (ended(call) || reply.stop.signal.aborted || spoken.state !== 'queued') return skip();
+      spoken.state = 'failed';
+      push(call, {
+        type: 'playback-failed',
+        replyId: reply.id,
+        sentence: index,
+        ...(reply.messageId === undefined ? {} : { messageId: reply.messageId }),
+        code: error instanceof VoiceError ? error.code : 'synthesis-failed',
+      });
+      finishSentence(call, reply);
+      return;
+    }
+    if (ended(call) || reply.stop.signal.aborted || spoken.state !== 'queued') return skip();
+    spoken.state = 'playing';
+    call.playing = true;
+    call.vad.reset();
+    dropStream(call);
+    settle(call);
+    const first = !reply.started;
+    reply.started = true;
+    push(call, {
+      type: 'playing',
+      replyId: reply.id,
+      sentence: index,
+      ...(reply.messageId === undefined ? {} : { messageId: reply.messageId }),
+      bytes: clip.audio.byteLength,
+      ...(first && reply.heardAt !== undefined ? { responseMs: now() - reply.heardAt } : {}),
+    });
+    if (first)
+      log('call-first-audio', {
+        call: call.id,
+        reply: reply.id,
+        ...(reply.heardAt === undefined ? {} : { ms: now() - reply.heardAt }),
+        committed: reply.messageId === undefined ? 0 : 1,
+      });
+    try {
+      if (call.peer !== undefined)
+        await call.peer.play(
+          clip.audio,
+          clip.mime,
+          AbortSignal.any([call.abort.signal, reply.stop.signal]),
+        );
+      if (ended(call) || reply.stop.signal.aborted) {
+        spoken.state = 'skipped';
+      } else {
+        spoken.state = 'played';
+        push(call, {
+          type: 'played',
+          replyId: reply.id,
+          sentence: index,
+          ...(reply.messageId === undefined ? {} : { messageId: reply.messageId }),
+        });
+      }
+    } catch {
+      spoken.state = 'failed';
+      if (!ended(call) && !reply.stop.signal.aborted)
+        push(call, {
+          type: 'playback-failed',
+          replyId: reply.id,
+          sentence: index,
+          ...(reply.messageId === undefined ? {} : { messageId: reply.messageId }),
+          code: 'playback-failed',
+        });
+    } finally {
+      call.playing = false;
+      call.deafUntil = now() + VOICE_CALL_LIMITS.playbackTailMs;
+      settle(call);
+      finishSentence(call, reply);
+    }
+  };
+
+  const enqueue = (call: Call, reply: Reply, text: string): Spoken => {
+    const clip = reply.synthChain.then(() => synthesize(call, text, reply.synth.signal));
+    clip.catch(() => undefined);
+    reply.synthChain = clip.catch(() => undefined);
+    const spoken: Spoken = { text, clip, state: 'queued' };
+    const index = reply.sentences.push(spoken) - 1;
+    call.playback = call.playback.then(() => playSentence(call, reply, spoken, index));
+    return spoken;
+  };
+
+  const newReply = (call: Call, draftId?: string): Reply => {
+    call.replyCount += 1;
+    const reply: Reply = {
+      id: `reply-${call.replyCount}`,
+      ...(draftId === undefined ? {} : { draftId }),
+      heardAt: call.lastHeardAt,
+      sentences: [],
+      stop: new AbortController(),
+      synth: new AbortController(),
+      synthChain: Promise.resolve(),
+      claimed: false,
+      started: false,
+      finished: 0,
+      done: false,
+    };
+    call.replies.push(reply);
+    return reply;
+  };
+
+  const stopReply = (call: Call, reply: Reply, reason: 'abandoned' | 'revised' | 'replaced') => {
+    reply.stop.abort();
+    reply.synth.abort();
+    if (reply.draftId !== undefined) call.stoppedDrafts.add(reply.draftId);
+    for (const spoken of reply.sentences) if (spoken.state === 'queued') spoken.state = 'skipped';
+    forget(call, reply);
+    push(call, { type: 'reply-stopped', replyId: reply.id, reason });
+    log('call-reply-stopped', { call: call.id, reply: reply.id, reason });
+    settle(call);
+  };
+
+  const acknowledge = (call: Call) => {
+    const clip = call.ack;
+    if (clip === undefined) return;
+    const heardAt = now();
+    call.playback = call.playback.then(async () => {
+      if (ended(call) || call.replies.some(pending)) return;
+      call.playing = true;
+      settle(call);
+      push(call, { type: 'ack', ms: now() - heardAt });
+      await call.peer?.play(clip.audio, clip.mime, call.abort.signal).catch(() => undefined);
+      call.playing = false;
+      call.deafUntil = now() + VOICE_CALL_LIMITS.playbackTailMs;
+      settle(call);
+    });
+  };
+
+  const prepareAck = (call: Call) => {
+    const bot = deps.bot(call.slug);
+    void synthesize(call, ackText(bot?.asr?.language), call.abort.signal).then(
+      (clip) => {
+        if (!ended(call)) call.ack = clip;
+      },
+      (error: unknown) => {
+        if (!ended(call))
+          log('call-ack-unavailable', {
+            call: call.id,
+            code: error instanceof VoiceError ? error.code : 'synthesis-failed',
+          });
+      },
+    );
+  };
+
+  const onDraft = (event: ChannelDraftEvent) => {
+    const call = live();
+    if (call === undefined || !call.connected) return;
+    if (event.type === 'settled') {
+      const draftId = event.draftId;
+      const timer = setTimeout(() => {
+        const reply = call.replies.find((item) => item.draftId === draftId && !item.claimed);
+        if (reply !== undefined && !ended(call)) stopReply(call, reply, 'abandoned');
+      }, SETTLED_CLAIM_MS);
+      timer.unref?.();
+      return;
+    }
+    if (event.type === 'abandoned') {
+      if (event.channelId !== call.channelId) return;
+      const draftId = event.draftId;
+      const reply = call.replies.find((item) => item.draftId === draftId && !item.claimed);
+      if (reply !== undefined) stopReply(call, reply, 'abandoned');
+      return;
+    }
+    const draft = event.draft;
+    if (draft.channelId !== call.channelId || draft.botSlug !== call.slug || draft.voice !== true)
+      return;
+    if (call.stoppedDrafts.has(draft.draftId)) return;
+    if (call.replies.some((item) => item.draftId === draft.draftId && item.claimed)) return;
+    let reply = call.replies.find((item) => item.draftId === draft.draftId);
+    const sentences = speakableSentences(draft.body, draft.bodyComplete === true);
+    if (reply === undefined) {
+      if (sentences.length === 0 && draft.body.trim() === '') return;
+      reply = newReply(call, draft.draftId);
+      push(call, {
+        type: 'reply-text',
+        replyId: reply.id,
+        ...(reply.heardAt === undefined ? {} : { responseMs: now() - reply.heardAt }),
+      });
+      log('call-reply-text', {
+        call: call.id,
+        reply: reply.id,
+        ...(reply.heardAt === undefined ? {} : { ms: now() - reply.heardAt }),
+      });
+    }
+    const known = reply.sentences;
+    const diverged =
+      known.length > sentences.length ||
+      known.some((spoken, index) => sentences[index] !== spoken.text);
+    if (diverged) {
+      stopReply(call, reply, 'revised');
+      return;
+    }
+    for (const text of sentences.slice(known.length)) enqueue(call, reply, text);
+  };
+
+  const speak = async (input: {
+    slug: string;
+    channelId: string;
+    messageId: string;
+    at: string;
+    body: string;
+    signal?: AbortSignal | undefined;
+  }): Promise<AudioClip | undefined> => {
+    const call = live();
+    if (
+      call === undefined ||
+      !call.connected ||
+      call.slug !== input.slug ||
+      call.channelId !== input.channelId ||
+      Date.parse(input.at) < call.startedAt - 1_000
+    )
+      return undefined;
+    const final = speakableSentences(input.body, true);
+    if (final.length === 0) return undefined;
+    const prefix = (reply: Reply) => {
+      let count = 0;
+      while (
+        count < reply.sentences.length &&
+        count < final.length &&
+        reply.sentences[count]!.text === final[count]
+      )
+        count += 1;
+      return count;
+    };
+    let reply: Reply | undefined;
+    let matched = 0;
+    for (const candidate of call.replies) {
+      if (candidate.claimed || candidate.draftId === undefined) continue;
+      const count = prefix(candidate);
+      if (count > 0 && count >= matched) {
+        reply = candidate;
+        matched = count;
+      }
+    }
+    for (const other of [...call.replies])
+      if (!other.claimed && other !== reply && other.draftId !== undefined)
+        stopReply(call, other, 'replaced');
+    if (reply === undefined) reply = newReply(call);
+    const claimed = reply;
+    claimed.claimed = true;
+    claimed.messageId = input.messageId;
+    for (const spoken of claimed.sentences.slice(matched))
+      if (spoken.state === 'queued') spoken.state = 'skipped';
+    const abortSynth = () => claimed.synth.abort();
+    input.signal?.addEventListener('abort', abortSynth, { once: true });
+    const archive: Promise<AudioClip>[] = claimed.sentences
+      .slice(0, matched)
+      .map((spoken) =>
+        spoken.clip.catch(() =>
+          synthesize(call, spoken.text, input.signal ?? claimed.synth.signal),
+        ),
+      );
+    const tail = final.slice(matched);
+    push(call, {
+      type: 'committed',
+      replyId: claimed.id,
+      messageId: input.messageId,
+      reused: matched,
+      synthesized: tail.length,
+    });
+    log('call-reply-committed', {
+      call: call.id,
+      reply: claimed.id,
+      reused: matched,
+      synthesized: tail.length,
+      dropped: claimed.sentences.length - matched,
+    });
+    for (const text of tail) archive.push(enqueue(call, claimed, text).clip);
+    maybeDone(call, claimed);
+    call.lastHeardAt = undefined;
+    try {
+      const clips = await Promise.all(archive);
+      return joinAudio(clips);
+    } finally {
+      input.signal?.removeEventListener('abort', abortSynth);
+    }
   };
 
   const hear = (call: Call, samples: Int16Array) => {
     if (call.phase === 'ended' || call.phase === 'connecting') return;
     if (call.muted || call.playing || now() < call.deafUntil) return;
     for (const event of call.vad.push(samples)) {
-      if (event.type === 'speech-start') push(call, { type: 'speech-start' });
-      else if (event.type === 'noise')
+      if (event.type === 'speech-start') {
+        push(call, { type: 'speech-start' });
+        startStream(call);
+      } else if (event.type === 'audio') call.stream?.push(event.pcm);
+      else if (event.type === 'noise') {
+        dropStream(call);
         push(call, { type: 'noise-discarded', durationMs: event.durationMs });
-      else transcribe(call, event.pcm, event.endMs - event.startMs);
+      } else {
+        acknowledge(call);
+        transcribe(call, event.pcm, event.endMs - event.startMs);
+      }
     }
     settle(call);
   };
@@ -316,7 +825,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     }
   };
 
-  const readiness = async (slug: string): Promise<VoiceCallReadiness> => {
+  const readiness = async (caller: VoiceCaller, slug: string): Promise<VoiceCallReadiness> => {
     const bot = deps.bot(slug);
     const missing: VoiceCallMissing[] = [];
     if (bot === undefined || bot.paused === true) missing.push('bot');
@@ -349,7 +858,11 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       asrProviderId: asr ?? null,
       ttsProviderId: tts ?? null,
       media: availability,
-      activeCallId: active?.slug === slug ? active.id : null,
+      activeCallId:
+        active !== undefined && active.slug === slug && sameCaller(active, caller)
+          ? active.id
+          : null,
+      callElsewhere: active !== undefined && !sameCaller(active, caller),
     };
   };
 
@@ -359,7 +872,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     const call = calls.get(value);
     if (
       call === undefined ||
-      (call.caller !== caller.deviceId && !(admin && caller.deviceId === VOICE_CALL_HOST_OWNER))
+      (!sameCaller(call, caller) && !(admin && caller.deviceId === VOICE_CALL_HOST_OWNER))
     )
       throw new CallRefusal('call-not-found', 'That call does not exist.');
     return call;
@@ -401,7 +914,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     }
     const active = live();
     if (active !== undefined) {
-      if (active.caller !== caller.deviceId)
+      if (!sameCaller(active, caller))
         throw new CallRefusal('call-active', 'Another device is already on a call with this Host.');
       await end(active, 'replaced');
     }
@@ -411,10 +924,15 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       slug,
       channelId: dmChannelId(slug),
       caller: caller.deviceId,
+      client: caller.client,
       media: kind,
       startedAt,
       abort: new AbortController(),
-      vad: createVad({ maxUtteranceMs: VOICE_CALL_LIMITS.maxUtteranceMs, ...deps.vad }),
+      vad: createVad({
+        maxUtteranceMs: VOICE_CALL_LIMITS.maxUtteranceMs,
+        stream: deps.providers.openStream !== undefined,
+        ...deps.vad,
+      }),
       phase: 'connecting',
       muted: false,
       busy: deps.busy(slug),
@@ -426,6 +944,9 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       seq: 0,
       transcription: Promise.resolve(),
       playback: Promise.resolve(),
+      replies: [],
+      replyCount: 0,
+      stoppedDrafts: new Set(),
     };
     calls.set(call.id, call);
     log('call-opening', { call: call.id, bot: slug, media: kind });
@@ -435,6 +956,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       call.phase = 'listening';
       push(call, { type: 'connected' });
       if (call.busy) push(call, { type: 'busy' });
+      prepareAck(call);
       log('call-connected', { call: call.id, ms: now() - call.startedAt });
     };
     if (kind === 'synthetic') {
@@ -480,7 +1002,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     const command = record(raw) as Partial<VoiceCallCommand> & Record<string, unknown>;
     switch (command.kind) {
       case 'readiness':
-        return { ok: true, readiness: await readiness(slugOf(command['slug'])) };
+        return { ok: true, readiness: await readiness(caller, slugOf(command['slug'])) };
       case 'status':
         return {
           ok: true,
@@ -537,7 +1059,10 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         if (call.phase === 'ended') throw new CallRefusal('call-ended', 'The call has ended.');
         if (call.muted !== command['muted']) {
           call.muted = command['muted'];
-          if (call.muted) call.vad.reset();
+          if (call.muted) {
+            call.vad.reset();
+            dropStream(call);
+          }
           push(call, { type: call.muted ? 'muted' : 'unmuted' });
           settle(call);
         }
@@ -588,46 +1113,8 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         };
       }
     },
-    deliverVoice(input) {
-      const call = live();
-      if (
-        call === undefined ||
-        call.slug !== input.slug ||
-        call.channelId !== input.channelId ||
-        !call.connected ||
-        Date.parse(input.at) < call.startedAt - 1_000
-      )
-        return;
-      const audio = input.audio.slice();
-      call.playback = call.playback.then(async () => {
-        if (call.phase === 'ended' || call.abort.signal.aborted) return;
-        call.playing = true;
-        call.vad.reset();
-        settle(call);
-        push(call, {
-          type: 'playing',
-          messageId: input.messageId,
-          bytes: audio.byteLength,
-          ...(call.lastHeardAt === undefined ? {} : { responseMs: now() - call.lastHeardAt }),
-        });
-        call.lastHeardAt = undefined;
-        try {
-          if (call.peer !== undefined) await call.peer.play(audio, input.mime, call.abort.signal);
-          if (!ended(call)) push(call, { type: 'played', messageId: input.messageId });
-        } catch {
-          if (!ended(call))
-            push(call, {
-              type: 'playback-failed',
-              messageId: input.messageId,
-              code: 'playback-failed',
-            });
-        } finally {
-          call.playing = false;
-          call.deafUntil = now() + VOICE_CALL_LIMITS.playbackTailMs;
-          settle(call);
-        }
-      });
-    },
+    draft: onDraft,
+    speak,
     async revoke(deviceId) {
       await Promise.all(
         [...calls.values()]

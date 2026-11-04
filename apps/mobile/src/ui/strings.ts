@@ -1,3 +1,4 @@
+import { badgeCount } from './primitives/badge-count';
 import { productName } from './product-name';
 import { tapVerb } from './platform-copy';
 import type { DeviceRefusal } from '../host/client';
@@ -1179,6 +1180,7 @@ const en = {
     `Already decided on another device (${outcome}). Your tap had no effect.`,
   alreadyAnswered: 'Already answered on another device. Your answer was not sent.',
   expired: 'This request expired before a decision, so nothing was sent.',
+  stopped: 'The Session was stopped, so this call will not run.',
   outcome: {
     'allowed-once': 'allowed once',
     'allowed-always-tool': 'always allowed for this tool',
@@ -1421,6 +1423,7 @@ const en = {
   cardAnswered: 'Answered',
   cardCancelled: 'Cancelled',
   cardExpired: 'Expired',
+  cardStopped: 'Session stopped',
   elsewhere: (state: string) => `${state} on another device`,
   cardLine: (subject: string, state: string) => `${subject} · ${state}`,
   cardLoadFailed: 'Could not read this request.',
@@ -1464,9 +1467,10 @@ const en = {
   },
   needsYouCount: (count: number) => (count === 1 ? 'needs you' : `${count} need you`),
   sectionNeedsYou: (count: number) => (count === 1 ? '1 needs you' : `${count} need you`),
-  unreadCount: (count: number) => (count === 1 ? '1 unread message' : `${count} unread messages`),
+  unreadCount: (count: number) =>
+    count === 1 ? '1 unread message' : `${badgeCount(count)} unread messages`,
   mutedUnread: (count: number) =>
-    count === 1 ? 'muted, 1 unread message' : `muted, ${count} unread messages`,
+    count === 1 ? 'muted, 1 unread message' : `muted, ${badgeCount(count)} unread messages`,
   openSearch: 'Search',
   openTobMode: 'Tob Mode',
   closeSearch: 'Close search',
@@ -1583,7 +1587,7 @@ const en = {
   hostOffline: 'Offline',
   hostChecking: 'Checking…',
   hostPending: (count: number) => (count === 1 ? '1 needs you' : `${count} need you`),
-  hostUnread: (count: number) => (count === 1 ? '1 unread' : `${count} unread`),
+  hostUnread: (count: number) => (count === 1 ? '1 unread' : `${badgeCount(count)} unread`),
   hostMore: (host: string) => `More for ${host}`,
   showHost: 'Show this workspace',
   unpairHost: (host: string) => `Unpair ${host}?`,
@@ -1606,6 +1610,7 @@ const en = {
     muted: 'Muted',
     hangUp: 'Hang up',
     duration: (text: string) => `Call time ${text}`,
+    heard: (text: string) => `Heard: ${text}`,
     notHeard: 'Didn’t catch that. Try again.',
     sendFailed: 'Couldn’t send what you said. Try again.',
     asrFailed: 'Couldn’t turn your speech into text. Try again.',
@@ -1626,6 +1631,8 @@ const en = {
     busyElsewhere: 'Another device is on a call with this computer.',
     unreachable: 'Can’t reach the computer. Check that it’s on and try again.',
     noMicrophone: `Turn on Microphone for ${productName.en} in Settings to call.`,
+    microphoneNeeded: 'Calls need the microphone.',
+    allowMicrophone: 'Allow microphone',
     openSettings: 'Open Settings',
     phoneUnsupported: 'Calls need the latest version of this app.',
     ended: {
@@ -3287,6 +3294,7 @@ const zh: typeof en = {
     `已在其他设备上处理（${outcome}），这次${tapVerb.zh}没有生效。`,
   alreadyAnswered: '已在其他设备上回答，这次回答没有发送。',
   expired: '这个请求在处理前已过期，没有发送任何决定。',
+  stopped: '会话已停止，这次调用不会执行。',
   outcome: {
     'allowed-once': '允许一次',
     'allowed-always-tool': '始终允许此工具',
@@ -3518,6 +3526,7 @@ const zh: typeof en = {
   cardAnswered: '已回答',
   cardCancelled: '已取消',
   cardExpired: '已过期',
+  cardStopped: '会话已停止',
   elsewhere: (state: string) => `${state}（在另一台设备上）`,
   cardLine: (subject: string, state: string) => `${subject} · ${state}`,
   cardLoadFailed: '读取这个请求失败。',
@@ -3561,8 +3570,8 @@ const zh: typeof en = {
   },
   needsYouCount: (count: number) => (count === 1 ? '等你处理' : `${count} 项等你处理`),
   sectionNeedsYou: (count: number) => `${count} 个需要你`,
-  unreadCount: (count: number) => `${count} 条未读消息`,
-  mutedUnread: (count: number) => `已静音，${count} 条未读消息`,
+  unreadCount: (count: number) => `${badgeCount(count)} 条未读消息`,
+  mutedUnread: (count: number) => `已静音，${badgeCount(count)} 条未读消息`,
   openSearch: '搜索',
   openTobMode: 'Tob 模式',
   closeSearch: '关闭搜索',
@@ -3675,7 +3684,7 @@ const zh: typeof en = {
   hostOffline: '离线',
   hostChecking: '正在检查…',
   hostPending: (count: number) => `${count} 项等你处理`,
-  hostUnread: (count: number) => `${count} 条未读`,
+  hostUnread: (count: number) => `${badgeCount(count)} 条未读`,
   hostMore: (host: string) => `${host} 的更多操作`,
   showHost: '显示这个工作区',
   unpairHost: (host: string) => `取消配对 ${host}？`,
@@ -3698,6 +3707,7 @@ const zh: typeof en = {
     muted: '已静音',
     hangUp: '挂断',
     duration: (text: string) => `通话时长 ${text}`,
+    heard: (text: string) => `听到：${text}`,
     notHeard: '没听清，再说一次。',
     sendFailed: '你说的话没发出去，再说一次。',
     asrFailed: '语音没能转成文字，再说一次。',
@@ -3717,6 +3727,8 @@ const zh: typeof en = {
     busyElsewhere: '另一台设备正在和这台电脑通话。',
     unreachable: '连不上电脑。请确认电脑开着，再试一次。',
     noMicrophone: `请在设置里允许 ${productName.zh} 使用麦克风后再通话。`,
+    microphoneNeeded: '通话需要使用麦克风。',
+    allowMicrophone: '允许使用麦克风',
     openSettings: '打开设置',
     phoneUnsupported: '通话需要更新到最新版本的 App。',
     ended: {

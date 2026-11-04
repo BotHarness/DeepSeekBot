@@ -11,7 +11,7 @@ import { createHumanAttentionQuery } from '../src/runtime/human-attention.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
 describe('Human attention unread status', () => {
-  it('reads placements only after each Channel read position', () => {
+  const recorder = () => {
     const owner = trackTestOwner(
       mountOperationalDatabase({ dshHome: createTempRoot(), schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
     );
@@ -37,19 +37,55 @@ describe('Human attention unread status', () => {
         ),
       transaction: (command, topics) => database.transaction(command, topics),
     };
-    const attention = createHumanAttentionQuery(recorded);
+    const plan = (sql: string) =>
+      database.read((db) =>
+        db
+          .prepare(`EXPLAIN QUERY PLAN ${sql}`)
+          .all()
+          .map((row) => String((row as { detail: string }).detail)),
+      );
+    return { attention: createHumanAttentionQuery(recorded), statements, plan };
+  };
+
+  it('reads placements only after each Channel read position', () => {
+    const { attention, statements, plan } = recorder();
     expect(attention.status(true)).toMatchObject({ unreadCount: 0 });
-    const sql = statements.find((statement) => statement.includes('unread_events'));
-    expect(sql).toBeDefined();
-    const plan = database.read((db) =>
-      db
-        .prepare(`EXPLAIN QUERY PLAN ${sql!}`)
-        .all()
-        .map((row) => String((row as { detail: string }).detail)),
+    attention.unreadByChannel();
+    const counts = statements.filter(
+      (statement) =>
+        statement.includes('count(*) AS count FROM') || statement.includes('AS unread_count'),
     );
-    expect(plan).toContainEqual(
-      expect.stringMatching(/^SEARCH p USING .*channel_id=\? AND revision>\?/),
+    expect(counts.length).toBeGreaterThanOrEqual(3);
+    for (const sql of counts) {
+      const details = plan(sql);
+      expect(details).toContainEqual(
+        expect.stringMatching(/^SEARCH p USING .*channel_id=\? AND revision>\?/),
+      );
+      expect(details.some((detail) => /^SCAN p\b/.test(detail))).toBe(false);
+    }
+    for (const sql of counts.filter((statement) => !statement.includes('p.for_human = 1')))
+      expect(plan(sql)).toContainEqual(
+        expect.stringMatching(/^SEARCH p USING INDEX channel_placements_latest_message /),
+      );
+    const replies = counts.find((sql) => sql.includes('p.for_human = 1'));
+    expect(plan(replies!)).toContainEqual(
+      expect.stringMatching(/^SEARCH p USING INDEX channel_placements_for_human /),
     );
-    expect(plan.some((detail) => /^SCAN p\b/.test(detail))).toBe(false);
+  });
+
+  it('never scans message, placement or Admission history for action attention', () => {
+    const { attention, statements, plan } = recorder();
+    attention.durableAttention();
+    attention.actionSummary();
+    attention.list({ limit: 20 });
+    attention.openTimedQuestionCards();
+    const scans = statements
+      .flatMap(plan)
+      .filter(
+        (detail) =>
+          /^SCAN (e|p)( USING (COVERING )?INDEX sqlite_autoindex_\w+)?$/.test(detail) ||
+          detail.includes('inbox_admissions_bot_pending'),
+      );
+    expect(scans).toEqual([]);
   });
 });

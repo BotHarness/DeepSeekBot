@@ -585,7 +585,7 @@ export interface TimelinePage {
   entries: TimelineMessage[];
 }
 
-export type ToolApprovalStatus = 'pending' | 'expired';
+export type ToolApprovalStatus = 'pending' | 'expired' | 'stopped';
 export type UserQuestionStatus = 'pending' | 'submitted' | 'answered' | 'expired';
 
 export type UsagePeriod = 'today' | 'week' | 'month' | 'quarter';

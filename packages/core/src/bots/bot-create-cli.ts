@@ -328,6 +328,7 @@ Usage:
   tobs session-ids
   tobs session-owner <session-id>
   tobs session-archive-set <id> --session <session-id> (--archived | --unarchived)
+  tobs session-stop <id> <session-id>
   tobs tool-approval-rules <id>
   tobs tool-approval-history <id> [--limit <1-100>] [--cursor <cursor>]
   tobs tool-approval-rule-revoke <id> --rule <rule-id> --confirm

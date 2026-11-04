@@ -11,6 +11,7 @@ type Strings = { readonly call: (typeof callStrings)['en'] };
 export type CallScreenModel = {
   status: string;
   hint?: string;
+  heard?: { text: string; final: boolean };
   live: boolean;
   muted: boolean;
   ended?: string;
@@ -47,6 +48,30 @@ function transient(
   }
 }
 
+function heardText(
+  events: readonly VoiceCallEvent[],
+  hostNow: number | undefined,
+): CallScreenModel['heard'] {
+  let start = -1;
+  for (let index = events.length - 1; index >= 0; index -= 1)
+    if (events[index]!.type === 'speech-start') {
+      start = index;
+      break;
+    }
+  if (start < 0) return undefined;
+  let live: string | undefined;
+  for (const event of events.slice(start + 1)) {
+    if (event.type === 'hearing') live = event.text;
+    else if (event.type === 'sent')
+      return hostNow !== undefined && hostNow - event.at <= TRANSIENT_MS
+        ? { text: event.text, final: true }
+        : undefined;
+    else if (['asr-failed', 'nothing-heard', 'noise-discarded', 'send-failed'].includes(event.type))
+      return undefined;
+  }
+  return live === undefined ? undefined : { text: live, final: false };
+}
+
 export function callScreenModel(t: Strings, state: CallClientState): CallScreenModel {
   if (state.status === 'idle' || state.status === 'opening')
     return { status: t.call.connecting, live: false, muted: false, retry: false };
@@ -76,7 +101,15 @@ export function callScreenModel(t: Strings, state: CallClientState): CallScreenM
               ? t.call.muted
               : t.call.listening;
   const hint = call.busy ? t.call.busy : transient(t, events, call.durationMs);
-  return { status, live: true, muted, retry: false, ...(hint === undefined ? {} : { hint }) };
+  const heard = heardText(events, call.durationMs);
+  return {
+    status,
+    live: true,
+    muted,
+    retry: false,
+    ...(hint === undefined ? {} : { hint }),
+    ...(heard === undefined ? {} : { heard }),
+  };
 }
 
 function refusalMessage(t: Strings, code: string | undefined): string {
@@ -116,6 +149,17 @@ export function readinessMessage(
   if ('code' in readiness) return refusalMessage(t, readiness.code);
   if (readiness.ready) return undefined;
   return readiness.missing.map((missing: VoiceCallMissing) => t.call.missing[missing]).join('\n');
+}
+
+export type MicrophoneRecovery = { message: string; action: 'ask' | 'settings' };
+
+export function microphoneRecovery(
+  t: Strings,
+  access: 'granted' | 'denied' | 'blocked' | undefined,
+): MicrophoneRecovery | undefined {
+  if (access === 'denied') return { message: t.call.microphoneNeeded, action: 'ask' };
+  if (access === 'blocked') return { message: t.call.noMicrophone, action: 'settings' };
+  return undefined;
 }
 
 export function formatCallDuration(ms: number): string {

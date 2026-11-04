@@ -2,7 +2,7 @@ import * as Application from 'expo-application';
 import { File, Paths } from 'expo-file-system';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Linking, Pressable, ScrollView, View } from 'react-native';
+import { AppState, Linking, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -12,7 +12,7 @@ import {
   type CallPost,
 } from '../../../../../packages/core/src/voice/call-client';
 import { VOICE_CALL_PATH } from '../../../../../packages/core/src/voice/call-contract';
-import { createCallMedia, microphoneAccess } from '../../host/call-media';
+import { createCallMedia, microphoneAccess, microphoneGranted } from '../../host/call-media';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { BotAvatar } from '../bot-avatar';
 import { radius, space } from '../design/tokens';
@@ -21,12 +21,18 @@ import { Button } from '../primitives/button';
 import { SystemSymbol } from '../primitives/system-symbol';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-import { callScreenModel, formatCallDuration } from './call-model';
+import { callScreenModel, formatCallDuration, microphoneRecovery } from './call-model';
 
 const testBuild = () =>
   typeof __DEV__ !== 'undefined' && __DEV__ && Application.applicationId?.endsWith('.dev') === true;
 
 type ScriptStep = { at: number; url: string };
+
+const symbols = {
+  mic: { ios: 'mic.fill', android: 'mic' },
+  micOff: { ios: 'mic.slash.fill', android: 'mic_off' },
+  hangUp: { ios: 'phone.down.fill', android: 'call_end' },
+} as const;
 
 function hostPost(api: ReturnType<typeof useHostSession>['client']): CallPost {
   return async (body) => {
@@ -142,7 +148,24 @@ export function CallScreen({
     }, [ticking]),
   );
 
+  const waitingForMicrophone = microphone === 'denied' || microphone === 'blocked';
+  useFocusEffect(
+    useCallback(() => {
+      if (!waitingForMicrophone) return;
+      const subscription = AppState.addEventListener('change', (next) => {
+        if (next !== 'active') return;
+        void microphoneGranted().then((granted) => {
+          if (!granted) return;
+          setMicrophone(undefined);
+          setAttempt((value) => value + 1);
+        });
+      });
+      return () => subscription.remove();
+    }, [waitingForMicrophone]),
+  );
+
   const model = callScreenModel(t, state);
+  const recovery = microphoneRecovery(t, microphone);
   const leave = () => {
     if (router.canGoBack()) router.back();
     else
@@ -157,17 +180,13 @@ export function CallScreen({
   };
   const duration = startedAt === undefined ? undefined : formatCallDuration(now - startedAt);
   const unsupported = media === undefined;
-  const ended = unsupported
-    ? t.call.phoneUnsupported
-    : microphone === 'denied' || microphone === 'blocked'
-      ? t.call.noMicrophone
-      : model.ended;
+  const ended = unsupported ? t.call.phoneUnsupported : (recovery?.message ?? model.ended);
 
   const round = theme.touch * 1.5;
   const roundButton = (input: {
     label: string;
     testID: string;
-    symbol: Parameters<typeof SystemSymbol>[0]['name'];
+    symbol: (typeof symbols)[keyof typeof symbols];
     fill: string;
     ink: string;
     onPress(): void;
@@ -245,6 +264,19 @@ export function CallScreen({
               {duration}
             </Text>
           )}
+          {model.heard === undefined || ended !== undefined ? null : (
+            <Text
+              testID="call-heard"
+              variant="body"
+              tone={model.heard.final ? 'fg' : 'subtle'}
+              numberOfLines={4}
+              accessibilityLiveRegion="polite"
+              accessibilityLabel={t.call.heard(model.heard.text)}
+              style={{ textAlign: 'center', marginTop: space.x4 }}
+            >
+              {model.heard.text}
+            </Text>
+          )}
           {model.hint === undefined ? null : (
             <View
               testID="call-hint"
@@ -269,12 +301,22 @@ export function CallScreen({
         </ScrollView>
         {ended !== undefined ? (
           <View style={{ gap: space.x4 }}>
-            {microphone === 'blocked' ? (
+            {recovery?.action === 'settings' ? (
               <Button
                 testID="call-open-settings"
                 label={t.call.openSettings}
                 tone="primary"
                 onPress={() => void Linking.openSettings()}
+              />
+            ) : recovery?.action === 'ask' ? (
+              <Button
+                testID="call-allow-microphone"
+                label={t.call.allowMicrophone}
+                tone="primary"
+                onPress={() => {
+                  setMicrophone(undefined);
+                  setAttempt((value) => value + 1);
+                }}
               />
             ) : model.retry && !unsupported && microphone === 'granted' ? (
               <Button
@@ -295,7 +337,7 @@ export function CallScreen({
             {roundButton({
               label: model.muted ? t.call.unmute : t.call.mute,
               testID: 'call-mute',
-              symbol: model.muted ? 'mic.slash.fill' : 'mic.fill',
+              symbol: model.muted ? symbols.micOff : symbols.mic,
               fill: model.muted ? theme.color.fg : theme.color.surface,
               ink: model.muted ? theme.color.base : theme.color.fg,
               selected: model.muted,
@@ -305,7 +347,7 @@ export function CallScreen({
             {roundButton({
               label: t.call.hangUp,
               testID: 'call-hang-up',
-              symbol: 'phone.down.fill',
+              symbol: symbols.hangUp,
               fill: theme.color.danger,
               ink: theme.color.onDanger,
               onPress: close,

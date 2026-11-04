@@ -211,6 +211,7 @@ import {
   type TimelinePageRequest,
   loadSessions,
   setSessionArchived,
+  stopSession,
   moveMemoryLocation,
   loadBots,
   loadMemorySnapshot,
@@ -720,6 +721,7 @@ export interface BridgeActions {
   refreshSessions(slug: string): Promise<void>;
   readSessions(slug: string): Promise<OwnedSessionSummary[]>;
   setSessionArchived(slug: string, sessionId: string, archived: boolean): Promise<void>;
+  stopSession(slug: string, sessionId: string): Promise<void>;
   messageAttachmentTarget(
     channelId: string,
     messageId: string,
@@ -876,7 +878,10 @@ export interface BridgeActions {
   ): Promise<BotVoiceView | null>;
   setApprovalReviewerModel?(model: ModelRouteView | null): Promise<ApprovalReviewerModelView>;
   revokeToolApprovalRule(slug: string, id: string): Promise<void>;
-  toolApprovalStatus(channelId: string, messageId: string): Promise<'pending' | 'expired'>;
+  toolApprovalStatus(
+    channelId: string,
+    messageId: string,
+  ): Promise<import('./bridge.js').ToolApprovalStatus>;
   privateInputStatus?(
     channelId: string,
     messageId: string,
@@ -907,7 +912,7 @@ export interface BridgeActions {
   toolApprovalState?(
     channelId: string,
     messageId: string,
-  ): Promise<{ status: 'pending' | 'expired'; expiresAt?: string }>;
+  ): Promise<{ status: import('./bridge.js').ToolApprovalStatus; expiresAt?: string }>;
   toolApprovalExecutionState?(
     channelId: string,
     messageId: string,
@@ -1737,7 +1742,7 @@ export function createActions(
     channelId: string,
     messageId: string,
     submit: () => Promise<void>,
-    loadStatus: () => Promise<'pending' | 'submitted' | 'answered' | 'expired'>,
+    loadStatus: () => Promise<'pending' | 'submitted' | 'answered' | 'expired' | 'stopped'>,
   ): Promise<void> => {
     let resolved = false;
     try {
@@ -1747,7 +1752,7 @@ export function createActions(
       if (!resolved) {
         try {
           const status = await loadStatus();
-          resolved = status === 'expired' || status === 'answered';
+          resolved = status === 'expired' || status === 'stopped' || status === 'answered';
         } catch {}
       }
       if (resolved)
@@ -3121,6 +3126,12 @@ export function createActions(
     },
     async setSessionArchived(slug, sessionId, archived) {
       await setSessionArchived(call, slug, sessionId, archived);
+      const selection = currentSelection();
+      if (selection === undefined || selectedBotSlug(selection) !== slug) return;
+      await loadSessionsFor(slug, selection);
+    },
+    async stopSession(slug, sessionId) {
+      await stopSession(call, slug, sessionId);
       const selection = currentSelection();
       if (selection === undefined || selectedBotSlug(selection) !== slug) return;
       await loadSessionsFor(slug, selection);

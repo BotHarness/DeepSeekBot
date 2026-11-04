@@ -4,11 +4,19 @@ import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credent
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { LOCAL_VOICE_SCRIPT_NAME } from './local-kit.js';
 import {
+  openSonioxStream,
+  sonioxLanguageHints,
+  sonioxTranscribeFile,
+  type AsrStream,
+  type SonioxSocketFactory,
+} from './soniox.js';
+import {
   ASR_PRESETS,
   asrPreset,
   TTS_PRESETS,
   ttsPreset,
   type AsrPreset,
+  type AsrWire,
   type TtsPreset,
   type TtsWire,
 } from './presets.js';
@@ -71,6 +79,8 @@ export interface AsrProviderView {
   kind: 'asr';
   name: string;
   preset: AsrPreset['id'];
+  wire: AsrWire;
+  streaming: boolean;
   baseUrl: string;
   model?: string;
   language?: string;
@@ -202,11 +212,14 @@ function parseStored(body: string): StoredProvider | undefined {
 }
 
 function asrView(stored: StoredProvider): AsrProviderView {
+  const preset = asrPresetOf(stored.preset);
   return {
     id: stored.id,
     kind: 'asr',
     name: stored.name,
-    preset: asrPresetOf(stored.preset).id,
+    preset: preset.id,
+    wire: preset.wire,
+    streaming: preset.capabilities.streaming,
     baseUrl: stored.baseUrl,
     ...(stored.model === undefined ? {} : { model: stored.model }),
     ...(stored.language === undefined ? {} : { language: stored.language }),
@@ -339,6 +352,7 @@ export interface VoiceProvidersOptions {
   now?: () => Date;
   timeoutMs?: number;
   log?: (phase: string, fields: Record<string, string | number>) => void;
+  socket?: SonioxSocketFactory;
 }
 
 export class VoiceProviders {
@@ -348,6 +362,7 @@ export class VoiceProviders {
   readonly #now: () => Date;
   readonly #timeoutMs: number;
   readonly #log: NonNullable<VoiceProvidersOptions['log']>;
+  readonly #socket: SonioxSocketFactory | undefined;
 
   constructor(options: VoiceProvidersOptions) {
     this.#db = options.database;
@@ -356,6 +371,7 @@ export class VoiceProviders {
     this.#now = options.now ?? (() => new Date());
     this.#timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.#log = options.log ?? (() => undefined);
+    this.#socket = options.socket;
   }
 
   presets(): readonly TtsPreset[] {
@@ -702,6 +718,8 @@ export class VoiceProviders {
     if (language !== undefined && !LANGUAGE.test(language))
       throw new VoiceError('invalid-input', 'Language must be a code such as en or zh.');
     const key = await this.#key(stored);
+    if (asrPresetOf(stored.preset).wire === 'soniox')
+      return this.#sonioxFile(stored, key, input.audio, language, input.signal);
     const form = new FormData();
     form.append(
       'file',
@@ -770,6 +788,121 @@ export class VoiceProviders {
       ms: latencyMs,
     });
     return { text, latencyMs };
+  }
+
+  async #sonioxFile(
+    stored: StoredProvider,
+    key: string | undefined,
+    audio: Uint8Array,
+    language: string | undefined,
+    signal: AbortSignal | undefined,
+  ): Promise<TranscriptionResult> {
+    try {
+      const result = await sonioxTranscribeFile({
+        baseUrl: stored.baseUrl,
+        key,
+        model: stored.model ?? 'stt-rt-v6',
+        languageHints: sonioxLanguageHints(language),
+        audio,
+        timeoutMs: this.#timeoutMs,
+        signal,
+        socket: this.#socket,
+      });
+      this.#log('transcribed', {
+        provider: stored.id,
+        bytes: audio.byteLength,
+        chars: result.text.length,
+        ms: result.latencyMs,
+      });
+      return result;
+    } catch (error) {
+      signal?.throwIfAborted();
+      if (error instanceof VoiceError)
+        this.#log('transcribe-failed', {
+          provider: stored.id,
+          code: error.code,
+        });
+      throw error;
+    }
+  }
+
+  streams(id: string): boolean {
+    try {
+      return asrPresetOf(this.#stored(id, 'asr').preset).capabilities.streaming;
+    } catch {
+      return false;
+    }
+  }
+
+  openStream(input: {
+    providerId: string;
+    language?: string | undefined;
+    signal?: AbortSignal | undefined;
+    onText?: ((text: string) => void) | undefined;
+  }): AsrStream | undefined {
+    if (!this.streams(input.providerId)) return undefined;
+    const stored = this.#stored(input.providerId, 'asr');
+    const language = input.language?.trim() || stored.language;
+    const opened = this.#key(stored).then((key) =>
+      openSonioxStream({
+        baseUrl: stored.baseUrl,
+        key,
+        model: stored.model ?? 'stt-rt-v6',
+        languageHints: sonioxLanguageHints(language),
+        audio: 'pcm',
+        timeoutMs: Math.min(this.#timeoutMs, 10_000),
+        signal: input.signal,
+        onText: input.onText,
+        socket: this.#socket,
+      }),
+    );
+    const log = this.#log;
+    let stream: AsrStream | undefined;
+    let early: Int16Array[] = [];
+    let cancelled = false;
+    opened.then(
+      (ready) => {
+        if (cancelled) {
+          ready.cancel();
+          return;
+        }
+        stream = ready;
+        for (const pcm of early) ready.push(pcm);
+        early = [];
+      },
+      () => undefined,
+    );
+    return {
+      push(pcm) {
+        if (cancelled) return;
+        if (stream !== undefined) stream.push(pcm);
+        else early.push(pcm.slice());
+      },
+      async finish() {
+        const ready = stream ?? (await opened);
+        const result = await ready.finish().catch((error: unknown) => {
+          if (error instanceof VoiceError)
+            log('transcribe-failed', {
+              provider: stored.id,
+              code: error.code,
+              mode: 'stream',
+            });
+          throw error;
+        });
+        log('transcribed', {
+          provider: stored.id,
+          chars: result.text.length,
+          ms: result.latencyMs,
+          mode: 'stream',
+        });
+        return result;
+      },
+      cancel() {
+        cancelled = true;
+        early = [];
+        stream?.cancel();
+      },
+    };
   }
 
   async test(id: string, voiceId?: string, signal?: AbortSignal): Promise<ProviderHealth> {
