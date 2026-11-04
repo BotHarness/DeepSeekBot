@@ -1,0 +1,224 @@
+import * as Application from 'expo-application';
+import { File, Paths } from 'expo-file-system';
+import { useMemo, useRef, useSyncExternalStore } from 'react';
+import { AppState, View } from 'react-native';
+
+import {
+  createCallClient,
+  type CallClientState,
+  type CallPost,
+} from '../../../../../packages/core/src/voice/call-client';
+import { VOICE_CALL_PATH } from '../../../../../packages/core/src/voice/call-contract';
+import { createCallMedia, microphoneAccess, microphoneGranted } from '../../host/call-media';
+import { useHostSession, useHostSnapshot } from '../../host/host-session';
+import { callActivityNative, onCallActivityAction } from '../../host/native-call-activity';
+import { callAudioRoute } from '../../host/native-call-audio-route';
+import { useMounted } from '../mounted';
+import { locale } from '../strings';
+import { createCallActivity } from './call-activity';
+import { CallBubble } from './call-bubble';
+import { callActivityPhase } from './call-model';
+import { callSessions, type CallSessionSnapshot } from './call-session';
+
+const testBuild = () =>
+  typeof __DEV__ !== 'undefined' && __DEV__ && Application.applicationId?.endsWith('.dev') === true;
+
+type ScriptStep = { at: number; url: string };
+
+function hostPost(api: ReturnType<typeof useHostSession>['client']): CallPost {
+  return async (body) => {
+    if (api === undefined) throw new Error('No Host connection.');
+    const answer = await api.api(VOICE_CALL_PATH, { body });
+    const result = answer.body as { ok?: unknown } | null;
+    if (result === null || typeof result !== 'object' || typeof result.ok !== 'boolean')
+      throw new Error(`The Host answered ${answer.status}.`);
+    return result as Awaited<ReturnType<CallPost>>;
+  };
+}
+
+export function useCallSession(): CallSessionSnapshot | undefined {
+  return useSyncExternalStore(callSessions.subscribe, callSessions.getSnapshot);
+}
+
+export function CallSessionHost() {
+  const session = useCallSession();
+  if (session === undefined) return null;
+  return (
+    <>
+      <CallRunner key={`${session.key}:${session.attempt}`} session={session} />
+      {session.expanded ? null : <CallBubble session={session} />}
+    </>
+  );
+}
+
+function CallRunner({ session }: { session: CallSessionSnapshot }) {
+  const { key, request } = session;
+  const { slug, script } = request;
+  const { client } = useHostSession(request.hostId);
+  const snapshot = useHostSnapshot(client);
+  const name = snapshot.roster?.bots.find((entry) => entry.slug === slug)?.displayName ?? slug;
+  const nameRef = useRef(name);
+  nameRef.current = name;
+  const testAudio = testBuild() && script !== undefined;
+  const media = useMemo(
+    () =>
+      createCallMedia({
+        testAudio,
+        route: () => callAudioRoute.getSnapshot().route,
+      }),
+    [testAudio],
+  );
+  const dialed = useRef(false);
+
+  const capabilities = useMounted(() => {
+    callSessions.publish(key, {
+      supported: media !== undefined,
+      audioRoutes: media?.audio !== undefined,
+    });
+  }, [key, media]);
+
+  const dial = useMounted(() => {
+    if (client === undefined || media === undefined || dialed.current) return;
+    dialed.current = true;
+    let cancelled = false;
+    const timeline: Record<string, unknown>[] = [];
+    const mark = (kind: string, detail: Record<string, unknown> = {}) =>
+      timeline.push({ kind, at: Date.now(), ...detail });
+    const activity = createCallActivity(callActivityNative);
+    let current: CallClientState = { status: 'idle' };
+    let paused = false;
+    let connectedAt: number | undefined;
+    let reported = false;
+    const writeReport = () => {
+      if (!testAudio || reported) return;
+      reported = true;
+      const file = new File(Paths.cache, `call-report-${Date.now()}.json`);
+      setTimeout(() => {
+        try {
+          file.writeSync(
+            JSON.stringify({
+              timeline,
+              recording: media.test?.recording() ?? null,
+            }),
+          );
+          callSessions.publish(key, { report: file.uri });
+        } catch {
+          callSessions.publish(key, { report: undefined });
+        }
+      }, 500);
+    };
+    const showActivity = () => {
+      const phase = callActivityPhase(current, paused);
+      activity.sync(
+        phase === undefined
+          ? undefined
+          : {
+              name: nameRef.current,
+              phase,
+              startedAt: connectedAt ?? Date.now(),
+              muted: current.status === 'live' && current.muted,
+              locale: locale === 'zh' ? 'zh' : 'en',
+            },
+      );
+    };
+    const call = createCallClient({
+      post: hostPost(client),
+      media,
+      onChange: (next) => {
+        if (cancelled) return;
+        current = next;
+        if (next.status === 'live') connectedAt ??= Date.now();
+        if (next.status === 'ended') paused = false;
+        callSessions.publish(key, {
+          state: next,
+          ...(connectedAt === undefined ? {} : { startedAt: connectedAt }),
+          ...(next.status === 'ended' ? { interrupted: false } : {}),
+        });
+        showActivity();
+        if (testAudio)
+          mark('state', {
+            status: next.status,
+            phase: next.status === 'live' ? next.call.phase : undefined,
+          });
+        if (next.status === 'ended') writeReport();
+      },
+    });
+    const detach = callSessions.attach(key, {
+      mute: (muted) => void call.mute(muted),
+      hangup: () => void call.hangup(),
+      route: (route) => media.audio?.route(route) !== null,
+    });
+    const removeTap = media.test?.onTap((event) => mark('native', event));
+    const removeAudio = media.audio?.onChange((event) => {
+      if (cancelled) return;
+      paused = event.interrupted;
+      callSessions.publish(key, { interrupted: event.interrupted });
+      showActivity();
+      if (testAudio) mark('audio', event);
+    });
+    const removeActions = onCallActivityAction((action) => {
+      if (cancelled) return;
+      if (testAudio) mark('activity-action', { action });
+      if (action === 'hang-up') void call.hangup();
+      else if (current.status === 'live') void call.mute(!current.muted);
+    });
+    void (async () => {
+      const access = await microphoneAccess();
+      if (cancelled) return;
+      callSessions.publish(key, { microphone: access });
+      if (access !== 'granted') return;
+      await callAudioRoute.ready;
+      if (cancelled) return;
+      await call.open(slug);
+      if (cancelled || !testAudio || media.test === undefined || script === undefined) return;
+      try {
+        const steps = (await (await fetch(script)).json()) as ScriptStep[];
+        const started = Date.now();
+        for (const step of steps.slice(0, 20)) {
+          const local = await File.downloadFileAsync(step.url, Paths.cache, {
+            idempotent: true,
+          });
+          const wait = started + step.at - Date.now();
+          if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+          if (cancelled) return;
+          mark('inject', {
+            url: step.url,
+            ok: await media.test.inject(local.uri),
+          });
+        }
+      } catch (error) {
+        mark('script-failed', { error: String(error) });
+      }
+    })();
+    return () => {
+      detach();
+      removeTap?.();
+      removeAudio?.();
+      removeActions();
+      activity.end();
+      call.dispose();
+      cancelled = true;
+      writeReport();
+    };
+  }, [client, media, key, slug, script, testAudio]);
+
+  const waitingForMicrophone = session.microphone === 'denied' || session.microphone === 'blocked';
+  const recover = useMounted(() => {
+    if (!waitingForMicrophone) return;
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') return;
+      void microphoneGranted().then((granted) => {
+        if (granted) callSessions.retry(key);
+      });
+    });
+    return () => subscription.remove();
+  }, [waitingForMicrophone, key]);
+
+  return (
+    <>
+      <View ref={capabilities} pointerEvents="none" style={{ display: 'none' }} />
+      <View ref={dial} pointerEvents="none" style={{ display: 'none' }} />
+      <View ref={recover} pointerEvents="none" style={{ display: 'none' }} />
+    </>
+  );
+}

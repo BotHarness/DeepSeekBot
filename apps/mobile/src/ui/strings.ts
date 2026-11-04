@@ -1623,6 +1623,10 @@ const en = {
     },
     audioSwitchFailed: 'Couldn’t switch the audio. Try again.',
     duration: (text: string) => `Call time ${text}`,
+    minimize: 'Minimize',
+    paused: 'Paused',
+    bubble: (name: string, status: string, time: string | undefined) =>
+      `Back to call with ${name}. ${status}${time === undefined ? '' : `. ${time}`}`,
     heard: (text: string) => `Heard: ${text}`,
     notHeard: 'Didn’t catch that. Try again.',
     sendFailed: 'Couldn’t send what you said. Try again.',
@@ -3733,6 +3737,10 @@ const zh: typeof en = {
     },
     audioSwitchFailed: '没能切换音频，再试一次。',
     duration: (text: string) => `通话时长 ${text}`,
+    minimize: '最小化',
+    paused: '已暂停',
+    bubble: (name: string, status: string, time: string | undefined) =>
+      `回到与 ${name} 的通话，${status}${time === undefined ? '' : `，${time}`}`,
     heard: (text: string) => `听到：${text}`,
     notHeard: '没听清，再说一次。',
     sendFailed: '你说的话没发出去，再说一次。',
