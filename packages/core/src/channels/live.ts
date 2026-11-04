@@ -478,7 +478,13 @@ export function createChannelLiveHub(
         const stale = queue.findIndex(
           (frame) => frame.type === 'latest' && frame.channelId === channelId,
         );
-        if (stale !== -1) queue.splice(stale, 1);
+        const dropped = stale === -1 ? undefined : queue.splice(stale, 1)[0];
+        if (
+          dropped?.type === 'latest' &&
+          dropped.message.author.kind === 'bot' &&
+          (message.author.kind !== 'bot' || message.author.slug !== dropped.message.author.slug)
+        )
+          this.push();
         queue.push({ type: 'latest', channelId, message });
         if (queue.length > ROSTER_LIVE_QUEUE_LIMIT) this.close();
         wake?.();
@@ -798,7 +804,6 @@ export function createChannelLiveHub(
         for (const subscriber of rosterSubscribers)
           subscriber.latest(commit.channelId, commit.message);
       if (commit.message.author.kind !== 'bot') return;
-      if (!isChannelNotice(commit.message)) this.publishRosterCommitted();
       const botSlug = commit.message.author.slug;
       const candidates = [...(drafts.get(commit.channelId)?.values() ?? [])].filter(
         (draft) => draft.botSlug === botSlug,

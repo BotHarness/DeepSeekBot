@@ -48,7 +48,7 @@ it('publishes only complete notification discovery and restarts a scan invalidat
     getSnapshot: () => ({ connection: { status: 'connected', route: '' } }),
     subscribe: () => () => {},
     onLive: (listener) => {
-      live = () => listener('activity');
+      live = () => listener('roster');
       return () => {};
     },
     call: call as HostClient['call'],
