@@ -38,4 +38,8 @@ Rows are written by SQLite triggers (migration generation 130), so a new write p
 | 52           | Rename, avatar, wake policy, invites, joins          | `channel_records` update trigger (ignoring `updatedAt`) → `channelChanged`                                      | Channel-level                        |
 | 54           | Host upgrade changing the projection                 | new epoch when the projection changes (bump by migration)                                                       | epoch reset                          |
 
+## Phone open (#3511)
+
+The phone stores the change cursor with each cached conversation tail. When it opens a cached conversation it follows the Channel with `limit: 0`, so the opened frame carries only the head revision and no bodies. It then reads only the revisions after its cached tail with `channelJournalPage` (or the latest page when more than 200 are missing) and applies `channelChanges` since its cursor: upserts replace cached entries by revision, tombstones blank the message and removed ids leave the window. A `reset` refetches the latest page. A conversation without a cursor asks `channelChangeCursor` before following, so its next open can use it. An older Host that refuses `limit: 0` or has no change methods gets the previous full-page open. The phone waits for its cache read at most 200 ms before opening.
+
 Approval, question, private-input and takeover requests are resolved by placing a resolution message (insert trigger); the client pairs them, so nothing changes in memory. Rows beyond the newest 200,000 are pruned at start and `floor_seq` rises, so a cursor older than the floor gets `reset`.

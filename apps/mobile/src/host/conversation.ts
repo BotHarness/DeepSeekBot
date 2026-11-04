@@ -217,10 +217,30 @@ function timelineOf(
   };
 }
 
+export interface ChangeCursor {
+  epoch: string;
+  seq: number;
+}
+
 export interface CachedConversation {
   entries: JournalEntry[];
   hasOlder: boolean;
+  changes?: ChangeCursor;
 }
+
+type ChangePull =
+  | { reset: true; cursor: ChangeCursor }
+  | {
+      reset?: never;
+      upserts: JournalEntry[];
+      tombstones: string[];
+      removed: string[];
+      cursor: ChangeCursor;
+      hasMore: boolean;
+    };
+
+const MAX_CHANGE_PAGES = 20;
+const CACHE_WAIT_MS = 200;
 
 export interface ConversationCache {
   read(key: string): Promise<CachedConversation | undefined>;
@@ -551,6 +571,9 @@ export function createConversation(options: ConversationOptions): Conversation {
   let snapshot: ConversationSnapshot = build(true);
   let timelineSnapshot = timelineOf(snapshot);
   let cacheTimer: ReturnType<typeof setTimeout> | undefined;
+  let changeCursor: ChangeCursor | undefined;
+  let changesSupported = true;
+  let bareOpen = false;
   let draftTimer: ReturnType<typeof setTimeout> | undefined;
 
   function build(withMessages: boolean): ConversationSnapshot {
@@ -649,6 +672,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       cache.write(cacheKey, {
         entries: tail,
         hasOlder: hasOlder || tail.length < window.length,
+        ...(changeCursor === undefined ? {} : { changes: changeCursor }),
       });
     }, 300);
   };
@@ -691,6 +715,56 @@ export function createConversation(options: ConversationOptions): Conversation {
       merge(repair.entries);
     }
     merge(tail);
+  };
+
+  const blank = (entry: JournalEntry): JournalEntry => {
+    const { attachments: _attachments, bridgeMedia: _bridgeMedia, ...message } = entry.message;
+    return { ...entry, message: { ...message, body: '', contentPurge: { actor: 'local-human' } } };
+  };
+
+  const changeCall = async <T>(method: string, args: Record<string, unknown>) => {
+    try {
+      return await options.host.call<T>(method, args);
+    } catch {
+      changesSupported = false;
+      changeCursor = undefined;
+      return undefined;
+    }
+  };
+
+  const pullChanges = async (current: number, through: number): Promise<void> => {
+    for (let page = 0; page < MAX_CHANGE_PAGES && changeCursor !== undefined; page += 1) {
+      const pulled = await changeCall<ChangePull>('channelChanges', {
+        channelId,
+        sinceSeq: changeCursor.seq,
+        epoch: changeCursor.epoch,
+      });
+      if (current !== session || pulled === undefined) return;
+      if (pulled.reset) {
+        const fresh = await readPage(through, undefined, pageSize);
+        if (current !== session) return;
+        window = [...fresh.entries];
+        hasOlder = fresh.hasOlder;
+        changeCursor = pulled.cursor;
+        return;
+      }
+      const tombstones = new Set(pulled.tombstones);
+      const removed = new Set(pulled.removed);
+      const updates = new Map(
+        pulled.upserts
+          .filter((entry) => entry.revision >= first() && entry.revision <= last())
+          .map((entry) => [entry.revision, entry]),
+      );
+      window = window.flatMap((entry) =>
+        removed.has(entry.message.id)
+          ? []
+          : tombstones.has(entry.message.id)
+            ? [blank(entry)]
+            : [updates.get(entry.revision) ?? entry],
+      );
+      changeCursor = pulled.cursor;
+      if (!pulled.hasMore) return;
+    }
   };
 
   const clearDrafts = (): void => {
@@ -795,7 +869,15 @@ export function createConversation(options: ConversationOptions): Conversation {
     if (current !== session) return;
     if (frame.type === 'opened') {
       openedSession = current;
-      await advance(frame.cursor, frame.page);
+      const bare = bareOpen && (frame.page?.entries.length ?? 0) === 0;
+      const page =
+        bare && frame.cursor > 0 && (window.length === 0 || frame.cursor - last() > MAX_PAGE)
+          ? await readPage(frame.cursor, undefined, pageSize)
+          : frame.page;
+      if (current !== session) return;
+      await advance(frame.cursor, page);
+      if (current !== session) return;
+      if (bare) await pullChanges(current, frame.cursor);
       if (current !== session) return;
       fromCache = false;
       status = 'live';
@@ -879,9 +961,18 @@ export function createConversation(options: ConversationOptions): Conversation {
       return;
     }
     if (current !== session) return;
+    bareOpen = changesSupported && changeCursor !== undefined && window.length > 0;
+    if (!bareOpen && changesSupported) {
+      changeCursor = await changeCall<ChangeCursor>('channelChangeCursor', {});
+      if (current !== session) return;
+    }
     unfollow = options.host.follow(
       'botharness/followChannel',
-      { channelId: id, limit: pageSize, ...(appendDrafts ? { drafts: 'append' } : {}) },
+      {
+        channelId: id,
+        limit: bareOpen ? 0 : pageSize,
+        ...(appendDrafts ? { drafts: 'append' } : {}),
+      },
       {
         item: (value) => enqueue(value as ChannelLiveFrame, current),
         interrupted: (why) => {
@@ -898,6 +989,12 @@ export function createConversation(options: ConversationOptions): Conversation {
           if (current !== session) return;
           if (appendDrafts && error.code === 'gateway/arguments-invalid') {
             appendDrafts = false;
+            refollow(current);
+            return;
+          }
+          if (bareOpen && error.code === 'invalid') {
+            changesSupported = false;
+            changeCursor = undefined;
             refollow(current);
             return;
           }
@@ -963,17 +1060,25 @@ export function createConversation(options: ConversationOptions): Conversation {
         (cacheKey === undefined
           ? undefined
           : options.cache?.read(cacheKey).catch(() => undefined)) ?? Promise.resolve(undefined);
+      let going = false;
+      const go = (): void => {
+        if (going || current !== session) return;
+        going = true;
+        void open(current);
+      };
       void cached.then((value) => {
-        if (current !== session || openedSession === current) return;
+        if (current !== session || openedSession === current) return go();
         if (value !== undefined && window.length === 0 && value.entries.length > 0) {
           window = [];
           merge(value.entries);
           hasOlder = value.hasOlder || hasOlder;
+          changeCursor = value.changes;
           fromCache = true;
           publish();
         }
+        go();
       });
-      void open(current);
+      setTimeout(go, CACHE_WAIT_MS);
     },
     stop() {
       running = false;
