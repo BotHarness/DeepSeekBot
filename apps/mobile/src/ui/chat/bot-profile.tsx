@@ -481,7 +481,9 @@ function StopMenu({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const bleed = compact ? { marginVertical: -(theme.touch - theme.type.meta.line) / 2 } : {};
+  const bleed = compact
+    ? { marginVertical: -Math.max(0, theme.touch - theme.type.body.line * theme.fontScale) / 2 }
+    : {};
   if (stopping)
     return (
       <View
@@ -555,9 +557,14 @@ export function WorkListRow({
         }}
       >
         {row.bot === undefined ? null : (
-          <BotAvatar bot={row.bot} size={HEAD_AVATAR} ring={false} corner={radius.sm} />
+          <BotAvatar
+            bot={row.bot}
+            size={HEAD_AVATAR * theme.fontScale}
+            ring={false}
+            corner={radius.sm}
+          />
         )}
-        <Text variant="meta" tone="muted" strong style={{ flex: 1, minWidth: 0 }}>
+        <Text strong style={{ flex: 1, minWidth: 0 }}>
           {row.label}
         </Text>
         {stops === undefined ? null : (
@@ -598,10 +605,12 @@ export function WorkListRow({
           accessibilityLabel={[title, state].join(', ')}
           style={{ flex: 1, flexDirection: 'row', gap: space.x3 }}
         >
-          <View style={{ paddingTop: (theme.type.body.line - rowGlyph.size) / 2 }}>
+          <View
+            style={{ paddingTop: ((theme.type.body.line - rowGlyph.size) * theme.fontScale) / 2 }}
+          >
             <AssignmentActivityIcon
               activity={stopping ? 'stopping' : 'working'}
-              size={rowGlyph.size}
+              size={rowGlyph.size * theme.fontScale}
             />
           </View>
           <View style={{ flex: 1, gap: space.x1 }}>
@@ -654,8 +663,13 @@ export function WorkListRow({
           },
         ]}
       >
-        <View style={{ paddingTop: (theme.type.body.line - rowGlyph.size) / 2 }}>
-          <AssignmentActivityIcon activity={assignment.activity} size={rowGlyph.size} />
+        <View
+          style={{ paddingTop: ((theme.type.body.line - rowGlyph.size) * theme.fontScale) / 2 }}
+        >
+          <AssignmentActivityIcon
+            activity={assignment.activity}
+            size={rowGlyph.size * theme.fontScale}
+          />
         </View>
         <View style={{ flex: 1, gap: space.x1 }}>
           <View

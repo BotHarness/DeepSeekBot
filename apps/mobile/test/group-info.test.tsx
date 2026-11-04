@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const alert = vi.fn();
+const device = vi.hoisted(() => ({ fontScale: 1 }));
 vi.mock('expo-router', async () => {
   const { useLayoutEffect } = await import('react');
   return {
@@ -21,6 +22,10 @@ vi.mock('expo-router/react-navigation', () => ({ useHeaderHeight: () => 96 }));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Alert: { alert: (...args: unknown[]) => alert(...args) },
+  Dimensions: {
+    get: () => ({ width: 390, height: 844, scale: 3, fontScale: device.fontScale }),
+    addEventListener: () => ({ remove() {} }),
+  },
 }));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('react-native-worklets', () => ({
@@ -46,14 +51,19 @@ vi.mock('react-native-safe-area-context', () => ({
 vi.mock('expo-image', () => ({ Image: () => null }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('../src/ui/bot-avatar', () => ({
-  BotAvatar: ({ bot }: { bot: { slug: string } }) =>
-    createElement('span', { 'data-testid': `avatar-${bot.slug}` }),
+  BotAvatar: ({ bot, size }: { bot: { slug: string }; size: number }) =>
+    createElement('span', { 'data-testid': `avatar-${bot.slug}`, 'data-size': size }),
 }));
 vi.mock('../src/ui/shell/icons', async () => ({
   ...(await import('./shell-icons-shim')),
   ChevronRightIcon: () => null,
   MoreIcon: () => null,
   PlusIcon: () => null,
+}));
+vi.mock('../src/ui/chat/assignment-marks', async (original) => ({
+  ...(await original<object>()),
+  AssignmentActivityIcon: ({ activity, size }: { activity: string; size: number }) =>
+    createElement('i', { 'data-activity': activity, 'data-size': size }),
 }));
 vi.mock('../src/ui/chat/sheet', () => {
   const pass = ({ children }: { children?: ReactNode }) => createElement('div', null, children);
@@ -103,7 +113,10 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 let root: Root | undefined;
 let host: HTMLElement | undefined;
-beforeEach(() => alert.mockReset());
+beforeEach(() => {
+  alert.mockReset();
+  device.fontScale = 1;
+});
 afterEach(() => {
   act(() => root?.unmount());
   host?.remove();
@@ -621,6 +634,17 @@ describe('Group profile', () => {
       );
       expect(view.textContent).not.toContain(t.workingNow);
       expect(view.textContent).toContain(t.profileEmpty.work);
+    });
+
+    it('scales the Bot avatar, its name and the Session icons with the system text size', async () => {
+      device.fontScale = 2;
+      const props = sheet({ info: running([adaBusy, boBusy]), stopper: stopper() }, 'work');
+      const view = await render(<GroupProfilePage {...props} />);
+      const head = testId(view, 'working-stop-all-bo')!.closest('div:has(> div > button)')!;
+      expect(head.querySelector('[data-testid="avatar-bo"]')?.getAttribute('data-size')).toBe('40');
+      expect(
+        testId(view, 'working-session-bo-a1')?.querySelector('i')?.getAttribute('data-size'),
+      ).toBe('32');
     });
 
     it('stops one Session from its menu with no confirmation and shows Stopping until it leaves the list', async () => {
