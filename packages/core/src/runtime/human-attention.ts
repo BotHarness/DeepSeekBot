@@ -363,7 +363,10 @@ const ACTION_ATTENTION_CTE = `WITH attention AS (
              AND d.source_event_id IS NULL
         )`;
 
-const channelAttentionCte = (excludeMuted: boolean, unreadOnly = false): string => `
+const channelAttentionCte = (
+  excludeMuted: boolean,
+  scope: 'all' | 'unread' | 'replies' = 'all',
+): string => `
   WITH visible_messages AS (
     SELECT p.channel_id, p.revision, p.message_id, p.source_event_id,
            e.created_at, e.body, e.bot_slug,
@@ -381,14 +384,14 @@ const channelAttentionCte = (excludeMuted: boolean, unreadOnly = false): string 
                     WHERE json_extract(mention.value, '$.humanId') = m.human_id
                  ) THEN 1 ELSE 0 END AS is_mention
       ${
-        unreadOnly
+        scope !== 'all'
           ? `FROM channel_records c
       LEFT JOIN channel_read_positions r
         ON r.channel_id = c.channel_id AND r.human_id = ?
       LEFT JOIN channel_human_members m
         ON m.channel_id = c.channel_id AND m.human_id = ?
       CROSS JOIN channel_placements p
-        ON p.channel_id = c.channel_id AND p.revision > coalesce(r.revision, 0)
+        ON p.channel_id = c.channel_id AND ${scope === 'unread' ? 'p.revision > coalesce(r.revision, 0)' : 'p.for_human = 1'}
       JOIN source_events e ON e.source_event_id = p.source_event_id
       LEFT JOIN channel_placements original ON original.channel_id = p.channel_id
         AND original.message_id = json_extract(e.payload_json, '$.replyTo')
@@ -430,7 +433,8 @@ const DM_CARD_FIELDS = [
 ];
 
 const INBOX_CHANNEL_ATTENTION_CTE = channelAttentionCte(true);
-const INBOX_CHANNEL_UNREAD_CTE = channelAttentionCte(true, true);
+const INBOX_CHANNEL_UNREAD_CTE = channelAttentionCte(true, 'unread');
+const INBOX_CHANNEL_REPLIES_CTE = channelAttentionCte(true, 'replies');
 
 function decodeCursor(value: string, filters: string): Cursor {
   try {
@@ -617,7 +621,9 @@ export function createHumanAttentionQuery(
         search === ''
           ? ''
           : `AND instr(botharness_activity_lower(coalesce(${body}, '') || ' ' || coalesce(${channel}, '') || ' ' || coalesce(${bot}, '')), (SELECT term FROM activity_search)) > 0`;
-      const channelCte = INBOX_CHANNEL_ATTENTION_CTE.replace('WITH ', searchCte);
+      const channelCte = (
+        category === 'unread' ? INBOX_CHANNEL_UNREAD_CTE : INBOX_CHANNEL_REPLIES_CTE
+      ).replace('WITH ', searchCte);
       const actionCte = ACTION_ATTENTION_CTE.replace('WITH ', searchCte);
       const direction = sort === 'oldest' ? 'ASC' : 'DESC';
       const cursorComparison = sort === 'oldest' ? '>' : '<';
