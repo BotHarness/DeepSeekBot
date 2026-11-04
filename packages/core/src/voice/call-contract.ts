@@ -48,6 +48,7 @@ export type VoiceCallEvent =
       text: string;
       asrMs: number;
       streamed?: boolean;
+      segments?: number;
     }
   | { seq: number; at: number; type: 'asr-failed'; code: string; message: string }
   | { seq: number; at: number; type: 'send-failed'; code: string; message: string }

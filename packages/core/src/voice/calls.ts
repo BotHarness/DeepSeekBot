@@ -67,6 +67,9 @@ export interface VoiceCallsDeps {
       text: string;
       signal?: AbortSignal | undefined;
     }): Promise<AudioClip>;
+    streams?(id: string): boolean;
+    warm?(id: string): void;
+    cool?(id: string): void;
   };
   media(): VoiceCallMedia | undefined;
   send(input: {
@@ -97,6 +100,19 @@ class CallRefusal extends Error {
 
 const CALL_ID = /^call-[a-f0-9]{16}$/u;
 const HEARING_EVENT_MS = 250;
+const SEGMENT_VAD = { segmentSilenceMs: 250, endSilenceMs: 600, maxSegmentMs: 9_000 } as const;
+const MIN_TAIL_SAMPLES = VAD_SAMPLE_RATE / 5;
+
+function joinTranscripts(parts: readonly string[]): string {
+  let out = '';
+  for (const raw of parts) {
+    const part = raw.trim();
+    if (part === '') continue;
+    const latin = /[A-Za-z0-9]$/u.test(out) && /^[A-Za-z0-9]/u.test(part);
+    out += out === '' || !latin ? part : ` ${part}`;
+  }
+  return out;
+}
 const MAX_HEARING_CHARS = 500;
 
 type EventInput = VoiceCallEvent extends infer E
@@ -132,6 +148,9 @@ interface Call {
   lastHeardAt?: number | undefined;
   timer?: ReturnType<typeof setInterval>;
   stream?: AsrStream | undefined;
+  readonly segmented: boolean;
+  warmed?: string | undefined;
+  segments?: { parts: Promise<string>[]; texts: (string | undefined)[] } | undefined;
   hearing?:
     | {
         text: string;
@@ -265,6 +284,8 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     call.replies = [];
     call.vad.reset();
     dropStream(call);
+    if (call.warmed !== undefined) deps.providers.cool?.(call.warmed);
+    call.warmed = undefined;
     push(call, { type: 'ended', reason });
     log('call-ended', { call: call.id, bot: call.slug, reason, ms: call.endedAt - call.startedAt });
     await call.peer?.close().catch(() => undefined);
@@ -276,12 +297,57 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
   const dropStream = (call: Call) => {
     call.stream?.cancel();
     call.stream = undefined;
+    call.segments = undefined;
     clearTimeout(call.hearing?.timer);
     call.hearing = undefined;
   };
 
+  const recognize = async (call: Call, pcm: Int16Array): Promise<string> => {
+    const bot = deps.bot(call.slug);
+    if (bot?.asr === undefined) throw new VoiceError('unknown-provider', 'No ASR Provider.');
+    let wav: Uint8Array | undefined = wavFromPcm16(pcm, VAD_SAMPLE_RATE);
+    pcm.fill(0);
+    try {
+      return (
+        await deps.providers.transcribe({
+          providerId: bot.asr.providerId,
+          audio: wav,
+          language: bot.asr.language,
+          signal: call.abort.signal,
+        })
+      ).text;
+    } finally {
+      wav.fill(0);
+      wav = undefined;
+    }
+  };
+
+  const segment = (call: Call, pcm: Int16Array) => {
+    const segments = call.segments;
+    if (segments === undefined) return;
+    const index = segments.parts.length;
+    const part = recognize(call, pcm).then((text) => {
+      segments.texts[index] = text;
+      if (call.segments === segments && !ended(call)) {
+        const done: string[] = [];
+        for (const piece of segments.texts) {
+          if (piece === undefined) break;
+          done.push(piece);
+        }
+        hearing(call, joinTranscripts(done));
+      }
+      return text;
+    });
+    part.catch(() => undefined);
+    segments.parts.push(part);
+  };
+
   const startStream = (call: Call) => {
     dropStream(call);
+    if (call.segmented) {
+      call.segments = { parts: [], texts: [] };
+      return;
+    }
     const bot = deps.bot(call.slug);
     if (bot?.asr === undefined || deps.providers.openStream === undefined) return;
     let stream: AsrStream | undefined;
@@ -327,36 +393,36 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     }
   };
 
-  const transcribe = (call: Call, pcm: Int16Array, audioMs: number) => {
+  const transcribe = (call: Call, pcm: Int16Array, audioMs: number, segmentedSamples: number) => {
     const stream = call.stream;
+    const segments = call.segments;
     call.stream = undefined;
+    call.segments = undefined;
     clearTimeout(call.hearing?.timer);
     call.hearing = undefined;
     const started = now();
-    const streamed = stream?.finish();
-    streamed?.catch(() => undefined);
+    let early: Promise<string> | undefined;
+    let mode: 'batch' | 'stream' | 'segments' = 'batch';
+    if (stream !== undefined) {
+      mode = 'stream';
+      early = stream.finish().then((result) => result.text);
+    } else if (segments !== undefined && segments.parts.length > 0) {
+      mode = 'segments';
+      const rest = pcm.slice(Math.min(segmentedSamples, pcm.length));
+      const parts = [...segments.parts];
+      if (rest.length >= MIN_TAIL_SAMPLES) parts.push(recognize(call, rest));
+      else rest.fill(0);
+      early = Promise.all(parts).then(joinTranscripts);
+    }
+    early?.catch(() => undefined);
+    if (early !== undefined) pcm.fill(0);
     call.transcription = call.transcription.then(async () => {
       if (call.phase === 'ended') return;
-      const bot = deps.bot(call.slug);
       call.phase = 'transcribing';
       push(call, { type: 'transcribing', audioMs });
-      let wav: Uint8Array | undefined =
-        streamed === undefined ? wavFromPcm16(pcm, VAD_SAMPLE_RATE) : undefined;
-      pcm.fill(0);
       let text: string;
       try {
-        if (streamed !== undefined) text = (await streamed).text;
-        else {
-          if (bot?.asr === undefined) throw new VoiceError('unknown-provider', 'No ASR Provider.');
-          text = (
-            await deps.providers.transcribe({
-              providerId: bot.asr.providerId,
-              audio: wav!,
-              language: bot.asr.language,
-              signal: call.abort.signal,
-            })
-          ).text;
-        }
+        text = early !== undefined ? await early : await recognize(call, pcm);
       } catch (error) {
         if (ended(call)) return;
         const code = error instanceof VoiceError ? error.code : 'asr-failed';
@@ -366,15 +432,9 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
           code,
           message: message.slice(0, 200),
         });
-        log('call-asr-failed', {
-          call: call.id,
-          code,
-          mode: streamed === undefined ? 'batch' : 'stream',
-        });
+        log('call-asr-failed', { call: call.id, code, mode });
         return;
       } finally {
-        wav?.fill(0);
-        wav = undefined;
         if (call.phase === 'transcribing') call.phase = 'listening';
         settle(call);
       }
@@ -412,14 +472,15 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         messageId,
         text,
         asrMs,
-        ...(streamed === undefined ? {} : { streamed: true }),
+        ...(mode === 'stream' ? { streamed: true } : {}),
+        ...(mode === 'segments' ? { segments: segments!.parts.length } : {}),
       });
       log('call-heard', {
         call: call.id,
         bot: call.slug,
         chars: text.length,
         asrMs,
-        mode: streamed === undefined ? 'batch' : 'stream',
+        mode,
       });
     });
   };
@@ -772,12 +833,13 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         push(call, { type: 'speech-start' });
         startStream(call);
       } else if (event.type === 'audio') call.stream?.push(event.pcm);
+      else if (event.type === 'segment') segment(call, event.pcm);
       else if (event.type === 'noise') {
         dropStream(call);
         push(call, { type: 'noise-discarded', durationMs: event.durationMs });
       } else {
         acknowledge(call);
-        transcribe(call, event.pcm, event.endMs - event.startMs);
+        transcribe(call, event.pcm, event.endMs - event.startMs, event.segmentedSamples);
       }
     }
     settle(call);
@@ -891,6 +953,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       await end(active, 'replaced');
     }
     const startedAt = now();
+    const segmented = deps.providers.streams?.(bot.asr.providerId) !== true;
     const call: Call = {
       id: `call-${randomBytes(8).toString('hex')}`,
       slug,
@@ -901,9 +964,11 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       abort: new AbortController(),
       vad: createVad({
         maxUtteranceMs: VOICE_CALL_LIMITS.maxUtteranceMs,
-        stream: deps.providers.openStream !== undefined,
+        stream: !segmented,
+        ...(segmented ? SEGMENT_VAD : {}),
         ...deps.vad,
       }),
+      segmented,
       phase: 'connecting',
       muted: false,
       busy: deps.busy(slug),
@@ -920,6 +985,10 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       stoppedDrafts: new Set(),
     };
     calls.set(call.id, call);
+    if (!segmented && deps.providers.warm !== undefined) {
+      call.warmed = bot.asr.providerId;
+      deps.providers.warm(call.warmed);
+    }
     log('call-opening', { call: call.id, bot: slug, media: kind });
     const connected = () => {
       if (call.connected || call.phase === 'ended') return;

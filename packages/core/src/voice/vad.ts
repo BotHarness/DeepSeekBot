@@ -13,6 +13,9 @@ export interface VadOptions {
   tailMs?: number;
   maxUtteranceMs?: number;
   stream?: boolean;
+  segmentSilenceMs?: number;
+  maxSegmentMs?: number;
+  minSegmentVoicedMs?: number;
   activeDb?: number;
   minActiveDbfs?: number;
   periodicity?: number;
@@ -28,7 +31,9 @@ export type VadEvent =
       endMs: number;
       voicedMs: number;
       cut: boolean;
+      segmentedSamples: number;
     }
+  | { type: 'segment'; pcm: Int16Array; startMs: number; endMs: number; forced: boolean }
   | { type: 'noise'; startMs: number; durationMs: number };
 
 export interface Vad {
@@ -88,6 +93,10 @@ export function createVad(options: VadOptions = {}): Vad {
   const activeDb = options.activeDb ?? 12;
   const minActiveDbfs = options.minActiveDbfs ?? -50;
   const periodicityNeeded = options.periodicity ?? 0.55;
+  const segmentSilence =
+    options.segmentSilenceMs === undefined ? undefined : frames(options.segmentSilenceMs);
+  const maxSegment = frames(options.maxSegmentMs ?? 9_000);
+  const minSegmentVoiced = frames(options.minSegmentVoicedMs ?? 200);
 
   let pending = new Int16Array(0);
   let frameIndex = 0;
@@ -103,10 +112,16 @@ export function createVad(options: VadOptions = {}): Vad {
   let activeRun = 0;
   let quiet = 0;
   let lastActive = 0;
+  let segmentStart = 0;
+  let segmentVoiced = 0;
+  let paused = false;
 
   const clear = () => {
     state = 'silence';
     current = [];
+    segmentStart = 0;
+    segmentVoiced = 0;
+    paused = false;
     voiced = 0;
     activeRun = 0;
     quiet = 0;
@@ -134,6 +149,7 @@ export function createVad(options: VadOptions = {}): Vad {
         endMs: startMs + keep * FRAME_MS,
         voicedMs: voiced * FRAME_MS,
         cut,
+        segmentedSamples: Math.min(segmentStart, keep) * FRAME,
       });
     else events.push({ type: 'noise', startMs, durationMs: keep * FRAME_MS });
     clear();
@@ -168,7 +184,11 @@ export function createVad(options: VadOptions = {}): Vad {
       activeRun += 1;
       quiet = 0;
       lastActive = index;
-      if (isVoiced) voiced += 1;
+      if (isVoiced) {
+        voiced += 1;
+        segmentVoiced += 1;
+      }
+      paused = false;
     } else quiet += 1;
 
     if (state === 'candidate') {
@@ -189,6 +209,27 @@ export function createVad(options: VadOptions = {}): Vad {
       return;
     }
     if (options.stream === true) events.push({ type: 'audio', pcm: samples });
+    if (quiet < endSilence && segmentSilence !== undefined) {
+      const pause = !paused && quiet >= segmentSilence;
+      const forced = current.length - segmentStart >= maxSegment;
+      if ((pause || forced) && segmentVoiced >= minSegmentVoiced) {
+        const end = forced
+          ? current.length
+          : Math.min(current.length, lastActive - startFrame + 1 + tail);
+        if (end > segmentStart) {
+          events.push({
+            type: 'segment',
+            pcm: join(current.slice(segmentStart, end)),
+            startMs: (startFrame + segmentStart) * FRAME_MS,
+            endMs: (startFrame + end) * FRAME_MS,
+            forced: !pause,
+          });
+          segmentStart = end;
+          segmentVoiced = 0;
+        }
+      }
+      if (pause) paused = true;
+    }
     if (quiet >= endSilence) {
       finish(events, false);
       history = [];

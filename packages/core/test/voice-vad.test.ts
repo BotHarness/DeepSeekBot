@@ -25,6 +25,32 @@ describe('call VAD', () => {
     expect(utterance.pcm.length).toBe(((utterance.endMs - utterance.startMs) * 16_000) / 1000);
   });
 
+  it('with short pauses, hands finished pieces over while the sentence goes on', () => {
+    const options = { segmentSilenceMs: 250, endSilenceMs: 600, maxSegmentMs: 9_000 };
+    const events = run(
+      concat(silence(300), speech(1000), silence(350), speech(900, { seed: 4 }), silence(900)),
+      options,
+    );
+    expect(kinds(events)).toEqual(['speech-start', 'segment', 'segment', 'utterance']);
+    const first = events[1] as Extract<VadEvent, { type: 'segment' }>;
+    const second = events[2] as Extract<VadEvent, { type: 'segment' }>;
+    const utterance = events[3] as Extract<VadEvent, { type: 'utterance' }>;
+    expect(first.forced).toBe(false);
+    expect(first.endMs).toBeGreaterThan(1200);
+    expect(first.endMs).toBeLessThan(1700);
+    expect(second.startMs).toBe(first.endMs);
+    expect(utterance.segmentedSamples).toBe(first.pcm.length + second.pcm.length);
+    expect(utterance.pcm.length - utterance.segmentedSamples).toBeLessThan(3_200);
+    const long = run(concat(speech(20_000, { dbfs: -6 }), silence(900)), options);
+    expect(kinds(long)).toEqual(['speech-start', 'segment', 'segment', 'segment', 'utterance']);
+    expect(long.filter((event) => event.type === 'segment' && event.forced)).toHaveLength(2);
+    expect(kinds(run(concat(speech(1200), silence(900)), options))).toEqual([
+      'speech-start',
+      'segment',
+      'utterance',
+    ]);
+  });
+
   it('keeps a short pause inside one sentence', () => {
     const events = run(concat(silence(300), speech(800), silence(400), speech(700), silence(1000)));
     expect(kinds(events)).toEqual(['speech-start', 'utterance']);

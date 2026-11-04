@@ -511,6 +511,48 @@ describe('Host call owner', () => {
     expect(await view(h, callId)).toMatchObject({ phase: 'ended', endReason: 'hangup' });
   });
 
+  it('recognizes each piece after a short pause while the caller keeps talking', async () => {
+    const { media, state } = fakeMedia();
+    const h = harness({ media });
+    const callId = await connected(h);
+    h.feed(state.onPcm!, concat(silence(300), speech(1200), silence(350)));
+    await settled();
+    expect(h.transcribed).toHaveLength(1);
+    expect(h.sent).toEqual([]);
+    expect((await view(h, callId)).events.at(-1)).toMatchObject({
+      type: 'hearing',
+      text: '帮我查一下明天的天气',
+    });
+    h.feed(state.onPcm!, concat(speech(1000, { seed: 5 }), silence(900)));
+    await settled();
+    expect(h.transcribed).toHaveLength(2);
+    expect(h.sent.map((item) => item.body)).toEqual(['帮我查一下明天的天气第二句话']);
+    expect((await view(h, callId)).events.at(-1)).toMatchObject({ type: 'sent', segments: 2 });
+    expect(h.transcribed.every((wav) => wav.every((byte) => byte === 0))).toBe(true);
+  });
+
+  it('joins English pieces with a space', async () => {
+    const { media, state } = fakeMedia();
+    const texts = ['What is', 'the weather tomorrow?'];
+    const h = harness({
+      media,
+      providers: {
+        has: (id, kind) => id.startsWith(kind),
+        async transcribe() {
+          return { text: texts.shift() ?? '', latencyMs: 1 };
+        },
+        synthesize: async () => ({ audio: MP3, mime: 'audio/mpeg' }),
+      },
+    });
+    await connected(h);
+    h.feed(
+      state.onPcm!,
+      concat(speech(1000), silence(350), speech(1000, { seed: 6 }), silence(900)),
+    );
+    await settled();
+    expect(h.sent.map((item) => item.body)).toEqual(['What is the weather tomorrow?']);
+  });
+
   it('a synthetic call takes injected PCM without WebRTC', async () => {
     const h = harness({ media: undefined });
     const call = (await h.ok({ kind: 'open', slug: 'mira', media: 'synthetic' })).call!;
@@ -609,7 +651,7 @@ describe('streamed voice replies', () => {
   }
 
   async function heardQuestion(h: ReturnType<typeof harness>, onPcm: (pcm: Int16Array) => void) {
-    h.feed(onPcm, concat(silence(300), speech(1200), silence(900)));
+    h.feed(onPcm, concat(silence(300), speech(1200), silence(800)));
     await settled();
   }
 

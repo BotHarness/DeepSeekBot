@@ -18,6 +18,7 @@ export interface SonioxStreamOptions {
   signal?: AbortSignal | undefined;
   onText?: ((text: string) => void) | undefined;
   socket?: SonioxSocketFactory | undefined;
+  warm?: WebSocket | undefined;
   now?: () => number;
 }
 
@@ -74,7 +75,8 @@ export function openSonioxStream(
   const now = options.now ?? (() => performance.now());
   const headers: Record<string, string> = {};
   if (options.key !== undefined) headers['Authorization'] = `Bearer ${options.key}`;
-  const socket = (options.socket ?? defaultSocket)(sonioxUrl(options.baseUrl), headers);
+  const socket =
+    options.warm ?? (options.socket ?? defaultSocket)(sonioxUrl(options.baseUrl), headers);
   let open = false;
   let closed = false;
   let failure: VoiceError | undefined;
@@ -144,8 +146,8 @@ export function openSonioxStream(
     socket.send(JSON.stringify({ type: 'finalize' }));
   };
 
-  socket.on('open', () => {
-    if (closed) return;
+  const onOpen = () => {
+    if (closed || open) return;
     open = true;
     socket.send(
       JSON.stringify({
@@ -160,7 +162,9 @@ export function openSonioxStream(
     queue = [];
     queued = 0;
     if (finishing !== undefined) sendFinalize();
-  });
+  };
+  if (socket.readyState === WebSocket.OPEN) queueMicrotask(onOpen);
+  else socket.on('open', onOpen);
 
   socket.on('unexpected-response', (_request, response) => {
     let body = '';
@@ -300,4 +304,65 @@ export async function sonioxTranscribeFile(
   stream.pushBytes(options.audio);
   const result = await stream.finish();
   return { text: result.text, latencyMs: Math.round(now() - started) };
+}
+
+const KEEPALIVE_MS = 15_000;
+const WARM_IDLE_MS = 10 * 60_000;
+
+export interface WarmSoniox {
+  take(): WebSocket | undefined;
+  close(): void;
+}
+
+export function warmSoniox(options: {
+  baseUrl: string;
+  key: string | undefined;
+  socket?: SonioxSocketFactory | undefined;
+}): WarmSoniox {
+  const headers: Record<string, string> = {};
+  if (options.key !== undefined) headers['Authorization'] = `Bearer ${options.key}`;
+  const socket = (options.socket ?? defaultSocket)(sonioxUrl(options.baseUrl), headers);
+  let done = false;
+  const keepalive = setInterval(() => {
+    if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'keepalive' }));
+  }, KEEPALIVE_MS);
+  keepalive.unref?.();
+  const idle = setTimeout(() => close(), WARM_IDLE_MS);
+  idle.unref?.();
+  const drop = () => {
+    close();
+  };
+  socket.on('error', drop);
+  socket.on('unexpected-response', drop);
+  socket.on('close', drop);
+  const stop = () => {
+    done = true;
+    clearInterval(keepalive);
+    clearTimeout(idle);
+  };
+  const release = () => {
+    stop();
+    socket.off('error', drop);
+    socket.off('unexpected-response', drop);
+    socket.off('close', drop);
+  };
+  const close = () => {
+    if (done) return;
+    stop();
+    try {
+      socket.terminate();
+    } catch {}
+  };
+  return {
+    take() {
+      if (done) return undefined;
+      if (socket.readyState !== WebSocket.OPEN && socket.readyState !== WebSocket.CONNECTING) {
+        close();
+        return undefined;
+      }
+      release();
+      return socket;
+    },
+    close,
+  };
 }

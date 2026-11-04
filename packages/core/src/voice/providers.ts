@@ -1,8 +1,11 @@
 import { randomUUID } from 'node:crypto';
+import type WebSocket from 'ws';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
 
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import {
+  warmSoniox,
+  type WarmSoniox,
   openSonioxStream,
   sonioxLanguageHints,
   sonioxTranscribeFile,
@@ -339,6 +342,7 @@ export class VoiceProviders {
   readonly #timeoutMs: number;
   readonly #log: NonNullable<VoiceProvidersOptions['log']>;
   readonly #socket: SonioxSocketFactory | undefined;
+  readonly #warm = new Map<string, { users: number; socket?: WarmSoniox | undefined }>();
 
   constructor(options: VoiceProvidersOptions) {
     this.#db = options.database;
@@ -795,6 +799,64 @@ export class VoiceProviders {
     }
   }
 
+  warm(id: string): void {
+    if (!this.streams(id)) return;
+    const entry = this.#warm.get(id) ?? { users: 0 };
+    entry.users += 1;
+    this.#warm.set(id, entry);
+    this.#rewarm(id);
+  }
+
+  cool(id: string): void {
+    const entry = this.#warm.get(id);
+    if (entry === undefined) return;
+    entry.users -= 1;
+    if (entry.users > 0) return;
+    this.#warm.delete(id);
+    entry.socket?.close();
+  }
+
+  #rewarm(id: string): void {
+    const entry = this.#warm.get(id);
+    if (entry === undefined || entry.users <= 0 || entry.socket !== undefined) return;
+    let stored: StoredProvider;
+    try {
+      stored = this.#stored(id, 'asr');
+    } catch {
+      return;
+    }
+    const pending: { socket?: WarmSoniox | undefined } = {};
+    const holder: WarmSoniox = {
+      take: () => pending.socket?.take(),
+      close: () => {
+        pending.socket?.close();
+        pending.socket = undefined;
+        if (entry.socket === holder) entry.socket = undefined;
+      },
+    };
+    entry.socket = holder;
+    this.#key(stored).then(
+      (key) => {
+        if (entry.socket !== holder) return;
+        pending.socket = warmSoniox({ baseUrl: stored.baseUrl, key, socket: this.#socket });
+      },
+      () => {
+        if (entry.socket === holder) entry.socket = undefined;
+      },
+    );
+  }
+
+  #takeWarm(id: string): WebSocket | undefined {
+    const entry = this.#warm.get(id);
+    const held = entry?.socket;
+    if (entry === undefined || held === undefined) return undefined;
+    entry.socket = undefined;
+    const socket = held.take();
+    if (socket === undefined) held.close();
+    this.#rewarm(id);
+    return socket;
+  }
+
   openStream(input: {
     providerId: string;
     language?: string | undefined;
@@ -815,6 +877,7 @@ export class VoiceProviders {
         signal: input.signal,
         onText: input.onText,
         socket: this.#socket,
+        warm: this.#takeWarm(input.providerId),
       }),
     );
     const log = this.#log;
