@@ -171,9 +171,16 @@ export default function PairTailscaleScreen() {
           {t.pairImage[imageError]}
         </Text>
       ) : pairing.error !== undefined ? (
-        <Text accessibilityRole="alert" accessibilityLiveRegion="polite" tone="danger">
-          {pairingFailureText(pairing.error, pairing.method)}
-        </Text>
+        <View style={{ gap: space.x2 }}>
+          <Text accessibilityRole="alert" accessibilityLiveRegion="polite" tone="danger">
+            {pairingFailureText(pairing.error, pairing.method)}
+          </Text>
+          {pairing.errorDetail !== undefined ? (
+            <Text testID="pair-failure-detail" variant="meta" tone="muted" selectable>
+              {t.pairFailureDetail(pairing.errorDetail)}
+            </Text>
+          ) : null}
+        </View>
       ) : null}
       {pairing.canRetry && imageError === undefined ? (
         <Button label={t.retry} disabled={readingImage} onPress={() => void retry()} />

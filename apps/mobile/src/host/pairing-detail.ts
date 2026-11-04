@@ -1,0 +1,48 @@
+import { isConnectRoute, isLanRoute } from './route';
+
+const TOKEN = /^[a-z][a-z0-9-]{0,47}$/u;
+const SEGMENT = /^(?:lan|connect|remote|link|app):[a-z][a-z0-9-]{0,47}(?::[a-z][a-z0-9-]{0,47})?$/u;
+const MAX_SEGMENTS = 4;
+
+function pathKind(route: string): 'lan' | 'connect' | 'remote' | 'app' {
+  if (route === 'app:') return 'app';
+  if (isLanRoute(route)) return 'lan';
+  return isConnectRoute(route) ? 'connect' : 'remote';
+}
+
+export function reasonCode(reason: string): string {
+  const [head = '', tail] = reason.split(':', 2);
+  if (TOKEN.test(head) && (tail === undefined || TOKEN.test(tail)))
+    return tail === undefined ? head : `${head}:${tail}`;
+  const native = /(NSURLErrorDomain|NSPOSIXErrorDomain)[^\d-]{0,16}(-?\d{1,6})/u.exec(reason);
+  if (native) return `${native[1] === 'NSURLErrorDomain' ? 'nsurl' : 'posix'}${native[2]}`;
+  const lower = reason.toLowerCase();
+  if (/response|http/u.test(lower)) {
+    const status = lower.match(/\b[1-5]\d\d\b/gu)?.find((value) => value !== '101');
+    if (status) return `http-${status}`;
+  }
+  if (lower.includes('timed out') || lower.includes('timeout')) return 'socket-timeout';
+  if (lower.includes('refused')) return 'socket-refused';
+  if (lower.includes('reset') || lower.includes('broken pipe')) return 'socket-reset';
+  if (lower.includes('resolve') || lower.includes('hostname') || lower.includes('dns'))
+    return 'socket-dns';
+  if (lower.includes('offline') || lower.includes('not connected')) return 'socket-offline';
+  if (lower.includes('certificate') || lower.includes('ssl') || lower.includes('tls'))
+    return 'socket-tls';
+  return 'socket-error';
+}
+
+export function channelFailureDetail(route: string, reason: string): string {
+  return `${pathKind(route)}:${reasonCode(reason || 'channel-disconnected')}`;
+}
+
+export function joinFailureDetails(details: readonly string[]): string | undefined {
+  const kept = details.filter((detail) => SEGMENT.test(detail)).slice(-MAX_SEGMENTS);
+  return kept.length === 0 ? undefined : kept.join(',');
+}
+
+export function isPairingFailureDetail(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length > 240) return false;
+  const segments = value.split(',');
+  return segments.length <= MAX_SEGMENTS && segments.every((segment) => SEGMENT.test(segment));
+}

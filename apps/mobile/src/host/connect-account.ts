@@ -23,6 +23,7 @@ export type ConnectRefusal =
   | 'sign-in-required'
   | 'account-not-allowed'
   | 'host-offline'
+  | 'host-refused'
   | 'relay-unavailable'
   | 'account-changed'
   | 'account-identity-required'
@@ -136,7 +137,8 @@ export function createConnectAccount(options: {
     const code = record(reply.body['error'])['code'];
     if (reply.status === 401) throw new Refused('sign-in-required');
     if (code === 'account-not-allowed') throw new Refused('account-not-allowed');
-    if (code === 'host-offline' || code === 'host-refused') throw new Refused('host-offline');
+    if (code === 'host-offline') throw new Refused('host-offline');
+    if (code === 'host-refused') throw new Refused('host-refused');
     if (reply.status !== 200) throw new Refused('relay-unavailable');
     return reply.body;
   };
