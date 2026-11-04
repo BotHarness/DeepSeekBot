@@ -607,6 +607,7 @@ describe('plugin entry', () => {
       'botSystemPrompt',
       'botTurnInput',
       'channelBotStop',
+      'sessionStop',
       'modelCatalog',
       'modelPresets',
       'modelPresetCreate',
