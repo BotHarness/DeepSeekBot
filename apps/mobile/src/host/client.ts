@@ -1044,7 +1044,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     publish({ status: 'connected', route });
     const health = setInterval(() => {
       void discoverRoutes();
-      void refreshConnected(() => call('list')).catch(() => undefined);
+      void refreshConnected(probeHost).catch(() => undefined);
     }, 20_000);
     try {
       await closed;
@@ -1054,6 +1054,22 @@ export function createHostClient(options: HostClientOptions): HostClient {
     }
   };
 
+  let pingAvailable = true;
+  const probeHost = async (): Promise<unknown> => {
+    if (pingAvailable)
+      try {
+        return await call('ping');
+      } catch (error) {
+        if (
+          error instanceof Unreachable ||
+          error instanceof CredentialRefused ||
+          error instanceof ConnectRefused
+        )
+          throw error;
+        pingAvailable = false;
+      }
+    return call('list');
+  };
   const refreshConnected = async (read: () => Promise<unknown> = reload): Promise<void> => {
     const disconnect = disconnectCurrent;
     try {

@@ -766,6 +766,7 @@ export interface BridgeMethods {
   ): BridgeResult<{ target: { path: string; relativePath: string; kind: 'directory' } }>;
   pause(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   resume(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
+  ping(payload: unknown): BridgeResult<{ ok: true }>;
   humanIdentity(payload: unknown): BridgeResult<LocalHumanIdentity>;
   composerIdentity(payload: unknown): BridgeResult<ComposerRecoveryIdentity>;
   composerValidate(
@@ -5000,6 +5001,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           : invalidInput('invalid avatar');
       }
       return { ok: true, value: detailOf(result.record) };
+    },
+    ping() {
+      return { ok: true, value: { ok: true } };
     },
     humanIdentity() {
       return { ok: true, value: deps.channels.humanIdentity() };

@@ -108,6 +108,7 @@ export class FakeHost {
   readonly calls: Array<{ method: string; args: Record<string, unknown> }> = [];
   readonly channels = new Map<string, FakeChannel>();
   readonly methods = new Map<string, (args: Record<string, unknown>) => unknown>([
+    ['ping', () => ({ ok: true })],
     [
       'settings/describe',
       () => ({
