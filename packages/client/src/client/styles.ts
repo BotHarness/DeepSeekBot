@@ -4417,7 +4417,8 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   overflow: hidden;
   padding: ${space.x3} var(--bh-composer-compact-padding-right) ${space.x3} var(--bh-composer-compact-padding-left);
   border: ${border.hairline} solid ${color.border};
-  border-radius: 25px;
+  border-radius: calc(var(--bh-composer-body-height) / 2 + ${space.x3} + ${border.hairline});
+  corner-shape: round;
   background: var(--dsw-alias-bg-module-platform);
   box-shadow: 0 8px 24px
     color-mix(in srgb, var(--dsw-alias-label-primary) 9%, transparent);
@@ -4429,10 +4430,12 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   padding-top: ${space.x3};
   padding-bottom: 48px;
   border-radius: 20px;
+  corner-shape: var(--dsw-corner-shape, round);
 }
 .bh-composer-with-footer {
   padding: 10px 12px 48px;
   border-radius: 20px;
+  corner-shape: var(--dsw-corner-shape, round);
 }
 .bh-composer-reply {
   display: flex;
