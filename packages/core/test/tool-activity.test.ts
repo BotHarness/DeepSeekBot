@@ -125,6 +125,7 @@ describe('safe tool Activity', () => {
       expect(personaBotActivitySnapshot(['ada'], states).bots[0]).toEqual({
         slug: event.slug,
         state: event.state,
+        active: event.active,
         activity: event.activity,
         sessions: event.sessions,
       });

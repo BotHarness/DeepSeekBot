@@ -23,6 +23,7 @@ export function VoiceButton({
   const t = useStrings();
   const theme = useDesignTheme();
   const [held, setHeld] = useState(false);
+  if (held && !active) setHeld(false);
   const size = composerControl(theme);
   const latest = useRef({ active, onStart, onStop, onCancel, onHeld });
   latest.current = { active, onStart, onStop, onCancel, onHeld };

@@ -782,3 +782,31 @@ it('creates a pinned Git import and exposes its stable receipt without inspectin
   });
   expect(live.calls.some((call) => call.method === 'botImportPreview')).toBe(false);
 });
+
+it('returns the independent Bot active flag even when the visible state is waiting and session output is bounded', async () => {
+  const live = await host((method) => ({
+    ok: true,
+    value:
+      method === 'activitySnapshot'
+        ? {
+            generation: 'generation-1',
+            revision: 1,
+            bots: [
+              {
+                slug: 'ada',
+                state: 'waiting',
+                active: true,
+                sessions: [
+                  { id: 'approval', role: 'orchestrator', state: 'waiting' },
+                  { id: 'running', role: 'assignment', state: 'working' },
+                ],
+              },
+            ],
+          }
+        : { bot: { slug: 'ada' } },
+  }));
+  const result = await invoke(['bot-activity', 'ada', '--limit', '1'], live.url);
+  expect(result.code).toBe(0);
+  expect(result.value.bot).toMatchObject({ slug: 'ada', state: 'waiting', active: true });
+  expect(result.value.bot.sessions).toHaveLength(1);
+});

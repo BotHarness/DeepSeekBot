@@ -46,10 +46,12 @@ vi.mock('../src/host/host-session', () => {
   };
 });
 import HostConnectionScreen from '../app/host-connection';
+import { interfacePreferences } from '../src/ui/interface-preferences';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 beforeEach(() => {
+  interfacePreferences.setLanguage('en');
   connection.host.routes = [];
   delete connection.host.encryption;
   connection.snapshot = {

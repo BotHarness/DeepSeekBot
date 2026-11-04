@@ -221,6 +221,7 @@ export function Composer({
     else pillHeight.value = withSpring(next, spring.spatial.default);
   };
   const listening = dictating(dictation);
+  if (held && !listening) setHeld(false);
   const actions = composerActions({
     text: value,
     files: files.length,

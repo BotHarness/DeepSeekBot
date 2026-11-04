@@ -135,6 +135,7 @@ describe('event-order-independent concurrent Activity', () => {
       expect(personaBotActivitySnapshot(['ada'], states).bots[0]).toEqual({
         slug: 'ada',
         state: 'idle',
+        active: false,
       });
     },
   );
