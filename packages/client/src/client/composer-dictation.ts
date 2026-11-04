@@ -320,9 +320,9 @@ export function createComposerDictation(options: {
             send(mine, false);
           });
         } catch (error) {
+          void opened.then((view) => options.port.cancel(view.id)).catch(() => undefined);
           if (mine !== run) return;
           reset();
-          void opened.then((view) => options.port.cancel(view.id)).catch(() => undefined);
           set({
             status:
               error instanceof DictationMicError && error.code === 'microphone-denied'

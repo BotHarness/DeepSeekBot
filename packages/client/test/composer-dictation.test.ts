@@ -117,6 +117,26 @@ describe('composer dictation', () => {
     expect(dictation.snapshot().status).toBe('idle');
   });
 
+  it('closes the Host session when a cancelled start later loses the microphone', async () => {
+    const { port, calls } = fakePort();
+    let reject: ((error: unknown) => void) | undefined;
+    const mic: DictationMic = {
+      start: () =>
+        new Promise<void>((_resolve, fail) => {
+          reject = fail;
+        }),
+      stop: () => undefined,
+    };
+    const dictation = createComposerDictation({ port, mic, onText: () => undefined });
+    dictation.start('toggle');
+    await settle();
+    dictation.cancel();
+    reject?.(new DictationMicError('microphone-denied'));
+    await settle();
+    expect(calls).toEqual(['open', 'cancel']);
+    expect(dictation.snapshot().status).toBe('idle');
+  });
+
   it('fails when the Host cannot open a session', async () => {
     const { port } = fakePort({ failOpen: true });
     const { mic } = fakeMic();

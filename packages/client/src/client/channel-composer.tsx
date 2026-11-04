@@ -942,6 +942,7 @@ export function ChannelComposer({
     }
     if (
       (event.key === 'ArrowUp' || event.key === 'ArrowDown') &&
+      !voice.active &&
       !event.nativeEvent.isComposing &&
       !event.shiftKey &&
       !event.altKey &&
@@ -1129,7 +1130,9 @@ export function ChannelComposer({
                   ordinal={index + 1}
                   t={t}
                   onRetry={() => onRetryAttachment?.(item.id)}
-                  onRemove={() => onRemoveAttachment?.(item.id)}
+                  onRemove={() => {
+                    if (!voice.active) onRemoveAttachment?.(item.id);
+                  }}
                   onReference={() => referenceAttachment(item)}
                   sending={sending || voice.active}
                 />
@@ -1140,7 +1143,9 @@ export function ChannelComposer({
                   ordinal={index + 1}
                   t={t}
                   onRetry={() => onRetryAttachment?.(item.id)}
-                  onRemove={() => onRemoveAttachment?.(item.id)}
+                  onRemove={() => {
+                    if (!voice.active) onRemoveAttachment?.(item.id);
+                  }}
                   onReference={() => referenceAttachment(item)}
                   sending={sending || voice.active}
                 />
