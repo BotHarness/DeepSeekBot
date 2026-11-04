@@ -119,8 +119,14 @@ export async function videoKeyframes(
         continue;
       }
       let jpeg: Uint8Array = bytes;
-      if (jpeg.byteLength > VOICE_CALL_LIMITS.frameBytes)
-        jpeg = new Uint8Array(await sharp(bytes).jpeg({ quality: 70 }).toBuffer());
+      for (const quality of [70, 50, 35]) {
+        if (jpeg.byteLength <= VOICE_CALL_LIMITS.frameBytes) break;
+        jpeg = new Uint8Array(await sharp(bytes).jpeg({ quality }).toBuffer());
+      }
+      if (jpeg.byteLength > VOICE_CALL_LIMITS.frameBytes) {
+        skipped += 1;
+        continue;
+      }
       keyframes.push({ atMs, jpeg, score: Math.min(1, decision.score), skipped });
       skipped = 0;
     }

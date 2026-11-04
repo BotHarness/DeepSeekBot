@@ -178,6 +178,7 @@ interface VisualFrame {
 }
 
 interface GridJob {
+  readonly id: number;
   readonly source: CallVisualSource;
   readonly frames: VisualFrame[];
   readonly picked: readonly PreparedFrame[];
@@ -202,6 +203,7 @@ interface Call {
   readonly abort: AbortController;
   visual: CallVisualSource | 'off';
   frames: VisualFrame[];
+  grids: number;
   lastGrid?: { readonly source: CallVisualSource; readonly messageId: string } | undefined;
   readonly vad: ReturnType<typeof createVad>;
   phase: VoiceCallPhase;
@@ -609,9 +611,11 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
     const frames = call.frames;
     call.frames = [];
     const endAt = now();
+    const id = (call.grids += 1);
     if (frames.length === 0) {
       const last = call.lastGrid;
       return {
+        id,
         source,
         frames,
         picked: [],
@@ -634,6 +638,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         if (!ended(call))
           push(call, {
             type: 'grid-built',
+            grid: id,
             source,
             frames: picked.length,
             dropped: frames.length - picked.length,
@@ -652,7 +657,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         return { source, image, frames: picked.length } as const;
       });
     result.catch(() => undefined);
-    return { source, frames, picked: picked.map((entry) => entry.frame), result };
+    return { id, source, frames, picked: picked.map((entry) => entry.frame), result };
   };
 
   const restoreGrid = (call: Call, grid: GridJob | undefined) => {
@@ -765,7 +770,13 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       if (visual !== undefined && 'image' in visual) {
         call.lastGrid = { source: visual.source, messageId };
         keep(call, messageId, visual.source, grid?.picked ?? []);
-        push(call, { type: 'grid-sent', messageId, layout: visual.image.layout, waitedMs });
+        push(call, {
+          type: 'grid-sent',
+          grid: grid?.id ?? 0,
+          messageId,
+          layout: visual.image.layout,
+          waitedMs,
+        });
       } else if (visual !== undefined)
         push(call, { type: 'grid-unchanged', messageId, sameAs: visual.sameAs });
       call.lastHeardAt = now();
@@ -1296,6 +1307,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
       abort: new AbortController(),
       visual: 'off',
       frames: [],
+      grids: 0,
       vad: createVad({
         maxUtteranceMs: VOICE_CALL_LIMITS.maxUtteranceMs,
         stream: !segmented,
@@ -1476,6 +1488,7 @@ export function createVoiceCalls(deps: VoiceCallsDeps): VoiceCalls {
         if (call.visual !== source) {
           call.visual = source;
           call.frames = [];
+          call.lastGrid = undefined;
           push(call, { type: 'visual', source });
           log('call-visual', { call: call.id, source });
         }
