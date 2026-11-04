@@ -15,6 +15,7 @@ export interface VadOptions {
   activeDb?: number;
   minActiveDbfs?: number;
   periodicity?: number;
+  voicedMarksMs?: readonly number[];
 }
 
 export type VadEvent =
@@ -27,11 +28,13 @@ export type VadEvent =
       voicedMs: number;
       cut: boolean;
     }
-  | { type: 'noise'; startMs: number; durationMs: number };
+  | { type: 'noise'; startMs: number; durationMs: number }
+  | { type: 'voiced'; voicedMs: number; atMs: number };
 
 export interface Vad {
   push(samples: Int16Array): VadEvent[];
   reset(): void;
+  raise(db: number): void;
   timeMs(): number;
   readonly speaking: boolean;
 }
@@ -86,6 +89,8 @@ export function createVad(options: VadOptions = {}): Vad {
   const activeDb = options.activeDb ?? 12;
   const minActiveDbfs = options.minActiveDbfs ?? -50;
   const periodicityNeeded = options.periodicity ?? 0.55;
+  const marks = [...new Set((options.voicedMarksMs ?? []).map(frames))].sort((a, b) => a - b);
+  let raised = 0;
 
   let pending = new Int16Array(0);
   let frameIndex = 0;
@@ -137,9 +142,14 @@ export function createVad(options: VadOptions = {}): Vad {
     clear();
   };
 
+  const mark = (events: VadEvent[], index: number) => {
+    if (marks.includes(voiced))
+      events.push({ type: 'voiced', voicedMs: voiced * FRAME_MS, atMs: (index + 1) * FRAME_MS });
+  };
+
   const frame = (samples: Int16Array, events: VadEvent[]) => {
     const facts = frameFacts(samples);
-    const active = facts.db > Math.max(floor + activeDb, minActiveDbfs);
+    const active = facts.db > Math.max(floor + activeDb, minActiveDbfs) + raised;
     const isVoiced = active && facts.periodicity >= periodicityNeeded;
     levels.push(facts.db);
     if (levels.length > floorWindow) levels.shift();
@@ -155,6 +165,7 @@ export function createVad(options: VadOptions = {}): Vad {
       current = [...history];
       startFrame = index - (current.length - 1);
       voiced = isVoiced ? 1 : 0;
+      if (isVoiced) mark(events, index);
       activeRun = 1;
       quiet = 0;
       lastActive = index;
@@ -166,7 +177,10 @@ export function createVad(options: VadOptions = {}): Vad {
       activeRun += 1;
       quiet = 0;
       lastActive = index;
-      if (isVoiced) voiced += 1;
+      if (isVoiced) {
+        voiced += 1;
+        mark(events, index);
+      }
     } else quiet += 1;
 
     if (state === 'candidate') {
@@ -201,6 +215,9 @@ export function createVad(options: VadOptions = {}): Vad {
       return state === 'speech';
     },
     timeMs: () => frameIndex * FRAME_MS,
+    raise(db) {
+      raised = Number.isFinite(db) && db > 0 ? db : 0;
+    },
     push(samples) {
       const events: VadEvent[] = [];
       let input = samples;

@@ -3,6 +3,7 @@ let peer;
 let captureContext;
 let playContext;
 let destination;
+let master;
 let remoteAudio;
 let tap;
 let answered = false;
@@ -95,6 +96,8 @@ window.callStart = async () => {
     playContext = new AudioContext({ sampleRate: 48000 });
     await playContext.resume();
     destination = playContext.createMediaStreamDestination();
+    master = playContext.createGain();
+    master.connect(destination);
     const outgoing = destination.stream.getAudioTracks()[0];
     peer = new RTCPeerConnection({
       iceServers: [],
@@ -184,7 +187,7 @@ window.callAudio = (playback, data) => {
 window.callPlay = async (playback, _mime) => {
   const list = parts.get(playback);
   parts.delete(playback);
-  if (!list || stopped || !playContext || !destination) throw new Error('No audio');
+  if (!list || stopped || !playContext || !master) throw new Error('No audio');
   const binary = atob(list.join(''));
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
@@ -197,7 +200,7 @@ window.callPlay = async (playback, _mime) => {
   }
   const source = playContext.createBufferSource();
   source.buffer = buffer;
-  source.connect(destination);
+  source.connect(master);
   playing.set(playback, source);
   source.addEventListener('ended', () => {
     if (!playing.delete(playback)) return;
@@ -214,6 +217,14 @@ window.callStop = (playback) => {
   try {
     source?.stop();
   } catch {}
+  return null;
+};
+
+window.callGain = (gain) => {
+  if (stopped || !playContext || !master) throw new Error('Stopped');
+  const value = Math.max(0, Math.min(1, Number(gain)));
+  master.gain.cancelScheduledValues(playContext.currentTime);
+  master.gain.setTargetAtTime(value, playContext.currentTime, 0.03);
   return null;
 };
 
