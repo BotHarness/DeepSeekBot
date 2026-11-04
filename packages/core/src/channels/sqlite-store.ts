@@ -292,6 +292,12 @@ function eventPayload(message: ChannelMessage): string {
 export function pruneChannelChanges(database: OperationalDatabaseModulePort, at: Date): void {
   const cutoff = new Date(at.getTime() - CHANNEL_CHANGE_RETENTION_DAYS * 86_400_000).toISOString();
   database.transaction((db) => {
+    if (
+      db
+        .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'channel_changes'")
+        .get() === undefined
+    )
+      return;
     const expired = db
       .prepare('SELECT MAX(seq) AS seq FROM channel_changes WHERE at < ?')
       .get(cutoff) as { seq: number | null };

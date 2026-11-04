@@ -54,6 +54,10 @@ it('admits Self-Record kinds at generation 75 and keeps rows and purge triggers'
       .all(),
   );
   expect(triggers.map((row) => (row as { name: string }).name)).toEqual([
+    'channel_changes_admission_delete',
+    'channel_changes_admission_insert',
+    'channel_changes_admission_update',
+    'channel_changes_source_update',
     'channel_placements_for_human_update',
     'channel_placements_notice_update',
     'inbox_history_after_update',
