@@ -37,7 +37,17 @@ export interface StorageSettingsPort {
   }): Promise<StorageMessagesPreview>;
   confirmMessages(preview: StorageMessagesPreview): Promise<StorageMessagesResult>;
   clearImageCache(): Promise<void>;
+  phone?: PhoneStoragePort;
 }
+
+export interface PhoneStoragePort {
+  usage(): number;
+  clearOlder(days: number): { files: number; bytes: number };
+  autoCleanup(): boolean;
+  setAutoCleanup(enabled: boolean): void;
+}
+
+const PHONE_AGES = ['30', '90', '180', '365'] as const;
 
 type Target = 'media' | 'messages';
 const TARGETS: readonly Target[] = ['media', 'messages'];
@@ -61,6 +71,8 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
   const [excluded, setExcluded] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'success' | 'danger'; text: string }>();
+  const [phoneBytes, setPhoneBytes] = useState(() => port.phone?.usage());
+  const [autoCleanup, setAutoCleanupState] = useState(() => port.phone?.autoCleanup() ?? false);
 
   const load = useCallback(() => {
     setLoadError(undefined);
@@ -177,9 +189,22 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
 
   const clearImageCache = () => {
     port.clearImageCache().then(
-      () => setNotice({ tone: 'success', text: t.storage.imageCacheDone }),
+      () => {
+        setNotice({ tone: 'success', text: t.storage.imageCacheDone });
+        setPhoneBytes(port.phone?.usage());
+      },
       (reason: unknown) => setNotice({ tone: 'danger', text: errorText(reason) }),
     );
+  };
+  const clearPhoneOlder = (days: number) => {
+    const phone = port.phone;
+    if (phone === undefined) return;
+    const result = phone.clearOlder(days);
+    setNotice({
+      tone: 'success',
+      text: t.storage.phoneOlderDone(result.files, storageSize(result.bytes)),
+    });
+    setPhoneBytes(phone.usage());
   };
 
   return (
@@ -348,7 +373,33 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
           )}
         </View>
       )}
-      <SettingsSection on="raised" title={t.storage.phone} footer={t.storage.imageCacheHint}>
+      <SettingsSection
+        on="raised"
+        title={t.storage.phone}
+        footer={port.phone === undefined ? t.storage.imageCacheHint : t.storage.phoneAutoHint}
+      >
+        {phoneBytes === undefined ? null : (
+          <SettingsRow
+            on="raised"
+            title={t.storage.phoneSaved}
+            control={{ kind: 'value', text: storageSize(phoneBytes) }}
+          />
+        )}
+        {port.phone === undefined ? null : (
+          <SettingsRow
+            on="raised"
+            title={t.storage.phoneAuto}
+            control={{
+              kind: 'switch',
+              testID: 'storage-phone-auto-cleanup',
+              value: autoCleanup,
+              onChange: (enabled) => {
+                port.phone?.setAutoCleanup(enabled);
+                setAutoCleanupState(enabled);
+              },
+            }}
+          />
+        )}
         <SettingsRow
           on="raised"
           title={t.storage.imageCache}
@@ -358,6 +409,19 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
           onPress={clearImageCache}
         />
       </SettingsSection>
+      {port.phone === undefined ? null : (
+        <SettingsSection on="raised" title={t.storage.phoneOlder}>
+          {PHONE_AGES.map((days) => (
+            <SettingsRow
+              on="raised"
+              key={days}
+              title={t.storage.age[days]}
+              tone="accent"
+              onPress={() => clearPhoneOlder(Number(days))}
+            />
+          ))}
+        </SettingsSection>
+      )}
     </ScrollView>
   );
 }
