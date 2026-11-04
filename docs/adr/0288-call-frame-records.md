@@ -20,4 +20,4 @@ A grid is built only when the Human finishes a sentence, so a long silent stretc
 
 ## Consequences
 
-An unsaved grid reaches the Bot through `call_frame` rather than as an inline image in the turn, which costs one tool step. Records are ordinary attachments and follow attachment retention. A record carries no thumbnail in the notice yet; the Bot reads the image, and the Human sees the time range.
+An unsaved grid reaches the Bot through `call_frame` rather than as an inline image in the turn, which costs one tool step. An image the Bot reads with `call_frame` is stored as that tool result's image, like any image a model reads, and follows session retention; nothing is added to the DM. Records are ordinary attachments and follow attachment retention. A record carries no thumbnail in the notice yet; the Bot reads the image, and the Human sees the time range.
