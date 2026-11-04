@@ -1566,6 +1566,11 @@ const en = {
   localReplyText: 'New reply',
   alertOpen: 'Open',
   alertDismiss: 'Dismiss',
+  inAppAlerts: 'In-app alerts',
+  inAppAlertStyle: 'Alert style',
+  inAppAlertInline: 'Push page down',
+  inAppAlertOverlay: 'Top overlay',
+  inAppAlertsHint: 'Show alerts while using the app. System notifications stay unchanged.',
   localNotificationsDenied:
     'System notifications are off. Keep connected can stay on, but its ongoing notification may be hidden. In-app alerts still work while the app is open.',
   cloudPushUnavailable: 'Cloud push is unavailable',
@@ -3669,6 +3674,11 @@ const zh: typeof en = {
   localReplyText: '新回复',
   alertOpen: '打开',
   alertDismiss: '关闭提示',
+  inAppAlerts: '应用内提醒',
+  inAppAlertStyle: '提醒样式',
+  inAppAlertInline: '推下页面',
+  inAppAlertOverlay: '顶部浮层',
+  inAppAlertsHint: '使用 App 时显示提醒，不影响系统通知。',
   localNotificationsDenied:
     '系统通知已关闭，仍可保持连接，但常驻通知可能不在通知栏显示。打开应用时仍会显示应用内提醒。',
   cloudPushUnavailable: '云推送暂不可用',

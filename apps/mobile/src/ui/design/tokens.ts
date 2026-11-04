@@ -42,6 +42,8 @@ export const radius = {
   round: 9999,
 } as const;
 
+export const alertOverlay = { maxHeightFraction: 0.5 } as const;
+
 export const edge = {
   hairline: 1,
   focus: 2,
