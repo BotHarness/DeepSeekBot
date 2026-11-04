@@ -50,7 +50,6 @@ export function SheetFrame({
             flex: 1,
             backgroundColor: theme.overlay.fill,
             paddingTop: space.x6,
-            // The page sheet reaches the screen bottom, so the keyboard covers the same band.
             paddingBottom: Math.max(insets.bottom, keyboard) + space.x5,
           }}
         >
