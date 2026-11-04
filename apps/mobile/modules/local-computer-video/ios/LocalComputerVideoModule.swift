@@ -5,14 +5,26 @@ import UIKit
 public final class LocalComputerVideoModule: Module {
   /// The one Bot call this app may hold. A new attempt replaces it.
   private var call: CallAttempt?
+  /// Reports interruptions and output changes for `call`.
+  private var audio: CallAudioObserver?
+
+  private func release(_ call: CallAttempt, _ done: @escaping (String?) -> Void) {
+    if self.call === call { self.call = nil }
+    audio?.stop()
+    audio = nil
+    CallAudioRoute.reset()
+    call.close(done)
+  }
 
   public func definition() -> ModuleDefinition {
     Name("LocalComputerVideo")
-    Events("onCallState", "onCallTap")
+    Events("onCallState", "onCallTap", "onCallAudio")
 
     // Answers the Host's audio offer with the microphone. `testAudio` (test builds only)
     // replaces the microphone with injected files and records the downlink.
-    AsyncFunction("callStart") { (attemptId: String, offer: String, testAudio: Bool, promise: Promise) in
+    // `headsetMicrophone` is the microphone (`headset` or `iphone`) used when headphones
+    // take the call; `iphone` there is music mode.
+    AsyncFunction("callStart") { (attemptId: String, offer: String, testAudio: Bool, headsetMicrophone: String, promise: Promise) in
       let lines = offer.components(separatedBy: .newlines)
       guard offer.utf8.count <= 98304, offer.hasPrefix("v=0"),
         lines.filter({ $0.hasPrefix("m=audio ") }).count == 1,
@@ -24,8 +36,8 @@ public final class LocalComputerVideoModule: Module {
         promise.reject("microphone-denied", "Microphone access is off for this app.")
         return
       }
-      self.call?.close { _ in }
-      guard CallAttempt.configureSession() else {
+      if let previous = self.call { self.release(previous) { _ in } }
+      guard CallAudioRoute.start(headsetMicrophone: headsetMicrophone) else {
         promise.reject("audio-session", "The phone's audio could not start for a call.")
         return
       }
@@ -42,8 +54,14 @@ public final class LocalComputerVideoModule: Module {
           self.sendEvent("onCallTap", detail.merging(["attemptId": attemptId, "kind": kind]) { current, _ in current })
         })
       self.call = attempt
-      // A call keeps the screen on; the call ends when the app leaves the foreground.
-      UIApplication.shared.isIdleTimerDisabled = true
+      CallAudioRoute.onMusicMode = { [weak attempt] on in attempt?.setMusicMode(on) }
+      CallAudioRoute.syncMusicMode()
+      // The call keeps running with the screen locked or the app in the background:
+      // the app declares the `audio` background mode and the session stays active.
+      self.audio = CallAudioObserver { [weak self] body in
+        guard let self, self.call?.id == attemptId else { return }
+        self.sendEvent("onCallAudio", body.merging(["attemptId": attemptId]) { current, _ in current })
+      }
       attempt.start { result in
         switch result {
         case .success(let sdp): promise.resolve(sdp)
@@ -57,6 +75,18 @@ public final class LocalComputerVideoModule: Module {
       call.mute(muted)
     }
 
+    // Chooses the live call's output (`receiver`, `speaker` or `external`) and microphone
+    // (`iphone` or `headset`); resolves with the route now in use.
+    AsyncFunction("callAudio") { (attemptId: String, output: String, microphone: String) -> [String: Any]? in
+      guard let call = self.call, call.id == attemptId else { return nil }
+      return CallAudioRoute.choose(output: output, microphone: microphone)
+    }.runOnQueue(.main)
+
+    AsyncFunction("callAudioState") { (attemptId: String) -> [String: Any]? in
+      guard let call = self.call, call.id == attemptId else { return nil }
+      return CallAudioRoute.state()
+    }.runOnQueue(.main)
+
     // Test builds: queue a 16-bit WAV file into the uplink in place of the microphone.
     AsyncFunction("callInject") { (attemptId: String, path: String) -> Bool in
       guard let call = self.call, call.id == attemptId, call.tap != nil else { return false }
@@ -68,19 +98,8 @@ public final class LocalComputerVideoModule: Module {
     // Ends the call; resolves with the downlink recording path when a test build made one.
     AsyncFunction("callStop") { (attemptId: String, promise: Promise) in
       guard let call = self.call, call.id == attemptId else { promise.resolve(nil); return }
-      self.call = nil
-      UIApplication.shared.isIdleTimerDisabled = false
-      call.close { recording in promise.resolve(recording) }
+      self.release(call) { recording in promise.resolve(recording) }
     }.runOnQueue(.main)
-
-    OnAppEntersBackground {
-      // V2 calls are foreground only: leaving the app ends the call.
-      guard let call = self.call else { return }
-      self.call = nil
-      UIApplication.shared.isIdleTimerDisabled = false
-      self.sendEvent("onCallState", ["attemptId": call.id, "state": "closed", "code": "background"])
-      call.close { _ in }
-    }
 
     View(LocalComputerVideoView.self) {
       Events("onDescription", "onMediaState", "onPresentation")

@@ -200,6 +200,7 @@ import { createProviderCredentialHealth } from './models/credential-health.js';
 import { createModelRouteReadiness } from './models/readiness.js';
 import { createBotAvatarHttp, botAvatarUrl, BOT_AVATAR_PATH } from './bots/avatar-http.js';
 import { BOT_BANNER_PATH, createBotBannerHttp } from './bots/banner-http.js';
+import { coalesce } from './runtime/coalesce.js';
 import { watchHumanAttention } from './runtime/human-attention-live.js';
 import { createChannelLiveHub, CHANNEL_STREAM_PATH, type ChannelLiveHub } from './channels/live.js';
 import type { ChannelDraftEvent } from './channels/draft.js';
@@ -216,6 +217,7 @@ import {
   attachOperationalModule,
   failOperationalDatabase,
   mountOperationalDatabase,
+  onOperationalDatabaseClose,
   type OperationalDatabaseOwner,
 } from './database/owner.js';
 import { applyPendingDataReset, createDataReset } from './data-reset/reset.js';
@@ -893,6 +895,12 @@ export function createCore(
         humanAttention.durableAttention().filter((row) => registry.get(row.botSlug) !== undefined),
       );
     refreshDurableAttention();
+    const durableAttention = coalesce(refreshDurableAttention, { delayMs: 100, maxWaitMs: 500 });
+    states.syncDurableAttentionWith(durableAttention.flush);
+    onOperationalDatabaseClose(operationalDatabase, () => {
+      states.syncDurableAttentionWith(() => {});
+      durableAttention.cancel();
+    });
     operationalDatabase.subscribe(({ topics }) => {
       if (topics.includes('content-purge')) live?.publishContentPurged();
       if (
@@ -908,7 +916,7 @@ export function createCore(
           ),
         )
       )
-        refreshDurableAttention();
+        durableAttention.schedule();
     });
   }
   live = createChannelLiveHub(
@@ -919,7 +927,7 @@ export function createCore(
           registry.list().map((bot) => bot.slug),
           states,
         ),
-      onChange: (changed) => states.onActivity(() => changed()),
+      onChange: (changed) => states.onActivity((event) => changed(event)),
     },
     () => contentPurge.redactions(),
     (changed) =>

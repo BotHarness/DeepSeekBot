@@ -451,6 +451,7 @@ deepseekbot session-ids
 deepseekbot session-owner <session-id>
 deepseekbot session-archive-set <bot-id> --session <session-id> --archived
 deepseekbot session-stop <bot-id> <session-id> [--channel <channel-id>]
+deepseekbot session-stop <bot-id> --activity <activity-id> [--channel <channel-id>]
 deepseekbot bot-stop <bot-id> [--channel <channel-id>]
 deepseekbot tool-approval-rules <bot-id>
 deepseekbot tool-approval-history <bot-id> [--limit 30] [--cursor <next>]
@@ -462,6 +463,8 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 ```
 
 `session-stop <bot-id> <session-id>` 停止 Bot 的一个运行中的 Session，与 Sessions 面板中该行的停止按钮相同。它的 Subagent 随之停止，Bot 的其他 Session 继续运行。返回 `stopped` 和 `alreadyIdle`，均为 `{ botSlug, sessionId, role }` 列表：空闲、已停止或重复停止的 Session 出现在 `alreadyIdle` 中，命令仍然成功。Bot 不拥有的 Session 以 `unknown-session` 拒绝。带 `--channel` 时，发起停止的 Channel 会收到一行通知（`turnStop.target`，结果中另有 `messageId`），但只在该 Session 属于这个 Channel 时才发：Orchestrator 对应 Bot 所在的 Channel，Assignment 只对应发起它的 Channel。
+
+`session-stop <bot-id> --activity <activity-id>` 停止 Bot 实时活动快照中某一行（`sessions[].id`）对应的 Session，与消息面板顶部弹出框中该行的停止按钮相同。该行已消失表示 Session 已结束，命令返回空的 `stopped` 和 `alreadyIdle` 列表，仍然成功。Session id 和 `--activity` 只能传其中一个。
 
 停止 **Assignment** 不会唤醒 Orchestrator；它的下一轮会读到一条 Host 生命周期通知，说明 Human 停止了该 Assignment，除非 Human 要求，否则不要重新派发。该 Assignment 保留历史且不会被归档；只有 Orchestrator 发来的 Assignment Request（`send_assignment_request`）能让它继续。
 

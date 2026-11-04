@@ -1,3 +1,4 @@
+import type { ConversationStateView } from './store.js';
 import type { ReactElement } from 'react';
 
 import { sameBotNames, useClientStore } from './use-client-store.js';
@@ -7,7 +8,7 @@ import { ConversationIngestRows } from './conversation-ingest-list.js';
 import { GroupWakePolicyList } from './group-wake-policy-list.js';
 import type { ClientState } from './store.js';
 
-function groupChannel(state: ClientState, channelId: string) {
+function groupChannel(state: ConversationStateView, channelId: string) {
   const channel = state.channels.find((item) => item.id === channelId);
   return channel?.type === 'group' ? channel : undefined;
 }
@@ -16,7 +17,7 @@ function botNames(bots: ClientState['bots']): ReadonlyMap<string, string> {
   return new Map(bots.map((bot) => [bot.slug, bot.displayName]));
 }
 
-export function isGroupConversation(state: ClientState): boolean {
+export function isGroupConversation(state: ConversationStateView): boolean {
   return state.conversation.channel?.type === 'group';
 }
 

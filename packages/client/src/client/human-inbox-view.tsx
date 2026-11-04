@@ -21,7 +21,7 @@ import {
 import { zhTranslate, type BotHarnessTranslate } from './locale.js';
 import type { ClientState, HumanAttentionItem } from './store.js';
 import { useMountedResource } from './mounted-resource.js';
-import { keepClientState, sameBotFaces, useClientStore } from './use-client-store.js';
+import { sameBotFaces, useClientStore } from './use-client-store.js';
 import { webModalOpen } from './channel-shortcuts.js';
 import { HumanInboxReply } from './human-inbox-reply.js';
 import { HumanInboxDismiss } from './human-inbox-detail-controls.js';
@@ -42,9 +42,16 @@ const categoryCopy = {
   handled: { title: 'humanInbox.handled', empty: 'humanInbox.empty.handled' },
 } as const;
 
-const overrideInputs = (left: ClientState, right: ClientState): boolean =>
+type InboxInputs = Pick<ClientState, 'bots' | 'channels' | 'humanInbox'>;
+type OverrideInputs = Pick<ClientState, 'bots' | 'channels'>;
+const selectInboxInputs = (state: ClientState): InboxInputs => ({
+  bots: state.bots,
+  channels: state.channels,
+  humanInbox: state.humanInbox,
+});
+const overrideInputs = (left: OverrideInputs, right: OverrideInputs): boolean =>
   left.channels === right.channels && sameBotFaces(left.bots, right.bots);
-const inboxInputs = (left: ClientState, right: ClientState): boolean =>
+const inboxInputs = (left: InboxInputs, right: InboxInputs): boolean =>
   left.humanInbox === right.humanInbox && overrideInputs(left, right);
 
 const itemKey = (item: HumanAttentionItem): string =>
@@ -104,11 +111,12 @@ export function HumanInboxView({
   | { actions: BridgeActions; hostSource?: never }
   | { actions?: never; hostSource: HumanInboxSource }
 )): ReactElement {
-  const state = useClientStore(
-    keepClientState,
+  const inboxState = useClientStore(
+    selectInboxInputs,
     inboxOverride === undefined ? inboxInputs : overrideInputs,
   );
-  const inbox = inboxOverride ?? state.humanInbox;
+  const state: OverrideInputs = inboxState;
+  const inbox = inboxOverride ?? inboxState.humanInbox;
   const [selectionMode, setSelectionMode] = useState(false);
   const detailId = useId();
   const [busyId, setBusyId] = useState<string>();

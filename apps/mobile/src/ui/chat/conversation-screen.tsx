@@ -39,7 +39,7 @@ import {
   backgroundImageUri,
 } from '../../host/native-chat-background';
 import { ChatBackground } from './chat-background';
-import type { HostClient } from '../../host/client';
+import type { HostClient, RosterBot } from '../../host/client';
 import { visibleDmActivity } from '../../host/dm-activity';
 import { latestTurnMessageId } from '../../host/session-failure';
 import { useHiddenDmActivity } from '../../host/native-dm-activity';
@@ -198,9 +198,10 @@ export function ConversationScreen({
   const focused = routeFocused && active && (presentation?.active ?? true);
   const roster = useHostSnapshot(client, focused).roster;
   const navigation = useNavigationContainerRef();
+  const identityBots = useIdentityBots(roster?.bots);
   const identities = useMemo(
     () => ({
-      bots: roster?.bots ?? [],
+      bots: identityBots ?? [],
       openBot: (slug: string) =>
         saved &&
         navigateChannel(navigation, {
@@ -208,7 +209,7 @@ export function ConversationScreen({
           params: { slug, hostId: saved.hostId },
         }),
     }),
-    [roster?.bots, navigation, saved],
+    [identityBots, navigation, saved],
   );
   const bot =
     place.kind === 'dm' ? roster?.bots.find((entry) => entry.slug === place.slug) : undefined;
@@ -957,8 +958,13 @@ function ChatConversation({
     [conversation],
   );
 
-  const roster = host.roster;
-  const botName = useBotNames(roster?.bots);
+  const liveRoster = host.roster;
+  const identityBots = useIdentityBots(liveRoster?.bots);
+  const roster = useMemo(
+    () => (liveRoster === undefined ? undefined : { ...liveRoster, bots: identityBots ?? [] }),
+    [identityBots, liveRoster?.channels, liveRoster?.activityChannels],
+  );
+  const botName = useBotNames(identityBots);
   const reading = useMemo(() => readingBots(snapshot.messages), [snapshot.messages]);
   const [deliveryFor, setDeliveryFor] = useState<string>();
   const openDelivery = useCallback(
@@ -2011,4 +2017,25 @@ function ChatConversation({
       )}
     </>
   );
+}
+
+function useIdentityBots(bots: readonly RosterBot[] | undefined): RosterBot[] | undefined {
+  const last = useRef<{ key: string; bots: RosterBot[] | undefined }>(undefined);
+  const key = JSON.stringify(
+    bots?.map(
+      ({
+        state: _state,
+        activity: _activity,
+        sessions: _sessions,
+        preview: _preview,
+        previewAt: _previewAt,
+        previewAuthor: _previewAuthor,
+        latestMessageId: _latestMessageId,
+        ...identity
+      }) => identity,
+    ),
+  );
+  if (last.current === undefined || last.current.key !== key)
+    last.current = { key, bots: bots === undefined ? undefined : [...bots] };
+  return last.current.bots;
 }

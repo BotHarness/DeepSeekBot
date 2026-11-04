@@ -112,6 +112,10 @@ export function useTimelineWindow(
 ): TimelineWindow {
   const measured = useRef(new Map<string, number>());
   const shares = useRef(new Map<string, number>());
+  const swept = useRef<{
+    keys?: readonly string[];
+    members?: ReadonlyMap<string, readonly string[]>;
+  }>({});
   const latestMembers = useRef(members);
   latestMembers.current = members;
   const record = (key: string, height: number): void => {
@@ -255,10 +259,15 @@ export function useTimelineWindow(
     [onScroll, schedule],
   );
 
-  const known = new Set(keys);
-  for (const key of [...measured.current.keys()]) if (!known.has(key)) measured.current.delete(key);
-  for (const key of [...refs.current.keys()]) if (!known.has(key)) refs.current.delete(key);
-  if (members.size > 0) {
+  if (swept.current.keys !== keys) {
+    swept.current.keys = keys;
+    const known = new Set(keys);
+    for (const key of [...measured.current.keys()])
+      if (!known.has(key)) measured.current.delete(key);
+    for (const key of [...refs.current.keys()]) if (!known.has(key)) refs.current.delete(key);
+  }
+  if (members.size > 0 && swept.current.members !== members) {
+    swept.current.members = members;
     const ids = new Set<string>();
     for (const list of members.values()) for (const id of list) ids.add(id);
     for (const id of [...shares.current.keys()]) if (!ids.has(id)) shares.current.delete(id);

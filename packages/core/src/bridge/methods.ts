@@ -110,6 +110,7 @@ import {
   type UsageOverviewResult,
 } from '../usage/overview.js';
 import { markAllHumanMessagesRead } from '../channels/mark-all-read.js';
+import { channelPreviewMessage } from '../channels/channel-notice.js';
 import { channelBridgeInput, type ChannelBridgeSnapshot } from '../messaging/channel-bridge.js';
 import {
   conversationIngestInput,
@@ -765,6 +766,7 @@ export interface BridgeMethods {
   ): BridgeResult<{ target: { path: string; relativePath: string; kind: 'directory' } }>;
   pause(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   resume(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
+  ping(payload: unknown): BridgeResult<{ ok: true }>;
   humanIdentity(payload: unknown): BridgeResult<LocalHumanIdentity>;
   composerIdentity(payload: unknown): BridgeResult<ComposerRecoveryIdentity>;
   composerValidate(
@@ -3116,14 +3118,22 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     async sessionStop(payload) {
       const source = asObject(payload);
       const botSlug = asNonBlank(source, 'botSlug');
-      const sessionId = asNonBlank(source, 'sessionId');
-      if (!botSlug || !sessionId) return invalidInput('botSlug and sessionId are required');
+      const activityId = asNonBlank(source, 'activityId');
+      if (!botSlug || (source['sessionId'] === undefined) === (activityId === undefined))
+        return invalidInput('botSlug and exactly one of sessionId or activityId are required');
       const bot = deps.registry.get(botSlug);
       if (bot === undefined) return unknownBot(botSlug);
       const channelId = asNonBlank(source, 'channelId');
       if (source['channelId'] !== undefined && channelId === undefined)
         return invalidInput('channelId must be a Channel id');
       if (deps.runtime?.stopSession === undefined) return unavailable();
+      const sessionId =
+        activityId === undefined
+          ? asNonBlank(source, 'sessionId')
+          : deps.states.sessionIdForActivity(botSlug, activityId);
+      if (activityId !== undefined && sessionId === undefined)
+        return { ok: true, value: { stopped: [], alreadyIdle: [] } };
+      if (!sessionId) return invalidInput('sessionId must be a Session id');
       const outcome = await deps.runtime.stopSession(botSlug, sessionId);
       if (outcome.outcome === 'refused')
         return { ok: false, error: { code: outcome.code, message: outcome.message } };
@@ -4999,6 +5009,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       }
       return { ok: true, value: detailOf(result.record) };
     },
+    ping() {
+      return { ok: true, value: { ok: true } };
+    },
     humanIdentity() {
       return { ok: true, value: deps.channels.humanIdentity() };
     },
@@ -5095,7 +5108,8 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         deps.channels.getOrCreateDm(bot.slug, bot.displayName);
       }
       const channels = deps.channels.list().map((channel) => {
-        const latestMessage = deps.channels.latestMessage(channel.id);
+        const latest = deps.channels.latestMessage(channel.id);
+        const latestMessage = latest === undefined ? undefined : channelPreviewMessage(latest);
         return {
           ...channelView(channel),
           ...(latestMessage === undefined ? {} : { latestMessage }),

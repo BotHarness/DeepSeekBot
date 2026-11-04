@@ -169,7 +169,7 @@ describe('live PersonaBot activity', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('refetches revision gaps and ignores late replies from a previous Host generation', async () => {
+  it('applies full snapshots across revision gaps without refetching', async () => {
     vi.useFakeTimers();
     const store = createStore({ smoothActivity: false });
     store.setRoster([BOT], []);
@@ -183,27 +183,15 @@ describe('live PersonaBot activity', () => {
     pending[0]!.resolve({ generation: 'one', revision: 1, bots: [{ slug: 'ada', state: 'idle' }] });
     await vi.advanceTimersByTimeAsync(0);
     source.emit('one', 4, 'working');
-    expect(read).toHaveBeenCalledTimes(2);
-    source.emit('two', 0, 'idle');
-    pending[1]!.resolve({
-      generation: 'one',
-      revision: 99,
-      bots: [{ slug: 'ada', state: 'blocked' }],
-    });
-    await vi.advanceTimersByTimeAsync(0);
-    expect(store.getSnapshot().bots[0]?.aggregateState).toBe('idle');
-    source.emit('two', 4, 'working');
-    expect(read).toHaveBeenCalledTimes(3);
-    store.setMode('dsh');
-    expect(pending[2]?.signal.aborted).toBe(true);
-    expect(vi.getTimerCount()).toBe(0);
-    pending[2]!.resolve({
-      generation: 'two',
-      revision: 5,
-      bots: [{ slug: 'ada', state: 'blocked' }],
-    });
-    await vi.advanceTimersByTimeAsync(0);
+    expect(read).toHaveBeenCalledTimes(1);
     expect(store.getSnapshot().bots[0]?.aggregateState).toBe('working');
+    source.emit('one', 3, 'idle');
+    expect(store.getSnapshot().bots[0]?.aggregateState).toBe('working');
+    source.emit('two', 0, 'idle');
+    expect(store.getSnapshot().bots[0]?.aggregateState).toBe('idle');
+    source.emit('two', 9, 'blocked');
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(store.getSnapshot().bots[0]?.aggregateState).toBe('blocked');
     dispose();
   });
 
