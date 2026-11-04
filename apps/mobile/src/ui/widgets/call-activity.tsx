@@ -1,5 +1,13 @@
 import { Button, HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
-import { font, foregroundStyle, monospacedDigit } from '@expo/ui/swift-ui/modifiers';
+import {
+  font,
+  foregroundStyle,
+  frame,
+  lineLimit,
+  monospacedDigit,
+  multilineTextAlignment,
+  padding,
+} from '@expo/ui/swift-ui/modifiers';
 import { createLiveActivity, type LiveActivityEnvironment } from 'expo-widgets';
 import type { CallActivityProps } from '../chat/call-activity';
 
@@ -46,8 +54,16 @@ function CallActivity(props: CallActivityProps, environment: LiveActivityEnviron
     <Text
       date={new Date(props.startedAt)}
       dateStyle="timer"
-      modifiers={[monospacedDigit(), font({ textStyle: 'headline' })]}
+      modifiers={[
+        monospacedDigit(),
+        font({ textStyle: 'headline' }),
+        multilineTextAlignment('trailing'),
+        frame({ width: 72, alignment: 'trailing' }),
+      ]}
     />
+  );
+  const name = (
+    <Text modifiers={[font({ textStyle: 'headline' }), lineLimit(1)]}>{props.name}</Text>
   );
   const controls = (
     <HStack spacing={12}>
@@ -65,15 +81,15 @@ function CallActivity(props: CallActivityProps, environment: LiveActivityEnviron
     </HStack>
   );
   const banner = (
-    <VStack alignment="leading" spacing={8}>
+    <VStack alignment="leading" spacing={8} modifiers={[padding({ all: 16 })]}>
       <HStack>
         <Image systemName="phone.fill" color="green" />
-        <Text modifiers={[font({ textStyle: 'headline' })]}>{props.name}</Text>
+        {name}
         <Spacer />
         {timer}
       </HStack>
       <HStack>
-        <Text modifiers={[foregroundStyle('secondary')]}>{status}</Text>
+        <Text modifiers={[foregroundStyle('secondary'), lineLimit(1)]}>{status}</Text>
         <Spacer />
         {controls}
       </HStack>
@@ -84,14 +100,27 @@ function CallActivity(props: CallActivityProps, environment: LiveActivityEnviron
     bannerSmall: banner,
     compactLeading: <Image systemName="phone.fill" color="green" />,
     compactTrailing: (
-      <Text date={new Date(props.startedAt)} dateStyle="timer" modifiers={[monospacedDigit()]} />
+      <Text
+        date={new Date(props.startedAt)}
+        dateStyle="timer"
+        modifiers={[
+          monospacedDigit(),
+          multilineTextAlignment('trailing'),
+          frame({ width: 56, alignment: 'trailing' }),
+        ]}
+      />
     ),
     minimal: <Image systemName="phone.fill" color="green" />,
-    expandedLeading: <Text modifiers={[font({ textStyle: 'headline' })]}>{props.name}</Text>,
-    expandedTrailing: timer,
+    expandedLeading: (
+      <HStack spacing={6} modifiers={[padding({ leading: 8 })]}>
+        <Image systemName="phone.fill" color="green" />
+        {name}
+      </HStack>
+    ),
+    expandedTrailing: <HStack modifiers={[padding({ trailing: 8 })]}>{timer}</HStack>,
     expandedBottom: (
       <HStack>
-        <Text modifiers={[foregroundStyle('secondary')]}>{status}</Text>
+        <Text modifiers={[foregroundStyle('secondary'), lineLimit(1)]}>{status}</Text>
         <Spacer />
         {controls}
       </HStack>
