@@ -255,12 +255,15 @@ class CallAttempt(
     return true
   }
 
-  /** Releases the peer, the audio device and the audio route off the UI thread. */
+  /** Restores the audio route at once, then releases the peer and audio device off the UI thread. */
   fun close(done: (String?) -> Unit) {
     if (!closed.compareAndSet(false, true)) { done(null); return }
     val completion = answered
     answered = null
     if (completion != null) main.post { completion(Result.failure(CallError("closed"))) }
+    // Restore mode, device and focus now (callers are on the main thread), so a replacement
+    // call that starts before this teardown finishes records the phone's real pre-call state.
+    route.end()
     worker.shutdownNow()
     Thread({
       worker.awaitTermination(3, TimeUnit.SECONDS)
@@ -273,10 +276,7 @@ class CallAttempt(
       ).forEach { release -> runCatching { release() } }
       peer = null; track = null; remoteTrack = null; source = null; factory = null; adm = null
       val recording = tap?.render?.writeRecording()
-      main.post {
-        route.end()
-        done(recording)
-      }
+      main.post { done(recording) }
     }, "BotCallClose").apply { isDaemon = true }.start()
   }
 
