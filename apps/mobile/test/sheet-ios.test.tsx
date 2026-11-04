@@ -223,6 +223,23 @@ it('presents a long list as a UIKit page sheet, where its scroll view can scroll
   expect(view.querySelector('aside p')?.textContent).toBe('rows');
 });
 
+it("keeps a page sheet's bottom actions above the keyboard", async () => {
+  Object.assign(keyboard, { isVisible: true, height: 336 });
+  try {
+    const view = await mount(
+      <Sheet visible fill label="Folders" onClose={() => {}}>
+        <p>rows</p>
+      </Sheet>,
+    );
+    const style = JSON.parse(
+      view.querySelector('aside [aria-label="Folders"]')?.getAttribute('data-style') ?? '{}',
+    ) as { paddingBottom?: number };
+    expect(style.paddingBottom).toBe(336 + 16);
+  } finally {
+    Object.assign(keyboard, { isVisible: false, height: 0 });
+  }
+});
+
 it('picks the detent from the room the medium detent leaves', () => {
   const medium = (844 - 47) / 2 - 34 - 44;
   expect(sheetDetent(room, undefined, false)).toBe('medium');

@@ -103,6 +103,7 @@ export function FolderPickerSheet({
     return (
       <Sheet
         visible
+        fill
         label={t.grantConfirm(botName)}
         title={t.grantConfirm(botName)}
         onClose={close}
