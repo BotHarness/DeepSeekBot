@@ -1,10 +1,17 @@
+import * as Application from 'expo-application';
 import * as SecureStore from 'expo-secure-store';
 import { cloudAvailable } from '../src/cloud/available';
 import { cloudNativeIntent } from '../src/cloud/native-intent';
 import { parseInvitationLink } from '../src/cloud/invitation-link';
+import { callLinkRedirect } from '../src/ui/chat/call-link';
 import { isSharePath } from '../src/ui/share/share-path';
 export async function redirectSystemPath({ path }: { path: string; initial: boolean }) {
   if (isSharePath(path)) return '/share';
+  const call = callLinkRedirect(
+    path,
+    __DEV__ && Application.applicationId?.endsWith('.dev') === true,
+  );
+  if (call !== undefined) return call;
   if (/^app\.deepseekbot\.mobile:/i.test(path)) return '/';
   const destination = cloudNativeIntent(path);
   if (!cloudAvailable && destination.startsWith('/cloud-')) return '/';

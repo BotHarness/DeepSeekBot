@@ -33,6 +33,7 @@ import {
   LocalVideoError,
   type LocalDesktopControl,
 } from './local-video-contract.js';
+import { createCallMedia } from './media/call-supervisor.js';
 import { createLocalVideoMedia } from './media/supervisor.js';
 import { resolveDshHome } from '../../core/src/im/config-store.js';
 import type { ComputerSettings } from './settings.js';
@@ -455,9 +456,13 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     onEvent: (detail) => diagnostics.record('lifecycle', detail),
   });
   service.localVideo = localVideo;
+  service.callMedia = createCallMedia({
+    onEvent: (detail) => diagnostics.record('lifecycle', detail),
+  });
   ctx.effect(
     () => async () => {
       service.localVideo = undefined;
+      service.callMedia = undefined;
       await localVideo.dispose();
     },
     'botharness-computer: Local video owner',

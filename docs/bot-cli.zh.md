@@ -723,6 +723,25 @@ deepseekbot voice-provider-remove <provider-id>
 
 预设有 `custom`（任何兼容 OpenAI `/audio/speech` 的端点，例如本地 Kokoro-FastAPI 或 LocalAI，密钥可选）、`fish-audio`、`elevenlabs` 和 `openai`（需要密钥）。`voice-providers` 返回 `{presets, providers, bot?}`，每个 provider 列出 `id`、`name`、`preset`、`baseUrl`、`model`、`defaultVoice` 和 `keySet`，从不返回密钥。密钥只从 stdin 读取，保存在 Host 凭据存储中。`voice-provider-test` 合成一小段话，返回 `{ok: true, latencyMs, bytes, mime}` 或 `{ok: false, code, message}`。`voice-set` 绑定 Bot 的声音，`off` 解除绑定；移除 provider 会清掉使用它的 Bot（`clearedBots`）。`voice-synthesize` 使用 Bot 的绑定（`--bot`）或指定 provider（`--provider`），文字来自 `--text` 或 `--text-stdin`，加 `--markdown` 时套用朗读规则，把音频写到绝对路径 `--out`，输出 `{providerId, voiceId, mime, bytes, latencyMs, text, out}`。拒绝时带错误码：`usage`、`invalid-input`、`key-required`、`unknown-provider`、`voice-not-configured`、`provider-unauthorized`、`provider-rate-limited`、`provider-unavailable`、`provider-timeout`、`provider-rejected` 和 `provider-bad-response`。每次合成会在 `logs.db` 写一条 `voice` 记录，包含 provider、延迟和大小，不含文字或密钥。
 
+### Bot 通话与语音识别（ASR Provider）
+
+已配对的 iPhone 可以给 Bot 打电话，前提是 Host 运行在 Mac 或 Windows 电脑上。手机通过 WebRTC 在已配对的局域网线路或 Tailscale 上发送麦克风音频（Connect 不承载通话，会返回 `connect-carrier-required`）。Host 用内置的语音活动检测切出每一句话（咳嗽、敲击等短噪声会被忽略），通过 Bot 的 ASR Provider 转成文字，并以 Human 消息发到 DM。Bot 用 `voice: true` 回复；已提交的语音回复会在通话中播放，并以带文字的语音条留在 DM 里。Bot 还在忙上一轮时，手机只显示提示，不会发声。录音从不保存：每句话的音频在转写后立即丢弃。
+
+```bash
+printf '%s' "$OPENAI_API_KEY" | deepseekbot voice-provider-add openai --kind asr --model gpt-4o-mini-transcribe --key-stdin
+deepseekbot voice-provider-add custom --kind asr --name Whisper --base-url http://127.0.0.1:8000/v1 --model whisper-1 --language zh
+deepseekbot voice-asr-set <bot-id> <asr-provider-id> [--language zh]
+deepseekbot voice-asr-set <bot-id> off
+deepseekbot voice-transcribe --bot <bot-id> --file /abs/question.wav [--language zh]
+deepseekbot call-readiness <bot-id>
+deepseekbot call-simulate <bot-id> --file /abs/question.wav [--reply-wait 90]
+deepseekbot call-simulate <bot-id> --script /abs/timeline.json
+deepseekbot call-status
+deepseekbot call-hangup <call-id>
+```
+
+ASR 预设有 `custom`（任何兼容 OpenAI `/audio/transcriptions` 的端点，密钥可选）、`openai` 和 `groq`。`voice-providers` 在 `asrPresets` 和 `asrProviders` 下列出它们，`bot.asr` 显示绑定。对 ASR Provider 运行 `voice-provider-test` 会转写半秒静音。`voice-transcribe` 读取 16 位 PCM WAV，输出 `{providerId, text, latencyMs}`。`call-readiness` 返回 `{ready, missing, asrProviderId, ttsProviderId, media, activeCallId}`，`missing` 可能是 `asr`、`tts`、`bot`、`media-unsupported`、`media-helper-missing` 或 `media-unavailable`；手机上的通话按钮显示同样的原因。`call-simulate` 不需要手机，直接打开一个合成的 Host 通话，按真实时间播放 WAV（或最多 20 步的 `{"at": 毫秒, "file": "/abs.wav"}` 时间线），等到每句被听到的话都有已播放的回复，或 `--reply-wait` 秒用完，然后挂断并输出 `{callId, heard, replies, firstAudioMs, answered, events}`；`firstAudioMs` 是从一句话结束到第一段回复音频的时间。每个 Host 同时只有一通电话：同一设备会替换自己的通话，其他设备会收到 `call-active`。手机断开 8 秒后通话结束（`connection-lost`），已发送的消息仍留在 DM。每通电话会在 `logs.db` 写入带耗时的 `voice` 日志，从不记录音频或转写内容。
+
 ### 审批员模型
 
 默认情况下，每个 Bot 的审批员用这个 Bot 自己的模型。一个 Profile 级设置可以改成所有 Bot 共用一个审批员模型，比如一个便宜又快的模型。

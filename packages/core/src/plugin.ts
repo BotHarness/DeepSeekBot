@@ -16,6 +16,9 @@ import { createFolderBrowser } from './workspaces/folder-browse.js';
 import { APPEARANCE_CONTROL_PATH, createAppearanceControl } from './appearance/control.js';
 import { VoiceProviders } from './voice/providers.js';
 import { createVoiceMessages, type VoiceMessages } from './voice/messages.js';
+import { createVoiceCalls, type VoiceCallMedia, type VoiceCalls } from './voice/calls.js';
+import { VOICE_CALL_PATH } from './voice/call-contract.js';
+import { createVoiceCallHttp } from './voice/call-http.js';
 import { CloudConnections } from './cloud/connections.js';
 import { createCloudProvider } from './cloud/provider.js';
 import { createChannelManagement, type ChannelManagementService } from './channels/management.js';
@@ -522,6 +525,7 @@ export interface BotHarnessCore {
   cloudConnections?: CloudConnections;
   voiceProviders: VoiceProviders;
   voiceMessages: VoiceMessages;
+  voiceReady: { listener?: Parameters<typeof createVoiceMessages>[0]['onReady'] };
   cloudWork?: CloudWork;
   toolRules: ToolApprovalRuleStore;
   assignmentAccess: AssignmentAccessStore;
@@ -1057,11 +1061,13 @@ export function createCore(
     ...(options.voiceFetch === undefined ? {} : { fetch: options.voiceFetch }),
     ...(options.voiceLog === undefined ? {} : { log: options.voiceLog }),
   });
+  const voiceReady: { listener?: Parameters<typeof createVoiceMessages>[0]['onReady'] } = {};
   const voiceMessages = createVoiceMessages({
     providers: voiceProviders,
     bot: (slug) => registry.get(slug),
     channels,
     attachments: () => attachments,
+    onReady: (input) => voiceReady.listener?.(input),
     ...(options.voiceLog === undefined ? {} : { log: options.voiceLog }),
   });
   runtime = createBotRuntime({
@@ -1184,6 +1190,7 @@ export function createCore(
   return {
     voiceProviders,
     voiceMessages,
+    voiceReady,
     prompts,
     deletions,
     profileRecovery,
@@ -1631,7 +1638,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     'botharness: attachment sweep',
   );
   let connectAccount: ConnectAccount | undefined;
+  let voiceCalls: VoiceCalls | undefined;
   mountDevicePairing(ctx, {
+    calls: () => voiceCalls,
     botNetwork: {
       registry: core.registry,
       channels: core.channels,
@@ -3026,6 +3035,43 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     registry: core.registry,
     isProtectedBot: (slug) => core.tob.isTob(slug),
   });
+  voiceCalls = createVoiceCalls({
+    bot: (slug) => core.registry.get(slug),
+    providers: core.voiceProviders,
+    media: () =>
+      (ctx.get('botharnessComputer') as { callMedia?: VoiceCallMedia } | undefined)?.callMedia,
+    async send({ channelId, messageId, body, callId }) {
+      const result = await bridgeMethods.channelSend({
+        channelId,
+        messageId,
+        body,
+        voiceCall: { callId },
+      });
+      if (!result.ok)
+        throw Object.assign(new Error(result.error.message), { code: result.error.code });
+    },
+    busy: (slug) => {
+      const overview = bridgeMethods.activityOverview({});
+      return (
+        overview.ok &&
+        overview.value.bots.some(
+          (bot) =>
+            bot.slug === slug && bot.sessions.some((session) => session.role === 'orchestrator'),
+        )
+      );
+    },
+    log: (phase, fields) => diagnosticEvents.record('voice', phase, fields),
+  });
+  const calls = voiceCalls;
+  core.voiceReady.listener = (input) => calls.deliverVoice(input);
+  ctx.effect(
+    () => async () => {
+      core.voiceReady.listener = undefined;
+      voiceCalls = undefined;
+      await calls.dispose();
+    },
+    'botharness: voice calls',
+  );
   registerBridge(ctx, bridgeMethods, privateInputs, {
     followRoster: (signal) => core.live.followRoster(signal),
     followActivity: (signal) => core.live.followActivity(signal),
@@ -3131,6 +3177,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         await off();
       };
     }, 'botharness: explicit Client-local appearance control');
+    connectionCtx.effect(
+      () =>
+        connection.fetch.register({
+          path: VOICE_CALL_PATH,
+          methods: ['POST'],
+          requestBody: 'buffered',
+          fetch: createVoiceCallHttp(() => voiceCalls),
+        }),
+      'botharness: Bot calls (Host owner and CLI)',
+    );
     connectionCtx.effect(() => {
       return connection.fetch.register({
         path: CHANNEL_STREAM_PATH,

@@ -3940,6 +3940,10 @@ class BotRuntimeImplementation implements BotRuntime {
     const parts = [
       `[Human DM]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${text}`,
     ];
+    if (message.voiceCall !== undefined)
+      parts.push(
+        `[Voice call ${message.voiceCall.callId}] ${this.#promptText(botSlug)('voice-call-hint')}`,
+      );
     if (message.assignmentReply !== undefined)
       parts.push(
         `[Human response to Assignment Session ${message.assignmentReply.sessionId}, report Source Event ${message.assignmentReply.sourceEventId}]\nUse assignment inspection and send_assignment_request to relay this response to the addressed Assignment. This DM is Human input; it does not itself resume the Assignment or clear its open ask.`,

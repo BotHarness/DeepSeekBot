@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 
 import type { BotCreateCliIo } from './bot-create-cli.js';
@@ -12,6 +12,7 @@ export const VOICE_OPTIONS = {
   voice: { type: 'string' },
   text: { type: 'string' },
   markdown: { type: 'boolean' },
+  language: { type: 'string' },
 } as const;
 
 export interface VoiceValues {
@@ -26,31 +27,45 @@ export interface VoiceValues {
   name?: string;
   text?: string;
   markdown?: boolean;
+  kind?: string;
+  language?: string;
+  file?: string;
 }
 
 export const VOICE_COMMANDS = [
   {
     command: 'voice-providers',
     description:
-      'list TTS Provider presets and the configured TTS Providers (keys are never shown); --bot also shows its voice binding',
+      'list TTS and ASR Provider presets and the configured Providers (keys are never shown); --bot also shows its voice and speech recognition bindings',
   },
   {
     command: 'voice-provider-add',
     description:
-      'add a TTS Provider from a preset (custom, fish-audio, elevenlabs, openai); key only from --key-stdin',
+      'add a TTS Provider from a preset (custom, fish-audio, elevenlabs, openai), or with --kind asr a speech recognition Provider (custom, openai, groq; --language); key only from --key-stdin',
   },
   {
     command: 'voice-provider-remove',
-    description: 'remove a TTS Provider, its stored key, and the Bot voice bindings that use it',
+    description:
+      'remove a TTS or ASR Provider, its stored key, and the Bot voice or ASR bindings that use it',
   },
   {
     command: 'voice-provider-test',
     description:
-      'health-check a TTS Provider by synthesizing a short phrase; reports ok or the error',
+      'health-check a TTS Provider (synthesizes a short phrase) or an ASR Provider (transcribes silence); reports ok or the error',
   },
   {
     command: 'voice-set',
     description: "bind a Bot's voice: <bot> <provider-id> [--voice <id>], or <bot> off",
+  },
+  {
+    command: 'voice-asr-set',
+    description:
+      "bind a Bot's speech recognition for calls: <bot> <asr-provider-id> [--language <code>], or <bot> off",
+  },
+  {
+    command: 'voice-transcribe',
+    description:
+      'transcribe a test recording --file <absolute audio file> with a Bot binding (--bot) or an ASR Provider (--provider); the audio is not stored',
   },
   {
     command: 'voice-synthesize',
@@ -92,7 +107,13 @@ export async function runVoiceCommand(
     const key = values['key-stdin'] === true ? ((await io.readStdin?.()) ?? '').trim() : undefined;
     if (values['key-stdin'] === true && !key) usage('--key-stdin read an empty key.');
     const rpc = await connect();
+    if (values.kind !== undefined && values.kind !== 'tts' && values.kind !== 'asr')
+      usage('--kind must be tts or asr.');
+    if (values.kind === 'asr' && values.voice !== undefined)
+      usage('--voice does not apply to an ASR Provider.');
     return rpc('voiceProviderAdd', {
+      ...(values.kind === 'asr' ? { kind: 'asr' } : {}),
+      ...(values.language === undefined ? {} : { language: values.language }),
       preset,
       ...(values.name === undefined ? {} : { name: values.name }),
       ...(values['base-url'] === undefined ? {} : { baseUrl: values['base-url'] }),
@@ -102,12 +123,12 @@ export async function runVoiceCommand(
     });
   }
   if (command === 'voice-provider-remove') {
-    const [id] = positionals(command, rest, 1, 'one TTS Provider id');
+    const [id] = positionals(command, rest, 1, 'one TTS or ASR Provider id');
     const rpc = await connect();
     return rpc('voiceProviderRemove', { id });
   }
   if (command === 'voice-provider-test') {
-    const [id] = positionals(command, rest, 1, 'one TTS Provider id');
+    const [id] = positionals(command, rest, 1, 'one TTS or ASR Provider id');
     const rpc = await connect();
     return rpc('voiceProviderTest', {
       id,
@@ -131,6 +152,46 @@ export async function runVoiceCommand(
       slug,
       providerId,
       ...(values.voice === undefined ? {} : { voiceId: values.voice }),
+    });
+  }
+  if (command === 'voice-asr-set') {
+    if (rest.length === 2 && rest[1]!.trim() === 'off') {
+      if (values.language !== undefined) usage('--language does not apply to `off`.');
+      const rpc = await connect();
+      return rpc('botAsrSet', { slug: rest[0]!.trim(), providerId: null });
+    }
+    const [slug, providerId] = positionals(
+      command,
+      rest,
+      2,
+      'a bot id and an ASR Provider id (or off)',
+    );
+    const rpc = await connect();
+    return rpc('botAsrSet', {
+      slug,
+      providerId,
+      ...(values.language === undefined ? {} : { language: values.language }),
+    });
+  }
+  if (command === 'voice-transcribe') {
+    positionals(command, rest, 0, 'no positional arguments; use --bot or --provider');
+    const bot = values.bot?.trim();
+    const provider = values.provider?.trim();
+    if (!bot && !provider) usage('voice-transcribe needs --bot <slug> or --provider <id>.');
+    if (values.file === undefined || !isAbsolute(values.file))
+      usage('voice-transcribe needs --file <absolute audio file>.');
+    let audio: Buffer;
+    try {
+      audio = readFileSync(values.file);
+    } catch {
+      throw new CliLiveError('invalid-input', `Cannot read ${values.file}.`);
+    }
+    const rpc = await connect();
+    return rpc('voiceTranscribe', {
+      audio: audio.toString('base64'),
+      ...(bot ? { slug: bot } : {}),
+      ...(provider ? { providerId: provider } : {}),
+      ...(values.language === undefined ? {} : { language: values.language }),
     });
   }
   positionals(command, rest, 0, 'no positional arguments; use --bot or --provider');
