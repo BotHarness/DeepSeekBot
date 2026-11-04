@@ -214,4 +214,34 @@ describe('desktop call', () => {
     );
     expect(element.querySelector('button[aria-label="Call Mira"]')).not.toBeNull();
   });
+
+  it('offers hang-up from another Bot chat while a call runs', async () => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    const { fetcher } = host();
+    const mac = desktopWindow(fetcher, 'window-mac-0001');
+    const t = ((key: string, params?: Record<string, unknown>) => {
+      let text = (en as Record<string, string>)[key] ?? key;
+      for (const [name, value] of Object.entries(params ?? {}))
+        text = text.replace(`{${name}}`, String(value));
+      return text;
+    }) as never;
+    await mac.call.start('mira');
+    expect(mac.call.snapshot().state.status).toBe('live');
+    const element = document.createElement('div');
+    const root = createRoot(element);
+    cleanup.push(() => act(() => root.unmount()));
+    await act(async () =>
+      root.render(<DmCallControl slug="kai" name="Kai" t={t} call={mac.call} />),
+    );
+    expect(
+      element.querySelector<HTMLButtonElement>('button[aria-label="Call Kai"]')?.disabled,
+    ).toBe(true);
+    await act(async () =>
+      element
+        .querySelector<HTMLButtonElement>('button[aria-label="Hang up the current call"]')!
+        .click(),
+    );
+    expect(mac.call.snapshot().state).toEqual({ status: 'idle' });
+    expect(element.querySelector('button[aria-label="Hang up the current call"]')).toBeNull();
+  });
 });

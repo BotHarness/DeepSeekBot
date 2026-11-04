@@ -94,6 +94,16 @@ export function DmCallControl({
           <ChannelSidebarIcon name="phone" />
         </IconButton>
       </Tooltip>
+      {elsewhere ? (
+        <button
+          type="button"
+          className="bh-call-hangup"
+          aria-label={t('call.hangUpCurrent')}
+          onClick={() => void call.hangup()}
+        >
+          <ChannelSidebarIcon name="phone-off" />
+        </button>
+      ) : null}
       {notice === undefined
         ? null
         : createPortal(
