@@ -424,4 +424,4 @@ patchedDependencies:
   expo-quick-actions@6.0.2: patches/expo-quick-actions@6.0.2.patch
   react-native-view-shot@6.1.1: patches/react-native-view-shot@6.1.1.patch
   react-native-pager-view@9.0.7: patches/react-native-pager-view@9.0.7.patch
-  expo-router@58.0.29: patches/expo-router@58.0.29.patch
+  expo-router@58.0.30: patches/expo-router@58.0.30.patch
