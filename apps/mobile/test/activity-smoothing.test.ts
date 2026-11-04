@@ -56,6 +56,11 @@ describe('smoothed Bot activity on mobile', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(publishes).toBe(0);
     expect(target.getSnapshot().roster).toBe(thinking.roster);
+    expect(target.getSnapshot().activity).toBe(thinking.activity);
+    host.push('botharness/followActivity', frame({ state: 'thinking', active: true }));
+    const active = await until(target, (s) => s.activity?.[0]?.active === true);
+    expect(publishes).toBe(1);
+    expect(active.roster).toBe(thinking.roster);
     host.push('botharness/followActivity', frame({ state: 'idle' }));
     const idle = await until(target, (s) => s.roster?.bots[0]?.state === 'idle');
     expect(idle.roster?.channels).toBe(thinking.roster?.channels);

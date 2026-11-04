@@ -392,6 +392,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
       status: routeChecks.get(url) ?? 'unchecked',
     }));
     const roster = bots === undefined ? undefined : shareRoster(view(bots), snapshot.roster);
+    const activity = [...rawStates.values()];
     const next: HostSnapshot = {
       routes:
         snapshot.routes !== undefined &&
@@ -399,7 +400,11 @@ export function createHostClient(options: HostClientOptions): HostClient {
           ? snapshot.routes
           : nextRoutes,
       connection: connection ?? snapshot.connection,
-      activity: [...rawStates.values()],
+      activity:
+        snapshot.activity !== undefined &&
+        JSON.stringify(activity) === JSON.stringify(snapshot.activity)
+          ? snapshot.activity
+          : activity,
       ...(computerAvailable === undefined ? {} : { computerAvailable }),
       ...(roster === undefined ? {} : { roster }),
     };
