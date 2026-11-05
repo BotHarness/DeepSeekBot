@@ -93,6 +93,10 @@ export const CHANNEL_COMMANDS = [
     description: "page a Channel's message journal through a revision",
   },
   {
+    command: 'channel-files',
+    description: "page a Channel's messages with files, newest first",
+  },
+  {
     command: 'channel-changes',
     description: 'list what changed in a Channel since a change cursor, or the current cursor',
   },
@@ -381,6 +385,17 @@ export async function runChannelCommand(
       args = {
         channelId,
         through,
+        ...(before === undefined ? {} : { before }),
+        ...(limit === undefined ? {} : { limit }),
+      };
+      break;
+    }
+    case 'channel-files': {
+      method = 'channelFilesPage';
+      const before = integer(values.before, '--before', 1, 2 ** 53 - 1);
+      const limit = integer(values.limit, '--limit', 1, 100);
+      args = {
+        channelId,
         ...(before === undefined ? {} : { before }),
         ...(limit === undefined ? {} : { limit }),
       };

@@ -49,10 +49,14 @@ import {
   type BotMessageCausation,
 } from './channel.js';
 import {
+  CHANNEL_FILES_LIMIT,
+  CHANNEL_FILES_MAX,
   DEFAULT_MESSAGE_PAGE,
   MAX_MESSAGE_PAGE,
   pageChannelJournal,
   pageChannelTimeline,
+  type ChannelFilesPage,
+  type ChannelFilesRequest,
   type ChannelChangeCursor,
   type ChannelChanges,
   type ChannelChangesRequest,
@@ -472,6 +476,7 @@ export interface ChannelStore {
   readTimeline(id: string, request?: ChannelTimelineRequest): ChannelTimelinePage | undefined;
   readHumanTimeline(id: string, request?: ChannelTimelineRequest): ChannelTimelinePage | undefined;
   readHumanJournalPage(id: string, request: ChannelJournalRequest): ChannelJournalPage | undefined;
+  readHumanFilesPage(id: string, request: ChannelFilesRequest): ChannelFilesPage | undefined;
   readHumanChanges?(id: string, request: ChannelChangesRequest): ChannelChanges | undefined;
   changeCursor?(): ChannelChangeCursor;
   recordAttachmentChange?(fileId: string): number;
@@ -1115,6 +1120,23 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
       const channel = this.get(id);
       if (channel === undefined) return undefined;
       return this.readTimeline(id, request);
+    },
+    readHumanFilesPage(id, request) {
+      if (this.get(id) === undefined) return undefined;
+      const limit = Math.min(Math.max(request.limit ?? CHANNEL_FILES_LIMIT, 1), CHANNEL_FILES_MAX);
+      const entries = readValidMessages(id)
+        .map((message, index) => ({ channelId: id, message, revision: index + 1 }))
+        .filter(
+          (entry) =>
+            (request.before === undefined || entry.revision < request.before) &&
+            (entry.message.attachments?.length ?? 0) > 0,
+        );
+      const page = entries.slice(-limit);
+      const oldest = page[0]?.revision;
+      return {
+        entries: page,
+        ...(entries.length > limit && oldest !== undefined ? { nextBefore: oldest } : {}),
+      };
     },
     readHumanJournalPage(id, request) {
       if (this.get(id) === undefined) return undefined;

@@ -20,6 +20,7 @@ async function permitted(): Promise<'denied' | 'unavailable' | undefined> {
 
 export function useDictation(onText: (text: string) => void) {
   const current = useRef<Dictation>(idleDictation);
+  const finalized = useRef('');
   const [state, setState] = useState(idleDictation);
   const apply = (event: DictationEvent) => {
     const next = dictate(current.current, event);
@@ -31,8 +32,18 @@ export function useDictation(onText: (text: string) => void) {
   useSpeechRecognitionEvent('start', () => apply({ kind: 'started' }));
   useSpeechRecognitionEvent('result', (event) => {
     const before = current.current;
-    const next = apply({ kind: 'heard', transcript: event.results[0]?.transcript ?? '' });
-    if (next !== before) onText(next.heard);
+    const text = event.results[0]?.transcript.trim() ?? '';
+    const transcript =
+      Platform.OS === 'android'
+        ? [finalized.current, text]
+            .filter((part) => part !== '')
+            .join(/^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(text) ? '' : ' ')
+        : text;
+    const next = apply({ kind: 'heard', transcript });
+    if (next !== before) {
+      if (Platform.OS === 'android' && event.isFinal) finalized.current = next.heard;
+      onText(next.heard);
+    }
   });
   useSpeechRecognitionEvent('error', (event) => apply({ kind: 'error', code: event.error }));
   useSpeechRecognitionEvent('end', () => apply({ kind: 'ended' }));
@@ -47,6 +58,7 @@ export function useDictation(onText: (text: string) => void) {
 
   const start = () => {
     if (dictating(current.current.status)) return;
+    finalized.current = '';
     apply({ kind: 'press' });
     permitted()
       .then((refusal) => {
@@ -59,7 +71,7 @@ export function useDictation(onText: (text: string) => void) {
           lang: speechLang(Intl.DateTimeFormat().resolvedOptions().locale),
           interimResults: true,
           addsPunctuation: true,
-          continuous: Platform.OS === 'ios',
+          continuous: true,
         });
       })
       .catch(() => apply({ kind: 'refused', reason: 'unavailable' }));
