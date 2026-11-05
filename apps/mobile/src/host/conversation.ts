@@ -247,9 +247,18 @@ type ChangePull =
 const MAX_CHANGE_PAGES = 20;
 const CACHE_WAIT_MS = 200;
 
+export interface CachedChanges {
+  upserts: readonly JournalEntry[];
+  tombstones: readonly string[];
+  removed: readonly string[];
+  cursor: ChangeCursor;
+}
+
 export interface ConversationCache {
   read(key: string): Promise<CachedConversation | undefined>;
   write(key: string, value: CachedConversation): void;
+  applyChanges?(key: string, channelId: string, changes: CachedChanges): void;
+  replace?(key: string, channelId: string, value: CachedConversation): void;
 }
 
 export interface SendObservation {
@@ -284,6 +293,7 @@ export interface ConversationOptions {
   cachedEntries?: number;
   messageId?: () => string;
   draftDelayMs?: number;
+  cacheWaitMs?: number;
 }
 
 const MAX_PAGE = 200;
@@ -814,9 +824,18 @@ export function createConversation(options: ConversationOptions): Conversation {
         return;
       }
       if (pulled.reset) {
-        if (await reloadTail(current, through)) changeCursor = pulled.cursor;
+        if (!(await reloadTail(current, through))) return;
+        changeCursor = pulled.cursor;
+        if (cacheKey !== undefined && channelId !== undefined)
+          options.cache?.replace?.(cacheKey, channelId, {
+            entries: window.slice(-cachedEntries),
+            hasOlder: hasOlder || window.length > cachedEntries,
+            changes: pulled.cursor,
+          });
         return;
       }
+      if (cacheKey !== undefined && channelId !== undefined)
+        options.cache?.applyChanges?.(cacheKey, channelId, pulled);
       const tombstones = new Set(pulled.tombstones);
       const removed = new Set(pulled.removed);
       const updates = new Map(
@@ -1176,7 +1195,7 @@ export function createConversation(options: ConversationOptions): Conversation {
         }
         go();
       });
-      setTimeout(go, CACHE_WAIT_MS);
+      setTimeout(go, options.cacheWaitMs ?? CACHE_WAIT_MS);
     },
     stop() {
       running = false;

@@ -14,10 +14,12 @@ import { useVisibleSnapshot } from './use-visible-snapshot';
 import { hostAvailabilitySource } from './host-availability';
 import { currentHost, selectHost, withHost, withoutHost, type SavedHosts } from './hosts';
 import {
-  clearHostConversationCache,
-  pruneHostConversationCache,
-  nativeConversationCache,
-} from './native-cache';
+  conversationCache,
+  conversationCacheWaitMs,
+  forgetHostConversations,
+  pruneHostConversations,
+  warmHostConversations,
+} from './native-conversations';
 import { purgeCaches } from './purge-caches';
 import { watchDisbandedGroups } from './disbanded-groups';
 import { conversationFilter } from './native-conversation-filter';
@@ -131,6 +133,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
     telemetry: createConnectionTelemetry(mobileTelemetry, trigger),
   });
   clientHosts.set(client, saved.hostId);
+  warmHostConversations(saved.hostId);
   const inbox = createInbox(client);
   const offInbox = inbox.subscribe(() => {
     reflectInbox(saved.hostId, inbox);
@@ -154,7 +157,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
         live?.delete(key);
       }
       if (saved !== null && change.stale !== undefined)
-        pruneHostConversationCache(saved.hostId, change.stale);
+        pruneHostConversations(saved.hostId, change.stale);
     }
     if (
       snapshot.connection.status === 'refused' &&
@@ -371,7 +374,7 @@ export const hostSession = {
               return false;
             }
           });
-          clearHostConversationCache(host.hostId);
+          forgetHostConversations(host.hostId);
           purgeCaches.forgetHost(host.hostId);
           await forgetRecentChats(host.hostId);
           await conversationFilter.clearPersisted(computerEnvironmentKey(host.hostId));
@@ -401,7 +404,7 @@ export const hostSession = {
       await clearPresentations(host);
       await commit(withoutHost(stored, host.hostId));
       try {
-        clearHostConversationCache(host.hostId);
+        forgetHostConversations(host.hostId);
         purgeCaches.forgetHost(host.hostId);
       } catch {}
       void forgetRecentChats(host.hostId).catch(() => undefined);
@@ -553,10 +556,13 @@ function conversationFor(
   }
   const existing = byKey.get(key);
   if (existing !== undefined) return existing;
+  const cacheWaitMs = conversationCacheWaitMs();
+  const cacheWait = cacheWaitMs === undefined ? {} : { cacheWaitMs };
   const inner = createConversation({
     host: client,
     ...options,
-    cache: nativeConversationCache,
+    cache: conversationCache(),
+    ...cacheWait,
     cacheKey: JSON.stringify(['computer', clientHosts.get(client), key]),
     telemetry: { send: () => mobileTelemetry.send(options.botSlug === undefined ? 'group' : 'dm') },
   });
