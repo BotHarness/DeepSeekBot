@@ -187,6 +187,18 @@ disk, Host and build folders.
   `xcrun devicectl device install app --device <iphone-udid> ~/Library/Developer/Xcode/DerivedData/DeepSeekBotDev-phone/Build/Products/Release-iphoneos/DeepSeekBotDev.app`.
   Then ask the Human to open the app once and keep it in the foreground for a few seconds, so it
   registers for push again.
+- **Simulator first.** Run every check that can run on a Simulator there, using iOS 27
+  Simulators only, with at most two booted on the Mac at once. Keep the phone for checks that
+  need real hardware or system state: Tailscale, Local Network and other permission prompts,
+  push, battery, heat and Release performance.
+- **Drive the phone with XCUITest over USB.** The phone stays on a USB cable to the Mac.
+  Automate it with agent-device's XCUITest runner, which is signed with the
+  `yang@deepseekbot.app` Apple account in Xcode → Settings → Accounts. Use that account's team
+  for the runner and the phone build; never use the other account listed there. Keep a working
+  runner running. Rebuilding it needs a valid sign-in, so if the sign-in has expired, ask the
+  Human to sign in again rather than switching accounts. XCUITest cannot tap iOS system
+  permission alerts, such as Local Network, so ask the Human to tap those, then continue by
+  automation.
 - **Push and approval tests.** Check that the phone has a `push_devices` row on the QA Host,
   without reading its token. Trigger one Tool approval at a time from an idle Bot, so no old
   approval is queued ahead of it. Tell the Human when each one is sent. Leave the decision to the
