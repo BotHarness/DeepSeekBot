@@ -861,6 +861,15 @@ export function createConversation(options: ConversationOptions): Conversation {
             ? [blank(entry)]
             : [updates.get(entry.revision) ?? entry],
       );
+      if (window.length > 0) {
+        const newer = pulled.upserts
+          .filter((entry) => entry.channelId === channelId && entry.revision > last())
+          .sort((a, b) => a.revision - b.revision);
+        for (const entry of newer) {
+          if (entry.revision !== last() + 1) break;
+          window = [...window, entry];
+        }
+      }
       changeCursor = pulled.cursor;
       if (pulled.upserts.length + pulled.tombstones.length + pulled.removed.length > 0)
         windowGeneration += 1;
@@ -979,9 +988,12 @@ export function createConversation(options: ConversationOptions): Conversation {
           ? await readPage(frame.cursor, undefined, pageSize)
           : frame.page;
       if (current !== session) return;
+      const pullFirst = bare && page === frame.page;
+      if (pullFirst) await pullChanges(current, frame.cursor);
+      if (current !== session) return;
       await advance(frame.cursor, page);
       if (current !== session) return;
-      if (bare) await pullChanges(current, frame.cursor);
+      if (bare && !pullFirst) await pullChanges(current, frame.cursor);
       if (current !== session) return;
       fromCache = false;
       status = 'live';

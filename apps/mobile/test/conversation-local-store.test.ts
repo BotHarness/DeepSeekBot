@@ -743,4 +743,24 @@ describe('background catch-up', () => {
     background.stop();
     expect(host.calls.filter((call) => call.method === 'channelChanges').length).toBe(before);
   });
+
+  it('takes messages that arrived while closed from the change pull on a bare open', async () => {
+    const host = new FakeHost();
+    const path = file();
+    const channel = fill(host, 1, 40);
+    const first = await session(host, path);
+    await until(first.conversation, (s) => s.status === 'live' && !s.fromCache);
+    await settle(first.cache);
+    fill(host, 41, 60);
+    const second = await session(host, path);
+    channel.bodiesSent = 0;
+    const journal = host.calls.filter((call) => call.method === 'channelJournalPage').length;
+    const live = await until(
+      second.conversation,
+      (s) => s.status === 'live' && !s.fromCache && s.messages.some((m) => m.id === 'm60'),
+    );
+    expect(host.calls.filter((call) => call.method === 'channelJournalPage').length).toBe(journal);
+    expect(channel.bodiesSent).toBe(20);
+    expect(new Set(live.messages.map((m) => m.id)).size).toBe(live.messages.length);
+  });
 });
