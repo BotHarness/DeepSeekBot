@@ -217,6 +217,11 @@ export function acquireHome(home) {
           await completion;
           if (descendants(child.pid, child.ownedProcessGroup, child.ownershipToken).length)
             throw new Error('Preparation left running descendants');
+          const completed = resources.findIndex(
+            (resource) => resource.ownershipToken === ownershipToken,
+          );
+          if (completed >= 0) resources.splice(completed, 1);
+          save();
           return stdout;
         });
       } finally {

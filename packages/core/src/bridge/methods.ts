@@ -224,6 +224,7 @@ import { TakeoverError, type TakeoverHandoff } from '../takeover/contracts.js';
 import type { TakeoverHandoffs } from '../takeover/handoffs.js';
 import {
   dmChannelId,
+  isChannelCallVisual,
   isValidChannelId,
   isGroupAvatar,
   isReactionEmoji,
@@ -996,6 +997,9 @@ export interface BridgeMethods {
   botVoiceSet: VoiceBridgeMethods['botVoiceSet'];
   voiceTranscribe: VoiceBridgeMethods['voiceTranscribe'];
   botAsrSet: VoiceBridgeMethods['botAsrSet'];
+  voiceDefaultSet: VoiceBridgeMethods['voiceDefaultSet'];
+  voiceSpeechThresholdSet: VoiceBridgeMethods['voiceSpeechThresholdSet'];
+  voiceDictation: VoiceBridgeMethods['voiceDictation'];
   approvalReviewerModel(payload?: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
   approvalReviewerModelSet(payload: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
   idleCompaction(payload?: unknown): BridgeResult<IdleCompactionView>;
@@ -1159,6 +1163,7 @@ function storageFailure(
 
 export interface BridgeMethodsDeps {
   voiceProviders?: VoiceProviders;
+  voiceLog?: (phase: string, fields: Record<string, string | number>) => void;
   botContext?(slug: string): Promise<BotContextWindow>;
   botSystemPrompt?(slug: string): Promise<BotSystemPromptView>;
   prompts?: PromptSettings;
@@ -2253,7 +2258,11 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
   };
 
   return {
-    ...createVoiceBridgeMethods({ providers: deps.voiceProviders, registry: deps.registry }),
+    ...createVoiceBridgeMethods({
+      providers: deps.voiceProviders,
+      registry: deps.registry,
+      log: deps.voiceLog,
+    }),
     channelBridges(payload) {
       const input = z
         .object({ channelId: z.string().min(1).max(128) })
@@ -6127,7 +6136,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             : undefined;
         if (typeof callId !== 'string' || !/^call-[a-f0-9]{16}$/u.test(callId))
           return invalidInput('voiceCall must name a call');
-        voiceCall = { callId };
+        const visual = (rawVoiceCall as Record<string, unknown>)['visual'];
+        if (visual !== undefined && !isChannelCallVisual(visual))
+          return invalidInput('voiceCall.visual must describe the call grid');
+        voiceCall = visual === undefined ? { callId } : { callId, visual };
       }
       const rawAssignmentReply = source['assignmentReply'];
       let assignmentReply: ChannelMessage['assignmentReply'];

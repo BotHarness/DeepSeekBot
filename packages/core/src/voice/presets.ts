@@ -16,6 +16,7 @@ export interface TtsPreset {
   baseUrl?: string;
   keyRequired: boolean;
   defaultModel?: string;
+  models: readonly string[];
   defaultVoice?: string;
   voices: TtsVoiceOption[];
   capabilities: {
@@ -32,6 +33,7 @@ export const TTS_PRESETS: readonly TtsPreset[] = [
     wire: 'openai',
     keyRequired: false,
     defaultModel: 'tts-1',
+    models: ['tts-1', 'tts-1-hd'],
     voices: [],
     capabilities: { streaming: false, billing: 'self-hosted' },
   },
@@ -42,6 +44,7 @@ export const TTS_PRESETS: readonly TtsPreset[] = [
     baseUrl: LOCAL_VOICE_BASE_URL,
     keyRequired: false,
     defaultModel: 'kokoro',
+    models: ['kokoro'],
     defaultVoice: 'zf_001',
     voices: [
       { id: 'zf_001', name: 'zf_001 (中文 女)' },
@@ -60,6 +63,7 @@ export const TTS_PRESETS: readonly TtsPreset[] = [
     wire: 'fish',
     baseUrl: 'https://api.fish.audio',
     keyRequired: true,
+    models: ['s2.1-pro', 's2.1-pro-free', 's2-pro', 's1', 'drama-3'],
     voices: [],
     capabilities: { streaming: true, billing: 'per-character' },
     docsUrl: 'https://docs.fish.audio/api-reference/endpoint/openapi-v1/text-to-speech',
@@ -71,6 +75,15 @@ export const TTS_PRESETS: readonly TtsPreset[] = [
     baseUrl: 'https://api.elevenlabs.io',
     keyRequired: true,
     defaultModel: 'eleven_multilingual_v2',
+    models: [
+      'eleven_v4',
+      'eleven_v4_turbo',
+      'eleven_v3',
+      'eleven_v3_conversational',
+      'eleven_multilingual_v2',
+      'eleven_flash_v2_5',
+      'eleven_flash_v2',
+    ],
     defaultVoice: 'JBFqnCBsd6RMkjVDRZzb',
     voices: [
       { id: 'JBFqnCBsd6RMkjVDRZzb', name: 'George' },
@@ -86,6 +99,7 @@ export const TTS_PRESETS: readonly TtsPreset[] = [
     baseUrl: 'https://api.openai.com/v1',
     keyRequired: true,
     defaultModel: 'gpt-4o-mini-tts',
+    models: ['gpt-4o-mini-tts', 'tts-1', 'tts-1-hd'],
     defaultVoice: 'alloy',
     voices: ['alloy', 'ash', 'coral', 'echo', 'nova', 'sage', 'shimmer'].map((id) => ({
       id,
@@ -111,6 +125,7 @@ export interface AsrPreset {
   baseUrl?: string;
   keyRequired: boolean;
   defaultModel?: string;
+  models: readonly string[];
   capabilities: {
     streaming: boolean;
     billing: 'per-minute' | 'self-hosted';
@@ -125,6 +140,7 @@ export const ASR_PRESETS: readonly AsrPreset[] = [
     keyRequired: false,
     wire: 'openai',
     defaultModel: 'whisper-1',
+    models: ['whisper-1'],
     capabilities: { streaming: false, billing: 'self-hosted' },
   },
   {
@@ -134,6 +150,7 @@ export const ASR_PRESETS: readonly AsrPreset[] = [
     keyRequired: false,
     wire: 'openai',
     defaultModel: 'sensevoice',
+    models: ['sensevoice'],
     capabilities: { streaming: false, billing: 'self-hosted' },
   },
   {
@@ -143,6 +160,7 @@ export const ASR_PRESETS: readonly AsrPreset[] = [
     keyRequired: true,
     wire: 'openai',
     defaultModel: 'gpt-4o-mini-transcribe',
+    models: ['gpt-4o-mini-transcribe', 'gpt-4o-transcribe', 'whisper-1'],
     capabilities: { streaming: false, billing: 'per-minute' },
     docsUrl: 'https://platform.openai.com/docs/api-reference/audio/createTranscription',
   },
@@ -153,6 +171,7 @@ export const ASR_PRESETS: readonly AsrPreset[] = [
     keyRequired: true,
     wire: 'openai',
     defaultModel: 'whisper-large-v3-turbo',
+    models: ['whisper-large-v3-turbo', 'whisper-large-v3'],
     capabilities: { streaming: false, billing: 'per-minute' },
     docsUrl: 'https://console.groq.com/docs/speech-to-text',
   },
@@ -163,6 +182,7 @@ export const ASR_PRESETS: readonly AsrPreset[] = [
     baseUrl: 'https://stt-rt.soniox.com',
     keyRequired: true,
     defaultModel: 'stt-rt-v6',
+    models: ['stt-rt-v6', 'stt-rt-v5'],
     capabilities: { streaming: true, billing: 'per-minute' },
     docsUrl: 'https://soniox.com/docs/stt/api-reference/websocket-api',
   },
@@ -170,4 +190,13 @@ export const ASR_PRESETS: readonly AsrPreset[] = [
 
 export function asrPreset(id: string): AsrPreset | undefined {
   return ASR_PRESETS.find((preset) => preset.id === id);
+}
+
+export function uniqueProviderName(base: string, taken: readonly string[]): string {
+  const names = new Set(taken.map((name) => name.trim().toLowerCase()));
+  if (!names.has(base.trim().toLowerCase())) return base;
+  for (let index = 2; ; index += 1) {
+    const candidate = `${base} ${index}`;
+    if (!names.has(candidate.toLowerCase())) return candidate;
+  }
 }

@@ -4424,7 +4424,9 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
     color-mix(in srgb, var(--dsw-alias-label-primary) 9%, transparent);
   transition:
     padding 220ms var(--ds-ease-in-out),
-    border-radius 220ms var(--ds-ease-in-out);
+    border-radius 220ms var(--ds-ease-in-out),
+    border-color 160ms var(--ds-ease-in-out),
+    box-shadow 160ms var(--ds-ease-in-out);
 }
 .bh-composer-expanded {
   padding-top: ${space.x3};
@@ -4609,6 +4611,83 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   padding: 0;
   border-radius: ${radius.round};
 }
+.bh-composer-has-mic { --bh-composer-compact-padding-right: 92px; }
+.bh-composer-has-mic .bh-composer-footer { gap: ${space.x2}; }
+.bh-composer-mic {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: ${border.hairline} solid ${color.border};
+  border-radius: ${radius.round};
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.bh-composer-mic:hover { background: var(--dsw-alias-interactive-bg-active); color: var(--dsw-alias-label-primary); }
+.bh-composer-mic:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
+.bh-composer-mic:disabled { opacity: .5; cursor: default; }
+.bh-composer-mic[data-state='starting'] { color: var(--dsw-alias-state-business-primary); background: var(--dsw-alias-interactive-bg-active); }
+.bh-composer-mic[data-state='toggle'],
+.bh-composer-mic[data-state='hold'] {
+  border-color: transparent;
+  background: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-label-primary-foreground);
+  position: relative;
+  isolation: isolate;
+  animation: bh-dictation-pulse 1.6s var(--ds-ease-in-out) infinite;
+}
+.bh-composer-mic[data-state='toggle']::before,
+.bh-composer-mic[data-state='hold']::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: ${radius.round};
+  pointer-events: none;
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 40%, transparent);
+  opacity: calc(0.2 + var(--bh-dictation-level, 0) * 0.6);
+  transform: scale(calc(1 + var(--bh-dictation-level, 0) * 0.85));
+  transition: transform 60ms linear, opacity 60ms linear;
+}
+@keyframes bh-dictation-pulse {
+  0% {
+    box-shadow:
+      0 0 0 0 color-mix(in srgb, var(--dsw-alias-state-business-primary) 45%, transparent),
+      0 0 0 0 color-mix(in srgb, var(--dsw-alias-state-business-primary) 30%, transparent);
+  }
+  100% {
+    box-shadow:
+      0 0 0 8px transparent,
+      0 0 0 14px transparent;
+  }
+}
+.bh-composer[data-dictation='starting'],
+.bh-composer[data-dictation='listening'],
+.bh-composer[data-dictation='finishing'] {
+  border-color: var(--dsw-alias-state-business-primary);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-business-primary) 18%, transparent),
+    0 8px 24px color-mix(in srgb, var(--dsw-alias-state-business-primary) 16%, transparent);
+}
+.bh-composer[data-dictation='listening'] .bh-composer-input,
+.bh-composer[data-dictation='finishing'] .bh-composer-input { caret-color: var(--dsw-alias-state-business-primary); }
+.bh-composer[data-dictation='denied'] .bh-composer-input::placeholder,
+.bh-composer[data-dictation='missing'] .bh-composer-input::placeholder,
+.bh-composer[data-dictation='failed'] .bh-composer-input::placeholder { color: var(--dsw-alias-state-error-primary); }
+html[data-botharness-motion='reduce'] .bh-composer-mic { animation: none; }
+html[data-botharness-motion='reduce'] .bh-composer-mic::before { transform: none; transition: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-business-primary) calc(20% + var(--bh-dictation-level, 0) * 60%), transparent); }
+.bh-composer[data-dictation='starting'] .bh-composer-rich-input[contenteditable='false'],
+.bh-composer[data-dictation='listening'] .bh-composer-rich-input[contenteditable='false'],
+.bh-composer[data-dictation='finishing'] .bh-composer-rich-input[contenteditable='false'] { color: var(--dsw-alias-label-primary); }
+.bh-composer[data-dictation='denied'] .bh-composer-rich-input:empty::before,
+.bh-composer[data-dictation='missing'] .bh-composer-rich-input:empty::before,
+.bh-composer[data-dictation='failed'] .bh-composer-rich-input:empty::before { color: var(--dsw-alias-state-error-primary); }
 html[data-botharness-motion='reduce'] .bh-composer,
 html[data-botharness-motion='reduce'] .bh-composer-body,
 html[data-botharness-motion='reduce'] .bh-composer-add-file,

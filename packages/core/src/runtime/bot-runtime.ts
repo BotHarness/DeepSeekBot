@@ -614,6 +614,11 @@ export interface OrchestratorChannelAccess {
     messageId: string;
     signal?: AbortSignal;
   }): Promise<import('../voice/messages.js').VoiceAttachOutcome>;
+  callFrame?(input: {
+    channelId?: string;
+    messageId: string;
+    cell: number;
+  }): import('../voice/call-contract.js').VoiceCallZoom;
   sendToBot(input: {
     botSlug: string;
     body: string;
@@ -910,6 +915,13 @@ export interface BotRuntimeOptions {
     >;
   attachments?: AttachmentStore;
   voiceMessages?: import('../voice/messages.js').VoiceMessages;
+  callFrames?: {
+    zoom(input: {
+      slug: string;
+      messageId: string;
+      cell: number;
+    }): import('../voice/call-contract.js').VoiceCallZoom;
+  };
 
   ownership?: SessionOwnership;
 
@@ -1539,6 +1551,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #memory: BotRuntimeOptions['memory'];
   readonly #attachments: AttachmentStore | undefined;
   readonly #voiceMessages: import('../voice/messages.js').VoiceMessages | undefined;
+  readonly #callFrames: BotRuntimeOptions['callFrames'];
   readonly #originalAttachments = new OriginalAttachmentAccess();
   readonly #saveReportSpill: BotRuntimeOptions['saveReportSpill'];
   readonly #readAssignmentTail: BotRuntimeOptions['readAssignmentTail'];
@@ -1654,6 +1667,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#memory = options.memory;
     this.#attachments = options.attachments;
     this.#voiceMessages = options.voiceMessages;
+    this.#callFrames = options.callFrames;
     this.#saveReportSpill = options.saveReportSpill;
     this.#readAssignmentTail = options.readAssignmentTail;
     this.#readAssignmentReportPage = options.readAssignmentReportPage;
@@ -4016,11 +4030,17 @@ class BotRuntimeImplementation implements BotRuntime {
     const parts = [
       `[Human DM]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${text}`,
     ];
-    if (message.voiceCall !== undefined)
+    if (message.voiceCall !== undefined) {
       parts.push(
         `[Voice call ${message.voiceCall.callId}] ${this.#promptText(botSlug)('voice-call-hint')}`,
       );
-    else {
+      const visual = callVisualNote(
+        channelId,
+        message,
+        this.#promptText(botSlug)('voice-call-visual-hint'),
+      );
+      if (visual !== undefined) parts.push(visual);
+    } else {
       const call = this.#lastCallNote(channelId, messageId);
       if (call !== undefined) parts.push(call);
     }
@@ -7373,6 +7393,28 @@ class BotRuntimeImplementation implements BotRuntime {
             attachVoice: (input: { channelId: string; messageId: string; signal?: AbortSignal }) =>
               this.#voiceMessages!.attach({ botSlug, ...input }),
           }),
+      ...(this.#callFrames === undefined
+        ? {}
+        : {
+            callFrame: (input: { channelId?: string; messageId: string; cell: number }) => {
+              const channel = resolve(input.channelId);
+              const message = this.#channels.message(channel.id, input.messageId);
+              if (message === undefined)
+                throw new Error(`Channel message not found: ${input.messageId}`);
+              if (
+                message.voiceCallRecord?.state !== 'frames' &&
+                (message.voiceCall?.visual === undefined || 'sameAs' in message.voiceCall.visual)
+              )
+                throw new Error(
+                  `Message ${input.messageId} carries no call grid; use the message the grid is attached to.`,
+                );
+              return this.#callFrames!.zoom({
+                slug: botSlug,
+                messageId: input.messageId,
+                cell: input.cell,
+              });
+            },
+          }),
       leaveGroup: (input) => {
         requireOrdinaryGroupActor();
         const channel = this.#channels.get(input.channelId);
@@ -10199,4 +10241,28 @@ class BotRuntimeImplementation implements BotRuntime {
 
 export function createBotRuntime(options: BotRuntimeOptions): BotRuntime {
   return new BotRuntimeImplementation(options);
+}
+
+export function callVisualNote(
+  channelId: string,
+  message: ChannelMessage,
+  hint: string,
+): string | undefined {
+  const visual = message.voiceCall?.visual;
+  if (visual === undefined) return undefined;
+  const records =
+    visual.records === undefined
+      ? ''
+      : ` Before this message, while the Human was silent, the call saved ${visual.records.length === 1 ? 'one frame record' : `${visual.records.length} frame records`} in this DM (message ${visual.records.join(', ')}), oldest first; each carries a grid image you can open with channel_read_image to follow what happened.`;
+  if ('sameAs' in visual)
+    return `[Call ${visual.source} view] Nothing changed in the Human's ${visual.source} since message ${visual.sameAs}; that message's image is still what they see.${records}`;
+  const what =
+    visual.frames === 1 ? 'one keyframe' : `a ${visual.layout} grid of ${visual.frames} keyframes`;
+  if (visual.unseen === true)
+    return `[Call ${visual.source} view] The Human is sharing their ${visual.source}, and this message keeps ${what} for the DM history, but your current model cannot read images, so do not open it. If they ask about what they are showing, tell them you cannot see it with this model and ask them to describe it.`;
+  if (visual.unsaved === true)
+    return `[Call ${visual.source} view] The Human turned off saving call frames, so this message carries no image. To see ${what} from their ${visual.source} for this message, call call_frame with channel_id ${channelId}, message_id ${message.id} and cell 0; it is kept only during the call.${records} ${hint}`;
+  const image = message.attachments?.find((ref) => ref.mime === 'image/jpeg');
+  if (image === undefined) return undefined;
+  return `[Call ${visual.source} view] This message carries ${what} from the Human's ${visual.source}: channel_read_image with channel_id ${channelId}, message_id ${message.id} and attachment_id ${attachmentIdentity(image)}.${records} ${hint}`;
 }

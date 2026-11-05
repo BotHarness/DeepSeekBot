@@ -60,3 +60,29 @@ it('shows the start time and the call length in the bubble and the chat preview'
   const start = parseChannelMessage(started)!.voiceCallRecord!;
   expect(voiceCallRecordText(start, zhTranslate)).toMatch(/^语音通话开始 · 开始于 \d{2}:\d{2}$/u);
 });
+
+it('shows a silent frame record with its source, time range and keyframe count', () => {
+  const frames = parseChannelMessage({
+    ...base,
+    id: 'voice-call-frames-call-0123456789abcdef-40000',
+    body: 'Screen record.',
+    voiceCallRecord: {
+      callId: 'call-0123456789abcdef',
+      botSlug: 'mira',
+      state: 'frames',
+      startedAt: '2026-11-04T10:00:00.000Z',
+      source: 'screen',
+      frames: 16,
+      layout: '4x4',
+      fromMs: 12_000,
+      toMs: 40_000,
+    },
+  })!.voiceCallRecord!;
+  expect(voiceCallRecordText(frames, zhTranslate)).toBe(
+    '你沉默时的屏幕画面 · 0:12–0:40 · 16 个关键帧',
+  );
+  const html = renderToStaticMarkup(
+    <VoiceCallRecordBubble messageId="m" record={frames} t={zhTranslate} />,
+  );
+  expect(html).toContain('data-state="frames"');
+});
