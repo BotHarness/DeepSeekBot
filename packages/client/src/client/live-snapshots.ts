@@ -75,7 +75,7 @@ export const CHANNEL_REMOTE_DESCRIPTOR = Object.freeze({
       source: 'json' as const,
       codec: strict(
         'a page size',
-        (value): value is number => Number.isSafeInteger(value) && (value as number) >= 1,
+        (value): value is number => Number.isSafeInteger(value) && (value as number) >= 0,
       ),
     }),
     Object.freeze({

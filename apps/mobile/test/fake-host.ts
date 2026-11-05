@@ -150,6 +150,8 @@ export class FakeHost {
   olderHost = false;
   changes = true;
   refusesEmptyPage = false;
+  changesFail = false;
+  changesStall = false;
   readonly log = new ChangeLog();
   deviceSnapshot: unknown;
   private sockets = new Set<Socket>();
@@ -371,9 +373,20 @@ export class FakeHost {
     if (method === 'channelChanges')
       return (args) => {
         if (!this.changes) throw Object.assign(new Error('Unknown method'), { code: 'not-found' });
+        if (this.changesFail) throw new Error('Host busy');
         const channel = this.channels.get(String(args['channelId']));
         if (channel === undefined) throw new Error('Unknown Channel');
         const since = args['sinceSeq'] as number;
+        if (this.changesStall)
+          return {
+            upserts: [],
+            tombstones: [],
+            removed: [],
+            channelChanged: false,
+            readChanged: false,
+            cursor: { epoch: this.log.epoch, seq: since },
+            hasMore: true,
+          };
         const cursor = { epoch: this.log.epoch, seq: this.log.seq };
         if (args['epoch'] !== this.log.epoch || since < this.log.floor || since > cursor.seq)
           return { reset: true, cursor };

@@ -165,6 +165,32 @@ describe('opening a cached conversation with a change cursor', () => {
     await until(again, (s) => s.messages.some((m) => m.id === 'm8'));
   });
 
+  it('reloads the tail when pulling changes fails', async () => {
+    const host = new FakeHost();
+    const { channel, cache } = await warm(host);
+    channel.edit('m2', { body: 'edited while away' });
+    host.changesFail = true;
+    const again = open(host, cache);
+    await until(
+      again,
+      (s) => s.status === 'live' && !s.fromCache && bodies(s)['m2'] === 'edited while away',
+    );
+  });
+
+  it('reloads the tail and drops the cursor when changes never finish paging', async () => {
+    const host = new FakeHost();
+    const { channel, cache } = await warm(host);
+    channel.edit('m2', { body: 'edited while away' });
+    host.changesStall = true;
+    const again = open(host, cache);
+    await until(
+      again,
+      (s) => s.status === 'live' && !s.fromCache && bodies(s)['m2'] === 'edited while away',
+    );
+    await settled();
+    expect([...cache.store.values()][0]?.changes).toBeUndefined();
+  });
+
   it('falls back to a full page when an older Host refuses a zero page size', async () => {
     const host = new FakeHost();
     const { channel, cache } = await warm(host);

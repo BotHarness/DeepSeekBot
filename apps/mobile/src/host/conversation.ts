@@ -732,6 +732,14 @@ export function createConversation(options: ConversationOptions): Conversation {
     }
   };
 
+  const reloadTail = async (current: number, through: number): Promise<boolean> => {
+    const fresh = await readPage(through, undefined, pageSize);
+    if (current !== session) return false;
+    window = [...fresh.entries];
+    hasOlder = fresh.hasOlder;
+    return true;
+  };
+
   const pullChanges = async (current: number, through: number): Promise<void> => {
     for (let page = 0; page < MAX_CHANGE_PAGES && changeCursor !== undefined; page += 1) {
       const pulled = await changeCall<ChangePull>('channelChanges', {
@@ -739,13 +747,13 @@ export function createConversation(options: ConversationOptions): Conversation {
         sinceSeq: changeCursor.seq,
         epoch: changeCursor.epoch,
       });
-      if (current !== session || pulled === undefined) return;
+      if (current !== session) return;
+      if (pulled === undefined) {
+        await reloadTail(current, through);
+        return;
+      }
       if (pulled.reset) {
-        const fresh = await readPage(through, undefined, pageSize);
-        if (current !== session) return;
-        window = [...fresh.entries];
-        hasOlder = fresh.hasOlder;
-        changeCursor = pulled.cursor;
+        if (await reloadTail(current, through)) changeCursor = pulled.cursor;
         return;
       }
       const tombstones = new Set(pulled.tombstones);
@@ -765,6 +773,9 @@ export function createConversation(options: ConversationOptions): Conversation {
       changeCursor = pulled.cursor;
       if (!pulled.hasMore) return;
     }
+    if (current !== session || changeCursor === undefined) return;
+    changeCursor = undefined;
+    await reloadTail(current, through);
   };
 
   const clearDrafts = (): void => {
@@ -992,7 +1003,10 @@ export function createConversation(options: ConversationOptions): Conversation {
             refollow(current);
             return;
           }
-          if (bareOpen && error.code === 'invalid') {
+          if (
+            bareOpen &&
+            (error.code === 'invalid' || error.code === 'gateway/arguments-invalid')
+          ) {
             changesSupported = false;
             changeCursor = undefined;
             refollow(current);
