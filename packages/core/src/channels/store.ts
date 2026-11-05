@@ -57,6 +57,7 @@ import {
   pageChannelTimeline,
   type ChannelFilesPage,
   type ChannelFilesRequest,
+  type ChangedChannels,
   type ChannelChangeCursor,
   type ChannelChanges,
   type ChannelChangesRequest,
@@ -479,6 +480,7 @@ export interface ChannelStore {
   readHumanFilesPage(id: string, request: ChannelFilesRequest): ChannelFilesPage | undefined;
   readHumanChanges?(id: string, request: ChannelChangesRequest): ChannelChanges | undefined;
   changeCursor?(): ChannelChangeCursor;
+  readChangedChannels?(request: Omit<ChannelChangesRequest, 'limit'>): ChangedChannels;
   recordAttachmentChange?(fileId: string): number;
   rotateChangeEpoch?(): ChannelChangeCursor;
   revision(id: string): number;

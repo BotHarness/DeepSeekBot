@@ -46,6 +46,8 @@ describe('local store', () => {
       'conversation_keys',
       'cursors',
       'gaps',
+      'list_bots',
+      'list_cursor',
       'messages',
     ]);
     expect(await store.get<{ user_version: number }>('pragma user_version')).toEqual({

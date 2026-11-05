@@ -945,6 +945,7 @@ describe('bridge typert service', () => {
       'channelFilesPage',
       'channelChanges',
       'channelChangeCursor',
+      'channelListChanges',
       'followRoster',
       'followActivity',
       'followChannel',
