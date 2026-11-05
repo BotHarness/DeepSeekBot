@@ -108,13 +108,14 @@ const notices = (view: HTMLElement, tone: string) =>
   [...view.querySelectorAll(`[data-testid="notice-${tone}"]`)].map((node) => node.textContent);
 
 describe('Storage settings', () => {
-  it('offers phone media cleanup ages in one action sheet instead of separate rows', async () => {
+  it('deletes phone media older than the chosen age after confirming the files and space', async () => {
     const clearOlder = vi.fn(() => ({ files: 2, bytes: 2048 }));
     const view = await render(
       <StorageSettings
         port={port({
           phone: {
             usage: () => 4096,
+            previewOlder: () => ({ files: 2, bytes: 2048 }),
             clearOlder,
             autoCleanup: () => true,
             setAutoCleanup: vi.fn(),
@@ -123,9 +124,10 @@ describe('Storage settings', () => {
       />,
     );
     await press(view, t.storage.phoneOlderAction);
-    expect(alert.mock.calls.at(-1)![0]).toBe(t.storage.phoneOlder);
     expect(clearOlder).not.toHaveBeenCalled();
-    await choose(t.storage.age['90']);
+    expect(alert.mock.calls.at(-1)![0]).toBe(t.storage.phoneOlderTitle);
+    expect(alert.mock.calls.at(-1)![1]).toBe(t.storage.phoneOlderLead(2, '2.0 KB'));
+    await choose(t.storage.phoneOlderConfirm);
     expect(clearOlder).toHaveBeenCalledWith(90);
     expect(notices(view, 'success')).toContain(t.storage.phoneOlderDone(2, '2.0 KB'));
   });
@@ -175,7 +177,7 @@ describe('Storage settings', () => {
     await choose(t.storage.confirm);
     expect(notices(view, 'danger')).toEqual([t.storage.stale]);
 
-    await press(view, t.storage.imageCache);
+    await press(view, t.storage.imageCacheAction);
     expect(alert.mock.calls.at(-1)![0]).toBe(t.storage.imageCacheConfirmTitle);
     expect(storage.clearImageCache).not.toHaveBeenCalled();
     await choose(t.storage.imageCacheConfirm);

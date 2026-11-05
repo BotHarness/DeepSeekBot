@@ -7,6 +7,7 @@ import {
   clearHostMedia,
   evictMedia,
   mediaUsage,
+  previewMediaEviction,
   setAutoCleanup,
 } from '../../src/host/media-cache';
 import { forgetSharedCopies } from '../../src/host/share-attachment';
@@ -34,6 +35,11 @@ export default function StorageScreen() {
               : {
                   phone: {
                     usage: () => mediaUsage(hostId),
+                    previewOlder: (days: number) =>
+                      previewMediaEviction({
+                        hostId,
+                        olderThan: Date.now() - days * 24 * 60 * 60 * 1000,
+                      }),
                     clearOlder: (days: number) => {
                       const before = mediaUsage(hostId);
                       const files = evictMedia({
