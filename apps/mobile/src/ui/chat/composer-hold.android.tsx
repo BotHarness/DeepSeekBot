@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo, useRef, type ComponentRef } from 'react';
+import { View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { useMounted } from '../mounted';
 
 import type { ComposerHoldProps } from './composer-hold';
 import { voiceGesture } from './dictation';
@@ -13,7 +15,7 @@ export function ComposerHold({ enabled, onStart, onStop, children }: ComposerHol
     holding.current = false;
     latest.current.onStop();
   };
-  useEffect(() => stop, []);
+  const mounted = useMounted<ComponentRef<typeof View>>(() => stop, []);
   const gesture = useMemo(() => {
     const hold = Gesture.LongPress()
       .enabled(enabled)
@@ -27,5 +29,9 @@ export function ComposerHold({ enabled, onStart, onStop, children }: ComposerHol
       .onFinalize(stop);
     return Gesture.Exclusive(hold, Gesture.Native());
   }, [enabled]);
-  return <GestureDetector gesture={gesture}>{children}</GestureDetector>;
+  return (
+    <View ref={mounted} style={{ flex: 1 }}>
+      <GestureDetector gesture={gesture}>{children}</GestureDetector>
+    </View>
+  );
 }

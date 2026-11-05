@@ -1,5 +1,5 @@
 import { TextInput } from '../primitives/system-text';
-import { useEffect, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
+import { useState, type ComponentRef, type ReactNode, type Ref } from 'react';
 import {
   Image,
   Platform,
@@ -222,9 +222,7 @@ export function Composer({
     else pillHeight.value = withSpring(next, spring.spatial.default);
   };
   const listening = dictating(dictation);
-  useEffect(() => {
-    if (!listening) setHeld(false);
-  }, [listening]);
+  if (held && !listening) setHeld(false);
   const actions = composerActions({
     text: value,
     files: files.length,
