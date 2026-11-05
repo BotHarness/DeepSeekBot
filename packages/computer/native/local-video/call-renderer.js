@@ -62,7 +62,10 @@ function withDtx(sdp) {
       const described = new Set();
       const tuned = section.replace(/^a=fmtp:(\d+) ([^\r\n]*)$/gmu, (line, payload, params) => {
         described.add(payload);
-        return opus.has(payload) && !/(?:^|;)\s*usedtx=/u.test(params) ? `${line};usedtx=1` : line;
+        if (!opus.has(payload)) return line;
+        const dtx = /((?:^|;)\s*usedtx=)[^;]*/u;
+        if (!dtx.test(params)) return `${line};usedtx=1`;
+        return `a=fmtp:${payload} ${params.replace(dtx, (_, key) => `${key}1`)}`;
       });
       return tuned.replace(/^a=rtpmap:(\d+) opus\/48000[^\r\n]*$/gimu, (line, payload) =>
         described.has(payload) ? line : `${line}${eol}a=fmtp:${payload} usedtx=1`,

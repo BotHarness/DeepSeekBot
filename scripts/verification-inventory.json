@@ -2475,7 +2475,7 @@
       "behaviors": ["phone.bot-call"],
       "reason": "Real Chromium WebRTC check of the Host call renderer: audio-only offer with Opus DTX, 16 kHz uplink PCM, packets per second while silent and while talking, downlink playback, failed playback, and close after the 15 s reconnect grace.",
       "task": 3400,
-      "sha256": "a00736ce616026cd70e0d6ea354a046922c9de53de362a23056b5d2811d4aefd"
+      "sha256": "158ff3245f56a2e7f8eed3c9155583b21ea58dd7bbb153db38c5c9c326431aae"
     },
     {
       "path": "scripts/e2e-desktop-call.mjs",

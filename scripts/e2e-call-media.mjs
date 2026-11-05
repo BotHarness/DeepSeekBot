@@ -213,21 +213,31 @@ try {
   });
 
   const rate = async (ms) => {
-    const packets = () =>
+    const sent = () =>
       host.evaluate(async () => {
-        const counts = { uplink: 0, downlink: 0 };
+        let uplink = 0;
         for (const report of (await peer.getStats()).values())
           if (report.kind === 'audio' && report.type === 'inbound-rtp')
-            counts.uplink = report.packetsReceived;
-          else if (report.kind === 'audio' && report.type === 'outbound-rtp')
-            counts.downlink = report.packetsSent;
-        return counts;
+            uplink = report.packetsReceived;
+        return { at: performance.now(), uplink };
       });
-    const first = await packets();
+    const received = () =>
+      phone.evaluate(async () => {
+        let downlink = 0;
+        for (const report of (await window.__phone.peer.getStats()).values())
+          if (report.kind === 'audio' && report.type === 'inbound-rtp')
+            downlink = report.packetsReceived;
+        return { at: performance.now(), downlink };
+      });
+    const [hostFirst, phoneFirst] = await Promise.all([sent(), received()]);
     await host.waitForTimeout(ms);
-    const last = await packets();
-    const per = (key) => Number((((last[key] - first[key]) * 1000) / ms).toFixed(1));
-    return { uplink: per('uplink'), downlink: per('downlink') };
+    const [hostLast, phoneLast] = await Promise.all([sent(), received()]);
+    const per = (first, last, key) =>
+      Number((((last[key] - first[key]) * 1000) / (last.at - first.at)).toFixed(1));
+    return {
+      uplink: per(hostFirst, hostLast, 'uplink'),
+      downlink: per(phoneFirst, phoneLast, 'downlink'),
+    };
   };
   await host.evaluate(() => {
     const silent = playContext.createGain();
@@ -256,7 +266,7 @@ try {
   );
   assert.ok(
     quietRate.downlink <= 10,
-    `a silent Host sends DTX packets only (${quietRate.downlink}/s)`,
+    `the phone receives only DTX packets from a silent Host (${quietRate.downlink}/s)`,
   );
   assert.ok(pcmDuringQuiet >= 8, `the Host VAD still gets PCM in DTX gaps (${pcmDuringQuiet}/s)`);
 
