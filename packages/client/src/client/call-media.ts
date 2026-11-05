@@ -1,11 +1,8 @@
 import type { CallClientMedia, CallMediaState } from '../../../core/src/voice/call-client.js';
 
-export const CALL_AUDIO_CONSTRAINTS: MediaTrackConstraints = {
-  echoCancellation: true,
-  noiseSuppression: true,
-  autoGainControl: true,
-  channelCount: 1,
-};
+import { openMicrophone } from './mic-device.js';
+
+export { CALL_AUDIO_CONSTRAINTS } from './mic-device.js';
 
 const GATHER_LIMIT_MS = 4_000;
 const GATHER_SETTLE_MS = 1_000;
@@ -73,7 +70,7 @@ export function createBrowserCallMedia(
       const media = devices();
       if (media?.getUserMedia === undefined) throw new CallMicrophoneError('microphone-missing');
       try {
-        stream = await media.getUserMedia({ audio: CALL_AUDIO_CONSTRAINTS, video: false });
+        stream = (await openMicrophone(media)).stream;
       } catch (error) {
         const name = (error as { name?: unknown } | undefined)?.name;
         throw new CallMicrophoneError(

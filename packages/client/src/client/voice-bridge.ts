@@ -5,11 +5,19 @@ import type {
   AsrProviderView,
   ProviderHealth,
   TtsProviderView,
+  VoiceDefaults,
+  VoiceSpeechThreshold,
 } from '../../../core/src/voice/providers.js';
+import { DEFAULT_SPEECH_DBFS, SPEECH_DBFS_RANGE } from '../../../core/src/voice/vad.js';
 import { BridgeCallError, type BridgeCall } from './bridge.js';
 
 export type {
+  AsrPreset as AsrPresetView,
+  AsrProviderView,
+  PersonaBotAsr as BotAsrView,
   PersonaBotVoice as BotVoiceView,
+  VoiceDefaults as VoiceDefaultsView,
+  VoiceSpeechThreshold as VoiceSpeechThresholdView,
   ProviderHealth as VoiceProviderHealthView,
   TtsPreset as VoicePresetView,
   TtsProviderView as VoiceProviderView,
@@ -18,7 +26,9 @@ export type {
 };
 
 export interface VoiceProviderAddInput {
+  kind?: 'tts' | 'asr';
   preset: string;
+  language?: string;
   name?: string;
   baseUrl?: string;
   model?: string;
@@ -75,6 +85,30 @@ function asrBinding(value: unknown): PersonaBotAsr | null {
   };
 }
 
+function defaultsOf(value: unknown): VoiceDefaults {
+  if (typeof value !== 'object' || value === null) return { tts: null, asr: null };
+  const view = value as Record<string, unknown>;
+  const tts = voice(view['tts'], 'voiceProviders');
+  return {
+    tts: tts === null ? null : { ...tts },
+    asr: asrBinding(view['asr']),
+  };
+}
+
+function thresholdOf(value: unknown): VoiceSpeechThreshold {
+  const view =
+    typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+  const number = (key: string, fallback: number) =>
+    typeof view[key] === 'number' && Number.isFinite(view[key]) ? (view[key] as number) : fallback;
+  return {
+    dbfs: number('dbfs', DEFAULT_SPEECH_DBFS),
+    custom: view['custom'] === true,
+    defaultDbfs: number('defaultDbfs', DEFAULT_SPEECH_DBFS),
+    min: number('min', SPEECH_DBFS_RANGE.min),
+    max: number('max', SPEECH_DBFS_RANGE.max),
+  };
+}
+
 export async function loadVoiceProviders(
   call: BridgeCall,
   slug?: string,
@@ -92,6 +126,8 @@ export async function loadVoiceProviders(
           (entry) => provider(entry, 'voiceProviders') as unknown as AsrProviderView,
         )
       : [],
+    defaults: defaultsOf(view['defaults']),
+    speechThreshold: thresholdOf(view['speechThreshold']),
     ...(bot === undefined || typeof bot['slug'] !== 'string'
       ? {}
       : {
@@ -158,4 +194,35 @@ export async function setBotVoice(
     ...(voiceId === undefined ? {} : { voiceId }),
   });
   return voice(view['voice'], 'botVoiceSet');
+}
+
+export async function setBotAsr(
+  call: BridgeCall,
+  slug: string,
+  providerId: string | null,
+): Promise<PersonaBotAsr | null> {
+  const view = await unwrap(call, 'botAsrSet', { slug, providerId });
+  return asrBinding(view['asr']);
+}
+
+export async function setVoiceDefault(
+  call: BridgeCall,
+  kind: 'tts' | 'asr',
+  providerId: string | null,
+  voiceId?: string,
+): Promise<VoiceDefaults> {
+  const view = await unwrap(call, 'voiceDefaultSet', {
+    kind,
+    providerId,
+    ...(voiceId === undefined ? {} : { voiceId }),
+  });
+  return defaultsOf(view['defaults']);
+}
+
+export async function setSpeechThreshold(
+  call: BridgeCall,
+  dbfs: number | null,
+): Promise<VoiceSpeechThreshold> {
+  const view = await unwrap(call, 'voiceSpeechThresholdSet', { dbfs });
+  return thresholdOf(view['speechThreshold']);
 }

@@ -38,6 +38,8 @@ const controls = () =>
     mute: vi.fn(),
     hangup: vi.fn(),
     choose: vi.fn(async () => null),
+    camera: vi.fn(),
+    flip: vi.fn(),
   }) satisfies CallControls;
 
 describe('call session store (#3468)', () => {
