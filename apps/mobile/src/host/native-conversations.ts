@@ -13,8 +13,18 @@ const local = createLocalConversationCache({
   legacy: { read: nativeConversationCache.read, remove: removeCachedConversation },
 });
 
+const LOCAL_CACHE_WAIT_MS = 5000;
+
 export function conversationCache(): ConversationCache {
   return hostStoreAvailable() ? local : nativeConversationCache;
+}
+
+export function conversationCacheWaitMs(): number | undefined {
+  return hostStoreAvailable() ? LOCAL_CACHE_WAIT_MS : undefined;
+}
+
+export function warmHostConversations(hostId: string): void {
+  if (hostStoreAvailable()) void hostStore(hostId).catch(() => undefined);
 }
 
 export function forgetHostConversations(hostId: string): void {

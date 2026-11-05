@@ -15,8 +15,10 @@ import { hostAvailabilitySource } from './host-availability';
 import { currentHost, selectHost, withHost, withoutHost, type SavedHosts } from './hosts';
 import {
   conversationCache,
+  conversationCacheWaitMs,
   forgetHostConversations,
   pruneHostConversations,
+  warmHostConversations,
 } from './native-conversations';
 import { purgeCaches } from './purge-caches';
 import { watchDisbandedGroups } from './disbanded-groups';
@@ -131,6 +133,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
     telemetry: createConnectionTelemetry(mobileTelemetry, trigger),
   });
   clientHosts.set(client, saved.hostId);
+  warmHostConversations(saved.hostId);
   const inbox = createInbox(client);
   const offInbox = inbox.subscribe(() => {
     reflectInbox(saved.hostId, inbox);
@@ -553,10 +556,13 @@ function conversationFor(
   }
   const existing = byKey.get(key);
   if (existing !== undefined) return existing;
+  const cacheWaitMs = conversationCacheWaitMs();
+  const cacheWait = cacheWaitMs === undefined ? {} : { cacheWaitMs };
   const inner = createConversation({
     host: client,
     ...options,
     cache: conversationCache(),
+    ...cacheWait,
     cacheKey: JSON.stringify(['computer', clientHosts.get(client), key]),
     telemetry: { send: () => mobileTelemetry.send(options.botSlug === undefined ? 'group' : 'dm') },
   });

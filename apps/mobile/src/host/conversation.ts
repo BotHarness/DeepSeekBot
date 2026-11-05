@@ -292,6 +292,7 @@ export interface ConversationOptions {
   cachedEntries?: number;
   messageId?: () => string;
   draftDelayMs?: number;
+  cacheWaitMs?: number;
 }
 
 const MAX_PAGE = 200;
@@ -1186,7 +1187,7 @@ export function createConversation(options: ConversationOptions): Conversation {
         }
         go();
       });
-      setTimeout(go, CACHE_WAIT_MS);
+      setTimeout(go, options.cacheWaitMs ?? CACHE_WAIT_MS);
     },
     stop() {
       running = false;
