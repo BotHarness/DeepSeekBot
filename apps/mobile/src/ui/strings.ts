@@ -2731,7 +2731,7 @@ const zh: typeof en = {
   creationSourceChanged: '所选连接已变更，关闭菜单后重新选择。',
   invitePeople: '邀请成员',
   allEnvironments: '全部',
-  allEnvironmentsRow: '所有环境',
+  allEnvironmentsRow: '全部环境',
   noOnlineChats: '暂无在线聊天',
   activityPartialScope: '当前显示此电脑的活动；云端活动暂不可用。',
   activitySourceUnavailable: '这里暂无活动，在聊天页选择电脑。',
