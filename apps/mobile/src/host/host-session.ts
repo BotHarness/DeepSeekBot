@@ -145,6 +145,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
 
   let connected = false;
   let revoked = false;
+  let disposed = false;
   let avatars: string | undefined;
   let avatarRetryAt = Infinity;
   const disbanded = watchDisbandedGroups();
@@ -182,7 +183,10 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
       void notificationPreferences.retry().catch(() => undefined);
       catchUpHostConversations(
         saved.hostId,
-        (method, args) => client.call(method, args),
+        (method, args) =>
+          disposed
+            ? Promise.reject(new Error('This Computer session has ended.'))
+            : client.call(method, args),
         () =>
           [...(conversations.get(client)?.keys() ?? [])].map((key) =>
             JSON.stringify(['computer', saved.hostId, key]),
@@ -207,6 +211,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   return {
     host: { saved, client, inbox, snapshot: client.getSnapshot(), attention: inbox.getSnapshot() },
     dispose() {
+      disposed = true;
       offInbox();
       offConnection();
       inbox.stop();
